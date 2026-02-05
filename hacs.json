@@ -1,0 +1,9 @@
+{
+  "name": "PadSpan",
+  "content_in_root": false,
+  "domains": [
+    "padspan"
+  ],
+  "country": "CA",
+  "homeassistant": "2024.6.0"
+}

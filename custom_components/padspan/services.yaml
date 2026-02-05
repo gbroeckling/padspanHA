@@ -1,0 +1,9 @@
+start_discovery_session:
+  name: Start discovery session
+  description: Start a guided "walk-to-identify" discovery session (prototype data capture).
+stop_discovery_session:
+  name: Stop discovery session
+  description: Stop discovery and freeze candidate list (prototype).
+clear_seen_devices:
+  name: Clear seen devices
+  description: Clear in-memory seen BLE advertiser set (prototype).

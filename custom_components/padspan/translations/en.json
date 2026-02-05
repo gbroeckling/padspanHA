@@ -1,0 +1,24 @@
+{
+  "title": "PadSpan",
+  "config": {
+    "step": {
+      "user": {
+        "title": "PadSpan",
+        "description": "Prototype BLE integration assistant (advertisements-only).",
+        "data": {
+          "session_duration_s": "Discovery session duration (seconds)"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "PadSpan Options",
+        "data": {
+          "session_duration_s": "Discovery session duration (seconds)"
+        }
+      }
+    }
+  }
+}
