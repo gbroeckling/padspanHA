@@ -1,124 +1,103 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any
+from dataclasses import asdict
+from typing import Any, Optional
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_track_event
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, ATTR_CANDIDATES, ATTR_LAST_SEEN, ATTR_RSSI, ATTR_ADDRESS, ATTR_NAME
-from .coordinator import PadSpanCoordinator
-
-
-@dataclass(frozen=True, kw_only=True)
-class PadSpanSensorDescription(SensorEntityDescription):
-    pass
+from .const import DOMAIN, DEFAULT_NAME
+from .coordinator import PadSpanCoordinator, PadSpanStats
 
 
-SENSORS: tuple[PadSpanSensorDescription, ...] = (
-    PadSpanSensorDescription(
-        key="seen_devices",
-        name="PadSpan Seen Devices",
-        icon="mdi:bluetooth",
-    ),
-    PadSpanSensorDescription(
-        key="last_advertisement",
-        name="PadSpan Last Advertisement",
-        icon="mdi:radio-tower",
-    ),
-    PadSpanSensorDescription(
-        key="discovery_candidates",
-        name="PadSpan Discovery Candidates",
-        icon="mdi:account-search",
-    ),
-)
+DESCRIPTIONS: dict[str, SensorEntityDescription] = {
+    "packets_last_60s": SensorEntityDescription(key="packets_last_60s", name="Packets last 60s", icon="mdi:bluetooth"),
+    "unique_last_60s": SensorEntityDescription(key="unique_last_60s", name="Unique devices last 60s", icon="mdi:bluetooth-connect"),
+    "packets_last_5m": SensorEntityDescription(key="packets_last_5m", name="Packets last 5m", icon="mdi:bluetooth"),
+    "unique_last_5m": SensorEntityDescription(key="unique_last_5m", name="Unique devices last 5m", icon="mdi:bluetooth-connect"),
+    "packets_today": SensorEntityDescription(key="packets_today", name="Packets today", icon="mdi:counter"),
+    "unique_today": SensorEntityDescription(key="unique_today", name="Unique devices today", icon="mdi:counter"),
+}
 
 
-async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: PadSpanCoordinator = hass.data[DOMAIN][entry.entry_id]
+    name = entry.data.get("name", DEFAULT_NAME)
 
-    entities: list[SensorEntity] = []
-    for desc in SENSORS:
-        entities.append(PadSpanSensor(coordinator, entry, desc))
-
+    entities = [
+        PadSpanStatSensor(coordinator, entry, name, DESCRIPTIONS["packets_last_60s"]),
+        PadSpanStatSensor(coordinator, entry, name, DESCRIPTIONS["unique_last_60s"]),
+        PadSpanStatSensor(coordinator, entry, name, DESCRIPTIONS["packets_last_5m"]),
+        PadSpanStatSensor(coordinator, entry, name, DESCRIPTIONS["unique_last_5m"]),
+        PadSpanStatSensor(coordinator, entry, name, DESCRIPTIONS["packets_today"]),
+        PadSpanStatSensor(coordinator, entry, name, DESCRIPTIONS["unique_today"]),
+        PadSpanLastSeenSensor(coordinator, entry, name),
+    ]
     async_add_entities(entities)
 
 
-class PadSpanSensor(SensorEntity):
-    _attr_has_entity_name = True
-
-    def __init__(self, coordinator: PadSpanCoordinator, entry: ConfigEntry, desc: PadSpanSensorDescription):
-        self.coordinator = coordinator
-        self.entry = entry
-        self.entity_description = desc
-        self._attr_unique_id = f"{entry.entry_id}_{desc.key}"
-        self._unsub = None
-
-    async def async_added_to_hass(self) -> None:
-        @callback
-        def _handle(_event):
-            self.async_write_ha_state()
-
-        # Update when coordinator fires
-        self._unsub = self.hass.bus.async_listen("padspan_update", _handle)
+class _PadSpanBase(CoordinatorEntity):
+    def __init__(self, coordinator: PadSpanCoordinator, entry: ConfigEntry, name: str) -> None:
+        super().__init__(coordinator)
+        self._coordinator = coordinator
+        self._entry = entry
+        self._base_name = name
+        self._unsub = self._coordinator.async_add_listener(self._handle_coordinator_update)
 
     async def async_will_remove_from_hass(self) -> None:
         if self._unsub:
             self._unsub()
             self._unsub = None
 
-    @property
-    def native_value(self) -> Any:
-        key = self.entity_description.key
-
-        if key == "seen_devices":
-            return len(self.coordinator.seen)
-
-        if key == "last_advertisement":
-            si = self.coordinator.last_service_info
-            if not si:
-                return None
-            # Keep UI friendly: show name if available, otherwise "BLE advertiser"
-            name = getattr(si, "name", None) or "BLE advertiser"
-            return name
-
-        if key == "discovery_candidates":
-            # show count; details in attributes
-            return len(self.coordinator.discovery_candidates())
-
-        return None
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
-        key = self.entity_description.key
+    def available(self) -> bool:
+        return True
 
-        if key == "last_advertisement":
-            si = self.coordinator.last_service_info
-            if not si:
-                return None
-            return {
-                ATTR_NAME: getattr(si, "name", None),
-                ATTR_ADDRESS: getattr(si, "address", None),
-                ATTR_RSSI: getattr(si, "rssi", None),
-                ATTR_LAST_SEEN: datetime.now(timezone.utc).isoformat(),
-                "manufacturer_data_keys": list(getattr(si, "manufacturer_data", {}).keys()),
-                "service_uuids": list(getattr(si, "service_uuids", []) or []),
-            }
+    @property
+    def device_info(self) -> dict[str, Any]:
+        return {
+            "identifiers": {(DOMAIN, self._entry.entry_id)},
+            "name": self._base_name,
+            "manufacturer": "PadSpan",
+            "model": "PadSpan HA",
+        }
 
-        if key == "discovery_candidates":
-            return {
-                "active": self.coordinator.discovery_active,
-                "started": self.coordinator.discovery_started.isoformat() if self.coordinator.discovery_started else None,
-                "stopped": self.coordinator.discovery_stopped.isoformat() if self.coordinator.discovery_stopped else None,
-                ATTR_CANDIDATES: self.coordinator.discovery_candidates(),
-            }
 
-        return None
+class PadSpanStatSensor(_PadSpanBase, SensorEntity):
+    def __init__(self, coordinator: PadSpanCoordinator, entry: ConfigEntry, name: str, description: SensorEntityDescription) -> None:
+        super().__init__(coordinator, entry, name)
+        self.entity_description = description
+        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        self._attr_name = f"{name} {description.name}"
+
+    @property
+    def native_value(self) -> Optional[int]:
+        s: PadSpanStats = self._coordinator.stats
+        return getattr(s, self.entity_description.key)
+
+
+class PadSpanLastSeenSensor(_PadSpanBase, SensorEntity):
+    def __init__(self, coordinator: PadSpanCoordinator, entry: ConfigEntry, name: str) -> None:
+        super().__init__(coordinator, entry, name)
+        self._attr_unique_id = f"{entry.entry_id}_last_seen"
+        self._attr_name = f"{name} Last seen"
+        self._attr_icon = "mdi:bluetooth-transfer"
+
+    @property
+    def native_value(self) -> Optional[str]:
+        s: PadSpanStats = self._coordinator.stats
+        if not s.last_seen_address:
+            return None
+        rssi = f" rssi={s.last_seen_rssi}" if s.last_seen_rssi is not None else ""
+        nm = f" name={s.last_seen_name}" if s.last_seen_name else ""
+        return f"{s.last_seen_address}{rssi}{nm}"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return asdict(self._coordinator.stats)

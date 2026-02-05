@@ -1,14 +1,19 @@
 {
   "domain": "padspan",
   "name": "PadSpan",
-  "documentation": "https://github.com/yourname/padspan",
-  "version": "0.0.1",
-  "requirements": [],
-  "codeowners": [],
-  "config_flow": true,
-  "dependencies": [
-    "bluetooth"
+  "version": "0.1.0",
+  "documentation": "https://github.com/gbroeckling/padspanHA",
+  "issue_tracker": "https://github.com/gbroeckling/padspanHA/issues",
+  "codeowners": [
+    "@gbroeckling"
   ],
+  "config_flow": true,
+  "single_config_entry": true,
+  "integration_type": "hub",
   "iot_class": "local_push",
-  "integration_type": "hub"
+  "dependencies": [],
+  "requirements": [],
+  "loggers": [
+    "custom_components.padspan"
+  ]
 }

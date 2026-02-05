@@ -1,0 +1,26 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "PadSpan",
+        "description": "Configure PadSpan Bluetooth ingestion.",
+        "data": {
+          "name": "Name",
+          "scanning_mode": "Scanning mode",
+          "manufacturer_id": "Manufacturer ID filter (optional)"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "PadSpan Options",
+        "data": {
+          "scanning_mode": "Scanning mode",
+          "manufacturer_id": "Manufacturer ID filter (optional)"
+        }
+      }
+    }
+  }
+}

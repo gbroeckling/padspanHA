@@ -1,62 +1,57 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable, Optional
 
-from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.components import bluetooth
 
 _LOGGER = logging.getLogger(__name__)
+BleCallback = Callable[[bluetooth.BluetoothServiceInfoBleak, bluetooth.BluetoothChange], None]
 
 
-@dataclass
-class SeenDevice:
-    address: str
-    name: str | None = None
-    last_rssi: int | None = None
-    last_seen: datetime | None = None
-    count: int = 0
-    # simple rolling stats for discovery (prototype)
-    rssi_min: int | None = None
-    rssi_max: int | None = None
-
-    def update(self, name: str | None, rssi: int | None):
-        self.count += 1
-        if name:
-            self.name = name
-        if rssi is not None:
-            self.last_rssi = int(rssi)
-            self.rssi_min = int(rssi) if self.rssi_min is None else min(self.rssi_min, int(rssi))
-            self.rssi_max = int(rssi) if self.rssi_max is None else max(self.rssi_max, int(rssi))
-        self.last_seen = datetime.now(timezone.utc)
-
-
-class BluetoothIngestor:
-    def __init__(self, hass: HomeAssistant, on_update_cb):
+class PadSpanBluetoothIngestor:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        on_advertisement: BleCallback,
+        *,
+        match_dict: Optional[dict[str, Any]] = None,
+        scanning_mode: bluetooth.BluetoothScanningMode = bluetooth.BluetoothScanningMode.ACTIVE,
+    ) -> None:
         self.hass = hass
-        self._unsub = None
-        self.on_update_cb = on_update_cb
+        self._on_advertisement = on_advertisement
+        self._match_dict: dict[str, Any] = match_dict or {}
+        self._scanning_mode = scanning_mode
+        self._unsub: Optional[Callable[[], None]] = None
 
-    async def start(self):
-        @callback
-        def _callback(service_info: bluetooth.BluetoothServiceInfoBleak, change: bluetooth.BluetoothChange):
-            # service_info includes address, name, rssi, manufacturer_data, service_uuids, etc.
-            try:
-                self.on_update_cb(service_info)
-            except Exception:  # pragma: no cover
-                _LOGGER.exception("PadSpan BLE callback error")
-
-        # Listen to all BLE advertisements that HA sees
+    async def start(self) -> None:
+        if self._unsub is not None:
+            return
         self._unsub = bluetooth.async_register_callback(
             self.hass,
-            _callback,
-            bluetooth.BluetoothScanningMode.ACTIVE,
-            bluetooth.BluetoothCallbackMatcher(),
+            self._async_ble_callback,
+            self._match_dict,
+            self._scanning_mode,
         )
+        _LOGGER.debug("PadSpan BLE ingestor started mode=%s", self._scanning_mode)
 
-    async def stop(self):
-        if self._unsub:
+    async def stop(self) -> None:
+        if self._unsub is None:
+            return
+        try:
             self._unsub()
+        finally:
             self._unsub = None
+        _LOGGER.debug("PadSpan BLE ingestor stopped")
+
+    @callback
+    def _async_ble_callback(
+        self,
+        service_info: bluetooth.BluetoothServiceInfoBleak,
+        change: bluetooth.BluetoothChange,
+    ) -> None:
+        try:
+            self._on_advertisement(service_info, change)
+        except Exception:
+            _LOGGER.exception("PadSpan BLE advertisement handler crashed")
