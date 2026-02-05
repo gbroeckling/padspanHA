@@ -1,12 +1,13 @@
 {
-  "title": "PadSpan",
   "config": {
     "step": {
       "user": {
         "title": "PadSpan",
-        "description": "Prototype BLE integration assistant (advertisements-only).",
+        "description": "Configure PadSpan Bluetooth ingestion.",
         "data": {
-          "session_duration_s": "Discovery session duration (seconds)"
+          "name": "Name",
+          "scanning_mode": "Scanning mode",
+          "manufacturer_id": "Manufacturer ID filter (optional)"
         }
       }
     }
@@ -16,7 +17,8 @@
       "init": {
         "title": "PadSpan Options",
         "data": {
-          "session_duration_s": "Discovery session duration (seconds)"
+          "scanning_mode": "Scanning mode",
+          "manufacturer_id": "Manufacturer ID filter (optional)"
         }
       }
     }
