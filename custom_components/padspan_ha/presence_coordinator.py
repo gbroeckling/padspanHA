@@ -863,8 +863,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # ── Pinned beacon room override ──────────────────────────────────
             if key in _pinned:
                 _pin = _pinned[key]
+                obj = dict(obj)  # copy — the snapshot is shared via the TTL cache
                 if _pin["room"]:
-                    obj = dict(obj) if not isinstance(obj, dict) else obj
                     obj["room"] = _pin["room"]
                     self._confirmed_room[key] = _pin["room"]
                 obj["_pinned"] = True

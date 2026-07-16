@@ -36,6 +36,7 @@ The file is organised into logical sections:
 
 import asyncio
 import logging
+import time
 from pathlib import Path
 
 import voluptuous as vol
@@ -463,7 +464,50 @@ _DEFAULT_IBEACON_UUIDS = frozenset({
 # BLE advertisements, device/entity registries, calibration, and object history.
 # Called every 5s by the panel's poll loop and on demand by other handlers.
 
+_SNAPSHOT_CACHE_TTL_S = 2.0
+_DATA_SNAPSHOT_CACHE = "snapshot_cache"
+_DATA_SNAPSHOT_CACHE_LOCK = "snapshot_cache_lock"
+
+
+def _invalidate_snapshot_cache(hass: HomeAssistant) -> None:
+    """Drop the cached live snapshot so the next fetch rebuilds.
+
+    Called by mutating handlers whose effect the panel re-reads immediately
+    (labels, radio areas, settings) — without this, a rename could appear to
+    do nothing until the cache TTL expires.
+    """
+    hass.data.get(DOMAIN, {}).pop(_DATA_SNAPSHOT_CACHE, None)
+
+
 async def _live_snapshot(hass: HomeAssistant) -> dict:
+    """Return the live snapshot, serving a shared cached build when fresh.
+
+    The full pipeline (_build_live_snapshot) is expensive and is invoked by the
+    panel poll (per connected client), the presence coordinator, and several
+    handlers — often within the same second.  A short TTL collapses those into
+    a single build; the lock prevents concurrent duplicate builds.
+
+    IMPORTANT: the returned dict is SHARED between callers.  Treat it as
+    read-only — copy any dict (including the object dicts in objects.list)
+    before mutating it, as ws_live_snapshot does.
+    """
+    dom = hass.data.setdefault(DOMAIN, {})
+    cached = dom.get(_DATA_SNAPSHOT_CACHE)
+    if cached and (time.monotonic() - cached[0]) < _SNAPSHOT_CACHE_TTL_S:
+        return cached[1]
+    lock = dom.get(_DATA_SNAPSHOT_CACHE_LOCK)
+    if lock is None:
+        lock = dom[_DATA_SNAPSHOT_CACHE_LOCK] = asyncio.Lock()
+    async with lock:
+        cached = dom.get(_DATA_SNAPSHOT_CACHE)
+        if cached and (time.monotonic() - cached[0]) < _SNAPSHOT_CACHE_TTL_S:
+            return cached[1]
+        snap = await _build_live_snapshot(hass)
+        dom[_DATA_SNAPSHOT_CACHE] = (time.monotonic(), snap)
+        return snap
+
+
+async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     """Build a comprehensive snapshot of all PadSpan-relevant HA data.
 
     Discovers:
@@ -3164,6 +3208,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                         _toggled_any = True
             except Exception:
                 _LOGGER.debug("Failed to toggle entities for %s", _skey, exc_info=True)
+    _invalidate_snapshot_cache(hass)
     connection.send_result(msg["id"], {"settings": _get_settings(hass)})
 
 
@@ -3326,6 +3371,17 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
       4. Attaches calibration status metadata for the Setup tab
     """
     snap = await _live_snapshot(hass)
+
+    # The snapshot is shared via the TTL cache — shallow-copy the envelope and
+    # the object dicts before the overlays below so mutations never leak into
+    # other callers (notably the presence coordinator's next poll).
+    snap = dict(snap)
+    try:
+        _objs_env = dict(snap.get("objects") or {})
+        _objs_env["list"] = [dict(_o) for _o in (_objs_env.get("list") or [])]
+        snap["objects"] = _objs_env
+    except Exception:
+        pass
 
     # Overlay presence-coordinator smoothed data (x_frac, y_frac,
     # knn_confidence, room, room_confidence) so the UI can show
@@ -4314,6 +4370,7 @@ async def ws_object_label_set(hass: HomeAssistant, connection, msg) -> None:
             f"Label '{label}' is already used by {len(_dup_keys)} other device(s). "
             "Devices sharing a label merge into one HA device — use unique names."
         )
+    _invalidate_snapshot_cache(hass)
     connection.send_result(msg["id"], _result)
 
 
@@ -4421,6 +4478,7 @@ async def ws_object_label_delete(hass: HomeAssistant, connection, msg) -> None:
     except Exception as _dr_err:
         _LOGGER.debug("DeviceRegistry label_delete: %s", _dr_err)
 
+    _invalidate_snapshot_cache(hass)
     connection.send_result(msg["id"], {"ok": True, "address": addr})
 
 
@@ -4515,6 +4573,7 @@ async def ws_objects_clear_history(hass: HomeAssistant, connection, msg) -> None
     await _hist_store.async_save(_save_data)
 
     _LOGGER.info("Object history cleared: removed %d, kept %d tagged", removed, kept)
+    _invalidate_snapshot_cache(hass)
     connection.send_result(msg["id"], {"ok": True, "removed": removed, "kept": kept})
 
 
@@ -4575,6 +4634,7 @@ async def ws_radio_area_set(hass: HomeAssistant, connection, msg) -> None:
     try:
         dr_u = device_registry.async_get(hass)
         dr_u.async_update_device(dev_id, area_id=area_id)
+        _invalidate_snapshot_cache(hass)
         connection.send_result(msg["id"], {"ok": True, "device_id": dev_id, "area_id": area_id, "area_name": area_name or None})
     except Exception as e:
         connection.send_error(msg["id"], "update_failed", str(e)[:500])
@@ -4881,6 +4941,7 @@ async def ws_room_tag_purge_missing(hass: HomeAssistant, connection, msg) -> Non
                 await _settings.async_set(room_tag_map=new_map)
         except Exception as err:
             _LOGGER.exception("Failed to persist purged room_tag_map: %s", err)
+    _invalidate_snapshot_cache(hass)
     connection.send_result(msg["id"], {"removed": removed, "rooms": len(new_map)})
 
 
