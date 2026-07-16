@@ -631,8 +631,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _dom = hass.data.get(DOMAIN, {})
         _tb = _dom.get(DATA_TRACEBACK)
         if _tb is not None:
-            _tb._prune()
-            await _tb._store.async_save({"frames": _tb.frames})
+            await _tb.async_flush()
             _LOGGER.debug("Traceback flushed to disk (%d frames)", len(_tb.frames))
     except Exception as err:
         _LOGGER.debug("Traceback flush error: %s", err)

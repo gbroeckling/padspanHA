@@ -214,6 +214,9 @@ class MockStore:
     async def async_save(self, data: Any) -> None:
         self._data = data
 
+    async def async_remove(self) -> None:
+        self._data = None
+
 
 class MockHass:
     """Minimal stand-in for homeassistant.core.HomeAssistant."""
@@ -222,6 +225,9 @@ class MockHass:
         self._config_path = tmp_path
         self.config = MagicMock()
         self.config.path = lambda *parts: str(tmp_path.joinpath(*parts))
+
+    async def async_add_executor_job(self, func, *args):
+        return func(*args)
 
 
 @pytest.fixture

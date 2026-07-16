@@ -11,15 +11,26 @@ Every ~10 s the snapshot builder appends a compact position record for each
 tracked object (identified or followed).  The store keeps up to 7 days and
 60 480 frames (~10 s interval × 7 days).  Older frames are pruned on save.
 
-Data structure on disk:
-  { "frames": [ {ts, objects: [{k, r, rssi, src}]} ] }
+Persistence is APPEND-ONLY: frames are appended to daily JSONL segment files
+(.storage/padspan_ha.traceback_segments/YYYYMMDD.jsonl).  Each 30 s flush
+writes only the frames recorded since the last flush (a few hundred bytes)
+instead of rewriting the whole multi-MB buffer — the old full-rewrite scheme
+was ~2 880 full writes/day of severe SD-card wear.  Old segments are pruned
+by deleting whole files; the legacy single-blob Store is imported once on
+first load and then removed.
+
+Segment line format (one frame per line):
+  {"ts": ..., "o": [{k, r, rssi, src}]}
 
 Each frame is ~10 s of wall-clock time.  The frontend fetches a time-window
 and animates objects on the 3D map.
 """
 
+import calendar
+import json
 import logging
 import time
+from pathlib import Path
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -28,6 +39,7 @@ from homeassistant.helpers.storage import Store
 _LOGGER = logging.getLogger(__name__)
 
 STORE_KEY = "padspan_ha.traceback"
+SEGMENT_DIR = "padspan_ha.traceback_segments"
 MAX_FRAMES = 60480          # 7 days at ~10 s interval
 MAX_AGE_S = 86400 * 7       # 7 days
 SAVE_INTERVAL_S = 30         # flush to disk every 30 s
@@ -37,18 +49,108 @@ MIN_FRAME_INTERVAL_S = 8     # min gap between recorded frames
 class TracebackStore:
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
-        self._store = Store(hass, 1, STORE_KEY)
+        self._store = Store(hass, 1, STORE_KEY)  # legacy blob, migrated away on load
         self.frames: list[dict[str, Any]] = []
+        self._pending: list[dict[str, Any]] = []   # recorded but not yet on disk
         self._last_save_ts: float = 0
         self._last_frame_ts: float = 0
+        self._seg_dir = Path(hass.config.path(".storage", SEGMENT_DIR))
+
+    @staticmethod
+    def _seg_name(ts: float) -> str:
+        return time.strftime("%Y%m%d", time.gmtime(ts)) + ".jsonl"
+
+    @staticmethod
+    def _seg_day_start(path: Path) -> float | None:
+        """UTC timestamp of the segment file's day, or None if not a segment name."""
+        try:
+            return calendar.timegm(time.strptime(path.stem, "%Y%m%d"))
+        except ValueError:
+            return None
+
+    def _read_segments_sync(self) -> list[dict[str, Any]]:
+        frames: list[dict[str, Any]] = []
+        if not self._seg_dir.is_dir():
+            return frames
+        cutoff = time.time() - MAX_AGE_S
+        for p in sorted(self._seg_dir.glob("*.jsonl")):
+            day = self._seg_day_start(p)
+            if day is None or day + 86400 < cutoff:
+                continue
+            try:
+                with open(p, encoding="utf-8") as fh:
+                    for line in fh:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            f = json.loads(line)
+                        except ValueError:
+                            continue  # torn line from a crash mid-append
+                        if isinstance(f, dict) and f.get("ts"):
+                            frames.append(f)
+            except OSError:
+                continue
+        return frames
+
+    def _append_pending_sync(self, pending: list[dict[str, Any]]) -> None:
+        self._seg_dir.mkdir(parents=True, exist_ok=True)
+        by_file: dict[str, list[dict[str, Any]]] = {}
+        for f in pending:
+            by_file.setdefault(self._seg_name(f.get("ts") or time.time()), []).append(f)
+        for name, fs in by_file.items():
+            with open(self._seg_dir / name, "a", encoding="utf-8") as fh:
+                for f in fs:
+                    fh.write(json.dumps(f, separators=(",", ":")) + "\n")
+
+    def _write_all_segments_sync(self, frames: list[dict[str, Any]]) -> None:
+        """One-time legacy migration: rewrite the full buffer into segments."""
+        self._seg_dir.mkdir(parents=True, exist_ok=True)
+        by_file: dict[str, list[dict[str, Any]]] = {}
+        for f in frames:
+            by_file.setdefault(self._seg_name(f.get("ts") or 0), []).append(f)
+        for name, fs in by_file.items():
+            with open(self._seg_dir / name, "w", encoding="utf-8") as fh:
+                for f in fs:
+                    fh.write(json.dumps(f, separators=(",", ":")) + "\n")
+
+    def _prune_segment_files_sync(self) -> None:
+        if not self._seg_dir.is_dir():
+            return
+        cutoff = time.time() - MAX_AGE_S
+        for p in self._seg_dir.glob("*.jsonl"):
+            day = self._seg_day_start(p)
+            if day is not None and day + 86400 < cutoff:
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
 
     async def async_load(self) -> None:
-        loaded = await self._store.async_load()
-        if isinstance(loaded, dict):
-            self.frames = loaded.get("frames") or []
-        else:
-            self.frames = []
+        legacy = await self._store.async_load()
+        legacy_frames = (legacy.get("frames") or []) if isinstance(legacy, dict) else []
+        seg_frames = await self.hass.async_add_executor_job(self._read_segments_sync)
+        # Merge, deduping by timestamp (overlap only if a past migration was
+        # interrupted between segment write and legacy removal).
+        merged: dict[float, dict[str, Any]] = {}
+        for f in seg_frames + legacy_frames:
+            ts = f.get("ts")
+            if ts:
+                merged[ts] = f
+        self.frames = sorted(merged.values(), key=lambda f: f["ts"])
         self._prune()
+        if legacy_frames:
+            await self.hass.async_add_executor_job(
+                self._write_all_segments_sync, list(self.frames)
+            )
+            try:
+                await self._store.async_remove()
+            except Exception as err:
+                _LOGGER.debug("Legacy traceback store removal failed: %s", err)
+            _LOGGER.info(
+                "TracebackStore migrated %d frames to append-only segments",
+                len(self.frames),
+            )
         self._last_save_ts = time.time()
         _LOGGER.debug("TracebackStore loaded: %d frames", len(self.frames))
 
@@ -121,19 +223,31 @@ class TracebackStore:
         if not compact:
             return
 
-        self.frames.append({
+        frame = {
             "ts": now,
             "o": compact,
-        })
+        }
+        self.frames.append(frame)
+        self._pending.append(frame)
 
     async def async_maybe_save(self) -> None:
-        """Save to disk if enough time has elapsed."""
-        now = time.time()
-        if now - self._last_save_ts < SAVE_INTERVAL_S:
+        """Flush new frames to disk if enough time has elapsed."""
+        if time.time() - self._last_save_ts < SAVE_INTERVAL_S:
             return
+        await self.async_flush()
+
+    async def async_flush(self) -> None:
+        """Append pending frames to their daily segments and prune old files.
+
+        Only the frames recorded since the last flush are written — the
+        existing on-disk history is never rewritten.
+        """
         self._prune()
-        await self._store.async_save({"frames": self.frames})
-        self._last_save_ts = now
+        pending, self._pending = self._pending, []
+        if pending:
+            await self.hass.async_add_executor_job(self._append_pending_sync, pending)
+        await self.hass.async_add_executor_job(self._prune_segment_files_sync)
+        self._last_save_ts = time.time()
 
     def get_frames(
         self,
