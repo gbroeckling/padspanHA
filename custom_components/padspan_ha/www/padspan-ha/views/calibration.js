@@ -17,6 +17,11 @@ const GRID_N    = 10;    // 10×10 coverage grid
 const SIGMA_C   = 1.8;   // Gaussian sigma in cell units
 const POLL_MS   = 1000;  // RSSI poll interval during collection (1s = ~60 samples in 60s)
 
+// Shared stack transform (P2-5); query inherited from our own module URL so
+// the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
+const { makeStackXform, imageAr } =
+  await import(`./stack_transform.js${new URL(import.meta.url).search}`);
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 export function render(ctx) {
   const { el, radioShortId, scannerStatus } = ctx.helpers;
@@ -1609,45 +1614,12 @@ function _tuneTab(ctx, el, cs, calData) {
     return zArr.map(z => { const f = fl.find(x => x.level === z); return f ? (f.name || `L${z}`) : `L${z}`; }).join(" + ");
   };
 
-  // Per-map forward+inverse transforms
-  // NOTE: duplicated from maps.js _mapToWorld/_worldToMap (incl. the raw-affine
-  // `_m` branch used by Point-Align-solved maps) — P2-5 tracks extracting a
-  // shared transform module to end this duplication.
+  // Per-map forward+inverse transforms (shared stack_transform.js module)
   const mapXforms = {};
   for (const m of sorted) {
-    const stk = m.stack || {}, z = stk.z_level || 0, ox = stk.x_offset || 0, oy_ = stk.y_offset || 0, sc = stk.scale || 1.0;
-    const ar = (m.image?.height || 600) / (m.image?.width || 800);
-    const arRef = stk.ref_ar || ar, sxAdj = stk.scale_x_adj || 1.0;
-    const rotRad = (stk.rotation || 0) * Math.PI / 180;
-    const cosR = Math.cos(rotRad), sinR = Math.sin(rotRad);
-    const _m = (stk._m && stk._m.length === 4) ? stk._m : null;
-    const mAr = stk._m_ar || stk.ref_ar || 1;
-    const mDet = _m ? (_m[0] * _m[3] - _m[1] * _m[2]) : 1;
-    mapXforms[m.id] = {
-      z, ox, oy_, sc, arRef, sxAdj, cosR, sinR,
-      mapPt: (px, py) => {
-        if (_m) {
-          const u = px - 0.5, v = py - 0.5;
-          return [_m[0] * u + _m[1] * v + 0.5 + ox, mAr * (_m[2] * u + _m[3] * v + 0.5 + oy_)];
-        }
-        const dx = (px - 0.5) * sc * sxAdj, dy = (py - 0.5) * sc * arRef;
-        const rx = dx * cosR - dy * sinR, ry = dx * sinR + dy * cosR;
-        return [(0.5 + ox) + rx, arRef * (0.5 + oy_) + ry];
-      },
-      invMapPt: (wx, wy) => {
-        if (_m) {
-          if (Math.abs(mDet) < 1e-12) return [0.5, 0.5];
-          const rx0 = wx - 0.5 - ox;
-          const ry0 = wy / mAr - 0.5 - oy_;
-          return [(_m[3] * rx0 - _m[1] * ry0) / mDet + 0.5, (-_m[2] * rx0 + _m[0] * ry0) / mDet + 0.5];
-        }
-        const rx = wx - (0.5 + ox);
-        const ry = wy - arRef * (0.5 + oy_);
-        const dx =  rx * cosR + ry * sinR;
-        const dy = -rx * sinR + ry * cosR;
-        return [dx / (sc * sxAdj) + 0.5, dy / (sc * arRef) + 0.5];
-      },
-    };
+    const stk = m.stack || {};
+    const xf = makeStackXform(stk, imageAr(m));
+    mapXforms[m.id] = { z: stk.z_level || 0, mapPt: xf.mapPt, invMapPt: xf.invMapPt };
   }
 
   // ── Build SVG ───────────────────────────────────────────────────────────────
@@ -1703,15 +1675,7 @@ function _tuneTab(ctx, el, cs, calData) {
       let x0 = Infinity, y0_ = Infinity, x1 = -Infinity, y1_ = -Infinity;
       for (const m of group) {
         const xf = mapXforms[m.id]; if (!xf) continue;
-        const stk = m.stack || {}, ox2 = stk.x_offset || 0, oy2 = stk.y_offset || 0, sc2 = stk.scale || 1.0;
-        const ar2 = (m.image?.height || 600) / (m.image?.width || 800);
-        const arRefBB = stk.ref_ar || ar2, sxAdjBB = stk.scale_x_adj || 1.0;
-        const rot2 = (stk.rotation || 0) * Math.PI / 180;
-        const bbPt = (px, py) => {
-          const dx = (px - 0.5) * sc2 * sxAdjBB, dy = (py - 0.5) * sc2 * arRefBB;
-          const rx = dx * Math.cos(rot2) - dy * Math.sin(rot2), ry = dx * Math.sin(rot2) + dy * Math.cos(rot2);
-          return [(0.5 + ox2) + rx, arRefBB * (0.5 + oy2) + ry];
-        };
+        const bbPt = makeStackXform(m.stack, imageAr(m)).mapPt;
         for (const [cx, cy] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
           const [wx, wy] = bbPt(cx, cy);
           x0 = Math.min(x0, wx); y0_ = Math.min(y0_, wy); x1 = Math.max(x1, wx); y1_ = Math.max(y1_, wy);
@@ -2890,45 +2854,12 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     return zArr.map(z => { const f = fl.find(x => x.level === z); return f ? (f.name || `L${z}`) : `L${z}`; }).join(" + ");
   };
 
-  // Per-map forward+inverse transforms
-  // NOTE: duplicated from maps.js _mapToWorld/_worldToMap (incl. the raw-affine
-  // `_m` branch used by Point-Align-solved maps) — P2-5 tracks extracting a
-  // shared transform module to end this duplication.
+  // Per-map forward+inverse transforms (shared stack_transform.js module)
   const mapXforms = {};
   for (const m of sorted) {
-    const stk = m.stack || {}, z = stk.z_level || 0, ox = stk.x_offset || 0, oy_ = stk.y_offset || 0, sc = stk.scale || 1.0;
-    const ar = (m.image?.height || 600) / (m.image?.width || 800);
-    const arRef = stk.ref_ar || ar, sxAdj = stk.scale_x_adj || 1.0;
-    const rotRad = (stk.rotation || 0) * Math.PI / 180;
-    const cosR = Math.cos(rotRad), sinR = Math.sin(rotRad);
-    const _m = (stk._m && stk._m.length === 4) ? stk._m : null;
-    const mAr = stk._m_ar || stk.ref_ar || 1;
-    const mDet = _m ? (_m[0] * _m[3] - _m[1] * _m[2]) : 1;
-    mapXforms[m.id] = {
-      z, ox, oy_, sc, arRef, sxAdj, cosR, sinR,
-      mapPt: (px, py) => {
-        if (_m) {
-          const u = px - 0.5, v = py - 0.5;
-          return [_m[0] * u + _m[1] * v + 0.5 + ox, mAr * (_m[2] * u + _m[3] * v + 0.5 + oy_)];
-        }
-        const dx = (px - 0.5) * sc * sxAdj, dy = (py - 0.5) * sc * arRef;
-        const rx = dx * cosR - dy * sinR, ry = dx * sinR + dy * cosR;
-        return [(0.5 + ox) + rx, arRef * (0.5 + oy_) + ry];
-      },
-      invMapPt: (wx, wy) => {
-        if (_m) {
-          if (Math.abs(mDet) < 1e-12) return [0.5, 0.5];
-          const rx0 = wx - 0.5 - ox;
-          const ry0 = wy / mAr - 0.5 - oy_;
-          return [(_m[3] * rx0 - _m[1] * ry0) / mDet + 0.5, (-_m[2] * rx0 + _m[0] * ry0) / mDet + 0.5];
-        }
-        const rx = wx - (0.5 + ox);
-        const ry = wy - arRef * (0.5 + oy_);
-        const dx =  rx * cosR + ry * sinR;
-        const dy = -rx * sinR + ry * cosR;
-        return [dx / (sc * sxAdj) + 0.5, dy / (sc * arRef) + 0.5];
-      },
-    };
+    const stk = m.stack || {};
+    const xf = makeStackXform(stk, imageAr(m));
+    mapXforms[m.id] = { z: stk.z_level || 0, mapPt: xf.mapPt, invMapPt: xf.invMapPt };
   }
 
   // ── Build SVG ───────────────────────────────────────────────────────────────
@@ -2984,15 +2915,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       let x0 = Infinity, y0_ = Infinity, x1 = -Infinity, y1_ = -Infinity;
       for (const m of group) {
         const xf = mapXforms[m.id]; if (!xf) continue;
-        const stk = m.stack || {}, ox2 = stk.x_offset || 0, oy2 = stk.y_offset || 0, sc2 = stk.scale || 1.0;
-        const ar2 = (m.image?.height || 600) / (m.image?.width || 800);
-        const arRefBB = stk.ref_ar || ar2, sxAdjBB = stk.scale_x_adj || 1.0;
-        const rot2 = (stk.rotation || 0) * Math.PI / 180;
-        const bbPt = (px, py) => {
-          const dx = (px - 0.5) * sc2 * sxAdjBB, dy = (py - 0.5) * sc2 * arRefBB;
-          const rx = dx * Math.cos(rot2) - dy * Math.sin(rot2), ry = dx * Math.sin(rot2) + dy * Math.cos(rot2);
-          return [(0.5 + ox2) + rx, arRefBB * (0.5 + oy2) + ry];
-        };
+        const bbPt = makeStackXform(m.stack, imageAr(m)).mapPt;
         for (const [cx2, cy2] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
           const [wx, wy] = bbPt(cx2, cy2);
           x0 = Math.min(x0, wx); y0_ = Math.min(y0_, wy); x1 = Math.max(x1, wx); y1_ = Math.max(y1_, wy);

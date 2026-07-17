@@ -15,6 +15,11 @@
 const APP_VERSION = "0.21.0";
 const BUILD_ID = "20260716T151145Z";
 
+// Shared stack transform (P2-5); query inherited from our own module URL so
+// the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
+const { makeStackXform, imageAr } =
+  await import(`./views/stack_transform.js${new URL(import.meta.url).search}`);
+
 // ── DOM helpers ──────────────────────────────────────────────────────────────
 function el(tag, attrs={}, children=[]){
   const n = document.createElement(tag);
@@ -149,15 +154,7 @@ function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap){
     // Bounding box for this group
     let x0=Infinity,y0_=Infinity,x1=-Infinity,y1_=-Infinity;
     for(const m of group){
-      const stk=m.stack||{}, ox=stk.x_offset||0, oy__=stk.y_offset||0, sc=stk.scale||1.0;
-      const ar=(m.image?.height||600)/(m.image?.width||800);
-      const arRefBB=stk.ref_ar||ar, sxAdjBB=stk.scale_x_adj||1.0;
-      const rot=(stk.rotation||0)*Math.PI/180;
-      const bbPt=(px,py)=>{
-        const dx=(px-0.5)*sc*sxAdjBB, dy=(py-0.5)*sc*arRefBB;
-        const rx=dx*Math.cos(rot)-dy*Math.sin(rot), ry=dx*Math.sin(rot)+dy*Math.cos(rot);
-        return[(0.5+ox)+rx, arRefBB*(0.5+oy__)+ry];
-      };
+      const bbPt = makeStackXform(m.stack, imageAr(m)).mapPt;
       for(const [cx,cy] of [[0,0],[1,0],[1,1],[0,1]]){
         const[wx,wy]=bbPt(cx,cy);
         x0=Math.min(x0,wx); y0_=Math.min(y0_,wy); x1=Math.max(x1,wx); y1_=Math.max(y1_,wy);
@@ -177,15 +174,7 @@ function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap){
 
     // Room polygons + room name labels + hexagons
     for(const m of group){
-      const stk=m.stack||{}, ox=stk.x_offset||0, oy__=stk.y_offset||0, sc=stk.scale||1.0;
-      const ar=(m.image?.height||600)/(m.image?.width||800);
-      const rotRad=(stk.rotation||0)*Math.PI/180;
-      const arRef=stk.ref_ar||ar, sxAdj=stk.scale_x_adj||1.0;
-      const mapPt=(px,py)=>{
-        const dx=(px-0.5)*sc*sxAdj, dy=(py-0.5)*sc*arRef;
-        const rx=dx*Math.cos(rotRad)-dy*Math.sin(rotRad), ry=dx*Math.sin(rotRad)+dy*Math.cos(rotRad);
-        return[(0.5+ox)+rx, arRef*(0.5+oy__)+ry];
-      };
+      const mapPt = makeStackXform(m.stack, imageAr(m)).mapPt;
 
       for(const [room,b] of Object.entries(m.room_bounds||{})){
         if(!b) continue;

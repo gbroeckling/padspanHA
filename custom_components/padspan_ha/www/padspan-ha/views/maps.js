@@ -3,6 +3,11 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 
+// Shared stack transform (P2-5); query inherited from our own module URL so
+// the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
+const { makeStackXform, imageAr } =
+  await import(`./stack_transform.js${new URL(import.meta.url).search}`);
+
 // ── Maps View ────────────────────────────────────────────────────────────────
 //
 // This file implements the Maps view — the spatial foundation of PadSpan.
@@ -140,23 +145,8 @@ function _compareAllMaps(ctx, maps, resultDiv) {
   // Compute world-coordinate centroid for each room on each map.
   // World transform: the map's stack alignment (offset, rotation, scale) maps
   // normalised [0,1] map coords into a common world space anchored on the master.
-  const _worldCentroid = (map, cx, cy) => {
-    const stk = map.stack || {};
-    const refAr = stk.ref_ar || ((map.image?.height || 600) / (map.image?.width || 800));
-    const dx = stk.x_offset || 0, dy = stk.y_offset || 0;
-    const u = cx - 0.5, v = cy - 0.5;
-    if (stk._m && stk._m.length === 4) {
-      const wx = stk._m[0] * u + stk._m[1] * v + dx + 0.5;
-      const wy = stk._m[2] * u + stk._m[3] * v + dy + 0.5;
-      return [wx, wy * refAr];
-    }
-    const rot = (stk.rotation || 0) * Math.PI / 180;
-    const sx = (stk.scale || 1) * (stk.scale_x_adj || 1);
-    const sy = stk.scale || 1;
-    const rx = Math.cos(rot) * sx * u - Math.sin(rot) * sy * v * refAr;
-    const ry = Math.sin(rot) * sx * u / refAr + Math.cos(rot) * sy * v;
-    return [rx + dx + 0.5, (ry + dy + 0.5) * refAr];
-  };
+  const _worldCentroid = (map, cx, cy) =>
+    makeStackXform(map.stack, imageAr(map)).mapPt(cx, cy);
 
   // Build {roomName: [{map, wx, wy}]} for all visible maps
   const roomEntries = {};
@@ -581,41 +571,9 @@ function _deleteMapModal(ctx, srcMap, allMaps){
     const srcStk = srcMap.stack || {};
     const tgtStk = tgt.stack || {};
     // Map-local (0–1) → world (shared coordinate space via stack transform)
-    const _mapToWorld = (px, py, stk) => {
-      const ox = stk.x_offset||0, oy = stk.y_offset||0;
-      if (stk._m && stk._m.length === 4) {
-        // Raw affine matrix: world = (M * (p - 0.5) + 0.5 + offset) with y scaled by ar
-        // to match the anisotropic world space used by the decomposed path.
-        const u = px - 0.5, v = py - 0.5;
-        const ar = stk._m_ar || stk.ref_ar || 1;
-        const rx = stk._m[0]*u + stk._m[1]*v + 0.5 + ox;
-        const ry = stk._m[2]*u + stk._m[3]*v + 0.5 + oy;
-        return [rx, ar * ry];
-      }
-      const sc = stk.scale||1, sx = stk.scale_x_adj||1, ar = stk.ref_ar||1;
-      const r = (stk.rotation||0)*Math.PI/180;
-      const dx=(px-0.5)*sc*sx, dy=(py-0.5)*sc*ar;
-      return [(0.5+ox)+dx*Math.cos(r)-dy*Math.sin(r), ar*(0.5+oy)+dx*Math.sin(r)+dy*Math.cos(r)];
-    };
+    const _mapToWorld = (px, py, stk) => makeStackXform(stk).mapPt(px, py);
     // World → map-local (inverse of _mapToWorld)
-    const _worldToMap = (wx, wy, stk) => {
-      const ox = stk.x_offset||0, oy = stk.y_offset||0;
-      if (stk._m && stk._m.length === 4) {
-        // Inverse of: world_x = M_x(p) + 0.5 + ox, world_y = ar * (M_y(p) + 0.5 + oy)
-        const ar = stk._m_ar || stk.ref_ar || 1;
-        const rx = wx - 0.5 - ox;
-        const ry = wy / ar - 0.5 - oy; // undo AR scaling
-        const det = stk._m[0]*stk._m[3] - stk._m[1]*stk._m[2];
-        if (Math.abs(det) < 1e-12) return [0.5, 0.5];
-        return [(stk._m[3]*rx - stk._m[1]*ry)/det + 0.5, (-stk._m[2]*rx + stk._m[0]*ry)/det + 0.5];
-      }
-      const sc = stk.scale||1, sx = stk.scale_x_adj||1, ar = stk.ref_ar||1;
-      const r = (stk.rotation||0)*Math.PI/180;
-      const rx2=wx-(0.5+ox), ry2=wy-ar*(0.5+oy);
-      const dx2=rx2*Math.cos(-r)-ry2*Math.sin(-r);
-      const dy2=rx2*Math.sin(-r)+ry2*Math.cos(-r);
-      return [dx2/(sc*sx||1e-9)+0.5, dy2/(sc*ar||1e-9)+0.5];
-    };
+    const _worldToMap = (wx, wy, stk) => makeStackXform(stk).invMapPt(wx, wy);
 
     let hasOutOfBounds = false;
     const allPts = [];
@@ -5676,12 +5634,7 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
   for(const m of visMaps){
     if(_isOutsideMap(m)) continue;
     const z = m.stack?.z_level ?? 0;
-    const stk=m.stack||{}, ox=stk.x_offset||0, oy_=stk.y_offset||0, sc=stk.scale||1.0;
-    const sxAdj=stk.scale_x_adj||1.0, ar=(m.image?.height||600)/(m.image?.width||800);
-    const arRef=stk.ref_ar||ar, rot=(stk.rotation||0)*Math.PI/180;
-    const bbPt = (stk._m && stk._m.length === 4)
-      ? (px,py)=>{const u=px-0.5,v=py-0.5;return[stk._m[0]*u+stk._m[1]*v+0.5+ox, arRef*(stk._m[2]*u+stk._m[3]*v+0.5+oy_)];}
-      : (px,py)=>{const dx=(px-0.5)*sc*sxAdj,dy=(py-0.5)*sc*arRef,rx=dx*Math.cos(rot)-dy*Math.sin(rot),ry=dx*Math.sin(rot)+dy*Math.cos(rot);return[(0.5+ox)+rx,arRef*(0.5+oy_)+ry];};
+    const bbPt = makeStackXform(m.stack, imageAr(m)).mapPt;
     if(!_indoorBBByLevel.has(z)) _indoorBBByLevel.set(z,{minX:Infinity,minY:Infinity,maxX:-Infinity,maxY:-Infinity});
     const bb=_indoorBBByLevel.get(z);
     for(const [cx,cy] of [[0,0],[1,0],[1,1],[0,1]]){const[wx,wy]=bbPt(cx,cy);bb.minX=Math.min(bb.minX,wx);bb.minY=Math.min(bb.minY,wy);bb.maxX=Math.max(bb.maxX,wx);bb.maxY=Math.max(bb.maxY,wy);}
@@ -5727,19 +5680,7 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
     const outsideGroup = group.filter(m => _isOutsideMap(m));
     let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
     for(const m of indoorGroup){
-      const stk=m.stack||{}, ox=stk.x_offset||0, oy_=stk.y_offset||0;
-      const sc = stk.scale||1.0;
-      const sxAdj = stk.scale_x_adj || 1.0;
-      const ar=(m.image?.height||600)/(m.image?.width||800);
-      const arRef = stk.ref_ar || ar;
-      const rot=(stk.rotation||0)*Math.PI/180;
-      const bbPt = (stk._m && stk._m.length === 4)
-        ? (px,py)=>{const u=px-0.5,v=py-0.5;return[stk._m[0]*u+stk._m[1]*v+0.5+ox, arRef*(stk._m[2]*u+stk._m[3]*v+0.5+oy_)];}
-        : (px,py)=>{
-          const dx=(px-0.5)*sc*sxAdj, dy=(py-0.5)*sc*arRef;
-          const rx=dx*Math.cos(rot)-dy*Math.sin(rot), ry=dx*Math.sin(rot)+dy*Math.cos(rot);
-          return [(0.5+ox)+rx, arRef*(0.5+oy_)+ry];
-        };
+      const bbPt = makeStackXform(m.stack, imageAr(m)).mapPt;
       for(const [cx,cy] of [[0,0],[1,0],[1,1],[0,1]]){
         const [wx,wy]=bbPt(cx,cy);
         minX=Math.min(minX,wx); minY=Math.min(minY,wy);
@@ -5777,18 +5718,7 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
           return [minX + px * (maxX - minX), minY + py * (maxY - minY)];
         };
       } else {
-        const ox=stk.x_offset||0, oy_=stk.y_offset||0, sc=stk.scale||1.0;
-        const sxAdj = stk.scale_x_adj || 1.0;
-        const ar=(m.image?.height||600)/(m.image?.width||800);
-        const arRef = stk.ref_ar || ar;
-        const rotRad = (stk.rotation||0) * Math.PI / 180;
-        // Matches CSS transform: scale(sc*sxAdj, sc) with transform-origin:50% 50%
-        mapPt = (px,py) => {
-          const dx=(px-0.5)*sc*sxAdj, dy=(py-0.5)*sc*arRef;
-          const rx=dx*Math.cos(rotRad)-dy*Math.sin(rotRad);
-          const ry=dx*Math.sin(rotRad)+dy*Math.cos(rotRad);
-          return [(0.5+ox)+rx, arRef*(0.5+oy_)+ry];
-        };
+        mapPt = makeStackXform(stk, imageAr(m)).mapPt;
       }
 
       for(const [room, b] of Object.entries(m.room_bounds||{})){

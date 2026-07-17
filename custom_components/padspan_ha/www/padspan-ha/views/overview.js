@@ -2,6 +2,12 @@
 // Copyright (C) 2026 Garry Broeckling
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
+
+// Shared stack transform (P2-5); query inherited from our own module URL so
+// the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
+const { makeStackXform, imageAr } =
+  await import(`./stack_transform.js${new URL(import.meta.url).search}`);
+
 /**
  * Overview — "control tower" dashboard
  *
@@ -604,24 +610,7 @@ export function render(ctx){
     // Build transforms for ALL visible maps (not just renderMaps) so the
     // heatmap can include adjacent-floor calibration data for cross-floor bleed.
     for (const m of visible) {
-      const stk = m.stack || {};
-      const ox = stk.x_offset || 0, oy = stk.y_offset || 0, sc = stk.scale || 1.0;
-      const ar = (m.image?.height || 600) / (m.image?.width || 800);
-      const arRef = stk.ref_ar || ar, sxAdj = stk.scale_x_adj || 1.0;
-      const rot = (stk.rotation || 0) * Math.PI / 180;
-      if (stk._m && stk._m.length === 4) {
-        _mapPts[m.id] = (px, py) => {
-          const u = px - 0.5, v = py - 0.5;
-          return [stk._m[0]*u + stk._m[1]*v + 0.5 + ox, arRef*(stk._m[2]*u + stk._m[3]*v + 0.5 + oy)];
-        };
-      } else {
-        _mapPts[m.id] = (px, py) => {
-          const dx = (px - 0.5) * sc * sxAdj, dy = (py - 0.5) * sc * arRef;
-          const rx = dx * Math.cos(rot) - dy * Math.sin(rot);
-          const ry = dx * Math.sin(rot) + dy * Math.cos(rot);
-          return [(0.5 + ox) + rx, arRef * (0.5 + oy) + ry];
-        };
-      }
+      _mapPts[m.id] = makeStackXform(m.stack, imageAr(m)).mapPt;
     }
 
     // ── Compute world bounding box of all floor maps ─────────────────────
@@ -1470,11 +1459,7 @@ export function render(ctx){
     let _indoorBB = {minX:Infinity,minY:Infinity,maxX:-Infinity,maxY:-Infinity};
     for(const m of maps_list){
       if(_isOutMap(m)) continue;
-      const stk=m.stack||{}, ox=stk.x_offset||0, oy_=stk.y_offset||0, sc=stk.scale||1.0;
-      const ar=(m.image?.height||600)/(m.image?.width||800);
-      const arRef=stk.ref_ar||ar, sxAdj=stk.scale_x_adj||1.0;
-      const rot=(stk.rotation||0)*Math.PI/180;
-      const bbPt=(stk._m&&stk._m.length===4)?(px,py)=>{const u=px-0.5,v=py-0.5;return[stk._m[0]*u+stk._m[1]*v+0.5+ox,arRef*(stk._m[2]*u+stk._m[3]*v+0.5+oy_)];}:(px,py)=>{const dx=(px-0.5)*sc*sxAdj,dy=(py-0.5)*sc*arRef,rx=dx*Math.cos(rot)-dy*Math.sin(rot),ry=dx*Math.sin(rot)+dy*Math.cos(rot);return[(0.5+ox)+rx,arRef*(0.5+oy_)+ry];};
+      const bbPt = makeStackXform(m.stack, imageAr(m)).mapPt;
       for(const [cx,cy] of [[0,0],[1,0],[1,1],[0,1]]){const[wx,wy]=bbPt(cx,cy);_indoorBB.minX=Math.min(_indoorBB.minX,wx);_indoorBB.minY=Math.min(_indoorBB.minY,wy);_indoorBB.maxX=Math.max(_indoorBB.maxX,wx);_indoorBB.maxY=Math.max(_indoorBB.maxY,wy);}
     }
     if(!isFinite(_indoorBB.minX)){_indoorBB={minX:0,minY:0,maxX:1,maxY:0.75};}
@@ -1488,19 +1473,7 @@ export function render(ctx){
           return[_indoorBB.minX+px*(_indoorBB.maxX-_indoorBB.minX), _indoorBB.minY+py*(_indoorBB.maxY-_indoorBB.minY)];
         }};
       } else {
-        const ox=stk.x_offset||0, oy_=stk.y_offset||0, sc=stk.scale||1.0;
-        const ar=(m.image?.height||600)/(m.image?.width||800);
-        const arRefT=stk.ref_ar||ar, sxAdjT=stk.scale_x_adj||1.0;
-        const rotRad=(stk.rotation||0)*Math.PI/180;
-        const _mPt = (stk._m && stk._m.length === 4)
-          ? (px,py)=>{ const u=px-0.5,v=py-0.5; return[stk._m[0]*u+stk._m[1]*v+0.5+ox, arRefT*(stk._m[2]*u+stk._m[3]*v+0.5+oy_)]; }
-          : (px,py)=>{
-              const dx=(px-0.5)*sc*sxAdjT, dy=(py-0.5)*sc*arRefT;
-              const rx=dx*Math.cos(rotRad)-dy*Math.sin(rotRad);
-              const ry=dx*Math.sin(rotRad)+dy*Math.cos(rotRad);
-              return[(0.5+ox)+rx, arRefT*(0.5+oy_)+ry];
-            };
-        mapTransforms[m.id]={z, mapPt: _mPt};
+        mapTransforms[m.id]={z, mapPt: makeStackXform(stk, imageAr(m)).mapPt};
       }
     }
     _rebuildPositions();
@@ -1720,11 +1693,7 @@ export function render(ctx){
         let x0=Infinity,y0_=Infinity,x1=-Infinity,y1_=-Infinity;
         for(const m of group){
           if(_isOutMap(m)) continue;
-          const stk=m.stack||{}, ox=stk.x_offset||0, oy__=stk.y_offset||0, sc=stk.scale||1.0;
-          const ar=(m.image?.height||600)/(m.image?.width||800);
-          const arRefBB=stk.ref_ar||ar, sxAdjBB=stk.scale_x_adj||1.0;
-          const rot=(stk.rotation||0)*Math.PI/180;
-          const bbPt=(stk._m&&stk._m.length===4)?(px,py)=>{const u=px-0.5,v=py-0.5;return[stk._m[0]*u+stk._m[1]*v+0.5+ox,arRefBB*(stk._m[2]*u+stk._m[3]*v+0.5+oy__)];}:(px,py)=>{const dx=(px-0.5)*sc*sxAdjBB,dy=(py-0.5)*sc*arRefBB,rx=dx*Math.cos(rot)-dy*Math.sin(rot),ry=dx*Math.sin(rot)+dy*Math.cos(rot);return[(0.5+ox)+rx,arRefBB*(0.5+oy__)+ry];};
+          const bbPt = makeStackXform(m.stack, imageAr(m)).mapPt;
           for(const [cx,cy] of [[0,0],[1,0],[1,1],[0,1]]){const[wx,wy]=bbPt(cx,cy);x0=Math.min(x0,wx);y0_=Math.min(y0_,wy);x1=Math.max(x1,wx);y1_=Math.max(y1_,wy);}
         }
         // Level with only outside maps: use global indoor BB
