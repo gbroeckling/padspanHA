@@ -2148,23 +2148,31 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if isinstance(entry, dict) and entry.get("label"):
                     _key_labels[str(k)] = entry["label"]
 
-        # ── Fire HA events for every arrive/depart ───────────────────────
-        # These events can be used as triggers in HA automations.
+        # ── Fire HA events for labelled arrive/depart ────────────────────
+        # These events can be used as triggers in HA automations.  Only
+        # labelled (user-tagged) devices fire: every rotating-MAC rotation in
+        # a busy BLE environment registers as a "new" unlabelled arrival, and
+        # firing those flooded the event bus until subscribers hit HA's
+        # 4096-pending-message limit and were disconnected.  PadSpan's own
+        # automation rules below match on the raw arrived/departed sets, so
+        # rules keyed to an unlabelled device still run.
         for key in arrived:
             label = _key_labels.get(key, "")
+            if not label:
+                continue
             room = (result.get(key) or {}).get("room", "")
             self.hass.bus.async_fire("padspan_device_arrived", {
                 "device_key": key, "label": label, "room": room,
             })
-            if label:
-                _LOGGER.info("Device arrived: %s (%s) in %s", label, key[:30], room)
+            _LOGGER.info("Device arrived: %s (%s) in %s", label, key[:30], room)
         for key in departed:
             label = _key_labels.get(key, "")
+            if not label:
+                continue
             self.hass.bus.async_fire("padspan_device_departed", {
                 "device_key": key, "label": label,
             })
-            if label:
-                _LOGGER.info("Device departed: %s (%s)", label, key[:30])
+            _LOGGER.info("Device departed: %s (%s)", label, key[:30])
 
         # ── Execute PadSpan automation rules ─────────────────────────────
         try:
