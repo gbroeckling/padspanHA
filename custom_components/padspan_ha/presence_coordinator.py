@@ -784,6 +784,15 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # For private_ble, use canonical_id as Kalman state key so all
                 # rotating MACs share one continuous smoothing state.
                 smooth_addr = _rpa_map.get(raw_addr, raw_addr)
+                # If the resolver flapped (canonical <-> raw between polls),
+                # the mapping changes and the old key's Kalman state would be
+                # orphaned forever (eviction only pops the current mapping).
+                # Drop the superseded state; it re-seeds on the next poll.
+                _prev_addr = self._kalman_addr_key.get(key)
+                if _prev_addr and _prev_addr not in (smooth_addr, key):
+                    self._ema_rssi.pop(_prev_addr, None)
+                    self._kalman_p.pop(_prev_addr, None)
+                    self._silence_miss.pop(_prev_addr, None)
                 self._kalman_addr_key[key] = smooth_addr
                 smoothed_room = self._smooth_room(
                     key, smooth_addr, addr_src_rssi, source_to_area,
