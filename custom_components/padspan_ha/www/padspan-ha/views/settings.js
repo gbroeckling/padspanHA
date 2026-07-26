@@ -853,6 +853,49 @@ function _settingsPresence(ctx, el){
     ),
   ]));
 
+  // ── Object History Retention ───────────────────────────────────────────────
+  const HISTORY_DAY_CHOICES = [1, 2, 7, 14];
+  const currentHistDays = (HISTORY_DAY_CHOICES.includes(Number(settings.object_history_days))
+    ? Number(settings.object_history_days) : 1);
+  const _unidentifiedNow = (((ctx.state.live && ctx.state.live.snapshot || {}).objects || {}).summary || {}).unidentified;
+  const histSel = el("select", {
+    style: "width:180px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:6px;padding:4px 8px;font-size:13px",
+  });
+  for (const d of HISTORY_DAY_CHOICES) {
+    const o = el("option", { value: String(d) }, d === 1 ? "1 day (default)" : `${d} days`);
+    if (d === currentHistDays) o.selected = true;
+    histSel.appendChild(o);
+  }
+  const histSaveBtn = el("button", { class: "btn" }, "Save");
+  histSaveBtn.addEventListener("click", async () => {
+    const v = Number(histSel.value);
+    if (!HISTORY_DAY_CHOICES.includes(v)) { ctx.toast("Invalid retention window", true); return; }
+    try {
+      await ctx.actions.settingsSet({ object_history_days: v });
+      ctx.toast(`Object history set to ${v} day${v !== 1 ? "s" : ""}`);
+    } catch(e) { ctx.toast("Failed to save setting", true); }
+  });
+  wrap.appendChild(el("div", { class: "card" }, [
+    el("div", { class: "h2" }, "Object History Retention"),
+    el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
+      "How long a device that you never labelled is kept in history. " +
+      "Labelled and tagged devices are never removed, whatever this is set to. " +
+      "Every rotating-MAC device that passes by becomes a new entry, and the whole " +
+      "history is sent to this panel on every 5s refresh — so longer windows make " +
+      "the panel slower. Raise it only if you need to go back and label something you saw days ago."
+    ),
+    el("div", { style: rowStyle }, [
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Keep unlabelled for"),
+      histSel,
+      histSaveBtn,
+    ]),
+    el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
+      `Current: ${currentHistDays} day${currentHistDays !== 1 ? "s" : ""}. Default: 1 day. ` +
+      (_unidentifiedNow != null ? `Unlabelled devices in history right now: ${_unidentifiedNow}. ` : "") +
+      "Lowering this takes effect on the next refresh; entries past the window are dropped."
+    ),
+  ]));
+
   // ── Away timeout ───────────────────────────────────────────────────────────
   const currentAwayM = (settings.away_timeout_m != null ? Number(settings.away_timeout_m) : 5);
   const awayInp = el("input", {

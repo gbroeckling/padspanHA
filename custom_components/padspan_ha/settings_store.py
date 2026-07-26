@@ -79,6 +79,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # HA's discovered-service-info API.  Essential for passive proxy scanners
     # (Shelly, etc.).  Overrides aggressive_ble_reseed when set.  Default 30s.
     "ble_reseed_interval_s": 30,
+    # How long an object that was never identified is kept in object history.
+    # Tagged/identified objects never expire regardless of this.  The whole
+    # cache ships in every live_snapshot (polled every 5s), so longer windows
+    # cost payload size and poll time: 7 days measured 16.4k objects / 19.5MB
+    # / 2-7s per poll, 1 day 2.8k / 3.8MB / sub-second.  Allowed: 1, 2, 7, 14.
+    "object_history_days": 1,
     # Lights sidebar panel (off by default — requires HA restart to take effect)
     "lights_panel_enabled": False,
     "ha_entity_occupancy_enabled": False,  # expose occupancy estimate sensors to HA

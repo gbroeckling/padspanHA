@@ -81,6 +81,32 @@ _ALL_ADDR_CAP = 96
 _XREF_ADDR_SAMPLE = 8
 
 
+# Retention windows offered for object history, in days.  Anything else the
+# user or a hand-edited settings file supplies falls back to the default.
+_OBJECT_HISTORY_DAY_CHOICES = (1, 2, 7, 14)
+_OBJECT_HISTORY_DAYS_DEFAULT = 1
+
+
+def _object_history_ttl_s(hass) -> int:
+    """Seconds an unidentified object is kept, from the object_history_days setting.
+
+    Identified/tagged objects never expire, so this only bounds anonymous
+    rotating-MAC churn.  Longer windows are paid for on every live_snapshot
+    poll, which is why this is a small fixed set of choices rather than free
+    input — see the retention note in _build_live_snapshot.
+    """
+    days = _OBJECT_HISTORY_DAYS_DEFAULT
+    try:
+        st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        if st:
+            raw = st.get("object_history_days")
+            if raw in _OBJECT_HISTORY_DAY_CHOICES:
+                days = raw
+    except Exception:
+        pass
+    return days * 86400
+
+
 def _capped_mac_history(addrs: list) -> list:
     """De-duplicate, MAC-filter, and cap a rotating-MAC address history.
 
@@ -2396,15 +2422,15 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         #
         # The TTL only governs objects that were never identified — in a busy
         # BLE environment that is passing phones and neighbours' devices, one
-        # new object per MAC rotation.  It was 7 days, which accumulated ~16.4k
-        # objects (16.4k of them unidentified, only ~50 seen in the last five
+        # new object per MAC rotation.  It used to be a hard-coded 7 days,
+        # which accumulated ~16.4k objects (only ~50 seen in the last five
         # minutes).  Since the whole cache ships in every live_snapshot, and
         # the panel polls that every 5s, a week of strangers' phones meant a
         # 19.5MB / 2-7s poll on a 5s interval — polls overlapping and backing
-        # up.  A day still covers "I saw something earlier, let me go label it"
-        # without hoarding a week of one-off strangers.
+        # up.  Now user-selectable (Settings -> Object History): 1 day keeps it
+        # at ~2.8k objects / 3.8MB / sub-second, 14 days is the pack-rat end.
         import time as _time
-        _HISTORY_TTL = 86400        # 24 h for objects that were never identified
+        _HISTORY_TTL = _object_history_ttl_s(hass)
         _SAVE_INTERVAL = 15         # save to disk at most every 15 s
         _now_ts = _time.time()      # real wall-clock time (survives restarts)
 
