@@ -2387,14 +2387,24 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 except Exception:
                     pass
 
-        # ── Persistent object history (7-day rolling, disk-backed) ─────────
+        # ── Persistent object history (rolling, disk-backed) ───────────────
         # WHY: Objects disappear from BLE when out of range or MAC rotates.
         # Without history, they'd vanish from the UI.  This cache preserves
         # every object with all metadata so they reappear with correct labels.
-        # Tagged/identified objects never expire; unidentified expire after 7 days.
+        # Tagged/identified objects NEVER expire, whatever this TTL says.
         # The cache is loaded from disk on first access and saved every 15s.
+        #
+        # The TTL only governs objects that were never identified — in a busy
+        # BLE environment that is passing phones and neighbours' devices, one
+        # new object per MAC rotation.  It was 7 days, which accumulated ~16.4k
+        # objects (16.4k of them unidentified, only ~50 seen in the last five
+        # minutes).  Since the whole cache ships in every live_snapshot, and
+        # the panel polls that every 5s, a week of strangers' phones meant a
+        # 19.5MB / 2-7s poll on a 5s interval — polls overlapping and backing
+        # up.  A day still covers "I saw something earlier, let me go label it"
+        # without hoarding a week of one-off strangers.
         import time as _time
-        _HISTORY_TTL = 604800       # 7 days for unidentified objects
+        _HISTORY_TTL = 86400        # 24 h for objects that were never identified
         _SAVE_INTERVAL = 15         # save to disk at most every 15 s
         _now_ts = _time.time()      # real wall-clock time (survives restarts)
 
