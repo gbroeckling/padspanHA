@@ -69,6 +69,11 @@ _LOGGER = logging.getLogger(__name__)
 # Captures WARNING+ from all padspan_ha loggers so the UI can show them.
 _LOG_BUFFER_SIZE = 500
 
+# Max rotating-MAC addresses retained per tracked object.  Bounds the persisted
+# cache and the live-snapshot payload (an unbounded list reached 42k addresses /
+# ~900KB on a single phone, ballooning the snapshot past the websocket limit).
+_ALL_ADDR_CAP = 96
+
 class _RingLogHandler(logging.Handler):
     """Captures log records into a bounded list for UI display."""
     def __init__(self, maxlen: int = _LOG_BUFFER_SIZE) -> None:
@@ -2378,7 +2383,14 @@ async def _live_snapshot(hass: HomeAssistant) -> dict:
                         )
                         if isinstance(a, str) and len(a) == 17 and a.count(":") == 5
                     ]
-                    obj["all_addresses"] = merged
+                    # Bound the address history.  A rotating-MAC (private_ble/IRK)
+                    # device gains a fresh MAC every ~15 min; without a cap this
+                    # list grew without limit (one phone reached 42k addresses /
+                    # ~900KB), bloating both the persisted cache and the live
+                    # snapshot.  Current-cycle addresses come first, so keeping the
+                    # head retains the freshest rotations; stale MACs no longer
+                    # broadcast anyway, so dropping them is harmless.
+                    obj["all_addresses"] = merged[:_ALL_ADDR_CAP]
             else:
                 obj["_first_seen"] = _now_ts
 
@@ -2434,6 +2446,16 @@ async def _live_snapshot(hass: HomeAssistant) -> dict:
             if not is_identified and stale_s > _HISTORY_TTL:
                 del _cache[key]
                 continue
+            # Heal pre-cap poisoned address histories in place: cache entries
+            # persisted before _ALL_ADDR_CAP existed can carry tens of
+            # thousands of addresses, and resurrection shipped them uncapped —
+            # re-bloating the snapshot the cap was added to shrink.
+            _aa = cached_obj.get("all_addresses")
+            if isinstance(_aa, list) and len(_aa) > _ALL_ADDR_CAP:
+                cached_obj["all_addresses"] = [
+                    a for a in _aa
+                    if isinstance(a, str) and len(a) == 17 and a.count(":") == 5
+                ][:_ALL_ADDR_CAP]
             # Bring it back — compute age_s = original age + time since last seen
             obj_copy = dict(cached_obj)
             base_age = cached_obj.get("_cache_age_s") or 0
@@ -2655,7 +2677,12 @@ async def _live_snapshot(hass: HomeAssistant) -> dict:
                 if _xobj.get("canonical_id"):
                     _ad["_xref"]["canonical_id"] = _xobj["canonical_id"]
                 if _xobj.get("all_addresses"):
-                    _ad["_xref"]["all_addresses"] = _xobj["all_addresses"]
+                    # Ship only a small sample, never the full list.  A rotating-MAC
+                    # phone accumulates thousands of addresses; copying the whole list
+                    # onto every advertisement (1000+ ads) ballooned the live snapshot
+                    # to ~300MB and broke the websocket poll (blank map).  The frontend
+                    # only ever matches on canonical_id, so a capped sample is plenty.
+                    _ad["_xref"]["all_addresses"] = list(_xobj["all_addresses"])[:8]
                 if _xobj.get("ibeacon_uuid"):
                     _ad["_xref"]["ibeacon_uuid"] = _xobj["ibeacon_uuid"]
                     _ad["_xref"]["ibeacon_major"] = _xobj.get("ibeacon_major")
