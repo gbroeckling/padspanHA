@@ -75,6 +75,28 @@ _LOG_BUFFER_SIZE = 500
 # ~900KB on a single phone, ballooning the snapshot past the websocket limit).
 _ALL_ADDR_CAP = 96
 
+# Max addresses copied onto a single advertisement's _xref.  The frontend keys
+# off canonical_id; only a cosmetic detail row ever reads these, so a sample is
+# enough.  Shipping the full list on 1000+ ads grew the snapshot to ~300MB.
+_XREF_ADDR_SAMPLE = 8
+
+
+def _capped_mac_history(addrs: list) -> list:
+    """De-duplicate, MAC-filter, and cap a rotating-MAC address history.
+
+    Order is preserved and callers pass the freshest addresses first, so the
+    retained head is the most recent rotations.  Stale MACs are no longer
+    broadcast, making the dropped tail unreachable anyway.
+
+    The MAC-shape filter also scrubs historic cache entries poisoned with key
+    strings ("ibeacon:...") appended by older merge code.
+    """
+    return [
+        a for a in dict.fromkeys(addrs)
+        if isinstance(a, str) and len(a) == 17 and a.count(":") == 5
+    ][:_ALL_ADDR_CAP]
+
+
 class _RingLogHandler(logging.Handler):
     """Captures log records into a bounded list for UI display."""
     def __init__(self, maxlen: int = _LOG_BUFFER_SIZE) -> None:
@@ -2416,25 +2438,12 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                         obj[fld] = prev_val
                 # Preserve first_seen from history
                 obj["_first_seen"] = prev.get("_first_seen") or _now_ts
-                # Merge all_addresses (accumulate over time).  MAC-shaped
-                # entries only — historic cache entries were poisoned with
-                # key strings ("ibeacon:...") appended by older merge code;
-                # this filter also scrubs them out as the cache refreshes.
+                # Merge all_addresses (accumulate over time).  Current-cycle
+                # addresses go first so the retained head is the freshest.
                 if prev.get("all_addresses") and obj.get("all_addresses"):
-                    merged = [
-                        a for a in dict.fromkeys(
-                            list(obj["all_addresses"]) + list(prev["all_addresses"])
-                        )
-                        if isinstance(a, str) and len(a) == 17 and a.count(":") == 5
-                    ]
-                    # Bound the address history.  A rotating-MAC (private_ble/IRK)
-                    # device gains a fresh MAC every ~15 min; without a cap this
-                    # list grew without limit (one phone reached 42k addresses /
-                    # ~900KB), bloating both the persisted cache and the live
-                    # snapshot.  Current-cycle addresses come first, so keeping the
-                    # head retains the freshest rotations; stale MACs no longer
-                    # broadcast anyway, so dropping them is harmless.
-                    obj["all_addresses"] = merged[:_ALL_ADDR_CAP]
+                    obj["all_addresses"] = _capped_mac_history(
+                        list(obj["all_addresses"]) + list(prev["all_addresses"])
+                    )
             else:
                 obj["_first_seen"] = _now_ts
 
@@ -2496,10 +2505,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             # re-bloating the snapshot the cap was added to shrink.
             _aa = cached_obj.get("all_addresses")
             if isinstance(_aa, list) and len(_aa) > _ALL_ADDR_CAP:
-                cached_obj["all_addresses"] = [
-                    a for a in _aa
-                    if isinstance(a, str) and len(a) == 17 and a.count(":") == 5
-                ][:_ALL_ADDR_CAP]
+                cached_obj["all_addresses"] = _capped_mac_history(_aa)
             # Bring it back — compute age_s = original age + time since last seen
             obj_copy = dict(cached_obj)
             base_age = cached_obj.get("_cache_age_s") or 0
@@ -2721,12 +2727,9 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 if _xobj.get("canonical_id"):
                     _ad["_xref"]["canonical_id"] = _xobj["canonical_id"]
                 if _xobj.get("all_addresses"):
-                    # Ship only a small sample, never the full list.  A rotating-MAC
-                    # phone accumulates thousands of addresses; copying the whole list
-                    # onto every advertisement (1000+ ads) ballooned the live snapshot
-                    # to ~300MB and broke the websocket poll (blank map).  The frontend
-                    # only ever matches on canonical_id, so a capped sample is plenty.
-                    _ad["_xref"]["all_addresses"] = list(_xobj["all_addresses"])[:8]
+                    _ad["_xref"]["all_addresses"] = list(
+                        _xobj["all_addresses"]
+                    )[:_XREF_ADDR_SAMPLE]
                 if _xobj.get("ibeacon_uuid"):
                     _ad["_xref"]["ibeacon_uuid"] = _xobj["ibeacon_uuid"]
                     _ad["_xref"]["ibeacon_major"] = _xobj.get("ibeacon_major")

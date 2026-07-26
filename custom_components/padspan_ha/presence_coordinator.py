@@ -784,16 +784,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # For private_ble, use canonical_id as Kalman state key so all
                 # rotating MACs share one continuous smoothing state.
                 smooth_addr = _rpa_map.get(raw_addr, raw_addr)
-                # If the resolver flapped (canonical <-> raw between polls),
-                # the mapping changes and the old key's Kalman state would be
-                # orphaned forever (eviction only pops the current mapping).
-                # Drop the superseded state; it re-seeds on the next poll.
-                _prev_addr = self._kalman_addr_key.get(key)
-                if _prev_addr and _prev_addr not in (smooth_addr, key):
-                    self._ema_rssi.pop(_prev_addr, None)
-                    self._kalman_p.pop(_prev_addr, None)
-                    self._silence_miss.pop(_prev_addr, None)
-                self._kalman_addr_key[key] = smooth_addr
+                self._rekey_kalman_state(key, smooth_addr)
                 smoothed_room = self._smooth_room(
                     key, smooth_addr, addr_src_rssi, source_to_area,
                     _dyn_vote_window, _dyn_vote_threshold, source_to_floor,
@@ -2116,6 +2107,24 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._ema_rssi.pop(_addr, None)
             self._kalman_p.pop(_addr, None)
             self._silence_miss.pop(_addr, None)
+
+    def _rekey_kalman_state(self, key: str, smooth_addr: str) -> None:
+        """Point an object's Kalman state at ``smooth_addr``, dropping any orphan.
+
+        The RSSI smoothing dicts are keyed by (RPA-resolved) address, not object
+        key, so ``_kalman_addr_key`` records the current mapping.  When the
+        mapping changes — the RPA resolver flaps, or a rotation is seen before
+        the resolver has it and falls back to the raw MAC — the superseded
+        address's entries are unreachable: `_evict_object` only ever pops the
+        *current* mapping, so they would leak for the process lifetime, one per
+        change.  Drop them here; the state re-seeds on the next poll.
+        """
+        prev_addr = self._kalman_addr_key.get(key)
+        if prev_addr and prev_addr not in (smooth_addr, key):
+            self._ema_rssi.pop(prev_addr, None)
+            self._kalman_p.pop(prev_addr, None)
+            self._silence_miss.pop(prev_addr, None)
+        self._kalman_addr_key[key] = smooth_addr
 
     def clear_object_state(self, key: str) -> None:
         """Public API: clear all coordinator state for an object.

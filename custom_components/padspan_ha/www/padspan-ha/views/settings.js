@@ -2111,7 +2111,9 @@ function _settingsPresence(ctx, el){
       el("div",{class:"h2",style:"margin-bottom:4px"},"Automations"),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
         "Simple arrive/depart rules. PadSpan also fires HA events (padspan_device_arrived, " +
-        "padspan_device_departed) so you can build complex automations in HA."),
+        "padspan_device_departed) for labelled devices, so you can build complex automations " +
+        "in HA. Unlabelled devices don't fire events — every rotating-MAC rotation would " +
+        "register as a new arrival and flood the event bus — but the rules above still match them."),
     ];
     if (ruleEls.length) {
       cardChildren.push(el("div",{style:"margin-bottom:10px"}, ruleEls));
