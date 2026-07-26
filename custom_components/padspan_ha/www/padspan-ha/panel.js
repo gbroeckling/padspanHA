@@ -356,8 +356,16 @@ class PadSpanHaApp extends HTMLElement {
       // Deferred views load in background after first paint.
       _criticalPromise.then(() => {
         _startDeferredLoads();
-        this._refreshAll(false);
-        if(this.state.dataMode === "live") this._startPolling();
+        // Keep-alive/watchdog starts immediately so recovery works even if
+        // the first refresh hangs on a dead WS connection.
+        this._startKeepAlive();
+        // Start polling AFTER the first refresh resolves: dataMode comes from
+        // settings fetched inside _refreshAll, so checking it synchronously
+        // here always saw the "sample" default and never started the poll on
+        // first boot (live data only began after a later set-hass re-entry).
+        this._refreshAll(false).finally(() => {
+          if(this.state.dataMode === "live") this._startDataPoll();
+        });
       });
     } else if(hass && prevHass && hass !== prevHass && hass.connection !== prevHass.connection){
       // HA reconnected with a new WS connection (e.g. after network blip) — re-bootstrap
@@ -889,6 +897,16 @@ class PadSpanHaApp extends HTMLElement {
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("poll_timeout")), 15_000));
       await Promise.race([
         (async ()=>{
+          // Heal path: if the boot fetch of the map geometry failed (e.g. the
+          // WS connection died mid-batch), nothing else ever re-fetched it and
+          // the floor plan stayed blank until a manual refresh. Both calls are
+          // tiny; re-fetch whenever the state is still empty.
+          if(!(this.state.maps.list || []).length){
+            await this._getMapsList(false).catch(()=>{});
+          }
+          if(!((this.state.model || {}).floors || []).length){
+            await this._getModel();
+          }
           await this._getLiveSnapshot();
           await this._getStatus();
         })(),
@@ -1108,11 +1126,25 @@ class PadSpanHaApp extends HTMLElement {
     }
   }
 
-  async _getMapsList(){
-    const res = await this._callWS({ type: "padspan_ha/maps_list" });
-    this.state.maps.list = res?.maps || [];
-    if(this.state.activeMapId && !this.state.maps.list.find(m=>m.id===this.state.activeMapId)){
-      this.state.activeMapId = null;
+  async _getMapsList(retry = true){
+    // The floor plan is invisible without this list, so unlike other fetches
+    // a failure here gets one retry, and a failed/malformed response never
+    // clobbers a previously-good list (blank-map prevention).
+    try {
+      const res = await this._callWS({ type: "padspan_ha/maps_list" });
+      if(Array.isArray(res?.maps)){
+        this.state.maps.list = res.maps;
+        if(this.state.activeMapId && !this.state.maps.list.find(m=>m.id===this.state.activeMapId)){
+          this.state.activeMapId = null;
+        }
+      }
+    } catch(e){
+      if(retry){
+        await new Promise(r => setTimeout(r, 1000));
+        return this._getMapsList(false);
+      }
+      console.warn("PadSpan: maps_list failed after retry:", e);
+      throw e;  // let callers (allSettled logging) see the failure
     }
   }
 
@@ -1169,19 +1201,28 @@ class PadSpanHaApp extends HTMLElement {
     const t0 = performance.now();
     if(userAction) this._toast("Refreshing…");
     await Promise.allSettled([this._fetchSettings()]);
+    // Fetch the small critical geometry FIRST, awaited: the floor plan is
+    // unrenderable without maps_list + model, and batching them with the
+    // heavyweight live_snapshot meant a snapshot big enough to kill the WS
+    // connection took the map geometry down with it (blank map on first
+    // entry). These two are tiny; land them before anything heavy runs.
+    const critResults = await Promise.allSettled([
+      this._getMapsList(),
+      this._getModel(),
+    ]);
     // Now run remaining fetches in parallel (dataMode is now correct)
     const results = await Promise.allSettled([
       this._getVersionInfo(),
       this._getStatus(),
       this._getRoomTags(),
       this._getLiveSnapshot(),
-      this._getMapsList(),
-      this._getModel(),
       this._runAutoDiag(false),
       this._loadAlertConfigs(),
     ]);
     // Log any WS failures to console for debugging
-    const names = ["getVersionInfo","getStatus","getRoomTags","getLiveSnapshot","getMapsList","getModel","runAutoDiag","loadAlerts"];
+    const critNames = ["getMapsList","getModel"];
+    critResults.forEach((r,i)=>{ if(r.status==="rejected") console.warn("PadSpan refresh:", critNames[i], "failed:", r.reason); });
+    const names = ["getVersionInfo","getStatus","getRoomTags","getLiveSnapshot","runAutoDiag","loadAlerts"];
     results.forEach((r,i)=>{ if(r.status==="rejected") console.warn("PadSpan refresh:", names[i], "failed:", r.reason); });
     this._recomputeDerived();
     try { this.state.timing.lastRefreshMs = Math.round(performance.now() - t0); } catch(e){}
