@@ -4,6 +4,8 @@
 
 PadSpan™ HA goes far beyond "home or away." It tells you **which room** every Bluetooth device is in — updated every 5 seconds — with interactive floor plans, 3D multi-floor visualizations, a full calibration system, and 22 dedicated views. No other Home Assistant BLE integration comes close.
 
+🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)**
+
 ![3D multi-floor tracking with live RSSI heatmap overlay](images/overview-3d-multifloor.jpg)
 
 ---
