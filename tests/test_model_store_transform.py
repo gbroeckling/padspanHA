@@ -155,15 +155,54 @@ async def test_reference_measurements_survive_recompute(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_non_master_origin_follows_new_extent(tmp_path: Path) -> None:
-    """A non-master map's origin is its stack offset in the NEW metre extent."""
+async def test_crop_is_world_anchored(tmp_path: Path) -> None:
+    """A crop shifts the origin by the cut-off margin so world coords hold.
+
+    The stack-offset origin formula must NOT apply here — fabric data is
+    stored in old world coordinates and the cropped image's frac (0,0) now
+    sits at (fx0·scale_x, fy0·scale_y) in that world.
+    """
     store = _make_store(_MEASURED)
-    m = _map(800, 600, stack={"is_master": False, "x_offset": 0.5, "y_offset": 0.25})
+    m = _map(800, 720, stack={"is_master": False, "x_offset": 0.5, "y_offset": 0.25})
     await store.async_recompute_transform_for_map(
         "m1", m, MagicMock(),
+        crop={"fx0": 0.25, "fy0": 0.2, "fx1": 0.75, "fy1": 0.8},
+    )
+    t = store.data["map_transforms"]["m1"]
+    assert t["origin_x_m"] == pytest.approx(20.0)   # 0.25 * 80
+    assert t["origin_y_m"] == pytest.approx(12.0)   # 0.20 * 60
+
+
+@pytest.mark.asyncio
+async def test_crop_roundtrips_fabric_position(tmp_path: Path) -> None:
+    """A scanner's world position re-derives to the right frac after a trim.
+
+    Regression for the origin bug: with the origin left at (0,0) the pin
+    landed displaced by exactly the cut-off left/top margin.
+    """
+    store = _make_store(_MEASURED)
+    # Scanner at world (30, 15): frac (0.375, 0.25) on the original map.
+    await store.async_recompute_transform_for_map(
+        "m1", _map(800, 720), MagicMock(),
+        crop={"fx0": 0.25, "fy0": 0.2, "fx1": 0.75, "fy1": 0.8},
+    )
+    fx, fy = store.metres_to_map_frac(30.0, 15.0, "m1")
+    # In the cropped image: ((0.375-0.25)/0.5, (0.25-0.2)/0.6)
+    assert fx == pytest.approx(0.25)
+    assert fy == pytest.approx(0.0833, abs=1e-3)
+    # And the inverse agrees.
+    wx, wy = store.map_frac_to_metres(fx, fy, "m1")
+    assert (wx, wy) == (pytest.approx(30.0), pytest.approx(15.0))
+
+
+@pytest.mark.asyncio
+async def test_full_frame_crop_keeps_origin(tmp_path: Path) -> None:
+    """A crop starting at (0,0) leaves the origin where it was."""
+    store = _make_store(_MEASURED)
+    await store.async_recompute_transform_for_map(
+        "m1", _map(800, 600), MagicMock(),
         crop={"fx0": 0.0, "fy0": 0.0, "fx1": 0.5, "fy1": 0.5},
     )
     t = store.data["map_transforms"]["m1"]
-    # New extent is 40m x 30m, so offsets land at 20m / 7.5m.
-    assert t["origin_x_m"] == pytest.approx(20.0)
-    assert t["origin_y_m"] == pytest.approx(7.5)
+    assert t["origin_x_m"] == pytest.approx(0.0)
+    assert t["origin_y_m"] == pytest.approx(0.0)
