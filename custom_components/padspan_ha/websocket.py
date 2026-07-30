@@ -250,6 +250,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     # Phase 2: real-world spatial model commands
     websocket_api.async_register_command(hass, ws_fabric_scanner_position_set)
     websocket_api.async_register_command(hass, ws_fabric_floor_elevations_set)
+    websocket_api.async_register_command(hass, ws_fabric_scanner_z_set)
     websocket_api.async_register_command(hass, ws_fabric_room_geometry_set)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_set)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_remove)
@@ -2933,6 +2934,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("kalman_q"): vol.Coerce(float),
         vol.Optional("kalman_r"): vol.Coerce(float),
         vol.Optional("room_sigma_m"): vol.Coerce(float),
+        vol.Optional("assumed_device_height_m"): vol.Coerce(float),
         vol.Optional("hidden_map_ids"): list,
         vol.Optional("followed_addrs"): list,
         vol.Optional("health_reminder_enabled"): bool,
@@ -3030,6 +3032,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["kalman_r"] = max(0.5, min(50.0, float(msg["kalman_r"])))
         if "room_sigma_m" in msg:
             payload["room_sigma_m"] = max(1.0, min(20.0, float(msg["room_sigma_m"])))
+        if "assumed_device_height_m" in msg:
+            payload["assumed_device_height_m"] = max(0.0, min(3.0, float(msg["assumed_device_height_m"])))
         if "hidden_map_ids" in msg:
             ids = msg["hidden_map_ids"]
             payload["hidden_map_ids"] = [str(x) for x in ids if isinstance(x, str)] if isinstance(ids, list) else []
@@ -8723,6 +8727,27 @@ async def ws_fabric_scanner_position_set(hass: HomeAssistant, connection, msg) -
         origin="manual",
     )
     connection.send_result(msg["id"], {"ok": True, "source": source})
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/fabric_scanner_z_set",
+        "source": str,
+        "z_m": vol.Coerce(float),
+    }
+)
+@websocket_api.async_response
+async def ws_fabric_scanner_z_set(hass: HomeAssistant, connection, msg) -> None:
+    """Set only a scanner's mounting height (z stays through map syncs)."""
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    if not mdl:
+        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        return
+    ok = await mdl.async_set_scanner_z_m((msg.get("source") or "").strip(), float(msg["z_m"]))
+    if not ok:
+        connection.send_error(msg["id"], "not_found", "Scanner has no fabric position yet")
+        return
+    connection.send_result(msg["id"], {"ok": True})
 
 
 @websocket_api.websocket_command(

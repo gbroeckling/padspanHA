@@ -452,14 +452,30 @@ class CalibrationStore:
             scanner_m = self._model.map_frac_to_metres(scanner_x_frac, scanner_y_frac, map_id)
         if scanner_m:
             sx_m, sy_m = scanner_m
+            # 3D fit (issue #54): RSSI measures the slant range, so fit
+            # against it.  Scanner height from the fabric (absolute);
+            # calibration points were walked at carry height on their floor.
+            _sz_abs = None
+            _floor_bases: dict[str, float] = {}
+            _dev_h = 1.0
+            try:
+                _sz_abs = self._model.scanner_absolute_z_m().get(scanner_source)
+                _floor_bases = self._model.floor_base_elevations_m()
+                _st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+                if _st:
+                    _dev_h = max(0.0, min(3.0, float(_st.data.get("assumed_device_height_m", 1.0))))
+            except Exception:
+                pass
             # Metres are map-independent — use all metre points, cross-map.
             for pt in metre_pts:
                 for reading in pt.get("scanner_readings", []):
                     if reading.get("source") != scanner_source:
                         continue
-                    d = math.sqrt(
-                        (float(pt["x_m"]) - sx_m) ** 2 + (float(pt["y_m"]) - sy_m) ** 2
-                    )
+                    d_sq = (float(pt["x_m"]) - sx_m) ** 2 + (float(pt["y_m"]) - sy_m) ** 2
+                    if _sz_abs is not None:
+                        _pt_z = _floor_bases.get(str(pt.get("floor_id") or ""), 0.0) + _dev_h
+                        d_sq += (_sz_abs - _pt_z) ** 2
+                    d = math.sqrt(d_sq)
                     if d < 0.3:   # too close — likely at scanner position itself
                         continue
                     data.append((math.log10(d), reading["mean_rssi"]))

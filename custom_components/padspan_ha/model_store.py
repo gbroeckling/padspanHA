@@ -464,6 +464,18 @@ class ModelStore:
         )
         return [f for _, f in ordered]
 
+    def floor_stack_index(self) -> dict[str, int]:
+        """Return {floor_id: position in the bottom-up stack} (0 = lowest).
+
+        The index difference between two floors is the number of slabs an RF
+        path between them must cross.
+        """
+        return {
+            str(f.get("id")): i
+            for i, f in enumerate(self._ordered_floors())
+            if f.get("id")
+        }
+
     def floor_base_elevations_m(self) -> dict[str, float]:
         """Return {floor_id: absolute height of that floor's walking surface}.
 
@@ -488,6 +500,22 @@ class ModelStore:
             f2f = f.get("floor_to_floor_m")
             running += float(f2f) if isinstance(f2f, (int, float)) and not isinstance(f2f, bool) else DEFAULT_FLOOR_TO_FLOOR_M
         return out
+
+    async def async_set_scanner_z_m(self, source: str, z_m: float) -> bool:
+        """Set only a scanner's mounting height, marking it user-owned.
+
+        Deliberately NOT async_set_scanner_position_m: that flips the whole
+        entry to origin="manual", which silently stops Tune drags from
+        syncing x/y.  z_origin="manual" protects just the height.
+        """
+        positions = self.data.get("scanner_positions_m") or {}
+        entry = positions.get(str(source))
+        if not isinstance(entry, dict):
+            return False
+        entry["z_m"] = round(max(0.0, min(20.0, float(z_m))), 2)
+        entry["z_origin"] = "manual"
+        await self.store.async_save(self.data)
+        return True
 
     async def async_set_floor_elevations(self, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Upsert per-floor elevation data ({id, level?, floor_to_floor_m?, base_elevation_m?}).
@@ -760,7 +788,15 @@ class ModelStore:
                 if t:
                     coords = self.map_frac_to_metres(float(rx.get("x", 0)), float(rx.get("y", 0)), map_id)
                     if coords:
-                        positions[src] = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3), "z_m": 2.4, "floor_id": fl, "origin": "map", "map_id": map_id}
+                        # A drag updates x/y only — keep whatever z the entry
+                        # already has (ceiling-derived or user-set); this path
+                        # has no height information of its own.
+                        _prev = positions.get(src) or {}
+                        _z = _prev.get("z_m") if isinstance(_prev.get("z_m"), (int, float)) else 2.4
+                        _entry = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3), "z_m": _z, "floor_id": fl, "origin": "map", "map_id": map_id}
+                        if _prev.get("z_origin") == "manual":
+                            _entry["z_origin"] = "manual"
+                        positions[src] = _entry
                         stats["scanners"] += 1
 
         if rooms is not None:
@@ -1085,7 +1121,9 @@ class ModelStore:
                 continue
             coords = self.map_frac_to_metres(float(rx.get("x", 0)), float(rx.get("y", 0)), map_id)
             if coords:
-                positions[src] = {
+                # Ceiling changes propagate to the default z, but a user-set
+                # height (z_origin manual) survives map syncs.
+                _entry = {
                     "x_m": round(coords[0], 3),
                     "y_m": round(coords[1], 3),
                     "z_m": round(ceiling_h, 2),
@@ -1093,6 +1131,10 @@ class ModelStore:
                     "origin": "map",
                     "map_id": map_id,
                 }
+                if existing and existing.get("z_origin") == "manual" and isinstance(existing.get("z_m"), (int, float)):
+                    _entry["z_m"] = existing["z_m"]
+                    _entry["z_origin"] = "manual"
+                positions[src] = _entry
                 count += 1
 
         # ── Sync room geometry ────────────────────────────────────────────

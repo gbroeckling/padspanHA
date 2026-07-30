@@ -1693,6 +1693,39 @@ function _settingsPresence(ctx, el){
     ),
   ]));
 
+  // ── 3D Positioning: assumed device height ─────────────────────────────────
+  const currentDevH = (settings.assumed_device_height_m != null
+    ? Number(settings.assumed_device_height_m) : 1.0);
+  const devHInp = el("input", {
+    type: "number", min: "0", max: "3", step: "0.1", value: String(currentDevH), style: inpStyle,
+  });
+  const devHSaveBtn = el("button", { class: "btn inline" }, "Save");
+  devHSaveBtn.addEventListener("click", async () => {
+    const v = Math.max(0.0, Math.min(3.0, parseFloat(devHInp.value)));
+    if (!isFinite(v)) { ctx.toast("Enter a height in metres", true); return; }
+    try {
+      await ctx.actions.settingsSet({ assumed_device_height_m: v });
+      ctx.toast(`Device height set to ${v} m`);
+    } catch(e) { ctx.toast("Failed to save setting", true); }
+  });
+  wrap.appendChild(el("div", { class: "card" }, [
+    el("div", { class: "h2" }, "3D Positioning — Device Height"),
+    el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
+      "RSSI measures the straight-line (slant) distance to a scanner, but positioning solves on the " +
+      "floor plane. PadSpan deducts the vertical offset between each scanner's mounted height and the " +
+      "device's assumed carry height above the floor. 1.0 m suits a pocketed phone or a wrist; " +
+      "lower it for floor-level tags (robot vacuum, pet collar). " +
+      "Scanner heights come from the fabric (default: the map's ceiling height); floor stacking from " +
+      "the per-floor heights."
+    ),
+    el("div", { style: rowStyle }, [
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Device height (m)"),
+      devHInp,
+      el("div", { class: "muted", style: "font-size:12px" }, "0–3 m (default 1.0)"),
+    ]),
+    el("div", { style: "margin-top:8px" }, devHSaveBtn),
+  ]));
+
   // ── Scanner RSSI Offsets ───────────────────────────────────────────────────
   const savedOffsets = settings.scanner_offsets || {};
   const radios = (ctx.state.live?.snapshot?.ble?.radios) || [];

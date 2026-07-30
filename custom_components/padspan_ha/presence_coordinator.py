@@ -216,6 +216,20 @@ def _barrier_attenuation(
     return total
 
 
+def _slant_to_horizontal(d_slant: float, dz: float) -> float:
+    """Project an RSSI slant range onto the horizontal plane (issue #54).
+
+    d_h = sqrt(d² − dz²).  When the slant reading is shorter than the known
+    vertical offset (measurement noise, or the device is directly under a
+    ceiling scanner), the horizontal distance is ~0 — return a small floor
+    rather than a complex number.  dz=0 is the exact 2D legacy behaviour.
+    """
+    if not dz:
+        return d_slant
+    under = d_slant * d_slant - dz * dz
+    return math.sqrt(under) if under > 0.09 else 0.3
+
+
 def _wls_refine(
     x0: float, y0: float, meas: list[tuple[float, float, float]], iters: int = 3
 ) -> tuple[float, float]:
@@ -358,6 +372,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # RF barrier data for Gaussian scoring penalty (rebuilt each poll)
         # {scanner_source: (x, y, map_id)} — scanner positions from map receivers
         self._scanner_positions: dict[str, tuple[float, float, str]] = {}
+        # 3D positioning (issue #54): absolute scanner heights + floor stack
+        self._scanner_abs_z: dict[str, float] = {}
+        self._floor_bases: dict[str, float] = {}
+        self._floor_stack_idx: dict[str, int] = {}
         # List of barrier dicts: [{points, attenuation_dbm, map_id}, ...]
         self._rf_barriers: list[dict] = []
         # Phase 2: True when spatial data is in metres (not map fractions)
@@ -721,6 +739,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     src: (pos["x_m"], pos["y_m"], pos.get("floor_id", ""))
                     for src, pos in _model.scanner_positions_m().items()
                 }
+                # 3D: absolute scanner heights + floor stack (issue #54)
+                self._scanner_abs_z = _model.scanner_absolute_z_m()
+                self._floor_bases = _model.floor_base_elevations_m()
+                self._floor_stack_idx = _model.floor_stack_index()
                 _mb = _model.rf_barriers_m()
                 self._rf_barriers = [
                     {
@@ -1212,11 +1234,13 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _n_exp = float(_d_pl.get("path_loss_exp", DEFAULT_PATH_LOSS_EXP))
             _sigma = float(_d_pl.get("room_sigma_m",  DEFAULT_ROOM_SIGMA_M))
             _floor_on = bool(_d_pl.get("adaptive_floor_detection", False))
+            _dev_h = max(0.0, min(3.0, float(_d_pl.get("assumed_device_height_m", 1.0))))
         except Exception:
             _ref   = DEFAULT_REF_POWER
             _n_exp = DEFAULT_PATH_LOSS_EXP
             _sigma = DEFAULT_ROOM_SIGMA_M
             _floor_on = False
+            _dev_h = 1.0
 
         # ── Room scoring ──────────────────────────────────────────────────
         # Two scoring paths:
@@ -1279,26 +1303,41 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     _best_floor = max(_floor_best_rssi, key=lambda f: _floor_best_rssi[f])
 
                     # Use ALL scanners for centroid, but penalize cross-floor
-                    # scanners with a floor attenuation (their RSSI includes
-                    # floor/ceiling loss the path-loss model doesn't know about).
-                    _CROSS_FLOOR_PENALTY = 10.0  # dBm penalty for different floor
+                    # scanners with a slab attenuation (their RSSI includes
+                    # floor/ceiling loss the path-loss model doesn't know
+                    # about).  Per SLAB CROSSED, not per "different floor" —
+                    # two slabs attenuate twice as much as one (issue #54).
+                    _SLAB_PENALTY_DB = 10.0  # dBm penalty per slab crossed
+                    _dev_floor_idx = self._floor_stack_idx.get(_best_floor)
+
+                    def _slabs_crossed(_sf: str) -> int:
+                        if _sf == _best_floor:
+                            return 0
+                        _si = self._floor_stack_idx.get(_sf)
+                        if _si is None or _dev_floor_idx is None:
+                            return 1  # unknown stacking — legacy flat penalty
+                        return abs(_si - _dev_floor_idx)
+
+                    # Assumed device height: carry height above the estimated
+                    # floor's walking surface (pocketed phone ~1.0 m).
+                    _dev_abs_z = self._floor_bases.get(_best_floor, 0.0) + _dev_h
                     # ESPresense nodes publish a node-calibrated distance —
                     # use it directly instead of the global path-loss model.
-                    # Cross-floor penalty translates to distance space as a
+                    # Slab penalty translates to distance space as a
                     # multiplier (d ∝ 10^(-rssi/(10n))).
                     _es_direct_raw = self._espresense_dist.get(addr) or {}
-                    _cf_mult = 10.0 ** (_CROSS_FLOOR_PENALTY / (10.0 * _n_exp))
+                    _cf_mult = 10.0 ** (_SLAB_PENALTY_DB / (10.0 * _n_exp))
                     _es_direct: dict[str, float] = {}
-                    _all_scanners: list[tuple[str, float, float, float]] = []
+                    _all_scanners: list[tuple[str, float, float, float, float]] = []
                     for _src, _sx, _sy, _rssi, _sf in _src_list:
-                        _adj_rssi = _rssi
+                        _n_slabs = _slabs_crossed(_sf)
                         if _src in _es_direct_raw:
-                            _es_direct[_src] = _es_direct_raw[_src] * (
-                                _cf_mult if _sf != _best_floor else 1.0
-                            )
-                        if _sf != _best_floor:
-                            _adj_rssi -= _CROSS_FLOOR_PENALTY
-                        _all_scanners.append((_src, _sx, _sy, _adj_rssi))
+                            _es_direct[_src] = _es_direct_raw[_src] * (_cf_mult ** _n_slabs)
+                        _adj_rssi = _rssi - _SLAB_PENALTY_DB * _n_slabs
+                        # Vertical offset scanner ↔ device, for slant→horizontal
+                        # correction (falls back to the legacy 2.4 m default z).
+                        _dz = self._scanner_abs_z.get(_src, 2.4) - _dev_abs_z
+                        _all_scanners.append((_src, _sx, _sy, _adj_rssi, _dz))
 
                     if len(_all_scanners) >= 2:
                         # Per-tag reference power: iBeacon measured power is a
@@ -1311,9 +1350,17 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
                         # ── Two-pass IDW centroid with RF barrier correction ──
                         def _scanner_dists(scanners, ref_pt=None):
-                            """Per-scanner distance estimates (metres)."""
+                            """Per-scanner HORIZONTAL distance estimates (metres).
+
+                            RSSI (and node-calibrated distance) measures the
+                            SLANT range; the centroid/WLS solve in the
+                            horizontal plane, so the vertical offset is
+                            deducted: d_h = sqrt(d² − dz²).  A ceiling scanner
+                            directly overhead reads d≈2.4 m but d_h≈0 — the
+                            2D code pushed the estimate 2.4 m sideways.
+                            """
                             _out: list[tuple[float, float, float]] = []
-                            for _s_src, _sx, _sy, _rssi in scanners:
+                            for _s_src, _sx, _sy, _rssi, _dz in scanners:
                                 _att = 0.0
                                 if ref_pt and self._rf_barriers:
                                     _att = _barrier_attenuation(
@@ -1342,6 +1389,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                     # ADDING the attenuation back (the old -=
                                     # doubled the through-wall error instead).
                                     _d = 10.0 ** ((_ref_s - (_rssi + _att)) / (10.0 * _n_s))
+                                _d = _slant_to_horizontal(_d, _dz)
                                 _out.append((_sx, _sy, max(0.3, min(_d, 50.0))))
                             return _out
 

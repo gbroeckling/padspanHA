@@ -130,3 +130,109 @@ async def test_no_change_no_save() -> None:
     store = _make_store([{"id": "g", "name": "G", "floor_to_floor_m": 2.8}])
     await store.async_set_floor_elevations([{"id": "g", "floor_to_floor_m": 2.8}])
     store.store.async_save.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# Slant→horizontal projection (presence coordinator)
+# ---------------------------------------------------------------------------
+
+
+def test_slant_projection() -> None:
+    from custom_components.padspan_ha.presence_coordinator import _slant_to_horizontal
+
+    assert _slant_to_horizontal(5.0, 0.0) == pytest.approx(5.0)      # 2D legacy
+    assert _slant_to_horizontal(5.0, 1.4) == pytest.approx(4.8, abs=0.01)
+    # Ceiling scanner directly overhead: slant 2.4, dz 2.4 → horizontally ~0
+    assert _slant_to_horizontal(2.4, 2.4) == pytest.approx(0.3)
+    # Noise: slant reading SHORTER than the vertical offset → floor, not NaN
+    assert _slant_to_horizontal(1.0, 2.4) == pytest.approx(0.3)
+    # Sign of dz is irrelevant (scanner below the device plane)
+    assert _slant_to_horizontal(5.0, -1.4) == pytest.approx(4.8, abs=0.01)
+
+
+def test_floor_stack_index() -> None:
+    store = _make_store([
+        {"id": "attic", "name": "A", "level": 2},
+        {"id": "ground", "name": "G", "level": 0},
+        {"id": "first", "name": "F", "level": 1},
+    ])
+    assert store.floor_stack_index() == {"ground": 0, "first": 1, "attic": 2}
+
+
+# ---------------------------------------------------------------------------
+# Scanner z ownership (z_origin manual survives syncs)
+# ---------------------------------------------------------------------------
+
+
+def _store_with_scanner() -> ModelStore:
+    store = _make_store([{"id": "main", "name": "Main"}])
+    store.data["scanner_positions_m"] = {
+        "kitchen": {"x_m": 1.0, "y_m": 2.0, "z_m": 2.4, "floor_id": "main",
+                    "origin": "map", "map_id": "m1"},
+    }
+    store.data["map_transforms"] = {
+        "m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10.0,
+               "scale_y_m": 8.0, "rotation_rad": 0, "floor_id": "main"},
+    }
+    return store
+
+
+@pytest.mark.asyncio
+async def test_set_scanner_z_marks_manual() -> None:
+    store = _store_with_scanner()
+    ok = await store.async_set_scanner_z_m("kitchen", 1.0)
+    assert ok
+    entry = store.data["scanner_positions_m"]["kitchen"]
+    assert entry["z_m"] == pytest.approx(1.0)
+    assert entry["z_origin"] == "manual"
+    assert entry["origin"] == "map"          # x/y ownership untouched
+
+
+@pytest.mark.asyncio
+async def test_set_scanner_z_unknown_source() -> None:
+    store = _store_with_scanner()
+    assert await store.async_set_scanner_z_m("nope", 1.0) is False
+
+
+@pytest.mark.asyncio
+async def test_manual_z_survives_map_sync() -> None:
+    """Dragging in Tune (map sync) must not reset a user-set height."""
+    store = _store_with_scanner()
+    await store.async_set_scanner_z_m("kitchen", 1.0)
+    map_dict = {
+        "floor_id": "main",
+        "stack": {"ceiling_height_m": 2.6},
+        "receivers": [{"id": "kitchen", "source": "kitchen", "x": 0.5, "y": 0.5}],
+    }
+    await store.async_sync_spatial_from_map("m1", map_dict)
+    entry = store.data["scanner_positions_m"]["kitchen"]
+    assert entry["x_m"] == pytest.approx(5.0)          # drag applied
+    assert entry["z_m"] == pytest.approx(1.0)          # height kept
+    assert entry["z_origin"] == "manual"
+
+
+@pytest.mark.asyncio
+async def test_default_z_follows_ceiling_on_sync() -> None:
+    """Without a manual z, a ceiling change propagates to the default."""
+    store = _store_with_scanner()
+    map_dict = {
+        "floor_id": "main",
+        "stack": {"ceiling_height_m": 2.6},
+        "receivers": [{"id": "kitchen", "source": "kitchen", "x": 0.5, "y": 0.5}],
+    }
+    await store.async_sync_spatial_from_map("m1", map_dict)
+    assert store.data["scanner_positions_m"]["kitchen"]["z_m"] == pytest.approx(2.6)
+
+
+@pytest.mark.asyncio
+async def test_batch_save_preserves_existing_z() -> None:
+    """The Tune batch save has no height info — it must keep the stored z."""
+    store = _store_with_scanner()
+    store.data["scanner_positions_m"]["kitchen"]["z_m"] = 2.6
+    await store.async_batch_save_spatial(
+        "m1", "main",
+        scanners=[{"id": "kitchen", "source": "kitchen", "x": 0.25, "y": 0.25}],
+    )
+    entry = store.data["scanner_positions_m"]["kitchen"]
+    assert entry["x_m"] == pytest.approx(2.5)
+    assert entry["z_m"] == pytest.approx(2.6)          # not reset to 2.4

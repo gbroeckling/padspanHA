@@ -3545,6 +3545,7 @@ function _stack(ctx, maps, helpBtn){
     <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500">HA Floor</th>
     <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500">Stack Level</th>
     <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500">Ceiling (m)</th>
+    <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500" title="Finished floor to the next finished floor: ceiling height + slab. Drives 3D distance across floors.">Floor↕ (m)</th>
     <th style="text-align:center;padding:6px 8px;color:#94a3b8;font-weight:500">Show</th>
     <th style="padding:6px 8px"></th>
   </tr>`;
@@ -3614,6 +3615,19 @@ function _stack(ctx, maps, helpBtn){
     tdCeil.appendChild(ceilInput);
     tr.appendChild(tdCeil);
 
+    // Floor-to-floor height (per HA floor, stored in fabric — not per map)
+    const tdF2F = document.createElement("td");
+    tdF2F.style.cssText = "padding:6px 8px";
+    const f2fInput = document.createElement("input");
+    f2fInput.type = "number"; f2fInput.min = "1.5"; f2fInput.max = "20"; f2fInput.step = "0.1";
+    const _flStored = ((ctx.state.model?.floors) || []).find(f => f.id === (m.floor_id || ""));
+    f2fInput.value = _flStored && _flStored.floor_to_floor_m != null ? String(_flStored.floor_to_floor_m) : "";
+    f2fInput.placeholder = "2.8";
+    f2fInput.title = "Finished floor to next finished floor (ceiling + slab). Blank = default 2.8 m.";
+    f2fInput.style.cssText = "width:70px;background:#0a150e;border:1px solid #1b3526;color:#e2e8f0;padding:4px 6px;border-radius:4px";
+    tdF2F.appendChild(f2fInput);
+    tr.appendChild(tdF2F);
+
     const tdShow = document.createElement("td");
     tdShow.style.cssText = "padding:6px 8px;text-align:center";
     const showCb = document.createElement("input");
@@ -3637,6 +3651,17 @@ function _stack(ctx, maps, helpBtn){
         ceiling_height_m: parseFloat(ceilInput.value) || 2.4,
       });
       await ctx.actions.mapsUpdateQuiet({ map_id: m.id, floor_id: floorSel2.value || m.floor_id||"", stack: newStk });
+      // Floor-to-floor height goes to the fabric per-floor (blank = clear)
+      const _fid = floorSel2.value || m.floor_id || "";
+      if(_fid && _fid !== OUTSIDE_FLOOR_ID){
+        const _f2f = parseFloat(f2fInput.value);
+        try{
+          await ctx.actions.callWS({ type: "padspan_ha/fabric_floor_elevations_set", floors: [{
+            id: _fid, level: parseInt(zLevelInput.value, 10) || 0,
+            floor_to_floor_m: isFinite(_f2f) ? _f2f : null,
+          }]});
+        }catch(e){}
+      }
       ctx.actions.mapsRefresh();
     }},"Save"));
     tr.appendChild(tdSave);

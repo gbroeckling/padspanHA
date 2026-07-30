@@ -39,6 +39,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "kalman_q": 0.125,             # Kalman process noise (RSSI responsiveness)
     "kalman_r": 8.0,               # Kalman measurement noise (smoothing strength)
     "room_sigma_m": 4.0,           # Gaussian room-scoring sigma in metres
+    "assumed_device_height_m": 1.0,  # carry height above the floor for 3D distance (pocketed phone)
     "health_reminder_enabled": False,  # monthly calibration accuracy reminder (off by default)
     "health_reminder_last_ts":  None,  # epoch seconds when reminder was last shown
     "adaptive_learning_enabled": False,  # experimental: passive room fingerprint learning

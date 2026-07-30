@@ -2219,6 +2219,34 @@ function _tuneTab(ctx, el, cs, calData) {
     const infoLine = document.createElement("div");
     infoLine.innerHTML = lines.join(" &nbsp;·&nbsp; ");
     infoCard.appendChild(infoLine);
+    // Height (z) input — only once the scanner exists in the fabric
+    if (_fabPos) {
+      const zRow = document.createElement("div");
+      zRow.style.cssText = "display:flex;gap:6px;align-items:center;margin-top:6px";
+      const zLbl = document.createElement("span");
+      zLbl.style.cssText = "font-size:11px;color:#94a3b8";
+      zLbl.textContent = "Height above floor (m):";
+      const zInp = document.createElement("input");
+      zInp.type = "number"; zInp.min = "0"; zInp.max = "20"; zInp.step = "0.1";
+      zInp.value = String(_fabPos.z_m != null ? _fabPos.z_m : 2.4);
+      zInp.style.cssText = "width:64px;background:#0a150e;border:1px solid #1b3526;color:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:12px";
+      const zBtn = document.createElement("button");
+      zBtn.className = "btn inline";
+      zBtn.style.cssText = "font-size:10px;padding:2px 10px";
+      zBtn.textContent = "Save Z";
+      zBtn.title = "Mounting height above this scanner's own floor. Used for 3D distance; survives map syncs.";
+      zBtn.addEventListener("click", async () => {
+        const v = parseFloat(zInp.value);
+        if (!isFinite(v) || v < 0 || v > 20) { ctx.toast("Height must be 0–20 m", true); return; }
+        try {
+          await ctx.actions.callWS({ type: "padspan_ha/fabric_scanner_z_set", source: rx.source, z_m: v });
+          ctx.toast(`${rx.label || rx.source}: height set to ${v} m`);
+          ctx.actions.modelRefresh && ctx.actions.modelRefresh();
+        } catch (e) { ctx.toast("Save failed: " + String(e), true); }
+      });
+      zRow.appendChild(zLbl); zRow.appendChild(zInp); zRow.appendChild(zBtn);
+      infoCard.appendChild(zRow);
+    }
     // "Remove from this map" button — removes from current map only
     const _selMapId = ts.selectedRx.mapId;
     const _selRxId = ts.selectedRx.rxId;
