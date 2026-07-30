@@ -3875,7 +3875,9 @@ async def ws_maps_replace_image(hass: HomeAssistant, connection, msg) -> None:
     # Phase 4: recompute transform + re-derive all map fracs from metres
     try:
         if _mdl and _map_id:
-            _recomputed = await _mdl.async_recompute_transform_for_map(_map_id, updated, ms)
+            _recomputed = await _mdl.async_recompute_transform_for_map(
+                _map_id, updated, ms, crop=msg.get("crop")
+            )
             if _recomputed:
                 _n = await _mdl.async_rederive_map_fracs(_map_id, updated)
                 if _n:

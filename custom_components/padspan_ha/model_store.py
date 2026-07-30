@@ -1072,12 +1072,20 @@ class ModelStore:
     # ── Phase 4: map image replacement — recompute + re-derive ─────────────
 
     async def async_recompute_transform_for_map(
-        self, map_id: str, map_dict: dict, maps_store: Any,
+        self, map_id: str, map_dict: dict, maps_store: Any, crop: dict | None = None,
     ) -> bool:
         """Recompute a single map's frac↔metre transform after image replacement.
 
         Uses the map's calibration px_per_meter (or existing default_floor_width
         from the current transform) with the NEW image dimensions.
+
+        crop: when the replacement was a crop of the previous image
+        ({fx0, fy0, fx1, fy1} as 0-1 fractions of the OLD image), the map now
+        covers only that fraction of its former real-world extent.  Scaling the
+        old extent by the crop fractions is exact and survives the resample that
+        the client applies to keep images under its max dimension — px_per_meter
+        does not, since the pixel density changes with that resample.
+
         Returns True if transform was updated.
         """
         cal = map_dict.get("calibration") or {}
@@ -1087,24 +1095,33 @@ class ModelStore:
         if img_w <= 0 or img_h <= 0:
             return False
 
-        ppm = cal.get("px_per_meter")
-        if ppm and float(ppm) > 0:
-            ppm = float(ppm)
-        else:
-            # Try to recover scale from existing transform
-            old_t = (self.data.get("map_transforms") or {}).get(map_id)
-            if old_t and old_t.get("scale_x_m"):
-                # Back-derive: old_scale_x_m was old_img_w / old_ppm
-                # We want the same real-world width, so ppm = img_w / scale_x_m
+        old_t = (self.data.get("map_transforms") or {}).get(map_id) or {}
+        scale_x_m = scale_y_m = 0.0
+
+        # Crop: derive the new extent from the retained fraction of the old one.
+        if crop and old_t.get("scale_x_m") and old_t.get("scale_y_m"):
+            _fw = float(crop.get("fx1", 1)) - float(crop.get("fx0", 0))
+            _fh = float(crop.get("fy1", 1)) - float(crop.get("fy0", 0))
+            if _fw > 0 and _fh > 0:
+                scale_x_m = float(old_t["scale_x_m"]) * _fw
+                scale_y_m = float(old_t["scale_y_m"]) * _fh
+
+        if not scale_x_m:
+            ppm = cal.get("px_per_meter")
+            if ppm and float(ppm) > 0:
+                ppm = float(ppm)
+            elif old_t.get("scale_x_m"):
+                # No crop — a pure resample keeps the real-world extent, so
+                # back-derive px/m for the new pixel dimensions.
                 ppm = img_w / float(old_t["scale_x_m"])
             else:
                 return False
+            scale_x_m = img_w / ppm
+            scale_y_m = img_h / ppm
 
         stk = map_dict.get("stack") or {}
         fl = str(map_dict.get("floor_id", DEFAULT_FLOOR_ID))
         rot_rad = math.radians(float(stk.get("rotation", 0)))
-        scale_x_m = img_w / ppm
-        scale_y_m = img_h / ppm
 
         # Origin: master = (0,0), others from stack offset
         is_master = stk.get("is_master", False)
@@ -1116,7 +1133,7 @@ class ModelStore:
             origin_y = float(stk.get("y_offset", 0)) * scale_y_m
 
         transforms = self.data.setdefault("map_transforms", {})
-        transforms[map_id] = {
+        new_t = {
             "origin_x_m": round(origin_x, 4),
             "origin_y_m": round(origin_y, 4),
             "scale_x_m": round(scale_x_m, 4),
@@ -1124,6 +1141,12 @@ class ModelStore:
             "rotation_rad": round(rot_rad, 6),
             "floor_id": fl,
         }
+        # Carry the manual-scale provenance forward — it marks the map as
+        # measured (panel "has scale" check, health counts, and the build path's
+        # skip test), and replacing an image doesn't un-measure it.
+        if old_t.get("reference_measurements"):
+            new_t["reference_measurements"] = old_t["reference_measurements"]
+        transforms[map_id] = new_t
         await self.store.async_save(self.data)
         return True
 
