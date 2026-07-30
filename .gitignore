@@ -6,3 +6,5 @@ __pycache__/
 *.tmp
 *_preview.html
 bermuda_vs_padspan_comparison.txt
+# Raw local screen captures — curated doc assets in images/ are added by name
+Screenshot *.png
