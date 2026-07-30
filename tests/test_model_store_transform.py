@@ -206,3 +206,151 @@ async def test_full_frame_crop_keeps_origin(tmp_path: Path) -> None:
     t = store.data["map_transforms"]["m1"]
     assert t["origin_x_m"] == pytest.approx(0.0)
     assert t["origin_y_m"] == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
+# Baked pixel ops (rotate / scale / stretch)
+# ---------------------------------------------------------------------------
+
+
+def _client_rot_frac(fx, fy, ow, oh, deg, nw, nh, sx=1.0, sy=1.0):
+    """Mirror of the client's canvas bake: p' = c_new + R·S·(p − c_old)."""
+    import math as _m
+    rad = _m.radians(deg)
+    px, py = fx * ow - ow / 2, fy * oh - oh / 2
+    px, py = px * sx, py * sy
+    rx = px * _m.cos(rad) - py * _m.sin(rad)
+    ry = px * _m.sin(rad) + py * _m.cos(rad)
+    return ((rx + nw / 2) / nw, (ry + nh / 2) / nh)
+
+
+@pytest.mark.asyncio
+async def test_rotate_90_composes_transform(tmp_path: Path) -> None:
+    """A 90° bake swaps the extent, preserves ppm, and stays world-anchored.
+
+    Hand-derived: 1600x1200 @ 80x60m, origin (0,0), rot 0, +90° → 1200x1600,
+    scale (60, 80), rotation −π/2, origin (0, 60).
+    """
+    store = _make_store(_MEASURED)
+    ok = await store.async_recompute_transform_for_map(
+        "m1", _map(1200, 1600), MagicMock(),
+        pixel_op={"deg": 90, "sx": 1, "sy": 1}, old_px=(1600, 1200),
+    )
+    assert ok
+    t = store.data["map_transforms"]["m1"]
+    assert t["scale_x_m"] == pytest.approx(60.0)
+    assert t["scale_y_m"] == pytest.approx(80.0)
+    assert t["rotation_rad"] == pytest.approx(-1.5708, abs=1e-3)
+    assert t["origin_x_m"] == pytest.approx(0.0, abs=1e-3)
+    assert t["origin_y_m"] == pytest.approx(60.0, abs=1e-3)
+    # World anchoring: old corner fracs must land on the same world points.
+    for (ofx, ofy), world in (((0, 0), (0.0, 0.0)), ((1, 1), (80.0, 60.0)), ((0.375, 0.25), (30.0, 15.0))):
+        nfx, nfy = _client_rot_frac(ofx, ofy, 1600, 1200, 90, 1200, 1600)
+        wx, wy = store.map_frac_to_metres(nfx, nfy, "m1")
+        # Stored transform rounds rotation to 6 dp → ~2e-5 m; assert to 1 mm.
+        assert (wx, wy) == (pytest.approx(world[0], abs=1e-3), pytest.approx(world[1], abs=1e-3))
+
+
+@pytest.mark.asyncio
+async def test_rotate_arbitrary_angle_roundtrips(tmp_path: Path) -> None:
+    """A 15° bake (arbitrary-angle rotate button) keeps world anchoring."""
+    import math as _m
+    store = _make_store(_MEASURED)
+    rad = _m.radians(15)
+    nw = round(1600 * abs(_m.cos(rad)) + 1200 * abs(_m.sin(rad)))
+    nh = round(1600 * abs(_m.sin(rad)) + 1200 * abs(_m.cos(rad)))
+    ok = await store.async_recompute_transform_for_map(
+        "m1", _map(nw, nh), MagicMock(),
+        pixel_op={"deg": 15, "sx": 1, "sy": 1}, old_px=(1600, 1200),
+    )
+    assert ok
+    for ofx, ofy, wx0, wy0 in ((0.25, 0.75, 20.0, 45.0), (0.9, 0.1, 72.0, 6.0)):
+        nfx, nfy = _client_rot_frac(ofx, ofy, 1600, 1200, 15, nw, nh)
+        wx, wy = store.map_frac_to_metres(nfx, nfy, "m1")
+        # Canvas dims round to whole pixels — allow ~1px (0.05m at 20 px/m).
+        assert wx == pytest.approx(wx0, abs=0.06)
+        assert wy == pytest.approx(wy0, abs=0.06)
+
+
+@pytest.mark.asyncio
+async def test_uniform_scale_rotation_bake_composes(tmp_path: Path) -> None:
+    """Point-Align bake with rotation + uniform scale composes (ppm scales)."""
+    import math as _m
+    store = _make_store(_MEASURED)
+    k, deg = 1.25, 90
+    nw, nh = round(1200 * k), round(1600 * k)   # 90°: dims swap, then scale
+    ok = await store.async_recompute_transform_for_map(
+        "m1", _map(nw, nh), MagicMock(),
+        pixel_op={"deg": deg, "sx": k, "sy": k}, old_px=(1600, 1200),
+    )
+    assert ok
+    t = store.data["map_transforms"]["m1"]
+    # Depicted extent is unchanged by pixel scaling: still 60x80 world-metres.
+    assert t["scale_x_m"] == pytest.approx(60.0, abs=0.01)
+    assert t["scale_y_m"] == pytest.approx(80.0, abs=0.01)
+    nfx, nfy = _client_rot_frac(0.375, 0.25, 1600, 1200, deg, nw, nh, k, k)
+    wx, wy = store.map_frac_to_metres(nfx, nfy, "m1")
+    assert (wx, wy) == (pytest.approx(30.0, abs=0.06), pytest.approx(15.0, abs=0.06))
+
+
+@pytest.mark.asyncio
+async def test_stretch_only_bake_preserves_transform(tmp_path: Path) -> None:
+    """A no-rotation anisotropic bake leaves the transform untouched."""
+    store = _make_store(_MEASURED)
+    ok = await store.async_recompute_transform_for_map(
+        "m1", _map(2400, 1200), MagicMock(),          # x stretched 1.5x
+        pixel_op={"deg": 0, "sx": 1.5, "sy": 1.0}, old_px=(1600, 1200),
+    )
+    assert ok
+    t = store.data["map_transforms"]["m1"]
+    assert t["scale_x_m"] == pytest.approx(80.0)      # extent unchanged
+    assert t["scale_y_m"] == pytest.approx(60.0)
+    assert t["rotation_rad"] == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
+async def test_rotated_stretch_bake_invalidates(tmp_path: Path) -> None:
+    """Rotation + anisotropic stretch is unrepresentable — scale is dropped."""
+    store = _make_store(_MEASURED)
+    ok = await store.async_recompute_transform_for_map(
+        "m1", _map(2000, 1600), MagicMock(),
+        pixel_op={"deg": 30, "sx": 1.5, "sy": 1.0}, old_px=(1600, 1200),
+    )
+    assert ok is False
+    assert "m1" not in store.data["map_transforms"]   # honestly unmeasured
+    store.store.async_save.assert_awaited()           # deletion persisted
+
+
+@pytest.mark.asyncio
+async def test_aspect_change_without_op_invalidates(tmp_path: Path) -> None:
+    """An undeclared pixel-aspect-changing replacement drops the scale."""
+    store = _make_store(_MEASURED)
+    ok = await store.async_recompute_transform_for_map(
+        "m1", _map(1200, 1600), MagicMock(),          # 90°-swap dims, no op declared
+        old_px=(1600, 1200),
+    )
+    assert ok is False
+    assert "m1" not in store.data["map_transforms"]
+
+
+@pytest.mark.asyncio
+async def test_no_old_dims_keeps_legacy_preserve_extent(tmp_path: Path) -> None:
+    """Without old dims the aspect check can't run — legacy behaviour holds."""
+    store = _make_store(_MEASURED)
+    ok = await store.async_recompute_transform_for_map(
+        "m1", _map(1200, 1600), MagicMock(),
+    )
+    assert ok
+    assert store.data["map_transforms"]["m1"]["scale_x_m"] == pytest.approx(80.0)
+
+
+@pytest.mark.asyncio
+async def test_pixel_op_on_unmeasured_map_is_noop(tmp_path: Path) -> None:
+    """A bake on a map with no transform has nothing to compose — skipped."""
+    store = _make_store({})
+    store.data["map_transforms"] = {}
+    ok = await store.async_recompute_transform_for_map(
+        "m1", _map(1200, 1600), MagicMock(),
+        pixel_op={"deg": 90, "sx": 1, "sy": 1}, old_px=(1600, 1200),
+    )
+    assert ok is False

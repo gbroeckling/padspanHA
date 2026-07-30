@@ -249,6 +249,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_fabric_sync_mode_set)
     # Phase 2: real-world spatial model commands
     websocket_api.async_register_command(hass, ws_fabric_scanner_position_set)
+    websocket_api.async_register_command(hass, ws_fabric_floor_elevations_set)
     websocket_api.async_register_command(hass, ws_fabric_room_geometry_set)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_set)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_remove)
@@ -411,6 +412,18 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
         mdl_fb = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
         floors = mdl_fb.floors() if mdl_fb else [{"id": DEFAULT_FLOOR_ID, "name": "Main Floor"}]
 
+    # Overlay stored elevation data (ModelStore) onto the registry floors —
+    # the registry knows names and levels, the ModelStore knows heights.
+    _mdl_el = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    if _mdl_el:
+        _stored = {str(f.get("id")): f for f in _mdl_el.floors() if isinstance(f, dict)}
+        for _fl in floors:
+            _sf = _stored.get(str(_fl.get("id")))
+            if _sf:
+                for _k in ("floor_to_floor_m", "base_elevation_m"):
+                    if _k in _sf:
+                        _fl[_k] = _sf[_k]
+
     # --- Areas: from HA area registry ---
     areas: list[dict[str, Any]] = []
     try:
@@ -445,6 +458,7 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
         "rf_barriers_m": rf_barriers_m,
         "map_transforms": map_transforms,
         "beacon_positions_m": beacon_positions_m,
+        "floor_elevations": _mdl_el.floor_base_elevations_m() if _mdl_el else {},
     })
 
 
@@ -3843,7 +3857,8 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
         "width": int,
         "height": int,
         "png_base64": str,
-        vol.Optional("crop"): dict,   # {fx0, fy0, fx1, fy1} in 0-1 image fractions
+        vol.Optional("crop"): dict,      # {fx0, fy0, fx1, fy1} in 0-1 image fractions
+        vol.Optional("pixel_op"): dict,  # {deg, sx, sy} baked rotate/scale (canvas op)
     }
 )
 @websocket_api.async_response
@@ -3859,6 +3874,15 @@ async def ws_maps_replace_image(hass: HomeAssistant, connection, msg) -> None:
     # Phase 4: skip crop-based renorm when metre model is authoritative
     _has_model = bool(_mdl and _mdl.map_transform(_map_id))
 
+    # Old pixel dims — needed to compose a baked rotate/scale into the
+    # transform, and gone once async_replace_image mutates the map dict.
+    _m_before = ms.get_map(_map_id)
+    _old_px = None
+    if _m_before:
+        _oi = _m_before.get("image") or {}
+        if int(_oi.get("width") or 0) > 0 and int(_oi.get("height") or 0) > 0:
+            _old_px = (int(_oi["width"]), int(_oi["height"]))
+
     try:
         updated = await ms.async_replace_image(
             _map_id,
@@ -3873,11 +3897,17 @@ async def ws_maps_replace_image(hass: HomeAssistant, connection, msg) -> None:
         return
 
     # Phase 4: recompute transform + re-derive all map fracs from metres
+    _scale_invalidated = False
     try:
         if _mdl and _map_id:
             _recomputed = await _mdl.async_recompute_transform_for_map(
-                _map_id, updated, ms, crop=msg.get("crop")
+                _map_id, updated, ms, crop=msg.get("crop"),
+                pixel_op=msg.get("pixel_op"), old_px=_old_px,
             )
+            # A measured map whose transform is gone after recompute was
+            # invalidated (unrepresentable op) — tell the client so the user
+            # hears "re-measure" instead of silently losing the scale.
+            _scale_invalidated = _has_model and not _mdl.map_transform(_map_id)
             if _recomputed:
                 _n = await _mdl.async_rederive_map_fracs(_map_id, updated)
                 if _n:
@@ -3889,7 +3919,7 @@ async def ws_maps_replace_image(hass: HomeAssistant, connection, msg) -> None:
     except Exception:
         pass
 
-    connection.send_result(msg["id"], {"map": updated})
+    connection.send_result(msg["id"], {"map": updated, "scale_invalidated": _scale_invalidated})
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/maps_delete", "map_id": str})
@@ -8693,6 +8723,31 @@ async def ws_fabric_scanner_position_set(hass: HomeAssistant, connection, msg) -
         origin="manual",
     )
     connection.send_result(msg["id"], {"ok": True, "source": source})
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/fabric_floor_elevations_set",
+        "floors": list,  # [{id, level?, floor_to_floor_m?, base_elevation_m?}]
+    }
+)
+@websocket_api.async_response
+async def ws_fabric_floor_elevations_set(hass: HomeAssistant, connection, msg) -> None:
+    """Upsert per-floor elevation data (floor-to-floor height / base elevation).
+
+    Merge-only: unlisted floors are untouched; ids unknown to the ModelStore
+    (HA-registry floor ids appear here the first time elevation data is
+    written for them) are created.  Null clears a field.
+    """
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    if not mdl:
+        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        return
+    floors = await mdl.async_set_floor_elevations(msg.get("floors") or [])
+    connection.send_result(msg["id"], {
+        "floors": floors,
+        "floor_elevations": mdl.floor_base_elevations_m(),
+    })
 
 
 @websocket_api.websocket_command(

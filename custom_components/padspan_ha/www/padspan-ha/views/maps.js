@@ -2335,7 +2335,13 @@ function _edit(ctx, map, allMaps){
           }
         }
 
-        await ctx.actions.mapsReplaceImage({ map_id: map.id, png_base64: b64, width: nw, height: nh });
+        const _repRes = await ctx.actions.mapsReplaceImage({
+          map_id: map.id, png_base64: b64, width: nw, height: nh,
+          pixel_op: { deg: _rotAngle, sx: 1, sy: 1 },
+        });
+        if(_repRes && _repRes.scale_invalidated){
+          ctx.toast("Map scale could not survive this rotation — re-measure the map (Measure tool).", true);
+        }
         // Save rotated coordinates
         if(newReceivers.length || Object.keys(newBounds).length || newBeacons.length){
           await ctx.actions.fabricSpatialSave({
@@ -4603,8 +4609,17 @@ function _stack(ctx, maps, helpBtn){
               cc.translate(nw / 2, nh / 2); cc.rotate(rad); cc.scale(bsx, bsy);
               cc.drawImage(bakeImg, -ow / 2, -oh / 2);
               const b64 = canvas.toDataURL("image/png").split(",")[1];
-              ctx.actions.mapsReplaceImage({ map_id: tgtMap.id, png_base64: b64, width: nw, height: nh })
-                .then(() => ctx.toast("Baked (" + pairs + " pairs, residual " + resPct + "%)"))
+              ctx.actions.mapsReplaceImage({
+                map_id: tgtMap.id, png_base64: b64, width: nw, height: nh,
+                pixel_op: { deg: rRotation, sx: bsx, sy: bsy },
+              })
+                .then((res) => {
+                  if(res && res.scale_invalidated){
+                    ctx.toast("Baked, but the map scale could not survive rotation + stretch — re-measure the map.", true);
+                  } else {
+                    ctx.toast("Baked (" + pairs + " pairs, residual " + resPct + "%)");
+                  }
+                })
                 .catch(e => ctx.toast("Bake upload failed: " + e, true));
             } catch (de) { ctx.toast("Bake draw failed: " + de, true); }
           };

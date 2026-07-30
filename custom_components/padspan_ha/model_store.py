@@ -489,6 +489,41 @@ class ModelStore:
             running += float(f2f) if isinstance(f2f, (int, float)) and not isinstance(f2f, bool) else DEFAULT_FLOOR_TO_FLOOR_M
         return out
 
+    async def async_set_floor_elevations(self, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Upsert per-floor elevation data ({id, level?, floor_to_floor_m?, base_elevation_m?}).
+
+        Merge semantics: floors not mentioned are untouched, unknown ids are
+        created (the UI floor list comes from the HA registry, whose ids won't
+        exist here until elevation data is first written for them), and a
+        field sent as null clears the stored value.  Returns the floors list.
+        """
+        floors = [f for f in (self.data.get("floors") or []) if isinstance(f, dict)]
+        by_id = {str(f.get("id")): i for i, f in enumerate(floors) if f.get("id")}
+        changed = False
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            fid = str(entry.get("id") or "").strip()[:40]
+            if not fid:
+                continue
+            if fid in by_id:
+                merged = dict(floors[by_id[fid]])
+                merged.update(entry)
+                merged["id"] = fid
+                new_f = _norm_floor(merged)
+                if new_f != floors[by_id[fid]]:
+                    floors[by_id[fid]] = new_f
+                    changed = True
+            else:
+                new_f = _norm_floor(dict(entry, id=fid, name=entry.get("name") or fid))
+                floors.append(new_f)
+                by_id[fid] = len(floors) - 1
+                changed = True
+        if changed:
+            self.data["floors"] = floors
+            await self.store.async_save(self.data)
+        return list(floors)
+
     def scanner_absolute_z_m(self) -> dict[str, float]:
         """Return {source: absolute height}, i.e. floor elevation + local z_m.
 
@@ -1154,20 +1189,33 @@ class ModelStore:
 
     async def async_recompute_transform_for_map(
         self, map_id: str, map_dict: dict, maps_store: Any, crop: dict | None = None,
+        pixel_op: dict | None = None, old_px: tuple[int, int] | None = None,
     ) -> bool:
         """Recompute a single map's frac↔metre transform after image replacement.
 
-        Uses the map's calibration px_per_meter (or existing default_floor_width
-        from the current transform) with the NEW image dimensions.
+        Each image operation preserves a different invariant, and the backend
+        cannot guess which one happened — the client declares it:
 
-        crop: when the replacement was a crop of the previous image
-        ({fx0, fy0, fx1, fy1} as 0-1 fractions of the OLD image), the map now
-        covers only that fraction of its former real-world extent.  Scaling the
-        old extent by the crop fractions is exact and survives the resample that
-        the client applies to keep images under its max dimension — px_per_meter
-        does not, since the pixel density changes with that resample.
+        crop ({fx0, fy0, fx1, fy1}, 0-1 fractions of the OLD image): the map
+        keeps that fraction of its real-world extent, world-anchored (the
+        origin shifts by the cut-off margin).  Exact under the client's
+        resample — px_per_meter is not, since resampling changes pixel density.
 
-        Returns True if transform was updated.
+        pixel_op ({deg, sx, sy} with old_px = (old_w, old_h)): a baked
+        rotate/scale, canvas form p' = c_new + R(deg)·diag(sx, sy)·(p − c_old).
+        A pure scale preserves extent; a rotation preserves pixel density, so
+        the transform composes: rotation subtracts, ppm multiplies, and the
+        origin picks up the centre-shift term.  Rotation combined with
+        anisotropic stretch is a general affine the origin/scale/rotation
+        model CANNOT represent — the transform (and its measurements) are
+        dropped so the map honestly reads unmeasured instead of silently
+        corrupting the scale, and fabric metre data is left untouched.
+
+        Neither: a pure resample, which preserves the real-world extent —
+        unless the aspect ratio changed, which no known no-op replacement
+        does, so that also invalidates rather than guessing.
+
+        Returns True if the transform was updated (False = skipped or dropped).
         """
         cal = map_dict.get("calibration") or {}
         img = map_dict.get("image") or {}
@@ -1179,9 +1227,61 @@ class ModelStore:
         old_t = (self.data.get("map_transforms") or {}).get(map_id) or {}
         scale_x_m = scale_y_m = 0.0
         crop_origin: tuple[float, float] | None = None
+        composed: dict[str, float] | None = None
+
+        def _invalidate() -> None:
+            (self.data.get("map_transforms") or {}).pop(map_id, None)
+
+        # Bake (rotate and/or scale): compose the old transform with the op.
+        if pixel_op and old_px and old_t.get("scale_x_m") and old_t.get("scale_y_m"):
+            ow, oh = float(old_px[0]), float(old_px[1])
+            theta = math.radians(float(pixel_op.get("deg", 0)))
+            bsx = float(pixel_op.get("sx", 1)) or 1.0
+            bsy = float(pixel_op.get("sy", 1)) or 1.0
+            old_sx = float(old_t["scale_x_m"])
+            old_sy = float(old_t["scale_y_m"])
+            rot0 = float(old_t.get("rotation_rad", 0))
+            o0x = float(old_t.get("origin_x_m", 0))
+            o0y = float(old_t.get("origin_y_m", 0))
+            if ow <= 0 or oh <= 0 or old_sx <= 0 or old_sy <= 0:
+                pass  # nothing usable — fall through to the generic paths
+            elif abs(theta) < 1e-9:
+                # Pure per-axis pixel scale: the depicted extent is unchanged
+                # (stretching pixels doesn't move the house), fracs map 1:1.
+                composed = {
+                    "origin_x_m": o0x, "origin_y_m": o0y,
+                    "scale_x_m": old_sx, "scale_y_m": old_sy,
+                    "rotation_rad": rot0,
+                }
+            else:
+                ppm = ow / old_sx
+                iso_ok = abs(oh / old_sy - ppm) <= 0.02 * ppm
+                uniform = abs(bsx - bsy) <= 0.02 * max(bsx, bsy)
+                if not (iso_ok and uniform):
+                    # Rotation + anisotropic scale (or anisotropic px/m) is a
+                    # general affine — unrepresentable.  Drop the scale
+                    # honestly; fabric metres stay valid for a re-measure.
+                    _invalidate()
+                    await self.store.async_save(self.data)
+                    return False
+                k = (bsx + bsy) / 2.0
+                ppm_new = ppm * k
+                rot_new = rot0 - theta
+                # origin' = o + R(rot0)·c_old/ppm − R(rot_new)·c_new/ppm_new
+                cox, coy = ow / 2.0 / ppm, oh / 2.0 / ppm
+                cnx, cny = img_w / 2.0 / ppm_new, img_h / 2.0 / ppm_new
+                c0, s0 = math.cos(rot0), math.sin(rot0)
+                c1, s1 = math.cos(rot_new), math.sin(rot_new)
+                composed = {
+                    "origin_x_m": o0x + (cox * c0 - coy * s0) - (cnx * c1 - cny * s1),
+                    "origin_y_m": o0y + (cox * s0 + coy * c0) - (cnx * s1 + cny * c1),
+                    "scale_x_m": img_w / ppm_new,
+                    "scale_y_m": img_h / ppm_new,
+                    "rotation_rad": rot_new,
+                }
 
         # Crop: derive the new extent from the retained fraction of the old one.
-        if crop and old_t.get("scale_x_m") and old_t.get("scale_y_m"):
+        if composed is None and crop and old_t.get("scale_x_m") and old_t.get("scale_y_m"):
             _fx0 = float(crop.get("fx0", 0))
             _fy0 = float(crop.get("fy0", 0))
             _fw = float(crop.get("fx1", 1)) - _fx0
@@ -1207,13 +1307,24 @@ class ModelStore:
                     float(old_t.get("origin_y_m", 0)) + _dy,
                 )
 
-        if not scale_x_m:
+        if composed is None and not scale_x_m:
             ppm = cal.get("px_per_meter")
             if ppm and float(ppm) > 0:
                 ppm = float(ppm)
             elif old_t.get("scale_x_m"):
-                # No crop — a pure resample keeps the real-world extent, so
-                # back-derive px/m for the new pixel dimensions.
+                # No declared op — a pure resample keeps the real-world
+                # extent.  A resample also keeps the PIXEL aspect ratio (the
+                # scale aspect can legitimately differ after a stretch bake);
+                # if the pixel aspect changed, this was some content-altering
+                # operation the caller didn't declare, and extent-preserve
+                # would write a distorted scale.  Drop it instead of guessing.
+                if old_px and old_px[0] > 0 and old_px[1] > 0:
+                    old_aspect = old_px[0] / old_px[1]
+                    new_aspect = img_w / img_h
+                    if abs(new_aspect - old_aspect) > 0.02 * old_aspect:
+                        _invalidate()
+                        await self.store.async_save(self.data)
+                        return False
                 ppm = img_w / float(old_t["scale_x_m"])
             else:
                 return False
@@ -1222,22 +1333,32 @@ class ModelStore:
 
         stk = map_dict.get("stack") or {}
         fl = str(map_dict.get("floor_id", DEFAULT_FLOOR_ID))
-        rot_rad = math.radians(float(stk.get("rotation", 0)))
 
-        # Origin.  A crop is world-anchored: fabric data keeps its old world
-        # coordinates, so the origin comes from the crop offset — for masters
-        # too (a trimmed master's frac (0,0) is no longer world (0,0), and
-        # every consumer reads origin generically; only the Measure tool
-        # writes the 0-origin convention, on a fresh scale save).
-        is_master = stk.get("is_master", False)
-        if crop_origin is not None:
-            origin_x, origin_y = crop_origin
-        elif is_master:
-            origin_x, origin_y = 0.0, 0.0
+        if composed is not None:
+            # Baked op: everything comes from the composition — the stack
+            # rotation is untouched by a bake and must not overwrite the
+            # composed rotation.
+            scale_x_m = composed["scale_x_m"]
+            scale_y_m = composed["scale_y_m"]
+            origin_x = composed["origin_x_m"]
+            origin_y = composed["origin_y_m"]
+            rot_rad = composed["rotation_rad"]
         else:
-            # Use stack offsets scaled by master's metres
-            origin_x = float(stk.get("x_offset", 0)) * scale_x_m
-            origin_y = float(stk.get("y_offset", 0)) * scale_y_m
+            rot_rad = math.radians(float(stk.get("rotation", 0)))
+            # Origin.  A crop is world-anchored: fabric data keeps its old
+            # world coordinates, so the origin comes from the crop offset —
+            # for masters too (a trimmed master's frac (0,0) is no longer
+            # world (0,0), and every consumer reads origin generically; only
+            # the Measure tool writes the 0-origin convention, on a fresh
+            # scale save).
+            if crop_origin is not None:
+                origin_x, origin_y = crop_origin
+            elif stk.get("is_master", False):
+                origin_x, origin_y = 0.0, 0.0
+            else:
+                # Use stack offsets scaled by master's metres
+                origin_x = float(stk.get("x_offset", 0)) * scale_x_m
+                origin_y = float(stk.get("y_offset", 0)) * scale_y_m
 
         transforms = self.data.setdefault("map_transforms", {})
         new_t = {
