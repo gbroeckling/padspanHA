@@ -65,6 +65,35 @@ def _hash_color_hex(name: str) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
+# ── Floor elevation defaults ────────────────────────────────────────────────
+# Finished floor to the next finished floor: interior ceiling height plus the
+# slab between.  Used when a floor has no explicit floor_to_floor_m.
+DEFAULT_FLOOR_TO_FLOOR_M: float = 2.8
+
+
+def _norm_floor(f: dict[str, Any]) -> dict[str, Any]:
+    """Normalise one floor entry, preserving elevation keys.
+
+    Floors carry two optional elevation fields:
+      level              stacking order (bottom-up); falls back to list order
+      floor_to_floor_m   finished floor to the next finished floor
+      base_elevation_m   absolute height of this floor; None = derive it
+    """
+    fid = str(f.get("id") or "").strip() or DEFAULT_FLOOR_ID
+    out: dict[str, Any] = {
+        "id": fid[:40],
+        "name": str(f.get("name") or fid)[:80],
+    }
+    lvl = f.get("level")
+    if isinstance(lvl, (int, float)) and not isinstance(lvl, bool):
+        out["level"] = int(lvl)
+    for key, lo, hi in (("floor_to_floor_m", 1.5, 20.0), ("base_elevation_m", -50.0, 500.0)):
+        val = f.get(key)
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
+            out[key] = round(max(lo, min(hi, float(val))), 3)
+    return out
+
+
 DEFAULT_DATA: dict[str, Any] = {
     "floors": [
         {"id": DEFAULT_FLOOR_ID, "name": "Main Floor"},
@@ -149,11 +178,11 @@ class ModelStore:
         for f in self.data.get("floors", []):
             if not isinstance(f, dict):
                 continue
-            fid = str(f.get("id") or "").strip() or DEFAULT_FLOOR_ID
-            if fid in seen:
+            entry = _norm_floor(f)
+            if entry["id"] in seen:
                 continue
-            seen.add(fid)
-            norm_floors.append({"id": fid[:40], "name": str(f.get("name") or fid)[:80]})
+            seen.add(entry["id"])
+            norm_floors.append(entry)
         if not norm_floors:
             norm_floors = list(DEFAULT_DATA["floors"])
         self.data["floors"] = norm_floors
@@ -423,6 +452,58 @@ class ModelStore:
     def scanner_positions_m(self) -> dict[str, dict[str, Any]]:
         """Return {source: {x_m, y_m, z_m, floor_id}} for all scanners."""
         return dict(self.data.get("scanner_positions_m") or {})
+
+    # ── Floor elevation ──────────────────────────────────────────────────────
+
+    def _ordered_floors(self) -> list[dict[str, Any]]:
+        """Floors bottom-up: by explicit level when set, else stored order."""
+        floors = [f for f in (self.data.get("floors") or []) if isinstance(f, dict)]
+        ordered = sorted(
+            enumerate(floors),
+            key=lambda pair: (pair[1].get("level", pair[0]), pair[0]),
+        )
+        return [f for _, f in ordered]
+
+    def floor_base_elevations_m(self) -> dict[str, float]:
+        """Return {floor_id: absolute height of that floor's walking surface}.
+
+        An explicit base_elevation_m always wins — split levels and mezzanines
+        can't be derived.  Otherwise it's the running sum of floor_to_floor_m
+        for the floors below, with the lowest floor at 0.
+        """
+        out: dict[str, float] = {}
+        running = 0.0
+        for f in self._ordered_floors():
+            fid = str(f.get("id") or "")
+            if not fid:
+                continue
+            explicit = f.get("base_elevation_m")
+            if isinstance(explicit, (int, float)) and not isinstance(explicit, bool):
+                base = float(explicit)
+                # An explicit value re-bases everything stacked above it.
+                running = base
+            else:
+                base = running
+            out[fid] = round(base, 3)
+            f2f = f.get("floor_to_floor_m")
+            running += float(f2f) if isinstance(f2f, (int, float)) and not isinstance(f2f, bool) else DEFAULT_FLOOR_TO_FLOOR_M
+        return out
+
+    def scanner_absolute_z_m(self) -> dict[str, float]:
+        """Return {source: absolute height}, i.e. floor elevation + local z_m.
+
+        z_m stays "height above its own floor", so nothing stored changes
+        meaning when elevations are introduced.
+        """
+        bases = self.floor_base_elevations_m()
+        out: dict[str, float] = {}
+        for src, pos in (self.data.get("scanner_positions_m") or {}).items():
+            if not isinstance(pos, dict):
+                continue
+            z = pos.get("z_m")
+            local = float(z) if isinstance(z, (int, float)) and not isinstance(z, bool) else 2.4
+            out[str(src)] = round(bases.get(str(pos.get("floor_id") or ""), 0.0) + local, 3)
+        return out
 
     def room_centroids_m(self) -> dict[str, tuple[float, float, str]]:
         """Compute room centroids in metres from room_geometry_m.
@@ -1097,14 +1178,34 @@ class ModelStore:
 
         old_t = (self.data.get("map_transforms") or {}).get(map_id) or {}
         scale_x_m = scale_y_m = 0.0
+        crop_origin: tuple[float, float] | None = None
 
         # Crop: derive the new extent from the retained fraction of the old one.
         if crop and old_t.get("scale_x_m") and old_t.get("scale_y_m"):
-            _fw = float(crop.get("fx1", 1)) - float(crop.get("fx0", 0))
-            _fh = float(crop.get("fy1", 1)) - float(crop.get("fy0", 0))
+            _fx0 = float(crop.get("fx0", 0))
+            _fy0 = float(crop.get("fy0", 0))
+            _fw = float(crop.get("fx1", 1)) - _fx0
+            _fh = float(crop.get("fy1", 1)) - _fy0
             if _fw > 0 and _fh > 0:
-                scale_x_m = float(old_t["scale_x_m"]) * _fw
-                scale_y_m = float(old_t["scale_y_m"]) * _fh
+                _old_sx = float(old_t["scale_x_m"])
+                _old_sy = float(old_t["scale_y_m"])
+                scale_x_m = _old_sx * _fw
+                scale_y_m = _old_sy * _fh
+                # The cropped image's frac (0,0) sits at (fx0, fy0) of the old
+                # image, so the origin must shift by that offset in world space
+                # — otherwise every fabric position re-derives to the wrong
+                # frac, displaced by the cut-off margin.  The offset rotates
+                # with the map (world = origin + R·(frac ⊙ scale)).
+                _dx = _fx0 * _old_sx
+                _dy = _fy0 * _old_sy
+                _rot_old = float(old_t.get("rotation_rad", 0))
+                if abs(_rot_old) > 1e-9:
+                    _c, _s = math.cos(_rot_old), math.sin(_rot_old)
+                    _dx, _dy = _dx * _c - _dy * _s, _dx * _s + _dy * _c
+                crop_origin = (
+                    float(old_t.get("origin_x_m", 0)) + _dx,
+                    float(old_t.get("origin_y_m", 0)) + _dy,
+                )
 
         if not scale_x_m:
             ppm = cal.get("px_per_meter")
@@ -1123,9 +1224,15 @@ class ModelStore:
         fl = str(map_dict.get("floor_id", DEFAULT_FLOOR_ID))
         rot_rad = math.radians(float(stk.get("rotation", 0)))
 
-        # Origin: master = (0,0), others from stack offset
+        # Origin.  A crop is world-anchored: fabric data keeps its old world
+        # coordinates, so the origin comes from the crop offset — for masters
+        # too (a trimmed master's frac (0,0) is no longer world (0,0), and
+        # every consumer reads origin generically; only the Measure tool
+        # writes the 0-origin convention, on a fresh scale save).
         is_master = stk.get("is_master", False)
-        if is_master:
+        if crop_origin is not None:
+            origin_x, origin_y = crop_origin
+        elif is_master:
             origin_x, origin_y = 0.0, 0.0
         else:
             # Use stack offsets scaled by master's metres
@@ -1296,6 +1403,14 @@ class ModelStore:
         if isinstance(floors, list):
             norm_floors: list[dict[str, Any]] = []
             seen: set[str] = set()
+            # Existing entries carry elevation data the caller may not send —
+            # the floor editor posts {id, name} only, so merge rather than
+            # rebuild or every save would wipe the stack heights.
+            prior = {
+                str(f.get("id")): f
+                for f in (self.data.get("floors") or [])
+                if isinstance(f, dict) and f.get("id")
+            }
             for f in floors:
                 if not isinstance(f, dict):
                     continue
@@ -1307,7 +1422,11 @@ class ModelStore:
                 if not fid or fid in seen:
                     continue
                 seen.add(fid)
-                norm_floors.append({"id": fid, "name": (name or fid)[:80]})
+                merged = dict(prior.get(fid) or {})
+                merged.update(f)
+                merged["id"] = fid
+                merged["name"] = (name or fid)[:80]
+                norm_floors.append(_norm_floor(merged))
             if not any(x["id"] == DEFAULT_FLOOR_ID for x in norm_floors):
                 norm_floors.insert(0, {"id": DEFAULT_FLOOR_ID, "name": "Main Floor"})
             self.data["floors"] = norm_floors
