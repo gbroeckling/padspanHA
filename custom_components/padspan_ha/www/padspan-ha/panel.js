@@ -141,8 +141,8 @@ const MENU = [
 //   Advanced  — default set plus user-chosen extras from Settings -> UI Structure
 //   Dev       — everything visible (includes QA, Sandbox, raw Debug, etc.)
 const BASIC_TABS = new Set(["follow", "overview", "maps", "settings", "training"]);
-const ADVANCED_DEFAULT = new Set(["follow","overview","maps","settings","training","manage","calibration","traceback","occupancy","health"]);
-const DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox","purelive"];
+const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","settings","training","manage","calibration","traceback","occupancy","health"]);
+const DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox"];
 
 // Accent color per tab — used for the sidebar dot, mobile nav, and active highlights
 const MENU_COLORS = {
@@ -470,6 +470,21 @@ class PadSpanHaApp extends HTMLElement {
     this.$content = this.$("#content");
     this.$modal = this.$("#modal");
 
+    // Kiosk chrome hiding runs after state init (URL parsed later in this
+    // method) — schedule for after the constructor body completes.
+    queueMicrotask(() => {
+      if (!this.state?.kioskMode) return;
+      try {
+        const style = document.createElement("style");
+        style.textContent = `
+          .left, .desktop-topbar, .mobile-topbar, .mobile-bottom-nav { display: none !important; }
+          .app { grid-template-columns: 1fr !important; }
+          .main { padding: 0 !important; }
+        `;
+        this.shadowRoot.appendChild(style);
+      } catch(e) { /* ignore */ }
+    });
+
     // Measure actual available height — HA's toolbar offsets the panel
     // from the top of the viewport.  --header-height may not propagate
     // through shadow DOM, so measure directly and set on the app element.
@@ -545,14 +560,29 @@ class PadSpanHaApp extends HTMLElement {
       if (saved === "basic" || saved === "advanced" || saved === "development") this.state.complexity = saved;
     } catch(e) { /* ignore */ }
 
+    // ── URL deep-link: ?view=<id> and ?kiosk=1 ──
+    // /padspan-ha?view=purelive opens that view regardless of the browser's
+    // complexity mode (wall monitors have fresh localStorage); kiosk=1 also
+    // hides the panel chrome for a clean always-on display.
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const reqView = q.get("view");
+      if (reqView && _VIEW_PATHS[reqView]) {
+        this.state.view = reqView;
+        this._urlPinnedView = reqView;   // exempt from complexity-fallback
+      }
+      this.state.kioskMode = q.get("kiosk") === "1";
+    } catch(e) { /* ignore */ }
+
     this.$("#complexityToggle").addEventListener("click", ()=>{
       const cur = this.state.complexity;
       this.state.complexity = cur === "basic" ? "advanced" : cur === "advanced" ? "development" : "basic";
       try { localStorage.setItem("padspan_complexity", this.state.complexity); } catch(e) {}
-      // If switching to basic/advanced and current view isn't visible, go to follow
+      // If switching to basic/advanced and current view isn't visible, go to
+      // follow — unless the URL explicitly pinned the view (kiosk deep-link).
       if (this.state.complexity !== "development") {
         const visible = this._getVisibleTabs();
-        if (!visible.has(this.state.view)) this.state.view = "follow";
+        if (!visible.has(this.state.view) && this.state.view !== this._urlPinnedView) this.state.view = "follow";
       }
       this._updateBadges();
       this._renderNav();

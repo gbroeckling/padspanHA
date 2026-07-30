@@ -24,6 +24,9 @@ function injectStyles(root) {
   s.id = STYLES_ID;
   s.textContent = `
     .pl-root{display:flex;flex-direction:column;min-height:calc(100vh - 140px);background:#050d08}
+    /* Kiosk (?view=purelive&kiosk=1): panel chrome is hidden — fill the viewport */
+    .pl-root.pl-kiosk{min-height:calc(100vh - 60px);height:calc(100vh - 60px)}
+    .pl-root.pl-kiosk .pl-info-toggle{display:none}
 
     /* Map viewport — clips the pannable/zoomable content */
     .pl-viewport{flex:1;position:relative;overflow:hidden;background:#071008;border-radius:8px;cursor:grab;touch-action:none}
@@ -448,6 +451,10 @@ function _cleanupMapElement(map) {
 
 function IsoMap({ ctx }) {
   const ref = useRef(null);
+  // Overview supplies the map (Phase-1 module) — briefly absent on a cold
+  // load straight into Pure Live (kiosk bookmark).  Show a placeholder that
+  // the next poll render replaces, instead of a silent blank view.
+  const ovReady = !!window.__PADSPAN_VIEWS?.overview;
 
   useEffect(() => {
     if (!ref.current) return;
@@ -494,7 +501,10 @@ function IsoMap({ ctx }) {
     }
   });
 
-  return html`<div ref=${ref}></div>`;
+  return html`<div>
+    ${!ovReady && html`<div style="padding:60px 20px;text-align:center;color:#4a6052;font-size:13px">Loading map…</div>`}
+    <div ref=${ref}></div>
+  </div>`;
 }
 
 // ── Radio List (bottom strip) ────────────────────────────────────────────────
@@ -736,8 +746,10 @@ function App({ ctx }) {
   const _suspSS = _suspRem % 60;
   const _suspTime = _suspRem > 0 ? `${_suspMM}:${String(_suspSS).padStart(2,"0")}` : "0:00";
 
+  const kiosk = !!ctx.state.kioskMode;
+
   return html`
-    <div className="pl-root">
+    <div className=${"pl-root" + (kiosk ? " pl-kiosk" : "")}>
       <div className="pl-map-area">
         <${MapViewport}>
           <${IsoMap} ctx=${ctx} />
@@ -774,7 +786,7 @@ function App({ ctx }) {
           ${infoVisible ? "\u25BC" : "\u2139"}
         </button>
       </div>
-      <${MapControls} ctx=${ctx} />
+      ${!kiosk && html`<${MapControls} ctx=${ctx} />`}
       ${infoVisible && html`
         <${FollowedTracker} ctx=${ctx} snap=${snap} />
         <${RadioStrip} radios=${radios} ctx=${ctx} />
@@ -790,7 +802,8 @@ let _container = null;
 export function render(ctx) {
   if (!_container || !_container.isConnected) {
     _container = document.createElement("div");
-    _container.style.cssText = "margin:-14px;";
+    // Kiosk mode zeroes the .main padding, so there's nothing to bleed into
+    _container.style.cssText = ctx.state.kioskMode ? "margin:0;" : "margin:-14px;";
   }
 
   const root = _container.getRootNode?.();

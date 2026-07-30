@@ -1314,7 +1314,18 @@ export function render(ctx){
     if(ctx.state._overviewFloorGap===undefined) ctx.state._overviewFloorGap = ctx.state.settings?.overview_iso_floor_gap ?? 150;
     if(ctx.state._overviewHorizGap===undefined) ctx.state._overviewHorizGap = ctx.state.settings?.overview_iso_horiz_gap ?? 0;
     let _ovFG=ctx.state._overviewFloorGap, _ovHG=ctx.state._overviewHorizGap;
-    const iso = (wx,wy,wz)=>[CX+(wx-wy)*TILE*0.866+wz*_ovHG, CY+(wx+wy)*TILE*0.5-wz*_ovFG];
+    // Track the actual projected extent — stitched maps can extend well past
+    // the fixed W×BASE_H canvas (world x beyond the master's unit square),
+    // which used to clip the north-east of the layout.  Reset per build.
+    let _isoBB = null;
+    const iso = (wx,wy,wz)=>{
+      const p=[CX+(wx-wy)*TILE*0.866+wz*_ovHG, CY+(wx+wy)*TILE*0.5-wz*_ovFG];
+      if(_isoBB){
+        if(p[0]<_isoBB.minX)_isoBB.minX=p[0]; if(p[0]>_isoBB.maxX)_isoBB.maxX=p[0];
+        if(p[1]<_isoBB.minY)_isoBB.minY=p[1]; if(p[1]>_isoBB.maxY)_isoBB.maxY=p[1];
+      }
+      return p;
+    };
     const pt  = c=>`${Math.round(c[0])},${Math.round(c[1])}`;
     const pts = cs=>cs.map(pt).join(" ");
 
@@ -1616,8 +1627,23 @@ export function render(ctx){
       const viewX   = _ovHG < 0 ? Math.floor(_ovHG * maxIsoZ) - 30 : -30;
       const viewW   = W + horizExtra + 60;  // extra breathing room on both sides
       const HTOTAL  = BASE_H + LEGEND_H - viewY;
-      let s = `<svg viewBox="${viewX} ${viewY} ${viewW} ${HTOTAL}" xmlns="http://www.w3.org/2000/svg" width="100%" style="max-height:${HTOTAL}px;display:block;font-family:system-ui,sans-serif">`;
-      s += `<rect x="${viewX}" y="${viewY}" width="${viewW}" height="${HTOTAL}" fill="#071008"/>`;
+      // The <svg> header is composed at return time: the heuristic box above
+      // covers floor-gap/offset growth, but only the tracked bounding box
+      // knows how far stitched-map geometry actually reaches.  Union of both
+      // — framing never shrinks, content can no longer be clipped.
+      _isoBB = {minX:Infinity,minY:Infinity,maxX:-Infinity,maxY:-Infinity};
+      const _isoHeader = ()=>{
+        let vx=viewX, vy=viewY, vw=viewW, vh=HTOTAL;
+        if(_isoBB && isFinite(_isoBB.minX)){
+          const PAD=60;
+          const x0=Math.min(vx, _isoBB.minX-PAD), y0=Math.min(vy, _isoBB.minY-PAD);
+          const x1=Math.max(vx+vw, _isoBB.maxX+PAD), y1=Math.max(vy+vh, _isoBB.maxY+40);
+          vx=x0; vy=y0; vw=x1-x0; vh=y1-y0;
+        }
+        return `<svg viewBox="${vx} ${vy} ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg" width="100%" style="max-height:${Math.round(vh)}px;display:block;font-family:system-ui,sans-serif">`
+          + `<rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="#071008"/>`;
+      };
+      let s = ``;
 
       // Floor surface patterns — defined once per level, referenced by fill="url(#...)"
       s += `<defs>`;
@@ -1652,7 +1678,7 @@ export function render(ctx){
 
       if(!sorted.length){
         s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="13">All layers hidden</text>`;
-        s += `</svg>`; return s;
+        return _isoHeader() + s + `</svg>`;
       }
 
       // Emit 3D hatch pattern defs once (before any level renders cells)
@@ -2028,8 +2054,7 @@ export function render(ctx){
         });
       }
 
-      s += `</svg>`;
-      return s;
+      return _isoHeader() + s + `</svg>`;
     };
 
     // Wrapper with floor focus slider + room list toggle
