@@ -861,6 +861,32 @@ function _settingsPresence(ctx, el){
     ),
   ]));
 
+  // ── Update Check ───────────────────────────────────────────────────────────
+  const updChkOn = settings.update_check_enabled !== false;
+  const updChkBtn = el("button", { class: "btn inline", style: updChkOn
+    ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
+    : "color:#94a3b8" }, updChkOn ? "Enabled" : "Disabled");
+  updChkBtn.addEventListener("click", async () => {
+    try {
+      await ctx.actions.settingsSet({ update_check_enabled: !updChkOn });
+      ctx.toast(`Update check ${!updChkOn ? "enabled" : "disabled"}`);
+      ctx.actions.renderRooms();
+    } catch(e) { ctx.toast("Failed to save setting", true); }
+  });
+  wrap.appendChild(el("div", { class: "card" }, [
+    el("div", { class: "h2" }, "Update Check"),
+    el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
+      "Once a day PadSpan asks padspan.traks.ca whether a newer version exists and " +
+      "notifies you when one is available. The request contains only your installed " +
+      "version number; the server sees your IP address (as any web request does) and " +
+      "stores nothing else about you. Turn it off here if you prefer no contact."
+    ),
+    el("div", { style: rowStyle }, [
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Update check"),
+      updChkBtn,
+    ]),
+  ]));
+
   // ── BLE Reseed Interval ──────────────────────────────────────────────────
   const currentReseed = (settings.ble_reseed_interval_s != null ? Number(settings.ble_reseed_interval_s) : 30);
   const reseedInp = el("input", {
@@ -1128,10 +1154,10 @@ function _settingsPresence(ctx, el){
             const delBtn = el("button", {
               class: "btn inline",
               style: "font-size:10px;padding:1px 6px;color:#f87171;border-color:#5c2020;background:none",
-            }, "Delete");
+            }, "Delete from HA");
             if (d.entry_id) {
               delBtn.addEventListener("click", async () => {
-                if (!confirm(`Remove IRK for "${d.name || "device"}"? This will stop tracking this device's rotating MAC.`)) return;
+                if (!confirm(`Delete "${d.name || "device"}" from Home Assistant? This removes the Private BLE Device integration entry itself — the device disappears from HA, not just from PadSpan.`)) return;
                 delBtn.disabled = true;
                 delBtn.textContent = "...";
                 try {
