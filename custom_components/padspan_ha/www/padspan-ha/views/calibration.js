@@ -1727,7 +1727,8 @@ function _tuneTab(ctx, el, cs, calData) {
           const [px, py] = iso(wx, wy, z);
           const isSel = ts.selectedRx && ts.selectedRx.mapId === m.id && ts.selectedRx.rxId === r.id;
           const rx = Math.round(px), ry = Math.round(py);
-          const lbl = (r.label || r.id || "R").substring(0, 6);
+          const _full = r.label || r.id || "R";
+          const lbl = _full.length > 20 ? _full.substring(0, 19) + "…" : _full;
           const tip = `${r.label || r.id || "Receiver"}${r.room ? " | Room: " + r.room : ""} | x: ${(r.x * 100).toFixed(1)}% y: ${(r.y * 100).toFixed(1)}%`;
 
           s += `<g data-rx-id="${_esc(r.id)}" data-map-id="${_esc(m.id)}" data-z="${z}" data-tip="${_esc(tip)}" style="cursor:grab">`;
@@ -1742,7 +1743,7 @@ function _tuneTab(ctx, el, cs, calData) {
           // Center dot
           s += `<circle cx="${rx}" cy="${ry}" r="5" fill="#52b788" opacity="0.95"/>`;
           // Label below
-          const lblW = Math.min(lbl.length * 7 + 8, 60);
+          const lblW = Math.min(lbl.length * 6 + 8, 132);
           s += `<rect x="${rx - lblW / 2}" y="${ry + 18}" width="${lblW}" height="13" rx="3" fill="#071008" opacity="0.8"/>`;
           s += `<text x="${rx}" y="${ry + 28}" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600">${_esc(lbl)}</text>`;
           s += `</g>`;
@@ -2985,13 +2986,14 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           const [wx, wy] = xf.mapPt(r.x || 0, r.y || 0);
           const [px, py] = iso(wx, wy, z);
           const rx = Math.round(px), ry = Math.round(py);
-          const lbl = (r.label || r.id || "R").substring(0, 6);
+          const _full = r.label || r.id || "R";
+          const lbl = _full.length > 20 ? _full.substring(0, 19) + "…" : _full;
           const tip = `Scanner: ${r.label || r.id || "Receiver"}${r.room ? " | Room: " + r.room : ""}${!_isLive ? " (offline)" : ""}`;
           const _rxCol = _isLive ? "#52b788" : "#4a6052";
           s += `<g data-tip="${_esc(tip)}" style="cursor:default;opacity:${_isLive ? 0.6 : 0.3}">`;
           s += `<circle cx="${rx}" cy="${ry}" r="10" fill="none" stroke="${_rxCol}" stroke-width="1.2" opacity="0.5"/>`;
           s += `<circle cx="${rx}" cy="${ry}" r="5" fill="${_rxCol}" opacity="0.6"/>`;
-          const lblW = Math.min(lbl.length * 6 + 6, 50);
+          const lblW = Math.min(lbl.length * 5 + 6, 112);
           s += `<rect x="${rx - lblW / 2}" y="${ry + 12}" width="${lblW}" height="11" rx="3" fill="#071008" opacity="0.7"/>`;
           s += `<text x="${rx}" y="${ry + 21}" text-anchor="middle" fill="${_rxCol}" font-size="7" opacity="0.7">${_esc(lbl)}</text>`;
           s += `</g>`;
