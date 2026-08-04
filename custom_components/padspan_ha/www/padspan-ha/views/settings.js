@@ -1158,6 +1158,7 @@ function _settingsPresence(ctx, el){
             if (d.entry_id) {
               delBtn.addEventListener("click", async () => {
                 if (!confirm(`Delete "${d.name || "device"}" from Home Assistant? This removes the Private BLE Device integration entry itself — the device disappears from HA, not just from PadSpan.`)) return;
+                if (!confirm(`Are you sure? "${d.name || "device"}" will be deleted from Home Assistant. You would need its IRK to re-add it.`)) return;
                 delBtn.disabled = true;
                 delBtn.textContent = "...";
                 try {

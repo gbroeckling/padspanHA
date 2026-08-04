@@ -2024,7 +2024,8 @@ function renderIrkPanel(ctx, snap) {
       } else if (d.source === "private_ble_device" && d.entry_id) {
         const rmBtn = el("button", { class: "btn tiny", style: "color:#fca5a5;border-color:#7f1d1d;background:#2a0a0a" }, "Delete");
         rmBtn.addEventListener("click", async () => {
-          if (!confirm(`Delete HA integration entry for "${d.name}"? This removes the private_ble_device config entry.`)) return;
+          if (!confirm(`Delete "${d.name}" from Home Assistant? This removes the Private BLE Device integration entry itself — the device disappears from HA, not just from PadSpan.`)) return;
+          if (!confirm(`Are you sure? "${d.name}" will be deleted from Home Assistant. You would need its IRK to re-add it.`)) return;
           try {
             await ctx.actions.wsCall("padspan_ha/private_ble_delete_irk", { entry_id: d.entry_id });
             ctx.state._irkPanelStatus = null;
