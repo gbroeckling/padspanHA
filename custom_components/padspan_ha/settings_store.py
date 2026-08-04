@@ -31,6 +31,7 @@ _LOGGER = logging.getLogger(__name__)
 DEFAULT_SETTINGS: dict[str, Any] = {
     "data_mode": "sample",  # "sample" | "live"
     "cpu_mode": "shared",  # "shared" | "single" | "dedicated" — see PresenceCoordinator
+    "update_check_enabled": True,  # daily version ping to padspan.traks.ca (see README)
     "vendor_lookup_enabled": True,  # Sends MAC prefixes to vendor lookup APIs when requested from UI
     "ref_power":      -59.0,   # dBm RSSI at 1 m (distance formula)
     "path_loss_exp":   2.5,    # path-loss exponent n (distance formula)

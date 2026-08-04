@@ -550,6 +550,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _LOGGER.info("Presence coordinator initial fetch deferred (BLE may not be ready yet): %s", err)
 
+    # Daily update check (disclosed in README; update_check_enabled setting)
+    try:
+        from .update_check import async_setup_update_check
+        async_setup_update_check(hass)
+    except Exception as err:
+        _LOGGER.debug("Update check setup failed: %s", err)
+
     return True
 
 
@@ -566,6 +573,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # current BUILD_ID on next load (e.g. after a HACS update + reload).
     try:
         hass.data.get(DOMAIN, {}).pop(DATA_PANEL_REGISTERED, None)
+    except Exception:
+        pass
+
+    # Stop the daily update check
+    try:
+        from .update_check import async_stop_update_check
+        async_stop_update_check(hass)
     except Exception:
         pass
 

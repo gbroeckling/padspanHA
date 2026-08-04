@@ -231,6 +231,14 @@ The result: a solo project that ships features at a pace that would normally req
 
 ---
 
+## Update Check & Privacy
+
+Once a day, PadSpan asks `padspan.traks.ca` whether a newer version is available and shows a Home Assistant notification when one is. The request contains **only your installed version number** (e.g. `?v=0.21.10`). Like any web request, the server sees your IP address; nothing else is sent, no identifiers are stored on your system, and no usage data is collected. The aggregate ping count is the only signal the project gets about how many installs exist.
+
+To turn it off: **Settings → Presence → Update Check → Disabled**. PadSpan then makes no outbound requests at all.
+
+---
+
 ## Donate
 
 If this project saved you time (or you just like knowing which room your cat is in), you can buy me a coffee:

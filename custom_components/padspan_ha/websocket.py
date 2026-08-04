@@ -2931,6 +2931,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         "type": "padspan_ha/settings_set",
         vol.Optional("data_mode"): str,
         vol.Optional("cpu_mode"): str,                        # "shared"|"single"|"dedicated"
+        vol.Optional("update_check_enabled"): bool,           # daily version ping (README)
         vol.Optional("vendor_lookup_enabled"): bool,
         vol.Optional("room_change_delay_s"): vol.Coerce(float),
         vol.Optional("away_timeout_m"): vol.Coerce(float),
@@ -3026,6 +3027,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             if cm not in ("shared", "single", "dedicated"):
                 cm = "shared"
             payload["cpu_mode"] = cm
+        if "update_check_enabled" in msg:
+            payload["update_check_enabled"] = bool(msg.get("update_check_enabled"))
         if "vendor_lookup_enabled" in msg:
             payload["vendor_lookup_enabled"] = bool(msg.get("vendor_lookup_enabled"))
         if "room_change_delay_s" in msg:
