@@ -2058,11 +2058,15 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         for _chg_key, _old, _new in self._pending_room_changes:
                             if _chg_key == key:
                                 _ad.record_transition(_old, _new)
-                        # Periodic save (every 20 observations, not every poll)
+                        # Periodic save (every 20 observations, not every poll).
+                        # call_soon_threadsafe because _smooth_room runs on the
+                        # compute-executor thread in single/dedicated CPU mode —
+                        # async_create_task straight from a thread is not allowed.
                         self._adaptive_save_counter += 1
                         if self._adaptive_save_counter >= 20:
                             self._adaptive_save_counter = 0
-                            self.hass.async_create_task(_ad.async_save_periodic())
+                            self.hass.loop.call_soon_threadsafe(
+                                self.hass.async_create_task, _ad.async_save_periodic())
             except Exception as _obs_err:
                 _LOGGER.warning("Adaptive observe error for %s: %s", key[:30], _obs_err, exc_info=True)
 
