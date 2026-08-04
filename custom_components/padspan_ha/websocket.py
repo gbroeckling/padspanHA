@@ -2919,13 +2919,18 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
 
 @websocket_api.async_response
 async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
-    connection.send_result(msg["id"], {"settings": _get_settings(hass)})
+    from .presence_coordinator import PresenceCoordinator  # noqa: PLC0415
+    connection.send_result(msg["id"], {
+        "settings": _get_settings(hass),
+        "cpu_pinning_supported": PresenceCoordinator.cpu_pinning_supported(),
+    })
 
 
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/settings_set",
         vol.Optional("data_mode"): str,
+        vol.Optional("cpu_mode"): str,                        # "shared"|"single"|"dedicated"
         vol.Optional("vendor_lookup_enabled"): bool,
         vol.Optional("room_change_delay_s"): vol.Coerce(float),
         vol.Optional("away_timeout_m"): vol.Coerce(float),
@@ -3016,6 +3021,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             if mode not in ("sample", "live"):
                 mode = "sample"
             payload["data_mode"] = mode
+        if "cpu_mode" in msg:
+            cm = (msg.get("cpu_mode") or "shared").strip().lower()
+            if cm not in ("shared", "single", "dedicated"):
+                cm = "shared"
+            payload["cpu_mode"] = cm
         if "vendor_lookup_enabled" in msg:
             payload["vendor_lookup_enabled"] = bool(msg.get("vendor_lookup_enabled"))
         if "room_change_delay_s" in msg:

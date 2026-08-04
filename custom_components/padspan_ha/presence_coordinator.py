@@ -85,8 +85,10 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import time
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from typing import Any
 
@@ -302,6 +304,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             name="PadSpan HA Presence",
             update_interval=_SCAN_INTERVAL,
         )
+        # ── CPU mode (settings: cpu_mode = shared|single|dedicated) ─────────
+        # single/dedicated run the per-object smoothing loop on this one-thread
+        # executor so HA's event loop stays responsive; dedicated additionally
+        # pins that thread to one core (Linux sched_setaffinity).
+        self._compute_executor: ThreadPoolExecutor | None = None
+        self._compute_executor_mode: str | None = None
         # ── home/away persistence ────────────────────────────────────────────
         # {key: monotonic_ts}  — when each object was last in the live snapshot
         self._last_seen: dict[str, float] = {}
@@ -500,6 +508,60 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _LOGGER.info("Smoothing state cleared — fresh positioning from raw radio")
 
     # ── main update ──────────────────────────────────────────────────────────
+
+    # ── CPU mode helpers ─────────────────────────────────────────────────────
+
+    @staticmethod
+    def cpu_pinning_supported() -> bool:
+        """True when per-thread core pinning is available (Linux)."""
+        return hasattr(os, "sched_setaffinity")
+
+    def _effective_cpu_mode(self) -> str:
+        """Resolve the cpu_mode setting, downgrading dedicated→single off-Linux."""
+        st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        mode = str((st.data if st else {}).get("cpu_mode") or "shared").strip().lower()
+        if mode not in ("shared", "single", "dedicated"):
+            mode = "shared"
+        if mode == "dedicated" and not self.cpu_pinning_supported():
+            mode = "single"
+        return mode
+
+    @staticmethod
+    def _pin_compute_thread() -> None:
+        """Executor initializer: pin the calling worker thread to one core.
+
+        sched_setaffinity(0, …) applies to the calling *thread* on Linux, so
+        only the compute worker is pinned — HA's loop and other threads keep
+        their full mask.  Uses the highest-numbered available core (HA's own
+        work skews toward low-numbered cores).
+        """
+        try:
+            cpus = os.sched_getaffinity(0)
+            if len(cpus) > 1:
+                os.sched_setaffinity(0, {max(cpus)})
+        except Exception:  # never let pinning failure kill the worker
+            pass
+
+    def _compute_executor_for(self, mode: str) -> ThreadPoolExecutor:
+        """Return the single-thread compute executor, rebuilding on mode change."""
+        if self._compute_executor is not None and self._compute_executor_mode == mode:
+            return self._compute_executor
+        if self._compute_executor is not None:
+            self._compute_executor.shutdown(wait=False)
+        self._compute_executor = ThreadPoolExecutor(
+            max_workers=1,
+            thread_name_prefix="padspan_compute",
+            initializer=self._pin_compute_thread if mode == "dedicated" else None,
+        )
+        self._compute_executor_mode = mode
+        return self._compute_executor
+
+    def shutdown_compute_executor(self) -> None:
+        """Tear down the compute executor (config-entry unload)."""
+        if self._compute_executor is not None:
+            self._compute_executor.shutdown(wait=False)
+            self._compute_executor = None
+            self._compute_executor_mode = None
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Main poll loop — called every _SCAN_INTERVAL (10s) by HA's coordinator.
@@ -758,131 +820,146 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception:
             pass
 
-        for obj in objects:
-            key = obj.get("key", "")
-            if not key:
-                continue
+        def _object_loop() -> None:
+            """CPU-heavy per-object smoothing pipeline (Kalman + k-NN + votes).
 
-            # ── Re-entry detection: clear stale smoothing state ──────────────
-            # If this device was absent (stale) in the previous poll and is now
-            # back, reset the vote window and Kalman state so old-location votes
-            # don't slow down re-assignment.
-            if self._known_objs.get(key, {}).get("_stale"):
-                self._room_votes.pop(key, None)
-                self._room_confidence.pop(key, None)
-                # A stale room must not anchor first-poll attribution —
-                # clear the confirmed room and the adaptive novelty vector too
-                self._confirmed_room.pop(key, None)
-                self._adaptive_last_vec.pop(key, None)
-                self._knn_position.pop(key, None)
-                self._smooth_xy.pop(key, None)
-                self._spatial_position.pop(key, None)
-                self._spatial_smooth_xy.pop(key, None)
+            Runs inline in shared CPU mode, or on the one-thread compute
+            executor in single/dedicated modes so HA's event loop stays
+            responsive.  Coordinator refreshes are serialized and only this
+            worker touches the smoothing state, so no locking is needed.
+            """
+            for obj in objects:
+                key = obj.get("key", "")
+                if not key:
+                    continue
+
+                # ── Re-entry detection: clear stale smoothing state ──────────────
+                # If this device was absent (stale) in the previous poll and is now
+                # back, reset the vote window and Kalman state so old-location votes
+                # don't slow down re-assignment.
+                if self._known_objs.get(key, {}).get("_stale"):
+                    self._room_votes.pop(key, None)
+                    self._room_confidence.pop(key, None)
+                    # A stale room must not anchor first-poll attribution —
+                    # clear the confirmed room and the adaptive novelty vector too
+                    self._confirmed_room.pop(key, None)
+                    self._adaptive_last_vec.pop(key, None)
+                    self._knn_position.pop(key, None)
+                    self._smooth_xy.pop(key, None)
+                    self._spatial_position.pop(key, None)
+                    self._spatial_smooth_xy.pop(key, None)
+                    if obj.get("kind") in ("ble", "private_ble"):
+                        # For private_ble, use canonical_id as Kalman key
+                        _raw_addr = str(obj.get("address") or "").upper()
+                        addr_clear = _rpa_map.get(_raw_addr, _raw_addr)
+                        self._ema_rssi.pop(addr_clear, None)
+                        self._kalman_p.pop(addr_clear, None)
+                        self._silence_miss.pop(addr_clear, None)
+                    elif obj.get("kind") == "ibeacon":
+                        self._ema_rssi.pop(key, None)
+                        self._kalman_p.pop(key, None)
+                        self._silence_miss.pop(key, None)
+
+                # Cache the live copy for home/away persistence
+                self._last_seen[key] = now
+                self._away_miss[key] = 0  # reset grace counter — device is present
+
+                self._known_objs[key] = dict(obj)
+
+                # ── Per-object smoothing pipeline ──────────────────────────────
+                # Only BLE and iBeacon objects go through our Kalman + Gaussian +
+                # vote pipeline.  Entity-based trackers (e.g. Bermuda) arrive
+                # pre-smoothed from their own integration.
                 if obj.get("kind") in ("ble", "private_ble"):
-                    # For private_ble, use canonical_id as Kalman key
-                    _raw_addr = str(obj.get("address") or "").upper()
-                    addr_clear = _rpa_map.get(_raw_addr, _raw_addr)
-                    self._ema_rssi.pop(addr_clear, None)
-                    self._kalman_p.pop(addr_clear, None)
-                    self._silence_miss.pop(addr_clear, None)
+                    obj = dict(obj)  # copy — don't mutate the snapshot list in place
+                    raw_addr = str(obj.get("address") or "").upper()
+                    # For private_ble, use canonical_id as Kalman state key so all
+                    # rotating MACs share one continuous smoothing state.
+                    smooth_addr = _rpa_map.get(raw_addr, raw_addr)
+                    self._rekey_kalman_state(key, smooth_addr)
+                    smoothed_room = self._smooth_room(
+                        key, smooth_addr, addr_src_rssi, source_to_area,
+                        _dyn_vote_window, _dyn_vote_threshold, source_to_floor,
+                        _fabric_rooms)
+                    if smoothed_room:
+                        obj["room"] = smoothed_room
+                    obj["_smoothed"] = True
+                    obj["room_confidence"] = self._room_confidence.get(key, 0.0)
+                    obj["rssi_margin_confidence"] = self._rssi_margin_confidence.get(key, 0.0)
+                    # Propagate sub-room position — prefer spatial (real-time geometry)
+                    # over k-NN (historical calibration that may be stale).
+                    _pos = self._spatial_position.get(key) or self._knn_position.get(key)
+                    if _pos:
+                        obj["x_frac"] = _pos.get("x_frac")
+                        obj["y_frac"] = _pos.get("y_frac")
+                        obj["knn_confidence"] = _pos.get("confidence")
+                        if _pos.get("map_id"):
+                            obj["knn_map_id"] = _pos["map_id"]
+                        if _pos.get("x_m") is not None:
+                            obj["x_m"] = _pos["x_m"]
+                            obj["y_m"] = _pos["y_m"]
+                    # Store Kalman-smoothed per-source RSSI for scanner distance sensors
+                    obj["_source_rssi"] = dict(self._ema_rssi.get(smooth_addr, {}))
+                    # Propagate TX power if seen in advertisements
+                    if smooth_addr in addr_tx_power:
+                        obj.setdefault("tx_power", addr_tx_power[smooth_addr])
+                    elif raw_addr in addr_tx_power:
+                        obj.setdefault("tx_power", addr_tx_power[raw_addr])
+                    self._known_objs[key] = dict(obj)  # refresh with smoothed data
                 elif obj.get("kind") == "ibeacon":
-                    self._ema_rssi.pop(key, None)
-                    self._kalman_p.pop(key, None)
-                    self._silence_miss.pop(key, None)
+                    obj = dict(obj)
+                    # iBeacons may advertise from multiple MAC addresses (rotation).
+                    # Merge RSSI across all known addresses, keeping the strongest
+                    # per scanner, then feed the merged dict into _smooth_room under
+                    # the UUID-based key (not a MAC address).
+                    merged_src: dict[str, float] = {}
+                    for a in (obj.get("all_addresses") or []):
+                        for src, rssi in addr_src_rssi.get(str(a).upper(), {}).items():
+                            if src not in merged_src or rssi > merged_src[src]:
+                                merged_src[src] = rssi
+                    # Pass merged RSSI under the UUID key as a synthetic single-addr dict
+                    synthetic = {key: merged_src} if merged_src else {}
+                    smoothed_room = self._smooth_room(
+                        key, key, synthetic, source_to_area,
+                        _dyn_vote_window, _dyn_vote_threshold, source_to_floor,
+                        _fabric_rooms)
+                    if smoothed_room:
+                        obj["room"] = smoothed_room
+                    obj["_smoothed"] = True
+                    obj["room_confidence"] = self._room_confidence.get(key, 0.0)
+                    obj["rssi_margin_confidence"] = self._rssi_margin_confidence.get(key, 0.0)
+                    # Propagate sub-room position — prefer spatial over k-NN
+                    _pos_ib = self._spatial_position.get(key) or self._knn_position.get(key)
+                    if _pos_ib:
+                        obj["x_frac"] = _pos_ib.get("x_frac")
+                        obj["y_frac"] = _pos_ib.get("y_frac")
+                        obj["knn_confidence"] = _pos_ib.get("confidence")
+                        if _pos_ib.get("map_id"):
+                            obj["knn_map_id"] = _pos_ib["map_id"]
+                        if _pos_ib.get("x_m") is not None:
+                            obj["x_m"] = _pos_ib["x_m"]
+                            obj["y_m"] = _pos_ib["y_m"]
+                    # Store Kalman-smoothed per-source RSSI for scanner distance sensors
+                    obj["_source_rssi"] = dict(self._ema_rssi.get(key, {}))
+                    self._known_objs[key] = dict(obj)  # refresh with smoothed data
 
-            # Cache the live copy for home/away persistence
-            self._last_seen[key] = now
-            self._away_miss[key] = 0  # reset grace counter — device is present
+                # ── Pinned beacon room override ──────────────────────────────────
+                if key in _pinned:
+                    _pin = _pinned[key]
+                    obj = dict(obj)  # copy — the snapshot is shared via the TTL cache
+                    if _pin["room"]:
+                        obj["room"] = _pin["room"]
+                        self._confirmed_room[key] = _pin["room"]
+                    obj["_pinned"] = True
 
-            self._known_objs[key] = dict(obj)
+                result[key] = obj
 
-            # ── Per-object smoothing pipeline ──────────────────────────────
-            # Only BLE and iBeacon objects go through our Kalman + Gaussian +
-            # vote pipeline.  Entity-based trackers (e.g. Bermuda) arrive
-            # pre-smoothed from their own integration.
-            if obj.get("kind") in ("ble", "private_ble"):
-                obj = dict(obj)  # copy — don't mutate the snapshot list in place
-                raw_addr = str(obj.get("address") or "").upper()
-                # For private_ble, use canonical_id as Kalman state key so all
-                # rotating MACs share one continuous smoothing state.
-                smooth_addr = _rpa_map.get(raw_addr, raw_addr)
-                self._rekey_kalman_state(key, smooth_addr)
-                smoothed_room = self._smooth_room(
-                    key, smooth_addr, addr_src_rssi, source_to_area,
-                    _dyn_vote_window, _dyn_vote_threshold, source_to_floor,
-                    _fabric_rooms)
-                if smoothed_room:
-                    obj["room"] = smoothed_room
-                obj["_smoothed"] = True
-                obj["room_confidence"] = self._room_confidence.get(key, 0.0)
-                obj["rssi_margin_confidence"] = self._rssi_margin_confidence.get(key, 0.0)
-                # Propagate sub-room position — prefer spatial (real-time geometry)
-                # over k-NN (historical calibration that may be stale).
-                _pos = self._spatial_position.get(key) or self._knn_position.get(key)
-                if _pos:
-                    obj["x_frac"] = _pos.get("x_frac")
-                    obj["y_frac"] = _pos.get("y_frac")
-                    obj["knn_confidence"] = _pos.get("confidence")
-                    if _pos.get("map_id"):
-                        obj["knn_map_id"] = _pos["map_id"]
-                    if _pos.get("x_m") is not None:
-                        obj["x_m"] = _pos["x_m"]
-                        obj["y_m"] = _pos["y_m"]
-                # Store Kalman-smoothed per-source RSSI for scanner distance sensors
-                obj["_source_rssi"] = dict(self._ema_rssi.get(smooth_addr, {}))
-                # Propagate TX power if seen in advertisements
-                if smooth_addr in addr_tx_power:
-                    obj.setdefault("tx_power", addr_tx_power[smooth_addr])
-                elif raw_addr in addr_tx_power:
-                    obj.setdefault("tx_power", addr_tx_power[raw_addr])
-                self._known_objs[key] = dict(obj)  # refresh with smoothed data
-            elif obj.get("kind") == "ibeacon":
-                obj = dict(obj)
-                # iBeacons may advertise from multiple MAC addresses (rotation).
-                # Merge RSSI across all known addresses, keeping the strongest
-                # per scanner, then feed the merged dict into _smooth_room under
-                # the UUID-based key (not a MAC address).
-                merged_src: dict[str, float] = {}
-                for a in (obj.get("all_addresses") or []):
-                    for src, rssi in addr_src_rssi.get(str(a).upper(), {}).items():
-                        if src not in merged_src or rssi > merged_src[src]:
-                            merged_src[src] = rssi
-                # Pass merged RSSI under the UUID key as a synthetic single-addr dict
-                synthetic = {key: merged_src} if merged_src else {}
-                smoothed_room = self._smooth_room(
-                    key, key, synthetic, source_to_area,
-                    _dyn_vote_window, _dyn_vote_threshold, source_to_floor,
-                    _fabric_rooms)
-                if smoothed_room:
-                    obj["room"] = smoothed_room
-                obj["_smoothed"] = True
-                obj["room_confidence"] = self._room_confidence.get(key, 0.0)
-                obj["rssi_margin_confidence"] = self._rssi_margin_confidence.get(key, 0.0)
-                # Propagate sub-room position — prefer spatial over k-NN
-                _pos_ib = self._spatial_position.get(key) or self._knn_position.get(key)
-                if _pos_ib:
-                    obj["x_frac"] = _pos_ib.get("x_frac")
-                    obj["y_frac"] = _pos_ib.get("y_frac")
-                    obj["knn_confidence"] = _pos_ib.get("confidence")
-                    if _pos_ib.get("map_id"):
-                        obj["knn_map_id"] = _pos_ib["map_id"]
-                    if _pos_ib.get("x_m") is not None:
-                        obj["x_m"] = _pos_ib["x_m"]
-                        obj["y_m"] = _pos_ib["y_m"]
-                # Store Kalman-smoothed per-source RSSI for scanner distance sensors
-                obj["_source_rssi"] = dict(self._ema_rssi.get(key, {}))
-                self._known_objs[key] = dict(obj)  # refresh with smoothed data
-
-            # ── Pinned beacon room override ──────────────────────────────────
-            if key in _pinned:
-                _pin = _pinned[key]
-                obj = dict(obj)  # copy — the snapshot is shared via the TTL cache
-                if _pin["room"]:
-                    obj["room"] = _pin["room"]
-                    self._confirmed_room[key] = _pin["room"]
-                obj["_pinned"] = True
-
-            result[key] = obj
+        _cpu_mode = self._effective_cpu_mode()
+        if _cpu_mode == "shared":
+            _object_loop()
+        else:
+            await self.hass.loop.run_in_executor(
+                self._compute_executor_for(_cpu_mode), _object_loop)
 
         # ── Auto-calibration from pinned beacons ─────────────────────────────
         if _pinned:

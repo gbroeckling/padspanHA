@@ -822,6 +822,45 @@ function _settingsPresence(ctx, el){
     ),
   ]));
 
+  // ── CPU Mode ───────────────────────────────────────────────────────────────
+  const cpuMode = (settings.cpu_mode || "shared").toLowerCase();
+  const pinOk = !!ctx.state.cpuPinningSupported;
+  const cpuSel = el("select", { style:
+    "font-size:13px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:5px 8px" });
+  const cpuOpts = [
+    ["shared", "Shared — fastest updates, competes with HA"],
+    ["single", "Single core — capped at one core, HA stays responsive"],
+  ];
+  if (pinOk) cpuOpts.push(["dedicated", "Dedicated core — own pinned core, zero contention"]);
+  for (const [val, label] of cpuOpts) {
+    const opt = el("option", { value: val }, label);
+    if (val === cpuMode) opt.selected = true;
+    cpuSel.appendChild(opt);
+  }
+  cpuSel.addEventListener("change", async () => {
+    try {
+      await ctx.actions.settingsSet({ cpu_mode: cpuSel.value });
+      ctx.toast(`CPU mode: ${cpuSel.value}`);
+    } catch(e) { ctx.toast("Failed to save setting", true); }
+  });
+  wrap.appendChild(el("div", { class: "card" }, [
+    el("div", { class: "h2" }, "CPU Mode"),
+    el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
+      "Where the presence-smoothing computation runs. Shared runs it on Home Assistant's " +
+      "main loop (fastest, but can slow HA on low-core hardware like a Pi). Single core moves " +
+      "it to a background worker capped at one core so HA stays responsive." +
+      (pinOk ? " Dedicated core additionally pins that worker to its own CPU core." : "")
+    ),
+    el("div", { style: rowStyle }, [
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "CPU mode"),
+      cpuSel,
+    ]),
+    el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
+      "Applies from the next poll cycle — no restart needed." +
+      (pinOk ? "" : " (Dedicated core is unavailable on this platform.)")
+    ),
+  ]));
+
   // ── BLE Reseed Interval ──────────────────────────────────────────────────
   const currentReseed = (settings.ble_reseed_interval_s != null ? Number(settings.ble_reseed_interval_s) : 30);
   const reseedInp = el("input", {

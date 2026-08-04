@@ -1006,6 +1006,7 @@ class PadSpanHaApp extends HTMLElement {
       const res = await this._callWS({ type: "padspan_ha/settings_get" });
       if(res?.settings){
         this.state.settings = res.settings;
+        if ("cpu_pinning_supported" in res) this.state.cpuPinningSupported = !!res.cpu_pinning_supported;
         const mode = (res.settings.data_mode || "sample").toLowerCase();
         this.state.dataMode = (mode === "live") ? "live" : "sample";
         // Load followed addrs from server ONCE on boot (not on every poll,
@@ -1034,6 +1035,7 @@ class PadSpanHaApp extends HTMLElement {
       if(!this._hass) return;
       const res = await this._callWS({ type: "padspan_ha/settings_get" });
       this.state.settings = res?.settings || {};
+      if (res && "cpu_pinning_supported" in res) this.state.cpuPinningSupported = !!res.cpu_pinning_supported;
       const mode = (res?.settings?.data_mode || "sample").toLowerCase();
       this.state.dataMode = (mode === "live") ? "live" : "sample";
       this._updateBadges();

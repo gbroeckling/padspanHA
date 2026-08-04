@@ -569,9 +569,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception:
         pass
 
-    # Stop presence coordinator
+    # Stop presence coordinator (and its CPU-mode compute executor)
     try:
-        hass.data.get(DOMAIN, {}).pop("presence_coordinator", None)
+        _pc = hass.data.get(DOMAIN, {}).pop("presence_coordinator", None)
+        if _pc is not None:
+            _pc.shutdown_compute_executor()
     except Exception:
         pass
 
