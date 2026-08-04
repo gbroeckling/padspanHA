@@ -2419,7 +2419,6 @@ function _beaconChars(ctx, el){
   masterBtn.addEventListener("click", () => {
     const newVal = !masterEnabled;
     ctx.actions.wsCall("padspan_ha/settings_set", {
-      data_mode: settings.data_mode || "sample",
       beacon_profiling_enabled: newVal,
     }).then(() => {
       ctx.state.settings = { ...settings, beacon_profiling_enabled: newVal };
@@ -2452,7 +2451,6 @@ function _beaconChars(ctx, el){
   // Helper to persist tune-disabled + group overrides to settings
   const _saveBC = () => {
     ctx.actions.wsCall("padspan_ha/settings_set", {
-      data_mode: settings.data_mode || "sample",
       beacon_tune_disabled: [...ctx.state._bcTuneDisabled],
       beacon_group_overrides: ctx.state._bcGroupOverrides,
     }).catch(e => console.error("save beacon settings:", e));

@@ -1596,7 +1596,11 @@ class PadSpanHaApp extends HTMLElement {
 
         // Settings actions
         settingsSet: async (payload) => {
-          const res = await this._callWS(Object.assign({ type: "padspan_ha/settings_set", data_mode: this.state.dataMode }, payload));
+          // Do NOT bundle data_mode here: this.state.dataMode defaults to
+          // "sample" until settings load, so echoing it back can silently
+          // flip a live install into sample mode (backend keeps data_mode
+          // untouched when the message omits it).
+          const res = await this._callWS(Object.assign({ type: "padspan_ha/settings_set" }, payload));
           this.state.settings = res?.settings || this.state.settings;
           this._renderNav();
           this._scheduleRender();
@@ -1639,7 +1643,6 @@ class PadSpanHaApp extends HTMLElement {
           // Persist to server (fire-and-forget)
           this._callWS({
             type: "padspan_ha/settings_set",
-            data_mode: this.state.dataMode,
             followed_addrs: [...this.state.followedAddrs],
           }).catch(()=>{});
           // Also mirror to localStorage as fallback
@@ -2109,7 +2112,6 @@ class PadSpanHaApp extends HTMLElement {
         // Persist to server
         this._callWS({
           type: "padspan_ha/settings_set",
-          data_mode: this.state.dataMode,
           followed_addrs: [...this.state.followedAddrs],
         }).catch(()=>{});
         try { localStorage.setItem("padspan_followed", JSON.stringify([...this.state.followedAddrs])); } catch(e){}
@@ -2132,7 +2134,6 @@ class PadSpanHaApp extends HTMLElement {
           this.state.followedAddrs.delete(_followKey);
           this._callWS({
             type: "padspan_ha/settings_set",
-            data_mode: this.state.dataMode,
             followed_addrs: [...this.state.followedAddrs],
           }).catch(()=>{});
           try { localStorage.setItem("padspan_followed", JSON.stringify([...this.state.followedAddrs])); } catch(e){}
