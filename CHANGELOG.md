@@ -4,9 +4,10 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.22.0 — Forensics (2026-08-04)
+## 0.22.0 — Forensics (PadSpan Pro) (2026-08-04)
 
 ### Added
+- **PadSpan Pro licensing** — Forensics is the first Pro feature ($45 CAD/year). Enabling it asks for a licence key, validated server-side against the traks.ca licence service. The rest of PadSpan remains free and unchanged.
 - **Forensics mode** (off by default, opt-in via Settings → Features) — answers "which Bluetooth devices were near my scanners between X and Y?" (issue #55). While enabled and in Live mode, a background sampler records presence *sessions* per address every 60 seconds (a 5-minute silence closes a session), with configurable retention (7–90 days, default 14) and hard caps.
 - **Forensics tab** — appears only while the setting is on. Time-window search with two confidence tiers: *Recorded* (actual presence sessions overlapping the window, with dwell time, peak signal, and scanners) and *Possible* (object-history first/last-seen span overlaps the window — lower confidence). CSV export for handing results to investigators.
 - **Privacy guardrails** — always-visible privacy notice, explicit confirm before enabling, double-confirm data deletion, stats display, and reliability disclaimers throughout (a BLE address is not a person; rotating MACs mean most phones won't appear consistently; results are leads, not proof). Recordings never leave the Home Assistant instance and are never included in live snapshots.
