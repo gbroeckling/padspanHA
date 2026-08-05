@@ -4,6 +4,15 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.22.3 — Calibration & Private BLE fixes (2026-08-04)
+
+### Fixed
+- **Calibration pins no longer collapse to the map corner** (issue #56) — re-deriving point positions after a map save used to clamp out-of-range results to (0,0); when the map transform disagreed with stored metre coordinates this silently piled a whole floor's calibration into the upper-left corner. Out-of-range points now keep their existing positions, and a remap that would displace most of a map's points is aborted entirely.
+- **3D stack alignment saves no longer touch calibration** — the alignment editor only writes the cosmetic stack transform, which calibration does not depend on; the save was needlessly re-deriving (and potentially corrupting) pin positions.
+- **Private BLE devices now show their real names** (issue #57 root cause) — the IRK table displayed the config-entry title, which Home Assistant leaves as the original MAC address forever. It now prefers the device-registry friendly name, so your renamed iPhone shows as "Garry's iPhone", not `AA:BB:…`.
+
+---
+
 ## 0.22.0 — Forensics (PadSpan Pro) (2026-08-04)
 
 ### Added

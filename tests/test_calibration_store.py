@@ -574,3 +574,72 @@ class TestLooAlgorithm:
         result = store.loo_accuracy()
         assert result is not None
         assert result["algorithm"] == "knn"
+
+
+# ---------------------------------------------------------------------------
+# Tests: async_remap_from_metres safety (issue #56 — corner pile-up)
+# ---------------------------------------------------------------------------
+
+
+class _FakeModel:
+    """Model stub whose metres_to_map_frac returns preset fracs per (x_m, y_m)."""
+
+    def __init__(self, mapping):
+        self._mapping = mapping
+
+    def metres_to_map_frac(self, x_m, y_m, map_id):
+        return self._mapping.get((x_m, y_m))
+
+
+def _remap_point(x_m: float, y_m: float, map_id: str = "map1", x_frac: float = 0.5, y_frac: float = 0.5) -> dict:
+    p = _make_point(map_id=map_id, x_frac=x_frac, y_frac=y_frac)
+    p["x_m"] = x_m
+    p["y_m"] = y_m
+    return p
+
+
+async def test_remap_out_of_range_point_keeps_existing_fracs() -> None:
+    """A point re-deriving outside the map keeps its fracs (no corner clamp)."""
+    pts = [
+        _remap_point(1.0, 1.0, x_frac=0.4, y_frac=0.4),   # re-derives in range
+        _remap_point(2.0, 2.0, x_frac=0.7, y_frac=0.7),   # re-derives NEGATIVE
+    ]
+    store = _make_store(pts)
+    store._model = _FakeModel({(1.0, 1.0): (0.3, 0.3), (2.0, 2.0): (-0.4, -0.6)})
+    count = await store.async_remap_from_metres("map1")
+    assert count == 1
+    assert store.data["points"][0]["x_frac"] == 0.3
+    # The bad point was NOT clamped to (0,0) — old behavior — nor moved at all
+    assert store.data["points"][1]["x_frac"] == 0.7
+    assert store.data["points"][1]["y_frac"] == 0.7
+
+
+async def test_remap_aborts_when_majority_out_of_range() -> None:
+    """If most owned points re-derive out of range, the whole remap is a no-op."""
+    pts = [
+        _remap_point(1.0, 1.0, x_frac=0.1, y_frac=0.1),
+        _remap_point(2.0, 2.0, x_frac=0.2, y_frac=0.2),
+        _remap_point(3.0, 3.0, x_frac=0.3, y_frac=0.3),
+    ]
+    store = _make_store(pts)
+    store._model = _FakeModel({
+        (1.0, 1.0): (0.5, 0.5),      # fine
+        (2.0, 2.0): (-1.0, -1.0),    # out of range
+        (3.0, 3.0): (-2.0, -2.0),    # out of range
+    })
+    count = await store.async_remap_from_metres("map1")
+    assert count == 0
+    for i, orig in enumerate([0.1, 0.2, 0.3]):
+        assert store.data["points"][i]["x_frac"] == orig
+    store.store.async_save.assert_not_awaited()
+
+
+async def test_remap_orphan_adoption_still_works() -> None:
+    """Orphans (map_id='') inside the map are still adopted with fracs set."""
+    orphan = _remap_point(1.0, 1.0, map_id="", x_frac=0.9, y_frac=0.9)
+    store = _make_store([orphan])
+    store._model = _FakeModel({(1.0, 1.0): (0.25, 0.75)})
+    count = await store.async_remap_from_metres("map1")
+    assert count == 1
+    assert store.data["points"][0]["map_id"] == "map1"
+    assert store.data["points"][0]["x_frac"] == 0.25
