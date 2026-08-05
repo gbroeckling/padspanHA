@@ -3875,12 +3875,23 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
         pass  # best-effort
 
     # ── Phase 3: remap calibration points from metres when map changes ───
-    try:
-        _cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
-        if _cal:
-            await _cal.async_remap_from_metres(map_id)
-    except Exception:
-        pass  # best-effort
+    # Skipped for stack-only saves (issue #56): the 3D alignment editor only
+    # writes the cosmetic stack, which the metre transform does not depend
+    # on — re-deriving fracs here was rewriting calibration pins through a
+    # transform whose origin no longer matched the stored metres.
+    _stack_only = (
+        msg.get("stack") is not None
+        and msg.get("receivers") is None and _beacons is None
+        and msg.get("calibration") is None and _incoming_rb is None
+        and msg.get("rf_barriers") is None and msg.get("floor_id") is None
+    )
+    if not _stack_only:
+        try:
+            _cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
+            if _cal:
+                await _cal.async_remap_from_metres(map_id)
+        except Exception:
+            pass  # best-effort
 
     connection.send_result(msg["id"], {"map": updated})
 

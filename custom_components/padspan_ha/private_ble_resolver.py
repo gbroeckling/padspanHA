@@ -104,13 +104,34 @@ class PrivateBLEResolver:
 
         try:
             # 1) private_ble_device entries (the standard HA integration)
+            # Prefer the device-registry friendly name (name_by_user) — HA
+            # keeps the config-entry TITLE as the original MAC-ish string
+            # forever, which made users' own phones look like anonymous junk
+            # rows in the IRK table (issue #57's root UX trigger).
+            _dev_reg = None
+            try:
+                from homeassistant.helpers import device_registry as _dr  # noqa: PLC0415
+                _dev_reg = _dr.async_get(self._hass)
+            except Exception:
+                pass
             for entry in self._hass.config_entries.async_entries("private_ble_device"):
                 irk_raw = (entry.data or {}).get("irk")
                 if not irk_raw:
                     continue
                 irk_bytes = _parse_irk(irk_raw)
                 if irk_bytes:
-                    _add_device(irk_bytes, entry.title or entry.entry_id, "private_ble_device", entry.entry_id)
+                    _disp = entry.title or entry.entry_id
+                    if _dev_reg is not None:
+                        try:
+                            from homeassistant.helpers import device_registry as _dr  # noqa: PLC0415
+                            for _dev in _dr.async_entries_for_config_entry(_dev_reg, entry.entry_id):
+                                _friendly = _dev.name_by_user or _dev.name
+                                if _friendly and isinstance(_friendly, str):
+                                    _disp = _friendly
+                                    break
+                        except Exception:
+                            pass
+                    _add_device(irk_bytes, _disp, "private_ble_device", entry.entry_id)
 
             # 2) System Bluetooth bonded devices — reads IRKs from the host OS
             #    Linux: /var/lib/bluetooth/<adapter>/<device>/info has [IdentityResolvingKey] Key=...

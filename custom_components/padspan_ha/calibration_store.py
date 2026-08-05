@@ -21,6 +21,7 @@ Data layout in .storage/padspan_ha.calibration:
   }
 """
 
+import logging
 import math
 import os
 from dataclasses import dataclass, field
@@ -33,6 +34,8 @@ from homeassistant.helpers.storage import Store
 from .const import CALIBRATION_STORE_KEY, DATA_SETTINGS, DOMAIN
 from .safe_store import wrap_store
 from .random_forest import MISSING_RSSI, RandomForestLocator
+
+_LOGGER = logging.getLogger(__name__)
 
 GRID_N = 10           # 10×10 coverage grid per floor map
 SIGMA_CELLS = 1.8     # Gaussian sigma in grid-cell units (~20% of map width)
@@ -345,28 +348,52 @@ class CalibrationStore:
 
         Also re-adopts orphaned points (map_id='') whose metres fall within
         this map's coordinate range (0-1 fracs).
+
+        Safety (issue #56): a re-derived frac outside the map means the map
+        transform disagrees with the stored metres.  These used to be CLAMPED
+        to the nearest edge — which silently piled a whole floor's points
+        into the (0,0) corner when the transform origin drifted.  Now
+        out-of-range points keep their existing fracs, and if most of the
+        map's own points re-derive out of range the whole remap is aborted.
         """
         if not self._model:
             return 0
-        count = 0
+        # Pass 1: derive everything, measure sanity before writing anything
+        derived: list[tuple[dict, float, float, bool]] = []
+        owned = 0
+        owned_bad = 0
         for p in self.data.get("points", []):
             if p.get("x_m") is None:
                 continue
-            x_m = float(p["x_m"])
-            y_m = float(p["y_m"])
             pid = p.get("map_id", "")
-            if pid == map_id or pid == "":
-                fracs = self._model.metres_to_map_frac(x_m, y_m, map_id)
-                if fracs:
-                    fx, fy = fracs
-                    # Only re-adopt orphans if fracs are within valid map range
-                    if pid == "" and (fx < -0.05 or fx > 1.05 or fy < -0.05 or fy > 1.05):
-                        continue  # outside this map's coverage
-                    p["x_frac"] = round(max(0.0, min(1.0, fx)), 4)
-                    p["y_frac"] = round(max(0.0, min(1.0, fy)), 4)
-                    if pid == "":
-                        p["map_id"] = map_id  # re-adopt orphan
-                    count += 1
+            if pid != map_id and pid != "":
+                continue
+            fracs = self._model.metres_to_map_frac(float(p["x_m"]), float(p["y_m"]), map_id)
+            if not fracs:
+                continue
+            fx, fy = fracs
+            in_range = -0.05 <= fx <= 1.05 and -0.05 <= fy <= 1.05
+            if pid == map_id:
+                owned += 1
+                if not in_range:
+                    owned_bad += 1
+                    continue  # keep the existing fracs — do not clamp
+            elif not in_range:
+                continue  # orphan outside this map's coverage
+            derived.append((p, fx, fy, pid == ""))
+        if owned and owned_bad * 2 > owned:
+            _LOGGER.warning(
+                "Calibration remap for map %s aborted: %d/%d points re-derive "
+                "outside the map — transform disagrees with stored metres; "
+                "keeping existing fracs", map_id, owned_bad, owned)
+            return 0
+        count = 0
+        for p, fx, fy, is_orphan in derived:
+            p["x_frac"] = round(max(0.0, min(1.0, fx)), 4)
+            p["y_frac"] = round(max(0.0, min(1.0, fy)), 4)
+            if is_orphan:
+                p["map_id"] = map_id  # re-adopt orphan
+            count += 1
         if count:
             await self.store.async_save(self.data)
         return count
