@@ -643,3 +643,70 @@ async def test_remap_orphan_adoption_still_works() -> None:
     assert count == 1
     assert store.data["points"][0]["map_id"] == "map1"
     assert store.data["points"][0]["x_frac"] == 0.25
+
+
+# ---------------------------------------------------------------------------
+# End-to-end chain repro (issue #56): a 3D-alignment-style save demotes the
+# master map, the transform recompute rebases the origin from stack offsets,
+# and the calibration remap — driven by the REAL ModelStore math, not a stub —
+# must refuse to destroy the points.
+# ---------------------------------------------------------------------------
+
+from custom_components.padspan_ha.model_store import ModelStore  # noqa: E402
+
+
+def _real_model(transform: dict) -> ModelStore:
+    m = ModelStore.__new__(ModelStore)
+    m.hass = MagicMock()
+    m.store = AsyncMock()
+    m.store.async_save = AsyncMock()
+    m.data = {"map_transforms": {"map1": dict(transform)}}
+    return m
+
+
+async def test_issue56_chain_origin_rebase_cannot_destroy_calibration() -> None:
+    """Replays erkr's #56 damage steps against real transform math.
+
+    Ground map measured as master: origin (0,0), 10m x 8m.  Points recorded
+    in metres well inside the map.  The 3D alignment save flips is_master
+    off and leaves stack offsets, after which the recompute path derives
+    origin = offset * scale — here (6.0, 4.0) — so most points re-derive to
+    negative fracs.  Pre-0.22.3 the remap clamped them all to (0,0); now it
+    must abort and leave every frac untouched.
+    """
+    model = _real_model({
+        "origin_x_m": 0.0, "origin_y_m": 0.0,
+        "scale_x_m": 10.0, "scale_y_m": 8.0,
+        "rotation_rad": 0.0, "floor_id": "main",
+    })
+    pts = [
+        _remap_point(2.0, 2.0, x_frac=0.2, y_frac=0.25),
+        _remap_point(3.0, 3.2, x_frac=0.3, y_frac=0.4),
+        _remap_point(5.0, 4.0, x_frac=0.5, y_frac=0.5),
+    ]
+    cal = _make_store(pts)
+    cal._model = model
+
+    # Sanity: with the healthy transform the remap is a faithful no-op-ish
+    # rewrite (fracs re-derive to their stored values).
+    count = await cal.async_remap_from_metres("map1")
+    assert count == 3
+    assert cal.data["points"][0]["x_frac"] == pytest.approx(0.2)
+
+    # The 3D-save consequence: origin rebased from stack offsets
+    # (model_store.async_recompute_transform_for_map non-master branch:
+    # origin = x_offset * scale) — is_master flipped off with offsets 0.6/0.5.
+    model.data["map_transforms"]["map1"]["origin_x_m"] = 0.6 * 10.0
+    model.data["map_transforms"]["map1"]["origin_y_m"] = 0.5 * 8.0
+
+    # All three points now re-derive negative (e.g. (2-6)/10 = -0.4) —
+    # exactly the condition that used to clamp the whole floor to (0,0).
+    fx, fy = model.metres_to_map_frac(2.0, 2.0, "map1")
+    assert fx < -0.05 and fy < -0.05
+
+    count = await cal.async_remap_from_metres("map1")
+    assert count == 0  # aborted as degenerate
+    for p, (ox, oy) in zip(cal.data["points"], [(0.2, 0.25), (0.3, 0.4), (0.5, 0.5)]):
+        assert p["x_frac"] == pytest.approx(ox)
+        assert p["y_frac"] == pytest.approx(oy)
+        assert (p["x_frac"], p["y_frac"]) != (0.0, 0.0)
