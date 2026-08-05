@@ -424,6 +424,18 @@ export const HELP = {
     ],
   },
 
+  // ── Forensics ──────────────────────────────────────────────────────────
+  forensics: {
+    title: "Forensics — Time-window presence search",
+    body: [
+      "Forensics answers: which Bluetooth devices were near my scanners between two points in time? Useful after a break-in, a package theft, or to spot an unknown tracker that keeps returning.",
+      "While enabled (Settings → Features), PadSpan samples every 60 seconds in Live mode and records presence sessions — contiguous stretches during which a device was heard. A gap of more than 5 minutes closes a session.",
+      "Recorded results are devices with an actual session inside your window. Possible results only have a first-seen/last-seen span overlapping the window — they may have left and come back, so treat them as lower confidence.",
+      "Reliability: a Bluetooth address is not a person. Phones rotate their addresses every 15 minutes to 24 hours, so most phones appear as one-off addresses. Fixed-address devices (earbuds, trackers, speakers, gadgets) are what this reliably surfaces. Addresses can also be spoofed — treat results as investigative leads, not proof.",
+      "All recordings stay on your Home Assistant instance and are never uploaded. Retention is configurable (7–90 days, enforced even after you disable recording) and recorded sessions can be deleted from Settings → Features → Forensics. The Possible tier comes from the Objects first/last-seen history and is governed by the Object History Retention setting instead.",
+    ],
+  },
+
   // ── Traceback ──────────────────────────────────────────────────────────
   traceback_overview: {
     title: "Traceback — Movement Replay",

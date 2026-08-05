@@ -61,6 +61,7 @@ const _VIEW_PATHS = {
   training:     "./views/training.js",
   calibration:  "./views/calibration.js",
   traceback:    "./views/traceback.js",
+  forensics:    "./views/forensics.js",
   sandbox:      "./views/sandbox.js",
   occupancy:    "./views/occupancy.js",
 };
@@ -129,6 +130,7 @@ const MENU = [
   ["training","Training","mdi:school-outline"],
   ["calibration","Calibration","mdi:crosshairs"],
   ["traceback","Traceback","mdi:history"],
+  ["forensics","Forensics","mdi:magnify-scan"],
   ["occupancy","Occupancy","mdi:account-group-outline"],
   ["health","Health","mdi:heart-pulse"],
   ["qa","QA","mdi:clipboard-check-outline"],
@@ -167,6 +169,7 @@ const MENU_COLORS = {
   diagnostics: "#9575cd",
   debug: "#ef5350",
   traceback: "#fbbf24",
+  forensics: "#f87171",
   qa: "#26c6da",
   sandbox: "#9ccc65",
   purelive: "#7c3aed",
@@ -1290,12 +1293,24 @@ class PadSpanHaApp extends HTMLElement {
   /** Return the Set of tab IDs visible in the current complexity mode. */
   _getVisibleTabs(){
     const mode = this.state.complexity;
-    if (mode === "development") return new Set(MENU.map(x => x[0]));
-    if (mode === "basic") return BASIC_TABS;
+    // Forensics is settings-gated in EVERY mode (including Dev): the tab only
+    // exists while the opt-in forensics_enabled setting is on.
+    const forensicsOn = this.state.settings?.forensics_enabled === true;
+    if (mode === "development") {
+      const all = new Set(MENU.map(x => x[0]));
+      if (!forensicsOn) all.delete("forensics");
+      return all;
+    }
+    if (mode === "basic") {
+      const b = new Set(BASIC_TABS);
+      if (forensicsOn) b.add("forensics");
+      return b;
+    }
     // Advanced: base + any user-opted extra tabs
     const extras = this.state.settings?.advanced_extra_tabs || [];
     const s = new Set(ADVANCED_DEFAULT);
     for (const t of extras) s.add(t);
+    if (forensicsOn) s.add("forensics");
     return s;
   }
 

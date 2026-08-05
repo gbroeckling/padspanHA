@@ -113,6 +113,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # survives restarts and integration reloads — previously the coordinator's
     # room_tag_map was in-memory only and reset to {} on every restart.
     "room_tag_map": {},                   # {room_name: [object_key, ...]}
+    # ── Forensics (off by default — records presence sessions of ALL nearby
+    # BLE devices, including neighbours/passers-by, for time-window queries.
+    # Privacy-sensitive: user must opt in via Settings → Features.) ──────────
+    "forensics_enabled": False,
+    "forensics_retention_days": 14,       # allowed: 7, 14, 30, 60, 90
     # ── Enterprise preview features (off by default) ─────────────────────────
     "trackability_rating_enabled": False,   # per-device Easy/Medium/Hard trackability score
     "walk_to_identify_enabled": False,      # spatial correlation device discovery ("who just walked in?")

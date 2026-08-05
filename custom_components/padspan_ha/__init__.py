@@ -49,6 +49,7 @@ from .const import (
     DATA_TAG_INTEGRATION,
     DATA_PANEL_REGISTERED,
     DATA_DEVICE_REGISTRY,
+    DATA_FORENSICS,
 )
 from .adaptive_store import AdaptiveStore
 from .device_registry import DeviceRegistry
@@ -126,6 +127,12 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
         await mv_store.async_load()
         return (DATA_MOVEMENT, mv_store, f"MovementStore ready ({len(mv_store.entries)} entries)")
 
+    async def _init_forensics():
+        from .forensics_store import ForensicsStore
+        fs_store = ForensicsStore(hass)
+        await fs_store.async_load()
+        return (DATA_FORENSICS, fs_store, f"ForensicsStore ready ({len(fs_store.addrs)} addresses)")
+
     async def _init_adaptive():
         ad_store = AdaptiveStore(hass)
         await ad_store.async_load()
@@ -198,6 +205,8 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
         deferred.append(_init_alerts())
     if DATA_MOVEMENT not in hass.data[DOMAIN]:
         deferred.append(_init_movement())
+    if DATA_FORENSICS not in hass.data[DOMAIN]:
+        deferred.append(_init_forensics())
     if DATA_ADAPTIVE not in hass.data[DOMAIN]:
         deferred.append(_init_adaptive())
     if DATA_CALIBRATION not in hass.data[DOMAIN]:
@@ -557,6 +566,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _LOGGER.debug("Update check setup failed: %s", err)
 
+    # Forensics presence-session sampler (per-tick no-op unless the
+    # forensics_enabled setting is on AND data_mode is live)
+    try:
+        from .forensics_store import async_setup_forensics
+        async_setup_forensics(hass)
+    except Exception as err:
+        _LOGGER.debug("Forensics setup failed: %s", err)
+
     return True
 
 
@@ -582,6 +599,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_stop_update_check(hass)
     except Exception:
         pass
+
+    # Stop the forensics sampler and flush unsaved sessions
+    try:
+        from .forensics_store import async_stop_forensics
+        async_stop_forensics(hass)
+        _fs = hass.data.get(DOMAIN, {}).get(DATA_FORENSICS)
+        if _fs is not None:
+            await _fs.async_save_if_due(force=True)
+    except Exception as err:
+        _LOGGER.debug("Forensics teardown error: %s", err)
 
     # Stop presence coordinator (and its CPU-mode compute executor)
     try:

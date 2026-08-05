@@ -271,6 +271,10 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_device_registry_add_identity)
     websocket_api.async_register_command(hass, ws_device_registry_delete)
     websocket_api.async_register_command(hass, ws_espresense_companion_import)
+    # Forensics (opt-in time-window presence queries)
+    websocket_api.async_register_command(hass, ws_forensics_query)
+    websocket_api.async_register_command(hass, ws_forensics_stats)
+    websocket_api.async_register_command(hass, ws_forensics_clear)
     _ensure_log_handler()
     _LOGGER.debug("PadSpan HA websocket commands registered")
 
@@ -2989,6 +2993,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("phone_wizard_enabled"): bool,
         vol.Optional("mac_rotation_bridging"): bool,
         vol.Optional("apple_auto_classify"): bool,
+        vol.Optional("forensics_enabled"): bool,
+        vol.Optional("forensics_retention_days"): vol.Coerce(int),
         vol.Optional("ble_max_age_s"): vol.Coerce(int),
         vol.Optional("occupancy_hybrid_enabled"): bool,
         vol.Optional("occupancy_cluster_threshold"): vol.Coerce(float),
@@ -3173,9 +3179,13 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "radio_map_enabled", "distortion_map_enabled",
                     "compass_ring_enabled", "replay_timeline_enabled",
                     "phone_wizard_enabled", "mac_rotation_bridging",
-                    "apple_auto_classify"):
+                    "apple_auto_classify", "forensics_enabled"):
             if key in msg:
                 payload[key] = bool(msg[key])
+        if "forensics_retention_days" in msg:
+            from .forensics_store import RETENTION_CHOICES, DEFAULT_RETENTION_DAYS
+            _fd = int(msg["forensics_retention_days"])
+            payload["forensics_retention_days"] = _fd if _fd in RETENTION_CHOICES else DEFAULT_RETENTION_DAYS
         if "presence_poll_interval_s" in msg:
             payload["presence_poll_interval_s"] = max(1, min(60, int(msg["presence_poll_interval_s"])))
         if "ble_reseed_interval_s" in msg:
@@ -4663,6 +4673,135 @@ async def ws_objects_clear_history(hass: HomeAssistant, connection, msg) -> None
     _LOGGER.info("Object history cleared: removed %d, kept %d tagged", removed, kept)
     _invalidate_snapshot_cache(hass)
     connection.send_result(msg["id"], {"ok": True, "removed": removed, "kept": kept})
+
+
+# ── Forensics (opt-in time-window presence queries — issue #55) ───────────────
+# Data comes from ForensicsStore (real recorded sessions) with a lower-
+# confidence fallback over the object-history cache's first/last-seen span.
+# NOTHING here ships in live_snapshot; these are on-demand queries only.
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/forensics_query",
+        vol.Required("from_ts"): vol.Coerce(float),
+        vol.Required("to_ts"): vol.Coerce(float),
+    }
+)
+@websocket_api.async_response
+async def ws_forensics_query(hass: HomeAssistant, connection, msg) -> None:
+    """Return devices present (recorded) or possibly present (first/last-seen
+    overlap) during [from_ts, to_ts] (epoch seconds)."""
+    from .const import DATA_FORENSICS
+    from .forensics_store import retention_days
+
+    from_ts = float(msg["from_ts"])
+    to_ts = float(msg["to_ts"])
+    if to_ts < from_ts:
+        from_ts, to_ts = to_ts, from_ts
+
+    _dom = hass.data.get(DOMAIN, {})
+    fs = _dom.get(DATA_FORENSICS)
+    # The query is a sync scan over every stored session — run it off the
+    # event loop (only the 60s tick otherwise touches the store's dict).
+    recorded = await hass.async_add_executor_job(fs.query, from_ts, to_ts, 500) if fs else []
+    stats = fs.stats() if fs else {}
+
+    # Label + vendor enrichment from ObjectStore / object-history cache.
+    # Rotating-MAC devices (private BLE / split iBeacon) are cached under
+    # irk:/ibeacon: keys with the current MAC only in the entry's address /
+    # all_addresses fields — build a reverse MAC index so the user's own
+    # labelled phone doesn't show up as an anonymous MAC.
+    obj_store = _dom.get(DATA_OBJECTS)
+    _hist: dict = _dom.get(DATA_OBJECT_HISTORY) or {}
+    _mac_to_hist: dict[str, tuple[str, dict]] = {}
+    for _k, _cached in list(_hist.items()):
+        if not _k.startswith(("irk:", "ibeacon:")):
+            continue
+        _macs = [_cached.get("address")] + list(_cached.get("all_addresses") or [])
+        for _m in _macs:
+            _mu = str(_m or "").upper()
+            if len(_mu) == 17:
+                _mac_to_hist.setdefault(_mu, (_k, _cached))
+    for r in recorded:
+        addr = r["address"]
+        if obj_store:
+            label = obj_store.get_label(addr) or obj_store.get_label(f"ble:{addr}")
+            if label:
+                r["user_label"] = label
+        h = _hist.get(f"ble:{addr}")
+        hist_key = f"ble:{addr}"
+        if h is None and addr in _mac_to_hist:
+            hist_key, h = _mac_to_hist[addr]
+        if h:
+            for fld in ("company_name", "device_type", "user_label", "name"):
+                if h.get(fld) and not r.get(fld):
+                    r[fld] = h[fld]
+            if obj_store and not r.get("user_label"):
+                label = obj_store.get_label(h.get("canonical_id") or hist_key)
+                if label:
+                    r["user_label"] = label
+
+    # Fallback tier: cache entries whose [first_seen, last_seen] span overlaps
+    # the window but have no recorded sessions.  A device seen before AND
+    # after the window matches too — hence "possible", not "recorded".
+    recorded_addrs = {r["address"] for r in recorded}
+    possible = []
+    for key, cached in list(_hist.items()):
+        fs_ts = cached.get("_first_seen")
+        ls_ts = cached.get("_last_seen_ts")
+        if not isinstance(fs_ts, (int, float)) or not isinstance(ls_ts, (int, float)):
+            continue
+        if fs_ts > to_ts or ls_ts < from_ts:
+            continue
+        addr = (cached.get("address") or "").upper()
+        if addr and addr in recorded_addrs:
+            continue
+        possible.append({
+            "key": key,
+            "kind": cached.get("kind") or "",
+            "address": addr,
+            "name": cached.get("name") or "",
+            "user_label": cached.get("user_label") or "",
+            "company_name": cached.get("company_name") or "",
+            "device_type": cached.get("device_type") or "",
+            "first_seen": fs_ts,
+            "last_seen": ls_ts,
+        })
+    # Collect ALL matches first, then sort by recency and truncate — an early
+    # break would keep an arbitrary insertion-order subset of the cache.
+    possible.sort(key=lambda p: p["last_seen"], reverse=True)
+    del possible[500:]
+
+    connection.send_result(msg["id"], {
+        "recorded": recorded,
+        "possible": possible,
+        "recording_oldest_ts": stats.get("oldest_ts"),
+        "retention_days": retention_days(hass),
+    })
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/forensics_stats"})
+@websocket_api.async_response
+async def ws_forensics_stats(hass: HomeAssistant, connection, msg) -> None:
+    """Return recorder stats for the Settings UI."""
+    from .const import DATA_FORENSICS
+
+    fs = hass.data.get(DOMAIN, {}).get(DATA_FORENSICS)
+    stats = fs.stats() if fs else {"addr_count": 0, "session_count": 0, "oldest_ts": None, "newest_ts": None}
+    connection.send_result(msg["id"], stats)
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/forensics_clear"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_forensics_clear(hass: HomeAssistant, connection, msg) -> None:
+    """Delete all recorded forensics sessions (irreversible)."""
+    from .const import DATA_FORENSICS
+
+    fs = hass.data.get(DOMAIN, {}).get(DATA_FORENSICS)
+    removed = await fs.async_clear() if fs else 0
+    _LOGGER.info("Forensics data cleared (%d addresses removed)", removed)
+    connection.send_result(msg["id"], {"ok": True, "removed": removed})
 
 
 # ── Radio / Scanner Management ─────────────────────────────────────────────────

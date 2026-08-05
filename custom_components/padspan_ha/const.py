@@ -60,6 +60,7 @@ DATA_TAG_INTEGRATION = "tag_integration"
 DATA_FABRIC = "fabric"                       # positioning fabric (Phase 1 decoupling)
 DATA_DEVICE_REGISTRY = "device_registry"     # stable device identity registry
 DATA_ESPRESENSE_MQTT = "espresense_mqtt"     # ESPresense MQTT ingestion module
+DATA_FORENSICS = "forensics"                 # presence-session recorder (opt-in)
 
 # ── HA Storage file keys (.storage/<key>) ─────────────────────────────────────
 SETTINGS_STORE_KEY = "padspan_ha.settings"
@@ -74,6 +75,7 @@ BACKUPS_STORE_KEY = "padspan_ha.backups"
 OBJECT_HISTORY_STORE_KEY = "padspan_ha.object_history"
 VENDOR_CACHE_STORE_KEY = "padspan_ha.vendor_cache"
 TRACEBACK_STORE_KEY = "padspan_ha.traceback"
+FORENSICS_STORE_KEY = "padspan_ha.forensics"
 
 # ── Filesystem / map defaults ─────────────────────────────────────────────────
 DEFAULT_FLOOR_ID = "main"

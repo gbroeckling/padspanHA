@@ -2581,6 +2581,117 @@ function _settingsFeatures(ctx, el){
     wrap.appendChild(card);
   }
 
+  // ── Forensics (privacy-sensitive, off by default — issue #55) ─────────────
+  {
+    const forensicsOn = settings.forensics_enabled === true;
+    const card = el("div",{class:"card",style:"margin-top:14px;border-color:" + (forensicsOn ? "#b91c1c" : "#334155")});
+
+    card.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:6px"},[
+      el("div",{class:"h2",style:"margin:0;color:#f87171"},"Forensics"),
+      el("span",{style:"font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(248,113,113,.15);color:#f87171;font-weight:600;text-transform:uppercase"}, "privacy-sensitive"),
+    ]));
+    card.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
+      "Records presence sessions for every Bluetooth device your scanners hear, so you can later ask " +
+      "\"which devices were near my home between X and Y?\" — e.g. after a break-in, or to spot an unknown " +
+      "tracker that keeps returning. Adds a Forensics tab while enabled. Samples every 60 seconds in Live mode."));
+
+    // Always-visible privacy warning
+    card.appendChild(el("div",{style:
+      "display:flex;gap:10px;padding:10px 14px;border-radius:6px;" +
+      "background:linear-gradient(135deg,#450a0a,#7f1d1d);border:1px solid #b91c1c;margin-bottom:10px"
+    },[
+      el("span",{style:"font-size:18px"}, "⚠️"),
+      el("div",{style:"flex:1"},[
+        el("div",{style:"color:#fca5a5;font-weight:700;font-size:13px"},"Privacy notice"),
+        el("div",{style:"color:#fecaca;font-size:12px;margin-top:2px;line-height:1.5"},
+          "This continuously records which Bluetooth devices are near your scanners — including devices " +
+          "belonging to neighbours, visitors, and passers-by. Recordings stay on this Home Assistant " +
+          "instance and are never uploaded. Laws on collecting wireless identifiers vary by jurisdiction; " +
+          "you are responsible for using this lawfully. Results are investigative leads, not proof — " +
+          "a Bluetooth address is not a person, and most phones rotate their addresses."),
+      ]),
+    ]));
+
+    const toggle = el("input",{type:"checkbox",id:"forensicsToggle",style:"width:18px;height:18px;accent-color:#f87171;cursor:pointer"});
+    toggle.checked = forensicsOn;
+    toggle.addEventListener("change", async()=>{
+      const live = ctx.state.dataMode === "live";
+      if(toggle.checked){
+        let msg = "Enable Forensics recording?\n\nPadSpan will continuously record the presence of ALL nearby Bluetooth devices — including neighbours' and passers-by's — on this Home Assistant instance.\n\nYou are responsible for using this lawfully in your jurisdiction.";
+        if(!live) msg += "\n\nNote: data mode is currently Sample — nothing will be recorded until you switch data mode to Live.";
+        if(!confirm(msg)){
+          toggle.checked = false;
+          return;
+        }
+      }
+      try {
+        await ctx.actions.settingsSet({ forensics_enabled: toggle.checked });
+        ctx.toast(toggle.checked
+          ? (live
+              ? "Forensics recording enabled — the Forensics tab is now in the sidebar"
+              : "Forensics enabled — recording starts once data mode is Live; the Forensics tab is now in the sidebar")
+          : "Forensics recording disabled (recorded data kept — delete it below if wanted)");
+        ctx.actions.renderRooms();
+      } catch(e){ ctx.toast("Failed to save", true); }
+    });
+    card.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
+      toggle,
+      el("label",{for:"forensicsToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"},
+        "Enable presence-session recording"),
+    ]));
+
+    // Retention select (auto-save on change)
+    const RETENTION_CHOICES = [7, 14, 30, 60, 90];
+    const curRet = RETENTION_CHOICES.includes(Number(settings.forensics_retention_days))
+      ? Number(settings.forensics_retention_days) : 14;
+    const retSel = el("select",{style:"width:160px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:6px;padding:4px 8px;font-size:13px"});
+    for(const d of RETENTION_CHOICES){
+      const o = el("option",{value:String(d)}, d === 14 ? "14 days (default)" : `${d} days`);
+      if(d === curRet) o.selected = true;
+      retSel.appendChild(o);
+    }
+    retSel.addEventListener("change", async()=>{
+      const v = Number(retSel.value);
+      if(!RETENTION_CHOICES.includes(v)) return;
+      try {
+        await ctx.actions.settingsSet({ forensics_retention_days: v });
+        ctx.toast(`Forensics retention set to ${v} days`);
+      } catch(e){ ctx.toast("Failed to save", true); }
+    });
+    card.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px"},[
+      el("div",{style:"font-size:13px;color:#a7f3d0;min-width:130px"},"Keep sessions for"),
+      retSel,
+    ]));
+
+    // Stats line + delete button
+    const statsDiv = el("div",{class:"muted",style:"font-size:11px;margin-bottom:8px"},"Loading stats…");
+    (async()=>{
+      try {
+        const s = await ctx.actions.wsCall("padspan_ha/forensics_stats");
+        const oldest = s?.oldest_ts ? new Date(s.oldest_ts * 1000).toLocaleDateString() : null;
+        statsDiv.textContent = (s?.addr_count || 0) + " addresses · " + (s?.session_count || 0) +
+          " sessions recorded" + (oldest ? ` · oldest ${oldest}` : "");
+      } catch(e){ statsDiv.textContent = ""; }
+    })();
+    card.appendChild(statsDiv);
+
+    const delBtn = el("button",{class:"btn",style:"background:#991b1b;border-color:#991b1b"},"Delete all recorded data");
+    delBtn.addEventListener("click", async()=>{
+      if(!confirm("Delete ALL recorded forensics sessions? This cannot be undone.\n\nNote: the 'Possible' tier in the Forensics tab comes from the Objects first/last-seen history and is not affected by this delete.")) return;
+      if(!confirm("Are you sure? Every recorded presence session will be permanently deleted.")) return;
+      delBtn.disabled = true; delBtn.textContent = "Deleting…";
+      try {
+        const r = await ctx.actions.wsCall("padspan_ha/forensics_clear");
+        ctx.toast(`Deleted forensics data for ${r?.removed ?? 0} addresses`);
+        statsDiv.textContent = "0 addresses · 0 sessions recorded";
+      } catch(e){ ctx.toast("Delete failed: " + String(e), true); }
+      finally { delBtn.disabled = false; delBtn.textContent = "Delete all recorded data"; }
+    });
+    card.appendChild(delBtn);
+
+    wrap.appendChild(card);
+  }
+
   return wrap;
 }
 
