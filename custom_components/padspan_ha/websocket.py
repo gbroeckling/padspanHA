@@ -1,4 +1,4 @@
-# PadSpan HA — BLE Room-Presence Tracking for Home Assistant
+﻿# PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
 # See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
@@ -271,10 +271,11 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_device_registry_add_identity)
     websocket_api.async_register_command(hass, ws_device_registry_delete)
     websocket_api.async_register_command(hass, ws_espresense_companion_import)
-    # Forensics (opt-in time-window presence queries)
+    # Forensics (opt-in time-window presence queries; Pro licence gated)
     websocket_api.async_register_command(hass, ws_forensics_query)
     websocket_api.async_register_command(hass, ws_forensics_stats)
     websocket_api.async_register_command(hass, ws_forensics_clear)
+    websocket_api.async_register_command(hass, ws_forensics_license_activate)
     _ensure_log_handler()
     _LOGGER.debug("PadSpan HA websocket commands registered")
 
@@ -3179,9 +3180,16 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "radio_map_enabled", "distortion_map_enabled",
                     "compass_ring_enabled", "replay_timeline_enabled",
                     "phone_wizard_enabled", "mac_rotation_bridging",
-                    "apple_auto_classify", "forensics_enabled"):
+                    "apple_auto_classify"):
             if key in msg:
                 payload[key] = bool(msg[key])
+        if "forensics_enabled" in msg:
+            # Enabling requires an activated PadSpan Pro licence key (set via
+            # padspan_ha/forensics_license_activate).  Disabling is always allowed.
+            _want = bool(msg["forensics_enabled"])
+            if _want and not str(st.data.get("forensics_license_key") or "").strip():
+                _want = False
+            payload["forensics_enabled"] = _want
         if "forensics_retention_days" in msg:
             from .forensics_store import RETENTION_CHOICES, DEFAULT_RETENTION_DAYS
             _fd = int(msg["forensics_retention_days"])
@@ -4778,6 +4786,66 @@ async def ws_forensics_query(hass: HomeAssistant, connection, msg) -> None:
         "recording_oldest_ts": stats.get("oldest_ts"),
         "retention_days": retention_days(hass),
     })
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/forensics_license_activate",
+        vol.Required("key"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) -> None:
+    """Validate a PadSpan Pro licence key against traks.ca and, if valid,
+    store it and enable forensics.  The server does the HTTP call so the
+    browser never needs cross-origin access."""
+    key = str(msg.get("key") or "").strip().upper()
+    if not key:
+        connection.send_error(msg["id"], "invalid_key", "Licence key is required")
+        return
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if not st:
+        connection.send_error(msg["id"], "not_ready", "Settings store not available")
+        return
+    try:
+        import json as _json  # noqa: PLC0415
+        from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
+        try:
+            from homeassistant.helpers.instance_id import async_get as _instance_id  # noqa: PLC0415
+            machine = await _instance_id(hass)
+        except Exception:
+            machine = "padspan-ha"
+        session = async_get_clientsession(hass)
+        async with session.get(
+            "https://traks.ca/license/",
+            params={"action": "validate", "product": "padspan", "key": key, "machine": machine},
+            timeout=15,
+        ) as resp:
+            text = await resp.text()
+        data = _json.loads(text.lstrip("\ufeff"))  # licence server prefixes a BOM
+    except Exception as err:
+        connection.send_error(msg["id"], "network",
+            f"Could not reach the licence server ({err}). Check the internet connection and try again.")
+        return
+    if data.get("valid"):
+        await st.async_set(
+            forensics_license_key=key,
+            forensics_license_expires=str(data.get("expires_at") or ""),
+            forensics_enabled=True,
+        )
+        _invalidate_snapshot_cache(hass)
+        connection.send_result(msg["id"], {
+            "ok": True,
+            "expires_at": data.get("expires_at"),
+            "days_left": data.get("days_left"),
+            "settings": _get_settings(hass),
+        })
+    else:
+        connection.send_result(msg["id"], {
+            "ok": False,
+            "status": data.get("status") or "invalid",
+            "message": data.get("message") or "Key not valid for PadSpan Pro.",
+        })
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/forensics_stats"})

@@ -2616,11 +2616,40 @@ function _settingsFeatures(ctx, el){
     toggle.checked = forensicsOn;
     toggle.addEventListener("change", async()=>{
       const live = ctx.state.dataMode === "live";
+      const hasKey = !!String(settings.forensics_license_key || "").trim();
       if(toggle.checked){
         let msg = "Enable Forensics recording?\n\nPadSpan will continuously record the presence of ALL nearby Bluetooth devices — including neighbours' and passers-by's — on this Home Assistant instance.\n\nYou are responsible for using this lawfully in your jurisdiction.";
         if(!live) msg += "\n\nNote: data mode is currently Sample — nothing will be recorded until you switch data mode to Live.";
         if(!confirm(msg)){
           toggle.checked = false;
+          return;
+        }
+        if(!hasKey){
+          // Forensics is a PadSpan Pro feature — ask for the licence key.
+          const key = prompt("Forensics is a PadSpan Pro feature.\n\nEnter your licence key (PSPAN-XXXX-XXXX-XXXX-XXXX):");
+          if(!key || !key.trim()){
+            toggle.checked = false;
+            ctx.toast("A PadSpan Pro licence key is required for Forensics", true);
+            return;
+          }
+          toggle.disabled = true;
+          try {
+            const r = await ctx.actions.wsCall("padspan_ha/forensics_license_activate", { key: key.trim() });
+            if(r?.ok){
+              if(r.settings) ctx.state.settings = r.settings;
+              ctx.toast(live
+                ? "PadSpan Pro activated — Forensics recording enabled"
+                : "PadSpan Pro activated — recording starts once data mode is Live");
+              ctx.actions.renderNav && ctx.actions.renderNav();
+              ctx.actions.renderRooms();
+            } else {
+              toggle.checked = false;
+              ctx.toast(r?.message || "Key not valid for PadSpan Pro", true);
+            }
+          } catch(e){
+            toggle.checked = false;
+            ctx.toast("Licence check failed: " + String(e), true);
+          } finally { toggle.disabled = false; }
           return;
         }
       }
@@ -2638,7 +2667,22 @@ function _settingsFeatures(ctx, el){
       toggle,
       el("label",{for:"forensicsToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"},
         "Enable presence-session recording"),
+      el("span",{style:"font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.15);color:#c4b5fd;font-weight:600;text-transform:uppercase"}, "pro"),
     ]));
+
+    // Licence status line (key set via the enable flow's activation prompt)
+    {
+      const licKey = String(settings.forensics_license_key || "").trim();
+      if(licKey){
+        const masked = licKey.length > 9 ? licKey.slice(0,6) + "…" + licKey.slice(-4) : licKey;
+        const licExp = String(settings.forensics_license_expires || "").slice(0,10);
+        card.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:10px;color:#a7f3d0"},
+          `✓ PadSpan Pro licensed — ${masked}` + (licExp ? ` · valid until ${licExp}` : "")));
+      } else {
+        card.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:10px"},
+          "Requires a PadSpan Pro licence key — you'll be asked for it when enabling."));
+      }
+    }
 
     // Retention select (auto-save on change)
     const RETENTION_CHOICES = [7, 14, 30, 60, 90];

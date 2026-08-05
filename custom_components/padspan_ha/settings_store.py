@@ -118,6 +118,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # Privacy-sensitive: user must opt in via Settings → Features.) ──────────
     "forensics_enabled": False,
     "forensics_retention_days": 14,       # allowed: 7, 14, 30, 60, 90
+    # PadSpan Pro licence (validated against traks.ca/license, product=padspan).
+    # Set only via the padspan_ha/forensics_license_activate command.
+    "forensics_license_key": "",
+    "forensics_license_expires": "",
     # ── Enterprise preview features (off by default) ─────────────────────────
     "trackability_rating_enabled": False,   # per-device Easy/Medium/Hard trackability score
     "walk_to_identify_enabled": False,      # spatial correlation device discovery ("who just walked in?")
