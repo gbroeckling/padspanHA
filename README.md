@@ -20,6 +20,15 @@ It works with your existing BLE scanners (ESPresense, Bermuda proxies, or any HA
 
 ## Screenshots
 
+### Running on the wall
+
+![PadSpan live on a wall-mounted panel in the great room, showing the multi-floor map with tracked devices](images/wall-panel-in-situ.jpg)
+
+Not a mockup — this is PadSpan on a wall panel in daily use, next to the
+thermostat and light switches.
+
+---
+
 | 3D Multi-Floor Tracking | 3D Heatmap + Signal Overlay |
 |:-:|:-:|
 | ![Live multi-floor isometric view with tracked devices across 3 floors](images/overview-3d-multifloor.jpg) | ![3D overview with RSSI heatmap crosshatch and device positions](images/overview-3d-heatmap.jpg) |
