@@ -4752,9 +4752,16 @@ async def ws_forensics_query(hass: HomeAssistant, connection, msg) -> None:
     # Fallback tier: cache entries whose [first_seen, last_seen] span overlaps
     # the window but have no recorded sessions.  A device seen before AND
     # after the window matches too — hence "possible", not "recorded".
+    #
+    # ONLY offered when the window reaches before recording began: for any
+    # window the recorder already covers, span-overlap matches every device
+    # currently alive (last_seen = now) and floods the results with the whole
+    # neighbourhood (measured: 145 "possible" on a 1-minute window).
+    oldest_rec = stats.get("oldest_ts")
+    include_possible = oldest_rec is None or from_ts < float(oldest_rec)
     recorded_addrs = {r["address"] for r in recorded}
     possible = []
-    for key, cached in list(_hist.items()):
+    for key, cached in list(_hist.items()) if include_possible else []:
         fs_ts = cached.get("_first_seen")
         ls_ts = cached.get("_last_seen_ts")
         if not isinstance(fs_ts, (int, float)) or not isinstance(ls_ts, (int, float)):
@@ -4763,6 +4770,10 @@ async def ws_forensics_query(hass: HomeAssistant, connection, msg) -> None:
             continue
         addr = (cached.get("address") or "").upper()
         if addr and addr in recorded_addrs:
+            continue
+        # Grouped entries (irk:/ibeacon:) carry their rotation history in
+        # all_addresses — drop them too if any of those MACs was recorded.
+        if any(str(a or "").upper() in recorded_addrs for a in (cached.get("all_addresses") or [])):
             continue
         possible.append({
             "key": key,
@@ -4783,6 +4794,7 @@ async def ws_forensics_query(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {
         "recorded": recorded,
         "possible": possible,
+        "possible_suppressed": not include_possible,
         "recording_oldest_ts": stats.get("oldest_ts"),
         "retention_days": retention_days(hass),
     })

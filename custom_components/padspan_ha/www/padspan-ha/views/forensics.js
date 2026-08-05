@@ -256,7 +256,9 @@ export function render(ctx){
   }
   root.appendChild(recCard);
 
-  // Possible table
+  // Possible table.  Only offered for windows reaching before recording
+  // began — inside recorded coverage it would just list every currently-
+  // alive device in the neighbourhood.
   const posCard = el("div",{class:"card"});
   posCard.appendChild(el("div",{class:"h2"},"Possible — first/last-seen span overlaps"));
   posCard.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:8px"},
@@ -264,7 +266,11 @@ export function render(ctx){
     "for example anything from before Forensics was enabled. If a device's first-seen or last-seen time falls " +
     "inside your window, it was actually heard at that moment; otherwise it was only seen before and after " +
     "the window and may not have been present in between."));
-  if(!possible.length){
+  if(res.possible_suppressed){
+    posCard.appendChild(el("div",{class:"muted"},
+      "Not shown — recording already covers this window, so the Recorded list above is the complete answer. " +
+      "This tier only appears when the window reaches before recording began."));
+  } else if(!possible.length){
     posCard.appendChild(el("div",{class:"muted"},"None."));
   } else {
     const tbody = el("tbody",{});
