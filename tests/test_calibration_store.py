@@ -806,3 +806,80 @@ async def test_reanchor_unmeasured_map_errors() -> None:
     model = _real_model({"floor_id": "main"})
     res = await model.async_reanchor_map("map1", {"stack": {}}, None)
     assert res == {"ok": False, "error": "not_measured"}
+
+
+async def test_reanchor_with_rotation_repairs_pins() -> None:
+    """The rotation half of the pose works through the repair path: pins
+    re-derive through the rotated frame and round-trip back to their metres."""
+    import math as _math
+    model = _real_model({
+        "origin_x_m": 6.0, "origin_y_m": 4.0,        # corrupt
+        "scale_x_m": 10.0, "scale_y_m": 8.0,
+        "rotation_rad": 0.0, "floor_id": "main",
+    })
+    rot = _math.pi / 6                                # re-anchor to 30°
+    # Pins whose metres sit inside the ROTATED frame at origin (1, 1).
+    def _world(fx, fy):
+        dx, dy = fx * 10.0, fy * 8.0
+        return (1.0 + dx * _math.cos(rot) - dy * _math.sin(rot),
+                1.0 + dx * _math.sin(rot) + dy * _math.cos(rot))
+    targets = [(0.2, 0.25), (0.5, 0.5), (0.8, 0.4)]
+    pts = [_remap_point(*_world(fx, fy), x_frac=0.9, y_frac=0.9)
+           for fx, fy in targets]
+    cal = _make_store(pts)
+    cal._model = model
+
+    res = await model.async_reanchor_map(
+        "map1", {"stack": {}}, cal,
+        origin_x_m=1.0, origin_y_m=1.0, rotation_rad=rot,
+    )
+    assert res["ok"] is True
+    assert res["cal_points_remapped"] == 3
+    t = model.data["map_transforms"]["map1"]
+    assert t["rotation_rad"] == pytest.approx(rot, abs=1e-6)
+    for p, (fx, fy) in zip(cal.data["points"], targets):
+        assert p["x_frac"] == pytest.approx(fx, abs=1e-3)
+        assert p["y_frac"] == pytest.approx(fy, abs=1e-3)
+
+
+async def test_reanchor_partial_explicit_pose_keeps_other_fields() -> None:
+    """Giving only origin_x_m selects the explicit branch; the unspecified
+    fields come from the stored transform, not the stack."""
+    model = _real_model({
+        "origin_x_m": 6.0, "origin_y_m": 4.0,
+        "scale_x_m": 10.0, "scale_y_m": 8.0,
+        "rotation_rad": 0.25, "floor_id": "main",
+    })
+    res = await model.async_reanchor_map(
+        "map1", {"stack": {"is_master": True, "rotation": 90}}, None,
+        origin_x_m=2.0,
+    )
+    assert res["ok"] is True
+    t = model.data["map_transforms"]["map1"]
+    assert t["origin_x_m"] == 2.0                    # explicit
+    assert t["origin_y_m"] == 4.0                    # from stored, NOT stack
+    assert t["rotation_rad"] == pytest.approx(0.25)  # from stored, NOT stack
+
+
+async def test_reanchor_rolls_back_on_remap_failure() -> None:
+    """A downstream save failure must not leave the new pose persisted over
+    old fracs — full rollback of transform + calibration (codex review)."""
+    model = _real_model({
+        "origin_x_m": 6.0, "origin_y_m": 4.0,
+        "scale_x_m": 10.0, "scale_y_m": 8.0,
+        "rotation_rad": 0.0, "floor_id": "main",
+    })
+    pts = [_remap_point(2.0, 2.0, x_frac=0.9, y_frac=0.9)]
+    cal = _make_store(pts)
+    cal._model = model
+    cal.store.async_save = AsyncMock(side_effect=OSError("disk full"))
+
+    res = await model.async_reanchor_map(
+        "map1", {"stack": {}}, cal,
+        origin_x_m=0.0, origin_y_m=0.0, rotation_rad=0.0,
+    )
+    assert res["ok"] is False
+    assert res["error"] == "remap_failed"
+    t = model.data["map_transforms"]["map1"]
+    assert t["origin_x_m"] == 6.0 and t["origin_y_m"] == 4.0   # rolled back
+    assert cal.data["points"][0]["x_frac"] == pytest.approx(0.9)  # restored

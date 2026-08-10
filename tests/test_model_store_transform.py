@@ -476,6 +476,42 @@ async def test_derive_transforms_skips_existing_valid_transform(tmp_path: Path) 
 
 
 @pytest.mark.asyncio
+async def test_derive_transforms_rederives_broken_scaleless_transform(tmp_path: Path) -> None:
+    """A record with an origin but no usable scale must NOT be frozen —
+    skipping it would fabricate a 1m x 1m map forever (codex review)."""
+    store = _make_store({"origin_x_m": 5.0, "origin_y_m": 3.0, "floor_id": "main"})
+    maps_store = MagicMock()
+    maps_store.data = {"maps": [{
+        "id": "m1", "floor_id": "main",
+        "image": {"width": 1600, "height": 1200},
+        "stack": {"is_master": True},
+        "calibration": {"px_per_meter": 20.0},
+    }]}
+    count = await store.async_derive_transforms(maps_store)
+    assert count == 1
+    t = store.data["map_transforms"]["m1"]
+    assert t["scale_x_m"] == pytest.approx(80.0)     # re-derived, not frozen
+    assert t["scale_y_m"] == pytest.approx(60.0)
+
+
+@pytest.mark.asyncio
+async def test_set_map_transform_does_not_preserve_nan_rotation(tmp_path: Path) -> None:
+    """A stored NaN rotation must not survive over the sanitized incoming
+    value — it would poison every later conversion (codex review)."""
+    bad = dict(_ANCHORED)
+    bad["rotation_rad"] = float("nan")
+    store = _make_store(bad)
+    await store.async_set_map_transform("m1", {
+        "origin_x_m": 0.0, "origin_y_m": 0.0,
+        "scale_x_m": 90.0, "scale_y_m": 70.0,
+        "rotation_rad": 0.0, "floor_id": "main",
+    })
+    t = store.data["map_transforms"]["m1"]
+    assert t["rotation_rad"] == 0.0                  # finite, not NaN
+    assert t["origin_x_m"] == pytest.approx(5.0)     # origin still preserved
+
+
+@pytest.mark.asyncio
 async def test_setup_stamps_existing_transforms(tmp_path: Path) -> None:
     """Load migration freezes existing poses without changing any numbers."""
     loaded = {
@@ -497,3 +533,44 @@ async def test_setup_stamps_existing_transforms(tmp_path: Path) -> None:
     assert t1["rotation_rad"] == 0.3
     assert "origin_anchored" not in store.data["map_transforms"]["m2"]
     store.store.async_save.assert_awaited()            # stamp persisted
+
+
+@pytest.mark.asyncio
+async def test_setup_stamp_is_persisted_even_when_nothing_else_changes(tmp_path: Path) -> None:
+    """self.data is a SHALLOW copy of loaded, so the stamp mutates both and
+    the json change-compare alone can never see it — the save must fire from
+    the explicit stamp flag (lean-review finding)."""
+    import copy as _copy
+    # Pass 1: produce a fully-normalized store shape.
+    seed = ModelStore.__new__(ModelStore)
+    seed.hass = MagicMock()
+    seed.store = AsyncMock()
+    seed.store.async_load = AsyncMock(return_value={
+        "map_transforms": {
+            "m1": {"origin_x_m": 5.0, "origin_y_m": 3.0, "scale_x_m": 80.0,
+                   "scale_y_m": 60.0, "rotation_rad": 0.3, "floor_id": "main"},
+        },
+    })
+    seed.store.async_save = AsyncMock()
+    await seed.async_setup()
+    # Pass 2: reload that stable shape with the stamp stripped — the ONLY
+    # possible change on this load is the stamp itself.
+    loaded = _copy.deepcopy(seed.data)
+    for _t in loaded["map_transforms"].values():
+        _t.pop("origin_anchored", None)
+    store = ModelStore.__new__(ModelStore)
+    store.hass = MagicMock()
+    store.store = AsyncMock()
+    store.store.async_load = AsyncMock(return_value=loaded)
+    store.store.async_save = AsyncMock()
+    await store.async_setup()
+    assert store.data["map_transforms"]["m1"]["origin_anchored"] is True
+    store.store.async_save.assert_awaited()
+    # And a fully-stamped reload does NOT rewrite the store (idempotent).
+    store2 = ModelStore.__new__(ModelStore)
+    store2.hass = MagicMock()
+    store2.store = AsyncMock()
+    store2.store.async_load = AsyncMock(return_value=_copy.deepcopy(store.data))
+    store2.store.async_save = AsyncMock()
+    await store2.async_setup()
+    store2.store.async_save.assert_not_awaited()

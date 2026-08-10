@@ -35,6 +35,7 @@ pastel RGB) so they're stable across sessions without needing explicit assignmen
 """
 
 import asyncio
+import copy
 import hashlib
 import math
 import re
@@ -83,6 +84,19 @@ def _has_valid_origin(t: Any) -> bool:
     try:
         return all(
             math.isfinite(float(t[k])) for k in ("origin_x_m", "origin_y_m")
+        )
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+def _has_valid_scale(t: Any) -> bool:
+    """True if a map transform carries finite positive scale fields."""
+    if not isinstance(t, dict):
+        return False
+    try:
+        return all(
+            math.isfinite(float(t[k])) and float(t[k]) > 0
+            for k in ("scale_x_m", "scale_y_m")
         )
     except (KeyError, TypeError, ValueError):
         return False
@@ -163,6 +177,7 @@ class ModelStore:
 
     async def async_setup(self) -> None:
         loaded = await self.store.async_load()
+        _stamped = False
         if isinstance(loaded, dict):
             # Start from loaded data, then ensure required keys exist
             self.data = dict(loaded)
@@ -193,9 +208,13 @@ class ModelStore:
             # The stored origin is already the effective origin every reader
             # uses, so this changes no numbers — it marks the pose write-once
             # so no derive path may rewrite it from presentation state.
+            # Tracked with a flag: self.data is a SHALLOW copy of loaded, so
+            # the stamp mutates both and the json change-compare below
+            # cannot see it.
             for _t in self.data["map_transforms"].values():
                 if _has_valid_origin(_t) and not _t.get("origin_anchored"):
                     _t["origin_anchored"] = True
+                    _stamped = True
         else:
             self.data = {k: (list(v) if isinstance(v, list) else dict(v) if isinstance(v, dict) else v) for k, v in DEFAULT_DATA.items()}
 
@@ -228,7 +247,7 @@ class ModelStore:
         # Only re-save on load if normalization actually changed something
         # This prevents overwriting fresh saves with stale data on reload
         import json
-        if json.dumps(self.data, sort_keys=True) != json.dumps(loaded, sort_keys=True) if loaded else True:
+        if _stamped or (json.dumps(self.data, sort_keys=True) != json.dumps(loaded, sort_keys=True) if loaded else True):
             await self.store.async_save(self.data)
 
     def snapshot(self) -> dict[str, Any]:
@@ -739,9 +758,12 @@ class ModelStore:
             new_t["origin_x_m"] = float(old_t["origin_x_m"])
             new_t["origin_y_m"] = float(old_t["origin_y_m"])
             try:
-                new_t["rotation_rad"] = float(old_t.get("rotation_rad", 0) or 0)
+                _rot = float(old_t.get("rotation_rad", 0) or 0)
             except (TypeError, ValueError):
-                new_t["rotation_rad"] = 0.0
+                _rot = 0.0
+            # A stored NaN/Inf must not be preserved over the sanitized
+            # incoming value — it would poison every later conversion.
+            new_t["rotation_rad"] = _rot if math.isfinite(_rot) else 0.0
         new_t["origin_anchored"] = True
         transforms[str(map_id)] = new_t
         await self.store.async_save(self.data)
@@ -922,12 +944,15 @@ class ModelStore:
             mid = m.get("id", "")
             if not mid:
                 continue
-            # Skip maps that already have a transform — its pose is anchored
-            # (calibration pins may depend on it) and re-deriving from stack
-            # state here is exactly the drift this design forbids.
+            # Skip maps that already have a usable transform — its pose is
+            # anchored (calibration pins may depend on it) and re-deriving
+            # from stack state here is exactly the drift this design forbids.
+            # A broken record (origin but no usable scale) is NOT skipped:
+            # freezing it would fabricate a 1m x 1m map forever.
             _existing = transforms.get(mid)
             if _existing and (
-                _existing.get("reference_measurements") or _has_valid_origin(_existing)
+                _existing.get("reference_measurements")
+                or (_has_valid_origin(_existing) and _has_valid_scale(_existing))
             ):
                 count += 1  # count as already done
                 continue
@@ -1456,6 +1481,8 @@ class ModelStore:
                     rot_rad = float(old_t.get("rotation_rad", 0) or 0)
                 except (TypeError, ValueError):
                     rot_rad = 0.0
+                if not math.isfinite(rot_rad):
+                    rot_rad = 0.0
             else:
                 rot_rad = math.radians(float(stk.get("rotation", 0)))
             if crop_origin is not None:
@@ -1673,11 +1700,31 @@ class ModelStore:
                 "owned": owned, "out_of_range": owned_bad,
             }
 
+        # Downstream failure must not leave the new pose persisted over old
+        # fracs — that is the exact split-brain this action exists to
+        # prevent.  Snapshot the mutable state and roll everything back if
+        # the remap or re-derive fails.
+        _cal_points_snap = (
+            copy.deepcopy(cal_store.data.get("points")) if cal_store else None
+        )
+        _map_snap = copy.deepcopy(map_dict)
         await self.store.async_save(self.data)
-        remapped = 0
-        if cal_store:
-            remapped = await cal_store.async_remap_from_metres(map_id)
-        rederived = await self.async_rederive_map_fracs(map_id, map_dict)
+        try:
+            remapped = 0
+            if cal_store:
+                remapped = await cal_store.async_remap_from_metres(map_id)
+            rederived = await self.async_rederive_map_fracs(map_id, map_dict)
+        except Exception as err:
+            transforms[map_id] = old_t
+            if cal_store and _cal_points_snap is not None:
+                cal_store.data["points"] = _cal_points_snap
+            map_dict.clear()
+            map_dict.update(_map_snap)
+            try:
+                await self.store.async_save(self.data)
+            except Exception:
+                pass  # best-effort — the in-memory state is consistent
+            return {"ok": False, "error": "remap_failed", "detail": str(err)}
         return {
             "ok": True, "map_id": map_id,
             "origin_x_m": new_t["origin_x_m"],

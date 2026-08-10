@@ -4,6 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.22.5 — Map origins are now anchored (2026-08-09)
+
+### Fixed
+- **Display edits can no longer redefine world coordinates** — a map's real-world origin and rotation used to be re-derived from presentation state (stack offsets, master flag) whenever a map was re-measured, migrated, or had its image replaced. Moving a map in the 3D alignment editor and then re-measuring could silently shift every calibration pin's world position (the root cause behind issue #56). The world pose is now **write-once**: set when a map is first measured, preserved through re-measures and image replacements, and changed only by the new explicit re-anchor action.
+- On upgrade, every existing map transform is frozen exactly as it is — a one-time migration marks the stored pose as anchored without changing a single number, verified against a production dataset (9 maps, 746 calibration points, zero movement).
+
+### Added
+- **Re-anchor origin** (Measure panel) — the one sanctioned way to redefine a map's world origin/rotation. Your calibration pins keep their real-world metre positions and their on-map positions re-derive through the new pose. The action refuses (changing nothing) if the requested pose would strand most pins off the map, and rolls back completely if anything fails partway.
+
+---
+
 ## 0.22.3 — Calibration & Private BLE fixes (2026-08-04)
 
 ### Fixed
