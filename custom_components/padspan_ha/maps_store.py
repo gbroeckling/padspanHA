@@ -19,6 +19,7 @@ Each map dict holds:
   - image: {filename, width, height, sha256, ...}
   - receivers: [{id, label, x, y, room, source}, ...]    (scanner pin positions)
   - beacons:   [{id, label, key, x, y, kind}, ...]       (beacon pin positions)
+  - lights:    [{id, entity_id, label, x, y, color, shape, rotation}, ...] (PadSpan Pro: light pin positions)
   - room_bounds: {roomName: {type:"poly", points:[[x,y],...]} | {type:"circle",...}}
   - calibration: {mode, px_per_meter, reference_points}
   - stack: {z_level, x_offset, y_offset, scale, rotation, ...}  (alignment transform)
@@ -33,6 +34,7 @@ import base64
 import hashlib
 import math
 import os
+import re
 import struct
 import zlib
 from dataclasses import dataclass, field
@@ -55,6 +57,14 @@ def _sha256(data: bytes) -> str:
     h = hashlib.sha256()
     h.update(data)
     return h.hexdigest()
+
+_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+def _clean_hex_color(value: Any, default: str) -> str:
+    v = str(value or "").strip()
+    return v if _HEX_COLOR_RE.match(v) else default
+
+LIGHT_PIN_SHAPES = ("circle", "square", "hex", "triangle", "star", "bulb")
 
 @dataclass
 class MapsStore:
@@ -96,6 +106,7 @@ class MapsStore:
         for m in self.data.get("maps", []):
             m.setdefault("receivers", [])
             m.setdefault("beacons", [])
+            m.setdefault("lights", [])
             m.setdefault("calibration", {"mode": "none", "px_per_meter": None, "reference_points": []})
             m.setdefault("notes", "")
             m.setdefault("floor_id", DEFAULT_FLOOR_ID)
@@ -172,6 +183,7 @@ class MapsStore:
             "calibration": {"mode": "none", "px_per_meter": None, "reference_points": []},
             "receivers": [],
             "beacons": [],
+            "lights": [],
             "room_bounds": {},
             "rf_barriers": [],
             "floor_id": str(floor_id or DEFAULT_FLOOR_ID)[:40],
@@ -184,7 +196,7 @@ class MapsStore:
         await self.store.async_save(self.data)
         return info
 
-    async def async_update_map(self, map_id: str, *, receivers: list[dict[str, Any]] | None = None, beacons: list[dict[str, Any]] | None = None, calibration: dict[str, Any] | None = None, notes: str | None = None, floor_id: str | None = None, room_bounds: dict[str, Any] | None = None, rf_barriers: list[dict[str, Any]] | None = None, stack: dict | None = None) -> dict[str, Any]:
+    async def async_update_map(self, map_id: str, *, receivers: list[dict[str, Any]] | None = None, beacons: list[dict[str, Any]] | None = None, lights: list[dict[str, Any]] | None = None, calibration: dict[str, Any] | None = None, notes: str | None = None, floor_id: str | None = None, room_bounds: dict[str, Any] | None = None, rf_barriers: list[dict[str, Any]] | None = None, stack: dict | None = None) -> dict[str, Any]:
         """Update map metadata — only fields that are not None are changed.
 
         Each field is validated and sanitised (coords clamped 0-1, strings
@@ -233,6 +245,33 @@ class MapsStore:
                 if entry["key"]:
                     clean_bk.append(entry)
             m["beacons"] = clean_bk
+
+        if isinstance(lights, list):
+            # lights: [{id, entity_id, label, x, y, color, shape, rotation}, ...]
+            # PadSpan Pro placement pins. x/y stay in the same "fraction of
+            # the map's world/room space" convention as room_bounds and
+            # receivers — never a raw-photo-only concept. Caller
+            # (websocket.py) is responsible for the PadSpan Pro licence gate.
+            clean_lt: list[dict[str, Any]] = []
+            for lt in lights[:500]:  # sane cap — matches HA's realistic light-entity counts
+                if not isinstance(lt, dict):
+                    continue
+                eid = str(lt.get("entity_id") or "")[:120]
+                if not eid.startswith("light."):
+                    continue
+                shape = str(lt.get("shape") or "circle").strip().lower()
+                entry = {
+                    "id": str(lt.get("id") or f"lt_{os.urandom(4).hex()}")[:80],
+                    "entity_id": eid,
+                    "label": str(lt.get("label") or "")[:120],
+                    "x": max(0.0, min(1.0, float(lt.get("x") or 0.0))),
+                    "y": max(0.0, min(1.0, float(lt.get("y") or 0.0))),
+                    "color": _clean_hex_color(lt.get("color"), "#fbbf24"),
+                    "shape": shape if shape in LIGHT_PIN_SHAPES else "circle",
+                    "rotation": float(lt.get("rotation") or 0.0) % 360.0,
+                }
+                clean_lt.append(entry)
+            m["lights"] = clean_lt
 
         if isinstance(calibration, dict):
             m["calibration"] = {
@@ -434,6 +473,10 @@ class MapsStore:
                 for bk in m.get("beacons", []):
                     bk["x"] = _rx(bk.get("x", 0))
                     bk["y"] = _ry(bk.get("y", 0))
+
+                for lt in m.get("lights", []):
+                    lt["x"] = _rx(lt.get("x", 0))
+                    lt["y"] = _ry(lt.get("y", 0))
 
                 for b in m.get("room_bounds", {}).values():
                     if isinstance(b, dict):
@@ -669,6 +712,10 @@ class MapsStore:
             bk["x"] = _rx(bk.get("x", 0))
             bk["y"] = _ry(bk.get("y", 0))
 
+        for lt in m.get("lights", []):
+            lt["x"] = _rx(lt.get("x", 0))
+            lt["y"] = _ry(lt.get("y", 0))
+
         for b in m.get("room_bounds", {}).values():
             if isinstance(b, dict):
                 if b.get("type") == "poly" and isinstance(b.get("points"), list):
@@ -736,6 +783,10 @@ class MapsStore:
         for bk in m.get("beacons", []):
             bk["x"] = _ux(bk.get("x", 0))
             bk["y"] = _uy(bk.get("y", 0))
+
+        for lt in m.get("lights", []):
+            lt["x"] = _ux(lt.get("x", 0))
+            lt["y"] = _uy(lt.get("y", 0))
 
         for b in m.get("room_bounds", {}).values():
             if isinstance(b, dict):

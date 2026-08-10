@@ -13,7 +13,7 @@
 */
 
 const APP_VERSION = "0.22.6";
-const BUILD_ID = "20260810T051837Z";
+const BUILD_ID = "20260810T165906Z";
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
@@ -39,6 +39,10 @@ function el(tag, attrs={}, children=[]){
   return n;
 }
 function escSVG(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
+
+// A light counts as "WLED-class" (effects + full color) if it advertises an
+// effect list — true for WLED itself and any other effect-capable light.
+function isWledLight(l){ return Array.isArray(l.effect_list) && l.effect_list.length>0; }
 
 // ── Room colour — same palette + hash as panel.js ────────────────────────────
 const ROOM_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa","#2dd4bf","#facc15"];
@@ -83,7 +87,7 @@ function hexCluster(n, r){
 }
 
 // ── Isometric 3-D SVG builder (same projection as Overview) ──────────────────
-function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap){
+function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}){
   const TILE=220, CX=380, CY=590, W=760, BASE_H=940;
   const FG=floorGap, HG=horizGap||0;
   const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
@@ -173,8 +177,37 @@ function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap){
     if(lidx!==1) s+=`<polygon points="${pts([TL,TR,BR,BL])}" fill="url(#flrpat_${lidx})" stroke="none"/>`;
 
     // Room polygons + room name labels + hexagons
+    const markerSvg=(l,hx,hy,entry)=>{
+      const on=l.state==="on";
+      const fill=(entry&&entry.color)||(on?"#fbbf24":"#374151");
+      const stroke="#60a5fa";
+      const op=on?1:0.45;
+      const tCol=on?"#111827":"#e2e8f0";
+      return `<g class="lhex" data-eid="${escSVG(l.entity_id)}" style="cursor:pointer" opacity="${op}">`+
+        `<polygon points="${hexPts(hx,hy,HEX_R)}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`+
+        `<text x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
+        `font-family="monospace" font-size="11" font-weight="700" fill="${tCol}" pointer-events="none">`+
+        `${escSVG(l.code)}</text></g>`;
+    };
+
     for(const m of group){
       const mapPt = makeStackXform(m.stack, imageAr(m)).mapPt;
+
+      // Lights with a Pro-placed pin on THIS map render at their exact spot,
+      // regardless of which room (or no room) they're assigned to. Position
+      // is still purely a "fraction of room/world space" concept, drawn
+      // through the same mapPt/iso pipeline as room polygons — no raw photo
+      // is ever involved in this view.
+      const posByEid={};
+      for(const lt of (m.lights||[])) posByEid[lt.entity_id]=lt;
+      for(const [eid,entry] of Object.entries(posByEid)){
+        if(hiddenEids.has(eid)) continue;
+        const l=lightsByEid[eid];
+        if(!l) continue;
+        const [wx,wy]=mapPt(entry.x, entry.y);
+        const [hx,hy]=iso(wx,wy,z);
+        s+=markerSvg(l,hx,hy,entry);
+      }
 
       for(const [room,b] of Object.entries(m.room_bounds||{})){
         if(!b) continue;
@@ -208,22 +241,14 @@ function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap){
           `fill="${color}" font-size="8" font-family="system-ui,sans-serif" opacity="0.7" pointer-events="none">`+
           `${escSVG(room)}</text>`;
 
-        // Hexagon cluster for this room's lights
-        const roomLights=(byRoom[room]||[]).filter(l=>!hiddenEids.has(l.entity_id));
+        // Hexagon cluster for this room's unplaced lights (Pro-positioned
+        // lights were already drawn above at their exact spot).
+        const roomLights=(byRoom[room]||[]).filter(l=>!hiddenEids.has(l.entity_id) && !posByEid[l.entity_id]);
         if(!roomLights.length) continue;
         const offsets=hexCluster(roomLights.length, HEX_R);
         roomLights.forEach((l,idx)=>{
           const [dx,dy]=offsets[idx];
-          const hx=(lix+dx).toFixed(1), hy=(liy+dy).toFixed(1);
-          const on=l.state==="on";
-          const fill=on?"#fbbf24":"#374151";
-          const stroke=on?"#f59e0b":"#4b5563";
-          const tCol=on?"#111827":"#fbbf24";
-          s+=`<g class="lhex" data-eid="${escSVG(l.entity_id)}" style="cursor:pointer">`;
-          s+=`<polygon points="${hexPts(+hx,+hy,HEX_R)}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
-          s+=`<text x="${hx}" y="${hy}" text-anchor="middle" dominant-baseline="middle" `+
-            `font-family="monospace" font-size="11" font-weight="700" fill="${tCol}" pointer-events="none">`+
-            `${escSVG(l.code)}</text></g>`;
+          s+=markerSvg(l, lix+dx, liy+dy, null);
         });
       }
     }
@@ -393,6 +418,95 @@ class PadSpanLightsApp extends HTMLElement {
     }catch(e){ this._toast("Could not toggle "+eid, true); }
   }
 
+  // Detailed control popup for WLED-class lights (effect list present):
+  // on/off, brightness, RGB color, effect. Appended to document.body (not
+  // the shadow root) so it isn't clipped by the panel's scroll container —
+  // same reasoning as _toast, so styling is fully inline throughout.
+  _openWledDetail(eid){
+    if(!this._hass) return;
+    const st=this._hass.states[eid];
+    if(!st) return;
+    const attrs=st.attributes||{};
+    const effectList=Array.isArray(attrs.effect_list)?attrs.effect_list:[];
+    const rgb=Array.isArray(attrs.rgb_color)?attrs.rgb_color:[255,255,255];
+    const toHex=(c)=>"#"+c.map(v=>Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,"0")).join("");
+    const fromHex=(hex)=>{ const n=parseInt(hex.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; };
+
+    const overlay=document.createElement("div");
+    overlay.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;"+
+      "display:flex;align-items:center;justify-content:center";
+    const close=()=>{ try{ document.body.removeChild(overlay); }catch(_){} };
+    overlay.addEventListener("click",e=>{ if(e.target===overlay) close(); });
+
+    const box=el("div",{style:
+      "background:#0f1c14;border:1px solid #2d5a3d;border-radius:10px;padding:20px;width:300px;max-width:90vw;"+
+      "color:#e2e8f0;font-family:Inter,system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.6)"});
+
+    box.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"},[
+      el("div",{style:"font-weight:700;font-size:15px"}, attrs.friendly_name||eid),
+      el("button",{
+        style:"background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:2px 6px",
+        onclick:close,
+      },"✕"),
+    ]));
+
+    const on=st.state==="on";
+    const onBtn=el("button",{
+      style:`width:100%;margin-bottom:12px;padding:8px;font-weight:700;border:none;border-radius:6px;cursor:pointer;`+
+            `background:${on?"#fbbf24":"#374151"};color:${on?"#111827":"#fbbf24"}`,
+      onclick:async()=>{
+        try{ await this._hass.callService("light", on?"turn_off":"turn_on", {entity_id:eid}); }catch(e){}
+        close();
+        setTimeout(()=>this._render(), 400);
+      },
+    }, on?"Turn Off":"Turn On");
+    box.appendChild(onBtn);
+
+    if(typeof attrs.brightness==="number"){
+      const briLbl=el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:4px"},
+        `Brightness: ${Math.round((attrs.brightness/255)*100)}%`);
+      const bri=document.createElement("input");
+      bri.type="range"; bri.min="1"; bri.max="255"; bri.value=String(attrs.brightness||128);
+      bri.style.cssText="width:100%;accent-color:#52b788";
+      bri.addEventListener("input",()=>{ briLbl.textContent=`Brightness: ${Math.round((bri.value/255)*100)}%`; });
+      bri.addEventListener("change",async()=>{
+        try{ await this._hass.callService("light","turn_on",{entity_id:eid, brightness:parseInt(bri.value,10)}); }catch(e){}
+      });
+      box.appendChild(el("div",{style:"margin-bottom:12px"},[briLbl,bri]));
+    }
+
+    const colorInput=document.createElement("input");
+    colorInput.type="color";
+    colorInput.value=toHex(rgb);
+    colorInput.style.cssText="width:44px;height:30px;border:none;background:none;cursor:pointer";
+    colorInput.addEventListener("change",async()=>{
+      try{ await this._hass.callService("light","turn_on",{entity_id:eid, rgb_color:fromHex(colorInput.value)}); }catch(e){}
+    });
+    box.appendChild(el("div",{style:"margin-bottom:12px;display:flex;align-items:center;gap:10px"},[
+      el("span",{style:"font-size:12px;color:#94a3b8"},"Color"), colorInput,
+    ]));
+
+    if(effectList.length){
+      const effSel=document.createElement("select");
+      effSel.style.cssText="width:100%;background:#1a2e1e;color:#52b788;border:1px solid #2d4a36;border-radius:4px;padding:6px";
+      for(const eff of effectList){
+        const o=document.createElement("option");
+        o.value=eff; o.textContent=eff;
+        if(eff===attrs.effect) o.selected=true;
+        effSel.appendChild(o);
+      }
+      effSel.addEventListener("change",async()=>{
+        try{ await this._hass.callService("light","turn_on",{entity_id:eid, effect:effSel.value}); }catch(e){}
+      });
+      box.appendChild(el("div",{},[
+        el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:4px"},"Effect"), effSel,
+      ]));
+    }
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  }
+
   _render(){
     if(!this.shadowRoot) return;
     const $c=this.shadowRoot.querySelector("#content");
@@ -429,6 +543,7 @@ class PadSpanLightsApp extends HTMLElement {
         friendly_name: states[eid].attributes?.friendly_name||eid,
         state:         states[eid].state,
         area_name:     regMap[eid]||null,
+        effect_list:   Array.isArray(states[eid].attributes?.effect_list) ? states[eid].attributes.effect_list : null,
       }))
       .sort((a,b)=>(a.area_name||"\xff").localeCompare(b.area_name||"\xff")||
                     a.friendly_name.localeCompare(b.friendly_name));
@@ -438,6 +553,8 @@ class PadSpanLightsApp extends HTMLElement {
       return root;
     }
     lights.forEach((l,i)=>{ l.code=lightCode(i); });
+    const lightsByEid={};
+    for(const l of lights) lightsByEid[l.entity_id]=l;
 
     // Group by room (hidden excluded from map)
     const hidden=this.state._hidden;
@@ -478,18 +595,24 @@ class PadSpanLightsApp extends HTMLElement {
     const isoDiv=document.createElement("div");
     isoDiv.style.cssText=`overflow:auto;border-radius:8px;background:#071008;padding:8px;`+
       `width:${Math.round(this.state._zoom*100)}%`;
-    isoDiv.innerHTML=buildIsoSVG(maps_list, byRoom, hidden, _getFocusZ(this.state._focusIdx), this.state._floorGap, this.state._horizGap);
+    isoDiv.innerHTML=buildIsoSVG(maps_list, byRoom, hidden, _getFocusZ(this.state._focusIdx), this.state._floorGap, this.state._horizGap, lightsByEid);
 
     const rebuildISO=()=>{
       isoDiv.style.width=`${Math.round(this.state._zoom*100)}%`;
-      isoDiv.innerHTML=buildIsoSVG(maps_list, byRoom, hidden, _getFocusZ(this.state._focusIdx), this.state._floorGap, this.state._horizGap);
+      isoDiv.innerHTML=buildIsoSVG(maps_list, byRoom, hidden, _getFocusZ(this.state._focusIdx), this.state._floorGap, this.state._horizGap, lightsByEid);
       wireHexClicks();
     };
 
     const wireHexClicks=()=>{
       requestAnimationFrame(()=>{
         isoDiv.querySelectorAll(".lhex").forEach(g=>{
-          g.addEventListener("click",e=>{e.stopPropagation();this._toggle(g.dataset.eid);});
+          g.addEventListener("click",e=>{
+            e.stopPropagation();
+            const eid=g.dataset.eid;
+            const l=lightsByEid[eid];
+            if(l && isWledLight(l)) this._openWledDetail(eid);
+            else this._toggle(eid);
+          });
           g.addEventListener("mouseover",()=>{g.style.opacity="0.75";});
           g.addEventListener("mouseout", ()=>{g.style.opacity="1";});
         });
@@ -672,7 +795,10 @@ class PadSpanLightsApp extends HTMLElement {
           },
         },isHidden?"Show":"Hide")),
       ]);
-      row.addEventListener("click",()=>this._toggle(l.entity_id));
+      row.addEventListener("click",()=>{
+        if(isWledLight(l)) this._openWledDetail(l.entity_id);
+        else this._toggle(l.entity_id);
+      });
       tbody.appendChild(row);
     }
     tbl.appendChild(tbody);

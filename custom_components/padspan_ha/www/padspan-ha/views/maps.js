@@ -5973,10 +5973,75 @@ async function _drawSvgOnCanvas(g, svgStr, w, h, alpha=1.0){
 }
 
 // ── Lights Tab ───────────────────────────────────────────────────────────────
-// Shows a hex-grid light control overlay on the floor plan image. Each light
-// entity gets a hexagonal button positioned at its room's centroid. Tapping
-// toggles on/off. Yellow = on, grey = off. Lights are discovered from HA's
-// entity registry and grouped by area_name.
+// Light control list, grouped by each light's real HA Area (via the entity
+// registry — needs no map or photo). PadSpan Pro licence holders can also
+// place a light at its exact spot within a room and pick a marker
+// shape/color/rotation ("Edit Positions"). Both the read-only view and the
+// editor render room shape as pure vector polygons — the same room_bounds
+// data and the same coordinate convention already used by receivers/beacons
+// (fraction of room/world space). The raw floor-plan photo is never shown
+// here; it only ever appears in Maps > Edit/Upload, where you're literally
+// editing/calibrating a map.
+
+// Placement is a PadSpan Pro feature — shares the single licence key
+// activated via padspan_ha/forensics_license_activate (see settings.js).
+function _isPro(ctx) {
+  return !!String(ctx.state.settings?.forensics_license_key || "").trim();
+}
+
+const _LIGHT_PIN_SHAPES = ["circle", "square", "hex", "triangle", "star", "bulb"];
+
+// CSS clip-path for the drag-editor's plain-div pins (circle/square use
+// border-radius instead, set by the caller).
+function _shapeClipPath(shape) {
+  switch (shape) {
+    case "hex":      return "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)";
+    case "triangle": return "polygon(50% 0%, 0% 100%, 100% 100%)";
+    case "star":     return "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)";
+    case "bulb":     return "polygon(50% 0%, 80% 20%, 90% 55%, 65% 70%, 65% 100%, 35% 100%, 35% 70%, 10% 55%, 20% 20%)";
+    default:         return "none";
+  }
+}
+
+// SVG markup for a placed light pin in the room-polygon view. `attrs` carries
+// the caller's fill/stroke/opacity/class/data-* string.
+function _pinShapeMarkup(shape, cx, cy, r, rotDeg, attrs) {
+  const rot = rotDeg ? ` transform="rotate(${rotDeg} ${cx.toFixed(2)} ${cy.toFixed(2)})"` : "";
+  switch (shape) {
+    case "square": {
+      const s = r * 1.5;
+      return `<rect x="${(cx - s/2).toFixed(2)}" y="${(cy - s/2).toFixed(2)}" width="${s.toFixed(2)}" height="${s.toFixed(2)}"${rot} ${attrs}/>`;
+    }
+    case "triangle": {
+      const pts = [0, 120, 240].map(deg => {
+        const a = (deg - 90) * Math.PI / 180;
+        return `${(cx + r*1.15*Math.cos(a)).toFixed(2)},${(cy + r*1.15*Math.sin(a)).toFixed(2)}`;
+      }).join(" ");
+      return `<polygon points="${pts}"${rot} ${attrs}/>`;
+    }
+    case "star": {
+      const pts = [];
+      for (let i = 0; i < 10; i++) {
+        const rr = i % 2 === 0 ? r*1.25 : r*0.55;
+        const a = (i*36 - 90) * Math.PI / 180;
+        pts.push(`${(cx + rr*Math.cos(a)).toFixed(2)},${(cy + rr*Math.sin(a)).toFixed(2)}`);
+      }
+      return `<polygon points="${pts.join(" ")}"${rot} ${attrs}/>`;
+    }
+    case "bulb": {
+      const globeR = r * 0.8, baseW = r*0.7, baseH = r*0.55;
+      return `<g${rot}>` +
+        `<circle cx="${cx.toFixed(2)}" cy="${(cy - r*0.22).toFixed(2)}" r="${globeR.toFixed(2)}" ${attrs}/>` +
+        `<rect x="${(cx - baseW/2).toFixed(2)}" y="${(cy + r*0.35).toFixed(2)}" width="${baseW.toFixed(2)}" height="${baseH.toFixed(2)}" ${attrs}/>` +
+        `</g>`;
+    }
+    case "hex":
+      return `<polygon points="${_hexPts(cx, cy, r)}"${rot} ${attrs}/>`;
+    case "circle":
+    default:
+      return `<circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${r.toFixed(2)}" ${attrs}/>`;
+  }
+}
 
 // Deterministic 3-char code for each light: A01–A99, B01–B99, etc.
 function _lightCode(idx) {
@@ -6034,14 +6099,213 @@ async function _loadLightsReg(ctx) {
   }
 }
 
+// Aspect ratio to shape the room-polygon stage — matches the source image's
+// proportions (so room shapes aren't stretched) without ever showing the
+// image itself. Falls back to a plain 4:3 box when there's no map yet.
+function _roomStageAspectRatio(active) {
+  const w = active?.image?.width, h = active?.image?.height;
+  return (w && h) ? (w / h) : (4 / 3);
+}
+
+// Placement editor: add lights to the active map's room layout, drag them
+// onto their real position within a pure vector room-polygon canvas (no
+// photo), and pick a shape/color/rotation. Mutates `draftLights` in place;
+// nothing is persisted until "Save Positions" writes it via maps_update.
+function _lightsPlacementEditor(ctx, active, lights, draftLights, mapState) {
+  const { el, roomColor } = ctx.helpers;
+  const wrap = el("div", { class: "card", style: "margin-bottom:16px;border:1px solid #7c3aed;background:rgba(124,58,237,0.06)" });
+
+  wrap.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#c4b5fd;margin-bottom:6px" },
+    "Edit Positions — drag lights onto the room layout"));
+
+  const placedIds = new Set(draftLights.map(lt => lt.entity_id));
+  const unplaced = lights.filter(l => !placedIds.has(l.entity_id));
+
+  // ── Add-light row ─────────────────────────────────────────────────────
+  const addRow = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px" });
+  if (unplaced.length) {
+    const addSel = document.createElement("select");
+    addSel.className = "select";
+    for (const l of unplaced) {
+      const o = document.createElement("option");
+      o.value = l.entity_id;
+      o.textContent = l.friendly_name + (l.area_name ? ` (${l.area_name})` : "");
+      addSel.appendChild(o);
+    }
+    const addBtn = el("button", { class: "btn inline", onclick: () => {
+      const l = lights.find(x => x.entity_id === addSel.value);
+      if (!l) return;
+      const entry = {
+        id: `lt_${Date.now().toString(16)}`,
+        entity_id: l.entity_id,
+        label: l.friendly_name,
+        x: 0.5, y: 0.5,
+        color: "#fbbf24",
+        shape: "circle",
+        rotation: 0,
+      };
+      draftLights.push(entry);
+      mapState._selectedLightPinId = entry.id;
+      ctx.actions.renderRooms();
+    } }, "Place in Room");
+    addRow.appendChild(el("span", { class: "muted", style: "font-size:12px" }, "Add:"));
+    addRow.appendChild(addSel);
+    addRow.appendChild(addBtn);
+  } else {
+    addRow.appendChild(el("span", { class: "muted", style: "font-size:12px" }, "All lights have been placed."));
+  }
+  wrap.appendChild(addRow);
+
+  // ── Room-shape stage — pure vector room polygons (room_bounds), no photo.
+  const roomBounds = active.room_bounds || {};
+  const stage = el("div", { class: "mapstage", style: `aspect-ratio:${_roomStageAspectRatio(active)}` });
+
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "mapvector");
+  svg.setAttribute("viewBox", "0 0 1 1");
+  svg.setAttribute("preserveAspectRatio", "none");
+  for (const [room, b] of Object.entries(roomBounds)) {
+    if (!b) continue;
+    const color = roomColor(room);
+    if (b.type === "poly" && Array.isArray(b.points) && b.points.length >= 3) {
+      const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+      poly.setAttribute("points", b.points.map(p => `${p[0]},${p[1]}`).join(" "));
+      poly.setAttribute("fill", color); poly.setAttribute("fill-opacity", "0.18");
+      poly.setAttribute("stroke", color); poly.setAttribute("stroke-width", "0.004");
+      svg.appendChild(poly);
+    } else if (b.type === "circle") {
+      const circ = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circ.setAttribute("cx", b.cx ?? 0.5); circ.setAttribute("cy", b.cy ?? 0.5); circ.setAttribute("r", b.r ?? 0.12);
+      circ.setAttribute("fill", color); circ.setAttribute("fill-opacity", "0.18");
+      circ.setAttribute("stroke", color); circ.setAttribute("stroke-width", "0.004");
+      svg.appendChild(circ);
+    }
+  }
+  stage.appendChild(svg);
+
+  const pinLayer = el("div", { class: "mapoverlay" });
+  stage.appendChild(pinLayer);
+
+  for (const entry of draftLights) {
+    const l = lights.find(x => x.entity_id === entry.entity_id);
+    const selected = mapState._selectedLightPinId === entry.id;
+    const pin = document.createElement("div");
+    pin.className = "marker" + (selected ? " selected" : "");
+    pin.title = (l ? l.friendly_name : entry.label) || entry.entity_id;
+    pin.style.left = `${(entry.x * 100).toFixed(2)}%`;
+    pin.style.top  = `${(entry.y * 100).toFixed(2)}%`;
+    pin.style.background = entry.color || "#fbbf24";
+    pin.style.borderColor = "#60a5fa";
+    pin.style.borderRadius = entry.shape === "circle" ? "50%" : entry.shape === "square" ? "3px" : "0";
+    pin.style.clipPath = _shapeClipPath(entry.shape);
+    pin.style.transform = `translate(-50%,-50%) rotate(${entry.rotation || 0}deg)`;
+    pin.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      mapState._selectedLightPinId = entry.id;
+      ctx.actions.renderRooms();
+    });
+    _makeDraggable(pin, entry, pinLayer, null, () => true, null);
+    pinLayer.appendChild(pin);
+  }
+  wrap.appendChild(stage);
+
+  if (!Object.keys(roomBounds).length) {
+    wrap.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:8px" },
+      "No room boundaries drawn for this map yet — draw them in the Edit tab for spatial reference, or just place lights below anyway."));
+  }
+
+  // ── Selected-pin inspector ──────────────────────────────────────────────
+  const sel = draftLights.find(lt => lt.id === mapState._selectedLightPinId);
+  if (sel) {
+    const l = lights.find(x => x.entity_id === sel.entity_id);
+    const insp = el("div", { style: "display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px;background:#0a150e;border-radius:6px;margin-top:10px" });
+    insp.appendChild(el("div", { style: "font-weight:600;font-size:13px;min-width:140px" }, l ? l.friendly_name : sel.entity_id));
+
+    const colorLbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8" }, "Color");
+    const colorInput = document.createElement("input");
+    colorInput.type = "color";
+    colorInput.value = sel.color || "#fbbf24";
+    colorInput.style.cssText = "width:36px;height:26px;border:none;background:none;cursor:pointer";
+    colorInput.addEventListener("change", () => { sel.color = colorInput.value; ctx.actions.renderRooms(); });
+    colorLbl.appendChild(colorInput);
+    insp.appendChild(colorLbl);
+
+    const shapeLbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8" }, "Shape");
+    const shapeSel = document.createElement("select");
+    shapeSel.className = "select";
+    for (const s of _LIGHT_PIN_SHAPES) {
+      const o = document.createElement("option");
+      o.value = s; o.textContent = s[0].toUpperCase() + s.slice(1);
+      if (s === (sel.shape || "circle")) o.selected = true;
+      shapeSel.appendChild(o);
+    }
+    shapeSel.addEventListener("change", () => { sel.shape = shapeSel.value; ctx.actions.renderRooms(); });
+    shapeLbl.appendChild(shapeSel);
+    insp.appendChild(shapeLbl);
+
+    const rotLbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8" }, "Rotate");
+    const rotInput = document.createElement("input");
+    rotInput.type = "range"; rotInput.min = "0"; rotInput.max = "359"; rotInput.step = "5";
+    rotInput.value = String(sel.rotation || 0);
+    rotInput.style.cssText = "width:100px;accent-color:#7c3aed;cursor:pointer";
+    const rotVal = el("span", { style: "font-size:11px;color:#94a3b8;min-width:32px" }, `${sel.rotation || 0}°`);
+    rotInput.addEventListener("change", () => {
+      sel.rotation = parseInt(rotInput.value, 10);
+      ctx.actions.renderRooms();
+    });
+    rotInput.addEventListener("input", () => { rotVal.textContent = `${rotInput.value}°`; });
+    rotLbl.appendChild(rotInput);
+    insp.appendChild(rotLbl);
+    insp.appendChild(rotVal);
+
+    insp.appendChild(el("button", {
+      class: "btn inline", style: "background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5",
+      onclick: () => {
+        const idx = draftLights.findIndex(lt => lt.id === sel.id);
+        if (idx >= 0) draftLights.splice(idx, 1);
+        mapState._selectedLightPinId = null;
+        ctx.actions.renderRooms();
+      },
+    }, "Remove from map"));
+
+    wrap.appendChild(insp);
+  }
+
+  // ── Save ────────────────────────────────────────────────────────────────
+  const saveBtn = el("button", {
+    class: "btn inline primary",
+    style: "margin-top:10px",
+    onclick: async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true; btn.textContent = "Saving…";
+      try {
+        const r = await ctx.actions.wsCall("padspan_ha/maps_update", { map_id: active.id, lights: draftLights });
+        if (r?.lights_blocked) {
+          ctx.toast("PadSpan Pro licence not active — positions were not saved", true);
+        } else {
+          await ctx.actions.mapsRefreshQuiet();
+          mapState._draftLightsMapId = null; // forces a fresh draft copy from the saved data
+          ctx.toast("Light positions saved ✔");
+        }
+      } catch(err) {
+        ctx.toast("Save failed: " + String(err), true);
+      }
+      ctx.actions.renderRooms();
+    },
+  }, "💾 Save Positions");
+  wrap.appendChild(saveBtn);
+
+  return wrap;
+}
+
 function _lightsTab(ctx, maps, active) {
-  const { el } = ctx.helpers;
+  const { el, roomColor } = ctx.helpers;
   const card = el("div", { class: "card" });
+  const pro = _isPro(ctx);
 
   card.appendChild(el("div", { class: "card-head", style: "margin-bottom:12px" }, [
-    el("div", { style: "font-weight:700;font-size:15px" }, "Light Control Map"),
-    el("span", { class: "muted", style: "font-size:12px" },
-      "Tap a hex or row to toggle. Yellow\u00a0=\u00a0on \u00b7 Grey\u00a0=\u00a0off."),
+    el("div", { style: "font-weight:700;font-size:15px" }, "Lights"),
+    el("span", { class: "muted", style: "font-size:12px" }, "Tap a marker or row to toggle."),
   ]));
 
   // Registry cache check
@@ -6049,7 +6313,7 @@ function _lightsTab(ctx, maps, active) {
   if (!regCache || Date.now() - regCache.ts > 60000) {
     card.appendChild(el("div", {
       style: "padding:16px;color:#52b788;font-family:monospace;font-size:13px",
-    }, "Loading light registry\u2026"));
+    }, "Loading light registry…"));
     if (ctx.hass) _loadLightsReg(ctx).then(() => ctx.actions.renderRooms());
     return card;
   }
@@ -6077,7 +6341,7 @@ function _lightsTab(ctx, maps, active) {
   // Assign deterministic 3-char codes (sort order is stable)
   lights.forEach((l, i) => { l.code = _lightCode(i); });
 
-  // Floor-plan selector when multiple maps are loaded
+  // Floor-plan (map) selector — room layout + saved positions are per-map
   if (maps.length > 1) {
     card.appendChild(el("div", {
       style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px",
@@ -6102,77 +6366,145 @@ function _lightsTab(ctx, maps, active) {
     }
   };
 
-  // Group positioned lights by room
+  // Group lights by room
   const byRoom = {};
   for (const l of lights) {
     if (l.area_name) (byRoom[l.area_name] = byRoom[l.area_name] || []).push(l);
   }
   const unassigned = lights.filter(l => !l.area_name);
 
-  // ── Floor-plan image with hex overlay ────────────────────────────────────
-  if (active?.image_url) {
+  // ── Placement editor state (PadSpan Pro) ─────────────────────────────────
+  // Draft is a scratch copy of active.lights, keyed to the active map id so
+  // switching floor plans resets it instead of bleeding positions across maps.
+  const mapState = ctx.state.maps;
+  if (mapState._draftLightsMapId !== (active?.id || null)) {
+    mapState._draftMapLights = active ? JSON.parse(JSON.stringify(active.lights || [])) : [];
+    mapState._draftLightsMapId = active?.id || null;
+    mapState._lightsEditMode = false;
+    mapState._selectedLightPinId = null;
+  }
+  const editMode = !!(pro && mapState._lightsEditMode && active);
+  const draftLights = mapState._draftMapLights || [];
+  const posByEid = {};
+  for (const lt of (editMode ? draftLights : (active?.lights || []))) posByEid[lt.entity_id] = lt;
+
+  const editToggleAttrs = {
+    class: "btn inline" + (editMode ? " primary" : ""),
+    onclick: async () => {
+      if (!active) return;
+      if (mapState._lightsEditMode) {
+        // Exiting without an explicit Save discards unsaved drag/shape edits.
+        mapState._lightsEditMode = false;
+        mapState._draftMapLights = JSON.parse(JSON.stringify(active.lights || []));
+        mapState._selectedLightPinId = null;
+        ctx.actions.renderRooms();
+        return;
+      }
+      if (!pro) {
+        const key = prompt("Placing lights exactly where they are in the room is a PadSpan Pro feature.\n\nEnter your licence key (PSPAN-XXXX-XXXX-XXXX-XXXX):");
+        if (!key || !key.trim()) { ctx.toast("A PadSpan Pro licence key is required", true); return; }
+        try {
+          const r = await ctx.actions.wsCall("padspan_ha/forensics_license_activate", { key: key.trim() });
+          if (r?.ok) {
+            if (r.settings) ctx.state.settings = r.settings;
+            ctx.toast("PadSpan Pro activated");
+          } else {
+            ctx.toast(r?.message || "Key not valid for PadSpan Pro", true);
+            return;
+          }
+        } catch(e) {
+          ctx.toast("Licence check failed: " + String(e), true);
+          return;
+        }
+      }
+      mapState._lightsEditMode = true;
+      ctx.actions.renderRooms();
+    },
+  };
+  if (!active) editToggleAttrs.disabled = "disabled";
+
+  card.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px" }, [
+    el("button", editToggleAttrs,
+      editMode ? "Done Editing" : (pro ? "✏️ Edit Positions" : "🔒 Edit Positions · Pro")),
+    !pro ? el("span", { class: "muted", style: "font-size:11px" },
+      "Place lights exactly where they are in the room — requires PadSpan Pro.") : null,
+  ]));
+
+  if (editMode) {
+    card.appendChild(_lightsPlacementEditor(ctx, active, lights, draftLights, mapState));
+  }
+
+  // ── Room-shape view (read-only) — pure vector room polygons, never a photo.
+  if (!editMode && active) {
     const VW = 1000, VH = 1000, HEX_R = 30;
     const rb = active.room_bounds || {};
 
-    // Room centres from room_bounds (normalised 0-1 → SVG 0-1000)
+    let svgInner = "";
     const roomCentre = {};
     for (const [room, b] of Object.entries(rb)) {
       if (!b) continue;
-      if (b.type === "circle") {
-        roomCentre[room] = { x: (b.cx ?? 0.5) * VW, y: (b.cy ?? 0.5) * VH };
-      } else if (b.type === "poly" && b.points?.length >= 3) {
-        const pts = b.points;
+      const color = roomColor(room);
+      if (b.type === "poly" && Array.isArray(b.points) && b.points.length >= 3) {
+        const pp = b.points.map(p => `${(p[0]*VW).toFixed(1)},${(p[1]*VH).toFixed(1)}`).join(" ");
+        svgInner += `<polygon points="${pp}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="1.5"/>`;
         roomCentre[room] = {
-          x: (pts.reduce((s, p) => s + p[0], 0) / pts.length) * VW,
-          y: (pts.reduce((s, p) => s + p[1], 0) / pts.length) * VH,
+          x: (b.points.reduce((s,p)=>s+p[0],0)/b.points.length) * VW,
+          y: (b.points.reduce((s,p)=>s+p[1],0)/b.points.length) * VH,
         };
+      } else if (b.type === "circle") {
+        const rcx=(b.cx??0.5)*VW, rcy=(b.cy??0.5)*VH, rr=(b.r??0.12)*VW;
+        svgInner += `<circle cx="${rcx.toFixed(1)}" cy="${rcy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="1.5"/>`;
+        roomCentre[room] = { x: rcx, y: rcy };
+      } else {
+        continue;
       }
+      const ctr = roomCentre[room];
+      svgInner += `<text x="${ctr.x.toFixed(1)}" y="${ctr.y.toFixed(1)}" text-anchor="middle" ` +
+        `dominant-baseline="middle" fill="${color}" font-size="24" font-family="system-ui,sans-serif" opacity="0.6" pointer-events="none">${_escSVG(room)}</text>`;
     }
 
-    // SVG: hexagons only — no room labels, no scanner dots
-    let svgInner = "";
+    // Markers: lights with a saved Pro placement render at their exact pin;
+    // everyone else falls back to the auto-clustered hex around the room centre.
+    const _markerSvg = (l, cx, cy, entry) => {
+      const on     = l.state === "on";
+      const shape  = entry?.shape || "hex";
+      const fill   = entry?.color || (on ? "#fbbf24" : "#374151");
+      const op     = on ? 1 : 0.45;
+      const tCol   = on ? "#111827" : "#e2e8f0";
+      const attrs  = `fill="${fill}" stroke="#60a5fa" stroke-width="2.5" opacity="${op}"`;
+      return `<g class="lhex" data-eid="${_escSVG(l.entity_id)}" style="cursor:pointer">` +
+        _pinShapeMarkup(shape, cx, cy, HEX_R, entry?.rotation || 0, attrs) +
+        `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" ` +
+        `font-family="monospace" font-size="13" font-weight="700" fill="${tCol}" pointer-events="none">${_escSVG(l.code)}</text>` +
+        `</g>`;
+    };
+
+    for (const l of lights) {
+      const entry = posByEid[l.entity_id];
+      if (entry) svgInner += _markerSvg(l, entry.x * VW, entry.y * VH, entry);
+    }
     for (const [room, roomLights] of Object.entries(byRoom)) {
+      const unpinned = roomLights.filter(l => !posByEid[l.entity_id]);
+      if (!unpinned.length) continue;
       const ctr = roomCentre[room];
       if (!ctr) continue;
-      const offsets = _hexCluster(roomLights.length, HEX_R);
-      roomLights.forEach((l, idx) => {
+      const offsets = _hexCluster(unpinned.length, HEX_R);
+      unpinned.forEach((l, idx) => {
         const [dx, dy] = offsets[idx];
-        const hx = (ctr.x + dx).toFixed(1);
-        const hy = (ctr.y + dy).toFixed(1);
-        const on     = l.state === "on";
-        const fill   = on ? "#fbbf24" : "#374151";
-        const stroke = on ? "#f59e0b" : "#4b5563";
-        const tCol   = on ? "#111827" : "#fbbf24";
-        svgInner +=
-          `<g class="lhex" data-eid="${_escSVG(l.entity_id)}" style="cursor:pointer">` +
-          `<polygon points="${_hexPts(+hx, +hy, HEX_R)}" fill="${fill}" stroke="${stroke}" stroke-width="2.5"/>` +
-          `<text x="${hx}" y="${hy}" text-anchor="middle" dominant-baseline="middle" ` +
-          `font-family="monospace" font-size="13" font-weight="700" fill="${tCol}" pointer-events="none">${_escSVG(l.code)}</text>` +
-          `</g>`;
+        svgInner += _markerSvg(l, ctr.x + dx, ctr.y + dy, null);
       });
     }
 
     const wrap = document.createElement("div");
-    wrap.style.cssText = "position:relative;width:100%;margin-bottom:16px";
-
-    const imgEl = document.createElement("img");
-    imgEl.src   = active.image_url;
-    imgEl.style.cssText = "width:100%;display:block;border-radius:6px";
-    imgEl.alt   = "Floor plan";
-    wrap.appendChild(imgEl);
-
-    const svgWrap = document.createElement("div");
-    svgWrap.style.cssText = "position:absolute;inset:0;pointer-events:none";
-    svgWrap.innerHTML =
+    wrap.className = "mapstage";
+    wrap.style.cssText = `aspect-ratio:${_roomStageAspectRatio(active)};margin-bottom:16px`;
+    wrap.innerHTML =
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VW} ${VH}" ` +
       `width="100%" height="100%" style="position:absolute;inset:0">${svgInner}</svg>`;
-    wrap.appendChild(svgWrap);
 
-    // Wire click / hover after first paint
     requestAnimationFrame(() => {
-      const svg = svgWrap.querySelector("svg");
+      const svg = wrap.querySelector("svg");
       if (!svg) return;
-      svg.style.pointerEvents = "all";
       svg.querySelectorAll(".lhex").forEach(g => {
         g.addEventListener("click", e => { e.stopPropagation(); toggle(g.dataset.eid); });
         g.addEventListener("mouseover", () => { g.style.opacity = "0.75"; });
@@ -6182,14 +6514,17 @@ function _lightsTab(ctx, maps, active) {
 
     card.appendChild(wrap);
 
+    if (!Object.keys(rb).length && !lights.some(l => posByEid[l.entity_id])) {
+      card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
+        "No room boundaries drawn for this map yet — draw them in the Edit tab, or use Edit Positions above to place lights individually."));
+    }
     if (unassigned.length) {
       card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-        `${unassigned.length} light(s) not assigned to a room \u2014 shown in index only.`));
+        `${unassigned.length} light(s) not assigned to a room — shown in index only.`));
     }
-  } else {
+  } else if (!active) {
     card.appendChild(el("div", { class: "muted", style: "padding:8px;margin-bottom:12px" },
-      "No floor plan loaded (or no room boundaries drawn). " +
-      "Upload a map and draw room bounds in the Edit tab to position lights on the map."));
+      "No floor plan selected. Upload one in the Upload tab to group lights by room."));
   }
 
   // ── Light index table ─────────────────────────────────────────────────────
@@ -6210,7 +6545,7 @@ function _lightsTab(ctx, maps, active) {
     tbody.appendChild(el("tr", { style: "cursor:pointer", onclick: () => toggle(l.entity_id) }, [
       el("td", { style: "font-family:monospace;font-weight:700;color:#52b788;font-size:12px" }, l.code),
       el("td", {}, l.friendly_name),
-      el("td", { class: "muted" }, l.area_name || "\u2014"),
+      el("td", { class: "muted" }, l.area_name || "—"),
       el("td", {}, el("span", {
         style: `display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;` +
                `background:${on ? "#fbbf24" : "#374151"};color:${on ? "#111827" : "#fbbf24"}`,

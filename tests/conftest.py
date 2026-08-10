@@ -171,6 +171,25 @@ def _fake_utcnow() -> datetime:
 _ha_mods["homeassistant.util.dt"].utcnow = _fake_utcnow  # type: ignore[attr-defined]
 
 # ---------------------------------------------------------------------------
+# 2.5  Wire each stub submodule onto its parent stub as a real attribute
+#      (e.g. homeassistant.components.websocket_api = <that stub>).  Without
+#      this, `from homeassistant.components import websocket_api` never finds
+#      a real __dict__ entry on the parent and falls through to the fallback
+#      __getattr__ below — which hands back an unrelated MagicMock instead of
+#      the intended stub, silently turning every websocket_api-decorated
+#      handler (and similar) into a MagicMock. Must run before step 3 so the
+#      real attribute wins over the fallback.
+# ---------------------------------------------------------------------------
+
+for _name, _mod in _ha_mods.items():
+    if "." not in _name:
+        continue
+    _parent_name, _, _leaf = _name.rpartition(".")
+    _parent = _ha_mods.get(_parent_name)
+    if _parent is not None:
+        setattr(_parent, _leaf, _mod)
+
+# ---------------------------------------------------------------------------
 # 3.  Make every stub module return a MagicMock for any attribute that was
 #     NOT explicitly set above.  This avoids KeyError / AttributeError for
 #     names we forgot to list.

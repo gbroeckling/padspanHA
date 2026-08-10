@@ -497,6 +497,18 @@ def _get_settings(hass: HomeAssistant) -> dict:
         return dict(st.data)
     return {"data_mode": "sample"}
 
+def _padspan_pro_active(hass: HomeAssistant) -> bool:
+    """Return True if a PadSpan Pro licence key has been activated.
+
+    Shared gate for every PadSpan Pro feature (Forensics, Lights map
+    placement, ...) — they all key off the single licence activated via
+    padspan_ha/forensics_license_activate.
+    """
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if not st:
+        return False
+    return bool(str(st.data.get("forensics_license_key") or "").strip())
+
 def _is_rpa_addr(address: str) -> bool:
     """Return True if a BLE address is a Resolvable Private Address (rotating MAC).
 
@@ -3760,6 +3772,7 @@ async def ws_maps_upload(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("stack"): dict,
         vol.Optional("beacons"): list,
         vol.Optional("rf_barriers"): list,
+        vol.Optional("lights"): list,
     }
 )
 @websocket_api.async_response
@@ -3770,12 +3783,21 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
     the k-NN model incorporates them without waiting for the next walk-around.
     When beacons are removed, clears stale coordinator state to prevent
     ghost objects from lingering on the overview 3D map.
+
+    ``lights`` (map pin placement for the Lights sidebar) is a PadSpan Pro
+    feature — if no licence is active, the incoming value is dropped so the
+    rest of the update still saves.
     """
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not ms:
         connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
         return
     map_id = msg.get("map_id")
+
+    _lights = msg.get("lights")
+    _lights_blocked = _lights is not None and not _padspan_pro_active(hass)
+    if _lights_blocked:
+        _lights = None
 
     # Enforce single Outside map when changing floor_id
     new_floor_id = msg.get("floor_id")
@@ -3816,6 +3838,7 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
             room_bounds=_incoming_rb,
             rf_barriers=msg.get("rf_barriers"),
             stack=msg.get("stack"),
+            lights=_lights,
         )
     except KeyError:
         connection.send_error(msg["id"], "not_found", "Map not found")
@@ -3894,7 +3917,7 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
         except Exception:
             pass  # best-effort
 
-    connection.send_result(msg["id"], {"map": updated})
+    connection.send_result(msg["id"], {"map": updated, "lights_blocked": _lights_blocked})
 
 
 @websocket_api.websocket_command(
