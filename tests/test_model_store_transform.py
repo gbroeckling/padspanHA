@@ -354,3 +354,146 @@ async def test_pixel_op_on_unmeasured_map_is_noop(tmp_path: Path) -> None:
         pixel_op={"deg": 90, "sx": 1, "sy": 1}, old_px=(1600, 1200),
     )
     assert ok is False
+
+
+# ---------------------------------------------------------------------------
+# Origin decoupling: the world pose is write-once
+# ---------------------------------------------------------------------------
+
+
+_ANCHORED = {
+    "origin_x_m": 5.0,
+    "origin_y_m": 3.0,
+    "scale_x_m": 80.0,
+    "scale_y_m": 60.0,
+    "rotation_rad": 0.3,
+    "floor_id": "main",
+    "origin_anchored": True,
+}
+
+
+@pytest.mark.asyncio
+async def test_replace_keeps_anchored_pose(tmp_path: Path) -> None:
+    """A plain image replacement must not re-derive origin/rotation from
+    the cosmetic stack — the #56 drift class."""
+    store = _make_store(_ANCHORED)
+    m = _map(800, 600, stack={"is_master": False, "x_offset": 0.6,
+                              "y_offset": 0.5, "rotation": 45})
+    ok = await store.async_recompute_transform_for_map("m1", m, MagicMock())
+    assert ok
+    t = store.data["map_transforms"]["m1"]
+    assert t["origin_x_m"] == pytest.approx(5.0)     # NOT 0.6 * 80
+    assert t["origin_y_m"] == pytest.approx(3.0)     # NOT 0.5 * 60
+    assert t["rotation_rad"] == pytest.approx(0.3)   # NOT radians(45)
+
+
+@pytest.mark.asyncio
+async def test_replace_without_prior_transform_derives_from_stack(tmp_path: Path) -> None:
+    """Fresh derivation (legacy px_per_meter, no transform) still uses stack."""
+    store = _make_store({})
+    store.data["map_transforms"] = {}
+    m = _map(800, 600, stack={"is_master": False, "x_offset": 0.5, "y_offset": 0.5})
+    m["calibration"]["px_per_meter"] = 10.0
+    ok = await store.async_recompute_transform_for_map("m1", m, MagicMock())
+    assert ok
+    t = store.data["map_transforms"]["m1"]
+    assert t["origin_x_m"] == pytest.approx(40.0)    # 0.5 * 80
+    assert t["origin_y_m"] == pytest.approx(30.0)
+
+
+@pytest.mark.asyncio
+async def test_set_map_transform_preserves_pose_on_remeasure(tmp_path: Path) -> None:
+    """Re-measuring updates the scale but keeps the anchored world pose."""
+    store = _make_store(_ANCHORED)
+    await store.async_set_map_transform("m1", {
+        "origin_x_m": 0.0, "origin_y_m": 0.0,   # client-derived — ignored
+        "scale_x_m": 90.0, "scale_y_m": 70.0,
+        "rotation_rad": 0.0, "floor_id": "main",
+        "reference_measurements": [{"distance_m": 5.0}],
+    })
+    t = store.data["map_transforms"]["m1"]
+    assert t["origin_x_m"] == pytest.approx(5.0)
+    assert t["origin_y_m"] == pytest.approx(3.0)
+    assert t["rotation_rad"] == pytest.approx(0.3)
+    assert t["scale_x_m"] == pytest.approx(90.0)     # scale DID update
+    assert t["scale_y_m"] == pytest.approx(70.0)
+    assert t["origin_anchored"] is True
+    assert t["reference_measurements"] == [{"distance_m": 5.0}]
+
+
+@pytest.mark.asyncio
+async def test_set_map_transform_reanchor_overwrites_pose(tmp_path: Path) -> None:
+    """reanchor=True is the explicit authorization to move the pose."""
+    store = _make_store(_ANCHORED)
+    await store.async_set_map_transform("m1", {
+        "origin_x_m": 10.0, "origin_y_m": 8.0,
+        "scale_x_m": 80.0, "scale_y_m": 60.0,
+        "rotation_rad": 0.0, "floor_id": "main",
+    }, reanchor=True)
+    t = store.data["map_transforms"]["m1"]
+    assert t["origin_x_m"] == pytest.approx(10.0)
+    assert t["origin_y_m"] == pytest.approx(8.0)
+    assert t["rotation_rad"] == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
+async def test_set_map_transform_new_map_sanitizes_pose(tmp_path: Path) -> None:
+    """A brand-new transform stores the client pose, coerced to finite floats."""
+    store = _make_store({})
+    store.data["map_transforms"] = {}
+    await store.async_set_map_transform("m1", {
+        "origin_x_m": float("nan"), "origin_y_m": "junk",
+        "scale_x_m": 80.0, "scale_y_m": 60.0, "floor_id": "main",
+    })
+    t = store.data["map_transforms"]["m1"]
+    assert t["origin_x_m"] == 0.0
+    assert t["origin_y_m"] == 0.0
+    assert t["rotation_rad"] == 0.0
+    assert t["origin_anchored"] is True
+
+
+@pytest.mark.asyncio
+async def test_derive_transforms_skips_existing_valid_transform(tmp_path: Path) -> None:
+    """The migrate/boot derive path must never rewrite an existing pose,
+    measured or not — calibration pins may depend on it."""
+    store = _make_store({
+        "origin_x_m": 5.0, "origin_y_m": 3.0,
+        "scale_x_m": 80.0, "scale_y_m": 60.0,
+        "rotation_rad": 0.0, "floor_id": "main",
+    })  # valid origin, NO reference_measurements
+    maps_store = MagicMock()
+    maps_store.data = {"maps": [{
+        "id": "m1", "floor_id": "main",
+        "image": {"width": 1600, "height": 1200},
+        "stack": {"is_master": True},                 # would derive (0,0)
+        "calibration": {"px_per_meter": 20.0},
+    }]}
+    count = await store.async_derive_transforms(maps_store)
+    assert count == 1                                  # counted as done
+    t = store.data["map_transforms"]["m1"]
+    assert t["origin_x_m"] == pytest.approx(5.0)       # untouched
+    assert t["origin_y_m"] == pytest.approx(3.0)
+
+
+@pytest.mark.asyncio
+async def test_setup_stamps_existing_transforms(tmp_path: Path) -> None:
+    """Load migration freezes existing poses without changing any numbers."""
+    loaded = {
+        "map_transforms": {
+            "m1": {"origin_x_m": 5.0, "origin_y_m": 3.0, "scale_x_m": 80.0,
+                   "scale_y_m": 60.0, "rotation_rad": 0.3, "floor_id": "main"},
+            "m2": {"scale_x_m": 40.0, "floor_id": "up"},   # no origin — not stamped
+        },
+    }
+    store = ModelStore.__new__(ModelStore)
+    store.hass = MagicMock()
+    store.store = AsyncMock()
+    store.store.async_load = AsyncMock(return_value=loaded)
+    store.store.async_save = AsyncMock()
+    await store.async_setup()
+    t1 = store.data["map_transforms"]["m1"]
+    assert t1["origin_anchored"] is True
+    assert t1["origin_x_m"] == 5.0 and t1["origin_y_m"] == 3.0
+    assert t1["rotation_rad"] == 0.3
+    assert "origin_anchored" not in store.data["map_transforms"]["m2"]
+    store.store.async_save.assert_awaited()            # stamp persisted

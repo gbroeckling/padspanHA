@@ -255,6 +255,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_set)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_remove)
     websocket_api.async_register_command(hass, ws_fabric_map_transform_set)
+    websocket_api.async_register_command(hass, ws_fabric_map_reanchor)
     websocket_api.async_register_command(hass, ws_fabric_migrate_from_maps)
     websocket_api.async_register_command(hass, ws_fabric_spatial_batch_save)
     websocket_api.async_register_command(hass, ws_occupancy_estimate)
@@ -9123,6 +9124,63 @@ async def ws_fabric_map_transform_set(hass: HomeAssistant, connection, msg) -> N
         "scale_y_m": _stored.get("scale_y_m"),
         "refs": len(_stored.get("reference_measurements", [])),
     })
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/fabric_map_reanchor",
+        "map_id": str,
+        vol.Optional("origin_x_m"): vol.Coerce(float),
+        vol.Optional("origin_y_m"): vol.Coerce(float),
+        vol.Optional("rotation_rad"): vol.Coerce(float),
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_fabric_map_reanchor(hass: HomeAssistant, connection, msg) -> None:
+    """Explicitly redefine a map's world pose (origin + rotation).
+
+    Metres are the truth: the map's fracs re-derive through the new pose.
+    Refuses (writing nothing) when the pose would strand the calibration
+    pins off the map.
+    """
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    if not mdl:
+        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        return
+    if not ms:
+        connection.send_error(msg["id"], "no_maps", "Maps store not initialized")
+        return
+    map_id = (msg.get("map_id") or "").strip()
+    m = ms.get_map(map_id)
+    if not m:
+        connection.send_error(msg["id"], "not_found", "Map not found")
+        return
+    _cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
+    res = await mdl.async_reanchor_map(
+        map_id, m, _cal,
+        origin_x_m=msg.get("origin_x_m"),
+        origin_y_m=msg.get("origin_y_m"),
+        rotation_rad=msg.get("rotation_rad"),
+    )
+    if not res.get("ok"):
+        _err = res.get("error", "reanchor_failed")
+        _detail = "Re-anchor refused"
+        if _err == "points_out_of_range":
+            _detail = (
+                f"Re-anchor refused: {res.get('out_of_range', 0)}/{res.get('owned', 0)} "
+                "calibration pins would land off the map under this pose; nothing was changed"
+            )
+        elif _err == "not_measured":
+            _detail = "Map has no measured transform to re-anchor"
+        elif _err == "invalid_pose":
+            _detail = "Origin/rotation must be finite numbers"
+        connection.send_error(msg["id"], _err, _detail)
+        return
+    if res.get("map_items_rederived"):
+        await ms.store.async_save(ms.data)
+    connection.send_result(msg["id"], res)
 
 
 @websocket_api.websocket_command({

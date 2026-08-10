@@ -71,6 +71,23 @@ def _hash_color_hex(name: str) -> str:
 DEFAULT_FLOOR_TO_FLOOR_M: float = 2.8
 
 
+def _has_valid_origin(t: Any) -> bool:
+    """True if a map transform carries finite numeric origin fields.
+
+    A transform passing this check has an anchored world pose: its origin
+    (and rotation) are authoritative and must never be re-derived from
+    presentation state (stack offsets / is_master).
+    """
+    if not isinstance(t, dict):
+        return False
+    try:
+        return all(
+            math.isfinite(float(t[k])) for k in ("origin_x_m", "origin_y_m")
+        )
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
 def _norm_floor(f: dict[str, Any]) -> dict[str, Any]:
     """Normalise one floor entry, preserving elevation keys.
 
@@ -121,7 +138,10 @@ DEFAULT_DATA: dict[str, Any] = {
         # { name, material, attenuation_dbm, floor_id, points_m, origin, map_id }
     ],
     "map_transforms": {
-        # map_id: { origin_x_m, origin_y_m, scale_x_m, scale_y_m, rotation_rad, floor_id }
+        # map_id: { origin_x_m, origin_y_m, scale_x_m, scale_y_m, rotation_rad,
+        #           floor_id, origin_anchored }
+        # origin_anchored: the world pose (origin + rotation) is write-once —
+        # only the explicit re-anchor action may change it.
     },
     "beacon_positions_m": {
         # beacon_key: { x_m, y_m, floor_id, room, kind, label, origin, map_id }
@@ -169,6 +189,13 @@ class ModelStore:
                 self.data["map_transforms"] = {}
             if not isinstance(self.data.get("beacon_positions_m"), dict):
                 self.data["beacon_positions_m"] = {}
+            # ── Migration: freeze existing map-transform world poses ────────
+            # The stored origin is already the effective origin every reader
+            # uses, so this changes no numbers — it marks the pose write-once
+            # so no derive path may rewrite it from presentation state.
+            for _t in self.data["map_transforms"].values():
+                if _has_valid_origin(_t) and not _t.get("origin_anchored"):
+                    _t["origin_anchored"] = True
         else:
             self.data = {k: (list(v) if isinstance(v, list) else dict(v) if isinstance(v, dict) else v) for k, v in DEFAULT_DATA.items()}
 
@@ -688,10 +715,35 @@ class ModelStore:
         self.data["rf_barriers_m"] = [b for b in barriers if b.get("name") != name]
         await self.store.async_save(self.data)
 
-    async def async_set_map_transform(self, map_id: str, transform: dict) -> None:
-        """Set the affine transform for a map (frac ↔ metres)."""
+    async def async_set_map_transform(
+        self, map_id: str, transform: dict, *, reanchor: bool = False
+    ) -> None:
+        """Set the affine transform for a map (frac ↔ metres).
+
+        The world pose (origin + rotation) is write-once: once the stored
+        transform carries a valid origin, saves keep it — a re-measure
+        updates the scale without silently moving the world frame.  Only an
+        explicit re-anchor (reanchor=True) may overwrite the pose.
+        """
         transforms = self.data.setdefault("map_transforms", {})
-        transforms[str(map_id)] = dict(transform)
+        new_t = dict(transform)
+        # Sanitize the pose to finite floats (the ws layer accepts any dict).
+        for _k in ("origin_x_m", "origin_y_m", "rotation_rad"):
+            try:
+                _v = float(new_t.get(_k, 0) or 0)
+            except (TypeError, ValueError):
+                _v = 0.0
+            new_t[_k] = _v if math.isfinite(_v) else 0.0
+        old_t = transforms.get(str(map_id))
+        if not reanchor and _has_valid_origin(old_t):
+            new_t["origin_x_m"] = float(old_t["origin_x_m"])
+            new_t["origin_y_m"] = float(old_t["origin_y_m"])
+            try:
+                new_t["rotation_rad"] = float(old_t.get("rotation_rad", 0) or 0)
+            except (TypeError, ValueError):
+                new_t["rotation_rad"] = 0.0
+        new_t["origin_anchored"] = True
+        transforms[str(map_id)] = new_t
         await self.store.async_save(self.data)
 
     # ── Beacon positions (metre space) ──────────────────────────────────────
@@ -870,9 +922,13 @@ class ModelStore:
             mid = m.get("id", "")
             if not mid:
                 continue
-            # Skip maps that already have a manually-set transform with reference measurements
+            # Skip maps that already have a transform — its pose is anchored
+            # (calibration pins may depend on it) and re-deriving from stack
+            # state here is exactly the drift this design forbids.
             _existing = transforms.get(mid)
-            if _existing and _existing.get("reference_measurements"):
+            if _existing and (
+                _existing.get("reference_measurements") or _has_valid_origin(_existing)
+            ):
                 count += 1  # count as already done
                 continue
             cal = m.get("calibration") or {}
@@ -927,6 +983,7 @@ class ModelStore:
                 "scale_y_m": round(scale_y_m, 4),
                 "rotation_rad": round(rot_rad, 6),
                 "floor_id": fl,
+                "origin_anchored": True,
             }
             count += 1
 
@@ -1386,19 +1443,31 @@ class ModelStore:
             origin_y = composed["origin_y_m"]
             rot_rad = composed["rotation_rad"]
         else:
-            rot_rad = math.radians(float(stk.get("rotation", 0)))
-            # Origin.  A crop is world-anchored: fabric data keeps its old
-            # world coordinates, so the origin comes from the crop offset —
-            # for masters too (a trimmed master's frac (0,0) is no longer
-            # world (0,0), and every consumer reads origin generically; only
-            # the Measure tool writes the 0-origin convention, on a fresh
-            # scale save).
+            # World pose.  An anchored transform keeps its origin and
+            # rotation — a plain image replacement must never re-derive them
+            # from the cosmetic stack.  A crop is world-anchored too: fabric
+            # data keeps its old world coordinates, so the origin comes from
+            # the crop offset — for masters too (a trimmed master's frac
+            # (0,0) is no longer world (0,0), and every consumer reads
+            # origin generically).
+            _anchored = _has_valid_origin(old_t)
+            if _anchored:
+                try:
+                    rot_rad = float(old_t.get("rotation_rad", 0) or 0)
+                except (TypeError, ValueError):
+                    rot_rad = 0.0
+            else:
+                rot_rad = math.radians(float(stk.get("rotation", 0)))
             if crop_origin is not None:
                 origin_x, origin_y = crop_origin
+            elif _anchored:
+                origin_x = float(old_t["origin_x_m"])
+                origin_y = float(old_t["origin_y_m"])
             elif stk.get("is_master", False):
                 origin_x, origin_y = 0.0, 0.0
             else:
-                # Use stack offsets scaled by master's metres
+                # Fresh derivation (no prior transform): stack offsets
+                # scaled by the map's metres are the only origin available.
                 origin_x = float(stk.get("x_offset", 0)) * scale_x_m
                 origin_y = float(stk.get("y_offset", 0)) * scale_y_m
 
@@ -1536,6 +1605,88 @@ class ModelStore:
         map_dict["beacons"] = existing_beacons
 
         return count
+
+    async def async_reanchor_map(
+        self, map_id: str, map_dict: dict, cal_store: Any = None, *,
+        origin_x_m: float | None = None, origin_y_m: float | None = None,
+        rotation_rad: float | None = None,
+    ) -> dict[str, Any]:
+        """Explicitly redefine a map's world pose (origin + rotation).
+
+        The ONLY sanctioned way to change an anchored pose.  The shared
+        metre fabric is the truth: the new pose re-derives THIS map's
+        fractional coordinates (calibration pins, receivers, barriers,
+        beacons) from stored metres.  With no explicit pose given, the pose
+        is derived from the current stack (make the world match the
+        display).  Preflights the calibration guard under the new pose and
+        writes NOTHING if most pins would strand off the map.
+
+        Mutates map_dict in place when map fracs re-derive — the caller
+        must persist the maps store if map_items_rederived > 0.
+        """
+        transforms = self.data.get("map_transforms") or {}
+        old_t = transforms.get(map_id)
+        if not old_t or not old_t.get("scale_x_m") or not old_t.get("scale_y_m"):
+            return {"ok": False, "error": "not_measured"}
+
+        stk = map_dict.get("stack") or {}
+        if origin_x_m is None and origin_y_m is None and rotation_rad is None:
+            # Legacy stack rules, applied for the last time — explicitly.
+            if stk.get("is_master", False):
+                nx, ny = 0.0, 0.0
+            else:
+                nx = float(stk.get("x_offset", 0)) * float(old_t["scale_x_m"])
+                ny = float(stk.get("y_offset", 0)) * float(old_t["scale_y_m"])
+            nrot = math.radians(float(stk.get("rotation", 0)))
+        else:
+            try:
+                nx = float(origin_x_m if origin_x_m is not None else old_t.get("origin_x_m", 0))
+                ny = float(origin_y_m if origin_y_m is not None else old_t.get("origin_y_m", 0))
+                nrot = float(rotation_rad if rotation_rad is not None else old_t.get("rotation_rad", 0) or 0)
+            except (TypeError, ValueError):
+                return {"ok": False, "error": "invalid_pose"}
+        if not all(math.isfinite(v) for v in (nx, ny, nrot)):
+            return {"ok": False, "error": "invalid_pose"}
+
+        new_t = dict(old_t)
+        new_t["origin_x_m"] = round(nx, 4)
+        new_t["origin_y_m"] = round(ny, 4)
+        new_t["rotation_rad"] = round(nrot, 6)
+        new_t["origin_anchored"] = True
+
+        # Preflight the remap guard under the new pose: swap in memory,
+        # measure, and roll back before any await — nothing is persisted
+        # unless the pose keeps the pins on the map.
+        transforms[map_id] = new_t
+        owned = owned_bad = 0
+        for p in (cal_store.data.get("points") or []) if cal_store else []:
+            if p.get("x_m") is None or p.get("map_id", "") != map_id:
+                continue
+            owned += 1
+            fr = self.metres_to_map_frac(float(p["x_m"]), float(p["y_m"]), map_id)
+            if not fr or not (-0.05 <= fr[0] <= 1.05 and -0.05 <= fr[1] <= 1.05):
+                owned_bad += 1
+        if owned and owned_bad * 2 > owned:
+            transforms[map_id] = old_t
+            return {
+                "ok": False, "error": "points_out_of_range",
+                "owned": owned, "out_of_range": owned_bad,
+            }
+
+        await self.store.async_save(self.data)
+        remapped = 0
+        if cal_store:
+            remapped = await cal_store.async_remap_from_metres(map_id)
+        rederived = await self.async_rederive_map_fracs(map_id, map_dict)
+        return {
+            "ok": True, "map_id": map_id,
+            "origin_x_m": new_t["origin_x_m"],
+            "origin_y_m": new_t["origin_y_m"],
+            "rotation_rad": new_t["rotation_rad"],
+            "cal_points_remapped": remapped,
+            "map_items_rederived": rederived,
+            "owned": owned, "out_of_range": owned_bad,
+        }
 
     def has_floor(self, floor_id: str) -> bool:
         fid = str(floor_id or "")

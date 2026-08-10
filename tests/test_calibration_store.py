@@ -710,3 +710,99 @@ async def test_issue56_chain_origin_rebase_cannot_destroy_calibration() -> None:
         assert p["x_frac"] == pytest.approx(ox)
         assert p["y_frac"] == pytest.approx(oy)
         assert (p["x_frac"], p["y_frac"]) != (0.0, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# Re-anchor: the explicit, guarded way to change a map's world pose
+# ---------------------------------------------------------------------------
+
+
+async def test_reanchor_repairs_corrupted_origin() -> None:
+    """The #56 recovery: metres are truth, an explicit re-anchor to the
+    correct origin re-derives the pins back to consistency."""
+    model = _real_model({
+        "origin_x_m": 6.0, "origin_y_m": 4.0,        # corrupted by 3D-save flip
+        "scale_x_m": 10.0, "scale_y_m": 8.0,
+        "rotation_rad": 0.0, "floor_id": "main",
+    })
+    pts = [
+        _remap_point(2.0, 2.0, x_frac=0.2, y_frac=0.25),
+        _remap_point(3.0, 3.2, x_frac=0.3, y_frac=0.4),
+        _remap_point(5.0, 4.0, x_frac=0.5, y_frac=0.5),
+    ]
+    cal = _make_store(pts)
+    cal._model = model
+
+    res = await model.async_reanchor_map(
+        "map1", {"stack": {}}, cal,
+        origin_x_m=0.0, origin_y_m=0.0, rotation_rad=0.0,
+    )
+    assert res["ok"] is True
+    assert res["cal_points_remapped"] == 3
+    t = model.data["map_transforms"]["map1"]
+    assert t["origin_x_m"] == 0.0 and t["origin_y_m"] == 0.0
+    assert t["origin_anchored"] is True
+    # Pins re-derive to fracs consistent with their metres again.
+    assert cal.data["points"][0]["x_frac"] == pytest.approx(0.2)
+    assert cal.data["points"][0]["y_frac"] == pytest.approx(0.25)
+    assert cal.data["points"][2]["x_frac"] == pytest.approx(0.5)
+    # Metres untouched (write-once).
+    assert cal.data["points"][0]["x_m"] == 2.0
+
+
+async def test_reanchor_refuses_stranding_pose() -> None:
+    """A pose that lands most pins off the map is refused with NO writes."""
+    model = _real_model({
+        "origin_x_m": 0.0, "origin_y_m": 0.0,
+        "scale_x_m": 10.0, "scale_y_m": 8.0,
+        "rotation_rad": 0.0, "floor_id": "main",
+    })
+    pts = [
+        _remap_point(2.0, 2.0, x_frac=0.2, y_frac=0.25),
+        _remap_point(5.0, 4.0, x_frac=0.5, y_frac=0.5),
+    ]
+    cal = _make_store(pts)
+    cal._model = model
+
+    res = await model.async_reanchor_map(
+        "map1", {"stack": {}}, cal,
+        origin_x_m=100.0, origin_y_m=100.0, rotation_rad=0.0,
+    )
+    assert res["ok"] is False
+    assert res["error"] == "points_out_of_range"
+    assert res["out_of_range"] == 2
+    # Rolled back in memory, nothing persisted, fracs untouched.
+    t = model.data["map_transforms"]["map1"]
+    assert t["origin_x_m"] == 0.0 and t["origin_y_m"] == 0.0
+    model.store.async_save.assert_not_awaited()
+    cal.store.async_save.assert_not_awaited()
+    assert cal.data["points"][0]["x_frac"] == pytest.approx(0.2)
+
+
+async def test_reanchor_from_stack_uses_legacy_rules() -> None:
+    """With no explicit pose the stack derives it — the one sanctioned
+    'make the world match the display' path (master → origin (0,0))."""
+    model = _real_model({
+        "origin_x_m": 6.0, "origin_y_m": 4.0,        # corrupt
+        "scale_x_m": 10.0, "scale_y_m": 8.0,
+        "rotation_rad": 0.0, "floor_id": "main",
+    })
+    pts = [_remap_point(2.0, 2.0, x_frac=0.9, y_frac=0.9)]  # frac stale
+    cal = _make_store(pts)
+    cal._model = model
+
+    res = await model.async_reanchor_map(
+        "map1", {"stack": {"is_master": True, "rotation": 0}}, cal,
+    )
+    assert res["ok"] is True
+    t = model.data["map_transforms"]["map1"]
+    assert t["origin_x_m"] == 0.0 and t["origin_y_m"] == 0.0
+    assert cal.data["points"][0]["x_frac"] == pytest.approx(0.2)  # repaired
+    assert cal.data["points"][0]["y_frac"] == pytest.approx(0.25)
+
+
+async def test_reanchor_unmeasured_map_errors() -> None:
+    """No transform (or no scale) → nothing to re-anchor."""
+    model = _real_model({"floor_id": "main"})
+    res = await model.async_reanchor_map("map1", {"stack": {}}, None)
+    assert res == {"ok": False, "error": "not_measured"}

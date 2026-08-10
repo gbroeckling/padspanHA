@@ -2009,6 +2009,24 @@ function _edit(ctx, map, allMaps){
       if (_fabTx && _fabTx.scale_x_m) {
         mPanel.appendChild(el("div",{style:"font-size:11px;color:#52b788;margin-top:8px"},
           `Current fabric scale: ${_fabTx.scale_x_m.toFixed(1)}m \u00d7 ${_fabTx.scale_y_m.toFixed(1)}m`));
+        mPanel.appendChild(el("div",{style:"font-size:10px;color:#64748b;margin-top:2px"},
+          `World origin: (${(_fabTx.origin_x_m||0).toFixed(2)}, ${(_fabTx.origin_y_m||0).toFixed(2)})m \u2014 locked; display edits never move it`));
+        const reanchorBtn = el("button",{class:"btn inline",style:"font-size:10px;padding:2px 8px;margin-top:4px;color:#f59e0b"}, "\u2693 Re-anchor origin");
+        reanchorBtn.title = "Redefine this map's world origin/rotation from its current stack placement. Calibration pins keep their real-world metres and re-derive on the image.";
+        reanchorBtn.addEventListener("click", async () => {
+          if(!confirm("Re-anchor this map's world origin to its current stack placement?\n\nCalibration pins keep their real-world positions (metres) and their on-image positions re-derive through the new origin. This is refused if most pins would land off the map.")) return;
+          reanchorBtn.disabled = true;
+          try {
+            const r = await ctx.actions.callWS({ type: "padspan_ha/fabric_map_reanchor", map_id: map.id });
+            ctx.toast(`Re-anchored: origin (${r.origin_x_m}, ${r.origin_y_m})m, ${r.cal_points_remapped} pin(s) remapped`);
+            await ctx.actions.mapsRefresh();
+          } catch(e) {
+            ctx.toast("Re-anchor refused: " + (e.message || e));
+          } finally {
+            reanchorBtn.disabled = false;
+          }
+        });
+        mPanel.appendChild(reanchorBtn);
       } else if (cal.px_per_meter) {
         mPanel.appendChild(el("div",{style:"font-size:11px;color:#f59e0b;margin-top:8px"},
           `Legacy map scale: ${cal.px_per_meter.toFixed(1)} px/m (not in fabric yet)`));
