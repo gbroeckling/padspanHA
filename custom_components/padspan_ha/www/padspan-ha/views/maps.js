@@ -6208,36 +6208,48 @@ function _roomGeomBBoxM(roomGeoms) {
   };
 }
 
-// Hex-cluster offsets (metres) for unplaced lights sharing a room — same
-// honeycomb layout as _hexCluster, scaled for a metric canvas instead of a
-// 0-1 fraction one.
-function _hexClusterM(n, spacingM) {
+// Hex-cluster offsets in SCREEN PIXELS for unplaced lights sharing a room —
+// the same honeycomb layout (centre + 6-ring, hex-offset grid overflow) the
+// Lights sidebar's hexCluster uses, so both views cluster identically. Pixel
+// offsets (applied via CSS calc(% + Npx)) keep markers a fixed, legible size
+// and tightly packed regardless of how many real metres the floor spans —
+// metre-based spacing made clusters either sprawl or overlap depending on
+// the floor's size, which is what looked sloppy.
+function _hexClusterPx(n, r) {
+  const d = r * Math.sqrt(3) + 2;
   const ring = Array.from({length: 6}, (_, i) => {
     const a = (30 + i * 60) * Math.PI / 180;
-    return [spacingM * Math.cos(a), spacingM * Math.sin(a)];
+    return [d * Math.cos(a), d * Math.sin(a)];
   });
   const positions = [[0, 0], ...ring];
   if (n <= 7) return positions.slice(0, n);
-  // Large overflow (e.g. a whole house's worth of unassigned lights bucketed
-  // together): a roughly-square grid instead of a fixed 3-wide column, so it
-  // doesn't run off the top/bottom of a tall floor.
-  const cols = Math.max(3, Math.ceil(Math.sqrt(n)));
+  // Hex-offset grid: odd rows shift right by d/2 so hexagons mesh
+  const cols = Math.max(3, Math.ceil(Math.sqrt(n * 1.15)));
   const rows = Math.ceil(n / cols);
-  const midCol = (cols - 1) / 2, midRow = (rows - 1) / 2;
   return Array.from({length: n}, (_, i) => {
-    const col = i % cols, row = Math.floor(i / cols);
-    return [(col - midCol) * spacingM * 1.2, (row - midRow) * spacingM * 1.05];
+    const row = Math.floor(i / cols), col = i % cols;
+    return [
+      (col - (cols - 1) / 2) * d + (row % 2) * d / 2,
+      (row - (rows - 1) / 2) * d * 0.866,
+    ];
   });
 }
 
 // Render one light marker div into `layer` (the room stage's overlay).
-// `posM` = {mx,my,color,shape,rotation,width_cm,height_cm} in the floor's
-// real metre space (always present). `entry` = the mutable draft-lights
-// record backing this marker (only set for lights that belong to the
-// currently active/editable map), or null for a read-only marker (an
-// auto-clustered unplaced light, or a light placed via a sibling map on the
-// same floor). `xform` = the transform for this pin's owning map, used to
-// convert a drag back into that map's stored fraction coordinates.
+// `posM` = {mx,my (metres), dxPx,dyPx (screen-px cluster offset, optional),
+// color,shape,rotation,width_cm,height_cm}. `entry` = the mutable
+// draft-lights record backing this marker, or null for an auto-clustered
+// light that hasn't been styled/placed yet. `xform` = the transform for
+// this pin's owning map, used to convert positions back into that map's
+// stored fraction coordinates.
+//
+// Auto-clustered markers render as fixed-size hexagons (same look and
+// honeycomb packing as the Lights sidebar); placed/styled pins render at
+// their real-world cm size with a pixel floor so they never vanish. In Pro,
+// clicking ANY marker selects it for the shape/color/size inspector — an
+// auto marker is silently promoted to a draft entry at its exact current
+// spot (no jump), so styling any light is a single click, with no separate
+// "Add to Room" step needed.
 function _renderLightPin(ctx, layer, l, posM, entry, pro, mapState, toggle, bbox, xform) {
   const on = l.state === "on";
   const selected = !!(entry && mapState._selectedLightPinId === entry.id);
@@ -6246,33 +6258,62 @@ function _renderLightPin(ctx, layer, l, posM, entry, pro, mapState, toggle, bbox
   const draggable = pro && !!entry;
   const css = _shapeCss(shape);
 
-  const widthCm = posM.width_cm || 15;
-  const heightCm = posM.height_cm || 15;
-  const wPct = Math.max(1.2, Math.min(40, (widthCm / 100) / bbox.width * 100));
-  const hPct = Math.max(1.2, Math.min(40, (heightCm / 100) / bbox.height * 100));
   const leftPct = (posM.mx - bbox.minX) / bbox.width * 100;
   const topPct = (posM.my - bbox.minY) / bbox.height * 100;
+  const dxPx = posM.dxPx || 0, dyPx = posM.dyPx || 0;
+
+  let sizeCss, fontPx;
+  if (entry) {
+    // Real-world size, floored in px so a 15cm pin on a 30m floor stays
+    // clickable. bbox/inner share true aspect, so equal metres render as
+    // equal px in both axes — squares stay square.
+    const wPct = (Math.max(1, posM.width_cm || 15) / 100) / bbox.width * 100;
+    const hPct = (Math.max(1, posM.height_cm || 15) / 100) / bbox.height * 100;
+    sizeCss = `width:max(20px,${wPct.toFixed(2)}%);height:max(20px,${hPct.toFixed(2)}%);`;
+    fontPx = 10;
+  } else {
+    sizeCss = `width:26px;height:26px;`;
+    fontPx = 9;
+  }
 
   const pin = document.createElement("div");
   pin.title = l.friendly_name;
   pin.setAttribute("data-light-pin", "1"); // excluded from the viewport's own pan-drag
-  pin.style.cssText = `position:absolute;left:${leftPct.toFixed(2)}%;top:${topPct.toFixed(2)}%;` +
-    `width:${wPct.toFixed(2)}%;height:${hPct.toFixed(2)}%;overflow:hidden;` +
+  pin.style.cssText = `position:absolute;left:calc(${leftPct.toFixed(2)}% + ${dxPx.toFixed(1)}px);top:calc(${topPct.toFixed(2)}% + ${dyPx.toFixed(1)}px);` +
+    sizeCss + `overflow:hidden;` +
     `cursor:${draggable ? "grab" : "pointer"};` +
     `background:${color};border:2px solid ${selected ? "#e879f9" : "#60a5fa"};` +
     `border-radius:${css.borderRadius};clip-path:${css.clipPath};` +
     `transform:translate(-50%,-50%) rotate(${posM.rotation || 0}deg);box-shadow:0 1px 4px rgba(0,0,0,.6);` +
     `opacity:${on ? 1 : 0.55};z-index:${selected ? 3 : 2};display:flex;align-items:center;justify-content:center;` +
-    `color:${on ? "#111827" : "#e2e8f0"};font-family:monospace;font-size:10px;font-weight:700;user-select:none`;
+    `color:${on ? "#111827" : "#e2e8f0"};font-family:monospace;font-size:${fontPx}px;font-weight:700;user-select:none`;
   pin.textContent = l.code;
   pin.addEventListener("click", (ev) => {
     ev.stopPropagation();
-    if (pro && entry) {
+    if (!pro) { toggle(l.entity_id); return; }
+    if (entry) {
       mapState._selectedLightPinId = entry.id;
       ctx.actions.renderRooms();
-    } else {
-      toggle(l.entity_id);
+      return;
     }
+    // Promote this auto-clustered light to an editable draft pin at its
+    // exact current on-screen spot: px cluster offset -> metres via the
+    // layer's live layout scale, metres -> the active map's fraction space.
+    const pxPerMX = layer.clientWidth / bbox.width || 1;
+    const pxPerMY = layer.clientHeight / bbox.height || 1;
+    const mx = posM.mx + dxPx / pxPerMX;
+    const my = posM.my + dyPx / pxPerMY;
+    const [fx, fy] = _lightMetresToFrac(mx, my, xform);
+    const newEntry = {
+      id: `lt_${Date.now().toString(16)}`,
+      entity_id: l.entity_id,
+      label: l.friendly_name,
+      x: Math.max(-50, Math.min(50, fx)), y: Math.max(-50, Math.min(50, fy)),
+      color: "#fbbf24", shape: "circle", rotation: 0, width_cm: 15, height_cm: 15,
+    };
+    (mapState._draftMapLights = mapState._draftMapLights || []).push(newEntry);
+    mapState._selectedLightPinId = newEntry.id;
+    ctx.actions.renderRooms();
   });
   if (draggable) {
     // _makeDraggable writes container-fraction coordinates straight into
@@ -6293,6 +6334,12 @@ function _renderLightPin(ctx, layer, l, posM, entry, pro, mapState, toggle, bbox
     // click-to-select would overwrite the saved position with dragProxy's
     // stale initial (wrong-space) value.
     _makeDraggable(pin, dragProxy, layer, () => { _didMove = true; }, () => true, (isDragging) => {
+      // Suppress the panel's periodic poll re-render for the whole drag
+      // (same _editDragging flag the receivers editor uses, checked in
+      // panel.js) — without this, a poll tick mid-drag rebuilds the DOM,
+      // detaches the node being dragged, and the drag visibly dies — the
+      // "not a live move" symptom.
+      mapState._editDragging = isDragging;
       if (isDragging) return;
       if (!_didMove) return;
       const mx = bbox.minX + dragProxy.x * bbox.width;
@@ -6326,8 +6373,15 @@ function _attachPanZoom(viewport, inner) {
   const zoomAt = (cx, cy, factor) => {
     const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s.scale * factor));
     const ratio = newScale / s.scale;
-    s.tx = cx - ratio * (cx - s.tx);
-    s.ty = cy - ratio * (cy - s.ty);
+    // The zoom-at-cursor fixed-point math assumes cursor coordinates
+    // relative to the inner element's own (untransformed) layout origin —
+    // inner is flex-centred inside the viewport, so subtract its layout
+    // offset. Without this, every zoom step drifts the content toward a
+    // corner and it quickly flies off screen.
+    const ox = inner.offsetLeft, oy = inner.offsetTop;
+    const px = cx - ox, py = cy - oy;
+    s.tx = px - ratio * (px - s.tx);
+    s.ty = py - ratio * (py - s.ty);
     s.scale = newScale;
     apply();
   };
@@ -6423,19 +6477,21 @@ function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState
     }
   }
 
-  // Auto-cluster position for every currently-unplaced light — the exact
-  // spot it's already rendered at below. "Add to Room" seeds a new pin here.
-  const SPACING_M = Math.max(0.25, Math.min(roomBbox.width, roomBbox.height) * 0.04);
+  // Auto-cluster position for every currently-unplaced light: the room's
+  // centre in metres plus a fixed-pixel honeycomb offset (same packing as
+  // the Lights sidebar), so clusters stay tight and legible no matter how
+  // many real metres the floor spans.
+  const HEX_R_PX = 13;
   const autoClusterPos = {};
   for (const [room, roomLights] of Object.entries(byRoom)) {
     const unpinned = roomLights.filter(l => !posByEid[l.entity_id]);
     if (!unpinned.length) continue;
     const ctr = roomCentreM[room];
     if (!ctr) continue;
-    const offsets = _hexClusterM(unpinned.length, SPACING_M);
+    const offsets = _hexClusterPx(unpinned.length, HEX_R_PX);
     unpinned.forEach((l, idx) => {
-      const [dx, dy] = offsets[idx];
-      autoClusterPos[l.entity_id] = { mx: ctr.mx + dx, my: ctr.my + dy };
+      const [dxPx, dyPx] = offsets[idx];
+      autoClusterPos[l.entity_id] = { mx: ctr.mx, my: ctr.my, dxPx, dyPx };
     });
   }
 
@@ -6453,16 +6509,14 @@ function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState
   let bbox = roomBbox;
   let stripTopM = null;
   if (stragglers.length) {
-    const cols = Math.max(3, Math.ceil(Math.sqrt(stragglers.length)));
-    const rows = Math.ceil(stragglers.length / cols);
-    const stripH = Math.max(SPACING_M * 1.6, rows * SPACING_M * 1.05 + SPACING_M);
+    const stripH = Math.max(1.5, roomBbox.height * 0.15);
     stripTopM = roomBbox.minY + roomBbox.height + STRIP_GAP_M;
     bbox = { minX: roomBbox.minX, minY: roomBbox.minY, width: roomBbox.width, height: roomBbox.height + STRIP_GAP_M + stripH };
     roomCentreM["Unassigned"] = { mx: roomBbox.minX + roomBbox.width / 2, my: stripTopM + stripH / 2 };
-    const offsets = _hexClusterM(stragglers.length, SPACING_M);
+    const offsets = _hexClusterPx(stragglers.length, HEX_R_PX);
     stragglers.forEach((l, idx) => {
-      const [dx, dy] = offsets[idx];
-      autoClusterPos[l.entity_id] = { mx: roomCentreM["Unassigned"].mx + dx, my: roomCentreM["Unassigned"].my + dy };
+      const [dxPx, dyPx] = offsets[idx];
+      autoClusterPos[l.entity_id] = { mx: roomCentreM["Unassigned"].mx, my: roomCentreM["Unassigned"].my, dxPx, dyPx };
     });
   }
   const { t: activeT, calibrated: activeCalibrated } = _effTransform(ctx, active.id, bbox);
@@ -6532,7 +6586,7 @@ function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState
     style: "margin-top:0;height:min(75vh,680px);min-height:420px;display:flex;align-items:center;justify-content:center;position:relative;cursor:grab;touch-action:none",
   });
   const inner = el("div", {
-    style: `position:relative;height:100%;max-width:100%;aspect-ratio:${(bbox.width / bbox.height).toFixed(4)};transform-origin:center center`,
+    style: `position:relative;height:100%;max-width:100%;aspect-ratio:${(bbox.width / bbox.height).toFixed(4)};transform-origin:0 0`,
   });
   stage.appendChild(inner);
   stageWrap.appendChild(stage);
@@ -6613,7 +6667,7 @@ function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState
   // Unplaced lights: render at the exact auto-cluster position computed above.
   for (const [eid, posM] of Object.entries(autoClusterPos)) {
     const l = lights.find(x => x.entity_id === eid);
-    if (l) _renderLightPin(ctx, pinLayer, l, { mx: posM.mx, my: posM.my, shape: "hex" }, null, pro, mapState, toggle, bbox, activeT);
+    if (l) _renderLightPin(ctx, pinLayer, l, { mx: posM.mx, my: posM.my, dxPx: posM.dxPx, dyPx: posM.dyPx, shape: "hex" }, null, pro, mapState, toggle, bbox, activeT);
   }
 
   // Placed lights: exact saved (or in-progress draft) position, converted
