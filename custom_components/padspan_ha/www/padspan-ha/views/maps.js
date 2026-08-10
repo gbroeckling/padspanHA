@@ -6134,29 +6134,39 @@ function _lightMetresToFrac(mx, my, t) {
 
 // Which uploaded map/photo a floor's new or dragged lights get persisted
 // against — purely internal (never shown to the user; a floor with several
-// uploaded photos is one floor in this tab, never a photo picker). Prefers
-// whichever map on the floor is actually calibrated (has a real
-// map_transforms entry) so drags land at real-world-accurate positions;
-// falls back to the first map on the floor otherwise.
+// uploaded photos is one floor in this tab, never a photo picker). A map
+// that's never been through Measure still gets SOME transform (a synthetic
+// "assume ~20m wide" guess applied once during the fabric migration), which
+// looks equally "calibrated" by scale alone but isn't real-world-accurate —
+// so this prefers a map with real reference_measurements (genuinely
+// measured) first, only falling back to "has some transform" or "first map"
+// if nothing on this floor was ever actually measured.
 function _primaryMapIdForFloor(ctx, mapIds) {
   const ids = mapIds && mapIds.length ? mapIds : [];
   const transforms = ctx.state.model?.map_transforms || {};
-  const calibrated = ids.find(id => {
+  const measured = ids.find(id => (transforms[id]?.reference_measurements || []).length > 0);
+  if (measured) return measured;
+  const anyScaled = ids.find(id => {
     const t = transforms[id];
     return t && Number(t.scale_x_m) > 0 && Number(t.scale_y_m) > 0;
   });
-  return calibrated || ids[0] || null;
+  return anyScaled || ids[0] || null;
 }
 
 // The transform to place a given map's lights into the floor's real metric
-// canvas. Calibrated maps (Measure has been run) use their real
-// map_transforms entry. Uncalibrated maps fall back to a synthetic transform
-// that spans this floor's real room-geometry bounding box 1:1 — still real
-// floor-relative space, not the raw photo — so the feature never blocks on
-// an un-measured map, it just isn't real-world-accurate yet.
+// canvas. `calibrated` means genuinely measured (real reference_measurements)
+// — NOT merely "has a positive scale", since an un-measured map still gets a
+// synthetic guessed transform (see _primaryMapIdForFloor) that would
+// otherwise look equally trustworthy. A map with no transform at all falls
+// back to a synthetic transform spanning this floor's real room-geometry
+// bounding box 1:1 — still real floor-relative space, not the raw photo —
+// so the feature never blocks on an un-measured map, it just isn't
+// real-world-accurate yet (surfaced to the user via the `calibrated` flag).
 function _effTransform(ctx, mapId, bbox) {
   const t = ctx.state.model?.map_transforms?.[mapId];
-  if (t && Number(t.scale_x_m) > 0 && Number(t.scale_y_m) > 0) return { t, calibrated: true };
+  if (t && Number(t.scale_x_m) > 0 && Number(t.scale_y_m) > 0) {
+    return { t, calibrated: (t.reference_measurements || []).length > 0 };
+  }
   return {
     t: { origin_x_m: bbox.minX, origin_y_m: bbox.minY, scale_x_m: bbox.width, scale_y_m: bbox.height, rotation_rad: 0 },
     calibrated: false,
@@ -6235,6 +6245,7 @@ function _renderLightPin(ctx, layer, l, posM, entry, pro, mapState, toggle, bbox
 
   const pin = document.createElement("div");
   pin.title = l.friendly_name;
+  pin.setAttribute("data-light-pin", "1"); // excluded from the viewport's own pan-drag
   pin.style.cssText = `position:absolute;left:${leftPct.toFixed(2)}%;top:${topPct.toFixed(2)}%;` +
     `width:${wPct.toFixed(2)}%;height:${hPct.toFixed(2)}%;overflow:hidden;` +
     `cursor:${draggable ? "grab" : "pointer"};` +
@@ -6292,7 +6303,85 @@ function _renderLightPin(ctx, layer, l, posM, entry, pro, mapState, toggle, bbox
 // clustered around its room's centre otherwise. Pro adds: an "Add to Room"
 // picker for unplaced lights, drag-to-move (against the currently active
 // map), a shape/color/rotation inspector on the selected pin, and Save.
-function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState, hiddenIds, byRoom, pro, toggle, roomColor, lightsLoading, roomGeoms, homelessIds) {
+// Vanilla-JS port of purelive.js's MapViewport (same math, same UX): wheel
+// zoom, drag pan, pinch zoom, double-click/tap reset. Pure Live's version is
+// a Preact hook-based component; this reimplements the same event-handling
+// logic imperatively for maps.js's plain-DOM rendering style. `inner` must
+// be an absolutely-positioned div filling `viewport` (transform-origin 0 0);
+// `viewport` should have position:relative + overflow:hidden.
+function _attachPanZoom(viewport, inner) {
+  const MIN_SCALE = 0.3, MAX_SCALE = 5;
+  const s = { scale: 1, tx: 0, ty: 0, dragging: false, startX: 0, startY: 0, startTx: 0, startTy: 0, pinchDist: 0, pinchScale: 1 };
+  const apply = () => { inner.style.transform = `translate(${s.tx}px, ${s.ty}px) scale(${s.scale})`; };
+  const zoomAt = (cx, cy, factor) => {
+    const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s.scale * factor));
+    const ratio = newScale / s.scale;
+    s.tx = cx - ratio * (cx - s.tx);
+    s.ty = cy - ratio * (cy - s.ty);
+    s.scale = newScale;
+    apply();
+  };
+  const reset = () => { s.scale = 1; s.tx = 0; s.ty = 0; apply(); };
+  // A light pin handles its own drag (_makeDraggable); the viewport's pan
+  // must not also fire for that same mousedown, or the pin and the whole
+  // canvas would both move at once.
+  const isExcluded = (t) => t.closest && t.closest("button,input,select,a,[data-light-pin]");
+
+  viewport.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const r = viewport.getBoundingClientRect();
+    zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.12 : 0.89);
+  }, { passive: false });
+
+  viewport.addEventListener("mousedown", (e) => {
+    if (e.button !== 0 || isExcluded(e.target)) return;
+    s.dragging = true; s.startX = e.clientX; s.startY = e.clientY; s.startTx = s.tx; s.startTy = s.ty;
+    viewport.style.cursor = "grabbing";
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!s.dragging) return;
+    s.tx = s.startTx + (e.clientX - s.startX);
+    s.ty = s.startTy + (e.clientY - s.startY);
+    apply();
+  });
+  window.addEventListener("mouseup", () => { s.dragging = false; viewport.style.cursor = "grab"; });
+
+  viewport.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) {
+      if (isExcluded(e.target)) return;
+      s.dragging = true; s.startX = e.touches[0].clientX; s.startY = e.touches[0].clientY; s.startTx = s.tx; s.startTy = s.ty;
+    } else if (e.touches.length === 2) {
+      s.dragging = false;
+      const dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;
+      s.pinchDist = Math.sqrt(dx * dx + dy * dy); s.pinchScale = s.scale;
+    }
+  }, { passive: false });
+  viewport.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    if (e.touches.length === 1 && s.dragging) {
+      s.tx = s.startTx + (e.touches[0].clientX - s.startX);
+      s.ty = s.startTy + (e.touches[0].clientY - s.startY);
+      apply();
+    } else if (e.touches.length === 2 && s.pinchDist > 0) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s.pinchScale * (dist / s.pinchDist)));
+      const r = viewport.getBoundingClientRect();
+      const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+      const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+      const ratio = newScale / s.scale;
+      s.tx = cx - ratio * (cx - s.tx); s.ty = cy - ratio * (cy - s.ty); s.scale = newScale;
+      apply();
+    }
+  }, { passive: false });
+  viewport.addEventListener("touchend", () => { s.dragging = false; s.pinchDist = 0; });
+
+  viewport.addEventListener("dblclick", (e) => { if (!isExcluded(e.target)) reset(); });
+
+  return { reset };
+}
+
+function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState, hiddenIds, byRoom, pro, toggle, roomColor, lightsLoading, roomGeoms) {
   const { el } = ctx.helpers;
   const wrap = el("div", { class: "card", style: "margin-bottom:16px" });
 
@@ -6341,28 +6430,13 @@ function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState
     });
   }
 
-  // Anything visible (not hidden) that still has no position at this point
-  // AND has no home anywhere in the house (no saved placement on any map,
-  // no Area matching a room that exists on any floor — `homelessIds`, computed
-  // whole-house by the caller) still needs to show on first load, not
-  // disappear behind a one-at-a-time "Add to Room" picker. Bucket these
-  // under a synthetic "Unassigned" pseudo-room so every non-hidden light is
-  // visible by default. Deliberately NOT every not-yet-clustered light on
-  // THIS floor — a light with a real home on a different floor is already
-  // shown correctly there and must not also ghost-duplicate here.
-  {
-    const clusteredOrPlaced = new Set([...Object.keys(posByEid), ...Object.keys(autoClusterPos)]);
-    const stragglers = lights.filter(l =>
-      !hiddenIds.has(l.entity_id) && !clusteredOrPlaced.has(l.entity_id) && homelessIds.has(l.entity_id));
-    if (stragglers.length) {
-      roomCentreM["Unassigned"] = { mx: bbox.minX + bbox.width / 2, my: bbox.minY + bbox.height / 2 };
-      const offsets = _hexClusterM(stragglers.length, SPACING_M);
-      stragglers.forEach((l, idx) => {
-        const [dx, dy] = offsets[idx];
-        autoClusterPos[l.entity_id] = { mx: roomCentreM["Unassigned"].mx + dx, my: roomCentreM["Unassigned"].my + dy };
-      });
-    }
-  }
+  // A light with no matching room on this floor (no HA Area at all, or an
+  // Area that isn't a traced room here) simply doesn't render spatially —
+  // matching the non-Pro Lights sidebar's long-standing behaviour. It still
+  // shows in the Light Index table below, and Pro can place it exactly via
+  // "Add to Room". No "dump everything in a pile" fallback — a floor with
+  // dozens of unassigned lights should not turn into a grid of hexes
+  // covering the whole map.
 
   // ── Add-light row (Pro only) ─────────────────────────────────────────
   if (pro) {
@@ -6412,22 +6486,30 @@ function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState
   }
 
   // ── Room-shape stage — the floor's real metric room geometry, no photo ─
-  // The stage must be sized to the TRUE aspect ratio of the real-world
-  // bounding box, not an arbitrary one — otherwise preserveAspectRatio="none"
-  // below stretches every room out of proportion. A plain block div ignores
-  // aspect-ratio for its width (width:auto = fill container regardless), so
-  // this uses display:inline-block with an explicit height + aspect-ratio,
-  // which lets the browser derive width = height * ratio instead — capped by
-  // both a max height (a floor with disconnected calibration clusters can be
-  // very elongated) and max-width (so a very wide floor doesn't overflow the
-  // card), centred in a flex wrapper.
-  const naturalAspect = Math.max(0.2, Math.min(5, bbox.width / bbox.height));
-  const stageWrap = el("div", { style: "display:flex;justify-content:center" });
+  // Full-width viewport (matches every other map view in this app, instead
+  // of a small centred box), with a pan/zoom inner layer — same wheel/
+  // pinch/drag-pan/double-click-reset UX as Pure Live (_attachPanZoom is a
+  // vanilla-JS port of purelive.js's MapViewport, same math). A floor's real
+  // bounding box can be far too elongated to ever fit one fixed-aspect box
+  // well (disconnected calibration clusters); pan/zoom lets the user
+  // navigate it instead of fighting a box shaped to guess the whole thing at
+  // once.
+  const stageWrap = el("div", { style: "margin-top:10px" });
   const stage = el("div", {
     class: "mapstage",
-    style: `display:inline-block;height:min(60vh,560px);max-width:100%;aspect-ratio:${naturalAspect.toFixed(4)}`,
+    style: "margin-top:0;height:min(75vh,680px);min-height:420px;position:relative;cursor:grab;touch-action:none",
   });
+  const inner = el("div", { style: "position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:0 0" });
+  stage.appendChild(inner);
   stageWrap.appendChild(stage);
+
+  const resetBtn = el("button", {
+    class: "btn inline",
+    style: "position:absolute;right:8px;top:8px;z-index:5;font-size:11px;padding:3px 8px;opacity:0.85",
+    onclick: () => panZoom.reset(),
+  }, "Reset View");
+  stage.appendChild(resetBtn);
+  const panZoom = _attachPanZoom(stage, inner);
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("class", "mapvector");
@@ -6450,10 +6532,10 @@ function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState
       svg.appendChild(circ);
     }
   }
-  stage.appendChild(svg);
+  inner.appendChild(svg);
 
   const pinLayer = el("div", { class: "mapoverlay" });
-  stage.appendChild(pinLayer);
+  inner.appendChild(pinLayer);
 
   // Room-name labels as plain positioned divs (legible at any zoom, unlike
   // SVG text which scales with the viewBox).
@@ -6510,10 +6592,6 @@ function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState
   if (!roomGeoms.length) {
     wrap.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:8px" },
       "No real-world room geometry yet for this floor — draw room boundaries in the Edit tab; they sync into the real-world model automatically."));
-  }
-  if (pro && !activeCalibrated) {
-    wrap.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:4px" },
-      "The map you're editing against hasn't been measured yet, so its light positions are approximate — run Measure in the Edit tab for real-world-accurate placement."));
   }
 
   // ── Selected-pin inspector (Pro only) ─────────────────────────────────
@@ -6787,8 +6865,7 @@ function _lightsTab(ctx, maps, active) {
     const floorMaps = maps.filter(m => (m.floor_id || "main") === activeFloorId);
     const roomGeoms = Object.entries(ctx.state.model?.room_geometry_m || {})
       .filter(([, g]) => String(g.floor_id || "main") === String(activeFloorId));
-    const homelessIds = new Set(unassignedVisible.map(l => l.entity_id));
-    card.appendChild(_lightsRoomCanvas(ctx, floorMaps, editActive, lights, draftLights, mapState, hiddenIds, byRoom, pro, toggle, roomColor, lightsLoading, roomGeoms, homelessIds));
+    card.appendChild(_lightsRoomCanvas(ctx, floorMaps, editActive, lights, draftLights, mapState, hiddenIds, byRoom, pro, toggle, roomColor, lightsLoading, roomGeoms));
   } else {
     card.appendChild(el("div", { class: "muted", style: "padding:8px;margin-bottom:12px" },
       "No floor plan selected. Upload one in the Upload tab to place lights on a room layout."));
@@ -6796,7 +6873,7 @@ function _lightsTab(ctx, maps, active) {
 
   if (unassignedVisible.length) {
     card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-      `${unassignedVisible.length} light(s) have no matching room (no Home Assistant Area set, or its Area doesn't match a traced room) — grouped under "Unassigned" on the map above. Assign a matching Area in Home Assistant${pro ? ", or drag them into place with Add to Room" : ""} to sort them into the right room.`));
+      `${unassignedVisible.length} light(s) have no matching room (no Home Assistant Area set, or its Area doesn't match a traced room) — shown in the index below only. Assign a matching Area in Home Assistant${pro ? ", or drag them into place with Add to Room" : ""} to sort them into the right room.`));
   }
 
   // ── Light index table ─────────────────────────────────────────────────
