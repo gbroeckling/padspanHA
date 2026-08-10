@@ -118,15 +118,36 @@ async def test_update_lights_drops_non_light_entities(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_update_lights_clamps_coordinates(tmp_path: Path) -> None:
+    """x/y are NOT clamped to 0-1 like room_bounds/receivers/beacons — a
+    light's position is a point in a floor's shared real-world space
+    expressed through one map's calibration, and a floor with multiple maps
+    legitimately needs positions well outside any single map's own 0-1
+    photo footprint. Only a generous sanity bound guards against garbage."""
     store = _make_store(tmp_path)
     info = await _add_map(store)
     updated = await store.async_update_map(
         info["id"],
-        lights=[{"entity_id": "light.a", "x": -5, "y": 99}],
+        lights=[{"entity_id": "light.a", "x": -999, "y": 999}],
     )
     lt = updated["lights"][0]
-    assert lt["x"] == 0.0
-    assert lt["y"] == 1.0
+    assert lt["x"] == -50.0
+    assert lt["y"] == 50.0
+
+
+@pytest.mark.asyncio
+async def test_update_lights_allows_coordinates_beyond_unit_range(tmp_path: Path) -> None:
+    """A light seeded in a neighbouring room covered by a different map's
+    photo (e.g. via Add to Room / drag) needs a fraction outside 0-1 against
+    THIS map's calibration to round-trip to the correct real-world spot."""
+    store = _make_store(tmp_path)
+    info = await _add_map(store)
+    updated = await store.async_update_map(
+        info["id"],
+        lights=[{"entity_id": "light.a", "x": 1.75, "y": -0.4}],
+    )
+    lt = updated["lights"][0]
+    assert lt["x"] == pytest.approx(1.75)
+    assert lt["y"] == pytest.approx(-0.4)
 
 
 @pytest.mark.asyncio
@@ -171,6 +192,90 @@ async def test_update_lights_rotation_normalised_mod_360(tmp_path: Path) -> None
         lights=[{"entity_id": "light.a", "x": 0.5, "y": 0.5, "rotation": 725}],
     )
     assert updated["lights"][0]["rotation"] == pytest.approx(5.0)
+
+
+@pytest.mark.asyncio
+async def test_update_lights_size_defaults_to_15cm(tmp_path: Path) -> None:
+    store = _make_store(tmp_path)
+    info = await _add_map(store)
+    updated = await store.async_update_map(
+        info["id"],
+        lights=[{"entity_id": "light.a", "x": 0.5, "y": 0.5}],
+    )
+    lt = updated["lights"][0]
+    assert lt["width_cm"] == pytest.approx(15.0)
+    assert lt["height_cm"] == pytest.approx(15.0)
+
+
+@pytest.mark.asyncio
+async def test_update_lights_size_clamped_to_sane_range(tmp_path: Path) -> None:
+    store = _make_store(tmp_path)
+    info = await _add_map(store)
+    updated = await store.async_update_map(
+        info["id"],
+        lights=[{"entity_id": "light.a", "x": 0.5, "y": 0.5, "width_cm": -5, "height_cm": 5000}],
+    )
+    lt = updated["lights"][0]
+    assert lt["width_cm"] == pytest.approx(1.0)
+    assert lt["height_cm"] == pytest.approx(1000.0)
+
+
+@pytest.mark.asyncio
+async def test_update_lights_size_independent_width_height_preserved(tmp_path: Path) -> None:
+    """A linear light strip (long + thin) must keep its aspect ratio, not get squared off."""
+    store = _make_store(tmp_path)
+    info = await _add_map(store)
+    updated = await store.async_update_map(
+        info["id"],
+        lights=[{"entity_id": "light.a", "x": 0.5, "y": 0.5, "shape": "pill", "width_cm": 60, "height_cm": 8}],
+    )
+    lt = updated["lights"][0]
+    assert lt["shape"] == "pill"
+    assert lt["width_cm"] == pytest.approx(60.0)
+    assert lt["height_cm"] == pytest.approx(8.0)
+
+
+@pytest.mark.asyncio
+async def test_update_lights_new_shape_library_accepted(tmp_path: Path) -> None:
+    store = _make_store(tmp_path)
+    info = await _add_map(store)
+    shapes = ["circle", "rect", "rounded_rect", "pill", "hex", "triangle",
+              "diamond", "pentagon", "octagon", "star", "bulb"]
+    updated = await store.async_update_map(
+        info["id"],
+        lights=[{"entity_id": f"light.l{i}", "x": 0.5, "y": 0.5, "shape": s} for i, s in enumerate(shapes)],
+    )
+    assert [lt["shape"] for lt in updated["lights"]] == shapes
+
+
+@pytest.mark.asyncio
+async def test_update_lights_legacy_square_shape_maps_to_rect(tmp_path: Path) -> None:
+    """'square' was a valid shape before the shape library was expanded —
+    a light saved with it must not silently revert to 'circle' the next
+    time that map's lights are saved."""
+    store = _make_store(tmp_path)
+    info = await _add_map(store)
+    updated = await store.async_update_map(
+        info["id"],
+        lights=[{"entity_id": "light.a", "x": 0.5, "y": 0.5, "shape": "square"}],
+    )
+    assert updated["lights"][0]["shape"] == "rect"
+
+
+@pytest.mark.asyncio
+async def test_update_lights_explicit_zero_size_clamps_not_defaults(tmp_path: Path) -> None:
+    """width_cm/height_cm: 0 is out-of-range input and must clamp to the
+    1cm floor, not be treated as "not provided" and silently replaced with
+    the 15cm default."""
+    store = _make_store(tmp_path)
+    info = await _add_map(store)
+    updated = await store.async_update_map(
+        info["id"],
+        lights=[{"entity_id": "light.a", "x": 0.5, "y": 0.5, "width_cm": 0, "height_cm": 0}],
+    )
+    lt = updated["lights"][0]
+    assert lt["width_cm"] == pytest.approx(1.0)
+    assert lt["height_cm"] == pytest.approx(1.0)
 
 
 @pytest.mark.asyncio

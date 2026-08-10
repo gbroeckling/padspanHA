@@ -64,7 +64,14 @@ def _clean_hex_color(value: Any, default: str) -> str:
     v = str(value or "").strip()
     return v if _HEX_COLOR_RE.match(v) else default
 
-LIGHT_PIN_SHAPES = ("circle", "square", "hex", "triangle", "star", "bulb")
+LIGHT_PIN_SHAPES = (
+    "circle", "rect", "rounded_rect", "pill", "hex", "triangle",
+    "diamond", "pentagon", "octagon", "star", "bulb",
+)
+# Shapes accepted from a prior shape-library version, mapped to their closest
+# current equivalent so a light saved before the shape list changed doesn't
+# silently revert to "circle" the next time that map's lights are saved.
+_LIGHT_PIN_SHAPE_ALIASES = {"square": "rect"}
 
 @dataclass
 class MapsStore:
@@ -247,11 +254,15 @@ class MapsStore:
             m["beacons"] = clean_bk
 
         if isinstance(lights, list):
-            # lights: [{id, entity_id, label, x, y, color, shape, rotation}, ...]
-            # PadSpan Pro placement pins. x/y stay in the same "fraction of
-            # the map's world/room space" convention as room_bounds and
-            # receivers — never a raw-photo-only concept. Caller
-            # (websocket.py) is responsible for the PadSpan Pro licence gate.
+            # lights: [{id, entity_id, label, x, y, color, shape, rotation,
+            #           width_cm, height_cm}, ...] — PadSpan Pro placement
+            # pins. x/y stay in the same "fraction of the map's world/room
+            # space" convention as room_bounds and receivers — never a
+            # raw-photo-only concept. width_cm/height_cm are the marker's
+            # real-world footprint; the frontend converts them to on-screen
+            # size using the map's own calibration (model_transforms), with
+            # a relative fallback on uncalibrated maps. Caller (websocket.py)
+            # is responsible for the PadSpan Pro licence gate.
             clean_lt: list[dict[str, Any]] = []
             for lt in lights[:500]:  # sane cap — matches HA's realistic light-entity counts
                 if not isinstance(lt, dict):
@@ -260,15 +271,27 @@ class MapsStore:
                 if not eid.startswith("light."):
                     continue
                 shape = str(lt.get("shape") or "circle").strip().lower()
+                shape = _LIGHT_PIN_SHAPE_ALIASES.get(shape, shape)
+                _w = lt.get("width_cm")
+                _h = lt.get("height_cm")
                 entry = {
                     "id": str(lt.get("id") or f"lt_{os.urandom(4).hex()}")[:80],
                     "entity_id": eid,
                     "label": str(lt.get("label") or "")[:120],
-                    "x": max(0.0, min(1.0, float(lt.get("x") or 0.0))),
-                    "y": max(0.0, min(1.0, float(lt.get("y") or 0.0))),
+                    # Unlike receivers/beacons/room_bounds (literal points on
+                    # one photo, clamped 0-1), a light's x/y is a point in the
+                    # floor's shared real-world space expressed through this
+                    # map's own calibration — a floor with multiple photos
+                    # legitimately needs positions extrapolated well beyond
+                    # any single photo's own pixel footprint. Sanity-bound
+                    # only against garbage/runaway values, not to one photo.
+                    "x": max(-50.0, min(50.0, float(lt.get("x") or 0.0))),
+                    "y": max(-50.0, min(50.0, float(lt.get("y") or 0.0))),
                     "color": _clean_hex_color(lt.get("color"), "#fbbf24"),
                     "shape": shape if shape in LIGHT_PIN_SHAPES else "circle",
                     "rotation": float(lt.get("rotation") or 0.0) % 360.0,
+                    "width_cm": max(1.0, min(1000.0, float(_w) if _w is not None else 15.0)),
+                    "height_cm": max(1.0, min(1000.0, float(_h) if _h is not None else 15.0)),
                 }
                 clean_lt.append(entry)
             m["lights"] = clean_lt

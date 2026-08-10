@@ -23,7 +23,7 @@ If UI changes don't show:
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
 const APP_VERSION = "0.22.7";
-const BUILD_ID = "20260810T170414Z";
+const BUILD_ID = "20260810T201500Z";
 const CHANNEL = "beta";
 
 // ── Dynamic view imports ─────────────────────────────────────────────────────
@@ -341,6 +341,19 @@ class PadSpanHaApp extends HTMLElement {
     // Track last user interaction to suppress poll re-renders during active use
     // (prevents form inputs from being destroyed while the user is typing)
     this._lastUserInteraction = 0;
+
+    // Custom-element upgrade race: HA can set .hass on this element before
+    // the browser finishes upgrading it to this class (the defining module
+    // loads async over the network), which creates a plain instance
+    // property that permanently shadows the `hass` accessor below — set
+    // hass() would then never fire on its own. The _watchdogTimer above
+    // already recovers from this within ~5s, but reclaiming any pre-upgrade
+    // value here through the accessor avoids that delay/blank flash entirely.
+    if (Object.prototype.hasOwnProperty.call(this, "hass")) {
+      const preUpgradeHass = this.hass;
+      delete this.hass;
+      this.hass = preUpgradeHass;
+    }
   }
 
   // ── HA Property Setter ──────────────────────────────────────────────────────

@@ -13,7 +13,7 @@
 */
 
 const APP_VERSION = "0.22.7";
-const BUILD_ID = "20260810T170414Z";
+const BUILD_ID = "20260810T183923Z";
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
@@ -87,7 +87,7 @@ function hexCluster(n, r){
 }
 
 // ── Isometric 3-D SVG builder (same projection as Overview) ──────────────────
-function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}){
+function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[]){
   const TILE=220, CX=380, CY=590, W=760, BASE_H=940;
   const FG=floorGap, HG=horizGap||0;
   const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
@@ -190,6 +190,12 @@ function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap, 
         `${escSVG(l.code)}</text></g>`;
     };
 
+    // A floor with 2+ uploaded maps shares one z_level (group) here — each
+    // map's room_bounds is an independently hand-traced copy of the same
+    // real rooms, so drawing every map's copy stacks duplicate/overlapping
+    // polygons and labels ("two Mains"). Draw each room name once, from
+    // whichever map in the group traced it first.
+    const seenRooms=new Set();
     for(const m of group){
       const mapPt = makeStackXform(m.stack, imageAr(m)).mapPt;
 
@@ -210,7 +216,8 @@ function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap, 
       }
 
       for(const [room,b] of Object.entries(m.room_bounds||{})){
-        if(!b) continue;
+        if(!b || seenRooms.has(room)) continue;
+        seenRooms.add(room);
         const color=roomColor(room);
 
         let roomCx, roomCy;   // world-space centroid
@@ -241,6 +248,16 @@ function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap, 
           `fill="${color}" font-size="8" font-family="system-ui,sans-serif" opacity="0.7" pointer-events="none">`+
           `${escSVG(room)}</text>`;
 
+        // Room assignment isn't known yet (registry still loading) — show a
+        // single pulsing placeholder instead of blocking the whole map on
+        // a multi-MB registry fetch; real hexes replace it once it lands.
+        if(lightsLoading){
+          s+=`<polygon points="${hexPts(lix,liy,HEX_R)}" fill="#374151" stroke="#60a5fa" stroke-width="2" opacity="0.5">`+
+            `<animate attributeName="opacity" values="0.25;0.65;0.25" dur="1.2s" repeatCount="indefinite"/>`+
+            `</polygon>`;
+          continue;
+        }
+
         // Hexagon cluster for this room's unplaced lights (Pro-positioned
         // lights were already drawn above at their exact spot).
         const roomLights=(byRoom[room]||[]).filter(l=>!hiddenEids.has(l.entity_id) && !posByEid[l.entity_id]);
@@ -268,7 +285,11 @@ function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap, 
   s+=`<line x1="10" y1="${BASE_H+4}" x2="${W-10}" y2="${BASE_H+4}" stroke="#1b3526" stroke-width="0.8"/>`;
   sortedLevels.forEach((z,i)=>{
     const ly=BASE_H+10+i*30, color=levelColor(z);
-    const groupLabel=byLevel.get(z).map(m=>m.name||m.id).join(" + ");
+    // The real HA floor name (never the uploaded photo's own name) — z_level
+    // is synced from the floor's own "level" attribute, so this is the same
+    // lookup floorLabel()/​_getFocusLbl() already use elsewhere in this file.
+    const fl=floors.find(f=>f.level===z);
+    const groupLabel=fl?(fl.name||`Floor ${z}`):`Floor ${z}`;
     s+=`<circle cx="18" cy="${ly+11}" r="11" fill="${color}" opacity="0.9"/>`;
     s+=`<text x="18" y="${ly+15}" text-anchor="middle" fill="#071008" font-size="12" font-weight="700">${i+1}</text>`;
     s+=`<text x="36" y="${ly+15}" fill="${color}" font-size="18" font-weight="500">${escSVG(groupLabel)}</text>`;
@@ -299,6 +320,18 @@ class PadSpanLightsApp extends HTMLElement {
       _horizGap:   0,      // horizontal L/R offset between floors
       _zoom:       1.0,
     };
+
+    // Custom-element upgrade race: HA can set .hass on this element before
+    // the browser finishes upgrading it to this class (the defining module
+    // loads async over the network), which creates a plain instance
+    // property that permanently shadows the `hass` accessor below — _boot()
+    // would then never run and the panel stays blank forever. Reclaim any
+    // pre-upgrade value through the accessor now that our class has taken over.
+    if (Object.prototype.hasOwnProperty.call(this, "hass")) {
+      const preUpgradeHass = this.hass;
+      delete this.hass;
+      this.hass = preUpgradeHass;
+    }
   }
 
   _loadHidden(){
@@ -320,12 +353,14 @@ class PadSpanLightsApp extends HTMLElement {
 
   async _boot(){
     if(!this._hass) return;
-    await Promise.allSettled([
-      this._loadMaps(),
-      this._loadSettings(),
-      this._loadModel().then(()=>this._loadLightsReg()),
-    ]);
+    // Maps + settings are small and fast — render the floor/room shapes on
+    // those alone first. The entity/device registry (needed only to know
+    // which room each light is in) is a multi-MB whole-house dump on a
+    // large install; don't block first paint on it — it backfills in and
+    // re-renders once it lands, same as the 5s poll already does.
+    await Promise.allSettled([ this._loadMaps(), this._loadSettings() ]);
     this._render();
+    this._loadModel().then(()=>this._loadLightsReg()).then(()=>this._render());
     this._pollTimer = setInterval(()=>this._poll(), 5000);
   }
 
@@ -386,10 +421,24 @@ class PadSpanLightsApp extends HTMLElement {
   }
 
   async _loadLightsReg(){
+    // Guard against overlapping fetches: this is a multi-MB whole-house
+    // registry dump that can take longer than the 5s poll interval, and
+    // without this guard the poll (and the background load kicked off from
+    // _boot) would each start their own redundant fetch, compounding into a
+    // pile of concurrent multi-MB requests that made the panel effectively
+    // never finish loading.
+    if(this._lightsRegLoading) return;
+    this._lightsRegLoading=true;
     try{
-      const [regRes, devRes] = await Promise.all([
-        this._hass.callWS({ type:"config/entity_registry/list" }),
-        this._hass.callWS({ type:"config/device_registry/list" }),
+      // A stale/half-open HA websocket connection can leave a callWS()
+      // promise permanently unsettled — without a bound, that would wedge
+      // _lightsRegLoading true forever and silently freeze room grouping.
+      const [regRes, devRes] = await Promise.race([
+        Promise.all([
+          this._hass.callWS({ type:"config/entity_registry/list" }),
+          this._hass.callWS({ type:"config/device_registry/list" }),
+        ]),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("registry fetch timed out")), 30000)),
       ]);
       const areas = this.state.model.areas;
       const areaIdToName={};
@@ -406,6 +455,8 @@ class PadSpanLightsApp extends HTMLElement {
       this.state._lightsReg={ts:Date.now(), areaMap};
     }catch(e){
       this.state._lightsReg={ts:Date.now(), areaMap:{}};
+    }finally{
+      this._lightsRegLoading=false;
     }
   }
 
@@ -528,14 +579,16 @@ class PadSpanLightsApp extends HTMLElement {
       }},"Refresh"),
     ]));
 
-    if(!this.state._lightsReg){
-      root.appendChild(el("div",{style:"padding:24px;color:#52b788;font-family:monospace;font-size:13px"},"Loading\u2026"));
-      return root;
-    }
+    // Room assignment needs the entity/device registry (a multi-MB
+    // whole-house dump); on/off state does not. Render immediately using
+    // whatever is already known -- room grouping backfills and re-renders
+    // once the registry lands (see _boot) instead of blocking first paint.
+    const lightsLoading=!this.state._lightsReg;
+
 
     // ── Gather lights ─────────────────────────────────────────────────────────
     const states=this._hass?.states||{};
-    const regMap=this.state._lightsReg.areaMap;
+    const regMap=lightsLoading ? {} : this.state._lightsReg.areaMap;
     const lights=Object.keys(states)
       .filter(eid=>eid.startsWith("light."))
       .map(eid=>({
@@ -595,11 +648,11 @@ class PadSpanLightsApp extends HTMLElement {
     const isoDiv=document.createElement("div");
     isoDiv.style.cssText=`overflow:auto;border-radius:8px;background:#071008;padding:8px;`+
       `width:${Math.round(this.state._zoom*100)}%`;
-    isoDiv.innerHTML=buildIsoSVG(maps_list, byRoom, hidden, _getFocusZ(this.state._focusIdx), this.state._floorGap, this.state._horizGap, lightsByEid);
+    isoDiv.innerHTML=buildIsoSVG(maps_list, byRoom, hidden, _getFocusZ(this.state._focusIdx), this.state._floorGap, this.state._horizGap, lightsByEid, lightsLoading, floors);
 
     const rebuildISO=()=>{
       isoDiv.style.width=`${Math.round(this.state._zoom*100)}%`;
-      isoDiv.innerHTML=buildIsoSVG(maps_list, byRoom, hidden, _getFocusZ(this.state._focusIdx), this.state._floorGap, this.state._horizGap, lightsByEid);
+      isoDiv.innerHTML=buildIsoSVG(maps_list, byRoom, hidden, _getFocusZ(this.state._focusIdx), this.state._floorGap, this.state._horizGap, lightsByEid, lightsLoading, floors);
       wireHexClicks();
     };
 
@@ -725,7 +778,9 @@ class PadSpanLightsApp extends HTMLElement {
 
     // ── Unassigned notice ─────────────────────────────────────────────────────
     const unassigned=lights.filter(l=>!l.area_name&&!hidden.has(l.entity_id));
-    if(unassigned.length){
+    if(lightsLoading){
+      root.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},"Loading room assignments…"));
+    } else if(unassigned.length){
       root.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
         `${unassigned.length} light(s) not assigned to a room \u2014 shown in index only.`));
     }
@@ -752,6 +807,8 @@ class PadSpanLightsApp extends HTMLElement {
         el("td",{},l.friendly_name),
         el("td",{class:"muted"},l.area_name
           ? el("span",{},l.area_name)
+          : lightsLoading
+          ? el("span",{},"…")
           : (()=>{
               const areas = this.state.model.areas || [];
               if(!areas.length) return "\u2014";
