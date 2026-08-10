@@ -861,6 +861,42 @@ async def test_reanchor_partial_explicit_pose_keeps_other_fields() -> None:
     assert t["rotation_rad"] == pytest.approx(0.25)  # from stored, NOT stack
 
 
+async def test_reanchor_does_not_adopt_orphans() -> None:
+    """Re-anchor must not adopt foreign orphan pins (map_id='') — a wrong
+    pose would claim them and the guard would then refuse the corrective
+    re-anchor: a one-way ratchet (lean-review finding)."""
+    model = _real_model({
+        "origin_x_m": 0.0, "origin_y_m": 0.0,
+        "scale_x_m": 10.0, "scale_y_m": 8.0,
+        "rotation_rad": 0.0, "floor_id": "main",
+    })
+    pts = [
+        _remap_point(5.0, 4.0, x_frac=0.5, y_frac=0.5),                # owned
+        _remap_point(12.0, 12.0, map_id="", x_frac=0.1, y_frac=0.1),   # orphan
+    ]
+    cal = _make_store(pts)
+    cal._model = model
+
+    # Wrong pose (4,4): owned pin still in range, orphan lands in range too.
+    res = await model.async_reanchor_map(
+        "map1", {"stack": {}}, cal,
+        origin_x_m=4.0, origin_y_m=4.0, rotation_rad=0.0,
+    )
+    assert res["ok"] is True
+    assert cal.data["points"][1]["map_id"] == ""      # NOT adopted
+    # The corrective re-anchor back to (0,0) is therefore still possible.
+    res2 = await model.async_reanchor_map(
+        "map1", {"stack": {}}, cal,
+        origin_x_m=0.0, origin_y_m=0.0, rotation_rad=0.0,
+    )
+    assert res2["ok"] is True
+    assert cal.data["points"][0]["x_frac"] == pytest.approx(0.5)      # restored
+    # Normal map-save remap still adopts (behavior unchanged elsewhere).
+    n = await cal.async_remap_from_metres("map1")
+    assert cal.data["points"][1]["map_id"] == ""       # 12,12 out of range anyway
+    assert n >= 1
+
+
 async def test_reanchor_rolls_back_on_remap_failure() -> None:
     """A downstream save failure must not leave the new pose persisted over
     old fracs — full rollback of transform + calibration (codex review)."""

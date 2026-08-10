@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.22.6 — Re-anchor hardening (2026-08-09)
+
+### Fixed
+- **Re-anchor no longer adopts stray calibration points** — remapping after a re-anchor could claim orphaned points (from deleted maps or other floors) that happened to land inside the map under the chosen pose; a wrong pose would then make the corrective re-anchor impossible. Re-anchor now only ever moves points the map already owns.
+- Re-anchor preflight tolerates malformed calibration points, and the origin readout in the Measure panel updates immediately after a successful re-anchor.
+
+---
+
 ## 0.22.5 — Map origins are now anchored (2026-08-09)
 
 ### Fixed

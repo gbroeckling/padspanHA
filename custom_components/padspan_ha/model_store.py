@@ -1689,8 +1689,12 @@ class ModelStore:
         for p in (cal_store.data.get("points") or []) if cal_store else []:
             if p.get("x_m") is None or p.get("map_id", "") != map_id:
                 continue
+            try:
+                _xm, _ym = float(p["x_m"]), float(p["y_m"])
+            except (KeyError, TypeError, ValueError):
+                continue  # not evaluable — neither agreement nor failure
             owned += 1
-            fr = self.metres_to_map_frac(float(p["x_m"]), float(p["y_m"]), map_id)
+            fr = self.metres_to_map_frac(_xm, _ym, map_id)
             if not fr or not (-0.05 <= fr[0] <= 1.05 and -0.05 <= fr[1] <= 1.05):
                 owned_bad += 1
         if owned and owned_bad * 2 > owned:
@@ -1712,7 +1716,9 @@ class ModelStore:
         try:
             remapped = 0
             if cal_store:
-                remapped = await cal_store.async_remap_from_metres(map_id)
+                remapped = await cal_store.async_remap_from_metres(
+                    map_id, adopt_orphans=False
+                )
             rederived = await self.async_rederive_map_fracs(map_id, map_dict)
         except Exception as err:
             transforms[map_id] = old_t

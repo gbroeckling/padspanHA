@@ -343,11 +343,14 @@ class CalibrationStore:
             await self.store.async_save(self.data)
         return count
 
-    async def async_remap_from_metres(self, map_id: str) -> int:
+    async def async_remap_from_metres(self, map_id: str, adopt_orphans: bool = True) -> int:
         """Re-derive x_frac/y_frac from metre coords for points on this map.
 
         Also re-adopts orphaned points (map_id='') whose metres fall within
-        this map's coordinate range (0-1 fracs).
+        this map's coordinate range (0-1 fracs) — unless adopt_orphans is
+        False (the re-anchor path: adopting foreign orphans under a
+        user-chosen pose is a one-way ratchet, since a later corrective
+        re-anchor would count them against the guard and be refused).
 
         Safety (issue #56): a re-derived frac outside the map means the map
         transform disagrees with the stored metres.  These used to be CLAMPED
@@ -366,7 +369,7 @@ class CalibrationStore:
             if p.get("x_m") is None:
                 continue
             pid = p.get("map_id", "")
-            if pid != map_id and pid != "":
+            if pid != map_id and (pid != "" or not adopt_orphans):
                 continue
             fracs = self._model.metres_to_map_frac(float(p["x_m"]), float(p["y_m"]), map_id)
             if not fracs:
