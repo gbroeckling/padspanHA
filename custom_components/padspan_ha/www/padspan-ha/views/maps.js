@@ -6076,17 +6076,27 @@ async function _loadLightsReg(ctx) {
     // would wedge _lightsRegLoading true forever and silently freeze room
     // grouping for the rest of this panel's life. Race against a timeout so
     // the guard always releases.
-    const reg = await Promise.race([
-      ctx.hass.callWS({ type: "config/entity_registry/list" }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("entity registry fetch timed out")), 30000)),
+    // A light entity commonly has no Area of its own and inherits one from
+    // its parent device instead — matches lights_panel.js's _loadLightsReg,
+    // which already does this correctly; this copy was missing the device
+    // fallback entirely, making every light on this house look unassigned.
+    const [reg, devReg] = await Promise.race([
+      Promise.all([
+        ctx.hass.callWS({ type: "config/entity_registry/list" }),
+        ctx.hass.callWS({ type: "config/device_registry/list" }),
+      ]),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("registry fetch timed out")), 30000)),
     ]);
     const areas = ctx.state.model?.areas || [];
     const areaIdToName = {};
     for (const a of areas) areaIdToName[a.id] = a.name;
+    const devAreaId = {};
+    for (const d of (devReg || [])) if (d.area_id) devAreaId[d.id] = d.area_id;
     const areaMap = {};
     for (const e of reg) {
-      if (e.entity_id.startsWith("light."))
-        areaMap[e.entity_id] = e.area_id ? (areaIdToName[e.area_id] || null) : null;
+      if (!e.entity_id.startsWith("light.")) continue;
+      const aid = e.area_id || devAreaId[e.device_id] || null;
+      areaMap[e.entity_id] = aid ? (areaIdToName[aid] || null) : null;
     }
     ctx.state._lightsReg = { ts: Date.now(), areaMap };
   } catch(err) {
@@ -6381,12 +6391,11 @@ function _attachPanZoom(viewport, inner) {
   return { reset };
 }
 
-function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState, hiddenIds, byRoom, pro, toggle, roomColor, lightsLoading, roomGeoms) {
+function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState, hiddenIds, byRoom, pro, toggle, roomColor, lightsLoading, roomGeoms, homelessIds) {
   const { el } = ctx.helpers;
   const wrap = el("div", { class: "card", style: "margin-bottom:16px" });
 
-  const bbox = _roomGeomBBoxM(roomGeoms);
-  const { t: activeT, calibrated: activeCalibrated } = _effTransform(ctx, active.id, bbox);
+  const roomBbox = _roomGeomBBoxM(roomGeoms);
 
   // Placed-light lookup across every map on this floor — active map's draft
   // (editable) copy takes priority; sibling maps' saved lights fill in
@@ -6416,7 +6425,7 @@ function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState
 
   // Auto-cluster position for every currently-unplaced light — the exact
   // spot it's already rendered at below. "Add to Room" seeds a new pin here.
-  const SPACING_M = Math.max(0.25, Math.min(bbox.width, bbox.height) * 0.04);
+  const SPACING_M = Math.max(0.25, Math.min(roomBbox.width, roomBbox.height) * 0.04);
   const autoClusterPos = {};
   for (const [room, roomLights] of Object.entries(byRoom)) {
     const unpinned = roomLights.filter(l => !posByEid[l.entity_id]);
@@ -6430,13 +6439,33 @@ function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState
     });
   }
 
-  // A light with no matching room on this floor (no HA Area at all, or an
-  // Area that isn't a traced room here) simply doesn't render spatially —
-  // matching the non-Pro Lights sidebar's long-standing behaviour. It still
-  // shows in the Light Index table below, and Pro can place it exactly via
-  // "Add to Room". No "dump everything in a pile" fallback — a floor with
-  // dozens of unassigned lights should not turn into a grid of hexes
-  // covering the whole map.
+  // A light with no home anywhere in the house (no Area at all, or an Area
+  // that doesn't match a traced room on ANY floor — `homelessIds`, computed
+  // whole-house by the caller) still needs to be visible by default, but
+  // NOT dumped into a grid covering the floor plan — that's what made it
+  // "ridiculous" before. Instead give it a compact strip below the actual
+  // room shapes, clearly separated by a divider, so it reads as a holding
+  // area rather than part of the house.
+  const clusteredOrPlaced = new Set([...Object.keys(posByEid), ...Object.keys(autoClusterPos)]);
+  const stragglers = lights.filter(l =>
+    !hiddenIds.has(l.entity_id) && !clusteredOrPlaced.has(l.entity_id) && homelessIds.has(l.entity_id));
+  const STRIP_GAP_M = Math.max(0.4, roomBbox.height * 0.08);
+  let bbox = roomBbox;
+  let stripTopM = null;
+  if (stragglers.length) {
+    const cols = Math.max(3, Math.ceil(Math.sqrt(stragglers.length)));
+    const rows = Math.ceil(stragglers.length / cols);
+    const stripH = Math.max(SPACING_M * 1.6, rows * SPACING_M * 1.05 + SPACING_M);
+    stripTopM = roomBbox.minY + roomBbox.height + STRIP_GAP_M;
+    bbox = { minX: roomBbox.minX, minY: roomBbox.minY, width: roomBbox.width, height: roomBbox.height + STRIP_GAP_M + stripH };
+    roomCentreM["Unassigned"] = { mx: roomBbox.minX + roomBbox.width / 2, my: stripTopM + stripH / 2 };
+    const offsets = _hexClusterM(stragglers.length, SPACING_M);
+    stragglers.forEach((l, idx) => {
+      const [dx, dy] = offsets[idx];
+      autoClusterPos[l.entity_id] = { mx: roomCentreM["Unassigned"].mx + dx, my: roomCentreM["Unassigned"].my + dy };
+    });
+  }
+  const { t: activeT, calibrated: activeCalibrated } = _effTransform(ctx, active.id, bbox);
 
   // ── Add-light row (Pro only) ─────────────────────────────────────────
   if (pro) {
@@ -6489,17 +6518,22 @@ function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState
   // Full-width viewport (matches every other map view in this app, instead
   // of a small centred box), with a pan/zoom inner layer — same wheel/
   // pinch/drag-pan/double-click-reset UX as Pure Live (_attachPanZoom is a
-  // vanilla-JS port of purelive.js's MapViewport, same math). A floor's real
-  // bounding box can be far too elongated to ever fit one fixed-aspect box
-  // well (disconnected calibration clusters); pan/zoom lets the user
-  // navigate it instead of fighting a box shaped to guess the whole thing at
-  // once.
+  // vanilla-JS port of purelive.js's MapViewport, same math). `inner` is
+  // sized via aspect-ratio to the bbox's TRUE real-world proportions (flexbox
+  // centres + fits it within the viewport, like object-fit:contain) instead
+  // of stretching to fill an arbitrary-shaped box — that stretching was
+  // distorting every room's real proportions. A floor's real bounding box
+  // can still be far too elongated to read comfortably even at its correct
+  // proportions; pan/zoom lets the user navigate/magnify it instead of
+  // fighting a fixed box shaped to guess the whole thing at once.
   const stageWrap = el("div", { style: "margin-top:10px" });
   const stage = el("div", {
     class: "mapstage",
-    style: "margin-top:0;height:min(75vh,680px);min-height:420px;position:relative;cursor:grab;touch-action:none",
+    style: "margin-top:0;height:min(75vh,680px);min-height:420px;display:flex;align-items:center;justify-content:center;position:relative;cursor:grab;touch-action:none",
   });
-  const inner = el("div", { style: "position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:0 0" });
+  const inner = el("div", {
+    style: `position:relative;height:100%;max-width:100%;aspect-ratio:${(bbox.width / bbox.height).toFixed(4)};transform-origin:center center`,
+  });
   stage.appendChild(inner);
   stageWrap.appendChild(stage);
 
@@ -6531,6 +6565,17 @@ function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState
       circ.setAttribute("stroke", color); circ.setAttribute("stroke-width", String(strokeW));
       svg.appendChild(circ);
     }
+  }
+  if (stripTopM !== null) {
+    // Divider between the real floor plan and the "Unassigned" holding
+    // strip below it, so the strip clearly reads as separate from the house.
+    const divider = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    const dividerY = stripTopM - STRIP_GAP_M / 2;
+    divider.setAttribute("x1", bbox.minX); divider.setAttribute("x2", bbox.minX + bbox.width);
+    divider.setAttribute("y1", dividerY); divider.setAttribute("y2", dividerY);
+    divider.setAttribute("stroke", "#3a4a3f"); divider.setAttribute("stroke-width", String(strokeW * 0.6));
+    divider.setAttribute("stroke-dasharray", `${strokeW * 3},${strokeW * 3}`);
+    svg.appendChild(divider);
   }
   inner.appendChild(svg);
 
@@ -6865,7 +6910,8 @@ function _lightsTab(ctx, maps, active) {
     const floorMaps = maps.filter(m => (m.floor_id || "main") === activeFloorId);
     const roomGeoms = Object.entries(ctx.state.model?.room_geometry_m || {})
       .filter(([, g]) => String(g.floor_id || "main") === String(activeFloorId));
-    card.appendChild(_lightsRoomCanvas(ctx, floorMaps, editActive, lights, draftLights, mapState, hiddenIds, byRoom, pro, toggle, roomColor, lightsLoading, roomGeoms));
+    const homelessIds = new Set(unassignedVisible.map(l => l.entity_id));
+    card.appendChild(_lightsRoomCanvas(ctx, floorMaps, editActive, lights, draftLights, mapState, hiddenIds, byRoom, pro, toggle, roomColor, lightsLoading, roomGeoms, homelessIds));
   } else {
     card.appendChild(el("div", { class: "muted", style: "padding:8px;margin-bottom:12px" },
       "No floor plan selected. Upload one in the Upload tab to place lights on a room layout."));
@@ -6873,7 +6919,7 @@ function _lightsTab(ctx, maps, active) {
 
   if (unassignedVisible.length) {
     card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-      `${unassignedVisible.length} light(s) have no matching room (no Home Assistant Area set, or its Area doesn't match a traced room) — shown in the index below only. Assign a matching Area in Home Assistant${pro ? ", or drag them into place with Add to Room" : ""} to sort them into the right room.`));
+      `${unassignedVisible.length} light(s) have no matching room (no Home Assistant Area set, or its Area doesn't match a traced room) — grouped under "Unassigned" below the floor plan above. Assign a matching Area in Home Assistant${pro ? ", or drag them into place with Add to Room" : ""} to sort them into the right room.`));
   }
 
   // ── Light index table ─────────────────────────────────────────────────
