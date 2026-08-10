@@ -116,7 +116,8 @@ STATIC_FILES = [
 def run(cmd, check=True):
     """Run a shell command, print it, and return stdout."""
     print(f"  $ {cmd}")
-    result = subprocess.run(cmd, shell=True, text=True, capture_output=True)
+    args = cmd if isinstance(cmd, list) else cmd.split()
+    result = subprocess.run(args, shell=False, text=True, capture_output=True)
     if result.stdout.strip():
         print(f"    {result.stdout.strip()}")
     if check and result.returncode != 0:
@@ -170,10 +171,10 @@ def preflight_checks():
     # 3. No __pycache__ should be staged in git — it pollutes the git tree
     #    and can break HACS tree traversal (get_first_directory_in_directory).
     staged = subprocess.run(
-        "git diff --cached --name-only", shell=True, text=True, capture_output=True
+        ["git", "diff", "--cached", "--name-only"], shell=False, text=True, capture_output=True
     ).stdout
     tracked = subprocess.run(
-        "git ls-files", shell=True, text=True, capture_output=True
+        ["git", "ls-files"], shell=False, text=True, capture_output=True
     ).stdout
     for line in (staged + tracked).splitlines():
         if "__pycache__" in line or line.endswith(".pyc"):
