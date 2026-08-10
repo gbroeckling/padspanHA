@@ -3817,6 +3817,19 @@ function _stack(ctx, maps, helpBtn){
       alignState.scaleX_adj = newTgt?.stack?.scale_x_adj ?? 1.0;
       alignState._m         = newTgt?.stack?._m          || null;
       alignState._m_ar      = newTgt?.stack?._m_ar       || null;
+      // Never-aligned target with a different aspect ratio: the stage is
+      // sized to the REFERENCE map's AR and the target fills it
+      // (object-fit:fill), so it starts pre-distorted by refAR/tgtAR and
+      // users had to hand-hunt the X-stretch. Seed the correction so the
+      // target opens undistorted; any saved alignment is left alone.
+      if(newTgt?.stack?.scale_x_adj === undefined && !newTgt?.stack?._m){
+        const _refM2 = maps.find(m=>m.id===refId);
+        const _rAR = (_refM2?.image?.height||600)/(_refM2?.image?.width||800);
+        const _tAR = (newTgt?.image?.height||600)/(newTgt?.image?.width||800);
+        if(_tAR > 0 && Math.abs(_rAR/_tAR - 1) > 0.01){
+          alignState.scaleX_adj = Math.round((_rAR/_tAR)*1000)/1000;
+        }
+      }
     }
     alignState.refId    = refId;
     alignState.targetId = tgtId;

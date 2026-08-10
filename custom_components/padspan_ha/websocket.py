@@ -4230,15 +4230,18 @@ async def ws_maps_delete_migrate(hass: HomeAssistant, connection, msg) -> None:
             changed = False
             for pt in points:
                 if pt.get("map_id") == src_id:
-                    # Transform calibration point coordinates
-                    px = float(pt.get("x", 0.5))
-                    py = float(pt.get("y", 0.5))
+                    # Transform calibration point coordinates.  Points store
+                    # x_frac/y_frac — reading "x"/"y" always hit the 0.5
+                    # default, so points were re-owned to the target with
+                    # their untransformed source fracs.
+                    px = float(pt.get("x_frac", 0.5))
+                    py = float(pt.get("y_frac", 0.5))
                     tx, ty = _xform(px, py)
                     if canvas_extended:
                         tx = _renorm_x(tx)
                         ty = _renorm_y(ty)
-                    pt["x"] = tx
-                    pt["y"] = ty
+                    pt["x_frac"] = round(tx, 4)
+                    pt["y_frac"] = round(ty, 4)
                     pt["map_id"] = tgt_id
                     cal_moved += 1
                     changed = True
@@ -7506,11 +7509,28 @@ async def ws_private_ble_add_irk(hass: HomeAssistant, connection, msg) -> None:
             "IRK must be 32 hex characters, 24-char base64 (16 bytes), or irk:-prefixed base64")
         return
 
-    # Check for duplicates (HA stores IRK as plain hex in config entry data)
+    # Check for duplicates.  Stored IRKs vary in format (plain hex, base64,
+    # irk:-prefixed) and byte order — normalise through the same decoder and
+    # compare BOTH orders, else re-adding the same IRK in a different format
+    # sails past this check and creates a duplicate entry.
+    def _stored_irk_hexes(raw: Any) -> set[str]:
+        s = str(raw or "").strip()
+        if s.lower().startswith("irk:"):
+            s = s[4:]
+        cleaned = _re.sub(r"[:\-\s]", "", s)
+        if _re.fullmatch(r"[0-9a-fA-F]{32}", cleaned):
+            b = bytes.fromhex(cleaned.lower())
+        else:
+            try:
+                b = _b64.b64decode(s)
+            except Exception:
+                return set()
+            if len(b) != 16:
+                return set()
+        return {b.hex(), b[::-1].hex()}
+
     for entry in hass.config_entries.async_entries("private_ble_device"):
-        existing_irk = (entry.data or {}).get("irk", "")
-        existing_clean = _re.sub(r"[:\-\s]", "", str(existing_irk)).lower()
-        if existing_clean == irk_hex:
+        if irk_hex in _stored_irk_hexes((entry.data or {}).get("irk", "")):
             connection.send_result(msg["id"], {
                 "ok": True, "duplicate": True,
                 "message": f"IRK already registered as '{entry.title}'",
@@ -7533,6 +7553,18 @@ async def ws_private_ble_add_irk(hass: HomeAssistant, connection, msg) -> None:
     async def _try_create_entry(irk_value: str) -> tuple[dict | None, str]:
         """Attempt to create a private_ble_device config entry with the given IRK format.
         Returns (flow_result, error_detail) tuple."""
+        flow_id = None
+
+        def _abort_flow() -> None:
+            # A failed attempt must not leave the config flow in progress —
+            # each of the 4 format retries used to leak one, piling up
+            # "discovered" flows in Settings until restart.
+            if flow_id:
+                try:
+                    hass.config_entries.flow.async_abort(flow_id)
+                except Exception:
+                    pass
+
         try:
             result = await hass.config_entries.flow.async_init(
                 "private_ble_device",
@@ -7543,10 +7575,11 @@ async def ws_private_ble_add_irk(hass: HomeAssistant, connection, msg) -> None:
             if "create_entry" in rtype:
                 return result, ""
 
+            flow_id = result.get("flow_id")
             if "form" not in rtype:
+                _abort_flow()
                 return None, f"flow init returned {rtype}"
 
-            flow_id = result.get("flow_id")
             if not flow_id:
                 return None, "no flow_id"
 
@@ -7564,10 +7597,13 @@ async def ws_private_ble_add_irk(hass: HomeAssistant, connection, msg) -> None:
                 err_detail = ", ".join(f"{k}: {v}" for k, v in errors.items())
                 _LOGGER.debug("private_ble flow errors for format %s: %s",
                               irk_value[:20], err_detail)
+                _abort_flow()
                 return None, err_detail
 
+            _abort_flow()
             return None, f"flow returned {rtype2}"
         except Exception as e:
+            _abort_flow()
             return None, str(e)
 
     try:

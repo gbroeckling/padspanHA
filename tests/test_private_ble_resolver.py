@@ -238,3 +238,34 @@ def test_parse_ibeacon_no_apple_key() -> None:
     payload = _make_ibeacon_payload()
     result = PrivateBLEResolver.parse_ibeacon({56: payload})  # Samsung
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Tests: get_status source_info join
+# ---------------------------------------------------------------------------
+
+
+def test_get_status_duplicate_names_keep_correct_entry_ids() -> None:
+    """Devices with identical titles must keep their OWN entry_id/source.
+
+    _devices and _source_info are appended in lockstep; the old name-keyed
+    join collapsed duplicate titles so every row got the LAST device's
+    entry_id — the Delete button then removed the wrong config entry.
+    """
+    from unittest.mock import MagicMock
+
+    r = PrivateBLEResolver.__new__(PrivateBLEResolver)
+    r._hass = MagicMock()
+    r._hass.config_entries.async_entries = MagicMock(return_value=[])
+    r._devices = [
+        {"canonical_id": "irk:aa", "name": "iPhone", "irk_bytes": b"\x00" * 16},
+        {"canonical_id": "irk:bb", "name": "iPhone", "irk_bytes": b"\x01" * 16},
+    ]
+    r._source_info = [
+        {"name": "iPhone", "source": "private_ble_device", "entry_id": "entry_A"},
+        {"name": "iPhone", "source": "mobile_app", "entry_id": "entry_B"},
+    ]
+    st = r.get_status()
+    assert [d["entry_id"] for d in st["devices"]] == ["entry_A", "entry_B"]
+    assert [d["source"] for d in st["devices"]] == ["private_ble_device", "mobile_app"]
+    assert [d["canonical_id"] for d in st["devices"]] == ["irk:aa", "irk:bb"]

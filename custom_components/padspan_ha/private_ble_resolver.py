@@ -316,13 +316,39 @@ class PrivateBLEResolver:
         except Exception:
             pass
 
-        # Merge source_info into device entries for unified UI display
-        _si = {s["name"]: s for s in getattr(self, "_source_info", [])}
+        # Merge source_info into device entries for unified UI display.
+        # _devices and _source_info are appended in lockstep — join by index,
+        # not by name: a name-keyed join collapsed duplicate titles and put
+        # the wrong entry_id on delete rows.
+        _si_list = list(getattr(self, "_source_info", []) or [])
+        # Refresh friendly names from the device registry at read time — the
+        # resolver caches names at load, so renames otherwise only show after
+        # a restart or IRK add/remove.
+        _dev_reg = None
+        try:
+            from homeassistant.helpers import device_registry as _dr  # noqa: PLC0415
+            _dev_reg = _dr.async_get(self._hass)
+        except Exception:
+            pass
         devs = []
-        for d in self._devices:
-            si = _si.get(d["name"], {})
+        for i, d in enumerate(self._devices):
+            si = _si_list[i] if i < len(_si_list) else {}
+            name = d["name"]
+            if _dev_reg is not None and si.get("source") == "private_ble_device" and si.get("entry_id"):
+                try:
+                    from homeassistant.helpers import device_registry as _dr  # noqa: PLC0415
+                    for _dev in _dr.async_entries_for_config_entry(_dev_reg, si["entry_id"]):
+                        _friendly = _dev.name_by_user or _dev.name
+                        if _friendly and isinstance(_friendly, str):
+                            name = _friendly
+                            break
+                except Exception:
+                    pass
+                if name != d["name"]:
+                    d["name"] = name        # resolve() labels pick it up too
+                    si["name"] = name
             devs.append({
-                "name": d["name"],
+                "name": name,
                 "canonical_id": d["canonical_id"],
                 "source": si.get("source", ""),
                 "entry_id": si.get("entry_id", ""),
