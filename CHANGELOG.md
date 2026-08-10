@@ -4,6 +4,19 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.22.7 — Lights placement (Pro) + private-BLE and map-migrate fixes (2026-08-10)
+
+### Added
+- **Lights map placement** (PadSpan Pro) — place your lights on the floor plan from the Mapping view's Lights tab, rendered as a room-polygon view. Saving light placements requires an active Pro license; everything else in Mapping is unaffected.
+
+### Fixed
+- **IRK table Delete button targets the right entry** — devices with identical names were merged by an internal name-keyed join, so deleting one row could remove a *different* device's config entry. Rows now carry their own entry identity, and renamed devices show their new name immediately instead of after a restart.
+- **Adding an IRK no longer leaves phantom config flows** — each failed format attempt now cleans up after itself (they used to accumulate as in-progress flows until restart), and re-adding the same IRK in a different format/byte order is correctly detected as a duplicate instead of creating a second entry.
+- **Delete & Migrate now actually moves calibration points** — a wrong field name meant migrated points kept their old on-map positions while being re-owned to the target map. Positions now transform correctly.
+- **3D alignment editor: different-aspect maps open undistorted** — the editor sizes its stage to the reference map, which pre-stretched any target with a different aspect ratio and forced users to hand-hunt the X-stretch correction (destroying precise 4-point alignments along the way, part of the issue #56 chain). A never-aligned target is now auto-corrected on selection.
+
+---
+
 ## 0.22.6 — Re-anchor hardening (2026-08-09)
 
 ### Fixed
