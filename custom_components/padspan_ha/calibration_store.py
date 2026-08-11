@@ -647,9 +647,12 @@ class CalibrationStore:
                 ((query_rssi[s] - q_mean) - (fp[s] - p_mean)) ** 2 for s in shared
             )
             # Missing-scanner penalty stays ABSOLUTE (see constant docstring);
-            # normalising over shared+missing keeps this a per-scanner mean
-            # squared error, so sparse fingerprints can't beat well-observed ones.
-            missing = max(0, len(query_rssi) - len(shared))
+            # normalising over the scanner UNION keeps this a per-scanner mean
+            # squared error.  The penalty is SYMMETRIC: scanners the query has
+            # that the point lacks AND scanners the point has that the query
+            # lacks both count — otherwise a sparse 2-scanner query matches
+            # rich fingerprints cheaply with inflated confidence.
+            missing = max(0, len(query_rssi) - len(shared)) + max(0, len(fp) - len(shared))
             dist_sq = (sq_sum + missing * MISSING_SCANNER_PENALTY_DB ** 2) / (
                 len(shared) + missing
             )
@@ -752,11 +755,33 @@ class CalibrationStore:
         _conf_coverage = min(_shared_total, 4) / 4.0
         confidence = round(_conf_rssi * _conf_coverage, 3)
 
+        # Room: weighted vote over the top-k (restricted to the winning floor
+        # in metre mode, matching the position centroid).  The single nearest
+        # sample's label is high-variance — one noisy point must not decide
+        # the room while five decide the position.
+        room_w: dict[str, float] = {}
+        for dist_sq, _n_shared, pt in top_k:
+            if use_metres and best_floor and pt.get("floor_id", "") != best_floor:
+                continue
+            _rm = str(pt.get("room") or "")
+            if not _rm:
+                continue
+            pw = float(pt.get("weight") or 1.0)
+            # 1 dB noise floor on the vote weight — RSSI noise makes chance
+            # near-exact matches common, and with the position epsilon (1e-3)
+            # a single dist≈0 point would outvote k-1 agreeing neighbours,
+            # degenerating the vote back to 1-NN.
+            room_w[_rm] = room_w.get(_rm, 0.0) + pw / (math.sqrt(dist_sq) + 1.0)
+        nearest_room = (
+            max(room_w, key=lambda r: room_w[r]) if room_w
+            else str(scored[0][2].get("room", ""))
+        )
+
         result: dict[str, Any] = {
             "x_frac": round(x_frac, 4),
             "y_frac": round(y_frac, 4),
             "confidence": confidence,
-            "nearest_room": scored[0][2].get("room", ""),
+            "nearest_room": nearest_room,
             "map_id": best_map,
             "k_used": len(top_k),
             "shared_scanners": _shared_total,

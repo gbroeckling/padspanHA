@@ -1372,17 +1372,26 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if len(_src_list) < 3:
                     self._spatial_debug[key] = f"need_3_pos_scanners:got_{len(_src_list)}_of_{len(ema)}_ema"
                 if len(_src_list) >= 3:
-                    # Determine which floor the device is on by strongest
-                    # RSSI, not most scanners.  A garage scanner at -60 dBm
-                    # on floor B beats 10 living room scanners at -75 dBm
-                    # on floor A.
-                    _floor_best_rssi: dict[str, float] = {}
+                    # Determine which floor the device is on from AGGREGATE
+                    # evidence: mean of a floor's top-2 RSSI (a lone scanner
+                    # takes a small handicap).  The old single-strongest rule
+                    # let ONE cross-floor bleed — a scanner directly above
+                    # the device reading strong through the slab — flip the
+                    # whole centroid, after which the slab penalty punished
+                    # the true floor's scanners.  The device's currently
+                    # confirmed floor also gets a stickiness bonus so floor
+                    # changes need sustained evidence, not one hot poll.
                     _floor_scanners: dict[str, list[tuple[str, float, float, float]]] = {}
                     for _src, _sx, _sy, _rssi, _sf in _src_list:
                         _floor_scanners.setdefault(_sf, []).append((_src, _sx, _sy, _rssi))
-                        if _sf not in _floor_best_rssi or _rssi > _floor_best_rssi[_sf]:
-                            _floor_best_rssi[_sf] = _rssi
-                    _best_floor = max(_floor_best_rssi, key=lambda f: _floor_best_rssi[f])
+                    _floor_scores: dict[str, float] = {}
+                    for _sf, _lst in _floor_scanners.items():
+                        _vals = sorted((t[3] for t in _lst), reverse=True)[:2]
+                        _floor_scores[_sf] = sum(_vals) / len(_vals) - (3.0 if len(_vals) < 2 else 0.0)
+                    _fl_sticky = self._device_floor.get(key) or _room_to_floor.get(_cur_confirmed or "", "")
+                    if _fl_sticky in _floor_scores:
+                        _floor_scores[_fl_sticky] += 4.0
+                    _best_floor = max(_floor_scores, key=lambda f: _floor_scores[f])
 
                     # Use ALL scanners for centroid, but penalize cross-floor
                     # scanners with a slab attenuation (their RSSI includes
@@ -1532,7 +1541,15 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             # ── Path B: RSSI-based room scoring (always computed) ────────
             # This provides the fallback and also feeds the debug log.
+            # Scanners silent past the hold grace carry DECAYED synthetic
+            # values — those must not vote against live signals (the spatial
+            # path already excludes non-reporting scanners; this is the same
+            # discipline, softened to tolerate normal BLE advertisement loss:
+            # a held-fresh value inside the grace still votes).
+            _stale_after = max(1, round(20.0 / max(self.update_interval.total_seconds(), 1.0)))
             for _src, _rssi in ema.items():
+                if _miss.get(_src, 0) > _stale_after:
+                    continue
                 _room = source_to_area.get(_src)
                 if not _room:
                     continue
