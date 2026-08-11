@@ -9221,6 +9221,7 @@ async def ws_fabric_truth_candidates(hass: HomeAssistant, connection, msg) -> No
             "system": {
                 "origin_x_m": t.get("origin_x_m"), "origin_y_m": t.get("origin_y_m"),
                 "scale_x_m": t.get("scale_x_m"), "scale_y_m": t.get("scale_y_m"),
+                "rotation_rad": t.get("rotation_rad", 0),
                 "measured": bool(t.get("reference_measurements")),
             } if t else None,
             "stack": stack_t,

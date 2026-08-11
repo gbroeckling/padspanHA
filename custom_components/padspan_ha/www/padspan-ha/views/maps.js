@@ -7065,6 +7065,51 @@ function _geomCentroid(g) {
   return [g.cx_m || 0, g.cy_m || 0];
 }
 
+// Vertex-wise blend of the layouts the user trusts. Rooms present in several
+// sets are averaged point-by-point (valid because every candidate descends
+// from the SAME photo tracings, so vertex order corresponds); a room whose
+// structure differs (edited vertex count, poly vs circle) falls back to the
+// first — highest-priority — set that has it.
+function _blendLayouts(sets) {
+  const avg = (vals) => Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 1000) / 1000;
+  const names = new Set();
+  sets.forEach(s => Object.keys(s).forEach(n => names.add(n)));
+  const out = {};
+  for (const name of names) {
+    const present = sets.map(s => s[name]).filter(Boolean);
+    const first = present[0];
+    if (present.length === 1) { out[name] = JSON.parse(JSON.stringify(first)); continue; }
+    if (first.type === "circle" && present.every(g => g.type === "circle")) {
+      out[name] = { type: "circle",
+        cx_m: avg(present.map(g => g.cx_m)), cy_m: avg(present.map(g => g.cy_m)),
+        r_m: avg(present.map(g => g.r_m)) };
+    } else if (first.type === "poly" && present.every(g => g.type === "poly"
+        && Array.isArray(g.points_m) && g.points_m.length === first.points_m.length)) {
+      out[name] = { type: "poly", points_m: first.points_m.map((_, i) =>
+        [avg(present.map(g => g.points_m[i][0])), avg(present.map(g => g.points_m[i][1]))]) };
+    } else {
+      out[name] = JSON.parse(JSON.stringify(first));
+    }
+  }
+  return out;
+}
+
+// A map's full-image footprint in metres from an origin/scale/rotation
+// transform — the visual aid for comparing where the system puts a photo vs
+// where the stack alignment puts it.
+function _mapFootprintM(t) {
+  if (!t || t.scale_x_m == null) return null;
+  const ox = Number(t.origin_x_m) || 0, oy = Number(t.origin_y_m) || 0;
+  const sx = Number(t.scale_x_m) || 0, sy = Number(t.scale_y_m) || 0;
+  const rot = Number(t.rotation_rad) || 0;
+  const c = Math.cos(rot), s = Math.sin(rot);
+  return [[0, 0], [1, 0], [1, 1], [0, 1]].map(([fx, fy]) => {
+    const dx = fx * sx, dy = fy * sy;
+    return [Math.round((ox + dx * c - dy * s) * 1000) / 1000,
+            Math.round((oy + dx * s + dy * c) * 1000) / 1000];
+  });
+}
+
 // Fetch the floor's truth candidates (fabric vs stack vs system calibration)
 // with a short cache so the tab doesn't hammer the WS on every re-render.
 function _fetchRoomsTruth(ctx, floorId) {
@@ -7128,8 +7173,11 @@ function _roomsTab(ctx, maps) {
     mapState._roomsDraftFloorId = floorId;
     mapState._roomsSel = [];
     mapState._roomsTruth = "fabric";
+    mapState._roomsCandDraft = null;
+    mapState._roomsBlendAveraged = false;
+    mapState._roomsAlignPreview = null;
   }
-  const draft = mapState._roomsDraft || {};
+  const fabricDraft = mapState._roomsDraft || {};
   const orig = mapState._roomsOrig || {};
   const sel = new Set(mapState._roomsSel || []);
 
@@ -7146,18 +7194,71 @@ function _roomsTab(ctx, maps) {
       ? { label: "System calibration", rooms: truthCache.transforms.rooms, stats: truthCache.transforms.stats }
       : null,
   };
+  // Blended layout: vertex-average of whichever sources the user trusts
+  // (default: saved fabric + stack alignment — deliberately NOT the
+  // fabricated per-map calibrations; averaging right with wrong is wrong).
+  if (!mapState._roomsBlendSources) {
+    mapState._roomsBlendSources = { fabric: true, stack: !!candidates.stack, transforms: false };
+  }
+  const blendSources = mapState._roomsBlendSources;
+  // Each trusted source keeps its own line style so the same room's copies
+  // are tellable apart when stacked: fabric solid, stack dashed, system dotted.
+  const _blendLabeledSets = () => {
+    const sets = [];
+    if (blendSources.fabric && Object.keys(fabricDraft).length) sets.push({ key: "fabric", label: "Fabric", rooms: fabricDraft, dashKind: null });
+    if (blendSources.stack && candidates.stack) sets.push({ key: "stack", label: "Stack", rooms: candidates.stack.rooms, dashKind: "long" });
+    if (blendSources.transforms && candidates.transforms) sets.push({ key: "transforms", label: "System", rooms: candidates.transforms.rooms, dashKind: "dot" });
+    return sets;
+  };
+  const blendKey = JSON.stringify(blendSources);
+  if (_blendLabeledSets().length) {
+    const blended = _blendLayouts(_blendLabeledSets().map(s => s.rooms));
+    candidates.blended = {
+      label: "Blended", rooms: blended,
+      stats: { rooms: Object.keys(blended).length, clusters: _roomClusterCount(Object.entries(blended)) },
+    };
+  }
+
   let truth = mapState._roomsTruth || "fabric";
   if (truth !== "fabric" && !candidates[truth]) { truth = "fabric"; mapState._roomsTruth = "fabric"; }
   const previewing = truth !== "fabric";
-  const editable = !previewing;
-  const geoms = previewing ? Object.entries(candidates[truth].rooms) : Object.entries(draft);
-  const floorInfo = fabricFloors[floorId] || { committed: false, rooms: Object.keys(draft).length };
+  // Blended starts as a STACKED comparison of the selected layouts; the
+  // average only materializes when the user asks for it.
+  const blendStacked = truth === "blended" && !mapState._roomsBlendAveraged;
+
+  // A candidate view is just as editable as the fabric view — its edits live
+  // in a per-view draft and reach the fabric only via an explicit commit.
+  let draft = fabricDraft;
+  let draftOrig = orig;
+  if (previewing && !blendStacked) {
+    const cd = mapState._roomsCandDraft;
+    const cdBlendKey = truth === "blended" ? blendKey : "";
+    if (!cd || cd.floorId !== floorId || cd.truth !== truth || cd.blendKey !== cdBlendKey) {
+      mapState._roomsCandDraft = {
+        floorId, truth, blendKey: cdBlendKey,
+        rooms: JSON.parse(JSON.stringify(candidates[truth].rooms)),
+        orig: JSON.parse(JSON.stringify(candidates[truth].rooms)),
+      };
+    }
+    draft = mapState._roomsCandDraft.rooms;
+    draftOrig = mapState._roomsCandDraft.orig;
+  }
+  let geoms = Object.entries(draft);
+  if (blendStacked) {
+    // Union of names for labels/readout; shapes render per-layer below.
+    const union = {};
+    for (const s of _blendLabeledSets()) {
+      for (const [r, g] of Object.entries(s.rooms)) if (!union[r]) union[r] = g;
+    }
+    geoms = Object.entries(union);
+  }
+  const floorInfo = fabricFloors[floorId] || { committed: false, rooms: Object.keys(fabricDraft).length };
   const committed = !!floorInfo.committed;
 
   const _geomPayload = (g) => g.type === "circle"
     ? { type: "circle", cx_m: g.cx_m, cy_m: g.cy_m, r_m: g.r_m }
     : { type: "poly", points_m: g.points_m };
-  const _changed = (room) => JSON.stringify(_geomPayload(draft[room])) !== JSON.stringify(orig[room] ? _geomPayload(orig[room]) : null);
+  const _changed = (room) => JSON.stringify(_geomPayload(draft[room])) !== JSON.stringify(draftOrig[room] ? _geomPayload(draftOrig[room]) : null);
   const changedRooms = Object.keys(draft).filter(_changed);
 
   // ── Truth selector — compare layouts before committing anything ────────
@@ -7167,16 +7268,46 @@ function _roomsTab(ctx, maps) {
     const statLbl = (stats) => stats
       ? ` · ${stats.rooms} rooms · ${stats.clusters > 1 ? "⚠" + stats.clusters : "✓" + (stats.clusters || 0)}`
       : "";
-    const fabricStats = { rooms: Object.keys(draft).length, clusters: _roomClusterCount(Object.entries(draft)) };
+    const fabricStats = { rooms: Object.keys(fabricDraft).length, clusters: _roomClusterCount(Object.entries(fabricDraft)) };
     const options = [["fabric", "Fabric (saved)", fabricStats]];
     if (candidates.stack) options.push(["stack", "Stack alignment", candidates.stack.stats]);
     if (candidates.transforms) options.push(["transforms", "System calibration", candidates.transforms.stats]);
+    if (candidates.blended) options.push(["blended", "Blended", candidates.blended.stats]);
     for (const [key, label, stats] of options) {
       selRow.appendChild(el("button", {
         class: "btn inline" + (truth === key ? " primary" : ""),
         style: "font-size:11px",
-        onclick: () => { mapState._roomsTruth = key; mapState._roomsSel = []; ctx.actions.renderRooms(); },
+        onclick: () => {
+          mapState._roomsTruth = key;
+          mapState._roomsSel = [];
+          if (key === "blended") mapState._roomsBlendAveraged = false;
+          ctx.actions.renderRooms();
+        },
       }, label + statLbl(stats)));
+    }
+    if (truth === "blended") {
+      // Which layouts feed the average — the user decides what's credible.
+      const srcRow = el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:#94a3b8;margin-left:8px" });
+      srcRow.appendChild(el("span", {}, "averaging:"));
+      const srcs = [["fabric", "Fabric", Object.keys(fabricDraft).length > 0],
+                    ["stack", "Stack", !!candidates.stack],
+                    ["transforms", "System", !!candidates.transforms]];
+      for (const [key, label, avail] of srcs) {
+        const lbl = el("label", { style: `display:flex;gap:4px;align-items:center;cursor:pointer;${avail ? "" : "opacity:0.4"}` });
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = !!blendSources[key] && avail;
+        cb.disabled = !avail;
+        cb.addEventListener("change", () => {
+          blendSources[key] = cb.checked;
+          if (!Object.values(blendSources).some(Boolean)) blendSources.fabric = true;
+          ctx.actions.renderRooms();
+        });
+        lbl.appendChild(cb);
+        lbl.appendChild(el("span", {}, label));
+        srcRow.appendChild(lbl);
+      }
+      selRow.appendChild(srcRow);
     }
     if (truthCache && !candidates.stack) {
       selRow.appendChild(el("span", { class: "muted", style: "font-size:10px" },
@@ -7190,14 +7321,29 @@ function _roomsTab(ctx, maps) {
     card.appendChild(selRow);
   }
 
+  // ── Alignment visual aid: footprints of the map being inspected ─────────
+  const alignRow = (truthCache && truthCache.alignment || [])
+    .find(a => a.map_id === mapState._roomsAlignPreview);
+  const alignRects = alignRow ? [
+    alignRow.system ? { pts: _mapFootprintM(alignRow.system), color: "#f59e0b", label: `system: ${alignRow.name}` } : null,
+    alignRow.stack ? { pts: _mapFootprintM(alignRow.stack), color: "#38bdf8", label: `stack: ${alignRow.name}` } : null,
+  ].filter(r => r && r.pts) : [];
+
   // ── Status / readout row ────────────────────────────────────────────────
-  const bbox = _roomGeomBBoxM(geoms);
+  // bbox includes any alignment-preview footprints so a wildly misplaced
+  // system placement is visible on canvas instead of clipped away.
+  const bbox = _roomGeomBBoxM([
+    ...geoms,
+    ...alignRects.map((r, i) => ["__align" + i, { type: "poly", points_m: r.pts }]),
+  ]);
   const clusters = _roomClusterCount(geoms);
   const readout = el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;font-size:12px" });
   if (previewing) {
     readout.appendChild(el("span", {
       class: "pill", style: "background:#1e2a4a;color:#93b4f8;font-weight:700",
-    }, `👁 Previewing ${candidates[truth].label} — nothing saved`));
+    }, blendStacked
+      ? `◫ Stacked comparison (${_blendLabeledSets().map(s => s.label).join(" + ")}) — solid/dashed/dotted per layout`
+      : `👁 ${candidates[truth].label} — editable; nothing saved until you commit`));
   }
   readout.appendChild(el("span", {
     class: "pill",
@@ -7303,10 +7449,16 @@ function _roomsTab(ctx, maps) {
       }
     };
 
-    // Room shapes
-    for (const [room, g] of geoms) {
+    // Room shapes — normally one editable layer; in the stacked blend
+    // comparison, one read-only layer per trusted source (fabric solid,
+    // stack dashed, system dotted) so the same room's copies overlay.
+    const renderLayers = blendStacked
+      ? _blendLabeledSets().map(s => ({ entries: Object.entries(s.rooms), dashKind: s.dashKind, interactive: false }))
+      : [{ entries: geoms, dashKind: previewing ? "preview" : null, interactive: true }];
+    for (const layer of renderLayers)
+    for (const [room, g] of layer.entries) {
       const color = roomColor(room);
-      const isSel = editable && sel.has(room);
+      const isSel = layer.interactive && sel.has(room);
       let elS;
       if (g.type === "poly" && Array.isArray(g.points_m) && g.points_m.length >= 3) {
         elS = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
@@ -7316,16 +7468,18 @@ function _roomsTab(ctx, maps) {
         elS.setAttribute("cx", g.cx_m ?? 0); elS.setAttribute("cy", g.cy_m ?? 0); elS.setAttribute("r", g.r_m ?? 0.6);
       } else continue;
       elS.setAttribute("fill", color);
-      elS.setAttribute("fill-opacity", isSel ? "0.38" : "0.18");
+      elS.setAttribute("fill-opacity", blendStacked ? "0.08" : isSel ? "0.38" : "0.18");
       elS.setAttribute("stroke", isSel ? "#e879f9" : color);
       elS.setAttribute("stroke-width", String(strokeW * (isSel ? 1.8 : 1)));
-      if (previewing) elS.setAttribute("stroke-dasharray", `${strokeW * 2.5},${strokeW * 1.5}`);
-      elS.style.pointerEvents = editable ? "auto" : "none";
+      if (layer.dashKind === "preview") elS.setAttribute("stroke-dasharray", `${strokeW * 2.5},${strokeW * 1.5}`);
+      else if (layer.dashKind === "long") elS.setAttribute("stroke-dasharray", `${strokeW * 4},${strokeW * 2}`);
+      else if (layer.dashKind === "dot") elS.setAttribute("stroke-dasharray", `${strokeW},${strokeW * 1.5}`);
+      elS.style.pointerEvents = layer.interactive ? "auto" : "none";
       elS.style.cursor = isSel ? "move" : "pointer";
       if (isSel) elS.setAttribute("data-room-handle", "1");
-      shapeEls[room] = elS;
+      if (layer.interactive) shapeEls[room] = elS;
 
-      if (editable) elS.addEventListener("mousedown", (ev) => {
+      if (layer.interactive) elS.addEventListener("mousedown", (ev) => {
         if (ev.button !== 0) return;
         if (!sel.has(room)) {
           // Not selected: a plain click selects (Shift adds); no drag from here.
@@ -7355,6 +7509,27 @@ function _roomsTab(ctx, maps) {
       svg.appendChild(elS);
     }
 
+    // Alignment footprints — amber = system placement, cyan = stack placement.
+    // "Fix alignment" snaps the amber box onto the cyan one.
+    for (const rect of alignRects) {
+      const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+      poly.setAttribute("points", rect.pts.map(p => `${p[0]},${p[1]}`).join(" "));
+      poly.setAttribute("fill", rect.color);
+      poly.setAttribute("fill-opacity", "0.05");
+      poly.setAttribute("stroke", rect.color);
+      poly.setAttribute("stroke-width", String(strokeW * 1.6));
+      poly.setAttribute("stroke-dasharray", `${strokeW * 4},${strokeW * 2}`);
+      poly.style.pointerEvents = "none";
+      svg.appendChild(poly);
+      const [lx, ly] = rect.pts[0];
+      pinLayer.appendChild(el("div", {
+        style: `position:absolute;left:${((lx - bbox.minX) / bbox.width * 100).toFixed(2)}%;top:${((ly - bbox.minY) / bbox.height * 100).toFixed(2)}%;` +
+          `transform:translate(2px,2px);color:${rect.color};font-size:10px;font-weight:700;` +
+          `pointer-events:none;white-space:nowrap;font-family:system-ui,sans-serif;z-index:3;` +
+          `text-shadow:0 1px 2px rgba(0,0,0,.8)`,
+      }, rect.label));
+    }
+
     // Room labels
     for (const [room, g] of geoms) {
       const [cx, cy] = _geomCentroid(g);
@@ -7366,7 +7541,7 @@ function _roomsTab(ctx, maps) {
     }
 
     // Vertex / circle handles — only in single-selection (precision mode)
-    if (editable && sel.size === 1) {
+    if (sel.size === 1) {
       const room = [...sel][0];
       const g = draft[room];
       const mkHandle = (idx, mx, my, title) => {
@@ -7399,7 +7574,7 @@ function _roomsTab(ctx, maps) {
     // ── Group tools: scale / rotate the selection about its centroid ──────
     // A mis-scaled cluster (the fallback-transform disease) needs a group
     // scale to fix — per-vertex dragging can't realistically resize 5 rooms.
-    if (editable && sel.size) {
+    if (sel.size) {
       const tools = el("div", { style: "display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:8px 10px;background:#0a150e;border-radius:6px;margin-top:8px;font-size:12px" });
       tools.appendChild(el("span", { style: "color:#94a3b8" }, `Group of ${sel.size}:`));
       const selCentroid = () => {
@@ -7437,7 +7612,7 @@ function _roomsTab(ctx, maps) {
       card.appendChild(tools);
     }
 
-    if (editable) {
+    if (!previewing) {
       // ── Save / discard ──────────────────────────────────────────────────
       const saveRow = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px" });
       const saveBtn = el("button", {
@@ -7468,47 +7643,78 @@ function _roomsTab(ctx, maps) {
         } }, "Discard changes"));
       }
       card.appendChild(saveRow);
-    } else {
-      // ── Preview actions: refine into the editor, or adopt outright ──────
-      const cand = candidates[truth];
+    } else if (blendStacked) {
+      // ── Stacked comparison: look first, average when ready ──────────────
+      const sets = _blendLabeledSets();
       const pRow = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px" });
       pRow.appendChild(el("button", {
         class: "btn inline primary",
+        onclick: () => { mapState._roomsBlendAveraged = true; mapState._roomsCandDraft = null; ctx.actions.renderRooms(); },
+      }, `⌀ Average these ${sets.length} layouts`));
+      pRow.appendChild(el("span", { class: "muted", style: "font-size:11px" },
+        "Each checked layout is stacked on the canvas — same room, one line style per layout. Averaging makes an editable draft; nothing is saved until you commit it."));
+      card.appendChild(pRow);
+    } else {
+      // ── Candidate actions: refine here, then commit the layout ──────────
+      const cand = candidates[truth];
+      const pRow = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px" });
+      if (truth === "blended") {
+        pRow.appendChild(el("button", {
+          class: "btn inline",
+          onclick: () => { mapState._roomsBlendAveraged = false; mapState._roomsCandDraft = null; ctx.actions.renderRooms(); },
+        }, "◫ Back to stacked view"));
+      }
+      pRow.appendChild(el("button", {
+        class: "btn inline primary",
+        onclick: async (e) => {
+          const rooms = Object.keys(draft);
+          const fabricCount = Object.keys(fabricDraft).length;
+          const edited = changedRooms.length ? ` (incl. your ${changedRooms.length} edit${changedRooms.length !== 1 ? "s" : ""})` : "";
+          if (!confirm(`Commit this ${cand.label} layout${edited} to the base fabric for "${floorId}"? ${rooms.length} rooms will be written; ${fabricCount > rooms.length ? (fabricCount - rooms.length) + " fabric-only room(s) stay untouched." : "existing shapes with the same names are replaced."}`)) return;
+          const btn = e.currentTarget;
+          btn.disabled = true; btn.textContent = "Committing…";
+          let ok = 0, fail = 0;
+          for (const room of rooms) {
+            try {
+              await ctx.actions.wsCall("padspan_ha/fabric_correct_room", {
+                floor_id: floorId, room, geometry: _geomPayload(draft[room]),
+              });
+              ok++;
+            } catch (err) { fail++; console.warn("fabric_correct_room failed", room, err); }
+          }
+          ctx.toast(fail ? `Committed ${ok}, failed ${fail}` : `✔ ${cand.label} committed to fabric (${ok} rooms)`, !!fail);
+          mapState._roomsDraftFloorId = null;
+          mapState._roomsCandDraft = null;
+          mapState._roomsTruthCache = null;
+          mapState._roomsTruth = "fabric";
+          await ctx.actions.modelRefresh();
+        },
+      }, `💾 Commit this layout to fabric${changedRooms.length ? ` (${changedRooms.length} edited)` : ""}`));
+      if (changedRooms.length) {
+        pRow.appendChild(el("button", {
+          class: "btn inline",
+          onclick: () => { mapState._roomsCandDraft = null; ctx.actions.renderRooms(); },
+        }, "Reset to computed layout"));
+      }
+      pRow.appendChild(el("button", {
+        class: "btn inline",
         onclick: () => {
-          // Candidate geometry becomes the editable draft (fabric-only rooms
-          // are kept) — refine with drag/scale/rotate, then Save commits it.
+          // Merge this (possibly edited) layout into the fabric editor draft
+          // — fabric-only rooms stay visible alongside for final tweaks.
           const merged = JSON.parse(JSON.stringify(mapState._roomsDraft || {}));
-          for (const [room, g] of Object.entries(cand.rooms)) {
+          for (const [room, g] of Object.entries(draft)) {
             merged[room] = { type: g.type, floor_id: floorId,
               ...(g.type === "circle" ? { cx_m: g.cx_m, cy_m: g.cy_m, r_m: g.r_m } : { points_m: JSON.parse(JSON.stringify(g.points_m)) }) };
           }
           mapState._roomsDraft = merged;
           mapState._roomsTruth = "fabric";
           mapState._roomsSel = [];
-          ctx.toast(`${cand.label} loaded into the editor — refine, then Save corrections`);
+          ctx.toast(`${cand.label} loaded into the Fabric editor — refine, then Save corrections`);
           ctx.actions.renderRooms();
         },
-      }, "✏ Load into editor"));
-      pRow.appendChild(el("button", {
-        class: "btn inline",
-        onclick: async () => {
-          const hasRooms = Object.keys(draft).length > 0;
-          const verb = hasRooms ? `REPLACE all ${Object.keys(draft).length} saved room shapes` : "build this floor's fabric";
-          if (!confirm(`Adopt "${cand.label}" as the base fabric for "${floorId}"? This will ${verb}. You can keep refining afterwards; Finalize is a separate step.`)) return;
-          try {
-            const r = await ctx.actions.wsCall("padspan_ha/fabric_commit_floor", {
-              floor_id: floorId, mode: hasRooms ? "overwrite" : "bootstrap", source: truth,
-            });
-            ctx.toast(`Adopted ${cand.label}: ${r.rooms} rooms`);
-            mapState._roomsDraftFloorId = null;
-            mapState._roomsTruthCache = null;
-            mapState._roomsTruth = "fabric";
-            await ctx.actions.modelRefresh();
-          } catch (err) { ctx.toast("Adopt failed: " + (err.message || err), true); }
-        },
-      }, "✔ Adopt as fabric…"));
+      }, "✏ Load into Fabric editor"));
       pRow.appendChild(el("span", { class: "muted", style: "font-size:11px" },
-        "Preview only — nothing changes until you Save or Adopt."));
+        "Drag/reshape rooms right here — nothing reaches the fabric until you commit."));
       card.appendChild(pRow);
     }
   } else {
@@ -7567,18 +7773,28 @@ function _roomsTab(ctx, maps) {
     const aCard = el("div", { style: "margin-top:10px;padding:10px;background:#0a150e;border-radius:6px" });
     aCard.appendChild(el("div", { style: "font-weight:700;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px" },
       "Map placements (system calibration vs stack alignment)"));
-    const tbl = el("div", { style: "display:grid;grid-template-columns:1fr auto auto auto;gap:3px 12px;font-size:11px;align-items:center" });
-    for (const h of ["Map", "System says", "Stack says", ""]) {
+    const tbl = el("div", { style: "display:grid;grid-template-columns:1fr auto auto auto auto;gap:3px 12px;font-size:11px;align-items:center" });
+    for (const h of ["Map", "System says", "Stack says", "", ""]) {
       tbl.appendChild(el("div", { style: "font-weight:600;color:#64748b;font-size:10px;text-transform:uppercase" }, h));
     }
     const fmt = (t) => t && t.scale_x_m != null
       ? `${Number(t.scale_x_m).toFixed(1)}×${Number(t.scale_y_m).toFixed(1)}m @ (${Number(t.origin_x_m).toFixed(1)}, ${Number(t.origin_y_m).toFixed(1)})`
       : "—";
     for (const a of alignRows) {
+      const showing = mapState._roomsAlignPreview === a.map_id;
       tbl.appendChild(el("div", { style: "color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" },
         a.name + (a.system && a.system.measured ? " 📏" : "")));
       tbl.appendChild(el("div", { class: "mono", style: `color:${a.agrees ? "#52b788" : "#f59e0b"}` }, fmt(a.system)));
       tbl.appendChild(el("div", { class: "mono", style: "color:#94a3b8" }, fmt(a.stack)));
+      tbl.appendChild(el("button", {
+        class: "btn inline" + (showing ? " primary" : ""),
+        style: "font-size:10px;padding:2px 8px",
+        title: "Draw both placements on the canvas — amber = system, cyan = stack",
+        onclick: () => {
+          mapState._roomsAlignPreview = showing ? null : a.map_id;
+          ctx.actions.renderRooms();
+        },
+      }, showing ? "👁 Hide" : "👁 Show"));
       if (a.agrees) {
         tbl.appendChild(el("div", { style: "color:#52b788;font-size:10px" }, "✓ aligned"));
       } else if (a.stack) {
