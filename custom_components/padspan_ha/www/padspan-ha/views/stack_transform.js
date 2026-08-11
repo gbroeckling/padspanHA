@@ -20,6 +20,63 @@ export function imageAr(map) {
          ((map && map.image && map.image.width) || 800);
 }
 
+// ── Fabric → shared world space ─────────────────────────────────────────────
+// The room fabric (model.room_geometry_m, metres) is the ground truth once a
+// floor is built; house-level views should render IT, not each photo's own
+// hand-traced room_bounds. The bridge is the metre anchor: the one genuinely
+// measured map (real reference_measurements) pins the stack world frame to
+// metres, so fabric metres ÷ m_per_world drop straight into the same world
+// coordinates every stacked view already uses.
+
+// Find the measured map that anchors the world frame. Returns
+// {map_id, m_per_world} or null when nothing was ever really measured.
+export function metreAnchor(mapsList, modelTransforms) {
+  for (const m of (mapsList || [])) {
+    const t = (modelTransforms || {})[m.id];
+    if (!t || !(t.reference_measurements || []).length) continue;
+    const sx = Number(t.scale_x_m), sy = Number(t.scale_y_m);
+    if (!(sx > 0) || !(sy > 0)) continue;
+    const stk = m.stack || {};
+    const worldW = (Number(stk.scale) || 1) * (Number(stk.scale_x_adj) || 1);
+    if (!(worldW > 0)) continue;
+    return { map_id: m.id, m_per_world: sx / worldW };
+  }
+  return null;
+}
+
+// All fabric rooms converted into stack-world coordinates:
+// { room: { floor_id, type, pts: [[wx,wy],...] } }   (circles become 16-gons
+// so every consumer can stay polygon-only). Returns null when the fabric is
+// empty or unanchored — callers then fall back to per-map room_bounds.
+export function fabricWorldRooms(mapsList, model) {
+  const geo = (model && model.room_geometry_m) || {};
+  const names = Object.keys(geo);
+  if (!names.length) return null;
+  const anchor = metreAnchor(mapsList, model && model.map_transforms);
+  if (!anchor) return null;
+  const k = 1 / anchor.m_per_world;
+  const out = {};
+  for (const room of names) {
+    const g = geo[room];
+    if (!g || typeof g !== "object") continue;
+    if (g.type === "poly" && Array.isArray(g.points_m) && g.points_m.length >= 3) {
+      out[room] = {
+        floor_id: String(g.floor_id || "main"), type: "poly",
+        pts: g.points_m.map(p => [p[0] * k, p[1] * k]),
+      };
+    } else if (g.type === "circle") {
+      const cx = (g.cx_m || 0) * k, cy = (g.cy_m || 0) * k, r = (g.r_m || 0.5) * k;
+      const pts = [];
+      for (let i = 0; i < 16; i++) {
+        const a = i * Math.PI / 8;
+        pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+      }
+      out[room] = { floor_id: String(g.floor_id || "main"), type: "circle", pts };
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 // makeStackXform(stk, fallbackAr) -> { ar, mapPt, invMapPt }
 //   mapPt(px, py)   : map-fraction -> world
 //   invMapPt(wx, wy): world -> map-fraction (inverse of mapPt)

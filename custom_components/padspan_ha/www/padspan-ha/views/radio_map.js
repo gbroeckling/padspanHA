@@ -855,15 +855,20 @@ export function modelIsoHeatmapSVG(groupMaps, mapTransforms, iso, z, settings, a
     }
   }
 
-  // Room bounds in world coords for adaptive data lookup
+  // Room bounds in world coords for adaptive data lookup — fabric-first
   const _isoRoomBoundsW = [];
   if (_sourceBlend > 0 && _adaptiveFingerprints) {
+    const _fab = _fabricRoomPolysW(groupMaps);
+    if (_fab) {
+      _isoRoomBoundsW.push(..._fab);
+    } else {
     for (const m of groupMaps) {
       const tf = mapTransforms[m.id]; if (!tf || !tf.mapPt) continue;
       for (const [room, b] of Object.entries(m.room_bounds || {})) {
         if (!b || b.type !== "poly" || !b.points || b.points.length < 3) continue;
         _isoRoomBoundsW.push({ room, polyW: b.points.map(p => tf.mapPt(Number(p[0]), Number(p[1]))) });
       }
+    }
     }
   }
 
@@ -1140,8 +1145,13 @@ export function modelFloorHeatmapSVG(floorMaps, mapPtFns, w2v, wBB, settings, al
   }
 
   // Build room boundary polygons in world coords (for adaptive data lookup)
+  // — fabric-first, per-photo bounds as fallback
   const roomBoundsWorld = [];
   if (_sourceBlend > 0 && _adaptiveFingerprints) {
+    const _fab = _fabricRoomPolysW(floorMaps);
+    if (_fab) {
+      roomBoundsWorld.push(..._fab);
+    } else {
     for (const m of floorMaps) {
       const mpt = mapPtFns[m.id]; if (!mpt) continue;
       for (const [room, b] of Object.entries(m.room_bounds || {})) {
@@ -1149,6 +1159,7 @@ export function modelFloorHeatmapSVG(floorMaps, mapPtFns, w2v, wBB, settings, al
         const polyW = b.points.map(p => mpt(Number(p[0]), Number(p[1])));
         roomBoundsWorld.push({ room, polyW });
       }
+    }
     }
   }
 
@@ -1425,6 +1436,21 @@ let _adaptiveFingerprints = null; // { room: { scanner: mean_rssi } }
 export function setSourceBlend(v) { _sourceBlend = Math.max(0, Math.min(100, v ?? 0)); }
 export function setAdaptiveData(fps) { _adaptiveFingerprints = fps; }
 
+// Fabric room shapes in world coords (from stack_transform.fabricWorldRooms),
+// set by the caller before rendering. When present, adaptive point-in-room
+// hit-testing uses the committed fabric instead of per-photo room_bounds.
+let _fabricWorld = null; // { room: { floor_id, pts: [[wx,wy],...] } } | null
+export function setFabricWorld(fw) { _fabricWorld = fw || null; }
+function _fabricRoomPolysW(maps) {
+  if (!_fabricWorld) return null;
+  const fids = new Set((maps || []).map(m => String(m.stack?.floor_id || m.floor_id || "main")));
+  const out = [];
+  for (const [room, fr] of Object.entries(_fabricWorld)) {
+    if (fids.has(fr.floor_id)) out.push({ room, polyW: fr.pts });
+  }
+  return out.length ? out : null;
+}
+
 /**
  * Get adaptive correction for a world point.
  * Returns a dBm OFFSET (positive = real coverage is better than model,
@@ -1593,10 +1619,12 @@ export function isoDistortionSVG(calPoints, groupMaps, mapTransforms, iso, z, se
     for (const r of (m.receivers||[])) { if (r.x==null||r.y==null) continue; const [wx,wy]=tf.mapPt(r.x,r.y); _dScanners.push({wx,wy,floorDist:fd,qualityOffset:_dqMap[r.source||r.id||""]||0}); }
     for (const bar of (m.rf_barriers||[])) { const pts=bar.points||[]; if(pts.length<2) continue; _dBarriers.push({points:pts.map(p=>{const[wx,wy]=tf.mapPt(Number(p[0]),Number(p[1]));return[wx,wy];}),attenuation_dbm:bar.attenuation_dbm||6}); }
   }
-  // Room bounds for adaptive offset
+  // Room bounds for adaptive offset — fabric-first
   const _dRoomBW = [];
   if (_sourceBlend > 0 && _adaptiveFingerprints) {
-    for (const m of groupMaps) { const tf=mapTransforms[m.id]; if(!tf||!tf.mapPt) continue; for (const [room,b] of Object.entries(m.room_bounds||{})) { if(!b||b.type!=="poly"||!b.points||b.points.length<3) continue; _dRoomBW.push({room,polyW:b.points.map(p=>tf.mapPt(Number(p[0]),Number(p[1])))}); } }
+    const _fab = _fabricRoomPolysW(groupMaps);
+    if (_fab) _dRoomBW.push(..._fab);
+    else for (const m of groupMaps) { const tf=mapTransforms[m.id]; if(!tf||!tf.mapPt) continue; for (const [room,b] of Object.entries(m.room_bounds||{})) { if(!b||b.type!=="poly"||!b.points||b.points.length<3) continue; _dRoomBW.push({room,polyW:b.points.map(p=>tf.mapPt(Number(p[0]),Number(p[1])))}); } }
   }
 
   // Build grid with warped positions + model-based RSSI coloring

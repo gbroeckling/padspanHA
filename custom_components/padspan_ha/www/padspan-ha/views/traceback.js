@@ -9,7 +9,7 @@
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { makeStackXform, imageAr } =
+const { makeStackXform, imageAr, fabricWorldRooms } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 
 export function render(ctx) {
@@ -66,12 +66,29 @@ export function render(ctx) {
   }
 
   // Build room centroid iso positions (rebuilt when sliders change)
-  // Uses full map transform (rotation, affine, ref_ar, scale_x_adj)
+  // Fabric-first: committed metre fabric (via measured anchor) wins; the
+  // per-photo room_bounds below only fill rooms the fabric doesn't have.
+  const _tbFabricW = fabricWorldRooms(sorted, ctx.state.model);
+  const _tbFloorZ = {};
+  for (const m of sorted) {
+    const fid = String(m.stack?.floor_id || m.floor_id || "main");
+    if (_tbFloorZ[fid] === undefined) _tbFloorZ[fid] = m.stack?.z_level || 0;
+  }
   const roomIsoPos = {};
   const _roomLower = {}; // lowercase → original case for case-insensitive lookup
   function _rebuildRoomPositions() {
     for (const k of Object.keys(roomIsoPos)) delete roomIsoPos[k];
     for (const k of Object.keys(_roomLower)) delete _roomLower[k];
+    if (_tbFabricW) {
+      for (const [room, fr] of Object.entries(_tbFabricW)) {
+        const z = _tbFloorZ[fr.floor_id];
+        if (z === undefined) continue;
+        const cx = fr.pts.reduce((a, p) => a + p[0], 0) / fr.pts.length;
+        const cy = fr.pts.reduce((a, p) => a + p[1], 0) / fr.pts.length;
+        roomIsoPos[room] = iso(cx, cy, z);
+        _roomLower[room.toLowerCase()] = room;
+      }
+    }
     for (const m of sorted) {
       const tf = mapTransforms[m.id];
       if (!tf) continue;
@@ -276,19 +293,36 @@ export function render(ctx) {
       s += `<g opacity="${go}">`;
       s += `<polygon points="${pts([TL, TR, BR, BL])}" fill="url(#tbpat_${lidx})" stroke="${lyrColor}" stroke-width="1.2" stroke-dasharray="10,5" opacity="0.5"/>`;
 
-      // Room polygons
+      // Room polygons — fabric-first, per-photo bounds as fallback
+      const _emitTbRoom = (room, pp, lix, liy) => {
+        const color = roomColorFn(room);
+        s += `<polygon points="${pp}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="1.2" opacity="0.85"/>`;
+        s += `<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600" opacity="0.85">${_esc(room)}</text>`;
+      };
+      const _tbGroupFids = new Set(group.map(m => String(m.stack?.floor_id || m.floor_id || "main")));
+      const _tbFabHere = _tbFabricW
+        ? Object.entries(_tbFabricW).filter(([, fr]) => _tbGroupFids.has(fr.floor_id)) : [];
+      if (_tbFabHere.length) {
+        for (const [room, fr] of _tbFabHere) {
+          const pp = fr.pts.map(p => pt(iso(p[0], p[1], z))).join(" ");
+          const cx2 = fr.pts.reduce((a, p) => a + p[0], 0) / fr.pts.length;
+          const cy2 = fr.pts.reduce((a, p) => a + p[1], 0) / fr.pts.length;
+          const [lix, liy] = iso(cx2, cy2, z);
+          _emitTbRoom(room, pp, lix, liy);
+        }
+      }
       for (const m of group) {
         const mapPt = makeStackXform(m.stack, imageAr(m)).mapPt;
-        for (const [room, b] of Object.entries(m.room_bounds || {})) {
-          if (!b || b.type !== "poly" || !Array.isArray(b.points) || b.points.length < 3) continue;
-          const color = roomColorFn(room);
-          const pp = b.points.map(p => { const [wx, wy] = mapPt(p[0], p[1]); return pt(iso(wx, wy, z)); }).join(" ");
-          s += `<polygon points="${pp}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="1.2" opacity="0.85"/>`;
-          const cx2 = b.points.reduce((a, p) => a + p[0], 0) / b.points.length;
-          const cy2 = b.points.reduce((a, p) => a + p[1], 0) / b.points.length;
-          const [lwx, lwy] = mapPt(cx2, cy2);
-          const [lix, liy] = iso(lwx, lwy, z);
-          s += `<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600" opacity="0.85">${_esc(room)}</text>`;
+        if (!_tbFabHere.length) {
+          for (const [room, b] of Object.entries(m.room_bounds || {})) {
+            if (!b || b.type !== "poly" || !Array.isArray(b.points) || b.points.length < 3) continue;
+            const pp = b.points.map(p => { const [wx, wy] = mapPt(p[0], p[1]); return pt(iso(wx, wy, z)); }).join(" ");
+            const cx2 = b.points.reduce((a, p) => a + p[0], 0) / b.points.length;
+            const cy2 = b.points.reduce((a, p) => a + p[1], 0) / b.points.length;
+            const [lwx, lwy] = mapPt(cx2, cy2);
+            const [lix, liy] = iso(lwx, lwy, z);
+            _emitTbRoom(room, pp, lix, liy);
+          }
         }
         // Receivers
         for (const r of (m.receivers || [])) {
@@ -575,19 +609,36 @@ export function render(ctx) {
       s += `<g opacity="${go}">`;
       s += `<polygon points="${pts([TL, TR, BR, BL])}" fill="url(#dpat_${lidx})" stroke="${lyrColor}" stroke-width="1.2" stroke-dasharray="10,5" opacity="0.5"/>`;
 
+      // Room polygons — fabric-first, per-photo bounds as fallback
+      const _dGroupFids = new Set(group.map(m => String(m.stack?.floor_id || m.floor_id || "main")));
+      const _dFabHere = _tbFabricW
+        ? Object.entries(_tbFabricW).filter(([, fr]) => _dGroupFids.has(fr.floor_id)) : [];
+      const _emitDRoom = (room, pp, lix, liy) => {
+        const color = roomColorFn(room);
+        s += `<polygon points="${pp}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="1.2" opacity="0.85"/>`;
+        s += `<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600" opacity="0.85">${_esc(room)}</text>`;
+      };
+      if (_dFabHere.length) {
+        for (const [room, fr] of _dFabHere) {
+          const pp = fr.pts.map(p => pt(iso(p[0], p[1], z))).join(" ");
+          const ccx = fr.pts.reduce((a, p) => a + p[0], 0) / fr.pts.length;
+          const ccy = fr.pts.reduce((a, p) => a + p[1], 0) / fr.pts.length;
+          const [lix, liy] = iso(ccx, ccy, z);
+          _emitDRoom(room, pp, lix, liy);
+        }
+      } else {
       for (const m of group) {
         const mapPt = makeStackXform(m.stack, imageAr(m)).mapPt;
         for (const [room, b] of Object.entries(m.room_bounds || {})) {
           if (!b || b.type !== "poly" || !Array.isArray(b.points) || b.points.length < 3) continue;
-          const color = roomColorFn(room);
           const pp = b.points.map(p => { const [wx, wy] = mapPt(p[0], p[1]); return pt(iso(wx, wy, z)); }).join(" ");
-          s += `<polygon points="${pp}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="1.2" opacity="0.85"/>`;
           const ccx = b.points.reduce((a, p) => a + p[0], 0) / b.points.length;
           const ccy = b.points.reduce((a, p) => a + p[1], 0) / b.points.length;
           const [lwx, lwy] = mapPt(ccx, ccy);
           const [lix, liy] = iso(lwx, lwy, z);
-          s += `<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600" opacity="0.85">${_esc(room)}</text>`;
+          _emitDRoom(room, pp, lix, liy);
         }
+      }
       }
       s += `<circle cx="${Math.round(BL[0])}" cy="${Math.round(BL[1])}" r="12" fill="${lyrColor}" opacity="0.7"/>`;
       s += `<text x="${Math.round(BL[0])}" y="${Math.round(BL[1]) + 5}" text-anchor="middle" fill="#071008" font-size="11" font-weight="700">${lidx + 1}</text>`;

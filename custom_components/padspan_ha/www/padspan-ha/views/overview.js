@@ -5,7 +5,7 @@
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { makeStackXform, imageAr } =
+const { makeStackXform, imageAr, fabricWorldRooms } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 
 /**
@@ -722,6 +722,16 @@ export function render(ctx){
     };
     const _f = v => v.toFixed(5);
 
+    // ── Fabric-first rooms: once the committed fabric exists (and a measured
+    // map anchors it to the world frame), the house view draws IT — the
+    // per-photo room_bounds below stay only as the un-anchored fallback.
+    const _fabricW2d = fabricWorldRooms(maps_list, ctx.state.model);
+    const _activeInv2d = makeStackXform(activeMap.stack, imageAr(activeMap)).invMapPt;
+    const _fabricRooms2d = _fabricW2d
+      ? Object.entries(_fabricW2d).filter(([, fr]) => fr.floor_id === String(activeFloorId || "main"))
+      : null;
+    const _fabricPt2d = (wx, wy) => isStitched ? w2v(wx, wy) : _activeInv2d(wx, wy);
+
     // Build SVG content — viewBox="0 0 1 {aspect}" with xMidYMid meet
     // for correct aspect ratio in stitched mode.
     const vAspect = isStitched ? (wH / wW) : 1;
@@ -760,6 +770,7 @@ export function render(ctx){
         // Prefer model-based heatmap (scanner positions + physics)
         let floorSvg = "";
         if (_radioMapMod.modelFloorHeatmapSVG) {
+          if (_radioMapMod.setFabricWorld) _radioMapMod.setFabricWorld(_fabricW2d);
           floorSvg = _radioMapMod.modelFloorHeatmapSVG(renderMaps, _mapPts, w2v, wBB, ctx.state.settings, visible, liveSnap);
         }
         if (!floorSvg && _radioMapMod.floorHeatmapSVG) {
@@ -801,6 +812,17 @@ export function render(ctx){
 
       // ── Room boundaries ─────────────────────────────────────────────────
       if (F.rooms) {
+        if (_fabricRooms2d && _fabricRooms2d.length) {
+          for (const [room, fr] of _fabricRooms2d) {
+            const color = roomColorFn(room);
+            const vpts = fr.pts.map(([wx, wy]) => _fabricPt2d(wx, wy));
+            const pp = vpts.map(([vx, vy]) => `${_f(vx)},${_f(vy)}`).join(" ");
+            s += `<polygon points="${pp}" fill="${color}" fill-opacity="0.12" stroke="${color}" stroke-width="${_sw}" stroke-opacity="0.7"/>`;
+            const vcx = vpts.reduce((a, p) => a + p[0], 0) / vpts.length;
+            const vcy = vpts.reduce((a, p) => a + p[1], 0) / vpts.length;
+            s += `<text x="${_f(vcx)}" y="${_f(vcy)}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="${_fsRoom}" font-weight="600" opacity="0.8">${_esc(room)}</text>`;
+          }
+        } else {
         for (const m of renderMaps) {
           for (const [room, b] of Object.entries(m.room_bounds || {})) {
             if (!b || b.type !== "poly" || !Array.isArray(b.points) || b.points.length < 3) continue;
@@ -812,6 +834,7 @@ export function render(ctx){
             const [vcx, vcy] = _pt(m, cx, cy);
             s += `<text x="${_f(vcx)}" y="${_f(vcy)}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="${_fsRoom}" font-weight="600" opacity="0.8">${_esc(room)}</text>`;
           }
+        }
         }
       }
 
@@ -840,6 +863,15 @@ export function render(ctx){
 
       // ── Objects positioned on floor maps ─────────────────────────────────
       const roomCentroids = {};
+      if (_fabricRooms2d && _fabricRooms2d.length) {
+        for (const [room, fr] of _fabricRooms2d) {
+          const vpts = fr.pts.map(([wx, wy]) => _fabricPt2d(wx, wy));
+          roomCentroids[room] = {
+            x: vpts.reduce((a, p) => a + p[0], 0) / vpts.length,
+            y: vpts.reduce((a, p) => a + p[1], 0) / vpts.length,
+          };
+        }
+      } else {
       for (const m of renderMaps) {
         for (const [room, b] of Object.entries(m.room_bounds || {})) {
           if (!b || !b.points || b.points.length < 3) continue;
@@ -849,6 +881,7 @@ export function render(ctx){
           const [vx, vy] = _pt(m, cx, cy);
           roomCentroids[room] = { x: vx, y: vy };
         }
+      }
       }
 
       const _roomObjIdx = {};
@@ -1413,19 +1446,43 @@ export function render(ctx){
     // Build room centroid + receiver iso positions for live data overlay
     // _rebuildPositions() is called initially and whenever iso params change (slider)
     // Uses mapTransforms for correct rotation/ref_ar/scale_x_adj alignment.
+    // Fabric-first: once the committed metre fabric exists (anchored to the
+    // world frame by a measured map), room centroids come from IT — per-photo
+    // room_bounds stay only as the un-anchored fallback and for outside maps.
+    const _isoFabricW = fabricWorldRooms(maps_list, ctx.state.model);
+    const _mapFid = m => String(m.stack?.floor_id || m.floor_id || "main");
     const roomIsoPos = {}, receiverIsoByRoom = {};
     function _rebuildPositions(){
       for(const k of Object.keys(roomIsoPos)) delete roomIsoPos[k];
       for(const k of Object.keys(receiverIsoByRoom)) delete receiverIsoByRoom[k];
+      if(_isoFabricW){
+        const floorZ = {};
+        for(const m of sorted){
+          if(_isOutMap(m)) continue;
+          const fid = _mapFid(m);
+          if(floorZ[fid] === undefined) floorZ[fid] = (m.stack||{}).z_level||0;
+        }
+        for(const [room,fr] of Object.entries(_isoFabricW)){
+          const z = floorZ[fr.floor_id];
+          if(z === undefined) continue;
+          const cx=fr.pts.reduce((a,p)=>a+p[0],0)/fr.pts.length;
+          const cy=fr.pts.reduce((a,p)=>a+p[1],0)/fr.pts.length;
+          roomIsoPos[room] = iso(cx, cy, z);
+        }
+      }
       for(const m of sorted){
         const tf = mapTransforms[m.id]; if(!tf) continue;
         const z = tf.z;
-        for(const [room,b] of Object.entries(m.room_bounds||{})){
-          if(!b||b.type!=="poly"||!Array.isArray(b.points)||b.points.length<3) continue;
-          const cx=b.points.reduce((a,p)=>a+p[0],0)/b.points.length;
-          const cy=b.points.reduce((a,p)=>a+p[1],0)/b.points.length;
-          const [wx,wy]=tf.mapPt(cx,cy);
-          roomIsoPos[room] = iso(wx, wy, z);
+        // With a fabric, only outside maps still contribute room centroids.
+        if(!_isoFabricW || _isOutMap(m)){
+          for(const [room,b] of Object.entries(m.room_bounds||{})){
+            if(roomIsoPos[room]) continue;
+            if(!b||b.type!=="poly"||!Array.isArray(b.points)||b.points.length<3) continue;
+            const cx=b.points.reduce((a,p)=>a+p[0],0)/b.points.length;
+            const cy=b.points.reduce((a,p)=>a+p[1],0)/b.points.length;
+            const [wx,wy]=tf.mapPt(cx,cy);
+            roomIsoPos[room] = iso(wx, wy, z);
+          }
         }
         for(const r of (m.receivers||[])){
           if(r.room && !receiverIsoByRoom[r.room]){
@@ -1438,7 +1495,8 @@ export function render(ctx){
 
     if(ctx.state._overviewIsoFocusIdx === undefined)
       ctx.state._overviewIsoFocusIdx = Math.max(0, Math.min(ctx.state.settings?.overview_iso_focus ?? 0, _isoPos.length-1));
-    const hasBounds = sorted.some(m=>Object.keys(m.room_bounds||{}).length>0);
+    const hasBounds = sorted.some(m=>Object.keys(m.room_bounds||{}).length>0)
+      || !!(_isoFabricW && Object.keys(_isoFabricW).length);
 
     // ── Fingerprint positioning ─────────────────────────────────────────────
     // Load calibration data the first time (non-blocking; re-renders when ready)
@@ -1743,6 +1801,7 @@ export function render(ctx){
           // Set source blend + adaptive data before rendering
           if (_isoRadioMapMod.setSourceBlend) _isoRadioMapMod.setSourceBlend(ctx.state._heatSource ?? ctx.state.settings?.heatmap_source ?? 0);
           if (_isoRadioMapMod.setAdaptiveData) _isoRadioMapMod.setAdaptiveData(ctx.state._adaptiveFps || null);
+          if (_isoRadioMapMod.setFabricWorld) _isoRadioMapMod.setFabricWorld(_isoFabricW);
           // Prefer model-based heatmap
           if (_isoRadioMapMod.modelIsoHeatmapSVG) {
             s += _isoRadioMapMod.modelIsoHeatmapSVG(group, mapTransforms, iso, z, ctx.state.settings, sorted, liveSnap);
@@ -1765,23 +1824,45 @@ export function render(ctx){
           }
         }
 
-        // Room polygons
+        // Room polygons — fabric-first (per-photo bounds only as fallback
+        // and for outside maps, whose stacks aren't in the world frame).
+        const _emitIsoRoom = (room, pp, lix, liy) => {
+          const color = roomColorFn(room);
+          const _objsHere = allObjects.filter(o=>o.room===room);
+          const _roomTip = `${room}\n${_objsHere.length} object${_objsHere.length!==1?"s":""} detected`;
+          s += `<g data-tip="${_esc(_roomTip)}"><polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="2" opacity="0.9"/></g>`;
+          s += `<text x="${Math.round(lix)}" y="${Math.round(liy)+lidx*2}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600">${_esc(room)}</text>`;
+        };
+        const _legacyIsoRooms = (m) => {
+          const tf = mapTransforms[m.id]; if(!tf) return;
+          for(const [room,b] of Object.entries(m.room_bounds||{})){
+            if(!b||b.type!=="poly"||!Array.isArray(b.points)||b.points.length<3) continue;
+            const pp = b.points.map(p=>{const[wx,wy]=tf.mapPt(p[0],p[1]);return pt(iso(wx,wy,z));}).join(" ");
+            const cx=b.points.reduce((a,p)=>a+p[0],0)/b.points.length;
+            const cy=b.points.reduce((a,p)=>a+p[1],0)/b.points.length;
+            const [lwx,lwy]=tf.mapPt(cx,cy);
+            const [lix,liy]=iso(lwx,lwy,z);
+            _emitIsoRoom(room, pp, lix, liy);
+          }
+        };
+        const _groupFids = new Set(group.filter(m=>!_isOutMap(m)).map(_mapFid));
+        const _fabRoomsHere = _isoFabricW
+          ? Object.entries(_isoFabricW).filter(([,fr])=>_groupFids.has(fr.floor_id)) : [];
+        if(_fabRoomsHere.length){
+          for(const [room,fr] of _fabRoomsHere){
+            const pp = fr.pts.map(p=>pt(iso(p[0],p[1],z))).join(" ");
+            const cx=fr.pts.reduce((a,p)=>a+p[0],0)/fr.pts.length;
+            const cy=fr.pts.reduce((a,p)=>a+p[1],0)/fr.pts.length;
+            const [lix,liy]=iso(cx,cy,z);
+            _emitIsoRoom(room, pp, lix, liy);
+          }
+          for(const m of group) if(_isOutMap(m)) _legacyIsoRooms(m);
+        } else {
+          for(const m of group) _legacyIsoRooms(m);
+        }
         for(const m of group){
           const tf = mapTransforms[m.id]; if(!tf) continue;
           const mapPt = tf.mapPt;
-          for(const [room,b] of Object.entries(m.room_bounds||{})){
-            if(!b||b.type!=="poly"||!Array.isArray(b.points)||b.points.length<3) continue;
-            const color = roomColorFn(room);
-            const pp = b.points.map(p=>{const[wx,wy]=mapPt(p[0],p[1]);return pt(iso(wx,wy,z));}).join(" ");
-            const _objsHere = allObjects.filter(o=>o.room===room);
-            const _roomTip = `${room}\n${_objsHere.length} object${_objsHere.length!==1?"s":""} detected`;
-            s += `<g data-tip="${_esc(_roomTip)}"><polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="2" opacity="0.9"/></g>`;
-            const cx=b.points.reduce((a,p)=>a+p[0],0)/b.points.length;
-            const cy=b.points.reduce((a,p)=>a+p[1],0)/b.points.length;
-            const [lwx,lwy]=mapPt(cx,cy);
-            const [lix,liy]=iso(lwx,lwy,z);
-            s += `<text x="${Math.round(lix)}" y="${Math.round(liy)+lidx*2}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600">${_esc(room)}</text>`;
-          }
           // RF barriers — dotted white lines on 3D map
           if(ctx.state._overviewShowWalls){
             const _bars = m.rf_barriers || [];
@@ -2202,8 +2283,17 @@ export function render(ctx){
     const roomListPanel = document.createElement("div");
     roomListPanel.style.cssText = `margin-top:10px;display:${ctx.state._overviewShowRoomList?"block":"none"}`;
 
-    // Build room list from all visible maps
+    // Build room list — fabric roster first (ground truth), per-map bounds
+    // only for rooms/installs the fabric doesn't cover.
     const ovRoomRows = [];
+    if(_isoFabricW){
+      for(const [room, fr] of Object.entries(_isoFabricW)){
+        const haFlr = haFloors2.find(f=>String(f.id)===String(fr.floor_id));
+        const flLbl = haFlr ? (haFlr.name||haFlr.id) : (fr.floor_id||"—");
+        const objsInRoom = allObjects.filter(o=>o.room===room);
+        ovRoomRows.push({ room, map: "fabric", floor: flLbl, count: objsInRoom.length, objects: objsInRoom });
+      }
+    }
     for(const m of sorted){
       const floorId = m.stack?.floor_id || m.floor_id || "";
       const haFlr = haFloors2.find(f=>String(f.id)===String(floorId));
@@ -2575,6 +2665,7 @@ export function render(ctx){
           if (_isoRadioMapMod.setDistortionIntensity) _isoRadioMapMod.setDistortionIntensity(dv);
           if (_isoRadioMapMod.setSourceBlend) _isoRadioMapMod.setSourceBlend(sv);
           if (_isoRadioMapMod.setAdaptiveData) _isoRadioMapMod.setAdaptiveData(ctx.state._adaptiveFps || null);
+          if (_isoRadioMapMod.setFabricWorld && typeof _isoFabricW !== "undefined") _isoRadioMapMod.setFabricWorld(_isoFabricW);
         }
         // Debounce: wait 150ms after last slider move before rebuilding SVG
         _showProgress(30, "Rendering...");

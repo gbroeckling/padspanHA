@@ -12,12 +12,12 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.24.5";
-const BUILD_ID = "20260811T034733Z";
+const APP_VERSION = "0.24.6";
+const BUILD_ID = "20260811T040349Z";
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { makeStackXform, imageAr } =
+const { makeStackXform, imageAr, fabricWorldRooms } =
   await import(`./views/stack_transform.js${new URL(import.meta.url).search}`);
 
 // ── DOM helpers ──────────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ function hexCluster(n, r){
 }
 
 // ── Isometric 3-D SVG builder (same projection as Overview) ──────────────────
-function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[]){
+function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[], model=null){
   const TILE=220, CX=380, CY=590, W=760, BASE_H=940;
   const FG=floorGap, HG=horizGap||0;
   const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
@@ -147,7 +147,11 @@ function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap, 
   }
 
   const slabWZ=18/FG;
-  const hasBounds=sorted.some(m=>Object.keys(m.room_bounds||{}).length>0);
+  // Fabric-first: the committed metre fabric (anchored to the world frame by
+  // a measured map) is what the house looks like; per-photo room_bounds stay
+  // only as the un-anchored fallback. Also kills the "two Mains" duplication.
+  const fabricW = model ? fabricWorldRooms(maps_list, model) : null;
+  const hasBounds=sorted.some(m=>Object.keys(m.room_bounds||{}).length>0) || !!(fabricW && Object.keys(fabricW).length);
 
   for(const [z,group] of [...byLevel.entries()].sort((a,b)=>a[0]-b[0])){
     const isFocused=focusZ===null||(Array.isArray(focusZ)?focusZ.includes(z):focusZ===z);
@@ -190,12 +194,54 @@ function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap, 
         `${escSVG(l.code)}</text></g>`;
     };
 
-    // A floor with 2+ uploaded maps shares one z_level (group) here — each
-    // map's room_bounds is an independently hand-traced copy of the same
-    // real rooms, so drawing every map's copy stacks duplicate/overlapping
-    // polygons and labels ("two Mains"). Draw each room name once, from
-    // whichever map in the group traced it first.
-    const seenRooms=new Set();
+    // Room shapes: fabric-first (one true shape per room from the committed
+    // metre fabric). Per-photo room_bounds remain only as the un-anchored
+    // fallback — where the old "two Mains" duplication needed the seenRooms
+    // dedupe.
+    const groupFids = new Set(group.map(m=>String(m.stack?.floor_id||m.floor_id||"main")));
+    const fabHere = fabricW
+      ? Object.entries(fabricW).filter(([,fr])=>groupFids.has(fr.floor_id)) : [];
+    // Lights placed on ANY map of this group render at their exact spot and
+    // are excluded from the auto hex clusters.
+    const groupPlaced={};
+    for(const m of group) for(const lt of (m.lights||[])) groupPlaced[lt.entity_id]=lt;
+
+    const emitRoom=(room,pp,lix,liy)=>{
+      const color=roomColor(room);
+      s+=`<polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="1.5" opacity="0.9"/>`;
+      s+=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+
+        `fill="${color}" font-size="8" font-family="system-ui,sans-serif" opacity="0.7" pointer-events="none">`+
+        `${escSVG(room)}</text>`;
+      // Room assignment isn't known yet (registry still loading) — show a
+      // single pulsing placeholder instead of blocking the whole map on
+      // a multi-MB registry fetch; real hexes replace it once it lands.
+      if(lightsLoading){
+        s+=`<polygon points="${hexPts(lix,liy,HEX_R)}" fill="#374151" stroke="#60a5fa" stroke-width="2" opacity="0.5">`+
+          `<animate attributeName="opacity" values="0.25;0.65;0.25" dur="1.2s" repeatCount="indefinite"/>`+
+          `</polygon>`;
+        return;
+      }
+      // Hexagon cluster for this room's unplaced lights (Pro-positioned
+      // lights were already drawn at their exact spot).
+      const roomLights=(byRoom[room]||[]).filter(l=>!hiddenEids.has(l.entity_id) && !groupPlaced[l.entity_id]);
+      if(!roomLights.length) return;
+      const offsets=hexCluster(roomLights.length, HEX_R);
+      roomLights.forEach((l,idx)=>{
+        const [dx,dy]=offsets[idx];
+        s+=markerSvg(l, lix+dx, liy+dy, null);
+      });
+    };
+
+    if(fabHere.length){
+      for(const [room,fr] of fabHere){
+        const pp=fr.pts.map(p=>pt(iso(p[0],p[1],z))).join(" ");
+        const cx=fr.pts.reduce((a,p)=>a+p[0],0)/fr.pts.length;
+        const cy=fr.pts.reduce((a,p)=>a+p[1],0)/fr.pts.length;
+        const [lix,liy]=iso(cx,cy,z);
+        emitRoom(room,pp,lix,liy);
+      }
+    }
+    const seenRooms=new Set(fabHere.map(([room])=>room));
     for(const m of group){
       const mapPt = makeStackXform(m.stack, imageAr(m)).mapPt;
 
@@ -215,58 +261,28 @@ function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap, 
         s+=markerSvg(l,hx,hy,entry);
       }
 
+      if(fabHere.length) continue;   // the fabric drew this group's rooms
       for(const [room,b] of Object.entries(m.room_bounds||{})){
         if(!b || seenRooms.has(room)) continue;
         seenRooms.add(room);
-        const color=roomColor(room);
-
         let roomCx, roomCy;   // world-space centroid
+        let pp;
         if(b.type==="poly" && Array.isArray(b.points) && b.points.length>=3){
-          // Draw room polygon
-          const pp=b.points.map(p=>{const[wx,wy]=mapPt(p[0],p[1]);return pt(iso(wx,wy,z));}).join(" ");
-          s+=`<polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="1.5" opacity="0.9"/>`;
+          pp=b.points.map(p=>{const[wx,wy]=mapPt(p[0],p[1]);return pt(iso(wx,wy,z));}).join(" ");
           roomCx=b.points.reduce((a,p)=>a+p[0],0)/b.points.length;
           roomCy=b.points.reduce((a,p)=>a+p[1],0)/b.points.length;
         } else if(b.type==="circle"){
-          // Draw room circle (approximated as projected ellipse via poly)
           const N=16, rcx=b.cx??0.5, rcy=b.cy??0.5, rr=b.r??0.12;
-          const pp=Array.from({length:N},(_,i)=>{
+          pp=Array.from({length:N},(_,i)=>{
             const a=i*2*Math.PI/N;
             const[wx,wy]=mapPt(rcx+rr*Math.cos(a), rcy+rr*Math.sin(a));
             return pt(iso(wx,wy,z));
           }).join(" ");
-          s+=`<polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="1.5" opacity="0.9"/>`;
           roomCx=rcx; roomCy=rcy;
         } else { continue; }
-
-        // Room centroid in ISO screen coords
         const [lwx,lwy]=mapPt(roomCx,roomCy);
         const [lix,liy]=iso(lwx,lwy,z);
-
-        // Room name label
-        s+=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+
-          `fill="${color}" font-size="8" font-family="system-ui,sans-serif" opacity="0.7" pointer-events="none">`+
-          `${escSVG(room)}</text>`;
-
-        // Room assignment isn't known yet (registry still loading) — show a
-        // single pulsing placeholder instead of blocking the whole map on
-        // a multi-MB registry fetch; real hexes replace it once it lands.
-        if(lightsLoading){
-          s+=`<polygon points="${hexPts(lix,liy,HEX_R)}" fill="#374151" stroke="#60a5fa" stroke-width="2" opacity="0.5">`+
-            `<animate attributeName="opacity" values="0.25;0.65;0.25" dur="1.2s" repeatCount="indefinite"/>`+
-            `</polygon>`;
-          continue;
-        }
-
-        // Hexagon cluster for this room's unplaced lights (Pro-positioned
-        // lights were already drawn above at their exact spot).
-        const roomLights=(byRoom[room]||[]).filter(l=>!hiddenEids.has(l.entity_id) && !posByEid[l.entity_id]);
-        if(!roomLights.length) continue;
-        const offsets=hexCluster(roomLights.length, HEX_R);
-        roomLights.forEach((l,idx)=>{
-          const [dx,dy]=offsets[idx];
-          s+=markerSvg(l, lix+dx, liy+dy, null);
-        });
+        emitRoom(room,pp,lix,liy);
       }
     }
 
@@ -381,7 +397,11 @@ class PadSpanLightsApp extends HTMLElement {
   async _loadModel(){
     try{
       const res = await this._hass.callWS({ type:"padspan_ha/model_get" });
-      this.state.model = { areas: res?.areas||[], floors: res?.floors||[] };
+      this.state.model = {
+        areas: res?.areas||[], floors: res?.floors||[],
+        room_geometry_m: res?.room_geometry_m||{},
+        map_transforms: res?.map_transforms||{},
+      };
     }catch(e){}
   }
 
@@ -648,11 +668,11 @@ class PadSpanLightsApp extends HTMLElement {
     const isoDiv=document.createElement("div");
     isoDiv.style.cssText=`overflow:auto;border-radius:8px;background:#071008;padding:8px;`+
       `width:${Math.round(this.state._zoom*100)}%`;
-    isoDiv.innerHTML=buildIsoSVG(maps_list, byRoom, hidden, _getFocusZ(this.state._focusIdx), this.state._floorGap, this.state._horizGap, lightsByEid, lightsLoading, floors);
+    isoDiv.innerHTML=buildIsoSVG(maps_list, byRoom, hidden, _getFocusZ(this.state._focusIdx), this.state._floorGap, this.state._horizGap, lightsByEid, lightsLoading, floors, this.state.model);
 
     const rebuildISO=()=>{
       isoDiv.style.width=`${Math.round(this.state._zoom*100)}%`;
-      isoDiv.innerHTML=buildIsoSVG(maps_list, byRoom, hidden, _getFocusZ(this.state._focusIdx), this.state._floorGap, this.state._horizGap, lightsByEid, lightsLoading, floors);
+      isoDiv.innerHTML=buildIsoSVG(maps_list, byRoom, hidden, _getFocusZ(this.state._focusIdx), this.state._floorGap, this.state._horizGap, lightsByEid, lightsLoading, floors, this.state.model);
       wireHexClicks();
     };
 
