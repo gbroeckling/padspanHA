@@ -58,6 +58,10 @@ from .const import (
     DATA_ESPRESENSE_MQTT,
 )
 from .calibration_store import CalibrationStore
+from .fabric_truth import (
+    cluster_count as _cluster_count,
+    geom_bbox_m as _geom_bbox_m,
+)
 from .build_info import BUILD_ID, BUILD_VERSION
 from .bluetooth_live import get_bluetooth_live
 from .vendor_lookup import async_lookup_vendor
@@ -254,6 +258,8 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_fabric_correct_room)
     websocket_api.async_register_command(hass, ws_fabric_commit_floor)
     websocket_api.async_register_command(hass, ws_fabric_floor_finalize)
+    websocket_api.async_register_command(hass, ws_fabric_truth_candidates)
+    websocket_api.async_register_command(hass, ws_fabric_map_align_to_stack)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_set)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_remove)
     websocket_api.async_register_command(hass, ws_fabric_map_transform_set)
@@ -9136,6 +9142,7 @@ async def ws_fabric_correct_room(hass: HomeAssistant, connection, msg) -> None:
         "type": "padspan_ha/fabric_commit_floor",
         "floor_id": str,
         vol.Optional("mode"): vol.In(["bootstrap", "overwrite"]),
+        vol.Optional("source"): vol.In(["transforms", "stack"]),
     }
 )
 @websocket_api.require_admin
@@ -9143,9 +9150,11 @@ async def ws_fabric_correct_room(hass: HomeAssistant, connection, msg) -> None:
 async def ws_fabric_commit_floor(hass: HomeAssistant, connection, msg) -> None:
     """One-time bootstrap of a floor's fabric from its maps' room bounds.
 
-    The single moment map calibration ever reaches room geometry. Refuses on
-    a floor that already has rooms (or is committed) unless mode="overwrite",
-    which the UI only sends after an explicit confirmation.
+    The single moment map state ever reaches room geometry. `source` selects
+    the form of truth ("transforms" = per-map calibration, "stack" = the
+    hand-tuned alignment anchored by a measured map). Refuses on a floor
+    that already has rooms (or is committed) unless mode="overwrite", which
+    the UI only sends after an explicit confirmation.
     """
     fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
@@ -9156,11 +9165,160 @@ async def ws_fabric_commit_floor(hass: HomeAssistant, connection, msg) -> None:
     res = await fab.async_commit_floor(
         msg.get("floor_id") or DEFAULT_FLOOR_ID, ms, mdl,
         mode=msg.get("mode") or "bootstrap",
+        source=msg.get("source") or "transforms",
     )
     if not res.get("ok"):
         connection.send_error(msg["id"], res.get("error", "failed"), str(res))
         return
     connection.send_result(msg["id"], res)
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/fabric_truth_candidates",
+        "floor_id": str,
+    }
+)
+@websocket_api.async_response
+async def ws_fabric_truth_candidates(hass: HomeAssistant, connection, msg) -> None:
+    """Read-only preview of every form of truth a floor's layout can come
+    from, so the user can compare and pick the most accurate one BEFORE
+    anything is committed to the base fabric.
+
+    Returns {fabric, transforms, stack} — each {rooms, stats} (stack is null
+    with a reason when no measured map anchors the frame) — plus a per-map
+    alignment comparison (system placement vs stack placement).
+    """
+    from . import fabric_truth
+
+    fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    if not fab or not mdl or not ms:
+        connection.send_error(msg["id"], "no_stores", "Fabric/Model/Maps store not loaded")
+        return
+    fl = str(msg.get("floor_id") or DEFAULT_FLOOR_ID)
+    all_maps = ms.data.get("maps") or []
+    floor_maps = [m for m in all_maps if str(m.get("floor_id", DEFAULT_FLOOR_ID)) == fl]
+
+    fabric_rooms = {r: g for r, g in fab.rooms_flat().items() if str(g.get("floor_id")) == fl}
+    transforms_rooms = fabric_truth.rooms_from_transforms(floor_maps, mdl)
+
+    anchor = fabric_truth.find_metre_anchor(all_maps, mdl)
+    stack_rooms = fabric_truth.rooms_from_stack(floor_maps, anchor) if anchor else None
+
+    # Per-map alignment: where the system thinks the map sits vs where the
+    # hand-tuned stack puts it — surfaced so a wrong system placement can be
+    # FIXED (fabric_map_align_to_stack) rather than thrown away.
+    alignment = []
+    for m in floor_maps:
+        mid = m.get("id", "")
+        t = mdl.map_transform(mid) or {}
+        stack_t = fabric_truth.stack_metre_transform(m, anchor) if anchor else None
+        entry = {
+            "map_id": mid,
+            "name": m.get("name", mid),
+            "system": {
+                "origin_x_m": t.get("origin_x_m"), "origin_y_m": t.get("origin_y_m"),
+                "scale_x_m": t.get("scale_x_m"), "scale_y_m": t.get("scale_y_m"),
+                "measured": bool(t.get("reference_measurements")),
+            } if t else None,
+            "stack": stack_t,
+        }
+        if t and stack_t:
+            try:
+                entry["agrees"] = (
+                    abs(float(t.get("origin_x_m", 0)) - stack_t["origin_x_m"]) <= 0.2
+                    and abs(float(t.get("origin_y_m", 0)) - stack_t["origin_y_m"]) <= 0.2
+                    and abs(float(t.get("scale_x_m", 0)) - stack_t["scale_x_m"]) <= max(0.2, 0.02 * stack_t["scale_x_m"])
+                    and abs(float(t.get("scale_y_m", 0)) - stack_t["scale_y_m"]) <= max(0.2, 0.02 * stack_t["scale_y_m"])
+                )
+            except (TypeError, ValueError):
+                entry["agrees"] = False
+        alignment.append(entry)
+
+    connection.send_result(msg["id"], {
+        "floor_id": fl,
+        "fabric": {"rooms": fabric_rooms, "stats": fabric_truth.rooms_stats(fabric_rooms)},
+        "transforms": {"rooms": transforms_rooms, "stats": fabric_truth.rooms_stats(transforms_rooms)},
+        "stack": (
+            {"rooms": stack_rooms, "stats": fabric_truth.rooms_stats(stack_rooms), "anchor": anchor}
+            if stack_rooms is not None else None
+        ),
+        "stack_unavailable_reason": None if anchor else "no map anywhere in the stack has a reference-measured scale",
+        "alignment": alignment,
+    })
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/fabric_map_align_to_stack",
+        "map_id": str,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_fabric_map_align_to_stack(hass: HomeAssistant, connection, msg) -> None:
+    """Repair a map's system placement (map_transforms) to match the
+    hand-tuned stack alignment, instead of discarding it.
+
+    Writes the stack-implied metre transform via the sanctioned re-anchor
+    path, then re-derives this map's scanner/beacon/barrier metre positions
+    from their photo-space fracs through the corrected transform. Room
+    geometry is untouchable by design (fabric writers only). Calibration
+    point metres are NOT touched here (their own remediation is a retrain —
+    the known follow-up).
+    """
+    from . import fabric_truth
+
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    if not mdl or not ms:
+        connection.send_error(msg["id"], "no_stores", "Model/Maps store not loaded")
+        return
+    mid = (msg.get("map_id") or "").strip()
+    m = ms.get_map(mid)
+    if not m:
+        connection.send_error(msg["id"], "not_found", f"Map {mid} not found")
+        return
+    anchor = fabric_truth.find_metre_anchor(ms.data.get("maps") or [], mdl)
+    if not anchor:
+        connection.send_error(msg["id"], "no_metre_anchor",
+                              "No map anywhere in the stack has a reference-measured scale")
+        return
+    stack_t = fabric_truth.stack_metre_transform(m, anchor)
+    if not stack_t:
+        connection.send_error(msg["id"], "no_stack_transform", "Map has no usable stack placement")
+        return
+    if stack_t["shear_rad"] > 0.02:
+        connection.send_error(msg["id"], "sheared_stack",
+                              f"Stack placement is sheared ({stack_t['shear_rad']:.3f} rad) — "
+                              "the origin/scale/rotation model can't represent it losslessly")
+        return
+
+    new_t = {
+        "origin_x_m": stack_t["origin_x_m"],
+        "origin_y_m": stack_t["origin_y_m"],
+        "scale_x_m": stack_t["scale_x_m"],
+        "scale_y_m": stack_t["scale_y_m"],
+        "rotation_rad": stack_t["rotation_rad"],
+        "floor_id": str(m.get("floor_id", DEFAULT_FLOOR_ID)),
+    }
+    old_t = mdl.map_transform(mid) or {}
+    if old_t.get("reference_measurements"):
+        new_t["reference_measurements"] = old_t["reference_measurements"]
+    await mdl.async_set_map_transform(mid, new_t, reanchor=True)
+
+    # Re-derive this map's spatial data (scanners/barriers/beacons) from its
+    # photo-space fracs through the corrected placement.
+    resynced = await mdl.async_sync_spatial_from_map(mid, m)
+
+    connection.send_result(msg["id"], {
+        "ok": True, "map_id": mid,
+        "transform": {k: new_t[k] for k in ("origin_x_m", "origin_y_m", "scale_x_m", "scale_y_m", "rotation_rad")},
+        "spatial_resynced": resynced,
+        "calibration_touched": False,
+    })
 
 
 @websocket_api.websocket_command(
@@ -11113,48 +11271,6 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
         **stats,
         "source": url,
     })
-
-
-def _geom_bbox_m(geo: dict) -> tuple[float, float, float, float] | None:
-    """(min_x, min_y, max_x, max_y) of one room geometry, or None."""
-    try:
-        if geo.get("type") == "poly":
-            pts = geo.get("points_m") or []
-            if len(pts) < 3:
-                return None
-            xs = [float(p[0]) for p in pts]
-            ys = [float(p[1]) for p in pts]
-            return (min(xs), min(ys), max(xs), max(ys))
-        if geo.get("type") == "circle":
-            cx, cy, r = float(geo.get("cx_m", 0)), float(geo.get("cy_m", 0)), float(geo.get("r_m", 0.1))
-            return (cx - r, cy - r, cx + r, cy + r)
-    except (TypeError, ValueError, IndexError):
-        return None
-    return None
-
-
-def _cluster_count(bboxes: list, gap_m: float = 1.0) -> int:
-    """Connected components over room bboxes, adjacent when within gap_m."""
-    n = len(bboxes)
-    if n == 0:
-        return 0
-    half = gap_m / 2.0
-    parent = list(range(n))
-
-    def find(i: int) -> int:
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
-
-    for i in range(n):
-        ax0, ay0, ax1, ay1 = bboxes[i]
-        for j in range(i + 1, n):
-            bx0, by0, bx1, by1 = bboxes[j]
-            if (ax0 - half <= bx1 + half and bx0 - half <= ax1 + half
-                    and ay0 - half <= by1 + half and by0 - half <= ay1 + half):
-                parent[find(i)] = find(j)
-    return len({find(i) for i in range(n)})
 
 
 def _point_in_polygon(x: float, y: float, polygon: list) -> bool:

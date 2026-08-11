@@ -207,17 +207,26 @@ class FabricStore:
     # ── Writer 1: one-time bulk bootstrap ────────────────────────────────────
 
     async def async_commit_floor(
-        self, floor_id: str, maps_store: Any, model_store: Any, mode: str = "bootstrap"
+        self, floor_id: str, maps_store: Any, model_store: Any, mode: str = "bootstrap",
+        source: str = "transforms",
     ) -> dict[str, Any]:
-        """Build a floor's fabric from its maps' current room_bounds.
+        """Build a floor's fabric from its maps — the one and only moment map
+        state matters; after this call returns, maps never influence the
+        fabric again.
 
-        This is the one and only moment a map's calibration state matters —
-        after this call returns, the maps never influence the fabric again.
-        Merges by room name with master-map priority (mirrors the retired
-        migration rule).  Refuses on a committed floor unless mode="overwrite"
-        (which rebuilds and resets committed so the floor must be re-verified
-        and re-finalized).
+        source picks which form of truth converts the traced bounds to metres:
+          "transforms"  each map's own frac→metre calibration
+          "stack"       the hand-tuned stack alignment, anchored to metres by
+                        a genuinely measured map (the layout the Overview
+                        shows — usually the accurate one)
+
+        Merges by room name with master-map priority. Refuses on a committed
+        floor, and on any floor that already has rooms, unless
+        mode="overwrite" (which rebuilds and resets committed so the floor
+        must be re-verified and re-finalized).
         """
+        from . import fabric_truth
+
         fl = str(floor_id or DEFAULT_FLOOR_ID)
         existing = (self.data.get("floors") or {}).get(fl)
         if isinstance(existing, dict) and mode != "overwrite":
@@ -229,71 +238,45 @@ class FabricStore:
             if existing.get("rooms"):
                 return {"ok": False, "error": "floor_has_rooms", "floor_id": fl}
 
-        maps_list = [
+        floor_maps = [
             m for m in (maps_store.data.get("maps") or [])
             if str(m.get("floor_id", DEFAULT_FLOOR_ID)) == fl
         ]
-        # Master maps processed last so they overwrite non-master shapes.
-        sorted_maps = sorted(maps_list, key=lambda m: 1 if (m.get("stack") or {}).get("is_master") else 0)
+
+        if source == "stack":
+            anchor = fabric_truth.find_metre_anchor(maps_store.data.get("maps") or [], model_store)
+            if not anchor:
+                return {"ok": False, "error": "no_metre_anchor", "floor_id": fl}
+            candidate = fabric_truth.rooms_from_stack(floor_maps, anchor)
+        else:
+            candidate = fabric_truth.rooms_from_transforms(floor_maps, model_store)
 
         now = dt_util.utcnow().isoformat()
         prev_rooms = (existing.get("rooms") or {}) if isinstance(existing, dict) else {}
         new_rooms: dict[str, dict[str, Any]] = {}
-        master_rooms: set[str] = set()
         skipped_cross_floor: list[str] = []
         maps_used: list[str] = []
 
-        for m in sorted_maps:
-            mid = m.get("id", "")
-            if not mid or not model_store.map_transform(mid):
+        for rname, geo in candidate.items():
+            other = self._find_room_floor(rname)
+            if other is not None and other != fl:
+                skipped_cross_floor.append(rname)
                 continue
-            is_master = (m.get("stack") or {}).get("is_master", False)
-            used = False
-            for rname, b in (m.get("room_bounds") or {}).items():
-                if not isinstance(b, dict) or not isinstance(rname, str):
-                    continue
-                other = self._find_room_floor(rname)
-                if other is not None and other != fl:
-                    skipped_cross_floor.append(rname)
-                    continue
-                if rname in new_rooms and rname in master_rooms and not is_master:
-                    continue
-                geo: dict[str, Any] | None = None
-                btype = b.get("type", "poly")
-                if btype == "poly":
-                    pts_m = []
-                    for p in (b.get("points") or []):
-                        c = model_store.map_frac_to_metres(float(p[0]), float(p[1]), mid)
-                        if c:
-                            pts_m.append([round(c[0], 3), round(c[1], 3)])
-                    if len(pts_m) >= 3:
-                        geo = {"type": "poly", "points_m": pts_m}
-                elif btype == "circle":
-                    c = model_store.map_frac_to_metres(float(b.get("cx", 0.5)), float(b.get("cy", 0.5)), mid)
-                    t = model_store.map_transform(mid)
-                    if c and t:
-                        avg_scale = (float(t["scale_x_m"]) + float(t["scale_y_m"])) / 2
-                        geo = {
-                            "type": "circle",
-                            "cx_m": round(c[0], 3), "cy_m": round(c[1], 3),
-                            "r_m": round(float(b.get("r", 0.12)) * avg_scale, 3),
-                        }
-                if geo is None:
-                    continue
-                prev = prev_rooms.get(rname)
-                new_rooms[rname] = {
-                    **geo,
-                    "floor_id": fl,
-                    "source_map_id": mid,
-                    "committed_by": "commit",
-                    "revision": (int(prev.get("revision", 0)) + 1) if isinstance(prev, dict) else 1,
-                    "committed_at": now,
-                }
-                if is_master:
-                    master_rooms.add(rname)
-                used = True
-            if used:
-                maps_used.append(mid)
+            src_mid = geo.pop("source_map_id", None)
+            norm = _norm_geometry(geo)
+            if norm is None:
+                continue
+            prev = prev_rooms.get(rname)
+            new_rooms[rname] = {
+                **norm,
+                "floor_id": fl,
+                "source_map_id": src_mid,
+                "committed_by": "commit",
+                "revision": (int(prev.get("revision", 0)) + 1) if isinstance(prev, dict) else 1,
+                "committed_at": now,
+            }
+            if src_mid and src_mid not in maps_used:
+                maps_used.append(src_mid)
 
         if not new_rooms:
             return {"ok": False, "error": "no_mappable_rooms", "floor_id": fl}
@@ -304,10 +287,10 @@ class FabricStore:
         floor["committed"] = False
         floor["committed_at"] = None
         self.data.setdefault("floors", {})[fl] = floor
-        self._log_history(fl, "", f"commit_floor:{mode}", len(new_rooms))
+        self._log_history(fl, "", f"commit_floor:{mode}:{source}", len(new_rooms))
         await self.store.async_save(self.data)
         return {
-            "ok": True, "floor_id": fl, "mode": mode,
+            "ok": True, "floor_id": fl, "mode": mode, "source": source,
             "rooms": len(new_rooms), "maps_used": maps_used,
             "skipped_cross_floor": skipped_cross_floor,
         }

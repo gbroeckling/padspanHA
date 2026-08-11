@@ -7065,6 +7065,20 @@ function _geomCentroid(g) {
   return [g.cx_m || 0, g.cy_m || 0];
 }
 
+// Fetch the floor's truth candidates (fabric vs stack vs system calibration)
+// with a short cache so the tab doesn't hammer the WS on every re-render.
+function _fetchRoomsTruth(ctx, floorId) {
+  const mapState = ctx.state.maps;
+  const c = mapState._roomsTruthCache;
+  if (c && c.floorId === floorId && (Date.now() - c.ts) < 15000) return;
+  if (mapState._roomsTruthLoading === floorId) return;
+  mapState._roomsTruthLoading = floorId;
+  ctx.actions.wsCall("padspan_ha/fabric_truth_candidates", { floor_id: floorId })
+    .then(res => { mapState._roomsTruthCache = { floorId, ts: Date.now(), data: res }; })
+    .catch(err => { mapState._roomsTruthCache = { floorId, ts: Date.now(), data: null, error: String(err.message || err) }; })
+    .finally(() => { mapState._roomsTruthLoading = null; ctx.actions.renderRooms(); });
+}
+
 function _roomsTab(ctx, maps) {
   const { el, roomColor } = ctx.helpers;
   const card = el("div", { class: "card" });
@@ -7077,8 +7091,9 @@ function _roomsTab(ctx, maps) {
   ]));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
     "The real-world room fabric the positioning engine uses — edited directly, in metres. " +
-    "Photos are only a one-time tracing aid: click a room to select it (Shift-click for a group), " +
-    "drag to move, drag a corner to reshape. Nothing touches a photo's calibration."));
+    "Compare the saved fabric against the other forms of truth (your hand-tuned stack alignment, " +
+    "or each photo's own calibration), refine, and only then commit the best layout. " +
+    "Click a room to select it (Shift-click for a group), drag to move, drag a corner to reshape."));
 
   // ── Floor selector: every HA floor + any floor that has geometry or maps ─
   const haFloors = ctx.state.model?.floors || [];
@@ -7112,12 +7127,31 @@ function _roomsTab(ctx, maps) {
     mapState._roomsOrig = JSON.parse(JSON.stringify(draft));
     mapState._roomsDraftFloorId = floorId;
     mapState._roomsSel = [];
+    mapState._roomsTruth = "fabric";
   }
   const draft = mapState._roomsDraft || {};
   const orig = mapState._roomsOrig || {};
   const sel = new Set(mapState._roomsSel || []);
-  const geoms = Object.entries(draft);
-  const floorInfo = fabricFloors[floorId] || { committed: false, rooms: geoms.length };
+
+  // ── Forms of truth: saved fabric vs stack alignment vs per-map calibration ─
+  const floorMapsAll = maps.filter(m => String(m.floor_id || "main") === String(floorId));
+  if (floorMapsAll.length) _fetchRoomsTruth(ctx, floorId);
+  const truthCache = (mapState._roomsTruthCache && mapState._roomsTruthCache.floorId === floorId)
+    ? mapState._roomsTruthCache.data : null;
+  const candidates = {
+    stack: truthCache && truthCache.stack
+      ? { label: "Stack alignment", rooms: truthCache.stack.rooms, stats: truthCache.stack.stats }
+      : null,
+    transforms: truthCache
+      ? { label: "System calibration", rooms: truthCache.transforms.rooms, stats: truthCache.transforms.stats }
+      : null,
+  };
+  let truth = mapState._roomsTruth || "fabric";
+  if (truth !== "fabric" && !candidates[truth]) { truth = "fabric"; mapState._roomsTruth = "fabric"; }
+  const previewing = truth !== "fabric";
+  const editable = !previewing;
+  const geoms = previewing ? Object.entries(candidates[truth].rooms) : Object.entries(draft);
+  const floorInfo = fabricFloors[floorId] || { committed: false, rooms: Object.keys(draft).length };
   const committed = !!floorInfo.committed;
 
   const _geomPayload = (g) => g.type === "circle"
@@ -7126,10 +7160,45 @@ function _roomsTab(ctx, maps) {
   const _changed = (room) => JSON.stringify(_geomPayload(draft[room])) !== JSON.stringify(orig[room] ? _geomPayload(orig[room]) : null);
   const changedRooms = Object.keys(draft).filter(_changed);
 
+  // ── Truth selector — compare layouts before committing anything ────────
+  if (floorMapsAll.length) {
+    const selRow = el("div", { style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px" });
+    selRow.appendChild(el("span", { class: "muted", style: "font-size:12px" }, "Layout:"));
+    const statLbl = (stats) => stats
+      ? ` · ${stats.rooms} rooms · ${stats.clusters > 1 ? "⚠" + stats.clusters : "✓" + (stats.clusters || 0)}`
+      : "";
+    const fabricStats = { rooms: Object.keys(draft).length, clusters: _roomClusterCount(Object.entries(draft)) };
+    const options = [["fabric", "Fabric (saved)", fabricStats]];
+    if (candidates.stack) options.push(["stack", "Stack alignment", candidates.stack.stats]);
+    if (candidates.transforms) options.push(["transforms", "System calibration", candidates.transforms.stats]);
+    for (const [key, label, stats] of options) {
+      selRow.appendChild(el("button", {
+        class: "btn inline" + (truth === key ? " primary" : ""),
+        style: "font-size:11px",
+        onclick: () => { mapState._roomsTruth = key; mapState._roomsSel = []; ctx.actions.renderRooms(); },
+      }, label + statLbl(stats)));
+    }
+    if (truthCache && !candidates.stack) {
+      selRow.appendChild(el("span", { class: "muted", style: "font-size:10px" },
+        truthCache && mapState._roomsTruthCache.data === null
+          ? "candidates unavailable"
+          : "(no stack layout — no measured map anchors the frame)"));
+    }
+    if (!truthCache && mapState._roomsTruthLoading) {
+      selRow.appendChild(el("span", { class: "muted", style: "font-size:10px" }, "loading candidates…"));
+    }
+    card.appendChild(selRow);
+  }
+
   // ── Status / readout row ────────────────────────────────────────────────
   const bbox = _roomGeomBBoxM(geoms);
   const clusters = _roomClusterCount(geoms);
   const readout = el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;font-size:12px" });
+  if (previewing) {
+    readout.appendChild(el("span", {
+      class: "pill", style: "background:#1e2a4a;color:#93b4f8;font-weight:700",
+    }, `👁 Previewing ${candidates[truth].label} — nothing saved`));
+  }
   readout.appendChild(el("span", {
     class: "pill",
     style: committed ? "background:#14331f;color:#52b788;font-weight:700" : "background:#332714;color:#f59e0b;font-weight:700",
@@ -7237,7 +7306,7 @@ function _roomsTab(ctx, maps) {
     // Room shapes
     for (const [room, g] of geoms) {
       const color = roomColor(room);
-      const isSel = sel.has(room);
+      const isSel = editable && sel.has(room);
       let elS;
       if (g.type === "poly" && Array.isArray(g.points_m) && g.points_m.length >= 3) {
         elS = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
@@ -7250,12 +7319,13 @@ function _roomsTab(ctx, maps) {
       elS.setAttribute("fill-opacity", isSel ? "0.38" : "0.18");
       elS.setAttribute("stroke", isSel ? "#e879f9" : color);
       elS.setAttribute("stroke-width", String(strokeW * (isSel ? 1.8 : 1)));
-      elS.style.pointerEvents = "auto";
+      if (previewing) elS.setAttribute("stroke-dasharray", `${strokeW * 2.5},${strokeW * 1.5}`);
+      elS.style.pointerEvents = editable ? "auto" : "none";
       elS.style.cursor = isSel ? "move" : "pointer";
       if (isSel) elS.setAttribute("data-room-handle", "1");
       shapeEls[room] = elS;
 
-      elS.addEventListener("mousedown", (ev) => {
+      if (editable) elS.addEventListener("mousedown", (ev) => {
         if (ev.button !== 0) return;
         if (!sel.has(room)) {
           // Not selected: a plain click selects (Shift adds); no drag from here.
@@ -7296,7 +7366,7 @@ function _roomsTab(ctx, maps) {
     }
 
     // Vertex / circle handles — only in single-selection (precision mode)
-    if (sel.size === 1) {
+    if (editable && sel.size === 1) {
       const room = [...sel][0];
       const g = draft[room];
       const mkHandle = (idx, mx, my, title) => {
@@ -7329,7 +7399,7 @@ function _roomsTab(ctx, maps) {
     // ── Group tools: scale / rotate the selection about its centroid ──────
     // A mis-scaled cluster (the fallback-transform disease) needs a group
     // scale to fix — per-vertex dragging can't realistically resize 5 rooms.
-    if (sel.size) {
+    if (editable && sel.size) {
       const tools = el("div", { style: "display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:8px 10px;background:#0a150e;border-radius:6px;margin-top:8px;font-size:12px" });
       tools.appendChild(el("span", { style: "color:#94a3b8" }, `Group of ${sel.size}:`));
       const selCentroid = () => {
@@ -7367,74 +7437,97 @@ function _roomsTab(ctx, maps) {
       card.appendChild(tools);
     }
 
-    // ── Save / discard ────────────────────────────────────────────────────
-    const saveRow = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px" });
-    const saveBtn = el("button", {
-      class: "btn inline primary",
-      onclick: async (e) => {
-        if (!changedRooms.length) { ctx.toast("No changes to save"); return; }
-        const btn = e.currentTarget;
-        btn.disabled = true; btn.textContent = "Saving…";
-        let ok = 0, fail = 0;
-        for (const room of changedRooms) {
+    if (editable) {
+      // ── Save / discard ──────────────────────────────────────────────────
+      const saveRow = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px" });
+      const saveBtn = el("button", {
+        class: "btn inline primary",
+        onclick: async (e) => {
+          if (!changedRooms.length) { ctx.toast("No changes to save"); return; }
+          const btn = e.currentTarget;
+          btn.disabled = true; btn.textContent = "Saving…";
+          let ok = 0, fail = 0;
+          for (const room of changedRooms) {
+            try {
+              await ctx.actions.wsCall("padspan_ha/fabric_correct_room", {
+                floor_id: floorId, room, geometry: _geomPayload(draft[room]),
+              });
+              ok++;
+            } catch (err) { fail++; console.warn("fabric_correct_room failed", room, err); }
+          }
+          ctx.toast(fail ? `Saved ${ok}, failed ${fail}` : `✔ ${ok} room shape${ok !== 1 ? "s" : ""} corrected`, !!fail);
+          mapState._roomsDraftFloorId = null;   // re-copy from refreshed model
+          mapState._roomsTruthCache = null;
+          await ctx.actions.modelRefresh();
+        },
+      }, `💾 Save corrections${changedRooms.length ? ` (${changedRooms.length})` : ""}`);
+      saveRow.appendChild(saveBtn);
+      if (changedRooms.length) {
+        saveRow.appendChild(el("button", { class: "btn inline", onclick: () => {
+          mapState._roomsDraftFloorId = null; ctx.actions.renderRooms();
+        } }, "Discard changes"));
+      }
+      card.appendChild(saveRow);
+    } else {
+      // ── Preview actions: refine into the editor, or adopt outright ──────
+      const cand = candidates[truth];
+      const pRow = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px" });
+      pRow.appendChild(el("button", {
+        class: "btn inline primary",
+        onclick: () => {
+          // Candidate geometry becomes the editable draft (fabric-only rooms
+          // are kept) — refine with drag/scale/rotate, then Save commits it.
+          const merged = JSON.parse(JSON.stringify(mapState._roomsDraft || {}));
+          for (const [room, g] of Object.entries(cand.rooms)) {
+            merged[room] = { type: g.type, floor_id: floorId,
+              ...(g.type === "circle" ? { cx_m: g.cx_m, cy_m: g.cy_m, r_m: g.r_m } : { points_m: JSON.parse(JSON.stringify(g.points_m)) }) };
+          }
+          mapState._roomsDraft = merged;
+          mapState._roomsTruth = "fabric";
+          mapState._roomsSel = [];
+          ctx.toast(`${cand.label} loaded into the editor — refine, then Save corrections`);
+          ctx.actions.renderRooms();
+        },
+      }, "✏ Load into editor"));
+      pRow.appendChild(el("button", {
+        class: "btn inline",
+        onclick: async () => {
+          const hasRooms = Object.keys(draft).length > 0;
+          const verb = hasRooms ? `REPLACE all ${Object.keys(draft).length} saved room shapes` : "build this floor's fabric";
+          if (!confirm(`Adopt "${cand.label}" as the base fabric for "${floorId}"? This will ${verb}. You can keep refining afterwards; Finalize is a separate step.`)) return;
           try {
-            await ctx.actions.wsCall("padspan_ha/fabric_correct_room", {
-              floor_id: floorId, room, geometry: _geomPayload(draft[room]),
+            const r = await ctx.actions.wsCall("padspan_ha/fabric_commit_floor", {
+              floor_id: floorId, mode: hasRooms ? "overwrite" : "bootstrap", source: truth,
             });
-            ok++;
-          } catch (err) { fail++; console.warn("fabric_correct_room failed", room, err); }
-        }
-        ctx.toast(fail ? `Saved ${ok}, failed ${fail}` : `✔ ${ok} room shape${ok !== 1 ? "s" : ""} corrected`, !!fail);
-        mapState._roomsDraftFloorId = null;   // re-copy from refreshed model
-        await ctx.actions.modelRefresh();
-      },
-    }, `💾 Save corrections${changedRooms.length ? ` (${changedRooms.length})` : ""}`);
-    saveRow.appendChild(saveBtn);
-    if (changedRooms.length) {
-      saveRow.appendChild(el("button", { class: "btn inline", onclick: () => {
-        mapState._roomsDraftFloorId = null; ctx.actions.renderRooms();
-      } }, "Discard changes"));
+            ctx.toast(`Adopted ${cand.label}: ${r.rooms} rooms`);
+            mapState._roomsDraftFloorId = null;
+            mapState._roomsTruthCache = null;
+            mapState._roomsTruth = "fabric";
+            await ctx.actions.modelRefresh();
+          } catch (err) { ctx.toast("Adopt failed: " + (err.message || err), true); }
+        },
+      }, "✔ Adopt as fabric…"));
+      pRow.appendChild(el("span", { class: "muted", style: "font-size:11px" },
+        "Preview only — nothing changes until you Save or Adopt."));
+      card.appendChild(pRow);
     }
-    card.appendChild(saveRow);
   } else {
     card.appendChild(el("div", { class: "muted", style: "padding:8px;margin:8px 0" },
-      "No room shapes on this floor yet. Trace rooms on an uploaded photo in the Edit tab, " +
-      "then build the floor's fabric from them below — a one-time step."));
+      floorMapsAll.length
+        ? "No room shapes saved for this floor yet. Switch Layout above to preview the Stack alignment or System calibration, then Load into editor or Adopt."
+        : "No room shapes on this floor yet. Trace rooms on an uploaded photo in the Edit tab first."));
   }
 
-  // ── Build / finalize controls ───────────────────────────────────────────
+  // ── Finalize controls ───────────────────────────────────────────────────
   const admin = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #1e293b" });
-  const floorMaps = maps.filter(m => String(m.floor_id || "main") === String(floorId));
-  const refreshAfter = async () => { mapState._roomsDraftFloorId = null; await ctx.actions.modelRefresh(); };
+  const refreshAfter = async () => {
+    mapState._roomsDraftFloorId = null;
+    mapState._roomsTruthCache = null;
+    await ctx.actions.modelRefresh();
+  };
 
   if (!committed) {
-    if (!geoms.length && floorMaps.length) {
-      admin.appendChild(el("button", {
-        class: "btn inline primary",
-        onclick: async () => {
-          if (!confirm(`Build "${floorId}" from its ${floorMaps.length} map(s)? This converts the photo-traced room outlines into real-world fabric — a one-time bootstrap; afterwards the photos are no longer involved.`)) return;
-          try {
-            const r = await ctx.actions.wsCall("padspan_ha/fabric_commit_floor", { floor_id: floorId, mode: "bootstrap" });
-            ctx.toast(`Floor built: ${r.rooms} rooms from ${r.maps_used.length} map(s)`);
-            await refreshAfter();
-          } catch (err) { ctx.toast("Build failed: " + (err.message || err), true); }
-        },
-      }, "🧱 Build floor from maps"));
-    } else if (geoms.length && floorMaps.length) {
-      admin.appendChild(el("button", {
-        class: "btn inline",
-        style: "border-color:#7f1d1d;color:#fca5a5;font-size:11px",
-        onclick: async () => {
-          if (!confirm(`REBUILD "${floorId}" from its maps, throwing away ALL ${geoms.length} current room shapes (including any hand corrections)? This is rarely the right fix — dragging the rooms into place above usually is.`)) return;
-          try {
-            const r = await ctx.actions.wsCall("padspan_ha/fabric_commit_floor", { floor_id: floorId, mode: "overwrite" });
-            ctx.toast(`Floor rebuilt: ${r.rooms} rooms`);
-            await refreshAfter();
-          } catch (err) { ctx.toast("Rebuild failed: " + (err.message || err), true); }
-        },
-      }, "Rebuild from maps…"));
-    }
-    if (geoms.length) {
+    if (Object.keys(draft).length) {
       admin.appendChild(el("button", {
         class: "btn inline",
         style: "border-color:#52b788;color:#52b788",
@@ -7465,6 +7558,48 @@ function _roomsTab(ctx, maps) {
     }, "Unlock…"));
   }
   card.appendChild(admin);
+
+  // ── Map alignment: where the system thinks each map sits vs the stack ───
+  // A wrong system placement gets FIXED to match the hand-tuned alignment
+  // (repairing scanners/beacons/barriers derived from it), never discarded.
+  const alignRows = (truthCache && truthCache.alignment || []).filter(a => a.system || a.stack);
+  if (alignRows.length && candidates.stack) {
+    const aCard = el("div", { style: "margin-top:10px;padding:10px;background:#0a150e;border-radius:6px" });
+    aCard.appendChild(el("div", { style: "font-weight:700;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px" },
+      "Map placements (system calibration vs stack alignment)"));
+    const tbl = el("div", { style: "display:grid;grid-template-columns:1fr auto auto auto;gap:3px 12px;font-size:11px;align-items:center" });
+    for (const h of ["Map", "System says", "Stack says", ""]) {
+      tbl.appendChild(el("div", { style: "font-weight:600;color:#64748b;font-size:10px;text-transform:uppercase" }, h));
+    }
+    const fmt = (t) => t && t.scale_x_m != null
+      ? `${Number(t.scale_x_m).toFixed(1)}×${Number(t.scale_y_m).toFixed(1)}m @ (${Number(t.origin_x_m).toFixed(1)}, ${Number(t.origin_y_m).toFixed(1)})`
+      : "—";
+    for (const a of alignRows) {
+      tbl.appendChild(el("div", { style: "color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" },
+        a.name + (a.system && a.system.measured ? " 📏" : "")));
+      tbl.appendChild(el("div", { class: "mono", style: `color:${a.agrees ? "#52b788" : "#f59e0b"}` }, fmt(a.system)));
+      tbl.appendChild(el("div", { class: "mono", style: "color:#94a3b8" }, fmt(a.stack)));
+      if (a.agrees) {
+        tbl.appendChild(el("div", { style: "color:#52b788;font-size:10px" }, "✓ aligned"));
+      } else if (a.stack) {
+        tbl.appendChild(el("button", {
+          class: "btn inline", style: "font-size:10px;padding:2px 8px",
+          onclick: async () => {
+            if (!confirm(`Fix "${a.name}" so the system's placement matches your stack alignment (${fmt(a.stack)})? Its scanner/beacon/barrier positions re-derive through the corrected placement. Room fabric is not touched.`)) return;
+            try {
+              const r = await ctx.actions.wsCall("padspan_ha/fabric_map_align_to_stack", { map_id: a.map_id });
+              ctx.toast(`Aligned "${a.name}" — ${r.spatial_resynced} spatial item(s) re-derived`);
+              await refreshAfter();
+            } catch (err) { ctx.toast("Align failed: " + (err.message || err), true); }
+          },
+        }, "Fix alignment"));
+      } else {
+        tbl.appendChild(el("div", { class: "muted", style: "font-size:10px" }, "no stack data"));
+      }
+    }
+    aCard.appendChild(tbl);
+    card.appendChild(aCard);
+  }
 
   return card;
 }
