@@ -723,6 +723,33 @@ function _settingsPresence(ctx, el){
     ]));
   }
 
+  // ── Light Theme (inverted) ────────────────────────────────────────────────
+  {
+    const themeOn = settings.light_theme === true;
+    const themeToggle = el("input",{type:"checkbox",id:"lightThemeToggle",style:"width:16px;height:16px;accent-color:#52b788;cursor:pointer"});
+    themeToggle.checked = themeOn;
+    themeToggle.addEventListener("change", async()=>{
+      try {
+        await ctx.actions.settingsSet({ light_theme: themeToggle.checked });
+        ctx.toast(themeToggle.checked ? "Light theme on" : "Dark theme restored");
+      } catch(e){ ctx.toast("Failed to save", true); }
+    });
+    wrap.appendChild(el("div",{class:"card",style:"border-color:" + (themeOn ? "#52b788" : "#334155")},[
+      el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
+        el("div",{class:"h2",style:"margin:0;color:#52b788"}, "Light Theme"),
+      ]),
+      el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
+        themeToggle,
+        el("label",{for:"lightThemeToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"},
+          "Invert the panel colours (light background)"),
+      ]),
+      el("div",{class:"muted",style:"font-size:12px"},
+        "Inverts every colour in the panel — white becomes black, black becomes white — for an " +
+        "accessible light appearance. Photos and map images are automatically counter-inverted so " +
+        "they still look normal. Applies instantly to this PadSpan panel."),
+    ]));
+  }
+
   // ── Positioning Algorithm ─────────────────────────────────────────────────
   {
     const cs = (ctx.state.live && ctx.state.live.snapshot && ctx.state.live.snapshot.calibration_status) || {};

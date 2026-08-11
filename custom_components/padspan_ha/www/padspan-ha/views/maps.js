@@ -7,6 +7,8 @@
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
 const { makeStackXform, imageAr } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
+const { assignLightCodes, WLED_BORDER } =
+  await import(`./light_codes.js${new URL(import.meta.url).search}`);
 
 // ── Maps View ────────────────────────────────────────────────────────────────
 //
@@ -6032,13 +6034,6 @@ function _shapeCss(shape) {
   }
 }
 
-// Deterministic 3-char code for each light: A01–A99, B01–B99, etc.
-function _lightCode(idx) {
-  const letter = String.fromCharCode(65 + Math.floor(idx / 99));
-  const num    = String((idx % 99) + 1).padStart(2, "0");
-  return letter + num;
-}
-
 // Compute hex offsets for N lights clustered around a room centre.
 // Uses a honeycomb ring layout: 1 centre + up to 6 surrounding hexes.
 // Overflow beyond 7 falls back to a 3-wide grid. Tuned in a virtual
@@ -6283,7 +6278,7 @@ function _renderLightPin(ctx, layer, l, posM, entry, pro, mapState, toggle, bbox
   pin.style.cssText = `position:absolute;left:calc(${leftPct.toFixed(2)}% + ${dxPx.toFixed(1)}px);top:calc(${topPct.toFixed(2)}% + ${dyPx.toFixed(1)}px);` +
     sizeCss + `overflow:hidden;` +
     `cursor:${draggable ? "grab" : "pointer"};` +
-    `background:${color};border:2px solid ${selected ? "#e879f9" : "#60a5fa"};` +
+    `background:${color};border:2px solid ${selected ? "#e879f9" : (l.isWled ? WLED_BORDER : "#60a5fa")};` +
     `border-radius:${css.borderRadius};clip-path:${css.clipPath};` +
     `transform:translate(-50%,-50%) rotate(${posM.rotation || 0}deg);box-shadow:0 1px 4px rgba(0,0,0,.6);` +
     `opacity:${on ? 1 : 0.55};z-index:${selected ? 3 : 2};display:flex;align-items:center;justify-content:center;` +
@@ -6584,13 +6579,29 @@ function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState
   const stageWrap = el("div", { style: "margin-top:10px" });
   const stage = el("div", {
     class: "mapstage",
-    style: "margin-top:0;height:min(75vh,680px);min-height:420px;display:flex;align-items:center;justify-content:center;position:relative;cursor:grab;touch-action:none",
+    style: "margin-top:0;height:calc(100vh - 240px);min-height:480px;display:flex;align-items:center;justify-content:center;position:relative;cursor:grab;touch-action:none",
   });
   const inner = el("div", {
-    style: `position:relative;height:100%;max-width:100%;aspect-ratio:${(bbox.width / bbox.height).toFixed(4)};transform-origin:0 0`,
+    style: "position:relative;transform-origin:0 0",
   });
   stage.appendChild(inner);
   stageWrap.appendChild(stage);
+  // Contain-fit sizing measured in px (object-fit for a div). The old CSS
+  // aspect-ratio approach mis-sized whenever the floor was wider than the
+  // viewport or the tab rendered before layout settled — the map drifted
+  // off to one side. A ResizeObserver re-fits on every stage size change,
+  // including the moment the tab first becomes visible.
+  const _fitInner = () => {
+    const r = stage.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4) return;
+    const R = bbox.width / bbox.height;
+    let w = r.width, h = w / R;
+    if (h > r.height) { h = r.height; w = h * R; }
+    inner.style.width = `${Math.round(w)}px`;
+    inner.style.height = `${Math.round(h)}px`;
+  };
+  _fitInner();
+  try { new ResizeObserver(_fitInner).observe(stage); } catch (_) {}
 
   const resetBtn = el("button", {
     class: "btn inline",
@@ -6835,6 +6846,7 @@ function _lightsTab(ctx, maps, active) {
       friendly_name: states[eid].attributes?.friendly_name || eid,
       state:         states[eid].state,   // "on" | "off" | "unavailable"
       area_name:     areaMap[eid] || null,
+      effect_list:   Array.isArray(states[eid].attributes?.effect_list) ? states[eid].attributes.effect_list : null,
     }))
     .sort((a, b) =>
       (a.area_name || "\xff").localeCompare(b.area_name || "\xff") ||
@@ -6846,8 +6858,9 @@ function _lightsTab(ctx, maps, active) {
     return card;
   }
 
-  // Assign deterministic 3-char codes (sort order is stable)
-  lights.forEach((l, i) => { l.code = _lightCode(i); });
+  // Canonical codes shared with the Lights sidebar panel (entity_id order —
+  // identical in both tools regardless of display sort; WLED = W-series).
+  assignLightCodes(lights);
 
   // ── Floor selector — one button per REAL floor (model.floors, the
   // deduplicated HA floor registry), never per uploaded map/photo. A floor
@@ -7373,12 +7386,24 @@ function _roomsTab(ctx, maps) {
   if (geoms.length) {
     const stage = el("div", {
       class: "mapstage",
-      style: "margin-top:0;height:min(75vh,680px);min-height:420px;display:flex;align-items:center;justify-content:center;position:relative;cursor:grab;touch-action:none",
+      style: "margin-top:0;height:calc(100vh - 260px);min-height:480px;display:flex;align-items:center;justify-content:center;position:relative;cursor:grab;touch-action:none",
     });
     const inner = el("div", {
-      style: `position:relative;height:100%;max-width:100%;aspect-ratio:${(bbox.width / bbox.height).toFixed(4)};transform-origin:0 0`,
+      style: "position:relative;transform-origin:0 0",
     });
     stage.appendChild(inner);
+    // Same measured contain-fit as the Lights canvas (see _fitInner there).
+    const _fitRoomsInner = () => {
+      const r = stage.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) return;
+      const R = bbox.width / bbox.height;
+      let w = r.width, h = w / R;
+      if (h > r.height) { h = r.height; w = h * R; }
+      inner.style.width = `${Math.round(w)}px`;
+      inner.style.height = `${Math.round(h)}px`;
+    };
+    _fitRoomsInner();
+    try { new ResizeObserver(_fitRoomsInner).observe(stage); } catch (_) {}
     const resetBtn = el("button", {
       class: "btn inline",
       style: "position:absolute;right:8px;top:8px;z-index:5;font-size:11px;padding:3px 8px;opacity:0.85",

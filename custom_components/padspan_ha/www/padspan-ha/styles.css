@@ -86,6 +86,14 @@
   pointer-events:none; /* keep drag/click interactions on overlay */
 }
 
+/* Light theme (accessibility): the host inverts every colour; photos, map
+   images, and video counter-invert so they don't render as negatives. */
+:host([data-invert]) img,
+:host([data-invert]) image,
+:host([data-invert]) video {
+  filter: invert(1) hue-rotate(180deg);
+}
+
 .marker.selected{
   outline: 2px solid rgba(255,255,255,0.85);
   box-shadow: 0 0 0 3px rgba(82,183,136,0.35);

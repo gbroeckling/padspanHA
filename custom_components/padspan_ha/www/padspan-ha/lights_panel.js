@@ -12,13 +12,15 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.24.7";
-const BUILD_ID = "20260811T042829Z";
+const APP_VERSION = "0.24.8";
+const BUILD_ID = "20260811T054939Z";
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
 const { makeStackXform, imageAr, fabricWorldRooms } =
   await import(`./views/stack_transform.js${new URL(import.meta.url).search}`);
+const { assignLightCodes, isWledLight, WLED_BORDER } =
+  await import(`./views/light_codes.js${new URL(import.meta.url).search}`);
 
 // ── DOM helpers ──────────────────────────────────────────────────────────────
 function el(tag, attrs={}, children=[]){
@@ -40,9 +42,8 @@ function el(tag, attrs={}, children=[]){
 }
 function escSVG(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
 
-// A light counts as "WLED-class" (effects + full color) if it advertises an
-// effect list — true for WLED itself and any other effect-capable light.
-function isWledLight(l){ return Array.isArray(l.effect_list) && l.effect_list.length>0; }
+// isWledLight comes from views/light_codes.js — a light counts as
+// "WLED-class" (effects + full color) if it advertises an effect list.
 
 // ── Room colour — same palette + hash as panel.js ────────────────────────────
 const ROOM_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa","#2dd4bf","#facc15"];
@@ -52,12 +53,6 @@ function roomColor(name){
 }
 
 // ── Hex geometry helpers ──────────────────────────────────────────────────────
-function lightCode(idx){
-  const letter = String.fromCharCode(65 + Math.floor(idx/99));
-  const num    = String((idx%99)+1).padStart(2,"0");
-  return letter+num;
-}
-
 // Flat-top hexagon points in SVG px (pointy-top orientation)
 function hexPts(cx, cy, r){
   const pts=[];
@@ -184,7 +179,7 @@ function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap, 
     const markerSvg=(l,hx,hy,entry)=>{
       const on=l.state==="on";
       const fill=(entry&&entry.color)||(on?"#fbbf24":"#374151");
-      const stroke="#60a5fa";
+      const stroke=l.isWled?WLED_BORDER:"#60a5fa";
       const op=on?1:0.45;
       const tCol=on?"#111827":"#e2e8f0";
       return `<g class="lhex" data-eid="${escSVG(l.entity_id)}" style="cursor:pointer" opacity="${op}">`+
@@ -625,7 +620,9 @@ class PadSpanLightsApp extends HTMLElement {
       root.appendChild(el("div",{class:"muted",style:"padding:8px"},"No light entities found."));
       return root;
     }
-    lights.forEach((l,i)=>{ l.code=lightCode(i); });
+    // Canonical codes shared with the Mapping → Lights tab (entity_id order —
+    // identical in both tools regardless of display sort; WLED = W-series).
+    assignLightCodes(lights);
     const lightsByEid={};
     for(const l of lights) lightsByEid[l.entity_id]=l;
 

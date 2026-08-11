@@ -22,8 +22,8 @@ If UI changes don't show:
 // BUILD_ID (YYYYMMDDTHHMMSSZ) is appended to all JS import URLs as a cache-buster
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
-const APP_VERSION = "0.24.7";
-const BUILD_ID = "20260811T042829Z";
+const APP_VERSION = "0.24.8";
+const BUILD_ID = "20260811T054939Z";
 const CHANNEL = "beta";
 
 // ── Dynamic view imports ─────────────────────────────────────────────────────
@@ -1046,11 +1046,22 @@ class PadSpanHaApp extends HTMLElement {
   // They are called from _refreshAll (full bootstrap) and individually
   // from specific actions (e.g. after tagging an object, after map upload).
 
+  // Light theme = full colour inversion of the panel (accessibility: the
+  // dark theme is unusable for some eye conditions). Applied as a filter on
+  // the host element; styles.css counter-inverts photos/map images via the
+  // data-invert attribute so they don't render as negatives.
+  _applyTheme(){
+    const on = !!this.state.settings?.light_theme;
+    this.style.filter = on ? "invert(1) hue-rotate(180deg)" : "";
+    if (on) this.setAttribute("data-invert", ""); else this.removeAttribute("data-invert");
+  }
+
   async _loadSettings(){
     try {
       if(!this._hass) return;
       const res = await this._callWS({ type: "padspan_ha/settings_get" });
       this.state.settings = res?.settings || {};
+      this._applyTheme();
       if (res && "cpu_pinning_supported" in res) this.state.cpuPinningSupported = !!res.cpu_pinning_supported;
       const mode = (res?.settings?.data_mode || "sample").toLowerCase();
       this.state.dataMode = (mode === "live") ? "live" : "sample";
@@ -1633,6 +1644,7 @@ class PadSpanHaApp extends HTMLElement {
           // untouched when the message omits it).
           const res = await this._callWS(Object.assign({ type: "padspan_ha/settings_set" }, payload));
           this.state.settings = res?.settings || this.state.settings;
+          this._applyTheme();
           this._renderNav();
           this._scheduleRender();
           return res;
