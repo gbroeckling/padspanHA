@@ -6600,8 +6600,12 @@ function _lightsRoomCanvas(ctx, floorMaps, active, lights, draftLights, mapState
     inner.style.width = `${Math.round(w)}px`;
     inner.style.height = `${Math.round(h)}px`;
   };
-  _fitInner();
-  try { new ResizeObserver(_fitInner).observe(stage); } catch (_) {}
+  // The observer must be REFERENCED from the node it watches — an
+  // unreferenced ResizeObserver is garbage-collected and its callbacks
+  // silently stop, leaving the canvas 0×0. The rAF covers the first layout
+  // after this render lands in the DOM.
+  try { stage._fitRO = new ResizeObserver(_fitInner); stage._fitRO.observe(stage); } catch (_) {}
+  requestAnimationFrame(_fitInner);
 
   const resetBtn = el("button", {
     class: "btn inline",
@@ -7402,8 +7406,9 @@ function _roomsTab(ctx, maps) {
       inner.style.width = `${Math.round(w)}px`;
       inner.style.height = `${Math.round(h)}px`;
     };
-    _fitRoomsInner();
-    try { new ResizeObserver(_fitRoomsInner).observe(stage); } catch (_) {}
+    // Reference held on the node — see _fitInner in the Lights canvas.
+    try { stage._fitRO = new ResizeObserver(_fitRoomsInner); stage._fitRO.observe(stage); } catch (_) {}
+    requestAnimationFrame(_fitRoomsInner);
     const resetBtn = el("button", {
       class: "btn inline",
       style: "position:absolute;right:8px;top:8px;z-index:5;font-size:11px;padding:3px 8px;opacity:0.85",
