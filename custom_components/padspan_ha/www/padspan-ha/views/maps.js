@@ -7324,12 +7324,17 @@ function _roomsTab(ctx, maps) {
     card.appendChild(selRow);
   }
 
-  // ── Alignment visual aid: footprints of the map being inspected ─────────
+  // ── Alignment visual aid: the actual PHOTO ghosted at each placement ────
+  // A bare rectangle reads as a random box; the map image rendered inside
+  // it is what makes "where does this photo sit" judgeable by eye.
   const alignRow = (truthCache && truthCache.alignment || [])
     .find(a => a.map_id === mapState._roomsAlignPreview);
+  const _alignMap = alignRow ? maps.find(m => m.id === alignRow.map_id) : null;
+  const _alignImgUrl = _alignMap && _alignMap.image && _alignMap.image.filename
+    ? `/local/padspan_ha/maps/${_alignMap.image.filename}` : null;
   const alignRects = alignRow ? [
-    alignRow.system ? { pts: _mapFootprintM(alignRow.system), color: "#f59e0b", label: `system: ${alignRow.name}` } : null,
-    alignRow.stack ? { pts: _mapFootprintM(alignRow.stack), color: "#38bdf8", label: `stack: ${alignRow.name}` } : null,
+    alignRow.system ? { t: alignRow.system, pts: _mapFootprintM(alignRow.system), color: "#f59e0b", label: `system: ${alignRow.name}`, imgUrl: _alignImgUrl } : null,
+    alignRow.stack ? { t: alignRow.stack, pts: _mapFootprintM(alignRow.stack), color: "#38bdf8", label: `stack: ${alignRow.name}`, imgUrl: _alignImgUrl } : null,
   ].filter(r => r && r.pts) : [];
 
   // ── Status / readout row ────────────────────────────────────────────────
@@ -7512,13 +7517,28 @@ function _roomsTab(ctx, maps) {
       svg.appendChild(elS);
     }
 
-    // Alignment footprints — amber = system placement, cyan = stack placement.
-    // "Fix alignment" snaps the amber box onto the cyan one.
+    // Alignment footprints — amber = system placement, cyan = stack placement,
+    // each with the actual photo ghosted at that pose (under the room shapes
+    // so the fabric stays readable). "Fix alignment" snaps amber onto cyan.
     for (const rect of alignRects) {
+      if (rect.imgUrl && rect.t && rect.t.scale_x_m != null) {
+        const img = document.createElementNS("http://www.w3.org/2000/svg", "image");
+        img.setAttribute("href", rect.imgUrl);
+        img.setAttributeNS("http://www.w3.org/1999/xlink", "href", rect.imgUrl);
+        img.setAttribute("x", rect.t.origin_x_m);
+        img.setAttribute("y", rect.t.origin_y_m);
+        img.setAttribute("width", rect.t.scale_x_m);
+        img.setAttribute("height", rect.t.scale_y_m);
+        img.setAttribute("preserveAspectRatio", "none");
+        img.setAttribute("opacity", "0.35");
+        const deg = (Number(rect.t.rotation_rad) || 0) * 180 / Math.PI;
+        if (Math.abs(deg) > 0.001) img.setAttribute("transform", `rotate(${deg} ${rect.t.origin_x_m} ${rect.t.origin_y_m})`);
+        img.style.pointerEvents = "none";
+        svg.insertBefore(img, svg.firstChild);
+      }
       const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
       poly.setAttribute("points", rect.pts.map(p => `${p[0]},${p[1]}`).join(" "));
-      poly.setAttribute("fill", rect.color);
-      poly.setAttribute("fill-opacity", "0.05");
+      poly.setAttribute("fill", "none");
       poly.setAttribute("stroke", rect.color);
       poly.setAttribute("stroke-width", String(strokeW * 1.6));
       poly.setAttribute("stroke-dasharray", `${strokeW * 4},${strokeW * 2}`);
