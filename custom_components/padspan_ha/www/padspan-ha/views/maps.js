@@ -7197,10 +7197,13 @@ function _roomsTab(ctx, maps) {
   // Blended layout: vertex-average of whichever sources the user trusts
   // (default: saved fabric + stack alignment — deliberately NOT the
   // fabricated per-map calibrations; averaging right with wrong is wrong).
-  if (!mapState._roomsBlendSources) {
+  // The persisted default is only established once the candidates have
+  // loaded — freezing it earlier would lock Stack off just because the
+  // fetch hadn't landed yet.
+  if (!mapState._roomsBlendSources && truthCache) {
     mapState._roomsBlendSources = { fabric: true, stack: !!candidates.stack, transforms: false };
   }
-  const blendSources = mapState._roomsBlendSources;
+  const blendSources = mapState._roomsBlendSources || { fabric: true, stack: false, transforms: false };
   // Each trusted source keeps its own line style so the same room's copies
   // are tellable apart when stacked: fabric solid, stack dashed, system dotted.
   const _blendLabeledSets = () => {
@@ -7650,7 +7653,7 @@ function _roomsTab(ctx, maps) {
       pRow.appendChild(el("button", {
         class: "btn inline primary",
         onclick: () => { mapState._roomsBlendAveraged = true; mapState._roomsCandDraft = null; ctx.actions.renderRooms(); },
-      }, `⌀ Average these ${sets.length} layouts`));
+      }, `⌀ Average ${sets.length === 1 ? "this layout" : `these ${sets.length} layouts`}`));
       pRow.appendChild(el("span", { class: "muted", style: "font-size:11px" },
         "Each checked layout is stacked on the canvas — same room, one line style per layout. Averaging makes an editable draft; nothing is saved until you commit it."));
       card.appendChild(pRow);
