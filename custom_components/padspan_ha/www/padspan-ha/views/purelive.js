@@ -14,6 +14,11 @@ import { useState, useEffect, useRef, useMemo } from "../lib/preact-bundle.js";
 
 // ── Persistent state ─────────────────────────────────────────────────────────
 let _mapNode = null;
+// The model snapshot the mounted map was built from. A model refetch (e.g.
+// after a fabric room correction) creates a fresh room_geometry_m object —
+// that identity change is the signal to rebuild the room SVG instead of only
+// refreshing object dots, so fabric edits show here without a page reload.
+let _mapModelRef = null;
 let _prevDeviceRooms = {};  // {eid: room} for movement ghost detection
 
 // ── CSS ──────────────────────────────────────────────────────────────────────
@@ -459,6 +464,13 @@ function IsoMap({ ctx }) {
   useEffect(() => {
     if (!ref.current) return;
 
+    // A model refetch (fabric edit committed, room corrected, floor rebuilt)
+    // replaces ctx.state.model wholesale — the cached map's room shapes are
+    // stale the moment that happens, on EVERY floor. Drop the cache and fall
+    // through to a fresh overview render below.
+    const modelNow = ctx.state.model && ctx.state.model.room_geometry_m;
+    if (_mapNode && _mapModelRef !== modelNow) _mapNode = null;
+
     // If map is already mounted, update object dots on each poll
     // (same as overview's _isoUpdateObjects) instead of leaving them stale.
     if (_mapNode && _mapNode.isConnected && _mapNode.parentNode === ref.current) {
@@ -494,6 +506,7 @@ function IsoMap({ ctx }) {
 
       _cleanupMapElement(map);
       _mapNode = map;
+      _mapModelRef = modelNow;
       ref.current.innerHTML = "";
       ref.current.appendChild(map);
     } catch (e) {
