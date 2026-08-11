@@ -459,11 +459,11 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
     scanners = mdl.data.get("scanners", {}) if mdl else {}
     room_adjacency = mdl.data.get("room_adjacency", {}) if mdl else {}
     fabric_sync_mode = mdl.data.get("fabric_sync_mode", "auto") if mdl else "auto"
-    scanner_positions_m = mdl.data.get("scanner_positions_m", {}) if mdl else {}
+    scanner_positions_m = mdl.scanner_positions_m() if mdl else {}
     room_geometry_m = mdl.room_geometry_m() if mdl else {}
-    rf_barriers_m = mdl.data.get("rf_barriers_m", []) if mdl else []
+    rf_barriers_m = mdl.rf_barriers_m() if mdl else []
     map_transforms = mdl.data.get("map_transforms", {}) if mdl else {}
-    beacon_positions_m = mdl.data.get("beacon_positions_m", {}) if mdl else {}
+    beacon_positions_m = mdl.beacon_positions_m() if mdl else {}
     _fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
     fabric_floors = _fab.floors_status() if _fab else {}
 
@@ -10364,9 +10364,9 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
 
     # ── Phase 2: Spatial model ───────────────────────────────────────────────
     if mdl:
-        positions = mdl.data.get("scanner_positions_m", {})
+        positions = mdl.scanner_positions_m()
         geometry = mdl.room_geometry_m()
-        barriers = mdl.data.get("rf_barriers_m", [])
+        barriers = mdl.rf_barriers_m()
         transforms = mdl.data.get("map_transforms", {})
 
         checks.append({
@@ -10782,7 +10782,7 @@ async def ws_radio_audit(hass: HomeAssistant, connection, msg) -> None:
     # Fabric scanner mappings
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     fabric_scanners = (mdl.data.get("scanners") or {}) if mdl else {}
-    fabric_positions = (mdl.data.get("scanner_positions_m") or {}) if mdl else {}
+    fabric_positions = mdl.scanner_positions_m() if mdl else {}
 
     # Build name→device lookup
     name_to_dev: dict[str, Any] = {}
@@ -10980,11 +10980,19 @@ async def ws_fabric_reset_spatial(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
         return
 
-    # Clear spatial data only — user must explicitly migrate after
-    mdl.data["scanner_positions_m"] = {}
-    mdl.data["rf_barriers_m"] = []
+    # Clear spatial data only — user must explicitly migrate after.
+    # Spatial ground truth lives in the fabric (pass 2); map_transforms
+    # stay model-owned.  The legacy model copies are left untouched — they
+    # are the rollback/import source, never live data.
+    fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+    if fab:
+        await fab.async_spatial_update(
+            remove_scanners=list(fab.scanner_positions_m()),
+            remove_beacons=list(fab.beacon_positions_m()),
+            remove_barrier_names=[str(b.get("name", "")) for b in fab.rf_barriers_m()],
+            op="reset_spatial",
+        )
     mdl.data["map_transforms"] = {}
-    mdl.data["beacon_positions_m"] = {}
     await mdl.store.async_save(mdl.data)
 
     # Clear metre coords from calibration points (they'll be re-backfilled on migrate)
@@ -11319,7 +11327,7 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
     if not isinstance(nodes_raw, list):
         nodes_raw = []
 
-    positions = mdl.data.setdefault("scanner_positions_m", {})
+    positions: dict[str, dict] = {}
     scanners = mdl.data.setdefault("scanners", {})
 
     for nd in nodes_raw:
@@ -11387,6 +11395,10 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
 
     # ── Save ─────────────────────────────────────────────────────────────
     await mdl.store.async_save(mdl.data)
+    _fab_imp = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+    if _fab_imp and positions:
+        await _fab_imp.async_spatial_update(
+            set_scanners=positions, op="espresense_import")
 
     _LOGGER.info(
         "ESPresense Companion import: %d floors, %d rooms, %d scanners (%d skipped) from %s",

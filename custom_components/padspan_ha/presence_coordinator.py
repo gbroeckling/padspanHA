@@ -947,7 +947,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if key in _pinned:
                     _pin = _pinned[key]
                     obj = dict(obj)  # copy — the snapshot is shared via the TTL cache
-                    if _pin["room"]:
+                    # A pin's room must be a real room. Legacy pins stamped a
+                    # device LABEL into room when geometry couldn't resolve —
+                    # confirming those creates phantom "rooms" on the overview.
+                    if _pin["room"] and (
+                            _pin["room"] in _fabric_rooms
+                            or _pin["room"] in self._room_centroids):
                         obj["room"] = _pin["room"]
                         self._confirmed_room[key] = _pin["room"]
                     obj["_pinned"] = True
@@ -1788,8 +1793,14 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     # positioning method.  k-NN uses historical calibration
                     # data which may be stale — it should not fight spatial.
                     # k-NN still provides sub-room (x,y) position above.
+                    # Guard: the nearest sample's room label must be a REAL
+                    # room — device-anchored auto-calibration samples carry
+                    # the anchor device's LABEL as their room, and confirming
+                    # one teleports the beacon into a phantom room.
                     if _knn_room and _knn_conf >= 0.30 and not _spatial_candidate:
-                        candidate = _knn_room
+                        _known_rooms = set(self._room_centroids) | set(source_to_area.values())
+                        if _knn_room in _known_rooms:
+                            candidate = _knn_room
                 else:
                     self._knn_position.pop(key, None)
                     self._smooth_xy.pop(key, None)

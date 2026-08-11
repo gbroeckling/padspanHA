@@ -104,11 +104,20 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
     async def _init_model():
         mdl = ModelStore(hass)
         await mdl.async_setup()
-        # FabricStore: room-geometry ground truth. On its very first load it
-        # imports the legacy room_geometry_m verbatim; ModelStore then reads
-        # room geometry through it (never from its own legacy copy again).
+        # FabricStore: room-geometry + spatial ground truth. On its very
+        # first load it imports the legacy room_geometry_m verbatim; each
+        # spatial key (scanners/beacons/barriers) likewise imports exactly
+        # once.  ModelStore then reads all of it through the fabric (never
+        # from its own legacy copies again).
         fab = FabricStore(hass)
-        await fab.async_setup(legacy_geometry=mdl.data.get("room_geometry_m"))
+        await fab.async_setup(
+            legacy_geometry=mdl.data.get("room_geometry_m"),
+            legacy_spatial={
+                "scanner_positions_m": mdl.data.get("scanner_positions_m"),
+                "beacon_positions_m": mdl.data.get("beacon_positions_m"),
+                "rf_barriers_m": mdl.data.get("rf_barriers_m"),
+            },
+        )
         mdl.attach_fabric(fab)
         hass.data[DOMAIN][DATA_FABRIC] = fab
         # Phase 1: auto-sync fabric from HA registries on startup
@@ -118,7 +127,7 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
             except Exception as err:
                 _LOGGER.debug("Fabric HA sync on startup skipped: %s", err)
         _sc = len(mdl.data.get("scanners", {}))
-        _sp = len(mdl.data.get("scanner_positions_m", {}))
+        _sp = len(mdl.scanner_positions_m())
         return (DATA_MODEL, mdl, f"ModelStore ready ({len(mdl.floors())} floors, {len(mdl.room_meta())} rooms, {_sc} scanners, {_sp} positions_m, {len(fab.rooms_flat())} fabric rooms)")
 
     async def _init_objects():

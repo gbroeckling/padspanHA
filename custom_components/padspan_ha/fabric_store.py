@@ -43,6 +43,15 @@ Data layout in .storage/padspan_ha.fabric:
         "frame_offset_m": {"dx_m": 0.0, "dy_m": 0.0, "rotation_rad": 0.0},
       }
     },
+
+    # Pass 2 — spatial ground truth, same doctrine as rooms: metres are the
+    # canonical values; a map drag is an INPUT DEVICE whose frac→metre
+    # conversion happens once at write time.  Key names/shapes deliberately
+    # mirror ModelStore's legacy keys so the one-time import is verbatim.
+    "scanner_positions_m": { "<source>": {x_m, y_m, z_m, floor_id, origin, map_id, z_origin?} },
+    "beacon_positions_m":  { "<key>": {x_m, y_m, floor_id, room, kind, label, origin, map_id} },
+    "rf_barriers_m":       [ {name, material, attenuation_dbm, floor_id, points_m, origin, map_id} ],
+
     "history": [ {ts, floor_id, room, op, revision} ]   # append-only, capped
   }
 """
@@ -113,9 +122,21 @@ class FabricStore:
         self.hass = hass
         self._raw_store = Store(hass, 1, FABRIC_STORE_KEY)
         self.store = wrap_store(self._raw_store, hass, "fabric")
-        self.data: dict[str, Any] = {"floors": {}, "history": []}
+        self.data: dict[str, Any] = {
+            "floors": {}, "scanner_positions_m": {},
+            "beacon_positions_m": {}, "rf_barriers_m": [], "history": [],
+        }
 
-    async def async_setup(self, legacy_geometry: dict[str, Any] | None = None) -> None:
+    _SPATIAL_KEYS = (
+        ("scanner_positions_m", dict),
+        ("beacon_positions_m", dict),
+        ("rf_barriers_m", list),
+    )
+
+    async def async_setup(
+        self, legacy_geometry: dict[str, Any] | None = None,
+        legacy_spatial: dict[str, Any] | None = None,
+    ) -> None:
         """Load the store; on very first load, import the legacy geometry.
 
         legacy_geometry is ModelStore's pre-fabric room_geometry_m dict.  The
@@ -124,6 +145,11 @@ class FabricStore:
         from maps, which would re-run the fallback-scale math that corrupted
         the data in the first place.  It runs only when the fabric storage
         file does not exist yet, so it can never overwrite fabric state.
+
+        legacy_spatial is ModelStore's pre-pass-2 spatial data (the three
+        *_m keys).  Each key imports verbatim exactly once — only while the
+        fabric file does not carry that key yet — so a pass-1 fabric file
+        picks up its spatial sections on first boot of pass 2 and never again.
         """
         loaded = await self.store.async_load()
         if isinstance(loaded, dict):
@@ -132,8 +158,12 @@ class FabricStore:
                 self.data["floors"] = {}
             if not isinstance(self.data.get("history"), list):
                 self.data["history"] = []
+            if self._import_legacy_spatial(legacy_spatial):
+                await self.store.async_save(self.data)
             return
 
+        # Spatial keys deliberately absent here — _import_legacy_spatial
+        # creates each one, importing legacy content in the same motion.
         self.data = {"floors": {}, "history": []}
         imported = 0
         now = dt_util.utcnow().isoformat()
@@ -155,7 +185,32 @@ class FabricStore:
         if imported:
             self._log_history("", "", "legacy_import", imported)
             _LOGGER.info("FabricStore: imported %d legacy room shapes verbatim", imported)
+        self._import_legacy_spatial(legacy_spatial)
         await self.store.async_save(self.data)
+
+    def _import_legacy_spatial(self, legacy_spatial: dict[str, Any] | None) -> bool:
+        """Per-key one-time verbatim import of legacy spatial data.
+
+        A key already present in the fabric file (even empty) is never
+        touched — presence of the key IS the imported-once marker.
+        """
+        changed = False
+        for key, typ in self._SPATIAL_KEYS:
+            if isinstance(self.data.get(key), typ):
+                continue
+            src = (legacy_spatial or {}).get(key)
+            if typ is dict:
+                self.data[key] = {
+                    str(k): dict(v) for k, v in (src or {}).items() if isinstance(v, dict)
+                }
+            else:
+                self.data[key] = [dict(b) for b in (src or []) if isinstance(b, dict)]
+            n = len(self.data[key])
+            if n:
+                self._log_history("", "", f"legacy_import:{key}", n)
+                _LOGGER.info("FabricStore: imported %d legacy %s entries verbatim", n, key)
+            changed = True
+        return changed
 
     # ── Reads ────────────────────────────────────────────────────────────────
 
@@ -169,6 +224,18 @@ class FabricStore:
                     if isinstance(geo, dict):
                         out[room] = dict(geo)
         return out
+
+    def scanner_positions_m(self) -> dict[str, dict[str, Any]]:
+        """{source: {x_m, y_m, z_m, floor_id, origin, map_id, ...}} — canonical."""
+        return dict(self.data.get("scanner_positions_m") or {})
+
+    def beacon_positions_m(self) -> dict[str, dict[str, Any]]:
+        """{key: {x_m, y_m, floor_id, room, kind, label, origin, map_id}} — canonical."""
+        return dict(self.data.get("beacon_positions_m") or {})
+
+    def rf_barriers_m(self) -> list[dict[str, Any]]:
+        """[{name, material, attenuation_dbm, floor_id, points_m, ...}] — canonical."""
+        return list(self.data.get("rf_barriers_m") or [])
 
     def floor_committed(self, floor_id: str) -> bool:
         floor = (self.data.get("floors") or {}).get(str(floor_id))
@@ -348,3 +415,126 @@ class FabricStore:
         self._log_history(fl, "", "finalize" if committed else "unlock", 0)
         await self.store.async_save(self.data)
         return {"ok": True, "floor_id": fl, "committed": floor["committed"]}
+
+    # ── Pass 2 writer: spatial ground truth (scanners/beacons/barriers) ──────
+    #
+    # One method is the ONLY write path for spatial data, mirroring the
+    # two-writers discipline rooms have.  Callers (ModelStore delegates) do
+    # any frac→metre conversion BEFORE calling; the fabric stores metres and
+    # never consults a map.  One history entry and one save per call, however
+    # many items a batch carries.
+
+    @staticmethod
+    def _norm_point_entry(entry: Any, *, need_z: bool) -> dict[str, Any] | None:
+        if not isinstance(entry, dict):
+            return None
+        out = dict(entry)
+        try:
+            for k in ("x_m", "y_m") + (("z_m",) if need_z else ()):
+                v = float(out.get(k, 0 if k == "z_m" else None))
+                if not math.isfinite(v):
+                    return None
+                out[k] = v
+        except (TypeError, ValueError):
+            return None
+        out["floor_id"] = str(out.get("floor_id") or DEFAULT_FLOOR_ID)
+        return out
+
+    @staticmethod
+    def _norm_barrier(bar: Any) -> dict[str, Any] | None:
+        if not isinstance(bar, dict) or not str(bar.get("name") or "").strip():
+            return None
+        pts = bar.get("points_m") or []
+        out_pts: list[list[float]] = []
+        for p in pts:
+            try:
+                x, y = float(p[0]), float(p[1])
+            except (TypeError, ValueError, IndexError):
+                return None
+            if not (math.isfinite(x) and math.isfinite(y)):
+                return None
+            out_pts.append([x, y])
+        if len(out_pts) < 2:
+            return None
+        out = dict(bar)
+        out["points_m"] = out_pts
+        out["floor_id"] = str(out.get("floor_id") or DEFAULT_FLOOR_ID)
+        return out
+
+    async def async_spatial_update(
+        self, *,
+        set_scanners: dict[str, dict] | None = None,
+        remove_scanners: list[str] | None = None,
+        set_beacons: dict[str, dict] | None = None,
+        remove_beacons: list[str] | None = None,
+        set_barriers: list[dict] | None = None,
+        remove_barrier_names: list[str] | None = None,
+        replace_map_barriers: tuple[str, list[dict]] | None = None,
+        op: str = "spatial_update",
+    ) -> dict[str, int]:
+        """Apply a set of spatial changes atomically.
+
+        set_barriers replaces by name (today's semantics);
+        replace_map_barriers=(map_id, barriers) drops every barrier whose
+        origin is that map and installs the given list — the map-sync shape.
+        Invalid entries are skipped, not fatal.  Returns per-kind counts.
+        """
+        counts = {"scanners": 0, "beacons": 0, "barriers": 0, "removed": 0}
+        scanners = self.data.setdefault("scanner_positions_m", {})
+        beacons = self.data.setdefault("beacon_positions_m", {})
+
+        for src, entry in (set_scanners or {}).items():
+            norm = self._norm_point_entry(entry, need_z=True)
+            if norm is None or not str(src):
+                continue
+            scanners[str(src)] = norm
+            counts["scanners"] += 1
+        for src in (remove_scanners or []):
+            if scanners.pop(str(src), None) is not None:
+                counts["removed"] += 1
+
+        for key, entry in (set_beacons or {}).items():
+            norm = self._norm_point_entry(entry, need_z=False)
+            if norm is None or not str(key):
+                continue
+            beacons[str(key)] = norm
+            counts["beacons"] += 1
+        for key in (remove_beacons or []):
+            if beacons.pop(str(key), None) is not None:
+                counts["removed"] += 1
+
+        barriers = self.data.setdefault("rf_barriers_m", [])
+        if replace_map_barriers is not None:
+            mid, new_bars = replace_map_barriers
+            kept = [
+                b for b in barriers
+                if not (b.get("origin") == "map" and b.get("map_id") == str(mid))
+            ]
+            counts["removed"] += len(barriers) - len(kept)
+            barriers = kept
+            for bar in (new_bars or []):
+                norm = self._norm_barrier(bar)
+                if norm is not None:
+                    barriers.append(norm)
+                    counts["barriers"] += 1
+            self.data["rf_barriers_m"] = barriers
+        if set_barriers:
+            for bar in set_barriers:
+                norm = self._norm_barrier(bar)
+                if norm is None:
+                    continue
+                barriers = [b for b in barriers if b.get("name") != norm.get("name")]
+                barriers.append(norm)
+                counts["barriers"] += 1
+            self.data["rf_barriers_m"] = barriers
+        if remove_barrier_names:
+            names = {str(n) for n in remove_barrier_names}
+            kept = [b for b in barriers if b.get("name") not in names]
+            counts["removed"] += len(barriers) - len(kept)
+            self.data["rf_barriers_m"] = kept
+
+        total = counts["scanners"] + counts["beacons"] + counts["barriers"] + counts["removed"]
+        if total:
+            self._log_history("", "", op, total)
+            await self.store.async_save(self.data)
+        return counts

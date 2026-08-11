@@ -144,24 +144,19 @@ DEFAULT_DATA: dict[str, Any] = {
     },
     "fabric_sync_mode": "auto",  # "auto" = sync from HA, "manual" = standalone
     # ── Phase 2: Real-world spatial model (metres) ───────────────────────────
-    "scanner_positions_m": {
-        # source_name: { x_m, y_m, z_m, floor_id, origin, map_id }
-    },
+    # RETIRED (pass 2): scanner_positions_m / rf_barriers_m / beacon_positions_m
+    # live in FabricStore (padspan_ha.fabric) like room_geometry_m before them.
+    # Stored copies in pre-pass-2 model files stay untouched — they are the
+    # one-time verbatim import source and allow clean rollback.
     "room_geometry_m": {
         # RETIRED — room shapes live in FabricStore (padspan_ha.fabric).
         # This key stays only so pre-fabric stores can roll back cleanly.
     },
-    "rf_barriers_m": [
-        # { name, material, attenuation_dbm, floor_id, points_m, origin, map_id }
-    ],
     "map_transforms": {
         # map_id: { origin_x_m, origin_y_m, scale_x_m, scale_y_m, rotation_rad,
         #           floor_id, origin_anchored }
         # origin_anchored: the world pose (origin + rotation) is write-once —
         # only the explicit re-anchor action may change it.
-    },
-    "beacon_positions_m": {
-        # beacon_key: { x_m, y_m, floor_id, room, kind, label, origin, map_id }
     },
 }
 
@@ -212,16 +207,13 @@ class ModelStore:
             if self.data.get("fabric_sync_mode") not in ("auto", "manual"):
                 self.data["fabric_sync_mode"] = "auto"
             # ── Migration: Phase 2 spatial model keys ────────────────────────
-            if not isinstance(self.data.get("scanner_positions_m"), dict):
-                self.data["scanner_positions_m"] = {}
+            # scanner_positions_m / rf_barriers_m / beacon_positions_m are NOT
+            # ensured here anymore — whatever the file carries is preserved
+            # verbatim as the fabric's one-time import source.
             if not isinstance(self.data.get("room_geometry_m"), dict):
                 self.data["room_geometry_m"] = {}
-            if not isinstance(self.data.get("rf_barriers_m"), list):
-                self.data["rf_barriers_m"] = []
             if not isinstance(self.data.get("map_transforms"), dict):
                 self.data["map_transforms"] = {}
-            if not isinstance(self.data.get("beacon_positions_m"), dict):
-                self.data["beacon_positions_m"] = {}
             # ── Migration: freeze existing map-transform world poses ────────
             # The stored origin is already the effective origin every reader
             # uses, so this changes no numbers — it marks the pose write-once
@@ -275,11 +267,11 @@ class ModelStore:
             "scanners": dict(self.data.get("scanners", {})),
             "room_adjacency": dict(self.data.get("room_adjacency", {})),
             "fabric_sync_mode": self.data.get("fabric_sync_mode", "auto"),
-            "scanner_positions_m": dict(self.data.get("scanner_positions_m", {})),
+            "scanner_positions_m": self.scanner_positions_m(),
             "room_geometry_m": self.room_geometry_m(),
-            "rf_barriers_m": list(self.data.get("rf_barriers_m", [])),
+            "rf_barriers_m": self.rf_barriers_m(),
             "map_transforms": dict(self.data.get("map_transforms", {})),
-            "beacon_positions_m": dict(self.data.get("beacon_positions_m", {})),
+            "beacon_positions_m": self.beacon_positions_m(),
         }
 
     def floors(self) -> list[dict[str, Any]]:
@@ -512,10 +504,13 @@ class ModelStore:
             await self.store.async_save(self.data)
 
     # ── Phase 2: Real-world spatial model ────────────────────────────────────
+    # Pass 2: spatial positions live in the FabricStore.  Same loud-empty
+    # doctrine as room_geometry_m — no fallback to the stale legacy copy.
 
     def scanner_positions_m(self) -> dict[str, dict[str, Any]]:
         """Return {source: {x_m, y_m, z_m, floor_id}} for all scanners."""
-        return dict(self.data.get("scanner_positions_m") or {})
+        fab = getattr(self, "fabric", None)
+        return fab.scanner_positions_m() if fab else {}
 
     # ── Floor elevation ──────────────────────────────────────────────────────
 
@@ -572,13 +567,17 @@ class ModelStore:
         entry to origin="manual", which silently stops Tune drags from
         syncing x/y.  z_origin="manual" protects just the height.
         """
-        positions = self.data.get("scanner_positions_m") or {}
-        entry = positions.get(str(source))
+        fab = getattr(self, "fabric", None)
+        if not fab:
+            return False
+        entry = fab.scanner_positions_m().get(str(source))
         if not isinstance(entry, dict):
             return False
+        entry = dict(entry)
         entry["z_m"] = round(max(0.0, min(20.0, float(z_m))), 2)
         entry["z_origin"] = "manual"
-        await self.store.async_save(self.data)
+        await fab.async_spatial_update(
+            set_scanners={str(source): entry}, op="scanner_z_set")
         return True
 
     async def async_set_floor_elevations(self, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -624,7 +623,7 @@ class ModelStore:
         """
         bases = self.floor_base_elevations_m()
         out: dict[str, float] = {}
-        for src, pos in (self.data.get("scanner_positions_m") or {}).items():
+        for src, pos in self.scanner_positions_m().items():
             if not isinstance(pos, dict):
                 continue
             z = pos.get("z_m")
@@ -657,7 +656,8 @@ class ModelStore:
 
     def rf_barriers_m(self) -> list[dict]:
         """Return RF barriers in real-world metres."""
-        return list(self.data.get("rf_barriers_m") or [])
+        fab = getattr(self, "fabric", None)
+        return fab.rf_barriers_m() if fab else []
 
     def map_transform(self, map_id: str) -> dict | None:
         """Return the affine transform for a specific map, or None."""
@@ -665,7 +665,7 @@ class ModelStore:
 
     def has_spatial_model(self) -> bool:
         """Return True if real-world spatial data has been populated."""
-        return bool(self.data.get("scanner_positions_m") or self.room_geometry_m() or self.data.get("beacon_positions_m"))
+        return bool(self.scanner_positions_m() or self.room_geometry_m() or self.beacon_positions_m())
 
     # ── Coordinate conversion ─────────────────────────────────────────────
 
@@ -721,30 +721,30 @@ class ModelStore:
         self, source: str, x_m: float, y_m: float, z_m: float,
         floor_id: str, origin: str = "manual", map_id: str | None = None,
     ) -> None:
-        """Set a scanner's real-world position."""
-        positions = self.data.setdefault("scanner_positions_m", {})
-        positions[str(source)] = {
+        """Set a scanner's real-world position (canonical copy in the fabric)."""
+        fab = getattr(self, "fabric", None)
+        if not fab:
+            return
+        await fab.async_spatial_update(set_scanners={str(source): {
             "x_m": float(x_m), "y_m": float(y_m), "z_m": float(z_m),
             "floor_id": str(floor_id or DEFAULT_FLOOR_ID),
             "origin": str(origin),
             "map_id": map_id,
-        }
-        await self.store.async_save(self.data)
+        }}, op="scanner_set")
 
     async def async_set_rf_barrier_m(self, barrier: dict) -> None:
         """Add or replace an RF barrier in real-world metres (matched by name)."""
-        barriers = self.data.setdefault("rf_barriers_m", [])
-        name = barrier.get("name", "")
-        # Replace existing barrier with same name
-        self.data["rf_barriers_m"] = [b for b in barriers if b.get("name") != name]
-        self.data["rf_barriers_m"].append(dict(barrier))
-        await self.store.async_save(self.data)
+        fab = getattr(self, "fabric", None)
+        if not fab:
+            return
+        await fab.async_spatial_update(set_barriers=[dict(barrier)], op="barrier_set")
 
     async def async_remove_rf_barrier_m(self, name: str) -> None:
         """Remove an RF barrier by name."""
-        barriers = self.data.get("rf_barriers_m") or []
-        self.data["rf_barriers_m"] = [b for b in barriers if b.get("name") != name]
-        await self.store.async_save(self.data)
+        fab = getattr(self, "fabric", None)
+        if not fab:
+            return
+        await fab.async_spatial_update(remove_barrier_names=[str(name)], op="barrier_remove")
 
     async def async_set_map_transform(
         self, map_id: str, transform: dict, *, reanchor: bool = False
@@ -784,16 +784,19 @@ class ModelStore:
 
     def beacon_positions_m(self) -> dict[str, dict[str, Any]]:
         """Return {beacon_key: {x_m, y_m, floor_id, room, kind, label}}."""
-        return dict(self.data.get("beacon_positions_m") or {})
+        fab = getattr(self, "fabric", None)
+        return fab.beacon_positions_m() if fab else {}
 
     async def async_set_beacon_position_m(
         self, key: str, x_m: float, y_m: float, floor_id: str,
         room: str = "", kind: str = "", label: str = "",
         origin: str = "manual", map_id: str | None = None,
     ) -> None:
-        """Set a beacon's real-world position."""
-        beacons = self.data.setdefault("beacon_positions_m", {})
-        beacons[str(key)] = {
+        """Set a beacon's real-world position (canonical copy in the fabric)."""
+        fab = getattr(self, "fabric", None)
+        if not fab:
+            return
+        await fab.async_spatial_update(set_beacons={str(key): {
             "x_m": round(float(x_m), 3),
             "y_m": round(float(y_m), 3),
             "floor_id": str(floor_id or DEFAULT_FLOOR_ID),
@@ -802,14 +805,14 @@ class ModelStore:
             "label": str(label),
             "origin": str(origin),
             "map_id": map_id,
-        }
-        await self.store.async_save(self.data)
+        }}, op="beacon_set")
 
     async def async_remove_beacon_position_m(self, key: str) -> None:
         """Remove a beacon from metre-space positions."""
-        beacons = self.data.get("beacon_positions_m") or {}
-        beacons.pop(str(key), None)
-        await self.store.async_save(self.data)
+        fab = getattr(self, "fabric", None)
+        if not fab:
+            return
+        await fab.async_spatial_update(remove_beacons=[str(key)], op="beacon_remove")
 
     def beacon_room_from_geometry(self, x_m: float, y_m: float, floor_id: str) -> str:
         """Determine which room a metre-space point falls in, from the fabric."""
@@ -859,17 +862,23 @@ class ModelStore:
         Returns counts: {scanners, rooms, barriers, beacons} (rooms always 0).
         """
         stats = {"scanners": 0, "rooms": 0, "barriers": 0, "beacons": 0}
+        fab = getattr(self, "fabric", None)
+        if not fab:
+            return stats
         t = (self.data.get("map_transforms") or {}).get(map_id)
         fl = str(floor_id or DEFAULT_FLOOR_ID)
-        positions = self.data.setdefault("scanner_positions_m", {})
-        beacons_m = self.data.setdefault("beacon_positions_m", {})
+        cur_scanners = fab.scanner_positions_m()
+        cur_beacons = fab.beacon_positions_m()
+        set_scanners: dict[str, dict] = {}
+        set_beacons: dict[str, dict] = {}
+        new_barriers: list[dict] | None = None
 
         if scanners is not None:
             for rx in scanners:
                 src = rx.get("source") or rx.get("id", "")
                 if not src:
                     continue
-                if positions.get(src, {}).get("origin") == "manual":
+                if cur_scanners.get(src, {}).get("origin") == "manual":
                     continue
                 if t:
                     coords = self.map_frac_to_metres(float(rx.get("x", 0)), float(rx.get("y", 0)), map_id)
@@ -877,36 +886,41 @@ class ModelStore:
                         # A drag updates x/y only — keep whatever z the entry
                         # already has (ceiling-derived or user-set); this path
                         # has no height information of its own.
-                        _prev = positions.get(src) or {}
+                        _prev = cur_scanners.get(src) or {}
                         _z = _prev.get("z_m") if isinstance(_prev.get("z_m"), (int, float)) else 2.4
                         _entry = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3), "z_m": _z, "floor_id": fl, "origin": "map", "map_id": map_id}
                         if _prev.get("z_origin") == "manual":
                             _entry["z_origin"] = "manual"
-                        positions[src] = _entry
+                        set_scanners[src] = _entry
                         stats["scanners"] += 1
 
         if rf_barriers is not None and t:
-            self.data["rf_barriers_m"] = [bm for bm in self.data.get("rf_barriers_m", []) if not (bm.get("origin") == "map" and bm.get("map_id") == map_id)]
+            new_barriers = []
             for idx, bar in enumerate(rf_barriers):
                 pts = bar.get("points") or []
                 pts_m = [([round(c[0], 3), round(c[1], 3)]) for p in pts if (c := self.map_frac_to_metres(float(p[0]), float(p[1]), map_id))]
                 if len(pts_m) >= 2:
-                    self.data["rf_barriers_m"].append({"name": str(bar.get("name", f"Barrier {map_id}_{idx+1}"))[:80], "material": str(bar.get("material", "custom"))[:20], "attenuation_dbm": float(bar.get("attenuation_dbm", 6)), "floor_id": fl, "points_m": pts_m, "origin": "map", "map_id": map_id})
+                    new_barriers.append({"name": str(bar.get("name", f"Barrier {map_id}_{idx+1}"))[:80], "material": str(bar.get("material", "custom"))[:20], "attenuation_dbm": float(bar.get("attenuation_dbm", 6)), "floor_id": fl, "points_m": pts_m, "origin": "map", "map_id": map_id})
                     stats["barriers"] += 1
 
         if beacons is not None:
             for bk in beacons:
                 bk_key = bk.get("key")
-                if not bk_key or beacons_m.get(bk_key, {}).get("origin") == "manual":
+                if not bk_key or cur_beacons.get(bk_key, {}).get("origin") == "manual":
                     continue
                 if t:
                     coords = self.map_frac_to_metres(float(bk.get("x", 0)), float(bk.get("y", 0)), map_id)
                     if coords:
                         room = self.beacon_room_from_geometry(coords[0], coords[1], fl)
-                        beacons_m[bk_key] = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3), "floor_id": fl, "room": room or str(bk.get("label", "")), "kind": str(bk.get("kind", "")), "label": str(bk.get("label", "")), "origin": "map", "map_id": map_id}
+                        set_beacons[bk_key] = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3), "floor_id": fl, "room": room, "kind": str(bk.get("kind", "")), "label": str(bk.get("label", "")), "origin": "map", "map_id": map_id}
                         stats["beacons"] += 1
 
-        await self.store.async_save(self.data)
+        await fab.async_spatial_update(
+            set_scanners=set_scanners or None,
+            set_beacons=set_beacons or None,
+            replace_map_barriers=(map_id, new_barriers) if new_barriers is not None else None,
+            op=f"batch_save:{map_id}",
+        )
         return stats
 
     # ── Migration: derive transforms + convert map data to metres ─────────
@@ -1024,17 +1038,20 @@ class ModelStore:
         beacons_migrated} (rooms_migrated always 0).
         """
         stats = {"scanners_migrated": 0, "rooms_migrated": 0, "barriers_migrated": 0, "beacons_migrated": 0}
+        fab = getattr(self, "fabric", None)
         transforms = self.data.get("map_transforms") or {}
-        if not transforms:
+        if not transforms or not fab:
             return stats
 
-        positions = self.data.setdefault("scanner_positions_m", {})
-        barriers = self.data.setdefault("rf_barriers_m", [])
+        positions = fab.scanner_positions_m()
+        beacons_m = fab.beacon_positions_m()
+        set_scanners: dict[str, dict] = {}
+        set_beacons: dict[str, dict] = {}
+        add_barriers: list[dict] = []
 
         maps_list = maps_store.data.get("maps") or []
         sorted_maps = sorted(maps_list, key=lambda m: 1 if (m.get("stack") or {}).get("is_master") else 0)
 
-        changed = False
         for m in sorted_maps:
             mid = m.get("id", "")
             t = transforms.get(mid)
@@ -1051,13 +1068,13 @@ class ModelStore:
                 if not src:
                     continue
                 # Don't overwrite existing entries (manual or already migrated)
-                if src in positions:
+                if src in positions or src in set_scanners:
                     continue
                 x_frac = float(rx.get("x", 0))
                 y_frac = float(rx.get("y", 0))
                 coords = self.map_frac_to_metres(x_frac, y_frac, mid)
                 if coords:
-                    positions[src] = {
+                    set_scanners[src] = {
                         "x_m": round(coords[0], 3),
                         "y_m": round(coords[1], 3),
                         "z_m": round(ceiling_h, 2),
@@ -1066,7 +1083,6 @@ class ModelStore:
                         "map_id": mid,
                     }
                     stats["scanners_migrated"] += 1
-                    changed = True
 
             # ── RF barriers ───────────────────────────────────────────────
             for idx, bar in enumerate(m.get("rf_barriers") or []):
@@ -1079,7 +1095,7 @@ class ModelStore:
                     if c:
                         pts_m.append([round(c[0], 3), round(c[1], 3)])
                 if len(pts_m) >= 2:
-                    barriers.append({
+                    add_barriers.append({
                         "name": str(bar.get("name", f"Barrier {mid}_{idx+1}"))[:80],
                         "material": str(bar.get("material", "custom"))[:20],
                         "attenuation_dbm": float(bar.get("attenuation_dbm", 6)),
@@ -1089,34 +1105,36 @@ class ModelStore:
                         "map_id": mid,
                     })
                     stats["barriers_migrated"] += 1
-                    changed = True
 
             # ── Beacons ───────────────────────────────────────────────
-            beacons_m = self.data.setdefault("beacon_positions_m", {})
             for bk in (m.get("beacons") or []):
                 bk_key = bk.get("key")
-                if not bk_key or bk_key in beacons_m:
+                if not bk_key or bk_key in beacons_m or bk_key in set_beacons:
                     continue
                 bk_x = float(bk.get("x", 0))
                 bk_y = float(bk.get("y", 0))
                 coords = self.map_frac_to_metres(bk_x, bk_y, mid)
                 if coords:
                     room = self.beacon_room_from_geometry(coords[0], coords[1], fl)
-                    beacons_m[bk_key] = {
+                    set_beacons[bk_key] = {
                         "x_m": round(coords[0], 3),
                         "y_m": round(coords[1], 3),
                         "floor_id": fl,
-                        "room": room or str(bk.get("label", "")),
+                        "room": room,
                         "kind": str(bk.get("kind", "")),
                         "label": str(bk.get("label", "")),
                         "origin": "map",
                         "map_id": mid,
                     }
                     stats["beacons_migrated"] += 1
-                    changed = True
 
-        if changed:
-            await self.store.async_save(self.data)
+        if set_scanners or set_beacons or add_barriers:
+            await fab.async_spatial_update(
+                set_scanners=set_scanners or None,
+                set_beacons=set_beacons or None,
+                set_barriers=add_barriers or None,
+                op="migrate_from_maps",
+            )
         return stats
 
     async def async_sync_spatial_from_map(self, map_id: str, map_dict: dict) -> int:
@@ -1127,22 +1145,28 @@ class ModelStore:
         in the FabricStore, which no map edit may reach.
         Returns number of items updated.
         """
+        fab = getattr(self, "fabric", None)
         t = (self.data.get("map_transforms") or {}).get(map_id)
-        if not t:
+        if not t or not fab:
             return 0
 
         fl = str(map_dict.get("floor_id", DEFAULT_FLOOR_ID))
         stk = map_dict.get("stack") or {}
         ceiling_h = float(stk.get("ceiling_height_m", 2.4))
         count = 0
+        cur_scanners = fab.scanner_positions_m()
+        cur_beacons = fab.beacon_positions_m()
+        set_scanners: dict[str, dict] = {}
+        set_beacons: dict[str, dict] = {}
 
         # ── Sync scanner positions ────────────────────────────────────────
-        positions = self.data.setdefault("scanner_positions_m", {})
+        map_sources: set[str] = set()
         for rx in (map_dict.get("receivers") or []):
             src = rx.get("source") or rx.get("id", "")
             if not src:
                 continue
-            existing = positions.get(src)
+            map_sources.add(str(src))
+            existing = cur_scanners.get(src)
             # Only update map-origin entries from this map (or new entries)
             if existing and existing.get("origin") == "manual":
                 continue
@@ -1161,16 +1185,21 @@ class ModelStore:
                 if existing and existing.get("z_origin") == "manual" and isinstance(existing.get("z_m"), (int, float)):
                     _entry["z_m"] = existing["z_m"]
                     _entry["z_origin"] = "manual"
-                positions[src] = _entry
+                set_scanners[src] = _entry
                 count += 1
 
-        # ── Sync RF barriers ─────────────────────────────────────────────
-        barriers = self.data.setdefault("rf_barriers_m", [])
-        # Remove old map-origin barriers from this map
-        self.data["rf_barriers_m"] = [
-            b for b in barriers
-            if not (b.get("origin") == "map" and b.get("map_id") == map_id)
+        # A scanner this map placed (origin=map) that is no longer on the map
+        # was deleted by the user — drop it from the fabric rather than let a
+        # stale position linger as ground truth.
+        remove_scanners = [
+            src for src, pos in cur_scanners.items()
+            if pos.get("origin") == "map" and pos.get("map_id") == map_id
+            and src not in map_sources
         ]
+        count += len(remove_scanners)
+
+        # ── Sync RF barriers (full replace for this map) ─────────────────
+        new_barriers: list[dict] = []
         for idx, bar in enumerate(map_dict.get("rf_barriers") or []):
             pts = bar.get("points") or []
             pts_m = []
@@ -1179,7 +1208,7 @@ class ModelStore:
                 if c:
                     pts_m.append([round(c[0], 3), round(c[1], 3)])
             if len(pts_m) >= 2:
-                self.data["rf_barriers_m"].append({
+                new_barriers.append({
                     "name": str(bar.get("name", f"Barrier {map_id}_{idx+1}"))[:80],
                     "material": str(bar.get("material", "custom"))[:20],
                     "attenuation_dbm": float(bar.get("attenuation_dbm", 6)),
@@ -1191,22 +1220,23 @@ class ModelStore:
                 count += 1
 
         # ── Sync beacons ──────────────────────────────────────────────────
-        beacons_m = self.data.setdefault("beacon_positions_m", {})
+        map_beacon_keys: set[str] = set()
         for bk in (map_dict.get("beacons") or []):
             bk_key = bk.get("key")
             if not bk_key:
                 continue
-            existing = beacons_m.get(bk_key)
+            map_beacon_keys.add(str(bk_key))
+            existing = cur_beacons.get(bk_key)
             if existing and existing.get("origin") == "manual":
                 continue
             coords = self.map_frac_to_metres(float(bk.get("x", 0)), float(bk.get("y", 0)), map_id)
             if coords:
                 room = self.beacon_room_from_geometry(coords[0], coords[1], fl)
-                beacons_m[bk_key] = {
+                set_beacons[bk_key] = {
                     "x_m": round(coords[0], 3),
                     "y_m": round(coords[1], 3),
                     "floor_id": fl,
-                    "room": room or str(bk.get("label", "")),
+                    "room": room,
                     "kind": str(bk.get("kind", "")),
                     "label": str(bk.get("label", "")),
                     "origin": "map",
@@ -1214,8 +1244,25 @@ class ModelStore:
                 }
                 count += 1
 
+        # A beacon this map pinned (origin=map) that is no longer on the map
+        # was un-pinned by the user — drop the stale fabric position so it
+        # cannot fight live tracking.
+        remove_beacons = [
+            key for key, pos in cur_beacons.items()
+            if pos.get("origin") == "map" and pos.get("map_id") == map_id
+            and key not in map_beacon_keys
+        ]
+        count += len(remove_beacons)
+
         if count:
-            await self.store.async_save(self.data)
+            await fab.async_spatial_update(
+                set_scanners=set_scanners or None,
+                remove_scanners=remove_scanners or None,
+                set_beacons=set_beacons or None,
+                remove_beacons=remove_beacons or None,
+                replace_map_barriers=(map_id, new_barriers),
+                op=f"sync_from_map:{map_id}",
+            )
         return count
 
     # ── Phase 4: map image replacement — recompute + re-derive ─────────────
@@ -1433,8 +1480,8 @@ class ModelStore:
         Returns count of items updated. Mutates map_dict in place.
         """
         count = 0
-        positions = self.data.get("scanner_positions_m") or {}
-        barriers_m = self.data.get("rf_barriers_m") or []
+        positions = self.scanner_positions_m()
+        barriers_m = self.rf_barriers_m()
 
         # ── Receivers ─────────────────────────────────────────────────────
         existing_receivers = map_dict.get("receivers") or []
@@ -1501,7 +1548,7 @@ class ModelStore:
                     count += 1
 
         # ── Beacons ───────────────────────────────────────────────────────
-        beacons_m = self.data.get("beacon_positions_m") or {}
+        beacons_m = self.beacon_positions_m()
         existing_beacons = map_dict.get("beacons") or []
         existing_keys = {bk.get("key") for bk in existing_beacons if bk.get("key")}
 
