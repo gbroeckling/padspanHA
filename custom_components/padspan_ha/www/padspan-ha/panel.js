@@ -22,8 +22,8 @@ If UI changes don't show:
 // BUILD_ID (YYYYMMDDTHHMMSSZ) is appended to all JS import URLs as a cache-buster
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
-const APP_VERSION = "0.23.2";
-const BUILD_ID = "20260810T222609Z";
+const APP_VERSION = "0.24.0";
+const BUILD_ID = "20260811T004519Z";
 const CHANNEL = "beta";
 
 // ── Dynamic view imports ─────────────────────────────────────────────────────
@@ -298,7 +298,7 @@ class PadSpanHaApp extends HTMLElement {
       status: {},
       roomTagMap: {},
       savedRoomTagMap: {},
-      model: { floors: [], room_meta: {}, scanners: {}, room_adjacency: {}, fabric_sync_mode: "auto", scanner_positions_m: {}, room_geometry_m: {}, rf_barriers_m: [], map_transforms: {}, beacon_positions_m: {} },
+      model: { floors: [], room_meta: {}, scanners: {}, room_adjacency: {}, fabric_sync_mode: "auto", scanner_positions_m: {}, room_geometry_m: {}, rf_barriers_m: [], map_transforms: {}, beacon_positions_m: {}, fabric_floors: {} },
       live: { snapshot: null, sources: null, error: null },
       maps: { list: [], lastError: null },
       mapsTab: "library",
@@ -1209,6 +1209,7 @@ class PadSpanHaApp extends HTMLElement {
         rf_barriers_m: res?.rf_barriers_m || [],
         map_transforms: res?.map_transforms || {},
         beacon_positions_m: res?.beacon_positions_m || {},
+        fabric_floors: res?.fabric_floors || {},
       };
     } catch (e) {
       // non-fatal

@@ -790,7 +790,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Floor-based room set from fabric geometry
         _fabric_rooms: set[str] = set()
         if _model:
-            _fabric_rooms = set(_model.data.get("room_geometry_m", {}).keys())
+            _fabric_rooms = set(_model.room_geometry_m().keys())
 
         # ── Spatial data from fabric (metre-space, floor-based, no maps) ──
         self._use_metres = False
@@ -1631,7 +1631,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Room geometry check
             _geo_rooms = []
             if _model and _spatial_xy:
-                for _rn, _geo in (_model.data.get("room_geometry_m") or {}).items():
+                for _rn, _geo in _model.room_geometry_m().items():
                     if isinstance(_geo, dict) and _geo.get("floor_id") == _spatial_xy[2]:
                         _geo_rooms.append(_rn)
 

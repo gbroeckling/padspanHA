@@ -59,7 +59,7 @@ export function render(ctx){
   // stripped-down duplicate. Hide it rather than show a pointless copy.
   const tabDefs = isBasic
     ? [["library","Library"],["upload","Upload"]]
-    : [["library","Library"],["upload","Upload"],["edit","Edit"],["stack","3D Stack"],...(pro ? [["lights","Lights"]] : []),["export","Export"],["help","Help"]];
+    : [["library","Library"],["upload","Upload"],["edit","Edit"],["stack","3D Stack"],["rooms","Rooms"],...(pro ? [["lights","Lights"]] : []),["export","Export"],["help","Help"]];
 
   // If current tab is not in basic tab list, reset to library
   if(isBasic && tab !== "library" && tab !== "upload"){
@@ -96,6 +96,7 @@ export function render(ctx){
     activeTab==="upload" ? _upload(ctx, helpBtn, isBasic) :
     activeTab==="edit" ? _edit(ctx, active, maps) :
     activeTab==="stack" ? _stack(ctx, maps, helpBtn) :
+    activeTab==="rooms" ? _roomsTab(ctx, maps) :
     activeTab==="lights" ? _lightsTab(ctx, maps, active) :
     activeTab==="export" ? _export(ctx, active, maps) :
     _help(ctx),
@@ -6389,7 +6390,7 @@ function _attachPanZoom(viewport, inner) {
   // A light pin handles its own drag (_makeDraggable); the viewport's pan
   // must not also fire for that same mousedown, or the pin and the whole
   // canvas would both move at once.
-  const isExcluded = (t) => t.closest && t.closest("button,input,select,a,[data-light-pin]");
+  const isExcluded = (t) => t.closest && t.closest("button,input,select,a,[data-light-pin],[data-room-handle]");
 
   viewport.addEventListener("wheel", (e) => {
     e.preventDefault();
@@ -7018,6 +7019,444 @@ function _lightsTab(ctx, maps, active) {
   }
   tbl.appendChild(tbody);
   card.appendChild(tbl);
+
+  return card;
+}
+
+// ─── Rooms tab — the fabric room-shape editor ─────────────────────────────
+// Edits the FabricStore's per-floor room geometry DIRECTLY, in metres. The
+// uploaded photo is never involved: a floor is built from its maps exactly
+// once ("Build floor from maps"), and from then on every fix is a drag in
+// real space saved via padspan_ha/fabric_correct_room. Deliberately NOT
+// Pro-gated — room shapes are the positioning ground truth, and correcting
+// them is data integrity, not a styling feature.
+
+// Connected-component count over room bounding boxes (gap ≤ gapM = same
+// cluster). Mirrors the backend's _cluster_count so the readout here and the
+// Health tab's coherence check always agree.
+function _roomClusterCount(geoms, gapM = 1.0) {
+  const boxes = [];
+  for (const [, g] of geoms) {
+    if (g.type === "poly" && Array.isArray(g.points_m) && g.points_m.length >= 3) {
+      const xs = g.points_m.map(p => p[0]), ys = g.points_m.map(p => p[1]);
+      boxes.push([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]);
+    } else if (g.type === "circle") {
+      const r = g.r_m || 0.1;
+      boxes.push([(g.cx_m||0)-r, (g.cy_m||0)-r, (g.cx_m||0)+r, (g.cy_m||0)+r]);
+    }
+  }
+  const n = boxes.length;
+  if (!n) return 0;
+  const parent = Array.from({length: n}, (_, i) => i);
+  const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+  const h = gapM / 2;
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+    const a = boxes[i], b = boxes[j];
+    if (a[0]-h <= b[2]+h && b[0]-h <= a[2]+h && a[1]-h <= b[3]+h && b[1]-h <= a[3]+h) parent[find(i)] = find(j);
+  }
+  return new Set(Array.from({length: n}, (_, i) => find(i))).size;
+}
+
+function _geomCentroid(g) {
+  if (g.type === "poly") {
+    const n = g.points_m.length;
+    return [g.points_m.reduce((s,p)=>s+p[0],0)/n, g.points_m.reduce((s,p)=>s+p[1],0)/n];
+  }
+  return [g.cx_m || 0, g.cy_m || 0];
+}
+
+function _roomsTab(ctx, maps) {
+  const { el, roomColor } = ctx.helpers;
+  const card = el("div", { class: "card" });
+  const mapState = ctx.state.maps;
+  const allGeo = ctx.state.model?.room_geometry_m || {};
+  const fabricFloors = ctx.state.model?.fabric_floors || {};
+
+  card.appendChild(el("div", { class: "card-head", style: "margin-bottom:4px" }, [
+    el("div", { style: "font-weight:700;font-size:15px" }, "Room Shapes (Fabric)"),
+  ]));
+  card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
+    "The real-world room fabric the positioning engine uses — edited directly, in metres. " +
+    "Photos are only a one-time tracing aid: click a room to select it (Shift-click for a group), " +
+    "drag to move, drag a corner to reshape. Nothing touches a photo's calibration."));
+
+  // ── Floor selector: every HA floor + any floor that has geometry or maps ─
+  const haFloors = ctx.state.model?.floors || [];
+  const floorIds = [];
+  const seenF = new Set();
+  const addF = (id, label) => { if (id && !seenF.has(id)) { seenF.add(id); floorIds.push([id, label || id]); } };
+  for (const f of haFloors) addF(String(f.id), f.name || f.id);
+  for (const g of Object.values(allGeo)) addF(String(g.floor_id || "main"));
+  for (const m of maps) addF(String(m.floor_id || "main"));
+  if (!floorIds.length) addF("main", "Main");
+  if (!mapState._roomsFloorId || !seenF.has(mapState._roomsFloorId)) mapState._roomsFloorId = floorIds[0][0];
+  const floorId = mapState._roomsFloorId;
+
+  const bar = el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px" });
+  bar.appendChild(el("span", { class: "muted", style: "font-size:12px" }, "Floor:"));
+  for (const [fid, label] of floorIds) {
+    bar.appendChild(el("button", {
+      class: "btn inline" + (fid === floorId ? " primary" : ""),
+      onclick: () => { mapState._roomsFloorId = fid; mapState._roomsDraftFloorId = null; ctx.actions.renderRooms(); },
+    }, label));
+  }
+  card.appendChild(bar);
+
+  // ── Draft: a scratch copy of this floor's geometry, reset on floor switch ─
+  if (mapState._roomsDraftFloorId !== floorId) {
+    const draft = {};
+    for (const [room, g] of Object.entries(allGeo)) {
+      if (String(g.floor_id || "main") === String(floorId)) draft[room] = JSON.parse(JSON.stringify(g));
+    }
+    mapState._roomsDraft = draft;
+    mapState._roomsOrig = JSON.parse(JSON.stringify(draft));
+    mapState._roomsDraftFloorId = floorId;
+    mapState._roomsSel = [];
+  }
+  const draft = mapState._roomsDraft || {};
+  const orig = mapState._roomsOrig || {};
+  const sel = new Set(mapState._roomsSel || []);
+  const geoms = Object.entries(draft);
+  const floorInfo = fabricFloors[floorId] || { committed: false, rooms: geoms.length };
+  const committed = !!floorInfo.committed;
+
+  const _geomPayload = (g) => g.type === "circle"
+    ? { type: "circle", cx_m: g.cx_m, cy_m: g.cy_m, r_m: g.r_m }
+    : { type: "poly", points_m: g.points_m };
+  const _changed = (room) => JSON.stringify(_geomPayload(draft[room])) !== JSON.stringify(orig[room] ? _geomPayload(orig[room]) : null);
+  const changedRooms = Object.keys(draft).filter(_changed);
+
+  // ── Status / readout row ────────────────────────────────────────────────
+  const bbox = _roomGeomBBoxM(geoms);
+  const clusters = _roomClusterCount(geoms);
+  const readout = el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;font-size:12px" });
+  readout.appendChild(el("span", {
+    class: "pill",
+    style: committed ? "background:#14331f;color:#52b788;font-weight:700" : "background:#332714;color:#f59e0b;font-weight:700",
+  }, committed ? "🔒 Committed" : "Not committed"));
+  readout.appendChild(el("span", { class: "mono", style: "color:#94a3b8" },
+    `${geoms.length} rooms · footprint ${(bbox.width).toFixed(1)}m × ${(bbox.height).toFixed(1)}m`));
+  if (geoms.length) {
+    readout.appendChild(el("span", {
+      class: "mono",
+      style: clusters > 1 ? "color:#f87171;font-weight:700" : "color:#52b788",
+    }, clusters > 1 ? `⚠ ${clusters} disconnected clusters` : "✓ 1 connected cluster"));
+  }
+  if (sel.size) readout.appendChild(el("span", { class: "mono", style: "color:#e879f9" }, `${sel.size} selected`));
+  if (changedRooms.length) readout.appendChild(el("span", { class: "mono", style: "color:#fbbf24" }, `${changedRooms.length} unsaved`));
+  card.appendChild(readout);
+
+  // ── Canvas ──────────────────────────────────────────────────────────────
+  if (geoms.length) {
+    const stage = el("div", {
+      class: "mapstage",
+      style: "margin-top:0;height:min(75vh,680px);min-height:420px;display:flex;align-items:center;justify-content:center;position:relative;cursor:grab;touch-action:none",
+    });
+    const inner = el("div", {
+      style: `position:relative;height:100%;max-width:100%;aspect-ratio:${(bbox.width / bbox.height).toFixed(4)};transform-origin:0 0`,
+    });
+    stage.appendChild(inner);
+    const resetBtn = el("button", {
+      class: "btn inline",
+      style: "position:absolute;right:8px;top:8px;z-index:5;font-size:11px;padding:3px 8px;opacity:0.85",
+      onclick: () => panZoom.reset(),
+    }, "Reset View");
+    stage.appendChild(resetBtn);
+    const panZoom = _attachPanZoom(stage, inner);
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "mapvector");
+    svg.setAttribute("viewBox", `${bbox.minX} ${bbox.minY} ${bbox.width} ${bbox.height}`);
+    svg.setAttribute("preserveAspectRatio", "none");
+    inner.appendChild(svg);
+    // Unlike the Lights canvas, the interactive targets here are the SVG
+    // room shapes UNDER this overlay — the layer must not swallow their
+    // clicks. Handles/labels re-enable pointer-events per element.
+    const pinLayer = el("div", { class: "mapoverlay", style: "pointer-events:none" });
+    inner.appendChild(pinLayer);
+
+    const strokeW = Math.max(bbox.width, bbox.height) * 0.004;
+    const shapeEls = {};   // room -> svg element (for imperative updates mid-drag)
+    const handleEls = [];  // [{room, idx|"c"|"r", elDiv}]
+
+    // Pointer px → metre delta, valid under any pan-zoom scale because the
+    // layer rect already includes the CSS transform.
+    const pxToM = (dxPx, dyPx) => {
+      const r = pinLayer.getBoundingClientRect();
+      return [dxPx * bbox.width / (r.width || 1), dyPx * bbox.height / (r.height || 1)];
+    };
+    const pt = (ev) => [ev.clientX ?? ev.touches?.[0]?.clientX ?? 0, ev.clientY ?? ev.touches?.[0]?.clientY ?? 0];
+
+    // Shared drag runner: snapshots state, feeds metre deltas to onMove, and
+    // suppresses the poll re-render for the whole gesture (same
+    // _editDragging contract the Lights canvas uses).
+    const runDrag = (ev, onMove, onClick) => {
+      ev.preventDefault(); ev.stopPropagation();
+      const [sx, sy] = pt(ev);
+      let moved = false;
+      mapState._editDragging = true;
+      const mm = (e) => {
+        const [cx, cy] = pt(e);
+        if (Math.abs(cx - sx) + Math.abs(cy - sy) > 3) moved = true;
+        if (moved) { const [dxm, dym] = pxToM(cx - sx, cy - sy); onMove(dxm, dym); }
+      };
+      const up = (e) => {
+        window.removeEventListener("mousemove", mm); window.removeEventListener("touchmove", mm);
+        window.removeEventListener("mouseup", up); window.removeEventListener("touchend", up);
+        mapState._editDragging = false;
+        if (!moved && onClick) onClick(e);
+        ctx.actions.renderRooms();
+      };
+      window.addEventListener("mousemove", mm); window.addEventListener("touchmove", mm);
+      window.addEventListener("mouseup", up); window.addEventListener("touchend", up);
+    };
+
+    const applyShape = (room) => {
+      const g = draft[room], elS = shapeEls[room];
+      if (!elS) return;
+      if (g.type === "poly") elS.setAttribute("points", g.points_m.map(p => `${p[0]},${p[1]}`).join(" "));
+      else { elS.setAttribute("cx", g.cx_m); elS.setAttribute("cy", g.cy_m); elS.setAttribute("r", g.r_m); }
+      for (const h of handleEls) {
+        if (h.room !== room) continue;
+        const [hx, hy] = h.idx === "c" ? _geomCentroid(g)
+          : h.idx === "r" ? [g.cx_m + g.r_m, g.cy_m]
+          : g.points_m[h.idx];
+        h.elDiv.style.left = `${((hx - bbox.minX) / bbox.width * 100).toFixed(3)}%`;
+        h.elDiv.style.top = `${((hy - bbox.minY) / bbox.height * 100).toFixed(3)}%`;
+      }
+    };
+
+    // Room shapes
+    for (const [room, g] of geoms) {
+      const color = roomColor(room);
+      const isSel = sel.has(room);
+      let elS;
+      if (g.type === "poly" && Array.isArray(g.points_m) && g.points_m.length >= 3) {
+        elS = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        elS.setAttribute("points", g.points_m.map(p => `${p[0]},${p[1]}`).join(" "));
+      } else if (g.type === "circle") {
+        elS = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        elS.setAttribute("cx", g.cx_m ?? 0); elS.setAttribute("cy", g.cy_m ?? 0); elS.setAttribute("r", g.r_m ?? 0.6);
+      } else continue;
+      elS.setAttribute("fill", color);
+      elS.setAttribute("fill-opacity", isSel ? "0.38" : "0.18");
+      elS.setAttribute("stroke", isSel ? "#e879f9" : color);
+      elS.setAttribute("stroke-width", String(strokeW * (isSel ? 1.8 : 1)));
+      elS.style.pointerEvents = "auto";
+      elS.style.cursor = isSel ? "move" : "pointer";
+      if (isSel) elS.setAttribute("data-room-handle", "1");
+      shapeEls[room] = elS;
+
+      elS.addEventListener("mousedown", (ev) => {
+        if (ev.button !== 0) return;
+        if (!sel.has(room)) {
+          // Not selected: a plain click selects (Shift adds); no drag from here.
+          ev.stopPropagation(); ev.preventDefault();
+          runDrag(ev, () => {}, (e) => {
+            mapState._roomsSel = e.shiftKey ? [...new Set([...sel, room])] : [room];
+          });
+          return;
+        }
+        // Selected: drag moves the whole selection rigidly; a plain click
+        // (no move) with Shift removes from the group, without Shift keeps
+        // selection as-is when grouped or deselects when solo.
+        const snap = {};
+        for (const rn of sel) snap[rn] = JSON.parse(JSON.stringify(draft[rn]));
+        runDrag(ev, (dxm, dym) => {
+          for (const rn of sel) {
+            const s = snap[rn], d = draft[rn];
+            if (s.type === "poly") d.points_m = s.points_m.map(p => [Math.round((p[0]+dxm)*1000)/1000, Math.round((p[1]+dym)*1000)/1000]);
+            else { d.cx_m = Math.round((s.cx_m+dxm)*1000)/1000; d.cy_m = Math.round((s.cy_m+dym)*1000)/1000; }
+            applyShape(rn);
+          }
+        }, (e) => {
+          if (e.shiftKey) mapState._roomsSel = [...sel].filter(rn => rn !== room);
+          else if (sel.size === 1) mapState._roomsSel = [];
+        });
+      });
+      svg.appendChild(elS);
+    }
+
+    // Room labels
+    for (const [room, g] of geoms) {
+      const [cx, cy] = _geomCentroid(g);
+      pinLayer.appendChild(el("div", {
+        style: `position:absolute;left:${((cx - bbox.minX) / bbox.width * 100).toFixed(2)}%;top:${((cy - bbox.minY) / bbox.height * 100).toFixed(2)}%;` +
+          `transform:translate(-50%,-50%);color:${roomColor(room)};font-size:11px;opacity:0.75;` +
+          `pointer-events:none;white-space:nowrap;font-family:system-ui,sans-serif;z-index:1`,
+      }, room));
+    }
+
+    // Vertex / circle handles — only in single-selection (precision mode)
+    if (sel.size === 1) {
+      const room = [...sel][0];
+      const g = draft[room];
+      const mkHandle = (idx, mx, my, title) => {
+        const h = document.createElement("div");
+        h.title = title;
+        h.setAttribute("data-room-handle", "1");
+        h.style.cssText = `position:absolute;left:${((mx - bbox.minX) / bbox.width * 100).toFixed(3)}%;` +
+          `top:${((my - bbox.minY) / bbox.height * 100).toFixed(3)}%;width:12px;height:12px;` +
+          `transform:translate(-50%,-50%);border-radius:50%;background:#e879f9;border:2px solid #fff;` +
+          `box-shadow:0 1px 3px rgba(0,0,0,.7);cursor:grab;z-index:4;pointer-events:auto`;
+        h.addEventListener("mousedown", (ev) => {
+          if (ev.button !== 0) return;
+          const snap = JSON.parse(JSON.stringify(g));
+          runDrag(ev, (dxm, dym) => {
+            if (idx === "c") { g.cx_m = Math.round((snap.cx_m+dxm)*1000)/1000; g.cy_m = Math.round((snap.cy_m+dym)*1000)/1000; }
+            else if (idx === "r") { g.r_m = Math.max(0.1, Math.round((snap.r_m + dxm)*1000)/1000); }
+            else { g.points_m[idx] = [Math.round((snap.points_m[idx][0]+dxm)*1000)/1000, Math.round((snap.points_m[idx][1]+dym)*1000)/1000]; }
+            applyShape(room);
+          });
+        });
+        pinLayer.appendChild(h);
+        handleEls.push({ room, idx, elDiv: h });
+      };
+      if (g && g.type === "poly") g.points_m.forEach((p, i) => mkHandle(i, p[0], p[1], `${room} corner ${i + 1}`));
+      else if (g && g.type === "circle") { mkHandle("c", g.cx_m, g.cy_m, `${room} centre`); mkHandle("r", g.cx_m + g.r_m, g.cy_m, `${room} radius`); }
+    }
+
+    card.appendChild(stage);
+
+    // ── Group tools: scale / rotate the selection about its centroid ──────
+    // A mis-scaled cluster (the fallback-transform disease) needs a group
+    // scale to fix — per-vertex dragging can't realistically resize 5 rooms.
+    if (sel.size) {
+      const tools = el("div", { style: "display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:8px 10px;background:#0a150e;border-radius:6px;margin-top:8px;font-size:12px" });
+      tools.appendChild(el("span", { style: "color:#94a3b8" }, `Group of ${sel.size}:`));
+      const selCentroid = () => {
+        let sx = 0, sy = 0, n = 0;
+        for (const rn of sel) { const [cx, cy] = _geomCentroid(draft[rn]); sx += cx; sy += cy; n++; }
+        return [sx / n, sy / n];
+      };
+      const applyXform = (fn, fr) => {
+        const [ccx, ccy] = selCentroid();
+        for (const rn of sel) {
+          const g = draft[rn];
+          if (g.type === "poly") g.points_m = g.points_m.map(p => { const [x, y] = fn(p[0]-ccx, p[1]-ccy); return [Math.round((ccx+x)*1000)/1000, Math.round((ccy+y)*1000)/1000]; });
+          else { const [x, y] = fn(g.cx_m-ccx, g.cy_m-ccy); g.cx_m = Math.round((ccx+x)*1000)/1000; g.cy_m = Math.round((ccy+y)*1000)/1000; if (fr) g.r_m = Math.max(0.1, Math.round(fr(g.r_m)*1000)/1000); }
+        }
+        ctx.actions.renderRooms();
+      };
+      const scaleIn = el("input", { type: "number", value: "1.0", step: "0.05", min: "0.05", max: "20",
+        style: "width:64px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:3px 6px" });
+      tools.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;color:#94a3b8" }, ["Scale ×", scaleIn]));
+      tools.appendChild(el("button", { class: "btn inline", onclick: () => {
+        const k = parseFloat(scaleIn.value);
+        if (!isFinite(k) || k <= 0) { ctx.toast("Enter a valid scale factor"); return; }
+        applyXform((x, y) => [x * k, y * k], (r) => r * k);
+      } }, "Apply"));
+      const rotIn = el("input", { type: "number", value: "0", step: "1", min: "-359", max: "359",
+        style: "width:64px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:3px 6px" });
+      tools.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;color:#94a3b8" }, ["Rotate °", rotIn]));
+      tools.appendChild(el("button", { class: "btn inline", onclick: () => {
+        const deg = parseFloat(rotIn.value);
+        if (!isFinite(deg)) { ctx.toast("Enter a valid angle"); return; }
+        const th = deg * Math.PI / 180, c = Math.cos(th), s = Math.sin(th);
+        applyXform((x, y) => [x * c - y * s, x * s + y * c]);
+      } }, "Apply"));
+      tools.appendChild(el("button", { class: "btn inline", onclick: () => { mapState._roomsSel = []; ctx.actions.renderRooms(); } }, "Deselect"));
+      card.appendChild(tools);
+    }
+
+    // ── Save / discard ────────────────────────────────────────────────────
+    const saveRow = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px" });
+    const saveBtn = el("button", {
+      class: "btn inline primary",
+      onclick: async (e) => {
+        if (!changedRooms.length) { ctx.toast("No changes to save"); return; }
+        const btn = e.currentTarget;
+        btn.disabled = true; btn.textContent = "Saving…";
+        let ok = 0, fail = 0;
+        for (const room of changedRooms) {
+          try {
+            await ctx.actions.wsCall("padspan_ha/fabric_correct_room", {
+              floor_id: floorId, room, geometry: _geomPayload(draft[room]),
+            });
+            ok++;
+          } catch (err) { fail++; console.warn("fabric_correct_room failed", room, err); }
+        }
+        ctx.toast(fail ? `Saved ${ok}, failed ${fail}` : `✔ ${ok} room shape${ok !== 1 ? "s" : ""} corrected`, !!fail);
+        mapState._roomsDraftFloorId = null;   // re-copy from refreshed model
+        await ctx.actions.modelRefresh();
+      },
+    }, `💾 Save corrections${changedRooms.length ? ` (${changedRooms.length})` : ""}`);
+    saveRow.appendChild(saveBtn);
+    if (changedRooms.length) {
+      saveRow.appendChild(el("button", { class: "btn inline", onclick: () => {
+        mapState._roomsDraftFloorId = null; ctx.actions.renderRooms();
+      } }, "Discard changes"));
+    }
+    card.appendChild(saveRow);
+  } else {
+    card.appendChild(el("div", { class: "muted", style: "padding:8px;margin:8px 0" },
+      "No room shapes on this floor yet. Trace rooms on an uploaded photo in the Edit tab, " +
+      "then build the floor's fabric from them below — a one-time step."));
+  }
+
+  // ── Build / finalize controls ───────────────────────────────────────────
+  const admin = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #1e293b" });
+  const floorMaps = maps.filter(m => String(m.floor_id || "main") === String(floorId));
+  const refreshAfter = async () => { mapState._roomsDraftFloorId = null; await ctx.actions.modelRefresh(); };
+
+  if (!committed) {
+    if (!geoms.length && floorMaps.length) {
+      admin.appendChild(el("button", {
+        class: "btn inline primary",
+        onclick: async () => {
+          if (!confirm(`Build "${floorId}" from its ${floorMaps.length} map(s)? This converts the photo-traced room outlines into real-world fabric — a one-time bootstrap; afterwards the photos are no longer involved.`)) return;
+          try {
+            const r = await ctx.actions.wsCall("padspan_ha/fabric_commit_floor", { floor_id: floorId, mode: "bootstrap" });
+            ctx.toast(`Floor built: ${r.rooms} rooms from ${r.maps_used.length} map(s)`);
+            await refreshAfter();
+          } catch (err) { ctx.toast("Build failed: " + (err.message || err), true); }
+        },
+      }, "🧱 Build floor from maps"));
+    } else if (geoms.length && floorMaps.length) {
+      admin.appendChild(el("button", {
+        class: "btn inline",
+        style: "border-color:#7f1d1d;color:#fca5a5;font-size:11px",
+        onclick: async () => {
+          if (!confirm(`REBUILD "${floorId}" from its maps, throwing away ALL ${geoms.length} current room shapes (including any hand corrections)? This is rarely the right fix — dragging the rooms into place above usually is.`)) return;
+          try {
+            const r = await ctx.actions.wsCall("padspan_ha/fabric_commit_floor", { floor_id: floorId, mode: "overwrite" });
+            ctx.toast(`Floor rebuilt: ${r.rooms} rooms`);
+            await refreshAfter();
+          } catch (err) { ctx.toast("Rebuild failed: " + (err.message || err), true); }
+        },
+      }, "Rebuild from maps…"));
+    }
+    if (geoms.length) {
+      admin.appendChild(el("button", {
+        class: "btn inline",
+        style: "border-color:#52b788;color:#52b788",
+        onclick: async () => {
+          if (!confirm(`Finalize "${floorId}"? The floor's room shapes become locked ground truth: bulk rebuilds from maps are refused (individual corrections stay possible).`)) return;
+          try {
+            await ctx.actions.wsCall("padspan_ha/fabric_floor_finalize", { floor_id: floorId, committed: true });
+            ctx.toast(`🔒 Floor "${floorId}" finalized`);
+            await refreshAfter();
+          } catch (err) { ctx.toast("Finalize failed: " + (err.message || err), true); }
+        },
+      }, "🔒 Finalize floor"));
+    }
+  } else {
+    admin.appendChild(el("span", { class: "muted", style: "font-size:12px" },
+      `Committed ${floorInfo.committed_at ? new Date(floorInfo.committed_at).toLocaleDateString() : ""} — shapes are locked ground truth. Corrections above still work.`));
+    admin.appendChild(el("button", {
+      class: "btn inline",
+      style: "font-size:11px",
+      onclick: async () => {
+        if (!confirm(`Unlock "${floorId}"? This re-allows bulk rebuilds from maps. Only needed if you intend to rebuild the whole floor.`)) return;
+        try {
+          await ctx.actions.wsCall("padspan_ha/fabric_floor_finalize", { floor_id: floorId, committed: false });
+          ctx.toast(`Floor "${floorId}" unlocked`);
+          await refreshAfter();
+        } catch (err) { ctx.toast("Unlock failed: " + (err.message || err), true); }
+      },
+    }, "Unlock…"));
+  }
+  card.appendChild(admin);
 
   return card;
 }

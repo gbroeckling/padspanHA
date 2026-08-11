@@ -19,7 +19,7 @@ Organisation:
 
 DOMAIN = "padspan_ha"
 NAME = "PadSpan HA"
-VERSION = "0.23.2"
+VERSION = "0.24.0"
 
 # ── Config-flow option keys ───────────────────────────────────────────────────
 CONF_ENABLE_CLOUD = "enable_cloud"
@@ -57,7 +57,7 @@ DATA_ADAPTIVE = "adaptive"
 DATA_OBJECT_HISTORY = "object_history"
 DATA_TRACEBACK = "traceback"
 DATA_TAG_INTEGRATION = "tag_integration"
-DATA_FABRIC = "fabric"                       # positioning fabric (Phase 1 decoupling)
+DATA_FABRIC = "fabric"                       # FabricStore — room-geometry ground truth
 DATA_DEVICE_REGISTRY = "device_registry"     # stable device identity registry
 DATA_ESPRESENSE_MQTT = "espresense_mqtt"     # ESPresense MQTT ingestion module
 DATA_FORENSICS = "forensics"                 # presence-session recorder (opt-in)
@@ -66,6 +66,7 @@ DATA_FORENSICS = "forensics"                 # presence-session recorder (opt-in
 SETTINGS_STORE_KEY = "padspan_ha.settings"
 MAPS_STORE_KEY = "padspan_ha.maps"
 MODEL_STORE_KEY = "padspan_ha.model"
+FABRIC_STORE_KEY = "padspan_ha.fabric"
 OBJECT_STORE_KEY = "padspan_ha.objects"
 CALIBRATION_STORE_KEY = "padspan_ha.calibration"
 ALERTS_STORE_KEY = "padspan_ha.follow_alerts"

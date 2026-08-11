@@ -25,7 +25,9 @@ Data layout in .storage/padspan_ha.model:
     "room_adjacency": {...},         # Phase 1: room→[neighbors]
     "fabric_sync_mode": "auto",      # Phase 1: "auto" | "manual"
     "scanner_positions_m": {...},     # Phase 2: source→{x_m, y_m, z_m, floor_id}
-    "room_geometry_m": {...},         # Phase 2: room→{type, points_m/cx_m/..., floor_id}
+    "room_geometry_m": {...},         # RETIRED legacy copy — ground truth lives in
+                                      # padspan_ha.fabric (FabricStore); kept on disk
+                                      # for rollback only, never read or written live
     "rf_barriers_m": [...],           # Phase 2: [{points_m, attenuation_dbm, floor_id}]
     "map_transforms": {...},          # Phase 2: map_id→affine (frac↔metres)
   }
@@ -146,7 +148,8 @@ DEFAULT_DATA: dict[str, Any] = {
         # source_name: { x_m, y_m, z_m, floor_id, origin, map_id }
     },
     "room_geometry_m": {
-        # room_name: { type, floor_id, origin, points_m | cx_m/cy_m/r_m }
+        # RETIRED — room shapes live in FabricStore (padspan_ha.fabric).
+        # This key stays only so pre-fabric stores can roll back cleanly.
     },
     "rf_barriers_m": [
         # { name, material, attenuation_dbm, floor_id, points_m, origin, map_id }
@@ -174,6 +177,21 @@ class ModelStore:
         self._raw_store = Store(hass, 1, MODEL_STORE_KEY)
         self.store = wrap_store(self._raw_store, hass, "model")
         self.data = dict(DEFAULT_DATA)
+        self.fabric: Any = None  # FabricStore, attached by __init__ after both load
+
+    def attach_fabric(self, fabric: Any) -> None:
+        """Wire the FabricStore this model reads room geometry through."""
+        self.fabric = fabric
+
+    def room_geometry_m(self) -> dict[str, dict[str, Any]]:
+        """Room geometry ground truth, read through from the FabricStore.
+
+        Deliberately NO fallback to the legacy self.data copy: a missed
+        fabric wiring must fail loud (empty geometry) rather than silently
+        serve the stale pre-fabric cache.
+        """
+        fab = getattr(self, "fabric", None)
+        return fab.rooms_flat() if fab else {}
 
     async def async_setup(self) -> None:
         loaded = await self.store.async_load()
@@ -258,7 +276,7 @@ class ModelStore:
             "room_adjacency": dict(self.data.get("room_adjacency", {})),
             "fabric_sync_mode": self.data.get("fabric_sync_mode", "auto"),
             "scanner_positions_m": dict(self.data.get("scanner_positions_m", {})),
-            "room_geometry_m": dict(self.data.get("room_geometry_m", {})),
+            "room_geometry_m": self.room_geometry_m(),
             "rf_barriers_m": list(self.data.get("rf_barriers_m", [])),
             "map_transforms": dict(self.data.get("map_transforms", {})),
             "beacon_positions_m": dict(self.data.get("beacon_positions_m", {})),
@@ -615,12 +633,12 @@ class ModelStore:
         return out
 
     def room_centroids_m(self) -> dict[str, tuple[float, float, str]]:
-        """Compute room centroids in metres from room_geometry_m.
+        """Compute room centroids in metres from the fabric's room geometry.
 
         Returns {room_name: (cx_m, cy_m, floor_id)}.
         """
         centroids: dict[str, tuple[float, float, str]] = {}
-        for room, geo in (self.data.get("room_geometry_m") or {}).items():
+        for room, geo in self.room_geometry_m().items():
             if not isinstance(geo, dict):
                 continue
             fl = str(geo.get("floor_id", DEFAULT_FLOOR_ID))
@@ -647,7 +665,7 @@ class ModelStore:
 
     def has_spatial_model(self) -> bool:
         """Return True if real-world spatial data has been populated."""
-        return bool(self.data.get("scanner_positions_m") or self.data.get("room_geometry_m") or self.data.get("beacon_positions_m"))
+        return bool(self.data.get("scanner_positions_m") or self.room_geometry_m() or self.data.get("beacon_positions_m"))
 
     # ── Coordinate conversion ─────────────────────────────────────────────
 
@@ -711,12 +729,6 @@ class ModelStore:
             "origin": str(origin),
             "map_id": map_id,
         }
-        await self.store.async_save(self.data)
-
-    async def async_set_room_geometry_m(self, room: str, geometry: dict) -> None:
-        """Set a room's real-world geometry (polygon or circle in metres)."""
-        geo = self.data.setdefault("room_geometry_m", {})
-        geo[str(room)] = dict(geometry)
         await self.store.async_save(self.data)
 
     async def async_set_rf_barrier_m(self, barrier: dict) -> None:
@@ -800,8 +812,8 @@ class ModelStore:
         await self.store.async_save(self.data)
 
     def beacon_room_from_geometry(self, x_m: float, y_m: float, floor_id: str) -> str:
-        """Determine which room a metre-space point falls in, using room_geometry_m."""
-        for room, geo in (self.data.get("room_geometry_m") or {}).items():
+        """Determine which room a metre-space point falls in, from the fabric."""
+        for room, geo in self.room_geometry_m().items():
             if not isinstance(geo, dict):
                 continue
             if geo.get("floor_id") != floor_id:
@@ -836,20 +848,20 @@ class ModelStore:
     async def async_batch_save_spatial(
         self, map_id: str, floor_id: str,
         scanners: list[dict] | None = None,
-        rooms: dict | None = None,
         rf_barriers: list[dict] | None = None,
         beacons: list[dict] | None = None,
     ) -> dict[str, int]:
         """Atomic batch save of spatial data from map-fraction coordinates.
 
         Converts fracs to metres using the map transform, writes to fabric.
-        Returns counts: {scanners, rooms, barriers, beacons}.
+        Room geometry is deliberately NOT accepted here — rooms live in the
+        FabricStore, whose two writers are the only room-geometry paths.
+        Returns counts: {scanners, rooms, barriers, beacons} (rooms always 0).
         """
         stats = {"scanners": 0, "rooms": 0, "barriers": 0, "beacons": 0}
         t = (self.data.get("map_transforms") or {}).get(map_id)
         fl = str(floor_id or DEFAULT_FLOOR_ID)
         positions = self.data.setdefault("scanner_positions_m", {})
-        geometry = self.data.setdefault("room_geometry_m", {})
         beacons_m = self.data.setdefault("beacon_positions_m", {})
 
         if scanners is not None:
@@ -872,24 +884,6 @@ class ModelStore:
                             _entry["z_origin"] = "manual"
                         positions[src] = _entry
                         stats["scanners"] += 1
-
-        if rooms is not None:
-            for rname, b in rooms.items():
-                if not isinstance(b, dict) or geometry.get(rname, {}).get("origin") == "manual":
-                    continue
-                btype = b.get("type", "poly")
-                if btype == "poly" and t:
-                    pts = b.get("points") or []
-                    pts_m = [([round(c[0], 3), round(c[1], 3)]) for p in pts if (c := self.map_frac_to_metres(float(p[0]), float(p[1]), map_id))]
-                    if len(pts_m) >= 3:
-                        geometry[rname] = {"type": "poly", "floor_id": fl, "origin": "map", "points_m": pts_m}
-                        stats["rooms"] += 1
-                elif btype == "circle" and t:
-                    c_center = self.map_frac_to_metres(float(b.get("cx", 0.5)), float(b.get("cy", 0.5)), map_id)
-                    if c_center:
-                        avg_scale = (float(t["scale_x_m"]) + float(t["scale_y_m"])) / 2
-                        geometry[rname] = {"type": "circle", "floor_id": fl, "origin": "map", "cx_m": round(c_center[0], 3), "cy_m": round(c_center[1], 3), "r_m": round(float(b.get("r", 0.12)) * avg_scale, 3)}
-                        stats["rooms"] += 1
 
         if rf_barriers is not None and t:
             self.data["rf_barriers_m"] = [bm for bm in self.data.get("rf_barriers_m", []) if not (bm.get("origin") == "map" and bm.get("map_id") == map_id)]
@@ -1019,11 +1013,15 @@ class ModelStore:
     async def async_migrate_from_maps(self, maps_store: Any) -> dict[str, int]:
         """One-time migration: convert map spatial data to real-world metres.
 
-        Reads receivers → scanner_positions_m, room_bounds → room_geometry_m,
-        rf_barriers → rf_barriers_m. Only writes if the target key is empty
+        Reads receivers → scanner_positions_m, rf_barriers → rf_barriers_m,
+        beacons → beacon_positions_m. Only writes if the target key is empty
         (won't overwrite existing manual edits).
 
-        Returns {scanners_migrated, rooms_migrated, barriers_migrated}.
+        Room geometry is deliberately NOT migrated here — rooms live in the
+        FabricStore and are built exactly once via async_commit_floor.
+
+        Returns {scanners_migrated, rooms_migrated, barriers_migrated,
+        beacons_migrated} (rooms_migrated always 0).
         """
         stats = {"scanners_migrated": 0, "rooms_migrated": 0, "barriers_migrated": 0, "beacons_migrated": 0}
         transforms = self.data.get("map_transforms") or {}
@@ -1031,14 +1029,9 @@ class ModelStore:
             return stats
 
         positions = self.data.setdefault("scanner_positions_m", {})
-        geometry = self.data.setdefault("room_geometry_m", {})
         barriers = self.data.setdefault("rf_barriers_m", [])
 
-        # Track which rooms came from a master map (prefer master)
-        master_rooms: set[str] = set()
         maps_list = maps_store.data.get("maps") or []
-
-        # Sort maps so master maps are processed last (overwrite non-master)
         sorted_maps = sorted(maps_list, key=lambda m: 1 if (m.get("stack") or {}).get("is_master") else 0)
 
         changed = False
@@ -1050,7 +1043,6 @@ class ModelStore:
 
             fl = str(m.get("floor_id", DEFAULT_FLOOR_ID))
             stk = m.get("stack") or {}
-            is_master = stk.get("is_master", False)
             ceiling_h = float(stk.get("ceiling_height_m", 2.4))
 
             # ── Scanners (receivers) ──────────────────────────────────────
@@ -1075,55 +1067,6 @@ class ModelStore:
                     }
                     stats["scanners_migrated"] += 1
                     changed = True
-
-            # ── Room bounds → geometry ────────────────────────────────────
-            for rname, b in (m.get("room_bounds") or {}).items():
-                if not isinstance(b, dict):
-                    continue
-                # Master map overrides non-master
-                if rname in geometry and rname in master_rooms and not is_master:
-                    continue
-                btype = b.get("type", "poly")
-                if btype == "poly":
-                    pts = b.get("points") or []
-                    if len(pts) < 3:
-                        continue
-                    pts_m = []
-                    for p in pts:
-                        c = self.map_frac_to_metres(float(p[0]), float(p[1]), mid)
-                        if c:
-                            pts_m.append([round(c[0], 3), round(c[1], 3)])
-                    if len(pts_m) >= 3:
-                        geometry[rname] = {
-                            "type": "poly",
-                            "floor_id": fl,
-                            "origin": "map",
-                            "points_m": pts_m,
-                        }
-                        if is_master:
-                            master_rooms.add(rname)
-                        stats["rooms_migrated"] += 1
-                        changed = True
-                elif btype == "circle":
-                    c_center = self.map_frac_to_metres(
-                        float(b.get("cx", 0.5)), float(b.get("cy", 0.5)), mid
-                    )
-                    if c_center:
-                        # Approximate radius: use avg of x/y scale
-                        avg_scale = (float(t["scale_x_m"]) + float(t["scale_y_m"])) / 2
-                        r_m = float(b.get("r", 0.12)) * avg_scale
-                        geometry[rname] = {
-                            "type": "circle",
-                            "floor_id": fl,
-                            "origin": "map",
-                            "cx_m": round(c_center[0], 3),
-                            "cy_m": round(c_center[1], 3),
-                            "r_m": round(r_m, 3),
-                        }
-                        if is_master:
-                            master_rooms.add(rname)
-                        stats["rooms_migrated"] += 1
-                        changed = True
 
             # ── RF barriers ───────────────────────────────────────────────
             for idx, bar in enumerate(m.get("rf_barriers") or []):
@@ -1179,8 +1122,10 @@ class ModelStore:
     async def async_sync_spatial_from_map(self, map_id: str, map_dict: dict) -> int:
         """Re-derive metre-space data for a single map after it's edited.
 
-        Updates scanner positions, room geometry, and RF barriers that originated
-        from this map. Returns number of items updated.
+        Updates scanner positions, RF barriers, and beacons that originated
+        from this map. Room geometry is deliberately NOT synced — rooms live
+        in the FabricStore, which no map edit may reach.
+        Returns number of items updated.
         """
         t = (self.data.get("map_transforms") or {}).get(map_id)
         if not t:
@@ -1218,42 +1163,6 @@ class ModelStore:
                     _entry["z_origin"] = "manual"
                 positions[src] = _entry
                 count += 1
-
-        # ── Sync room geometry ────────────────────────────────────────────
-        geometry = self.data.setdefault("room_geometry_m", {})
-        for rname, b in (map_dict.get("room_bounds") or {}).items():
-            if not isinstance(b, dict):
-                continue
-            existing = geometry.get(rname)
-            if existing and existing.get("origin") == "manual":
-                continue
-            btype = b.get("type", "poly")
-            if btype == "poly":
-                pts = b.get("points") or []
-                pts_m = []
-                for p in pts:
-                    c = self.map_frac_to_metres(float(p[0]), float(p[1]), map_id)
-                    if c:
-                        pts_m.append([round(c[0], 3), round(c[1], 3)])
-                if len(pts_m) >= 3:
-                    geometry[rname] = {
-                        "type": "poly", "floor_id": fl, "origin": "map",
-                        "points_m": pts_m,
-                    }
-                    count += 1
-            elif btype == "circle":
-                c_center = self.map_frac_to_metres(
-                    float(b.get("cx", 0.5)), float(b.get("cy", 0.5)), map_id
-                )
-                if c_center:
-                    avg_scale = (float(t["scale_x_m"]) + float(t["scale_y_m"])) / 2
-                    geometry[rname] = {
-                        "type": "circle", "floor_id": fl, "origin": "map",
-                        "cx_m": round(c_center[0], 3),
-                        "cy_m": round(c_center[1], 3),
-                        "r_m": round(float(b.get("r", 0.12)) * avg_scale, 3),
-                    }
-                    count += 1
 
         # ── Sync RF barriers ─────────────────────────────────────────────
         barriers = self.data.setdefault("rf_barriers_m", [])
@@ -1525,7 +1434,6 @@ class ModelStore:
         """
         count = 0
         positions = self.data.get("scanner_positions_m") or {}
-        geometry = self.data.get("room_geometry_m") or {}
         barriers_m = self.data.get("rf_barriers_m") or []
 
         # ── Receivers ─────────────────────────────────────────────────────

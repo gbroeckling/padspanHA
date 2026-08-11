@@ -139,46 +139,43 @@ function _renderFabric(ctx, container, data) {
   container.innerHTML = "";
   const { summary, checks, scanners, scanner_positions_m, room_geometry_m, adjacency } = data;
 
-  // ── Migration status ─────────────────────────────────────────────────────
-  const _maps = data.maps || [];
-  const _hasMapsData = _maps.some(m => m.has_receivers > 0 || m.has_room_bounds > 0);
-  const _noFabric = !scanner_positions_m?.length && !room_geometry_m?.length;
-  if (_hasMapsData && _noFabric) {
-    // Migration needed
-    const _mb = el("div",{class:"card",style:"border:2px solid #f59e0b;background:rgba(245,158,11,.08);margin-bottom:12px;padding:16px"});
-    _mb.appendChild(el("div",{style:"font-weight:800;font-size:14px;color:#fbbf24;margin-bottom:8px"},"\u26a0 Migration Required"));
-    _mb.appendChild(el("div",{style:"font-size:12px;color:#e2e8f0;margin-bottom:12px"},
-      "Your maps have spatial data that needs to be migrated to the positioning fabric. This is a one-time process."));
-    const _mr = el("div",{style:"display:flex;align-items:center;gap:8px"});
-    const _mi = document.createElement("input");
-    _mi.type="number";_mi.value="20";_mi.min="5";_mi.max="200";_mi.step="1";
-    _mi.style.cssText="width:80px;padding:4px 8px;border:1px solid #334155;border-radius:4px;background:#1e293b;color:#e2e8f0;font-size:12px";
-    _mr.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"Floor width:"));
-    _mr.appendChild(_mi);
-    _mr.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"m"));
-    const _mbtn = el("button",{class:"btn save-pulse",style:"width:auto;padding:6px 16px;font-size:12px;background:#92400e;border-color:#f59e0b;color:#fbbf24;font-weight:700"},"\ud83d\udcbe Migrate to Fabric");
-    _mbtn.addEventListener("click", async () => {
-      const w = parseFloat(_mi.value);
-      if (!w || w < 1) { ctx.toast("Enter a valid floor width"); return; }
-      _mbtn.disabled = true; _mbtn.textContent = "Migrating\u2026"; _mbtn.classList.remove("save-pulse");
-      try {
-        const res = await ctx.actions.callWS({type:"padspan_ha/fabric_migrate_from_maps", default_floor_width_m: w});
-        try { await ctx.actions.callWS({type:"padspan_ha/calibration_retrain_rf"}); } catch(e){}
-        ctx.toast(`Migrated: ${res.transforms_computed} transforms, ${res.scanners_migrated} scanners, ${res.rooms_migrated} rooms`);
-        _fabricCache = null; _fabricFetchTs = 0; _fetchAndRenderFabric(ctx, container);
-      } catch(e) { ctx.toast("Failed: "+(e.message||e)); _mbtn.disabled=false; _mbtn.textContent="Migrate to Fabric"; _mbtn.classList.add("save-pulse"); }
-    });
-    _mr.appendChild(_mbtn);
-    _mb.appendChild(_mr);
-    container.appendChild(_mb);
-  } else if (scanner_positions_m?.length || room_geometry_m?.length) {
-    // Migration complete
+  // ── Fabric status ────────────────────────────────────────────────────────
+  // (The old "Migrate to Fabric" button is gone deliberately: it re-derived
+  // room shapes from per-photo calibration — the exact operation that
+  // corrupted live data. Rooms are built once in Mapping → Rooms instead.)
+  if (scanner_positions_m?.length || room_geometry_m?.length) {
     container.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 10px;background:rgba(82,183,136,.06);border:1px solid #52b78833;border-radius:8px"},[
-      el("span",{style:"color:#52b788;font-size:13px"},"\u2705"),
-      el("span",{style:"font-size:12px;color:#52b788;font-weight:600"},"Fabric migration complete"),
+      el("span",{style:"color:#52b788;font-size:13px"},"✅"),
+      el("span",{style:"font-size:12px;color:#52b788;font-weight:600"},"Fabric active"),
       el("span",{style:"font-size:11px;color:#94a3b8"},
-        `${scanner_positions_m?.length || 0} scanners \u00b7 ${room_geometry_m?.length || 0} rooms`),
+        `${scanner_positions_m?.length || 0} scanners · ${room_geometry_m?.length || 0} rooms`),
     ]));
+  }
+
+  // ── Per-floor room fabric: committed state + coherence ─────────────────
+  const _fabricFloors = data.fabric_floors || {};
+  if (Object.keys(_fabricFloors).length) {
+    const _ffCard = el("div",{class:"card",style:"margin-bottom:8px;padding:12px"});
+    _ffCard.appendChild(el("div",{style:"font-weight:700;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px"},
+      "Room Fabric by Floor"));
+    const _ffTbl = el("div",{style:"display:grid;grid-template-columns:1fr auto auto auto auto;gap:3px 10px;font-size:10px;align-items:center"});
+    for (const h of ["Floor","Rooms","Footprint","Clusters","Status"]) {
+      _ffTbl.appendChild(el("div",{style:"font-weight:600;color:#64748b;text-transform:uppercase"},h));
+    }
+    for (const [fid, f] of Object.entries(_fabricFloors).sort()) {
+      const _cl = f.clusters;
+      const _clBad = typeof _cl === "number" && _cl > 1;
+      _ffTbl.appendChild(el("div",{style:"color:#e2e8f0;font-weight:600"},fid));
+      _ffTbl.appendChild(el("div",{class:"mono",style:"text-align:right"},String(f.rooms ?? 0)));
+      _ffTbl.appendChild(el("div",{class:"mono",style:"color:#94a3b8"},
+        f.bbox_w_m != null ? `${f.bbox_w_m}m × ${f.bbox_h_m}m` : "—"));
+      _ffTbl.appendChild(el("div",{class:"mono",style:`color:${_clBad?"#f87171":"#52b788"};font-weight:${_clBad?"700":"400"}`},
+        _clBad ? `⚠ ${_cl}` : String(_cl ?? "—")));
+      _ffTbl.appendChild(el("div",{style:`color:${f.committed?"#52b788":"#f59e0b"};font-weight:600`},
+        f.committed ? "🔒 committed" : "not committed"));
+    }
+    _ffCard.appendChild(_ffTbl);
+    container.appendChild(_ffCard);
   }
 
   // ── Summary banner ─────────────────────────────────────────────────────
@@ -338,7 +335,7 @@ function _renderFabric(ctx, container, data) {
     const resetBtn = el("button",{class:"btn",style:"width:auto;padding:4px 14px;font-size:11px;border-color:#f8717144;color:#fca5a5"},
       "Reset Spatial Model");
     resetBtn.addEventListener("click", async () => {
-      if (!confirm("Clear all metre-space data and rebuild from maps? Scanner mappings and calibration points are preserved.")) return;
+      if (!confirm("Clear scanner positions, barriers, and map transforms? Room shapes (the fabric) and calibration points are NOT touched.")) return;
       resetBtn.disabled = true; resetBtn.textContent = "Resetting\u2026";
       try {
         const r = await ctx.actions.callWS({type:"padspan_ha/fabric_reset_spatial"});

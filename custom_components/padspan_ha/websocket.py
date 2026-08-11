@@ -47,12 +47,12 @@ from homeassistant.helpers import area_registry, device_registry, entity_registr
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    DOMAIN, VERSION, DATA_SETTINGS, DATA_MAPS, DATA_MODEL, DATA_OBJECTS,
+    DOMAIN, VERSION, DATA_SETTINGS, DATA_MAPS, DATA_MODEL, DATA_FABRIC, DATA_OBJECTS,
     DATA_OBJECTS_CACHE, DATA_OBJECT_HISTORY, OBJECT_HISTORY_STORE_KEY,
     DEFAULT_FLOOR_ID, OUTSIDE_FLOOR_ID, DATA_COORDINATOR, DATA_CALIBRATION, DATA_ADAPTIVE,
     DATA_ALERTS, DATA_MOVEMENT, BACKUPS_STORE_KEY,
     SETTINGS_STORE_KEY, CALIBRATION_STORE_KEY, ADAPTIVE_STORE_KEY,
-    OBJECT_STORE_KEY, MAPS_STORE_KEY, MODEL_STORE_KEY,
+    OBJECT_STORE_KEY, MAPS_STORE_KEY, MODEL_STORE_KEY, FABRIC_STORE_KEY,
     ALERTS_STORE_KEY, MOVEMENT_STORE_KEY,
     DATA_TRACEBACK, TRACEBACK_STORE_KEY,
     DATA_ESPRESENSE_MQTT,
@@ -251,7 +251,9 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_fabric_scanner_position_set)
     websocket_api.async_register_command(hass, ws_fabric_floor_elevations_set)
     websocket_api.async_register_command(hass, ws_fabric_scanner_z_set)
-    websocket_api.async_register_command(hass, ws_fabric_room_geometry_set)
+    websocket_api.async_register_command(hass, ws_fabric_correct_room)
+    websocket_api.async_register_command(hass, ws_fabric_commit_floor)
+    websocket_api.async_register_command(hass, ws_fabric_floor_finalize)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_set)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_remove)
     websocket_api.async_register_command(hass, ws_fabric_map_transform_set)
@@ -451,10 +453,12 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
     room_adjacency = mdl.data.get("room_adjacency", {}) if mdl else {}
     fabric_sync_mode = mdl.data.get("fabric_sync_mode", "auto") if mdl else "auto"
     scanner_positions_m = mdl.data.get("scanner_positions_m", {}) if mdl else {}
-    room_geometry_m = mdl.data.get("room_geometry_m", {}) if mdl else {}
+    room_geometry_m = mdl.room_geometry_m() if mdl else {}
     rf_barriers_m = mdl.data.get("rf_barriers_m", []) if mdl else []
     map_transforms = mdl.data.get("map_transforms", {}) if mdl else {}
     beacon_positions_m = mdl.data.get("beacon_positions_m", {}) if mdl else {}
+    _fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+    fabric_floors = _fab.floors_status() if _fab else {}
 
     connection.send_result(msg["id"], {
         "floors": floors, "areas": areas, "room_meta": room_meta,
@@ -465,6 +469,7 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
         "rf_barriers_m": rf_barriers_m,
         "map_transforms": map_transforms,
         "beacon_positions_m": beacon_positions_m,
+        "fabric_floors": fabric_floors,
         "floor_elevations": _mdl_el.floor_base_elevations_m() if _mdl_el else {},
     })
 
@@ -6125,7 +6130,7 @@ async def ws_positioning_diag(hass: HomeAssistant, connection, msg) -> None:
     # Room geometry summary (once, not per-device)
     all_geo = {}
     if model:
-        for rn, geo in (model.data.get("room_geometry_m") or {}).items():
+        for rn, geo in model.room_geometry_m().items():
             if isinstance(geo, dict):
                 all_geo[rn] = geo.get("floor_id", "?")
     connection.send_result(msg["id"], {
@@ -6650,6 +6655,7 @@ _ALL_STORE_KEYS = [
     OBJECT_STORE_KEY,
     MAPS_STORE_KEY,
     MODEL_STORE_KEY,
+    FABRIC_STORE_KEY,
     ALERTS_STORE_KEY,
     MOVEMENT_STORE_KEY,
     TRACEBACK_STORE_KEY,
@@ -6665,6 +6671,7 @@ _DATA_KEY_MAP = {
     OBJECT_STORE_KEY: DATA_OBJECTS,
     MAPS_STORE_KEY: DATA_MAPS,
     MODEL_STORE_KEY: DATA_MODEL,
+    FABRIC_STORE_KEY: DATA_FABRIC,
     ALERTS_STORE_KEY: DATA_ALERTS,
     MOVEMENT_STORE_KEY: DATA_MOVEMENT,
     TRACEBACK_STORE_KEY: DATA_TRACEBACK,
@@ -8588,12 +8595,13 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
 
     Requires confirm="FACTORY RESET" as a safety latch.  Admin-only.
 
-    Resets 11 stores, each to its correct empty/default state:
+    Resets 12 stores, each to its correct empty/default state:
       - SettingsStore → DEFAULT_SETTINGS (not {}, which would break the UI)
       - MapsStore → {"maps": []} + deletes uploaded image files from disk
       - CalibrationStore → {"points": [], "model": {}}
       - AdaptiveStore → empty room fingerprints / stats
       - ModelStore → DEFAULT_DATA
+      - FabricStore → {"floors": {}, "history": []}
       - ObjectStore, AlertStore → {}
       - MovementStore → []
       - TracebackStore → {"frames": []}
@@ -8702,6 +8710,20 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
     except Exception as e:
         _LOGGER.warning("Factory reset: model — %s", e)
         errors.append(MODEL_STORE_KEY)
+
+    # ── 5b. FabricStore — reset room-geometry ground truth ────────────────
+    # A factory reset is the one sanctioned full wipe: the "FACTORY RESET"
+    # confirm latch above is the explicit user consent the fabric requires.
+    try:
+        st = _St(hass, 1, FABRIC_STORE_KEY)
+        await st.async_save({"floors": {}, "history": []})
+        cleared += 1
+        fab_obj = domain.get(DATA_FABRIC)
+        if fab_obj and hasattr(fab_obj, "data"):
+            fab_obj.data = {"floors": {}, "history": []}
+    except Exception as e:
+        _LOGGER.warning("Factory reset: fabric — %s", e)
+        errors.append(FABRIC_STORE_KEY)
 
     # ── 6. ObjectStore — reset ._data to {} ───────────────────────────────
     try:
@@ -9080,28 +9102,86 @@ async def ws_fabric_floor_elevations_set(hass: HomeAssistant, connection, msg) -
 
 @websocket_api.websocket_command(
     {
-        "type": "padspan_ha/fabric_room_geometry_set",
+        "type": "padspan_ha/fabric_correct_room",
+        "floor_id": str,
         "room": str,
         "geometry": dict,
     }
 )
 @websocket_api.async_response
-async def ws_fabric_room_geometry_set(hass: HomeAssistant, connection, msg) -> None:
-    """Set a room's real-world geometry (polygon or circle in metres)."""
-    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-    if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+async def ws_fabric_correct_room(hass: HomeAssistant, connection, msg) -> None:
+    """Directly correct one room's real-world shape in the FabricStore.
+
+    Always allowed — a committed floor blocks bulk re-commits, never
+    corrections. This is the room editor's save path.
+    """
+    fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+    if not fab:
+        connection.send_error(msg["id"], "no_fabric", "FabricStore not loaded")
         return
     room = (msg.get("room") or "").strip()
     geo = msg.get("geometry")
     if not room or not isinstance(geo, dict):
         connection.send_error(msg["id"], "invalid", "room and geometry dict are required")
         return
-    # Ensure origin is set
-    geo.setdefault("origin", "manual")
-    geo.setdefault("floor_id", DEFAULT_FLOOR_ID)
-    await mdl.async_set_room_geometry_m(room, geo)
-    connection.send_result(msg["id"], {"ok": True, "room": room})
+    res = await fab.async_correct_room(msg.get("floor_id") or DEFAULT_FLOOR_ID, room, geo)
+    if not res.get("ok"):
+        connection.send_error(msg["id"], res.get("error", "failed"), str(res))
+        return
+    connection.send_result(msg["id"], res)
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/fabric_commit_floor",
+        "floor_id": str,
+        vol.Optional("mode"): vol.In(["bootstrap", "overwrite"]),
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_fabric_commit_floor(hass: HomeAssistant, connection, msg) -> None:
+    """One-time bootstrap of a floor's fabric from its maps' room bounds.
+
+    The single moment map calibration ever reaches room geometry. Refuses on
+    a floor that already has rooms (or is committed) unless mode="overwrite",
+    which the UI only sends after an explicit confirmation.
+    """
+    fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    if not fab or not mdl or not ms:
+        connection.send_error(msg["id"], "no_stores", "Fabric/Model/Maps store not loaded")
+        return
+    res = await fab.async_commit_floor(
+        msg.get("floor_id") or DEFAULT_FLOOR_ID, ms, mdl,
+        mode=msg.get("mode") or "bootstrap",
+    )
+    if not res.get("ok"):
+        connection.send_error(msg["id"], res.get("error", "failed"), str(res))
+        return
+    connection.send_result(msg["id"], res)
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/fabric_floor_finalize",
+        "floor_id": str,
+        "committed": bool,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_fabric_floor_finalize(hass: HomeAssistant, connection, msg) -> None:
+    """Finalize (lock) or unlock a floor's fabric. Flips only the flag."""
+    fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+    if not fab:
+        connection.send_error(msg["id"], "no_fabric", "FabricStore not loaded")
+        return
+    res = await fab.async_set_floor_committed(
+        msg.get("floor_id") or DEFAULT_FLOOR_ID, bool(msg.get("committed"))
+    )
+    connection.send_result(msg["id"], res)
 
 
 @websocket_api.websocket_command(
@@ -9300,7 +9380,11 @@ async def ws_fabric_migrate_from_maps(hass: HomeAssistant, connection, msg) -> N
 )
 @websocket_api.async_response
 async def ws_fabric_spatial_batch_save(hass: HomeAssistant, connection, msg) -> None:
-    """Save spatial data to fabric. Accepts map fracs, converts to metres."""
+    """Save spatial data to fabric. Accepts map fracs, converts to metres.
+
+    A "rooms" payload is still accepted for schema compat but ignored: room
+    geometry lives in the FabricStore, and no map-fraction save may reach it.
+    """
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
         connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
@@ -9317,7 +9401,7 @@ async def ws_fabric_spatial_batch_save(hass: HomeAssistant, connection, msg) -> 
             floor_id = DEFAULT_FLOOR_ID
     stats = await mdl.async_batch_save_spatial(
         map_id, floor_id,
-        scanners=msg.get("scanners"), rooms=msg.get("rooms"),
+        scanners=msg.get("scanners"),
         rf_barriers=msg.get("rf_barriers"), beacons=msg.get("beacons"),
     )
     # Re-derive map fracs for rendering
@@ -9977,7 +10061,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
                     "source_type": info.get("source_type", "?"),
                 })
         # Adjacency: pass if we have adjacency data OR centroid-based adjacency is active
-        _has_centroids = bool(mdl.room_centroids_m()) or bool(mdl.data.get("room_geometry_m"))
+        _has_centroids = bool(mdl.room_centroids_m()) or bool(mdl.room_geometry_m())
         checks.append({
             "group": "fabric_sync", "name": "Adjacency",
             "ok": adj_room_count > 0 or _has_centroids or len(scanners) <= 1,
@@ -9996,7 +10080,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
     # ── Phase 2: Spatial model ───────────────────────────────────────────────
     if mdl:
         positions = mdl.data.get("scanner_positions_m", {})
-        geometry = mdl.data.get("room_geometry_m", {})
+        geometry = mdl.room_geometry_m()
         barriers = mdl.data.get("rf_barriers_m", [])
         transforms = mdl.data.get("map_transforms", {})
 
@@ -10072,12 +10156,43 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
                 geometry_list.append({
                     "room": room, "type": geo.get("type", "?"),
                     "floor_id": geo.get("floor_id", "?"),
-                    "origin": geo.get("origin", "?"),
+                    "origin": geo.get("committed_by") or geo.get("origin", "?"),
                     "centroid_m": [round(c[0], 2), round(c[1], 2)] if c else None,
                 })
+
+        # ── Fabric floor status + disconnected-cluster diagnostic ─────────
+        # A floor whose room shapes form more than one spatially disconnected
+        # group is the signature of the fabricated-transform corruption —
+        # surface it proactively instead of waiting for positioning to lie.
+        _fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+        fabric_floors = _fab.floors_status() if _fab else {}
+        _by_floor: dict[str, list] = {}
+        for _room, _geo in geometry.items():
+            if isinstance(_geo, dict):
+                _bb = _geom_bbox_m(_geo)
+                if _bb:
+                    _by_floor.setdefault(str(_geo.get("floor_id", "?")), []).append(_bb)
+        for _fl, _bbs in _by_floor.items():
+            _clusters = _cluster_count(_bbs)
+            _entry = fabric_floors.setdefault(_fl, {"committed": False, "committed_at": None, "rooms": len(_bbs)})
+            _entry["clusters"] = _clusters
+            _entry["bbox_w_m"] = round(max(b[2] for b in _bbs) - min(b[0] for b in _bbs), 1)
+            _entry["bbox_h_m"] = round(max(b[3] for b in _bbs) - min(b[1] for b in _bbs), 1)
+            checks.append({
+                "group": "spatial", "name": f"Floor '{_fl}' coherence",
+                "ok": _clusters <= 1,
+                "value": f"{_clusters} cluster" + ("s" if _clusters != 1 else ""),
+                "detail": (
+                    f"{len(_bbs)} rooms form one connected floor plan"
+                    if _clusters <= 1 else
+                    f"{len(_bbs)} rooms fall into {_clusters} disconnected groups — "
+                    "open Mapping → Rooms and drag the stray group into place"
+                ),
+            })
     else:
         position_list = []
         geometry_list = []
+        fabric_floors = {}
 
     # ── Phase 3: Calibration metres ──────────────────────────────────────────
     if cal:
@@ -10342,6 +10457,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
         "scanners": scanner_list,
         "scanner_positions_m": position_list if mdl else [],
         "room_geometry_m": geometry_list if mdl else [],
+        "fabric_floors": fabric_floors,
         "adjacency": mdl.adjacency() if mdl else {},
         "maps": maps_diag,
     })
@@ -10569,8 +10685,9 @@ async def ws_fabric_resync(hass: HomeAssistant, connection, msg) -> None:
 async def ws_fabric_reset_spatial(hass: HomeAssistant, connection, msg) -> None:
     """Reset the spatial model (Phase 2+3) and rebuild from maps.
 
-    Clears scanner_positions_m, room_geometry_m, rf_barriers_m, map_transforms.
-    Then re-derives from current maps. Use when spatial data is stale or corrupt.
+    Clears scanner_positions_m, rf_barriers_m, map_transforms, and beacon
+    positions. The room fabric (FabricStore) is deliberately untouched — a
+    built floor's room shapes are ground truth and no reset may wipe them.
     """
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
@@ -10580,7 +10697,6 @@ async def ws_fabric_reset_spatial(hass: HomeAssistant, connection, msg) -> None:
 
     # Clear spatial data only — user must explicitly migrate after
     mdl.data["scanner_positions_m"] = {}
-    mdl.data["room_geometry_m"] = {}
     mdl.data["rf_barriers_m"] = []
     mdl.data["map_transforms"] = {}
     mdl.data["beacon_positions_m"] = {}
@@ -10791,9 +10907,9 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
     """Import floors, rooms, and scanner positions from ESPresense Companion.
 
     Reads from the Companion REST API (GET /api/state/config), parses the
-    response, and writes to PadSpan's ModelStore (room_geometry_m,
-    scanner_positions_m, room_meta, floors).  Merge-only — never deletes
-    existing PadSpan data.
+    response, and writes floors/room_meta/scanner positions to the ModelStore.
+    Room shapes go through FabricStore.async_correct_room (external_import,
+    merge-only) — an import can add rooms but never overwrite existing fabric.
     """
     import aiohttp
 
@@ -10875,7 +10991,7 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
             continue
 
         room_meta = mdl.data.setdefault("room_meta", {})
-        geometry = mdl.data.setdefault("room_geometry_m", {})
+        _fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
 
         for rm in rooms_raw:
             if not isinstance(rm, dict):
@@ -10892,20 +11008,24 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
                 if color:
                     room_meta[rm_name]["color"] = str(color)
 
-            # Room geometry (polygon in metres — direct match)
+            # Room geometry: routed through the FabricStore's correction
+            # choke point, merge-only — an import can add a new room but
+            # never overwrite existing (possibly hand-corrected) fabric.
             points = rm.get("points") or []
-            if isinstance(points, list) and len(points) >= 3:
+            if _fab and isinstance(points, list) and len(points) >= 3:
                 try:
                     pts_m = [[round(float(p[0]), 3), round(float(p[1]), 3)]
                              for p in points if isinstance(p, (list, tuple)) and len(p) >= 2]
                     if len(pts_m) >= 3:
-                        geometry[rm_name] = {
-                            "type": "poly",
-                            "floor_id": fl_id,
-                            "origin": "espresense_import",
-                            "points_m": pts_m,
-                        }
-                        stats["rooms"] += 1
+                        res = await _fab.async_correct_room(
+                            fl_id, rm_name,
+                            {"type": "poly", "points_m": pts_m},
+                            committed_by="external_import",
+                        )
+                        if res.get("ok"):
+                            stats["rooms"] += 1
+                        else:
+                            stats["skipped"] += 1
                 except Exception:
                     stats["skipped"] += 1
 
@@ -10951,7 +11071,7 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
 
         # Determine room from node position (check which room polygon contains the point)
         room = ""
-        for rm_name, geo in (mdl.data.get("room_geometry_m") or {}).items():
+        for rm_name, geo in mdl.room_geometry_m().items():
             if geo.get("floor_id") != fl_id or geo.get("type") != "poly":
                 continue
             pts = geo.get("points_m") or []
@@ -10993,6 +11113,48 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
         **stats,
         "source": url,
     })
+
+
+def _geom_bbox_m(geo: dict) -> tuple[float, float, float, float] | None:
+    """(min_x, min_y, max_x, max_y) of one room geometry, or None."""
+    try:
+        if geo.get("type") == "poly":
+            pts = geo.get("points_m") or []
+            if len(pts) < 3:
+                return None
+            xs = [float(p[0]) for p in pts]
+            ys = [float(p[1]) for p in pts]
+            return (min(xs), min(ys), max(xs), max(ys))
+        if geo.get("type") == "circle":
+            cx, cy, r = float(geo.get("cx_m", 0)), float(geo.get("cy_m", 0)), float(geo.get("r_m", 0.1))
+            return (cx - r, cy - r, cx + r, cy + r)
+    except (TypeError, ValueError, IndexError):
+        return None
+    return None
+
+
+def _cluster_count(bboxes: list, gap_m: float = 1.0) -> int:
+    """Connected components over room bboxes, adjacent when within gap_m."""
+    n = len(bboxes)
+    if n == 0:
+        return 0
+    half = gap_m / 2.0
+    parent = list(range(n))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i in range(n):
+        ax0, ay0, ax1, ay1 = bboxes[i]
+        for j in range(i + 1, n):
+            bx0, by0, bx1, by1 = bboxes[j]
+            if (ax0 - half <= bx1 + half and bx0 - half <= ax1 + half
+                    and ay0 - half <= by1 + half and by0 - half <= ay1 + half):
+                parent[find(i)] = find(j)
+    return len({find(i) for i in range(n)})
 
 
 def _point_in_polygon(x: float, y: float, polygon: list) -> bool:

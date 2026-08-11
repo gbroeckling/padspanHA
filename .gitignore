@@ -8,3 +8,5 @@ __pycache__/
 bermuda_vs_padspan_comparison.txt
 # Raw local screen captures — curated doc assets in images/ are added by name
 Screenshot *.png
+# Local pre-deploy store backups — never publish
+backups/

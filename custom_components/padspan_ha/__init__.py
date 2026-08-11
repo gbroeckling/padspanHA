@@ -40,6 +40,7 @@ from .const import (
     DATA_SETTINGS,
     DATA_MAPS,
     DATA_MODEL,
+    DATA_FABRIC,
     DATA_OBJECTS,
     DATA_ALERTS,
     DATA_MOVEMENT,
@@ -54,6 +55,7 @@ from .const import (
 from .adaptive_store import AdaptiveStore
 from .device_registry import DeviceRegistry
 from .coordinator import PadSpanCoordinator
+from .fabric_store import FabricStore
 from .maps_store import MapsStore
 from .model_store import ModelStore
 from .alert_store import AlertStore
@@ -102,6 +104,13 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
     async def _init_model():
         mdl = ModelStore(hass)
         await mdl.async_setup()
+        # FabricStore: room-geometry ground truth. On its very first load it
+        # imports the legacy room_geometry_m verbatim; ModelStore then reads
+        # room geometry through it (never from its own legacy copy again).
+        fab = FabricStore(hass)
+        await fab.async_setup(legacy_geometry=mdl.data.get("room_geometry_m"))
+        mdl.attach_fabric(fab)
+        hass.data[DOMAIN][DATA_FABRIC] = fab
         # Phase 1: auto-sync fabric from HA registries on startup
         if mdl.sync_mode() == "auto":
             try:
@@ -110,7 +119,7 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
                 _LOGGER.debug("Fabric HA sync on startup skipped: %s", err)
         _sc = len(mdl.data.get("scanners", {}))
         _sp = len(mdl.data.get("scanner_positions_m", {}))
-        return (DATA_MODEL, mdl, f"ModelStore ready ({len(mdl.floors())} floors, {len(mdl.room_meta())} rooms, {_sc} scanners, {_sp} positions_m)")
+        return (DATA_MODEL, mdl, f"ModelStore ready ({len(mdl.floors())} floors, {len(mdl.room_meta())} rooms, {_sc} scanners, {_sp} positions_m, {len(fab.rooms_flat())} fabric rooms)")
 
     async def _init_objects():
         obj_store = ObjectStore(hass)
