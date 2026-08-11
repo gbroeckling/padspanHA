@@ -207,6 +207,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_object_evict)
     websocket_api.async_register_command(hass, ws_calibration_compute_model)
     websocket_api.async_register_command(hass, ws_calibration_retrain_rf)
+    websocket_api.async_register_command(hass, ws_positioning_repair)
     websocket_api.async_register_command(hass, ws_calibration_swap_radio)
     websocket_api.async_register_command(hass, ws_calibration_relearn_radio)
     websocket_api.async_register_command(hass, ws_calibration_beacon_profiles)
@@ -5473,6 +5474,120 @@ async def ws_calibration_compute_model(hass: HomeAssistant, connection, msg) -> 
     except Exception as e:
         _LOGGER.error("PadSpan HA calibration_compute_model failed: %s", e)
         connection.send_error(msg["id"], "compute_failed", str(e))
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/positioning_repair"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_positioning_repair(hass: HomeAssistant, connection, msg) -> None:
+    """One-shot repair of positioning data poisoned by fabricated fallback
+    transforms — the "beacons teleport to nonsense" fix, in order:
+
+      1. Align every unmeasured map whose system placement disagrees with
+         the hand-tuned stack (never touches reference-measured maps or
+         outside maps), re-deriving that map's scanners/beacons/barriers.
+      2. Recompute every calibration point's real-world metres through the
+         repaired transforms (map frac→metres; room-centroid fallback for
+         map-less points; unanchorable metres cleared — those points remain
+         valid RSSI fingerprints, just not spatial anchors).
+      3. Retrain the RF model on the clean metres.
+
+    Room fabric is untouchable by design. Everything here is recomputable,
+    nothing is deleted beyond garbage metre stamps.
+    """
+    from . import fabric_truth
+
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    cal = await _get_cal_store(hass)
+    if not mdl or not ms or not cal:
+        connection.send_error(msg["id"], "no_stores", "Model/Maps/Calibration store not loaded")
+        return
+
+    report = {"maps_repaired": [], "maps_skipped": [],
+              "cal_from_map": 0, "cal_from_room": 0, "cal_cleared": 0,
+              "spatial_resynced": 0}
+
+    # ── 1. Repair lying map placements from the stack alignment ──────────
+    anchor = fabric_truth.find_metre_anchor(ms.data.get("maps") or [], mdl)
+    if anchor:
+        for m in (ms.data.get("maps") or []):
+            mid = m.get("id", "")
+            name = m.get("name") or mid
+            if not mid:
+                continue
+            if str(m.get("floor_id", "")) == OUTSIDE_FLOOR_ID:
+                report["maps_skipped"].append({"map": name, "why": "outside"})
+                continue
+            t = mdl.map_transform(mid) or {}
+            if t.get("reference_measurements"):
+                report["maps_skipped"].append({"map": name, "why": "measured"})
+                continue
+            st = fabric_truth.stack_metre_transform(m, anchor)
+            if not st:
+                report["maps_skipped"].append({"map": name, "why": "no_stack"})
+                continue
+            if st["shear_rad"] > 0.02:
+                report["maps_skipped"].append({"map": name, "why": "sheared"})
+                continue
+            try:
+                agrees = t and (
+                    abs(float(t.get("origin_x_m", 0)) - st["origin_x_m"]) <= 0.2
+                    and abs(float(t.get("origin_y_m", 0)) - st["origin_y_m"]) <= 0.2
+                    and abs(float(t.get("scale_x_m", 0)) - st["scale_x_m"]) <= max(0.2, 0.02 * st["scale_x_m"])
+                    and abs(float(t.get("scale_y_m", 0)) - st["scale_y_m"]) <= max(0.2, 0.02 * st["scale_y_m"])
+                )
+            except (TypeError, ValueError):
+                agrees = False
+            if agrees:
+                report["maps_skipped"].append({"map": name, "why": "already_aligned"})
+                continue
+            new_t = {
+                "origin_x_m": st["origin_x_m"], "origin_y_m": st["origin_y_m"],
+                "scale_x_m": st["scale_x_m"], "scale_y_m": st["scale_y_m"],
+                "rotation_rad": st["rotation_rad"],
+                "floor_id": str(m.get("floor_id", DEFAULT_FLOOR_ID)),
+            }
+            await mdl.async_set_map_transform(mid, new_t, reanchor=True)
+            report["spatial_resynced"] += await mdl.async_sync_spatial_from_map(mid, m)
+            report["maps_repaired"].append(name)
+    else:
+        report["anchor_missing"] = True
+
+    # ── 2. Re-derive calibration metres through the repaired transforms ──
+    centroids = mdl.room_centroids_m()
+    for p in cal.data.get("points", []):
+        mid = p.get("map_id") or ""
+        xf, yf = p.get("x_frac"), p.get("y_frac")
+        done = False
+        if (mid and isinstance(xf, (int, float)) and isinstance(yf, (int, float))
+                and not isinstance(xf, bool) and mdl.map_transform(mid)):
+            c = mdl.map_frac_to_metres(float(xf), float(yf), mid)
+            if c:
+                p["x_m"], p["y_m"] = round(c[0], 3), round(c[1], 3)
+                report["cal_from_map"] += 1
+                done = True
+        if not done:
+            cent = centroids.get(str(p.get("room") or ""))
+            if cent:
+                p["x_m"], p["y_m"] = round(cent[0], 3), round(cent[1], 3)
+                report["cal_from_room"] += 1
+            else:
+                if p.get("x_m") is not None:
+                    report["cal_cleared"] += 1
+                p.pop("x_m", None)
+                p.pop("y_m", None)
+    await cal.store.async_save(cal.data)
+
+    # ── 3. Retrain the RF on the clean metres ────────────────────────────
+    try:
+        await cal._async_train_rf()
+        report["rf_trained"] = cal.rf_trained
+        report["rf_metres"] = getattr(cal._rf, "_use_metres", False) if cal.rf_trained else False
+    except Exception as e:
+        report["rf_error"] = str(e)
+
+    connection.send_result(msg["id"], report)
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/calibration_retrain_rf"})
