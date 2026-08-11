@@ -5556,16 +5556,27 @@ async def ws_positioning_repair(hass: HomeAssistant, connection, msg) -> None:
 
     # ── 2. Re-derive calibration metres through the repaired transforms ──
     centroids = mdl.room_centroids_m()
+    geoms = mdl.room_geometry_m()
+    report["cal_room_snapped"] = 0
     for p in cal.data.get("points", []):
         mid = p.get("map_id") or ""
         xf, yf = p.get("x_frac"), p.get("y_frac")
+        room = str(p.get("room") or "")
         done = False
         if (mid and isinstance(xf, (int, float)) and isinstance(yf, (int, float))
                 and not isinstance(xf, bool) and mdl.map_transform(mid)):
             c = mdl.map_frac_to_metres(float(xf), float(yf), mid)
             if c:
-                p["x_m"], p["y_m"] = round(c[0], 3), round(c[1], 3)
-                report["cal_from_map"] += 1
+                # The room label is where the user physically stood; when the
+                # map-derived point contradicts it badly, trust the room.
+                off = fabric_truth.room_distance_m(geoms.get(room), c[0], c[1])
+                cent = centroids.get(room)
+                if off is not None and off > 3.0 and cent:
+                    p["x_m"], p["y_m"] = round(cent[0], 3), round(cent[1], 3)
+                    report["cal_room_snapped"] += 1
+                else:
+                    p["x_m"], p["y_m"] = round(c[0], 3), round(c[1], 3)
+                    report["cal_from_map"] += 1
                 done = True
         if not done:
             cent = centroids.get(str(p.get("room") or ""))

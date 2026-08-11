@@ -318,6 +318,22 @@ function _renderFabric(ctx, container, data) {
       actCard.appendChild(rfBtn);
     }
 
+    // Repair positioning (one shot: align maps to stack, re-derive cal metres, retrain)
+    const repBtn = el("button",{class:"btn",style:"width:auto;padding:4px 14px;font-size:11px"},
+      "🔧 Repair Positioning");
+    repBtn.addEventListener("click", async () => {
+      repBtn.disabled = true; repBtn.textContent = "Repairing…";
+      try {
+        const r = await ctx.actions.callWS({type:"padspan_ha/positioning_repair"});
+        ctx.toast(`Repaired ${r.maps_repaired.length} maps; cal: ${r.cal_from_map} from map, `
+          + `${r.cal_room_snapped || 0} snapped to room, ${r.cal_from_room} from centroid, `
+          + `${r.cal_cleared} cleared. RF ${r.rf_trained ? "retrained" : "NOT trained"}.`);
+        _fabricCache = null; _fabricFetchTs = 0; _fetchAndRenderFabric(ctx, container);
+        repBtn.disabled = false; repBtn.textContent = "🔧 Repair Positioning";
+      } catch(e) { ctx.toast(`Failed: ${e.message||e}`); repBtn.disabled = false; repBtn.textContent = "🔧 Repair Positioning"; }
+    });
+    actCard.appendChild(repBtn);
+
     // Resync scanners (fix room/floor assignments)
     const resyncBtn = el("button",{class:"btn",style:"width:auto;padding:4px 14px;font-size:11px"},
       "Resync Scanners");

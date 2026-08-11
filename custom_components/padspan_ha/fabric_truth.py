@@ -89,6 +89,44 @@ def rooms_stats(rooms: dict[str, dict]) -> dict[str, Any]:
     }
 
 
+def room_distance_m(geo: dict | None, x_m: float, y_m: float) -> float | None:
+    """Distance from a point to one room geometry: 0.0 inside, edge distance
+    outside, None when the geometry is missing/unusable."""
+    if not isinstance(geo, dict):
+        return None
+    try:
+        if geo.get("type") == "circle":
+            dx = x_m - float(geo.get("cx_m", 0))
+            dy = y_m - float(geo.get("cy_m", 0))
+            return max(0.0, math.hypot(dx, dy) - float(geo.get("r_m", 0.1)))
+        if geo.get("type") == "poly":
+            pts = [(float(p[0]), float(p[1])) for p in (geo.get("points_m") or [])]
+            if len(pts) < 3:
+                return None
+            inside = False
+            j = len(pts) - 1
+            for i in range(len(pts)):
+                xi, yi = pts[i]
+                xj, yj = pts[j]
+                if (yi > y_m) != (yj > y_m) and x_m < (xj - xi) * (y_m - yi) / (yj - yi) + xi:
+                    inside = not inside
+                j = i
+            if inside:
+                return 0.0
+            best = math.inf
+            for i in range(len(pts)):
+                x1, y1 = pts[i]
+                x2, y2 = pts[(i + 1) % len(pts)]
+                dx, dy = x2 - x1, y2 - y1
+                t = ((x_m - x1) * dx + (y_m - y1) * dy) / max(dx * dx + dy * dy, 1e-9)
+                t = max(0.0, min(1.0, t))
+                best = min(best, math.hypot(x_m - (x1 + t * dx), y_m - (y1 + t * dy)))
+            return best
+    except (TypeError, ValueError, IndexError):
+        return None
+    return None
+
+
 # ── Stack world frame (mirror of makeStackXform) ─────────────────────────────
 
 def image_ar(m: dict) -> float:
