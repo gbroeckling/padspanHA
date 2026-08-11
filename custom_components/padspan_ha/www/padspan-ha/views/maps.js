@@ -7183,7 +7183,10 @@ function _roomsTab(ctx, maps) {
     // layer rect already includes the CSS transform.
     const pxToM = (dxPx, dyPx) => {
       const r = pinLayer.getBoundingClientRect();
-      return [dxPx * bbox.width / (r.width || 1), dyPx * bbox.height / (r.height || 1)];
+      // A collapsed rect means the layer isn't really laid out — treat the
+      // movement as zero rather than scaling pixels into hundreds of metres.
+      if (r.width < 2 || r.height < 2) return [0, 0];
+      return [dxPx * bbox.width / r.width, dyPx * bbox.height / r.height];
     };
     const pt = (ev) => [ev.clientX ?? ev.touches?.[0]?.clientX ?? 0, ev.clientY ?? ev.touches?.[0]?.clientY ?? 0];
 
@@ -7192,10 +7195,15 @@ function _roomsTab(ctx, maps) {
     // _editDragging contract the Lights canvas uses).
     const runDrag = (ev, onMove, onClick) => {
       ev.preventDefault(); ev.stopPropagation();
+      if (!pinLayer.isConnected) return;   // stale tree — a re-render just swapped the DOM
       const [sx, sy] = pt(ev);
       let moved = false;
       mapState._editDragging = true;
       const mm = (e) => {
+        // If a re-render detaches this canvas mid-drag, its rect collapses to
+        // 0 and the px→metre conversion would explode a 60px drag into
+        // hundreds of metres — dead closures must never touch the draft.
+        if (!pinLayer.isConnected) return;
         const [cx, cy] = pt(e);
         if (Math.abs(cx - sx) + Math.abs(cy - sy) > 3) moved = true;
         if (moved) { const [dxm, dym] = pxToM(cx - sx, cy - sy); onMove(dxm, dym); }
