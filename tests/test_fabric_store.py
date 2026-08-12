@@ -571,6 +571,36 @@ async def test_map_origin_placement_still_follows_its_photo() -> None:
     assert fab.scanner_positions_m()["rx"]["x_m"] == pytest.approx(10.0)
 
 
+@pytest.mark.asyncio
+async def test_batch_save_command_forwards_origin() -> None:
+    """Through the websocket command, not around it.
+
+    The model gaining an `origin` parameter and the schema accepting the key
+    prove nothing on their own: the handler in between has to actually pass
+    it. Shipped once without this test and the flag was silently dropped —
+    every placement still landed map-origin.
+    """
+    from custom_components.padspan_ha.const import DATA_MODEL, DOMAIN
+    from custom_components.padspan_ha.websocket import ws_fabric_spatial_batch_save
+
+    mdl = _make_model({"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
+                              "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}})
+    fab = _spatial_fabric()
+    mdl.fabric = fab
+    hass = MagicMock()
+    hass.data = {DOMAIN: {DATA_MODEL: mdl}}
+    connection = MagicMock()
+
+    await ws_fabric_spatial_batch_save(hass, connection, {
+        "id": 1, "map_id": "m1", "floor_id": "main",
+        "scanners": [{"id": "rx", "source": "rx", "x": 0.5, "y": 0.5}],
+        "origin": "manual",
+    })
+
+    assert fab.scanner_positions_m()["rx"]["origin"] == "manual"
+    assert "origin" in ws_fabric_spatial_batch_save.ws_schema
+
+
 def test_model_spatial_reads_loud_empty_without_fabric() -> None:
     mdl = _make_model()
     mdl.fabric = None

@@ -9971,6 +9971,7 @@ async def ws_fabric_spatial_batch_save(hass: HomeAssistant, connection, msg) -> 
         map_id, floor_id,
         scanners=msg.get("scanners"),
         rf_barriers=msg.get("rf_barriers"), beacons=msg.get("beacons"),
+        origin=msg.get("origin") or "map",
     )
     # Re-derive map fracs for rendering
     try:
