@@ -946,14 +946,13 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     # over k-NN (historical calibration that may be stale).
                     _pos = self._spatial_position.get(key) or self._knn_position.get(key)
                     if _pos:
-                        obj["x_frac"] = _pos.get("x_frac")
-                        obj["y_frac"] = _pos.get("y_frac")
+                        # Metres only: where the thing is, not where it lands
+                        # on some photo. Drawing that is the panel's job.
                         obj["knn_confidence"] = _pos.get("confidence")
-                        if _pos.get("map_id"):
-                            obj["knn_map_id"] = _pos["map_id"]
                         if _pos.get("x_m") is not None:
                             obj["x_m"] = _pos["x_m"]
                             obj["y_m"] = _pos["y_m"]
+                            obj["floor_id"] = _pos.get("floor_id", obj.get("floor_id", ""))
                     # Store Kalman-smoothed per-source RSSI for scanner distance sensors
                     obj["_source_rssi"] = dict(self._ema_rssi.get(smooth_addr, {}))
                     # Propagate TX power if seen in advertisements
@@ -987,14 +986,11 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     # Propagate sub-room position — prefer spatial over k-NN
                     _pos_ib = self._spatial_position.get(key) or self._knn_position.get(key)
                     if _pos_ib:
-                        obj["x_frac"] = _pos_ib.get("x_frac")
-                        obj["y_frac"] = _pos_ib.get("y_frac")
                         obj["knn_confidence"] = _pos_ib.get("confidence")
-                        if _pos_ib.get("map_id"):
-                            obj["knn_map_id"] = _pos_ib["map_id"]
                         if _pos_ib.get("x_m") is not None:
                             obj["x_m"] = _pos_ib["x_m"]
                             obj["y_m"] = _pos_ib["y_m"]
+                            obj["floor_id"] = _pos_ib.get("floor_id", obj.get("floor_id", ""))
                     # Store Kalman-smoothed per-source RSSI for scanner distance sensors
                     obj["_source_rssi"] = dict(self._ema_rssi.get(key, {}))
                     self._known_objs[key] = dict(obj)  # refresh with smoothed data
@@ -1829,38 +1825,27 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         if _geo_room:
                             _knn_room = _geo_room
                     # EMA smooth in metre space (floor-based)
-                    _has_metres = _knn.get("x_m") is not None
-                    if _has_metres:
+                    # Metres only. Smoothing a position in a photo's fraction
+                    # space meant the filter's idea of "half a metre" changed
+                    # with the picture; and a result with no metres has no
+                    # position worth smoothing.
+                    if _knn.get("x_m") is None:
+                        self._knn_position.pop(key, None)
+                        _knn = None
+                    if _knn is not None:
                         _raw_x = float(_knn["x_m"])
                         _raw_y = float(_knn["y_m"])
-                    else:
-                        _raw_x = float(_knn.get("x_frac", 0.0))
-                        _raw_y = float(_knn.get("y_frac", 0.0))
-                    _prev_fl = (self._knn_position.get(key) or {}).get("floor_id", "")
-                    _new_fl = _knn.get("floor_id", "")
-                    if _prev_fl and _prev_fl != _new_fl:
-                        self._smooth_xy.pop(key, None)  # new floor → fresh state
-                    # α-β filtered (replaces the velocity-aware EMA whose
-                    # 0.03 near-stationary alpha froze sub-metre movement)
-                    _sx, _sy = self._ab_smooth_xy(self._smooth_xy, key, _raw_x, _raw_y)
-                    _knn_smoothed = dict(_knn)
-                    if _has_metres:
+                        _prev_fl = (self._knn_position.get(key) or {}).get("floor_id", "")
+                        _new_fl = _knn.get("floor_id", "")
+                        if _prev_fl and _prev_fl != _new_fl:
+                            self._smooth_xy.pop(key, None)  # new floor → fresh state
+                        # α-β filtered (replaces the velocity-aware EMA whose
+                        # 0.03 near-stationary alpha froze sub-metre movement)
+                        _sx, _sy = self._ab_smooth_xy(self._smooth_xy, key, _raw_x, _raw_y)
+                        _knn_smoothed = dict(_knn)
                         _knn_smoothed["x_m"] = round(_sx, 3)
                         _knn_smoothed["y_m"] = round(_sy, 3)
-                        # Derive fracs for UI rendering
-                        if _model:
-                            for _mid, _t in (_model.data.get("map_transforms") or {}).items():
-                                if _t.get("floor_id") == _new_fl:
-                                    _fracs = _model.metres_to_map_frac(_sx, _sy, _mid)
-                                    if _fracs and 0.0 <= _fracs[0] <= 1.0 and 0.0 <= _fracs[1] <= 1.0:
-                                        _knn_smoothed["x_frac"] = round(_fracs[0], 4)
-                                        _knn_smoothed["y_frac"] = round(_fracs[1], 4)
-                                        _knn_smoothed["map_id"] = _mid
-                                        break
-                    else:
-                        _knn_smoothed["x_frac"] = round(_sx, 4)
-                        _knn_smoothed["y_frac"] = round(_sy, 4)
-                    self._knn_position[key] = _knn_smoothed
+                        self._knn_position[key] = _knn_smoothed
                     # k-NN room override: only when spatial didn't resolve.
                     # Spatial (IDW centroid + room geometry) is the primary
                     # positioning method.  k-NN uses historical calibration

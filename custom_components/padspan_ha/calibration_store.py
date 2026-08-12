@@ -458,29 +458,25 @@ class CalibrationStore:
     def fit_path_loss(
         self,
         scanner_source: str,
-        scanner_x_frac: float,
-        scanner_y_frac: float,
-        map_id: str | None = None,
     ) -> dict[str, Any] | None:
         """
         OLS fit of RSSI = RSSI_1m - 10*n*log10(d) for one scanner.
 
-        Phase 3: fits in metre distances when the scanner position converts
-        to metres and points carry x_m/y_m — rssi_1m is then a physical
-        dBm@1m reference (units="m"). Otherwise falls back to map-fraction
-        distances (comparative/display only, units="frac").
+        The scanner's position comes from the fabric, in metres, so rssi_1m
+        is a physical dBm@1m reference. There is no fraction-space fallback:
+        a distance measured in fractions of a photo is not a distance.
         Requires ≥3 data points.
         """
         data: list[tuple[float, float]] = []
         pts = self.data.get("points", [])
-        units = "frac"
+        units = "m"
 
-        # Metre-space fit: same gate style as knn_locate — points with metre
-        # coords available, plus a convertible scanner position.
         metre_pts = [p for p in pts if p.get("x_m") is not None and p.get("y_m") is not None]
         scanner_m = None
-        if metre_pts and map_id and self._model is not None:
-            scanner_m = self._model.map_frac_to_metres(scanner_x_frac, scanner_y_frac, map_id)
+        if metre_pts and self._model is not None:
+            _sp = self._model.scanner_positions_m().get(scanner_source)
+            if isinstance(_sp, dict) and _sp.get("x_m") is not None:
+                scanner_m = (float(_sp["x_m"]), float(_sp["y_m"]))
         if scanner_m:
             sx_m, sy_m = scanner_m
             # 3D fit (issue #54): RSSI measures the slant range, so fit
@@ -510,28 +506,6 @@ class CalibrationStore:
                     if d < 0.3:   # too close — likely at scanner position itself
                         continue
                     data.append((math.log10(d), reading["mean_rssi"]))
-            if len(data) >= 3:
-                units = "m"
-            else:
-                data = []
-
-        if not data:
-            # Legacy map-fraction fit
-            frac_pts = pts
-            if map_id:
-                frac_pts = [p for p in pts if p.get("map_id") == map_id]
-            for pt in frac_pts:
-                for reading in pt.get("scanner_readings", []):
-                    if reading.get("source") != scanner_source:
-                        continue
-                    dx = pt["x_frac"] - scanner_x_frac
-                    dy = pt["y_frac"] - scanner_y_frac
-                    d = math.sqrt(dx ** 2 + dy ** 2)
-                    if d < 0.02:   # too close — likely at scanner position itself
-                        continue
-                    log_d = math.log10(d)
-                    data.append((log_d, reading["mean_rssi"]))
-
         if len(data) < 3:
             return None
 
@@ -656,16 +630,9 @@ class CalibrationStore:
         """
         pts = self.data.get("points", [])
 
-        # Phase 3: check if we can use metre-space path
-        metre_pts = [p for p in pts if p.get("x_m") is not None]
-        use_metres = len(metre_pts) >= k and self._model is not None
-
-        if use_metres:
-            work_pts = metre_pts  # all metre points, cross-map
-        elif map_id:
-            work_pts = [p for p in pts if p.get("map_id") == map_id]
-        else:
-            work_pts = pts
+        # Metres only, and therefore map-independent: every point lives in
+        # one coordinate space, so there is nothing to filter by photo.
+        work_pts = [p for p in pts if p.get("x_m") is not None]
 
         if not work_pts or not query_rssi:
             return None
@@ -713,10 +680,9 @@ class CalibrationStore:
         scored.sort(key=lambda t: t[0])
         top_k = scored[: k]
 
-        if use_metres:
-            # ── Metre-space centroid (Phase 3) ────────────────────────────
-            # No map_id filtering needed — all points share one coordinate space.
-            # Group by floor_id instead.
+        if True:
+            # ── Metre-space centroid ──────────────────────────────────────
+            # All points share one coordinate space; group by floor_id.
             floor_weights: dict[str, float] = {}
             for dist_sq, _n_shared, pt in top_k:
                 pw = float(pt.get("weight") or 1.0)
@@ -743,58 +709,7 @@ class CalibrationStore:
             rx_m = wx_m / total_w
             ry_m = wy_m / total_w
 
-            # Derive map fracs for UI rendering — find the best map on this floor
-            x_frac, y_frac = 0.5, 0.5
-            best_map = ""
-            transforms = (self._model.data.get("map_transforms") or {}) if self._model else {}
-            for mid, t in transforms.items():
-                if t.get("floor_id") == best_floor:
-                    fracs = self._model.metres_to_map_frac(rx_m, ry_m, mid)
-                    if fracs and 0.0 <= fracs[0] <= 1.0 and 0.0 <= fracs[1] <= 1.0:
-                        x_frac, y_frac = fracs
-                        best_map = mid
-                        break
-
-            # Also try dominant map_id from top-k for backward compat
-            if not best_map:
-                map_weights: dict[str, float] = {}
-                for dist_sq, _n_shared, pt in top_k:
-                    pw = float(pt.get("weight") or 1.0)
-                    w = pw / (math.sqrt(dist_sq) + 1e-3)
-                    mid = pt.get("map_id", "")
-                    if mid:
-                        map_weights[mid] = map_weights.get(mid, 0.0) + w
-                best_map = max(map_weights, key=lambda m: map_weights[m]) if map_weights else ""
-        else:
-            # ── Legacy map-fraction centroid ──────────────────────────────
-            map_weights: dict[str, float] = {}
-            for dist_sq, _n_shared, pt in top_k:
-                pw = float(pt.get("weight") or 1.0)
-                w = pw / (math.sqrt(dist_sq) + 1e-3)
-                mid = pt.get("map_id", "")
-                if mid:
-                    map_weights[mid] = map_weights.get(mid, 0.0) + w
-            best_map = max(map_weights, key=lambda m: map_weights[m]) if map_weights else ""
-
-            total_w = 0.0
-            wx, wy = 0.0, 0.0
-            for dist_sq, _n_shared, pt in top_k:
-                if best_map and pt.get("map_id", "") != best_map:
-                    continue
-                pw = float(pt.get("weight") or 1.0)
-                w = pw / (math.sqrt(dist_sq) + 1e-3)
-                wx += w * pt["x_frac"]
-                wy += w * pt["y_frac"]
-                total_w += w
-
-            if total_w < 1e-10:
-                return None
-            x_frac = wx / total_w
-            y_frac = wy / total_w
-            rx_m, ry_m = None, None  # type: ignore[assignment]
-            best_floor = ""
-
-        # Confidence (shared between both paths — computed from RSSI space).
+        # Confidence — computed from RSSI space.
         # scored[0][0] is already the per-scanner mean squared error; coverage
         # counts the best point's OWN shared scanners, not the top-k union.
         _mean_sq = scored[0][0]
@@ -810,7 +725,7 @@ class CalibrationStore:
         # the room while five decide the position.
         room_w: dict[str, float] = {}
         for dist_sq, _n_shared, pt in top_k:
-            if use_metres and best_floor and pt.get("floor_id", "") != best_floor:
+            if best_floor and pt.get("floor_id", "") != best_floor:
                 continue
             _rm = str(pt.get("room") or "")
             if not _rm:
@@ -826,20 +741,17 @@ class CalibrationStore:
             else str(scored[0][2].get("room", ""))
         )
 
-        result: dict[str, Any] = {
-            "x_frac": round(x_frac, 4),
-            "y_frac": round(y_frac, 4),
+        if rx_m is None:
+            return None
+        return {
+            "x_m": round(rx_m, 3),
+            "y_m": round(ry_m, 3),
+            "floor_id": best_floor,
             "confidence": confidence,
             "nearest_room": nearest_room,
-            "map_id": best_map,
             "k_used": len(top_k),
             "shared_scanners": _shared_total,
         }
-        if use_metres and rx_m is not None:
-            result["x_m"] = round(rx_m, 3)
-            result["y_m"] = round(ry_m, 3)
-            result["floor_id"] = best_floor
-        return result
 
     # ── Random Forest positioning ─────────────────────────────────────────────
 
@@ -868,13 +780,15 @@ class CalibrationStore:
         if len(pts) < 4:
             self._rf = RandomForestLocator()
             return
-        # Phase 3: train in metres if enough points have them
+        # Metres only — a point with no real-world position is a fingerprint,
+        # not something to regress a position from.
         metre_pts = [p for p in pts if p.get("x_m") is not None]
-        use_metres = len(metre_pts) >= 4
+        if len(metre_pts) < 4:
+            self._rf = RandomForestLocator()
+            return
         rf = RandomForestLocator()
-        train_pts = metre_pts if use_metres else pts
         await self.hass.async_add_executor_job(
-            rf.train, train_pts, use_metres, self.excluded_sources()
+            rf.train, metre_pts, self.excluded_sources()
         )
         self._rf = rf
 
@@ -1012,7 +926,6 @@ class CalibrationStore:
             return None
         x_inbag = [set(t.sample_idx) for t in rf._x_trees]
         y_inbag = [set(t.sample_idx) for t in rf._y_trees]
-        use_metres = rf._use_metres
 
         errors: list[float] = []
         errors_m: list[float] = []
@@ -1042,21 +955,12 @@ class CalibrationStore:
                 continue  # in-bag for nearly every tree — no honest estimate
             pred_x = sum(x_preds) / len(x_preds)
             pred_y = sum(y_preds) / len(y_preds)
-            if use_metres:
-                err_m = math.sqrt(
-                    (pred_x - float(pt["x_m"])) ** 2
-                    + (pred_y - float(pt["y_m"])) ** 2
-                )
-                errors_m.append(err_m)
-                # Rough frac equivalent (map width ≈ 15 m) for shape compat
-                errors.append(err_m / 15.0)
-            else:
-                errors.append(
-                    math.sqrt(
-                        (pred_x - float(pt["x_frac"])) ** 2
-                        + (pred_y - float(pt["y_frac"])) ** 2
-                    )
-                )
+            err_m = math.sqrt(
+                (pred_x - float(pt["x_m"])) ** 2 + (pred_y - float(pt["y_m"])) ** 2
+            )
+            errors_m.append(err_m)
+            # Rough frac equivalent (map width ≈ 15 m) for shape compat
+            errors.append(err_m / 15.0)
 
         if not errors:
             return None
@@ -1135,26 +1039,16 @@ class CalibrationStore:
             st["mean_rssi"] = round(_mean(samples), 1) if samples else None
             st["std_rssi"] = round(_std(samples), 2) if samples else None
 
-        # Path-loss fits if we have scanner positions from maps
+        # Path-loss fits, straight from the fabric — a scanner has a position
+        # because someone placed it, not because it appears on a photo.
         path_loss: dict[str, Any] = {}
-        if maps_data:
-            for m in maps_data:
-                mid = m.get("id", "")
-                for rec in m.get("receivers") or []:
-                    src_id = str(rec.get("id") or "")
-                    label = str(rec.get("label") or "")
-                    rx = float(rec.get("x") or 0.5)
-                    ry = float(rec.get("y") or 0.5)
-                    # Try to match scanner source by source string containing label or id
-                    for src in scanner_stats:
-                        if src_id and src_id in src:
-                            fit = self.fit_path_loss(src, rx, ry, mid)
-                            if fit:
-                                path_loss[src] = {**fit, "map_id": mid, "scanner_name": label or src_id}
-                        elif label and label.lower() in src.lower():
-                            fit = self.fit_path_loss(src, rx, ry, mid)
-                            if fit:
-                                path_loss[src] = {**fit, "map_id": mid, "scanner_name": label}
+        _positions = self._model.scanner_positions_m() if self._model else {}
+        for src in scanner_stats:
+            if src not in _positions:
+                continue
+            fit = self.fit_path_loss(src)
+            if fit:
+                path_loss[src] = {**fit, "scanner_name": src}
 
         # Global LOO accuracy (for the active algorithm)
         global_loo = self.loo_accuracy(algorithm=algo)

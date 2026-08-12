@@ -9,7 +9,7 @@
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { makeStackXform, imageAr, fabricWorldRooms } =
+const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 
 export function render(ctx) {
@@ -112,16 +112,28 @@ export function render(ctx) {
   }
   _rebuildRoomPositions();
 
+  const _anchor = metreAnchor(maps_list, (ctx.state.model || {}).map_transforms);
+  // A floor's slab height, so a metre position lands on the right storey.
+  const _floorZByFloor = {};
+  for (const m of maps_list) {
+    const fl = String(m.floor_id || "main");
+    if (_floorZByFloor[fl] === undefined) _floorZByFloor[fl] = (m.stack?.z_level || 0);
+  }
+  const _floorZ = (fl) => (fl && _floorZByFloor[String(fl)] !== undefined)
+    ? _floorZByFloor[String(fl)] : 0;
+
   /**
    * Get ISO screen position for a traceback object entry.
    * Priority: 1) k-NN map position (x,y,m fields), 2) room centroid (case-insensitive)
    */
   function _getObjPos(o) {
-    // k-NN precise position (from new traceback fields)
-    if (o.x != null && o.y != null && o.m && mapTransforms[o.m]) {
-      const tf = mapTransforms[o.m];
-      const [wx, wy] = tf.mapPt(o.x, o.y);
-      return iso(wx, wy, tf.z);
+    // Recorded position, in metres. History is replayed in the world frame
+    // via the metre anchor — no map id to resolve, so re-placing a photo
+    // cannot move where something was an hour ago.
+    if (o.x_m != null && o.y_m != null && _anchor) {
+      const k = 1 / _anchor.m_per_world;
+      const z = _floorZ(o.f) ?? 0;
+      return iso(o.x_m * k, o.y_m * k, z);
     }
     // Room centroid — exact match first, then case-insensitive
     if (o.r) {

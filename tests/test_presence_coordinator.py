@@ -612,8 +612,9 @@ class TestEdgeCases:
         mock_calib.knn_locate = MagicMock(return_value={
             "confidence": 0.8,
             "nearest_room": "Nicoles---Purse",   # device label, not a room
-            "x_frac": 0.5,
-            "y_frac": 0.3,
+            "x_m": 4.2,
+            "y_m": 3.1,
+            "floor_id": "main",
         })
 
         coord = _make_coordinator(calibration=mock_calib)
@@ -629,7 +630,9 @@ class TestEdgeCases:
         # The phantom room is refused; the Gaussian result stands.
         assert coord._confirmed_room.get("dev1") == "GaussianRoom"
         assert coord._knn_position.get("dev1") is not None
-        assert coord._knn_position["dev1"]["x_frac"] == 0.5
+        # Positions are metres — a photo fraction is not a position.
+        assert coord._knn_position["dev1"]["x_m"] == pytest.approx(4.2)
+        assert "x_frac" not in coord._knn_position["dev1"]
 
     def test_knn_ignored_when_low_confidence(self) -> None:
         """k-NN should be ignored when its confidence is below the threshold."""

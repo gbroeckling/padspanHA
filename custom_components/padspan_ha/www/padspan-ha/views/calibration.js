@@ -19,7 +19,21 @@ const POLL_MS   = 1000;  // RSSI poll interval during collection (1s = ~60 sampl
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { makeStackXform, imageAr } =
+// Metres -> a fraction of THIS photo, for drawing only. Returns null when the
+// object has no real-world position or the point falls outside the image.
+function _metresToFracFactory(mapsList, modelTransforms) {
+  const anchor = metreAnchor(mapsList, modelTransforms);
+  return (obj, m) => {
+    if (!anchor || !obj || typeof obj.x_m !== "number" || typeof obj.y_m !== "number") return null;
+    const k = 1 / anchor.m_per_world;
+    const inv = makeStackXform(m.stack, imageAr(m)).invMapPt;
+    const [fx, fy] = inv(obj.x_m * k, obj.y_m * k);
+    if (!(fx >= -0.05 && fx <= 1.05 && fy >= -0.05 && fy <= 1.05)) return null;
+    return [fx, fy];
+  };
+}
+
+const { makeStackXform, imageAr, metreAnchor } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 
 // ── Exports ──────────────────────────────────────────────────────────────────
@@ -2631,6 +2645,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   const wrap = el("div", { style: "display:flex;flex-direction:column;gap:10px" });
   const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
   const maps_list = (ctx.state.maps && ctx.state.maps.list) ? ctx.state.maps.list : [];
+  const _metresToFrac = _metresToFracFactory(maps_list, (ctx.state.model || {}).map_transforms);
 
   if (!maps_list.length) {
     wrap.appendChild(el("div", { class: "card" }, [
@@ -2813,7 +2828,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   }
 
   // Auto-enable live tracking for beacons that have snapshot position data
-  // (x_frac/y_frac from k-NN or room from presence coordinator). This makes
+  // (metres from k-NN, or room from the presence coordinator). This makes
   // beacons float to their RSSI-derived position by default instead of being
   // stuck at pinned coordinates until a calibration round completes.
   if (snap) {
@@ -2824,7 +2839,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         // Skip beacons that have an active timer (calibration in progress)
         if (bs._liveTimers[bk.id] && bs._liveTimers[bk.id].endTime > Date.now()) continue;
         const obj = snapObjs.find(o => o.key === bk.key);
-        if (obj && (typeof obj.x_frac === "number" || obj.room)) {
+        if (obj && (typeof obj.x_m === "number" || obj.room)) {
           bs._liveBeaconKeys.add(bk.key);
         }
       }
@@ -3015,14 +3030,13 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           if (detectedRoom) tipParts.push("Room: " + detectedRoom);
           tipParts.push(`Pinned: x ${(useX * 100).toFixed(1)}% y ${(useY * 100).toFixed(1)}%`);
           // Show server estimate in tooltip if available
+          // The server answers in metres. Turning that into a spot on this
+          // photo is drawing, and it happens here, at the last moment.
           let serverX = null, serverY = null;
-          if (liveObj && typeof liveObj.x_frac === "number" && typeof liveObj.y_frac === "number") {
-            serverX = liveObj.x_frac; serverY = liveObj.y_frac;
-            tipParts.push(`Server: x ${(serverX * 100).toFixed(1)}% y ${(serverY * 100).toFixed(1)}%`);
-            if (liveObj.knn_map_id && liveObj.knn_map_id !== m.id) {
-              const srvMap = maps_list.find(mm => mm.id === liveObj.knn_map_id);
-              tipParts.push(`Server map: ${srvMap?.name || liveObj.knn_map_id}`);
-            }
+          const _srv = _metresToFrac(liveObj, m);
+          if (_srv) {
+            serverX = _srv[0]; serverY = _srv[1];
+            tipParts.push(`Server: ${liveObj.x_m.toFixed(2)}, ${liveObj.y_m.toFixed(2)} m`);
           }
           if (isLive && confidence != null) tipParts.push(`Confidence: ${(confidence * 100).toFixed(0)}%`);
           if (isLive) tipParts.push("LIVE");
@@ -3063,8 +3077,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
 
           // Ghost marker: show server's k-NN estimated position (if on this map and differs from pinned)
           if (isLive && !isTimerActive && liveObj && serverX != null && serverY != null) {
-            const sameMap = !liveObj.knn_map_id || liveObj.knn_map_id === m.id;
-            if (sameMap) {
+            {
               const dist = Math.hypot(serverX - useX, serverY - useY);
               if (dist > 0.03) {  // only show if > 3% away
                 const [gwx, gwy] = xf.mapPt(serverX, serverY);
@@ -4177,10 +4190,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       const srvParts = [];
       if (typeof obj.x_frac === "number" && typeof obj.y_frac === "number") {
         srvParts.push(`x ${(obj.x_frac * 100).toFixed(1)}%, y ${(obj.y_frac * 100).toFixed(1)}%`);
-        if (obj.knn_map_id && obj.knn_map_id !== bs.selectedBk.mapId) {
-          const srvMap = maps_list.find(mm => mm.id === obj.knn_map_id);
-          srvParts.push(`on ${srvMap?.name || obj.knn_map_id}`);
-        }
+
         if (obj.knn_confidence != null) srvParts.push(`${(obj.knn_confidence * 100).toFixed(0)}% conf`);
         if (obj.room) srvParts.push(`room: ${obj.room}`);
       }

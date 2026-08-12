@@ -203,13 +203,17 @@ class RandomForestLocator:
     def train(
         self,
         points: list[dict[str, Any]],
-        use_metres: bool = False,
         excluded: frozenset[str] | set[str] | None = None,
     ) -> None:
         """
-        Build forest from calibration points.
-        Each point: {x_frac, y_frac, room, map_id, scanner_readings: [{source, mean_rssi}]}
-        Phase 3: when use_metres=True, trains on x_m/y_m instead.
+        Build forest from calibration points, in metres.
+        Each point: {x_m, y_m, room, floor_id, scanner_readings: [{source, mean_rssi}]}
+
+        Metres only. The forest used to fall back to training on x_frac/y_frac
+        — a photo's coordinate space — which meant the model literally learned
+        where things were on a picture. A point with no real-world position is
+        still a perfectly good RSSI fingerprint for room-level presence; it is
+        just not something to regress a position from.
 
         `excluded` (issue #59) drops those sources from the feature index, so
         the forest has no column for them at all. Because predict() builds its
@@ -217,22 +221,13 @@ class RandomForestLocator:
         sides without touching a single stored sample — retraining with an
         empty exclusion set restores the old model exactly.
         """
-        self._use_metres = use_metres
-        # Filter points with RSSI data and valid coordinates
-        if use_metres:
-            valid = [
-                p for p in points
-                if p.get("scanner_readings")
-                and p.get("x_m") is not None
-                and p.get("y_m") is not None
-            ]
-        else:
-            valid = [
-                p for p in points
-                if p.get("scanner_readings")
-                and p.get("x_frac") is not None
-                and p.get("y_frac") is not None
-            ]
+        self._use_metres = True
+        valid = [
+            p for p in points
+            if p.get("scanner_readings")
+            and p.get("x_m") is not None
+            and p.get("y_m") is not None
+        ]
         if len(valid) < 4:
             self._trained = False
             return
@@ -272,12 +267,8 @@ class RandomForestLocator:
                 if s in src_idx:
                     row[src_idx[s]] = float(r.get("mean_rssi", MISSING_RSSI))
             X.append(row)
-            if use_metres:
-                y_x.append(float(p["x_m"]))
-                y_y.append(float(p["y_m"]))
-            else:
-                y_x.append(float(p["x_frac"]))
-                y_y.append(float(p["y_frac"]))
+            y_x.append(float(p["x_m"]))
+            y_y.append(float(p["y_m"]))
 
         # Train forests for x and y
         rng = random.Random(self._seed)
@@ -397,14 +388,7 @@ class RandomForestLocator:
             "k_used": self.n_trees,
             "shared_scanners": shared,
         }
-        if self._use_metres:
-            result["x_m"] = round(x_mean, 3)
-            result["y_m"] = round(y_mean, 3)
-            result["floor_id"] = best_floor
-            # Derive fracs for UI (caller should provide inverse transform)
-            result["x_frac"] = round(x_mean, 4)  # placeholder — caller remaps
-            result["y_frac"] = round(y_mean, 4)  # placeholder — caller remaps
-        else:
-            result["x_frac"] = round(x_mean, 4)
-            result["y_frac"] = round(y_mean, 4)
+        result["x_m"] = round(x_mean, 3)
+        result["y_m"] = round(y_mean, 3)
+        result["floor_id"] = best_floor
         return result

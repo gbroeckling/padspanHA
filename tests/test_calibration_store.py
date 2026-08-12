@@ -43,6 +43,8 @@ def _make_point(
     map_id: str = "map1",
     x_frac: float = 0.5,
     y_frac: float = 0.5,
+    x_m: float | None = None,
+    y_m: float | None = None,
     room: str = "living",
     readings: dict[str, float] | None = None,
 ) -> dict:
@@ -57,7 +59,7 @@ def _make_point(
             "std_rssi": 0.0,
             "sample_count": 1,
         })
-    return {
+    out = {
         "id": f"cp_{x_frac}_{y_frac}",
         "map_id": map_id,
         "x_frac": x_frac,
@@ -70,6 +72,12 @@ def _make_point(
         "duration_s": 15,
         "scanner_readings": scanner_readings,
     }
+    # Points are metre-native now. Synthetic fixtures derive metres from the
+    # fraction they were written with (10 m map) unless told otherwise, so a
+    # test that only cares about RSSI still gets a locatable point.
+    out["x_m"] = x_m if x_m is not None else round(x_frac * 10.0, 3)
+    out["y_m"] = y_m if y_m is not None else round(y_frac * 10.0, 3)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -220,63 +228,65 @@ class TestComputeCoverage:
 
 
 class TestFitPathLoss:
-    """Tests for CalibrationStore.fit_path_loss()."""
+    """fit_path_loss reads the scanner's position from the fabric, in metres.
+
+    It used to take the scanner as (x_frac, y_frac, map_id) and, failing that,
+    measure distance in fractions of a photo — a number with no physical
+    meaning that was nonetheless fed into a path-loss exponent.
+    """
+
+    @staticmethod
+    def _store_with_scanner_at(x_m: float, y_m: float, points: list[dict]):
+        store = _make_store(points=points)
+        model = MagicMock()
+        model.scanner_positions_m.return_value = {
+            "scannerA": {"x_m": x_m, "y_m": y_m, "z_m": 2.4, "floor_id": "floor1"}}
+        model.scanner_absolute_z_m.return_value = {}
+        model.floor_base_elevations_m.return_value = {}
+        store._model = model
+        return store
 
     def test_fewer_than_three_points_returns_none(self) -> None:
-        """fit_path_loss requires at least 3 data points."""
         pts = [
-            _make_point(x_frac=0.1, y_frac=0.5, readings={"scannerA": -50.0}),
-            _make_point(x_frac=0.3, y_frac=0.5, readings={"scannerA": -60.0}),
+            _make_point(x_m=1.0, y_m=5.0, readings={"scannerA": -50.0}),
+            _make_point(x_m=3.0, y_m=5.0, readings={"scannerA": -60.0}),
         ]
-        store = _make_store(points=pts)
-        result = store.fit_path_loss("scannerA", 0.0, 0.5)
-        assert result is None
+        assert self._store_with_scanner_at(0.0, 5.0, pts).fit_path_loss("scannerA") is None
 
-    def test_three_points_returns_model(self) -> None:
-        """With three valid points the fit should return a model dict."""
+    def test_three_points_returns_a_model_in_metres(self) -> None:
         pts = [
-            _make_point(x_frac=0.1, y_frac=0.5, readings={"scannerA": -45.0}),
-            _make_point(x_frac=0.3, y_frac=0.5, readings={"scannerA": -55.0}),
-            _make_point(x_frac=0.6, y_frac=0.5, readings={"scannerA": -65.0}),
+            _make_point(x_m=1.0, y_m=5.0, readings={"scannerA": -45.0}),
+            _make_point(x_m=3.0, y_m=5.0, readings={"scannerA": -55.0}),
+            _make_point(x_m=6.0, y_m=5.0, readings={"scannerA": -65.0}),
         ]
-        store = _make_store(points=pts)
-        result = store.fit_path_loss("scannerA", 0.0, 0.5)
-
+        result = self._store_with_scanner_at(0.0, 5.0, pts).fit_path_loss("scannerA")
         assert result is not None
-        assert "n" in result
-        assert "rssi_1m" in result
-        assert "r_squared" in result
+        assert result["units"] == "m"          # a real dBm@1m reference
         assert result["point_count"] == 3
-        # Path-loss exponent should be clamped to [0.5, 8.0]
         assert 0.5 <= result["n"] <= 8.0
 
-    def test_ignores_close_points(self) -> None:
-        """Points with distance < 0.02 from the scanner are ignored."""
+    def test_ignores_points_on_top_of_the_scanner(self) -> None:
         pts = [
-            _make_point(x_frac=0.005, y_frac=0.5, readings={"scannerA": -30.0}),  # too close
-            _make_point(x_frac=0.1, y_frac=0.5, readings={"scannerA": -50.0}),
-            _make_point(x_frac=0.3, y_frac=0.5, readings={"scannerA": -60.0}),
-            _make_point(x_frac=0.6, y_frac=0.5, readings={"scannerA": -70.0}),
+            _make_point(x_m=0.1, y_m=5.0, readings={"scannerA": -30.0}),   # < 0.3 m
+            _make_point(x_m=1.0, y_m=5.0, readings={"scannerA": -50.0}),
+            _make_point(x_m=3.0, y_m=5.0, readings={"scannerA": -60.0}),
+            _make_point(x_m=6.0, y_m=5.0, readings={"scannerA": -70.0}),
         ]
-        store = _make_store(points=pts)
-        result = store.fit_path_loss("scannerA", 0.0, 0.5)
-
-        assert result is not None
-        # The close point should have been dropped, leaving 3
-        assert result["point_count"] == 3
-
-    def test_filters_by_map_id(self) -> None:
-        """When map_id is given, only points on that map are used."""
-        pts = [
-            _make_point(map_id="mapA", x_frac=0.1, y_frac=0.5, readings={"scannerA": -45.0}),
-            _make_point(map_id="mapA", x_frac=0.3, y_frac=0.5, readings={"scannerA": -55.0}),
-            _make_point(map_id="mapA", x_frac=0.6, y_frac=0.5, readings={"scannerA": -65.0}),
-            _make_point(map_id="mapB", x_frac=0.1, y_frac=0.5, readings={"scannerA": -50.0}),
-        ]
-        store = _make_store(points=pts)
-        result = store.fit_path_loss("scannerA", 0.0, 0.5, map_id="mapA")
+        result = self._store_with_scanner_at(0.0, 5.0, pts).fit_path_loss("scannerA")
         assert result is not None
         assert result["point_count"] == 3
+
+    def test_a_scanner_with_no_placed_position_cannot_be_fitted(self) -> None:
+        """No position, no distances, no fit — rather than a fake one."""
+        pts = [
+            _make_point(x_m=float(i), y_m=5.0, readings={"scannerA": -45.0 - i})
+            for i in range(1, 5)
+        ]
+        store = _make_store(points=pts)
+        model = MagicMock()
+        model.scanner_positions_m.return_value = {}
+        store._model = model
+        assert store.fit_path_loss("scannerA") is None
 
 
 # ---------------------------------------------------------------------------
@@ -321,8 +331,8 @@ class TestKnnLocate:
         result = store.knn_locate({"s1": -50.0, "s2": -60.0})
 
         assert result is not None
-        assert result["x_frac"] == pytest.approx(0.2, abs=0.05)
-        assert result["y_frac"] == pytest.approx(0.3, abs=0.05)
+        assert result["x_m"] == pytest.approx(2, abs=0.5)
+        assert result["y_m"] == pytest.approx(3, abs=0.5)
         assert result["nearest_room"] == "kitchen"
 
     def test_k_used_capped(self) -> None:
@@ -343,9 +353,11 @@ class TestKnnLocate:
             _make_point(map_id="mapB", x_frac=0.9, y_frac=0.9, readings={"s1": -80.0}),
         ]
         store = _make_store(points=pts)
+        # map_id is ignored: metres are one coordinate space, so a point's
+        # photo of origin is not a filter any more.
         result = store.knn_locate({"s1": -40.0}, map_id="mapA")
         assert result is not None
-        assert result["k_used"] == 1
+        assert result["k_used"] == 2
 
     def test_confidence_between_zero_and_one(self) -> None:
         """Confidence should be in range (0, 1]."""
@@ -383,8 +395,8 @@ class TestKnnTxInvariance:
 
         assert result is not None
         assert result["nearest_room"] == "kitchen"
-        assert result["x_frac"] == pytest.approx(0.2, abs=0.05)
-        assert result["y_frac"] == pytest.approx(0.3, abs=0.05)
+        assert result["x_m"] == pytest.approx(2, abs=0.5)
+        assert result["y_m"] == pytest.approx(3, abs=0.5)
         assert result["confidence"] >= 0.9
 
     def test_shape_still_distinguishes_points(self) -> None:
@@ -404,7 +416,7 @@ class TestKnnTxInvariance:
 
         assert result is not None
         assert result["nearest_room"] == "kitchen"
-        assert result["x_frac"] == pytest.approx(0.2, abs=0.05)
+        assert result["x_m"] == pytest.approx(2, abs=0.5)
 
     def test_missing_scanner_penalty_stays_absolute(self) -> None:
         """A 1-shared-scanner point always has centered distance 0 — the
@@ -493,16 +505,16 @@ class TestLooAccuracy:
         assert "median_error_frac" in result
         assert "max_error_frac" in result
         assert "point_count" in result
-        assert "mean_error_m_est" in result
+        assert "mean_error_m" in result
         assert result["point_count"] >= 1
         # Errors should be non-negative
         assert result["mean_error_frac"] >= 0.0
         assert result["median_error_frac"] >= 0.0
         assert result["max_error_frac"] >= 0.0
-        # Mean error in metres is ~15x fractional error
-        assert result["mean_error_m_est"] == pytest.approx(
-            result["mean_error_frac"] * 15, abs=0.02
-        )
+        # The headline number is real metres now, not a fraction scaled by a
+        # guessed map width.
+        assert result["mean_error_m"] >= 0.0
+        assert "mean_error_m_est" not in result
 
     def test_filters_by_map_id(self) -> None:
         """LOO only considers points on the specified map."""
@@ -527,13 +539,15 @@ class TestLooAccuracy:
 
 
 def _grid_points() -> list[dict]:
-    """8 fraction-space points on a 2-scanner gradient for RF training."""
+    """8 metre-space points on a 2-scanner gradient for RF training."""
     pts = []
     for i in range(8):
         f = i / 7.0
         pts.append(_make_point(
             x_frac=round(f, 3),
             y_frac=round(f, 3),
+            x_m=round(f * 10.0, 3),
+            y_m=round(f * 10.0, 3),
             room="kitchen" if f < 0.5 else "bedroom",
             readings={"s1": -40.0 - 40.0 * f, "s2": -80.0 + 40.0 * f},
         ))
@@ -554,7 +568,7 @@ class TestLooAlgorithm:
         pts = _grid_points()
         store = _make_store(points=pts)
         rf = RandomForestLocator()
-        rf.train(pts, use_metres=False)
+        rf.train(pts)
         assert rf.is_trained
         store._rf = rf
 
@@ -566,7 +580,8 @@ class TestLooAlgorithm:
         assert result["point_count"] >= 1
         assert result["mean_error_frac"] >= 0.0
         assert result["max_error_frac"] >= result["median_error_frac"]
-        assert "mean_error_m_est" in result
+        # Errors are real metres now — there is no photo width to estimate from.
+        assert "mean_error_m" in result
 
     def test_default_algorithm_is_knn(self) -> None:
         """Default call reports the k-NN metric (backward compatible)."""
@@ -968,3 +983,41 @@ def test_knn_missing_penalty_is_symmetric() -> None:
     # Shared readings are identical for both; the rich point's 4 unmatched
     # scanners must penalize it, so the lean point wins.
     assert res["nearest_room"] == "Lean"
+
+
+def test_knn_refuses_to_answer_from_photo_coordinates() -> None:
+    """A point with no real-world position is a fingerprint, not a location.
+
+    k-NN used to fall back to averaging x_frac across whichever photo won a
+    weighted vote — a position in picture space, which then had to be mapped
+    back through a transform to mean anything. Points without metres are now
+    simply not locatable.
+    """
+    pts = [
+        _make_point(x_frac=0.2, y_frac=0.2, room="kitchen",
+                    readings={"s1": -50.0, "s2": -60.0})
+        for _ in range(4)
+    ]
+    for p in pts:
+        p.pop("x_m", None)
+        p.pop("y_m", None)
+    store = _make_store(points=pts)
+    assert store.knn_locate({"s1": -50.0, "s2": -60.0}) is None
+
+
+def test_knn_answers_in_metres_and_names_no_photo() -> None:
+    pts = [
+        _make_point(x_frac=0.2, y_frac=0.2, room="kitchen",
+                    readings={"s1": -50.0, "s2": -60.0}),
+        _make_point(x_frac=0.25, y_frac=0.25, room="kitchen",
+                    readings={"s1": -52.0, "s2": -62.0}),
+        _make_point(x_frac=0.8, y_frac=0.8, room="bedroom",
+                    readings={"s1": -80.0, "s2": -40.0}),
+        _make_point(x_frac=0.85, y_frac=0.85, room="bedroom",
+                    readings={"s1": -82.0, "s2": -42.0}),
+    ]
+    store = _make_store(points=pts)
+    result = store.knn_locate({"s1": -50.0, "s2": -60.0})
+    assert result is not None
+    assert result["x_m"] == pytest.approx(2.0, abs=1.0)
+    assert "x_frac" not in result and "y_frac" not in result

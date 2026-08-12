@@ -252,10 +252,11 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_tags_status)
     websocket_api.async_register_command(hass, ws_factory_reset)
     # Phase 1: positioning fabric commands
-    websocket_api.async_register_command(hass, ws_fabric_scanner_set)
     websocket_api.async_register_command(hass, ws_fabric_scanner_remove)
     websocket_api.async_register_command(hass, ws_fabric_beacon_remove)
     websocket_api.async_register_command(hass, ws_fabric_beacon_position_set)
+    websocket_api.async_register_command(hass, ws_fabric_light_position_set)
+    websocket_api.async_register_command(hass, ws_fabric_light_remove)
     websocket_api.async_register_command(hass, ws_fabric_room_add)
     websocket_api.async_register_command(hass, ws_fabric_room_remove)
     websocket_api.async_register_command(hass, ws_fabric_sync_mode_set)
@@ -476,6 +477,7 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
         "scanners": scanners, "room_adjacency": room_adjacency,
         "fabric_sync_mode": fabric_sync_mode,
         "scanner_positions_m": scanner_positions_m,
+        "light_positions_m": mdl.light_positions_m() if mdl else {},
         "room_geometry_m": room_geometry_m,
         "rf_barriers_m": rf_barriers_m,
         "map_transforms": map_transforms,
@@ -3607,7 +3609,7 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
     try:
         pc = hass.data.get(DOMAIN, {}).get("presence_coordinator")
         if pc and pc.data:
-            _MERGE_KEYS = ("x_frac", "y_frac", "knn_confidence", "knn_map_id",
+            _MERGE_KEYS = ("x_m", "y_m", "floor_id", "knn_confidence",
                            "room", "room_confidence", "rssi_margin_confidence",
                            "_smoothed", "_stale")
             obj_list = (snap.get("objects") or {}).get("list") or []
@@ -3719,7 +3721,7 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
         pass
 
     # ── Traceback: record AFTER all overlays (k-NN, stale injection) ─────────
-    # Objects now have x_frac, y_frac, knn_map_id, room (smoothed),
+    # Objects now have x_m, y_m, floor_id, room (smoothed),
     # room_confidence — everything the traceback view needs for precise placement.
     try:
         from .const import DATA_TRACEBACK  # noqa: PLC0415
@@ -9170,31 +9172,6 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command(
     {
-        "type": "padspan_ha/fabric_scanner_set",
-        "source": str,
-        "room": str,
-        vol.Optional("floor_id"): str,
-    }
-)
-@websocket_api.async_response
-async def ws_fabric_scanner_set(hass: HomeAssistant, connection, msg) -> None:
-    """Assign a scanner to a room in the positioning fabric."""
-    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-    if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
-        return
-    source = (msg.get("source") or "").strip()
-    room = (msg.get("room") or "").strip()
-    if not source or not room:
-        connection.send_error(msg["id"], "invalid", "source and room are required")
-        return
-    floor_id = (msg.get("floor_id") or "").strip() or DEFAULT_FLOOR_ID
-    await mdl.async_set_scanner(source, room, floor_id, source_type="manual")
-    connection.send_result(msg["id"], {"ok": True, "source": source, "room": room, "floor_id": floor_id})
-
-
-@websocket_api.websocket_command(
-    {
         "type": "padspan_ha/fabric_scanner_remove",
         "source": str,
     }
@@ -9212,6 +9189,66 @@ async def ws_fabric_scanner_remove(hass: HomeAssistant, connection, msg) -> None
         return
     await mdl.async_remove_scanner(source)
     connection.send_result(msg["id"], {"ok": True})
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/fabric_light_position_set",
+        "entity_id": str,
+        "x_m": vol.Coerce(float),
+        "y_m": vol.Coerce(float),
+        vol.Optional("floor_id"): str,
+        vol.Optional("color"): str,
+        vol.Optional("shape"): str,
+        vol.Optional("rotation"): vol.Coerce(float),
+        vol.Optional("width_cm"): vol.Coerce(float),
+        vol.Optional("height_cm"): vol.Coerce(float),
+        vol.Optional("label"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> None:
+    """Place a light in real-world metres. No photo involved."""
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    if not mdl:
+        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        return
+    eid = (msg.get("entity_id") or "").strip()
+    if not eid.startswith("light."):
+        connection.send_error(msg["id"], "invalid", "a light entity_id is required")
+        return
+    await mdl.async_set_light_position_m(
+        eid, float(msg["x_m"]), float(msg["y_m"]),
+        (msg.get("floor_id") or "").strip() or DEFAULT_FLOOR_ID,
+        color=(msg.get("color") or "").strip(),
+        shape=(msg.get("shape") or "").strip(),
+        rotation=float(msg.get("rotation") or 0.0),
+        width_cm=float(msg.get("width_cm") or 0.0),
+        height_cm=float(msg.get("height_cm") or 0.0),
+        label=(msg.get("label") or "").strip(),
+    )
+    connection.send_result(msg["id"], {"ok": True, "entity_id": eid})
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/fabric_light_remove",
+        "entity_id": str,
+    }
+)
+@websocket_api.async_response
+async def ws_fabric_light_remove(hass: HomeAssistant, connection, msg) -> None:
+    """Un-place a light (it returns to automatic room clustering)."""
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    if not mdl:
+        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        return
+    eid = (msg.get("entity_id") or "").strip()
+    if not eid:
+        connection.send_error(msg["id"], "invalid", "entity_id is required")
+        return
+    await mdl.async_remove_light_position_m(eid)
+    connection.send_result(msg["id"], {"ok": True, "entity_id": eid})
 
 
 @websocket_api.websocket_command(
@@ -10576,7 +10613,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
             "ok": pts_without_m == 0 or total_pts == 0,
             "value": f"{pts_with_m}/{total_pts}",
             "detail": f"{pts_with_m} of {total_pts} points have x_m/y_m coordinates" +
-                      (f" ({pts_without_m} missing — run fabric_migrate_from_maps)" if pts_without_m > 0 else " — all anchored"),
+                      (f" ({pts_without_m} with no real-world position — record them again where you are standing)" if pts_without_m > 0 else " — all anchored"),
         })
 
         # ModelStore wired?

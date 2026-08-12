@@ -64,12 +64,12 @@ class TestLeafIndexRoundTrip:
                 _make_rf_point(
                     room=f"room{i}",
                     readings={"s0": -30.0 - 8.0 * i, "s1": -86.0 + 8.0 * i},
-                    x_frac=i / 10.0,
-                    y_frac=i / 10.0,
+                    x_m=float(i),
+                    y_m=float(i),
                 )
             )
         rf = RandomForestLocator(n_trees=40, max_depth=10, min_leaf=1, seed=42)
-        rf.train(points, use_metres=False)
+        rf.train(points)
         assert rf.is_trained
         return rf, points
 
@@ -142,7 +142,7 @@ class TestMetreSpaceConfidence:
                 )
             )
         rf = RandomForestLocator(n_trees=30, max_depth=8, min_leaf=1, seed=42)
-        rf.train(points, use_metres=True)
+        rf.train(points)
         assert rf.is_trained
         return rf
 
@@ -206,7 +206,7 @@ class TestDominantFloor:
                 )
             )
         rf = RandomForestLocator(n_trees=30, max_depth=8, min_leaf=1, seed=42)
-        rf.train(points, use_metres=True)
+        rf.train(points)
         assert rf.is_trained
         return rf
 
@@ -225,30 +225,32 @@ class TestDominantFloor:
         assert result["map_id"] == "map1"
         assert result["nearest_room"] == "living"
 
-    def test_metre_result_has_knn_locate_keys(self) -> None:
-        """Metre-space result shape matches knn_locate's metre-space contract."""
+    def test_result_is_metres_and_carries_no_photo_coordinates(self) -> None:
+        """The forest answers in real-world metres.
+
+        It used to also return x_frac/y_frac — a placeholder the caller was
+        expected to remap through a photo's transform. Positions are metres;
+        turning them into a spot on a picture is the drawing layer's job.
+        """
         rf = self._train_two_floors()
         result = rf.predict({"up0": -40.0, "up1": -42.0, "dn0": -85.0, "dn1": -87.0})
         assert result is not None
-        for key in ("x_frac", "y_frac", "confidence", "nearest_room", "map_id",
+        for key in ("confidence", "nearest_room", "map_id",
                     "k_used", "shared_scanners", "x_m", "y_m", "floor_id"):
             assert key in result, f"missing key: {key}"
+        assert "x_frac" not in result and "y_frac" not in result
 
-    def test_fraction_result_has_no_floor_id(self) -> None:
-        """Fraction-space results omit floor_id, mirroring knn_locate."""
+    def test_a_point_without_metres_is_not_trainable(self) -> None:
+        """A fingerprint with no real-world position can still identify a room
+        by RSSI, but there is nothing to regress a position from — and the
+        photo-fraction fallback that used to stand in for one is gone."""
         points = [
-            _make_rf_point(
-                room=f"room{i % 2}",
-                readings={"s0": -40.0 - 8.0 * i, "s1": -80.0 + 8.0 * i},
-                x_frac=i / 10.0,
-                y_frac=i / 10.0,
-            )
-            for i in range(6)
+            _make_rf_point(room="kitchen", readings={"s0": -40.0, "s1": -80.0})
+            for _ in range(6)
         ]
+        for p in points:
+            p.pop("x_m", None)
+            p.pop("y_m", None)
         rf = RandomForestLocator(n_trees=20, max_depth=8, min_leaf=1, seed=42)
-        rf.train(points, use_metres=False)
-        assert rf.is_trained
-        result = rf.predict({"s0": -40.0, "s1": -80.0})
-        assert result is not None
-        assert "floor_id" not in result
-        assert "x_m" not in result
+        rf.train(points)
+        assert not rf.is_trained

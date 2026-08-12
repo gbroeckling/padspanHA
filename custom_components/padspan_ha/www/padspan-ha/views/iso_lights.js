@@ -9,7 +9,7 @@
 // vs a flat per-floor metre canvas), which made cross-referencing hexes
 // useless. Moved verbatim out of lights_panel.js; keep all edits HERE.
 
-const { makeStackXform, imageAr, fabricWorldRooms } =
+const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 const { WLED_BORDER } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
@@ -152,10 +152,13 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
   // a measured map) is what the house looks like; per-photo room_bounds stay
   // only as the un-anchored fallback. Also kills the "two Mains" duplication.
   const fabricW = model ? fabricWorldRooms(maps_list, model) : null;
+  const _mAnchor = model ? metreAnchor(maps_list, model.map_transforms) : null;
   // Every light with a pin on any map, so a pinned light is never ALSO drawn
   // as an auto-cluster hex on a different floor.
   const allPlaced={};
-  for(const m of sorted) for(const lt of (m.lights||[])) allPlaced[lt.entity_id]=lt;
+  // Placed lights live in the fabric, in metres — not on any photo.
+  const lightsM = (model && model.light_positions_m) || {};
+  for(const [eid,lp] of Object.entries(lightsM)) allPlaced[eid]=lp;
   const hasBounds=sorted.some(m=>Object.keys(m.room_bounds||{}).length>0) || !!(fabricW && Object.keys(fabricW).length);
 
   for(const [z,group] of [...byLevel.entries()].sort((a,b)=>a[0]-b[0])){
@@ -215,6 +218,7 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
     // fallback — where the old "two Mains" duplication needed the seenRooms
     // dedupe.
     const groupFids = new Set(group.map(m=>String(m.stack?.floor_id||m.floor_id||"main")));
+    const groupZ = group[0]?.stack?.z_level ?? 0;
     const fabHere = fabricW
       ? Object.entries(fabricW).filter(([,fr])=>groupFids.has(fr.floor_id)) : [];
     // Lights placed on ANY map render at their exact spot and are excluded
@@ -260,24 +264,22 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
       }
     }
     const seenRooms=new Set(fabHere.map(([room])=>room));
-    for(const m of group){
-      const mapPt = makeStackXform(m.stack, imageAr(m)).mapPt;
-
-      // Lights with a Pro-placed pin on THIS map render at their exact spot,
-      // regardless of which room (or no room) they're assigned to. Position
-      // is still purely a "fraction of room/world space" concept, drawn
-      // through the same mapPt/iso pipeline as room polygons — no raw photo
-      // is ever involved in this view.
-      const posByEid={};
-      for(const lt of (m.lights||[])) posByEid[lt.entity_id]=lt;
-      for(const [eid,entry] of Object.entries(posByEid)){
+    // Placed lights, drawn from the fabric in metres through the same world
+    // frame the rooms use. A photo is not consulted and need not exist.
+    if(_mAnchor){
+      const k = 1/_mAnchor.m_per_world;
+      for(const [eid,lp] of Object.entries(lightsM)){
         if(hiddenEids.has(eid)) continue;
+        if(!groupFids.has(String(lp.floor_id||"main"))) continue;
         const l=lightsByEid[eid];
         if(!l) continue;
-        const [wx,wy]=mapPt(entry.x, entry.y);
-        const [hx,hy]=iso(wx,wy,z);
-        s+=markerSvg(l,hx,hy,entry,`data-z="${z}" data-map="${escSVG(m.id)}" data-placed="1"`);
+        const [hx,hy]=iso(lp.x_m*k, lp.y_m*k, groupZ);
+        s+=markerSvg(l,hx,hy,lp,`data-z="${groupZ}" data-placed="1"`);
       }
+    }
+
+    for(const m of group){
+      const mapPt = makeStackXform(m.stack, imageAr(m)).mapPt;
 
       if(fabHere.length) continue;   // the fabric drew this group's rooms
       for(const [room,b] of Object.entries(m.room_bounds||{})){

@@ -185,3 +185,31 @@ async def test_a_failing_calibration_backfill_never_blocks_the_migration() -> No
     assert stats["cal_points_anchored"] == 0
     assert PHOTO_DIVORCE in fab.data[MARKER]          # still marked done
     assert fab.scanner_positions_m()["rx_bad"]["x_m"] == pytest.approx(5.0)
+
+
+@pytest.mark.asyncio
+async def test_lights_are_converted_as_part_of_the_upgrade() -> None:
+    """A light placed on a photo becomes a light placed in the house."""
+    mdl, fab, ms = _scenario()
+    ms.data["maps"][0]["lights"] = [
+        {"entity_id": "light.kitchen", "x": 0.5, "y": 0.5, "shape": "bar"}]
+    stats = await async_run_photo_divorce(MagicMock(), mdl, ms, fab)
+    assert stats["lights_converted"] == 1
+    lp = fab.light_positions_m()["light.kitchen"]
+    assert (lp["x_m"], lp["y_m"]) == (5.0, 4.0)      # master map: 10m x 8m
+    assert lp["shape"] == "bar"
+    assert "map_id" not in lp
+
+
+@pytest.mark.asyncio
+async def test_the_whole_upgrade_is_idempotent_on_real_shaped_data() -> None:
+    """Second startup changes nothing at all — bytes identical."""
+    import json
+
+    mdl, fab, ms = _scenario()
+    ms.data["maps"][0]["lights"] = [{"entity_id": "light.a", "x": 0.2, "y": 0.2}]
+    await async_run_photo_divorce(MagicMock(), mdl, ms, fab)
+    after_first = json.dumps(fab.data, sort_keys=True)
+
+    await async_run_photo_divorce(MagicMock(), mdl, ms, fab)
+    assert json.dumps(fab.data, sort_keys=True) == after_first

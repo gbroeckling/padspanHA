@@ -242,8 +242,8 @@ def test_model_store_without_fabric_is_empty_not_stale() -> None:
 
 def _spatial_fabric() -> FabricStore:
     return _make_fabric({
-        "floors": {}, "scanner_positions_m": {},
-        "beacon_positions_m": {}, "rf_barriers_m": [], "history": [],
+        "floors": {}, "scanner_positions_m": {}, "beacon_positions_m": {},
+        "rf_barriers_m": [], "light_positions_m": {}, "history": [],
     })
 
 
@@ -424,3 +424,39 @@ async def test_unmeasured_map_gets_no_invented_scale() -> None:
         mdl.async_derive_transforms).parameters
     with pytest.raises(TypeError):
         await mdl.async_derive_transforms(ms, default_floor_width_m=20.0)
+
+
+def test_nothing_converts_photo_coordinates_into_data() -> None:
+    """The invariant, checked structurally so it cannot quietly come back.
+
+    Every write path that turned a photo coordinate into a stored one has
+    been deleted. The single surviving conversion is the one-shot upgrade
+    migration, and it is allowed to exist precisely because it runs once.
+    """
+    from pathlib import Path
+
+    from custom_components.padspan_ha.model_store import ModelStore
+
+    for gone in ("async_sync_spatial_from_map", "async_batch_save_spatial",
+                 "async_migrate_from_maps"):
+        assert not hasattr(ModelStore, gone), gone
+
+    src = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+    allowed = {"migrations.py", "model_store.py", "fabric_truth.py", "calibration_store.py"}
+    for path in src.glob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        if path.name not in allowed:
+            assert "map_frac_to_metres" not in text, f"{path.name} converts photo coords"
+
+    # The forest answers in metres; the fraction fallback is gone.
+    rf = (src / "random_forest.py").read_text(encoding="utf-8")
+    assert 'p["x_frac"]' not in rf and "use_metres: bool" not in rf
+
+
+def test_the_fabric_holds_every_kind_of_thing_with_a_position() -> None:
+    """Rooms, scanners, beacons, barriers and lights all live in one store,
+    in metres. If a new kind of thing appears, it belongs here too."""
+    fab = _spatial_fabric()
+    for key in ("scanner_positions_m", "beacon_positions_m",
+                "rf_barriers_m", "light_positions_m"):
+        assert key in fab.data, key

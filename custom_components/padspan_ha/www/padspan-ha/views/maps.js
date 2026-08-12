@@ -5,7 +5,7 @@
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { makeStackXform, imageAr, fabricWorldRooms } =
+const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 // Iso projection constants for the Lights tab's drag-inversion.
 const { ISO } =
@@ -6156,12 +6156,9 @@ function _attachPanZoom(viewport, inner) {
 
 // Draft: mapId → scratch copy of that map's lights[]. Presence of a key IS
 // the dirty marker; Save writes every drafted map, Discard drops them all.
-function _lightsDraftFor(ctx, mapState, mapId) {
-  if (!mapState._lightsDraft[mapId]) {
-    const m = (ctx.state.maps.list || []).find(x => x.id === mapId);
-    mapState._lightsDraft[mapId] = JSON.parse(JSON.stringify((m && m.lights) || []));
-  }
-  return mapState._lightsDraft[mapId];
+function _floorIdForZ(maps, z) {
+  const m = maps.find(x => (x.stack?.z_level ?? 0) === z);
+  return String(m?.stack?.floor_id || m?.floor_id || "main");
 }
 
 // Wire the build tools onto the shared iso SVG: click any hex to select it,
@@ -6252,32 +6249,29 @@ function _wireLightsBuild(ctx, isoDiv, o) {
         }
         const v = toVB(e);
         const [wx, wy] = isoInv(originCx + (v.x - start.x), originCy + (v.y - start.y), z);
-        // Owning map: a placed hex moves on its own map; an auto hex gets
-        // placed on its floor's primary (best-calibrated) map.
-        const mapId = placedMapId || _primaryMapIdForFloor(ctx,
-          o.visMaps.filter(m => (m.stack?.z_level ?? 0) === z).map(m => m.id));
-        const map = o.visMaps.find(m => m.id === mapId);
-        if (!map) { ctx.actions.renderRooms(); return; }
-        const inv = makeStackXform(map.stack, imageAr(map)).invMapPt;
-        const [fx, fy] = inv(wx, wy);
-        const nx = Math.max(-50, Math.min(50, Math.round(fx * 10000) / 10000));
-        const ny = Math.max(-50, Math.min(50, Math.round(fy * 10000) / 10000));
-        const lightsArr = _lightsDraftFor(ctx, o.mapState, mapId);
-        let entry = lightsArr.find(lt => lt.entity_id === eid);
-        if (!entry) {
-          const l = o.lightsByEid[eid];
-          entry = {
-            id: `lt_${Date.now().toString(16)}`,
-            entity_id: eid,
-            label: l ? l.friendly_name : eid,
-            x: nx, y: ny,
-            color: "#fbbf24", shape: "circle", rotation: 0, width_cm: 15, height_cm: 15,
-          };
-          lightsArr.push(entry);
-        } else {
-          entry.x = nx; entry.y = ny;
+        // Where the light IS, in metres. No owning map, no transform, no
+        // photo: the world frame converts straight to real-world coordinates.
+        const anchor = metreAnchor(o.visMaps, (ctx.state.model || {}).map_transforms);
+        if (!anchor) {
+          ctx.toast("Measure one map first — without a real-world scale there is nowhere to put this.", true);
+          ctx.actions.renderRooms();
+          return;
         }
-        o.mapState._selLight = { eid, mapId };
+        const x_m = Math.round(wx * anchor.m_per_world * 1000) / 1000;
+        const y_m = Math.round(wy * anchor.m_per_world * 1000) / 1000;
+        const floorId = _floorIdForZ(o.visMaps, z);
+        const draft = o.mapState._lightsDraftM || (o.mapState._lightsDraftM = {});
+        const prev = ((ctx.state.model || {}).light_positions_m || {})[eid] || {};
+        draft[eid] = {
+          x_m, y_m, floor_id: floorId,
+          color: prev.color || "#fbbf24",
+          shape: prev.shape || "circle",
+          rotation: prev.rotation || 0,
+          width_cm: prev.width_cm || 15,
+          height_cm: prev.height_cm || 15,
+          label: prev.label || (o.lightsByEid[eid] ? o.lightsByEid[eid].friendly_name : eid),
+        };
+        o.mapState._selLight = { eid, mapId: null };
         ctx.actions.renderRooms();
       };
       g.addEventListener("pointermove", mm);
@@ -6291,7 +6285,7 @@ function _lightsTab(ctx, maps, active) {
   const { el } = ctx.helpers;
   const mapState = ctx.state.maps;
   const wrap = el("div", {});
-  if (!mapState._lightsDraft) mapState._lightsDraft = {};
+  if (!mapState._lightsDraftM) mapState._lightsDraftM = {};
 
   // Identical map = identical inputs: the same hidden-maps filter the
   // sidebar applies (init from the same persisted setting if the 3D Stack
@@ -6373,11 +6367,11 @@ function _lightsTab(ctx, maps, active) {
   const view = mapState._lightsView;
 
   // Unsaved-work bar
-  const dirtyIds = Object.keys(mapState._lightsDraft).filter(id => maps.some(m => m.id === id));
-  if (dirtyIds.length) {
+  const dirtyEids = Object.keys(mapState._lightsDraftM || {});
+  if (dirtyEids.length) {
     const bar = el("div", { class: "card", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;border:1px solid #b8860b" }, [
       el("span", { style: "font-size:12px;color:#fbbf24;font-weight:600" },
-        `Unsaved light placements on ${dirtyIds.length} map(s)`),
+        `${dirtyEids.length} unsaved light placement${dirtyEids.length !== 1 ? "s" : ""}`),
       el("button", { class: "btn inline primary", onclick: async (e) => {
         const btn = e.currentTarget;
         btn.disabled = true; btn.textContent = "Saving…";
@@ -6387,24 +6381,24 @@ function _lightsTab(ctx, maps, active) {
         // user to retry and re-send it.
         let saved = 0;
         try {
-          for (const mapId of dirtyIds) {
-            const r = await ctx.actions.wsCall("padspan_ha/maps_update", { map_id: mapId, lights: mapState._lightsDraft[mapId] });
-            if (r?.lights_blocked) throw new Error("PadSpan Pro licence not active — positions were not saved");
-            delete mapState._lightsDraft[mapId];
+          for (const eid of dirtyEids) {
+            const lp = mapState._lightsDraftM[eid];
+            await ctx.actions.wsCall("padspan_ha/fabric_light_position_set", { entity_id: eid, ...lp });
+            delete mapState._lightsDraftM[eid];
             saved++;
           }
-          await ctx.actions.mapsRefreshQuiet();
+          await ctx.actions.modelRefresh();
           ctx.toast("Light placements saved ✔");
         } catch(err) {
           await ctx.actions.mapsRefreshQuiet();
           ctx.toast(saved
-            ? `Saved ${saved} of ${dirtyIds.length} — the rest failed: ${err.message || err}`
+            ? `Saved ${saved} of ${dirtyEids.length} — the rest failed: ${err.message || err}`
             : "Save failed: " + (err.message || err), true);
         }
         ctx.actions.renderRooms();
       } }, "💾 Save placements"),
       el("button", { class: "btn inline", onclick: () => {
-        mapState._lightsDraft = {};
+        mapState._lightsDraftM = {};
         mapState._selLight = null;
         ctx.actions.renderRooms();
       } }, "Discard"),
@@ -6413,12 +6407,17 @@ function _lightsTab(ctx, maps, active) {
   }
 
   // ── THE shared map card — identical to the Lights sidebar ───────────────
-  const mapsForRender = visMaps.map(m => mapState._lightsDraft[m.id] ? { ...m, lights: mapState._lightsDraft[m.id] } : m);
+  // Unsaved drags overlay the fabric's light positions; maps are untouched.
+  const mapsForRender = visMaps;
+  const modelForRender = Object.keys(mapState._lightsDraftM || {}).length
+    ? { ...ctx.state.model,
+        light_positions_m: { ...(ctx.state.model?.light_positions_m || {}), ...mapState._lightsDraftM } }
+    : ctx.state.model;
   const host = {
     el,
     maps: mapsForRender,
     floors,
-    model: ctx.state.model,
+    model: modelForRender,
     byRoom,
     hiddenEids,
     lightsByEid,
@@ -6447,7 +6446,7 @@ function _lightsTab(ctx, maps, active) {
     // A table row selects the light on the map (toggle lives in the inspector).
     onRowClick: (l) => {
       const owner = visMaps.find(m =>
-        (mapState._lightsDraft[m.id] || m.lights || []).some(lt => lt.entity_id === l.entity_id));
+        false);
       mapState._selLight = { eid: l.entity_id, mapId: owner ? owner.id : null };
       ctx.actions.renderRooms();
     },
@@ -6475,7 +6474,7 @@ function _lightsTab(ctx, maps, active) {
   if (sel && lightsByEid[sel.eid]) {
     const l = lightsByEid[sel.eid];
     const entry = sel.mapId
-      ? (mapState._lightsDraft[sel.mapId] || (visMaps.find(m => m.id === sel.mapId) || {}).lights || [])
+      ? []
           .find(lt => lt.entity_id === sel.eid)
       : null;
     const insp = el("div", { class: "card", style: "display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 12px" });
@@ -6528,9 +6527,10 @@ function _lightsTab(ctx, maps, active) {
       colorInput.value = entry.color || "#fbbf24";
       colorInput.style.cssText = "width:36px;height:26px;border:none;background:none;cursor:pointer";
       colorInput.addEventListener("change", () => {
-        const arr = _lightsDraftFor(ctx, mapState, sel.mapId);
-        const e2 = arr.find(lt => lt.entity_id === sel.eid);
-        if (e2) e2.color = colorInput.value;
+        const draft = mapState._lightsDraftM || (mapState._lightsDraftM = {});
+        const cur = draft[sel.eid] || { ...((ctx.state.model?.light_positions_m || {})[sel.eid] || {}) };
+        cur.color = colorInput.value;
+        draft[sel.eid] = cur;
         ctx.actions.renderRooms();
       });
       colorLbl.appendChild(colorInput);
@@ -6538,10 +6538,13 @@ function _lightsTab(ctx, maps, active) {
 
       insp.appendChild(el("button", {
         class: "btn inline",
-        onclick: () => {
-          const arr = _lightsDraftFor(ctx, mapState, sel.mapId);
-          const idx = arr.findIndex(lt => lt.entity_id === sel.eid);
-          if (idx >= 0) arr.splice(idx, 1);
+        onclick: async () => {
+          // Un-place it: back to automatic clustering in its room.
+          delete (mapState._lightsDraftM || {})[sel.eid];
+          try {
+            await ctx.actions.wsCall("padspan_ha/fabric_light_remove", { entity_id: sel.eid });
+            await ctx.actions.modelRefresh();
+          } catch (err) { ctx.toast("Failed: " + (err.message || err), true); }
           mapState._selLight = { eid: sel.eid, mapId: null };
           ctx.actions.renderRooms();
         },
@@ -7302,6 +7305,26 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
         h.addEventListener("touchstart", onDown, { passive: false });
         pinLayer.appendChild(h);
       }
+      // Delete handle at the wall's first vertex.
+      const p0 = bar.points_m[0];
+      const del = el("div", {
+        title: `Delete "${bar.name || "barrier"}"`,
+        style: `position:absolute;left:${((p0[0] - bbox.minX) / bbox.width * 100).toFixed(3)}%;` +
+          `top:${((p0[1] - bbox.minY) / bbox.height * 100).toFixed(3)}%;` +
+          `transform:translate(-50%,-18px);color:#f87171;font-size:11px;font-weight:700;` +
+          `pointer-events:auto;cursor:pointer;z-index:5;font-family:system-ui,sans-serif;` +
+          `text-shadow:0 1px 2px rgba(0,0,0,.9)`,
+        onclick: async (ev) => {
+          ev.stopPropagation();
+          if (!confirm(`Delete wall "${bar.name || "barrier"}"?`)) return;
+          try {
+            await ctx.actions.wsCall("padspan_ha/fabric_rf_barrier_remove", { name: bar.name });
+            mapState._roomsBarrierDraft = null;
+            await ctx.actions.modelRefresh();
+          } catch (err) { ctx.toast("Delete failed: " + (err.message || err), true); }
+        },
+      }, "✕");
+      pinLayer.appendChild(del);
     }
 
     // ── Beacon pins — draggable, in metres ───────────────────────────────

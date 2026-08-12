@@ -49,6 +49,7 @@ Data layout in .storage/padspan_ha.fabric:
     "scanner_positions_m": { "<source>": {x_m, y_m, z_m, floor_id, map_id} },
     "beacon_positions_m":  { "<key>": {x_m, y_m, floor_id, room, kind, label, map_id} },
     "rf_barriers_m":       [ {name, material, attenuation_dbm, floor_id, points_m, map_id} ],
+    "light_positions_m":   { "<entity_id>": {x_m, y_m, floor_id, color, shape, rotation, width_cm, height_cm, label} },
 
     "history": [ {ts, floor_id, room, op, revision} ]   # append-only, capped
   }
@@ -122,13 +123,15 @@ class FabricStore:
         self.store = wrap_store(self._raw_store, hass, "fabric")
         self.data: dict[str, Any] = {
             "floors": {}, "scanner_positions_m": {},
-            "beacon_positions_m": {}, "rf_barriers_m": [], "history": [],
+            "beacon_positions_m": {}, "rf_barriers_m": [], "light_positions_m": {},
+            "history": [],
         }
 
     _SPATIAL_KEYS = (
         ("scanner_positions_m", dict),
         ("beacon_positions_m", dict),
         ("rf_barriers_m", list),
+        ("light_positions_m", dict),
     )
 
     async def async_setup(
@@ -294,6 +297,10 @@ class FabricStore:
         """{key: {x_m, y_m, floor_id, room, kind, label, map_id}} — canonical."""
         return dict(self.data.get("beacon_positions_m") or {})
 
+    def light_positions_m(self) -> dict[str, dict[str, Any]]:
+        """{entity_id: {x_m, y_m, floor_id, ...}} — canonical light placement."""
+        return dict(self.data.get("light_positions_m") or {})
+
     def rf_barriers_m(self) -> list[dict[str, Any]]:
         """[{name, material, attenuation_dbm, floor_id, points_m, ...}] — canonical."""
         return list(self.data.get("rf_barriers_m") or [])
@@ -439,6 +446,8 @@ class FabricStore:
         remove_scanners: list[str] | None = None,
         set_beacons: dict[str, dict] | None = None,
         remove_beacons: list[str] | None = None,
+        set_lights: dict[str, dict] | None = None,
+        remove_lights: list[str] | None = None,
         set_barriers: list[dict] | None = None,
         remove_barrier_names: list[str] | None = None,
         replace_map_barriers: tuple[str, list[dict]] | None = None,
@@ -454,7 +463,7 @@ class FabricStore:
         carries no map_id and is never swept up here.
         Invalid entries are skipped, not fatal.  Returns per-kind counts.
         """
-        counts = {"scanners": 0, "beacons": 0, "barriers": 0, "removed": 0}
+        counts = {"scanners": 0, "beacons": 0, "barriers": 0, "lights": 0, "removed": 0}
         scanners = self.data.setdefault("scanner_positions_m", {})
         beacons = self.data.setdefault("beacon_positions_m", {})
 
@@ -476,6 +485,17 @@ class FabricStore:
             counts["beacons"] += 1
         for key in (remove_beacons or []):
             if beacons.pop(str(key), None) is not None:
+                counts["removed"] += 1
+
+        lights = self.data.setdefault("light_positions_m", {})
+        for eid, entry in (set_lights or {}).items():
+            norm = self._norm_point_entry(entry, need_z=False)
+            if norm is None or not str(eid):
+                continue
+            lights[str(eid)] = norm
+            counts["lights"] += 1
+        for eid in (remove_lights or []):
+            if lights.pop(str(eid), None) is not None:
                 counts["removed"] += 1
 
         barriers = self.data.setdefault("rf_barriers_m", [])
@@ -508,7 +528,8 @@ class FabricStore:
             counts["removed"] += len(barriers) - len(kept)
             self.data["rf_barriers_m"] = kept
 
-        total = counts["scanners"] + counts["beacons"] + counts["barriers"] + counts["removed"]
+        total = (counts["scanners"] + counts["beacons"] + counts["barriers"]
+                 + counts["lights"] + counts["removed"])
         if total:
             self._log_history("", "", op, total)
             await self.store.async_save(self.data)

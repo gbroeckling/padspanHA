@@ -120,3 +120,20 @@ async def test_maybe_save_respects_interval(tmp_path) -> None:
     await tb.async_maybe_save()
     assert not tb._pending
     assert list(tb._seg_dir.glob("*.jsonl"))
+
+
+def test_history_records_metres_not_photo_fractions() -> None:
+    """Replaying yesterday must not depend on where a photo hangs today.
+
+    History used to store the k-NN answer in whichever map's fraction space
+    it came from, plus that map's id — so re-placing the photo silently moved
+    the past. Metres mean the same thing on every future startup.
+    """
+    import inspect
+
+    from custom_components.padspan_ha import traceback_store
+
+    src = inspect.getsource(traceback_store)
+    assert 'entry["x_m"]' in src and 'entry["y_m"]' in src
+    assert 'o.get("x_frac")' not in src
+    assert 'entry["m"] = str(knn_map)' not in src

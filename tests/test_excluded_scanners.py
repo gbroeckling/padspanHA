@@ -32,7 +32,8 @@ def _store(points: list[dict], settings: dict | None = None) -> CalibrationStore
 
 def _pt(name: str, x: float, y: float, readings: dict[str, float]) -> dict:
     return {
-        "id": name, "map_id": "m1", "x_frac": x, "y_frac": y, "room": name,
+        "id": name, "map_id": "m1", "x_frac": x, "y_frac": y,
+        "x_m": x * 10.0, "y_m": y * 10.0, "floor_id": "main", "room": name,
         "scanner_readings": [
             {"source": s, "name": s, "mean_rssi": v, "rssi_samples": [v]}
             for s, v in readings.items()
@@ -117,7 +118,7 @@ _RF_POINTS = [
 
 def test_forest_has_no_column_for_a_masked_scanner():
     rf = RandomForestLocator()
-    rf.train(_RF_POINTS, False, frozenset({"rover"}))
+    rf.train(_RF_POINTS, frozenset({"rover"}))
     assert rf.is_trained
     assert "rover" not in rf._sources
     assert {"fix_a", "fix_b", "fix_c"} <= set(rf._sources)
@@ -126,13 +127,13 @@ def test_forest_has_no_column_for_a_masked_scanner():
 def test_unmasking_restores_the_previous_model_exactly():
     """Reversibility is the whole point of a mask."""
     before = RandomForestLocator()
-    before.train(_RF_POINTS, False, frozenset())
+    before.train(_RF_POINTS, frozenset())
 
     masked = RandomForestLocator()
-    masked.train(_RF_POINTS, False, frozenset({"rover"}))
+    masked.train(_RF_POINTS, frozenset({"rover"}))
 
     after = RandomForestLocator()
-    after.train(_RF_POINTS, False, frozenset())
+    after.train(_RF_POINTS, frozenset())
 
     assert before._sources == after._sources != masked._sources
 

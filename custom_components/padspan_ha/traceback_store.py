@@ -189,15 +189,19 @@ class TracebackStore:
             pid = o.get("padspan_id")
             if pid:
                 entry["pid"] = pid
-            # k-NN sub-room position (precise map placement)
-            x_frac = o.get("x_frac")
-            y_frac = o.get("y_frac")
-            knn_map = o.get("knn_map_id")
-            if x_frac is not None and y_frac is not None:
-                entry["x"] = round(float(x_frac), 4)
-                entry["y"] = round(float(y_frac), 4)
-                if knn_map:
-                    entry["m"] = str(knn_map)
+            # Sub-room position, in metres. History used to be recorded in
+            # whichever photo's fraction space the k-NN happened to answer in,
+            # so replaying it meant resolving a map id and its transform —
+            # and re-placing that photo silently moved the past. Metres are
+            # the same yesterday as today.
+            x_m = o.get("x_m")
+            y_m = o.get("y_m")
+            if x_m is not None and y_m is not None:
+                entry["x_m"] = round(float(x_m), 3)
+                entry["y_m"] = round(float(y_m), 3)
+                fl = o.get("floor_id")
+                if fl:
+                    entry["f"] = str(fl)
             # Room confidence
             conf = o.get("room_confidence")
             if conf is not None:

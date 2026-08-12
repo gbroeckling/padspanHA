@@ -750,6 +750,37 @@ function _settingsPresence(ctx, el){
     ]));
   }
 
+  // ── Fabric source ─────────────────────────────────────────────────────────
+  // "Runs without Home Assistant areas" — the fabric is the model, and this
+  // decides whether HA's registry gets to write into it.
+  {
+    const cur = (ctx.state.model && ctx.state.model.fabric_sync_mode) || "auto";
+    const sel = el("select", {
+      style: "width:220px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:6px;padding:4px 8px;font-size:13px",
+    });
+    for (const [v, label] of [["auto", "Follow Home Assistant areas"],
+                              ["manual", "Standalone — the fabric is the truth"]]) {
+      const o = el("option", { value: v }, label);
+      if (cur === v) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.addEventListener("change", async () => {
+      try {
+        await ctx.actions.callWS({ type: "padspan_ha/fabric_sync_mode_set", mode: sel.value });
+        ctx.toast(sel.value === "manual"
+          ? "Standalone — rooms and scanners come from the fabric only"
+          : "Following Home Assistant areas");
+        await ctx.actions.modelRefresh();
+      } catch(e) { ctx.toast("Failed to save", true); }
+    });
+    wrap.appendChild(el("div", { class: "card" }, [
+      el("div", { class: "h2", style: "color:#52b788" }, "Fabric source"),
+      el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [sel]),
+      el("div", { class: "muted", style: "font-size:12px" },
+        "Standalone lets PadSpan run with rooms you created here and no Home Assistant areas at all."),
+    ]));
+  }
+
   // ── Positioning Algorithm ─────────────────────────────────────────────────
   {
     const cs = (ctx.state.live && ctx.state.live.snapshot && ctx.state.live.snapshot.calibration_status) || {};

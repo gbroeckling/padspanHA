@@ -798,6 +798,44 @@ class ModelStore:
             "map_id": map_id,
         }}, op="beacon_set")
 
+    def light_positions_m(self) -> dict[str, dict[str, Any]]:
+        """{entity_id: {x_m, y_m, floor_id, ...}} — read through the fabric."""
+        fab = getattr(self, "fabric", None)
+        return fab.light_positions_m() if fab else {}
+
+    async def async_set_light_position_m(
+        self, entity_id: str, x_m: float, y_m: float, floor_id: str,
+        color: str = "", shape: str = "", rotation: float = 0.0,
+        width_cm: float = 0.0, height_cm: float = 0.0, label: str = "",
+    ) -> None:
+        """Place a light in real-world metres."""
+        fab = getattr(self, "fabric", None)
+        if not fab:
+            return
+        entry = {
+            "x_m": round(float(x_m), 3), "y_m": round(float(y_m), 3),
+            "floor_id": str(floor_id or DEFAULT_FLOOR_ID),
+        }
+        if color:
+            entry["color"] = str(color)[:9]
+        if shape:
+            entry["shape"] = str(shape)[:20]
+        if rotation:
+            entry["rotation"] = float(rotation)
+        if width_cm:
+            entry["width_cm"] = float(width_cm)
+        if height_cm:
+            entry["height_cm"] = float(height_cm)
+        if label:
+            entry["label"] = str(label)[:120]
+        await fab.async_spatial_update(set_lights={str(entity_id): entry}, op="light_set")
+
+    async def async_remove_light_position_m(self, entity_id: str) -> None:
+        fab = getattr(self, "fabric", None)
+        if not fab:
+            return
+        await fab.async_spatial_update(remove_lights=[str(entity_id)], op="light_remove")
+
     async def async_remove_beacon_position_m(self, key: str) -> None:
         """Remove a beacon from metre-space positions."""
         fab = getattr(self, "fabric", None)

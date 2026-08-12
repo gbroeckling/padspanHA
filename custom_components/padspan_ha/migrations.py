@@ -89,7 +89,7 @@ async def async_run_photo_divorce(
     stats: dict[str, Any] = {
         "maps_repaired": [], "maps_already_correct": 0,
         "positions_rederived": 0, "legacy_keys_stripped": 0,
-        "cal_points_anchored": 0, "anchor": None,
+        "cal_points_anchored": 0, "lights_converted": 0, "anchor": None,
     }
 
     maps_list = (ms.data.get("maps") or []) if ms else []
@@ -131,7 +131,13 @@ async def async_run_photo_divorce(
         except Exception as err:  # never block the rest of the migration
             _LOGGER.warning("Calibration backfill during migration failed: %s", err)
 
-    # 4. Drop the keys that only existed to mark things re-derivable.
+    # 4. Light placements lived per-photo, in that photo's fraction space.
+    #    Convert them to metres once; from here a light is placed in the
+    #    house like everything else.
+    if anchor:
+        stats["lights_converted"] = await _convert_lights(mdl, fab, maps_list)
+
+    # 5. Drop the keys that only existed to mark things re-derivable.
     stats["legacy_keys_stripped"] = _strip_legacy_keys(fab)
 
     done.add(PHOTO_DIVORCE)
@@ -140,10 +146,11 @@ async def async_run_photo_divorce(
     _LOGGER.info(
         "Photo divorce migration: %d map placement(s) repaired (%s), %d already correct, "
         "%d position(s) re-derived one last time, %d calibration point(s) anchored, "
-        "%d legacy key(s) stripped",
+        "%d light(s) converted to metres, %d legacy key(s) stripped",
         len(stats["maps_repaired"]), ", ".join(stats["maps_repaired"]) or "none",
         stats["maps_already_correct"], stats["positions_rederived"],
-        stats["cal_points_anchored"], stats["legacy_keys_stripped"],
+        stats["cal_points_anchored"], stats["lights_converted"],
+        stats["legacy_keys_stripped"],
     )
     return stats
 
@@ -204,3 +211,36 @@ async def _rederive_once(mdl: Any, fab: Any, maps_list: list[dict]) -> int:
             op="migration:photo_divorce",
         )
     return count
+
+
+async def _convert_lights(mdl: Any, fab: Any, maps_list: list[dict]) -> int:
+    """Move per-photo light placements into the fabric, in metres.
+
+    A light's x/y used the same fraction convention as room bounds, so the
+    map's own transform converts it. A light already placed in metres wins.
+    """
+    existing = fab.light_positions_m()
+    set_lights: dict[str, dict] = {}
+    for m in maps_list:
+        mid = m.get("id", "")
+        if not mdl.map_transform(mid):
+            continue
+        fl = str(m.get("floor_id", DEFAULT_FLOOR_ID))
+        for lt in (m.get("lights") or []):
+            eid = str(lt.get("entity_id") or "")
+            if not eid or eid in existing or eid in set_lights:
+                continue
+            coords = mdl.map_frac_to_metres(float(lt.get("x") or 0.0), float(lt.get("y") or 0.0), mid)
+            if not coords:
+                continue
+            entry = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3), "floor_id": fl}
+            for src, dst in (("color", "color"), ("shape", "shape"), ("label", "label")):
+                if lt.get(src):
+                    entry[dst] = lt[src]
+            for k in ("rotation", "width_cm", "height_cm"):
+                if lt.get(k):
+                    entry[k] = float(lt[k])
+            set_lights[eid] = entry
+    if set_lights:
+        await fab.async_spatial_update(set_lights=set_lights, op="migration:lights_to_metres")
+    return len(set_lights)

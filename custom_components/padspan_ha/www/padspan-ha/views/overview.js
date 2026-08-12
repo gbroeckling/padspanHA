@@ -5,7 +5,7 @@
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { makeStackXform, imageAr, fabricWorldRooms } =
+const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 
 /**
@@ -893,11 +893,8 @@ export function render(ctx){
         if (_quietMode && !isTagged && !isFollowed) continue;
 
         let px, py;
-        // k-NN position: check all floor maps
-        const knnMap = renderMaps.find(m => o.knn_map_id === m.id);
-        if (typeof o.x_frac === "number" && typeof o.y_frac === "number" && knnMap) {
-          [px, py] = _pt(knnMap, o.x_frac, o.y_frac);
-        } else if (o.room && roomCentroids[o.room]) {
+        // Positions are metres; this flat view falls back to room centroids.
+        if (o.room && roomCentroids[o.room]) {
           const c = roomCentroids[o.room];
           const idx = (_roomObjIdx[o.room] || 0);
           _roomObjIdx[o.room] = idx + 1;
@@ -1533,6 +1530,17 @@ export function render(ctx){
     }
     if(!isFinite(_indoorBB.minX)){_indoorBB={minX:0,minY:0,maxX:1,maxY:0.75};}
 
+    // Metres -> world, and a floor's slab height. Positions are metres, so
+    // drawing them needs no map id and no per-photo transform.
+    const _mAnchor = metreAnchor(maps_list, (ctx.state.model || {}).map_transforms);
+    const _floorZByFloor = {};
+    for(const m of maps_list){
+      const fl = String(m.stack?.floor_id || m.floor_id || "main");
+      if(_floorZByFloor[fl] === undefined) _floorZByFloor[fl] = (m.stack?.z_level || 0);
+    }
+    const _floorZ = (fl) => (fl && _floorZByFloor[String(fl)] !== undefined)
+      ? _floorZByFloor[String(fl)] : 0;
+
     const mapTransforms = {};
     for(const m of maps_list){
       const stk=m.stack||{}, z=stk.z_level||0;
@@ -1934,7 +1942,7 @@ export function render(ctx){
       const _awayTimeoutS2 = ((ctx.state.settings && ctx.state.settings.away_timeout_m != null) ? Number(ctx.state.settings.away_timeout_m) : 5) * 60;
       for(const o of followedObjects){
         // Skip objects positioned on a hidden floor/map
-        if(o.knn_map_id && hiddenIds.has(o.knn_map_id)) continue;
+
         _renderedObjKeys.add(o.key || o.address || o.entity_id || "");
         const isGhost = o._ghost || o._stale;
         const ageS = typeof o.age_s === "number" ? o.age_s : 0;
@@ -1943,11 +1951,11 @@ export function render(ctx){
         let bx, by;
         let posConf = 0;  // confidence for dashed circle
 
-        // Priority 1: Server k-NN position (x_frac/y_frac) — same source calibration uses
-        if(typeof o.x_frac === "number" && typeof o.y_frac === "number" && o.knn_map_id && mapTransforms[o.knn_map_id]){
-          const tf=mapTransforms[o.knn_map_id];
-          const [lwx,lwy]=tf.mapPt(o.x_frac, o.y_frac);
-          [bx,by]=iso(lwx, lwy, tf.z);
+        // Priority 1: the server's position, in metres, drawn through the
+        // world frame. No map id: a position is not "on" a photo.
+        if(typeof o.x_m === "number" && typeof o.y_m === "number" && _mAnchor){
+          const k = 1/_mAnchor.m_per_world;
+          [bx,by]=iso(o.x_m*k, o.y_m*k, _floorZ(o.floor_id));
           posConf = o.knn_confidence || 0;
         }
         // Priority 2: Client-side fingerprint fallback — server k-NN is authoritative,
@@ -1980,7 +1988,7 @@ export function render(ctx){
         }
 
         // Confidence badge — always visible, color-coded by quality
-        const hasKnn = typeof o.x_frac === "number" && typeof o.y_frac === "number";
+        const hasKnn = typeof o.x_m === "number" && typeof o.y_m === "number";
         const confPct = hasKnn ? Math.round((o.knn_confidence || 0) * 100) : 0;
         // Color: green > 60%, amber 30-60%, red < 30%, gray = no data
         const confColor = !hasKnn ? "#64748b" : confPct >= 60 ? "#52b788" : confPct >= 30 ? "#f59e0b" : "#f87171";
@@ -2025,10 +2033,10 @@ export function render(ctx){
           if (_renderedObjKeys.has(o.key || o.address || o.entity_id || "")) return false;
           // Stale/ghost objects don't belong on the map
           if (o._stale || o._ghost) return false;
-          const hasKnn = typeof o.x_frac === "number" && typeof o.y_frac === "number" && o.knn_map_id && mapTransforms[o.knn_map_id];
+          const hasKnn = typeof o.x_m === "number" && typeof o.y_m === "number" && !!_mAnchor;
           const hasRoom = o.room && o.room !== "unknown" && o.room !== "not_home" && roomIsoPos[o.room];
           if (!hasKnn && !hasRoom) return false;
-          if (o.knn_map_id && hiddenIds.has(o.knn_map_id)) return false;
+
           // Quiet mode: only show labeled/identified objects
           if (_quietMode && !o.user_label && !o.identified) return false;
           // Only show labeled/identified objects (not random BLE noise)
@@ -2047,10 +2055,10 @@ export function render(ctx){
 
           // Position: server k-NN first, then high-confidence fingerprint, then room centroid + stagger
           let px, py;
-          if(typeof obj.x_frac === "number" && typeof obj.y_frac === "number" && obj.knn_map_id && mapTransforms[obj.knn_map_id]){
-            const tf=mapTransforms[obj.knn_map_id];
-            const [lwx,lwy]=tf.mapPt(obj.x_frac, obj.y_frac);
-            [px,py]=[Math.round(iso(lwx,lwy,tf.z)[0]), Math.round(iso(lwx,lwy,tf.z)[1])];
+          if(typeof obj.x_m === "number" && typeof obj.y_m === "number" && _mAnchor){
+            const k = 1/_mAnchor.m_per_world;
+            const [ix,iy] = iso(obj.x_m*k, obj.y_m*k, _floorZ(obj.floor_id));
+            [px,py]=[Math.round(ix), Math.round(iy)];
           } else {
             const readings = _getObjReadings(obj);
             const fpMatch = _matchFingerprint(readings);
