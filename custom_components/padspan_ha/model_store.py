@@ -1341,7 +1341,7 @@ class ModelStore:
             remapped = 0
             if cal_store:
                 remapped = await cal_store.async_remap_from_metres(
-                    map_id, adopt_orphans=False
+                    map_id
                 )
             rederived = await self.async_rederive_map_fracs(map_id, map_dict)
         except Exception as err:

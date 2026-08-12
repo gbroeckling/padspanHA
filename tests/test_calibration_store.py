@@ -634,15 +634,20 @@ async def test_remap_aborts_when_majority_out_of_range() -> None:
     store.store.async_save.assert_not_awaited()
 
 
-async def test_remap_orphan_adoption_still_works() -> None:
-    """Orphans (map_id='') inside the map are still adopted with fracs set."""
+async def test_remap_never_reparents_a_point_to_a_photo() -> None:
+    """A point belongs where the person stood, not to an image.
+
+    Orphans used to be adopted by whichever map they happened to land inside
+    — a one-way ratchet that quietly re-parented calibration data whenever a
+    transform moved. Redrawing is drawing; it does not claim ownership.
+    """
     orphan = _remap_point(1.0, 1.0, map_id="", x_frac=0.9, y_frac=0.9)
     store = _make_store([orphan])
     store._model = _FakeModel({(1.0, 1.0): (0.25, 0.75)})
     count = await store.async_remap_from_metres("map1")
-    assert count == 1
-    assert store.data["points"][0]["map_id"] == "map1"
-    assert store.data["points"][0]["x_frac"] == 0.25
+    assert count == 0
+    assert store.data["points"][0]["map_id"] == ""
+    assert store.data["points"][0]["x_frac"] == 0.9
 
 
 # ---------------------------------------------------------------------------

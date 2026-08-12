@@ -351,14 +351,12 @@ class CalibrationStore:
             await self.store.async_save(self.data)
         return count
 
-    async def async_remap_from_metres(self, map_id: str, adopt_orphans: bool = True) -> int:
+    async def async_remap_from_metres(self, map_id: str) -> int:
         """Re-derive x_frac/y_frac from metre coords for points on this map.
 
-        Also re-adopts orphaned points (map_id='') whose metres fall within
-        this map's coordinate range (0-1 fracs) — unless adopt_orphans is
-        False (the re-anchor path: adopting foreign orphans under a
-        user-chosen pose is a one-way ratchet, since a later corrective
-        re-anchor would count them against the guard and be refused).
+        Drawing only: metres are where the person stood, fracs are where that
+        lands on a picture. A point is never re-parented to a different photo
+        — "which map owns this point" was photo-linked thinking.
 
         Safety (issue #56): a re-derived frac outside the map means the map
         transform disagrees with the stored metres.  These used to be CLAMPED
@@ -376,22 +374,17 @@ class CalibrationStore:
         for p in self.data.get("points", []):
             if p.get("x_m") is None:
                 continue
-            pid = p.get("map_id", "")
-            if pid != map_id and (pid != "" or not adopt_orphans):
+            if p.get("map_id", "") != map_id:
                 continue
             fracs = self._model.metres_to_map_frac(float(p["x_m"]), float(p["y_m"]), map_id)
             if not fracs:
                 continue
             fx, fy = fracs
-            in_range = -0.05 <= fx <= 1.05 and -0.05 <= fy <= 1.05
-            if pid == map_id:
-                owned += 1
-                if not in_range:
-                    owned_bad += 1
-                    continue  # keep the existing fracs — do not clamp
-            elif not in_range:
-                continue  # orphan outside this map's coverage
-            derived.append((p, fx, fy, pid == ""))
+            owned += 1
+            if not (-0.05 <= fx <= 1.05 and -0.05 <= fy <= 1.05):
+                owned_bad += 1
+                continue  # keep the existing fracs — do not clamp
+            derived.append((p, fx, fy, False))
         if owned and owned_bad * 2 > owned:
             _LOGGER.warning(
                 "Calibration remap for map %s aborted: %d/%d points re-derive "

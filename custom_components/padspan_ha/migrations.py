@@ -73,7 +73,9 @@ def _strip_legacy_keys(fab: Any) -> int:
     return n
 
 
-async def async_run_photo_divorce(hass: Any, mdl: Any, ms: Any, fab: Any) -> dict[str, Any]:
+async def async_run_photo_divorce(
+    hass: Any, mdl: Any, ms: Any, fab: Any, cal: Any = None,
+) -> dict[str, Any]:
     """Repair photo-derived coordinates once, then cut the cord.
 
     Returns a stats dict; {"skipped": True} if it has already run.
@@ -86,7 +88,8 @@ async def async_run_photo_divorce(hass: Any, mdl: Any, ms: Any, fab: Any) -> dic
 
     stats: dict[str, Any] = {
         "maps_repaired": [], "maps_already_correct": 0,
-        "positions_rederived": 0, "legacy_keys_stripped": 0, "anchor": None,
+        "positions_rederived": 0, "legacy_keys_stripped": 0,
+        "cal_points_anchored": 0, "anchor": None,
     }
 
     maps_list = (ms.data.get("maps") or []) if ms else []
@@ -118,7 +121,17 @@ async def async_run_photo_divorce(hass: Any, mdl: Any, ms: Any, fab: Any) -> dic
     if anchor:
         stats["positions_rederived"] = await _rederive_once(mdl, fab, maps_list)
 
-    # 3. Drop the keys that only existed to mark things re-derivable.
+    # 3. Calibration points recorded on a photo but never given metres get
+    #    them now, through the repaired placements. A point's metres are where
+    #    a person physically stood; after this they are the stored truth and
+    #    the photo coordinates are only used to draw the dot.
+    if cal is not None and anchor:
+        try:
+            stats["cal_points_anchored"] = await cal.async_backfill_metres()
+        except Exception as err:  # never block the rest of the migration
+            _LOGGER.warning("Calibration backfill during migration failed: %s", err)
+
+    # 4. Drop the keys that only existed to mark things re-derivable.
     stats["legacy_keys_stripped"] = _strip_legacy_keys(fab)
 
     done.add(PHOTO_DIVORCE)
@@ -126,10 +139,11 @@ async def async_run_photo_divorce(hass: Any, mdl: Any, ms: Any, fab: Any) -> dic
     await fab.store.async_save(fab.data)
     _LOGGER.info(
         "Photo divorce migration: %d map placement(s) repaired (%s), %d already correct, "
-        "%d position(s) re-derived one last time, %d legacy key(s) stripped",
+        "%d position(s) re-derived one last time, %d calibration point(s) anchored, "
+        "%d legacy key(s) stripped",
         len(stats["maps_repaired"]), ", ".join(stats["maps_repaired"]) or "none",
         stats["maps_already_correct"], stats["positions_rederived"],
-        stats["legacy_keys_stripped"],
+        stats["cal_points_anchored"], stats["legacy_keys_stripped"],
     )
     return stats
 

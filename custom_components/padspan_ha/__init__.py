@@ -367,23 +367,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
             ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
             fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+            cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
+            if cal and mdl and not cal._model:
+                cal.set_model_store(mdl)
             if mdl and fab:
-                await async_run_photo_divorce(hass, mdl, ms, fab)
+                await async_run_photo_divorce(hass, mdl, ms, fab, cal)
         except Exception as err:
             _LOGGER.warning("Photo divorce migration failed (non-fatal): %s", err)
 
-        # Phase 3: backfill metre coords on existing calibration points
-        try:
-            cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
-            mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-            if cal and mdl:
-                if not cal._model:
-                    cal.set_model_store(mdl)
-                n_backfilled = await cal.async_backfill_metres()
-                if n_backfilled:
-                    _LOGGER.info("Phase 3: backfilled %d calibration points with metre coords", n_backfilled)
-        except Exception as err:
-            _LOGGER.debug("Phase 3 calibration backfill skipped: %s", err)
 
         # Phase 4: backfill padspan_id on existing alert configs
         try:

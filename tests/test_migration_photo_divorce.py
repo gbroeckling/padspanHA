@@ -159,3 +159,29 @@ async def test_no_measured_map_means_no_guessing() -> None:
     mdl.data["map_transforms"]["master"].pop("reference_measurements")
     await async_run_photo_divorce(MagicMock(), mdl, ms, fab)
     assert fab.scanner_positions_m()["rx_bad"]["x_m"] == pytest.approx(10.0)
+
+
+@pytest.mark.asyncio
+async def test_calibration_points_are_anchored_once() -> None:
+    """A point recorded on a photo but never given metres gets them here.
+
+    After this its metres are the stored truth — where the person stood —
+    and the photo coordinates are only used to draw the dot.
+    """
+    mdl, fab, ms = _scenario()
+    cal = MagicMock()
+    cal.async_backfill_metres = AsyncMock(return_value=468)
+    stats = await async_run_photo_divorce(MagicMock(), mdl, ms, fab, cal)
+    assert stats["cal_points_anchored"] == 468
+    cal.async_backfill_metres.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_a_failing_calibration_backfill_never_blocks_the_migration() -> None:
+    mdl, fab, ms = _scenario()
+    cal = MagicMock()
+    cal.async_backfill_metres = AsyncMock(side_effect=RuntimeError("boom"))
+    stats = await async_run_photo_divorce(MagicMock(), mdl, ms, fab, cal)
+    assert stats["cal_points_anchored"] == 0
+    assert PHOTO_DIVORCE in fab.data[MARKER]          # still marked done
+    assert fab.scanner_positions_m()["rx_bad"]["x_m"] == pytest.approx(5.0)
