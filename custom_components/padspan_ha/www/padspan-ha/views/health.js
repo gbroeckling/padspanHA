@@ -416,39 +416,6 @@ function _renderFabric(ctx, container, data) {
     container.appendChild(card);
   }
 
-  // ── Migrate button (when transforms missing) ───────────────────────────
-  const hasTransforms = checks.some(c => c.name === "Map Transforms" && c.value > 0);
-  if (!hasTransforms) {
-    const migrateCard = el("div",{class:"card",style:"margin-bottom:8px;padding:12px;border:1px solid #f59e0b33;background:rgba(245,158,11,.06)"});
-    migrateCard.appendChild(el("div",{style:"font-weight:700;font-size:12px;color:#fbbf24;margin-bottom:8px"},
-      "No map transforms \u2014 set floor width to bootstrap the spatial model"));
-    const row = el("div",{style:"display:flex;align-items:center;gap:8px"});
-    row.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},
-      "Only maps you have measured get real-world coordinates — unmeasured maps are skipped."));
-    const migrateBtn = el("button",{class:"btn",style:"width:auto;padding:4px 14px;font-size:11px;margin-left:8px"},"Migrate to Metres");
-    migrateBtn.addEventListener("click", async () => {
-      migrateBtn.disabled = true;
-      migrateBtn.textContent = "Migrating\u2026";
-      try {
-        const res = await ctx.actions.callWS({
-          type: "padspan_ha/fabric_migrate_from_maps",
-        });
-        // Also retrain RF to pick up metre-space data
-        try { await ctx.actions.callWS({type:"padspan_ha/calibration_retrain_rf"}); } catch(e){}
-        ctx.toast(`Migrated: ${res.transforms_computed} transforms, ${res.scanners_migrated} scanners, ${res.rooms_migrated} rooms, ${res.cal_points_backfilled || 0} cal points. RF retrained.`);
-        _fabricCache = null; _fabricFetchTs = 0;
-        _fetchAndRenderFabric(ctx, container);
-      } catch (err) {
-        ctx.toast(`Migration failed: ${err.message || err}`);
-        migrateBtn.disabled = false;
-        migrateBtn.textContent = "Migrate to Metres";
-      }
-    });
-    row.appendChild(migrateBtn);
-    migrateCard.appendChild(row);
-    container.appendChild(migrateCard);
-  }
-
   // ── Radio Audit ─────────────────────────────────────────────────────────
   const auditContainer = el("div",{id:"health-radio-audit"});
   container.appendChild(auditContainer);

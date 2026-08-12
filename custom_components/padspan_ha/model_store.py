@@ -839,84 +839,6 @@ class ModelStore:
 
     # ── Batch spatial save (fabric authority) ────────────────────────────────
 
-    async def async_batch_save_spatial(
-        self, map_id: str, floor_id: str,
-        scanners: list[dict] | None = None,
-        rf_barriers: list[dict] | None = None,
-        beacons: list[dict] | None = None,
-    ) -> dict[str, int]:
-        """Atomic batch save of spatial data from map-fraction coordinates.
-
-        THE ONLY frac→metre write path. It exists because a person dragging a
-        pin on a photo is expressing where the thing is, and that gesture has
-        to be converted once. Everything it writes is ground truth from that
-        moment on: no other code path may recompute these metres from the
-        photo, so there is no second class of entry to defend against and no
-        origin flag to carry. Callers are placement editors saving their own
-        draft; nothing else calls this.
-
-        Room geometry is deliberately NOT accepted here — rooms live in the
-        FabricStore, whose two writers are the only room-geometry paths.
-        Returns counts: {scanners, rooms, barriers, beacons} (rooms always 0).
-        """
-        stats = {"scanners": 0, "rooms": 0, "barriers": 0, "beacons": 0}
-        fab = getattr(self, "fabric", None)
-        if not fab:
-            return stats
-        t = (self.data.get("map_transforms") or {}).get(map_id)
-        fl = str(floor_id or DEFAULT_FLOOR_ID)
-        cur_scanners = fab.scanner_positions_m()
-        cur_beacons = fab.beacon_positions_m()
-        set_scanners: dict[str, dict] = {}
-        set_beacons: dict[str, dict] = {}
-        new_barriers: list[dict] | None = None
-
-        if scanners is not None:
-            for rx in scanners:
-                src = rx.get("source") or rx.get("id", "")
-                if not src:
-                    continue
-                if t:
-                    coords = self.map_frac_to_metres(float(rx.get("x", 0)), float(rx.get("y", 0)), map_id)
-                    if coords:
-                        # A drag updates x/y only — keep whatever z the entry
-                        # already has (ceiling-derived or user-set); this path
-                        # has no height information of its own.
-                        _prev = cur_scanners.get(src) or {}
-                        _z = _prev.get("z_m") if isinstance(_prev.get("z_m"), (int, float)) else 2.4
-                        set_scanners[src] = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3),
-                                             "z_m": _z, "floor_id": fl, "map_id": map_id}
-                        stats["scanners"] += 1
-
-        if rf_barriers is not None and t:
-            new_barriers = []
-            for idx, bar in enumerate(rf_barriers):
-                pts = bar.get("points") or []
-                pts_m = [([round(c[0], 3), round(c[1], 3)]) for p in pts if (c := self.map_frac_to_metres(float(p[0]), float(p[1]), map_id))]
-                if len(pts_m) >= 2:
-                    new_barriers.append({"name": str(bar.get("name", f"Barrier {map_id}_{idx+1}"))[:80], "material": str(bar.get("material", "custom"))[:20], "attenuation_dbm": float(bar.get("attenuation_dbm", 6)), "floor_id": fl, "points_m": pts_m, "map_id": map_id})
-                    stats["barriers"] += 1
-
-        if beacons is not None:
-            for bk in beacons:
-                bk_key = bk.get("key")
-                if not bk_key:
-                    continue
-                if t:
-                    coords = self.map_frac_to_metres(float(bk.get("x", 0)), float(bk.get("y", 0)), map_id)
-                    if coords:
-                        room = self.beacon_room_from_geometry(coords[0], coords[1], fl)
-                        set_beacons[bk_key] = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3), "floor_id": fl, "room": room, "kind": str(bk.get("kind", "")), "label": str(bk.get("label", "")), "map_id": map_id}
-                        stats["beacons"] += 1
-
-        await fab.async_spatial_update(
-            set_scanners=set_scanners or None,
-            set_beacons=set_beacons or None,
-            replace_map_barriers=(map_id, new_barriers) if new_barriers is not None else None,
-            op=f"batch_save:{map_id}",
-        )
-        return stats
-
     # ── Migration: derive transforms + convert map data to metres ─────────
 
     async def async_derive_transforms(self, maps_store: Any) -> int:
@@ -1018,116 +940,6 @@ class ModelStore:
         if count:
             await self.store.async_save(self.data)
         return count
-
-    async def async_migrate_from_maps(self, maps_store: Any) -> dict[str, int]:
-        """One-time migration: convert map spatial data to real-world metres.
-
-        Reads receivers → scanner_positions_m, rf_barriers → rf_barriers_m,
-        beacons → beacon_positions_m. Only writes if the target key is empty
-        (won't overwrite existing manual edits).
-
-        Room geometry is deliberately NOT migrated here — rooms live in the
-        FabricStore, whose only room writer is async_correct_room.
-
-        Returns {scanners_migrated, rooms_migrated, barriers_migrated,
-        beacons_migrated} (rooms_migrated always 0).
-        """
-        stats = {"scanners_migrated": 0, "rooms_migrated": 0, "barriers_migrated": 0, "beacons_migrated": 0}
-        fab = getattr(self, "fabric", None)
-        transforms = self.data.get("map_transforms") or {}
-        if not transforms or not fab:
-            return stats
-
-        positions = fab.scanner_positions_m()
-        beacons_m = fab.beacon_positions_m()
-        set_scanners: dict[str, dict] = {}
-        set_beacons: dict[str, dict] = {}
-        add_barriers: list[dict] = []
-
-        maps_list = maps_store.data.get("maps") or []
-        sorted_maps = sorted(maps_list, key=lambda m: 1 if (m.get("stack") or {}).get("is_master") else 0)
-
-        for m in sorted_maps:
-            mid = m.get("id", "")
-            t = transforms.get(mid)
-            if not t:
-                continue
-
-            fl = str(m.get("floor_id", DEFAULT_FLOOR_ID))
-            stk = m.get("stack") or {}
-            ceiling_h = float(stk.get("ceiling_height_m", 2.4))
-
-            # ── Scanners (receivers) ──────────────────────────────────────
-            for rx in (m.get("receivers") or []):
-                src = rx.get("source") or rx.get("id", "")
-                if not src:
-                    continue
-                # Don't overwrite existing entries (manual or already migrated)
-                if src in positions or src in set_scanners:
-                    continue
-                x_frac = float(rx.get("x", 0))
-                y_frac = float(rx.get("y", 0))
-                coords = self.map_frac_to_metres(x_frac, y_frac, mid)
-                if coords:
-                    set_scanners[src] = {
-                        "x_m": round(coords[0], 3),
-                        "y_m": round(coords[1], 3),
-                        "z_m": round(ceiling_h, 2),
-                        "floor_id": fl,
-                        "map_id": mid,
-                    }
-                    stats["scanners_migrated"] += 1
-
-            # ── RF barriers ───────────────────────────────────────────────
-            for idx, bar in enumerate(m.get("rf_barriers") or []):
-                pts = bar.get("points") or []
-                if len(pts) < 2:
-                    continue
-                pts_m = []
-                for p in pts:
-                    c = self.map_frac_to_metres(float(p[0]), float(p[1]), mid)
-                    if c:
-                        pts_m.append([round(c[0], 3), round(c[1], 3)])
-                if len(pts_m) >= 2:
-                    add_barriers.append({
-                        "name": str(bar.get("name", f"Barrier {mid}_{idx+1}"))[:80],
-                        "material": str(bar.get("material", "custom"))[:20],
-                        "attenuation_dbm": float(bar.get("attenuation_dbm", 6)),
-                        "floor_id": fl,
-                        "points_m": pts_m,
-                        "map_id": mid,
-                    })
-                    stats["barriers_migrated"] += 1
-
-            # ── Beacons ───────────────────────────────────────────────
-            for bk in (m.get("beacons") or []):
-                bk_key = bk.get("key")
-                if not bk_key or bk_key in beacons_m or bk_key in set_beacons:
-                    continue
-                bk_x = float(bk.get("x", 0))
-                bk_y = float(bk.get("y", 0))
-                coords = self.map_frac_to_metres(bk_x, bk_y, mid)
-                if coords:
-                    room = self.beacon_room_from_geometry(coords[0], coords[1], fl)
-                    set_beacons[bk_key] = {
-                        "x_m": round(coords[0], 3),
-                        "y_m": round(coords[1], 3),
-                        "floor_id": fl,
-                        "room": room,
-                        "kind": str(bk.get("kind", "")),
-                        "label": str(bk.get("label", "")),
-                        "map_id": mid,
-                    }
-                    stats["beacons_migrated"] += 1
-
-        if set_scanners or set_beacons or add_barriers:
-            await fab.async_spatial_update(
-                set_scanners=set_scanners or None,
-                set_beacons=set_beacons or None,
-                set_barriers=add_barriers or None,
-                op="migrate_from_maps",
-            )
-        return stats
 
     # ── Phase 4: map image replacement — recompute + re-derive ─────────────
 
@@ -1339,8 +1151,10 @@ class ModelStore:
     async def async_rederive_map_fracs(self, map_id: str, map_dict: dict) -> int:
         """Re-derive map-fraction coordinates from metres for a single map.
 
-        Inverse of async_sync_spatial_from_map: reads metre-space data and
-        writes back to the map dict's receivers, room_bounds, rf_barriers.
+        Display only, and one-directional: the fabric is read, the picture is
+        drawn. A floor plan shows whatever the fabric puts inside its
+        footprint — there is no ownership, because "this pin belongs to that
+        photo" was photo-linked thinking. Nothing here writes the fabric.
         Returns count of items updated. Mutates map_dict in place.
         """
         count = 0
@@ -1356,19 +1170,15 @@ class ModelStore:
             if not src or src not in positions:
                 continue
             pos = positions[src]
-            if pos.get("map_id") != map_id:
-                continue  # a photo only draws the pins that belong to it
             fracs = self.metres_to_map_frac(float(pos["x_m"]), float(pos["y_m"]), map_id)
             if fracs:
                 rx["x"] = round(max(0.0, min(1.0, fracs[0])), 4)
                 rx["y"] = round(max(0.0, min(1.0, fracs[1])), 4)
                 count += 1
 
-        # Add receivers from fabric that belong to this map but aren't in map_dict yet
+        # Anything in the fabric that lands inside this image gets drawn on it.
         for src, pos in positions.items():
             if src in existing_sources:
-                continue
-            if pos.get("map_id") != map_id:
                 continue
             fracs = self.metres_to_map_frac(float(pos["x_m"]), float(pos["y_m"]), map_id)
             if fracs and 0.0 <= fracs[0] <= 1.0 and 0.0 <= fracs[1] <= 1.0:
@@ -1422,20 +1232,15 @@ class ModelStore:
             if not bk_key or bk_key not in beacons_m:
                 continue
             bm = beacons_m[bk_key]
-            if bm.get("map_id") != map_id:
-                continue  # a photo only draws the pins that belong to it
             fracs = self.metres_to_map_frac(float(bm["x_m"]), float(bm["y_m"]), map_id)
             if fracs:
                 bk["x"] = round(max(0.0, min(1.0, fracs[0])), 4)
                 bk["y"] = round(max(0.0, min(1.0, fracs[1])), 4)
                 count += 1
 
-        # Add new beacons from fabric that belong to this map but aren't in m.beacons yet
-        # Only add if fracs are within map bounds (skip beacons outside this map's area)
+        # Anything in the fabric that lands inside this image gets drawn on it.
         for bk_key, bm in beacons_m.items():
             if bk_key in existing_keys:
-                continue
-            if bm.get("map_id") != map_id:
                 continue
             fracs = self.metres_to_map_frac(float(bm["x_m"]), float(bm["y_m"]), map_id)
             if fracs and 0.0 <= fracs[0] <= 1.0 and 0.0 <= fracs[1] <= 1.0:

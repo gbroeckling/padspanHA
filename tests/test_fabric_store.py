@@ -330,31 +330,29 @@ async def test_spatial_update_barriers_name_and_map_replace() -> None:
 
 @pytest.mark.asyncio
 async def test_placement_is_ground_truth_across_a_transform_change() -> None:
-    """The doctrine, end to end.
+    """The doctrine, end to end, with no photo anywhere in it.
 
-    A person placed this scanner, so its metres are the answer. Moving the
-    photo underneath it — a re-measure, a re-anchor, an align-to-stack — may
-    change where the PHOTO is drawn and must not change where the scanner is.
+    A person placed this scanner in metres. Re-placing, re-measuring or
+    deleting the floor plan underneath it cannot move it, because no code
+    path converts image coordinates into fabric coordinates any more.
     """
     transforms = {"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
                          "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}}
     mdl = _make_model(transforms)
     fab = _spatial_fabric()
     mdl.fabric = fab
+    await mdl.async_set_scanner_position_m("rx", 5.0, 5.0, 2.4, "main")
+    before = json.dumps(fab.data, sort_keys=True)
+
     m = {"id": "m1", "floor_id": "main", "stack": {},
          "receivers": [{"id": "rx", "source": "rx", "x": 0.5, "y": 0.5}], "beacons": []}
-    await mdl.async_batch_save_spatial("m1", "main", scanners=m["receivers"])
-    assert fab.scanner_positions_m()["rx"]["x_m"] == pytest.approx(5.0)
-
-    before = json.dumps(fab.data, sort_keys=True)
     transforms["m1"]["scale_x_m"] = 20        # the photo is re-placed...
     transforms["m1"]["scale_y_m"] = 20
     await mdl.async_rederive_map_fracs("m1", m)   # ...and redrawn from metres
 
     assert json.dumps(fab.data, sort_keys=True) == before
     assert fab.scanner_positions_m()["rx"]["x_m"] == pytest.approx(5.0)
-    # The photo moved instead: the pin is drawn at a new spot on the image.
-    assert m["receivers"][0]["x"] == pytest.approx(0.25)
+    assert m["receivers"][0]["x"] == pytest.approx(0.25)   # the PIN moved
 
 
 def test_no_implicit_spatial_write_path_survives() -> None:

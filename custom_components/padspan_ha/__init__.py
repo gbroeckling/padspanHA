@@ -344,22 +344,33 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         except Exception as err:
             _LOGGER.debug("Deferred store init error: %s", err)
 
-        # Phase 2: auto-derive map transforms + migrate spatial data to metres
+        # Map transforms are display maths — where to DRAW a photo so the
+        # fabric lines up on it. They seed no coordinates: nothing converts
+        # image positions into fabric positions any more.
         try:
             mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
             ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
-            if mdl and ms and not mdl.has_spatial_model():
+            if mdl and ms:
                 n_transforms = await mdl.async_derive_transforms(ms)
                 if n_transforms:
-                    stats = await mdl.async_migrate_from_maps(ms)
-                    _LOGGER.info(
-                        "Phase 2 migration: %d transforms, %d scanner positions, "
-                        "%d room geometries, %d barriers converted to metres",
-                        n_transforms, stats["scanners_migrated"],
-                        stats["rooms_migrated"], stats["barriers_migrated"],
-                    )
+                    _LOGGER.info("Derived %d map transform(s) for display", n_transforms)
         except Exception as err:
-            _LOGGER.debug("Phase 2 spatial migration skipped: %s", err)
+            _LOGGER.debug("Map transform derivation skipped: %s", err)
+
+        # Upgrade repair: existing installs carry coordinates that were
+        # derived through photo placements, some of them wrong. Nothing
+        # re-derives any more, so this repairs them once and marks itself
+        # done. See migrations.async_run_photo_divorce.
+        try:
+            from .migrations import async_run_photo_divorce
+
+            mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+            ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+            fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+            if mdl and fab:
+                await async_run_photo_divorce(hass, mdl, ms, fab)
+        except Exception as err:
+            _LOGGER.warning("Photo divorce migration failed (non-fatal): %s", err)
 
         # Phase 3: backfill metre coords on existing calibration points
         try:

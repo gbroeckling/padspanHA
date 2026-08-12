@@ -328,10 +328,6 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
           for(const [k,v] of Object.entries(m.room_bounds||{})){
             if(!movedRooms.has(k)) newBounds[k] = v;
           }
-          await ctx.actions.fabricSpatialSave({
-            map_id: _mig.targetMapId, floor_id: m.floor_id || "",
-            scanners: newRx, rooms: newBounds, beacons: newBk,
-          });
           // Revert canvas extension if it was applied
           if(_mig.canvasExtended){
             try {
@@ -1082,11 +1078,8 @@ function _edit(ctx, map, allMaps){
         const match = _radios.find(r => (r.name && dr.label && r.name.toLowerCase() === dr.label.toLowerCase()) || r.source === dr.id);
         if(match){ dr.source = match.source; _backfilled = true; }
       }
-      // Persist backfill to backend so it sticks
-      if(_backfilled){
-        const _bfRx = ctx.state.maps._draftReceivers;
-        ctx.actions.fabricSpatialSave({ map_id: map.id, floor_id: map.floor_id||"", scanners: _bfRx }).catch(()=>{});
-      }
+      // Source backfill is a label fix on the map draft only — it never
+      // touched real-world coordinates and no longer pretends to.
     }
     ctx.state.maps._draftRoomBounds = JSON.parse(JSON.stringify(map.room_bounds||{}));
     ctx.state.maps._draftBarriers = JSON.parse(JSON.stringify(map.rf_barriers||[]));
@@ -1210,16 +1203,6 @@ function _edit(ctx, map, allMaps){
       const btn = e.currentTarget;
       btn.disabled = true; btn.textContent = "Saving\u2026"; btn.classList.remove("save-pulse");
       try{
-        await ctx.actions.fabricSpatialSave({
-          map_id: map.id,
-          floor_id: ctx.state.maps._draftFloorId,
-          scanners: ctx.state.maps._draftReceivers,
-          rooms: ctx.state.maps._draftRoomBounds,
-          rf_barriers: ctx.state.maps._draftBarriers || [],
-          // Beacons are not editable here — this editor's modes are
-          // receivers/rooms/barriers. Re-sending the map's existing beacons
-          // would re-derive their metres from photo fracs for no reason.
-        });
         await ctx.actions.mapsUpdateQuiet({
           map_id: map.id,
           calibration: map.calibration||{},
@@ -2006,13 +1989,6 @@ function _edit(ctx, map, allMaps){
             const _txResult = await ctx.actions.callWS({ type: "padspan_ha/fabric_map_transform_set", map_id: map.id, transform });
             // Re-derive spatial data for this map only (don't overwrite other transforms)
             try {
-              await ctx.actions.fabricSpatialSave({
-                map_id: map.id, floor_id: fl,
-                scanners: map.receivers || [],
-                rooms: map.room_bounds || {},
-                rf_barriers: map.rf_barriers || [],
-                beacons: map.beacons || [],
-              });
             } catch(e2) {}
             ctx.toast(`Scale saved: ${scale_x_m.toFixed(1)}m \u00d7 ${scale_y_m.toFixed(1)}m (${ppm} px/m)`);
             ctx.state.maps._measurePts = [];
@@ -2385,10 +2361,6 @@ function _edit(ctx, map, allMaps){
         }
         // Save rotated coordinates
         if(newReceivers.length || Object.keys(newBounds).length || newBeacons.length){
-          await ctx.actions.fabricSpatialSave({
-            map_id: map.id, floor_id: map.floor_id || "",
-            scanners: newReceivers, rooms: newBounds, beacons: newBeacons,
-          });
         }
         applyStatus.style.color = "#4ade80";
         applyStatus.textContent = `Rotated ${_rotAngle}° and saved. Reloading edit…`;
@@ -3254,11 +3226,6 @@ function _export(ctx, active, maps_list){
         // mapsUpload refreshes ctx.state.maps.list — find the new map by name
         const newMap = (ctx.state.maps.list||[]).find(m=>m.name===(bm.name||"Restored Map"));
         if(newMap){
-          await ctx.actions.fabricSpatialSave({
-            map_id: newMap.id, floor_id: bm.floor_id||"",
-            scanners: bm.receivers||[], rooms: bm.room_bounds||{},
-            rf_barriers: bm.rf_barriers||[], beacons: bm.beacons||[],
-          });
           await ctx.actions.mapsUpdateQuiet({
             map_id: newMap.id, calibration: bm.calibration||{},
             notes: bm.notes||"", stack: bm.stack||{},
@@ -5475,7 +5442,7 @@ function _stack(ctx, maps, helpBtn){
   if(backfillMaps.length){
     (async ()=>{
       for(const m of backfillMaps){
-        try{ await ctx.actions.fabricSpatialSave({ map_id: m.id, floor_id: m.floor_id||"", scanners: m.receivers||[] }); }catch(e){}
+        try{  }catch(e){}
       }
     })();
   }
@@ -5505,7 +5472,6 @@ function _stack(ctx, maps, helpBtn){
           const orig = m.receivers || [];
           const kept = orig.filter(r => _rxIsLive(r));
           if(kept.length < orig.length){
-            await ctx.actions.fabricSpatialSave({ map_id: m.id, floor_id: m.floor_id||"", scanners: kept });
           }
         }
         cleanLbl.textContent = `Removed ${staleCount} ✓`;
@@ -6804,6 +6770,8 @@ function _roomsTab(ctx, maps) {
     mapState._roomsBlendAveraged = false;
     mapState._roomsAlignPreview = null;
     mapState._roomsScannerDraft = null;
+    mapState._roomsBeaconDraft = null;
+    mapState._roomsBarrierDraft = null;
   }
 
   // ── Scanners: the other half of the fabric, edited in metres right here ──
@@ -6825,6 +6793,28 @@ function _roomsTab(ctx, maps) {
     return a && b && (Math.abs(a.x_m - b.x_m) > 0.001 || Math.abs(a.y_m - b.y_m) > 0.001);
   };
   const movedScanners = Object.keys(scanDraft).filter(_scanMoved);
+
+  const allBeacons = ctx.state.model?.beacon_positions_m || {};
+  const floorBeacons = {};
+  for (const [k, p] of Object.entries(allBeacons)) {
+    if (String(p.floor_id || "main") !== String(floorId)) continue;
+    if (!isFinite(p.x_m) || !isFinite(p.y_m)) continue;
+    floorBeacons[k] = p;
+  }
+  if (!mapState._roomsBeaconDraft) mapState._roomsBeaconDraft = JSON.parse(JSON.stringify(floorBeacons));
+  const bkDraft = mapState._roomsBeaconDraft;
+  const _bkMoved = (k) => {
+    const a = bkDraft[k], b = floorBeacons[k];
+    return a && b && (Math.abs(a.x_m - b.x_m) > 0.001 || Math.abs(a.y_m - b.y_m) > 0.001);
+  };
+  const movedBeacons = Object.keys(bkDraft).filter(_bkMoved);
+
+  const allBarriers = (ctx.state.model?.rf_barriers_m || []).filter(
+    b => String(b.floor_id || "main") === String(floorId) && (b.points_m || []).length >= 2);
+  if (!mapState._roomsBarrierDraft) mapState._roomsBarrierDraft = JSON.parse(JSON.stringify(allBarriers));
+  const barDraft = mapState._roomsBarrierDraft;
+  const _barMoved = (i) => JSON.stringify(barDraft[i]?.points_m) !== JSON.stringify(allBarriers[i]?.points_m);
+  const movedBarriers = barDraft.map((_, i) => i).filter(_barMoved);
   const fabricDraft = mapState._roomsDraft || {};
   const orig = mapState._roomsOrig || {};
   const sel = new Set(mapState._roomsSel || []);
@@ -6994,6 +6984,10 @@ function _roomsTab(ctx, maps) {
     ...Object.entries(scanDraft).map(([src, p]) => ["__rx" + src, {
       type: "circle", cx_m: p.x_m, cy_m: p.y_m, r_m: 0.6,
     }]),
+    ...Object.entries(bkDraft).map(([k, p]) => ["__bk" + k, {
+      type: "circle", cx_m: p.x_m, cy_m: p.y_m, r_m: 0.6,
+    }]),
+    ...barDraft.map((b, i) => ["__bar" + i, { type: "poly", points_m: b.points_m }]),
   ]);
   const clusters = _roomClusterCount(geoms);
   const readout = el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;font-size:12px" });
@@ -7010,9 +7004,10 @@ function _roomsTab(ctx, maps) {
   }, committed ? "🔒 Committed" : "Not committed"));
   readout.appendChild(el("span", { class: "mono", style: "color:#94a3b8" },
     `${geoms.length} rooms · ${Object.keys(scanDraft).length} scanners · footprint ${(bbox.width).toFixed(1)}m × ${(bbox.height).toFixed(1)}m`));
-  if (movedScanners.length) {
+  const movedCount = movedScanners.length + movedBeacons.length + movedBarriers.length;
+  if (movedCount) {
     readout.appendChild(el("span", { class: "mono", style: "color:#fbbf24" },
-      `${movedScanners.length} scanner${movedScanners.length !== 1 ? "s" : ""} moved`));
+      `${movedCount} moved`));
   }
   if (geoms.length) {
     readout.appendChild(el("span", {
@@ -7027,7 +7022,7 @@ function _roomsTab(ctx, maps) {
   // ── Canvas ──────────────────────────────────────────────────────────────
   // Rooms OR scanners is enough to draw: a floor with radios and no floor
   // plan is a legitimate starting point, not an empty state.
-  if (geoms.length || Object.keys(scanDraft).length) {
+  if (geoms.length || Object.keys(scanDraft).length || Object.keys(bkDraft).length || barDraft.length) {
     const stage = el("div", {
       class: "mapstage",
       style: "margin-top:0;height:calc(100vh - 260px);min-height:480px;display:flex;align-items:center;justify-content:center;position:relative;cursor:grab;touch-action:none",
@@ -7273,6 +7268,78 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
       pinLayer.appendChild(cap);
     }
 
+    // ── Barriers — draggable walls, in metres ────────────────────────────
+    for (let bi = 0; bi < barDraft.length; bi++) {
+      const bar = barDraft[bi];
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      const setPts = () => line.setAttribute("points", bar.points_m.map(q => `${q[0]},${q[1]}`).join(" "));
+      setPts();
+      line.setAttribute("fill", "none");
+      line.setAttribute("stroke", _barMoved(bi) ? "#fbbf24" : "#94a3b8");
+      line.setAttribute("stroke-width", String(strokeW * 2.2));
+      line.setAttribute("stroke-linecap", "round");
+      line.style.pointerEvents = "none";
+      svg.appendChild(line);
+      // one handle per vertex
+      for (let vi = 0; vi < bar.points_m.length; vi++) {
+        const startPt = [bar.points_m[vi][0], bar.points_m[vi][1]];
+        const h = el("div", {
+          title: `${bar.name || "Barrier"} — drag to reshape`,
+          style: `position:absolute;left:${((startPt[0] - bbox.minX) / bbox.width * 100).toFixed(3)}%;` +
+            `top:${((startPt[1] - bbox.minY) / bbox.height * 100).toFixed(3)}%;` +
+            `transform:translate(-50%,-50%);width:12px;height:12px;border-radius:2px;` +
+            `background:#94a3b8;border:2px solid #0a150e;pointer-events:auto;cursor:grab;` +
+            `z-index:4;touch-action:none`,
+        });
+        const onDown = (ev) => runDrag(ev, (dxm, dym) => {
+          bar.points_m[vi] = [Math.round((startPt[0] + dxm) * 1000) / 1000,
+                              Math.round((startPt[1] + dym) * 1000) / 1000];
+          setPts();
+          h.style.left = `${((bar.points_m[vi][0] - bbox.minX) / bbox.width * 100).toFixed(3)}%`;
+          h.style.top = `${((bar.points_m[vi][1] - bbox.minY) / bbox.height * 100).toFixed(3)}%`;
+        });
+        h.addEventListener("mousedown", onDown);
+        h.addEventListener("touchstart", onDown, { passive: false });
+        pinLayer.appendChild(h);
+      }
+    }
+
+    // ── Beacon pins — draggable, in metres ───────────────────────────────
+    for (const [key, p] of Object.entries(bkDraft)) {
+      const label = p.label || p.kind || key;
+      const moved = _bkMoved(key);
+      const pin = el("div", {
+        title: `${label}
+${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
+        style: `position:absolute;left:${((p.x_m - bbox.minX) / bbox.width * 100).toFixed(3)}%;` +
+          `top:${((p.y_m - bbox.minY) / bbox.height * 100).toFixed(3)}%;` +
+          `transform:translate(-50%,-50%) rotate(45deg);width:13px;height:13px;` +
+          `background:${moved ? "#fbbf24" : "#e879f9"};border:2px solid #0a150e;` +
+          `pointer-events:auto;cursor:grab;z-index:4;touch-action:none`,
+      });
+      const cap = el("div", {
+        style: `position:absolute;left:${((p.x_m - bbox.minX) / bbox.width * 100).toFixed(3)}%;` +
+          `top:${((p.y_m - bbox.minY) / bbox.height * 100).toFixed(3)}%;` +
+          `transform:translate(-50%,10px);color:#e879f9;font-size:10px;pointer-events:none;` +
+          `white-space:nowrap;font-family:system-ui,sans-serif;z-index:4;` +
+          `text-shadow:0 1px 2px rgba(0,0,0,.8)`,
+      }, label);
+      const sx0 = p.x_m, sy0 = p.y_m;
+      const onDown = (ev) => runDrag(ev, (dxm, dym) => {
+        const e = bkDraft[key];
+        e.x_m = Math.round((sx0 + dxm) * 1000) / 1000;
+        e.y_m = Math.round((sy0 + dym) * 1000) / 1000;
+        const lx = ((e.x_m - bbox.minX) / bbox.width * 100).toFixed(3);
+        const ly = ((e.y_m - bbox.minY) / bbox.height * 100).toFixed(3);
+        pin.style.left = `${lx}%`; pin.style.top = `${ly}%`;
+        cap.style.left = `${lx}%`; cap.style.top = `${ly}%`;
+      });
+      pin.addEventListener("mousedown", onDown);
+      pin.addEventListener("touchstart", onDown, { passive: false });
+      pinLayer.appendChild(pin);
+      pinLayer.appendChild(cap);
+    }
+
     // Vertex / circle handles — only in single-selection (precision mode)
     if (sel.size === 1) {
       const room = [...sel][0];
@@ -7368,7 +7435,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
       const saveBtn = el("button", {
         class: "btn inline primary",
         onclick: async (e) => {
-          if (!changedRooms.length && !movedScanners.length) { ctx.toast("No changes to save"); return; }
+          if (!changedRooms.length && !movedCount) { ctx.toast("No changes to save"); return; }
           const btn = e.currentTarget;
           btn.disabled = true; btn.textContent = "Saving…";
           let ok = 0, fail = 0;
@@ -7380,8 +7447,8 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
               ok++;
             } catch (err) { fail++; console.warn("fabric_correct_room failed", room, err); }
           }
-          // Scanners go straight to the fabric in metres — no map_id, no
-          // transform, nothing that depends on a photo existing.
+          // Everything below goes straight to the fabric in metres — no
+          // map_id, no transform, nothing that depends on a photo existing.
           for (const src of movedScanners) {
             const p = scanDraft[src];
             try {
@@ -7392,18 +7459,45 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
               ok++;
             } catch (err) { fail++; console.warn("fabric_scanner_position_set failed", src, err); }
           }
+          for (const key of movedBeacons) {
+            const p = bkDraft[key];
+            try {
+              await ctx.actions.wsCall("padspan_ha/fabric_beacon_position_set", {
+                key, x_m: p.x_m, y_m: p.y_m, floor_id: floorId,
+                kind: p.kind || "", label: p.label || "",
+              });
+              ok++;
+            } catch (err) { fail++; console.warn("fabric_beacon_position_set failed", key, err); }
+          }
+          for (const i of movedBarriers) {
+            const b = barDraft[i];
+            try {
+              await ctx.actions.wsCall("padspan_ha/fabric_rf_barrier_set", {
+                barrier: {
+                  name: b.name, material: b.material || "custom",
+                  attenuation_dbm: b.attenuation_dbm ?? 6,
+                  floor_id: floorId, points_m: b.points_m,
+                },
+              });
+              ok++;
+            } catch (err) { fail++; console.warn("fabric_rf_barrier_set failed", b.name, err); }
+          }
           ctx.toast(fail ? `Saved ${ok}, failed ${fail}` : `✔ ${ok} fabric correction${ok !== 1 ? "s" : ""} saved`, !!fail);
           mapState._roomsDraftFloorId = null;   // re-copy from refreshed model
           mapState._roomsTruthCache = null;
           mapState._roomsScannerDraft = null;
+          mapState._roomsBeaconDraft = null;
+          mapState._roomsBarrierDraft = null;
           await ctx.actions.modelRefresh();
         },
-      }, `💾 Save corrections${(changedRooms.length + movedScanners.length) ? ` (${changedRooms.length + movedScanners.length})` : ""}`);
+      }, `💾 Save corrections${(changedRooms.length + movedCount) ? ` (${changedRooms.length + movedCount})` : ""}`);
       saveRow.appendChild(saveBtn);
-      if (changedRooms.length || movedScanners.length) {
+      if (changedRooms.length || movedCount) {
         saveRow.appendChild(el("button", { class: "btn inline", onclick: () => {
           mapState._roomsDraftFloorId = null;
           mapState._roomsScannerDraft = null;
+          mapState._roomsBeaconDraft = null;
+          mapState._roomsBarrierDraft = null;
           ctx.actions.renderRooms();
         } }, "Discard changes"));
       }

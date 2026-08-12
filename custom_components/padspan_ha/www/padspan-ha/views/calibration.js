@@ -2122,11 +2122,6 @@ function _tuneTab(ctx, el, cs, calData) {
       for (const mapId of dirtyIds) {
         const origMap = maps_list.find(m => m.id === mapId);
         if (!origMap) continue;
-        await ctx.actions.fabricSpatialSave({
-          map_id: mapId,
-          floor_id: origMap.floor_id || "",
-          scanners: ts.draftReceivers[mapId],
-        });
       }
       // Clear dirty state BEFORE refresh so re-rendered view shows clean state
       ts.dirtyMaps = {};
@@ -2274,11 +2269,6 @@ function _tuneTab(ctx, el, cs, calData) {
           if (_rmSrc) {
             await ctx.actions.callWS({ type: "padspan_ha/fabric_scanner_remove", source: _rmSrc });
           }
-          await ctx.actions.fabricSpatialSave({
-            map_id: _selMapId,
-            floor_id: origMap.floor_id || "",
-            scanners: ts.draftReceivers[_selMapId],
-          });
           ts.dirtyMaps = {};
           ts._mapsStamp = null;
           ctx.toast("Receiver removed");
@@ -2470,11 +2460,6 @@ function _tuneTab(ctx, el, cs, calData) {
               for (const mapId of removedMaps) {
                 const origMap = maps_list.find(m => m.id === mapId);
                 if (!origMap) continue;
-                await ctx.actions.fabricSpatialSave({
-                  map_id: mapId,
-                  floor_id: origMap.floor_id || "",
-                  scanners: ts.draftReceivers[mapId],
-                });
               }
               // 3. Update state BEFORE any re-render so rebuilt UI is correct
               ts.dirtyMaps = {};
@@ -2820,11 +2805,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           const origMap = maps_list.find(m => m.id === mid);
           if (!origMap) continue;
           try {
-            await ctx.actions.fabricSpatialSave({
-              map_id: mid,
-              floor_id: origMap.floor_id || "",
-              beacons: bs.draftBeacons[mid] || [],
-            });
             bs.dirtyMaps[mid] = false;
           } catch(_) {}
         }
@@ -3282,11 +3262,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           const origMap = maps_list.find(m => m.id === mid);
           if (!origMap) continue;
           try {
-            await ctx.actions.fabricSpatialSave({
-              map_id: mid,
-              floor_id: origMap.floor_id || "",
-              beacons: bs.draftBeacons[mid] || [],
-            });
             bs.dirtyMaps[mid] = false;
           } catch(_) {}
         }
@@ -3387,11 +3362,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       for (const mapId of dirtyIds) {
         const origMap = maps_list.find(m => m.id === mapId);
         if (!origMap) continue;
-        await ctx.actions.fabricSpatialSave({
-          map_id: mapId,
-          floor_id: origMap.floor_id || "",
-          beacons: bs.draftBeacons[mapId] || [],
-        });
       }
       bs.dirtyMaps = {};
       bs.selectedBk = null;
@@ -3799,11 +3769,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const origMap = maps_list.find(m => m.id === mapId);
     if (!origMap) return;
     try {
-      await ctx.actions.fabricSpatialSave({
-        map_id: mapId,
-        floor_id: origMap.floor_id || "",
-        beacons: bs.draftBeacons[mapId] || [],
-      });
       bs.dirtyMaps[mapId] = false;
       _refreshDirtyLabel();
     } catch (e) {
@@ -4298,11 +4263,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           if (removedBk && removedBk.key) {
             await ctx.actions.callWS({ type: "padspan_ha/fabric_beacon_remove", key: removedBk.key });
           }
-          await ctx.actions.fabricSpatialSave({
-            map_id: mapId,
-            floor_id: origMap.floor_id || "",
-            beacons: bs.draftBeacons[mapId] || [],
-          });
           bs.dirtyMaps[mapId] = false;
         } catch (e) { console.warn("[PadSpan] delete beacon save failed:", e); }
       }
@@ -4628,11 +4588,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           if (origMap) {
             // Un-pin from the fabric first — a batch save never deletes.
             if (bk.key) await ctx.actions.callWS({ type: "padspan_ha/fabric_beacon_remove", key: bk.key });
-            await ctx.actions.fabricSpatialSave({
-              map_id: map.id,
-              floor_id: origMap.floor_id || "",
-              beacons: bs.draftBeacons[map.id] || [],
-            });
             bs.dirtyMaps[map.id] = false;
           }
         } catch(_) {}

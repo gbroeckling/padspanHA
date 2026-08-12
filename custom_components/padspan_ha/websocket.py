@@ -255,6 +255,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_fabric_scanner_set)
     websocket_api.async_register_command(hass, ws_fabric_scanner_remove)
     websocket_api.async_register_command(hass, ws_fabric_beacon_remove)
+    websocket_api.async_register_command(hass, ws_fabric_beacon_position_set)
     websocket_api.async_register_command(hass, ws_fabric_room_add)
     websocket_api.async_register_command(hass, ws_fabric_room_remove)
     websocket_api.async_register_command(hass, ws_fabric_sync_mode_set)
@@ -270,8 +271,6 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_remove)
     websocket_api.async_register_command(hass, ws_fabric_map_transform_set)
     websocket_api.async_register_command(hass, ws_fabric_map_reanchor)
-    websocket_api.async_register_command(hass, ws_fabric_migrate_from_maps)
-    websocket_api.async_register_command(hass, ws_fabric_spatial_batch_save)
     websocket_api.async_register_command(hass, ws_occupancy_estimate)
     websocket_api.async_register_command(hass, ws_occupancy_train)
     websocket_api.async_register_command(hass, ws_fabric_health)
@@ -9248,6 +9247,40 @@ async def ws_fabric_scanner_remove(hass: HomeAssistant, connection, msg) -> None
 
 @websocket_api.websocket_command(
     {
+        "type": "padspan_ha/fabric_beacon_position_set",
+        "key": str,
+        "x_m": vol.Coerce(float),
+        "y_m": vol.Coerce(float),
+        vol.Optional("floor_id"): str,
+        vol.Optional("room"): str,
+        vol.Optional("kind"): str,
+        vol.Optional("label"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_fabric_beacon_position_set(hass: HomeAssistant, connection, msg) -> None:
+    """Pin a beacon in real-world metres. No photo involved."""
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    if not mdl:
+        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        return
+    key = (msg.get("key") or "").strip()
+    if not key:
+        connection.send_error(msg["id"], "invalid", "key is required")
+        return
+    fl = (msg.get("floor_id") or "").strip() or DEFAULT_FLOOR_ID
+    x_m, y_m = float(msg["x_m"]), float(msg["y_m"])
+    room = (msg.get("room") or "").strip() or mdl.beacon_room_from_geometry(x_m, y_m, fl)
+    await mdl.async_set_beacon_position_m(
+        key, x_m, y_m, fl,
+        room=room, kind=(msg.get("kind") or "").strip(),
+        label=(msg.get("label") or "").strip(),
+    )
+    connection.send_result(msg["id"], {"ok": True, "key": key, "room": room})
+
+
+@websocket_api.websocket_command(
+    {
         "type": "padspan_ha/fabric_beacon_remove",
         "key": str,
     }
@@ -9782,108 +9815,9 @@ async def ws_fabric_map_reanchor(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], res)
 
 
-@websocket_api.websocket_command({
-    "type": "padspan_ha/fabric_migrate_from_maps",
-})
-@websocket_api.async_response
-async def ws_fabric_migrate_from_maps(hass: HomeAssistant, connection, msg) -> None:
-    """Trigger migration from map data to real-world model.
-
-    Only measured maps get transforms; an unmeasured map is skipped rather
-    than given an invented scale.
-    """
-    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
-    if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
-        return
-    if not ms:
-        connection.send_error(msg["id"], "no_maps", "MapsStore not loaded")
-        return
-    n_transforms = await mdl.async_derive_transforms(ms)
-    stats = await mdl.async_migrate_from_maps(ms)
-    # Phase 3: backfill calibration points with metres after transforms are computed
-    cal_backfilled = 0
-    try:
-        _cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
-        if _cal:
-            if not _cal._model:
-                _cal.set_model_store(mdl)
-            cal_backfilled = await _cal.async_backfill_metres()
-    except Exception:
-        pass
-    connection.send_result(msg["id"], {
-        "ok": True,
-        "transforms_computed": n_transforms,
-        "cal_points_backfilled": cal_backfilled,
-        **stats,
-    })
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # Fabric Authority — batch spatial save
 # ══════════════════════════════════════════════════════════════════════════════
-
-
-@websocket_api.websocket_command(
-    {
-        "type": "padspan_ha/fabric_spatial_batch_save",
-        vol.Optional("map_id"): str,
-        vol.Optional("floor_id"): str,
-        vol.Optional("scanners"): list,
-        vol.Optional("rooms"): dict,
-        vol.Optional("rf_barriers"): list,
-        vol.Optional("beacons"): list,
-    }
-)
-@websocket_api.async_response
-async def ws_fabric_spatial_batch_save(hass: HomeAssistant, connection, msg) -> None:
-    """Save spatial data to fabric. Accepts map fracs, converts to metres.
-
-    A "rooms" payload is still accepted for schema compat but ignored: room
-    geometry lives in the FabricStore, and no map-fraction save may reach it.
-
-    This is the only path that converts photo fracs to metres, and it runs
-    only when a person placed something. Nothing recomputes these metres
-    afterwards, so there is no flag to set and nothing to defend against.
-    """
-    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-    if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
-        return
-    map_id = (msg.get("map_id") or "").strip()
-    floor_id = (msg.get("floor_id") or "").strip()
-    if not floor_id:
-        ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
-        if ms and map_id:
-            m = ms.get_map(map_id)
-            if m:
-                floor_id = m.get("floor_id", DEFAULT_FLOOR_ID)
-        if not floor_id:
-            floor_id = DEFAULT_FLOOR_ID
-    stats = await mdl.async_batch_save_spatial(
-        map_id, floor_id,
-        scanners=msg.get("scanners"),
-        rf_barriers=msg.get("rf_barriers"), beacons=msg.get("beacons"),
-    )
-    # Re-derive map fracs for rendering
-    try:
-        ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
-        if ms and map_id:
-            _m = ms.get_map(map_id)
-            if _m:
-                await mdl.async_rederive_map_fracs(map_id, _m)
-                await ms.store.async_save(ms.data)
-    except Exception:
-        pass
-    # Calibration remap
-    try:
-        _cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
-        if _cal and map_id:
-            await _cal.async_remap_from_metres(map_id)
-    except Exception:
-        pass
-    connection.send_result(msg["id"], {"ok": True, **stats})
 
 
 # ══════════════════════════════════════════════════════════════════════════════

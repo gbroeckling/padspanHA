@@ -203,31 +203,13 @@ async def test_set_scanner_z_unknown_source() -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_placement_keeps_the_stored_height() -> None:
-    """A drag carries no height information, so a hand-set z survives it.
-
-    (Replaces two tests that covered a map sync resetting or propagating z —
-    a map save no longer touches the fabric at all.)
-    """
+async def test_placing_a_scanner_in_metres_keeps_its_height() -> None:
+    """x/y and z are set independently; moving one never resets the other."""
     store = _store_with_scanner()
     await store.async_set_scanner_z_m("kitchen", 1.0)
-    await store.async_batch_save_spatial(
-        "m1", "main",
-        scanners=[{"id": "kitchen", "source": "kitchen", "x": 0.5, "y": 0.5}])
+    await store.async_set_scanner_position_m("kitchen", 5.0, 4.0, 1.0, "main")
     entry = store.scanner_positions_m()["kitchen"]
-    assert entry["x_m"] == pytest.approx(5.0)      # drag applied
-    assert entry["z_m"] == pytest.approx(1.0)      # height kept
+    assert (entry["x_m"], entry["y_m"]) == (5.0, 4.0)
+    assert entry["z_m"] == pytest.approx(1.0)
 
 
-@pytest.mark.asyncio
-async def test_batch_save_preserves_existing_z() -> None:
-    """The Tune batch save has no height info — it must keep the stored z."""
-    store = _store_with_scanner()
-    store.fabric.data["scanner_positions_m"]["kitchen"]["z_m"] = 2.6
-    await store.async_batch_save_spatial(
-        "m1", "main",
-        scanners=[{"id": "kitchen", "source": "kitchen", "x": 0.25, "y": 0.25}],
-    )
-    entry = store.scanner_positions_m()["kitchen"]
-    assert entry["x_m"] == pytest.approx(2.5)
-    assert entry["z_m"] == pytest.approx(2.6)          # not reset to 2.4

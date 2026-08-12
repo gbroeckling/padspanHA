@@ -1637,7 +1637,6 @@ class PadSpanHaApp extends HTMLElement {
         mapsUpdate: async (payload)=>{ await this._callWS(Object.assign({type:"padspan_ha/maps_update"}, payload)); await this._getMapsList(); this._scheduleRender(); },
         mapsUpdateQuiet: async (payload)=>{ await this._callWS(Object.assign({type:"padspan_ha/maps_update"}, payload)); },
         mapsRefreshQuiet: async ()=>{ await this._getMapsList(); },
-        fabricSpatialSave: async (payload)=>{ return await this._callWS(Object.assign({type:"padspan_ha/fabric_spatial_batch_save"}, payload)); },
         mapsReplaceImage: async (payload)=>{ const res = await this._callWS(Object.assign({type:"padspan_ha/maps_replace_image"}, payload)); await this._getMapsList(); this._scheduleRender(); return res; },
         modelUpdate: async (payload)=>{ await this._callWS(Object.assign({type:"padspan_ha/model_update"}, payload)); await this._getModel(); this._scheduleRender(); },
 
