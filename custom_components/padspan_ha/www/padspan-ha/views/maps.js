@@ -6007,7 +6007,10 @@ async function _drawSvgOnCanvas(g, svgStr, w, h, alpha=1.0){
 // Placement is a PadSpan Pro feature — shares the single licence key
 // activated via padspan_ha/forensics_license_activate (see settings.js).
 function _isPro(ctx) {
-  return !!String(ctx.state.settings?.forensics_license_key || "").trim();
+  // The backend decides — it owns expiry and the grace window, and the key
+  // itself is no longer sent to the frontend at all. This is a display gate
+  // only; every Pro action is enforced server-side regardless of what it says.
+  return !!ctx.state.settings?.pro_active;
 }
 
 

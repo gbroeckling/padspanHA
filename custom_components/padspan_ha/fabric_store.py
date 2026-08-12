@@ -158,7 +158,9 @@ class FabricStore:
                 self.data["floors"] = {}
             if not isinstance(self.data.get("history"), list):
                 self.data["history"] = []
-            if self._import_legacy_spatial(legacy_spatial):
+            changed = self._import_legacy_spatial(legacy_spatial)
+            changed = self._check_legacy_drift(legacy_geometry, legacy_spatial) or changed
+            if changed:
                 await self.store.async_save(self.data)
             return
 
@@ -186,7 +188,68 @@ class FabricStore:
             self._log_history("", "", "legacy_import", imported)
             _LOGGER.info("FabricStore: imported %d legacy room shapes verbatim", imported)
         self._import_legacy_spatial(legacy_spatial)
+        # Record what this fabric was built from, so a later divergence (a
+        # rollback-and-edit) is detectable instead of silently ignored.
+        self.data["legacy_fingerprint"] = self._legacy_fingerprint(legacy_geometry, legacy_spatial)
+        self.data["legacy_drift"] = False
         await self.store.async_save(self.data)
+
+    @staticmethod
+    def _legacy_fingerprint(
+        legacy_geometry: dict[str, Any] | None,
+        legacy_spatial: dict[str, Any] | None,
+    ) -> str:
+        """Stable hash of the legacy geometry/spatial data the fabric came from."""
+        import hashlib  # noqa: PLC0415
+        import json     # noqa: PLC0415
+
+        payload = json.dumps(
+            {"geometry": legacy_geometry or {}, "spatial": legacy_spatial or {}},
+            sort_keys=True, default=str,
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32]
+
+    def _check_legacy_drift(
+        self,
+        legacy_geometry: dict[str, Any] | None,
+        legacy_spatial: dict[str, Any] | None,
+    ) -> bool:
+        """Detect legacy data that changed AFTER this fabric was imported.
+
+        The fabric is imported from the legacy keys exactly once, and after
+        that the legacy copies are never read again. That is correct going
+        forwards — but it silently discards work done on an older version:
+        roll back to a pre-fabric release, edit rooms or scanners (those
+        writes land in the legacy keys), roll forward, and the fabric still
+        exists, so nothing is imported and nothing reads the edits. The user
+        sees their corrections quietly reverted, or worse, still sees the
+        stale shape they thought they fixed.
+
+        Fingerprinting the source at import time makes that detectable. This
+        does NOT auto-import — silently overwriting a user's fabric would be
+        the same mistake in the other direction — it records the divergence
+        and raises a repairable notification so a human chooses.
+        """
+        fp = self._legacy_fingerprint(legacy_geometry, legacy_spatial)
+        prev = self.data.get("legacy_fingerprint")
+        if not prev:
+            # Fabric imported before this guard existed: adopt the current
+            # fingerprint as the baseline rather than crying drift on it.
+            self.data["legacy_fingerprint"] = fp
+            self.data["legacy_drift"] = False
+            return True
+        if prev == fp:
+            return bool(self.data.pop("legacy_drift", False))
+        self.data["legacy_fingerprint"] = fp
+        self.data["legacy_drift"] = True
+        self._log_history("", "", "legacy_drift_detected", 0)
+        _LOGGER.warning(
+            "FabricStore: the legacy room/scanner data changed since this fabric was "
+            "imported — most likely PadSpan was rolled back, edited, and upgraded again. "
+            "Those edits are NOT in the fabric and are not being used. Nothing has been "
+            "overwritten; use Health → Rebuild fabric from legacy data to adopt them."
+        )
+        return True
 
     def _import_legacy_spatial(self, legacy_spatial: dict[str, Any] | None) -> bool:
         """Per-key one-time verbatim import of legacy spatial data.

@@ -2643,7 +2643,7 @@ function _settingsFeatures(ctx, el){
     toggle.checked = forensicsOn;
     toggle.addEventListener("change", async()=>{
       const live = ctx.state.dataMode === "live";
-      const hasKey = !!String(settings.forensics_license_key || "").trim();
+      const hasKey = !!settings.pro_active;   // backend-owned gate, not the key
       if(toggle.checked){
         let msg = "Enable Forensics recording?\n\nPadSpan will continuously record the presence of ALL nearby Bluetooth devices — including neighbours' and passers-by's — on this Home Assistant instance.\n\nYou are responsible for using this lawfully in your jurisdiction.";
         if(!live) msg += "\n\nNote: data mode is currently Sample — nothing will be recorded until you switch data mode to Live.";
@@ -2699,12 +2699,31 @@ function _settingsFeatures(ctx, el){
 
     // Licence status line (key set via the enable flow's activation prompt)
     {
-      const licKey = String(settings.forensics_license_key || "").trim();
-      if(licKey){
-        const masked = licKey.length > 9 ? licKey.slice(0,6) + "…" + licKey.slice(-4) : licKey;
+      // The key itself is no longer sent to the browser — status comes from
+      // the backend's own gate (pro_active), so what's shown here and what is
+      // enforced can never disagree. Use "Show licence key" to read it back
+      // when moving the licence to another install (admins only).
+      if(settings.pro_has_key){
         const licExp = String(settings.forensics_license_expires || "").slice(0,10);
-        card.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:10px;color:#a7f3d0"},
-          `✓ PadSpan Pro licensed — ${masked}` + (licExp ? ` · valid until ${licExp}` : "")));
+        const daysLeft = settings.pro_days_left;
+        const lapsed = settings.pro_active === false;
+        const expiringSoon = typeof daysLeft === "number" && daysLeft >= 0 && daysLeft <= 14;
+        const line = lapsed
+          ? `⚠ PadSpan Pro licence expired${licExp ? ` on ${licExp}` : ""} — Pro editing is off. Everything you already recorded is still here and still exportable.`
+          : expiringSoon
+          ? `✓ PadSpan Pro licensed · renews in ${daysLeft} day${daysLeft === 1 ? "" : "s"}${licExp ? ` (${licExp})` : ""}`
+          : `✓ PadSpan Pro licensed` + (licExp ? ` · valid until ${licExp}` : "");
+        card.appendChild(el("div",{class:"muted",
+          style:`font-size:11px;margin-bottom:6px;color:${lapsed ? "#fbbf24" : expiringSoon ? "#fbbf24" : "#a7f3d0"}`}, line));
+        const revealBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:2px 8px;margin-bottom:10px",
+          onclick: async()=>{
+            try{
+              const r = await ctx.actions.wsCall("padspan_ha/forensics_license_reveal", {});
+              revealBtn.replaceWith(el("div",{class:"muted",
+                style:"font-size:11px;margin-bottom:10px;font-family:monospace;color:#a7f3d0"}, r?.key || "(none)"));
+            }catch(e){ ctx.toast("Only a Home Assistant admin can reveal the licence key", true); }
+          }}, "Show licence key");
+        card.appendChild(revealBtn);
       } else {
         card.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:10px"},
           "Requires a PadSpan Pro licence key — you'll be asked for it when enabling."));

@@ -56,7 +56,9 @@ from .const import (
     ALERTS_STORE_KEY, MOVEMENT_STORE_KEY,
     DATA_TRACEBACK, TRACEBACK_STORE_KEY,
     DATA_ESPRESENSE_MQTT,
+    DATA_FORENSICS, FORENSICS_STORE_KEY, DATA_DEVICE_REGISTRY,
 )
+from .device_registry import DEVICE_REGISTRY_STORE_KEY
 from .calibration_store import CalibrationStore
 from .fabric_truth import (
     cluster_count as _cluster_count,
@@ -291,6 +293,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_forensics_stats)
     websocket_api.async_register_command(hass, ws_forensics_clear)
     websocket_api.async_register_command(hass, ws_forensics_license_activate)
+    websocket_api.async_register_command(hass, ws_forensics_license_reveal)
     _ensure_log_handler()
     _LOGGER.debug("PadSpan HA websocket commands registered")
 
@@ -508,23 +511,79 @@ async def ws_model_update(hass: HomeAssistant, connection, msg) -> None:
 
 @callback
 def _get_settings(hass: HomeAssistant) -> dict:
-    """Read current settings, defaulting to sample mode if store isn't loaded."""
+    """Read current settings for the frontend, with the licence key redacted.
+
+    Settings go to ANY authenticated Home Assistant user — the panel has to
+    work for non-admins, so this payload cannot be admin-gated without
+    breaking them. The licence key therefore never travels in it: callers get
+    `pro_active` (the gate's own answer, so the frontend never re-implements
+    the rule) plus the expiry, and an admin who needs the key itself asks for
+    it explicitly via padspan_ha/forensics_license_reveal.
+    """
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-    if st:
-        return dict(st.data)
-    return {"data_mode": "sample"}
+    if not st:
+        return {"data_mode": "sample"}
+    out = dict(st.data)
+    state = _pro_expiry_state(hass)
+    out["forensics_license_key"] = ""          # never leaves the backend
+    out["pro_has_key"] = state["has_key"]
+    out["pro_active"] = state["active"]
+    out["pro_days_left"] = state["days_left"]
+    return out
+
+# Days a lapsed or unverifiable licence keeps working. Covers a house that is
+# simply offline, a card that failed on renewal day, and the gap between a
+# renewal and the next daily revalidation — none of which should cost someone
+# access to a feature they paid for.
+PRO_GRACE_DAYS = 14
+
+
+def _pro_expiry_state(hass: HomeAssistant) -> dict[str, Any]:
+    """Licence state without the secret: {has_key, active, expires, days_left}.
+
+    `active` is the single source of truth for every Pro gate, and it stays
+    True through PRO_GRACE_DAYS past expiry. An unparseable or absent expiry
+    is treated as NOT expiring: older activations pre-date the expiry field,
+    and a date we cannot read is not evidence that someone stopped paying.
+    """
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if not st:
+        return {"has_key": False, "active": False, "expires": "", "days_left": None}
+    from datetime import datetime as _dt, timezone as _tzinfo  # noqa: PLC0415
+
+    has_key = bool(str(st.data.get("forensics_license_key") or "").strip())
+    expires = str(st.data.get("forensics_license_expires") or "").strip()
+    days_left: int | None = None
+    active = has_key
+    if has_key and expires:
+        # Parsed with the stdlib, not dt_util: the expiry is an ISO string
+        # produced by our own licence server, and this way the rule that
+        # decides whether a customer keeps access has no dependency that can
+        # be stubbed, patched or mocked into answering differently.
+        try:
+            exp = _dt.fromisoformat(expires.replace("Z", "+00:00"))
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=_tzinfo.utc)
+            days_left = (exp - _dt.now(_tzinfo.utc)).days
+            active = days_left > -PRO_GRACE_DAYS
+        except Exception:
+            days_left = None      # unreadable date → treat as non-expiring
+    return {"has_key": has_key, "active": active, "expires": expires, "days_left": days_left}
+
 
 def _padspan_pro_active(hass: HomeAssistant) -> bool:
-    """Return True if a PadSpan Pro licence key has been activated.
+    """Return True if PadSpan Pro is active (activated AND not lapsed).
 
     Shared gate for every PadSpan Pro feature (Forensics, Lights map
     placement, ...) — they all key off the single licence activated via
     padspan_ha/forensics_license_activate.
+
+    Soft degrade by design: this gate governs Pro EDITING only. Data a user
+    already created stays readable and exportable when a licence lapses —
+    losing access to your own recorded history because a card expired is not
+    something this product does.
     """
-    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-    if not st:
-        return False
-    return bool(str(st.data.get("forensics_license_key") or "").strip())
+    return bool(_pro_expiry_state(hass)["active"])
 
 def _is_rpa_addr(address: str) -> bool:
     """Return True if a BLE address is a Resolvable Private Address (rotating MAC).
@@ -3248,8 +3307,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             # Enabling requires an activated PadSpan Pro licence key (set via
             # padspan_ha/forensics_license_activate).  Disabling is always allowed.
             _want = bool(msg["forensics_enabled"])
-            if _want and not str(st.data.get("forensics_license_key") or "").strip():
-                _want = False
+            if _want and not _padspan_pro_active(hass):
+                _want = False      # same gate as everywhere else: expiry included
             payload["forensics_enabled"] = _want
         if "forensics_retention_days" in msg:
             from .forensics_store import RETENTION_CHOICES, DEFAULT_RETENTION_DAYS
@@ -4900,12 +4959,34 @@ async def ws_forensics_query(hass: HomeAssistant, connection, msg) -> None:
     })
 
 
+@websocket_api.websocket_command({"type": "padspan_ha/forensics_license_reveal"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_forensics_license_reveal(hass: HomeAssistant, connection, msg) -> None:
+    """Return the licence key itself — admin only, on explicit request.
+
+    The key is redacted from the normal settings payload (see _get_settings),
+    but an owner still has to be able to read it back to move the licence to
+    another install. That is a deliberate, admin-gated action rather than
+    something every household account receives on every panel load.
+    """
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    state = _pro_expiry_state(hass)
+    connection.send_result(msg["id"], {
+        "key": str((st.data if st else {}).get("forensics_license_key") or ""),
+        "expires": state["expires"],
+        "days_left": state["days_left"],
+        "active": state["active"],
+    })
+
+
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/forensics_license_activate",
         vol.Required("key"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) -> None:
     """Validate a PadSpan Pro licence key against traks.ca and, if valid,
@@ -5544,8 +5625,26 @@ async def ws_positioning_repair(hass: HomeAssistant, connection, msg) -> None:
 
     Room fabric is untouchable by design. Everything here is recomputable,
     nothing is deleted beyond garbage metre stamps.
+
+    A backup of calibration + model + fabric is taken automatically first.
+    "Recomputable" assumes the inputs are still good; if a map transform is
+    wrong in a way this cannot detect, the recomputed metres are wrong too
+    and the originals are the only way back. The maintainer took these by
+    hand every time he ran it — that is the tell that it needed doing here.
     """
     from . import fabric_truth
+
+    backup_id = await _auto_backup(
+        hass,
+        "Automatic — before Repair Positioning",
+        [CALIBRATION_STORE_KEY, MODEL_STORE_KEY, FABRIC_STORE_KEY],
+    )
+    if not backup_id:
+        connection.send_error(
+            msg["id"], "backup_failed",
+            "Could not take a safety backup, so the repair was not run. "
+            "Free some disk space or take a manual backup first.")
+        return
 
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
@@ -5648,6 +5747,9 @@ async def ws_positioning_repair(hass: HomeAssistant, connection, msg) -> None:
     except Exception as e:
         report["rf_error"] = str(e)
 
+    # Tell the user where the undo lives, by name — a backup they don't know
+    # about is not a safety net.
+    report["backup_id"] = backup_id
     connection.send_result(msg["id"], report)
 
 
@@ -6858,6 +6960,13 @@ _DATA_KEY_MAP = {
     MOVEMENT_STORE_KEY: DATA_MOVEMENT,
     TRACEBACK_STORE_KEY: DATA_TRACEBACK,
     OBJECT_HISTORY_STORE_KEY: DATA_OBJECT_HISTORY,
+    # A Pro customer's forensics sessions are the data they paid to collect —
+    # omitting them from "full backup" meant a restore silently lost the
+    # paid-for feature's entire history. The device registry is the stable
+    # identity map everything else references; without it a restore comes
+    # back with correct data attached to unrecognisable devices.
+    FORENSICS_STORE_KEY: DATA_FORENSICS,
+    DEVICE_REGISTRY_STORE_KEY: DATA_DEVICE_REGISTRY,
 }
 
 _MAX_BACKUPS = 3  # Oldest backup is dropped when a new one exceeds this limit
@@ -6876,6 +6985,50 @@ async def _save_backups(hass: HomeAssistant, data: dict[str, Any]) -> None:
     from homeassistant.helpers.storage import Store as _St
     st = _St(hass, 1, BACKUPS_STORE_KEY)
     await st.async_save(data)
+
+
+async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str]) -> str | None:
+    """Snapshot the named stores into the normal backup list before a
+    destructive operation, and return the backup id.
+
+    Deliberately narrower than ws_store_backup_create: it skips the base64
+    map images, so a safety net taken automatically before an operation can
+    never itself be the expensive part. It lands in the same list the
+    Backup/Restore UI shows, so recovery is the flow the user already knows.
+    Failure here is reported to the caller — a safety net that silently did
+    not happen is worse than none, because the user will believe it exists.
+    """
+    import os as _os  # noqa: PLC0415
+    from homeassistant.helpers.storage import Store as _St  # noqa: PLC0415
+
+    stores_data: dict[str, Any] = {}
+    for store_key in store_keys:
+        data_key = _DATA_KEY_MAP.get(store_key)
+        store_obj = hass.data.get(DOMAIN, {}).get(data_key) if data_key else None
+        try:
+            if store_obj is not None and hasattr(store_obj, "data"):
+                stores_data[store_key] = store_obj.data
+            else:
+                stores_data[store_key] = await _St(hass, 1, store_key).async_load() or {}
+        except Exception:
+            return None
+    backup_id = f"bk_{_os.urandom(6).hex()}"
+    try:
+        bk = await _load_backups(hass)
+        bk.setdefault("backups", []).append({
+            "id": backup_id,
+            "created_at": dt_util.utcnow().replace(microsecond=0).isoformat(),
+            "version": BUILD_VERSION,
+            "note": note[:200],
+            "stores": stores_data,
+            "map_images": {},
+        })
+        while len(bk["backups"]) > _MAX_BACKUPS:
+            bk["backups"].pop(0)
+        await _save_backups(hass, bk)
+    except Exception:
+        return None
+    return backup_id
 
 
 @websocket_api.websocket_command({
@@ -7029,6 +7182,42 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
     stores_data = backup.get("stores", {})
     selected_keys = msg.get("store_keys")  # None = restore all
     restored = 0
+
+    # ── Pre-fabric backups (issue: hybrid restore) ───────────────────────
+    # A backup taken before the fabric store existed has no fabric entry, so
+    # the loop below rolls padspan_ha.model back while leaving the CURRENT
+    # fabric standing — and geometry is read from the fabric only. The user
+    # restores "my backup from before all this" and the restored rooms are
+    # silently inert. The backup has always recorded the version it came
+    # from; this reads it. Dropping the fabric makes the next boot re-import
+    # it from the restored legacy geometry, which is exactly the state that
+    # backup represents.
+    _bk_ver = str(backup.get("version") or "")
+    _restoring_all = selected_keys is None or FABRIC_STORE_KEY in (selected_keys or [])
+    _pre_fabric = (
+        FABRIC_STORE_KEY not in stores_data
+        and MODEL_STORE_KEY in stores_data
+        and _restoring_all
+    )
+    if _pre_fabric:
+        try:
+            await _St(hass, 1, FABRIC_STORE_KEY).async_remove()
+            _fab_obj = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+            if _fab_obj is not None:
+                _fab_obj.data = {"floors": {}, "history": []}
+            _LOGGER.warning(
+                "Restoring a pre-fabric backup (from %s): the room fabric was cleared so it "
+                "will be rebuilt from the restored geometry on the next restart.",
+                _bk_ver or "an older version",
+            )
+        except Exception as _pf_err:
+            _LOGGER.error("Could not clear the fabric for a pre-fabric restore: %s", _pf_err)
+            connection.send_error(
+                msg["id"], "restore_unsafe",
+                "This backup predates the room-fabric storage and the current fabric could "
+                "not be cleared, so restoring it would leave the map in a mixed state. "
+                "Nothing was changed.")
+            return
     for store_key, data in stores_data.items():
         if data is None:
             continue
@@ -8822,9 +9011,19 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
     errors = []
 
     # ── 1. SettingsStore — reset to DEFAULT_SETTINGS, NOT {} ─────────────
+    # The purchased licence survives a factory reset. It is not configuration
+    # the user is asking to clear — it is proof of payment, it cannot be read
+    # back once gone, and wiping it turns "start clean" into a support ticket.
     try:
+        _live_settings = domain.get(DATA_SETTINGS)
+        _keep_licence = {
+            k: (_live_settings.data if _live_settings else {}).get(k, "")
+            for k in ("forensics_license_key", "forensics_license_expires")
+        }
         st = _St(hass, 1, SETTINGS_STORE_KEY)
-        await st.async_save(dict(DEFAULT_SETTINGS))
+        await st.async_save({**dict(DEFAULT_SETTINGS), **{
+            k: v for k, v in _keep_licence.items() if v
+        }})
         cleared += 1
         store_obj = domain.get(DATA_SETTINGS)
         if store_obj and hasattr(store_obj, "data"):
