@@ -4012,13 +4012,9 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
         except Exception:
             pass  # best-effort; don't fail the save
 
-    # ── Phase 2: sync spatial data to real-world model when map changes ───
-    try:
-        _mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-        if _mdl and (updated.get("id") or map_id) in (_mdl.data.get("map_transforms") or {}):
-            await _mdl.async_sync_spatial_from_map(map_id, updated)
-    except Exception:
-        pass  # best-effort
+    # A map save does NOT write spatial fabric. Scanner/beacon/barrier metres
+    # are ground truth; they change when a person places something, never
+    # because the photo they were once traced on was saved again.
 
     # ── Phase 3: remap calibration points from metres when map changes ───
     # Skipped for stack-only saves (issue #56): the 3D alignment editor only
@@ -5699,7 +5695,6 @@ async def ws_positioning_repair(hass: HomeAssistant, connection, msg) -> None:
                 "floor_id": str(m.get("floor_id", DEFAULT_FLOOR_ID)),
             }
             await mdl.async_set_map_transform(mid, new_t, reanchor=True)
-            report["spatial_resynced"] += await mdl.async_sync_spatial_from_map(mid, m)
             report["maps_repaired"].append(name)
     else:
         report["anchor_missing"] = True
@@ -9458,7 +9453,6 @@ async def ws_fabric_scanner_position_set(hass: HomeAssistant, connection, msg) -
         source, float(msg["x_m"]), float(msg["y_m"]),
         float(msg.get("z_m", 2.4)),
         (msg.get("floor_id") or "").strip() or DEFAULT_FLOOR_ID,
-        origin="manual",
     )
     connection.send_result(msg["id"], {"ok": True, "source": source})
 
@@ -9713,14 +9707,14 @@ async def ws_fabric_map_align_to_stack(hass: HomeAssistant, connection, msg) -> 
         new_t["reference_measurements"] = old_t["reference_measurements"]
     await mdl.async_set_map_transform(mid, new_t, reanchor=True)
 
-    # Re-derive this map's spatial data (scanners/barriers/beacons) from its
-    # photo-space fracs through the corrected placement.
-    resynced = await mdl.async_sync_spatial_from_map(mid, m)
+    # Corrects where the PHOTO is drawn. The scanners/beacons/barriers stay
+    # exactly where they are: their metres are ground truth, and a photo that
+    # was hanging in the wrong place was never what made them right.
 
     connection.send_result(msg["id"], {
         "ok": True, "map_id": mid,
         "transform": {k: new_t[k] for k in ("origin_x_m", "origin_y_m", "scale_x_m", "scale_y_m", "rotation_rad")},
-        "spatial_resynced": resynced,
+        "spatial_resynced": 0,
         "calibration_touched": False,
     })
 
@@ -9763,7 +9757,6 @@ async def ws_fabric_rf_barrier_set(hass: HomeAssistant, connection, msg) -> None
     if not isinstance(barrier, dict) or not barrier.get("name"):
         connection.send_error(msg["id"], "invalid", "barrier dict with name is required")
         return
-    barrier.setdefault("origin", "manual")
     barrier.setdefault("floor_id", DEFAULT_FLOOR_ID)
     await mdl.async_set_rf_barrier_m(barrier)
     connection.send_result(msg["id"], {"ok": True, "name": barrier["name"]})
@@ -9938,7 +9931,6 @@ async def ws_fabric_migrate_from_maps(hass: HomeAssistant, connection, msg) -> N
         vol.Optional("rooms"): dict,
         vol.Optional("rf_barriers"): list,
         vol.Optional("beacons"): list,
-        vol.Optional("origin"): vol.In(["map", "manual"]),
     }
 )
 @websocket_api.async_response
@@ -9948,10 +9940,9 @@ async def ws_fabric_spatial_batch_save(hass: HomeAssistant, connection, msg) -> 
     A "rooms" payload is still accepted for schema compat but ignored: room
     geometry lives in the FabricStore, and no map-fraction save may reach it.
 
-    origin="manual" marks a deliberate placement from an editor's own Save —
-    the resulting scanner/beacon entries become immune to later map
-    re-derivation. Defaults to "map" (a derived write) so nothing that
-    carries spatial data incidentally can freeze a position.
+    This is the only path that converts photo fracs to metres, and it runs
+    only when a person placed something. Nothing recomputes these metres
+    afterwards, so there is no flag to set and nothing to defend against.
     """
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
@@ -9971,7 +9962,6 @@ async def ws_fabric_spatial_batch_save(hass: HomeAssistant, connection, msg) -> 
         map_id, floor_id,
         scanners=msg.get("scanners"),
         rf_barriers=msg.get("rf_barriers"), beacons=msg.get("beacons"),
-        origin=msg.get("origin") or "map",
     )
     # Re-derive map fracs for rendering
     try:
@@ -10713,7 +10703,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
                     "source": src,
                     "x_m": pos.get("x_m"), "y_m": pos.get("y_m"), "z_m": pos.get("z_m"),
                     "floor_id": pos.get("floor_id", "?"),
-                    "origin": pos.get("origin", "?"),
+                    "map_id": pos.get("map_id"),
                 })
 
         # Room geometry detail list
@@ -11664,7 +11654,6 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
             "y_m": y_m,
             "z_m": z_m,
             "floor_id": fl_id,
-            "origin": "espresense_import",
         }
 
         # Also add to scanners dict for auto-sync

@@ -48,9 +48,9 @@ Data layout in .storage/padspan_ha.fabric:
     # canonical values; a map drag is an INPUT DEVICE whose frac→metre
     # conversion happens once at write time.  Key names/shapes deliberately
     # mirror ModelStore's legacy keys so the one-time import is verbatim.
-    "scanner_positions_m": { "<source>": {x_m, y_m, z_m, floor_id, origin, map_id, z_origin?} },
-    "beacon_positions_m":  { "<key>": {x_m, y_m, floor_id, room, kind, label, origin, map_id} },
-    "rf_barriers_m":       [ {name, material, attenuation_dbm, floor_id, points_m, origin, map_id} ],
+    "scanner_positions_m": { "<source>": {x_m, y_m, z_m, floor_id, map_id} },
+    "beacon_positions_m":  { "<key>": {x_m, y_m, floor_id, room, kind, label, map_id} },
+    "rf_barriers_m":       [ {name, material, attenuation_dbm, floor_id, points_m, map_id} ],
 
     "history": [ {ts, floor_id, room, op, revision} ]   # append-only, capped
   }
@@ -289,11 +289,11 @@ class FabricStore:
         return out
 
     def scanner_positions_m(self) -> dict[str, dict[str, Any]]:
-        """{source: {x_m, y_m, z_m, floor_id, origin, map_id, ...}} — canonical."""
+        """{source: {x_m, y_m, z_m, floor_id, map_id, ...}} — canonical."""
         return dict(self.data.get("scanner_positions_m") or {})
 
     def beacon_positions_m(self) -> dict[str, dict[str, Any]]:
-        """{key: {x_m, y_m, floor_id, room, kind, label, origin, map_id}} — canonical."""
+        """{key: {x_m, y_m, floor_id, room, kind, label, map_id}} — canonical."""
         return dict(self.data.get("beacon_positions_m") or {})
 
     def rf_barriers_m(self) -> list[dict[str, Any]]:
@@ -538,8 +538,11 @@ class FabricStore:
         """Apply a set of spatial changes atomically.
 
         set_barriers replaces by name (today's semantics);
-        replace_map_barriers=(map_id, barriers) drops every barrier whose
-        origin is that map and installs the given list — the map-sync shape.
+        replace_map_barriers=(map_id, barriers) drops every barrier that
+        map drew and installs the given list — the Edit-tab save shape.
+        Barriers are the one thing the photo still edits (they have no stable
+        identity of their own to correct in metres), so a hand-placed barrier
+        carries no map_id and is never swept up here.
         Invalid entries are skipped, not fatal.  Returns per-kind counts.
         """
         counts = {"scanners": 0, "beacons": 0, "barriers": 0, "removed": 0}
@@ -571,7 +574,7 @@ class FabricStore:
             mid, new_bars = replace_map_barriers
             kept = [
                 b for b in barriers
-                if not (b.get("origin") == "map" and b.get("map_id") == str(mid))
+                if b.get("map_id") != str(mid)
             ]
             counts["removed"] += len(barriers) - len(kept)
             barriers = kept

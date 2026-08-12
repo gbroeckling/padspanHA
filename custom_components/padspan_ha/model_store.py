@@ -561,12 +561,7 @@ class ModelStore:
         return out
 
     async def async_set_scanner_z_m(self, source: str, z_m: float) -> bool:
-        """Set only a scanner's mounting height, marking it user-owned.
-
-        Deliberately NOT async_set_scanner_position_m: that flips the whole
-        entry to origin="manual", which silently stops Tune drags from
-        syncing x/y.  z_origin="manual" protects just the height.
-        """
+        """Set only a scanner's mounting height, leaving x/y alone."""
         fab = getattr(self, "fabric", None)
         if not fab:
             return False
@@ -575,7 +570,6 @@ class ModelStore:
             return False
         entry = dict(entry)
         entry["z_m"] = round(max(0.0, min(20.0, float(z_m))), 2)
-        entry["z_origin"] = "manual"
         await fab.async_spatial_update(
             set_scanners={str(source): entry}, op="scanner_z_set")
         return True
@@ -719,7 +713,7 @@ class ModelStore:
 
     async def async_set_scanner_position_m(
         self, source: str, x_m: float, y_m: float, z_m: float,
-        floor_id: str, origin: str = "manual", map_id: str | None = None,
+        floor_id: str, map_id: str | None = None,
     ) -> None:
         """Set a scanner's real-world position (canonical copy in the fabric)."""
         fab = getattr(self, "fabric", None)
@@ -728,7 +722,6 @@ class ModelStore:
         await fab.async_spatial_update(set_scanners={str(source): {
             "x_m": float(x_m), "y_m": float(y_m), "z_m": float(z_m),
             "floor_id": str(floor_id or DEFAULT_FLOOR_ID),
-            "origin": str(origin),
             "map_id": map_id,
         }}, op="scanner_set")
 
@@ -789,8 +782,7 @@ class ModelStore:
 
     async def async_set_beacon_position_m(
         self, key: str, x_m: float, y_m: float, floor_id: str,
-        room: str = "", kind: str = "", label: str = "",
-        origin: str = "manual", map_id: str | None = None,
+        room: str = "", kind: str = "", label: str = "", map_id: str | None = None,
     ) -> None:
         """Set a beacon's real-world position (canonical copy in the fabric)."""
         fab = getattr(self, "fabric", None)
@@ -803,7 +795,6 @@ class ModelStore:
             "room": str(room),
             "kind": str(kind),
             "label": str(label),
-            "origin": str(origin),
             "map_id": map_id,
         }}, op="beacon_set")
 
@@ -853,30 +844,21 @@ class ModelStore:
         scanners: list[dict] | None = None,
         rf_barriers: list[dict] | None = None,
         beacons: list[dict] | None = None,
-        origin: str = "map",
     ) -> dict[str, int]:
         """Atomic batch save of spatial data from map-fraction coordinates.
 
-        Converts fracs to metres using the map transform, writes to fabric.
+        THE ONLY frac→metre write path. It exists because a person dragging a
+        pin on a photo is expressing where the thing is, and that gesture has
+        to be converted once. Everything it writes is ground truth from that
+        moment on: no other code path may recompute these metres from the
+        photo, so there is no second class of entry to defend against and no
+        origin flag to carry. Callers are placement editors saving their own
+        draft; nothing else calls this.
+
         Room geometry is deliberately NOT accepted here — rooms live in the
         FabricStore, whose two writers are the only room-geometry paths.
         Returns counts: {scanners, rooms, barriers, beacons} (rooms always 0).
-
-        origin="manual" marks the write as a deliberate human placement: the
-        entry becomes ground truth and no later map re-derivation may move it
-        (async_sync_spatial_from_map and this method both defer to it). Only
-        another manual write can move a manual entry — otherwise a corrected
-        position could never be corrected twice. Callers pass "manual" only
-        from a placement editor's own Save, and send only the entity kind
-        that editor owns; a payload carried incidentally alongside some other
-        edit is not a placement and stays map-origin.
-
-        Barriers are always map-origin: they are replaced per-map wholesale
-        and carry no stable identity of their own, so a manual barrier could
-        not be told apart from its photo-derived twin. Use
-        padspan_ha/fabric_rf_barrier_set for a hand-placed barrier.
         """
-        manual = origin == "manual"
         stats = {"scanners": 0, "rooms": 0, "barriers": 0, "beacons": 0}
         fab = getattr(self, "fabric", None)
         if not fab:
@@ -894,8 +876,6 @@ class ModelStore:
                 src = rx.get("source") or rx.get("id", "")
                 if not src:
                     continue
-                if cur_scanners.get(src, {}).get("origin") == "manual" and not manual:
-                    continue
                 if t:
                     coords = self.map_frac_to_metres(float(rx.get("x", 0)), float(rx.get("y", 0)), map_id)
                     if coords:
@@ -904,10 +884,8 @@ class ModelStore:
                         # has no height information of its own.
                         _prev = cur_scanners.get(src) or {}
                         _z = _prev.get("z_m") if isinstance(_prev.get("z_m"), (int, float)) else 2.4
-                        _entry = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3), "z_m": _z, "floor_id": fl, "origin": origin, "map_id": map_id}
-                        if _prev.get("z_origin") == "manual":
-                            _entry["z_origin"] = "manual"
-                        set_scanners[src] = _entry
+                        set_scanners[src] = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3),
+                                             "z_m": _z, "floor_id": fl, "map_id": map_id}
                         stats["scanners"] += 1
 
         if rf_barriers is not None and t:
@@ -916,19 +894,19 @@ class ModelStore:
                 pts = bar.get("points") or []
                 pts_m = [([round(c[0], 3), round(c[1], 3)]) for p in pts if (c := self.map_frac_to_metres(float(p[0]), float(p[1]), map_id))]
                 if len(pts_m) >= 2:
-                    new_barriers.append({"name": str(bar.get("name", f"Barrier {map_id}_{idx+1}"))[:80], "material": str(bar.get("material", "custom"))[:20], "attenuation_dbm": float(bar.get("attenuation_dbm", 6)), "floor_id": fl, "points_m": pts_m, "origin": "map", "map_id": map_id})
+                    new_barriers.append({"name": str(bar.get("name", f"Barrier {map_id}_{idx+1}"))[:80], "material": str(bar.get("material", "custom"))[:20], "attenuation_dbm": float(bar.get("attenuation_dbm", 6)), "floor_id": fl, "points_m": pts_m, "map_id": map_id})
                     stats["barriers"] += 1
 
         if beacons is not None:
             for bk in beacons:
                 bk_key = bk.get("key")
-                if not bk_key or (cur_beacons.get(bk_key, {}).get("origin") == "manual" and not manual):
+                if not bk_key:
                     continue
                 if t:
                     coords = self.map_frac_to_metres(float(bk.get("x", 0)), float(bk.get("y", 0)), map_id)
                     if coords:
                         room = self.beacon_room_from_geometry(coords[0], coords[1], fl)
-                        set_beacons[bk_key] = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3), "floor_id": fl, "room": room, "kind": str(bk.get("kind", "")), "label": str(bk.get("label", "")), "origin": origin, "map_id": map_id}
+                        set_beacons[bk_key] = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3), "floor_id": fl, "room": room, "kind": str(bk.get("kind", "")), "label": str(bk.get("label", "")), "map_id": map_id}
                         stats["beacons"] += 1
 
         await fab.async_spatial_update(
@@ -1095,7 +1073,6 @@ class ModelStore:
                         "y_m": round(coords[1], 3),
                         "z_m": round(ceiling_h, 2),
                         "floor_id": fl,
-                        "origin": "map",
                         "map_id": mid,
                     }
                     stats["scanners_migrated"] += 1
@@ -1117,7 +1094,6 @@ class ModelStore:
                         "attenuation_dbm": float(bar.get("attenuation_dbm", 6)),
                         "floor_id": fl,
                         "points_m": pts_m,
-                        "origin": "map",
                         "map_id": mid,
                     })
                     stats["barriers_migrated"] += 1
@@ -1139,7 +1115,6 @@ class ModelStore:
                         "room": room,
                         "kind": str(bk.get("kind", "")),
                         "label": str(bk.get("label", "")),
-                        "origin": "map",
                         "map_id": mid,
                     }
                     stats["beacons_migrated"] += 1
@@ -1152,134 +1127,6 @@ class ModelStore:
                 op="migrate_from_maps",
             )
         return stats
-
-    async def async_sync_spatial_from_map(self, map_id: str, map_dict: dict) -> int:
-        """Re-derive metre-space data for a single map after it's edited.
-
-        Updates scanner positions, RF barriers, and beacons that originated
-        from this map. Room geometry is deliberately NOT synced — rooms live
-        in the FabricStore, which no map edit may reach.
-        Returns number of items updated.
-        """
-        fab = getattr(self, "fabric", None)
-        t = (self.data.get("map_transforms") or {}).get(map_id)
-        if not t or not fab:
-            return 0
-
-        fl = str(map_dict.get("floor_id", DEFAULT_FLOOR_ID))
-        stk = map_dict.get("stack") or {}
-        ceiling_h = float(stk.get("ceiling_height_m", 2.4))
-        count = 0
-        cur_scanners = fab.scanner_positions_m()
-        cur_beacons = fab.beacon_positions_m()
-        set_scanners: dict[str, dict] = {}
-        set_beacons: dict[str, dict] = {}
-
-        # ── Sync scanner positions ────────────────────────────────────────
-        map_sources: set[str] = set()
-        for rx in (map_dict.get("receivers") or []):
-            src = rx.get("source") or rx.get("id", "")
-            if not src:
-                continue
-            map_sources.add(str(src))
-            existing = cur_scanners.get(src)
-            # Only update map-origin entries from this map (or new entries)
-            if existing and existing.get("origin") == "manual":
-                continue
-            coords = self.map_frac_to_metres(float(rx.get("x", 0)), float(rx.get("y", 0)), map_id)
-            if coords:
-                # Ceiling changes propagate to the default z, but a user-set
-                # height (z_origin manual) survives map syncs.
-                _entry = {
-                    "x_m": round(coords[0], 3),
-                    "y_m": round(coords[1], 3),
-                    "z_m": round(ceiling_h, 2),
-                    "floor_id": fl,
-                    "origin": "map",
-                    "map_id": map_id,
-                }
-                if existing and existing.get("z_origin") == "manual" and isinstance(existing.get("z_m"), (int, float)):
-                    _entry["z_m"] = existing["z_m"]
-                    _entry["z_origin"] = "manual"
-                set_scanners[src] = _entry
-                count += 1
-
-        # A scanner this map placed (origin=map) that is no longer on the map
-        # was deleted by the user — drop it from the fabric rather than let a
-        # stale position linger as ground truth.
-        remove_scanners = [
-            src for src, pos in cur_scanners.items()
-            if pos.get("origin") == "map" and pos.get("map_id") == map_id
-            and src not in map_sources
-        ]
-        count += len(remove_scanners)
-
-        # ── Sync RF barriers (full replace for this map) ─────────────────
-        new_barriers: list[dict] = []
-        for idx, bar in enumerate(map_dict.get("rf_barriers") or []):
-            pts = bar.get("points") or []
-            pts_m = []
-            for p in pts:
-                c = self.map_frac_to_metres(float(p[0]), float(p[1]), map_id)
-                if c:
-                    pts_m.append([round(c[0], 3), round(c[1], 3)])
-            if len(pts_m) >= 2:
-                new_barriers.append({
-                    "name": str(bar.get("name", f"Barrier {map_id}_{idx+1}"))[:80],
-                    "material": str(bar.get("material", "custom"))[:20],
-                    "attenuation_dbm": float(bar.get("attenuation_dbm", 6)),
-                    "floor_id": fl,
-                    "points_m": pts_m,
-                    "origin": "map",
-                    "map_id": map_id,
-                })
-                count += 1
-
-        # ── Sync beacons ──────────────────────────────────────────────────
-        map_beacon_keys: set[str] = set()
-        for bk in (map_dict.get("beacons") or []):
-            bk_key = bk.get("key")
-            if not bk_key:
-                continue
-            map_beacon_keys.add(str(bk_key))
-            existing = cur_beacons.get(bk_key)
-            if existing and existing.get("origin") == "manual":
-                continue
-            coords = self.map_frac_to_metres(float(bk.get("x", 0)), float(bk.get("y", 0)), map_id)
-            if coords:
-                room = self.beacon_room_from_geometry(coords[0], coords[1], fl)
-                set_beacons[bk_key] = {
-                    "x_m": round(coords[0], 3),
-                    "y_m": round(coords[1], 3),
-                    "floor_id": fl,
-                    "room": room,
-                    "kind": str(bk.get("kind", "")),
-                    "label": str(bk.get("label", "")),
-                    "origin": "map",
-                    "map_id": map_id,
-                }
-                count += 1
-
-        # A beacon this map pinned (origin=map) that is no longer on the map
-        # was un-pinned by the user — drop the stale fabric position so it
-        # cannot fight live tracking.
-        remove_beacons = [
-            key for key, pos in cur_beacons.items()
-            if pos.get("origin") == "map" and pos.get("map_id") == map_id
-            and key not in map_beacon_keys
-        ]
-        count += len(remove_beacons)
-
-        if count:
-            await fab.async_spatial_update(
-                set_scanners=set_scanners or None,
-                remove_scanners=remove_scanners or None,
-                set_beacons=set_beacons or None,
-                remove_beacons=remove_beacons or None,
-                replace_map_barriers=(map_id, new_barriers),
-                op=f"sync_from_map:{map_id}",
-            )
-        return count
 
     # ── Phase 4: map image replacement — recompute + re-derive ─────────────
 
@@ -1508,8 +1355,8 @@ class ModelStore:
             if not src or src not in positions:
                 continue
             pos = positions[src]
-            if pos.get("origin") == "manual" and pos.get("map_id") != map_id:
-                continue  # don't override manual positions from other maps
+            if pos.get("map_id") != map_id:
+                continue  # a photo only draws the pins that belong to it
             fracs = self.metres_to_map_frac(float(pos["x_m"]), float(pos["y_m"]), map_id)
             if fracs:
                 rx["x"] = round(max(0.0, min(1.0, fracs[0])), 4)
@@ -1574,8 +1421,8 @@ class ModelStore:
             if not bk_key or bk_key not in beacons_m:
                 continue
             bm = beacons_m[bk_key]
-            if bm.get("origin") == "manual" and bm.get("map_id") != map_id:
-                continue
+            if bm.get("map_id") != map_id:
+                continue  # a photo only draws the pins that belong to it
             fracs = self.metres_to_map_frac(float(bm["x_m"]), float(bm["y_m"]), map_id)
             if fracs:
                 bk["x"] = round(max(0.0, min(1.0, fracs[0])), 4)

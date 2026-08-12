@@ -2126,7 +2126,6 @@ function _tuneTab(ctx, el, cs, calData) {
           map_id: mapId,
           floor_id: origMap.floor_id || "",
           scanners: ts.draftReceivers[mapId],
-          origin: "manual",
         });
       }
       // Clear dirty state BEFORE refresh so re-rendered view shows clean state
@@ -2279,7 +2278,6 @@ function _tuneTab(ctx, el, cs, calData) {
             map_id: _selMapId,
             floor_id: origMap.floor_id || "",
             scanners: ts.draftReceivers[_selMapId],
-            origin: "manual",
           });
           ts.dirtyMaps = {};
           ts._mapsStamp = null;
@@ -2826,7 +2824,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
               map_id: mid,
               floor_id: origMap.floor_id || "",
               beacons: bs.draftBeacons[mid] || [],
-              origin: "manual",
             });
             bs.dirtyMaps[mid] = false;
           } catch(_) {}
@@ -3289,7 +3286,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
               map_id: mid,
               floor_id: origMap.floor_id || "",
               beacons: bs.draftBeacons[mid] || [],
-              origin: "manual",
             });
             bs.dirtyMaps[mid] = false;
           } catch(_) {}
@@ -3395,7 +3391,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           map_id: mapId,
           floor_id: origMap.floor_id || "",
           beacons: bs.draftBeacons[mapId] || [],
-          origin: "manual",
         });
       }
       bs.dirtyMaps = {};
@@ -3808,7 +3803,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         map_id: mapId,
         floor_id: origMap.floor_id || "",
         beacons: bs.draftBeacons[mapId] || [],
-        origin: "manual",
       });
       bs.dirtyMaps[mapId] = false;
       _refreshDirtyLabel();
@@ -4308,7 +4302,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
             map_id: mapId,
             floor_id: origMap.floor_id || "",
             beacons: bs.draftBeacons[mapId] || [],
-            origin: "manual",
           });
           bs.dirtyMaps[mapId] = false;
         } catch (e) { console.warn("[PadSpan] delete beacon save failed:", e); }
@@ -4639,7 +4632,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
               map_id: map.id,
               floor_id: origMap.floor_id || "",
               beacons: bs.draftBeacons[map.id] || [],
-              origin: "manual",
             });
             bs.dirtyMaps[map.id] = false;
           }

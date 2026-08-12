@@ -9,6 +9,7 @@ correct_room may write.
 
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -447,158 +448,65 @@ async def test_spatial_update_barriers_name_and_map_replace() -> None:
 
 
 @pytest.mark.asyncio
-async def test_sync_from_map_drops_unpinned_entries() -> None:
-    """A scanner/beacon this map placed, then removed, must leave the fabric."""
-    mdl = _make_model({"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
-                              "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}})
-    fab = _spatial_fabric()
-    mdl.fabric = fab
-    fab.data["scanner_positions_m"] = {
-        "keep": {"x_m": 1, "y_m": 1, "z_m": 2.4, "floor_id": "main", "origin": "map", "map_id": "m1"},
-        "gone": {"x_m": 2, "y_m": 2, "z_m": 2.4, "floor_id": "main", "origin": "map", "map_id": "m1"},
-        "other-map": {"x_m": 3, "y_m": 3, "z_m": 2.4, "floor_id": "main", "origin": "map", "map_id": "m2"},
-        "manual": {"x_m": 4, "y_m": 4, "z_m": 2.4, "floor_id": "main", "origin": "manual", "map_id": "m1"},
-    }
-    fab.data["beacon_positions_m"] = {
-        "unpinned": {"x_m": 5, "y_m": 5, "floor_id": "main", "origin": "map", "map_id": "m1"},
-    }
-    await mdl.async_sync_spatial_from_map("m1", {
-        "floor_id": "main", "stack": {},
-        "receivers": [{"id": "keep", "source": "keep", "x": 0.5, "y": 0.5}],
-        "beacons": [],
-    })
-    pos = fab.scanner_positions_m()
-    assert "gone" not in pos
-    assert "other-map" in pos and "manual" in pos
-    assert pos["keep"]["x_m"] == pytest.approx(5.0)
-    assert fab.beacon_positions_m() == {}
+async def test_placement_is_ground_truth_across_a_transform_change() -> None:
+    """The doctrine, end to end.
 
-
-@pytest.mark.asyncio
-async def test_batch_save_respects_manual_origin() -> None:
-    mdl = _make_model({"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
-                              "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}})
-    fab = _spatial_fabric()
-    mdl.fabric = fab
-    fab.data["scanner_positions_m"] = {
-        "pinned": {"x_m": 9, "y_m": 9, "z_m": 2.4, "floor_id": "main", "origin": "manual"},
-    }
-    stats = await mdl.async_batch_save_spatial(
-        "m1", "main",
-        scanners=[{"id": "pinned", "source": "pinned", "x": 0.1, "y": 0.1}])
-    assert stats["scanners"] == 0
-    assert fab.scanner_positions_m()["pinned"]["x_m"] == 9
-
-
-@pytest.mark.asyncio
-async def test_batch_save_manual_origin_stamps_manual() -> None:
-    """A placement editor's own Save marks the entry as human ground truth."""
-    mdl = _make_model({"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
-                              "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}})
-    fab = _spatial_fabric()
-    mdl.fabric = fab
-    await mdl.async_batch_save_spatial(
-        "m1", "main",
-        scanners=[{"id": "rx", "source": "rx", "x": 0.5, "y": 0.5}],
-        beacons=[{"key": "bk", "x": 0.5, "y": 0.5}],
-        origin="manual")
-    assert fab.scanner_positions_m()["rx"]["origin"] == "manual"
-    assert fab.beacon_positions_m()["bk"]["origin"] == "manual"
-
-
-@pytest.mark.asyncio
-async def test_manual_batch_save_may_move_a_manual_entry() -> None:
-    """Immunity is against re-derivation, not against the user. Otherwise a
-    corrected position could never be corrected a second time."""
-    mdl = _make_model({"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
-                              "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}})
-    fab = _spatial_fabric()
-    mdl.fabric = fab
-    fab.data["scanner_positions_m"] = {
-        "pinned": {"x_m": 9, "y_m": 9, "z_m": 2.4, "floor_id": "main", "origin": "manual"},
-    }
-    stats = await mdl.async_batch_save_spatial(
-        "m1", "main",
-        scanners=[{"id": "pinned", "source": "pinned", "x": 0.1, "y": 0.1}],
-        origin="manual")
-    assert stats["scanners"] == 1
-    assert fab.scanner_positions_m()["pinned"]["x_m"] == pytest.approx(1.0)
-    assert fab.scanner_positions_m()["pinned"]["origin"] == "manual"
-
-
-@pytest.mark.asyncio
-async def test_manual_placement_survives_a_transform_change() -> None:
-    """The doctrine, end to end: once a scanner is placed in metres, moving
-    the photo underneath it must not move the scanner. Re-placing the map
-    (align-to-stack, positioning repair, any map save) re-derives metres from
-    photo fracs — a manual entry has to sit that out."""
-    transforms = {"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
-                         "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}}
-    mdl = _make_model(transforms)
-    fab = _spatial_fabric()
-    mdl.fabric = fab
-    rx = {"id": "rx", "source": "rx", "x": 0.5, "y": 0.5}
-    await mdl.async_batch_save_spatial("m1", "main", scanners=[rx], origin="manual")
-    assert fab.scanner_positions_m()["rx"]["x_m"] == pytest.approx(5.0)
-
-    # The photo is re-placed at twice the scale and re-synced.
-    transforms["m1"]["scale_x_m"] = 20
-    transforms["m1"]["scale_y_m"] = 20
-    await mdl.async_sync_spatial_from_map(
-        "m1", {"floor_id": "main", "stack": {}, "receivers": [rx], "beacons": []})
-
-    assert fab.scanner_positions_m()["rx"]["x_m"] == pytest.approx(5.0)
-
-
-@pytest.mark.asyncio
-async def test_map_origin_placement_still_follows_its_photo() -> None:
-    """The counterpart: an entry nobody has placed by hand is still derived,
-    so today's behaviour is unchanged for everything that isn't a placement."""
-    transforms = {"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
-                         "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}}
-    mdl = _make_model(transforms)
-    fab = _spatial_fabric()
-    mdl.fabric = fab
-    rx = {"id": "rx", "source": "rx", "x": 0.5, "y": 0.5}
-    await mdl.async_batch_save_spatial("m1", "main", scanners=[rx])
-    assert fab.scanner_positions_m()["rx"]["origin"] == "map"
-
-    transforms["m1"]["scale_x_m"] = 20
-    transforms["m1"]["scale_y_m"] = 20
-    await mdl.async_sync_spatial_from_map(
-        "m1", {"floor_id": "main", "stack": {}, "receivers": [rx], "beacons": []})
-
-    assert fab.scanner_positions_m()["rx"]["x_m"] == pytest.approx(10.0)
-
-
-@pytest.mark.asyncio
-async def test_batch_save_command_forwards_origin() -> None:
-    """Through the websocket command, not around it.
-
-    The model gaining an `origin` parameter and the schema accepting the key
-    prove nothing on their own: the handler in between has to actually pass
-    it. Shipped once without this test and the flag was silently dropped —
-    every placement still landed map-origin.
+    A person placed this scanner, so its metres are the answer. Moving the
+    photo underneath it — a re-measure, a re-anchor, an align-to-stack — may
+    change where the PHOTO is drawn and must not change where the scanner is.
     """
-    from custom_components.padspan_ha.const import DATA_MODEL, DOMAIN
-    from custom_components.padspan_ha.websocket import ws_fabric_spatial_batch_save
-
-    mdl = _make_model({"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
-                              "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}})
+    transforms = {"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
+                         "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}}
+    mdl = _make_model(transforms)
     fab = _spatial_fabric()
     mdl.fabric = fab
-    hass = MagicMock()
-    hass.data = {DOMAIN: {DATA_MODEL: mdl}}
-    connection = MagicMock()
+    m = {"id": "m1", "floor_id": "main", "stack": {},
+         "receivers": [{"id": "rx", "source": "rx", "x": 0.5, "y": 0.5}], "beacons": []}
+    await mdl.async_batch_save_spatial("m1", "main", scanners=m["receivers"])
+    assert fab.scanner_positions_m()["rx"]["x_m"] == pytest.approx(5.0)
 
-    await ws_fabric_spatial_batch_save(hass, connection, {
-        "id": 1, "map_id": "m1", "floor_id": "main",
-        "scanners": [{"id": "rx", "source": "rx", "x": 0.5, "y": 0.5}],
-        "origin": "manual",
-    })
+    before = json.dumps(fab.data, sort_keys=True)
+    transforms["m1"]["scale_x_m"] = 20        # the photo is re-placed...
+    transforms["m1"]["scale_y_m"] = 20
+    await mdl.async_rederive_map_fracs("m1", m)   # ...and redrawn from metres
 
-    assert fab.scanner_positions_m()["rx"]["origin"] == "manual"
-    assert "origin" in ws_fabric_spatial_batch_save.ws_schema
+    assert json.dumps(fab.data, sort_keys=True) == before
+    assert fab.scanner_positions_m()["rx"]["x_m"] == pytest.approx(5.0)
+    # The photo moved instead: the pin is drawn at a new spot on the image.
+    assert m["receivers"][0]["x"] == pytest.approx(0.25)
+
+
+def test_no_implicit_spatial_write_path_survives() -> None:
+    """The invariant this pass buys: nothing writes spatial fabric except a
+    placement. async_sync_spatial_from_map was the one exception and is gone;
+    this fails loudly if anything reintroduces it."""
+    from pathlib import Path
+
+    from custom_components.padspan_ha.model_store import ModelStore
+
+    assert not hasattr(ModelStore, "async_sync_spatial_from_map")
+    src = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+    for name in ("websocket.py", "model_store.py", "__init__.py"):
+        text = (src / name).read_text(encoding="utf-8")
+        assert "async_sync_spatial_from_map(" not in text, name
+
+
+@pytest.mark.asyncio
+async def test_hand_placed_barrier_survives_an_edit_tab_save() -> None:
+    """Barriers are the one thing the photo still edits, so an Edit save
+    replaces that map's barriers. A barrier placed directly in metres carries
+    no map_id and must not be swept up with them."""
+    fab = _spatial_fabric()
+    fab.data["rf_barriers_m"] = [
+        {"name": "Hand wall", "points_m": [[0, 0], [1, 0]], "floor_id": "main"},
+        {"name": "Traced wall", "points_m": [[2, 0], [3, 0]], "floor_id": "main", "map_id": "m1"},
+    ]
+    await fab.async_spatial_update(
+        replace_map_barriers=("m1", [{"name": "Traced wall v2",
+                                      "points_m": [[4, 0], [5, 0]], "floor_id": "main",
+                                      "map_id": "m1"}]))
+    names = {b["name"] for b in fab.rf_barriers_m()}
+    assert names == {"Hand wall", "Traced wall v2"}
 
 
 def test_model_spatial_reads_loud_empty_without_fabric() -> None:

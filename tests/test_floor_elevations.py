@@ -186,14 +186,14 @@ def _store_with_scanner() -> ModelStore:
 
 
 @pytest.mark.asyncio
-async def test_set_scanner_z_marks_manual() -> None:
+async def test_set_scanner_z_sets_height_only() -> None:
     store = _store_with_scanner()
+    before = dict(store.scanner_positions_m()["kitchen"])
     ok = await store.async_set_scanner_z_m("kitchen", 1.0)
     assert ok
     entry = store.scanner_positions_m()["kitchen"]
     assert entry["z_m"] == pytest.approx(1.0)
-    assert entry["z_origin"] == "manual"
-    assert entry["origin"] == "map"          # x/y ownership untouched
+    assert (entry["x_m"], entry["y_m"]) == (before["x_m"], before["y_m"])
 
 
 @pytest.mark.asyncio
@@ -203,33 +203,20 @@ async def test_set_scanner_z_unknown_source() -> None:
 
 
 @pytest.mark.asyncio
-async def test_manual_z_survives_map_sync() -> None:
-    """Dragging in Tune (map sync) must not reset a user-set height."""
+async def test_a_placement_keeps_the_stored_height() -> None:
+    """A drag carries no height information, so a hand-set z survives it.
+
+    (Replaces two tests that covered a map sync resetting or propagating z —
+    a map save no longer touches the fabric at all.)
+    """
     store = _store_with_scanner()
     await store.async_set_scanner_z_m("kitchen", 1.0)
-    map_dict = {
-        "floor_id": "main",
-        "stack": {"ceiling_height_m": 2.6},
-        "receivers": [{"id": "kitchen", "source": "kitchen", "x": 0.5, "y": 0.5}],
-    }
-    await store.async_sync_spatial_from_map("m1", map_dict)
+    await store.async_batch_save_spatial(
+        "m1", "main",
+        scanners=[{"id": "kitchen", "source": "kitchen", "x": 0.5, "y": 0.5}])
     entry = store.scanner_positions_m()["kitchen"]
-    assert entry["x_m"] == pytest.approx(5.0)          # drag applied
-    assert entry["z_m"] == pytest.approx(1.0)          # height kept
-    assert entry["z_origin"] == "manual"
-
-
-@pytest.mark.asyncio
-async def test_default_z_follows_ceiling_on_sync() -> None:
-    """Without a manual z, a ceiling change propagates to the default."""
-    store = _store_with_scanner()
-    map_dict = {
-        "floor_id": "main",
-        "stack": {"ceiling_height_m": 2.6},
-        "receivers": [{"id": "kitchen", "source": "kitchen", "x": 0.5, "y": 0.5}],
-    }
-    await store.async_sync_spatial_from_map("m1", map_dict)
-    assert store.scanner_positions_m()["kitchen"]["z_m"] == pytest.approx(2.6)
+    assert entry["x_m"] == pytest.approx(5.0)      # drag applied
+    assert entry["z_m"] == pytest.approx(1.0)      # height kept
 
 
 @pytest.mark.asyncio
