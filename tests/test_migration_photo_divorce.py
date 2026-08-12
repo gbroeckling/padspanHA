@@ -213,3 +213,29 @@ async def test_the_whole_upgrade_is_idempotent_on_real_shaped_data() -> None:
 
     await async_run_photo_divorce(MagicMock(), mdl, ms, fab)
     assert json.dumps(fab.data, sort_keys=True) == after_first
+
+
+@pytest.mark.asyncio
+async def test_a_step_added_after_an_upgrade_still_runs() -> None:
+    """The bug this guards: one shared "done" flag.
+
+    A box that upgraded through an earlier release already carries the
+    photo-divorce marker. A step added afterwards — lights — would be skipped
+    forever, silently, on exactly the installs that need it most.
+    """
+    from custom_components.padspan_ha.migrations import LIGHTS_TO_METRES
+
+    mdl, fab, ms = _scenario()
+    ms.data["maps"][0]["lights"] = [{"entity_id": "light.kitchen", "x": 0.5, "y": 0.5}]
+    fab.data[MARKER] = [PHOTO_DIVORCE]          # upgraded before lights existed
+
+    stats = await async_run_photo_divorce(MagicMock(), mdl, ms, fab)
+    assert stats.get("skipped") is not True
+    assert stats["steps"] == [LIGHTS_TO_METRES]
+    assert stats["lights_converted"] == 1
+    # ...and the finished step is not repeated.
+    assert stats["maps_repaired"] == []
+    assert set(fab.data[MARKER]) == {PHOTO_DIVORCE, LIGHTS_TO_METRES}
+
+    again = await async_run_photo_divorce(MagicMock(), mdl, ms, fab)
+    assert again == {"skipped": True}

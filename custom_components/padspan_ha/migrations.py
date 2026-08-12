@@ -31,6 +31,7 @@ _LOGGER = logging.getLogger(__name__)
 
 MARKER = "migrations_done"
 PHOTO_DIVORCE = "fabric_photo_divorce"
+LIGHTS_TO_METRES = "lights_to_metres"
 
 # A transform matching the stack this closely is already correct.
 _ORIGIN_TOL_M = 0.2
@@ -81,7 +82,11 @@ async def async_run_photo_divorce(
     Returns a stats dict; {"skipped": True} if it has already run.
     """
     done = set(fab.data.get(MARKER) or [])
-    if PHOTO_DIVORCE in done:
+    # Each step carries its own marker. A box that upgraded through an earlier
+    # release has PHOTO_DIVORCE already set, and a step added afterwards must
+    # still get its turn — one shared flag would silently skip it forever.
+    todo = {PHOTO_DIVORCE, LIGHTS_TO_METRES} - done
+    if not todo:
         return {"skipped": True}
 
     from . import fabric_truth
@@ -95,11 +100,12 @@ async def async_run_photo_divorce(
     maps_list = (ms.data.get("maps") or []) if ms else []
     anchor = fabric_truth.find_metre_anchor(maps_list, mdl) if maps_list else None
     stats["anchor"] = (anchor or {}).get("map_id")
+    stats["steps"] = sorted(todo)
 
     # 1. Repair placements that disagree with the hand-tuned stack. Without a
     #    measured map there is no metre anchor and therefore nothing to check
     #    against — leave those alone rather than guess.
-    if anchor:
+    if anchor and PHOTO_DIVORCE in todo:
         for m in maps_list:
             mid = m.get("id", "")
             t = mdl.map_transform(mid)
@@ -118,14 +124,14 @@ async def async_run_photo_divorce(
 
     # 2. The photo's last job: convert its pins through the corrected
     #    placement, for entries that have never been touched in metres.
-    if anchor:
+    if anchor and PHOTO_DIVORCE in todo:
         stats["positions_rederived"] = await _rederive_once(mdl, fab, maps_list)
 
     # 3. Calibration points recorded on a photo but never given metres get
     #    them now, through the repaired placements. A point's metres are where
     #    a person physically stood; after this they are the stored truth and
     #    the photo coordinates are only used to draw the dot.
-    if cal is not None and anchor:
+    if cal is not None and anchor and PHOTO_DIVORCE in todo:
         try:
             stats["cal_points_anchored"] = await cal.async_backfill_metres()
         except Exception as err:  # never block the rest of the migration
@@ -134,13 +140,14 @@ async def async_run_photo_divorce(
     # 4. Light placements lived per-photo, in that photo's fraction space.
     #    Convert them to metres once; from here a light is placed in the
     #    house like everything else.
-    if anchor:
+    if anchor and LIGHTS_TO_METRES in todo:
         stats["lights_converted"] = await _convert_lights(mdl, fab, maps_list)
 
     # 5. Drop the keys that only existed to mark things re-derivable.
-    stats["legacy_keys_stripped"] = _strip_legacy_keys(fab)
+    if PHOTO_DIVORCE in todo:
+        stats["legacy_keys_stripped"] = _strip_legacy_keys(fab)
 
-    done.add(PHOTO_DIVORCE)
+    done |= todo
     fab.data[MARKER] = sorted(done)
     await fab.store.async_save(fab.data)
     _LOGGER.info(
