@@ -12,8 +12,8 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.27.0";
-const BUILD_ID = "20260812T041845Z";
+const APP_VERSION = "0.27.1";
+const BUILD_ID = "20260812T045605Z";
 
 // Query inherited from our own module URL so the ?b= cache-buster propagates
 // (see docs/06_UI_CACHE_BUSTING.md).
@@ -129,15 +129,18 @@ class PadSpanLightsApp extends HTMLElement {
     // Don't rebuild the DOM under the user's hands: a poll landing mid-drag on
     // a slider, or while a select is open, destroys the control being used.
     // (The Mapping tab's host has the same protection via _editDragging.)
+    // INPUT/SELECT only. A button KEEPS focus after it is clicked, so
+    // including BUTTON here meant one press of Zoom+ stopped this panel
+    // live-updating for good.
     const active = this.shadowRoot && this.shadowRoot.activeElement;
-    if(active && /^(INPUT|SELECT|BUTTON)$/.test(active.tagName)) return;
+    if(active && /^(INPUT|SELECT)$/.test(active.tagName)) return;
     if(this._pointerDown) return;
     // Hidden lights / hidden maps live in settings and are edited from the
     // Mapping tab. Without re-reading them, the two "identical" views drift
     // apart until this panel is reloaded.
     if(Date.now() - (this._settingsTs || 0) > 30000){
       this._settingsTs = Date.now();
-      await this._loadSettings();
+      await this._loadSettings(false);
     }
     this._render();   // registry staleness handled inside _buildUI
   }
@@ -164,7 +167,11 @@ class PadSpanLightsApp extends HTMLElement {
     this.state._modelLoaded = true;
   }
 
-  async _loadSettings(){
+  // applyView=false on the periodic refresh: the sliders are live UI state
+  // the user may be mid-way through adjusting, and re-seeding them from the
+  // saved settings would silently revert unsaved Spacing / L-R / Floor
+  // changes every 30 seconds. Only the boot load seeds the view.
+  async _loadSettings(applyView=true){
     let s = {};
     // A failed settings_get must still leave the hidden-maps fallback below
     // reachable — otherwise a transient websocket error makes this panel
@@ -174,9 +181,11 @@ class PadSpanLightsApp extends HTMLElement {
       s = res?.settings || {};
     }catch(e){}
     try{
-      this._view.floorGap = s.overview_iso_floor_gap ?? 150;
-      this._view.horizGap = s.overview_iso_horiz_gap ?? 0;
-      this._view.focusIdx = s.overview_iso_focus     ?? 0;
+      if(applyView){
+        this._view.floorGap = s.overview_iso_floor_gap ?? 150;
+        this._view.horizGap = s.overview_iso_horiz_gap ?? 0;
+        this._view.focusIdx = s.overview_iso_focus     ?? 0;
+      }
       // Per-light shape overrides — set in the Mapping → Lights tab, read here
       // so both views draw the same fixture outlines.
       this.state._shapeOverrides = (s.light_shapes && typeof s.light_shapes === "object") ? s.light_shapes : {};

@@ -6216,8 +6216,11 @@ function _wireLightsBuild(ctx, isoDiv, o) {
   const selEid = o.mapState._selLight ? o.mapState._selLight.eid : null;
   if (selEid) {
     const g = isoDiv.querySelector(`g.lhex[data-eid="${CSS.escape(selEid)}"]`);
-    const poly = g && g.querySelector("polygon");
-    if (poly) { poly.setAttribute("stroke", "#e879f9"); poly.setAttribute("stroke-width", "3.5"); }
+    // Not just polygons: a marker is a polygon, circle or rect depending on
+    // the fixture shape, and selecting anything but a hexagon/triangle/diamond
+    // would otherwise show no highlight at all.
+    const mark = g && g.querySelector("polygon,circle,rect");
+    if (mark) { mark.setAttribute("stroke", "#e879f9"); mark.setAttribute("stroke-width", "3.5"); }
   }
 
   for (const g of isoDiv.querySelectorAll("g.lhex[data-eid]")) {
@@ -6230,6 +6233,10 @@ function _wireLightsBuild(ctx, isoDiv, o) {
     // guarantees the release fires even if the finger/cursor leaves the SVG —
     // which is what previously left _editDragging stuck true and froze every
     // panel render until reload.
+    // Without this the browser claims the gesture for panning/scrolling and
+    // the pointermove stream stops after a few pixels — touch drag would look
+    // supported and silently do nothing.
+    g.style.touchAction = "none";
     g.addEventListener("pointerdown", (ev) => {
       if (ev.button !== 0 && ev.pointerType === "mouse") return;
       ev.preventDefault(); ev.stopPropagation();

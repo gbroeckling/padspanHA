@@ -40,26 +40,27 @@ export function hexPts(cx, cy, r){
 export function shapeSvg(kind, cx, cy, r, attrs){
   const n=(v)=>v.toFixed(1);
   const poly=(pts)=>`<polygon points="${pts}" ${attrs}/>`;
+  // Every shape stays within the hexagon's own width (r*√3 ≈ 1.73r), because
+  // hexCluster packs markers at that pitch — a wider marker would overlap its
+  // neighbours in any room holding more than one light. HW is that half-width.
+  const HW=r*0.866;
   switch(kind){
     case "circle":
-      return `<circle cx="${n(cx)}" cy="${n(cy)}" r="${n(r)}" ${attrs}/>`;
+      return `<circle cx="${n(cx)}" cy="${n(cy)}" r="${n(HW)}" ${attrs}/>`;
     case "bar": {
-      // Capsule: a strip reads as elongated even at cluster size.
-      const w=r*1.5, h=r*0.82;
-      return `<rect x="${n(cx-w)}" y="${n(cy-h)}" width="${n(w*2)}" height="${n(h*2)}" `+
+      // Capsule at ~2:1 — reads as a strip without exceeding the hex footprint.
+      const h=r*0.55;
+      return `<rect x="${n(cx-HW)}" y="${n(cy-h)}" width="${n(HW*2)}" height="${n(h*2)}" `+
              `rx="${n(h)}" ry="${n(h)}" ${attrs}/>`;
     }
-    case "square": {
-      const s=r*0.86;
-      return `<rect x="${n(cx-s)}" y="${n(cy-s)}" width="${n(s*2)}" height="${n(s*2)}" `+
+    case "square":
+      return `<rect x="${n(cx-HW)}" y="${n(cy-HW)}" width="${n(HW*2)}" height="${n(HW*2)}" `+
              `rx="2" ${attrs}/>`;
-    }
     case "triangle":
-      // Slightly oversized: an equilateral triangle looks small beside a hex.
-      return poly([[cx,cy-r*1.15],[cx+r*1.1,cy+r*0.78],[cx-r*1.1,cy+r*0.78]]
+      return poly([[cx,cy-r],[cx+HW,cy+r*0.62],[cx-HW,cy+r*0.62]]
         .map(p=>`${n(p[0])},${n(p[1])}`).join(" "));
     case "diamond":
-      return poly([[cx,cy-r*1.12],[cx+r*1.0,cy],[cx,cy+r*1.12],[cx-r*1.0,cy]]
+      return poly([[cx,cy-r],[cx+HW,cy],[cx,cy+r],[cx-HW,cy]]
         .map(p=>`${n(p[0])},${n(p[1])}`).join(" "));
     default:
       return poly(hexPts(cx,cy,r));
