@@ -12,8 +12,8 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.27.1";
-const BUILD_ID = "20260812T045605Z";
+const APP_VERSION = "0.27.2";
+const BUILD_ID = "20260812T051907Z";
 
 // Query inherited from our own module URL so the ?b= cache-buster propagates
 // (see docs/06_UI_CACHE_BUSTING.md).
@@ -277,29 +277,48 @@ class PadSpanLightsApp extends HTMLElement {
     }, on?"Turn Off":"Turn On");
     box.appendChild(onBtn);
 
-    if(typeof attrs.brightness==="number"){
-      const briLbl=el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:4px"},
-        `Brightness: ${Math.round((attrs.brightness/255)*100)}%`);
+    // Dimmability is a CAPABILITY, not a current value: Home Assistant drops
+    // the brightness attribute entirely while a light is off, so testing the
+    // attribute hid the slider on every light that was off — which is exactly
+    // when you open this popup to set a level. supported_color_modes is
+    // present in both states; every mode except onoff/unknown carries
+    // brightness.
+    const modes = Array.isArray(attrs.supported_color_modes) ? attrs.supported_color_modes : [];
+    const dimmable = modes.some(m => m !== "onoff" && m !== "unknown");
+    if(dimmable){
+      const pct=(v)=>Math.round((v/255)*100);
+      const cur=typeof attrs.brightness==="number" ? attrs.brightness : 255;
+      const briText=(v)=>`Brightness: ${pct(v)}%` + (on ? "" : " · turns the light on");
+      const briLbl=el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:4px"}, briText(cur));
       const bri=document.createElement("input");
-      bri.type="range"; bri.min="1"; bri.max="255"; bri.value=String(attrs.brightness||128);
+      bri.type="range"; bri.min="1"; bri.max="255"; bri.value=String(cur);
       bri.style.cssText="width:100%;accent-color:#52b788";
-      bri.addEventListener("input",()=>{ briLbl.textContent=`Brightness: ${Math.round((bri.value/255)*100)}%`; });
+      bri.addEventListener("input",()=>{ briLbl.textContent=briText(bri.value); });
       bri.addEventListener("change",async()=>{
-        try{ await this._hass.callService("light","turn_on",{entity_id:eid, brightness:parseInt(bri.value,10)}); }catch(e){}
+        try{ await this._hass.callService("light","turn_on",{entity_id:eid, brightness:parseInt(bri.value,10)}); }
+        catch(e){ this._toast("Could not set brightness", true); }
+        setTimeout(()=>this._render(), 400);
       });
       box.appendChild(el("div",{style:"margin-bottom:12px"},[briLbl,bri]));
     }
 
-    const colorInput=document.createElement("input");
-    colorInput.type="color";
-    colorInput.value=toHex(rgb);
-    colorInput.style.cssText="width:44px;height:30px;border:none;background:none;cursor:pointer";
-    colorInput.addEventListener("change",async()=>{
-      try{ await this._hass.callService("light","turn_on",{entity_id:eid, rgb_color:fromHex(colorInput.value)}); }catch(e){}
-    });
-    box.appendChild(el("div",{style:"margin-bottom:12px;display:flex;align-items:center;gap:10px"},[
-      el("span",{style:"font-size:12px;color:#94a3b8"},"Color"), colorInput,
-    ]));
+    // Same rule for colour: only offer it when the light can actually take an
+    // rgb_color. An effect-capable but on/off-only light (a switched WLED
+    // preset, say) was being shown a colour picker that silently did nothing.
+    if(modes.some(m => ["rgb","rgbw","rgbww","hs","xy"].includes(m))){
+      const colorInput=document.createElement("input");
+      colorInput.type="color";
+      colorInput.value=toHex(rgb);
+      colorInput.style.cssText="width:44px;height:30px;border:none;background:none;cursor:pointer";
+      colorInput.addEventListener("change",async()=>{
+        try{ await this._hass.callService("light","turn_on",{entity_id:eid, rgb_color:fromHex(colorInput.value)}); }
+        catch(e){ this._toast("Could not set colour", true); }
+        setTimeout(()=>this._render(), 400);
+      });
+      box.appendChild(el("div",{style:"margin-bottom:12px;display:flex;align-items:center;gap:10px"},[
+        el("span",{style:"font-size:12px;color:#94a3b8"},"Color"), colorInput,
+      ]));
+    }
 
     if(effectList.length){
       const effSel=document.createElement("select");
