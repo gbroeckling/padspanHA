@@ -7,11 +7,14 @@
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
 const { makeStackXform, imageAr, fabricWorldRooms } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
-const { assignLightCodes } =
-  await import(`./light_codes.js${new URL(import.meta.url).search}`);
-// THE shared lights map renderer — identical to the Lights sidebar panel.
-const { buildIsoSVG, ISO } =
+// Iso projection constants for the Lights tab's drag-inversion.
+const { ISO } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
+// THE shared Lights view (data pipeline, map card, index table) — used
+// verbatim by the Lights sidebar panel, so the two tools always show the
+// identical map; this tab layers the build tools on top of it.
+const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable } =
+  await import(`./lights_map.js${new URL(import.meta.url).search}`);
 
 // ── Maps View ────────────────────────────────────────────────────────────────
 //
@@ -6008,54 +6011,6 @@ function _isPro(ctx) {
 
 
 
-// Fetch the HA entity registry and build entity_id → area_name lookup for all
-// light entities. Cached on ctx.state._lightsReg for 60s to avoid hammering
-// the WS API on every 5s poll cycle.
-async function _loadLightsReg(ctx) {
-  // Guard against overlapping fetches: this is a multi-MB whole-house
-  // registry dump (2.68MB / 2,845 entities on a large install) that can
-  // easily take longer than one render/poll cycle. Without this guard,
-  // _lightsTab re-triggering this call on every render while the registry
-  // is still missing piles up redundant concurrent multi-MB fetches and can
-  // make it look like it never finishes loading.
-  if (ctx.state._lightsRegLoading) return;
-  ctx.state._lightsRegLoading = true;
-  try {
-    // A stale/half-open HA websocket connection can leave a callWS() promise
-    // permanently unsettled (no error, no response) — without a bound, that
-    // would wedge _lightsRegLoading true forever and silently freeze room
-    // grouping for the rest of this panel's life. Race against a timeout so
-    // the guard always releases.
-    // A light entity commonly has no Area of its own and inherits one from
-    // its parent device instead — matches lights_panel.js's _loadLightsReg,
-    // which already does this correctly; this copy was missing the device
-    // fallback entirely, making every light on this house look unassigned.
-    const [reg, devReg] = await Promise.race([
-      Promise.all([
-        ctx.hass.callWS({ type: "config/entity_registry/list" }),
-        ctx.hass.callWS({ type: "config/device_registry/list" }),
-      ]),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("registry fetch timed out")), 30000)),
-    ]);
-    const areas = ctx.state.model?.areas || [];
-    const areaIdToName = {};
-    for (const a of areas) areaIdToName[a.id] = a.name;
-    const devAreaId = {};
-    for (const d of (devReg || [])) if (d.area_id) devAreaId[d.id] = d.area_id;
-    const areaMap = {};
-    for (const e of reg) {
-      if (!e.entity_id.startsWith("light.")) continue;
-      const aid = e.area_id || devAreaId[e.device_id] || null;
-      areaMap[e.entity_id] = aid ? (areaIdToName[aid] || null) : null;
-    }
-    ctx.state._lightsReg = { ts: Date.now(), areaMap };
-  } catch(err) {
-    ctx.state._lightsReg = { ts: Date.now(), areaMap: {} };
-  } finally {
-    ctx.state._lightsRegLoading = false;
-  }
-}
-
 // ─── Real-world metric room geometry + light placement (Lights tab) ───────
 // Everything below renders from the app's UNIFIED real-world model
 // (ModelStore.floors / room_geometry_m / map_transforms) — the same
@@ -6208,30 +6163,37 @@ function _attachPanZoom(viewport, inner) {
 }
 
 
-// Seed fraction for placing a light: its room's fabric centroid (world frame)
-// converted into the owning map's photo-fraction space. Falls back to the
-// map centre when the room has no fabric shape.
-function _roomSeedFrac(ctx, maps, editActive, light) {
-  try {
-    const fw = fabricWorldRooms(maps, ctx.state.model);
-    const room = light.area_name;
-    if (fw && room && fw[room]) {
-      const pts = fw[room].pts;
-      const wx = pts.reduce((a, p) => a + p[0], 0) / pts.length;
-      const wy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
-      const inv = makeStackXform(editActive.stack, imageAr(editActive)).invMapPt;
-      const [fx, fy] = inv(wx, wy);
-      return [Math.max(-50, Math.min(50, fx)), Math.max(-50, Math.min(50, fy))];
-    }
-  } catch (_) {}
-  return [0.5, 0.5];
+// ─── Lights tab — the builder for the Lights sidebar's map ────────────────
+// The sidebar DISPLAYS the house-lights representation; this tab BUILDS it,
+// on the identical shared view (views/lights_map.js): same maps, same rooms,
+// same hexes, same codes, same controls, same index table. Every light
+// already appears on the map — auto-clustered at its room's centre until
+// placed — so the tools act directly on the hexes: click one to select it,
+// drag it to where the light physically is, recolor it, or release it back
+// to the auto cluster. Saving publishes the arrangement; the sidebar then
+// shows exactly this map.
+//
+// Placement storage is unchanged (per-map `lights` entries in photo-fraction
+// space via maps_update): a drag inverts the iso projection at the hex's own
+// floor z back to world coords, then into the owning map's fraction space.
+// The owning map is picked automatically — a placed hex moves on its own
+// map; an auto hex lands on its floor's primary (best-calibrated) map. The
+// user never sees or picks a photo here.
+
+// Draft: mapId → scratch copy of that map's lights[]. Presence of a key IS
+// the dirty marker; Save writes every drafted map, Discard drops them all.
+function _lightsDraftFor(ctx, mapState, mapId) {
+  if (!mapState._lightsDraft[mapId]) {
+    const m = (ctx.state.maps.list || []).find(x => x.id === mapId);
+    mapState._lightsDraft[mapId] = JSON.parse(JSON.stringify((m && m.lights) || []));
+  }
+  return mapState._lightsDraft[mapId];
 }
 
-// Wire clicks + Pro drag onto the shared iso SVG. Dragging inverts the iso
-// projection at the light's floor z back to world coords, then into the
-// owning map's fraction space (the persisted format) via invMapPt.
-function _wireLightsIso(ctx, container, o) {
-  const svg = container.querySelector("svg");
+// Wire the build tools onto the shared iso SVG: click any hex to select it,
+// drag any hex to place/move it. Runs after every SVG rebuild.
+function _wireLightsBuild(ctx, isoDiv, o) {
+  const svg = isoDiv.querySelector("svg");
   if (!svg) return;
   const toVB = (ev) => {
     const p = svg.createSVGPoint();
@@ -6239,33 +6201,33 @@ function _wireLightsIso(ctx, container, o) {
     const m = svg.getScreenCTM();
     return m ? p.matrixTransform(m.inverse()) : { x: 0, y: 0 };
   };
+  // Inverse of iso_lights.js's projection at a hex's own floor z — reads the
+  // LIVE slider values so a drag right after a spacing change stays exact.
   const isoInv = (sx, sy, z) => {
-    const a = (sx - ISO.CX - z * o.hGap) / (ISO.TILE * 0.866);
-    const b = (sy - ISO.CY + z * o.gap) / (ISO.TILE * 0.5);
+    const a = (sx - ISO.CX - z * o.view.horizGap) / (ISO.TILE * 0.866);
+    const b = (sy - ISO.CY + z * o.view.floorGap) / (ISO.TILE * 0.5);
     return [(a + b) / 2, (b - a) / 2];
   };
 
-  // Selection highlight (placed entry or unplaced pick)
-  const selEntry = o.draftLights.find(lt => lt.id === o.mapState._selectedLightPinId);
-  const selEid = selEntry ? selEntry.entity_id : o.mapState._selectedUnplacedEid;
+  // Selection highlight
+  const selEid = o.mapState._selLight ? o.mapState._selLight.eid : null;
   if (selEid) {
-    const g = container.querySelector(`g.lhex[data-eid="${CSS.escape(selEid)}"]`);
+    const g = isoDiv.querySelector(`g.lhex[data-eid="${CSS.escape(selEid)}"]`);
     const poly = g && g.querySelector("polygon");
     if (poly) { poly.setAttribute("stroke", "#e879f9"); poly.setAttribute("stroke-width", "3.5"); }
   }
 
-  for (const g of container.querySelectorAll("g.lhex[data-eid]")) {
+  for (const g of isoDiv.querySelectorAll("g.lhex[data-eid]")) {
     const eid = g.getAttribute("data-eid");
+    const z = parseFloat(g.getAttribute("data-z") || "0");
+    const placedMapId = g.getAttribute("data-map") || null;
+
     g.addEventListener("mousedown", (ev) => {
       if (ev.button !== 0) return;
-      const entry = o.pro && o.editActive ? o.draftLights.find(lt => lt.entity_id === eid) : null;
-      if (!entry) return;             // not draggable — click handler below decides
       ev.preventDefault(); ev.stopPropagation();
-      const z = o.editActive.stack?.z_level ?? 0;
-      const invPt = makeStackXform(o.editActive.stack, imageAr(o.editActive)).invMapPt;
       const start = toVB(ev);
       let moved = false;
-      o.mapState._editDragging = true;
+      o.mapState._editDragging = true;   // suppress poll re-renders mid-drag
       const mm = (e) => {
         const v = toVB(e);
         const dx = v.x - start.x, dy = v.y - start.y;
@@ -6276,130 +6238,111 @@ function _wireLightsIso(ctx, container, o) {
         window.removeEventListener("mousemove", mm);
         window.removeEventListener("mouseup", up);
         o.mapState._editDragging = false;
-        if (moved) {
-          const v = toVB(e);
-          const [wx, wy] = isoInv(v.x, v.y, z);
-          const [fx, fy] = invPt(wx, wy);
-          entry.x = Math.max(-50, Math.min(50, Math.round(fx * 10000) / 10000));
-          entry.y = Math.max(-50, Math.min(50, Math.round(fy * 10000) / 10000));
-          o.mapState._selectedLightPinId = entry.id;
-          o.mapState._selectedUnplacedEid = null;
+        if (!moved) {
+          // Plain click: select the light (the inspector holds the tools).
+          o.mapState._selLight = { eid, mapId: placedMapId };
+          ctx.actions.renderRooms();
+          return;
         }
+        const v = toVB(e);
+        const [wx, wy] = isoInv(v.x, v.y, z);
+        // Owning map: a placed hex moves on its own map; an auto hex gets
+        // placed on its floor's primary (best-calibrated) map.
+        const mapId = placedMapId || _primaryMapIdForFloor(ctx,
+          o.visMaps.filter(m => (m.stack?.z_level ?? 0) === z).map(m => m.id));
+        const map = o.visMaps.find(m => m.id === mapId);
+        if (!map) { ctx.actions.renderRooms(); return; }
+        const inv = makeStackXform(map.stack, imageAr(map)).invMapPt;
+        const [fx, fy] = inv(wx, wy);
+        const nx = Math.max(-50, Math.min(50, Math.round(fx * 10000) / 10000));
+        const ny = Math.max(-50, Math.min(50, Math.round(fy * 10000) / 10000));
+        const lightsArr = _lightsDraftFor(ctx, o.mapState, mapId);
+        let entry = lightsArr.find(lt => lt.entity_id === eid);
+        if (!entry) {
+          const l = o.lightsByEid[eid];
+          entry = {
+            id: `lt_${Date.now().toString(16)}`,
+            entity_id: eid,
+            label: l ? l.friendly_name : eid,
+            x: nx, y: ny,
+            color: "#fbbf24", shape: "circle", rotation: 0, width_cm: 15, height_cm: 15,
+          };
+          lightsArr.push(entry);
+        } else {
+          entry.x = nx; entry.y = ny;
+        }
+        o.mapState._selLight = { eid, mapId };
         ctx.actions.renderRooms();
       };
       window.addEventListener("mousemove", mm);
       window.addEventListener("mouseup", up);
-    });
-    g.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      if (!o.pro) { o.toggle(eid); return; }
-      const entry = o.draftLights.find(lt => lt.entity_id === eid);
-      if (entry) {
-        // Plain click on a placed pin selects it (drag-end already handles
-        // the moved case — a click after a drag is a no-op re-select).
-        o.mapState._selectedLightPinId = entry.id;
-        o.mapState._selectedUnplacedEid = null;
-      } else {
-        o.mapState._selectedUnplacedEid = eid;
-        o.mapState._selectedLightPinId = null;
-      }
-      ctx.actions.renderRooms();
     });
   }
 }
 
 function _lightsTab(ctx, maps, active) {
   const { el } = ctx.helpers;
-  const card = el("div", { class: "card" });
-  const pro = _isPro(ctx);
   const mapState = ctx.state.maps;
+  const wrap = el("div", {});
+  if (!mapState._lightsDraft) mapState._lightsDraft = {};
 
-  card.appendChild(el("div", { class: "card-head", style: "margin-bottom:12px" }, [
-    el("div", { style: "font-weight:700;font-size:15px" }, "Lights"),
-    el("span", { class: "muted", style: "font-size:12px" },
-      pro ? "The same map as the Lights sidebar. Pick a floor to drag lights; click a hex to select it."
-          : "Tap a hexagon or row to toggle."),
-  ]));
+  // Identical map = identical inputs: the same hidden-maps filter the
+  // sidebar applies (init from the same persisted setting if the 3D Stack
+  // tab hasn't already done so this session).
+  if (!mapState._hiddenMapIds) {
+    const savedIds = ctx.state.settings?.hidden_map_ids;
+    if (Array.isArray(savedIds)) {
+      mapState._hiddenMapIds = new Set(savedIds);
+    } else {
+      try {
+        const stored = JSON.parse(localStorage.getItem("padspan_hiddenMapIds") || "[]");
+        mapState._hiddenMapIds = new Set(Array.isArray(stored) ? stored : []);
+      } catch(e) { mapState._hiddenMapIds = new Set(); }
+    }
+  }
+  const visMaps = maps.filter(m => !mapState._hiddenMapIds.has(m.id));
 
-  // Room assignment needs the entity registry (a multi-MB whole-house dump);
-  // on/off state doesn't. Render immediately using whatever's already known
-  // — room grouping backfills and re-renders once the registry lands.
-  const regCache = ctx.state._lightsReg;
-  const lightsLoading = !regCache || Date.now() - regCache.ts > 60000;
-  if (lightsLoading && ctx.hass) _loadLightsReg(ctx).then(() => ctx.actions.renderRooms());
+  // Shared registry pipeline — the same implementation and staleness rule as
+  // the sidebar, so the two views can never disagree on room assignment.
+  // Guarded on the model so area NAMES exist before the areaMap is cached.
+  if (!ctx.state._lightsRegStore) ctx.state._lightsRegStore = {};
+  const areas = ctx.state.model?.areas || [];
+  const floors = ctx.state.model?.floors || [];
+  const modelReady = areas.length > 0 || floors.length > 0;
+  const reg = modelReady
+    ? ensureLightsRegistry(ctx.state._lightsRegStore, ctx.hass, areas, () => ctx.actions.renderRooms())
+    : { areaMap: {}, loading: true };
+  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap);
 
-  const states = ctx.hass?.states || {};
-  const areaMap = (!lightsLoading && regCache) ? regCache.areaMap : {};
-  const lights = Object.keys(states)
-    .filter(eid => eid.startsWith("light."))
-    .map(eid => ({
-      entity_id:     eid,
-      friendly_name: states[eid].attributes?.friendly_name || eid,
-      state:         states[eid].state,   // "on" | "off" | "unavailable"
-      area_name:     areaMap[eid] || null,
-      effect_list:   Array.isArray(states[eid].attributes?.effect_list) ? states[eid].attributes.effect_list : null,
-    }))
-    .sort((a, b) =>
-      (a.area_name || "\xff").localeCompare(b.area_name || "\xff") ||
-      a.friendly_name.localeCompare(b.friendly_name));
+  const head = el("div", { class: "card" }, [
+    el("div", { class: "card-head" }, [
+      el("div", { style: "font-weight:700;font-size:15px" }, "Lights"),
+      el("span", { class: "muted", style: "font-size:12px" },
+        "Builds the Lights sidebar's map — what you arrange here is exactly what the sidebar shows. Click a hex to select a light; drag it to where it really is."),
+    ]),
+  ]);
+  wrap.appendChild(head);
 
   if (!lights.length) {
-    card.appendChild(el("div", { class: "muted", style: "padding:8px" },
+    head.appendChild(el("div", { class: "muted", style: "padding:8px" },
       "No light entities found in Home Assistant."));
-    return card;
+    return wrap;
   }
 
-  // Canonical codes shared with the Lights sidebar panel (entity_id order —
-  // identical in both tools; WLED = W-series).
-  assignLightCodes(lights);
   const lightsByEid = {};
   for (const l of lights) lightsByEid[l.entity_id] = l;
 
-  // Lights hidden from the map view — shared with the sidebar's Hide/Show.
-  const hiddenIds = new Set(Array.isArray(ctx.state.settings?.lights_hidden) ? ctx.state.settings.lights_hidden : []);
+  // Hidden lights — the same backend set the sidebar persists.
+  const hiddenEids = new Set(Array.isArray(ctx.state.settings?.lights_hidden) ? ctx.state.settings.lights_hidden : []);
 
   const byRoom = {};
   for (const l of lights) {
-    if (l.area_name && !hiddenIds.has(l.entity_id)) (byRoom[l.area_name] = byRoom[l.area_name] || []).push(l);
+    if (l.area_name && !hiddenEids.has(l.entity_id)) (byRoom[l.area_name] = byRoom[l.area_name] || []).push(l);
   }
 
-  const floors = ctx.state.model?.floors || [];
+  // Drop a selection that no longer resolves (light removed from HA)
+  if (mapState._selLight && !lightsByEid[mapState._selLight.eid]) mapState._selLight = null;
 
-  // ── Floor focus: All (the sidebar's default look) or one z-level.
-  // Editing needs a single focused floor so a drag has one owning map. ────
-  const zLevels = [...new Set(maps.map(m => m.stack?.z_level ?? 0))].sort((a, b) => a - b);
-  const zLabel = (z) => { const f = floors.find(fl => fl.level === z); return f ? (f.name || `Floor ${z}`) : `Floor ${z}`; };
-  if (mapState._lightsFocusZ != null && !zLevels.includes(mapState._lightsFocusZ)) mapState._lightsFocusZ = null;
-  const focusZ = mapState._lightsFocusZ ?? null;
-  const bar = el("div", { style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px" });
-  bar.appendChild(el("span", { class: "muted", style: "font-size:12px" }, "Floor:"));
-  bar.appendChild(el("button", {
-    class: "btn inline" + (focusZ === null ? " primary" : ""),
-    onclick: () => { mapState._lightsFocusZ = null; ctx.actions.renderRooms(); },
-  }, "All"));
-  for (const z of zLevels) {
-    bar.appendChild(el("button", {
-      class: "btn inline" + (focusZ === z ? " primary" : ""),
-      onclick: () => { mapState._lightsFocusZ = z; ctx.actions.renderRooms(); },
-    }, zLabel(z)));
-  }
-  card.appendChild(bar);
-
-  // ── Edit target: the focused floor's primary (best-calibrated) map ──────
-  const focusMaps = focusZ === null ? [] : maps.filter(m => (m.stack?.z_level ?? 0) === focusZ);
-  const editMapId = focusMaps.length ? _primaryMapIdForFloor(ctx, focusMaps.map(m => m.id)) : null;
-  const editActive = maps.find(m => m.id === editMapId) || null;
-
-  // Draft is a scratch copy of the edit map's lights, keyed to its id.
-  if (mapState._draftLightsMapId !== (editActive?.id || null)) {
-    mapState._draftMapLights = editActive ? JSON.parse(JSON.stringify(editActive.lights || [])) : [];
-    mapState._draftLightsMapId = editActive?.id || null;
-    mapState._selectedLightPinId = null;
-    mapState._selectedUnplacedEid = null;
-  }
-  const draftLights = mapState._draftMapLights || [];
-
-  // Toggle: turn_on (no params) restores last brightness on dimmers
   const toggle = async (eid) => {
     if (!ctx.hass) return;
     const on = ctx.hass.states[eid]?.state === "on";
@@ -6411,229 +6354,154 @@ function _lightsTab(ctx, maps, active) {
     }
   };
 
-  if (!pro) {
-    card.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px" }, [
-      el("span", { class: "muted", style: "font-size:12px" },
-        "Dragging a light to its exact spot and colouring its pin is a PadSpan Pro feature."),
-      el("button", {
-        class: "btn inline",
-        onclick: async () => {
-          const key = prompt("Enter your PadSpan Pro licence key (PSPAN-XXXX-XXXX-XXXX-XXXX):");
-          if (!key || !key.trim()) return;
-          try {
-            const r = await ctx.actions.wsCall("padspan_ha/forensics_license_activate", { key: key.trim() });
-            if (r?.ok) {
-              if (r.settings) ctx.state.settings = r.settings;
-              ctx.toast("PadSpan Pro activated");
-              ctx.actions.renderRooms();
-            } else {
-              ctx.toast(r?.message || "Key not valid for PadSpan Pro", true);
-            }
-          } catch(e) {
-            ctx.toast("Licence check failed: " + String(e), true);
+  // View settings live in mapState so slider positions survive re-renders;
+  // seeded from (and saved to) the SAME settings keys the sidebar uses.
+  if (!mapState._lightsView) mapState._lightsView = {
+    floorGap: ctx.state.settings?.overview_iso_floor_gap ?? 150,
+    horizGap: ctx.state.settings?.overview_iso_horiz_gap ?? 0,
+    focusIdx: ctx.state.settings?.overview_iso_focus ?? 0,
+    zoom: 1.0,
+  };
+  const view = mapState._lightsView;
+
+  // Unsaved-work bar
+  const dirtyIds = Object.keys(mapState._lightsDraft).filter(id => maps.some(m => m.id === id));
+  if (dirtyIds.length) {
+    const bar = el("div", { class: "card", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;border:1px solid #b8860b" }, [
+      el("span", { style: "font-size:12px;color:#fbbf24;font-weight:600" },
+        `Unsaved light placements on ${dirtyIds.length} map(s)`),
+      el("button", { class: "btn inline primary", onclick: async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true; btn.textContent = "Saving…";
+        try {
+          for (const mapId of dirtyIds) {
+            const r = await ctx.actions.wsCall("padspan_ha/maps_update", { map_id: mapId, lights: mapState._lightsDraft[mapId] });
+            if (r?.lights_blocked) throw new Error("PadSpan Pro licence not active — positions were not saved");
           }
-        },
-      }, "🔒 Activate PadSpan Pro"),
-    ]));
-  } else if (focusZ === null) {
-    card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:6px" },
-      "Viewing all floors. Pick a floor above to drag lights or add pins."));
-  }
-
-  // ── THE map — the exact same renderer the Lights sidebar uses ───────────
-  const mapsForRender = maps.map(m => m.id === editMapId ? { ...m, lights: draftLights } : m);
-  const gap = ctx.state.settings?.overview_iso_floor_gap ?? 150;
-  const hGap = ctx.state.settings?.overview_iso_horiz_gap ?? 0;
-  const isoDiv = el("div", { style: "margin-top:4px" });
-  isoDiv.innerHTML = buildIsoSVG(mapsForRender, byRoom, hiddenIds, focusZ, gap, hGap, lightsByEid, lightsLoading, floors, ctx.state.model);
-  card.appendChild(isoDiv);
-  _wireLightsIso(ctx, isoDiv, { pro, mapState, draftLights, editActive, lightsByEid, gap, hGap, toggle });
-
-  // ── Add-light row (Pro, focused floor) ──────────────────────────────────
-  if (pro && editActive) {
-    const placedIds = new Set(draftLights.map(lt => lt.entity_id));
-    const unplaced = lights.filter(l => !placedIds.has(l.entity_id) && !hiddenIds.has(l.entity_id));
-    if (unplaced.length) {
-      const addRow = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px" });
-      const addSel = document.createElement("select");
-      addSel.className = "select";
-      for (const l of unplaced) {
-        const o = document.createElement("option");
-        o.value = l.entity_id;
-        o.textContent = `${l.code} · ${l.friendly_name}` + (l.area_name ? ` (${l.area_name})` : "");
-        addSel.appendChild(o);
-      }
-      const addBtn = el("button", { class: "btn inline", onclick: () => {
-        const l = lights.find(x => x.entity_id === addSel.value);
-        if (!l) return;
-        const [fx, fy] = _roomSeedFrac(ctx, maps, editActive, l);
-        const entry = {
-          id: `lt_${Date.now().toString(16)}`,
-          entity_id: l.entity_id,
-          label: l.friendly_name,
-          x: fx, y: fy,
-          color: "#fbbf24", shape: "circle", rotation: 0, width_cm: 15, height_cm: 15,
-        };
-        draftLights.push(entry);
-        mapState._selectedLightPinId = entry.id;
-        mapState._selectedUnplacedEid = null;
+          await ctx.actions.mapsRefreshQuiet();
+          mapState._lightsDraft = {};
+          ctx.toast("Light placements saved ✔");
+        } catch(err) {
+          ctx.toast("Save failed: " + (err.message || err), true);
+        }
         ctx.actions.renderRooms();
-      } }, "Add to map");
-      addRow.appendChild(el("span", { class: "muted", style: "font-size:12px" }, "Add:"));
-      addRow.appendChild(addSel);
-      addRow.appendChild(addBtn);
-      card.appendChild(addRow);
-    }
-  }
-
-  // ── Selected-light inspector (Pro) ──────────────────────────────────────
-  if (pro) {
-    const sel = draftLights.find(lt => lt.id === mapState._selectedLightPinId);
-    const unplacedSel = !sel && mapState._selectedUnplacedEid ? lightsByEid[mapState._selectedUnplacedEid] : null;
-    if (sel || unplacedSel) {
-      const l = sel ? lightsByEid[sel.entity_id] : unplacedSel;
-      const insp = el("div", { style: "display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px;background:#0a150e;border-radius:6px;margin-top:8px" });
-      insp.appendChild(el("div", { style: "font-weight:600;font-size:13px;min-width:140px" },
-        (l ? `${l.code} · ${l.friendly_name}` : (sel ? sel.entity_id : ""))));
-
-      if (l) {
-        const on = l.state === "on";
-        insp.appendChild(el("button", {
-          class: "btn inline",
-          style: `background:${on ? "#fbbf24" : "#374151"};color:${on ? "#111827" : "#fbbf24"}`,
-          onclick: () => toggle(l.entity_id),
-        }, on ? "Turn Off" : "Turn On"));
-      }
-
-      if (sel) {
-        const colorLbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8" }, "Hex colour");
-        const colorInput = document.createElement("input");
-        colorInput.type = "color";
-        colorInput.value = sel.color || "#fbbf24";
-        colorInput.style.cssText = "width:36px;height:26px;border:none;background:none;cursor:pointer";
-        colorInput.addEventListener("change", () => { sel.color = colorInput.value; ctx.actions.renderRooms(); });
-        colorLbl.appendChild(colorInput);
-        insp.appendChild(colorLbl);
-
-        insp.appendChild(el("button", {
-          class: "btn inline", style: "background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5",
-          onclick: () => {
-            const idx = draftLights.findIndex(lt => lt.id === sel.id);
-            if (idx >= 0) draftLights.splice(idx, 1);
-            mapState._selectedLightPinId = null;
-            ctx.actions.renderRooms();
-          },
-        }, "Remove from map"));
-      } else if (unplacedSel && editActive) {
-        insp.appendChild(el("button", {
-          class: "btn inline primary",
-          onclick: () => {
-            const [fx, fy] = _roomSeedFrac(ctx, maps, editActive, unplacedSel);
-            const entry = {
-              id: `lt_${Date.now().toString(16)}`,
-              entity_id: unplacedSel.entity_id,
-              label: unplacedSel.friendly_name,
-              x: fx, y: fy,
-              color: "#fbbf24", shape: "circle", rotation: 0, width_cm: 15, height_cm: 15,
-            };
-            draftLights.push(entry);
-            mapState._selectedLightPinId = entry.id;
-            mapState._selectedUnplacedEid = null;
-            ctx.actions.renderRooms();
-          },
-        }, "📍 Pin to map (then drag)"));
-      } else if (unplacedSel) {
-        insp.appendChild(el("span", { class: "muted", style: "font-size:12px" }, "Pick a floor above to pin this light."));
-      }
-      insp.appendChild(el("button", { class: "btn inline", onclick: () => {
-        mapState._selectedLightPinId = null; mapState._selectedUnplacedEid = null; ctx.actions.renderRooms();
-      } }, "Deselect"));
-      card.appendChild(insp);
-    }
-
-    if (editActive) {
-      const saveBtn = el("button", {
-        class: "btn inline primary",
-        style: "margin-top:8px",
-        onclick: async (e) => {
-          const btn = e.currentTarget;
-          btn.disabled = true; btn.textContent = "Saving…";
-          try {
-            const r = await ctx.actions.wsCall("padspan_ha/maps_update", { map_id: editActive.id, lights: draftLights });
-            if (r?.lights_blocked) {
-              ctx.toast("PadSpan Pro licence not active — positions were not saved", true);
-            } else {
-              await ctx.actions.mapsRefreshQuiet();
-              mapState._draftLightsMapId = null; // forces a fresh draft copy from the saved data
-              ctx.toast("Light positions saved ✔");
-            }
-          } catch(err) {
-            ctx.toast("Save failed: " + String(err), true);
-          }
-          ctx.actions.renderRooms();
-        },
-      }, "💾 Save Positions");
-      card.appendChild(saveBtn);
-    }
-  }
-
-  // ── Unassigned note ─────────────────────────────────────────────────────
-  const allPlacedEntityIds = new Set();
-  for (const m of maps) for (const lt of (m.lights || [])) allPlacedEntityIds.add(lt.entity_id);
-  const allRoomNames = new Set(Object.keys(ctx.state.model?.room_geometry_m || {}));
-  const unassignedVisible = lights.filter(l =>
-    !hiddenIds.has(l.entity_id) &&
-    !allPlacedEntityIds.has(l.entity_id) &&
-    !(l.area_name && allRoomNames.has(l.area_name)));
-  if (unassignedVisible.length) {
-    card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin:8px 0" },
-      `${unassignedVisible.length} light(s) have no matching room (no Home Assistant Area set, or its Area doesn't match a room) and aren't on the map. Assign a matching Area in Home Assistant${pro ? ", or pick a floor and use Add to map" : ""}.`));
-  }
-
-  // ── Light index table ─────────────────────────────────────────────────
-  card.appendChild(el("div", {
-    style: "font-weight:700;font-size:13px;color:#e2e8f0;margin:8px 0 6px",
-  }, `Light Index (${lights.length})`));
-
-  const tbl = el("table", { class: "table", style: "width:100%" });
-  tbl.appendChild(el("thead", {}, el("tr", {}, [
-    el("th", {}, "Code"),
-    el("th", {}, "Light"),
-    el("th", {}, "Room"),
-    el("th", {}, "State"),
-    el("th", { style: "width:60px;text-align:center" }, "Map"),
-  ])));
-  const tbody = el("tbody");
-  for (const l of lights) {
-    const on = l.state === "on";
-    const isHidden = hiddenIds.has(l.entity_id);
-    const row = el("tr", { style: `cursor:pointer;opacity:${isHidden ? "0.45" : "1"}` }, [
-      el("td", { style: `font-family:monospace;font-weight:700;color:${l.isWled ? "#c084fc" : "#52b788"};font-size:12px` }, l.code),
-      el("td", {}, l.friendly_name),
-      el("td", { class: "muted" }, l.area_name || "—"),
-      el("td", {}, el("span", {
-        style: `display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;` +
-               `background:${on ? "#fbbf24" : "#374151"};color:${on ? "#111827" : "#fbbf24"}`,
-      }, on ? "ON" : "OFF")),
-      el("td", { style: "text-align:center" }, el("button", {
-        class: "btn inline",
-        style: `font-size:11px;padding:2px 6px${isHidden ? ";opacity:0.5" : ""}`,
-        onclick: (e) => {
-          e.stopPropagation();
-          const next = new Set(hiddenIds);
-          if (next.has(l.entity_id)) next.delete(l.entity_id); else next.add(l.entity_id);
-          ctx.actions.settingsSet({ lights_hidden: [...next] });
-          ctx.actions.renderRooms();
-        },
-      }, isHidden ? "Show" : "Hide")),
+      } }, "💾 Save placements"),
+      el("button", { class: "btn inline", onclick: () => {
+        mapState._lightsDraft = {};
+        mapState._selLight = null;
+        ctx.actions.renderRooms();
+      } }, "Discard"),
     ]);
-    row.addEventListener("click", () => toggle(l.entity_id));
-    tbody.appendChild(row);
+    wrap.appendChild(bar);
   }
-  tbl.appendChild(tbody);
-  card.appendChild(tbl);
 
-  return card;
+  // ── THE shared map card — identical to the Lights sidebar ───────────────
+  const mapsForRender = visMaps.map(m => mapState._lightsDraft[m.id] ? { ...m, lights: mapState._lightsDraft[m.id] } : m);
+  const host = {
+    el,
+    maps: mapsForRender,
+    floors,
+    model: ctx.state.model,
+    byRoom,
+    hiddenEids,
+    lightsByEid,
+    lightsLoading: reg.loading,
+    view,
+    saveView: () => ctx.actions.settingsSet({
+      overview_iso_floor_gap: view.floorGap,
+      overview_iso_horiz_gap: view.horizGap,
+      overview_iso_focus:     view.focusIdx,
+    }),
+    callWS: (msg) => ctx.hass.callWS(msg),
+    toast: (m, isErr) => ctx.toast(m, isErr),
+    // Build-tool interaction: hexes select and drag instead of toggling.
+    onHexesBuilt: (isoDiv) => _wireLightsBuild(ctx, isoDiv, { mapState, visMaps, view, lightsByEid }),
+    // A table row selects the light on the map (toggle lives in the inspector).
+    onRowClick: (l) => {
+      const owner = visMaps.find(m =>
+        (mapState._lightsDraft[m.id] || m.lights || []).some(lt => lt.entity_id === l.entity_id));
+      mapState._selLight = { eid: l.entity_id, mapId: owner ? owner.id : null };
+      ctx.actions.renderRooms();
+    },
+    onToggleHidden: (eid) => {
+      const next = new Set(hiddenEids);
+      if (next.has(eid)) next.delete(eid); else next.add(eid);
+      ctx.actions.settingsSet({ lights_hidden: [...next] });
+      ctx.actions.renderRooms();
+    },
+    afterAssign: () => {
+      const st = ctx.state._lightsRegStore;
+      if (st.reg) st.reg.ts = 0;   // background refresh, keep serving current copy
+      ctx.actions.renderRooms();
+    },
+  };
+  wrap.appendChild(buildLightsMapCard(host));
+
+  // ── Selected-light inspector — the build tools for one light ────────────
+  const sel = mapState._selLight;
+  if (sel && lightsByEid[sel.eid]) {
+    const l = lightsByEid[sel.eid];
+    const entry = sel.mapId
+      ? (mapState._lightsDraft[sel.mapId] || (visMaps.find(m => m.id === sel.mapId) || {}).lights || [])
+          .find(lt => lt.entity_id === sel.eid)
+      : null;
+    const insp = el("div", { class: "card", style: "display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 12px" });
+    insp.appendChild(el("div", { style: "font-weight:600;font-size:13px;min-width:140px" },
+      `${l.code} · ${l.friendly_name}`));
+    if (l.isWled) insp.appendChild(el("span", {
+      style: "font-size:11px;font-weight:700;color:#c084fc;border:1px solid #c084fc;border-radius:4px;padding:1px 6px",
+    }, "WLED"));
+
+    const on = l.state === "on";
+    insp.appendChild(el("button", {
+      class: "btn inline",
+      style: `background:${on ? "#fbbf24" : "#374151"};color:${on ? "#111827" : "#fbbf24"}`,
+      onclick: () => toggle(l.entity_id),
+    }, on ? "Turn Off" : "Turn On"));
+
+    if (entry) {
+      const colorLbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8" }, "Hex colour");
+      const colorInput = document.createElement("input");
+      colorInput.type = "color";
+      colorInput.value = entry.color || "#fbbf24";
+      colorInput.style.cssText = "width:36px;height:26px;border:none;background:none;cursor:pointer";
+      colorInput.addEventListener("change", () => {
+        const arr = _lightsDraftFor(ctx, mapState, sel.mapId);
+        const e2 = arr.find(lt => lt.entity_id === sel.eid);
+        if (e2) e2.color = colorInput.value;
+        ctx.actions.renderRooms();
+      });
+      colorLbl.appendChild(colorInput);
+      insp.appendChild(colorLbl);
+
+      insp.appendChild(el("button", {
+        class: "btn inline",
+        onclick: () => {
+          const arr = _lightsDraftFor(ctx, mapState, sel.mapId);
+          const idx = arr.findIndex(lt => lt.entity_id === sel.eid);
+          if (idx >= 0) arr.splice(idx, 1);
+          mapState._selLight = { eid: sel.eid, mapId: null };
+          ctx.actions.renderRooms();
+        },
+      }, "↺ Auto position"));
+    } else {
+      insp.appendChild(el("span", { class: "muted", style: "font-size:12px" },
+        l.area_name
+          ? "Auto-clustered in its room — drag its hex to place it at its exact spot."
+          : "Not on the map — assign it a room in the index below, then drag its hex into place."));
+    }
+    insp.appendChild(el("button", { class: "btn inline", onclick: () => {
+      mapState._selLight = null; ctx.actions.renderRooms();
+    } }, "Deselect"));
+    wrap.appendChild(insp);
+  }
+
+  // ── The shared light index table ────────────────────────────────────────
+  const tblCard = el("div", { class: "card" });
+  tblCard.appendChild(buildLightsTable(host, lights));
+  wrap.appendChild(tblCard);
+
+  return wrap;
 }
 
 // ─── Rooms tab — the fabric room-shape editor ─────────────────────────────

@@ -12,17 +12,18 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.25.4";
-const BUILD_ID = "20260811T225640Z";
+const APP_VERSION = "0.26.0";
+const BUILD_ID = "20260812T001931Z";
 
-// Shared stack transform (P2-5); query inherited from our own module URL so
-// the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { assignLightCodes, isWledLight } =
+// Query inherited from our own module URL so the ?b= cache-buster propagates
+// (see docs/06_UI_CACHE_BUSTING.md).
+const { isWledLight } =
   await import(`./views/light_codes.js${new URL(import.meta.url).search}`);
-// THE shared lights map renderer — also used by the Mapping → Lights tab, so
-// the two tools always show the identical map. All map edits go in there.
-const { buildIsoSVG } =
-  await import(`./views/iso_lights.js${new URL(import.meta.url).search}`);
+// THE shared lights view — data pipeline, map card and index table, also used
+// verbatim by the Mapping → Lights tab (the builder for this display), so the
+// two tools always show the identical map. All lights-view edits go in there.
+const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable } =
+  await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 
 // ── DOM helpers ──────────────────────────────────────────────────────────────
 function el(tag, attrs={}, children=[]){
@@ -42,14 +43,10 @@ function el(tag, attrs={}, children=[]){
   }
   return n;
 }
-function escSVG(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
-
 // isWledLight comes from views/light_codes.js — a light counts as
 // "WLED-class" (effects + full color) if it advertises an effect list.
-
-// Room colour + hex geometry helpers live in views/iso_lights.js now.
-
-// buildIsoSVG moved to views/iso_lights.js (shared with the Mapping → Lights tab).
+// Everything else this panel shows (registry pipeline, map card, index
+// table) lives in views/lights_map.js, shared with the Mapping → Lights tab.
 
 // ── Persistence key ──────────────────────────────────────────────────────────
 const LS_HIDDEN = "padspan_ha_lights_hidden";
@@ -64,14 +61,14 @@ class PadSpanLightsApp extends HTMLElement {
     this.state = {
       maps:        { list:[] },
       model:       { areas:[], floors:[] },
-      _lightsReg:  null,
+      _modelLoaded: false,
       _hiddenMapIds: new Set(),
       _hidden:     this._loadHidden(),
-      _focusIdx:   0,      // index into _isoPos positions array (0 = all floors)
-      _floorGap:   150,    // vertical separation between floors
-      _horizGap:   0,      // horizontal L/R offset between floors
-      _zoom:       1.0,
     };
+    // Registry cache owned here, filled by the shared ensureLightsRegistry.
+    this._regStore = {};
+    // Live view settings for the shared map card (persist across renders).
+    this._view = { floorGap: 150, horizGap: 0, focusIdx: 0, zoom: 1.0 };
 
     // Custom-element upgrade race: HA can set .hass on this element before
     // the browser finishes upgrading it to this class (the defining module
@@ -108,19 +105,18 @@ class PadSpanLightsApp extends HTMLElement {
     // Maps + settings are small and fast — render the floor/room shapes on
     // those alone first. The entity/device registry (needed only to know
     // which room each light is in) is a multi-MB whole-house dump on a
-    // large install; don't block first paint on it — it backfills in and
-    // re-renders once it lands, same as the 5s poll already does.
+    // large install; don't block first paint on it — the shared
+    // ensureLightsRegistry backfills it in the background from _buildUI
+    // (guarded on the model so area NAMES exist before the map is built).
     await Promise.allSettled([ this._loadMaps(), this._loadSettings() ]);
     this._render();
-    this._loadModel().then(()=>this._loadLightsReg()).then(()=>this._render());
+    this._loadModel().then(()=>this._render());
     this._pollTimer = setInterval(()=>this._poll(), 5000);
   }
 
   async _poll(){
     if(!this._hass) return;
-    if(!this.state._lightsReg || Date.now()-this.state._lightsReg.ts > 60000)
-      await this._loadLightsReg();
-    this._render();
+    this._render();   // registry staleness handled inside _buildUI
   }
 
   async _loadMaps(){
@@ -139,15 +135,19 @@ class PadSpanLightsApp extends HTMLElement {
         map_transforms: res?.map_transforms||{},
       };
     }catch(e){}
+    // Registry area-name resolution waits on this flag (success OR failure) —
+    // building the areaMap before areas load would mark every light
+    // unassigned and then cache that for 60s.
+    this.state._modelLoaded = true;
   }
 
   async _loadSettings(){
     try{
       const res = await this._hass.callWS({ type:"padspan_ha/settings_get" });
       const s = res?.settings || {};
-      this.state._floorGap  = s.overview_iso_floor_gap ?? 150;
-      this.state._horizGap  = s.overview_iso_horiz_gap ?? 0;
-      this.state._focusIdx  = s.overview_iso_focus     ?? 0;
+      this._view.floorGap = s.overview_iso_floor_gap ?? 150;
+      this._view.horizGap = s.overview_iso_horiz_gap ?? 0;
+      this._view.focusIdx = s.overview_iso_focus     ?? 0;
       // Sync hidden map IDs from the same source maps.js uses
       const savedIds = s.hidden_map_ids;
       if(Array.isArray(savedIds)){
@@ -169,51 +169,11 @@ class PadSpanLightsApp extends HTMLElement {
       await this._hass.callWS({
         type:                    "padspan_ha/settings_set",
         data_mode:               "live",
-        overview_iso_floor_gap:  this.state._floorGap,
-        overview_iso_horiz_gap:  this.state._horizGap,
-        overview_iso_focus:      this.state._focusIdx,
+        overview_iso_floor_gap:  this._view.floorGap,
+        overview_iso_horiz_gap:  this._view.horizGap,
+        overview_iso_focus:      this._view.focusIdx,
       });
     }catch(e){ throw e; }
-  }
-
-  async _loadLightsReg(){
-    // Guard against overlapping fetches: this is a multi-MB whole-house
-    // registry dump that can take longer than the 5s poll interval, and
-    // without this guard the poll (and the background load kicked off from
-    // _boot) would each start their own redundant fetch, compounding into a
-    // pile of concurrent multi-MB requests that made the panel effectively
-    // never finish loading.
-    if(this._lightsRegLoading) return;
-    this._lightsRegLoading=true;
-    try{
-      // A stale/half-open HA websocket connection can leave a callWS()
-      // promise permanently unsettled — without a bound, that would wedge
-      // _lightsRegLoading true forever and silently freeze room grouping.
-      const [regRes, devRes] = await Promise.race([
-        Promise.all([
-          this._hass.callWS({ type:"config/entity_registry/list" }),
-          this._hass.callWS({ type:"config/device_registry/list" }),
-        ]),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("registry fetch timed out")), 30000)),
-      ]);
-      const areas = this.state.model.areas;
-      const areaIdToName={};
-      for(const a of areas) areaIdToName[a.id]=a.name;
-      // device_id → area_id (for entities that inherit area from device)
-      const devAreaId={};
-      for(const d of (devRes||[])) if(d.area_id) devAreaId[d.id]=d.area_id;
-      const areaMap={};
-      for(const e of (regRes||[])){
-        if(!e.entity_id.startsWith("light.")) continue;
-        const aid = e.area_id || devAreaId[e.device_id] || null;
-        areaMap[e.entity_id] = aid ? (areaIdToName[aid]||null) : null;
-      }
-      this.state._lightsReg={ts:Date.now(), areaMap};
-    }catch(e){
-      this.state._lightsReg={ts:Date.now(), areaMap:{}};
-    }finally{
-      this._lightsRegLoading=false;
-    }
   }
 
   async _toggle(eid){
@@ -331,39 +291,24 @@ class PadSpanLightsApp extends HTMLElement {
       el("span",{style:"font-size:12px;color:#94a3b8"},`v${APP_VERSION}`),
       el("span",{class:"muted",style:"font-size:12px"},"Tap hex or row to toggle \u00b7 Yellow\u00a0=\u00a0on \u00b7 Grey\u00a0=\u00a0off"),
       el("button",{class:"btn inline",style:"margin-left:auto",onclick:()=>{
-        this.state._lightsReg=null; this._boot().then(()=>this._render());
+        this._regStore.reg=null; this._boot().then(()=>this._render());
       }},"Refresh"),
     ]));
 
-    // Room assignment needs the entity/device registry (a multi-MB
-    // whole-house dump); on/off state does not. Render immediately using
-    // whatever is already known -- room grouping backfills and re-renders
-    // once the registry lands (see _boot) instead of blocking first paint.
-    const lightsLoading=!this.state._lightsReg;
-
-
-    // ── Gather lights ─────────────────────────────────────────────────────────
-    const states=this._hass?.states||{};
-    const regMap=lightsLoading ? {} : this.state._lightsReg.areaMap;
-    const lights=Object.keys(states)
-      .filter(eid=>eid.startsWith("light."))
-      .map(eid=>({
-        entity_id:     eid,
-        friendly_name: states[eid].attributes?.friendly_name||eid,
-        state:         states[eid].state,
-        area_name:     regMap[eid]||null,
-        effect_list:   Array.isArray(states[eid].attributes?.effect_list) ? states[eid].attributes.effect_list : null,
-      }))
-      .sort((a,b)=>(a.area_name||"\xff").localeCompare(b.area_name||"\xff")||
-                    a.friendly_name.localeCompare(b.friendly_name));
+    // ── Shared data pipeline — identical to the Mapping → Lights tab ─────────
+    // Room assignment needs the entity/device registry (a multi-MB dump);
+    // on/off state does not. Render immediately from the cached copy — the
+    // shared loader refreshes in the background and re-renders when it lands.
+    const reg = this.state._modelLoaded
+      ? ensureLightsRegistry(this._regStore, this._hass, this.state.model.areas, ()=>this._render())
+      : { areaMap:{}, loading:true };
+    const lightsLoading = reg.loading;
+    const lights = gatherLights(this._hass?.states||{}, reg.areaMap);
 
     if(!lights.length){
       root.appendChild(el("div",{class:"muted",style:"padding:8px"},"No light entities found."));
       return root;
     }
-    // Canonical codes shared with the Mapping → Lights tab (entity_id order —
-    // identical in both tools regardless of display sort; WLED = W-series).
-    assignLightCodes(lights);
     const lightsByEid={};
     for(const l of lights) lightsByEid[l.entity_id]=l;
 
@@ -375,249 +320,61 @@ class PadSpanLightsApp extends HTMLElement {
         (byRoom[l.area_name]=byRoom[l.area_name]||[]).push(l);
     }
 
-    // ── Map card with ISO 3D view ─────────────────────────────────────────────
-    const mapCard=el("div",{class:"card",style:"padding:12px;margin-bottom:16px"});
-
-    // Controls row — only visible (non-hidden) maps
+    // ── The shared map card — identical map to the Mapping → Lights tab ──────
     const maps_list=this.state.maps.list.filter(m=>!this.state._hiddenMapIds.has(m.id));
-    const sortedLevels=[...new Set(maps_list.map(m=>m.stack?.z_level??0))].sort((a,b)=>a-b);
     const floors=this.state.model.floors||[];
-    const floorLabel=(z)=>{
-      const f=floors.find(f=>f.level===z);
-      return f?(f.name||`L${z}`):`L${z}`;
-    };
 
-    // Build positions array FIRST (used by isoDiv and slider below)
-    const _isoPos=[null];
-    for(let _fi=0; _fi<sortedLevels.length; _fi++){
-      _isoPos.push(sortedLevels[_fi]);
-      if(_fi<sortedLevels.length-1) _isoPos.push([sortedLevels[_fi],sortedLevels[_fi+1]]);
-    }
-    const _getFocusZ =(idx)=>_isoPos[Math.max(0,Math.min(idx,_isoPos.length-1))];
-    const _getFocusLbl=(idx)=>{
-      const pos=_getFocusZ(idx);
-      if(pos===null) return "All floors";
-      const zArr=Array.isArray(pos)?pos:[pos];
-      return zArr.map(z=>{const f=floors.find(x=>x.level===z);return f?(f.name||`L${z}`):`L${z}`;}).join(" + ");
-    };
-    // Clamp saved index to valid range
-    this.state._focusIdx=Math.max(0,Math.min(this.state._focusIdx,_isoPos.length-1));
-
-    const isoDiv=document.createElement("div");
-    isoDiv.style.cssText=`overflow:auto;border-radius:8px;background:#071008;padding:8px;`+
-      `width:${Math.round(this.state._zoom*100)}%`;
-    isoDiv.innerHTML=buildIsoSVG(maps_list, byRoom, hidden, _getFocusZ(this.state._focusIdx), this.state._floorGap, this.state._horizGap, lightsByEid, lightsLoading, floors, this.state.model);
-
-    const rebuildISO=()=>{
-      isoDiv.style.width=`${Math.round(this.state._zoom*100)}%`;
-      isoDiv.innerHTML=buildIsoSVG(maps_list, byRoom, hidden, _getFocusZ(this.state._focusIdx), this.state._floorGap, this.state._horizGap, lightsByEid, lightsLoading, floors, this.state.model);
-      wireHexClicks();
-    };
-
-    const wireHexClicks=()=>{
-      requestAnimationFrame(()=>{
-        isoDiv.querySelectorAll(".lhex").forEach(g=>{
-          g.addEventListener("click",e=>{
-            e.stopPropagation();
-            const eid=g.dataset.eid;
-            const l=lightsByEid[eid];
-            if(l && isWledLight(l)) this._openWledDetail(eid);
-            else this._toggle(eid);
+    const host={
+      el,
+      maps: maps_list,
+      floors,
+      model: this.state.model,
+      byRoom,
+      hiddenEids: hidden,
+      lightsByEid,
+      lightsLoading,
+      view: this._view,
+      saveView: ()=>this._saveSettings(),
+      callWS: (msg)=>this._hass.callWS(msg),
+      toast: (m,isErr)=>this._toast(m,isErr),
+      // Sidebar interaction: a hex controls the light (the Mapping tab's
+      // host instead wires selection + drag-to-place on the same hexes).
+      onHexesBuilt: (isoDiv)=>{
+        requestAnimationFrame(()=>{
+          isoDiv.querySelectorAll(".lhex").forEach(g=>{
+            g.addEventListener("click",e=>{
+              e.stopPropagation();
+              const eid=g.dataset.eid;
+              const l=lightsByEid[eid];
+              if(l && isWledLight(l)) this._openWledDetail(eid);
+              else this._toggle(eid);
+            });
+            g.addEventListener("mouseover",()=>{g.style.opacity="0.75";});
+            g.addEventListener("mouseout", ()=>{g.style.opacity="1";});
           });
-          g.addEventListener("mouseover",()=>{g.style.opacity="0.75";});
-          g.addEventListener("mouseout", ()=>{g.style.opacity="1";});
         });
-      });
-    };
-
-    // Floor focus slider
-    const ctrlRow=el("div",{style:"display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"});
-
-    if(sortedLevels.length > 1){
-      const focusLbl=el("span",{style:"font-size:12px;color:#94a3b8;min-width:80px"},
-        _getFocusLbl(this.state._focusIdx));
-      const focusSlider=document.createElement("input");
-      focusSlider.type="range"; focusSlider.min="0"; focusSlider.max=String(_isoPos.length-1);
-      focusSlider.style.cssText="width:120px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
-      focusSlider.value=String(this.state._focusIdx);
-      focusSlider.addEventListener("input",()=>{
-        this.state._focusIdx=parseInt(focusSlider.value,10);
-        focusLbl.textContent=_getFocusLbl(this.state._focusIdx);
-        rebuildISO();
-      });
-      ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap"},"Floor:"));
-      ctrlRow.appendChild(focusSlider);
-      ctrlRow.appendChild(focusLbl);
-    }
-
-    // Floor gap slider
-    const gapLbl=el("span",{style:"font-size:12px;color:#94a3b8;min-width:38px"},String(this.state._floorGap));
-    const gapSlider=document.createElement("input");
-    gapSlider.type="range"; gapSlider.min="50"; gapSlider.max="400"; gapSlider.step="10";
-    gapSlider.style.cssText="width:100px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
-    gapSlider.value=String(this.state._floorGap);
-    gapSlider.addEventListener("input",()=>{
-      this.state._floorGap=parseInt(gapSlider.value,10);
-      gapLbl.textContent=String(this.state._floorGap);
-      rebuildISO();
-    });
-    ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap;margin-left:8px"},"Spacing:"));
-    ctrlRow.appendChild(gapSlider);
-    ctrlRow.appendChild(gapLbl);
-
-    // L/R horizontal offset slider
-    const horizLbl=el("span",{style:"font-size:12px;color:#94a3b8;min-width:38px"},String(this.state._horizGap));
-    const horizSlider=document.createElement("input");
-    horizSlider.type="range"; horizSlider.min="-120"; horizSlider.max="120"; horizSlider.step="10";
-    horizSlider.style.cssText="width:100px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
-    horizSlider.value=String(this.state._horizGap);
-    horizSlider.addEventListener("input",()=>{
-      this.state._horizGap=parseInt(horizSlider.value,10);
-      horizLbl.textContent=String(this.state._horizGap);
-      rebuildISO();
-    });
-    ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap;margin-left:8px"},"L/R:"));
-    ctrlRow.appendChild(horizSlider);
-    ctrlRow.appendChild(horizLbl);
-
-    // Save / Reset buttons + status label
-    const saveLbl = el("span",{style:"font-size:11px;color:#94a3b8;min-width:50px;display:inline-block"},"");
-
-    const saveBtn = el("button",{class:"btn inline",style:"margin-left:8px;font-size:12px;padding:2px 10px",
-      onclick:async()=>{
-        saveBtn.disabled=true;
-        try{
-          await this._saveSettings();
-          saveLbl.textContent="Saved \u2713";
-          setTimeout(()=>{ saveLbl.textContent=""; },2000);
-        }catch(e){ saveLbl.textContent="Error"; }
-        saveBtn.disabled=false;
-      }
-    },"Save");
-
-    const resetBtn = el("button",{class:"btn inline",style:"font-size:12px;padding:2px 10px",
-      onclick:async()=>{
-        this.state._floorGap=150; this.state._horizGap=0; this.state._focusIdx=0; this.state._zoom=1.0;
-        gapSlider.value="150";   gapLbl.textContent="150";
-        horizSlider.value="0";   horizLbl.textContent="0";
-        isoDiv.style.width="100%";
-        rebuildISO();
-        resetBtn.disabled=true;
-        try{
-          await this._saveSettings();
-          saveLbl.textContent="Reset \u2713";
-          setTimeout(()=>{ saveLbl.textContent=""; resetBtn.disabled=false; },2000);
-        }catch(e){ saveLbl.textContent="Error"; resetBtn.disabled=false; }
-      }
-    },"Reset");
-
-    ctrlRow.appendChild(saveBtn);
-    ctrlRow.appendChild(resetBtn);
-    ctrlRow.appendChild(saveLbl);
-
-    // Zoom controls
-    ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap;margin-left:8px"},"Zoom:"));
-    ctrlRow.appendChild(el("button",{class:"btn inline",onclick:()=>{
-      this.state._zoom=Math.max(0.4,Math.round((this.state._zoom-0.1)*10)/10);
-      isoDiv.style.width=`${Math.round(this.state._zoom*100)}%`;
-    }},"Zoom \u2212"));
-    ctrlRow.appendChild(el("button",{class:"btn inline",onclick:()=>{
-      this.state._zoom=1.0; isoDiv.style.width="100%";
-    }},"100%"));
-    ctrlRow.appendChild(el("button",{class:"btn inline",onclick:()=>{
-      this.state._zoom=Math.min(2.5,Math.round((this.state._zoom+0.1)*10)/10);
-      isoDiv.style.width=`${Math.round(this.state._zoom*100)}%`;
-    }},"Zoom +"));
-
-    mapCard.appendChild(ctrlRow);
-    mapCard.appendChild(isoDiv);
-    wireHexClicks();
-    root.appendChild(mapCard);
-
-    // ── Unassigned notice ─────────────────────────────────────────────────────
-    const unassigned=lights.filter(l=>!l.area_name&&!hidden.has(l.entity_id));
-    if(lightsLoading){
-      root.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},"Loading room assignments…"));
-    } else if(unassigned.length){
-      root.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-        `${unassigned.length} light(s) not assigned to a room \u2014 shown in index only.`));
-    }
-
-    // ── Light index table ─────────────────────────────────────────────────────
-    const hiddenCount=lights.filter(l=>hidden.has(l.entity_id)).length;
-    root.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#e2e8f0;margin-bottom:6px"},
-      `Light Index (${lights.length}${hiddenCount?` \u00b7 ${hiddenCount} hidden from map`:""})`));
-
-    const tbl=el("table",{class:"table",style:"width:100%"});
-    tbl.appendChild(el("thead",{},el("tr",{},[
-      el("th",{},"Code"),
-      el("th",{},"Light"),
-      el("th",{},"Room"),
-      el("th",{},"State"),
-      el("th",{style:"width:60px;text-align:center"},"Map"),
-    ])));
-    const tbody=el("tbody");
-    for(const l of lights){
-      const on=l.state==="on";
-      const isHidden=hidden.has(l.entity_id);
-      const row=el("tr",{style:`cursor:pointer;opacity:${isHidden?"0.45":"1"}`},[
-        el("td",{style:"font-family:monospace;font-weight:700;color:#52b788;font-size:12px"},l.code),
-        el("td",{},l.friendly_name),
-        el("td",{class:"muted"},l.area_name
-          ? el("span",{},l.area_name)
-          : lightsLoading
-          ? el("span",{},"…")
-          : (()=>{
-              const areas = this.state.model.areas || [];
-              if(!areas.length) return "\u2014";
-              const sel = document.createElement("select");
-              sel.style.cssText = "background:#1a2e1e;color:#52b788;border:1px solid #2d4a36;border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer";
-              sel.appendChild(el("option",{value:""},"Assign room\u2026"));
-              for(const a of areas.sort((x,y)=>x.name.localeCompare(y.name))){
-                sel.appendChild(el("option",{value:a.id}, a.name));
-              }
-              sel.addEventListener("click", e=>e.stopPropagation());
-              sel.addEventListener("change", async ()=>{
-                if(!sel.value) return;
-                sel.disabled = true;
-                try{
-                  await this._hass.callWS({ type:"config/entity_registry/update", entity_id: l.entity_id, area_id: sel.value });
-                  this._toast(`Assigned ${l.friendly_name} to room`);
-                  this.state._lightsReg = null;
-                  await this._loadLightsReg();
-                  this._render();
-                }catch(e){
-                  this._toast("Failed to assign room: "+(e.message||e), true);
-                  sel.disabled = false;
-                }
-              });
-              return sel;
-            })()
-        ),
-        el("td",{},el("span",{
-          style:`display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;`+
-                `background:${on?"#fbbf24":"#374151"};color:${on?"#111827":"#fbbf24"}`,
-        },on?"ON":"OFF")),
-        el("td",{style:"text-align:center"},el("button",{
-          class:"btn inline",
-          style:`font-size:11px;padding:2px 6px${isHidden?";opacity:0.5":""}`,
-          onclick:(e)=>{
-            e.stopPropagation();
-            if(hidden.has(l.entity_id)) hidden.delete(l.entity_id);
-            else hidden.add(l.entity_id);
-            this._saveHidden();
-            this._render();
-          },
-        },isHidden?"Show":"Hide")),
-      ]);
-      row.addEventListener("click",()=>{
+      },
+      onRowClick: (l)=>{
         if(isWledLight(l)) this._openWledDetail(l.entity_id);
         else this._toggle(l.entity_id);
-      });
-      tbody.appendChild(row);
-    }
-    tbl.appendChild(tbody);
-    root.appendChild(tbl);
+      },
+      onToggleHidden: (eid)=>{
+        if(hidden.has(eid)) hidden.delete(eid);
+        else hidden.add(eid);
+        this._saveHidden();
+        this._render();
+      },
+      afterAssign: ()=>{
+        // Force a background registry refresh; keep serving the current copy.
+        if(this._regStore.reg) this._regStore.reg.ts=0;
+        this._render();
+      },
+    };
+
+    root.appendChild(buildLightsMapCard(host));
+
+    // ── Unassigned notice + light index table (shared with the Mapping tab) ──
+    root.appendChild(buildLightsTable(host, lights));
 
     return root;
   }
@@ -642,7 +399,7 @@ class PadSpanLightsApp extends HTMLElement {
       <style>
         :host{display:block;min-height:100vh;background:#0a150e;color:#e2e8f0;
               font-family:Inter,system-ui,Arial,sans-serif;box-sizing:border-box}
-        #content{padding:16px;max-width:900px;margin:0 auto}
+        #content{padding:16px}
       </style>
       <div id="content"></div>
     `;

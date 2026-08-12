@@ -147,14 +147,17 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
     s+=`<polygon points="${pts([TL,TR,BR,BL])}" fill="#0f2017" fill-opacity="0.06" stroke="${lyrColor}" stroke-width="1.5" stroke-dasharray="10,5" opacity="0.5"/>`;
     if(lidx!==1) s+=`<polygon points="${pts([TL,TR,BR,BL])}" fill="url(#flrpat_${lidx})" stroke="none"/>`;
 
-    // Room polygons + room name labels + hexagons
-    const markerSvg=(l,hx,hy,entry)=>{
+    // Room polygons + room name labels + hexagons. `extra` carries data-*
+    // attributes (floor z, owning map for placed pins) so the Mapping →
+    // Lights tab's build tools can act on any hex directly; the sidebar
+    // ignores them.
+    const markerSvg=(l,hx,hy,entry,extra="")=>{
       const on=l.state==="on";
       const fill=(entry&&entry.color)||(on?"#fbbf24":"#374151");
       const stroke=l.isWled?WLED_BORDER:"#60a5fa";
       const op=on?1:0.45;
       const tCol=on?"#111827":"#e2e8f0";
-      return `<g class="lhex" data-eid="${escSVG(l.entity_id)}" style="cursor:pointer" opacity="${op}">`+
+      return `<g class="lhex" data-eid="${escSVG(l.entity_id)}"${extra?" "+extra:""} style="cursor:pointer" opacity="${op}">`+
         `<polygon points="${hexPts(hx,hy,HEX_R)}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`+
         `<text x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
         `font-family="monospace" font-size="11" font-weight="700" fill="${tCol}" pointer-events="none">`+
@@ -195,7 +198,7 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
       const offsets=hexCluster(roomLights.length, HEX_R);
       roomLights.forEach((l,idx)=>{
         const [dx,dy]=offsets[idx];
-        s+=markerSvg(l, lix+dx, liy+dy, null);
+        s+=markerSvg(l, lix+dx, liy+dy, null, `data-z="${z}"`);
       });
     };
 
@@ -225,7 +228,7 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
         if(!l) continue;
         const [wx,wy]=mapPt(entry.x, entry.y);
         const [hx,hy]=iso(wx,wy,z);
-        s+=markerSvg(l,hx,hy,entry);
+        s+=markerSvg(l,hx,hy,entry,`data-z="${z}" data-map="${escSVG(m.id)}" data-placed="1"`);
       }
 
       if(fabHere.length) continue;   // the fabric drew this group's rooms
