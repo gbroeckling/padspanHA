@@ -15,6 +15,9 @@ const { ISO } =
 // identical map; this tab layers the build tools on top of it.
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
+// Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
+const { LIGHT_SHAPES, deriveLightShape } =
+  await import(`./light_codes.js${new URL(import.meta.url).search}`);
 
 // ── Maps View ────────────────────────────────────────────────────────────────
 //
@@ -6222,30 +6225,54 @@ function _wireLightsBuild(ctx, isoDiv, o) {
     const z = parseFloat(g.getAttribute("data-z") || "0");
     const placedMapId = g.getAttribute("data-map") || null;
 
-    g.addEventListener("mousedown", (ev) => {
-      if (ev.button !== 0) return;
+    // Pointer events, not mouse events: one code path covers mouse, touch and
+    // pen (the builder was unusable on a tablet), and pointer capture
+    // guarantees the release fires even if the finger/cursor leaves the SVG —
+    // which is what previously left _editDragging stuck true and froze every
+    // panel render until reload.
+    g.addEventListener("pointerdown", (ev) => {
+      if (ev.button !== 0 && ev.pointerType === "mouse") return;
       ev.preventDefault(); ev.stopPropagation();
       const start = toVB(ev);
+      // Grab offset: dragging must move the hex by the pointer's DELTA, not
+      // teleport its centre to the pointer — otherwise grabbing a hex near its
+      // edge snaps the light sideways by that offset on drop.
+      let originCx = start.x, originCy = start.y;
+      try {
+        const bb = g.getBBox();
+        originCx = bb.x + bb.width / 2;
+        originCy = bb.y + bb.height / 2;
+      } catch (_) {}
       let moved = false;
-      o.mapState._editDragging = true;   // suppress poll re-renders mid-drag
+      try { g.setPointerCapture(ev.pointerId); } catch (_) {}
       const mm = (e) => {
         const v = toVB(e);
         const dx = v.x - start.x, dy = v.y - start.y;
-        if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+        // Arm the drag (and the render freeze) only once this is genuinely a
+        // drag: a 3px twitch during a select-click used to pin an auto-
+        // clustered light silently.
+        if (!moved && Math.abs(dx) + Math.abs(dy) > 3) {
+          moved = true;
+          o.mapState._editDragging = true;   // suppress poll re-renders mid-drag
+        }
         if (moved) g.setAttribute("transform", `translate(${dx},${dy})`);
       };
       const up = (e) => {
-        window.removeEventListener("mousemove", mm);
-        window.removeEventListener("mouseup", up);
+        g.removeEventListener("pointermove", mm);
+        g.removeEventListener("pointerup", up);
+        g.removeEventListener("pointercancel", up);
+        try { g.releasePointerCapture(ev.pointerId); } catch (_) {}
         o.mapState._editDragging = false;
-        if (!moved) {
-          // Plain click: select the light (the inspector holds the tools).
+        if (!moved || e.type === "pointercancel") {
+          // Plain click (or a cancelled gesture): select the light; the
+          // inspector holds the tools. Never write a position here.
+          g.removeAttribute("transform");
           o.mapState._selLight = { eid, mapId: placedMapId };
           ctx.actions.renderRooms();
           return;
         }
         const v = toVB(e);
-        const [wx, wy] = isoInv(v.x, v.y, z);
+        const [wx, wy] = isoInv(originCx + (v.x - start.x), originCy + (v.y - start.y), z);
         // Owning map: a placed hex moves on its own map; an auto hex gets
         // placed on its floor's primary (best-calibrated) map.
         const mapId = placedMapId || _primaryMapIdForFloor(ctx,
@@ -6274,8 +6301,9 @@ function _wireLightsBuild(ctx, isoDiv, o) {
         o.mapState._selLight = { eid, mapId };
         ctx.actions.renderRooms();
       };
-      window.addEventListener("mousemove", mm);
-      window.addEventListener("mouseup", up);
+      g.addEventListener("pointermove", mm);
+      g.addEventListener("pointerup", up);
+      g.addEventListener("pointercancel", up);
     });
   }
 }
@@ -6311,7 +6339,9 @@ function _lightsTab(ctx, maps, active) {
   const reg = ctx.state._modelLoaded
     ? ensureLightsRegistry(ctx.state._lightsRegStore, ctx.hass, areas, () => ctx.actions.renderRooms())
     : { areaMap: {}, loading: true };
-  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap);
+  const shapeOverrides = (ctx.state.settings?.light_shapes && typeof ctx.state.settings.light_shapes === "object")
+    ? ctx.state.settings.light_shapes : {};
+  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides);
 
   const head = el("div", { class: "card" }, [
     el("div", { class: "card-head" }, [
@@ -6372,16 +6402,25 @@ function _lightsTab(ctx, maps, active) {
       el("button", { class: "btn inline primary", onclick: async (e) => {
         const btn = e.currentTarget;
         btn.disabled = true; btn.textContent = "Saving…";
+        // Drop each map from the draft as it lands. If a later one fails, the
+        // ones already written stay written and are no longer offered as
+        // unsaved — reporting "failed" for work that IS saved would push the
+        // user to retry and re-send it.
+        let saved = 0;
         try {
           for (const mapId of dirtyIds) {
             const r = await ctx.actions.wsCall("padspan_ha/maps_update", { map_id: mapId, lights: mapState._lightsDraft[mapId] });
             if (r?.lights_blocked) throw new Error("PadSpan Pro licence not active — positions were not saved");
+            delete mapState._lightsDraft[mapId];
+            saved++;
           }
           await ctx.actions.mapsRefreshQuiet();
-          mapState._lightsDraft = {};
           ctx.toast("Light placements saved ✔");
         } catch(err) {
-          ctx.toast("Save failed: " + (err.message || err), true);
+          await ctx.actions.mapsRefreshQuiet();
+          ctx.toast(saved
+            ? `Saved ${saved} of ${dirtyIds.length} — the rest failed: ${err.message || err}`
+            : "Save failed: " + (err.message || err), true);
         }
         ctx.actions.renderRooms();
       } }, "💾 Save placements"),
@@ -6406,11 +6445,22 @@ function _lightsTab(ctx, maps, active) {
     lightsByEid,
     lightsLoading: reg.loading,
     view,
-    saveView: () => ctx.actions.settingsSet({
-      overview_iso_floor_gap: view.floorGap,
-      overview_iso_horiz_gap: view.horizGap,
-      overview_iso_focus:     view.focusIdx,
-    }),
+    // settingsSet re-renders the whole maps view, which detaches the shared
+    // card's "Saved ✓" label before it can be read — so confirm with a toast,
+    // which outlives the re-render. A failure must not look like a success.
+    saveView: async () => {
+      try {
+        await ctx.actions.settingsSet({
+          overview_iso_floor_gap: view.floorGap,
+          overview_iso_horiz_gap: view.horizGap,
+          overview_iso_focus:     view.focusIdx,
+        });
+        ctx.toast("Map view saved ✔");
+      } catch (e) {
+        ctx.toast("Could not save the map view: " + String(e), true);
+        throw e;
+      }
+    },
     callWS: (msg) => ctx.hass.callWS(msg),
     toast: (m, isErr) => ctx.toast(m, isErr),
     // Build-tool interaction: hexes select and drag instead of toggling.
@@ -6462,6 +6512,35 @@ function _lightsTab(ctx, maps, active) {
       style: `background:${on ? "#fbbf24" : "#374151"};color:${on ? "#111827" : "#fbbf24"}`,
       onclick: () => toggle(l.entity_id),
     }, on ? "Turn Off" : "Turn On"));
+
+    // Fixture shape — derived from the entity by default; this is the override.
+    // Stored per entity_id (not per pin) so it works for every light, whether
+    // it has been placed or is still auto-clustered in its room.
+    {
+      const current = shapeOverrides[l.entity_id] || "auto";
+      const derived = LIGHT_SHAPES.find(([k]) => k === deriveLightShape(l));
+      const shapeLbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8" }, "Shape");
+      const shapeSel = document.createElement("select");
+      shapeSel.className = "select";
+      for (const [kind, label] of LIGHT_SHAPES) {
+        const o = document.createElement("option");
+        o.value = kind;
+        o.textContent = kind === "auto" && derived ? `Auto — ${derived[1]}` : label;
+        if (kind === current) o.selected = true;
+        shapeSel.appendChild(o);
+      }
+      shapeSel.addEventListener("change", async () => {
+        const next = { ...shapeOverrides };
+        if (shapeSel.value === "auto") delete next[l.entity_id];
+        else next[l.entity_id] = shapeSel.value;
+        shapeSel.disabled = true;
+        try { await ctx.actions.settingsSet({ light_shapes: next }); }
+        catch (e) { ctx.toast("Could not save shape: " + String(e), true); }
+        ctx.actions.renderRooms();
+      });
+      shapeLbl.appendChild(shapeSel);
+      insp.appendChild(shapeLbl);
+    }
 
     if (entry) {
       const colorLbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8" }, "Hex colour");

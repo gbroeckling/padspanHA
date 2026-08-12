@@ -19,6 +19,51 @@ export function isWledLight(l) {
 // Distinct marker border/stroke for WLED-class lights in both views.
 export const WLED_BORDER = "#c084fc";
 
+// ── Fixture shape ────────────────────────────────────────────────────────────
+// The marker's OUTLINE answers "what kind of light is that" without reading
+// the code. Derived from the entity by default so all of them are typed on
+// first render; a per-light manual override (settings.light_shapes) wins when
+// the guess is wrong. Every shape is drawn inscribed in the same radius so
+// the cluster packing is unaffected — see shapePts() in iso_lights.js.
+export const LIGHT_SHAPES = [
+  ["auto",    "Auto (derived)"],
+  ["hex",     "Fixture (default)"],
+  ["circle",  "Pot / downlight"],
+  ["bar",     "Strip / valance"],
+  ["square",  "Fluorescent / tube"],
+  ["triangle","Fan"],
+  ["diamond", "Indicator LED"],
+];
+
+// Name first, capability second: on a real install the friendly name carries
+// far more fixture information than supported_color_modes does ("Dining Table
+// Pots", "Kitchen Valance", "Lower Garage Flouresents", "…Status LED").
+export function deriveLightShape(l) {
+  const t = `${l.entity_id || ""} ${l.friendly_name || ""}`.toLowerCase();
+  const has = (...words) => words.some(w => t.includes(w));
+
+  // A fan exposed as a light entity is not a light at all — worth seeing.
+  if (has("fan")) return "triangle";
+  if (has("status led", "status_led", "backlight", "indicator")) return "diamond";
+  if (has("pot", "downlight", "down light", "recessed", "can light")) return "circle";
+  // Addressable-LED chip names are an unambiguous strip signal even when the
+  // entity exposes no effect list (a bare WS2812B run, for instance).
+  if (has("valance", "strip", "cove", "tape", "rope", "under cab", "undercab",
+          "wled", "led controller", "led-controller",
+          "ws2812", "sk6812", "neopixel", "xmas", "christmas")) return "bar";
+  if (has("flouresent", "fluorescent", "tube", "shop light")) return "square";
+  // Addressable/effect-capable hardware is a strip far more often than not.
+  if (isWledLight(l)) return "bar";
+  return "hex";
+}
+
+// Resolved shape for rendering: manual override wins, else derived.
+export function resolveLightShape(l, overrides) {
+  const o = overrides && overrides[l.entity_id];
+  if (o && o !== "auto" && LIGHT_SHAPES.some(([k]) => k === o)) return o;
+  return deriveLightShape(l);
+}
+
 // Mutates each light in place: sets l.code and l.isWled. Pass EVERY light
 // entity (including hidden ones) so codes stay stable when visibility changes.
 export function assignLightCodes(lights) {

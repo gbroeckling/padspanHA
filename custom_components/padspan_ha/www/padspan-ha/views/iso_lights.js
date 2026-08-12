@@ -33,6 +33,39 @@ export function hexPts(cx, cy, r){
   return pts.join(" ");
 }
 
+// One marker outline for a fixture kind. Every shape is inscribed in the same
+// radius r, so clusters pack identically whatever the mix — and the code text
+// stays centred and legible inside all of them. Unknown kinds fall back to the
+// hexagon, which is what makes an arbitrary override string harmless.
+export function shapeSvg(kind, cx, cy, r, attrs){
+  const n=(v)=>v.toFixed(1);
+  const poly=(pts)=>`<polygon points="${pts}" ${attrs}/>`;
+  switch(kind){
+    case "circle":
+      return `<circle cx="${n(cx)}" cy="${n(cy)}" r="${n(r)}" ${attrs}/>`;
+    case "bar": {
+      // Capsule: a strip reads as elongated even at cluster size.
+      const w=r*1.5, h=r*0.82;
+      return `<rect x="${n(cx-w)}" y="${n(cy-h)}" width="${n(w*2)}" height="${n(h*2)}" `+
+             `rx="${n(h)}" ry="${n(h)}" ${attrs}/>`;
+    }
+    case "square": {
+      const s=r*0.86;
+      return `<rect x="${n(cx-s)}" y="${n(cy-s)}" width="${n(s*2)}" height="${n(s*2)}" `+
+             `rx="2" ${attrs}/>`;
+    }
+    case "triangle":
+      // Slightly oversized: an equilateral triangle looks small beside a hex.
+      return poly([[cx,cy-r*1.15],[cx+r*1.1,cy+r*0.78],[cx-r*1.1,cy+r*0.78]]
+        .map(p=>`${n(p[0])},${n(p[1])}`).join(" "));
+    case "diamond":
+      return poly([[cx,cy-r*1.12],[cx+r*1.0,cy],[cx,cy+r*1.12],[cx-r*1.0,cy]]
+        .map(p=>`${n(p[0])},${n(p[1])}`).join(" "));
+    default:
+      return poly(hexPts(cx,cy,r));
+  }
+}
+
 // Cluster offsets (SVG px) for N hexes touching around a centre
 export function hexCluster(n, r){
   const d=r*Math.sqrt(3)+2;  // centre-to-centre distance (tiny gap between touching hexes)
@@ -118,11 +151,20 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
   // a measured map) is what the house looks like; per-photo room_bounds stay
   // only as the un-anchored fallback. Also kills the "two Mains" duplication.
   const fabricW = model ? fabricWorldRooms(maps_list, model) : null;
+  // Every light with a pin on any map, so a pinned light is never ALSO drawn
+  // as an auto-cluster hex on a different floor.
+  const allPlaced={};
+  for(const m of sorted) for(const lt of (m.lights||[])) allPlaced[lt.entity_id]=lt;
   const hasBounds=sorted.some(m=>Object.keys(m.room_bounds||{}).length>0) || !!(fabricW && Object.keys(fabricW).length);
 
   for(const [z,group] of [...byLevel.entries()].sort((a,b)=>a[0]-b[0])){
     const isFocused=focusZ===null||(Array.isArray(focusZ)?focusZ.includes(z):focusZ===z);
     const go=isFocused?1.0:0.1;
+    // A ghosted floor is a backdrop, not a target: at 0.1 opacity its hexes are
+    // invisible but would still swallow clicks and drags meant for the focused
+    // floor (they overlap in iso space), so you'd toggle or move a light you
+    // cannot see.
+    const gpe=isFocused?"":` pointer-events="none"`;
     const lyrColor=levelColor(z);
     const lidx=sortedLevels.indexOf(z);
 
@@ -140,7 +182,7 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
     const TL=iso(x0,y0_,z), TR=iso(x1,y0_,z), BR=iso(x1,y1_,z), BL=iso(x0,y1_,z);
     const TR_b=iso(x1,y0_,z-slabWZ), BR_b=iso(x1,y1_,z-slabWZ), BL_b=iso(x0,y1_,z-slabWZ);
 
-    s+=`<g opacity="${go}">`;
+    s+=`<g opacity="${go}"${gpe}>`;
     // Slab sides
     s+=`<polygon points="${pts([TR,BR,BR_b,TR_b])}" fill="#0d2318" fill-opacity="0.35" stroke="#253e2e" stroke-width="0.8"/>`;
     s+=`<polygon points="${pts([BL,BR,BR_b,BL_b])}" fill="#0a1a12" fill-opacity="0.3" stroke="#253e2e" stroke-width="0.8"/>`;
@@ -153,12 +195,15 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
     // ignores them.
     const markerSvg=(l,hx,hy,entry,extra="")=>{
       const on=l.state==="on";
-      const fill=(entry&&entry.color)||(on?"#fbbf24":"#374151");
+      // A custom pin colour applies to the LIT state only. Using it while the
+      // light is off made every placed light look permanently on, which breaks
+      // the one thing the sidebar exists for.
+      const fill=on?((entry&&entry.color)||"#fbbf24"):"#374151";
       const stroke=l.isWled?WLED_BORDER:"#60a5fa";
       const op=on?1:0.45;
       const tCol=on?"#111827":"#e2e8f0";
       return `<g class="lhex" data-eid="${escSVG(l.entity_id)}"${extra?" "+extra:""} style="cursor:pointer" opacity="${op}">`+
-        `<polygon points="${hexPts(hx,hy,HEX_R)}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`+
+        shapeSvg(l.shape, hx, hy, HEX_R, `fill="${fill}" stroke="${stroke}" stroke-width="2"`)+
         `<text x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
         `font-family="monospace" font-size="11" font-weight="700" fill="${tCol}" pointer-events="none">`+
         `${escSVG(l.code)}</text></g>`;
@@ -171,10 +216,12 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
     const groupFids = new Set(group.map(m=>String(m.stack?.floor_id||m.floor_id||"main")));
     const fabHere = fabricW
       ? Object.entries(fabricW).filter(([,fr])=>groupFids.has(fr.floor_id)) : [];
-    // Lights placed on ANY map of this group render at their exact spot and
-    // are excluded from the auto hex clusters.
-    const groupPlaced={};
-    for(const m of group) for(const lt of (m.lights||[])) groupPlaced[lt.entity_id]=lt;
+    // Lights placed on ANY map render at their exact spot and are excluded
+    // from the auto hex clusters. The exclusion has to span EVERY map, not
+    // just this group's: a light pinned on one floor whose room later moves to
+    // another floor would otherwise be drawn twice — once as a pin, once as a
+    // cluster hex — and counted twice.
+    const groupPlaced=allPlaced;
 
     const emitRoom=(room,pp,lix,liy)=>{
       const color=roomColor(room);

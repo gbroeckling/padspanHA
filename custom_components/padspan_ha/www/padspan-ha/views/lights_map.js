@@ -11,9 +11,9 @@
 // Everything either view renders comes from here; the hosts differ only in
 // what an interaction does (sidebar: control the light — tab: place it).
 
-const { buildIsoSVG } =
+const { buildIsoSVG, shapeSvg } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
-const { assignLightCodes } =
+const { assignLightCodes, resolveLightShape, LIGHT_SHAPES } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 
 // ── Registry: entity_id → area name for every light ──────────────────────────
@@ -26,7 +26,8 @@ const { assignLightCodes } =
 // refetch, so the two maps went visibly different for seconds at a time.
 export function ensureLightsRegistry(store, hass, areas, onLoaded){
   const stale = !store.reg || Date.now() - store.reg.ts > 60000;
-  if (stale && hass && !store.loading){
+  const backoff = store.retryAfter && Date.now() < store.retryAfter;
+  if (stale && hass && !store.loading && !backoff){
     store.loading = true;
     (async () => {
       try {
@@ -51,10 +52,15 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
           areaMap[e.entity_id] = aid ? (areaIdToName[aid] || null) : null;
         }
         store.reg = { ts: Date.now(), areaMap };
+        store.retryAfter = 0;
       } catch (_) {
-        // Failed refresh: keep serving the previous copy (empty only if there
-        // was never a successful fetch); stamp ts to back off the retry.
-        store.reg = { ts: Date.now(), areaMap: store.reg ? store.reg.areaMap : {} };
+        // A failed fetch must never become the authoritative answer. With a
+        // previous copy, keep serving it and back the retry off; with none,
+        // stay in the loading state (the map keeps its placeholder) instead of
+        // caching an empty areaMap for 60s, which would tell the user every
+        // light in the house has no room.
+        if (store.reg) store.reg = { ts: Date.now(), areaMap: store.reg.areaMap };
+        else store.retryAfter = Date.now() + 10000;
       } finally {
         store.loading = false;
         if (onLoaded) onLoaded();
@@ -65,7 +71,9 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
 }
 
 // ── Light list: every light entity, canonical codes, display sort ────────────
-export function gatherLights(states, areaMap){
+// shapeOverrides = settings.light_shapes ({entity_id: shape}); a light with no
+// override wears its derived shape, so the whole house is typed on first paint.
+export function gatherLights(states, areaMap, shapeOverrides){
   const lights = Object.keys(states || {})
     .filter(eid => eid.startsWith("light."))
     .map(eid => ({
@@ -79,7 +87,30 @@ export function gatherLights(states, areaMap){
       (a.area_name || "\xff").localeCompare(b.area_name || "\xff") ||
       a.friendly_name.localeCompare(b.friendly_name));
   assignLightCodes(lights);
+  for (const l of lights) l.shape = resolveLightShape(l, shapeOverrides);
   return lights;
+}
+
+// Legend for the shape vocabulary — the map is only readable at a glance if
+// the outlines are decodable. Only the kinds actually present are listed, so
+// a house with no fans never shows a fan key.
+function buildShapeLegend(el, lights){
+  const present = new Set(lights.map(l => l.shape));
+  const row = el("div", { style:
+    "display:flex;flex-wrap:wrap;gap:.35rem 1rem;align-items:center;margin-top:8px;"+
+    "padding-top:8px;border-top:1px solid #1b3526" });
+  for (const [kind, label] of LIGHT_SHAPES) {
+    if (kind === "auto" || !present.has(kind)) continue;
+    const cell = el("div", { style: "display:flex;align-items:center;gap:5px" });
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", "18"); svg.setAttribute("height", "18");
+    svg.setAttribute("viewBox", "0 0 18 18");
+    svg.innerHTML = shapeSvg(kind, 9, 9, 6.5, 'fill="none" stroke="#94a3b8" stroke-width="1.6"');
+    cell.appendChild(svg);
+    cell.appendChild(el("span", { style: "font-size:11px;color:#94a3b8" }, label));
+    row.appendChild(cell);
+  }
+  return row.childNodes.length ? row : null;
 }
 
 // ── The map card: control row + iso map ──────────────────────────────────────
@@ -130,6 +161,9 @@ export function buildLightsMapCard(host){
 
   const ctrlRow = el("div", { style: "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px" });
 
+  // Reset needs to put the focus control back too — see resetFocusCtl below.
+  let resetFocusCtl = () => {};
+
   // Floor focus slider
   if (sortedLevels.length > 1) {
     const focusLbl = el("span", { style: "font-size:12px;color:#94a3b8;min-width:80px" }, getFocusLbl(view.focusIdx));
@@ -145,12 +179,15 @@ export function buildLightsMapCard(host){
     ctrlRow.appendChild(el("span", { class: "muted", style: "font-size:11px;white-space:nowrap" }, "Floor:"));
     ctrlRow.appendChild(focusSlider);
     ctrlRow.appendChild(focusLbl);
+    resetFocusCtl = () => { focusSlider.value = "0"; focusLbl.textContent = getFocusLbl(0); };
   }
 
   // Floor gap slider
   const gapLbl = el("span", { style: "font-size:12px;color:#94a3b8;min-width:38px" }, String(view.floorGap));
   const gapSlider = document.createElement("input");
-  gapSlider.type = "range"; gapSlider.min = "50"; gapSlider.max = "400"; gapSlider.step = "10";
+  // 60–340 matches the backend's clamp exactly. A wider slider silently stored
+  // a different spacing than the one on screen.
+  gapSlider.type = "range"; gapSlider.min = "60"; gapSlider.max = "340"; gapSlider.step = "10";
   gapSlider.style.cssText = "width:100px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
   gapSlider.value = String(view.floorGap);
   gapSlider.addEventListener("input", () => {
@@ -195,6 +232,7 @@ export function buildLightsMapCard(host){
       view.floorGap = 150; view.horizGap = 0; view.focusIdx = 0; view.zoom = 1.0;
       gapSlider.value = "150"; gapLbl.textContent = "150";
       horizSlider.value = "0"; horizLbl.textContent = "0";
+      resetFocusCtl();          // the map goes back to All floors — say so
       rebuildISO();
       resetBtn.disabled = true;
       try {
@@ -224,6 +262,8 @@ export function buildLightsMapCard(host){
 
   mapCard.appendChild(ctrlRow);
   mapCard.appendChild(isoDiv);
+  const legend = buildShapeLegend(el, Object.values(host.lightsByEid));
+  if (legend) mapCard.appendChild(legend);
   rebuildISO();
   return mapCard;
 }
@@ -267,8 +307,20 @@ export function buildLightsTable(host, lights){
     const on = l.state === "on";
     const isHidden = hidden.has(l.entity_id);
     const row = el("tr", { style: `cursor:pointer;opacity:${isHidden ? "0.45" : "1"}` }, [
-      // W-series purple matches the WLED hex border — the at-a-glance type cue
-      el("td", { style: `font-family:monospace;font-weight:700;color:${l.isWled ? "#c084fc" : "#52b788"};font-size:12px` }, l.code),
+      // Code + the same outline the map draws, so a row and its marker are
+      // recognisably the same object. W-series purple = WLED-class.
+      el("td", { style: "white-space:nowrap" }, [
+        (() => {
+          const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          svg.setAttribute("width", "15"); svg.setAttribute("height", "15");
+          svg.setAttribute("viewBox", "0 0 15 15");
+          svg.setAttribute("style", "vertical-align:-2px;margin-right:5px");
+          svg.innerHTML = shapeSvg(l.shape, 7.5, 7.5, 5.6,
+            `fill="none" stroke="${l.isWled ? "#c084fc" : "#52b788"}" stroke-width="1.6"`);
+          return svg;
+        })(),
+        el("span", { style: `font-family:monospace;font-weight:700;color:${l.isWled ? "#c084fc" : "#52b788"};font-size:12px` }, l.code),
+      ]),
       el("td", {}, l.friendly_name),
       el("td", { class: "muted" }, l.area_name
         ? el("span", {}, l.area_name)

@@ -12,8 +12,8 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.26.1";
-const BUILD_ID = "20260812T035140Z";
+const APP_VERSION = "0.27.0";
+const BUILD_ID = "20260812T041845Z";
 
 // Query inherited from our own module URL so the ?b= cache-buster propagates
 // (see docs/06_UI_CACHE_BUSTING.md).
@@ -114,13 +114,31 @@ class PadSpanLightsApp extends HTMLElement {
     // ensureLightsRegistry backfills it in the background from _buildUI
     // (guarded on the model so area NAMES exist before the map is built).
     await Promise.allSettled([ this._loadMaps(), this._loadSettings() ]);
+    this._settingsTs = Date.now();
     this._render();
     this._loadModel().then(()=>this._render());
+    // Clear again AFTER the awaits: two overlapping boots (a second Refresh
+    // click while the first is still loading) both pass the clear above before
+    // either assigns, and the first timer would be orphaned beyond reach.
+    if(this._pollTimer) clearInterval(this._pollTimer);
     this._pollTimer = setInterval(()=>this._poll(), 5000);
   }
 
   async _poll(){
     if(!this._hass) return;
+    // Don't rebuild the DOM under the user's hands: a poll landing mid-drag on
+    // a slider, or while a select is open, destroys the control being used.
+    // (The Mapping tab's host has the same protection via _editDragging.)
+    const active = this.shadowRoot && this.shadowRoot.activeElement;
+    if(active && /^(INPUT|SELECT|BUTTON)$/.test(active.tagName)) return;
+    if(this._pointerDown) return;
+    // Hidden lights / hidden maps live in settings and are edited from the
+    // Mapping tab. Without re-reading them, the two "identical" views drift
+    // apart until this panel is reloaded.
+    if(Date.now() - (this._settingsTs || 0) > 30000){
+      this._settingsTs = Date.now();
+      await this._loadSettings();
+    }
     this._render();   // registry staleness handled inside _buildUI
   }
 
@@ -159,6 +177,9 @@ class PadSpanLightsApp extends HTMLElement {
       this._view.floorGap = s.overview_iso_floor_gap ?? 150;
       this._view.horizGap = s.overview_iso_horiz_gap ?? 0;
       this._view.focusIdx = s.overview_iso_focus     ?? 0;
+      // Per-light shape overrides — set in the Mapping → Lights tab, read here
+      // so both views draw the same fixture outlines.
+      this.state._shapeOverrides = (s.light_shapes && typeof s.light_shapes === "object") ? s.light_shapes : {};
       // Sync hidden map IDs from the same source maps.js uses
       const savedIds = s.hidden_map_ids;
       if(Array.isArray(savedIds)){
@@ -321,7 +342,7 @@ class PadSpanLightsApp extends HTMLElement {
       ? ensureLightsRegistry(this._regStore, this._hass, this.state.model.areas, ()=>this._render())
       : { areaMap:{}, loading:true };
     const lightsLoading = reg.loading;
-    const lights = gatherLights(this._hass?.states||{}, reg.areaMap);
+    const lights = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides);
 
     if(!lights.length){
       root.appendChild(el("div",{class:"muted",style:"padding:8px"},"No light entities found."));
@@ -411,6 +432,14 @@ class PadSpanLightsApp extends HTMLElement {
 
   connectedCallback(){
     if(!this.shadowRoot) this.attachShadow({mode:"open"});
+    // Track a held pointer so the 5s poll can't re-render mid-interaction
+    // (dragging a slider is the case that actually bites).
+    if(!this._pointerWired){
+      this._pointerWired = true;
+      this.addEventListener("pointerdown", ()=>{ this._pointerDown = true; });
+      window.addEventListener("pointerup", ()=>{ this._pointerDown = false; });
+      window.addEventListener("pointercancel", ()=>{ this._pointerDown = false; });
+    }
     this.style.display="block";
     this.shadowRoot.innerHTML=`
       <link rel="stylesheet" href="/padspan_ha_static/padspan-ha/styles.css?v=${APP_VERSION}&b=${BUILD_ID}">

@@ -88,6 +88,11 @@ _XREF_ADDR_SAMPLE = 8
 # Retention windows offered for object history, in days.  Anything else the
 # user or a hand-edited settings file supplies falls back to the default.
 _OBJECT_HISTORY_DAY_CHOICES = (1, 2, 7, 14)
+
+# Marker shapes a light can be pinned to — mirrors LIGHT_SHAPES in
+# www/padspan-ha/views/light_codes.js ("auto" is absent by design: it means
+# "no override", which is stored as the entity simply not being present).
+_LIGHT_SHAPE_KINDS = frozenset({"hex", "circle", "bar", "square", "triangle", "diamond"})
 _OBJECT_HISTORY_DAYS_DEFAULT = 1
 
 
@@ -3006,8 +3011,10 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("tags_phone_autolink_enabled"): bool,
         vol.Optional("quiet_mode"): bool,
         vol.Optional("light_theme"): bool,
+        vol.Optional("light_shapes"): dict,
         vol.Optional("beacon_auto_calibrate"): bool,
         vol.Optional("overview_persistent_pins"): bool,
+        vol.Optional("overview_show_walls"): bool,
         vol.Optional("object_history_days"): vol.Coerce(int),
         vol.Optional("scanner_offsets"): dict,
         vol.Optional("overview_2d_mode"): bool,
@@ -3189,6 +3196,17 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             raw = msg["scanner_offsets"]
             if isinstance(raw, dict):
                 payload["scanner_offsets"] = {str(k): float(v) for k, v in raw.items()}
+        if "light_shapes" in msg:
+            # entity_id -> shape kind. Only known kinds are stored; an unknown
+            # value would just fall back to the default marker in the frontend,
+            # but there is no reason to persist junk. "auto" is expressed by
+            # omitting the entity, so it is never stored.
+            raw = msg["light_shapes"]
+            if isinstance(raw, dict):
+                payload["light_shapes"] = {
+                    str(k): str(v) for k, v in raw.items()
+                    if str(v) in _LIGHT_SHAPE_KINDS and str(k).startswith("light.")
+                }
         if "object_history_days" in msg:
             _days = int(msg["object_history_days"])
             payload["object_history_days"] = (
@@ -3210,7 +3228,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "lights_panel_enabled", "bermuda_ignore",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",
                     "tags_phone_autolink_enabled", "quiet_mode", "light_theme",
-                    "beacon_auto_calibrate", "overview_persistent_pins",
+                    "beacon_auto_calibrate", "overview_persistent_pins", "overview_show_walls",
                     "overview_2d_mode", "beacon_profiling_enabled",
                     "trackability_rating_enabled", "walk_to_identify_enabled",
                     "radio_map_enabled", "distortion_map_enabled",
