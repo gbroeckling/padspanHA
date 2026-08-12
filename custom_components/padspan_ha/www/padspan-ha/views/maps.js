@@ -1216,7 +1216,10 @@ function _edit(ctx, map, allMaps){
           scanners: ctx.state.maps._draftReceivers,
           rooms: ctx.state.maps._draftRoomBounds,
           rf_barriers: ctx.state.maps._draftBarriers || [],
-          beacons: map.beacons || [],
+          // Beacons are not editable here — this editor's modes are
+          // receivers/rooms/barriers. Re-sending the map's existing beacons
+          // would re-derive their metres from photo fracs for no reason.
+          origin: "manual",
         });
         await ctx.actions.mapsUpdateQuiet({
           map_id: map.id,

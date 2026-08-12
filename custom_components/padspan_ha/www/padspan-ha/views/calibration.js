@@ -2126,6 +2126,7 @@ function _tuneTab(ctx, el, cs, calData) {
           map_id: mapId,
           floor_id: origMap.floor_id || "",
           scanners: ts.draftReceivers[mapId],
+          origin: "manual",
         });
       }
       // Clear dirty state BEFORE refresh so re-rendered view shows clean state
@@ -2258,6 +2259,7 @@ function _tuneTab(ctx, el, cs, calData) {
     removeBtn.title = "Remove this receiver from " + _floorName;
     removeBtn.addEventListener("click", async () => {
       const d = ts.draftReceivers[_selMapId] || [];
+      const _removed = d.find(r => r.id === _selRxId);
       ts.draftReceivers[_selMapId] = d.filter(r => r.id !== _selRxId);
       ts.dirtyMaps[_selMapId] = true;
       ts.selectedRx = null;
@@ -2265,10 +2267,19 @@ function _tuneTab(ctx, el, cs, calData) {
       const origMap = maps_list.find(m => m.id === _selMapId);
       if (origMap) {
         try {
+          // Drop it from the fabric FIRST. A batch save only writes the
+          // entries it carries — it never deletes — and the re-derive that
+          // follows re-injects any fabric scanner claiming this map, so
+          // saving the shortened draft alone would put it straight back.
+          const _rmSrc = (_removed && (_removed.source || _removed.id)) || "";
+          if (_rmSrc) {
+            await ctx.actions.callWS({ type: "padspan_ha/fabric_scanner_remove", source: _rmSrc });
+          }
           await ctx.actions.fabricSpatialSave({
             map_id: _selMapId,
             floor_id: origMap.floor_id || "",
             scanners: ts.draftReceivers[_selMapId],
+            origin: "manual",
           });
           ts.dirtyMaps = {};
           ts._mapsStamp = null;
@@ -2814,8 +2825,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
             await ctx.actions.fabricSpatialSave({
               map_id: mid,
               floor_id: origMap.floor_id || "",
-              scanners: origMap.receivers || [],
               beacons: bs.draftBeacons[mid] || [],
+              origin: "manual",
             });
             bs.dirtyMaps[mid] = false;
           } catch(_) {}
@@ -3264,6 +3275,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           bs.draftBeacons[mid] = bs.draftBeacons[mid].filter(b => b.id !== bkId);
           if (bs.draftBeacons[mid].length !== before) bs.dirtyMaps[mid] = true;
         }
+        // Un-pin from the fabric first — a batch save never deletes.
+        try {
+          if (t.bk.key) await ctx.actions.callWS({ type: "padspan_ha/fabric_beacon_remove", key: t.bk.key });
+        } catch(_) {}
         // Auto-save the deletion
         for (const mid of Object.keys(bs.dirtyMaps)) {
           if (!bs.dirtyMaps[mid]) continue;
@@ -3273,8 +3288,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
             await ctx.actions.fabricSpatialSave({
               map_id: mid,
               floor_id: origMap.floor_id || "",
-              scanners: origMap.receivers || [],
               beacons: bs.draftBeacons[mid] || [],
+              origin: "manual",
             });
             bs.dirtyMaps[mid] = false;
           } catch(_) {}
@@ -3379,8 +3394,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         await ctx.actions.fabricSpatialSave({
           map_id: mapId,
           floor_id: origMap.floor_id || "",
-          scanners: origMap.receivers || [],
           beacons: bs.draftBeacons[mapId] || [],
+          origin: "manual",
         });
       }
       bs.dirtyMaps = {};
@@ -3792,8 +3807,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       await ctx.actions.fabricSpatialSave({
         map_id: mapId,
         floor_id: origMap.floor_id || "",
-        scanners: origMap.receivers || [],
         beacons: bs.draftBeacons[mapId] || [],
+        origin: "manual",
       });
       bs.dirtyMaps[mapId] = false;
       _refreshDirtyLabel();
@@ -4285,11 +4300,15 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       const origMap = maps_list.find(m => m.id === mapId);
       if (origMap) {
         try {
+          // Un-pin from the fabric first — a batch save never deletes.
+          if (removedBk && removedBk.key) {
+            await ctx.actions.callWS({ type: "padspan_ha/fabric_beacon_remove", key: removedBk.key });
+          }
           await ctx.actions.fabricSpatialSave({
             map_id: mapId,
             floor_id: origMap.floor_id || "",
-            scanners: origMap.receivers || [],
             beacons: bs.draftBeacons[mapId] || [],
+            origin: "manual",
           });
           bs.dirtyMaps[mapId] = false;
         } catch (e) { console.warn("[PadSpan] delete beacon save failed:", e); }
@@ -4614,11 +4633,13 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         try {
           const origMap = maps_list.find(m => m.id === map.id);
           if (origMap) {
+            // Un-pin from the fabric first — a batch save never deletes.
+            if (bk.key) await ctx.actions.callWS({ type: "padspan_ha/fabric_beacon_remove", key: bk.key });
             await ctx.actions.fabricSpatialSave({
               map_id: map.id,
               floor_id: origMap.floor_id || "",
-              scanners: origMap.receivers || [],
               beacons: bs.draftBeacons[map.id] || [],
+              origin: "manual",
             });
             bs.dirtyMaps[map.id] = false;
           }

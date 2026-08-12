@@ -255,6 +255,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     # Phase 1: positioning fabric commands
     websocket_api.async_register_command(hass, ws_fabric_scanner_set)
     websocket_api.async_register_command(hass, ws_fabric_scanner_remove)
+    websocket_api.async_register_command(hass, ws_fabric_beacon_remove)
     websocket_api.async_register_command(hass, ws_fabric_room_add)
     websocket_api.async_register_command(hass, ws_fabric_room_remove)
     websocket_api.async_register_command(hass, ws_fabric_adjacency_set)
@@ -9288,6 +9289,33 @@ async def ws_fabric_scanner_remove(hass: HomeAssistant, connection, msg) -> None
 
 @websocket_api.websocket_command(
     {
+        "type": "padspan_ha/fabric_beacon_remove",
+        "key": str,
+    }
+)
+@websocket_api.async_response
+async def ws_fabric_beacon_remove(hass: HomeAssistant, connection, msg) -> None:
+    """Un-pin a beacon from the positioning fabric.
+
+    The deletion counterpart to a manual beacon placement: a batch save only
+    writes the entries it carries, so dropping a pin from an editor's draft
+    has to be an explicit removal or the fabric keeps it (and re-injects it
+    into the map on the next re-derive).
+    """
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    if not mdl:
+        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        return
+    key = (msg.get("key") or "").strip()
+    if not key:
+        connection.send_error(msg["id"], "invalid", "key is required")
+        return
+    await mdl.async_remove_beacon_position_m(key)
+    connection.send_result(msg["id"], {"ok": True})
+
+
+@websocket_api.websocket_command(
+    {
         "type": "padspan_ha/fabric_room_add",
         "room": str,
         vol.Optional("floor_id"): str,
@@ -9910,6 +9938,7 @@ async def ws_fabric_migrate_from_maps(hass: HomeAssistant, connection, msg) -> N
         vol.Optional("rooms"): dict,
         vol.Optional("rf_barriers"): list,
         vol.Optional("beacons"): list,
+        vol.Optional("origin"): vol.In(["map", "manual"]),
     }
 )
 @websocket_api.async_response
@@ -9918,6 +9947,11 @@ async def ws_fabric_spatial_batch_save(hass: HomeAssistant, connection, msg) -> 
 
     A "rooms" payload is still accepted for schema compat but ignored: room
     geometry lives in the FabricStore, and no map-fraction save may reach it.
+
+    origin="manual" marks a deliberate placement from an editor's own Save —
+    the resulting scanner/beacon entries become immune to later map
+    re-derivation. Defaults to "map" (a derived write) so nothing that
+    carries spatial data incidentally can freeze a position.
     """
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:

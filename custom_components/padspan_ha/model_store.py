@@ -853,6 +853,7 @@ class ModelStore:
         scanners: list[dict] | None = None,
         rf_barriers: list[dict] | None = None,
         beacons: list[dict] | None = None,
+        origin: str = "map",
     ) -> dict[str, int]:
         """Atomic batch save of spatial data from map-fraction coordinates.
 
@@ -860,7 +861,22 @@ class ModelStore:
         Room geometry is deliberately NOT accepted here — rooms live in the
         FabricStore, whose two writers are the only room-geometry paths.
         Returns counts: {scanners, rooms, barriers, beacons} (rooms always 0).
+
+        origin="manual" marks the write as a deliberate human placement: the
+        entry becomes ground truth and no later map re-derivation may move it
+        (async_sync_spatial_from_map and this method both defer to it). Only
+        another manual write can move a manual entry — otherwise a corrected
+        position could never be corrected twice. Callers pass "manual" only
+        from a placement editor's own Save, and send only the entity kind
+        that editor owns; a payload carried incidentally alongside some other
+        edit is not a placement and stays map-origin.
+
+        Barriers are always map-origin: they are replaced per-map wholesale
+        and carry no stable identity of their own, so a manual barrier could
+        not be told apart from its photo-derived twin. Use
+        padspan_ha/fabric_rf_barrier_set for a hand-placed barrier.
         """
+        manual = origin == "manual"
         stats = {"scanners": 0, "rooms": 0, "barriers": 0, "beacons": 0}
         fab = getattr(self, "fabric", None)
         if not fab:
@@ -878,7 +894,7 @@ class ModelStore:
                 src = rx.get("source") or rx.get("id", "")
                 if not src:
                     continue
-                if cur_scanners.get(src, {}).get("origin") == "manual":
+                if cur_scanners.get(src, {}).get("origin") == "manual" and not manual:
                     continue
                 if t:
                     coords = self.map_frac_to_metres(float(rx.get("x", 0)), float(rx.get("y", 0)), map_id)
@@ -888,7 +904,7 @@ class ModelStore:
                         # has no height information of its own.
                         _prev = cur_scanners.get(src) or {}
                         _z = _prev.get("z_m") if isinstance(_prev.get("z_m"), (int, float)) else 2.4
-                        _entry = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3), "z_m": _z, "floor_id": fl, "origin": "map", "map_id": map_id}
+                        _entry = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3), "z_m": _z, "floor_id": fl, "origin": origin, "map_id": map_id}
                         if _prev.get("z_origin") == "manual":
                             _entry["z_origin"] = "manual"
                         set_scanners[src] = _entry
@@ -906,13 +922,13 @@ class ModelStore:
         if beacons is not None:
             for bk in beacons:
                 bk_key = bk.get("key")
-                if not bk_key or cur_beacons.get(bk_key, {}).get("origin") == "manual":
+                if not bk_key or (cur_beacons.get(bk_key, {}).get("origin") == "manual" and not manual):
                     continue
                 if t:
                     coords = self.map_frac_to_metres(float(bk.get("x", 0)), float(bk.get("y", 0)), map_id)
                     if coords:
                         room = self.beacon_room_from_geometry(coords[0], coords[1], fl)
-                        set_beacons[bk_key] = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3), "floor_id": fl, "room": room, "kind": str(bk.get("kind", "")), "label": str(bk.get("label", "")), "origin": "map", "map_id": map_id}
+                        set_beacons[bk_key] = {"x_m": round(coords[0], 3), "y_m": round(coords[1], 3), "floor_id": fl, "room": room, "kind": str(bk.get("kind", "")), "label": str(bk.get("label", "")), "origin": origin, "map_id": map_id}
                         stats["beacons"] += 1
 
         await fab.async_spatial_update(

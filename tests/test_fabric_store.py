@@ -490,6 +490,87 @@ async def test_batch_save_respects_manual_origin() -> None:
     assert fab.scanner_positions_m()["pinned"]["x_m"] == 9
 
 
+@pytest.mark.asyncio
+async def test_batch_save_manual_origin_stamps_manual() -> None:
+    """A placement editor's own Save marks the entry as human ground truth."""
+    mdl = _make_model({"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
+                              "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}})
+    fab = _spatial_fabric()
+    mdl.fabric = fab
+    await mdl.async_batch_save_spatial(
+        "m1", "main",
+        scanners=[{"id": "rx", "source": "rx", "x": 0.5, "y": 0.5}],
+        beacons=[{"key": "bk", "x": 0.5, "y": 0.5}],
+        origin="manual")
+    assert fab.scanner_positions_m()["rx"]["origin"] == "manual"
+    assert fab.beacon_positions_m()["bk"]["origin"] == "manual"
+
+
+@pytest.mark.asyncio
+async def test_manual_batch_save_may_move_a_manual_entry() -> None:
+    """Immunity is against re-derivation, not against the user. Otherwise a
+    corrected position could never be corrected a second time."""
+    mdl = _make_model({"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
+                              "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}})
+    fab = _spatial_fabric()
+    mdl.fabric = fab
+    fab.data["scanner_positions_m"] = {
+        "pinned": {"x_m": 9, "y_m": 9, "z_m": 2.4, "floor_id": "main", "origin": "manual"},
+    }
+    stats = await mdl.async_batch_save_spatial(
+        "m1", "main",
+        scanners=[{"id": "pinned", "source": "pinned", "x": 0.1, "y": 0.1}],
+        origin="manual")
+    assert stats["scanners"] == 1
+    assert fab.scanner_positions_m()["pinned"]["x_m"] == pytest.approx(1.0)
+    assert fab.scanner_positions_m()["pinned"]["origin"] == "manual"
+
+
+@pytest.mark.asyncio
+async def test_manual_placement_survives_a_transform_change() -> None:
+    """The doctrine, end to end: once a scanner is placed in metres, moving
+    the photo underneath it must not move the scanner. Re-placing the map
+    (align-to-stack, positioning repair, any map save) re-derives metres from
+    photo fracs — a manual entry has to sit that out."""
+    transforms = {"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
+                         "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}}
+    mdl = _make_model(transforms)
+    fab = _spatial_fabric()
+    mdl.fabric = fab
+    rx = {"id": "rx", "source": "rx", "x": 0.5, "y": 0.5}
+    await mdl.async_batch_save_spatial("m1", "main", scanners=[rx], origin="manual")
+    assert fab.scanner_positions_m()["rx"]["x_m"] == pytest.approx(5.0)
+
+    # The photo is re-placed at twice the scale and re-synced.
+    transforms["m1"]["scale_x_m"] = 20
+    transforms["m1"]["scale_y_m"] = 20
+    await mdl.async_sync_spatial_from_map(
+        "m1", {"floor_id": "main", "stack": {}, "receivers": [rx], "beacons": []})
+
+    assert fab.scanner_positions_m()["rx"]["x_m"] == pytest.approx(5.0)
+
+
+@pytest.mark.asyncio
+async def test_map_origin_placement_still_follows_its_photo() -> None:
+    """The counterpart: an entry nobody has placed by hand is still derived,
+    so today's behaviour is unchanged for everything that isn't a placement."""
+    transforms = {"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
+                         "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}}
+    mdl = _make_model(transforms)
+    fab = _spatial_fabric()
+    mdl.fabric = fab
+    rx = {"id": "rx", "source": "rx", "x": 0.5, "y": 0.5}
+    await mdl.async_batch_save_spatial("m1", "main", scanners=[rx])
+    assert fab.scanner_positions_m()["rx"]["origin"] == "map"
+
+    transforms["m1"]["scale_x_m"] = 20
+    transforms["m1"]["scale_y_m"] = 20
+    await mdl.async_sync_spatial_from_map(
+        "m1", {"floor_id": "main", "stack": {}, "receivers": [rx], "beacons": []})
+
+    assert fab.scanner_positions_m()["rx"]["x_m"] == pytest.approx(10.0)
+
+
 def test_model_spatial_reads_loud_empty_without_fabric() -> None:
     mdl = _make_model()
     mdl.fabric = None
