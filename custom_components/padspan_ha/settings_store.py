@@ -37,6 +37,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "path_loss_exp":   2.5,    # path-loss exponent n (distance formula)
     "hidden_map_ids":  [],     # map IDs hidden from 3D stack view
     "scanner_offsets": {},     # {source_name: offset_dBm} — manual per-scanner RSSI trim
+    # Sources masked out of positioning (issue #59). A MASK, never a delete:
+    # stored calibration samples, positions and registry entries are untouched,
+    # so removing a source from this list restores its influence exactly.
+    "excluded_scanners": [],   # [source_name, ...] — ignored by every matcher
     "positioning_algorithm": "knn",    # "knn" | "rf" (Random Forest)
     "kalman_q": 0.125,             # Kalman process noise (RSSI responsiveness)
     "kalman_r": 8.0,               # Kalman measurement noise (smoothing strength)

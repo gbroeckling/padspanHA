@@ -138,9 +138,17 @@ class CalibrationStore:
                 for src, rd in point["readings"].items()
                 if isinstance(rd, dict)
             ]
+        # Masked scanners never enter a NEW calibration point (issue #59 —
+        # capture otherwise records every receiver HA knows about, mapped or
+        # not). Points captured BEFORE a scanner was excluded keep their
+        # readings untouched; the matchers mask those at query time, so
+        # un-excluding restores them without a recapture.
+        _excluded_new = self.excluded_sources()
         clean_readings: list[dict[str, Any]] = []
         for r in raw_readings:
             if not isinstance(r, dict):
+                continue
+            if str(r.get("source") or "") in _excluded_new:
                 continue
             samples = [
                 float(x) for x in (r.get("rssi_samples") or [])
@@ -592,6 +600,48 @@ class CalibrationStore:
             out[src] = {"rssi_1m": rssi_1m, "n": n, "points": points}
         return out
 
+    # ── Excluded scanners (issue #59) ─────────────────────────────────────────
+
+    def excluded_sources(self) -> frozenset[str]:
+        """Sources masked out of matching, read live from settings.
+
+        The union of the three ways a source can be masked: explicitly
+        excluded (issue #59), marked Lost, or Disabled. Those last two were
+        already filtered at ingestion but never from the stored side of
+        matching, so they leaked back in through the k-NN penalty and the
+        forest's feature columns — folding them in here gives all three the
+        same complete treatment.
+
+        Read here rather than passed in by callers so no call site can forget
+        it and silently keep a masked scanner in the maths.
+        """
+        try:
+            _st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+            d = (_st.data if _st else {}) or {}
+            out = {str(s) for s in (d.get("excluded_scanners") or []) if s}
+            out |= {str(s) for s in (d.get("lost_radios") or {})}
+            out |= {str(s) for s in (d.get("disabled_radios") or {})}
+            return frozenset(out)
+        except Exception:
+            return frozenset()
+
+    @staticmethod
+    def _readings_to_map(pt: dict[str, Any], excluded: frozenset[str]) -> dict[str, float]:
+        """A stored point's fingerprint with masked sources removed.
+
+        The mask MUST be applied to the stored side as well as the live query.
+        The distance metric charges a penalty per scanner present on one side
+        and missing from the other, so dropping a source from the live vector
+        alone would penalise exactly those fingerprints that recorded it —
+        i.e. every point near the excluded scanner — and bias matching away
+        from that area. Stored data is never modified: this filters a copy.
+        """
+        return {
+            r["source"]: r["mean_rssi"]
+            for r in pt.get("scanner_readings", [])
+            if r["source"] not in excluded
+        }
+
     # ── k-NN fingerprint matching ──────────────────────────────────────────────
 
     def knn_locate(
@@ -627,11 +677,17 @@ class CalibrationStore:
         if not work_pts or not query_rssi:
             return None
 
+        # Symmetric mask: excluded sources leave BOTH the live vector and the
+        # stored fingerprints before any distance is computed (issue #59).
+        _excluded = self.excluded_sources()
+        if _excluded:
+            query_rssi = {s: v for s, v in query_rssi.items() if s not in _excluded}
+            if not query_rssi:
+                return None
+
         scored: list[tuple[float, int, dict[str, Any]]] = []
         for pt in work_pts:
-            fp: dict[str, float] = {
-                r["source"]: r["mean_rssi"] for r in pt.get("scanner_readings", [])
-            }
+            fp: dict[str, float] = self._readings_to_map(pt, _excluded)
             shared = set(query_rssi.keys()) & set(fp.keys())
             if not shared:
                 continue
@@ -824,7 +880,9 @@ class CalibrationStore:
         use_metres = len(metre_pts) >= 4
         rf = RandomForestLocator()
         train_pts = metre_pts if use_metres else pts
-        await self.hass.async_add_executor_job(rf.train, train_pts, use_metres)
+        await self.hass.async_add_executor_job(
+            rf.train, train_pts, use_metres, self.excluded_sources()
+        )
         self._rf = rf
 
     @property
@@ -858,19 +916,20 @@ class CalibrationStore:
         metre_pts = [p for p in pts if p.get("x_m") is not None]
         use_metres = len(metre_pts) == len(pts) and len(pts) > 0
 
+        _loo_excluded = self.excluded_sources()
         errors: list[float] = []
         errors_m: list[float] = []
         for i, pt in enumerate(pts):
             loo_pts = [p for j, p in enumerate(pts) if j != i]
-            query: dict[str, float] = {
-                r["source"]: r["mean_rssi"] for r in pt.get("scanner_readings", [])
-            }
+            # Masked sources are excluded here too: this estimate is only
+            # meaningful if it measures the estimator actually deployed.
+            query: dict[str, float] = self._readings_to_map(pt, _loo_excluded)
             if not query:
                 continue
 
             scored: list[tuple[float, dict[str, Any]]] = []
             for p2 in loo_pts:
-                fp = {r["source"]: r["mean_rssi"] for r in p2.get("scanner_readings", [])}
+                fp = self._readings_to_map(p2, _loo_excluded)
                 shared = set(query.keys()) & set(fp.keys())
                 if not shared:
                     continue

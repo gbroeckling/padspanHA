@@ -449,6 +449,9 @@ function renderScanners(ctx, radios, sources, adsAll) {
   const { el, radioShortId } = ctx.helpers;
   const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
   const scannerOffsets = (snap && snap.scanner_offsets) || (ctx.state.settings && ctx.state.settings.scanner_offsets) || {};
+  // Sources masked out of positioning (issue #59) — a mask, never a delete.
+  const excludedSrcs = new Set(
+    Array.isArray(ctx.state.settings?.excluded_scanners) ? ctx.state.settings.excluded_scanners : []);
 
   if (!radios.length) {
     return el("div", { class: "card" }, [
@@ -471,6 +474,11 @@ function renderScanners(ctx, radios, sources, adsAll) {
       el("div", { class: "bt-scanner-name" }, name || src || "Scanner"),
       r.lost     ? el("span", { class: "badge warn", style: "font-size:10px;background:rgba(245,158,11,.18);color:#f59e0b" }, "⚠ Lost") : null,
       r.disabled ? el("span", { class: "badge warn", style: "font-size:10px;background:rgba(148,100,220,.18);color:#c084fc" }, "⊘ Disabled") : null,
+      excludedSrcs.has(src) ? el("span", {
+        class: "badge",
+        title: "Masked out of positioning — its readings are ignored, but nothing it recorded has been deleted",
+        style: "font-size:10px;background:rgba(148,163,184,.18);color:#94a3b8",
+      }, "⊘ Excluded") : null,
     ].filter(Boolean));
 
       // Per-scanner RSSI offset control — compensates for hardware differences.
@@ -498,6 +506,39 @@ function renderScanners(ctx, radios, sources, adsAll) {
       el("span", { class: "muted", style: "font-size:10px" }, "dBm"),
       offsetSaveBtn,
       currentOffset !== 0 ? el("span", { class: "badge", style: "font-size:10px;background:#1a3a2a;color:#52b788" }, `${currentOffset > 0 ? "+" : ""}${currentOffset} dBm active`) : null,
+    ].filter(Boolean));
+
+    // ── Exclude from positioning (issue #59) ────────────────────────────────
+    // For a receiver that physically moves: its readings are actively
+    // misleading rather than merely absent (an offline scanner already
+    // contributes nothing on its own). Masking is fully reversible — nothing
+    // it recorded is deleted, so Include restores it exactly.
+    const isExcluded = excludedSrcs.has(src);
+    const exclBtn = el("button", { class: "btn tiny",
+      style: `font-size:10px;padding:1px 8px${isExcluded ? ";color:#52b788;border-color:#52b78840" : ""}`,
+      title: isExcluded
+        ? "Let this receiver influence positioning again"
+        : "Ignore this receiver everywhere: no room votes, no RSSI influence, no new calibration readings, and the model retrains without it. Nothing stored is deleted.",
+    }, isExcluded ? "Include in positioning" : "Exclude from positioning");
+    exclBtn.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
+      exclBtn.disabled = true;
+      const next = new Set(excludedSrcs);
+      if (isExcluded) next.delete(src); else next.add(src);
+      try {
+        await ctx.actions.settingsSet({ excluded_scanners: [...next] });
+        ctx.toast(isExcluded
+          ? `${name || src} is back in positioning`
+          : `${name || src} excluded — stored data kept, model retraining`);
+      } catch(e) {
+        ctx.toast("Could not change exclusion", true);
+        exclBtn.disabled = false;
+      }
+    });
+    const exclRow = el("div", { style: "display:flex;align-items:center;gap:6px;margin-top:3px" }, [
+      exclBtn,
+      isExcluded ? el("span", { class: "muted", style: "font-size:10px" },
+        "ignored by positioning · data kept") : null,
     ].filter(Boolean));
 
     // Reset radio button — two-step confirmation to prevent accidental data loss.
@@ -659,10 +700,12 @@ function renderScanners(ctx, radios, sources, adsAll) {
       // Relearn + Reset as compact buttons on same line
       relearnWrap,
       resetWrap,
+      exclRow,
     ].filter(Boolean));
     // Remove margin-top from relearn/reset since they're inline now
     relearnWrap.style.cssText = "display:flex;align-items:center;gap:4px";
     resetWrap.style.cssText = "display:flex;align-items:center;gap:4px";
+    exclRow.style.marginTop = "0";
 
     const div = el("div", { class: "bt-scanner-row" + (r.lost || r.disabled ? " warn" : "") }, [
       el("div", { class: "bt-scanner-main", style: "min-width:0" }, [

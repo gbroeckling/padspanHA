@@ -325,6 +325,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._kalman_p: dict[str, dict[str, float]] = {}
         # {addr: {source: consecutive_miss_count}} — silence grace tracking
         self._silence_miss: dict[str, dict[str, int]] = {}
+        # Sources masked out of positioning (issue #59), read from settings.
+        self._excluded_cache: frozenset[str] = frozenset()
         # {key: addr} — object key → Kalman state key (RPA-resolved address
         # for ble/private_ble).  Lets _evict_object clean the address-keyed
         # Kalman dicts above, which are NOT keyed by object key.
@@ -563,6 +565,26 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._compute_executor = None
             self._compute_executor_mode = None
 
+    def _excluded_sources(self) -> frozenset[str]:
+        """Scanner sources the user has masked out of positioning (issue #59).
+
+        Read fresh each poll so toggling exclusion takes effect immediately,
+        with the last good value kept if settings are momentarily unavailable.
+        """
+        try:
+            _st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+            d = ((_st.data if _st else {}) or {})
+            out = {str(s) for s in (d.get("excluded_scanners") or []) if s}
+            # Lost/Disabled are masked at ingestion by the existing radio
+            # flags; included here so the smoothed-state purge and every
+            # downstream matcher treat all three the same way.
+            out |= {str(s) for s in (d.get("lost_radios") or {})}
+            out |= {str(s) for s in (d.get("disabled_radios") or {})}
+            self._excluded_cache = frozenset(out)
+        except Exception:
+            pass
+        return self._excluded_cache
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Main poll loop — called every _SCAN_INTERVAL (10s) by HA's coordinator.
 
@@ -753,6 +775,40 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             _am[_src] = _am[_src] + float(_off)
         except Exception as _off_err:
             _LOGGER.debug("Scanner offset application: %s", _off_err)
+
+        # ── Mask excluded scanners (issue #59) ───────────────────────────
+        # A scanner that physically moves reports readings that are actively
+        # misleading rather than merely absent, so the user can mask it out.
+        # This is the single ingestion choke point: every matcher downstream
+        # (k-NN, RSSI fallback voting, floor selection, trilateration) reads
+        # from addr_src_rssi, so dropping the source here removes its
+        # influence everywhere at once.
+        #
+        # The smoothed state must be purged too, not just the live readings:
+        # an entry in _ema_rssi survives a silent source for ~5 minutes,
+        # decaying while it still votes — so masking only the live map would
+        # leave the excluded scanner influencing rooms long after exclusion.
+        # Nothing stored is modified: un-excluding restores the source's
+        # influence on the next poll.
+        _excluded = self._excluded_sources()
+        if _excluded:
+            # Also drop it as a room/floor ANCHOR, not just as a reading: left
+            # in source_to_area it still defines a known room and counts toward
+            # the per-floor scanner census, so a wandering scanner would keep
+            # steering floor selection and the k-NN room-override gate even
+            # with all its readings gone.
+            for _src in _excluded:
+                source_to_area.pop(_src, None)
+                source_to_floor.pop(_src, None)
+            for _am in addr_src_rssi.values():
+                for _src in _excluded:
+                    _am.pop(_src, None)
+            for _sm in self._ema_rssi.values():
+                for _src in _excluded:
+                    _sm.pop(_src, None)
+            for _kpm in self._kalman_p.values():
+                for _src in _excluded:
+                    _kpm.pop(_src, None)
 
         # ── Dynamic vote-window sizing from room_change_delay_s setting ───
         # The user sets a desired delay in seconds; we convert that to a

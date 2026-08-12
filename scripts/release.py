@@ -110,6 +110,13 @@ STATIC_FILES = [
     ".gitignore",
     "dist/padspan_ha.zip",
     "scripts/release.py",
+    # The suite gates every release, so it has to travel WITH the code it
+    # gates. Without this, tests/ was never staged by a release: the suite ran
+    # green locally for weeks while the repo carried an older copy, and a
+    # regression test written to prevent a shipped bug lived only on the
+    # maintainer's disk. (git add respects .gitignore, so __pycache__ and
+    # *.pyc stay out and the preflight __pycache__ check stays happy.)
+    "tests",
 ]
 
 

@@ -351,3 +351,148 @@ def test_model_store_without_fabric_is_empty_not_stale() -> None:
     # No fabric attached: loud empty, never the legacy cache.
     assert mdl.room_geometry_m() == {}
     assert mdl.beacon_room_from_geometry(0.5, 0.5, "main") == ""
+
+
+# ---------------------------------------------------------------------------
+# Pass 2: spatial ground truth (scanners / beacons / barriers)
+# ---------------------------------------------------------------------------
+
+
+def _spatial_fabric() -> FabricStore:
+    return _make_fabric({
+        "floors": {}, "scanner_positions_m": {},
+        "beacon_positions_m": {}, "rf_barriers_m": [], "history": [],
+    })
+
+
+@pytest.mark.asyncio
+async def test_spatial_import_once_per_key() -> None:
+    """A pass-1 fabric file (no spatial keys) imports each key exactly once."""
+    fab = _make_fabric()
+    fab.store.async_load = AsyncMock(return_value={"floors": {}, "history": []})
+    legacy = {
+        "scanner_positions_m": {"kitchen": {"x_m": 1.0, "y_m": 2.0, "z_m": 2.4, "floor_id": "main"}},
+        "beacon_positions_m": {"b1": {"x_m": 3.0, "y_m": 4.0, "floor_id": "main", "room": "K"}},
+        "rf_barriers_m": [{"name": "Wall", "points_m": [[0, 0], [1, 0]], "floor_id": "main"}],
+    }
+    await fab.async_setup(legacy_spatial=legacy)
+    assert fab.scanner_positions_m()["kitchen"]["x_m"] == 1.0
+    assert fab.beacon_positions_m()["b1"]["room"] == "K"
+    assert fab.rf_barriers_m()[0]["name"] == "Wall"
+    fab.store.async_save.assert_awaited()
+
+    # Second boot: keys exist (even if emptied) — legacy must NOT re-import.
+    fab2 = _make_fabric()
+    fab2.store.async_load = AsyncMock(return_value={
+        "floors": {}, "history": [], "scanner_positions_m": {},
+        "beacon_positions_m": {}, "rf_barriers_m": [],
+    })
+    await fab2.async_setup(legacy_spatial=legacy)
+    assert fab2.scanner_positions_m() == {}
+    assert fab2.beacon_positions_m() == {}
+    assert fab2.rf_barriers_m() == []
+
+
+@pytest.mark.asyncio
+async def test_spatial_import_on_fresh_store() -> None:
+    fab = _make_fabric()
+    fab.store.async_load = AsyncMock(return_value=None)
+    await fab.async_setup(legacy_spatial={
+        "scanner_positions_m": {"s1": {"x_m": 5, "y_m": 6, "z_m": 2, "floor_id": "main"}},
+    })
+    assert fab.scanner_positions_m()["s1"]["y_m"] == 6
+    assert fab.beacon_positions_m() == {}
+    assert fab.rf_barriers_m() == []
+
+
+@pytest.mark.asyncio
+async def test_spatial_update_set_and_remove() -> None:
+    fab = _spatial_fabric()
+    counts = await fab.async_spatial_update(
+        set_scanners={
+            "good": {"x_m": 1, "y_m": 2, "z_m": 2.4, "floor_id": "main", "origin": "map"},
+            "bad": {"x_m": float("nan"), "y_m": 2, "z_m": 2.4},
+        },
+        set_beacons={"bk": {"x_m": 3, "y_m": 4, "floor_id": "main", "room": "K"}},
+        op="test",
+    )
+    assert counts["scanners"] == 1 and counts["beacons"] == 1
+    assert "bad" not in fab.scanner_positions_m()
+
+    counts = await fab.async_spatial_update(
+        remove_scanners=["good", "never-there"], remove_beacons=["bk"], op="test")
+    assert counts["removed"] == 2
+    assert fab.scanner_positions_m() == {} and fab.beacon_positions_m() == {}
+    # History carries one entry per call
+    assert [h["op"] for h in fab.data["history"]] == ["test", "test"]
+
+
+@pytest.mark.asyncio
+async def test_spatial_update_barriers_name_and_map_replace() -> None:
+    fab = _spatial_fabric()
+    await fab.async_spatial_update(set_barriers=[
+        {"name": "Wall", "points_m": [[0, 0], [1, 0]], "floor_id": "main", "origin": "map", "map_id": "m1"},
+        {"name": "Door", "points_m": [[2, 0], [3, 0]], "floor_id": "main", "origin": "manual"},
+    ], op="seed")
+    # Name replace
+    await fab.async_spatial_update(set_barriers=[
+        {"name": "Wall", "points_m": [[0, 0], [0, 5]], "floor_id": "main", "origin": "map", "map_id": "m1"},
+    ], op="replace")
+    walls = [b for b in fab.rf_barriers_m() if b["name"] == "Wall"]
+    assert len(walls) == 1 and walls[0]["points_m"][1] == [0, 5]
+    # Map replace drops only that map's map-origin barriers
+    await fab.async_spatial_update(replace_map_barriers=("m1", []), op="wipe-m1")
+    names = [b["name"] for b in fab.rf_barriers_m()]
+    assert names == ["Door"]
+
+
+@pytest.mark.asyncio
+async def test_sync_from_map_drops_unpinned_entries() -> None:
+    """A scanner/beacon this map placed, then removed, must leave the fabric."""
+    mdl = _make_model({"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
+                              "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}})
+    fab = _spatial_fabric()
+    mdl.fabric = fab
+    fab.data["scanner_positions_m"] = {
+        "keep": {"x_m": 1, "y_m": 1, "z_m": 2.4, "floor_id": "main", "origin": "map", "map_id": "m1"},
+        "gone": {"x_m": 2, "y_m": 2, "z_m": 2.4, "floor_id": "main", "origin": "map", "map_id": "m1"},
+        "other-map": {"x_m": 3, "y_m": 3, "z_m": 2.4, "floor_id": "main", "origin": "map", "map_id": "m2"},
+        "manual": {"x_m": 4, "y_m": 4, "z_m": 2.4, "floor_id": "main", "origin": "manual", "map_id": "m1"},
+    }
+    fab.data["beacon_positions_m"] = {
+        "unpinned": {"x_m": 5, "y_m": 5, "floor_id": "main", "origin": "map", "map_id": "m1"},
+    }
+    await mdl.async_sync_spatial_from_map("m1", {
+        "floor_id": "main", "stack": {},
+        "receivers": [{"id": "keep", "source": "keep", "x": 0.5, "y": 0.5}],
+        "beacons": [],
+    })
+    pos = fab.scanner_positions_m()
+    assert "gone" not in pos
+    assert "other-map" in pos and "manual" in pos
+    assert pos["keep"]["x_m"] == pytest.approx(5.0)
+    assert fab.beacon_positions_m() == {}
+
+
+@pytest.mark.asyncio
+async def test_batch_save_respects_manual_origin() -> None:
+    mdl = _make_model({"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
+                              "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}})
+    fab = _spatial_fabric()
+    mdl.fabric = fab
+    fab.data["scanner_positions_m"] = {
+        "pinned": {"x_m": 9, "y_m": 9, "z_m": 2.4, "floor_id": "main", "origin": "manual"},
+    }
+    stats = await mdl.async_batch_save_spatial(
+        "m1", "main",
+        scanners=[{"id": "pinned", "source": "pinned", "x": 0.1, "y": 0.1}])
+    assert stats["scanners"] == 0
+    assert fab.scanner_positions_m()["pinned"]["x_m"] == 9
+
+
+def test_model_spatial_reads_loud_empty_without_fabric() -> None:
+    mdl = _make_model()
+    mdl.fabric = None
+    assert mdl.scanner_positions_m() == {}
+    assert mdl.beacon_positions_m() == {}
+    assert mdl.rf_barriers_m() == []

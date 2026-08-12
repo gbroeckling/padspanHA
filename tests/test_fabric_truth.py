@@ -209,3 +209,25 @@ async def test_commit_floor_stack_refuses_without_anchor() -> None:
     fab = _fabric()
     res = await fab.async_commit_floor("main", ms, mdl, source="stack")
     assert res == {"ok": False, "error": "no_metre_anchor", "floor_id": "main"}
+
+
+def test_room_distance_inside_poly_is_zero():
+    geo = {"type": "poly", "points_m": [[0, 0], [10, 0], [10, 10], [0, 10]]}
+    assert ft.room_distance_m(geo, 5.0, 5.0) == 0.0
+
+
+def test_room_distance_outside_poly_is_edge_distance():
+    geo = {"type": "poly", "points_m": [[0, 0], [10, 0], [10, 10], [0, 10]]}
+    assert ft.room_distance_m(geo, 13.0, 5.0) == pytest.approx(3.0)
+    assert ft.room_distance_m(geo, -3.0, -4.0) == pytest.approx(5.0)
+
+
+def test_room_distance_circle():
+    geo = {"type": "circle", "cx_m": 0.0, "cy_m": 0.0, "r_m": 2.0}
+    assert ft.room_distance_m(geo, 1.0, 0.0) == 0.0
+    assert ft.room_distance_m(geo, 5.0, 0.0) == pytest.approx(3.0)
+
+
+def test_room_distance_bad_geometry_is_none():
+    assert ft.room_distance_m(None, 0.0, 0.0) is None
+    assert ft.room_distance_m({"type": "poly", "points_m": [[0, 0]]}, 0.0, 0.0) is None

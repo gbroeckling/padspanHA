@@ -159,7 +159,20 @@ _sensor.SensorStateClass = MagicMock       # type: ignore[attr-defined]
 # homeassistant.components.websocket_api
 _ws = _ha_mods["homeassistant.components.websocket_api"]
 _ws.async_register_command = MagicMock  # type: ignore[attr-defined]
-_ws.websocket_command = lambda schema: (lambda fn: fn)  # type: ignore[attr-defined]
+def _ws_command(schema):
+    """Record the command schema on the handler.
+
+    Real HA validates incoming messages against this schema and rejects any
+    key it doesn't declare, so the schema is part of the handler's contract —
+    keep it reachable from tests instead of discarding it.
+    """
+    def _decorate(fn):
+        fn.ws_schema = schema
+        return fn
+    return _decorate
+
+
+_ws.websocket_command = _ws_command  # type: ignore[attr-defined]
 _ws.async_response = lambda fn: fn    # type: ignore[attr-defined]
 _ws.require_admin = lambda fn: fn     # type: ignore[attr-defined]
 

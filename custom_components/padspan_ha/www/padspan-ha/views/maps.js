@@ -6256,9 +6256,10 @@ function _wireLightsBuild(ctx, isoDiv, o) {
         const v = toVB(e);
         const dx = v.x - start.x, dy = v.y - start.y;
         // Arm the drag (and the render freeze) only once this is genuinely a
-        // drag: a 3px twitch during a select-click used to pin an auto-
-        // clustered light silently.
-        if (!moved && Math.abs(dx) + Math.abs(dy) > 3) {
+        // drag. 8px, not 3: every hex is draggable now, so a twitch while
+        // select-clicking an auto-clustered light would pin it. 3px is inside
+        // normal click jitter (and inside a fingertip's), 8px is not.
+        if (!moved && Math.abs(dx) + Math.abs(dy) > 8) {
           moved = true;
           o.mapState._editDragging = true;   // suppress poll re-renders mid-drag
         }

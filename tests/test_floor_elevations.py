@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from custom_components.padspan_ha.fabric_store import FabricStore
 from custom_components.padspan_ha.model_store import (
     DEFAULT_FLOOR_TO_FLOOR_M,
     ModelStore,
@@ -17,7 +18,14 @@ def _make_store(floors: list[dict]) -> ModelStore:
     store.hass = MagicMock()
     store.store = AsyncMock()
     store.store.async_save = AsyncMock()
-    store.data = {"floors": list(floors), "scanner_positions_m": {}}
+    store.data = {"floors": list(floors)}
+    fab = FabricStore.__new__(FabricStore)
+    fab.hass = store.hass
+    fab.store = AsyncMock()
+    fab.store.async_save = AsyncMock()
+    fab.data = {"floors": {}, "scanner_positions_m": {},
+                "beacon_positions_m": {}, "rf_barriers_m": [], "history": []}
+    store.fabric = fab
     return store
 
 
@@ -70,7 +78,7 @@ def test_scanner_absolute_z() -> None:
         {"id": "ground", "name": "G", "level": 0, "floor_to_floor_m": 2.8},
         {"id": "first", "name": "F", "level": 1},
     ])
-    store.data["scanner_positions_m"] = {
+    store.fabric.data["scanner_positions_m"] = {
         "kitchen": {"x_m": 1, "y_m": 2, "z_m": 2.4, "floor_id": "ground"},
         "bedroom": {"x_m": 3, "y_m": 4, "z_m": 1.0, "floor_id": "first"},
         "lost": {"x_m": 5, "y_m": 6, "z_m": 2.0, "floor_id": "nonexistent"},
@@ -166,7 +174,7 @@ def test_floor_stack_index() -> None:
 
 def _store_with_scanner() -> ModelStore:
     store = _make_store([{"id": "main", "name": "Main"}])
-    store.data["scanner_positions_m"] = {
+    store.fabric.data["scanner_positions_m"] = {
         "kitchen": {"x_m": 1.0, "y_m": 2.0, "z_m": 2.4, "floor_id": "main",
                     "origin": "map", "map_id": "m1"},
     }
@@ -182,7 +190,7 @@ async def test_set_scanner_z_marks_manual() -> None:
     store = _store_with_scanner()
     ok = await store.async_set_scanner_z_m("kitchen", 1.0)
     assert ok
-    entry = store.data["scanner_positions_m"]["kitchen"]
+    entry = store.scanner_positions_m()["kitchen"]
     assert entry["z_m"] == pytest.approx(1.0)
     assert entry["z_origin"] == "manual"
     assert entry["origin"] == "map"          # x/y ownership untouched
@@ -205,7 +213,7 @@ async def test_manual_z_survives_map_sync() -> None:
         "receivers": [{"id": "kitchen", "source": "kitchen", "x": 0.5, "y": 0.5}],
     }
     await store.async_sync_spatial_from_map("m1", map_dict)
-    entry = store.data["scanner_positions_m"]["kitchen"]
+    entry = store.scanner_positions_m()["kitchen"]
     assert entry["x_m"] == pytest.approx(5.0)          # drag applied
     assert entry["z_m"] == pytest.approx(1.0)          # height kept
     assert entry["z_origin"] == "manual"
@@ -221,18 +229,18 @@ async def test_default_z_follows_ceiling_on_sync() -> None:
         "receivers": [{"id": "kitchen", "source": "kitchen", "x": 0.5, "y": 0.5}],
     }
     await store.async_sync_spatial_from_map("m1", map_dict)
-    assert store.data["scanner_positions_m"]["kitchen"]["z_m"] == pytest.approx(2.6)
+    assert store.scanner_positions_m()["kitchen"]["z_m"] == pytest.approx(2.6)
 
 
 @pytest.mark.asyncio
 async def test_batch_save_preserves_existing_z() -> None:
     """The Tune batch save has no height info — it must keep the stored z."""
     store = _store_with_scanner()
-    store.data["scanner_positions_m"]["kitchen"]["z_m"] = 2.6
+    store.fabric.data["scanner_positions_m"]["kitchen"]["z_m"] = 2.6
     await store.async_batch_save_spatial(
         "m1", "main",
         scanners=[{"id": "kitchen", "source": "kitchen", "x": 0.25, "y": 0.25}],
     )
-    entry = store.data["scanner_positions_m"]["kitchen"]
+    entry = store.scanner_positions_m()["kitchen"]
     assert entry["x_m"] == pytest.approx(2.5)
     assert entry["z_m"] == pytest.approx(2.6)          # not reset to 2.4

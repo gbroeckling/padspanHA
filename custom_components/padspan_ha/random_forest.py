@@ -200,11 +200,22 @@ class RandomForestLocator:
     def is_trained(self) -> bool:
         return self._trained
 
-    def train(self, points: list[dict[str, Any]], use_metres: bool = False) -> None:
+    def train(
+        self,
+        points: list[dict[str, Any]],
+        use_metres: bool = False,
+        excluded: frozenset[str] | set[str] | None = None,
+    ) -> None:
         """
         Build forest from calibration points.
         Each point: {x_frac, y_frac, room, map_id, scanner_readings: [{source, mean_rssi}]}
         Phase 3: when use_metres=True, trains on x_m/y_m instead.
+
+        `excluded` (issue #59) drops those sources from the feature index, so
+        the forest has no column for them at all. Because predict() builds its
+        query vector from the same index, a masked scanner is ignored on both
+        sides without touching a single stored sample — retraining with an
+        empty exclusion set restores the old model exactly.
         """
         self._use_metres = use_metres
         # Filter points with RSSI data and valid coordinates
@@ -238,7 +249,10 @@ class RandomForestLocator:
                 if s:
                     src_counts[s] = src_counts.get(s, 0) + 1
         min_appearances = max(2, int(len(valid) * 0.15))
-        self._sources = sorted(s for s, c in src_counts.items() if c >= min_appearances)
+        _excl = excluded or frozenset()
+        self._sources = sorted(
+            s for s, c in src_counts.items() if c >= min_appearances and s not in _excl
+        )
         src_idx = {s: i for i, s in enumerate(self._sources)}
         n_feat = len(self._sources)
 

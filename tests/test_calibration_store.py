@@ -919,3 +919,47 @@ async def test_reanchor_rolls_back_on_remap_failure() -> None:
     t = model.data["map_transforms"]["map1"]
     assert t["origin_x_m"] == 6.0 and t["origin_y_m"] == 4.0   # rolled back
     assert cal.data["points"][0]["x_frac"] == pytest.approx(0.9)  # restored
+
+
+# ---------------------------------------------------------------------------
+# Audit fixes: top-k room vote + symmetric missing-scanner penalty
+# ---------------------------------------------------------------------------
+
+
+def test_knn_room_is_topk_vote_not_single_nearest() -> None:
+    """One noisy nearest sample must not decide the room when the rest of
+    the top-k agree on another."""
+    pts = [
+        # Nearest by a hair, mislabeled
+        _make_point(x_frac=0.1, y_frac=0.1, room="Mislabeled",
+                    readings={"s1": -60.0, "s2": -70.0}),
+        # Four barely-further points that agree
+        _make_point(x_frac=0.2, y_frac=0.2, room="Kitchen",
+                    readings={"s1": -61.0, "s2": -70.0}),
+        _make_point(x_frac=0.21, y_frac=0.2, room="Kitchen",
+                    readings={"s1": -61.0, "s2": -69.0}),
+        _make_point(x_frac=0.2, y_frac=0.21, room="Kitchen",
+                    readings={"s1": -59.0, "s2": -71.0}),
+        _make_point(x_frac=0.22, y_frac=0.22, room="Kitchen",
+                    readings={"s1": -61.5, "s2": -70.0}),
+    ]
+    store = _make_store(pts)
+    res = store.knn_locate({"s1": -60.0, "s2": -70.0}, map_id="map1")
+    assert res is not None
+    assert res["nearest_room"] == "Kitchen"
+
+
+def test_knn_missing_penalty_is_symmetric() -> None:
+    """A rich fingerprint matched by a sparse query must score worse than an
+    equal-coverage fingerprint with identical shared readings."""
+    rich = _make_point(x_frac=0.3, y_frac=0.3, room="Rich",
+                       readings={"s1": -60.0, "s2": -70.0, "s3": -80.0,
+                                 "s4": -85.0, "s5": -88.0, "s6": -90.0})
+    lean = _make_point(x_frac=0.7, y_frac=0.7, room="Lean",
+                       readings={"s1": -60.0, "s2": -70.0})
+    store = _make_store([rich, lean])
+    res = store.knn_locate({"s1": -60.0, "s2": -70.0}, map_id="map1", k=1)
+    assert res is not None
+    # Shared readings are identical for both; the rich point's 4 unmatched
+    # scanners must penalize it, so the lean point wins.
+    assert res["nearest_room"] == "Lean"

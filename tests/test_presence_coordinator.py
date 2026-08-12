@@ -590,6 +590,9 @@ class TestEdgeCases:
         })
 
         coord = _make_coordinator(calibration=mock_calib)
+        # The k-NN room must be a REAL room to be accepted (pseudo-room
+        # guard) — give it a centroid, as the fabric would.
+        coord._room_centroids = {"CalibratedRoom": (1.0, 1.0, "main")}
         src_area = {"scanner1": "GaussianRoom"}
 
         for _ in range(_VOTE_THRESHOLD):
@@ -601,6 +604,30 @@ class TestEdgeCases:
 
         # k-NN should have overridden to CalibratedRoom
         assert coord._confirmed_room.get("dev1") == "CalibratedRoom"
+
+    def test_knn_pseudo_room_is_rejected(self) -> None:
+        """A k-NN room that is not a real room (device-label sample) must not confirm."""
+        mock_calib = MagicMock()
+        mock_calib.data = {"points": [{"x": i} for i in range(10)]}
+        mock_calib.knn_locate = MagicMock(return_value={
+            "confidence": 0.8,
+            "nearest_room": "Nicoles---Purse",   # device label, not a room
+            "x_frac": 0.5,
+            "y_frac": 0.3,
+        })
+
+        coord = _make_coordinator(calibration=mock_calib)
+        src_area = {"scanner1": "GaussianRoom"}
+
+        for _ in range(_VOTE_THRESHOLD):
+            coord._smooth_room(
+                "dev1", "AA:BB",
+                {"AA:BB": {"scanner1": -55.0}},
+                src_area,
+            )
+
+        # The phantom room is refused; the Gaussian result stands.
+        assert coord._confirmed_room.get("dev1") == "GaussianRoom"
         assert coord._knn_position.get("dev1") is not None
         assert coord._knn_position["dev1"]["x_frac"] == 0.5
 

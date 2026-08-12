@@ -3017,6 +3017,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("overview_show_walls"): bool,
         vol.Optional("object_history_days"): vol.Coerce(int),
         vol.Optional("scanner_offsets"): dict,
+        vol.Optional("excluded_scanners"): list,
         vol.Optional("overview_2d_mode"): bool,
         vol.Optional("positioning_algorithm"): str,
         vol.Optional("beacon_profiling_enabled"): bool,
@@ -3196,6 +3197,12 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             raw = msg["scanner_offsets"]
             if isinstance(raw, dict):
                 payload["scanner_offsets"] = {str(k): float(v) for k, v in raw.items()}
+        if "excluded_scanners" in msg:
+            raw = msg["excluded_scanners"]
+            payload["excluded_scanners"] = (
+                sorted({str(x) for x in raw if isinstance(x, str) and x.strip()})
+                if isinstance(raw, list) else []
+            )
         if "light_shapes" in msg:
             # entity_id -> shape kind. Only known kinds are stored; an unknown
             # value would just fall back to the default marker in the frontend,
@@ -3302,6 +3309,20 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 })
             payload["padspan_automations"] = _clean_rules
         await st.async_set(**payload)
+
+        # ── Excluded scanners changed → retrain the forest (issue #59) ───────
+        # k-NN masks per query, but the Random Forest bakes its feature columns
+        # in at training time: without a retrain the masked scanner would keep
+        # its column (and its influence on every split) until the next
+        # calibration edit. Retraining reads the new exclusion set and rebuilds
+        # from the untouched stored samples, so this is reversible either way.
+        if "excluded_scanners" in msg:
+            try:
+                _cal_ex = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
+                if _cal_ex:
+                    hass.async_create_task(_cal_ex._async_train_rf())
+            except Exception as _ex_err:
+                _LOGGER.debug("Excluded-scanner retrain: %s", _ex_err)
 
         # ── Dynamic ESPresense MQTT toggle ───────────────────────────────────
         if "espresense_mqtt_enabled" in msg:
