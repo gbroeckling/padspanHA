@@ -22,8 +22,8 @@ If UI changes don't show:
 // BUILD_ID (YYYYMMDDTHHMMSSZ) is appended to all JS import URLs as a cache-buster
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
-const APP_VERSION = "0.26.0";
-const BUILD_ID = "20260812T001931Z";
+const APP_VERSION = "0.26.1";
+const BUILD_ID = "20260812T035140Z";
 const CHANNEL = "beta";
 
 // ── Dynamic view imports ─────────────────────────────────────────────────────
@@ -1226,6 +1226,11 @@ class PadSpanHaApp extends HTMLElement {
       // non-fatal
       console.warn("model_get failed", e);
     }
+    // Views that resolve HA area NAMES (the Lights tab's entity registry
+    // pipeline) must wait for this fetch to settle — resolving before it
+    // lands marks every light unassigned and caches that. Set on failure
+    // too, or the view would show a loading state forever.
+    this.state._modelLoaded = true;
   }
 
   async _runAutoDiag(userAction=false){

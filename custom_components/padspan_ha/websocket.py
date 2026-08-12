@@ -3005,6 +3005,11 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("tags_nfc_identify_enabled"): bool,
         vol.Optional("tags_phone_autolink_enabled"): bool,
         vol.Optional("quiet_mode"): bool,
+        vol.Optional("light_theme"): bool,
+        vol.Optional("beacon_auto_calibrate"): bool,
+        vol.Optional("overview_persistent_pins"): bool,
+        vol.Optional("object_history_days"): vol.Coerce(int),
+        vol.Optional("scanner_offsets"): dict,
         vol.Optional("overview_2d_mode"): bool,
         vol.Optional("positioning_algorithm"): str,
         vol.Optional("beacon_profiling_enabled"): bool,
@@ -3184,6 +3189,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             raw = msg["scanner_offsets"]
             if isinstance(raw, dict):
                 payload["scanner_offsets"] = {str(k): float(v) for k, v in raw.items()}
+        if "object_history_days" in msg:
+            _days = int(msg["object_history_days"])
+            payload["object_history_days"] = (
+                _days if _days in _OBJECT_HISTORY_DAY_CHOICES else _OBJECT_HISTORY_DAYS_DEFAULT
+            )
         if "adaptive_learning_enabled" in msg:
             payload["adaptive_learning_enabled"] = bool(msg["adaptive_learning_enabled"])
         if "adaptive_floor_detection" in msg:
@@ -3199,7 +3209,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "ha_entity_occupancy_enabled",
                     "lights_panel_enabled", "bermuda_ignore",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",
-                    "tags_phone_autolink_enabled", "quiet_mode",
+                    "tags_phone_autolink_enabled", "quiet_mode", "light_theme",
+                    "beacon_auto_calibrate", "overview_persistent_pins",
                     "overview_2d_mode", "beacon_profiling_enabled",
                     "trackability_rating_enabled", "walk_to_identify_enabled",
                     "radio_map_enabled", "distortion_map_enabled",

@@ -12,8 +12,8 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.26.0";
-const BUILD_ID = "20260812T001931Z";
+const APP_VERSION = "0.26.1";
+const BUILD_ID = "20260812T035140Z";
 
 // Query inherited from our own module URL so the ?b= cache-buster propagates
 // (see docs/06_UI_CACHE_BUSTING.md).
@@ -102,6 +102,11 @@ class PadSpanLightsApp extends HTMLElement {
 
   async _boot(){
     if(!this._hass) return;
+    // The header Refresh button re-boots — without this, each click leaves
+    // its predecessor's 5s interval running forever (they can only ever be
+    // cleared one deep), multiplying full re-renders and churning the DOM
+    // mid-interaction.
+    if(this._pollTimer){ clearInterval(this._pollTimer); this._pollTimer=null; }
     // Maps + settings are small and fast — render the floor/room shapes on
     // those alone first. The entity/device registry (needed only to know
     // which room each light is in) is a multi-MB whole-house dump on a
@@ -142,9 +147,15 @@ class PadSpanLightsApp extends HTMLElement {
   }
 
   async _loadSettings(){
+    let s = {};
+    // A failed settings_get must still leave the hidden-maps fallback below
+    // reachable — otherwise a transient websocket error makes this panel
+    // render maps the Mapping tab hides, for the whole session.
     try{
       const res = await this._hass.callWS({ type:"padspan_ha/settings_get" });
-      const s = res?.settings || {};
+      s = res?.settings || {};
+    }catch(e){}
+    try{
       this._view.floorGap = s.overview_iso_floor_gap ?? 150;
       this._view.horizGap = s.overview_iso_horiz_gap ?? 0;
       this._view.focusIdx = s.overview_iso_focus     ?? 0;
@@ -156,8 +167,12 @@ class PadSpanLightsApp extends HTMLElement {
         try{ this.state._hiddenMapIds = new Set(JSON.parse(localStorage.getItem("padspan_hiddenMapIds")||"[]")); }
         catch(e){ this.state._hiddenMapIds = new Set(); }
       }
-      // Restore hidden lights from backend (authoritative over localStorage)
-      if(Array.isArray(s.lights_hidden) && s.lights_hidden.length){
+      // Restore hidden lights from backend (authoritative over localStorage).
+      // An EMPTY array is a real value — "nothing hidden" — not a missing
+      // one: unhiding the last light in the Mapping → Lights tab writes []
+      // here, and skipping it would resurrect this device's stale
+      // localStorage copy and hide a light the tab shows.
+      if(Array.isArray(s.lights_hidden)){
         this.state._hidden = new Set(s.lights_hidden);
         try{ localStorage.setItem(LS_HIDDEN, JSON.stringify(s.lights_hidden)); }catch(_){}
       }
@@ -166,9 +181,12 @@ class PadSpanLightsApp extends HTMLElement {
 
   async _saveSettings(){
     try{
+      // Never bundle data_mode: the backend leaves it untouched when the
+      // message omits it, and echoing "live" here would make Save view flip
+      // a sample-mode install to live as a hidden side effect (same reason
+      // panel.js's settingsSet omits it).
       await this._hass.callWS({
         type:                    "padspan_ha/settings_set",
-        data_mode:               "live",
         overview_iso_floor_gap:  this._view.floorGap,
         overview_iso_horiz_gap:  this._view.horizGap,
         overview_iso_focus:      this._view.focusIdx,

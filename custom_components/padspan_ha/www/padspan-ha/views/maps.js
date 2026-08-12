@@ -6308,8 +6308,7 @@ function _lightsTab(ctx, maps, active) {
   if (!ctx.state._lightsRegStore) ctx.state._lightsRegStore = {};
   const areas = ctx.state.model?.areas || [];
   const floors = ctx.state.model?.floors || [];
-  const modelReady = areas.length > 0 || floors.length > 0;
-  const reg = modelReady
+  const reg = ctx.state._modelLoaded
     ? ensureLightsRegistry(ctx.state._lightsRegStore, ctx.hass, areas, () => ctx.actions.renderRooms())
     : { areaMap: {}, loading: true };
   const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap);
@@ -6423,10 +6422,15 @@ function _lightsTab(ctx, maps, active) {
       mapState._selLight = { eid: l.entity_id, mapId: owner ? owner.id : null };
       ctx.actions.renderRooms();
     },
-    onToggleHidden: (eid) => {
+    onToggleHidden: async (eid) => {
+      // Await the round-trip: settingsSet updates ctx.state.settings from the
+      // response, and re-rendering before it lands would rebuild every row
+      // against the pre-click set — the click would look ignored, and a
+      // second toggle inside that window would overwrite the first.
       const next = new Set(hiddenEids);
       if (next.has(eid)) next.delete(eid); else next.add(eid);
-      ctx.actions.settingsSet({ lights_hidden: [...next] });
+      try { await ctx.actions.settingsSet({ lights_hidden: [...next] }); }
+      catch (e) { ctx.toast("Could not save hidden lights: " + String(e), true); }
       ctx.actions.renderRooms();
     },
     afterAssign: () => {
@@ -6496,10 +6500,8 @@ function _lightsTab(ctx, maps, active) {
     wrap.appendChild(insp);
   }
 
-  // ── The shared light index table ────────────────────────────────────────
-  const tblCard = el("div", { class: "card" });
-  tblCard.appendChild(buildLightsTable(host, lights));
-  wrap.appendChild(tblCard);
+  // ── The shared light index table (brings its own card) ──────────────────
+  wrap.appendChild(buildLightsTable(host, lights));
 
   return wrap;
 }

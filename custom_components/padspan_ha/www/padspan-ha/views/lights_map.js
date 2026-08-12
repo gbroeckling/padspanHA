@@ -238,7 +238,9 @@ export function buildLightsMapCard(host){
 export function buildLightsTable(host, lights){
   const { el } = host;
   const hidden = host.hiddenEids;
-  const root = el("div", {});
+  // The card wrapper lives HERE, not in the hosts — same objects AND same
+  // layout in both views.
+  const root = el("div", { class: "card", style: "padding:12px" });
 
   const unassigned = lights.filter(l => !l.area_name && !hidden.has(l.entity_id));
   if (host.lightsLoading) {
