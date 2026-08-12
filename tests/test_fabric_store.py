@@ -515,3 +515,33 @@ def test_model_spatial_reads_loud_empty_without_fabric() -> None:
     assert mdl.scanner_positions_m() == {}
     assert mdl.beacon_positions_m() == {}
     assert mdl.rf_barriers_m() == []
+
+
+@pytest.mark.asyncio
+async def test_unmeasured_map_gets_no_invented_scale() -> None:
+    """The 20m fabrication is gone. A photo nobody measured is a picture:
+    it gets no transform, so nothing can derive metres through it."""
+    mdl = _make_model()
+    ms = _maps_store([
+        {"id": "measured", "floor_id": "main", "stack": {"is_master": True},
+         "calibration": {"px_per_meter": 100.0},
+         "image": {"width": 1000, "height": 800}},
+        {"id": "unmeasured", "floor_id": "main", "stack": {},
+         "calibration": {},
+         "image": {"width": 1000, "height": 800}},
+    ])
+    n = await mdl.async_derive_transforms(ms)
+    t = mdl.data["map_transforms"]
+    assert "measured" in t
+    assert "unmeasured" not in t
+    assert n == 1
+    assert t["measured"]["scale_x_m"] == pytest.approx(10.0)
+
+    # The fallback fired only when a caller supplied a width, so asserting the
+    # default behaviour proves nothing — the parameter itself has to be gone.
+    import inspect
+
+    assert "default_floor_width_m" not in inspect.signature(
+        mdl.async_derive_transforms).parameters
+    with pytest.raises(TypeError):
+        await mdl.async_derive_transforms(ms, default_floor_width_m=20.0)

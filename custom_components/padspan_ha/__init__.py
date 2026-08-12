@@ -349,14 +349,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
             ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
             if mdl and ms and not mdl.has_spatial_model():
-                # Derive default_floor_width from existing transforms if available
-                _existing_t = mdl.data.get("map_transforms") or {}
-                _default_w = 0.0
-                for _t in _existing_t.values():
-                    _sw = _t.get("scale_x_m", 0)
-                    if _sw and float(_sw) > _default_w:
-                        _default_w = float(_sw)
-                n_transforms = await mdl.async_derive_transforms(ms, default_floor_width_m=_default_w)
+                n_transforms = await mdl.async_derive_transforms(ms)
                 if n_transforms:
                     stats = await mdl.async_migrate_from_maps(ms)
                     _LOGGER.info(

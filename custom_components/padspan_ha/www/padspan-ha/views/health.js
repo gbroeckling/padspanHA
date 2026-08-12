@@ -423,21 +423,15 @@ function _renderFabric(ctx, container, data) {
     migrateCard.appendChild(el("div",{style:"font-weight:700;font-size:12px;color:#fbbf24;margin-bottom:8px"},
       "No map transforms \u2014 set floor width to bootstrap the spatial model"));
     const row = el("div",{style:"display:flex;align-items:center;gap:8px"});
-    const input = el("input",{type:"number",value:"20",min:"5",max:"200",step:"1",
-      style:"width:80px;padding:4px 8px;border:1px solid #334155;border-radius:4px;background:#1e293b;color:#e2e8f0;font-size:12px"});
-    row.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"Floor width:"));
-    row.appendChild(input);
-    row.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"metres"));
+    row.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},
+      "Only maps you have measured get real-world coordinates — unmeasured maps are skipped."));
     const migrateBtn = el("button",{class:"btn",style:"width:auto;padding:4px 14px;font-size:11px;margin-left:8px"},"Migrate to Metres");
     migrateBtn.addEventListener("click", async () => {
-      const w = parseFloat(input.value);
-      if (!w || w < 1) { ctx.toast("Enter a valid floor width"); return; }
       migrateBtn.disabled = true;
       migrateBtn.textContent = "Migrating\u2026";
       try {
         const res = await ctx.actions.callWS({
           type: "padspan_ha/fabric_migrate_from_maps",
-          default_floor_width_m: w,
         });
         // Also retrain RF to pick up metre-space data
         try { await ctx.actions.callWS({type:"padspan_ha/calibration_retrain_rf"}); } catch(e){}
