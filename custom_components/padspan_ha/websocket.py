@@ -236,7 +236,6 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_store_backup_list)
     websocket_api.async_register_command(hass, ws_store_backup_restore)
     websocket_api.async_register_command(hass, ws_store_backup_delete)
-    websocket_api.async_register_command(hass, ws_beacon_positions_get)
     websocket_api.async_register_command(hass, ws_ha_entities_audit)
     websocket_api.async_register_command(hass, ws_logs_get)
     websocket_api.async_register_command(hass, ws_private_ble_status)
@@ -258,14 +257,12 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_fabric_beacon_remove)
     websocket_api.async_register_command(hass, ws_fabric_room_add)
     websocket_api.async_register_command(hass, ws_fabric_room_remove)
-    websocket_api.async_register_command(hass, ws_fabric_adjacency_set)
     websocket_api.async_register_command(hass, ws_fabric_sync_mode_set)
     # Phase 2: real-world spatial model commands
     websocket_api.async_register_command(hass, ws_fabric_scanner_position_set)
     websocket_api.async_register_command(hass, ws_fabric_floor_elevations_set)
     websocket_api.async_register_command(hass, ws_fabric_scanner_z_set)
     websocket_api.async_register_command(hass, ws_fabric_correct_room)
-    websocket_api.async_register_command(hass, ws_fabric_commit_floor)
     websocket_api.async_register_command(hass, ws_fabric_floor_finalize)
     websocket_api.async_register_command(hass, ws_fabric_truth_candidates)
     websocket_api.async_register_command(hass, ws_fabric_map_align_to_stack)
@@ -284,7 +281,6 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_device_registry_list)
     websocket_api.async_register_command(hass, ws_device_registry_migrate)
     websocket_api.async_register_command(hass, ws_device_registry_merge)
-    websocket_api.async_register_command(hass, ws_device_registry_resolve)
     websocket_api.async_register_command(hass, ws_device_registry_label_set)
     websocket_api.async_register_command(hass, ws_device_registry_add_identity)
     websocket_api.async_register_command(hass, ws_device_registry_delete)
@@ -7290,38 +7286,6 @@ async def ws_store_backup_delete(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"deleted": deleted > 0})
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/beacon_positions_get"})
-@websocket_api.async_response
-async def ws_beacon_positions_get(hass: HomeAssistant, connection, msg) -> None:
-    """Return all pinned beacon positions across all maps with their computed room.
-
-    Used by the Beacon Tune tab to show where beacons are placed.  Room is
-    determined by point-in-polygon/circle test against the map's room_bounds.
-    """
-    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
-    if not ms:
-        connection.send_result(msg["id"], {"positions": []})
-        return
-    positions: list[dict[str, Any]] = []
-    for m in ms.list_maps():
-        map_id = m.get("id", "")
-        floor_id = m.get("floor_id", "")
-        room_bounds = m.get("room_bounds") or {}
-        for bk in m.get("beacons") or []:
-            room = _room_from_bounds(room_bounds, float(bk.get("x", 0)), float(bk.get("y", 0)))
-            positions.append({
-                "key": bk.get("key", ""),
-                "map_id": map_id,
-                "x": bk.get("x", 0),
-                "y": bk.get("y", 0),
-                "label": bk.get("label", ""),
-                "floor_id": floor_id,
-                "room": room,
-                "kind": bk.get("kind", ""),
-            })
-    connection.send_result(msg["id"], {"positions": positions})
-
-
 @websocket_api.websocket_command({
     "type": "padspan_ha/logs_get",
     vol.Optional("level", default="DEBUG"): str,
@@ -9375,29 +9339,6 @@ async def ws_fabric_room_remove(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command(
     {
-        "type": "padspan_ha/fabric_adjacency_set",
-        "room": str,
-        "neighbors": [str],
-    }
-)
-@websocket_api.async_response
-async def ws_fabric_adjacency_set(hass: HomeAssistant, connection, msg) -> None:
-    """Set room neighbors in the positioning fabric."""
-    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-    if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
-        return
-    room = (msg.get("room") or "").strip()
-    neighbors = msg.get("neighbors") or []
-    if not room:
-        connection.send_error(msg["id"], "invalid", "room is required")
-        return
-    await mdl.async_set_adjacency(room, [str(n).strip() for n in neighbors if str(n).strip()])
-    connection.send_result(msg["id"], {"ok": True, "room": room, "neighbors": mdl.adjacency().get(room, [])})
-
-
-@websocket_api.websocket_command(
-    {
         "type": "padspan_ha/fabric_sync_mode_set",
         "mode": str,
     }
@@ -9528,42 +9469,6 @@ async def ws_fabric_correct_room(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "invalid", "room and geometry dict are required")
         return
     res = await fab.async_correct_room(msg.get("floor_id") or DEFAULT_FLOOR_ID, room, geo)
-    if not res.get("ok"):
-        connection.send_error(msg["id"], res.get("error", "failed"), str(res))
-        return
-    connection.send_result(msg["id"], res)
-
-
-@websocket_api.websocket_command(
-    {
-        "type": "padspan_ha/fabric_commit_floor",
-        "floor_id": str,
-        vol.Optional("mode"): vol.In(["bootstrap", "overwrite"]),
-        vol.Optional("source"): vol.In(["transforms", "stack"]),
-    }
-)
-@websocket_api.require_admin
-@websocket_api.async_response
-async def ws_fabric_commit_floor(hass: HomeAssistant, connection, msg) -> None:
-    """One-time bootstrap of a floor's fabric from its maps' room bounds.
-
-    The single moment map state ever reaches room geometry. `source` selects
-    the form of truth ("transforms" = per-map calibration, "stack" = the
-    hand-tuned alignment anchored by a measured map). Refuses on a floor
-    that already has rooms (or is committed) unless mode="overwrite", which
-    the UI only sends after an explicit confirmation.
-    """
-    fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
-    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
-    if not fab or not mdl or not ms:
-        connection.send_error(msg["id"], "no_stores", "Fabric/Model/Maps store not loaded")
-        return
-    res = await fab.async_commit_floor(
-        msg.get("floor_id") or DEFAULT_FLOOR_ID, ms, mdl,
-        mode=msg.get("mode") or "bootstrap",
-        source=msg.get("source") or "transforms",
-    )
     if not res.get("ok"):
         connection.send_error(msg["id"], res.get("error", "failed"), str(res))
         return
@@ -11358,27 +11263,6 @@ async def ws_device_registry_merge(hass: HomeAssistant, connection, msg) -> None
         "kept": keep_id,
         "absorbed": absorb_id,
         "device": dev_reg.get(keep_id),
-    })
-
-
-@websocket_api.websocket_command({
-    "type": "padspan_ha/device_registry_resolve",
-    "key": str,
-})
-@websocket_api.async_response
-async def ws_device_registry_resolve(hass: HomeAssistant, connection, msg) -> None:
-    """Resolve a volatile key (MAC, iBeacon, canonical_id) to a padspan_id."""
-    from .const import DATA_DEVICE_REGISTRY
-    dev_reg = hass.data.get(DOMAIN, {}).get(DATA_DEVICE_REGISTRY)
-    if not dev_reg:
-        connection.send_error(msg["id"], "no_device_registry", "Device Registry not initialized")
-        return
-    key = str(msg["key"]).strip()
-    pid = dev_reg.resolve(key)
-    device = dev_reg.get(pid) if pid else None
-    connection.send_result(msg["id"], {
-        "padspan_id": pid,
-        "device": device,
     })
 
 

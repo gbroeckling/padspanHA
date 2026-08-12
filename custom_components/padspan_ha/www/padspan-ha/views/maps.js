@@ -6707,10 +6707,11 @@ function _roomsTab(ctx, maps) {
   const fabricFloors = ctx.state.model?.fabric_floors || {};
 
   card.appendChild(el("div", { class: "card-head", style: "margin-bottom:4px" }, [
-    el("div", { style: "font-weight:700;font-size:15px" }, "Room Shapes (Fabric)"),
+    el("div", { style: "font-weight:700;font-size:15px" }, "The Fabric — rooms and scanners, in metres"),
   ]));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "The real-world room fabric the positioning engine uses — edited directly, in metres. " +
+    "The real-world model the positioning engine uses — edited directly, in metres, with no floor " +
+    "plan involved. Green pins are your scanners: drag one to say where it actually is. " +
     "Compare the saved fabric against the other forms of truth (your hand-tuned stack alignment, " +
     "or each photo's own calibration), refine, and only then commit the best layout. " +
     "Click a room to select it (Shift-click for a group), drag to move, drag a corner to reshape."));
@@ -6737,6 +6738,57 @@ function _roomsTab(ctx, maps) {
   }
   card.appendChild(bar);
 
+  // ── Add a room that exists only in the fabric ───────────────────────────
+  // No HA area, no floor plan, no photo. Type a name and it is real; drag
+  // its shape to where it is. This is what "the fabric is the truth" means
+  // in practice.
+  {
+    const addRow = el("div", { style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px" });
+    const nameIn = el("input", {
+      type: "text", placeholder: "New room name",
+      style: "width:150px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:3px 8px;font-size:12px",
+    });
+    addRow.appendChild(nameIn);
+    addRow.appendChild(el("button", {
+      class: "btn inline",
+      onclick: async (e) => {
+        const name = (nameIn.value || "").trim();
+        if (!name) { ctx.toast("Enter a room name"); return; }
+        if (allGeo[name]) { ctx.toast(`"${name}" already exists`, true); return; }
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try {
+          await ctx.actions.wsCall("padspan_ha/fabric_room_add", { room: name, floor_id: floorId });
+          // Give it a real 3m x 3m shape beside the rooms already on this
+          // floor, so it is immediately draggable instead of invisible.
+          let cx = 0, cy = 0, n = 0;
+          for (const g of Object.values(fabricDraft)) {
+            const c = _geomCentroid(g);
+            if (c) { cx += c[0]; cy += c[1]; n++; }
+          }
+          if (n) { cx /= n; cy /= n; } else { cx = 0; cy = 0; }
+          await ctx.actions.wsCall("padspan_ha/fabric_correct_room", {
+            floor_id: floorId, room: name,
+            geometry: { type: "poly", points_m: [
+              [cx - 1.5, cy - 1.5], [cx + 1.5, cy - 1.5],
+              [cx + 1.5, cy + 1.5], [cx - 1.5, cy + 1.5]] },
+          });
+          nameIn.value = "";
+          ctx.toast(`✔ "${name}" added — drag it into place`);
+          mapState._roomsDraftFloorId = null;
+          mapState._roomsTruthCache = null;
+          await ctx.actions.modelRefresh();
+        } catch (err) {
+          ctx.toast("Add failed: " + (err.message || err), true);
+          btn.disabled = false;
+        }
+      },
+    }, "+ Add room"));
+    addRow.appendChild(el("span", { class: "muted", style: "font-size:11px" },
+      "Exists in the fabric only — no Home Assistant area or floor plan required."));
+    card.appendChild(addRow);
+  }
+
   // ── Draft: a scratch copy of this floor's geometry, reset on floor switch ─
   if (mapState._roomsDraftFloorId !== floorId) {
     const draft = {};
@@ -6751,7 +6803,28 @@ function _roomsTab(ctx, maps) {
     mapState._roomsCandDraft = null;
     mapState._roomsBlendAveraged = false;
     mapState._roomsAlignPreview = null;
+    mapState._roomsScannerDraft = null;
   }
+
+  // ── Scanners: the other half of the fabric, edited in metres right here ──
+  // A photo is one way to say where a scanner is. This is the other, and the
+  // only one that needs no photo at all.
+  const allScanners = ctx.state.model?.scanner_positions_m || {};
+  const floorScanners = {};
+  for (const [src, p] of Object.entries(allScanners)) {
+    if (String(p.floor_id || "main") !== String(floorId)) continue;
+    if (!isFinite(p.x_m) || !isFinite(p.y_m)) continue;
+    floorScanners[src] = p;
+  }
+  if (!mapState._roomsScannerDraft) {
+    mapState._roomsScannerDraft = JSON.parse(JSON.stringify(floorScanners));
+  }
+  const scanDraft = mapState._roomsScannerDraft;
+  const _scanMoved = (src) => {
+    const a = scanDraft[src], b = floorScanners[src];
+    return a && b && (Math.abs(a.x_m - b.x_m) > 0.001 || Math.abs(a.y_m - b.y_m) > 0.001);
+  };
+  const movedScanners = Object.keys(scanDraft).filter(_scanMoved);
   const fabricDraft = mapState._roomsDraft || {};
   const orig = mapState._roomsOrig || {};
   const sel = new Set(mapState._roomsSel || []);
@@ -6918,6 +6991,9 @@ function _roomsTab(ctx, maps) {
   const bbox = _roomGeomBBoxM([
     ...geoms,
     ...alignRects.map((r, i) => ["__align" + i, { type: "poly", points_m: r.pts }]),
+    ...Object.entries(scanDraft).map(([src, p]) => ["__rx" + src, {
+      type: "circle", cx_m: p.x_m, cy_m: p.y_m, r_m: 0.6,
+    }]),
   ]);
   const clusters = _roomClusterCount(geoms);
   const readout = el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;font-size:12px" });
@@ -6933,7 +7009,11 @@ function _roomsTab(ctx, maps) {
     style: committed ? "background:#14331f;color:#52b788;font-weight:700" : "background:#332714;color:#f59e0b;font-weight:700",
   }, committed ? "🔒 Committed" : "Not committed"));
   readout.appendChild(el("span", { class: "mono", style: "color:#94a3b8" },
-    `${geoms.length} rooms · footprint ${(bbox.width).toFixed(1)}m × ${(bbox.height).toFixed(1)}m`));
+    `${geoms.length} rooms · ${Object.keys(scanDraft).length} scanners · footprint ${(bbox.width).toFixed(1)}m × ${(bbox.height).toFixed(1)}m`));
+  if (movedScanners.length) {
+    readout.appendChild(el("span", { class: "mono", style: "color:#fbbf24" },
+      `${movedScanners.length} scanner${movedScanners.length !== 1 ? "s" : ""} moved`));
+  }
   if (geoms.length) {
     readout.appendChild(el("span", {
       class: "mono",
@@ -6945,7 +7025,9 @@ function _roomsTab(ctx, maps) {
   card.appendChild(readout);
 
   // ── Canvas ──────────────────────────────────────────────────────────────
-  if (geoms.length) {
+  // Rooms OR scanners is enough to draw: a floor with radios and no floor
+  // plan is a legitimate starting point, not an empty state.
+  if (geoms.length || Object.keys(scanDraft).length) {
     const stage = el("div", {
       class: "mapstage",
       style: "margin-top:0;height:calc(100vh - 260px);min-height:480px;display:flex;align-items:center;justify-content:center;position:relative;cursor:grab;touch-action:none",
@@ -7151,6 +7233,46 @@ function _roomsTab(ctx, maps) {
       }, room));
     }
 
+    // ── Scanner pins — draggable, in metres, no photo involved ───────────
+    // The fabric is rooms AND the radios standing in them. Dragging here
+    // writes real-world coordinates straight to the fabric; the floor plan
+    // photo is not consulted and does not need to exist.
+    for (const [src, p] of Object.entries(scanDraft)) {
+      const label = (ctx.state.model?.scanners?.[src]?.name) || src;
+      const moved = _scanMoved(src);
+      const pin = el("div", {
+        title: `${label}
+${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
+        style: `position:absolute;left:${((p.x_m - bbox.minX) / bbox.width * 100).toFixed(3)}%;` +
+          `top:${((p.y_m - bbox.minY) / bbox.height * 100).toFixed(3)}%;` +
+          `transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;` +
+          `background:${moved ? "#fbbf24" : "#52b788"};border:2px solid #0a150e;` +
+          `box-shadow:0 0 0 1px ${moved ? "#fbbf24" : "#52b788"};` +
+          `pointer-events:auto;cursor:grab;z-index:4;touch-action:none`,
+      });
+      const cap = el("div", {
+        style: `position:absolute;left:${((p.x_m - bbox.minX) / bbox.width * 100).toFixed(3)}%;` +
+          `top:${((p.y_m - bbox.minY) / bbox.height * 100).toFixed(3)}%;` +
+          `transform:translate(-50%,10px);color:#cbd5e1;font-size:10px;pointer-events:none;` +
+          `white-space:nowrap;font-family:system-ui,sans-serif;z-index:4;` +
+          `text-shadow:0 1px 2px rgba(0,0,0,.8)`,
+      }, label);
+      const startX = p.x_m, startY = p.y_m;
+      const onDown = (ev) => runDrag(ev, (dxm, dym) => {
+        const e = scanDraft[src];
+        e.x_m = Math.round((startX + dxm) * 1000) / 1000;
+        e.y_m = Math.round((startY + dym) * 1000) / 1000;
+        const lx = ((e.x_m - bbox.minX) / bbox.width * 100).toFixed(3);
+        const ly = ((e.y_m - bbox.minY) / bbox.height * 100).toFixed(3);
+        pin.style.left = `${lx}%`; pin.style.top = `${ly}%`;
+        cap.style.left = `${lx}%`; cap.style.top = `${ly}%`;
+      });
+      pin.addEventListener("mousedown", onDown);
+      pin.addEventListener("touchstart", onDown, { passive: false });
+      pinLayer.appendChild(pin);
+      pinLayer.appendChild(cap);
+    }
+
     // Vertex / circle handles — only in single-selection (precision mode)
     if (sel.size === 1) {
       const room = [...sel][0];
@@ -7220,6 +7342,23 @@ function _roomsTab(ctx, maps) {
         applyXform((x, y) => [x * c - y * s, x * s + y * c]);
       } }, "Apply"));
       tools.appendChild(el("button", { class: "btn inline", onclick: () => { mapState._roomsSel = []; ctx.actions.renderRooms(); } }, "Deselect"));
+      if (sel.size === 1 && !previewing) {
+        const only = [...sel][0];
+        tools.appendChild(el("button", {
+          class: "btn inline", style: "color:#f87171;border-color:#f8717140",
+          onclick: async () => {
+            if (!confirm(`Delete room "${only}" from the fabric? Its shape, adjacency and scanner assignments go with it.`)) return;
+            try {
+              await ctx.actions.wsCall("padspan_ha/fabric_room_remove", { room: only });
+              ctx.toast(`Deleted "${only}"`);
+              mapState._roomsSel = [];
+              mapState._roomsDraftFloorId = null;
+              mapState._roomsTruthCache = null;
+              await ctx.actions.modelRefresh();
+            } catch (err) { ctx.toast("Delete failed: " + (err.message || err), true); }
+          },
+        }, `Delete "${only}"`));
+      }
       card.appendChild(tools);
     }
 
@@ -7229,7 +7368,7 @@ function _roomsTab(ctx, maps) {
       const saveBtn = el("button", {
         class: "btn inline primary",
         onclick: async (e) => {
-          if (!changedRooms.length) { ctx.toast("No changes to save"); return; }
+          if (!changedRooms.length && !movedScanners.length) { ctx.toast("No changes to save"); return; }
           const btn = e.currentTarget;
           btn.disabled = true; btn.textContent = "Saving…";
           let ok = 0, fail = 0;
@@ -7241,16 +7380,31 @@ function _roomsTab(ctx, maps) {
               ok++;
             } catch (err) { fail++; console.warn("fabric_correct_room failed", room, err); }
           }
-          ctx.toast(fail ? `Saved ${ok}, failed ${fail}` : `✔ ${ok} room shape${ok !== 1 ? "s" : ""} corrected`, !!fail);
+          // Scanners go straight to the fabric in metres — no map_id, no
+          // transform, nothing that depends on a photo existing.
+          for (const src of movedScanners) {
+            const p = scanDraft[src];
+            try {
+              await ctx.actions.wsCall("padspan_ha/fabric_scanner_position_set", {
+                source: src, x_m: p.x_m, y_m: p.y_m,
+                z_m: isFinite(p.z_m) ? p.z_m : 2.4, floor_id: floorId,
+              });
+              ok++;
+            } catch (err) { fail++; console.warn("fabric_scanner_position_set failed", src, err); }
+          }
+          ctx.toast(fail ? `Saved ${ok}, failed ${fail}` : `✔ ${ok} fabric correction${ok !== 1 ? "s" : ""} saved`, !!fail);
           mapState._roomsDraftFloorId = null;   // re-copy from refreshed model
           mapState._roomsTruthCache = null;
+          mapState._roomsScannerDraft = null;
           await ctx.actions.modelRefresh();
         },
-      }, `💾 Save corrections${changedRooms.length ? ` (${changedRooms.length})` : ""}`);
+      }, `💾 Save corrections${(changedRooms.length + movedScanners.length) ? ` (${changedRooms.length + movedScanners.length})` : ""}`);
       saveRow.appendChild(saveBtn);
-      if (changedRooms.length) {
+      if (changedRooms.length || movedScanners.length) {
         saveRow.appendChild(el("button", { class: "btn inline", onclick: () => {
-          mapState._roomsDraftFloorId = null; ctx.actions.renderRooms();
+          mapState._roomsDraftFloorId = null;
+          mapState._roomsScannerDraft = null;
+          ctx.actions.renderRooms();
         } }, "Discard changes"));
       }
       card.appendChild(saveRow);
@@ -7332,7 +7486,7 @@ function _roomsTab(ctx, maps) {
     card.appendChild(el("div", { class: "muted", style: "padding:8px;margin:8px 0" },
       floorMapsAll.length
         ? "No room shapes saved for this floor yet. Switch Layout above to preview the Stack alignment or System calibration, then Load into editor or Adopt."
-        : "No room shapes on this floor yet. Trace rooms on an uploaded photo in the Edit tab first."));
+        : "Nothing on this floor yet. Scanners appear here as soon as Home Assistant sees them — drag one to place it in metres. Room shapes are optional; trace them on a photo in the Edit tab if you want them."));
   }
 
   // ── Finalize controls ───────────────────────────────────────────────────

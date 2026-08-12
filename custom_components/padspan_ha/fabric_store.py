@@ -11,14 +11,12 @@ The real-world room fabric: one coherent, directly-correctable set of room
 shapes per floor, in metres.  This is GROUND TRUTH, never a cache.
 
 Deliberately a physically separate persisted store (own storage key, own
-version lineage) from ModelStore.  The uploaded photo/map is a ONE-TIME
-BOOTSTRAP tool: async_commit_floor is the single moment a map's calibration
-is ever consulted — after it returns, no code path may derive room geometry
-from map state again.  A mis-pinned or never-measured photo therefore has
-zero bearing on the fabric's correctness once a floor is built.
+version lineage) from ModelStore.  A photo is one way to say where something
+is, never where it stays: rooms may be traced on one and adopted through the
+Rooms tab, but no code path derives room geometry from map state afterwards.
+A mis-pinned or never-measured photo has zero bearing on the fabric.
 
-Exactly two methods write room geometry — nothing else may touch it:
-  async_commit_floor    one-time bulk bootstrap of a floor from its maps
+Exactly one method writes room geometry — nothing else may touch it:
   async_correct_room    per-room direct correction (always allowed)
 async_set_floor_committed flips only the committed flag, never geometry.
 
@@ -26,7 +24,7 @@ Data layout in .storage/padspan_ha.fabric:
   {
     "floors": {
       "<floor_id>": {
-        "committed": bool,          # finalized — commit_floor refuses unless overwrite
+        "committed": bool,          # finalized (metadata only)
         "committed_at": iso | None,
         "rooms": {
           "<room>": {
@@ -336,96 +334,7 @@ class FabricStore:
 
     # ── Writer 1: one-time bulk bootstrap ────────────────────────────────────
 
-    async def async_commit_floor(
-        self, floor_id: str, maps_store: Any, model_store: Any, mode: str = "bootstrap",
-        source: str = "transforms",
-    ) -> dict[str, Any]:
-        """Build a floor's fabric from its maps — the one and only moment map
-        state matters; after this call returns, maps never influence the
-        fabric again.
-
-        source picks which form of truth converts the traced bounds to metres:
-          "transforms"  each map's own frac→metre calibration
-          "stack"       the hand-tuned stack alignment, anchored to metres by
-                        a genuinely measured map (the layout the Overview
-                        shows — usually the accurate one)
-
-        Merges by room name with master-map priority. Refuses on a committed
-        floor, and on any floor that already has rooms, unless
-        mode="overwrite" (which rebuilds and resets committed so the floor
-        must be re-verified and re-finalized).
-        """
-        from . import fabric_truth
-
-        fl = str(floor_id or DEFAULT_FLOOR_ID)
-        existing = (self.data.get("floors") or {}).get(fl)
-        if isinstance(existing, dict) and mode != "overwrite":
-            # Bootstrap is strictly build-from-empty: a floor that already has
-            # rooms (committed or not — e.g. freshly legacy-imported, awaiting
-            # correction) must never be silently rebuilt from map math.
-            if existing.get("committed"):
-                return {"ok": False, "error": "already_committed", "floor_id": fl}
-            if existing.get("rooms"):
-                return {"ok": False, "error": "floor_has_rooms", "floor_id": fl}
-
-        floor_maps = [
-            m for m in (maps_store.data.get("maps") or [])
-            if str(m.get("floor_id", DEFAULT_FLOOR_ID)) == fl
-        ]
-
-        if source == "stack":
-            anchor = fabric_truth.find_metre_anchor(maps_store.data.get("maps") or [], model_store)
-            if not anchor:
-                return {"ok": False, "error": "no_metre_anchor", "floor_id": fl}
-            candidate = fabric_truth.rooms_from_stack(floor_maps, anchor)
-        else:
-            candidate = fabric_truth.rooms_from_transforms(floor_maps, model_store)
-
-        now = dt_util.utcnow().isoformat()
-        prev_rooms = (existing.get("rooms") or {}) if isinstance(existing, dict) else {}
-        new_rooms: dict[str, dict[str, Any]] = {}
-        skipped_cross_floor: list[str] = []
-        maps_used: list[str] = []
-
-        for rname, geo in candidate.items():
-            other = self._find_room_floor(rname)
-            if other is not None and other != fl:
-                skipped_cross_floor.append(rname)
-                continue
-            src_mid = geo.pop("source_map_id", None)
-            norm = _norm_geometry(geo)
-            if norm is None:
-                continue
-            prev = prev_rooms.get(rname)
-            new_rooms[rname] = {
-                **norm,
-                "floor_id": fl,
-                "source_map_id": src_mid,
-                "committed_by": "commit",
-                "revision": (int(prev.get("revision", 0)) + 1) if isinstance(prev, dict) else 1,
-                "committed_at": now,
-            }
-            if src_mid and src_mid not in maps_used:
-                maps_used.append(src_mid)
-
-        if not new_rooms:
-            return {"ok": False, "error": "no_mappable_rooms", "floor_id": fl}
-
-        floor = existing if isinstance(existing, dict) else _default_floor()
-        floor["rooms"] = new_rooms
-        # An overwrite rebuild must be re-verified and re-finalized by hand.
-        floor["committed"] = False
-        floor["committed_at"] = None
-        self.data.setdefault("floors", {})[fl] = floor
-        self._log_history(fl, "", f"commit_floor:{mode}:{source}", len(new_rooms))
-        await self.store.async_save(self.data)
-        return {
-            "ok": True, "floor_id": fl, "mode": mode, "source": source,
-            "rooms": len(new_rooms), "maps_used": maps_used,
-            "skipped_cross_floor": skipped_cross_floor,
-        }
-
-    # ── Writer 2: per-room direct correction ─────────────────────────────────
+    # ── The room writer: direct correction, always in metres ─────────────────────────────────
 
     async def async_correct_room(
         self, floor_id: str, room: str, geometry: dict[str, Any],

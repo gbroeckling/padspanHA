@@ -1027,7 +1027,7 @@ class ModelStore:
         (won't overwrite existing manual edits).
 
         Room geometry is deliberately NOT migrated here — rooms live in the
-        FabricStore and are built exactly once via async_commit_floor.
+        FabricStore, whose only room writer is async_correct_room.
 
         Returns {scanners_migrated, rooms_migrated, barriers_migrated,
         beacons_migrated} (rooms_migrated always 0).
