@@ -234,12 +234,42 @@ export function fabricFrame(model, floors, floorGap, horizGap){
   // iso footprint is (spanX+spanY) wide at 0.866 and tall at 0.5.
   const S = Math.min((W-90)/((spanX+spanY)*0.866), (BASE_H-260)/((spanX+spanY)*0.5));
 
-  const iso    = (x,y,z)=>[ CX + ((x-mx)-(y-my))*S*0.866 + z*HG,
-                            CY + ((x-mx)+(y-my))*S*0.5   - z*FG ];
+  // Floors are STACKED, not scattered. These floors do not share a footprint
+  // in the metre frame — each was built in its own band (upper y≈-21..6, main
+  // y≈-16..12) — so drawing every floor at its literal metre position pushed
+  // them apart on screen on top of the floor spacing, leaving one gap twice
+  // the size of another. Each floor is drawn centred on its own contents, so
+  // the stack reads as a building; the offset is per floor, so a light keeps
+  // its exact position WITHIN its floor, and the drag inverse below undoes
+  // the same offset.
+  const floorOffset = {};
+  {
+    const per = {};
+    for (const r of rooms)  for (const p of r.pts) {
+      const a = per[r.z] || (per[r.z] = [Infinity,Infinity,-Infinity,-Infinity]);
+      if(p[0]<a[0])a[0]=p[0]; if(p[1]<a[1])a[1]=p[1]; if(p[0]>a[2])a[2]=p[0]; if(p[1]>a[3])a[3]=p[1];
+    }
+    for (const l of lights) {
+      const a = per[l.z] || (per[l.z] = [Infinity,Infinity,-Infinity,-Infinity]);
+      if(l.x<a[0])a[0]=l.x; if(l.y<a[1])a[1]=l.y; if(l.x>a[2])a[2]=l.x; if(l.y>a[3])a[3]=l.y;
+    }
+    for (const [z,a] of Object.entries(per)) {
+      if(!isFinite(a[0])) continue;
+      floorOffset[z] = [ (a[0]+a[2])/2 - mx, (a[1]+a[3])/2 - my ];
+    }
+  }
+  const off = (z)=>floorOffset[z] || [0,0];
+
+  const iso    = (x,y,z)=>{
+    const [ox,oy]=off(z);
+    return [ CX + ((x-ox-mx)-(y-oy-my))*S*0.866 + z*HG,
+             CY + ((x-ox-mx)+(y-oy-my))*S*0.5   - z*FG ];
+  };
   const isoInv = (sx,sy,z)=>{
+    const [ox,oy]=off(z);
     const a=(sx - CX - z*HG)/(S*0.866);
     const b=(sy - CY + z*FG)/(S*0.5);
-    return [ (a+b)/2 + mx, (b-a)/2 + my ];
+    return [ (a+b)/2 + mx + ox, (b-a)/2 + my + oy ];
   };
 
   // Outside is not on this map. It is not a storey, so ranking it as one wedged
