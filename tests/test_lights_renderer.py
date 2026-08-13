@@ -157,3 +157,69 @@ def test_empty_fabric_points_at_the_fabric_not_at_uploading_a_photo(tmp_path):
     ))
     assert "Mapping → Rooms" in out["svg"]
     assert "uploaded" not in out["svg"], "no photo is involved in this view"
+
+
+# ── Marker scale ────────────────────────────────────────────────────────────
+# A marker is an object in a room, so it is measured in metres. It used to be a
+# flat 14 px, which was fine when the world was a normalised photo but became
+# 2.38 m across once the scale came from the fabric — wider than the room it
+# sat in, which is what made the sidebar unusable.
+
+_MARKER_JS = 'import * as M from \'./iso_lights.mjs\';\nconst MODEL=__MODEL__;\nconst FLOORS=[{id:\'main\',level:0}];\nconst LBE={\'light.probe\':{entity_id:\'light.probe\',state:\'on\',code:\'A01\',shape:\'circle\',isWled:false}};\nconst f=M.fabricFrame(MODEL,FLOORS,150,0);\nconst svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS);\nconst g=svg.split(\'data-placed="1"\')[1];\nconst r=parseFloat(g.match(/<circle[^>]*r="([0-9.]+)"/)[1]);\nconsole.log(JSON.stringify({px:r*2, m:(r*2)/f.scale, scale:f.scale}));\n'
+
+
+def _sq(span_x, span_y):
+    return {"room_geometry_m": {"R": {"type": "poly", "floor_id": "main",
+             "points_m": [[0, 0], [span_x, 0], [span_x, span_y], [0, span_y]]}},
+            "light_positions_m": {}}
+
+
+def _marker_m(tmp_path, model):
+    """Measure the marker the RENDERER actually draws, not the helper.
+
+    Asserting on markerRadiusPx() looked fine and proved nothing: reverting
+    buildIsoSVG to the old fixed 14 px left every such test passing, because
+    the helper stayed correct and simply went unused. Parse the SVG instead.
+    A circle marker is drawn at HW = r_hex * 0.866, so its width is 2 * r.
+    """
+    model = dict(model)
+    model["light_positions_m"] = {"light.probe": {"x_m": 1.0, "y_m": 1.0, "floor_id": "main"}}
+    return _run_js(tmp_path, _MARKER_JS.replace("__MODEL__", json.dumps(model)))
+
+
+def test_marker_is_never_wider_than_a_small_room(tmp_path):
+    """The reported failure: gigantic icons swamping the map."""
+    out = _marker_m(tmp_path, _sq(25, 51))          # a house the size of Garry's
+    assert out["m"] < 1.2, f"marker is {out['m']:.2f} m across on a house-sized fabric"
+
+
+def test_marker_shrinks_with_the_site_rather_than_staying_a_fixed_pixel_size(tmp_path):
+    """A fixed pixel size is what broke: it ignores how big the place is."""
+    small = _marker_m(tmp_path, _sq(8, 6))
+    big = _marker_m(tmp_path, _sq(60, 40))
+    assert small["px"] > big["px"] + 1, "a marker must take fewer pixels on a larger site"
+    assert small["m"] <= 0.75, "on a studio the marker should read as a real fixture"
+
+
+def test_marker_stays_clickable_on_a_very_large_site(tmp_path):
+    out = _marker_m(tmp_path, _sq(200, 150))
+    assert out["px"] >= 8, "a marker must not shrink into an unclickable speck"
+
+
+def test_marker_never_exceeds_the_old_fixed_size(tmp_path):
+    """A studio flat must not render saucers."""
+    out = _marker_m(tmp_path, _sq(4, 3))
+    assert out["px"] <= 14 * 2 * 0.866 + 0.01
+
+
+_LABEL_JS = 'import * as M from \'./iso_lights.mjs\';\nconst MODEL=__MODEL__;\nconst FLOORS=[{id:\'main\',level:0}];\nconst LBE={\'light.probe\':{entity_id:\'light.probe\',state:\'on\',code:\'A01\',shape:\'circle\',isWled:false}};\nconst svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS);\nconst g=svg.split(\'data-placed="1"\')[1];\nconsole.log(JSON.stringify({font:parseFloat(g.match(/font-size="([0-9.]+)"/)[1])}));\n'
+
+
+def test_the_code_label_shrinks_with_the_marker(tmp_path):
+    """An 11px label on an 8.7px marker is half of why it read as gigantic."""
+    def font(model):
+        model = dict(model)
+        model["light_positions_m"] = {"light.probe": {"x_m": 1.0, "y_m": 1.0, "floor_id": "main"}}
+        return _run_js(tmp_path, _LABEL_JS.replace("__MODEL__", json.dumps(model)))["font"]
+    studio, house = font(_sq(8, 6)), font(_sq(25, 51))
+    assert house < studio, "the label must scale with the marker, not stay fixed"

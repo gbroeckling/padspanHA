@@ -97,6 +97,23 @@ export function hexCluster(n, r){
 // the frame instead of one being a dot and the other running off the canvas.
 export const ISO = { CX: 380, CY: 590, W: 760, BASE_H: 940, HEX_R: 14 };
 
+// A marker is a real object in a real room, so it is sized in METRES like
+// everything else here. HEX_R used to be a flat 14 px, which was proportionate
+// back when the world was a normalised photo — but the scale now comes from
+// the fabric, so on a 25 x 51 m house one marker measured 2.38 m across: wider
+// than the Laundry it sat in, and the map became unreadable. MIN keeps a
+// marker clickable and its code legible on a large site; MAX stops a studio
+// flat rendering saucers.
+export const MARKER_M = 0.6;      // nominal fixture footprint, metres
+const MARKER_MIN_R = 5;           // px, floor for legibility (still a ~15px target on screen,
+                                  // because the sidebar upscales this 760-unit viewBox to its width)
+const MARKER_MAX_R = 14;          // px, the old fixed size as the ceiling
+
+export function markerRadiusPx(scale){
+  const r = (MARKER_M * scale) / (2 * 0.866);   // metres across → hex radius
+  return Math.max(MARKER_MIN_R, Math.min(MARKER_MAX_R, r));
+}
+
 const CIRCLE_SEGMENTS = 16;
 
 function circleToPoly(cx, cy, r){
@@ -231,12 +248,15 @@ export function fabricFrame(model, floors, floorGap, horizGap){
 
 // ── Isometric 3-D SVG builder ────────────────────────────────────────────────
 export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[]){
-  const {CX, CY, W, BASE_H, HEX_R} = ISO;
+  const {CX, CY, W, BASE_H} = ISO;
   const FG=floorGap;
   const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
 
   const frame = fabricFrame(model, floors, floorGap, horizGap);
   const { iso, rooms, lights, levels } = frame;
+  // Markers are sized from the fabric's own scale, not a fixed pixel count.
+  const HEX_R = markerRadiusPx(frame.scale);
+  const CODE_PX = Math.max(8, Math.min(11, HEX_R * 1.45));
   const pt  = c=>`${Math.round(c[0])},${Math.round(c[1])}`;
   const pts = cs=>cs.map(pt).join(" ");
 
@@ -374,7 +394,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       return `<g class="lhex" data-eid="${escSVG(l.entity_id)}"${extra?" "+extra:""} style="cursor:pointer" opacity="${op}">`+
         body+
         `<text x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
-        `font-family="monospace" font-size="11" font-weight="700" fill="${tCol}" pointer-events="none">`+
+        `font-family="monospace" font-size="${CODE_PX.toFixed(1)}" font-weight="700" fill="${tCol}" pointer-events="none">`+
         `${escSVG(l.code)}</text></g>`;
     };
 
