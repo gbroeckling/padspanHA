@@ -1047,9 +1047,8 @@ function _modelTab(ctx, el, cs, calData) {
 
   const loo = model.loo_accuracy;
   if (loo) {
-    const accM = loo.mean_error_m != null ? loo.mean_error_m : loo.mean_error_m_est;
-    const accLabel = loo.mean_error_m != null ? `~${accM}m` : `~${accM}m (est)`;
-    statGrid.appendChild(stat("Est. Accuracy", accLabel, accM < 2 ? "#52b788" : "#f59e0b"));
+    const accM = loo.mean_error_m;
+    statGrid.appendChild(stat("Est. Accuracy", `~${accM}m`, accM < 2 ? "#52b788" : "#f59e0b"));
   } else {
     statGrid.appendChild(stat("Accuracy", pts.length >= 4 ? "Compute →" : "Need ≥4 pts", "#78909c"));
   }
@@ -1128,9 +1127,8 @@ function _modelTab(ctx, el, cs, calData) {
 
       const mapLoo = model.coverage_by_map?.[mid]?.loo_accuracy;
       if (mapLoo) {
-        const mAccM = mapLoo.mean_error_m != null ? mapLoo.mean_error_m : mapLoo.mean_error_m_est;
         mapVizContainer.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:4px" },
-          `Cross-validation accuracy: ~${mAccM}m mean · ${mapLoo.max_error_frac.toFixed(3)} frac max`));
+          `Cross-validation accuracy: ~${mapLoo.mean_error_m}m mean · ${mapLoo.max_error_m}m max`));
       }
     };
 

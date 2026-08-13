@@ -57,6 +57,8 @@ from .const import (
     DATA_TRACEBACK, TRACEBACK_STORE_KEY,
     DATA_ESPRESENSE_MQTT,
     DATA_FORENSICS, FORENSICS_STORE_KEY, DATA_DEVICE_REGISTRY,
+    GRADE_A_ERROR_M, GRADE_B_ERROR_M, GRADE_C_ERROR_M, GRADE_NO_DATA_ERROR_M,
+    CRITIC_CRITICAL_ERROR_M, CRITIC_WARNING_ERROR_M,
 )
 from .device_registry import DEVICE_REGISTRY_STORE_KEY
 from .calibration_store import CalibrationStore
@@ -6480,10 +6482,7 @@ async def ws_propagation_health(hass: HomeAssistant, connection, msg) -> None:
             model = calib.compute_model(maps_data)
             loo = model.get("loo_accuracy")
             if loo:
-                accuracy = {
-                    "mean_error_frac": loo.get("mean_error_frac", 0),
-                    "mean_error_m_est": loo.get("mean_error_m_est", 0),
-                }
+                accuracy = {"mean_error_m": loo.get("mean_error_m", 0)}
             for src, pl in model.get("path_loss", {}).items():
                 r_sq = pl.get("r_squared", 0)
                 quality = "good" if r_sq >= 0.7 else "fair" if r_sq >= 0.4 else "poor"
@@ -6528,13 +6527,13 @@ async def ws_propagation_health(hass: HomeAssistant, connection, msg) -> None:
     recs = recs[:10]  # cap at 10
 
     # ── Grade computation ──
-    acc_val = accuracy.get("mean_error_frac", 1.0)
+    acc_val = accuracy.get("mean_error_m", GRADE_NO_DATA_ERROR_M)
     grade = "F"
-    if coverage_pct >= 0.8 and acc_val < 0.05 and avg_variance < 15 and (floor_sep["sufficient"] or floor_sep["pairs"] == 0):
+    if coverage_pct >= 0.8 and acc_val < GRADE_A_ERROR_M and avg_variance < 15 and (floor_sep["sufficient"] or floor_sep["pairs"] == 0):
         grade = "A"
-    elif coverage_pct >= 0.6 and acc_val < 0.08:
+    elif coverage_pct >= 0.6 and acc_val < GRADE_B_ERROR_M:
         grade = "B"
-    elif coverage_pct >= 0.4 and acc_val < 0.12:
+    elif coverage_pct >= 0.4 and acc_val < GRADE_C_ERROR_M:
         grade = "C"
     elif coverage_pct >= 0.2 or rooms_with_data > 0:
         grade = "D"
@@ -6688,19 +6687,17 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                     "map_id": mid,
                     "map_name": map_name,
                     "point_count": point_count,
-                    "mean_error_frac": loo["mean_error_frac"] if loo else None,
-                    "mean_error_m_est": loo["mean_error_m_est"] if loo else None,
-                    "max_error_frac": loo["max_error_frac"] if loo else None,
+                    "mean_error_m": loo["mean_error_m"] if loo else None,
+                    "max_error_m": loo["max_error_m"] if loo else None,
                 }
                 per_map_quality.append(entry)
 
                 # Generate critic if LOO error is high
                 if loo:
-                    err_m = loo.get("mean_error_m_est", 0)
-                    err_frac = loo.get("mean_error_frac", 0)
-                    if err_frac >= 0.15:
+                    err_m = loo.get("mean_error_m", 0)
+                    if err_m >= CRITIC_CRITICAL_ERROR_M:
                         severity = "critical"
-                    elif err_frac >= 0.08:
+                    elif err_m >= CRITIC_WARNING_ERROR_M:
                         severity = "warning"
                     else:
                         continue  # acceptable
@@ -6709,8 +6706,8 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                         "severity": severity,
                         "title": f"Map \u201c{map_name}\u201d has high calibration error",
                         "message": (
-                            f"LOO mean error: {err_m:.1f}m ({err_frac:.1%} of map). "
-                            f"Max error: {loo.get('max_error_frac', 0):.1%}. "
+                            f"LOO mean error: {err_m:.2f} m. "
+                            f"Max error: {loo.get('max_error_m', 0):.2f} m. "
                             f"Based on {point_count} calibration points."
                         ),
                         "action": (
@@ -10639,14 +10636,13 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
         # LOO accuracy
         loo = cal.loo_accuracy()
         if loo:
-            has_real_m = "mean_error_m" in loo
-            err_str = f"{loo['mean_error_m']}m" if has_real_m else f"~{loo.get('mean_error_m_est', '?')}m (estimated)"
+            err_str = f"{loo['mean_error_m']}m"
             checks.append({
                 "group": "calibration", "name": "LOO Accuracy",
                 "ok": True, "value": err_str,
-                "detail": f"Mean error: {err_str}, median: " +
-                          (f"{loo.get('median_error_m', '?')}m" if has_real_m else f"{loo.get('median_error_frac', '?')} frac") +
-                          f" ({loo['point_count']} points)",
+                "detail": f"Mean error: {err_str}, median: "
+                          f"{loo.get('median_error_m', '?')}m "
+                          f"({loo['point_count']} points)",
             })
     else:
         checks.append({

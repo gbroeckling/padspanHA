@@ -489,32 +489,52 @@ class TestLooAccuracy:
         assert result is None
 
     def test_returns_error_metrics_with_enough_points(self) -> None:
-        """With KNN_K+1 points, LOO should return error metrics."""
-        # Create KNN_K + 1 = 4 points with shared scanner
+        """With KNN_K+1 placed points, LOO reports error in metres."""
         pts = [
-            _make_point(x_frac=0.1, y_frac=0.1, readings={"s1": -40.0, "s2": -70.0}),
-            _make_point(x_frac=0.3, y_frac=0.3, readings={"s1": -50.0, "s2": -60.0}),
-            _make_point(x_frac=0.6, y_frac=0.6, readings={"s1": -60.0, "s2": -50.0}),
-            _make_point(x_frac=0.9, y_frac=0.9, readings={"s1": -75.0, "s2": -35.0}),
+            _make_point(x_m=1.0, y_m=1.0, readings={"s1": -40.0, "s2": -70.0}),
+            _make_point(x_m=3.0, y_m=3.0, readings={"s1": -50.0, "s2": -60.0}),
+            _make_point(x_m=6.0, y_m=6.0, readings={"s1": -60.0, "s2": -50.0}),
+            _make_point(x_m=9.0, y_m=9.0, readings={"s1": -75.0, "s2": -35.0}),
         ]
         store = _make_store(points=pts)
         result = store.loo_accuracy()
 
         assert result is not None
-        assert "mean_error_frac" in result
-        assert "median_error_frac" in result
-        assert "max_error_frac" in result
-        assert "point_count" in result
-        assert "mean_error_m" in result
         assert result["point_count"] >= 1
-        # Errors should be non-negative
-        assert result["mean_error_frac"] >= 0.0
-        assert result["median_error_frac"] >= 0.0
-        assert result["max_error_frac"] >= 0.0
-        # The headline number is real metres now, not a fraction scaled by a
-        # guessed map width.
         assert result["mean_error_m"] >= 0.0
-        assert "mean_error_m_est" not in result
+        assert result["median_error_m"] >= 0.0
+        assert result["max_error_m"] >= result["median_error_m"]
+
+    def test_photo_fraction_metrics_are_gone(self) -> None:
+        """Accuracy is a distance. A fraction of an image is not a distance.
+
+        An error of 0.05 across a plan is not the same distance as 0.05 down
+        it unless the plan is square, and it is not comparable between two
+        maps at different scales at all.
+        """
+        pts = [
+            _make_point(x_m=float(i), y_m=float(i), readings={"s1": -40.0 - i, "s2": -70.0 + i})
+            for i in range(4)
+        ]
+        result = _make_store(points=pts).loo_accuracy()
+        assert result is not None
+        for key in ("mean_error_frac", "median_error_frac", "max_error_frac",
+                    "mean_error_m_est"):
+            assert key not in result, f"{key} is a photo-derived number and must not be reported"
+
+    def test_unplaced_points_yield_no_metric_rather_than_a_guess(self) -> None:
+        """Points the fabric cannot place have no measurable error.
+
+        The old code fell back to fractions and then multiplied by an assumed
+        15 m map width to produce a metre figure out of nothing.
+        """
+        pts = []
+        for i in range(4):
+            p = _make_point(x_frac=0.1 * i, y_frac=0.1 * i,
+                            readings={"s1": -40.0 - i, "s2": -70.0 + i})
+            p.pop("x_m"); p.pop("y_m")     # never placed in the fabric
+            pts.append(p)
+        assert _make_store(points=pts).loo_accuracy() is None
 
     def test_filters_by_map_id(self) -> None:
         """LOO only considers points on the specified map."""
@@ -578,10 +598,9 @@ class TestLooAlgorithm:
         assert result["algorithm"] == "rf"
         assert result["validation"] == "oob"
         assert result["point_count"] >= 1
-        assert result["mean_error_frac"] >= 0.0
-        assert result["max_error_frac"] >= result["median_error_frac"]
-        # Errors are real metres now — there is no photo width to estimate from.
-        assert "mean_error_m" in result
+        assert result["mean_error_m"] >= 0.0
+        assert result["max_error_m"] >= result["median_error_m"]
+        assert "mean_error_frac" not in result
 
     def test_default_algorithm_is_knn(self) -> None:
         """Default call reports the k-NN metric (backward compatible)."""

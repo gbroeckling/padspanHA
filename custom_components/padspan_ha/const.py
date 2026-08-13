@@ -95,3 +95,15 @@ MAX_HEIGHT_M = 100.0
 # ── Phase 2: real-world coordinate defaults ──────────────────────────────
 DEFAULT_VG_ADJACENT_M = 8.0                    # metres — velocity gate adjacency threshold
 DEFAULT_ADJACENCY_SIGMOID_M = 8.0              # metres — adjacency prior sigmoid midpoint
+
+# ── Calibration grading thresholds (metres of LOO mean error) ────────────────
+# These were fractions of a floor plan image, which only meant a distance if
+# you assumed the plan was 15 m wide. They are that same assumption resolved
+# once: a 15 m house grades exactly as it did, every other building now grades
+# on its actual error instead of on its image proportions.
+GRADE_A_ERROR_M = 0.75
+GRADE_B_ERROR_M = 1.2
+GRADE_C_ERROR_M = 1.8
+GRADE_NO_DATA_ERROR_M = 15.0                   # "no accuracy data" sentinel — fails every grade
+CRITIC_CRITICAL_ERROR_M = 2.25
+CRITIC_WARNING_ERROR_M = 1.2

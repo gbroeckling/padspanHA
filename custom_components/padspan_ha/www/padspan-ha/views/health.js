@@ -679,16 +679,17 @@ function _renderCritics(ctx, container, data) {
       tbl.appendChild(el("div",{style:"font-weight:600;color:#94a3b8;font-size:10px;text-transform:uppercase"},h));
     }
     for (const m of per_map_quality) {
-      const errFrac = m.mean_error_frac;
-      const errColor = errFrac == null ? "#94a3b8" :
-        errFrac >= 0.15 ? "#f87171" : errFrac >= 0.08 ? "#f59e0b" : "#52b788";
+      // Thresholds in metres, matching CRITIC_*_ERROR_M in const.py.
+      const errM = m.mean_error_m;
+      const errColor = errM == null ? "#94a3b8" :
+        errM >= 2.25 ? "#f87171" : errM >= 1.2 ? "#f59e0b" : "#52b788";
       tbl.appendChild(el("div",{style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap"}, m.map_name || m.map_id));
       tbl.appendChild(el("div",{style:"text-align:right"}, String(m.point_count)));
       tbl.appendChild(el("div",{style:`color:${errColor};text-align:right`},
-        errFrac != null ? `${m.mean_error_m_est}m (${(errFrac * 100).toFixed(1)}%)` : "\u2014"
+        errM != null ? `${errM.toFixed(2)}m` : "\u2014"
       ));
       tbl.appendChild(el("div",{class:"muted",style:"text-align:right"},
-        m.max_error_frac != null ? `${(m.max_error_frac * 100).toFixed(1)}%` : "\u2014"
+        m.max_error_m != null ? `${m.max_error_m.toFixed(2)}m` : "\u2014"
       ));
     }
     mqCard.appendChild(tbl);

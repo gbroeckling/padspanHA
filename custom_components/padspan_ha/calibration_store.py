@@ -832,7 +832,13 @@ class CalibrationStore:
         algorithm="rf": out-of-bag validation against the trained forest
         (see _rf_oob_accuracy) — retraining per held-out point would be
         O(n) full forest trains.
-        Phase 3: computes in metres when points have x_m/y_m, otherwise map fractions.
+
+        Reported in metres, always. Accuracy used to be measured in fractions
+        of a floor plan image, which is anisotropic on any non-square plan (a
+        0.05 error across is not the same distance as 0.05 down) and cannot be
+        compared between maps of different scale. A point without metre
+        coordinates has no measurable error, so it is skipped, and when too
+        few remain the metric is absent rather than estimated.
         """
         if algorithm == "rf":
             return self._rf_oob_accuracy(map_id)
@@ -840,15 +846,12 @@ class CalibrationStore:
         pts = self.data.get("points", [])
         if map_id:
             pts = [p for p in pts if p.get("map_id") == map_id]
+        # Only points the fabric can place have a distance error at all.
+        pts = [p for p in pts if p.get("x_m") is not None and p.get("y_m") is not None]
         if len(pts) < KNN_K + 1:
             return None
 
-        # Phase 3: use metres if all points have them
-        metre_pts = [p for p in pts if p.get("x_m") is not None]
-        use_metres = len(metre_pts) == len(pts) and len(pts) > 0
-
         _loo_excluded = self.excluded_sources()
-        errors: list[float] = []
         errors_m: list[float] = []
         for i, pt in enumerate(pts):
             loo_pts = [p for j, p in enumerate(pts) if j != i]
@@ -882,52 +885,32 @@ class CalibrationStore:
                 continue
             scored.sort(key=lambda t: t[0])
             top_k = scored[: KNN_K]
-            total_w, wx, wy = 0.0, 0.0, 0.0
             total_w_m, wx_m, wy_m = 0.0, 0.0, 0.0
             for dist_sq, p2 in top_k:
                 w = 1.0 / (math.sqrt(dist_sq) + 1e-3)
-                wx += w * p2["x_frac"]
-                wy += w * p2["y_frac"]
-                total_w += w
-                if use_metres:
-                    wx_m += w * float(p2["x_m"])
-                    wy_m += w * float(p2["y_m"])
-                    total_w_m += w
+                wx_m += w * float(p2["x_m"])
+                wy_m += w * float(p2["y_m"])
+                total_w_m += w
 
-            if total_w < 1e-10:
+            if total_w_m < 1e-10:
                 continue
-            pred_x, pred_y = wx / total_w, wy / total_w
-            err = math.sqrt((pred_x - pt["x_frac"]) ** 2 + (pred_y - pt["y_frac"]) ** 2)
-            errors.append(err)
+            pred_xm = wx_m / total_w_m
+            pred_ym = wy_m / total_w_m
+            errors_m.append(math.sqrt(
+                (pred_xm - float(pt["x_m"])) ** 2 + (pred_ym - float(pt["y_m"])) ** 2
+            ))
 
-            if use_metres and total_w_m > 1e-10:
-                pred_xm = wx_m / total_w_m
-                pred_ym = wy_m / total_w_m
-                err_m = math.sqrt((pred_xm - float(pt["x_m"])) ** 2 + (pred_ym - float(pt["y_m"])) ** 2)
-                errors_m.append(err_m)
-
-        if not errors:
+        if not errors_m:
             return None
 
-        errors.sort()
-        mean_err = _mean(errors)
-        median_err = errors[len(errors) // 2]
-        result: dict[str, Any] = {
+        errors_m.sort()
+        return {
             "algorithm": "knn",
-            "mean_error_frac": round(mean_err, 4),
-            "median_error_frac": round(median_err, 4),
-            "max_error_frac": round(errors[-1], 4),
-            "point_count": len(errors),
+            "mean_error_m": round(_mean(errors_m), 3),
+            "median_error_m": round(errors_m[len(errors_m) // 2], 3),
+            "max_error_m": round(errors_m[-1], 3),
+            "point_count": len(errors_m),
         }
-        if errors_m:
-            errors_m.sort()
-            result["mean_error_m"] = round(_mean(errors_m), 3)
-            result["median_error_m"] = round(errors_m[len(errors_m) // 2], 3)
-            result["max_error_m"] = round(errors_m[-1], 3)
-        else:
-            # Rough estimate assuming map width ≈ 15m (typical home)
-            result["mean_error_m_est"] = round(mean_err * 15, 2)
-        return result
 
     def _rf_oob_accuracy(self, map_id: str | None = None) -> dict[str, Any] | None:
         """Out-of-bag validation accuracy for the trained Random Forest.
@@ -983,28 +966,18 @@ class CalibrationStore:
                 (pred_x - float(pt["x_m"])) ** 2 + (pred_y - float(pt["y_m"])) ** 2
             )
             errors_m.append(err_m)
-            # Rough frac equivalent (map width ≈ 15 m) for shape compat
-            errors.append(err_m / 15.0)
 
-        if not errors:
+        if not errors_m:
             return None
-        errors.sort()
-        result: dict[str, Any] = {
+        errors_m.sort()
+        return {
             "algorithm": "rf",
             "validation": "oob",
-            "mean_error_frac": round(_mean(errors), 4),
-            "median_error_frac": round(errors[len(errors) // 2], 4),
-            "max_error_frac": round(errors[-1], 4),
-            "point_count": len(errors),
+            "mean_error_m": round(_mean(errors_m), 3),
+            "median_error_m": round(errors_m[len(errors_m) // 2], 3),
+            "max_error_m": round(errors_m[-1], 3),
+            "point_count": len(errors_m),
         }
-        if errors_m:
-            errors_m.sort()
-            result["mean_error_m"] = round(_mean(errors_m), 3)
-            result["median_error_m"] = round(errors_m[len(errors_m) // 2], 3)
-            result["max_error_m"] = round(errors_m[-1], 3)
-        else:
-            result["mean_error_m_est"] = round(_mean(errors) * 15, 2)
-        return result
 
     def _active_algorithm(self) -> str:
         """Active positioning algorithm from settings ('knn' | 'rf')."""

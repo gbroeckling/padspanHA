@@ -284,9 +284,11 @@ export function render(ctx){
     // Sub-indicator bars
     const covColor = ph.coverage_pct>=0.7?"#52b788":ph.coverage_pct>=0.4?"#ffd54f":"#ef5350";
     propStatusDiv.appendChild(_propBar("Model Coverage", ph.coverage_pct, 1, covColor));
-    const accVal = (ph.accuracy && ph.accuracy.mean_error_frac) || 0;
-    const accColor = accVal>0 && accVal<0.05?"#52b788":accVal<0.1?"#ffd54f":accVal>0?"#ef5350":"#64748b";
-    propStatusDiv.appendChild(_propBar("Distance Accuracy", accVal>0 ? Math.max(0,1-accVal*10) : 0, 1, accColor));
+    // Mean LOO error in METRES (GRADE_*_ERROR_M in const.py). The bar reads
+    // full at 0 m and empty at 3 m.
+    const accVal = (ph.accuracy && ph.accuracy.mean_error_m) || 0;
+    const accColor = accVal>0 && accVal<0.75?"#52b788":accVal<1.8?"#ffd54f":accVal>0?"#ef5350":"#64748b";
+    propStatusDiv.appendChild(_propBar("Distance Accuracy", accVal>0 ? Math.max(0,1-accVal/3) : 0, 1, accColor));
     const stab = ph.fingerprint_stability || {};
     const stabVal = stab.avg_variance || 0;
     const stabColor = stabVal>0 && stabVal<15?"#52b788":stabVal<25?"#ffd54f":stabVal>0?"#ef5350":"#64748b";
