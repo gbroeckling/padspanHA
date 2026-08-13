@@ -220,6 +220,11 @@ def _barrier_attenuation(
 
 _MIN_RANGE_CAP_M = 50.0
 
+# How far past the fabric's own room extent a solved position may sit before
+# it stops being a position and becomes a solver artifact.  Covers wall
+# thickness, doorways and approximate geometry — not 6 m into the garden.
+_SITE_MARGIN_M = 3.0
+
 
 def _site_range_cap(positions: dict[str, tuple[float, float, str]]) -> float:
     """Largest distance a single RSSI reading may claim, scaled to the site.
@@ -294,8 +299,14 @@ def _wls_refine(
     centroid, the solution CAN sit between or outside the receivers.
 
     Damped (max 5 m movement per iteration) and conservative: on singular
-    geometry (collinear receivers) or non-finite results, returns the seed.
+    geometry (collinear receivers), non-finite results, or a refinement that
+    fits the ranges WORSE than the seed did, returns the seed.
     """
+    def _cost(px: float, py: float) -> float:
+        return sum(
+            w * (math.hypot(px - sx, py - sy) - d) ** 2 for sx, sy, d, w in meas
+        )
+
     x, y = x0, y0
     for _ in range(iters):
         a11 = a12 = a22 = b1 = b2 = 0.0
@@ -328,7 +339,77 @@ def _wls_refine(
             break
     if not (math.isfinite(x) and math.isfinite(y)):
         return x0, y0
+    # Gauss-Newton takes the full step regardless of whether it helps.  On
+    # mutually inconsistent ranges — the normal state of BLE RSSI — that can
+    # walk the estimate away from the seed while fitting the data no better.
+    if _cost(x, y) > _cost(x0, y0):
+        return x0, y0
     return x, y
+
+
+def _floor_bounds_from_geometry(
+    room_geometry: dict[str, Any],
+) -> dict[str, tuple[float, float, float, float]]:
+    """Per-floor (min_x, max_x, min_y, max_y) of the fabric's room polygons.
+
+    This is the building's own extent, straight from the metric fabric — the
+    only thing that knows how far the structure actually reaches.
+    """
+    bounds: dict[str, list[float]] = {}
+    for geo in (room_geometry or {}).values():
+        if not isinstance(geo, dict):
+            continue
+        fl = str(geo.get("floor_id", "") or "")
+        pts: list[tuple[float, float]] = []
+        if geo.get("type") == "circle":
+            try:
+                cx = float(geo.get("cx_m", 0))
+                cy = float(geo.get("cy_m", 0))
+                r = abs(float(geo.get("r_m", 0)))
+            except (TypeError, ValueError):
+                continue
+            pts = [(cx - r, cy - r), (cx + r, cy + r)]
+        else:
+            for p in (geo.get("points_m") or []):
+                try:
+                    pts.append((float(p[0]), float(p[1])))
+                except (TypeError, ValueError, IndexError):
+                    continue
+        if not pts:
+            continue
+        b = bounds.get(fl)
+        for px, py in pts:
+            if b is None:
+                b = [px, px, py, py]
+                bounds[fl] = b
+            else:
+                if px < b[0]:
+                    b[0] = px
+                if px > b[1]:
+                    b[1] = px
+                if py < b[2]:
+                    b[2] = py
+                if py > b[3]:
+                    b[3] = py
+    return {f: (b[0], b[1], b[2], b[3]) for f, b in bounds.items()}
+
+
+def _within_floor_bounds(
+    x: float,
+    y: float,
+    floor_id: str,
+    bounds: dict[str, tuple[float, float, float, float]],
+    margin: float = _SITE_MARGIN_M,
+) -> bool:
+    """Is this estimate inside the floor's own extent, plus a margin?
+
+    A floor with no geometry cannot judge, so it accepts — never let a missing
+    polygon suppress a position.
+    """
+    b = bounds.get(str(floor_id or ""))
+    if not b:
+        return True
+    return (b[0] - margin) <= x <= (b[1] + margin) and (b[2] - margin) <= y <= (b[3] + margin)
 
 
 class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -437,6 +518,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._floor_stack_idx: dict[str, int] = {}
         # Largest distance one RSSI reading may claim; scaled to the site.
         self._max_range_m: float = 50.0
+        # {floor_id: (min_x, max_x, min_y, max_y)} — the building's extent
+        # from the fabric, used to reject solver artifacts.
+        self._floor_bounds: dict[str, tuple[float, float, float, float]] = {}
         # List of barrier dicts: [{points, attenuation_dbm, map_id}, ...]
         self._rf_barriers: list[dict] = []
         # Phase 2: True when spatial data is in metres (not map fractions)
@@ -909,6 +993,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     for src, pos in _model.scanner_positions_m().items()
                 }
                 self._max_range_m = _site_range_cap(self._scanner_positions)
+                self._floor_bounds = _floor_bounds_from_geometry(
+                    _model.room_geometry_m()
+                )
                 # 3D: absolute scanner heights + floor stack (issue #54)
                 self._scanner_abs_z = _model.scanner_absolute_z_m()
                 self._floor_bases = _model.floor_base_elevations_m()
@@ -1612,13 +1699,31 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             # the centroid, can place the tag between or
                             # outside receivers (3+ ranges constrain a point).
                             if len(_all_scanners) >= 3:
-                                _est_x, _est_y = _wls_refine(
+                                _rx, _ry = _wls_refine(
                                     _est_x, _est_y,
                                     _scanner_dists(
                                         _all_scanners,
                                         ref_pt=(_est_x, _est_y) if self._rf_barriers else None,
                                     ),
                                 )
+                                # WLS is allowed to leave the receivers' hull —
+                                # that is the whole point of it — but not to
+                                # leave the BUILDING.  On inconsistent ranges
+                                # Gauss-Newton can walk up to 15 m (3 damped
+                                # iterations), which put devices in the garden.
+                                # The centroid seed is a convex combination of
+                                # scanner positions, so it is always physically
+                                # plausible; fall back to it rather than ship a
+                                # refinement the fabric says cannot be real.
+                                if _within_floor_bounds(
+                                    _rx, _ry, _best_floor, self._floor_bounds
+                                ):
+                                    _est_x, _est_y = _rx, _ry
+                                else:
+                                    self._spatial_debug[key] = (
+                                        f"wls_rejected_outside_site:"
+                                        f"({_rx:.1f},{_ry:.1f})@{_best_floor}"
+                                    )
                             # Smooth BEFORE the room decision — the raw
                             # per-poll estimate jitters across polygon
                             # boundaries; the room lookup must see the same

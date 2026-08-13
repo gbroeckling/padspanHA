@@ -26,10 +26,13 @@ from __future__ import annotations
 import math
 
 from custom_components.padspan_ha.presence_coordinator import (
+    _SITE_MARGIN_M,
+    _floor_bounds_from_geometry,
     _range_weight,
     _slant_to_horizontal,
-    _wls_refine,
+    _within_floor_bounds,
 )
+from custom_components.padspan_ha.presence_coordinator import _wls_refine
 
 
 def _idw(meas):
@@ -202,4 +205,99 @@ def test_wls_honours_the_supplied_weights():
     b = _wls_refine(5.0, 4.0, light)
     assert math.hypot(a[0] - b[0], a[1] - b[1]) > 0.5, (
         "weights had no effect on the solution"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 3. A refinement may leave the receiver hull, but not the building
+# ---------------------------------------------------------------------------
+
+# The live fabric, as measured on the running install.
+_LIVE_GEOMETRY = {
+    "Kitchen":         {"type": "poly", "floor_id": "main",
+                        "points_m": [[-3.17, -16.48], [16.66, -16.48],
+                                     [16.66, 12.10], [-3.17, 12.10]]},
+    "Garry's Office":  {"type": "poly", "floor_id": "upper",
+                        "points_m": [[3.38, -21.34], [12.80, -21.34],
+                                     [12.80, 6.19], [3.38, 6.19]]},
+    "North Suite":     {"type": "poly", "floor_id": "basement",
+                        "points_m": [[-4.25, -17.79], [11.59, -17.79],
+                                     [11.59, 12.40], [-4.25, 12.40]]},
+}
+
+
+def test_floor_bounds_come_from_the_fabric():
+    b = _floor_bounds_from_geometry(_LIVE_GEOMETRY)
+    assert b["main"] == (-3.17, 16.66, -16.48, 12.10)
+    assert b["upper"] == (3.38, 12.80, -21.34, 6.19)
+    assert b["basement"] == (-4.25, 11.59, -17.79, 12.40)
+
+
+def test_floor_bounds_handle_circular_rooms():
+    b = _floor_bounds_from_geometry(
+        {"Round": {"type": "circle", "floor_id": "main",
+                   "cx_m": 5.0, "cy_m": -2.0, "r_m": 3.0}}
+    )
+    assert b["main"] == (2.0, 8.0, -5.0, 1.0)
+
+
+def test_the_live_escapes_are_rejected():
+    """The exact estimates the running install was producing."""
+    b = _floor_bounds_from_geometry(_LIVE_GEOMETRY)
+    # Pixel 8 Pro and MaschineBOX: x ~18.5 on a floor that ends at 12.80,
+    # with the outermost upper scanner at x=12.08.
+    assert not _within_floor_bounds(18.6, 3.8, "upper", b)
+    assert not _within_floor_bounds(18.4, -19.1, "upper", b)
+    # iBeacon: 6.5 m below a floor that ends at -16.48.
+    assert not _within_floor_bounds(3.9, -23.0, "main", b)
+    assert not _within_floor_bounds(11.1, -19.5, "main", b)
+
+
+def test_positions_inside_the_building_are_kept():
+    """Negative control: containment must not suppress real positions."""
+    b = _floor_bounds_from_geometry(_LIVE_GEOMETRY)
+    assert _within_floor_bounds(8.3, -3.1, "main", b)       # GarryBroncoKeys
+    assert _within_floor_bounds(5.0, 0.0, "upper", b)
+    assert _within_floor_bounds(-4.0, -17.0, "basement", b)
+
+
+def test_margin_allows_walls_and_doorways_but_not_the_garden():
+    b = _floor_bounds_from_geometry(_LIVE_GEOMETRY)
+    just_outside = 12.80 + _SITE_MARGIN_M - 0.1
+    well_outside = 12.80 + _SITE_MARGIN_M + 0.1
+    assert _within_floor_bounds(just_outside, 0.0, "upper", b)
+    assert not _within_floor_bounds(well_outside, 0.0, "upper", b)
+
+
+def test_a_floor_with_no_geometry_never_suppresses_a_position():
+    """A missing polygon is not evidence the device is somewhere impossible."""
+    b = _floor_bounds_from_geometry(_LIVE_GEOMETRY)
+    assert _within_floor_bounds(999.0, -999.0, "__outside__", b)
+    assert _within_floor_bounds(0.0, 0.0, "", b)
+
+
+def test_wls_rejects_a_refinement_that_fits_worse_than_the_seed():
+    """Gauss-Newton takes its step whether or not the step helps.
+
+    These are real production-shaped inputs (found by random search over
+    plausible scanner layouts and RSSI-derived ranges): one scanner almost
+    on top of the seed carrying nearly all the weight, and two distant ones
+    with weak, inconsistent ranges.  Unguarded, the step fits the data 309x
+    WORSE and walks 6.5 m outward — straight out of the building.
+    """
+    meas = [
+        (11.7709, -12.5573, 0.3057, 9.6678),
+        (-1.1515, -11.6670, 23.3254, 0.0018),
+        (-2.5652, -10.4842, 22.5086, 0.0020),
+    ]
+    seed = _idw(meas)
+    seed_cost = _cost(seed[0], seed[1], meas)
+
+    x, y = _wls_refine(seed[0], seed[1], meas)
+
+    assert _cost(x, y, meas) <= seed_cost + 1e-9, (
+        f"refinement worsened the fit: {seed_cost:.4f} -> {_cost(x, y, meas):.4f}"
+    )
+    assert math.hypot(x - seed[0], y - seed[1]) < 1e-9, (
+        "a strictly worse refinement must fall back to the seed exactly"
     )

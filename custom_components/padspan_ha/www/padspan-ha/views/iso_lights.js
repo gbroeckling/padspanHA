@@ -265,6 +265,25 @@ export function fabricFrame(model, floors, floorGap, horizGap){
   // the stack reads as a building; the offset is per floor, so a light keeps
   // its exact position WITHIN its floor, and the drag inverse below undoes
   // the same offset.
+  // Outside is not on this map. It is not a storey, so ranking it as one wedged
+  // a slab between two real floors; and it is not the building, so a shed 50 m
+  // down the garden either dwarfed the house or had to be squeezed into an
+  // envelope it does not belong in. This map is the building. Outdoor lights
+  // still appear in the index table below it, they just have no place in a
+  // floor stack. Dropped BEFORE the offsets and the stack are computed — the
+  // garden's extent must not steer either.
+  rooms.length = 0;  rooms.push(...indoorRooms);
+  lights.length = 0; lights.push(...indoorLights);
+  const levels = [...new Set([...rooms.map(r=>r.z), ...lights.map(l=>l.z)])].sort((a,b)=>a-b);
+
+  // Storeys are drawn evenly spaced, whatever their level NUMBERS are. Using
+  // the raw level as the stack multiplier meant any hole in the numbering drew
+  // as a hole in the building: dropping the garden left ranks 0,1,3, so the gap
+  // between the top two floors came out twice the size of the one below it. A
+  // floor the map does not draw must not reserve a storey of empty air.
+  const drawRank = new Map(levels.map((z, i) => [z, i]));
+  const rankOf = (z) => (drawRank.has(z) ? drawRank.get(z) : z);
+
   const floorOffset = {};
   {
     const per = {};
@@ -284,27 +303,19 @@ export function fabricFrame(model, floors, floorGap, horizGap){
   const off = (z)=>floorOffset[z] || [0,0];
 
   const iso    = (x,y,z)=>{
-    const [ox,oy]=off(z);
-    return [ CX + ((x-ox-mx)-(y-oy-my))*S*0.866 + z*HG,
-             CY + ((x-ox-mx)+(y-oy-my))*S*0.5   - z*FG ];
+    const [ox,oy]=off(z), k=rankOf(z);
+    return [ CX + ((x-ox-mx)-(y-oy-my))*S*0.866 + k*HG,
+             CY + ((x-ox-mx)+(y-oy-my))*S*0.5   - k*FG ];
   };
   const isoInv = (sx,sy,z)=>{
-    const [ox,oy]=off(z);
-    const a=(sx - CX - z*HG)/(S*0.866);
-    const b=(sy - CY + z*FG)/(S*0.5);
+    const [ox,oy]=off(z), k=rankOf(z);
+    const a=(sx - CX - k*HG)/(S*0.866);
+    const b=(sy - CY + k*FG)/(S*0.5);
     return [ (a+b)/2 + mx + ox, (b-a)/2 + my + oy ];
   };
 
-  // Outside is not on this map. It is not a storey, so ranking it as one wedged
-  // a slab between two real floors; and it is not the building, so a shed 50 m
-  // down the garden either dwarfed the house or had to be squeezed into an
-  // envelope it does not belong in. This map is the building. Outdoor lights
-  // still appear in the index table below it, they just have no place in a
-  // floor stack.
-  rooms.length = 0;  rooms.push(...indoorRooms);
-  lights.length = 0; lights.push(...indoorLights);
-  const levels = [...new Set([...rooms.map(r=>r.z), ...lights.map(l=>l.z)])].sort((a,b)=>a-b);
-  return { rooms, lights, levels, iso, isoInv, scale: S, bbox:{minX,minY,maxX,maxY}, empty, levelOf };
+  return { rooms, lights, levels, iso, isoInv, rankOf, scale: S,
+           bbox:{minX,minY,maxX,maxY}, empty, levelOf };
 }
 
 // ── Isometric 3-D SVG builder ────────────────────────────────────────────────
@@ -314,7 +325,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
 
   const frame = fabricFrame(model, floors, floorGap, horizGap);
-  const { iso, rooms, lights, levels } = frame;
+  const { iso, rooms, lights, levels, rankOf } = frame;
   // Markers are sized from the fabric's own scale, not a fixed pixel count.
   const HEX_R = markerRadiusPx(frame.scale);
   // The label must FIT INSIDE its marker. A monospace glyph is about 0.6 em
@@ -329,12 +340,20 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
   const levelColor=(z)=>LAYER_PAL[levels.indexOf(z)%LAYER_PAL.length];
   const LEGEND_H=Math.max(1,levels.length)*30+24;
-  const maxIsoZ = levels.length ? levels[levels.length-1] : 0;
+  // Top of the stack in DRAWN storeys, not level numbers — otherwise a gap in
+  // the numbering reserved empty canvas above the building.
+  const maxIsoZ = levels.length ? rankOf(levels[levels.length-1]) : 0;
   const viewY   = Math.min(0, CY - maxIsoZ*FG - 50);   // 50 px top padding
   const HTOTAL  = BASE_H + LEGEND_H - viewY;
 
+  // width:100% with NO height cap. `max-height:${HTOTAL}px` pinned the drawing
+  // to its natural size, so on any panel wider than the 760-unit viewBox the
+  // browser letterboxed it — the map sat at 1:1 in the middle with dead space
+  // down both sides, and the zoom control could only slide it around inside
+  // that box instead of making it bigger. The aspect ratio still comes from
+  // the viewBox; the host sizes it.
   let s=`<svg viewBox="0 ${viewY} ${W} ${HTOTAL}" xmlns="http://www.w3.org/2000/svg" width="100%" `+
-    `style="max-height:${HTOTAL}px;display:block;font-family:system-ui,sans-serif">`;
+    `data-natural-h="${HTOTAL}" style="display:block;font-family:system-ui,sans-serif">`;
   s+=`<rect x="0" y="${viewY}" width="${W}" height="${HTOTAL}" fill="#071008"/>`;
 
   // Floor surface patterns

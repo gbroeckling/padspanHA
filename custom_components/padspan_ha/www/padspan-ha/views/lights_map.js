@@ -148,14 +148,22 @@ export function buildLightsMapCard(host){
   };
   view.focusIdx = Math.max(0, Math.min(view.focusIdx, isoPos.length - 1));
 
+  // The container is always the full width of the panel. Zoom scales the
+  // DRAWING inside it and scrolls — resizing this box instead just slid the
+  // map from side to side, because the SVG was pinned to its natural size.
   const isoDiv = document.createElement("div");
-  isoDiv.style.cssText = `overflow:auto;border-radius:8px;background:#071008;padding:8px;` +
-    `width:${Math.round(view.zoom * 100)}%`;
+  isoDiv.style.cssText = "overflow:auto;border-radius:8px;background:#071008;padding:8px;width:100%";
+
+  const applyZoom = () => {
+    const svg = isoDiv.querySelector("svg");
+    if (!svg) return;
+    svg.style.width = `${Math.round(view.zoom * 100)}%`;
+  };
 
   const rebuildISO = () => {
-    isoDiv.style.width = `${Math.round(view.zoom * 100)}%`;
     isoDiv.innerHTML = buildIsoSVG(host.model, host.byRoom, host.hiddenEids, getFocusZ(view.focusIdx),
       view.floorGap, view.horizGap, host.lightsByEid, host.lightsLoading, floors);
+    applyZoom();
     host.onHexesBuilt(isoDiv, rebuildISO);
   };
 
@@ -250,14 +258,14 @@ export function buildLightsMapCard(host){
   ctrlRow.appendChild(el("span", { class: "muted", style: "font-size:11px;white-space:nowrap;margin-left:8px" }, "Zoom:"));
   ctrlRow.appendChild(el("button", { class: "btn inline", onclick: () => {
     view.zoom = Math.max(0.4, Math.round((view.zoom - 0.1) * 10) / 10);
-    isoDiv.style.width = `${Math.round(view.zoom * 100)}%`;
+    applyZoom();
   } }, "Zoom −"));
   ctrlRow.appendChild(el("button", { class: "btn inline", onclick: () => {
-    view.zoom = 1.0; isoDiv.style.width = "100%";
+    view.zoom = 1.0; applyZoom();
   } }, "100%"));
   ctrlRow.appendChild(el("button", { class: "btn inline", onclick: () => {
     view.zoom = Math.min(2.5, Math.round((view.zoom + 0.1) * 10) / 10);
-    isoDiv.style.width = `${Math.round(view.zoom * 100)}%`;
+    applyZoom();
   } }, "Zoom +"));
 
   mapCard.appendChild(ctrlRow);

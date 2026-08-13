@@ -252,3 +252,98 @@ def test_the_code_label_shrinks_with_the_marker(tmp_path):
         return _run_js(tmp_path, _LABEL_JS.replace("__MODEL__", json.dumps(model)))["font"]
     studio, house = font(_sq(8, 6)), font(_sq(25, 51))
     assert house < studio, "the label must scale with the marker, not stay fixed"
+
+
+# ── Floor stacking and canvas use ─────────────────────────────────────────────
+
+# A house whose fabric floors do NOT number contiguously once the garden is
+# dropped: the outdoor sentinel ranks between Main and Upper, so the drawn
+# storeys are levels 0, 1 and 3.
+_GAPPED_MODEL = {
+    "room_geometry_m": {
+        "Basement": {"type": "poly", "floor_id": "base",
+                     "points_m": [[0, 0], [6, 0], [6, 4], [0, 4]]},
+        "Kitchen":  {"type": "poly", "floor_id": "main",
+                     "points_m": [[0, 0], [6, 0], [6, 4], [0, 4]]},
+        "Shed":     {"type": "poly", "floor_id": "__outside__",
+                     "points_m": [[40, 40], [50, 40], [50, 48], [40, 48]]},
+        "Loft":     {"type": "poly", "floor_id": "up",
+                     "points_m": [[0, 0], [5, 0], [5, 5], [0, 5]]},
+    },
+    "light_positions_m": {},
+}
+_GAPPED_FLOORS = [
+    {"id": "base", "name": "Basement", "level": 0},
+    {"id": "main", "name": "Main", "level": 1},
+    {"id": "outside", "name": "Outside", "level": 2},
+    {"id": "up", "name": "Upper", "level": 3},
+]
+
+
+def _gapped_harness(body: str) -> str:
+    return (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_GAPPED_MODEL)};\n"
+        f"const FLOORS={json.dumps(_GAPPED_FLOORS)};\n"
+        "const out={};\n" + body + "\nconsole.log(JSON.stringify(out));\n"
+    )
+
+
+def test_drawn_floors_are_evenly_spaced_even_when_levels_skip(tmp_path):
+    """A floor the map does not draw must not reserve a storey of empty air.
+
+    The garden ranks between Main and Upper, so dropping it leaves levels
+    0, 1, 3. Multiplying the raw level by the spacing drew the top gap at
+    twice the size of the one below it.
+    """
+    out = _run_js(tmp_path, _gapped_harness(
+        "const f=M.fabricFrame(MODEL,FLOORS,150,0);\n"
+        "out.levels=f.levels;\n"
+        "out.ys=f.levels.map(z=>f.iso(0,0,z)[1]);\n"
+    ))
+    assert out["levels"] == [0, 1, 3], "precondition: the numbering has a hole"
+    ys = out["ys"]
+    gaps = [round(ys[i - 1] - ys[i], 6) for i in range(1, len(ys))]
+    assert len(set(gaps)) == 1, f"floor gaps are uneven: {gaps}"
+    assert gaps[0] == 150, f"gap should equal the spacing slider, got {gaps[0]}"
+
+
+def test_the_drag_inverse_still_round_trips_with_skipped_levels(tmp_path):
+    """Whatever the stacking does, the drag must undo it exactly."""
+    out = _run_js(tmp_path, _gapped_harness(
+        "const f=M.fabricFrame(MODEL,FLOORS,150,40);\n"
+        "out.err=f.levels.map(z=>{const p=f.iso(2.5,1.5,z);\n"
+        "  const b=f.isoInv(p[0],p[1],z);\n"
+        "  return Math.hypot(b[0]-2.5,b[1]-1.5);});\n"
+    ))
+    assert max(out["err"]) < 1e-9, f"round-trip drift: {out['err']}"
+
+
+def test_the_garden_never_reserves_a_storey(tmp_path):
+    """The outdoor sentinel is not a floor of the building."""
+    out = _run_js(tmp_path, _gapped_harness(
+        "const f=M.fabricFrame(MODEL,FLOORS,150,0);\n"
+        "out.rooms=f.rooms.map(r=>r.room).sort();\n"
+        "out.n=f.levels.length;\n"
+    ))
+    assert "Shed" not in out["rooms"]
+    assert out["n"] == 3, f"expected 3 drawn storeys, got {out['n']}"
+
+
+def test_the_map_is_not_pinned_to_its_natural_size(tmp_path):
+    """A hard max-height let the browser letterbox the drawing.
+
+    With the SVG capped at its own viewBox height, any panel wider than the
+    760-unit canvas rendered the map at 1:1 in the middle with dead space down
+    both sides — and the zoom control could then only slide it around inside
+    that box rather than making it bigger.
+    """
+    out = _run_js(tmp_path, _harness(
+        "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS);\n"
+        "out.head=svg.slice(0,svg.indexOf('>')+1);\n"
+    ))
+    head = out["head"]
+    assert 'width="100%"' in head, "the map must fill its host"
+    assert "max-height" not in head, (
+        f"the drawing is still pinned to its natural size: {head}"
+    )
