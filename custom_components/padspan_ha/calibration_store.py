@@ -125,6 +125,26 @@ class CalibrationStore:
                 return p
         return None
 
+    def _resolve_floor_id(self, raw: Any) -> str:
+        """Normalise a point's floor, filling a blank one in only when certain.
+
+        Auto-calibration injects points from beacon pins, and a pin whose
+        floor is unknown arrives here blank.  A blank floor is not the ground
+        floor: on a multi-storey install it later reads as elevation 0, which
+        puts a phantom storey of vertical offset into that scanner's
+        path-loss fit.  So it is only filled in when the building leaves no
+        choice — a single floor — and otherwise stays blank and honest, and
+        the fit drops to 2D for that point.
+        """
+        fid = str(raw or "").strip()[:40]
+        if fid:
+            return fid
+        try:
+            floors = self._model.floor_base_elevations_m() if self._model else {}
+        except Exception:
+            return ""
+        return next(iter(floors)) if len(floors) == 1 else ""
+
     async def async_add_point(self, point: dict[str, Any]) -> dict[str, Any]:
         """Validate, clean, and persist a calibration point."""
         point_id = f"cp_{os.urandom(6).hex()}"
@@ -191,7 +211,7 @@ class CalibrationStore:
             "map_id": str(point.get("map_id") or "")[:80],
             "x_frac": max(0.0, min(1.0, float(point.get("x_frac", 0.5)))),
             "y_frac": max(0.0, min(1.0, float(point.get("y_frac", 0.5)))),
-            "floor_id": str(point.get("floor_id") or "")[:40],
+            "floor_id": self._resolve_floor_id(point.get("floor_id")),
             "room": str(point.get("room") or "")[:120],
             "label": str(point.get("label") or "")[:200],
             "device_id": str(point.get("device_id") or "")[:80],
@@ -499,9 +519,13 @@ class CalibrationStore:
                     if reading.get("source") != scanner_source:
                         continue
                     d_sq = (float(pt["x_m"]) - sx_m) ** 2 + (float(pt["y_m"]) - sy_m) ** 2
-                    if _sz_abs is not None:
-                        _pt_z = _floor_bases.get(str(pt.get("floor_id") or ""), 0.0) + _dev_h
-                        d_sq += (_sz_abs - _pt_z) ** 2
+                    # No resolvable floor means no known elevation, so this
+                    # point stays 2D rather than being assumed to sit on the
+                    # datum — guessing ground for an upstairs point injects
+                    # metres of false vertical range into the fit.
+                    _pt_base = _floor_bases.get(str(pt.get("floor_id") or ""))
+                    if _sz_abs is not None and _pt_base is not None:
+                        d_sq += (_sz_abs - (_pt_base + _dev_h)) ** 2
                     d = math.sqrt(d_sq)
                     if d < 0.3:   # too close — likely at scanner position itself
                         continue
