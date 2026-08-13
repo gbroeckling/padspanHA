@@ -76,17 +76,46 @@ def _harness(body: str) -> str:
     )
 
 
-def test_the_renderer_never_imports_the_photo_machinery():
-    """A static guard on the rule: lights read the fabric and nothing else.
+_FORBIDDEN = ("stack_transform", "makeStackXform", "imageAr", "metreAnchor",
+              "room_bounds", "map_transforms", "maps_list", "mapImageUrl")
+
+
+def _code_only(src: str) -> str:
+    """Source with comment lines stripped, so prose about the rule is allowed."""
+    return chr(10).join(l for l in src.splitlines() if not l.strip().startswith("//"))
+
+
+def test_no_lights_file_touches_the_photo_machinery():
+    """The rule, enforced across the WHOLE lights path, not just the renderer.
 
     stack_transform is where map placement, image aspect ratio and the
-    measured-photo anchor live. The lights view must not be able to reach them
-    even by accident.
+    measured-photo anchor live. Lights read the metric fabric and nothing
+    else. Every one of these files has, at some point in this feature's
+    history, reached for a photo and put the map in the wrong place.
     """
-    src = (_VIEWS / "iso_lights.js").read_text(encoding="utf-8")
-    code = "\n".join(l for l in src.splitlines() if not l.strip().startswith("//"))
-    for forbidden in ("stack_transform", "metreAnchor", "makeStackXform", "imageAr", "room_bounds"):
-        assert forbidden not in code, f"the lights renderer reaches for {forbidden}"
+    targets = {
+        "views/iso_lights.js": _VIEWS / "iso_lights.js",
+        "views/lights_map.js": _VIEWS / "lights_map.js",
+        "views/light_codes.js": _VIEWS / "light_codes.js",
+        "lights_panel.js": _WWW / "lights_panel.js",
+    }
+    for label, path in targets.items():
+        code = _code_only(path.read_text(encoding="utf-8"))
+        for bad in _FORBIDDEN:
+            assert bad not in code, f"{label} reaches for {bad}"
+
+
+def test_the_lights_tab_builds_without_a_photo_too():
+    """The Mapping tab shares the renderer, so it must share the rule."""
+    src = (_VIEWS / "maps.js").read_text(encoding="utf-8")
+    # From the first lights-tab helper to the Rooms tab, so nothing in the
+    # tab's own code can reach for a photo. NOTE the limit of this guard:
+    # maps.js legitimately imports the photo machinery at module level for the
+    # Edit/Stack/Rooms tabs, so a file-wide ban is not possible here — only
+    # the lights region is covered.
+    seg = _code_only(src[src.index("function _floorIdForZ"):src.index("// ─── Rooms tab")])
+    for bad in _FORBIDDEN + ("visMaps", "mapsForRender"):
+        assert bad not in seg, f"the Lights tab reaches for {bad}"
 
 
 def test_frame_builds_from_the_fabric_with_no_maps_at_all(tmp_path):

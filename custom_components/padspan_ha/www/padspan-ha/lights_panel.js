@@ -12,8 +12,8 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.32.6";
-const BUILD_ID = "20260813T201705Z";
+const APP_VERSION = "0.32.7";
+const BUILD_ID = "20260813T203859Z";
 
 // Query inherited from our own module URL so the ?b= cache-buster propagates
 // (see docs/06_UI_CACHE_BUSTING.md).
@@ -59,7 +59,6 @@ class PadSpanLightsApp extends HTMLElement {
     this._booted = false;
     this._pollTimer = null;
     this.state = {
-      maps:        { list:[] },
       model:       { areas:[], floors:[] },
       _modelLoaded: false,
       _hiddenMapIds: new Set(),
@@ -113,7 +112,7 @@ class PadSpanLightsApp extends HTMLElement {
     // large install; don't block first paint on it — the shared
     // ensureLightsRegistry backfills it in the background from _buildUI
     // (guarded on the model so area NAMES exist before the map is built).
-    await Promise.allSettled([ this._loadMaps(), this._loadSettings() ]);
+    await Promise.allSettled([ this._loadSettings() ]);
     this._settingsTs = Date.now();
     this._render();
     this._loadModel().then(()=>this._render());
@@ -145,13 +144,6 @@ class PadSpanLightsApp extends HTMLElement {
     this._render();   // registry staleness handled inside _buildUI
   }
 
-  async _loadMaps(){
-    try{
-      const res = await this._hass.callWS({ type:"padspan_ha/maps_list" });
-      this.state.maps.list = res?.maps || [];
-    }catch(e){}
-  }
-
   async _loadModel(){
     try{
       const res = await this._hass.callWS({ type:"padspan_ha/model_get" });
@@ -166,7 +158,6 @@ class PadSpanLightsApp extends HTMLElement {
         ...(res || {}),
         areas: res?.areas||[], floors: res?.floors||[],
         room_geometry_m: res?.room_geometry_m||{},
-        map_transforms: res?.map_transforms||{},
         light_positions_m: res?.light_positions_m||{},
       };
     }catch(e){}
@@ -198,7 +189,7 @@ class PadSpanLightsApp extends HTMLElement {
       // Per-light shape overrides — set in the Mapping → Lights tab, read here
       // so both views draw the same fixture outlines.
       this.state._shapeOverrides = (s.light_shapes && typeof s.light_shapes === "object") ? s.light_shapes : {};
-      // Sync hidden map IDs from the same source maps.js uses
+      // Hidden-map ids are read only to stay consistent with the Mapping tab
       const savedIds = s.hidden_map_ids;
       if(Array.isArray(savedIds)){
         this.state._hiddenMapIds = new Set(savedIds);
@@ -413,12 +404,10 @@ class PadSpanLightsApp extends HTMLElement {
     }
 
     // ── The shared map card — identical map to the Mapping → Lights tab ──────
-    const maps_list=this.state.maps.list.filter(m=>!this.state._hiddenMapIds.has(m.id));
     const floors=this.state.model.floors||[];
 
     const host={
       el,
-      maps: maps_list,
       floors,
       model: this.state.model,
       byRoom,

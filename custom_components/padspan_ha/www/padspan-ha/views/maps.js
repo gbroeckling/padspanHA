@@ -6353,7 +6353,6 @@ function _lightsTab(ctx, maps, active) {
       } catch(e) { mapState._hiddenMapIds = new Set(); }
     }
   }
-  const visMaps = maps.filter(m => !mapState._hiddenMapIds.has(m.id));
 
   // Shared registry pipeline — the same implementation and staleness rule as
   // the sidebar, so the two views can never disagree on room assignment.
@@ -6460,14 +6459,12 @@ function _lightsTab(ctx, maps, active) {
 
   // ── THE shared map card — identical to the Lights sidebar ───────────────
   // Unsaved drags overlay the fabric's light positions; maps are untouched.
-  const mapsForRender = visMaps;
   const modelForRender = Object.keys(mapState._lightsDraftM || {}).length
     ? { ...ctx.state.model,
         light_positions_m: { ...(ctx.state.model?.light_positions_m || {}), ...mapState._lightsDraftM } }
     : ctx.state.model;
   const host = {
     el,
-    maps: mapsForRender,
     floors,
     model: modelForRender,
     byRoom,

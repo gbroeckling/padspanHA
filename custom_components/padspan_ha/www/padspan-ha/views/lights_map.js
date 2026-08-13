@@ -116,9 +116,6 @@ function buildShapeLegend(el, lights){
 // ── The map card: control row + iso map ──────────────────────────────────────
 // host = {
 //   el(tag,attrs,children)            DOM builder
-//   maps                              visible maps to render (host pre-filters
-//                                     hidden_map_ids; the tab substitutes its
-//                                     unsaved drafts here)
 //   floors, model, byRoom, hiddenEids, lightsByEid, lightsLoading
 //   view                              live {floorGap, horizGap, focusIdx, zoom}
 //                                     object owned by the host (persists across
