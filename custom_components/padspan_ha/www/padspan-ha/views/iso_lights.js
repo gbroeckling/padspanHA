@@ -348,12 +348,15 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       let sx=1, sy=1;
       if(wCm>0||hCm>0){
         const baseW=HEX_R*2*0.866, baseH=HEX_R*2;
-        // Floor at 1: below the default marker a fixture becomes an
-        // unclickable speck and its code unreadable, so physical size only
-        // ever grows a marker. Cap at 8× so one long strip cannot swamp the
-        // floor it sits on.
-        sx=Math.max(1, Math.min(8, ((wCm||hCm)/100)*frame.scale/baseW));
-        sy=Math.max(1, Math.min(8, ((hCm||wCm)/100)*frame.scale/baseH));
+        // Faithful to the measurement. The floor used to be 1× — never
+        // smaller than the default marker — but the default marker is already
+        // about 2.4 m wide at a house's scale, so every real fixture came out
+        // the same size and setting a width appeared to do nothing at all.
+        // 0.5× keeps a 15 cm downlight clickable while a 2.4 m valance and a
+        // 5 m run are visibly different; 8× stops one long strip swamping its
+        // floor.
+        sx=Math.max(0.5, Math.min(8, ((wCm||hCm)/100)*frame.scale/baseW));
+        sy=Math.max(0.5, Math.min(8, ((hCm||wCm)/100)*frame.scale/baseH));
       }
       if(rot||sx!==1||sy!==1){
         t.push(`translate(${hx.toFixed(1)},${hy.toFixed(1)})`);

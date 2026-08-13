@@ -129,6 +129,12 @@ def test_physical_size_and_rotation_are_actually_drawn(tmp_path):
         "out.strip=strip; out.plain=plain;"
     ))
     assert "scale(" in out["strip"], "a 2.4 m fixture must be drawn at 2.4 m"
+    # ...and the scale must actually reflect the measurement. The first cut
+    # floored at 1x, and the default marker already represents ~2.4 m at house
+    # scale, so every real fixture rendered identically and sizing looked inert.
+    import re as _re
+    sx = float(_re.search(r"scale\(([0-9.]+)", out["strip"]).group(1))
+    assert sx > 1.3, f"a 2.4 m fixture drew at {sx}x - sizing is not faithful"
     assert "rotate(30" in out["strip"], "rotation must reach the SVG"
     # A light with no measurements keeps the plain, legible default marker.
     assert "scale(" not in out["plain"] and "rotate(" not in out["plain"]
