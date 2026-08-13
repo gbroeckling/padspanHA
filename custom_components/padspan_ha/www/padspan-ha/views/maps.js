@@ -6525,10 +6525,14 @@ function _lightsTab(ctx, maps, active) {
   const sel = mapState._selLight;
   if (sel && lightsByEid[sel.eid]) {
     const l = lightsByEid[sel.eid];
-    const entry = sel.mapId
-      ? []
-          .find(lt => lt.entity_id === sel.eid)
-      : null;
+    // The light's placement, from the fabric: the unsaved draft first, then
+    // what is committed. This was left as `sel.mapId ? [].find(...) : null`
+    // when light positions stopped living on maps — always null, so the whole
+    // block behind it (colour, width, length, rotation, Auto position) never
+    // rendered for ANY light and only the Shape chooser survived.
+    const entry = (mapState._lightsDraftM || {})[sel.eid]
+      || ((ctx.state.model || {}).light_positions_m || {})[sel.eid]
+      || null;
     const insp = el("div", { class: "card", style: "display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 12px" });
     insp.appendChild(el("div", { style: "font-weight:600;font-size:13px;min-width:140px" },
       `${l.code} · ${l.friendly_name}`));
