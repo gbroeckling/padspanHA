@@ -12,8 +12,8 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.31.2";
-const BUILD_ID = "20260813T150456Z";
+const APP_VERSION = "0.32.0";
+const BUILD_ID = "20260813T174444Z";
 
 // Query inherited from our own module URL so the ?b= cache-buster propagates
 // (see docs/06_UI_CACHE_BUSTING.md).
@@ -155,10 +155,19 @@ class PadSpanLightsApp extends HTMLElement {
   async _loadModel(){
     try{
       const res = await this._hass.callWS({ type:"padspan_ha/model_get" });
+      // Keep the WHOLE model payload. This panel used to copy four fields by
+      // name, so when placed light positions moved into the model the sidebar
+      // silently kept showing every light auto-clustered at its room centre
+      // while the Mapping tab drew them at their real positions — the exact
+      // display-vs-builder divergence the shared renderer exists to prevent.
+      // A field the renderer needs must never depend on this host remembering
+      // to list it.
       this.state.model = {
+        ...(res || {}),
         areas: res?.areas||[], floors: res?.floors||[],
         room_geometry_m: res?.room_geometry_m||{},
         map_transforms: res?.map_transforms||{},
+        light_positions_m: res?.light_positions_m||{},
       };
     }catch(e){}
     // Registry area-name resolution waits on this flag (success OR failure) —

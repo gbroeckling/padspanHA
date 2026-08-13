@@ -5,12 +5,19 @@
 //
 // THE lights map renderer — the 3D isometric stacked-floor SVG used by BOTH
 // the Lights sidebar panel and the Mapping → Lights tab. One renderer, one
-// look: the two tools previously drew completely different maps (iso stack
-// vs a flat per-floor metre canvas), which made cross-referencing hexes
-// useless. Moved verbatim out of lights_panel.js; keep all edits HERE.
+// look, so a hex means the same thing in both tools.
+//
+// FABRIC ONLY. This file does not import stack_transform, never sees a map,
+// a photo, an image aspect ratio or a per-photo coordinate, and it does not
+// need one to exist. Rooms are metre polygons from room_geometry_m; lights
+// are metres from light_positions_m; floors and their heights come from the
+// floor registry. It used to derive its world frame from a MEASURED PHOTO
+// (metreAnchor), draw each floor slab as that photo's footprint, and take a
+// dropped light's floor from the map under it — so a house with no uploaded
+// plan, or one whose plan was never measured, rendered nothing at all and
+// refused to place a light. Everything the view needs is in the fabric, in
+// metres, and now that is the only thing it reads.
 
-const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
-  await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 const { WLED_BORDER } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 
@@ -85,32 +92,105 @@ export function hexCluster(n, r){
   });
 }
 
-// Iso projection constants — shared with the drag-inversion in maps.js.
-export const ISO = { TILE: 220, CX: 380, CY: 590, W: 760, BASE_H: 940, HEX_R: 14 };
+// Iso canvas constants. There is no TILE any more: the scale is derived from
+// the fabric's own extent, so a 12 m flat and a 40 000 m² warehouse both fill
+// the frame instead of one being a dot and the other running off the canvas.
+export const ISO = { CX: 380, CY: 590, W: 760, BASE_H: 940, HEX_R: 14 };
 
-// ── Isometric 3-D SVG builder (same projection as Overview) ──────────────────
-export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[], model=null){
-  const {TILE, CX, CY, W, BASE_H, HEX_R} = ISO;
-  const FG=floorGap, HG=horizGap||0;
+const CIRCLE_SEGMENTS = 16;
+
+function circleToPoly(cx, cy, r){
+  return Array.from({length:CIRCLE_SEGMENTS},(_,i)=>{
+    const a=i*2*Math.PI/CIRCLE_SEGMENTS;
+    return [cx+r*Math.cos(a), cy+r*Math.sin(a)];
+  });
+}
+
+// ── THE frame: metres → screen, derived from the fabric alone ────────────────
+// Exported so the Mapping tab's drag inverts through the SAME projection this
+// draws with. When those two were computed separately they could disagree,
+// and a dragged light landed somewhere other than where it was dropped.
+export function fabricFrame(model, floors, floorGap, horizGap){
+  const {CX, CY, W, BASE_H} = ISO;
+  const FG = floorGap, HG = horizGap || 0;
+
+  const geo    = (model && model.room_geometry_m) || {};
+  const lightsM= (model && model.light_positions_m) || {};
+  const floorList = floors || [];
+
+  // A floor's iso height comes from the floor registry's own level. No map,
+  // no stack, no z_level copied off a photo's placement.
+  const levelOf = (fid) => {
+    const f = floorList.find(x => String(x.id) === String(fid));
+    const lv = f ? Number(f.level) : NaN;
+    return Number.isFinite(lv) ? lv : 0;
+  };
+
+  const rooms = [];
+  for(const [room, g] of Object.entries(geo)){
+    if(!g || typeof g !== "object") continue;
+    const fid = String(g.floor_id || "main");
+    let pts = null;
+    if(g.type === "poly" && Array.isArray(g.points_m) && g.points_m.length >= 3){
+      pts = g.points_m.map(p => [Number(p[0]), Number(p[1])]);
+    } else if(g.type === "circle"){
+      pts = circleToPoly(Number(g.cx_m)||0, Number(g.cy_m)||0, Number(g.r_m)||0.5);
+    }
+    if(!pts || pts.some(p => !Number.isFinite(p[0]) || !Number.isFinite(p[1]))) continue;
+    rooms.push({ room, floor_id: fid, z: levelOf(fid), pts });
+  }
+
+  const lights = [];
+  for(const [eid, lp] of Object.entries(lightsM)){
+    const x = Number(lp && lp.x_m), y = Number(lp && lp.y_m);
+    if(!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    const fid = String((lp && lp.floor_id) || "main");
+    lights.push({ eid, lp, floor_id: fid, z: levelOf(fid), x, y });
+  }
+
+  // Extent over everything the fabric says exists.
+  let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+  const grow=(x,y)=>{ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; };
+  for(const r of rooms) for(const p of r.pts) grow(p[0], p[1]);
+  for(const l of lights) grow(l.x, l.y);
+  const empty = !isFinite(minX);
+  if(empty){ minX=0; minY=0; maxX=10; maxY=8; }
+
+  const padM  = Math.max(0.5, Math.max(maxX-minX, maxY-minY) * 0.04);
+  minX-=padM; minY-=padM; maxX+=padM; maxY+=padM;
+  const spanX = Math.max(0.001, maxX-minX), spanY = Math.max(0.001, maxY-minY);
+  const mx=(minX+maxX)/2, my=(minY+maxY)/2;
+
+  // Pixels per metre, chosen so the diamond footprint fits the canvas. The
+  // iso footprint is (spanX+spanY) wide at 0.866 and tall at 0.5.
+  const S = Math.min((W-90)/((spanX+spanY)*0.866), (BASE_H-260)/((spanX+spanY)*0.5));
+
+  const iso    = (x,y,z)=>[ CX + ((x-mx)-(y-my))*S*0.866 + z*HG,
+                            CY + ((x-mx)+(y-my))*S*0.5   - z*FG ];
+  const isoInv = (sx,sy,z)=>{
+    const a=(sx - CX - z*HG)/(S*0.866);
+    const b=(sy - CY + z*FG)/(S*0.5);
+    return [ (a+b)/2 + mx, (b-a)/2 + my ];
+  };
+
+  const levels = [...new Set([...rooms.map(r=>r.z), ...lights.map(l=>l.z)])].sort((a,b)=>a-b);
+  return { rooms, lights, levels, iso, isoInv, scale: S, bbox:{minX,minY,maxX,maxY}, empty, levelOf };
+}
+
+// ── Isometric 3-D SVG builder ────────────────────────────────────────────────
+export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[]){
+  const {CX, CY, W, BASE_H, HEX_R} = ISO;
+  const FG=floorGap;
   const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
 
-  const iso = (wx,wy,wz)=>[CX+(wx-wy)*TILE*0.866+wz*HG, CY+(wx+wy)*TILE*0.5-wz*FG];
+  const frame = fabricFrame(model, floors, floorGap, horizGap);
+  const { iso, rooms, lights, levels } = frame;
   const pt  = c=>`${Math.round(c[0])},${Math.round(c[1])}`;
   const pts = cs=>cs.map(pt).join(" ");
 
-  const sorted  = [...maps_list].sort((a,b)=>(a.stack?.z_level||0)-(b.stack?.z_level||0));
-
-  const byLevel = new Map();
-  for(const m of sorted){
-    const z=m.stack?.z_level??0;
-    if(!byLevel.has(z)) byLevel.set(z,[]);
-    byLevel.get(z).push(m);
-  }
-  const sortedLevels=[...byLevel.keys()].sort((a,b)=>a-b);
-  const levelColor=(z)=>LAYER_PAL[sortedLevels.indexOf(z)%LAYER_PAL.length];
-  const LEGEND_H=sortedLevels.length*30+24;
-  // Dynamic viewBox: expand upward so high floors aren't clipped when spacing is large
-  const maxIsoZ = sortedLevels.length ? sortedLevels[sortedLevels.length-1] : 0;
+  const levelColor=(z)=>LAYER_PAL[levels.indexOf(z)%LAYER_PAL.length];
+  const LEGEND_H=Math.max(1,levels.length)*30+24;
+  const maxIsoZ = levels.length ? levels[levels.length-1] : 0;
   const viewY   = Math.min(0, CY - maxIsoZ*FG - 50);   // 50 px top padding
   const HTOTAL  = BASE_H + LEGEND_H - viewY;
 
@@ -118,9 +198,9 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
     `style="max-height:${HTOTAL}px;display:block;font-family:system-ui,sans-serif">`;
   s+=`<rect x="0" y="${viewY}" width="${W}" height="${HTOTAL}" fill="#071008"/>`;
 
-  // Floor surface patterns (same as Overview)
+  // Floor surface patterns
   s+=`<defs>`;
-  sortedLevels.forEach((z2,li)=>{
+  levels.forEach((z2,li)=>{
     const c2=levelColor(z2);
     if(li===0){
       s+=`<pattern id="flrpat_${li}" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">`;
@@ -142,26 +222,20 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
   });
   s+=`</defs>`;
 
-  if(!sorted.length){
-    s+=`<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="14">No floor plans uploaded yet.</text>`;
+  // Nothing in the fabric yet. The old copy blamed a missing PHOTO ("No floor
+  // plans uploaded yet"), which sent people to upload an image that this view
+  // does not use and cannot draw from.
+  if(!rooms.length && !lights.length){
+    s+=`<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="14">`+
+      `No rooms in the fabric yet — build a floor in Mapping → Rooms.</text>`;
     s+=`</svg>`; return s;
   }
 
   const slabWZ=18/FG;
-  // Fabric-first: the committed metre fabric (anchored to the world frame by
-  // a measured map) is what the house looks like; per-photo room_bounds stay
-  // only as the un-anchored fallback. Also kills the "two Mains" duplication.
-  const fabricW = model ? fabricWorldRooms(maps_list, model) : null;
-  const _mAnchor = model ? metreAnchor(maps_list, model.map_transforms) : null;
-  // Every light with a pin on any map, so a pinned light is never ALSO drawn
-  // as an auto-cluster hex on a different floor.
-  const allPlaced={};
-  // Placed lights live in the fabric, in metres — not on any photo.
-  const lightsM = (model && model.light_positions_m) || {};
-  for(const [eid,lp] of Object.entries(lightsM)) allPlaced[eid]=lp;
-  const hasBounds=sorted.some(m=>Object.keys(m.room_bounds||{}).length>0) || !!(fabricW && Object.keys(fabricW).length);
+  const placed={};
+  for(const l of lights) placed[l.eid]=l.lp;
 
-  for(const [z,group] of [...byLevel.entries()].sort((a,b)=>a[0]-b[0])){
+  for(const z of levels){
     const isFocused=focusZ===null||(Array.isArray(focusZ)?focusZ.includes(z):focusZ===z);
     const go=isFocused?1.0:0.1;
     // A ghosted floor is a backdrop, not a target: at 0.1 opacity its hexes are
@@ -170,18 +244,22 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
     // cannot see.
     const gpe=isFocused?"":` pointer-events="none"`;
     const lyrColor=levelColor(z);
-    const lidx=sortedLevels.indexOf(z);
+    const lidx=levels.indexOf(z);
 
-    // Bounding box for this group
+    const hereRooms  = rooms.filter(r=>r.z===z);
+    const hereLights = lights.filter(l=>l.z===z);
+
+    // The slab is the extent of what this floor CONTAINS, in metres — not the
+    // footprint of a photograph of it.
     let x0=Infinity,y0_=Infinity,x1=-Infinity,y1_=-Infinity;
-    for(const m of group){
-      const bbPt = makeStackXform(m.stack, imageAr(m)).mapPt;
-      for(const [cx,cy] of [[0,0],[1,0],[1,1],[0,1]]){
-        const[wx,wy]=bbPt(cx,cy);
-        x0=Math.min(x0,wx); y0_=Math.min(y0_,wy); x1=Math.max(x1,wx); y1_=Math.max(y1_,wy);
-      }
+    const growS=(x,y)=>{ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0_)y0_=y; if(y>y1_)y1_=y; };
+    for(const r of hereRooms) for(const p of r.pts) growS(p[0],p[1]);
+    for(const l of hereLights) growS(l.x,l.y);
+    if(!isFinite(x0)){ x0=frame.bbox.minX; y0_=frame.bbox.minY; x1=frame.bbox.maxX; y1_=frame.bbox.maxY; }
+    else {
+      const padS=Math.max(0.4, Math.max(x1-x0, y1_-y0_)*0.06);
+      x0-=padS; y0_-=padS; x1+=padS; y1_+=padS;
     }
-    if(!isFinite(x0)){x0=0;y0_=0;x1=1;y1_=0.75;}
 
     const TL=iso(x0,y0_,z), TR=iso(x1,y0_,z), BR=iso(x1,y1_,z), BL=iso(x0,y1_,z);
     const TR_b=iso(x1,y0_,z-slabWZ), BR_b=iso(x1,y1_,z-slabWZ), BL_b=iso(x0,y1_,z-slabWZ);
@@ -193,10 +271,9 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
     s+=`<polygon points="${pts([TL,TR,BR,BL])}" fill="#0f2017" fill-opacity="0.06" stroke="${lyrColor}" stroke-width="1.5" stroke-dasharray="10,5" opacity="0.5"/>`;
     if(lidx!==1) s+=`<polygon points="${pts([TL,TR,BR,BL])}" fill="url(#flrpat_${lidx})" stroke="none"/>`;
 
-    // Room polygons + room name labels + hexagons. `extra` carries data-*
-    // attributes (floor z, owning map for placed pins) so the Mapping →
-    // Lights tab's build tools can act on any hex directly; the sidebar
-    // ignores them.
+    // `extra` carries data-* attributes (floor z, whether it is placed) so the
+    // Mapping → Lights tab's build tools can act on any hex directly; the
+    // sidebar ignores them.
     const markerSvg=(l,hx,hy,entry,extra="")=>{
       const on=l.state==="on";
       // A custom pin colour applies to the LIT state only. Using it while the
@@ -206,34 +283,57 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
       const stroke=l.isWled?WLED_BORDER:"#60a5fa";
       const op=on?1:0.45;
       const tCol=on?"#111827":"#e2e8f0";
+      // Physical size and rotation, in real units. width_cm/height_cm and
+      // rotation have been in the stored schema all along and the WS command
+      // has always accepted them — nothing ever drew them, which is why
+      // "scaling and rotate don't work": they were never wired up. A metre of
+      // fixture is frame.scale pixels, so a 2.4 m valance reads as a long bar
+      // and a downlight stays a dot, at any zoom.
+      const t=[];
+      const rot=Number(entry&&entry.rotation)||0;
+      const wCm=Number(entry&&entry.width_cm)||0;
+      const hCm=Number(entry&&entry.height_cm)||0;
+      let sx=1, sy=1;
+      if(wCm>0||hCm>0){
+        const baseW=HEX_R*2*0.866, baseH=HEX_R*2;
+        // Floor at 1: below the default marker a fixture becomes an
+        // unclickable speck and its code unreadable, so physical size only
+        // ever grows a marker. Cap at 8× so one long strip cannot swamp the
+        // floor it sits on.
+        sx=Math.max(1, Math.min(8, ((wCm||hCm)/100)*frame.scale/baseW));
+        sy=Math.max(1, Math.min(8, ((hCm||wCm)/100)*frame.scale/baseH));
+      }
+      if(rot||sx!==1||sy!==1){
+        t.push(`translate(${hx.toFixed(1)},${hy.toFixed(1)})`);
+        if(rot) t.push(`rotate(${rot.toFixed(1)})`);
+        if(sx!==1||sy!==1) t.push(`scale(${sx.toFixed(3)},${sy.toFixed(3)})`);
+      }
+      // The outline scales and rotates; the CODE never does. A rotated or
+      // stretched label is the thing that stops the map being readable at a
+      // glance, which is the entire point of the view.
+      const body = t.length
+        ? `<g transform="${t.join(" ")}">`+
+          shapeSvg(l.shape, 0, 0, HEX_R, `fill="${fill}" stroke="${stroke}" stroke-width="${(2/Math.max(sx,sy)).toFixed(2)}"`)+
+          `</g>`
+        : shapeSvg(l.shape, hx, hy, HEX_R, `fill="${fill}" stroke="${stroke}" stroke-width="2"`);
       return `<g class="lhex" data-eid="${escSVG(l.entity_id)}"${extra?" "+extra:""} style="cursor:pointer" opacity="${op}">`+
-        shapeSvg(l.shape, hx, hy, HEX_R, `fill="${fill}" stroke="${stroke}" stroke-width="2"`)+
+        body+
         `<text x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
         `font-family="monospace" font-size="11" font-weight="700" fill="${tCol}" pointer-events="none">`+
         `${escSVG(l.code)}</text></g>`;
     };
 
-    // Room shapes: fabric-first (one true shape per room from the committed
-    // metre fabric). Per-photo room_bounds remain only as the un-anchored
-    // fallback — where the old "two Mains" duplication needed the seenRooms
-    // dedupe.
-    const groupFids = new Set(group.map(m=>String(m.stack?.floor_id||m.floor_id||"main")));
-    const groupZ = group[0]?.stack?.z_level ?? 0;
-    const fabHere = fabricW
-      ? Object.entries(fabricW).filter(([,fr])=>groupFids.has(fr.floor_id)) : [];
-    // Lights placed on ANY map render at their exact spot and are excluded
-    // from the auto hex clusters. The exclusion has to span EVERY map, not
-    // just this group's: a light pinned on one floor whose room later moves to
-    // another floor would otherwise be drawn twice — once as a pin, once as a
-    // cluster hex — and counted twice.
-    const groupPlaced=allPlaced;
-
-    const emitRoom=(room,pp,lix,liy)=>{
-      const color=roomColor(room);
+    // Rooms, straight from the metre fabric.
+    for(const r of hereRooms){
+      const color=roomColor(r.room);
+      const pp=r.pts.map(p=>pt(iso(p[0],p[1],z))).join(" ");
+      const cx=r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length;
+      const cy=r.pts.reduce((a,p)=>a+p[1],0)/r.pts.length;
+      const [lix,liy]=iso(cx,cy,z);
       s+=`<polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="1.5" opacity="0.9"/>`;
       s+=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+
         `fill="${color}" font-size="8" font-family="system-ui,sans-serif" opacity="0.7" pointer-events="none">`+
-        `${escSVG(room)}</text>`;
+        `${escSVG(r.room)}</text>`;
       // Room assignment isn't known yet (registry still loading) — show a
       // single pulsing placeholder instead of blocking the whole map on
       // a multi-MB registry fetch; real hexes replace it once it lands.
@@ -241,69 +341,27 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
         s+=`<polygon points="${hexPts(lix,liy,HEX_R)}" fill="#374151" stroke="#60a5fa" stroke-width="2" opacity="0.5">`+
           `<animate attributeName="opacity" values="0.25;0.65;0.25" dur="1.2s" repeatCount="indefinite"/>`+
           `</polygon>`;
-        return;
+        continue;
       }
-      // Hexagon cluster for this room's unplaced lights (Pro-positioned
-      // lights were already drawn at their exact spot).
-      const roomLights=(byRoom[room]||[]).filter(l=>!hiddenEids.has(l.entity_id) && !groupPlaced[l.entity_id]);
-      if(!roomLights.length) return;
+      // Hexagon cluster for this room's unplaced lights — a light with a real
+      // position was already drawn at it.
+      const roomLights=(byRoom[r.room]||[]).filter(l=>!hiddenEids.has(l.entity_id) && !placed[l.entity_id]);
+      if(!roomLights.length) continue;
       const offsets=hexCluster(roomLights.length, HEX_R);
       roomLights.forEach((l,idx)=>{
         const [dx,dy]=offsets[idx];
         s+=markerSvg(l, lix+dx, liy+dy, null, `data-z="${z}"`);
       });
-    };
-
-    if(fabHere.length){
-      for(const [room,fr] of fabHere){
-        const pp=fr.pts.map(p=>pt(iso(p[0],p[1],z))).join(" ");
-        const cx=fr.pts.reduce((a,p)=>a+p[0],0)/fr.pts.length;
-        const cy=fr.pts.reduce((a,p)=>a+p[1],0)/fr.pts.length;
-        const [lix,liy]=iso(cx,cy,z);
-        emitRoom(room,pp,lix,liy);
-      }
-    }
-    const seenRooms=new Set(fabHere.map(([room])=>room));
-    // Placed lights, drawn from the fabric in metres through the same world
-    // frame the rooms use. A photo is not consulted and need not exist.
-    if(_mAnchor){
-      const k = 1/_mAnchor.m_per_world;
-      for(const [eid,lp] of Object.entries(lightsM)){
-        if(hiddenEids.has(eid)) continue;
-        if(!groupFids.has(String(lp.floor_id||"main"))) continue;
-        const l=lightsByEid[eid];
-        if(!l) continue;
-        const [hx,hy]=iso(lp.x_m*k, lp.y_m*k, groupZ);
-        s+=markerSvg(l,hx,hy,lp,`data-z="${groupZ}" data-placed="1"`);
-      }
     }
 
-    for(const m of group){
-      const mapPt = makeStackXform(m.stack, imageAr(m)).mapPt;
-
-      if(fabHere.length) continue;   // the fabric drew this group's rooms
-      for(const [room,b] of Object.entries(m.room_bounds||{})){
-        if(!b || seenRooms.has(room)) continue;
-        seenRooms.add(room);
-        let roomCx, roomCy;   // world-space centroid
-        let pp;
-        if(b.type==="poly" && Array.isArray(b.points) && b.points.length>=3){
-          pp=b.points.map(p=>{const[wx,wy]=mapPt(p[0],p[1]);return pt(iso(wx,wy,z));}).join(" ");
-          roomCx=b.points.reduce((a,p)=>a+p[0],0)/b.points.length;
-          roomCy=b.points.reduce((a,p)=>a+p[1],0)/b.points.length;
-        } else if(b.type==="circle"){
-          const N=16, rcx=b.cx??0.5, rcy=b.cy??0.5, rr=b.r??0.12;
-          pp=Array.from({length:N},(_,i)=>{
-            const a=i*2*Math.PI/N;
-            const[wx,wy]=mapPt(rcx+rr*Math.cos(a), rcy+rr*Math.sin(a));
-            return pt(iso(wx,wy,z));
-          }).join(" ");
-          roomCx=rcx; roomCy=rcy;
-        } else { continue; }
-        const [lwx,lwy]=mapPt(roomCx,roomCy);
-        const [lix,liy]=iso(lwx,lwy,z);
-        emitRoom(room,pp,lix,liy);
-      }
+    // Placed lights — metres from the fabric, through the same projection the
+    // rooms just used.
+    for(const pl of hereLights){
+      if(hiddenEids.has(pl.eid)) continue;
+      const l=lightsByEid[pl.eid];
+      if(!l) continue;
+      const [hx,hy]=iso(pl.x, pl.y, z);
+      s+=markerSvg(l,hx,hy,pl.lp,`data-z="${z}" data-placed="1"`);
     }
 
     // Floor level badge
@@ -312,19 +370,11 @@ export function buildIsoSVG(maps_list, byRoom, hiddenEids, focusZ, floorGap, hor
     s+=`</g>`;
   }
 
-  if(!hasBounds && sorted.length){
-    s+=`<text x="${W/2}" y="${BASE_H-20}" text-anchor="middle" fill="#4a6052" font-size="15">`+
-      `Go to Maps → Edit to draw room boundaries</text>`;
-  }
-
   // Legend
   s+=`<line x1="10" y1="${BASE_H+4}" x2="${W-10}" y2="${BASE_H+4}" stroke="#1b3526" stroke-width="0.8"/>`;
-  sortedLevels.forEach((z,i)=>{
+  levels.forEach((z,i)=>{
     const ly=BASE_H+10+i*30, color=levelColor(z);
-    // The real HA floor name (never the uploaded photo's own name) — z_level
-    // is synced from the floor's own "level" attribute, so this is the same
-    // lookup floorLabel()/​_getFocusLbl() already use elsewhere in this file.
-    const fl=floors.find(f=>f.level===z);
+    const fl=(floors||[]).find(f=>Number(f.level)===z);
     const groupLabel=fl?(fl.name||`Floor ${z}`):`Floor ${z}`;
     s+=`<circle cx="18" cy="${ly+11}" r="11" fill="${color}" opacity="0.9"/>`;
     s+=`<text x="18" y="${ly+15}" text-anchor="middle" fill="#071008" font-size="12" font-weight="700">${i+1}</text>`;

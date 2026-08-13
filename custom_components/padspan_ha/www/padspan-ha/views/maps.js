@@ -7,8 +7,9 @@
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
 const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
-// Iso projection constants for the Lights tab's drag-inversion.
-const { ISO } =
+// THE fabric frame — the Lights tab inverts drags through the exact function
+// the renderer draws with, so the two cannot disagree.
+const { fabricFrame } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 // THE shared Lights view (data pipeline, map card, index table) — used
 // verbatim by the Lights sidebar panel, so the two tools always show the
@@ -6195,9 +6196,21 @@ function _attachPanZoom(viewport, inner) {
 
 // Draft: mapId → scratch copy of that map's lights[]. Presence of a key IS
 // the dirty marker; Save writes every drafted map, Discard drops them all.
-function _floorIdForZ(maps, z) {
-  const m = maps.find(x => (x.stack?.z_level ?? 0) === z);
-  return String(m?.stack?.floor_id || m?.floor_id || "main");
+// Which floor a given iso level IS — from the floor registry, not from
+// whichever photo happens to sit at that height.
+function _floorIdForZ(ctx, z) {
+  const floors = ctx.state.model?.floors || [];
+  const f = floors.find(x => Number(x.level) === Number(z));
+  if (f) return String(f.id);
+  // No registry match: fall back to a floor the fabric already places here.
+  const geo = ctx.state.model?.room_geometry_m || {};
+  for (const g of Object.values(geo)) {
+    const fid = String(g?.floor_id || "");
+    if (!fid) continue;
+    const ff = floors.find(x => String(x.id) === fid);
+    if (ff && Number(ff.level) === Number(z)) return fid;
+  }
+  return "main";
 }
 
 // Wire the build tools onto the shared iso SVG: click any hex to select it,
@@ -6211,13 +6224,12 @@ function _wireLightsBuild(ctx, isoDiv, o) {
     const m = svg.getScreenCTM();
     return m ? p.matrixTransform(m.inverse()) : { x: 0, y: 0 };
   };
-  // Inverse of iso_lights.js's projection at a hex's own floor z — reads the
-  // LIVE slider values so a drag right after a spacing change stays exact.
-  const isoInv = (sx, sy, z) => {
-    const a = (sx - ISO.CX - z * o.view.horizGap) / (ISO.TILE * 0.866);
-    const b = (sy - ISO.CY + z * o.view.floorGap) / (ISO.TILE * 0.5);
-    return [(a + b) / 2, (b - a) / 2];
-  };
+  // The drag inverts through THE SAME frame the renderer just drew with —
+  // same function, same fabric, same live slider values — so a dropped light
+  // lands where it was dropped by construction. This used to be a re-derived
+  // copy of the projection, which could disagree with the drawing.
+  const frame = fabricFrame(ctx.state.model, ctx.state.model?.floors || [],
+                            o.view.floorGap, o.view.horizGap);
 
   // Selection highlight
   const selEid = o.mapState._selLight ? o.mapState._selLight.eid : null;
@@ -6233,7 +6245,6 @@ function _wireLightsBuild(ctx, isoDiv, o) {
   for (const g of isoDiv.querySelectorAll("g.lhex[data-eid]")) {
     const eid = g.getAttribute("data-eid");
     const z = parseFloat(g.getAttribute("data-z") || "0");
-    const placedMapId = g.getAttribute("data-map") || null;
 
     // Pointer events, not mouse events: one code path covers mouse, touch and
     // pen (the builder was unusable on a tablet), and pointer capture
@@ -6282,32 +6293,34 @@ function _wireLightsBuild(ctx, isoDiv, o) {
           // Plain click (or a cancelled gesture): select the light; the
           // inspector holds the tools. Never write a position here.
           g.removeAttribute("transform");
-          o.mapState._selLight = { eid, mapId: placedMapId };
+          o.mapState._selLight = { eid, mapId: null };
           ctx.actions.renderRooms();
           return;
         }
         const v = toVB(e);
-        const [wx, wy] = isoInv(originCx + (v.x - start.x), originCy + (v.y - start.y), z);
-        // Where the light IS, in metres. No owning map, no transform, no
-        // photo: the world frame converts straight to real-world coordinates.
-        const anchor = metreAnchor(o.visMaps, (ctx.state.model || {}).map_transforms);
-        if (!anchor) {
-          ctx.toast("Measure one map first — without a real-world scale there is nowhere to put this.", true);
-          ctx.actions.renderRooms();
-          return;
-        }
-        const x_m = Math.round(wx * anchor.m_per_world * 1000) / 1000;
-        const y_m = Math.round(wy * anchor.m_per_world * 1000) / 1000;
-        const floorId = _floorIdForZ(o.visMaps, z);
+        // Straight to metres. The fabric IS the coordinate system, so there is
+        // no scale to look up, no map to own the light, and nothing to refuse
+        // when no photo has been measured.
+        const [x_mRaw, y_mRaw] = frame.isoInv(originCx + (v.x - start.x),
+                                              originCy + (v.y - start.y), z);
+        const x_m = Math.round(x_mRaw * 1000) / 1000;
+        const y_m = Math.round(y_mRaw * 1000) / 1000;
+        const floorId = _floorIdForZ(ctx, z);
         const draft = o.mapState._lightsDraftM || (o.mapState._lightsDraftM = {});
         const prev = ((ctx.state.model || {}).light_positions_m || {})[eid] || {};
         draft[eid] = {
           x_m, y_m, floor_id: floorId,
           color: prev.color || "#fbbf24",
-          shape: prev.shape || "circle",
+          // Size defaults to 0 = "just draw the default marker". It used to
+          // stamp 15×15 cm on every drop, which is a real measurement the user
+          // never made — and nothing rendered it, so it read as "sized" while
+          // looking unsized. Shape is NOT stored here: it is resolved per
+          // entity (derived, with the chooser's override) so a light looks the
+          // same whether or not it has been placed. Two sources for one
+          // property is what made the chooser feel flaky.
           rotation: prev.rotation || 0,
-          width_cm: prev.width_cm || 15,
-          height_cm: prev.height_cm || 15,
+          width_cm: prev.width_cm || 0,
+          height_cm: prev.height_cm || 0,
           label: prev.label || (o.lightsByEid[eid] ? o.lightsByEid[eid].friendly_name : eid),
         };
         o.mapState._selLight = { eid, mapId: null };
@@ -6481,12 +6494,12 @@ function _lightsTab(ctx, maps, active) {
     callWS: (msg) => ctx.hass.callWS(msg),
     toast: (m, isErr) => ctx.toast(m, isErr),
     // Build-tool interaction: hexes select and drag instead of toggling.
-    onHexesBuilt: (isoDiv) => _wireLightsBuild(ctx, isoDiv, { mapState, visMaps, view, lightsByEid }),
+    onHexesBuilt: (isoDiv) => _wireLightsBuild(ctx, isoDiv, { mapState, view, lightsByEid }),
     // A table row selects the light on the map (toggle lives in the inspector).
+    // A light has no owning map to look up any more — it has a position in
+    // metres, or it has none and clusters in its room.
     onRowClick: (l) => {
-      const owner = visMaps.find(m =>
-        false);
-      mapState._selLight = { eid: l.entity_id, mapId: owner ? owner.id : null };
+      mapState._selLight = { eid: l.entity_id, mapId: null };
       ctx.actions.renderRooms();
     },
     onToggleHidden: async (eid) => {
@@ -6574,6 +6587,39 @@ function _lightsTab(ctx, maps, active) {
       });
       colorLbl.appendChild(colorInput);
       insp.appendChild(colorLbl);
+
+      // ── Physical size + rotation ─────────────────────────────────────────
+      // Real-world centimetres and degrees, stored in the fabric alongside the
+      // position. These fields existed in the schema and the save command from
+      // the start; there was simply no way to set them and nothing drew them.
+      const editEntry = (mutate) => {
+        const draft = mapState._lightsDraftM || (mapState._lightsDraftM = {});
+        const cur = draft[sel.eid] || { ...((ctx.state.model?.light_positions_m || {})[sel.eid] || {}) };
+        mutate(cur);
+        draft[sel.eid] = cur;
+        ctx.actions.renderRooms();
+      };
+      const numBox = (labelText, key, min, max, step, suffix) => {
+        const lbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8" }, labelText);
+        const inp = document.createElement("input");
+        inp.type = "number";
+        inp.min = String(min); inp.max = String(max); inp.step = String(step);
+        inp.value = String(Number(entry[key]) || 0);
+        inp.style.cssText = "width:64px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:2px 6px;font-size:11px";
+        inp.addEventListener("change", () => {
+          const v = Math.max(min, Math.min(max, parseFloat(inp.value) || 0));
+          inp.value = String(v);
+          editEntry(c => { c[key] = v; });
+        });
+        lbl.appendChild(inp);
+        if (suffix) lbl.appendChild(el("span", { style: "font-size:11px;color:#94a3b8" }, suffix));
+        return lbl;
+      };
+      insp.appendChild(numBox("Width", "width_cm", 0, 2000, 1, "cm"));
+      insp.appendChild(numBox("Length", "height_cm", 0, 2000, 1, "cm"));
+      insp.appendChild(numBox("Rotate", "rotation", -180, 180, 5, "°"));
+      insp.appendChild(el("span", { class: "muted", style: "font-size:11px" },
+        "0 = default marker size"));
 
       insp.appendChild(el("button", {
         class: "btn inline",

@@ -11,7 +11,7 @@
 // Everything either view renders comes from here; the hosts differ only in
 // what an interaction does (sidebar: control the light — tab: place it).
 
-const { buildIsoSVG, shapeSvg } =
+const { buildIsoSVG, shapeSvg, fabricFrame } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
@@ -131,7 +131,10 @@ export function buildLightsMapCard(host){
   const floors = host.floors || [];
   const mapCard = el("div", { class: "card", style: "padding:12px;margin-bottom:16px" });
 
-  const sortedLevels = [...new Set(host.maps.map(m => m.stack?.z_level ?? 0))].sort((a, b) => a - b);
+  // Floors come from the FABRIC (which floors actually contain rooms/lights),
+  // never from which photos happen to be uploaded. A floor with no plan image
+  // is still a floor; a plan image is not a floor.
+  const sortedLevels = fabricFrame(host.model, floors, view.floorGap, view.horizGap).levels;
 
   // Focus positions: All, each floor, each adjacent pair
   const isoPos = [null];
@@ -154,8 +157,8 @@ export function buildLightsMapCard(host){
 
   const rebuildISO = () => {
     isoDiv.style.width = `${Math.round(view.zoom * 100)}%`;
-    isoDiv.innerHTML = buildIsoSVG(host.maps, host.byRoom, host.hiddenEids, getFocusZ(view.focusIdx),
-      view.floorGap, view.horizGap, host.lightsByEid, host.lightsLoading, floors, host.model);
+    isoDiv.innerHTML = buildIsoSVG(host.model, host.byRoom, host.hiddenEids, getFocusZ(view.focusIdx),
+      view.floorGap, view.horizGap, host.lightsByEid, host.lightsLoading, floors);
     host.onHexesBuilt(isoDiv, rebuildISO);
   };
 
