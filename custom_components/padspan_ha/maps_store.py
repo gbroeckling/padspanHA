@@ -45,7 +45,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .const import MAPS_STORE_KEY, MAPS_DIR, DEFAULT_FLOOR_ID
+from .const import MAPS_STORE_KEY, MAPS_DIR, DEFAULT_FLOOR_ID, MAX_HEIGHT_M
 from .safe_store import wrap_store
 
 MAX_MAP_BYTES = 20 * 1024 * 1024  # 20 MB decoded limit — prevents OOM on large uploads
@@ -384,7 +384,7 @@ class MapsStore:
             # Clamp numeric values to sane ranges to prevent broken rendering
             z = max(0, min(20, int(stack.get("z_level", 0))))
             sc = max(0.1, min(10.0, float(stack.get("scale", 1.0))))
-            ceil_h = max(1.5, min(20.0, float(stack.get("ceiling_height_m", 2.4))))
+            ceil_h = max(1.5, min(MAX_HEIGHT_M, float(stack.get("ceiling_height_m", 2.4))))
             rot = float(stack.get("rotation", 0.0))
             new_stack: dict[str, Any] = {
                 "z_level": z,

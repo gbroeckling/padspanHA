@@ -130,7 +130,19 @@ async def test_null_clears_a_field() -> None:
 async def test_values_are_clamped() -> None:
     store = _make_store([{"id": "g", "name": "G"}])
     await store.async_set_floor_elevations([{"id": "g", "floor_to_floor_m": 900}])
-    assert store.data["floors"][0]["floor_to_floor_m"] == pytest.approx(20.0)
+    assert store.data["floors"][0]["floor_to_floor_m"] == pytest.approx(100.0)
+
+
+@pytest.mark.asyncio
+async def test_high_bay_height_is_not_clamped() -> None:
+    """A warehouse or atrium level is a real floor, not a typo.
+
+    The old 20 m ceiling silently rewrote a 32 m high-bay level to 20 m,
+    which then propagated into every derived base elevation above it.
+    """
+    store = _make_store([{"id": "bay", "name": "High Bay"}])
+    await store.async_set_floor_elevations([{"id": "bay", "floor_to_floor_m": 32.0}])
+    assert store.data["floors"][0]["floor_to_floor_m"] == pytest.approx(32.0)
 
 
 @pytest.mark.asyncio

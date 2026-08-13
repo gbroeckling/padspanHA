@@ -47,7 +47,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .const import MODEL_STORE_KEY, DEFAULT_FLOOR_ID
+from .const import MODEL_STORE_KEY, DEFAULT_FLOOR_ID, MAX_HEIGHT_M
 from .safe_store import wrap_store
 
 
@@ -120,7 +120,7 @@ def _norm_floor(f: dict[str, Any]) -> dict[str, Any]:
     lvl = f.get("level")
     if isinstance(lvl, (int, float)) and not isinstance(lvl, bool):
         out["level"] = int(lvl)
-    for key, lo, hi in (("floor_to_floor_m", 1.5, 20.0), ("base_elevation_m", -50.0, 500.0)):
+    for key, lo, hi in (("floor_to_floor_m", 1.5, MAX_HEIGHT_M), ("base_elevation_m", -50.0, 500.0)):
         val = f.get(key)
         if isinstance(val, (int, float)) and not isinstance(val, bool):
             out[key] = round(max(lo, min(hi, float(val))), 3)
@@ -569,7 +569,7 @@ class ModelStore:
         if not isinstance(entry, dict):
             return False
         entry = dict(entry)
-        entry["z_m"] = round(max(0.0, min(20.0, float(z_m))), 2)
+        entry["z_m"] = round(max(0.0, min(MAX_HEIGHT_M, float(z_m))), 2)
         await fab.async_spatial_update(
             set_scanners={str(source): entry}, op="scanner_z_set")
         return True

@@ -84,6 +84,14 @@ OUTSIDE_FLOOR_ID = "__outside__"               # synthetic floor for outdoor / u
 DEFAULT_ROOM_RADIUS = 0.12                     # normalised (0–1) fallback radius around a receiver
 MAPS_DIR = "padspan_ha/maps"                   # relative to HA www/ dir → /local/padspan_ha/maps/
 
+# Upper bound for any single vertical measurement: scanner mounting height,
+# floor-to-floor, ceiling height.  It exists to catch a typo (a metre value
+# entered as centimetres), NOT to describe a building — high-bay warehouse and
+# atrium levels genuinely exceed 20 m, and clamping one silently corrupts every
+# derived base elevation stacked above it.  One place, so raising it later is a
+# single edit rather than a hunt through both stores and the frontend.
+MAX_HEIGHT_M = 100.0
+
 # ── Phase 2: real-world coordinate defaults ──────────────────────────────
 DEFAULT_VG_ADJACENT_M = 8.0                    # metres — velocity gate adjacency threshold
 DEFAULT_ADJACENCY_SIGMOID_M = 8.0              # metres — adjacency prior sigmoid midpoint

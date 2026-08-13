@@ -386,6 +386,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._scanner_abs_z: dict[str, float] = {}
         self._floor_bases: dict[str, float] = {}
         self._floor_stack_idx: dict[str, int] = {}
+        # Largest distance one RSSI reading may claim; scaled to the site.
+        self._max_range_m: float = 50.0
         # List of barrier dicts: [{points, attenuation_dbm, map_id}, ...]
         self._rf_barriers: list[dict] = []
         # Phase 2: True when spatial data is in metres (not map fractions)
@@ -857,6 +859,18 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     src: (pos["x_m"], pos["y_m"], pos.get("floor_id", ""))
                     for src, pos in _model.scanner_positions_m().items()
                 }
+                # A single RSSI→distance estimate is capped so a noise-floor
+                # reading can't hand the solver a distance the building could
+                # never contain.  The cap has to follow the site: a house
+                # spans ~15 m, one 100,000 m² commercial floor spans ~450 m
+                # corner to corner, and a fixed 50 m ceiling would flatten
+                # every genuinely-distant scanner onto the same weight.
+                # Twice the scanner bounding-box diagonal, never below the
+                # historic 50 m — so domestic installs are unchanged.
+                _sxs = [p[0] for p in self._scanner_positions.values()]
+                _sys = [p[1] for p in self._scanner_positions.values()]
+                self._max_range_m = max(50.0, 2.0 * math.hypot(
+                    max(_sxs) - min(_sxs), max(_sys) - min(_sys))) if _sxs else 50.0
                 # 3D: absolute scanner heights + floor stack (issue #54)
                 self._scanner_abs_z = _model.scanner_absolute_z_m()
                 self._floor_bases = _model.floor_base_elevations_m()
@@ -1533,7 +1547,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                     # doubled the through-wall error instead).
                                     _d = 10.0 ** ((_ref_s - (_rssi + _att)) / (10.0 * _n_s))
                                 _d = _slant_to_horizontal(_d, _dz)
-                                _out.append((_sx, _sy, max(0.3, min(_d, 50.0))))
+                                _out.append((_sx, _sy, max(0.3, min(_d, self._max_range_m))))
                             return _out
 
                         def _idw_centroid(scanners, ref_pt=None):
