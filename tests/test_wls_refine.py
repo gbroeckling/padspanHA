@@ -4,11 +4,20 @@ from __future__ import annotations
 
 import math
 
-from custom_components.padspan_ha.presence_coordinator import _wls_refine
+from custom_components.padspan_ha.presence_coordinator import (
+    _range_weight,
+    _wls_refine,
+)
 
 
 def _ranges(receivers: list[tuple[float, float]], px: float, py: float):
-    return [(sx, sy, math.hypot(px - sx, py - sy)) for sx, sy in receivers]
+    """Exact same-floor ranges: no vertical offset, so d_h == d_slant and the
+    weight is identically the legacy 1/(d²+0.01)."""
+    out = []
+    for sx, sy in receivers:
+        d = math.hypot(px - sx, py - sy)
+        out.append((sx, sy, d, _range_weight(d, d)))
+    return out
 
 
 def test_converges_to_point_inside_hull() -> None:

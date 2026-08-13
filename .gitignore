@@ -10,3 +10,6 @@ bermuda_vs_padspan_comparison.txt
 Screenshot *.png
 # Local pre-deploy store backups — never publish
 backups/
+# Working notes containing LAN addresses and deploy commands — never publish
+docs/fabric-independence-plan-*.md
+docs/fabric-simplification-pass*.md

@@ -248,6 +248,10 @@ def _slant_to_horizontal(d_slant: float, dz: float) -> float:
     vertical offset (measurement noise, or the device is directly under a
     ceiling scanner), the horizontal distance is ~0 — return a small floor
     rather than a complex number.  dz=0 is the exact 2D legacy behaviour.
+
+    The projection is only half the story: a small d_h is also a *poorly
+    determined* d_h.  See _range_weight, which carries that uncertainty into
+    the solve so a near-vertical reading cannot outvote an honest one.
     """
     if not dz:
         return d_slant
@@ -255,15 +259,38 @@ def _slant_to_horizontal(d_slant: float, dz: float) -> float:
     return math.sqrt(under) if under > 0.09 else 0.3
 
 
+def _range_weight(d_h: float, d_slant: float) -> float:
+    """Least-squares weight (1/σ²) for one horizontal range estimate.
+
+    RSSI ranging error is multiplicative — σ_d ∝ d — which is why near
+    receivers are more reliable and the solve has always weighted by 1/d².
+    Projecting to the horizontal plane amplifies that error by
+    ∂d_h/∂d = d/d_h, so σ_h ∝ d²/d_h and the weight is d_h²/d⁴.
+
+    For a same-floor scanner (d_h == d_slant) this reduces to exactly the
+    legacy 1/d², so flat installs keep the behaviour they have today.  For a
+    scanner nearly overhead or on another floor, d_h is a small difference of
+    two large numbers: weighting by 1/d_h² handed those least-determined
+    readings the *most* authority, and one hot cross-floor reading could
+    outvote every honest scanner and snap the estimate onto its coordinates —
+    routinely outside the building, and only on the polls where noise pushed
+    that reading below its own vertical offset.
+    """
+    _d2 = max(d_slant * d_slant, 1e-6)
+    # Written as d²·(d²+0.01) rather than d⁴ so that d_h == d_slant collapses
+    # to the legacy 1/(d²+0.01) exactly, epsilon included.
+    return (d_h * d_h) / (_d2 * (_d2 + 0.01))
+
+
 def _wls_refine(
     x0: float, y0: float, meas: list[tuple[float, float, float]], iters: int = 3
 ) -> tuple[float, float]:
     """Refine a position estimate via weighted-least-squares multilateration.
 
-    meas: [(scanner_x, scanner_y, estimated_distance_m)].  Runs Gauss-Newton
-    iterations minimizing Σ wᵢ(‖x−pᵢ‖ − dᵢ)² with wᵢ = 1/dᵢ² (near receivers
-    are more reliable — dBm error translates to less absolute distance error
-    up close).  Seeded at (x0, y0), typically the IDW centroid — unlike the
+    meas: [(scanner_x, scanner_y, estimated_distance_m, weight)].  Runs
+    Gauss-Newton iterations minimizing Σ wᵢ(‖x−pᵢ‖ − dᵢ)², with the weights
+    supplied by _range_weight so a poorly-determined horizontal range cannot
+    dominate.  Seeded at (x0, y0), typically the IDW centroid — unlike the
     centroid, the solution CAN sit between or outside the receivers.
 
     Damped (max 5 m movement per iteration) and conservative: on singular
@@ -272,13 +299,12 @@ def _wls_refine(
     x, y = x0, y0
     for _ in range(iters):
         a11 = a12 = a22 = b1 = b2 = 0.0
-        for sx, sy, d in meas:
+        for sx, sy, d, w in meas:
             dx = x - sx
             dy = y - sy
             r = math.hypot(dx, dy)
             if r < 1e-6:
                 continue
-            w = 1.0 / (d * d + 0.01)
             ux = dx / r
             uy = dy / r
             resid = r - d
@@ -1558,14 +1584,18 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                     # ADDING the attenuation back (the old -=
                                     # doubled the through-wall error instead).
                                     _d = 10.0 ** ((_ref_s - (_rssi + _att)) / (10.0 * _n_s))
+                                _d_slant = _d
                                 _d = _slant_to_horizontal(_d, _dz)
-                                _out.append((_sx, _sy, max(0.3, min(_d, self._max_range_m))))
+                                _out.append((
+                                    _sx, _sy,
+                                    max(0.3, min(_d, self._max_range_m)),
+                                    _range_weight(_d, _d_slant),
+                                ))
                             return _out
 
                         def _idw_centroid(scanners, ref_pt=None):
                             _wx = 0.0; _wy = 0.0; _wt = 0.0
-                            for _sx, _sy, _d in _scanner_dists(scanners, ref_pt):
-                                _w = 1.0 / (_d * _d + 0.01)
+                            for _sx, _sy, _d, _w in _scanner_dists(scanners, ref_pt):
                                 _wx += _sx * _w
                                 _wy += _sy * _w
                                 _wt += _w
