@@ -139,3 +139,28 @@ async def test_an_unmeasured_photo_contributes_no_lights() -> None:
              "lights": [{"entity_id": "light.a", "x": 0.5, "y": 0.5}]}]
     assert await _convert_lights(mdl, fab, maps) == 0
     assert mdl.light_positions_m() == {}
+
+
+def test_the_panel_copies_every_key_the_model_payload_sends() -> None:
+    """_getModel whitelists keys, so a payload field it doesn't name is
+    silently dropped — the backend answers correctly and the UI never sees it.
+
+    This is the third time that shape has shipped (origin forwarding, the
+    migration marker, and light positions), so it gets a test.
+    """
+    import re
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+    ws = (src / "websocket.py").read_text(encoding="utf-8")
+    body = ws[ws.index('async def ws_model_get'):]
+    body = body[:body.index("@websocket_api.websocket_command")]
+    sent = set(re.findall(r'"([a-z_]+)":', body[body.index("send_result"):]))
+
+    panel = (src / "www" / "padspan-ha" / "panel.js").read_text(encoding="utf-8")
+    got = panel[panel.index("async _getModel()"):]
+    got = got[:got.index("this.state._modelLoaded")]
+    copied = set(re.findall(r"(\w+):\s*res\?\.", got))
+
+    missing = sent - copied
+    assert not missing, f"model_get sends keys the panel drops: {sorted(missing)}"

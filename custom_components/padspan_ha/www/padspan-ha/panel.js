@@ -1220,6 +1220,8 @@ class PadSpanHaApp extends HTMLElement {
         rf_barriers_m: res?.rf_barriers_m || [],
         map_transforms: res?.map_transforms || {},
         beacon_positions_m: res?.beacon_positions_m || {},
+        light_positions_m: res?.light_positions_m || {},
+        floor_elevations: res?.floor_elevations || {},
         fabric_floors: res?.fabric_floors || {},
       };
     } catch (e) {
