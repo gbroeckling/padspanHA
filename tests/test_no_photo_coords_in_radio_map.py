@@ -82,12 +82,44 @@ def test_the_fabric_source_exists_and_refuses_to_guess():
     )
 
 
-def test_scanner_height_reaches_the_model():
-    """The fabric carries z, so the heatmap must do real 3D range."""
+def test_no_assumed_map_width_anywhere():
+    """World distance becomes metres via the fabric's measured scale.
+
+    radio_map.js carried `const MAP_SCALE_M = 15; // assumed map width in
+    meters` and multiplied every modelled distance by it — the same 15 m house
+    that loo_accuracy used to fabricate its metre figure from. On any building
+    that is not 15 m wide, every predicted RSSI was wrong by the ratio.
+    """
+    src = _radio_map()
+    assert "MAP_SCALE_M" not in src, (
+        "an assumed map width is back; convert world distance to metres with "
+        "the m_per_world the metre anchor actually measured"
+    )
+    assert "mPerWorld" in src, "the fabric's measured scale is not being used"
+
+
+def test_every_live_rssi_model_uses_the_vertical_offset():
+    """Pins the LIVE computations, not a helper that might be dead.
+
+    The first version of this guard asserted `sc.dz` appeared somewhere in the
+    file. It did — inside _modelRSSI, which had no callers at all, while the
+    three real models were inlined in the heatmap loops and ignored dz
+    entirely. A guard that can be satisfied by dead code guards nothing, so
+    this counts the path-loss lines and requires every one to be 3D.
+    """
+    src = _radio_map()
+    models = re.findall(r"^.*10 ?\* ?pathLossN ?\* ?Math\.log10\(.*$", src, re.M)
+    assert models, "no path-loss model found — this test needs rewiring"
+    # Each model's distance must be built with the vertical offset.
+    dz_sites = re.findall(r"^.*Math\.hypot\(.*sc\.dz.*$", src, re.M)
+    assert len(dz_sites) >= len(models), (
+        f"{len(models)} live RSSI model(s) but only {len(dz_sites)} use the "
+        "scanner's vertical offset — a ceiling scanner directly overhead would "
+        "model as zero range"
+    )
+
+
+def test_fabric_scanners_carry_height():
     stack = _STACK_TRANSFORM.read_text(encoding="utf-8", errors="replace")
     assert "abs_z" in stack, "fabricWorldScanners drops the scanner's absolute height"
-    src = _radio_map()
-    assert "sc.dz" in src, (
-        "_modelRSSI ignores the vertical offset again — a ceiling scanner "
-        "directly overhead would model as zero range"
-    )
+    assert "m_per_world" in stack, "fabricWorldScanners drops the measured scale"

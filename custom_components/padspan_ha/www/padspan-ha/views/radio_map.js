@@ -40,40 +40,29 @@ const BARRIER_PENALTY_DB_TO_DIST = 0.01; // each dB of barrier attenuation adds 
 // model. No calibration data needed — pure physics + wall attenuation.
 const DEFAULT_REF_POWER = -59;   // dBm at 1 meter
 const DEFAULT_PATH_LOSS_N = 2.5; // indoor path-loss exponent
-const MAP_SCALE_M = 15;          // assumed map width in meters (for distance calc)
 
-/**
- * Compute model-based RSSI at a world-space point from all scanners.
- * Returns the BEST (strongest) scanner's predicted RSSI.
- *
- * @param {number} wx - world X
- * @param {number} wy - world Y
- * @param {Array} scanners - [{wx, wy, source}] scanner world positions
- * @param {Array} barriers - [{points:[[wx,wy],...], attenuation_dbm}] in world coords
- * @param {number} refPower - reference RSSI at 1m
- * @param {number} pathLossN - path-loss exponent
- * @param {number} mapScaleM - map width in meters
- * @returns {number} predicted best RSSI in dBm
- */
 /**
  * Scanners for a modelled heatmap, in stack-world coordinates, from the fabric.
  *
- * Returns [] when the fabric cannot place them — an empty fabric, or maps that
- * were never measured so there is no metre anchor. The caller renders nothing.
- * There is deliberately no fall back to receiver pin positions: those are photo
- * fractions, and re-deriving a physical position from a picture is what put
- * scanners in the wrong place after a trim or a re-measure.
+ * Returns { scanners, mPerWorld }. scanners is empty when the fabric cannot
+ * place them — an empty fabric, or maps never measured so there is no metre
+ * anchor — and the caller then renders nothing. There is deliberately no fall
+ * back to receiver pin positions: those are photo fractions, and re-deriving a
+ * physical position from a picture is what moved scanners after a trim.
+ *
+ * mPerWorld is the measured metres-per-world-unit, so callers convert distance
+ * using what the fabric actually measured rather than assuming a plan width.
  *
  * floorDist is the number of slabs between a scanner's floor and the floor
- * being drawn, taken from the fabric floor level where the floor has one and
- * from the map stack level only as a display fallback.
+ * being drawn, from the fabric floor level where the floor has one and from the
+ * map stack level only as a display fallback.
  *
  * dz is the scanner's height above the assumed device height on the drawn
  * floor, so the model can use a real slant range.
  */
 function _fabricScanners(mapsList, model, drawnZ, mapZByMapId, scannerQuality, settings) {
   const fab = fabricWorldScanners(mapsList, model);
-  if (!fab) return [];
+  if (!fab) return { scanners: [], mPerWorld: 0 };
 
   // Fallback floor→level only for floors the fabric has not levelled yet.
   const levelByFloor = {};
@@ -94,7 +83,7 @@ function _fabricScanners(mapsList, model, drawnZ, mapZByMapId, scannerQuality, s
   const deviceZ = drawnBase + carry;
 
   const out = [];
-  for (const sc of fab) {
+  for (const sc of fab.scanners) {
     const lvl = sc.level !== undefined && sc.level !== null
       ? sc.level : levelByFloor[sc.floor_id];
     if (lvl === undefined) continue;          // unplaced floor — not drawable
@@ -106,35 +95,7 @@ function _fabricScanners(mapsList, model, drawnZ, mapZByMapId, scannerQuality, s
       qualityOffset: scannerQuality[sc.source] || 0,
     });
   }
-  return out;
-}
-
-function _modelRSSI(wx, wy, scanners, barriers, refPower, pathLossN, mapScaleM) {
-  let bestRssi = -120;
-  for (const sc of scanners) {
-    const dx = wx - sc.wx, dy = wy - sc.wy;
-    const distNorm = Math.sqrt(dx * dx + dy * dy); // normalized distance (0-1 ish)
-    // Real 3D range: the horizontal separation plus the scanner's height over
-    // the device (sc.dz, metres, from the fabric). A ceiling scanner directly
-    // overhead is 2.4 m away, not 0 — modelling it flat predicted a hotspot
-    // the engine never believed in.
-    const horizM = distNorm * mapScaleM;
-    const dz = sc.dz || 0;
-    const distM = Math.max(0.3, Math.sqrt(horizM * horizM + dz * dz));
-    // Path-loss: RSSI = refPower - 10 * n * log10(distance)
-    let rssi = refPower - 10 * pathLossN * Math.log10(distM);
-    // Barrier attenuation: subtract dBm for each wall crossed
-    for (const bar of barriers) {
-      const pts = bar.points || [];
-      for (let i = 0; i < pts.length - 1; i++) {
-        if (_segmentsIntersect(wx, wy, sc.wx, sc.wy, pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1])) {
-          rssi -= (bar.attenuation_dbm ?? 6);
-        }
-      }
-    }
-    if (rssi > bestRssi) bestRssi = rssi;
-  }
-  return bestRssi;
+  return { scanners: out, mPerWorld: fab.m_per_world };
 }
 
 // ── Color Scales ─────────────────────────────────────────────────────────────
@@ -894,7 +855,7 @@ export function modelIsoHeatmapSVG(groupMaps, mapTransforms, iso, z, settings, a
   }
 
   // Scanner positions come from the fabric, never from a photo.
-  const scanners = _fabricScanners(
+  const { scanners, mPerWorld } = _fabricScanners(
     allMaps || groupMaps, model, z, _mapZ, scannerQuality, settings);
   if (!scanners.length) return "";
 
@@ -957,7 +918,8 @@ export function modelIsoHeatmapSVG(groupMaps, mapTransforms, iso, z, settings, a
       let best = -120;
       for (const sc of scanners) {
         const dx = qwx - sc.wx, dy = qwy - sc.wy;
-        const distM = Math.max(0.3, Math.sqrt(dx*dx + dy*dy) * MAP_SCALE_M);
+        const horizM = Math.sqrt(dx*dx + dy*dy) * mPerWorld;
+        const distM = Math.max(0.3, Math.hypot(horizM, sc.dz || 0));
         let rssi = (refPower + (sc.qualityOffset || 0)) - 10 * pathLossN * Math.log10(distM);
         if (sc.floorDist > 0) rssi -= sc.floorDist * FLOOR_ATTEN_DB;
         for (const bar of worldBarriers) {
@@ -1169,7 +1131,7 @@ export function modelFloorHeatmapSVG(floorMaps, mapPtFns, w2v, wBB, settings, al
   }
 
   // Scanner positions come from the fabric, never from a photo.
-  const scanners = _fabricScanners(
+  const { scanners, mPerWorld } = _fabricScanners(
     allMaps || floorMaps, model, _floorZ, _allMapZ, scannerQuality, settings);
   if (!scanners.length) return "";
 
@@ -1224,8 +1186,8 @@ export function modelFloorHeatmapSVG(floorMaps, mapPtFns, w2v, wBB, settings, al
       let best = -120;
       for (const sc of scanners) {
         const dx = qwx - sc.wx, dy = qwy - sc.wy;
-        const distNorm = Math.sqrt(dx * dx + dy * dy);
-        const distM = Math.max(0.3, distNorm * MAP_SCALE_M);
+        const horizM = Math.sqrt(dx * dx + dy * dy) * mPerWorld;
+        const distM = Math.max(0.3, Math.hypot(horizM, sc.dz || 0));
         // Per-scanner effective power: base ref_power + quality offset from live data
         let rssi = (refPower + (sc.qualityOffset || 0)) - 10 * pathLossN * Math.log10(distM);
         if (sc.floorDist > 0) rssi -= sc.floorDist * FLOOR_ATTEN_DB;
@@ -1661,8 +1623,10 @@ export function isoDistortionSVG(calPoints, groupMaps, mapTransforms, iso, z, se
   // Scanner positions come from the fabric, never from a photo.
   const _dMapZ = {};
   for (const [mid, tf] of Object.entries(mapTransforms)) { if (tf) _dMapZ[mid] = tf.z; }
-  _dScanners.push(..._fabricScanners(
-    allMaps || groupMaps, model, z, _dMapZ, _dqMap, settings));
+  const _dFab = _fabricScanners(
+    allMaps || groupMaps, model, z, _dMapZ, _dqMap, settings);
+  const _dMPerWorld = _dFab.mPerWorld;
+  _dScanners.push(..._dFab.scanners);
   for (const m of (allMaps || groupMaps)) {
     const tf = mapTransforms[m.id]; if (!tf||!tf.mapPt) continue;
     const fd = Math.abs(tf.z-z); if (fd>2) continue;
@@ -1687,7 +1651,7 @@ export function isoDistortionSVG(calPoints, groupMaps, mapTransforms, iso, z, se
       // Model RSSI (same as heatmap)
       let best = -120;
       for (const sc of _dScanners) {
-        const dm = Math.max(0.3, Math.sqrt((wx-sc.wx)**2+(wy-sc.wy)**2)*MAP_SCALE_M);
+        const dm = Math.max(0.3, Math.hypot(Math.sqrt((wx-sc.wx)**2+(wy-sc.wy)**2)*_dMPerWorld, sc.dz||0));
         let rssi = (refPower+(sc.qualityOffset||0)) - 10*pathLossN*Math.log10(dm);
         if (sc.floorDist>0) rssi -= sc.floorDist*FLOOR_ATTEN_DB;
         for (const bar of _dBarriers) { for (let i=0;i<bar.points.length-1;i++) { if(_segmentsIntersect(wx,wy,sc.wx,sc.wy,bar.points[i][0],bar.points[i][1],bar.points[i+1][0],bar.points[i+1][1])) rssi-=bar.attenuation_dbm; } }

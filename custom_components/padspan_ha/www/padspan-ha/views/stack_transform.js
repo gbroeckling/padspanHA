@@ -78,7 +78,10 @@ export function fabricWorldRooms(mapsList, model) {
 }
 
 // All fabric scanners converted into stack-world coordinates:
-//   [{ source, wx, wy, floor_id, level, z_m, abs_z }, ...]
+//   { scanners: [{ source, wx, wy, floor_id, level, z_m, abs_z }, ...],
+//     m_per_world }   <- the measured scale, so consumers convert world
+//                        distance to metres from the fabric instead of
+//                        assuming how wide the floor plan is
 //
 // The fabric is the only source of a scanner position. A receiver pinned on a
 // photo is an input gesture that has already been committed to metres; reading
@@ -123,7 +126,7 @@ export function fabricWorldScanners(mapsList, model) {
       abs_z: (Number(bases[floor_id]) || 0) + z_m,
     });
   }
-  return out.length ? out : null;
+  return out.length ? { scanners: out, m_per_world: anchor.m_per_world } : null;
 }
 
 // makeStackXform(stk, fallbackAr) -> { ar, mapPt, invMapPt }
