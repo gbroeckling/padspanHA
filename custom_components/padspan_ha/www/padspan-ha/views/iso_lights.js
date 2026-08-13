@@ -242,6 +242,14 @@ export function fabricFrame(model, floors, floorGap, horizGap){
     return [ (a+b)/2 + mx, (b-a)/2 + my ];
   };
 
+  // Outside is not on this map. It is not a storey, so ranking it as one wedged
+  // a slab between two real floors; and it is not the building, so a shed 50 m
+  // down the garden either dwarfed the house or had to be squeezed into an
+  // envelope it does not belong in. This map is the building. Outdoor lights
+  // still appear in the index table below it, they just have no place in a
+  // floor stack.
+  rooms.length = 0;  rooms.push(...indoorRooms);
+  lights.length = 0; lights.push(...indoorLights);
   const levels = [...new Set([...rooms.map(r=>r.z), ...lights.map(l=>l.z)])].sort((a,b)=>a-b);
   return { rooms, lights, levels, iso, isoInv, scale: S, bbox:{minX,minY,maxX,maxY}, empty, levelOf };
 }
@@ -307,6 +315,22 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   const placed={};
   for(const l of lights) placed[l.eid]=l.lp;
 
+  // One slab footprint for the whole stack: the largest floor's, so no floor
+  // is cropped and every floor reads at the same scale.
+  let slabHalfW=0, slabHalfH=0;
+  for(const z of levels){
+    let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity;
+    for(const r of rooms) if(r.z===z) for(const p of r.pts){
+      if(p[0]<a)a=p[0]; if(p[0]>c)c=p[0]; if(p[1]<b)b=p[1]; if(p[1]>d)d=p[1];
+    }
+    for(const l of lights) if(l.z===z){
+      if(l.x<a)a=l.x; if(l.x>c)c=l.x; if(l.y<b)b=l.y; if(l.y>d)d=l.y;
+    }
+    if(isFinite(a)){ slabHalfW=Math.max(slabHalfW,(c-a)/2); slabHalfH=Math.max(slabHalfH,(d-b)/2); }
+  }
+  const slabPad=Math.max(0.4, Math.max(slabHalfW,slabHalfH)*0.08);
+  slabHalfW+=slabPad; slabHalfH+=slabPad;
+
   for(const z of levels){
     const isFocused=focusZ===null||(Array.isArray(focusZ)?focusZ.includes(z):focusZ===z);
     const go=isFocused?1.0:0.1;
@@ -321,17 +345,22 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const hereRooms  = rooms.filter(r=>r.z===z);
     const hereLights = lights.filter(l=>l.z===z);
 
-    // The slab is the extent of what this floor CONTAINS, in metres — not the
-    // footprint of a photograph of it.
-    let x0=Infinity,y0_=Infinity,x1=-Infinity,y1_=-Infinity;
-    const growS=(x,y)=>{ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0_)y0_=y; if(y>y1_)y1_=y; };
+    // Every slab is the SAME SIZE, centred on the floor it belongs to.
+    // Sizing each slab to its own contents made the stack look like the floors
+    // were drawn at different scales — this basement legitimately reaches
+    // further than the main floor (a 25.8 m patio), so its slab came out half
+    // as long again and nothing lined up. Using one shared envelope instead
+    // fixed that but left each floor as a small island in a large empty slab,
+    // because these floors sit in different parts of the metre frame rather
+    // than stacked on one footprint. Uniform size, floor-centred position, is
+    // both consistent and snug.
+    let cx0=Infinity,cy0=Infinity,cx1=-Infinity,cy1=-Infinity;
+    const growS=(x,y)=>{ if(x<cx0)cx0=x; if(x>cx1)cx1=x; if(y<cy0)cy0=y; if(y>cy1)cy1=y; };
     for(const r of hereRooms) for(const p of r.pts) growS(p[0],p[1]);
     for(const l of hereLights) growS(l.x,l.y);
-    if(!isFinite(x0)){ x0=frame.bbox.minX; y0_=frame.bbox.minY; x1=frame.bbox.maxX; y1_=frame.bbox.maxY; }
-    else {
-      const padS=Math.max(0.4, Math.max(x1-x0, y1_-y0_)*0.06);
-      x0-=padS; y0_-=padS; x1+=padS; y1_+=padS;
-    }
+    const ccx=isFinite(cx0)?(cx0+cx1)/2:(frame.bbox.minX+frame.bbox.maxX)/2;
+    const ccy=isFinite(cy0)?(cy0+cy1)/2:(frame.bbox.minY+frame.bbox.maxY)/2;
+    const x0=ccx-slabHalfW, x1=ccx+slabHalfW, y0_=ccy-slabHalfH, y1_=ccy+slabHalfH;
 
     const TL=iso(x0,y0_,z), TR=iso(x1,y0_,z), BR=iso(x1,y1_,z), BL=iso(x0,y1_,z);
     const TR_b=iso(x1,y0_,z-slabWZ), BR_b=iso(x1,y1_,z-slabWZ), BL_b=iso(x0,y1_,z-slabWZ);
