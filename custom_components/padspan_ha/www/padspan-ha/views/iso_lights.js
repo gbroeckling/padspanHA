@@ -317,7 +317,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   const { iso, rooms, lights, levels } = frame;
   // Markers are sized from the fabric's own scale, not a fixed pixel count.
   const HEX_R = markerRadiusPx(frame.scale);
-  const CODE_PX = Math.max(8, Math.min(11, HEX_R * 1.45));
+  // The label must FIT INSIDE its marker. A monospace glyph is about 0.6 em
+  // wide, so a 3-character code needs ~1.8x the font size; at a marker 8.7 px
+  // across, the old 8 px floor produced text half again wider than the icon it
+  // sat on — which is why the markers read as loose floating text rather than
+  // icons. The sidebar upscales this 760-unit viewBox ~2.6x to its panel, so
+  // 4.8 px here is ~12 px on screen and still perfectly readable.
+  const CODE_PX = Math.max(4, Math.min(11, (HEX_R * 2 * 0.866) / 1.8));
   const pt  = c=>`${Math.round(c[0])},${Math.round(c[1])}`;
   const pts = cs=>cs.map(pt).join(" ");
 
