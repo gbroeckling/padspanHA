@@ -204,6 +204,24 @@ function el(tag, attrs={}, children=[]){
 }
 
 /**
+ * URL for a map's image, versioned so a stale browser cache can never serve
+ * the pre-edit picture.
+ *
+ * The PNG is overwritten in place on trim/rotate/replace (maps_store's
+ * async_replace_image), so the filename is NOT a stable identity for its
+ * contents — a bare path renders the OLD image stretched into the NEW
+ * dimensions, which is what a trimmed map looked like in issue #61.
+ * Every map image URL must be built here; tests/test_map_image_url.py fails
+ * the build if a bare path reappears.
+ */
+function mapImageUrl(map){
+  const fn = map && map.image && map.image.filename;
+  if(!fn) return null;
+  const v = String((map.updated || map.image.sha256 || "")).replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
+  return "/local/padspan_ha/maps/" + fn + (v ? "?v=" + v : "");
+}
+
+/**
  * Deterministic short ID for a BLE radio: letter-number-letter (e.g. "A3B").
  * Derived from a djb2 hash of the source string so it's stable across sessions
  * and compact enough to display as a visual badge in scanner lists.
@@ -1483,6 +1501,7 @@ class PadSpanHaApp extends HTMLElement {
       helpers: {
         el, esc, pill,
         HELP,
+        mapImageUrl,
         radioShortId,
         /** Map source → friendly name from live radios. Returns "" if no name or same as source. */
         radioName: (source)=>{

@@ -487,7 +487,7 @@ function _pinAndListen(ctx, el, cs, calData) {
 
   // Build SVG string
   const ar = (mapData.image.height || 600) / (mapData.image.width || 800);
-  const imgUrl = `/local/padspan_ha/maps/${mapData.image.filename}`;
+  const imgUrl = ctx.helpers.mapImageUrl(mapData);
   const vbH = ar * 100;
 
   // Existing calibration points as dots
@@ -882,7 +882,7 @@ function _roam(ctx, el, cs, calData) {
   // Coverage heatmap map
   const ar = (mapData.image.height || 600) / (mapData.image.width || 800);
   const vbH = ar * 100;
-  const imgUrl = `/local/padspan_ha/maps/${mapData.image.filename}`;
+  const imgUrl = ctx.helpers.mapImageUrl(mapData);
   const cellW = 100 / GRID_N;
   const cellH = vbH / GRID_N;
 
@@ -1101,7 +1101,7 @@ function _modelTab(ctx, el, cs, calData) {
       if (mapData?.image?.filename) {
         const ar = (mapData.image.height || 600) / (mapData.image.width || 800);
         const vbH = ar * 100;
-        const imgUrl = `/local/padspan_ha/maps/${mapData.image.filename}`;
+        const imgUrl = ctx.helpers.mapImageUrl(mapData);
         const cellW = 100 / GRID_N;
         const cellH = vbH / GRID_N;
 
@@ -2237,7 +2237,7 @@ function _tuneTab(ctx, el, cs, calData) {
       zLbl.style.cssText = "font-size:11px;color:#94a3b8";
       zLbl.textContent = "Height above floor (m):";
       const zInp = document.createElement("input");
-      zInp.type = "number"; zInp.min = "0"; zInp.max = "20"; zInp.step = "0.1";
+      zInp.type = "number"; zInp.min = "0"; zInp.max = "100"; zInp.step = "0.1";
       zInp.value = String(_fabPos.z_m != null ? _fabPos.z_m : 2.4);
       zInp.style.cssText = "width:64px;background:#0a150e;border:1px solid #1b3526;color:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:12px";
       const zBtn = document.createElement("button");
@@ -2247,7 +2247,7 @@ function _tuneTab(ctx, el, cs, calData) {
       zBtn.title = "Mounting height above this scanner's own floor. Used for 3D distance; survives map syncs.";
       zBtn.addEventListener("click", async () => {
         const v = parseFloat(zInp.value);
-        if (!isFinite(v) || v < 0 || v > 20) { ctx.toast("Height must be 0–20 m", true); return; }
+        if (!isFinite(v) || v < 0 || v > 100) { ctx.toast("Height must be 0–100 m", true); return; }
         try {
           await ctx.actions.callWS({ type: "padspan_ha/fabric_scanner_z_set", source: rx.source, z_m: v });
           ctx.toast(`${rx.label || rx.source}: height set to ${v} m`);

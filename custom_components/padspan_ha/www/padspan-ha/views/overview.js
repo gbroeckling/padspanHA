@@ -639,7 +639,7 @@ export function render(ctx){
 
     const imgW = isStitched ? 800 : (activeMap.image?.width || 800);
     const imgH = isStitched ? Math.round(800 * wH / wW) : (activeMap.image?.height || 600);
-    const imgUrl = activeMap.image?.filename ? `/local/padspan_ha/maps/${activeMap.image.filename}` : null;
+    const imgUrl = ctx.helpers.mapImageUrl(activeMap);
 
     // Filter state (persists within session)
     if(ctx.state._2dFilters === undefined) ctx.state._2dFilters = { scanners: true, tagged: true, unknown: false, rooms: true, mapImg: false, radioMap: false, distortion: false };
@@ -742,7 +742,7 @@ export function render(ctx){
       // ── Map images ──────────────────────────────────────────────────────
       if (F.mapImg) {
         for (const m of renderMaps) {
-          const mUrl = m.image?.filename ? `/local/padspan_ha/maps/${m.image.filename}` : null;
+          const mUrl = ctx.helpers.mapImageUrl(m);
           if (!mUrl) continue;
           if (isStitched) {
             // Project the 4 corners to get positioned image via SVG transform

@@ -23,7 +23,10 @@
 
 const GRID_RES = 42;       // 42x42 interpolation grid (1764 cells) for 2D
 const IDW_POWER = 2.5;     // IDW exponent (higher = more local, sharper near barriers)
-const FLOOR_ATTEN_DB = 20; // dBm penalty per floor — enough to keep cross-floor subtle
+// dBm penalty per slab crossed. Tracks _SLAB_PENALTY_DB in presence_coordinator:
+// the picture and the solver must model cross-floor loss the same way, or the
+// heatmap shows a cross-floor reading the engine never believed.
+const FLOOR_ATTEN_DB = 10;
 const KNN_K = 3;           // k for LOO cross-validation
 const BARRIER_PENALTY_DB_TO_DIST = 0.01; // each dB of barrier attenuation adds this much "virtual distance"
 

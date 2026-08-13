@@ -318,7 +318,7 @@ function _scannerMap(ctx, el, haFloors){
     if(mapData?.image?.filename){
       const ar  = (mapData.image.height || 600) / (mapData.image.width || 800);
       const vbH = ar * 100;
-      const imgUrl = `/local/padspan_ha/maps/${mapData.image.filename}`;
+      const imgUrl = ctx.helpers.mapImageUrl(mapData);
 
       let markersSvg = "";
       mapRadios.forEach((r, i) => {

@@ -1095,9 +1095,8 @@ function _edit(ctx, map, allMaps){
   }
 
   // Cache-buster: map.updated changes on every trim/replace so the browser fetches fresh content
-  const _imgV = (map.updated||map.image?.sha256||'').replace(/[^a-zA-Z0-9]/g,'').slice(0,16);
   const url = map.image && map.image.filename
-    ? `/local/padspan_ha/maps/${map.image.filename}${_imgV ? '?v='+_imgV : ''}`
+    ? ctx.helpers.mapImageUrl(map)
     : null;
 
   // Rooms eligible for this map's floor
@@ -2472,9 +2471,8 @@ function _libraryThumb(m, ctx, reco){
     + `border-radius:6px;overflow:hidden;border:1px solid #1b3526;background:#071008`;
 
   if(m.image?.filename){
-    const _tv = (m.updated||m.image?.sha256||'').replace(/[^a-zA-Z0-9]/g,'').slice(0,16);
     const img = document.createElement("img");
-    img.src = `/local/padspan_ha/maps/${m.image.filename}${_tv ? '?v='+_tv : ''}`;
+    img.src = ctx.helpers.mapImageUrl(m);
     img.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;object-fit:fill";
     wrap.appendChild(img);
   }
@@ -3073,7 +3071,7 @@ function _export(ctx, active, maps_list){
   const sec1 = el("div",{class:"card",style:"margin-top:0"});
   sec1.appendChild(el("div",{style:"font-weight:600;margin-bottom:4px"},"1 · Floor Plan Image"));
   sec1.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:8px"},"Download the raw floor plan PNG as uploaded."));
-  const pngUrl = exportMap.image?.filename ? `/local/padspan_ha/maps/${exportMap.image.filename}` : null;
+  const pngUrl = ctx.helpers.mapImageUrl(exportMap);
   const dlPng = el("a",{class:"btn inline", href:pngUrl||"#", download:(exportMap.name||exportMap.id||"map")+".png"}, "Download PNG");
   if(!pngUrl) dlPng.setAttribute("disabled","disabled");
   const openPng = el("a",{class:"btn inline", href:pngUrl||"#", target:"_blank"}, "Open in new tab");
@@ -3156,7 +3154,7 @@ function _export(ctx, active, maps_list){
         const entry = JSON.parse(JSON.stringify(m));
         if(m.image?.filename){
           try{
-            const resp = await fetch(`/local/padspan_ha/maps/${m.image.filename}`);
+            const resp = await fetch(ctx.helpers.mapImageUrl(m));
             if(resp.ok){
               const blob = await resp.blob();
               entry.png_base64 = await new Promise((res,rej)=>{
@@ -3460,6 +3458,67 @@ function _buildDemoSVG(fp){
 
 const _LEVEL_NAMES = ["Basement", "Ground", "Level 1", "Level 2", "Level 3"];
 
+// Floor elevation belongs to the floor, not to a map: two maps on one floor
+// must not each carry their own copy of its height.  One batch save, because
+// the derived base of every floor above depends on the ones below it.
+function _floorHeights(ctx){
+  const { el } = ctx.helpers;
+  const floors = (ctx.state.model?.floors || []).slice()
+    .sort((a,b) => (a.level ?? 999) - (b.level ?? 999) || (a.name||"").localeCompare(b.name||""));
+  const derived = ctx.state.model?.floor_elevations || {};
+
+  const wrap = el("div",{style:"margin-top:16px"},[
+    el("div",{class:"muted",style:"font-size:13px;font-weight:600"},"Floor Heights"),
+    el("div",{class:"muted",style:"font-size:12px;margin-top:2px"},
+      "Floor-to-floor is finished floor to the next finished floor — ceiling plus slab. It sets the vertical gap 3D positioning uses between floors. "+
+      "Base elevation is derived by stacking those heights, so leave it blank unless stacking is wrong: a split level or a mezzanine."),
+  ]);
+  if(!floors.length){
+    wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},"No floors defined in Home Assistant yet."));
+    return wrap;
+  }
+
+  const _num = (val, min, max, placeholder, title) => el("input",{
+    type:"number", min:String(min), max:String(max), step:"0.1", placeholder, title,
+    value: val != null ? String(val) : "",
+    style:"width:82px;background:#0a150e;border:1px solid #1b3526;color:#e2e8f0;padding:4px 6px;border-radius:4px",
+  });
+
+  const rows = floors.map(f => ({
+    id: f.id,
+    f2f:  _num(f.floor_to_floor_m,  1.5, 100, "2.8", "Finished floor to the next finished floor. Blank = 2.8 m default."),
+    base: _num(f.base_elevation_m, -50, 500, "derived", "Absolute height of this floor's walking surface. Blank = stack the floors below."),
+  }));
+
+  const table = el("table",{style:"width:100%;border-collapse:collapse;font-size:13px;margin-top:8px"});
+  const th = "text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500";
+  table.appendChild(el("thead",{},el("tr",{style:"border-bottom:1px solid #1b3526"},[
+    el("th",{style:th},"Floor"),
+    el("th",{style:th},"Floor↕ (m)"),
+    el("th",{style:th},"Base elevation (m)"),
+    el("th",{style:th},"In use (m)"),
+  ])));
+  table.appendChild(el("tbody",{}, rows.map((r,i) => el("tr",{style:"border-bottom:1px solid #0f2017"},[
+    el("td",{style:"padding:6px 8px;font-weight:500"}, floors[i].name || floors[i].id),
+    el("td",{style:"padding:6px 8px"}, r.f2f),
+    el("td",{style:"padding:6px 8px"}, r.base),
+    el("td",{style:"padding:6px 8px;color:#94a3b8"}, derived[r.id] != null ? String(derived[r.id]) : "—"),
+  ]))));
+  wrap.appendChild(el("div",{style:"overflow-x:auto"}, table));
+
+  const _val = (inp) => { const v = parseFloat(inp.value); return isFinite(v) ? v : null; };
+  wrap.appendChild(el("div",{style:"margin-top:8px"}, el("button",{class:"btn inline", onclick: async ()=>{
+    try{
+      await ctx.actions.callWS({ type:"padspan_ha/fabric_floor_elevations_set", floors: rows.map(r => ({
+        id: r.id, floor_to_floor_m: _val(r.f2f), base_elevation_m: _val(r.base),
+      }))});
+      ctx.toast("Floor heights saved");
+      await ctx.actions.modelRefresh();
+    }catch(e){ ctx.toast("Save failed: "+String(e), true); }
+  }},"Save Floor Heights")));
+  return wrap;
+}
+
 function _stack(ctx, maps, helpBtn){
   const { el, esc } = ctx.helpers;
   helpBtn = helpBtn || (()=>null);
@@ -3521,6 +3580,8 @@ function _stack(ctx, maps, helpBtn){
     helpBtn("maps_stack"),
   ]));
 
+  card.appendChild(_floorHeights(ctx));
+
   if(!maps.length){
     card.appendChild(el("div",{class:"muted",style:"margin-top:10px"},"No maps uploaded yet. Go to Upload tab first."));
     return card;
@@ -3553,7 +3614,6 @@ function _stack(ctx, maps, helpBtn){
     <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500">HA Floor</th>
     <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500">Stack Level</th>
     <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500">Ceiling (m)</th>
-    <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500" title="Finished floor to the next finished floor: ceiling height + slab. Drives 3D distance across floors.">Floor↕ (m)</th>
     <th style="text-align:center;padding:6px 8px;color:#94a3b8;font-weight:500">Show</th>
     <th style="padding:6px 8px"></th>
   </tr>`;
@@ -3617,24 +3677,11 @@ function _stack(ctx, maps, helpBtn){
     const tdCeil = document.createElement("td");
     tdCeil.style.cssText = "padding:6px 8px";
     const ceilInput = document.createElement("input");
-    ceilInput.type = "number"; ceilInput.min = "1.5"; ceilInput.max = "20"; ceilInput.step = "0.1";
+    ceilInput.type = "number"; ceilInput.min = "1.5"; ceilInput.max = "100"; ceilInput.step = "0.1";
     ceilInput.value = String(stk.ceiling_height_m || 2.4);
     ceilInput.style.cssText = "width:70px;background:#0a150e;border:1px solid #1b3526;color:#e2e8f0;padding:4px 6px;border-radius:4px";
     tdCeil.appendChild(ceilInput);
     tr.appendChild(tdCeil);
-
-    // Floor-to-floor height (per HA floor, stored in fabric — not per map)
-    const tdF2F = document.createElement("td");
-    tdF2F.style.cssText = "padding:6px 8px";
-    const f2fInput = document.createElement("input");
-    f2fInput.type = "number"; f2fInput.min = "1.5"; f2fInput.max = "20"; f2fInput.step = "0.1";
-    const _flStored = ((ctx.state.model?.floors) || []).find(f => f.id === (m.floor_id || ""));
-    f2fInput.value = _flStored && _flStored.floor_to_floor_m != null ? String(_flStored.floor_to_floor_m) : "";
-    f2fInput.placeholder = "2.8";
-    f2fInput.title = "Finished floor to next finished floor (ceiling + slab). Blank = default 2.8 m.";
-    f2fInput.style.cssText = "width:70px;background:#0a150e;border:1px solid #1b3526;color:#e2e8f0;padding:4px 6px;border-radius:4px";
-    tdF2F.appendChild(f2fInput);
-    tr.appendChild(tdF2F);
 
     const tdShow = document.createElement("td");
     tdShow.style.cssText = "padding:6px 8px;text-align:center";
@@ -3659,14 +3706,13 @@ function _stack(ctx, maps, helpBtn){
         ceiling_height_m: parseFloat(ceilInput.value) || 2.4,
       });
       await ctx.actions.mapsUpdateQuiet({ map_id: m.id, floor_id: floorSel2.value || m.floor_id||"", stack: newStk });
-      // Floor-to-floor height goes to the fabric per-floor (blank = clear)
+      // The floor's stacking order still follows its map's level; its heights
+      // are owned by the Floor Heights table above.
       const _fid = floorSel2.value || m.floor_id || "";
       if(_fid && _fid !== OUTSIDE_FLOOR_ID){
-        const _f2f = parseFloat(f2fInput.value);
         try{
           await ctx.actions.callWS({ type: "padspan_ha/fabric_floor_elevations_set", floors: [{
             id: _fid, level: parseInt(zLevelInput.value, 10) || 0,
-            floor_to_floor_m: isFinite(_f2f) ? _f2f : null,
           }]});
         }catch(e){}
       }
@@ -3838,8 +3884,7 @@ function _stack(ctx, maps, helpBtn){
     // Reference layer: image (if any) + SVG room bounds on top
     const refLayer = document.createElement("div");
     refLayer.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none";
-    const _refV = (refMap.updated||refMap.image?.sha256||'').replace(/[^a-zA-Z0-9]/g,'').slice(0,16);
-    const refUrl = refMap.image?.filename ? `/local/padspan_ha/maps/${refMap.image.filename}${_refV ? '?v='+_refV : ''}` : null;
+    const refUrl = ctx.helpers.mapImageUrl(refMap);
     if(refUrl){
       const ri = document.createElement("img");
       ri.src = refUrl;
@@ -3872,8 +3917,7 @@ function _stack(ctx, maps, helpBtn){
       tgtLayer.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;cursor:grab;transform-origin:50% 50%";
 
       // Target layer: image (if any) + SVG room bounds on top
-      const _tgtV = (tgtMap.updated||tgtMap.image?.sha256||'').replace(/[^a-zA-Z0-9]/g,'').slice(0,16);
-      const tgtUrl = tgtMap.image?.filename ? `/local/padspan_ha/maps/${tgtMap.image.filename}${_tgtV ? '?v='+_tgtV : ''}` : null;
+      const tgtUrl = ctx.helpers.mapImageUrl(tgtMap);
       if(tgtUrl){
         const ti = document.createElement("img");
         ti.src = tgtUrl;
@@ -4248,11 +4292,7 @@ function _stack(ctx, maps, helpBtn){
       "font-family:var(--ha-font-family,Roboto,sans-serif);font-size:13px";
 
     // Helper: get map image URL with cache-buster
-    const _mapUrl = (map) => {
-      if (!map.image || !map.image.filename) return null;
-      const v = (map.updated || map.image.sha256 || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
-      return "/local/padspan_ha/maps/" + map.image.filename + (v ? "?v=" + v : "");
-    };
+    const _mapUrl = (map) => ctx.helpers.mapImageUrl(map);
 
     // Helper: close modal
     const _close = () => { try { overlay.remove(); } catch (_e) {} };
@@ -5922,8 +5962,7 @@ async function _combinedMapPng(map, ctx){
   const canvas = document.createElement("canvas");
   canvas.width = iw; canvas.height = ih;
   const g = canvas.getContext("2d");
-  const _lv = (map.updated||map.image?.sha256||'').replace(/[^a-zA-Z0-9]/g,'').slice(0,16);
-  const pngUrl = map.image?.filename ? `/local/padspan_ha/maps/${map.image.filename}${_lv ? '?v='+_lv : ''}` : null;
+  const pngUrl = ctx.helpers.mapImageUrl(map);
   if(pngUrl){
     try{ const img = await _loadImage(pngUrl); g.drawImage(img,0,0,iw,ih); }
     catch(e){ g.fillStyle="#071008"; g.fillRect(0,0,iw,ih); }
@@ -6972,7 +7011,7 @@ function _roomsTab(ctx, maps) {
     .find(a => a.map_id === mapState._roomsAlignPreview);
   const _alignMap = alignRow ? maps.find(m => m.id === alignRow.map_id) : null;
   const _alignImgUrl = _alignMap && _alignMap.image && _alignMap.image.filename
-    ? `/local/padspan_ha/maps/${_alignMap.image.filename}` : null;
+    ? ctx.helpers.mapImageUrl(_alignMap) : null;
   const alignRects = alignRow ? [
     alignRow.system ? { t: alignRow.system, pts: _mapFootprintM(alignRow.system), color: "#f59e0b", label: `system: ${alignRow.name}`, imgUrl: _alignImgUrl } : null,
     alignRow.stack ? { t: alignRow.stack, pts: _mapFootprintM(alignRow.stack), color: "#38bdf8", label: `stack: ${alignRow.name}`, imgUrl: _alignImgUrl } : null,
