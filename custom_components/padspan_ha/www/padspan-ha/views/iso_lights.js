@@ -227,8 +227,31 @@ export function fabricFrame(model, floors, floorGap, horizGap){
 
   const padM  = Math.max(0.5, Math.max(maxX-minX, maxY-minY) * 0.04);
   minX-=padM; minY-=padM; maxX+=padM; maxY+=padM;
-  const spanX = Math.max(0.001, maxX-minX), spanY = Math.max(0.001, maxY-minY);
   const mx=(minX+maxX)/2, my=(minY+maxY)/2;
+
+  // Scale from the LARGEST SINGLE FLOOR, not the union of all of them.
+  // Floors are drawn stacked (each centred on itself), so only one floor's
+  // worth of ground is ever on screen at a time. Scaling to the union — which
+  // spans every floor's own band in the metre frame, 51 m here against a 29 m
+  // building — drew everything at half the size it could be, wasting the sides
+  // of the canvas and shrinking every marker with it.
+  let spanX=0, spanY=0;
+  {
+    const per={};
+    const grow2=(z,x,y)=>{ const a=per[z]||(per[z]=[Infinity,Infinity,-Infinity,-Infinity]);
+      if(x<a[0])a[0]=x; if(y<a[1])a[1]=y; if(x>a[2])a[2]=x; if(y>a[3])a[3]=y; };
+    // indoor sets: outdoor rooms are dropped from the map a few lines below,
+    // and letting them size it here is what made the house tiny in the corner.
+    for(const r of indoorRooms)  for(const p of r.pts) grow2(r.z,p[0],p[1]);
+    for(const l of indoorLights) grow2(l.z,l.x,l.y);
+    for(const a of Object.values(per)){
+      if(!isFinite(a[0])) continue;
+      spanX=Math.max(spanX,(a[2]-a[0])+padM*2);
+      spanY=Math.max(spanY,(a[3]-a[1])+padM*2);
+    }
+  }
+  if(!(spanX>0)) spanX=Math.max(0.001,maxX-minX);
+  if(!(spanY>0)) spanY=Math.max(0.001,maxY-minY);
 
   // Pixels per metre, chosen so the diamond footprint fits the canvas. The
   // iso footprint is (spanX+spanY) wide at 0.866 and tall at 0.5.
