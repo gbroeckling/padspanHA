@@ -118,12 +118,54 @@ export function fabricFrame(model, floors, floorGap, horizGap){
   const lightsM= (model && model.light_positions_m) || {};
   const floorList = floors || [];
 
-  // A floor's iso height comes from the floor registry's own level. No map,
-  // no stack, no z_level copied off a photo's placement.
-  const levelOf = (fid) => {
-    const f = floorList.find(x => String(x.id) === String(fid));
-    const lv = f ? Number(f.level) : NaN;
-    return Number.isFinite(lv) ? lv : 0;
+  // A floor's iso height, without ever consulting a map. `level` is the
+  // authority when the Floor Heights table has been filled in — but on a real
+  // install every floor can still be null, and Number(null) is 0, so reading
+  // it naively stacks Basement, Main, Upper and Outside on ONE slab. Base
+  // elevation is the second authority; failing both, floors are ranked in
+  // registry order so they at least stay distinct and stable. The stack that
+  // used to come from a photo's z_level now comes from the floor list.
+  const elevations = (model && model.floor_elevations) || {};
+  const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  // Floors the FABRIC actually uses, which is not the same set as the floor
+  // registry: the outdoor sentinel is "__outside__" in the fabric and
+  // "outside" in the registry, so ranking the registry alone dropped it back
+  // to 0 and drew the garden on top of the basement.
+  // The fabric's outdoor sentinel and the registry's outdoor floor are the
+  // same place under two spellings; treating them as two floors left a gap in
+  // the stack and drew the garden on a storey of its own.
+  const canon = (id) => {
+    const s = String(id || "main");
+    if (s !== "__outside__") return s;
+    return floorList.some(f => String(f.id) === "outside") ? "outside" : s;
+  };
+  const fabricFloorIds = new Set();
+  for (const g of Object.values((model && model.room_geometry_m) || {})) {
+    if (g && typeof g === "object") fabricFloorIds.add(canon(g.floor_id));
+  }
+  for (const lp of Object.values((model && model.light_positions_m) || {})) {
+    if (lp && typeof lp === "object") fabricFloorIds.add(canon(lp.floor_id));
+  }
+  const ranked = (() => {
+    const regIds = floorList.map(f => String(f.id));
+    if (floorList.length && floorList.every(f => num(f.level) !== null)) return null;  // explicit levels win
+    const extra = [...fabricFloorIds].filter(id => !regIds.includes(id)).sort();
+    const ids = [...regIds, ...extra];
+    const elev = ids.map(id => num(elevations[id]));
+    const useElev = elev.some(v => v !== null) && new Set(elev).size > 1;
+    const order = ids.map((id, i) => ({ id, key: useElev ? (elev[i] ?? 0) : i }))
+      .sort((a, b) => a.key - b.key);
+    const out = {};
+    order.forEach((o, i) => { out[o.id] = i; });
+    return out;
+  })();
+  const levelOf = (fidRaw) => {
+    const fid = canon(fidRaw);
+    const f = floorList.find(x => String(x.id) === fid);
+    const explicit = f ? num(f.level) : null;
+    if (explicit !== null) return explicit;
+    if (ranked && Object.prototype.hasOwnProperty.call(ranked, String(fid))) return ranked[String(fid)];
+    return 0;
   };
 
   const rooms = [];
@@ -148,13 +190,23 @@ export function fabricFrame(model, floors, floorGap, horizGap){
     lights.push({ eid, lp, floor_id: fid, z: levelOf(fid), x, y });
   }
 
-  // Extent over everything the fabric says exists.
+  // Extent that sets the scale. Outdoor areas are excluded when there is a
+  // building to look at: a shed 50 m down the garden is legitimately part of
+  // the fabric, but letting it size the frame shrinks the whole house into a
+  // corner — which is exactly how it rendered. Outdoor rooms still draw, they
+  // just don't get a vote on how big everything else is.
+  const isOutside = (fid) => canon(fid) === "outside" || String(fid) === "__outside__";
+  const indoorRooms  = rooms.filter(r => !isOutside(r.floor_id));
+  const indoorLights = lights.filter(l => !isOutside(l.floor_id));
+  const scaleRooms  = indoorRooms.length  ? indoorRooms  : rooms;
+  const scaleLights = indoorRooms.length  ? indoorLights : lights;
+
   let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
   const grow=(x,y)=>{ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; };
-  for(const r of rooms) for(const p of r.pts) grow(p[0], p[1]);
-  for(const l of lights) grow(l.x, l.y);
-  const empty = !isFinite(minX);
-  if(empty){ minX=0; minY=0; maxX=10; maxY=8; }
+  for(const r of scaleRooms) for(const p of r.pts) grow(p[0], p[1]);
+  for(const l of scaleLights) grow(l.x, l.y);
+  const empty = !rooms.length && !lights.length;
+  if(!isFinite(minX)){ minX=0; minY=0; maxX=10; maxY=8; }
 
   const padM  = Math.max(0.5, Math.max(maxX-minX, maxY-minY) * 0.04);
   minX-=padM; minY-=padM; maxX+=padM; maxY+=padM;
