@@ -21,6 +21,11 @@
  * Gated behind: settings.radio_map_enabled / settings.distortion_map_enabled
  */
 
+// Shared stack transform; query inherited from our own module URL so the ?b=
+// cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
+const { fabricWorldScanners } =
+  await import(`./stack_transform.js${new URL(import.meta.url).search}`);
+
 const GRID_RES = 42;       // 42x42 interpolation grid (1764 cells) for 2D
 const IDW_POWER = 2.5;     // IDW exponent (higher = more local, sharper near barriers)
 // dBm penalty per slab crossed. Tracks _SLAB_PENALTY_DB in presence_coordinator:
@@ -50,12 +55,72 @@ const MAP_SCALE_M = 15;          // assumed map width in meters (for distance ca
  * @param {number} mapScaleM - map width in meters
  * @returns {number} predicted best RSSI in dBm
  */
+/**
+ * Scanners for a modelled heatmap, in stack-world coordinates, from the fabric.
+ *
+ * Returns [] when the fabric cannot place them — an empty fabric, or maps that
+ * were never measured so there is no metre anchor. The caller renders nothing.
+ * There is deliberately no fall back to receiver pin positions: those are photo
+ * fractions, and re-deriving a physical position from a picture is what put
+ * scanners in the wrong place after a trim or a re-measure.
+ *
+ * floorDist is the number of slabs between a scanner's floor and the floor
+ * being drawn, taken from the fabric floor level where the floor has one and
+ * from the map stack level only as a display fallback.
+ *
+ * dz is the scanner's height above the assumed device height on the drawn
+ * floor, so the model can use a real slant range.
+ */
+function _fabricScanners(mapsList, model, drawnZ, mapZByMapId, scannerQuality, settings) {
+  const fab = fabricWorldScanners(mapsList, model);
+  if (!fab) return [];
+
+  // Fallback floor→level only for floors the fabric has not levelled yet.
+  const levelByFloor = {};
+  for (const m of mapsList || []) {
+    const fid = String(m.floor_id || "");
+    if (fid && levelByFloor[fid] === undefined && mapZByMapId[m.id] !== undefined) {
+      levelByFloor[fid] = mapZByMapId[m.id];
+    }
+  }
+
+  const bases = (model && model.floor_elevations) || {};
+  const carry = Number(settings?.assumed_device_height_m ?? 1.0);
+  // The device is assumed to be at carry height on the floor being drawn.
+  let drawnBase = 0;
+  for (const [fid, lvl] of Object.entries(levelByFloor)) {
+    if (lvl === drawnZ) { drawnBase = Number(bases[fid]) || 0; break; }
+  }
+  const deviceZ = drawnBase + carry;
+
+  const out = [];
+  for (const sc of fab) {
+    const lvl = sc.level !== undefined && sc.level !== null
+      ? sc.level : levelByFloor[sc.floor_id];
+    if (lvl === undefined) continue;          // unplaced floor — not drawable
+    const floorDist = Math.abs(lvl - drawnZ);
+    if (floorDist > 2) continue;
+    out.push({
+      wx: sc.wx, wy: sc.wy, source: sc.source, floorDist,
+      dz: sc.abs_z - deviceZ,
+      qualityOffset: scannerQuality[sc.source] || 0,
+    });
+  }
+  return out;
+}
+
 function _modelRSSI(wx, wy, scanners, barriers, refPower, pathLossN, mapScaleM) {
   let bestRssi = -120;
   for (const sc of scanners) {
     const dx = wx - sc.wx, dy = wy - sc.wy;
     const distNorm = Math.sqrt(dx * dx + dy * dy); // normalized distance (0-1 ish)
-    const distM = Math.max(0.3, distNorm * mapScaleM); // meters, floor at 30cm
+    // Real 3D range: the horizontal separation plus the scanner's height over
+    // the device (sc.dz, metres, from the fabric). A ceiling scanner directly
+    // overhead is 2.4 m away, not 0 — modelling it flat predicted a hotspot
+    // the engine never believed in.
+    const horizM = distNorm * mapScaleM;
+    const dz = sc.dz || 0;
+    const distM = Math.max(0.3, Math.sqrt(horizM * horizM + dz * dz));
     // Path-loss: RSSI = refPower - 10 * n * log10(distance)
     let rssi = refPower - 10 * pathLossN * Math.log10(distM);
     // Barrier attenuation: subtract dBm for each wall crossed
@@ -804,7 +869,7 @@ export function isoHeatmapSVG(heatData, mapPt, iso, z) {
 /**
  * Model-based 3D iso heatmap — scanner positions + path-loss physics.
  */
-export function modelIsoHeatmapSVG(groupMaps, mapTransforms, iso, z, settings, allMaps, liveSnap) {
+export function modelIsoHeatmapSVG(groupMaps, mapTransforms, iso, z, settings, allMaps, liveSnap, model) {
   if (!groupMaps.length) return "";
 
   const refPower = settings?.ref_power ?? DEFAULT_REF_POWER;
@@ -828,20 +893,9 @@ export function modelIsoHeatmapSVG(groupMaps, mapTransforms, iso, z, settings, a
     }
   }
 
-  // Collect scanner world positions
-  const scanners = [];
-  for (const m of (allMaps || groupMaps)) {
-    const tf = mapTransforms[m.id]; if (!tf || !tf.mapPt) continue;
-    const mZ = tf.z;
-    const floorDist = Math.abs(mZ - z);
-    if (floorDist > 2) continue;
-    for (const r of (m.receivers || [])) {
-      if (r.x == null || r.y == null) continue;
-      const [wx, wy] = tf.mapPt(r.x, r.y);
-      const src = r.source || r.id || "";
-      scanners.push({ wx, wy, floorDist, qualityOffset: scannerQuality[src] || 0 });
-    }
-  }
+  // Scanner positions come from the fabric, never from a photo.
+  const scanners = _fabricScanners(
+    allMaps || groupMaps, model, z, _mapZ, scannerQuality, settings);
   if (!scanners.length) return "";
 
   // Collect barriers
@@ -1077,7 +1131,7 @@ const FLOOR_GRID = 42; // 42x42 grid in world space
  * No calibration data needed. Shows predicted signal coverage from known
  * scanner locations, attenuated by walls.
  */
-export function modelFloorHeatmapSVG(floorMaps, mapPtFns, w2v, wBB, settings, allMaps, liveSnap) {
+export function modelFloorHeatmapSVG(floorMaps, mapPtFns, w2v, wBB, settings, allMaps, liveSnap, model) {
   if (!floorMaps.length) return "";
 
   const refPower = settings?.ref_power ?? DEFAULT_REF_POWER;
@@ -1114,21 +1168,9 @@ export function modelFloorHeatmapSVG(floorMaps, mapPtFns, w2v, wBB, settings, al
     }
   }
 
-  // Collect scanner world positions from all floor maps + adjacent floors
-  const scanners = [];
-  for (const m of (allMaps || floorMaps)) {
-    const mpt = mapPtFns[m.id]; if (!mpt) continue;
-    const mZ = _allMapZ[m.id] ?? 0;
-    const floorDist = Math.abs(mZ - _floorZ);
-    if (floorDist > 2) continue;
-    for (const r of (m.receivers || [])) {
-      if (r.x == null || r.y == null) continue;
-      const [wx, wy] = mpt(r.x, r.y);
-      const src = r.source || r.id || "";
-      const qOff = scannerQuality[src] || 0;
-      scanners.push({ wx, wy, source: src, floorDist, qualityOffset: qOff });
-    }
-  }
+  // Scanner positions come from the fabric, never from a photo.
+  const scanners = _fabricScanners(
+    allMaps || floorMaps, model, _floorZ, _allMapZ, scannerQuality, settings);
   if (!scanners.length) return "";
 
   // Collect barriers from all floor maps → world coords
@@ -1557,7 +1599,7 @@ function _predictPosition(qwx, qwy, calWorldPts) {
  * Regular square grid that WARPS where positioning predictions disagree with reality.
  * Grid lines colored with same heatmap colors. Square = accurate, warped = error.
  */
-export function isoDistortionSVG(calPoints, groupMaps, mapTransforms, iso, z, settings, allMaps, liveSnap) {
+export function isoDistortionSVG(calPoints, groupMaps, mapTransforms, iso, z, settings, allMaps, liveSnap, model) {
   if (!calPoints || !groupMaps.length) return "";
   const groupIds = new Set(groupMaps.map(m => m.id));
 
@@ -1616,10 +1658,14 @@ export function isoDistortionSVG(calPoints, groupMaps, mapTransforms, iso, z, se
     const _bv = Object.values(_sb); _bv.sort((a,b)=>a-b);
     if (_bv.length>1) { const fm=_bv[Math.floor(_bv.length/2)]; for (const [s,b] of Object.entries(_sb)) _dqMap[s]=Math.max(-10,Math.min(10,b-fm)); }
   }
+  // Scanner positions come from the fabric, never from a photo.
+  const _dMapZ = {};
+  for (const [mid, tf] of Object.entries(mapTransforms)) { if (tf) _dMapZ[mid] = tf.z; }
+  _dScanners.push(..._fabricScanners(
+    allMaps || groupMaps, model, z, _dMapZ, _dqMap, settings));
   for (const m of (allMaps || groupMaps)) {
     const tf = mapTransforms[m.id]; if (!tf||!tf.mapPt) continue;
     const fd = Math.abs(tf.z-z); if (fd>2) continue;
-    for (const r of (m.receivers||[])) { if (r.x==null||r.y==null) continue; const [wx,wy]=tf.mapPt(r.x,r.y); _dScanners.push({wx,wy,floorDist:fd,qualityOffset:_dqMap[r.source||r.id||""]||0}); }
     for (const bar of (m.rf_barriers||[])) { const pts=bar.points||[]; if(pts.length<2) continue; _dBarriers.push({points:pts.map(p=>{const[wx,wy]=tf.mapPt(Number(p[0]),Number(p[1]));return[wx,wy];}),attenuation_dbm:bar.attenuation_dbm||6}); }
   }
   // Room bounds for adaptive offset — fabric-first

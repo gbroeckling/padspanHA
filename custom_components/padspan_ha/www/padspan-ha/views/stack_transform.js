@@ -77,6 +77,55 @@ export function fabricWorldRooms(mapsList, model) {
   return Object.keys(out).length ? out : null;
 }
 
+// All fabric scanners converted into stack-world coordinates:
+//   [{ source, wx, wy, floor_id, level, z_m, abs_z }, ...]
+//
+// The fabric is the only source of a scanner position. A receiver pinned on a
+// photo is an input gesture that has already been committed to metres; reading
+// r.x/r.y back out at render time re-derives a physical position from a
+// picture, which is how a re-measured or trimmed map used to move scanners
+// that had not moved.
+//
+// z_m is the mounting height above the scanner's own floor and abs_z adds that
+// floor's base elevation, so consumers can do real 3D geometry instead of
+// treating every radio as if it sat on the floor.
+//
+// Returns null when the fabric is empty or unanchored. Callers must render
+// nothing in that case — there is no photo fallback, because an unmeasured
+// photo has no scale to fall back to.
+export function fabricWorldScanners(mapsList, model) {
+  const pos = (model && model.scanner_positions_m) || {};
+  const sources = Object.keys(pos);
+  if (!sources.length) return null;
+  const anchor = metreAnchor(mapsList, model && model.map_transforms);
+  if (!anchor) return null;
+  const k = 1 / anchor.m_per_world;
+
+  const bases = (model && model.floor_elevations) || {};
+  const levels = {};
+  for (const f of (model && model.floors) || []) {
+    if (f && f.id != null && f.level != null) levels[String(f.id)] = Number(f.level);
+  }
+
+  const out = [];
+  for (const source of sources) {
+    const p = pos[source];
+    if (!p || p.x_m == null || p.y_m == null) continue;
+    const floor_id = String(p.floor_id || "main");
+    const z_m = Number(p.z_m != null ? p.z_m : 2.4);
+    out.push({
+      source,
+      wx: Number(p.x_m) * k,
+      wy: Number(p.y_m) * k,
+      floor_id,
+      level: levels[floor_id],
+      z_m,
+      abs_z: (Number(bases[floor_id]) || 0) + z_m,
+    });
+  }
+  return out.length ? out : null;
+}
+
 // makeStackXform(stk, fallbackAr) -> { ar, mapPt, invMapPt }
 //   mapPt(px, py)   : map-fraction -> world
 //   invMapPt(wx, wy): world -> map-fraction (inverse of mapPt)
