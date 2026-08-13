@@ -103,43 +103,68 @@ def _fit_for(floor_id: str):
     return store.fit_path_loss("sc1")
 
 
-def test_a_blank_floor_point_is_fitted_in_2d_not_against_the_datum():
-    """The whole point: an unknown floor must not become a phantom storey.
+_SAMPLES = ((5.0, -65.0), (10.0, -75.0), (15.0, -81.0))
 
-    The scanner sits at 5.4 m absolute (upper floor at 3.0 + 2.4 mounting).
-    Assuming ground for the walker put it at 1.0 m, a 4.4 m vertical offset
-    that never existed; the truth for a point on the scanner's own floor is
-    5.4 − 4.0 = 1.4 m. Falling back to 2D is the honest degradation, and it
-    must not reproduce the datum-assumed numbers.
+
+def _ols_for_offset(dz: float) -> tuple[float, float]:
+    """Hand-compute the (n, rssi_1m) the store should produce for this dz.
+
+    Independent of the implementation — an OLS of RSSI on log10(slant range),
+    written out longhand, so the test pins the arithmetic and not just a
+    difference between two runs.
     """
+    pairs = [(math.log10(math.sqrt(d * d + dz * dz)), r) for d, r in _SAMPLES]
+    n = len(pairs)
+    sx = sum(p[0] for p in pairs)
+    sy = sum(p[1] for p in pairs)
+    sxx = sum(p[0] ** 2 for p in pairs)
+    sxy = sum(p[0] * p[1] for p in pairs)
+    b = (n * sxy - sx * sy) / (n * sxx - sx ** 2)
+    return round(max(0.5, min(8.0, -b / 10.0)), 3), round((sy - b * sx) / n, 1)
+
+
+# Scanner: upper floor base 3.0 + 2.4 m mounting = 5.4 m absolute.
+# Walker on the upper floor: 3.0 + 1.0 carry height = 4.0 m.
+_TRUE_DZ = 5.4 - 4.0        # 1.4 m — the real vertical offset
+_DATUM_DZ = 5.4 - 1.0       # 4.4 m — what assuming the ground floor invented
+
+
+def test_a_blank_floor_point_is_fitted_in_exactly_2d():
+    """An unknown floor degrades to 2D — not to a guess at the datum."""
     blank = _fit_for("")
     assert blank is not None
+    n_2d, ref_2d = _ols_for_offset(0.0)
+    assert (blank["n"], blank["rssi_1m"]) == (pytest.approx(n_2d), pytest.approx(ref_2d)), (
+        "a point with no resolvable floor must contribute its plain "
+        "horizontal distance, exactly as it did before 3D fitting existed"
+    )
 
-    # What the old code did: treat the blank as the datum.
-    sz, dev_h = 5.4, 1.0
-    datum_assumed = []
-    for d, r in ((5.0, -65.0), (10.0, -75.0), (15.0, -81.0)):
-        dz = sz - (0.0 + dev_h)
-        datum_assumed.append((math.log10(math.sqrt(d * d + dz * dz)), r))
-    n_pts = len(datum_assumed)
-    sx = sum(p[0] for p in datum_assumed)
-    sy = sum(p[1] for p in datum_assumed)
-    sxx = sum(p[0] ** 2 for p in datum_assumed)
-    sxy = sum(p[0] * p[1] for p in datum_assumed)
-    b = (n_pts * sxy - sx * sy) / (n_pts * sxx - sx ** 2)
-    n_datum = round(max(0.5, min(8.0, -b / 10.0)), 3)
 
-    assert blank["n"] != pytest.approx(n_datum), (
+def test_a_blank_floor_point_does_not_reproduce_the_datum_bug():
+    blank = _fit_for("")
+    n_datum, ref_datum = _ols_for_offset(_DATUM_DZ)
+    assert (blank["n"], blank["rssi_1m"]) != (pytest.approx(n_datum), pytest.approx(ref_datum)), (
         "a floorless point is still being fitted as if it sat on the datum"
     )
 
 
-def test_a_known_floor_still_gets_the_3d_correction():
+def test_a_known_floor_is_fitted_against_its_real_offset():
     """The fix must not quietly turn 3D fitting off for everyone."""
     known = _fit_for("upper")
-    blank = _fit_for("")
-    assert known is not None and blank is not None
-    assert known["n"] != pytest.approx(blank["n"]), (
-        "a point with a known floor should be fitted against its real "
-        "vertical offset, not the same 2D distance as a floorless one"
+    assert known is not None
+    n_3d, ref_3d = _ols_for_offset(_TRUE_DZ)
+    assert (known["n"], known["rssi_1m"]) == (pytest.approx(n_3d), pytest.approx(ref_3d)), (
+        "a point with a known floor should be fitted against its true "
+        "vertical offset (scanner 5.4 m, walker 4.0 m)"
     )
+
+
+def test_the_datum_assumption_was_worth_fixing():
+    """Guard the premise: the old bug moved n by a material amount.
+
+    If this ever stops being true the whole fix is noise, and the test should
+    say so rather than quietly passing.
+    """
+    n_true, _ = _ols_for_offset(_TRUE_DZ)
+    n_datum, _ = _ols_for_offset(_DATUM_DZ)
+    assert abs(n_datum - n_true) / n_true > 0.05

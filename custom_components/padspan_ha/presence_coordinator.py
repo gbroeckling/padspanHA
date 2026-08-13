@@ -218,6 +218,29 @@ def _barrier_attenuation(
     return total
 
 
+_MIN_RANGE_CAP_M = 50.0
+
+
+def _site_range_cap(positions: dict[str, tuple[float, float, str]]) -> float:
+    """Largest distance a single RSSI reading may claim, scaled to the site.
+
+    The cap stops a noise-floor reading handing the solver a distance the
+    building could never contain.  It has to follow the site: a house spans
+    ~15 m, while one 100,000 m² commercial floor spans ~450 m corner to
+    corner, and a fixed ceiling would flatten every genuinely distant scanner
+    onto the same weight.
+
+    Twice the scanner bounding-box diagonal, never below the historic 50 m —
+    so every domestic install keeps exactly the behaviour it has today.
+    """
+    if not positions:
+        return _MIN_RANGE_CAP_M
+    xs = [p[0] for p in positions.values()]
+    ys = [p[1] for p in positions.values()]
+    diagonal = math.hypot(max(xs) - min(xs), max(ys) - min(ys))
+    return max(_MIN_RANGE_CAP_M, 2.0 * diagonal)
+
+
 def _slant_to_horizontal(d_slant: float, dz: float) -> float:
     """Project an RSSI slant range onto the horizontal plane (issue #54).
 
@@ -859,18 +882,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     src: (pos["x_m"], pos["y_m"], pos.get("floor_id", ""))
                     for src, pos in _model.scanner_positions_m().items()
                 }
-                # A single RSSI→distance estimate is capped so a noise-floor
-                # reading can't hand the solver a distance the building could
-                # never contain.  The cap has to follow the site: a house
-                # spans ~15 m, one 100,000 m² commercial floor spans ~450 m
-                # corner to corner, and a fixed 50 m ceiling would flatten
-                # every genuinely-distant scanner onto the same weight.
-                # Twice the scanner bounding-box diagonal, never below the
-                # historic 50 m — so domestic installs are unchanged.
-                _sxs = [p[0] for p in self._scanner_positions.values()]
-                _sys = [p[1] for p in self._scanner_positions.values()]
-                self._max_range_m = max(50.0, 2.0 * math.hypot(
-                    max(_sxs) - min(_sxs), max(_sys) - min(_sys))) if _sxs else 50.0
+                self._max_range_m = _site_range_cap(self._scanner_positions)
                 # 3D: absolute scanner heights + floor stack (issue #54)
                 self._scanner_abs_z = _model.scanner_absolute_z_m()
                 self._floor_bases = _model.floor_base_elevations_m()

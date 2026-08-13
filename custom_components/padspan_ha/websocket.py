@@ -424,7 +424,7 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
         from homeassistant.helpers import floor_registry as fr_helper
         fr = fr_helper.async_get(hass)
         floors = [
-            {"id": f.floor_id, "name": f.name}
+            {"id": f.floor_id, "name": f.name, "level": getattr(f, "level", None)}
             for f in sorted(fr.async_list_floors(), key=lambda x: (getattr(x, "level", 0) or 0, x.name))
         ]
     except Exception:
@@ -441,7 +441,10 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
         for _fl in floors:
             _sf = _stored.get(str(_fl.get("id")))
             if _sf:
-                for _k in ("floor_to_floor_m", "base_elevation_m"):
+                # "level" too: it is the key _ordered_floors stacks by, so a
+                # frontend that sorts without it shows the floors in a
+                # different order than the elevations were derived in.
+                for _k in ("level", "floor_to_floor_m", "base_elevation_m"):
                     if _k in _sf:
                         _fl[_k] = _sf[_k]
 

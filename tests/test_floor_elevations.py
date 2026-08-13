@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from custom_components.padspan_ha.const import MAX_HEIGHT_M
 from custom_components.padspan_ha.fabric_store import FabricStore
 from custom_components.padspan_ha.model_store import (
     DEFAULT_FLOOR_TO_FLOOR_M,
@@ -212,6 +213,24 @@ async def test_set_scanner_z_sets_height_only() -> None:
 async def test_set_scanner_z_unknown_source() -> None:
     store = _store_with_scanner()
     assert await store.async_set_scanner_z_m("nope", 1.0) is False
+
+
+@pytest.mark.asyncio
+async def test_scanner_z_allows_a_high_bay_mounting() -> None:
+    """A 28 m warehouse mount is a real position, not a typo to be clamped."""
+    store = _store_with_scanner()
+    await store.async_set_scanner_z_m("kitchen", 28.0)
+    assert store.scanner_positions_m()["kitchen"]["z_m"] == pytest.approx(28.0)
+
+
+@pytest.mark.asyncio
+async def test_scanner_z_still_rejects_nonsense() -> None:
+    """The bound exists to catch metres-entered-as-centimetres, and still does."""
+    store = _store_with_scanner()
+    await store.async_set_scanner_z_m("kitchen", 2400.0)
+    assert store.scanner_positions_m()["kitchen"]["z_m"] == pytest.approx(MAX_HEIGHT_M)
+    await store.async_set_scanner_z_m("kitchen", -5.0)
+    assert store.scanner_positions_m()["kitchen"]["z_m"] == pytest.approx(0.0)
 
 
 @pytest.mark.asyncio
