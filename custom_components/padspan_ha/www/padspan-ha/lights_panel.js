@@ -12,8 +12,8 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.32.0";
-const BUILD_ID = "20260813T174444Z";
+const APP_VERSION = "0.32.1";
+const BUILD_ID = "20260813T175308Z";
 
 // Query inherited from our own module URL so the ?b= cache-buster propagates
 // (see docs/06_UI_CACHE_BUSTING.md).
@@ -293,7 +293,18 @@ class PadSpanLightsApp extends HTMLElement {
     // present in both states; every mode except onoff/unknown carries
     // brightness.
     const modes = Array.isArray(attrs.supported_color_modes) ? attrs.supported_color_modes : [];
-    const dimmable = modes.some(m => m !== "onoff" && m !== "unknown");
+    // ...and supported_color_modes is NOT stable for WLED. The same unit
+    // reports ['rgb'] in one state and ['onoff'] in another as segments and
+    // effects change, so deciding from the current snapshot made the
+    // brightness slider come and go on hardware that dims perfectly well.
+    // Three independent kinds of evidence, any one of which is enough:
+    // the modes say so, the light is reporting a brightness right now, or it
+    // is WLED-class — this popup only opens for effect-capable hardware, and
+    // that hardware dims. A slider a rare fixture ignores costs far less than
+    // a missing control on one that doesn't.
+    const dimmable = modes.some(m => m !== "onoff" && m !== "unknown")
+      || typeof attrs.brightness === "number"
+      || effectList.length > 0;
     if(dimmable){
       const pct=(v)=>Math.round((v/255)*100);
       const cur=typeof attrs.brightness==="number" ? attrs.brightness : 255;
@@ -311,10 +322,15 @@ class PadSpanLightsApp extends HTMLElement {
       box.appendChild(el("div",{style:"margin-bottom:12px"},[briLbl,bri]));
     }
 
-    // Same rule for colour: only offer it when the light can actually take an
-    // rgb_color. An effect-capable but on/off-only light (a switched WLED
-    // preset, say) was being shown a colour picker that silently did nothing.
-    if(modes.some(m => ["rgb","rgbw","rgbww","hs","xy"].includes(m))){
+    // Colour has the same instability: a unit that reports a colour mode most
+    // of the time can report ['onoff'] for a moment, and the picker would
+    // vanish mid-session on hardware that plainly takes colour. A currently
+    // reported rgb_color is proof on its own, so either kind of evidence
+    // keeps the control. (Only a light that has never shown a colour mode
+    // AND is not reporting a colour loses it — that is the switched preset
+    // the picker genuinely could not drive.)
+    if(modes.some(m => ["rgb","rgbw","rgbww","hs","xy"].includes(m))
+       || Array.isArray(attrs.rgb_color)){
       const colorInput=document.createElement("input");
       colorInput.type="color";
       colorInput.value=toHex(rgb);
