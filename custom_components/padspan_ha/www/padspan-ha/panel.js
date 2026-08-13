@@ -210,7 +210,7 @@ function el(tag, attrs={}, children=[]){
  * The PNG is overwritten in place on trim/rotate/replace (maps_store's
  * async_replace_image), so the filename is NOT a stable identity for its
  * contents — a bare path renders the OLD image stretched into the NEW
- * dimensions, which is what a trimmed map looked like in issue #61.
+ * dimensions, which is what a trimmed map looked like in issue #62.
  * Every map image URL must be built here; tests/test_map_image_url.py fails
  * the build if a bare path reappears.
  */

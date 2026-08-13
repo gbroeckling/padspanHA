@@ -7,7 +7,7 @@ is not a stable identity for the image contents: a URL without a version
 query lets the browser serve the CACHED PRE-EDIT picture, which the SVG views
 then stretch into the new viewBox with preserveAspectRatio="none".
 
-That is exactly issue #61 — a trimmed floor plan came back as the full
+That is exactly issue #62 — a trimmed floor plan came back as the full
 untrimmed blueprint squashed into the trimmed map's shape, with calibration
 pins and beacons apparently "off the map". The coordinates were fine; the
 picture behind them was stale.

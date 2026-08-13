@@ -4,7 +4,7 @@ A receiver pinned on a floor plan is an input gesture. It is committed to
 metres in the fabric, and the fabric is then the only truth about where that
 radio is. Reading r.x/r.y back out at render time re-derives a physical
 position from a picture, so a trimmed, rotated or re-measured map silently
-moves scanners that never moved — the same coupling behind #61.
+moves scanners that never moved — the same coupling behind #62.
 
 radio_map.js modelled three heatmaps that way (modelIsoHeatmapSVG,
 modelFloorHeatmapSVG, isoDistortionSVG), each iterating m.receivers and
