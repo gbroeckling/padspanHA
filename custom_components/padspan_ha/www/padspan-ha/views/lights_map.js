@@ -166,7 +166,10 @@ export function buildLightsMapCard(host){
   };
 
   const rebuildISO = () => {
-    isoDiv.innerHTML = buildIsoSVG(host.model, host.byRoom, host.hiddenEids, getFocusZ(view.focusIdx),
+    // The map may hide MORE than the index does — "Hide untouched" is a view
+    // filter on the drawing, not the persisted hidden set, so the table still
+    // lists every light and stays the way to reach one that is filtered out.
+    isoDiv.innerHTML = buildIsoSVG(host.model, host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
       view.floorGap, view.horizGap, host.lightsByEid, host.lightsLoading, floors,
       { showcase: !!host.showcase });
     applyZoom();
@@ -197,8 +200,25 @@ export function buildLightsMapCard(host){
       title: "Presentation rendering — real fixture colour, light pools, contact shadows",
       onclick: () => host.onShowcase(!host.showcase),
     }, host.showcase ? "✦ Showcase: ON" : "✦ Showcase"));
-    ctrlRow.appendChild(SEP());
   }
+
+  // Hide untouched — show only the fixtures that have actually been worked on.
+  // MOVING a light is not work on the light: dropping it where it really is is
+  // the baseline, and on a full house nearly everything has been dropped, so
+  // counting a move as "touched" would hide nothing.
+  if (host.onHideUntouched) {
+    const n = host.untouchedCount || 0;
+    ctrlRow.appendChild(el("button", {
+      class: "btn inline",
+      style: host.hideUntouched
+        ? "background:linear-gradient(135deg,#134e4a,#0d9488);border-color:#5eead4;color:#ecfeff;font-size:12px;padding:2px 12px"
+        : "font-size:12px;padding:2px 12px",
+      title: "Show only lights that have been resized, rotated, recoloured or "
+        + "given a shape. Moving a light does not count as touching it.",
+      onclick: () => host.onHideUntouched(!host.hideUntouched),
+    }, host.hideUntouched ? `◫ Untouched hidden (${n})` : "◫ Hide untouched"));
+  }
+  if (host.onShowcase || host.onHideUntouched) ctrlRow.appendChild(SEP());
 
   // Reset needs to put the focus control back too — see resetFocusCtl below.
   let resetFocusCtl = () => {};

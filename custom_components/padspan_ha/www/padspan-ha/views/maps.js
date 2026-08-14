@@ -6602,6 +6602,25 @@ function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
   mkHandle(cx + halfW, cy + halfH, "wh", "nwse-resize", "Width + length");
 }
 
+// Has this fixture actually been WORKED ON?
+//
+// Deliberately not "has a position": dropping a light where it really is is the
+// baseline act of building the map, and on a finished house nearly every light
+// has been dropped — so counting a move would leave the filter hiding nothing.
+// Work means the fixture was described: given a size, an angle, a colour, or a
+// shape of its own. The default amber every drop stamps is not a colour choice.
+const _DROP_COLOR = "#fbbf24";
+function _lightIsTouched(l, shapeOverrides, placements) {
+  const eid = l.entity_id;
+  if (shapeOverrides && shapeOverrides[eid]) return true;
+  const p = placements && placements[eid];
+  if (!p) return false;
+  if (Number(p.width_cm) > 0 || Number(p.height_cm) > 0) return true;
+  if (Number(p.rotation)) return true;
+  if (p.color && String(p.color).toLowerCase() !== _DROP_COLOR) return true;
+  return false;
+}
+
 function _lightsTab(ctx, maps, active) {
   const { el } = ctx.helpers;
   const mapState = ctx.state.maps;
@@ -6664,6 +6683,15 @@ function _lightsTab(ctx, maps, active) {
 
   // Drop a selection that no longer resolves (light removed from HA)
   if (mapState._selLight && !lightsByEid[mapState._selLight.eid]) mapState._selLight = null;
+
+  // "Hide untouched" — the placements a light's own work is recorded in, draft
+  // first so a fixture you are sizing right now does not vanish mid-edit.
+  const placements = { ...((ctx.state.model || {}).light_positions_m || {}),
+                       ...(mapState._lightsDraftM || {}) };
+  const hideUntouched = mapState._lightsHideUntouched === undefined
+    ? !!ctx.state.settings?.lights_hide_untouched
+    : !!mapState._lightsHideUntouched;
+  const untouchedCount = lights.filter(l => !_lightIsTouched(l, shapeOverrides, placements)).length;
 
   const toggle = async (eid) => {
     if (!ctx.hass) return;
@@ -6783,6 +6811,18 @@ function _lightsTab(ctx, maps, active) {
     onHexesBuilt: (isoDiv) => _wireLightsBuild(ctx, isoDiv,
       { mapState, view, lightsByEid, model: modelForRender }),
     transform: !!mapState._lightsTransform,
+    hiddenEidsMap: hideUntouched
+      ? new Set([...hiddenEids, ...lights.filter(l => !_lightIsTouched(l, shapeOverrides, placements))
+                                        .map(l => l.entity_id)])
+      : hiddenEids,
+    hideUntouched,
+    untouchedCount,
+    onHideUntouched: async (v) => {
+      mapState._lightsHideUntouched = v;
+      try { await ctx.actions.settingsSet({ lights_hide_untouched: v }); }
+      catch (e) { ctx.toast("Could not save the filter: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
     // Showcase is a rendering mode, not an edit mode: it is remembered like the
     // view sliders so the map comes back the way it was left.
     showcase: mapState._lightsShowcase === undefined

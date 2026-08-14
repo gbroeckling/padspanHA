@@ -973,3 +973,46 @@ def test_showcase_moves_the_code_off_the_marker_and_keeps_the_drag_anchor(tmp_pa
     assert out["show"]["ty"] > out["show"]["cy"] + 5, out["show"]
     assert abs(out["show"]["cx"] - out["work"]["cx"]) < 0.2, out
     assert abs(out["show"]["cy"] - out["work"]["cy"]) < 0.2, out
+
+
+def test_moving_a_light_does_not_count_as_touching_it(tmp_path):
+    """"Hide untouched" shows the fixtures that have been WORKED ON.
+
+    Dropping a light where it really is is the baseline act of building the
+    map — on a finished house nearly every light has been dropped — so if a
+    move counted as work the filter would hide nothing and be pointless.
+    Work means the fixture was described: sized, angled, recoloured, or given
+    a shape of its own. The default amber stamped on every drop is not a
+    colour choice.
+    """
+    src = (_VIEWS / "maps.js").read_text(encoding="utf-8")
+    body = src[src.index("const _DROP_COLOR"):]
+    body = body[:body.index("\nfunction _lightsTab")]
+    out = _run_js(tmp_path, (
+        body.replace("function _lightIsTouched", "export function _lightIsTouched")
+            .replace("const _DROP_COLOR", "export const _DROP_COLOR") + "\n"
+        "const T=(over,pl)=>_lightIsTouched({entity_id:'light.x'},over,pl);\n"
+        "console.log(JSON.stringify({\n"
+        "  never:      T({}, {}),\n"
+        "  movedOnly:  T({}, {'light.x':{x_m:1,y_m:2,floor_id:'main'}}),\n"
+        "  movedAmber: T({}, {'light.x':{x_m:1,y_m:2,color:'#fbbf24',"
+        "width_cm:0,height_cm:0,rotation:0}}),\n"
+        "  sized:      T({}, {'light.x':{x_m:1,y_m:2,width_cm:240}}),\n"
+        "  tall:       T({}, {'light.x':{x_m:1,y_m:2,height_cm:8}}),\n"
+        "  rotated:    T({}, {'light.x':{x_m:1,y_m:2,rotation:30}}),\n"
+        "  recoloured: T({}, {'light.x':{x_m:1,y_m:2,color:'#ff00aa'}}),\n"
+        "  shaped:     T({'light.x':'bar'}, {}),\n"
+        "}));\n"
+    ))
+    # Not touched: never placed, dropped, or dropped with the default stamp.
+    assert out["never"] is False, out
+    assert out["movedOnly"] is False, out
+    assert out["movedAmber"] is False, (
+        "the amber colour and the zeroes stamped on every drop are not work"
+    )
+    # Touched: the fixture was actually described.
+    assert out["sized"] is True, out
+    assert out["tall"] is True, out
+    assert out["rotated"] is True, out
+    assert out["recoloured"] is True, out
+    assert out["shaped"] is True, out
