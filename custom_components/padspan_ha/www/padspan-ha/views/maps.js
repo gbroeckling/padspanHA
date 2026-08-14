@@ -6240,13 +6240,7 @@ function _wireLightsBuild(ctx, isoDiv, o) {
     // would otherwise show no highlight at all.
     const mark = g && g.querySelector("polygon,circle,rect");
     if (mark) { mark.setAttribute("stroke", "#e879f9"); mark.setAttribute("stroke-width", "3.5"); }
-    // Handles only on a PLACED light. An unplaced one has no x_m/y_m, and
-    // fabric_light_position_set requires both — so a resize would build a
-    // draft that could never be saved, and "Save placements" would fail on
-    // work the user watched succeed. Drop it in the room first.
-    const isPlaced = !!((o.mapState._lightsDraftM || {})[selEid]
-      || ((ctx.state.model || {}).light_positions_m || {})[selEid]);
-    if (g && o.mapState._lightsTransform && isPlaced) {
+    if (g && o.mapState._lightsTransform) {
       _wireTransformHandles(ctx, svg, g, selEid, frame, o, toVB);
     }
   }
@@ -6449,6 +6443,20 @@ function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
         o.mapState._editDragging = false;
         const draft = o.mapState._lightsDraftM || (o.mapState._lightsDraftM = {});
         const prev = draft[eid] || { ...(((ctx.state.model || {}).light_positions_m || {})[eid] || {}) };
+        // Sizing a light that has never been placed PLACES it, at the spot it
+        // is already drawn — the middle of its room, where it has been sitting
+        // in the auto-cluster. fabric_light_position_set requires x_m/y_m, so
+        // without this a resize built a draft that could only fail on save;
+        // refusing the handles instead just moved the dead end earlier. The
+        // light is visibly somewhere, so that is where it goes.
+        if (prev.x_m == null || prev.y_m == null) {
+          const z = parseFloat(g.getAttribute("data-z") || "0");
+          const [px_m, py_m] = frame.isoInv(cx, cy, z);
+          prev.x_m = Math.round(px_m * 1000) / 1000;
+          prev.y_m = Math.round(py_m * 1000) / 1000;
+          prev.floor_id = prev.floor_id || _floorIdForZ(ctx, z);
+          if (!prev.color) prev.color = "#fbbf24";
+        }
         draft[eid] = { ...prev, ...next };
         ctx.actions.renderRooms();
       };

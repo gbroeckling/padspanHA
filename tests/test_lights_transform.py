@@ -8,7 +8,8 @@ exactly, not approximately:
      size, because the handle describes HALF the axis;
   2. the live preview uses the SAME scale function the renderer commits, or
      the shape jumps the moment the pointer comes up;
-  3. handles never appear on a light that cannot be saved.
+  3. sizing a light that has never been placed PLACES it, rather than
+     building a draft that cannot be saved.
 """
 
 from __future__ import annotations
@@ -206,19 +207,34 @@ def test_one_axis_set_alone_still_sizes_the_marker(tmp_path):
 # 3. Handles must never build an unsavable draft
 # ---------------------------------------------------------------------------
 
-def test_handles_are_refused_on_an_unplaced_light():
+def test_sizing_an_unplaced_light_places_it_where_it_is_drawn():
     """fabric_light_position_set requires x_m and y_m.
 
-    An unplaced light has neither, so resizing one would build a draft that
+    An unplaced light has neither, so a resize alone would build a draft that
     "Save placements" could only fail on — after the user watched the shape
-    change on screen.
+    change on screen. Refusing the handles just moves that dead end earlier.
+    The light is already drawn in the middle of its room, so sizing it there
+    adopts that spot as its position and the save is valid.
     """
+    block = _handles_block()
+    assert "prev.x_m == null" in block, (
+        "the handle commit does not backfill a position for an unplaced "
+        "light — its draft cannot be saved"
+    )
+    assert "frame.isoInv(" in block, (
+        "the backfilled position is not derived from where the light is "
+        "actually drawn"
+    )
+    assert "_floorIdForZ(" in block, "the backfilled position has no floor"
+
+
+def test_transform_handles_are_offered_on_every_light():
+    """Easy mode: a new light is placed by moving OR sizing it."""
     src = (_VIEWS / "maps.js").read_text(encoding="utf-8")
-    call = src[src.index("_lightsTransform"):]
+    call = src[src.index("o.mapState._lightsTransform"):]
     call = call[:call.index("_wireTransformHandles(ctx") + 60]
-    assert "isPlaced" in call, (
-        "transform handles are wired without checking the light has a "
-        "position — the resulting draft cannot be saved"
+    assert "isPlaced" not in call, (
+        "transform handles are gated on the light already being placed"
     )
 
 
