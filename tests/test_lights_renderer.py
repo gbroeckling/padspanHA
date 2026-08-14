@@ -347,3 +347,48 @@ def test_the_map_is_not_pinned_to_its_natural_size(tmp_path):
     assert "max-height" not in head, (
         f"the drawing is still pinned to its natural size: {head}"
     )
+
+
+def test_unplaced_lights_sit_at_the_room_centre_not_at_its_name(tmp_path):
+    """A light with no stored position belongs in the middle of its room.
+
+    The room NAME was moved off the centroid so fixtures stopped being drawn
+    through it — but the unplaced-light cluster shared the same variable, so
+    those lights moved to the room's top edge with it. Two different things
+    that both happened to be "the middle of the room" until one of them moved.
+    """
+    model = {
+        "room_geometry_m": {
+            "Kitchen": {"type": "poly", "floor_id": "main",
+                        "points_m": [[0, 0], [10, 0], [10, 10], [0, 10]]},
+        },
+        "light_positions_m": {},
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    lbe = {"light.a": {"entity_id": "light.a", "state": "on", "code": "A01",
+                       "shape": "hex", "isWled": False}}
+    by_room = {"Kitchen": [{"entity_id": "light.a", "code": "A01"}]}
+
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const BYROOM={json.dumps(by_room)};\n"
+        "const out={};\n"
+        "const f=M.fabricFrame(MODEL,FLOORS,150,0);\n"
+        "out.centre=f.iso(5,5,0);\n"
+        "const svg=M.buildIsoSVG(MODEL,BYROOM,new Set(),null,150,0,LBE,false,FLOORS);\n"
+        "const m=svg.match(/<g class=\"lhex\"[^>]*>.*?<polygon points=\"([^\"]+)\"/s);\n"
+        "out.marker=m?m[1].split(' ').map(p=>p.split(',').map(Number)):null;\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    assert out["marker"], "the unplaced light was not drawn at all"
+    xs = [p[0] for p in out["marker"]]
+    ys = [p[1] for p in out["marker"]]
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    cx, cy = out["centre"]
+    assert abs(mx - cx) < 2 and abs(my - cy) < 2, (
+        f"unplaced light drawn at ({mx:.1f}, {my:.1f}) but the room centre is "
+        f"({cx:.1f}, {cy:.1f}) — it has drifted to the room's name"
+    )

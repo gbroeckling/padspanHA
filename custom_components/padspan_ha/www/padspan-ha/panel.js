@@ -2019,13 +2019,14 @@ class PadSpanHaApp extends HTMLElement {
       }
     }
 
-    // Location
+    // Location — an away object is shown as where it was LAST, not where it is.
+    const _objAway = isAway(obj, awayTimeoutS(this.state.settings));
     const objRoom = obj.room || "—";
     const haArea = (this.state.model?.areas||[]).find(a => a.name === objRoom);
     const floorName = haArea ? this._floorName(haArea.floor_id) : "—";
     const rc = roomColor(objRoom, this.state.model);
     body.appendChild(el("div", {}, [
-      el("div", {style:"font-weight:600;margin-bottom:4px"}, "Location"),
+      el("div", {style:"font-weight:600;margin-bottom:4px"}, _objAway ? "Last location" : "Location"),
       el("div", {style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap"}, [
         el("span", {class:"dot", style:`background:${rc}`}),
         el("span", {}, objRoom),
@@ -2251,7 +2252,13 @@ class PadSpanHaApp extends HTMLElement {
   /** Show a detail modal for a room: objects currently in it, assigned scanners, HA entities. */
   _showRoomDetail(roomName){
     const snap = this.state.live?.snapshot;
-    const objects = (snap?.objects?.list||[]).filter(o => o.room === roomName);
+    // "Objects currently in this room" is present tense. An object keeps its
+    // last known room forever so a dropout does not erase where it was, but
+    // listing a departed one here says it is still standing there — a car gone
+    // for an hour stayed in the Garage while its own entities read not_home.
+    const _awayS = awayTimeoutS(this.state.settings);
+    const objects = (snap?.objects?.list||[])
+      .filter(o => o.room === roomName && !isAway(o, _awayS));
     const radios = (snap?.ble?.radios||[]).filter(r => r.area_name === roomName || r.area === roomName);
     const area = (this.state.model?.areas||[]).find(a => a.name === roomName);
     const floorName = area ? this._floorName(area.floor_id) : "—";

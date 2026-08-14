@@ -482,7 +482,16 @@ export function render(ctx){
           (o.connectable === true ? el("span",{style:"font-size:9px;color:#52b788"}, "connectable") : null),
         ].filter(Boolean)),
         el("td",{}, addr || "—"),
-        el("td",{}, room || "—"),
+        // An object keeps its last known room forever — deliberately, so
+        // "last seen in the Garage" survives a dropout. But printing it bare
+        // asserts the device is THERE: a car gone for an hour still read as
+        // "Garage" in this column while its own entities said not_home.
+        el("td",{}, isAway && room && room !== "—"
+          ? el("span",{style:"color:#94a3b8"},[
+              el("span",{style:"color:#f87171;font-size:10px;font-weight:600"},"Away"),
+              el("span",{}," · last: "+room),
+            ])
+          : (room || "—")),
         el("td",{}, rssi ? `${rssi} dBm` : "—"),
         el("td",{}, lastSeen || "—"),
         el("td",{}, pfxCount>=3 ? el("span",{class:"badge warn"}, `${pfxCount}×`) : (pfxCount? String(pfxCount):"")),

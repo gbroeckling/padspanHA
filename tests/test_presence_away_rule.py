@@ -183,3 +183,40 @@ def test_object_markers_cannot_stretch_the_overview_frame():
     assert len(calls) >= 2, (
         f"only {len(calls)} tether call site(s); both rendering paths need one"
     )
+
+
+def test_no_surface_asserts_a_departed_object_is_still_in_a_room():
+    """"In this room" and "Location" are present tense.
+
+    The Tesla read not_home on both its entities and was gone from room
+    occupancy, yet still showed as being in the Garage — because three
+    separate display surfaces printed its last known room as though it were
+    current: the Overview objects table, the room detail modal's occupant
+    list, and the object detail modal's Location heading.
+    """
+    panel = (_ROOT / "www" / "padspan-ha" / "panel.js").read_text(encoding="utf-8")
+
+    # Room detail: occupants must be filtered.
+    occ = panel[panel.index("_showRoomDetail(roomName){"):]
+    occ = occ[:occ.index("const radios")]
+    assert "isAway" in occ, (
+        "the room detail modal lists occupants without an away filter — a "
+        "departed device still appears to be standing in the room"
+    )
+
+    # Object detail: the heading must say it is the LAST location.
+    loc = panel[panel.index("const objRoom = obj.room"):]
+    loc = loc[:loc.index('"Location"') + 40]
+    assert "Last location" in loc, (
+        "the object detail modal labels a departed object's room as its "
+        "current Location"
+    )
+
+    # Overview table: the room column must qualify an away object.
+    ov = (_ROOT / "www" / "padspan-ha" / "views" / "overview.js").read_text(encoding="utf-8")
+    cell = ov[ov.index('el("td",{}, addr || "—"),'):]
+    cell = cell[:600]
+    assert "isAway" in cell, (
+        "the Overview objects table prints the room bare, so a departed "
+        "device still reads as being there"
+    )

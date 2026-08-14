@@ -512,7 +512,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const pp=ipts.map(pt).join(" ");
       const cx=r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length;
       const cy=r.pts.reduce((a,p)=>a+p[1],0)/r.pts.length;
-      const [lix]=iso(cx,cy,z);
+      // The room's CENTRE. Unplaced lights cluster here — a light with no
+      // stored position belongs in the middle of its room, not wherever the
+      // name happens to be drawn.
+      const [ccx,ccy]=iso(cx,cy,z);
+      const lix=ccx;
       // The name sits near the room's TOP edge, not on its centroid. Fixtures
       // cluster around the middle of a room, so a centred name had a marker
       // punched through it in almost every room — "Garry's Office" with a hex
@@ -541,7 +545,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // single pulsing placeholder instead of blocking the whole map on
       // a multi-MB registry fetch; real hexes replace it once it lands.
       if(lightsLoading){
-        s+=`<polygon points="${hexPts(lix,liy,HEX_R)}" fill="#374151" stroke="#60a5fa" stroke-width="2" opacity="0.5">`+
+        s+=`<polygon points="${hexPts(ccx,ccy,HEX_R)}" fill="#374151" stroke="#60a5fa" stroke-width="2" opacity="0.5">`+
           `<animate attributeName="opacity" values="0.25;0.65;0.25" dur="1.2s" repeatCount="indefinite"/>`+
           `</polygon>`;
         continue;
@@ -553,7 +557,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const offsets=hexCluster(roomLights.length, HEX_R);
       roomLights.forEach((l,idx)=>{
         const [dx,dy]=offsets[idx];
-        s+=markerSvg(l, lix+dx, liy+dy, null, `data-z="${z}"`);
+        s+=markerSvg(l, ccx+dx, ccy+dy, null, `data-z="${z}"`);
       });
     }
 
