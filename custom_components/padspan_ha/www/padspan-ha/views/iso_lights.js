@@ -23,12 +23,14 @@ const { WLED_BORDER } =
 
 function escSVG(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
 
-// ── Room colour — same palette + hash as panel.js ────────────────────────────
-const ROOM_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa","#2dd4bf","#facc15"];
-export function roomColor(name){
-  let h=0; for(let i=0;i<name.length;i++) h=(h*31+name.charCodeAt(i))>>>0;
-  return ROOM_PAL[h % ROOM_PAL.length];
-}
+// ── Room colour ──────────────────────────────────────────────────────────────
+// Re-exported, not reimplemented. This file used to carry its own palette and
+// its own hash under a comment claiming they matched panel.js; they did not,
+// and this map was the only surface that ignored a hand-set room colour.
+// `export ... from` re-exports without binding the name locally, and this
+// file calls it — so import it and re-export the same binding.
+import { roomColor } from "./room_color.js";
+export { roomColor };
 
 // Flat-top hexagon points in SVG px (pointy-top orientation)
 export function hexPts(cx, cy, r){
@@ -596,7 +598,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
     // Rooms, straight from the metre fabric.
     for(const r of hereRooms){
-      const color=roomColor(r.room);
+      const color=roomColor(r.room, model);
       const ipts=r.pts.map(p=>iso(p[0],p[1],z));
       const pp=ipts.map(pt).join(" ");
       const cx=r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length;

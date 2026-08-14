@@ -281,29 +281,10 @@ function scannerStatus(radio, ads){
   return { label:"idle", cls:"badge warn", title:"No recent BLE data — may be offline, rebooting, or in a quiet area" };
 }
 
-/** FNV-1a 32-bit hash — used by roomColor for deterministic hue selection. */
-function _hash32(str){
-  let h = 2166136261;
-  for(let i=0;i<str.length;i++){
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-/**
- * Deterministic room color — stable across sessions.
- * If the user set an explicit color in room_meta, use that.
- * Otherwise derive a hue from the room name hash for consistent coloring.
- */
-function roomColor(roomName, model){
-  const meta = model && model.room_meta ? model.room_meta[String(roomName ?? "")] : null;
-  if(meta && meta.color) return String(meta.color);
-  const s = String(roomName ?? "");
-  const h = _hash32(s) % 360;
-  // Slightly different lightness for readability on dark bg
-  return `hsl(${h} 70% 55%)`;
-}
+// Room colour lives in views/room_color.js — ONE implementation, shared with
+// the lights renderer. panel.js hands it to every view as ctx.helpers.roomColor.
+const { roomColor } =
+  await import(`./views/room_color.js${new URL(import.meta.url).search}`);
 
 function pill(text){ return el("span",{class:"pill"}, text); }
 

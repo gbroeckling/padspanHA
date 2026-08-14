@@ -2,6 +2,8 @@
 // Copyright (C) 2026 Garry Broeckling
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
+import { estimateDistanceM, formatDistanceM } from "./path_loss.js";
+
 // PadSpan HA — BLE Fingerprint Calibration
 // Phone-based signal collection for precise indoor location modelling.
 //
@@ -253,7 +255,7 @@ function _setup(ctx, el, cs, calData) {
       const sorted = Object.entries(perRadio).sort((a, b) => (b[1].rssi || -200) - (a[1].rssi || -200));
       const _setupTxPower = obj?.tx_power ?? null;
       for (const [src, info] of sorted) {
-        box.appendChild(_rssiRow(el, info.name || src, info.rssi, null, info.age_s, _setupTxPower));
+        box.appendChild(_rssiRow(el, info.name || src, info.rssi, null, info.age_s, _setupTxPower, _plOpts(ctx, src)));
       }
       deviceCard.appendChild(box);
     } else {
@@ -590,7 +592,7 @@ function _pinAndListen(ctx, el, cs, calData) {
           `✓ Beacon visible on ${pinRadioCount} radio${pinRadioCount > 1 ? "s" : ""}`));
         const sorted = Object.entries(pinPerRadio).sort((a, b) => (b[1].rssi || -200) - (a[1].rssi || -200));
         for (const [src, info] of sorted) {
-          signalBox.appendChild(_rssiRow(el, info.name || src, info.rssi, null, info.age_s, _pinTxPower));
+          signalBox.appendChild(_rssiRow(el, info.name || src, info.rssi, null, info.age_s, _pinTxPower, _plOpts(ctx, src)));
         }
       } else {
         signalBox.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;font-weight:600" },
@@ -646,7 +648,7 @@ function _buildCollectionUI(ctx, el, cs) {
   const { el: elHelper } = ctx.helpers;
   for (const [src, rd] of Object.entries(cs.readings || {})) {
     const mean = rd.samples.length ? rd.samples.reduce((a, b) => a + b, 0) / rd.samples.length : -100;
-    scanDiv.appendChild(_rssiRow(elHelper, rd.name || src, Math.round(mean), rd.samples.length, null, cs._txPower));
+    scanDiv.appendChild(_rssiRow(elHelper, rd.name || src, Math.round(mean), rd.samples.length, null, cs._txPower, _plOpts(ctx, src)));
   }
   wrap.appendChild(scanDiv);
 
@@ -723,7 +725,7 @@ function _startCollection(ctx, cs, _snap, _mapData) {
       if (sorted.length) {
         for (const [src, rd] of sorted) {
           const mean = rd.samples.reduce((a, b) => a + b, 0) / rd.samples.length;
-          cs._scanEl.appendChild(_rssiRow(el, rd.name || src, Math.round(mean), rd.samples.length, null, cs._txPower));
+          cs._scanEl.appendChild(_rssiRow(el, rd.name || src, Math.round(mean), rd.samples.length, null, cs._txPower, _plOpts(ctx, src)));
         }
       } else {
         cs._scanEl.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;text-align:center;padding:8px" },
@@ -760,7 +762,7 @@ function _buildSavePanel(ctx, el, cs, calData, mapData) {
   if (readingsEntries.length) {
     for (const [src, rd] of readingsEntries) {
       const mean = rd.samples.length ? rd.samples.reduce((a, b) => a + b, 0) / rd.samples.length : -100;
-      wrap.appendChild(_rssiRow(el, rd.name || src, Math.round(mean), rd.samples.length, null, cs._txPower));
+      wrap.appendChild(_rssiRow(el, rd.name || src, Math.round(mean), rd.samples.length, null, cs._txPower, _plOpts(ctx, src)));
     }
   } else {
     wrap.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-bottom:8px" },
@@ -1446,18 +1448,22 @@ function _totalSamples(cs) {
   return Object.values(cs.readings || {}).reduce((t, r) => t + r.samples.length, 0);
 }
 
-function _rssiRow(el, name, rssi, samples, age_s, txPower) {
+/** Path-loss inputs for one scanner: its calibration fit + the site settings. */
+function _plOpts(ctx, src){
+  const fits = (ctx && ctx.state && ctx.state.model && ctx.state.model.path_loss) || {};
+  return { fit: fits[src] || null, settings: (ctx && ctx.state && ctx.state.settings) || null };
+}
+
+function _rssiRow(el, name, rssi, samples, age_s, txPower, opts) {
   const pct = Math.max(0, Math.min(100, ((rssi ?? -100) + 100) / 60 * 100));
   const color = pct >= 66 ? "#52b788" : pct >= 33 ? "#f59e0b" : "#dc2626";
-  // Distance estimate: log-distance path loss  d = 10^((txPower - rssi) / (10 * n))
-  // txPower = measured RSSI at 1m (default -59 dBm), n = path-loss exponent (default 2.5 for indoor)
-  let distStr = null;
-  if (rssi != null) {
-    const tx = (typeof txPower === "number") ? txPower : -59;
-    const n = 2.5;
-    const d = Math.pow(10, (tx - rssi) / (10 * n));
-    distStr = d < 10 ? `~${d.toFixed(1)}m` : `~${Math.round(d)}m`;
-  }
+  // Distance comes from the shared path-loss model, so this screen and the
+  // positioning engine agree. It used to hard-code n = 2.5 and rssi_1m = -59
+  // while the engine used the configured values and, where calibration had
+  // produced one, this scanner's own fitted pair — so tuning either moved
+  // only half the system.
+  const o = opts || {};
+  const distStr = formatDistanceM(estimateDistanceM(rssi, o.fit, txPower, o.settings));
   // Age label
   let ageStr = null;
   if (age_s != null && isFinite(age_s)) {

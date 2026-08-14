@@ -34,9 +34,10 @@ def _run_js(tmp_path: Path, script: str) -> dict:
     import.meta.url; copying to .mjs and rewriting that one specifier is all
     node needs to run the real file rather than a reimplementation of it.
     """
-    for name in ("iso_lights", "light_codes"):
+    for name in ("iso_lights", "light_codes", "room_color"):
         src = (_VIEWS / f"{name}.js").read_text(encoding="utf-8")
         src = src.replace("./light_codes.js${new URL(import.meta.url).search}", "./light_codes.mjs")
+        src = src.replace('"./room_color.js"', '"./room_color.mjs"')
         (tmp_path / f"{name}.mjs").write_text(src, encoding="utf-8")
     (tmp_path / "run.mjs").write_text(script, encoding="utf-8")
     # encoding is explicit: text=True decodes with the locale codepage, which
