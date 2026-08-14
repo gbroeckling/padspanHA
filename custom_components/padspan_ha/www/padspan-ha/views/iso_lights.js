@@ -508,13 +508,34 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // Rooms, straight from the metre fabric.
     for(const r of hereRooms){
       const color=roomColor(r.room);
-      const pp=r.pts.map(p=>pt(iso(p[0],p[1],z))).join(" ");
+      const ipts=r.pts.map(p=>iso(p[0],p[1],z));
+      const pp=ipts.map(pt).join(" ");
       const cx=r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length;
       const cy=r.pts.reduce((a,p)=>a+p[1],0)/r.pts.length;
-      const [lix,liy]=iso(cx,cy,z);
+      const [lix]=iso(cx,cy,z);
+      // The name sits near the room's TOP edge, not on its centroid. Fixtures
+      // cluster around the middle of a room, so a centred name had a marker
+      // punched through it in almost every room — "Garry's Office" with a hex
+      // over the "y's". Horizontally it still tracks the centroid, so it reads
+      // as that room's title rather than drifting to a corner.
+      let liy=Math.min(...ipts.map(p=>p[1]))+11;
+      // ...and if a fixture happens to sit on that spot anyway, the name steps
+      // up out of the way rather than being drawn through. The halo keeps it
+      // readable once it crosses the room's own edge.
+      {
+        const near=(ly)=>hereLights.some(l=>{
+          const [mx2,my2]=iso(l.x,l.y,z);
+          return Math.abs(mx2-lix)<34 && Math.abs(my2-ly)<9;
+        });
+        for(let tries=0; tries<3 && near(liy); tries++) liy-=13;
+      }
       s+=`<polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="1.5" opacity="0.9"/>`;
+      // paint-order puts the dark stroke UNDER the glyphs, so the name stays
+      // legible over the floor hatch and over a slab edge it happens to cross.
       s+=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+
-        `fill="${color}" font-size="8" font-family="system-ui,sans-serif" opacity="0.7" pointer-events="none">`+
+        `fill="${color}" font-size="8.5" font-family="system-ui,sans-serif" font-weight="600" `+
+        `paint-order="stroke" stroke="#071008" stroke-width="2.5" stroke-linejoin="round" `+
+        `opacity="0.95" pointer-events="none">`+
         `${escSVG(r.room)}</text>`;
       // Room assignment isn't known yet (registry still loading) — show a
       // single pulsing placeholder instead of blocking the whole map on
