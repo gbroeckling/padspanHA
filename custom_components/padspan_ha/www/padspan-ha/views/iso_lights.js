@@ -60,6 +60,23 @@ export function shapeSvg(kind, cx, cy, r, attrs){
       return `<rect x="${n(cx-HW)}" y="${n(cy-h)}" width="${n(HW*2)}" height="${n(h*2)}" `+
              `rx="${n(h)}" ry="${n(h)}" ${attrs}/>`;
     }
+    case "line": {
+      // A run of light rather than a fixture: dashes along the full width, no
+      // body. Stretch it in Transform and it reads as the length of cable it
+      // is. There is no fill to carry on/off, so the DASHES take the fill
+      // colour and the caller's stroke is dropped — a WLED run is still marked
+      // by its W code. Dashes are sized from r, so they stay proportionate at
+      // any site scale.
+      const col = (/fill="([^"]*)"/.exec(attrs) || [])[1] || "currentColor";
+      const rest = attrs
+        .replace(/fill="[^"]*"/, "")
+        .replace(/stroke="[^"]*"/, "")
+        .replace(/stroke-width="[^"]*"/, "");
+      const lw = Math.max(1.2, r * 0.32);
+      return `<line x1="${n(cx-HW)}" y1="${n(cy)}" x2="${n(cx+HW)}" y2="${n(cy)}" `+
+             `${rest} fill="none" stroke="${col}" stroke-width="${n(lw)}" `+
+             `stroke-dasharray="${n(lw*1.15)},${n(lw*1.5)}" stroke-linecap="round"/>`;
+    }
     case "square":
       return `<rect x="${n(cx-HW)}" y="${n(cy-HW)}" width="${n(HW*2)}" height="${n(HW*2)}" `+
              `rx="2" ${attrs}/>`;

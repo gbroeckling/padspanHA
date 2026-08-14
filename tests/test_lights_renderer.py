@@ -512,3 +512,70 @@ def test_the_map_inverts_the_floor_through_the_renderer(tmp_path):
         "the maps view resolves the floor itself instead of asking the "
         "renderer, so the two can disagree"
     )
+
+
+def test_the_dotted_line_shape_draws_a_run_not_a_body(tmp_path):
+    """A strip run is a length of light, not a fixture with a body.
+
+    It has no fill to carry on/off, so the DASHES must take the state colour —
+    drawing them in the border colour would make an off light look on.
+    """
+    model = {
+        "room_geometry_m": {
+            "Kitchen": {"type": "poly", "floor_id": "main",
+                        "points_m": [[0, 0], [10, 0], [10, 8], [0, 8]]},
+        },
+        "light_positions_m": {
+            "light.run": {"x_m": 5.0, "y_m": 4.0, "floor_id": "main"},
+        },
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    lbe = {"light.run": {"entity_id": "light.run", "state": "on", "code": "W01",
+                         "shape": "line", "isWled": True}}
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        "const out={};\n"
+        "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS);\n"
+        "out.line=(svg.match(/<line[^>]*stroke-dasharray[^>]*>/)||[])[0]||null;\n"
+        "out.onCol=M.shapeSvg('line',0,0,10,'fill=\"#fbbf24\" stroke=\"#c084fc\"');\n"
+        "out.offCol=M.shapeSvg('line',0,0,10,'fill=\"#374151\" stroke=\"#60a5fa\"');\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    assert out["line"], "no dotted line was drawn for a light with shape=line"
+    assert "stroke-dasharray" in out["line"]
+
+    # State must survive: the dashes carry the on/off colour.
+    assert 'stroke="#fbbf24"' in out["onCol"], out["onCol"]
+    assert 'stroke="#374151"' in out["offCol"], out["offCol"]
+    # ...and it must not paint a solid body.
+    assert 'fill="none"' in out["onCol"]
+
+
+def test_the_dotted_line_fits_the_same_footprint_as_every_other_shape(tmp_path):
+    """Cluster packing assumes one width for all shapes."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        "const out={};\n"
+        "const a='fill=\"#fbbf24\" stroke=\"#60a5fa\" stroke-width=\"2\"';\n"
+        "const l=M.shapeSvg('line',0,0,10,a);\n"
+        "out.x1=Number(/x1=\"([-0-9.]+)\"/.exec(l)[1]);\n"
+        "out.x2=Number(/x2=\"([-0-9.]+)\"/.exec(l)[1]);\n"
+        "const b=M.shapeSvg('bar',0,0,10,a);\n"
+        "out.barX=Number(/x=\"([-0-9.]+)\"/.exec(b)[1]);\n"
+        "out.barW=Number(/width=\"([-0-9.]+)\"/.exec(b)[1]);\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    # Same half-width (r * 0.866) as the bar, so clusters pack identically.
+    # Both are emitted at one decimal place, so allow one rounding unit.
+    assert abs(out["x1"] - out["barX"]) < 0.11, (out["x1"], out["barX"])
+    assert abs((out["x2"] - out["x1"]) - out["barW"]) < 0.11
+
+
+def test_the_dotted_line_is_offered_in_the_chooser():
+    src = (_VIEWS / "light_codes.js").read_text(encoding="utf-8")
+    block = src[src.index("export const LIGHT_SHAPES"):]
+    block = block[:block.index("];")]
+    assert '"line"' in block, "the dotted line is not selectable"

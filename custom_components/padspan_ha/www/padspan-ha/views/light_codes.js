@@ -30,6 +30,7 @@ export const LIGHT_SHAPES = [
   ["hex",     "Fixture (default)"],
   ["circle",  "Pot / downlight"],
   ["bar",     "Strip / valance"],
+  ["line",    "Dotted line / run"],
   ["square",  "Fluorescent / tube"],
   ["triangle","Fan"],
   ["diamond", "Indicator LED"],
