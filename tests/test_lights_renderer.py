@@ -14,6 +14,7 @@ box without it.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -86,6 +87,34 @@ def _code_only(src: str) -> str:
     return chr(10).join(l for l in src.splitlines() if not l.strip().startswith("//"))
 
 
+# Every file the lights UI actually loads, walked transitively from its two
+# entry points. Both static `import ... from "./x.js"` and the dynamic
+# `await import(`./x.js${...}`)` form are followed.
+#   import { x } from "./y.js"          (static)
+#   await import(`./y.js${...}`)        (dynamic, cache-busted)
+_IMPORT_RE = re.compile(
+    r"""import\s*\(?\s*(?:\{[^}]*\}\s*from\s*)?[`'"]\./([A-Za-z0-9_./-]+?)\.js"""
+)
+
+
+def _lights_import_closure() -> dict:
+    entries = [("lights_panel.js", _WWW / "lights_panel.js")]
+    seen, out = set(), {}
+    while entries:
+        label, path = entries.pop()
+        if not path.exists() or label in seen:
+            continue
+        seen.add(label)
+        src = path.read_text(encoding="utf-8")
+        out[label] = path
+        for rel in _IMPORT_RE.findall(src):
+            if "lib/" in rel:
+                continue          # preact and friends are not ours to police
+            child = (path.parent / (rel + ".js")).resolve()
+            entries.append((child.relative_to(_WWW).as_posix(), child))
+    return out
+
+
 def test_no_lights_file_touches_the_photo_machinery():
     """The rule, enforced across the WHOLE lights path, not just the renderer.
 
@@ -94,13 +123,15 @@ def test_no_lights_file_touches_the_photo_machinery():
     else. Every one of these files has, at some point in this feature's
     history, reached for a photo and put the map in the wrong place.
     """
-    targets = {
-        "views/iso_lights.js": _VIEWS / "iso_lights.js",
-        "views/lights_map.js": _VIEWS / "lights_map.js",
-        "views/light_codes.js": _VIEWS / "light_codes.js",
-        "lights_panel.js": _WWW / "lights_panel.js",
-    }
-    for label, path in targets.items():
+    # Walked, not listed. A hardcoded list is how room_color.js joined this
+    # path and escaped the rule: the file was new, the list was not updated,
+    # and nothing noticed. The graph cannot go stale.
+    targets = _lights_import_closure()
+    assert len(targets) >= 5, (
+        "the import walk found only {} files — it is not following the "
+        "graph: {}".format(len(targets), sorted(targets))
+    )
+    for label, path in sorted(targets.items()):
         code = _code_only(path.read_text(encoding="utf-8"))
         for bad in _FORBIDDEN:
             assert bad not in code, f"{label} reaches for {bad}"
