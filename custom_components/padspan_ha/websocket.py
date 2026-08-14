@@ -3055,6 +3055,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lights_hidden"): list,
         vol.Optional("lights_showcase"): bool,
         vol.Optional("lights_hide_untouched"): bool,
+        vol.Optional("lights_fit_rooms"): bool,
         vol.Optional("adaptive_learning_enabled"): bool,
         vol.Optional("adaptive_floor_detection"): bool,
         vol.Optional("signal_loss_linger_s"): vol.Coerce(int),
@@ -3275,6 +3276,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["lights_showcase"] = bool(msg["lights_showcase"])
         if "lights_hide_untouched" in msg:
             payload["lights_hide_untouched"] = bool(msg["lights_hide_untouched"])
+        if "lights_fit_rooms" in msg:
+            payload["lights_fit_rooms"] = bool(msg["lights_fit_rooms"])
         if "light_shapes" in msg:
             # entity_id -> shape kind. Only known kinds are stored; an unknown
             # value would just fall back to the default marker in the frontend,

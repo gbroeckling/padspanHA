@@ -6828,6 +6828,15 @@ function _lightsTab(ctx, maps, active) {
     showcase: mapState._lightsShowcase === undefined
       ? !!ctx.state.settings?.lights_showcase
       : !!mapState._lightsShowcase,
+    fitRooms: mapState._lightsFitRooms === undefined
+      ? !!ctx.state.settings?.lights_fit_rooms
+      : !!mapState._lightsFitRooms,
+    onFitRooms: async (v) => {
+      mapState._lightsFitRooms = v;
+      try { await ctx.actions.settingsSet({ lights_fit_rooms: v }); }
+      catch (e) { ctx.toast("Could not save the room fit: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
     onShowcase: async (v) => {
       mapState._lightsShowcase = v;
       try { await ctx.actions.settingsSet({ lights_showcase: v }); }

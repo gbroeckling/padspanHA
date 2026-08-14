@@ -1016,3 +1016,58 @@ def test_moving_a_light_does_not_count_as_touching_it(tmp_path):
     assert out["rotated"] is True, out
     assert out["recoloured"] is True, out
     assert out["shaped"] is True, out
+
+
+def test_fit_to_room_caps_an_oversized_fixture_and_leaves_a_gap(tmp_path):
+    """A centimetre typed with one zero too many draws across the house.
+
+    The cap is the room's own extent less a margin, so a fixture that fills its
+    room still stops short of the walls. It is a DRAWING constraint: the stored
+    width_cm is never rewritten, so turning it off restores what was typed.
+    """
+    model = {
+        "room_geometry_m": {
+            "Laundry": {"type": "poly", "floor_id": "main",
+                        "points_m": [[0, 0], [3, 0], [3, 2], [0, 2]]},
+        },
+        # 24 m of valance in a 3 x 2 m laundry — a mis-typed 240 cm.
+        "light_positions_m": {
+            "light.run": {"x_m": 1.5, "y_m": 1.0, "floor_id": "main",
+                          "width_cm": 2400, "height_cm": 6},
+        },
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    lbe = {"light.run": {"entity_id": "light.run", "state": "on", "code": "W01",
+                         "shape": "bar", "isWled": True, "rgb": None, "bri": 255}}
+    by_room = {"Laundry": [lbe["light.run"]]}
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        "const MODEL=" + json.dumps(model) + ";\n"
+        "const FLOORS=" + json.dumps(floors) + ";\n"
+        "const LBE=" + json.dumps(lbe) + ";\n"
+        "const BY=" + json.dumps(by_room) + ";\n"
+        "const f=M.fabricFrame(MODEL,FLOORS,150,0);\n"
+        "const mk=(o)=>M.buildIsoSVG(MODEL,BY,new Set(),null,150,0,LBE,false,FLOORS,o);\n"
+        "const sx=(svg)=>{const g=svg.split('data-placed=\"1\"')[1];\n"
+        "  const m=/scale\\(([0-9.]+),([0-9.]+)\\)/.exec(g); return m?[Number(m[1]),Number(m[2])]:null;};\n"
+        "const out={scale:f.scale,\n"
+        "  free:sx(mk({showcase:true})),\n"
+        "  fit:sx(mk({showcase:true,fitRooms:true}))};\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    scale = out["scale"]
+    # markerScale turns centimetres into a multiple of the default marker; the
+    # drawn half-width in metres is what has to fit the room.
+    free_m = out["free"][0] * (2 * 0.866 * 5) / scale   # marker base width, metres
+    fit_m = out["fit"][0] * (2 * 0.866 * 5) / scale
+    assert out["free"][0] > out["fit"][0], (
+        "Fit to room did not shrink a 24 m fixture in a 3 m room: %r" % (out,)
+    )
+    # It must end up inside the 3 m room, and NOT touching the walls.
+    assert fit_m < 3.0, ("still wider than the room", fit_m, out)
+    assert fit_m <= 2.75, ("no margin was left between the fixture and the "
+                           "walls", fit_m, out)
+    # ...and the unconstrained draw really was oversized, or the test proves
+    # nothing about the cap.
+    assert free_m > 3.0, ("the unconstrained fixture was not oversized to "
+                          "begin with", free_m, out)

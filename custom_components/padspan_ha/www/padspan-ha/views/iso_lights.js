@@ -557,6 +557,7 @@ export function floorIdAtLevel(frame, model, floors, z){
 // data-cx/cy) is untouched, so the map stays fully editable in this mode.
 export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[], opts={}){
   const SHOW = !!opts.showcase;
+  const FIT  = !!opts.fitRooms;
   const {CX, CY, W, BASE_H} = ISO;
   const FG=floorGap;
   const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
@@ -639,6 +640,51 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       if(!glowIds.has(c)) glowIds.set(c, `psglow_${glowIds.size}`);
     }
   }
+
+  // ── Fit to room ───────────────────────────────────────────────────────────
+  // No fixture may be drawn larger than the room it is in. A measurement typed
+  // in centimetres is easy to get wrong by a factor of ten, and the result is a
+  // 24 m valance lying across the whole house — which reads as a broken map
+  // rather than as a bad number.
+  //
+  // The cap is the room's own extent less a margin, so a fixture that fills its
+  // room still stops short of the walls instead of sitting on them: about 5% of
+  // the dimension per side, floored at 8 cm so a tiny room keeps a visible gap
+  // and capped at 35 cm so a large one is not needlessly shrunk.
+  //
+  // Longest side against longest side: a fixture capped this way can physically
+  // fit the room in SOME orientation, which is the honest reading of "does not
+  // exceed the room". This is a drawing constraint — the stored width_cm and
+  // height_cm are never rewritten, so turning it off restores what was typed.
+  const roomCap={};
+  if(FIT){
+    for(const r of rooms){
+      let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity;
+      for(const p of r.pts){
+        if(p[0]<a)a=p[0]; if(p[0]>c)c=p[0];
+        if(p[1]<b)b=p[1]; if(p[1]>d)d=p[1];
+      }
+      if(!isFinite(a)) continue;
+      const inset=(m)=>Math.max(0.05, m-2*Math.min(0.35, Math.max(0.08, m*0.05)));
+      const w=inset(c-a), h=inset(d-b);
+      const cap=[Math.max(w,h), Math.min(w,h)];      // [longest, shortest]
+      for(const li of (byRoom[r.room]||[])) roomCap[li.entity_id]=cap;
+    }
+  }
+  // The fixture's measurements as they should be DRAWN. Its own long axis is
+  // capped by the room's long axis, whichever way round it was entered.
+  const fitCm=(l,entry)=>{
+    let wCm=Number(entry&&entry.width_cm)||0;
+    let hCm=Number(entry&&entry.height_cm)||0;
+    const cap=FIT && roomCap[l&&l.entity_id];
+    if(cap){
+      const [lng,sht]=cap;
+      const [capW,capH]=wCm>=hCm ? [lng,sht] : [sht,lng];
+      if(wCm>capW*100) wCm=capW*100;
+      if(hCm>capH*100) hCm=capH*100;
+    }
+    return {wCm,hCm};
+  };
 
   // Floor surface patterns
   s+=`<defs>`;
@@ -817,8 +863,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // and a downlight stays a dot, at any zoom.
       const t=[];
       const rot=Number(entry&&entry.rotation)||0;
-      const wCm=Number(entry&&entry.width_cm)||0;
-      const hCm=Number(entry&&entry.height_cm)||0;
+      const {wCm,hCm}=fitCm(l,entry);
       const {sx,sy}=markerScale(wCm, hCm, frame.scale, HEX_R);
       if(rot||sx!==1||sy!==1){
         t.push(`translate(${hx.toFixed(1)},${hy.toFixed(1)})`);
@@ -902,9 +947,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // throw three times as far as a downlight in every direction, and its
       // pool ran clean off the slab.
       const rot=Number(entry&&entry.rotation)||0;
+      // The pool follows the CAPPED fixture, or a mis-typed 24 m valance would
+      // still light the whole house from a marker that fits its room.
+      const {wCm,hCm}=fitCm(l,entry);
       const half=(cm)=>((Number(cm)||0)/100)*frame.scale/2;
-      const rx=rad+half(entry&&entry.width_cm);
-      const ry=(rad+half(entry&&entry.height_cm))*0.577;
+      const rx=rad+half(wCm);
+      const ry=(rad+half(hCm))*0.577;
       return `<g transform="translate(${hx.toFixed(1)},${hy.toFixed(1)})`+
         `${rot?` rotate(${rot.toFixed(1)})`:""}"><ellipse cx="0" cy="0" `+
         `rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="url(#${glowIds.get(col)||"psshade"})" `+

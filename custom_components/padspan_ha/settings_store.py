@@ -49,6 +49,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "light_theme": False,   # invert the panel colours (accessibility — dark theme unusable for some)
     "light_shapes": {},     # entity_id -> marker shape; overrides the shape derived from the entity
     "lights_showcase": False,  # Mapping -> Lights: presentation rendering of the same map
+    "lights_fit_rooms": False,  # Mapping -> Lights Showcase: never draw a fixture larger than its room
     "lights_hide_untouched": False,  # Mapping -> Lights: draw only fixtures that have been sized/rotated/coloured/shaped
     "overview_show_walls": False,   # Overview: draw RF barrier walls over the map
     "health_reminder_enabled": False,  # monthly calibration accuracy reminder (off by default)

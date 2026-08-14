@@ -171,7 +171,7 @@ export function buildLightsMapCard(host){
     // lists every light and stays the way to reach one that is filtered out.
     isoDiv.innerHTML = buildIsoSVG(host.model, host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
       view.floorGap, view.horizGap, host.lightsByEid, host.lightsLoading, floors,
-      { showcase: !!host.showcase });
+      { showcase: !!host.showcase, fitRooms: !!host.showcase && !!host.fitRooms });
     applyZoom();
     host.onHexesBuilt(isoDiv, rebuildISO);
   };
@@ -200,6 +200,21 @@ export function buildLightsMapCard(host){
       title: "Presentation rendering — real fixture colour, light pools, contact shadows",
       onclick: () => host.onShowcase(!host.showcase),
     }, host.showcase ? "✦ Showcase: ON" : "✦ Showcase"));
+
+    // Fit to room — only offered while Showcase is on, because it is a
+    // constraint on the presentation, not an edit. Stored measurements are
+    // never rewritten: turn it off and the typed sizes come straight back.
+    if (host.showcase && host.onFitRooms) {
+      ctrlRow.appendChild(el("button", {
+        class: "btn inline",
+        style: host.fitRooms
+          ? "background:linear-gradient(135deg,#7c2d12,#ea580c);border-color:#fdba74;color:#fff7ed;font-size:12px;padding:2px 12px"
+          : "font-size:12px;padding:2px 12px",
+        title: "No fixture is drawn larger than the room it is in, with a small "
+          + "gap to the walls. Stored measurements are not changed.",
+        onclick: () => host.onFitRooms(!host.fitRooms),
+      }, host.fitRooms ? "⊞ Fit to room: ON" : "⊞ Fit to room"));
+    }
   }
 
   // Hide untouched — show only the fixtures that have actually been worked on.
