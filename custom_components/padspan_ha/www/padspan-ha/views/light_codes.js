@@ -25,15 +25,24 @@ export const WLED_BORDER = "#c084fc";
 // first render; a per-light manual override (settings.light_shapes) wins when
 // the guess is wrong. Every shape is drawn inscribed in the same radius so
 // the cluster packing is unaffected — see shapePts() in iso_lights.js.
+// The vocabulary follows the reflected-ceiling-plan symbols an electrician or
+// lighting designer already reads — circle for a ceiling outlet, rectangle for
+// a surface fixture, a run of dashes for a continuous strip, a half-round
+// against the wall for a sconce, a suspended disc for a pendant. Anyone who has
+// seen a lighting plan can decode this map without the key.
 export const LIGHT_SHAPES = [
-  ["auto",    "Auto (derived)"],
-  ["hex",     "Fixture (default)"],
-  ["circle",  "Pot / downlight"],
-  ["bar",     "Strip / valance"],
-  ["line",    "Dotted line / run"],
-  ["square",  "Fluorescent / tube"],
-  ["triangle","Fan"],
-  ["diamond", "Indicator LED"],
+  ["auto",      "Auto (derived)"],
+  ["hex",       "Fixture (default)"],
+  ["circle",    "Pot / downlight"],
+  ["bar",       "Strip / valance"],
+  ["line",      "Dotted line / run"],
+  ["square",    "Fluorescent / tube"],
+  ["fan",       "Ceiling fan"],
+  ["pendant",   "Pendant / drop"],
+  ["sconce",    "Wall sconce"],
+  ["chandelier","Chandelier / decorative"],
+  ["triangle",  "Spot / directional"],
+  ["diamond",   "Indicator LED"],
 ];
 
 // Name first, capability second: on a real install the friendly name carries
@@ -44,9 +53,17 @@ export function deriveLightShape(l) {
   const has = (...words) => words.some(w => t.includes(w));
 
   // A fan exposed as a light entity is not a light at all — worth seeing.
-  if (has("fan")) return "triangle";
+  if (has("fan")) return "fan";
+  if (has("chandelier")) return "chandelier";
+  if (has("pendant", "hanging", "drop light")) return "pendant";
+  if (has("sconce", "wall light", "wall lamp", "vanity")) return "sconce";
+  // BEFORE the pot rule, and not only for tidiness: "spot" contains "pot", so
+  // every spotlight in the house used to derive as a recessed downlight.
+  if (has("spot", "flood", "wall wash", "washer")) return "triangle";
   if (has("status led", "status_led", "backlight", "indicator")) return "diamond";
   if (has("pot", "downlight", "down light", "recessed", "can light")) return "circle";
+  // Track is a RUN of fixtures, which is what the dashed line already says.
+  if (has("track")) return "line";
   // Addressable-LED chip names are an unambiguous strip signal even when the
   // entity exposes no effect list (a bare WS2812B run, for instance).
   if (has("valance", "strip", "cove", "tape", "rope", "under cab", "undercab",

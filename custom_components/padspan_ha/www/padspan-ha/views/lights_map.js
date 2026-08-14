@@ -82,6 +82,11 @@ export function gatherLights(states, areaMap, shapeOverrides){
       state:         states[eid].state,   // "on" | "off" | "unavailable"
       area_name:     areaMap[eid] || null,
       effect_list:   Array.isArray(states[eid].attributes?.effect_list) ? states[eid].attributes.effect_list : null,
+      // What the fixture is actually throwing right now. Showcase draws and
+      // glows each light in its OWN colour at its OWN brightness; the working
+      // map ignores both.
+      rgb:           Array.isArray(states[eid].attributes?.rgb_color) ? states[eid].attributes.rgb_color : null,
+      bri:           Number(states[eid].attributes?.brightness) || null,
     }))
     .sort((a, b) =>
       (a.area_name || "\xff").localeCompare(b.area_name || "\xff") ||
@@ -162,7 +167,8 @@ export function buildLightsMapCard(host){
 
   const rebuildISO = () => {
     isoDiv.innerHTML = buildIsoSVG(host.model, host.byRoom, host.hiddenEids, getFocusZ(view.focusIdx),
-      view.floorGap, view.horizGap, host.lightsByEid, host.lightsLoading, floors);
+      view.floorGap, view.horizGap, host.lightsByEid, host.lightsLoading, floors,
+      { showcase: !!host.showcase });
     applyZoom();
     host.onHexesBuilt(isoDiv, rebuildISO);
   };
@@ -178,6 +184,21 @@ export function buildLightsMapCard(host){
     "width:1px;align-self:stretch;background:#1b3526;margin:0 2px" }, "");
   const LBL = "font-size:10px;white-space:nowrap;text-transform:uppercase;"
     + "letter-spacing:0.06em;color:#64748b";
+
+  // Showcase — first in the row because it changes everything to its right.
+  // Only the Mapping tab offers it (the sidebar host passes no handler), and it
+  // is a VIEW: every fixture stays exactly where it was put and stays editable.
+  if (host.onShowcase) {
+    ctrlRow.appendChild(el("button", {
+      class: "btn inline",
+      style: host.showcase
+        ? "background:linear-gradient(135deg,#4c1d95,#7c3aed);border-color:#c4b5fd;color:#f5f3ff;font-size:12px;padding:2px 12px"
+        : "font-size:12px;padding:2px 12px",
+      title: "Presentation rendering — real fixture colour, light pools, contact shadows",
+      onclick: () => host.onShowcase(!host.showcase),
+    }, host.showcase ? "✦ Showcase: ON" : "✦ Showcase"));
+    ctrlRow.appendChild(SEP());
+  }
 
   // Reset needs to put the focus control back too — see resetFocusCtl below.
   let resetFocusCtl = () => {};

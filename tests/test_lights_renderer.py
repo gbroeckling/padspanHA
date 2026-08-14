@@ -793,3 +793,183 @@ def test_the_floor_badge_stays_on_the_canvas(tmp_path):
             "a floor badge is drawn off the canvas at x={} — badges are r=15, "
             "so anything under 15 is clipped: {}".format(x, out["badges"])
         )
+
+
+# ── The shape vocabulary, front to back ─────────────────────────────────────
+
+_WS_PY = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "websocket.py"
+
+
+def _chooser_kinds() -> set:
+    src = (_VIEWS / "light_codes.js").read_text(encoding="utf-8")
+    block = src[src.index("export const LIGHT_SHAPES"):]
+    block = block[:block.index("];")]
+    # "auto" is the absence of an override, so it is never stored.
+    return {m for m in re.findall(r'\["(\w+)"', block)} - {"auto"}
+
+
+def _backend_kinds() -> set:
+    src = _WS_PY.read_text(encoding="utf-8")
+    block = src[src.index("_LIGHT_SHAPE_KINDS"):]
+    block = block[:block.index("})") + 2]
+    return set(re.findall(r'"(\w+)"', block))
+
+
+def test_the_backend_accepts_every_shape_the_chooser_offers():
+    """This is the whole "choosing dotted line fails" bug.
+
+    The chooser offered "Dotted line / run", the settings command took it, and
+    the backend's whitelist — a hand-maintained copy of the frontend list —
+    dropped it on the floor. Nothing errored: the setting simply came back
+    without the entity, so the shape snapped to Auto and the option looked
+    broken. Any shape added to one side and not the other fails silently the
+    same way, so the two lists are asserted equal rather than merely
+    overlapping.
+    """
+    assert _chooser_kinds() == _backend_kinds(), (
+        "LIGHT_SHAPES and _LIGHT_SHAPE_KINDS disagree; a shape only one side "
+        "knows about is silently discarded on save. Chooser only: {} / "
+        "backend only: {}".format(
+            sorted(_chooser_kinds() - _backend_kinds()),
+            sorted(_backend_kinds() - _chooser_kinds()),
+        )
+    )
+
+
+def test_a_spotlight_does_not_derive_as_a_pot_light(tmp_path):
+    """Every fixture name that has to land on a particular symbol.
+
+    "spot" contains "pot", and the pot rule matched on a substring, so every
+    spotlight in the house derived as a recessed downlight.
+    """
+    out = _run_js(tmp_path, (
+        "import { deriveLightShape } from './light_codes.mjs';\n"
+        "const n=(s)=>deriveLightShape({entity_id:'light.x',friendly_name:s});\n"
+        "console.log(JSON.stringify({\n"
+        "  spot:n('Loft Spotlight'), flood:n('Yard Flood'),\n"
+        "  pot:n('Kitchen Pot Lights'), fan:n('Office Ceiling Fan'),\n"
+        "  pendant:n('Dining Pendant'), sconce:n('Hall Wall Sconce'),\n"
+        "  chandelier:n('Entry Chandelier'), track:n('Stair Track Lighting'),\n"
+        "}));\n"
+    ))
+    assert out["spot"] == "triangle", out
+    assert out["flood"] == "triangle", out
+    assert out["pot"] == "circle", out
+    assert out["fan"] == "fan", out
+    assert out["pendant"] == "pendant", out
+    assert out["sconce"] == "sconce", out
+    assert out["chandelier"] == "chandelier", out
+    # A track IS a run of light, which the dashed line already says.
+    assert out["track"] == "line", out
+
+
+def test_every_shape_is_visible_as_an_outline(tmp_path):
+    """The key and the index table draw shapes with fill="none".
+
+    The dotted line took its colour from the fill, so in both of those places
+    it painted nothing at all — the one shape you could not see was the one
+    that looked broken when you chose it.
+    """
+    kinds = sorted(_chooser_kinds())
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        "const KINDS=" + json.dumps(kinds) + ";\n"
+        "const out={};\n"
+        "for(const k of KINDS) out[k]=M.shapeSvg(k,9,9,6.5,"
+        "'fill=\"none\" stroke=\"#94a3b8\" stroke-width=\"1.6\"');\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    for k in kinds:
+        assert re.search(r'(stroke|fill)="#', out[k]), (
+            "shape {!r} paints nothing when drawn as an outline: {}".format(k, out[k])
+        )
+
+
+def test_the_dotted_line_can_still_be_clicked(tmp_path):
+    """Only the dashes were painted, so only the dashes were hittable."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        "const s=M.shapeSvg('line',0,0,10,'fill=\"#fbbf24\" stroke=\"#60a5fa\"');\n"
+        "console.log(JSON.stringify({s:s, w:Number(/width=\"([0-9.]+)\"/.exec(s)[1])}));\n"
+    ))
+    assert 'data-hit="1"' in out["s"], out["s"]
+    # The plate is the full marker width, so the run is as easy to grab as any
+    # other fixture.
+    assert abs(out["w"] - 2 * 10 * 0.866) < 0.11, out
+
+
+# ── Showcase ────────────────────────────────────────────────────────────────
+
+_SHOWCASE_MODEL = {
+    "room_geometry_m": {
+        "Kitchen": {"type": "poly", "floor_id": "main",
+                    "points_m": [[0, 0], [10, 0], [10, 8], [0, 8]]},
+    },
+    "light_positions_m": {
+        "light.lit": {"x_m": 3.0, "y_m": 4.0, "floor_id": "main", "color": "#fbbf24"},
+        "light.dark": {"x_m": 7.0, "y_m": 4.0, "floor_id": "main", "color": "#fbbf24"},
+    },
+}
+_SHOWCASE_FLOORS = [{"id": "main", "name": "Main", "level": 0}]
+_SHOWCASE_LBE = {
+    "light.lit": {"entity_id": "light.lit", "state": "on", "code": "A01",
+                  "shape": "circle", "isWled": False, "rgb": [16, 240, 128], "bri": 255},
+    "light.dark": {"entity_id": "light.dark", "state": "off", "code": "A02",
+                   "shape": "circle", "isWled": False, "rgb": None, "bri": None},
+}
+
+
+def _showcase(tmp_path, extra):
+    return _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        "const MODEL=" + json.dumps(_SHOWCASE_MODEL) + ";\n"
+        "const FLOORS=" + json.dumps(_SHOWCASE_FLOORS) + ";\n"
+        "const LBE=" + json.dumps(_SHOWCASE_LBE) + ";\n"
+        "const mk=(o)=>M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,o);\n"
+        "const out={};\n" + extra + "console.log(JSON.stringify(out));\n"
+    ))
+
+
+def test_showcase_pools_a_lit_fixture_in_its_own_colour(tmp_path):
+    """The point of the mode: what is lit, and what colour it is throwing."""
+    out = _showcase(tmp_path, (
+        "const on=mk({showcase:true}), off=mk({});\n"
+        "const g=/<radialGradient id=.(psglow_\\d+)./.exec(on);\n"
+        "out.grad=g?g[1]:null;\n"
+        "const st=/<radialGradient id=.psglow_0.><stop[^>]*stop-color=.([#0-9a-f]+)./.exec(on);\n"
+        "out.stop=st?st[1]:null;\n"
+        "out.used=out.grad?on.includes('url(#'+out.grad+')'):false;\n"
+        "out.offHasGlow=off.includes('psglow_');\n"
+        "out.blend=on.includes('mix-blend-mode:screen');\n"
+    ))
+    assert out["grad"], "Showcase drew no light pool at all"
+    assert out["used"], "the pool gradient is defined but never referenced"
+    # The light reports rgb 16,240,128; channels are quantised so the map keeps
+    # one gradient per colour rather than one per fixture.
+    assert out["stop"] == "#18f078", out["stop"]
+    assert out["blend"], "overlapping pools must add, not stack as opaque discs"
+    assert not out["offHasGlow"], "the working map must be left exactly as it was"
+
+
+def test_showcase_moves_the_code_off_the_marker_and_keeps_the_drag_anchor(tmp_path):
+    """The label is as wide as the marker, so on top of it nothing shows.
+
+    Moving it below is only safe because the drag anchor comes from data-cx/cy;
+    it used to be read off the label's own x/y, and every drag in this mode
+    would have landed high by the offset between them.
+    """
+    out = _showcase(tmp_path, (
+        "for(const kv of [['show',{showcase:true}],['work',{}]]){\n"
+        "  const svg=mk(kv[1]);\n"
+        "  const g=svg.split('data-placed=\"1\"')[1];\n"
+        "  out[kv[0]]={cx:Number(/data-cx=\"([-0-9.]+)\"/.exec(svg)[1]),\n"
+        "          cy:Number(/data-cy=\"([-0-9.]+)\"/.exec(svg)[1]),\n"
+        "          ty:Number(/<text x=\"[-0-9.]+\" y=\"([-0-9.]+)\"/.exec(g)[1])};\n"
+        "}\n"
+    ))
+    # Working mode is unchanged: the code sits on the fixture's centre.
+    assert abs(out["work"]["ty"] - out["work"]["cy"]) < 0.2, out["work"]
+    # Showcase drops it clear of the glyph, and the anchor stays on the centre.
+    assert out["show"]["ty"] > out["show"]["cy"] + 5, out["show"]
+    assert abs(out["show"]["cx"] - out["work"]["cx"]) < 0.2, out
+    assert abs(out["show"]["cy"] - out["work"]["cy"]) < 0.2, out

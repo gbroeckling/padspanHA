@@ -46,13 +46,30 @@ export function hexPts(cx, cy, r){
 // radius r, so clusters pack identically whatever the mix — and the code text
 // stays centred and legible inside all of them. Unknown kinds fall back to the
 // hexagon, which is what makes an arbitrary override string harmless.
+const n=(v)=>v.toFixed(1);
+// Points along an arc, in degrees, y down. The curved glyphs sample their
+// outline instead of using SVG arc commands: at this size a dozen segments are
+// indistinguishable from a true arc, and there is no large-arc/sweep flag to
+// get backwards. `ox,oy` because several of them are struck off-centre.
+const arcPts=(ox,oy,rx,ry,a0,a1,steps)=>{
+  const out=[];
+  for(let i=0;i<=steps;i++){
+    const a=(a0+(a1-a0)*i/steps)*Math.PI/180;
+    out.push([ox+rx*Math.cos(a), oy+ry*Math.sin(a)]);
+  }
+  return out;
+};
+const sub=(pts)=>pts.map((p,i)=>`${i?"L":"M"}${n(p[0])},${n(p[1])}`).join(" ")+"Z";
+
 export function shapeSvg(kind, cx, cy, r, attrs){
-  const n=(v)=>v.toFixed(1);
   const poly=(pts)=>`<polygon points="${pts}" ${attrs}/>`;
   // Every shape stays within the hexagon's own width (r*√3 ≈ 1.73r), because
   // hexCluster packs markers at that pitch — a wider marker would overlap its
   // neighbours in any room holding more than one light. HW is that half-width.
   const HW=r*0.866;
+  // The code label is drawn ACROSS the marker (CODE_PX is ~0.96 of the
+  // half-width), so every glyph here is a SOLID body: a hollow one would leave
+  // dark text on the dark map. Detail lives at the rim, never in the middle.
   switch(kind){
     case "circle":
       return `<circle cx="${n(cx)}" cy="${n(cy)}" r="${n(HW)}" ${attrs}/>`;
@@ -69,15 +86,75 @@ export function shapeSvg(kind, cx, cy, r, attrs){
       // colour and the caller's stroke is dropped — a WLED run is still marked
       // by its W code. Dashes are sized from r, so they stay proportionate at
       // any site scale.
-      const col = (/fill="([^"]*)"/.exec(attrs) || [])[1] || "currentColor";
+      const fillCol = (/fill="([^"]*)"/.exec(attrs) || [])[1];
+      // The key and the index table draw every shape as an OUTLINE
+      // (fill="none"), which left this one — and only this one — invisible in
+      // both. With no body to fill, the outline colour is the dashes' colour.
+      const col = (!fillCol || fillCol === "none")
+        ? ((/stroke="([^"]*)"/.exec(attrs) || [])[1] || "currentColor")
+        : fillCol;
       const rest = attrs
         .replace(/fill="[^"]*"/, "")
         .replace(/stroke="[^"]*"/, "")
         .replace(/stroke-width="[^"]*"/, "");
       const lw = Math.max(1.2, r * 0.32);
-      return `<line x1="${n(cx-HW)}" y1="${n(cy)}" x2="${n(cx+HW)}" y2="${n(cy)}" `+
+      // A dashed hairline is almost impossible to hit: only the dashes are
+      // painted, so clicks and drags between them fell through to the map and
+      // the run could not be selected once it had been chosen. The invisible
+      // plate restores a marker-sized target (and a real bounding box for the
+      // right-click picker). data-hit keeps it out of the selection highlight.
+      return `<rect data-hit="1" x="${n(cx-HW)}" y="${n(cy-lw)}" width="${n(HW*2)}" `+
+             `height="${n(lw*2)}" fill="transparent" stroke="none"/>`+
+             `<line x1="${n(cx-HW)}" y1="${n(cy)}" x2="${n(cx+HW)}" y2="${n(cy)}" `+
              `${rest} fill="none" stroke="${col}" stroke-width="${n(lw)}" `+
              `stroke-dasharray="${n(lw*1.15)},${n(lw*1.5)}" stroke-linecap="round"/>`;
+    }
+    case "fan": {
+      // Ceiling fan: hub plus four swept blades — a pinwheel. A fan was a plain
+      // triangle, which is the one glyph on a lighting plan that already means
+      // "directional", so the two read as the same thing.
+      // Broad blades and narrow gaps: a wedge with a sharp root and a big sweep
+      // reads as a shuriken at 13 px, which is the size this is actually drawn
+      // at. Four blades, each two thirds of its quadrant, tips rounded on the
+      // marker's own radius so the whole thing still sits in one circle.
+      const hub=HW*0.58;
+      let d=sub(arcPts(cx,cy,hub,hub,0,360,22));
+      for(let k=0;k<4;k++){
+        const b=k*90;
+        d+=" "+sub([
+          ...arcPts(cx,cy,hub*0.95,hub*0.95,b+6,b+38,3),   // root, on the hub
+          ...arcPts(cx,cy,HW,HW,b+14,b+80,5),              // swept, rounded tip
+        ]);
+      }
+      return `<path d="${d}" ${attrs}/>`;
+    }
+    case "pendant": {
+      // Suspended fixture: the shade with its drop above it. Stretched
+      // vertically in Transform the drop lengthens, which is what a long
+      // pendant actually looks like.
+      const shy=cy+r*0.24, rod=r*0.11;
+      const d=sub([[cx-rod,cy-r],[cx+rod,cy-r],[cx+rod,shy],[cx-rod,shy]])+
+              " "+sub(arcPts(cx,shy,HW,HW*0.8,0,360,20));
+      return `<path d="${d}" ${attrs}/>`;
+    }
+    case "sconce": {
+      // Wall light: the plan symbol is a half-round sitting against its wall.
+      // Flat edge at the bottom, dome up — rotate it in Transform and it points
+      // the way the fixture really faces.
+      const base=cy+HW*0.5;
+      return poly(arcPts(cx,base,HW,HW*1.3,180,360,14)
+        .map(p=>`${n(p[0])},${n(p[1])}`).join(" "));
+    }
+    case "chandelier": {
+      // Decorative multi-arm fixture: an eight-point star. Unmistakable against
+      // every other outline here, and a non-uniform stretch only leans the
+      // points — it still reads as a chandelier.
+      const pts=[];
+      for(let k=0;k<16;k++){
+        const a=(k*22.5-90)*Math.PI/180, rr=(k%2)?HW*0.44:HW;
+        pts.push(`${n(cx+rr*Math.cos(a))},${n(cy+rr*Math.sin(a))}`);
+      }
+      return poly(pts.join(" "));
     }
     case "square":
       return `<rect x="${n(cx-HW)}" y="${n(cy-HW)}" width="${n(HW*2)}" height="${n(HW*2)}" `+
@@ -93,16 +170,78 @@ export function shapeSvg(kind, cx, cy, r, attrs){
   }
 }
 
+// ── Showcase: the inside of the fixture ─────────────────────────────────────
+// The working map draws the code ACROSS the marker, so the middle of every
+// glyph is spoken for and the silhouette is all it can ever be. Showcase moves
+// the code below the marker, which frees the centre — so each fixture can carry
+// the detail its plan symbol actually has: the lamp inside a downlight, the
+// tubes in a troffer, the motor in a fan hub, the bulb in a pendant shade.
+//
+// Drawn ON TOP of the same body, in the same transform, so the silhouette and
+// the placement are untouched — this only fills in what was already there.
+// `ink` is the contrast colour (dark on a lit fixture, pale on a dark one) and
+// `sw` the stroke width the body was drawn at.
+export function shapeDetailSvg(kind, cx, cy, r, ink, sw){
+  const HW=r*0.866;
+  const a=`fill="none" stroke="${ink}" stroke-width="${n(sw*0.85)}" `+
+    `stroke-linecap="round" stroke-linejoin="round" pointer-events="none"`;
+  const dot=(x,y,rr)=>`<circle cx="${n(x)}" cy="${n(y)}" r="${n(rr)}" fill="${ink}" `+
+    `stroke="none" pointer-events="none"/>`;
+  const path=(d)=>`<path d="${d}" ${a}/>`;
+  const ring=(x,y,rr)=>path(sub(arcPts(x,y,rr,rr,0,360,18)));
+  const line=(x1,y1,x2,y2)=>`<line x1="${n(x1)}" y1="${n(y1)}" x2="${n(x2)}" y2="${n(y2)}" ${a}/>`;
+  switch(kind){
+    // A recessed downlight is a trim ring with the lamp inside it — which is
+    // exactly how it is drawn on a reflected ceiling plan.
+    case "circle":  return ring(cx,cy,HW*0.54)+dot(cx,cy,HW*0.16);
+    // The diffuser, inset from the housing.
+    case "bar":     return `<rect x="${n(cx-HW*0.72)}" y="${n(cy-r*0.24)}" `+
+                           `width="${n(HW*1.44)}" height="${n(r*0.48)}" `+
+                           `rx="${n(r*0.24)}" ${a}/>`;
+    // A troffer's tubes. Two, because that is what a 2-lamp fitting has and
+    // because one line down the middle reads as a fold, not a lamp.
+    case "square":  return line(cx-HW*0.55,cy-HW*0.38,cx+HW*0.55,cy-HW*0.38)+
+                           line(cx-HW*0.55,cy+HW*0.38,cx+HW*0.55,cy+HW*0.38);
+    // The raceway the heads sit on: a hairline joining the dashes turns a row
+    // of dots into a continuous run.
+    case "line":    return `<line x1="${n(cx-HW)}" y1="${n(cy)}" x2="${n(cx+HW)}" y2="${n(cy)}" `+
+                           `fill="none" stroke="${ink}" stroke-width="${n(sw*0.5)}" `+
+                           `stroke-opacity="0.7" pointer-events="none"/>`;
+    // Hub and motor.
+    case "fan":     return ring(cx,cy,HW*0.36)+dot(cx,cy,HW*0.13);
+    // The fitter across the top of the shade, and the lamp inside it.
+    case "pendant": return line(cx-HW*0.34,cy+r*0.24-HW*0.62,cx+HW*0.34,cy+r*0.24-HW*0.62)+
+                           dot(cx,cy+r*0.3,HW*0.17);
+    // The wall plate it is mounted on, and the reflector inside the shade.
+    case "sconce":  return line(cx-HW*0.86,cy+HW*0.5,cx+HW*0.86,cy+HW*0.5)+
+                           path(sub(arcPts(cx,cy+HW*0.5,HW*0.5,HW*0.72,180,360,10)));
+    // The body ring, with candles on the arms.
+    case "chandelier": {
+      let s=ring(cx,cy,HW*0.3);
+      for(let k=0;k<4;k++){
+        const ang=(k*90-90)*Math.PI/180;
+        s+=dot(cx+HW*0.72*Math.cos(ang), cy+HW*0.72*Math.sin(ang), HW*0.1);
+      }
+      return s;
+    }
+    // The aperture, at the wide end the light leaves by.
+    case "triangle": return ring(cx,cy+r*0.26,HW*0.32);
+    case "diamond":  return ring(cx,cy,HW*0.4);
+    // The bevel on a plain fixture plate.
+    default:         return path(sub(arcPts(cx,cy,r*0.58,r*0.58,90,450,6)));
+  }
+}
+
 // Cluster offsets (SVG px) for N hexes touching around a centre
-export function hexCluster(n, r){
+export function hexCluster(count, r){
   const d=r*Math.sqrt(3)+2;  // centre-to-centre distance (tiny gap between touching hexes)
   const ring=Array.from({length:6},(_,i)=>{const a=(30+i*60)*Math.PI/180;return[d*Math.cos(a),d*Math.sin(a)];});
   const pos=[[0,0],...ring];
-  if(n<=7) return pos.slice(0,n);
+  if(count<=7) return pos.slice(0,count);
   // Hex-offset grid: odd rows shift right by d/2 so hexagons mesh instead of stacking as squares
-  const cols=Math.max(3,Math.ceil(Math.sqrt(n*1.15)));
-  const rows=Math.ceil(n/cols);
-  return Array.from({length:n},(_,i)=>{
+  const cols=Math.max(3,Math.ceil(Math.sqrt(count*1.15)));
+  const rows=Math.ceil(count/cols);
+  return Array.from({length:count},(_,i)=>{
     const row=Math.floor(i/cols), col=i%cols;
     return [
       (col-(cols-1)/2)*d + (row%2)*d/2,
@@ -410,7 +549,14 @@ export function floorIdAtLevel(frame, model, floors, z){
 }
 
 // ── Isometric 3-D SVG builder ────────────────────────────────────────────────
-export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[]){
+// opts.showcase — the presentation renderer. Same fabric, same fixtures, same
+// silhouettes, same placement: what changes is the LIGHTING of the drawing.
+// Fixtures that are on cast a real pool in their own colour, markers get a
+// contact shadow and a lit rim, and the code steps out from under the glyph so
+// the symbol can be seen. Everything the build tools rely on (g.lhex, data-eid,
+// data-cx/cy) is untouched, so the map stays fully editable in this mode.
+export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[], opts={}){
+  const SHOW = !!opts.showcase;
   const {CX, CY, W, BASE_H} = ISO;
   const FG=floorGap;
   const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
@@ -447,8 +593,92 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     `data-natural-h="${HTOTAL}" style="display:block;font-family:system-ui,sans-serif">`;
   s+=`<rect x="0" y="${viewY}" width="${W}" height="${HTOTAL}" fill="#071008"/>`;
 
+  // ── Showcase: the colour a fixture actually throws ────────────────────────
+  // A light that reports rgb_color is drawn and glows in ITS OWN colour, so a
+  // WLED run sitting on magenta reads as magenta on the map. entry.color is the
+  // fallback rather than the winner because every placed light is stamped with
+  // the default amber on drop — preferring it would mean the live colour never
+  // showed for any light that had ever been moved.
+  const QCOL=(c)=>{
+    const q=(v)=>Math.max(24, Math.min(255, Math.round(Math.max(0, Math.min(255, v))/24)*24));
+    return `#${[q(c[0]),q(c[1]),q(c[2])].map(v=>v.toString(16).padStart(2,"0")).join("")}`;
+  };
+  const glowCol=(l,entry)=>Array.isArray(l&&l.rgb)&&l.rgb.length>=3
+    ? QCOL(l.rgb)
+    : ((entry&&entry.color)||"#fbbf24");
+  const bodyCol=(l,entry)=>SHOW ? glowCol(l,entry) : ((entry&&entry.color)||"#fbbf24");
+  // Detail has to be legible on whatever colour the fixture is throwing, and a
+  // WLED run can be anything from pale yellow to deep blue — so the ink is
+  // picked from the body's luminance rather than assumed dark.
+  const inkOn=(hex)=>{
+    const m=/^#?([0-9a-f]{6})$/i.exec(String(hex||""));
+    if(!m) return "#20160a";
+    const v=parseInt(m[1],16);
+    const y=0.299*((v>>16)&255)+0.587*((v>>8)&255)+0.114*(v&255);
+    return y>140 ? "#20160a" : "#f1f5f9";
+  };
+  // Brightness rides the pool's size and opacity, not the marker's colour: a
+  // fixture at 3% should look like a fixture at 3%.
+  const briOf=(l)=>{
+    const b=Number(l&&l.bri);
+    return isFinite(b)&&b>0 ? Math.max(0.12, Math.min(1, b/255)) : 0.8;
+  };
+  // One gradient per DISTINCT colour in use (quantised above), collected before
+  // the defs are written. A per-light gradient would be one def per fixture.
+  const glowIds=new Map();
+  if(SHOW){
+    for(const l of lights){
+      const li=lightsByEid[l.eid];
+      if(!li || li.state!=="on" || hiddenEids.has(l.eid)) continue;
+      const c=glowCol(li,l.lp);
+      if(!glowIds.has(c)) glowIds.set(c, `psglow_${glowIds.size}`);
+    }
+    for(const rname of Object.keys(byRoom||{})) for(const li of byRoom[rname]||[]){
+      if(li.state!=="on" || hiddenEids.has(li.entity_id)) continue;
+      const c=glowCol(li, null);
+      if(!glowIds.has(c)) glowIds.set(c, `psglow_${glowIds.size}`);
+    }
+  }
+
   // Floor surface patterns
   s+=`<defs>`;
+  if(SHOW){
+    // Light pools. Four stops, not two: a linear ramp reads as a flat disc with
+    // a hard edge, and the near-quadratic falloff here is what makes it look
+    // like light landing on a floor rather than a coloured circle.
+    for(const [col,id] of glowIds){
+      s+=`<radialGradient id="${id}">`+
+        `<stop offset="0%" stop-color="${col}" stop-opacity="0.85"/>`+
+        `<stop offset="28%" stop-color="${col}" stop-opacity="0.34"/>`+
+        `<stop offset="62%" stop-color="${col}" stop-opacity="0.10"/>`+
+        `<stop offset="100%" stop-color="${col}" stop-opacity="0"/>`+
+        `</radialGradient>`;
+    }
+    // Contact shadow under a fixture — what actually sells a marker as an
+    // object sitting in the room rather than a sticker on the glass.
+    s+=`<radialGradient id="psshade">`+
+      `<stop offset="0%" stop-color="#000" stop-opacity="0.55"/>`+
+      `<stop offset="55%" stop-color="#000" stop-opacity="0.22"/>`+
+      `<stop offset="100%" stop-color="#000" stop-opacity="0"/></radialGradient>`;
+    // One light source, upper-left, for the whole drawing: the marker gloss and
+    // the room sheen use the same ramp so nothing looks lit from two suns.
+    s+=`<linearGradient id="psgloss" x1="0.15" y1="0" x2="0.6" y2="1">`+
+      `<stop offset="0%" stop-color="#fff" stop-opacity="0.5"/>`+
+      `<stop offset="45%" stop-color="#fff" stop-opacity="0.1"/>`+
+      `<stop offset="100%" stop-color="#000" stop-opacity="0.18"/></linearGradient>`;
+    s+=`<linearGradient id="pswash" x1="0" y1="0" x2="0.35" y2="1">`+
+      `<stop offset="0%" stop-color="#fff" stop-opacity="0.075"/>`+
+      `<stop offset="100%" stop-color="#fff" stop-opacity="0"/></linearGradient>`;
+    s+=`<linearGradient id="psslab" x1="0" y1="0" x2="0" y2="1">`+
+      `<stop offset="0%" stop-color="#7dd3a0" stop-opacity="0.05"/>`+
+      `<stop offset="100%" stop-color="#0b1c13" stop-opacity="0.12"/></linearGradient>`;
+    // A flat black field reads as an empty canvas; a lit one reads as a room
+    // the model is standing in. This is the cheapest depth in the whole file.
+    s+=`<radialGradient id="psvig" cx="50%" cy="42%" r="72%">`+
+      `<stop offset="0%" stop-color="#1a3a26" stop-opacity="0.55"/>`+
+      `<stop offset="60%" stop-color="#0d2016" stop-opacity="0.22"/>`+
+      `<stop offset="100%" stop-color="#040a07" stop-opacity="0"/></radialGradient>`;
+  }
   levels.forEach((z2,li)=>{
     const c2=levelColor(z2);
     if(li===0){
@@ -470,6 +700,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     }
   });
   s+=`</defs>`;
+  if(SHOW) s+=`<rect x="0" y="${viewY}" width="${W}" height="${HTOTAL}" fill="url(#psvig)" pointer-events="none"/>`;
 
   // Nothing in the fabric yet. The old copy blamed a missing PHOTO ("No floor
   // plans uploaded yet"), which sent people to upload an image that this view
@@ -550,7 +781,15 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // Slab sides
     s+=`<polygon points="${pts([TR,BR,BR_b,TR_b])}" fill="#0d2318" fill-opacity="0.3" stroke="#1c2e24" stroke-width="0.7"/>`;
     s+=`<polygon points="${pts([BL,BR,BR_b,BL_b])}" fill="#0a1a12" fill-opacity="0.26" stroke="#1c2e24" stroke-width="0.7"/>`;
-    s+=`<polygon points="${pts([TL,TR,BR,BL])}" fill="#0f2017" fill-opacity="0.05" stroke="${lyrColor}" stroke-width="1" stroke-dasharray="7,7" opacity="0.28"/>`;
+    if(SHOW){
+      // A dashed border round every storey is drafting shorthand; a lit plate
+      // with a hairline edge is what a finished drawing looks like. Same
+      // rectangle, same size, same place.
+      s+=`<polygon points="${pts([TL,TR,BR,BL])}" fill="url(#psslab)" stroke="${lyrColor}" stroke-width="0.9" opacity="0.5"/>`;
+      s+=`<line x1="${pt(TL).split(",")[0]}" y1="${pt(TL).split(",")[1]}" x2="${pt(TR).split(",")[0]}" y2="${pt(TR).split(",")[1]}" stroke="${lyrColor}" stroke-width="1.4" opacity="0.45"/>`;
+    } else {
+      s+=`<polygon points="${pts([TL,TR,BR,BL])}" fill="#0f2017" fill-opacity="0.05" stroke="${lyrColor}" stroke-width="1" stroke-dasharray="7,7" opacity="0.28"/>`;
+    }
     if(lidx!==1) s+=`<polygon points="${pts([TL,TR,BR,BL])}" fill="url(#flrpat_${lidx})" stroke="none"/>`;
 
     // `extra` carries data-* attributes (floor z, whether it is placed) so the
@@ -561,10 +800,15 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // A custom pin colour applies to the LIT state only. Using it while the
       // light is off made every placed light look permanently on, which breaks
       // the one thing the sidebar exists for.
-      const fill=on?((entry&&entry.color)||"#fbbf24"):"#374151";
-      const stroke=l.isWled?WLED_BORDER:"#60a5fa";
-      const op=on?1:0.45;
-      const tCol=on?"#111827":"#e2e8f0";
+      const lit=bodyCol(l,entry);
+      // Showcase: a dark fixture is slate and recedes; the eye should go to
+      // what is actually lit. Working mode keeps the flat pair it always had.
+      const fill=on?lit:(SHOW?"#1b2733":"#374151");
+      const stroke=SHOW
+        ? (on?(l.isWled?WLED_BORDER:"#f8fafc"):"#3f5165")
+        : (l.isWled?WLED_BORDER:"#60a5fa");
+      const op=SHOW?(on?1:0.62):(on?1:0.45);
+      const tCol=SHOW?(on?lit:"#7f93a8"):(on?"#111827":"#e2e8f0");
       // Physical size and rotation, in real units. width_cm/height_cm and
       // rotation have been in the stored schema all along and the WS command
       // has always accepted them — nothing ever drew them, which is why
@@ -584,17 +828,95 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // The outline scales and rotates; the CODE never does. A rotated or
       // stretched label is the thing that stops the map being readable at a
       // glance, which is the entire point of the view.
-      const body = t.length
-        ? `<g transform="${t.join(" ")}">`+
-          shapeSvg(l.shape, 0, 0, HEX_R, `fill="${fill}" stroke="${stroke}" stroke-width="${(2/Math.max(sx,sy)).toFixed(2)}"`)+
-          `</g>`
-        : shapeSvg(l.shape, hx, hy, HEX_R, `fill="${fill}" stroke="${stroke}" stroke-width="2"`);
-      return `<g class="lhex" data-eid="${escSVG(l.entity_id)}"${extra?" "+extra:""} style="cursor:pointer" opacity="${op}">`+
-        body+
-        `<text x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
-        `font-family="monospace" font-size="${CODE_PX.toFixed(1)}" font-weight="700" fill="${tCol}" pointer-events="none">`+
-        `${escSVG(l.code)}</text></g>`;
+      const sw=t.length?(2/Math.max(sx,sy)):2;
+      // One helper for every layer of the marker, so the halo, the body and the
+      // gloss are the SAME silhouette at the SAME transform — the whole point
+      // of Showcase is that it re-lights the shape you drew, not another one.
+      const layer=(a)=>t.length
+        ? `<g transform="${t.join(" ")}">`+shapeSvg(l.shape, 0, 0, HEX_R, a)+`</g>`
+        : shapeSvg(l.shape, hx, hy, HEX_R, a);
+
+      let body;
+      if(SHOW){
+        // Bloom hugging the silhouette (a stroke, so it follows any shape),
+        // then the body, then the fixture's own detail, then a single
+        // upper-left gloss over the lot. objectBoundingBox gradients mean one
+        // def serves every marker on the map.
+        //
+        // Detail is skipped below 8 px: markers are sized in metres and floor
+        // at 5 px, and a lamp ring inside a 5 px disc is mud, not information.
+        const ink=on?inkOn(lit):"#8fa6bb";
+        const detail=HEX_R>=8
+          ? (t.length
+              ? `<g transform="${t.join(" ")}">`+shapeDetailSvg(l.shape,0,0,HEX_R,ink,sw)+`</g>`
+              : shapeDetailSvg(l.shape,hx,hy,HEX_R,ink,sw))
+          : "";
+        body=(on?layer(`fill="none" stroke="${lit}" stroke-width="${(sw*2.6).toFixed(2)}" stroke-opacity="0.22" stroke-linejoin="round"`):"")+
+          layer(`fill="${fill}" stroke="${stroke}" stroke-width="${sw.toFixed(2)}" stroke-opacity="${on?0.75:0.55}" stroke-linejoin="round"`)+
+          detail+
+          layer(`fill="url(#psgloss)" stroke="none" pointer-events="none"`);
+      } else {
+        body=layer(`fill="${fill}" stroke="${stroke}" stroke-width="${sw.toFixed(2)}"`);
+      }
+
+      // Showcase moves the code out from under the glyph. At CODE_PX the label
+      // is as wide as the marker it sits on, so in Showcase the symbol was
+      // never actually visible — which defeats a mode whose job is to make the
+      // symbols readable. Underneath, haloed, it reads as a plan's fixture tag.
+      const lblY=SHOW ? hy+HEX_R*1.55+CODE_PX*0.45 : hy;
+      const lbl=SHOW
+        ? `<text x="${hx.toFixed(1)}" y="${lblY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
+          `font-family="ui-monospace,monospace" font-size="${(CODE_PX*0.92).toFixed(1)}" font-weight="700" `+
+          `letter-spacing="0.06em" fill="${tCol}" paint-order="stroke" stroke="#050d09" `+
+          `stroke-width="${(CODE_PX*0.42).toFixed(1)}" stroke-linejoin="round" pointer-events="none">`+
+          `${escSVG(l.code)}</text>`
+        : `<text x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
+          `font-family="monospace" font-size="${CODE_PX.toFixed(1)}" font-weight="700" fill="${tCol}" pointer-events="none">`+
+          `${escSVG(l.code)}</text>`;
+
+      // data-cx/data-cy is the fixture's own centre. The drag used to recover
+      // it from the label's x/y, which is only the same point while the label
+      // sits on the marker.
+      return `<g class="lhex" data-eid="${escSVG(l.entity_id)}" data-cx="${hx.toFixed(1)}" data-cy="${hy.toFixed(1)}"`+
+        `${extra?" "+extra:""} style="cursor:pointer" opacity="${op}">`+
+        body+lbl+`</g>`;
     };
+
+    // Showcase underlay for one fixture: the pool it throws on the floor, and
+    // the shadow it casts under itself. Both are drawn for the whole floor
+    // BEFORE any marker, so one light's glow can never wash over another's
+    // glyph. A floor circle projects to an ellipse of 0.5/0.866 — the same
+    // ratio the iso projection uses — so the pool lies flat in the room.
+    const glowSvg=(l,hx,hy,entry)=>{
+      if(l.state!=="on") return "";
+      const col=glowCol(l,entry);
+      const b=briOf(l);
+      // In METRES, like everything else here: a fixture throws roughly 1.4 m at
+      // a tenth and 3.4 m at full, which is what a downlight actually does on a
+      // floor. Sizing the pool off the marker instead made it a bloom stuck to
+      // the icon — markers are clamped to 5-14 px, so on a big site every pool
+      // came out the same tiny disc no matter how large the room was.
+      const rad=Math.max(HEX_R*2.2, frame.scale*(1.0+1.4*b));
+      // A 3 m strip does not light a circle. The throw is ADDED to the
+      // fixture's own length — multiplying by its scale instead made a 3 m run
+      // throw three times as far as a downlight in every direction, and its
+      // pool ran clean off the slab.
+      const rot=Number(entry&&entry.rotation)||0;
+      const half=(cm)=>((Number(cm)||0)/100)*frame.scale/2;
+      const rx=rad+half(entry&&entry.width_cm);
+      const ry=(rad+half(entry&&entry.height_cm))*0.577;
+      return `<g transform="translate(${hx.toFixed(1)},${hy.toFixed(1)})`+
+        `${rot?` rotate(${rot.toFixed(1)})`:""}"><ellipse cx="0" cy="0" `+
+        `rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="url(#${glowIds.get(col)||"psshade"})" `+
+        `opacity="${(0.4+0.45*b).toFixed(2)}" pointer-events="none"/></g>`;
+    };
+    const shadeSvg=(hx,hy)=>`<ellipse cx="${hx.toFixed(1)}" cy="${(hy+HEX_R*0.55).toFixed(1)}" `+
+      `rx="${(HEX_R*1.45).toFixed(1)}" ry="${(HEX_R*0.62).toFixed(1)}" fill="url(#psshade)" pointer-events="none"/>`;
+
+    // Markers are collected and flushed after every room on the floor is drawn,
+    // so a room polygon can never be painted over the fixtures of the room
+    // beside it — and so Showcase can slide the light pools in underneath them.
+    const jobs=[];
 
     // Rooms, straight from the metre fabric.
     for(const r of hereRooms){
@@ -624,14 +946,26 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         });
         for(let tries=0; tries<3 && near(liy); tries++) liy-=13;
       }
-      s+=`<polygon points="${pp}" fill="${color}" fill-opacity="0.16" stroke="${color}" stroke-width="1.6" opacity="1"/>`;
+      if(SHOW){
+        // Same polygon, given depth: a soft dark edge seats the room on the
+        // slab, the fill carries the room colour, and one sheen from the shared
+        // upper-left light source keeps every room lit from the same place.
+        s+=`<polygon points="${pp}" fill="none" stroke="#04100a" stroke-width="4" stroke-linejoin="round" opacity="0.5"/>`;
+        s+=`<polygon points="${pp}" fill="${color}" fill-opacity="0.085" stroke="${color}" stroke-width="1.3" stroke-opacity="0.8" stroke-linejoin="round"/>`;
+        s+=`<polygon points="${pp}" fill="url(#pswash)" stroke="none" pointer-events="none"/>`;
+      } else {
+        s+=`<polygon points="${pp}" fill="${color}" fill-opacity="0.16" stroke="${color}" stroke-width="1.6" opacity="1"/>`;
+      }
       // paint-order puts the dark stroke UNDER the glyphs, so the name stays
       // legible over the floor hatch and over a slab edge it happens to cross.
+      // Showcase sets it in tracked small caps — the convention every printed
+      // plan uses for a room name, and it stops competing with the fixture codes.
       s+=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+
-        `fill="${color}" font-size="8.5" font-family="system-ui,sans-serif" font-weight="600" `+
+        `fill="${color}" font-size="${SHOW?"7.6":"8.5"}" font-family="system-ui,sans-serif" font-weight="600" `+
+        (SHOW?`letter-spacing="0.16em" `:``)+
         `paint-order="stroke" stroke="#071008" stroke-width="2.5" stroke-linejoin="round" `+
-        `opacity="0.95" pointer-events="none">`+
-        `${escSVG(r.room)}</text>`;
+        `opacity="${SHOW?"0.72":"0.95"}" pointer-events="none">`+
+        `${escSVG(SHOW?String(r.room).toUpperCase():r.room)}</text>`;
       // Room assignment isn't known yet (registry still loading) — show a
       // single pulsing placeholder instead of blocking the whole map on
       // a multi-MB registry fetch; real hexes replace it once it lands.
@@ -648,7 +982,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const offsets=hexCluster(roomLights.length, HEX_R);
       roomLights.forEach((l,idx)=>{
         const [dx,dy]=offsets[idx];
-        s+=markerSvg(l, ccx+dx, ccy+dy, null, `data-z="${z}"`);
+        jobs.push([l, ccx+dx, ccy+dy, null, `data-z="${z}"`]);
       });
     }
 
@@ -659,8 +993,19 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const l=lightsByEid[pl.eid];
       if(!l) continue;
       const [hx,hy]=iso(pl.x, pl.y, z);
-      s+=markerSvg(l,hx,hy,pl.lp,`data-z="${z}" data-placed="1"`);
+      jobs.push([l, hx, hy, pl.lp, `data-z="${z}" data-placed="1"`]);
     }
+
+    if(SHOW){
+      // Pools first, and blended so overlapping light ADDS instead of stacking
+      // opaque discs — two fixtures washing the same corner should read as a
+      // brighter corner, which is the whole reason to draw them at all.
+      s+=`<g style="mix-blend-mode:screen" pointer-events="none">`;
+      for(const [l,hx,hy,entry] of jobs) s+=glowSvg(l,hx,hy,entry);
+      s+=`</g>`;
+      for(const [,hx,hy] of jobs) s+=shadeSvg(hx,hy);
+    }
+    for(const j of jobs) s+=markerSvg(...j);
 
     // Floor level badge
     // The badge marks the storey, so it has to stay on the canvas. Slabs are
@@ -668,6 +1013,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // corner past the edge and the badge was drawn half outside the frame.
     const badgeX=Math.max(18, Math.min(W-18, Math.round(BL[0])));
     const badgeY=Math.round(BL[1]);
+    if(SHOW) s+=`<circle cx="${badgeX}" cy="${badgeY}" r="19" fill="none" stroke="${lyrColor}" stroke-width="1" opacity="0.3"/>`;
     s+=`<circle cx="${badgeX}" cy="${badgeY}" r="15" fill="${lyrColor}" opacity="0.95"/>`;
     s+=`<text x="${badgeX}" y="${badgeY+6}" text-anchor="middle" fill="#071008" font-size="14" font-weight="700">${lidx+1}</text>`;
     s+=`</g>`;

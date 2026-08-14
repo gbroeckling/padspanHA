@@ -97,7 +97,10 @@ _OBJECT_HISTORY_DAY_CHOICES = (1, 2, 7, 14)
 # Marker shapes a light can be pinned to — mirrors LIGHT_SHAPES in
 # www/padspan-ha/views/light_codes.js ("auto" is absent by design: it means
 # "no override", which is stored as the entity simply not being present).
-_LIGHT_SHAPE_KINDS = frozenset({"hex", "circle", "bar", "square", "triangle", "diamond"})
+_LIGHT_SHAPE_KINDS = frozenset({
+    "hex", "circle", "bar", "line", "square", "triangle", "diamond",
+    "fan", "sconce", "pendant", "chandelier",
+})
 _OBJECT_HISTORY_DAYS_DEFAULT = 1
 
 
@@ -3050,6 +3053,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("overview_iso_horiz_gap"): vol.Coerce(int),
         vol.Optional("overview_iso_focus"): vol.Any(int, None),
         vol.Optional("lights_hidden"): list,
+        vol.Optional("lights_showcase"): bool,
         vol.Optional("adaptive_learning_enabled"): bool,
         vol.Optional("adaptive_floor_detection"): bool,
         vol.Optional("signal_loss_linger_s"): vol.Coerce(int),
@@ -3266,6 +3270,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 sorted({str(x) for x in raw if isinstance(x, str) and x.strip()})
                 if isinstance(raw, list) else []
             )
+        if "lights_showcase" in msg:
+            payload["lights_showcase"] = bool(msg["lights_showcase"])
         if "light_shapes" in msg:
             # entity_id -> shape kind. Only known kinds are stored; an unknown
             # value would just fall back to the default marker in the frontend,

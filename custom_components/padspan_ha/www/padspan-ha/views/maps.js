@@ -6276,10 +6276,12 @@ function _wireLightsBuild(ctx, isoDiv, o) {
   const selEid = o.mapState._selLight ? o.mapState._selLight.eid : null;
   if (selEid) {
     const g = isoDiv.querySelector(`g.lhex[data-eid="${CSS.escape(selEid)}"]`);
-    // Not just polygons: a marker is a polygon, circle or rect depending on
-    // the fixture shape, and selecting anything but a hexagon/triangle/diamond
-    // would otherwise show no highlight at all.
-    const mark = g && g.querySelector("polygon,circle,rect");
+    // Not just polygons: a marker is a polygon, circle, rect or path depending
+    // on the fixture shape, and selecting anything but a hexagon/triangle/
+    // diamond would otherwise show no highlight at all. data-hit elements are
+    // the invisible click plates, which are never the thing to outline.
+    const mark = g && [...g.querySelectorAll("polygon,circle,rect,path,line")]
+      .find(n => !n.hasAttribute("data-hit"));
     if (mark) { mark.setAttribute("stroke", "#e879f9"); mark.setAttribute("stroke-width", "3.5"); }
     if (g && o.mapState._lightsTransform) {
       _wireTransformHandles(ctx, svg, g, selEid, frame, o, toVB);
@@ -6306,17 +6308,17 @@ function _wireLightsBuild(ctx, isoDiv, o) {
       // Grab offset: dragging must move the hex by the pointer's DELTA, not
       // teleport its centre to the pointer — otherwise grabbing a hex near its
       // edge snaps the light sideways by that offset on drop.
-      // Anchor on the fixture's own centre, which is exactly where its code
-      // label is drawn and is never scaled or rotated. The group's bounding
-      // box is NOT that centre: it includes the label's box below the marker,
+      // Anchor on the fixture's own centre, which the renderer stamps on the
+      // group and which is never scaled or rotated. The group's bounding box
+      // is NOT that centre: it includes the code label's box below the marker,
       // so it sat about 6 px low and every drag landed high by that much —
       // consistently, which on a short move reads as the light snapping back.
-      let originCx, originCy;
-      const anchorLbl = g.querySelector("text");
-      if (anchorLbl) {
-        originCx = Number(anchorLbl.getAttribute("x"));
-        originCy = Number(anchorLbl.getAttribute("y"));
-      }
+      // Reading it off the label's own x/y worked only while the label sits ON
+      // the marker; in Showcase it moves below, and the offset would be back.
+      // parseFloat, not Number: Number(null) is 0, which is a real coordinate,
+      // so a marker without the attribute would silently anchor at the origin.
+      let originCx = parseFloat(g.getAttribute("data-cx"));
+      let originCy = parseFloat(g.getAttribute("data-cy"));
       if (!Number.isFinite(originCx) || !Number.isFinite(originCy)) {
         try {
           const bb = g.getBBox();
@@ -6781,6 +6783,17 @@ function _lightsTab(ctx, maps, active) {
     onHexesBuilt: (isoDiv) => _wireLightsBuild(ctx, isoDiv,
       { mapState, view, lightsByEid, model: modelForRender }),
     transform: !!mapState._lightsTransform,
+    // Showcase is a rendering mode, not an edit mode: it is remembered like the
+    // view sliders so the map comes back the way it was left.
+    showcase: mapState._lightsShowcase === undefined
+      ? !!ctx.state.settings?.lights_showcase
+      : !!mapState._lightsShowcase,
+    onShowcase: async (v) => {
+      mapState._lightsShowcase = v;
+      try { await ctx.actions.settingsSet({ lights_showcase: v }); }
+      catch (e) { ctx.toast("Could not save Showcase: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
     // A table row selects the light on the map (toggle lives in the inspector).
     // A light has no owning map to look up any more — it has a position in
     // metres, or it has none and clusters in its room.
