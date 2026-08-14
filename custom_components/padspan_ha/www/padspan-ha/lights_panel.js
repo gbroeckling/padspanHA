@@ -22,7 +22,7 @@ const { isWledLight } =
 // THE shared lights view — data pipeline, map card and index table, also used
 // verbatim by the Mapping → Lights tab (the builder for this display), so the
 // two tools always show the identical map. All lights-view edits go in there.
-const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable } =
+const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 
 // ── DOM helpers ──────────────────────────────────────────────────────────────
@@ -189,6 +189,13 @@ class PadSpanLightsApp extends HTMLElement {
       // Per-light shape overrides — set in the Mapping → Lights tab, read here
       // so both views draw the same fixture outlines.
       this.state._shapeOverrides = (s.light_shapes && typeof s.light_shapes === "object") ? s.light_shapes : {};
+      // The presentation modes are set in the Mapping → Lights tab and read
+      // here for the same reason the shapes are: this panel DISPLAYS the map
+      // that tab BUILDS, so a mode that changed only one of them would mean
+      // the two views no longer show the same house.
+      this.state._showcase      = !!s.lights_showcase;
+      this.state._fitRooms      = !!s.lights_fit_rooms;
+      this.state._hideUntouched = !!s.lights_hide_untouched;
       // Hidden-map ids are read only to stay consistent with the Mapping tab
       const savedIds = s.hidden_map_ids;
       if(Array.isArray(savedIds)){
@@ -412,6 +419,17 @@ class PadSpanLightsApp extends HTMLElement {
       model: this.state.model,
       byRoom,
       hiddenEids: hidden,
+      showcase: !!this.state._showcase,
+      fitRooms: !!this.state._fitRooms,
+      // Same filter as the builder, from the same rule, over the same
+      // placements — the map hides them, the index table below still lists
+      // every light.
+      hiddenEidsMap: this.state._hideUntouched
+        ? new Set([...hidden, ...lights
+            .filter(l => !lightIsTouched(l, this.state._shapeOverrides || {},
+                                         (this.state.model || {}).light_positions_m || {}))
+            .map(l => l.entity_id)])
+        : hidden,
       lightsByEid,
       lightsLoading,
       view: this._view,

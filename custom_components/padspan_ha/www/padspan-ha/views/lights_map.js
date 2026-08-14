@@ -96,6 +96,25 @@ export function gatherLights(states, areaMap, shapeOverrides){
   return lights;
 }
 
+// Has this fixture actually been WORKED ON?
+//
+// Deliberately not "has a position": dropping a light where it really is is the
+// baseline act of building the map, and on a finished house nearly every light
+// has been dropped — so counting a move would leave the filter hiding nothing.
+// Work means the fixture was described: given a size, an angle, a colour, or a
+// shape of its own. The default amber every drop stamps is not a colour choice.
+const _DROP_COLOR = "#fbbf24";
+export function lightIsTouched(l, shapeOverrides, placements) {
+  const eid = l.entity_id;
+  if (shapeOverrides && shapeOverrides[eid]) return true;
+  const p = placements && placements[eid];
+  if (!p) return false;
+  if (Number(p.width_cm) > 0 || Number(p.height_cm) > 0) return true;
+  if (Number(p.rotation)) return true;
+  if (p.color && String(p.color).toLowerCase() !== _DROP_COLOR) return true;
+  return false;
+}
+
 // Legend for the shape vocabulary — the map is only readable at a glance if
 // the outlines are decodable. Only the kinds actually present are listed, so
 // a house with no fans never shows a fan key.

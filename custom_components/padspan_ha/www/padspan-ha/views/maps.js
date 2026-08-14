@@ -15,7 +15,7 @@ const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM
 // THE shared Lights view (data pipeline, map card, index table) — used
 // verbatim by the Lights sidebar panel, so the two tools always show the
 // identical map; this tab layers the build tools on top of it.
-const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable } =
+const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape } =
@@ -6602,25 +6602,6 @@ function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
   mkHandle(cx + halfW, cy + halfH, "wh", "nwse-resize", "Width + length");
 }
 
-// Has this fixture actually been WORKED ON?
-//
-// Deliberately not "has a position": dropping a light where it really is is the
-// baseline act of building the map, and on a finished house nearly every light
-// has been dropped — so counting a move would leave the filter hiding nothing.
-// Work means the fixture was described: given a size, an angle, a colour, or a
-// shape of its own. The default amber every drop stamps is not a colour choice.
-const _DROP_COLOR = "#fbbf24";
-function _lightIsTouched(l, shapeOverrides, placements) {
-  const eid = l.entity_id;
-  if (shapeOverrides && shapeOverrides[eid]) return true;
-  const p = placements && placements[eid];
-  if (!p) return false;
-  if (Number(p.width_cm) > 0 || Number(p.height_cm) > 0) return true;
-  if (Number(p.rotation)) return true;
-  if (p.color && String(p.color).toLowerCase() !== _DROP_COLOR) return true;
-  return false;
-}
-
 function _lightsTab(ctx, maps, active) {
   const { el } = ctx.helpers;
   const mapState = ctx.state.maps;
@@ -6691,7 +6672,7 @@ function _lightsTab(ctx, maps, active) {
   const hideUntouched = mapState._lightsHideUntouched === undefined
     ? !!ctx.state.settings?.lights_hide_untouched
     : !!mapState._lightsHideUntouched;
-  const untouchedCount = lights.filter(l => !_lightIsTouched(l, shapeOverrides, placements)).length;
+  const untouchedCount = lights.filter(l => !lightIsTouched(l, shapeOverrides, placements)).length;
 
   const toggle = async (eid) => {
     if (!ctx.hass) return;
@@ -6812,7 +6793,7 @@ function _lightsTab(ctx, maps, active) {
       { mapState, view, lightsByEid, model: modelForRender }),
     transform: !!mapState._lightsTransform,
     hiddenEidsMap: hideUntouched
-      ? new Set([...hiddenEids, ...lights.filter(l => !_lightIsTouched(l, shapeOverrides, placements))
+      ? new Set([...hiddenEids, ...lights.filter(l => !lightIsTouched(l, shapeOverrides, placements))
                                         .map(l => l.entity_id)])
       : hiddenEids,
     hideUntouched,

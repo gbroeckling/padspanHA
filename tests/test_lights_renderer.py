@@ -986,13 +986,14 @@ def test_moving_a_light_does_not_count_as_touching_it(tmp_path):
     a shape of its own. The default amber stamped on every drop is not a
     colour choice.
     """
-    src = (_VIEWS / "maps.js").read_text(encoding="utf-8")
+    # The rule lives in the SHARED module, so the builder and the sidebar
+    # cannot disagree about what "touched" means.
+    src = (_VIEWS / "lights_map.js").read_text(encoding="utf-8")
     body = src[src.index("const _DROP_COLOR"):]
-    body = body[:body.index("\nfunction _lightsTab")]
+    body = body[:body.index("// Legend for the shape vocabulary")]
     out = _run_js(tmp_path, (
-        body.replace("function _lightIsTouched", "export function _lightIsTouched")
-            .replace("const _DROP_COLOR", "export const _DROP_COLOR") + "\n"
-        "const T=(over,pl)=>_lightIsTouched({entity_id:'light.x'},over,pl);\n"
+        body + "\n"
+        "const T=(over,pl)=>lightIsTouched({entity_id:'light.x'},over,pl);\n"
         "console.log(JSON.stringify({\n"
         "  never:      T({}, {}),\n"
         "  movedOnly:  T({}, {'light.x':{x_m:1,y_m:2,floor_id:'main'}}),\n"
