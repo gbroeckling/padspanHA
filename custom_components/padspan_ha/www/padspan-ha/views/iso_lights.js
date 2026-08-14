@@ -451,20 +451,20 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const c2=levelColor(z2);
     if(li===0){
       s+=`<pattern id="flrpat_${li}" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">`;
-      s+=`<path d="M12,2 C16,2 19,6 19,11 C19,16 16,21 12,22 C8,21 5,16 5,11 C5,6 8,2 12,2 Z" fill="none" stroke="${c2}" stroke-width="0.7" opacity="0.14"/>`;
-      s+=`<path d="M12,2 C13.5,0 15.5,0.5 14.5,2.5 C13.5,1.5 12,2 12,2 Z" fill="${c2}" opacity="0.11"/>`;
-      s+=`<circle cx="12" cy="15" r="1.4" fill="${c2}" opacity="0.1"/></pattern>`;
+      s+=`<path d="M12,2 C16,2 19,6 19,11 C19,16 16,21 12,22 C8,21 5,16 5,11 C5,6 8,2 12,2 Z" fill="none" stroke="${c2}" stroke-width="0.7" opacity="0.075"/>`;
+      s+=`<path d="M12,2 C13.5,0 15.5,0.5 14.5,2.5 C13.5,1.5 12,2 12,2 Z" fill="${c2}" opacity="0.06"/>`;
+      s+=`<circle cx="12" cy="15" r="1.4" fill="${c2}" opacity="0.055"/></pattern>`;
     } else if(li===2){
       s+=`<pattern id="flrpat_${li}" x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">`;
-      s+=`<line x1="0" y1="12" x2="12" y2="0" stroke="${c2}" stroke-width="0.6" opacity="0.18"/>`;
-      s+=`<line x1="0" y1="0" x2="12" y2="12" stroke="${c2}" stroke-width="0.6" opacity="0.18"/></pattern>`;
+      s+=`<line x1="0" y1="12" x2="12" y2="0" stroke="${c2}" stroke-width="0.6" opacity="0.095"/>`;
+      s+=`<line x1="0" y1="0" x2="12" y2="12" stroke="${c2}" stroke-width="0.6" opacity="0.095"/></pattern>`;
     } else if(li>=3){
       s+=`<pattern id="flrpat_${li}" x="0" y="0" width="16" height="13.86" patternUnits="userSpaceOnUse">`;
-      s+=`<circle cx="0"  cy="0"     r="1.5" fill="${c2}" opacity="0.14"/>`;
-      s+=`<circle cx="8"  cy="6.93"  r="1.5" fill="${c2}" opacity="0.14"/>`;
-      s+=`<circle cx="16" cy="0"     r="1.5" fill="${c2}" opacity="0.14"/>`;
-      s+=`<circle cx="0"  cy="13.86" r="1.5" fill="${c2}" opacity="0.14"/>`;
-      s+=`<circle cx="16" cy="13.86" r="1.5" fill="${c2}" opacity="0.14"/></pattern>`;
+      s+=`<circle cx="0"  cy="0"     r="1.5" fill="${c2}" opacity="0.075"/>`;
+      s+=`<circle cx="8"  cy="6.93"  r="1.5" fill="${c2}" opacity="0.075"/>`;
+      s+=`<circle cx="16" cy="0"     r="1.5" fill="${c2}" opacity="0.075"/>`;
+      s+=`<circle cx="0"  cy="13.86" r="1.5" fill="${c2}" opacity="0.075"/>`;
+      s+=`<circle cx="16" cy="13.86" r="1.5" fill="${c2}" opacity="0.075"/></pattern>`;
     }
   });
   s+=`</defs>`;
@@ -534,9 +534,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
     s+=`<g opacity="${go}"${gpe}>`;
     // Slab sides
-    s+=`<polygon points="${pts([TR,BR,BR_b,TR_b])}" fill="#0d2318" fill-opacity="0.35" stroke="#253e2e" stroke-width="0.8"/>`;
-    s+=`<polygon points="${pts([BL,BR,BR_b,BL_b])}" fill="#0a1a12" fill-opacity="0.3" stroke="#253e2e" stroke-width="0.8"/>`;
-    s+=`<polygon points="${pts([TL,TR,BR,BL])}" fill="#0f2017" fill-opacity="0.06" stroke="${lyrColor}" stroke-width="1.5" stroke-dasharray="10,5" opacity="0.5"/>`;
+    s+=`<polygon points="${pts([TR,BR,BR_b,TR_b])}" fill="#0d2318" fill-opacity="0.3" stroke="#1c2e24" stroke-width="0.7"/>`;
+    s+=`<polygon points="${pts([BL,BR,BR_b,BL_b])}" fill="#0a1a12" fill-opacity="0.26" stroke="#1c2e24" stroke-width="0.7"/>`;
+    s+=`<polygon points="${pts([TL,TR,BR,BL])}" fill="#0f2017" fill-opacity="0.05" stroke="${lyrColor}" stroke-width="1" stroke-dasharray="7,7" opacity="0.28"/>`;
     if(lidx!==1) s+=`<polygon points="${pts([TL,TR,BR,BL])}" fill="url(#flrpat_${lidx})" stroke="none"/>`;
 
     // `extra` carries data-* attributes (floor z, whether it is placed) so the
@@ -610,7 +610,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         });
         for(let tries=0; tries<3 && near(liy); tries++) liy-=13;
       }
-      s+=`<polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="1.5" opacity="0.9"/>`;
+      s+=`<polygon points="${pp}" fill="${color}" fill-opacity="0.16" stroke="${color}" stroke-width="1.6" opacity="1"/>`;
       // paint-order puts the dark stroke UNDER the glyphs, so the name stays
       // legible over the floor hatch and over a slab edge it happens to cross.
       s+=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+

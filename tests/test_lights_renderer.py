@@ -643,3 +643,40 @@ def test_a_fabric_with_no_rooms_still_frames_its_lights(tmp_path):
     assert out["empty"] is False
     assert out["scale"] > 0, "a roomless fabric must still derive a scale"
     assert out["spread"] > 20, "two lights 11 m apart must not collapse together"
+
+
+def test_every_control_keeps_its_label():
+    """appendChild takes ONE node.
+
+    Grouping the control row with separators was written as
+    `appendChild(SEP(), label)`, which silently appends only the separator —
+    the Spacing and Zoom captions vanished and the row became a run of
+    unlabelled sliders.
+    """
+    src = (_VIEWS / "lights_map.js").read_text(encoding="utf-8")
+    # Paren-balanced scan: a regex cannot tell `appendChild(el(a, b))` (fine)
+    # from `appendChild(a, b)` (broken).
+    multi = []
+    needle = "appendChild("
+    i = src.find(needle)
+    while i != -1:
+        j = i + len(needle)
+        depth, top_comma = 1, False
+        while j < len(src) and depth:
+            c = src[j]
+            if c in "([{":
+                depth += 1
+            elif c in ")]}":
+                depth -= 1
+            elif c == "," and depth == 1:
+                top_comma = True
+            j += 1
+        if top_comma:
+            multi.append(src[i:i + 70].replace(chr(10), " "))
+        i = src.find(needle, i + 1)
+    assert not multi, (
+        "appendChild called with more than one node — everything after the "
+        "first argument is silently dropped: {}".format(multi[:3])
+    )
+    for caption in ('"Floor"', '"Spacing"', '"L / R"', '"Zoom"'):
+        assert caption in src, "the {} control lost its label".format(caption)

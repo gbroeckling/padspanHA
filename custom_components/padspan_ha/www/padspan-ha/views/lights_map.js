@@ -167,14 +167,24 @@ export function buildLightsMapCard(host){
     host.onHexesBuilt(isoDiv, rebuildISO);
   };
 
-  const ctrlRow = el("div", { style: "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px" });
+  // Grouped, not a flat run of controls: view shaping, then saving, then zoom.
+  // A single undifferentiated row of eight things reads as clutter and gives
+  // no clue which control affects what.
+  const ctrlRow = el("div", { style:
+    "display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:10px;"
+    + "padding:8px 10px;background:#08120c;border:1px solid #16281d;border-radius:10px" });
+  const GROUP = "display:flex;gap:6px;align-items:center";
+  const SEP = () => el("span", { style:
+    "width:1px;align-self:stretch;background:#1b3526;margin:0 2px" }, "");
+  const LBL = "font-size:10px;white-space:nowrap;text-transform:uppercase;"
+    + "letter-spacing:0.06em;color:#64748b";
 
   // Reset needs to put the focus control back too — see resetFocusCtl below.
   let resetFocusCtl = () => {};
 
   // Floor focus slider
   if (sortedLevels.length > 1) {
-    const focusLbl = el("span", { style: "font-size:12px;color:#94a3b8;min-width:80px" }, getFocusLbl(view.focusIdx));
+    const focusLbl = el("span", { style: "font-size:12px;color:#cbd5e1;min-width:80px" }, getFocusLbl(view.focusIdx));
     const focusSlider = document.createElement("input");
     focusSlider.type = "range"; focusSlider.min = "0"; focusSlider.max = String(isoPos.length - 1);
     focusSlider.style.cssText = "width:120px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
@@ -184,14 +194,14 @@ export function buildLightsMapCard(host){
       focusLbl.textContent = getFocusLbl(view.focusIdx);
       rebuildISO();
     });
-    ctrlRow.appendChild(el("span", { class: "muted", style: "font-size:11px;white-space:nowrap" }, "Floor:"));
+    ctrlRow.appendChild(el("span", { class: "muted", style: LBL }, "Floor"));
     ctrlRow.appendChild(focusSlider);
     ctrlRow.appendChild(focusLbl);
     resetFocusCtl = () => { focusSlider.value = "0"; focusLbl.textContent = getFocusLbl(0); };
   }
 
   // Floor gap slider
-  const gapLbl = el("span", { style: "font-size:12px;color:#94a3b8;min-width:38px" }, String(view.floorGap));
+  const gapLbl = el("span", { style: "font-size:12px;color:#cbd5e1;min-width:38px;font-variant-numeric:tabular-nums" }, String(view.floorGap));
   const gapSlider = document.createElement("input");
   // 60–340 matches the backend's clamp exactly. A wider slider silently stored
   // a different spacing than the one on screen.
@@ -203,12 +213,13 @@ export function buildLightsMapCard(host){
     gapLbl.textContent = String(view.floorGap);
     rebuildISO();
   });
-  ctrlRow.appendChild(el("span", { class: "muted", style: "font-size:11px;white-space:nowrap;margin-left:8px" }, "Spacing:"));
+  ctrlRow.appendChild(SEP());
+  ctrlRow.appendChild(el("span", { class: "muted", style: LBL }, "Spacing"));
   ctrlRow.appendChild(gapSlider);
   ctrlRow.appendChild(gapLbl);
 
   // L/R horizontal offset slider
-  const horizLbl = el("span", { style: "font-size:12px;color:#94a3b8;min-width:38px" }, String(view.horizGap));
+  const horizLbl = el("span", { style: "font-size:12px;color:#cbd5e1;min-width:38px;font-variant-numeric:tabular-nums" }, String(view.horizGap));
   const horizSlider = document.createElement("input");
   horizSlider.type = "range"; horizSlider.min = "-120"; horizSlider.max = "120"; horizSlider.step = "10";
   horizSlider.style.cssText = "width:100px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
@@ -218,7 +229,8 @@ export function buildLightsMapCard(host){
     horizLbl.textContent = String(view.horizGap);
     rebuildISO();
   });
-  ctrlRow.appendChild(el("span", { class: "muted", style: "font-size:11px;white-space:nowrap;margin-left:8px" }, "L/R:"));
+  ctrlRow.appendChild(SEP());
+  ctrlRow.appendChild(el("span", { class: "muted", style: LBL }, "L / R"));
   ctrlRow.appendChild(horizSlider);
   ctrlRow.appendChild(horizLbl);
 
@@ -255,7 +267,8 @@ export function buildLightsMapCard(host){
   ctrlRow.appendChild(saveLbl);
 
   // Zoom controls
-  ctrlRow.appendChild(el("span", { class: "muted", style: "font-size:11px;white-space:nowrap;margin-left:8px" }, "Zoom:"));
+  ctrlRow.appendChild(SEP());
+  ctrlRow.appendChild(el("span", { class: "muted", style: LBL }, "Zoom"));
   ctrlRow.appendChild(el("button", { class: "btn inline", onclick: () => {
     view.zoom = Math.max(0.4, Math.round((view.zoom - 0.1) * 10) / 10);
     applyZoom();

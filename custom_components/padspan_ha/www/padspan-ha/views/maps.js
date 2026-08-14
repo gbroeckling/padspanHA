@@ -6434,11 +6434,12 @@ function _wireLightsPicker(ctx, isoDiv, svg, o, toVB) {
 
     const menu = el("div", { class: "lpick", style:
       "position:fixed;z-index:9999;background:#0a150e;border:1px solid #2d6a4f;"
-      + "border-radius:8px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,0.6);"
-      + "max-height:260px;overflow:auto;min-width:180px" });
+      + "border-radius:10px;padding:5px;box-shadow:0 10px 30px rgba(0,0,0,0.7);"
+      + "max-height:260px;overflow:auto;min-width:196px" });
     menu.appendChild(el("div", { style:
-      "font-size:10px;color:#94a3b8;padding:3px 8px 5px" },
-      hits.length + " here — smallest first"));
+      "font-size:9px;color:#64748b;padding:3px 8px 6px;text-transform:uppercase;"
+      + "letter-spacing:0.07em;border-bottom:1px solid #16281d;margin-bottom:3px" },
+      hits.length + " here · smallest first"));
     for (const h of hits) {
       const l = o.lightsByEid[h.eid];
       const name = l ? (l.friendly_name || h.eid) : h.eid;
@@ -6483,6 +6484,13 @@ function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
 
   const layer = document.createElementNS(NS, "g");
   layer.setAttribute("class", "lxform");
+  // A soft glow lifts the handles off whatever they sit on, so they read as
+  // controls rather than as more of the drawing.
+  const defs = document.createElementNS(NS, "defs");
+  defs.innerHTML = '<filter id="lxfglow" x="-60%" y="-60%" width="220%" height="220%">'
+    + '<feDropShadow dx="0" dy="0" stdDeviation="2.4" flood-color="#e879f9" flood-opacity="0.55"/>'
+    + '</filter>';
+  layer.appendChild(defs);
   layer.setAttribute("pointer-events", "all");
   svg.appendChild(layer);
 
@@ -6497,8 +6505,8 @@ function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
   box.setAttribute("x", cx - halfW); box.setAttribute("y", cy - halfH);
   box.setAttribute("width", halfW * 2); box.setAttribute("height", halfH * 2);
   box.setAttribute("fill", "none"); box.setAttribute("stroke", "#e879f9");
-  box.setAttribute("stroke-width", "1.2"); box.setAttribute("stroke-dasharray", "5,4");
-  box.setAttribute("opacity", "0.7"); box.setAttribute("pointer-events", "none");
+  box.setAttribute("stroke-width", "1.1"); box.setAttribute("stroke-dasharray", "6,5");
+  box.setAttribute("opacity", "0.55"); box.setAttribute("pointer-events", "none");
   layer.appendChild(box);
 
   // kind: "w" widens, "h" lengthens, "wh" does both, "rot" turns.
@@ -6509,12 +6517,13 @@ function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
     if (kind === "rot") {
       h.setAttribute("cx", hx); h.setAttribute("cy", hy); h.setAttribute("r", 8);
     } else {
-      h.setAttribute("x", hx - 7); h.setAttribute("y", hy - 7);
-      h.setAttribute("width", 14); h.setAttribute("height", 14); h.setAttribute("rx", 3);
+      h.setAttribute("x", hx - 6.5); h.setAttribute("y", hy - 6.5);
+      h.setAttribute("width", 13); h.setAttribute("height", 13); h.setAttribute("rx", 4);
     }
-    h.setAttribute("fill", "#e879f9");
-    h.setAttribute("stroke", "#1a0b2e");
-    h.setAttribute("stroke-width", "2");
+    h.setAttribute("fill", "#f0abfc");
+    h.setAttribute("stroke", "#0a0512");
+    h.setAttribute("stroke-width", "1.6");
+    h.setAttribute("filter", "url(#lxfglow)");
     h.style.cursor = cursor;
     h.style.touchAction = "none";
     const t = document.createElementNS(NS, "title");
