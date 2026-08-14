@@ -495,6 +495,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     }
     if(isFinite(a)){ slabHalfW=Math.max(slabHalfW,(c-a)/2); slabHalfH=Math.max(slabHalfH,(d-b)/2); }
   }
+  // One padding for the whole stack, so slabs stay visually consistent even
+  // though each is sized to its own floor.
   const slabPad=Math.max(0.4, Math.max(slabHalfW,slabHalfH)*0.08);
   slabHalfW+=slabPad; slabHalfH+=slabPad;
 
@@ -524,10 +526,20 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     let cx0=Infinity,cy0=Infinity,cx1=-Infinity,cy1=-Infinity;
     const growS=(x,y)=>{ if(x<cx0)cx0=x; if(x>cx1)cx1=x; if(y<cy0)cy0=y; if(y>cy1)cy1=y; };
     for(const r of hereRooms) for(const p of r.pts) growS(p[0],p[1]);
-    for(const l of hereLights) growS(l.x,l.y);
+    if(!hereRooms.length) for(const l of hereLights) growS(l.x,l.y);
     const ccx=isFinite(cx0)?(cx0+cx1)/2:(frame.bbox.minX+frame.bbox.maxX)/2;
     const ccy=isFinite(cy0)?(cy0+cy1)/2:(frame.bbox.minY+frame.bbox.maxY)/2;
-    const x0=ccx-slabHalfW, x1=ccx+slabHalfW, y0_=ccy-slabHalfH, y1_=ccy+slabHalfH;
+    // Each slab is the size of the floor it represents. Every floor is drawn
+    // at the SAME px/m, so a smaller storey reads as a smaller storey, which
+    // is what it is — an upper floor really is narrower than the ground it
+    // sits on. The shared-envelope rule this replaces was a workaround for a
+    // basement whose imported geometry was nearly twice its true area; the
+    // fabric has since been corrected, so the thing it compensated for is
+    // gone, and all it did was leave every floor as an island in a large
+    // empty plate.
+    const halfW=isFinite(cx0)?(cx1-cx0)/2+slabPad:slabHalfW;
+    const halfH=isFinite(cy0)?(cy1-cy0)/2+slabPad:slabHalfH;
+    const x0=ccx-halfW, x1=ccx+halfW, y0_=ccy-halfH, y1_=ccy+halfH;
 
     const TL=iso(x0,y0_,z), TR=iso(x1,y0_,z), BR=iso(x1,y1_,z), BL=iso(x0,y1_,z);
     const TR_b=iso(x1,y0_,z-slabWZ), BR_b=iso(x1,y1_,z-slabWZ), BL_b=iso(x0,y1_,z-slabWZ);
@@ -649,8 +661,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     }
 
     // Floor level badge
-    s+=`<circle cx="${Math.round(BL[0])}" cy="${Math.round(BL[1])}" r="15" fill="${lyrColor}" opacity="0.95"/>`;
-    s+=`<text x="${Math.round(BL[0])}" y="${Math.round(BL[1])+6}" text-anchor="middle" fill="#071008" font-size="14" font-weight="700">${lidx+1}</text>`;
+    // The badge marks the storey, so it has to stay on the canvas. Slabs are
+    // sized to their own floor now, so a narrow one can put its bottom-left
+    // corner past the edge and the badge was drawn half outside the frame.
+    const badgeX=Math.max(18, Math.min(W-18, Math.round(BL[0])));
+    const badgeY=Math.round(BL[1]);
+    s+=`<circle cx="${badgeX}" cy="${badgeY}" r="15" fill="${lyrColor}" opacity="0.95"/>`;
+    s+=`<text x="${badgeX}" y="${badgeY+6}" text-anchor="middle" fill="#071008" font-size="14" font-weight="700">${lidx+1}</text>`;
     s+=`</g>`;
   }
 

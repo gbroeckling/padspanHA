@@ -680,3 +680,84 @@ def test_every_control_keeps_its_label():
     )
     for caption in ('"Floor"', '"Spacing"', '"L / R"', '"Zoom"'):
         assert caption in src, "the {} control lost its label".format(caption)
+
+
+def test_each_slab_is_sized_to_its_own_floor(tmp_path):
+    """A smaller storey draws as a smaller storey.
+
+    Every floor is rendered at the same px/m, so sizing each plate to its own
+    rooms is honest — an upper floor really is narrower than the ground it
+    sits on. The shared-envelope rule this replaced was a workaround for a
+    basement whose imported geometry was nearly twice its true area; that data
+    has since been corrected, so all the workaround did was leave every floor
+    as an island in a large empty plate.
+    """
+    model = {
+        "room_geometry_m": {
+            "Ground": {"type": "poly", "floor_id": "main",
+                       "points_m": [[0, 0], [20, 0], [20, 14], [0, 14]]},
+            "Attic":  {"type": "poly", "floor_id": "up",
+                       "points_m": [[2, 2], [8, 2], [8, 8], [2, 8]]},
+        },
+        "light_positions_m": {},
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0},
+              {"id": "up", "name": "Upper", "level": 1}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        "const out={};\n"
+        "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,{},false,FLOORS);\n"
+        # The slab plate is the dashed outline polygon, one per floor.
+        "out.plates=[...svg.matchAll(/<polygon points=\"([^\"]+)\"[^>]*stroke-dasharray/g)]\n"
+        "  .map(m=>{const xs=m[1].split(' ').map(p=>Number(p.split(',')[0]));\n"
+        "           return Math.max(...xs)-Math.min(...xs);});\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    plates = out["plates"]
+    assert len(plates) == 2, plates
+    small, large = min(plates), max(plates)
+    assert large > small * 1.4, (
+        "both plates are nearly the same width ({:.0f} vs {:.0f}) — each is "
+        "not sized to its own floor".format(small, large)
+    )
+
+
+def test_the_floor_badge_stays_on_the_canvas(tmp_path):
+    """A negative L/R offset walks the upper storeys off the left edge.
+
+    The horizontal gap shifts each storey by z x gap, so on the live install
+    (four floors, L/R = -60) the top floors' bottom-left corners projected to
+    x = -2 and x = 7 — with a radius of 15 that is one badge fully outside the
+    frame and another sliced in half. The badge marks the storey; it has to
+    stay on the canvas whatever the slab geometry does.
+    """
+    sq = [[0, 0], [16, 0], [16, 12], [0, 12]]
+    model = {
+        "room_geometry_m": {
+            k: {"type": "poly", "floor_id": "f%d" % i, "points_m": sq}
+            for i, k in enumerate("ABCD")
+        },
+        "light_positions_m": {},
+    }
+    floors = [{"id": "f%d" % i, "name": "F%d" % i, "level": i} for i in range(4)]
+    # The regex uses . where a double quote belongs, so the JS carries no
+    # quotes that would need escaping through two layers of string literal.
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';" + chr(10) +
+        "const MODEL=" + json.dumps(model) + ";" + chr(10) +
+        "const FLOORS=" + json.dumps(floors) + ";" + chr(10) +
+        "const out={};" + chr(10) +
+        # 230 / -60 are the view settings the install actually runs.
+        "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,230,-60,{},false,FLOORS);" + chr(10) +
+        "out.badges=[...svg.matchAll(/<circle cx=.([-0-9.]+).[^>]*r=.15./g)]" + chr(10) +
+        "  .map(m=>Number(m[1]));" + chr(10) +
+        "console.log(JSON.stringify(out));" + chr(10)
+    ))
+    assert len(out["badges"]) == 4, out["badges"]
+    for x in out["badges"]:
+        assert 15 <= x <= 745, (
+            "a floor badge is drawn off the canvas at x={} — badges are r=15, "
+            "so anything under 15 is clipped: {}".format(x, out["badges"])
+        )
