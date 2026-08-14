@@ -6261,7 +6261,13 @@ function _wireLightsBuild(ctx, isoDiv, o) {
   // same function, same fabric, same live slider values — so a dropped light
   // lands where it was dropped by construction. This used to be a re-derived
   // copy of the projection, which could disagree with the drawing.
-  const frame = fabricFrame(ctx.state.model, ctx.state.model?.floors || [],
+  // The model the SVG was DRAWN with, which includes unsaved drafts. Building
+  // this from ctx.state.model instead meant that as soon as one light had an
+  // unsaved position the two frames could differ in extent, and therefore in
+  // scale — the next drag then inverted through a slightly different
+  // projection and the light landed short of the pointer.
+  const frameModel = o.model || ctx.state.model;
+  const frame = fabricFrame(frameModel, frameModel?.floors || ctx.state.model?.floors || [],
                             o.view.floorGap, o.view.horizGap);
 
   _wireLightsPicker(ctx, isoDiv, svg, o, toVB);
@@ -6300,12 +6306,24 @@ function _wireLightsBuild(ctx, isoDiv, o) {
       // Grab offset: dragging must move the hex by the pointer's DELTA, not
       // teleport its centre to the pointer — otherwise grabbing a hex near its
       // edge snaps the light sideways by that offset on drop.
-      let originCx = start.x, originCy = start.y;
-      try {
-        const bb = g.getBBox();
-        originCx = bb.x + bb.width / 2;
-        originCy = bb.y + bb.height / 2;
-      } catch (_) {}
+      // Anchor on the fixture's own centre, which is exactly where its code
+      // label is drawn and is never scaled or rotated. The group's bounding
+      // box is NOT that centre: it includes the label's box below the marker,
+      // so it sat about 6 px low and every drag landed high by that much —
+      // consistently, which on a short move reads as the light snapping back.
+      let originCx, originCy;
+      const anchorLbl = g.querySelector("text");
+      if (anchorLbl) {
+        originCx = Number(anchorLbl.getAttribute("x"));
+        originCy = Number(anchorLbl.getAttribute("y"));
+      }
+      if (!Number.isFinite(originCx) || !Number.isFinite(originCy)) {
+        try {
+          const bb = g.getBBox();
+          originCx = bb.x + bb.width / 2;
+          originCy = bb.y + bb.height / 2;
+        } catch (_) { originCx = start.x; originCy = start.y; }
+      }
       let moved = false;
       try { g.setPointerCapture(ev.pointerId); } catch (_) {}
       const mm = (e) => {
@@ -6751,7 +6769,8 @@ function _lightsTab(ctx, maps, active) {
     callWS: (msg) => ctx.hass.callWS(msg),
     toast: (m, isErr) => ctx.toast(m, isErr),
     // Build-tool interaction: hexes select and drag instead of toggling.
-    onHexesBuilt: (isoDiv) => _wireLightsBuild(ctx, isoDiv, { mapState, view, lightsByEid }),
+    onHexesBuilt: (isoDiv) => _wireLightsBuild(ctx, isoDiv,
+      { mapState, view, lightsByEid, model: modelForRender }),
     transform: !!mapState._lightsTransform,
     // A table row selects the light on the map (toggle lives in the inspector).
     // A light has no owning map to look up any more — it has a position in

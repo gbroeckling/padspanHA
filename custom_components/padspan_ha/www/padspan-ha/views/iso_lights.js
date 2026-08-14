@@ -272,8 +272,12 @@ export function fabricFrame(model, floors, floorGap, horizGap){
 
   let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
   const grow=(x,y)=>{ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; };
+  // The frame's centre, like its scale, is a property of the BUILDING. Letting
+  // fixtures grow it meant dragging one light shifted the whole projection
+  // under the pointer, so the light landed at the right metres while the map
+  // moved beneath it — it looked like the drag fell short or sprang back.
   for(const r of scaleRooms) for(const p of r.pts) grow(p[0], p[1]);
-  for(const l of scaleLights) grow(l.x, l.y);
+  if(!scaleRooms.length) for(const l of scaleLights) grow(l.x, l.y);
   const empty = !rooms.length && !lights.length;
   if(!isFinite(minX)){ minX=0; minY=0; maxX=10; maxY=8; }
 
@@ -294,8 +298,13 @@ export function fabricFrame(model, floors, floorGap, horizGap){
       if(x<a[0])a[0]=x; if(y<a[1])a[1]=y; if(x>a[2])a[2]=x; if(y>a[3])a[3]=y; };
     // indoor sets: outdoor rooms are dropped from the map a few lines below,
     // and letting them size it here is what made the house tiny in the corner.
+    // ROOMS set the scale, not the fixtures in them. A light dragged past its
+    // room's edge used to expand the floor's span, so the whole map rescaled
+    // mid-edit: the fixture landed at the right metres but the drawing shrank
+    // under it, and it appeared to move less than the pointer or spring back.
+    // The building's extent is a property of the building.
     for(const r of indoorRooms)  for(const p of r.pts) grow2(r.z,p[0],p[1]);
-    for(const l of indoorLights) grow2(l.z,l.x,l.y);
+    if(!indoorRooms.length) for(const l of indoorLights) grow2(l.z,l.x,l.y);
     for(const a of Object.values(per)){
       if(!isFinite(a[0])) continue;
       spanX=Math.max(spanX,(a[2]-a[0])+padM*2);
@@ -343,7 +352,11 @@ export function fabricFrame(model, floors, floorGap, horizGap){
       const a = per[r.z] || (per[r.z] = [Infinity,Infinity,-Infinity,-Infinity]);
       if(p[0]<a[0])a[0]=p[0]; if(p[1]<a[1])a[1]=p[1]; if(p[0]>a[2])a[2]=p[0]; if(p[1]>a[3])a[3]=p[1];
     }
+    // Fixtures do not move the floor they sit on. A floor with no rooms at all
+    // has nothing else to centre on, so there they still count.
+    const floorsWithRooms = new Set(rooms.map(r => r.z));
     for (const l of lights) {
+      if (floorsWithRooms.has(l.z)) continue;
       const a = per[l.z] || (per[l.z] = [Infinity,Infinity,-Infinity,-Infinity]);
       if(l.x<a[0])a[0]=l.x; if(l.y<a[1])a[1]=l.y; if(l.x>a[2])a[2]=l.x; if(l.y>a[3])a[3]=l.y;
     }

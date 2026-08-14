@@ -579,3 +579,67 @@ def test_the_dotted_line_is_offered_in_the_chooser():
     block = src[src.index("export const LIGHT_SHAPES"):]
     block = block[:block.index("];")]
     assert '"line"' in block, "the dotted line is not selectable"
+
+
+def test_moving_a_light_does_not_move_the_frame_under_it(tmp_path):
+    """The projection is a property of the BUILDING, not of its fixtures.
+
+    Scale, centre and per-floor offset were all grown by light positions, so
+    dragging one light past its room's edge rescaled and re-centred the whole
+    map mid-edit. The fixture landed at the right metres but the drawing moved
+    beneath it, so the drag looked short — or like the light sprang back.
+    """
+    rooms = {
+        "Kitchen": {"type": "poly", "floor_id": "main",
+                    "points_m": [[0, 0], [10, 0], [10, 8], [0, 8]]},
+    }
+    def frame_for(light_xy):
+        model = {"room_geometry_m": rooms,
+                 "light_positions_m": {"light.a": {"x_m": light_xy[0],
+                                                   "y_m": light_xy[1],
+                                                   "floor_id": "main"}}}
+        return _run_js(tmp_path, (
+            "import * as M from './iso_lights.mjs';\n"
+            f"const MODEL={json.dumps(model)};\n"
+            f"const FLOORS={json.dumps([{'id':'main','name':'Main','level':0}])};\n"
+            "const out={};\n"
+            "const f=M.fabricFrame(MODEL,FLOORS,150,0);\n"
+            "out.scale=f.scale;\n"
+            "out.corner=f.iso(0,0,0);\n"     # a fixed point of the BUILDING
+            "console.log(JSON.stringify(out));\n"
+        ))
+
+    inside = frame_for((5.0, 4.0))
+    outside = frame_for((40.0, 30.0))   # dragged well past the room
+
+    assert abs(inside["scale"] - outside["scale"]) < 1e-9, (
+        "moving a light rescaled the map: {} -> {}".format(
+            inside["scale"], outside["scale"])
+    )
+    assert abs(inside["corner"][0] - outside["corner"][0]) < 1e-9, (
+        "moving a light shifted the map horizontally"
+    )
+    assert abs(inside["corner"][1] - outside["corner"][1]) < 1e-9, (
+        "moving a light shifted the map vertically"
+    )
+
+
+def test_a_fabric_with_no_rooms_still_frames_its_lights(tmp_path):
+    """Negative control: lights must still set the frame when nothing else can."""
+    model = {"room_geometry_m": {},
+             "light_positions_m": {
+                 "light.a": {"x_m": 0.0, "y_m": 0.0, "floor_id": "main"},
+                 "light.b": {"x_m": 9.0, "y_m": 6.0, "floor_id": "main"}}}
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const FLOORS={json.dumps([{'id':'main','name':'Main','level':0}])};\n"
+        "const out={};\n"
+        "const f=M.fabricFrame(MODEL,FLOORS,150,0);\n"
+        "out.scale=f.scale; out.empty=f.empty;\n"
+        "out.spread=Math.abs(f.iso(9,6,0)[0]-f.iso(0,0,0)[0]);\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    assert out["empty"] is False
+    assert out["scale"] > 0, "a roomless fabric must still derive a scale"
+    assert out["spread"] > 20, "two lights 11 m apart must not collapse together"
