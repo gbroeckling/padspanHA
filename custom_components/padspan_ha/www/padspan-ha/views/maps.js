@@ -6231,6 +6231,8 @@ function _wireLightsBuild(ctx, isoDiv, o) {
   const frame = fabricFrame(ctx.state.model, ctx.state.model?.floors || [],
                             o.view.floorGap, o.view.horizGap);
 
+  _wireLightsPicker(ctx, isoDiv, svg, o, toVB);
+
   // Selection highlight
   const selEid = o.mapState._selLight ? o.mapState._selLight.eid : null;
   if (selEid) {
@@ -6310,7 +6312,13 @@ function _wireLightsBuild(ctx, isoDiv, o) {
         const y_m = Math.round(y_mRaw * 1000) / 1000;
         const floorId = _floorIdForZ(ctx, z);
         const draft = o.mapState._lightsDraftM || (o.mapState._lightsDraftM = {});
-        const prev = ((ctx.state.model || {}).light_positions_m || {})[eid] || {};
+        // The DRAFT first, then what is committed. Reading only the committed
+        // model meant moving a light threw away any sizing or rotation done
+        // since the last save — you would shape a valance, nudge it half a
+        // metre, and watch it snap back to a default marker.
+        const prev = (draft[eid])
+          || ((ctx.state.model || {}).light_positions_m || {})[eid]
+          || {};
         draft[eid] = {
           x_m, y_m, floor_id: floorId,
           color: prev.color || "#fbbf24",
@@ -6342,6 +6350,64 @@ function _wireLightsBuild(ctx, isoDiv, o) {
 // width/height/rotation in, so what is dragged is exactly what is stored:
 // dragging a handle to N pixels from the centre sets that half-axis to N/scale
 // metres. Written into the same draft the drag uses, so one Save commits both.
+// ── Right-click: reach what is underneath ──────────────────────────────────
+// A fixture drawn at its real size covers its neighbours — a 4 m valance sits
+// on top of the downlights beside it, and left-click always hits the topmost
+// thing, so the small ones became unreachable exactly once the map started
+// telling the truth about size. Right-click lists everything under the
+// pointer, SMALLEST FIRST, because the small one is the one you could not get
+// to any other way.
+function _wireLightsPicker(ctx, isoDiv, svg, o, toVB) {
+  const close = () => {
+    const old = isoDiv.querySelector(".lpick");
+    if (old) old.remove();
+  };
+  isoDiv.addEventListener("pointerdown", (ev) => { if (ev.button !== 2) close(); }, true);
+
+  svg.addEventListener("contextmenu", (ev) => {
+    ev.preventDefault();
+    close();
+    const v = toVB(ev);
+    const hits = [];
+    for (const g of svg.querySelectorAll("g.lhex[data-eid]")) {
+      let bb;
+      try { bb = g.getBBox(); } catch (_) { continue; }
+      // A little slack so a 1-2 px marker is still catchable.
+      const pad = 3;
+      if (v.x < bb.x - pad || v.x > bb.x + bb.width + pad) continue;
+      if (v.y < bb.y - pad || v.y > bb.y + bb.height + pad) continue;
+      hits.push({ eid: g.getAttribute("data-eid"), area: bb.width * bb.height });
+    }
+    if (!hits.length) return;
+    hits.sort((a, b) => a.area - b.area);
+
+    const menu = el("div", { class: "lpick", style:
+      "position:fixed;z-index:9999;background:#0a150e;border:1px solid #2d6a4f;"
+      + "border-radius:8px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,0.6);"
+      + "max-height:260px;overflow:auto;min-width:180px" });
+    menu.appendChild(el("div", { style:
+      "font-size:10px;color:#94a3b8;padding:3px 8px 5px" },
+      hits.length + " here — smallest first"));
+    for (const h of hits) {
+      const l = o.lightsByEid[h.eid];
+      const name = l ? (l.friendly_name || h.eid) : h.eid;
+      const code = l && l.code ? l.code + "  " : "";
+      const row = el("button", { class: "btn tiny", style:
+        "display:block;width:100%;text-align:left;margin:1px 0;font-size:11px",
+        onclick: () => {
+          close();
+          o.mapState._selLight = { eid: h.eid, mapId: null };
+          ctx.actions.renderRooms();
+        },
+      }, code + String(name).slice(0, 34));
+      menu.appendChild(row);
+    }
+    menu.style.left = Math.min(ev.clientX, window.innerWidth - 220) + "px";
+    menu.style.top = Math.min(ev.clientY, window.innerHeight - 280) + "px";
+    isoDiv.appendChild(menu);
+  });
+}
+
 function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
   const NS = "http://www.w3.org/2000/svg";
   // The code label is drawn at the fixture's exact centre and is never scaled

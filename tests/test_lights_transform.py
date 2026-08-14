@@ -268,3 +268,66 @@ def test_rotation_is_bounded_to_the_stored_range():
     assert "-180" in block and "180" in block, (
         "rotation from the handle is not clamped to the stored range"
     )
+
+
+# ---------------------------------------------------------------------------
+# 4. Editing one property must not destroy another
+# ---------------------------------------------------------------------------
+
+def test_moving_a_light_keeps_unsaved_sizing():
+    """Move and resize write to the same draft entry.
+
+    The move handler rebuilt that entry from the COMMITTED model, so any
+    sizing or rotation done since the last save was thrown away: shape a
+    valance, nudge it half a metre, and it snapped back to a default marker.
+    """
+    src = (_VIEWS / "maps.js").read_text(encoding="utf-8")
+    # The move handler is the one that writes x_m/y_m from a pointer drag.
+    blk = src[src.index("const [x_mRaw, y_mRaw] = frame.isoInv("):]
+    blk = blk[:blk.index("draft[eid] = {")]
+    prev_expr = blk[blk.index("const prev"):]
+    prev_expr = prev_expr[:prev_expr.index(";")]
+    assert "draft[eid]" in prev_expr, (
+        "the move handler seeds its draft entry from the committed model "
+        "only, so an unsaved resize is overwritten:\n" + prev_expr
+    )
+
+
+# ---------------------------------------------------------------------------
+# 5. Reaching a fixture that something bigger is sitting on
+# ---------------------------------------------------------------------------
+
+def _picker_block() -> str:
+    src = (_VIEWS / "maps.js").read_text(encoding="utf-8")
+    blk = src[src.index("function _wireLightsPicker"):]
+    return blk[:blk.index("\nfunction ")]
+
+
+def test_right_click_offers_everything_under_the_pointer():
+    """Left-click always hits the topmost marker.
+
+    Once fixtures render at their real size a big one covers its neighbours,
+    so the small ones became unreachable exactly when the map started telling
+    the truth about size.
+    """
+    blk = _picker_block()
+    assert "contextmenu" in blk, "there is no right-click picker"
+    assert "querySelectorAll(\"g.lhex[data-eid]\")" in blk, (
+        "the picker does not consider every marker"
+    )
+
+
+def test_the_picker_lists_the_smallest_first():
+    """The small fixture is the one that could not be reached any other way."""
+    blk = _picker_block()
+    assert "a.area - b.area" in blk, (
+        "picker results are not sorted smallest-first, so the occluded "
+        "fixture is not the easiest to reach"
+    )
+
+
+def test_the_picker_is_wired_into_the_lights_map():
+    src = (_VIEWS / "maps.js").read_text(encoding="utf-8")
+    build = src[src.index("function _wireLightsBuild"):]
+    build = build[:build.index("\nfunction ")]
+    assert "_wireLightsPicker(" in build, "the picker is never attached"
