@@ -392,3 +392,45 @@ def test_unplaced_lights_sit_at_the_room_centre_not_at_its_name(tmp_path):
         f"unplaced light drawn at ({mx:.1f}, {my:.1f}) but the room centre is "
         f"({cx:.1f}, {cy:.1f}) — it has drifted to the room's name"
     )
+
+
+def test_fixture_size_has_no_dead_zone(tmp_path):
+    """Setting a width must always change something.
+
+    The size factor is roughly 0.016 per cm at a house's scale, so a hard
+    max(0.5, ...) floor meant nothing under ~31 cm could clear it: a 10 cm pot
+    light, the 15 cm default and a 30 cm fixture all rendered at exactly the
+    same size, and the Width box appeared to do nothing.
+    """
+    def scale_for(w_cm):
+        model = {
+            "room_geometry_m": {
+                "Kitchen": {"type": "poly", "floor_id": "main",
+                            "points_m": [[0, 0], [14, 0], [14, 12], [0, 12]]},
+            },
+            "light_positions_m": {
+                "light.a": {"x_m": 7.0, "y_m": 6.0, "floor_id": "main",
+                            "width_cm": w_cm, "height_cm": w_cm},
+            },
+        }
+        out = _run_js(tmp_path, (
+            "import * as M from './iso_lights.mjs';\n"
+            f"const MODEL={json.dumps(model)};\n"
+            f"const FLOORS={json.dumps([{'id': 'main', 'name': 'Main', 'level': 0}])};\n"
+            f"const LBE={json.dumps({'light.a': {'entity_id': 'light.a', 'state': 'on', 'code': 'A01', 'shape': 'bar', 'isWled': False}})};\n"
+            "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS);\n"
+            r'const m=svg.match(/scale\(([0-9.]+),([0-9.]+)\)/);' + chr(10) +
+            "console.log(JSON.stringify({sx:m?Number(m[1]):null}));\n"
+        ))
+        return out["sx"]
+
+    sizes = [10, 15, 30, 60, 150]
+    scales = [scale_for(w) for w in sizes]
+    assert all(s is not None for s in scales), f"no scale drawn: {scales}"
+    for i in range(1, len(scales)):
+        assert scales[i] > scales[i - 1], (
+            f"{sizes[i]}cm renders at {scales[i]} — no larger than "
+            f"{sizes[i-1]}cm at {scales[i-1]}; the size control has a dead zone"
+        )
+    # The legibility minimum still holds for the smallest fixture.
+    assert scales[0] >= 0.5

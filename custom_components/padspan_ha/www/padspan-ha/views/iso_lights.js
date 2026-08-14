@@ -482,8 +482,16 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // 0.5× keeps a 15 cm downlight clickable while a 2.4 m valance and a
         // 5 m run are visibly different; 8× stops one long strip swamping its
         // floor.
-        sx=Math.max(0.5, Math.min(8, ((wCm||hCm)/100)*frame.scale/baseW));
-        sy=Math.max(0.5, Math.min(8, ((hCm||wCm)/100)*frame.scale/baseH));
+        // A SOFT floor, not a clamp. max(0.5, …) created a dead zone: at a
+        // house's scale the factor is about 0.016 per cm, so nothing under
+        // ~31 cm could clear 0.5 and every pot light, every default 15 cm
+        // fixture and everything between rendered at exactly the same size —
+        // which is why setting a width appeared to do nothing. hypot keeps the
+        // same minimum for legibility but stays strictly increasing, so a
+        // 10 cm downlight and a 30 cm fixture are still visibly different.
+        const soft=(cm,base)=>Math.min(8, Math.hypot((cm/100)*frame.scale/base, 0.5));
+        sx=soft(wCm||hCm, baseW);
+        sy=soft(hCm||wCm, baseH);
       }
       if(rot||sx!==1||sy!==1){
         t.push(`translate(${hx.toFixed(1)},${hy.toFixed(1)})`);

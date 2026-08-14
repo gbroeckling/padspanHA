@@ -6240,6 +6240,7 @@ function _wireLightsBuild(ctx, isoDiv, o) {
     // would otherwise show no highlight at all.
     const mark = g && g.querySelector("polygon,circle,rect");
     if (mark) { mark.setAttribute("stroke", "#e879f9"); mark.setAttribute("stroke-width", "3.5"); }
+    if (g && o.mapState._lightsTransform) _wireTransformHandles(ctx, svg, g, selEid, frame, o, toVB);
   }
 
   for (const g of isoDiv.querySelectorAll("g.lhex[data-eid]")) {
@@ -6333,6 +6334,120 @@ function _wireLightsBuild(ctx, isoDiv, o) {
   }
 }
 
+// ── Free transform: resize and rotate a light on the map itself ────────────
+// Typing centimetres into a box is a poor way to describe a light you can see.
+// The handles work in SCREEN space, which is also the space markerSvg applies
+// width/height/rotation in, so what is dragged is exactly what is stored:
+// dragging a handle to N pixels from the centre sets that half-axis to N/scale
+// metres. Written into the same draft the drag uses, so one Save commits both.
+function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
+  const NS = "http://www.w3.org/2000/svg";
+  let bb;
+  try { bb = g.getBBox(); } catch (_) { return; }
+  const cx = bb.x + bb.width / 2, cy = bb.y + bb.height / 2;
+
+  const cur = () => (o.mapState._lightsDraftM || {})[eid]
+    || ((ctx.state.model || {}).light_positions_m || {})[eid] || {};
+  const entry = cur();
+  // What the fixture measures now, in drawn pixels — a metre is frame.scale px.
+  const halfW = Math.max(14, ((Number(entry.width_cm) || 0) / 100) * frame.scale / 2);
+  const halfH = Math.max(14, ((Number(entry.height_cm) || 0) / 100) * frame.scale / 2);
+  const ROT_UP = halfH + 34;
+
+  const layer = document.createElementNS(NS, "g");
+  layer.setAttribute("class", "lxform");
+  layer.setAttribute("pointer-events", "all");
+  svg.appendChild(layer);
+
+  const line = document.createElementNS(NS, "line");
+  line.setAttribute("x1", cx); line.setAttribute("y1", cy);
+  line.setAttribute("x2", cx); line.setAttribute("y2", cy - ROT_UP);
+  line.setAttribute("stroke", "#e879f9"); line.setAttribute("stroke-width", "1.5");
+  line.setAttribute("stroke-dasharray", "4,3"); line.setAttribute("opacity", "0.8");
+  layer.appendChild(line);
+
+  const box = document.createElementNS(NS, "rect");
+  box.setAttribute("x", cx - halfW); box.setAttribute("y", cy - halfH);
+  box.setAttribute("width", halfW * 2); box.setAttribute("height", halfH * 2);
+  box.setAttribute("fill", "none"); box.setAttribute("stroke", "#e879f9");
+  box.setAttribute("stroke-width", "1.2"); box.setAttribute("stroke-dasharray", "5,4");
+  box.setAttribute("opacity", "0.7"); box.setAttribute("pointer-events", "none");
+  layer.appendChild(box);
+
+  // kind: "w" widens, "h" lengthens, "wh" does both, "rot" turns.
+  const mkHandle = (hx, hy, kind, cursor, title) => {
+    const h = kind === "rot"
+      ? document.createElementNS(NS, "circle")
+      : document.createElementNS(NS, "rect");
+    if (kind === "rot") {
+      h.setAttribute("cx", hx); h.setAttribute("cy", hy); h.setAttribute("r", 8);
+    } else {
+      h.setAttribute("x", hx - 7); h.setAttribute("y", hy - 7);
+      h.setAttribute("width", 14); h.setAttribute("height", 14); h.setAttribute("rx", 3);
+    }
+    h.setAttribute("fill", "#e879f9");
+    h.setAttribute("stroke", "#1a0b2e");
+    h.setAttribute("stroke-width", "2");
+    h.style.cursor = cursor;
+    h.style.touchAction = "none";
+    const t = document.createElementNS(NS, "title");
+    t.textContent = title;
+    h.appendChild(t);
+
+    h.addEventListener("pointerdown", (ev) => {
+      ev.preventDefault(); ev.stopPropagation();
+      try { h.setPointerCapture(ev.pointerId); } catch (_) {}
+      o.mapState._editDragging = true;
+      const inner = g.querySelector("g[transform]") || g;
+      const base = cur();
+      let next = {
+        rotation: Number(base.rotation) || 0,
+        width_cm: Number(base.width_cm) || 0,
+        height_cm: Number(base.height_cm) || 0,
+      };
+      const px2cm = (px) => Math.max(0, Math.round(px / frame.scale * 200));
+
+      const mm = (e) => {
+        const v = toVB(e);
+        if (kind === "rot") {
+          const deg = Math.atan2(v.y - cy, v.x - cx) * 180 / Math.PI + 90;
+          next.rotation = Math.max(-180, Math.min(180, Math.round(deg)));
+        } else {
+          if (kind.includes("w")) next.width_cm = Math.min(2000, px2cm(Math.abs(v.x - cx)));
+          if (kind.includes("h")) next.height_cm = Math.min(2000, px2cm(Math.abs(v.y - cy)));
+        }
+        // Live preview on the marker itself — the map is the feedback, so the
+        // shape follows the handle rather than waiting for the pointer up.
+        const sx = Math.min(8, Math.hypot((next.width_cm / 100) * frame.scale / 24.2, 0.5));
+        const sy = Math.min(8, Math.hypot((next.height_cm / 100) * frame.scale / 28, 0.5));
+        inner.setAttribute("transform",
+          `translate(${cx.toFixed(1)},${cy.toFixed(1)}) rotate(${next.rotation}) `
+          + `scale(${sx.toFixed(3)},${sy.toFixed(3)})`);
+      };
+      const up = () => {
+        h.removeEventListener("pointermove", mm);
+        h.removeEventListener("pointerup", up);
+        h.removeEventListener("pointercancel", up);
+        try { h.releasePointerCapture(ev.pointerId); } catch (_) {}
+        o.mapState._editDragging = false;
+        const draft = o.mapState._lightsDraftM || (o.mapState._lightsDraftM = {});
+        const prev = draft[eid] || { ...(((ctx.state.model || {}).light_positions_m || {})[eid] || {}) };
+        draft[eid] = { ...prev, ...next };
+        ctx.actions.renderRooms();
+      };
+      h.addEventListener("pointermove", mm);
+      h.addEventListener("pointerup", up);
+      h.addEventListener("pointercancel", up);
+    });
+    layer.appendChild(h);
+  };
+
+  mkHandle(cx, cy - ROT_UP, "rot", "grab", "Rotate");
+  mkHandle(cx + halfW, cy, "w", "ew-resize", "Width");
+  mkHandle(cx, cy + halfH, "h", "ns-resize", "Length");
+  mkHandle(cx + halfW, cy + halfH, "wh", "nwse-resize", "Width + length");
+}
+
 function _lightsTab(ctx, maps, active) {
   const { el } = ctx.helpers;
   const mapState = ctx.state.maps;
@@ -6417,6 +6532,26 @@ function _lightsTab(ctx, maps, active) {
   };
   const view = mapState._lightsView;
 
+  // ── Transform mode ──────────────────────────────────────────────────────
+  // Off by default: with handles live, a stray drag near a fixture resizes it
+  // instead of moving it, and moving is the common action.
+  const xfBtn = el("button", {
+    class: "btn inline" + (mapState._lightsTransform ? " primary" : ""),
+    style: mapState._lightsTransform
+      ? "background:#4c1d95;border-color:#a78bfa;color:#ede9fe" : "",
+    onclick: () => {
+      mapState._lightsTransform = !mapState._lightsTransform;
+      ctx.actions.renderRooms();
+    },
+  }, mapState._lightsTransform ? "⬒ Transform: ON" : "⬒ Transform");
+  wrap.appendChild(el("div", { class: "card", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px" }, [
+    xfBtn,
+    el("span", { class: "muted", style: "font-size:11px" },
+      mapState._lightsTransform
+        ? "Drag a light to move it. Drag its handles to resize; the round handle above rotates."
+        : "Drag any light to move it. Turn on Transform for resize and rotate handles."),
+  ]));
+
   // Unsaved-work bar
   const dirtyEids = Object.keys(mapState._lightsDraftM || {});
   if (dirtyEids.length) {
@@ -6492,6 +6627,7 @@ function _lightsTab(ctx, maps, active) {
     toast: (m, isErr) => ctx.toast(m, isErr),
     // Build-tool interaction: hexes select and drag instead of toggling.
     onHexesBuilt: (isoDiv) => _wireLightsBuild(ctx, isoDiv, { mapState, view, lightsByEid }),
+    transform: !!mapState._lightsTransform,
     // A table row selects the light on the map (toggle lives in the inspector).
     // A light has no owning map to look up any more — it has a position in
     // metres, or it has none and clusters in its room.
