@@ -204,14 +204,9 @@ export function render(ctx){
       (o.entity_id && _linkedEntitySet.has(o.entity_id))
     );
 
-  // Away detection — mirrors sensor.py / device_tracker.py threshold
-  const awayTimeoutS = ((ctx.state.settings && ctx.state.settings.away_timeout_m != null)
-    ? Number(ctx.state.settings.away_timeout_m) : 5) * 60;
-  const _isAway = (o) => {
-    if (o.kind !== "ble" && o.kind !== "private_ble" && o.kind !== "ibeacon") return false;
-    const a = o.age_s;
-    return typeof a === "number" && isFinite(a) && a > awayTimeoutS;
-  };
+  // Away detection — the shared rule (panel.js / presence_rules.py)
+  const awayTimeoutS = ctx.helpers.awayTimeoutS(ctx.state.settings);
+  const _isAway = (o) => ctx.helpers.isAway(o, awayTimeoutS);
 
   if (!ctx.state.objSearch) ctx.state.objSearch = "";
   if (!ctx.state.objKind)   ctx.state.objKind   = "all";

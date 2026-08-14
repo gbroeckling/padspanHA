@@ -71,6 +71,7 @@ from .bluetooth_live import get_bluetooth_live
 from .vendor_lookup import async_lookup_vendor
 from .private_ble_resolver import get_resolver as _get_ble_resolver
 from .ble_enrichment import enrich_object as _enrich_ble_object
+from .presence_rules import away_timeout_s, is_away
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -3636,12 +3637,18 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
     # presence coordinator's smoothed room assignments (spatial centroid).
     # Without this, the map uses pre-overlay raw RSSI rooms while the
     # object list uses post-overlay smoothed rooms → mismatch.
+    # A room lists who is IN it. An object keeps its last known room forever —
+    # that is deliberate, it is how "last seen in the Garage" survives a
+    # dropout — but occupancy is a present-tense question, so anything past the
+    # away timeout is not an occupant. Without this filter a car that left an
+    # hour ago stayed listed in the Garage beside devices seen 20 seconds ago.
     try:
+        _away_s = away_timeout_s(hass)
         _rtm_fresh: dict[str, list[str]] = {}
         for _obj in (snap.get("objects") or {}).get("list") or []:
             _r = _obj.get("room")
             _eid = _obj.get("entity_id") or _obj.get("key") or ""
-            if _r and _eid:
+            if _r and _eid and not is_away(_obj, _away_s):
                 _rtm_fresh.setdefault(_r, []).append(_eid)
         if _rtm_fresh:
             snap["room_tag_map_live"] = _rtm_fresh

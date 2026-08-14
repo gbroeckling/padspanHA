@@ -9,7 +9,9 @@ Creates device_tracker.{label} entities for every labelled BLE device.
 location_name = current room, so the tracker can be linked to a HA Person.
 
 When not seen for longer than the configured away timeout (Settings → Presence →
-Away timeout; default 5 minutes), location_name returns None → state becomes "not_home".
+Away timeout; default 5 minutes), location_name returns "not_home" explicitly.
+It must be named, not left as None: HA falls through None to latitude/longitude,
+which this tracker does not have, so the state came out "unknown" instead.
 
 Entity ID example:  device_tracker.padspan_car_keys
 Person link:        Settings → People → Alice → add device_tracker.padspan_alice_phone
@@ -26,20 +28,20 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, DATA_SETTINGS, DATA_DEVICE_REGISTRY
 from .presence_coordinator import PresenceCoordinator
+from .presence_rules import away_timeout_s, is_away
+
+# HA's own constant, with a literal fallback so an import change upstream
+# cannot silently turn the away state back into "unknown".
+try:
+    from homeassistant.const import STATE_NOT_HOME
+except ImportError:  # pragma: no cover
+    STATE_NOT_HOME = "not_home"
 
 _LOGGER = logging.getLogger(__name__)
 
-_DEFAULT_AWAY_TIMEOUT_S = 300  # 5 minutes
-
-
-def _away_timeout_s(hass: HomeAssistant) -> float:
-    """Return the configured away timeout in seconds (default 5 min)."""
-    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-    if st:
-        val = (st.data or {}).get("away_timeout_m")
-        if val is not None:
-            return max(1.0, min(1440.0, float(val))) * 60.0
-    return float(_DEFAULT_AWAY_TIMEOUT_S)
+# The away rule lives in presence_rules; this alias keeps existing call sites
+# reading naturally while there is exactly one implementation.
+_away_timeout_s = away_timeout_s
 
 try:
     from homeassistant.components.device_tracker import SourceType, TrackerEntity
@@ -223,11 +225,17 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
 
     @property
     def location_name(self) -> str | None:
-        """Return room name when seen recently, None (→ not_home) otherwise."""
+        """Room name when seen recently, "not_home" once the timeout passes.
+
+        Returning None here does NOT mean not_home: HA falls through to
+        latitude/longitude, and this tracker has neither, so the state came out
+        "unknown" — a car gone for an hour read as a device HA knew nothing
+        about, and no automation could act on it. The away state has to be
+        named explicitly.
+        """
         obj = self._obj
-        age = obj.get("age_s")
-        if isinstance(age, (int, float)) and age > _away_timeout_s(self.coordinator.hass):
-            return None
+        if is_away(obj, away_timeout_s(self.coordinator.hass)):
+            return STATE_NOT_HOME
         return obj.get("room") or None
 
     @property

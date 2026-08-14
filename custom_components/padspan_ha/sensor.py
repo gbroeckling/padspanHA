@@ -43,20 +43,13 @@ from .const import (
     DEFAULT_PATH_LOSS_EXP,
 )
 from .presence_coordinator import PresenceCoordinator
+from .presence_rules import away_timeout_s
 
 _LOGGER = logging.getLogger(__name__)
 
-_DEFAULT_AWAY_TIMEOUT_S = 300  # 5 minutes
-
-
-def _away_timeout_s(hass: HomeAssistant) -> float:
-    """Return the configured away timeout in seconds (default 5 min)."""
-    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-    if st:
-        val = (st.data or {}).get("away_timeout_m")
-        if val is not None:
-            return max(1.0, min(1440.0, float(val))) * 60.0
-    return float(_DEFAULT_AWAY_TIMEOUT_S)
+# The away rule lives in presence_rules; this alias keeps existing call sites
+# reading naturally while there is exactly one implementation.
+_away_timeout_s = away_timeout_s
 
 
 def _distance_params(hass: HomeAssistant) -> tuple[float, float]:

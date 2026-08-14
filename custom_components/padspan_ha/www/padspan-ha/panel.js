@@ -222,6 +222,29 @@ function mapImageUrl(map){
 }
 
 /**
+ * Away timeout in SECONDS, from settings (default 5 min), and the presence
+ * test that goes with it. Mirrors presence_rules.py exactly.
+ *
+ * This one rule had been hand-rolled in nine places across the backend and
+ * frontend. Copies drift: the server-side room-occupancy rebuild never
+ * implemented it at all, so a car gone for an hour stayed listed in the Garage
+ * beside devices seen 20 seconds ago. Every consumer must come through here;
+ * tests/test_presence_away_rule.py fails the build if a tenth copy appears.
+ */
+const AWAY_RADIO_KINDS = ["ble", "private_ble", "ibeacon"];
+function awayTimeoutS(settings){
+  const v = settings && settings.away_timeout_m != null ? Number(settings.away_timeout_m) : 5;
+  if(!isFinite(v)) return 300;
+  return Math.max(1, Math.min(1440, v)) * 60;
+}
+/** Only radio-backed objects go away; an object with no usable age never has. */
+function isAway(obj, timeoutS){
+  if(!obj || AWAY_RADIO_KINDS.indexOf(obj.kind) === -1) return false;
+  const a = obj.age_s;
+  return typeof a === "number" && isFinite(a) && a > timeoutS;
+}
+
+/**
  * Deterministic short ID for a BLE radio: letter-number-letter (e.g. "A3B").
  * Derived from a djb2 hash of the source string so it's stable across sessions
  * and compact enough to display as a visual badge in scanner lists.
@@ -1503,6 +1526,8 @@ class PadSpanHaApp extends HTMLElement {
         HELP,
         mapImageUrl,
         radioShortId,
+        awayTimeoutS,
+        isAway,
         /** Map source → friendly name from live radios. Returns "" if no name or same as source. */
         radioName: (source)=>{
           const s = String(source || "");
@@ -1921,11 +1946,11 @@ class PadSpanHaApp extends HTMLElement {
       // Last seen age
       if (obj.age_s != null) {
         const ageStr = fmtAgo(obj.age_s);
-        const isAway = typeof obj.age_s === "number" && obj.age_s > ((this.state.settings?.away_timeout_m ?? 5) * 60);
+        const objIsAway = isAway(obj, awayTimeoutS(this.state.settings));
         statusItems.push(el("div", {style:"display:flex;align-items:center;gap:8px"}, [
           el("span", {style:"font-weight:600"}, "Last seen:"),
           el("span", {}, ageStr + " ago"),
-          isAway ? el("span", {class:"badge", style:"background:#3a0a0a;color:#f87171;border-color:#7f1d1d;font-size:10px"}, "Away") : null,
+          objIsAway ? el("span", {class:"badge", style:"background:#3a0a0a;color:#f87171;border-color:#7f1d1d;font-size:10px"}, "Away") : null,
         ].filter(Boolean)));
       }
       // Last seen timestamp

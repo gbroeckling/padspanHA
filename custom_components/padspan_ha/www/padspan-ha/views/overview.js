@@ -313,14 +313,9 @@ export function render(ctx){
         (o.entity_id && _ovLinkedSet.has(o.entity_id))
       );
 
-    // Away detection
-    const awayTimeoutS = ((ctx.state.settings && ctx.state.settings.away_timeout_m != null)
-      ? Number(ctx.state.settings.away_timeout_m) : 5) * 60;
-    const _isAway = (o) => {
-      if (o.kind !== "ble" && o.kind !== "private_ble" && o.kind !== "ibeacon") return false;
-      const a = o.age_s;
-      return typeof a === "number" && isFinite(a) && a > awayTimeoutS;
-    };
+    // Away detection — the shared rule (panel.js / presence_rules.py)
+    const awayTimeoutS = ctx.helpers.awayTimeoutS(ctx.state.settings);
+    const _isAway = (o) => ctx.helpers.isAway(o, awayTimeoutS);
 
     // Time range slider
     const _ageSteps = [300, 900, 3600, 21600, 86400, 259200, 604800];
@@ -1348,13 +1343,38 @@ export function render(ctx){
     // the fixed W×BASE_H canvas (world x beyond the master's unit square),
     // which used to clip the north-east of the layout.  Reset per build.
     let _isoBB = null;
+    // The frame is sized by the BUILDING, never by what is standing outside it.
+    // A truck parked in the driveway is legitimately 30 m from the house, and
+    // letting its marker grow the bounding box zoomed the whole map out to
+    // contain it — the house shrank into the middle and the map stopped being
+    // readable. Frozen once the structure is drawn; object markers are then
+    // tethered to the edge instead (see _tetherOutside).
+    let _isoBBFrozen = false;
     const iso = (wx,wy,wz)=>{
       const p=[CX+(wx-wy)*TILE*0.866+wz*_ovHG, CY+(wx+wy)*TILE*0.5-wz*_ovFG];
-      if(_isoBB){
+      if(_isoBB && !_isoBBFrozen){
         if(p[0]<_isoBB.minX)_isoBB.minX=p[0]; if(p[0]>_isoBB.maxX)_isoBB.maxX=p[0];
         if(p[1]<_isoBB.minY)_isoBB.minY=p[1]; if(p[1]>_isoBB.maxY)_isoBB.maxY=p[1];
       }
       return p;
+    };
+    // The building's own screen extent, captured when the frame is frozen.
+    let _bldgBB = null;
+    const OUTSIDE_RING_PX = 34;   // how far past the building an outsider sits
+    /**
+     * Keep a marker that lies beyond the building visible at the edge.
+     *
+     * Returns the drawing position and whether the object is genuinely
+     * outside. The real position is preserved in the tooltip — this only
+     * decides where the dot is painted, so one distant object cannot dictate
+     * the zoom level for everything else.
+     */
+    const _tetherOutside = (px, py) => {
+      if(!_bldgBB || !isFinite(_bldgBB.minX)) return {x:px, y:py, outside:false};
+      const x0=_bldgBB.minX-OUTSIDE_RING_PX, x1=_bldgBB.maxX+OUTSIDE_RING_PX;
+      const y0=_bldgBB.minY-OUTSIDE_RING_PX, y1=_bldgBB.maxY+OUTSIDE_RING_PX;
+      const cx=Math.max(x0, Math.min(x1, px)), cy=Math.max(y0, Math.min(y1, py));
+      return {x:cx, y:cy, outside:(cx!==px || cy!==py)};
     };
     const pt  = c=>`${Math.round(c[0])},${Math.round(c[1])}`;
     const pts = cs=>cs.map(pt).join(" ");
@@ -1938,8 +1958,14 @@ export function render(ctx){
       const followedObjects = allObjects.filter(o =>
         ctx.actions.followedHas(o.address || "") || ctx.actions.followedHas(o.entity_id || "") || ctx.actions.followedHas(o.key || "")
       );
+      // Everything from here on is an OBJECT, not structure. The building is
+      // fully drawn, so its extent is the frame — freeze it before any marker
+      // can stretch it.
+      if(_isoBB && isFinite(_isoBB.minX)) _bldgBB = {..._isoBB};
+      _isoBBFrozen = true;
+
       const BEACON_CLR = "#fbbf24";
-      const _awayTimeoutS2 = ((ctx.state.settings && ctx.state.settings.away_timeout_m != null) ? Number(ctx.state.settings.away_timeout_m) : 5) * 60;
+      const _awayTimeoutS2 = ctx.helpers.awayTimeoutS(ctx.state.settings);
       for(const o of followedObjects){
         // Skip objects positioned on a hidden floor/map
 
@@ -1979,6 +2005,17 @@ export function render(ctx){
         }
         // No position = not on the map
         if(bx == null) continue;
+
+        // Outside the building: tether to the edge with a blue ring so one
+        // distant object cannot set the zoom for the whole map.
+        {
+          const _t = _tetherOutside(bx, by);
+          if(_t.outside){
+            bx = _t.x; by = _t.y;
+            s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="17" fill="none" `
+               + `stroke="#38bdf8" stroke-width="2" opacity="0.85"><title>Outside the building — shown at the edge, actual distance is further out</title></circle>`;
+          }
+        }
 
         // Confidence circle (only when we have a real positioned match)
         if(posConf > 0){
@@ -2026,7 +2063,7 @@ export function render(ctx){
       // When persistent OFF: only unlabeled objects shown as dim amber dots.
       {
         const _isFollowed = (o) => ctx.actions.followedHas(o.address || "") || ctx.actions.followedHas(o.entity_id || "") || ctx.actions.followedHas(o.key || "");
-        const _mapAwayM = ((ctx.state.settings && ctx.state.settings.away_timeout_m != null) ? Number(ctx.state.settings.away_timeout_m) : 5) * 60;
+        const _mapAwayM = ctx.helpers.awayTimeoutS(ctx.state.settings);
         // Show objects that are currently present (have a position and are not stale)
         const _quietMode = !!(ctx.state.settings && ctx.state.settings.quiet_mode);
         const _mapObjs = allObjects.filter(o => {
@@ -2048,9 +2085,7 @@ export function render(ctx){
           const oKey = obj.key || obj.address || obj.entity_id || "";
           _renderedObjKeys.add(oKey);
           const _ok = _esc(oKey);
-          const _awayThresh = ((ctx.state.settings && ctx.state.settings.away_timeout_m != null)
-            ? Number(ctx.state.settings.away_timeout_m) : 5) * 60;
-          const isAway = typeof obj.age_s === "number" && obj.age_s > _awayThresh;
+          const isAway = ctx.helpers.isAway(obj, ctx.helpers.awayTimeoutS(ctx.state.settings));
           const objLabel = obj.user_label || obj.private_ble_name || obj.name || "";
 
           // Position: server k-NN first, then high-confidence fingerprint, then room centroid + stagger
@@ -2084,6 +2119,17 @@ export function render(ctx){
           }
           // Skip if no position could be determined
           if(px == null || py == null) continue;
+
+          // Outside the building: draw it at the edge with a blue ring rather
+          // than at its true distance, so a truck in the driveway cannot set
+          // the zoom for the whole map.
+          const _teth = _tetherOutside(px, py);
+          const _isOutside = _teth.outside;
+          px = _teth.x; py = _teth.y;
+          if(_isOutside){
+            s += `<circle cx="${px}" cy="${py}" r="17" fill="none" stroke="#38bdf8" `
+               + `stroke-width="2" opacity="0.85"><title>Outside the building — shown at the edge, actual distance is further out</title></circle>`;
+          }
 
           if(ctx.state._overviewPersistentPins){
             if(isAway){
@@ -2719,7 +2765,7 @@ export function render(ctx){
       if (Array.isArray(o.all_addresses)) for (const a of o.all_addresses) _rgAddrSet.add(String(a).toUpperCase());
     }
     const _rgLinkedSet = new Set(_rgRaw.flatMap(o => Array.isArray(o.linked_entities) ? o.linked_entities : []));
-    const _rgAwayS = ((ctx.state.settings && ctx.state.settings.away_timeout_m != null) ? Number(ctx.state.settings.away_timeout_m) : 5) * 60;
+    const _rgAwayS = ctx.helpers.awayTimeoutS(ctx.state.settings);
     const allObjects = _rgRaw.filter(o => {
       if (o.kind === "entity" && (
         (o.address && _rgAddrSet.has(String(o.address).toUpperCase())) ||
