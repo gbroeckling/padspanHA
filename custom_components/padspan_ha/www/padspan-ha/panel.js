@@ -2021,7 +2021,9 @@ class PadSpanHaApp extends HTMLElement {
 
     // Location — an away object is shown as where it was LAST, not where it is.
     const _objAway = isAway(obj, awayTimeoutS(this.state.settings));
-    const objRoom = obj.room || "—";
+    // A departed object has no current room; the snapshot moves where it was
+    // last seen to last_room.
+    const objRoom = obj.room || obj.last_room || "—";
     const haArea = (this.state.model?.areas||[]).find(a => a.name === objRoom);
     const floorName = haArea ? this._floorName(haArea.floor_id) : "—";
     const rc = roomColor(objRoom, this.state.model);

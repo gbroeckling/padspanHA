@@ -563,7 +563,7 @@ export function render(ctx){
           el("div",{class:"basic-obj-room"}, o._ghost
             ? "Enable BLE Transmitter in Companion App"
             : (isObjAway
-              ? (room && room !== "—" ? `Last: ${room}` : "—")
+              ? (o.last_room ? `Last: ${o.last_room}` : "—")
               : room)),
           el("div",{class:"basic-obj-sub"}, [kind, o.company_name, o.device_type, isObjAway ? null : rssi].filter(Boolean).join(" · ")),
         ]),

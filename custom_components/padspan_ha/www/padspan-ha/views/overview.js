@@ -495,11 +495,11 @@ export function render(ctx){
         // "last seen in the Garage" survives a dropout. But printing it bare
         // asserts the device is THERE: a car gone for an hour still read as
         // "Garage" in this column while its own entities said not_home.
-        el("td",{}, isAway && room && room !== "—"
+        el("td",{}, isAway
           ? el("span",{style:"color:#94a3b8"},[
               el("span",{style:"color:#f87171;font-size:10px;font-weight:600"},"Away"),
-              el("span",{}," · last: "+room),
-            ])
+              o.last_room ? el("span",{}," · last: "+o.last_room) : null,
+            ].filter(Boolean))
           : (room || "—")),
         el("td",{}, rssi ? `${rssi} dBm` : "—"),
         el("td",{}, lastSeen || "—"),

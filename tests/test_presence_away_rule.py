@@ -220,3 +220,54 @@ def test_no_surface_asserts_a_departed_object_is_still_in_a_room():
         "the Overview objects table prints the room bare, so a departed "
         "device still reads as being there"
     )
+
+
+# ---------------------------------------------------------------------------
+# 7. `room` is present tense, decided ONCE, at the source
+# ---------------------------------------------------------------------------
+
+def test_the_snapshot_clears_the_room_of_a_departed_object():
+    """Five surfaces showed the same departed car as being in the Garage.
+
+    Each was fixed only when someone spotted it, because every one of them read
+    `room` and had to remember to check the age independently. The snapshot now
+    answers it: a departed object has no current room, where it was last seen
+    moves to `last_room`, and `away` says so. Anything reading `room` is then
+    correct by construction — including code not written yet.
+    """
+    src = (_ROOT / "websocket.py").read_text(encoding="utf-8")
+    blk = src[src.index("# ── `room` is PRESENT TENSE"):]
+    blk = blk[:blk.index("# Rebuild room_tag_map")]
+    assert "is_away(_obj" in blk, "the snapshot does not test for away"
+    assert '_obj["last_room"]' in blk, "where it was last seen is discarded"
+    assert '_obj["room"] = ""' in blk, (
+        "a departed object still carries its old room as its CURRENT room, so "
+        "every display surface will assert it is still there"
+    )
+    assert '_obj["away"] = True' in blk, "nothing marks the object as away"
+
+
+def test_the_room_is_cleared_before_occupancy_is_rebuilt():
+    """Order matters: occupancy is derived from the same field."""
+    src = (_ROOT / "websocket.py").read_text(encoding="utf-8")
+    clear = src.index('_obj["room"] = ""')
+    rebuild = src.index("_rtm_fresh: dict[str, list[str]] = {}")
+    assert clear < rebuild, (
+        "occupancy is rebuilt before departed rooms are cleared, so a "
+        "departed object is still counted as an occupant"
+    )
+
+
+def test_last_seen_displays_read_last_room_not_room():
+    """Surfaces that legitimately show where it WAS must use last_room.
+
+    They previously read `room`, which is now empty for a departed object —
+    without this they would show a dash instead of "last: Garage".
+    """
+    www = _ROOT / "www" / "padspan-ha"
+    for rel in ("views/objects.js", "views/overview.js", "panel.js"):
+        src = (www / rel).read_text(encoding="utf-8")
+        assert "last_room" in src, (
+            "{} shows a departed object's location without reading "
+            "last_room".format(rel)
+        )

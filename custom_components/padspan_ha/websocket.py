@@ -3633,6 +3633,31 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
     except Exception as _overlay_err:
         _LOGGER.warning("Coordinator overlay failed — positioning data may be stale: %s", _overlay_err, exc_info=True)
 
+    # ── `room` is PRESENT TENSE, once, here ──────────────────────────────────
+    # An object keeps its last known room forever, which is deliberate: it is
+    # how "last seen in the Garage" survives a dropout. But leaving that value
+    # in `room` meant every surface that printed the field asserted the device
+    # was THERE, and each one had to remember to check the age. They did not:
+    # the same car showed as being in the Garage on five separate surfaces,
+    # hours after it left, while its own entities correctly read not_home —
+    # and each was fixed only when someone happened to spot it.
+    #
+    # So the snapshot answers it instead of asking every caller to. A departed
+    # object has no current room; where it was last seen moves to `last_room`,
+    # and `away` says so outright. Anything that reads `room` is now correct by
+    # construction, including code not written yet.
+    try:
+        _away_s = away_timeout_s(hass)
+        for _obj in (snap.get("objects") or {}).get("list") or []:
+            if not is_away(_obj, _away_s):
+                continue
+            if _obj.get("room"):
+                _obj["last_room"] = _obj["room"]
+            _obj["room"] = ""
+            _obj["away"] = True
+    except Exception as _away_err:
+        _LOGGER.warning("Away marking failed: %s", _away_err, exc_info=True)
+
     # Rebuild room_tag_map from overlaid objects so the map matches the
     # presence coordinator's smoothed room assignments (spatial centroid).
     # Without this, the map uses pre-overlay raw RSSI rooms while the
