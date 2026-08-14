@@ -9,7 +9,8 @@ const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 // THE fabric frame — the Lights tab inverts drags through the exact function
 // the renderer draws with, so the two cannot disagree.
-const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM } =
+const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM,
+        floorIdAtLevel } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 // THE shared Lights view (data pipeline, map card, index table) — used
 // verbatim by the Lights sidebar panel, so the two tools always show the
@@ -6198,8 +6199,18 @@ function _attachPanZoom(viewport, inner) {
 // the dirty marker; Save writes every drafted map, Discard drops them all.
 // Which floor a given iso level IS — from the floor registry, not from
 // whichever photo happens to sit at that height.
-function _floorIdForZ(ctx, z) {
+function _floorIdForZ(ctx, z, frame) {
   const floors = ctx.state.model?.floors || [];
+  // Ask the RENDERER which floor it drew at this height. Matching on the
+  // registry's `level` was wrong on any real install: every floor there has
+  // level null, Number(null) is 0, so z=0 matched the first floor by accident
+  // and every storey above it fell through to the "main" default. A light
+  // dropped on the Upper floor was saved as main and vanished from the room
+  // it was placed in. fabricFrame already resolves this (explicit level, then
+  // base elevation, then registry order) and stacks the map with it, so the
+  // inverse has to come from the same function or the two disagree.
+  const drawn = floorIdAtLevel(frame, ctx.state.model, floors, z);
+  if (drawn) return drawn;
   const f = floors.find(x => Number(x.level) === Number(z));
   if (f) return String(f.id);
   // No registry match: fall back to a floor the fabric already places here.
@@ -6211,6 +6222,28 @@ function _floorIdForZ(ctx, z) {
     if (ff && Number(ff.level) === Number(z)) return fid;
   }
   return "main";
+}
+
+// A light belongs to a ROOM, and a room belongs to a floor. That is the floor
+// the light keeps — dragging it around the map never re-assigns the storey.
+//
+// Taking the floor from whichever slab the pointer happened to be over made
+// lights jump between storeys at random and, worse, stranded them: once a
+// fixture had been written onto a floor its room is not on, it no longer drew
+// with that room and there was nothing left to grab to bring it back.
+//
+// Order: the room's own floor from the fabric, then whatever the light was
+// already stored with, and only then the drawn height.
+function _floorIdForLight(ctx, eid, z, frame, lightsByEid) {
+  const room = ((lightsByEid || {})[eid] || {}).area_name;
+  if (room) {
+    const geo = (ctx.state.model?.room_geometry_m || {})[room];
+    const fid = geo && geo.floor_id;
+    if (fid) return String(fid);
+  }
+  const prevFid = ((ctx.state.model?.light_positions_m || {})[eid] || {}).floor_id;
+  if (prevFid) return String(prevFid);
+  return _floorIdForZ(ctx, z, frame);
 }
 
 // Wire the build tools onto the shared iso SVG: click any hex to select it,
@@ -6310,7 +6343,7 @@ function _wireLightsBuild(ctx, isoDiv, o) {
                                               originCy + (v.y - start.y), z);
         const x_m = Math.round(x_mRaw * 1000) / 1000;
         const y_m = Math.round(y_mRaw * 1000) / 1000;
-        const floorId = _floorIdForZ(ctx, z);
+        const floorId = _floorIdForLight(ctx, eid, z, frame, o.lightsByEid);
         const draft = o.mapState._lightsDraftM || (o.mapState._lightsDraftM = {});
         // The DRAFT first, then what is committed. Reading only the committed
         // model meant moving a light threw away any sizing or rotation done
@@ -6520,7 +6553,8 @@ function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
           const [px_m, py_m] = frame.isoInv(cx, cy, z);
           prev.x_m = Math.round(px_m * 1000) / 1000;
           prev.y_m = Math.round(py_m * 1000) / 1000;
-          prev.floor_id = prev.floor_id || _floorIdForZ(ctx, z);
+          prev.floor_id = prev.floor_id
+            || _floorIdForLight(ctx, eid, z, frame, o.lightsByEid);
           if (!prev.color) prev.color = "#fbbf24";
         }
         draft[eid] = { ...prev, ...next };

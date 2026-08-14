@@ -225,7 +225,7 @@ def test_sizing_an_unplaced_light_places_it_where_it_is_drawn():
         "the backfilled position is not derived from where the light is "
         "actually drawn"
     )
-    assert "_floorIdForZ(" in block, "the backfilled position has no floor"
+    assert "_floorIdForLight(" in block, "the backfilled position has no floor"
 
 
 def test_transform_handles_are_offered_on_every_light():
@@ -331,3 +331,50 @@ def test_the_picker_is_wired_into_the_lights_map():
     build = src[src.index("function _wireLightsBuild"):]
     build = build[:build.index("\nfunction ")]
     assert "_wireLightsPicker(" in build, "the picker is never attached"
+
+
+# ---------------------------------------------------------------------------
+# 6. A light stays in its room, whatever the pointer was over
+# ---------------------------------------------------------------------------
+
+def _floor_fn_block() -> str:
+    src = (_VIEWS / "maps.js").read_text(encoding="utf-8")
+    blk = src[src.index("function _floorIdForLight"):]
+    return blk[:blk.index("\nfunction ")]
+
+
+def test_a_lights_floor_comes_from_its_room_first():
+    """Dragging must never re-assign the storey.
+
+    Taking the floor from whichever slab the pointer was over moved lights
+    between floors at random — and stranded them, because once a fixture was
+    written onto a floor its room is not on, it stopped drawing with that room
+    and there was nothing left to grab to bring it back.
+    """
+    blk = _floor_fn_block()
+    room_idx = blk.index("room_geometry_m")
+    prev_idx = blk.index("light_positions_m")
+    drawn_idx = blk.index("_floorIdForZ(")
+    assert room_idx < prev_idx < drawn_idx, (
+        "the room's own floor is not consulted first — the drawn slab can "
+        "still win and move the light to another storey"
+    )
+
+
+def test_both_write_paths_pin_the_floor_to_the_room():
+    """The position drag and the transform commit both store a floor."""
+    src = (_VIEWS / "maps.js").read_text(encoding="utf-8")
+    body = src[src.index("function _wireLightsBuild"):]
+    assert body.count("_floorIdForLight(") >= 2, (
+        "a write path still derives the floor from the drawn height, so that "
+        "path can move a light between storeys"
+    )
+
+
+def test_the_drawn_height_is_only_a_last_resort():
+    """It is still needed for a light with no room and no stored floor."""
+    blk = _floor_fn_block()
+    assert "_floorIdForZ(" in blk, (
+        "the fallback is gone — a light with no room and no stored floor "
+        "would have no floor at all"
+    )

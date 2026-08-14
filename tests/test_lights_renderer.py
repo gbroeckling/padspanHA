@@ -434,3 +434,81 @@ def test_fixture_size_has_no_dead_zone(tmp_path):
         )
     # The legibility minimum still holds for the smallest fixture.
     assert scales[0] >= 0.5
+
+
+def test_placing_a_light_uses_the_floor_the_renderer_drew(tmp_path):
+    """A light dropped on the Upper floor must be stored as Upper.
+
+    The map's inverse floor lookup matched the registry's `level`, but on a
+    real install every floor has level null — Number(null) is 0, so z=0 matched
+    the first floor by accident and every storey above it fell through to the
+    "main" default. A light placed in an upstairs room was saved as main and
+    disappeared from the room it had just been put in.
+
+    fabricFrame resolves the stack (explicit level, then base elevation, then
+    registry order); the inverse has to agree with it.
+    """
+    # The live registry: four floors, every level null.
+    floors = [
+        {"id": "basement", "name": "Basement", "level": None},
+        {"id": "main", "name": "Main", "level": None},
+        {"id": "outside", "name": "Outside", "level": None},
+        {"id": "upper", "name": "Upper", "level": None},
+    ]
+    model = {
+        "room_geometry_m": {
+            "Cellar":  {"type": "poly", "floor_id": "basement",
+                        "points_m": [[0, 0], [6, 0], [6, 4], [0, 4]]},
+            "Kitchen": {"type": "poly", "floor_id": "main",
+                        "points_m": [[0, 0], [6, 0], [6, 4], [0, 4]]},
+            "Office":  {"type": "poly", "floor_id": "upper",
+                        "points_m": [[0, 0], [5, 0], [5, 5], [0, 5]]},
+        },
+        "light_positions_m": {},
+    }
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        "const out={};\n"
+        "const f=M.fabricFrame(MODEL,FLOORS,150,0);\n"
+        "out.levelOf={basement:f.levelOf('basement'), main:f.levelOf('main'),\n"
+        "             upper:f.levelOf('upper')};\n"
+        "out.backToFloor={};\n"
+        "for(const id of ['basement','main','upper'])\n"
+        "  out.backToFloor[id]=M.floorIdAtLevel(f, MODEL, FLOORS, f.levelOf(id));\n"
+        "out.levels=f.levels;\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    lv = out["levelOf"]
+    # The three storeys must resolve to three DIFFERENT heights...
+    assert len({lv["basement"], lv["main"], lv["upper"]}) == 3, lv
+    # ...and the naive registry-level match would have collapsed them all to 0.
+    assert lv["upper"] != 0, "Upper resolved to the ground slab"
+
+    # And the INVERSE must hand back the same floor for that height. This is
+    # the behaviour, not a grep: it fails if the inverse stops asking the
+    # renderer, which is what silently moved lights between storeys.
+    back = out["backToFloor"]
+    assert back["basement"] == "basement", back
+    assert back["main"] == "main", back
+    assert back["upper"] == "upper", (
+        "a light drawn on Upper is stored as {!r} — it vanishes from the room "
+        "it was placed in".format(back["upper"])
+    )
+
+
+def test_the_map_inverts_the_floor_through_the_renderer(tmp_path):
+    """The maps view must use that inverse, not its own.
+
+    Two implementations of "which floor is this height" is how lights ended up
+    on storeys at random: the renderer stacked by one rule and the save wrote
+    the other rule's answer.
+    """
+    src = (_VIEWS / "maps.js").read_text(encoding="utf-8")
+    body = src[src.index("function _floorIdForZ"):]
+    body = body[:body.index("\n}\n") + 3]
+    assert "floorIdAtLevel(" in body, (
+        "the maps view resolves the floor itself instead of asking the "
+        "renderer, so the two can disagree"
+    )

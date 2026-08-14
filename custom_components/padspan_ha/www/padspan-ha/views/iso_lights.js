@@ -353,6 +353,30 @@ export function fabricFrame(model, floors, floorGap, horizGap){
            bbox:{minX,minY,maxX,maxY}, empty, levelOf };
 }
 
+// The inverse of levelOf: which floor did the renderer draw at this height?
+//
+// Lives here, beside the forward resolution, because the two MUST agree. The
+// map used to invert by matching the registry's `level`, but on a real install
+// every floor has level null — Number(null) is 0, so z=0 matched the first
+// floor by accident and every storey above it fell through to a "main"
+// default. A light dropped in an upstairs room was stored as main and vanished
+// from the room it had just been placed in.
+//
+// Registry floors are considered before fabric-only ids, so the id that comes
+// back is the one the floor registry knows.
+export function floorIdAtLevel(frame, model, floors, z){
+  if(!frame || typeof frame.levelOf !== "function") return null;
+  const ids = (floors || []).map(f => String(f.id));
+  for(const g of Object.values((model && model.room_geometry_m) || {})){
+    const fid = String((g && g.floor_id) || "");
+    if(fid && !ids.includes(fid)) ids.push(fid);
+  }
+  for(const id of ids){
+    if(Number(frame.levelOf(id)) === Number(z)) return id;
+  }
+  return null;
+}
+
 // ── Isometric 3-D SVG builder ────────────────────────────────────────────────
 export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[]){
   const {CX, CY, W, BASE_H} = ISO;

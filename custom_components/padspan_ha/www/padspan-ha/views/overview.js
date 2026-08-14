@@ -26,6 +26,15 @@ const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
  *   - 3D iso map re-uses the maps list + stack transforms from the Maps tab.
  */
 
+// Who is IN a room is present tense. An object keeps its last known room
+// forever so a dropout does not erase where it was, but listing a departed one
+// as an occupant says it is still standing there — a car gone for hours stayed
+// chipped into the Garage row long after both its entities read not_home.
+function _presentInRoom(ctx, o, room){
+  if(o.room !== room) return false;
+  return !ctx.helpers.isAway(o, ctx.helpers.awayTimeoutS(ctx.state.settings));
+}
+
 export function render(ctx){
   const { el, esc, pill, helpBtn, radioShortId } = ctx.helpers;
   const _sid = (source) => radioShortId ? radioShortId(source || "") : "";
@@ -1865,7 +1874,7 @@ export function render(ctx){
         // and for outside maps, whose stacks aren't in the world frame).
         const _emitIsoRoom = (room, pp, lix, liy) => {
           const color = roomColorFn(room);
-          const _objsHere = allObjects.filter(o=>o.room===room);
+          const _objsHere = allObjects.filter(o=>_presentInRoom(ctx,o,room));
           const _roomTip = `${room}\n${_objsHere.length} object${_objsHere.length!==1?"s":""} detected`;
           s += `<g data-tip="${_esc(_roomTip)}"><polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="2" opacity="0.9"/></g>`;
           s += `<text x="${Math.round(lix)}" y="${Math.round(liy)+lidx*2}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600">${_esc(room)}</text>`;
@@ -2353,7 +2362,7 @@ export function render(ctx){
       for(const [room, fr] of Object.entries(_isoFabricW)){
         const haFlr = haFloors2.find(f=>String(f.id)===String(fr.floor_id));
         const flLbl = haFlr ? (haFlr.name||haFlr.id) : (fr.floor_id||"—");
-        const objsInRoom = allObjects.filter(o=>o.room===room);
+        const objsInRoom = allObjects.filter(o=>_presentInRoom(ctx,o,room));
         ovRoomRows.push({ room, map: "fabric", floor: flLbl, count: objsInRoom.length, objects: objsInRoom });
       }
     }
@@ -2363,7 +2372,7 @@ export function render(ctx){
       const flLbl = haFlr ? (haFlr.name||haFlr.id) : (floorId||"—");
       for(const room of Object.keys(m.room_bounds||{})){
         if(!ovRoomRows.find(r=>r.room===room)){
-          const objsInRoom = allObjects.filter(o=>o.room===room);
+          const objsInRoom = allObjects.filter(o=>_presentInRoom(ctx,o,room));
           ovRoomRows.push({ room, map: m.name||m.id, floor: flLbl, count: objsInRoom.length, objects: objsInRoom });
         }
       }
