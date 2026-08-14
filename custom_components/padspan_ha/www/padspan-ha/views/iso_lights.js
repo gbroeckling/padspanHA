@@ -670,7 +670,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // fit the room in SOME orientation, which is the honest reading of "does not
   // exceed the room". This is a drawing constraint — the stored width_cm and
   // height_cm are never rewritten, so turning it off restores what was typed.
-  const capOfRoom=new Map();
+  const boxOfRoom=new Map();
   if(FIT){
     for(const r of rooms){
       let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity;
@@ -679,11 +679,40 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         if(p[1]<b)b=p[1]; if(p[1]>d)d=p[1];
       }
       if(!isFinite(a)) continue;
-      const inset=(m)=>Math.max(0.05, m-2*Math.min(0.35, Math.max(0.08, m*0.05)));
-      const w=inset(c-a), h=inset(d-b);
-      capOfRoom.set(r, [Math.max(w,h), Math.min(w,h)]);   // [longest, shortest]
+      // Margin per side: 5% of the smaller dimension, at least 8 cm so a small
+      // room keeps a visible gap, at most 35 cm so a large one is not
+      // needlessly shrunk.
+      const m=Math.min(0.35, Math.max(0.08, Math.min(c-a,d-b)*0.05));
+      boxOfRoom.set(r, {x0:a+m, y0:b+m, x1:c-m, y1:d-m});
     }
   }
+  // How far a fixture has to shrink to stay inside its room — as a FACTOR, so
+  // it keeps its proportions instead of being squashed on one axis.
+  //
+  // The first rule capped the fixture's long axis against the room's long axis,
+  // and on a real house that let almost everything through: a 4.97 m valance in
+  // a 1.9 x 6.3 m kitchen "fitted" the 6.3 m side while visibly lying across
+  // the 1.9 m one. Rotation and position matter — a fixture is drawn centred on
+  // its own metres at its own angle, so a 5 m run at 30 degrees near a wall
+  // pokes out of the room even when its length fits the room's longest side.
+  //
+  // A rectangle of half-extents (a,b) turned by θ spans a·|cos|+b·|sin| in x and
+  // a·|sin|+b·|cos| in y, so the factor is exact and needs no searching.
+  const fitFactor=(r,x,y,wCm,hCm,rotDeg)=>{
+    const box=boxOfRoom.get(r);
+    if(!box) return 1;
+    const a=(Number(wCm)||0)/200, b=(Number(hCm)||0)/200;   // half-extents, metres
+    if(!(a>0||b>0)) return 1;
+    const t=(Number(rotDeg)||0)*Math.PI/180;
+    const cs=Math.abs(Math.cos(t)), sn=Math.abs(Math.sin(t));
+    const halfX=a*cs+b*sn, halfY=a*sn+b*cs;
+    // Room left on each side of where the fixture actually sits.
+    const roomX=Math.max(0.02, Math.min(x-box.x0, box.x1-x));
+    const roomY=Math.max(0.02, Math.min(y-box.y0, box.y1-y));
+    return Math.max(0.05, Math.min(1, halfX>0?roomX/halfX:1, halfY>0?roomY/halfY:1));
+  };
+  // eid -> shrink factor, filled as each floor is walked.
+  const fitK={};
   // WHICH room a fixture is in comes from its POSITION, not from its Home
   // Assistant area. Keying this on the area assignment is why the constraint
   // did nothing on a real house: not one placed light here has an area set —
@@ -698,21 +727,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     }
     return inside;
   };
-  // eid -> [longest, shortest] metres, filled as each floor is walked.
-  const capForLight={};
   // The fixture's measurements as they should be DRAWN. Its own long axis is
   // capped by the room's long axis, whichever way round it was entered.
   const fitCm=(l,entry)=>{
-    let wCm=Number(entry&&entry.width_cm)||0;
-    let hCm=Number(entry&&entry.height_cm)||0;
-    const cap=FIT && capForLight[l&&l.entity_id];
-    if(cap){
-      const [lng,sht]=cap;
-      const [capW,capH]=wCm>=hCm ? [lng,sht] : [sht,lng];
-      if(wCm>capW*100) wCm=capW*100;
-      if(hCm>capH*100) hCm=capH*100;
-    }
-    return {wCm,hCm};
+    const k=(FIT && fitK[l&&l.entity_id]) || 1;
+    return { wCm:(Number(entry&&entry.width_cm)||0)*k,
+             hCm:(Number(entry&&entry.height_cm)||0)*k };
   };
 
   // Floor surface patterns
@@ -823,17 +843,24 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const hereLights = lights.filter(l=>l.z===z);
 
     if(FIT){
-      // A placed fixture is capped by the room its METRES fall in.
+      // A placed fixture is fitted to the room its METRES fall in, at the
+      // angle and position it is actually drawn at.
       for(const pl of hereLights){
         const r=hereRooms.find(rr=>pointInRoom(rr.pts, pl.x, pl.y));
-        const cap=r && capOfRoom.get(r);
-        if(cap) capForLight[pl.eid]=cap;
+        if(!r) continue;
+        fitK[pl.eid]=fitFactor(r, pl.x, pl.y, pl.lp&&pl.lp.width_cm,
+                               pl.lp&&pl.lp.height_cm, pl.lp&&pl.lp.rotation);
       }
       // An unplaced one is drawn clustered at its room's centre, so that is
-      // the room it is in for this purpose.
+      // where it has to fit.
       for(const r of hereRooms){
-        const cap=capOfRoom.get(r);
-        if(cap) for(const li of (byRoom[r.room]||[])) if(!capForLight[li.entity_id]) capForLight[li.entity_id]=cap;
+        if(!boxOfRoom.has(r)) continue;
+        const cx0=r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length;
+        const cy0=r.pts.reduce((a,p)=>a+p[1],0)/r.pts.length;
+        for(const li of (byRoom[r.room]||[])){
+          if(fitK[li.entity_id]!==undefined) continue;
+          fitK[li.entity_id]=fitFactor(r, cx0, cy0, 0, 0, 0);
+        }
       }
     }
 
