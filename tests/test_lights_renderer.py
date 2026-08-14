@@ -546,11 +546,14 @@ def test_the_map_inverts_the_floor_through_the_renderer(tmp_path):
     )
 
 
-def test_the_dotted_line_shape_draws_a_run_not_a_body(tmp_path):
-    """A strip run is a length of light, not a fixture with a body.
+def test_the_run_shape_carries_its_state_and_reads_as_continuous(tmp_path):
+    """A strip run is a length of light, and it must look lit or unlit.
 
-    It has no fill to carry on/off, so the DASHES must take the state colour —
-    drawing them in the border colour would make an off light look on.
+    This began as three fat dashes with no body, which read as a dotted border
+    rather than a fixture and, having no fill, painted nothing at all when the
+    key drew it as an outline. It is now the linear-luminaire symbol: a slim
+    continuous rail with end caps, solid so it takes the state colour the same
+    way every other shape does.
     """
     model = {
         "room_geometry_m": {
@@ -571,30 +574,28 @@ def test_the_dotted_line_shape_draws_a_run_not_a_body(tmp_path):
         f"const LBE={json.dumps(lbe)};\n"
         "const out={};\n"
         "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS);\n"
-        "out.line=(svg.match(/<line[^>]*stroke-dasharray[^>]*>/)||[])[0]||null;\n"
+        "out.drawn=/<path d=\"M[^\"]+\"[^>]*fill=\"#fbbf24\"/.test(svg);\n"
         "out.onCol=M.shapeSvg('line',0,0,10,'fill=\"#fbbf24\" stroke=\"#c084fc\"');\n"
         "out.offCol=M.shapeSvg('line',0,0,10,'fill=\"#374151\" stroke=\"#60a5fa\"');\n"
         "console.log(JSON.stringify(out));\n"
     ))
-    assert out["line"], "no dotted line was drawn for a light with shape=line"
-    assert "stroke-dasharray" in out["line"]
-
-    # State must survive: the dashes carry the on/off colour.
-    assert 'stroke="#fbbf24"' in out["onCol"], out["onCol"]
-    assert 'stroke="#374151"' in out["offCol"], out["offCol"]
-    # ...and it must not paint a solid body.
-    assert 'fill="none"' in out["onCol"]
+    assert out["drawn"], "no run was drawn for a light with shape=line"
+    # State must survive, or an off run looks lit.
+    assert 'fill="#fbbf24"' in out["onCol"], out["onCol"]
+    assert 'fill="#374151"' in out["offCol"], out["offCol"]
+    # Continuous, not a row of gaps.
+    assert "stroke-dasharray" not in out["onCol"], out["onCol"]
 
 
-def test_the_dotted_line_fits_the_same_footprint_as_every_other_shape(tmp_path):
+def test_the_run_fits_the_same_footprint_as_every_other_shape(tmp_path):
     """Cluster packing assumes one width for all shapes."""
     out = _run_js(tmp_path, (
         "import * as M from './iso_lights.mjs';\n"
         "const out={};\n"
         "const a='fill=\"#fbbf24\" stroke=\"#60a5fa\" stroke-width=\"2\"';\n"
         "const l=M.shapeSvg('line',0,0,10,a);\n"
-        "out.x1=Number(/x1=\"([-0-9.]+)\"/.exec(l)[1]);\n"
-        "out.x2=Number(/x2=\"([-0-9.]+)\"/.exec(l)[1]);\n"
+        "const xs=[...l.matchAll(/[ML]([-0-9.]+),/g)].map(m=>Number(m[1]));\n"
+        "out.lineMin=Math.min(...xs); out.lineMax=Math.max(...xs);\n"
         "const b=M.shapeSvg('bar',0,0,10,a);\n"
         "out.barX=Number(/x=\"([-0-9.]+)\"/.exec(b)[1]);\n"
         "out.barW=Number(/width=\"([-0-9.]+)\"/.exec(b)[1]);\n"
@@ -602,8 +603,8 @@ def test_the_dotted_line_fits_the_same_footprint_as_every_other_shape(tmp_path):
     ))
     # Same half-width (r * 0.866) as the bar, so clusters pack identically.
     # Both are emitted at one decimal place, so allow one rounding unit.
-    assert abs(out["x1"] - out["barX"]) < 0.11, (out["x1"], out["barX"])
-    assert abs((out["x2"] - out["x1"]) - out["barW"]) < 0.11
+    assert abs(out["lineMin"] - out["barX"]) < 0.11, (out["lineMin"], out["barX"])
+    assert abs((out["lineMax"] - out["lineMin"]) - out["barW"]) < 0.11, out
 
 
 def test_the_dotted_line_is_offered_in_the_chooser():
@@ -1039,7 +1040,7 @@ def test_fit_to_room_caps_an_oversized_fixture_and_leaves_a_gap(tmp_path):
     floors = [{"id": "main", "name": "Main", "level": 0}]
     lbe = {"light.run": {"entity_id": "light.run", "state": "on", "code": "W01",
                          "shape": "bar", "isWled": True, "rgb": None, "bri": 255}}
-    by_room = {"Laundry": [lbe["light.run"]]}
+    by_room = {}   # no HA area assignment anywhere — like the real house
     out = _run_js(tmp_path, (
         "import * as M from './iso_lights.mjs';\n"
         "const MODEL=" + json.dumps(model) + ";\n"

@@ -80,34 +80,33 @@ export function shapeSvg(kind, cx, cy, r, attrs){
              `rx="${n(h)}" ry="${n(h)}" ${attrs}/>`;
     }
     case "line": {
-      // A run of light rather than a fixture: dashes along the full width, no
-      // body. Stretch it in Transform and it reads as the length of cable it
-      // is. There is no fill to carry on/off, so the DASHES take the fill
-      // colour and the caller's stroke is dropped — a WLED run is still marked
-      // by its W code. Dashes are sized from r, so they stay proportionate at
-      // any site scale.
-      const fillCol = (/fill="([^"]*)"/.exec(attrs) || [])[1];
-      // The key and the index table draw every shape as an OUTLINE
-      // (fill="none"), which left this one — and only this one — invisible in
-      // both. With no body to fill, the outline colour is the dashes' colour.
-      const col = (!fillCol || fillCol === "none")
-        ? ((/stroke="([^"]*)"/.exec(attrs) || [])[1] || "currentColor")
-        : fillCol;
-      const rest = attrs
-        .replace(/fill="[^"]*"/, "")
-        .replace(/stroke="[^"]*"/, "")
-        .replace(/stroke-width="[^"]*"/, "");
-      const lw = Math.max(1.2, r * 0.32);
-      // A dashed hairline is almost impossible to hit: only the dashes are
-      // painted, so clicks and drags between them fell through to the map and
-      // the run could not be selected once it had been chosen. The invisible
-      // plate restores a marker-sized target (and a real bounding box for the
-      // right-click picker). data-hit keeps it out of the selection highlight.
-      return `<rect data-hit="1" x="${n(cx-HW)}" y="${n(cy-lw)}" width="${n(HW*2)}" `+
-             `height="${n(lw*2)}" fill="transparent" stroke="none"/>`+
-             `<line x1="${n(cx-HW)}" y1="${n(cy)}" x2="${n(cx+HW)}" y2="${n(cy)}" `+
-             `${rest} fill="none" stroke="${col}" stroke-width="${n(lw)}" `+
-             `stroke-dasharray="${n(lw*1.15)},${n(lw*1.5)}" stroke-linecap="round"/>`;
+      // A RUN of light — a track, a cove, a length of tape. Three fat dashes
+      // in a row was the first attempt and it read as a dotted border rather
+      // than a fixture: at marker size the gaps dominate, it had no body to
+      // carry on/off, and it was the one shape that painted nothing when drawn
+      // as an outline in the key.
+      //
+      // This is the linear-luminaire symbol instead: one slim continuous rail
+      // at the full marker width, with the heads sitting on it. Solid, so it
+      // takes the state colour like everything else, reads as continuous at
+      // any size, and stretches in Transform into exactly the length of run it
+      // is. Slimmer than `bar` — a run is a line of light, a valance is a body.
+      const h = r * 0.17;
+      const cap = Math.min(h * 1.6, HW * 0.22);
+      let d = sub([[cx-HW+cap*0.6, cy-h],[cx+HW-cap*0.6, cy-h],
+                   [cx+HW-cap*0.6, cy+h],[cx-HW+cap*0.6, cy+h]]);
+      // End caps: a run terminates in a fitting, and squared-off ends read as
+      // a cut-off line rather than a finished fixture.
+      d += " " + sub([[cx-HW, cy-h*2.1],[cx-HW+cap, cy-h*2.1],
+                      [cx-HW+cap, cy+h*2.1],[cx-HW, cy+h*2.1]]);
+      d += " " + sub([[cx+HW-cap, cy-h*2.1],[cx+HW, cy-h*2.1],
+                      [cx+HW, cy+h*2.1],[cx+HW-cap, cy+h*2.1]]);
+      // The plate keeps a slim fixture as easy to grab as a fat one, and gives
+      // the right-click picker a real bounding box. data-hit keeps it out of
+      // the selection highlight.
+      return `<rect data-hit="1" x="${n(cx-HW)}" y="${n(cy-r*0.4)}" width="${n(HW*2)}" `+
+             `height="${n(r*0.8)}" fill="transparent" stroke="none"/>`+
+             `<path d="${d}" ${attrs}/>`;
     }
     case "fan": {
       // Ceiling fan: hub plus four swept blades — a pinwheel. A fan was a plain
@@ -197,18 +196,32 @@ export function shapeDetailSvg(kind, cx, cy, r, ink, sw){
     // The diffuser, inset from the housing.
     case "bar":     return `<rect x="${n(cx-HW*0.72)}" y="${n(cy-r*0.24)}" `+
                            `width="${n(HW*1.44)}" height="${n(r*0.48)}" `+
-                           `rx="${n(r*0.24)}" ${a}/>`;
+                           `rx="${n(r*0.24)}" ${a}/>`+
+                           line(cx-HW*0.86,cy-r*0.3,cx-HW*0.86,cy+r*0.3)+
+                           line(cx+HW*0.86,cy-r*0.3,cx+HW*0.86,cy+r*0.3);
     // A troffer's tubes. Two, because that is what a 2-lamp fitting has and
     // because one line down the middle reads as a fold, not a lamp.
-    case "square":  return line(cx-HW*0.55,cy-HW*0.38,cx+HW*0.55,cy-HW*0.38)+
-                           line(cx-HW*0.55,cy+HW*0.38,cx+HW*0.55,cy+HW*0.38);
-    // The raceway the heads sit on: a hairline joining the dashes turns a row
-    // of dots into a continuous run.
-    case "line":    return `<line x1="${n(cx-HW)}" y1="${n(cy)}" x2="${n(cx+HW)}" y2="${n(cy)}" `+
-                           `fill="none" stroke="${ink}" stroke-width="${n(sw*0.5)}" `+
-                           `stroke-opacity="0.7" pointer-events="none"/>`;
+    case "square":  return `<rect x="${n(cx-HW*0.7)}" y="${n(cy-HW*0.7)}" `+
+                           `width="${n(HW*1.4)}" height="${n(HW*1.4)}" rx="1" ${a}/>`+
+                           line(cx-HW*0.52,cy-HW*0.3,cx+HW*0.52,cy-HW*0.3)+
+                           line(cx-HW*0.52,cy+HW*0.3,cx+HW*0.52,cy+HW*0.3);
+    // The heads along the run, evenly spaced — what makes a rail read as a
+    // line of fixtures rather than a painted stripe.
+    case "line": {
+      let s="";
+      for(let k=-1;k<=1;k++) s+=dot(cx+k*HW*0.46, cy, r*0.1);
+      return s;
+    }
     // Hub and motor.
-    case "fan":     return ring(cx,cy,HW*0.36)+dot(cx,cy,HW*0.13);
+    case "fan": {
+      let s=ring(cx,cy,HW*0.36)+dot(cx,cy,HW*0.13);
+      for(let k=0;k<4;k++){
+        const ang=(k*90+22)*Math.PI/180;
+        s+=line(cx+HW*0.42*Math.cos(ang), cy+HW*0.42*Math.sin(ang),
+                cx+HW*0.86*Math.cos(ang), cy+HW*0.86*Math.sin(ang));
+      }
+      return s;
+    }
     // The fitter across the top of the shade, and the lamp inside it.
     case "pendant": return line(cx-HW*0.34,cy+r*0.24-HW*0.62,cx+HW*0.34,cy+r*0.24-HW*0.62)+
                            dot(cx,cy+r*0.3,HW*0.17);
@@ -225,10 +238,11 @@ export function shapeDetailSvg(kind, cx, cy, r, ink, sw){
       return s;
     }
     // The aperture, at the wide end the light leaves by.
-    case "triangle": return ring(cx,cy+r*0.26,HW*0.32);
-    case "diamond":  return ring(cx,cy,HW*0.4);
-    // The bevel on a plain fixture plate.
-    default:         return path(sub(arcPts(cx,cy,r*0.58,r*0.58,90,450,6)));
+    case "triangle": return ring(cx,cy+r*0.26,HW*0.32)+
+                            line(cx-HW*0.4,cy+r*0.55,cx+HW*0.4,cy+r*0.55);
+    case "diamond":  return ring(cx,cy,HW*0.42)+dot(cx,cy,HW*0.15);
+    // A plain fixture plate: bevel, plus the lamp behind it.
+    default:         return path(sub(arcPts(cx,cy,r*0.6,r*0.6,90,450,6)))+dot(cx,cy,HW*0.15);
   }
 }
 
@@ -656,7 +670,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // fit the room in SOME orientation, which is the honest reading of "does not
   // exceed the room". This is a drawing constraint — the stored width_cm and
   // height_cm are never rewritten, so turning it off restores what was typed.
-  const roomCap={};
+  const capOfRoom=new Map();
   if(FIT){
     for(const r of rooms){
       let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity;
@@ -667,16 +681,31 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       if(!isFinite(a)) continue;
       const inset=(m)=>Math.max(0.05, m-2*Math.min(0.35, Math.max(0.08, m*0.05)));
       const w=inset(c-a), h=inset(d-b);
-      const cap=[Math.max(w,h), Math.min(w,h)];      // [longest, shortest]
-      for(const li of (byRoom[r.room]||[])) roomCap[li.entity_id]=cap;
+      capOfRoom.set(r, [Math.max(w,h), Math.min(w,h)]);   // [longest, shortest]
     }
   }
+  // WHICH room a fixture is in comes from its POSITION, not from its Home
+  // Assistant area. Keying this on the area assignment is why the constraint
+  // did nothing on a real house: not one placed light here has an area set —
+  // they were dropped where they physically are, which is the better answer
+  // anyway, and the fabric already knows it. Ray-cast against the polygons on
+  // the light's own floor; a fixture outside every room is left as typed.
+  const pointInRoom=(pts,x,y)=>{
+    let inside=false;
+    for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+      const [xi,yi]=pts[i], [xj,yj]=pts[j];
+      if(((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/((yj-yi)||1e-9) + xi)) inside=!inside;
+    }
+    return inside;
+  };
+  // eid -> [longest, shortest] metres, filled as each floor is walked.
+  const capForLight={};
   // The fixture's measurements as they should be DRAWN. Its own long axis is
   // capped by the room's long axis, whichever way round it was entered.
   const fitCm=(l,entry)=>{
     let wCm=Number(entry&&entry.width_cm)||0;
     let hCm=Number(entry&&entry.height_cm)||0;
-    const cap=FIT && roomCap[l&&l.entity_id];
+    const cap=FIT && capForLight[l&&l.entity_id];
     if(cap){
       const [lng,sht]=cap;
       const [capW,capH]=wCm>=hCm ? [lng,sht] : [sht,lng];
@@ -792,6 +821,21 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
     const hereRooms  = rooms.filter(r=>r.z===z);
     const hereLights = lights.filter(l=>l.z===z);
+
+    if(FIT){
+      // A placed fixture is capped by the room its METRES fall in.
+      for(const pl of hereLights){
+        const r=hereRooms.find(rr=>pointInRoom(rr.pts, pl.x, pl.y));
+        const cap=r && capOfRoom.get(r);
+        if(cap) capForLight[pl.eid]=cap;
+      }
+      // An unplaced one is drawn clustered at its room's centre, so that is
+      // the room it is in for this purpose.
+      for(const r of hereRooms){
+        const cap=capOfRoom.get(r);
+        if(cap) for(const li of (byRoom[r.room]||[])) if(!capForLight[li.entity_id]) capForLight[li.entity_id]=cap;
+      }
+    }
 
     // Every slab is the SAME SIZE, centred on the floor it belongs to.
     // Sizing each slab to its own contents made the stack look like the floors
@@ -958,8 +1002,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         `rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="url(#${glowIds.get(col)||"psshade"})" `+
         `opacity="${(0.4+0.45*b).toFixed(2)}" pointer-events="none"/></g>`;
     };
-    const shadeSvg=(hx,hy)=>`<ellipse cx="${hx.toFixed(1)}" cy="${(hy+HEX_R*0.55).toFixed(1)}" `+
-      `rx="${(HEX_R*1.45).toFixed(1)}" ry="${(HEX_R*0.62).toFixed(1)}" fill="url(#psshade)" pointer-events="none"/>`;
+    // Small and faint, deliberately. At 1.45x the marker these were WIDER than
+    // hexCluster's spacing (r*√3+2), so every room with more than one fixture
+    // merged its shadows into one grey smear with tiny markers floating in it —
+    // and the sidebar upscales this viewBox ~2.6x, which magnified the mess.
+    // A contact shadow only has to seat the marker on the floor.
+    const shadeSvg=(hx,hy)=>`<ellipse cx="${hx.toFixed(1)}" cy="${(hy+HEX_R*0.42).toFixed(1)}" `+
+      `rx="${(HEX_R*0.9).toFixed(1)}" ry="${(HEX_R*0.34).toFixed(1)}" fill="url(#psshade)" `+
+      `opacity="0.6" pointer-events="none"/>`;
 
     // Markers are collected and flushed after every room on the floor is drawn,
     // so a room polygon can never be painted over the fixtures of the room

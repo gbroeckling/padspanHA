@@ -179,14 +179,17 @@ export function buildLightsMapCard(host){
   // Grouped, not a flat run of controls: view shaping, then saving, then zoom.
   // A single undifferentiated row of eight things reads as clutter and gives
   // no clue which control affects what.
+  // Tight on purpose: this row carries three mode toggles now as well as the
+  // view controls, and at the old 14px gap it wrapped onto a second line on a
+  // normal panel — which pushed the map down and made the modes easy to miss.
   const ctrlRow = el("div", { style:
-    "display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:10px;"
-    + "padding:8px 10px;background:#08120c;border:1px solid #16281d;border-radius:10px" });
-  const GROUP = "display:flex;gap:6px;align-items:center";
+    "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;"
+    + "padding:5px 7px;background:#08120c;border:1px solid #16281d;border-radius:10px" });
+  const GROUP = "display:flex;gap:4px;align-items:center";
   const SEP = () => el("span", { style:
-    "width:1px;align-self:stretch;background:#1b3526;margin:0 2px" }, "");
+    "width:1px;align-self:stretch;background:#1b3526;margin:0 1px" }, "");
   const LBL = "font-size:10px;white-space:nowrap;text-transform:uppercase;"
-    + "letter-spacing:0.06em;color:#64748b";
+    + "letter-spacing:0.04em;color:#64748b";
 
   // Showcase — first in the row because it changes everything to its right.
   // Only the Mapping tab offers it (the sidebar host passes no handler), and it
@@ -195,11 +198,11 @@ export function buildLightsMapCard(host){
     ctrlRow.appendChild(el("button", {
       class: "btn inline",
       style: host.showcase
-        ? "background:linear-gradient(135deg,#4c1d95,#7c3aed);border-color:#c4b5fd;color:#f5f3ff;font-size:12px;padding:2px 12px"
-        : "font-size:12px;padding:2px 12px",
+        ? "background:linear-gradient(135deg,#4c1d95,#7c3aed);border-color:#c4b5fd;color:#f5f3ff;font-size:11px;padding:2px 8px"
+        : "font-size:11px;padding:2px 8px",
       title: "Presentation rendering — real fixture colour, light pools, contact shadows",
       onclick: () => host.onShowcase(!host.showcase),
-    }, host.showcase ? "✦ Showcase: ON" : "✦ Showcase"));
+    }, host.showcase ? "✦ Showcase ✓" : "✦ Showcase"));
 
     // Fit to room — only offered while Showcase is on, because it is a
     // constraint on the presentation, not an edit. Stored measurements are
@@ -208,12 +211,12 @@ export function buildLightsMapCard(host){
       ctrlRow.appendChild(el("button", {
         class: "btn inline",
         style: host.fitRooms
-          ? "background:linear-gradient(135deg,#7c2d12,#ea580c);border-color:#fdba74;color:#fff7ed;font-size:12px;padding:2px 12px"
-          : "font-size:12px;padding:2px 12px",
+          ? "background:linear-gradient(135deg,#7c2d12,#ea580c);border-color:#fdba74;color:#fff7ed;font-size:11px;padding:2px 8px"
+          : "font-size:11px;padding:2px 8px",
         title: "No fixture is drawn larger than the room it is in, with a small "
           + "gap to the walls. Stored measurements are not changed.",
         onclick: () => host.onFitRooms(!host.fitRooms),
-      }, host.fitRooms ? "⊞ Fit to room: ON" : "⊞ Fit to room"));
+      }, host.fitRooms ? "⊞ Fit room ✓" : "⊞ Fit room"));
     }
   }
 
@@ -226,12 +229,12 @@ export function buildLightsMapCard(host){
     ctrlRow.appendChild(el("button", {
       class: "btn inline",
       style: host.hideUntouched
-        ? "background:linear-gradient(135deg,#134e4a,#0d9488);border-color:#5eead4;color:#ecfeff;font-size:12px;padding:2px 12px"
-        : "font-size:12px;padding:2px 12px",
+        ? "background:linear-gradient(135deg,#134e4a,#0d9488);border-color:#5eead4;color:#ecfeff;font-size:11px;padding:2px 8px"
+        : "font-size:11px;padding:2px 8px",
       title: "Show only lights that have been resized, rotated, recoloured or "
         + "given a shape. Moving a light does not count as touching it.",
       onclick: () => host.onHideUntouched(!host.hideUntouched),
-    }, host.hideUntouched ? `◫ Untouched hidden (${n})` : "◫ Hide untouched"));
+    }, host.hideUntouched ? `◫ Untouched (${n})` : "◫ Hide untouched"));
   }
   if (host.onShowcase || host.onHideUntouched) ctrlRow.appendChild(SEP());
 
@@ -243,7 +246,7 @@ export function buildLightsMapCard(host){
     const focusLbl = el("span", { style: "font-size:12px;color:#cbd5e1;min-width:80px" }, getFocusLbl(view.focusIdx));
     const focusSlider = document.createElement("input");
     focusSlider.type = "range"; focusSlider.min = "0"; focusSlider.max = String(isoPos.length - 1);
-    focusSlider.style.cssText = "width:120px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
+    focusSlider.style.cssText = "width:96px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
     focusSlider.value = String(view.focusIdx);
     focusSlider.addEventListener("input", () => {
       view.focusIdx = parseInt(focusSlider.value, 10);
@@ -262,7 +265,7 @@ export function buildLightsMapCard(host){
   // 60–340 matches the backend's clamp exactly. A wider slider silently stored
   // a different spacing than the one on screen.
   gapSlider.type = "range"; gapSlider.min = "60"; gapSlider.max = "340"; gapSlider.step = "10";
-  gapSlider.style.cssText = "width:100px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
+  gapSlider.style.cssText = "width:78px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
   gapSlider.value = String(view.floorGap);
   gapSlider.addEventListener("input", () => {
     view.floorGap = parseInt(gapSlider.value, 10);
@@ -278,7 +281,7 @@ export function buildLightsMapCard(host){
   const horizLbl = el("span", { style: "font-size:12px;color:#cbd5e1;min-width:38px;font-variant-numeric:tabular-nums" }, String(view.horizGap));
   const horizSlider = document.createElement("input");
   horizSlider.type = "range"; horizSlider.min = "-120"; horizSlider.max = "120"; horizSlider.step = "10";
-  horizSlider.style.cssText = "width:100px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
+  horizSlider.style.cssText = "width:78px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
   horizSlider.value = String(view.horizGap);
   horizSlider.addEventListener("input", () => {
     view.horizGap = parseInt(horizSlider.value, 10);
@@ -292,7 +295,7 @@ export function buildLightsMapCard(host){
 
   // Save / Reset view buttons + status label
   const saveLbl = el("span", { style: "font-size:11px;color:#94a3b8;min-width:50px;display:inline-block" }, "");
-  const saveBtn = el("button", { class: "btn inline", style: "margin-left:8px;font-size:12px;padding:2px 10px",
+  const saveBtn = el("button", { class: "btn inline", style: "margin-left:4px;font-size:11px;padding:2px 8px",
     onclick: async () => {
       saveBtn.disabled = true;
       try {
@@ -303,7 +306,7 @@ export function buildLightsMapCard(host){
       saveBtn.disabled = false;
     },
   }, "Save view");
-  const resetBtn = el("button", { class: "btn inline", style: "font-size:12px;padding:2px 10px",
+  const resetBtn = el("button", { class: "btn inline", style: "font-size:11px;padding:2px 8px",
     onclick: async () => {
       view.floorGap = 150; view.horizGap = 0; view.focusIdx = 0; view.zoom = 1.0;
       gapSlider.value = "150"; gapLbl.textContent = "150";

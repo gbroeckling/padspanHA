@@ -35,7 +35,7 @@ export const LIGHT_SHAPES = [
   ["hex",       "Fixture (default)"],
   ["circle",    "Pot / downlight"],
   ["bar",       "Strip / valance"],
-  ["line",      "Dotted line / run"],
+  ["line",      "Run / track"],
   ["square",    "Fluorescent / tube"],
   ["fan",       "Ceiling fan"],
   ["pendant",   "Pendant / drop"],
