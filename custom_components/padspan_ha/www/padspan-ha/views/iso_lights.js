@@ -114,6 +114,41 @@ export function markerRadiusPx(scale){
   return Math.max(MARKER_MIN_R, Math.min(MARKER_MAX_R, r));
 }
 
+// How a fixture's real measurements become a marker transform.
+//
+// Exported because the Mapping tab's free-transform handles must preview the
+// EXACT scale the renderer will commit — when the preview computed its own
+// version, the shape jumped the moment the pointer came up.
+//
+// A metre of fixture is `scale` pixels. The floor is SOFT, not a clamp:
+// max(0.5, ...) created a dead zone, because at a house's scale the factor is
+// about 0.016 per cm, so nothing under ~31 cm could clear 0.5 and a 10 cm pot
+// light, the 15 cm default and a 30 cm fixture all drew at the same size —
+// which is why setting a width appeared to do nothing. hypot keeps the same
+// legibility minimum but stays strictly increasing.
+//
+// There is deliberately NO upper ceiling. An 8x cap saturated at about a 5 m
+// fixture, so a 12 m strip run and a 20 m one drew identically and a handle
+// dragged past that point stopped following the pointer — the drawn box was no
+// longer the box you drew. A fixture is rendered at the size it measures, the
+// same promise the rest of the fabric makes; MAX_FIXTURE_CM already bounds
+// what can be stored.
+export function markerScale(wCm, hCm, scale, hexR){
+  const w = Number(wCm) || 0, h = Number(hCm) || 0;
+  if(!(w > 0 || h > 0)) return { sx: 1, sy: 1 };
+  const baseW = hexR * 2 * 0.866, baseH = hexR * 2;
+  const soft = (cm, base) => Math.hypot((cm / 100) * scale / base, 0.5);
+  return { sx: soft(w || h, baseW), sy: soft(h || w, baseH) };
+}
+
+// A transform handle dragged to `px` from the marker's centre describes HALF
+// the fixture, so the stored measurement is twice that — in centimetres.
+export const MAX_FIXTURE_CM = 2000;
+export function cmFromHandlePx(px, scale){
+  if(!(scale > 0)) return 0;
+  return Math.max(0, Math.min(MAX_FIXTURE_CM, Math.round(Math.abs(px) / scale * 200)));
+}
+
 const CIRCLE_SEGMENTS = 16;
 
 function circleToPoly(cx, cy, r){
@@ -472,27 +507,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const rot=Number(entry&&entry.rotation)||0;
       const wCm=Number(entry&&entry.width_cm)||0;
       const hCm=Number(entry&&entry.height_cm)||0;
-      let sx=1, sy=1;
-      if(wCm>0||hCm>0){
-        const baseW=HEX_R*2*0.866, baseH=HEX_R*2;
-        // Faithful to the measurement. The floor used to be 1× — never
-        // smaller than the default marker — but the default marker is already
-        // about 2.4 m wide at a house's scale, so every real fixture came out
-        // the same size and setting a width appeared to do nothing at all.
-        // 0.5× keeps a 15 cm downlight clickable while a 2.4 m valance and a
-        // 5 m run are visibly different; 8× stops one long strip swamping its
-        // floor.
-        // A SOFT floor, not a clamp. max(0.5, …) created a dead zone: at a
-        // house's scale the factor is about 0.016 per cm, so nothing under
-        // ~31 cm could clear 0.5 and every pot light, every default 15 cm
-        // fixture and everything between rendered at exactly the same size —
-        // which is why setting a width appeared to do nothing. hypot keeps the
-        // same minimum for legibility but stays strictly increasing, so a
-        // 10 cm downlight and a 30 cm fixture are still visibly different.
-        const soft=(cm,base)=>Math.min(8, Math.hypot((cm/100)*frame.scale/base, 0.5));
-        sx=soft(wCm||hCm, baseW);
-        sy=soft(hCm||wCm, baseH);
-      }
+      const {sx,sy}=markerScale(wCm, hCm, frame.scale, HEX_R);
       if(rot||sx!==1||sy!==1){
         t.push(`translate(${hx.toFixed(1)},${hy.toFixed(1)})`);
         if(rot) t.push(`rotate(${rot.toFixed(1)})`);

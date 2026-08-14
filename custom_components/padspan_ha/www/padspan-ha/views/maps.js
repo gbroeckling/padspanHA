@@ -9,7 +9,7 @@ const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 // THE fabric frame — the Lights tab inverts drags through the exact function
 // the renderer draws with, so the two cannot disagree.
-const { fabricFrame } =
+const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 // THE shared Lights view (data pipeline, map card, index table) — used
 // verbatim by the Lights sidebar panel, so the two tools always show the
@@ -6240,7 +6240,15 @@ function _wireLightsBuild(ctx, isoDiv, o) {
     // would otherwise show no highlight at all.
     const mark = g && g.querySelector("polygon,circle,rect");
     if (mark) { mark.setAttribute("stroke", "#e879f9"); mark.setAttribute("stroke-width", "3.5"); }
-    if (g && o.mapState._lightsTransform) _wireTransformHandles(ctx, svg, g, selEid, frame, o, toVB);
+    // Handles only on a PLACED light. An unplaced one has no x_m/y_m, and
+    // fabric_light_position_set requires both — so a resize would build a
+    // draft that could never be saved, and "Save placements" would fail on
+    // work the user watched succeed. Drop it in the room first.
+    const isPlaced = !!((o.mapState._lightsDraftM || {})[selEid]
+      || ((ctx.state.model || {}).light_positions_m || {})[selEid]);
+    if (g && o.mapState._lightsTransform && isPlaced) {
+      _wireTransformHandles(ctx, svg, g, selEid, frame, o, toVB);
+    }
   }
 
   for (const g of isoDiv.querySelectorAll("g.lhex[data-eid]")) {
@@ -6342,9 +6350,17 @@ function _wireLightsBuild(ctx, isoDiv, o) {
 // metres. Written into the same draft the drag uses, so one Save commits both.
 function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
   const NS = "http://www.w3.org/2000/svg";
-  let bb;
-  try { bb = g.getBBox(); } catch (_) { return; }
-  const cx = bb.x + bb.width / 2, cy = bb.y + bb.height / 2;
+  // The code label is drawn at the fixture's exact centre and is never scaled
+  // or rotated, so it is the reliable anchor. The group's bounding box is not:
+  // it grows with the scaled outline and with the label's own box, so handles
+  // drifted off-centre exactly when the fixture was largest.
+  let cx, cy;
+  const lblEl = g.querySelector("text");
+  if (lblEl) { cx = Number(lblEl.getAttribute("x")); cy = Number(lblEl.getAttribute("y")); }
+  if (!Number.isFinite(cx) || !Number.isFinite(cy)) {
+    try { const bb = g.getBBox(); cx = bb.x + bb.width / 2; cy = bb.y + bb.height / 2; }
+    catch (_) { return; }
+  }
 
   const cur = () => (o.mapState._lightsDraftM || {})[eid]
     || ((ctx.state.model || {}).light_positions_m || {})[eid] || {};
@@ -6405,7 +6421,6 @@ function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
         width_cm: Number(base.width_cm) || 0,
         height_cm: Number(base.height_cm) || 0,
       };
-      const px2cm = (px) => Math.max(0, Math.round(px / frame.scale * 200));
 
       const mm = (e) => {
         const v = toVB(e);
@@ -6413,13 +6428,15 @@ function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
           const deg = Math.atan2(v.y - cy, v.x - cx) * 180 / Math.PI + 90;
           next.rotation = Math.max(-180, Math.min(180, Math.round(deg)));
         } else {
-          if (kind.includes("w")) next.width_cm = Math.min(2000, px2cm(Math.abs(v.x - cx)));
-          if (kind.includes("h")) next.height_cm = Math.min(2000, px2cm(Math.abs(v.y - cy)));
+          if (kind.includes("w")) next.width_cm = cmFromHandlePx(v.x - cx, frame.scale);
+          if (kind.includes("h")) next.height_cm = cmFromHandlePx(v.y - cy, frame.scale);
         }
         // Live preview on the marker itself — the map is the feedback, so the
         // shape follows the handle rather than waiting for the pointer up.
-        const sx = Math.min(8, Math.hypot((next.width_cm / 100) * frame.scale / 24.2, 0.5));
-        const sy = Math.min(8, Math.hypot((next.height_cm / 100) * frame.scale / 28, 0.5));
+        // The renderer's own function, so the preview cannot disagree with
+        // what lands on pointer-up.
+        const { sx, sy } = markerScale(next.width_cm, next.height_cm,
+                                       frame.scale, markerRadiusPx(frame.scale));
         inner.setAttribute("transform",
           `translate(${cx.toFixed(1)},${cy.toFixed(1)}) rotate(${next.rotation}) `
           + `scale(${sx.toFixed(3)},${sy.toFixed(3)})`);
