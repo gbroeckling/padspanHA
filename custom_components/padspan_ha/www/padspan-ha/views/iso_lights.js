@@ -488,6 +488,11 @@ export function fabricFrame(model, floors, floorGap, horizGap){
   // still appear in the index table below it, they just have no place in a
   // floor stack. Dropped BEFORE the offsets and the stack are computed — the
   // garden's extent must not steer either.
+  // Kept, not discarded. The building stack has no place for a shed 50 m down
+  // the garden, but Overview draws outdoor areas as an overlay fitted into the
+  // building's own footprint, and it used to get them from per-photo bounds.
+  // Handing them back here is what let that path stop reading photographs.
+  const outdoorRooms = rooms.filter(r => isOutside(r.floor_id));
   rooms.length = 0;  rooms.push(...indoorRooms);
   lights.length = 0; lights.push(...indoorLights);
   const levels = [...new Set([...rooms.map(r=>r.z), ...lights.map(l=>l.z)])].sort((a,b)=>a-b);
@@ -535,7 +540,7 @@ export function fabricFrame(model, floors, floorGap, horizGap){
   };
 
   return { rooms, lights, levels, iso, isoInv, rankOf, scale: S,
-           bbox:{minX,minY,maxX,maxY}, empty, levelOf };
+           bbox:{minX,minY,maxX,maxY}, empty, levelOf, outdoor: outdoorRooms };
 }
 
 // The inverse of levelOf: which floor did the renderer draw at this height?

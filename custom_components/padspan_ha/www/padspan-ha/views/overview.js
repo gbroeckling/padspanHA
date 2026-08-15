@@ -1245,8 +1245,37 @@ export function render(ctx){
           s += `<g data-tip="${_esc(_roomTip)}"><polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="2" opacity="0.9"/></g>`;
           s += `<text x="${Math.round(lix)}" y="${Math.round(liy)+lidx*2}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600">${_esc(room)}</text>`;
         };
-        // The per-photo room fallback is gone. Every room, indoors and out,
-        // is in the fabric; a room that is not there is not a room yet.
+        // Outdoor areas — the shed, the driveway — drawn as an overlay fitted
+        // into the building's own footprint, exactly as they were before, but
+        // from their metres instead of their photo bounds. fabricFrame keeps
+        // them OUT of the storey stack (a shed 50 m down the garden must not
+        // size the house) and hands them back separately for this.
+        //
+        // Deleting the per-photo path without this took them off the map
+        // entirely: three rooms that had always been there quietly vanished.
+        const _outdoorFab = (_fabOK && Array.isArray(_fabF.outdoor)) ? _fabF.outdoor : [];
+        const _drawOutdoor = () => {
+          if(!_outdoorFab.length || !isFinite(_indoorBB.minX)) return;
+          let ox0=Infinity, oy0=Infinity, ox1=-Infinity, oy1=-Infinity;
+          for(const r of _outdoorFab) for(const p of r.pts){
+            ox0=Math.min(ox0,p[0]); oy0=Math.min(oy0,p[1]);
+            ox1=Math.max(ox1,p[0]); oy1=Math.max(oy1,p[1]);
+          }
+          if(!isFinite(ox0)) return;
+          const sx = (ox1-ox0) || 1, sy = (oy1-oy0) || 1;
+          const fit = (px,py) => [
+            _indoorBB.minX + ((px-ox0)/sx) * (_indoorBB.maxX-_indoorBB.minX),
+            _indoorBB.minY + ((py-oy0)/sy) * (_indoorBB.maxY-_indoorBB.minY),
+          ];
+          for(const r of _outdoorFab){
+            const pp = r.pts.map(p=>{const q=fit(p[0],p[1]);return pt(iso(q[0],q[1],z));}).join(" ");
+            const cx=r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length;
+            const cy=r.pts.reduce((a,p)=>a+p[1],0)/r.pts.length;
+            const c=fit(cx,cy);
+            const [lix,liy]=iso(c[0],c[1],z);
+            _emitIsoRoom(r.room, pp, lix, liy);
+          }
+        };
         const _legacyIsoRooms = () => {};
         const _groupFids = new Set(group.filter(m=>!_isOutMap(m)).map(_mapFid));
         const _fabRoomsHere = _isoFabricW
@@ -1259,7 +1288,7 @@ export function render(ctx){
             const [lix,liy]=iso(cx,cy,z);
             _emitIsoRoom(room, pp, lix, liy);
           }
-          for(const m of group) if(_isOutMap(m)) _legacyIsoRooms(m);
+          if(z === sortedIsoLevels[0]) _drawOutdoor();
         } else {
           for(const m of group) _legacyIsoRooms(m);
         }
