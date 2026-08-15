@@ -24,7 +24,12 @@ const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
 
   // ---------- EXPERIMENTAL: 2D Flat Map (replaces 3D iso when enabled) ----------
   export function render2DMap(ctx, deps){
-  const { esc: _esc, renderRoomGrid, radios, sid: _sid, isScanner: _isScanner } = deps;
+  // Only what this function does NOT already build for itself. It declares its
+  // own _esc and _isScanner further down, and destructuring those here as well
+  // put two `const _esc` in one scope — a SyntaxError, which means the module
+  // never loads, which panel.js catches with console.warn and turns into an
+  // empty view rather than a crash. Nothing louder than a warning is emitted.
+  const { renderRoomGrid, radios, sid: _sid } = deps;
     const maps_list = (ctx.state.maps && ctx.state.maps.list) ? ctx.state.maps.list : [];
     if(!maps_list.length) return renderRoomGrid();
 
