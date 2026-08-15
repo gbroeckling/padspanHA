@@ -1080,6 +1080,11 @@ export function render(ctx){
 
     if(ctx.state._overviewPersistentPins === undefined) ctx.state._overviewPersistentPins = !!(ctx.state.settings && ctx.state.settings.overview_persistent_pins);
     if(ctx.state._overviewShowWalls === undefined) ctx.state._overviewShowWalls = !!(ctx.state.settings && ctx.state.settings.overview_show_walls);
+    // Outdoor areas are OFF by default. They are drawn fitted into the
+    // building's footprint rather than at their true metres — a shed 50 m down
+    // the garden cannot share a frame with the house and leave either readable
+    // — so showing them is a deliberate choice, not the resting state.
+    if(ctx.state._overviewShowOutdoor === undefined) ctx.state._overviewShowOutdoor = !!(ctx.state.settings && ctx.state.settings.overview_show_outdoor);
     if(ctx.state._overviewShowHeatmap === undefined) ctx.state._overviewShowHeatmap = false;
     if(ctx.state._overviewShowDistortion === undefined) ctx.state._overviewShowDistortion = false;
 
@@ -1288,7 +1293,7 @@ export function render(ctx){
             const [lix,liy]=iso(cx,cy,z);
             _emitIsoRoom(room, pp, lix, liy);
           }
-          if(z === sortedIsoLevels[0]) _drawOutdoor();
+          if(z === sortedIsoLevels[0] && ctx.state._overviewShowOutdoor) _drawOutdoor();
         } else {
           for(const m of group) _legacyIsoRooms(m);
         }
@@ -1884,6 +1889,24 @@ export function render(ctx){
     focusLbl.style.cssText = "color:#94a3b8;min-width:60px;display:inline-block";
     ctrlRow.appendChild(focusSlider);
     ctrlRow.appendChild(focusLbl);
+    // Outdoor — sits with the floor control because that is what it is: the
+    // areas that are not a storey of the building.
+    const ovOutBtn = document.createElement("button");
+    ovOutBtn.className = "btn inline";
+    const _outStyle = (on) => `padding:1px 6px;font-size:10px;margin-left:4px;${on ? "background:#0f2a1a;border-color:#34d399;color:#6ee7b7;font-weight:700" : "color:#94a3b8"}`;
+    const _outLabel = (on) => on ? "Outdoor ON" : "Outdoor";
+    ovOutBtn.style.cssText = _outStyle(ctx.state._overviewShowOutdoor);
+    ovOutBtn.textContent = _outLabel(ctx.state._overviewShowOutdoor);
+    ovOutBtn.title = "Show sheds, driveways and other areas that are not a storey. "
+      + "They are fitted into the building's footprint, not drawn at their true distance.";
+    ovOutBtn.addEventListener("click", ()=>{
+      ctx.state._overviewShowOutdoor = !ctx.state._overviewShowOutdoor;
+      ovOutBtn.style.cssText = _outStyle(ctx.state._overviewShowOutdoor);
+      ovOutBtn.textContent = _outLabel(ctx.state._overviewShowOutdoor);
+      _rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx));
+      ctx.actions.settingsSet({ overview_show_outdoor: ctx.state._overviewShowOutdoor });
+    });
+    ctrlRow.appendChild(ovOutBtn);
     // Spacing
     const ovSpacingLbl = document.createElement("span");
     ovSpacingLbl.style.cssText = "color:#94a3b8;margin-left:4px";

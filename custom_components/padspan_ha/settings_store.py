@@ -52,6 +52,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "lights_fit_rooms": False,  # Mapping -> Lights Showcase: never draw a fixture larger than its room
     "lights_hide_untouched": False,  # Mapping -> Lights: draw only fixtures that have been sized/rotated/coloured/shaped
     "overview_show_walls": False,   # Overview: draw RF barrier walls over the map
+    "overview_show_outdoor": False, # Overview: draw outdoor areas (sheds, driveways) as an overlay
     "health_reminder_enabled": False,  # monthly calibration accuracy reminder (off by default)
     "health_reminder_last_ts":  None,  # epoch seconds when reminder was last shown
     "adaptive_learning_enabled": False,  # experimental: passive room fingerprint learning
