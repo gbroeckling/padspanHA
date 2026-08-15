@@ -860,8 +860,16 @@ export function render(ctx){
         // that the loop above has not already placed, in metres.
         for(const r of (m.receivers||[])){
           if(r.room && !receiverIsoByRoom[r.room]){
-            const [wx,wy]=tf.mapPt(r.x||0, r.y||0);
-            receiverIsoByRoom[r.room] = iso(wx, wy, z);
+            // A receiver's place in a room comes from its metres. This still
+            // called tf.mapPt after the indoor transforms stopped carrying a
+            // projection — the one call site the sweep missed, and it threw
+            // inside a render whose failure shows as a blank view.
+            const fp = _fabScanner(r.source || r.id || "");
+            if(fp) receiverIsoByRoom[r.room] = [fp.sx, fp.sy];
+            else if(!_fabOK && tf.mapPt){
+              const [wx,wy]=tf.mapPt(r.x||0, r.y||0);
+              receiverIsoByRoom[r.room] = iso(wx, wy, z);
+            }
           }
         }
       }
@@ -1058,6 +1066,12 @@ export function render(ctx){
       }
       if(!wTotal) return null;
       const tf=mapTransforms[bestMap];
+      // Fingerprint positioning still averages calibration points held as
+      // fractions of a PHOTO, so it can only place a result while a photo
+      // projection exists. With the fabric in charge it stands down and the
+      // metre-based methods (trilateration, k-NN x_m/y_m) answer instead —
+      // rather than throwing and taking the whole view down with it.
+      if(!tf || typeof tf.mapPt !== "function") return null;
       const [lwx,lwy]=tf.mapPt(wx/wTotal, wy/wTotal);
       const [sx,sy]=iso(lwx, lwy, tf.z);
       return{sx, sy, z:tf.z, dist:scored[0].dist, confidence:Math.max(0,1-scored[0].dist/50)};
