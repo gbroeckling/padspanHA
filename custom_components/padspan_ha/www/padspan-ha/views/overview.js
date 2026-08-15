@@ -7,6 +7,11 @@
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
 const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
+// The metric frame the lights map draws with. Metres in, screen out, no photo
+// anywhere in it — the 3D map below uses THIS, and the stack_transform import
+// above survives only for the experimental 2D map, which is swept next.
+const { fabricFrame } =
+  await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 
 /**
  * Overview — "control tower" dashboard
@@ -1368,7 +1373,15 @@ export function render(ctx){
     // readable. Frozen once the structure is drawn; object markers are then
     // tethered to the edge instead (see _tetherOutside).
     let _isoBBFrozen = false;
+    // THE frame. Built from room_geometry_m and the floor registry, so it
+    // exists for a house that has never had a photograph uploaded. This
+    // replaces a projection that took world coordinates derived from where
+    // someone had dragged a picture — which is why deleting a plan used to
+    // move the house, and why an unmeasured install drew nothing at all.
+    const _fabF = fabricFrame(ctx.state.model, (ctx.state.model || {}).floors || [], _ovFG, _ovHG);
+    const _fabOK = !!(_fabF && !_fabF.empty && _fabF.levels && _fabF.levels.length);
     const iso = (wx,wy,wz)=>{
+      if(_fabOK) return _fabF.iso(wx, wy, wz);
       const p=[CX+(wx-wy)*TILE*0.866+wz*_ovHG, CY+(wx+wy)*TILE*0.5-wz*_ovFG];
       if(_isoBB && !_isoBBFrozen){
         if(p[0]<_isoBB.minX)_isoBB.minX=p[0]; if(p[0]>_isoBB.maxX)_isoBB.maxX=p[0];
@@ -1507,18 +1520,48 @@ export function render(ctx){
     // Fabric-first: once the committed metre fabric exists (anchored to the
     // world frame by a measured map), room centroids come from IT — per-photo
     // room_bounds stay only as the un-anchored fallback and for outside maps.
-    const _isoFabricW = fabricWorldRooms(maps_list, ctx.state.model);
+    // Rooms straight out of the fabric, in metres. fabricWorldRooms() divided
+    // these by a measured photo's scale and returned NULL when no photo had
+    // been measured — so the fabric was only ever drawable through a picture.
+    const _isoFabricW = _fabOK
+      ? Object.fromEntries(_fabF.rooms.map(r => [r.room, { floor_id: r.floor_id, pts: r.pts }]))
+      : fabricWorldRooms(maps_list, ctx.state.model);
     const _mapFid = m => String(m.stack?.floor_id || m.floor_id || "main");
+    // Scanner and barrier geometry, in metres, keyed the way the fabric keys
+    // it. Returns null when the fabric has nothing for that source, so an
+    // install mid-migration still falls back rather than losing a marker.
+    const _fabScannerPos = (ctx.state.model || {}).scanner_positions_m || {};
+    const _fabZOf = (fid) => {
+      if(!_fabOK) return undefined;
+      const r = _fabF.rooms.find(rr => String(rr.floor_id) === String(fid));
+      return r ? r.z : undefined;
+    };
+    const _fabScanner = (src) => {
+      if(!_fabOK || !src) return null;
+      const p = _fabScannerPos[src] || _fabScannerPos[String(src).toUpperCase()];
+      if(!p || typeof p.x_m !== "number" || typeof p.y_m !== "number") return null;
+      const z = _fabZOf(p.floor_id);
+      if(z === undefined) return null;
+      const [sx,sy] = _fabF.iso(p.x_m, p.y_m, z);
+      return {sx, sy, z};
+    };
     const roomIsoPos = {}, receiverIsoByRoom = {};
     function _rebuildPositions(){
       for(const k of Object.keys(roomIsoPos)) delete roomIsoPos[k];
       for(const k of Object.keys(receiverIsoByRoom)) delete receiverIsoByRoom[k];
       if(_isoFabricW){
+        // Which storey a room is on is a fact about the BUILDING. It used to
+        // be read off the z_level someone gave a photograph, so a room whose
+        // floor had no picture simply did not appear.
         const floorZ = {};
-        for(const m of sorted){
-          if(_isOutMap(m)) continue;
-          const fid = _mapFid(m);
-          if(floorZ[fid] === undefined) floorZ[fid] = (m.stack||{}).z_level||0;
+        if(_fabOK){
+          for(const r of _fabF.rooms) if(floorZ[r.floor_id] === undefined) floorZ[r.floor_id] = r.z;
+        } else {
+          for(const m of sorted){
+            if(_isOutMap(m)) continue;
+            const fid = _mapFid(m);
+            if(floorZ[fid] === undefined) floorZ[fid] = (m.stack||{}).z_level||0;
+          }
         }
         for(const [room,fr] of Object.entries(_isoFabricW)){
           const z = floorZ[fr.floor_id];
@@ -1593,7 +1636,10 @@ export function render(ctx){
 
     // Metres -> world, and a floor's slab height. Positions are metres, so
     // drawing them needs no map id and no per-photo transform.
-    const _mAnchor = metreAnchor(maps_list, (ctx.state.model || {}).map_transforms);
+    // An object knows where it is in metres. This used to be the factor that
+    // pushed those metres back into photo-world, and it was NULL without a
+    // measured plan — so a perfectly good position was thrown away.
+    const _mAnchor = _fabOK ? { m_per_world: 1 } : metreAnchor(maps_list, (ctx.state.model || {}).map_transforms);
     const _floorZByFloor = {};
     for(const m of maps_list){
       const fl = String(m.stack?.floor_id || m.floor_id || "main");
@@ -1628,6 +1674,12 @@ export function render(ctx){
         const liveRadio = rSrc ? allRadios_live.find(rd=>rd.source===rSrc) : allRadios_live.find(rd=>rd.name===(r.label||""));
         const src = (liveRadio ? liveRadio.source : null) || rSrc || r.id || "";
         if(!src) continue;
+        // A scanner on the wall has a position in metres, in the fabric. Its
+        // x/y on a photograph is where someone dropped a pin on a picture of
+        // that wall — same wall, but only one of the two is a measurement.
+        const fp = _fabScanner(src);
+        if(fp){ _scannerIsoPos[src] = fp; continue; }
+        if(_fabOK) continue;
         const [wx,wy] = tf.mapPt(r.x||0, r.y||0);
         const [sx,sy] = iso(wx, wy, tf.z);
         _scannerIsoPos[src] = {sx, sy, z: tf.z};
@@ -1903,6 +1955,7 @@ export function render(ctx){
           s += `<text x="${Math.round(lix)}" y="${Math.round(liy)+lidx*2}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600">${_esc(room)}</text>`;
         };
         const _legacyIsoRooms = (m) => {
+          if(_fabOK) return;   // the fabric has every room, including outside
           const tf = mapTransforms[m.id]; if(!tf) return;
           for(const [room,b] of Object.entries(m.room_bounds||{})){
             if(!b||b.type!=="poly"||!Array.isArray(b.points)||b.points.length<3) continue;
@@ -1934,12 +1987,20 @@ export function render(ctx){
           const mapPt = tf.mapPt;
           // RF barriers — dotted white lines on 3D map
           if(ctx.state._overviewShowWalls){
-            const _bars = m.rf_barriers || [];
+            // Barriers are walls. A wall is in the fabric, in metres.
+            const _fabBars = _fabOK ? ((ctx.state.model||{}).rf_barriers_m || []) : [];
+            const _bars = _fabOK
+              ? _fabBars.filter(b => _fabZOf(b.floor_id) === z)
+                        .map(b => ({ points: b.points_m || [] }))
+              : (m.rf_barriers || []);
             for(let bi=0;bi<_bars.length;bi++){
               const bar = _bars[bi];
               const bpts = bar.points || bar.pts || [];
               if(bpts.length<2) continue;
-              const bp = bpts.map(p=>{const[wx,wy]=mapPt(Number(p[0]),Number(p[1]));return pt(iso(wx,wy,z));}).join(" ");
+              const bp = bpts.map(p=>{
+                const P = _fabOK ? [Number(p[0]), Number(p[1])] : mapPt(Number(p[0]), Number(p[1]));
+                return pt(iso(P[0], P[1], z));
+              }).join(" ");
               s += `<polyline points="${bp}" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3" stroke-dasharray="5 8" stroke-linecap="round"/>`;
             }
           }
@@ -1949,8 +2010,11 @@ export function render(ctx){
           for(const r of (m.receivers||[])){
             const liveRadio = allRadios_live.find(rd=>rd.name===(r.label||"")||rd.source===(r.id||"")||rd.source===(r.source||"")||rd.name===(r.id||""));
             const isLive = !!liveRadio;
-            const[wx,wy]=mapPt(r.x||0,r.y||0);
-            const [px,py]=iso(wx,wy,z);
+            const _rsrc0 = (liveRadio ? liveRadio.source : null) || r.source || r.id || "";
+            const _fp = _fabScanner(_rsrc0);
+            if(!_fp && _fabOK) continue;   // fabric is truth; no metres, no marker
+            const[wx,wy]=_fp?[0,0]:mapPt(r.x||0,r.y||0);
+            const [px,py]=_fp?[_fp.sx,_fp.sy]:iso(wx,wy,z);
             const rsid = (_sid((isLive ? liveRadio.source : null) || r.source || r.id || r.label || "") || "R").toUpperCase();
             const _rTip = `${rsid} · ${(isLive ? liveRadio.name : null)||r.label||r.id||"receiver"}${r.room ? "\nArea: "+r.room : ""}${isLive && liveRadio.scanning!=null ? "\nScanning: "+(liveRadio.scanning?"Yes":"No") : ""}${!isLive ? "\n(offline)" : ""}`;
             const rxColor = isLive ? "#52b788" : "#4a6052";
