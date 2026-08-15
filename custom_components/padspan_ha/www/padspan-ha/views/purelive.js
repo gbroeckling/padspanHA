@@ -314,6 +314,27 @@ function MapViewport({ children }) {
     zoomTimerRef.current = setTimeout(() => setShowZoom(false), 1500);
   };
 
+  // Where a zoom is anchored when the user has not pointed at a spot.
+  //
+  // The VISIBLE centre, not the element's centre. The viewport is a flex child
+  // that grows to its content, so on a tall map it runs well past the bottom of
+  // the window — measuring 1209px inside a ~750px window here. Anchoring on
+  // `height/2` therefore pivots the map around a point the user cannot see, and
+  // it drifts under them as they zoom.
+  const anchorCentre = () => {
+    const vp = viewportRef.current;
+    if (!vp) return [0, 0];
+    const r = vp.getBoundingClientRect();
+    const visTop = Math.max(r.top, 0);
+    const visBottom = Math.min(r.bottom, window.innerHeight || r.bottom);
+    const visLeft = Math.max(r.left, 0);
+    const visRight = Math.min(r.right, window.innerWidth || r.right);
+    // Fall back to the element's own centre if it is scrolled fully out of view.
+    const cy = visBottom > visTop ? (visTop + visBottom) / 2 - r.top : r.height / 2;
+    const cx = visRight > visLeft ? (visLeft + visRight) / 2 - r.left : r.width / 2;
+    return [cx, cy];
+  };
+
   const zoomAt = (cx, cy, factor) => {
     const s = stateRef.current;
     const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s.scale * factor));
@@ -334,12 +355,17 @@ function MapViewport({ children }) {
     const vp = viewportRef.current;
     if (!vp) return;
 
-    // Mouse wheel zoom
+    // Mouse wheel zoom — anchored on the middle of the view, NOT on the pointer.
+    //
+    // Anchoring on the cursor is what map apps do, and it is why the map slid
+    // sideways: scrolling with the pointer a fifth of the way in from the left
+    // pushed the map 188px to the right, because the point under the cursor is
+    // the one being held still. This view is read at a glance rather than
+    // explored, so the middle stays put and the wheel now matches what the
+    // +/− buttons already did.
     const onWheel = (e) => {
       e.preventDefault();
-      const rect = vp.getBoundingClientRect();
-      const cx = e.clientX - rect.left;
-      const cy = e.clientY - rect.top;
+      const [cx, cy] = anchorCentre();
       const factor = e.deltaY < 0 ? 1.12 : 0.89;
       zoomAt(cx, cy, factor);
     };
@@ -432,8 +458,8 @@ function MapViewport({ children }) {
         ${children}
       </div>
       <div className="pl-zoom">
-        <button onClick=${() => { const r = viewportRef.current?.getBoundingClientRect(); if(r) zoomAt(r.width/2, r.height/2, 1.3); }} title="Zoom in">+</button>
-        <button onClick=${() => { const r = viewportRef.current?.getBoundingClientRect(); if(r) zoomAt(r.width/2, r.height/2, 0.77); }} title="Zoom out">−</button>
+        <button onClick=${() => { const [cx, cy] = anchorCentre(); zoomAt(cx, cy, 1.3); }} title="Zoom in">+</button>
+        <button onClick=${() => { const [cx, cy] = anchorCentre(); zoomAt(cx, cy, 0.77); }} title="Zoom out">−</button>
         <button onClick=${resetView} title="Reset view" style="font-size:13px">⌂</button>
       </div>
       <div className="pl-zoom-level ${showZoom ? "visible" : ""}">${zoomPct}%</div>
