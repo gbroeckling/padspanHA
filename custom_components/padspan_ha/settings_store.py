@@ -41,6 +41,19 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # stored calibration samples, positions and registry entries are untouched,
     # so removing a source from this list restores its influence exactly.
     "excluded_scanners": [],   # [source_name, ...] — ignored by every matcher
+    # Devices masked at INGEST — they never become objects, so they cost no CPU,
+    # no cache, no history. A MASK, never a delete: clear the list and the
+    # device is back on the next poll with its history intact.
+    #
+    # excluded_objects is the simple form: stable identity keys, e.g.
+    # "ibeacon:<uuid>:<major>:<minor>" — never a MAC, because the devices worth
+    # masking are the ones whose MAC changes every second.
+    "excluded_objects": [],
+    # ingest_rules is the general form, for sites that cannot enumerate devices
+    # by hand: [{action: mask|allow, reason: str,
+    #            match: {keys: [], uuids: [], ouis: [], addrs: []}}]
+    # First match wins, so an allow rule carves an exception out of a broad mask.
+    "ingest_rules": [],
     "positioning_algorithm": "knn",    # "knn" | "rf" (Random Forest)
     "kalman_q": 0.125,             # Kalman process noise (RSSI responsiveness)
     "kalman_r": 8.0,               # Kalman measurement noise (smoothing strength)

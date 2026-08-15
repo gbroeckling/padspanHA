@@ -70,6 +70,7 @@ from .build_info import BUILD_ID, BUILD_VERSION
 from .bluetooth_live import get_bluetooth_live
 from .vendor_lookup import async_lookup_vendor
 from .private_ble_resolver import get_resolver as _get_ble_resolver
+from .ingest_policy import Identity as _IngestIdentity, IngestPolicy
 from .ble_enrichment import enrich_object as _enrich_ble_object
 from .presence_rules import away_timeout_s, is_away
 
@@ -1334,6 +1335,17 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         canonical_by_addr: dict[str, dict[str, Any]] = {}   # addr → {canonical_id, name, kind}
         ibeacon_groups: dict[str, dict[str, Any]] = {}       # "ibeacon:uuid:major:minor" → merged group
         ibeacon_addrs: set[str] = set()                      # MAC addresses absorbed into an iBeacon group
+        # Ingest policy — the single point that decides whether an advertiser
+        # becomes an object at all. Rebuilt every poll, like the excluded-
+        # scanner set, so a change takes effect on the next snapshot rather
+        # than at the next restart. See ingest_policy.py for why this is a
+        # module: the cost of a device is its churn RATE, and a site cannot
+        # enumerate MACs that change every second.
+        try:
+            _st_ing = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+            _ingest = IngestPolicy.from_settings((_st_ing.data if _st_ing else {}) or {})
+        except Exception:
+            _ingest = IngestPolicy()
         _resolver_diag: dict[str, Any] = {"irk_devices": 0, "resolved": 0, "ibeacon_groups": 0, "rpa_count": 0, "crypto_ok": True, "errors": []}
         try:
             from .private_ble_resolver import crypto_available as _crypto_avail
@@ -1485,6 +1497,14 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                         _ibeacon_meta_for_private[cid] = ib
                         continue
                     uuid_key = f"ibeacon:{ib['uuid']}:{ib['major']}:{ib['minor']}"
+                    # Masked BEFORE the group is built, so a device rotating its
+                    # address every 1.6 seconds costs nothing rather than being
+                    # filtered out later at full price. Marked absorbed too, or
+                    # it would simply reappear as a bare MAC object.
+                    if _ingest.active and _ingest.is_masked(_IngestIdentity(
+                            addr=addr, key=uuid_key, uuid=str(ib.get("uuid") or ""))):
+                        ibeacon_addrs.add(addr)
+                        continue
                     ibeacon_addrs.add(addr)
                     if uuid_key not in ibeacon_groups:
                         ibeacon_groups[uuid_key] = {
@@ -1615,6 +1635,18 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         for addr, rec in ble_by_addr.items():
             if addr in ibeacon_addrs:
                 continue  # absorbed into a merged iBeacon group (section C)
+            # A device with no beacon identity can still be masked — by its own
+            # MAC if it is static, or by vendor prefix. Checked here as well as
+            # at the iBeacon grouping because these are two separate ways to
+            # become an object, and a mask that only covered one of them would
+            # look like it had stopped working.
+            if _ingest.active:
+                canonical_for_mask = canonical_by_addr.get(addr) or {}
+                if _ingest.is_masked(_IngestIdentity(
+                        addr=addr,
+                        key=str(canonical_for_mask.get("canonical_id") or ""),
+                        name=str(rec.get("name") or ""))):
+                    continue
             canonical = canonical_by_addr.get(addr)
             if canonical:
                 cid = canonical["canonical_id"]
@@ -2813,6 +2845,10 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 "ibeacon": len([o for o in objects if o.get("kind") == "ibeacon"]),
                 "common_prefixes": common_prefixes,  # prefix -> count (>=3)
                 "resolver": _resolver_diag,
+                # What the ingest policy hid this poll, and why. A mask that
+                # cannot be seen is indistinguishable from a bug, and this is
+                # also the number that answers "what is it saving me".
+                "ingest": _ingest.diagnostics(),
                 "cached_objects": _cached_added,
                 "dedup_absorbed": len(_dedup_absorbed),
             },
@@ -3088,6 +3124,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("object_history_days"): vol.Coerce(int),
         vol.Optional("scanner_offsets"): dict,
         vol.Optional("excluded_scanners"): list,
+        vol.Optional("excluded_objects"): list,
+        vol.Optional("ingest_rules"): list,
         vol.Optional("overview_2d_mode"): bool,
         vol.Optional("positioning_algorithm"): str,
         vol.Optional("beacon_profiling_enabled"): bool,
@@ -3267,6 +3305,25 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             raw = msg["scanner_offsets"]
             if isinstance(raw, dict):
                 payload["scanner_offsets"] = {str(k): float(v) for k, v in raw.items()}
+        if "excluded_objects" in msg:
+            # Stable identity keys only. Sorted and de-duplicated so the stored
+            # list stays readable — this is a setting people hand-edit and paste
+            # between installs.
+            raw = msg["excluded_objects"]
+            payload["excluded_objects"] = (
+                sorted({str(x).strip() for x in raw if isinstance(x, str) and x.strip()})
+                if isinstance(raw, list) else []
+            )
+        if "ingest_rules" in msg:
+            # Kept as given apart from the shape check — IngestPolicy is the one
+            # thing that interprets a rule, and validating the meaning in two
+            # places is how the two come to disagree. A rule that matches
+            # nothing is dropped there, not silently stored as a live rule here.
+            raw = msg["ingest_rules"]
+            payload["ingest_rules"] = (
+                [r for r in raw if isinstance(r, dict) and isinstance(r.get("match"), dict)]
+                if isinstance(raw, list) else []
+            )
         if "excluded_scanners" in msg:
             raw = msg["excluded_scanners"]
             payload["excluded_scanners"] = (
