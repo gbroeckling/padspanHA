@@ -1461,6 +1461,29 @@ export function render(ctx){
     const sortedIsoLevels = [...byLevel.keys()].sort((a,b)=>a-b);
     const levelColor = (z) => LAYER_PAL[sortedIsoLevels.indexOf(z) % LAYER_PAL.length];
 
+    // A storey is named by the FLOOR it is, never by the photo someone happened
+    // to upload for it. The map legend used to print `m.name||m.id` joined with
+    // "+", so a floor traced from two photos read as "Electrical.jpg+Position1"
+    // — a filename presented as a fact about the building, and it showed up in
+    // Pure Live too because that view borrows this very map element.
+    //
+    // Resolved the same way the rest of this file already resolves a floor
+    // name: the HA floor registry, by the floor_id the maps at that level carry.
+    // The fallback is the storey number, NEVER a map name.
+    const _floorLabelForLevel = (z) => {
+      const haFloors = (ctx.state.model && Array.isArray(ctx.state.model.floors)) ? ctx.state.model.floors : [];
+      const seen = [];
+      for (const m of (byLevel.get(z) || [])) {
+        const fid = String(m.stack?.floor_id || m.floor_id || "");
+        if (!fid || seen.some(f => String(f.id) === fid)) continue;
+        const flr = haFloors.find(f => String(f.id) === fid);
+        if (flr) seen.push(flr);
+      }
+      if (seen.length) return seen.map(f => f.name || f.id).join(" + ");
+      const byLvl = haFloors.find(f => Number(f.level) === Number(z));
+      return byLvl ? (byLvl.name || byLvl.id) : `Floor ${sortedIsoLevels.indexOf(z) + 1}`;
+    };
+
     // ── Slider positions: all → l0 → l0+l1 → l1 → l1+l2 → l2 → … ───────────
     // Each position is null (all), a single z-level, or [z0, z1] (adjacent pair).
     const _isoPos = [null];
@@ -2195,7 +2218,7 @@ export function render(ctx){
         let lx = 12;
         sortedIsoLevels.forEach((z, i)=>{
           const color = levelColor(z);
-          const groupLabel = byLevel.get(z).map(m=>m.name||m.id).join("+");
+          const groupLabel = _floorLabelForLevel(z);
           s += `<circle cx="${lx+7}" cy="${ly+7}" r="7" fill="${color}" opacity="0.9"/>`;
           s += `<text x="${lx+7}" y="${ly+10}" text-anchor="middle" fill="#071008" font-size="9" font-weight="700">${i+1}</text>`;
           s += `<text x="${lx+18}" y="${ly+10}" fill="${color}" font-size="11" font-weight="500">${_esc(groupLabel)}</text>`;
