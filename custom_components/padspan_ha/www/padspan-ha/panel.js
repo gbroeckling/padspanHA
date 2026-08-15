@@ -2592,7 +2592,14 @@ class PadSpanHaApp extends HTMLElement {
       const _onboardingDone = !!(this.state.settings && this.state.settings.onboarding_completed);
       const _hasMaps = !!(this.state.maps && this.state.maps.list && this.state.maps.list.length);
       const _hasReceivers = _hasMaps && this.state.maps.list.some(m => (m.receivers || []).length > 0);
-      const _hasRooms = _hasMaps && this.state.maps.list.some(m => Object.keys(m.room_bounds || {}).length > 0);
+      // "Have you got rooms yet" is a question about the FABRIC. Asking it of
+      // per-photo room_bounds told anyone who built their rooms without a
+      // plan — or who has since deleted one — that they had not done the step
+      // they had in fact finished.
+      const _hasFabricRooms = !!(this.state.model && this.state.model.room_geometry_m
+        && Object.keys(this.state.model.room_geometry_m).length > 0);
+      const _hasRooms = _hasFabricRooms
+        || (_hasMaps && this.state.maps.list.some(m => Object.keys(m.room_bounds || {}).length > 0));
       const _hasScale = !!(this.state.model && this.state.model.map_transforms && Object.values(this.state.model.map_transforms).some(t => t && t.reference_measurements && t.reference_measurements.length > 0));
       // Accept any calibration method: cal points, fitted model, or positioned scanners in fabric
       const _calPoints = (this.state.calibration && this.state.calibration.points) ? this.state.calibration.points.length : 0;

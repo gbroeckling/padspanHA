@@ -64,18 +64,26 @@ _PHOTO_TOOLING = {
     "maps.js": "the plan editor — tracing a photo into the fabric",
     # The alignment maths itself. Only the editor should import it.
     "stack_transform.js": "the photo alignment module",
+    # The experimental 2D flat map, lifted out of overview.js. Its subject IS
+    # the photograph: it draws the uploaded plans and lays rooms over them in
+    # image coordinates. That is the sanctioned use — look at the picture when
+    # you ask to look at the picture — and separating it is what finally let
+    # the house view be certified photo-free.
+    "plan_viewer.js": "the plan viewer — shows the uploaded image on request",
     # Repairs room_bounds entries orphaned on old plans. That IS photo upkeep.
     "manage.js": "repairs orphaned room_bounds on stored plans",
+    # The app shell. Its remaining mentions are the model's own state shape,
+    # loading the model payload the plan editor needs, and the onboarding step
+    # "have you measured a plan yet?" — which is a question about setup
+    # progress, not about the building. Judged valid and left alone.
+    "panel.js": "app shell — state shape, model load, onboarding setup steps",
 }
 
 # Files that still break the rule. SHRINKS ONLY. Never add to this.
 _QUARANTINE = {
-    "overview.js",     # builds its whole storey stack from the photo list
     "calibration.js",  # refuses to render twice without a photo
     "traceback.js",    # refuses to render; derives storeys
     "radio_map.js",    # heatmaps still in photo-fraction space
-    "panel.js",        # the app shell loads the map list — some of this is the
-                       # legitimate "keep images keyed to the fabric" path
 }
 
 
