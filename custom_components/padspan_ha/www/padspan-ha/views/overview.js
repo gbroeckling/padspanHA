@@ -644,6 +644,38 @@ export function render(ctx){
     // move the house, and why an unmeasured install drew nothing at all.
     const _fabF = fabricFrame(ctx.state.model, (ctx.state.model || {}).floors || [], _ovFG, _ovHG);
     const _fabOK = !!(_fabF && !_fabF.empty && _fabF.levels && _fabF.levels.length);
+    // ── Fabric helpers ──────────────────────────────────────────────────────
+    // Declared HERE, above every use. They were defined further down and called
+    // at the byLevel grouping ~60 lines earlier: a const arrow in its temporal
+    // dead zone, which threw before a single room was drawn and left an empty
+    // view with a clean console.
+    const _mapFid = m => String(m.stack?.floor_id || m.floor_id || "main");
+    const _fabZOf = (fid) => {
+      if(!_fabOK) return undefined;
+      const r = _fabF.rooms.find(rr => String(rr.floor_id) === String(fid));
+      return r ? r.z : undefined;
+    };
+    // A plan belongs to a floor; the floor has a storey. Reading the storey off
+    // the image's own stack level meant re-dragging a picture re-storeyed the
+    // house. floor_id is the plan's one legitimate link to the building.
+    const _mapZ = (m) => {
+      const z = _fabZOf(_mapFid(m));
+      return z === undefined ? 0 : z;
+    };
+    // Scanner geometry in metres, keyed the way the fabric keys it. Null when
+    // the fabric has nothing for that source, so an install mid-migration
+    // falls back rather than losing a marker.
+    const _fabScannerPos = (ctx.state.model || {}).scanner_positions_m || {};
+    const _fabScanner = (src) => {
+      if(!_fabOK || !src) return null;
+      const p = _fabScannerPos[src] || _fabScannerPos[String(src).toUpperCase()];
+      if(!p || typeof p.x_m !== "number" || typeof p.y_m !== "number") return null;
+      const z = _fabZOf(p.floor_id);
+      if(z === undefined) return null;
+      const [sx,sy] = _fabF.iso(p.x_m, p.y_m, z);
+      return {sx, sy, z};
+    };
+
     const iso = (wx,wy,wz)=>{
       if(_fabOK) return _fabF.iso(wx, wy, wz);
       const p=[CX+(wx-wy)*TILE*0.866+wz*_ovHG, CY+(wx+wy)*TILE*0.5-wz*_ovFG];
@@ -793,32 +825,6 @@ export function render(ctx){
     const _isoFabricW = _fabOK
       ? Object.fromEntries(_fabF.rooms.map(r => [r.room, { floor_id: r.floor_id, pts: r.pts }]))
       : null;
-    const _mapFid = m => String(m.stack?.floor_id || m.floor_id || "main");
-    // A plan belongs to a floor; the floor has a storey. Reading the storey off
-    // the image's own stack level meant re-dragging a picture re-storeyed the
-    // house. floor_id is the plan's one legitimate link to the building.
-    const _mapZ = (m) => {
-      const z = _fabZOf(_mapFid(m));
-      return z === undefined ? 0 : z;
-    };
-    // Scanner and barrier geometry, in metres, keyed the way the fabric keys
-    // it. Returns null when the fabric has nothing for that source, so an
-    // install mid-migration still falls back rather than losing a marker.
-    const _fabScannerPos = (ctx.state.model || {}).scanner_positions_m || {};
-    const _fabZOf = (fid) => {
-      if(!_fabOK) return undefined;
-      const r = _fabF.rooms.find(rr => String(rr.floor_id) === String(fid));
-      return r ? r.z : undefined;
-    };
-    const _fabScanner = (src) => {
-      if(!_fabOK || !src) return null;
-      const p = _fabScannerPos[src] || _fabScannerPos[String(src).toUpperCase()];
-      if(!p || typeof p.x_m !== "number" || typeof p.y_m !== "number") return null;
-      const z = _fabZOf(p.floor_id);
-      if(z === undefined) return null;
-      const [sx,sy] = _fabF.iso(p.x_m, p.y_m, z);
-      return {sx, sy, z};
-    };
     const roomIsoPos = {}, receiverIsoByRoom = {};
     function _rebuildPositions(){
       for(const k of Object.keys(roomIsoPos)) delete roomIsoPos[k];
