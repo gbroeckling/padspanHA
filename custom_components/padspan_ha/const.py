@@ -50,6 +50,13 @@ DATA_MAPS = "maps"
 DATA_MODEL = "model"
 DATA_OBJECTS = "objects"
 DATA_OBJECTS_CACHE = "objects_cache"            # in-memory enrichment cache (not persisted)
+# Which MAC addresses each beacon identity showed on the PREVIOUS poll.
+# Telling one rotating beacon from several identical ones needs one poll of
+# memory — a pack keeps advertising the same addresses, a rotator abandons
+# each address after using it. In-memory only: it is worth nothing after a
+# restart, and the decision falls back to address heuristics until the second
+# poll rebuilds it. See beacon_identity.decide_split().
+DATA_BEACON_LAST_MACS = "beacon_last_macs"
 DATA_CALIBRATION = "calibration"
 DATA_ALERTS = "alerts"
 DATA_MOVEMENT = "movement"

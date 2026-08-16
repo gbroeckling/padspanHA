@@ -49,6 +49,7 @@ from homeassistant.util import dt as dt_util
 from .const import (
     DOMAIN, VERSION, DATA_SETTINGS, DATA_MAPS, DATA_MODEL, DATA_FABRIC, DATA_OBJECTS,
     DATA_OBJECTS_CACHE, DATA_OBJECT_HISTORY, OBJECT_HISTORY_STORE_KEY,
+    DATA_BEACON_LAST_MACS,
     DEFAULT_FLOOR_ID, OUTSIDE_FLOOR_ID, DATA_COORDINATOR, DATA_CALIBRATION, DATA_ADAPTIVE,
     DATA_ALERTS, DATA_MOVEMENT, BACKUPS_STORE_KEY,
     SETTINGS_STORE_KEY, CALIBRATION_STORE_KEY, ADAPTIVE_STORE_KEY,
@@ -71,6 +72,7 @@ from .bluetooth_live import get_bluetooth_live
 from .vendor_lookup import async_lookup_vendor
 from .private_ble_resolver import get_resolver as _get_ble_resolver
 from .ingest_policy import Identity as _IngestIdentity, IngestPolicy
+from .beacon_identity import decide_split as _decide_beacon_split
 from .ble_enrichment import enrich_object as _enrich_ble_object
 from .presence_rules import away_timeout_s, is_away
 
@@ -1335,6 +1337,13 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         canonical_by_addr: dict[str, dict[str, Any]] = {}   # addr → {canonical_id, name, kind}
         ibeacon_groups: dict[str, dict[str, Any]] = {}       # "ibeacon:uuid:major:minor" → merged group
         ibeacon_addrs: set[str] = set()                      # MAC addresses absorbed into an iBeacon group
+        # One poll of memory per beacon identity. A pack keeps advertising the
+        # same addresses; a rotator abandons each one after using it, so what
+        # survived from last poll is what tells them apart. Read here, written
+        # once the groups are built, so a mid-loop exception cannot leave a
+        # half-updated view that makes the next poll's answer worse.
+        _beacon_last_macs: dict[str, set[str]] = hass.data.get(DOMAIN, {}).get(DATA_BEACON_LAST_MACS) or {}
+        _beacon_seen_now: dict[str, set[str]] = {}
         # Ingest policy — the single point that decides whether an advertiser
         # becomes an object at all. Rebuilt every poll, like the excluded-
         # scanner set, so a change takes effect on the next snapshot rather
@@ -1573,27 +1582,36 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 # rotation window both old and new MACs are age < 60s.  If ALL
                 # recent MACs are RPAs (Resolvable Private Addresses = rotating),
                 # they almost certainly belong to a single phone — do NOT split.
+                # Recorded for EVERY identity, not only the ones that are
+                # ambiguous today. A beacon showing one address this poll and
+                # three the next is exactly the case the persistence test
+                # exists for, and it can only answer if the quiet poll was
+                # written down too.
+                _recent_all = [
+                    a for a in g["addrs"]
+                    if (ble_by_addr.get(a, {}).get("age_s") or 9999) < 60
+                ]
+                _beacon_seen_now[uuid_key] = set(_recent_all)
                 if len(g["addrs"]) > 1:
-                    recent_macs = [
-                        a for a in g["addrs"]
-                        if (ble_by_addr.get(a, {}).get("age_s") or 9999) < 60
-                    ]
-                    # Check if all recent MACs are RPAs (rotating) — if so, same device
+                    recent_macs = _recent_all
+                    # One beacon wearing many addresses, or many beacons sharing
+                    # one identity? The address heuristics below cannot tell
+                    # those apart on their own — see beacon_identity.py — so the
+                    # decision is made from whether the addresses PERSIST across
+                    # polls, and the heuristics are what it falls back to before
+                    # there is any history to read.
                     _all_rpa = all(_is_rpa_addr(m) for m in recent_macs) if recent_macs else False
-                    # Two overrides — these are sibling DEVICES, not one rotating phone:
-                    # (1) Factory-default UUID: beacon multi-packs share uuid:major:minor
-                    #     out of the box; treat each MAC as its own physical device.
-                    # (2) Shared OUI: true RPA rotation randomizes the whole address, so
-                    #     several simultaneously-fresh MACs inside ONE vendor OUI block
-                    #     are distinct hardware. _is_rpa_addr() false-positives on public
-                    #     OUIs 0x40-0x7F (e.g. DX CP27 packs, OUI 48:87:2D) — without
-                    #     this guard the split is suppressed and the whole pack merges
-                    #     into a single object.
                     _is_default_uuid = str(g.get("uuid") or "").lower() in _DEFAULT_IBEACON_UUIDS
                     _same_oui = len({m[:9] for m in recent_macs}) == 1 if len(recent_macs) > 1 else False
-                    if _is_default_uuid or _same_oui:
-                        _all_rpa = False
-                    if len(recent_macs) > 1 and not _all_rpa:
+                    _split_decision = _decide_beacon_split(
+                        recent_macs,
+                        _beacon_last_macs.get(uuid_key),
+                        all_rpa=_all_rpa,
+                        default_uuid=_is_default_uuid,
+                        same_oui=_same_oui,
+                    )
+                    _resolver_diag.setdefault("split_reasons", {})[uuid_key[:48]] = _split_decision.reason
+                    if _split_decision.split:
                         # Multiple distinct devices — split each MAC into its own object
                         for idx, mac in enumerate(recent_macs):
                             rec = ble_by_addr.get(mac, {})
@@ -1623,6 +1641,12 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             # Merge split groups into main dict
             ibeacon_groups.update(_split_groups)
             _resolver_diag["ibeacon_groups"] = len(ibeacon_groups)
+            # Commit this poll's view for the next one to compare against.
+            # Only identities seen this poll are carried forward, so a beacon
+            # that goes away stops occupying memory and is treated as new when
+            # it returns — which is the right answer after an unknown gap.
+            if _beacon_seen_now:
+                hass.data.setdefault(DOMAIN, {})[DATA_BEACON_LAST_MACS] = _beacon_seen_now
         except Exception as _ib_err:
             _resolver_diag["errors"].append(f"ibeacon: {_ib_err}")
 
@@ -9216,6 +9240,11 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
 
     # Object snapshot cache (used for fast re-renders)
     domain.pop(DATA_OBJECTS_CACHE, None)
+
+    # One poll of beacon address memory. Stale across a reload — the addresses
+    # a rotating device wore before are gone — and keeping it would have the
+    # first poll after a reload compare against a world that no longer exists.
+    domain.pop(DATA_BEACON_LAST_MACS, None)
 
     # Object history — set to None so the reload condition triggers fresh load
     domain.pop(DATA_OBJECT_HISTORY, None)
