@@ -37,11 +37,40 @@ export function metreAnchor(mapsList, modelTransforms) {
     const sx = Number(t.scale_x_m), sy = Number(t.scale_y_m);
     if (!(sx > 0) || !(sy > 0)) continue;
     const stk = m.stack || {};
+    // World space is ANISOTROPIC in y — makeStackXform spans the image across
+    // `scale * scale_x_adj` in x and `scale * ar` in y (see its two branches).
+    // A measured map therefore has two metres-per-world-unit figures, not one.
+    //
+    // This used to read scale_y_m, validate it, and then return only the x
+    // figure — which every consumer applied to BOTH axes. Rooms came out
+    // correct across and wrong down by exactly the map's aspect error, and it
+    // only looked right while a map's pixel aspect matched its metric one.
+    // Trimming a map breaks that: the stored dimensions change, `ar` with
+    // them, and the fabric is drawn through a scale that no longer describes
+    // the picture it is being drawn on (issue #62 — rooms vertically
+    // compressed in the overhead view while the radios, which never leave the
+    // image's own 0-1 space, stayed put).
     const worldW = (Number(stk.scale) || 1) * (Number(stk.scale_x_adj) || 1);
-    if (!(worldW > 0)) continue;
-    return { map_id: m.id, m_per_world: sx / worldW };
+    const ar = Number(stk.ref_ar) || imageAr(m) || 1;
+    const worldH = (Number(stk.scale) || 1) * ar;
+    if (!(worldW > 0) || !(worldH > 0)) continue;
+    return {
+      map_id: m.id,
+      // Kept as the x figure so existing readers are unchanged in meaning.
+      m_per_world: sx / worldW,
+      m_per_world_x: sx / worldW,
+      m_per_world_y: sy / worldH,
+    };
   }
   return null;
+}
+
+// Metres → world, per axis. One place, so a caller cannot use the x scale for
+// y by accident — which is the whole of issue #62.
+function _fabricScale(anchor) {
+  const kx = 1 / (anchor.m_per_world_x || anchor.m_per_world);
+  const ky = 1 / (anchor.m_per_world_y || anchor.m_per_world);
+  return [kx, ky];
 }
 
 // All fabric rooms converted into stack-world coordinates:
@@ -54,7 +83,7 @@ export function fabricWorldRooms(mapsList, model) {
   if (!names.length) return null;
   const anchor = metreAnchor(mapsList, model && model.map_transforms);
   if (!anchor) return null;
-  const k = 1 / anchor.m_per_world;
+  const [kx, ky] = _fabricScale(anchor);
   const out = {};
   for (const room of names) {
     const g = geo[room];
@@ -62,14 +91,19 @@ export function fabricWorldRooms(mapsList, model) {
     if (g.type === "poly" && Array.isArray(g.points_m) && g.points_m.length >= 3) {
       out[room] = {
         floor_id: String(g.floor_id || "main"), type: "poly",
-        pts: g.points_m.map(p => [p[0] * k, p[1] * k]),
+        pts: g.points_m.map(p => [p[0] * kx, p[1] * ky]),
       };
     } else if (g.type === "circle") {
-      const cx = (g.cx_m || 0) * k, cy = (g.cy_m || 0) * k, r = (g.r_m || 0.5) * k;
+      // A circle in metres is an ELLIPSE in world space whenever the two
+      // scales differ, because world y is not world x. Drawing it as a circle
+      // on the mean of the two would put the room's edge in the wrong place on
+      // exactly the maps this fix exists for.
+      const cx = (g.cx_m || 0) * kx, cy = (g.cy_m || 0) * ky;
+      const rx = (g.r_m || 0.5) * kx, ry = (g.r_m || 0.5) * ky;
       const pts = [];
       for (let i = 0; i < 16; i++) {
         const a = i * Math.PI / 8;
-        pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+        pts.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]);
       }
       out[room] = { floor_id: String(g.floor_id || "main"), type: "circle", pts };
     }
@@ -102,7 +136,7 @@ export function fabricWorldScanners(mapsList, model) {
   if (!sources.length) return null;
   const anchor = metreAnchor(mapsList, model && model.map_transforms);
   if (!anchor) return null;
-  const k = 1 / anchor.m_per_world;
+  const [kx, ky] = _fabricScale(anchor);
 
   const bases = (model && model.floor_elevations) || {};
   const levels = {};
@@ -118,8 +152,8 @@ export function fabricWorldScanners(mapsList, model) {
     const z_m = Number(p.z_m != null ? p.z_m : 2.4);
     out.push({
       source,
-      wx: Number(p.x_m) * k,
-      wy: Number(p.y_m) * k,
+      wx: Number(p.x_m) * kx,
+      wy: Number(p.y_m) * ky,
       floor_id,
       level: levels[floor_id],
       z_m,

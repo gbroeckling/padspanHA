@@ -132,3 +132,44 @@ def test_a_pack_that_loses_members_still_splits_while_two_remain():
     d2 = decide_split(PACK[:1] + ["7A:99:99:99:99:99"], {PACK[0]},
                       all_rpa=True, default_uuid=True, same_oui=False)
     assert d2.split is False, d2.reason
+
+
+def test_a_non_resolvable_rotator_merges_without_classifying_its_address():
+    """Issue #63: the device rotates NRPAs, not RPAs.
+
+    `_is_rpa_addr` only recognises 0x40-0x7F (resolvable). A non-resolvable
+    private address has top bits 0b00 — 0x00-0x3F — so every one of this
+    device's addresses returns False, `all_rpa` is False, and the old rule
+    read "several simultaneous devices" and split on every poll. 65,440
+    distinct MACs in 24 hours from one garage keypad.
+
+    Persistence does not care what an address LOOKS like, which is the whole
+    point: nothing carried over from the previous poll, so it is one device
+    however its address bits are set. `all_rpa=False` is passed here on
+    purpose — that is what the classifier really returns for this device.
+    """
+    def nrpa(seq: int, count: int) -> list[str]:
+        # 0x00-0x3F top byte — non-resolvable private, invisible to _is_rpa_addr
+        return [f"{(seq * 7 + i) % 0x40:02X}:11:22:33:44:{i:02X}" for i in range(count)]
+
+    prev = set(nrpa(0, 4))
+    for seq in range(1, 40):
+        # ~1.3s rotation against a 5s poll: several fresh addresses every frame
+        macs = nrpa(seq, 4)
+        d = decide_split(macs, prev, all_rpa=False, default_uuid=False, same_oui=False)
+        assert d.split is False, f"poll {seq} split a non-resolvable rotator: {d.reason}"
+        prev = set(macs)
+
+
+def test_only_the_first_poll_of_an_unknown_rotator_can_split():
+    """The fallback costs one poll, and persistence corrects it immediately.
+
+    Worth asserting because the first-sighting path is the one place the old
+    address heuristics still decide anything.
+    """
+    first = ["1A:00:00:00:00:01", "1B:00:00:00:00:02"]
+    d0 = decide_split(first, None, all_rpa=False, default_uuid=False, same_oui=False)
+    assert d0.split is True, "the fallback should be conservative on first sight"
+    second = ["2C:00:00:00:00:03", "2D:00:00:00:00:04"]
+    d1 = decide_split(second, set(first), all_rpa=False, default_uuid=False, same_oui=False)
+    assert d1.split is False, d1.reason
