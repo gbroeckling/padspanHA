@@ -809,7 +809,10 @@ function _buildSavePanel(ctx, el, cs, calData, mapData) {
       } catch (e) {
         saveBtn.disabled = false;
         saveBtn.textContent = "Save Point";
-        ctx.toast("Save failed: " + String(e), true);
+        // HA websocket errors are objects; String() gives "[object Object]"
+        // and hides the one thing the user needs — e.g. that this map has no
+        // metre scale yet and the point was refused for having no position.
+        ctx.toast("Save failed: " + (e && (e.message || e.code) || String(e)), true);
       }
     });
     btnRow.appendChild(saveBtn);

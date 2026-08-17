@@ -233,6 +233,22 @@ class CalibrationStore:
                 clean["x_m"] = round(coords[0], 3)
                 clean["y_m"] = round(coords[1], 3)
 
+        # A calibration point IS a position with readings attached. When the
+        # map it was placed on has never been measured, map_frac_to_metres has
+        # nothing to convert with and returns None — and this used to store
+        # the point anyway, with no x_m/y_m. It then counted toward the total,
+        # showed up in every "N points" figure, and was ignored by every
+        # learner that needs a location (k-NN, RF, LOO accuracy, the spatial
+        # solve). The user saw a saved point; positioning saw nothing. Refusing
+        # at save time is the only moment they can still act on it — measure
+        # the map, then place the point.
+        if clean.get("x_m") is None or clean.get("y_m") is None:
+            raise ValueError(
+                "This map has no metre scale yet, so the point has no position. "
+                "Set a reference measurement on the map (Mapping → Measure) "
+                "before placing calibration points on it."
+            )
+
         self.data.setdefault("points", []).append(clean)
         await self.store.async_save(self.data)
         await self._async_train_rf()

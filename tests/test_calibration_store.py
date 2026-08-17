@@ -1040,3 +1040,65 @@ def test_knn_answers_in_metres_and_names_no_photo() -> None:
     assert result is not None
     assert result["x_m"] == pytest.approx(2.0, abs=1.0)
     assert "x_frac" not in result and "y_frac" not in result
+
+
+# ── A point with no position is not a calibration point ──────────────────────
+
+class TestPositionlessPointsAreRefused:
+    """A calibration point IS a position with readings attached.
+
+    When the map a point was placed on has never been measured,
+    `map_frac_to_metres` has nothing to convert with and returns None. The
+    store used to save the point anyway with no x_m/y_m: it counted toward the
+    total, showed in every "N points" figure, and was ignored by every learner
+    that needs a location. The user saw a saved point; positioning saw nothing.
+
+    Refusing at save time is the only moment the user can still act on it.
+    """
+
+    @staticmethod
+    def _readings():
+        return [{"source": "AA:01", "mean_rssi": -60.0, "rssi_samples": [-60.0]}]
+
+    async def test_a_point_on_an_unmeasured_map_is_refused_with_a_reason(self):
+        store = _make_store()
+        model = MagicMock()
+        model.map_frac_to_metres.return_value = None       # unmeasured map
+        store._model = model
+        store._async_train_rf = AsyncMock()
+
+        with pytest.raises(ValueError, match="no metre scale"):
+            await store.async_add_point({
+                "map_id": "unmeasured", "x_frac": 0.4, "y_frac": 0.5,
+                "room": "Kitchen", "scanner_readings": self._readings(),
+            })
+        assert store.data["points"] == [], "a positionless point was stored"
+        store.store.async_save.assert_not_awaited()
+
+    async def test_a_point_on_a_measured_map_still_saves(self):
+        """The ordinary path must be untouched."""
+        store = _make_store()
+        model = MagicMock()
+        model.map_frac_to_metres.return_value = (4.2, -3.1)
+        store._model = model
+        store._async_train_rf = AsyncMock()
+
+        saved = await store.async_add_point({
+            "map_id": "ground", "x_frac": 0.4, "y_frac": 0.5,
+            "room": "Kitchen", "scanner_readings": self._readings(),
+        })
+        assert saved["x_m"] == 4.2 and saved["y_m"] == -3.1
+        assert len(store.data["points"]) == 1
+
+    async def test_explicit_metres_need_no_map_at_all(self):
+        """Mapless / beacon auto-calibration supplies metres directly and must
+        keep working — this is the path the coordinator uses for pinned beacons."""
+        store = _make_store()
+        store._model = None
+        store._async_train_rf = AsyncMock()
+
+        saved = await store.async_add_point({
+            "map_id": "", "x_m": 1.5, "y_m": 2.5, "room": "Kitchen",
+            "scanner_readings": self._readings(),
+        })
+        assert saved["x_m"] == 1.5 and saved["y_m"] == 2.5

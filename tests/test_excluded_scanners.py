@@ -153,7 +153,10 @@ def test_capture_skips_masked_sources_but_keeps_older_points(monkeypatch):
     # the rover on its own and the test would pass whether or not the mask
     # works.
     saved = asyncio.run(st.async_add_point({
-        "map_id": "m1", "x_frac": 0.3, "y_frac": 0.3, "room": "kitchen",
+        # A captured point carries its position; one without is refused now
+        # (a fingerprint with no location is not a calibration point).
+        "map_id": "m1", "x_frac": 0.3, "y_frac": 0.3, "x_m": 3.0, "y_m": 3.0,
+        "room": "kitchen",
         "scanner_readings": [
             {"source": "fix_a", "name": "fix_a", "rssi_samples": [-56, -57, -56, -58]},
             {"source": "rover", "name": "rover", "rssi_samples": [-50, -51, -50, -49, -50, -51]},
