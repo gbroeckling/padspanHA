@@ -13,9 +13,12 @@
 //
 // Only calling the function finds those. So this does.
 //
-// It is deliberately not a rendering test: it asserts nothing about output.
-// A view that throws is broken; a view that returns something is, for these
-// purposes, fine.
+// It is not a rendering test. A view that throws is broken; a view that
+// returns something is, for these purposes, fine. The one exception is the
+// overview's composed svg, where a handful of contracts are checked because
+// each has silently broken before with a clean console: the annotation-scale
+// placeholder must be substituted, the Pure Live scale contract present, and
+// the heat/warp overlays must actually draw on the fabric storey.
 
 import { readdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -215,10 +218,19 @@ const FIXTURE = {
       { map_id: "ground", x_frac: 0.6, y_frac: 0.7, room: "Living", x_m: 7, y_m: -6,
         floor_id: "main",
         scanner_readings: [{ source: "AA:01", mean_rssi: -68 }, { source: "AA:02", mean_rssi: -71 }] },
+      // Four on the storey: the warp grid needs more than k-NN's k to predict.
+      { map_id: "ground", x_frac: 0.2, y_frac: 0.2, room: "Kitchen", x_m: 1, y_m: -12,
+        floor_id: "main",
+        scanner_readings: [{ source: "AA:01", mean_rssi: -60 }, { source: "AA:02", mean_rssi: -80 }] },
+      { map_id: "ground", x_frac: 0.8, y_frac: 0.8, room: "Living", x_m: 12, y_m: 0,
+        floor_id: "main",
+        scanner_readings: [{ source: "AA:01", mean_rssi: -74 }, { source: "AA:02", mean_rssi: -66 }] },
     ],
   },
+  // Both overlays on. The UI keeps them exclusive; the builder draws whatever
+  // is asked, and both paths deserve to run.
   _overviewShowHeatmap: true,
-  _overviewShowDistortion: false,
+  _overviewShowDistortion: true,
   _2dFocusIdx: 0,
   _ctx: {},
 };
@@ -242,6 +254,11 @@ const ran = [];
 
 const files = readdirSync(VIEWS_DIR).filter(f => f.endsWith(".js")).sort();
 
+// overview.js loads the overlay module lazily and re-renders when it lands;
+// the harness runs one synchronous build, so hand it the module up front —
+// otherwise the storey heat/warp path never executes here.
+const RADIO_MAP_MOD = await import(pathToFileURL(join(VIEWS_DIR, "radio_map.js")).href);
+
 for (const file of files) {
   let mod;
   try {
@@ -259,12 +276,38 @@ for (const file of files) {
     // because of the harness, not the code, and a guard that reports its own
     // noise is a guard people learn to ignore.
     if (!ENTRY_POINTS.has(name)) continue;
-    const ctx = makeCtx(structuredClone(FIXTURE));
+    // A module cannot be structuredClone'd; attach it after the copy.
+    const ctx = makeCtx(Object.assign(structuredClone(FIXTURE), { _2dRadioMapMod: RADIO_MAP_MOD }));
+    // Every node the render creates, so its innerHTML can be inspected after
+    // the deferred work has run.
+    const made = [];
+    const realCreate = document.createElement;
+    document.createElement = (t) => { const n = realCreate(t); made.push(n); return n; };
     try {
       const arg2 = name === "renderTags" ? document.createElement("div") : DEPS();
       const out = fn(ctx, arg2);
       if (out && typeof out.then === "function") await out;
       await flush();
+      // The one output assertion. The overview's iso map composes its
+      // annotation scale by placeholder substitution at the very end; a
+      // placeholder that survived would be an invalid transform on every
+      // marker — a map with a clean console and no readable labels.
+      if (file === "overview.js") {
+        const svgs = made.map(n => n.innerHTML || "").filter(h => h.includes("<svg") && h.includes("viewBox"));
+        if (!svgs.length) throw new Error("overview rendered no <svg viewBox> map");
+        for (const h of svgs) {
+          if (h.includes("__ANNK__")) throw new Error("annotation-scale placeholder left in the composed svg");
+          if (!/scale\(\d\.\d{3}\)/.test(h)) throw new Error("no annotation scale applied in the composed svg");
+          // The contract Pure Live's zoom composes with: k on the root,
+          // an anchor on every annotation.
+          if (!/<svg [^>]*data-ann-k="\d\.\d{3}"/.test(h)) throw new Error("svg root missing data-ann-k");
+          if (!/data-ann="-?\d+ -?\d+"/.test(h)) throw new Error("no data-ann anchors in the composed svg");
+          // The overlays draw from the fabric storey: hatched cells and a
+          // warp grid must be present with heat and warp both on.
+          if (!h.includes('fill="url(#rmiso')) throw new Error("heat overlay drew no cells on the fabric storey");
+          if (!/<line [^>]*stroke-width="1.5" opacity="0.7"/.test(h)) throw new Error("warp overlay drew no grid on the fabric storey");
+        }
+      }
       ran.push(`${file}:${name}`);
     } catch (err) {
       failures.push({
@@ -272,6 +315,8 @@ for (const file of files) {
         error: String(err && err.message || err),
         stack: String(err && err.stack || "").split("\n").slice(0, 4).join(" | "),
       });
+    } finally {
+      document.createElement = realCreate;
     }
   }
 }

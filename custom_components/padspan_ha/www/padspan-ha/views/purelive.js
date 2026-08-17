@@ -240,8 +240,16 @@ function Ticker({ dataMode, radios, objects, version, cal }) {
 
 // ── SVG counter-scaling ──────────────────────────────────────────────────────
 // When the viewport is zoomed, SVG text and circles scale with it, making
-// labels and dots balloon until they obscure the map.  This applies inverse
+// labels and dots balloon until they obscure the map. This applies inverse
 // scaling so they remain the same visual size regardless of zoom level.
+//
+// The overview already scales every annotation — labels, markers, badges,
+// legend — by one factor k (its root svg's `data-ann-k`) so they read at a
+// designed size, and marks each one `data-ann="x y"` with its anchor. Zoom
+// multiplies on-screen size by `scale`, so the annotation's transform is
+// re-derived as anchor × (k / scale). Composed, not overwritten: this used
+// to set scale(1/zoom) outright, which discarded k and brought the giant
+// labels back the moment the map was zoomed — or rebuilt, at zoom 1.
 
 const _COUNTER_SCALE_ATTR = "_plOrig";
 
@@ -249,37 +257,19 @@ function _counterScaleSVG(container, scale) {
   const svg = container.querySelector("svg");
   if (!svg) return;
   const inv = 1 / scale;
+  const k = parseFloat(svg.getAttribute("data-ann-k")) || 1;
+  const f = k * inv;
 
-  // 1. Beacon/object groups and scanner groups: inverse-scale the whole group
-  for (const g of svg.querySelectorAll("[data-obj-key],[data-scanner-src]")) {
-    const anchor = g.querySelector("circle");
-    if (anchor) {
-      const cx = parseFloat(anchor.getAttribute("cx")) || 0;
-      const cy = parseFloat(anchor.getAttribute("cy")) || 0;
-      g.setAttribute("transform", `translate(${cx},${cy}) scale(${inv}) translate(${-cx},${-cy})`);
-    }
+  // 1. Every annotation the overview marked, about its own anchor.
+  for (const el of svg.querySelectorAll("[data-ann]")) {
+    const [ax, ay] = (el.getAttribute("data-ann") || "0 0").split(" ").map(Number);
+    el.setAttribute("transform", `translate(${ax} ${ay}) scale(${f}) translate(${-ax} ${-ay})`);
   }
 
-  // 2. Standalone text (room names, floor labels) — not inside obj/scanner groups
-  for (const txt of svg.querySelectorAll("text")) {
-    if (txt.closest("[data-obj-key],[data-scanner-src]")) continue;
-    const x = parseFloat(txt.getAttribute("x")) || 0;
-    const y = parseFloat(txt.getAttribute("y")) || 0;
-    txt.setAttribute("transform", `translate(${x},${y}) scale(${inv}) translate(${-x},${-y})`);
-  }
-
-  // 3. Floor index badges (r>=15)
-  for (const c of svg.querySelectorAll("circle")) {
-    if (c.closest("[data-obj-key],[data-scanner-src]")) continue;
-    const origR = c[_COUNTER_SCALE_ATTR];
-    const r = origR != null ? origR : parseFloat(c.getAttribute("r")) || 0;
-    if (origR == null) c[_COUNTER_SCALE_ATTR] = r;
-    if (r >= 15) c.setAttribute("r", String(Math.max(8, r * inv)));
-  }
-
-  // 4. Stroke widths on room polygons and barriers
+  // 2. Stroke widths on room polygons and barriers: line weight is a
+  //    screen property, not a building property.
   for (const el of svg.querySelectorAll("polygon, polyline")) {
-    if (el.closest("[data-obj-key],[data-scanner-src]")) continue;
+    if (el.closest("[data-ann]")) continue;
     const origSW = el[_COUNTER_SCALE_ATTR];
     const sw = origSW != null ? origSW : parseFloat(el.getAttribute("stroke-width")) || 0;
     if (origSW == null) el[_COUNTER_SCALE_ATTR] = sw;

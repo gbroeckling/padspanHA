@@ -610,7 +610,6 @@ export function render(ctx){
         isScanner: ctx.helpers.isScanner,
       });
     }
-    const maps_list = (ctx.state.maps && ctx.state.maps.list) ? ctx.state.maps.list : [];
     // The house view needs a HOUSE, not a photograph of one. It used to bail
     // here when no image had been uploaded, however complete the fabric was.
     const _fabRooms0 = (ctx.state.model || {}).room_geometry_m || {};
@@ -620,36 +619,33 @@ export function render(ctx){
     }
 
     const TILE=220, CX=380, CY=590, W=760, BASE_H=940;
-    // The frame width every `font-size="N"` in this file was tuned against.
-    // Labels are scaled by _REF_FRAME_W / actual-frame-width so a change in
-    // how tightly the frame fits the building never changes how big the
-    // words are (see _isoHeader).
-    const _REF_FRAME_W = 880;
-    // Counter-scale for annotations — labels, dots, badges. They are drawn
-    // in svg units and the frame is now fitted to the building, so a tighter
-    // frame made every one of them bigger on screen. Each marker group is
-    // scaled about its own anchor by this factor, so text, dot and badge
-    // shrink together and stay put. Computed from the tracked content box
-    // (populated by the time annotations draw), matching _isoHeader's frame.
-    // The label sizes in this file were designed at ~0.84 screen pixels per
-    // svg unit (an 880-unit frame in a ~740 px panel). What matters for how
-    // big a label LOOKS is that ratio, not the frame width on its own — the
-    // same frame on a 1920 px screen renders every unit twice as large. So
-    // the counter-scale is designed-px-per-unit over actual-px-per-unit,
-    // where actual is the container the svg will fill divided by the frame.
-    // Never enlarges (a small screen keeps its designed sizes).
+    // Annotations — room labels, scanner and beacon markers, badges — are
+    // drawn in svg units, and the frame is fitted to the building, so a
+    // tighter frame or a wider panel makes every one of them bigger on
+    // screen. They should read at a constant size whatever the frame does.
+    // Each annotation group is scaled about its own anchor by
+    // designed-px-per-unit / actual-px-per-unit, where actual is the
+    // container width the svg fills divided by the frame's viewBox width.
+    // The label sizes in this file were designed at ~0.84 px per unit.
+    // Never enlarges: a small screen keeps its designed sizes.
+    //
+    // The factor is not known until the frame is — and the frame is the
+    // tracked extent of everything drawn, known only at the end. So every
+    // group carries ANN_K as a placeholder and _finishIso() substitutes the
+    // one final value when it composes the svg. One number, one place, no
+    // dependence on what was drawn before which.
+    //
+    // Every annotation is marked `data-ann="x y"` (its anchor) and the root
+    // svg carries `data-ann-k` (the scale applied). That is the contract
+    // Pure Live's pan/zoom uses to counter-scale: it re-derives each
+    // transform as anchor × (k / zoom) rather than guessing anchors from a
+    // child circle and overwriting the transform — which discarded k and
+    // brought the giant labels back the moment the map was zoomed.
     const _REF_PX_PER_UNIT = 0.84;
-    const _annK = ()=>{
-      if(!_isoBB || !isFinite(_isoBB.minX)) return 1;
-      const frameW = (_isoBB.maxX - _isoBB.minX) + 120;   // PAD each side
-      // isoDiv is declared further down in this scope; the map is only ever
-      // built after it exists, but the reference is guarded so a call from
-      // anywhere earlier degrades to "no scaling" rather than a TDZ throw.
-      let hostW = 0;
-      try { hostW = (isoDiv && isoDiv.clientWidth) || 0; } catch (e) { hostW = 0; }
-      if(!hostW || !frameW) return 1;
-      const pxPerUnit = hostW / frameW;
-      return Math.min(1, _REF_PX_PER_UNIT / pxPerUnit);
+    const ANN_K = "__ANNK__";
+    const _annT = (x, y) => {
+      const ax = Math.round(x), ay = Math.round(y);
+      return `data-ann="${ax} ${ay}" transform="translate(${ax} ${ay}) scale(${ANN_K}) translate(${-ax} ${-ay})"`;
     };
     const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
     const roomColorFn = ctx.helpers.roomColor;
@@ -676,35 +672,12 @@ export function render(ctx){
     const _fabF = fabricFrame(ctx.state.model, (ctx.state.model || {}).floors || [], _ovFG, _ovHG);
     const _fabOK = !!(_fabF && !_fabF.empty && _fabF.levels && _fabF.levels.length);
     // ── Fabric helpers ──────────────────────────────────────────────────────
-    // Declared HERE, above every use. They were defined further down and called
-    // at the byLevel grouping ~60 lines earlier: a const arrow in its temporal
-    // dead zone, which threw before a single room was drawn and left an empty
-    // view with a clean console.
-    const _mapFid = m => String(m.stack?.floor_id || m.floor_id || "main");
+    // The storey a floor is drawn at; undefined for a floor the fabric has no
+    // rooms on, which cannot be drawn.
     const _fabZOf = (fid) => {
       if(!_fabOK) return undefined;
       const r = _fabF.rooms.find(rr => String(rr.floor_id) === String(fid));
       return r ? r.z : undefined;
-    };
-    // A plan belongs to a floor; the floor has a storey. Reading the storey off
-    // the image's own stack level meant re-dragging a picture re-storeyed the
-    // house. floor_id is the plan's one legitimate link to the building.
-    const _mapZ = (m) => {
-      const z = _fabZOf(_mapFid(m));
-      return z === undefined ? 0 : z;
-    };
-    // Scanner geometry in metres, keyed the way the fabric keys it. Null when
-    // the fabric has nothing for that source, so an install mid-migration
-    // falls back rather than losing a marker.
-    const _fabScannerPos = (ctx.state.model || {}).scanner_positions_m || {};
-    const _fabScanner = (src) => {
-      if(!_fabOK || !src) return null;
-      const p = _fabScannerPos[src] || _fabScannerPos[String(src).toUpperCase()];
-      if(!p || typeof p.x_m !== "number" || typeof p.y_m !== "number") return null;
-      const z = _fabZOf(p.floor_id);
-      if(z === undefined) return null;
-      const [sx,sy] = _fabF.iso(p.x_m, p.y_m, z);
-      return {sx, sy, z};
     };
 
     // Every point drawn passes through here, and `_isoBB` records where they
@@ -748,6 +721,15 @@ export function render(ctx){
     };
     const pt  = c=>`${Math.round(c[0])},${Math.round(c[1])}`;
     const pts = cs=>cs.map(pt).join(" ");
+    // Which room a point in metres is in: ray-cast against the polygon.
+    const _ptInPoly = (x, y, poly) => {
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i], [xj, yj] = poly[j];
+        if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+      }
+      return inside;
+    };
 
     const _isScanner = ctx.helpers.isScanner;
     // Re-readable object list — refreshed before each buildIsoSVG call so the
@@ -790,51 +772,31 @@ export function render(ctx){
     }
     _refreshIsoObjects();
 
-    // Sync _hiddenMapIds from settings (authoritative, fetched on every refresh).
-    // Fall back to localStorage only if settings hasn't populated it yet.
-    const _savedHiddenIds = ctx.state.settings?.hidden_map_ids;
-    if(Array.isArray(_savedHiddenIds)){
-      ctx.state.maps._hiddenMapIds = new Set(_savedHiddenIds);
-    } else if(!ctx.state.maps._hiddenMapIds){
-      try{ ctx.state.maps._hiddenMapIds = new Set(JSON.parse(localStorage.getItem("padspan_hiddenMapIds")||"[]")); }
-      catch(e){ ctx.state.maps._hiddenMapIds = new Set(); }
-    }
-    // Filter hidden maps
-    const hiddenIds = ctx.state.maps._hiddenMapIds;
-    // Kept only so the per-map receiver/barrier loops below still have
-    // something to iterate on a part-migrated install; nothing about the
-    // BUILDING is read from it any more.
-    const sorted = [...maps_list].filter(m=>!hiddenIds.has(m.id));
-
-    // Group maps by z_level
-    const byLevel = new Map();
-    for(const m of sorted){
-      const z=_mapZ(m);
-      if(!byLevel.has(z)) byLevel.set(z,[]);
-      byLevel.get(z).push(m);
-    }
-    const sortedIsoLevels = [...byLevel.keys()].sort((a,b)=>a-b);
+    // The storeys are the fabric's: one per distinct height its rooms occupy.
+    // They used to be the z-levels the uploaded photographs were grouped at,
+    // so a floor that had rooms but no picture was not a floor at all — it
+    // drew nothing, and neither did anything on it.
+    const sortedIsoLevels = _fabOK ? [..._fabF.levels] : [];
     const levelColor = (z) => LAYER_PAL[sortedIsoLevels.indexOf(z) % LAYER_PAL.length];
+    // The floor ids the fabric places at a storey.
+    const _floorIdsAt = (z) => {
+      const ids = [];
+      for (const r of (_fabOK ? _fabF.rooms : [])) {
+        if (r.z === z && !ids.includes(r.floor_id)) ids.push(r.floor_id);
+      }
+      return ids;
+    };
 
     // A storey is named by the FLOOR it is, never by the photo someone happened
-    // to upload for it. The map legend used to print `m.name||m.id` joined with
-    // "+", so a floor traced from two photos read as "Electrical.jpg+Position1"
-    // — a filename presented as a fact about the building, and it showed up in
-    // Pure Live too because that view borrows this very map element.
-    //
-    // Resolved the same way the rest of this file already resolves a floor
-    // name: the HA floor registry, by the floor_id the maps at that level carry.
-    // The fallback is the storey number, NEVER a map name.
+    // to upload for it: the HA floor registry, by the floor ids the fabric
+    // puts at that storey. The fallback is the storey number, NEVER a map name.
     const _floorLabelForLevel = (z) => {
       const haFloors = (ctx.state.model && Array.isArray(ctx.state.model.floors)) ? ctx.state.model.floors : [];
-      const seen = [];
-      for (const m of (byLevel.get(z) || [])) {
-        const fid = String(m.stack?.floor_id || m.floor_id || "");
-        if (!fid || seen.some(f => String(f.id) === fid)) continue;
-        const flr = haFloors.find(f => String(f.id) === fid);
-        if (flr) seen.push(flr);
-      }
-      if (seen.length) return seen.map(f => f.name || f.id).join(" + ");
+      const names = _floorIdsAt(z)
+        .map(fid => haFloors.find(f => String(f.id) === String(fid)))
+        .filter(Boolean)
+        .map(f => f.name || f.id);
+      if (names.length) return names.join(" + ");
       const byLvl = haFloors.find(f => Number(f.level) === Number(z));
       return byLvl ? (byLvl.name || byLvl.id) : `Floor ${sortedIsoLevels.indexOf(z) + 1}`;
     };
@@ -851,76 +813,28 @@ export function render(ctx){
     const _getFocusLbl = (idx) => {
       const pos = _getFocusZ(idx);
       if(pos === null) return "All floors";
-      const fl = ctx.state.model?.floors || [];
       const zArr = Array.isArray(pos) ? pos : [pos];
-      return zArr.map(z=>{ const f=fl.find(x=>x.level===z); return f?(f.name||`L${z}`):`L${z}`; }).join(" + ");
+      return zArr.map(_floorLabelForLevel).join(" + ");
     };
 
-    // Build room centroid + receiver iso positions for live data overlay
-    // _rebuildPositions() is called initially and whenever iso params change (slider)
-    // Uses mapTransforms for correct rotation/ref_ar/scale_x_adj alignment.
-    // Fabric-first: once the committed metre fabric exists (anchored to the
-    // world frame by a measured map), room centroids come from IT — per-photo
-    // room_bounds stay only as the un-anchored fallback and for outside maps.
-    // Rooms straight out of the fabric, in metres. fabricWorldRooms() divided
-    // these by a measured photo's scale and returned NULL when no photo had
-    // been measured — so the fabric was only ever drawable through a picture.
+    // Room centroids on screen, for an object that has a room but no
+    // position. Rebuilt whenever the projection changes (sliders). Straight
+    // out of the fabric, in metres; the storey is the room's own.
     const _isoFabricW = _fabOK
       ? Object.fromEntries(_fabF.rooms.map(r => [r.room, { floor_id: r.floor_id, pts: r.pts }]))
       : null;
-    const roomIsoPos = {}, receiverIsoByRoom = {};
+    const roomIsoPos = {};
     function _rebuildPositions(){
       for(const k of Object.keys(roomIsoPos)) delete roomIsoPos[k];
-      for(const k of Object.keys(receiverIsoByRoom)) delete receiverIsoByRoom[k];
-      if(_isoFabricW){
-        // Which storey a room is on is a fact about the BUILDING. It used to
-        // be read off the z_level someone gave a photograph, so a room whose
-        // floor had no picture simply did not appear.
-        const floorZ = {};
-        if(_fabOK){
-          for(const r of _fabF.rooms) if(floorZ[r.floor_id] === undefined) floorZ[r.floor_id] = r.z;
-        } else {
-          for(const m of sorted){
-            if(_isOutMap(m)) continue;
-            const fid = _mapFid(m);
-            if(floorZ[fid] === undefined) floorZ[fid] = _mapZ(m);
-          }
-        }
-        for(const [room,fr] of Object.entries(_isoFabricW)){
-          const z = floorZ[fr.floor_id];
-          if(z === undefined) continue;
-          const cx=fr.pts.reduce((a,p)=>a+p[0],0)/fr.pts.length;
-          const cy=fr.pts.reduce((a,p)=>a+p[1],0)/fr.pts.length;
-          roomIsoPos[room] = iso(cx, cy, z);
-        }
-      }
-      for(const m of sorted){
-        const tf = mapTransforms[m.id]; if(!tf) continue;
-        const z = tf.z;
-        // Outside maps used to contribute their own room centroids from photo
-        // bounds. The fabric holds outdoor rooms too — Shed, Richard's Shed,
-        // Top Driveway Entrance are all in it — so there is nothing left here
-        // that the loop above has not already placed, in metres.
-        for(const r of (m.receivers||[])){
-          if(r.room && !receiverIsoByRoom[r.room]){
-            // A receiver's place in a room comes from its metres. This still
-            // called tf.mapPt after the indoor transforms stopped carrying a
-            // projection — the one call site the sweep missed, and it threw
-            // inside a render whose failure shows as a blank view.
-            const fp = _fabScanner(r.source || r.id || "");
-            if(fp) receiverIsoByRoom[r.room] = [fp.sx, fp.sy];
-            else if(!_fabOK && tf.mapPt){
-              const [wx,wy]=tf.mapPt(r.x||0, r.y||0);
-              receiverIsoByRoom[r.room] = iso(wx, wy, z);
-            }
-          }
-        }
+      for(const r of (_fabOK ? _fabF.rooms : [])){
+        const cx=r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length;
+        const cy=r.pts.reduce((a,p)=>a+p[1],0)/r.pts.length;
+        roomIsoPos[r.room] = iso(cx, cy, r.z);
       }
     }
 
     if(ctx.state._overviewIsoFocusIdx === undefined)
       ctx.state._overviewIsoFocusIdx = Math.max(0, Math.min(ctx.state.settings?.overview_iso_focus ?? 0, _isoPos.length-1));
-    const hasBounds = !!(_isoFabricW && Object.keys(_isoFabricW).length);
 
     // ── Fingerprint positioning ─────────────────────────────────────────────
     // Load calibration data the first time (non-blocking; re-renders when ready)
@@ -942,16 +856,8 @@ export function render(ctx){
       }).catch(e => console.warn("PadSpan: radio_map module load failed", e));
     }
 
-    // Per-map coord transform: image-fraction (0-1) → ISO screen pixel
-    // Uses the same mapPt formula as the room-polygon renderer so positions align exactly.
-    // Built from ALL maps (not just visible) so objects on hidden maps can still be positioned.
-    const _OUTSIDE_FID = "__outside__";
-    const _isOutMap = m => (m.floor_id || "") === _OUTSIDE_FID;
-
-    // Compute indoor bounding box (union of all non-outside maps) for fitting outside layers
-    // The extent of the BUILDING — the union of its rooms in metres. It used
-    // to be the union of the four corners of every uploaded image, so a plan
-    // photographed with a wide margin made the house bigger.
+    // The extent of the BUILDING — the union of its rooms in metres. Outdoor
+    // areas are fitted into it when shown.
     let _indoorBB = {minX:Infinity,minY:Infinity,maxX:-Infinity,maxY:-Infinity};
     for(const r of (_fabOK ? _fabF.rooms : [])){
       for(const p of r.pts){
@@ -961,164 +867,17 @@ export function render(ctx){
     }
     if(!isFinite(_indoorBB.minX)){_indoorBB={minX:0,minY:0,maxX:1,maxY:0.75};}
 
-    // Metres -> world, and a floor's slab height. Positions are metres, so
-    // drawing them needs no map id and no per-photo transform.
-    // An object knows where it is in metres. This used to be the factor that
-    // pushed those metres back into photo-world, and it was NULL without a
-    // measured plan — so a perfectly good position was thrown away.
-    const _mAnchor = _fabOK ? { m_per_world: 1 } : null;
-    const _floorZByFloor = {};
-    for(const m of maps_list){
-      const fl = String(m.stack?.floor_id || m.floor_id || "main");
-      if(_floorZByFloor[fl] === undefined) _floorZByFloor[fl] = _mapZ(m);
-    }
-    const _floorZ = (fl) => (fl && _floorZByFloor[String(fl)] !== undefined)
-      ? _floorZByFloor[String(fl)] : 0;
-
-    const mapTransforms = {};
-    for(const m of maps_list){
-      const z=_mapZ(m);
-      if(_isOutMap(m)){
-        // Outside maps: fit 0-1 coords into the indoor bounding box
-        mapTransforms[m.id]={z, mapPt:(px,py)=>{
-          return[_indoorBB.minX+px*(_indoorBB.maxX-_indoorBB.minX), _indoorBB.minY+py*(_indoorBB.maxY-_indoorBB.minY)];
-        }};
-      } else {
-        mapTransforms[m.id]={z};
-      }
-    }
+    // The storey an object is drawn on: the floor the server put it on, or
+    // failing that the floor of the room it is in. Positions are metres and
+    // the frame takes metres, so there is no other conversion. A floor the
+    // fabric has no rooms on cannot be drawn, so it does not draw.
+    const _objZ = (o) => {
+      let z = _fabZOf(o.floor_id);
+      if(z === undefined && o.room && _isoFabricW && _isoFabricW[o.room]) z = _fabZOf(_isoFabricW[o.room].floor_id);
+      return z;
+    };
     _rebuildPositions();
 
-    // ── Scanner position map for RSSI trilateration ──────────────────────────
-    // Maps scanner source → ISO screen coordinates so we can estimate object
-    // positions from live RSSI without requiring calibration data.
-    const _scannerIsoPos = {};
-    for(const m of maps_list){
-      const tf = mapTransforms[m.id]; if(!tf) continue;
-      for(const r of (m.receivers||[])){
-        // Match stored receiver to live radio — primary key is source
-        const rSrc = r.source || "";
-        const liveRadio = rSrc ? allRadios_live.find(rd=>rd.source===rSrc) : allRadios_live.find(rd=>rd.name===(r.label||""));
-        const src = (liveRadio ? liveRadio.source : null) || rSrc || r.id || "";
-        if(!src) continue;
-        // A scanner on the wall has a position in metres, in the fabric. Its
-        // x/y on a photograph is where someone dropped a pin on a picture of
-        // that wall — same wall, but only one of the two is a measurement.
-        const fp = _fabScanner(src);
-        if(fp){ _scannerIsoPos[src] = fp; continue; }
-        if(_fabOK) continue;
-        const [wx,wy] = tf.mapPt(r.x||0, r.y||0);
-        const [sx,sy] = iso(wx, wy, tf.z);
-        _scannerIsoPos[src] = {sx, sy, z: tf.z};
-      }
-    }
-
-    // Trilateration: weighted centroid of scanner positions based on RSSI.
-    // Returns {sx, sy, confidence} or null.  Works without calibration data.
-    function _trilateratePos(obj){
-      const readings = _getObjReadings(obj);
-      const sources = Object.keys(readings);
-      if(sources.length < 1) return null;
-      let wx=0, wy=0, wTotal=0, matched=0;
-      for(const src of sources){
-        const pos = _scannerIsoPos[src];
-        if(!pos) continue;
-        const rssi = readings[src].rssi;
-        const age = readings[src].age_s || 0;
-        if(age > 60) continue;
-        // Weight: exponential on RSSI (stronger signal = heavier weight).
-        // Shift by +100 so typical range (-40 to -95) maps to positive exponents.
-        const w = Math.pow(10, (rssi + 100) / 20) * Math.exp(-age / 45);
-        wx += pos.sx * w;
-        wy += pos.sy * w;
-        wTotal += w;
-        matched++;
-      }
-      if(matched < 2 || wTotal < 1e-10) return null;
-      // Confidence scales with number of matched scanners (≥3 = full)
-      const confidence = Math.min(1.0, matched / 3) * 0.35;
-      return {sx: wx / wTotal, sy: wy / wTotal, confidence};
-    }
-
-    // Collect per-source RSSI for an object from the live advertisement stream.
-    // obj.sources in the snapshot is a string array; the actual RSSI values are in
-    // snap.ble.advertisements (one row per {address, source}).
-    function _getObjReadings(obj){
-      const addr = obj.address||"";
-      if(!addr) return {};
-      // For iBeacon objects, match by all rotating MAC addresses (not the
-      // stable ibeacon:uuid:major:minor key which never appears in raw ads).
-      const matchAddrs = new Set();
-      matchAddrs.add(addr);
-      if(Array.isArray(obj.all_addresses)){
-        for(const a of obj.all_addresses) matchAddrs.add(String(a));
-      }
-      const readings={};
-      for(const ad of (liveSnap?.ble?.advertisements||[])){
-        if(!matchAddrs.has(ad.address) || !ad.source || ad.rssi==null) continue;
-        if(!readings[ad.source] || (ad.age_s||0) < readings[ad.source].age_s)
-          readings[ad.source]={rssi:ad.rssi, age_s:ad.age_s||0};
-      }
-      return readings;
-    }
-
-    // k-NN fingerprint match across all calibration points visible on current maps.
-    // Returns {sx, sy, z, dist, confidence} (ISO screen coords) or null.
-    // Age-decay: readings >45 s old contribute less weight.
-    // Missing-source penalty: 28 dBm per calibration source absent from current scan.
-    function _matchFingerprint(readings){
-      if(!calPoints.length) return null;
-      const obsSrcs = Object.keys(readings);
-      if(!obsSrcs.length) return null;
-      const scored=[];
-      for(const p of calPoints){
-        if(!mapTransforms[p.map_id]) continue;
-        const cal=p.scanner_readings||{};
-        let sumSq=0, count=0;
-        for(const src of obsSrcs){
-          if(cal[src]?.rssi!=null){
-            const ageW = Math.exp(-(readings[src].age_s||0)/45);
-            const diff  = readings[src].rssi - cal[src].rssi;
-            sumSq += diff*diff * Math.max(ageW, 0.1);
-            count++;
-          }
-        }
-        if(count<1) continue;
-        const missing = Object.keys(cal).length - count;
-        const dist = Math.sqrt(sumSq/count) + missing*28;
-        scored.push({p, dist});
-      }
-      if(!scored.length) return null;
-      scored.sort((a,b)=>a.dist-b.dist);
-      const k=Math.min(5, scored.length);
-      // Find dominant map (highest total weight among top-k)
-      const mapW={};
-      for(let i=0;i<k;i++){
-        const {p,dist}=scored[i]; const w=1/Math.max(dist*dist,0.01);
-        mapW[p.map_id]=(mapW[p.map_id]||0)+w;
-      }
-      let bestMap=scored[0].p.map_id, bestW=0;
-      for(const [mid,w] of Object.entries(mapW)){if(w>bestW){bestW=w;bestMap=mid;}}
-      // Weighted centroid using only points on the dominant map
-      let wx=0, wy=0, wTotal=0;
-      for(let i=0;i<k;i++){
-        const {p,dist}=scored[i];
-        if(p.map_id!==bestMap) continue;
-        const w=1/Math.max(dist*dist,0.01);
-        wx+=p.x_frac*w; wy+=p.y_frac*w; wTotal+=w;
-      }
-      if(!wTotal) return null;
-      const tf=mapTransforms[bestMap];
-      // Fingerprint positioning still averages calibration points held as
-      // fractions of a PHOTO, so it can only place a result while a photo
-      // projection exists. With the fabric in charge it stands down and the
-      // metre-based methods (trilateration, k-NN x_m/y_m) answer instead —
-      // rather than throwing and taking the whole view down with it.
-      if(!tf || typeof tf.mapPt !== "function") return null;
-      const [lwx,lwy]=tf.mapPt(wx/wTotal, wy/wTotal);
-      const [sx,sy]=iso(lwx, lwy, tf.z);
-      return{sx, sy, z:tf.z, dist:scored[0].dist, confidence:Math.max(0,1-scored[0].dist/50)};
-    }
     const LEGEND_H = 30;  // single-row compact legend
 
     if(ctx.state._overviewPersistentPins === undefined) ctx.state._overviewPersistentPins = !!(ctx.state.settings && ctx.state.settings.overview_persistent_pins);
@@ -1149,67 +908,47 @@ export function render(ctx){
       // knows how far stitched-map geometry actually reaches.  Union of both
       // — framing never shrinks, content can no longer be clipped.
       _isoBB = {minX:Infinity,minY:Infinity,maxX:-Infinity,maxY:-Infinity};
-      const _isoHeader = ()=>{
+      // The frame. Content decides, both axes: the tracked extent of what was
+      // drawn plus a pad, the heuristic box only as the fallback for a build
+      // that drew nothing. The legend is laid out from _isoBB.minX and sits
+      // just under the geometry, so LEGEND_H covers it.
+      const _isoFrame = ()=>{
         let vx=viewX, vy=viewY, vw=viewW, vh=HTOTAL;
         if(_isoBB && isFinite(_isoBB.minX)){
           const PAD=60;
-          // HORIZONTAL: the content decides, not the heuristic.
-          //
-          // This used to take the UNION of the tracked content box and the
-          // heuristic box, so the frame could grow but never tighten — and the
-          // heuristic is W + horizExtra + 60 = 880 units wide whatever the
-          // building measures. A house drawing 670 units across therefore sat
-          // in an 880-unit frame with 210 units of dead air permanently at the
-          // sides, no matter how well the projection had been fitted.
-          //
-          // The legend below the map IS drawn at fixed x (10 to W-10), so it
-          // is included explicitly rather than by keeping a box wide enough to
-          // contain it by accident.
-          // The legend is laid out from _isoBB.minX (see below), so it lives
-          // inside the drawing's own extent and no longer needs the frame
-          // held open to W-10 to contain it. Content decides, full stop.
           const x0=_isoBB.minX-PAD;
           const x1=_isoBB.maxX+PAD;
-          // VERTICAL keeps the union: the legend strip and the floor-gap
-          // growth both live below and above the geometry, and clipping the
-          // stack is a worse failure than a tall frame.
-          // VERTICAL follows the content too, now that the legend does. The
-          // union with the heuristic box is what kept the frame ~970 tall
-          // around 466 of drawing; the legend sits just under the geometry and
-          // LEGEND_H covers it.
           const y0=Math.min(vy, _isoBB.minY-PAD);
           const y1=_isoBB.maxY + 24 + LEGEND_H + 20;
           vx=x0; vy=y0; vw=x1-x0; vh=y1-y0;
         }
-        // The map fills the width it is given. Height follows.
-        //
-        // There used to be a `max-height` here, originally `${vh}px` — the
-        // viewBox's own unit count read as CSS pixels, two numbers with no
-        // relationship to each other. An svg preserves its aspect ratio, so
-        // capping the height also caps the WIDTH: the map could never render
-        // wider than about `vw` pixels however wide the panel was. That is the
-        // blank space down both sides, and no amount of re-fitting the drawing
-        // INSIDE the frame could reach it, because the constraint was on the
-        // frame's rendered size rather than on its contents.
-        //
-        // Width is the scarce dimension here — the panel is wide and short,
-        // the floor stack is tall — and the page already scrolls. So: take the
-        // full width, let the height be whatever the aspect ratio makes it,
-        // and scroll. A tall map you can read beats a small one that fits.
-        // Text is sized in svg user units, so it scales with the frame — and
-        // the frame just went from ~880 units drawn into ~740 px (0.84 px per
-        // unit) to ~600 units drawn into ~1500 px (2.5 px per unit). Every
-        // label tripled. The labels are not the building; they should read
-        // at a constant size on screen whatever the frame does.
-        //
-        // One rule fixes all of them: a viewBox unit is `vw / rendered-width`
-        // pixels, and this svg renders at 100% of its container. Scaling the
-        // font by that ratio, against the width the sizes were designed for,
-        // makes every `font-size="N"` mean N px on screen again. It is set
-        // once on the root and inherited, rather than rewriting the two dozen
-        // per-element sizes to a different unit.
-        return `<svg viewBox="${vx} ${vy} ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg" width="100%" style="height:auto;display:block;font-family:system-ui,sans-serif">`
-          + `<rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="#071008"/>`;
+        return {vx, vy, vw, vh};
+      };
+      // Composes the final svg: header sized to the frame, body with every
+      // ANN_K placeholder replaced by the one annotation scale for this frame.
+      //
+      // The svg takes the full width it is given and the height follows —
+      // an svg keeps its aspect ratio, so any cap on height is a cap on
+      // width, and that was the blank space down both sides. Width is the
+      // scarce dimension; the page already scrolls.
+      const _finishIso = (body)=>{
+        const {vx, vy, vw, vh} = _isoFrame();
+        // isoDiv is declared further down in this scope; the map is only
+        // ever built after it exists, but the reference is guarded so a call
+        // from anywhere earlier degrades to "no scaling" rather than a throw.
+        // The svg fills isoDiv's CONTENT box: clientWidth includes the 6%
+        // side padding, so subtract it or every unit is measured 12% wide.
+        let hostW = 0;
+        try {
+          const cs = getComputedStyle(isoDiv);
+          hostW = (isoDiv.clientWidth || 0) - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+        } catch (e) { hostW = 0; }
+        const k = (hostW > 0 && vw) ? Math.min(1, _REF_PX_PER_UNIT / (hostW / vw)) : 1;
+        const kStr = k.toFixed(3);
+        return `<svg viewBox="${vx} ${vy} ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg" width="100%" data-ann-k="${kStr}" style="height:auto;display:block;font-family:system-ui,sans-serif">`
+          + `<rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="#071008"/>`
+          + body.split(ANN_K).join(kStr)
+          + `</svg>`;
       };
       let s = ``;
 
@@ -1244,40 +983,77 @@ export function render(ctx){
       });
       s += `</defs>`;
 
-      if(!sorted.length){
-        s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="13">All layers hidden</text>`;
-        return _isoHeader() + s + `</svg>`;
+      if(!sortedIsoLevels.length){
+        s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="13">No rooms yet — draw them in Mapping → Rooms to build the map</text>`;
+        return _finishIso(s);
       }
 
-      // Emit 3D hatch pattern defs once (before any level renders cells)
-      if (_isoRadioMapOn && _isoRadioMapMod && _isoRadioMapMod.isoHatchDefs && ctx.state._overviewShowHeatmap) {
-        s += _isoRadioMapMod.isoHatchDefs();
-      }
-
-      // Pre-compute GLOBAL RSSI range across all floors for consistent color scale.
-      // Without this, each floor gets its own scale and bad floors look deceptively green.
-      if ((_isoRadioMapOn || _isoDistortionOn) && _isoRadioMapMod && (ctx.state._overviewShowHeatmap || ctx.state._overviewShowDistortion)) {
-        const refPow = ctx.state.settings?.ref_power ?? -59;
-        const plN = ctx.state.settings?.path_loss_exp ?? 2.5;
-        let gMin = 0, gMax = -120;
-        for (const [zz, grp] of [...byLevel.entries()]) {
-          for (const m of grp) {
-            const tf = mapTransforms[m.id]; if (!tf || !tf.mapPt) continue;
-            for (const r of (m.receivers || [])) {
-              if (r.x == null || r.y == null) continue;
-              // Best case: right at the scanner = refPower at 0.3m
-              const best = refPow - 10 * plN * Math.log10(0.3);
-              if (best > gMax) gMax = best;
-              // Worst case: far corner of bounding box (rough estimate)
-              const worst = refPow - 10 * plN * Math.log10(15); // ~15m away
-              if (worst < gMin) gMin = worst;
-            }
-          }
+      // ── The storeys, in the shape the overlays take ─────────────────────
+      // radio_map's iso overlays draw ON the building, so they are handed the
+      // building the way it is drawn: a storey from the fabric, in metres —
+      // its rooms, the scanners within reach (with their vertical offset from
+      // a device on this storey, and how many storeys away they are), the
+      // barriers, and the calibration points taken on it. Nothing here comes
+      // from a photograph.
+      const _model = ctx.state.model || {};
+      const _bases = _model.floor_elevations || {};
+      const _carryM = Number(ctx.state.settings?.assumed_device_height_m ?? 1.0);
+      const _scanPos = _model.scanner_positions_m || {};
+      const _storeyOf = (z) => {
+        const rooms = _fabF.rooms.filter(r => r.z === z).map(r => ({ room: r.room, pts: r.pts }));
+        const rank = _fabF.rankOf(z);
+        const drawnFid = _floorIdsAt(z)[0];
+        const deviceZ = (Number(_bases[drawnFid]) || 0) + _carryM;
+        const scanners = [];
+        for (const [source, p] of Object.entries(_scanPos)) {
+          if (!p || typeof p.x_m !== "number" || typeof p.y_m !== "number") continue;
+          const sz = _fabZOf(p.floor_id);
+          if (sz === undefined) continue;                 // floor with no rooms: not drawable
+          const floorDist = Math.abs(_fabF.rankOf(sz) - rank);
+          if (floorDist > 2) continue;
+          const absZ = (Number(_bases[String(p.floor_id)]) || 0) + Number(p.z_m != null ? p.z_m : 2.4);
+          scanners.push({ source, x_m: p.x_m, y_m: p.y_m, dz_m: absZ - deviceZ, dz: absZ - deviceZ, floorDist });
         }
-        if (_isoRadioMapMod.setGlobalRange) _isoRadioMapMod.setGlobalRange(gMin, gMax);
+        const barriers = [];
+        for (const b of (_model.rf_barriers_m || [])) {
+          const bz = _fabZOf(b.floor_id);
+          if (bz === undefined || Math.abs(_fabF.rankOf(bz) - rank) > 2) continue;
+          const points = (b.points_m || []).map(p => [Number(p[0]), Number(p[1])]);
+          if (points.length >= 2) barriers.push({ points, attenuation_dbm: b.attenuation_dbm ?? 6 });
+        }
+        const calPts = [];
+        for (const p of calPoints) {
+          if (p.x_m == null || p.y_m == null || _fabZOf(p.floor_id) !== z) continue;
+          const query = {};
+          for (const r of (p.scanner_readings || [])) if (r.source && r.mean_rssi != null) query[r.source] = r.mean_rssi;
+          if (Object.keys(query).length) calPts.push({ x_m: p.x_m, y_m: p.y_m, query });
+        }
+        return { z, rooms, scanners, barriers, calPoints: calPts };
+      };
+      const _storeys = new Map(sortedIsoLevels.map(z => [z, _storeyOf(z)]));
+
+      // Overlays: configure the module once, then find the RSSI range across
+      // ALL storeys so they share one colour scale — scaled to itself, a badly
+      // covered floor looks as green as a good one.
+      const _heatOn = _isoRadioMapOn && _isoRadioMapMod && ctx.state._overviewShowHeatmap;
+      const _warpOn = !!(ctx.state.settings && ctx.state.settings.distortion_map_enabled) && _isoRadioMapMod && ctx.state._overviewShowDistortion;
+      let _ovRange = null;
+      if (_heatOn || _warpOn) {
+        const M = _isoRadioMapMod;
+        M.setUserGainContrast(ctx.state._heatGain || ctx.state.settings?.heatmap_gain || 0, ctx.state._heatContrast || ctx.state.settings?.heatmap_contrast || 0);
+        M.setSourceBlend(ctx.state._heatSource ?? ctx.state.settings?.heatmap_source ?? 0);
+        M.setAdaptiveData(ctx.state._adaptiveFps || null);
+        M.setDistortionIntensity(ctx.state._distIntensity ?? ctx.state.settings?.distortion_intensity ?? 50);
+        for (const st of _storeys.values()) {
+          const r = M.isoStoreyRssiRange(st, liveSnap, ctx.state.settings);
+          if (!r) continue;
+          _ovRange = _ovRange ? { minR: Math.min(_ovRange.minR, r.minR), maxR: Math.max(_ovRange.maxR, r.maxR) } : r;
+        }
+        if (_heatOn) s += M.isoHatchDefs();
       }
 
-      for(const [z,group] of [...byLevel.entries()].sort((a,b)=>a[0]-b[0])){
+      for(const z of sortedIsoLevels){
+        const storey = _storeys.get(z);
         const isFocused = focusZ===null || (Array.isArray(focusZ) ? focusZ.includes(z) : focusZ===z);
         const go = isFocused ? 1.0 : 0.1;
         const lyrColor = levelColor(z);
@@ -1330,9 +1106,13 @@ export function render(ctx){
                  + `fill="#0d2318" fill-opacity="0.35" stroke="none"/>`;
             }
           }
+          // Same opacity the rectangular plate always had. The heat and
+          // distortion overlays are drawn ON this surface a few lines below,
+          // and at 0.5 the plate hid them — the footprint change is about the
+          // slab's SHAPE, not its density.
           for(const r of zRooms){
             const top = r.pts.map(p=>iso(p[0],p[1],z));
-            s += `<polygon points="${pts(top)}" fill="#0f2017" fill-opacity="0.5" stroke="none"/>`;
+            s += `<polygon points="${pts(top)}" fill="#0f2017" fill-opacity="0.06" stroke="none"/>`;
           }
           if(lidx !== 1){
             for(const r of zRooms){
@@ -1353,36 +1133,9 @@ export function render(ctx){
           s += `<polygon points="${pts([TL,TR,BR,BL])}" fill="#0f2017" fill-opacity="0.06" stroke="${lyrColor}" stroke-width="1.5" stroke-dasharray="10,5" opacity="0.5"/>`;
         }
 
-        // ── Radio Map heatmap layer (3D isometric, behind room polygons) ──
-        if (_isoRadioMapOn && _isoRadioMapMod && calPoints.length && ctx.state._overviewShowHeatmap) {
-          if (_isoRadioMapMod.setUserGainContrast) {
-            _isoRadioMapMod.setUserGainContrast(ctx.state._heatGain || ctx.state.settings?.heatmap_gain || 0, ctx.state._heatContrast || ctx.state.settings?.heatmap_contrast || 0);
-          }
-          // Set source blend + adaptive data before rendering
-          if (_isoRadioMapMod.setSourceBlend) _isoRadioMapMod.setSourceBlend(ctx.state._heatSource ?? ctx.state.settings?.heatmap_source ?? 0);
-          if (_isoRadioMapMod.setAdaptiveData) _isoRadioMapMod.setAdaptiveData(ctx.state._adaptiveFps || null);
-          if (_isoRadioMapMod.setFabricWorld) _isoRadioMapMod.setFabricWorld(_isoFabricW);
-          // Prefer model-based heatmap
-          if (_isoRadioMapMod.modelIsoHeatmapSVG) {
-            s += _isoRadioMapMod.modelIsoHeatmapSVG(group, mapTransforms, iso, z, ctx.state.settings, sorted, liveSnap, ctx.state.model);
-          } else if (_isoRadioMapMod.isoLevelHeatmapSVG) {
-            s += _isoRadioMapMod.isoLevelHeatmapSVG(calPoints, group, mapTransforms, iso, z);
-          }
-        }
-
-        // ── Distortion Map (3D isometric, behind room polygons) ──
-        const _isoDistortionOn2 = !!(ctx.state.settings && ctx.state.settings.distortion_map_enabled);
-        if (_isoDistortionOn2 && _isoRadioMapMod && calPoints.length && ctx.state._overviewShowDistortion) {
-          if (_isoRadioMapMod.setUserGainContrast) {
-            _isoRadioMapMod.setUserGainContrast(ctx.state._heatGain || ctx.state.settings?.heatmap_gain || 0, ctx.state._heatContrast || ctx.state.settings?.heatmap_contrast || 0);
-          }
-          if (_isoRadioMapMod.setDistortionIntensity) {
-            _isoRadioMapMod.setDistortionIntensity(ctx.state._distIntensity ?? ctx.state.settings?.distortion_intensity ?? 50);
-          }
-          if (_isoRadioMapMod.isoDistortionSVG) {
-            s += _isoRadioMapMod.isoDistortionSVG(calPoints, group, mapTransforms, iso, z, ctx.state.settings, sorted, liveSnap, ctx.state.model);
-          }
-        }
+        // ── Coverage heat / positioning warp, on the slab, under the rooms ──
+        if (_heatOn) s += _isoRadioMapMod.isoStoreyHeatmapSVG(storey, iso, liveSnap, ctx.state.settings, _ovRange);
+        if (_warpOn) s += _isoRadioMapMod.isoStoreyDistortionSVG(storey, iso, liveSnap, ctx.state.settings, _ovRange);
 
         // Room polygons — fabric-first (per-photo bounds only as fallback
         // and for outside maps, whose stacks aren't in the world frame).
@@ -1392,7 +1145,7 @@ export function render(ctx){
           const _roomTip = `${room}\n${_objsHere.length} object${_objsHere.length!==1?"s":""} detected`;
           s += `<g data-tip="${_esc(_roomTip)}"><polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="2" opacity="0.9"/></g>`;
           s += `<text x="${Math.round(lix)}" y="${Math.round(liy)+lidx*2}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600" `
-             + `transform="translate(${Math.round(lix)} ${Math.round(liy)+lidx*2}) scale(${_annK().toFixed(3)}) translate(${-Math.round(lix)} ${-(Math.round(liy)+lidx*2)})">${_esc(room)}</text>`;
+             + `${_annT(Math.round(lix), Math.round(liy)+lidx*2)}>${_esc(room)}</text>`;
         };
         // Outdoor areas — the shed, the driveway — drawn as an overlay fitted
         // into the building's own footprint, exactly as they were before, but
@@ -1425,72 +1178,56 @@ export function render(ctx){
             _emitIsoRoom(r.room, pp, lix, liy);
           }
         };
-        const _legacyIsoRooms = () => {};
-        const _groupFids = new Set(group.filter(m=>!_isOutMap(m)).map(_mapFid));
-        const _fabRoomsHere = _isoFabricW
-          ? Object.entries(_isoFabricW).filter(([,fr])=>_groupFids.has(fr.floor_id)) : [];
-        if(_fabRoomsHere.length){
-          for(const [room,fr] of _fabRoomsHere){
-            const pp = fr.pts.map(p=>pt(iso(p[0],p[1],z))).join(" ");
-            const cx=fr.pts.reduce((a,p)=>a+p[0],0)/fr.pts.length;
-            const cy=fr.pts.reduce((a,p)=>a+p[1],0)/fr.pts.length;
-            const [lix,liy]=iso(cx,cy,z);
-            _emitIsoRoom(room, pp, lix, liy);
-          }
-          if(z === sortedIsoLevels[0] && ctx.state._overviewShowOutdoor) _drawOutdoor();
-        } else {
-          for(const m of group) _legacyIsoRooms(m);
+        // The storey's rooms, from the fabric.
+        for(const r of storey.rooms){
+          const pp = r.pts.map(p=>pt(iso(p[0],p[1],z))).join(" ");
+          const cx=r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length;
+          const cy=r.pts.reduce((a,p)=>a+p[1],0)/r.pts.length;
+          const [lix,liy]=iso(cx,cy,z);
+          _emitIsoRoom(r.room, pp, lix, liy);
         }
-        for(const m of group){
-          const tf = mapTransforms[m.id]; if(!tf) continue;
-          const mapPt = tf.mapPt;
-          // RF barriers — dotted white lines on 3D map
-          if(ctx.state._overviewShowWalls){
-            // Barriers are walls. A wall is in the fabric, in metres.
-            const _fabBars = _fabOK ? ((ctx.state.model||{}).rf_barriers_m || []) : [];
-            const _bars = _fabOK
-              ? _fabBars.filter(b => _fabZOf(b.floor_id) === z)
-                        .map(b => ({ points: b.points_m || [] }))
-              : (m.rf_barriers || []);
-            for(let bi=0;bi<_bars.length;bi++){
-              const bar = _bars[bi];
-              const bpts = bar.points || bar.pts || [];
-              if(bpts.length<2) continue;
-              const bp = bpts.map(p=>{
-                const P = _fabOK ? [Number(p[0]), Number(p[1])] : mapPt(Number(p[0]), Number(p[1]));
-                return pt(iso(P[0], P[1], z));
-              }).join(" ");
-              s += `<polyline points="${bp}" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3" stroke-dasharray="5 8" stroke-linecap="round"/>`;
-            }
-          }
-          // Placed receivers (with scanner tooltip + name label)
-          // Show ALL stored receivers — match calibration Tune tab behavior.
-          // Non-live receivers render dimmed instead of hidden.
-          for(const r of (m.receivers||[])){
-            const liveRadio = allRadios_live.find(rd=>rd.name===(r.label||"")||rd.source===(r.id||"")||rd.source===(r.source||"")||rd.name===(r.id||""));
-            const isLive = !!liveRadio;
-            const _rsrc0 = (liveRadio ? liveRadio.source : null) || r.source || r.id || "";
-            const _fp = _fabScanner(_rsrc0);
-            if(!_fp && _fabOK) continue;   // fabric is truth; no metres, no marker
-            const[wx,wy]=_fp?[0,0]:mapPt(r.x||0,r.y||0);
-            const [px,py]=_fp?[_fp.sx,_fp.sy]:iso(wx,wy,z);
-            const rsid = (_sid((isLive ? liveRadio.source : null) || r.source || r.id || r.label || "") || "R").toUpperCase();
-            const _rTip = `${rsid} · ${(isLive ? liveRadio.name : null)||r.label||r.id||"receiver"}${r.room ? "\nArea: "+r.room : ""}${isLive && liveRadio.scanning!=null ? "\nScanning: "+(liveRadio.scanning?"Yes":"No") : ""}${!isLive ? "\n(offline)" : ""}`;
-            const rxColor = isLive ? "#52b788" : "#4a6052";
-            const rxOp = isLive ? 1.0 : 0.45;
-            const rxSrc = _esc((isLive ? liveRadio.source : null) || r.source || r.id || "");
-            s += `<g data-scanner-src="${rxSrc}" data-tip="${_esc(_rTip)}" opacity="${rxOp}" style="cursor:pointer" transform="translate(${Math.round(px)} ${Math.round(py)}) scale(${_annK().toFixed(3)}) translate(${-Math.round(px)} ${-Math.round(py)})">`;
-            s += `<circle cx="${Math.round(px)}" cy="${Math.round(py)}" r="15" fill="none" stroke="${rxColor}" stroke-width="1.3" opacity="0.3"/>`;
-            s += `<circle cx="${Math.round(px)}" cy="${Math.round(py)}" r="9"  fill="none" stroke="${rxColor}" stroke-width="1.5" opacity="0.6"/>`;
-            s += `<circle cx="${Math.round(px)}" cy="${Math.round(py)}" r="4.5" fill="${rxColor}" opacity="0.9"/>`;
-            s += `<text x="${Math.round(px)}" y="${Math.round(py)-13}" text-anchor="middle" fill="${rxColor}" font-size="9" style="cursor:pointer" font-weight="700">${_esc(rsid)}</text>`;
-            s += `</g>`;
+        if(z === sortedIsoLevels[0] && ctx.state._overviewShowOutdoor) _drawOutdoor();
+
+        // Barriers are walls. A wall is in the fabric, in metres — drawn once
+        // per storey. This used to run once per PHOTOGRAPH at the storey, so a
+        // floor traced from two pictures drew every wall twice.
+        if(ctx.state._overviewShowWalls){
+          for(const bar of storey.barriers){
+            const bp = bar.points.map(p=>pt(iso(p[0], p[1], z))).join(" ");
+            s += `<polyline points="${bp}" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3" stroke-dasharray="5 8" stroke-linecap="round"/>`;
           }
         }
 
+        // Scanners ON this storey, from the fabric. Every placed radio, live
+        // or not — a radio that is offline is still where it is. They used to
+        // be read off each photograph's receiver list, so a scanner placed in
+        // metres but never pinned on a picture had no marker.
+        for(const sc of storey.scanners){
+          if(sc.floorDist !== 0) continue;
+          const liveRadio = allRadios_live.find(rd=>rd.source===sc.source);
+          const isLive = !!liveRadio;
+          const [px,py] = iso(sc.x_m, sc.y_m, z);
+          const rsid = (_sid(sc.source) || "R").toUpperCase();
+          const inRoom = storey.rooms.find(r => _ptInPoly(sc.x_m, sc.y_m, r.pts));
+          const _rTip = `${rsid} · ${(isLive ? liveRadio.name : null)||sc.source}`
+            + (inRoom ? `\nArea: ${inRoom.room}` : "")
+            + ((isLive && liveRadio.scanning!=null) ? `\nScanning: ${liveRadio.scanning?"Yes":"No"}` : "")
+            + (isLive ? "" : "\n(offline)");
+          const rxColor = isLive ? "#52b788" : "#4a6052";
+          const rxOp = isLive ? 1.0 : 0.45;
+          s += `<g data-scanner-src="${_esc(sc.source)}" data-tip="${_esc(_rTip)}" opacity="${rxOp}" style="cursor:pointer" ${_annT(Math.round(px), Math.round(py))}>`;
+          s += `<circle cx="${Math.round(px)}" cy="${Math.round(py)}" r="15" fill="none" stroke="${rxColor}" stroke-width="1.3" opacity="0.3"/>`;
+          s += `<circle cx="${Math.round(px)}" cy="${Math.round(py)}" r="9"  fill="none" stroke="${rxColor}" stroke-width="1.5" opacity="0.6"/>`;
+          s += `<circle cx="${Math.round(px)}" cy="${Math.round(py)}" r="4.5" fill="${rxColor}" opacity="0.9"/>`;
+          s += `<text x="${Math.round(px)}" y="${Math.round(py)-13}" text-anchor="middle" fill="${rxColor}" font-size="9" style="cursor:pointer" font-weight="700">${_esc(rsid)}</text>`;
+          s += `</g>`;
+        }
+
         // Layer index dot at bottom-left corner (BL = front-left of top face)
+        s += `<g ${_annT(Math.round(BL[0]), Math.round(BL[1]))}>`;
         s += `<circle cx="${Math.round(BL[0])}" cy="${Math.round(BL[1])}" r="15" fill="${lyrColor}" opacity="0.95"/>`;
         s += `<text x="${Math.round(BL[0])}" y="${Math.round(BL[1])+6}" text-anchor="middle" fill="#071008" font-size="14" font-weight="700">${lidx+1}</text>`;
+        s += `</g>`;
         s += `</g>`;
       }
 
@@ -1541,52 +1278,30 @@ export function render(ctx){
         let bx, by;
         let posConf = 0;  // confidence for dashed circle
 
-        // Priority 1: the server's position, in metres, drawn through the
-        // world frame. No map id: a position is not "on" a photo.
-        if(typeof o.x_m === "number" && typeof o.y_m === "number" && _mAnchor){
-          const k = 1/_mAnchor.m_per_world;
-          [bx,by]=iso(o.x_m*k, o.y_m*k, _floorZ(o.floor_id));
-          posConf = o.knn_confidence || 0;
-        }
-        // Priority 2: Client-side fingerprint fallback — server k-NN is authoritative,
-        // this only fires when the server didn't provide a position (e.g., no calibration data).
-        if(bx == null){
-          const readings = _getObjReadings(o);
-          const match = _matchFingerprint(readings);
-          if(match && match.confidence > 0.4){
-            bx=match.sx; by=match.sy;
-            posConf = match.confidence;
+        // The server's position, in metres, on the storey it put the object.
+        // The server is the one authority on where a thing is; the map only
+        // draws it. There used to be a client-side fingerprint match and an
+        // RSSI-weighted centroid of scanner SCREEN positions behind this — a
+        // second and third opinion computed from raw advertisements — so a
+        // beacon the server had not placed was put somewhere by the browser,
+        // in a spot no other view agreed with. Not positioned by the server
+        // means: room centroid if it has a room, otherwise not on the map.
+        if(typeof o.x_m === "number" && typeof o.y_m === "number"){
+          const z = _objZ(o);
+          if(z !== undefined){
+            [bx,by]=iso(o.x_m, o.y_m, z);
+            posConf = o.knn_confidence || 0;
           }
         }
-        // Priority 2.5: Scanner trilateration — RSSI-weighted centroid of known scanner positions
-        if(bx == null){
-          const tri = _trilateratePos(o);
-          if(tri){ bx=tri.sx; by=tri.sy; posConf=tri.confidence; }
-        }
-        // Priority 3: Room centroid
         if(bx == null && o.room && roomIsoPos[o.room]){
           [bx,by] = roomIsoPos[o.room];
         }
-        // No position = not on the map
         if(bx == null) continue;
 
-        // Outside the building: tether to the edge with a blue ring so one
-        // distant object cannot set the zoom for the whole map.
-        {
-          const _t = _tetherOutside(bx, by);
-          if(_t.outside){
-            bx = _t.x; by = _t.y;
-            s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="17" fill="none" `
-               + `stroke="#38bdf8" stroke-width="2" opacity="0.85"><title>Outside the building — shown at the edge, actual distance is further out</title></circle>`;
-          }
-        }
-
-        // Confidence circle (only when we have a real positioned match)
-        if(posConf > 0){
-          const cr = Math.round(10 + (1-posConf)*24);
-          const op = (0.3 + posConf*0.55).toFixed(2);
-          s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="${cr}" fill="none" stroke="${BEACON_CLR}" stroke-width="1.5" stroke-dasharray="5,3" opacity="${op}"/>`;
-        }
+        // Outside the building: tether to the edge so one distant object
+        // cannot set the zoom for the whole map. Marked with a blue ring.
+        const _t = _tetherOutside(bx, by);
+        if(_t.outside){ bx = _t.x; by = _t.y; }
 
         // Confidence badge — always visible, color-coded by quality
         const hasKnn = typeof o.x_m === "number" && typeof o.y_m === "number";
@@ -1600,9 +1315,22 @@ export function render(ctx){
         const dotOp = isAway ? "0.35" : "0.97";
         const glowOp = isAway ? "0.08" : "0.18";
         const lblColor = isAway ? "#a0845c" : BEACON_CLR;
-        const _k = _annK();
+        // Everything that marks this object — rings, dot, badge, label — is
+        // in ONE group so it scales as a unit about the object's anchor. A
+        // ring drawn outside the group kept its full size while the dot
+        // shrank: dashed circles floating around markers a third their size.
         s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(o))}" style="cursor:pointer" `
-           + `transform="translate(${Math.round(bx)} ${Math.round(by)}) scale(${_k.toFixed(3)}) translate(${-Math.round(bx)} ${-Math.round(by)})">`;
+           + `${_annT(Math.round(bx), Math.round(by))}>`;
+        if(_t.outside){
+          s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="17" fill="none" `
+             + `stroke="#38bdf8" stroke-width="2" opacity="0.85"><title>Outside the building — shown at the edge, actual distance is further out</title></circle>`;
+        }
+        // Confidence circle (only when we have a real positioned match)
+        if(posConf > 0){
+          const cr = Math.round(10 + (1-posConf)*24);
+          const op = (0.3 + posConf*0.55).toFixed(2);
+          s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="${cr}" fill="none" stroke="${BEACON_CLR}" stroke-width="1.5" stroke-dasharray="5,3" opacity="${op}"/>`;
+        }
         // Confidence badge below the dot (skip for away)
         if(!isAway){
           const cW = Math.min(confLabel.length * 6.5 + 8, 65);
@@ -1636,7 +1364,7 @@ export function render(ctx){
           if (_renderedObjKeys.has(o.key || o.address || o.entity_id || "")) return false;
           // Stale/ghost objects don't belong on the map
           if (o._stale || o._ghost) return false;
-          const hasKnn = typeof o.x_m === "number" && typeof o.y_m === "number" && !!_mAnchor;
+          const hasKnn = typeof o.x_m === "number" && typeof o.y_m === "number";
           const hasRoom = o.room && o.room !== "unknown" && o.room !== "not_home" && roomIsoPos[o.room];
           if (!hasKnn && !hasRoom) return false;
 
@@ -1654,34 +1382,21 @@ export function render(ctx){
           const isAway = ctx.helpers.isAway(obj, ctx.helpers.awayTimeoutS(ctx.state.settings));
           const objLabel = obj.user_label || obj.private_ble_name || obj.name || "";
 
-          // Position: server k-NN first, then high-confidence fingerprint, then room centroid + stagger
+          // The server's position, else the room centroid with a small
+          // stagger so several room-only objects do not stack on one point.
           let px, py;
-          if(typeof obj.x_m === "number" && typeof obj.y_m === "number" && _mAnchor){
-            const k = 1/_mAnchor.m_per_world;
-            const [ix,iy] = iso(obj.x_m*k, obj.y_m*k, _floorZ(obj.floor_id));
+          const _oz = (typeof obj.x_m === "number" && typeof obj.y_m === "number") ? _objZ(obj) : undefined;
+          if(_oz !== undefined){
+            const [ix,iy] = iso(obj.x_m, obj.y_m, _oz);
             [px,py]=[Math.round(ix), Math.round(iy)];
-          } else {
-            const readings = _getObjReadings(obj);
-            const fpMatch = _matchFingerprint(readings);
-            if (fpMatch && fpMatch.confidence > 0.4) {
-              px = Math.round(fpMatch.sx);
-              py = Math.round(fpMatch.sy);
-            } else {
-              // Scanner trilateration — RSSI-weighted centroid (no calibration needed)
-              const tri = _trilateratePos(obj);
-              if(tri){
-                px = Math.round(tri.sx);
-                py = Math.round(tri.sy);
-              } else if (obj.room && roomIsoPos[obj.room]) {
-                const pos = roomIsoPos[obj.room];
-                const idx = (_roomObjCount[obj.room] || 0);
-                _roomObjCount[obj.room] = idx + 1;
-                const angle = idx * 2.4;
-                const radius = 8 + idx * 6;
-                px = Math.round(pos[0] + Math.cos(angle) * Math.min(radius, 40));
-                py = Math.round(pos[1] + Math.sin(angle) * Math.min(radius, 25));
-              }
-            }
+          } else if (obj.room && roomIsoPos[obj.room]) {
+            const pos = roomIsoPos[obj.room];
+            const idx = (_roomObjCount[obj.room] || 0);
+            _roomObjCount[obj.room] = idx + 1;
+            const angle = idx * 2.4;
+            const radius = 8 + idx * 6;
+            px = Math.round(pos[0] + Math.cos(angle) * Math.min(radius, 40));
+            py = Math.round(pos[1] + Math.sin(angle) * Math.min(radius, 25));
           }
           // Skip if no position could be determined
           if(px == null || py == null) continue;
@@ -1690,17 +1405,21 @@ export function render(ctx){
           // than at its true distance, so a truck in the driveway cannot set
           // the zoom for the whole map.
           const _teth = _tetherOutside(px, py);
-          const _isOutside = _teth.outside;
           px = _teth.x; py = _teth.y;
-          if(_isOutside){
-            s += `<circle cx="${px}" cy="${py}" r="17" fill="none" stroke="#38bdf8" `
-               + `stroke-width="2" opacity="0.85"><title>Outside the building — shown at the edge, actual distance is further out</title></circle>`;
-          }
+          // The ring goes INSIDE the marker's group: it scales with the
+          // marker, and it is only drawn when a marker is. Emitted on its
+          // own it stayed full size while the dot shrank, and for a labelled
+          // object with persistent pins off it was a ring around nothing.
+          const _ring = _teth.outside
+            ? `<circle cx="${px}" cy="${py}" r="17" fill="none" stroke="#38bdf8" `
+              + `stroke-width="2" opacity="0.85"><title>Outside the building — shown at the edge, actual distance is further out</title></circle>`
+            : "";
 
           if(ctx.state._overviewPersistentPins){
             if(isAway){
               // Red crosshair for away objects (persistent mode)
-              s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(obj))}" style="cursor:pointer" opacity="0.92" transform="translate(${Math.round(px)} ${Math.round(py)}) scale(${_annK().toFixed(3)}) translate(${-Math.round(px)} ${-Math.round(py)})">`;
+              s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(obj))}" style="cursor:pointer" opacity="0.92" ${_annT(Math.round(px), Math.round(py))}>`;
+              s += _ring;
               s += `<circle cx="${px}" cy="${py}" r="22" fill="none" stroke="#ef4444" stroke-width="1.5"/>`;
               s += `<circle cx="${px}" cy="${py}" r="12" fill="none" stroke="#ef4444" stroke-width="2"/>`;
               s += `<circle cx="${px}" cy="${py}" r="4.5" fill="#ef4444"/>`;
@@ -1712,7 +1431,8 @@ export function render(ctx){
               s += `</g>`;
             } else {
               // Teal dot for active objects (persistent mode)
-              s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(obj))}" style="cursor:pointer" opacity="0.88" transform="translate(${Math.round(px)} ${Math.round(py)}) scale(${_annK().toFixed(3)}) translate(${-Math.round(px)} ${-Math.round(py)})">`;
+              s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(obj))}" style="cursor:pointer" opacity="0.88" ${_annT(Math.round(px), Math.round(py))}>`;
+              s += _ring;
               s += `<circle cx="${px}" cy="${py}" r="13" fill="#5eead4" opacity="0.15"/>`;
               s += `<circle cx="${px}" cy="${py}" r="9" fill="#5eead4" stroke="#071008" stroke-width="1.5" opacity="0.95"/>`;
               s += `<circle cx="${px}" cy="${py}" r="2.5" fill="#071008" opacity="0.7"/>`;
@@ -1721,19 +1441,12 @@ export function render(ctx){
             }
           } else if(!obj.user_label){
             // Small dim amber dot for unlabeled objects
-            s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(obj))}" style="cursor:pointer" opacity="0.6" transform="translate(${Math.round(px)} ${Math.round(py)}) scale(${_annK().toFixed(3)}) translate(${-Math.round(px)} ${-Math.round(py)})">`;
+            s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(obj))}" style="cursor:pointer" opacity="0.6" ${_annT(Math.round(px), Math.round(py))}>`;
+            s += _ring;
             s += `<circle cx="${px}" cy="${py}" r="6" fill="#f59e0b" stroke="#071008" stroke-width="1" opacity="0.7"/>`;
             s += `</g>`;
           }
         }
-      }
-
-      // Only placed receivers (pinned to maps) are shown in the 3D view.
-      // Live BLE radios without map placement are omitted — they have no
-      // precise coordinates and would just clutter the spatial view.
-
-      if(!hasBounds && sorted.length){
-        s += `<text x="${W/2}" y="${BASE_H-20}" text-anchor="middle" fill="#4a6052" font-size="16">Go to Maps → Edit to draw room boundaries</text>`;
       }
 
       // Legend at bottom — compact single row, BELOW THE DRAWING.
@@ -1763,6 +1476,9 @@ export function render(ctx){
       const _legL = (_isoBB && isFinite(_isoBB.minX)) ? _isoBB.minX : 10;
       const _legR = (_isoBB && isFinite(_isoBB.maxX)) ? _isoBB.maxX : W-10;
       s += `<line x1="${_legL}" y1="${_legendTop+4}" x2="${_legR}" y2="${_legendTop+4}" stroke="#1b3526" stroke-width="0.8"/>`;
+      // The legend row is an annotation like any label: scaled about its
+      // left end so it reads at a constant size.
+      s += `<g ${_annT(Math.round(_legL), Math.round(_legendTop))}>`;
       {
         const ly = _legendTop + 10;
         let lx = _legL + 2;
@@ -1779,8 +1495,9 @@ export function render(ctx){
           }
         });
       }
+      s += `</g>`;
 
-      return _isoHeader() + s + `</svg>`;
+      return _finishIso(s);
     };
 
     // Wrapper with floor focus slider + room list toggle
@@ -1800,6 +1517,28 @@ export function render(ctx){
     isoWrap.style.cssText = "position:relative;margin-top:6px";
 
     const isoDiv = document.createElement("div");
+    // The annotation scale is computed from isoDiv's width when the svg is
+    // built. If that width changes afterwards — sidebar collapse, window
+    // resize, browser zoom — the baked factor is stale until something else
+    // rebuilds the map. So the container is observed, and a width change of
+    // more than a few percent rebuilds the svg in place. In place, not via a
+    // view re-render: this same isoDiv is what Pure Live mounts, and the map
+    // must recover its labels wherever it is hosted. The builder owns the
+    // maths; this only decides when to run it again. One observer per map.
+    let _annRO = null, _annBuiltAtW = 0;
+    const _watchAnnScale = ()=>{
+      _annBuiltAtW = isoDiv.clientWidth || 0;
+      if(_annRO || typeof ResizeObserver === "undefined") return;
+      _annRO = new ResizeObserver(()=>{
+        const w = isoDiv.clientWidth || 0;
+        if(!w || !_annBuiltAtW) return;
+        if(Math.abs(w - _annBuiltAtW) / _annBuiltAtW > 0.04){
+          _annBuiltAtW = w;
+          _rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx));
+        }
+      });
+      _annRO.observe(isoDiv);
+    };
     // The svg is width:100% of this box, so its horizontal padding IS the
     // side margin. 6% each side puts the drawing at ~88% of the panel: wide
     // enough to read, with room to breathe at the edges rather than touching
@@ -1818,6 +1557,7 @@ export function render(ctx){
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           isoDiv.innerHTML = buildIsoSVG(focusZ);
+          _watchAnnScale();
           ctx.state._isoBuildPending = false;
           // Inject a <g> wrapper for objects so we can swap it on polls
           const svgEl = isoDiv.querySelector("svg");
@@ -1932,30 +1672,15 @@ export function render(ctx){
     const roomListPanel = document.createElement("div");
     roomListPanel.style.cssText = `margin-top:10px;display:${ctx.state._overviewShowRoomList?"block":"none"}`;
 
-    // Build room list — fabric roster first (ground truth), per-map bounds
-    // only for rooms/installs the fabric doesn't cover.
+    // The room list is the fabric's roster — every room with geometry,
+    // indoors and out, named by its floor.
     const ovRoomRows = [];
-    if(_isoFabricW){
-      for(const [room, fr] of Object.entries(_isoFabricW)){
-        const haFlr = haFloors2.find(f=>String(f.id)===String(fr.floor_id));
-        const flLbl = haFlr ? (haFlr.name||haFlr.id) : (fr.floor_id||"—");
-        const objsInRoom = allObjects.filter(o=>_presentInRoom(ctx,o,room));
-        ovRoomRows.push({ room, map: "fabric", floor: flLbl, count: objsInRoom.length, objects: objsInRoom });
-      }
-    }
-    for(const m of sorted){
-      const floorId = m.stack?.floor_id || m.floor_id || "";
-      const haFlr = haFloors2.find(f=>String(f.id)===String(floorId));
-      const flLbl = haFlr ? (haFlr.name||haFlr.id) : (floorId||"—");
-      // Rooms come from the fabric, so the list no longer needs a photo to
-      // have been traced — and no longer names the picture a room came from.
-      for(const [room, g] of Object.entries((ctx.state.model||{}).room_geometry_m || {})){
-        if(String(g && g.floor_id) !== String(floorId)) continue;
-        if(!ovRoomRows.find(r=>r.room===room)){
-          const objsInRoom = allObjects.filter(o=>_presentInRoom(ctx,o,room));
-          ovRoomRows.push({ room, map: flLbl, floor: flLbl, count: objsInRoom.length, objects: objsInRoom });
-        }
-      }
+    for(const [room, g] of Object.entries((ctx.state.model||{}).room_geometry_m || {})){
+      const floorId = String((g && g.floor_id) || "");
+      const haFlr = haFloors2.find(f=>String(f.id)===floorId);
+      const flLbl = haFlr ? (haFlr.name||haFlr.id) : (floorId==="__outside__" ? "Outside" : (floorId||"—"));
+      const objsInRoom = allObjects.filter(o=>_presentInRoom(ctx,o,room));
+      ovRoomRows.push({ room, floor: flLbl, count: objsInRoom.length, objects: objsInRoom });
     }
     ovRoomRows.sort((a,b)=>a.room.localeCompare(b.room));
 
@@ -2330,13 +2055,8 @@ export function render(ctx){
         ctx.state._heatContrast = cv;
         ctx.state._distIntensity = dv;
         ctx.state._heatSource = sv;
-        if (_isoRadioMapMod) {
-          if (_isoRadioMapMod.setUserGainContrast) _isoRadioMapMod.setUserGainContrast(gv, cv);
-          if (_isoRadioMapMod.setDistortionIntensity) _isoRadioMapMod.setDistortionIntensity(dv);
-          if (_isoRadioMapMod.setSourceBlend) _isoRadioMapMod.setSourceBlend(sv);
-          if (_isoRadioMapMod.setAdaptiveData) _isoRadioMapMod.setAdaptiveData(ctx.state._adaptiveFps || null);
-          if (_isoRadioMapMod.setFabricWorld && typeof _isoFabricW !== "undefined") _isoRadioMapMod.setFabricWorld(_isoFabricW);
-        }
+        // The builder configures the overlay module from this state on
+        // every rebuild, so the sliders only need to record their values.
         // Debounce: wait 150ms after last slider move before rebuilding SVG
         _showProgress(30, "Rendering...");
         if (_overlayTimer) clearTimeout(_overlayTimer);

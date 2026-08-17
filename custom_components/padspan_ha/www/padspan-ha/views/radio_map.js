@@ -122,12 +122,9 @@ let HATCH_RANGE = HATCH_BEST - HATCH_WORST;
 export function setHatchRange(worst, best, gain, contrast) {
   const g = gain || 0;
   const c = contrast || 0;
-  // Use global range if set (ensures all floors share the same color scale)
-  const w = _globalRangeSet ? _globalMinR : worst;
-  const b = _globalRangeSet ? _globalMaxR : best;
-  const pad = Math.max(2, (b - w) * 0.05);
-  HATCH_WORST = w - pad + g - c;
-  HATCH_BEST = b + pad + g + c;
+  const pad = Math.max(2, (best - worst) * 0.05);
+  HATCH_WORST = worst - pad + g - c;
+  HATCH_BEST = best + pad + g + c;
   HATCH_RANGE = HATCH_BEST - HATCH_WORST;
   if (HATCH_RANGE < 5) { HATCH_WORST = HATCH_BEST - 20; HATCH_RANGE = HATCH_BEST - HATCH_WORST; }
 }
@@ -140,19 +137,6 @@ export function setUserGainContrast(gain, contrast) {
   _userGain = gain || 0;
   _userContrast = contrast || 0;
 }
-
-// Global color range — set ONCE across all floors before rendering any of them.
-// Prevents per-floor scaling that makes bad floors look green.
-let _globalRangeSet = false;
-let _globalMinR = -80, _globalMaxR = -40;
-
-/** Pre-compute the global RSSI range across all floors. Call before the level loop. */
-export function setGlobalRange(minR, maxR) {
-  _globalMinR = minR;
-  _globalMaxR = maxR;
-  _globalRangeSet = true;
-}
-export function clearGlobalRange() { _globalRangeSet = false; }
 
 // Compute opaque RGB for a bucket index (0 = worst, HATCH_BUCKETS-1 = best)
 // Color gradient is pure visual — independent of dBm thresholds.
@@ -702,367 +686,244 @@ export function distortionMapSVG(calPoints, mapId, barriers, receivers) {
 }
 
 
-// ── Isometric Heatmap Generator ──────────────────────────────────────────────
-// For 3D isometric views: generates heatmap polygons projected through the
-// caller's mapPt + iso transform chain.
+// ── Isometric overlays: one storey of the fabric, in metres ─────────────────
+//
+// The overview draws the building from the metric fabric, and these overlays
+// are drawn ON that building, so they take the building the same way: as a
+// STOREY the caller has already resolved from the fabric —
+//
+//   {
+//     z,          // the storey's height in the frame; what iso(x, y, z) takes
+//     rooms:     [{ room, pts: [[x_m, y_m], ...] }],        // rooms on it
+//     scanners:  [{ source, x_m, y_m, dz_m, floorDist }],   // within 2 storeys
+//     barriers:  [{ points: [[x_m, y_m], ...], attenuation_dbm }],
+//     calPoints: [{ x_m, y_m, query: { source: rssi } }],   // taken on it
+//   }
+//
+// Every coordinate is metres and iso() is the frame's own projection, so a
+// cell lands exactly on the room it covers. These used to take the photos
+// grouped at a level and a per-photo pixel transform, and computed the grid's
+// extent from the CORNERS OF THE PICTURES — a plan photographed with a wide
+// margin heated the driveway, and once indoor plans stopped carrying a pixel
+// transform at all the extent was empty and nothing drew. A floor with no
+// photograph never had an overlay. The building's extent is its rooms.
+//
+// dz_m is scanner height minus the assumed device height on the drawn storey,
+// so a ceiling radio directly overhead models as a slant range, not zero.
 
-const ISO_GRID = 36; // 36x36 interpolation grid for 3D (1296 cells per map)
+const ISO_GRID = 36;        // 36x36 cells per storey heatmap
+const DISTORTION_GRID = 30; // ~30 cells across the storey's shorter side
 
-/**
- * Compute heatmap grid data for a map (not yet projected).
- * Returns {grid: Float32Array, minR, maxR, res} or null if no data.
- */
-export function computeHeatmapGrid(calPoints, mapId, scannerSource, barriers) {
-  const mapPts = (calPoints || []).filter(p => p.map_id === mapId);
-  if (!mapPts.length) return null;
-
-  const dataPoints = [];
-  for (const pt of mapPts) {
-    const readings = pt.scanner_readings || [];
-    if (scannerSource) {
-      const r = readings.find(rd => rd.source === scannerSource);
-      if (r && r.mean_rssi != null) {
-        dataPoints.push({ x_frac: pt.x_frac, y_frac: pt.y_frac, rssi: r.mean_rssi });
-      }
-    } else {
-      const rssis = readings.map(r => r.mean_rssi).filter(v => v != null);
-      if (rssis.length) {
-        dataPoints.push({ x_frac: pt.x_frac, y_frac: pt.y_frac, rssi: Math.max(...rssis) });
-      }
+/** The storey's extent in metres: the box around its rooms. Null if none. */
+function _storeyExtent(storey) {
+  const bb = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+  for (const r of (storey.rooms || [])) {
+    for (const [x, y] of (r.pts || [])) {
+      if (x < bb.minX) bb.minX = x; if (x > bb.maxX) bb.maxX = x;
+      if (y < bb.minY) bb.minY = y; if (y > bb.maxY) bb.maxY = y;
     }
   }
-  if (!dataPoints.length) return null;
-
-  const allRssi = dataPoints.map(p => p.rssi);
-  const minR = Math.min(...allRssi);
-  const maxR = Math.max(...allRssi);
-  setHatchRange(minR, maxR, _userGain, _userContrast);
-  const res = ISO_GRID;
-  const cellW = 1.0 / res;
-  const grid = new Float32Array(res * res);
-  const mapBarriers = barriers || [];
-
-  for (let gy = 0; gy < res; gy++) {
-    for (let gx = 0; gx < res; gx++) {
-      const qx = (gx + 0.5) * cellW;
-      const qy = (gy + 0.5) * cellW;
-      const rssi = _idw(qx, qy, dataPoints, mapBarriers);
-      grid[gy * res + gx] = rssi != null ? rssi : NaN;
-    }
-  }
-
-  return { grid, minR, maxR, res, dataPoints };
+  if (!isFinite(bb.minX)) return null;
+  if (bb.maxX - bb.minX < 1e-6 || bb.maxY - bb.minY < 1e-6) return null;
+  return bb;
 }
 
 /**
- * Generate isometric heatmap SVG fragment for one map.
- * The caller provides mapPt (normalized → world) and iso (world → screen) functions.
- *
- * @param {Object} heatData - from computeHeatmapGrid()
- * @param {Function} mapPt - (x_frac, y_frac) → [wx, wy]
- * @param {Function} iso - (wx, wy, z) → [sx, sy]
- * @param {number} z - z-level for this map
- * @returns {string} SVG polygon elements
+ * Per-scanner quality offset from what the radios are hearing right now:
+ * a scanner whose best current RSSI sits above the fleet median is modelled
+ * a little hotter, one below it a little colder. Clamped to ±10 dB.
  */
+function _scannerQuality(liveSnap) {
+  const out = {};
+  const ads = (liveSnap && liveSnap.ble && liveSnap.ble.advertisements) || [];
+  if (!ads.length) return out;
+  const best = {};
+  for (const ad of ads) {
+    if (!ad.source || ad.rssi == null || (ad.age_s || 0) > 30) continue;
+    if (best[ad.source] === undefined || ad.rssi > best[ad.source]) best[ad.source] = ad.rssi;
+  }
+  const vals = Object.values(best).sort((a, b) => a - b);
+  if (vals.length < 2) return out;
+  const median = vals[Math.floor(vals.length / 2)];
+  for (const [src, b] of Object.entries(best)) out[src] = Math.max(-10, Math.min(10, b - median));
+  return out;
+}
+
 /**
- * Generate <defs> block for 3D iso heatmap patterns. Call ONCE before
- * rendering any isoHeatmapSVG cells (not per-map).
+ * Modelled RSSI at a point on the storey: the strongest scanner by log-distance
+ * path loss over the 3D range, less a slab per storey of separation, less every
+ * barrier the ray crosses. -120 when there is nothing to hear.
+ */
+function _modelRssiAt(x, y, scanners, barriers, refPower, pathLossN, quality) {
+  let best = -120;
+  for (const sc of scanners) {
+    const horiz = Math.hypot(x - sc.x_m, y - sc.y_m);
+    const distM = Math.max(0.3, Math.hypot(horiz, sc.dz || 0));
+    let rssi = (refPower + (quality[sc.source] || 0)) - 10 * pathLossN * Math.log10(distM);
+    if (sc.floorDist > 0) rssi -= sc.floorDist * FLOOR_ATTEN_DB;
+    for (const bar of barriers) {
+      const bp = bar.points;
+      for (let i = 0; i < bp.length - 1; i++) {
+        if (_segmentsIntersect(x, y, sc.x_m, sc.y_m, bp[i][0], bp[i][1], bp[i + 1][0], bp[i + 1][1])) {
+          rssi -= (bar.attenuation_dbm ?? 6);
+        }
+      }
+    }
+    if (rssi > best) best = rssi;
+  }
+  return best;
+}
+
+/** The storey's rooms in the shape the adaptive lookup hit-tests. */
+function _storeyRoomPolys(storey) {
+  return (storey.rooms || []).map(r => ({ room: r.room, polyW: r.pts }));
+}
+
+/**
+ * <defs> for the 3D hatch patterns. Emit ONCE per svg, before any storey.
  */
 export function isoHatchDefs() {
   return hatchDefs("rmiso", 6, 2.5);
 }
 
-export function isoHeatmapSVG(heatData, mapPt, iso, z) {
-  if (!heatData) return "";
-  const { grid, minR, maxR, res } = heatData;
-  const cellW = 1.0 / res;
-  const _pfx = "rmiso";
-  let s = "";
+/**
+ * The modelled RSSI over a storey's extent: the grid the heatmap paints and
+ * the range it spans. Null when there is nothing to model (no rooms, or no
+ * scanner within reach).
+ */
+function _storeyModelGrid(storey, liveSnap, settings) {
+  const bb = _storeyExtent(storey);
+  if (!bb) return null;
+  const scanners = storey.scanners || [];
+  if (!scanners.length) return null;
+  const barriers = storey.barriers || [];
+  const refPower = settings?.ref_power ?? DEFAULT_REF_POWER;
+  const pathLossN = settings?.path_loss_exp ?? DEFAULT_PATH_LOSS_N;
+  const quality = _scannerQuality(liveSnap);
+  const roomPolys = (_sourceBlend > 0 && _adaptiveFingerprints) ? _storeyRoomPolys(storey) : [];
 
-  // Slight overlap prevents hairline gaps between cells in iso projection
-  const pad = cellW * 0.08;
+  const res = ISO_GRID;
+  const cellW = (bb.maxX - bb.minX) / res, cellH = (bb.maxY - bb.minY) / res;
+  let minR = 0, maxR = -120;
+  const grid = new Float32Array(res * res);
   for (let gy = 0; gy < res; gy++) {
     for (let gx = 0; gx < res; gx++) {
-      const rssi = grid[gy * res + gx];
-      if (isNaN(rssi)) continue;
-
-      const fill = _hatchFill(_pfx, rssi);
-      // Project 4 corners of the grid cell (with slight padding) through the iso transform
-      const x0 = gx * cellW - pad, y0 = gy * cellW - pad;
-      const x1 = x0 + cellW + pad * 2, y1 = y0 + cellW + pad * 2;
-      const [w0x, w0y] = mapPt(x0, y0);
-      const [w1x, w1y] = mapPt(x1, y0);
-      const [w2x, w2y] = mapPt(x1, y1);
-      const [w3x, w3y] = mapPt(x0, y1);
-      const p0 = iso(w0x, w0y, z);
-      const p1 = iso(w1x, w1y, z);
-      const p2 = iso(w2x, w2y, z);
-      const p3 = iso(w3x, w3y, z);
-
-      // Sub-pixel precision (1 decimal) prevents cells from collapsing to lines
-      const f = v => v.toFixed(1);
-      s += `<polygon points="${f(p0[0])},${f(p0[1])} ${f(p1[0])},${f(p1[1])} ${f(p2[0])},${f(p2[1])} ${f(p3[0])},${f(p3[1])}" fill="${fill}"/>`;
+      const qx = bb.minX + (gx + 0.5) * cellW;
+      const qy = bb.minY + (gy + 0.5) * cellH;
+      let rssi = _modelRssiAt(qx, qy, scanners, barriers, refPower, pathLossN, quality);
+      if (roomPolys.length) {
+        const aOff = _adaptiveOffset(qx, qy, roomPolys);
+        if (aOff != null) rssi += aOff * (_sourceBlend / 100);
+      }
+      grid[gy * res + gx] = rssi;
+      if (rssi > maxR) maxR = rssi;
+      if (rssi < minR) minR = rssi;
     }
   }
-
-  // Calibration point markers projected to iso
-  for (const dp of heatData.dataPoints) {
-    const [wx, wy] = mapPt(dp.x_frac, dp.y_frac);
-    const [sx, sy] = iso(wx, wy, z);
-    s += `<circle cx="${Math.round(sx)}" cy="${Math.round(sy)}" r="3" fill="#e2e8f0" stroke="#071008" stroke-width="0.8" opacity="0.7"/>`;
-  }
-
-  return s;
+  return { bb, res, cellW, cellH, grid, minR, maxR };
 }
 
 /**
- * Unified world-space iso heatmap for a z-level group (multiple maps merged).
- * Merges calibration data from all maps on the level, interpolates in world
- * space, projects through iso. One heatmap per level, not per map.
- *
- * @param {Array} calPoints - ALL calibration points
- * @param {Array} groupMaps - maps on this z-level [{id, rf_barriers, ...}]
- * @param {Object} mapTransforms - {mapId: {z, mapPt}} transform per map
- * @param {Function} iso - (wx, wy, z) → [sx, sy]
- * @param {number} z - z-level
- * @returns {string} SVG polygon elements
+ * The RSSI range a storey's model spans, so the caller can put every storey
+ * on ONE colour scale — otherwise each floor is scaled to itself and a badly
+ * covered floor looks as green as a good one. Null when nothing models.
  */
+export function isoStoreyRssiRange(storey, liveSnap, settings) {
+  const g = _storeyModelGrid(storey, liveSnap, settings);
+  return g ? { minR: g.minR, maxR: g.maxR } : null;
+}
+
 /**
- * Model-based 3D iso heatmap — scanner positions + path-loss physics.
+ * Modelled coverage heatmap for one storey: hatched cells over the storey's
+ * extent, coloured by the strongest scanner's predicted RSSI, blended with
+ * the room's observed offset when a source blend is set. `range` is the
+ * shared colour scale ({minR, maxR}); the storey's own range when omitted.
  */
-export function modelIsoHeatmapSVG(groupMaps, mapTransforms, iso, z, settings, allMaps, liveSnap, model) {
-  if (!groupMaps.length) return "";
+export function isoStoreyHeatmapSVG(storey, iso, liveSnap, settings, range) {
+  const g = _storeyModelGrid(storey, liveSnap, settings);
+  if (!g) return "";
+  const { bb, res, cellW, cellH, grid } = g;
+  setHatchRange(range ? range.minR : g.minR, range ? range.maxR : g.maxR, _userGain, _userContrast);
 
-  const refPower = settings?.ref_power ?? DEFAULT_REF_POWER;
-  const pathLossN = settings?.path_loss_exp ?? DEFAULT_PATH_LOSS_N;
-  const _mapZ = {};
-  for (const [mid, tf] of Object.entries(mapTransforms)) { if (tf) _mapZ[mid] = tf.z; }
-
-  // Per-scanner quality from live data
-  const scannerQuality = {};
-  const _isoAds = (liveSnap?.ble?.advertisements) || [];
-  if (_isoAds.length) {
-    const _scBest = {};
-    for (const ad of _isoAds) {
-      if (!ad.source || ad.rssi == null || (ad.age_s||0) > 30) continue;
-      if (!_scBest[ad.source] || ad.rssi > _scBest[ad.source]) _scBest[ad.source] = ad.rssi;
-    }
-    const _bv = Object.values(_scBest); _bv.sort((a,b)=>a-b);
-    if (_bv.length > 1) {
-      const _fm = _bv[Math.floor(_bv.length/2)];
-      for (const [src,best] of Object.entries(_scBest)) scannerQuality[src] = Math.max(-10, Math.min(10, best - _fm));
-    }
-  }
-
-  // Scanner positions come from the fabric, never from a photo.
-  const { scanners, mPerWorld } = _fabricScanners(
-    allMaps || groupMaps, model, z, _mapZ, scannerQuality, settings);
-  if (!scanners.length) return "";
-
-  // Collect barriers
-  const worldBarriers = [];
-  for (const m of groupMaps) {
-    const tf = mapTransforms[m.id]; if (!tf || !tf.mapPt) continue;
-    for (const bar of (m.rf_barriers || [])) {
-      const pts = bar.points || [];
-      if (pts.length < 2) continue;
-      worldBarriers.push({
-        points: pts.map(p => { const [wx, wy] = tf.mapPt(Number(p[0]), Number(p[1])); return [wx, wy]; }),
-        attenuation_dbm: bar.attenuation_dbm ?? 6,
-      });
-    }
-  }
-
-  // Room bounds in world coords for adaptive data lookup — fabric-first
-  const _isoRoomBoundsW = [];
-  if (_sourceBlend > 0 && _adaptiveFingerprints) {
-    const _fab = _fabricRoomPolysW(groupMaps);
-    if (_fab) {
-      _isoRoomBoundsW.push(..._fab);
-    } else {
-    for (const m of groupMaps) {
-      const tf = mapTransforms[m.id]; if (!tf || !tf.mapPt) continue;
-      for (const [room, b] of Object.entries(m.room_bounds || {})) {
-        if (!b || b.type !== "poly" || !b.points || b.points.length < 3) continue;
-        _isoRoomBoundsW.push({ room, polyW: b.points.map(p => tf.mapPt(Number(p[0]), Number(p[1]))) });
-      }
-    }
-    }
-  }
-
-  // World bounding box
-  let bb = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-  for (const m of groupMaps) {
-    const tf = mapTransforms[m.id]; if (!tf || !tf.mapPt) continue;
-    for (const [cx, cy] of [[0,0],[1,0],[1,1],[0,1]]) {
-      const [wx, wy] = tf.mapPt(cx, cy);
-      bb.minX = Math.min(bb.minX, wx); bb.minY = Math.min(bb.minY, wy);
-      bb.maxX = Math.max(bb.maxX, wx); bb.maxY = Math.max(bb.maxY, wy);
-    }
-  }
-  if (!isFinite(bb.minX)) return "";
-  const wW = bb.maxX - bb.minX, wH = bb.maxY - bb.minY;
-  if (wW < 1e-6 || wH < 1e-6) return "";
-
-  const res = ISO_GRID;
-  const cellW = wW / res, cellH = wH / res;
   const f = v => v.toFixed(1);
-
-  // Compute grid
-  let minR = 0, maxR = -120;
-  const gridRssi = new Float32Array(res * res);
-  for (let gy = 0; gy < res; gy++) {
-    for (let gx = 0; gx < res; gx++) {
-      const qwx = bb.minX + (gx + 0.5) * cellW;
-      const qwy = bb.minY + (gy + 0.5) * cellH;
-      let best = -120;
-      for (const sc of scanners) {
-        const dx = qwx - sc.wx, dy = qwy - sc.wy;
-        const horizM = Math.sqrt(dx*dx + dy*dy) * mPerWorld;
-        const distM = Math.max(0.3, Math.hypot(horizM, sc.dz || 0));
-        let rssi = (refPower + (sc.qualityOffset || 0)) - 10 * pathLossN * Math.log10(distM);
-        if (sc.floorDist > 0) rssi -= sc.floorDist * FLOOR_ATTEN_DB;
-        for (const bar of worldBarriers) {
-          const bpts = bar.points;
-          for (let i = 0; i < bpts.length - 1; i++) {
-            if (_segmentsIntersect(qwx, qwy, sc.wx, sc.wy, bpts[i][0], bpts[i][1], bpts[i+1][0], bpts[i+1][1])) {
-              rssi -= (bar.attenuation_dbm ?? 6);
-            }
-          }
-        }
-        if (rssi > best) best = rssi;
-      }
-      // Blend model + adaptive
-      let finalRssi = best;
-      if (_sourceBlend > 0 && _adaptiveFingerprints && _isoRoomBoundsW.length) {
-        const aOff = _adaptiveOffset(qwx, qwy, _isoRoomBoundsW);
-        if (aOff != null) finalRssi = best + aOff * (_sourceBlend / 100);
-      }
-      gridRssi[gy * res + gx] = finalRssi;
-      if (finalRssi > maxR) maxR = finalRssi;
-      if (finalRssi < minR) minR = finalRssi;
-    }
-  }
-
-  setHatchRange(minR, maxR, _userGain, _userContrast);
+  const z = storey.z;
   const _pfx = "rmiso";
   let s = "";
-
+  // Slight overlap prevents hairline gaps between cells in iso projection.
   const pad = cellW * 0.08;
   for (let gy = 0; gy < res; gy++) {
     for (let gx = 0; gx < res; gx++) {
-      const rssi = gridRssi[gy * res + gx];
-      const fill = _hatchFill(_pfx, rssi);
+      const fill = _hatchFill(_pfx, grid[gy * res + gx]);
       const x0 = bb.minX + gx * cellW - pad, y0 = bb.minY + gy * cellH - pad;
-      const x1 = x0 + cellW + pad*2, y1 = y0 + cellH + pad*2;
+      const x1 = x0 + cellW + pad * 2, y1 = y0 + cellH + pad * 2;
       const p0 = iso(x0, y0, z), p1 = iso(x1, y0, z), p2 = iso(x1, y1, z), p3 = iso(x0, y1, z);
       s += `<polygon points="${f(p0[0])},${f(p0[1])} ${f(p1[0])},${f(p1[1])} ${f(p2[0])},${f(p2[1])} ${f(p3[0])},${f(p3[1])}" fill="${fill}"/>`;
     }
   }
-
-  // Scanner markers
-  for (const sc of scanners.filter(sc => sc.floorDist === 0)) {
-    const [sx, sy] = iso(sc.wx, sc.wy, z);
-    s += `<circle cx="${f(sx)}" cy="${f(sy)}" r="4" fill="#52b788" stroke="#071008" stroke-width="1" opacity="0.9"/>`;
-  }
-
   return s;
 }
 
-// Legacy calibration-based heatmap
-export function isoLevelHeatmapSVG(calPoints, groupMaps, mapTransforms, iso, z) {
-  if (!calPoints || !groupMaps.length) return "";
+/**
+ * Deformation grid for one storey. A regular square grid in metres, each
+ * node displaced toward where k-NN over the storey's calibration points
+ * PREDICTS that node to be: square where positioning is faithful, warped
+ * where it is not. Lines carry the modelled-coverage colour so the two
+ * overlays read on one scale; `range` is that shared scale ({minR, maxR}).
+ */
+export function isoStoreyDistortionSVG(storey, iso, liveSnap, settings, range) {
+  const bb = _storeyExtent(storey);
+  if (!bb) return "";
+  const calWorldPts = (storey.calPoints || [])
+    .filter(p => p && p.x_m != null && p.y_m != null && p.query && Object.keys(p.query).length)
+    .map(p => ({ wx: p.x_m, wy: p.y_m, query: p.query }));
+  if (calWorldPts.length < KNN_K + 1) return "";
+  const scanners = storey.scanners || [];
+  const barriers = storey.barriers || [];
+  const refPower = settings?.ref_power ?? DEFAULT_REF_POWER;
+  const pathLossN = settings?.path_loss_exp ?? DEFAULT_PATH_LOSS_N;
+  const quality = _scannerQuality(liveSnap);
+  const roomPolys = (_sourceBlend > 0 && _adaptiveFingerprints) ? _storeyRoomPolys(storey) : [];
 
-  const groupIds = new Set(groupMaps.map(m => m.id));
-  const _pfx = "rmiso";
-
-  // Build z-level lookup for all maps (to find adjacent floors)
-  const _mapZ = {};
-  for (const [mid, tf] of Object.entries(mapTransforms)) { if (tf) _mapZ[mid] = tf.z; }
-
-  // 1. Collect cal points from this level AND adjacent levels → world coords
-  // Adjacent-floor points get an attenuation penalty per floor of separation.
-  const worldPoints = [];
-  for (const pt of calPoints) {
-    const tf = mapTransforms[pt.map_id];
-    if (!tf || !tf.mapPt) continue;
-    const ptZ = tf.z;
-    const floorDist = Math.abs(ptZ - z);
-    if (floorDist > 2) continue; // skip floors more than 2 levels away
-    const readings = pt.scanner_readings || [];
-    const rssis = readings.map(r => r.mean_rssi).filter(v => v != null);
-    if (!rssis.length) continue;
-    let bestRssi = Math.max(...rssis);
-    if (floorDist > 0) bestRssi -= floorDist * FLOOR_ATTEN_DB;
-    const [wx, wy] = tf.mapPt(pt.x_frac, pt.y_frac);
-    worldPoints.push({ wx, wy, rssi: bestRssi });
-  }
-  if (!worldPoints.length) return "";
-
-  // Data-adaptive color range
-  const _wpRssis = worldPoints.map(p => p.rssi);
-  setHatchRange(Math.min(..._wpRssis), Math.max(..._wpRssis), _userGain, _userContrast);
-
-  // 2. Collect barriers from all maps → world coords
-  const worldBarriers = [];
-  for (const m of groupMaps) {
-    const tf = mapTransforms[m.id];
-    if (!tf || !tf.mapPt) continue;
-    for (const bar of (m.rf_barriers || [])) {
-      const pts = bar.points || [];
-      if (pts.length < 2) continue;
-      worldBarriers.push({
-        points: pts.map(p => { const [wx, wy] = tf.mapPt(Number(p[0]), Number(p[1])); return [wx, wy]; }),
-        attenuation_dbm: bar.attenuation_dbm ?? 6,
-      });
-    }
-  }
-
-  // 3. World bounding box from all maps on this level
-  let bb = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-  for (const m of groupMaps) {
-    const tf = mapTransforms[m.id];
-    if (!tf || !tf.mapPt) continue;
-    for (const [cx, cy] of [[0,0],[1,0],[1,1],[0,1]]) {
-      const [wx, wy] = tf.mapPt(cx, cy);
-      bb.minX = Math.min(bb.minX, wx); bb.minY = Math.min(bb.minY, wy);
-      bb.maxX = Math.max(bb.maxX, wx); bb.maxY = Math.max(bb.maxY, wy);
-    }
-  }
-  if (!isFinite(bb.minX)) return "";
   const wW = bb.maxX - bb.minX, wH = bb.maxY - bb.minY;
-  if (wW < 1e-6 || wH < 1e-6) return "";
-
-  // 4. IDW grid in world space
-  const res = ISO_GRID;
-  const cellW = wW / res, cellH = wH / res;
-  const idwPts = worldPoints.map(p => ({ x_frac: p.wx, y_frac: p.wy, rssi: p.rssi }));
+  // Square cells: one size for both axes.
+  const cellSize = Math.min(wW, wH) / DISTORTION_GRID;
+  const resX = Math.max(2, Math.ceil(wW / cellSize));
+  const resY = Math.max(2, Math.ceil(wH / cellSize));
+  const cellW = wW / resX, cellH = wH / resY;
   const f = v => v.toFixed(1);
-  let s = "";
+  const z = storey.z;
 
-  for (let gy = 0; gy < res; gy++) {
-    for (let gx = 0; gx < res; gx++) {
-      const qwx = bb.minX + (gx + 0.5) * cellW;
-      const qwy = bb.minY + (gy + 0.5) * cellH;
-      const rssi = _idw(qwx, qwy, idwPts, worldBarriers);
-      const fill = _hatchFill(_pfx, rssi);
-
-      // Cell corners: world → iso screen
-      const c00 = iso(bb.minX + gx * cellW, bb.minY + gy * cellH, z);
-      const c10 = iso(bb.minX + (gx+1) * cellW, bb.minY + gy * cellH, z);
-      const c11 = iso(bb.minX + (gx+1) * cellW, bb.minY + (gy+1) * cellH, z);
-      const c01 = iso(bb.minX + gx * cellW, bb.minY + (gy+1) * cellH, z);
-
-      s += `<polygon points="${f(c00[0])},${f(c00[1])} ${f(c10[0])},${f(c10[1])} ${f(c11[0])},${f(c11[1])} ${f(c01[0])},${f(c01[1])}" fill="${fill}"/>`;
+  let minR = 0, maxR = -120;
+  const grid = [];
+  for (let gy = 0; gy <= resY; gy++) {
+    grid[gy] = [];
+    for (let gx = 0; gx <= resX; gx++) {
+      const wx = bb.minX + gx * cellW, wy = bb.minY + gy * cellH;
+      const [pwx, pwy] = _predictPosition(wx, wy, calWorldPts);
+      let rssi = _modelRssiAt(wx, wy, scanners, barriers, refPower, pathLossN, quality);
+      if (roomPolys.length) {
+        const aOff = _adaptiveOffset(wx, wy, roomPolys);
+        if (aOff != null) rssi += aOff * (_sourceBlend / 100);
+      }
+      if (rssi > maxR) maxR = rssi;
+      if (rssi < minR) minR = rssi;
+      grid[gy][gx] = { wx, wy, pwx, pwy, rssi };
     }
   }
+  setHatchRange(range ? range.minR : minR, range ? range.maxR : maxR, _userGain, _userContrast);
 
-  // 5. Cal point markers
-  for (const wp of worldPoints) {
-    const [sx, sy] = iso(wp.wx, wp.wy, z);
-    s += `<circle cx="${Math.round(sx)}" cy="${Math.round(sy)}" r="3" fill="#e2e8f0" stroke="#071008" stroke-width="0.8" opacity="0.7"/>`;
-  }
-
+  const blend = _distortionIntensity / 100;
+  const seg = (a, b) => {
+    const ax = a.wx + (a.pwx - a.wx) * blend, ay = a.wy + (a.pwy - a.wy) * blend;
+    const bx = b.wx + (b.pwx - b.wx) * blend, by = b.wy + (b.pwy - b.wy) * blend;
+    const bucket = _rssiBucket((a.rssi + b.rssi) / 2);
+    const color = bucket >= 0 ? _bucketRGB(bucket) : "#333";
+    const [sx1, sy1] = iso(ax, ay, z), [sx2, sy2] = iso(bx, by, z);
+    return `<line x1="${f(sx1)}" y1="${f(sy1)}" x2="${f(sx2)}" y2="${f(sy2)}" stroke="${color}" stroke-width="1.5" opacity="0.7"/>`;
+  };
+  let s = "";
+  for (let gy = 0; gy <= resY; gy++) for (let gx = 0; gx < resX; gx++) s += seg(grid[gy][gx], grid[gy][gx + 1]);
+  for (let gx = 0; gx <= resX; gx++) for (let gy = 0; gy < resY; gy++) s += seg(grid[gy][gx], grid[gy + 1][gx]);
   return s;
 }
 
@@ -1398,9 +1259,9 @@ export function floorHeatmapSVG(calPoints, floorMaps, mapPtFns, w2v, wBB, scanne
     const bucketIdx = Math.round(i / (flLegSteps - 1) * (HATCH_BUCKETS - 1));
     s += `<rect x="${(0.035 + i * bw).toFixed(3)}" y="${ly + 0.02}" width="${bw.toFixed(3)}" height="0.012" fill="${_bucketRGB(bucketIdx)}"/>`;
   }
-  // _lvlRssis, not _wpRssis: the latter is a local of isoLevelHeatmapSVG and
-  // does not exist here. Same values under this function's own name, and the
-  // legend threw a ReferenceError every time a floor heatmap was drawn.
+  // _lvlRssis is THIS function's own range. The legend used to read a local
+  // of a different function that did not exist here, and threw a
+  // ReferenceError every time a floor heatmap was drawn.
   s += `<text x="0.035" y="${ly + 0.048}" fill="#fca5a5" font-size="0.01" font-family="system-ui,sans-serif">${Math.round(Math.min(..._lvlRssis))}</text>`;
   s += `<text x="${(0.035 + (flLegSteps - 1) * bw).toFixed(3)}" y="${ly + 0.048}" fill="#52b788" font-size="0.01" font-family="system-ui,sans-serif">${Math.round(Math.max(..._lvlRssis))} dBm</text>`;
   s += `<text x="0.035" y="${ly + 0.058}" fill="#94a3b8" font-size="0.009" font-family="system-ui,sans-serif">${worldPoints.length} points from ${floorMapIds.size} map${floorMapIds.size > 1 ? "s" : ""}</text>`;
@@ -1434,7 +1295,6 @@ export function getFloorScanners(calPoints, floorMapIds) {
 // same heatmap colors as the radio map. Distorted cells show where the system
 // confuses physical space.
 
-const DISTORTION_GRID = 30; // 30x30 deformation grid — finer for smoother lines
 
 // Distortion intensity: 0 = no warp (regular grid), 100 = full warp. User-adjustable.
 let _distortionIntensity = 50; // default 50%
@@ -1557,152 +1417,6 @@ function _predictPosition(qwx, qwy, calWorldPts) {
     predY = qwy + dy * scale;
   }
   return [predX, predY];
-}
-
-/**
- * 3D Iso deformation grid for one z-level.
- * Regular square grid that WARPS where positioning predictions disagree with reality.
- * Grid lines colored with same heatmap colors. Square = accurate, warped = error.
- */
-export function isoDistortionSVG(calPoints, groupMaps, mapTransforms, iso, z, settings, allMaps, liveSnap, model) {
-  if (!calPoints || !groupMaps.length) return "";
-  const groupIds = new Set(groupMaps.map(m => m.id));
-
-  // Collect cal points on this level with world positions + RSSI fingerprints
-  const calWorldPts = [];
-  for (const pt of calPoints) {
-    if (!groupIds.has(pt.map_id)) continue;
-    const tf = mapTransforms[pt.map_id];
-    if (!tf || !tf.mapPt) continue;
-    const query = {};
-    for (const r of (pt.scanner_readings || [])) {
-      if (r.source && r.mean_rssi != null) query[r.source] = r.mean_rssi;
-    }
-    if (!Object.keys(query).length) continue;
-    const [wx, wy] = tf.mapPt(pt.x_frac, pt.y_frac);
-    const bestRssi = Math.max(...Object.values(query));
-    calWorldPts.push({ wx, wy, query, rssi: bestRssi });
-  }
-  if (calWorldPts.length < KNN_K + 1) return "";
-
-  const _rssis = calWorldPts.map(p => p.rssi);
-  setHatchRange(Math.min(..._rssis), Math.max(..._rssis), _userGain, _userContrast);
-
-  // World bounding box from ALL maps on this level (not just cal points)
-  let bb = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-  for (const m of groupMaps) {
-    const tf = mapTransforms[m.id]; if (!tf || !tf.mapPt) continue;
-    for (const [cx, cy] of [[0,0],[1,0],[1,1],[0,1]]) {
-      const [wx, wy] = tf.mapPt(cx, cy);
-      bb.minX = Math.min(bb.minX, wx); bb.minY = Math.min(bb.minY, wy);
-      bb.maxX = Math.max(bb.maxX, wx); bb.maxY = Math.max(bb.maxY, wy);
-    }
-  }
-  if (!isFinite(bb.minX)) return "";
-  const wW = bb.maxX - bb.minX, wH = bb.maxY - bb.minY;
-  if (wW < 1e-6 || wH < 1e-6) return "";
-
-  // Square cells: use the same cell size for both dimensions
-  const cellSize = Math.min(wW, wH) / DISTORTION_GRID;
-  const resX = Math.max(2, Math.ceil(wW / cellSize));
-  const resY = Math.max(2, Math.ceil(wH / cellSize));
-  const cellW = wW / resX, cellH = wH / resY;
-  const f = v => v.toFixed(1);
-
-  // Collect scanners + barriers for model-based coloring (same as heatmap)
-  const refPower = settings?.ref_power ?? DEFAULT_REF_POWER;
-  const pathLossN = settings?.path_loss_exp ?? DEFAULT_PATH_LOSS_N;
-  const _dScanners = [];
-  const _dBarriers = [];
-  // Scanner quality from live data
-  const _dqMap = {};
-  const _dAds = (liveSnap?.ble?.advertisements) || [];
-  if (_dAds.length) {
-    const _sb = {};
-    for (const ad of _dAds) { if (ad.source && ad.rssi != null && (ad.age_s||0)<30) { if (!_sb[ad.source]||ad.rssi>_sb[ad.source]) _sb[ad.source]=ad.rssi; } }
-    const _bv = Object.values(_sb); _bv.sort((a,b)=>a-b);
-    if (_bv.length>1) { const fm=_bv[Math.floor(_bv.length/2)]; for (const [s,b] of Object.entries(_sb)) _dqMap[s]=Math.max(-10,Math.min(10,b-fm)); }
-  }
-  // Scanner positions come from the fabric, never from a photo.
-  const _dMapZ = {};
-  for (const [mid, tf] of Object.entries(mapTransforms)) { if (tf) _dMapZ[mid] = tf.z; }
-  const _dFab = _fabricScanners(
-    allMaps || groupMaps, model, z, _dMapZ, _dqMap, settings);
-  const _dMPerWorld = _dFab.mPerWorld;
-  _dScanners.push(..._dFab.scanners);
-  for (const m of (allMaps || groupMaps)) {
-    const tf = mapTransforms[m.id]; if (!tf||!tf.mapPt) continue;
-    const fd = Math.abs(tf.z-z); if (fd>2) continue;
-    for (const bar of (m.rf_barriers||[])) { const pts=bar.points||[]; if(pts.length<2) continue; _dBarriers.push({points:pts.map(p=>{const[wx,wy]=tf.mapPt(Number(p[0]),Number(p[1]));return[wx,wy];}),attenuation_dbm:bar.attenuation_dbm||6}); }
-  }
-  // Room bounds for adaptive offset — fabric-first
-  const _dRoomBW = [];
-  if (_sourceBlend > 0 && _adaptiveFingerprints) {
-    const _fab = _fabricRoomPolysW(groupMaps);
-    if (_fab) _dRoomBW.push(..._fab);
-    else for (const m of groupMaps) { const tf=mapTransforms[m.id]; if(!tf||!tf.mapPt) continue; for (const [room,b] of Object.entries(m.room_bounds||{})) { if(!b||b.type!=="poly"||!b.points||b.points.length<3) continue; _dRoomBW.push({room,polyW:b.points.map(p=>tf.mapPt(Number(p[0]),Number(p[1])))}); } }
-  }
-
-  // Build grid with warped positions + model-based RSSI coloring
-  let minR=0, maxR=-120;
-  const grid = [];
-  for (let gy = 0; gy <= resY; gy++) {
-    grid[gy] = [];
-    for (let gx = 0; gx <= resX; gx++) {
-      const wx = bb.minX + gx * cellW, wy = bb.minY + gy * cellH;
-      const [pwx, pwy] = _predictPosition(wx, wy, calWorldPts);
-      // Model RSSI (same as heatmap)
-      let best = -120;
-      for (const sc of _dScanners) {
-        const dm = Math.max(0.3, Math.hypot(Math.sqrt((wx-sc.wx)**2+(wy-sc.wy)**2)*_dMPerWorld, sc.dz||0));
-        let rssi = (refPower+(sc.qualityOffset||0)) - 10*pathLossN*Math.log10(dm);
-        if (sc.floorDist>0) rssi -= sc.floorDist*FLOOR_ATTEN_DB;
-        for (const bar of _dBarriers) { for (let i=0;i<bar.points.length-1;i++) { if(_segmentsIntersect(wx,wy,sc.wx,sc.wy,bar.points[i][0],bar.points[i][1],bar.points[i+1][0],bar.points[i+1][1])) rssi-=bar.attenuation_dbm; } }
-        if (rssi>best) best=rssi;
-      }
-      // Adaptive offset
-      if (_sourceBlend>0 && _dRoomBW.length) {
-        const aOff = _adaptiveOffset(wx, wy, _dRoomBW);
-        if (aOff!=null) best += aOff * (_sourceBlend/100);
-      }
-      if (best>maxR) maxR=best; if (best<minR) minR=best;
-      grid[gy][gx] = { wx, wy, pwx, pwy, rssi: best };
-    }
-  }
-  setHatchRange(minR, maxR, _userGain, _userContrast);
-
-  // Blend: 0.6 = moderate warp (readable but distortion visible)
-  const blend = _distortionIntensity / 100;
-  let s = "";
-
-  // Horizontal grid lines
-  for (let gy = 0; gy <= resY; gy++) {
-    for (let gx = 0; gx < resX; gx++) {
-      const a = grid[gy][gx], b = grid[gy][gx + 1];
-      const ax = a.wx + (a.pwx - a.wx) * blend, ay = a.wy + (a.pwy - a.wy) * blend;
-      const bx = b.wx + (b.pwx - b.wx) * blend, by = b.wy + (b.pwy - b.wy) * blend;
-      const rssi = (a.rssi != null && b.rssi != null) ? (a.rssi + b.rssi) / 2 : a.rssi || b.rssi;
-      const bucket = _rssiBucket(rssi);
-      const color = bucket >= 0 ? _bucketRGB(bucket) : "#333";
-      const [sx1, sy1] = iso(ax, ay, z), [sx2, sy2] = iso(bx, by, z);
-      s += `<line x1="${f(sx1)}" y1="${f(sy1)}" x2="${f(sx2)}" y2="${f(sy2)}" stroke="${color}" stroke-width="1.5" opacity="0.7"/>`;
-    }
-  }
-  // Vertical grid lines
-  for (let gx = 0; gx <= resX; gx++) {
-    for (let gy = 0; gy < resY; gy++) {
-      const a = grid[gy][gx], b = grid[gy + 1][gx];
-      const ax = a.wx + (a.pwx - a.wx) * blend, ay = a.wy + (a.pwy - a.wy) * blend;
-      const bx = b.wx + (b.pwx - b.wx) * blend, by = b.wy + (b.pwy - b.wy) * blend;
-      const rssi = (a.rssi != null && b.rssi != null) ? (a.rssi + b.rssi) / 2 : a.rssi || b.rssi;
-      const bucket = _rssiBucket(rssi);
-      const color = bucket >= 0 ? _bucketRGB(bucket) : "#333";
-      const [sx1, sy1] = iso(ax, ay, z), [sx2, sy2] = iso(bx, by, z);
-      s += `<line x1="${f(sx1)}" y1="${f(sy1)}" x2="${f(sx2)}" y2="${f(sy2)}" stroke="${color}" stroke-width="1.5" opacity="0.7"/>`;
-    }
-  }
-
-  return s;
 }
 
 /**

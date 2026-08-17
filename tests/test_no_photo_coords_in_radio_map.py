@@ -56,14 +56,55 @@ def test_no_pixel_transform_is_applied_to_a_receiver():
 
 
 def test_the_fabric_helper_is_the_source():
+    """The 2D floor heatmap (drawn on a photo) still resolves scanners
+    through the fabric helper: one definition plus that call."""
     src = _radio_map()
     assert "fabricWorldScanners" in src, (
         "radio_map.js no longer imports the fabric scanner source"
     )
-    assert src.count("_fabricScanners(") >= 4, (
-        "every modelled heatmap should collect scanners through _fabricScanners "
-        "(one definition plus one call per heatmap)"
+    assert src.count("_fabricScanners(") >= 2, (
+        "the modelled floor heatmap should collect scanners through "
+        "_fabricScanners (one definition plus one call)"
     )
+
+
+def _iso_overlay_bodies(src: str) -> str:
+    """Source of the two isometric overlay functions, and only them."""
+    a = src.index("export function isoStoreyHeatmapSVG(")
+    b = src.index("export function isoStoreyDistortionSVG(")
+    end = src.index("\n}\n", b) + 3
+    grid = src[src.index("function _storeyModelGrid("):]
+    grid = grid[:grid.index("\n}\n") + 3]
+    return src[a:end] + grid
+
+
+def test_iso_overlays_take_a_fabric_storey_not_photos():
+    """The isometric heat and warp overlays draw ON the fabric building, so
+    they take a STOREY the caller resolved from the fabric — rooms, scanners,
+    barriers and calibration points in metres — and nothing about a photo.
+
+    They used to take the photographs grouped at a level plus a per-photo
+    pixel transform and sized their grid from the CORNERS OF THE PICTURES.
+    When indoor plans stopped carrying that transform the extent was empty
+    and both overlays silently drew nothing; a floor with no photograph never
+    had one at all.
+    """
+    src = _radio_map()
+    assert "export function isoStoreyHeatmapSVG(storey, iso, liveSnap, settings, range)" in src
+    assert "export function isoStoreyDistortionSVG(storey, iso, liveSnap, settings, range)" in src
+    assert "export function isoStoreyRssiRange(storey, liveSnap, settings)" in src, (
+        "storeys must be able to share one colour scale"
+    )
+    body = _iso_overlay_bodies(src)
+    for photo_word in ("mapPt", "mapTransforms", "groupMaps", "receivers", "x_frac", "map_id"):
+        assert photo_word not in body, (
+            f"iso overlay reads {photo_word!r}: a photograph is back in the "
+            "storey overlays"
+        )
+    assert "_storeyExtent(storey)" in body, "grid extent must be the storey's rooms"
+    for gone in ("modelIsoHeatmapSVG", "isoLevelHeatmapSVG", "isoDistortionSVG(",
+                 "computeHeatmapGrid", "isoHeatmapSVG(heatData"):
+        assert gone not in src, f"photo-based iso overlay {gone} is back"
 
 
 def test_the_fabric_source_exists_and_refuses_to_guess():
