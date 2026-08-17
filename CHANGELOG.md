@@ -4,6 +4,25 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.34.3 — Identity, walls and lights in the fabric; websocket.py split (2026-08-17)
+
+### Fixed — identity (the "closet beacon" flips)
+- **Four CP27 beacons were one object.** MAC Rotation Bridging linked a "new RPA" to a cached identified one on a matching advertisement fingerprint without checking that the old address had *stopped*; `48:87:2D:…` is a public OUI the RPA heuristic false-positives on, all four share one fingerprint, so live beacons were chained together — and once bridged they were excluded from iBeacon grouping, so the pack/rotator split never got its turn. The merged object's vector alternated between two closets; what looked like a room-vote flip was two beacons taking turns. A bridge now requires the address bridged *from* to be silent (>5 s or gone), and an advertiser that names its own identity (iBeacon) is never fingerprint-bridged.
+- **Same-label dedup merged on a name.** A live beacon that inherited "MaschineBOX" through its MAC was folded into a stale cached ghost wearing the same label (the ghost's frozen RSSI won), so the live object vanished from the list every poll. Two objects merge only when they share an address, and the freshest one is primary.
+- **A pinned room decides the floor** exactly as a voted one does; **entity trackers** get a floor too. One rule, one site, after every way the room can be set.
+- **Basement Warp drew nothing**: 127 calibration points had no floor. Save time now resolves a blank floor from the room's fabric floor; a one-off migration gives stored floorless points their room's floor, else the floor of the plan they were placed on.
+
+### Fixed — structure (fabric only)
+- **Lights** have one write path — metres — and the Pro gate and appearance validation live on it. The per-photo `lights` list (and the gate that guarded only it) is gone; the shape vocabulary is the renderer's, in one place (`const.LIGHT_SHAPE_KINDS`).
+- **Walls have an identity**: every barrier carries an id (migration gives stored ones theirs, cuts their `map_id`); set/remove by id; the per-photo `rf_barriers` list is no longer accepted or created. The Edit tab still *draws* a wall on the photo — it goes through the map's metre transform into the fabric the moment it is finished, and the walls shown there are the fabric's projected back. The 2D radio map and distortion grid take walls from the fabric in the world frame. Per-map `radioMapSVG`/`distortionMapSVG` are gone.
+- **Library thumbnails** show the fabric's rooms and scanners projected onto the picture.
+- **RPA resolution cache bounded** (4096); the room-scoring `_sigma` knob removed end to end (never ran).
+
+### Changed — code structure
+- **`websocket.py` split by subject**: 11,942 lines → registration + twenty modules (`ws_*.py`, `snapshot_builder.py`, `ws_common.py`). Every name is re-exported from `websocket.py`; the panel sees one API. Layout in the module docstring.
+
+---
+
 ## 0.34.2 — The map is drawn from the fabric, storey by storey (2026-08-17)
 
 ### Fixed — Overview / Pure Live
