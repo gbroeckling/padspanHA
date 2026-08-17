@@ -6036,26 +6036,6 @@ function _isPro(ctx) {
 
 
 
-// Which uploaded map/photo a floor's new or dragged lights get persisted
-// against — purely internal (never shown to the user; a floor with several
-// uploaded photos is one floor in this tab, never a photo picker). A map
-// that's never been through Measure still gets SOME transform (a synthetic
-// "assume ~20m wide" guess applied once during the fabric migration), which
-// looks equally "calibrated" by scale alone but isn't real-world-accurate —
-// so this prefers a map with real reference_measurements (genuinely
-// measured) first, only falling back to "has some transform" or "first map"
-// if nothing on this floor was ever actually measured.
-function _primaryMapIdForFloor(ctx, mapIds) {
-  const ids = mapIds && mapIds.length ? mapIds : [];
-  const transforms = ctx.state.model?.map_transforms || {};
-  const measured = ids.find(id => (transforms[id]?.reference_measurements || []).length > 0);
-  if (measured) return measured;
-  const anyScaled = ids.find(id => {
-    const t = transforms[id];
-    return t && Number(t.scale_x_m) > 0 && Number(t.scale_y_m) > 0;
-  });
-  return anyScaled || ids[0] || null;
-}
 
 
 // Bounding box (metres) across a floor's real room_geometry_m shapes.
