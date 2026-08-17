@@ -5,7 +5,7 @@
 """Generated at build time. Used to prove what version is actually installed.
 
 BUILD_ID identifies the RELEASE. scripts/release.py rewrites the literal below
-by regex (`BUILD_ID = "..."`), so its name and shape must not change.
+by regex (`BUILD_ID = "20260817T153752Z"`), so its name and shape must not change.
 
 ASSET_ID is what the panel URLs actually carry, and it is BUILD_ID plus a
 digest of the frontend files. The two used to be the same string, which meant
@@ -22,8 +22,8 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-BUILD_VERSION = "0.33.2"
-BUILD_ID = "20260816T234608Z"
+BUILD_VERSION = "0.34.0"
+BUILD_ID = "20260817T153752Z"
 CHANNEL = "beta"
 
 # Backwards/for convenience
