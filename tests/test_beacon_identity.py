@@ -190,3 +190,20 @@ def test_a_bridge_needs_the_old_address_to_have_stopped() -> None:
     assert rotation_bridge_allowed(1.0).split is True            # still advertising
     assert rotation_bridge_allowed(5.0).split is True            # at the line: not silent yet
     assert "two devices" in rotation_bridge_allowed(0.0).reason
+
+
+def test_a_shared_label_merges_only_on_a_shared_address() -> None:
+    """A live beacon that inherited 'MaschineBOX' through its MAC was folded
+    into a stale cached ghost wearing the same label; the ghost had the frozen
+    higher RSSI and won, and the live object vanished every poll."""
+    from custom_components.padspan_ha.beacon_identity import object_macs, same_device_by_address
+
+    live = {"key": "ibeacon:u:1:2:48:87:2D:9D:D1:DB", "address": "ibeacon:u:1:2",
+            "all_addresses": ["48:87:2D:9D:D1:DB"], "user_label": "MaschineBOX"}
+    ghost = {"key": "48:87:2D:9D:D1:DB", "address": "48:87:2D:9D:BC:88",
+             "all_addresses": ["48:87:2D:9D:BC:88", "48:87:2D:9D:D1:DB"], "user_label": "MaschineBOX"}
+    other = {"key": "ibeacon:u:1:2:48:87:2D:9D:BC:8C", "address": "ibeacon:u:1:2",
+             "all_addresses": ["48:87:2D:9D:BC:8C"], "user_label": "MaschineBOX"}
+    assert object_macs(live) == {"48:87:2D:9D:D1:DB"}          # a key string is not a MAC
+    assert same_device_by_address(live, ghost) is True         # one MAC in common: one device
+    assert same_device_by_address(live, other) is False        # same label, no MAC in common

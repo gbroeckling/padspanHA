@@ -72,7 +72,7 @@ from .bluetooth_live import get_bluetooth_live
 from .vendor_lookup import async_lookup_vendor
 from .private_ble_resolver import PrivateBLEResolver, get_resolver as _get_ble_resolver
 from .ingest_policy import Identity as _IngestIdentity, IngestPolicy
-from .beacon_identity import decide_split as _decide_beacon_split, rotation_bridge_allowed
+from .beacon_identity import decide_split as _decide_beacon_split, rotation_bridge_allowed, same_device_by_address
 from .ble_enrichment import enrich_object as _enrich_ble_object
 from .presence_rules import away_timeout_s, is_away
 
@@ -2829,20 +2829,21 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             for _lbl, _grp in _label_groups.items():
                 if len(_grp) <= 1:
                     continue
-                # Keep the one with best RSSI (or most recent) as primary
-                _grp.sort(key=lambda o: (o.get("rssi") or -999), reverse=True)
+                # The LIVE one is primary — freshest first, RSSI only to break
+                # a tie. Sorting by RSSI let a stale cached ghost, whose RSSI
+                # was frozen at whatever it last was, win over the object that
+                # is actually advertising, and the live one was absorbed into
+                # the ghost every poll.
+                _grp.sort(key=lambda o: ((o.get("age_s") if o.get("age_s") is not None else 1e9),
+                                         -(o.get("rssi") if o.get("rssi") is not None else -999)))
                 _primary = _grp[0]
                 for _sec in _grp[1:]:
-                    # A label is a display string, NOT an identity.  Two iBeacon
-                    # objects with DIFFERENT keys are distinct physical devices
-                    # (e.g. a beacon multi-pack split per MAC) that merely share
-                    # an inherited label — never merge them, or the per-MAC split
-                    # gets silently undone right here.
-                    if (
-                        _primary.get("kind") == "ibeacon"
-                        and _sec.get("kind") == "ibeacon"
-                        and _sec.get("key") != _primary.get("key")
-                    ):
+                    # A label is a display string, NOT an identity. Two objects
+                    # are one device only if they share an ADDRESS — the case
+                    # this pass exists for (a bare MAC and its iBeacon key). A
+                    # beacon multi-pack split per MAC merely shares an inherited
+                    # label, and merging it here silently undid the split.
+                    if not same_device_by_address(_primary, _sec):
                         continue
                     _sec_key = _sec.get("key", "")
                     if _sec_key:

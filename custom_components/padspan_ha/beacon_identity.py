@@ -151,3 +151,30 @@ def rotation_bridge_allowed(old_age_s: float | None, *, min_silence_s: float = B
     if old_age_s > min_silence_s:
         return SplitDecision(False, f"old address silent {old_age_s:.0f}s — hand-over")
     return SplitDecision(True, f"old address still advertising ({old_age_s:.0f}s ago) — two devices")
+
+
+# ── A label is a name, not an identity ───────────────────────────────────────
+#
+# Two objects wearing the same user label are the same device only if they
+# share an ADDRESS. The same-label dedup existed for a device that shows up as
+# two object kinds at once (its bare MAC and its iBeacon key, say) — and those
+# two share the MAC. Without that check, a live beacon that inherited a label
+# through its address was folded into a stale cached ghost wearing the same
+# label — the ghost had the higher (frozen) RSSI, so it won — and the live
+# object vanished from the list every poll while its ghost aged in place.
+
+
+def object_macs(obj: dict) -> set[str]:
+    """Every MAC an object is known by: its address plus its address history."""
+    out: set[str] = set()
+    for a in [obj.get("address")] + list(obj.get("all_addresses") or []):
+        s = str(a or "").upper()
+        if len(s) == 17 and s.count(":") == 5:
+            out.add(s)
+    return out
+
+
+def same_device_by_address(a: dict, b: dict) -> bool:
+    """True when two objects share at least one MAC — the only evidence that
+    a shared label means one device rather than one name on two things."""
+    return bool(object_macs(a) & object_macs(b))
