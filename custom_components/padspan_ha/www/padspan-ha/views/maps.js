@@ -2509,18 +2509,38 @@ function _libraryThumb(m, ctx, reco){
     wrap.appendChild(img);
   }
 
-  // SVG overlay: room bounds + receiver dots + recommendation polygon
+  // SVG overlay: the FABRIC's rooms and scanners on this map's floor,
+  // projected onto the picture through its metre transform — so the
+  // thumbnail shows the building as it is, not as it was traced. A map with
+  // no transform falls back to what was traced on it (the only thing it
+  // has), and the recommendation polygon is drawn in either case.
   const roomColor = ctx.helpers.roomColor;
-  const rb = m.room_bounds || {};
+  const tf = (ctx.state.model?.map_transforms || {})[m.id] || null;
+  const fid = String(m.floor_id || (m.stack && m.stack.floor_id) || "main");
   let s = `<svg viewBox="0 0 1 1" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;top:0;left:0;width:100%;height:100%">`;
-  for(const [room, b] of Object.entries(rb)){
-    if(!b || b.type!=="poly" || !b.points?.length) continue;
-    const pts = b.points.map(p=>`${p[0]},${p[1]}`).join(" ");
-    const c = roomColor ? roomColor(room) : "#52b788";
-    s += `<polygon points="${pts}" fill="${c}22" stroke="${c}" stroke-width="0.005"/>`;
-  }
-  for(const rx of (m.receivers||[])){
-    s += `<circle cx="${rx.x||0}" cy="${rx.y||0}" r="0.022" fill="#52b788" opacity="0.9"/>`;
+  if (tf) {
+    for (const [room, g] of Object.entries(ctx.state.model?.room_geometry_m || {})) {
+      if (!g || String(g.floor_id || "main") !== fid || g.type !== "poly" || !Array.isArray(g.points_m)) continue;
+      const pts = g.points_m.map(p => metresToMapFrac(tf, Number(p[0]), Number(p[1]))).filter(Boolean);
+      if (pts.length < 3) continue;
+      const c = roomColor ? roomColor(room) : "#52b788";
+      s += `<polygon points="${pts.map(p=>`${p[0]},${p[1]}`).join(" ")}" fill="${c}22" stroke="${c}" stroke-width="0.005"/>`;
+    }
+    for (const p of Object.values(ctx.state.model?.scanner_positions_m || {})) {
+      if (!p || String(p.floor_id || "main") !== fid || typeof p.x_m !== "number") continue;
+      const q = metresToMapFrac(tf, p.x_m, p.y_m);
+      if (q) s += `<circle cx="${q[0]}" cy="${q[1]}" r="0.022" fill="#52b788" opacity="0.9"/>`;
+    }
+  } else {
+    for(const [room, b] of Object.entries(m.room_bounds || {})){
+      if(!b || b.type!=="poly" || !b.points?.length) continue;
+      const pts = b.points.map(p=>`${p[0]},${p[1]}`).join(" ");
+      const c = roomColor ? roomColor(room) : "#52b788";
+      s += `<polygon points="${pts}" fill="${c}22" stroke="${c}" stroke-width="0.005"/>`;
+    }
+    for(const rx of (m.receivers||[])){
+      s += `<circle cx="${rx.x||0}" cy="${rx.y||0}" r="0.022" fill="#52b788" opacity="0.9"/>`;
+    }
   }
   if(reco && Array.isArray(reco.polygon) && reco.polygon.length >= 3){
     const pts = reco.polygon.map(p=>`${p[0]},${p[1]}`).join(" ");
