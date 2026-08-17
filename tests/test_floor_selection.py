@@ -228,3 +228,22 @@ def test_a_lone_scanner_floor_still_takes_its_handicap() -> None:
     lopsided = _src(("u1", -57.0, "upper"),
                     ("m1", -61.0, "main"), ("m2", -61.0, "main"), ("m3", -75.0, "main"))
     assert c._select_floor("dev", lopsided, "main") == "main"
+
+
+def test_an_object_is_on_the_floor_of_its_room() -> None:
+    """The room vote is the defended answer; the solvers' floor is not.
+
+    As evidence thinned, spatial (sticky) and k-NN (raw) took turns supplying
+    the object's floor, so it flipped upper<->main every few polls on a beacon
+    whose room never left the closet — 26 floor-change events in a 55-frame
+    capture, all but three on objects whose room did not change.
+    """
+    from custom_components.padspan_ha.presence_coordinator import PresenceCoordinator as PC
+    fabric = {"Spare Bedroom Closet": "upper", "Entry": "main", "Shed": "__outside__"}
+    # A confirmed room decides, whatever the solver said this poll.
+    assert PC._object_floor("Spare Bedroom Closet", "main", fabric) == "upper"
+    assert PC._object_floor("Entry", "__outside__", fabric) == "main"
+    # No room the fabric can place: the solver's floor stands.
+    assert PC._object_floor("unknown", "main", fabric) == "main"
+    assert PC._object_floor("", "basement", fabric) == "basement"
+    assert PC._object_floor(None, None, fabric) == ""

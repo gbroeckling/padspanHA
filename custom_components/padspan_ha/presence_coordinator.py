@@ -1156,13 +1156,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             obj["x_m"] = _pos["x_m"]
                             obj["y_m"] = _pos["y_m"]
                             obj["floor_id"] = _pos.get("floor_id", obj.get("floor_id", ""))
-                    if not obj.get("floor_id") and obj.get("room"):
-                        # No solver could pin an x/y this poll — thin evidence,
-                        # and k-NN is now refused a one-scanner query — but the
-                        # room vote HAS placed the device, and a room is on a
-                        # floor. Without this an object with a confirmed room
-                        # carried no floor at all and rendered nowhere useful.
-                        obj["floor_id"] = _floor_of_room.get(obj["room"], "")
+                    obj["floor_id"] = self._object_floor(
+                        obj.get("room"), obj.get("floor_id"), _floor_of_room)
                     # Store Kalman-smoothed per-source RSSI for scanner distance sensors
                     obj["_source_rssi"] = dict(self._ema_rssi.get(smooth_addr, {}))
                     # Propagate TX power if seen in advertisements
@@ -1201,8 +1196,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             obj["x_m"] = _pos_ib["x_m"]
                             obj["y_m"] = _pos_ib["y_m"]
                             obj["floor_id"] = _pos_ib.get("floor_id", obj.get("floor_id", ""))
-                    if not obj.get("floor_id") and obj.get("room"):
-                        obj["floor_id"] = _floor_of_room.get(obj["room"], "")
+                    obj["floor_id"] = self._object_floor(
+                        obj.get("room"), obj.get("floor_id"), _floor_of_room)
                     # Store Kalman-smoothed per-source RSSI for scanner distance sensors
                     obj["_source_rssi"] = dict(self._ema_rssi.get(key, {}))
                     self._known_objs[key] = dict(obj)  # refresh with smoothed data
@@ -1442,6 +1437,22 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.debug("MQTT publish error", exc_info=True)
 
     # ── smoothing helpers ─────────────────────────────────────────────────────
+
+    @staticmethod
+    def _object_floor(room: str | None, solver_floor: str | None,
+                      floor_of_room: dict[str, str]) -> str:
+        """The floor an object is on: the floor of the room it is in.
+
+        The room is the vote's answer — the most defended output of this
+        pipeline — and the solvers' per-poll floor was a second, undefended
+        one: as evidence thinned, spatial (sticky) and k-NN (raw) took turns
+        supplying it, and the FLOOR flipped upper↔main every few polls on a
+        beacon whose ROOM never left the closet. Measured: 26 floor-change
+        events in a 55-frame capture, all but three on objects whose room did
+        not change. The solver's floor stands only for an object whose room
+        the fabric cannot place.
+        """
+        return floor_of_room.get(room or "", "") or (solver_floor or "")
 
     def _select_floor(
         self,
