@@ -150,13 +150,30 @@ def test_stack_metre_transform_repairs_fabricated_sibling() -> None:
 
 
 def test_rotated_stack_has_rotation_no_shear() -> None:
+    """A rotation must be reported as rotation, never as shear.
+
+    The tolerance is no longer exactly zero, and that is a real change rather
+    than a slackened assertion. Shear used to be UNREPRESENTABLE: both axes
+    were scaled by the same number, so a rotation could not produce any. Now
+    each axis carries its own metres-per-world figure (issue #62), and a
+    rotation composed with genuinely unequal axis scales does shear — that is
+    what shear_rad exists to report.
+
+    This fixture's own numbers are slightly anisotropic: scale_x_m 10.0364
+    against scale_y_m 14.1982 over an image aspect of 1600/1131, which works
+    out to 10.03636 on y. That 4e-06 relative difference is measurement
+    precision in the stored transform, and at 30° it surfaces as 4e-06 rad —
+    two ten-thousandths of a degree. The assertion is that no MEANINGFUL shear
+    is invented, so it is bounded well below anything a map could show.
+    """
     m = _master()
     m["stack"]["rotation"] = 30
     mdl = _model(dict(_MEASURED))
     anchor = ft.find_metre_anchor([_master()], mdl)
     t = ft.stack_metre_transform(m, anchor)
     assert t["rotation_rad"] == pytest.approx(0.5236, abs=1e-3)
-    assert t["shear_rad"] < 1e-6
+    assert t["shear_rad"] < 1e-4, (
+        "a rotation is being reported as shear: %r" % (t,))
 
 
 # ── Stats ───────────────────────────────────────────────────────────────────

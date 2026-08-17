@@ -142,25 +142,17 @@ async def test_an_unmeasured_photo_contributes_no_lights() -> None:
 
 
 def test_the_panel_copies_every_key_the_model_payload_sends() -> None:
-    """_getModel whitelists keys, so a payload field it doesn't name is
-    silently dropped — the backend answers correctly and the UI never sees it.
+    """Superseded by tests/test_model_get_floor_payload.py::
+    test_the_panel_keeps_every_key_model_get_sends.
 
-    This is the third time that shape has shipped (origin forwarding, the
-    migration marker, and light positions), so it gets a test.
+    This used to check that every key `model_get` sends appeared BY NAME in
+    `_getModel`'s whitelist. The whitelist dropped a key three separate times,
+    so it was replaced with a spread of the whole response — which makes
+    "named in the whitelist" the wrong property to assert. The structural
+    guard checks the spread is still there and that no `res?.key` picking has
+    crept back. One rule, one place; this stub is kept so a grep for the old
+    name still lands somewhere that explains where it went.
     """
-    import re
-    from pathlib import Path
+    from tests.test_model_get_floor_payload import test_the_panel_keeps_every_key_model_get_sends
 
-    src = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
-    ws = (src / "websocket.py").read_text(encoding="utf-8")
-    body = ws[ws.index('async def ws_model_get'):]
-    body = body[:body.index("@websocket_api.websocket_command")]
-    sent = set(re.findall(r'"([a-z_]+)":', body[body.index("send_result"):]))
-
-    panel = (src / "www" / "padspan-ha" / "panel.js").read_text(encoding="utf-8")
-    got = panel[panel.index("async _getModel()"):]
-    got = got[:got.index("this.state._modelLoaded")]
-    copied = set(re.findall(r"(\w+):\s*res\?\.", got))
-
-    missing = sent - copied
-    assert not missing, f"model_get sends keys the panel drops: {sorted(missing)}"
+    test_the_panel_keeps_every_key_model_get_sends()

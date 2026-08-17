@@ -609,9 +609,9 @@ class CalibrationStore:
         try:
             _st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
             d = (_st.data if _st else {}) or {}
-            out = {str(s) for s in (d.get("excluded_scanners") or []) if s}
-            out |= {str(s) for s in (d.get("lost_radios") or {})}
-            out |= {str(s) for s in (d.get("disabled_radios") or {})}
+            from .presence_rules import excluded_sources  # noqa: PLC0415
+
+            out = set(excluded_sources(d))
             return frozenset(out)
         except Exception:
             return frozenset()

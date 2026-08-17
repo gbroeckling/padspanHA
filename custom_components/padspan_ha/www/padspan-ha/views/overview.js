@@ -620,6 +620,37 @@ export function render(ctx){
     }
 
     const TILE=220, CX=380, CY=590, W=760, BASE_H=940;
+    // The frame width every `font-size="N"` in this file was tuned against.
+    // Labels are scaled by _REF_FRAME_W / actual-frame-width so a change in
+    // how tightly the frame fits the building never changes how big the
+    // words are (see _isoHeader).
+    const _REF_FRAME_W = 880;
+    // Counter-scale for annotations — labels, dots, badges. They are drawn
+    // in svg units and the frame is now fitted to the building, so a tighter
+    // frame made every one of them bigger on screen. Each marker group is
+    // scaled about its own anchor by this factor, so text, dot and badge
+    // shrink together and stay put. Computed from the tracked content box
+    // (populated by the time annotations draw), matching _isoHeader's frame.
+    // The label sizes in this file were designed at ~0.84 screen pixels per
+    // svg unit (an 880-unit frame in a ~740 px panel). What matters for how
+    // big a label LOOKS is that ratio, not the frame width on its own — the
+    // same frame on a 1920 px screen renders every unit twice as large. So
+    // the counter-scale is designed-px-per-unit over actual-px-per-unit,
+    // where actual is the container the svg will fill divided by the frame.
+    // Never enlarges (a small screen keeps its designed sizes).
+    const _REF_PX_PER_UNIT = 0.84;
+    const _annK = ()=>{
+      if(!_isoBB || !isFinite(_isoBB.minX)) return 1;
+      const frameW = (_isoBB.maxX - _isoBB.minX) + 120;   // PAD each side
+      // isoDiv is declared further down in this scope; the map is only ever
+      // built after it exists, but the reference is guarded so a call from
+      // anywhere earlier degrades to "no scaling" rather than a TDZ throw.
+      let hostW = 0;
+      try { hostW = (isoDiv && isoDiv.clientWidth) || 0; } catch (e) { hostW = 0; }
+      if(!hostW || !frameW) return 1;
+      const pxPerUnit = hostW / frameW;
+      return Math.min(1, _REF_PX_PER_UNIT / pxPerUnit);
+    };
     const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
     const roomColorFn = ctx.helpers.roomColor;
     const _esc = s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -676,14 +707,26 @@ export function render(ctx){
       return {sx, sy, z};
     };
 
-    const iso = (wx,wy,wz)=>{
-      if(_fabOK) return _fabF.iso(wx, wy, wz);
-      const p=[CX+(wx-wy)*TILE*0.866+wz*_ovHG, CY+(wx+wy)*TILE*0.5-wz*_ovFG];
+    // Every point drawn passes through here, and `_isoBB` records where they
+    // land so the frame can be fitted to the drawing afterwards. The tracking
+    // has to happen on BOTH branches. It used to sit below the fabric
+    // early-return, so on any install with a fabric — which is every install
+    // — the box was never grown, `isFinite(_isoBB.minX)` stayed false, and the
+    // svg header silently fell back to its heuristic frame: a fixed 880 units
+    // wide whatever the building measured. Around a ~500-unit drawing that is
+    // ~57% fill, and it is why the sides stayed blank through every attempt to
+    // fit the drawing more tightly INSIDE fabricFrame — the frame that
+    // actually composes the svg had never once looked at the drawing.
+    const _trackIso = (p)=>{
       if(_isoBB && !_isoBBFrozen){
         if(p[0]<_isoBB.minX)_isoBB.minX=p[0]; if(p[0]>_isoBB.maxX)_isoBB.maxX=p[0];
         if(p[1]<_isoBB.minY)_isoBB.minY=p[1]; if(p[1]>_isoBB.maxY)_isoBB.maxY=p[1];
       }
       return p;
+    };
+    const iso = (wx,wy,wz)=>{
+      if(_fabOK) return _trackIso(_fabF.iso(wx, wy, wz));
+      return _trackIso([CX+(wx-wy)*TILE*0.866+wz*_ovHG, CY+(wx+wy)*TILE*0.5-wz*_ovFG]);
     };
     // The building's own screen extent, captured when the frame is frozen.
     let _bldgBB = null;
@@ -1122,15 +1165,50 @@ export function render(ctx){
           // The legend below the map IS drawn at fixed x (10 to W-10), so it
           // is included explicitly rather than by keeping a box wide enough to
           // contain it by accident.
-          const x0=Math.min(_isoBB.minX-PAD, 10);
-          const x1=Math.max(_isoBB.maxX+PAD, W-10);
+          // The legend is laid out from _isoBB.minX (see below), so it lives
+          // inside the drawing's own extent and no longer needs the frame
+          // held open to W-10 to contain it. Content decides, full stop.
+          const x0=_isoBB.minX-PAD;
+          const x1=_isoBB.maxX+PAD;
           // VERTICAL keeps the union: the legend strip and the floor-gap
           // growth both live below and above the geometry, and clipping the
           // stack is a worse failure than a tall frame.
-          const y0=Math.min(vy, _isoBB.minY-PAD), y1=Math.max(vy+vh, _isoBB.maxY+40);
+          // VERTICAL follows the content too, now that the legend does. The
+          // union with the heuristic box is what kept the frame ~970 tall
+          // around 466 of drawing; the legend sits just under the geometry and
+          // LEGEND_H covers it.
+          const y0=Math.min(vy, _isoBB.minY-PAD);
+          const y1=_isoBB.maxY + 24 + LEGEND_H + 20;
           vx=x0; vy=y0; vw=x1-x0; vh=y1-y0;
         }
-        return `<svg viewBox="${vx} ${vy} ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg" width="100%" style="max-height:${Math.round(vh)}px;display:block;font-family:system-ui,sans-serif">`
+        // The map fills the width it is given. Height follows.
+        //
+        // There used to be a `max-height` here, originally `${vh}px` — the
+        // viewBox's own unit count read as CSS pixels, two numbers with no
+        // relationship to each other. An svg preserves its aspect ratio, so
+        // capping the height also caps the WIDTH: the map could never render
+        // wider than about `vw` pixels however wide the panel was. That is the
+        // blank space down both sides, and no amount of re-fitting the drawing
+        // INSIDE the frame could reach it, because the constraint was on the
+        // frame's rendered size rather than on its contents.
+        //
+        // Width is the scarce dimension here — the panel is wide and short,
+        // the floor stack is tall — and the page already scrolls. So: take the
+        // full width, let the height be whatever the aspect ratio makes it,
+        // and scroll. A tall map you can read beats a small one that fits.
+        // Text is sized in svg user units, so it scales with the frame — and
+        // the frame just went from ~880 units drawn into ~740 px (0.84 px per
+        // unit) to ~600 units drawn into ~1500 px (2.5 px per unit). Every
+        // label tripled. The labels are not the building; they should read
+        // at a constant size on screen whatever the frame does.
+        //
+        // One rule fixes all of them: a viewBox unit is `vw / rendered-width`
+        // pixels, and this svg renders at 100% of its container. Scaling the
+        // font by that ratio, against the width the sizes were designed for,
+        // makes every `font-size="N"` mean N px on screen again. It is set
+        // once on the root and inherited, rather than rewriting the two dozen
+        // per-element sizes to a different unit.
+        return `<svg viewBox="${vx} ${vy} ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg" width="100%" style="height:auto;display:block;font-family:system-ui,sans-serif">`
           + `<rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="#071008"/>`;
       };
       let s = ``;
@@ -1313,7 +1391,8 @@ export function render(ctx){
           const _objsHere = allObjects.filter(o=>_presentInRoom(ctx,o,room));
           const _roomTip = `${room}\n${_objsHere.length} object${_objsHere.length!==1?"s":""} detected`;
           s += `<g data-tip="${_esc(_roomTip)}"><polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="2" opacity="0.9"/></g>`;
-          s += `<text x="${Math.round(lix)}" y="${Math.round(liy)+lidx*2}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600">${_esc(room)}</text>`;
+          s += `<text x="${Math.round(lix)}" y="${Math.round(liy)+lidx*2}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600" `
+             + `transform="translate(${Math.round(lix)} ${Math.round(liy)+lidx*2}) scale(${_annK().toFixed(3)}) translate(${-Math.round(lix)} ${-(Math.round(liy)+lidx*2)})">${_esc(room)}</text>`;
         };
         // Outdoor areas — the shed, the driveway — drawn as an overlay fitted
         // into the building's own footprint, exactly as they were before, but
@@ -1400,11 +1479,11 @@ export function render(ctx){
             const rxColor = isLive ? "#52b788" : "#4a6052";
             const rxOp = isLive ? 1.0 : 0.45;
             const rxSrc = _esc((isLive ? liveRadio.source : null) || r.source || r.id || "");
-            s += `<g data-scanner-src="${rxSrc}" data-tip="${_esc(_rTip)}" opacity="${rxOp}" style="cursor:pointer">`;
+            s += `<g data-scanner-src="${rxSrc}" data-tip="${_esc(_rTip)}" opacity="${rxOp}" style="cursor:pointer" transform="translate(${Math.round(px)} ${Math.round(py)}) scale(${_annK().toFixed(3)}) translate(${-Math.round(px)} ${-Math.round(py)})">`;
             s += `<circle cx="${Math.round(px)}" cy="${Math.round(py)}" r="15" fill="none" stroke="${rxColor}" stroke-width="1.3" opacity="0.3"/>`;
             s += `<circle cx="${Math.round(px)}" cy="${Math.round(py)}" r="9"  fill="none" stroke="${rxColor}" stroke-width="1.5" opacity="0.6"/>`;
             s += `<circle cx="${Math.round(px)}" cy="${Math.round(py)}" r="4.5" fill="${rxColor}" opacity="0.9"/>`;
-            s += `<text x="${Math.round(px)}" y="${Math.round(py)-13}" text-anchor="middle" fill="${rxColor}" font-size="9" font-weight="700" style="cursor:pointer">${_esc(rsid)}</text>`;
+            s += `<text x="${Math.round(px)}" y="${Math.round(py)-13}" text-anchor="middle" fill="${rxColor}" font-size="9" style="cursor:pointer" font-weight="700">${_esc(rsid)}</text>`;
             s += `</g>`;
           }
         }
@@ -1521,7 +1600,9 @@ export function render(ctx){
         const dotOp = isAway ? "0.35" : "0.97";
         const glowOp = isAway ? "0.08" : "0.18";
         const lblColor = isAway ? "#a0845c" : BEACON_CLR;
-        s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(o))}" style="cursor:pointer">`;
+        const _k = _annK();
+        s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(o))}" style="cursor:pointer" `
+           + `transform="translate(${Math.round(bx)} ${Math.round(by)}) scale(${_k.toFixed(3)}) translate(${-Math.round(bx)} ${-Math.round(by)})">`;
         // Confidence badge below the dot (skip for away)
         if(!isAway){
           const cW = Math.min(confLabel.length * 6.5 + 8, 65);
@@ -1619,7 +1700,7 @@ export function render(ctx){
           if(ctx.state._overviewPersistentPins){
             if(isAway){
               // Red crosshair for away objects (persistent mode)
-              s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(obj))}" style="cursor:pointer" opacity="0.92">`;
+              s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(obj))}" style="cursor:pointer" opacity="0.92" transform="translate(${Math.round(px)} ${Math.round(py)}) scale(${_annK().toFixed(3)}) translate(${-Math.round(px)} ${-Math.round(py)})">`;
               s += `<circle cx="${px}" cy="${py}" r="22" fill="none" stroke="#ef4444" stroke-width="1.5"/>`;
               s += `<circle cx="${px}" cy="${py}" r="12" fill="none" stroke="#ef4444" stroke-width="2"/>`;
               s += `<circle cx="${px}" cy="${py}" r="4.5" fill="#ef4444"/>`;
@@ -1631,7 +1712,7 @@ export function render(ctx){
               s += `</g>`;
             } else {
               // Teal dot for active objects (persistent mode)
-              s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(obj))}" style="cursor:pointer" opacity="0.88">`;
+              s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(obj))}" style="cursor:pointer" opacity="0.88" transform="translate(${Math.round(px)} ${Math.round(py)}) scale(${_annK().toFixed(3)}) translate(${-Math.round(px)} ${-Math.round(py)})">`;
               s += `<circle cx="${px}" cy="${py}" r="13" fill="#5eead4" opacity="0.15"/>`;
               s += `<circle cx="${px}" cy="${py}" r="9" fill="#5eead4" stroke="#071008" stroke-width="1.5" opacity="0.95"/>`;
               s += `<circle cx="${px}" cy="${py}" r="2.5" fill="#071008" opacity="0.7"/>`;
@@ -1640,7 +1721,7 @@ export function render(ctx){
             }
           } else if(!obj.user_label){
             // Small dim amber dot for unlabeled objects
-            s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(obj))}" style="cursor:pointer" opacity="0.6">`;
+            s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(obj))}" style="cursor:pointer" opacity="0.6" transform="translate(${Math.round(px)} ${Math.round(py)}) scale(${_annK().toFixed(3)}) translate(${-Math.round(px)} ${-Math.round(py)})">`;
             s += `<circle cx="${px}" cy="${py}" r="6" fill="#f59e0b" stroke="#071008" stroke-width="1" opacity="0.7"/>`;
             s += `</g>`;
           }
@@ -1655,11 +1736,36 @@ export function render(ctx){
         s += `<text x="${W/2}" y="${BASE_H-20}" text-anchor="middle" fill="#4a6052" font-size="16">Go to Maps → Edit to draw room boundaries</text>`;
       }
 
-      // Legend at bottom — compact single row
-      s += `<line x1="10" y1="${BASE_H+4}" x2="${W-10}" y2="${BASE_H+4}" stroke="#1b3526" stroke-width="0.8"/>`;
+      // Legend at bottom — compact single row, BELOW THE DRAWING.
+      //
+      // It used to be nailed to y = BASE_H + 4, and BASE_H is a fixed 940
+      // design constant. Since the frame has to contain the legend, that
+      // pinned the viewBox to ~970 units tall however short the building
+      // actually drew — measured on a real house, 970 units of frame around
+      // 466 units of content.
+      //
+      // That is what left the sides blank. The svg carries the default
+      // preserveAspectRatio, so a frame that is tall and narrow (740 x 970)
+      // rendered into a panel that is wide and short (1532 x 602) scales to
+      // fit the HEIGHT and centres, using about 48% of the width available.
+      // No amount of re-fitting the drawing inside that frame could help,
+      // because the frame itself was the wrong shape.
+      //
+      // `_isoBB` has tracked every point drawn by the time we get here, so
+      // "below the drawing" is a thing we can actually ask.
+      const _legendTop = (_isoBB && isFinite(_isoBB.maxY))
+        ? Math.max(_isoBB.maxY + 24, 120)
+        : BASE_H;
+      // The legend spans the DRAWING, not the fixed design width: it used to
+      // run from x=10 to x=W-10, which forced the frame to stay at least that
+      // wide and put a strip of dead space back on both sides of any building
+      // narrower than the canvas constant.
+      const _legL = (_isoBB && isFinite(_isoBB.minX)) ? _isoBB.minX : 10;
+      const _legR = (_isoBB && isFinite(_isoBB.maxX)) ? _isoBB.maxX : W-10;
+      s += `<line x1="${_legL}" y1="${_legendTop+4}" x2="${_legR}" y2="${_legendTop+4}" stroke="#1b3526" stroke-width="0.8"/>`;
       {
-        const ly = BASE_H + 10;
-        let lx = 12;
+        const ly = _legendTop + 10;
+        let lx = _legL + 2;
         sortedIsoLevels.forEach((z, i)=>{
           const color = levelColor(z);
           const groupLabel = _floorLabelForLevel(z);
@@ -1694,7 +1800,11 @@ export function render(ctx){
     isoWrap.style.cssText = "position:relative;margin-top:6px";
 
     const isoDiv = document.createElement("div");
-    isoDiv.style.cssText = "overflow:auto;border-radius:8px;background:#071008;padding:8px";
+    // The svg is width:100% of this box, so its horizontal padding IS the
+    // side margin. 6% each side puts the drawing at ~88% of the panel: wide
+    // enough to read, with room to breathe at the edges rather than touching
+    // them. Percent, not px, so it holds its proportion on any screen.
+    isoDiv.style.cssText = "overflow:auto;border-radius:8px;background:#071008;padding:8px 6%";
 
     // ── 3D map loading indicator ────────────────────────────────────────
     const _isoProgressFill = { style: {} }; // stub — no visual progress bar

@@ -30,6 +30,34 @@ _MIN_AWAY_TIMEOUT_M = 1.0
 _MAX_AWAY_TIMEOUT_M = 1440.0
 
 
+def excluded_sources(settings: dict[str, Any] | None) -> frozenset[str]:
+    """Scanner sources masked out of positioning — all three ways at once.
+
+    A source can be masked three ways and they mean the same thing downstream:
+
+      excluded_scanners  the user masked a receiver whose readings are actively
+                         misleading, usually because it physically moved
+      lost_radios        marked lost
+      disabled_radios    marked disabled
+
+    This had four implementations. Two included all three sets; the two used by
+    the LIVE SNAPSHOT and by advertisement INGESTION included only lost and
+    disabled. So a scanner the user had explicitly excluded went on entering
+    the RSSI maps and went on assigning rooms to objects, while the smoothed
+    state was simultaneously being purged of it — two halves of one poll
+    disagreeing about whether that receiver existed.
+
+    Taking a settings dict rather than `hass` keeps this callable from the
+    coordinator, the websocket snapshot and the calibration store alike, and
+    keeps the rule testable without a Home Assistant instance.
+    """
+    d = settings or {}
+    out = {str(s) for s in (d.get("excluded_scanners") or []) if s}
+    out |= {str(s) for s in (d.get("lost_radios") or {})}
+    out |= {str(s) for s in (d.get("disabled_radios") or {})}
+    return frozenset(out)
+
+
 def away_timeout_s(hass: Any) -> float:
     """Configured away timeout in seconds (default 5 min).
 

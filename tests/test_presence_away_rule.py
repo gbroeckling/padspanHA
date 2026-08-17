@@ -160,8 +160,11 @@ def test_object_markers_cannot_stretch_the_overview_frame():
     """
     src = (_ROOT / "www" / "padspan-ha" / "views" / "overview.js").read_text(encoding="utf-8")
 
-    # The bbox writer must respect the freeze.
-    grow = src[src.index("const iso = (wx,wy,wz)=>{"):]
+    # The bbox writer must respect the freeze. It is `_trackIso` now — one
+    # function both projection branches pass through, because the tracking
+    # used to sit below the fabric early-return and never ran on any install
+    # that had a fabric (i.e. all of them), leaving the frame on its heuristic.
+    grow = src[src.index("const _trackIso = (p)=>{"):]
     grow = grow[:grow.index("return p;")]
     assert "_isoBBFrozen" in grow, (
         "iso() grows the frame bounding box unconditionally — object markers "

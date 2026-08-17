@@ -1269,19 +1269,22 @@ class PadSpanHaApp extends HTMLElement {
   async _getModel(){
     try {
       const res = await this._callWS({ type: "padspan_ha/model_get" });
-      this.state.model = {
-        floors: res?.floors || [], areas: res?.areas || [], room_meta: res?.room_meta || {},
-        scanners: res?.scanners || {}, room_adjacency: res?.room_adjacency || {},
-        fabric_sync_mode: res?.fabric_sync_mode || "auto",
-        scanner_positions_m: res?.scanner_positions_m || {},
-        room_geometry_m: res?.room_geometry_m || {},
-        rf_barriers_m: res?.rf_barriers_m || [],
-        map_transforms: res?.map_transforms || {},
-        beacon_positions_m: res?.beacon_positions_m || {},
-        light_positions_m: res?.light_positions_m || {},
-        floor_elevations: res?.floor_elevations || {},
-        fabric_floors: res?.fabric_floors || {},
+      // Copy EVERYTHING the backend sends. This used to be a hand-written
+      // whitelist, and it dropped keys three separate times in one session —
+      // origin forwarding, the migration marker, then light_positions_m and
+      // floor_elevations, which left every correctly-placed light rendering as
+      // unplaced. A whitelist here can only ever be wrong in one direction:
+      // the backend adds a field, the panel silently discards it, and the
+      // symptom shows up somewhere unrelated. Defaults below exist only so
+      // views can index the common collections without null checks; any key
+      // the backend adds from now on simply arrives.
+      const defaults = {
+        floors: [], areas: [], room_meta: {}, scanners: {}, room_adjacency: {},
+        fabric_sync_mode: "auto", scanner_positions_m: {}, room_geometry_m: {},
+        rf_barriers_m: [], map_transforms: {}, beacon_positions_m: {},
+        light_positions_m: {}, floor_elevations: {}, fabric_floors: {},
       };
+      this.state.model = { ...defaults, ...(res && typeof res === "object" ? res : {}) };
     } catch (e) {
       // non-fatal
       console.warn("model_get failed", e);

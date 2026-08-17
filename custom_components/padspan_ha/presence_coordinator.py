@@ -123,6 +123,43 @@ _KALMAN_R: float = DEFAULT_KALMAN_R   # measurement noise
 _VOTE_WINDOW: int = 5
 _VOTE_THRESHOLD: int = 3
 
+# ── Floor selection ──────────────────────────────────────────────────────────
+# A floor decision needs the same temporal discipline the other two stages
+# already have: RSSI will not decay before _SILENCE_GRACE consecutive misses,
+# and a room will not change before it wins the vote window. Floor selection
+# had neither — it was recomputed from scratch every poll and compared on equal
+# terms whether fifteen scanners had reported or two.
+#
+# All three numbers are in the same currency (dB of RSSI) and belong together,
+# because a change of one without the others is what makes a floor either
+# jittery or stuck.
+_FLOOR_STICKY_DB: float = 4.0    # head start the currently-confirmed floor gets
+_FLOOR_SWITCH_DB: float = 2.0    # margin a challenger needs BEYOND that head start
+# How much of its USUAL evidence a device must hear before a floor CHANGE is
+# allowed. Not an absolute count: a first attempt used one, and it was dead
+# code — floor selection is only reached when at least three positioned
+# scanners reported, so a floor of three could never bind. The quantity that
+# actually distinguishes a gap from a move is RELATIVE. A device that normally
+# hears twelve scanners and hears four this poll is in a gap; a device that
+# only ever hears four is not, and must not be frozen for it.
+_FLOOR_EVIDENCE_FRACTION: float = 0.5
+# How fast that per-device expectation forgets. It rises to a new high at once
+# and decays slowly, so one collapsed poll cannot drag the baseline down and
+# re-open the very gap this exists to close, while a scanner genuinely removed
+# from the house is adapted to within a minute or two.
+_FLOOR_EVIDENCE_DECAY: float = 0.98
+
+# ── Position plausibility ────────────────────────────────────────────────────
+# The apparent speed a position step would imply, above which the step is
+# treated as a bad measurement rather than as movement. Twice the α-β filter's
+# 2.5 m/s walk clamp: the aim is to reject the impossible, not to argue with
+# someone moving quickly, and a device in a car is genuinely fast.
+_XY_JUMP_SPEED_MS: float = 5.0
+# Consecutive rejections before an implausible position is believed anyway.
+# A device switched off and carried elsewhere really does teleport, so the
+# gate has to be stubborn, not immovable — the same shape as _SILENCE_GRACE.
+_XY_JUMP_TOLERATE: int = 3
+
 # RSSI threshold below which a silent source is pruned from the Kalman cache.
 # Relaxed from -95 to -98 to preserve Kalman state longer across silent periods,
 # giving ~7-8 polls (~70-80s) of memory instead of ~4-5 polls.
@@ -488,6 +525,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._spatial_smooth_xy: dict[str, tuple[float, float]] = {}
         # {key: str}  — spatial debug info (why centroid succeeded/failed)
         self._spatial_debug: dict[str, str] = {}
+        # Per device: how many positioned scanners it USUALLY hears. Floor
+        # selection compares against this to tell a gap in the data from a
+        # genuine move — see _select_floor.
+        self._floor_evidence: dict[str, float] = {}
         # {key: dict}  — last candidate info for diagnostics
         self._last_candidate: dict[str, dict[str, Any]] = {}
         # Throttle: {key: monotonic_ts} — last alert sent time per object
@@ -707,15 +748,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         with the last good value kept if settings are momentarily unavailable.
         """
         try:
+            from .presence_rules import excluded_sources  # noqa: PLC0415
+
             _st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-            d = ((_st.data if _st else {}) or {})
-            out = {str(s) for s in (d.get("excluded_scanners") or []) if s}
-            # Lost/Disabled are masked at ingestion by the existing radio
-            # flags; included here so the smoothed-state purge and every
-            # downstream matcher treat all three the same way.
-            out |= {str(s) for s in (d.get("lost_radios") or {})}
-            out |= {str(s) for s in (d.get("disabled_radios") or {})}
-            self._excluded_cache = frozenset(out)
+            self._excluded_cache = excluded_sources((_st.data if _st else {}) or {})
         except Exception:
             pass
         return self._excluded_cache
@@ -788,16 +824,11 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _max_ad_age_s = 3.0 * self.update_interval.total_seconds()
         # Radios the user marked lost/disabled must not vote in positioning
         # (their handlers document this; the UI decoration keeps showing them)
-        _excluded_srcs: set[str] = set()
-        try:
-            _st_ex = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-            if _st_ex:
-                _excluded_srcs = (
-                    set((_st_ex.data.get("lost_radios") or {}))
-                    | set((_st_ex.data.get("disabled_radios") or {}))
-                )
-        except Exception:
-            _excluded_srcs = set()
+        # One rule, one implementation — this used to know about lost and
+        # disabled but not about excluded_scanners, so a receiver the user had
+        # masked went on entering the RSSI maps while the smoothed-state purge
+        # a few lines below was busy removing it.
+        _excluded_srcs: set[str] = set(self._excluded_sources())
         _es_map: dict[str, dict[str, float]] = {}
         _ad_ages: dict[tuple[str, str], float] = {}
         for ad in (snap.get("ble") or {}).get("advertisements") or []:
@@ -1385,6 +1416,93 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     # ── smoothing helpers ─────────────────────────────────────────────────────
 
+    def _select_floor(
+        self,
+        key: str,
+        src_list: list[tuple[str, float, float, float, str]],
+        sticky: str,
+    ) -> str:
+        """Which floor is this device on?
+
+        Scored from AGGREGATE evidence — the mean of a floor's top-2 RSSI, with
+        a lone scanner taking a small handicap. A single-strongest rule let one
+        cross-floor bleed (a scanner directly above, loud through the slab) flip
+        the whole centroid, after which the slab penalty punished the true
+        floor's scanners.
+
+        The part that was missing is a sense of HOW MUCH evidence there was.
+        The score was recomputed from scratch every poll and compared on equal
+        terms whether fifteen scanners had reported or two, with a flat +4 dB
+        nudge for the current floor as the only damping. Measured on a real
+        house: in a poll where the scanner count fell from ~15 to 4, three of
+        ten tracked objects changed floor at once, and four more changed back
+        on the next poll. Every device shares these inputs, so they move as a
+        group — which is what "the beacons jump together" looks like from the
+        outside, and it is not a per-device problem at all.
+
+        So a floor change now has to clear the same kind of bar the other two
+        stages already impose — `_SILENCE_GRACE` before RSSI decays, the vote
+        window before a room is confirmed. Two conditions, both about evidence
+        rather than about the answer:
+
+          EVIDENCE  a floor change needs this device to have heard a fair share
+                    of what it USUALLY hears. Relative, not absolute: an
+                    absolute floor cannot work here, because floor selection is
+                    only reached once at least three positioned scanners have
+                    reported, so any constant at or below three is unreachable.
+                    What separates a gap from a move is that the device heard
+                    far less than its own norm.
+          MARGIN    the challenger must beat the incumbent by `_FLOOR_SWITCH_DB`
+                    beyond the stickiness bonus, so a floor changes on a real
+                    difference rather than on noise.
+
+        With no sticky floor (a device we have never placed) the best score
+        wins outright — there is nothing to hold on to, and refusing to answer
+        would be worse than answering.
+        """
+        # What this device usually hears. Rises to a new high immediately,
+        # forgets slowly — see _FLOOR_EVIDENCE_DECAY. Updated every poll,
+        # including the thin ones, so a real reduction is eventually adopted.
+        heard = len(src_list)
+        baseline = max(self._floor_evidence.get(key, 0.0) * _FLOOR_EVIDENCE_DECAY,
+                       float(heard))
+        self._floor_evidence[key] = baseline
+
+        by_floor: dict[str, list[float]] = {}
+        for _src, _sx, _sy, _rssi, _sf in src_list:
+            if _sf:
+                by_floor.setdefault(_sf, []).append(_rssi)
+        if not by_floor:
+            return sticky
+
+        scores: dict[str, float] = {}
+        for _sf, vals in by_floor.items():
+            top = sorted(vals, reverse=True)[:2]
+            scores[_sf] = sum(top) / len(top) - (3.0 if len(top) < 2 else 0.0)
+
+        if sticky not in scores:
+            # Nothing to hold: either a first placement, or the sticky floor has
+            # gone completely silent and holding it would strand the device.
+            return max(scores, key=lambda f: scores[f])
+
+        challenger = max(scores, key=lambda f: scores[f])
+        if challenger == sticky:
+            return sticky
+
+        # Far less heard than this device normally hears: a gap, not a move.
+        if heard < baseline * _FLOOR_EVIDENCE_FRACTION:
+            self._spatial_debug[key] = (
+                f"floor_held:evidence {heard}<{baseline * _FLOOR_EVIDENCE_FRACTION:.1f}"
+                f" (usual {baseline:.1f})")
+            return sticky
+
+        if scores[challenger] - scores[sticky] < _FLOOR_STICKY_DB + _FLOOR_SWITCH_DB:
+            self._spatial_debug[key] = (
+                f"floor_held:margin {scores[challenger] - scores[sticky]:.1f}dB"
+                f"<{_FLOOR_STICKY_DB + _FLOOR_SWITCH_DB:.1f}")
+            return sticky
+        return challenger
+
     def _smooth_room(
         self,
         key: str,
@@ -1586,13 +1704,32 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if not (self._use_metres and self._scanner_positions and _model):
                 self._spatial_debug[key] = f"disabled:metres={self._use_metres},pos={len(self._scanner_positions)},model={bool(_model)}"
             if self._use_metres and self._scanner_positions and _model:
-                # Collect scanners with known positions.  Only sources that
-                # actually reported this poll participate — held/decaying
-                # values for silent scanners are synthetic, and fabricated
-                # measurements must not steer the x/y estimate.
+                # Collect scanners with known positions.  A source is excluded
+                # once it is DECAYING — not merely because it missed a poll.
+                #
+                # The principle behind the old rule was right: a decayed value
+                # is synthetic and must not steer the estimate.  It was applied
+                # one stage too early.  Within the grace window the Kalman
+                # stage above holds the last REAL measurement unchanged (see
+                # `if _miss[src] < _SILENCE_GRACE: continue` — it holds, it
+                # does not fabricate); only past the window does it start
+                # pulling the value toward the silence target.  Dropping an
+                # anchor on its first missed poll therefore discarded a genuine
+                # measurement that the stage before had deliberately preserved,
+                # and the two stages contradicted each other inside one
+                # function.
+                #
+                # The cost was not subtle.  BLE advertisements are
+                # probabilistic, so scanners miss polls constantly and every
+                # device loses the SAME scanner on the SAME poll — the anchor
+                # set changes for all of them at once and they move as a group,
+                # in whichever part of the house that scanner anchors.
+                # Measured with the capture harness: a poll where the heard
+                # count fell from ~15 to 4 moved three of ten tracked objects,
+                # and four more moved back on the recovery poll.
                 _src_list: list[tuple[str, float, float, float, str]] = []
                 for _src, _rssi in ema.items():
-                    if _miss.get(_src, 0) > 0:
+                    if _miss.get(_src, 0) >= _SILENCE_GRACE:
                         continue
                     _sp = self._scanner_positions.get(_src)
                     if not _sp:
@@ -1602,32 +1739,29 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if len(_src_list) < 3:
                     self._spatial_debug[key] = f"need_3_pos_scanners:got_{len(_src_list)}_of_{len(ema)}_ema"
                 if len(_src_list) >= 3:
-                    # Determine which floor the device is on from AGGREGATE
-                    # evidence: mean of a floor's top-2 RSSI (a lone scanner
-                    # takes a small handicap).  The old single-strongest rule
-                    # let ONE cross-floor bleed — a scanner directly above
-                    # the device reading strong through the slab — flip the
-                    # whole centroid, after which the slab penalty punished
-                    # the true floor's scanners.  The device's currently
-                    # confirmed floor also gets a stickiness bonus so floor
-                    # changes need sustained evidence, not one hot poll.
-                    _floor_scanners: dict[str, list[tuple[str, float, float, float]]] = {}
-                    for _src, _sx, _sy, _rssi, _sf in _src_list:
-                        _floor_scanners.setdefault(_sf, []).append((_src, _sx, _sy, _rssi))
-                    _floor_scores: dict[str, float] = {}
-                    for _sf, _lst in _floor_scanners.items():
-                        _vals = sorted((t[3] for t in _lst), reverse=True)[:2]
-                        _floor_scores[_sf] = sum(_vals) / len(_vals) - (3.0 if len(_vals) < 2 else 0.0)
                     _fl_sticky = self._device_floor.get(key) or _room_to_floor.get(_cur_confirmed or "", "")
-                    if _fl_sticky in _floor_scores:
-                        _floor_scores[_fl_sticky] += 4.0
-                    _best_floor = max(_floor_scores, key=lambda f: _floor_scores[f])
+                    _best_floor = self._select_floor(key, _src_list, _fl_sticky)
 
-                    # Use ALL scanners for centroid, but penalize cross-floor
-                    # scanners with a slab attenuation (their RSSI includes
-                    # floor/ceiling loss the path-loss model doesn't know
-                    # about).  Per SLAB CROSSED, not per "different floor" —
-                    # two slabs attenuate twice as much as one (issue #54).
+                    # Cross-floor scanners take a slab penalty per SLAB CROSSED
+                    # (issue #54), and — the part that matters for accuracy —
+                    # they only join the x/y solve when the chosen floor cannot
+                    # solve on its own.
+                    #
+                    # A scanner one storey away hears the device THROUGH the
+                    # slab. Its RSSI says something about which floor the
+                    # device is on and almost nothing about where on that floor
+                    # it is: the path went mostly vertical, and the slab
+                    # penalty is a single average number standing in for
+                    # concrete, joists, ducting and whatever furniture is
+                    # stacked over the ceiling. Feeding those readings into a
+                    # horizontal centroid as if they were on-floor ranges is
+                    # what let two garage scanners at -74 drag a device that
+                    # its own closet scanner heard at -63 down a storey and
+                    # into a point outside every room. Position wandered while
+                    # the room vote — which never used them that way — stayed
+                    # put. So the on-floor set solves position whenever it can;
+                    # cross-floor readings are the fallback for a floor too
+                    # thinly covered to solve alone, not a routine input.
                     _SLAB_PENALTY_DB = 10.0  # dBm penalty per slab crossed
                     _dev_floor_idx = self._floor_stack_idx.get(_best_floor)
 
@@ -1650,6 +1784,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     _cf_mult = 10.0 ** (_SLAB_PENALTY_DB / (10.0 * _n_exp))
                     _es_direct: dict[str, float] = {}
                     _all_scanners: list[tuple[str, float, float, float, float]] = []
+                    _on_floor: list[tuple[str, float, float, float, float]] = []
                     for _src, _sx, _sy, _rssi, _sf in _src_list:
                         _n_slabs = _slabs_crossed(_sf)
                         if _src in _es_direct_raw:
@@ -1658,7 +1793,19 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         # Vertical offset scanner ↔ device, for slant→horizontal
                         # correction (falls back to the legacy 2.4 m default z).
                         _dz = self._scanner_abs_z.get(_src, 2.4) - _dev_abs_z
-                        _all_scanners.append((_src, _sx, _sy, _adj_rssi, _dz))
+                        _entry = (_src, _sx, _sy, _adj_rssi, _dz)
+                        _all_scanners.append(_entry)
+                        if _n_slabs == 0:
+                            _on_floor.append(_entry)
+
+                    # On-floor scanners solve position when there are enough of
+                    # them; the cross-floor set is only admitted when there are
+                    # not. Three is the solve's own minimum (below it there is
+                    # no plane to fit), so the fallback engages exactly when
+                    # the on-floor evidence could not have produced a position
+                    # by itself.
+                    if len(_on_floor) >= 3:
+                        _all_scanners = _on_floor
 
                     if len(_all_scanners) >= 2:
                         # Per-tag reference power: iBeacon measured power is a
@@ -2357,14 +2504,45 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """
         _dt = max(1.0, self.update_interval.total_seconds())
         st = store.get(key)
-        if not st or len(st) != 4:
-            store[key] = (x, y, 0.0, 0.0)
+        if not st or len(st) < 4:
+            store[key] = (x, y, 0.0, 0.0, 0)
             return x, y
-        px, py, vx, vy = st
+        px, py, vx, vy = st[0], st[1], st[2], st[3]
+        rejected = st[4] if len(st) > 4 else 0
         pred_x = px + vx * _dt
         pred_y = py + vy * _dt
         rx = x - pred_x
         ry = y - pred_y
+
+        # ── Plausibility gate ────────────────────────────────────────────────
+        # This was the one stage of the pipeline with no outlier rejection.
+        # RSSI has a Kalman covariance and a silence grace; rooms have to win a
+        # vote window. Position accepted HALF of any residual unconditionally
+        # (_A below), so a spurious 8 m jump moved the dot 4 m on the spot —
+        # and because the same residual drives the velocity term, one bad
+        # measurement also handed the dot momentum in the wrong direction and
+        # it carried on travelling on the next poll. The 2.5 m/s clamp bounds
+        # the velocity STATE; it never bounded the step.
+        #
+        # A residual implies an apparent speed. Above what the thing being
+        # tracked can physically do, that is not evidence of movement — it is
+        # evidence the measurement is bad, and the honest response is to coast
+        # on the prediction and wait, exactly as the RSSI stage holds a value
+        # through a missed poll instead of believing the silence.
+        #
+        # Bounded stubbornness: a device switched off and carried elsewhere
+        # really does teleport, so after _XY_JUMP_TOLERATE consecutive
+        # rejections the measurement is accepted and the filter re-seeds there.
+        apparent_speed = math.hypot(rx, ry) / _dt
+        if apparent_speed > _XY_JUMP_SPEED_MS and rejected < _XY_JUMP_TOLERATE:
+            store[key] = (pred_x, pred_y, vx, vy, rejected + 1)
+            return pred_x, pred_y
+        if apparent_speed > _XY_JUMP_SPEED_MS:
+            # Believed at last: re-seed rather than easing toward it, because
+            # the velocity state describes a journey that never happened.
+            store[key] = (x, y, 0.0, 0.0, 0)
+            return x, y
+
         _A = 0.5   # position gain
         _B = 0.15  # velocity gain
         nx = pred_x + _A * rx
@@ -2375,7 +2553,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if _spd > 2.5:
             nvx *= 2.5 / _spd
             nvy *= 2.5 / _spd
-        store[key] = (nx, ny, nvx, nvy)
+        store[key] = (nx, ny, nvx, nvy, 0)
         return nx, ny
 
     # ── Adaptive observation quality gates ───────────────────────────────
@@ -2495,6 +2673,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._alert_last_sent.pop(key, None)
         self._last_candidate.pop(key, None)
         self._spatial_debug.pop(key, None)
+        self._floor_evidence.pop(key, None)
         self._ema_rssi.pop(key, None)
         self._kalman_p.pop(key, None)
         self._silence_miss.pop(key, None)

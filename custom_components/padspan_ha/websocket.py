@@ -1173,10 +1173,18 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     # but stay in the radios list so the UI can show them as lost/disabled.
     _excluded_radio_srcs: set[str] = set()
     try:
+        from .presence_rules import excluded_sources  # noqa: PLC0415
+
         _st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS, None)
-        lost_set     = (_st.data.get("lost_radios",     {}) if _st else {})
-        disabled_set = (_st.data.get("disabled_radios", {}) if _st else {})
-        _excluded_radio_srcs = {str(s) for s in lost_set} | {str(s) for s in disabled_set}
+        _settings_d = (_st.data if _st else {}) or {}
+        lost_set     = _settings_d.get("lost_radios",     {}) or {}
+        disabled_set = _settings_d.get("disabled_radios", {}) or {}
+        # All three masks, not just the two that carry a UI badge. This set
+        # decides which receivers may assign a room downstream, and it used to
+        # omit `excluded_scanners` — so a receiver the user had explicitly
+        # masked because it had physically MOVED went on placing objects.
+        # lost_set/disabled_set stay separate below purely for the badges.
+        _excluded_radio_srcs = set(excluded_sources(_settings_d))
         for radio in ((snapshot.get("ble") or {}).get("radios") or []):
             src = str(radio.get("source") or "")
             if src in lost_set:

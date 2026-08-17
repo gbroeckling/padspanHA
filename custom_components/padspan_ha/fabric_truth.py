@@ -169,10 +169,24 @@ def stack_world_xform(stk: dict | None, fallback_ar: float) -> Callable[[float, 
 def find_metre_anchor(maps_list: list[dict], model_store: Any) -> dict[str, Any] | None:
     """The measured map that pins the shared world frame to metres.
 
-    Returns {"map_id", "m_per_world", "iso_error"} or None when no map
-    anywhere in the stack frame has a real (reference-measured) scale.
-    m_per_world uses the anchor's x-axis; iso_error reports how far the
-    y-axis disagrees (0 = perfectly isotropic frame).
+    Returns {"map_id", "m_per_world", "m_per_world_x", "m_per_world_y",
+    "iso_error"} or None when no map anywhere in the stack frame has a real
+    (reference-measured) scale.
+
+    World space is ANISOTROPIC in y — stack_world_xform spans the image across
+    `scale * scale_x_adj` in x and `scale * ar` in y — so a measured map has
+    TWO metres-per-world-unit figures, not one.
+
+    Both were computed here from the start, and only x was returned. Callers
+    then applied that single number to both axes, which is issue #62: rooms
+    correct across and wrong down by exactly the map's aspect error, and it
+    only ever looked right while a map's pixel aspect matched its metric one.
+    The JS twin (views/stack_transform.js) was fixed; this, the side that
+    WRITES — committed room geometry via rooms_from_stack, and scale_x_m /
+    scale_y_m via stack_metre_transform — was not.
+
+    `m_per_world` keeps its old meaning (the x figure) so existing readers are
+    unchanged; `iso_error` still reports how far the two disagree.
     """
     for m in maps_list:
         mid = m.get("id", "")
@@ -199,7 +213,10 @@ def find_metre_anchor(maps_list: list[dict], model_store: Any) -> dict[str, Any]
         iso_error = abs(m_per_w_y - m_per_w_x) / m_per_w_x if m_per_w_x else 1.0
         return {
             "map_id": mid,
+            # Kept as the x figure so existing readers are unchanged in meaning.
             "m_per_world": round(m_per_w_x, 6),
+            "m_per_world_x": round(m_per_w_x, 6),
+            "m_per_world_y": round(m_per_w_y, 6),
             "iso_error": round(iso_error, 4),
         }
     return None
@@ -275,9 +292,17 @@ def rooms_from_transforms(floor_maps: list[dict], model_store: Any) -> dict[str,
     return _merge_maps_rooms(_master_last(floor_maps), geo_for)
 
 
+def _anchor_scales(anchor: dict[str, Any]) -> tuple[float, float]:
+    """Metres per world unit, per axis. One place, so a caller cannot use the
+    x scale for y by accident — which is the whole of issue #62."""
+    kx = float(anchor.get("m_per_world_x") or anchor["m_per_world"])
+    ky = float(anchor.get("m_per_world_y") or anchor["m_per_world"])
+    return kx, ky
+
+
 def rooms_from_stack(floor_maps: list[dict], anchor: dict[str, Any]) -> dict[str, dict]:
     """Rooms in metres via the hand-tuned stack composition + metre anchor."""
-    m_per_w = float(anchor["m_per_world"])
+    m_per_w_x, m_per_w_y = _anchor_scales(anchor)
 
     def geo_for(m: dict, b: dict) -> dict | None:
         stk = m.get("stack") or {}
@@ -285,9 +310,17 @@ def rooms_from_stack(floor_maps: list[dict], anchor: dict[str, Any]) -> dict[str
 
         def to_metres(px: float, py: float) -> tuple[float, float]:
             wx, wy = xf(px, py)
-            return (wx * m_per_w, wy * m_per_w)
+            # Per axis. World y carries the map's aspect ratio, so scaling it
+            # by the x figure stretched every room by exactly the aspect error.
+            return (wx * m_per_w_x, wy * m_per_w_y)
 
-        radius_scale = float(stk.get("scale") or 1) * m_per_w
+        # A circle in an anisotropic world is an ellipse, and this geometry
+        # format has one radius. The geometric mean is the radius of the
+        # circle with the same area as that ellipse — the least wrong single
+        # number available, and bounded by the aspect error rather than
+        # proportional to it. Traced circles are approximations already; a
+        # room whose shape actually matters should be drawn as a polygon.
+        radius_scale = float(stk.get("scale") or 1) * math.sqrt(m_per_w_x * m_per_w_y)
         return _bounds_to_geo(b, to_metres, radius_scale)
 
     return _merge_maps_rooms(_master_last(floor_maps), geo_for)
@@ -301,13 +334,17 @@ def stack_metre_transform(m: dict, anchor: dict[str, Any]) -> dict[str, float] |
       scaled axes. Used to REPAIR a map's system placement to match the
       hand-tuned alignment instead of discarding it.
     """
-    m_per_w = float(anchor["m_per_world"])
+    m_per_w_x, m_per_w_y = _anchor_scales(anchor)
     xf = stack_world_xform(m.get("stack") or {}, image_ar(m))
     o = xf(0.0, 0.0)
     ex = xf(1.0, 0.0)
     ey = xf(0.0, 1.0)
-    col_x = ((ex[0] - o[0]) * m_per_w, (ex[1] - o[1]) * m_per_w)
-    col_y = ((ey[0] - o[0]) * m_per_w, (ey[1] - o[1]) * m_per_w)
+    # Each COMPONENT of a world delta takes its own axis scale: the x
+    # component metres-per-world-x, the y component metres-per-world-y. Using
+    # one figure for both is what put a wrong scale_y_m into map_transforms,
+    # from where every later read inherited it.
+    col_x = ((ex[0] - o[0]) * m_per_w_x, (ex[1] - o[1]) * m_per_w_y)
+    col_y = ((ey[0] - o[0]) * m_per_w_x, (ey[1] - o[1]) * m_per_w_y)
     scale_x_m = math.hypot(*col_x)
     scale_y_m = math.hypot(*col_y)
     if scale_x_m <= 0 or scale_y_m <= 0:
@@ -319,8 +356,10 @@ def stack_metre_transform(m: dict, anchor: dict[str, Any]) -> dict[str, float] |
     rot_y = math.atan2(col_y[1], col_y[0])
     shear = abs(((rot_y - rot - math.pi / 2) + math.pi) % (2 * math.pi) - math.pi)
     return {
-        "origin_x_m": round(o[0] * m_per_w, 4),
-        "origin_y_m": round(o[1] * m_per_w, 4),
+        # The origin is a world POINT, so each component takes its own axis
+        # scale, exactly as the column vectors above do.
+        "origin_x_m": round(o[0] * m_per_w_x, 4),
+        "origin_y_m": round(o[1] * m_per_w_y, 4),
         "scale_x_m": round(scale_x_m, 4),
         "scale_y_m": round(scale_y_m, 4),
         "rotation_rad": round(rot, 6),
