@@ -458,7 +458,10 @@ class TestMajorityVote:
         for _ in range(_VOTE_WINDOW):
             coord._smooth_room(
                 "dev1", "AA:BB",
-                {"AA:BB": {"scanner1": -55.0}},
+                # Two live scanners: the smallest vector k-NN will consider.
+                # One reading has no discriminating power against a fingerprint
+                # database and is no longer put to it (see _KNN_MIN_LIVE_SCANNERS).
+                {"AA:BB": {"scanner1": -55.0, "scanner2": -70.0}},
                 src_area,
             )
 
@@ -490,7 +493,10 @@ class TestMajorityVote:
         for _ in range(5):
             coord._smooth_room(
                 "dev1", "AA:BB",
-                {"AA:BB": {"scanner1": -55.0}},
+                # Two live scanners: the smallest vector k-NN will consider.
+                # One reading has no discriminating power against a fingerprint
+                # database and is no longer put to it (see _KNN_MIN_LIVE_SCANNERS).
+                {"AA:BB": {"scanner1": -55.0, "scanner2": -70.0}},
                 src_area,
                 vote_window=5,
                 vote_threshold=3,
@@ -598,7 +604,10 @@ class TestEdgeCases:
         for _ in range(_VOTE_THRESHOLD):
             coord._smooth_room(
                 "dev1", "AA:BB",
-                {"AA:BB": {"scanner1": -55.0}},
+                # Two live scanners: the smallest vector k-NN will consider.
+                # One reading has no discriminating power against a fingerprint
+                # database and is no longer put to it (see _KNN_MIN_LIVE_SCANNERS).
+                {"AA:BB": {"scanner1": -55.0, "scanner2": -70.0}},
                 src_area,
             )
 
@@ -623,7 +632,10 @@ class TestEdgeCases:
         for _ in range(_VOTE_THRESHOLD):
             coord._smooth_room(
                 "dev1", "AA:BB",
-                {"AA:BB": {"scanner1": -55.0}},
+                # Two live scanners: the smallest vector k-NN will consider.
+                # One reading has no discriminating power against a fingerprint
+                # database and is no longer put to it (see _KNN_MIN_LIVE_SCANNERS).
+                {"AA:BB": {"scanner1": -55.0, "scanner2": -70.0}},
                 src_area,
             )
 
@@ -649,7 +661,10 @@ class TestEdgeCases:
         for _ in range(_VOTE_THRESHOLD):
             coord._smooth_room(
                 "dev1", "AA:BB",
-                {"AA:BB": {"scanner1": -55.0}},
+                # Two live scanners: the smallest vector k-NN will consider.
+                # One reading has no discriminating power against a fingerprint
+                # database and is no longer put to it (see _KNN_MIN_LIVE_SCANNERS).
+                {"AA:BB": {"scanner1": -55.0, "scanner2": -70.0}},
                 src_area,
             )
 

@@ -208,6 +208,16 @@ _RELIABILITY_FLOOR: float = 0.15      # minimum weight — never zero-out a scan
 # ── k-NN live fingerprint gating ─────────────────────────────────────────────
 # Minimum calibration points before k-NN is consulted for live room assignment.
 _KNN_MIN_POINTS: int = 5
+# Minimum LIVE scanners in the query vector before k-NN is consulted at all.
+# One reading against several hundred fingerprints has no discriminating
+# power: it matches whichever stored point happens to have that one scanner
+# at about that level, and on a real house that was routinely an OUTDOOR
+# point — so a beacon sitting in the Entry, heard by one scanner at -97 dBm
+# for a poll, was assigned floor "__outside__" by k-NN while the room vote
+# (correctly) never moved. Seventeen of twenty-two floor flips in a ten-minute
+# capture were exactly this. Two is the smallest vector that can prefer one
+# location over another; below it, k-NN has nothing to say and must say so.
+_KNN_MIN_LIVE_SCANNERS: int = 2
 # Minimum k-NN confidence [0, 1] required to override the Gaussian candidate.
 # With the normalized confidence formula (mean-sq-error / REF_VARIANCE), a
 # per-scanner RMS error of ~8 dBm gives ~28% confidence, ~5 dBm gives ~50%.
@@ -1024,10 +1034,15 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception:
             pass
 
-        # Floor-based room set from fabric geometry
+        # Floor-based room set from fabric geometry, and each room's floor —
+        # the fabric is the one place that relationship is authoritative.
         _fabric_rooms: set[str] = set()
+        _floor_of_room: dict[str, str] = {}
         if _model:
-            _fabric_rooms = set(_model.room_geometry_m().keys())
+            _geo_all = _model.room_geometry_m()
+            _fabric_rooms = set(_geo_all.keys())
+            _floor_of_room = {r: str((g or {}).get("floor_id") or "")
+                              for r, g in _geo_all.items() if isinstance(g, dict)}
 
         # ── Spatial data from fabric (metre-space, floor-based, no maps) ──
         self._use_metres = False
@@ -1138,6 +1153,13 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             obj["x_m"] = _pos["x_m"]
                             obj["y_m"] = _pos["y_m"]
                             obj["floor_id"] = _pos.get("floor_id", obj.get("floor_id", ""))
+                    if not obj.get("floor_id") and obj.get("room"):
+                        # No solver could pin an x/y this poll — thin evidence,
+                        # and k-NN is now refused a one-scanner query — but the
+                        # room vote HAS placed the device, and a room is on a
+                        # floor. Without this an object with a confirmed room
+                        # carried no floor at all and rendered nowhere useful.
+                        obj["floor_id"] = _floor_of_room.get(obj["room"], "")
                     # Store Kalman-smoothed per-source RSSI for scanner distance sensors
                     obj["_source_rssi"] = dict(self._ema_rssi.get(smooth_addr, {}))
                     # Propagate TX power if seen in advertisements
@@ -1176,6 +1198,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             obj["x_m"] = _pos_ib["x_m"]
                             obj["y_m"] = _pos_ib["y_m"]
                             obj["floor_id"] = _pos_ib.get("floor_id", obj.get("floor_id", ""))
+                    if not obj.get("floor_id") and obj.get("room"):
+                        obj["floor_id"] = _floor_of_room.get(obj["room"], "")
                     # Store Kalman-smoothed per-source RSSI for scanner distance sensors
                     obj["_source_rssi"] = dict(self._ema_rssi.get(key, {}))
                     self._known_objs[key] = dict(obj)  # refresh with smoothed data
@@ -2131,7 +2155,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # in the calibration map's coordinate space.
         try:
             _calib = self.hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
-            if _calib and not self.suspended and len(_calib.data.get("points", [])) >= _KNN_MIN_POINTS:
+            if (_calib and not self.suspended
+                    and len(_calib.data.get("points", [])) >= _KNN_MIN_POINTS
+                    and len(_live_ema) >= _KNN_MIN_LIVE_SCANNERS):
                 # Choose algorithm based on setting
                 _st2 = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
                 _algo = ((_st2.data if _st2 else {}).get("positioning_algorithm") or "knn")
@@ -2229,6 +2255,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "x_m": round(_sx_est, 3),
                 "y_m": round(_sy_est, 3),
                 "floor_id": _sf_est,
+                # A fresh solve; any hold from a thin poll ends here.
+                "_held_polls": 0,
                 "confidence": rssi_margin_confidence,
                 "room": _spatial_candidate or "",
                 "source": "spatial",
@@ -2245,9 +2273,30 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             break
             self._spatial_position[key] = _sp_entry
         else:
-            # No spatial data — clear stale spatial position
-            self._spatial_position.pop(key, None)
-            self._spatial_smooth_xy.pop(key, None)
+            # No spatial solve this poll — HOLD the last position, do not
+            # discard it.
+            #
+            # A poll with fewer than three positioned scanners is a gap in the
+            # evidence, not evidence of movement — the same distinction the
+            # RSSI stage draws when it holds a value through the silence grace
+            # instead of decaying it. Popping the position here handed the
+            # object straight to whatever k-NN said from one faint reading,
+            # which on a real house was routinely an outdoor fingerprint: the
+            # room vote stayed put while the floor flipped to "__outside__"
+            # and back. Seventeen of twenty-two floor flips in a ten-minute
+            # capture were this, on beacons that had not moved an inch.
+            #
+            # The hold expires: past the same window the RSSI stage uses to
+            # give up on a silent source, a stale position is genuinely stale
+            # and dropping it is the honest answer.
+            _sp_prev = self._spatial_position.get(key)
+            if _sp_prev is not None:
+                _held = int(_sp_prev.get("_held_polls", 0)) + 1
+                if _held <= _SILENCE_GRACE:
+                    _sp_prev["_held_polls"] = _held
+                else:
+                    self._spatial_position.pop(key, None)
+                    self._spatial_smooth_xy.pop(key, None)
 
         # ── Store candidate info for diagnostics ─────────────────────────────
         _cand_source = "none"

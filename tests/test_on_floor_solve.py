@@ -143,3 +143,80 @@ def test_a_thinly_covered_floor_still_gets_a_position() -> None:
     })
     assert pos is not None, "a sparse floor lost its position: %r" % (c._spatial_debug,)
     assert pos["floor_id"] == "upper", pos
+
+
+# ── A thin poll is a gap, not a move ─────────────────────────────────────────
+# Measured on the same house with the capture harness, ten minutes, 22 floor
+# change events. Seventeen were one shape: a beacon that never left its room
+# (roomFrom == roomTo, every time) had its FLOOR flip to "__outside__" on a
+# poll where a single scanner heard it at -89 dBm or worse, and flip back
+# when the others returned. The spatial solve could not run on one scanner,
+# so it POPPED the position, and the object fell back to k-NN — which, asked
+# to match one faint reading against 746 fingerprints, returned whichever
+# point happened to have that scanner faint. On this house that is routinely
+# an outdoor point.
+
+def test_a_thin_poll_holds_the_last_position_instead_of_dropping_it() -> None:
+    """The room vote never moved; the position must not either."""
+    c = _coord()
+    good = {"closet_a": -60.0, "closet_b": -64.0, "closet_c": -66.0}
+    pos = _run(c, "dev", good)
+    assert pos is not None and pos["floor_id"] == "upper"
+
+    # The scanners go quiet. For the first _SILENCE_GRACE polls the anchor
+    # hold (an earlier fix) keeps solving on their held values, so the solve
+    # still runs; the position may drift a little as one live reading fades.
+    # Once the held anchors expire the solve CANNOT run — and that is the poll
+    # this test is about: the old code popped the position right here.
+    addr = "AA:BB:CC:DD:EE:01"
+    for _ in range(3):
+        c._smooth_room("dev", addr, {addr: {"closet_a": -95.0}}, S2A, 2, 2, S2F, {"Closet"})
+    held = c._spatial_position.get("dev")
+    assert held is not None, "a thin poll discarded a good position"
+    assert held["floor_id"] == "upper", held
+    assert held.get("_held_polls", 0) >= 1, "the position was not marked as held: %r" % (held,)
+
+
+def test_a_position_held_too_long_is_released() -> None:
+    """Stubborn, not immovable — the same window the RSSI stage uses.
+
+    A device that genuinely goes quiet must not be pinned to its last spot
+    forever; past the silence grace the position is stale and is dropped.
+    """
+    c = _coord()
+    _run(c, "dev", {"closet_a": -60.0, "closet_b": -64.0, "closet_c": -66.0})
+    addr = "AA:BB:CC:DD:EE:01"
+    # Anchors hold for _SILENCE_GRACE (2 at 10 s), then the position holds
+    # for _SILENCE_GRACE more, then it is released: 2 + 2 + 1 thin polls.
+    for _ in range(6):
+        c._smooth_room("dev", addr, {addr: {"closet_a": -95.0}}, S2A, 2, 2, S2F, {"Closet"})
+    assert c._spatial_position.get("dev") is None, (
+        "a stale position was held indefinitely: %r" % (c._spatial_position.get("dev"),))
+
+
+def test_knn_is_not_consulted_on_a_single_reading() -> None:
+    """One reading has no discriminating power against hundreds of fingerprints.
+
+    This is the other half of the same fault: with the position held, k-NN
+    must ALSO not be handed a one-scanner query, or its answer still leaks into
+    the candidate room.
+    """
+    from unittest.mock import MagicMock
+    from custom_components.padspan_ha.const import DATA_CALIBRATION
+
+    c = _coord()
+    cal = MagicMock()
+    cal.data = {"points": [{}] * 50}
+    cal.rf_trained = False
+    cal.knn_locate = MagicMock(return_value={"room": "Garden", "confidence": 0.9,
+                                             "x_m": 30.0, "y_m": 30.0, "floor_id": "__outside__"})
+    c.hass.data[DOMAIN][DATA_CALIBRATION] = cal
+    addr = "AA:BB:CC:DD:EE:01"
+
+    # Two readings: k-NN may be asked.
+    c._smooth_room("dev", addr, {addr: {"closet_a": -70.0, "closet_b": -75.0}}, S2A, 2, 2, S2F, {"Closet"})
+    asked_with_two = cal.knn_locate.call_count
+    # One reading: it must not be.
+    c._smooth_room("dev2", addr, {addr: {"closet_a": -95.0}}, S2A, 2, 2, S2F, {"Closet"})
+    assert cal.knn_locate.call_count == asked_with_two, (
+        "k-NN was consulted on a single faint reading")
