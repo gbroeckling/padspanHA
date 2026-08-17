@@ -47,7 +47,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .const import MODEL_STORE_KEY, DEFAULT_FLOOR_ID, MAX_HEIGHT_M
+from .const import MODEL_STORE_KEY, DEFAULT_FLOOR_ID, MAX_HEIGHT_M, LIGHT_SHAPE_KINDS
 from .safe_store import wrap_store
 
 
@@ -166,16 +166,12 @@ DEFAULT_DATA: dict[str, Any] = {
 # validation lived on the per-photo light list, which nothing writes any more;
 # it belongs on the one write path a light has — metres in the fabric.
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
-# The marker vocabulary. This is the SAME list as LIGHT_SHAPES in
-# views/light_codes.js — the reflected-ceiling-plan symbols the renderer
-# draws — and tests/test_fabric_lights.py holds the two together. The list
-# this replaced (rect, pill, octagon, star, bulb…) was a different vocabulary
-# from the one the frontend had ever drawn, and would have turned every
-# "bar" strip and "pendant" into a circle on the way in.
-LIGHT_PIN_SHAPES = (
-    "auto", "hex", "circle", "bar", "line", "square", "fan",
-    "pendant", "sconce", "chandelier", "triangle", "diamond",
-)
+# The marker vocabulary: const.LIGHT_SHAPE_KINDS (the renderer's list, held
+# equal to it by tests) plus "auto" — a placed light may say "derive the
+# shape from the entity". The list this replaced (rect, pill, octagon, star,
+# bulb…) was a vocabulary the frontend had never drawn, and would have turned
+# every "bar" strip and "pendant" into a circle on the way in.
+LIGHT_PIN_SHAPES = frozenset(LIGHT_SHAPE_KINDS) | {"auto"}
 LIGHT_PIN_DEFAULT_SHAPE = "hex"
 LIGHT_PIN_DEFAULT_COLOR = "#fbbf24"
 LIGHT_PIN_DEFAULT_SIZE_CM = 15.0

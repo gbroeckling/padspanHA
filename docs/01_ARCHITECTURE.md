@@ -10,7 +10,7 @@
   - `coordinator.py` (runtime state)
   - `settings_store.py` (persistent UI settings)
   - `map_store.py` (maps + receivers + calibration)
-  - `websocket.py` (WS API surface)
+  - `websocket.py` (WS API registration + re-exports), `ws_*.py` (handlers by subject), `snapshot_builder.py` (the live snapshot), `ws_common.py` (shared helpers)
   - `panel.py` (register single panel entry)
   - `diagnostics.py` (optional, HA diagnostics)
   - `strings.json` + `translations/*.json` (labels)

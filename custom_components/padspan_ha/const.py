@@ -116,3 +116,15 @@ GRADE_C_ERROR_M = 1.8
 GRADE_NO_DATA_ERROR_M = 15.0                   # "no accuracy data" sentinel — fails every grade
 CRITIC_CRITICAL_ERROR_M = 2.25
 CRITIC_WARNING_ERROR_M = 1.2
+
+# ── Light marker shapes ─────────────────────────────────────────────────────
+# The one backend copy of LIGHT_SHAPES in www/padspan-ha/views/light_codes.js —
+# the reflected-ceiling-plan symbols the renderer draws. Placement (fabric,
+# model_store) and the per-entity override (settings.light_shapes) both
+# validate against this; tests/test_lights_renderer.py holds it equal to the
+# chooser. "auto" means "derive from the entity" and is a valid placement
+# shape but not an override (an override that says auto is simply absent).
+LIGHT_SHAPE_KINDS = frozenset({
+    "hex", "circle", "bar", "line", "square", "triangle", "diamond",
+    "fan", "sconce", "pendant", "chandelier",
+})

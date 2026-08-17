@@ -88,7 +88,7 @@ def test_room_occupancy_filters_out_departed_objects():
     how "last seen in the Garage" survives a dropout.  But a room lists who is
     IN it, so the rebuild must drop anything past the timeout.
     """
-    src = (_ROOT / "websocket.py").read_text(encoding="utf-8")
+    src = (_ROOT / "snapshot_builder.py").read_text(encoding="utf-8")
     start = src.index("_rtm_fresh: dict[str, list[str]] = {}")
     block = src[start:start + 600]
     assert "is_away" in block, (
@@ -238,7 +238,7 @@ def test_the_snapshot_clears_the_room_of_a_departed_object():
     moves to `last_room`, and `away` says so. Anything reading `room` is then
     correct by construction — including code not written yet.
     """
-    src = (_ROOT / "websocket.py").read_text(encoding="utf-8")
+    src = (_ROOT / "snapshot_builder.py").read_text(encoding="utf-8")
     blk = src[src.index("# ── `room` is PRESENT TENSE"):]
     blk = blk[:blk.index("# Rebuild room_tag_map")]
     assert "is_away(_obj" in blk, "the snapshot does not test for away"
@@ -252,7 +252,7 @@ def test_the_snapshot_clears_the_room_of_a_departed_object():
 
 def test_the_room_is_cleared_before_occupancy_is_rebuilt():
     """Order matters: occupancy is derived from the same field."""
-    src = (_ROOT / "websocket.py").read_text(encoding="utf-8")
+    src = (_ROOT / "snapshot_builder.py").read_text(encoding="utf-8")
     clear = src.index('_obj["room"] = ""')
     rebuild = src.index("_rtm_fresh: dict[str, list[str]] = {}")
     assert clear < rebuild, (

@@ -798,7 +798,7 @@ def test_the_floor_badge_stays_on_the_canvas(tmp_path):
 
 # ── The shape vocabulary, front to back ─────────────────────────────────────
 
-_WS_PY = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "websocket.py"
+_WS_PY = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "const.py"
 
 
 def _chooser_kinds() -> set:
@@ -811,7 +811,7 @@ def _chooser_kinds() -> set:
 
 def _backend_kinds() -> set:
     src = _WS_PY.read_text(encoding="utf-8")
-    block = src[src.index("_LIGHT_SHAPE_KINDS"):]
+    block = src[src.index("LIGHT_SHAPE_KINDS = frozenset({"):]
     block = block[:block.index("})") + 2]
     return set(re.findall(r'"(\w+)"', block))
 

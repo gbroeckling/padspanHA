@@ -373,7 +373,7 @@ def test_no_implicit_spatial_write_path_survives() -> None:
 
     assert not hasattr(ModelStore, "async_sync_spatial_from_map")
     src = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
-    for name in ("websocket.py", "model_store.py", "__init__.py"):
+    for name in ("websocket.py", "ws_fabric.py", "ws_maps.py", "model_store.py", "__init__.py"):
         text = (src / name).read_text(encoding="utf-8")
         assert "async_sync_spatial_from_map(" not in text, name
 

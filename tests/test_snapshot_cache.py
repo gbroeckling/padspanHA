@@ -1,13 +1,13 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Tests for the shared TTL cache around websocket._live_snapshot."""
+"""Tests for the shared TTL cache around snapshot_builder._live_snapshot."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from custom_components.padspan_ha import websocket as ws_mod
+from custom_components.padspan_ha import snapshot_builder as ws_mod
 from custom_components.padspan_ha.const import DOMAIN
 
 

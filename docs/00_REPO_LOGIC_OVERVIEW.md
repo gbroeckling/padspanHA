@@ -84,7 +84,7 @@ So receiver placement uses **normalized 0..1 coordinates** instead of absolute p
   - list of maps
   - receiver placements per map
   - calibration metadata
-- `websocket.py` defines the WS API consumed by the panel
+- `websocket.py` registers the WS API consumed by the panel; the handlers live in `ws_*.py` by subject (fabric, calibration, capture, maps, objects, forensics, backup, irk, companion, occupancy, devices, radios, follow, notify, adaptive, diagnostics, factory_reset, settings), the live snapshot in `snapshot_builder.py`, shared helpers in `ws_common.py`. Every name is re-exported from `websocket.py`.
 
 ### Frontend (Panel JS)
 - `/www/padspan-ha/panel.js` is the HA panel entrypoint.
