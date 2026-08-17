@@ -236,7 +236,7 @@ const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
           floorSvg = _radioMapMod.modelFloorHeatmapSVG(renderMaps, _mapPts, w2v, wBB, ctx.state.settings, visible, liveSnap, ctx.state.model);
         }
         if (!floorSvg && _radioMapMod.floorHeatmapSVG) {
-          floorSvg = _radioMapMod.floorHeatmapSVG(_calPoints, renderMaps, _mapPts, w2v, wBB, _radioMapScanner, visible);
+          floorSvg = _radioMapMod.floorHeatmapSVG(_calPoints, renderMaps, _mapPts, w2v, wBB, _radioMapScanner, visible, ctx.state.model);
         }
         if (floorSvg) s += floorSvg;
       }
@@ -247,29 +247,8 @@ const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
         if (_radioMapMod.setUserGainContrast) {
           _radioMapMod.setUserGainContrast(ctx.state._heatGain || ctx.state.settings?.heatmap_gain || 0, ctx.state._heatContrast || ctx.state.settings?.heatmap_contrast || 0);
         }
-        if (_radioMapMod.floorDistortionSVG) {
-          const dmSvg = _radioMapMod.floorDistortionSVG(_calPoints, renderMaps, _mapPts, w2v, wBB, visible);
-          if (dmSvg) s += dmSvg;
-        } else {
-        // Legacy fallback: per-map distortion
-        for (const m of renderMaps) {
-          const dmSvg = _radioMapMod.distortionMapSVG(_calPoints, m.id, m.rf_barriers || [], m.receivers || []);
-          if (dmSvg) {
-            if (isStitched) {
-              const [vTL_x, vTL_y] = _pt(m, 0, 0);
-              const [vTR_x, vTR_y] = _pt(m, 1, 0);
-              const [vBL_x, vBL_y] = _pt(m, 0, 1);
-              const dx = vTR_x - vTL_x, dy = vTR_y - vTL_y;
-              const ex = vBL_x - vTL_x, ey = vBL_y - vTL_y;
-              s += `<g transform="matrix(${_f(dx)},${_f(dy)},${_f(ex)},${_f(ey)},${_f(vTL_x)},${_f(vTL_y)})">`;
-              s += `<svg viewBox="0 0 1 1" width="1" height="1" preserveAspectRatio="none">${dmSvg}</svg>`;
-              s += `</g>`;
-            } else {
-              s += dmSvg;
-            }
-          }
-        }
-        } // end legacy fallback
+        const dmSvg = _radioMapMod.floorDistortionSVG(_calPoints, renderMaps, _mapPts, w2v, wBB, visible, ctx.state.model);
+        if (dmSvg) s += dmSvg;
       }
 
       // ── Room boundaries ─────────────────────────────────────────────────

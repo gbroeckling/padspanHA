@@ -161,6 +161,26 @@ the giant labels back the moment the map was zoomed or rebuilt. Rings that
 belong to a marker live *inside* its group. A container width change rebuilds
 the svg in place, in whichever view holds it.
 
+### Walls
+
+A wall (`rf_barriers_m`) is a fabric object with an **id**, a name, a material,
+an attenuation and `points_m`, on a floor. It is placed and edited in metres:
+the Rooms tab drags and deletes walls directly; the Edit tab is where you
+*draw* one on a photo, and the drawn points go through that map's metre
+transform (`mapFracToMetres`, mirroring `ModelStore.map_frac_to_metres`) into
+the fabric the moment you finish — the photo is the input surface, never the
+record. The walls the Edit tab shows are the fabric's, projected back onto the
+picture (`metresToMapFrac`); a map with no metre transform can show or take no
+walls, and says so.
+
+There is no per-photo list of walls any more. There used to be (`rf_barriers`
+on the map, matched by name, named "Barrier {n}" by list position); positioning
+never read it, two floors' "Barrier 1" replaced each other, and the 2D radio
+map read walls off the picture. `fabricWorldBarriers()` in `stack_transform.js`
+hands the fabric's walls to the 2D floor views in their world frame, next to
+the scanner conversion, so a wall and the scanner beside it go through the
+same numbers.
+
 ## Storage paths
 
 - Photos: `/config/www/padspan_ha/maps/<map_id>.png`

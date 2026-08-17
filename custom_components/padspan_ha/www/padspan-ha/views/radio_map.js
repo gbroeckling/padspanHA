@@ -5,11 +5,11 @@
 /**
  * Radio Map & Distortion Map — SVG overlay generators for map views.
  *
- * Radio Map: RSSI heatmap from calibration data, interpolated across the map
- *   using barrier-aware IDW (Inverse Distance Weighting). RF barriers (walls)
- *   defined in the map editor are drawn on the overlay and penalize the IDW
- *   weights — signal from a calibration point that must pass through a wall
- *   contributes less to grid cells on the other side.
+ * Radio Map: modelled coverage (scanner positions + path loss) or an RSSI
+ *   heatmap from calibration data, interpolated using barrier-aware IDW.
+ *   Walls come from the fabric (rf_barriers_m, in metres) — never from a
+ *   list on a photograph — and penalize the IDW weights: signal that must
+ *   pass through a wall contributes less to cells on the other side.
  *
  * Distortion Map: For each calibration point, computes the LOO k-NN predicted
  *   position vs actual position, rendering disagreement vectors as arrows.
@@ -23,7 +23,7 @@
 
 // Shared stack transform; query inherited from our own module URL so the ?b=
 // cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { fabricWorldScanners } =
+const { fabricWorldScanners, fabricWorldBarriers } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 
 const GRID_RES = 42;       // 42x42 interpolation grid (1764 cells) for 2D
@@ -60,6 +60,13 @@ const DEFAULT_PATH_LOSS_N = 2.5; // indoor path-loss exponent
  * dz is the scanner's height above the assumed device height on the drawn
  * floor, so the model can use a real slant range.
  */
+// The floor a set of floor maps is drawn for — the id every wall on that
+// floor carries in the fabric.
+function _floorId(floorMaps) {
+  const m = (floorMaps || [])[0];
+  return m ? String((m.stack && m.stack.floor_id) || m.floor_id || "main") : null;
+}
+
 function _fabricScanners(mapsList, model, drawnZ, mapZByMapId, scannerQuality, settings) {
   const fab = fabricWorldScanners(mapsList, model);
   if (!fab) return { scanners: [], mPerWorld: 0 };
@@ -228,24 +235,6 @@ function _hatchFill(prefix, rssi) {
   return idx < 0 ? `url(#${prefix}_null)` : `url(#${prefix}_${idx})`;
 }
 
-// Legacy solid fill (used for iso 3D cells where patterns don't project well)
-function _rssiColor(rssi) {
-  if (rssi == null || isNaN(rssi)) return "rgba(60,60,60,0.15)";
-  const idx = _rssiBucket(rssi);
-  if (idx < 0) return "rgba(60,60,60,0.15)";
-  // Reuse bucket RGB with alpha for solid fills
-  return _bucketRGB(idx).replace("rgb(", "rgba(").replace(")", ",0.6)");
-}
-
-// Error magnitude → color: green (low) → yellow → red (high)
-function _errorColor(errFrac) {
-  const t = Math.max(0, Math.min(1, errFrac / 0.25)); // 0=accurate, 1=25%+ error
-  const r = Math.round(t < 0.5 ? 80 + t * 2 * 168 : 248);
-  const g = Math.round(t < 0.5 ? 183 : 183 - (t - 0.5) * 2 * 120);
-  const b = 40;
-  return `rgb(${r},${g},${b})`;
-}
-
 // ── Line Segment Intersection ────────────────────────────────────────────────
 // Returns true if segment (ax,ay)→(bx,by) intersects segment (cx,cy)→(dx,dy)
 
@@ -308,149 +297,6 @@ function _idw(qx, qy, points, barriers) {
   return wSum > 0 ? vSum / wSum : null;
 }
 
-// ── Barrier SVG Renderer ─────────────────────────────────────────────────────
-
-/**
- * Render RF barriers as dashed lines on the overlay.
- */
-function _barriersSVG(barriers) {
-  if (!barriers || !barriers.length) return "";
-  let s = "";
-  const matColors = { metal: "#f87171", concrete: "#fb923c", brick: "#fbbf24", custom: "#94a3b8", open: "#38bdf8" };
-  for (const bar of barriers) {
-    const pts = bar.points || [];
-    if (pts.length < 2) continue;
-    const color = matColors[bar.material] || matColors.custom;
-    const atten = bar.attenuation_dbm || 0;
-    const d = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(4)},${p[1].toFixed(4)}`).join(" ");
-    if (bar.material === "open") {
-      // Open/loft: thin dotted line to show boundary without implying a wall
-      s += `<path d="${d}" fill="none" stroke="${color}" stroke-width="0.002" stroke-dasharray="0.004,0.008" opacity="0.5"/>`;
-    } else {
-      // Solid wall: thicker line for higher attenuation
-      const sw = Math.max(0.003, Math.min(0.008, atten * 0.0006));
-      s += `<path d="${d}" fill="none" stroke="${color}" stroke-width="${sw.toFixed(4)}" stroke-dasharray="0.012,0.006" opacity="0.7"/>`;
-    }
-  }
-  return s;
-}
-
-// ── Radio Map SVG Generator ──────────────────────────────────────────────────
-
-/**
- * Generate radio map heatmap SVG string for a specific map.
- * @param {Array} calPoints - calibration points from calibrationGet()
- * @param {string} mapId - which map to render
- * @param {string|null} scannerSource - specific scanner source, or null for combined
- * @param {Array} receivers - map receivers [{source, x, y, label}]
- * @param {Array} barriers - RF barriers [{points, attenuation_dbm, material}]
- * @returns {string} SVG string (viewBox 0 0 1 1), empty string if no data
- */
-export function radioMapSVG(calPoints, mapId, scannerSource, receivers, barriers) {
-  // Filter calibration points for this map
-  const mapPts = (calPoints || []).filter(p => p.map_id === mapId);
-  if (!mapPts.length) return "";
-
-  // Extract per-point RSSI for the target scanner or combined
-  const dataPoints = [];
-  for (const pt of mapPts) {
-    const readings = pt.scanner_readings || [];
-    if (scannerSource) {
-      const r = readings.find(rd => rd.source === scannerSource);
-      if (r && r.mean_rssi != null) {
-        dataPoints.push({ x_frac: pt.x_frac, y_frac: pt.y_frac, rssi: r.mean_rssi });
-      }
-    } else {
-      // Combined: strongest single scanner RSSI at each point.
-      // This is the most intuitive metric — "how close is the nearest scanner?"
-      // Near a scanner = strong (-40), far from all = weak (-80).
-      const rssis = readings.map(r => r.mean_rssi).filter(v => v != null);
-      if (rssis.length) {
-        const bestRssi = Math.max(...rssis);
-        dataPoints.push({ x_frac: pt.x_frac, y_frac: pt.y_frac, rssi: bestRssi });
-      }
-    }
-  }
-
-  if (!dataPoints.length) return "";
-
-  // Compute RSSI range for data-adaptive color scaling
-  const allRssi = dataPoints.map(p => p.rssi);
-  const minR = Math.min(...allRssi);
-  const maxR = Math.max(...allRssi);
-  setHatchRange(minR, maxR, _userGain, _userContrast);
-  const mapBarriers = (barriers || []);
-
-  // Build interpolation grid with barrier-aware IDW + 45° crosshatch patterns
-  const cellW = 1.0 / GRID_RES;
-  const cellH = 1.0 / GRID_RES;
-  const _pfx = "rm2d";
-  let s = hatchDefs(_pfx, 0.010, 0.004);
-
-  for (let gy = 0; gy < GRID_RES; gy++) {
-    for (let gx = 0; gx < GRID_RES; gx++) {
-      const qx = (gx + 0.5) * cellW;
-      const qy = (gy + 0.5) * cellH;
-      const rssi = _idw(qx, qy, dataPoints, mapBarriers);
-      const fill = _hatchFill(_pfx, rssi);
-      s += `<rect x="${(gx * cellW).toFixed(4)}" y="${(gy * cellH).toFixed(4)}" width="${cellW.toFixed(4)}" height="${cellH.toFixed(4)}" fill="${fill}"/>`;
-    }
-  }
-
-  // RF barrier overlay (dashed wall lines)
-  s += _barriersSVG(mapBarriers);
-
-  // Calibration point markers (small circles at actual positions)
-  // Calibration point markers — colored by their own RSSI value for visual verification.
-  // The number shown IS the value driving the heatmap at that point.
-  for (const dp of dataPoints) {
-    const dpBucket = _rssiBucket(dp.rssi);
-    const dpColor = dpBucket >= 0 ? _bucketRGB(dpBucket) : "#e2e8f0";
-    s += `<circle cx="${dp.x_frac.toFixed(4)}" cy="${dp.y_frac.toFixed(4)}" r="0.010" fill="${dpColor}" stroke="#071008" stroke-width="0.002" opacity="0.9"/>`;
-    // Background rect for readability
-    s += `<rect x="${(dp.x_frac + 0.010).toFixed(4)}" y="${(dp.y_frac - 0.008).toFixed(4)}" width="0.04" height="0.016" rx="0.003" fill="rgba(7,16,8,0.85)"/>`;
-    s += `<text x="${(dp.x_frac + 0.014).toFixed(4)}" y="${(dp.y_frac + 0.004).toFixed(4)}" fill="${dpColor}" font-size="0.014" font-weight="700" font-family="monospace" opacity="0.95">${Math.round(dp.rssi)}</text>`;
-  }
-
-  // Scanner position marker (if single scanner + position known)
-  if (scannerSource && receivers) {
-    const rx = receivers.find(r => (r.source || r.id || "") === scannerSource || (r.label || "") === scannerSource);
-    if (rx) {
-      const px = rx.x != null ? rx.x : 0.5;
-      const py = rx.y != null ? rx.y : 0.5;
-      // Pulsing rings around scanner
-      s += `<circle cx="${px}" cy="${py}" r="0.035" fill="none" stroke="#52b788" stroke-width="0.002" opacity="0.3"/>`;
-      s += `<circle cx="${px}" cy="${py}" r="0.022" fill="none" stroke="#52b788" stroke-width="0.003" opacity="0.5"/>`;
-      s += `<circle cx="${px}" cy="${py}" r="0.010" fill="#52b788" opacity="0.9"/>`;
-    }
-  }
-
-  // RSSI legend (bottom-left corner) — absolute dBm scale
-  const legendY = 0.90;
-  s += `<rect x="0.02" y="${legendY - 0.01}" width="0.34" height="0.09" rx="0.008" fill="rgba(7,16,8,0.85)"/>`;
-  s += `<text x="0.035" y="${legendY + 0.01}" fill="#e2e8f0" font-size="0.018" font-weight="600" font-family="system-ui,sans-serif">${scannerSource ? "Scanner" : "Combined"} Radio Map</text>`;
-  const legSteps = 8;
-  const barW = 0.03;
-  for (let i = 0; i < legSteps; i++) {
-    const bucketIdx = Math.round(i / (legSteps - 1) * (HATCH_BUCKETS - 1));
-    s += `<rect x="${(0.035 + i * barW).toFixed(3)}" y="${legendY + 0.025}" width="${barW.toFixed(3)}" height="0.015" fill="${_bucketRGB(bucketIdx)}"/>`;
-  }
-  s += `<text x="0.035" y="${legendY + 0.06}" fill="#fca5a5" font-size="0.013" font-family="system-ui,sans-serif">${Math.round(minR)} dBm (weak)</text>`;
-  s += `<text x="${(0.035 + (legSteps - 1) * barW).toFixed(3)}" y="${legendY + 0.06}" fill="#52b788" font-size="0.013" font-family="system-ui,sans-serif">${Math.round(maxR)} dBm</text>`;
-  s += `<text x="0.035" y="${legendY + 0.075}" fill="#94a3b8" font-size="0.012" font-family="system-ui,sans-serif">${dataPoints.length} cal points \u2022 range ${Math.round(minR)} to ${Math.round(maxR)} dBm</text>`;
-  // Wall legend
-  if (mapBarriers.length) {
-    s += `<line x1="0.22" y1="${legendY + 0.072}" x2="0.26" y2="${legendY + 0.072}" stroke="#f87171" stroke-width="0.003" stroke-dasharray="0.012,0.006" opacity="0.7"/>`;
-    s += `<text x="0.265" y="${legendY + 0.076}" fill="#94a3b8" font-size="0.012" font-family="system-ui,sans-serif">RF wall</text>`;
-  }
-
-  return s;
-}
-
-/**
- * Get unique scanner sources from calibration points for a given map.
- * Returns [{source, name, pointCount}] sorted by point count descending.
- */
 export function getMapScanners(calPoints, mapId) {
   const mapPts = (calPoints || []).filter(p => p.map_id === mapId);
   const scannerMap = {};
@@ -462,227 +308,6 @@ export function getMapScanners(calPoints, mapId) {
     }
   }
   return Object.values(scannerMap).sort((a, b) => b.pointCount - a.pointCount);
-}
-
-
-// ── Distortion Map SVG Generator ─────────────────────────────────────────────
-// Shows where calibration predictions disagree with reality:
-//   1. Radio map heatmap underneath (signal context — where coverage is weak)
-//   2. Walls drawn prominently with "danger zone" glow (walls = #1 error source)
-//   3. LOO k-NN error vectors: actual → predicted position
-//   4. Wall-crossing markers when an error vector crosses a barrier
-// Tells you whether per-room correction is needed or if Gaussian + adjacency
-// is already good enough.
-
-/**
- * Generate enhanced distortion map SVG.
- * @param {Array} calPoints - calibration points from calibrationGet()
- * @param {string} mapId - which map to render
- * @param {Array} barriers - RF barriers [{points, attenuation_dbm, material}]
- * @param {Array} receivers - map receivers (for radio map underlay)
- * @returns {string} SVG string (viewBox 0 0 1 1)
- */
-export function distortionMapSVG(calPoints, mapId, barriers, receivers) {
-  const mapPts = (calPoints || []).filter(p => p.map_id === mapId);
-  if (mapPts.length < KNN_K + 1) return "";
-
-  const vectors = [];
-  let maxErr = 0;
-
-  for (let i = 0; i < mapPts.length; i++) {
-    const pt = mapPts[i];
-    const query = {};
-    for (const r of (pt.scanner_readings || [])) {
-      if (r.source && r.mean_rssi != null) query[r.source] = r.mean_rssi;
-    }
-    if (!Object.keys(query).length) continue;
-
-    const scored = [];
-    for (let j = 0; j < mapPts.length; j++) {
-      if (j === i) continue;
-      const p2 = mapPts[j];
-      const fp = {};
-      for (const r of (p2.scanner_readings || [])) {
-        if (r.source && r.mean_rssi != null) fp[r.source] = r.mean_rssi;
-      }
-      const shared = Object.keys(query).filter(s => fp[s] != null);
-      if (!shared.length) continue;
-      let distSq = 0;
-      for (const s of shared) distSq += (query[s] - fp[s]) ** 2;
-      // Penalty 1: missing scanners — query sees scanners that the candidate doesn't
-      const missingPenalty = 1.0 + 0.3 * Math.max(0, Object.keys(query).length - shared.length);
-      // Penalty 2: low scanner diversity — with only 1-2 shared scanners the RSSI
-      // distance is unreliable (one scanner can't distinguish spatial positions).
-      // Scale distSq DOWN (make candidates look more similar = larger error vectors)
-      // so sparse areas don't appear artificially well-covered.
-      const diversityPenalty = shared.length >= 3 ? 1.0 : shared.length === 2 ? 0.5 : 0.15;
-      scored.push({ distSq: distSq * missingPenalty * diversityPenalty, p: p2, sharedCount: shared.length });
-    }
-
-    if (scored.length < KNN_K) continue;
-    scored.sort((a, b) => a.distSq - b.distSq);
-    const topK = scored.slice(0, KNN_K);
-
-    let wTotal = 0, wx = 0, wy = 0;
-    for (const { distSq, p } of topK) {
-      const w = 1.0 / (Math.sqrt(distSq) + 0.001);
-      wx += w * p.x_frac;
-      wy += w * p.y_frac;
-      wTotal += w;
-    }
-    if (wTotal < 1e-10) continue;
-
-    const predX = wx / wTotal;
-    const predY = wy / wTotal;
-    const errFrac = Math.sqrt((predX - pt.x_frac) ** 2 + (predY - pt.y_frac) ** 2);
-    maxErr = Math.max(maxErr, errFrac);
-
-    // Check if the error vector crosses any barrier
-    const wallsCrossed = _barrierAttenuation(pt.x_frac, pt.y_frac, predX, predY, barriers || []);
-
-    // Track scanner diversity: how many unique scanners the top-K neighbors shared
-    const avgShared = topK.reduce((a, t) => a + (t.sharedCount || 0), 0) / topK.length;
-    const scannerCount = Object.keys(query).length;
-    const lowConfidence = scannerCount < 2 || avgShared < 2;
-
-    vectors.push({
-      actualX: pt.x_frac, actualY: pt.y_frac,
-      predX, predY,
-      errFrac,
-      room: pt.room || "",
-      wallsCrossed: wallsCrossed > 0,
-      wallDb: wallsCrossed,
-      lowConfidence,
-      scannerCount,
-    });
-  }
-
-  if (!vectors.length) return "";
-
-  let s = "";
-
-  // ── Layer 1: Radio map heatmap underneath (signal context) ──────────────
-  const rmSvg = radioMapSVG(calPoints, mapId, null, receivers || [], barriers || []);
-  if (rmSvg) s += rmSvg;
-
-  // ── Layer 2: Walls with danger zone glow ────────────────────────────────
-  // Walls are the primary source of positioning error. Draw them prominently
-  // with a glowing red halo to mark "danger zones" where errors concentrate.
-  const mapBarriers = barriers || [];
-  const matColors = { metal: "#ff4444", concrete: "#ff6633", brick: "#ff8844", custom: "#ff6666" };
-  for (const bar of mapBarriers) {
-    const pts = bar.points || [];
-    if (pts.length < 2) continue;
-    const color = matColors[bar.material] || matColors.custom;
-    const atten = bar.attenuation_dbm ?? 6;
-    const sw = Math.max(0.005, Math.min(0.012, atten * 0.001));
-    const d = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(4)},${p[1].toFixed(4)}`).join(" ");
-    // Glow layer (wider, semi-transparent)
-    s += `<path d="${d}" fill="none" stroke="${color}" stroke-width="${(sw * 4).toFixed(4)}" stroke-linecap="round" stroke-linejoin="round" opacity="0.12"/>`;
-    s += `<path d="${d}" fill="none" stroke="${color}" stroke-width="${(sw * 2).toFixed(4)}" stroke-linecap="round" stroke-linejoin="round" opacity="0.25"/>`;
-    // Solid wall line
-    s += `<path d="${d}" fill="none" stroke="${color}" stroke-width="${sw.toFixed(4)}" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>`;
-    // Attenuation label at midpoint
-    if (pts.length >= 2) {
-      const mx = (Number(pts[0][0]) + Number(pts[pts.length-1][0])) / 2;
-      const my = (Number(pts[0][1]) + Number(pts[pts.length-1][1])) / 2;
-      s += `<text x="${mx.toFixed(4)}" y="${(my - 0.012).toFixed(4)}" text-anchor="middle" fill="${color}" font-size="0.012" font-family="system-ui,sans-serif" font-weight="600" opacity="0.8">${atten}dB</text>`;
-    }
-  }
-
-  // ── Layer 3: Error vectors (actual → predicted) ─────────────────────────
-  let wallCrossCount = 0;
-  for (const v of vectors) {
-    const color = _errorColor(v.errFrac);
-    const opacity = Math.max(0.5, Math.min(1.0, v.errFrac / 0.12));
-    const sw = Math.max(0.003, Math.min(0.008, v.errFrac * 0.05));
-
-    if (v.errFrac > 0.005) {
-      // Arrow line — dashed if it crosses a wall
-      const dashAttr = v.wallsCrossed ? ` stroke-dasharray="0.008,0.004"` : "";
-      s += `<line x1="${v.actualX.toFixed(4)}" y1="${v.actualY.toFixed(4)}" x2="${v.predX.toFixed(4)}" y2="${v.predY.toFixed(4)}" stroke="${color}" stroke-width="${sw.toFixed(4)}"${dashAttr} opacity="${opacity.toFixed(2)}"/>`;
-
-      // Arrowhead
-      const dx = v.predX - v.actualX, dy = v.predY - v.actualY;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      if (len > 0.01) {
-        const ux = dx / len, uy = dy / len;
-        const headLen = Math.min(0.015, len * 0.4);
-        const headW = headLen * 0.6;
-        const tipX = v.predX, tipY = v.predY;
-        const baseX = tipX - ux * headLen, baseY = tipY - uy * headLen;
-        const lx = baseX - uy * headW, ly = baseY + ux * headW;
-        const rx = baseX + uy * headW, ry = baseY - ux * headW;
-        s += `<polygon points="${tipX.toFixed(4)},${tipY.toFixed(4)} ${lx.toFixed(4)},${ly.toFixed(4)} ${rx.toFixed(4)},${ry.toFixed(4)}" fill="${color}" opacity="${opacity.toFixed(2)}"/>`;
-      }
-
-      // Wall-crossing marker: small X where vector intersects a wall
-      if (v.wallsCrossed) {
-        wallCrossCount++;
-        const midX = (v.actualX + v.predX) / 2, midY = (v.actualY + v.predY) / 2;
-        const cr = 0.006;
-        s += `<line x1="${(midX-cr).toFixed(4)}" y1="${(midY-cr).toFixed(4)}" x2="${(midX+cr).toFixed(4)}" y2="${(midY+cr).toFixed(4)}" stroke="#ff4444" stroke-width="0.003" opacity="0.9"/>`;
-        s += `<line x1="${(midX+cr).toFixed(4)}" y1="${(midY-cr).toFixed(4)}" x2="${(midX-cr).toFixed(4)}" y2="${(midY+cr).toFixed(4)}" stroke="#ff4444" stroke-width="0.003" opacity="0.9"/>`;
-      }
-    }
-
-    // Dot at actual position — outlined with wall-crossing color if applicable
-    const dotStroke = v.wallsCrossed ? "#ff4444" : "#071008";
-    const dotSW = v.wallsCrossed ? "0.003" : "0.002";
-    s += `<circle cx="${v.actualX.toFixed(4)}" cy="${v.actualY.toFixed(4)}" r="0.007" fill="${color}" stroke="${dotStroke}" stroke-width="${dotSW}" opacity="0.9"/>`;
-
-    // Low-confidence marker: dashed ring around points with < 2 scanners.
-    // These points have unreliable k-NN predictions because a single scanner
-    // can't distinguish spatial positions — the error looks low but is meaningless.
-    if (v.lowConfidence) {
-      s += `<circle cx="${v.actualX.toFixed(4)}" cy="${v.actualY.toFixed(4)}" r="0.014" fill="none" stroke="#f59e0b" stroke-width="0.002" stroke-dasharray="0.004,0.004" opacity="0.8"/>`;
-    }
-  }
-
-  // ── Layer 4: Summary stats & legend ─────────────────────────────────────
-  const lowConfCount = vectors.filter(v => v.lowConfidence).length;
-  // Only include high-confidence points in error stats so sparse areas
-  // don't drag the average down with misleadingly low "error" values.
-  const hcVectors = vectors.filter(v => !v.lowConfidence);
-  const meanErr = hcVectors.length ? hcVectors.reduce((a, v) => a + v.errFrac, 0) / hcVectors.length : 0;
-  const meanErrM = (meanErr * 15).toFixed(1);
-  const maxErrM = (maxErr * 15).toFixed(1);
-
-  const ly = 0.84;
-  const boxH = lowConfCount ? 0.17 : 0.15;
-  s += `<rect x="0.58" y="${ly - 0.01}" width="0.40" height="${boxH}" rx="0.008" fill="rgba(7,16,8,0.9)"/>`;
-  s += `<text x="0.60" y="${ly + 0.012}" fill="#e2e8f0" font-size="0.018" font-weight="700" font-family="system-ui,sans-serif">Distortion Map</text>`;
-  s += `<text x="0.60" y="${ly + 0.032}" fill="#94a3b8" font-size="0.014" font-family="system-ui,sans-serif">Mean: ${meanErrM}m (${(meanErr * 100).toFixed(1)}%) \u2022 Max: ${maxErrM}m</text>`;
-  s += `<text x="0.60" y="${ly + 0.050}" fill="#94a3b8" font-size="0.013" font-family="system-ui,sans-serif">${vectors.length} points \u2022 ${wallCrossCount} cross wall${wallCrossCount !== 1 ? "s" : ""}</text>`;
-  if (lowConfCount) {
-    s += `<text x="0.60" y="${ly + 0.066}" fill="#f59e0b" font-size="0.012" font-family="system-ui,sans-serif">\u26A0 ${lowConfCount} point${lowConfCount !== 1 ? "s" : ""} low confidence (&lt;2 scanners)</text>`;
-  }
-  // Error color scale — shift down when low-confidence warning is shown
-  const _lOff = lowConfCount ? 0.016 : 0;
-  const scaleSteps = 5;
-  const scaleW = 0.03;
-  for (let i = 0; i < scaleSteps; i++) {
-    const t = i / (scaleSteps - 1);
-    s += `<rect x="${(0.60 + i * scaleW).toFixed(3)}" y="${(ly + 0.060 + _lOff).toFixed(4)}" width="${scaleW.toFixed(3)}" height="0.010" fill="${_errorColor(t * 0.25)}"/>`;
-  }
-  s += `<text x="0.60" y="${(ly + 0.085 + _lOff).toFixed(4)}" fill="#52b788" font-size="0.011" font-family="system-ui,sans-serif">0m</text>`;
-  s += `<text x="${(0.60 + (scaleSteps-1) * scaleW).toFixed(3)}" y="${(ly + 0.085 + _lOff).toFixed(4)}" fill="#f87171" font-size="0.011" font-family="system-ui,sans-serif">\u22653.8m</text>`;
-  // Wall legend
-  if (mapBarriers.length) {
-    s += `<line x1="0.60" y1="${(ly + 0.098 + _lOff).toFixed(4)}" x2="0.64" y2="${(ly + 0.098 + _lOff).toFixed(4)}" stroke="#ff4444" stroke-width="0.004" opacity="0.9"/>`;
-    s += `<text x="0.65" y="${(ly + 0.101 + _lOff).toFixed(4)}" fill="#ff6666" font-size="0.011" font-family="system-ui,sans-serif">Wall (error source)</text>`;
-    s += `<text x="0.60" y="${(ly + 0.118 + _lOff).toFixed(4)}" fill="#ff4444" font-size="0.010" font-family="system-ui,sans-serif">\u2716 = prediction crosses wall</text>`;
-    s += `<line x1="0.60" y1="${(ly + 0.128 + _lOff).toFixed(4)}" x2="0.64" y2="${(ly + 0.128 + _lOff).toFixed(4)}" stroke="#fb923c" stroke-width="0.003" stroke-dasharray="0.008,0.004"/>`;
-    s += `<text x="0.65" y="${(ly + 0.131 + _lOff).toFixed(4)}" fill="#94a3b8" font-size="0.010" font-family="system-ui,sans-serif">Dashed = wall-crossing vector</text>`;
-  }
-  // Low-confidence legend
-  if (lowConfCount) {
-    const lcY = ly + 0.098 + _lOff + (mapBarriers.length ? 0.042 : 0);
-    s += `<circle cx="0.62" cy="${lcY.toFixed(4)}" r="0.006" fill="none" stroke="#f59e0b" stroke-width="0.002" stroke-dasharray="0.004,0.004"/>`;
-    s += `<text x="0.65" y="${(lcY + 0.003).toFixed(4)}" fill="#f59e0b" font-size="0.010" font-family="system-ui,sans-serif">Low confidence (&lt;2 scanners)</text>`;
-  }
-
-  return s;
 }
 
 
@@ -996,21 +621,9 @@ export function modelFloorHeatmapSVG(floorMaps, mapPtFns, w2v, wBB, settings, al
     allMaps || floorMaps, model, _floorZ, _allMapZ, scannerQuality, settings);
   if (!scanners.length) return "";
 
-  // Collect barriers from all floor maps → world coords
-  const worldBarriers = [];
-  for (const m of (allMaps || floorMaps)) {
-    const mpt = mapPtFns[m.id]; if (!mpt) continue;
-    const mZ = _allMapZ[m.id] ?? 0;
-    if (Math.abs(mZ - _floorZ) > 1) continue;
-    for (const bar of (m.rf_barriers || [])) {
-      const pts = bar.points || [];
-      if (pts.length < 2) continue;
-      worldBarriers.push({
-        points: pts.map(p => { const [wx, wy] = mpt(Number(p[0]), Number(p[1])); return [wx, wy]; }),
-        attenuation_dbm: bar.attenuation_dbm ?? 6,
-      });
-    }
-  }
+  // Walls come from the fabric, in the same world frame as the scanners —
+  // never from a list on a photograph.
+  const worldBarriers = fabricWorldBarriers(allMaps || floorMaps, model, _floorId(floorMaps)) || [];
 
   // Build room boundary polygons in world coords (for adaptive data lookup)
   // — fabric-first, per-photo bounds as fallback
@@ -1131,7 +744,7 @@ export function modelFloorHeatmapSVG(floorMaps, mapPtFns, w2v, wBB, settings, al
 }
 
 // Legacy calibration-based heatmap (kept as fallback)
-export function floorHeatmapSVG(calPoints, floorMaps, mapPtFns, w2v, wBB, scannerSource, allMaps) {
+export function floorHeatmapSVG(calPoints, floorMaps, mapPtFns, w2v, wBB, scannerSource, allMaps, model) {
   if (!calPoints || !floorMaps.length) return "";
 
   const floorMapIds = new Set(floorMaps.map(m => m.id));
@@ -1175,21 +788,8 @@ export function floorHeatmapSVG(calPoints, floorMaps, mapPtFns, w2v, wBB, scanne
   const _lvlRssis = worldPoints.map(p => p.rssi);
   setHatchRange(Math.min(..._lvlRssis), Math.max(..._lvlRssis), _userGain, _userContrast);
 
-  // ── 2. Collect all barriers from all floor maps, transform to world coords ──
-  const worldBarriers = [];
-  for (const m of floorMaps) {
-    const mpt = mapPtFns[m.id];
-    if (!mpt) continue;
-    for (const bar of (m.rf_barriers || [])) {
-      const pts = bar.points || [];
-      if (pts.length < 2) continue;
-      worldBarriers.push({
-        points: pts.map(p => { const [wx, wy] = mpt(Number(p[0]), Number(p[1])); return [wx, wy]; }),
-        attenuation_dbm: bar.attenuation_dbm ?? 6,
-        material: bar.material || "custom",
-      });
-    }
-  }
+  // ── 2. Walls, from the fabric, in the world frame ─────────────────────────
+  const worldBarriers = fabricWorldBarriers(allMaps || floorMaps, model, _floorId(floorMaps)) || [];
 
   // ── 3. IDW interpolation in world space ────────────────────────────────────
   const wW = wBB.maxX - wBB.minX;
@@ -1423,7 +1023,7 @@ function _predictPosition(qwx, qwy, calWorldPts) {
  * 2D floor deformation grid. Square by default, warps where predictions differ.
  * Same colors as heatmap. Replaces crosshatch when distortion is on.
  */
-export function floorDistortionSVG(calPoints, floorMaps, mapPtFns, w2v, wBB, allMaps) {
+export function floorDistortionSVG(calPoints, floorMaps, mapPtFns, w2v, wBB, allMaps, model) {
   if (!calPoints || !floorMaps.length) return "";
   const floorMapIds = new Set(floorMaps.map(m => m.id));
   const _floorZ = (floorMaps[0].stack?.z_level) ?? 0;

@@ -208,3 +208,61 @@ export function makeStackXform(stk, fallbackAr) {
     },
   };
 }
+
+// ── Walls in the fabric, for the views that still draw on a photograph ──────
+//
+// A barrier is stored in metres with an id (fabric rf_barriers_m). The 2D
+// floor views draw in the stack's world frame and the plan editor draws on
+// one photo, so each needs the walls handed over in its own coordinates. Both
+// conversions live HERE, next to the scanner one, so a wall and the scanner
+// beside it go through the same numbers.
+
+// Fabric walls on a floor, in the stack world frame ({points:[[wx,wy]…],
+// attenuation_dbm, id, name}). Null when there is no metre anchor — the same
+// rule as fabricWorldScanners: no anchor, no invented scale.
+export function fabricWorldBarriers(mapsList, model, floorId) {
+  const bars = (model && model.rf_barriers_m) || [];
+  if (!bars.length) return [];
+  const anchor = metreAnchor(mapsList, model && model.map_transforms);
+  if (!anchor) return null;
+  const [kx, ky] = _fabricScale(anchor);
+  const out = [];
+  for (const b of bars) {
+    if (floorId != null && String(b.floor_id || "main") !== String(floorId)) continue;
+    const pts = (b.points_m || []).map(p => [Number(p[0]) * kx, Number(p[1]) * ky]);
+    if (pts.length < 2) continue;
+    out.push({ id: b.id, name: b.name, material: b.material,
+               attenuation_dbm: b.attenuation_dbm ?? 6, points: pts });
+  }
+  return out;
+}
+
+// The model's map transform, in both directions. Mirrors ModelStore
+// map_frac_to_metres / metres_to_map_frac exactly: scale, rotate, offset.
+export function mapFracToMetres(tf, fx, fy) {
+  if (!tf) return null;
+  const ox = Number(tf.origin_x_m || 0), oy = Number(tf.origin_y_m || 0);
+  const sx = Number(tf.scale_x_m || 1), sy = Number(tf.scale_y_m || 1);
+  const rot = Number(tf.rotation_rad || 0);
+  const dx = fx * sx, dy = fy * sy;
+  if (Math.abs(rot) > 1e-9) {
+    const c = Math.cos(rot), s = Math.sin(rot);
+    return [ox + dx * c - dy * s, oy + dx * s + dy * c];
+  }
+  return [ox + dx, oy + dy];
+}
+
+export function metresToMapFrac(tf, xm, ym) {
+  if (!tf) return null;
+  const ox = Number(tf.origin_x_m || 0), oy = Number(tf.origin_y_m || 0);
+  const sx = Number(tf.scale_x_m || 1), sy = Number(tf.scale_y_m || 1);
+  const rot = Number(tf.rotation_rad || 0);
+  if (Math.abs(sx) < 1e-9 || Math.abs(sy) < 1e-9) return null;
+  let rx = xm - ox, ry = ym - oy;
+  if (Math.abs(rot) > 1e-9) {
+    const c = Math.cos(-rot), s = Math.sin(-rot);
+    const dx = rx * c - ry * s, dy = rx * s + ry * c;
+    rx = dx; ry = dy;
+  }
+  return [rx / sx, ry / sy];
+}

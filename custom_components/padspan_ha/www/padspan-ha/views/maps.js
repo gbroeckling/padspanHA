@@ -5,7 +5,7 @@
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
+const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor, mapFracToMetres, metresToMapFrac } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 // THE fabric frame — the Lights tab inverts drags through the exact function
 // the renderer draws with, so the two cannot disagree.
@@ -1084,14 +1084,13 @@ function _edit(ctx, map, allMaps){
       // touched real-world coordinates and no longer pretends to.
     }
     ctx.state.maps._draftRoomBounds = JSON.parse(JSON.stringify(map.room_bounds||{}));
-    ctx.state.maps._draftBarriers = JSON.parse(JSON.stringify(map.rf_barriers||[]));
     ctx.state.maps._draftFloorId = map.floor_id || (floors[0] && floors[0].id) || "main";
     ctx.state.maps._draftMapId = map.id;
     ctx.state.maps._selectedRxId = null;
     ctx.state.maps._mode = "receivers"; // receivers | rooms | barriers
     ctx.state.maps._selectedRoom = "";
     ctx.state.maps._drawing = null; // {room, points:[]} or barrier drawing
-    ctx.state.maps._selectedBarrierIdx = -1;
+    ctx.state.maps._selectedBarrierId = null;
     ctx.state.maps._barrierMaterial = "metal";
     ctx.state.maps._recommendPoly = null;
   }
@@ -1178,6 +1177,49 @@ function _edit(ctx, map, allMaps){
   stage.appendChild(img);
   stage.appendChild(overlay);
 
+  // ── Walls are in the fabric, in metres. The photo is where you DRAW one ──
+  // A wall drawn here is converted through this map's metre transform and
+  // stored in the fabric with an id, exactly like a calibration pin or a
+  // scanner placed on a plan; the walls shown here are the fabric's, projected
+  // back onto the picture. There is no per-photo list of walls any more (the
+  // one there was, positioning never read). No transform, no walls: measure
+  // the map first.
+  const _wallTx = () => (ctx.state.model?.map_transforms || {})[map.id] || null;
+  const _wallFloor = () => String(ctx.state.maps._draftFloorId || map.floor_id || "main");
+  const _MAT_ATTEN = {metal:12, concrete:8, brick:4, custom:6, open:0};
+  const _MAT_COLORS = {metal:"#ef4444",concrete:"#f97316",brick:"#eab308",custom:"#a855f7",open:"#38bdf8"};
+  const _fabricWallsHere = () => {
+    const tf = _wallTx(); if (!tf) return [];
+    const fid = _wallFloor();
+    const out = [];
+    for (const b of (ctx.state.model?.rf_barriers_m || [])) {
+      if (String(b.floor_id || "main") !== fid) continue;
+      const pts = (b.points_m || []).map(p => metresToMapFrac(tf, Number(p[0]), Number(p[1]))).filter(Boolean);
+      if (pts.length < 2) continue;
+      out.push({ id: b.id, name: b.name || "", material: b.material || "custom",
+                 attenuation_dbm: b.attenuation_dbm ?? 6, points: pts });
+    }
+    return out;
+  };
+  const _placeWall = async (name, material, atten, fracPts) => {
+    const tf = _wallTx();
+    if (!tf) { ctx.toast("Measure this map first (Measure tool) — walls are stored in metres.", true); return null; }
+    const points_m = fracPts.map(p => mapFracToMetres(tf, clamp01(p[0]), clamp01(p[1])))
+      .map(q => [Math.round(q[0] * 1000) / 1000, Math.round(q[1] * 1000) / 1000]);
+    try {
+      const r = await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set", barrier: {
+        name, material, attenuation_dbm: atten, floor_id: _wallFloor(), points_m } });
+      await ctx.actions.modelRefresh();
+      return r && r.barrier ? r.barrier.id : null;
+    } catch (e) { ctx.toast("Could not place wall: " + (e.message || e), true); return null; }
+  };
+  const _removeWall = async (id) => {
+    try {
+      await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_remove", barrier_id: id });
+      await ctx.actions.modelRefresh();
+    } catch (e) { ctx.toast("Could not remove wall: " + (e.message || e), true); }
+  };
+
   // --- Right panel (tools) ---
   const right = el("div",{class:"card", style:"margin-top:10px"},[]);
   const _modeHelp = {"receivers":"Double-click map to place radio; drag to reposition","rooms":"Click map to add points; double-click to finish","barriers":"Click to draw wall segments; double-click to finish","measure":"Click two points you know the real distance between"};
@@ -1195,7 +1237,6 @@ function _edit(ctx, map, allMaps){
     const dRx = JSON.stringify((ctx.state.maps._draftReceivers||[]).map(r=>[r.x,r.y,r.source,r.room]));
     if (sRx !== dRx) return true;
     if (JSON.stringify(map.room_bounds||{}) !== JSON.stringify(ctx.state.maps._draftRoomBounds||{})) return true;
-    if (JSON.stringify(map.rf_barriers||[]) !== JSON.stringify(ctx.state.maps._draftBarriers||[])) return true;
     return false;
   };
   const _dirty = _hasDraftChanges();
@@ -1211,7 +1252,6 @@ function _edit(ctx, map, allMaps){
           floor_id: ctx.state.maps._draftFloorId,
           room_bounds: ctx.state.maps._draftRoomBounds,
           receivers: ctx.state.maps._draftReceivers,
-          rf_barriers: ctx.state.maps._draftBarriers || [],
         });
         // Verify save: re-fetch maps from backend and check room_bounds persisted
         await ctx.actions.mapsRefreshQuiet();
@@ -1236,7 +1276,6 @@ function _edit(ctx, map, allMaps){
       // reset drafts from last saved map
       ctx.state.maps._draftReceivers = (map.receivers||[]).map(r=>({id:r.id||"", label:r.label||"", x:Number(r.x||0), y:Number(r.y||0), room:r.room||"", source:r.source||""}));
       ctx.state.maps._draftRoomBounds = JSON.parse(JSON.stringify(map.room_bounds||{}));
-      ctx.state.maps._draftBarriers = JSON.parse(JSON.stringify(map.rf_barriers||[]));
       ctx.state.maps._drawing = null;
       ctx.state.maps._selectedRxId = null;
       ctx.state.maps._selectedRoom = "";
@@ -1304,9 +1343,9 @@ function _edit(ctx, map, allMaps){
       svg.appendChild(cc);
     }
 
-    // RF Barriers — dashed red/orange polylines
-    const barriers = ctx.state.maps._draftBarriers || [];
-    const _matColors = {metal:"#ef4444",concrete:"#f97316",brick:"#eab308",custom:"#a855f7",open:"#38bdf8"};
+    // Walls — the fabric's, projected onto this photo; dashed by material
+    const barriers = _fabricWallsHere();
+    const _matColors = _MAT_COLORS;
     for(let bi = 0; bi < barriers.length; bi++){
       const bar = barriers[bi];
       if(!bar.points || bar.points.length < 2) continue;
@@ -1316,13 +1355,13 @@ function _edit(ctx, map, allMaps){
       bLine.setAttribute("fill","none");
       bLine.setAttribute("stroke", bc);
       const _isOpen = bar.material === "open";
-      bLine.setAttribute("stroke-width", ctx.state.maps._selectedBarrierIdx === bi ? "0.010" : (_isOpen ? "0.003" : "0.006"));
+      bLine.setAttribute("stroke-width", ctx.state.maps._selectedBarrierId === bar.id ? "0.010" : (_isOpen ? "0.003" : "0.006"));
       bLine.setAttribute("stroke-dasharray", _isOpen ? "0.004 0.008" : "0.006 0.018");
       bLine.setAttribute("stroke-linecap","round");
       if (_isOpen) bLine.setAttribute("opacity", "0.6");
       if(ctx.state.maps._mode === "barriers"){
         bLine.style.cursor = "pointer";
-        bLine.addEventListener("click", (ev)=>{ ev.stopPropagation(); ctx.state.maps._selectedBarrierIdx = bi; renderAll(); renderTools(); });
+        bLine.addEventListener("click", (ev)=>{ ev.stopPropagation(); ctx.state.maps._selectedBarrierId = bar.id; renderAll(); renderTools(); });
       }
       svg.appendChild(bLine);
       // Label at midpoint
@@ -1625,19 +1664,14 @@ function _edit(ctx, map, allMaps){
         ctx.state.maps._drawing.points.pop();
         renderAll(); renderTools();
       }}, "Undo point");
-      const bFinish = el("button",{class:"btn inline", onclick:()=>{
+      const bFinish = el("button",{class:"btn inline", onclick: async ()=>{
         const d = ctx.state.maps._drawing;
         if(!d || d.points.length < 2){ ctx.toast("Need at least 2 points for a barrier.", true); return; }
         const mat = ctx.state.maps._barrierMaterial || "metal";
-        const _matAtten = {metal:12,concrete:8,brick:4,custom:6,open:0};
-        ctx.state.maps._draftBarriers.push({
-          name: "Barrier " + (ctx.state.maps._draftBarriers.length + 1),
-          material: mat,
-          attenuation_dbm: _matAtten[mat] ?? 6,
-          points: d.points.map(p=>[clamp01(p[0]), clamp01(p[1])]),
-        });
-        ctx.state.maps._selectedBarrierIdx = ctx.state.maps._draftBarriers.length - 1;
+        const pts = d.points.slice();
         ctx.state.maps._drawing = null;
+        const id = await _placeWall(`Wall ${_fabricWallsHere().length + 1}`, mat, _MAT_ATTEN[mat] ?? 6, pts);
+        if (id) ctx.state.maps._selectedBarrierId = id;
         renderAll(); renderTools();
       }}, `Finish (${bPts} pts)`);
       const bCancel = el("button",{class:"btn inline", onclick:()=>{
@@ -1649,26 +1683,30 @@ function _edit(ctx, map, allMaps){
       ]));
       right.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-top:6px"}, bDrawing
         ? `Drawing: ${bPts} point${bPts!==1?"s":""} placed. Click on map to add, double-click or Finish to complete.`
-        : "Click on the map to start drawing a barrier wall. At least 2 points needed."));
+        : (_wallTx()
+            ? "Click on the map to start drawing a wall. It is stored in metres in the fabric the moment you finish."
+            : "Measure this map first (Measure tool): walls are stored in metres, and this map has no scale yet.")));
 
-      // Barrier list
-      const bList = ctx.state.maps._draftBarriers || [];
+      // The fabric's walls on this floor
+      const bList = _fabricWallsHere();
       if(bList.length){
         const layersDiv = el("div",{style:"margin-top:14px"});
-        layersDiv.appendChild(el("div",{class:"muted",style:"font-size:12px;font-weight:600;margin-bottom:6px"},`Barriers (${bList.length})`));
-        const _matColors2 = {metal:"#ef4444",concrete:"#f97316",brick:"#eab308",custom:"#a855f7",open:"#38bdf8"};
+        layersDiv.appendChild(el("div",{class:"muted",style:"font-size:12px;font-weight:600;margin-bottom:6px"},`Walls on this floor (${bList.length})`));
+        const _matColors2 = _MAT_COLORS;
         for(let bi = 0; bi < bList.length; bi++){
           const bar = bList[bi];
           const bc = _matColors2[bar.material] || "#ef4444";
-          const isSel = ctx.state.maps._selectedBarrierIdx === bi;
+          const isSel = ctx.state.maps._selectedBarrierId === bar.id;
           const delBtn = el("button",{class:"btn tiny"},"Delete");
-          delBtn.addEventListener("click", ()=>{
-            ctx.state.maps._draftBarriers.splice(bi, 1);
-            if(ctx.state.maps._selectedBarrierIdx >= ctx.state.maps._draftBarriers.length) ctx.state.maps._selectedBarrierIdx = -1;
+          delBtn.addEventListener("click", async (ev)=>{
+            ev.stopPropagation();
+            if(!confirm(`Delete wall "${bar.name || "wall"}"?`)) return;
+            await _removeWall(bar.id);
+            if(ctx.state.maps._selectedBarrierId === bar.id) ctx.state.maps._selectedBarrierId = null;
             renderAll(); renderTools();
           });
           const row = el("div",{style:`display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid ${isSel?"#52b788":"#1b3526"};border-radius:6px;background:${isSel?"#0f1f16":"#0a150e"};margin-bottom:4px;cursor:pointer`});
-          row.addEventListener("click", ()=>{ ctx.state.maps._selectedBarrierIdx = bi; renderAll(); renderTools(); });
+          row.addEventListener("click", ()=>{ ctx.state.maps._selectedBarrierId = bar.id; renderAll(); renderTools(); });
           row.appendChild(el("span",{style:`width:10px;height:3px;background:${bc};flex-shrink:0;border-radius:1px`}));
           row.appendChild(el("div",{style:"flex:1"},[
             el("div",{style:"font-size:12px;font-weight:600"}, bar.name || `Barrier ${bi+1}`),
@@ -1677,11 +1715,12 @@ function _edit(ctx, map, allMaps){
           row.appendChild(delBtn);
           layersDiv.appendChild(row);
         }
-        const clearAllBtn = el("button",{class:"btn inline",style:"margin-top:6px",onclick:()=>{
-          ctx.state.maps._draftBarriers = [];
-          ctx.state.maps._selectedBarrierIdx = -1;
+        const clearAllBtn = el("button",{class:"btn inline",style:"margin-top:6px",onclick: async ()=>{
+          if(!confirm(`Delete all ${bList.length} wall(s) on this floor from the fabric?`)) return;
+          for (const bar of bList) await _removeWall(bar.id);
+          ctx.state.maps._selectedBarrierId = null;
           renderAll(); renderTools();
-        }}, "Clear all barriers");
+        }}, "Delete all walls on this floor");
         layersDiv.appendChild(clearAllBtn);
         right.appendChild(layersDiv);
       }
@@ -1756,7 +1795,7 @@ function _edit(ctx, map, allMaps){
       // "Enclose" button — auto-generate RF barriers along all edges of this room's polygon
       const encloseBtn = el("button",{class:"btn inline", style:"color:#f59e0b;border-color:#92400e",
         title:"Add weak RF barriers (3 dB) along every edge of this room's boundary polygon — models thin interior walls",
-        onclick:()=>{
+        onclick: async ()=>{
         const r2 = ctx.state.maps._selectedRoom;
         if(!r2){ ctx.toast("Choose a room first.", true); return; }
         const poly = ctx.state.maps._draftRoomBounds && ctx.state.maps._draftRoomBounds[r2];
@@ -1765,14 +1804,10 @@ function _edit(ctx, map, allMaps){
         }
         const pts = poly.points;
         let added = 0;
+        if(!_wallTx()){ ctx.toast("Measure this map first (Measure tool) — walls are stored in metres.", true); return; }
         for(let i = 0; i < pts.length; i++){
           const a = pts[i], b = pts[(i + 1) % pts.length];
-          ctx.state.maps._draftBarriers.push({
-            name: `${r2} wall ${i + 1}`,
-            material: "custom",
-            attenuation_dbm: 3,
-            points: [[clamp01(a[0]), clamp01(a[1])], [clamp01(b[0]), clamp01(b[1])]],
-          });
+          await _placeWall(`${r2} wall ${i + 1}`, "custom", 3, [[a[0], a[1]], [b[0], b[1]]]);
           added++;
         }
         ctx.toast(`Added ${added} wall segment${added!==1?"s":""} around ${r2} at 3 dB`);
@@ -2065,21 +2100,16 @@ function _edit(ctx, map, allMaps){
       ctx.state.maps._drawing = null;
       renderAll(); refreshList(); renderTools();
     }
-    // barriers mode: dblclick finishes barrier (2+ points)
+    // barriers mode: dblclick finishes the wall — into the fabric, in metres
     if(ctx.state.maps._mode==="barriers" && ctx.state.maps._drawing){
       const d = ctx.state.maps._drawing;
-      if(d.points.length >= 2){
-        const mat = ctx.state.maps._barrierMaterial || "metal";
-        const _matAtten = {metal:12,concrete:8,brick:4,custom:6,open:0};
-        ctx.state.maps._draftBarriers.push({
-          name: "Barrier " + (ctx.state.maps._draftBarriers.length + 1),
-          material: mat,
-          attenuation_dbm: _matAtten[mat] ?? 6,
-          points: d.points.map(p=>[clamp01(p[0]), clamp01(p[1])]),
-        });
-        ctx.state.maps._selectedBarrierIdx = ctx.state.maps._draftBarriers.length - 1;
-      }
+      const pts = d.points.slice();
       ctx.state.maps._drawing = null;
+      if(pts.length >= 2){
+        const mat = ctx.state.maps._barrierMaterial || "metal";
+        _placeWall(`Wall ${_fabricWallsHere().length + 1}`, mat, _MAT_ATTEN[mat] ?? 6, pts)
+          .then(id => { if (id) ctx.state.maps._selectedBarrierId = id; renderAll(); renderTools(); });
+      }
       renderAll(); renderTools();
     }
   });
@@ -7716,7 +7746,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
           ev.stopPropagation();
           if (!confirm(`Delete wall "${bar.name || "barrier"}"?`)) return;
           try {
-            await ctx.actions.wsCall("padspan_ha/fabric_rf_barrier_remove", { name: bar.name });
+            await ctx.actions.wsCall("padspan_ha/fabric_rf_barrier_remove", { barrier_id: bar.id });
             mapState._roomsBarrierDraft = null;
             await ctx.actions.modelRefresh();
           } catch (err) { ctx.toast("Delete failed: " + (err.message || err), true); }
@@ -7895,7 +7925,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
             try {
               await ctx.actions.wsCall("padspan_ha/fabric_rf_barrier_set", {
                 barrier: {
-                  name: b.name, material: b.material || "custom",
+                  id: b.id, name: b.name, material: b.material || "custom",
                   attenuation_dbm: b.attenuation_dbm ?? 6,
                   floor_id: floorId, points_m: b.points_m,
                 },
