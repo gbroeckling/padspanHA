@@ -704,7 +704,8 @@ class ModelStore:
         them that much too high.
         """
         out: dict[str, float] = {}
-        running = 0.0
+        running = 0.0          # where the NEXT storey's base will be
+        prev_base = 0.0        # the base of the storey just placed
         prev: float | None = None
         first = True
         for f in self._ordered_floors():
@@ -719,6 +720,12 @@ class ModelStore:
                 base = float(explicit)
                 # An explicit value re-bases everything stacked above it.
                 running = base
+            elif same_storey:
+                # Share the storey's base. `running` has already moved on to
+                # the next storey by now, and reading it here is what put the
+                # garden a full storey up — level with the bedrooms — the
+                # moment it sorted after the ground floor.
+                base = prev_base
             else:
                 base = running
             out[fid] = round(base, 3)
@@ -729,6 +736,7 @@ class ModelStore:
                                   else DEFAULT_FLOOR_TO_FLOOR_M)
             first = False
             prev = storey
+            prev_base = base
         return out
 
     async def async_set_scanner_z_m(self, source: str, z_m: float) -> bool:

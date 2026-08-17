@@ -105,3 +105,25 @@ def test_floors_the_registry_never_declared_are_left_alone() -> None:
     ms = _store([{"id": "main", "level": 0, "floor_to_floor_m": 2.8}])
     assert "mezzanine" not in ms.floor_stack_index()
     assert ms.floor_base_elevations_m().get("mezzanine", 0.0) == 0.0
+
+
+def test_a_floor_on_the_same_storey_shares_its_base_not_the_next_storeys() -> None:
+    """The real house: basement, main, outside, upper — no levels set.
+
+    "outside" is ground level by convention, the same storey as "main". The
+    running sum had ALREADY advanced to the next storey when main was placed,
+    and the same-storey floor read its base from there — so the garden came
+    out level with the bedrooms (5.6 m on the live install), and every
+    outdoor scanner was modelled a storey above the ground it stands on.
+    """
+    ms = _store([
+        {"id": "basement", "floor_to_floor_m": 3.0},
+        {"id": "main", "floor_to_floor_m": 2.3},
+        {"id": "outside"},
+        {"id": "upper"},
+    ])
+    elev = ms.floor_base_elevations_m()
+    assert elev["basement"] == 0.0
+    assert elev["main"] == 3.0
+    assert elev["outside"] == elev["main"], elev
+    assert elev["upper"] == 5.3, elev
