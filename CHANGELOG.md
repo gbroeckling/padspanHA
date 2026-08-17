@@ -4,6 +4,32 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.34.1 — Positioning stops acting on evidence it does not have (2026-08-17)
+
+Measured on a live three-storey house before and after, same method: **floor flips per minute 9.7 → 4.9**, and the "gap" polls where the heard scanner count collapsed to 4 are gone (minimum now 10). Groups of beacons sliding off position together for three or four polls — the thing that made the whole map look flakey — was one root cause seen from three angles.
+
+### Fixed — positioning
+- **Anchors dropped after one missed poll.** The spatial solve discarded a scanner the first poll it went quiet, while the Kalman stage a few lines above was deliberately holding that scanner's last real value through the silence grace window. Two stages in one function contradicting each other. BLE advertisements miss polls constantly, and every device loses the *same* scanner on the *same* poll — so they all re-solved from the same reduced anchor set and moved as a group, in whichever part of the house that scanner anchors. A source now leaves the solve when it starts *decaying*, not when it merely misses.
+- **Position had no plausibility gate.** RSSI has a Kalman covariance and a silence grace; rooms have to win a vote window; the α-β position filter accepted half of any residual unconditionally, and fed it into velocity, so one bad measurement gave the dot momentum in the wrong direction on the next poll. A step implying more than 5 m/s is now treated as a bad measurement — the filter coasts on its prediction, and believes the new position only after three consecutive polls agree (a beacon switched off and carried really does teleport).
+- **Floor selection had no sense of how much it had heard.** It was recomputed from scratch each poll and compared on equal terms whether fifteen scanners had reported or two. A floor change now needs the device to have heard a fair share of what it *usually* hears, and to beat the incumbent by a real margin. An earlier version of this used an absolute quorum of three, which was unreachable — floor selection only runs once three scanners have reported. Fixed to be relative to each device's own norm.
+- **Cross-floor scanners solved position.** A scanner one storey away hears a device through the slab; its reading says something about which floor and almost nothing about where on it. Two garage scanners at −74 dBm were dragging a device its own closet scanner heard at −63 down a storey and outside every room — while the room vote, which never used them that way, stayed correct. On-floor scanners now solve position whenever there are enough to solve at all; cross-floor readings are the fallback for a thinly covered floor.
+- **The metre anchor's Python half.** `fabric_truth.find_metre_anchor` computed both axis scales and returned only x (issue #62's other side — the side that *writes* committed geometry and `map_transforms`). Both axes now.
+- **"Excluded scanner" had four implementations**, and the two used by the live snapshot and by advertisement ingestion omitted `excluded_scanners` entirely — a receiver the user had masked because it physically moved went on placing objects. One rule in `presence_rules`, with a guard against a fifth copy.
+- **A calibration point on an unmeasured map was saved with no position.** It counted toward every total and was ignored by every learner. Refused at save time now, with a message that says what to do.
+
+### Fixed — Overview
+- **The frame never saw the drawing.** `_isoBB`, which the svg frame is fitted to, was grown *below* the fabric early-return in `iso()` — so on every install with a fabric it stayed empty and the frame silently fell back to a fixed 880-unit heuristic around a ~500-unit building. That was the blank sides, and it is why five attempts to fit the drawing more tightly *inside* `fabricFrame` changed nothing visible.
+- `max-height:${vh}px` capped the rendered width to about `vw` px regardless of the panel. Removed; the map fills its width and scrolls.
+- Labels and markers are counter-scaled per group by designed-vs-actual pixels per unit, so a wider frame does not mean bigger words.
+
+### Fixed — panel
+- `_getModel` spread the whole `model_get` response instead of whitelisting keys. The whitelist had dropped a key three separate times (origin forwarding, the migration marker, `light_positions_m`/`floor_elevations`). Guarded so it cannot come back.
+
+### Removed
+- `_primaryMapIdForFloor` in `views/maps.js` — one reference, its own definition.
+
+---
+
 ## 0.34.0 — RSSI Vector Capture, and a floor model that reaches positioning (2026-08-16)
 
 ### Fixed — multi-floor positioning
