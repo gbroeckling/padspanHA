@@ -1214,6 +1214,13 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             or _pin["room"] in self._room_centroids):
                         obj["room"] = _pin["room"]
                         self._confirmed_room[key] = _pin["room"]
+                        # A pinned room decides the floor exactly as a voted
+                        # one does. Left to the solver, a beacon pinned to an
+                        # upstairs closet cycled main→upper→basement while its
+                        # room never changed — the pin is applied after the
+                        # per-kind branches, so it has to carry its floor.
+                        obj["floor_id"] = self._object_floor(
+                            obj["room"], obj.get("floor_id"), _floor_of_room)
                     obj["_pinned"] = True
 
                 result[key] = obj
