@@ -19,7 +19,9 @@ Each map dict holds:
   - image: {filename, width, height, sha256, ...}
   - receivers: [{id, label, x, y, room, source}, ...]    (scanner pin positions)
   - beacons:   [{id, label, key, x, y, kind}, ...]       (beacon pin positions)
-  - lights:    [{id, entity_id, label, x, y, color, shape, rotation}, ...] (PadSpan Pro: light pin positions)
+  - lights:    LEGACY, read once by the lights_to_metres migration and never
+               written again — a light is placed in metres in the fabric
+               (light_positions_m).
   - room_bounds: {roomName: {type:"poly", points:[[x,y],...]} | {type:"circle",...}}
   - calibration: {mode, px_per_meter, reference_points}
   - stack: {z_level, x_offset, y_offset, scale, rotation, ...}  (alignment transform)
@@ -34,7 +36,6 @@ import base64
 import hashlib
 import math
 import os
-import re
 import struct
 import zlib
 from dataclasses import dataclass, field
@@ -58,20 +59,6 @@ def _sha256(data: bytes) -> str:
     h.update(data)
     return h.hexdigest()
 
-_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
-
-def _clean_hex_color(value: Any, default: str) -> str:
-    v = str(value or "").strip()
-    return v if _HEX_COLOR_RE.match(v) else default
-
-LIGHT_PIN_SHAPES = (
-    "circle", "rect", "rounded_rect", "pill", "hex", "triangle",
-    "diamond", "pentagon", "octagon", "star", "bulb",
-)
-# Shapes accepted from a prior shape-library version, mapped to their closest
-# current equivalent so a light saved before the shape list changed doesn't
-# silently revert to "circle" the next time that map's lights are saved.
-_LIGHT_PIN_SHAPE_ALIASES = {"square": "rect"}
 
 @dataclass
 class MapsStore:
@@ -113,7 +100,6 @@ class MapsStore:
         for m in self.data.get("maps", []):
             m.setdefault("receivers", [])
             m.setdefault("beacons", [])
-            m.setdefault("lights", [])
             m.setdefault("calibration", {"mode": "none", "px_per_meter": None, "reference_points": []})
             m.setdefault("notes", "")
             m.setdefault("floor_id", DEFAULT_FLOOR_ID)
@@ -190,7 +176,6 @@ class MapsStore:
             "calibration": {"mode": "none", "px_per_meter": None, "reference_points": []},
             "receivers": [],
             "beacons": [],
-            "lights": [],
             "room_bounds": {},
             "rf_barriers": [],
             "floor_id": str(floor_id or DEFAULT_FLOOR_ID)[:40],
@@ -203,7 +188,7 @@ class MapsStore:
         await self.store.async_save(self.data)
         return info
 
-    async def async_update_map(self, map_id: str, *, receivers: list[dict[str, Any]] | None = None, beacons: list[dict[str, Any]] | None = None, lights: list[dict[str, Any]] | None = None, calibration: dict[str, Any] | None = None, notes: str | None = None, floor_id: str | None = None, room_bounds: dict[str, Any] | None = None, rf_barriers: list[dict[str, Any]] | None = None, stack: dict | None = None) -> dict[str, Any]:
+    async def async_update_map(self, map_id: str, *, receivers: list[dict[str, Any]] | None = None, beacons: list[dict[str, Any]] | None = None, calibration: dict[str, Any] | None = None, notes: str | None = None, floor_id: str | None = None, room_bounds: dict[str, Any] | None = None, rf_barriers: list[dict[str, Any]] | None = None, stack: dict | None = None) -> dict[str, Any]:
         """Update map metadata — only fields that are not None are changed.
 
         Each field is validated and sanitised (coords clamped 0-1, strings
@@ -252,49 +237,6 @@ class MapsStore:
                 if entry["key"]:
                     clean_bk.append(entry)
             m["beacons"] = clean_bk
-
-        if isinstance(lights, list):
-            # lights: [{id, entity_id, label, x, y, color, shape, rotation,
-            #           width_cm, height_cm}, ...] — PadSpan Pro placement
-            # pins. x/y stay in the same "fraction of the map's world/room
-            # space" convention as room_bounds and receivers — never a
-            # raw-photo-only concept. width_cm/height_cm are the marker's
-            # real-world footprint; the frontend converts them to on-screen
-            # size using the map's own calibration (model_transforms), with
-            # a relative fallback on uncalibrated maps. Caller (websocket.py)
-            # is responsible for the PadSpan Pro licence gate.
-            clean_lt: list[dict[str, Any]] = []
-            for lt in lights[:500]:  # sane cap — matches HA's realistic light-entity counts
-                if not isinstance(lt, dict):
-                    continue
-                eid = str(lt.get("entity_id") or "")[:120]
-                if not eid.startswith("light."):
-                    continue
-                shape = str(lt.get("shape") or "circle").strip().lower()
-                shape = _LIGHT_PIN_SHAPE_ALIASES.get(shape, shape)
-                _w = lt.get("width_cm")
-                _h = lt.get("height_cm")
-                entry = {
-                    "id": str(lt.get("id") or f"lt_{os.urandom(4).hex()}")[:80],
-                    "entity_id": eid,
-                    "label": str(lt.get("label") or "")[:120],
-                    # Unlike receivers/beacons/room_bounds (literal points on
-                    # one photo, clamped 0-1), a light's x/y is a point in the
-                    # floor's shared real-world space expressed through this
-                    # map's own calibration — a floor with multiple photos
-                    # legitimately needs positions extrapolated well beyond
-                    # any single photo's own pixel footprint. Sanity-bound
-                    # only against garbage/runaway values, not to one photo.
-                    "x": max(-50.0, min(50.0, float(lt.get("x") or 0.0))),
-                    "y": max(-50.0, min(50.0, float(lt.get("y") or 0.0))),
-                    "color": _clean_hex_color(lt.get("color"), "#fbbf24"),
-                    "shape": shape if shape in LIGHT_PIN_SHAPES else "circle",
-                    "rotation": float(lt.get("rotation") or 0.0) % 360.0,
-                    "width_cm": max(1.0, min(1000.0, float(_w) if _w is not None else 15.0)),
-                    "height_cm": max(1.0, min(1000.0, float(_h) if _h is not None else 15.0)),
-                }
-                clean_lt.append(entry)
-            m["lights"] = clean_lt
 
         if isinstance(calibration, dict):
             m["calibration"] = {
@@ -497,9 +439,6 @@ class MapsStore:
                     bk["x"] = _rx(bk.get("x", 0))
                     bk["y"] = _ry(bk.get("y", 0))
 
-                for lt in m.get("lights", []):
-                    lt["x"] = _rx(lt.get("x", 0))
-                    lt["y"] = _ry(lt.get("y", 0))
 
                 for b in m.get("room_bounds", {}).values():
                     if isinstance(b, dict):
@@ -735,9 +674,6 @@ class MapsStore:
             bk["x"] = _rx(bk.get("x", 0))
             bk["y"] = _ry(bk.get("y", 0))
 
-        for lt in m.get("lights", []):
-            lt["x"] = _rx(lt.get("x", 0))
-            lt["y"] = _ry(lt.get("y", 0))
 
         for b in m.get("room_bounds", {}).values():
             if isinstance(b, dict):
@@ -807,9 +743,6 @@ class MapsStore:
             bk["x"] = _ux(bk.get("x", 0))
             bk["y"] = _uy(bk.get("y", 0))
 
-        for lt in m.get("lights", []):
-            lt["x"] = _ux(lt.get("x", 0))
-            lt["y"] = _uy(lt.get("y", 0))
 
         for b in m.get("room_bounds", {}).values():
             if isinstance(b, dict):

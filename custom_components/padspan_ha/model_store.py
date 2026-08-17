@@ -161,6 +161,60 @@ DEFAULT_DATA: dict[str, Any] = {
 }
 
 
+# ── Light pin appearance ─────────────────────────────────────────────────────
+# A placed light's marker: colour, shape, rotation, real-world footprint. This
+# validation lived on the per-photo light list, which nothing writes any more;
+# it belongs on the one write path a light has — metres in the fabric.
+_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+# The marker vocabulary. This is the SAME list as LIGHT_SHAPES in
+# views/light_codes.js — the reflected-ceiling-plan symbols the renderer
+# draws — and tests/test_fabric_lights.py holds the two together. The list
+# this replaced (rect, pill, octagon, star, bulb…) was a different vocabulary
+# from the one the frontend had ever drawn, and would have turned every
+# "bar" strip and "pendant" into a circle on the way in.
+LIGHT_PIN_SHAPES = (
+    "auto", "hex", "circle", "bar", "line", "square", "fan",
+    "pendant", "sconce", "chandelier", "triangle", "diamond",
+)
+LIGHT_PIN_DEFAULT_SHAPE = "hex"
+LIGHT_PIN_DEFAULT_COLOR = "#fbbf24"
+LIGHT_PIN_DEFAULT_SIZE_CM = 15.0
+
+
+def light_appearance(*, color: Any = "", shape: Any = "", rotation: Any = 0.0,
+                     width_cm: Any = None, height_cm: Any = None) -> dict[str, Any]:
+    """Normalise a light marker's appearance to what the fabric stores.
+
+    Colour is a 6-digit hex or the default; shape is one of LIGHT_PIN_SHAPES
+    or the default fixture hex; rotation is folded into [0, 360); the
+    footprint is clamped to 1-1000 cm and defaults to 15 cm a side. An
+    explicit zero size clamps to 1 cm rather than silently defaulting — the
+    caller said zero, not nothing.
+    """
+    c = str(color or "").strip()
+    sh = str(shape or LIGHT_PIN_DEFAULT_SHAPE).strip().lower()
+
+    def _size(v: Any) -> float:
+        if v is None or v == "":
+            return LIGHT_PIN_DEFAULT_SIZE_CM
+        try:
+            return max(1.0, min(1000.0, float(v)))
+        except (TypeError, ValueError):
+            return LIGHT_PIN_DEFAULT_SIZE_CM
+
+    try:
+        rot = float(rotation or 0.0) % 360.0
+    except (TypeError, ValueError):
+        rot = 0.0
+    return {
+        "color": c if _HEX_COLOR_RE.match(c) else LIGHT_PIN_DEFAULT_COLOR,
+        "shape": sh if sh in LIGHT_PIN_SHAPES else LIGHT_PIN_DEFAULT_SHAPE,
+        "rotation": rot,
+        "width_cm": _size(width_cm),
+        "height_cm": _size(height_cm),
+    }
+
+
 @dataclass
 class ModelStore:
     hass: HomeAssistant
@@ -987,7 +1041,7 @@ class ModelStore:
         color: str = "", shape: str = "", rotation: float = 0.0,
         width_cm: float = 0.0, height_cm: float = 0.0, label: str = "",
     ) -> None:
-        """Place a light in real-world metres."""
+        """Place a light in real-world metres — the only way a light is placed."""
         fab = getattr(self, "fabric", None)
         if not fab:
             return
@@ -995,16 +1049,8 @@ class ModelStore:
             "x_m": round(float(x_m), 3), "y_m": round(float(y_m), 3),
             "floor_id": str(floor_id or DEFAULT_FLOOR_ID),
         }
-        if color:
-            entry["color"] = str(color)[:9]
-        if shape:
-            entry["shape"] = str(shape)[:20]
-        if rotation:
-            entry["rotation"] = float(rotation)
-        if width_cm:
-            entry["width_cm"] = float(width_cm)
-        if height_cm:
-            entry["height_cm"] = float(height_cm)
+        entry.update(light_appearance(color=color, shape=shape, rotation=rotation,
+                                      width_cm=width_cm, height_cm=height_cm))
         if label:
             entry["label"] = str(label)[:120]
         await fab.async_spatial_update(set_lights={str(entity_id): entry}, op="light_set")

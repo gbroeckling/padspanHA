@@ -1,9 +1,9 @@
-"""Unit tests for the PadSpan Pro licence gate on Lights map placement.
+"""The PadSpan Pro licence gate, and where light placement is (not) written.
 
-Exercises the real code path exposed to the frontend: the
-`padspan_ha/maps_update` websocket handler must silently drop an incoming
-`lights` payload (and tell the client via `lights_blocked`) unless a PadSpan
-Pro licence key is active — mirroring the existing Forensics gate.
+`_padspan_pro_active` is the single gate for every Pro feature. Light
+placement is gated on its real write path — `fabric_light_position_set` /
+`fabric_light_remove`, see test_fabric_lights.py — and the per-photo `lights`
+list that maps_update used to accept is gone.
 """
 
 from __future__ import annotations
@@ -87,73 +87,28 @@ def test_padspan_pro_active_true_when_key_set() -> None:
 
 
 @pytest.mark.asyncio
-async def test_maps_update_blocks_lights_without_pro_licence(tmp_path: Path) -> None:
+async def test_maps_update_no_longer_writes_lights_at_all(tmp_path: Path) -> None:
+    """A light is placed in metres (fabric_light_position_set, Pro-gated
+    there). The per-photo `lights` list on a map was the old write path; the
+    UI stopped sending it when lights moved to metres, and the licence gate
+    that lived on it guarded nothing. maps_update ignores the key now, and a
+    map is created without one."""
     maps_store = _make_maps_store(tmp_path)
     info = await maps_store.async_add_map(
         name="Kitchen", filename="k.png", mime="image/png",
         width=100, height=100, png_base64=_small_png_b64(),
     )
-    hass = _make_hass(maps_store, licence_key="")  # no licence
+    assert "lights" not in maps_store.get_map(info["id"])
+    hass = _make_hass(maps_store, licence_key="PSPAN-AAAA-BBBB-CCCC-DDDD")  # even WITH a licence
     connection = _make_connection()
-
-    await ws.ws_maps_update(hass, connection, {
-        "id": 1,
-        "map_id": info["id"],
-        "lights": [{"entity_id": "light.kitchen", "x": 0.5, "y": 0.5}],
-    })
-
-    connection.send_error.assert_not_called()
-    connection.send_result.assert_called_once()
-    _msg_id, payload = connection.send_result.call_args[0]
-    assert payload["lights_blocked"] is True
-    assert payload["map"]["lights"] == []  # write was dropped, not just flagged
-    assert maps_store.get_map(info["id"])["lights"] == []
-
-
-@pytest.mark.asyncio
-async def test_maps_update_allows_lights_with_pro_licence(tmp_path: Path) -> None:
-    maps_store = _make_maps_store(tmp_path)
-    info = await maps_store.async_add_map(
-        name="Kitchen", filename="k.png", mime="image/png",
-        width=100, height=100, png_base64=_small_png_b64(),
-    )
-    hass = _make_hass(maps_store, licence_key="PSPAN-AAAA-BBBB-CCCC-DDDD")
-    connection = _make_connection()
-
     await ws.ws_maps_update(hass, connection, {
         "id": 1,
         "map_id": info["id"],
         "lights": [{"entity_id": "light.kitchen", "x": 0.25, "y": 0.75}],
-    })
-
-    connection.send_error.assert_not_called()
-    _msg_id, payload = connection.send_result.call_args[0]
-    assert payload["lights_blocked"] is False
-    assert len(payload["map"]["lights"]) == 1
-    saved = maps_store.get_map(info["id"])["lights"][0]
-    assert saved["entity_id"] == "light.kitchen"
-    assert saved["x"] == pytest.approx(0.25)
-    assert saved["y"] == pytest.approx(0.75)
-
-
-@pytest.mark.asyncio
-async def test_maps_update_without_lights_key_is_unaffected_by_pro_gate(tmp_path: Path) -> None:
-    """A save that doesn't touch `lights` at all must not be blocked or flagged oddly."""
-    maps_store = _make_maps_store(tmp_path)
-    info = await maps_store.async_add_map(
-        name="Kitchen", filename="k.png", mime="image/png",
-        width=100, height=100, png_base64=_small_png_b64(),
-    )
-    hass = _make_hass(maps_store, licence_key="")
-    connection = _make_connection()
-
-    await ws.ws_maps_update(hass, connection, {
-        "id": 1,
-        "map_id": info["id"],
         "notes": "just a note",
     })
-
     connection.send_error.assert_not_called()
     _msg_id, payload = connection.send_result.call_args[0]
-    assert payload["lights_blocked"] is False
+    assert "lights_blocked" not in payload
+    assert "lights" not in maps_store.get_map(info["id"])
     assert payload["map"]["notes"] == "just a note"

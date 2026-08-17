@@ -41,9 +41,14 @@ def _mdl(transforms: dict | None = None) -> ModelStore:
     return m
 
 
-def _hass(mdl):
+def _hass(mdl, *, pro: bool = True):
+    """Light placement is PadSpan Pro editing; the tests here exercise the
+    placement itself, so they carry a licence unless told not to."""
+    from types import SimpleNamespace
+    from custom_components.padspan_ha.const import DATA_SETTINGS
     h = MagicMock()
-    h.data = {DOMAIN: {DATA_MODEL: mdl}}
+    settings = SimpleNamespace(data={"forensics_license_key": "PSPAN-TEST" if pro else ""})
+    h.data = {DOMAIN: {DATA_MODEL: mdl, DATA_SETTINGS: settings}}
     return h
 
 
@@ -156,3 +161,53 @@ def test_the_panel_copies_every_key_the_model_payload_sends() -> None:
     from tests.test_model_get_floor_payload import test_the_panel_keeps_every_key_model_get_sends
 
     test_the_panel_keeps_every_key_model_get_sends()
+
+
+@pytest.mark.asyncio
+async def test_light_placement_is_pro_editing_on_the_metre_path() -> None:
+    """The gate used to sit on the per-photo light list in maps_update, which
+    the UI stopped writing when lights moved to metres — so the licence
+    guarded a path nothing used while the live one was open."""
+    mdl, fab = _mdl(), _fab()
+    mdl.fabric = fab
+    conn = MagicMock()
+    await ws_fabric_light_position_set(_hass(mdl, pro=False), conn, {
+        "id": 1, "entity_id": "light.kitchen", "x_m": 1.0, "y_m": 2.0, "floor_id": "main",
+    })
+    conn.send_error.assert_called_once()
+    assert conn.send_error.call_args[0][1] == "pro_required"
+    assert mdl.light_positions_m() == {}
+    conn2 = MagicMock()
+    await ws_fabric_light_remove(_hass(mdl, pro=False), conn2, {"id": 2, "entity_id": "light.kitchen"})
+    assert conn2.send_error.call_args[0][1] == "pro_required"
+
+
+@pytest.mark.asyncio
+async def test_a_lights_appearance_is_normalised_on_the_way_in() -> None:
+    """Colour, shape, rotation and footprint validation moved here from the
+    per-photo list: a bad colour falls back, an unknown shape is a circle, a
+    legacy 'square' is a rect, rotation folds, size clamps, default 15 cm."""
+    from custom_components.padspan_ha.model_store import light_appearance
+    a = light_appearance(color="not-a-colour", shape="bar", rotation=405, width_cm=5000, height_cm=None)
+    assert a == {"color": "#fbbf24", "shape": "bar", "rotation": 45.0, "width_cm": 1000.0, "height_cm": 15.0}
+    b = light_appearance(color="#12ab34", shape="pendant", rotation=0, width_cm=0, height_cm=0.2)
+    assert b["color"] == "#12ab34" and b["shape"] == "pendant"
+    assert b["width_cm"] == 1.0 and b["height_cm"] == 1.0   # explicit zero clamps, not defaults
+    assert light_appearance(shape="warp-core")["shape"] == "hex"
+
+
+def test_the_backend_shape_vocabulary_is_the_renderers() -> None:
+    """The list this replaced (rect, pill, octagon, star, bulb…) was a
+    vocabulary the frontend had never drawn; it would have turned every
+    'bar' strip and 'pendant' into a circle on the way in. The backend
+    accepts exactly what views/light_codes.js LIGHT_SHAPES offers."""
+    import re
+    from pathlib import Path
+    from custom_components.padspan_ha.model_store import LIGHT_PIN_SHAPES
+    js = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+          / "www" / "padspan-ha" / "views" / "light_codes.js").read_text(encoding="utf-8")
+    block = js[js.index("export const LIGHT_SHAPES = ["):]
+    block = block[:block.index("];")]
+    front = re.findall(r'\["([a-z_]+)",', block)
+    assert front, "could not read LIGHT_SHAPES from light_codes.js"
+    assert set(front) == set(LIGHT_PIN_SHAPES), (sorted(front), sorted(LIGHT_PIN_SHAPES))

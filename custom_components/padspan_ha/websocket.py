@@ -4089,11 +4089,6 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
         return
     map_id = msg.get("map_id")
 
-    _lights = msg.get("lights")
-    _lights_blocked = _lights is not None and not _padspan_pro_active(hass)
-    if _lights_blocked:
-        _lights = None
-
     # Enforce single Outside map when changing floor_id
     new_floor_id = msg.get("floor_id")
     if new_floor_id == OUTSIDE_FLOOR_ID:
@@ -4133,7 +4128,6 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
             room_bounds=_incoming_rb,
             rf_barriers=msg.get("rf_barriers"),
             stack=msg.get("stack"),
-            lights=_lights,
         )
     except KeyError:
         connection.send_error(msg["id"], "not_found", "Map not found")
@@ -4208,7 +4202,7 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
         except Exception:
             pass  # best-effort
 
-    connection.send_result(msg["id"], {"map": updated, "lights_blocked": _lights_blocked})
+    connection.send_result(msg["id"], {"map": updated})
 
 
 @websocket_api.websocket_command(
@@ -9608,7 +9602,15 @@ async def ws_fabric_scanner_remove(hass: HomeAssistant, connection, msg) -> None
 )
 @websocket_api.async_response
 async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> None:
-    """Place a light in real-world metres. No photo involved."""
+    """Place a light in real-world metres. No photo involved.
+
+    PadSpan Pro editing. The gate used to sit on the per-photo light list in
+    maps_update, which the UI stopped writing when lights moved to metres —
+    so the licence guarded a path nothing used while the live one was open.
+    """
+    if not _padspan_pro_active(hass):
+        connection.send_error(msg["id"], "pro_required", "Light placement is a PadSpan Pro feature")
+        return
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
         connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
@@ -9638,7 +9640,10 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
 )
 @websocket_api.async_response
 async def ws_fabric_light_remove(hass: HomeAssistant, connection, msg) -> None:
-    """Un-place a light (it returns to automatic room clustering)."""
+    """Un-place a light (it returns to automatic room clustering). Pro editing."""
+    if not _padspan_pro_active(hass):
+        connection.send_error(msg["id"], "pro_required", "Light placement is a PadSpan Pro feature")
+        return
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
         connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
