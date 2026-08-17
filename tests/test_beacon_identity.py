@@ -173,3 +173,20 @@ def test_only_the_first_poll_of_an_unknown_rotator_can_split():
     second = ["2C:00:00:00:00:03", "2D:00:00:00:00:04"]
     d1 = decide_split(second, set(first), all_rpa=False, default_uuid=False, same_oui=False)
     assert d1.split is False, d1.reason
+
+
+# ── Rotation bridging only ever crosses a hand-over ─────────────────────────
+
+
+def test_a_bridge_needs_the_old_address_to_have_stopped() -> None:
+    """Four CP27 beacons (48:87:2D:…, one fingerprint, advertising every
+    second) were chained into one object because the bridge never checked
+    that the address it bridged FROM had gone silent. Two addresses live at
+    once are two devices, whatever their fingerprints say."""
+    from custom_components.padspan_ha.beacon_identity import rotation_bridge_allowed
+
+    assert rotation_bridge_allowed(None).split is False          # old address gone
+    assert rotation_bridge_allowed(12.0).split is False          # silent — a hand-over
+    assert rotation_bridge_allowed(1.0).split is True            # still advertising
+    assert rotation_bridge_allowed(5.0).split is True            # at the line: not silent yet
+    assert "two devices" in rotation_bridge_allowed(0.0).reason

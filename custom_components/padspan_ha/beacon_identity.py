@@ -119,3 +119,35 @@ def decide_split(
     if all_rpa:
         return SplitDecision(False, "first sighting, all addresses look private")
     return SplitDecision(True, "first sighting, addresses do not look private")
+
+
+# ── Rotation bridging: only ever across a hand-over ─────────────────────────
+#
+# Bridging links a NEW address to an identified one that has DISAPPEARED, on
+# the strength of a matching advertisement fingerprint. The fingerprint is
+# weak evidence — a multi-pack shares one — and the RPA heuristic it is gated
+# on false-positives on public OUIs in 0x40-0x7F. What makes a hand-over a
+# hand-over is that the old address STOPS: a phone never advertises from two
+# addresses at once. So the one thing a bridge must check is that the address
+# it is bridging from has gone silent. Four CP27 beacons (48:87:2D:…, one
+# fingerprint, all advertising every second) were chained into one object
+# because it did not: the object's vector alternated between two closets and
+# the room vote "flipped" between two beacons taking turns.
+#
+# Five seconds: a beacon at any sane interval is heard inside that; an
+# address that has stopped ages past it on the very next poll.
+BRIDGE_MIN_SILENCE_S = 5.0
+
+
+def rotation_bridge_allowed(old_age_s: float | None, *, min_silence_s: float = BRIDGE_MIN_SILENCE_S) -> SplitDecision:
+    """May a new address be bridged onto an identity whose last address has age old_age_s?
+
+    old_age_s is None when the old address is no longer in the snapshot at
+    all — the clearest hand-over there is. Returns SplitDecision with
+    split=True meaning "these are two devices — do NOT bridge".
+    """
+    if old_age_s is None:
+        return SplitDecision(False, "old address gone — hand-over")
+    if old_age_s > min_silence_s:
+        return SplitDecision(False, f"old address silent {old_age_s:.0f}s — hand-over")
+    return SplitDecision(True, f"old address still advertising ({old_age_s:.0f}s ago) — two devices")

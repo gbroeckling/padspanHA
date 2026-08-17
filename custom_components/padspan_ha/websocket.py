@@ -70,9 +70,9 @@ from .fabric_truth import (
 from .build_info import BUILD_ID, BUILD_VERSION
 from .bluetooth_live import get_bluetooth_live
 from .vendor_lookup import async_lookup_vendor
-from .private_ble_resolver import get_resolver as _get_ble_resolver
+from .private_ble_resolver import PrivateBLEResolver, get_resolver as _get_ble_resolver
 from .ingest_policy import Identity as _IngestIdentity, IngestPolicy
-from .beacon_identity import decide_split as _decide_beacon_split
+from .beacon_identity import decide_split as _decide_beacon_split, rotation_bridge_allowed
 from .ble_enrichment import enrich_object as _enrich_ble_object
 from .presence_rules import away_timeout_s, is_away
 
@@ -1410,8 +1410,21 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     del _bridge_cache[_sk]
 
                 def _build_bridge_fingerprint(rec: dict) -> str | None:
-                    """Build a fingerprint from advertisement characteristics."""
+                    """Build a fingerprint from advertisement characteristics.
+
+                    None for an advertiser that names its own identity: an
+                    iBeacon carries UUID/major/minor, and iBeacon grouping —
+                    with the persistence-based pack/rotator split — owns that
+                    identity. Bridging those by fingerprint duplicated that
+                    machinery with a weaker test and, on a four-pack of CP27s
+                    sharing one fingerprint, chained live beacons into one
+                    object; and once bridged they were EXCLUDED from iBeacon
+                    grouping as "IRK-resolved", so the right identity never
+                    got its turn.
+                    """
                     manuf = rec.get("manufacturer_data") or {}
+                    if manuf and PrivateBLEResolver.parse_ibeacon(manuf):
+                        return None  # an iBeacon has an identity; the bridge is for anonymous rotators
                     company_ids = sorted(str(k) for k in manuf.keys()) if manuf else []
                     svc_uuids = sorted(rec.get("service_uuids") or [])
                     connectable = rec.get("connectable")
@@ -1483,6 +1496,16 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                         # Previously-fired bridge: fall through and re-apply
                         # the canonical mapping (canonical_by_addr is rebuilt
                         # from scratch every snapshot).
+                    else:
+                        # A bridge is a HAND-OVER: the address it bridges from
+                        # must have stopped. Two addresses live at once are two
+                        # devices, whatever their fingerprints say — see
+                        # beacon_identity.rotation_bridge_allowed.
+                        _old_rec = ble_by_addr.get(cached_entry["addr"])
+                        _old_age = _old_rec.get("age_s") if _old_rec else None
+                        if rotation_bridge_allowed(
+                                _old_age if isinstance(_old_age, (int, float)) else None).split:
+                            continue
                     # Sources is a dict {source_name: {rssi, age_s}} at this point
                     # Bridge if fingerprint matches (RSSI overlap is best-effort)
                     canonical_by_addr[addr] = {
