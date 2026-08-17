@@ -51,6 +51,7 @@ from .const import (
     DATA_PANEL_REGISTERED,
     DATA_DEVICE_REGISTRY,
     DATA_FORENSICS,
+    DATA_CAPTURE,
 )
 from .adaptive_store import AdaptiveStore
 from .device_registry import DeviceRegistry
@@ -151,6 +152,13 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
         await fs_store.async_load()
         return (DATA_FORENSICS, fs_store, f"ForensicsStore ready ({len(fs_store.addrs)} addresses)")
 
+    async def _init_capture():
+        from .capture_store import CaptureStore
+        cap_store = CaptureStore(hass)
+        await cap_store.async_load()
+        return (DATA_CAPTURE, cap_store,
+                f"CaptureStore ready ({len(cap_store.data.get('sessions') or [])} sessions)")
+
     async def _init_adaptive():
         ad_store = AdaptiveStore(hass)
         await ad_store.async_load()
@@ -225,6 +233,8 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
         deferred.append(_init_movement())
     if DATA_FORENSICS not in hass.data[DOMAIN]:
         deferred.append(_init_forensics())
+    if DATA_CAPTURE not in hass.data[DOMAIN]:
+        deferred.append(_init_capture())
     if DATA_ADAPTIVE not in hass.data[DOMAIN]:
         deferred.append(_init_adaptive())
     if DATA_CALIBRATION not in hass.data[DOMAIN]:
@@ -691,5 +701,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.debug("Traceback flushed to disk (%d frames)", len(_tb.frames))
     except Exception as err:
         _LOGGER.debug("Traceback flush error: %s", err)
+
+    # Close any running capture session — an unload it did not hear about
+    # would leave the manifest row open and its last frames unflushed
+    try:
+        _cap = hass.data.get(DOMAIN, {}).get(DATA_CAPTURE)
+        if _cap is not None and _cap.recording:
+            await _cap.async_stop(reason="unload")
+            _LOGGER.debug("Capture session closed on unload")
+    except Exception as err:
+        _LOGGER.debug("Capture teardown error: %s", err)
 
     return unload_ok

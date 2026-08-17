@@ -10,6 +10,13 @@ This file is a **“why + how” memory dump** so future-you (or another maintai
 
 If you are reading this after a long break, start here, then follow the numbered docs in this folder.
 
+> **Note (2026-08-16).** Sections below still describe the v0.4-era shape.
+> The current doctrine — the metric fabric as the single source of truth, the
+> FabricStore/ModelStore split, and the floor stack — is in
+> [`03_MAPPING_SUITE.md`](03_MAPPING_SUITE.md).
+> Before changing anything, read [`09_HARD_WON_RULES.md`](09_HARD_WON_RULES.md):
+> eleven rules, each one paid for by a shipped bug.
+
 ---
 
 ## 1) Project goal in plain language

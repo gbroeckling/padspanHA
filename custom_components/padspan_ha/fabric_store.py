@@ -383,6 +383,36 @@ class FabricStore:
         await self.store.async_save(self.data)
         return {"ok": True, "floor_id": fl, "room": room, "revision": revision}
 
+    async def async_remove_room(self, room: str) -> dict[str, Any]:
+        """Delete a room's real-world shape.  The counterpart to correction.
+
+        There was no way to do this. `fabric_room_remove` removed a room from
+        room_meta, adjacency and the scanner map — all of which live in the
+        ModelStore blob — and left `room_geometry_m` untouched, because that
+        moved to the fabric and the handler was never updated. The room
+        therefore kept its shape: it went on drawing on the map, went on
+        appearing in `_fabric_rooms`, and went on being a candidate the
+        positioning pipeline could pick. Deleting a room did nothing a user
+        could see, which is exactly how it was reported.
+
+        Geometry is the room. Removing it here is what makes the delete real.
+        """
+        room = str(room or "").strip()
+        if not room:
+            return {"ok": False, "error": "invalid_room"}
+        fl = self._find_room_floor(room)
+        if fl is None:
+            # Nothing to remove is a successful delete, not a failure — the
+            # caller is also clearing metadata and must not be stopped.
+            return {"ok": True, "room": room, "removed": False}
+        floor = (self.data.get("floors") or {}).get(fl) or {}
+        rooms = floor.get("rooms") or {}
+        prev = rooms.pop(room, None)
+        revision = (int(prev.get("revision", 0)) + 1) if isinstance(prev, dict) else 1
+        self._log_history(fl, room, "remove", revision)
+        await self.store.async_save(self.data)
+        return {"ok": True, "room": room, "floor_id": fl, "removed": True}
+
     # ── Committed flag (metadata only — never geometry) ──────────────────────
 
     async def async_set_floor_committed(self, floor_id: str, committed: bool) -> dict[str, Any]:

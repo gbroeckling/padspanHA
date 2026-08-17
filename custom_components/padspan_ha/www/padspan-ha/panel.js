@@ -23,7 +23,22 @@ If UI changes don't show:
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
 const APP_VERSION = "0.33.2";
-const BUILD_ID = "20260816T234608Z";
+const RELEASE_BUILD_ID = "20260816T234608Z";
+// The stamp the views are actually loaded with.
+//
+// This was the release literal above, so every view URL stayed frozen between
+// releases — a browser kept serving `overview.js?b=<last release>` however
+// many times that file changed on disk. panel.py now stamps OUR url with a
+// digest of the frontend tree (build_info.ASSET_ID), so reading it back here
+// makes every view inherit a stamp that moves whenever a file does. The
+// literal remains the fallback for anything that loads this module directly.
+const BUILD_ID = (() => {
+  try {
+    return new URL(import.meta.url).searchParams.get("b") || RELEASE_BUILD_ID;
+  } catch (e) {
+    return RELEASE_BUILD_ID;
+  }
+})();
 const CHANNEL = "beta";
 
 // ── Dynamic view imports ─────────────────────────────────────────────────────
@@ -185,6 +200,27 @@ function esc(s){
 }
 
 /** Convenience DOM builder: el("div", {class:"foo", onclick:fn}, ["text", childNode]) */
+/**
+ * Human-readable age, e.g. "42s", "3m 10s", "2d 4h".
+ *
+ * This was a local of _showObjectDetail while _showRoomDetail called it as if
+ * it were shared — a ReferenceError on every click of an occupied room, and
+ * invisible because the modal simply never opened. It is shared now, which is
+ * what both callers always assumed.
+ */
+function fmtAgo(age_s){
+  const s = Number(age_s);
+  if(!isFinite(s)) return "—";
+  if(s < 1) return "<1s";
+  if(s < 60) return `${Math.round(s)}s`;
+  const m = Math.floor(s/60), rs = Math.round(s - m*60);
+  if(m < 60) return `${m}m ${rs}s`;
+  const h = Math.floor(m/60), rm = m - h*60;
+  if(h < 24) return `${h}h ${rm}m`;
+  const d = Math.floor(h/24), rh = h - d*24;
+  return `${d}d ${rh}h`;
+}
+
 function el(tag, attrs={}, children=[]){
   const n=document.createElement(tag);
   for(const [k,v] of Object.entries(attrs||{})) {
@@ -1870,18 +1906,6 @@ class PadSpanHaApp extends HTMLElement {
                   : addr;
     const canRename = (kind==="ble"||kind==="private_ble"||kind==="ibeacon") && !!tagAddr;
 
-    const fmtAgo = (age_s) => {
-      const s = Number(age_s);
-      if(!isFinite(s)) return "—";
-      if(s < 1) return "<1s";
-      if(s < 60) return `${Math.round(s)}s`;
-      const m = Math.floor(s/60), rs = Math.round(s - m*60);
-      if(m < 60) return `${m}m ${rs}s`;
-      const h = Math.floor(m/60), rm = m - h*60;
-      if(h < 24) return `${h}h ${rm}m`;
-      const d = Math.floor(h/24), rh = h - d*24;
-      return `${d}d ${rh}h`;
-    };
 
     const body = el("div", {style:"display:flex;flex-direction:column;gap:14px"});
 

@@ -153,6 +153,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "distortion_map_enabled": False,        # calibration disagreement visualization
     "compass_ring_enabled": False,          # structured rotate-in-place calibration protocol
     "replay_timeline_enabled": False,       # movement replay with scoring explainability
+    # ── RSSI vector capture (off by default) ─────────────────────────────────
+    # Records the full per-scanner RSSI vector for tracked objects, plus the
+    # room the pipeline chose, so a trace can be replayed offline against
+    # changed code.  Session-scoped: nothing is written until an operator
+    # starts a recording, and a session is capped at 60 minutes and 25 MB.
+    "rssi_capture_enabled": False,
+    "rssi_capture_retention_days": 14,      # allowed: 1, 3, 7, 14, 30
 }
 
 

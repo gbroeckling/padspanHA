@@ -103,7 +103,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import (
     DOMAIN, DATA_SETTINGS, DATA_CALIBRATION, DATA_ADAPTIVE, DATA_MODEL,
-    DATA_OBJECTS, OUTSIDE_FLOOR_ID,
+    DATA_OBJECTS, DATA_CAPTURE, OUTSIDE_FLOOR_ID,
     DEFAULT_KALMAN_Q, DEFAULT_KALMAN_R,
     DEFAULT_REF_POWER, DEFAULT_PATH_LOSS_EXP, DEFAULT_ROOM_SIGMA_M,
 )
@@ -858,6 +858,21 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         source_to_floor: dict[str, str] = {}
         _model = self.hass.data.get(DOMAIN, {}).get(DATA_MODEL)
         if _model:
+            # The building's floors come from the HA floor registry, and the
+            # positioning side needs them PERSISTED — floor_stack_index reads
+            # the stored list, not the panel's live view of the registry, and
+            # an unsynced list makes every storey collapse onto one slab.
+            # Idempotent: it only writes when the set actually changed.
+            try:
+                from homeassistant.helpers import floor_registry as _fr_helper  # noqa: PLC0415
+                _fr = _fr_helper.async_get(self.hass)
+                await _model.async_sync_floors([
+                    {"id": f.floor_id, "name": f.name, "level": getattr(f, "level", None)}
+                    for f in _fr.async_list_floors()
+                ])
+            except Exception as _fl_err:
+                _LOGGER.debug("Floor registry sync: %s", _fl_err)
+
             # In auto mode, sync snapshot radios into the fabric
             _radios = (snap.get("ble") or {}).get("radios") or []
             if _model.sync_mode() == "auto" and _radios:
@@ -1156,6 +1171,30 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         else:
             await self.hass.loop.run_in_executor(
                 self._compute_executor_for(_cpu_mode), _object_loop)
+
+        # ── RSSI vector capture (opt-in, session-scoped, off by default) ─────
+        # Observer only: it reads this poll's finished state and writes it to a
+        # session file.  Nothing here feeds back into positioning, and when no
+        # session is running the cost is one dict lookup and one bool read.
+        #
+        # It sits here rather than inside _object_loop for two reasons: one
+        # site covers all three object kinds, and this is the event loop —
+        # inside the loop we may be on the compute executor, where awaiting a
+        # flush is not legal.
+        _cap = self.hass.data.get(DOMAIN, {}).get(DATA_CAPTURE)
+        if _cap is not None and _cap.recording:
+            try:
+                _st_f = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+                _followed_addrs = set((_st_f.data if _st_f else {}).get("followed_addrs") or [])
+                _cap.record_frame(
+                    result, addr_src_rssi, _rpa_map,
+                    source_to_area, source_to_floor,
+                    poll_s=self.update_interval.total_seconds(),
+                    vote_window=_dyn_vote_window, vote_threshold=_dyn_vote_threshold,
+                    pinned=_pinned, followed=_followed_addrs, coord=self)
+                await _cap.async_maybe_flush()
+            except Exception as err:
+                _LOGGER.debug("Capture frame failed: %s", err)
 
         # ── Auto-calibration from pinned beacons ─────────────────────────────
         if _pinned:
@@ -2455,6 +2494,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._device_floor.pop(key, None)
         self._alert_last_sent.pop(key, None)
         self._last_candidate.pop(key, None)
+        self._spatial_debug.pop(key, None)
         self._ema_rssi.pop(key, None)
         self._kalman_p.pop(key, None)
         self._silence_miss.pop(key, None)

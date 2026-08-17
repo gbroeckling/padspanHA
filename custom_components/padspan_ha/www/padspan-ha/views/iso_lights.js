@@ -370,17 +370,57 @@ export function fabricFrame(model, floors, floorGap, horizGap){
   for (const lp of Object.values((model && model.light_positions_m) || {})) {
     if (lp && typeof lp === "object") fabricFloorIds.add(canon(lp.floor_id));
   }
+  // Conventional storeys, for the registry that never got filled in. Mirrors
+  // ModelStore._CONVENTIONAL_LEVEL — the backend owns this rule for the RF
+  // slab count, and the drawing has to agree with it or the picture and the
+  // physics describe different buildings.
+  //
+  // Ranking undeclared floors by NAME was the bug: a registry holding only
+  // "main" put main at 0 and then sorted the rest alphabetically after it, so
+  // a house with a basement and an upper floor came out
+  // main=0, __outside__=1, basement=2, upper=3 — the basement drawn above the
+  // main floor, the garden between them, and the top floor floating three
+  // slabs up. The stack was also one storey taller than the house, which
+  // stretched the fitted frame vertically and left dead space at the sides.
+  const CONVENTIONAL = {
+    subbasement:-2, sub_basement:-2, cellar:-1, basement:-1, lower:-1, downstairs:-1,
+    ground:0, main:0, first:0, mainfloor:0, main_floor:0,
+    upper:1, upstairs:1, second:1, middle:1,
+    third:2, loft:2, attic:3, roof:4,
+  };
+  const conventional = (id) => {
+    const k = String(id || "").trim().toLowerCase().replace(/\s+/g, "_");
+    return Object.prototype.hasOwnProperty.call(CONVENTIONAL, k) ? CONVENTIONAL[k] : null;
+  };
   const ranked = (() => {
     const regIds = floorList.map(f => String(f.id));
     if (floorList.length && floorList.every(f => num(f.level) !== null)) return null;  // explicit levels win
-    const extra = [...fabricFloorIds].filter(id => !regIds.includes(id)).sort();
+    const extra = [...fabricFloorIds].filter(id => !regIds.includes(id));
     const ids = [...regIds, ...extra];
     const elev = ids.map(id => num(elevations[id]));
     const useElev = elev.some(v => v !== null) && new Set(elev).size > 1;
-    const order = ids.map((id, i) => ({ id, key: useElev ? (elev[i] ?? 0) : i }))
-      .sort((a, b) => a.key - b.key);
+    // Priority: a measured elevation, then the storey a name denotes, then
+    // registry order — and outdoors sits at ground level, because it does.
+    const keyOf = (id, i) => {
+      if (useElev && elev[i] !== null) return elev[i];
+      const f = floorList.find(x => String(x.id) === id);
+      const lvl = f ? num(f.level) : null;
+      if (lvl !== null) return lvl;
+      if (id === "__outside__" || id === "outside") return 0;
+      const conv = conventional(id);
+      return conv !== null ? conv : i;
+    };
+    const order = ids.map((id, i) => ({ id, key: keyOf(id, i), i }))
+      .sort((a, b) => (a.key - b.key) || (a.i - b.i));
     const out = {};
-    order.forEach((o, i) => { out[o.id] = i; });
+    // Collapse to contiguous slab indices: two floors that share a storey
+    // (the garden and the ground floor) must share a slab, not be pushed apart.
+    let slab = -1, prevKey = null;
+    for (const o of order) {
+      if (prevKey === null || o.key !== prevKey) slab++;
+      prevKey = o.key;
+      out[o.id] = slab;
+    }
     return out;
   })();
   const levelOf = (fidRaw) => {
@@ -440,38 +480,62 @@ export function fabricFrame(model, floors, floorGap, horizGap){
   minX-=padM; minY-=padM; maxX+=padM; maxY+=padM;
   const mx=(minX+maxX)/2, my=(minY+maxY)/2;
 
-  // Scale from the LARGEST SINGLE FLOOR, not the union of all of them.
-  // Floors are drawn stacked (each centred on itself), so only one floor's
-  // worth of ground is ever on screen at a time. Scaling to the union — which
-  // spans every floor's own band in the metre frame, 51 m here against a 29 m
-  // building — drew everything at half the size it could be, wasting the sides
-  // of the canvas and shrinking every marker with it.
-  let spanX=0, spanY=0;
-  {
-    const per={};
-    const grow2=(z,x,y)=>{ const a=per[z]||(per[z]=[Infinity,Infinity,-Infinity,-Infinity]);
-      if(x<a[0])a[0]=x; if(y<a[1])a[1]=y; if(x>a[2])a[2]=x; if(y>a[3])a[3]=y; };
-    // indoor sets: outdoor rooms are dropped from the map a few lines below,
-    // and letting them size it here is what made the house tiny in the corner.
-    // ROOMS set the scale, not the fixtures in them. A light dragged past its
-    // room's edge used to expand the floor's span, so the whole map rescaled
-    // mid-edit: the fixture landed at the right metres but the drawing shrank
-    // under it, and it appeared to move less than the pointer or spring back.
-    // The building's extent is a property of the building.
-    for(const r of indoorRooms)  for(const p of r.pts) grow2(r.z,p[0],p[1]);
-    if(!indoorRooms.length) for(const l of indoorLights) grow2(l.z,l.x,l.y);
-    for(const a of Object.values(per)){
-      if(!isFinite(a[0])) continue;
-      spanX=Math.max(spanX,(a[2]-a[0])+padM*2);
-      spanY=Math.max(spanY,(a[3]-a[1])+padM*2);
+  // Scale from the whole INDOOR building — every floor at its true position.
+  //
+  // This used to scale to the largest single floor, because each floor was
+  // then drawn centred on itself. Both halves of that were a workaround for a
+  // measurement that no longer exists: the union was "51 m against a 29 m
+  // building" only while OUTDOOR rooms were still in it, and a garden 40 m
+  // down the lot really does dwarf a house. Outdoor is dropped now, and the
+  // indoor union is 33.7 m against the biggest floor's 30.2 — twelve percent,
+  // not seventy-six.
+  //
+  // Meanwhile the per-floor centring was costing the thing the drawing is
+  // for. Floors overlap properly in the fabric on a real install (basement
+  // x -4.3..11.6, main -3.2..16.7, upper 3.4..12.8), so re-centring each one
+  // on its own bounding box SHIFTED them apart: the upper floor moved 5.4 m in
+  // y relative to the main floor under it. In an isometric that shears the
+  // stack — the vertical edges between storeys meet misaligned outlines, so
+  // the building's walls run at different angles on different floors, the
+  // silhouette spreads wider than the house, and a set-back floor reads as a
+  // box floating out of place.
+  //
+  // One building, one origin. A floor that genuinely is set back now looks set
+  // back, because it is.
+  // Fit to the shape that is actually drawn, not to the box around it.
+  //
+  // The isometric of a bounding RECTANGLE is a diamond (spanX+spanY) wide,
+  // and sizing to that assumes the building fills its diamond. No building
+  // does: on a real house the drawing came out 533 px inside a 760 px canvas
+  // with 90 px of margin one side and 137 px the other — a third of the width
+  // unused, and off-centre with it, because the metre-space bbox centre is not
+  // the centre of the projected shape.
+  //
+  // Projecting the room points first and measuring THAT costs one pass over
+  // geometry already in hand, and it cannot over- or under-shoot: u and v are
+  // the isometric axes, so their extents are exactly the drawing's width and
+  // height in unit space.
+  let minU=Infinity, maxU=-Infinity, minV=Infinity, maxV=-Infinity;
+  for(const r of scaleRooms){
+    for(const p of r.pts){
+      const u=(p[0]-mx)-(p[1]-my), v=(p[0]-mx)+(p[1]-my);
+      if(u<minU)minU=u; if(u>maxU)maxU=u;
+      if(v<minV)minV=v; if(v>maxV)maxV=v;
     }
   }
-  if(!(spanX>0)) spanX=Math.max(0.001,maxX-minX);
-  if(!(spanY>0)) spanY=Math.max(0.001,maxY-minY);
+  if(!isFinite(minU)){
+    // No rooms — fall back to the bounding diamond, which is all there is.
+    const sX=Math.max(0.001,maxX-minX), sY=Math.max(0.001,maxY-minY);
+    minU=-(sX+sY)/2; maxU=(sX+sY)/2; minV=-(sX+sY)/2; maxV=(sX+sY)/2;
+  }
+  const spanU = Math.max(0.001, maxU-minU);
+  const spanV = Math.max(0.001, maxV-minV);
+  // Recentre on the DRAWN shape. Without this the projection is centred on the
+  // metre bbox centre, which lands off to one side whenever the footprint is
+  // not symmetric — the uneven margins above.
+  const uMid = (minU+maxU)/2, vMid = (minV+maxV)/2;
 
-  // Pixels per metre, chosen so the diamond footprint fits the canvas. The
-  // iso footprint is (spanX+spanY) wide at 0.866 and tall at 0.5.
-  const S = Math.min((W-90)/((spanX+spanY)*0.866), (BASE_H-260)/((spanX+spanY)*0.5));
+  const S = Math.min((W-90)/(spanU*0.866), (BASE_H-260)/(spanV*0.5));
 
   // Floors are STACKED, not scattered. These floors do not share a footprint
   // in the metre frame — each was built in its own band (upper y≈-21..6, main
@@ -505,38 +569,23 @@ export function fabricFrame(model, floors, floorGap, horizGap){
   const drawRank = new Map(levels.map((z, i) => [z, i]));
   const rankOf = (z) => (drawRank.has(z) ? drawRank.get(z) : z);
 
-  const floorOffset = {};
-  {
-    const per = {};
-    for (const r of rooms)  for (const p of r.pts) {
-      const a = per[r.z] || (per[r.z] = [Infinity,Infinity,-Infinity,-Infinity]);
-      if(p[0]<a[0])a[0]=p[0]; if(p[1]<a[1])a[1]=p[1]; if(p[0]>a[2])a[2]=p[0]; if(p[1]>a[3])a[3]=p[1];
-    }
-    // Fixtures do not move the floor they sit on. A floor with no rooms at all
-    // has nothing else to centre on, so there they still count.
-    const floorsWithRooms = new Set(rooms.map(r => r.z));
-    for (const l of lights) {
-      if (floorsWithRooms.has(l.z)) continue;
-      const a = per[l.z] || (per[l.z] = [Infinity,Infinity,-Infinity,-Infinity]);
-      if(l.x<a[0])a[0]=l.x; if(l.y<a[1])a[1]=l.y; if(l.x>a[2])a[2]=l.x; if(l.y>a[3])a[3]=l.y;
-    }
-    for (const [z,a] of Object.entries(per)) {
-      if(!isFinite(a[0])) continue;
-      floorOffset[z] = [ (a[0]+a[2])/2 - mx, (a[1]+a[3])/2 - my ];
-    }
-  }
-  const off = (z)=>floorOffset[z] || [0,0];
-
+  // One origin for the whole building. Every floor shares (mx, my), so a point
+  // at the same metres on two storeys lands on the same spot on screen and the
+  // stack is a building rather than a pile of independently centred outlines.
+  // Only the storey index moves a floor, and it moves it straight up.
+  // u and v are the two isometric axes. Centring on their midpoints puts the
+  // drawn building in the middle of the canvas rather than wherever its metre
+  // bounding box happened to sit.
   const iso    = (x,y,z)=>{
-    const [ox,oy]=off(z), k=rankOf(z);
-    return [ CX + ((x-ox-mx)-(y-oy-my))*S*0.866 + k*HG,
-             CY + ((x-ox-mx)+(y-oy-my))*S*0.5   - k*FG ];
+    const k=rankOf(z);
+    return [ CX + (((x-mx)-(y-my)) - uMid)*S*0.866 + k*HG,
+             CY + (((x-mx)+(y-my)) - vMid)*S*0.5   - k*FG ];
   };
   const isoInv = (sx,sy,z)=>{
-    const [ox,oy]=off(z), k=rankOf(z);
-    const a=(sx - CX - k*HG)/(S*0.866);
-    const b=(sy - CY + k*FG)/(S*0.5);
-    return [ (a+b)/2 + mx + ox, (b-a)/2 + my + oy ];
+    const k=rankOf(z);
+    const a=(sx - CX - k*HG)/(S*0.866) + uMid;
+    const b=(sy - CY + k*FG)/(S*0.5)   + vMid;
+    return [ (a+b)/2 + mx, (b-a)/2 + my ];
   };
 
   return { rooms, lights, levels, iso, isoInv, rankOf, scale: S,

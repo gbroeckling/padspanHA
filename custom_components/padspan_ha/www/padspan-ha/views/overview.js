@@ -1110,8 +1110,24 @@ export function render(ctx){
         let vx=viewX, vy=viewY, vw=viewW, vh=HTOTAL;
         if(_isoBB && isFinite(_isoBB.minX)){
           const PAD=60;
-          const x0=Math.min(vx, _isoBB.minX-PAD), y0=Math.min(vy, _isoBB.minY-PAD);
-          const x1=Math.max(vx+vw, _isoBB.maxX+PAD), y1=Math.max(vy+vh, _isoBB.maxY+40);
+          // HORIZONTAL: the content decides, not the heuristic.
+          //
+          // This used to take the UNION of the tracked content box and the
+          // heuristic box, so the frame could grow but never tighten — and the
+          // heuristic is W + horizExtra + 60 = 880 units wide whatever the
+          // building measures. A house drawing 670 units across therefore sat
+          // in an 880-unit frame with 210 units of dead air permanently at the
+          // sides, no matter how well the projection had been fitted.
+          //
+          // The legend below the map IS drawn at fixed x (10 to W-10), so it
+          // is included explicitly rather than by keeping a box wide enough to
+          // contain it by accident.
+          const x0=Math.min(_isoBB.minX-PAD, 10);
+          const x1=Math.max(_isoBB.maxX+PAD, W-10);
+          // VERTICAL keeps the union: the legend strip and the floor-gap
+          // growth both live below and above the geometry, and clipping the
+          // stack is a worse failure than a tall frame.
+          const y0=Math.min(vy, _isoBB.minY-PAD), y1=Math.max(vy+vh, _isoBB.maxY+40);
           vx=x0; vy=y0; vw=x1-x0; vh=y1-y0;
         }
         return `<svg viewBox="${vx} ${vy} ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg" width="100%" style="max-height:${Math.round(vh)}px;display:block;font-family:system-ui,sans-serif">`
@@ -1189,9 +1205,24 @@ export function render(ctx){
         const lyrColor = levelColor(z);
         const lidx = sortedIsoLevels.indexOf(z);
 
-        // Bounding box from indoor maps only; outside maps render as overlay inside
+        // The slab is the floor's FOOTPRINT, not the box around it.
+        //
+        // It used to be the bounding rectangle of the floor's rooms, which is
+        // only the same thing for a building that happens to be rectangular
+        // and solid. Measured on a real house: main 260 m² of rooms inside a
+        // 567 m² rectangle, upper 102 m² inside 259 m². A stairwell void or
+        // one room off at the far corner — a front door bay, a deck — inflates
+        // the rectangle to more than twice the floor, and the surplus draws as
+        // a large empty plate that reads as a box in the wrong place and
+        // pushes the whole building's silhouette out to the sides.
+        //
+        // Drawing each room's own footprint instead needs no polygon-union
+        // library: painted with one fill and no per-room stroke, abutting
+        // rooms merge into one surface, and rooms genuinely separated by a
+        // void stay separate — which is what the floor actually looks like.
+        const zRooms = _fabOK ? _fabF.rooms.filter(rr=>rr.z===z) : [];
         let x0=Infinity,y0_=Infinity,x1=-Infinity,y1_=-Infinity;
-        for(const r of (_fabOK ? _fabF.rooms.filter(rr=>rr.z===z) : [])){
+        for(const r of zRooms){
           for(const p of r.pts){
             x0=Math.min(x0,p[0]); y0_=Math.min(y0_,p[1]);
             x1=Math.max(x1,p[0]); y1_=Math.max(y1_,p[1]);
@@ -1201,14 +1232,48 @@ export function render(ctx){
         if(!isFinite(x0)){x0=_indoorBB.minX;y0_=_indoorBB.minY;x1=_indoorBB.maxX;y1_=_indoorBB.maxY;}
         if(!isFinite(x0)){x0=0;y0_=0;x1=1;y1_=0.75;}
 
+        // The storey's four extent corners. Declared HERE, not inside the
+        // branch that draws the slab, because the layer-number badge further
+        // down anchors to BL — putting them in a branch left it undefined on
+        // the normal path and took the whole map down with it.
         const TL=iso(x0,y0_,z), TR=iso(x1,y0_,z), BR=iso(x1,y1_,z), BL=iso(x0,y1_,z);
-        const TR_b=iso(x1,y0_,z-slabWZ), BR_b=iso(x1,y1_,z-slabWZ), BL_b=iso(x0,y1_,z-slabWZ);
 
         s += `<g opacity="${go}">`;
-        s += `<polygon points="${pts([TR,BR,BR_b,TR_b])}" fill="#0d2318" fill-opacity="0.35" stroke="#253e2e" stroke-width="0.8"/>`;
-        s += `<polygon points="${pts([BL,BR,BR_b,BL_b])}" fill="#0a1a12" fill-opacity="0.3" stroke="#253e2e" stroke-width="0.8"/>`;
-        s += `<polygon points="${pts([TL,TR,BR,BL])}" fill="#0f2017" fill-opacity="0.06" stroke="${lyrColor}" stroke-width="1.5" stroke-dasharray="10,5" opacity="0.5"/>`;
-        if(lidx !== 1){ s += `<polygon points="${pts([TL,TR,BR,BL])}" fill="url(#flrpat_${lidx})" stroke="none"/>`; }
+        if(zRooms.length){
+          // Thickness first, so the top surface paints over the near edges.
+          // Each room is extruded straight down; an interior edge is covered
+          // by its neighbour's own slab, leaving the outline of the floor.
+          for(const r of zRooms){
+            const top = r.pts.map(p=>iso(p[0],p[1],z));
+            const bot = r.pts.map(p=>iso(p[0],p[1],z-slabWZ));
+            for(let i=0;i<top.length;i++){
+              const j=(i+1)%top.length;
+              s += `<polygon points="${pts([top[i],top[j],bot[j],bot[i]])}" `
+                 + `fill="#0d2318" fill-opacity="0.35" stroke="none"/>`;
+            }
+          }
+          for(const r of zRooms){
+            const top = r.pts.map(p=>iso(p[0],p[1],z));
+            s += `<polygon points="${pts(top)}" fill="#0f2017" fill-opacity="0.5" stroke="none"/>`;
+          }
+          if(lidx !== 1){
+            for(const r of zRooms){
+              const top = r.pts.map(p=>iso(p[0],p[1],z));
+              s += `<polygon points="${pts(top)}" fill="url(#flrpat_${lidx})" stroke="none"/>`;
+            }
+          }
+          // The storey's own dashed outline stays a rectangle on purpose: it
+          // is the floor's EXTENT, which is what the level colour and the
+          // focus affordance refer to, and tracing it around every room would
+          // fight the room outlines drawn on top of it moments later.
+          s += `<polygon points="${pts([TL,TR,BR,BL])}" fill="none" `
+             + `stroke="${lyrColor}" stroke-width="1.5" stroke-dasharray="10,5" opacity="0.22"/>`;
+        } else {
+          const TR_b=iso(x1,y0_,z-slabWZ), BR_b=iso(x1,y1_,z-slabWZ), BL_b=iso(x0,y1_,z-slabWZ);
+          s += `<polygon points="${pts([TR,BR,BR_b,TR_b])}" fill="#0d2318" fill-opacity="0.35" stroke="#253e2e" stroke-width="0.8"/>`;
+          s += `<polygon points="${pts([BL,BR,BR_b,BL_b])}" fill="#0a1a12" fill-opacity="0.3" stroke="#253e2e" stroke-width="0.8"/>`;
+          s += `<polygon points="${pts([TL,TR,BR,BL])}" fill="#0f2017" fill-opacity="0.06" stroke="${lyrColor}" stroke-width="1.5" stroke-dasharray="10,5" opacity="0.5"/>`;
+        }
 
         // ── Radio Map heatmap layer (3D isometric, behind room polygons) ──
         if (_isoRadioMapOn && _isoRadioMapMod && calPoints.length && ctx.state._overviewShowHeatmap) {

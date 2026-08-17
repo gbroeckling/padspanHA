@@ -1398,8 +1398,11 @@ export function floorHeatmapSVG(calPoints, floorMaps, mapPtFns, w2v, wBB, scanne
     const bucketIdx = Math.round(i / (flLegSteps - 1) * (HATCH_BUCKETS - 1));
     s += `<rect x="${(0.035 + i * bw).toFixed(3)}" y="${ly + 0.02}" width="${bw.toFixed(3)}" height="0.012" fill="${_bucketRGB(bucketIdx)}"/>`;
   }
-  s += `<text x="0.035" y="${ly + 0.048}" fill="#fca5a5" font-size="0.01" font-family="system-ui,sans-serif">${Math.round(Math.min(..._wpRssis))}</text>`;
-  s += `<text x="${(0.035 + (flLegSteps - 1) * bw).toFixed(3)}" y="${ly + 0.048}" fill="#52b788" font-size="0.01" font-family="system-ui,sans-serif">${Math.round(Math.max(..._wpRssis))} dBm</text>`;
+  // _lvlRssis, not _wpRssis: the latter is a local of isoLevelHeatmapSVG and
+  // does not exist here. Same values under this function's own name, and the
+  // legend threw a ReferenceError every time a floor heatmap was drawn.
+  s += `<text x="0.035" y="${ly + 0.048}" fill="#fca5a5" font-size="0.01" font-family="system-ui,sans-serif">${Math.round(Math.min(..._lvlRssis))}</text>`;
+  s += `<text x="${(0.035 + (flLegSteps - 1) * bw).toFixed(3)}" y="${ly + 0.048}" fill="#52b788" font-size="0.01" font-family="system-ui,sans-serif">${Math.round(Math.max(..._lvlRssis))} dBm</text>`;
   s += `<text x="0.035" y="${ly + 0.058}" fill="#94a3b8" font-size="0.009" font-family="system-ui,sans-serif">${worldPoints.length} points from ${floorMapIds.size} map${floorMapIds.size > 1 ? "s" : ""}</text>`;
 
   return s;

@@ -337,6 +337,96 @@ class ModelStore:
                 adj[k] = [n for n in adj[k] if n != str(room)]
         await self.store.async_save(self.data)
 
+    async def async_sync_floors(self, registry_floors: list[dict[str, Any]]) -> bool:
+        """Adopt the building's floors from the HA floor registry.
+
+        `data["floors"]` is the sole input to `floor_stack_index()` and
+        `floor_base_elevations_m()`, and nothing ever wrote it. The panel looked
+        right because `ws_model_get` reads the registry live, for display —
+        but the POSITIONING side read this list, found the one synthetic
+        `main` entry it was created with, and ran every multi-floor house as a
+        single storey. `_slabs_crossed` then took its "unknown stacking" branch
+        for every cross-floor path, so a basement scanner and an upstairs
+        scanner were penalised identically and floor selection had nothing to
+        discriminate with. Measured on a real three-storey install: 2.9 million
+        confirmed cross-floor room changes, split almost evenly both ways —
+        oscillation, not movement.
+
+        Stored heights win over the registry: the registry knows which floors
+        exist and their level, the user's Floor Heights table knows how far
+        apart they are, and a sync must never overwrite the latter.
+
+        Returns True when something changed (and was saved).
+        """
+        incoming = [f for f in (registry_floors or []) if isinstance(f, dict) and f.get("id")]
+        if not incoming:
+            return False   # a registry we could not read is not a reason to forget the floors
+
+        stored = {str(f.get("id")): f for f in (self.data.get("floors") or [])
+                  if isinstance(f, dict) and f.get("id")}
+        merged: list[dict[str, Any]] = []
+        for f in incoming:
+            fid = str(f["id"])
+            prev = stored.get(fid, {})
+            entry = {**prev, "id": fid, "name": f.get("name") or prev.get("name") or fid}
+            # A level the user typed into Floor Heights outranks the registry's,
+            # which is null on most installs anyway.
+            reg_level = f.get("level")
+            if prev.get("level") is None and reg_level is not None:
+                entry["level"] = reg_level
+            merged.append(_norm_floor(entry))
+
+        # Keep any floor the fabric still uses but the registry has dropped —
+        # deleting it here would strand its rooms outside the stack entirely.
+        used = set()
+        fab = getattr(self, "fabric", None)
+        if fab:
+            try:
+                used = {str((g or {}).get("floor_id") or "")
+                        for g in (fab.room_geometry_m() or {}).values()}
+            except Exception:
+                used = set()
+        have = {f["id"] for f in merged}
+        for fid, prev in stored.items():
+            if fid not in have and fid in used:
+                merged.append(prev)
+
+        if merged == (self.data.get("floors") or []):
+            return False
+        self.data["floors"] = merged
+        await self.store.async_save(self.data)
+        return True
+
+    async def async_remove_room(self, room: str) -> dict[str, Any]:
+        """Delete a room everywhere it exists: geometry, metadata, adjacency,
+        and any scanner assigned to it.
+
+        One call, because a room removed from three of those four places is
+        the bug this replaced — the geometry lives in the FabricStore and was
+        the one piece the old delete never touched, so the room kept its shape
+        and kept drawing after being "deleted".
+        """
+        room = str(room or "").strip()
+        if not room:
+            return {"ok": False, "error": "invalid_room"}
+
+        fab = getattr(self, "fabric", None)
+        geo = await fab.async_remove_room(room) if fab else {"removed": False}
+
+        (self.data.get("room_meta") or {}).pop(room, None)
+        scanners = self.data.get("scanners") or {}
+        detached = [s for s, info in scanners.items()
+                    if isinstance(info, dict) and info.get("room") == room]
+        for s in detached:
+            scanners.pop(s, None)
+        await self.store.async_save(self.data)
+        await self.async_remove_adjacency(room)   # saves again; adjacency owns its write
+
+        return {"ok": True, "room": room,
+                "geometry_removed": bool(geo.get("removed")),
+                "scanners_detached": len(detached),
+                "floor_id": geo.get("floor_id")}
+
     async def async_set_sync_mode(self, mode: str) -> None:
         """Switch fabric sync mode: 'auto' or 'manual'."""
         if mode not in ("auto", "manual"):
@@ -514,26 +604,92 @@ class ModelStore:
 
     # ── Floor elevation ──────────────────────────────────────────────────────
 
+    # Conventional storeys, for a registry that never got filled in. These are
+    # not decoration: HA's floor registry lets `level` be null, and on a real
+    # install it usually is, so without this a house is stacked in whatever
+    # order its floors happened to be created. Below-ground is negative,
+    # ground is 0, above-ground is positive — the same numbering HA uses when
+    # a level IS set, so a later explicit level slots in without a conversion.
+    _CONVENTIONAL_LEVEL = {
+        "subbasement": -2, "sub_basement": -2, "cellar": -1, "basement": -1,
+        "lower": -1, "downstairs": -1, "lower_floor": -1,
+        "ground": 0, "main": 0, "first": 0, "mainfloor": 0, "main_floor": 0,
+        "ground_floor": 0, "first_floor": 0,
+        # Outdoors is at ground level, not above the roof. Ranking it as an
+        # unknown name put it on top of the stack, which made every outdoor
+        # scanner two slabs (20 dB) away from the ground floor it stands next
+        # to. Both spellings: the fabric's sentinel and the registry's floor.
+        "outside": 0, "__outside__": 0, "outdoor": 0, "outdoors": 0,
+        "exterior": 0, "garden": 0, "yard": 0,
+        "upper": 1, "upstairs": 1, "second": 1, "middle": 1,
+        "upper_floor": 1, "second_floor": 1,
+        "third": 2, "third_floor": 2, "loft": 2, "attic": 3, "roof": 4,
+    }
+
     def _ordered_floors(self) -> list[dict[str, Any]]:
-        """Floors bottom-up: by explicit level when set, else stored order."""
+        """Floors bottom-up: explicit level, then convention, then stored order.
+
+        Registry order is the last resort, not the second one. HA's floor
+        registry lets `level` be null and usually it is, which left the stack
+        in whatever order the floors happened to be created — alphabetical, on
+        the install this came from, so `attic` would have sorted below
+        `basement`. The index difference here is the number of slabs an RF path
+        crosses, so a wrong order is a wrong attenuation, not just a wrong
+        picture.
+        """
         floors = [f for f in (self.data.get("floors") or []) if isinstance(f, dict)]
-        ordered = sorted(
-            enumerate(floors),
-            key=lambda pair: (pair[1].get("level", pair[0]), pair[0]),
-        )
-        return [f for _, f in ordered]
+
+        def _rank(pair: tuple[int, dict[str, Any]]) -> tuple[int, float, int]:
+            i, f = pair
+            level = f.get("level")
+            if isinstance(level, (int, float)) and not isinstance(level, bool):
+                return (0, float(level), i)
+            conv = self._CONVENTIONAL_LEVEL.get(
+                str(f.get("id") or "").strip().lower().replace(" ", "_"))
+            if conv is not None:
+                return (0, float(conv), i)
+            # Nothing to go on. Keep it above the named storeys rather than
+            # interleaved with them, and stable in stored order.
+            return (1, 0.0, i)
+
+        return [f for _, f in sorted(enumerate(floors), key=_rank)]
+
+    def _storey_of(self, f: dict[str, Any]) -> float | None:
+        """The storey a floor occupies, or None when nothing places it."""
+        level = f.get("level")
+        if isinstance(level, (int, float)) and not isinstance(level, bool):
+            return float(level)
+        conv = self._CONVENTIONAL_LEVEL.get(
+            str(f.get("id") or "").strip().lower().replace(" ", "_"))
+        return float(conv) if conv is not None else None
 
     def floor_stack_index(self) -> dict[str, int]:
-        """Return {floor_id: position in the bottom-up stack} (0 = lowest).
+        """Return {floor_id: slab position in the bottom-up stack} (0 = lowest).
 
-        The index difference between two floors is the number of slabs an RF
-        path between them must cross.
+        The index DIFFERENCE is the number of slabs an RF path must cross, so
+        two floors on the same storey have to share an index. This used to
+        return the enumerate() position, which gave every floor its own number
+        — so "Outside" and "Main", both at ground level, came out one apart and
+        an outdoor scanner was charged a slab of concrete it never saw through.
+        Indices are assigned per distinct storey now, not per row.
         """
-        return {
-            str(f.get("id")): i
-            for i, f in enumerate(self._ordered_floors())
-            if f.get("id")
-        }
+        out: dict[str, int] = {}
+        slab = -1
+        prev: float | None = None
+        first = True
+        for f in self._ordered_floors():
+            fid = str(f.get("id") or "")
+            if not fid:
+                continue
+            storey = self._storey_of(f)
+            # An unplaceable floor gets its own slab: we cannot claim it shares
+            # one with anything, and merging it would understate the path.
+            if first or storey is None or prev is None or storey != prev:
+                slab += 1
+            first = False
+            prev = storey
+            out[fid] = slab
+        return out
 
     def floor_base_elevations_m(self) -> dict[str, float]:
         """Return {floor_id: absolute height of that floor's walking surface}.
@@ -541,13 +697,23 @@ class ModelStore:
         An explicit base_elevation_m always wins — split levels and mezzanines
         can't be derived.  Otherwise it's the running sum of floor_to_floor_m
         for the floors below, with the lowest floor at 0.
+
+        Floors on the SAME storey share a base and do not advance the sum. The
+        garden and the ground floor are both at zero; adding a storey height
+        between them invented 2.8 m of building and pushed every floor above
+        them that much too high.
         """
         out: dict[str, float] = {}
         running = 0.0
+        prev: float | None = None
+        first = True
         for f in self._ordered_floors():
             fid = str(f.get("id") or "")
             if not fid:
                 continue
+            storey = self._storey_of(f)
+            same_storey = (not first and storey is not None
+                           and prev is not None and storey == prev)
             explicit = f.get("base_elevation_m")
             if isinstance(explicit, (int, float)) and not isinstance(explicit, bool):
                 base = float(explicit)
@@ -556,8 +722,13 @@ class ModelStore:
             else:
                 base = running
             out[fid] = round(base, 3)
-            f2f = f.get("floor_to_floor_m")
-            running += float(f2f) if isinstance(f2f, (int, float)) and not isinstance(f2f, bool) else DEFAULT_FLOOR_TO_FLOOR_M
+            if not same_storey:
+                f2f = f.get("floor_to_floor_m")
+                running = base + (float(f2f)
+                                  if isinstance(f2f, (int, float)) and not isinstance(f2f, bool)
+                                  else DEFAULT_FLOOR_TO_FLOOR_M)
+            first = False
+            prev = storey
         return out
 
     async def async_set_scanner_z_m(self, source: str, z_m: float) -> bool:

@@ -33,6 +33,15 @@ const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
     const maps_list = (ctx.state.maps && ctx.state.maps.list) ? ctx.state.maps.list : [];
     if(!maps_list.length) return renderRoomGrid();
 
+    // Two more that did not survive the extraction from overview.js, for the
+    // same reason `_esc` did: they were locals of overview's render(), and
+    // moving the function without them left bare references that parse fine
+    // and throw the moment 2D mode renders. Same source as the original —
+    // `liveSnap` is overview's own name for the live snapshot (it deliberately
+    // differs from other views' `snap`), and helpBtn is a ctx helper.
+    const liveSnap = ctx.state.live?.snapshot || null;
+    const helpBtn = ctx.helpers.helpBtn;
+
     const _esc = s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     const roomColorFn = ctx.helpers.roomColor;
     const _isScanner = ctx.helpers.isScanner;

@@ -300,6 +300,14 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_forensics_clear)
     websocket_api.async_register_command(hass, ws_forensics_license_activate)
     websocket_api.async_register_command(hass, ws_forensics_license_reveal)
+    # RSSI vector capture (opt-in session recorder; replay fixtures)
+    websocket_api.async_register_command(hass, ws_capture_start)
+    websocket_api.async_register_command(hass, ws_capture_stop)
+    websocket_api.async_register_command(hass, ws_capture_status)
+    websocket_api.async_register_command(hass, ws_capture_mark)
+    websocket_api.async_register_command(hass, ws_capture_list)
+    websocket_api.async_register_command(hass, ws_capture_get)
+    websocket_api.async_register_command(hass, ws_capture_delete)
     _ensure_log_handler()
     _LOGGER.debug("PadSpan HA websocket commands registered")
 
@@ -3166,6 +3174,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("apple_auto_classify"): bool,
         vol.Optional("forensics_enabled"): bool,
         vol.Optional("forensics_retention_days"): vol.Coerce(int),
+        vol.Optional("rssi_capture_enabled"): bool,
+        vol.Optional("rssi_capture_retention_days"): vol.Coerce(int),
         vol.Optional("ble_max_age_s"): vol.Coerce(int),
         vol.Optional("occupancy_hybrid_enabled"): bool,
         vol.Optional("occupancy_cluster_threshold"): vol.Coerce(float),
@@ -3398,6 +3408,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "trackability_rating_enabled", "walk_to_identify_enabled",
                     "radio_map_enabled", "distortion_map_enabled",
                     "compass_ring_enabled", "replay_timeline_enabled",
+                    "rssi_capture_enabled",
                     "phone_wizard_enabled", "mac_rotation_bridging",
                     "apple_auto_classify"):
             if key in msg:
@@ -3413,6 +3424,10 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             from .forensics_store import RETENTION_CHOICES, DEFAULT_RETENTION_DAYS
             _fd = int(msg["forensics_retention_days"])
             payload["forensics_retention_days"] = _fd if _fd in RETENTION_CHOICES else DEFAULT_RETENTION_DAYS
+        if "rssi_capture_retention_days" in msg:
+            from .capture_store import RETENTION_CHOICES as _CAP_RC, DEFAULT_RETENTION_DAYS as _CAP_RD
+            _cd = int(msg["rssi_capture_retention_days"])
+            payload["rssi_capture_retention_days"] = _cd if _cd in _CAP_RC else _CAP_RD
         if "presence_poll_interval_s" in msg:
             payload["presence_poll_interval_s"] = max(1, min(60, int(msg["presence_poll_interval_s"])))
         if "ble_reseed_interval_s" in msg:
@@ -5188,6 +5203,215 @@ async def ws_forensics_clear(hass: HomeAssistant, connection, msg) -> None:
     fs = hass.data.get(DOMAIN, {}).get(DATA_FORENSICS)
     removed = await fs.async_clear() if fs else 0
     _LOGGER.info("Forensics data cleared (%d addresses removed)", removed)
+    connection.send_result(msg["id"], {"ok": True, "removed": removed})
+
+
+# ── RSSI Vector Capture ────────────────────────────────────────────────────────
+# Session recorder for offline replay.  Off by default; a session only exists
+# because an operator started one, and it stops itself at 60 min or 25 MB.
+# Export runs over this websocket rather than an HTTP view — the integration
+# registers none, and .storage is not reachable from the two static dirs
+# panel.py mounts.
+
+
+def _capture_store(hass: HomeAssistant):
+    from .const import DATA_CAPTURE
+
+    return hass.data.get(DOMAIN, {}).get(DATA_CAPTURE)
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/capture_start",
+        vol.Optional("minutes", default=5): vol.All(vol.Coerce(int), vol.Range(min=1, max=60)),
+        vol.Optional("label", default=""): str,
+        vol.Optional("keys", default=[]): list,
+        vol.Optional("ground_truth", default=""): str,
+        vol.Optional("include_calibration", default=False): bool,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_capture_start(hass: HomeAssistant, connection, msg) -> None:
+    """Open a recording session against the live coordinator state."""
+    from .capture_store import build_header
+
+    cap = _capture_store(hass)
+    if not cap:
+        connection.send_error(msg["id"], "no_capture", "CaptureStore not loaded")
+        return
+    if _get_settings(hass).get("rssi_capture_enabled") is not True:
+        connection.send_error(msg["id"], "not_enabled",
+                              "Enable RSSI Vector Capture in Settings → Features")
+        return
+    # "presence_coordinator", NOT DATA_COORDINATOR — those are two different
+    # objects. DATA_COORDINATOR is the PadSpanCoordinator that drives the
+    # snapshot; the positioning state a capture records (Kalman filters, votes,
+    # scanner geometry) lives on the PresenceCoordinator, which is stored under
+    # its own literal key. Everything else that needs it reads it this way too.
+    coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
+    if not coord:
+        connection.send_error(msg["id"], "no_coordinator", "Presence coordinator not ready")
+        return
+    if cap.recording:
+        connection.send_error(msg["id"], "already_recording",
+                              "A capture session is already running")
+        return
+    # The coordinator's poll IS the recorder's clock, so a session started
+    # before the first poll records a header, an end line, and nothing else —
+    # while reporting a healthy scanner count, because that comes from the
+    # fabric rather than from anything having run. Measured after a restart:
+    # a full minute of "recording" with zero frames and no error anywhere.
+    # Refusing is the only answer that tells the truth.
+    if getattr(coord, "data", None) is None:
+        connection.send_error(
+            msg["id"], "not_polling",
+            "Positioning has not completed its first poll yet — wait a few "
+            "seconds after a restart and try again")
+        return
+
+    # Scanner attribution comes from the fabric, which is where the coordinator
+    # reads it from every poll — not from a fresh scan.  A session must be
+    # pinned to what the pipeline is actually running on.  Any radio the fabric
+    # does not know about yet is appended by the first frame's env line.
+    model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    s2a, s2f = model.get_scanner_mappings() if model else ({}, {})
+    s2a, s2f = dict(s2a), dict(s2f)
+    srcs = sorted(set(getattr(coord, "_scanner_positions", None) or {}) | set(s2a))
+    rooms = set(model.room_geometry_m()) if model else set()
+
+    # The vote window is derived, not stored — the coordinator recomputes it
+    # every poll from room_change_delay_s against the live poll interval.  The
+    # same derivation here keeps the header honest on frame zero; a mid-session
+    # change to either input still surfaces as a per-frame vw/vt override.
+    poll_s = coord.update_interval.total_seconds() if coord.update_interval else 5.0
+    delay_s = max(0.0, min(300.0, float(_get_settings(hass).get("room_change_delay_s") or 20.0)))
+    vote_window = max(1, round(delay_s / max(1.0, poll_s)))
+
+    hdr = build_header(
+        hass, coord,
+        label=msg.get("label") or "",
+        poll_s=poll_s,
+        vote_window=vote_window,
+        vote_threshold=vote_window // 2 + 1,
+        fabric_rooms=rooms,
+        include_calibration=bool(msg.get("include_calibration")),
+    )
+    sid = cap.start_session(
+        hdr,
+        minutes=int(msg.get("minutes") or 5),
+        label=msg.get("label") or "",
+        keys=[str(k) for k in (msg.get("keys") or [])],
+        followed=set(_get_settings(hass).get("followed_addrs") or []),
+        sources=srcs, source_to_area=s2a, source_to_floor=s2f,
+    )
+    if msg.get("ground_truth"):
+        cap.mark_ground_truth(str(msg["ground_truth"]))
+    await cap.async_flush()   # the header hits disk before the first frame
+    _LOGGER.info("Capture session %s started (%d min, %d sources)",
+                 sid, int(msg.get("minutes") or 5), len(srcs))
+    connection.send_result(msg["id"], {
+        "ok": True, "session_id": sid,
+        "ends_ts": cap.status().get("ends_ts"),
+        "minutes": int(msg.get("minutes") or 5),
+        "sources": len(srcs),
+    })
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/capture_stop"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_capture_stop(hass: HomeAssistant, connection, msg) -> None:
+    """Close the running session.  Idle is an answer, not an error."""
+    cap = _capture_store(hass)
+    if not cap or not cap.recording:
+        connection.send_result(msg["id"], {"ok": False, "error": "Not recording"})
+        return
+    sess = await cap.async_stop("manual")
+    connection.send_result(msg["id"], {
+        "ok": True, "session_id": sess.get("id"), "frames": sess.get("frames"),
+        "bytes": sess.get("bytes"), "stop_reason": sess.get("stop_reason"),
+    })
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/capture_status"})
+@websocket_api.async_response
+async def ws_capture_status(hass: HomeAssistant, connection, msg) -> None:
+    """Live session state; polled by the Health tab while recording."""
+    cap = _capture_store(hass)
+    out = cap.status() if cap else {"recording": False, "session_id": "", "frames": 0,
+                                    "objects": 0, "bytes": 0, "sources": 0,
+                                    "gt_room": "", "truncated": 0,
+                                    "started_ts": 0, "ends_ts": 0}
+    out["enabled"] = _get_settings(hass).get("rssi_capture_enabled") is True
+    connection.send_result(msg["id"], out)
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/capture_mark",
+        vol.Required("room"): str,
+        vol.Optional("keys", default=[]): list,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_capture_mark(hass: HomeAssistant, connection, msg) -> None:
+    """Stamp ground truth: the operator asserting where a device really is."""
+    cap = _capture_store(hass)
+    if not cap or not cap.recording:
+        connection.send_result(msg["id"], {"ok": False, "error": "Not recording"})
+        return
+    cap.mark_ground_truth(str(msg["room"]), [str(k) for k in (msg.get("keys") or [])])
+    connection.send_result(msg["id"], {"ok": True, "room": str(msg["room"])})
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/capture_list"})
+@websocket_api.async_response
+async def ws_capture_list(hass: HomeAssistant, connection, msg) -> None:
+    """Recorded sessions, newest first.  Prunes first, so a disabled install
+    still honours retention the next time anyone opens the tab."""
+    cap = _capture_store(hass)
+    connection.send_result(msg["id"], {"sessions": cap.list_sessions() if cap else []})
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/capture_get",
+        vol.Required("session_id"): str,
+        vol.Optional("offset", default=0): vol.All(vol.Coerce(int), vol.Range(min=0)),
+        vol.Optional("limit", default=2000): vol.All(vol.Coerce(int), vol.Range(min=1, max=5000)),
+    }
+)
+@websocket_api.async_response
+async def ws_capture_get(hass: HomeAssistant, connection, msg) -> None:
+    """One page of a session file — the export transport.
+
+    Byte-capped as well as line-capped, so one response stays ~1.5 MB whatever
+    `limit` asks for.  The 19.5 MB live_snapshot that took a browser down is
+    why every bulk read in this file carries a hard response cap.
+    """
+    cap = _capture_store(hass)
+    page = await cap.async_read_lines(
+        str(msg["session_id"]), int(msg.get("offset") or 0),
+        int(msg.get("limit") or 2000)) if cap else None
+    if page is None:
+        connection.send_error(msg["id"], "not_found", "No such capture session")
+        return
+    connection.send_result(msg["id"], page)
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/capture_delete",
+        vol.Required("session_id"): str,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_capture_delete(hass: HomeAssistant, connection, msg) -> None:
+    cap = _capture_store(hass)
+    removed = await cap.async_delete(str(msg["session_id"])) if cap else False
     connection.send_result(msg["id"], {"ok": True, "removed": removed})
 
 
@@ -9218,6 +9442,22 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         _LOGGER.warning("Factory reset: traceback — %s", e)
         errors.append(TRACEBACK_STORE_KEY)
 
+    # ── 9b. CaptureStore — manifest AND session files ─────────────────────
+    # The only store whose payload is not in the blob, so clearing the manifest
+    # alone would leave the .jsonl files on disk.  async_clear unlinks them.
+    try:
+        from .const import CAPTURE_STORE_KEY, DATA_CAPTURE
+
+        st = _St(hass, 1, CAPTURE_STORE_KEY)
+        await st.async_save({"sessions": []})
+        cleared += 1
+        cap_obj = domain.get(DATA_CAPTURE)
+        if cap_obj is not None:
+            await cap_obj.async_clear()
+    except Exception as e:
+        _LOGGER.warning("Factory reset: capture — %s", e)
+        errors.append("padspan_ha.capture")
+
     # ── 10. Object history (plain dict, not a store class) ────────────────
     try:
         st = _St(hass, 1, OBJECT_HISTORY_STORE_KEY)
@@ -9485,7 +9725,15 @@ async def ws_fabric_room_add(hass: HomeAssistant, connection, msg) -> None:
 )
 @websocket_api.async_response
 async def ws_fabric_room_remove(hass: HomeAssistant, connection, msg) -> None:
-    """Remove a room from the fabric (room_meta + adjacency + scanner assignments)."""
+    """Remove a room from the fabric: geometry, metadata, adjacency, scanners.
+
+    This used to edit mdl.data directly — room_meta, adjacency and the scanner
+    map — and never touched room_geometry_m, which had since moved to the
+    FabricStore. The room's SHAPE therefore survived every delete, so it kept
+    drawing on the map and kept being a room the positioning pipeline could
+    choose. The store owns the write now, in one call, so there is no longer a
+    place for a fourth copy to be forgotten.
+    """
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
         connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
@@ -9494,18 +9742,14 @@ async def ws_fabric_room_remove(hass: HomeAssistant, connection, msg) -> None:
     if not room:
         connection.send_error(msg["id"], "invalid", "room is required")
         return
-    # Remove from room_meta
-    rm = mdl.data.get("room_meta", {})
-    rm.pop(room, None)
-    # Remove from adjacency
-    await mdl.async_remove_adjacency(room)
-    # Remove scanners assigned to this room
-    scanners = mdl.data.get("scanners", {})
-    to_remove = [s for s, info in scanners.items() if info.get("room") == room]
-    for s in to_remove:
-        scanners.pop(s, None)
-    await mdl.store.async_save(mdl.data)
-    connection.send_result(msg["id"], {"ok": True, "removed": room})
+    res = await mdl.async_remove_room(room)
+    if not res.get("ok"):
+        connection.send_error(msg["id"], "invalid", res.get("error") or "remove failed")
+        return
+    _invalidate_snapshot_cache(hass)
+    _LOGGER.info("Fabric: removed room %s (geometry=%s, %d scanners detached)",
+                 room, res.get("geometry_removed"), res.get("scanners_detached", 0))
+    connection.send_result(msg["id"], {**res, "removed": room})
 
 
 @websocket_api.websocket_command(

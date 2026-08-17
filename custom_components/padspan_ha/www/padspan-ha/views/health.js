@@ -391,6 +391,12 @@ function _renderFabric(ctx, container, data) {
     container.appendChild(actCard);
   }
 
+  // ── RSSI vector capture ─────────────────────────────────────────────────
+  // Opt-in, so it only exists on the page once the feature is switched on.
+  if (ctx.state.settings?.rssi_capture_enabled === true) {
+    _renderCapture(ctx, container);
+  }
+
   // ── Maps diagnostic table ───────────────────────────────────────────────
   const maps = data.maps || [];
   if (maps.length) {
@@ -712,4 +718,159 @@ function _escHtml(str) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// ── RSSI vector capture ───────────────────────────────────────────────────
+// Record a session, mark where the device really is, export the trace.
+// The panel does not replay anything — replay lives in pytest, where the
+// pipeline it is replaying actually runs.
+
+let _capTimer = null;
+
+function _capFmt(bytes) {
+  return bytes > 1048576 ? `${(bytes / 1048576).toFixed(1)} MB`
+       : bytes > 1024    ? `${Math.round(bytes / 1024)} KB`
+       : `${bytes} B`;
+}
+
+function _capClock(secs) {
+  const s = Math.max(0, Math.round(secs));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function _renderCapture(ctx, container) {
+  const { el } = ctx.helpers;
+  const card = el("div", {class:"card", style:"margin-bottom:8px;padding:12px"});
+  card.appendChild(el("div", {style:"font-weight:700;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px"},
+    "RSSI Vector Capture"));
+  card.appendChild(el("div", {style:"font-size:11px;color:#64748b;margin-bottom:10px"},
+    "Record what every scanner heard, walk the house marking the room you are actually in, "
+    + "then export the trace. Nothing is recorded until you press Record."));
+
+  const status = el("div", {style:"font-size:11px;color:#94a3b8;margin-bottom:8px"}, "…");
+  const row = el("div", {style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px"});
+  const sessions = el("div", {style:"font-size:11px"});
+  card.appendChild(status); card.appendChild(row); card.appendChild(sessions);
+  container.appendChild(card);
+
+  const recBtn = el("button", {class:"btn", style:"width:auto;padding:4px 14px;font-size:11px"}, "⏺ Record");
+  const markSel = el("select", {class:"input", style:"width:auto;padding:3px 8px;font-size:11px"});
+  const markBtn = el("button", {class:"btn", style:"width:auto;padding:4px 14px;font-size:11px"}, "Mark room");
+  row.appendChild(recBtn); row.appendChild(markSel); row.appendChild(markBtn);
+
+  const roomNames = (ctx.state.live.snapshot?.rooms || []).map(r => r.name || r).filter(Boolean);
+  for (const r of roomNames) markSel.appendChild(el("option", {value:r}, r));
+  markSel.disabled = markBtn.disabled = true;
+
+  // One interval, cleared before it is ever replaced. A record button that
+  // leaves a 5 s poll behind on every tab change is a leak nobody notices
+  // until the panel has been open all day.
+  if (_capTimer) { clearInterval(_capTimer); _capTimer = null; }
+
+  const refresh = async () => {
+    if (!document.body.contains(card)) { clearInterval(_capTimer); _capTimer = null; return; }
+    let st;
+    try { st = await ctx.actions.callWS({type:"padspan_ha/capture_status"}); }
+    catch { return; }
+    if (st.recording) {
+      const left = (st.ends_ts || 0) - Date.now() / 1000;
+      status.textContent = `Recording — ${_capClock(left)} left · ${st.frames} frames · `
+        + `${st.objects} objects · ${_capFmt(st.bytes)}`
+        + (st.gt_room ? ` · marked "${st.gt_room}"` : "")
+        + (st.truncated ? ` · ${st.truncated} objects dropped` : "");
+      status.style.color = "#fbbf24";
+      recBtn.textContent = "⏹ Stop";
+      markSel.disabled = markBtn.disabled = false;
+    } else {
+      status.textContent = "Not recording.";
+      status.style.color = "#94a3b8";
+      recBtn.textContent = "⏺ Record";
+      markSel.disabled = markBtn.disabled = true;
+    }
+    recBtn.disabled = false;
+    await _capList(ctx, sessions);
+  };
+
+  recBtn.addEventListener("click", async () => {
+    recBtn.disabled = true;
+    try {
+      const st = await ctx.actions.callWS({type:"padspan_ha/capture_status"});
+      if (st.recording) {
+        const r = await ctx.actions.callWS({type:"padspan_ha/capture_stop"});
+        ctx.toast(r.ok ? `Stopped: ${r.frames} frames, ${_capFmt(r.bytes)}` : r.error);
+      } else {
+        const mins = parseInt(prompt("Record for how many minutes? (1–60)", "5") || "0", 10);
+        if (!mins) { recBtn.disabled = false; return; }
+        const label = prompt("Label for this session (optional)", "") || "";
+        const r = await ctx.actions.callWS({type:"padspan_ha/capture_start", minutes:mins, label});
+        ctx.toast(`Recording ${r.session_id} — ${r.minutes} min, ${r.sources} scanners`);
+      }
+    } catch(e) { ctx.toast(`Failed: ${e.message||e}`, true); }
+    await refresh();
+  });
+
+  markBtn.addEventListener("click", async () => {
+    try {
+      const r = await ctx.actions.callWS({type:"padspan_ha/capture_mark", room:markSel.value});
+      ctx.toast(r.ok ? `Marked ${r.room}` : r.error);
+    } catch(e) { ctx.toast(`Failed: ${e.message||e}`, true); }
+    await refresh();
+  });
+
+  refresh();
+  _capTimer = setInterval(refresh, 5000);
+}
+
+async function _capList(ctx, host) {
+  const { el } = ctx.helpers;
+  let list;
+  try { list = (await ctx.actions.callWS({type:"padspan_ha/capture_list"})).sessions || []; }
+  catch { return; }
+  host.replaceChildren();
+  if (!list.length) { host.appendChild(el("div",{style:"color:#64748b"},"No recorded sessions.")); return; }
+
+  for (const s of list) {
+    const rowEl = el("div", {style:"display:flex;gap:8px;align-items:center;padding:3px 0;border-top:1px solid #1e293b"});
+    const when = new Date((s.t0 || 0) * 1000).toLocaleString();
+    rowEl.appendChild(el("div", {style:"flex:1;color:#cbd5e1"},
+      `${s.label || s.id} · ${when} · ${s.frames} frames · ${_capFmt(s.bytes || 0)}`
+      + (s.stop_reason && s.stop_reason !== "manual" ? ` · ${s.stop_reason}` : "")
+      // A truncated session sampled its site rather than describing it, and
+      // the export gives no hint of that on its own.
+      + (s.truncated ? ` · ⚠ ${s.truncated} objects dropped` : "")));
+
+    const dl = el("button", {class:"btn", style:"width:auto;padding:2px 10px;font-size:10px"}, "Export .jsonl");
+    dl.addEventListener("click", async () => {
+      dl.disabled = true; dl.textContent = "Exporting…";
+      try {
+        // Paged: one response is byte-capped at ~1.5 MB, so a 25 MB session
+        // arrives in pieces rather than taking the browser down with it.
+        const out = [];
+        for (let off = 0; ; ) {
+          const p = await ctx.actions.callWS({type:"padspan_ha/capture_get", session_id:s.id, offset:off, limit:2000});
+          out.push(...p.lines);
+          off += p.lines.length;
+          if (p.eof || !p.lines.length) break;
+        }
+        const url = URL.createObjectURL(new Blob([out.join("\n") + "\n"], {type:"application/x-ndjson"}));
+        const a = document.createElement("a");
+        a.href = url; a.download = `padspan-capture-${s.id}.jsonl`; a.click();
+        URL.revokeObjectURL(url);
+        ctx.toast(`Exported ${out.length} lines.`);
+      } catch(e) { ctx.toast(`Failed: ${e.message||e}`, true); }
+      dl.disabled = false; dl.textContent = "Export .jsonl";
+    });
+    rowEl.appendChild(dl);
+
+    const del = el("button", {class:"btn", style:"width:auto;padding:2px 10px;font-size:10px;border-color:#f8717144;color:#fca5a5"}, "Delete");
+    del.addEventListener("click", async () => {
+      if (!confirm(`Delete capture session ${s.id}?`)) return;
+      try {
+        await ctx.actions.callWS({type:"padspan_ha/capture_delete", session_id:s.id});
+        await _capList(ctx, host);
+      } catch(e) { ctx.toast(`Failed: ${e.message||e}`, true); }
+    });
+    rowEl.appendChild(del);
+    host.appendChild(rowEl);
+  }
 }

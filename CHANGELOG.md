@@ -4,6 +4,47 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.34.0 — RSSI Vector Capture, and a floor model that reaches positioning (2026-08-16)
+
+### Fixed — multi-floor positioning
+
+- **The floor list never reached the positioning code.** `ModelStore.data["floors"]` is the sole input to `floor_stack_index()` and `floor_base_elevations_m()`, and nothing ever wrote it. The panel looked right because it reads the HA floor registry live *for display* — but positioning found the single synthetic `main` entry the store is created with and ran **every multi-floor install as one storey**. Cross-floor RF paths all fell back to a flat one-slab penalty, so a basement scanner and an upstairs scanner were penalised identically and floor selection had nothing left to discriminate with. Measured on a three-storey house: 2,886,899 confirmed cross-floor room changes, split 1,093,120 / 1,062,985 between the two directions — a near-perfect symmetry, which is oscillation and not movement. Floors are now synced from the registry each poll, and any learned cross-floor attenuation gathered before this is suspect.
+- **Two floors on the same storey were a slab apart.** `floor_stack_index()` returned enumerate() positions, so "Outside" and "Main" — both at ground level — came out one apart, and every outdoor scanner was charged 10 dB of concrete it never saw through. Indices are assigned per distinct storey now, and floors sharing a storey also share a base elevation instead of inventing 2.8 m of building between them.
+- **Floors with no `level` set stacked in creation order.** HA's registry leaves `level` null on most installs, so an alphabetical registry stacked a house wrongly. Ordering now falls back to what a floor id means (`basement`, `ground`, `upper`, `attic`, and outdoors at ground) before it falls back to stored order.
+
+### Fixed — four views that parsed and then threw
+
+Each rendered blank with a clean console, because `panel.js` loads views with `.catch(console.warn)`:
+
+- **2D Map Mode was dead entirely** — `liveSnap` and `helpBtn` were locals of `overview.js` that did not survive the extraction into `plan_viewer.js`.
+- **Clicking an occupied room did nothing** — `_showRoomDetail` called `fmtAgo`, a local of `_showObjectDetail`. It is a shared helper now.
+- **Floor heatmap legends threw** — `floorHeatmapSVG` read `_wpRssis`, a local of a different function.
+
+`tests/test_frontend_renders.py` now imports every view under a DOM shim and calls its entry points, flushing deferred work. Verified as a real guard: with the `liveSnap` bug reintroduced, `node --check` passes and this fails by name.
+
+### Fixed — the reason none of the above was visible
+
+- **Frontend changes were invisible until a release.** `BUILD_ID` was a hard-coded literal in `build_info.py` and again in `panel.js`, so every asset URL kept the same `?b=` stamp between releases and browsers served cached JavaScript no matter what was on disk or how many times Home Assistant restarted. A new `ASSET_ID` appends a digest of the frontend tree, and `panel.js` reads the stamp off its own module URL so every view inherits it.
+
+### Fixed — mapping
+
+- **Delete room did nothing visible.** It cleared `room_meta`, adjacency and the scanner map — all ModelStore fields — and left `room_geometry_m` alone, which is where the shape lives. The room kept drawing and kept being a room the pipeline could choose. Removal is now one store call covering all four.
+- **Floor slabs were the bounding rectangle of a floor's rooms**, 1.7–2.5× the real floor area on a house with a stairwell void or one outlying room. Each slab is the union of its room footprints now.
+- **The 3D stack was sheared.** Every floor was drawn centred on its own bounding box, so storeys that overlap correctly in the fabric were pushed apart on screen — walls met at different angles per floor and set-back floors read as boxes in the wrong place. One building, one origin. Scale and centring also come from the projected shape now rather than the bounding diamond, which a building never fills.
+
+### Added
+- **RSSI Vector Capture** (Settings → Features, off by default) — record what every scanner heard for every tracked device, poll by poll, alongside the room PadSpan chose, then export the trace and replay the same walk offline against changed settings. Until now a positioning change could only be argued from memory: a room felt stickier, a floor flipped less. A capture makes the input reproducible, so a change can be scored instead of recalled.
+  - Session-scoped. Nothing is written until you press Record in Health → Quick actions; a session stops itself at 60 minutes or 25 MB and says which cap it hit.
+  - **Mark room** stamps ground truth while you walk, which is what turns a recording into something that can be scored rather than merely replayed.
+  - Records **identified or followed devices only** — the same rule the traceback uses. Measured on a real house, that is about 12 devices out of ~1,800 BLE objects per poll; the rest are neighbours' phones heard by one or two scanners, useless to a positioning fixture and not ours to record.
+  - Exports as `.jsonl` straight from the browser. `tests/test_capture_replay.py` loads an export as a pytest fixture and scores it two ways: against the answers the pipeline gave when recording (a refactor that moves one answer fails), and against your own room labels (a tuning change becomes a number).
+  - Captures are not included in backups, and a factory reset deletes their files as well as their index.
+
+### Fixed
+- **Per-device state no longer accumulates for the life of the process** — `_spatial_debug` was written for every object key from four places and cleared from none, so every rotating Bluetooth address that ever passed the house left an entry behind. Invisible on a home install; unbounded on a large one. The guard that should have caught it listed the state dicts by hand, and now discovers them instead, so the next one is caught the first time it is populated.
+
+---
+
 ## 0.22.7 — Lights placement (Pro) + private-BLE and map-migrate fixes (2026-08-10)
 
 ### Added

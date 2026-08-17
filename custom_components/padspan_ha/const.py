@@ -68,6 +68,7 @@ DATA_FABRIC = "fabric"                       # FabricStore — room-geometry gro
 DATA_DEVICE_REGISTRY = "device_registry"     # stable device identity registry
 DATA_ESPRESENSE_MQTT = "espresense_mqtt"     # ESPresense MQTT ingestion module
 DATA_FORENSICS = "forensics"                 # presence-session recorder (opt-in)
+DATA_CAPTURE = "capture"                     # RSSI vector session recorder (opt-in)
 
 # ── HA Storage file keys (.storage/<key>) ─────────────────────────────────────
 SETTINGS_STORE_KEY = "padspan_ha.settings"
@@ -84,6 +85,8 @@ OBJECT_HISTORY_STORE_KEY = "padspan_ha.object_history"
 VENDOR_CACHE_STORE_KEY = "padspan_ha.vendor_cache"
 TRACEBACK_STORE_KEY = "padspan_ha.traceback"
 FORENSICS_STORE_KEY = "padspan_ha.forensics"
+# Manifest only — session frames live in .storage/padspan_ha.capture_sessions/
+CAPTURE_STORE_KEY = "padspan_ha.capture"
 
 # ── Filesystem / map defaults ─────────────────────────────────────────────────
 DEFAULT_FLOOR_ID = "main"

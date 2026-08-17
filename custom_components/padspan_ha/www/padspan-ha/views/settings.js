@@ -2613,6 +2613,14 @@ function _settingsFeatures(ctx, el){
       label: "Apple Device Classification",
       desc: "Automatically labels Apple devices as iPhone, iPad, Apple Watch, AirPods, etc. by decoding Bluetooth Continuity protocol messages. Display-only — does not affect tracking or identity.",
     },
+    {
+      key: "rssi_capture_enabled",
+      label: "RSSI Vector Capture",
+      desc: "Record the signal strength every scanner heard for every tracked device, poll by poll, alongside the " +
+            "room PadSpan chose — then export it and replay the same walk offline against changed settings. " +
+            "Adds a Record button to Health → Quick actions. Nothing is recorded until you start a session, and a " +
+            "session stops itself at 60 minutes or 25 MB.",
+    },
   ];
 
   for(const f of features){

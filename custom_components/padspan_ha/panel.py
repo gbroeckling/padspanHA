@@ -27,7 +27,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, VERSION, DATA_PANEL_REGISTERED, DATA_SETTINGS
-from .build_info import BUILD_ID
+from .build_info import ASSET_ID, BUILD_ID
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
         sidebar_title="PadSpan HA",
         sidebar_icon="mdi:radar",
         require_admin=False,
-        module_url=f"{STATIC_URL}/padspan-ha/panel.js?v={VERSION}&b={BUILD_ID}&cb=full",
+        module_url=f"{STATIC_URL}/padspan-ha/panel.js?v={VERSION}&b={ASSET_ID}&cb=full",
         config={
             "title": "PadSpan HA",
             "icon": f"{STATIC_URL}/padspan-ha/assets/padspan-mark.svg",
@@ -118,7 +118,7 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
             sidebar_title="Lights",
             sidebar_icon="mdi:lightbulb-group",
             require_admin=False,
-            module_url=f"{STATIC_URL}/padspan-ha/lights_panel.js?v={VERSION}&b={BUILD_ID}",
+            module_url=f"{STATIC_URL}/padspan-ha/lights_panel.js?v={VERSION}&b={ASSET_ID}",
             config={
                 "title": "Lights",
                 "version": VERSION,
