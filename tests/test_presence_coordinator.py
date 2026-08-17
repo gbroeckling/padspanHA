@@ -7,7 +7,6 @@ PresenceCoordinator class.
 
 from __future__ import annotations
 
-import math
 from collections import deque
 from typing import Any
 from unittest.mock import MagicMock
@@ -19,7 +18,6 @@ from custom_components.padspan_ha.const import (
     DEFAULT_KALMAN_R,
     DEFAULT_PATH_LOSS_EXP,
     DEFAULT_REF_POWER,
-    DEFAULT_ROOM_SIGMA_M,
     DOMAIN,
     DATA_SETTINGS,
     DATA_CALIBRATION,
@@ -65,12 +63,6 @@ def _make_coordinator(
     coord._pending_room_changes = []
 
     return coord
-
-
-def _gaussian_score(rssi: float, ref: float, n_exp: float, sigma: float) -> float:
-    """Replicate the Gaussian scoring formula for verification."""
-    dist = max(0.1, 10.0 ** ((ref - rssi) / (10.0 * n_exp)))
-    return math.exp(-(dist / sigma) ** 2)
 
 
 # ---------------------------------------------------------------------------
@@ -316,22 +308,6 @@ class TestGaussianRoomScoring:
             )
 
         assert result == "Living Room"
-
-    def test_gaussian_scores_consistent_with_formula(self) -> None:
-        """The Gaussian scoring should match the expected math formula."""
-        # Verify the helper function matches what the coordinator would compute
-        ref = DEFAULT_REF_POWER   # -59
-        n_exp = DEFAULT_PATH_LOSS_EXP  # 2.5
-        sigma = DEFAULT_ROOM_SIGMA_M   # 4.0
-
-        # At RSSI = ref (-59), distance = 1m, score = exp(-(1/4)^2) = exp(-0.0625) ~ 0.9394
-        score_at_1m = _gaussian_score(-59.0, ref, n_exp, sigma)
-        assert score_at_1m == pytest.approx(math.exp(-0.0625), abs=0.001)
-
-        # At much weaker RSSI, score should be much lower
-        score_far = _gaussian_score(-90.0, ref, n_exp, sigma)
-        assert score_far < score_at_1m
-        assert score_far < 0.1  # very low for far-away scanner
 
     def test_hysteresis_prevents_flipping(self) -> None:
         """When two rooms are close in score, hysteresis should prevent flipping."""

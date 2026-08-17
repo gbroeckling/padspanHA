@@ -8,7 +8,7 @@ from __future__ import annotations
 PadSpan HA — Settings Store
 =============================
 Persistent UI settings — toggling sample/live mode, tuning BLE parameters
-(ref power, path-loss exponent, Kalman Q/R, room sigma), controlling which
+(ref power, path-loss exponent, Kalman Q/R), controlling which
 entity types are published, and storing per-scanner RSSI offsets.
 
 All settings live in a single flat dict persisted to
@@ -57,7 +57,6 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "positioning_algorithm": "knn",    # "knn" | "rf" (Random Forest)
     "kalman_q": 0.125,             # Kalman process noise (RSSI responsiveness)
     "kalman_r": 8.0,               # Kalman measurement noise (smoothing strength)
-    "room_sigma_m": 4.0,           # Gaussian room-scoring sigma in metres
     "assumed_device_height_m": 1.0,  # carry height above the floor for 3D distance (pocketed phone)
     "light_theme": False,   # invert the panel colours (accessibility — dark theme unusable for some)
     "light_shapes": {},     # entity_id -> marker shape; overrides the shape derived from the entity

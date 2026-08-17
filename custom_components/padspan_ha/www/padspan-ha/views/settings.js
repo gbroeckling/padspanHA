@@ -8,7 +8,7 @@
  * Tabs (advanced mode):
  *   Appearance   — room colors, floor names, dark theme options
  *   Scanner Map  — assign scanners to rooms, per-map calibration clear
- *   Presence     — BLE tuning (ref power, path-loss, Kalman, sigma),
+ *   Presence     — BLE tuning (ref power, path-loss, Kalman),
  *                  adaptive learning toggle, positioning algorithm
  *   Manage       — entity types toggle, MQTT, IRK devices
  *
@@ -1776,44 +1776,6 @@ function _settingsPresence(ctx, el){
       `Current: Q=${currentKalmanQ}, R=${currentKalmanR}. ` +
       "Increase R to suppress noise at the cost of slower room detection. " +
       "Increase Q for faster response to movement."
-    ),
-  ]));
-
-  // ── Room Boundary Scoring ─────────────────────────────────────────────────
-  const currentSigma = (settings.room_sigma_m != null ? Number(settings.room_sigma_m) : 4.0);
-  const sigmaInp = el("input", {
-    type: "number", min: "1", max: "20", step: "0.5", value: String(currentSigma), style: inpStyle,
-  });
-  const sigmaSaveBtn = el("button", { class: "btn inline" }, "Save");
-  sigmaSaveBtn.addEventListener("click", async () => {
-    const v = Math.max(1.0, Math.min(20.0, parseFloat(sigmaInp.value) || 4.0));
-    try {
-      await ctx.actions.settingsSet({ room_sigma_m: v });
-      ctx.toast(`Room sigma set to ${v} m`);
-    } catch(e) { ctx.toast("Failed to save setting", true); }
-  });
-  wrap.appendChild(el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Room Boundary Scoring"),
-    el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "Controls how sharply room boundaries are enforced. " +
-      "Room assignment now uses a Gaussian distance model: each scanner's Kalman-filtered RSSI is " +
-      "converted to an estimated distance, then scored as exp(−(d/σ)²). " +
-      "The room whose scanner scores highest wins — this penalises scanners on the far side of a wall " +
-      "more proportionally than simple strongest-RSSI-wins. " +
-      "When calibration fingerprint data is collected (≥5 points), k-NN matching also activates " +
-      "and can override the Gaussian result when confidence ≥ 30%."
-    ),
-    el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Room sigma (m)"),
-      sigmaInp,
-      el("div", { class: "muted", style: "font-size:12px" }, "1–20 m (default 4.0)"),
-    ]),
-    el("div", { style: "margin-top:8px" }, sigmaSaveBtn),
-    el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      `Current: σ = ${currentSigma} m. ` +
-      "Smaller (1–2 m): sharper boundaries, best for small rooms with close scanner placement. " +
-      "Larger (6–12 m): softer, more tolerant of weak signals in large open spaces. " +
-      "At d = σ the scanner's influence drops to ~37%; at d = 2σ it drops to ~2%."
     ),
   ]));
 

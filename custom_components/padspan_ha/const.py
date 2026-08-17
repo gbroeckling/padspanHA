@@ -11,7 +11,7 @@ persistent-store keys, and hass.data slot names.
 Organisation:
   1. Identity (DOMAIN, NAME, VERSION)
   2. Config-flow options (CONF_*)
-  3. BLE signal-processing defaults (ref power, path-loss, Kalman, Gaussian sigma)
+  3. BLE signal-processing defaults (ref power, path-loss, Kalman)
   4. hass.data slot names (DATA_*)
   5. HA Storage file keys (*_STORE_KEY) — each maps to a file under .storage/
   6. Filesystem paths (MAPS_DIR)
@@ -40,7 +40,6 @@ DEFAULT_KALMAN_R = 8.0
 
 # Gaussian room-scoring σ in metres.  score = exp(−(d/σ)²)
 # At d=σ the scanner's influence drops to ~37%; at d=2σ to ~2%.
-DEFAULT_ROOM_SIGMA_M = 4.0
 
 # ── hass.data slot names (keys into hass.data[DOMAIN]) ───────────────────────
 DATA_COORDINATOR = "coordinator"

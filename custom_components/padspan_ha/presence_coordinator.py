@@ -34,19 +34,22 @@ Three-stage pipeline applied each poll cycle:
     Sources that stop reporting are decayed toward -100 dBm and pruned when they
     fall below -95 dBm (~4–5 polls after last seen).
 
-  Stage 1.5 — Gaussian room scoring (replaces winner-takes-all max RSSI)
-    Each scanner's Kalman RSSI is converted to an estimated distance via the
-    path-loss formula, then scored with a Gaussian weight exp(−(d/σ)²) where
-    σ is the configurable room_sigma_m (default 4 m).  The room with the highest
-    max-score across its assigned scanners becomes the candidate.  This penalises
-    scanners on the far side of a wall more proportionally than raw RSSI comparison.
+  Stage 1.5 — Room candidate
+    Path A, spatial: with scanner positions and room geometry in the fabric,
+    the device's (x, y) is solved from the on-floor scanners' distances
+    (path-loss from ref_power / path_loss_exp) and the room whose polygon
+    contains that point is the candidate. Path B, fallback: the room whose
+    assigned scanner hears the device strongest (effective RSSI, with any
+    learned cross-floor attenuation applied). A Gaussian distance scorer with
+    a configurable width was described here for a long time; it was never
+    what ran, and the knob has been removed.
 
-    Optional k-NN override: if calibration fingerprint data (≥5 points) exists and
-    the k-NN confidence exceeds 0.30, the fingerprint result replaces the Gaussian
-    candidate.  Also provides sub-room (x_frac, y_frac) for map dot positioning.
+    Optional k-NN override: if calibration fingerprint data (≥5 points) exists,
+    at least two live scanners are in the query, and the k-NN confidence
+    exceeds 0.30, the fingerprint result replaces the candidate.
 
   Stage 2 — Majority-vote window
-    At each poll, the candidate room (from Gaussian scoring or k-NN) is added to
+    At each poll, the candidate room (from Stage 1.5 or k-NN) is added to
     a rolling window of VOTE_WINDOW (5) entries.  The confirmed room only changes
     when one room appears ≥ VOTE_THRESHOLD (3) times in the window.
     At 10 s/poll this means a room switch requires ~30 s of consistent dominance.
@@ -105,7 +108,7 @@ from .const import (
     DOMAIN, DATA_SETTINGS, DATA_CALIBRATION, DATA_ADAPTIVE, DATA_MODEL,
     DATA_OBJECTS, DATA_CAPTURE, OUTSIDE_FLOOR_ID,
     DEFAULT_KALMAN_Q, DEFAULT_KALMAN_R,
-    DEFAULT_REF_POWER, DEFAULT_PATH_LOSS_EXP, DEFAULT_ROOM_SIGMA_M,
+    DEFAULT_REF_POWER, DEFAULT_PATH_LOSS_EXP,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -1680,19 +1683,16 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # ── Stage 1.5 prep: read path-loss model parameters ────────────────
         # ref_power: RSSI at 1 meter (typically -59 to -65 dBm)
         # path_loss_exp: environment factor (2.0 = free space, 3-4 = indoors)
-        # room_sigma_m: Gaussian width — controls how quickly score drops with distance
         try:
             _st_pl = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
             _d_pl  = (_st_pl.data if _st_pl else {}) or {}
             _ref   = float(_d_pl.get("ref_power",    DEFAULT_REF_POWER))
             _n_exp = float(_d_pl.get("path_loss_exp", DEFAULT_PATH_LOSS_EXP))
-            _sigma = float(_d_pl.get("room_sigma_m",  DEFAULT_ROOM_SIGMA_M))
             _floor_on = bool(_d_pl.get("adaptive_floor_detection", False))
             _dev_h = max(0.0, min(3.0, float(_d_pl.get("assumed_device_height_m", 1.0))))
         except Exception:
             _ref   = DEFAULT_REF_POWER
             _n_exp = DEFAULT_PATH_LOSS_EXP
-            _sigma = DEFAULT_ROOM_SIGMA_M
             _floor_on = False
             _dev_h = 1.0
 
@@ -1968,10 +1968,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # values — those must not vote against live signals (the spatial
             # path already excludes non-reporting scanners; this is the same
             # discipline, softened to tolerate normal BLE advertisement loss:
-            # a held-fresh value inside the grace still votes).
-            _stale_after = max(1, round(20.0 / max(self.update_interval.total_seconds(), 1.0)))
+            # a held-fresh value inside the grace still votes). One window,
+            # the same one the RSSI stage holds through.
             for _src, _rssi in ema.items():
-                if _miss.get(_src, 0) > _stale_after:
+                if _miss.get(_src, 0) > _SILENCE_GRACE:
                     continue
                 _room = source_to_area.get(_src)
                 if not _room:

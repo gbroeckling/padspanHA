@@ -177,7 +177,7 @@ def build_header(
     hdr["set"] = {
         k: _jsonable(settings.get(k))
         for k in (
-            "kalman_q", "kalman_r", "ref_power", "path_loss_exp", "room_sigma_m",
+            "kalman_q", "kalman_r", "ref_power", "path_loss_exp",
             "assumed_device_height_m", "adaptive_floor_detection",
             "adaptive_learning_enabled", "room_change_delay_s",
             "presence_poll_interval_s", "positioning_algorithm",

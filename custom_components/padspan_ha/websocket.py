@@ -3116,7 +3116,6 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("path_loss_exp"): vol.Coerce(float),
         vol.Optional("kalman_q"): vol.Coerce(float),
         vol.Optional("kalman_r"): vol.Coerce(float),
-        vol.Optional("room_sigma_m"): vol.Coerce(float),
         vol.Optional("assumed_device_height_m"): vol.Coerce(float),
         vol.Optional("hidden_map_ids"): list,
         vol.Optional("followed_addrs"): list,
@@ -3238,8 +3237,6 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["kalman_q"] = max(0.01, min(1.0, float(msg["kalman_q"])))
         if "kalman_r" in msg:
             payload["kalman_r"] = max(0.5, min(50.0, float(msg["kalman_r"])))
-        if "room_sigma_m" in msg:
-            payload["room_sigma_m"] = max(1.0, min(20.0, float(msg["room_sigma_m"])))
         if "assumed_device_height_m" in msg:
             payload["assumed_device_height_m"] = max(0.0, min(3.0, float(msg["assumed_device_height_m"])))
         if "hidden_map_ids" in msg:
@@ -6921,7 +6918,6 @@ async def ws_propagation_health(hass: HomeAssistant, connection, msg) -> None:
         "settings": {
             "ref_power": settings.get("ref_power", -59.0),
             "path_loss_exp": settings.get("path_loss_exp", 2.5),
-            "room_sigma_m": settings.get("room_sigma_m", 4.0),
             "kalman_q": settings.get("kalman_q", 0.125),
             "kalman_r": settings.get("kalman_r", 8.0),
             "adaptive_enabled": bool(settings.get("adaptive_learning_enabled")),
