@@ -18,7 +18,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from .const import DATA_SETTINGS, DOMAIN
+import math
+
+from .const import DATA_SETTINGS, DOMAIN, OUTDOOR_FLOOR_NAMES
 
 # Kinds that physically go away.  An HA entity has no radio and no age, so it
 # is never "away" — blanking those was how an earlier attempt at this rule
@@ -93,3 +95,145 @@ def is_away(obj: dict[str, Any], timeout_s: float) -> bool:
     if age != age or age in (float("inf"), float("-inf")):  # NaN / inf
         return False
     return age > timeout_s
+
+
+# ── Outside: the site's indoor coverage envelope ────────────────────────────
+#
+# A device on the property but not in the building is heard by every indoor
+# scanner faintly, through the walls, and the strongest of several faint
+# readings is some perimeter room — so a parked vehicle lived in the Bedroom
+# Closet. Nothing about one faint reading says "outside". What is always true
+# of an outside device on a covered site is that NO scanner hears it well: a
+# device indoors has a scanner within a few metres. The site can measure that
+# about itself — see docs/outside-attribution-plan.md.
+
+COVERAGE_MIN_POINTS = 30       # fewer indoor calibration points: rule inactive
+COVERAGE_PERCENTILE = 0.05     # the low tail of "strongest reading" indoors
+COVERAGE_HYSTERESIS_DB = 2.0   # enter below floor-2, leave above floor+2
+
+
+def is_outdoor_floor(floor_id: Any) -> bool:
+    """Whether a floor id names the outdoors — the fabric sentinel or a
+    registry floor called outside/garden/yard/…, one list in const."""
+    return str(floor_id or "").strip().lower().replace(" ", "_") in OUTDOOR_FLOOR_NAMES
+
+
+def indoor_coverage_floor(points: list[dict[str, Any]], *,
+                          min_points: int = COVERAGE_MIN_POINTS,
+                          percentile: float = COVERAGE_PERCENTILE) -> float | None:
+    """The coverage floor: the worst 'strongest reading' the house produces indoors.
+
+    For each calibration point on an indoor floor, the strongest mean reading
+    across its scanners is how well the nearest scanner hears a device standing
+    there. The low tail of that over all indoor points is the weakest a device
+    INSIDE the covered building is ever heard. None with too few points — a
+    site that has not calibrated does not get the rule, and nothing regresses.
+    """
+    best: list[float] = []
+    for p in points or []:
+        if not isinstance(p, dict) or is_outdoor_floor(p.get("floor_id")):
+            continue
+        vals = [r.get("mean_rssi") for r in (p.get("scanner_readings") or [])
+                if isinstance(r, dict) and isinstance(r.get("mean_rssi"), (int, float))]
+        if vals:
+            best.append(float(max(vals)))
+    if len(best) < min_points:
+        return None
+    best.sort()
+    idx = int(percentile * (len(best) - 1))
+    return round(best[idx], 1)
+
+
+def modelled_coverage_floor(rooms_m: dict[str, dict[str, Any]],
+                            scanners: dict[str, tuple[float, float, str]],
+                            ref_power: float, path_loss_exp: float,
+                            floor_stack_idx: dict[str, int] | None = None,
+                            slab_db: float = 10.0, grid_m: float = 1.0) -> float | None:
+    """The same floor from physics, for a site with too little calibration.
+
+    Sample every indoor room polygon on a metre grid; at each sample the best
+    a scanner could hear a device there is the log-distance model to the
+    nearest scanner (a slab of attenuation per storey between them). The
+    minimum over the building is the modelled floor. Coarser than the
+    measured one — walls and furniture are not in it — so the measured floor
+    takes over as calibration accrues.
+    """
+    if not scanners:
+        return None
+    worst: float | None = None
+    stack = floor_stack_idx or {}
+    for room, g in (rooms_m or {}).items():
+        if not isinstance(g, dict) or is_outdoor_floor(g.get("floor_id")):
+            continue
+        pts = g.get("points_m") if g.get("type") == "poly" else None
+        if not pts or len(pts) < 3:
+            continue
+        fid = str(g.get("floor_id") or "")
+        xs = [float(p[0]) for p in pts]; ys = [float(p[1]) for p in pts]
+        x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+        gx = x0
+        while gx <= x1 + 1e-9:
+            gy = y0
+            while gy <= y1 + 1e-9:
+                if _point_in_poly(gx, gy, pts):
+                    best = -999.0
+                    for _src, (sx, sy, sf) in scanners.items():
+                        d = max(0.5, math.hypot(gx - sx, gy - sy))
+                        rssi = ref_power - 10.0 * path_loss_exp * math.log10(d)
+                        if sf and fid and sf != fid:
+                            si, di = stack.get(str(sf)), stack.get(fid)
+                            rssi -= slab_db * (abs(si - di) if si is not None and di is not None else 1)
+                        if rssi > best:
+                            best = rssi
+                    if best > -999.0 and (worst is None or best < worst):
+                        worst = best
+                gy += grid_m
+            gx += grid_m
+    return round(worst, 1) if worst is not None else None
+
+
+def _point_in_poly(x: float, y: float, poly: list) -> bool:
+    inside = False
+    n = len(poly)
+    j = n - 1
+    for i in range(n):
+        xi, yi = float(poly[i][0]), float(poly[i][1])
+        xj, yj = float(poly[j][0]), float(poly[j][1])
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+
+def outside_by_coverage(best_live_dbm: float | None, coverage_floor: float | None,
+                        was_outside: bool, *, band_db: float = COVERAGE_HYSTERESIS_DB) -> bool:
+    """Is the object outside the covered building this poll?
+
+    Enter below floor − band, leave above floor + band, hold in between; with
+    no floor (rule inactive) or nothing heard, the answer is 'not by this rule'.
+    """
+    if coverage_floor is None or best_live_dbm is None:
+        return False
+    if best_live_dbm < coverage_floor - band_db:
+        return True
+    if best_live_dbm > coverage_floor + band_db:
+        return False
+    return was_outside
+
+
+def outdoor_attribution(live: dict[str, float], source_to_area: dict[str, str],
+                        source_to_floor: dict[str, str]) -> str | None:
+    """The area of the outdoor scanner that hears the device best, or None.
+
+    The rule only ever ADDS an outdoor attribution when there is outdoor
+    evidence; with no outdoor scanner hearing the device it changes nothing.
+    """
+    best_src, best_val = None, None
+    for src, rssi in (live or {}).items():
+        if not is_outdoor_floor(source_to_floor.get(src)):
+            continue
+        if not source_to_area.get(src):
+            continue
+        if best_val is None or rssi > best_val:
+            best_src, best_val = src, rssi
+    return source_to_area.get(best_src) if best_src else None

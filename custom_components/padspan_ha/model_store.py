@@ -47,7 +47,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .const import MODEL_STORE_KEY, DEFAULT_FLOOR_ID, MAX_HEIGHT_M, LIGHT_SHAPE_KINDS
+from .const import MODEL_STORE_KEY, DEFAULT_FLOOR_ID, MAX_HEIGHT_M, LIGHT_SHAPE_KINDS, OUTDOOR_FLOOR_NAMES
 from .safe_store import wrap_store
 
 
@@ -668,9 +668,8 @@ class ModelStore:
         # Outdoors is at ground level, not above the roof. Ranking it as an
         # unknown name put it on top of the stack, which made every outdoor
         # scanner two slabs (20 dB) away from the ground floor it stands next
-        # to. Both spellings: the fabric's sentinel and the registry's floor.
-        "outside": 0, "__outside__": 0, "outdoor": 0, "outdoors": 0,
-        "exterior": 0, "garden": 0, "yard": 0,
+        # to. The names come from const.OUTDOOR_FLOOR_NAMES — one list.
+        **{name: 0 for name in OUTDOOR_FLOOR_NAMES},
         "upper": 1, "upstairs": 1, "second": 1, "middle": 1,
         "upper_floor": 1, "second_floor": 1,
         "third": 2, "third_floor": 2, "loft": 2, "attic": 3, "roof": 4,

@@ -156,6 +156,10 @@ def build_header(
     hdr["fb"] = _jsonable(getattr(coord, "_floor_bounds", None) or {})
     hdr["fbase"] = _jsonable(getattr(coord, "_floor_bases", None) or {})
     hdr["fstack"] = _jsonable(getattr(coord, "_floor_stack_idx", None) or {})
+    # The coverage floor the outside rule ran against, and where it came from,
+    # so a replay reproduces the decision (docs/outside-attribution-plan.md).
+    hdr["cov_floor"] = getattr(coord, "_coverage_floor", None)
+    hdr["cov_floor_src"] = getattr(coord, "_coverage_floor_src", "")
     hdr["bar"] = _jsonable(getattr(coord, "_rf_barriers", None) or [])
     hdr["um"] = bool(getattr(coord, "_use_metres", False))
     hdr["plf"] = _jsonable(getattr(coord, "_pl_fits", None) or {})

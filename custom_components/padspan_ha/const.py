@@ -128,3 +128,11 @@ LIGHT_SHAPE_KINDS = frozenset({
     "hex", "circle", "bar", "line", "square", "triangle", "diamond",
     "fan", "sconce", "pendant", "chandelier",
 })
+
+# ── Outdoors ────────────────────────────────────────────────────────────────
+# What "the outdoor floor" is called: the fabric's sentinel and the names a
+# registry floor is usually given. One list — the model store ranks these at
+# ground level and the outside-attribution rule reads the same list.
+OUTDOOR_FLOOR_NAMES = frozenset({
+    OUTSIDE_FLOOR_ID, "outside", "outdoor", "outdoors", "exterior", "garden", "yard",
+})

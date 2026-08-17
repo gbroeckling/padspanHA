@@ -110,6 +110,10 @@ from .const import (
     DEFAULT_KALMAN_Q, DEFAULT_KALMAN_R,
     DEFAULT_REF_POWER, DEFAULT_PATH_LOSS_EXP,
 )
+from .presence_rules import (
+    indoor_coverage_floor, is_outdoor_floor, modelled_coverage_floor,
+    outdoor_attribution, outside_by_coverage,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -542,6 +546,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # selection compares against this to tell a gap in the data from a
         # genuine move — see _select_floor.
         self._floor_evidence: dict[str, float] = {}
+        # Outside by the site's coverage envelope (docs/outside-attribution-plan.md):
+        # the coverage floor learned once per poll, and each object's held state.
+        self._coverage_floor: float | None = None
+        self._coverage_floor_src: str = "inactive"
+        self._coverage_stamp: tuple | None = None
+        self._outside_by_cov: dict[str, bool] = {}
         # {key: dict}  — last candidate info for diagnostics
         self._last_candidate: dict[str, dict[str, Any]] = {}
         # Throttle: {key: monotonic_ts} — last alert sent time per object
@@ -1079,6 +1089,15 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception:
             pass
 
+        # ── The site's coverage floor (outside attribution) ─────────────────
+        # Measured from indoor calibration points when there are enough;
+        # modelled from scanner geometry as the fallback; inactive on a site
+        # with no outdoor floor at all. Recomputed only when its inputs move.
+        try:
+            self._refresh_coverage_floor(_model, source_to_floor)
+        except Exception as _cov_err:
+            _LOGGER.debug("Coverage floor: %s", _cov_err)
+
         def _object_loop() -> None:
             """CPU-heavy per-object smoothing pipeline (Kalman + k-NN + votes).
 
@@ -1219,9 +1238,14 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # last or a kind with no branch cannot leave the solver's
                 # floor (or none) beside a room the fabric places elsewhere.
                 _fl = self._object_floor(obj.get("room"), obj.get("floor_id"), _floor_of_room)
-                if _fl != (obj.get("floor_id") or ""):
+                _outside_now = bool(self._outside_by_cov.get(key))
+                if _fl != (obj.get("floor_id") or "") or _outside_now != bool(obj.get("outside")):
                     obj = dict(obj)  # copy — the snapshot is shared via the TTL cache
                     obj["floor_id"] = _fl
+                    # Outside the covered building, by the site's coverage
+                    # envelope — stated on the object so nothing has to infer
+                    # it from a room name.
+                    obj["outside"] = _outside_now
 
                 result[key] = obj
 
@@ -1444,6 +1468,41 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.debug("MQTT publish error", exc_info=True)
 
     # ── smoothing helpers ─────────────────────────────────────────────────────
+
+    def _refresh_coverage_floor(self, model: Any, source_to_floor: dict[str, str]) -> None:
+        """Learn the coverage floor for this poll, cheaply.
+
+        Inactive when nothing on the site is outdoors (no outdoor scanner and
+        no outdoor room): a site with no notion of outside cannot attribute to
+        it. Otherwise measured (indoor_coverage_floor) when the calibration has
+        enough indoor points, else modelled from scanner geometry. Cached on
+        the inputs — point count, scanner set, path-loss settings — so it costs
+        nothing on the polls where nothing changed.
+        """
+        has_outdoors = any(is_outdoor_floor(f) for f in (source_to_floor or {}).values())
+        rooms_m = model.room_geometry_m() if model else {}
+        if not has_outdoors:
+            has_outdoors = any(is_outdoor_floor((g or {}).get("floor_id")) for g in rooms_m.values())
+        if not has_outdoors:
+            self._coverage_floor, self._coverage_floor_src, self._coverage_stamp = None, "inactive:no_outdoors", None
+            return
+        _calib = self.hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
+        points = list((_calib.data.get("points") or [])) if _calib else []
+        _st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        _d = (_st.data if _st else {}) or {}
+        ref = float(_d.get("ref_power", DEFAULT_REF_POWER))
+        n_exp = float(_d.get("path_loss_exp", DEFAULT_PATH_LOSS_EXP))
+        stamp = (len(points), tuple(sorted(self._scanner_positions)), ref, n_exp, len(rooms_m))
+        if stamp == self._coverage_stamp:
+            return
+        self._coverage_stamp = stamp
+        floor = indoor_coverage_floor(points)
+        if floor is not None:
+            self._coverage_floor, self._coverage_floor_src = floor, f"measured:{len(points)}pts"
+            return
+        floor = modelled_coverage_floor(rooms_m, self._scanner_positions, ref, n_exp, self._floor_stack_idx)
+        self._coverage_floor = floor
+        self._coverage_floor_src = "modelled" if floor is not None else "inactive:no_data"
 
     @staticmethod
     def _object_floor(room: str | None, solver_floor: str | None,
@@ -1729,7 +1788,27 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _spatial_xy: tuple[float, float, str] | None = None  # (x_m, y_m, floor_id)
         _spatial_candidate: str | None = None  # room from geometry check
         _cur_confirmed = self._confirmed_room.get(key)
-        if ema:
+
+        # ── Outside, by the site's coverage envelope ─────────────────────────
+        # Strongest FRESH reading against the floor the site learned about
+        # itself. Below it, no scanner hears this device well enough for it to
+        # be inside the covered building; if an outdoor scanner hears it, that
+        # scanner's area is the answer and the indoor solve is not run — an x/y
+        # for an outdoor device from indoor scanners is a centroid inside the
+        # house, which is exactly how a parked vehicle came to live in a
+        # closet. Without outdoor evidence the rule changes nothing.
+        _live_fresh = {s_: v_ for s_, v_ in ema.items() if _miss.get(s_, 0) < _SILENCE_GRACE}
+        _best_live = max(_live_fresh.values()) if _live_fresh else None
+        _outside = outside_by_coverage(_best_live, self._coverage_floor, self._outside_by_cov.get(key, False))
+        self._outside_by_cov[key] = _outside
+        _outside_area: str | None = None
+        if _outside:
+            _outside_area = outdoor_attribution(_live_fresh, source_to_area, source_to_floor or {})
+            self._spatial_debug[key] = (
+                f"outside_by_coverage:best={_best_live:.0f},floor={self._coverage_floor:.0f},"
+                f"area={_outside_area or 'none'}"
+            )
+        if ema and not _outside_area:
             # RSSI margin confidence (for entity attributes)
             sorted_vals = sorted(ema.values(), reverse=True)
             if len(sorted_vals) >= 2:
@@ -2073,6 +2152,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         candidate = _cur_confirmed if _cur_confirmed else _best_room
                 else:
                     candidate = _best_room
+        if _outside_area:
+            candidate = _outside_area
 
         # ── Comprehensive diagnostic for labelled devices ─────────────────────
         _obj_label = (self._known_objs.get(key) or {}).get("user_label")
@@ -2741,6 +2822,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_candidate.pop(key, None)
         self._spatial_debug.pop(key, None)
         self._floor_evidence.pop(key, None)
+        self._outside_by_cov.pop(key, None)
         self._ema_rssi.pop(key, None)
         self._kalman_p.pop(key, None)
         self._silence_miss.pop(key, None)
