@@ -269,3 +269,22 @@ def test_get_status_duplicate_names_keep_correct_entry_ids() -> None:
     assert [d["entry_id"] for d in st["devices"]] == ["entry_A", "entry_B"]
     assert [d["source"] for d in st["devices"]] == ["private_ble_device", "mobile_app"]
     assert [d["canonical_id"] for d in st["devices"]] == ["irk:aa", "irk:bb"]
+
+
+def test_the_resolution_cache_is_bounded() -> None:
+    """Every address heard is cached, resolved or not, and a real house hears
+    ~1,800 a poll — most of them rotating addresses never seen again. Entries
+    expired but were never evicted, so the dict only ever grew."""
+    from custom_components.padspan_ha import private_ble_resolver as mod
+
+    r = PrivateBLEResolver.__new__(PrivateBLEResolver)
+    r._devices = [{"canonical_id": "x", "name": "x", "irk_bytes": b"\x00" * 16}]
+    r._cache = {}
+    # Fill past the bound with unexpired entries.
+    for i in range(mod._CACHE_MAX + 500):
+        r._remember(f"AA:BB:CC:{i:06X}"[:17], None, now=1000.0)
+    assert len(r._cache) <= mod._CACHE_MAX
+    # Expired entries are what goes first once it is full.
+    r._cache = {f"E{i}": (None, 10.0) for i in range(mod._CACHE_MAX)}   # all expired at t=10
+    r._remember("NEW", "x", now=1000.0)
+    assert r._cache == {"NEW": ("x", 1000.0 + mod._CACHE_TTL_S)}

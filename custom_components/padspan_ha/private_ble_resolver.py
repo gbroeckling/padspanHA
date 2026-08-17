@@ -58,6 +58,12 @@ _RPA_VALUE = 0x40
 # Cache resolved (address → canonical_id) mappings.
 # RPAs change every ~15 minutes; cache for 20 minutes to avoid redundant AES checks.
 _CACHE_TTL_S = 1200
+# Upper bound on cached addresses. Every address heard is cached — resolved or
+# not — and a real house hears ~1,800 objects a poll, most of them rotating
+# RPAs from neighbours' phones that will never be seen again. Entries expired
+# but were never evicted, so the dict only ever grew. Sweeping on insert once
+# it is full keeps the AES-saving cache and bounds the memory.
+_CACHE_MAX = 4096
 
 
 class PrivateBLEResolver:
@@ -260,7 +266,7 @@ class PrivateBLEResolver:
 
         # Check if it's even an RPA before running crypto
         if not _is_rpa(addr_upper):
-            self._cache[addr_upper] = (None, now + _CACHE_TTL_S)
+            self._remember(addr_upper, None, now)
             return None
 
         # Try each registered IRK
@@ -271,7 +277,7 @@ class PrivateBLEResolver:
                         "Resolved RPA %s → %s (%s)",
                         addr_upper, dev["canonical_id"], dev["name"],
                     )
-                    self._cache[addr_upper] = (dev["canonical_id"], now + _CACHE_TTL_S)
+                    self._remember(addr_upper, dev["canonical_id"], now)
                     return {"canonical_id": dev["canonical_id"], "name": dev["name"], "kind": "private_ble"}
             except Exception as err:
                 _LOGGER.warning("IRK match error for %s: %s", addr_upper, err)
@@ -286,8 +292,23 @@ class PrivateBLEResolver:
                 addr_upper, len(self._devices),
             )
 
-        self._cache[addr_upper] = (None, now + _CACHE_TTL_S)
+        self._remember(addr_upper, None, now)
         return None
+
+    def _remember(self, addr: str, cid: str | None, now: float) -> None:
+        """Cache a resolution, evicting expired entries once the cache is full.
+
+        If it is still full after that — thousands of live, unexpired
+        addresses — the quarter nearest expiry go, so a burst of new
+        neighbours cannot pin the cache at its bound with entries that will
+        be useless in a few minutes anyway.
+        """
+        if len(self._cache) >= _CACHE_MAX:
+            self._cache = {a: v for a, v in self._cache.items() if v[1] > now}
+            if len(self._cache) >= _CACHE_MAX:
+                for a in sorted(self._cache, key=lambda a: self._cache[a][1])[: _CACHE_MAX // 4]:
+                    del self._cache[a]
+        self._cache[addr] = (cid, now + _CACHE_TTL_S)
 
     def has_devices(self) -> bool:
         return bool(self._devices)
