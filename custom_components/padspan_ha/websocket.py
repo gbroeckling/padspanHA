@@ -4066,7 +4066,6 @@ async def ws_maps_upload(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("room_bounds"): dict,
         vol.Optional("stack"): dict,
         vol.Optional("beacons"): list,
-        vol.Optional("rf_barriers"): list,
         vol.Optional("lights"): list,
     }
 )
@@ -4126,7 +4125,6 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
             notes=msg.get("notes"),
             floor_id=msg.get("floor_id"),
             room_bounds=_incoming_rb,
-            rf_barriers=msg.get("rf_barriers"),
             stack=msg.get("stack"),
         )
     except KeyError:
@@ -4192,7 +4190,7 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
         msg.get("stack") is not None
         and msg.get("receivers") is None and _beacons is None
         and msg.get("calibration") is None and _incoming_rb is None
-        and msg.get("rf_barriers") is None and msg.get("floor_id") is None
+        and msg.get("floor_id") is None
     )
     if not _stack_only:
         try:
@@ -10101,7 +10099,11 @@ async def ws_fabric_floor_finalize(hass: HomeAssistant, connection, msg) -> None
 )
 @websocket_api.async_response
 async def ws_fabric_rf_barrier_set(hass: HomeAssistant, connection, msg) -> None:
-    """Add or update an RF barrier in real-world metres (matched by name)."""
+    """Add or update an RF barrier in real-world metres, by id.
+
+    A barrier without an id is new; the reply carries the stored entry with
+    the id it was given, and that id is how it is addressed from then on.
+    """
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
         connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
@@ -10111,28 +10113,31 @@ async def ws_fabric_rf_barrier_set(hass: HomeAssistant, connection, msg) -> None
         connection.send_error(msg["id"], "invalid", "barrier dict with name is required")
         return
     barrier.setdefault("floor_id", DEFAULT_FLOOR_ID)
-    await mdl.async_set_rf_barrier_m(barrier)
-    connection.send_result(msg["id"], {"ok": True, "name": barrier["name"]})
+    stored = await mdl.async_set_rf_barrier_m(barrier)
+    if stored is None:
+        connection.send_error(msg["id"], "invalid", "barrier needs a name and at least two points_m")
+        return
+    connection.send_result(msg["id"], {"ok": True, "barrier": stored})
 
 
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/fabric_rf_barrier_remove",
-        "name": str,
+        "barrier_id": str,
     }
 )
 @websocket_api.async_response
 async def ws_fabric_rf_barrier_remove(hass: HomeAssistant, connection, msg) -> None:
-    """Remove an RF barrier by name."""
+    """Remove an RF barrier by id."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
         connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
         return
-    name = (msg.get("name") or "").strip()
-    if not name:
-        connection.send_error(msg["id"], "invalid", "name is required")
+    bid = (msg.get("barrier_id") or "").strip()
+    if not bid:
+        connection.send_error(msg["id"], "invalid", "barrier_id is required")
         return
-    await mdl.async_remove_rf_barrier_m(name)
+    await mdl.async_remove_rf_barrier_m(bid)
     connection.send_result(msg["id"], {"ok": True})
 
 
@@ -11243,6 +11248,12 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
     # ── Maps diagnostic info ───────────────────────────────────────────────
     maps_diag: list[dict[str, Any]] = []
     if ms:
+        # Walls live in the fabric, per floor — not on a photograph.
+        _mdl_h = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+        _bars_by_floor: dict[str, int] = {}
+        for _b in (_mdl_h.rf_barriers_m() if _mdl_h else []):
+            _fl = str(_b.get("floor_id") or "")
+            _bars_by_floor[_fl] = _bars_by_floor.get(_fl, 0) + 1
         for m in ms.list_maps():
             img = m.get("image") or {}
             cal = m.get("calibration") or {}
@@ -11258,7 +11269,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
                 "is_master": stk.get("is_master", False),
                 "has_receivers": len(m.get("receivers") or []),
                 "has_room_bounds": len(m.get("room_bounds") or {}),
-                "has_rf_barriers": len(m.get("rf_barriers") or []),
+                "has_rf_barriers": _bars_by_floor.get(str(m.get("floor_id") or ""), 0),
             })
 
     connection.send_result(msg["id"], {

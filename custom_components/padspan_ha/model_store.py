@@ -958,19 +958,27 @@ class ModelStore:
             "map_id": map_id,
         }}, op="scanner_set")
 
-    async def async_set_rf_barrier_m(self, barrier: dict) -> None:
-        """Add or replace an RF barrier in real-world metres (matched by name)."""
-        fab = getattr(self, "fabric", None)
-        if not fab:
-            return
-        await fab.async_spatial_update(set_barriers=[dict(barrier)], op="barrier_set")
+    async def async_set_rf_barrier_m(self, barrier: dict) -> dict | None:
+        """Add or replace an RF barrier in real-world metres, by id.
 
-    async def async_remove_rf_barrier_m(self, name: str) -> None:
-        """Remove an RF barrier by name."""
+        A barrier without an id is new and is given one. Returns the stored
+        entry (with its id) so the caller can address it from then on.
+        """
+        fab = getattr(self, "fabric", None)
+        if not fab:
+            return None
+        norm = fab._norm_barrier(dict(barrier))
+        if norm is None:
+            return None
+        await fab.async_spatial_update(set_barriers=[norm], op="barrier_set")
+        return next((b for b in fab.rf_barriers_m() if b.get("id") == norm["id"]), None)
+
+    async def async_remove_rf_barrier_m(self, barrier_id: str) -> None:
+        """Remove an RF barrier by id."""
         fab = getattr(self, "fabric", None)
         if not fab:
             return
-        await fab.async_spatial_update(remove_barrier_names=[str(name)], op="barrier_remove")
+        await fab.async_spatial_update(remove_barrier_ids=[str(barrier_id)], op="barrier_remove")
 
     async def async_set_map_transform(
         self, map_id: str, transform: dict, *, reanchor: bool = False
@@ -1462,27 +1470,6 @@ class ModelStore:
         # corrupts positions) and do NOT inject room boundaries from the
         # fabric into maps (creates phantom outlines the user never drew).
         # Room bounds are ONLY modified by explicit user Save in the Edit tab.
-
-        # ── RF barriers ──────────────────────────────────────────────────
-        map_barriers_m = [bm for bm in barriers_m if bm.get("map_id") == map_id]
-        existing_barriers = map_dict.get("rf_barriers") or []
-        if map_barriers_m and existing_barriers:
-            # Match by index/name and re-derive points
-            for i, bar in enumerate(existing_barriers):
-                if i >= len(map_barriers_m):
-                    break
-                bm = map_barriers_m[i]
-                new_pts = []
-                for pm in (bm.get("points_m") or []):
-                    fracs = self.metres_to_map_frac(float(pm[0]), float(pm[1]), map_id)
-                    if fracs:
-                        new_pts.append([
-                            round(max(0.0, min(1.0, fracs[0])), 4),
-                            round(max(0.0, min(1.0, fracs[1])), 4),
-                        ])
-                if len(new_pts) >= 2:
-                    bar["points"] = new_pts
-                    count += 1
 
         # ── Beacons ───────────────────────────────────────────────────────
         beacons_m = self.beacon_positions_m()

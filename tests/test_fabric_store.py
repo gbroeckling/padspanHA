@@ -310,22 +310,30 @@ async def test_spatial_update_set_and_remove() -> None:
 
 
 @pytest.mark.asyncio
-async def test_spatial_update_barriers_name_and_map_replace() -> None:
+async def test_barriers_are_addressed_by_id_and_a_new_one_gets_one() -> None:
+    """A wall has an identity of its own. Matching by name let two floors'
+    'Barrier 1' replace each other, and list-position names renamed walls
+    when the list reordered — which is why the photo had to stay their
+    editor. Ids now; the name is a label; map_id is not stored."""
     fab = _spatial_fabric()
     await fab.async_spatial_update(set_barriers=[
-        {"name": "Wall", "points_m": [[0, 0], [1, 0]], "floor_id": "main", "origin": "map", "map_id": "m1"},
-        {"name": "Door", "points_m": [[2, 0], [3, 0]], "floor_id": "main", "origin": "manual"},
+        {"name": "Wall", "points_m": [[0, 0], [1, 0]], "floor_id": "main", "map_id": "m1"},
+        {"name": "Wall", "points_m": [[2, 0], [3, 0]], "floor_id": "upper"},
     ], op="seed")
-    # Name replace
+    walls = fab.rf_barriers_m()
+    assert len(walls) == 2 and len({b["id"] for b in walls}) == 2   # same name, two walls
+    assert all("map_id" not in b for b in walls)
+    main = next(b for b in walls if b["floor_id"] == "main")
+    # Re-set by id moves THAT wall and no other.
     await fab.async_spatial_update(set_barriers=[
-        {"name": "Wall", "points_m": [[0, 0], [0, 5]], "floor_id": "main", "origin": "map", "map_id": "m1"},
-    ], op="replace")
-    walls = [b for b in fab.rf_barriers_m() if b["name"] == "Wall"]
-    assert len(walls) == 1 and walls[0]["points_m"][1] == [0, 5]
-    # Map replace drops only that map's map-origin barriers
-    await fab.async_spatial_update(replace_map_barriers=("m1", []), op="wipe-m1")
-    names = [b["name"] for b in fab.rf_barriers_m()]
-    assert names == ["Door"]
+        {**main, "points_m": [[0, 0], [0, 5]]},
+    ], op="move")
+    walls = fab.rf_barriers_m()
+    assert len(walls) == 2
+    assert next(b for b in walls if b["id"] == main["id"])["points_m"][1] == [0, 5]
+    # Remove by id.
+    await fab.async_spatial_update(remove_barrier_ids=[main["id"]], op="rm")
+    assert [b["floor_id"] for b in fab.rf_barriers_m()] == ["upper"]
 
 
 @pytest.mark.asyncio
@@ -368,24 +376,6 @@ def test_no_implicit_spatial_write_path_survives() -> None:
     for name in ("websocket.py", "model_store.py", "__init__.py"):
         text = (src / name).read_text(encoding="utf-8")
         assert "async_sync_spatial_from_map(" not in text, name
-
-
-@pytest.mark.asyncio
-async def test_hand_placed_barrier_survives_an_edit_tab_save() -> None:
-    """Barriers are the one thing the photo still edits, so an Edit save
-    replaces that map's barriers. A barrier placed directly in metres carries
-    no map_id and must not be swept up with them."""
-    fab = _spatial_fabric()
-    fab.data["rf_barriers_m"] = [
-        {"name": "Hand wall", "points_m": [[0, 0], [1, 0]], "floor_id": "main"},
-        {"name": "Traced wall", "points_m": [[2, 0], [3, 0]], "floor_id": "main", "map_id": "m1"},
-    ]
-    await fab.async_spatial_update(
-        replace_map_barriers=("m1", [{"name": "Traced wall v2",
-                                      "points_m": [[4, 0], [5, 0]], "floor_id": "main",
-                                      "map_id": "m1"}]))
-    names = {b["name"] for b in fab.rf_barriers_m()}
-    assert names == {"Hand wall", "Traced wall v2"}
 
 
 def test_model_spatial_reads_loud_empty_without_fabric() -> None:

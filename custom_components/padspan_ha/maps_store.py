@@ -177,7 +177,6 @@ class MapsStore:
             "receivers": [],
             "beacons": [],
             "room_bounds": {},
-            "rf_barriers": [],
             "floor_id": str(floor_id or DEFAULT_FLOOR_ID)[:40],
             "notes": "",
             "stack": {"z_level": 0, "x_offset": 0.0, "y_offset": 0.0, "scale": 1.0, "ceiling_height_m": 2.4},
@@ -188,7 +187,7 @@ class MapsStore:
         await self.store.async_save(self.data)
         return info
 
-    async def async_update_map(self, map_id: str, *, receivers: list[dict[str, Any]] | None = None, beacons: list[dict[str, Any]] | None = None, calibration: dict[str, Any] | None = None, notes: str | None = None, floor_id: str | None = None, room_bounds: dict[str, Any] | None = None, rf_barriers: list[dict[str, Any]] | None = None, stack: dict | None = None) -> dict[str, Any]:
+    async def async_update_map(self, map_id: str, *, receivers: list[dict[str, Any]] | None = None, beacons: list[dict[str, Any]] | None = None, calibration: dict[str, Any] | None = None, notes: str | None = None, floor_id: str | None = None, room_bounds: dict[str, Any] | None = None, stack: dict | None = None) -> dict[str, Any]:
         """Update map metadata — only fields that are not None are changed.
 
         Each field is validated and sanitised (coords clamped 0-1, strings
@@ -286,41 +285,6 @@ class MapsStore:
                     except Exception:
                         continue
             m["room_bounds"] = clean_rb
-
-        if isinstance(rf_barriers, list):
-            # rf_barriers: [{name, material, attenuation_dbm, points:[[x,y],...]}]
-            # Each barrier is a polyline representing a wall/obstruction with
-            # known RF attenuation (metal, dense concrete, etc.).
-            # "open" (0 dB) = loft/mezzanine: no wall, signal passes freely.
-            # Used to mark areas open to the floor above/below so the presence
-            # coordinator reduces cross-floor stickiness at that boundary.
-            _MATERIALS = {"metal": 12, "concrete": 8, "brick": 4, "custom": 6, "open": 0}
-            clean_barriers: list[dict[str, Any]] = []
-            for idx, b in enumerate(rf_barriers[:50]):  # max 50 barriers
-                if not isinstance(b, dict):
-                    continue
-                pts = b.get("points")
-                if not isinstance(pts, list) or len(pts) < 2:
-                    continue
-                clean_pts = []
-                for p in pts:
-                    if not isinstance(p, (list, tuple)) or len(p) < 2:
-                        continue
-                    px = max(0.0, min(1.0, float(p[0])))
-                    py = max(0.0, min(1.0, float(p[1])))
-                    clean_pts.append([px, py])
-                if len(clean_pts) < 2:
-                    continue
-                mat = str(b.get("material") or "metal")[:20]
-                atten = float(b.get("attenuation_dbm", _MATERIALS.get(mat, 6)))
-                atten = max(0.0, min(30.0, atten))  # 0.0 valid for "open" barriers
-                clean_barriers.append({
-                    "name": str(b.get("name") or f"Barrier {idx+1}")[:80],
-                    "material": mat,
-                    "attenuation_dbm": atten,
-                    "points": clean_pts,
-                })
-            m["rf_barriers"] = clean_barriers
 
         if isinstance(stack, dict):
             # Clamp numeric values to sane ranges to prevent broken rendering

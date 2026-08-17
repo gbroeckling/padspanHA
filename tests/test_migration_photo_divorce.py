@@ -133,9 +133,10 @@ async def test_legacy_ownership_keys_are_stripped() -> None:
         assert "origin" not in entry and "map_id" not in entry and "z_origin" not in entry
     for entry in fab.beacon_positions_m().values():
         assert "origin" not in entry and "map_id" not in entry
-    # Barriers keep map_id — it is how an Edit save replaces the walls it drew.
-    assert "origin" not in fab.rf_barriers_m()[0]
-    assert fab.rf_barriers_m()[0]["map_id"] == "bad"
+    # Barriers lose their photo link too, and gain an identity of their own.
+    bar = fab.rf_barriers_m()[0]
+    assert "origin" not in bar and "map_id" not in bar
+    assert bar["id"].startswith("bar_")
 
 
 @pytest.mark.asyncio
@@ -223,7 +224,7 @@ async def test_a_step_added_after_an_upgrade_still_runs() -> None:
     photo-divorce marker. A step added afterwards — lights — would be skipped
     forever, silently, on exactly the installs that need it most.
     """
-    from custom_components.padspan_ha.migrations import CAL_POINT_FLOORS, LIGHTS_TO_METRES
+    from custom_components.padspan_ha.migrations import BARRIER_IDS, CAL_POINT_FLOORS, LIGHTS_TO_METRES
 
     mdl, fab, ms = _scenario()
     ms.data["maps"][0]["lights"] = [{"entity_id": "light.kitchen", "x": 0.5, "y": 0.5}]
@@ -232,11 +233,11 @@ async def test_a_step_added_after_an_upgrade_still_runs() -> None:
     stats = await async_run_photo_divorce(MagicMock(), mdl, ms, fab)
     assert stats.get("skipped") is not True
     # Every step added since runs; the finished one does not.
-    assert stats["steps"] == sorted([CAL_POINT_FLOORS, LIGHTS_TO_METRES])
+    assert stats["steps"] == sorted([BARRIER_IDS, CAL_POINT_FLOORS, LIGHTS_TO_METRES])
     assert stats["lights_converted"] == 1
     # ...and the finished step is not repeated.
     assert stats["maps_repaired"] == []
-    assert set(fab.data[MARKER]) == {PHOTO_DIVORCE, LIGHTS_TO_METRES, CAL_POINT_FLOORS}
+    assert set(fab.data[MARKER]) == {PHOTO_DIVORCE, LIGHTS_TO_METRES, CAL_POINT_FLOORS, BARRIER_IDS}
 
     again = await async_run_photo_divorce(MagicMock(), mdl, ms, fab)
     assert again == {"skipped": True}

@@ -48,7 +48,7 @@ Data layout in .storage/padspan_ha.fabric:
     # mirror ModelStore's legacy keys so the one-time import is verbatim.
     "scanner_positions_m": { "<source>": {x_m, y_m, z_m, floor_id, map_id} },
     "beacon_positions_m":  { "<key>": {x_m, y_m, floor_id, room, kind, label, map_id} },
-    "rf_barriers_m":       [ {name, material, attenuation_dbm, floor_id, points_m, map_id} ],
+    "rf_barriers_m":       [ {id, name, material, attenuation_dbm, floor_id, points_m} ],
     "light_positions_m":   { "<entity_id>": {x_m, y_m, floor_id, color, shape, rotation, width_cm, height_cm, label} },
 
     "history": [ {ts, floor_id, room, op, revision} ]   # append-only, capped
@@ -57,6 +57,7 @@ Data layout in .storage/padspan_ha.fabric:
 
 import logging
 import math
+import os
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -451,6 +452,15 @@ class FabricStore:
 
     @staticmethod
     def _norm_barrier(bar: Any) -> dict[str, Any] | None:
+        """A barrier is a wall in metres with an IDENTITY of its own.
+
+        Barriers used to be matched by name, and unnamed ones were called
+        "Barrier {n}" by position in a list — so reordering renamed them, two
+        floors' "Barrier 1" replaced each other, and the photo they were
+        drawn on had to stay their editor of record because nothing else
+        could say which wall was which. Every barrier now carries an id;
+        the name is a label.
+        """
         if not isinstance(bar, dict) or not str(bar.get("name") or "").strip():
             return None
         pts = bar.get("points_m") or []
@@ -468,6 +478,8 @@ class FabricStore:
         out = dict(bar)
         out["points_m"] = out_pts
         out["floor_id"] = str(out.get("floor_id") or DEFAULT_FLOOR_ID)
+        out["id"] = str(out.get("id") or "").strip()[:40] or f"bar_{os.urandom(4).hex()}"
+        out.pop("map_id", None)   # a wall is not "on" a photograph
         return out
 
     async def async_spatial_update(
@@ -479,18 +491,15 @@ class FabricStore:
         set_lights: dict[str, dict] | None = None,
         remove_lights: list[str] | None = None,
         set_barriers: list[dict] | None = None,
-        remove_barrier_names: list[str] | None = None,
-        replace_map_barriers: tuple[str, list[dict]] | None = None,
+        remove_barrier_ids: list[str] | None = None,
         op: str = "spatial_update",
     ) -> dict[str, int]:
         """Apply a set of spatial changes atomically.
 
-        set_barriers replaces by name (today's semantics);
-        replace_map_barriers=(map_id, barriers) drops every barrier that
-        map drew and installs the given list — the Edit-tab save shape.
-        Barriers are the one thing the photo still edits (they have no stable
-        identity of their own to correct in metres), so a hand-placed barrier
-        carries no map_id and is never swept up here.
+        set_barriers replaces by id (a barrier without one is new and gets
+        one); remove_barrier_ids removes by id. There is no per-photo
+        replace any more: a wall is placed and edited in metres like a
+        scanner or a room, and no photograph owns a list of them.
         Invalid entries are skipped, not fatal.  Returns per-kind counts.
         """
         counts = {"scanners": 0, "beacons": 0, "barriers": 0, "lights": 0, "removed": 0}
@@ -529,32 +538,18 @@ class FabricStore:
                 counts["removed"] += 1
 
         barriers = self.data.setdefault("rf_barriers_m", [])
-        if replace_map_barriers is not None:
-            mid, new_bars = replace_map_barriers
-            kept = [
-                b for b in barriers
-                if b.get("map_id") != str(mid)
-            ]
-            counts["removed"] += len(barriers) - len(kept)
-            barriers = kept
-            for bar in (new_bars or []):
-                norm = self._norm_barrier(bar)
-                if norm is not None:
-                    barriers.append(norm)
-                    counts["barriers"] += 1
-            self.data["rf_barriers_m"] = barriers
         if set_barriers:
             for bar in set_barriers:
                 norm = self._norm_barrier(bar)
                 if norm is None:
                     continue
-                barriers = [b for b in barriers if b.get("name") != norm.get("name")]
+                barriers = [b for b in barriers if b.get("id") != norm["id"]]
                 barriers.append(norm)
                 counts["barriers"] += 1
             self.data["rf_barriers_m"] = barriers
-        if remove_barrier_names:
-            names = {str(n) for n in remove_barrier_names}
-            kept = [b for b in barriers if b.get("name") not in names]
+        if remove_barrier_ids:
+            ids = {str(i) for i in remove_barrier_ids}
+            kept = [b for b in barriers if b.get("id") not in ids]
             counts["removed"] += len(barriers) - len(kept)
             self.data["rf_barriers_m"] = kept
 
