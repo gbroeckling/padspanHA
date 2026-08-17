@@ -133,9 +133,16 @@ def indoor_coverage_floor(points: list[dict[str, Any]], *,
     for p in points or []:
         if not isinstance(p, dict) or is_outdoor_floor(p.get("floor_id")):
             continue
+        # Only real fingerprints. A point kept as one scanner's reading with
+        # too few samples (quality "undersampled") says how well ONE scanner
+        # heard something ONCE — not how well the house hears a device
+        # standing there — and four hundred of them on one house put the
+        # floor at -96.
+        if p.get("quality") == "undersampled":
+            continue
         vals = [r.get("mean_rssi") for r in (p.get("scanner_readings") or [])
                 if isinstance(r, dict) and isinstance(r.get("mean_rssi"), (int, float))]
-        if vals:
+        if len(vals) >= 2:
             best.append(float(max(vals)))
     if len(best) < min_points:
         return None

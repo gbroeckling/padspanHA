@@ -561,6 +561,11 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # ── Beacon auto-calibration rate-limit ──────────────────────────────────
         # {key: monotonic_ts} — last auto-calibration injection time per beacon
         self._beacon_autocal_last: dict[str, float] = {}
+        # Raw per-scanner samples accumulated between injections, per pinned
+        # beacon: {key: {source: [rssi, ...]}}. A calibration point is a
+        # FINGERPRINT — several scanners, several samples each — and one poll
+        # of one Kalman value per scanner is not one.
+        self._beacon_autocal_buf: dict[str, dict[str, list[float]]] = {}
 
         # ── Velocity gate state ────────────────────────────────────────────────
         # {key: monotonic_ts} — when each device last changed rooms
@@ -1282,7 +1287,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # ── Auto-calibration from pinned beacons ─────────────────────────────
         if _pinned:
-            await self._inject_beacon_calibration(now, _pinned, result)
+            await self._inject_beacon_calibration(now, _pinned, result, addr_src_rssi, _rpa_map)
 
         # ── Grace period for missing objects ──────────────────────────────────
         # Devices that vanish from BLE get a 120s grace period (12 polls) to
@@ -2812,6 +2817,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._spatial_position.pop(key, None)
         self._spatial_smooth_xy.pop(key, None)
         self._beacon_autocal_last.pop(key, None)
+        self._beacon_autocal_buf.pop(key, None)
         self._adaptive_last_obs.pop(key, None)
         self._adaptive_last_vec.pop(key, None)
         self._last_room_change_mono.pop(key, None)
@@ -2968,14 +2974,28 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # ── Beacon auto-calibration ────────────────────────────────────────────
 
     async def _inject_beacon_calibration(
-        self, now: float, pinned: dict[str, dict], result: dict[str, Any]
+        self, now: float, pinned: dict[str, dict], result: dict[str, Any],
+        addr_src_rssi: dict[str, dict[str, float]] | None = None,
+        rpa_map: dict[str, str] | None = None,
     ) -> None:
-        """Auto-inject calibration points from pinned beacons that have live RSSI.
+        """Auto-inject calibration points from pinned beacons — as fingerprints.
 
-        Beacons with known map positions act as continuous calibration sources:
-        since we know exactly where they are, their RSSI readings become new
-        fingerprint data points.  Rate-limited to one injection per beacon per
-        10 minutes to avoid flooding the calibration store.
+        A pinned beacon is a continuous calibration source: its position is
+        known, so what the scanners hear from it is a fingerprint of that
+        spot. It used to inject one Kalman value per scanner every ten
+        minutes — including scanners that were only DECAYING toward silence —
+        so every auto point arrived with one sample per source, failed the
+        store's sample gate, and was kept as a single strongest reading
+        flagged undersampled. Four hundred such points on the reference
+        house, fifty of them "-95 dBm from one scanner = Bedroom Closet":
+        one-scanner fingerprints that k-NN matched on any faint reading, and
+        the attractor that dragged a parked vehicle into that closet.
+
+        Now: raw samples accumulate per scanner between injections, from the
+        advertisements actually heard this poll; a point is written when at
+        least two scanners each have MIN_SCANNER_SAMPLES fresh samples — the
+        smallest vector that can prefer one place over another, the same
+        rule the live k-NN query applies to itself.
         """
         try:
             _st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
@@ -2992,21 +3012,37 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not cal_store:
             return
 
+        from .calibration_store import MIN_SCANNER_SAMPLES  # noqa: PLC0415
         _AUTOCAL_INTERVAL = 600.0  # 10 minutes between injections per beacon
+        _MIN_SOURCES = _KNN_MIN_LIVE_SCANNERS
+        _BUF_CAP = 60              # samples kept per scanner between injections
 
+        addr_src_rssi = addr_src_rssi or {}
+        rpa_map = rpa_map or {}
         for key, pin in pinned.items():
             obj = result.get(key)
             if not obj or obj.get("_stale"):
                 continue
+            # Accumulate this poll's RAW readings for the beacon's addresses.
+            buf = self._beacon_autocal_buf.setdefault(key, {})
+            addrs = [str(a).upper() for a in (obj.get("all_addresses") or [])] or [str(obj.get("address") or "").upper()]
+            for a in addrs:
+                a = rpa_map.get(a, a)
+                for src, rssi in (addr_src_rssi.get(a) or {}).items():
+                    if isinstance(rssi, (int, float)):
+                        lst = buf.setdefault(src, [])
+                        lst.append(float(rssi))
+                        if len(lst) > _BUF_CAP:
+                            del lst[: len(lst) - _BUF_CAP]
             # Rate limit: at most 1 injection per beacon per 10 minutes
             last_ts = self._beacon_autocal_last.get(key, 0.0)
             if now - last_ts < _AUTOCAL_INTERVAL:
                 continue
-            # Need smoothed per-source RSSI
-            smoothed_rssi: dict[str, float] = obj.get("_source_rssi") or {}
-            if not smoothed_rssi:
-                continue
+            ready = {src: lst for src, lst in buf.items() if len(lst) >= MIN_SCANNER_SAMPLES}
+            if len(ready) < _MIN_SOURCES:
+                continue    # not a fingerprint yet; keep accumulating
             self._beacon_autocal_last[key] = now
+            self._beacon_autocal_buf[key] = {}
             try:
                 await cal_store.async_add_point({
                     "map_id": "",
@@ -3020,8 +3056,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "device_id": key,
                     "duration_s": 10,
                     "scanner_readings": [
-                        {"source": src, "rssi_samples": [rssi]}
-                        for src, rssi in smoothed_rssi.items()
+                        {"source": src, "rssi_samples": list(samples)}
+                        for src, samples in ready.items()
                     ],
                 })
                 await cal_store.async_prune_auto_points(max_per_beacon=50)

@@ -35,6 +35,7 @@ PHOTO_DIVORCE = "fabric_photo_divorce"
 LIGHTS_TO_METRES = "lights_to_metres"
 CAL_POINT_FLOORS = "cal_point_floors"
 BARRIER_IDS = "barrier_ids"
+AUTOCAL_HYGIENE = "autocal_hygiene"
 
 # A transform matching the stack this closely is already correct.
 _ORIGIN_TOL_M = 0.2
@@ -107,7 +108,7 @@ async def async_run_photo_divorce(
     # Each step carries its own marker. A box that upgraded through an earlier
     # release has PHOTO_DIVORCE already set, and a step added afterwards must
     # still get its turn — one shared flag would silently skip it forever.
-    todo = {PHOTO_DIVORCE, LIGHTS_TO_METRES, CAL_POINT_FLOORS, BARRIER_IDS} - done
+    todo = {PHOTO_DIVORCE, LIGHTS_TO_METRES, CAL_POINT_FLOORS, BARRIER_IDS, AUTOCAL_HYGIENE} - done
     if not todo:
         return {"skipped": True}
 
@@ -117,7 +118,7 @@ async def async_run_photo_divorce(
         "maps_repaired": [], "maps_already_correct": 0,
         "positions_rederived": 0, "legacy_keys_stripped": 0,
         "cal_points_anchored": 0, "lights_converted": 0, "anchor": None,
-        "cal_points_floored": 0, "barriers_identified": 0,
+        "cal_points_floored": 0, "barriers_identified": 0, "autocal_pruned": 0,
     }
 
     maps_list = (ms.data.get("maps") or []) if ms else []
@@ -184,6 +185,14 @@ async def async_run_photo_divorce(
     # 7. Every barrier gets an id; its photo link goes.
     if BARRIER_IDS in todo:
         stats["barriers_identified"] = _identify_barriers(fab)
+
+    # 8. Auto-calibration points that are one scanner's single reading go:
+    #    not fingerprints, made by us, and they poisoned k-NN.
+    if cal is not None and AUTOCAL_HYGIENE in todo:
+        try:
+            stats["autocal_pruned"] = await cal.async_prune_one_scanner_auto_points()
+        except Exception as err:  # never block the rest of the migration
+            _LOGGER.warning("Auto-calibration hygiene during migration failed: %s", err)
 
     done |= todo
     fab.data[MARKER] = sorted(done)

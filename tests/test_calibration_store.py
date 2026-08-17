@@ -1148,3 +1148,21 @@ async def test_backfill_gives_floorless_points_a_floor() -> None:
     by = {p["id"]: p["floor_id"] for p in store.data["points"]}
     assert by == {"a": "basement", "b": "basement", "c": "", "d": "main"}
     store.store.async_save.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_one_scanner_auto_points_are_pruned_and_human_points_are_not() -> None:
+    """The auto-injector wrote one Kalman value per scanner, so every auto
+    point was stored as one scanner's single reading flagged undersampled —
+    not a fingerprint; k-NN matched fifty of them on any faint reading."""
+    store = _make_store([
+        {"id": "a", "label": "[auto] beacon", "quality": "undersampled",
+         "scanner_readings": [{"source": "s1", "mean_rssi": -95}]},
+        {"id": "b", "label": "[auto] beacon",
+         "scanner_readings": [{"source": "s1", "mean_rssi": -70}, {"source": "s2", "mean_rssi": -80}]},
+        {"id": "c", "label": "Kitchen corner", "quality": "undersampled",
+         "scanner_readings": [{"source": "s1", "mean_rssi": -90}]},   # a person saved this
+    ])
+    n = await store.async_prune_one_scanner_auto_points()
+    assert n == 1
+    assert [p["id"] for p in store.data["points"]] == ["b", "c"]

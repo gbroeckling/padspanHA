@@ -339,6 +339,32 @@ class CalibrationStore:
             await self.store.async_save(self.data)
         return len(remove_ids)
 
+    async def async_prune_one_scanner_auto_points(self) -> int:
+        """Drop auto-calibration points that are one scanner's single reading.
+
+        The auto-injector used to write one Kalman value per scanner, so every
+        auto point failed the sample gate and was stored as its single
+        strongest reading, flagged undersampled. Such a point is not a
+        fingerprint: k-NN matched it on any one faint reading — fifty of them
+        said "-95 dBm from one scanner = Bedroom Closet" and dragged a parked
+        vehicle into that closet. They were made by us and carry no location
+        information, so they go. Points a person recorded are never touched.
+        """
+        points = self.data.get("points", [])
+        keep: list[dict[str, Any]] = []
+        removed = 0
+        for p in points:
+            auto = str(p.get("label", "")).startswith("[auto]")
+            one = len(p.get("scanner_readings") or []) < 2
+            if auto and one and p.get("quality") == "undersampled":
+                removed += 1
+                continue
+            keep.append(p)
+        if removed:
+            self.data["points"] = keep
+            await self.store.async_save(self.data)
+        return removed
+
     async def async_remove_scanner(self, source: str) -> dict[str, int]:
         """Remove all data for a specific scanner source.
 
