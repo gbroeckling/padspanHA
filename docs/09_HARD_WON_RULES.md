@@ -152,3 +152,35 @@ Every bug in this document that reached a user got there because something was
 verified by reading rather than by using. The suite is 690 tests and green; it
 did not catch the wrong coordinator object, the empty session after a restart,
 the label written into every frame, or any of the four runtime ReferenceErrors.
+
+---
+
+## 12. Two views that draw one thing must share a contract, not a guess
+
+Pure Live borrows the overview's map element and zooms it. Its counter-scale
+found each marker's anchor by looking for a child `<circle>` and then *set* the
+group's transform to `scale(1/zoom)` — overwriting the annotation scale the
+overview had baked into that same attribute. At zoom 1 the labels were giant;
+at zoom 2 they were giant. Nothing threw. The overview had "fixed the fonts"
+and Pure Live had "fixed the zoom", each correctly, on the same attribute.
+
+When one view mutates markup another view composed, the composer publishes what
+it did (`data-ann-k` on the root, `data-ann="x y"` on each group) and the
+mutator composes with it (`k / zoom`). Guessing the anchor from a child element
+and overwriting is how two correct fixes cancel.
+
+---
+
+## 13. When something "no longer works", check what it is still reading
+
+The overview's heat and warp overlays stopped drawing. Nothing was logged; the
+functions ran and returned `""`. They were sizing their grid from the corners
+of the photographs at that level — through a per-photo pixel transform that
+indoor plans no longer carried after the metric-fabric move. Every input around
+them had migrated to metres; the overlay's *extent* had not.
+
+A migration is not done when the new path works. It is done when nothing still
+reads the old one — and the surest way to find a straggler is a feature that
+silently goes blank. Grep for the old structure (`mapPt`, `mapTransforms`,
+`m.receivers`, `groupMaps`) in anything that touches the migrated data, and
+guard the finding with a test that names the words.

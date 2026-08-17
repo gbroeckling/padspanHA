@@ -116,6 +116,51 @@ The floor slab is the union of the floor's room footprints, not the bounding
 rectangle around them — that was 1.7–2.5× the real floor area on a house with a
 stairwell void or one outlying room.
 
+### Storeys come from the fabric, and so does everything on them
+
+`views/overview.js` iterates `fabricFrame().levels` — one storey per distinct
+height the fabric's rooms occupy. It used to iterate the z-levels the uploaded
+photographs were grouped at, so a floor that had rooms but no picture drew
+nothing, and neither did anything on it. Per storey the loop draws, from the
+fabric only: the rooms (`room_geometry_m`), the walls (`rf_barriers_m`, once per
+storey — per photo drew every wall twice on a floor traced from two pictures),
+and the scanners (`scanner_positions_m`; a radio placed in metres but never
+pinned on a picture had no marker before). A scanner's "Area" in its tooltip is
+which room polygon contains it.
+
+The **heat and warp overlays** (`radio_map.js isoStoreyHeatmapSVG` /
+`isoStoreyDistortionSVG`) take a *storey* the overview resolves from the fabric
+— `{z, rooms, scanners, barriers, calPoints}`, all in metres, scanners carrying
+their vertical offset from a device on that storey and how many storeys away
+they are — and size their grid from the storey's rooms. They used to take the
+photographs at a level plus a per-photo pixel transform and size the grid from
+the corners of the pictures; once indoor plans stopped carrying a pixel
+transform the extent was empty and both overlays silently drew nothing. Every
+storey is coloured on one shared scale (`isoStoreyRssiRange` unioned across
+storeys) so a badly covered floor cannot look green by being scaled to itself.
+
+**The server places things; the map draws.** An object is drawn at the server's
+`x_m/y_m` on the storey the server put it (`floor_id`, or the floor of its room
+when the solver had nothing this poll), else at its room's centroid, else not
+at all. The client-side fingerprint match and the RSSI-weighted centroid of
+scanner *screen* positions that used to fill in behind the server were two more
+opinions on where a beacon is, in a spot no other view agreed with. Gone.
+
+### Annotations read at one size, wherever the map is hosted
+
+Labels, markers, badges and the legend are drawn in svg units and the frame is
+fitted to the building, so a tighter frame or a wider panel would scale every
+one of them. Each annotation group is scaled about its own anchor by one
+factor — designed-px-per-unit (0.84) over actual-px-per-unit, never above 1 —
+substituted when the svg is composed (`_finishIso`), so it does not depend on
+what was drawn before what. The factor is published on the root as
+`data-ann-k` and every group carries `data-ann="x y"`; **that is the contract
+Pure Live's zoom composes with** (`_counterScaleSVG` sets `k / zoom` about the
+anchor). Overwriting the transform with `scale(1/zoom)` discarded k and brought
+the giant labels back the moment the map was zoomed or rebuilt. Rings that
+belong to a marker live *inside* its group. A container width change rebuilds
+the svg in place, in whichever view holds it.
+
 ## Storage paths
 
 - Photos: `/config/www/padspan_ha/maps/<map_id>.png`
