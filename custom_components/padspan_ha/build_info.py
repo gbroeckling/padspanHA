@@ -5,7 +5,9 @@
 """Generated at build time. Used to prove what version is actually installed.
 
 BUILD_ID identifies the RELEASE. scripts/release.py rewrites the literal below
-by regex (`BUILD_ID = "20260817T153752Z"`), so its name and shape must not change.
+by regex, matching on the assignment's exact shape, so its NAME must not change
+and no other line in this file may look like that assignment — this sentence
+used to quote it, and the release script duly rewrote the prose as well.
 
 ASSET_ID is what the panel URLs actually carry, and it is BUILD_ID plus a
 digest of the frontend files. The two used to be the same string, which meant
