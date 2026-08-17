@@ -1156,8 +1156,6 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             obj["x_m"] = _pos["x_m"]
                             obj["y_m"] = _pos["y_m"]
                             obj["floor_id"] = _pos.get("floor_id", obj.get("floor_id", ""))
-                    obj["floor_id"] = self._object_floor(
-                        obj.get("room"), obj.get("floor_id"), _floor_of_room)
                     # Store Kalman-smoothed per-source RSSI for scanner distance sensors
                     obj["_source_rssi"] = dict(self._ema_rssi.get(smooth_addr, {}))
                     # Propagate TX power if seen in advertisements
@@ -1196,8 +1194,6 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             obj["x_m"] = _pos_ib["x_m"]
                             obj["y_m"] = _pos_ib["y_m"]
                             obj["floor_id"] = _pos_ib.get("floor_id", obj.get("floor_id", ""))
-                    obj["floor_id"] = self._object_floor(
-                        obj.get("room"), obj.get("floor_id"), _floor_of_room)
                     # Store Kalman-smoothed per-source RSSI for scanner distance sensors
                     obj["_source_rssi"] = dict(self._ema_rssi.get(key, {}))
                     self._known_objs[key] = dict(obj)  # refresh with smoothed data
@@ -1214,14 +1210,18 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             or _pin["room"] in self._room_centroids):
                         obj["room"] = _pin["room"]
                         self._confirmed_room[key] = _pin["room"]
-                        # A pinned room decides the floor exactly as a voted
-                        # one does. Left to the solver, a beacon pinned to an
-                        # upstairs closet cycled main→upper→basement while its
-                        # room never changed — the pin is applied after the
-                        # per-kind branches, so it has to carry its floor.
-                        obj["floor_id"] = self._object_floor(
-                            obj["room"], obj.get("floor_id"), _floor_of_room)
                     obj["_pinned"] = True
+
+                # Every object, whichever branch produced it — BLE, iBeacon,
+                # a pinned beacon, an entity tracker that arrived pre-smoothed
+                # from its own integration — is on the floor of its room. One
+                # site, after every way the room can be set, so a pin applied
+                # last or a kind with no branch cannot leave the solver's
+                # floor (or none) beside a room the fabric places elsewhere.
+                _fl = self._object_floor(obj.get("room"), obj.get("floor_id"), _floor_of_room)
+                if _fl != (obj.get("floor_id") or ""):
+                    obj = dict(obj)  # copy — the snapshot is shared via the TTL cache
+                    obj["floor_id"] = _fl
 
                 result[key] = obj
 
