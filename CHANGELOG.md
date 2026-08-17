@@ -4,6 +4,34 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.34.2 — The map is drawn from the fabric, storey by storey (2026-08-17)
+
+### Fixed — Overview / Pure Live
+- **Heat and Warp overlays drew nothing.** They sized their grid from the corners of the *photographs* at a level, through a per-photo pixel transform that indoor plans no longer carry — so the extent was empty and both returned `""` with a clean console. They now take a *storey* the overview resolves from the fabric (rooms, scanners with vertical offset, barriers, calibration points — all in metres) and size the grid from the storey's rooms. Storeys share one colour scale computed from the model, so a badly covered floor cannot look green by being scaled to itself. The render harness now asserts both overlays draw.
+- **The storey loop iterated photographs.** A floor with rooms but no picture drew nothing, and neither did anything on it. The loop is now the fabric's storeys. Walls are drawn once per storey (per photo drew every wall twice on a floor traced from two pictures); scanners come from `scanner_positions_m` (a radio placed in metres but never pinned on a picture had no marker); a scanner's "Area" is the room polygon that contains it.
+- **Pure Live labels were giant again — at every zoom, and after every poll.** Its zoom counter-scale *overwrote* each marker's transform with `scale(1/zoom)`, discarding the annotation scale the overview had baked in. The overview now publishes the scale on the svg root (`data-ann-k`) with an anchor on every annotation (`data-ann`), and Pure Live composes `k / zoom` with it. The scale is one number substituted when the svg is composed, so it no longer depends on what was drawn before what; it measures the container's content box, not its padded width; a width change rebuilds the svg in place wherever it is hosted.
+- **Dotted circles floating around the map.** Confidence rings and the outside-the-building ring were drawn *outside* the scaled marker group — and in one branch with no marker at all. Inside the group now, along with the floor badges and the legend row.
+- **A floor beside the ground floor was placed a storey up.** `floor_base_elevations_m` read the running sum after it had already advanced, so "Outside" came out level with the bedrooms (5.6 m on the live install). Same-storey floors share the storey's base.
+
+### Fixed — positioning
+- **An object is on the floor of its room.** The room is the vote's answer; the solvers' per-poll floor was a second, undefended one — as evidence thinned, spatial (sticky) and k-NN (raw) took turns supplying it, and the *floor* flipped upper↔main every few polls on a beacon whose *room* never left the closet. Measured: 26 floor-change events in a 55-frame capture, all but three on objects whose room did not change. The solver's floor stands only for an object whose room the fabric cannot place.
+- **k-NN needs two live scanners.** One reading against several hundred fingerprints matches whichever stored point has that scanner at about that level — on a real house routinely an *outdoor* point. Seventeen of twenty-two floor flips in a ten-minute capture were this.
+- **A thin poll holds the last position** for the same window the RSSI stage holds a silent source, instead of handing the object to whatever k-NN said from one faint reading.
+- Learned floor attenuation was tried in floor selection against the same capture, made it worse (7 → 24 events), and is not shipped.
+
+### Removed
+- **Client-side positioning in the overview** — a fingerprint match and an RSSI-weighted centroid of scanner *screen* positions that filled in behind the server. Two more opinions on where a beacon is, in a spot no other view agreed with. The server places things; the map draws (server position, else room centroid, else nothing).
+- **`room_sigma_m` and the "Gaussian room scoring" it configured** — described in the pipeline docstring, the settings card, the QA formula panel and the capture header; never what ran. Removed end to end.
+- Per-photo iso heatmap, its legacy calibration variant, the module-level global colour range, and the overview's copy of hidden-map sync.
+
+### Fixed — resource
+- The RPA resolution cache is bounded (4096); expired entries are evicted once it is full. Every address heard was cached and never evicted — ~1,800 a poll on a real house.
+
+### Docs
+- `03_MAPPING_SUITE.md`: storeys and overlays from the fabric; the annotation contract. `09_HARD_WON_RULES.md`: two views drawing one thing share a contract, not a guess; when something "no longer works", check what it is still reading.
+
+---
+
 ## 0.34.1 — Positioning stops acting on evidence it does not have (2026-08-17)
 
 Measured on a live three-storey house before and after, same method: **floor flips per minute 9.7 → 4.9**, and the "gap" polls where the heard scanner count collapsed to 4 are gone (minimum now 10). Groups of beacons sliding off position together for three or four polls — the thing that made the whole map look flakey — was one root cause seen from three angles.
