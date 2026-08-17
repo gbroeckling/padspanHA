@@ -125,18 +125,35 @@ class CalibrationStore:
                 return p
         return None
 
-    def _resolve_floor_id(self, raw: Any) -> str:
+    def _room_floor(self, room: Any) -> str:
+        """The floor the fabric puts a room on; "" when it cannot say."""
+        if not room or not self._model:
+            return ""
+        try:
+            geo = (self._model.room_geometry_m() or {}).get(str(room)) or {}
+            fid = str(geo.get("floor_id") or "").strip()
+            if fid:
+                return fid[:40]
+            meta = (self._model.room_meta() or {}).get(str(room)) or {}
+            return str(meta.get("floor_id") or "").strip()[:40]
+        except Exception:
+            return ""
+
+    def _resolve_floor_id(self, raw: Any, room: Any = None) -> str:
         """Normalise a point's floor, filling a blank one in only when certain.
 
-        Auto-calibration injects points from beacon pins, and a pin whose
-        floor is unknown arrives here blank.  A blank floor is not the ground
-        floor: on a multi-storey install it later reads as elevation 0, which
-        puts a phantom storey of vertical offset into that scanner's
-        path-loss fit.  So it is only filled in when the building leaves no
-        choice — a single floor — and otherwise stays blank and honest, and
-        the fit drops to 2D for that point.
+        Certain means: the caller said so; or the point is in a room and the
+        fabric knows that room's floor; or the building has one floor. A
+        blank floor is not the ground floor — on a multi-storey install it
+        later reads as elevation 0, a phantom storey of vertical offset in
+        that scanner's path-loss fit, and the point counts for no storey's
+        overlays at all. Otherwise it stays blank and honest, and the fit
+        drops to 2D for that point.
         """
         fid = str(raw or "").strip()[:40]
+        if fid:
+            return fid
+        fid = self._room_floor(room)
         if fid:
             return fid
         try:
@@ -211,7 +228,7 @@ class CalibrationStore:
             "map_id": str(point.get("map_id") or "")[:80],
             "x_frac": max(0.0, min(1.0, float(point.get("x_frac", 0.5)))),
             "y_frac": max(0.0, min(1.0, float(point.get("y_frac", 0.5)))),
-            "floor_id": self._resolve_floor_id(point.get("floor_id")),
+            "floor_id": self._resolve_floor_id(point.get("floor_id"), point.get("room")),
             "room": str(point.get("room") or "")[:120],
             "label": str(point.get("label") or "")[:200],
             "device_id": str(point.get("device_id") or "")[:80],
@@ -382,6 +399,29 @@ class CalibrationStore:
             if coords:
                 p["x_m"] = round(coords[0], 3)
                 p["y_m"] = round(coords[1], 3)
+                count += 1
+        if count:
+            await self.store.async_save(self.data)
+        return count
+
+    async def async_backfill_floors(self, map_floor: dict[str, str]) -> int:
+        """Give a floor to every stored point that has none.
+
+        The room's floor from the fabric first; failing that, the floor of the
+        map the point was placed on — a picture depicts one floor, and that
+        link is the one legitimate thing a photo says about the building.
+        Points saved before floors were resolved at save time (127 on the
+        reference house) counted for no storey: the basement had four points
+        on its plan and drew no warp grid, because none of them was ON the
+        basement as far as the overlay could tell.
+        """
+        count = 0
+        for p in self.data.get("points", []):
+            if str(p.get("floor_id") or "").strip():
+                continue
+            fid = self._room_floor(p.get("room")) or str(map_floor.get(str(p.get("map_id") or ""), "") or "")
+            if fid:
+                p["floor_id"] = fid[:40]
                 count += 1
         if count:
             await self.store.async_save(self.data)

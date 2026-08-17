@@ -223,7 +223,7 @@ async def test_a_step_added_after_an_upgrade_still_runs() -> None:
     photo-divorce marker. A step added afterwards — lights — would be skipped
     forever, silently, on exactly the installs that need it most.
     """
-    from custom_components.padspan_ha.migrations import LIGHTS_TO_METRES
+    from custom_components.padspan_ha.migrations import CAL_POINT_FLOORS, LIGHTS_TO_METRES
 
     mdl, fab, ms = _scenario()
     ms.data["maps"][0]["lights"] = [{"entity_id": "light.kitchen", "x": 0.5, "y": 0.5}]
@@ -231,11 +231,12 @@ async def test_a_step_added_after_an_upgrade_still_runs() -> None:
 
     stats = await async_run_photo_divorce(MagicMock(), mdl, ms, fab)
     assert stats.get("skipped") is not True
-    assert stats["steps"] == [LIGHTS_TO_METRES]
+    # Every step added since runs; the finished one does not.
+    assert stats["steps"] == sorted([CAL_POINT_FLOORS, LIGHTS_TO_METRES])
     assert stats["lights_converted"] == 1
     # ...and the finished step is not repeated.
     assert stats["maps_repaired"] == []
-    assert set(fab.data[MARKER]) == {PHOTO_DIVORCE, LIGHTS_TO_METRES}
+    assert set(fab.data[MARKER]) == {PHOTO_DIVORCE, LIGHTS_TO_METRES, CAL_POINT_FLOORS}
 
     again = await async_run_photo_divorce(MagicMock(), mdl, ms, fab)
     assert again == {"skipped": True}

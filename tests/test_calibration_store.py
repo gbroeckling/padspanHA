@@ -1102,3 +1102,49 @@ class TestPositionlessPointsAreRefused:
             "scanner_readings": self._readings(),
         })
         assert saved["x_m"] == 1.5 and saved["y_m"] == 2.5
+
+
+# ---------------------------------------------------------------------------
+# A point is on a floor: the room's, else the plan's, never blank by default
+# ---------------------------------------------------------------------------
+
+
+class _FabricModel:
+    """Just enough ModelStore for floor resolution."""
+
+    def room_geometry_m(self):
+        return {"South Suite": {"floor_id": "basement", "type": "poly", "points_m": []}}
+
+    def room_meta(self):
+        return {"Pantry": {"floor_id": "main"}}
+
+    def floor_base_elevations_m(self):
+        return {"basement": 0.0, "main": 3.0, "upper": 5.3}
+
+
+def test_a_blank_floor_is_filled_from_the_rooms_fabric_floor() -> None:
+    store = _make_store()
+    store._model = _FabricModel()
+    assert store._resolve_floor_id("", "South Suite") == "basement"
+    assert store._resolve_floor_id("", "Pantry") == "main"          # room_meta fallback
+    assert store._resolve_floor_id("upper", "South Suite") == "upper"  # caller wins
+    assert store._resolve_floor_id("", "Nowhere") == ""            # multi-floor: stays honest
+
+
+@pytest.mark.asyncio
+async def test_backfill_gives_floorless_points_a_floor() -> None:
+    """127 points on the reference house had no floor and counted for no
+    storey — the basement had four points on its plan and drew no warp grid.
+    Room's fabric floor first; else the floor of the plan they were placed on."""
+    store = _make_store([
+        {"id": "a", "map_id": "bplan", "room": "South Suite", "floor_id": ""},
+        {"id": "b", "map_id": "bplan", "room": "", "floor_id": ""},
+        {"id": "c", "map_id": "", "room": "", "floor_id": ""},
+        {"id": "d", "map_id": "bplan", "room": "Kitchen", "floor_id": "main"},
+    ])
+    store._model = _FabricModel()
+    n = await store.async_backfill_floors({"bplan": "basement"})
+    assert n == 2
+    by = {p["id"]: p["floor_id"] for p in store.data["points"]}
+    assert by == {"a": "basement", "b": "basement", "c": "", "d": "main"}
+    store.store.async_save.assert_awaited_once()

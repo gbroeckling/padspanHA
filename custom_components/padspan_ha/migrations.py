@@ -32,6 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 MARKER = "migrations_done"
 PHOTO_DIVORCE = "fabric_photo_divorce"
 LIGHTS_TO_METRES = "lights_to_metres"
+CAL_POINT_FLOORS = "cal_point_floors"
 
 # A transform matching the stack this closely is already correct.
 _ORIGIN_TOL_M = 0.2
@@ -85,7 +86,7 @@ async def async_run_photo_divorce(
     # Each step carries its own marker. A box that upgraded through an earlier
     # release has PHOTO_DIVORCE already set, and a step added afterwards must
     # still get its turn — one shared flag would silently skip it forever.
-    todo = {PHOTO_DIVORCE, LIGHTS_TO_METRES} - done
+    todo = {PHOTO_DIVORCE, LIGHTS_TO_METRES, CAL_POINT_FLOORS} - done
     if not todo:
         return {"skipped": True}
 
@@ -95,6 +96,7 @@ async def async_run_photo_divorce(
         "maps_repaired": [], "maps_already_correct": 0,
         "positions_rederived": 0, "legacy_keys_stripped": 0,
         "cal_points_anchored": 0, "lights_converted": 0, "anchor": None,
+        "cal_points_floored": 0,
     }
 
     maps_list = (ms.data.get("maps") or []) if ms else []
@@ -147,17 +149,29 @@ async def async_run_photo_divorce(
     if PHOTO_DIVORCE in todo:
         stats["legacy_keys_stripped"] = _strip_legacy_keys(fab)
 
+    # 6. Calibration points saved before floors were resolved at save time
+    #    have none, and count for no storey. Room's floor from the fabric,
+    #    else the floor of the plan they were placed on. Needs no anchor.
+    if cal is not None and CAL_POINT_FLOORS in todo:
+        try:
+            map_floor = {str(m.get("id")): str((m.get("stack") or {}).get("floor_id") or m.get("floor_id") or "")
+                         for m in maps_list if m.get("id")}
+            stats["cal_points_floored"] = await cal.async_backfill_floors(map_floor)
+        except Exception as err:  # never block the rest of the migration
+            _LOGGER.warning("Calibration floor backfill during migration failed: %s", err)
+
     done |= todo
     fab.data[MARKER] = sorted(done)
     await fab.store.async_save(fab.data)
     _LOGGER.info(
         "Photo divorce migration: %d map placement(s) repaired (%s), %d already correct, "
         "%d position(s) re-derived one last time, %d calibration point(s) anchored, "
-        "%d light(s) converted to metres, %d legacy key(s) stripped",
+        "%d light(s) converted to metres, %d legacy key(s) stripped, "
+        "%d calibration point(s) given a floor",
         len(stats["maps_repaired"]), ", ".join(stats["maps_repaired"]) or "none",
         stats["maps_already_correct"], stats["positions_rederived"],
         stats["cal_points_anchored"], stats["lights_converted"],
-        stats["legacy_keys_stripped"],
+        stats["legacy_keys_stripped"], stats["cal_points_floored"],
     )
     return stats
 
