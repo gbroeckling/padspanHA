@@ -13,6 +13,67 @@
 // Each advertisement carries _xref (cross-reference to tracked objects) from the backend.
 // The view also pulls snapshot.objects for richer display names and identification status.
 
+// ── The shared display vocabulary ───────────────────────────────────────────
+// Four things this view says over and over — a chip, a signal reading, an age,
+// an empty state. They used to be written out inline at each call site with
+// their own hex colours and font sizes, which is why the same concept looked
+// different in three places. One definition each, styled by styles.css
+// (the #bluetooth block).
+
+// Signal strength, as a four-bar meter plus the number. -55 and better is
+// four bars; every 10 dB below that drops one. Anything at or under -90 keeps
+// one bar rather than none, because a device that IS heard should never draw
+// as silence.
+export function sigLevel(rssi) {
+  const v = Number(rssi);
+  if (!isFinite(v)) return 0;
+  if (v >= -55) return 4;
+  if (v >= -70) return 3;
+  if (v >= -82) return 2;
+  return 1;
+}
+
+function sigEl(el, rssi, opts) {
+  const v = Number(rssi);
+  const lvl = sigLevel(rssi);
+  const bars = el("span", { class: "bt-bars", "data-level": String(lvl) },
+    [el("i", {}), el("i", {}), el("i", {}), el("i", {})]);
+  const txt = isFinite(v) ? `${v} dBm` : "— dBm";
+  const wrap = el("span", { class: `bt-sig s-${lvl}`, title: (opts && opts.title) || `Signal ${txt}` },
+    [bars, el("span", { class: "bt-dbm" }, txt)]);
+  return wrap;
+}
+
+// One relative-time formatter. There were two, character-identical, one in
+// each sub-tab; a third would have been written the next time.
+export function btAgo(sec) {
+  const v = Number(sec);
+  if (!isFinite(v)) return "\u2014";
+  if (v < 1) return "just now";
+  if (v < 60) return `${Math.round(v)}s`;
+  const m = Math.floor(v / 60);
+  if (m < 60) return `${m}m ${Math.round(v - m * 60)}s`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${m % 60}m`;
+  const d = Math.floor(h / 24);
+  return `${d}d ${h % 24}h`;
+}
+
+// A chip. tone ∈ good | ok | bad | info | violet | accent | mono | sid | quiet
+function chip(el, text, tone, title) {
+  return el("span", { class: "bt-chip" + (tone ? " " + tone : ""), ...(title ? { title } : {}) }, String(text));
+}
+
+// An empty state that says WHY it is empty and what to do about it — the old
+// ones were a bold line and a grey line in a card.
+function emptyState(el, mark, title, hint) {
+  return el("div", { class: "bt-empty" }, [
+    el("div", { class: "bt-empty-mark" }, mark),
+    el("div", { class: "bt-empty-title" }, title),
+    el("div", { class: "bt-empty-hint" }, hint),
+  ]);
+}
+
 export function render(ctx) {
   const { el, esc } = ctx.helpers;
 
@@ -70,6 +131,8 @@ export function render(ctx) {
       "button",
       {
         class: "tab" + (ctx.state.btTab === id ? " active" : ""),
+        role: "tab",
+        "aria-selected": ctx.state.btTab === id ? "true" : "false",
         onclick: () => {
           ctx.state.btTab = id;
           ctx.actions.renderRooms();
@@ -78,33 +141,46 @@ export function render(ctx) {
       label
     );
 
-  // ── Page header with KPI summary badges ────────────────────────────────────
-  const header = el("div", { class: "row" }, [
-    el("div", { class: "grow" }, [
+  // ── Page header + the stat strip ───────────────────────────────────────────
+  // A stat is a number and its name. `link` makes one clickable (the IRK
+  // count opens its manager); `zero` greys a number that is nothing, so a
+  // row of stats reads at a glance instead of demanding six comparisons.
+  const stat = (num, label, opts = {}) => {
+    const n = Number(num) || 0;
+    const cls = "bt-stat" + (opts.link ? " link" : "") + (opts.tone ? " tone-" + opts.tone : "")
+      + (!n && !opts.tone ? " zero" : "");
+    const d = el("div", { class: cls, ...(opts.title ? { title: opts.title } : {}) }, [
+      el("div", { class: "bt-stat-num" }, String(num)),
+      el("div", { class: "bt-stat-lbl" }, label),
+    ]);
+    if (opts.link) {
+      d.setAttribute("role", "button");
+      d.setAttribute("tabindex", "0");
+      const go = () => { ctx.state.btTab = opts.link; ctx.actions.renderRooms(); };
+      d.addEventListener("click", go);
+      d.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    }
+    return d;
+  };
+  const _res = (snap?.objects?.summary?.resolver) || {};
+  const header = el("div", { class: "bt-head" }, [
+    el("div", { style: "min-width:220px;flex:1" }, [
       el("div", { style: "display:flex;align-items:center;gap:8px" }, [
         el("div", { class: "h1" }, "Bluetooth"),
         ctx.helpers.helpBtn("bluetooth_overview"),
       ]),
-      el(
-        "div",
-        { class: "muted" },
-        "Scanners/adapters and recently seen advertisements (modeled after Home Assistant Settings → Bluetooth)."
-      ),
+      el("div", { class: "bt-head-sub" },
+        "Every scanner this install can see, and every advertisement they have heard recently."),
     ]),
     el("div", { class: "bt-kpis" }, [
-      el("div", { class: "kpi" }, [el("div", { class: "kpi-num" }, String(radios.length)), el("div", { class: "kpi-lbl" }, "Scanners")]),
-      el("div", { class: "kpi" }, [el("div", { class: "kpi-num" }, String(adsAll.length)), el("div", { class: "kpi-lbl" }, "Recent ads")]),
-      el("div", { class: "kpi" }, [el("div", { class: "kpi-num" }, String(diag.unique_cached || 0)), el("div", { class: "kpi-lbl" }, "Unique MACs")]),
-      (() => {
-        const k = el("div", { class: "kpi", style: "cursor:pointer;border:1px solid transparent;border-radius:6px;padding:4px 8px;transition:border-color .2s" }, [el("div", { class: "kpi-num" }, String(((snap?.objects?.summary?.resolver || {}).irk_devices) || 0)), el("div", { class: "kpi-lbl", style: "text-decoration:underline;text-underline-offset:2px" }, "Private BLE IRKs")]);
-        k.title = "Open IRK Manager";
-        k.addEventListener("mouseenter", ()=>{ k.style.borderColor = "#52b788"; });
-        k.addEventListener("mouseleave", ()=>{ k.style.borderColor = "transparent"; });
-        k.addEventListener("click", ()=>{ ctx.state.btTab = "irk_panel"; ctx.actions.renderRooms(); });
-        return k;
-      })(),
-      el("div", { class: "kpi" }, [el("div", { class: "kpi-num" }, String(((snap?.objects?.summary?.resolver || {}).resolved) || 0)), el("div", { class: "kpi-lbl" }, "RPAs resolved")]),
-      el("div", { class: "kpi" }, [el("div", { class: "kpi-num" }, String((snap?.objects?.summary?.ibeacon) || 0)), el("div", { class: "kpi-lbl" }, "iBeacons")]),
+      stat(radios.length, "Scanners", { title: "BLE scanners reporting to this install" }),
+      stat(adsAll.length, "Recent ads", { title: "Advertisements in the current window" }),
+      stat(diag.unique_cached || 0, "Unique MACs", { title: "Distinct addresses cached" }),
+      stat(_res.irk_devices || 0, "Private BLE IRKs",
+        { link: "irk_panel", title: "Open the IRK Manager" }),
+      stat(_res.resolved || 0, "RPAs resolved",
+        { title: "Rotating addresses matched to a registered IRK" }),
+      stat((snap?.objects?.summary?.ibeacon) || 0, "iBeacons"),
     ]),
   ]);
 
@@ -130,8 +206,7 @@ export function render(ctx) {
   if (!ctx.state._pbleStatus)   ctx.state._pbleStatus = null;
 
   let privateBleCard = null;
-  const _borderColor = _irkCount > 0 ? "#22c55e" : _rpaCount > 0 ? "#f59e0b" : "#334155";
-  const _bgColor = _irkCount > 0 ? "rgba(34,197,94,.06)" : _rpaCount > 0 ? "rgba(245,158,11,.06)" : "rgba(51,65,85,.06)";
+  const _tone = _irkCount > 0 ? "good" : _rpaCount > 0 ? "ok" : "";
 
   // Summary line (always shown)
   let _summaryText;
@@ -143,20 +218,19 @@ export function render(ctx) {
     _summaryText = `Private BLE: no rotating-MAC devices detected yet`;
   }
 
-  const _icon = _irkCount > 0 ? "\u2705" : _rpaCount > 0 ? "\u{1F4F1}" : "\u{1F50D}";
+  // A status dot, not an emoji: the state is the colour, and the colour is the
+  // same three tones the whole view uses.
+  privateBleCard = el("div", { class: "bt-notice" + (_tone ? " " + _tone : ""), style: "cursor:pointer" });
 
-  privateBleCard = el("div", { class: "card", style: `border-color:${_borderColor};background:${_bgColor};cursor:pointer` });
-
-  // Clickable header
-  const _pbleHdr = el("div", { style: "display:flex;align-items:center;gap:8px" }, [
-    el("span", { style: "font-size:18px" }, _icon),
-    el("div", { style: "flex:1" }, [
-      el("div", { style: "font-weight:700;font-size:13px" }, _summaryText),
+  const _pbleHdr = el("div", { style: "display:flex;align-items:flex-start;gap:10px;width:100%" }, [
+    el("span", { class: "bt-notice-mark" }, ""),
+    el("div", { class: "bt-notice-body" }, [
+      el("div", { class: "bt-notice-title" }, _summaryText),
       _rpaCount > _resolvedCount && _irkCount > 0
-        ? el("div", { class: "muted", style: "font-size:12px" }, `${_rpaCount - _resolvedCount} additional RPA${_rpaCount - _resolvedCount !== 1 ? "s" : ""} seen but not matching any registered IRK`)
+        ? el("div", { class: "bt-notice-sub" }, `${_rpaCount - _resolvedCount} further RPA${_rpaCount - _resolvedCount !== 1 ? "s" : ""} seen that match no registered IRK`)
         : null,
     ].filter(Boolean)),
-    el("span", { style: "font-size:12px;color:#94a3b8" }, ctx.state._pbleExpanded ? "\u25BE details" : "\u25B8 details"),
+    el("span", { class: "bt-notice-more" }, ctx.state._pbleExpanded ? "\u25BE details" : "\u25B8 details"),
   ]);
   privateBleCard.appendChild(_pbleHdr);
 
@@ -174,83 +248,84 @@ export function render(ctx) {
 
   // Expanded detail panel
   if (ctx.state._pbleExpanded) {
-    const detail = el("div", { style: "margin-top:12px;padding-top:10px;border-top:1px solid " + _borderColor });
+    const detail = el("div", { style: "margin-top:11px;padding-top:10px;border-top:1px solid var(--bt-line);width:100%" });
 
     const st = ctx.state._pbleStatus;
     if (!st) {
       detail.appendChild(el("div", { class: "muted" }, "Loading status\u2026"));
     } else {
       // ── Integration status ──
-      const intRow = el("div", { style: "display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-bottom:10px" });
-      intRow.appendChild(el("span", { style: `color:${st.has_private_ble_integration ? "#4ade80" : "#fca5a5"}` },
-        st.has_private_ble_integration ? "\u2713 Private BLE Device integration installed" : "\u2717 Private BLE Device integration not installed"));
-      intRow.appendChild(el("span", { style: "color:#cbd5e1" }, `${st.total_ble_addresses || 0} total BLE addresses seen`));
-      intRow.appendChild(el("span", { style: "color:#cbd5e1" }, `${st.rpa_count || 0} rotating-MAC (RPA) addresses`));
+      const intRow = el("div", { class: "bt-chips", style: "margin-bottom:10px;gap:5px" }, [
+        chip(el, st.has_private_ble_integration
+              ? "Private BLE Device integration installed"
+              : "Private BLE Device integration not installed",
+             st.has_private_ble_integration ? "good" : "bad"),
+        chip(el, `${st.total_ble_addresses || 0} BLE addresses seen`, "quiet"),
+        chip(el, `${st.rpa_count || 0} rotating (RPA)`, st.rpa_count ? "info" : "quiet"),
+      ]);
       detail.appendChild(intRow);
 
       // ── Mobile apps ──
       if (st.mobile_apps && st.mobile_apps.length > 0) {
         const maRow = el("div", { style: "font-size:12px;margin-bottom:10px" });
-        maRow.appendChild(el("span", { style: "font-weight:600;color:#e2e8f0" }, "Companion Apps: "));
-        maRow.appendChild(el("span", { style: "color:#cbd5e1" }, st.mobile_apps.join(", ")));
+        maRow.appendChild(el("span", { class: "bt-mini-lbl" }, "Companion apps "));
+        maRow.appendChild(el("span", { class: "muted" }, st.mobile_apps.join(", ")));
         detail.appendChild(maRow);
       }
 
       // ── Registered devices table ──
       if (st.devices && st.devices.length > 0) {
-        detail.appendChild(el("div", { style: "font-weight:600;font-size:12px;color:#e2e8f0;margin-bottom:6px" },
-          `Registered IRK Devices (${st.devices.length})`));
-        const tbl = el("table", { style: "width:100%;border-collapse:collapse;font-size:11px" });
-        const thead = el("tr", { style: "color:#94a3b8;text-align:left;border-bottom:1px solid #334155" });
-        for (const h of ["Name", "Canonical ID", "Source"]) {
-          thead.appendChild(el("th", { style: "padding:4px 8px;font-weight:600" }, h));
-        }
-        tbl.appendChild(thead);
+        detail.appendChild(el("div", { class: "bt-kv-title", style: "margin-top:0" },
+          `Registered IRK devices (${st.devices.length})`));
+        const tbl = el("table", { class: "table" });
+        const thead = el("tr", {});
+        for (const h of ["Name", "Canonical ID", "Source"]) thead.appendChild(el("th", {}, h));
+        tbl.appendChild(el("thead", {}, thead));
+        const tb = el("tbody");
         for (const d of st.devices) {
-          const tr = el("tr", { style: "border-bottom:1px solid #1e293b" });
-          tr.appendChild(el("td", { style: "padding:4px 8px;color:#e2e8f0;font-weight:600" }, d.name || "?"));
-          tr.appendChild(el("td", { style: "padding:4px 8px;color:#94a3b8;font-family:monospace;font-size:10px" }, d.canonical_id || ""));
-          tr.appendChild(el("td", { style: "padding:4px 8px;color:#cbd5e1" }, d.source || ""));
-          tbl.appendChild(tr);
+          const tr = el("tr", {});
+          tr.appendChild(el("td", { style: "font-weight:700" }, d.name || "?"));
+          tr.appendChild(el("td", { class: "bt-adv-sub", style: "white-space:normal;word-break:break-all" }, d.canonical_id || ""));
+          tr.appendChild(el("td", { class: "muted" }, d.source || ""));
+          tb.appendChild(tr);
         }
+        tbl.appendChild(tb);
         detail.appendChild(tbl);
       } else {
-        detail.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:8px" },
-          "No IRK devices registered. Phones and watches rotate their BLE MAC every ~15 min \u2014 to track them, you need their IRK."));
+        detail.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px" },
+          "No IRK registered. Phones and watches change their address every ~15 minutes; without the key, each change looks like a new device."));
       }
 
       // ── Add IRK form (always available) ──
-      const irkForm = el("div", { style: "background:rgba(0,0,0,.2);border-radius:8px;padding:12px;margin-top:10px" });
-      irkForm.appendChild(el("div", { style: "font-weight:700;margin-bottom:8px;font-size:13px" }, "Add IRK Device"));
-      irkForm.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:8px;line-height:1.5" },
+      const irkForm = el("div", { style: "background:var(--bt-inset);border:1px solid var(--bt-line);border-radius:10px;padding:12px;margin-top:10px" });
+      irkForm.appendChild(el("div", { class: "bt-kv-title", style: "margin-top:0" }, "Add an IRK"));
+      irkForm.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:9px;line-height:1.55" },
         "Paste the IRK from your phone's Companion App (Settings \u2192 Companion App \u2192 Manage Sensors \u2192 BLE Transmitter). "
         + "Accepts hex (32 chars), base64, or colon-separated format. "
         + "Need to capture IRKs from phones/watches? Use the ESPHome IRK Capture tool: github.com/DerekSeaman/irk-capture"));
 
       const irkInputRow = el("div", { style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap" });
       const irkNameInput = el("input", {
-        type: "text", placeholder: "Device name (e.g. Garry's Pixel)",
-        style: "font-size:12px;padding:4px 8px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;width:180px",
+        class: "input", type: "text", placeholder: "Device name \u2014 e.g. Garry's Pixel",
+        style: "width:190px",
       });
       const irkValueInput = el("input", {
-        type: "text", placeholder: "IRK (hex or base64)",
-        style: "font-size:12px;padding:4px 8px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;width:260px;font-family:monospace",
+        class: "input", type: "text", placeholder: "IRK (hex or base64)",
+        style: "width:270px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace",
       });
-      const irkAddBtn = el("button", {
-        class: "btn", style: "font-size:12px;padding:4px 14px",
-      }, "Add");
-      const irkMsg = el("div", { style: "font-size:11px;margin-top:4px;min-height:16px;width:100%" });
+      const irkAddBtn = el("button", { class: "btn inline" }, "Add");
+      const irkMsg = el("div", { style: "font-size:11.5px;margin-top:5px;min-height:16px;width:100%" });
 
       // Submit IRK to backend — accepts hex (32 chars), base64, or colon-separated
       irkAddBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
         const name = irkNameInput.value.trim();
         const irk = irkValueInput.value.trim();
-        if (!name || !irk) { irkMsg.textContent = "Enter both name and IRK"; irkMsg.style.color = "#f59e0b"; return; }
+        if (!name || !irk) { irkMsg.textContent = "Enter both a name and an IRK"; irkMsg.style.color = "var(--bt-ok)"; return; }
         irkAddBtn.disabled = true; irkAddBtn.textContent = "Adding...";
         try {
           await ctx.actions.wsCall("padspan_ha/irk_add", { name, irk_hex: irk });
-          irkMsg.style.color = "#4ade80";
+          irkMsg.style.color = "var(--bt-good)";
           irkMsg.textContent = "\u2713 IRK saved for " + name + " \u2014 resolving will start within 60 seconds";
           irkNameInput.value = ""; irkValueInput.value = "";
           // Refresh status after a short delay to let the backend register the new IRK
@@ -262,7 +337,7 @@ export function render(ctx) {
             });
           }, 1000);
         } catch (err) {
-          irkMsg.style.color = "#f87171";
+          irkMsg.style.color = "var(--bt-bad)";
           irkMsg.textContent = (err && err.message) || String(err);
         }
         irkAddBtn.disabled = false; irkAddBtn.textContent = "Add";
@@ -279,12 +354,12 @@ export function render(ctx) {
         const padspanDevs = st.devices.filter(d => d.source === "padspan");
         if (padspanDevs.length > 0) {
           const rmDiv = el("div", { style: "margin-top:10px" });
-          rmDiv.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-bottom:4px" }, "PadSpan-managed IRKs:"));
+          rmDiv.appendChild(el("div", { class: "bt-mini-lbl", style: "display:block;margin-bottom:5px" }, "PadSpan-managed IRKs"));
           for (const d of padspanDevs) {
             const rmRow = el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:3px" });
-            rmRow.appendChild(el("span", { style: "font-size:12px;color:#e2e8f0" }, d.name));
-            rmRow.appendChild(el("span", { style: "font-size:10px;color:#64748b;font-family:monospace" }, (d.canonical_id || "").substring(0, 20) + "..."));
-            const rmBtn = el("button", { style: "font-size:10px;padding:1px 6px;border-radius:3px;cursor:pointer;border:1px solid #dc2626;background:#3d0c0c;color:#fca5a5" }, "Remove");
+            rmRow.appendChild(el("span", { style: "font-size:12px;font-weight:600" }, d.name));
+            rmRow.appendChild(el("span", { class: "bt-adv-sub" }, (d.canonical_id || "").substring(0, 20) + "\u2026"));
+            const rmBtn = el("button", { class: "btn tiny bt-btn-danger" }, "Remove");
             rmBtn.addEventListener("click", async (ev) => {
               ev.stopPropagation();
               if (!confirm(`Remove IRK for ${d.name}?`)) return;
@@ -303,22 +378,22 @@ export function render(ctx) {
       detail.appendChild(irkForm);
 
       // ── How to find IRK ──
-      detail.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:8px;line-height:1.5" }, [
-        el("div", { style: "font-weight:600;margin-bottom:3px" }, "Where to find the IRK:"),
+      detail.appendChild(el("div", { class: "muted", style: "font-size:11.5px;margin-top:10px;line-height:1.6" }, [
+        el("div", { class: "bt-kv-title", style: "margin-top:0;border:none;padding:0" }, "Where to find the IRK"),
         el("div", {}, "Android: Companion App \u2192 Settings \u2192 Companion App \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 look for \"IRK\" in the settings/attributes."),
         el("div", {}, [
           el("span", {}, "Apple: IRK is shared via Bluetooth pairing. "),
-          el("a", { href: "https://community.home-assistant.io/t/private-ble-device-apple-devices/546810", target: "_blank", rel: "noopener", style: "color:#60a5fa" }, "Apple IRK guide"),
+          el("a", { href: "https://community.home-assistant.io/t/private-ble-device-apple-devices/546810", target: "_blank", rel: "noopener", class: "bt-link" }, "Apple IRK guide"),
         ]),
       ]));
 
       // ── Resolver errors ──
       if (st.error) {
-        detail.appendChild(el("div", { style: "margin-top:8px;color:#fca5a5;font-size:12px" }, `Error: ${st.error}`));
+        detail.appendChild(el("div", { class: "bt-note bad", style: "margin-top:8px;font-size:12px" }, `Error: ${st.error}`));
       }
 
       // ── Refresh button ──
-      const refreshBtn = el("button", { class: "btn", style: "margin-top:10px;font-size:11px" }, "Refresh Status");
+      const refreshBtn = el("button", { class: "btn inline", style: "margin-top:10px" }, "Refresh status");
       refreshBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         ctx.state._pbleStatus = null;
@@ -330,6 +405,7 @@ export function render(ctx) {
       });
       detail.appendChild(refreshBtn);
     }
+    privateBleCard.style.flexWrap = "wrap";
     privateBleCard.appendChild(detail);
   }
 
@@ -337,41 +413,51 @@ export function render(ctx) {
   // diagCard: shown when ble.diag.ok is false (e.g. HA Bluetooth integration missing)
   const diagCard =
     diag && (diag.ok === false || (diag.errors && diag.errors.length))
-      ? el("div", { class: "card warn" }, [
-          el("div", { style: "font-weight:700;margin-bottom:6px" }, "Bluetooth feed looks unhealthy"),
-          el(
-            "div",
-            { class: "muted", style: "margin-bottom:8px" },
-            "This usually means the HA Bluetooth integration isn't enabled, or the scanner API callback failed. The page will still render, but data may be empty."
-          ),
-          el("pre", { class: "pre" }, esc(JSON.stringify(diag, null, 2))),
+      ? el("div", { class: "bt-notice bad", style: "flex-wrap:wrap" }, [
+          el("span", { class: "bt-notice-mark" }, ""),
+          el("div", { class: "bt-notice-body" }, [
+            el("div", { class: "bt-notice-title" }, "The Bluetooth feed looks unhealthy"),
+            el("div", { class: "bt-notice-sub" },
+              "Usually the HA Bluetooth integration is not enabled, or the scanner API callback failed. The page still renders; the data may be empty."),
+          ]),
+          el("pre", { class: "pre", style: "width:100%;margin:8px 0 0" }, esc(JSON.stringify(diag, null, 2))),
         ])
       : null;
 
   // bleDiagCard: shown when the BLE callback failed or private BLE resolver has errors
   const bleDiagCard = (!_callbackOk || _resolverErrors.length)
-    ? el("div", { class: "card warn" }, [
-        !_callbackOk ? el("div", { style: "margin-bottom:6px" }, [
-          el("span", { style: "font-weight:700" }, "BLE callback not active"),
-          el("div", { class: "muted" }, "No live BLE advertisements are being received. Only seeded data (from HA's discovered list) is shown. This means the bluetooth.async_register_callback() call failed — check HA logs for Bluetooth integration errors."),
-        ]) : null,
-        _resolverErrors.length ? el("div", {}, [
-          el("span", { style: "font-weight:700" }, "Private BLE resolver errors"),
-          el("pre", { class: "pre" }, _resolverErrors.join("\n")),
-        ]) : null,
+    ? el("div", { class: "bt-notice ok", style: "flex-wrap:wrap" }, [
+        el("span", { class: "bt-notice-mark" }, ""),
+        el("div", { class: "bt-notice-body" }, [
+          !_callbackOk ? el("div", {}, [
+            el("div", { class: "bt-notice-title" }, "BLE callback not active"),
+            el("div", { class: "bt-notice-sub" }, "No live advertisements are arriving — only what HA already discovered. bluetooth.async_register_callback() failed; the HA log will say why."),
+          ]) : null,
+          _resolverErrors.length ? el("div", { style: _callbackOk ? "" : "margin-top:8px" }, [
+            el("div", { class: "bt-notice-title" }, "Private BLE resolver errors"),
+          ]) : null,
+        ].filter(Boolean)),
+        _resolverErrors.length ? el("pre", { class: "pre", style: "width:100%;margin:8px 0 0" }, _resolverErrors.join("\n")) : null,
       ].filter(Boolean))
     : null;
 
-  const tabs = el("div", { class: "tabs" }, [tabButton("visualization", "Visualization"), tabButton("monitor", "Advertisement monitor"), tabButton("scanners", "Scanners"), tabButton("irk_panel", "IRK Manager"), tabButton("esphome_configs", "ESPHome Configs")]);
+  // A segmented control rather than five loose pills: they are one choice.
+  const tabs = el("div", { class: "bt-seg", role: "tablist" }, [
+    tabButton("visualization", "Visualisation"),
+    tabButton("monitor", "Advertisements"),
+    tabButton("scanners", "Scanners"),
+    tabButton("irk_panel", "IRK Manager"),
+    tabButton("esphome_configs", "ESPHome Configs"),
+  ]);
 
   // ── Search / source / max-rows controls ────────────────────────────────────
   // Shared filter bar used by all sub-tabs except ESPHome Configs.
-  const controls = el("div", { class: "bt-controls", style: "display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:12px" }, [
+  const controls = el("div", { class: "bt-controls" }, [
     el("div", { class: "field", style: "flex:2;min-width:160px" }, [
       el("div", { class: "label" }, "Search"),
       el("input", {
         class: "input",
-        placeholder: "Name, address, or source…",
+        placeholder: "Name, address or scanner…",
         value: ctx.state.btFilter,
         oninput: e => {
           ctx.state.btFilter = e.target.value;
@@ -454,10 +540,8 @@ function renderScanners(ctx, radios, sources, adsAll) {
     Array.isArray(ctx.state.settings?.excluded_scanners) ? ctx.state.settings.excluded_scanners : []);
 
   if (!radios.length) {
-    return el("div", { class: "card" }, [
-      el("div", { style: "font-weight:700" }, "No scanners reported"),
-      el("div", { class: "muted" }, "If you expect scanners here, verify Settings → Devices & services → Bluetooth is enabled in Home Assistant."),
-    ]);
+    return emptyState(el, "\u25CC", "No scanners reported",
+      "If you expected scanners, check that Settings \u2192 Devices & services \u2192 Bluetooth is enabled in Home Assistant, and that your ESPHome proxies are online.");
   }
 
   const row = r => {
@@ -469,16 +553,15 @@ function renderScanners(ctx, radios, sources, adsAll) {
     { const _ss = ctx.helpers.scannerStatus; if(_ss){ const ss = _ss(r, adsAll); meta.push(`status: ${ss.label}`); } else if(r.scanning != null){ meta.push(`scanning: ${r.scanning ? "yes" : "no"}`); } }
     if (r.connectable != null) meta.push(`connectable: ${r.connectable ? "yes" : "no"}`);
 
-    const nameRow = el("div", { style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap" }, [
-      sid ? el("span", { class: "pill", style: "font-family:monospace;font-weight:700;font-size:11px;padding:1px 6px", title: (name ? name + " \u00b7 " : "") + src }, sid) : null,
+    const nameRow = el("div", { style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0" }, [
+      sid ? chip(el, sid, "sid", (name ? name + " \u00b7 " : "") + src) : null,
       el("div", { class: "bt-scanner-name" }, name || src || "Scanner"),
-      r.lost     ? el("span", { class: "badge warn", style: "font-size:10px;background:rgba(245,158,11,.18);color:#f59e0b" }, "⚠ Lost") : null,
-      r.disabled ? el("span", { class: "badge warn", style: "font-size:10px;background:rgba(148,100,220,.18);color:#c084fc" }, "⊘ Disabled") : null,
-      excludedSrcs.has(src) ? el("span", {
-        class: "badge",
-        title: "Masked out of positioning — its readings are ignored, but nothing it recorded has been deleted",
-        style: "font-size:10px;background:rgba(148,163,184,.18);color:#94a3b8",
-      }, "⊘ Excluded") : null,
+      r.lost     ? chip(el, "lost", "ok", "Not heard from recently") : null,
+      r.disabled ? chip(el, "disabled", "violet") : null,
+      excludedSrcs.has(src)
+        ? chip(el, "excluded", "quiet",
+               "Masked out of positioning — its readings are ignored, but nothing it recorded has been deleted")
+        : null,
     ].filter(Boolean));
 
       // Per-scanner RSSI offset control — compensates for hardware differences.
@@ -489,7 +572,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
       type: "number", min: "-30", max: "30", step: "1",
       value: String(currentOffset),
       title: "RSSI offset in dBm — positive = scanner reads weaker than reality; negative = reads stronger",
-      style: "width:48px;text-align:center;background:#0a150e;border:1px solid #2d5a3d;border-radius:4px;color:#e2e8f0;padding:2px 4px;font-size:11px",
+      "aria-label": "RSSI offset in dBm",
     });
     const offsetSaveBtn = el("button", { class: "btn tiny" }, "Set");
     offsetSaveBtn.addEventListener("click", async (ev) => {
@@ -514,12 +597,12 @@ function renderScanners(ctx, radios, sources, adsAll) {
     // contributes nothing on its own). Masking is fully reversible — nothing
     // it recorded is deleted, so Include restores it exactly.
     const isExcluded = excludedSrcs.has(src);
-    const exclBtn = el("button", { class: "btn tiny",
-      style: `font-size:10px;padding:1px 8px${isExcluded ? ";color:#52b788;border-color:#52b78840" : ""}`,
+    const exclBtn = el("button", {
+      class: "btn tiny" + (isExcluded ? " bt-btn-accent" : ""),
       title: isExcluded
         ? "Let this receiver influence positioning again"
         : "Ignore this receiver everywhere: no room votes, no RSSI influence, no new calibration readings, and the model retrains without it. Nothing stored is deleted.",
-    }, isExcluded ? "Include in positioning" : "Exclude from positioning");
+    }, isExcluded ? "Include" : "Exclude");
     exclBtn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
       exclBtn.disabled = true;
@@ -535,43 +618,40 @@ function renderScanners(ctx, radios, sources, adsAll) {
         exclBtn.disabled = false;
       }
     });
-    const exclRow = el("div", { style: "display:flex;align-items:center;gap:6px;margin-top:3px" }, [
+    const exclRow = el("div", { style: "display:flex;align-items:center;gap:6px" }, [
       exclBtn,
-      isExcluded ? el("span", { class: "muted", style: "font-size:10px" },
-        "ignored by positioning · data kept") : null,
+      isExcluded ? el("span", { class: "bt-mini-lbl" }, "ignored \u00b7 data kept") : null,
     ].filter(Boolean));
 
     // Reset radio button — two-step confirmation to prevent accidental data loss.
     // First click shows "Erase all data? [Yes, reset] [No]"; second click executes.
     // Clears calibration readings, map placements, fingerprints, and offsets for this radio.
     const resetWrap = document.createElement("div");
-    resetWrap.style.cssText = "display:flex;align-items:center;gap:4px;margin-top:3px";
+    resetWrap.style.cssText = "display:flex;align-items:center;gap:4px";
     const makeResetBtn = () => {
       resetWrap.innerHTML = "";
       const rb = document.createElement("button");
-      rb.className = "btn tiny";
-      rb.style.cssText = "font-size:10px;padding:1px 8px;color:#f87171;border-color:#f8717140";
-      rb.textContent = "Reset radio";
+      rb.className = "btn tiny bt-btn-danger";
+      rb.textContent = "Reset";
       rb.title = "Clear all stored data for this radio (calibration, placement, offsets, fingerprints)";
       rb.addEventListener("click", (ev) => {
         ev.stopPropagation();
         resetWrap.innerHTML = "";
         const lbl2 = document.createElement("span");
-        lbl2.style.cssText = "font-size:10px;color:#f87171";
+        lbl2.className = "bt-mini-lbl";
+        lbl2.style.color = "var(--bt-bad)";
         lbl2.textContent = "Erase all data?";
         const yesBtn = document.createElement("button");
-        yesBtn.className = "btn tiny";
-        yesBtn.style.cssText = "font-size:10px;padding:1px 8px;background:#7f1d1d;border-color:#dc2626;color:#fca5a5";
+        yesBtn.className = "btn tiny bt-btn-danger";
         yesBtn.textContent = "Yes, reset";
         const noBtn = document.createElement("button");
         noBtn.className = "btn tiny";
-        noBtn.style.cssText = "font-size:10px;padding:1px 8px;color:#94a3b8;border-color:#94a3b840";
         noBtn.textContent = "No";
         yesBtn.addEventListener("click", async (ev2) => {
           ev2.stopPropagation();
           resetWrap.innerHTML = "";
           const spin = document.createElement("span");
-          spin.style.cssText = "font-size:10px;color:#94a3b8";
+          spin.className = "bt-mini-lbl";
           spin.textContent = "Resetting…";
           resetWrap.appendChild(spin);
           try {
@@ -605,34 +685,32 @@ function renderScanners(ctx, radios, sources, adsAll) {
     // Relearn button — shift stored RSSI readings after antenna upgrade/downgrade.
     // Two-step flow: click → dB gain input + confirm; applies shift to all calibration data.
     const relearnWrap = document.createElement("div");
-    relearnWrap.style.cssText = "display:flex;align-items:center;gap:4px;margin-top:3px";
+    relearnWrap.style.cssText = "display:flex;align-items:center;gap:4px";
     const makeRelearnBtn = () => {
       relearnWrap.innerHTML = "";
       const rb = document.createElement("button");
-      rb.className = "btn tiny";
-      rb.style.cssText = "font-size:10px;padding:1px 8px;color:#38bdf8;border-color:#38bdf840";
+      rb.className = "btn tiny bt-btn-info";
       rb.textContent = "Relearn";
       rb.title = "Adjust calibration data after antenna upgrade/downgrade — shifts stored RSSI by a dB gain";
       rb.addEventListener("click", (ev) => {
         ev.stopPropagation();
         relearnWrap.innerHTML = "";
         const lbl = document.createElement("span");
-        lbl.style.cssText = "font-size:10px;color:#38bdf8";
-        lbl.textContent = "dB gain:";
+        lbl.className = "bt-mini-lbl";
+        lbl.style.color = "#7dd3fc";
+        lbl.textContent = "dB gain";
         const inp = document.createElement("input");
         inp.type = "number"; inp.min = "-30"; inp.max = "30"; inp.step = "1"; inp.value = "3";
-        inp.style.cssText = "width:48px;text-align:center;background:#0a150e;border:1px solid #2d5a3d;border-radius:4px;color:#e2e8f0;padding:2px 4px;font-size:11px";
+        inp.setAttribute("aria-label", "dB gain");
         inp.title = "Positive = antenna upgrade (stronger signal); Negative = downgrade (weaker)";
         const helpTxt = document.createElement("span");
-        helpTxt.style.cssText = "font-size:9px;color:#94a3b8";
+        helpTxt.className = "bt-mini-lbl";
         helpTxt.textContent = "+ upgrade / − downgrade";
         const applyBtn = document.createElement("button");
-        applyBtn.className = "btn tiny";
-        applyBtn.style.cssText = "font-size:10px;padding:1px 8px;background:#0c4a6e;border-color:#38bdf8;color:#7dd3fc";
+        applyBtn.className = "btn tiny bt-btn-info";
         applyBtn.textContent = "Apply";
         const cancelBtn = document.createElement("button");
         cancelBtn.className = "btn tiny";
-        cancelBtn.style.cssText = "font-size:10px;padding:1px 8px;color:#94a3b8;border-color:#94a3b840";
         cancelBtn.textContent = "Cancel";
         applyBtn.addEventListener("click", async (ev2) => {
           ev2.stopPropagation();
@@ -640,7 +718,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
           if (gain === 0) { ctx.toast("Gain must be non-zero", true); return; }
           relearnWrap.innerHTML = "";
           const spin = document.createElement("span");
-          spin.style.cssText = "font-size:10px;color:#94a3b8";
+          spin.className = "bt-mini-lbl";
           spin.textContent = "Relearning…";
           relearnWrap.appendChild(spin);
           try {
@@ -673,30 +751,37 @@ function renderScanners(ctx, radios, sources, adsAll) {
     if (_sh && _sh.polls >= 6) {
       const rel = _sh.reliability;
       const pct = _sh.agree_pct;
-      const hColor = rel >= 0.9 ? "#52b788" : rel >= 0.7 ? "#f59e0b" : "#f87171";
-      const hBg    = rel >= 0.9 ? "rgba(82,183,136,.12)" : rel >= 0.7 ? "rgba(245,158,11,.12)" : "rgba(248,113,113,.15)";
-      const hLabel  = rel >= 0.9 ? "Reliable" : rel >= 0.7 ? "Fair" : "Unreliable";
-      healthBadge = el("div", { style: `display:flex;align-items:center;gap:6px;margin-top:3px;font-size:10px` }, [
-        el("span", { style: `display:inline-block;width:8px;height:8px;border-radius:50%;background:${hColor}` }),
-        el("span", { style: `color:${hColor};font-weight:600` }, hLabel),
-        el("span", { class: "muted" }, `${pct}% agreement · weight ${rel} · ${_sh.polls} polls`),
+      const hColor = rel >= 0.9 ? "var(--bt-good)" : rel >= 0.7 ? "var(--bt-ok)" : "var(--bt-bad)";
+      const hLabel = rel >= 0.9 ? "Reliable" : rel >= 0.7 ? "Fair" : "Unreliable";
+      // Agreement is a proportion, so it is drawn as one: a filled track says
+      // "how much" at a glance, and the numbers stay for the people who want them.
+      healthBadge = el("div", { class: "bt-health", title:
+        "How often this scanner agrees with the consensus room. Low agreement means placement, antenna or offset needs attention." }, [
+        el("span", { class: "bt-health-dot", style: `background:${hColor}` }, ""),
+        el("span", { style: `color:${hColor};font-weight:700` }, hLabel),
+        el("span", { class: "bt-health-track" },
+          el("span", { class: "bt-health-fill", style: `width:${Math.max(0, Math.min(100, pct))}%;background:${hColor}` }, "")),
+        el("span", { class: "muted", style: "font-variant-numeric:tabular-nums" },
+          `${pct}% agreement \u00b7 weight ${rel} \u00b7 ${_sh.polls} polls`),
       ]);
     }
 
     const subParts = [
-      r.area_name ? el("span", { class: "pill", style: "font-size:10px" }, r.area_name) : null,
-      r.ip ? el("span", { class: "muted", style: "font-family:monospace;font-size:10px" }, r.ip) : null,
-      r.ssid ? el("span", { class: "muted", style: "font-size:10px" }, r.ssid) : null,
-      r.wifi_signal != null ? el("span", { class: "muted", style: "font-size:10px" }, `${r.wifi_signal}dBm`) : null,
+      r.area_name ? chip(el, r.area_name, "accent") : null,
+      r.ip ? chip(el, r.ip, "mono quiet", "IP address") : null,
+      r.ssid ? chip(el, r.ssid, "quiet", "WiFi network") : null,
+      r.wifi_signal != null ? chip(el, `${r.wifi_signal} dBm`, "quiet", "WiFi signal") : null,
     ].filter(Boolean);
 
     // Compact controls row: offset + relearn + reset on ONE line
-    const ctrlRow = el("div", { style: "display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap" }, [
+    const ctrlRow = el("div", { class: "bt-mini" }, [
       // Offset inline
-      el("span", { class: "muted", style: "font-size:10px" }, "Offset:"),
+      el("span", { class: "bt-mini-lbl" }, "Offset"),
       offsetInput,
       offsetSaveBtn,
-      currentOffset !== 0 ? el("span", { style: "font-size:9px;color:#52b788" }, `${currentOffset > 0 ? "+" : ""}${currentOffset}`) : null,
+      currentOffset !== 0
+        ? chip(el, `${currentOffset > 0 ? "+" : ""}${currentOffset} dBm`, "accent", "Offset in effect")
+        : null,
       // Relearn + Reset as compact buttons on same line
       relearnWrap,
       resetWrap,
@@ -709,21 +794,20 @@ function renderScanners(ctx, radios, sources, adsAll) {
 
     const div = el("div", { class: "bt-scanner-row" + (r.lost || r.disabled ? " warn" : "") }, [
       el("div", { class: "bt-scanner-main", style: "min-width:0" }, [
-        // Line 1: name + status + room + meta (all inline)
-        el("div", { style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap" }, [
+        // Line 1: identity — short ID, name, state, room, network
+        el("div", { style: "display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-width:0" }, [
           ...nameRow.childNodes,
           ...subParts,
-          el("span", { class: "muted", style: "font-size:10px" }, meta.join(" \u00b7 ") || ""),
         ].filter(Boolean)),
-        // Line 2: source ID (mono, small)
-        el("div", { style: "font-size:9px;color:#475569;font-family:monospace;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, src || ""),
-        // Line 3 (optional): health badge
+        // Line 2: the source id and the adapter facts, in one quiet mono line
+        el("div", { class: "bt-scanner-src", style: "margin-top:2px" },
+          [src || "", meta.join(" \u00b7 ")].filter(Boolean).join("  \u2502  ")),
+        // Line 3 (optional): how much this scanner is trusted
         healthBadge,
-        // Line 4: all controls on one row
+        // Line 4: this scanner's own controls
         ctrlRow,
       ].filter(Boolean)),
     ]);
-    if(r.lost || r.disabled) div.style.opacity = "0.7";
     div.style.cursor = "pointer";
     div.title = "Click to see devices heard by this scanner";
     return div;
@@ -737,11 +821,13 @@ function renderScanners(ctx, radios, sources, adsAll) {
   // Build the left-side scanner list with click-to-select behavior.
   // Selected scanner gets a green left border highlight.
   // Clicks on buttons/inputs (offset, reset) are excluded from selection.
-  const scannerListEl = el("div", { class: "bt-list" });
+  const scannerListEl = el("div", { class: "bt-list list-scroll", style: "max-height:78vh" });
   for (const r of radios) {
     const rowEl = row(r);
     const src = String(r.source || "");
-    if (src === selSrc) rowEl.style.cssText += ";border-left:3px solid #52b788;padding-left:8px;background:rgba(82,183,136,.08)";
+    // A class, so the selected state is one rule in the stylesheet (an accent
+    // rail down the left edge) instead of a style string appended at runtime.
+    if (src === selSrc) rowEl.classList.add("is-selected");
     rowEl.addEventListener("click", (ev) => {
       if (ev.target.tagName === "BUTTON" || ev.target.tagName === "INPUT") return;
       ev.stopPropagation(); ev.preventDefault();
@@ -774,14 +860,8 @@ function renderScanners(ctx, radios, sources, adsAll) {
   }
   const uniqueAds = [...addrMap.values()].sort((a, b) => (b.rssi || -200) - (a.rssi || -200));
 
-  // Format seconds-ago into human-readable relative time (e.g. "3m 12s", "2h 5m")
-  const fmtAgo = (s) => {
-    const v = Number(s); if (!isFinite(v)) return "—";
-    if (v < 1) return "<1s"; if (v < 60) return `${Math.round(v)}s`;
-    const m = Math.floor(v/60); if (m < 60) return `${m}m ${Math.round(v-m*60)}s`;
-    const h = Math.floor(m/60); if (h < 24) return `${h}h ${m%60}m`;
-    const d = Math.floor(h/24); return `${d}d ${h%24}h`;
-  };
+  // One relative-time formatter for the whole view (top of this file).
+  const fmtAgo = btAgo;
 
   // Quiet mode: only show devices the user has labeled, identified, or is following.
   // Hides the flood of unknown BLE advertisements for a cleaner view.
@@ -796,19 +876,23 @@ function renderScanners(ctx, radios, sources, adsAll) {
       })
     : uniqueAds;
 
-  const detailCard = el("div", { class: "card", style: "max-height:80vh;overflow-y:auto" });
+  const detailCard = el("div", { class: "bt-panel", style: "max-height:80vh;overflow-y:auto" });
   const selRadio = radios.find(r => String(r.source || "") === selSrc);
   const selName = selRadio ? (selRadio.name || selSrc) : selSrc;
   const _sid = ctx.helpers.radioShortId ? ctx.helpers.radioShortId(selSrc) : "";
-  detailCard.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap" }, [
-    _sid ? el("span", { class: "pill", style: "font-family:monospace;font-weight:700;font-size:11px;padding:1px 6px" }, _sid) : null,
-    el("div", { class: "h2", style: "margin:0" }, selName),
-    el("span", { class: "badge" }, `${_filteredAds.length} ${_quietMode ? "tracked" : "devices"}`),
+  detailCard.appendChild(el("div", { class: "bt-panel-head" }, [
+    _sid ? chip(el, _sid, "sid", selSrc) : null,
+    el("div", { class: "bt-panel-title", style: "font-size:14px" }, selName),
+    el("div", { class: "bt-panel-sub" }, "Everything this scanner can hear, strongest first."),
+    chip(el, `${_filteredAds.length} ${_quietMode ? "tracked" : "devices"}`, "quiet"),
   ].filter(Boolean)));
-  detailCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" }, "All BLE devices heard by this scanner, sorted by signal strength."));
 
   if (!_filteredAds.length) {
-    detailCard.appendChild(el("div", { class: "muted", style: "padding:12px 0" }, _quietMode ? "No tracked devices heard by this scanner." : "No devices heard by this scanner yet."));
+    detailCard.appendChild(emptyState(el, "\u25CC",
+      _quietMode ? "No tracked devices here" : "Nothing heard yet",
+      _quietMode
+        ? "Quiet mode only shows devices you have labelled, identified or followed."
+        : "This scanner has not reported an advertisement in the current window."));
   } else {
     const tbody = el("tbody");
     for (const a of _filteredAds) {
@@ -816,21 +900,19 @@ function renderScanners(ctx, radios, sources, adsAll) {
       const obj = objByAddr.get(addr);
       const displayName = obj ? (obj.user_label || obj.name || addr) : (a.name && a.name !== addr ? a.name : addr);
       const kindLabel = obj ? (obj.kind === "private_ble" ? "Private BLE" : obj.kind === "ibeacon" ? "iBeacon" : obj.identified ? "BLE" : "BLE?") : "";
-      // RSSI bar: maps -100 dBm → 0% and -40 dBm → 100% (60 dBm range)
-      const pct = Math.max(0, Math.min(100, ((a.rssi || -100) + 100) / 60 * 100));
-      const bar = el("div", { style: `width:${pct.toFixed(0)}%;height:5px;background:#52b788;border-radius:3px;min-width:2px` });
+      const kindTone = obj ? (obj.kind === "private_ble" ? "info" : obj.kind === "ibeacon" ? "ok"
+                            : obj.identified ? "violet" : "quiet") : "quiet";
 
       const tr = el("tr", { style: "cursor:pointer" }, [
-        el("td", { style: "max-width:200px" }, [
-          el("div", { style: "font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" }, displayName),
-          displayName !== addr ? el("div", { class: "muted", style: "font-size:10px;font-family:monospace" }, addr) : null,
+        el("td", { style: "max-width:220px" }, [
+          el("div", { class: "bt-adv-name" }, displayName),
+          displayName !== addr ? el("div", { class: "bt-adv-sub" }, addr) : null,
         ].filter(Boolean)),
-        el("td", {}, kindLabel ? el("span", { class: "badge", style: "font-size:9px;padding:1px 5px" }, kindLabel) : ""),
-        el("td", { style: "white-space:nowrap" }, [
-          el("div", { style: "width:60px;background:#1a2e1e;border-radius:3px" }, bar),
-          el("div", { class: "muted", style: "font-size:10px" }, `${a.rssi || "?"} dBm`),
-        ]),
-        el("td", { class: "muted", style: "font-size:11px;white-space:nowrap" }, fmtAgo(a.age_s)),
+        el("td", {}, kindLabel ? chip(el, kindLabel, kindTone) : ""),
+        // The same meter the advertisement rows use — one reading of "signal"
+        // across the view, instead of a percentage bar here and a pill there.
+        el("td", { style: "white-space:nowrap" }, sigEl(el, a.rssi)),
+        el("td", { class: "bt-age", style: "text-align:left" }, fmtAgo(a.age_s)),
       ]);
       if (obj) {
         tr.addEventListener("click", () => ctx.actions.showObjectDetail(obj));
@@ -844,7 +926,14 @@ function renderScanners(ctx, radios, sources, adsAll) {
   }
 
   return el("div", { class: "grid-2" }, [
-    el("div", { class: "card" }, [el("div", { class: "h2" }, "Scanners"), el("div", { class: "muted", style: "margin-bottom:8px" }, "Select a scanner to see what it hears."), scannerListEl]),
+    el("div", { class: "bt-panel" }, [
+      el("div", { class: "bt-panel-head" }, [
+        el("div", { class: "bt-panel-title" }, "Scanners"),
+        el("div", { class: "bt-panel-sub" }, "Pick one to see what it hears. Each row carries that scanner's own controls."),
+        chip(el, `${radios.length}`, "quiet"),
+      ]),
+      scannerListEl,
+    ]),
     detailCard,
   ]);
 }
@@ -863,48 +952,22 @@ function renderMonitor(ctx, ads, radios, objIndex) {
   const selected = ctx.state.btSelectedAddr || null;
 
   if (!ads.length) {
-    return el("div", { class: "card" }, [
-      el("div", { style: "font-weight:700" }, "No advertisements in the window"),
-      el("div", { class: "muted" }, "Try widening Max rows, clearing filters, or wait a moment for advertisements to arrive."),
-    ]);
+    return emptyState(el, "\u25CC", "No advertisements in this window",
+      "Widen Max rows, clear the filters, or give the scanners a moment — BLE devices advertise every few seconds.");
   }
 
   // ── Display helpers ────────────────────────────────────────────────────────
+  // Signal, age and every badge come from the shared vocabulary at the top of
+  // this file, so an advertisement here and the same device in the Scanners
+  // table read identically.
+  const ageText = btAgo;
 
-  // RSSI pill with color-coded severity: good (>= -60), ok (>= -80), bad (< -80)
-  const rssiPill = rssi => {
-    const v = Number(rssi);
-    if (!isFinite(v)) return el("span", { class: "pill" }, "RSSI ?");
-    let cls = "pill";
-    if (v >= -60) cls += " good";
-    else if (v >= -80) cls += " ok";
-    else cls += " bad";
-    return el("span", { class: cls }, `${v} dBm`);
-  };
-
-  // Human-readable relative time from seconds (same logic as fmtAgo in Scanners)
-  const ageText = age_s => {
-    const s = Number(age_s);
-    if (!isFinite(s)) return "\u2014";
-    if (s < 1) return "<1s";
-    if (s < 60) return `${Math.round(s)}s`;
-    const m = Math.floor(s / 60);
-    if (m < 60) return `${m}m ${Math.round(s - m * 60)}s`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h ${m % 60}m`;
-    const d = Math.floor(h / 24);
-    return `${d}d ${h % 24}h`;
-  };
-
-  // Tiny colored badge factory — used for kind, company, services, etc.
-  const badge = (text, bg, fg, border) => el("span", { style: `display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;background:${bg};color:${fg};border:1px solid ${border||bg};white-space:nowrap` }, text);
-
-  // Object kind badge with distinct colors per type for quick visual scanning
+  // Object kind — one tone each, from the chip palette.
   const kindBadge = kind => {
-    if (kind === "entity")      return badge("entity",      "#0a2a1a", "#86efac", "#2d6a4f");
-    if (kind === "private_ble") return badge("private BLE",  "#0a1a3a", "#93c5fd", "#1e4976");
-    if (kind === "ibeacon")     return badge("iBeacon",      "#2a1a00", "#fbbf24", "#92400e");
-    if (kind === "ble")         return badge("BLE",          "#1a1a2a", "#c4b5fd", "#4c3d8f");
+    if (kind === "entity")      return chip(el, "entity", "good");
+    if (kind === "private_ble") return chip(el, "private BLE", "info");
+    if (kind === "ibeacon")     return chip(el, "iBeacon", "ok");
+    if (kind === "ble")         return chip(el, "BLE", "violet");
     return null;
   };
 
@@ -925,21 +988,23 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     // Enrichment badges (inline, compact)
     const badges = [];
     if (xr.kind)          badges.push(kindBadge(xr.kind));
-    if (a.company_name)   badges.push(badge(a.company_name, "#1a2a3a", "#7dd3fc", "#1e4976"));
-    if (a.device_type)    badges.push(badge(a.device_type,  "#2a1a3a", "#c4b5fd", "#4c3d8f"));
-    if (a.connectable)    badges.push(badge("connectable",  "#0a2a1a", "#86efac", "#2d6a4f"));
+    if (a.company_name)   badges.push(chip(el, a.company_name, "info", "Manufacturer, from the advertisement"));
+    if (a.device_type)    badges.push(chip(el, a.device_type, "violet"));
+    if (a.connectable)    badges.push(chip(el, "connectable", "good", "This device accepts connections"));
 
-    // Service names as tiny pills (max 3)
+    // Service names (max 3, then a count)
     const svcNames = a.service_names || (obj && obj.service_names) || [];
     for (let i = 0; i < Math.min(3, svcNames.length); i++) {
-      badges.push(badge(svcNames[i], "#1a3a2a", "#86efac", "#2d6a4f"));
+      badges.push(chip(el, svcNames[i], "accent"));
     }
-    if (svcNames.length > 3) badges.push(badge(`+${svcNames.length - 3}`, "#1a2a2a", "#94a3b8", "#334155"));
+    if (svcNames.length > 3) {
+      badges.push(chip(el, `+${svcNames.length - 3}`, "quiet", svcNames.slice(3).join(", ")));
+    }
 
-    // Sub-line: address • scanner (with short ID) • room
+    // Sub-line: address • scanner • room. The scanner is a short ID chip on the
+    // name line now, so it is not repeated here as raw text.
     const subParts = [];
     if (addr) subParts.push(addr);
-    subParts.push(sid ? `${sid} ${src}` : (src || "\u2014"));
     if (xr.room) subParts.push(xr.room);
     if (xr.canonical_id) subParts.push("IRK-resolved");
     if (xr.ibeacon_uuid) subParts.push("iBeacon");
@@ -952,23 +1017,26 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     const tagBtn = el("button", { class: "btn tiny" }, userLabel ? "Relabel" : "Tag");
     tagBtn.addEventListener("click", e => { e.stopPropagation(); ctx.actions.tagObjectPrompt(tagAddr, userLabel); });
 
-    const mainDiv = el("div", { class: "bt-adv-main" }, [
-      el("div", { class: "bt-adv-name" }, displayName),
-      el("div", { class: "bt-adv-sub" }, subParts.join(" \u2022 ")),
+    const mainDiv = el("div", { class: "bt-adv-main", style: "min-width:0;flex:1" }, [
+      el("div", { style: "display:flex;align-items:center;gap:6px;min-width:0" }, [
+        sid ? chip(el, sid, "sid", `Heard by ${src}`) : null,
+        el("div", { class: "bt-adv-name" }, displayName),
+      ].filter(Boolean)),
+      el("div", { class: "bt-adv-sub" }, subParts.join(" \u00b7 ")),
     ]);
     if (badges.length) {
-      const bRow = el("div", { style: "display:flex;flex-wrap:wrap;gap:3px;margin-top:2px" }, badges.filter(Boolean));
-      mainDiv.appendChild(bRow);
+      mainDiv.appendChild(el("div", { class: "bt-chips" }, badges.filter(Boolean)));
     }
 
     return el("div", {
       class: "bt-adv-row" + (selected === addr ? " active" : ""),
+      style: "display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer",
       onclick: () => { ctx.state.btSelectedAddr = selected === addr ? null : addr; ctx.actions.renderRooms(); },
     }, [
       mainDiv,
       el("div", { class: "bt-adv-right" }, [
-        rssiPill(a.rssi),
-        el("span", { class: "muted" }, ageText(a.age_s)),
+        sigEl(el, a.rssi),
+        el("span", { class: "bt-age", title: "Last heard" }, ageText(a.age_s)),
         tagBtn,
       ]),
     ]);
@@ -983,24 +1051,29 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     if (!a) return null;
     const xr = a._xref || {};
     const obj = objIndex.get(selected.toUpperCase()) || null;
-    const card = el("div", { class: "card" });
+    const card = el("div", { class: "bt-panel" });
 
-    // Header
+    // Header: the name, its kind, and how strongly it is being heard right now
     const hdrName = xr.label || a.name || selected;
-    card.appendChild(el("div", { style: "font-weight:700;font-size:15px;margin-bottom:4px" }, hdrName));
-    if (xr.kind) card.appendChild(el("div", { style: "margin-bottom:8px" }, [kindBadge(xr.kind)]));
+    card.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap" }, [
+      el("div", { style: "font-size:15px;font-weight:800;letter-spacing:-.01em;flex:1;min-width:0;word-break:break-word" }, hdrName),
+      sigEl(el, a.rssi),
+    ]));
+    if (xr.kind) card.appendChild(el("div", { class: "bt-chips" }, [kindBadge(xr.kind)]));
 
-    // Section helper — renders a titled group of key/value rows, skipping empty values
+    // Section helper — a titled definition list, empty values skipped.
+    // Addresses, UUIDs and hex get the mono treatment so they can be READ.
+    const _MONO = /address|uuid|id$|ID$|data|key|major|minor/;
     const section = (title, rows) => {
-      const s = el("div", { style: "margin-bottom:10px" });
-      s.appendChild(el("div", { style: "font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;margin-bottom:4px" }, title));
+      const s = el("div", {});
+      s.appendChild(el("div", { class: "bt-kv-title" }, title));
+      const dl = el("dl", { class: "bt-kv" });
       for (const [k, v] of rows) {
         if (v === null || v === undefined || v === "") continue;
-        s.appendChild(el("div", { style: "display:flex;gap:8px;font-size:12px;line-height:1.6" }, [
-          el("span", { style: "color:#64748b;min-width:120px;flex-shrink:0" }, k),
-          el("span", { style: "color:#e2e8f0;word-break:break-all" }, String(v)),
-        ]));
+        dl.appendChild(el("dt", {}, k));
+        dl.appendChild(el("dd", { class: _MONO.test(k) ? "mono-val" : "" }, String(v)));
       }
+      s.appendChild(dl);
       return s;
     };
 
@@ -1069,8 +1142,8 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     }
 
     // Raw JSON (collapsible)
-    const rawToggle = el("button", { class: "btn tiny", style: "margin-top:4px" }, "Show raw JSON");
-    const rawPre = el("pre", { class: "pre", style: "display:none;margin-top:6px;max-height:300px;overflow:auto;font-size:11px" }, esc(JSON.stringify(a, null, 2)));
+    const rawToggle = el("button", { class: "btn tiny", style: "margin-top:12px" }, "Show raw JSON");
+    const rawPre = el("pre", { class: "pre", style: "display:none;margin-top:6px" }, esc(JSON.stringify(a, null, 2)));
     rawToggle.addEventListener("click", () => {
       const vis = rawPre.style.display !== "none";
       rawPre.style.display = vis ? "none" : "block";
@@ -1107,14 +1180,25 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     : ads;
 
   return el("div", { class: "grid-2" }, [
-    el("div", { class: "card" }, [
-      el("div", { class: "h2" }, "Advertisement monitor"),
-      el("div", { class: "muted" }, _qm
-        ? "Showing tracked devices only (quiet mode). Click a row to inspect."
-        : "Click a row to inspect. Enrichment shows decoded manufacturer, services, and cross-references to tracked objects."),
-      el("div", { class: "bt-list bt-adv-list" }, _monitorAds.map(row)),
+    el("div", { class: "bt-panel" }, [
+      el("div", { class: "bt-panel-head" }, [
+        el("div", { class: "bt-panel-title" }, "Advertisements"),
+        el("div", { class: "bt-panel-sub" }, _qm
+          ? "Tracked devices only — quiet mode is on. Click a row to inspect it."
+          : "Click a row to inspect it: decoded manufacturer, services and any tracked object it belongs to."),
+        el("span", { class: "bt-chip quiet" }, `${_monitorAds.length} shown`),
+      ]),
+      _monitorAds.length
+        ? el("div", { class: "bt-list bt-adv-list list-scroll" }, _monitorAds.map(row))
+        : emptyState(el, "\u25CC", "Nothing matches",
+            _qm ? "Quiet mode hides everything untracked. Turn it off in the top bar to see the rest."
+                : "No advertisement matches the current search and scanner filter."),
     ]),
-    details || el("div", { class: "card" }, [el("div", { class: "h2" }, "Details"), el("div", { class: "muted" }, "Select an advertisement on the left.")]),
+    details || el("div", { class: "bt-panel" }, [
+      el("div", { class: "bt-panel-head" }, [el("div", { class: "bt-panel-title" }, "Details")]),
+      emptyState(el, "\u2190", "Nothing selected",
+        "Pick an advertisement on the left to see its identity, signal, manufacturer data and services."),
+    ]),
   ]);
 }
 
@@ -1137,10 +1221,8 @@ function renderVisualization(ctx, radios, ads, objIndex) {
   const { el } = ctx.helpers;
 
   if (!radios.length && !ads.length) {
-    return el("div", { class: "card" }, [
-      el("div", { style: "font-weight:700" }, "Nothing to visualize yet"),
-      el("div", { class: "muted" }, "Waiting for scanner list + advertisements. If this stays empty, check the Diagnostics panel for BLE errors."),
-    ]);
+    return emptyState(el, "\u25CC", "Nothing to draw yet",
+      "Waiting for the scanner list and the first advertisements. If this stays empty, the Health tab will say why.");
   }
 
   // ── SVG coordinate system ─────────────────────────────────────────────────
@@ -1313,7 +1395,12 @@ function renderVisualization(ctx, radios, ads, objIndex) {
   // created in the HTML namespace are invisible in HA's WebView.
   // Embedded <style> provides hover effects: labels turn teal, circles glow.
   let s = `<svg class="bt-viz" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">`;
-  s += `<style>.bt-viz-click{cursor:pointer}.bt-viz-click text.bt-viz-label{fill:#7dd3fc}.bt-viz-click:hover text.bt-viz-label{fill:#5eead4}.bt-viz-click:hover circle{opacity:.8;stroke:#5eead4;stroke-width:2}</style>`;
+  // Only the cursor and the hover reaction live here; every colour is in
+  // styles.css (#bluetooth .bt-viz-*), so the graph cannot drift from the
+  // rest of the view — the two used to disagree about what a label looks like.
+  s += `<style>.bt-viz-click{cursor:pointer}`
+    + `.bt-viz-click:hover text.bt-viz-label{fill:#5eead4}`
+    + `.bt-viz-click:hover circle{opacity:.85;stroke:#5eead4;stroke-width:2}</style>`;
 
   // Lines first (back layer) — RSSI-colored connections between scanner and device circles
   for (const d of deviceNodes) {
@@ -1442,11 +1529,16 @@ function renderVisualization(ctx, radios, ads, objIndex) {
     } catch(err) { console.warn("PadSpan: BT viz click attach failed", err); }
   });
 
-  return el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Visualization"),
-    el("div", { class: "muted", style: "margin-bottom:10px" }, "A simple scanner→device graph, grouped by the scanner source that reported the advertisement."),
+  return el("div", { class: "bt-panel" }, [
+    el("div", { class: "bt-panel-head" }, [
+      el("div", { class: "bt-panel-title" }, "Who hears what"),
+      el("div", { class: "bt-panel-sub" },
+        "Each line is one scanner hearing one device; its colour is how strongly. Click either end for details."),
+      el("span", { class: "bt-chip quiet" }, `${scannerNodes.length} \u00d7 ${deviceNodes.length}`),
+    ]),
     svgWrap,
-    el("div", { class: "muted", style: "margin-top:10px" }, "Tip: use Source + Search filters above to narrow the graph. Click any scanner or device for details."),
+    el("div", { class: "muted", style: "margin-top:10px;font-size:11.5px" },
+      "Narrow it with the scanner and search filters above."),
   ]);
 }
 
@@ -2008,52 +2100,69 @@ function renderIrkPanel(ctx, snap) {
   const mobileApps = st.mobile_apps || [];
   const hasIntegration = st.has_private_ble_integration;
 
-  // ── Dashboard KPIs ──
-  const kpiRow = el("div", { style: "display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px" });
-  const kpi = (num, label, color) => el("div", { style: `background:rgba(0,0,0,.25);border:1px solid ${color || "#1b3526"};border-radius:8px;padding:10px 16px;min-width:90px;text-align:center` }, [
-    el("div", { style: `font-size:22px;font-weight:700;color:${color || "#52b788"}` }, String(num)),
-    el("div", { style: "font-size:11px;color:#94a3b8;margin-top:2px" }, label),
+  // ── The five numbers, in the view's own stat component ──
+  // Tone carries the meaning: unresolved RPAs are amber only while there ARE
+  // any, and a zero greys itself out rather than shouting.
+  const kpiRow = el("div", { class: "bt-kpis", style: "margin-bottom:14px" });
+  const kpi = (num, label, tone) => el("div", {
+    class: "bt-stat" + (tone ? " tone-" + tone : "") + (!Number(num) ? " zero" : ""),
+  }, [
+    el("div", { class: "bt-stat-num" }, String(num)),
+    el("div", { class: "bt-stat-lbl" }, label),
   ]);
   const _resolverSummary = (snap?.objects?.summary?.resolver) || {};
   const _actualResolved = _resolverSummary.resolved || 0;
-  kpiRow.appendChild(kpi(devices.length, "IRKs Registered", devices.length > 0 ? "#22c55e" : "#f59e0b"));
-  kpiRow.appendChild(kpi(rpaCount, "Rotating MACs", rpaCount > 0 ? "#60a5fa" : "#334155"));
-  kpiRow.appendChild(kpi(_actualResolved, "Resolved", _actualResolved > 0 ? "#22c55e" : "#f59e0b"));
-  kpiRow.appendChild(kpi(Math.max(0, rpaCount - _actualResolved), "Unresolved RPAs", "#f59e0b"));
-  kpiRow.appendChild(kpi(totalBle, "Total BLE MACs", "#94a3b8"));
+  const _unresolved = Math.max(0, rpaCount - _actualResolved);
+  kpiRow.appendChild(kpi(devices.length, "IRKs registered", devices.length ? "good" : "ok"));
+  kpiRow.appendChild(kpi(rpaCount, "Rotating MACs", rpaCount ? "info" : ""));
+  kpiRow.appendChild(kpi(_actualResolved, "Resolved", _actualResolved ? "good" : "ok"));
+  kpiRow.appendChild(kpi(_unresolved, "Unresolved RPAs", _unresolved ? "ok" : ""));
+  kpiRow.appendChild(kpi(totalBle, "Total BLE MACs"));
   wrap.appendChild(kpiRow);
 
   // ── Integration status ──
-  const intCard = el("div", { class: "card", style: `border-color:${hasIntegration ? "#22c55e" : "#f59e0b"};margin-bottom:12px` });
-  intCard.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;font-size:12px" }, [
-    el("span", { style: `color:${hasIntegration ? "#4ade80" : "#fca5a5"}` }, hasIntegration ? "✓ Private BLE Device integration installed" : "✗ Private BLE Device integration not installed"),
-    mobileApps.length ? el("span", { style: "color:#cbd5e1" }, `• Companion Apps: ${mobileApps.join(", ")}`) : null,
-  ].filter(Boolean)));
+  const intCard = el("div", { class: "bt-notice " + (hasIntegration ? "good" : "ok") }, [
+    el("span", { class: "bt-notice-mark" }, ""),
+    el("div", { class: "bt-notice-body" }, [
+      el("div", { class: "bt-notice-title" }, hasIntegration
+        ? "Private BLE Device integration installed"
+        : "Private BLE Device integration not installed"),
+      mobileApps.length
+        ? el("div", { class: "bt-notice-sub" }, `Companion apps: ${mobileApps.join(", ")}`)
+        : null,
+    ].filter(Boolean)),
+  ]);
   wrap.appendChild(intCard);
 
   // ── Registered Devices Table ──
-  const devCard = el("div", { class: "card", style: "margin-bottom:12px" });
-  devCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px;color:#e2e8f0" }, `Registered IRK Devices (${devices.length})`));
+  const devCard = el("div", { class: "bt-panel", style: "margin-bottom:12px" });
+  devCard.appendChild(el("div", { class: "bt-panel-head" }, [
+    el("div", { class: "bt-panel-title" }, "Registered IRK devices"),
+    el("div", { class: "bt-panel-sub" }, "Each key here lets PadSpan follow one device through its rotating addresses."),
+    el("span", { class: "bt-chip quiet" }, String(devices.length)),
+  ]));
 
   if (devices.length) {
-    const tbl = el("table", { style: "width:100%;border-collapse:collapse;font-size:12px" });
-    const thead = el("tr", { style: "color:#94a3b8;text-align:left;border-bottom:1px solid #334155" });
-    for (const h of ["Name", "Source", "Canonical ID", ""]) {
-      thead.appendChild(el("th", { style: "padding:6px 8px;font-weight:600" }, h));
-    }
-    tbl.appendChild(thead);
+    // Where a key came from is a category, so it wears a chip in the tone of
+    // that category — the five hand-picked hexes were the same five ideas.
+    const srcTone = { padspan: "violet", private_ble_device: "good", mobile_app: "info",
+                      bluetooth_bond: "ok" };
+    const tbl = el("table", { class: "table" });
+    const thead = el("tr", {});
+    for (const h of ["Name", "Source", "Canonical ID", ""]) thead.appendChild(el("th", {}, h));
+    tbl.appendChild(el("thead", {}, thead));
+    const tb = el("tbody");
 
     for (const d of devices) {
-      const tr = el("tr", { style: "border-bottom:1px solid #1e293b" });
-      const srcColor = d.source === "padspan" ? "#a78bfa" : d.source === "private_ble_device" ? "#4ade80" : d.source === "mobile_app" ? "#60a5fa" : d.source === "bluetooth_bond" ? "#fbbf24" : "#94a3b8";
-      tr.appendChild(el("td", { style: "padding:6px 8px;color:#e2e8f0;font-weight:600" }, d.name || "Unknown"));
-      tr.appendChild(el("td", { style: "padding:6px 8px" }, el("span", { style: `color:${srcColor};font-size:11px;padding:1px 6px;border:1px solid ${srcColor};border-radius:3px;white-space:nowrap` }, d.source || "unknown")));
-      tr.appendChild(el("td", { style: "padding:6px 8px;color:#64748b;font-family:monospace;font-size:10px;word-break:break-all" }, d.canonical_id || ""));
+      const tr = el("tr", {});
+      tr.appendChild(el("td", { style: "font-weight:700" }, d.name || "Unknown"));
+      tr.appendChild(el("td", {}, chip(el, d.source || "unknown", srcTone[d.source] || "quiet")));
+      tr.appendChild(el("td", { class: "bt-adv-sub", style: "white-space:normal;word-break:break-all" }, d.canonical_id || ""));
 
       // Delete button — different behavior based on source
-      const tdAct = el("td", { style: "padding:6px 8px;white-space:nowrap" });
+      const tdAct = el("td", { style: "white-space:nowrap;text-align:right" });
       if (d.source === "padspan") {
-        const rmBtn = el("button", { class: "btn tiny", style: "color:#fca5a5;border-color:#7f1d1d;background:#2a0a0a" }, "Remove");
+        const rmBtn = el("button", { class: "btn tiny bt-btn-danger" }, "Remove");
         rmBtn.addEventListener("click", async () => {
           if (!confirm(`Remove IRK for "${d.name}"?`)) return;
           const hex = (d.canonical_id || "").replace("irk:", "");
@@ -2065,7 +2174,7 @@ function renderIrkPanel(ctx, snap) {
         });
         tdAct.appendChild(rmBtn);
       } else if (d.source === "private_ble_device" && d.entry_id) {
-        const rmBtn = el("button", { class: "btn tiny", style: "color:#fca5a5;border-color:#7f1d1d;background:#2a0a0a" }, "Delete");
+        const rmBtn = el("button", { class: "btn tiny bt-btn-danger" }, "Delete");
         rmBtn.addEventListener("click", async () => {
           if (!confirm(`Delete "${d.name}" from Home Assistant? This removes the Private BLE Device integration entry itself — the device disappears from HA, not just from PadSpan.`)) return;
           if (!confirm(`Are you sure? "${d.name}" will be deleted from Home Assistant. You would need its IRK to re-add it.`)) return;
@@ -2077,71 +2186,77 @@ function renderIrkPanel(ctx, snap) {
         });
         tdAct.appendChild(rmBtn);
       } else {
-        tdAct.appendChild(el("span", { style: "font-size:10px;color:#64748b" }, d.source === "bluetooth_bond" ? "System" : "HA-managed"));
+        tdAct.appendChild(el("span", { class: "bt-mini-lbl" }, d.source === "bluetooth_bond" ? "System" : "HA-managed"));
       }
       tr.appendChild(tdAct);
-      tbl.appendChild(tr);
+      tb.appendChild(tr);
     }
+    tbl.appendChild(tb);
     devCard.appendChild(tbl);
   } else {
-    devCard.appendChild(el("div", { style: "color:#94a3b8;font-size:13px;padding:10px 0" },
-      "No IRK devices registered. Add an IRK below to start resolving rotating MAC addresses."));
+    devCard.appendChild(emptyState(el, "\u25CC", "No IRKs registered",
+      "Without one, a phone that rotates its address looks like a new device every fifteen minutes. Add a key below."));
   }
   wrap.appendChild(devCard);
 
   // ── Add IRK Form ──
-  const addCard = el("div", { class: "card", style: "margin-bottom:12px" });
-  addCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px;color:#e2e8f0" }, "Add IRK Device"));
-  addCard.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5" },
-    "Paste the IRK from your phone's settings. Accepts hex (32 chars), base64, colon-separated, or irk:-prefixed format. " +
-    "PadSpan will validate it against live BLE traffic before saving. " +
-    "Need to capture IRKs from phones/watches? Use the ESPHome IRK Capture tool: github.com/DerekSeaman/irk-capture"));
+  const addCard = el("div", { class: "bt-panel", style: "margin-bottom:12px" });
+  addCard.appendChild(el("div", { class: "bt-panel-head" }, [
+    el("div", { class: "bt-panel-title" }, "Add an IRK"),
+    el("div", { class: "bt-panel-sub" },
+      "Paste the key from the phone's own settings — hex, base64, colon-separated or irk:-prefixed all work. "
+      + "PadSpan checks it against live traffic before saving it."),
+  ]));
+  addCard.appendChild(el("div", { class: "bt-note", style: "margin-bottom:10px" },
+    "Capturing an IRK from a phone or watch needs the ESPHome IRK Capture tool \u2014 github.com/DerekSeaman/irk-capture"));
 
   const nameInp = el("input", {
-    type: "text", placeholder: "Device name (e.g., Garry's Pixel)",
-    style: "background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:6px 10px;font-size:13px;width:100%;box-sizing:border-box",
+    class: "input", type: "text", placeholder: "Device name \u2014 e.g. Garry's Pixel",
+    style: "width:100%;box-sizing:border-box",
   });
   const irkInp = el("input", {
-    type: "text", placeholder: "IRK (hex, base64, or colon-separated)",
-    style: "background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:6px 10px;font-size:13px;font-family:monospace;width:100%;box-sizing:border-box;margin-top:6px",
+    class: "input", type: "text", placeholder: "IRK (hex, base64 or colon-separated)",
+    style: "width:100%;box-sizing:border-box;margin-top:6px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace",
   });
-  const addMsg = el("div", { style: "font-size:11px;margin-top:6px;min-height:16px" });
+  const addMsg = el("div", { style: "font-size:11.5px;margin-top:7px;min-height:16px" });
 
-  const btnRow = el("div", { style: "display:flex;gap:8px;margin-top:8px;flex-wrap:wrap" });
-  const addBtn = el("button", { class: "btn" }, "Add & Validate");
-  const validateBtn = el("button", { class: "btn inline" }, "Test Only");
-  const autoDetectBtn = el("button", { class: "btn inline", style: "margin-left:auto;color:#60a5fa;border-color:#1e4976" }, "Auto-Detect IRKs");
+  const btnRow = el("div", { style: "display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center" });
+  // "Add & Validate" was full width because .btn is; it is one action among
+  // three, so it sizes like one.
+  const addBtn = el("button", { class: "btn inline" }, "Add & validate");
+  const validateBtn = el("button", { class: "btn inline" }, "Test only");
+  const autoDetectBtn = el("button", { class: "btn inline bt-btn-info", style: "margin-left:auto" }, "Auto-detect IRKs");
 
   // Add & Validate handler
   addBtn.addEventListener("click", async () => {
     const irk = irkInp.value.trim();
     const name = nameInp.value.trim();
-    if (!irk) { addMsg.textContent = "Paste an IRK first"; addMsg.style.color = "#f87171"; return; }
+    if (!irk) { addMsg.textContent = "Paste an IRK first"; addMsg.style.color = "var(--bt-bad)"; return; }
     addBtn.disabled = true; addBtn.textContent = "Validating…";
-    addMsg.textContent = ""; addMsg.style.color = "#94a3b8";
+    addMsg.textContent = ""; addMsg.style.color = "var(--bt-dim)";
 
     // Validate first
     try {
       const vRes = await ctx.actions.wsCall("padspan_ha/irk_validate", { irk_hex: irk });
       if (vRes && vRes.matched_count > 0) {
-        addMsg.style.color = "#4ade80";
+        addMsg.style.color = "var(--bt-good)";
         addMsg.textContent = `✓ Validated: matched ${vRes.matched_count} rotating address${vRes.matched_count !== 1 ? "es" : ""}. Saving…`;
         // Use the validated hex format
         const useIrk = vRes.irk_hex || irk;
         try {
           await ctx.actions.wsCall("padspan_ha/irk_add", { name: name || "PadSpan Device", irk_hex: useIrk });
-          addMsg.style.color = "#4ade80";
+          addMsg.style.color = "var(--bt-good)";
           addMsg.textContent = `✓ Saved "${name || "PadSpan Device"}" — resolving active immediately`;
           nameInp.value = ""; irkInp.value = "";
           ctx.state._irkPanelStatus = null;
           setTimeout(() => ctx.actions.renderRooms(), 500);
         } catch(e) {
-          addMsg.style.color = "#f87171";
+          addMsg.style.color = "var(--bt-bad)";
           addMsg.textContent = e.message || "Save failed";
         }
       } else {
         // No live match — save anyway with warning
-        addMsg.style.color = "#fbbf24";
+        addMsg.style.color = "var(--bt-ok)";
         const rpas = vRes ? vRes.rpa_count : 0;
         addMsg.textContent = rpas > 0
           ? `⚠ No live match (${rpas} RPAs scanned). Device may be off or out of range. Saving anyway…`
@@ -2153,12 +2268,12 @@ function renderIrkPanel(ctx, snap) {
           ctx.state._irkPanelStatus = null;
           setTimeout(() => ctx.actions.renderRooms(), 500);
         } catch(e) {
-          addMsg.style.color = "#f87171";
+          addMsg.style.color = "var(--bt-bad)";
           addMsg.textContent = e.message || "Save failed";
         }
       }
     } catch(e) {
-      addMsg.style.color = "#f87171";
+      addMsg.style.color = "var(--bt-bad)";
       addMsg.textContent = e.message || "Invalid IRK format";
     }
     addBtn.disabled = false; addBtn.textContent = "Add & Validate";
@@ -2167,21 +2282,21 @@ function renderIrkPanel(ctx, snap) {
   // Test Only handler
   validateBtn.addEventListener("click", async () => {
     const irk = irkInp.value.trim();
-    if (!irk) { addMsg.textContent = "Paste an IRK first"; addMsg.style.color = "#f87171"; return; }
+    if (!irk) { addMsg.textContent = "Paste an IRK first"; addMsg.style.color = "var(--bt-bad)"; return; }
     validateBtn.disabled = true; validateBtn.textContent = "Testing…";
-    addMsg.textContent = ""; addMsg.style.color = "#94a3b8";
+    addMsg.textContent = ""; addMsg.style.color = "var(--bt-dim)";
     try {
       const vRes = await ctx.actions.wsCall("padspan_ha/irk_validate", { irk_hex: irk });
       if (vRes && vRes.matched_count > 0) {
-        addMsg.style.color = "#4ade80";
+        addMsg.style.color = "var(--bt-good)";
         const fmt = vRes.matched_format ? ` (format: ${vRes.matched_format})` : "";
         addMsg.textContent = `✓ Valid! Matched ${vRes.matched_count} rotating address${vRes.matched_count !== 1 ? "es" : ""}${fmt}. Addresses: ${(vRes.matched_addresses || []).slice(0, 5).join(", ")}`;
       } else {
-        addMsg.style.color = "#fbbf24";
+        addMsg.style.color = "var(--bt-ok)";
         addMsg.textContent = `No match found. ${vRes.rpa_count || 0} RPAs tested. ${vRes.candidates_tried || 0} format variants tried. Device may be off/out of range.`;
       }
     } catch(e) {
-      addMsg.style.color = "#f87171";
+      addMsg.style.color = "var(--bt-bad)";
       addMsg.textContent = e.message || "Invalid IRK format";
     }
     validateBtn.disabled = false; validateBtn.textContent = "Test Only";
@@ -2190,16 +2305,16 @@ function renderIrkPanel(ctx, snap) {
   // Auto-Detect handler
   autoDetectBtn.addEventListener("click", async () => {
     autoDetectBtn.disabled = true; autoDetectBtn.textContent = "Scanning…";
-    addMsg.textContent = ""; addMsg.style.color = "#94a3b8";
+    addMsg.textContent = ""; addMsg.style.color = "var(--bt-dim)";
     try {
       const res = await ctx.actions.wsCall("padspan_ha/irk_auto_detect", {});
       const found = res.found || [];
       if (found.length === 0) {
-        addMsg.style.color = "#fbbf24";
+        addMsg.style.color = "var(--bt-ok)";
         addMsg.textContent = `No system Bluetooth bonds found (${res.system_bond_count || 0} bonds scanned, ${res.rpa_count || 0} RPAs tested).`;
       } else {
         // Show found IRKs
-        addMsg.style.color = "#4ade80";
+        addMsg.style.color = "var(--bt-good)";
         const newOnes = found.filter(f => !f.already_registered);
         const verified = found.filter(f => f.verified);
         addMsg.textContent = `Found ${found.length} IRK${found.length !== 1 ? "s" : ""}: ${newOnes.length} new, ${verified.length} verified against live RPAs.`;
@@ -2219,7 +2334,7 @@ function renderIrkPanel(ctx, snap) {
         }
       }
     } catch(e) {
-      addMsg.style.color = "#f87171";
+      addMsg.style.color = "var(--bt-bad)";
       addMsg.textContent = e.message || "Auto-detect failed";
     }
     autoDetectBtn.disabled = false; autoDetectBtn.textContent = "Auto-Detect IRKs";
@@ -2238,30 +2353,38 @@ function renderIrkPanel(ctx, snap) {
   // Guided setup flow for adding phones. Only shows when phone_wizard_enabled setting is on.
   const _wizSettings = ctx.state.settings || {};
   if (_wizSettings.phone_wizard_enabled) {
-    const wizCard = el("div", { class: "card", style: "margin-bottom:12px;border:1px solid #1a4228;background:#0f1a12" });
-    wizCard.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:10px" }, [
-      el("div", { style: "font-weight:700;font-size:15px;color:#52b788" }, "Quick Setup: Track Your Phone"),
-      el("span", { style: "font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600;text-transform:uppercase" }, "wizard"),
+    const wizCard = el("div", { class: "bt-panel", style: "margin-bottom:12px" });
+    wizCard.appendChild(el("div", { class: "bt-panel-head" }, [
+      el("div", { class: "bt-panel-title" }, "Track your phone"),
+      el("div", { class: "bt-panel-sub" }, "Three ways in, depending on what you have."),
+      el("span", { class: "bt-chip ok" }, "wizard"),
     ]));
 
+    // One shape for the three paths, so they read as alternatives rather than
+    // three differently-coloured cards.
+    const _path = (title, tone) => {
+      const d = el("div", { style: "padding:11px 12px;background:var(--bt-inset);border:1px solid var(--bt-line);border-radius:10px;margin-bottom:8px" });
+      d.appendChild(el("div", { style: `font-weight:700;font-size:12.5px;color:var(--bt-${tone});margin-bottom:5px` }, title));
+      return d;
+    };
+
     // Path A — IRK Capture ESP32
-    const pathA = el("div", { style: "margin-bottom:14px;padding:10px;background:rgba(0,0,0,.2);border-radius:6px" });
-    pathA.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#60a5fa;margin-bottom:6px" }, "I have an IRK Capture ESP32"));
-    pathA.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:8px" },
-      "If you have DerekSeaman's irk-capture flashed on an ESP32, PadSpan can auto-detect the captured IRK."));
-    const wizScanBtn = el("button", { class: "btn inline", style: "color:#60a5fa;border-color:#1e4976" }, "Scan for IRK Capture devices");
-    const wizScanMsg = el("div", { style: "font-size:11px;margin-top:6px;min-height:16px" });
+    const pathA = _path("I have an IRK Capture ESP32", "info");
+    pathA.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.55;margin-bottom:8px" },
+      "With DerekSeaman's irk-capture flashed on an ESP32, PadSpan can pick the captured key up by itself."));
+    const wizScanBtn = el("button", { class: "btn inline bt-btn-info" }, "Scan for IRK Capture devices");
+    const wizScanMsg = el("div", { style: "font-size:11.5px;margin-top:7px;min-height:16px" });
     wizScanBtn.addEventListener("click", async () => {
       wizScanBtn.disabled = true; wizScanBtn.textContent = "Scanning...";
-      wizScanMsg.textContent = ""; wizScanMsg.style.color = "#94a3b8";
+      wizScanMsg.textContent = ""; wizScanMsg.style.color = "var(--bt-dim)";
       try {
         const res = await ctx.actions.wsCall("padspan_ha/irk_auto_detect", {});
         const found = res.found || [];
         if (found.length === 0) {
-          wizScanMsg.style.color = "#fbbf24";
+          wizScanMsg.style.color = "var(--bt-ok)";
           wizScanMsg.textContent = "No IRK Capture devices found. Make sure the ESP32 is powered on and has captured a pairing.";
         } else {
-          wizScanMsg.style.color = "#4ade80";
+          wizScanMsg.style.color = "var(--bt-good)";
           const newOnes = found.filter(f => !f.already_registered);
           const verified = found.filter(f => f.verified);
           wizScanMsg.textContent = `Found ${found.length} IRK${found.length !== 1 ? "s" : ""}: ${newOnes.length} new, ${verified.length} verified.`;
@@ -2279,7 +2402,7 @@ function renderIrkPanel(ctx, snap) {
           }
         }
       } catch(e) {
-        wizScanMsg.style.color = "#f87171";
+        wizScanMsg.style.color = "var(--bt-bad)";
         wizScanMsg.textContent = e.message || "Scan failed";
       }
       wizScanBtn.disabled = false; wizScanBtn.textContent = "Scan for IRK Capture devices";
@@ -2289,24 +2412,23 @@ function renderIrkPanel(ctx, snap) {
     wizCard.appendChild(pathA);
 
     // Path B — Android
-    const pathB = el("div", { style: "margin-bottom:14px;padding:10px;background:rgba(0,0,0,.2);border-radius:6px" });
-    pathB.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#4ade80;margin-bottom:6px" }, "I have an Android phone"));
-    pathB.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5" },
+    const pathB = _path("I have an Android phone", "good");
+    pathB.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.55" },
       "The easiest way to track an Android phone: Install the HA Companion App \u2192 Settings \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 Enable. " +
       "Your phone will broadcast an iBeacon signal that PadSpan tracks automatically. No IRK needed."));
     wizCard.appendChild(pathB);
 
     // Path C — iPhone
-    const pathC = el("div", { style: "padding:10px;background:rgba(0,0,0,.2);border-radius:6px" });
-    pathC.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#fbbf24;margin-bottom:6px" }, "I have an iPhone"));
-    pathC.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:6px" },
+    const pathC = _path("I have an iPhone", "ok");
+    pathC.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.55;margin-bottom:6px" },
       "For iPhone tracking you need the IRK (Identity Resolving Key). The easiest method is the IRK Capture ESP32 tool. " +
       "Alternative: if you have a Mac, extract the IRK from Keychain Access."));
     const irkLink = el("a", {
       href: "https://github.com/DerekSeaman/irk-capture",
       target: "_blank",
       rel: "noopener noreferrer",
-      style: "font-size:12px;color:#60a5fa;text-decoration:underline",
+      class: "bt-link",
+      style: "font-size:12px",
     }, "github.com/DerekSeaman/irk-capture");
     pathC.appendChild(irkLink);
     wizCard.appendChild(pathC);
@@ -2316,19 +2438,21 @@ function renderIrkPanel(ctx, snap) {
 
   // ── Companion App IRK Status ──
   if (mobileApps.length || devices.some(d => d.source === "mobile_app")) {
-    const compCard = el("div", { class: "card", style: "margin-bottom:12px" });
-    compCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px;color:#60a5fa" }, "Companion App Status"));
+    const compCard = el("div", { class: "bt-panel", style: "margin-bottom:12px" });
+    compCard.appendChild(el("div", { class: "bt-panel-head" }, [
+      el("div", { class: "bt-panel-title" }, "Companion apps"),
+    ]));
 
     const appDevices = devices.filter(d => d.source === "mobile_app");
     if (appDevices.length) {
-      compCard.appendChild(el("div", { style: "font-size:12px;color:#4ade80;margin-bottom:6px" },
-        `✓ ${appDevices.length} companion app${appDevices.length !== 1 ? "s" : ""} with IRK: ${appDevices.map(d => d.name).join(", ")}`));
+      compCard.appendChild(el("div", { class: "bt-note good" },
+        `${appDevices.length} companion app${appDevices.length !== 1 ? "s" : ""} with an IRK: ${appDevices.map(d => d.name).join(", ")}`));
     }
     const appsWithoutIrk = mobileApps.filter(name => !appDevices.some(d => d.name === name));
     if (appsWithoutIrk.length) {
-      compCard.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;margin-bottom:6px" },
-        `⚠ ${appsWithoutIrk.length} companion app${appsWithoutIrk.length !== 1 ? "s" : ""} without IRK: ${appsWithoutIrk.join(", ")}`));
-      compCard.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;line-height:1.5" },
+      compCard.appendChild(el("div", { class: "bt-note ok" },
+        `${appsWithoutIrk.length} companion app${appsWithoutIrk.length !== 1 ? "s" : ""} without one: ${appsWithoutIrk.join(", ")}`));
+      compCard.appendChild(el("div", { class: "muted", style: "font-size:11.5px;line-height:1.6;margin-top:8px" },
         "The HA Companion App stores an IRK when BLE Transmitter is enabled. " +
         "If the app registered before BLE Transmitter was added (or the IRK field wasn't populated), " +
         "you may need to manually extract the IRK. On Android: HA Settings → Companion App → Manage Sensors → BLE Transmitter → look for the IRK. " +
@@ -2338,40 +2462,47 @@ function renderIrkPanel(ctx, snap) {
   }
 
   // ── Troubleshooting Card ──
-  const troubleCard = el("div", { class: "card", style: "margin-bottom:12px" });
-  troubleCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px;color:#e2e8f0" }, "Troubleshooting"));
+  const troubleCard = el("div", { class: "bt-panel", style: "margin-bottom:12px" });
+  troubleCard.appendChild(el("div", { class: "bt-panel-head" }, [
+    el("div", { class: "bt-panel-title" }, "How this install is doing"),
+  ]));
   const issues = [];
   if (devices.length === 0 && rpaCount > 0) {
-    issues.push({ icon: "⚠", color: "#f59e0b", text: `${rpaCount} rotating MAC addresses detected but no IRKs configured. These are likely phones/watches that can't be identified without their IRK.` });
+    issues.push({ tone: "ok", text: `${rpaCount} rotating addresses are being heard and no IRK is registered. Those are phones and watches, and without their key they cannot be told apart.` });
   }
   if (!hasIntegration) {
-    issues.push({ icon: "ℹ", color: "#60a5fa", text: "The 'Private BLE Device' integration is not installed. PadSpan can still resolve IRKs directly, but installing the integration provides HA device entities for automations." });
+    issues.push({ tone: "", text: "The Private BLE Device integration is not installed. PadSpan resolves IRKs on its own regardless; installing it adds HA device entities you can automate on." });
   }
   if (devices.length > 0 && rpaCount === 0) {
-    issues.push({ icon: "⚠", color: "#f59e0b", text: "IRKs are registered but no rotating MAC addresses detected. Make sure BLE scanners are online and devices are in range." });
+    issues.push({ tone: "ok", text: "IRKs are registered but nothing rotating is being heard. Check that the scanners are online and the devices are in range." });
   }
   if (issues.length === 0) {
-    issues.push({ icon: "✓", color: "#4ade80", text: "Everything looks good. IRKs are loaded and resolving rotating addresses." });
+    issues.push({ tone: "good", text: "Everything is working: the keys are loaded and rotating addresses are resolving." });
   }
+  const issueList = el("div", { class: "bt-notes" });
   for (const iss of issues) {
-    troubleCard.appendChild(el("div", { style: `font-size:12px;color:${iss.color};margin-bottom:6px;display:flex;gap:6px` }, [
-      el("span", {}, iss.icon),
-      el("span", {}, iss.text),
-    ]));
+    issueList.appendChild(el("div", { class: "bt-note" + (iss.tone ? " " + iss.tone : "") }, iss.text));
   }
+  troubleCard.appendChild(issueList);
 
   // Quick reference
-  troubleCard.appendChild(el("div", { style: "font-size:11px;color:#64748b;margin-top:10px;line-height:1.6;border-top:1px solid #1e293b;padding-top:8px" }, [
-    el("div", { style: "font-weight:600;color:#94a3b8;margin-bottom:3px" }, "Where to find IRKs:"),
-    el("div", {}, "Android: Companion App → Settings → Manage Sensors → BLE Transmitter → IRK attribute"),
-    el("div", {}, "iPhone/iPad: Mac → Terminal → sudo defaults read /private/var/root/Library/Preferences/com.apple.bluetoothd.plist → find IRK"),
-    el("div", {}, "Linux bonds: Automatically detected via Auto-Detect button above"),
-    el("div", {}, "Any device: Pair with ESP32 running BLE pairing firmware → IRK shown in serial output"),
+  troubleCard.appendChild(el("div", { style: "margin-top:12px;padding-top:9px;border-top:1px solid var(--bt-line)" }, [
+    el("div", { class: "bt-kv-title", style: "margin-top:0;border:none;padding:0" }, "Where to find an IRK"),
+    el("dl", { class: "bt-kv" }, [
+      el("dt", {}, "Android"),
+      el("dd", {}, "Companion App \u2192 Settings \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 IRK attribute"),
+      el("dt", {}, "iPhone / iPad"),
+      el("dd", {}, "On a Mac: sudo defaults read /private/var/root/Library/Preferences/com.apple.bluetoothd.plist"),
+      el("dt", {}, "Linux bonds"),
+      el("dd", {}, "Found for you by Auto-detect, above"),
+      el("dt", {}, "Anything else"),
+      el("dd", {}, "Pair with an ESP32 running BLE pairing firmware; the key is printed on the serial output"),
+    ]),
   ]));
   wrap.appendChild(troubleCard);
 
   // ── Refresh button ──
-  const refreshBtn = el("button", { class: "btn", style: "margin-bottom:12px" }, "Refresh Status");
+  const refreshBtn = el("button", { class: "btn inline", style: "margin-bottom:12px" }, "Refresh status");
   refreshBtn.addEventListener("click", () => {
     ctx.state._irkPanelStatus = null;
     ctx.state._irkPanelLoading = false;
@@ -2400,21 +2531,21 @@ function renderEsphomeConfigs(ctx) {
   function _makeCodeCopyIcon(text) {
     const btn = document.createElement("button");
     btn.title = "Copy to clipboard";
-    btn.style.cssText = "position:absolute;top:8px;right:8px;background:#1a2e22;border:1px solid #2d5a3d;border-radius:6px;padding:5px 6px;cursor:pointer;opacity:0.6;transition:opacity 0.15s;display:flex;align-items:center;justify-content:center;z-index:1";
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+    btn.style.cssText = "position:absolute;top:8px;right:8px;background:rgba(255,255,255,.055);border:1px solid rgba(120,190,155,.28);border-radius:8px;padding:5px 6px;cursor:pointer;opacity:0.55;transition:opacity .15s ease,border-color .15s ease;display:flex;align-items:center;justify-content:center;z-index:1";
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(226,240,232,.6)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
     btn.addEventListener("mouseenter", () => { btn.style.opacity = "1"; });
-    btn.addEventListener("mouseleave", () => { if (btn.dataset.copied !== "1") btn.style.opacity = "0.6"; });
+    btn.addEventListener("mouseleave", () => { if (btn.dataset.copied !== "1") btn.style.opacity = "0.55"; });
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       navigator.clipboard.writeText(text).then(() => {
         btn.dataset.copied = "1";
-        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#52b788" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8ee5b4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
         btn.style.opacity = "1";
-        btn.style.borderColor = "#52b788";
+        btn.style.borderColor = "rgba(82,183,136,.75)";
         setTimeout(() => {
-          btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-          btn.style.opacity = "0.6";
-          btn.style.borderColor = "#2d5a3d";
+          btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(226,240,232,.6)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+          btn.style.opacity = "0.55";
+          btn.style.borderColor = "rgba(120,190,155,.28)";
           delete btn.dataset.copied;
         }, 1500);
       }).catch(() => {});
@@ -2423,24 +2554,26 @@ function renderEsphomeConfigs(ctx) {
   }
 
   // Intro card
-  const intro = el("div", { class: "card", style: "border:1px solid #2d5a3d" }, [
-    el("div", { style: "font-weight:700;font-size:15px;margin-bottom:6px" }, "ESPHome Config Library"),
-    el("div", { class: "muted", style: "line-height:1.6" },
+  const intro = el("div", { class: "bt-panel" }, [
+    el("div", { class: "bt-panel-head" }, [
+      el("div", { class: "bt-panel-title" }, "ESPHome config library"),
+    ]),
+    el("div", { class: "muted", style: "line-height:1.6;font-size:12px" },
       "Optimised ESPHome YAML for every ESP32 variant PadSpan supports. " +
       "Each config includes the diagnostic sensors PadSpan reads automatically (IP address, WiFi signal, SSID, temperature, uptime). " +
       "Copy the YAML into your ESPHome device configuration, adjust wifi/api secrets, and flash."
     ),
     el("div", { style: "margin-top:10px;display:flex;gap:12px;flex-wrap:wrap" }, [
-      el("div", { style: "flex:1;min-width:200px;background:#0a150e;border-radius:8px;padding:10px 14px" }, [
-        el("div", { style: "font-weight:600;font-size:12px;color:#52b788;margin-bottom:4px" }, "Scan Parameters Rule"),
+      el("div", { style: "flex:1;min-width:200px;background:var(--bt-inset);border:1px solid var(--bt-line);border-radius:10px;padding:11px 13px" }, [
+        el("div", { class: "bt-kv-title", style: "margin:0 0 5px;border:none;padding:0" }, "Scan parameters"),
         el("div", { class: "muted", style: "font-size:11px;line-height:1.5" },
           "interval and window must be multiples of 0.625 ms (one BLE time slot). " +
           "320 ms interval is the standard. WiFi scanners: window = 100 ms (31% duty). " +
           "Ethernet scanners: window = 300 ms (93.75% duty)."
         ),
       ]),
-      el("div", { style: "flex:1;min-width:200px;background:#0a150e;border-radius:8px;padding:10px 14px" }, [
-        el("div", { style: "font-weight:600;font-size:12px;color:#52b788;margin-bottom:4px" }, "Why Passive Scanning?"),
+      el("div", { style: "flex:1;min-width:200px;background:var(--bt-inset);border:1px solid var(--bt-line);border-radius:10px;padding:11px 13px" }, [
+        el("div", { class: "bt-kv-title", style: "margin:0 0 5px;border:none;padding:0" }, "Why passive scanning"),
         el("div", { class: "muted", style: "font-size:11px;line-height:1.5" },
           "active: false means the scanner only listens — it never sends scan requests. " +
           "This reduces RF contention, saves power, and is all PadSpan needs for RSSI-based presence. " +
@@ -2453,12 +2586,12 @@ function renderEsphomeConfigs(ctx) {
   // ── External antenna recommendation card ───────────────────────────────────
   // Auto-expires September 10, 2026 — hardware recommendations go stale.
   const _antExpiry = new Date("2026-09-10T00:00:00Z").getTime();
-  const antennaCard = Date.now() < _antExpiry ? el("div", { class: "card", style: "border:1px solid #f59e0b55;background:#1a1500" }, [
+  const antennaCard = Date.now() < _antExpiry ? el("div", { class: "bt-panel", style: "border-color:rgba(251,191,36,.34);background:rgba(251,191,36,.045)" }, [
     el("div", { style: "display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap" }, [
       el("div", {}, [
         el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px" }, [
-          el("span", { style: "font-weight:700;font-size:15px;color:#f59e0b" }, "The Single Biggest Improvement: External Antenna"),
-          el("span", { class: "badge", style: "font-size:10px;background:#f59e0b22;color:#f59e0b" }, "#1 Upgrade"),
+          el("span", { style: "font-weight:800;font-size:15px;color:var(--bt-ok)" }, "An external antenna is the biggest single upgrade"),
+          el("span", { class: "bt-chip ok" }, "#1 upgrade"),
         ]),
         el("div", { class: "muted", style: "font-size:12px;line-height:1.7;max-width:650px" },
           "Adding an external antenna to your ESP32 scanner is the most impactful upgrade you can make. " +
@@ -2473,28 +2606,16 @@ function renderEsphomeConfigs(ctx) {
         linkBtn.target = "_blank";
         linkBtn.rel = "noopener noreferrer";
         linkBtn.className = "btn tiny";
-        linkBtn.style.cssText = "font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;background:#1a1a0e;border-color:#f59e0b;color:#f59e0b;flex-shrink:0";
+        linkBtn.style.cssText = "text-decoration:none;display:inline-flex;align-items:center;gap:4px;flex-shrink:0;color:var(--bt-ok);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.1)";
         linkBtn.textContent = "Example on AliExpress";
         return linkBtn;
       })(),
     ]),
-    el("div", { style: "margin-top:8px;display:flex;flex-direction:column;gap:3px" }, [
-      el("div", { style: "font-size:11px;color:#94a3b8;padding-left:12px;position:relative" }, [
-        el("span", { style: "position:absolute;left:0;color:#f59e0b" }, "\u2022"),
-        document.createTextNode("Look for boards with an IPEX/U.FL connector (most ESP32-S3 and ESP32 boards have one)"),
-      ]),
-      el("div", { style: "font-size:11px;color:#94a3b8;padding-left:12px;position:relative" }, [
-        el("span", { style: "position:absolute;left:0;color:#f59e0b" }, "\u2022"),
-        document.createTextNode("A simple 2.4 GHz antenna with IPEX connector is all you need — no soldering required"),
-      ]),
-      el("div", { style: "font-size:11px;color:#fbbf24;padding-left:12px;position:relative;font-weight:600" }, [
-        el("span", { style: "position:absolute;left:0;color:#f59e0b" }, "\u26A0"),
-        document.createTextNode("Connector types (IPEX, U.FL) vary between boards — verify your board's connector before ordering"),
-      ]),
-      el("div", { style: "font-size:11px;color:#94a3b8;padding-left:12px;position:relative" }, [
-        el("span", { style: "position:absolute;left:0;color:#f59e0b" }, "\u2022"),
-        document.createTextNode("Tested and working, but this is a third-party link provided as an example only"),
-      ]),
+    el("div", { class: "bt-notes" }, [
+      el("div", { class: "bt-note" }, "Look for boards with an IPEX/U.FL connector (most ESP32-S3 and ESP32 boards have one)"),
+      el("div", { class: "bt-note" }, "A simple 2.4 GHz antenna with IPEX connector is all you need — no soldering required"),
+      el("div", { class: "bt-note ok" }, "Connector types (IPEX, U.FL) vary between boards — verify your board's connector before ordering"),
+      el("div", { class: "bt-note" }, "Tested and working, but this is a third-party link provided as an example only"),
     ]),
   ]) : null;
 
@@ -2594,7 +2715,8 @@ button:
 
     const yamlPre = document.createElement("pre");
     yamlPre.className = "pre";
-    yamlPre.style.cssText = "margin-top:10px;font-size:11px;max-height:500px;overflow:auto;white-space:pre;tab-size:2;display:none";
+    yamlPre.className = "pre tall";
+    yamlPre.style.cssText = "margin-top:10px;tab-size:2;display:none";
     yamlPre.textContent = _recYaml;
 
     // Wrap pre in container with floating copy icon
@@ -2630,15 +2752,16 @@ button:
     linkBtn.target = "_blank";
     linkBtn.rel = "noopener noreferrer";
     linkBtn.className = "btn tiny";
-    linkBtn.style.cssText = "font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;background:#1a2e0e;border-color:#52b788;color:#52b788";
+    linkBtn.className = "btn tiny bt-btn-accent";
+    linkBtn.style.cssText = "text-decoration:none;display:inline-flex;align-items:center;gap:4px";
     linkBtn.textContent = "View on AliExpress";
 
-    return el("div", { class: "card", style: "border:1px solid #52b78855;background:#0a1a10" }, [
+    return el("div", { class: "bt-panel", style: "border-color:rgba(82,183,136,.4);background:rgba(82,183,136,.05)" }, [
       el("div", { style: "display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap" }, [
         el("div", {}, [
           el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px" }, [
-            el("span", { style: "font-weight:700;font-size:14px;color:#52b788" }, "Recommended: ESP32-S3 Ethernet Board"),
-            el("span", { class: "badge", style: "font-size:10px;background:#10b98122;color:#10b981" }, "Tested & Working"),
+            el("span", { style: "font-weight:800;font-size:14px;color:#8ee5b4" }, "Recommended: ESP32-S3 Ethernet board"),
+            el("span", { class: "bt-chip good" }, "tested"),
           ]),
           el("div", { class: "muted", style: "font-size:12px;line-height:1.6;max-width:600px" },
             "ESP32-S3 with W5500 Ethernet in a compact 3D-printed case. Wired connection means zero WiFi contention — the BLE radio runs at full duty. " +
@@ -2647,48 +2770,30 @@ button:
         ]),
         el("div", { style: "display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap" }, [linkBtn, showBtn, copyBtn]),
       ]),
-      el("div", { style: "margin-top:8px;display:flex;flex-direction:column;gap:3px" }, [
-        el("div", { style: "font-size:11px;color:#94a3b8;padding-left:12px;position:relative" }, [
-          el("span", { style: "position:absolute;left:0;color:#52b788" }, "\u2022"),
-          document.createTextNode("ESP32-S3 + W5500 Ethernet — no WiFi needed, maximum BLE scan duty"),
-        ]),
-        el("div", { style: "font-size:11px;color:#94a3b8;padding-left:12px;position:relative" }, [
-          el("span", { style: "position:absolute;left:0;color:#52b788" }, "\u2022"),
-          document.createTextNode("Active scanning with Bluetooth Proxy enabled (4 connection slots)"),
-        ]),
-        el("div", { style: "font-size:11px;color:#94a3b8;padding-left:12px;position:relative" }, [
-          el("span", { style: "position:absolute;left:0;color:#52b788" }, "\u2022"),
-          document.createTextNode("Replace API key and OTA password with your own values before flashing"),
-        ]),
+      el("div", { class: "bt-notes" }, [
+        el("div", { class: "bt-note" }, "ESP32-S3 + W5500 Ethernet — no WiFi needed, maximum BLE scan duty"),
+        el("div", { class: "bt-note" }, "Active scanning with Bluetooth Proxy enabled (4 connection slots)"),
+        el("div", { class: "bt-note" }, "Replace API key and OTA password with your own values before flashing"),
       ]),
       _recPreWrap,
     ]);
   })() : null;
 
   // ── IRK Capture Tool card ──────────────────────────────────────────────────
-  const irkCaptureCard = el("div", { class: "card", style: "border:1px solid #8b5cf655;background:#0f0a1a" }, [
+  const irkCaptureCard = el("div", { class: "bt-panel", style: "border-color:rgba(196,181,253,.3);background:rgba(196,181,253,.045)" }, [
     el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px" }, [
-      el("span", { style: "font-weight:700;font-size:14px;color:#8b5cf6" }, "IRK Capture Tool"),
-      el("span", { class: "badge", style: "font-size:10px;background:#8b5cf622;color:#a78bfa" }, "Community Project"),
+      el("span", { style: "font-weight:800;font-size:14px;color:var(--bt-violet)" }, "IRK Capture tool"),
+      el("span", { class: "bt-chip violet" }, "community project"),
     ]),
     el("div", { class: "muted", style: "font-size:12px;line-height:1.6;max-width:700px;margin-bottom:8px" },
       "Phones and watches rotate their BLE MAC address every ~15 minutes, making them hard to track. " +
       "An IRK (Identity Resolving Key) lets PadSpan see through the rotation and track each device by name. " +
       "This ESPHome package captures IRKs by briefly pairing with a phone or watch \u2014 flash a spare ESP32, pair, copy the IRK, and paste it into PadSpan\u2019s Private BLE section above."
     ),
-    el("div", { style: "margin-top:4px;display:flex;flex-direction:column;gap:3px" }, [
-      el("div", { style: "font-size:11px;color:#94a3b8;padding-left:12px;position:relative" }, [
-        el("span", { style: "position:absolute;left:0;color:#8b5cf6" }, "\u2022"),
-        document.createTextNode("Supports Apple (heart rate sensor profile) and Android (keyboard profile)"),
-      ]),
-      el("div", { style: "font-size:11px;color:#94a3b8;padding-left:12px;position:relative" }, [
-        el("span", { style: "position:absolute;left:0;color:#8b5cf6" }, "\u2022"),
-        document.createTextNode("Flash any spare ESP32 \u2014 only needed once per device, then reflash back to scanner duty"),
-      ]),
-      el("div", { style: "font-size:11px;color:#94a3b8;padding-left:12px;position:relative" }, [
-        el("span", { style: "position:absolute;left:0;color:#f59e0b" }, "\u26A0"),
-        document.createTextNode("Third-party community project \u2014 not maintained by PadSpan"),
-      ]),
+    el("div", { class: "bt-notes" }, [
+      el("div", { class: "bt-note" }, "Supports Apple (heart rate sensor profile) and Android (keyboard profile)"),
+      el("div", { class: "bt-note" }, "Flash any spare ESP32 \u2014 only needed once per device, then reflash back to scanner duty"),
+      el("div", { class: "bt-note ok" }, "Third-party community project \u2014 not maintained by PadSpan"),
     ]),
     (() => {
       const linkBtn = document.createElement("a");
@@ -2696,7 +2801,7 @@ button:
       linkBtn.target = "_blank";
       linkBtn.rel = "noopener noreferrer";
       linkBtn.className = "btn tiny";
-      linkBtn.style.cssText = "font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;background:#1a0e2e;border-color:#8b5cf6;color:#a78bfa;margin-top:10px";
+      linkBtn.style.cssText = "text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-top:10px;color:var(--bt-violet);border-color:rgba(196,181,253,.4);background:rgba(196,181,253,.1)";
       linkBtn.textContent = "View on GitHub \u2192";
       return linkBtn;
     })(),
@@ -2705,25 +2810,27 @@ button:
   // ── Chip comparison table ──────────────────────────────────────────────────
   // Auto-expires March 10, 2028 (hardware recs go stale).
   const _chipExpiry = new Date("2028-03-10T00:00:00Z").getTime();
-  const chipTable = Date.now() < _chipExpiry ? el("div", { class: "card" }, [
-    el("div", { style: "font-weight:700;margin-bottom:8px" }, "Chip Comparison"),
+  const chipTable = Date.now() < _chipExpiry ? el("div", { class: "bt-panel" }, [
+    el("div", { class: "bt-panel-head" }, [
+      el("div", { class: "bt-panel-title" }, "Which chip"),
+      el("div", { class: "bt-panel-sub" }, "Scan duty is what decides how much a scanner actually hears."),
+    ]),
     (() => {
       const wrap = document.createElement("div");
       wrap.style.cssText = "overflow-x:auto";
-      wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead><tr style="border-bottom:1px solid #2d5a3d;text-align:left">
-          <th style="padding:6px 8px">Chip</th>
-          <th style="padding:6px 8px">Cores</th>
-          <th style="padding:6px 8px">BLE</th>
-          <th style="padding:6px 8px">WiFi</th>
-          <th style="padding:6px 8px">Max Scan Duty</th>
-          <th style="padding:6px 8px">Best For</th>
+      // The shared table style; the only inline colour left is the verdict,
+      // and it comes from the same three tone tokens as everything else.
+      const _g = "color:var(--bt-good)", _o = "color:var(--bt-ok)",
+            _b = "color:var(--bt-bad)", _v = "color:var(--bt-violet)";
+      wrap.innerHTML = `<table class="table">
+        <thead><tr>
+          <th>Chip</th><th>Cores</th><th>BLE</th><th>WiFi</th><th>Max scan duty</th><th>Best for</th>
         </tr></thead>
         <tbody>
-          <tr style="border-bottom:1px solid #1a2e22"><td style="padding:6px 8px;font-weight:600;color:#10b981">ESP32-S3</td><td style="padding:6px 8px;color:#10b981">2 (Xtensa)</td><td style="padding:6px 8px">5.0</td><td style="padding:6px 8px">4 (b/g/n)</td><td style="padding:6px 8px;color:#10b981">~31% WiFi / 93.75% Eth</td><td style="padding:6px 8px;color:#10b981;font-weight:600">Best overall</td></tr>
-          <tr style="border-bottom:1px solid #1a2e22"><td style="padding:6px 8px;font-weight:600">ESP32-C6</td><td style="padding:6px 8px">1 (RISC-V)</td><td style="padding:6px 8px;color:#8b5cf6">5.3</td><td style="padding:6px 8px;color:#8b5cf6">6 (ax)</td><td style="padding:6px 8px;color:#f59e0b">~31%</td><td style="padding:6px 8px">Future-proof, Wi-Fi 6</td></tr>
-          <tr style="border-bottom:1px solid #1a2e22"><td style="padding:6px 8px;font-weight:600">ESP32 (original)</td><td style="padding:6px 8px">2 (Xtensa)</td><td style="padding:6px 8px">4.2</td><td style="padding:6px 8px">4 (b/g/n)</td><td style="padding:6px 8px;color:#f59e0b">~31%</td><td style="padding:6px 8px">Legacy installs</td></tr>
-          <tr><td style="padding:6px 8px;font-weight:600;color:#ef4444">ESP32-C3</td><td style="padding:6px 8px">1 (RISC-V)</td><td style="padding:6px 8px">5.0</td><td style="padding:6px 8px">4 (b/g/n)</td><td style="padding:6px 8px;color:#ef4444">~20-25%</td><td style="padding:6px 8px;color:#ef4444">Not recommended — use existing only</td></tr>
+          <tr><td style="font-weight:700;${_g}">ESP32-S3</td><td style="${_g}">2 (Xtensa)</td><td>5.0</td><td>4 (b/g/n)</td><td style="${_g}">~31% WiFi / 93.75% Eth</td><td style="${_g};font-weight:700">Best overall</td></tr>
+          <tr><td style="font-weight:700">ESP32-C6</td><td>1 (RISC-V)</td><td style="${_v}">5.3</td><td style="${_v}">6 (ax)</td><td style="${_o}">~31%</td><td>Future-proof, Wi-Fi 6</td></tr>
+          <tr><td style="font-weight:700">ESP32 (original)</td><td>2 (Xtensa)</td><td>4.2</td><td>4 (b/g/n)</td><td style="${_o}">~31%</td><td>Legacy installs</td></tr>
+          <tr><td style="font-weight:700;${_b}">ESP32-C3</td><td>1 (RISC-V)</td><td>5.0</td><td>4 (b/g/n)</td><td style="${_b}">~20-25%</td><td style="${_b}">Not recommended \u2014 existing installs only</td></tr>
         </tbody>
       </table>`;
       return wrap;
@@ -2739,7 +2846,7 @@ button:
 
     const toggleBtn = el("button", { class: "btn tiny", style: "font-size:11px" }, expandedFull ? "Hide YAML" : "Full YAML");
     const minimalBtn = cfg.minimal
-      ? el("button", { class: "btn tiny", style: "font-size:11px;border-color:#52b78840;color:#52b788" }, expandedMin ? "Hide Minimal" : "Add to Existing")
+      ? el("button", { class: "btn tiny bt-btn-accent" }, expandedMin ? "Hide Minimal" : "Add to Existing")
       : null;
     const copyBtn = el("button", { class: "btn tiny", style: "font-size:11px" }, "Copy");
 
@@ -2747,23 +2854,22 @@ button:
       el("div", {}, [
         el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px" }, [
           el("span", { style: "font-weight:700;font-size:14px" }, `${cfg.chip} — ${cfg.connection}`),
-          el("span", { class: "badge", style: `font-size:10px;background:${cfg.badgeColor}22;color:${cfg.badgeColor}` }, cfg.badge),
+          // The badge colour is data on the config, so it rides in as a
+          // custom property rather than a second chip vocabulary.
+          el("span", { class: "bt-chip", style: `color:${cfg.badgeColor};border-color:${cfg.badgeColor}55;background:${cfg.badgeColor}14` }, cfg.badge),
         ]),
         el("div", { class: "muted", style: "font-size:12px;line-height:1.5;max-width:600px" }, cfg.description),
       ]),
       el("div", { style: "display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap" }, [minimalBtn, toggleBtn, copyBtn].filter(Boolean)),
     ]);
 
-    const notesList = el("div", { style: "margin-top:8px;display:flex;flex-direction:column;gap:3px" },
-      cfg.notes.map(n => el("div", { style: "font-size:11px;color:#94a3b8;padding-left:12px;position:relative" }, [
-        el("span", { style: "position:absolute;left:0;color:#52b788" }, "•"),
-        document.createTextNode(n),
-      ]))
-    );
+    const notesList = el("div", { class: "bt-notes" },
+      cfg.notes.map(n => el("div", { class: "bt-note" }, n)));
 
     const yamlPre = document.createElement("pre");
     yamlPre.className = "pre";
-    yamlPre.style.cssText = "font-size:11px;max-height:500px;overflow:auto;white-space:pre;tab-size:2";
+    yamlPre.className = "pre tall";
+    yamlPre.style.cssText = "tab-size:2";
     yamlPre.textContent = cfg.yaml;
 
     // Wrap full YAML pre with floating copy icon
@@ -2834,9 +2940,9 @@ button:
   });
 
   // Tips card at the bottom
-  const tips = el("div", { class: "card", style: "border:1px solid #2d5a3d33" }, [
+  const tips = el("div", { class: "bt-panel" }, [
     el("div", { style: "font-weight:700;margin-bottom:6px" }, "Tips for Best Results"),
-    el("div", { style: "display:flex;flex-direction:column;gap:6px;font-size:12px;color:#94a3b8;line-height:1.5" }, [
+    el("div", { class: "muted", style: "display:flex;flex-direction:column;gap:6px;font-size:12px;line-height:1.55" }, [
       el("div", {}, "1. Use Ethernet S3 boards for dedicated rooms — 3x the scan coverage of WiFi scanners."),
       el("div", {}, "2. Place scanners at chest height (1.2 m) for best RSSI consistency with carried devices."),
       el("div", {}, "3. After flashing, check Bluetooth → Scanners tab — PadSpan shows IP, WiFi signal, and SSID automatically from these configs."),

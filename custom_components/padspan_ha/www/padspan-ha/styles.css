@@ -574,3 +574,352 @@
   .toolbar select{min-width:0;flex:1;max-width:100%}
   .h2{font-size:15px}
 }
+
+/* ══ Bluetooth view — the surface, refreshed ═══════════════════════════════
+   Everything here is scoped to #bluetooth, so this is a restyle of ONE view
+   and cannot reach the rest of the panel. It replaces the hardcoded inline
+   colour/size strings inside views/bluetooth.js with one vocabulary:
+
+     .bt-stat      a headline number with its label            (KPI strip)
+     .bt-seg       the sub-tab segmented control
+     .bt-chip      the ONE badge — tones: good/ok/bad/info/violet/mono/quiet
+     .bt-sig       signal: a four-bar meter + a tabular dBm reading
+     .bt-adv-row   a selectable list row (advertisements, scanners)
+     .bt-panel     a section: title, one-line subtitle, right-hand slot
+     .bt-kv        the key/value grid in the detail panes
+     .bt-empty     "nothing here yet", with the reason
+     .bt-mini      the quiet control cluster on a scanner row
+
+   Structure and behaviour are untouched — the same rows, the same controls,
+   the same handlers. Type, colour, spacing and state feedback are what
+   change. Numbers everywhere are tabular so columns of dBm line up.        */
+
+#bluetooth{
+  --bt-ink:#e8f0ea;
+  --bt-dim:rgba(226,240,232,.60);
+  --bt-faint:rgba(226,240,232,.36);
+  --bt-surface:rgba(255,255,255,.028);
+  --bt-surface-hi:rgba(255,255,255,.055);
+  --bt-inset:rgba(0,0,0,.28);
+  --bt-line:rgba(120,190,155,.16);
+  --bt-line-hi:rgba(120,190,155,.36);
+  --bt-good:#4ade80;
+  --bt-ok:#fbbf24;
+  --bt-bad:#f87171;
+  --bt-info:#7dd3fc;
+  --bt-violet:#c4b5fd;
+  --bt-r:10px;
+  color:var(--bt-ink);
+}
+#bluetooth .muted{color:var(--bt-dim)}
+
+/* ── header ─────────────────────────────────────────────────────────────── */
+#bluetooth .bt-head{
+  display:flex;gap:16px;align-items:flex-start;justify-content:space-between;
+  flex-wrap:wrap;margin-bottom:14px;
+}
+#bluetooth .bt-head .h1{
+  font-size:20px;font-weight:800;letter-spacing:-.01em;margin:0;
+}
+#bluetooth .bt-head-sub{font-size:12px;color:var(--bt-dim);margin-top:3px;max-width:62ch}
+
+/* ── stats ──────────────────────────────────────────────────────────────── */
+#bluetooth .bt-kpis{
+  display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;
+}
+#bluetooth .bt-stat{
+  position:relative;display:flex;flex-direction:column;justify-content:center;
+  gap:2px;min-width:92px;padding:8px 12px 9px;border-radius:var(--bt-r);
+  border:1px solid var(--bt-line);background:var(--bt-surface);
+  text-align:left;transition:border-color .15s ease,background .15s ease,transform .15s ease;
+}
+#bluetooth .bt-stat-num{
+  font-size:21px;font-weight:800;line-height:1.05;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;color:var(--bt-ink);
+}
+#bluetooth .bt-stat-lbl{
+  font-size:9.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--bt-faint);white-space:nowrap;
+}
+#bluetooth .bt-stat.zero .bt-stat-num{color:var(--bt-faint)}
+#bluetooth .bt-stat.link{cursor:pointer}
+#bluetooth .bt-stat.link::after{
+  content:"";position:absolute;left:12px;right:12px;bottom:5px;height:1px;
+  background:var(--bt-line-hi);opacity:.7;transition:opacity .15s ease,background .15s ease;
+}
+#bluetooth .bt-stat.link:hover{
+  border-color:var(--bt-line-hi);background:var(--bt-surface-hi);transform:translateY(-1px);
+}
+#bluetooth .bt-stat.link:hover::after{background:var(--accent);opacity:1}
+#bluetooth .bt-stat.tone-good .bt-stat-num{color:var(--bt-good)}
+#bluetooth .bt-stat.tone-ok   .bt-stat-num{color:var(--bt-ok)}
+#bluetooth .bt-stat.tone-bad  .bt-stat-num{color:var(--bt-bad)}
+#bluetooth .bt-stat.tone-info .bt-stat-num{color:var(--bt-info)}
+
+/* ── segmented sub-tabs ─────────────────────────────────────────────────── */
+#bluetooth .bt-seg{
+  display:inline-flex;gap:2px;flex-wrap:wrap;padding:3px;margin:0 0 14px;
+  border:1px solid var(--bt-line);border-radius:12px;background:var(--bt-inset);
+}
+#bluetooth .bt-seg .tab{
+  background:transparent;border:1px solid transparent;color:var(--bt-dim);
+  border-radius:9px;padding:6px 12px;font-size:12px;font-weight:600;
+  letter-spacing:.01em;cursor:pointer;transition:color .15s ease,background .15s ease;
+}
+#bluetooth .bt-seg .tab:hover{color:var(--bt-ink);background:var(--bt-surface)}
+#bluetooth .bt-seg .tab.active{
+  color:#eafff2;background:rgba(82,183,136,.18);border-color:rgba(82,183,136,.42);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);outline:none;
+}
+
+/* ── panels ─────────────────────────────────────────────────────────────── */
+#bluetooth .bt-panel{
+  background:#0e1912;border:1px solid var(--bt-line);border-radius:14px;padding:14px;
+}
+#bluetooth .bt-panel-head{
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px;
+}
+#bluetooth .bt-panel-title{
+  font-size:13px;font-weight:700;letter-spacing:.02em;color:var(--bt-ink);
+}
+#bluetooth .bt-panel-sub{font-size:11.5px;color:var(--bt-dim);flex:1;min-width:180px}
+
+/* ── chips: the one badge vocabulary ────────────────────────────────────── */
+#bluetooth .bt-chip{
+  display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:6px;
+  font-size:10px;font-weight:600;line-height:1.7;white-space:nowrap;
+  border:1px solid var(--bt-line);background:var(--bt-surface);color:var(--bt-dim);
+}
+#bluetooth .bt-chip.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.03em}
+#bluetooth .bt-chip.quiet{color:var(--bt-faint)}
+#bluetooth .bt-chip.good{color:var(--bt-good);border-color:rgba(74,222,128,.34);background:rgba(74,222,128,.10)}
+#bluetooth .bt-chip.ok{color:var(--bt-ok);border-color:rgba(251,191,36,.34);background:rgba(251,191,36,.10)}
+#bluetooth .bt-chip.bad{color:var(--bt-bad);border-color:rgba(248,113,113,.34);background:rgba(248,113,113,.10)}
+#bluetooth .bt-chip.info{color:var(--bt-info);border-color:rgba(125,211,252,.32);background:rgba(125,211,252,.09)}
+#bluetooth .bt-chip.violet{color:var(--bt-violet);border-color:rgba(196,181,253,.32);background:rgba(196,181,253,.09)}
+#bluetooth .bt-chip.accent{color:#8ee5b4;border-color:rgba(82,183,136,.42);background:rgba(82,183,136,.13)}
+#bluetooth .bt-chip.sid{
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:700;
+  letter-spacing:.06em;color:#a7f3d0;border-color:rgba(82,183,136,.34);
+  background:rgba(82,183,136,.12);
+}
+#bluetooth .bt-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+
+/* ── signal: four bars + a reading ──────────────────────────────────────── */
+#bluetooth .bt-sig{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+#bluetooth .bt-bars{display:inline-flex;align-items:flex-end;gap:2px;height:13px}
+#bluetooth .bt-bars i{
+  display:block;width:3px;border-radius:1px;background:var(--bt-faint);opacity:.3;
+}
+#bluetooth .bt-bars i:nth-child(1){height:4px}
+#bluetooth .bt-bars i:nth-child(2){height:7px}
+#bluetooth .bt-bars i:nth-child(3){height:10px}
+#bluetooth .bt-bars i:nth-child(4){height:13px}
+#bluetooth .bt-bars[data-level="1"] i:nth-child(-n+1),
+#bluetooth .bt-bars[data-level="2"] i:nth-child(-n+2),
+#bluetooth .bt-bars[data-level="3"] i:nth-child(-n+3),
+#bluetooth .bt-bars[data-level="4"] i:nth-child(-n+4){opacity:1}
+#bluetooth .bt-bars[data-level="1"] i:nth-child(-n+1){background:var(--bt-bad)}
+#bluetooth .bt-bars[data-level="2"] i:nth-child(-n+2){background:var(--bt-ok)}
+#bluetooth .bt-bars[data-level="3"] i:nth-child(-n+3){background:var(--bt-good)}
+#bluetooth .bt-bars[data-level="4"] i:nth-child(-n+4){background:var(--accent2)}
+#bluetooth .bt-dbm{
+  font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--bt-dim);
+}
+#bluetooth .bt-sig.s-1 .bt-dbm{color:var(--bt-bad)}
+#bluetooth .bt-sig.s-2 .bt-dbm{color:var(--bt-ok)}
+#bluetooth .bt-sig.s-3 .bt-dbm,#bluetooth .bt-sig.s-4 .bt-dbm{color:var(--bt-good)}
+#bluetooth .bt-age{
+  font-size:10.5px;font-variant-numeric:tabular-nums;color:var(--bt-faint);
+  min-width:40px;text-align:right;
+}
+
+/* ── rows ───────────────────────────────────────────────────────────────── */
+#bluetooth .bt-list{display:flex;flex-direction:column;gap:5px;margin-top:10px}
+/* A scrolling flex COLUMN shrinks its children to fit by default: with a
+   max-height and 200 rows, every row collapsed to 18px and its content
+   was clipped. Rows are their own height and the list scrolls. */
+#bluetooth .bt-list > *{flex:0 0 auto}
+#bluetooth .bt-adv-row,#bluetooth .bt-scanner-row{
+  position:relative;border:1px solid var(--bt-line);border-radius:var(--bt-r);
+  background:var(--bt-surface);padding:8px 11px;overflow:hidden;
+  transition:border-color .13s ease,background .13s ease;
+}
+#bluetooth .bt-adv-row::before,#bluetooth .bt-scanner-row::before{
+  content:"";position:absolute;left:0;top:50%;bottom:50%;width:2px;
+  background:var(--accent);transition:top .14s ease,bottom .14s ease,opacity .14s ease;
+  opacity:0;
+}
+#bluetooth .bt-adv-row:hover,#bluetooth .bt-scanner-row:hover{
+  border-color:var(--bt-line-hi);background:var(--bt-surface-hi);
+}
+#bluetooth .bt-adv-row.active,#bluetooth .bt-scanner-row.is-selected{
+  border-color:rgba(82,183,136,.45);background:rgba(82,183,136,.09);
+}
+#bluetooth .bt-adv-row.active::before,#bluetooth .bt-scanner-row.is-selected::before{
+  top:0;bottom:0;opacity:1;
+}
+#bluetooth .bt-scanner-row.warn{border-color:rgba(251,191,36,.3)}
+#bluetooth .bt-adv-name,#bluetooth .bt-scanner-name{
+  font-size:12.5px;font-weight:700;letter-spacing:-.005em;color:var(--bt-ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+#bluetooth .bt-adv-sub,#bluetooth .bt-scanner-src{
+  font-size:10.5px;color:var(--bt-faint);
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+#bluetooth .bt-adv-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+
+/* the quiet control cluster on a scanner row */
+#bluetooth .bt-mini{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:7px;
+  padding-top:7px;border-top:1px dashed var(--bt-line);
+}
+#bluetooth .bt-mini .btn.tiny{
+  padding:2px 8px;font-size:10.5px;border-radius:7px;background:var(--bt-surface);
+  border-color:var(--bt-line);color:var(--bt-dim);
+}
+#bluetooth .bt-mini .btn.tiny:hover{border-color:var(--bt-line-hi);color:var(--bt-ink)}
+#bluetooth .bt-mini input[type="number"]{
+  width:46px;text-align:center;background:var(--bt-inset);border:1px solid var(--bt-line);
+  border-radius:7px;color:var(--bt-ink);padding:2px 4px;font-size:11px;
+  font-variant-numeric:tabular-nums;
+}
+#bluetooth .bt-mini input[type="number"]:focus{border-color:rgba(82,183,136,.6);outline:none}
+#bluetooth .bt-mini-lbl{
+  font-size:9.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--bt-faint);
+}
+
+/* health line on a scanner row */
+#bluetooth .bt-health{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:10.5px}
+#bluetooth .bt-health-dot{width:7px;height:7px;border-radius:50%;flex:0 0 7px}
+#bluetooth .bt-health-track{
+  flex:0 0 54px;height:3px;border-radius:2px;background:var(--bt-inset);overflow:hidden;
+}
+#bluetooth .bt-health-fill{display:block;height:100%;border-radius:2px}
+
+/* ── tables ─────────────────────────────────────────────────────────────── */
+#bluetooth .table th{
+  font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--bt-faint);background:#0e1912;border-bottom:1px solid var(--bt-line);
+  padding:7px 8px;
+}
+#bluetooth .table td{
+  border-bottom:1px solid rgba(120,190,155,.08);padding:7px 8px;vertical-align:middle;
+}
+#bluetooth .table tbody tr{transition:background .12s ease}
+#bluetooth .table tbody tr:hover{background:var(--bt-surface)}
+#bluetooth .table tbody tr:last-child td{border-bottom:none}
+
+/* ── key/value detail ───────────────────────────────────────────────────── */
+#bluetooth .bt-kv-title{
+  font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--bt-faint);margin:14px 0 6px;padding-bottom:5px;
+  border-bottom:1px solid var(--bt-line);
+}
+#bluetooth .bt-kv{
+  display:grid;grid-template-columns:minmax(96px,120px) 1fr;gap:3px 12px;font-size:12px;
+}
+#bluetooth .bt-kv dt{color:var(--bt-faint);font-size:11px;line-height:1.65}
+#bluetooth .bt-kv dd{margin:0;color:var(--bt-ink);line-height:1.65;word-break:break-all}
+#bluetooth .bt-kv dd.mono-val{
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px;
+  letter-spacing:.02em;
+}
+
+/* ── empty states ───────────────────────────────────────────────────────── */
+#bluetooth .bt-empty{
+  display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;
+  padding:34px 18px;border:1px dashed var(--bt-line);border-radius:14px;
+  background:var(--bt-inset);
+}
+#bluetooth .bt-empty-mark{font-size:22px;opacity:.5;line-height:1}
+#bluetooth .bt-empty-title{font-size:13px;font-weight:700;color:var(--bt-ink)}
+#bluetooth .bt-empty-hint{font-size:11.5px;color:var(--bt-dim);max-width:46ch}
+
+/* ── notice cards (private BLE, diagnostics) ────────────────────────────── */
+#bluetooth .bt-notice{
+  display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border-radius:12px;
+  border:1px solid var(--bt-line);background:var(--bt-surface);margin-bottom:12px;
+}
+#bluetooth .bt-notice.good{border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.055)}
+#bluetooth .bt-notice.ok{border-color:rgba(251,191,36,.34);background:rgba(251,191,36,.055)}
+#bluetooth .bt-notice.bad{border-color:rgba(248,113,113,.36);background:rgba(248,113,113,.06)}
+#bluetooth .bt-notice-mark{
+  flex:0 0 8px;width:8px;height:8px;border-radius:50%;margin-top:5px;background:var(--bt-faint);
+}
+#bluetooth .bt-notice.good .bt-notice-mark{background:var(--bt-good);box-shadow:0 0 0 3px rgba(74,222,128,.14)}
+#bluetooth .bt-notice.ok .bt-notice-mark{background:var(--bt-ok);box-shadow:0 0 0 3px rgba(251,191,36,.14)}
+#bluetooth .bt-notice.bad .bt-notice-mark{background:var(--bt-bad);box-shadow:0 0 0 3px rgba(248,113,113,.14)}
+#bluetooth .bt-notice-body{flex:1;min-width:0}
+#bluetooth .bt-notice-title{font-size:12.5px;font-weight:700;color:var(--bt-ink)}
+#bluetooth .bt-notice-sub{font-size:11px;color:var(--bt-dim);margin-top:2px}
+#bluetooth .bt-notice-more{
+  font-size:10.5px;color:var(--bt-faint);white-space:nowrap;align-self:center;
+}
+
+/* ── filter bar ─────────────────────────────────────────────────────────── */
+#bluetooth .bt-controls{
+  display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:12px;
+  padding:10px 12px;border:1px solid var(--bt-line);border-radius:12px;
+  background:var(--bt-inset);
+}
+#bluetooth .bt-controls .label{
+  font-size:9.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--bt-faint);
+}
+#bluetooth .bt-controls .input,#bluetooth .bt-controls .select{
+  background:var(--bt-surface);border-color:var(--bt-line);border-radius:9px;
+  padding:7px 10px;font-size:12px;
+}
+#bluetooth .bt-controls .input:focus,#bluetooth .bt-controls .select:focus{
+  border-color:rgba(82,183,136,.65);
+}
+
+/* ── the graph ──────────────────────────────────────────────────────────── */
+#bluetooth .bt-viz{border-color:var(--bt-line);background:var(--bt-inset);border-radius:12px}
+#bluetooth .bt-viz-title{
+  font-size:9.5px;font-weight:700;letter-spacing:.14em;fill:var(--bt-faint);
+}
+#bluetooth .bt-viz-label{font-size:11px;fill:rgba(226,240,232,.72)}
+#bluetooth .bt-viz-node{stroke:rgba(10,21,14,.85);stroke-width:1.5}
+
+/* micro-button tones, links, tall code, note rows — the last four inline
+   recipes the block above did not yet cover */
+#bluetooth .btn.tiny{border-radius:7px;font-size:11px;padding:3px 9px}
+#bluetooth .btn.tiny:disabled{opacity:.45;cursor:not-allowed}
+#bluetooth .bt-btn-danger{color:#fca5a5;border-color:rgba(248,113,113,.34);background:rgba(248,113,113,.08)}
+#bluetooth .bt-btn-danger:hover{border-color:rgba(248,113,113,.65);background:rgba(248,113,113,.16)}
+#bluetooth .bt-btn-info{color:var(--bt-info);border-color:rgba(125,211,252,.32);background:rgba(125,211,252,.08)}
+#bluetooth .bt-btn-info:hover{border-color:rgba(125,211,252,.6);background:rgba(125,211,252,.15)}
+#bluetooth .bt-btn-accent{color:#8ee5b4;border-color:rgba(82,183,136,.42);background:rgba(82,183,136,.12)}
+#bluetooth .bt-btn-accent:hover{border-color:rgba(82,183,136,.7);background:rgba(82,183,136,.2)}
+#bluetooth a.bt-link{color:var(--bt-info);text-decoration:none;border-bottom:1px solid rgba(125,211,252,.3)}
+#bluetooth a.bt-link:hover{border-bottom-color:var(--bt-info)}
+#bluetooth .pre{
+  background:var(--bt-inset);border-color:var(--bt-line);border-radius:10px;
+  font-size:11px;line-height:1.55;color:var(--bt-dim);
+}
+#bluetooth .pre.tall{max-height:500px;white-space:pre}
+#bluetooth .bt-note{
+  position:relative;padding-left:14px;font-size:11.5px;line-height:1.6;color:var(--bt-dim);
+}
+#bluetooth .bt-note::before{
+  content:"";position:absolute;left:3px;top:.62em;width:4px;height:4px;border-radius:50%;
+  background:currentColor;opacity:.55;
+}
+#bluetooth .bt-note.ok{color:var(--bt-ok)}
+#bluetooth .bt-note.bad{color:var(--bt-bad)}
+#bluetooth .bt-note.good{color:var(--bt-good)}
+#bluetooth .bt-notes{display:flex;flex-direction:column;gap:3px;margin-top:8px}
+
+@media(max-width:768px){
+  #bluetooth .bt-stat{flex:1 1 30%;min-width:0;padding:7px 9px}
+  #bluetooth .bt-stat-num{font-size:18px}
+  #bluetooth .bt-kv{grid-template-columns:1fr;gap:0}
+  #bluetooth .bt-kv dt{margin-top:6px}
+  #bluetooth .bt-seg{width:100%}
+  #bluetooth .bt-seg .tab{flex:1 1 auto;text-align:center;min-height:38px}
+}
