@@ -12,8 +12,8 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.34.11";
-const BUILD_ID = "20260818T215850Z";
+const APP_VERSION = "0.35.0";
+const BUILD_ID = "20260818T224844Z";
 
 // Query inherited from our own module URL so the ?b= cache-buster propagates
 // (see docs/06_UI_CACHE_BUSTING.md).
