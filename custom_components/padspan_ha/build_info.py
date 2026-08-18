@@ -24,8 +24,8 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-BUILD_VERSION = "0.34.3"
-BUILD_ID = "20260817T230610Z"
+BUILD_VERSION = "0.34.4"
+BUILD_ID = "20260818T001111Z"
 CHANNEL = "beta"
 
 # Backwards/for convenience
