@@ -46,6 +46,10 @@ Install PadSpan HA alongside; its Health tab offers **Import from PadSpan
 Bright** when it finds Bright's data. Your floors, rooms and every placed
 light come across; then remove Bright.
 
+## Privacy
+
+Once a day PadSpan Bright asks `padspan.traks.ca` whether a newer version exists, sending only its version number (turn it off under Settings → Update Check). Separately there is an **opt-in, off-by-default** usage report — **Settings → Help improve PadSpan** — that sends counts, versions and flags only (how many floors, rooms and lights; which features are on; which tabs were used; a few health flags) and never addresses, keys, names, coordinates or timestamps. **Preview what would be sent** shows the exact report before you decide; the code refuses to send anything identifier-shaped. The full field list is in the PadSpan HA README.
+
 ## Documentation, issues, licence
 
 Documentation and the issue tracker live in the
