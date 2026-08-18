@@ -30,6 +30,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from .build_info import BUILD_ID, BUILD_VERSION
+from .licence import edition
 from .const import (
     DOMAIN,
     CONF_ENABLE_CLOUD,
@@ -69,7 +70,13 @@ from .websocket import async_register_websockets
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[str] = ["sensor", "binary_sensor", "device_tracker"]
+# The entity platforms — every one of them publishes where something IS. A
+# Bright build (licence.edition() == "bright") is a lighting panel and
+# exposes no entities: the list is empty there and the forward/unload calls
+# below are skipped. One switch, read once, at import.
+PLATFORMS: list[str] = (
+    ["sensor", "binary_sensor", "device_tracker"] if edition() == "full" else []
+)
 
 SERVICE_SET_MAP = "set_room_tag_map"
 SERVICE_SCHEMA = vol.Schema({vol.Required("room_tag_map"): dict})
@@ -563,11 +570,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # data refresh with a short timeout.  If BLE isn't ready yet, entities will
     # populate on the next poll cycle (10 s) — this avoids blocking integration
     # setup for a long time on slow hardware or fresh installs.
-    try:
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    except Exception as err:
-        _LOGGER.exception("Forward entry setups failed: %s", err)
-        return False
+    if PLATFORMS:
+        try:
+            await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        except Exception as err:
+            _LOGGER.exception("Forward entry setups failed: %s", err)
+            return False
 
     # First refresh with 8 s timeout — long enough for a normal poll, short
     # enough not to stall integration setup on slow / fresh systems.
@@ -603,11 +611,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Tear down: unload platforms, stop BLE, flush stores to disk."""
     unload_ok = True
-    try:
-        unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    except Exception as err:
-        _LOGGER.warning("Platform unload error: %s", err)
-        unload_ok = False
+    if PLATFORMS:
+        try:
+            unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+        except Exception as err:
+            _LOGGER.warning("Platform unload error: %s", err)
+            unload_ok = False
 
     # Clear panel registration flag so setup_entry re-registers with the
     # current BUILD_ID on next load (e.g. after a HACS update + reload).

@@ -28,6 +28,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, VERSION, DATA_PANEL_REGISTERED, DATA_SETTINGS
 from .build_info import ASSET_ID, BUILD_ID
+from .licence import edition
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -91,7 +92,9 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
         webcomponent_name=WEB_COMPONENT,
         frontend_url_path="padspan-ha",
         sidebar_title="PadSpan HA",
-        sidebar_icon="mdi:radar",
+        # Radar for the presence product, a lamp for the lighting one — the
+        # only visible difference in a Bright build besides its name.
+        sidebar_icon="mdi:radar" if edition() == "full" else "mdi:lightbulb-on-outline",
         require_admin=False,
         module_url=f"{STATIC_URL}/padspan-ha/panel.js?v={VERSION}&b={ASSET_ID}&cb=full",
         config={

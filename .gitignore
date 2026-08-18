@@ -13,3 +13,6 @@ backups/
 # Working notes containing LAN addresses and deploy commands — never publish
 docs/fabric-independence-plan-*.md
 docs/fabric-simplification-pass*.md
+# The generated PadSpan Bright edition — built by scripts/release.py, lives in ITS repo
+dist/padspan_bright.zip
+dist/bright/

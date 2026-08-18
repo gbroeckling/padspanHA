@@ -3,7 +3,7 @@
 PadSpan HA release script.
 
 Usage:
-    python scripts/release.py <version> [--stable]
+    python scripts/release.py <version> [--stable] [--no-bright]
 
 Examples:
     python scripts/release.py 0.4.22            # beta (pre-release on GitHub)
@@ -16,6 +16,11 @@ What it does:
     4. Validates the zip (manifest.json present + readable)
     5. Commits, tags, and pushes
     6. Creates and publishes the GitHub release with the zip attached
+    7. Derives PadSpan Bright from the tree just released (scripts/bright_build.py):
+       copy, rename, stamp, verify, run ITS suite, zip — and publish to the
+       Bright repo only once BRIGHT_PUBLISH below is True. Bright never
+       blocks the full release: it runs after, and a red pass exits non-zero
+       so it is seen. --no-bright skips it.
 
 ─────────────────────────────────────────────────────────────────────
 NOTES FOR CLAUDE (read these when resuming after a session restart):
@@ -99,6 +104,16 @@ PANEL_JS  = INTEGRATION / "www" / "padspan-ha" / "panel.js"
 ZIP_PATH = ROOT / "dist" / "padspan_ha.zip"
 REPO = "gbroeckling/padspanHA"
 
+# ── PadSpan Bright — the generated edition ──
+# Built and verified on EVERY release so the pass can never rot. Published
+# only when this is True: the listing is the one publicly irreversible step
+# (the name is out once it is out), so flipping this is a deliberate commit,
+# made when the Bright repo exists and Garry says the listing goes live.
+BRIGHT_PUBLISH = False
+BRIGHT_ZIP = ROOT / "dist" / "padspan_bright.zip"    # git-ignored: it belongs to the Bright repo
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+import bright_build  # noqa: E402  (sibling module)
+
 # ── Files that must ALWAYS be committed alongside integration code ──
 # If you add a new root-level config file that HACS or GitHub needs,
 # add it here so it's never forgotten in a release commit.
@@ -110,6 +125,8 @@ STATIC_FILES = [
     ".gitignore",
     "dist/padspan_ha.zip",
     "scripts/release.py",
+    "scripts/bright_build.py",
+    "scripts/bright_README.md",
     # The suite gates every release, so it has to travel WITH the code it
     # gates. Without this, tests/ was never staged by a release: the suite ran
     # green locally for weeks while the repo carried an older copy, and a
@@ -340,6 +357,45 @@ def validate_zip():
     print(f"  Zip OK: {len(names)} files, manifest.json domain=padspan_ha")
 
 
+# ───────────────────────── PadSpan Bright ────────────────────────────
+
+def bright_pass(version, channel, message=None):
+    """
+    Derive PadSpan Bright from the tree that was just released, prove it, and
+    (when BRIGHT_PUBLISH) ship it. See scripts/bright_build.py for what the
+    derivation is; this is only the sequence.
+
+    Runs AFTER the full release is out. A Bright failure cannot hold PadSpan
+    HA back — but it exits non-zero, so a broken Bright is never quiet.
+    """
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="padspan-bright-"))
+    tree = tmp / "tree"
+    print("  Deriving the Bright tree (copy → rename → stamp → verify)...")
+    bright_build.build(tree, ROOT)
+    print(f"    {tree}")
+
+    print("  Running the suite INSIDE the Bright tree...")
+    res = bright_build.run_suite(tree)
+    for line in (res.stdout or "").strip().splitlines()[-8:]:
+        print(f"    {line}")
+    if res.returncode != 0:
+        print("\n  BRIGHT SUITE FAILED — the full release is out; Bright was NOT built.")
+        print(f"  Tree kept for inspection: {tree}")
+        sys.exit(1)
+
+    n = bright_build.build_zip(tree, BRIGHT_ZIP)
+    print(f"  {n} files -> dist/{BRIGHT_ZIP.name}")
+
+    if not BRIGHT_PUBLISH:
+        print("  Bright built and verified — NOT published (BRIGHT_PUBLISH is False;")
+        print("  flip it in scripts/release.py when the listing goes live).")
+        return
+    sha = subprocess.run("git rev-parse HEAD", shell=True, text=True, capture_output=True).stdout.strip()
+    print(f"  Publishing to {bright_build.BRIGHT_REPO} ...")
+    bright_build.publish(tree, BRIGHT_ZIP, version, channel, sha, message)
+    print(f"  PadSpan Bright v{version} ({channel}) is live.")
+
+
 # ───────────────────────── Git operations ────────────────────────────
 
 def git_commit_tag_push(version, tag, message=None):
@@ -511,6 +567,13 @@ def main():
     create_github_release(tag, channel, message)
 
     print(f"\n=== Done! {tag} ({channel}) is live on GitHub. ===\n")
+
+    if "--no-bright" in flags:
+        print("PadSpan Bright pass skipped (--no-bright).\n")
+        return
+    print("PadSpan Bright pass...")
+    bright_pass(version, channel, message)
+    print()
 
 
 if __name__ == "__main__":
