@@ -28,6 +28,7 @@ registers everything (async_register_websockets), so the panel sees one API.
     ws_adaptive        the adaptive learning store
     ws_diagnostics     system critics, propagation health, positioning diagnostics, HA entity audit
     ws_factory_reset   the factory reset
+    ws_bright_import   the PadSpan Bright → PadSpan HA import
     ws_settings        settings get/set
 
 Every moved name is imported back here, so `from .websocket import ws_x`
@@ -205,6 +206,10 @@ from .ws_companion import (  # noqa: F401  (re-exported: registration, tests, ca
 from .ws_factory_reset import (  # noqa: F401  (re-exported: registration, tests, callers)
     ws_factory_reset,
 )
+from .ws_bright_import import (  # noqa: F401  (re-exported: registration, tests, callers)
+    ws_bright_import,
+    ws_bright_import_status,
+)
 from .ws_fabric import (  # noqa: F401  (re-exported: registration, tests, callers)
     ws_fabric_beacon_position_set,
     ws_fabric_beacon_remove,
@@ -331,6 +336,8 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_companion_unfollow)
     websocket_api.async_register_command(hass, ws_tags_status)
     websocket_api.async_register_command(hass, ws_factory_reset)
+    websocket_api.async_register_command(hass, ws_bright_import_status)
+    websocket_api.async_register_command(hass, ws_bright_import)
     # Phase 1: positioning fabric commands
     websocket_api.async_register_command(hass, ws_fabric_scanner_remove)
     websocket_api.async_register_command(hass, ws_fabric_beacon_remove)

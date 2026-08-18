@@ -43,6 +43,13 @@ export function render(ctx){
     ]),
   ]));
 
+  // ── PadSpan Bright → PadSpan HA import ──────────────────────────────────
+  // Offered only while a Bright house exists on this HA and has not been
+  // imported; a receipt afterwards; nothing at all otherwise.
+  const brightContainer = el("div",{id:"health-bright-import"});
+  root.appendChild(brightContainer);
+  _fetchAndRenderBrightImport(ctx, brightContainer);
+
   // ── Scanner Health (Phase 3) ────────────────────────────────────────────
   const sh = snap?.scanner_health;
   if (sh && Object.keys(sh).length) {
@@ -105,6 +112,61 @@ export function render(ctx){
   _fetchAndRenderCritics(ctx, criticsContainer);
 
   return root;
+}
+
+
+// ── PadSpan Bright import ─────────────────────────────────────────────────
+// The rules are the backend's (bright_import.py): back up first, refuse a
+// non-empty house, never merge, reload after. This card only says what the
+// backend will do and shows what it said.
+
+async function _fetchAndRenderBrightImport(ctx, container) {
+  const { el } = ctx.helpers;
+  let st;
+  try { st = await ctx.actions.callWS({ type: "padspan_ha/bright_import_status" }); }
+  catch (e) { return; }                       // an old backend: no card
+  if (!st || !st.available) return;
+  container.innerHTML = "";
+  const card = el("div",{class:"card",style:"margin-top:12px;border:1px solid #b8860b"});
+  card.appendChild(el("div",{style:"font-weight:700"},"PadSpan Bright found on this Home Assistant"));
+  const srcHas = (st.source && st.source.has) || [];
+  card.appendChild(el("div",{class:"muted",style:"margin-top:4px;font-size:12px"},
+    srcHas.length
+      ? `Bright holds ${srcHas.join(", ")} (stores: ${st.files.join(", ")}).`
+      : `Bright's stores are here (${st.files.join(", ")}) but hold no house yet.`));
+  if (st.done_at) {
+    card.appendChild(el("div",{style:"margin-top:8px;font-size:12px;color:#52b788"},
+      `Imported into PadSpan HA on ${new Date(st.done_at).toLocaleString()}. When the house looks right here, remove PadSpan Bright.`));
+    container.appendChild(card);
+    return;
+  }
+  const blocked = (st.target_has || []).length ? st.target_has : null;
+  card.appendChild(el("div",{class:"muted",style:"margin-top:8px;font-size:12px"},
+    "Import copies Bright's floors, rooms, walls, placed lights, maps and settings into PadSpan HA. "
+    + "A backup of this install's stores is taken first (Backup / Restore). "
+    + "It only runs into an empty house and never merges. PadSpan HA reloads when it is done; "
+    + "Bright's own data is left untouched."));
+  if (blocked) {
+    card.appendChild(el("div",{style:"margin-top:8px;font-size:12px;color:#fca5a5"},
+      `Not offered: this install already holds ${blocked.join(", ")}. Import only runs into an empty house.`));
+    container.appendChild(card);
+    return;
+  }
+  const status = el("div",{style:"margin-top:8px;font-size:12px;color:#94a3b8"},"");
+  const btn = el("button",{class:"btn inline primary",style:"margin-top:8px",onclick: async () => {
+    btn.disabled = true; status.textContent = "Backing up, importing…";
+    try {
+      const r = await ctx.actions.callWS({ type: "padspan_ha/bright_import" });
+      status.style.color = "#52b788";
+      status.textContent = `Imported ${r.imported.join(", ")}${r.images ? ` and ${r.images} map image(s)` : ""} — backup ${r.backup_id}. PadSpan HA is reloading; refresh in a moment.`;
+    } catch (e) {
+      btn.disabled = false; status.style.color = "#fca5a5";
+      status.textContent = "Import did not run: " + (e.message || e);
+    }
+  }}, "Import from PadSpan Bright");
+  card.appendChild(btn);
+  card.appendChild(status);
+  container.appendChild(card);
 }
 
 

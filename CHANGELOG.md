@@ -4,6 +4,26 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.34.5 — PadSpan Bright: the tier model, the free lighting gate, the generated edition, the importer (2026-08-17)
+
+Four programs from two dials — the EDITION (which build was downloaded: full or bright) and the TIER (what the key says: free < bright < pro). PadSpan HA and PadSpan Pro are unchanged for everyone running them today. Plan: `docs/padspan-bright-plan.md`.
+
+### Added — licence and editions
+- **`licence.py` — one owner of "what may this install do".** `effective tier = max(shipped floor, key tier)`; the floor is a build constant, never fetched, so a lighting map never waits on the licence server. **A key with no tier field resolves to `pro`** — every key issued so far is a Pro key, and the demotion guard test pins that. `license_tier_override` (Settings → Edition & tier, dev-only) can only lower the tier, so the free experience can be looked at without a free install.
+- **`views/editions.js` — every navigable surface classified once** (`lighting` / `presence`); a Bright build renders the lighting surfaces (Mapping, Health, Settings) and a reveal switch shows the rest. `tests/test_editions_map.py` asserts the map is total against `panel.js`, so a new tab that is not classified fails the suite instead of leaking into the lighting product.
+- **Light placement gates at `bright`**, not `pro`: a PadSpan Bright Pro key or a PadSpan Pro key, one ladder, one comparison. Forensics stays `pro`.
+
+### Added — the free lighting gate
+- Below `bright` the shared lights pipeline draws rooms, floors and one default marker per light at its room centre; placements, fixture shapes, sizes/rotations, the W-series/WLED distinction, Showcase, Fit room and Hide untouched are withheld **from the drawing only**. A read-time override in `views/lights_map.js`, applied for both hosts (the Lights sidebar and Mapping → Lights). `tests/test_lights_free_gate.py` renders the real card under node at free/bright/pro/garbage tiers and asserts the stored model comes out byte-identical — a lapsed key never touches a placement.
+
+### Added — the generated edition
+- **`scripts/bright_build.py`** derives PadSpan Bright from the tree being released: copy, four string renames (`padspan-lights`, `padspan_ha`, `padspan-ha`, `PadSpan HA`), two directory renames, `EDITION = "bright"` stamped, manifest/hacs.json/README named, then `verify()` greps the output for every old name and `build()` proves `git status` did not move. The renamed suite runs inside the generated tree (750/750 first time). A Bright build forwards no entity platforms and wears a lamp in the sidebar. `release.py` runs the pass after the full release is out; `BRIGHT_PUBLISH = False` until the listing goes live; `--no-bright` skips it. `tests/test_bright_build.py`.
+
+### Added — the importer
+- **Health → "Import from PadSpan Bright"**, shown only when `.storage/padspan_bright.*` exist and the house has not been imported. Back up first (the ordinary Backup/Restore snapshot; no snapshot, no import), **refuse a non-empty target** and say exactly what is there, never merge; then file-to-file through HA's Store for fabric, model, maps and settings, the map images, a receipt stamped into settings, and a config-entry reload so every store re-reads its file through its own setup path. Bright's own data is left in place. `bright_import.py`, `ws_bright_import.py`, `tests/test_bright_import.py`.
+
+---
+
 ## 0.34.4 — Outside, by the site's coverage envelope; auto-calibration writes fingerprints (2026-08-17)
 
 ### Added — positioning
