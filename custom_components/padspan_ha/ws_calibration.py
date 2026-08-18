@@ -14,6 +14,7 @@ import voluptuous as vol
 from typing import Any
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
+from .telemetry import bump as _bump
 from .const import (
     DOMAIN,
     DATA_SETTINGS,
@@ -232,6 +233,7 @@ async def ws_calibration_save_point(hass: HomeAssistant, connection, msg) -> Non
             sum(len(r.get("rssi_samples", [])) for r in (saved.get("scanner_readings") or [])),
             _total, _scanners,
         )
+        _bump(hass, "calibration_point_added")
         connection.send_result(msg["id"], {
             "ok": True, "point": saved,
             "total_points": _total, "total_scanners": _scanners,

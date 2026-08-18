@@ -15,6 +15,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from .const import DOMAIN, DATA_MODEL
 from .ws_common import _get_settings
+from .telemetry import bump as _bump
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -115,6 +116,7 @@ async def ws_capture_start(hass: HomeAssistant, connection, msg) -> None:
     await cap.async_flush()   # the header hits disk before the first frame
     _LOGGER.info("Capture session %s started (%d min, %d sources)",
                  sid, int(msg.get("minutes") or 5), len(srcs))
+    _bump(hass, "capture_started")
     connection.send_result(msg["id"], {
         "ok": True, "session_id": sid,
         "ends_ts": cap.status().get("ends_ts"),

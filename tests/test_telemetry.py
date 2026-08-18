@@ -33,6 +33,9 @@ _FLOOR = "Spare Bedroom Closet"
 _LIGHT = "light.kitchen_valance"
 _IP = "192.168.3.155"
 _SECRETS = [_MAC1, _MAC2, _UUID, _IRK, _KEY, _ROOM, _FLOOR, _LIGHT, _IP, "Garry", "Pixel 8 Pro", "MaschineBOX"]
+# Bluetooth Core Spec Vol 3 Part H, Appendix D.7 — a real key/address pair, for the resolver tests
+_SIG_IRK = bytes.fromhex("EC0234A357C8AD05341010A60A397D9B")
+_SIG_RPA = "70:81:94:0D:FB:AA"
 
 
 def _hass():
@@ -229,6 +232,65 @@ def test_one_report_per_day_and_the_windows_close_only_on_acceptance(monkeypatch
     assert res["sent"] is True
     assert h.data[DOMAIN][T._DATA_COUNTERS] == {}
     assert h.data[DOMAIN][DATA_SETTINGS].data["telemetry_last_day"] == T._today()
+
+
+def test_every_event_name_has_a_real_call_site():
+    """The vocabulary must not carry dead names: a name nothing ever bumps
+    would sit in the docs as something measured and never be. Each EVENTS
+    entry must appear as a bump()/_bump()/telemetryEvent() call somewhere in
+    the integration."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+    src = "\n".join(p.read_text(encoding="utf-8", errors="ignore")
+                    for p in list(root.rglob("*.py")) + list(root.rglob("*.js")) if "telemetry.py" not in p.name)
+    dead = [e for e in sorted(T.EVENTS)
+            if not any(f'{fn}({arg}"{e}")' in src for fn in ("bump", "_bump", "self._count", "telemetryEvent", "ctx.actions.telemetryEvent")
+                       for arg in ("hass, ", "self._hass, ", "", "ctx, "))]
+    assert not dead, f"events with no call site: {dead}"
+
+
+def test_the_resolver_counts_new_resolutions_and_new_unresolved_rpas():
+    """irk_resolved / irk_unresolved_rpa tick once per NEW address; a cache
+    hit or an expired-and-re-resolved address does not count again; and the
+    set of keys that resolved anything is what health.irk_devices_resolving
+    reports."""
+    from custom_components.padspan_ha.private_ble_resolver import PrivateBLEResolver
+    h = _hass()
+    r = PrivateBLEResolver(h)
+    r._devices = [{"canonical_id": "irk:" + _SIG_IRK.hex(), "name": "Phone", "irk_bytes": _SIG_IRK}]
+    assert r.resolve_address(_SIG_RPA)["canonical_id"] == "irk:" + _SIG_IRK.hex()
+    assert r.resolve_address(_SIG_RPA)                       # cached — no second tick
+    assert r.resolve_address("4A:11:22:33:44:55") is None    # RPA, no key matches
+    assert r.resolve_address("4A:11:22:33:44:55") is None    # cached miss — no second tick
+    assert r.resolve_address("DD:E1:C8:89:75:73") is None    # not an RPA at all — nothing counted
+    assert h.data[DOMAIN][T._DATA_COUNTERS] == {"irk_resolved": 1, "irk_unresolved_rpa": 1}
+    assert r.take_resolved_ids() == {"irk:" + _SIG_IRK.hex()}
+    assert r.take_resolved_ids() == set()
+    # and nothing at all when the report is off
+    h.data[DOMAIN][DATA_SETTINGS].data["telemetry_enabled"] = False
+    r2 = PrivateBLEResolver(h); r2._devices = r._devices
+    r2.resolve_address("70:81:94:0D:FB:AA")
+    assert h.data[DOMAIN][T._DATA_COUNTERS] == {"irk_resolved": 1, "irk_unresolved_rpa": 1}
+
+
+def test_health_reports_how_many_keys_are_resolving():
+    from custom_components.padspan_ha import private_ble_resolver as pbr
+    h = _hass()
+    r = pbr.PrivateBLEResolver(h)
+    r._devices = [{"canonical_id": "irk:" + _SIG_IRK.hex(), "name": "Phone", "irk_bytes": _SIG_IRK}]
+    pbr._resolvers[id(h)] = r
+    try:
+        r.resolve_address(_SIG_RPA)
+        p = T.build_payload(h)                     # a preview: reads, does not reset
+        assert p["health"]["irk_devices_resolving"] == 1
+        assert p["usage"]["irk_resolved"] == 1
+        T.assert_shareable(p)
+        assert "irk:" not in json.dumps(p) and _SIG_IRK.hex() not in json.dumps(p)
+        p2 = T.build_payload(h, consume=True)      # a send: resets the window
+        assert p2["health"]["irk_devices_resolving"] == 1
+        assert T.build_payload(h)["health"]["irk_devices_resolving"] == 0
+    finally:
+        pbr._resolvers.pop(id(h), None)
 
 
 def test_opting_in_starts_the_windows_fresh():

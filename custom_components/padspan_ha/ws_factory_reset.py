@@ -13,6 +13,7 @@ import logging
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
+from .telemetry import bump as _bump
 from .const import (
     DOMAIN,
     DATA_SETTINGS,
@@ -340,6 +341,7 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         cleared,
     )
 
+    _bump(hass, "factory_reset")
     connection.send_result(msg["id"], {
         "ok": len(errors) == 0,
         "cleared": cleared,

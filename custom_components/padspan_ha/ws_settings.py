@@ -326,6 +326,9 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             )
         if "lights_showcase" in msg:
             payload["lights_showcase"] = bool(msg["lights_showcase"])
+            if payload["lights_showcase"] and not st.data.get("lights_showcase"):
+                from .telemetry import bump as _bump  # noqa: PLC0415
+                _bump(hass, "showcase_on")
         if "lights_hide_untouched" in msg:
             payload["lights_hide_untouched"] = bool(msg["lights_hide_untouched"])
         if "lights_fit_rooms" in msg:

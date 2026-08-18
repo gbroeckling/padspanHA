@@ -77,9 +77,12 @@ _MAX_BYTES = 8192
 EVENTS: frozenset[str] = frozenset({
     "light_placed", "light_removed", "wall_placed", "wall_removed",
     "room_committed", "irk_added", "irk_add_refused", "irk_validate",
-    "calibration_point_added", "capture_started", "forensics_opened",
+    "calibration_point_added", "capture_started", "forensics_query",
     "showcase_on", "backup_created", "backup_restored", "factory_reset",
     "bright_import",
+    # IRK resolution, cumulative over the window: a NEW address resolved to a
+    # registered key; a NEW rotating address that matched no key.
+    "irk_resolved", "irk_unresolved_rpa",
 })
 # The panel's views (panel.js _VIEW_PATHS — tests/test_telemetry.py asserts
 # equality) and the sub-tabs of the two views that have them.
@@ -244,6 +247,17 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     cal_points = cal.get("points") if isinstance(cal.get("points"), list) else []
     cal_auto = sum(1 for p in cal_points if isinstance(p, dict) and str(p.get("source") or "").startswith("auto"))
     coord = dom.get("presence_coordinator")
+    # Registered keys that resolved at least one address in the window — the
+    # answer to "does the IRK path work anywhere". Read without resetting on
+    # a preview; a send resets it with the other windows.
+    resolving = 0
+    try:
+        from .private_ble_resolver import _resolvers  # noqa: PLC0415
+        _res = _resolvers.get(id(hass))
+        if _res is not None:
+            resolving = len(_res.take_resolved_ids()) if consume else len(_res._resolved_ids_window)
+    except Exception:
+        resolving = 0
 
     env = {
         "scanners": len(radios),
@@ -278,6 +292,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "rpas_seen": int(resolver.get("rpa_count") or 0),
         "rpas_resolved": int(resolver.get("resolved") or 0),
         "resolver_errors": _len(resolver.get("errors") or []),
+        "irk_devices_resolving": resolving,
         "outside_now": sum(1 for o in obj_list if isinstance(o, dict) and o.get("outside")),
         "coverage_floor_active": getattr(coord, "_coverage_floor", None) is not None,
         # The positioning engine's own count of objects it placed this poll.
@@ -421,6 +436,13 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
     # Accepted: now the window closes.
     _take_counters(hass)
     try:
+        from .private_ble_resolver import _resolvers  # noqa: PLC0415
+        _r = _resolvers.get(id(hass))
+        if _r is not None:
+            _r.take_resolved_ids()
+    except Exception:
+        pass
+    try:
         from .ws_common import _log_handler  # noqa: PLC0415
         if _log_handler is not None:
             _log_handler.take_counts()
@@ -442,6 +464,13 @@ def reset_windows(hass: HomeAssistant) -> None:
         from .ws_common import _log_handler  # noqa: PLC0415
         if _log_handler is not None:
             _log_handler.take_counts()
+    except Exception:
+        pass
+    try:
+        from .private_ble_resolver import _resolvers  # noqa: PLC0415
+        _r = _resolvers.get(id(hass))
+        if _r is not None:
+            _r.take_resolved_ids()
     except Exception:
         pass
 

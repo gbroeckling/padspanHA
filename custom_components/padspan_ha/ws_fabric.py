@@ -612,6 +612,7 @@ async def ws_fabric_rf_barrier_remove(hass: HomeAssistant, connection, msg) -> N
         connection.send_error(msg["id"], "invalid", "barrier_id is required")
         return
     await mdl.async_remove_rf_barrier_m(bid)
+    _bump(hass, "wall_removed")
     connection.send_result(msg["id"], {"ok": True})
 
 

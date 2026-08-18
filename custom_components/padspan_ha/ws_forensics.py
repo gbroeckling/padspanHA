@@ -21,6 +21,7 @@ from .const import (
     DATA_FORENSICS,
 )
 from .ws_common import _get_settings, _invalidate_snapshot_cache, _pro_expiry_state
+from .telemetry import bump as _bump
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ async def ws_forensics_query(hass: HomeAssistant, connection, msg) -> None:
     # event loop (only the 60s tick otherwise touches the store's dict).
     recorded = await hass.async_add_executor_job(fs.query, from_ts, to_ts, 500) if fs else []
     stats = fs.stats() if fs else {}
+    _bump(hass, "forensics_query")
 
     # Label + vendor enrichment from ObjectStore / object-history cache.
     # Rotating-MAC devices (private BLE / split iBeacon) are cached under

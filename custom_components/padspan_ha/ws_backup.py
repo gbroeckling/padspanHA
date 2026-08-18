@@ -26,6 +26,7 @@ from .const import (
 )
 from .build_info import BUILD_VERSION
 from .ws_common import _DATA_KEY_MAP, _MAX_BACKUPS
+from .telemetry import bump as _bump
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -178,6 +179,7 @@ async def ws_store_backup_create(hass: HomeAssistant, connection, msg) -> None:
         bk_data["backups"].pop(0)
     await _save_backups(hass, bk_data)
 
+    _bump(hass, "backup_created")
     connection.send_result(msg["id"], {
         "backup_id": backup_id,
         "created_at": backup["created_at"],
@@ -328,6 +330,8 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
         except Exception as e:
             _LOGGER.warning("Failed to restore map images: %s", e)
 
+    if restored:
+        _bump(hass, "backup_restored")
     connection.send_result(msg["id"], {
         "restored": restored,
         "total": len(stores_data),

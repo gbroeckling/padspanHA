@@ -77,6 +77,10 @@ class PrivateBLEResolver:
         self._cache: dict[str, tuple[str | None, float]] = {}
         self._loaded_at: float = 0.0
         self._unresolved_log_count: int = 0
+        # For the opt-in usage report: which registered keys resolved at
+        # least one address since the last report (canonical ids only — the
+        # report takes the COUNT of this set, never its members).
+        self._resolved_ids_window: set[str] = set()
 
     # ── public interface ──────────────────────────────────────────────────────
 
@@ -269,6 +273,10 @@ class PrivateBLEResolver:
             self._remember(addr_upper, None, now)
             return None
 
+        # A first sighting of this address (not merely an expired cache line):
+        # the cumulative counters below count each address once.
+        first_sighting = addr_upper not in self._cache
+
         # Try each registered IRK
         for dev in self._devices:
             try:
@@ -278,9 +286,14 @@ class PrivateBLEResolver:
                         addr_upper, dev["canonical_id"], dev["name"],
                     )
                     self._remember(addr_upper, dev["canonical_id"], now)
+                    if first_sighting:
+                        self._resolved_ids_window.add(dev["canonical_id"])
+                        self._count("irk_resolved")
                     return {"canonical_id": dev["canonical_id"], "name": dev["name"], "kind": "private_ble"}
             except Exception as err:
                 _LOGGER.warning("IRK match error for %s: %s", addr_upper, err)
+        if first_sighting:
+            self._count("irk_unresolved_rpa")
 
         # Log first few unresolved RPAs for debugging (helps diagnose IRK byte-order issues)
         _unresolved = getattr(self, "_unresolved_log_count", 0)
@@ -294,6 +307,21 @@ class PrivateBLEResolver:
 
         self._remember(addr_upper, None, now)
         return None
+
+    def _count(self, event: str) -> None:
+        """One tick of the opt-in usage report's counter — a no-op unless the
+        report is on (telemetry.bump decides)."""
+        try:
+            from .telemetry import bump  # noqa: PLC0415
+            bump(self._hass, event)
+        except Exception:
+            pass
+
+    def take_resolved_ids(self) -> set[str]:
+        """The keys that resolved anything since the last take, then reset."""
+        out = set(self._resolved_ids_window)
+        self._resolved_ids_window = set()
+        return out
 
     def _remember(self, addr: str, cid: str | None, now: float) -> None:
         """Cache a resolution, evicting expired entries once the cache is full.

@@ -309,6 +309,7 @@ async def ws_irk_validate(hass: HomeAssistant, connection, msg) -> None:
             break  # Found matches, no need to try more candidates
 
     result_irk = best_irk or (candidates[0][0] if candidates else irk_bytes)
+    _bump(hass, "irk_validate")
     connection.send_result(msg["id"], {
         "valid": len(best_matched) > 0,
         "matched_count": len(best_matched),

@@ -244,6 +244,11 @@ async def async_import(hass: HomeAssistant, backup: Any) -> dict[str, Any]:
 
     _LOGGER.info("PadSpan Bright import: stores %s, %d map image(s), backup %s — reloading",
                  ", ".join(imported), images, backup_id)
+    try:
+        from .telemetry import bump as _bump  # noqa: PLC0415
+        _bump(hass, "bright_import")
+    except Exception:
+        pass
 
     # 5. Reload so every store re-reads its file through its own setup path.
     async def _reload() -> None:

@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.34.10 — The usage report counts what it says it counts (2026-08-18)
+
+### Added — usage report coverage
+- Every name in the report's event vocabulary now has a real call site: calibration point added, capture started, forensics query, Showcase turned on, backup created / restored, factory reset, Bright import, wall removed, IRK validate — each counted only after the action succeeded. A test asserts the vocabulary can never carry a dead name again.
+- **IRK resolution stats.** `usage.irk_resolved` ticks once per NEW rotating address a registered key resolves; `usage.irk_unresolved_rpa` once per NEW rotating address that matches no key; `health.irk_devices_resolving` is how many registered keys resolved anything since the last report — the answer to "does the IRK path work anywhere", which nothing could see before. Counts only: canonical ids never leave the resolver.
+
+---
+
 ## 0.34.9 — Help improve PadSpan: an opt-in usage report (2026-08-18)
 
 PadSpan is developed against one house; features that only exist in yours never get seen. This release adds a way to change that — **off by default, opt-in, counts only**.
