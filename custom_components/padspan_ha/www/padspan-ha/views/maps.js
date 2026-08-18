@@ -64,22 +64,19 @@ export function render(ctx){
 
   const tab = ctx.state.mapsTab || "library";
   const setTab = (t)=>ctx.actions.setMapsTab(t);
-  const pro = _isPro(ctx);
 
-  // Basic mode: only Library + Upload tabs. Lights is a PadSpan Pro editor —
-  // without Pro there's nothing to edit here, and the free room/toggle view
-  // already lives in the Lights sidebar, so the tab would just be a
-  // stripped-down duplicate. Hide it rather than show a pointless copy.
+  // Basic mode: only Library + Upload tabs. The Lights tab is always there
+  // otherwise: below the bright tier it shows the free lighting map (rooms,
+  // floors, one marker per light — the same drawing the sidebar shows) with
+  // the build tools withheld, so a keyless install still has a lights map to
+  // look at and a place that says what a key adds. This used to hide the tab
+  // without a key, which left PadSpan Bright's free program with no map at all.
   const tabDefs = isBasic
     ? [["library","Library"],["upload","Upload"]]
-    : [["library","Library"],["upload","Upload"],["edit","Edit"],["stack","3D Stack"],["rooms","Rooms"],...(pro ? [["lights","Lights"]] : []),["export","Export"],["help","Help"]];
+    : [["library","Library"],["upload","Upload"],["edit","Edit"],["stack","3D Stack"],["rooms","Rooms"],["lights","Lights"],["export","Export"],["help","Help"]];
 
   // If current tab is not in basic tab list, reset to library
   if(isBasic && tab !== "library" && tab !== "upload"){
-    ctx.state.mapsTab = "library";
-  }
-  // Non-Pro users bounce off the Lights tab if they were on it when Pro lapsed
-  if(!pro && tab === "lights"){
     ctx.state.mapsTab = "library";
   }
   const activeTab = ctx.state.mapsTab || "library";
@@ -6666,16 +6663,32 @@ function _lightsTab(ctx, maps, active) {
   const shapeOverrides = (ctx.state.settings?.light_shapes && typeof ctx.state.settings.light_shapes === "object")
     ? ctx.state.settings.light_shapes : {};
   const tier = ctx.state.settings?.tier;
+  // Below `bright` this tab is the free lighting map: the shared card draws
+  // the free view by itself (lights_map.js), and the build tools — transform,
+  // drag, the inspector, unsaved-work bar — are not offered. A hex toggles
+  // the light, as it does in the sidebar. Nothing stored is touched: enter a
+  // key and every placement is back.
+  const paid = _isPro(ctx);
+  if (!paid) { mapState._lightsDraftM = {}; mapState._selLight = null; mapState._lightsTransform = false; }
   const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier);
 
   const head = el("div", { class: "card" }, [
     el("div", { class: "card-head" }, [
       el("div", { style: "font-weight:700;font-size:15px" }, "Lights"),
-      el("span", { class: "muted", style: "font-size:12px" },
-        "Builds the Lights sidebar's map — what you arrange here is exactly what the sidebar shows. Click a hex to select a light; drag it to where it really is."),
+      el("span", { class: "muted", style: "font-size:12px" }, paid
+        ? "Builds the Lights sidebar's map — what you arrange here is exactly what the sidebar shows. Click a hex to select a light; drag it to where it really is."
+        : "Every light in the house, one marker each, in its room. Click a marker to switch it."),
     ]),
   ]);
   wrap.appendChild(head);
+  if (!paid) {
+    wrap.appendChild(el("div", { class: "card", style: "padding:10px 12px;border:1px solid #b8860b;font-size:12px" }, [
+      el("span", { style: "font-weight:700;color:#fbbf24" }, "Free lighting map. "),
+      el("span", { class: "muted" },
+        "Placing each light where it really is, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room "
+        + "need PadSpan Bright Pro or PadSpan Pro — enter a key under Settings → PadSpan Pro."),
+    ]));
+  }
 
   if (!lights.length) {
     head.appendChild(el("div", { class: "muted", style: "padding:8px" },
@@ -6730,7 +6743,7 @@ function _lightsTab(ctx, maps, active) {
   // ── Transform mode ──────────────────────────────────────────────────────
   // Off by default: with handles live, a stray drag near a fixture resizes it
   // instead of moving it, and moving is the common action.
-  const xfBtn = el("button", {
+  const xfBtn = !paid ? null : el("button", {
     class: "btn inline" + (mapState._lightsTransform ? " primary" : ""),
     style: mapState._lightsTransform
       ? "background:#4c1d95;border-color:#a78bfa;color:#ede9fe" : "",
@@ -6739,7 +6752,7 @@ function _lightsTab(ctx, maps, active) {
       ctx.actions.renderRooms();
     },
   }, mapState._lightsTransform ? "⬒ Transform: ON" : "⬒ Transform");
-  wrap.appendChild(el("div", { class: "card", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px" }, [
+  if (paid) wrap.appendChild(el("div", { class: "card", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px" }, [
     xfBtn,
     el("span", { class: "muted", style: "font-size:11px" },
       mapState._lightsTransform
@@ -6822,8 +6835,15 @@ function _lightsTab(ctx, maps, active) {
     callWS: (msg) => ctx.hass.callWS(msg),
     toast: (m, isErr) => ctx.toast(m, isErr),
     // Build-tool interaction: hexes select and drag instead of toggling.
-    onHexesBuilt: (isoDiv) => _wireLightsBuild(ctx, isoDiv,
-      { mapState, view, lightsByEid, model: modelForRender }),
+    // Free tier: a hex switches the light, exactly as the sidebar does.
+    onHexesBuilt: paid
+      ? (isoDiv) => _wireLightsBuild(ctx, isoDiv, { mapState, view, lightsByEid, model: modelForRender })
+      : (isoDiv) => requestAnimationFrame(() => {
+          isoDiv.querySelectorAll(".lhex").forEach(g => {
+            g.style.cursor = "pointer";
+            g.addEventListener("click", e => { e.stopPropagation(); toggle(g.dataset.eid); });
+          });
+        }),
     transform: !!mapState._lightsTransform,
     hiddenEidsMap: hideUntouched
       ? new Set([...hiddenEids, ...lights.filter(l => !lightIsTouched(l, shapeOverrides, placements))
@@ -6861,6 +6881,7 @@ function _lightsTab(ctx, maps, active) {
     // A light has no owning map to look up any more — it has a position in
     // metres, or it has none and clusters in its room.
     onRowClick: (l) => {
+      if (!paid) { toggle(l.entity_id); return; }
       mapState._selLight = { eid: l.entity_id, mapId: null };
       ctx.actions.renderRooms();
     },
@@ -6884,7 +6905,7 @@ function _lightsTab(ctx, maps, active) {
   wrap.appendChild(buildLightsMapCard(host));
 
   // ── Selected-light inspector — the build tools for one light ────────────
-  const sel = mapState._selLight;
+  const sel = paid ? mapState._selLight : null;
   if (sel && lightsByEid[sel.eid]) {
     const l = lightsByEid[sel.eid];
     // The light's placement, from the fabric: the unsaved draft first, then

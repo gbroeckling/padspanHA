@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.34.6 — The Lights tab at free tier (2026-08-17)
+
+### Changed
+- **Mapping → Lights is always there** (outside Basic mode). Below the `bright` tier it shows the free lighting map — rooms, floors, one marker per light, a hex switches the light — with the build tools (Transform, drag, the inspector, the unsaved-work bar) withheld and one line saying what a key adds. It used to hide without a key, which would have left PadSpan Bright's free program with no lights map anywhere until the sidebar panel was found and enabled. Verified on the live install by flipping the tier override to free and back: the free view drew, and every placement, shape and mode came straight back.
+
+---
+
 ## 0.34.5 — PadSpan Bright: the tier model, the free lighting gate, the generated edition, the importer (2026-08-17)
 
 Four programs from two dials — the EDITION (which build was downloaded: full or bright) and the TIER (what the key says: free < bright < pro). PadSpan HA and PadSpan Pro are unchanged for everyone running them today. Plan: `docs/padspan-bright-plan.md`.
