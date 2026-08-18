@@ -2549,7 +2549,7 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
         if pc and pc.data:
             _MERGE_KEYS = ("x_m", "y_m", "floor_id", "knn_confidence",
                            "room", "room_confidence", "rssi_margin_confidence",
-                           "_smoothed", "_stale")
+                           "outside", "_smoothed", "_stale")
             obj_list = (snap.get("objects") or {}).get("list") or []
             for obj in obj_list:
                 key = obj.get("key", "")

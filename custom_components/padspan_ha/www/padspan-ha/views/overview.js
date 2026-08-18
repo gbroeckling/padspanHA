@@ -1239,6 +1239,10 @@ export function render(ctx){
         if(o.kind) parts.push(`Kind: ${o.kind}`);
         if(o.address && o.address !== n) parts.push(`Addr: ${o.address}`);
         if(o.room) parts.push(`Room: ${o.room}`);
+        // Below the site's indoor coverage envelope: no scanner hears it well
+        // enough for it to be inside the covered building. The room named is
+        // the nearest scanner's, or the outdoor area that hears it best.
+        if(o.outside) parts.push("Outside the covered building");
         if(o.knn_confidence > 0) parts.push(`Calibrated: ${Math.round(o.knn_confidence * 100)}%`);
         if(o.rssi != null) parts.push(`RSSI: ${o.rssi} dBm`);
         if(o.age_s != null){
