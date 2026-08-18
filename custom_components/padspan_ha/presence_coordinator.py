@@ -1813,7 +1813,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 f"outside_by_coverage:best={_best_live:.0f},floor={self._coverage_floor:.0f},"
                 f"area={_outside_area or 'none'}"
             )
-        if ema and not _outside_area:
+        if ema:
             # RSSI margin confidence (for entity attributes)
             sorted_vals = sorted(ema.values(), reverse=True)
             if len(sorted_vals) >= 2:
@@ -1827,9 +1827,14 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Requires ≥3 scanners with known positions and live RSSI.
             # Converts RSSI → distance via path-loss model, then computes
             # inverse-distance² weighted centroid of scanner positions.
-            if not (self._use_metres and self._scanner_positions and _model):
+            if not (self._use_metres and self._scanner_positions and _model) and not _outside:
                 self._spatial_debug[key] = f"disabled:metres={self._use_metres},pos={len(self._scanner_positions)},model={bool(_model)}"
-            if self._use_metres and self._scanner_positions and _model:
+            # Below the coverage floor the indoor solve does not run at all:
+            # an x/y from readings weaker than any indoor calibration ever
+            # produced is a centroid inside the house, whatever the device is
+            # doing outside it. Path B (strongest scanner) still names the
+            # nearest room, and obj.outside says what that room is worth.
+            if self._use_metres and self._scanner_positions and _model and not _outside:
                 # Collect scanners with known positions.  A source is excluded
                 # once it is DECAYING — not merely because it missed a poll.
                 #
