@@ -74,6 +74,43 @@ function emptyState(el, mark, title, hint) {
   ]);
 }
 
+// Add an IRK the way the backend now insists on: it is saved only if it
+// resolves something on the air, or if the person explicitly saves it
+// unverified (the phone is away). A value that is really a beacon UUID is
+// refused with the beacon named — there is no override for that, because
+// no amount of waiting will make a UUID resolve an address.
+//   msgEl   — where the outcome is written
+//   after() — called once something was saved
+async function _addIrk(ctx, name, irk, msgEl, after, force = false) {
+  const { el } = ctx.helpers;
+  msgEl.textContent = force ? "Saving unverified\u2026" : "Checking against live traffic\u2026";
+  msgEl.style.color = "var(--bt-dim)";
+  try {
+    const r = await ctx.actions.wsCall("padspan_ha/irk_add", { name, irk_hex: irk, force });
+    msgEl.style.color = "var(--bt-good)";
+    msgEl.textContent = r.verified
+      ? `\u2713 Saved \u201c${name}\u201d \u2014 it resolves ${r.matched_count} rotating address${r.matched_count !== 1 ? "es" : ""} right now.`
+      : `\u2713 Saved \u201c${name}\u201d unverified \u2014 it will resolve when the phone is here and awake.`;
+    after && after(r);
+    return true;
+  } catch (e) {
+    const code = e && e.code;
+    msgEl.textContent = "";
+    if (code === "unverified") {
+      msgEl.style.color = "var(--bt-ok)";
+      msgEl.appendChild(document.createTextNode((e.message || "No live match.") + " "));
+      const btn = el("button", { class: "btn tiny bt-btn-accent", style: "margin-left:6px" }, "Save unverified");
+      btn.addEventListener("click", (ev) => { ev.stopPropagation(); btn.disabled = true; _addIrk(ctx, name, irk, msgEl, after, true); });
+      msgEl.appendChild(btn);
+    } else {
+      // not_an_irk, duplicate, invalid, \u2026 \u2014 the message says what and why
+      msgEl.style.color = "var(--bt-bad)";
+      msgEl.textContent = (e && e.message) || String(e);
+    }
+    return false;
+  }
+}
+
 export function render(ctx) {
   const { el, esc } = ctx.helpers;
 
@@ -322,11 +359,8 @@ export function render(ctx) {
         const name = irkNameInput.value.trim();
         const irk = irkValueInput.value.trim();
         if (!name || !irk) { irkMsg.textContent = "Enter both a name and an IRK"; irkMsg.style.color = "var(--bt-ok)"; return; }
-        irkAddBtn.disabled = true; irkAddBtn.textContent = "Adding...";
-        try {
-          await ctx.actions.wsCall("padspan_ha/irk_add", { name, irk_hex: irk });
-          irkMsg.style.color = "var(--bt-good)";
-          irkMsg.textContent = "\u2713 IRK saved for " + name + " \u2014 resolving will start within 60 seconds";
+        irkAddBtn.disabled = true; irkAddBtn.textContent = "Adding\u2026";
+        await _addIrk(ctx, name, irk, irkMsg, () => {
           irkNameInput.value = ""; irkValueInput.value = "";
           // Refresh status after a short delay to let the backend register the new IRK
           ctx.state._pbleStatus = null;
@@ -336,10 +370,7 @@ export function render(ctx) {
               ctx.actions.renderRooms();
             });
           }, 1000);
-        } catch (err) {
-          irkMsg.style.color = "var(--bt-bad)";
-          irkMsg.textContent = (err && err.message) || String(err);
-        }
+        });
         irkAddBtn.disabled = false; irkAddBtn.textContent = "Add";
       });
 
@@ -2227,56 +2258,20 @@ function renderIrkPanel(ctx, snap) {
   const validateBtn = el("button", { class: "btn inline" }, "Test only");
   const autoDetectBtn = el("button", { class: "btn inline bt-btn-info", style: "margin-left:auto" }, "Auto-detect IRKs");
 
-  // Add & Validate handler
+  // Add & validate — the backend does the validating and refuses what
+  // cannot work; the flow only has to show what it said and offer the one
+  // legitimate override (the phone is not here).
   addBtn.addEventListener("click", async () => {
     const irk = irkInp.value.trim();
-    const name = nameInp.value.trim();
+    const name = nameInp.value.trim() || "PadSpan Device";
     if (!irk) { addMsg.textContent = "Paste an IRK first"; addMsg.style.color = "var(--bt-bad)"; return; }
-    addBtn.disabled = true; addBtn.textContent = "Validating…";
-    addMsg.textContent = ""; addMsg.style.color = "var(--bt-dim)";
-
-    // Validate first
-    try {
-      const vRes = await ctx.actions.wsCall("padspan_ha/irk_validate", { irk_hex: irk });
-      if (vRes && vRes.matched_count > 0) {
-        addMsg.style.color = "var(--bt-good)";
-        addMsg.textContent = `✓ Validated: matched ${vRes.matched_count} rotating address${vRes.matched_count !== 1 ? "es" : ""}. Saving…`;
-        // Use the validated hex format
-        const useIrk = vRes.irk_hex || irk;
-        try {
-          await ctx.actions.wsCall("padspan_ha/irk_add", { name: name || "PadSpan Device", irk_hex: useIrk });
-          addMsg.style.color = "var(--bt-good)";
-          addMsg.textContent = `✓ Saved "${name || "PadSpan Device"}" — resolving active immediately`;
-          nameInp.value = ""; irkInp.value = "";
-          ctx.state._irkPanelStatus = null;
-          setTimeout(() => ctx.actions.renderRooms(), 500);
-        } catch(e) {
-          addMsg.style.color = "var(--bt-bad)";
-          addMsg.textContent = e.message || "Save failed";
-        }
-      } else {
-        // No live match — save anyway with warning
-        addMsg.style.color = "var(--bt-ok)";
-        const rpas = vRes ? vRes.rpa_count : 0;
-        addMsg.textContent = rpas > 0
-          ? `⚠ No live match (${rpas} RPAs scanned). Device may be off or out of range. Saving anyway…`
-          : "⚠ No rotating addresses detected. Saving anyway…";
-        try {
-          await ctx.actions.wsCall("padspan_ha/irk_add", { name: name || "PadSpan Device", irk_hex: irk });
-          addMsg.textContent += " ✓ Saved. Will resolve when device comes in range.";
-          nameInp.value = ""; irkInp.value = "";
-          ctx.state._irkPanelStatus = null;
-          setTimeout(() => ctx.actions.renderRooms(), 500);
-        } catch(e) {
-          addMsg.style.color = "var(--bt-bad)";
-          addMsg.textContent = e.message || "Save failed";
-        }
-      }
-    } catch(e) {
-      addMsg.style.color = "var(--bt-bad)";
-      addMsg.textContent = e.message || "Invalid IRK format";
-    }
-    addBtn.disabled = false; addBtn.textContent = "Add & Validate";
+    addBtn.disabled = true; addBtn.textContent = "Checking\u2026";
+    await _addIrk(ctx, name, irk, addMsg, () => {
+      nameInp.value = ""; irkInp.value = "";
+      ctx.state._irkPanelStatus = null;
+      setTimeout(() => ctx.actions.renderRooms(), 500);
+    });
+    addBtn.disabled = false; addBtn.textContent = "Add & validate";
   });
 
   // Test Only handler
@@ -2291,6 +2286,9 @@ function renderIrkPanel(ctx, snap) {
         addMsg.style.color = "var(--bt-good)";
         const fmt = vRes.matched_format ? ` (format: ${vRes.matched_format})` : "";
         addMsg.textContent = `✓ Valid! Matched ${vRes.matched_count} rotating address${vRes.matched_count !== 1 ? "es" : ""}${fmt}. Addresses: ${(vRes.matched_addresses || []).slice(0, 5).join(", ")}`;
+      } else if (vRes && vRes.not_an_irk) {
+        addMsg.style.color = "var(--bt-bad)";
+        addMsg.textContent = vRes.not_an_irk;
       } else {
         addMsg.style.color = "var(--bt-ok)";
         addMsg.textContent = `No match found. ${vRes.rpa_count || 0} RPAs tested. ${vRes.candidates_tried || 0} format variants tried. Device may be off/out of range.`;

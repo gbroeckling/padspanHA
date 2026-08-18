@@ -4,6 +4,18 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.34.8 — IRKs: refuse what cannot work; a bridge is not an identity (2026-08-18)
+
+Found by asking "has an IRK ever resolved here?" and checking. The resolver's AES matches the Bluetooth SIG sample data and is wired into ingest — it had simply never been given a real key.
+
+### Fixed — Private BLE
+- **`irk_add` refuses a value that is really a beacon UUID**, and names the beacon: the Companion App shows the iBeacon UUID on the very screen people look for the IRK, and a UUID pasted as a key resolves nothing, forever, with "0 resolved" the only symptom. Checked against every iBeacon on the air and every `*_ble_transmitter` sensor's `id`. No override — waiting will not make a UUID resolve an address.
+- **A key is saved only if it resolves a rotating address on the air right now**, or if the person explicitly saves it unverified (the phone is away). The old flow validated, said "Saving anyway…", and saved. Both add forms and "Test only" now say why a key will never match when that can be said.
+- **A fingerprint bridge is an inference, not an identity.** A bridged object no longer takes `identified` from a device link found under one of its addresses, and a cached bridge that is not current expires like any unidentified object — at once if its address is on the air under a real identity (an iBeacon group owns it). On the live install a CP27 beacon that had once been wrongly bridged had been resurrected from object history for 20 hours as "Private BLE: 1 device tracked".
+- `tests/test_irk_add_refuses_what_cannot_work.py` — including the resolver against the SIG sample vector, which nothing had pinned before.
+
+---
+
 ## 0.34.7 — The Bluetooth view, restyled (2026-08-17)
 
 Same screens, same controls, same data — one visual language instead of several. Nothing about how the view works changed.

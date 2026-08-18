@@ -1340,8 +1340,11 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 "device": pg["device"],
             }
             # Mark bridge-matched objects so the UI knows they're probabilistic
+            # — and that a guess is not an identity: a device link found under
+            # one of its addresses does not make the bridge "identified".
             if canonical.get("bridge_match"):
                 obj_pb["bridge_match"] = True
+                obj_pb["identified"] = False
             # Attach iBeacon metadata if this private_ble device also broadcasts
             # as an iBeacon (e.g. HA Companion App "Track Phone").
             _ib_meta = _ibeacon_meta_for_private.get(cid)
@@ -2131,6 +2134,24 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     except Exception:
                         pass
             stale_s = _now_ts - (cached_obj.get("_last_seen_ts") or _now_ts)
+            # A bridge is a per-poll INFERENCE ("this new address is probably
+            # that phone"), not an identity. It must never be immortalised:
+            # a CP27 beacon that was once wrongly bridged sat in this cache
+            # for 20 hours as "Private BLE: 1 device tracked", identified by
+            # PadSpan's own device link, resurrected every poll. A cached
+            # bridge expires like any unidentified object — and if its
+            # address is on the air right now under a real identity (an
+            # iBeacon group owns it), it is a ghost of a superseded guess and
+            # goes at once.
+            if cached_obj.get("bridge_match"):
+                _ghost_addr = str(cached_obj.get("address") or key).upper()
+                if _ghost_addr in ibeacon_addrs or _ghost_addr in ble_by_addr:
+                    del _cache[key]
+                    continue
+                if stale_s > _HISTORY_TTL:
+                    del _cache[key]
+                    continue
+                cached_obj.pop("identified", None)
             is_identified = cached_obj.get("identified") or cached_obj.get("user_label")
             # Verify label still exists — if deleted from obj_store, clear the
             # cached flags so the ghost can expire normally instead of lingering

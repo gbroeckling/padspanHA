@@ -21,6 +21,68 @@ from .private_ble_resolver import get_resolver as _get_ble_resolver
 _LOGGER = logging.getLogger(__name__)
 
 
+def _live_rpas(hass: HomeAssistant, *, max_ads: int = 5000, max_age_s: int = 3600) -> set[str]:
+    """Every rotating address in the live advertisement cache."""
+    from .private_ble_resolver import _is_rpa  # noqa: PLC0415
+    try:
+        snap = get_bluetooth_live(hass).get_snapshot(max_ads=max_ads, max_age_s=max_age_s)
+    except Exception as err:
+        _LOGGER.warning("irk: BLE snapshot error: %s", err)
+        return set()
+    out: set[str] = set()
+    for ad in (snap.get("advertisements") or []):
+        addr = (ad.get("address") or "").upper()
+        if addr and _is_rpa(addr):
+            out.add(addr)
+    return out
+
+
+def _live_matches(hass: HomeAssistant, irk_bytes: bytes) -> tuple[list[str], int]:
+    """(addresses this key resolves right now, how many RPAs were tested)."""
+    from .private_ble_resolver import _address_matches_irk  # noqa: PLC0415
+    rpas = _live_rpas(hass)
+    matched = [a for a in rpas if _address_matches_irk(a, irk_bytes)]
+    return matched, len(rpas)
+
+
+def _looks_like_a_beacon_uuid(hass: HomeAssistant, irk_bytes: bytes) -> str | None:
+    """The one mistake worth naming.
+
+    An IRK is 16 bytes and so is an iBeacon UUID, and the Companion App
+    shows the UUID in the very screen people go looking for the key. A UUID
+    pasted as an IRK resolves nothing, forever, and the only symptom is
+    "0 resolved". So: if the pasted bytes equal the UUID of any iBeacon on
+    the air, or of any BLE-transmitter sensor's `id`, say so — and say whose.
+    Returns a human sentence, or None.
+    """
+    from .private_ble_resolver import PrivateBLEResolver  # noqa: PLC0415
+    hexval = irk_bytes.hex().lower()
+    # Companion App BLE transmitters — the sensor id is "<uuid>_<major>_<minor>"
+    try:
+        for st in hass.states.async_all("sensor"):
+            if "ble_transmitter" not in (st.entity_id or ""):
+                continue
+            ident = str((st.attributes or {}).get("id") or "")
+            if ident and ident.split("_")[0].replace("-", "").lower() == hexval:
+                who = (st.attributes or {}).get("friendly_name") or st.entity_id
+                return (f"That is the iBeacon UUID that \u201c{who}\u201d is broadcasting, not its IRK. "
+                        "A phone advertising an iBeacon is already tracked by that UUID and does not need an IRK.")
+    except Exception:
+        pass
+    # Any iBeacon on the air
+    try:
+        snap = get_bluetooth_live(hass).get_snapshot(max_ads=5000, max_age_s=3600)
+        for ad in (snap.get("advertisements") or []):
+            ib = PrivateBLEResolver.parse_ibeacon(ad.get("manufacturer_data") or {})
+            if ib and str(ib.get("uuid") or "").replace("-", "").lower() == hexval:
+                name = ad.get("name") or ad.get("address") or "a beacon"
+                return (f"That is the iBeacon UUID of \u201c{name}\u201d (major {ib.get('major')}, minor {ib.get('minor')}), "
+                        "not an IRK. iBeacons are tracked by their UUID already.")
+    except Exception:
+        pass
+    return None
+
+
 @websocket_api.websocket_command({"type": "padspan_ha/private_ble_status"})
 @websocket_api.async_response
 async def ws_private_ble_status(hass: HomeAssistant, connection, msg) -> None:
@@ -60,6 +122,7 @@ async def ws_private_ble_status(hass: HomeAssistant, connection, msg) -> None:
         "type": "padspan_ha/irk_add",
         vol.Required("name"): str,
         vol.Required("irk_hex"): str,
+        vol.Optional("force", default=False): bool,
     }
 )
 @websocket_api.async_response
@@ -70,6 +133,12 @@ async def ws_irk_add(hass: HomeAssistant, connection, msg) -> None:
     or colon/dash/space-separated hex.  Normalises to lowercase hex, checks for
     duplicates, stores in settings.irk_devices, and reloads the resolver
     immediately so the IRK takes effect without restart.
+
+    A key is SAVED ONLY IF IT WORKS: it must resolve at least one rotating
+    address on the air right now, or the caller must say `force: true`
+    (the phone is away — the UI offers "save unverified"). A value that
+    equals an iBeacon UUID currently broadcasting is refused outright, with
+    the beacon named: that is the mistake that reads "0 resolved" for weeks.
     """
     from .private_ble_resolver import _parse_irk  # noqa: PLC0415
 
@@ -89,6 +158,20 @@ async def ws_irk_add(hass: HomeAssistant, connection, msg) -> None:
         return
 
     irk_clean = irk_bytes.hex().lower()
+
+    # Not an IRK at all — the pasted value is a beacon UUID on the air.
+    beacon_reason = _looks_like_a_beacon_uuid(hass, irk_bytes)
+    if beacon_reason:
+        connection.send_error(msg["id"], "not_an_irk", beacon_reason)
+        return
+
+    # Does it resolve anything, right now?
+    matched, rpa_count = _live_matches(hass, irk_bytes)
+    if not matched and not msg.get("force"):
+        connection.send_error(msg["id"], "unverified",
+            f"No rotating address on the air resolves with this key ({rpa_count} tested). "
+            "If the phone is here and awake, the key is wrong. If it is away, save it unverified.")
+        return
 
     # Store in settings
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
@@ -120,6 +203,9 @@ async def ws_irk_add(hass: HomeAssistant, connection, msg) -> None:
         "irk_hex": irk_clean,
         "canonical_id": f"irk:{irk_clean}",
         "device_count": resolver.device_count if resolver else 0,
+        "verified": bool(matched),
+        "matched_count": len(matched),
+        "rpa_count": rpa_count,
     })
 
 
@@ -197,17 +283,7 @@ async def ws_irk_validate(hass: HomeAssistant, connection, msg) -> None:
         return
 
     # Gather all RPAs from the live BLE advertisement cache
-    try:
-        ble_live = get_bluetooth_live(hass)
-        snap = ble_live.get_snapshot(max_ads=5000, max_age_s=3600)
-        rpas: set[str] = set()
-        for ad in (snap.get("advertisements") or []):
-            addr = (ad.get("address") or "").upper()
-            if addr and _is_rpa(addr):
-                rpas.add(addr)
-    except Exception as err:
-        _LOGGER.warning("irk_validate: BLE snapshot error: %s", err)
-        rpas = set()
+    rpas = _live_rpas(hass)
 
     # Test ALL candidate byte orders against every RPA
     best_matched: list[str] = []
@@ -238,6 +314,8 @@ async def ws_irk_validate(hass: HomeAssistant, connection, msg) -> None:
         "irk_hex": result_irk.hex() if result_irk else "",
         "matched_format": best_desc,
         "candidates_tried": len(candidates),
+        # Why it will never match, when that can be said.
+        "not_an_irk": (_looks_like_a_beacon_uuid(hass, result_irk) if result_irk and not best_matched else None),
     })
 
 
