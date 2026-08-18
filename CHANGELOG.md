@@ -4,6 +4,22 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.34.7 — The Bluetooth view, restyled (2026-08-17)
+
+Same screens, same controls, same data — one visual language instead of several. Nothing about how the view works changed.
+
+### Changed — Bluetooth
+- **One vocabulary, defined once.** The view had four ways to draw "signal", three greys doing one job, two badge systems and around ninety inline colour strings, so the same idea looked different depending on which sub-tab you were on. `styles.css` gains a single `#bluetooth`-scoped block — stat, segmented tabs, chip (seven tones), a four-bar signal meter, row, panel, key/value grid, empty state, notice, note, micro-button tones — and `views/bluetooth.js` speaks it: `sigEl` / `chip` / `emptyState` / `btAgo` are defined once at the top of the file and used by every sub-tab.
+- **Signal reads the same everywhere.** A four-bar meter and a tabular dBm reading, in the advertisement rows, the per-scanner device table and the detail pane alike — it used to be a coloured pill in one place and a percentage bar in another.
+- **Rows say what they are.** Each advertisement leads with the scanner that heard it and the device's name, with the address and enrichment beneath; each scanner row carries its identity, how much it is trusted (a filled track, not just a number) and its own controls in a quiet cluster below a divider.
+- **Empty states explain themselves** rather than stating the obvious, and the numbers are tabular so columns of dBm line up.
+- Selection is a class with an accent rail, not a style string appended at runtime; the graph's embedded `<style>` no longer duplicates colours the stylesheet owns; the runtime colour writes go through the tokens.
+
+### Fixed
+- **200 advertisement rows collapsed to 18px each** when the list was given a scroll height: a flex column shrinks its children to fit by default. Items in a scrolling flex column are now `flex:0 0 auto`. Found by looking at the live install, not by the suite.
+
+---
+
 ## 0.34.6 — The Lights tab at free tier (2026-08-17)
 
 ### Changed
