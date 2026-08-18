@@ -14,7 +14,10 @@
 // a UUID other than install_id, a 32-hex string, a licence key or an IP
 // anywhere in it. Summarise with server/telemetry_summary.py.
 
-$DIR = __DIR__ . '/../telemetry';   // adjust to taste; keep it out of the web root if possible
+// ISPConfig layout on padspan.traks.ca: this file lives at web/padspan/api/,
+// so three levels up is the site root, whose private/ is outside the web
+// root (the update-check log lives there too). Adjust for another host.
+$DIR = __DIR__ . '/../../../private/padspan-telemetry';
 $MAX = 8192;
 
 header('Content-Type: application/json');

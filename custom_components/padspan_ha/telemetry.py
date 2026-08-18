@@ -398,6 +398,23 @@ def _today() -> str:
     return time.strftime("%Y-%m-%d", time.gmtime())
 
 
+async def ensure_snapshot(hass: HomeAssistant) -> None:
+    """Make sure there IS a snapshot to read the environment from.
+
+    Half the report — scanners, objects, resolver health — comes from the
+    live snapshot, which is built on demand and cached. A report sent ten
+    minutes after a restart, with nobody looking at the panel, would
+    otherwise say "0 scanners, 0 objects" about a full house. Measured on
+    the first real send: exactly that. The builder serves its own cache when
+    one is fresh, so this costs nothing when the panel is open.
+    """
+    try:
+        from .snapshot_builder import _live_snapshot  # noqa: PLC0415
+        await _live_snapshot(hass)
+    except Exception as err:
+        _LOGGER.debug("Telemetry could not build a snapshot: %s", err)
+
+
 async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any]:
     """Build, check, POST. Returns {"sent": bool, "reason": str, "bytes": n}.
 
@@ -414,6 +431,7 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
     if not force and st and str(st.data.get("telemetry_last_day") or "") == _today():
         return {"sent": False, "reason": "already sent today", "bytes": 0}
     await ensure_install_id(hass)
+    await ensure_snapshot(hass)
     payload = build_payload(hass, consume=False)
     try:
         assert_shareable(payload)

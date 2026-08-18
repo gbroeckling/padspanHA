@@ -293,6 +293,36 @@ def test_health_reports_how_many_keys_are_resolving():
         pbr._resolvers.pop(id(h), None)
 
 
+def test_a_send_builds_a_snapshot_first(monkeypatch):
+    """The environment half of the report comes from the live snapshot. A
+    send ten minutes after a restart, with nobody on the panel, reported
+    "0 scanners, 0 objects" about a full house — measured on the first real
+    send. send_now now builds one first (the builder serves its own cache)."""
+    h = _hass()
+    built = []
+    import sys, types
+    fake_sb = types.ModuleType("custom_components.padspan_ha.snapshot_builder")
+    async def _ls(hass):
+        built.append(hass)
+        return {}
+    fake_sb._live_snapshot = _ls
+    monkeypatch.setitem(sys.modules, "custom_components.padspan_ha.snapshot_builder", fake_sb)
+
+    class _Resp:
+        status = 200
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+    class _Session:
+        def post(self, *a, **k): return _Resp()
+    fake_http = types.ModuleType("homeassistant.helpers.aiohttp_client")
+    fake_http.async_get_clientsession = lambda hass: _Session()
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.aiohttp_client", fake_http)
+
+    res = _run(T.send_now(h, force=True))
+    assert res["sent"] is True
+    assert built == [h], "send_now did not build a snapshot before reporting"
+
+
 def test_opting_in_starts_the_windows_fresh():
     h = _hass()
     T.bump(h, "wall_placed")

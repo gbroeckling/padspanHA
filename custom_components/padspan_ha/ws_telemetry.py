@@ -23,7 +23,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import DATA_SETTINGS, DOMAIN
 from .telemetry import (
-    TELEMETRY_URL, assert_shareable, build_payload, bump, enabled, send_now,
+    TELEMETRY_URL, assert_shareable, build_payload, bump, enabled, ensure_snapshot, send_now,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 async def ws_telemetry_preview(hass: HomeAssistant, connection, msg) -> None:
     """The report as it stands right now — same fields, same values as a send
     made this second would carry — shown before anyone opts in."""
+    await ensure_snapshot(hass)          # preview the real numbers, not zeros
     payload = build_payload(hass, consume=False)
     if not payload.get("install_id"):
         payload["install_id"] = "(minted when you opt in)"

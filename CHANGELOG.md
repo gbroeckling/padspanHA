@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.34.11 — The usage report describes a house, not an empty one (2026-08-18)
+
+### Fixed
+- **A report sent while nothing had built a snapshot said "0 scanners, 0 objects" about a full house.** Half the report — scanners, objects, resolver health — is read from the live snapshot, which is built on demand and cached; a send ten minutes after a restart, with nobody looking at the panel, found no cache and reported zeros. Caught on the very first real send. `send_now` and Preview now build one first (the builder serves its own cache, so it costs nothing when the panel is open).
+
+---
+
 ## 0.34.10 — The usage report counts what it says it counts (2026-08-18)
 
 ### Added — usage report coverage
