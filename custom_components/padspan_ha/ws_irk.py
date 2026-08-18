@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN, DATA_SETTINGS
 from .bluetooth_live import get_bluetooth_live
 from .private_ble_resolver import get_resolver as _get_ble_resolver
+from .telemetry import bump as _bump
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -162,6 +163,7 @@ async def ws_irk_add(hass: HomeAssistant, connection, msg) -> None:
     # Not an IRK at all — the pasted value is a beacon UUID on the air.
     beacon_reason = _looks_like_a_beacon_uuid(hass, irk_bytes)
     if beacon_reason:
+        _bump(hass, "irk_add_refused")
         connection.send_error(msg["id"], "not_an_irk", beacon_reason)
         return
 
@@ -188,6 +190,7 @@ async def ws_irk_add(hass: HomeAssistant, connection, msg) -> None:
 
     irk_list.append({"name": name, "irk_hex": irk_clean})
     await st.async_set(irk_devices=irk_list)
+    _bump(hass, "irk_added")
 
     # Reload the resolver so it picks up the new IRK immediately
     try:

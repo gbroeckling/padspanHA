@@ -32,6 +32,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "data_mode": "sample",  # "sample" | "live"
     "cpu_mode": "shared",  # "shared" | "single" | "dedicated" — see PresenceCoordinator
     "update_check_enabled": True,  # daily version ping to padspan.traks.ca (see README)
+    # Opt-in usage report (telemetry.py). OFF until a person turns it on;
+    # the id is minted on first enable and can be replaced from Settings.
+    "telemetry_enabled": False,
+    "telemetry_install_id": "",
+    "telemetry_last_day": "",       # UTC day of the last accepted report (one per day)
     "vendor_lookup_enabled": True,  # Sends MAC prefixes to vendor lookup APIs when requested from UI
     "ref_power":      -59.0,   # dBm RSSI at 1 m (distance formula)
     "path_loss_exp":   2.5,    # path-loss exponent n (distance formula)

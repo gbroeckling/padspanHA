@@ -31,6 +31,8 @@ _BACKEND_ONLY = {
     "forensics_license_expires",   # ditto — derived at activation
     "irk_devices",                 # private-BLE resolver bookkeeping
     "room_tag_map",                # tag integration / live snapshot
+    "telemetry_install_id",        # minted by telemetry.py; replaced via telemetry_reset_id
+    "telemetry_last_day",          # stamped by telemetry.py on an accepted send
 }
 
 

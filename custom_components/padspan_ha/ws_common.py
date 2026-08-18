@@ -117,17 +117,33 @@ class _RingLogHandler(logging.Handler):
         super().__init__(level=logging.DEBUG)
         self._maxlen = maxlen
         self.records: list[dict[str, Any]] = []
+        # WARNING+ counts by "LEVEL:module" since last taken — the opt-in
+        # usage report reads and resets these (telemetry.py). Module names
+        # only, never a message: a message can carry an address or a name.
+        self.counts: dict[str, int] = {}
 
     def emit(self, record: logging.LogRecord) -> None:
+        mod = record.name[len("custom_components.padspan_ha"):].lstrip(".") \
+            if record.name.startswith("custom_components.padspan_ha") else record.name
+        if not mod:
+            mod = "__init__"
         entry = {
             "ts": record.created,
             "level": record.levelname,
-            "logger": record.name.replace("custom_components.padspan_ha.", ""),
+            "logger": mod,
             "message": self.format(record),
         }
         self.records.append(entry)
         if len(self.records) > self._maxlen:
             self.records = self.records[-self._maxlen:]
+        if record.levelno >= logging.WARNING:
+            k = f"{record.levelname}:{mod.split('.')[0][:32]}"
+            self.counts[k] = self.counts.get(k, 0) + 1
+
+    def take_counts(self) -> dict[str, int]:
+        out = dict(self.counts)
+        self.counts = {}
+        return out
 
 
 _log_handler: _RingLogHandler | None = None

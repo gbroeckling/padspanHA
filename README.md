@@ -246,6 +246,21 @@ Once a day, PadSpan asks `padspan.traks.ca` whether a newer version is available
 
 To turn it off: **Settings → Presence → Update Check → Disabled**. PadSpan then makes no outbound requests at all.
 
+### Help improve PadSpan (opt-in usage report)
+
+PadSpan is developed against one house. Features that only exist in yours — an iPhone with an IRK, a Bermuda install, twelve floors, a lighting-only setup — never get seen unless someone shares that they exist. So there is an **opt-in, off-by-default** usage report: **Settings → Update Check & Privacy → Help improve PadSpan**.
+
+When you opt in, at most once a day PadSpan POSTs a small JSON report (~2 KB, hard cap 8 KB) to `padspan.traks.ca` containing **counts, versions and flags only** — the complete list:
+
+- `version`, `edition`, `tier`, `ha_version`, `python`, the UTC `day`, and the random `install_id`
+- `env`: how many scanners (and how many with diagnostics / ESPresense / other; how many lost, disabled or excluded), floors, rooms, placed lights, walls, maps, positioned scanners and beacons, calibration points (and how many were automatic), IRKs, followed devices, objects (total, identified, and by kind), and how many config entries of each related integration (private_ble_device, bermuda, esphome, mqtt, bluetooth, mobile_app, ibeacon, espresense)
+- `features`: which feature switches are on, plus `data_mode` and `cpu_mode`
+- `usage`: how many times each tab, sub-tab and tool was used since the last report — from a closed vocabulary (`telemetry.EVENTS`, the panel's view ids and the Bluetooth/Mapping sub-tab ids); anything else is dropped
+- `health`: crypto present, BLE callback alive, BLE feed diagnostics ok, rotating addresses seen / resolved, resolver error count, objects currently attributed outside, coverage floor active, objects currently positioned, and how long since HA started as a bucket (<1h / <1d / 1–7d / >7d)
+- `errors`: how many WARNING and ERROR log lines each PadSpan module produced since the last report — module names only, never messages
+
+**Never**: MAC addresses (in any notation), IRKs or licence keys, device / room / floor / entity names or ids, IP addresses, coordinates, or timestamps finer than the day. The report carries a random install ID so installs can be counted rather than pings — replace it any time with **New anonymous ID**. **Preview what would be sent** shows the report exactly as it stands (same fields and values a send made that second would carry), before or after opting in. Before every send the code walks every value and refuses the whole report if it finds a MAC / UUID / 32-hex / licence-key / IP / entity-id shape or any string over 64 characters; `tests/test_telemetry.py` builds a report from a house full of names, MACs, UUIDs, keys and coordinates and proves none of them are in it. Opting in is an administrator action; the usage and error windows start at the moment you opt in, so nothing from before it goes.
+
 ---
 
 ## Donate

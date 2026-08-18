@@ -46,6 +46,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("data_mode"): str,
         vol.Optional("cpu_mode"): str,                        # "shared"|"single"|"dedicated"
         vol.Optional("update_check_enabled"): bool,           # daily version ping (README)
+        vol.Optional("telemetry_enabled"): bool,              # opt-in usage report (telemetry.py)
         vol.Optional("vendor_lookup_enabled"): bool,
         vol.Optional("room_change_delay_s"): vol.Coerce(float),
         vol.Optional("away_timeout_m"): vol.Coerce(float),
@@ -162,6 +163,21 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["cpu_mode"] = cm
         if "update_check_enabled" in msg:
             payload["update_check_enabled"] = bool(msg.get("update_check_enabled"))
+        if "telemetry_enabled" in msg:
+            # Opting a whole install into sending reports is an admin's call,
+            # like the send-now and reset-id commands beside it.
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized", "Only an administrator can change the usage report")
+                return
+            payload["telemetry_enabled"] = bool(msg.get("telemetry_enabled"))
+            if payload["telemetry_enabled"]:
+                # Mint the anonymous id at opt-in, so the Preview shows the
+                # real report from that moment on — and start the usage and
+                # error windows here, so nothing from before the yes goes.
+                from .telemetry import ensure_install_id, reset_windows  # noqa: PLC0415
+                await ensure_install_id(hass)
+                reset_windows(hass)
         if "vendor_lookup_enabled" in msg:
             payload["vendor_lookup_enabled"] = bool(msg.get("vendor_lookup_enabled"))
         if "room_change_delay_s" in msg:

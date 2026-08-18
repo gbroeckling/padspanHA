@@ -172,6 +172,7 @@ export function render(ctx) {
         "aria-selected": ctx.state.btTab === id ? "true" : "false",
         onclick: () => {
           ctx.state.btTab = id;
+          if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("tab:bluetooth/" + id);
           ctx.actions.renderRooms();
         },
       },

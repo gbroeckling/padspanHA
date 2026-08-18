@@ -4,6 +4,20 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.34.9 — Help improve PadSpan: an opt-in usage report (2026-08-18)
+
+PadSpan is developed against one house; features that only exist in yours never get seen. This release adds a way to change that — **off by default, opt-in, counts only**.
+
+### Added
+- **Settings → Update Check & Privacy → Help improve PadSpan.** Opt in and once a day PadSpan POSTs a ~2 KB JSON report to `padspan.traks.ca`: version / edition / tier / HA / Python; how many scanners (by kind and state), floors, rooms, placed lights, walls, maps, calibration points, IRKs, followed devices, objects (by kind), which related integrations are installed; which feature switches are on; how many times each tab and tool was used since the last report; health flags (crypto ok, BLE callback alive, coverage floor active, rotating addresses seen / resolved, outside attribution firing, positioned objects); WARNING/ERROR log lines by module. **Never** MAC addresses, keys, device / room / floor / entity names, coordinates, or timestamps finer than the day.
+- **Preview what would be sent** shows the exact JSON before or after opting in; **Send a report now**; **New anonymous ID** replaces the random install id (the only thing that persists between reports).
+- `telemetry.assert_shareable` walks every value before a send and refuses the whole report if anything identifier-shaped is in it — the belt over the design's braces. `tests/test_telemetry.py` builds a report from a house full of names, MACs, UUIDs, keys and coordinates and proves none of them are in it, and that the gate refuses each shape.
+- Events are an allow-listed vocabulary (`telemetry.EVENTS` + `tab:<view>[/<sub>]`); anything else is dropped. Nothing is counted and nothing leaves the box while the switch is off — including the panel's tab events.
+- Reviewed adversarially before shipping (three lenses, every finding verified against the code); the twelve real ones are in: the event vocabulary is a closed list mirroring the panel's tabs (asserted by test), opting in is an administrator action, the usage and error windows start at opt-in, at most one report per UTC day is persisted across restarts, counters are consumed only after the server accepted the report, uptime is a coarse bucket, MAC/IPv6/entity-id shapes in any notation are refused, and the README lists every field.
+- `server/telemetry.php` (the receiver: append-only JSONL per day, no IP stored, same shape checks re-applied) and `server/telemetry_summary.py` (installs by version, environment distributions, features on, usage, health, and WARNING/ERROR by module across the fleet — the fix list). Data lives on the developer's server, never in the repository.
+
+---
+
 ## 0.34.8 — IRKs: refuse what cannot work; a bridge is not an identity (2026-08-18)
 
 Found by asking "has an IRK ever resolved here?" and checking. The resolver's AES matches the Bluetooth SIG sample data and is wired into ingest — it had simply never been given a real key.

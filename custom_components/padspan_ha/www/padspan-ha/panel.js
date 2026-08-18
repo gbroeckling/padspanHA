@@ -1454,6 +1454,11 @@ class PadSpanHaApp extends HTMLElement {
       }
       this.state.view = id;
       this._logEvent("view_change", id);
+      // Opt-in usage report: count the tab open. Nothing leaves the browser
+      // unless the person turned the report on (Settings → Update Check & Privacy).
+      if (this.state.settings && this.state.settings.telemetry_enabled) {
+        this._callWS({ type: "padspan_ha/telemetry_event", event: "tab:" + id }).catch(() => {});
+      }
       if (this._closeDrawer) this._closeDrawer();
       this._renderNav();
       // On-demand: if the view module isn't loaded yet, fetch it then render
@@ -1719,7 +1724,7 @@ class PadSpanHaApp extends HTMLElement {
         showScannerDetail: (scanner) => this._showScannerDetail(scanner),
 
         // Mapping suite actions
-        setMapsTab: (t)=>{ this.state.mapsTab=t; if(t==="library") this._getMapsList().then(()=>this._scheduleRender()).catch(()=>this._scheduleRender()); else this._scheduleRender(); },
+        setMapsTab: (t)=>{ this.state.mapsTab=t; this.actions.telemetryEvent("tab:maps/" + t); if(t==="library") this._getMapsList().then(()=>this._scheduleRender()).catch(()=>this._scheduleRender()); else this._scheduleRender(); },
         mapsRefresh: async ()=>{ await this._getMapsList(); this._scheduleRender(); },
         mapsSetActive: (id)=>{ this.state.activeMapId=id; this._scheduleRender(); },
         mapsDelete: async (id)=>{ await this._callWS({ type:"padspan_ha/maps_delete", map_id:id }); await this._getMapsList(); if(this.state.activeMapId===id) this.state.activeMapId=null; this._scheduleRender(); },
@@ -1766,6 +1771,12 @@ class PadSpanHaApp extends HTMLElement {
         },
         calibrationHealthCheck: async () => await this._callWS({ type: "padspan_ha/calibration_health_check" }),
         wsCall: async (type, data={}) => await this._callWS({ type, ...data }),
+        // Opt-in usage report: count one allow-listed event. A no-op unless the
+        // person turned the report on — no traffic leaves the browser otherwise.
+        telemetryEvent: (name) => {
+          if (!(this.state.settings && this.state.settings.telemetry_enabled)) return;
+          this._callWS({ type: "padspan_ha/telemetry_event", event: String(name) }).catch(() => {});
+        },
         // ── Followed Beacons ──────────────────────────────────────────────
         // Multi-device follow set — persisted both to server (via settings_set)
         // and to localStorage as a fallback. Addresses are stored uppercase.

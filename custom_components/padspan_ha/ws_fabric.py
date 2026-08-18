@@ -32,6 +32,7 @@ from .const import (
 from .fabric_truth import cluster_count as _cluster_count, geom_bbox_m as _geom_bbox_m
 from .snapshot_builder import _live_snapshot
 from .ws_common import _invalidate_snapshot_cache, _tier_at_least
+from .telemetry import bump as _bump
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,6 +102,7 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
         height_cm=float(msg.get("height_cm") or 0.0),
         label=(msg.get("label") or "").strip(),
     )
+    _bump(hass, "light_placed")
     connection.send_result(msg["id"], {"ok": True, "entity_id": eid})
 
 
@@ -125,6 +127,7 @@ async def ws_fabric_light_remove(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "invalid", "entity_id is required")
         return
     await mdl.async_remove_light_position_m(eid)
+    _bump(hass, "light_removed")
     connection.send_result(msg["id"], {"ok": True, "entity_id": eid})
 
 
@@ -219,6 +222,7 @@ async def ws_fabric_room_add(hass: HomeAssistant, connection, msg) -> None:
     if room not in adj:
         adj[room] = []
         await mdl.store.async_save(mdl.data)
+    _bump(hass, "room_committed")
     connection.send_result(msg["id"], {"ok": True, "room": room, "floor_id": floor_id})
 
 
@@ -586,6 +590,7 @@ async def ws_fabric_rf_barrier_set(hass: HomeAssistant, connection, msg) -> None
     if stored is None:
         connection.send_error(msg["id"], "invalid", "barrier needs a name and at least two points_m")
         return
+    _bump(hass, "wall_placed")
     connection.send_result(msg["id"], {"ok": True, "barrier": stored})
 
 

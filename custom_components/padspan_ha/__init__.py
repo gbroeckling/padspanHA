@@ -594,6 +594,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         from .update_check import async_setup_update_check
         async_setup_update_check(hass)
+        from .telemetry import async_setup_telemetry
+        async_setup_telemetry(hass)
     except Exception as err:
         _LOGGER.debug("Update check setup failed: %s", err)
 
@@ -629,6 +631,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         from .update_check import async_stop_update_check
         async_stop_update_check(hass)
+        from .telemetry import async_stop_telemetry
+        async_stop_telemetry(hass)
     except Exception:
         pass
 

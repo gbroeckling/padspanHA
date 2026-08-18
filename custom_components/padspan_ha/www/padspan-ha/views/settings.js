@@ -945,6 +945,81 @@ function _settingsPresence(ctx, el){
     ]),
   ]));
 
+  // ── Help improve PadSpan (opt-in usage report) ─────────────────────────────
+  // OFF by default. The Preview shows the exact JSON that would go, before or
+  // after opting in; the backend refuses to send anything identifier-shaped
+  // regardless (telemetry.py assert_shareable).
+  const telOn = !!settings.telemetry_enabled;
+  const telBtn = el("button", { class: "btn inline", style: telOn
+    ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
+    : "color:#94a3b8" }, telOn ? "Opted in" : "Not sharing");
+  telBtn.addEventListener("click", async () => {
+    try {
+      await ctx.actions.settingsSet({ telemetry_enabled: !telOn });
+      ctx.toast(!telOn ? "Thank you — usage report on. Preview shows exactly what goes." : "Usage report off");
+      ctx.actions.renderRooms();
+    } catch(e) { ctx.toast("Failed to save setting", true); }
+  });
+  const telOut = el("pre", { class: "pre", style: "display:none;margin-top:10px;max-height:360px;overflow:auto;font-size:11px" });
+  const telStatus = el("span", { class: "muted", style: "font-size:11px;margin-left:8px" }, "");
+  const previewBtn = el("button", { class: "btn inline" }, "Preview what would be sent");
+  previewBtn.addEventListener("click", async () => {
+    previewBtn.disabled = true;
+    try {
+      const r = await ctx.actions.wsCall("padspan_ha/telemetry_preview");
+      telOut.textContent = JSON.stringify(r.payload, null, 2);
+      telOut.style.display = "block";
+      telStatus.textContent = r.problem
+        ? "Would be REFUSED before sending: " + r.problem
+        : `${JSON.stringify(r.payload).length} bytes \u2192 ${r.url}`;
+      telStatus.style.color = r.problem ? "#f87171" : "";
+    } catch(e) { ctx.toast("Preview failed: " + (e.message || e), true); }
+    previewBtn.disabled = false;
+  });
+  const sendBtn = el("button", { class: "btn inline", disabled: telOn ? undefined : "disabled",
+    title: telOn ? "Send one report now" : "Opt in first" }, "Send a report now");
+  sendBtn.addEventListener("click", async () => {
+    sendBtn.disabled = true;
+    try {
+      const r = await ctx.actions.wsCall("padspan_ha/telemetry_send_now");
+      ctx.toast(r.sent ? `Report sent (${r.bytes} bytes)` : "Not sent: " + (r.reason || "unknown"), !r.sent);
+    } catch(e) { ctx.toast("Send failed: " + (e.message || e), true); }
+    sendBtn.disabled = false;
+  });
+  const idBtn = el("button", { class: "btn inline", title: "Replace the anonymous install id with a new random one" }, "New anonymous ID");
+  idBtn.addEventListener("click", async () => {
+    idBtn.disabled = true;
+    try {
+      await ctx.actions.wsCall("padspan_ha/telemetry_reset_id");
+      ctx.toast("New anonymous ID minted");
+      await ctx.actions.settingsSet({});   // reloads settings into ctx.state
+    } catch(e) { ctx.toast("Failed: " + (e.message || e), true); }
+    idBtn.disabled = false;
+    ctx.actions.renderRooms();
+  });
+  wrap.appendChild(el("div", { class: "card" }, [
+    el("div", { class: "h2" }, "Help improve PadSpan"),
+    el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
+      "Opt in to send the developer an anonymous usage report at most once a day: which version and " +
+      "Home Assistant; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, " +
+      "IRKs and objects you have and which related integrations are installed; which feature switches " +
+      "are on; which tabs and tools got used; a few health flags; and how many warnings each part of the " +
+      "code logged. Counts, versions and flags only \u2014 never addresses, keys, device or room names, " +
+      "coordinates or timestamps. Preview is the complete list. PadSpan is developed against one house; " +
+      "this is how features that only exist in yours (an iPhone with an IRK, a Bermuda install, twelve floors) get seen at all."
+    ),
+    el("div", { class: "muted", style: "font-size:11px;margin-bottom:12px" },
+      "The report carries a random ID so installs can be counted rather than pings; you can replace it any time. " +
+      "Preview shows the exact JSON \u2014 what you see is what goes, and anything identifier-shaped is refused before it leaves."),
+    el("div", { style: rowStyle }, [
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Usage report"),
+      telBtn,
+      telStatus,
+    ]),
+    el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" }, [previewBtn, sendBtn, idBtn]),
+    telOut,
+  ]));
+
   // ── BLE Reseed Interval ──────────────────────────────────────────────────
   const currentReseed = (settings.ble_reseed_interval_s != null ? Number(settings.ble_reseed_interval_s) : 30);
   const reseedInp = el("input", {
