@@ -196,6 +196,11 @@ class PadSpanLightsApp extends HTMLElement {
       this.state._showcase      = !!s.lights_showcase;
       this.state._fitRooms      = !!s.lights_fit_rooms;
       this.state._hideUntouched = !!s.lights_hide_untouched;
+      // The effective tier the backend computed (licence.py). Below `bright`
+      // the shared pipeline draws the free map — see lights_map.js. A settings
+      // fetch that failed keeps the tier it last knew rather than flickering
+      // a Pro house down to the free drawing for one poll.
+      if (s.tier !== undefined) this.state._tier = String(s.tier);
       // Hidden-map ids are read only to stay consistent with the Mapping tab
       const savedIds = s.hidden_map_ids;
       if(Array.isArray(savedIds)){
@@ -393,7 +398,7 @@ class PadSpanLightsApp extends HTMLElement {
       ? ensureLightsRegistry(this._regStore, this._hass, this.state.model.areas, ()=>this._render())
       : { areaMap:{}, loading:true };
     const lightsLoading = reg.loading;
-    const lights = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides);
+    const lights = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier);
 
     if(!lights.length){
       root.appendChild(el("div",{class:"muted",style:"padding:8px"},"No light entities found."));
@@ -417,6 +422,7 @@ class PadSpanLightsApp extends HTMLElement {
       el,
       floors,
       model: this.state.model,
+      tier: this.state._tier,
       byRoom,
       hiddenEids: hidden,
       showcase: !!this.state._showcase,

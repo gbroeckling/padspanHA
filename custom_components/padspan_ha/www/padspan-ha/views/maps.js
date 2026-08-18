@@ -6665,7 +6665,8 @@ function _lightsTab(ctx, maps, active) {
     : { areaMap: {}, loading: true };
   const shapeOverrides = (ctx.state.settings?.light_shapes && typeof ctx.state.settings.light_shapes === "object")
     ? ctx.state.settings.light_shapes : {};
-  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides);
+  const tier = ctx.state.settings?.tier;
+  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier);
 
   const head = el("div", { class: "card" }, [
     el("div", { class: "card-head" }, [
@@ -6796,6 +6797,7 @@ function _lightsTab(ctx, maps, active) {
     el,
     floors,
     model: modelForRender,
+    tier,
     byRoom,
     hiddenEids,
     lightsByEid,

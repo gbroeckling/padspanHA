@@ -15,6 +15,46 @@ const { buildIsoSVG, shapeSvg, fabricFrame } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
+const { tierAtLeast } =
+  await import(`./editions.js${new URL(import.meta.url).search}`);
+
+// ── What a tier is shown ─────────────────────────────────────────────────────
+// Below `bright` — PadSpan HA with no key, PadSpan Bright with no key — the
+// lights map is rooms, floors and one default marker per light, clustered at
+// its room centre. Placement, fixture shape, size and rotation, the W-series
+// (WLED) distinction, Showcase, Fit room and Hide untouched are what a key
+// buys: PadSpan Bright Pro or PadSpan Pro, one ladder (editions.js).
+//
+// This is a READ-TIME override of the inputs the renderer is handed. It
+// copies; it never writes. Every placement a house already built stays in the
+// fabric byte for byte and comes straight back the moment a key is entered —
+// tests/test_lights_free_gate.py holds both functions below to that. Built as
+// a filter on STORED data instead, a lapsed licence would delete a weekend's
+// work; that is the one way this must never be done.
+//
+// An unknown or missing tier is free — the safe side. Both hosts pass the
+// tier the backend computed (settings.tier); nothing here re-derives it.
+export const LIGHTING_TIER = "bright";
+export const lightingUnlocked = (tier) => tierAtLeast(tier, LIGHTING_TIER);
+
+/**
+ * The host as the tier sees it. Paid: the host untouched. Free: the fabric's
+ * light positions withheld (every light clusters in its room), the
+ * presentation modes off and their controls absent, the untouched filter off.
+ * The host's own objects are never mutated — the model is shallow-copied
+ * with a fresh, empty light_positions_m.
+ */
+export function lightsHostForTier(host){
+  if (lightingUnlocked(host.tier)) return host;
+  return {
+    ...host,
+    model: host.model ? { ...host.model, light_positions_m: {} } : host.model,
+    showcase: false, onShowcase: null,
+    fitRooms: false, onFitRooms: null,
+    hideUntouched: false, untouchedCount: 0, onHideUntouched: null,
+    hiddenEidsMap: host.hiddenEids,
+  };
+}
 
 // ── Registry: entity_id → area name for every light ──────────────────────────
 // One implementation with ONE staleness rule so the two views can never
@@ -73,7 +113,10 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
 // ── Light list: every light entity, canonical codes, display sort ────────────
 // shapeOverrides = settings.light_shapes ({entity_id: shape}); a light with no
 // override wears its derived shape, so the whole house is typed on first paint.
-export function gatherLights(states, areaMap, shapeOverrides){
+// tier = settings.tier: below `bright` every light is the default marker in
+// the plain series — no shape, no override, no WLED (see lightsHostForTier).
+export function gatherLights(states, areaMap, shapeOverrides, tier){
+  const paid = lightingUnlocked(tier);
   const lights = Object.keys(states || {})
     .filter(eid => eid.startsWith("light."))
     .map(eid => ({
@@ -81,7 +124,9 @@ export function gatherLights(states, areaMap, shapeOverrides){
       friendly_name: states[eid].attributes?.friendly_name || eid,
       state:         states[eid].state,   // "on" | "off" | "unavailable"
       area_name:     areaMap[eid] || null,
-      effect_list:   Array.isArray(states[eid].attributes?.effect_list) ? states[eid].attributes.effect_list : null,
+      // The effect list is what makes a light WLED-class (W-series code,
+      // purple border, effects dialog). Free tier: every light is a light.
+      effect_list:   paid && Array.isArray(states[eid].attributes?.effect_list) ? states[eid].attributes.effect_list : null,
       // What the fixture is actually throwing right now. Showcase draws and
       // glows each light in its OWN colour at its OWN brightness; the working
       // map ignores both.
@@ -92,7 +137,7 @@ export function gatherLights(states, areaMap, shapeOverrides){
       (a.area_name || "\xff").localeCompare(b.area_name || "\xff") ||
       a.friendly_name.localeCompare(b.friendly_name));
   assignLightCodes(lights);
-  for (const l of lights) l.shape = resolveLightShape(l, shapeOverrides);
+  for (const l of lights) l.shape = paid ? resolveLightShape(l, shapeOverrides) : "hex";
   return lights;
 }
 
@@ -147,7 +192,10 @@ function buildShapeLegend(el, lights){
 //   saveView() → Promise              persist floorGap/horizGap/focusIdx
 //   onHexesBuilt(isoDiv, rebuild)     wire hex interactions after every build
 // }
-export function buildLightsMapCard(host){
+export function buildLightsMapCard(hostIn){
+  // The tier decides what is drawn, whatever the host asked for. One place,
+  // for both hosts — see lightsHostForTier.
+  const host = lightsHostForTier(hostIn);
   const { el, view } = host;
   const floors = host.floors || [];
   const mapCard = el("div", { class: "card", style: "padding:12px;margin-bottom:16px" });
