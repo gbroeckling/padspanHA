@@ -6063,13 +6063,14 @@ async function _drawSvgOnCanvas(g, svgStr, w, h, alpha=1.0){
 // existence — it just won't clutter the room view.
 // Lights are discovered from HA's entity registry and grouped by area_name.
 
-// Placement is a PadSpan Pro feature — shares the single licence key
-// activated via padspan_ha/forensics_license_activate (see settings.js).
+// Placement is a paid lighting feature: PadSpan Bright Pro or PadSpan Pro
+// (tier >= "bright" — licence.py's ladder, read off the settings payload).
 function _isPro(ctx) {
-  // The backend decides — it owns expiry and the grace window, and the key
-  // itself is no longer sent to the frontend at all. This is a display gate
-  // only; every Pro action is enforced server-side regardless of what it says.
-  return !!ctx.state.settings?.pro_active;
+  // The backend decides — it owns expiry, the grace window and the tier, and
+  // the key itself is never sent to the frontend. This is a display gate
+  // only; every paid action is enforced server-side regardless of what it says.
+  const t = String(ctx.state.settings?.tier || "").toLowerCase();
+  return t === "bright" || t === "pro";
 }
 
 

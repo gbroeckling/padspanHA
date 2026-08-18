@@ -160,10 +160,17 @@ def _get_settings(hass: HomeAssistant) -> dict:
         return {"data_mode": "sample"}
     out = dict(st.data)
     state = _pro_expiry_state(hass)
+    from .licence import edition as _edition, effective_tier as _eff  # noqa: PLC0415
+    from .build_info import TIER_FLOOR as _floor  # noqa: PLC0415
     out["forensics_license_key"] = ""          # never leaves the backend
     out["pro_has_key"] = state["has_key"]
-    out["pro_active"] = state["active"]
+    out["pro_active"] = state["active"]        # a valid key of any tier
     out["pro_days_left"] = state["days_left"]
+    # The tier model (licence.py): the frontend reads these and never
+    # re-implements the ladder.
+    out["tier"] = _eff(st.data, bool(state["active"]))
+    out["tier_floor"] = _floor
+    out["edition"] = _edition()
     return out
 
 
@@ -208,18 +215,24 @@ def _pro_expiry_state(hass: HomeAssistant) -> dict[str, Any]:
 
 
 def _padspan_pro_active(hass: HomeAssistant) -> bool:
-    """Return True if PadSpan Pro is active (activated AND not lapsed).
+    """True when this install runs at the `pro` tier (key active, tier pro).
 
-    Shared gate for every PadSpan Pro feature (Forensics, Lights map
-    placement, ...) — they all key off the single licence activated via
-    padspan_ha/forensics_license_activate.
+    The gate for the presence-side Pro features (Forensics, ...). Lighting
+    features gate at `bright` — see _tier_at_least — because a Bright Pro key
+    unlocks them and a Pro key is a superset. One ladder, one comparison.
 
     Soft degrade by design: this gate governs Pro EDITING only. Data a user
     already created stays readable and exportable when a licence lapses —
     losing access to your own recorded history because a card expired is not
     something this product does.
     """
-    return bool(_pro_expiry_state(hass)["active"])
+    return _tier_at_least(hass, "pro")
+
+
+def _tier_at_least(hass: HomeAssistant, want: str) -> bool:
+    """The one gate: does the effective tier reach `want`? (licence.py)"""
+    from .licence import hass_tier_at_least  # noqa: PLC0415
+    return hass_tier_at_least(hass, want)
 
 
 def _is_rpa_addr(address: str) -> bool:

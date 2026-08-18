@@ -117,6 +117,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("mac_rotation_bridging"): bool,
         vol.Optional("apple_auto_classify"): bool,
         vol.Optional("forensics_enabled"): bool,
+        vol.Optional("license_tier_override"): str,
+        vol.Optional("bright_reveal_presence"): bool,
         vol.Optional("forensics_retention_days"): vol.Coerce(int),
         vol.Optional("rssi_capture_enabled"): bool,
         vol.Optional("rssi_capture_retention_days"): vol.Coerce(int),
@@ -341,7 +343,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "ha_entity_distance_enabled", "ha_entity_scanner_distance_enabled",
                     "mqtt_publish_enabled", "espresense_mqtt_enabled", "aggressive_ble_reseed",
                     "ha_entity_occupancy_enabled",
-                    "lights_panel_enabled", "bermuda_ignore",
+                    "lights_panel_enabled", "bermuda_ignore", "bright_reveal_presence",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",
                     "tags_phone_autolink_enabled", "quiet_mode", "light_theme",
                     "beacon_auto_calibrate", "overview_persistent_pins", "overview_show_walls",
@@ -355,6 +357,14 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "apple_auto_classify"):
             if key in msg:
                 payload[key] = bool(msg[key])
+        if "license_tier_override" in msg:
+            # A supported way to LOOK at a lower tier from a Pro install — the
+            # free experience is the one path a Pro developer can never notice
+            # is broken otherwise. It can only lower the effective tier
+            # (licence.effective_tier), so it is not a way past the licence.
+            from .licence import TIERS  # noqa: PLC0415
+            _ov = str(msg["license_tier_override"] or "").strip().lower()
+            payload["license_tier_override"] = _ov if _ov in TIERS else ""
         if "forensics_enabled" in msg:
             # Enabling requires an activated PadSpan Pro licence key (set via
             # padspan_ha/forensics_license_activate).  Disabling is always allowed.

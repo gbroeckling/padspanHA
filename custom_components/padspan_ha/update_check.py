@@ -126,9 +126,20 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
         _LOGGER.debug("PadSpan Pro revalidation skipped (%s)", err)
         return
     expires = str(data.get("expires_at") or "").strip()
-    if data.get("valid") and expires and expires != str(st.data.get("forensics_license_expires") or ""):
-        await st.async_set(forensics_license_expires=expires)
-        _LOGGER.info("PadSpan Pro licence revalidated — expires %s", expires)
+    if data.get("valid"):
+        from .licence import normalize_tier  # noqa: PLC0415
+        updates: dict = {}
+        if expires and expires != str(st.data.get("forensics_license_expires") or ""):
+            updates["forensics_license_expires"] = expires
+        # A tier the server names is recorded; a server that does not name
+        # one changes nothing (an absent field is a Pro key — licence.py).
+        if data.get("tier"):
+            tier = normalize_tier(data.get("tier"), default="pro")
+            if tier != str(st.data.get("license_tier") or ""):
+                updates["license_tier"] = tier
+        if updates:
+            await st.async_set(**updates)
+            _LOGGER.info("PadSpan licence revalidated — %s", ", ".join(f"{k}={v}" for k, v in updates.items()))
     elif data.get("valid") is False:
         # Explicitly revoked. Record it as expired-now rather than deleting
         # the key: the grace window still applies, the user keeps their data,

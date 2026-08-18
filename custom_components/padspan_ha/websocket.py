@@ -83,6 +83,7 @@ from .ws_common import (  # noqa: F401  (re-exported: registration, tests, calle
     _log_handler,
     _object_history_ttl_s,
     _padspan_pro_active,
+    _tier_at_least,
     _point_in_polygon,
     _pro_expiry_state,
     _room_from_bounds,

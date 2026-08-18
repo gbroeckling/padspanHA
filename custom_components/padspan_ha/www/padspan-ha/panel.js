@@ -41,6 +41,15 @@ const BUILD_ID = (() => {
 })();
 const CHANNEL = "beta";
 
+// ── Editions and tiers ───────────────────────────────────────────────────────
+// Which surfaces this build shows (views/editions.js). Loaded with the same
+// cache-buster as everything else; a failure here must not take the panel
+// down, so the fallback is "show everything" — the full edition's answer.
+let EDITIONS = null;
+const _editionsPromise = import(`./views/editions.js?b=${BUILD_ID}`)
+  .then(m => { EDITIONS = m; })
+  .catch(err => console.warn("PadSpan: editions module failed to load", err));
+
 // ── Dynamic view imports ─────────────────────────────────────────────────────
 // Two-phase loading for fast first paint:
 //   Phase 1 (critical): sample_data, help_content, overview, follow — enough to
@@ -80,6 +89,10 @@ const _VIEW_PATHS = {
   sandbox:      "./views/sandbox.js",
   occupancy:    "./views/occupancy.js",
 };
+
+// Views reachable by internal navigation but never listed in MENU. Being
+// current while not in the visible menu set is legitimate for these.
+const _VIEW_PATHS_HIDDEN_OK = new Set(["objects", "history", "events", "debug", "diagnostics"]);
 
 // Track in-flight imports to avoid duplicate fetches
 const _viewLoading = {};
@@ -1389,22 +1402,27 @@ class PadSpanHaApp extends HTMLElement {
     // Forensics is settings-gated in EVERY mode (including Dev): the tab only
     // exists while the opt-in forensics_enabled setting is on.
     const forensicsOn = this.state.settings?.forensics_enabled === true;
+    let out;
     if (mode === "development") {
-      const all = new Set(MENU.map(x => x[0]));
-      if (!forensicsOn) all.delete("forensics");
-      return all;
+      out = new Set(MENU.map(x => x[0]));
+      if (!forensicsOn) out.delete("forensics");
+    } else if (mode === "basic") {
+      out = new Set(BASIC_TABS);
+      if (forensicsOn) out.add("forensics");
+    } else {
+      // Advanced: base + any user-opted extra tabs
+      const extras = this.state.settings?.advanced_extra_tabs || [];
+      out = new Set(ADVANCED_DEFAULT);
+      for (const t of extras) out.add(t);
+      if (forensicsOn) out.add("forensics");
     }
-    if (mode === "basic") {
-      const b = new Set(BASIC_TABS);
-      if (forensicsOn) b.add("forensics");
-      return b;
+    // The EDITION decides last: a Bright build shows its lighting surfaces
+    // (and the rest only behind the reveal switch). The full edition is
+    // untouched by this — surfacesForEdition returns its input.
+    if (EDITIONS && EDITIONS.surfacesForEdition) {
+      out = new Set(EDITIONS.surfacesForEdition([...out], this.state.settings || {}));
     }
-    // Advanced: base + any user-opted extra tabs
-    const extras = this.state.settings?.advanced_extra_tabs || [];
-    const s = new Set(ADVANCED_DEFAULT);
-    for (const t of extras) s.add(t);
-    if (forensicsOn) s.add("forensics");
-    return s;
+    return out;
   }
 
   /** Rebuild the sidebar nav, mobile bottom nav, and mobile topbar to match current state. */
@@ -1417,6 +1435,13 @@ class PadSpanHaApp extends HTMLElement {
     if(navLabel) navLabel.textContent = isBasic ? "Basic Menu" : this.state.complexity === "development" ? "Dev Menu" : "Menu";
 
     const items = MENU.filter(x => visible.has(x[0]));
+    // A view this build does not show cannot stay current: a Bright install
+    // starts on Overview by default and Overview is a presence surface, so it
+    // lands on the first surface it does show (Mapping).
+    if (items.length && !visible.has(this.state.view) && !_VIEW_PATHS_HIDDEN_OK.has(this.state.view)) {
+      this.state.view = items[0][0];
+      this._scheduleRender();
+    }
     const _switchView = (id) => {
       // Clear traceback active flag when leaving traceback tab
       if (this.state._traceback && this.state.view === "traceback" && id !== "traceback") {

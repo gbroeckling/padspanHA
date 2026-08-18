@@ -31,7 +31,7 @@ from .const import (
 )
 from .fabric_truth import cluster_count as _cluster_count, geom_bbox_m as _geom_bbox_m
 from .snapshot_builder import _live_snapshot
-from .ws_common import _invalidate_snapshot_cache, _padspan_pro_active
+from .ws_common import _invalidate_snapshot_cache, _tier_at_least
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -80,8 +80,8 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
     maps_update, which the UI stopped writing when lights moved to metres —
     so the licence guarded a path nothing used while the live one was open.
     """
-    if not _padspan_pro_active(hass):
-        connection.send_error(msg["id"], "pro_required", "Light placement is a PadSpan Pro feature")
+    if not _tier_at_least(hass, "bright"):
+        connection.send_error(msg["id"], "pro_required", "Light placement needs PadSpan Bright Pro or PadSpan Pro")
         return
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
@@ -112,9 +112,9 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
 )
 @websocket_api.async_response
 async def ws_fabric_light_remove(hass: HomeAssistant, connection, msg) -> None:
-    """Un-place a light (it returns to automatic room clustering). Pro editing."""
-    if not _padspan_pro_active(hass):
-        connection.send_error(msg["id"], "pro_required", "Light placement is a PadSpan Pro feature")
+    """Un-place a light (it returns to automatic room clustering). Bright-tier editing."""
+    if not _tier_at_least(hass, "bright"):
+        connection.send_error(msg["id"], "pro_required", "Light placement needs PadSpan Bright Pro or PadSpan Pro")
         return
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:

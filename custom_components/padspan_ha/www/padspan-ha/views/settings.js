@@ -2644,7 +2644,9 @@ function _settingsFeatures(ctx, el){
     toggle.checked = forensicsOn;
     toggle.addEventListener("change", async()=>{
       const live = ctx.state.dataMode === "live";
-      const hasKey = !!settings.pro_active;   // backend-owned gate, not the key
+      // Forensics is a PadSpan PRO feature (tier "pro"): a Bright Pro key is
+      // a valid key too, but not for this. Backend-owned answer, not the key.
+      const hasKey = String(settings.tier || "") === "pro";
       if(toggle.checked){
         let msg = "Enable Forensics recording?\n\nPadSpan will continuously record the presence of ALL nearby Bluetooth devices — including neighbours' and passers-by's — on this Home Assistant instance.\n\nYou are responsible for using this lawfully in your jurisdiction.";
         if(!live) msg += "\n\nNote: data mode is currently Sample — nothing will be recorded until you switch data mode to Live.";
@@ -2709,11 +2711,14 @@ function _settingsFeatures(ctx, el){
         const daysLeft = settings.pro_days_left;
         const lapsed = settings.pro_active === false;
         const expiringSoon = typeof daysLeft === "number" && daysLeft >= 0 && daysLeft <= 14;
+        // Name the product the key is for: a Bright Pro key licenses the
+        // lighting product, and this card should not call it PadSpan Pro.
+        const _prod = String(settings.license_tier || "").toLowerCase() === "bright" ? "PadSpan Bright Pro" : "PadSpan Pro";
         const line = lapsed
-          ? `⚠ PadSpan Pro licence expired${licExp ? ` on ${licExp}` : ""} — Pro editing is off. Everything you already recorded is still here and still exportable.`
+          ? `⚠ ${_prod} licence expired${licExp ? ` on ${licExp}` : ""} — paid editing is off. Everything you already recorded is still here and still exportable.`
           : expiringSoon
-          ? `✓ PadSpan Pro licensed · renews in ${daysLeft} day${daysLeft === 1 ? "" : "s"}${licExp ? ` (${licExp})` : ""}`
-          : `✓ PadSpan Pro licensed` + (licExp ? ` · valid until ${licExp}` : "");
+          ? `✓ ${_prod} licensed · renews in ${daysLeft} day${daysLeft === 1 ? "" : "s"}${licExp ? ` (${licExp})` : ""}`
+          : `✓ ${_prod} licensed` + (licExp ? ` · valid until ${licExp}` : "");
         card.appendChild(el("div",{class:"muted",
           style:`font-size:11px;margin-bottom:6px;color:${lapsed ? "#fbbf24" : expiringSoon ? "#fbbf24" : "#a7f3d0"}`}, line));
         const revealBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:2px 8px;margin-bottom:10px",
@@ -2850,6 +2855,49 @@ function _settingsUI(ctx, el){
   });
   lightsCard.appendChild(el("div",{style:"display:flex;align-items:center;flex-wrap:wrap"}, [lightsSaveBtn, lightsStatus]));
   wrap.appendChild(lightsCard);
+
+  // ── Edition & tier ──
+  // What this build is and what the key lets it do (licence.py). The reveal
+  // switch exists only on a Bright build: hide-by-default, never hidden for
+  // good. The tier override can only LOWER the effective tier — it is how a
+  // Pro developer looks at what a free or Bright user sees, and never a way
+  // past the licence.
+  const edCard = el("div",{class:"card",style:"padding:16px;margin-top:20px"});
+  const _ed = String(settings.edition || "full"), _tier = String(settings.tier || "free");
+  edCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#a7f3d0;margin-bottom:6px"},"Edition & tier"));
+  edCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
+    `This build: ${_ed === "bright" ? "PadSpan Bright" : "PadSpan HA"} · running at tier "${_tier}"` +
+    (settings.license_tier_override ? ` (override: ${settings.license_tier_override})` : "") + `.`));
+  if(_ed === "bright"){
+    const revRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px"});
+    const revCb = el("input",{type:"checkbox"});
+    revCb.checked = !!settings.bright_reveal_presence;
+    revCb.addEventListener("change", async ()=>{
+      await ctx.actions.settingsSet({ bright_reveal_presence: revCb.checked });
+      ctx.actions.renderNav();
+    });
+    revRow.appendChild(revCb);
+    revRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show the presence tabs too (Overview, Follow, Calibration, …)"));
+    edCard.appendChild(revRow);
+  }
+  if(ctx.state.complexity === "development"){
+    const ovRow = el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap"});
+    ovRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:13px"}, "Look at this install as tier:"));
+    const ovSel = document.createElement("select"); ovSel.className = "select";
+    for(const [v,l] of [["","(no override)"],["free","free"],["bright","bright"],["pro","pro"]]){
+      const o = document.createElement("option"); o.value = v; o.textContent = l; ovSel.appendChild(o);
+    }
+    ovSel.value = String(settings.license_tier_override || "");
+    ovSel.addEventListener("change", async ()=>{
+      await ctx.actions.settingsSet({ license_tier_override: ovSel.value });
+      ctx.toast(ovSel.value ? `Viewing as tier ${ovSel.value} (lower only)` : "Tier override cleared");
+      ctx.actions.renderRooms();
+    });
+    ovRow.appendChild(ovSel);
+    ovRow.appendChild(el("span",{class:"muted",style:"font-size:11px"}, "lowers only — the licence still decides upward"));
+    edCard.appendChild(ovRow);
+  }
+  wrap.appendChild(edCard);
 
   return wrap;
 }

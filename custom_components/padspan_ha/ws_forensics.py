@@ -199,9 +199,13 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             f"Could not reach the licence server ({err}). Check the internet connection and try again.")
         return
     if data.get("valid"):
+        from .licence import normalize_tier  # noqa: PLC0415
+        # The server names the tier it sold ("pro" / "bright"). A server that
+        # does not (yet) say is a Pro key — see licence.key_tier.
         await st.async_set(
             forensics_license_key=key,
             forensics_license_expires=str(data.get("expires_at") or ""),
+            license_tier=normalize_tier(data.get("tier"), default="pro"),
             forensics_enabled=True,
         )
         _invalidate_snapshot_cache(hass)
