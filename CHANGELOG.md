@@ -4,6 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.34.4 — Outside, by the site's coverage envelope; auto-calibration writes fingerprints (2026-08-17)
+
+### Added — positioning
+- **Outside attribution.** A device on the property but not in the building is heard by every indoor scanner faintly, and the strongest of several faint readings is a perimeter room — a parked vehicle lived in a closet. What is always true of an outside device on a covered site is that no scanner hears it well, and the site now measures that about itself: the **coverage floor** is the low tail of the strongest reading over its indoor calibration fingerprints (modelled from scanner geometry until it has enough; inactive on a site with no outdoors). Below it: the indoor solve does not run; if an outdoor scanner hears the device, that scanner's area is the room; otherwise the nearest scanner's room stands and `outside: true` says what it is worth. 4 dB hysteresis; the two numbers that decided it are in diagnostics and the map tooltip; the capture header records the floor. Plan and options: `docs/outside-attribution-plan.md`.
+
+### Fixed — calibration data
+- **Auto-calibration wrote one scanner's reading, not a fingerprint.** One Kalman value per scanner every ten minutes — including scanners only decaying toward silence — so every auto point failed the sample gate and was kept as its single strongest reading, flagged undersampled: 406 on the reference house, fifty of them "−95 dBm from one scanner = Bedroom Closet". k-NN matched them on any faint reading. Raw samples now accumulate per scanner and a point is written when at least two scanners each have enough (the rule the live k-NN query applies to itself). A migration drops the one-scanner auto points — made by us, no location information; points a person recorded are untouched.
+- One outdoor-floor vocabulary (`const.OUTDOOR_FLOOR_NAMES`), read by the storey ranking and the outside rule alike.
+
+---
+
 ## 0.34.3 — Identity, walls and lights in the fabric; websocket.py split (2026-08-17)
 
 ### Fixed — identity (the "closet beacon" flips)

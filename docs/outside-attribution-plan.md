@@ -172,3 +172,30 @@ store and the new rule read them there — one definition, no third copy.
 - Live: the Bronco, parked, ends up in the outdoor area whose scanner hears it
   (Richard's Shed / Outside), and stays there; the capture records the floor
   used.
+
+## Built (2026-08-17) — and what the site taught us on the way
+
+Implemented as planned (`presence_rules.py`, `_smooth_room`, `obj.outside`,
+capture header `cov_floor`, one outdoor vocabulary in `const`). Two things the
+live site forced into the open:
+
+1. **The measured floor came out at −96.** Not because the house hears badly
+   — because 406 of its 746 calibration points were auto-injected from pinned
+   beacons as *one Kalman value per scanner*, which the store's sample gate
+   reduced to a single strongest reading flagged `undersampled`. Fifty of them
+   said "−95 dBm from one scanner = Bedroom Closet". Those are not
+   fingerprints; k-NN matched them on any faint reading (that is what dragged
+   the parked Bronco into the closet), and they set the envelope. Fixed at the
+   source — auto-calibration now accumulates raw samples per scanner and
+   writes a point only when at least two scanners each have enough — with a
+   one-off migration dropping the one-scanner auto points (made by us, no
+   location information; human points untouched), and the floor reads only
+   real fingerprints. Measured floor on the reference house after hygiene:
+   **−90 over 144 fingerprints**.
+2. **Below the floor with no outdoor evidence, the indoor solve is not run**
+   (an x/y from sub-envelope readings is a centroid inside the house — the
+   closet teleport in another form); the strongest-scanner room still names
+   the nearest room, and `obj.outside` says what that room is worth. The
+   Bronco now reads `outside_by_coverage: best=−92, floor=−91, area=none` →
+   nearest room Entry, flagged outside; the moment an outdoor scanner hears it
+   within the grace, that scanner's area is the room.
