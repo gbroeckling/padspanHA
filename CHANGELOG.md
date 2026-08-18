@@ -4,6 +4,28 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.35.0 — Stable: PadSpan Bright's foundations, the Bluetooth view restyled, IRKs told the truth, and an opt-in usage report (2026-08-18)
+
+The first stable since 0.34.4. Everything below shipped and was verified as pre-releases 0.34.5–0.34.11 on a live install before this promotion.
+
+### The tier model and PadSpan Bright's foundations (not yet a separate download)
+- One owner of "what may this install do" (`licence.py`): `free < bright < pro`, `effective tier = max(shipped floor, key tier)`. The floor is a build constant, never fetched — a lighting map never waits on a licence server. **A key with no tier field resolves to `pro`**, so no existing customer is demoted.
+- Light placement now gates at `bright` rather than `pro`: a PadSpan Bright Pro key or a PadSpan Pro key both unlock it.
+- **Mapping → Lights is never hidden.** Below the `bright` tier it shows the free lighting map — rooms, floors, one marker per light in its room, click to switch — with placement, shapes, sizes, WLED, Showcase and Fit room withheld from the *drawing only*. Nothing stored is touched; enter a key and every placement returns exactly as it was.
+- An importer for anyone who maps a house in PadSpan Bright and later installs PadSpan HA (Health → Import from PadSpan Bright): backs up first, refuses a non-empty house, never merges.
+
+### The Bluetooth view, restyled
+- One visual language across all five sub-tabs: a four-bar signal meter and tabular dBm everywhere signal is shown, one chip vocabulary, one row treatment, key/value detail panes, empty states that explain themselves. Same screens, same controls, same data — the view had four ways to draw "signal" and three greys doing one job.
+
+### Private BLE (IRK)
+- **`irk_add` refuses what cannot work.** A value that is really an iBeacon UUID on the air is rejected and the beacon named — the Companion App shows that UUID on the very screen people look for the key, and pasting it produced "0 resolved" forever with no explanation. A key that resolves nothing is refused unless you save it unverified (the phone is away).
+- A fingerprint bridge is an inference, not an identity: a bridged object is no longer marked identified, and a stale bridge expires instead of being resurrected from history indefinitely.
+
+### Help improve PadSpan (opt-in, off by default)
+- Settings → Update Check & Privacy → **Help improve PadSpan**. Once a day, counts, versions and flags only — never addresses, keys, device / room / floor names, coordinates, or timestamps finer than the day. **Preview what would be sent** shows the exact report; the code refuses to send anything identifier-shaped; the event vocabulary is a closed list; opting in is an administrator action. PadSpan is developed against one house — this is how features that only exist in yours get seen.
+
+---
+
 ## 0.34.11 — The usage report describes a house, not an empty one (2026-08-18)
 
 ### Fixed
