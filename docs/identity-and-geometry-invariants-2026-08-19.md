@@ -118,14 +118,29 @@ unit was honest; the input was not.
 > confined to an explicit cold-start window, are labelled as such, and are never
 > consulted once liveness is known.
 
-**And the memory must persist.** Today it is
-`hass.data[DATA_BEACON_LAST_MACS]` — RAM only (`snapshot_builder.py:795`,
-`:1137`). Every Home Assistant restart destroys every identity's history, so
-every device re-enters cold start and is judged by the proxies again until
-liveness rebuilds. That is a structural reason for tracking churn after a
-restart, and it is invisible because nothing reports it.
+**The memory must NOT persist.** An earlier draft of this document said to
+persist `hass.data[DATA_BEACON_LAST_MACS]` across restarts, on the reasoning
+that a restart re-enters cold start for every device. That was wrong, and it
+contradicted the invariant directly above it.
 
-It is a few hundred bytes per identity. Persist it.
+*Durable* means **"I have observed this address re-advertise."** After a
+restart nothing has been observed. Restoring the flag makes the system assert
+an observation it never made — evidence manufactured to avoid admitting a gap,
+which is the same disease as the 60-second window in the opposite direction.
+Cold start is not a defect to engineer around; it is the honest state, and the
+`memory_is_settled` path already says so.
+
+It would also buy almost nothing. Roughly thirty per-object dicts are RAM only
+and die on the same restart — `_ema_rssi`, `_kalman_p`, `_room_votes`,
+`_confirmed_room`, `_knn_position`, `_coverage_hist` among them. Restoring
+identity alone hands a correct split to a pipeline that still cannot place
+anything, for the ~15 s (`_SETTLED_POLLS = 3`) it would have taken to
+re-measure liveness anyway — inside a window where scanners are still
+re-registering.
+
+The post-restart churn that prompted the idea was those other states, not this
+one. **If a restart's churn is ever worth fixing, fix it where it is: the
+smoothing and vote state, and only after measuring which one dominates.**
 
 ---
 
@@ -204,14 +219,16 @@ be trusted about it.
 
 ## Order of work
 
-1. **I3-persistence** — persist the identity memory. Smallest change, removes a
-   whole class of post-restart churn, independent of everything else.
-2. **I4** — read the placement engine and answer the question above. Nothing
+1. **I4** — read the placement engine and answer the question above. Nothing
    further should be designed around geometry until this is known.
-3. **I1** — make world placement derived. Deletes six pieces of machinery,
+2. **I1** — make world placement derived. Deletes six pieces of machinery,
    including most of what was written for #62.
-4. **I2** — falls out of I1: with one stored geometry there is nothing for a
+3. **I2** — falls out of I1: with one stored geometry there is nothing for a
    writer to consult an anchor for.
+
+*(A fourth item, "persist the identity memory", was listed first here and has
+been struck — see I3. It asserted evidence the system had not gathered, which
+is the opposite of what I3 says.)*
 
 ---
 
