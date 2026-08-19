@@ -45,6 +45,16 @@
   letter-spacing:-.005em;
 }
 
+/* Tracking is for HTML chrome ONLY. The map, plan and heatmap renderers draw
+   SVG <text> inside a 0-1 normalised viewBox at font-size ~0.04 USER UNITS,
+   while letter-spacing inherits as an absolute length — -.005em resolves to
+   about -0.07px, which is nearly two font-sizes of negative tracking per
+   glyph. Each character then lands to the LEFT of the one before it, so room
+   and barrier labels render reversed and spread out ("yrtnaP" for "Pantry").
+   Inheritance into SVG text is not wanted anywhere, so reset it once here
+   rather than at each renderer. */
+svg text, svg tspan { letter-spacing: normal; }
+
 /* ── Shell ───────────────────────────────────────────────────────────────── */
 .app{grid-template-columns:248px 1fr;background:var(--bg)}
 .app.mini{grid-template-columns:60px 1fr}
