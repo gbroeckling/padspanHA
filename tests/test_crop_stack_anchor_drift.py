@@ -281,3 +281,80 @@ def test_geometry_faults_are_silent_without_an_anchor() -> None:
     """Nothing measured anywhere: no basis to judge, so no noise."""
     unmeasured = {k: v for k, v in _MEASURED.items() if k != "reference_measurements"}
     assert _faults([_clean_map("clean")], {"clean": unmeasured}) == []
+
+
+# ── The raw-affine (_m) branch ───────────────────────────────────────────────
+# Point-Align-solved maps carry a solved 2x2 matrix instead of
+# scale/scale_x_adj/rotation, and take a different branch through
+# _recrop_stack. Same invariant: a feature that survives the cut keeps its
+# world coordinate, and the map's world footprint scales by what was kept.
+
+def _affine_map(a: float, b: float, c: float, d: float, *, ox=0.0, oy=0.0) -> dict:
+    m = _map(1600, 1200)
+    m["stack"] = {
+        "_m": [a, b, c, d], "_m_ar": 0.75, "ref_ar": 0.75,
+        "x_offset": ox, "y_offset": oy, "is_master": True,
+    }
+    return m
+
+
+@pytest.mark.parametrize("a,b,c,d,label", [
+    (1.0, 0.0, 0.0, 1.0, "identity"),
+    (0.8, 0.0, 0.0, 1.3, "anisotropic, no shear"),
+    (1.0, 0.25, -0.15, 0.9, "sheared"),
+    (0.0, -1.0, 1.0, 0.0, "90-degree rotation"),
+])
+@pytest.mark.parametrize("fx0,fy0,fw,fh", [
+    (0.0, 0.0, 1.0, 1.0),      # identity crop
+    (0.0, 0.0, 0.5, 0.5),      # symmetric, top-left
+    (0.0, 0.0, 0.5, 1.0),      # anisotropic
+    (0.25, 0.10, 0.50, 0.40),  # off-centre
+])
+def test_affine_crop_keeps_a_surviving_feature_in_place(a, b, c, d, label, fx0, fy0, fw, fh) -> None:
+    from custom_components.padspan_ha.maps_store import MapsStore
+    from custom_components.padspan_ha.model_store import _recrop_stack
+
+    stk_old = _affine_map(a, b, c, d, ox=0.13, oy=-0.07)["stack"]
+
+    # A feature at the centre of the retained rectangle, plus two more inside it.
+    for fx, fy in ((0.5, 0.5), (0.25, 0.75), (0.9, 0.1)):
+        px_old = fx0 + fx * fw
+        py_old = fy0 + fy * fh
+        world_before = MapsStore.map_to_world(px_old, py_old, stk_old)
+
+        stk_new = _recrop_stack(stk_old, fx0, fy0, fw, fh)
+        assert stk_new is not None, f"{label}: affine branch refused a representable crop"
+        world_after = MapsStore.map_to_world(fx, fy, stk_new)
+
+        assert world_after[0] == pytest.approx(world_before[0], abs=1e-9), (
+            f"{label} crop=({fx0},{fy0},{fw},{fh}) pt=({fx},{fy}): world x moved"
+        )
+        assert world_after[1] == pytest.approx(world_before[1], abs=1e-9), (
+            f"{label} crop=({fx0},{fy0},{fw},{fh}) pt=({fx},{fy}): world y moved"
+        )
+
+
+def test_affine_identity_crop_changes_nothing() -> None:
+    from custom_components.padspan_ha.model_store import _recrop_stack
+    stk = _affine_map(0.8, 0.25, -0.15, 1.3, ox=0.13, oy=-0.07)["stack"]
+    out = _recrop_stack(stk, 0.0, 0.0, 1.0, 1.0)
+    assert out["_m"] == pytest.approx(stk["_m"])
+    assert out["x_offset"] == pytest.approx(stk["x_offset"])
+    assert out["y_offset"] == pytest.approx(stk["y_offset"])
+    assert out["_m_ar"] == pytest.approx(stk["_m_ar"]), "the frame's anisotropy is not the map's to rescale"
+
+
+def test_affine_crop_scales_the_world_footprint_by_what_was_kept() -> None:
+    """Half the width kept -> the image spans half the world x it used to."""
+    from custom_components.padspan_ha.maps_store import MapsStore
+    from custom_components.padspan_ha.model_store import _recrop_stack
+
+    stk = _affine_map(1.0, 0.0, 0.0, 1.0)["stack"]
+    span_before = (MapsStore.map_to_world(1.0, 0.5, stk)[0]
+                   - MapsStore.map_to_world(0.0, 0.5, stk)[0])
+
+    out = _recrop_stack(stk, 0.0, 0.0, 0.5, 1.0)
+    span_after = (MapsStore.map_to_world(1.0, 0.5, out)[0]
+                  - MapsStore.map_to_world(0.0, 0.5, out)[0])
+
+    assert span_after == pytest.approx(span_before * 0.5)
