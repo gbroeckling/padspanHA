@@ -117,3 +117,54 @@ def test_every_view_module_is_reachable(smoke) -> None:
     imports = [f for f in smoke["failures"] if f["fn"] == "<import>"]
     assert not imports, "module(s) failed to import: " + ", ".join(
         f"{f['file']} ({f['error']})" for f in imports)
+
+
+# ── this.actions ─────────────────────────────────────────────────────────────
+# `this.actions` is never assigned on the panel element — the actions object
+# lives on the ctx handed to views. Every `this.actions.x()` is therefore a
+# guaranteed TypeError at the moment it runs.
+#
+# One shipped in 0.35.0, inside setMapsTab:
+#
+#     setMapsTab: (t)=>{ this.state.mapsTab=t;
+#                        this.actions.telemetryEvent("tab:maps/" + t);
+#                        ... this._scheduleRender(); }
+#
+# It set the tab, threw, and never reached the render. Clicking any Mapping
+# sub-tab changed the state and left the previous tab's DOM on screen, so the
+# whole Mapping view read as "the tabs don't load" — with the click handler
+# throwing into a console nobody was watching. Same family as the four
+# ReferenceErrors in this module's docstring: valid syntax, dead on execution.
+#
+# Optional-chained uses (`this.actions?.x`) are safe — they no-op instead of
+# throwing — so this checks for the unguarded form only, and does not force
+# unrelated dead code to be rewritten.
+
+_PANEL_JS = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "panel.js"
+
+
+def test_panel_never_calls_this_actions_unguarded() -> None:
+    import re
+
+    src = _PANEL_JS.read_text(encoding="utf-8")
+    lines = src.splitlines()
+    offenders = []
+    for i, line in enumerate(lines, 1):
+        code = line.split("//", 1)[0]          # comments describe the bug; they are not it
+        if not re.search(r"this\.actions\s*\.", code):
+            continue
+        # `this.actions?.x` no-ops instead of throwing, whether the guard is on
+        # this line or the `if` immediately above it.
+        guarded_here = "this.actions?." in code
+        prev = lines[i - 2].split("//", 1)[0] if i >= 2 else ""
+        guarded_above = "this.actions?." in prev
+        if guarded_here or guarded_above:
+            continue
+        offenders.append(f"  panel.js:{i}: {line.strip()[:110]}")
+
+    assert not offenders, (
+        "`this.actions` is never assigned on the panel element, so an unguarded "
+        "call throws the moment it runs. Use this._callWS(...) directly, or "
+        "optional-chain it if the call is genuinely optional.\n"
+        + "\n".join(offenders)
+    )

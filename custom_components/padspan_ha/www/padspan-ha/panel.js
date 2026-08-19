@@ -1831,7 +1831,25 @@ class PadSpanHaApp extends HTMLElement {
         showScannerDetail: (scanner) => this._showScannerDetail(scanner),
 
         // Mapping suite actions
-        setMapsTab: (t)=>{ this.state.mapsTab=t; this.actions.telemetryEvent("tab:maps/" + t); if(t==="library") this._getMapsList().then(()=>this._scheduleRender()).catch(()=>this._scheduleRender()); else this._scheduleRender(); },
+        setMapsTab: (t)=>{
+          this.state.mapsTab = t;
+          // Opt-in usage report. This called a telemetryEvent() helper off
+          // `this.actions`,
+          // and `this.actions` has never existed on the element — the actions
+          // live on the ctx object handed to views. So EVERY Mapping sub-tab
+          // click threw a TypeError here, before reaching the render below.
+          // The tab state changed and the screen never redrew, which is what
+          // "the Mapping tabs don't load" was: not a hang, a swallowed throw
+          // leaving the previous tab's DOM on screen.
+          //
+          // Matches the guarded, non-throwing call _switchView already uses.
+          // Nothing leaves the browser unless the report is switched on.
+          if (this.state.settings && this.state.settings.telemetry_enabled) {
+            this._callWS({ type: "padspan_ha/telemetry_event", event: "tab:maps/" + t }).catch(() => {});
+          }
+          if (t === "library") this._getMapsList().then(()=>this._scheduleRender()).catch(()=>this._scheduleRender());
+          else this._scheduleRender();
+        },
         mapsRefresh: async ()=>{ await this._getMapsList(); this._scheduleRender(); },
         mapsSetActive: (id)=>{ this.state.activeMapId=id; this._scheduleRender(); },
         mapsDelete: async (id)=>{ await this._callWS({ type:"padspan_ha/maps_delete", map_id:id }); await this._getMapsList(); if(this.state.activeMapId===id) this.state.activeMapId=null; this._scheduleRender(); },
