@@ -166,6 +166,12 @@ def stack_world_xform(stk: dict | None, fallback_ar: float) -> Callable[[float, 
     return map_pt
 
 
+# How far the two axis scales may disagree before a map is considered unfit to
+# anchor the house. A well-formed map is 0; a trimmed one is the fraction that
+# was cut off, so anything above a couple of percent is a real disagreement.
+ANCHOR_ISO_TOL = 0.02
+
+
 def find_metre_anchor(maps_list: list[dict], model_store: Any) -> dict[str, Any] | None:
     """The measured map that pins the shared world frame to metres.
 
@@ -188,6 +194,14 @@ def find_metre_anchor(maps_list: list[dict], model_store: Any) -> dict[str, Any]
     `m_per_world` keeps its old meaning (the x figure) so existing readers are
     unchanged; `iso_error` still reports how far the two disagree.
     """
+    # Candidates are collected rather than returned on first sight: a map whose
+    # two axis scales disagree is a map whose stored metric extent no longer
+    # describes its world footprint — the signature of a trim, which rewrites
+    # map_transforms but leaves the stack alone (issue #62). Anchoring the whole
+    # house to one of those skews every floor, including untrimmed ones.
+    # Prefer a self-consistent map; fall back to today's first-match so an
+    # install whose only measured map is trimmed is never left worse off.
+    candidates: list[dict[str, Any]] = []
     for m in maps_list:
         mid = m.get("id", "")
         t = model_store.map_transform(mid) if mid else None
@@ -211,7 +225,7 @@ def find_metre_anchor(maps_list: list[dict], model_store: Any) -> dict[str, Any]
         m_per_w_x = sx_m / world_w
         m_per_w_y = sy_m / world_h
         iso_error = abs(m_per_w_y - m_per_w_x) / m_per_w_x if m_per_w_x else 1.0
-        return {
+        cand = {
             "map_id": mid,
             # Kept as the x figure so existing readers are unchanged in meaning.
             "m_per_world": round(m_per_w_x, 6),
@@ -219,6 +233,14 @@ def find_metre_anchor(maps_list: list[dict], model_store: Any) -> dict[str, Any]
             "m_per_world_y": round(m_per_w_y, 6),
             "iso_error": round(iso_error, 4),
         }
+        if iso_error <= ANCHOR_ISO_TOL:
+            return cand
+        candidates.append(cand)
+    # Nothing self-consistent: the least-skewed of what there is, flagged so
+    # callers and diagnostics can say so rather than silently drawing it.
+    if candidates:
+        worst = min(candidates, key=lambda c: c["iso_error"])
+        return {**worst, "degraded": True}
     return None
 
 

@@ -154,4 +154,7 @@ def test_the_generated_suite_passes(tree):
     tail = "\n".join((res.stdout or "").strip().splitlines()[-15:])
     assert res.returncode == 0, f"Bright suite failed:\n{tail}\n{(res.stderr or '')[-2000:]}"
     assert re.search(r"\b\d+ passed\b", tail), tail
-    assert "failed" not in tail
+    # Match a real failure count, not the bare word: pytest's summary line says
+    # "2 xfailed" for expected failures, which a substring check reads as a
+    # failure and which returncode 0 above already proves it is not.
+    assert not re.search(r"\b\d+ failed\b", tail), tail

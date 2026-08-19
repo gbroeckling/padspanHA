@@ -30,7 +30,20 @@ export function imageAr(map) {
 
 // Find the measured map that anchors the world frame. Returns
 // {map_id, m_per_world} or null when nothing was ever really measured.
+// How far the two axis scales may disagree before a map is considered unfit to
+// anchor the house. Mirrors ANCHOR_ISO_TOL in fabric_truth.py — the two must
+// pick the same map or the reader and the writer disagree about the fabric.
+const ANCHOR_ISO_TOL = 0.02;
+
 export function metreAnchor(mapsList, modelTransforms) {
+  // Candidates are collected rather than returned on first sight: a map whose
+  // two axis scales disagree is one whose stored metric extent no longer
+  // describes its world footprint — the signature of a trim, which rewrites
+  // map_transforms but leaves the stack alone (issue #62). Anchoring the whole
+  // house to one of those skews every floor, including untrimmed ones. Prefer
+  // a self-consistent map; fall back to the least-skewed so an install whose
+  // only measured map is trimmed is never left worse off than before.
+  const candidates = [];
   for (const m of (mapsList || [])) {
     const t = (modelTransforms || {})[m.id];
     if (!t || !(t.reference_measurements || []).length) continue;
@@ -54,13 +67,23 @@ export function metreAnchor(mapsList, modelTransforms) {
     const ar = Number(stk.ref_ar) || imageAr(m) || 1;
     const worldH = (Number(stk.scale) || 1) * ar;
     if (!(worldW > 0) || !(worldH > 0)) continue;
-    return {
+    const mpwx = sx / worldW, mpwy = sy / worldH;
+    const isoError = mpwx ? Math.abs(mpwy - mpwx) / mpwx : 1;
+    const cand = {
       map_id: m.id,
       // Kept as the x figure so existing readers are unchanged in meaning.
-      m_per_world: sx / worldW,
-      m_per_world_x: sx / worldW,
-      m_per_world_y: sy / worldH,
+      m_per_world: mpwx,
+      m_per_world_x: mpwx,
+      m_per_world_y: mpwy,
+      iso_error: isoError,
     };
+    if (isoError <= ANCHOR_ISO_TOL) return cand;
+    candidates.push(cand);
+  }
+  if (candidates.length) {
+    let worst = candidates[0];
+    for (const c of candidates) if (c.iso_error < worst.iso_error) worst = c;
+    return { ...worst, degraded: true };
   }
   return null;
 }

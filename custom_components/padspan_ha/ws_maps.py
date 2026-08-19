@@ -306,8 +306,12 @@ async def ws_maps_replace_image(hass: HomeAssistant, connection, msg) -> None:
             _scale_invalidated = _has_model and not _mdl.map_transform(_map_id)
             if _recomputed:
                 _n = await _mdl.async_rederive_map_fracs(_map_id, updated)
-                if _n:
+                # A crop also rewrites the map's stack in place — its world
+                # footprint shrinks with the picture — so the maps store has to
+                # be saved even when no fracs needed re-deriving (issue #62).
+                if _n or getattr(_mdl, "_stack_recropped", False):
                     await ms.store.async_save(ms.data)
+                _mdl._stack_recropped = False
             # Phase 3: remap calibration points (with updated transform)
             _cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
             if _cal:

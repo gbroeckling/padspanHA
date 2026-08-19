@@ -211,6 +211,72 @@ def light_appearance(*, color: Any = "", shape: Any = "", rotation: Any = 0.0,
     }
 
 
+def _recrop_stack(stk: dict, fx0: float, fy0: float, fw: float, fh: float) -> dict | None:
+    """Re-derive a map's stack (its world footprint) after a crop.
+
+    The stack says how much shared world space a map's image spans and where
+    its centre sits. Cropping shrinks the picture, so both must move — but
+    only `async_recompute_transform_for_map` ever updated the map's METRIC
+    record, leaving the stack describing the pre-crop image. The metre anchor
+    divides one by the other, so the quotient drifted by the fraction cut off,
+    and by a *different* fraction per axis whenever the trim was not square
+    (issue #62, rjbutler: rooms stretched on one axis, an edge room pushed off
+    the drawn floor, and every other floor skewed too once the trimmed map
+    happened to be the one anchoring the house).
+
+    `ref_ar` is deliberately NOT touched. It is the world frame's y anisotropy,
+    shared with every map that references the same master, and it appears in
+    the y TRANSLATION term (`ar * (0.5 + oy)`) as well as the y span — so
+    rescaling it would both desync the frame and move the map. The x/y spans
+    are corrected through `scale` and `scale_x_adj` instead, which are this
+    map's own.
+
+    Returns a new stack dict, or None when the stack is not of a form this can
+    represent (the caller then leaves it alone rather than guessing).
+    """
+    if not isinstance(stk, dict) or not (fw > 0 and fh > 0):
+        return None
+    out = dict(stk)
+    ox = float(stk.get("x_offset") or 0.0)
+    oy = float(stk.get("y_offset") or 0.0)
+    # Centre of the retained rectangle, as a fraction of the OLD image.
+    u0 = (fx0 + fw / 2.0) - 0.5
+    v0 = (fy0 + fh / 2.0) - 0.5
+
+    _m = stk.get("_m")
+    if isinstance(_m, (list, tuple)) and len(_m) == 4:
+        a, b, c, d = (float(v) for v in _m)
+        # world = M·u + t. Substituting u = F·u' + u0 gives M' = M·F and the
+        # translation picks up M·u0 — the new centre's old world position.
+        out["_m"] = [a * fw, b * fh, c * fw, d * fh]
+        out["x_offset"] = ox + a * u0 + b * v0
+        out["y_offset"] = oy + c * u0 + d * v0
+        return out
+
+    sc = float(stk.get("scale") or 1.0)
+    sxadj = float(stk.get("scale_x_adj") or 1.0)
+    ar = float(stk.get("ref_ar") or 1.0)
+    if sc <= 0 or sxadj <= 0 or ar <= 0:
+        return None
+    rot = math.radians(float(stk.get("rotation") or 0.0))
+
+    # Where the new image's centre sits in world space under the OLD stack.
+    dx = u0 * sc * sxadj
+    dy = v0 * sc * ar
+    wx = (0.5 + ox) + dx * math.cos(rot) - dy * math.sin(rot)
+    wy = ar * (0.5 + oy) + dx * math.sin(rot) + dy * math.cos(rot)
+
+    # x span must scale by fw and y span by fh, with `ar` held fixed:
+    #   scale·ar        -> scale'·ar        =>  scale'  = scale · fh
+    #   scale·scale_x_adj -> scale'·sxadj'  =>  sxadj'  = sxadj · fw / fh
+    out["scale"] = sc * fh
+    out["scale_x_adj"] = sxadj * fw / fh
+    # The new centre is (0.5, 0.5) of the new image, where dx = dy = 0.
+    out["x_offset"] = wx - 0.5
+    out["y_offset"] = wy / ar - 0.5
+    return out
+
+
 @dataclass
 class ModelStore:
     hass: HomeAssistant
@@ -1239,6 +1305,7 @@ class ModelStore:
 
         Returns True if the transform was updated (False = skipped or dropped).
         """
+        self._stack_recropped = False
         cal = map_dict.get("calibration") or {}
         img = map_dict.get("image") or {}
         img_w = int(img.get("width") or 0)
@@ -1328,6 +1395,14 @@ class ModelStore:
                     float(old_t.get("origin_x_m", 0)) + _dx,
                     float(old_t.get("origin_y_m", 0)) + _dy,
                 )
+                # The stack has to follow the crop too, or the map keeps a
+                # post-crop metric extent beside a pre-crop world footprint and
+                # the metre anchor divides one by the other (issue #62).
+                _new_stk = _recrop_stack(map_dict.get("stack") or {},
+                                         _fx0, _fy0, _fw, _fh)
+                if _new_stk is not None:
+                    map_dict["stack"] = _new_stk
+                    self._stack_recropped = True
 
         if composed is None and not scale_x_m:
             ppm = cal.get("px_per_meter")
