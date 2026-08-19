@@ -259,6 +259,19 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     except Exception:
         resolving = 0
 
+    # Read-only self-check: maps whose geometry disagrees with itself.
+    _geometry_faults = 0
+    _anchor_faulted = False
+    try:
+        from . import fabric_truth as _ft  # noqa: PLC0415
+        _mdl_store = dom.get(DATA_MODEL)
+        if _mdl_store is not None:
+            _faults = _ft.map_geometry_faults(maps.get("maps") or [], _mdl_store)
+            _geometry_faults = len(_faults)
+            _anchor_faulted = any(f.get("is_anchor") for f in _faults)
+    except Exception:
+        pass
+
     env = {
         "scanners": len(radios),
         "scanner_kinds": scanner_kinds,
@@ -301,6 +314,13 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         # How long since HA (re)started, coarsely — restart churn is a health
         # signal; a start time finer than that would be one thing too many.
         "uptime": _uptime_bucket(time.monotonic() - started) if isinstance(started, (int, float)) else "unknown",
+        # Maps whose stored scale and stored placement no longer describe the
+        # same picture, and whether one of them is the map anchoring the house
+        # (which makes rooms wrong on every OTHER floor too). A COUNT and a
+        # flag — no map names, no coordinates, nothing about the building.
+        # This class of bug cost a user weeks of screenshots to surface once.
+        "maps_geometry_faulted": _geometry_faults,
+        "geometry_anchor_faulted": _anchor_faulted,
     }
     usage = _take_counters(hass) if consume else dict(dom.get(_DATA_COUNTERS) or {})
     # WARNING+ log lines by module since the last report — the "what broke"

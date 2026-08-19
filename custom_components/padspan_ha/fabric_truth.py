@@ -322,6 +322,84 @@ def _anchor_scales(anchor: dict[str, Any]) -> tuple[float, float]:
     return kx, ky
 
 
+# Thresholds for map_geometry_faults(). Deliberately generous: this reports a
+# map that is genuinely broken, not one whose hand alignment is a little loose.
+GEOMETRY_SCALE_TOL = 0.05      # fraction
+GEOMETRY_ORIGIN_TOL_M = 0.5    # metres
+
+
+def map_geometry_faults(maps_list: list[dict], model_store: Any) -> list[dict[str, Any]]:
+    """Maps whose stored geometry no longer agrees with itself. READ ONLY.
+
+    Two independent signals, both computed from data already on disk:
+
+    `iso_error` — the map's two metres-per-world-unit figures disagree. A
+    healthy map has one scale; a map with two is one whose metric extent and
+    world footprint were updated by different code paths. This is what a trim
+    did before the crop path re-derived the stack (issue #62), and it is why a
+    trimmed map drew its rooms stretched on one axis.
+
+    `origin_delta_m` / `scale_error_frac` — the placement implied by the map's
+    stack does not match the placement in its stored transform. Same root
+    cause, measured at the other end.
+
+    Reported per map so a critic can name it and the opt-in usage report can
+    count it. Nothing here changes rendering, gates a write, or repairs
+    anything — the whole point is that an install can say what is wrong with it
+    without the owner having to notice and screenshot it first.
+    """
+    anchor = find_metre_anchor(maps_list, model_store)
+    if not anchor:
+        return []
+    out: list[dict[str, Any]] = []
+    for m in (maps_list or []):
+        mid = m.get("id", "")
+        if not mid:
+            continue
+        t = model_store.map_transform(mid)
+        if not t:
+            continue
+        st = stack_metre_transform(m, anchor)
+        if not st:
+            continue
+        try:
+            sx = float(t.get("scale_x_m") or 0); sy = float(t.get("scale_y_m") or 0)
+            ox = float(t.get("origin_x_m") or 0); oy = float(t.get("origin_y_m") or 0)
+        except (TypeError, ValueError):
+            continue
+        if sx <= 0 or sy <= 0:
+            continue
+        scale_err = max(
+            abs(sx - st["scale_x_m"]) / sx,
+            abs(sy - st["scale_y_m"]) / sy,
+        )
+        origin_delta = math.hypot(ox - st["origin_x_m"], oy - st["origin_y_m"])
+        # This map's own two axis scales, independent of the anchor map.
+        stk = m.get("stack") or {}
+        sc = float(stk.get("scale") or 1)
+        world_w = sc * float(stk.get("scale_x_adj") or 1)
+        world_h = sc * (float(stk.get("ref_ar") or image_ar(m) or 1))
+        iso = 0.0
+        if world_w > 0 and world_h > 0:
+            mx, my = sx / world_w, sy / world_h
+            iso = abs(my - mx) / mx if mx else 0.0
+        if (scale_err <= GEOMETRY_SCALE_TOL
+                and origin_delta <= GEOMETRY_ORIGIN_TOL_M
+                and iso <= ANCHOR_ISO_TOL):
+            continue
+        out.append({
+            "map_id": mid,
+            "name": str(m.get("name") or mid),
+            "floor_id": str(m.get("floor_id") or "main"),
+            "iso_error": round(iso, 4),
+            "scale_error_frac": round(scale_err, 4),
+            "origin_delta_m": round(origin_delta, 3),
+            "is_anchor": mid == anchor.get("map_id"),
+            "anchor_degraded": bool(anchor.get("degraded")),
+        })
+    return out
+
+
 def rooms_from_stack(floor_maps: list[dict], anchor: dict[str, Any]) -> dict[str, dict]:
     """Rooms in metres via the hand-tuned stack composition + metre anchor."""
     m_per_w_x, m_per_w_y = _anchor_scales(anchor)

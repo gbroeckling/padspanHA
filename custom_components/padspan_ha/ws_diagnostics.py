@@ -520,6 +520,46 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
         except Exception:
             pass
 
+    # ── 2b. Map geometry self-consistency ────────────────────────────────────
+    # A map whose stored scale and stored placement no longer describe the same
+    # thing. Nobody notices this by looking at the map — it shows up as rooms
+    # drawn in the wrong place on a DIFFERENT floor, because one bad map can
+    # anchor the whole house. It took a user's screenshots to find it the first
+    # time (issue #62); this is so an install can say it itself.
+    try:
+        from . import fabric_truth as _ft  # noqa: PLC0415
+        _ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+        _mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+        if _ms and _mdl:
+            for _f in _ft.map_geometry_faults(_ms.data.get("maps") or [], _mdl):
+                _bits = []
+                if _f["iso_error"] > _ft.ANCHOR_ISO_TOL:
+                    _bits.append(f"its two axis scales disagree by {_f['iso_error'] * 100:.0f}%")
+                if _f["scale_error_frac"] > _ft.GEOMETRY_SCALE_TOL:
+                    _bits.append(f"stored scale is {_f['scale_error_frac'] * 100:.0f}% off its placement")
+                if _f["origin_delta_m"] > _ft.GEOMETRY_ORIGIN_TOL_M:
+                    _bits.append(f"placed {_f['origin_delta_m']:.1f} m from where its scale says")
+                critics.append({
+                    "category": "map_geometry",
+                    "severity": "critical" if _f["is_anchor"] else "warning",
+                    "title": f"Map “{_f['name']}” disagrees with its own geometry",
+                    "message": (
+                        "This map's stored scale and its position in the stack no longer "
+                        "describe the same picture — " + ", ".join(_bits) + ". "
+                        + ("It is also the map anchoring every floor to metres, so rooms on "
+                           "OTHER floors will be drawn wrong too. "
+                           if _f["is_anchor"] else "")
+                        + "Trimming a map on a build before 0.36 did this."
+                    ),
+                    "action": (
+                        "Re-measure this map (Mapping → Edit → Measure) so its scale "
+                        "and placement are derived together again. Do NOT redraw the rooms — "
+                        "room geometry is stored in metres and is not what is wrong here."
+                    ),
+                })
+    except Exception:
+        pass
+
     # ── 3. Scanner Disagreement (from coordinator Phase 3 data) ───────────────
     scanner_critics: list[dict[str, Any]] = []
     if coord and hasattr(coord, "_scanner_reliability"):

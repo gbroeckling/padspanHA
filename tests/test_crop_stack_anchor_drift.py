@@ -233,3 +233,51 @@ def test_recrop_stack_is_identity_for_a_full_frame_crop() -> None:
 def _recrop_stack_ref(stk: dict) -> dict:
     from custom_components.padspan_ha.model_store import _recrop_stack
     return _recrop_stack(stk, 0.0, 0.0, 1.0, 1.0)
+
+
+# ── The remote self-check ────────────────────────────────────────────────────
+# map_geometry_faults() is what lets an install report this class of bug
+# itself, instead of it taking a user's screenshots to surface. Read only:
+# it gates nothing and repairs nothing.
+
+def _faults(maps, transforms):
+    store = ModelStore.__new__(ModelStore)
+    store.hass = MagicMock()
+    store.store = AsyncMock()
+    store.data = {"map_transforms": transforms}
+    return fabric_truth.map_geometry_faults(maps, store)
+
+
+def test_a_healthy_map_reports_no_geometry_fault() -> None:
+    assert _faults([_clean_map("clean")], {"clean": dict(_MEASURED)}) == []
+
+
+def test_a_trimmed_map_reports_itself() -> None:
+    """The signal that would have named rjbutler's install without a screenshot."""
+    out = _faults([_trimmed_map("trimmed")], {"trimmed": dict(_TRIMMED_T)})
+
+    assert len(out) == 1
+    f = out[0]
+    assert f["map_id"] == "trimmed"
+    # Half the width cut off: its two axis scales now disagree by 100%.
+    assert f["iso_error"] == pytest.approx(1.0, abs=0.01)
+    # It is also the only measured map, so it anchors the house — the case that
+    # makes rooms wrong on floors that were never touched.
+    assert f["is_anchor"] is True
+    assert f["anchor_degraded"] is True
+
+
+def test_a_trimmed_map_beside_a_clean_one_is_named_but_not_the_anchor() -> None:
+    out = _faults([_clean_map("clean"), _trimmed_map("trimmed")],
+                  {"clean": dict(_MEASURED), "trimmed": dict(_TRIMMED_T)})
+
+    assert [f["map_id"] for f in out] == ["trimmed"], "the clean map must not be flagged"
+    f = out[0]
+    assert f["is_anchor"] is False, "the guard kept the skewed map from anchoring"
+    assert f["scale_error_frac"] > fabric_truth.GEOMETRY_SCALE_TOL
+
+
+def test_geometry_faults_are_silent_without_an_anchor() -> None:
+    """Nothing measured anywhere: no basis to judge, so no noise."""
+    unmeasured = {k: v for k, v in _MEASURED.items() if k != "reference_measurements"}
+    assert _faults([_clean_map("clean")], {"clean": unmeasured}) == []
