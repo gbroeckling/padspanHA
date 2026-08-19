@@ -111,6 +111,23 @@ COVERAGE_MIN_POINTS = 30       # fewer indoor calibration points: rule inactive
 COVERAGE_PERCENTILE = 0.05     # the low tail of "strongest reading" indoors
 COVERAGE_HYSTERESIS_DB = 2.0   # enter below floor-2, leave above floor+2
 
+# How many polls of best-RSSI the outside rule looks back over before it will
+# claim a device has left the building.
+#
+# The rule reads the STRONGEST scanner still inside the silence grace. When the
+# scanner that hears a device best goes quiet, that value does not degrade — it
+# drops to the next-best, which can be 25-30 dB lower, and crosses the floor in
+# a single poll. "Its best radio stopped reporting" and "it left the building"
+# are not the same event, and instantaneous max cannot tell them apart. Worse,
+# scanners are shared: every device whose best hearer went quiet flips in the
+# SAME poll, which is why the symptom is a whole house going outside at once
+# rather than one device drifting.
+#
+# Six polls is ~30s at the default interval: long enough to ride out a radio
+# missing a few reports, short enough that a vehicle actually leaving is
+# outside within half a minute.
+COVERAGE_WINDOW_POLLS = 6
+
 
 def is_outdoor_floor(floor_id: Any) -> bool:
     """Whether a floor id names the outdoors — the fabric sentinel or a
@@ -212,18 +229,51 @@ def _point_in_poly(x: float, y: float, poly: list) -> bool:
     return inside
 
 
-def outside_by_coverage(best_live_dbm: float | None, coverage_floor: float | None,
+def coverage_evidence(history: list[float] | None, best_live_dbm: float | None,
+                      *, window: int = COVERAGE_WINDOW_POLLS) -> tuple[list[float], float | None]:
+    """Fold this poll's best reading into the trailing window.
+
+    Returns (new_history, best_recent). `best_recent` is the strongest reading
+    in the window, so a scanner going quiet cannot cliff it — the device has to
+    be unheard by EVERYTHING for the whole window before the value falls.
+
+    Polls where nothing was heard contribute nothing rather than a sentinel: a
+    device that is simply not advertising is not evidence about where it is.
+    """
+    hist = list(history or [])
+    if best_live_dbm is not None:
+        hist.append(float(best_live_dbm))
+    if len(hist) > window:
+        hist = hist[-window:]
+    return hist, (max(hist) if hist else None)
+
+
+def outside_by_coverage(best_recent_dbm: float | None, coverage_floor: float | None,
                         was_outside: bool, *, band_db: float = COVERAGE_HYSTERESIS_DB) -> bool:
-    """Is the object outside the covered building this poll?
+    """Is the object outside the covered building?
 
     Enter below floor − band, leave above floor + band, hold in between; with
     no floor (rule inactive) or nothing heard, the answer is 'not by this rule'.
+
+    `best_recent_dbm` is the strongest reading over the last few polls (see
+    coverage_evidence), NOT this poll's. The asymmetry that produces is
+    deliberate and is the point of the rule:
+
+      * going outside is SLOW — it disables the indoor solve, so it is the
+        destructive claim and has to survive a whole window of evidence
+      * coming back inside is IMMEDIATE — one strong reading raises the
+        window's max at once, and being wrongly inside costs nothing worse
+        than an ordinary room vote
+
+    Fed this poll's instantaneous max instead, the rule cannot distinguish a
+    device leaving from its best scanner falling silent, and flips whole
+    houses in a single poll.
     """
-    if coverage_floor is None or best_live_dbm is None:
+    if coverage_floor is None or best_recent_dbm is None:
         return False
-    if best_live_dbm < coverage_floor - band_db:
+    if best_recent_dbm < coverage_floor - band_db:
         return True
-    if best_live_dbm > coverage_floor + band_db:
+    if best_recent_dbm > coverage_floor + band_db:
         return False
     return was_outside
 

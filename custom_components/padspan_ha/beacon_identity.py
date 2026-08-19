@@ -62,6 +62,11 @@ from dataclasses import dataclass
 # device looks like while it hands over from its old address to its new one.
 PERSIST_SPLIT_MIN = 2
 
+# How far an address's reported age must FALL between polls before it counts as
+# having advertised again. Re-advertising resets the age to ~0, so a real drop
+# is seconds; anything smaller is measurement jitter.
+READVERTISE_DROP_S = 1.0
+
 
 @dataclass(frozen=True)
 class SplitDecision:
@@ -83,6 +88,7 @@ def decide_split(
     all_rpa: bool,
     default_uuid: bool,
     same_oui: bool,
+    settled: bool = True,
 ) -> SplitDecision:
     """Decide whether MACs sharing one beacon identity are separate devices.
 
@@ -97,11 +103,24 @@ def decide_split(
             is not evidence of being one device.
         same_oui: every recent address shares one vendor prefix, which real
             address rotation would not produce.
+        settled: whether enough polls have been observed for the ABSENCE of
+            durable addresses to be evidence. Before that, an identity that has
+            simply not been watched long enough looks identical to a rotator,
+            and treating it as one would merge a real pack for a second or two
+            before splitting it again. False keeps the first-sighting
+            heuristics in force until there is something to reason from.
+
+    `prev_macs` is the set of addresses this identity has been observed to
+    RE-USE — not every address seen recently. The difference is the whole of
+    issue #63: a rotator's abandoned addresses linger in a staleness window for
+    many polls after they stop advertising, so a caller that passes "seen in the
+    last 60s" hands over a set that overlaps itself poll after poll and every
+    rotation reads as persistence.
     """
     if len(recent_macs) <= 1:
         return SplitDecision(False, "single address")
 
-    if prev_macs is not None:
+    if prev_macs is not None and (prev_macs or settled):
         survivors = len(set(recent_macs) & prev_macs)
         if survivors >= PERSIST_SPLIT_MIN:
             return SplitDecision(True, f"{survivors} addresses persisted — separate devices")
@@ -109,8 +128,8 @@ def decide_split(
         # and abandoned, which is rotation however the identity looks.
         return SplitDecision(False, f"only {survivors} persisted — one rotating device")
 
-    # First sighting: no history to reason from, so fall back to the address
-    # heuristics. Deliberately conservative — splitting wrongly here costs one
+    # First sighting, or too early to tell: no history to reason from, so fall
+    # back to the address heuristics. Deliberately conservative — splitting wrongly here costs one
     # poll, and the persistence test corrects it on the next.
     if default_uuid:
         return SplitDecision(True, "first sighting, factory-default UUID")
@@ -178,3 +197,66 @@ def same_device_by_address(a: dict, b: dict) -> bool:
     """True when two objects share at least one MAC — the only evidence that
     a shared label means one device rather than one name on two things."""
     return bool(object_macs(a) & object_macs(b))
+
+
+# ── Address memory ───────────────────────────────────────────────────────────
+# The state decide_split() reasons from, kept here rather than inline in the
+# snapshot loop so the two halves of the rule live together and the seam
+# between them can be tested. Issue #63 was entirely in this half: the decision
+# was right and the caller fed it "addresses seen in the last 60s", which for a
+# fast rotator is a set that overlaps itself poll after poll.
+
+def update_address_memory(
+    prev_entry: dict | None,
+    recent_macs: list[str],
+    ages: dict[str, float],
+) -> dict:
+    """Fold one poll into an identity's address memory.
+
+    An address becomes DURABLE the first time its age is seen to drop, which
+    means the device advertised on it again. That is a property of the address,
+    not of the poll, so once set it stays set while the address remains in the
+    window: a beacon with a slow advertising interval cannot oscillate in and
+    out of counting as a separate device.
+
+    A rotator abandons each address after one use, so its age only ever climbs
+    and it never becomes durable — at any rotation rate, which is what makes
+    this independent of how fast the device is.
+    """
+    prev_entry = prev_entry or {}
+    # A re-advertisement drops the age to near zero, which is a fall of whole
+    # seconds. Reported ages jitter by milliseconds, and a bare `<` would read
+    # that jitter as re-use and make a rotator's abandoned addresses durable —
+    # reintroducing the bug in a subtler form. Demand a real fall.
+    prev_addrs = prev_entry.get("addrs") or {}
+    addrs: dict[str, dict] = {}
+    for a in recent_macs:
+        age = ages.get(a)
+        age = float(age) if isinstance(age, (int, float)) else 0.0
+        was = prev_addrs.get(a) or {}
+        prev_age = was.get("age")
+        readvertised = (isinstance(prev_age, (int, float))
+                        and age < prev_age - READVERTISE_DROP_S)
+        addrs[a] = {"age": age, "durable": bool(was.get("durable")) or readvertised}
+    return {"polls": int(prev_entry.get("polls") or 0) + 1, "addrs": addrs}
+
+
+def durable_addresses(entry: dict | None) -> set[str] | None:
+    """The addresses an identity has been observed to RE-USE.
+
+    None when there is no memory at all, which decide_split reads as a first
+    sighting and answers from the address heuristics instead.
+    """
+    if entry is None:
+        return None
+    return {a for a, v in (entry.get("addrs") or {}).items() if v.get("durable")}
+
+
+def memory_is_settled(entry: dict | None, min_polls: int = 3) -> bool:
+    """Whether the ABSENCE of a durable address is evidence yet.
+
+    Before this, an identity that simply has not been watched long enough looks
+    exactly like a rotator, and treating it as one would merge a real pack for
+    a poll or two before splitting it again.
+    """
+    return int((entry or {}).get("polls") or 0) >= min_polls

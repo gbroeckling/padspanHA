@@ -207,3 +207,171 @@ def test_a_shared_label_merges_only_on_a_shared_address() -> None:
     assert object_macs(live) == {"48:87:2D:9D:D1:DB"}          # a key string is not a MAC
     assert same_device_by_address(live, ghost) is True         # one MAC in common: one device
     assert same_device_by_address(live, other) is False        # same label, no MAC in common
+
+
+# ── The seam (issue #63) ─────────────────────────────────────────────────────
+# Every test above feeds decide_split the PREVIOUS POLL's addresses, which is
+# the honest thing and which it handles correctly. Production fed it "addresses
+# seen in the last 60 seconds" instead. For a device rotating every ~1.3s that
+# window holds ~45 addresses and consecutive windows overlap almost completely,
+# so `survivors` was huge and every rotation read as persistence — 671 objects
+# in ten minutes on the reporting install, reason "addresses persisted".
+#
+# The unit was never wrong. The caller was. These drive the real bookkeeping.
+
+from custom_components.padspan_ha.beacon_identity import (  # noqa: E402
+    durable_addresses,
+    memory_is_settled,
+    update_address_memory,
+)
+
+POLL_S = 5.0
+WINDOW_S = 60.0
+
+
+def _run_polls(polls, *, all_rpa, default_uuid, same_oui, settled_polls=3):
+    """Drive memory + decision exactly as the snapshot loop does.
+
+    `polls` yields {mac: age_s} — what the window holds at that poll.
+    """
+    entry, out = None, []
+    for ages in polls:
+        recent = list(ages)
+        d = decide_split(
+            recent, durable_addresses(entry),
+            all_rpa=all_rpa, default_uuid=default_uuid, same_oui=same_oui,
+            settled=memory_is_settled(entry, settled_polls),
+        )
+        out.append(d)
+        entry = update_address_memory(entry, recent, ages)
+    return out
+
+
+def _rotator_window(poll_i, rotate_s=1.3):
+    """A 60s window over a device that mints a new address every 1.3s.
+
+    Old addresses stay in the window, ages climbing, long after they are dead —
+    which is exactly the soup the old caller handed over as "persisted".
+    """
+    now = poll_i * POLL_S
+    ages = {}
+    # Key each address by its ABSOLUTE birth tick, not by its index from now —
+    # the address born k ticks ago is a different address at the next poll, and
+    # its age must be seen to CLIMB. Keying by index makes ages constant, which
+    # is not what a rotator does.
+    newest = int(now // rotate_s)
+    seq = newest
+    while seq >= 0:
+        age = now - seq * rotate_s
+        if age > WINDOW_S:
+            break
+        ages[f"7A:{seq % 256:02X}:{(seq // 256) % 256:02X}:11:22:33"] = age
+        seq -= 1
+    return ages
+
+
+def test_the_reported_rotator_stops_minting_objects():
+    """The keypad from #63: ~1.3s rotation, 5s poll, 60s window."""
+    decisions = _run_polls(
+        [_rotator_window(i) for i in range(1, 40)],
+        all_rpa=False, default_uuid=False, same_oui=False,   # NON-resolvable: every heuristic says "not rotating"
+    )
+    after_settling = decisions[4:]
+    assert all(not d.split for d in after_settling), \
+        [d.reason for d in after_settling if d.split][:3]
+
+
+def test_the_old_window_is_what_made_it_split():
+    """Proof the fix is in the memory, not the decision.
+
+    Same windows, but persistence taken as bare membership of the previous
+    window — the old behaviour. It splits, every poll.
+    """
+    prev, split_count = None, 0
+    for i in range(1, 20):
+        ages = _rotator_window(i)
+        d = decide_split(list(ages), prev, all_rpa=False, default_uuid=False, same_oui=False)
+        if d.split:
+            split_count += 1
+        prev = set(ages)                      # <- the bug: the whole 60s window
+    assert split_count > 10, "the old caller should split on nearly every poll"
+
+
+def test_a_slow_advertising_pack_still_splits_and_keeps_splitting():
+    """The regression risk in this change, tested directly.
+
+    Three static beacons that advertise every 10s against a 5s poll. Their ages
+    RISE at half the polls, so any rule demanding freshness every poll would
+    merge them. Durability is monotone, so once seen to re-advertise they stay
+    separate devices.
+    """
+    def window(i):
+        now = i * POLL_S
+        out = {}
+        for n, phase in enumerate((0.0, 3.0, 7.0)):
+            last = now - ((now - phase) % 10.0)
+            out[f"48:87:2D:00:00:{n:02X}"] = max(0.0, now - last)
+        return out
+
+    decisions = _run_polls([window(i) for i in range(1, 30)],
+                           all_rpa=False, default_uuid=True, same_oui=True)
+    settled = decisions[6:]
+    assert all(d.split for d in settled), [d.reason for d in settled if not d.split][:3]
+
+
+def test_a_pack_is_not_merged_while_we_are_still_learning():
+    """Before there is anything durable, the heuristics still rule."""
+    ages = {m: 1.0 for m in PACK}
+    first = _run_polls([ages], all_rpa=False, default_uuid=True, same_oui=True)[0]
+    assert first.split is True, first.reason
+
+    entry = update_address_memory(None, list(ages), ages)
+    assert durable_addresses(entry) == set(), "nothing can be durable after one poll"
+    assert not memory_is_settled(entry), "one poll is not enough to call it rotation"
+    d = decide_split(list(ages), durable_addresses(entry), all_rpa=False,
+                     default_uuid=True, same_oui=True, settled=memory_is_settled(entry))
+    assert d.split is True, d.reason
+
+
+def test_durability_survives_a_missed_advertisement():
+    m = "48:87:2D:00:00:01"
+    e = update_address_memory(None, [m], {m: 4.8})
+    e = update_address_memory(e, [m], {m: 0.2})          # re-advertised -> durable
+    assert durable_addresses(e) == {m}
+    for age in (5.2, 10.2, 15.2):                         # quiet, age climbing
+        e = update_address_memory(e, [m], {m: age})
+        assert durable_addresses(e) == {m}, "durability must not flap"
+
+
+def test_an_abandoned_address_never_becomes_durable():
+    m = "7A:01:02:03:04:05"
+    e = None
+    for age in (0.4, 5.4, 10.4, 15.4, 20.4, 25.4):
+        e = update_address_memory(e, [m], {m: age})
+        assert durable_addresses(e) == set()
+
+
+def test_age_jitter_is_not_mistaken_for_re_use():
+    """Reported ages wobble DOWNWARD sometimes, and that is not re-use.
+
+    An address is aged from the most recent sighting across several scanners
+    whose clocks do not agree perfectly, so a stale address's reported age can
+    read a little lower than it did last poll. Under a bare `<` every one of
+    those wobbles marks the address durable — which would put a rotator's
+    abandoned addresses straight back into the persistence set and reinstate
+    issue #63 in a form that only shows up on installs with several scanners.
+    """
+    m = "7A:01:02:03:04:05"
+    e = None
+    # Stale and going nowhere, but the reading wobbles by tens of milliseconds.
+    for age in (30.40, 30.38, 30.41, 30.37, 30.42, 30.36):
+        e = update_address_memory(e, [m], {m: age})
+        assert durable_addresses(e) == set(), f"jitter at age={age} read as re-use"
+
+
+def test_a_real_re_advertisement_is_still_recognised():
+    """The other side of the threshold: a genuine drop must still count."""
+    m = "48:87:2D:00:00:01"
+    e = update_address_memory(None, [m], {m: 9.6})
+    e = update_address_memory(e, [m], {m: 0.3})
+    assert durable_addresses(e) == {m}

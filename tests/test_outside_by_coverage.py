@@ -13,6 +13,8 @@ measure that about itself from its own calibration.
 from __future__ import annotations
 
 from custom_components.padspan_ha.presence_rules import (
+    COVERAGE_WINDOW_POLLS,
+    coverage_evidence,
     COVERAGE_MIN_POINTS,
     indoor_coverage_floor,
     is_outdoor_floor,
@@ -118,3 +120,91 @@ def test_below_the_floor_with_no_outdoor_evidence_changes_nothing() -> None:
         coord._smooth_room("bronco", "AA:BB", readings, src_area, source_to_floor=src_floor)
     assert coord._outside_by_cov.get("bronco") is True          # the state is known…
     assert coord._confirmed_room.get("bronco") == "Bedroom Closet"   # …but nothing is invented
+
+
+# ── The evidence window ──────────────────────────────────────────────────────
+# The rule reads the strongest scanner still inside the silence grace. When the
+# scanner that hears a device best goes quiet, that value does not degrade — it
+# drops to the next-best, which can be 25-30 dB lower, and crosses the floor in
+# one poll. Scanners are shared, so every device whose best hearer went quiet
+# flips in the SAME poll: a whole house outside at once, then back next poll.
+#
+# Deciding from a trailing max instead makes that impossible, and makes the
+# rule deliberately asymmetric: slow to claim a device left (it disables the
+# indoor solve), immediate to bring it back (which costs nothing).
+
+FLOOR = -84.0
+
+
+def _drive(readings, *, floor=FLOOR):
+    """Feed per-poll best readings through window + rule, as the coordinator does."""
+    hist, out, verdicts = None, False, []
+    for r in readings:
+        hist, best_recent = coverage_evidence(hist, r)
+        out = outside_by_coverage(best_recent, floor, out)
+        verdicts.append(out)
+    return verdicts
+
+
+def test_the_best_scanner_falling_silent_does_not_put_a_device_outside():
+    """The reported symptom. Strong for a while, then its best radio goes quiet
+    and only a distant one is left — the device has not moved."""
+    settled = [-62.0] * 8            # comfortably inside, one close scanner
+    dropout = [-92.0] * 4            # best radio silent; a far scanner is all that is left
+    verdicts = _drive(settled + dropout)
+    assert not any(verdicts), f"went outside on poll {verdicts.index(True)} of a 4-poll dropout"
+
+
+def test_a_whole_house_does_not_flip_on_one_quiet_poll():
+    """Several devices sharing one strong scanner, which misses a single poll."""
+    for own_rssi in (-55.0, -61.0, -68.0, -74.0):
+        verdicts = _drive([own_rssi] * 6 + [-95.0] + [own_rssi] * 3)
+        assert not any(verdicts), f"device at {own_rssi} dBm flipped on a single quiet poll"
+
+
+def test_a_device_that_actually_leaves_still_goes_outside():
+    """The rule must still work. Sustained weak readings, no recovery."""
+    verdicts = _drive([-60.0] * 6 + [-96.0] * (COVERAGE_WINDOW_POLLS + 2))
+    assert verdicts[-1] is True, "a device that genuinely left was never marked outside"
+
+
+def test_leaving_is_slow_and_returning_is_immediate():
+    """The asymmetry, stated as a test.
+
+    Going outside disables the indoor solve, so it must survive a full window.
+    Coming back needs one good reading, because being wrongly inside costs only
+    an ordinary room vote.
+    """
+    leaving = _drive([-60.0] * 6 + [-96.0] * COVERAGE_WINDOW_POLLS)
+    assert leaving[6] is False, "declared outside on the first weak poll"
+    assert leaving[-1] is True, "never declared outside despite a full window of weak readings"
+
+    hist, out = None, False
+    for r in [-96.0] * COVERAGE_WINDOW_POLLS:
+        hist, br = coverage_evidence(hist, r)
+        out = outside_by_coverage(br, FLOOR, out)
+    assert out is True
+    hist, br = coverage_evidence(hist, -58.0)      # one strong reading
+    assert outside_by_coverage(br, FLOOR, out) is False, "did not come back on a strong reading"
+
+
+def test_polls_where_nothing_was_heard_are_not_evidence():
+    """Not advertising is not the same as being far away."""
+    hist, _ = coverage_evidence(None, -60.0)
+    for _ in range(COVERAGE_WINDOW_POLLS * 2):
+        hist, best = coverage_evidence(hist, None)
+    assert best == -60.0, "silence displaced a real reading"
+    assert outside_by_coverage(best, FLOOR, False) is False
+
+
+def test_the_window_is_bounded():
+    hist = None
+    for i in range(200):
+        hist, _ = coverage_evidence(hist, -70.0 - (i % 5))
+    assert len(hist) == COVERAGE_WINDOW_POLLS
+
+
+def test_an_inactive_rule_is_still_inactive():
+    assert outside_by_coverage(-99.0, None, False) is False
+    hist, best = coverage_evidence(None, None)
+    assert best is None and hist == []

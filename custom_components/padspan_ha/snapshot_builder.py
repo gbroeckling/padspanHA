@@ -34,7 +34,21 @@ from .const import (
 from .bluetooth_live import get_bluetooth_live
 from .private_ble_resolver import PrivateBLEResolver, get_resolver as _get_ble_resolver
 from .ingest_policy import Identity as _IngestIdentity, IngestPolicy
-from .beacon_identity import decide_split as _decide_beacon_split, rotation_bridge_allowed, same_device_by_address
+from .beacon_identity import (
+    decide_split as _decide_beacon_split,
+    durable_addresses as _durable_addresses,
+    memory_is_settled as _memory_is_settled,
+    rotation_bridge_allowed,
+    same_device_by_address,
+    update_address_memory as _update_address_memory,
+)
+
+# How many polls an identity must be watched before the ABSENCE of a durable
+# address counts as evidence of rotation rather than of not having looked long
+# enough. Three polls is ~15s at the default interval — long enough for any
+# real beacon to have re-advertised once, short enough that a rotator is not
+# minting objects for long.
+_SETTLED_POLLS = 3
 from .ble_enrichment import enrich_object as _enrich_ble_object
 from .presence_rules import away_timeout_s, is_away
 from .ws_common import (
@@ -753,13 +767,33 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         canonical_by_addr: dict[str, dict[str, Any]] = {}   # addr → {canonical_id, name, kind}
         ibeacon_groups: dict[str, dict[str, Any]] = {}       # "ibeacon:uuid:major:minor" → merged group
         ibeacon_addrs: set[str] = set()                      # MAC addresses absorbed into an iBeacon group
-        # One poll of memory per beacon identity. A pack keeps advertising the
-        # same addresses; a rotator abandons each one after using it, so what
-        # survived from last poll is what tells them apart. Read here, written
-        # once the groups are built, so a mid-loop exception cannot leave a
-        # half-updated view that makes the next poll's answer worse.
-        _beacon_last_macs: dict[str, set[str]] = hass.data.get(DOMAIN, {}).get(DATA_BEACON_LAST_MACS) or {}
-        _beacon_seen_now: dict[str, set[str]] = {}
+        # Memory per beacon identity. A pack keeps advertising the same
+        # addresses; a rotator abandons each one after using it, so what is
+        # still IN USE is what tells them apart. Read here, written once the
+        # groups are built, so a mid-loop exception cannot leave a half-updated
+        # view that makes the next poll's answer worse.
+        #
+        # Shape: {uuid_key: {"polls": int, "addrs": {mac: {"age": float,
+        #                                                 "durable": bool}}}}
+        #
+        # This used to be a bare set of "addresses seen in the last 60s", and
+        # that is issue #63. A rotator's abandoned address stays inside a 60s
+        # staleness window for a dozen polls after it stops advertising, so
+        # consecutive windows overlapped almost completely and every rotation
+        # read as persistence. The unit tests never caught it because they pass
+        # the previous POLL's addresses, which is the honest thing; only the
+        # caller was lying.
+        #
+        # "Durable" is a property of an ADDRESS, not of a poll: an address is
+        # durable once its age has been observed to DROP, which means the
+        # device advertised on it again. A rotator's address is used once and
+        # abandoned, so its age only ever climbs and it can never become
+        # durable, at any rotation rate. A real beacon re-advertises whatever
+        # its interval, so it becomes durable within a poll or two and STAYS
+        # durable while it remains in the window — monotone, so a slow
+        # advertiser cannot oscillate in and out of being a separate device.
+        _beacon_last_macs: dict = hass.data.get(DOMAIN, {}).get(DATA_BEACON_LAST_MACS) or {}
+        _beacon_seen_now: dict = {}
         # Ingest policy — the single point that decides whether an advertiser
         # becomes an object at all. Rebuilt every poll, like the excluded-
         # scanner set, so a change takes effect on the next snapshot rather
@@ -1030,7 +1064,13 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     a for a in g["addrs"]
                     if (ble_by_addr.get(a, {}).get("age_s") or 9999) < 60
                 ]
-                _beacon_seen_now[uuid_key] = set(_recent_all)
+                # Carry each address's durability forward, and set it the
+                # first time the address is seen to have re-advertised.
+                _beacon_seen_now[uuid_key] = _update_address_memory(
+                    _beacon_last_macs.get(uuid_key),
+                    _recent_all,
+                    {a: ble_by_addr.get(a, {}).get("age_s") for a in _recent_all},
+                )
                 if len(g["addrs"]) > 1:
                     recent_macs = _recent_all
                     # One beacon wearing many addresses, or many beacons sharing
@@ -1042,12 +1082,21 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     _all_rpa = all(_is_rpa_addr(m) for m in recent_macs) if recent_macs else False
                     _is_default_uuid = str(g.get("uuid") or "").lower() in _DEFAULT_IBEACON_UUIDS
                     _same_oui = len({m[:9] for m in recent_macs}) == 1 if len(recent_macs) > 1 else False
+                    # Only DURABLE addresses count as persistence. An identity
+                    # never seen before has no memory at all (None -> the
+                    # first-sighting heuristics); one seen only briefly has
+                    # memory but nothing durable yet, which is indistinguishable
+                    # from a rotator until it has been watched a few polls —
+                    # `settled` is what stops a real pack being merged for a
+                    # second before it splits again.
+                    _prev = _beacon_last_macs.get(uuid_key)
                     _split_decision = _decide_beacon_split(
                         recent_macs,
-                        _beacon_last_macs.get(uuid_key),
+                        _durable_addresses(_prev),
                         all_rpa=_all_rpa,
                         default_uuid=_is_default_uuid,
                         same_oui=_same_oui,
+                        settled=_memory_is_settled(_prev, _SETTLED_POLLS),
                     )
                     _resolver_diag.setdefault("split_reasons", {})[uuid_key[:48]] = _split_decision.reason
                     if _split_decision.split:

@@ -112,7 +112,7 @@ from .const import (
 )
 from .presence_rules import (
     indoor_coverage_floor, is_outdoor_floor, modelled_coverage_floor,
-    outdoor_attribution, outside_by_coverage,
+    coverage_evidence, outdoor_attribution, outside_by_coverage,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -552,6 +552,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._coverage_floor_src: str = "inactive"
         self._coverage_stamp: tuple | None = None
         self._outside_by_cov: dict[str, bool] = {}
+        # Trailing best-RSSI per object, so the outside rule is not decidable by
+        # a single poll in which the strongest scanner happened to be silent.
+        self._coverage_hist: dict[str, list[float]] = {}
         # {key: dict}  — last candidate info for diagnostics
         self._last_candidate: dict[str, dict[str, Any]] = {}
         # Throttle: {key: monotonic_ts} — last alert sent time per object
@@ -1123,6 +1126,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if self._known_objs.get(key, {}).get("_stale"):
                     self._room_votes.pop(key, None)
                     self._room_confidence.pop(key, None)
+                    # A device that was away and is back must not be judged on
+                    # readings from before it left.
+                    self._coverage_hist.pop(key, None)
+                    self._outside_by_cov.pop(key, None)
                     # A stale room must not anchor first-poll attribution —
                     # clear the confirmed room and the adaptive novelty vector too
                     self._confirmed_room.pop(key, None)
@@ -1804,13 +1811,19 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # closet. Without outdoor evidence the rule changes nothing.
         _live_fresh = {s_: v_ for s_, v_ in ema.items() if _miss.get(s_, 0) < _SILENCE_GRACE}
         _best_live = max(_live_fresh.values()) if _live_fresh else None
-        _outside = outside_by_coverage(_best_live, self._coverage_floor, self._outside_by_cov.get(key, False))
+        # Decide from the trailing window, not this poll. A scanner dropping out
+        # of the silence grace takes the instantaneous max down with it, and the
+        # rule cannot tell that from the device leaving — see coverage_evidence.
+        _cov_hist, _best_recent = coverage_evidence(self._coverage_hist.get(key), _best_live)
+        self._coverage_hist[key] = _cov_hist
+        _outside = outside_by_coverage(_best_recent, self._coverage_floor, self._outside_by_cov.get(key, False))
         self._outside_by_cov[key] = _outside
         _outside_area: str | None = None
         if _outside:
             _outside_area = outdoor_attribution(_live_fresh, source_to_area, source_to_floor or {})
             self._spatial_debug[key] = (
-                f"outside_by_coverage:best={_best_live:.0f},floor={self._coverage_floor:.0f},"
+                f"outside_by_coverage:best={_best_live:.0f},recent={_best_recent:.0f},"
+                f"floor={self._coverage_floor:.0f},"
                 f"area={_outside_area or 'none'}"
             )
         if ema:
@@ -2834,6 +2847,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._spatial_debug.pop(key, None)
         self._floor_evidence.pop(key, None)
         self._outside_by_cov.pop(key, None)
+        self._coverage_hist.pop(key, None)
         self._ema_rssi.pop(key, None)
         self._kalman_p.pop(key, None)
         self._silence_miss.pop(key, None)
