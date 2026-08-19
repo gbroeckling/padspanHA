@@ -8127,6 +8127,24 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
     const aCard = el("div", { style: "margin-top:10px;padding:10px;background:#0a150e;border-radius:6px" });
     aCard.appendChild(el("div", { style: "font-weight:700;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px" },
       "Map placements (system calibration vs stack alignment)"));
+    // These controls overwrite one stored placement with another. On a healthy
+    // install there is nothing here to fix, and "fixing" an alignment that was
+    // never wrong discards the good copy.
+    aCard.appendChild(el("div", {
+      style: "display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;padding:8px 10px;"
+           + "border:1px solid #b91c1c;border-left:3px solid #ef4444;border-radius:6px;"
+           + "background:rgba(185,28,28,.12);color:#fca5a5;font-size:11.5px;line-height:1.5",
+    }, [
+      el("div", { style: "font-size:13px;line-height:1" }, "⚠"),
+      el("div", {}, [
+        el("div", { style: "font-weight:700;color:#fecaca;margin-bottom:2px" },
+          "Only use these when a map is actually misaligned."),
+        el("div", {},
+          "Each control overwrites one stored placement with another. If your rooms and "
+          + "scanners already sit where they belong, there is nothing to fix here and "
+          + "applying a repair will move them. Use “Show” first and look."),
+      ]),
+    ]));
     const tbl = el("div", { style: "display:grid;grid-template-columns:1fr auto auto auto auto;gap:3px 12px;font-size:11px;align-items:center" });
     for (const h of ["Map", "System says", "Stack says", "", ""]) {
       tbl.appendChild(el("div", { style: "font-weight:600;color:#64748b;font-size:10px;text-transform:uppercase" }, h));
@@ -8149,16 +8167,47 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           ctx.actions.renderRooms();
         },
       }, showing ? "👁 Hide" : "👁 Show"));
-      if (a.agrees) {
+      // WHICH SIDE is stale decides the repair. `agrees` only says the two
+      // differ. A map flagged by geometry_fault has a stack that no longer
+      // describes its own image — the classic cause is a trim, which re-derives
+      // the metric record and leaves the stack behind (issue #62). Offering
+      // "Fix alignment" there would overwrite the good copy with the stale one.
+      if (a.geometry_fault) {
+        const gf = a.geometry_fault;
+        const why = gf.iso_error > 0.02
+          ? `its own two scales disagree by ${(gf.iso_error * 100).toFixed(0)}%`
+          : `its placement is ${gf.origin_delta_m.toFixed(1)} m from what its scale says`;
+        tbl.appendChild(el("button", {
+          class: "btn inline primary", style: "font-size:10px;padding:2px 8px",
+          title: "Rebuild this map's stack alignment from its measured scale. "
+               + "The measurement itself is not touched.",
+          onclick: async () => {
+            if (!confirm(
+              `"${a.name}" has a stale alignment — ${why}.\n\n`
+              + "This usually means the map was trimmed by an older build, which updated "
+              + "its measured scale but not its alignment.\n\n"
+              + "Rebuild the alignment from the measured scale? The measurement, the room "
+              + "fabric and your scanner positions are not touched."
+            )) return;
+            try {
+              const r = await ctx.actions.wsCall("padspan_ha/fabric_map_stack_rebuild", { map_id: a.map_id });
+              ctx.toast(r.cleared
+                ? `Rebuilt "${a.name}" — placement and scale agree again`
+                : `Rebuilt "${a.name}", but it still disagrees — please report this`, !r.cleared);
+              await refreshAfter();
+            } catch (err) { ctx.toast("Rebuild failed: " + (err.message || err), true); }
+          },
+        }, "Rebuild alignment"));
+      } else if (a.agrees) {
         tbl.appendChild(el("div", { style: "color:#52b788;font-size:10px" }, "✓ aligned"));
       } else if (a.stack) {
         tbl.appendChild(el("button", {
           class: "btn inline", style: "font-size:10px;padding:2px 8px",
           onclick: async () => {
-            if (!confirm(`Fix "${a.name}" so the system's placement matches your stack alignment (${fmt(a.stack)})? Its scanner/beacon/barrier positions re-derive through the corrected placement. Room fabric is not touched.`)) return;
+            if (!confirm(`Fix "${a.name}" so the system's placement matches your stack alignment (${fmt(a.stack)})?\n\nThis overwrites the map's stored scale and origin. Scanner, beacon and barrier positions stay where they are — their metres are ground truth. Room fabric is not touched.`)) return;
             try {
-              const r = await ctx.actions.wsCall("padspan_ha/fabric_map_align_to_stack", { map_id: a.map_id });
-              ctx.toast(`Aligned "${a.name}" — ${r.spatial_resynced} spatial item(s) re-derived`);
+              await ctx.actions.wsCall("padspan_ha/fabric_map_align_to_stack", { map_id: a.map_id });
+              ctx.toast(`Aligned "${a.name}" to its stack placement`);
               await refreshAfter();
             } catch (err) { ctx.toast("Align failed: " + (err.message || err), true); }
           },

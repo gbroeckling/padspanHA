@@ -427,6 +427,12 @@ async def ws_fabric_truth_candidates(hass: HomeAssistant, connection, msg) -> No
 
     anchor = fabric_truth.find_metre_anchor(all_maps, mdl)
     stack_rooms = fabric_truth.rooms_from_stack(floor_maps, anchor) if anchor else None
+    # Which SIDE is stale. `agrees` only says the two placements differ; it
+    # never says which one to believe, and the repair that existed assumed the
+    # stack was truth. For a trimmed map that is backwards — the transform is
+    # derived from the retained fraction and the stack is the stale half — so
+    # applying it would overwrite the one good copy (issue #62).
+    _faults = {f["map_id"]: f for f in fabric_truth.map_geometry_faults(all_maps, mdl)}
 
     # Per-map alignment: where the system thinks the map sits vs where the
     # hand-tuned stack puts it — surfaced so a wrong system placement can be
@@ -446,6 +452,9 @@ async def ws_fabric_truth_candidates(hass: HomeAssistant, connection, msg) -> No
                 "measured": bool(t.get("reference_measurements")),
             } if t else None,
             "stack": stack_t,
+            # Present => this map's stack no longer describes its own image, so
+            # the stack is the stale side and the safe repair is to rebuild it.
+            "geometry_fault": _faults.get(mid),
         }
         if t and stack_t:
             try:
@@ -535,6 +544,8 @@ async def ws_fabric_map_align_to_stack(hass: HomeAssistant, connection, msg) -> 
     # exactly where they are: their metres are ground truth, and a photo that
     # was hanging in the wrong place was never what made them right.
 
+    _bump(hass, "map_align_to_stack")
+
     connection.send_result(msg["id"], {
         "ok": True, "map_id": mid,
         "transform": {k: new_t[k] for k in ("origin_x_m", "origin_y_m", "scale_x_m", "scale_y_m", "rotation_rad")},
@@ -562,6 +573,74 @@ async def ws_fabric_floor_finalize(hass: HomeAssistant, connection, msg) -> None
         msg.get("floor_id") or DEFAULT_FLOOR_ID, bool(msg.get("committed"))
     )
     connection.send_result(msg["id"], res)
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "padspan_ha/fabric_map_stack_rebuild",
+    vol.Required("map_id"): str,
+})
+@websocket_api.async_response
+async def ws_fabric_map_stack_rebuild(hass: HomeAssistant, connection, msg) -> None:
+    """Rebuild a map's STACK from its stored transform — the opposite repair
+    to ws_fabric_map_align_to_stack, for when the stack is the stale half.
+
+    Trimming a map re-derived its metric record from the retained fraction but
+    left the stack describing the pre-crop image (issue #62). The transform is
+    the trustworthy side there, so aligning the transform TO the stack — the
+    other command — would overwrite the one good copy with the stale one. This
+    goes the other way and leaves map_transforms untouched.
+
+    Refused unless the map is actually in that state, so it cannot be used to
+    flatten a deliberate hand alignment.
+    """
+    from . import fabric_truth
+
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    if not mdl or not ms:
+        connection.send_error(msg["id"], "no_stores", "Model/Maps store not loaded")
+        return
+    mid = (msg.get("map_id") or "").strip()
+    m = ms.get_map(mid)
+    if not m:
+        connection.send_error(msg["id"], "not_found", f"Map {mid} not found")
+        return
+    all_maps = ms.data.get("maps") or []
+    faults = {f["map_id"]: f for f in fabric_truth.map_geometry_faults(all_maps, mdl)}
+    if mid not in faults:
+        connection.send_error(msg["id"], "not_faulted",
+                              "This map's placement and scale already agree — there is "
+                              "nothing to rebuild, and rebuilding would discard a "
+                              "deliberate alignment.")
+        return
+    t = mdl.map_transform(mid)
+    if not t:
+        connection.send_error(msg["id"], "no_transform", "Map has no stored placement to rebuild from")
+        return
+    anchor = fabric_truth.find_metre_anchor(all_maps, mdl)
+    if not anchor:
+        connection.send_error(msg["id"], "no_metre_anchor",
+                              "No map anywhere in the stack has a reference-measured scale")
+        return
+    new_stack = fabric_truth.stack_from_transform(m, t, anchor)
+    if not new_stack:
+        connection.send_error(msg["id"], "unrepresentable",
+                              "This map's alignment was solved as a raw affine, which has no "
+                              "scale to rebuild. Re-run Point Align for it instead.")
+        return
+
+    before = faults[mid]
+    m["stack"] = new_stack
+    await ms.store.async_save(ms.data)
+    _bump(hass, "map_stack_rebuilt")
+
+    after = {f["map_id"]: f for f in fabric_truth.map_geometry_faults(all_maps, mdl)}
+    connection.send_result(msg["id"], {
+        "ok": True, "map_id": mid,
+        "cleared": mid not in after,
+        "before": {k: before[k] for k in ("iso_error", "scale_error_frac", "origin_delta_m")},
+        "transform_touched": False,
+    })
 
 
 @websocket_api.websocket_command(

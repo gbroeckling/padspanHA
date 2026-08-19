@@ -400,6 +400,73 @@ def map_geometry_faults(maps_list: list[dict], model_store: Any) -> list[dict[st
     return out
 
 
+def stack_from_transform(m: dict, t: dict, anchor: dict[str, Any]) -> dict | None:
+    """The stack that reproduces a stored map transform. Inverse of
+    stack_metre_transform.
+
+    The repair for a map whose STACK is the stale half — a map trimmed by a
+    build that re-derived only its metric record (issue #62). The stored
+    transform is the trustworthy side there, because the crop path derives it
+    from the retained fraction, so the stack is rebuilt FROM it rather than the
+    map being re-traced or re-measured by hand.
+
+    This is the opposite direction to ws_fabric_map_align_to_stack, which
+    repairs the transform to match a hand-tuned stack. Which one is correct
+    depends on which half went stale, and that is what map_geometry_faults()
+    determines — never assume the stack is truth.
+
+    `ref_ar` and the stack's own rotation are held fixed: ref_ar is the world
+    frame's y anisotropy, shared with every map on the same master, and a crop
+    does not rotate. Returns None for a solved-affine (_m) stack, which has no
+    scale/scale_x_adj to solve for.
+    """
+    stk = m.get("stack") or {}
+    if isinstance(stk.get("_m"), (list, tuple)):
+        return None
+    ar = float(stk.get("ref_ar") or image_ar(m) or 1.0)
+    if ar <= 0:
+        return None
+    kx, ky = _anchor_scales(anchor)
+    if kx <= 0 or ky <= 0:
+        return None
+    try:
+        sx_m = float(t["scale_x_m"]); sy_m = float(t["scale_y_m"])
+        ox_m = float(t.get("origin_x_m", 0)); oy_m = float(t.get("origin_y_m", 0))
+        rot = float(stk.get("rotation") or 0.0)
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not (sx_m > 0 and sy_m > 0):
+        return None
+
+    r = math.radians(rot)
+    cos_r, sin_r = math.cos(r), math.sin(r)
+    # A world delta takes kx on its x component and ky on its y component, so a
+    # rotated axis is measured through both. Solve each world span from the
+    # metre length it has to end up with.
+    den_x = math.hypot(cos_r * kx, sin_r * ky)
+    den_y = math.hypot(sin_r * kx, cos_r * ky)
+    if den_x <= 0 or den_y <= 0:
+        return None
+    world_w = sx_m / den_x
+    world_h = sy_m / den_y
+    sc = world_h / ar
+    if sc <= 0 or world_w <= 0:
+        return None
+
+    # f(0,0) must land on the stored origin.
+    dx = -0.5 * world_w
+    dy = -0.5 * world_h
+    ox = (ox_m / kx) - 0.5 - (dx * cos_r - dy * sin_r)
+    oy = ((oy_m / ky) - (dx * sin_r + dy * cos_r)) / ar - 0.5
+
+    out = dict(stk)
+    out["scale"] = sc
+    out["scale_x_adj"] = world_w / sc
+    out["x_offset"] = ox
+    out["y_offset"] = oy
+    return out
+
+
 def rooms_from_stack(floor_maps: list[dict], anchor: dict[str, Any]) -> dict[str, dict]:
     """Rooms in metres via the hand-tuned stack composition + metre anchor."""
     m_per_w_x, m_per_w_y = _anchor_scales(anchor)

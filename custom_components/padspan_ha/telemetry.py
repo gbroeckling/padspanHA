@@ -80,6 +80,11 @@ EVENTS: frozenset[str] = frozenset({
     "calibration_point_added", "capture_started", "forensics_query",
     "showcase_on", "backup_created", "backup_restored", "factory_reset",
     "bright_import",
+    # Map placement repairs, both directions. The fault COUNT in health says
+    # how many installs carry a broken map; these say whether people find the
+    # repair and which way it needed to go — a repair that nobody ever runs is
+    # a repair nobody can find.
+    "map_align_to_stack", "map_stack_rebuilt",
     # IRK resolution, cumulative over the window: a NEW address resolved to a
     # registered key; a NEW rotating address that matched no key.
     "irk_resolved", "irk_unresolved_rpa",

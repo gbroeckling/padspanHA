@@ -227,6 +227,7 @@ from .ws_fabric import (  # noqa: F401  (re-exported: registration, tests, calle
     ws_fabric_light_position_set,
     ws_fabric_light_remove,
     ws_fabric_map_align_to_stack,
+    ws_fabric_map_stack_rebuild,
     ws_fabric_map_reanchor,
     ws_fabric_map_transform_set,
     ws_fabric_reset_spatial,
@@ -366,6 +367,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_fabric_floor_finalize)
     websocket_api.async_register_command(hass, ws_fabric_truth_candidates)
     websocket_api.async_register_command(hass, ws_fabric_map_align_to_stack)
+    websocket_api.async_register_command(hass, ws_fabric_map_stack_rebuild)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_set)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_remove)
     websocket_api.async_register_command(hass, ws_fabric_map_transform_set)

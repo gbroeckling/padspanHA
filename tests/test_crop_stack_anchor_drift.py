@@ -358,3 +358,76 @@ def test_affine_crop_scales_the_world_footprint_by_what_was_kept() -> None:
                   - MapsStore.map_to_world(0.0, 0.5, out)[0])
 
     assert span_after == pytest.approx(span_before * 0.5)
+
+
+# ── stack_from_transform: the repair for a stale stack ───────────────────────
+# The correctness claim is a round trip. Rebuild the stack from the stored
+# transform, push it back through stack_metre_transform, and the stored
+# transform must come out again. If it does, the map's placement and its scale
+# describe the same picture once more.
+
+_ANCHOR = {"m_per_world": 80.0, "m_per_world_x": 80.0, "m_per_world_y": 80.0}
+
+
+@pytest.mark.parametrize("rot", [0.0, 12.5, -30.0, 90.0])
+@pytest.mark.parametrize("sx_m,sy_m,ox_m,oy_m", [
+    (80.0, 60.0, 0.0, 0.0),
+    (40.0, 60.0, 0.0, 0.0),       # rjbutler: half the width trimmed off
+    (40.0, 24.0, 13.5, -7.25),    # trimmed off-centre
+    (12.0, 55.0, -3.0, 41.0),     # tall and displaced
+])
+def test_stack_from_transform_round_trips(rot, sx_m, sy_m, ox_m, oy_m) -> None:
+    m = _map(1600, 1200)
+    m["stack"]["rotation"] = rot
+    # Deliberately wrong stack — this is the stale half being repaired.
+    m["stack"]["scale"] = 3.7
+    m["stack"]["scale_x_adj"] = 0.41
+    m["stack"]["x_offset"] = 2.2
+    m["stack"]["y_offset"] = -1.4
+
+    target = {"scale_x_m": sx_m, "scale_y_m": sy_m,
+              "origin_x_m": ox_m, "origin_y_m": oy_m}
+
+    repaired = fabric_truth.stack_from_transform(m, target, _ANCHOR)
+    assert repaired is not None, "a plain decomposed stack must be repairable"
+
+    m["stack"] = repaired
+    got = fabric_truth.stack_metre_transform(m, _ANCHOR)
+    assert got is not None
+
+    assert got["scale_x_m"] == pytest.approx(sx_m, abs=1e-3)
+    assert got["scale_y_m"] == pytest.approx(sy_m, abs=1e-3)
+    assert got["origin_x_m"] == pytest.approx(ox_m, abs=1e-3)
+    assert got["origin_y_m"] == pytest.approx(oy_m, abs=1e-3)
+
+
+def test_repair_clears_the_geometry_fault_it_was_built_for() -> None:
+    """End to end: the map that map_geometry_faults names stops being named."""
+    trimmed = _trimmed_map("trimmed")
+    transforms = {"clean": dict(_MEASURED), "trimmed": dict(_TRIMMED_T)}
+    maps = [_clean_map("clean"), trimmed]
+
+    assert [f["map_id"] for f in _faults(maps, transforms)] == ["trimmed"]
+
+    store = ModelStore.__new__(ModelStore)
+    store.hass = MagicMock(); store.store = AsyncMock()
+    store.data = {"map_transforms": transforms}
+    anchor = fabric_truth.find_metre_anchor(maps, store)
+    trimmed["stack"] = fabric_truth.stack_from_transform(trimmed, _TRIMMED_T, anchor)
+
+    assert _faults(maps, transforms) == [], "the repair did not clear the fault"
+
+
+def test_repair_refuses_a_solved_affine_stack() -> None:
+    """No scale/scale_x_adj to solve for — say so rather than invent one."""
+    m = _map(1600, 1200)
+    m["stack"]["_m"] = [1.0, 0.0, 0.0, 1.0]
+    assert fabric_truth.stack_from_transform(m, dict(_TRIMMED_T), _ANCHOR) is None
+
+
+def test_repair_leaves_the_shared_frame_alone() -> None:
+    m = _map(1600, 1200)
+    before_ar = m["stack"]["ref_ar"]
+    out = fabric_truth.stack_from_transform(m, dict(_TRIMMED_T), _ANCHOR)
+    assert out["ref_ar"] == pytest.approx(before_ar)
+    assert out["rotation"] == m["stack"]["rotation"]
