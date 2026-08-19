@@ -200,6 +200,32 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
   saveCard.appendChild(el("div",{style:"margin-top:10px"}, saveBtn));
   wrap.appendChild(saveCard);
 
+  // ── Panel Style (chrome skin) ─────────────────────────────────────────────
+  {
+    const settings = ctx.state.settings || {};
+    const skinNow = settings.ui_skin === "2025" ? "2025" : "classic";
+    const mkSkin = (val, label) => {
+      const b = el("button",{class:"btn inline"+(skinNow===val?" on":"")}, label);
+      b.addEventListener("click", async()=>{
+        if (skinNow === val) return;
+        try {
+          await ctx.actions.settingsSet({ ui_skin: val });
+          ctx.toast(val === "2025" ? "2025 style on" : "Classic style restored");
+        } catch(e){ ctx.toast("Failed to save", true); }
+      });
+      return b;
+    };
+    wrap.appendChild(el("div",{class:"card",style:"border-color:" + (skinNow === "2025" ? "#52b788" : "#334155")},[
+      el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, "Panel Style"),
+      el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
+        "Classic is the original panel, unchanged. 2025 restyles the chrome only — grouped " +
+        "sidebar with icons, a 60px collapsed rail, underlined sub-tabs, flatter buttons and " +
+        "cards. It takes effect immediately and alters nothing but appearance, so switching " +
+        "back is this same control."),
+      el("div",{class:"row"},[ mkSkin("classic","Classic"), mkSkin("2025","2025") ]),
+    ]));
+  }
+
   // ── 2D Map Mode (Experimental) ────────────────────────────────────────────
   {
     const settings = ctx.state.settings || {};

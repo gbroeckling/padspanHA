@@ -64,6 +64,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "kalman_r": 8.0,               # Kalman measurement noise (smoothing strength)
     "assumed_device_height_m": 1.0,  # carry height above the floor for 3D distance (pocketed phone)
     "light_theme": False,   # invert the panel colours (accessibility — dark theme unusable for some)
+    # Panel chrome skin. "2025" loads the styles-2025.css overlay and the
+    # grouped icon nav; "classic" is v0.35.0 chrome byte-for-byte, kept as a
+    # first-class option rather than dead code. Anyone who has already chosen a
+    # skin keeps it — settings load as {**DEFAULT_SETTINGS, **saved} — so this
+    # default only reaches installs that never touched the setting.
+    # Reverting is this key (Settings → Appearance), not a redeploy.
+    "ui_skin": "2025",   # "2025" | "classic"
     "light_shapes": {},     # entity_id -> marker shape; overrides the shape derived from the entity
     "lights_showcase": False,  # Mapping -> Lights: presentation rendering of the same map
     "lights_fit_rooms": False,  # Mapping -> Lights Showcase: never draw a fixture larger than its room

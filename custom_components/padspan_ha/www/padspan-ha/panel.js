@@ -203,6 +203,45 @@ const MENU_COLORS = {
   purelive: "#7c3aed",
 };
 
+// ── 2025 skin: nav icons and groups ──────────────────────────────────────────
+// MENU already carries an mdi name per entry, but nothing ever rendered it —
+// which is also why the collapsed rail (.app.mini) had nothing to fall back to
+// and clipped its labels mid-word. These are inline SVG bodies rather than
+// <ha-icon>: ha-icon is used nowhere else in this panel, and a missing
+// registration inside a shadow root renders as a blank box. Inline SVG also
+// inherits currentColor, which is what drives the active-state tint.
+// Only consulted when settings.ui_skin === "2025".
+const MENU_ICONS = {
+  overview:    '<rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/>',
+  purelive:    '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  follow:      '<path d="M21 3 3 10.5l7.5 3L14 21l7-18z"/>',
+  occupancy:   '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5"/><path d="M16 5.6a3.2 3.2 0 0 1 0 6.1M17.2 20c0-2.6-.9-4.2-2.4-5"/>',
+  maps:        '<path d="M9 4 3 6.5v14L9 18l6 2.5 6-2.5v-14L15 6.5 9 4z"/><path d="M9 4v14M15 6.5v14"/>',
+  calibration: '<circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.6"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/>',
+  training:    '<path d="M12 4 2 9l10 5 10-5-10-5z"/><path d="M6 11.5V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5"/>',
+  manage:      '<path d="M4 6h9M19 6h1M4 12h4M13 12h7M4 18h9M19 18h1"/><circle cx="16" cy="6" r="2.1"/><circle cx="10.5" cy="12" r="2.1"/><circle cx="16" cy="18" r="2.1"/>',
+  settings:    '<circle cx="12" cy="12" r="3.1"/><path d="M12 2.2v2.6M12 19.2v2.6M4.4 4.4l1.9 1.9M17.7 17.7l1.9 1.9M2.2 12h2.6M19.2 12h2.6M4.4 19.6l1.9-1.9M17.7 6.3l1.9-1.9"/>',
+  traceback:   '<path d="M3.2 12a8.8 8.8 0 1 0 2.9-6.5L3 8"/><path d="M3 3v5h5"/><path d="M12 7.4V12l3 2"/>',
+  health:      '<path d="M12 20s-7.4-4.9-7.4-9.4A4.1 4.1 0 0 1 12 7.5a4.1 4.1 0 0 1 7.4 3.1c0 4.5-7.4 9.4-7.4 9.4z"/><path d="M4.8 12.1h2.9l1.4-2.1 1.8 3.9 1.6-2.9 1.1 1.1h4.6"/>',
+  forensics:   '<circle cx="11" cy="11" r="6.2"/><path d="M20 20l-4.6-4.6"/><path d="M8.2 11h5.6"/>',
+  monitor:     '<rect x="2.5" y="4" width="19" height="12.4" rx="2"/><path d="M9 20h6M12 16.4V20"/>',
+  devices:     '<rect x="2" y="5" width="13" height="10" rx="1.8"/><path d="M5.5 19h6"/><rect x="17" y="9" width="5" height="10" rx="1.6"/>',
+  bluetooth:   '<path d="M7 7.5 17 16.5 12 21V3l5 4.5L7 16.5"/>',
+  presence:    '<circle cx="12" cy="10" r="2.5"/><path d="M12 21s6-5.4 6-10a6 6 0 1 0-12 0c0 4.6 6 10 6 10z"/>',
+  qa:          '<rect x="5" y="4.5" width="14" height="16" rx="2"/><path d="M9 4.5V3.6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v.9"/><path d="M9 13l2.2 2.2L15.5 11"/>',
+  sandbox:     '<path d="M10 3v6.2L4.6 18a2 2 0 0 0 1.7 3h11.4a2 2 0 0 0 1.7-3L14 9.2V3"/><path d="M9 3h6"/><path d="M7.4 14.5h9.2"/>',
+};
+
+// Sidebar grouping for the 2025 skin. Order here drives render order; any MENU
+// id missing from this table still renders, under a trailing "More" heading, so
+// adding a tab without touching this file can never make it disappear.
+const MENU_GROUPS = [
+  ["Live",      ["overview","purelive","follow","occupancy"]],
+  ["Setup",     ["maps","calibration","training","manage","settings"]],
+  ["Diagnose",  ["traceback","health","forensics","monitor"]],
+  ["Internals", ["devices","bluetooth","presence","qa","sandbox"]],
+];
+
 
 // ── DOM Utility Functions ────────────────────────────────────────────────────
 // Shared helpers used by panel.js and all view modules (passed via ctx.helpers).
@@ -495,6 +534,10 @@ class PadSpanHaApp extends HTMLElement {
     if(!this.shadowRoot) this.attachShadow({mode:"open"});
     this.shadowRoot.innerHTML = `
       <link rel="stylesheet" href="/padspan_ha_static/padspan-ha/styles.css?v=${APP_VERSION}&b=${BUILD_ID}">
+      <!-- 2025 skin overlay. Deliberately href-less until _applySkin() decides:
+           styles.css above is always the base, so a failed or disabled skin
+           leaves the classic panel fully intact rather than unstyled. -->
+      <link rel="stylesheet" id="skinLink">
       <style>
         /* Only :host fallback — do not override layout classes that styles.css already handles */
         :host{display:block;background:#0a150e;color:#e2e8f0;font-family:Inter,system-ui,Arial,sans-serif;box-sizing:border-box}
@@ -1127,12 +1170,38 @@ class PadSpanHaApp extends HTMLElement {
     if (on) this.setAttribute("data-invert", ""); else this.removeAttribute("data-invert");
   }
 
+  // Chrome skin. "classic" is v0.35.0 untouched; "2025" links styles-2025.css
+  // on top of styles.css and switches _renderNav to the grouped icon list.
+  // Anything other than the exact string "2025" means classic, so a bad or
+  // missing setting can never strand someone on a skin that failed to load.
+  //
+  // Note this is independent of light_theme: both skins still invert the host
+  // for light mode, because the view modules carry ~4,500 hardcoded hex
+  // literals that currently depend on that inversion. Converting those to
+  // tokens is a separate, view-by-view job.
+  _applySkin(){
+    const skin = (this.state.settings?.ui_skin === "2025") ? "2025" : "classic";
+    if (this._skin === skin) return false;
+    this._skin = skin;
+    this.setAttribute("data-skin", skin);
+    const link = this.shadowRoot?.querySelector("#skinLink");
+    if (link) {
+      if (skin === "2025") {
+        link.href = `/padspan_ha_static/padspan-ha/styles-2025.css?v=${APP_VERSION}&b=${BUILD_ID}`;
+      } else {
+        link.removeAttribute("href");
+      }
+    }
+    return true;
+  }
+
   async _loadSettings(){
     try {
       if(!this._hass) return;
       const res = await this._callWS({ type: "padspan_ha/settings_get" });
       this.state.settings = res?.settings || {};
       this._applyTheme();
+      this._applySkin();
       if (res && "cpu_pinning_supported" in res) this.state.cpuPinningSupported = !!res.cpu_pinning_supported;
       const mode = (res?.settings?.data_mode || "sample").toLowerCase();
       this.state.dataMode = (mode === "live") ? "live" : "sample";
@@ -1470,14 +1539,52 @@ class PadSpanHaApp extends HTMLElement {
       }
     };
 
-    for(const [id,label] of items.map(x=>[x[0],x[1]])) {
-      const color = MENU_COLORS[id] || "#37588f";
-      const btn = el("button",{
-        class:"navbtn"+(this.state.view===id?" active":""),
-        style:`--navcolor:${color}`,
-        onclick:()=>_switchView(id)
-      }, [el("span",{class:"navdot"}), el("span",{}, label)]);
-      this.$nav.appendChild(btn);
+    if (this._skin === "2025") {
+      // Grouped icon list. `items` above stays the flat, MENU-ordered
+      // visibility set — the items[0][0] fallback a few lines up depends on
+      // that, so headings are appended as a separate pass and never enter it.
+      const byId = new Map(items.map(x => [x[0], x[1]]));
+      const _navButton = (id, label) => {
+        const btn = el("button", {
+          class: "navbtn" + (this.state.view === id ? " active" : ""),
+          title: label,          // survives the collapse to the 60px icon rail
+          onclick: () => _switchView(id)
+        });
+        // MENU_ICONS is a module constant, never user input.
+        btn.innerHTML = `<svg class="navicon" viewBox="0 0 24 24" aria-hidden="true">${MENU_ICONS[id] || ""}</svg>`;
+        btn.appendChild(el("span", { class: "navlabel" }, label));
+        return btn;
+      };
+      const seen = new Set();
+      let firstHeading = true;
+      const _heading = (text) => {
+        // Basic mode shows five tabs; headings would outnumber the content.
+        if (isBasic) return;
+        this.$nav.appendChild(el("div", { class: "navgrp" + (firstHeading ? " first" : "") }, text));
+        firstHeading = false;
+      };
+      for (const [heading, ids] of MENU_GROUPS) {
+        const present = ids.filter(id => byId.has(id));
+        if (!present.length) continue;
+        _heading(heading);
+        for (const id of present) { seen.add(id); this.$nav.appendChild(_navButton(id, byId.get(id))); }
+      }
+      // A MENU entry that nobody added to MENU_GROUPS still renders.
+      const orphans = items.filter(x => !seen.has(x[0]));
+      if (orphans.length) {
+        _heading("More");
+        for (const [id, label] of orphans) this.$nav.appendChild(_navButton(id, label));
+      }
+    } else {
+      for(const [id,label] of items.map(x=>[x[0],x[1]])) {
+        const color = MENU_COLORS[id] || "#37588f";
+        const btn = el("button",{
+          class:"navbtn"+(this.state.view===id?" active":""),
+          style:`--navcolor:${color}`,
+          onclick:()=>_switchView(id)
+        }, [el("span",{class:"navdot"}), el("span",{}, label)]);
+        this.$nav.appendChild(btn);
+      }
     }
 
     // ── Mobile bottom nav: pinned tabs + "More" button ──────────────
@@ -1745,6 +1852,7 @@ class PadSpanHaApp extends HTMLElement {
           const res = await this._callWS(Object.assign({ type: "padspan_ha/settings_set" }, payload));
           this.state.settings = res?.settings || this.state.settings;
           this._applyTheme();
+          this._applySkin();
           this._renderNav();
           this._scheduleRender();
           return res;

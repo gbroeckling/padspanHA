@@ -1,0 +1,353 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   styles-2025.css — the "2025" chrome skin.
+
+   This file is an OVERLAY. It is linked AFTER styles.css and only when
+   settings.ui_skin === "2025". styles.css is never modified, so reverting is
+   a single setting (Settings → Appearance) — no redeploy, no HA restart.
+
+   It restyles chrome only: tokens, sidebar nav, sub-tab bars, top bar,
+   buttons, cards, pills. It deliberately does NOT touch the light-theme
+   filter — panel.js still inverts the host for light_theme in both skins,
+   because ~4,500 hardcoded hex literals inside the view modules currently
+   depend on that inversion. Converting those is a separate, view-by-view job.
+
+   Selectors here match or exceed the specificity of their styles.css
+   counterparts; where they tie, this file wins because it loads second.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tokens ──────────────────────────────────────────────────────────────── */
+:host{
+  --bg:#0A0E0C;
+  --panel:#121816;
+  --line:rgba(255,255,255,.07);
+  --line-strong:rgba(255,255,255,.12);
+  --text:#E6EDEA;
+  --accent:#3FD98B;
+  --accent2:#5BB4F2;
+  --accent3:#F2B544;
+
+  --ps-s1:#0E1311;          /* rail */
+  --ps-s2:#121816;          /* card */
+  --ps-s3:#19211E;          /* hover */
+  --ps-tx:#E6EDEA;
+  --ps-tx2:#93A29C;
+  --ps-tx3:#5F6F69;
+  --ps-ac:#3FD98B;
+  --ps-ac-bg:rgba(63,217,139,.13);
+  --ps-ac-ln:rgba(63,217,139,.38);
+  --ps-warn:#F2B544;
+  --ps-bad:#F2685C;
+  --ps-r:6px;
+  --ps-r2:10px;
+  --ps-ease:cubic-bezier(.2,0,0,1);
+
+  color:var(--ps-tx);
+  letter-spacing:-.005em;
+}
+
+/* ── Shell ───────────────────────────────────────────────────────────────── */
+.app{grid-template-columns:248px 1fr;background:var(--bg)}
+.app.mini{grid-template-columns:60px 1fr}
+
+.left{
+  background:var(--ps-s1);
+  border-right:1px solid var(--line);
+  padding:10px 8px 12px;
+  display:flex;
+  flex-direction:column;
+}
+/* the green→teal→amber stripe */
+.left::before{display:none}
+
+.left::-webkit-scrollbar{width:8px}
+.left::-webkit-scrollbar-thumb{
+  background:rgba(255,255,255,.10);
+  border-radius:999px;
+  border:2px solid var(--ps-s1);
+}
+
+.main{padding:14px 20px 80px}
+
+/* ── Brand ───────────────────────────────────────────────────────────────── */
+.brand{
+  display:flex;align-items:center;gap:9px;
+  padding:5px 8px 12px;
+  margin-bottom:0;
+  background:none;
+  border:none;
+  border-radius:0;
+  font-weight:400;
+}
+.brand img{width:24px;height:24px;border-radius:7px}
+.brand .label{font:600 13px/1 Inter,system-ui,sans-serif;letter-spacing:-.012em;color:var(--ps-tx)}
+.brand .muted{color:var(--ps-tx3);font-size:11px}
+
+/* ── Sidebar toolbar (Refresh / Auto Diagnostics / Toggle) ───────────────── */
+.left .toolbar{
+  display:flex;flex-wrap:wrap;gap:5px;margin:0 0 4px;padding:0 2px;
+}
+/* "Auto Diagnostics" does not fit beside the other two at 248px — give it its
+   own row rather than letting it ellipsis to "uto Diagnostic". */
+.left .toolbar #autodiag{order:3;flex:1 1 100%}
+.left .toolbar .btn.inline{
+  flex:1 1 auto;min-width:0;margin-top:0;padding:0 8px;height:28px;
+  display:flex;align-items:center;justify-content:center;
+  background:transparent;border:1px solid var(--line);color:var(--ps-tx2);
+  border-radius:var(--ps-r);font-size:11.5px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.left .toolbar .btn.inline:hover{background:var(--ps-s3);color:var(--ps-tx);border-color:var(--line-strong)}
+
+/* the "Menu / Basic Menu / Dev Menu" caption above the list */
+/* The list is grouped now, and the mode already shows in the top-right
+   Basic/Adv/Dev control — a "Dev Menu" caption above "LIVE" reads as a
+   heading for a group that does not exist. */
+#navLabel{display:none}
+
+/* ── Nav ─────────────────────────────────────────────────────────────────── */
+.nav{display:flex;flex-direction:column;gap:1px}
+
+.navgrp{
+  font:500 10.5px/1 Inter,system-ui,sans-serif;
+  letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ps-tx3);
+  padding:14px 10px 6px;
+  user-select:none;
+}
+.navgrp.first{padding-top:4px}
+
+.nav button.navbtn{
+  display:flex;align-items:center;gap:10px;
+  width:100%;height:32px;padding:0 10px;
+  margin-top:0;
+  background:transparent;
+  border:none;
+  border-left:none;
+  border-radius:var(--ps-r);
+  color:var(--ps-tx2);
+  font:450 13px/1 Inter,system-ui,sans-serif;
+  letter-spacing:-.005em;
+  text-align:left;
+  position:relative;
+  cursor:pointer;
+  transition:background .14s var(--ps-ease),color .14s var(--ps-ease);
+}
+.nav button.navbtn:hover{
+  background:var(--ps-s3);
+  color:var(--ps-tx);
+  border-color:transparent;
+}
+.nav button.navbtn.active{
+  background:var(--ps-ac-bg);
+  color:var(--ps-tx);
+  outline:none;
+}
+.nav button.navbtn.active::before{
+  content:"";position:absolute;left:0;top:9px;bottom:9px;width:2.5px;
+  border-radius:0 999px 999px 0;background:var(--ps-ac);
+}
+.nav button.navbtn:active:not(:disabled){transform:none;filter:none;background:var(--ps-s3)}
+.nav button.navbtn:focus-visible{
+  outline:2px solid var(--ps-ac-ln);outline-offset:1px;
+}
+
+.navicon{
+  width:16px;height:16px;flex:0 0 16px;
+  stroke:currentColor;stroke-width:1.6;fill:none;
+  stroke-linecap:round;stroke-linejoin:round;
+}
+.nav button.navbtn.active .navicon{color:var(--ps-ac)}
+
+.navlabel{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.navcount{
+  margin-left:auto;
+  font:500 10.5px/1 ui-monospace,SFMono-Regular,Consolas,monospace;
+  font-variant-numeric:tabular-nums;
+  color:var(--ps-tx3);
+}
+.navcount.warn{color:var(--ps-warn)}
+
+/* the old coloured dot has no job in this skin */
+.navdot{display:none}
+
+/* ── Collapsed rail ──────────────────────────────────────────────────────── */
+.app.mini .left{padding:8px 6px 10px;align-items:center;overflow-x:hidden}
+.app.mini .brand{padding:2px 0 10px;justify-content:center}
+.app.mini .brand > div{display:none}
+.app.mini .left .toolbar{flex-direction:column;gap:3px;width:100%}
+.app.mini .left .toolbar .btn.inline{
+  width:44px;padding:0;font-size:0;height:30px;align-self:center;
+}
+.app.mini .left .toolbar .btn.inline::after{
+  font-size:12px;color:inherit;
+}
+.app.mini #refresh::after{content:"\21BB"}
+.app.mini #autodiag::after{content:"\2699"}
+.app.mini #toggleSide::after{content:"\00BB"}
+.app.mini #navLabel{display:none}
+.app.mini .navgrp{
+  font-size:0;padding:7px 0;width:22px;height:1px;
+  background:var(--line);margin:6px auto;overflow:hidden;
+}
+.app.mini .nav{align-items:center;width:100%}
+.app.mini .nav button.navbtn{
+  width:44px;height:36px;padding:0;justify-content:center;gap:0;
+}
+.app.mini .navlabel,
+.app.mini .navcount{display:none}
+.app.mini .navicon{width:17px;height:17px;flex:0 0 17px}
+.app.mini .nav button.navbtn.active::before{left:-4px;top:10px;bottom:10px}
+/* label survives collapse as a native tooltip — set via title= in _renderNav */
+
+/* ── Sub-tab bars ────────────────────────────────────────────────────────── */
+.tabs{
+  display:flex;gap:2px;flex-wrap:nowrap;overflow-x:auto;
+  border-bottom:1px solid var(--line);
+  padding:0 2px;margin:8px 0 14px;
+}
+.tabs::-webkit-scrollbar{height:0}
+
+.tab{
+  height:34px;padding:0 11px;
+  display:flex;align-items:center;white-space:nowrap;
+  background:transparent;
+  border:none;
+  border-radius:var(--ps-r) var(--ps-r) 0 0;
+  color:var(--ps-tx2);
+  font:450 13px/1 Inter,system-ui,sans-serif;
+  letter-spacing:-.005em;
+  position:relative;cursor:pointer;
+  transition:background .14s var(--ps-ease),color .14s var(--ps-ease);
+}
+.tab:hover{background:var(--ps-s3);color:var(--ps-tx);border-color:transparent}
+.tab.active{
+  background:transparent;
+  color:var(--ps-tx);
+  outline:none;
+  border-color:transparent;
+}
+.tab.active::after{
+  content:"";position:absolute;left:9px;right:9px;bottom:-1px;height:2px;
+  border-radius:2px 2px 0 0;background:var(--ps-ac);
+}
+.tab:active{transform:none;filter:none}
+.tab:focus-visible{outline:2px solid var(--ps-ac-ln);outline-offset:-2px}
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+.desktop-topbar{
+  height:50px;align-items:center;gap:8px;
+  margin:0 0 14px !important;
+  border-bottom:1px solid var(--line);
+}
+
+.pill{
+  display:inline-flex;align-items:center;gap:6px;
+  height:25px;padding:0 9px;margin:0;
+  border-radius:var(--ps-r);
+  background:var(--ps-s2);
+  border:1px solid var(--line);
+  color:var(--ps-tx2);
+  font-size:11.5px;
+}
+.pill.good{border-color:var(--ps-ac-ln);background:var(--ps-ac-bg);color:var(--ps-tx)}
+.pill.ok{border-color:rgba(242,181,68,.45);background:rgba(242,181,68,.11);color:var(--ps-tx)}
+.pill.bad{border-color:rgba(242,104,92,.45);background:rgba(242,104,92,.11);color:var(--ps-tx)}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn, select, input[type="text"]{
+  background:var(--ps-s2);
+  color:var(--ps-tx);
+  border:1px solid var(--line);
+  border-radius:var(--ps-r);
+  padding:8px 10px;
+  font:450 13px/1.2 Inter,system-ui,sans-serif;
+  letter-spacing:-.005em;
+  transition:background .14s var(--ps-ease),border-color .14s var(--ps-ease);
+}
+.btn:hover:not(:disabled){background:var(--ps-s3);border-color:var(--line-strong)}
+.btn:active:not(:disabled){transform:none;filter:none;background:var(--ps-s3)}
+.btn:focus-visible, select:focus-visible, input[type="text"]:focus-visible{
+  outline:2px solid var(--ps-ac-ln);outline-offset:1px;
+}
+.btn.inline{height:30px;padding:0 11px;display:inline-flex;align-items:center}
+.btn.tiny{height:24px;padding:0 8px;font-size:11.5px;display:inline-flex;align-items:center}
+.btn.primary{
+  background:var(--ps-ac-bg);
+  border-color:var(--ps-ac-ln);
+  color:var(--ps-tx);
+  outline:none;
+}
+.btn.inline.on{
+  background:var(--ps-ac-bg);
+  border-color:var(--ps-ac-ln);
+  color:var(--ps-tx);
+  outline:none;
+}
+.btn.inline.danger{border-color:rgba(242,104,92,.45);background:rgba(242,104,92,.10)}
+
+/* ── Cards, KPIs, tables ─────────────────────────────────────────────────── */
+.card{
+  background:var(--ps-s2);
+  border:1px solid var(--line);
+  border-radius:var(--ps-r2);
+  padding:13px;
+}
+.card.warn{border-color:rgba(242,181,68,.45)}
+.kpi{
+  background:var(--ps-s2);
+  border:1px solid var(--line);
+  border-radius:var(--ps-r2);
+}
+.kpi, .kpi-num, .kn{font-variant-numeric:tabular-nums}
+.badge{
+  border-radius:var(--ps-r);
+  background:var(--ps-s2);
+  border:1px solid var(--line);
+  color:var(--ps-tx2);
+  font-variant-numeric:tabular-nums;
+}
+.maprow{
+  background:var(--ps-s2);
+  border:1px solid var(--line);
+  border-radius:var(--ps-r2);
+}
+.maprow.active{
+  outline:none;
+  border-color:var(--ps-ac-ln);
+  background:var(--ps-ac-bg);
+}
+.mono, .rooms, .tags{
+  background:var(--ps-s2);
+  border:1px solid var(--line);
+  border-radius:var(--ps-r2);
+}
+.muted{color:var(--ps-tx2)}
+.toast{
+  border-radius:var(--ps-r2);
+  background:var(--ps-ac-bg);
+  border:1px solid var(--ps-ac-ln);
+}
+.toast.error{background:rgba(242,104,92,.11);border-color:rgba(242,104,92,.45)}
+
+/* ── Mobile ──────────────────────────────────────────────────────────────── */
+@media(max-width:1100px){
+  .app{grid-template-columns:1fr}
+  .left{width:248px}
+}
+@media(max-width:900px){
+  .left{width:272px}
+  .main{padding:14px 12px 80px}
+  .desktop-topbar{display:none}
+}
+.mobile-bottom-nav-btn.active{color:var(--ps-ac)}
+.mobile-bottom-nav-btn .bn-dot{display:none}
+.mobile-topbar-pill{
+  border-radius:var(--ps-r);
+  background:var(--ps-s2);
+  border:1px solid var(--line);
+  color:var(--ps-tx2);
+}
+.mobile-topbar-pill.live{
+  border-color:var(--ps-ac-ln);background:var(--ps-ac-bg);color:var(--ps-tx);
+}

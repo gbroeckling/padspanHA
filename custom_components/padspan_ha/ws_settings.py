@@ -93,6 +93,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("tags_phone_autolink_enabled"): bool,
         vol.Optional("quiet_mode"): bool,
         vol.Optional("light_theme"): bool,
+        vol.Optional("ui_skin"): str,
         vol.Optional("light_shapes"): dict,
         vol.Optional("beacon_auto_calibrate"): bool,
         vol.Optional("overview_persistent_pins"): bool,
@@ -358,6 +359,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "advanced_extra_tabs" in msg:
             valid = {"devices","bluetooth","presence","monitor","qa","sandbox"}
             payload["advanced_extra_tabs"] = [t for t in msg["advanced_extra_tabs"] if t in valid]
+        if "ui_skin" in msg:
+            # Anything unrecognised falls back to classic, so a bad value can
+            # never leave someone stranded on a skin that failed to load.
+            _skin = str(msg["ui_skin"] or "").strip().lower()
+            payload["ui_skin"] = _skin if _skin in ("classic", "2025") else "classic"
         for key in ("ha_entity_tracker_enabled", "ha_entity_area_enabled",
                     "ha_entity_distance_enabled", "ha_entity_scanner_distance_enabled",
                     "mqtt_publish_enabled", "espresense_mqtt_enabled", "aggressive_ble_reseed",
