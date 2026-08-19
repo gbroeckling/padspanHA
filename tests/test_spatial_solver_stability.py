@@ -301,3 +301,169 @@ def test_wls_rejects_a_refinement_that_fits_worse_than_the_seed():
     assert math.hypot(x - seed[0], y - seed[1]) < 1e-9, (
         "a strictly worse refinement must fall back to the seed exactly"
     )
+
+
+# ── A solve that lands in no room is a failed solve ──────────────────────────
+# Two tiers guard a spatial estimate, and they are not the same strength:
+#
+#   _within_floor_bounds      the floor's BOUNDING BOX plus a 3 m margin
+#   beacon_room_from_geometry the actual room POLYGONS
+#
+# A house is not a rectangle, so there is a gap between them: the missing corner
+# of an L, the yard between two wings, the driveway. A point there passes bounds
+# and hits no room.
+#
+# The estimate was rejected as evidence for the ROOM there — correctly, RSSI
+# scoring decides instead — and its coordinates were published anyway. So a
+# device got a sensible room and was DRAWN in the gap:
+# "computed:(3.8,-13.2)@main>NO_GEOMETRY_HIT" on a car that had not moved.
+#
+# The polygons are now authoritative for BOTH, and the bbox is only a cheap
+# pre-filter. No position is published that no room contains.
+
+from custom_components.padspan_ha import fabric_truth  # noqa: E402
+
+# An L-shaped floor: two wings meeting at the origin corner. The notch at
+# (12, 12) is inside the bounding box and inside neither wing.
+_L_FLOOR = {
+    "West Wing": {"type": "poly", "floor_id": "main",
+                  "points_m": [[0, 0], [10, 0], [10, 20], [0, 20]]},
+    "South Wing": {"type": "poly", "floor_id": "main",
+                   "points_m": [[0, 0], [20, 0], [20, 10], [0, 10]]},
+}
+
+
+def _hits_a_room(x, y):
+    """The polygon test, as beacon_room_from_geometry applies it."""
+    for name, geo in _L_FLOOR.items():
+        d = fabric_truth.room_distance_m(geo, x, y)
+        if d is not None and d <= 0:
+            return name
+    return None
+
+
+def test_the_bounding_box_alone_cannot_keep_a_solve_indoors():
+    """The gap, demonstrated — this is why the bbox is not sufficient."""
+    bounds = _floor_bounds_from_geometry(_L_FLOOR)
+    notch_x, notch_y = 15.0, 15.0
+
+    assert _within_floor_bounds(notch_x, notch_y, "main", bounds) is True, \
+        "the notch must be inside the bounding box, or the example proves nothing"
+    assert _hits_a_room(notch_x, notch_y) is None, \
+        "the notch must be inside no room, or the example proves nothing"
+
+
+def test_a_point_in_the_notch_is_not_a_position():
+    """The invariant: no room contains it, so it is not publishable.
+
+    The production code expresses this by leaving _spatial_xy unset, which
+    routes the poll into the existing hold branch — keep the last good
+    position for the grace window, then drop it honestly.
+    """
+    for x, y in ((15.0, 15.0), (19.0, 19.0), (11.0, 12.5)):
+        assert _hits_a_room(x, y) is None
+        # publishable <=> a room contains it
+        assert (_hits_a_room(x, y) is not None) is False
+
+
+def test_points_actually_inside_a_wing_are_still_positions():
+    """The fix must not suppress good solves."""
+    for x, y in ((5.0, 5.0), (5.0, 18.0), (18.0, 5.0), (9.5, 9.5)):
+        assert _hits_a_room(x, y) is not None, f"({x},{y}) should be inside a wing"
+
+
+def test_the_margin_makes_the_gap_wider_not_narrower():
+    """A 3 m margin admits points further outside, so bounds cannot tighten."""
+    bounds = _floor_bounds_from_geometry(_L_FLOOR)
+    just_outside = (_SITE_MARGIN_M - 0.5)
+    x = 20.0 + just_outside
+    assert _within_floor_bounds(x, 5.0, "main", bounds) is True
+    assert _hits_a_room(x, 5.0) is None, "outside every wing, yet bounds accepts it"
+
+
+# ── The estimator reports whether it determined a point ──────────────────────
+# A least-squares solve returns a point whether or not the geometry determines
+# one. When every receiver lies in roughly one direction the residual surface is
+# flat along it: the minimiser slides out and nothing pulls it back. That is how
+# a parked car was placed thirteen metres into a field, and it was "fixed" with
+# a bounding box — which is neither the building nor the evidence.
+#
+# The flatness is not something to fence off. It is what the covariance of the
+# fit measures. _position_sigma_m reports it, and an estimate that is not
+# determined is not a position. No guard, no hull, no box: the estimator says
+# what it knows.
+
+from custom_components.padspan_ha.presence_coordinator import (  # noqa: E402
+    _POSITION_MAX_SIGMA_M,
+    _position_sigma_m,
+)
+
+_HOUSE = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)]
+_SHED = (5.0, -14.0)
+
+
+def _meas(receivers, true_pt, *, noise=None):
+    out = []
+    for i, (sx, sy) in enumerate(receivers):
+        d = math.hypot(true_pt[0] - sx, true_pt[1] - sy)
+        if noise:
+            d += noise[i]
+        out.append((sx, sy, d, 1.0))
+    return out
+
+
+def test_a_point_among_the_receivers_is_tightly_determined():
+    pt = (4.0, 6.0)
+    sigma = _position_sigma_m(*pt, _meas(_HOUSE, pt, noise=[0.3, -0.2, 0.25, -0.3]))
+    assert sigma < 1.0, f"well-surrounded fix should be sub-metre, got {sigma:.2f}"
+
+
+def test_a_point_in_the_field_is_not_determined_by_house_receivers():
+    """Thirteen metres out, every receiver in the same direction: the residual is
+    flat along that axis and sigma says so. This is the Tesla."""
+    field = (3.8, -13.2)
+    ranges = _meas(_HOUSE, (5.0, 5.0), noise=[3.0, -3.0, 2.5, -2.5])  # inconsistent, as real
+    sigma = _position_sigma_m(*field, ranges)
+    assert sigma > _POSITION_MAX_SIGMA_M,         f"an undetermined solve must report a large sigma, got {sigma:.1f}"
+
+
+def test_the_bronco_by_the_shed_is_determined_once_the_shed_hears_it():
+    """The one thing that may sit outside the house — and it needs NO special
+    case. The shed is a receiver. With it, the geometry brackets the point and
+    sigma is finite. Without it, the same point is undetermined.
+
+    Outdoor placement is allowed exactly when an outdoor radio supplies the
+    evidence. That is the rule working, not an exception to it.
+    """
+    bronco = (4.5, -12.0)
+    without = _position_sigma_m(*bronco, _meas(_HOUSE, bronco, noise=[0.5, -0.4, 0.5, -0.5]))
+    with_shed = _position_sigma_m(*bronco, _meas(_HOUSE + [_SHED], bronco, noise=[0.5, -0.4, 0.5, -0.5, 0.3]))
+    assert with_shed < without, "the shed's range must tighten the fix"
+    assert with_shed <= _POSITION_MAX_SIGMA_M, f"shed-supported fix should be a position, got {with_shed:.1f}"
+
+
+def test_an_estimate_on_the_receivers_line_is_undetermined():
+    """Receivers on a line AND the estimate on that line: every unit vector is
+    parallel, JᵀWJ is rank one, sigma is infinite. The estimator names the
+    degeneracy instead of returning a confident point on it.
+
+    (An estimate OFF the line is a different story — the unit vectors fan out
+    and the point is determined, up to the mirror ambiguity across the line,
+    which is a two-fold ambiguity the local covariance cannot see and _wls_refine
+    handles by refusing near-collinear receivers.)
+    """
+    line = [(0.0, 0.0), (5.0, 0.0), (10.0, 0.0)]
+    sigma = _position_sigma_m(15.0, 0.0, _meas(line, (15.0, 0.0), noise=[0.3, -0.3, 0.2]))
+    assert sigma == math.inf
+
+
+def test_two_receivers_cannot_determine_a_point():
+    assert _position_sigma_m(1.0, 1.0, _meas(_HOUSE[:2], (1.0, 1.0))) == math.inf
+
+
+def test_sigma_grows_with_distance_from_the_receivers():
+    """The property that makes this the right primitive: uncertainty rises
+    smoothly as the geometry thins, rather than a wall appearing at a box edge."""
+    pts = [(5.0, -2.0), (5.0, -6.0), (5.0, -10.0), (5.0, -14.0)]
+    sigmas = [_position_sigma_m(*p, _meas(_HOUSE, (5.0, 5.0), noise=[1.0, -1.0, 1.0, -1.0])) for p in pts]
+    assert sigmas == sorted(sigmas), f"sigma should rise monotonically going out: {sigmas}"

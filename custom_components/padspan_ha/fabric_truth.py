@@ -76,6 +76,43 @@ def cluster_count(bboxes: list, gap_m: float = 1.0) -> int:
     return len({find(i) for i in range(n)})
 
 
+# How far outside a drawn room still counts as inside the building.
+#
+# Rooms do not tile a floor. Hallways, landings and stairwells are almost never
+# drawn, and a wall has thickness, so a point genuinely indoors can sit outside
+# every polygon by a metre or so. A point in the garden is out by tens of
+# metres. Two metres separates those cases with room to spare.
+FOOTPRINT_TOLERANCE_M = 2.0
+
+
+def inside_building_footprint(x_m: float, y_m: float, floor_rooms: dict | None,
+                              tol_m: float = FOOTPRINT_TOLERANCE_M) -> bool:
+    """Is this point inside the building, on this floor?
+
+    **The footprint is the union of the rooms.** It is not a box drawn around
+    them. A bounding box is a superset of the union, so it can prove a point is
+    OUTSIDE the building and can never prove it is inside: the missing corner of
+    an L, the yard between two wings and the driveway are all inside the box and
+    inside no room. Using a box as the containment test is what let a parked car
+    be positioned thirteen metres into a field and drawn there.
+
+    A floor with no usable geometry cannot judge, so it accepts — a floor nobody
+    has drawn must not have its positions suppressed.
+    """
+    best: float | None = None
+    for geo in (floor_rooms or {}).values():
+        d = room_distance_m(geo, x_m, y_m)
+        if d is None:
+            continue
+        if d <= 0.0:
+            return True
+        if best is None or d < best:
+            best = d
+    if best is None:
+        return True
+    return best <= tol_m
+
+
 def rooms_stats(rooms: dict[str, dict]) -> dict[str, Any]:
     """{rooms, clusters, bbox_w_m, bbox_h_m} for a candidate room set."""
     boxes = [b for b in (geom_bbox_m(g) for g in rooms.values()) if b]

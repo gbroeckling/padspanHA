@@ -110,6 +110,7 @@ from .const import (
     DEFAULT_KALMAN_Q, DEFAULT_KALMAN_R,
     DEFAULT_REF_POWER, DEFAULT_PATH_LOSS_EXP,
 )
+from . import fabric_truth as _fabric_truth
 from .presence_rules import (
     indoor_coverage_floor, is_outdoor_floor, modelled_coverage_floor,
     coverage_evidence, outdoor_attribution, outside_by_coverage,
@@ -341,6 +342,59 @@ def _range_weight(d_h: float, d_slant: float) -> float:
     return (d_h * d_h) / (_d2 * (_d2 + 0.01))
 
 
+# The largest positional uncertainty that still counts as a POSITION.
+#
+# Beyond this the solve has not located the device, it has merely failed to
+# rule places out, and the honest output is the seed — a convex combination of
+# receiver positions, i.e. "somewhere among these radios" — rather than a
+# confident-looking point.
+_POSITION_MAX_SIGMA_M = 5.0
+
+
+def _position_sigma_m(x: float, y: float,
+                      meas: list[tuple[float, float, float, float]]) -> float:
+    """Standard error of a range-based fix, in metres. inf when undetermined.
+
+    A least-squares solve returns a point whether or not the geometry
+    determines one, which is the flaw that lets a refinement walk into a field:
+    when every receiver lies in roughly the same direction the residual surface
+    is FLAT along that direction, so moving the estimate further out costs
+    almost nothing and nothing pulls it back.
+
+    That flatness is not a mystery to be fenced off — it is measurable, and it
+    is exactly what the covariance of the fit reports. Each range contributes a
+    unit vector from the receiver to the estimate; those vectors are the rows of
+    the Jacobian. Spread out, JᵀWJ is well conditioned and the fix is tight.
+    All pointing one way, it is near-singular and sigma goes to infinity, which
+    is the estimator saying "this is not determined" instead of guessing.
+
+    sigma^2 = (weighted residual / dof) * trace((JᵀWJ)^-1), dof = n - 2.
+    """
+    n = len(meas)
+    if n < 3:
+        return math.inf
+    a00 = a01 = a11 = 0.0
+    for sx, sy, _d, w in meas:
+        dx, dy = x - sx, y - sy
+        r = math.hypot(dx, dy)
+        if r < 1e-6:
+            continue
+        jx, jy = dx / r, dy / r
+        a00 += w * jx * jx
+        a01 += w * jx * jy
+        a11 += w * jy * jy
+    det = a00 * a11 - a01 * a01
+    if not math.isfinite(det) or det <= 1e-12:
+        return math.inf                      # geometry does not determine a point
+    trace_inv = (a00 + a11) / det            # trace of the 2x2 inverse
+    dof = max(1, n - 2)
+    resid = sum(w * (math.hypot(x - sx, y - sy) - d) ** 2 for sx, sy, d, w in meas)
+    sigma_sq = (resid / dof) * trace_inv
+    if not math.isfinite(sigma_sq) or sigma_sq < 0:
+        return math.inf
+    return math.sqrt(sigma_sq)
+
+
 def _wls_refine(
     x0: float, y0: float, meas: list[tuple[float, float, float]], iters: int = 3
 ) -> tuple[float, float]:
@@ -555,6 +609,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Trailing best-RSSI per object, so the outside rule is not decidable by
         # a single poll in which the strongest scanner happened to be silent.
         self._coverage_hist: dict[str, list[float]] = {}
+        # Room geometry per floor — the building footprint itself, not a box.
+        self._floor_rooms: dict[str, dict] = {}
         # {key: dict}  — last candidate info for diagnostics
         self._last_candidate: dict[str, dict[str, Any]] = {}
         # Throttle: {key: monotonic_ts} — last alert sent time per object
@@ -1075,9 +1131,13 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     for src, pos in _model.scanner_positions_m().items()
                 }
                 self._max_range_m = _site_range_cap(self._scanner_positions)
-                self._floor_bounds = _floor_bounds_from_geometry(
-                    _model.room_geometry_m()
-                )
+                _geo_all = _model.room_geometry_m()
+                self._floor_bounds = _floor_bounds_from_geometry(_geo_all)
+                # The building footprint is the UNION OF THE ROOMS. _floor_bounds
+                # is a box around them — a superset, useful only to reject early.
+                self._floor_rooms = {}
+                for _rn, _rg in (_geo_all or {}).items():
+                    self._floor_rooms.setdefault(str((_rg or {}).get("floor_id") or "main"), {})[_rn] = _rg
                 # 3D: absolute scanner heights + floor stack (issue #54)
                 self._scanner_abs_z = _model.scanner_absolute_z_m()
                 self._floor_bases = _model.floor_base_elevations_m()
@@ -2029,30 +2089,39 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             # the centroid, can place the tag between or
                             # outside receivers (3+ ranges constrain a point).
                             if len(_all_scanners) >= 3:
-                                _rx, _ry = _wls_refine(
-                                    _est_x, _est_y,
-                                    _scanner_dists(
-                                        _all_scanners,
-                                        ref_pt=(_est_x, _est_y) if self._rf_barriers else None,
-                                    ),
+                                _meas = _scanner_dists(
+                                    _all_scanners,
+                                    ref_pt=(_est_x, _est_y) if self._rf_barriers else None,
                                 )
-                                # WLS is allowed to leave the receivers' hull —
-                                # that is the whole point of it — but not to
-                                # leave the BUILDING.  On inconsistent ranges
-                                # Gauss-Newton can walk up to 15 m (3 damped
-                                # iterations), which put devices in the garden.
-                                # The centroid seed is a convex combination of
-                                # scanner positions, so it is always physically
-                                # plausible; fall back to it rather than ship a
-                                # refinement the fabric says cannot be real.
-                                if _within_floor_bounds(
-                                    _rx, _ry, _best_floor, self._floor_bounds
-                                ):
+                                _rx, _ry = _wls_refine(_est_x, _est_y, _meas)
+                                # A least-squares solve returns a point whether
+                                # or not the geometry determines one. That is
+                                # the flaw, and it is in the ESTIMATOR, not in
+                                # where the point landed: when every receiver
+                                # lies in roughly one direction the residual is
+                                # flat along it, the minimiser slides out, and
+                                # there is no evidence out there to pull it
+                                # back. A beacon cannot be triangulated into a
+                                # region no receiver can see past.
+                                #
+                                # It was "fixed" with a bounding box, which is
+                                # neither the building nor the evidence. The
+                                # estimator now reports its own uncertainty —
+                                # the covariance of the fit — and an estimate
+                                # that is not determined is not a position.
+                                # The seed, a convex combination of receiver
+                                # positions, is what the evidence supports.
+                                _sigma = _position_sigma_m(_rx, _ry, _meas)
+                                if _sigma <= _POSITION_MAX_SIGMA_M:
                                     _est_x, _est_y = _rx, _ry
                                 else:
+                                    # The ranges do not determine a point
+                                    # there. The seed is "somewhere among
+                                    # these radios", which is all the
+                                    # evidence actually says.
                                     self._spatial_debug[key] = (
-                                        f"wls_rejected_outside_site:"
-                                        f"({_rx:.1f},{_ry:.1f})@{_best_floor}"
+                                        f"wls_undetermined:sigma={_sigma:.1f}m"
+                                        f"@({_rx:.1f},{_ry:.1f})"
                                     )
                             # Smooth BEFORE the room decision — the raw
                             # per-poll estimate jitters across polygon
@@ -2061,24 +2130,65 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             _prev_sp_fl = (self._spatial_position.get(key) or {}).get("floor_id")
                             if _prev_sp_fl and _prev_sp_fl != _best_floor:
                                 self._spatial_smooth_xy.pop(key, None)  # floor change → fresh state
+                            # Keep the filter state so a rejected solve can be
+                            # rolled back out of it — see below.
+                            _smooth_before = self._spatial_smooth_xy.get(key)
                             _est_x, _est_y = self._ab_smooth_xy(
                                 self._spatial_smooth_xy, key, _est_x, _est_y
                             )
-                            _spatial_xy = (_est_x, _est_y, _best_floor)
                             self._spatial_debug[key] = f"computed:({_est_x:.1f},{_est_y:.1f})@{_best_floor}"
 
                             _geo_room = _model.beacon_room_from_geometry(
                                 _est_x, _est_y, _best_floor
                             )
+                            _in_building = _fabric_truth.inside_building_footprint(
+                                _est_x, _est_y, self._floor_rooms.get(str(_best_floor or "main"))
+                            )
                             if _geo_room:
+                                # Inside a drawn room: position AND room.
+                                _spatial_xy = (_est_x, _est_y, _best_floor)
                                 _spatial_candidate = _geo_room
                                 self._spatial_debug[key] += f">{_geo_room}"
+                            elif _in_building:
+                                # Inside the footprint but in no drawn room —
+                                # a hallway, a landing, a stairwell. That is a
+                                # real place in the house, so the POSITION
+                                # stands; only the room name is left to RSSI
+                                # scoring, which uses every scanner rather than
+                                # just the positioned ones.
+                                _spatial_xy = (_est_x, _est_y, _best_floor)
+                                self._spatial_debug[key] += ">between_rooms"
                             else:
-                                # Position outside all room polygons — do NOT
-                                # guess via nearest centroid.  Let RSSI scoring
-                                # decide; it uses ALL scanners (not just those
-                                # with positions) and has hysteresis/penalties.
-                                self._spatial_debug[key] += ">NO_GEOMETRY_HIT"
+                                # The solve landed OUTSIDE THE BUILDING — not
+                                # merely between rooms, but beyond the union of
+                                # them plus a tolerance. That is a FAILED SOLVE,
+                                # not a position.
+                                #
+                                # This used to reject the point as evidence for
+                                # the ROOM — correctly, RSSI scoring decides
+                                # instead — and then publish its coordinates
+                                # anyway. The same computation was distrusted
+                                # for the room and trusted for the x/y in the
+                                # same breath, so a device got a sensible room
+                                # and was DRAWN in a field: "computed:(3.8,
+                                # -13.2)@main>NO_GEOMETRY_HIT" on a car that
+                                # had not moved.
+                                #
+                                # Leaving _spatial_xy unset routes this into
+                                # the hold branch below, which already handles
+                                # "no solve this poll" properly: keep the last
+                                # good position for the grace window, then drop
+                                # it honestly. A gap in the evidence is not
+                                # evidence of movement.
+                                #
+                                # The filter state is rolled back too — a point
+                                # we refuse to publish must not drag the next
+                                # good solve toward itself.
+                                if _smooth_before is None:
+                                    self._spatial_smooth_xy.pop(key, None)
+                                else:
+                                    self._spatial_smooth_xy[key] = _smooth_before
+                                self._spatial_debug[key] += ">OUTSIDE_FOOTPRINT>held"
                         else:
                             self._spatial_debug[key] = "idw_returned_none"
 

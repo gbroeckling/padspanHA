@@ -180,7 +180,8 @@ class TestEvictStillWorks:
         # than by how many devices have ever walked past, which is the
         # distinction that matters: scanners are provisioned, devices are not.
         by_other_key = {
-            "_scanner_positions", "_room_centroids", "_floor_bounds", "_pl_fits",
+            "_scanner_positions", "_room_centroids", "_floor_bounds", "_floor_rooms",
+            "_pl_fits",
             "_scanner_abs_z", "_floor_bases", "_floor_stack_idx", "_espresense_dist",
             "_addr_tx_power", "_source_to_area", "_source_to_floor", "_room_to_floor",
             "_scanner_agree", "_scanner_reliability", "_co_visible",
