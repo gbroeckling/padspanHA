@@ -95,6 +95,17 @@ import pathlib
 import subprocess
 import datetime
 import tempfile
+
+# The Bright pass prints arrows. On a Windows console stdout is cp1252, which
+# cannot encode them, and the UnicodeEncodeError landed AFTER the release had
+# already been published — so the main release succeeded and the run still
+# exited red, every time, on exactly the machine releases are cut from.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
 import os
 import time
 
