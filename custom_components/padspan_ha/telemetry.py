@@ -267,13 +267,50 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     # Read-only self-check: maps whose geometry disagrees with itself.
     _geometry_faults = 0
     _anchor_faulted = False
+    # Which of the three signals actually tripped. A lumped fault count says
+    # something is wrong and nothing about what, which sends the developer
+    # back to asking for screenshots — the exact loop this report exists to
+    # end. They overlap by design: one map can trip more than one.
+    _fault_iso = 0
+    _fault_scale = 0
+    _fault_origin = 0
+    # Maps placed by Point Align, and whether the map anchoring the whole
+    # house is one of them. The anchor's KIND is the discriminator for issue
+    # #62: a trimmed Point-Aligned map and a trimmed ordinary one fail in
+    # different ways, and from a fault count alone the two are identical.
+    _maps_affine = 0
+    _anchor_affine = False
+    # Point-Aligned maps whose matrix and whose decomposed fields no longer
+    # describe the same footprint. Nothing else can see this: such a map draws
+    # correctly through its matrix while every stored number disagrees. It is
+    # the exposure metric for #64 step 3, which is known and not yet fixed.
+    _stack_desync = 0
     try:
         from . import fabric_truth as _ft  # noqa: PLC0415
         _mdl_store = dom.get(DATA_MODEL)
+        _maps_list = maps.get("maps") or []
         if _mdl_store is not None:
-            _faults = _ft.map_geometry_faults(maps.get("maps") or [], _mdl_store)
+            _faults = _ft.map_geometry_faults(_maps_list, _mdl_store)
             _geometry_faults = len(_faults)
             _anchor_faulted = any(f.get("is_anchor") for f in _faults)
+            for _f in _faults:
+                if float(_f.get("iso_error") or 0) > _ft.ANCHOR_ISO_TOL:
+                    _fault_iso += 1
+                if float(_f.get("scale_error_frac") or 0) > _ft.GEOMETRY_SCALE_TOL:
+                    _fault_scale += 1
+                if float(_f.get("origin_delta_m") or 0) > _ft.GEOMETRY_ORIGIN_TOL_M:
+                    _fault_origin += 1
+            _anchor = _ft.find_metre_anchor(_maps_list, _mdl_store) or {}
+            _anchor_id = _anchor.get("map_id")
+            for _m in _maps_list:
+                _raw = (_m.get("stack") or {}).get("_m")
+                if isinstance(_raw, (list, tuple)) and len(_raw) == 4:
+                    _maps_affine += 1
+                    if _m.get("id") == _anchor_id:
+                        _anchor_affine = True
+                _d = _ft.stack_desync(_m)
+                if _d is not None and _d > _ft.ANCHOR_ISO_TOL:
+                    _stack_desync += 1
     except Exception:
         pass
 
@@ -326,6 +363,12 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         # This class of bug cost a user weeks of screenshots to surface once.
         "maps_geometry_faulted": _geometry_faults,
         "geometry_anchor_faulted": _anchor_faulted,
+        "geometry_fault_iso": _fault_iso,
+        "geometry_fault_scale": _fault_scale,
+        "geometry_fault_origin": _fault_origin,
+        "maps_affine": _maps_affine,
+        "anchor_is_affine": _anchor_affine,
+        "stack_desync": _stack_desync,
         # How each scanner was matched to its HA device. `ambiguous` is the
         # one that matters: it means two scanners are named so that one
         # contains the other, which is the condition that used to assign an

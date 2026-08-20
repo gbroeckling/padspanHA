@@ -178,3 +178,34 @@ def test_rotation_does_not_change_the_footprint() -> None:
         assert anchor is not None, f"no anchor at {deg} deg"
         assert anchor["m_per_world_x"] == pytest.approx(80.0), f"x at {deg} deg"
         assert anchor["m_per_world_y"] == pytest.approx(80.0), f"y at {deg} deg"
+
+
+# ── stack_desync: the measurement that makes this visible in the report ──────
+#
+# A Point-Aligned map holds two descriptions of itself and only one is in
+# force. Nothing outside could see them part, which is why both #62 and #64
+# had to be reported by a human before anyone knew they existed.
+
+def test_a_fresh_point_align_has_no_desync() -> None:
+    """The solver writes the matrix and its decomposition together."""
+    assert fabric_truth.stack_desync(_map(_POINT_ALIGNED)) == pytest.approx(0.0, abs=1e-9)
+
+
+def test_a_map_with_no_matrix_has_nothing_to_disagree_with() -> None:
+    assert fabric_truth.stack_desync(_map(_DECOMPOSED)) is None
+
+
+def test_a_trim_parts_the_two_descriptions() -> None:
+    """_recrop_stack rewrites `_m` and leaves the decomposed fields (issue #62)."""
+    m, _ = _trimmed(_POINT_ALIGNED)
+    # x span was cut to 0.70 of itself while the stored fields still say 1.0,
+    # so they disagree by (1.0 - 0.70) / 0.70.
+    assert fabric_truth.stack_desync(m) == pytest.approx(
+        (1.0 - _TRIM_FW) / _TRIM_FW, abs=0.001)
+
+
+def test_change_master_leaving_a_stale_matrix_is_visible() -> None:
+    """The #64 shape: pristine decomposed fields beside a live old matrix."""
+    stale = dict(_POINT_ALIGNED, _m=[0.86, -0.18, 0.31, 1.24],
+                 scale=1.0, scale_x_adj=1.0, rotation=0, x_offset=0, y_offset=0)
+    assert fabric_truth.stack_desync(_map(stale)) > 0.1

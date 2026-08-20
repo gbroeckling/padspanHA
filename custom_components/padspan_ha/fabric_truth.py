@@ -303,6 +303,41 @@ def find_metre_anchor(maps_list: list[dict], model_store: Any) -> dict[str, Any]
     return None
 
 
+def stack_desync(m: dict) -> float | None:
+    """How far a Point-Aligned map's two descriptions of itself disagree.
+
+    A map placed by Point Align carries BOTH the solved matrix `_m` and an
+    AR-aware decomposition of that same matrix in scale / scale_x_adj — the
+    solver writes them together, so at the moment of the align they describe
+    an identical footprint. Only `_m` is in force: stack_world_xform ignores
+    the decomposed fields entirely while it is present.
+
+    Anything that updates one and not the other parts them. A crop does it in
+    one direction (`_recrop_stack` rewrites the matrix and returns), and
+    Change Master's relink does it in the other (issue #64 step 3, still open,
+    which composes a new placement into fields nothing reads). Neither is
+    visible from outside: the map draws through the matrix and looks placed,
+    while every stored number says something else.
+
+    Returns the larger of the two axes' relative disagreement, or None when
+    the map has no matrix and there is nothing to disagree with.
+    """
+    stk = m.get("stack") or {}
+    _m = stk.get("_m")
+    if not (isinstance(_m, (list, tuple)) and len(_m) == 4):
+        return None
+    live_w, live_h = world_footprint(m, stk)
+    try:
+        sc = float(stk.get("scale") or 1)
+        said_w = sc * float(stk.get("scale_x_adj") or 1)
+        said_h = sc * float(stk.get("ref_ar") or image_ar(m) or 1)
+    except (TypeError, ValueError):
+        return None
+    if live_w <= 0 or live_h <= 0 or said_w <= 0 or said_h <= 0:
+        return None
+    return round(max(abs(said_w - live_w) / live_w, abs(said_h - live_h) / live_h), 4)
+
+
 # ── Candidate builders ───────────────────────────────────────────────────────
 
 def _bounds_to_geo(b: dict, to_metres: Callable[[float, float], tuple[float, float] | None],

@@ -4,6 +4,28 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.36.5 — A scanner's name is not part of another scanner's, and the report can now tell these apart (2026-08-20)
+
+### Identity
+- **A shared name prefix no longer moves several scanners at once.** Reported by p976dtrsg2-droid: with proxies named `btproxy`, `btproxy_livingroom` and `btproxy_kitchen`, assigning an area to one moved others with it. Radios were matched to their HA device by a two-way substring test against every device name, taking the first hit out of an unordered registry — so `btproxy` answered for all three, and which won could change between restarts. Three copies of that rule: `snapshot_builder`, which is the one that produced the reported behaviour because it sets both `device_id` *and* the displayed area for every radio, and twice in `ws_radios`. The Overview prefers `device_id` over a name when calling `radio_area_set`, which looks like the safe path, but the `device_id` had been chosen by the same rule and was already wrong.
+- **Containment is not identity.** Resolution now lives in one place, `RadioDeviceIndex`: a MAC from the source against the device's connections, then the whole name compared as a slug so "Living Room Hub" still matches `living_room_hub`, then containment *only* where it names exactly one device — which keeps installs working where the names are related without being equal, and stops a shared prefix claiming three scanners. Anything ambiguous resolves to no device at all. A scanner with no area is a visible gap someone can fix; a scanner holding another scanner's area is a wrong answer that looks right.
+- **The refusal says why.** `radio_area_set` reports the colliding names back, and the Overview shows the server's message instead of "Failed to update. Check HA logs." A refusal nobody can read is just a failure.
+
+### The usage report can now tell two geometry faults apart
+- **Which signal tripped**, split across `geometry_fault_iso` / `_scale` / `_origin`. A lumped fault count says something is wrong and nothing about what, which sends this straight back to asking people for screenshots.
+- **`anchor_is_affine` and `maps_affine`.** A trimmed Point-Aligned map and a trimmed ordinary one fail differently and are indistinguishable from a fault count. The anchor's kind is the discriminator, and it is currently the open question on #62.
+- **`stack_desync`** — Point-Aligned maps whose matrix and whose decomposed fields no longer describe the same footprint. Nothing could see this before: such a map draws correctly through its matrix while every stored number disagrees. It is the exposure metric for #64 step 3, which is known and not yet fixed.
+- **`radios_ambiguous` / `radios_unresolved` / `radios_matched_partial`.** The naming collision above had to be noticed, troubleshot and written up by a user before it was visible at all. Counts by outcome only — never which radios, never their names.
+
+### ESPresense
+- **The ingestion has tests for the first time.** It was already wired at startup, toggled from Manage, torn down on unload and feeding the snapshot; what it did not have was a single test over 370 lines of parsing against a wire format with three traps it documents about itself — the scanner identity living only in the topic path, rssi and distance arriving as JSON strings, and bare-hex MACs. Each is a silent wrong answer rather than a crash.
+- **The README says how it actually works.** It claimed PadSpan works with existing ESPresense scanners without mentioning that they arrive over MQTT, need HA's MQTT integration, and are off until switched on. All true, none of it stated.
+
+### Tests — 933 to 988
+- The scanner resolver, the ESPresense callbacks and `stack_desync`, each confirmed as cover by mutation rather than by going green. Reinstating the original substring rule fails 9 of the resolver's tests.
+
+---
+
 ## 0.36.4 — Two placements that were read from fields nothing was using (2026-08-19)
 
 ### Geometry
