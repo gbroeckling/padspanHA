@@ -323,6 +323,55 @@ class PrivateBLEResolver:
         self._resolved_ids_window = set()
         return out
 
+    # The identity sources async_load() draws from. Fixed set, so an
+    # unexpected value can never travel in the usage report as a label.
+    IDENTITY_SOURCES = ("private_ble_device", "bluetooth_bond", "mobile_app",
+                        "companion_sensor", "padspan", "other")
+
+    def identity_breakdown(self, resolved_ids: set[str]) -> dict[str, Any]:
+        """Per-identity resolution outcome, for the opt-in usage report.
+
+        `rpas_seen` / `rpas_resolved` cannot answer "does IRK resolution
+        work". `count_rpas` counts every structurally-resolvable address on
+        the air, which is every rotating device in radio range and therefore
+        mostly other people's phones. A low ratio is the ordinary result in a
+        normal home, and reading it as a failure is a mistake that has already
+        been made once.
+
+        The question that can be answered is per key: of the identities this
+        install actually registered, how many resolved anything? A key that is
+        present and never matches is the real failure, and until now it looked
+        identical to having no key at all.
+
+        `resolved_ids` is passed in rather than taken here so the caller keeps
+        control of the window: a preview must not reset what a send consumes.
+
+        Counts and fixed source labels only. Device names never leave here.
+        """
+        by_source: dict[str, dict[str, int]] = {}
+        total = 0
+        resolving = 0
+        for dev, info in zip(self._devices, getattr(self, "_source_info", [])):
+            src = str((info or {}).get("source") or "other")
+            if src not in self.IDENTITY_SOURCES:
+                src = "other"
+            slot = by_source.setdefault(src, {"total": 0, "resolving": 0})
+            slot["total"] += 1
+            total += 1
+            if dev.get("canonical_id") in resolved_ids:
+                slot["resolving"] += 1
+                resolving += 1
+        return {
+            "total": total,
+            "resolving": resolving,
+            # The metric that did not exist: registered and producing nothing.
+            "silent": max(0, total - resolving),
+            "by_source": by_source,
+            # Without this every zero above is unreadable — "none configured"
+            # and "none working" are the same number and very different bugs.
+            "has_any": total > 0,
+        }
+
     def _remember(self, addr: str, cid: str | None, now: float) -> None:
         """Cache a resolution, evicting expired entries once the cache is full.
 

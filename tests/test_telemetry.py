@@ -293,6 +293,90 @@ def test_health_reports_how_many_keys_are_resolving():
         pbr._resolvers.pop(id(h), None)
 
 
+def test_a_registered_key_that_never_matches_is_visible_as_silent():
+    """The failure the report could not see.
+
+    rpas_seen / rpas_resolved cannot answer this. count_rpas counts every
+    resolvable-looking address on the air, i.e. every rotating device in
+    range, so the ratio mostly measures how many neighbours you have. A key
+    that is registered and never matches used to look exactly like no key at
+    all — both were a zero.
+    """
+    from custom_components.padspan_ha import private_ble_resolver as pbr
+    h = _hass()
+    r = pbr.PrivateBLEResolver(h)
+    r._devices = [
+        {"canonical_id": "irk:" + _SIG_IRK.hex(), "name": "Phone", "irk_bytes": _SIG_IRK},
+        {"canonical_id": "irk:deadbeef", "name": "Watch", "irk_bytes": bytes(16)},
+    ]
+    r._source_info = [{"source": "private_ble_device"}, {"source": "padspan"}]
+    pbr._resolvers[id(h)] = r
+    try:
+        r.resolve_address(_SIG_RPA)                # only the first one matches
+        p = T.build_payload(h)
+        assert p["health"]["irks_total"] == 2
+        assert p["health"]["irks_silent"] == 1, "the Watch resolved nothing and must show"
+        assert p["health"]["has_any_identity"] is True
+        assert p["health"]["irks_by_source"] == {"private_ble_device": 1, "padspan": 1}
+        assert p["health"]["irks_resolving_by_source"] == {"private_ble_device": 1, "padspan": 0}
+        T.assert_shareable(p)
+        assert "Watch" not in json.dumps(p) and "Phone" not in json.dumps(p)
+    finally:
+        pbr._resolvers.pop(id(h), None)
+
+
+def test_no_identity_configured_is_not_the_same_as_none_working():
+    """Both are zero resolving. Only has_any_identity separates them."""
+    from custom_components.padspan_ha import private_ble_resolver as pbr
+    h = _hass()
+    r = pbr.PrivateBLEResolver(h)
+    r._devices = []
+    r._source_info = []
+    pbr._resolvers[id(h)] = r
+    try:
+        p = T.build_payload(h)
+        assert p["health"]["irks_total"] == 0
+        assert p["health"]["irks_silent"] == 0, "nothing registered is not a silent key"
+        assert p["health"]["has_any_identity"] is False
+        assert p["health"]["irks_by_source"] == {}
+    finally:
+        pbr._resolvers.pop(id(h), None)
+
+
+def test_an_unknown_identity_source_cannot_travel_as_a_label():
+    """Source labels are a fixed vocabulary, so a future one cannot leak."""
+    from custom_components.padspan_ha import private_ble_resolver as pbr
+    h = _hass()
+    r = pbr.PrivateBLEResolver(h)
+    r._devices = [{"canonical_id": "irk:x", "name": "n", "irk_bytes": bytes(16)}]
+    r._source_info = [{"source": "Garry's experimental importer"}]
+    pbr._resolvers[id(h)] = r
+    try:
+        p = T.build_payload(h)
+        assert p["health"]["irks_by_source"] == {"other": 1}
+        assert "Garry" not in json.dumps(p)
+        T.assert_shareable(p)
+    finally:
+        pbr._resolvers.pop(id(h), None)
+
+
+def test_a_preview_does_not_consume_the_identity_window():
+    from custom_components.padspan_ha import private_ble_resolver as pbr
+    h = _hass()
+    r = pbr.PrivateBLEResolver(h)
+    r._devices = [{"canonical_id": "irk:" + _SIG_IRK.hex(), "name": "Phone", "irk_bytes": _SIG_IRK}]
+    r._source_info = [{"source": "private_ble_device"}]
+    pbr._resolvers[id(h)] = r
+    try:
+        r.resolve_address(_SIG_RPA)
+        assert T.build_payload(h)["health"]["irks_silent"] == 0
+        assert T.build_payload(h)["health"]["irks_silent"] == 0, "a preview reset the window"
+        T.build_payload(h, consume=True)
+        assert T.build_payload(h)["health"]["irks_silent"] == 1, "after a send the key is silent again"
+    finally:
+        pbr._resolvers.pop(id(h), None)
+
+
 def test_a_send_builds_a_snapshot_first(monkeypatch):
     """The environment half of the report comes from the live snapshot. A
     send ten minutes after a restart, with nobody on the panel, reported

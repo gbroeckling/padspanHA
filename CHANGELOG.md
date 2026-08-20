@@ -4,6 +4,20 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.36.6 — The usage report can tell a key that never works from a key nobody added (2026-08-20)
+
+### Identity health
+- **`rpas_seen` / `rpas_resolved` was never a resolution metric**, and reading it as one is a mistake already made once against real data. `count_rpas()` counts every structurally-resolvable address on the air — every rotating device in radio range, so overwhelmingly other people's phones, watches and passing cars. The ratio measures what fraction of your neighbours belong to you, and a low one is the ordinary result in a normal home. Both fields stay, because how crowded the air is bears on history size and CPU, but they are now labelled as describing the *environment* and the comment says what they are not.
+- **`irks_silent` — the failure the report could not see.** Of the identities an install actually registered, how many resolved nothing at all in the window. A key that is present and never matches used to look exactly like a key nobody added: both were a zero.
+- **`has_any_identity`.** Without it every zero above is unreadable, because "none configured" and "none working" are the same number and completely different bugs.
+- **`irks_by_source` / `irks_resolving_by_source`.** Identities arrive by five doors — `private_ble_device`, `bluetooth_bond`, `mobile_app`, `companion_sensor`, and PadSpan's own list — and nothing said which of them carries the load or which of them works. Labels come from a fixed vocabulary, so an unknown source is bucketed as `other` rather than travelling as itself. Counts and fixed labels only; device names never leave the resolver.
+- A preview reads the identity window without resetting it, as with every other window; only a send consumes.
+
+### Tests — 988 to 992
+- The breakdown, confirmed as cover by mutation: counting every key as silent fails 2, passing an unknown source label through fails 1, asserting an identity exists when none does fails 1, lumping all sources together fails 2. Two of the new tests also assert that a house with named devices puts none of those names in the payload.
+
+---
+
 ## 0.36.5 — A scanner's name is not part of another scanner's, and the report can now tell these apart (2026-08-20)
 
 ### Identity

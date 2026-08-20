@@ -256,11 +256,14 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     # answer to "does the IRK path work anywhere". Read without resetting on
     # a preview; a send resets it with the other windows.
     resolving = 0
+    _identity = {"total": 0, "resolving": 0, "silent": 0, "by_source": {}, "has_any": False}
     try:
         from .private_ble_resolver import _resolvers  # noqa: PLC0415
         _res = _resolvers.get(id(hass))
         if _res is not None:
-            resolving = len(_res.take_resolved_ids()) if consume else len(_res._resolved_ids_window)
+            _ids = _res.take_resolved_ids() if consume else set(_res._resolved_ids_window)
+            resolving = len(_ids)
+            _identity = _res.identity_breakdown(_ids)
     except Exception:
         resolving = 0
 
@@ -344,10 +347,30 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "crypto_ok": bool(resolver.get("crypto_ok", True)),
         "ble_callback_active": diag.get("callback_active") is not False,
         "ble_diag_ok": diag.get("ok") is not False,
+        # NOT a resolution health metric, whatever the ratio looks like.
+        # count_rpas() counts every structurally-resolvable address on the
+        # air, which is every rotating device in radio range and therefore
+        # mostly other people's phones. This describes the radio ENVIRONMENT
+        # — how crowded it is, which bears on history size and CPU. Read
+        # identity health from irks_* below, never from these two.
         "rpas_seen": int(resolver.get("rpa_count") or 0),
         "rpas_resolved": int(resolver.get("resolved") or 0),
         "resolver_errors": _len(resolver.get("errors") or []),
         "irk_devices_resolving": resolving,
+        # Registered identities, and how many of them produced nothing at all.
+        # `irks_silent` is the failure this report previously could not see: a
+        # key that never matches looked exactly like a key nobody added.
+        "irks_total": int(_identity.get("total") or 0),
+        "irks_silent": int(_identity.get("silent") or 0),
+        # Zeros above are only readable next to this. "None configured" and
+        # "none working" are the same number and completely different bugs.
+        "has_any_identity": bool(_identity.get("has_any")),
+        # Which door the identities came in by, and which door actually works.
+        # Fixed labels from PrivateBLEResolver.IDENTITY_SOURCES — no names.
+        "irks_by_source": {k: v.get("total", 0)
+                           for k, v in (_identity.get("by_source") or {}).items()},
+        "irks_resolving_by_source": {k: v.get("resolving", 0)
+                                     for k, v in (_identity.get("by_source") or {}).items()},
         "outside_now": sum(1 for o in obj_list if isinstance(o, dict) and o.get("outside")),
         "coverage_floor_active": getattr(coord, "_coverage_floor", None) is not None,
         # The positioning engine's own count of objects it placed this poll.
