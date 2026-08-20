@@ -126,6 +126,28 @@ COVERAGE_HYSTERESIS_DB = 2.0   # enter below floor-2, leave above floor+2
 # Six polls is ~30s at the default interval: long enough to ride out a radio
 # missing a few reports, short enough that a vehicle actually leaving is
 # outside within half a minute.
+# Expressed as a DURATION, not a poll count. `presence_poll_interval_s` is a
+# user setting (1-60s, default 5), so a fixed poll count is a different length
+# of time on every install: six polls is 30s on a default install and a full
+# minute on one polling every 10s. The rule is about how long a device has been
+# unheard, which is a physical fact about the device — it cannot depend on how
+# often this particular install happens to look.
+COVERAGE_WINDOW_S = 30.0
+
+
+def coverage_window_polls(poll_interval_s: float | None) -> int:
+    """How many polls span COVERAGE_WINDOW_S at this install's poll rate."""
+    try:
+        p = float(poll_interval_s)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        p = 5.0
+    if not (p > 0):
+        p = 5.0
+    return max(2, min(60, round(COVERAGE_WINDOW_S / p)))
+
+
+# Kept for callers that have no interval to hand; equals COVERAGE_WINDOW_S at
+# the default 5s poll.
 COVERAGE_WINDOW_POLLS = 6
 
 

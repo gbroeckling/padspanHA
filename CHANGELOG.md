@@ -4,6 +4,47 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.36.2 — A device that is outside and heard by nothing no longer stops the poll (2026-08-19)
+
+### Fixed — a whole-install outage introduced by 0.36.1
+- **The outside rule's diagnostic formatted a reading that was not taken.** 0.36.1 moved the verdict to a trailing window, which made "outside, and heard by nothing this poll" a normal state for the first time — and the debug line still formatted *this* poll's strongest reading, which is `None` in exactly that state. The `TypeError` escaped the per-object loop, the coordinator never assigned its data, and **every entity in the install froze at its last value**: maps stopped updating and a vehicle that had left was still drawn where it last was. The line now reports the value the decision was actually made from, and says `silent` when nothing was heard.
+
+### One object's failure is one object's failure
+- **The per-object pipeline is isolated.** Whatever a single device's state does, the other objects still get their poll: the failure is recorded against that object, it is emitted unrefined rather than dropped, and its traceback is logged once instead of every ten seconds. A house full of working sensors must not go dark because one tag is in a shape the solver did not expect. `PadSpan: N of M objects failed this poll` is the new early warning, and it should read zero.
+
+### A device that comes back is not placed by where it used to be
+- The re-entry reset cleared the vote window, the confirmed room and the coverage history, but not `_floor_evidence` or `_device_floor` — so a device that left and returned was still judged on the floor it was on before it went. Both are now cleared with the rest. Found by a test, not by a report.
+
+### The coverage window is a duration, not a poll count
+- `presence_poll_interval_s` is a user setting (1–60 s, default 5), so a fixed count of six polls meant 30 s on a default install and **a full minute** on one polling every 10 s. How long a device has been unheard is a fact about the device, not about how often this install happens to look. The window is now 30 s everywhere and the poll count is derived from the install's own rate.
+
+### Tests
+- **A poll-level harness.** Every significant defect of the last three releases got through because the helper was correct and the *caller* was wrong — issue #62, issue #63, and the crash above. These tests drive a real coordinator through a real `_async_update_data`, so the caller is exercised too. Verified by reverting the fix and watching them fail with the original `TypeError`.
+- **Per-object state has one lifecycle, and a test enforces it.** The coordinator keeps per-object state in forty-odd dicts, each of which must be cleared on eviction and, if it describes a location, on return from an absence. Adding a dict without classifying it now fails the suite, so the question is forced at the point it is cheapest to answer.
+
+---
+
+## 0.36.1 — The outside rule reads a window, and the solver says when it did not find a point (2026-08-19)
+
+- **The outside rule cannot be decided by one poll's thinnest evidence.** The rule reads the strongest scanner still inside the silence grace. When the scanner that hears a device best goes quiet that value does not degrade — it drops to the next best, which can be 25–30 dB lower, and crosses the floor in a single poll. Scanners are shared, so *every* device whose best hearer went quiet flipped in the same poll: the symptom was a whole house going outside at once rather than one device drifting. The verdict now comes from a trailing window, so going outside must survive sustained evidence while coming back inside stays immediate.
+- **The solver reports whether the geometry determined a point.** A least-squares solve returns a point whether or not the receivers constrain one; when they all lie in roughly the same direction the residual surface is flat and the estimate slides out into a field. That flatness is measurable — it is the covariance of the fit — so the estimator now reports its own uncertainty, and an estimate that is not determined falls back to the seed rather than being fenced in by a bounding box.
+- **The building footprint is the union of the rooms**, not a box drawn around them. A box can prove a point is outside the building and can never prove it is inside: the missing corner of an L, the yard between two wings and the driveway are all inside the box and inside no room.
+- `scripts/release.py` reconfigures its console to UTF-8, so the Bright pass no longer exits red on the machine releases are cut from.
+
+**Known issue:** this release introduced the outage fixed in 0.36.2. Upgrade past it.
+
+---
+
+## 0.36.0 — Trimming a map no longer skews the fabric, and an install can report a broken placement itself (2026-08-19)
+
+- **Trimming a map no longer skews the fabric (#62).** A map's placement was stored twice — metric in the model, world in the map's stack — and a crop re-derived only one of them. The two metres-per-world-unit figures then disagreed, and rooms drew correct across and wrong down by exactly the map's aspect error.
+- **An install can report a skewed map itself**, without the owner having to notice and screenshot it: a read-only check reports a map whose stored geometry no longer agrees with itself, surfaced in Health and in the Rooms placements table.
+- **Rooms can repair a stale map alignment, and warns before you touch anything.** Which *side* is stale decides the repair. For a trimmed map the transform is the trustworthy half and the stack is stale, so the existing "Fix alignment" would overwrite the one good copy — a new "Rebuild alignment" goes the other way and leaves the stored placement untouched. It is refused unless the map is actually in that state, so it cannot flatten a deliberate hand alignment.
+- **2025 panel chrome, as a selectable skin.**
+- **Mapping sub-tabs work again** — `setMapsTab` threw before it rendered.
+
+---
+
 ## 0.35.0 — Stable: PadSpan Bright's foundations, the Bluetooth view restyled, IRKs told the truth, and an opt-in usage report (2026-08-18)
 
 The first stable since 0.34.4. Everything below shipped and was verified as pre-releases 0.34.5–0.34.11 on a live install before this promotion.

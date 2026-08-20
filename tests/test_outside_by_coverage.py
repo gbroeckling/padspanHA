@@ -208,3 +208,43 @@ def test_an_inactive_rule_is_still_inactive():
     assert outside_by_coverage(-99.0, None, False) is False
     hist, best = coverage_evidence(None, None)
     assert best is None and hist == []
+
+
+# ── the window is a duration, not a poll count ───────────────────────────────
+
+class TestCoverageWindowIsADuration:
+    """`presence_poll_interval_s` is a user setting (1-60s, default 5).
+
+    A fixed poll count therefore means a different length of time on every
+    install — six polls is 30s at the default and a full minute on an install
+    polling every 10s, which is what a real install was running. How long a
+    device has been unheard is a fact about the device, so the window has to be
+    a duration and the poll count derived from it.
+    """
+
+    def test_same_duration_at_every_poll_rate(self):
+        from custom_components.padspan_ha.presence_rules import (
+            COVERAGE_WINDOW_S, coverage_window_polls,
+        )
+        for poll_s in (1, 2, 5, 10, 15, 30):
+            polls = coverage_window_polls(poll_s)
+            assert abs(polls * poll_s - COVERAGE_WINDOW_S) <= poll_s, (
+                f"{poll_s}s poll -> {polls} polls = {polls * poll_s}s, "
+                f"want ~{COVERAGE_WINDOW_S}s"
+            )
+
+    def test_default_matches_the_documented_constant(self):
+        from custom_components.padspan_ha.presence_rules import (
+            COVERAGE_WINDOW_POLLS, coverage_window_polls,
+        )
+        assert coverage_window_polls(5) == COVERAGE_WINDOW_POLLS
+
+    def test_nonsense_intervals_fall_back_rather_than_explode(self):
+        from custom_components.padspan_ha.presence_rules import coverage_window_polls
+        for bad in (None, 0, -1, "x"):
+            assert coverage_window_polls(bad) == 6
+
+    def test_never_degenerates_to_a_single_poll(self):
+        """A one-poll window is the instantaneous rule the change removed."""
+        from custom_components.padspan_ha.presence_rules import coverage_window_polls
+        assert coverage_window_polls(60) >= 2
