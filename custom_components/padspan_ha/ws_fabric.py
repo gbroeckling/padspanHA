@@ -579,6 +579,7 @@ async def ws_fabric_floor_finalize(hass: HomeAssistant, connection, msg) -> None
     vol.Required("type"): "padspan_ha/fabric_map_stack_rebuild",
     vol.Required("map_id"): str,
 })
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_fabric_map_stack_rebuild(hass: HomeAssistant, connection, msg) -> None:
     """Rebuild a map's STACK from its stored transform — the opposite repair

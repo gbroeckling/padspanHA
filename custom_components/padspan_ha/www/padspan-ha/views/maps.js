@@ -8174,9 +8174,15 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
       // "Fix alignment" there would overwrite the good copy with the stale one.
       if (a.geometry_fault) {
         const gf = a.geometry_fault;
+        // A fault fires on any of three signals. Naming only two of them meant
+        // a scale-only fault fell through to the origin branch and quoted a
+        // distance that is inside its own tolerance — "0.2 m from what its
+        // scale says" reads as nonsense to the person being asked to approve.
         const why = gf.iso_error > 0.02
           ? `its own two scales disagree by ${(gf.iso_error * 100).toFixed(0)}%`
-          : `its placement is ${gf.origin_delta_m.toFixed(1)} m from what its scale says`;
+          : gf.scale_error_frac > 0.05
+            ? `its stored scale is ${(gf.scale_error_frac * 100).toFixed(0)}% off what its alignment implies`
+            : `its placement is ${gf.origin_delta_m.toFixed(1)} m from what its scale says`;
         tbl.appendChild(el("button", {
           class: "btn inline primary", style: "font-size:10px;padding:2px 8px",
           title: "Rebuild this map's stack alignment from its measured scale. "

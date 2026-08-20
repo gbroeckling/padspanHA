@@ -2165,6 +2165,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                 # The seed, a convex combination of receiver
                                 # positions, is what the evidence supports.
                                 _sigma = _position_sigma_m(_rx, _ry, _meas)
+                                _sigma_note = ""
                                 if _sigma <= _POSITION_MAX_SIGMA_M:
                                     _est_x, _est_y = _rx, _ry
                                 else:
@@ -2172,8 +2173,13 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                     # there. The seed is "somewhere among
                                     # these radios", which is all the
                                     # evidence actually says.
-                                    self._spatial_debug[key] = (
-                                        f"wls_undetermined:sigma={_sigma:.1f}m"
+                                    # Recorded on the line the poll actually
+                                    # publishes. Written here on its own it was
+                                    # overwritten by the "computed:" assignment
+                                    # a few statements below, so the gate could
+                                    # fire on every poll and never be seen.
+                                    _sigma_note = (
+                                        f"|wls_undetermined:sigma={_sigma:.1f}m"
                                         f"@({_rx:.1f},{_ry:.1f})"
                                     )
                             # Smooth BEFORE the room decision — the raw
@@ -2189,7 +2195,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             _est_x, _est_y = self._ab_smooth_xy(
                                 self._spatial_smooth_xy, key, _est_x, _est_y
                             )
-                            self._spatial_debug[key] = f"computed:({_est_x:.1f},{_est_y:.1f})@{_best_floor}"
+                            self._spatial_debug[key] = (
+                                f"computed:({_est_x:.1f},{_est_y:.1f})@{_best_floor}"
+                                + (_sigma_note if len(_all_scanners) >= 3 else "")
+                            )
 
                             _geo_room = _model.beacon_room_from_geometry(
                                 _est_x, _est_y, _best_floor
