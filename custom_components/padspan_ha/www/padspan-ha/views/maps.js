@@ -2833,11 +2833,20 @@ async function _executeChangeMaster(ctx, oldMaster, newMaster, allMaps) {
   const inv = _invertTransform(bx, by, bs, br);
 
   // 1. New master → pristine origin
+  //
+  // _m/_m_ar MUST be cleared, not just left out of the override. Object.assign
+  // spreads `ns` first, and makeStackXform prefers _m over every decomposed
+  // field, so a solved matrix left in place means none of this reset reaches
+  // the renderer: the map keeps drawing at its old placement while these
+  // values claim it sits at the origin at scale 1. The wizard only runs on a
+  // map already aligned to the current master, which is exactly the map most
+  // likely to carry one (#64).
   await ctx.actions.mapsUpdateQuiet({
     map_id: newMaster.id,
     stack: Object.assign({}, ns, {
       is_master: true, x_offset: 0, y_offset: 0, scale: 1.0,
       rotation: 0, scale_x_adj: 1.0, ref_map_id: null, tie_ins: [],
+      _m: null, _m_ar: null,
     }),
   });
 
@@ -2850,6 +2859,9 @@ async function _executeChangeMaster(ctx, oldMaster, newMaster, allMaps) {
       scale: inv.scale, rotation: inv.rotation,
       scale_x_adj: bsx ? (Math.round((1.0 / bsx) * 10000) / 10000) : 1.0,
       ref_map_id: newMaster.id, tie_ins: [],
+      // Same reason as above: the inverse is expressed in decomposed terms, so
+      // anything that would override them has to go with them.
+      _m: null, _m_ar: null,
     }),
   });
 
