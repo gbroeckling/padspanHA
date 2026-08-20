@@ -52,6 +52,7 @@ _SETTLED_POLLS = 3
 from .ble_enrichment import enrich_object as _enrich_ble_object
 from .presence_rules import away_timeout_s, is_away
 from .ws_common import (
+    RadioDeviceIndex,
     _ALL_ADDR_CAP,
     _DATA_SNAPSHOT_CACHE,
     _DATA_SNAPSHOT_CACHE_LOCK,
@@ -472,35 +473,34 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     # Do NOT overwrite it here — a second bl.get_snapshot() call could return
     # empty data if get_bluetooth_live() returns None, wiping all BLE ads.
 
-    # Attach area_name and device_id to radios (best-effort, from HA device_registry)
+    # Attach area_name and device_id to radios (best-effort, from HA device_registry).
+    #
+    # Identity goes through RadioDeviceIndex, which matches whole names rather
+    # than substrings of them. This used to take the first device whose name
+    # merely appeared in the radio's, out of an unordered registry, so a proxy
+    # called "btproxy" claimed "btproxy_livingroom" and "btproxy_kitchen" too
+    # and all three showed the same area (issue #65). The area shown here is
+    # also the area written by radio_area_set, which is why one bad rule moved
+    # scanners in pairs.
+    #
+    # `device_match` records how each radio was identified, so the Health view
+    # and the usage report can count collisions without anyone having to notice
+    # and report one. It carries the reason only, never the colliding names.
     try:
-        dr_ar = device_registry.async_get(hass)
         ar_reg = area_registry.async_get(hass)
         area_names = {a.id: a.name for a in ar_reg.async_list_areas()}
-        # Build name → area and name → device_id lookup from all HA devices
-        name_to_area: dict[str, str] = {}
-        name_to_dev_id: dict[str, str] = {}
-        for dev in dr_ar.devices.values():
-            for cand in [dev.name_by_user, dev.name]:
-                if not cand:
-                    continue
-                key = cand.lower()
-                name_to_dev_id[key] = dev.id
-                if dev.area_id:
-                    area = area_names.get(dev.area_id, "")
-                    if area:
-                        name_to_area[key] = area
-        # Match each radio source/name against HA devices
+        index = RadioDeviceIndex(hass)
         for radio in ((snapshot.get("ble") or {}).get("radios") or []):
-            src = str(radio.get("source") or "").lower()
-            rname = str(radio.get("name") or "").lower()
-            for key in name_to_dev_id:
-                if key and (key in src or src in key or key in rname or rname in key):
-                    if not radio.get("device_id"):
-                        radio["device_id"] = name_to_dev_id[key]
-                    if not radio.get("area_name") and key in name_to_area:
-                        radio["area_name"] = name_to_area[key]
-                    break
+            match = index.resolve(radio.get("source"), radio.get("name"))
+            radio["device_match"] = match.reason
+            if match.device is None:
+                continue
+            if not radio.get("device_id"):
+                radio["device_id"] = match.device.id
+            if not radio.get("area_name") and match.device.area_id:
+                area = area_names.get(match.device.area_id, "")
+                if area:
+                    radio["area_name"] = area
     except Exception:
         pass
 

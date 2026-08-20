@@ -10,7 +10,8 @@ Split out of websocket.py; registration stays there.
 from __future__ import annotations
 
 import logging
-from typing import Any
+import re
+from typing import Any, NamedTuple
 from homeassistant.core import HomeAssistant, callback
 from .const import (
     DOMAIN,
@@ -394,3 +395,148 @@ def _point_in_polygon(x: float, y: float, polygon: list) -> bool:
             inside = not inside
         j = i
     return inside
+
+
+# ── Resolving a BLE radio to its HA device ──────────────────────────────────
+#
+# A radio arrives from HA's bluetooth manager carrying a `source` (an ESPHome
+# node slug like "btproxy_livingroom", a bare adapter name like "hci0", or a
+# MAC) and a display `name`. Neither is an HA device id, so the device has to
+# be found before a scanner can be given an area.
+#
+# It used to be found with a two-way substring test against every device name,
+# taking the first hit out of an unordered registry:
+#
+#     if key in src or src in key or key in rname or rname in key:
+#
+# A device called "btproxy" therefore answers to "btproxy_livingroom" and
+# "btproxy_kitchen" as well, and which of the three won depended on dict order.
+# Assigning an area to one scanner wrote it to another, and because the same
+# rule also filled in every radio's displayed area, they appeared to move
+# together (issue #65).
+#
+# Containment is not identity: a name that contains another name is a DIFFERENT
+# device. Resolution here is exact, and a collision is refused rather than
+# broken by arbitrary order. A scanner with no area is a visible gap someone
+# can fix; a scanner holding another scanner's area is a wrong answer that
+# looks right.
+
+_SLUG_RE = re.compile(r"[^a-z0-9]+")
+_MAC_RE = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
+# Shorter than this is not a name, it is a coincidence. Same floor the entity
+# slug lookup in snapshot_builder already uses.
+_MIN_PARTIAL_LEN = 3
+
+
+def radio_slug(value: Any) -> str:
+    """Lowercase, with every run of non-alphanumerics collapsed to one '_'."""
+    return _SLUG_RE.sub("_", str(value or "").lower()).strip("_")
+
+
+def _norm_mac(value: Any) -> str:
+    mac = str(value or "").upper().replace("-", ":")
+    return mac if _MAC_RE.match(mac) else ""
+
+
+def _device_label(dev: Any) -> str:
+    return str(getattr(dev, "name_by_user", None) or getattr(dev, "name", None)
+               or getattr(dev, "id", "") or "")
+
+
+class RadioMatch(NamedTuple):
+    """device is None unless exactly one device was identified.
+
+    reason is one of: "mac", "name", "partial", "ambiguous", "none".
+    candidates carries the colliding device labels when reason is "ambiguous",
+    so a caller can tell the user which names to change. It is for the user's
+    own screen — never put it in anything that leaves the install.
+    """
+
+    device: Any | None
+    reason: str
+    candidates: list
+
+
+class RadioDeviceIndex:
+    """Device-registry lookup for BLE radios.
+
+    Built once per pass and queried per radio: the old code walked the whole
+    registry for every radio, and resolving one at a time would do the same.
+    """
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._by_slug: dict[str, list] = {}
+        self._by_mac: dict[str, list] = {}
+        try:
+            from homeassistant.helpers import device_registry  # noqa: PLC0415
+            devices = list(device_registry.async_get(hass).devices.values())
+        except Exception:
+            devices = []
+        # Sorted by id so a run is reproducible. Ties are refused rather than
+        # broken, but determinism means the same install answers the same way.
+        for dev in sorted(devices, key=lambda d: str(getattr(d, "id", ""))):
+            for cand in (getattr(dev, "name_by_user", None), getattr(dev, "name", None)):
+                slug = radio_slug(cand)
+                if slug:
+                    bucket = self._by_slug.setdefault(slug, [])
+                    if dev not in bucket:
+                        bucket.append(dev)
+            for conn in (getattr(dev, "connections", None) or set()):
+                try:
+                    mac = _norm_mac(conn[1])
+                except (IndexError, TypeError):
+                    continue
+                if mac:
+                    bucket = self._by_mac.setdefault(mac, [])
+                    if dev not in bucket:
+                        bucket.append(dev)
+
+    def _result(self, hits: list, reason: str) -> RadioMatch | None:
+        if len(hits) == 1:
+            return RadioMatch(hits[0], reason, [])
+        if len(hits) > 1:
+            return RadioMatch(None, "ambiguous", [_device_label(d) for d in hits])
+        return None
+
+    def resolve(self, source: Any, name: Any = "") -> RadioMatch:
+        """Identify the HA device behind one radio."""
+        # 1. A MAC is the only identifier here that is unique by construction.
+        mac = _norm_mac(source)
+        if mac:
+            found = self._result(self._by_mac.get(mac) or [], "mac")
+            if found:
+                return found
+
+        keys = {k for k in (radio_slug(source), radio_slug(name)) if k}
+        if not keys:
+            return RadioMatch(None, "none", [])
+
+        # 2. The whole name, not part of one. "btproxy_livingroom" matches the
+        #    device of that name and does not match "btproxy".
+        exact: list = []
+        for key in sorted(keys):
+            for dev in self._by_slug.get(key, []):
+                if dev not in exact:
+                    exact.append(dev)
+        found = self._result(exact, "name")
+        if found:
+            return found
+
+        # 3. Last resort: containment, accepted ONLY when it names exactly one
+        #    device. This is what keeps an install working where the device
+        #    name and the scanner source are related but not equal ("Living
+        #    Room Hub BLE Proxy" against "living_room_hub"). Demanding
+        #    uniqueness is what stops a shared prefix claiming three scanners.
+        partial: list = []
+        for slug, devs in self._by_slug.items():
+            if len(slug) < _MIN_PARTIAL_LEN:
+                continue
+            if any(slug in k or (len(k) >= _MIN_PARTIAL_LEN and k in slug) for k in keys):
+                for dev in devs:
+                    if dev not in partial:
+                        partial.append(dev)
+        found = self._result(partial, "partial")
+        if found:
+            return found
+
+        return RadioMatch(None, "none", [])

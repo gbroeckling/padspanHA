@@ -326,6 +326,18 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         # This class of bug cost a user weeks of screenshots to surface once.
         "maps_geometry_faulted": _geometry_faults,
         "geometry_anchor_faulted": _anchor_faulted,
+        # How each scanner was matched to its HA device. `ambiguous` is the
+        # one that matters: it means two scanners are named so that one
+        # contains the other, which is the condition that used to assign an
+        # area to the wrong radio (issue #65) and now refuses instead. A count
+        # of installs carrying that naming is the only way to know whether the
+        # refusal is rare or whether people hit it constantly and need the
+        # names checked at setup. `unresolved` says the scanner has no HA
+        # device at all, which is a different problem wearing the same face.
+        # Counts by outcome only — never which radios, never their names.
+        "radios_ambiguous": sum(1 for r in radios if r.get("device_match") == "ambiguous"),
+        "radios_unresolved": sum(1 for r in radios if r.get("device_match") == "none"),
+        "radios_matched_partial": sum(1 for r in radios if r.get("device_match") == "partial"),
     }
     usage = _take_counters(hass) if consume else dict(dom.get(_DATA_COUNTERS) or {})
     # WARNING+ log lines by module since the last report — the "what broke"

@@ -26,7 +26,7 @@ from .const import (
 )
 from .bluetooth_live import get_bluetooth_live
 from .ws_calibration import _get_cal_store
-from .ws_common import _invalidate_snapshot_cache
+from .ws_common import _invalidate_snapshot_cache, RadioDeviceIndex
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,22 +73,30 @@ async def ws_radio_area_set(hass: HomeAssistant, connection, msg) -> None:
     source = (msg.get("source") or "").strip()
     area_name = (msg.get("area_name") or "").strip()
 
-    # Resolve device_id from source string if not provided directly
+    # Resolve device_id from the source string if not provided directly.
+    #
+    # An area written to the wrong scanner is worse than an area not written at
+    # all: it silently moves a room. So a name that collides with another
+    # device's is reported back rather than guessed between (issue #65).
+    ambiguous: list = []
     if not dev_id and source:
         try:
-            dr_r = device_registry.async_get(hass)
-            src_l = source.lower()
-            for dev in dr_r.devices.values():
-                for nm in [dev.name_by_user, dev.name]:
-                    if nm and (nm.lower() in src_l or src_l in nm.lower()):
-                        dev_id = dev.id
-                        break
-                if dev_id:
-                    break
+            match = RadioDeviceIndex(hass).resolve(source)
+            if match.device is not None:
+                dev_id = match.device.id
+            ambiguous = match.candidates
         except Exception:
             pass
 
     if not dev_id:
+        if ambiguous:
+            connection.send_error(
+                msg["id"], "device_ambiguous",
+                "This radio's name matches more than one HA device ("
+                + ", ".join(str(c) for c in ambiguous[:4])
+                + "). Rename them so none is contained in another, then try again.",
+            )
+            return
         connection.send_error(msg["id"], "device_not_found", "Could not find HA device for this radio source")
         return
 
@@ -293,12 +301,8 @@ async def ws_radio_audit(hass: HomeAssistant, connection, msg) -> None:
     fabric_scanners = (mdl.data.get("scanners") or {}) if mdl else {}
     fabric_positions = mdl.scanner_positions_m() if mdl else {}
 
-    # Build name→device lookup
-    name_to_dev: dict[str, Any] = {}
-    for dev in dr.devices.values():
-        for cand in [dev.name_by_user, dev.name]:
-            if cand:
-                name_to_dev[cand.lower()] = dev
+    # Built once for the whole pass, then queried per radio.
+    _radio_index = RadioDeviceIndex(hass)
 
     # ESPHome config entry IDs
     esphome_entry_ids: set[str] = set()
@@ -325,13 +329,9 @@ async def ws_radio_audit(hass: HomeAssistant, connection, msg) -> None:
         if dev_id:
             dev = dr.async_get(dev_id)
         if not dev:
-            # Fuzzy match by name
-            src_l = src.lower()
-            rname_l = rname.lower()
-            for key, d in name_to_dev.items():
-                if key and (key in src_l or src_l in key or key in rname_l or rname_l in key):
-                    dev = d
-                    break
+            # Whole-name match, and no device at all rather than the wrong one
+            # when two names collide (issue #65).
+            dev = _radio_index.resolve(src, rname).device
 
         if dev:
             # Extract MACs from connections

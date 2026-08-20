@@ -236,7 +236,11 @@ export function render(ctx){
         }
         await ctx.actions.refreshSnapshot();
       } catch(e) {
-        status.textContent = "Failed to update. Check HA logs.";
+        // Show what the server said. radio_area_set refuses when two scanners
+        // are named so that one contains the other, and that message names
+        // them — swallowing it leaves the user with a dead end instead of the
+        // one thing that fixes it (issue #65).
+        status.textContent = (e && e.message) ? e.message : "Failed to update. Check HA logs.";
         saveBtn.disabled = false;
       }
     });
