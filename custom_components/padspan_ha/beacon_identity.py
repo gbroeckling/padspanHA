@@ -231,11 +231,18 @@ def update_address_memory(
     prev_addrs = prev_entry.get("addrs") or {}
     addrs: dict[str, dict] = {}
     for a in recent_macs:
-        age = ages.get(a)
-        age = float(age) if isinstance(age, (int, float)) else 0.0
         was = prev_addrs.get(a) or {}
         prev_age = was.get("age")
-        readvertised = (isinstance(prev_age, (int, float))
+        raw = ages.get(a)
+        # An UNKNOWN age is not an age of zero. Coercing it to 0.0 made every
+        # missing reading look like a fall from whatever came before — which
+        # is the exact evidence this rule exists to demand, manufactured out of
+        # its absence. It marked a rotator's abandoned address durable and
+        # split one device into several: issue #63 inverted.
+        known = isinstance(raw, (int, float)) and not isinstance(raw, bool)
+        age = float(raw) if known else prev_age
+        readvertised = (known
+                        and isinstance(prev_age, (int, float))
                         and age < prev_age - READVERTISE_DROP_S)
         addrs[a] = {"age": age, "durable": bool(was.get("durable")) or readvertised}
     return {"polls": int(prev_entry.get("polls") or 0) + 1, "addrs": addrs}
