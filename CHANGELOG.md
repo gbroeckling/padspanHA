@@ -4,6 +4,30 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.36.3 — Phantom devices, a solver that claimed certainty it did not have, and the tests that found both (2026-08-19)
+
+### Identity
+- **An unknown address age is not an age of zero.** `update_address_memory` coerced a missing age to `0.0` and then compared it with the previous poll's, so a missing reading looked like a fall from whatever came before — the exact evidence the rule exists to demand, manufactured out of its absence. It marked a rotating device's abandoned address *durable*, which splits one phone into several objects: issue #63 inverted. An unknown age now carries the last known one forward and decides nothing.
+
+### The spatial solver
+- **A fit cannot be more certain than the measurements it is made of.** The position's standard error multiplied the geometric conditioning *by* the residual, so ranges that merely agreed drove the uncertainty to zero and the geometry never got a say. Three receivers in a line with exact ranges to a point two hundred metres away — a geometry that fixes the position only up to reflection across that line, so the solve cannot know which side of the receivers the device is on — reported **0.0 m** and published it. The residual may now raise the uncertainty above what the radios can deliver but never lower it below.
+- **The "this solve is not determined" diagnostic is visible.** It was written and then overwritten two statements later, so the gate could fire on every poll of every device and never appear anywhere.
+
+### Repairs and permissions
+- **Rebuilding a map's alignment is an administrator action**, like the sibling repair that goes the other way. It writes the map store and saves it.
+- **The repair dialog names the signal that actually fired.** A fault trips on any of three, and only two were explained, so a scale-only fault quoted a placement error that is inside its own tolerance — a number that reads as nonsense to someone being asked to approve a permanent change.
+
+### Housekeeping
+- A removed object is no longer reported as failing forever: the failure list is per-object state and was not cleared on eviction.
+
+### Tests — 865 to 928
+- **Poll-level harness.** The defects of the last three releases all got through because the helper was correct and the *caller* was wrong. These drive a real update cycle, and were verified by reverting this week's fix and watching them fail with the original error.
+- **Per-object state lifecycle.** Every one of the coordinator's ~forty per-object dicts is classified, and adding one without classifying it fails the suite. It immediately found floor evidence surviving a device's absence.
+- **The building footprint**, which shipped in 0.36.1 with no tests, on the check that decides whether a position is published at all.
+- **Beacon durability at real advertising rates**, which established that the rule works only within a band of intervals — a beacon advertising once a second can never satisfy it, and a real two-beacon pack is merged into one object. Recorded rather than fixed; the fix changes device identity and belongs in a change of its own.
+
+---
+
 ## 0.36.2 — A device that is outside and heard by nothing no longer stops the poll (2026-08-19)
 
 ### Fixed — a whole-install outage introduced by 0.36.1
