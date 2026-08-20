@@ -203,6 +203,31 @@ def stack_world_xform(stk: dict | None, fallback_ar: float) -> Callable[[float, 
     return map_pt
 
 
+def world_footprint(m: dict, stk: dict | None = None) -> tuple[float, float]:
+    """The world span of a map's full image, measured THROUGH its transform.
+
+    Returns (width, height) as the lengths of the image's two edges in world
+    space, which is what "how much world does this picture cover" means under
+    rotation as well as without it.
+
+    Never re-derive this from `scale * scale_x_adj` and `scale * ref_ar`.
+    Those are the inputs to ONE of stack_world_xform's two branches, and it
+    ignores them completely when Point Align has written a raw affine `_m`.
+    A Point-Aligned map derived that way gets a footprint the renderer never
+    draws, and every metre figure computed from it is skewed by whatever the
+    stale fields happen to still say (issue #62). Asking the transform what it
+    actually does is correct for both branches, correct under rotation, and
+    stays correct if a third representation is ever added.
+    """
+    if stk is None:
+        stk = m.get("stack") or {}
+    xf = stack_world_xform(stk, image_ar(m))
+    x0, y0 = xf(0.0, 0.0)
+    x1, y1 = xf(1.0, 0.0)
+    x2, y2 = xf(0.0, 1.0)
+    return (math.hypot(x1 - x0, y1 - y0), math.hypot(x2 - x0, y2 - y0))
+
+
 # How far the two axis scales may disagree before a map is considered unfit to
 # anchor the house. A well-formed map is 0; a trimmed one is the fraction that
 # was cut off, so anything above a couple of percent is a real disagreement.
@@ -216,9 +241,11 @@ def find_metre_anchor(maps_list: list[dict], model_store: Any) -> dict[str, Any]
     "iso_error"} or None when no map anywhere in the stack frame has a real
     (reference-measured) scale.
 
-    World space is ANISOTROPIC in y — stack_world_xform spans the image across
-    `scale * scale_x_adj` in x and `scale * ar` in y — so a measured map has
-    TWO metres-per-world-unit figures, not one.
+    World space is ANISOTROPIC in y — a map's image covers a different world
+    span across than it does down — so a measured map has TWO
+    metres-per-world-unit figures, not one. Both spans come from
+    world_footprint(), which measures them through the map's own transform;
+    see its note for why they must not be read off the stack fields.
 
     Both were computed here from the start, and only x was returned. Callers
     then applied that single number to both axes, which is issue #62: rooms
@@ -251,12 +278,7 @@ def find_metre_anchor(maps_list: list[dict], model_store: Any) -> dict[str, Any]
             continue
         if sx_m <= 0 or sy_m <= 0:
             continue
-        stk = m.get("stack") or {}
-        sc = float(stk.get("scale") or 1)
-        sxadj = float(stk.get("scale_x_adj") or 1)
-        ref_ar = float(stk.get("ref_ar") or image_ar(m) or 1)
-        world_w = sc * sxadj          # world-x span of the full image width
-        world_h = sc * ref_ar         # world-y span of the full image height
+        world_w, world_h = world_footprint(m)
         if world_w <= 0 or world_h <= 0:
             continue
         m_per_w_x = sx_m / world_w
@@ -411,11 +433,11 @@ def map_geometry_faults(maps_list: list[dict], model_store: Any) -> list[dict[st
             abs(sy - st["scale_y_m"]) / sy,
         )
         origin_delta = math.hypot(ox - st["origin_x_m"], oy - st["origin_y_m"])
-        # This map's own two axis scales, independent of the anchor map.
-        stk = m.get("stack") or {}
-        sc = float(stk.get("scale") or 1)
-        world_w = sc * float(stk.get("scale_x_adj") or 1)
-        world_h = sc * (float(stk.get("ref_ar") or image_ar(m) or 1))
+        # This map's own two axis scales, independent of the anchor map — so
+        # this is a SECOND instance of the issue #62 derivation, not a
+        # consequence of the anchor's. On a Point-Aligned map it invented the
+        # axis disagreement it then reported to Health.
+        world_w, world_h = world_footprint(m)
         iso = 0.0
         if world_w > 0 and world_h > 0:
             mx, my = sx / world_w, sy / world_h

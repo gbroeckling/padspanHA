@@ -49,10 +49,9 @@ export function metreAnchor(mapsList, modelTransforms) {
     if (!t || !(t.reference_measurements || []).length) continue;
     const sx = Number(t.scale_x_m), sy = Number(t.scale_y_m);
     if (!(sx > 0) || !(sy > 0)) continue;
-    const stk = m.stack || {};
-    // World space is ANISOTROPIC in y — makeStackXform spans the image across
-    // `scale * scale_x_adj` in x and `scale * ar` in y (see its two branches).
-    // A measured map therefore has two metres-per-world-unit figures, not one.
+    // World space is ANISOTROPIC in y — a map's image covers a different world
+    // span across than it does down — so a measured map has two
+    // metres-per-world-unit figures, not one.
     //
     // This used to read scale_y_m, validate it, and then return only the x
     // figure — which every consumer applied to BOTH axes. Rooms came out
@@ -63,9 +62,11 @@ export function metreAnchor(mapsList, modelTransforms) {
     // the picture it is being drawn on (issue #62 — rooms vertically
     // compressed in the overhead view while the radios, which never leave the
     // image's own 0-1 space, stayed put).
-    const worldW = (Number(stk.scale) || 1) * (Number(stk.scale_x_adj) || 1);
-    const ar = Number(stk.ref_ar) || imageAr(m) || 1;
-    const worldH = (Number(stk.scale) || 1) * ar;
+    //
+    // Both spans come from worldFootprint(), which measures them through the
+    // map's own transform; see its note for why they must not be read off the
+    // stack fields.
+    const [worldW, worldH] = worldFootprint(m);
     if (!(worldW > 0) || !(worldH > 0)) continue;
     const mpwx = sx / worldW, mpwy = sy / worldH;
     const isoError = mpwx ? Math.abs(mpwy - mpwx) / mpwx : 1;
@@ -230,6 +231,27 @@ export function makeStackXform(stk, fallbackAr) {
       return [dx / (sc * sx || 1e-9) + 0.5, dy / (sc * ar || 1e-9) + 0.5];
     },
   };
+}
+
+// The world span of a map's full image, measured THROUGH its transform:
+// [width, height], the lengths of the image's two edges in world space, which
+// is what "how much world does this picture cover" means under rotation as
+// well as without it.
+//
+// Never re-derive this from `scale * scale_x_adj` and `scale * ref_ar`. Those
+// are the inputs to ONE of makeStackXform's two branches, and it ignores them
+// completely when Point Align has written a raw affine `_m`. A Point-Aligned
+// map derived that way gets a footprint the renderer never draws, and every
+// metre figure computed from it is skewed by whatever the stale fields happen
+// to still say (issue #62). Asking the transform what it actually does is
+// correct for both branches, correct under rotation, and stays correct if a
+// third representation is ever added.
+export function worldFootprint(m, stk) {
+  const xf = makeStackXform(stk || m.stack || {}, imageAr(m));
+  const [x0, y0] = xf.mapPt(0, 0);
+  const [x1, y1] = xf.mapPt(1, 0);
+  const [x2, y2] = xf.mapPt(0, 1);
+  return [Math.hypot(x1 - x0, y1 - y0), Math.hypot(x2 - x0, y2 - y0)];
 }
 
 // ── Walls in the fabric, for the views that still draw on a photograph ──────
