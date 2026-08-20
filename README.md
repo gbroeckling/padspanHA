@@ -14,7 +14,7 @@ PadSpan™ HA goes far beyond "home or away." It tells you **which room** every 
 
 Most BLE presence integrations give you a config flow and a sensor. PadSpan gives you a **complete tracking workstation** — floor plan editor, room boundary polygons, 3D isometric maps, walk-around calibration, follow mode with email alerts, a training hub, and a full sample/demo mode so you can explore every feature before plugging in hardware.
 
-It works with your existing BLE scanners (ESPresense, Bermuda proxies, or any HA Bluetooth proxy). No custom firmware. No cloud dependency. Everything runs locally.
+It works with your existing BLE scanners. HA Bluetooth proxies and Bermuda proxies are picked up directly; ESPresense nodes come in over MQTT, which you switch on in **Manage → ESPresense MQTT** and which needs HA's MQTT integration configured. No custom firmware. No cloud dependency. Everything runs locally.
 
 ---
 
@@ -200,7 +200,7 @@ For devices where you can't get an IRK, the experimental **MAC Rotation Bridging
 ## Requirements
 
 - Home Assistant **2024.1** or newer
-- At least one BLE scanner (ESPresense, Bermuda proxy, or HA Bluetooth proxy)
+- At least one BLE scanner: an HA Bluetooth proxy, a Bermuda proxy, or ESPresense nodes (ESPresense also needs HA's MQTT integration, and the ingestion switched on in Manage)
 - HACS (recommended for easy installation and updates)
 
 ---
