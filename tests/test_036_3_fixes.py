@@ -32,32 +32,43 @@ class TestTheSigmaGateMeasuresWhatItClaims:
     def test_fewer_than_three_ranges_determine_nothing(self):
         assert _position_sigma_m(5.0, 5.0, _dists([(0, 0), (10, 0)], 5, 5)) == math.inf
 
-    def test_KNOWN_DEFECT_zero_residual_hides_a_degenerate_geometry(self):
-        """sigma = sqrt((residual/dof) * trace((JtWJ)^-1)).
+    def test_a_perfect_fit_on_a_degenerate_geometry_is_still_rejected(self):
+        """A fit cannot be more certain than the measurements it is made of.
 
-        The trace term IS the geometric conditioning and it is the thing the
-        docstring claims to be reporting — but it is MULTIPLIED by the
-        residual, so a perfectly consistent set of ranges drives sigma to zero
-        no matter how degenerate the geometry is.
+        This was the defect: sigma = sqrt((residual/dof) * trace((JtWJ)^-1)),
+        and the trace term — which IS the geometric conditioning — was
+        multiplied by the residual. With three ranges and two unknowns there is
+        one degree of freedom, so roughly consistent ranges drive the residual
+        to nothing and the geometry never gets to speak.
 
         Three receivers in a line with exact ranges to a point 200 m away is
-        determined only up to reflection across that line — the solve cannot
-        know which side the device is on — and the gate reports 0.0 m, i.e.
-        maximum confidence, and publishes it.
-
-        This test documents the shipped behaviour rather than asserting the
-        behaviour we want, so the suite stays honest and the fix has somewhere
-        to land. The fix is to gate on conditioning independently of residual;
-        it is a design change to 0.36.1's gate, not a patch, so it is not in
-        0.36.3.
+        determined only up to reflection across that line. The solve cannot
+        know which side of the receivers the device is on, and it used to
+        report 0.0 m and publish it.
         """
         cluster = [(0, 0), (0, 1), (0, 2)]
         sigma = _position_sigma_m(200.0, 1.0, _dists(cluster, 200.0, 1.0))
-        assert sigma == 0.0, (
-            "shipped behaviour changed — if this now reports high uncertainty "
-            "the defect is fixed and this test should become the real assertion"
+        assert sigma > _POSITION_MAX_SIGMA_M, (
+            f"a geometry determined only up to reflection reported sigma="
+            f"{sigma}, which would be published as a position"
         )
-        assert sigma <= _POSITION_MAX_SIGMA_M  # ...and is therefore published
+
+    def test_the_noise_floor_does_not_reject_ordinary_geometry(self):
+        """The floor must catch degeneracy without disabling the feature.
+
+        A normal three-scanner room is orders of magnitude away from the
+        degenerate case, so the gate separates them with room to spare rather
+        than sitting on a knife edge.
+        """
+        spread = [(0, 0), (10, 0), (5, 8)]
+        good = _position_sigma_m(5.0, 3.0, _dists(spread, 5.0, 3.0))
+        cluster = [(0, 0), (0, 1), (0, 2)]
+        bad = _position_sigma_m(200.0, 1.0, _dists(cluster, 200.0, 1.0))
+        assert good <= _POSITION_MAX_SIGMA_M
+        assert bad > 10 * _POSITION_MAX_SIGMA_M, (
+            f"only {bad / max(good, 1e-9):.0f}x between an ordinary room and a "
+            f"degenerate solve — too close to call"
+        )
 
     def test_the_conditioning_term_alone_does_see_it(self):
         """The information IS there — only the multiplication discards it.

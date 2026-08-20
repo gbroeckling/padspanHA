@@ -351,6 +351,22 @@ def _range_weight(d_h: float, d_slant: float) -> float:
 # confident-looking point.
 _POSITION_MAX_SIGMA_M = 5.0
 
+# The standard error of a single range, in metres, below which we do not
+# believe our own measurements.
+#
+# A least-squares fit reports the uncertainty implied by how well the data
+# AGREE. With three ranges and two unknowns there is one degree of freedom, so
+# ranges that are even roughly consistent produce a residual near zero — and
+# since the geometric term is MULTIPLIED by that residual, a degenerate solve
+# came out as exactly certain. Three receivers in a line, exact ranges, a point
+# 200 m away that is determined only up to reflection across that line: sigma
+# 0.0 m, published as fact.
+#
+# The residual may RAISE the uncertainty above what the radios can deliver. It
+# must never lower it below. BLE ranging is a path-loss estimate off an RSSI
+# that moves metres when a person turns around; 1.5 m is a conservative floor.
+_RANGE_SIGMA_M = 1.5
+
 
 def _position_sigma_m(x: float, y: float,
                       meas: list[tuple[float, float, float, float]]) -> float:
@@ -375,7 +391,9 @@ def _position_sigma_m(x: float, y: float,
     if n < 3:
         return math.inf
     a00 = a01 = a11 = 0.0
+    wsum = 0.0
     for sx, sy, _d, w in meas:
+        wsum += w
         dx, dy = x - sx, y - sy
         r = math.hypot(dx, dy)
         if r < 1e-6:
@@ -390,7 +408,13 @@ def _position_sigma_m(x: float, y: float,
     trace_inv = (a00 + a11) / det            # trace of the 2x2 inverse
     dof = max(1, n - 2)
     resid = sum(w * (math.hypot(x - sx, y - sy) - d) ** 2 for sx, sy, d, w in meas)
-    sigma_sq = (resid / dof) * trace_inv
+    # Variance of unit weight, floored at the ranging noise we know we have.
+    # Carrying the same weighting convention as `resid` keeps the two
+    # comparable — the floor is what one _RANGE_SIGMA_M-sized error per range
+    # would contribute. Without it a perfect fit reports perfect certainty and
+    # the geometry term never gets to speak.
+    var = max(resid / dof, (_RANGE_SIGMA_M ** 2) * (wsum / n))
+    sigma_sq = var * trace_inv
     if not math.isfinite(sigma_sq) or sigma_sq < 0:
         return math.inf
     return math.sqrt(sigma_sq)

@@ -413,9 +413,27 @@ def _meas(receivers, true_pt, *, noise=None):
 
 
 def test_a_point_among_the_receivers_is_tightly_determined():
+    """Well inside the gate, and far tighter than an undetermined solve.
+
+    This asserted sub-metre until 0.36.3. That number came from the ranges
+    AGREEING to 0.3 m, and agreement is not accuracy — BLE range estimates are
+    biased together by body blocking and orientation, so four of them can
+    concur and all be wrong. sigma is now floored at _RANGE_SIGMA_M, the error
+    a single range actually carries, which is why a perfect fit on a
+    degenerate geometry no longer reports certainty. Sub-metre was never
+    something these radios could deliver.
+    """
     pt = (4.0, 6.0)
     sigma = _position_sigma_m(*pt, _meas(_HOUSE, pt, noise=[0.3, -0.2, 0.25, -0.3]))
-    assert sigma < 1.0, f"well-surrounded fix should be sub-metre, got {sigma:.2f}"
+    assert sigma < _POSITION_MAX_SIGMA_M / 2.0, (
+        f"well-surrounded fix should sit comfortably inside the gate, got {sigma:.2f}"
+    )
+    field_sigma = _position_sigma_m(
+        3.8, -13.2, _meas(_HOUSE, (5.0, 5.0), noise=[3.0, -3.0, 2.5, -2.5]))
+    assert field_sigma > 3 * sigma, (
+        f"a surrounded fix ({sigma:.2f} m) must be markedly tighter than an "
+        f"undetermined one ({field_sigma:.2f} m)"
+    )
 
 
 def test_a_point_in_the_field_is_not_determined_by_house_receivers():
