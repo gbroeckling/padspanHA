@@ -70,6 +70,17 @@ LOCATION_STATE: frozenset[str] = frozenset({
 })
 
 
+# Non-dict containers that are REPLACED WHOLESALE on every poll, so a stale
+# member cannot outlive the current cycle and clearing them on eviction would
+# be noise. Anything not listed here must be cleared by _evict_object.
+REBUILT_EVERY_POLL: frozenset[str] = frozenset({
+    # presence_coordinator.py: `self._prev_present = _cur_present` — assigned,
+    # not mutated, at the end of every poll. Only feeds `_arrived` within the
+    # same cycle.
+    "_prev_present",
+})
+
+
 def _dict_attrs(coord: PresenceCoordinator) -> dict[str, dict]:
     return {n: v for n, v in vars(coord).items()
             if isinstance(v, dict) and n.startswith("_")}
@@ -115,6 +126,27 @@ class TestEviction:
         coord._ema_rssi[ADDR] = {"scanner1": -55.0}
         run_poll(coord, snapshot([ble_object(KEY, ADDR)]))
         return coord
+
+    def test_no_non_dict_container_holds_it_either(self):
+        """Per-object state is not always a dict.
+
+        `_object_failures` is a list, and the dict walk below cannot see it —
+        which is exactly how a removed object came to be reported as failing
+        forever. Any list/set/tuple attribute holding the key or address is
+        the same bug in a different container.
+        """
+        coord = self._seed_via_real_poll()
+        coord._object_failures = [KEY]
+        coord._evict_object(KEY)
+        leaked = {
+            n: v for n, v in vars(coord).items()
+            if n.startswith("_") and isinstance(v, (list, set, tuple))
+            and n not in REBUILT_EVERY_POLL
+            and (KEY in v or ADDR in v)
+        }
+        assert not leaked, (
+            f"per-object state survived in a non-dict container: {sorted(leaked)}"
+        )
 
     def test_nothing_survives(self):
         coord = self._seed_via_real_poll()

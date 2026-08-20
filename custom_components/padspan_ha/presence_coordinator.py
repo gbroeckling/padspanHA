@@ -3011,6 +3011,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._floor_evidence.pop(key, None)
         self._outside_by_cov.pop(key, None)
         self._coverage_hist.pop(key, None)
+        # Per-object state is not always a dict. This one is a list, and a
+        # removed object left in it is reported as failing forever.
+        if key in self._object_failures:
+            self._object_failures = [k for k in self._object_failures if k != key]
         self._ema_rssi.pop(key, None)
         self._kalman_p.pop(key, None)
         self._silence_miss.pop(key, None)
