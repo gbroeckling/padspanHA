@@ -4,6 +4,22 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.36.4 — Two placements that were read from fields nothing was using (2026-08-19)
+
+### Geometry
+- **The metre anchor reads the transform, not the fields it ignores.** 0.36.0 fixed the write side of the trim skew: `_recrop_stack` re-derives a map's stack when the picture is cropped, and its raw-affine branch rewrites `_m` and returns, correctly leaving `scale`/`scale_x_adj` behind because `stack_world_xform` ignores them entirely whenever `_m` is present. The read side kept its own copy of the old derivation — in `find_metre_anchor`, again in `map_geometry_faults`, and once more in the JS twin — so on a trimmed Point-Aligned map all three measured a footprint the renderer never draws, out of the values the trim had deliberately abandoned. All three now go through one shared `world_footprint()` that transforms the image corners and takes the two edge lengths, so it cannot describe a branch that is not in force. Correct under rotation by construction rather than by luck: the old form ignored rotation and survived only because rotation preserves length.
+- **A fresh Point Align was never affected**, which is why this went unseen. The solver writes the affine *and* an AR-aware decomposition of the same matrix, so `scale * scale_x_adj` already equals the affine's x span exactly, including under shear. Checked against identity, anisotropic, sheared and rotated matrices: old and new agree to the last digit before a trim, and a map that was never Point-Aligned trims clean under both. The error is a pure function of the crop, `iso_error = |fh - fw| / fw`, zero for a square trim and growing with how one-sided it is.
+- **Change Master clears the solved matrix it was resetting around.** Both of its stack writes are built with `Object.assign`, which spreads the old stack first, and neither override named `_m` or `_m_ar` — so a solved matrix survived a reset that zeroed every other placement field, and since `makeStackXform` prefers it, none of the reset reached the renderer. The map went on drawing at its old placement while its stored values claimed the origin at scale 1. Not an edge case: the wizard refuses to run unless the new master is already aligned to the current one, so the map being reset is exactly the map most likely to carry a matrix. Measured worst corner 0.2610 world units from where the fields claimed, centre invariant because the affine is centre-based, so it presented as the map rotating about itself.
+
+### Known, not fixed
+- **The Change Master relink (step 3) still mis-places maps that carry a solved matrix.** It composes their new placement from `x_offset`/`scale`/`rotation`, which are not the fields in force for such a map, then writes the result back into those same ignored fields — so the map does not move at all and is left behind when the world frame shifts. Those are the old master's alignment targets, so they are the likeliest to hold one. Clearing `_m` there too is unsafe: a map trimmed after being Point Aligned holds a correct matrix beside stale decomposed fields, and composing from the stale ones would overwrite the right answer. It needs the composition done on the matrix. Tracked in #64.
+- **Neither of these is claimed as closing #62.** Whether the trim path is behind the report there depends on that install's main floor carrying `_m`, which is not established — Point Align writes the matrix to the target map, not the reference. Waiting on the answer rather than guessing.
+
+### Tests — 928 to 933
+- `test_point_align_anchor.py` drives the real `_recrop_stack` rather than a hand-built stack, so the reported 42% is derived from the trim fractions instead of tuned to match the report. Two of the five fail on revert with the original error. The JS halves of both fixes were checked by running the real transforms under node and comparing numbers, since there is no `package.json` and CI runs no JS.
+
+---
+
 ## 0.36.3 — Phantom devices, a solver that claimed certainty it did not have, and the tests that found both (2026-08-19)
 
 ### Identity
