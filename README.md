@@ -248,7 +248,7 @@ To turn it off: **Settings → Presence → Update Check → Disabled**. PadSpan
 
 ### Help improve PadSpan (opt-in usage report)
 
-PadSpan is developed against one house. Features that only exist in yours — an iPhone with an IRK, a Bermuda install, twelve floors, a lighting-only setup — never get seen unless someone shares that they exist. So there is an **opt-in, off-by-default** usage report: **Settings → Presence → Help improve PadSpan**.
+PadSpan is developed against one house. Features that only exist in yours — an iPhone with an IRK, a Bermuda install, twelve floors, a lighting-only setup — never get seen unless someone shares that they exist. So there is an **opt-in, off-by-default** usage report: **Settings → Presence → Help improve PadSpan**. The panel asks for it **once** — in the setup checklist on a new install, or as a card on Overview for an install that finished setup before the switch existed — with the Preview right there; either answer ends the asking, and the switch stays in Settings either way.
 
 When you opt in, at most once a day PadSpan POSTs a small JSON report (~2 KB, hard cap 8 KB) to `padspan.traks.ca` containing **counts, versions and flags only** — the complete list:
 

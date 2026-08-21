@@ -532,3 +532,43 @@ def test_the_settings_path_is_right_everywhere_it_is_stated():
                 "README.md"):
         text = (root / rel).read_text(encoding="utf-8")
         assert "Update Check & Privacy" not in text, f"{rel} still names a tab that does not exist"
+
+
+# ── the ask ──────────────────────────────────────────────────────────────────
+# The switch existed for three releases and nothing pointed at it. Every
+# install that opted in belonged to someone already on GitHub describing their
+# bugs in prose — the population the report needs least. So the panel asks,
+# once, where people are looking; any answer ends it; the default stays off.
+
+def test_the_ask_defaults_to_unanswered_and_the_report_to_off():
+    from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
+    assert DEFAULT_SETTINGS["telemetry_asked"] is False
+    assert DEFAULT_SETTINGS["telemetry_enabled"] is False, "asking is not defaulting"
+
+
+def test_the_answer_is_a_setting_the_wire_accepts():
+    from pathlib import Path
+    ws = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "ws_settings.py").read_text(encoding="utf-8")
+    assert 'vol.Optional("telemetry_asked"): bool' in ws
+    assert 'payload["telemetry_asked"] = bool(msg.get("telemetry_asked"))' in ws
+
+
+def test_the_panel_asks_in_both_places_and_only_until_answered():
+    from pathlib import Path
+    panel = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+             / "www" / "padspan-ha" / "panel.js").read_text(encoding="utf-8")
+    # one card, built once
+    assert panel.count("_telemetryAskCard(compact){") == 1
+    # gone after any answer, and never shown to someone already opted in
+    assert "if (!st || st.telemetry_enabled || st.telemetry_asked) return null;" in panel
+    # inside the setup checklist …
+    assert "const _ask = this._telemetryAskCard(true);\n        if (_ask) bar.appendChild(_ask);" in panel
+    # … and on Overview once the checklist is gone
+    assert "const _ask = this._telemetryAskCard(false);\n        if (_ask) frag.appendChild(_ask);" in panel
+    # both answers record that the question was asked; only yes turns it on
+    assert "{ telemetry_enabled: true, telemetry_asked: true }" in panel
+    assert ": { telemetry_asked: true }" in panel
+    # the person can see the report before deciding
+    assert 'this._callWS({ type: "padspan_ha/telemetry_preview" })' in panel
+    # and the pitch says what it is, plainly
+    assert "bleeding edge" in panel and "Never addresses, keys, names, coordinates or timestamps" in panel

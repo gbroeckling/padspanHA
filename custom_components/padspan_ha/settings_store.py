@@ -35,6 +35,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # Opt-in usage report (telemetry.py). OFF until a person turns it on;
     # the id is minted on first enable and can be replaced from Settings.
     "telemetry_enabled": False,
+    "telemetry_asked": False,      # the panel asked once, and got an answer either way
     "telemetry_install_id": "",
     "telemetry_last_day": "",       # UTC day of the last accepted report (one per day)
     "vendor_lookup_enabled": True,  # Sends MAC prefixes to vendor lookup APIs when requested from UI

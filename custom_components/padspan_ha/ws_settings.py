@@ -47,6 +47,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("cpu_mode"): str,                        # "shared"|"single"|"dedicated"
         vol.Optional("update_check_enabled"): bool,           # daily version ping (README)
         vol.Optional("telemetry_enabled"): bool,              # opt-in usage report (telemetry.py)
+        vol.Optional("telemetry_asked"): bool,                # the ask card was answered; never shown again
         vol.Optional("vendor_lookup_enabled"): bool,
         vol.Optional("room_change_delay_s"): vol.Coerce(float),
         vol.Optional("away_timeout_m"): vol.Coerce(float),
@@ -179,6 +180,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 from .telemetry import ensure_install_id, reset_windows  # noqa: PLC0415
                 await ensure_install_id(hass)
                 reset_windows(hass)
+        if "telemetry_asked" in msg:
+            payload["telemetry_asked"] = bool(msg.get("telemetry_asked"))
         if "vendor_lookup_enabled" in msg:
             payload["vendor_lookup_enabled"] = bool(msg.get("vendor_lookup_enabled"))
         if "room_change_delay_s" in msg:

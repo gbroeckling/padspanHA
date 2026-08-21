@@ -22,7 +22,7 @@ If UI changes don't show:
 // BUILD_ID (YYYYMMDDTHHMMSSZ) is appended to all JS import URLs as a cache-buster
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
-const APP_VERSION = "0.36.7";
+const APP_VERSION = "0.36.8";
 const RELEASE_BUILD_ID = "20260816T234608Z";
 // The stamp the views are actually loaded with.
 //
@@ -758,6 +758,59 @@ class PadSpanHaApp extends HTMLElement {
     }
   }
 
+
+  // ── The one-time ask for the usage report ───────────────────────────────
+  // The switch has lived in Settings → Presence since 0.35.0 and nothing ever
+  // pointed at it: every install that opted in was one whose owner was
+  // already describing bugs on GitHub — the people the report needs least.
+  // So it is asked for, ONCE, in the two places a person is actually
+  // looking: inside the setup checklist for a new install, and as a card on
+  // Overview for an install that finished setup before the switch existed.
+  // Any answer sets telemetry_asked and the card never comes back; the
+  // switch itself stays in Settings either way. Off until someone says yes.
+  _telemetryAskCard(compact){
+    const st = this.state.settings;
+    if (!st || st.telemetry_enabled || st.telemetry_asked) return null;
+    const decide = async (on) => {
+      try {
+        // Straight to the wire: `this.actions` is never assigned on the
+        // element (the onboarding block above optional-chains it, which
+        // means its "Skip setup" save is a silent no-op — not touched here).
+        const res = await this._callWS(Object.assign({ type: "padspan_ha/settings_set" },
+          on ? { telemetry_enabled: true, telemetry_asked: true } : { telemetry_asked: true }));
+        this.state.settings = res?.settings || this.state.settings;
+        this._toast(on ? "Thank you — usage report on. Settings → Presence shows exactly what goes." : "Okay — it stays off. Settings → Presence if you change your mind.");
+      } catch(e) { this._toast("Failed to save setting", true); }
+      this._scheduleRender();
+    };
+    const card = el("div", { style: compact
+      ? "margin-top:8px;padding:8px 10px;border-top:1px solid #1a4228"
+      : "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px" });
+    card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, "Help improve PadSpan"));
+    card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
+      "PadSpan is bleeding edge. Metre-level BLE positioning in an ordinary house is not a solved problem, and this one is developed against exactly one house. " +
+      "It needs all the help it can find, and the biggest help is being able to see what other houses look like. " +
+      "Opt in and once a day it sends counts only: scanners, floors, rooms, calibration points, which features are on, whether positioning and identity resolution are actually working, and how many warnings each part logged. " +
+      "Never addresses, keys, names, coordinates or timestamps. Off until you say yes, and Settings → Presence turns it off again any time."));
+    const out = el("pre", { class: "pre", style: "display:none;margin:0 0 8px;max-height:260px;overflow:auto;font-size:11px" });
+    const yes = el("button", { class: "btn inline", style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700" }, "Share usage report");
+    yes.addEventListener("click", () => decide(true));
+    const prev = el("button", { class: "btn inline" }, "Preview what would be sent");
+    prev.addEventListener("click", async () => {
+      prev.disabled = true;
+      try {
+        const r = await this._callWS({ type: "padspan_ha/telemetry_preview" });
+        out.textContent = JSON.stringify(r.payload, null, 2);
+        out.style.display = "block";
+      } catch(e) { this._toast("Preview failed: " + (e.message || e), true); }
+      prev.disabled = false;
+    });
+    const no = el("button", { class: "btn inline", style: "color:#94a3b8" }, "No thanks");
+    no.addEventListener("click", () => decide(false));
+    card.appendChild(out);
+    card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [yes, prev, no]));
+    return card;
+  }
 
   // ── disconnectedCallback ────────────────────────────────────────────────────
   // Called when HA removes the element from the DOM (e.g. user navigates away).
@@ -2897,7 +2950,14 @@ class PadSpanHaApp extends HTMLElement {
           list.appendChild(row);
         }
         bar.appendChild(list);
+        const _ask = this._telemetryAskCard(true);
+        if (_ask) bar.appendChild(_ask);
         frag.appendChild(bar);
+      } else if (this.state.view === "overview") {
+        // Setup is done or was skipped — the checklist is gone, so the ask
+        // stands on its own. Same card, same once.
+        const _ask = this._telemetryAskCard(false);
+        if (_ask) frag.appendChild(_ask);
       }
     }
 
