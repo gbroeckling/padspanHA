@@ -296,7 +296,12 @@ def update_version_files(version, build_id, channel):
     # panel.js — version, build id, channel, and all import cache-busters
     content = PANEL_JS.read_text(encoding="utf-8")
     content = re.sub(r'const APP_VERSION = "[^"]+"', f'const APP_VERSION = "{version}"', content)
-    content = re.sub(r'const BUILD_ID = "[^"]+"',    f'const BUILD_ID = "{build_id}"',    content)
+    # The literal is the FALLBACK stamp (the live one comes from panel.py's
+    # ?b= URL). It was renamed RELEASE_BUILD_ID on 2026-08-16 and this regex
+    # kept matching nothing, so the fallback sat at that day's build for
+    # every release after. Matches either spelling.
+    content = re.sub(r'const (RELEASE_)?BUILD_ID = "[^"]+"',
+                     lambda m: f'const {m.group(1) or ""}BUILD_ID = "{build_id}"', content)
     content = re.sub(r'const CHANNEL = "[^"]+"',     f'const CHANNEL = "{channel}"',      content)
     content = re.sub(r'\?b=\w+', f'?b={build_id}', content)
     PANEL_JS.write_text(content, encoding="utf-8")
