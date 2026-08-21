@@ -215,6 +215,7 @@ from .ws_telemetry import (  # noqa: F401  (re-exported: registration, tests, ca
     ws_telemetry_event,
     ws_telemetry_preview,
     ws_telemetry_reset_id,
+    ws_install_base,
     ws_telemetry_send_now,
 )
 from .ws_fabric import (  # noqa: F401  (re-exported: registration, tests, callers)
@@ -350,6 +351,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_telemetry_event)
     websocket_api.async_register_command(hass, ws_telemetry_send_now)
     websocket_api.async_register_command(hass, ws_telemetry_reset_id)
+    websocket_api.async_register_command(hass, ws_install_base)
     # Phase 1: positioning fabric commands
     websocket_api.async_register_command(hass, ws_fabric_scanner_remove)
     websocket_api.async_register_command(hass, ws_fabric_beacon_remove)

@@ -67,6 +67,11 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 TELEMETRY_URL = "https://padspan.traks.ca/api/telemetry.php"
+# The developer's view of what the reports add up to (server/stats.php).
+# Read-only, other people's installs in aggregate; the server admits only a
+# key on its developer list, so the Pro + Dev-mode gate in the panel is a
+# courtesy and the server is the lock.
+STATS_URL = "https://padspan.traks.ca/api/stats.php"
 SCHEMA = 1
 _INTERVAL = timedelta(hours=24)
 _FIRST_DELAY_S = 600           # after the update check, never during startup
@@ -100,7 +105,7 @@ VIEWS: frozenset[str] = frozenset({
     "follow", "overview", "purelive", "objects", "devices", "bluetooth", "presence",
     "history", "monitor", "maps", "events", "health", "settings", "manage", "debug",
     "diagnostics", "qa", "training", "calibration", "traceback", "forensics",
-    "sandbox", "occupancy",
+    "sandbox", "occupancy", "installbase",
 })
 SUBTABS: dict[str, frozenset[str]] = {
     "bluetooth": frozenset({"visualization", "monitor", "scanners", "irk_panel", "esphome_configs"}),

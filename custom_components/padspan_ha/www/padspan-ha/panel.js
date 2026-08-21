@@ -22,7 +22,7 @@ If UI changes don't show:
 // BUILD_ID (YYYYMMDDTHHMMSSZ) is appended to all JS import URLs as a cache-buster
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
-const APP_VERSION = "0.36.8";
+const APP_VERSION = "0.36.9";
 const RELEASE_BUILD_ID = "20260816T234608Z";
 // The stamp the views are actually loaded with.
 //
@@ -88,6 +88,7 @@ const _VIEW_PATHS = {
   forensics:    "./views/forensics.js",
   sandbox:      "./views/sandbox.js",
   occupancy:    "./views/occupancy.js",
+  installbase:  "./views/installbase.js",
 };
 
 // Views reachable by internal navigation but never listed in MENU. Being
@@ -163,6 +164,7 @@ const MENU = [
   ["health","Health","mdi:heart-pulse"],
   ["qa","QA","mdi:clipboard-check-outline"],
   ["sandbox","Sandbox","mdi:flask-outline"],
+  ["installbase","Install Base","mdi:chart-box-outline"],
 ];
 
 // ── Complexity Mode Tab Sets ─────────────────────────────────────────────────
@@ -172,7 +174,7 @@ const MENU = [
 //   Dev       — everything visible (includes QA, Sandbox, raw Debug, etc.)
 const BASIC_TABS = new Set(["follow", "overview", "maps", "settings", "training"]);
 const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","settings","training","manage","calibration","traceback","occupancy","health"]);
-const DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox"];
+const DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox","installbase"];
 
 // Accent color per tab — used for the sidebar dot, mobile nav, and active highlights
 const MENU_COLORS = {
@@ -201,6 +203,7 @@ const MENU_COLORS = {
   qa: "#26c6da",
   sandbox: "#9ccc65",
   purelive: "#7c3aed",
+  installbase: "#38bdf8",
 };
 
 // ── 2025 skin: nav icons and groups ──────────────────────────────────────────
@@ -230,6 +233,7 @@ const MENU_ICONS = {
   presence:    '<circle cx="12" cy="10" r="2.5"/><path d="M12 21s6-5.4 6-10a6 6 0 1 0-12 0c0 4.6 6 10 6 10z"/>',
   qa:          '<rect x="5" y="4.5" width="14" height="16" rx="2"/><path d="M9 4.5V3.6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v.9"/><path d="M9 13l2.2 2.2L15.5 11"/>',
   sandbox:     '<path d="M10 3v6.2L4.6 18a2 2 0 0 0 1.7 3h11.4a2 2 0 0 0 1.7-3L14 9.2V3"/><path d="M9 3h6"/><path d="M7.4 14.5h9.2"/>',
+  installbase: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 16v-5M12 16V8M17 16v-3"/>',
 };
 
 // Sidebar grouping for the 2025 skin. Order here drives render order; any MENU
@@ -239,7 +243,7 @@ const MENU_GROUPS = [
   ["Live",      ["overview","purelive","follow","occupancy"]],
   ["Setup",     ["maps","calibration","training","manage","settings"]],
   ["Diagnose",  ["traceback","health","forensics","monitor"]],
-  ["Internals", ["devices","bluetooth","presence","qa","sandbox"]],
+  ["Internals", ["devices","bluetooth","presence","qa","sandbox","installbase"]],
 ];
 
 

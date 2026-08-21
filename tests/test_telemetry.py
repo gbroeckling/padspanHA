@@ -572,3 +572,76 @@ def test_the_panel_asks_in_both_places_and_only_until_answered():
     assert 'this._callWS({ type: "padspan_ha/telemetry_preview" })' in panel
     # and the pitch says what it is, plainly
     assert "bleeding edge" in panel and "Never addresses, keys, names, coordinates or timestamps" in panel
+
+
+# ── the install-base dashboard ───────────────────────────────────────────────
+# The developer's view of what the reports add up to. Dev menu, Pro tier, and
+# the server admits only a key on its developer list — three gates, and only
+# the server's is real. What the panel draws is counts over other people's
+# installs; the only per-install handle is the first 8 chars of a random id.
+
+def test_install_base_is_wired_and_gated():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+    ws = (root / "websocket.py").read_text(encoding="utf-8")
+    assert "async_register_command(hass, ws_install_base)" in ws
+    src = (root / "ws_telemetry.py").read_text(encoding="utf-8")
+    assert '"type": "padspan_ha/install_base"' in src
+    assert "@websocket_api.require_admin" in src.split("padspan_ha/install_base")[1].split("async def ws_install_base")[0]
+    assert 'hass_tier_at_least(hass, "pro")' in src
+    assert 'headers={"X-PadSpan-Key": key}' in src, "the key goes in a header, never the URL"
+    assert T.STATS_URL.startswith("https://padspan.traks.ca/api/")
+    panel = (root / "www" / "padspan-ha" / "panel.js").read_text(encoding="utf-8")
+    assert 'installbase:  "./views/installbase.js"' in panel
+    assert '"installbase"]' in panel.split("const DEV_ONLY_TABS")[1].split("\n")[0], "dev menu only"
+    assert "installbase" in T.VIEWS, "a view that is not in the vocabulary cannot be counted"
+    assert (root / "www" / "padspan-ha" / "views" / "installbase.js").exists()
+
+
+def test_install_base_refuses_below_pro():
+    from custom_components.padspan_ha import ws_telemetry as W
+    h = _hass()
+    h.data[DOMAIN][DATA_SETTINGS].data["forensics_license_key"] = ""
+    sent = {}
+    conn = SimpleNamespace(send_error=lambda i, code, m: sent.update(code=code),
+                           send_result=lambda i, r: sent.update(result=r))
+    import custom_components.padspan_ha.licence as L
+    orig = L.hass_tier_at_least
+    L.hass_tier_at_least = lambda hass, want: False
+    try:
+        _run(W.ws_install_base(h, conn, {"id": 1, "type": "padspan_ha/install_base"}))
+    finally:
+        L.hass_tier_at_least = orig
+    assert sent.get("code") == "tier" and "result" not in sent
+
+
+def test_install_base_needs_a_key_to_present():
+    from custom_components.padspan_ha import ws_telemetry as W
+    h = _hass()
+    h.data[DOMAIN][DATA_SETTINGS].data["forensics_license_key"] = ""
+    sent = {}
+    conn = SimpleNamespace(send_error=lambda i, code, m: sent.update(code=code),
+                           send_result=lambda i, r: sent.update(result=r))
+    import custom_components.padspan_ha.licence as L
+    orig = L.hass_tier_at_least
+    L.hass_tier_at_least = lambda hass, want: True
+    try:
+        _run(W.ws_install_base(h, conn, {"id": 1, "type": "padspan_ha/install_base"}))
+    finally:
+        L.hass_tier_at_least = orig
+    assert sent.get("code") == "no_key" and "result" not in sent
+
+
+def test_stats_php_never_emits_an_ip_and_requires_the_dev_list():
+    """The pings log has an IP column. stats.php may hash it to count distinct
+    callers and must never write it out; and the gate is the dev-key file,
+    not 'any valid Pro key'."""
+    from pathlib import Path
+    php_path = Path(__file__).resolve().parents[1] / "server" / "stats.php"
+    if not php_path.exists():
+        pytest.skip("no server/ in this tree (the Bright derivation carries none)")
+    php = php_path.read_text(encoding="utf-8")
+    assert "hash('sha256', $p[1])" in php, "the IP is hashed on the way through"
+    assert "hash_equals(" in php and "padspan-dev-keys" in php
+    assert "traks.ca/license" not in php, "a valid Pro key is not the developer"
+    assert "substr($id, 0, 8)" in php, "the table carries an id prefix, never the whole id"

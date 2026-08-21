@@ -282,6 +282,20 @@ export const HELP = {
     ],
   },
 
+  installbase: {
+    title: "Install Base — what the opt-in reports add up to",
+    body: [
+      "Developer view, PadSpan Pro, and the server admits only a key on its developer list — a Pro customer sees a clean refusal, not other people's houses.",
+      "Installs — lifetime (from the server's ledger, which outlives the 90-day spool), active in the last 7 days, new in the window, lapsed (silent 14+ days). Pinging = distinct update-check callers, which is the whole install base including everyone who did not opt in; Reporting = the opted-in slice.",
+      "Per day — reports received, distinct reporting installs, and distinct pinging installs over the window.",
+      "Distributions — every install's latest report bucketed: version, HA version, tier, scanners, floors, rooms, maps, calibration points, IRKs, walls, lights, objects.",
+      "Flags — installs whose latest report carries a bad health flag. A flag is only counted where the report has the field, so zero means none bad among those that can say.",
+      "Identity — installs with IRKs registered, how many of those resolved anything in their window, how many are silent.",
+      "Usage, tabs, errors — summed across the window, with how many installs contributed to each.",
+      "Table — one row per install by the first 8 characters of its random id. Nothing here can name a house.",
+    ],
+  },
+
   // ── Data Mode (Live / Sample) ──────────────────────────────────────────
   data_mode: {
     title: "Data Mode — Live vs Sample",
