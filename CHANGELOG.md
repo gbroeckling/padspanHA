@@ -4,6 +4,21 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.36.7 — The usage report can see an install where nothing is set up, and can see the panel (2026-08-21)
+
+### The building, or the absence of one (#66)
+- **`calibration_no_floor`** — calibration points that never got a `floor_id`. Since #54 such a point is no longer assumed to be on the ground; it stays 2D, which is correct and also completely silent. The point is there, it looks captured, and the storey it was captured on quietly has fewer than the panel shows. `async_backfill_floors` has always repaired them — nothing ever said who needed repairing.
+- **`floors_with_height` and `scanners_with_z`, with `floors_all_default` and `scanner_z_uniform`.** A floor with no explicit `floor_to_floor_m` or `base_elevation_m` falls back to a default storey height, and a scanner with no `z_m` has no mounting height at all. Both are always set on the house PadSpan is developed against, which makes an install where neither is set the configuration I have never once seen. Cross-floor positioning there has nothing to separate storeys by. Both flags carry the multi-storey test inside them, so a bungalow is never reported as misconfigured.
+- **`has_metre_anchor`.** `find_metre_anchor` has always returned nothing when no map in the house carries a reference measurement, and nothing ever reported that it had. Without an anchor there is no metre scale and every distance is a guess wearing units — and from a report, that install and a correctly measured one were identical.
+
+### The half of PadSpan the log cannot see (#66)
+- **`ui_error:<view>` — uncaught panel errors, counted by the view that was open.** v0.35.0 shipped a Mapping tab that threw before it re-rendered: the previous tab stayed on screen, it read as a hang, and nothing in `errors` moved, because a throw in the browser is not a Python log line. It took a user describing it in prose to find. Now it is a count per view from the same kind of closed vocabulary as the tab list, throttled to one per view per minute so a throw inside a render loop reports once rather than as fast as the loop runs. The message and the stack stay in the console, where they are free to name rooms and entities.
+
+### Fixed
+- **The opt-in report's own settings path was wrong in three places.** It is **Settings → Presence → Help improve PadSpan**. "Update Check & Privacy" is not a tab and never has been; it was stated as one in `telemetry.py`, in `panel.js` and in the README, and a user corrected it twice in #39 before it was fixed here. A test now fails if the phrase comes back.
+
+---
+
 ## 0.36.6 — The usage report can tell a key that never works from a key nobody added (2026-08-20)
 
 ### Identity health
