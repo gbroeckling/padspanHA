@@ -55,4 +55,27 @@ if (!is_dir($DIR) && !mkdir($DIR, 0750, true)) { http_response_code(500); echo '
 $line = json_encode(array('recv_day' => gmdate('Y-m-d'), 'report' => $r), JSON_UNESCAPED_SLASHES) . "\n";
 $f = $DIR . '/' . gmdate('Y-m-d') . '.jsonl';
 if (file_put_contents($f, $line, FILE_APPEND | LOCK_EX) === false) { http_response_code(500); echo '{"ok":false}'; exit; }
+
+// Ledger: first/last day and days-reported per install id. The spool is a
+// 90-day buffer (pull_padspan_telemetry.sh trims it once a day is safe at
+// home); without this, an install older than that would vanish from the
+// lifetime count the moment its first report was trimmed. stats.php reads
+// it. Best effort — a ledger write failing never fails the report.
+$lf = $DIR . '/installs.json';
+$lh = @fopen($lf, 'c+');
+if ($lh && flock($lh, LOCK_EX)) {
+    $cur = stream_get_contents($lh);
+    $led = json_decode($cur === '' ? '{}' : $cur, true);
+    if (!is_array($led)) { $led = array(); }
+    $day = gmdate('Y-m-d');
+    $e = isset($led[$id]) && is_array($led[$id]) ? $led[$id] : array('first' => $day, 'last' => '', 'days' => 0);
+    if ($e['last'] !== $day) { $e['days'] = (int)$e['days'] + 1; }
+    $e['last'] = $day;
+    $e['version'] = isset($r['version']) ? substr((string)$r['version'], 0, 32) : '';
+    $led[$id] = $e;
+    ftruncate($lh, 0); rewind($lh);
+    fwrite($lh, json_encode($led, JSON_UNESCAPED_SLASHES));
+    fflush($lh); flock($lh, LOCK_UN);
+}
+if ($lh) { fclose($lh); }
 echo '{"ok":true}';
