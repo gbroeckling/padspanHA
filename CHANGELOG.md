@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.36.8 — The usage report is asked for, once, where people are looking (2026-08-21)
+
+### Added
+- **The panel asks.** The opt-in switch has existed since 0.35.0 and nothing in the software ever pointed at it: every install that opted in belonged to someone already on GitHub describing their bugs in prose — the population the report needs least. Now it is asked for **once**, in the two places a person is actually looking: as the last row of the setup checklist on a new install, and as a card on Overview for an install that finished setup before the switch existed. The card says plainly that PadSpan is bleeding edge, developed against one house, and needs all the help it can find; **Preview what would be sent** sits beside the buttons; **No thanks** ends it for good. Either answer sets `telemetry_asked`, the card never returns, and the switch itself stays in **Settings → Presence** whichever way you answered. Asking is not defaulting: nothing is sent until someone presses yes.
+
+---
+
 ## 0.36.7 — The usage report can see an install where nothing is set up, and can see the panel (2026-08-21)
 
 ### The building, or the absence of one (#66)
