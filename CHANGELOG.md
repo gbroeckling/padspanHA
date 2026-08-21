@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.36.9 — Install Base: the developer's dashboard of what the reports add up to (2026-08-21)
+
+### Added
+- **Install Base view** (Dev menu, PadSpan Pro). What every opted-in report adds up to, drawn in the panel: installs lifetime / active / new / lapsed / Pro; reporting and pinging installs per day; every install's latest report bucketed by version, Home Assistant, tier, scanners, floors, rooms, maps, calibration points, IRKs, walls, lights and objects; which integrations and feature switches are present in how many installs; health flags by installs affected; identity (IRKs registered, resolving, silent); geometry (faulted, anchorless, default heights); tabs, tools and warnings summed over the window with the number of installs behind each; and one row per install keyed by the first eight characters of its random id.
+- **The whole install base, not just the opted-in slice.** The update-check ping log is the only signal from installs that never opted in. `stats.php` counts distinct callers per day and per version, hashing the IP column on the way through and never emitting it. First read: 184 installs pinged today against 5 reporting — and two thirds of them are still on 0.21.13.
+- **Three gates, one lock.** The view is Dev-menu only and needs Pro tier, but those are courtesies: the server (`server/stats.php`) admits a key only if its SHA-256 is on its developer list. A Pro customer gets a clean refusal, never a look at other people's houses. The key travels in a header, never a URL. Five-minute cache on both sides.
+- **An install ledger** (`telemetry.php`) keeps first/last day and days-reported per id, so the lifetime count survives the 90-day spool trim.
+
+---
+
 ## 0.36.8 — The usage report is asked for, once, where people are looking (2026-08-21)
 
 ### Added
