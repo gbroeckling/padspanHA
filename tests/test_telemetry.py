@@ -437,3 +437,98 @@ def test_default_is_off_and_the_wire_is_registered():
     assert "telemetry_enabled" in panel, "the panel must not send events unless opted in"
     readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
     assert "Help improve PadSpan" in readme, "the opt-in report must be disclosed in the README"
+
+
+# ── is the building described at all ─────────────────────────────────────────
+# The developer has one house, and in it every floor has a storey height,
+# every scanner has a mounting height and one map is measured. None of those
+# is true by default, and until these fields existed an install with none of
+# them set looked identical to his — which is why "my middle floor won't let
+# go" took two rounds of screenshots to get anywhere.
+
+def test_an_unconfigured_house_says_so():
+    p = T.build_payload(_hass())          # the fixture sets none of it
+    T.assert_shareable(p)
+    assert p["env"]["calibration_no_floor"] == 2, "neither fixture point has a floor"
+    assert p["env"]["floors_with_height"] == 0
+    assert p["env"]["scanners_with_z"] == 0
+    assert p["health"]["has_metre_anchor"] is False, "no map carries a measurement"
+    assert p["health"]["floors_all_default"] is True
+    assert p["health"]["scanner_z_uniform"] is True
+
+
+def test_a_configured_house_says_that_instead():
+    h = _hass()
+    dom = h.data[DOMAIN]
+    dom[DATA_MODEL].data["floors"] = [
+        {"id": "main", "floor_to_floor_m": 2.8},
+        {"id": "up", "base_elevation_m": 2.8},
+    ]
+    dom[DATA_FABRIC].data["scanner_positions_m"] = {
+        "a": {"x_m": 1.0, "y_m": 1.0, "z_m": 0.9},
+        "b": {"x_m": 2.0, "y_m": 2.0, "z_m": 3.6},
+    }
+    dom["calibration"].data["points"] = [
+        {"room": "Kitchen", "floor_id": "main"},
+        {"room": "Kitchen", "floor_id": "up"},
+    ]
+    p = T.build_payload(h)
+    T.assert_shareable(p)
+    assert p["env"]["calibration_no_floor"] == 0
+    assert p["env"]["floors_with_height"] == 2
+    assert p["env"]["scanners_with_z"] == 2
+    assert p["health"]["floors_all_default"] is False
+    assert p["health"]["scanner_z_uniform"] is False, "two distinct mounting heights"
+
+
+def test_a_bungalow_is_not_reported_as_misconfigured():
+    """One floor cannot be missing a storey height in any way that matters."""
+    h = _hass()
+    h.data[DOMAIN][DATA_MODEL].data["floors"] = [{"id": "main", "name": "Main"}]
+    p = T.build_payload(h)
+    assert p["health"]["floors_all_default"] is False
+    assert p["health"]["scanner_z_uniform"] is False
+
+
+# ── uncaught panel errors ────────────────────────────────────────────────────
+
+def test_ui_errors_are_counted_by_view_and_only_by_view():
+    h = _hass()
+    assert T.bump(h, "ui_error:maps") is True
+    assert T.bump(h, "ui_error:maps") is True
+    assert T.bump(h, "ui_error:overview") is True
+    # Not a view, so not a key. The vocabulary is closed for the same reason
+    # the tab list is: the report's KEYS leave the box too.
+    assert T.bump(h, "ui_error:Nicole's Office") is False
+    assert T.bump(h, "ui_error:") is False
+    p = T.build_payload(h)
+    T.assert_shareable(p)
+    assert p["usage"]["ui_error:maps"] == 2 and p["usage"]["ui_error:overview"] == 1
+    assert not any("Nicole" in k for k in p["usage"])
+
+
+def test_every_ui_error_name_maps_to_a_real_view():
+    assert T.UI_ERRORS == frozenset(f"ui_error:{v}" for v in T.VIEWS)
+    assert all(T.event_allowed(e) for e in T.UI_ERRORS)
+
+
+def test_the_panel_installs_the_error_listeners_and_removes_them():
+    from pathlib import Path
+    panel = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+             / "www" / "padspan-ha" / "panel.js").read_text(encoding="utf-8")
+    assert 'window.addEventListener("error", this._uiErrorHandler)' in panel
+    assert 'window.addEventListener("unhandledrejection", this._uiRejectionHandler)' in panel
+    assert 'window.removeEventListener("error", this._uiErrorHandler)' in panel
+    assert 'window.removeEventListener("unhandledrejection", this._uiRejectionHandler)' in panel
+    assert '"ui_error:" + view' in panel
+
+
+def test_the_settings_path_is_right_everywhere_it_is_stated():
+    """It was wrong in three places at once and a user corrected it twice."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    for rel in ("custom_components/padspan_ha/telemetry.py",
+                "custom_components/padspan_ha/www/padspan-ha/panel.js",
+                "README.md"):
+        text = (root / rel).read_text(encoding="utf-8")
+        assert "Update Check & Privacy" not in text, f"{rel} still names a tab that does not exist"

@@ -5,8 +5,8 @@
 """Opt-in usage statistics — "help the developer improve PadSpan".
 
 OFF by default. Nothing here runs until a person turns it on in Settings →
-Update Check & Privacy, where a Preview button shows the exact JSON that
-will go. What goes out is COUNTS and VERSIONS, never things:
+Presence → Help improve PadSpan, where a Preview button shows the exact JSON
+that will go. What goes out is COUNTS and VERSIONS, never things:
 
     which version, which edition and tier, which Home Assistant
     how many scanners / floors / rooms / placed lights / walls / maps / IRKs
@@ -15,6 +15,11 @@ will go. What goes out is COUNTS and VERSIONS, never things:
         last report (an allow-listed vocabulary — see EVENTS)
     a few health flags: crypto present, BLE callback alive, coverage floor
         active, how many rotating addresses actually resolved
+    whether the building is described at all: floors carrying a real
+        storey height, scanners carrying a mounting height, calibration
+        points that never got a floor, whether any map is measured
+    uncaught panel errors by view — the half of PadSpan the Python log
+        cannot see (see UI_ERRORS)
 
 The reason, in one sentence: the developer has one house to test on, and
 this is how features that only exist elsewhere (an iPhone with an IRK, a
@@ -104,6 +109,13 @@ SUBTABS: dict[str, frozenset[str]] = {
 TAB_EVENTS: frozenset[str] = frozenset(
     {f"tab:{v}" for v in VIEWS} | {f"tab:{v}/{s}" for v, subs in SUBTABS.items() for s in subs}
 )
+# Uncaught panel errors, counted by the view that was open when one landed.
+# The panel is the half of PadSpan the Python log cannot see: v0.35.0 shipped
+# a Mapping tab that threw before it re-rendered, so the previous tab stayed
+# on screen and it read as a hang. Nothing moved in `errors`, and it took a
+# user describing it in prose to find. A COUNT per view — never the message,
+# never a stack, never anything the page happened to be holding.
+UI_ERRORS: frozenset[str] = frozenset({f"ui_error:{v}" for v in VIEWS})
 
 # The switches whose ON/OFF is reported (booleans only, by name).
 _FEATURE_FLAGS: tuple[str, ...] = (
@@ -149,7 +161,7 @@ def enabled(hass: HomeAssistant) -> bool:
 
 
 def event_allowed(name: str) -> bool:
-    return name in EVENTS or name in TAB_EVENTS
+    return name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
@@ -251,6 +263,36 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     cal = getattr(dom.get("calibration"), "data", None) or {}
     cal_points = cal.get("points") if isinstance(cal.get("points"), list) else []
     cal_auto = sum(1 for p in cal_points if isinstance(p, dict) and str(p.get("source") or "").startswith("auto"))
+    # Points that never got a floor. Since #54 such a point is no longer
+    # assumed to be on the ground — it stays 2D — which fixed the phantom
+    # elevation but left the point contributing nothing to the storey it was
+    # actually captured on. That is invisible from the panel: the point is
+    # there, it looks captured, and the floor quietly has fewer than it shows.
+    # `async_backfill_floors` repairs them; this is how an install that needs
+    # repairing says so without anyone having to notice first.
+    cal_no_floor = sum(1 for p in cal_points if isinstance(p, dict)
+                       and not str(p.get("floor_id") or "").strip())
+
+    # Is the building described, or is it defaults wearing a building's shape?
+    # A floor with no explicit floor_to_floor_m or base_elevation_m falls back
+    # to DEFAULT_FLOOR_TO_FLOOR_M, and a scanner with no z_m has no mounting
+    # height — either one leaves cross-floor positioning with nothing to
+    # separate storeys by. PadSpan is developed against one house, where both
+    # are always set, so this is the case the developer cannot see at all.
+    mdl_floors = [f for f in (mdl.get("floors") or []) if isinstance(f, dict)]
+
+    def _explicit(f: dict[str, Any]) -> bool:
+        for k in ("floor_to_floor_m", "base_elevation_m"):
+            v = f.get(k)
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                return True
+        return False
+
+    floors_with_height = sum(1 for f in mdl_floors if _explicit(f))
+    _z_vals = [float(v["z_m"]) for v in (fab.get("scanner_positions_m") or {}).values()
+               if isinstance(v, dict) and isinstance(v.get("z_m"), (int, float))
+               and not isinstance(v.get("z_m"), bool)]
+    scanner_z_distinct = len({round(z, 2) for z in _z_vals})
     coord = dom.get("presence_coordinator")
     # Registered keys that resolved at least one address in the window — the
     # answer to "does the IRK path work anywhere". Read without resetting on
@@ -270,6 +312,12 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     # Read-only self-check: maps whose geometry disagrees with itself.
     _geometry_faults = 0
     _anchor_faulted = False
+    # Whether ANY map is measured. Without one there is no metre anchor, so
+    # scale comes from a fallback and every distance in the house is a guess
+    # wearing units. A user reported measuring a map and seeing "no reflection
+    # of it" — from a report alone that install and a correctly measured one
+    # were identical, because absence was the one thing never sent.
+    _has_anchor = False
     # Which of the three signals actually tripped. A lumped fault count says
     # something is wrong and nothing about what, which sends the developer
     # back to asking for screenshots — the exact loop this report exists to
@@ -305,6 +353,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
                     _fault_origin += 1
             _anchor = _ft.find_metre_anchor(_maps_list, _mdl_store) or {}
             _anchor_id = _anchor.get("map_id")
+            _has_anchor = bool(_anchor_id)
             for _m in _maps_list:
                 _raw = (_m.get("stack") or {}).get("_m")
                 if isinstance(_raw, (list, tuple)) and len(_raw) == 4:
@@ -330,6 +379,9 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "beacon_positions": _len(fab.get("beacon_positions_m") or {}),
         "calibration_points": _len(cal_points),
         "calibration_auto_points": cal_auto,
+        "calibration_no_floor": cal_no_floor,
+        "floors_with_height": floors_with_height,
+        "scanners_with_z": len(_z_vals),
         "irks": _len(settings.get("irk_devices") or []),
         "followed": _len(settings.get("followed_addrs") or []),
         "objects_total": _len(obj_list),
@@ -392,6 +444,13 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "maps_affine": _maps_affine,
         "anchor_is_affine": _anchor_affine,
         "stack_desync": _stack_desync,
+        # The three "is it set up at all" flags. Each is only meaningful on a
+        # multi-storey house, so each carries the floor test in it rather than
+        # leaving a bare False to be misread as a fault on a bungalow.
+        "has_metre_anchor": _has_anchor,
+        "floors_all_default": bool(len(mdl_floors) > 1 and floors_with_height == 0),
+        "scanner_z_uniform": bool(len(mdl_floors) > 1 and len(radios) > 1
+                                  and scanner_z_distinct <= 1),
         # How each scanner was matched to its HA device. `ambiguous` is the
         # one that matters: it means two scanners are named so that one
         # contains the other, which is the condition that used to assign an

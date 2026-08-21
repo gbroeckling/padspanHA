@@ -22,7 +22,7 @@ If UI changes don't show:
 // BUILD_ID (YYYYMMDDTHHMMSSZ) is appended to all JS import URLs as a cache-buster
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
-const APP_VERSION = "0.36.6";
+const APP_VERSION = "0.36.7";
 const RELEASE_BUILD_ID = "20260816T234608Z";
 // The stamp the views are actually loaded with.
 //
@@ -784,6 +784,14 @@ class PadSpanHaApp extends HTMLElement {
       window.removeEventListener("location-changed", this._haLocationHandler);
       this._haLocationHandler = null;
     }
+    if(this._uiErrorHandler){
+      window.removeEventListener("error", this._uiErrorHandler);
+      this._uiErrorHandler = null;
+    }
+    if(this._uiRejectionHandler){
+      window.removeEventListener("unhandledrejection", this._uiRejectionHandler);
+      this._uiRejectionHandler = null;
+    }
     if(this._interactionHandler){
       this.removeEventListener("pointerdown", this._interactionHandler);
       this._interactionHandler = null;
@@ -945,6 +953,37 @@ class PadSpanHaApp extends HTMLElement {
         if(ev.persisted) this._wakeUp("pageshow");
       };
       window.addEventListener("pageshow", this._pageshowHandler);
+    }
+
+    // ── Uncaught panel errors ───────────────────────────────────────────────
+    // Counted, never described. v0.35.0 shipped a Mapping tab that threw
+    // before it re-rendered: the previous tab stayed on screen, the panel read
+    // as a hang, and nothing anywhere recorded that anything had happened —
+    // the Python log cannot see a throw in the browser. What goes out is the
+    // name of the view that was open, from the closed list in telemetry.py.
+    // The message and the stack stay here, in the console, where they can name
+    // rooms and entities freely.
+    //
+    // Throttled per view: a throw inside a render loop fires as fast as the
+    // loop does, and the signal worth having is "maps threw today", not how
+    // many times. Nothing is sent unless the report is switched on.
+    if(!this._uiErrorHandler){
+      this._uiErrorSeen = {};
+      const _report = ()=>{
+        try{
+          if(!(this.state.settings && this.state.settings.telemetry_enabled)) return;
+          const view = String(this.state.view || "");
+          if(!view) return;
+          const now = Date.now();
+          if(now - (this._uiErrorSeen[view] || 0) < 60000) return;
+          this._uiErrorSeen[view] = now;
+          this._callWS({ type: "padspan_ha/telemetry_event", event: "ui_error:" + view }).catch(()=>{});
+        }catch(_e){ /* the error reporter must never be the error */ }
+      };
+      this._uiErrorHandler = ()=> _report();
+      this._uiRejectionHandler = ()=> _report();
+      window.addEventListener("error", this._uiErrorHandler);
+      window.addEventListener("unhandledrejection", this._uiRejectionHandler);
     }
 
     // ── HA location-changed (sidebar navigation within HA) ──────────────────
@@ -1524,7 +1563,7 @@ class PadSpanHaApp extends HTMLElement {
       this.state.view = id;
       this._logEvent("view_change", id);
       // Opt-in usage report: count the tab open. Nothing leaves the browser
-      // unless the person turned the report on (Settings → Update Check & Privacy).
+      // unless the person turned the report on (Settings → Presence).
       if (this.state.settings && this.state.settings.telemetry_enabled) {
         this._callWS({ type: "padspan_ha/telemetry_event", event: "tab:" + id }).catch(() => {});
       }
