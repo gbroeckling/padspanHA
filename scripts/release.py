@@ -565,7 +565,7 @@ def publish_update_manifest(version, channel):
     try:
         cur = run(f'{_SSH} {MANIFEST_HOST} "sudo -n cat {MANIFEST_PATH}"', check=False)
         try:
-            manifest = json.loads(cur) if cur else {}
+            manifest = json.loads(cur.stdout) if cur.returncode == 0 else {}
         except json.JSONDecodeError:
             manifest = {}
         manifest.setdefault("notes_url", f"https://github.com/{REPO}/releases")
@@ -582,7 +582,9 @@ def publish_update_manifest(version, channel):
             return False
         # Verify through the real endpoint — the write is only done when the
         # update check would actually say so.
-        with urllib.request.urlopen(MANIFEST_URL, timeout=15) as resp:
+        # Cloudflare fronts the endpoint and 403s urllib's default UA.
+        req = urllib.request.Request(MANIFEST_URL, headers={"User-Agent": "padspan-release"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
             served = json.loads(resp.read().decode("utf-8"))
         ok = served.get("latest_beta") == version and (
             channel != "stable" or served.get("latest_stable") == version)
