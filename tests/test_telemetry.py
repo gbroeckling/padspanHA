@@ -64,9 +64,18 @@ def _hass():
     })
     model = SimpleNamespace(data={"floors": [{"id": "main", "name": "Main"}, {"id": "up", "name": _FLOOR}]})
     maps = SimpleNamespace(data={"maps": [{"id": "m1", "name": "Garry's basement plan"}]})
-    cal = SimpleNamespace(data={"points": [{"room": _ROOM, "source": "auto:x", "rssi": {_MAC1: -60}},
-                                           {"room": "Kitchen", "source": "manual"}]})
-    coord = SimpleNamespace(_coverage_floor=-90.0)
+    # Auto-calibration marks its points in the label, as the engine does.
+    cal = SimpleNamespace(data={"points": [{"room": _ROOM, "label": "[auto] Garry", "rssi": {_MAC1: -60}},
+                                           {"room": "Kitchen", "label": "Kitchen door"}]})
+    # The coordinator's poll result, as the live overlay reads it: the house's
+    # own phone placed and outside, plus a stranger's phone that the engine
+    # positioned too and the report must not count.
+    coord = SimpleNamespace(
+        _coverage_floor=-90.0,
+        data={_MAC1: {"x_m": 1.0, "y_m": 2.0, "outside": True, "room": _ROOM},
+              "stranger": {"x_m": 9.0, "y_m": 9.0, "outside": True}},
+        is_identified_object=lambda key: key == _MAC1,
+    )
     snapshot = {
         "ble": {"radios": [{"source": _MAC1, "name": "ble-white3dprintedbox", "ip": _IP, "adapter": "x"},
                            {"source": "hci0", "name": "local", "lost": True}],
@@ -76,7 +85,6 @@ def _hass():
              "ibeacon_uuid": _UUID, "user_label": "Garry"},
             {"kind": "ble", "name": "MaschineBOX", "address": _MAC2, "outside": True},
         ], "summary": {"resolver": {"crypto_ok": True, "rpa_count": 80, "resolved": 0, "errors": [f"bad {_MAC1}"]}}},
-        "calibration_status": {"knn_positioned_objects": 1},
     }
     h.data = {DOMAIN: {
         DATA_SETTINGS: settings, DATA_FABRIC: fabric, DATA_MODEL: model, DATA_MAPS: maps,
@@ -247,6 +255,21 @@ def test_every_event_name_has_a_real_call_site():
             if not any(f'{fn}({arg}"{e}")' in src for fn in ("bump", "_bump", "self._count", "telemetryEvent", "ctx.actions.telemetryEvent")
                        for arg in ("hass, ", "self._hass, ", "", "ctx, "))]
     assert not dead, f"events with no call site: {dead}"
+
+
+def test_every_reported_feature_flag_drives_something():
+    """A flag the report carries must be read somewhere other than the
+    settings plumbing. Three were not (trackability_rating_enabled,
+    compass_ring_enabled, replay_timeline_enabled): keys in the schema, the
+    store and the Settings view, consumed by nothing — so the report said
+    whether a feature was on that did not exist."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+    plumbing = {"telemetry.py", "settings_store.py", "ws_settings.py", "settings.js"}
+    src = "\n".join(p.read_text(encoding="utf-8", errors="ignore")
+                    for p in list(root.rglob("*.py")) + list(root.rglob("*.js")) if p.name not in plumbing)
+    dead = [f for f in T._FEATURE_FLAGS if f not in src]
+    assert not dead, f"reported flags nothing reads: {dead}"
 
 
 def test_the_resolver_counts_new_resolutions_and_new_unresolved_rpas():

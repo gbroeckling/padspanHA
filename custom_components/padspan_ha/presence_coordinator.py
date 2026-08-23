@@ -2813,12 +2813,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # gates (dwell stability, novelty, ground-truth corroboration) keep
         # self-reinforcing or redundant observations out of the fingerprints
         # — see _adaptive_obs_quality_ok.
-        _obj_for_adaptive = self._known_objs.get(key, {})
-        _is_identified_device = bool(
-            _obj_for_adaptive.get("user_label")
-            or _obj_for_adaptive.get("identified")
-            or _obj_for_adaptive.get("kind") == "private_ble"  # phone with IRK
-        )
+        _is_identified_device = self.is_identified_object(key)
         if _adaptive_on and confirmed and confidence >= 0.7 and _live_ema and _is_identified_device:
             try:
                 _now_mono = time.monotonic()
@@ -3077,6 +3072,23 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._kalman_p.pop(prev_addr, None)
             self._silence_miss.pop(prev_addr, None)
         self._kalman_addr_key[key] = smooth_addr
+
+    def is_identified_object(self, key: str) -> bool:
+        """Whether the engine treats this object as someone's — a labelled
+        object, an identified one, or a phone resolved through an IRK.
+
+        The one test for it. Adaptive learning gates on it so strangers'
+        phones at random positions never reach the fingerprints, and the
+        usage report gates its positioning counters on it for the same
+        reason: an ungated "objects positioned" is a count of the
+        neighbourhood, not of the house.
+        """
+        obj = self._known_objs.get(key) or {}
+        return bool(
+            obj.get("user_label")
+            or obj.get("identified")
+            or obj.get("kind") == "private_ble"  # phone with IRK
+        )
 
     def clear_object_state(self, key: str) -> None:
         """Public API: clear all coordinator state for an object.

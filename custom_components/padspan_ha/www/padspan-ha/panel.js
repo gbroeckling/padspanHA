@@ -22,8 +22,8 @@ If UI changes don't show:
 // BUILD_ID (YYYYMMDDTHHMMSSZ) is appended to all JS import URLs as a cache-buster
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
-const APP_VERSION = "0.36.9";
-const RELEASE_BUILD_ID = "20260821T200549Z";
+const APP_VERSION = "0.37.0";
+const RELEASE_BUILD_ID = "20260823T192843Z";
 // The stamp the views are actually loaded with.
 //
 // This was the release literal above, so every view URL stayed frozen between
@@ -39,7 +39,7 @@ const BUILD_ID = (() => {
     return RELEASE_BUILD_ID;
   }
 })();
-const CHANNEL = "beta";
+const CHANNEL = "stable";
 
 // ── Editions and tiers ───────────────────────────────────────────────────────
 // Which surfaces this build shows (views/editions.js). Loaded with the same
@@ -1028,13 +1028,12 @@ class PadSpanHaApp extends HTMLElement {
       this._uiErrorSeen = {};
       const _report = ()=>{
         try{
-          if(!(this.state.settings && this.state.settings.telemetry_enabled)) return;
           const view = String(this.state.view || "");
           if(!view) return;
           const now = Date.now();
           if(now - (this._uiErrorSeen[view] || 0) < 60000) return;
           this._uiErrorSeen[view] = now;
-          this._callWS({ type: "padspan_ha/telemetry_event", event: "ui_error:" + view }).catch(()=>{});
+          this._telemetryEvent("ui_error:" + view);
         }catch(_e){ /* the error reporter must never be the error */ }
       };
       this._uiErrorHandler = ()=> _report();
@@ -1232,6 +1231,7 @@ class PadSpanHaApp extends HTMLElement {
       const res = await this._callWS({ type: "padspan_ha/settings_get" });
       if(res?.settings){
         this.state.settings = res.settings;
+        this._telemetryFlush();
         if ("cpu_pinning_supported" in res) this.state.cpuPinningSupported = !!res.cpu_pinning_supported;
         const mode = (res.settings.data_mode || "sample").toLowerCase();
         this.state.dataMode = (mode === "live") ? "live" : "sample";
@@ -1291,6 +1291,40 @@ class PadSpanHaApp extends HTMLElement {
     return true;
   }
 
+  // ── Opt-in usage report: the one door its events go through ──────────────
+  // Settings arrive after the first render, and the landing view, a deep
+  // link and a throw during that first render all happen before them. An
+  // event that checked the switch at that moment was dropped, which is why
+  // the report could never count the landing tab and could never see the one
+  // class of error it was added for (v0.35.0's first-render throw). Events
+  // wait here until the switch is KNOWN, then go or are discarded; the
+  // backend checks the switch again and is the authority. Nothing leaves the
+  // browser while the report is off or unknown.
+  _telemetryEvent(name){
+    const s = this.state.settings;
+    if (!s || !("telemetry_enabled" in s)) {
+      const q = this._telemetryQueue || (this._telemetryQueue = []);
+      if (q.length < 50) q.push(String(name));
+      return;
+    }
+    if (!s.telemetry_enabled) { this._telemetryQueue = null; return; }
+    this._callWS({ type: "padspan_ha/telemetry_event", event: String(name) }).catch(() => {});
+  }
+  // Called whenever settings land. Counts the view that was already open
+  // once — it was set directly, never through setView — then releases
+  // whatever waited. Idempotent: a later settings refresh finds nothing.
+  _telemetryFlush(){
+    const s = this.state.settings;
+    if (!s || !("telemetry_enabled" in s)) return;
+    const q = this._telemetryQueue || [];
+    this._telemetryQueue = null;
+    if (!this._telemetryLanded) {
+      this._telemetryLanded = true;
+      if (this.state.view) q.unshift("tab:" + this.state.view);
+    }
+    for (const e of q) this._telemetryEvent(e);
+  }
+
   async _loadSettings(){
     try {
       if(!this._hass) return;
@@ -1304,6 +1338,7 @@ class PadSpanHaApp extends HTMLElement {
       this._updateBadges();
       this._renderNav();
       this._scheduleRender();
+      this._telemetryFlush();
     } catch (e) {
       // Non-fatal
       this._toast("Settings load failed (will retry on refresh).", true);
@@ -1619,11 +1654,8 @@ class PadSpanHaApp extends HTMLElement {
       }
       this.state.view = id;
       this._logEvent("view_change", id);
-      // Opt-in usage report: count the tab open. Nothing leaves the browser
-      // unless the person turned the report on (Settings → Presence).
-      if (this.state.settings && this.state.settings.telemetry_enabled) {
-        this._callWS({ type: "padspan_ha/telemetry_event", event: "tab:" + id }).catch(() => {});
-      }
+      // Opt-in usage report: count the tab open.
+      this._telemetryEvent("tab:" + id);
       if (this._closeDrawer) this._closeDrawer();
       this._renderNav();
       // On-demand: if the view module isn't loaded yet, fetch it then render
@@ -1938,11 +1970,8 @@ class PadSpanHaApp extends HTMLElement {
           // "the Mapping tabs don't load" was: not a hang, a swallowed throw
           // leaving the previous tab's DOM on screen.
           //
-          // Matches the guarded, non-throwing call _switchView already uses.
-          // Nothing leaves the browser unless the report is switched on.
-          if (this.state.settings && this.state.settings.telemetry_enabled) {
-            this._callWS({ type: "padspan_ha/telemetry_event", event: "tab:maps/" + t }).catch(() => {});
-          }
+          // Through the one door, like every other event.
+          this._telemetryEvent("tab:maps/" + t);
           if (t === "library") this._getMapsList().then(()=>this._scheduleRender()).catch(()=>this._scheduleRender());
           else this._scheduleRender();
         },
@@ -1995,10 +2024,7 @@ class PadSpanHaApp extends HTMLElement {
         wsCall: async (type, data={}) => await this._callWS({ type, ...data }),
         // Opt-in usage report: count one allow-listed event. A no-op unless the
         // person turned the report on — no traffic leaves the browser otherwise.
-        telemetryEvent: (name) => {
-          if (!(this.state.settings && this.state.settings.telemetry_enabled)) return;
-          this._callWS({ type: "padspan_ha/telemetry_event", event: String(name) }).catch(() => {});
-        },
+        telemetryEvent: (name) => this._telemetryEvent(name),
         // ── Followed Beacons ──────────────────────────────────────────────
         // Multi-device follow set — persisted both to server (via settings_set)
         // and to localStorage as a fallback. Addresses are stored uppercase.

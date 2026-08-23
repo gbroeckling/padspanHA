@@ -233,6 +233,136 @@ export function makeStackXform(stk, fallbackAr) {
   };
 }
 
+// ── A stack as one affine, and back ─────────────────────────────────────────
+//
+// Both of makeStackXform's branches draw the same thing: an affine from the
+// map's centred image fraction into the shared world, in centred form
+//
+//     world = M · (p − ½) + c
+//
+// That affine is what is on screen, so it is the only thing placements may
+// be composed on. The decomposed fields are an INPUT to one branch and are
+// ignored by the other, so arithmetic done on them describes a map the
+// renderer may not be drawing (issue #64). And the per-map `ar` is how each
+// branch stretches y on the way out — a stack that predates `ref_ar` is drawn
+// against its own image ratio — so composing in any frac space would mix
+// frames; world space has no frame to mix.
+//
+// Reading is branch-for-branch what makeStackXform does; writing hands back
+// the matrix in force, the decomposition that agrees with it (the agreement
+// fabric_truth.stack_desync measures), and the frame it was written against.
+
+// A stack read out as the world affine it draws: { M: [a,b,c,d], c: [cx,cy] }.
+// `fallbackAr` as for makeStackXform.
+export function worldAffine(stk, fallbackAr) {
+  stk = stk || {};
+  const ox = stk.x_offset || 0, oy = stk.y_offset || 0;
+  const refAr = stk.ref_ar || fallbackAr || 1;
+  if (stk._m && stk._m.length === 4) {
+    const m = stk._m.map(Number), ar = stk._m_ar || refAr;
+    return { M: [m[0], m[1], ar * m[2], ar * m[3]], c: [0.5 + ox, ar * (0.5 + oy)] };
+  }
+  const ar = refAr, sc = stk.scale || 1;
+  const sx = sc * (stk.scale_x_adj || 1), sy = sc * ar;
+  const r = (stk.rotation || 0) * Math.PI / 180;
+  const cs = Math.cos(r), sn = Math.sin(r);
+  return { M: [cs * sx, -sn * sy, sn * sx, cs * sy], c: [0.5 + ox, ar * (0.5 + oy)] };
+}
+
+// outer ∘ inner: M = Mo·Mi, c = Mo·ci + co.
+export function composeAffine(outer, inner) {
+  const [a, b, c, d] = outer.M, [e, f, g, h] = inner.M;
+  const [x, y] = inner.c;
+  return {
+    M: [a * e + b * g, a * f + b * h, c * e + d * g, c * f + d * h],
+    c: [a * x + b * y + outer.c[0], c * x + d * y + outer.c[1]],
+  };
+}
+
+// The inverse, or null when there is none.
+export function invertAffine(af) {
+  const [a, b, c, d] = af.M;
+  const det = a * d - b * c;
+  if (!(Math.abs(det) > 1e-12)) return null;
+  const Mi = [d / det, -b / det, -c / det, a / det];
+  const [x, y] = af.c;
+  return { M: Mi, c: [-(Mi[0] * x + Mi[1] * y), -(Mi[2] * x + Mi[3] * y)] };
+}
+
+// The rotate/scale fields that describe a frac-space matrix in frame `ar` —
+// the same AR-aware decomposition the Point Align solver writes beside its
+// matrix, so a stack carrying both keeps describing ONE footprint.
+export function decomposeFracMatrix(M, ar) {
+  ar = ar || 1;
+  const sx = Math.hypot(M[0], M[2] * ar);
+  const sy = Math.hypot(M[1] / ar, M[3]);
+  return {
+    rotation: Math.atan2(M[2] * ar, M[0]) * 180 / Math.PI,
+    scale: sy,
+    scale_x_adj: sx > 0 && sy > 0 ? sx / sy : 1,
+  };
+}
+
+// A world affine written back as stack fields against frame `ar`: matrix and
+// offsets exact, the decomposition rounded for display the way the solver
+// rounds it, and the frame recorded in both places that read it.
+export function stackFieldsFromAffine(af, ar) {
+  ar = ar || 1;
+  const M = [af.M[0], af.M[1], af.M[2] / ar, af.M[3] / ar];
+  const d = decomposeFracMatrix(M, ar);
+  const r4 = (v) => Math.round(v * 10000) / 10000;
+  return {
+    x_offset: af.c[0] - 0.5, y_offset: af.c[1] / ar - 0.5,
+    scale: r4(d.scale), rotation: Math.round(d.rotation * 100) / 100,
+    scale_x_adj: r4(d.scale_x_adj),
+    _m: M, _m_ar: ar, ref_ar: ar,
+  };
+}
+
+// Every map's stack after `newMasterId` becomes the master, keyed by map id.
+//
+// A stack is an ABSOLUTE placement in the shared world — ref_map_id records
+// what a map was aligned against and nothing reads it for geometry — so when
+// the world is re-based, every map moves with it, not only the ones that
+// happened to reference the old master. With B the new master's current
+// placement and S the pristine placement a master has (image fraction to
+// world, y stretched by its own image ratio), each map P becomes S ∘ B⁻¹ ∘ P;
+// the new master itself becomes S ∘ B⁻¹ ∘ B = S. Done on the world affine,
+// so a map placed by Point Align (where only `_m` is in force) and one placed
+// by hand come out equally right, and every result is written with `_m` and
+// its agreeing decomposition so nothing is left describing two footprints.
+//
+// Returns null when the new master's placement cannot be inverted.
+export function changeMasterStacks(mapsList, newMasterId) {
+  const maps = mapsList || [];
+  const N = maps.find((m) => m && m.id === newMasterId);
+  if (!N) return null;
+  const arN = imageAr(N);
+  const Bi = invertAffine(worldAffine(N.stack, arN));
+  if (!Bi) return null;
+  const S = { M: [1, 0, 0, arN], c: [0.5, 0.5 * arN] };
+  const toNew = composeAffine(S, Bi);
+  const out = {};
+  out[N.id] = {
+    is_master: true, x_offset: 0, y_offset: 0, scale: 1, rotation: 0,
+    scale_x_adj: 1, ref_map_id: null, ref_ar: arN, tie_ins: [],
+    _m: null, _m_ar: null,
+  };
+  const oldMaster = maps.find((m) => m && m.id !== N.id && m.stack && m.stack.is_master);
+  for (const m of maps) {
+    if (!m || m.id === N.id) continue;
+    const stk = m.stack || {};
+    const fields = stackFieldsFromAffine(composeAffine(toNew, worldAffine(stk, imageAr(m))), arN);
+    fields.is_master = false;
+    const wasMaster = !!stk.is_master;
+    const refOld = oldMaster && stk.ref_map_id === oldMaster.id;
+    fields.ref_map_id = (wasMaster || refOld || !stk.ref_map_id) ? N.id : stk.ref_map_id;
+    if (wasMaster) fields.tie_ins = [];
+    out[m.id] = fields;
+  }
+  return out;
+}
+
 // The world span of a map's full image, measured THROUGH its transform:
 // [width, height], the lengths of the image's two edges in world space, which
 // is what "how much world does this picture cover" means under rotation as

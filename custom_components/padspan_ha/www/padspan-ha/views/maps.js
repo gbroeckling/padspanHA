@@ -5,7 +5,8 @@
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor, mapFracToMetres, metresToMapFrac } =
+const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor, mapFracToMetres, metresToMapFrac,
+        worldAffine, composeAffine, stackFieldsFromAffine, changeMasterStacks } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 // THE fabric frame — the Lights tab inverts drags through the exact function
 // the renderer draws with, so the two cannot disagree.
@@ -2788,103 +2789,35 @@ function _isMasterEligible(m) {
       && !s.ref_map_id;
 }
 
-// ── Change Master — Transform Helpers + Wizard ───────────────────────────────
-// Changing the master is a destructive operation: the old master gets the
-// inverse of the new master's transform, and all maps that referenced the old
-// master are relinked via composed transforms. Floating-point rounding means
-// the result may not match the original layout perfectly.
+// ── Change Master — Wizard ───────────────────────────────────────────────────
+// Changing the master moves the whole house into the new master's frame. The
+// arithmetic lives in stack_transform.changeMasterStacks, on the same affine
+// the renderer draws, so a Point-Aligned map and a hand-placed one move
+// together and every stack comes back describing one footprint (#64).
 
-// Compute the inverse of a 2D similarity transform (translate + rotate + scale).
-// If B maps master → new_master, then B⁻¹ maps new_master → master.
-function _invertTransform(bx, by, bs, br_deg) {
-  const br = (br_deg || 0) * Math.PI / 180;
-  const invS = 1.0 / (bs || 1.0);
-  return {
-    x: Math.round(invS * (-(bx||0) * Math.cos(br) - (by||0) * Math.sin(br)) * 10000) / 10000,
-    y: Math.round(invS * ( (bx||0) * Math.sin(br) - (by||0) * Math.cos(br)) * 10000) / 10000,
-    scale: Math.round(invS * 10000) / 10000,
-    rotation: Math.round(-(br_deg || 0) * 100) / 100,
-  };
-}
-
-// Compose two 2D similarity transforms: result = outer ∘ inner.
-// Used to relink maps that referenced the old master through the new master.
-function _composeTransforms(outer, inner) {
-  const or_rad = (outer.rotation || 0) * Math.PI / 180;
-  const cos_r = Math.cos(or_rad);
-  const sin_r = Math.sin(or_rad);
-  const ix = inner.x || 0, iy = inner.y || 0;
-  return {
-    x: Math.round(((outer.x || 0) + (outer.scale || 1) * (ix * cos_r - iy * sin_r)) * 10000) / 10000,
-    y: Math.round(((outer.y || 0) + (outer.scale || 1) * (ix * sin_r + iy * cos_r)) * 10000) / 10000,
-    scale: Math.round((outer.scale || 1) * (inner.scale || 1) * 10000) / 10000,
-    rotation: Math.round(((outer.rotation || 0) + (inner.rotation || 0)) * 100) / 100,
-  };
-}
-
-// Execute the master swap: (1) new master → pristine origin, (2) old master →
-// inverse transform referenced to new master, (3) relink all other maps that
-// directly referenced old master via composed transforms.
+// Execute the master swap: the new master to the pristine origin first, then
+// every other map into its frame. Returns how many maps besides the old
+// master were moved.
 async function _executeChangeMaster(ctx, oldMaster, newMaster, allMaps) {
-  const ns = newMaster.stack || {};
-  const bx = ns.x_offset || 0, by = ns.y_offset || 0;
-  const bs = ns.scale || 1.0, br = ns.rotation || 0;
-  const bsx = ns.scale_x_adj || 1.0;
-  const inv = _invertTransform(bx, by, bs, br);
-
-  // 1. New master → pristine origin
-  //
-  // _m/_m_ar MUST be cleared, not just left out of the override. Object.assign
-  // spreads `ns` first, and makeStackXform prefers _m over every decomposed
-  // field, so a solved matrix left in place means none of this reset reaches
-  // the renderer: the map keeps drawing at its old placement while these
-  // values claim it sits at the origin at scale 1. The wizard only runs on a
-  // map already aligned to the current master, which is exactly the map most
-  // likely to carry one (#64).
+  const patches = changeMasterStacks(allMaps, newMaster.id);
+  if (!patches) {
+    if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("master_change_refused");
+    throw new Error("The new master's alignment cannot be inverted. Re-align it to the current master and try again.");
+  }
   await ctx.actions.mapsUpdateQuiet({
     map_id: newMaster.id,
-    stack: Object.assign({}, ns, {
-      is_master: true, x_offset: 0, y_offset: 0, scale: 1.0,
-      rotation: 0, scale_x_adj: 1.0, ref_map_id: null, tie_ins: [],
-      _m: null, _m_ar: null,
-    }),
+    stack: Object.assign({}, newMaster.stack || {}, patches[newMaster.id]),
   });
-
-  // 2. Old master → inverse transform, referenced to new master
-  const os = oldMaster.stack || {};
-  await ctx.actions.mapsUpdateQuiet({
-    map_id: oldMaster.id,
-    stack: Object.assign({}, os, {
-      is_master: false, x_offset: inv.x, y_offset: inv.y,
-      scale: inv.scale, rotation: inv.rotation,
-      scale_x_adj: bsx ? (Math.round((1.0 / bsx) * 10000) / 10000) : 1.0,
-      ref_map_id: newMaster.id, tie_ins: [],
-      // Same reason as above: the inverse is expressed in decomposed terms, so
-      // anything that would override them has to go with them.
-      _m: null, _m_ar: null,
-    }),
-  });
-
-  // 3. Relink maps that directly referenced old master
   let relinked = 0;
   for (const m of allMaps) {
-    if (m.id === oldMaster.id || m.id === newMaster.id) continue;
-    const ms = m.stack || {};
-    if (ms.ref_map_id !== oldMaster.id) continue;
-    const comp = _composeTransforms(
-      { x: inv.x, y: inv.y, scale: inv.scale, rotation: inv.rotation },
-      { x: ms.x_offset||0, y: ms.y_offset||0, scale: ms.scale||1.0, rotation: ms.rotation||0 }
-    );
+    if (m.id === newMaster.id || !patches[m.id]) continue;
     await ctx.actions.mapsUpdateQuiet({
       map_id: m.id,
-      stack: Object.assign({}, ms, {
-        x_offset: comp.x, y_offset: comp.y,
-        scale: comp.scale, rotation: comp.rotation,
-        ref_map_id: newMaster.id,
-      }),
+      stack: Object.assign({}, m.stack || {}, patches[m.id]),
     });
-    relinked++;
+    if (m.id !== oldMaster.id) relinked++;
   }
+  if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("master_changed");
   return relinked;
 }
 
@@ -2960,7 +2893,8 @@ function _changeMasterWizard(ctx, allMaps, currentMaster) {
           '<span style="font-family:monospace;font-size:11px;color:#94a3b8">' +
           "Offset: (" + (ns.x_offset||0).toFixed(3) + ", " + (ns.y_offset||0).toFixed(3) + ")  Scale: " + (ns.scale||1).toFixed(3) + "  Rot: " + (ns.rotation||0).toFixed(1) + "\u00B0</span><br><br>" +
           "<b>Make sure this alignment is as accurate as possible before proceeding.</b> " +
-          "If the two maps are not perfectly aligned, every other map\u2019s position will drift after the swap.";
+          "The swap moves every map by exactly this alignment, so maps stay consistent with each other either way \u2014 " +
+          "but an inaccurate alignment here becomes the new frame everything is measured in.";
       } else {
         alignBox.style.cssText += ";background:#1a0a00;border:1px solid #d97706;color:#fbbf24";
         alignBox.innerHTML = "\u26A0 <b>" + esc(newM?.name||newM?.id||"?") + "</b> is <b>not aligned</b> to the current master.<br><br>" +
@@ -2997,8 +2931,8 @@ function _changeMasterWizard(ctx, allMaps, currentMaster) {
       card.appendChild(el("div",{style:"font-weight:700;font-size:15px;color:" + (ok ? "#86efac" : "#fca5a5")}, ok ? "\u2713 Master Map Changed" : "\u26A0 Swap Failed"));
       if (ok) {
         card.appendChild(el("div",{style:"font-size:12px;color:#e2e8f0;line-height:1.7;margin-top:8px"},
-          "The master has been transferred. The old master received an inverse transform. " +
-          (result.relinked > 0 ? result.relinked + " other map(s) were recomputed to reference the new master. " : "") +
+          "The master has been transferred and the old master placed in its frame. " +
+          (result.relinked > 0 ? result.relinked + " other map(s) were moved into the new master's frame with it. " : "") +
           "Please verify all map alignments in the 3D Stack and Alignment tabs. " +
           "If anything looks wrong, re-align the affected maps manually."));
       } else {
@@ -4774,70 +4708,33 @@ function _stack(ctx, maps, helpBtn){
           bakeImg.src = _mapUrl(tgtMap);
         } else {
           // ── Compose PA result with reference map's own stack transform ──
-          // The solver maps target → FLAT reference.  But in buildStage the
-          // reference is displayed with its own stack transform T_ref.  So the
-          // target needs T_ref ∘ T_pa to align with the displayed reference.
-          //
-          // Centered affine: x' = M*(x-0.5) + d + 0.5
-          // Composition:  new_M = R*P,  new_d = R*pa_d + ref_d
+          // The solver maps target → FLAT reference, but the reference is
+          // drawn through its own placement, so the target needs
+          // T_ref ∘ T_pa. T_ref is read as the world affine the renderer
+          // draws, whichever branch it is on; T_pa lands in the reference's
+          // centred image fraction, which is exactly T_ref's input. The
+          // result is written with the decomposition that agrees with it.
           const refStk = refMap.stack || {};
-          const hasRefTransform = !!(refStk._m || refStk.x_offset || refStk.y_offset ||
-            refStk.rotation || (refStk.scale && refStk.scale !== 1.0) || (refStk.scale_x_adj && refStk.scale_x_adj !== 1.0));
+          const refAf = worldAffine(refStk, arHW);
+          const paAf = { M: rawM.slice(), c: [rDx, rDy] };
+          const fields = stackFieldsFromAffine(composeAffine(refAf, paAf), arHW);
 
-          // Build reference 2×2 matrix (R) and offset (ref_d)
-          let R11 = 1, R12 = 0, R21 = 0, R22 = 1;
-          let refDxV = 0, refDyV = 0;
-          if (hasRefTransform) {
-            refDxV = refStk.x_offset || 0;
-            refDyV = refStk.y_offset || 0;
-            if (refStk._m && refStk._m.length === 4) {
-              R11 = refStk._m[0]; R12 = refStk._m[1];
-              R21 = refStk._m[2]; R22 = refStk._m[3];
-            } else {
-              const rRad = (refStk.rotation || 0) * Math.PI / 180;
-              const rSx = (refStk.scale || 1) * (refStk.scale_x_adj || 1);
-              const rSy = refStk.scale || 1;
-              R11 = rSx * Math.cos(rRad);
-              R12 = -rSy * Math.sin(rRad) * arHW;
-              R21 = rSx * Math.sin(rRad) / arHW;
-              R22 = rSy * Math.cos(rRad);
-            }
-          }
-
-          // PA result matrix (P) from solver
-          const P11 = rawM[0], P12 = rawM[1], P21 = rawM[2], P22 = rawM[3];
-
-          // Compose: new_M = R * P,  new_d = R * pa_d + ref_d
-          const C11 = R11 * P11 + R12 * P21;
-          const C12 = R11 * P12 + R12 * P22;
-          const C21 = R21 * P11 + R22 * P21;
-          const C22 = R21 * P12 + R22 * P22;
-          const Cdx = R11 * rDx + R12 * rDy + refDxV;
-          const Cdy = R21 * rDx + R22 * rDy + refDyV;
-
-          // Decompose composed matrix for sliders / manual controls
-          const cRot = Math.atan2(C21 * arHW, C11) * 180 / Math.PI;
-          const cSx = Math.sqrt(C11 * C11 + C21 * C21 * arHW * arHW);
-          const cSy = Math.sqrt(C12 * C12 / (arHW * arHW) + C22 * C22);
-          const cScale = cSy;
-          const cStretch = cSx > 0 && cSy > 0 ? cSx / cSy : 1.0;
-
-          // Store composed result with raw matrix for lossless rendering
-          alignState.x_offset   = Math.round(Cdx * 10000) / 10000;
-          alignState.y_offset   = Math.round(Cdy * 10000) / 10000;
-          alignState.scale      = Math.round(cScale * 10000) / 10000;
-          alignState.rotation   = Math.round(cRot * 100) / 100;
-          alignState.scaleX_adj = Math.round(cStretch * 10000) / 10000;
-          alignState._m         = [C11, C12, C21, C22];
+          alignState.x_offset   = fields.x_offset;
+          alignState.y_offset   = fields.y_offset;
+          alignState.scale      = fields.scale;
+          alignState.rotation   = fields.rotation;
+          alignState.scaleX_adj = fields.scale_x_adj;
+          alignState._m         = fields._m;
           alignState._m_ar      = arHW;
-          console.log("[PtAlign Apply] ref has transform:", hasRefTransform,
-            "ref_dx=" + refDxV, "ref_dy=" + refDyV);
+          console.log("[PtAlign Apply] ref placement: M=[" + refAf.M.map(v=>v.toFixed(4)).join(",") +
+            "] c=[" + refAf.c.map(v=>v.toFixed(4)).join(",") + "]");
           console.log("[PtAlign Apply] PA raw: dx=" + rDx + " dy=" + rDy +
             " M=[" + rawM.join(",") + "]");
-          console.log("[PtAlign Apply] Composed: dx=" + Cdx.toFixed(4) + " dy=" + Cdy.toFixed(4) +
-            " M=[" + [C11,C12,C21,C22].map(v=>v.toFixed(4)).join(",") + "]");
-          console.log("[PtAlign Apply] Decomposed: scale=" + cScale.toFixed(4) +
-            " rot=" + cRot.toFixed(2) + " stretch=" + cStretch.toFixed(4));
+          console.log("[PtAlign Apply] Composed: dx=" + fields.x_offset + " dy=" + fields.y_offset +
+            " M=[" + fields._m.map(v=>v.toFixed(4)).join(",") + "]");
+          console.log("[PtAlign Apply] Decomposed: scale=" + fields.scale +
+            " rot=" + fields.rotation + " stretch=" + fields.scale_x_adj);
+          if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("point_align_applied");
           _close();
           buildStage();
           ctx.toast("Aligned (" + pairs + " pairs, residual " + resPct + "%)");

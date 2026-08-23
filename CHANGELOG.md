@@ -4,6 +4,28 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.37.0 — Stable: Change Master moves the whole house, and the release tells the install base it happened (2026-08-23)
+
+The first stable since 0.35.0. Everything from 0.36.0–0.36.9 is in it — the trim skew fix (#62's write and read sides), the 0.36.2 outage fix and per-object isolation, the phantom-device and solver-certainty fixes, the scanner-name resolver (#65), the telemetry fields of #66, the opt-in ask, and the Install Base view — plus the items below. If you are on 0.35.0, the Mapping sub-tab throw fixed in 0.36.0 is reason enough on its own.
+
+### Change Master relinks on the matrix — the whole of it this time (#64 step 3)
+- **Every map moves into the new master's frame, and the arithmetic is the renderer's.** The relink composed a map's new placement out of `x_offset` / `scale` / `rotation` — the inputs to ONE of the renderer's two branches, ignored entirely for a map whose placement is a Point-Align matrix — and then only for maps whose `ref_map_id` was the old master, leaving every other map behind in the old world frame. A stack is an absolute placement; nothing reads `ref_map_id` for geometry. Now the whole house is re-based in one exact step on the world affine each stack actually draws: `S ∘ B⁻¹ ∘ P` for every map, the new master landing at the pristine origin by construction, hand-placed and Point-Aligned maps treated identically, and every result written with the matrix *and* the decomposition that agrees with it — so a swap can no longer manufacture the `stack_desync` state it used to.
+- **One algebra, shared.** The stack→affine read, compose, invert, and affine→stack write live in `stack_transform.js` beside `makeStackXform`, and the Point Align apply path now goes through the same functions instead of carrying its own copy of the branch logic. The wizard and Training text now describe the exact relink rather than warning about the drift the old one caused.
+- Verified under node from pytest (`tests/test_change_master.py` → `tests/js/change_master.mjs`, 50 checks: pristine origin, rigid motion of stale-field and matrix maps alike, matrix/decomposition agreement, round-trip to the starting placement, refusal of a singular master). Confirmed as cover by mutation: a reader that ignores `_m` fails 17 checks; a relink that skips maps not referencing the old master fails 10.
+
+### The usage report stops carrying fiction
+- **`positioned_now` and `outside_now` were always 0 by construction.** Both read the cached snapshot, and both facts are attached per-request inside `ws_live_snapshot` — the cache never carries them. They now read the coordinator's own poll result (the same dict the live view overlays), gated on `is_identified_object` — the engine's one test for "someone's device", now also used by the adaptive-learning gate it was copied from — so the count is of the house, not of every phone that drove past.
+- **`calibration_auto_points` was always 0** — it looked for a `source` key calibration points have never had. Auto points are marked in the label (`[auto] …`), and that is what is counted now.
+- **Events before the panel's settings arrive are no longer dropped.** The landing view, a `?view=` deep link and a throw during the first render all happen before the opt-in switch is known, and every one of them was discarded — the report could never count the landing tab and could never see the exact class of error (`ui_error:` on first render) it was added for in 0.36.7. All panel events now go through one door that queues until the switch is known, then sends or discards; the landing view is counted once.
+- **Three reported feature flags did not exist.** `trackability_rating_enabled`, `compass_ring_enabled` and `replay_timeline_enabled` were settings keys consumed by nothing; they are out of the report, and a test now fails if any reported flag has no consumer outside the settings plumbing.
+- **The two placement tools report their use**: `master_changed` / `master_change_refused` / `point_align_applied` join the closed vocabulary, so `health.stack_desync` has a denominator — without one, a zero means "fixed" and "nobody ran it" in the same breath.
+
+### The release tells the install base it happened
+- **`version.php`'s manifest is published by the release itself.** The daily update check reads `latest.json` on the colo, and that file was hand-maintained: 0.35.0 went stable on 18 August and five days later the manifest still said 0.21.13 — which is why two thirds of the pinging install base was still on 0.21.13. `release.py` now bumps `latest_beta` on every release and `latest_stable` on a stable one, verifies through the live endpoint, and fails red (with a `--manifest-only` retry) if the colo write did not take. `version.php` itself joins `server/` in the repo with the other two endpoints.
+- **The release commit now stages `CHANGELOG.md`, `server/` and `docs/`** — the changelog no longer needs a second hand-made commit after every release.
+
+---
+
 ## 0.36.9 — Install Base: the developer's dashboard of what the reports add up to (2026-08-21)
 
 ### Added

@@ -4,6 +4,7 @@ PadSpan HA release script.
 
 Usage:
     python scripts/release.py <version> [--stable] [--no-bright]
+    python scripts/release.py <version> --manifest-only [--stable]   # re-push latest.json only
 
 Examples:
     python scripts/release.py 0.4.22            # beta (pre-release on GitHub)
@@ -145,6 +146,14 @@ STATIC_FILES = [
     # maintainer's disk. (git add respects .gitignore, so __pycache__ and
     # *.pyc stay out and the preflight __pycache__ check stays happy.)
     "tests",
+    # The user-facing record of the release travels IN the release commit.
+    # release.py used to skip it, so every release needed a second hand-made
+    # "CHANGELOG: x.y.z" commit after the fact — or shipped without one.
+    "CHANGELOG.md",
+    # The colo endpoints (version/telemetry/stats) live in the repo and are
+    # deployed from it; a release must not leave the repo's copy behind.
+    "server",
+    "docs",
 ]
 
 
@@ -533,6 +542,57 @@ def create_github_release(tag, channel, message=None):
 
 # ───────────────────────── Main ──────────────────────────────────────
 
+# ── Update-check manifest ────────────────────────────────────────────────────
+# https://padspan.traks.ca/api/version.php serves api/latest.json to every
+# install's daily update check — it is the ONLY way an install ever hears a
+# release happened. It was hand-maintained on the colo and nobody bumped it:
+# 0.35.0 went stable on 2026-08-18 and five days later the manifest still said
+# 0.21.13, which is why two thirds of the pinging install base sat on 0.21.13.
+# The release that creates a version now tells the manifest about it.
+MANIFEST_HOST = "administrator@75.157.233.12"
+MANIFEST_PATH = "/var/www/clients/client1/web10/web/padspan/api/latest.json"
+MANIFEST_URL = "https://padspan.traks.ca/api/version.php"
+_SSH = "ssh -o BatchMode=yes -o ConnectTimeout=15"
+
+
+def publish_update_manifest(version, channel):
+    """Bump latest.json on the colo: every release moves latest_beta, a
+    stable release moves latest_stable with it. Returns True on verified
+    success. Never raises — the GitHub release is already out, so a colo
+    hiccup must be SEEN (red, non-zero exit in main) but must not unwind
+    anything."""
+    import urllib.request
+    try:
+        cur = run(f'{_SSH} {MANIFEST_HOST} "sudo -n cat {MANIFEST_PATH}"', check=False)
+        try:
+            manifest = json.loads(cur) if cur else {}
+        except json.JSONDecodeError:
+            manifest = {}
+        manifest.setdefault("notes_url", f"https://github.com/{REPO}/releases")
+        manifest["latest_beta"] = version
+        if channel == "stable":
+            manifest["latest_stable"] = version
+        body = json.dumps(manifest, separators=(",", ":"))
+        # tee truncates the existing file in place, so www-data keeps owning it
+        result = subprocess.run(
+            f'{_SSH} {MANIFEST_HOST} "sudo -n tee {MANIFEST_PATH} > /dev/null"',
+            shell=True, text=True, input=body, capture_output=True)
+        if result.returncode != 0:
+            print(f"  manifest write failed: {result.stderr.strip()}")
+            return False
+        # Verify through the real endpoint — the write is only done when the
+        # update check would actually say so.
+        with urllib.request.urlopen(MANIFEST_URL, timeout=15) as resp:
+            served = json.loads(resp.read().decode("utf-8"))
+        ok = served.get("latest_beta") == version and (
+            channel != "stable" or served.get("latest_stable") == version)
+        print(f"  version.php now serves: {served}")
+        return ok
+    except Exception as e:
+        print(f"  manifest publish failed: {e}")
+        return False
+
+
 def main():
     # Parse -m "message" flag for commit/release description
     argv = sys.argv[1:]
@@ -557,6 +617,10 @@ def main():
     version = args[0].lstrip("v")
     tag = f"v{version}"
     channel = "stable" if "--stable" in flags else "beta"
+
+    if "--manifest-only" in flags:
+        print(f"\n=== Manifest only: {version} ({channel}) ===\n")
+        sys.exit(0 if publish_update_manifest(version, channel) else 3)
     build_id = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
 
     print(f"\n=== PadSpan HA Release: {tag}  build: {build_id}  channel: {channel} ===\n")
@@ -582,7 +646,18 @@ def main():
     print("\nCreating GitHub release...")
     create_github_release(tag, channel, message)
 
+    print("\nPublishing update-check manifest...")
+    manifest_ok = publish_update_manifest(version, channel)
+    if not manifest_ok:
+        print("  !! latest.json on the colo was NOT updated — installs will not "
+              "hear about this release until it is. Fix and re-run: "
+              f"python scripts/release.py --manifest-only {version}"
+              + (" --stable" if channel == "stable" else ""))
+
     print(f"\n=== Done! {tag} ({channel}) is live on GitHub. ===\n")
+
+    if not manifest_ok:
+        sys.exit(3)
 
     if "--no-bright" in flags:
         print("PadSpan Bright pass skipped (--no-bright).\n")

@@ -95,6 +95,13 @@ EVENTS: frozenset[str] = frozenset({
     # repair and which way it needed to go — a repair that nobody ever runs is
     # a repair nobody can find.
     "map_align_to_stack", "map_stack_rebuilt",
+    # The two tools that rewrite a map's placement through the stack algebra
+    # (issue #64): a completed master swap, one the wizard refused because the
+    # new master's placement could not be inverted, and a Point Align applied.
+    # `health.stack_desync` counts maps left describing two footprints; these
+    # are its denominator — without them a zero means "fixed" and "nobody ran
+    # it" in the same breath.
+    "master_changed", "master_change_refused", "point_align_applied",
     # IRK resolution, cumulative over the window: a NEW address resolved to a
     # registered key; a NEW rotating address that matched no key.
     "irk_resolved", "irk_unresolved_rpa",
@@ -122,7 +129,10 @@ TAB_EVENTS: frozenset[str] = frozenset(
 # never a stack, never anything the page happened to be holding.
 UI_ERRORS: frozenset[str] = frozenset({f"ui_error:{v}" for v in VIEWS})
 
-# The switches whose ON/OFF is reported (booleans only, by name).
+# The switches whose ON/OFF is reported (booleans only, by name). Every name
+# here must be READ by something outside the settings plumbing — a switch
+# that drives nothing is not a feature, and reporting it would put a fiction
+# in the data (tests/test_telemetry.py holds the list to that).
 _FEATURE_FLAGS: tuple[str, ...] = (
     "quiet_mode", "lights_showcase", "lights_fit_rooms", "lights_hide_untouched",
     "lights_panel_enabled", "radio_map_enabled", "distortion_map_enabled",
@@ -130,8 +140,8 @@ _FEATURE_FLAGS: tuple[str, ...] = (
     "mac_rotation_bridging", "beacon_auto_calibrate", "beacon_profiling_enabled",
     "espresense_mqtt_enabled", "mqtt_publish_enabled", "bermuda_ignore",
     "phone_wizard_enabled", "overview_show_walls", "overview_show_outdoor",
-    "overview_2d_mode", "overview_persistent_pins", "trackability_rating_enabled",
-    "walk_to_identify_enabled", "compass_ring_enabled", "replay_timeline_enabled",
+    "overview_2d_mode", "overview_persistent_pins",
+    "walk_to_identify_enabled",
     "adaptive_floor_detection", "apple_auto_classify", "aggressive_ble_reseed",
     "ha_entity_tracker_enabled", "ha_entity_area_enabled", "ha_entity_distance_enabled",
     "ha_entity_scanner_distance_enabled", "ha_entity_occupancy_enabled",
@@ -210,6 +220,36 @@ def _len(x: Any) -> int:
         return 0
 
 
+def _positioning_now(coord) -> dict[str, int]:
+    """What the engine did with the house's own objects this poll.
+
+    Read from the coordinator's poll result — the same dict the live
+    snapshot overlays onto objects — because the cached snapshot never
+    carries `outside` or the solver's counts: both are attached per request
+    inside ws_live_snapshot, so reading them off the cache reported 0 on
+    every install, forever. Gated on is_identified_object, the engine's own
+    test, so the count is of the house and not of the neighbourhood.
+    """
+    out = {"positioned": 0, "outside": 0}
+    data = getattr(coord, "data", None)
+    ident = getattr(coord, "is_identified_object", None)
+    if not isinstance(data, dict) or not callable(ident):
+        return out
+    for key, v in data.items():
+        if not isinstance(v, dict):
+            continue
+        try:
+            if not ident(key):
+                continue
+        except Exception:
+            continue
+        if v.get("x_m") is not None and v.get("y_m") is not None:
+            out["positioned"] += 1
+        if v.get("outside"):
+            out["outside"] += 1
+    return out
+
+
 def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, Any]:
     """The report. `consume` resets the usage counters (a real send does;
     the Preview does not, so previewing never loses a day's counts)."""
@@ -267,7 +307,10 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             by_kind[k] = by_kind.get(k, 0) + 1
     cal = getattr(dom.get("calibration"), "data", None) or {}
     cal_points = cal.get("points") if isinstance(cal.get("points"), list) else []
-    cal_auto = sum(1 for p in cal_points if isinstance(p, dict) and str(p.get("source") or "").startswith("auto"))
+    # Beacon auto-calibration marks its points in the LABEL (`[auto] …`,
+    # presence_coordinator / calibration_store.prune_auto_points); there has
+    # never been a `source` key, and reading one counted zero on every install.
+    cal_auto = sum(1 for p in cal_points if isinstance(p, dict) and str(p.get("label") or "").startswith("[auto]"))
     # Points that never got a floor. Since #54 such a point is no longer
     # assumed to be on the ground — it stays 2D — which fixed the phantom
     # elevation but left the point contributing nothing to the storey it was
@@ -299,6 +342,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
                and not isinstance(v.get("z_m"), bool)]
     scanner_z_distinct = len({round(z, 2) for z in _z_vals})
     coord = dom.get("presence_coordinator")
+    _pos = _positioning_now(coord)
     # Registered keys that resolved at least one address in the window — the
     # answer to "does the IRK path work anywhere". Read without resetting on
     # a preview; a send resets it with the other windows.
@@ -428,11 +472,10 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
                            for k, v in (_identity.get("by_source") or {}).items()},
         "irks_resolving_by_source": {k: v.get("resolving", 0)
                                      for k, v in (_identity.get("by_source") or {}).items()},
-        "outside_now": sum(1 for o in obj_list if isinstance(o, dict) and o.get("outside")),
+        "outside_now": _pos["outside"],
         "coverage_floor_active": getattr(coord, "_coverage_floor", None) is not None,
-        # The positioning engine's own count of objects it placed this poll.
-        "positioned_now": int(((snap.get("calibration_status") or {}).get("knn_positioned_objects") or 0)
-                              if isinstance(snap.get("calibration_status"), dict) else 0),
+        # Identified objects the engine placed this poll, and judged outside.
+        "positioned_now": _pos["positioned"],
         # How long since HA (re)started, coarsely — restart churn is a health
         # signal; a start time finer than that would be one thing too many.
         "uptime": _uptime_bucket(time.monotonic() - started) if isinstance(started, (int, float)) else "unknown",
