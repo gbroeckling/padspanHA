@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PadSpan™ HA — BLE room-presence tracking for Home Assistant</title>
+<meta name="description" content="PadSpan HA tells you which room every Bluetooth device is in — interactive floor plans, 3D multi-floor maps, walk-around calibration, phone tracking, lighting maps, and 22 dedicated views for Home Assistant.">
+<meta property="og:title" content="PadSpan™ HA — BLE room-presence tracking for Home Assistant">
+<meta property="og:description" content="Room-level BLE tracking with 3D floor plans, calibration, follow mode, and 22 views. The most comprehensive BLE presence system for Home Assistant.">
+<meta property="og:image" content="https://padspan.traks.ca/images/social-preview.png">
+<meta property="og:url" content="https://padspan.traks.ca/">
+<link rel="icon" type="image/png" href="images/icon.png">
+<style>
+:root{
+  --bg:#071009;--bg2:#0a1710;--card:#0d1d13;--line:rgba(154,230,180,.14);
+  --fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0;--gold:#ffc147;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),
+             radial-gradient(900px 500px at 5% 5%,rgba(16,185,129,.09),transparent 55%),var(--bg);
+  color:var(--fg);line-height:1.6}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:1100px;margin:0 auto;padding:0 22px}
+nav.top{position:sticky;top:0;z-index:50;backdrop-filter:blur(10px);background:rgba(7,16,9,.82);border-bottom:1px solid var(--line)}
+nav.top .inner{max-width:1100px;margin:0 auto;padding:10px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav.top a{color:var(--mut);font-size:13.5px;font-weight:600}
+nav.top a:hover{color:var(--acc);text-decoration:none}
+nav.top .brand{color:var(--fg);font-weight:900;margin-right:auto;font-size:15px}
+header.hero{padding:70px 0 40px;text-align:center}
+.hero img.logo{width:110px;height:110px;border-radius:24px;margin-bottom:18px;box-shadow:0 12px 40px rgba(52,211,153,.25)}
+.hero h1{font-size:clamp(38px,6vw,68px);font-weight:900;letter-spacing:-.02em;
+  background:linear-gradient(120deg,#fff 25%,var(--acc2) 55%,var(--acc));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .tag{font-size:clamp(17px,2.3vw,22px);color:#c8dccd;max-width:720px;margin:14px auto 0}
+.badges{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:22px}
+.badge{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--acc2);
+  border:1px solid var(--line);background:rgba(52,211,153,.08);border-radius:999px;padding:6px 14px}
+.cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:28px}
+.btn{display:inline-block;padding:13px 26px;border-radius:12px;font-weight:800;font-size:15px;transition:.2s}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.primary:hover{background:var(--acc2);text-decoration:none;transform:translateY(-2px)}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn.ghost:hover{border-color:var(--acc);text-decoration:none;transform:translateY(-2px)}
+section{padding:54px 0}
+h2{font-size:clamp(26px,3.6vw,38px);font-weight:900;letter-spacing:-.01em;margin-bottom:8px}
+.kick{color:var(--acc);font-weight:800;letter-spacing:.16em;text-transform:uppercase;font-size:12px;margin-bottom:8px}
+.lede{color:var(--mut);max-width:760px;margin-bottom:28px;font-size:16px}
+.heroimg{width:100%;border-radius:16px;border:1px solid var(--line);box-shadow:0 30px 80px rgba(0,0,0,.55);display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.shot{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:block;color:var(--fg);transition:.2s}
+.shot:hover{transform:translateY(-3px);border-color:rgba(52,211,153,.45);text-decoration:none}
+.shot img{width:100%;aspect-ratio:16/10;object-fit:cover;display:block;border-bottom:1px solid var(--line)}
+.shot .cap{padding:12px 16px;font-size:13.5px;color:var(--mut)}
+.shot .cap b{color:var(--fg);display:block;font-size:14.5px;margin-bottom:2px}
+.feat{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px}
+.feat h3{font-size:18px;margin-bottom:10px;color:var(--acc2)}
+.feat ul{list-style:none}
+.feat li{padding:4px 0 4px 22px;position:relative;font-size:14.5px;color:#c4d6c9}
+.feat li::before{content:"✓";position:absolute;left:0;color:var(--acc);font-weight:900}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--acc2);font-size:12.5px;text-transform:uppercase;letter-spacing:.08em}
+td:not(:first-child),th:not(:first-child){text-align:center}
+tr:hover td{background:rgba(52,211,153,.04)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+.yes{color:var(--acc);font-weight:900}
+.no{color:#4a5c50}
+.num{color:var(--gold);font-weight:800}
+.steps{counter-reset:st;list-style:none;max-width:760px}
+.steps li{counter-increment:st;position:relative;padding:10px 0 10px 52px;font-size:15.5px;color:#cfe0d4}
+.steps li::before{content:counter(st);position:absolute;left:0;top:8px;width:34px;height:34px;border-radius:50%;
+  background:rgba(52,211,153,.12);border:1px solid var(--line);color:var(--acc);font-weight:900;display:flex;align-items:center;justify-content:center}
+code{background:rgba(52,211,153,.1);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:13px;color:var(--acc2)}
+.docgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.doc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;display:block;color:var(--fg);transition:.2s}
+.doc:hover{border-color:var(--acc);transform:translateY(-2px);text-decoration:none}
+.doc b{display:block;margin-bottom:4px;color:var(--acc2)}
+.doc span{font-size:13.5px;color:var(--mut)}
+video{width:100%;border-radius:16px;border:1px solid var(--line);box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.about{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:28px;max-width:820px}
+.about p{color:#c4d6c9;font-size:15px}
+.about p+p{margin-top:12px}
+footer{border-top:1px solid var(--line);padding:36px 0 46px;color:var(--mut);font-size:13.5px;text-align:center}
+footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
+.divider{height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent)}
+/* release timeline */
+.rel{position:relative;padding-left:26px;margin-top:6px}
+.rel::before{content:"";position:absolute;left:6px;top:6px;bottom:6px;width:2px;background:linear-gradient(180deg,var(--acc),transparent)}
+.relitem{position:relative;padding:0 0 26px 0}
+.relitem::before{content:"";position:absolute;left:-25px;top:8px;width:12px;height:12px;border-radius:50%;background:var(--bg);border:2px solid var(--acc)}
+.relitem.minor::before{border-color:var(--line);background:var(--bg)}
+.relhead{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.relver{font-weight:900;font-size:17px;color:var(--acc2)}
+.reldate{font-size:12.5px;color:var(--mut)}
+.pill{font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;border-radius:999px;padding:3px 9px;border:1px solid var(--line)}
+.pill.stable{color:#04160c;background:var(--acc);border-color:var(--acc)}
+.pill.soon{color:var(--gold);background:rgba(255,193,71,.1);border-color:rgba(255,193,71,.35)}
+.pill.free{color:var(--acc2);background:rgba(52,211,153,.1)}
+.relbody{color:#c4d6c9;font-size:14.5px;margin-top:6px}
+.relbody ul{list-style:none;margin-top:6px}
+.relbody li{padding:3px 0 3px 20px;position:relative}
+.relbody li::before{content:"→";position:absolute;left:0;color:var(--acc);font-weight:900}
+/* edition cards */
+.ed{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;display:flex;flex-direction:column}
+.ed.hi{border-color:rgba(52,211,153,.45);box-shadow:0 0 0 1px rgba(52,211,153,.12)}
+.ed h3{font-size:19px;color:var(--fg);margin-bottom:2px}
+.ed .sub{font-size:12.5px;color:var(--mut);margin-bottom:12px}
+.ed .price{font-size:26px;font-weight:900;margin:2px 0 10px}
+.ed ul{list-style:none;font-size:14px;color:#c4d6c9;margin-bottom:14px}
+.ed li{padding:3px 0 3px 20px;position:relative}
+.ed li::before{content:"✓";position:absolute;left:0;color:var(--acc);font-weight:900}
+.ed li.x::before{content:"—";color:#4a5c50}
+.note{background:rgba(255,193,71,.06);border:1px solid rgba(255,193,71,.3);border-radius:12px;padding:16px 18px;font-size:14.5px;color:#e4d9c0;margin-top:18px}
+.note b{color:var(--gold)}
+@media(max-width:640px){.hero{padding:46px 0 30px}section{padding:40px 0}nav.top .inner{gap:12px}nav.top a{font-size:12.5px}}
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="inner">
+    <span class="brand">PadSpan™ HA</span>
+    <a href="#whatsnew">What's new</a>
+    <a href="#screenshots">Screenshots</a>
+    <a href="#features">Features</a>
+    <a href="#lights">Lights</a>
+    <a href="#editions">Editions</a>
+    <a href="#compare">Compare</a>
+    <a href="#install">Install</a>
+    <a href="#pro">Pro</a>
+  </div>
+</nav>
+
+<header class="hero wrap">
+  <img class="logo" src="images/icon-large.png" alt="PadSpan logo" onerror="this.src='images/icon.png'">
+  <h1>PadSpan™ HA</h1>
+  <p class="tag">The most comprehensive BLE room-presence system for Home Assistant. It doesn't just know you're home — it knows <b>which room</b> every Bluetooth device is in, updated every 5 seconds.</p>
+  <div class="badges">
+    <span class="badge" data-latest-version>v0.37.0</span>
+    <span class="badge">HA 2024.1+</span>
+    <span class="badge">HACS</span>
+    <span class="badge">GPL-3.0</span>
+    <span class="badge">100% Local</span>
+    <span class="badge">11 Languages</span>
+  </div>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/gbroeckling/padspanHA">View on GitHub</a>
+    <a class="btn ghost" href="https://github.com/gbroeckling/padspanHA/releases/latest">Download Latest Release</a>
+    <a class="btn ghost" href="#install">Install via HACS</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <img class="heroimg" src="images/overview-3d-multifloor.jpg" alt="3D multi-floor tracking with live RSSI heatmap overlay">
+</div>
+
+<section class="wrap" id="whatsnew">
+  <div class="kick">What's new</div>
+  <h2>The releases since v0.21, in plain terms</h2>
+  <p class="lede">If you installed PadSpan earlier this year and left it alone, a lot has changed underneath — and there is a reason you may not have heard about any of it. See the <a href="https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md">full changelog</a> for every entry.</p>
+
+  <div class="note">
+    <b>If you are on the stable channel and think you are current, check again.</b>
+    The update check built into the integration reported v0.21.13 as the latest stable
+    right up until 23 August 2026, long after newer stable releases existed. That was a
+    fault at my end, not at yours. It is fixed, and cutting a release now publishes the
+    version manifest as part of the process, so it cannot drift like that again.
+  </div>
+
+  <div class="rel" style="margin-top:26px">
+
+    <div class="relitem">
+      <div class="relhead">
+        <span class="relver" data-latest-version>v0.37.0</span>
+        <span class="pill stable">Stable</span>
+        <span class="reldate">23 August 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Changing the master map now moves the whole house at once.</b> The relink rebuilt every map's placement from fields the renderer ignores whenever a map had been placed by Point Align, and it only moved maps that referenced the old master — the rest were left behind in the old frame. It is now one exact step over the transform actually being drawn, so hand-placed and Point-Aligned maps move together.</li>
+          <li><b>The usage report stopped reporting things that were always zero.</b> Three fields could never be anything but zero by construction, and panel events that happened before the settings loaded were silently dropped — including the exact class of error the report was added to catch. Three switches that were reported as features turned out to have no implementation at all and are gone.</li>
+          <li><b>Releases publish their own version manifest</b>, which is what closes the stale-update-check problem above.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem minor">
+      <div class="relhead"><span class="relver">v0.36.0 – v0.36.9</span><span class="reldate">19 – 21 August 2026</span></div>
+      <div class="relbody">
+        <ul>
+          <li><b>Trimming a floor plan no longer skews the house.</b> A crop re-derived only one of the two stored copies of a map's placement, so rooms drew correct across and wrong down by exactly the map's aspect error.</li>
+          <li><b>A scanner's name is no longer part of another scanner's.</b> With proxies named <code>btproxy</code>, <code>btproxy_kitchen</code> and <code>btproxy_livingroom</code>, assigning an area to one moved the others with it.</li>
+          <li><b>A device that is outside and heard by nothing no longer stops the poll.</b> This fixes a whole-install freeze introduced in v0.36.1 — if you are on that version, upgrade past it.</li>
+          <li><b>The solver stopped claiming certainty it did not have</b>, phantom devices from abandoned addresses are gone, and one device's failure can no longer take the whole poll down with it.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead"><span class="relver">v0.35.0</span><span class="pill stable">Stable</span><span class="reldate">18 August 2026</span></div>
+      <div class="relbody">
+        <ul>
+          <li><b>The edition and licence model landed</b> — see <a href="#editions">Editions</a> below.</li>
+          <li><b>Private BLE keys tell the truth.</b> A value that is really an iBeacon UUID is refused instead of silently resolving nothing forever, and a fingerprint bridge is no longer treated as an identity.</li>
+          <li><b>An opt-in usage report</b>, off by default — counts, versions and flags only, never addresses, keys, names or coordinates. There is a <b>Preview what would be sent</b> button that shows you the exact payload.</li>
+          <li>The Bluetooth view was restyled into one visual language across all five sub-tabs.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead"><span class="relver">v0.34.0 – v0.34.11</span><span class="reldate">16 – 18 August 2026</span></div>
+      <div class="relbody">
+        <ul>
+          <li><b>Multi-floor actually works.</b> The floor list never reached the positioning code, so a multi-storey house was scored as a single storey. The panel looked right the whole time because it reads the Home Assistant floor registry live, which is exactly why this survived as long as it did. If you gave up on PadSpan because it put people on the wrong floor, this is the fix.</li>
+          <li><b>Geometry moved off the picture.</b> Rooms, scanners, walls and lights are stored in metres in their own model rather than as coordinates on the image you uploaded. Re-crop or replace a plan and nothing moves.</li>
+          <li><b>Scanners carry a real mounting height and floors carry a real elevation</b>, so a cross-floor decision finally has something to separate storeys by. Walls are RF barriers with an attenuation value rather than decoration.</li>
+          <li><b>RSSI Vector Capture</b> — record what every scanner heard for every tracked device, poll by poll, marking rooms as you walk. Export the session and replay that same walk against different settings instead of walking it again. Off by default.</li>
+          <li><b>Auto-calibration writes fingerprints from stationary beacons</b>, so there is less walking around the house with a phone in your hand.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem minor">
+      <div class="relhead"><span class="relver">v0.22.0</span><span class="reldate">4 August 2026</span></div>
+      <div class="relbody">Forensics arrived as the first Pro feature, along with light placement and map origin anchoring.</div>
+    </div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="why">
+  <div class="kick">Why PadSpan</div>
+  <h2>A complete tracking workstation, not just a sensor</h2>
+  <p class="lede">Most BLE presence integrations give you a config flow and a sensor. PadSpan gives you a floor plan editor, room boundary polygons, 3D isometric maps, walk-around calibration, follow mode with email alerts, a training hub, and a full sample/demo mode — so you can explore every feature before plugging in hardware.</p>
+  <p class="lede">It works with the BLE scanners you already have. Home Assistant Bluetooth proxies and Bermuda proxies are picked up directly. ESPresense nodes arrive over MQTT, which you switch on in <b>Manage → ESPresense MQTT</b> and which needs Home Assistant's MQTT integration configured. No custom firmware. No cloud dependency. Everything runs locally.</p>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="inuse">
+  <div class="kick">In use</div>
+  <h2>Not a mockup</h2>
+  <p class="lede">PadSpan on a wall-mounted panel in daily use, next to the thermostat and the light switches.</p>
+  <img class="heroimg" src="images/wall-panel-in-situ.jpg" alt="PadSpan running on a wall-mounted panel in the great room, showing the multi-floor map with tracked devices" loading="lazy">
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="screenshots">
+  <div class="kick">Screenshots</div>
+  <h2>See it in action</h2>
+  <p class="lede">Click any screenshot to view it full size.</p>
+  <div class="grid">
+    <a class="shot" href="images/overview-3d-multifloor.jpg" target="_blank"><img src="images/overview-3d-multifloor.jpg" alt="3D multi-floor tracking" loading="lazy"><div class="cap"><b>3D Multi-Floor Tracking</b>Live isometric view with tracked devices across 3 floors</div></a>
+    <a class="shot" href="images/overview-3d-heatmap.jpg" target="_blank"><img src="images/overview-3d-heatmap.jpg" alt="3D heatmap overlay" loading="lazy"><div class="cap"><b>3D Heatmap + Signal Overlay</b>RSSI heatmap crosshatch with live device positions</div></a>
+    <a class="shot" href="images/maps-library-live.jpg" target="_blank"><img src="images/maps-library-live.jpg" alt="Maps library" loading="lazy"><div class="cap"><b>Maps Library</b>Uploaded floor plans organized by floor</div></a>
+    <a class="shot" href="images/bluetooth-scanner-graph.jpg" target="_blank"><img src="images/bluetooth-scanner-graph.jpg" alt="Scanner-device graph" loading="lazy"><div class="cap"><b>Scanner-to-Device Graph</b>Bipartite BLE connection graph with live RSSI</div></a>
+    <a class="shot" href="images/traceback-distance.jpg" target="_blank"><img src="images/traceback-distance.jpg" alt="Traceback playback" loading="lazy"><div class="cap"><b>Traceback + Distance Traveled</b>NVR-style playback timeline with per-device reliability</div></a>
+    <a class="shot" href="images/beacon-tune-calibration.jpg" target="_blank"><img src="images/beacon-tune-calibration.jpg" alt="Beacon tune calibration" loading="lazy"><div class="cap"><b>Beacon Tune Calibration</b>3D floor stack with auto-cal and live positions</div></a>
+    <a class="shot" href="images/purelive-immersive.png" target="_blank"><img src="images/purelive-immersive.png" alt="Pure Live immersive dashboard" loading="lazy"><div class="cap"><b>Pure Live — Immersive Dashboard</b>Full-screen 3D map with pan/zoom, sonar, and floating stats</div></a>
+    <a class="shot" href="images/traceback-playback-3d.png" target="_blank"><img src="images/traceback-playback-3d.png" alt="Traceback movement playback" loading="lazy"><div class="cap"><b>Traceback — Movement Playback</b>Replay with 3D map, timeline scrubber, and distance per device</div></a>
+    <a class="shot" href="images/sandbox-developer.png" target="_blank"><img src="images/sandbox-developer.png" alt="Sandbox developer tools" loading="lazy"><div class="cap"><b>Sandbox Developer Tools</b>State inspector, floor towers, live signal bars</div></a>
+    <a class="shot" href="images/floor-plan-edit.png" target="_blank"><img src="images/floor-plan-edit.png" alt="Floor plan editor" loading="lazy"><div class="cap"><b>Floor Plan Editor</b>Room boundaries drawn on architectural blueprints</div></a>
+    <a class="shot" href="images/calibration-tune-3d.png" target="_blank"><img src="images/calibration-tune-3d.png" alt="3D calibration tune" loading="lazy"><div class="cap"><b>3D Calibration Tune</b>Isometric tune view with draggable receiver markers</div></a>
+    <a class="shot" href="images/training-hub.png" target="_blank"><img src="images/training-hub.png" alt="Training hub" loading="lazy"><div class="cap"><b>Training Hub</b>14 animated walkthroughs + full manual, built in</div></a>
+    <a class="shot" href="images/3d-stack-tracking.png" target="_blank"><img src="images/3d-stack-tracking.png" alt="3D stack tracking" loading="lazy"><div class="cap"><b>3D Floor Stack</b>Multi-floor stack with live tracking</div></a>
+    <a class="shot" href="images/bluetooth-visualization.png" target="_blank"><img src="images/bluetooth-visualization.png" alt="Bluetooth visualization" loading="lazy"><div class="cap"><b>Bluetooth Visualization</b>Live scanner and device signal landscape</div></a>
+    <a class="shot" href="images/maps-library.png" target="_blank"><img src="images/maps-library.png" alt="Maps library view" loading="lazy"><div class="cap"><b>Maps Library View</b>Floor plan management</div></a>
+    <a class="shot" href="images/sandbox-dashboard.jpg" target="_blank"><img src="images/sandbox-dashboard.jpg" alt="Sandbox dashboard" loading="lazy"><div class="cap"><b>Sandbox Dashboard</b>Experimental playground</div></a>
+  </div>
+</section>
+
+<section class="wrap" id="demo">
+  <div class="kick">Demo</div>
+  <h2>Watch the walkthrough</h2>
+  <video controls preload="metadata" poster="images/overview-3d-multifloor.jpg">
+    <source src="images/demo-walkthrough.mp4" type="video/mp4">
+    Your browser doesn't support embedded video. <a href="images/demo-walkthrough.mp4">Download the demo</a>.
+  </video>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="features">
+  <div class="kick">Feature Highlights</div>
+  <h2>Everything you need for room-level presence</h2>
+  <p class="lede"></p>
+  <div class="grid">
+    <div class="feat"><h3>Presence Tracking</h3><ul>
+      <li>Room-level BLE tracking, 5-second refresh</li>
+      <li>Follow mode — animated map + movement timeline</li>
+      <li>Multi-device tracking with per-device email alerts</li>
+      <li>Kalman-filtered RSSI smoothing</li>
+      <li>Home/away binary sensors</li>
+      <li>Private BLE address resolution (iBeacon + IRK)</li>
+      <li>Hybrid occupancy estimation (BLE + sensors + WiFi)</li>
+    </ul></div>
+    <div class="feat"><h3>Device Identity</h3><ul>
+      <li>Stable padspan_id survives MAC rotation and firmware updates</li>
+      <li>O(1) identity resolution from any volatile key</li>
+      <li>Automatic migration from older tag systems</li>
+      <li>Interactive registry: merge, relabel, delete</li>
+    </ul></div>
+    <div class="feat"><h3>Floor Plans &amp; Maps</h3><ul>
+      <li>Upload architectural plans (PNG/JPG) with auto-scaling</li>
+      <li>Two-point measure tool for real-world scale</li>
+      <li>Draw room boundary polygons over blueprints</li>
+      <li>3D isometric multi-floor visualization</li>
+      <li>2D flat map with zoom/pan and filters</li>
+      <li>Drag-and-place scanner markers</li>
+      <li>Geometry stored in metres, not pixels — re-crop a plan and nothing moves</li>
+      <li>Stale/missing radio auto-detection</li>
+    </ul></div>
+    <div class="feat"><h3>Calibration</h3><ul>
+      <li>Walk-around fingerprint collection, phone-friendly panel</li>
+      <li>k-NN matching + OLS path-loss model per scanner</li>
+      <li>Auto-calibration from stationary beacons</li>
+      <li>Coverage heatmap with "walk here next" guidance</li>
+      <li>Leave-one-out cross-validation quality scoring</li>
+      <li>RSSI Vector Capture — record a walk, replay it against new settings</li>
+      <li>3D tune view with draggable receivers</li>
+    </ul></div>
+    <div class="feat"><h3>Multi-Floor Intelligence</h3><ul>
+      <li>Real scanner mounting heights and floor elevations</li>
+      <li>Walls as RF barriers with per-material attenuation</li>
+      <li>Floor-transition learning with adaptive velocity gate</li>
+      <li>Learned cross-floor RSSI attenuation</li>
+      <li>Outdoor penalties for exterior boundary rooms</li>
+    </ul></div>
+    <div class="feat"><h3>Scanner Hardware</h3><ul>
+      <li>Tested with 20+ ESP32 boards</li>
+      <li>Antenna matters more than the chip — external wins</li>
+      <li>Auto-discover scanners from HA integrations</li>
+      <li>Per-scanner signal quality and coverage metrics</li>
+      <li>Assign scanners to floors and rooms on the map</li>
+    </ul></div>
+    <div class="feat"><h3>Alerts &amp; Automation</h3><ul>
+      <li>Email alerts on room change (60 s rate limit)</li>
+      <li>Area sensors, distance sensors, device trackers, binary sensors</li>
+      <li>Full WebSocket API for custom dashboards</li>
+    </ul></div>
+    <div class="feat"><h3>UI &amp; Experience</h3><ul>
+      <li>Pure Live immersive full-screen 3D dashboard</li>
+      <li>22 dedicated views, Basic and Advanced modes</li>
+      <li>5-step onboarding wizard with auto-detection</li>
+      <li>Training Hub: 14 animated walkthroughs + manual</li>
+      <li>Sample mode — full demo, no hardware needed</li>
+      <li>11 languages</li>
+      <li>NVR-style movement playback</li>
+    </ul></div>
+    <div class="feat"><h3>Experimental Features</h3><ul>
+      <li>Phone Setup Wizard with irk-capture auto-detection</li>
+      <li>MAC Rotation Bridging</li>
+      <li>Apple device auto-classification</li>
+      <li>Radio Map + Distortion Map overlays</li>
+      <li>Walk-to-Identify</li>
+    </ul></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="lights">
+  <div class="kick">Lighting</div>
+  <h2>Your lights on the same floor plan</h2>
+  <p class="lede">PadSpan already knows the shape of your house in metres — the rooms, the floors, the walls. <b>Mapping → Lights</b> puts your Home Assistant lights on that same plan, so you can see and switch them where they actually are instead of hunting through a list of entity names.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+    <div class="feat">
+      <h3>Free, in every install <span class="pill free">No key</span></h3>
+      <ul>
+        <li>The lighting map — rooms and floors drawn from your real geometry</li>
+        <li>One marker per light, in the room it belongs to</li>
+        <li>Click a light to switch it</li>
+        <li>Never hidden: the Lights tab is visible whether or not you hold a key</li>
+      </ul>
+    </div>
+    <div class="feat">
+      <h3>With a key</h3>
+      <ul>
+        <li><b>Place each light exactly</b> where it hangs, in metres</li>
+        <li>Fixture shapes and sizes — a strip is not a spot</li>
+        <li>WLED devices, with their own controls</li>
+        <li><b>Showcase</b> mode and <b>Fit room</b></li>
+      </ul>
+      <p style="font-size:13.5px;color:var(--mut);margin-top:6px">Placement is unlocked by a PadSpan Pro key today. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="editions">
+  <div class="kick">Editions</div>
+  <h2>Four programs, two dials</h2>
+  <p class="lede">There is one codebase. Which <b>edition</b> you download decides what you can see; what your <b>key</b> says decides what you can edit. A Pro key typed into any edition unlocks everything that edition can show, so you never have to work out which key goes with which download.</p>
+
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr))">
+    <div class="ed hi">
+      <h3>PadSpan HA</h3>
+      <div class="sub">Full edition · no key</div>
+      <div class="price">Free</div>
+      <ul>
+        <li>Room-level presence, everywhere in the house</li>
+        <li>Floor plans, 3D maps, calibration</li>
+        <li>Follow mode, playback, occupancy</li>
+        <li>The lighting map, view and switch</li>
+        <li class="x">Light placement</li>
+        <li class="x">Forensics</li>
+      </ul>
+      <a class="btn ghost" href="#install" style="margin-top:auto">Install free</a>
+    </div>
+    <div class="ed hi">
+      <h3>PadSpan Pro</h3>
+      <div class="sub">Full edition · Pro key</div>
+      <div class="price">$45 <small style="font-size:13px;font-weight:600">CAD / yr</small></div>
+      <ul>
+        <li>Everything in PadSpan HA</li>
+        <li><b>Forensics</b> — who was near which scanner, when</li>
+        <li><b>Light placement</b>, shapes, WLED, Showcase</li>
+        <li>One key, no separate install</li>
+      </ul>
+      <a class="btn primary" href="#pro" style="margin-top:auto">Get Pro</a>
+    </div>
+    <div class="ed">
+      <h3>PadSpan Bright</h3>
+      <div class="sub">Lighting edition · no key</div>
+      <div class="price">Free <span class="pill soon">Not yet released</span></div>
+      <ul>
+        <li>A lighting-only download for people who want the map without the presence tracking</li>
+        <li>Draws the house and the lights, switching only</li>
+        <li class="x">Light placement</li>
+      </ul>
+    </div>
+    <div class="ed">
+      <h3>PadSpan Bright Pro</h3>
+      <div class="sub">Lighting edition · Bright key</div>
+      <div class="price">— <span class="pill soon">Not yet released</span></div>
+      <ul>
+        <li>The whole lighting product</li>
+        <li>Placement, shapes, WLED, Showcase</li>
+        <li class="x">Presence tracking — that is what PadSpan HA is for</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>On the two Bright editions:</b> they are built and in testing, but they are not
+    released and there is nothing to download yet. They are listed here because PadSpan HA
+    already names them — if you try to place a light without a key, the software tells you
+    that placement needs PadSpan Bright Pro or PadSpan Pro, and until now there was nowhere
+    to find out what that meant. <b>Today the answer is simple: a PadSpan Pro key unlocks
+    light placement.</b> Watch
+    <a href="https://github.com/gbroeckling/padspanHA/discussions">Discussions</a> if you
+    want to hear when the Bright editions land.
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="phones">
+  <div class="kick">Phone &amp; Watch Tracking</div>
+  <h2>The hardest problem in BLE presence — solved several ways</h2>
+  <p class="lede">Phones rotate their Bluetooth address every ~15 minutes specifically to prevent tracking. PadSpan offers multiple paths depending on your device:</p>
+  <div class="tablewrap">
+  <table>
+    <tr><th>Device</th><th>Easiest Method</th><th style="text-align:left">What You Need</th></tr>
+    <tr><td><b>Android phone</b></td><td>HA Companion App iBeacon</td><td style="text-align:left">Install app, enable BLE Transmitter. Done.</td></tr>
+    <tr><td><b>iPhone / iPad</b></td><td>IRK via irk-capture</td><td style="text-align:left">Spare ESP32, flash irk-capture, pair once, paste IRK</td></tr>
+    <tr><td><b>Apple Watch</b></td><td>IRK via irk-capture</td><td style="text-align:left">Same as iPhone — pair watch to irk-capture ESP32</td></tr>
+    <tr><td><b>Tile / Chipolo</b></td><td>Automatic (iBeacon)</td><td style="text-align:left">Stable UUID — just works, tag once</td></tr>
+    <tr><td><b>AirTag</b></td><td>Probabilistic (experimental)</td><td style="text-align:left">Apple Classification + MAC Rotation Bridging</td></tr>
+    <tr><td><b>SmartTag</b></td><td>Probabilistic</td><td style="text-align:left">Same as AirTag — MAC Rotation Bridging</td></tr>
+    <tr><td><b>AirPods</b></td><td>Apple auto-classification</td><td style="text-align:left">Detected and labeled automatically</td></tr>
+  </table>
+  </div>
+  <p class="lede" style="margin-top:18px">The IRK extraction workflow is built on <a href="https://github.com/DerekSeaman/irk-capture">Derek Seaman's irk-capture</a> — an ingenious ESP32 tool that makes practical phone tracking in Home Assistant possible without rooting devices or owning a Mac.</p>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="compare">
+  <div class="kick">How It Compares</div>
+  <h2>No other HA BLE integration comes close</h2>
+  <p class="lede"></p>
+  <div class="tablewrap">
+  <table>
+    <tr><th style="text-align:left">Feature</th><th>PadSpan HA</th><th>Bermuda</th><th>Room Assistant</th><th>ESPresense</th></tr>
+    <tr><td>Room-level tracking</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    <tr><td>Phone tracking wizard</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>IRK capture integration</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>MAC rotation bridging</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Apple device auto-classify</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Visual floor plans</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>3D multi-floor maps</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>2D flat map + zoom/pan</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Room boundary editor</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Walls as RF barriers</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Fingerprint calibration</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Lighting map on the floor plan</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Hybrid occupancy counting</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Stable device identity</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Training hub (14 walkthroughs)</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Follow mode + email alerts</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Onboarding wizard</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Movement history playback</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Sample/demo mode</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Multi-language (11)</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Dedicated UI views</td><td class="num">22</td><td>Config flow</td><td>MQTT config</td><td>Web UI</td></tr>
+    <tr><td>HA sensor entities</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    <tr><td>Distance estimation</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Kalman RSSI filtering</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Works with ESPHome proxies</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">✗</td></tr>
+  </table>
+  </div>
+  <p class="lede" style="margin-top:14px">PadSpan reads from these rather than replacing them: Home Assistant Bluetooth proxies and Bermuda proxies are picked up directly, and ESPresense nodes come in over MQTT.</p>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="install">
+  <div class="kick">Installation</div>
+  <h2>Up and running in minutes</h2>
+  <p class="lede"><b style="color:var(--acc2)">Requirements:</b> Home Assistant 2024.1+, at least one BLE scanner (ESPresense, Bermuda proxy, or HA Bluetooth proxy), and HACS (recommended).</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+    <div class="feat">
+      <h3>Via HACS (recommended)</h3>
+      <ol class="steps">
+        <li>Open HACS in your Home Assistant instance</li>
+        <li>Add <code>gbroeckling/padspanHA</code> as a custom repository (Integration type)</li>
+        <li>Search for and install <b>PadSpan HA</b></li>
+        <li>Restart Home Assistant completely</li>
+        <li>Add the integration: Settings → Devices &amp; Services → Add Integration → PadSpan HA</li>
+      </ol>
+    </div>
+    <div class="feat">
+      <h3>Quick Start</h3>
+      <ol class="steps">
+        <li>Open the <b>PadSpan HA</b> panel in the sidebar</li>
+        <li>The onboarding wizard guides you: upload a map, set scale, draw rooms, place scanners, calibrate</li>
+        <li>Try <b>Sample mode</b> to explore every feature with demo data</li>
+        <li>Switch to <b>Live mode</b> — your BLE scanners are auto-discovered</li>
+        <li>Tag your devices and start tracking</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="docs">
+  <div class="kick">Documentation</div>
+  <h2>Guides for every step</h2>
+  <p class="lede">The built-in Training Hub has 14 animated walkthroughs covering every feature — from BLE basics to Private BLE/IRK setup.</p>
+  <div class="docgrid">
+    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/GETTING_STARTED.md"><b>Getting Started</b><span>First 30 minutes: install, explore, track</span></a>
+    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/FLOOR_PLAN_SETUP.md"><b>Floor Plan Setup</b><span>Upload, draw rooms, place scanners, set scale</span></a>
+    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/90_TROUBLESHOOTING.md"><b>Troubleshooting</b><span>Common issues and fixes</span></a>
+    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/00_REPO_LOGIC_OVERVIEW.md"><b>Architecture</b><span>High-level codebase architecture</span></a>
+    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/02_WEBSOCKET_API.md"><b>WebSocket API</b><span>API reference for custom integrations</span></a>
+    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md"><b>Changelog</b><span>Full version history</span></a>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="about">
+  <div class="kick">Development</div>
+  <h2>One developer, strong opinions</h2>
+  <div class="about">
+    <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a> — a 30+ year veteran of coding and scripting who has never claimed to be a fast typist. All architecture, product decisions, testing, and releases are human-directed. Implementation is AI-assisted using <a href="https://claude.ai">Claude</a> by Anthropic, which accelerates the write–test–ship cycle considerably. Think of it as one developer with strong opinions and a very patient pair-programming partner.</p>
+    <p>The result: a solo project that ships features at a pace that would normally require a team — without compromising on quality, security, or code review.</p>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="pro">
+  <div class="kick">PadSpan Pro</div>
+  <h2>Pro features, one key — the core stays free</h2>
+  <p class="lede">PadSpan HA is and remains free, open-source (GPL) software. Pro is an optional license that unlocks advanced features inside the same integration — no separate install, no cloud dependency, all data stays on your Home Assistant instance.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+    <div class="feat">
+      <h3>What Pro unlocks today</h3>
+      <ul class="steps" style="list-style:disc;padding-left:20px">
+        <li><b>Forensics</b> — search which BLE devices were near your scanners in any time window. Recorded presence sessions (dwell time, peak signal, per-scanner detail) plus lower-confidence "possible" matches, with CSV export.</li>
+        <li>Opt-in and privacy-guarded: off by default, explicit enable confirmation, configurable retention (7–90 days), recordings never leave your instance.</li>
+        <li><b>Light placement</b> — place each light exactly where it hangs, with fixture shapes and sizes, WLED support, Showcase and Fit room. See <a href="#lights">Lighting</a>.</li>
+        <li>More Pro features will join under the same key.</li>
+      </ul>
+    </div>
+    <div class="feat" style="text-align:center">
+      <h3>Pro</h3>
+      <div style="font-size:38px;font-weight:900;margin:6px 0">$45 <small style="font-size:14px;font-weight:600">CAD / year</small></div>
+      <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 14px">One-time PayPal payment · key valid 1 year · emailed automatically on payment</p>
+      <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+        <input type="hidden" name="cmd" value="_xclick">
+        <input type="hidden" name="business" value="garry@bcmail.net">
+        <input type="hidden" name="item_name" value="PadSpan Pro — 1 year license">
+        <input type="hidden" name="item_number" value="padspan-pro-annual">
+        <input type="hidden" name="amount" value="45.00">
+        <input type="hidden" name="currency_code" value="CAD">
+        <input type="hidden" name="no_shipping" value="1">
+        <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+        <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+        <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy PadSpan Pro with PayPal</button>
+      </form>
+      <p style="font-size:12px;color:var(--mut,#94a3b8);margin-top:12px">Requires PadSpan HA v0.22.0 or newer. The current stable release is <span data-latest-version>v0.37.0</span>. Enter your key under Settings → Features → Forensics.</p>
+    </div>
+  </div>
+</section>
+
+<section class="wrap" id="donate" style="text-align:center;padding-top:10px">
+  <h2 style="font-size:24px">Buy me a coffee ☕</h2>
+  <p class="lede" style="margin:8px auto 20px;max-width:560px">If this project saved you time (or you just like knowing which room your cat is in), you can support development:</p>
+  <a class="btn primary" href="https://www.paypal.com/donate/?hosted_button_id=W489P2RXBMXKW">Donate with PayPal</a>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+      <a href="https://github.com/gbroeckling/padspanHA/releases/latest">Releases</a>
+      <a href="https://github.com/gbroeckling/padspanHA/discussions">Discussions</a>
+      <a href="https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/gbroeckling/padspanHA/blob/main/LICENSE">License</a>
+      <a href="https://traks.ca/projects/">More projects</a>
+    </div>
+    <div>Copyright © 2026 Garry Broeckling · Licensed under the GNU General Public License v3.0 · PadSpan is a trademark of Garry Broeckling</div>
+  </div>
+</footer>
+
+<div id="boughtbar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99;background:#14532d;color:#bbf7d0;text-align:center;padding:12px 16px;font-weight:700">✓ Thanks for your purchase! Your PadSpan Pro license key is on its way to your PayPal email — check your inbox (and spam) in the next few minutes.</div>
+<script>
+if(location.search.indexOf("bought=1")>-1){document.getElementById("boughtbar").style.display="block";}
+
+/* The version shown on this page comes from the same update-check endpoint every
+   install polls, so the page cannot drift from what people are actually offered.
+   The values written into the HTML are stamped at deploy time from VERSION.txt and
+   stand on their own if this fetch fails or scripting is off. */
+(function(){
+  try{
+    fetch("/api/version.php",{cache:"no-store"}).then(function(r){return r.json();}).then(function(j){
+      var v = j && j.latest_stable;
+      if(!v) return;
+      var els = document.querySelectorAll("[data-latest-version]");
+      for(var i=0;i<els.length;i++){ els[i].textContent = "v" + v; }
+    }).catch(function(){});
+  }catch(e){}
+})();
+</script>
+
+</body>
+</html>

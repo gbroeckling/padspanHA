@@ -656,9 +656,23 @@ def main():
               f"python scripts/release.py --manifest-only {version}"
               + (" --stable" if channel == "stable" else ""))
 
+    # The landing page states the current STABLE version, so only a stable
+    # release may restamp it — a beta must never advertise itself as stable.
+    # The page also reads /api/version.php at runtime, so browsers self-correct
+    # even if this step is skipped; this keeps the no-JavaScript fallback honest.
+    site_ok = True
+    if channel == "stable":
+        print("\nDeploying the landing page...")
+        site_res = run(f'"{sys.executable}" "{ROOT / "scripts" / "deploy_site.py"}"', check=False)
+        site_ok = site_res.returncode == 0
+        if not site_ok:
+            print("  !! padspan.traks.ca was NOT updated. Re-run: python scripts/deploy_site.py")
+    else:
+        print("\nLanding page not touched (it names the stable release; this is a pre-release).")
+
     print(f"\n=== Done! {tag} ({channel}) is live on GitHub. ===\n")
 
-    if not manifest_ok:
+    if not manifest_ok or not site_ok:
         sys.exit(3)
 
     if "--no-bright" in flags:
