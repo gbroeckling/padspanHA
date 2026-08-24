@@ -494,6 +494,13 @@ def map_geometry_faults(maps_list: list[dict], model_store: Any) -> list[dict[st
     return out
 
 
+# How far the two columns of a solved-affine placement may lean off square
+# before stack_from_transform refuses to rebuild it. Measured as |cos| of the
+# angle between them, which is the shear itself for a placement anywhere near
+# square — the same 0.02 ws_fabric and ws_calibration refuse a lossy repair at.
+REBUILD_SHEAR_TOL = 0.02
+
+
 def stack_from_transform(m: dict, t: dict, anchor: dict[str, Any]) -> dict | None:
     """The stack that reproduces a stored map transform. Inverse of
     stack_metre_transform.
@@ -511,15 +518,59 @@ def stack_from_transform(m: dict, t: dict, anchor: dict[str, Any]) -> dict | Non
 
     `ref_ar` and the stack's own rotation are held fixed: ref_ar is the world
     frame's y anisotropy, shared with every map on the same master, and a crop
-    does not rotate. Returns None for a solved-affine (_m) stack, which has no
-    scale/scale_x_adj to solve for.
+    does not rotate. A solved-affine (_m) stack is rebuilt into the decomposed
+    fields and its matrix dropped; the one placement that cannot be is a
+    SHEARED one, because shear is the only thing scale/scale_x_adj/rotation
+    cannot express and straightening it silently would move the map instead of
+    repairing it.
     """
     stk = m.get("stack") or {}
-    if isinstance(stk.get("_m"), (list, tuple)):
-        return None
     ar = float(stk.get("ref_ar") or image_ar(m) or 1.0)
     if ar <= 0:
         return None
+    _m = stk.get("_m")
+    if isinstance(_m, (list, tuple)) and len(_m) == 4:
+        # Refusing every `_m` stack was too broad — it refused the map this
+        # repair exists for. Point Align's rigid solve gave rjbutler's Main
+        # Floor a matrix that is a plain scale with no shear in it at all
+        # (issue #62), and `_m` taking precedence in stack_world_xform is
+        # exactly why nothing else could reach the map.
+        #
+        # Shear is measured on the WORLD columns the renderer draws, since the
+        # affine branch stretches every y term by `_m_ar`. scale -> rotate ->
+        # translate produces perpendicular columns by construction, so a
+        # perpendicular pair is what the decomposed fields carry losslessly.
+        # A zero-length column is refused with them: it is not sheared, it is
+        # singular, and a placement with no width or height is not a thing to
+        # rebuild from either.
+        try:
+            a_m, b_m, c_m, d_m = (float(v) for v in _m)
+        except (TypeError, ValueError):
+            return None
+        arm = float(stk.get("_m_ar") or ar)
+        col_x = (a_m, arm * c_m)
+        col_y = (b_m, arm * d_m)
+        nx = math.hypot(*col_x)
+        ny = math.hypot(*col_y)
+        if nx <= 0 or ny <= 0:
+            return None
+        if abs(col_x[0] * col_y[0] + col_x[1] * col_y[1]) / (nx * ny) > REBUILD_SHEAR_TOL:
+            return None
+        # Shear-freeness alone is too wide a door. It also admits same-aspect
+        # Point Aligns and 6-DOF Full-transform placements, which issue #62
+        # never touched and which are usually somebody's deliberate alignment
+        # - rebuilding one DISCARDS the solved matrix to snap the map back onto
+        # its metric record, and the caller offers no way back. The state this
+        # repair exists for has exactly one signature: the placement does not
+        # draw the map at its OWN picture's aspect. The world columns carry
+        # that directly - their length ratio IS the aspect the renderer draws
+        # this map at, for any rotation, because rotation turns both columns
+        # together. Compared against ANCHOR_ISO_TOL for the same reason it
+        # governs map_geometry_faults: it is the point at which this codebase
+        # stops calling a map's shape self-consistent.
+        own_ar = image_ar(m)
+        if own_ar <= 0 or abs(ny / nx - own_ar) <= ANCHOR_ISO_TOL * own_ar:
+            return None
     kx, ky = _anchor_scales(anchor)
     if kx <= 0 or ky <= 0:
         return None
@@ -554,6 +605,11 @@ def stack_from_transform(m: dict, t: dict, anchor: dict[str, Any]) -> dict | Non
     oy = ((oy_m / ky) - (dx * sin_r + dy * cos_r)) / ar - 0.5
 
     out = dict(stk)
+    # The rebuilt placement IS the decomposed fields, so a matrix that was in
+    # force has to go with it: stack_world_xform takes the `_m` branch first
+    # and would keep drawing the stale one, leaving the repair invisible.
+    out["_m"] = None
+    out["_m_ar"] = None
     out["scale"] = sc
     out["scale_x_adj"] = world_w / sc
     out["x_offset"] = ox

@@ -418,10 +418,64 @@ def test_repair_clears_the_geometry_fault_it_was_built_for() -> None:
     assert _faults(maps, transforms) == [], "the repair did not clear the fault"
 
 
-def test_repair_refuses_a_solved_affine_stack() -> None:
-    """No scale/scale_x_adj to solve for — say so rather than invent one."""
+def test_repair_refuses_a_sheared_solved_affine_stack() -> None:
+    """Shear is the one placement the decomposed fields cannot carry.
+
+    Refusing every `_m` stack was too broad: it also refused the shear-free
+    matrix Point Align's rigid solve writes, which is the map this repair
+    exists for (issue #62). Refuse the case that is genuinely unrepresentable
+    instead — rebuilding a sheared placement into scale/rotation would
+    straighten the map rather than repair it.
+    """
     m = _map(1600, 1200)
-    m["stack"]["_m"] = [1.0, 0.0, 0.0, 1.0]
+    m["stack"]["_m"] = [1.0, 0.25, -0.15, 0.9]
+    m["stack"]["_m_ar"] = m["stack"]["ref_ar"]
+    assert fabric_truth.stack_from_transform(m, dict(_TRIMMED_T), _ANCHOR) is None
+
+
+def test_repair_rebuilds_a_shear_free_solved_affine_stack() -> None:
+    """And the matrix goes with it, or stack_world_xform draws the stale one."""
+    m = _map(1600, 1200)
+    m["stack"]["_m"] = [0.8, 0.0, 0.0, 1.3]
+    m["stack"]["_m_ar"] = m["stack"]["ref_ar"]
+    out = fabric_truth.stack_from_transform(m, dict(_TRIMMED_T), _ANCHOR)
+    assert out is not None, "a shear-free affine has a decomposition; refusing it strands the map"
+    assert out["_m"] is None and out["_m_ar"] is None
+
+
+def test_repair_refuses_a_placement_that_is_already_the_right_shape() -> None:
+    """Being faulted is not on its own a licence to discard a solved matrix.
+
+    map_geometry_faults fires on origin_delta_m alone, so a map somebody
+    deliberately nudged 0.5 m is "faulted" exactly like a map issue #62 bent.
+    The two are not the same repair: this one rebuilds the placement from the
+    metric record, which for a correctly-shaped map throws the alignment away
+    and snaps it back with no way to undo. #62's signature is that the
+    placement does not draw the map at its own picture's aspect, and that is
+    what has to be true before the matrix is discarded.
+
+    Here the columns are in the picture's own ratio — a same-aspect Point
+    Align, which is the common case — so there is nothing of #62 to repair.
+    """
+    m = _map(1600, 1200)
+    own_ar = fabric_truth.image_ar(m)
+    m["stack"]["_m"] = [1.05, 0.0, 0.0, 1.05]
+    m["stack"]["_m_ar"] = own_ar
+    assert fabric_truth.stack_from_transform(m, dict(_TRIMMED_T), _ANCHOR) is None
+
+
+def test_repair_refuses_a_singular_solved_affine_stack() -> None:
+    """A collapsed column is refused with the sheared ones, and separately.
+
+    It is not shear — the angle between the columns is undefined, not wide —
+    which is why the check measures each column's length before it measures
+    the angle. Written down because the shorter one-expression form of that
+    check, `|dot| > tol * |col_x| * |col_y|`, makes both sides zero here and
+    lets a placement with no width through.
+    """
+    m = _map(1600, 1200)
+    m["stack"]["_m"] = [0.8, 0.0, -0.6, 0.0]
+    m["stack"]["_m_ar"] = m["stack"]["ref_ar"]
     assert fabric_truth.stack_from_transform(m, dict(_TRIMMED_T), _ANCHOR) is None
 
 

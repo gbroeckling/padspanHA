@@ -636,8 +636,11 @@ async def ws_fabric_map_stack_rebuild(hass: HomeAssistant, connection, msg) -> N
     new_stack = fabric_truth.stack_from_transform(m, t, anchor)
     if not new_stack:
         connection.send_error(msg["id"], "unrepresentable",
-                              "This map's alignment was solved as a raw affine, which has no "
-                              "scale to rebuild. Re-run Point Align for it instead.")
+                              "This map's solved alignment is not the kind this repair "
+                              "rebuilds: it either already draws the map at its own "
+                              "picture's proportions, or it is sheared, and scale + "
+                              "rotation cannot describe that without straightening it. "
+                              "Re-run Point Align for it instead.")
         return
 
     before = faults[mid]

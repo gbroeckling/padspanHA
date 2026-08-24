@@ -4,6 +4,21 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.37.1 — Point Align stops handing a map the wrong picture's proportions (#62) (2026-08-24)
+
+### The rigid solve used one aspect ratio for two different pictures
+- **A map point-aligned onto a differently-shaped map came out squashed by exactly the ratio between them.** `_solvePtAlignRigid` was handed a single aspect ratio — the **reference** image's — and used it for both images, converting the target's fractional coordinates into square-pixel space with the reference's ratio. The matrix it reconstructed therefore always had `m11 == m22`, and since the renderer stretches every y term by `_m_ar`, a rigidly point-aligned map's world footprint was pinned to the reference's shape whatever its own picture looked like. A 1600x853 floor aligned onto a 930x850 one landed at `1 - 0.5331/0.9140 = 0.4167` iso error, 33% short across, and 1.71x squashed — the health card's three lines, all one dropped term. The solver now takes the target's own aspect and puts it on the target's terms: "rigid" means uniform in the *target's* pixels, which is what it always meant. Where the two pictures already agree the output is bit-identical, so no working alignment moves.
+- **The invariant, written down where it broke:** a map's world footprint carries its own image's aspect, so world pixels stay square. Audited against every other placement writer — the 6-DOF solve, the drag path (which already computed this exact factor as `scale_x_adj`, and was the tell), `changeMasterStacks` and `_recrop_stack` were all clean. The rigid solver was the only one that broke it, and it is the default.
+- A missing or non-positive target aspect is refused outright rather than falling back to the reference's, which would have re-enabled the bug for any future caller.
+- Verified under node from pytest (`tests/test_point_align_solver.py` → `tests/js/point_align_solver.mjs`, 79 checks: footprint aspect at four rotations in both directions, planted size, offsets, residual, bit-identity with the one-ratio model where the shapes agree, and matrix/decomposition agreement). Confirmed as cover by mutation: reverting the solver fails 36 checks, and of 15,000 generated solver variants exactly four pass — all four bit-identical rewrites of the shipped one.
+
+### And the maps it already bent repair through the button that was refusing them
+- **`stack_from_transform` refused every solved-affine stack** — which is precisely the shape this bug writes, so **Rebuild alignment** could not reach the one map it was built for. It now rebuilds the state the bug creates, identified by that state's own signature: world columns that are not in the map's own picture's ratio. Everything else is still refused, so a deliberate alignment cannot be snapped back onto its metric record by a fault that was only ever an origin nudge. The rebuilt stack drops `_m`/`_m_ar` with it, or `stack_world_xform` would go on drawing the stale matrix.
+- **Nothing runs at load and no stored map changes until someone presses the button.** There is no migration.
+- The websocket refusal string and the Rebuild confirm text had both stopped being true, and now name both reasons.
+
+---
+
 ## 0.37.0 — Stable: Change Master moves the whole house, and the release tells the install base it happened (2026-08-23)
 
 The first stable since 0.35.0. Everything from 0.36.0–0.36.9 is in it — the trim skew fix (#62's write and read sides), the 0.36.2 outage fix and per-object isolation, the phantom-device and solver-certainty fixes, the scanner-name resolver (#65), the telemetry fields of #66, the opt-in ask, and the Install Base view — plus the items below. If you are on 0.35.0, the Mapping sub-tab throw fixed in 0.36.0 is reason enough on its own.

@@ -4221,16 +4221,41 @@ function _stack(ctx, maps, helpBtn){
   // the CSS transform directly so that a = s·cos(θ) and b = s·sin(θ) produce
   // the correct CSS behaviour even on non-square images.
   //
-  // CSS rigid model in normalised coords (ar = height/width):
-  //   ref_x - 0.5 = a·u - b·ar·v + dx          where u = tgt_x−0.5
-  //   ref_y - 0.5 = b/ar·u + a·v + dy                 v = tgt_y−0.5
+  // TWO aspect ratios, and they are NOT interchangeable.  Both pictures are
+  // drawn into one stage with object-fit:fill and the stage is sized to the
+  // REFERENCE map's ratio `ar`, so the target arrives pre-stretched by ar/arT.
+  // "Rigid" has to mean uniform in the TARGET's own pixels — that is what
+  // leaves its picture undistorted — so the target's v terms carry `arT` and
+  // only the reference's own y term carries `ar`.
+  //
+  // INVARIANT: a placed map's world footprint has its OWN image's aspect.
+  // Passing one ratio in for both breaks it — the reconstruction below then
+  // yields m11 === m22, which pins the placed footprint's aspect to `ar`
+  // whatever the target's picture is, so every metre read back through the
+  // placement is wrong by arT/ar.  On a 1600x853 map point-aligned against a
+  // 930x850 one that is a 42% axis disagreement and a floor 33% short on its
+  // long axis (issue #62, rjbutler).  arT === ar reduces to the one-ratio
+  // form exactly, so an align between same-shaped pictures is unchanged.
+  //
+  // CSS rigid model in normalised coords (ar = reference height/width,
+  // arT = target height/width):
+  //   ref_x - 0.5 = a·u - b·arT·v + dx            where u = tgt_x−0.5
+  //   ref_y - 0.5 = b/ar·u + a·(arT/ar)·v + dy            v = tgt_y−0.5
   //
   // 4 unknowns: [a, b, dx, dy].
-  const _solvePtAlignRigid = (refPts, tgtPts, ar) => {
+  const _solvePtAlignRigid = (refPts, tgtPts, ar, arT) => {
     ar = ar || 1;
+    // arT gets NO default.  Falling back to `ar` here would hand any caller
+    // that forgets the argument the one-ratio model back — the defect itself,
+    // and silently, because the solve then succeeds and writes a placement of
+    // the wrong shape.  A caller that does not know the target's own aspect
+    // has nothing to solve, so it is refused the way everything else in this
+    // solver is refused.  (It is also the only divisor of `arR` below.)
+    if (!(arT > 0)) return null;
     const n = Math.min(refPts.length, tgtPts.length);
     if (n < 2) return null;
     const cx = 0.5, cy = 0.5;
+    const arR = arT / ar;  // exactly 1 when the two pictures share a shape
     const K = 4;
     const ATA = Array.from({ length: K }, () => Array(K).fill(0));
     const ATb = Array(K).fill(0);
@@ -4238,8 +4263,8 @@ function _stack(ctx, maps, helpBtn){
       const u = tgtPts[i].x - cx, v = tgtPts[i].y - cy;
       const bx = refPts[i].x - cx, by = refPts[i].y - cy;
       // Design rows that exactly match the CSS rigid transform model:
-      const r1 = [u, -ar * v, 1, 0];   // x equation
-      const r2 = [v, u / ar,  0, 1];   // y equation
+      const r1 = [u, -arT * v, 1, 0];      // x equation
+      const r2 = [arR * v, u / ar,  0, 1]; // y equation
       for (let j = 0; j < K; j++) {
         for (let k = 0; k < K; k++) ATA[j][k] += r1[j] * r1[k] + r2[j] * r2[k];
         ATb[j] += r1[j] * bx + r2[j] * by;
@@ -4248,10 +4273,14 @@ function _stack(ctx, maps, helpBtn){
     const x = _gaussSolve(ATA, ATb);
     if (!x) return null;
     const a = x[0], b = x[1], dx = x[2], dy = x[3];
-    const scale = Math.sqrt(a * a + b * b);
+    // The AR-aware decomposition of the matrix below — decomposeFracMatrix's,
+    // so the fields written beside `_m` keep describing ONE footprint and the
+    // preview's scale(sc·stretch, sc) draws what Apply then stores.
+    const scale = Math.sqrt(a * a + b * b) * arR;
+    const scaleX_adj = 1 / arR;
     const rotation = Math.atan2(b, a) * 180 / Math.PI;
     // Compute raw matrix coefficients for CSS matrix() transform
-    const m11 = a, m12 = -b * ar, m21 = b / ar, m22 = a;
+    const m11 = a, m12 = -b * arT, m21 = b / ar, m22 = a * arR;
     // RMS residual using raw matrix (exact)
     let res = 0;
     for (let i = 0; i < n; i++) {
@@ -4260,7 +4289,7 @@ function _stack(ctx, maps, helpBtn){
       const predY = m21 * u2 + m22 * v2 + cy + dy;
       res += (predX - refPts[i].x) ** 2 + (predY - refPts[i].y) ** 2;
     }
-    return { x_offset: dx, y_offset: dy, scale, rotation, scaleX_adj: 1.0,
+    return { x_offset: dx, y_offset: dy, scale, rotation, scaleX_adj,
       residual: Math.sqrt(res / n), _m: [m11, m12, m21, m22] };
   };
 
@@ -4396,9 +4425,10 @@ function _stack(ctx, maps, helpBtn){
           computeBtn.disabled = true;
           computeBtn.textContent = "Computing...";
           const arHW = _refIH / _refIW;  // height/width for isotropic space
+          const arTgt = (tgtMap.image?.height || 600) / (tgtMap.image?.width || 800);
           const result = fullTransform
-            ? _solvePtAlign(refPts, tgtPts, arHW)       // 6-DOF affine (allows skew)
-            : _solvePtAlignRigid(refPts, tgtPts, arHW); // 4-DOF rigid (no skew)
+            ? _solvePtAlign(refPts, tgtPts, arHW)              // 6-DOF affine (allows skew)
+            : _solvePtAlignRigid(refPts, tgtPts, arHW, arTgt); // 4-DOF rigid (no skew)
           if (!result) {
             ctx.toast("Could not compute — points may be collinear", true);
             computeBtn.disabled = false;
@@ -4445,12 +4475,18 @@ function _stack(ctx, maps, helpBtn){
 
           // Self-test: create synthetic points with a known transform, solve, verify
           const _selfTest = () => {
-            const testAr = arHW;
+            // Generated through BOTH ratios, because a generator that uses the
+            // reference's for the target's v terms can only ever confirm the
+            // one case where the two agree — which is the case issue #62 was
+            // not. testS is the scale in the TARGET's own pixels, so the
+            // decomposed scale the solver hands back is testS·arT/ar.
+            const testAr = arHW, testArT = arTgt, testR = testArT / testAr;
             const testTheta = 12 * Math.PI / 180, testS = 1.08, testDx = 0.03, testDy = -0.02;
+            const expScale = testS * testR, expStretch = 1 / testR;
             const testM11 = testS * Math.cos(testTheta);
-            const testM12 = -testS * Math.sin(testTheta) * testAr;
+            const testM12 = -testS * Math.sin(testTheta) * testArT;
             const testM21 = testS * Math.sin(testTheta) / testAr;
-            const testM22 = testS * Math.cos(testTheta);
+            const testM22 = testS * Math.cos(testTheta) * testR;
             const srcPts = [{x:0.2,y:0.3},{x:0.8,y:0.3},{x:0.5,y:0.8},{x:0.3,y:0.6},{x:0.7,y:0.7}];
             const genRef = srcPts.map(p => {
               const u = p.x-0.5, v = p.y-0.5;
@@ -4458,15 +4494,18 @@ function _stack(ctx, maps, helpBtn){
             });
             const r1 = fullTransform
               ? _solvePtAlign(genRef, srcPts, testAr)
-              : _solvePtAlignRigid(genRef, srcPts, testAr);
+              : _solvePtAlignRigid(genRef, srcPts, testAr, testArT);
             if (r1) {
-              const scaleErr = Math.abs(r1.scale - testS);
+              const scaleErr = Math.abs(r1.scale - expScale);
+              const stretchErr = Math.abs((r1.scaleX_adj || 1) - expStretch);
               const rotErr = Math.abs(r1.rotation - 12);
               const dxErr = Math.abs(r1.x_offset - testDx);
               const dyErr = Math.abs(r1.y_offset - testDy);
-              const ok = scaleErr < 0.001 && rotErr < 0.1 && dxErr < 0.001 && dyErr < 0.001;
+              const ok = scaleErr < 0.001 && stretchErr < 0.001 && rotErr < 0.1 && dxErr < 0.001 && dyErr < 0.001;
               console.log("[PtAlign SELF-TEST] " + (ok ? "PASS" : "FAIL") +
-                " scale:" + r1.scale.toFixed(4) + "(exp 1.08) rot:" + r1.rotation.toFixed(2) +
+                " scale:" + r1.scale.toFixed(4) + "(exp " + expScale.toFixed(4) + ")" +
+                " stretch:" + (r1.scaleX_adj || 1).toFixed(4) + "(exp " + expStretch.toFixed(4) + ")" +
+                " rot:" + r1.rotation.toFixed(2) +
                 "(exp 12) dx:" + r1.x_offset.toFixed(4) + "(exp 0.03) dy:" + r1.y_offset.toFixed(4) + "(exp -0.02)" +
                 " residual:" + r1.residual.toFixed(8));
               if (r1._m) console.log("[PtAlign SELF-TEST] rawM: [" + r1._m.map(v=>v.toFixed(6)).join(", ") +
@@ -4683,6 +4722,15 @@ function _stack(ctx, maps, helpBtn){
               const ow = bakeImg.naturalWidth, oh = bakeImg.naturalHeight;
               const rad = rRotation * Math.PI / 180;
               const cosA = Math.abs(Math.cos(rad)), sinA = Math.abs(Math.sin(rad));
+              // bsx != bsy whenever the two pictures are different shapes: an
+              // align across shapes IS an anisotropic pixel stretch, and the
+              // baked PNG has to carry it or the image comes out the wrong
+              // shape (issue #62).  A ROTATED bake then fails model_store's
+              // `uniform` check and the map's metric transform is dropped,
+              // which is correct and not a regression — the old uniform bake
+              // shipped a wrongly-shaped image while keeping a measurement
+              // that no longer described it — and the toast below asks for
+              // the re-measure.
               const bsx = rScale * rStretch, bsy = rScale;
               const nw = Math.ceil(ow * bsx * cosA + oh * bsy * sinA);
               const nh = Math.ceil(ow * bsx * sinA + oh * bsy * cosA);
@@ -8103,8 +8151,9 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           onclick: async () => {
             if (!confirm(
               `"${a.name}" has a stale alignment — ${why}.\n\n`
-              + "This usually means the map was trimmed by an older build, which updated "
-              + "its measured scale but not its alignment.\n\n"
+              + "That is either a trim by an older build, which updated its measured scale "
+              + "but not its alignment, or a Point Align onto a map of a different shape, "
+              + "which gave this one that map's proportions.\n\n"
               + "Rebuild the alignment from the measured scale? The measurement, the room "
               + "fabric and your scanner positions are not touched."
             )) return;
