@@ -17,6 +17,21 @@
 // it, and the suite goes red — that is the entire mechanism by which "the
 // rest just flows" without anyone remembering Bright.
 
+// ── Where a licence comes from, and where it goes ───────────────────────────
+// A gate that names a product without saying where to buy one or where to put
+// the key is a dead end, and until 2026-08-24 every gate in PadSpan was one:
+// the light-placement refusal said "needs PadSpan Bright Pro or PadSpan Pro"
+// with no price and no link, and the ONLY key-entry field in the whole panel
+// was a prompt() hidden inside the Forensics toggle — so a customer who bought
+// Pro to place lights had to enable an unrelated recording feature to activate
+// it. These four constants are the single source for every gate message, so a
+// refusal can always answer "then what?".
+export const BUY_URL = "https://padspan.traks.ca/#pro";
+export const LIGHTS_URL = "https://padspan.traks.ca/#lights";
+export const PRO_PRICE = "$45 CAD/year";
+// The one true path to the licence card. If this moves, it moves here.
+export const LICENCE_PATH = "Settings \u2192 Features \u2192 PadSpan licence";
+
 export const TIERS = ["free", "bright", "pro"];
 
 export function tierAtLeast(tier, want) {

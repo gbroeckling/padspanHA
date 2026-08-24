@@ -36,6 +36,16 @@ from .telemetry import bump as _bump
 
 _LOGGER = logging.getLogger(__name__)
 
+# A refusal that names a product the user cannot find is a dead end. Both
+# light-placement gates say the same thing, once, and it points at the two
+# places that can resolve it: the licence card, and the page that sells a key.
+_PRO_REQUIRED_MSG = (
+    "Light placement needs PadSpan Bright Pro or PadSpan Pro. "
+    "Enter a key in Settings \u2192 Features \u2192 PadSpan licence, "
+    "or get one at https://padspan.traks.ca/#pro"
+)
+
+
 
 @websocket_api.websocket_command(
     {
@@ -82,7 +92,7 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
     so the licence guarded a path nothing used while the live one was open.
     """
     if not _tier_at_least(hass, "bright"):
-        connection.send_error(msg["id"], "pro_required", "Light placement needs PadSpan Bright Pro or PadSpan Pro")
+        connection.send_error(msg["id"], "pro_required", _PRO_REQUIRED_MSG)
         return
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
@@ -116,7 +126,7 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
 async def ws_fabric_light_remove(hass: HomeAssistant, connection, msg) -> None:
     """Un-place a light (it returns to automatic room clustering). Bright-tier editing."""
     if not _tier_at_least(hass, "bright"):
-        connection.send_error(msg["id"], "pro_required", "Light placement needs PadSpan Bright Pro or PadSpan Pro")
+        connection.send_error(msg["id"], "pro_required", _PRO_REQUIRED_MSG)
         return
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:

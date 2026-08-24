@@ -16,6 +16,9 @@
  *
  * Uses a "draft" copy of the model so edits don't take effect until Save.
  */
+const { BUY_URL, PRO_PRICE, LICENCE_PATH } =
+  await import(`./editions.js${new URL(import.meta.url).search}`);
+
 export function render(ctx){
   const { el, esc, roomColor, helpBtn } = ctx.helpers;
   const isBasic = ctx.state.complexity === "basic";
@@ -2609,9 +2612,105 @@ function _settingsPresence(ctx, el){
 // ── Features tab (experimental toggles) ──────────────────────────────────────
 // Enterprise-preview features gated behind settings toggles.
 // All default to off and are labeled experimental.
+
+// ── PadSpan licence ─────────────────────────────────────────────────────────
+// The single place to see what this install is licensed for, enter a key, and
+// find out where a key comes from. It exists because the only key field used to
+// live inside the Forensics toggle: buying Pro to place lights meant enabling a
+// recording feature you did not want in order to activate it. Every gate
+// message in the product now names this card (editions.js LICENCE_PATH).
+function _settingsLicence(ctx, el){
+  const s = ctx.state.settings || {};
+  const tier = String(s.tier || "free").toLowerCase();
+  const edition = String(s.edition || "full").toLowerCase() === "bright" ? "PadSpan Bright" : "PadSpan HA";
+  const hasKey = !!s.pro_has_key;
+  const lapsed = s.pro_active === false;
+  const exp = String(s.forensics_license_expires || "").slice(0, 10);
+  const daysLeft = s.pro_days_left;
+  const keyProd = String(s.license_tier || "").toLowerCase() === "bright" ? "PadSpan Bright Pro" : "PadSpan Pro";
+  const expiringSoon = typeof daysLeft === "number" && daysLeft >= 0 && daysLeft <= 14;
+
+  const card = el("div", { class: "card", style: "margin-bottom:14px;border:1px solid #2d5a3d;background:#0f1a12" });
+  card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
+    el("div", { style: "font-weight:700;font-size:14px;color:#52b788" }, "PadSpan licence"),
+    el("span", { style: "font-size:10px;padding:1px 7px;border-radius:999px;background:rgba(82,183,136,.14);color:#a7f3d0;font-weight:700;text-transform:uppercase" },
+      edition + " \u00B7 " + tier),
+  ]));
+
+  // Status — the backend's own answer, never re-derived here.
+  let line, colour;
+  if (!hasKey) {
+    line = "No licence key on this install. Forensics and light placement are locked. " +
+           "Everything else is free and stays free.";
+    colour = "#94a3b8";
+  } else if (lapsed) {
+    line = "\u26A0 " + keyProd + " licence expired" + (exp ? " on " + exp : "") +
+           " \u2014 paid editing is off. Everything you already built is still here, still readable and still exportable.";
+    colour = "#fbbf24";
+  } else if (expiringSoon) {
+    line = "\u2713 " + keyProd + " licensed \u00B7 renews in " + daysLeft +
+           " day" + (daysLeft === 1 ? "" : "s") + (exp ? " (" + exp + ")" : "");
+    colour = "#fbbf24";
+  } else {
+    line = "\u2713 " + keyProd + " licensed" + (exp ? " \u00B7 valid until " + exp : "");
+    colour = "#a7f3d0";
+  }
+  card.appendChild(el("div", { style: "font-size:12px;margin:8px 0 10px;line-height:1.5;color:" + colour }, line));
+
+  const row = el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center" });
+
+  const enterBtn = el("button", { class: "btn inline", style: "font-size:12px",
+    onclick: async () => {
+      const key = prompt("Enter your PadSpan licence key (PSPAN-XXXX-XXXX-XXXX-XXXX):");
+      if (!key || !key.trim()) return;
+      enterBtn.disabled = true;
+      try {
+        const r = await ctx.actions.wsCall("padspan_ha/forensics_license_activate", { key: key.trim() });
+        if (r && r.ok) {
+          if (r.settings) ctx.state.settings = r.settings;
+          ctx.toast("Licence activated");
+          ctx.actions.renderNav && ctx.actions.renderNav();
+          ctx.actions.renderRooms();
+        } else {
+          ctx.toast((r && r.message) || "That key was not accepted", true);
+        }
+      } catch (e) {
+        ctx.toast("Licence check failed: " + String(e), true);
+      } finally { enterBtn.disabled = false; }
+    } }, hasKey ? "Replace licence key" : "Enter licence key");
+  row.appendChild(enterBtn);
+
+  if (!hasKey || lapsed) {
+    row.appendChild(el("a", { class: "btn inline", href: BUY_URL, target: "_blank", rel: "noopener",
+      style: "font-size:12px;border-color:#52b788;color:#a7f3d0;text-decoration:none" },
+      (lapsed ? "Renew" : "Buy") + " PadSpan Pro \u2014 " + PRO_PRICE));
+  }
+
+  if (hasKey) {
+    const revealBtn = el("button", { class: "btn inline", style: "font-size:12px",
+      onclick: async () => {
+        try {
+          const r = await ctx.actions.wsCall("padspan_ha/forensics_license_reveal", {});
+          revealBtn.replaceWith(el("div", { style: "font-size:11px;font-family:monospace;color:#a7f3d0" }, (r && r.key) || "(none)"));
+        } catch (e) { ctx.toast("Only a Home Assistant admin can reveal the licence key", true); }
+      } }, "Show licence key");
+    row.appendChild(revealBtn);
+  }
+  card.appendChild(row);
+
+  card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:10px;line-height:1.5" },
+    "One key unlocks both paid features: Forensics, and placing lights exactly where they hang " +
+    "(fixture shapes and sizes, WLED, Showcase, Fit room). A PadSpan Bright Pro key unlocks the " +
+    "lighting half only. The gate governs editing \u2014 a lapsed licence never removes or hides " +
+    "anything you already built."));
+  return card;
+}
+
 function _settingsFeatures(ctx, el){
   const settings = ctx.state.settings || {};
   const wrap = el("div",{});
+
+  wrap.appendChild(_settingsLicence(ctx, el));
 
   const helpBtn = ctx.helpers.helpBtn;
   const headerCard = el("div",{class:"card",style:"border:1px solid #1a4228;background:#0f1a12;margin-bottom:14px"});
@@ -2833,7 +2932,8 @@ function _settingsFeatures(ctx, el){
         card.appendChild(revealBtn);
       } else {
         card.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:10px"},
-          "Requires a PadSpan Pro licence key — you'll be asked for it when enabling."));
+          "Requires a PadSpan Pro licence key. Enter one in PadSpan licence at the top of this tab, "
+          + "or you will be asked for it when enabling."));
       }
     }
 

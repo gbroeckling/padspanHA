@@ -5,6 +5,8 @@
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
+const { BUY_URL: _LIC_BUY_URL, PRO_PRICE: _LIC_PRICE, LICENCE_PATH: _LIC_PATH } =
+  await import(`./editions.js${new URL(import.meta.url).search}`);
 const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor, mapFracToMetres, metresToMapFrac,
         worldAffine, composeAffine, stackFieldsFromAffine, changeMasterStacks } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
@@ -6595,7 +6597,9 @@ function _lightsTab(ctx, maps, active) {
       el("span", { style: "font-weight:700;color:#fbbf24" }, "Free lighting map. "),
       el("span", { class: "muted" },
         "Placing each light where it really is, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room "
-        + "need PadSpan Bright Pro or PadSpan Pro — enter a key under Settings → PadSpan Pro."),
+        + "need PadSpan Bright Pro or PadSpan Pro. Already have a key? Enter it in " + _LIC_PATH + ". "),
+      el("a", { href: _LIC_BUY_URL, target: "_blank", rel: "noopener", style: "color:#fbbf24;font-weight:700" },
+        "Get PadSpan Pro \u2014 " + _LIC_PRICE),
     ]));
   }
 
