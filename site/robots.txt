@@ -1,0 +1,6 @@
+# padspan.traks.ca — deployed from the repo by scripts/deploy_site.py
+# It was requested 62 times in 15 days and returned 404 every time.
+User-agent: *
+Allow: /
+
+Sitemap: https://padspan.traks.ca/sitemap.xml

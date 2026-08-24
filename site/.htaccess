@@ -1,0 +1,41 @@
+# padspan.traks.ca — deployed from the repo by scripts/deploy_site.py
+#
+# Everything here exists because the Apache access log said someone asked for it
+# and got a 404. Over 10–24 Aug 2026: /pricing, /pricing/, /plans, /docs,
+# /docs/installation, /docs/installation/, /faq, /favicon.ico (18) and
+# /apple-touch-icon*.png (6). The pricing and docs ones are the expensive kind —
+# somebody guessing a URL for the page that takes their money, and being told the
+# page does not exist.
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Absolute https targets on purpose: behind Cloudflare the origin sees plain
+  # http, so a relative target makes Apache emit http:// and costs the visitor a
+  # second redirect hop back up to https.
+  #
+  # Guessed pricing URLs -> the Pro section that actually sells.
+  RewriteRule ^(pricing|plans|buy|purchase)/?$ https://padspan.traks.ca/#pro [R=301,L,NE]
+
+  # Guessed documentation URLs -> the docs section, which links the real guides.
+  RewriteRule ^(docs|documentation|faq|help)(/.*)?$ https://padspan.traks.ca/#docs [R=301,L,NE]
+
+  # Guessed download URL -> the install instructions.
+  RewriteRule ^(download|install)/?$ https://padspan.traks.ca/#install [R=301,L,NE]
+
+  # Browsers ask for these at the root regardless of what the HTML declares.
+  RewriteRule ^favicon\.ico$ /images/icon.png [L]
+  RewriteRule ^apple-touch-icon(-precomposed)?\.png$ /images/icon-large.png [L]
+</IfModule>
+
+# The page is static and the images never change under a given name; let the
+# browser and Cloudflare keep them. index.html stays short-lived so a release
+# is picked up promptly.
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/png "access plus 7 days"
+  ExpiresByType image/jpeg "access plus 7 days"
+  ExpiresByType image/gif "access plus 7 days"
+  ExpiresByType video/mp4 "access plus 7 days"
+  ExpiresByType text/html "access plus 10 minutes"
+</IfModule>
