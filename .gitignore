@@ -16,3 +16,6 @@ docs/fabric-simplification-pass*.md
 # The generated PadSpan Bright edition — built by scripts/release.py, lives in ITS repo
 dist/padspan_bright.zip
 dist/bright/
+
+# Intermediate frames for scripts/make_demo_montage.py — the MP4/GIF are committed, these are not
+build/

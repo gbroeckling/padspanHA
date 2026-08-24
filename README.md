@@ -6,7 +6,9 @@ PadSpan™ HA goes far beyond "home or away." It tells you **which room** every 
 
 🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)**
 
-![3D multi-floor tracking with live RSSI heatmap overlay](images/overview-3d-multifloor.jpg)
+![PadSpan HA — room-level Bluetooth presence on a 3D multi-floor plan](images/demo-montage.gif)
+
+<sub>20-second tour. The same shots at full size are in the table below, and the full walkthrough video is on [padspan.traks.ca](https://padspan.traks.ca/#demo).</sub>
 
 ---
 
