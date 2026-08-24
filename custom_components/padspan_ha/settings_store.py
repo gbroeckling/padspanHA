@@ -159,12 +159,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "forensics_license_key": "",
     "forensics_license_expires": "",
     # ── Enterprise preview features (off by default) ─────────────────────────
-    "trackability_rating_enabled": False,   # per-device Easy/Medium/Hard trackability score
     "walk_to_identify_enabled": False,      # spatial correlation device discovery ("who just walked in?")
     "radio_map_enabled": False,             # RSSI heatmap overlay on floor plan maps
     "distortion_map_enabled": False,        # calibration disagreement visualization
-    "compass_ring_enabled": False,          # structured rotate-in-place calibration protocol
-    "replay_timeline_enabled": False,       # movement replay with scoring explainability
     # ── RSSI vector capture (off by default) ─────────────────────────────────
     # Records the full per-scanner RSSI vector for tracked objects, plus the
     # room the pipeline chose, so a trace can be replayed offline against

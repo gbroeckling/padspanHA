@@ -154,6 +154,16 @@ STATIC_FILES = [
     # deployed from it; a release must not leave the repo's copy behind.
     "server",
     "docs",
+    # padspan.traks.ca is source now, not a file hand-edited on the colo, and a
+    # stable release deploys it (scripts/deploy_site.py). It has to be staged
+    # or the deploy would ship something the repo never recorded.
+    "site",
+    "scripts/deploy_site.py",
+    # README assets: the montage the README leads with, the og:image every
+    # shared link uses, and the screenshots both are built from.
+    "images",
+    "scripts/make_social_preview.py",
+    "scripts/make_demo_montage.py",
 ]
 
 
@@ -568,7 +578,12 @@ def publish_update_manifest(version, channel):
             manifest = json.loads(cur.stdout) if cur.returncode == 0 else {}
         except json.JSONDecodeError:
             manifest = {}
-        manifest.setdefault("notes_url", f"https://github.com/{REPO}/releases")
+        # Where the in-panel "update available" notification sends people.
+        # setdefault would never correct an older manifest, and a bare list of
+        # git tags is a poor landing place for someone who just learned an
+        # update exists: the site says what changed in plain terms, links the
+        # full changelog, and is where a licence is bought.
+        manifest["notes_url"] = "https://padspan.traks.ca/#whatsnew"
         manifest["latest_beta"] = version
         if channel == "stable":
             manifest["latest_stable"] = version

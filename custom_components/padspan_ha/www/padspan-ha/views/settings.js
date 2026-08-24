@@ -2723,13 +2723,13 @@ function _settingsFeatures(ctx, el){
     "They may change or be removed in future releases. Feedback welcome."));
   wrap.appendChild(headerCard);
 
+  // Trackability Rating, Compass Ring Calibration and Replay Timeline used to
+  // sit in this list. They were settings keys read by NOTHING outside this
+  // screen: switching them on did nothing, ever. Removed 2026-08-24 along with
+  // their schema entries, their defaults and their place in the usage report.
+  // tests/test_dead_features.py fails if any of them comes back without an
+  // implementation to go with it.
   const features = [
-    {
-      key: "trackability_rating_enabled",
-      label: "Trackability Rating",
-      desc: "Per-device Easy/Medium/Hard score based on signal stability, confidence, and advertisement frequency. " +
-            "Helps identify which devices are reliable trackers and which need better placement or a dedicated beacon.",
-    },
     {
       key: "walk_to_identify_enabled",
       label: "Walk-to-Identify",
@@ -2747,18 +2747,6 @@ function _settingsFeatures(ctx, el){
       label: "Distortion Map",
       desc: "Shows where calibration predictions disagree with reality. Renders disagreement vectors on the map to reveal " +
             "areas where walls, furniture, or interference cause positioning errors.",
-    },
-    {
-      key: "compass_ring_enabled",
-      label: "Compass Ring Calibration",
-      desc: "Structured calibration protocol: stand at a point and rotate slowly to capture RSSI from all angles. " +
-            "Tests whether directional antenna patterns affect your receiver setup.",
-    },
-    {
-      key: "replay_timeline_enabled",
-      label: "Replay Timeline",
-      desc: "Enhanced movement playback with scoring explainability. See why PadSpan placed a device in each room: " +
-            "which scanners voted, their weights, confidence breakdown, and the scoring pipeline decision at each step.",
     },
     {
       key: "phone_wizard_enabled",
