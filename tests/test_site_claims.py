@@ -85,6 +85,29 @@ def test_retired_features_do_not_come_back(html: str) -> None:
             "If it has since been built, delete this assertion in the same commit.")
 
 
+def test_the_release_history_covers_the_newest_release(html: str) -> None:
+    """The page carries a "What's new" history. A release that ships without an
+    entry there leaves the storefront describing older software than the one
+    people are being offered — the same drift that left v0.21.4 on the page for
+    weeks, just in a section a version stamp cannot fix.
+
+    CHANGELOG.md is the source: its top entry is the newest release, and
+    release.py stages both files, so they move together or this fails.
+    """
+    import re
+
+    changelog = (_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    m = re.search(r"^## (\d+\.\d+)\.\d+", changelog, re.M)
+    assert m, "could not read the newest version from CHANGELOG.md"
+    newest_minor = m.group(1)          # e.g. "0.38"
+
+    listed = re.findall(r'class="relver"[^>]*>v?(\d+\.\d+)', html)
+    assert newest_minor in listed, (
+        f"CHANGELOG's newest release is {newest_minor}.x but the site's release history "
+        f"only lists {sorted(set(listed), reverse=True)}. Add an entry to the What's new "
+        "section, or the page describes older software than people are offered.")
+
+
 def test_the_paid_and_lighting_products_are_explained(html: str) -> None:
     """The software tells users that light placement 'needs PadSpan Bright Pro or
     PadSpan Pro'. Before 2026-08-23 there was nowhere to find out what that

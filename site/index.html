@@ -175,6 +175,38 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.0</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">25 August 2026</span>
+      </div>
+      <div class="relbody">
+        <p style="margin-bottom:4px">A map&rsquo;s placement is now stored once, in metres. Four bugs that looked separate
+        turned out to be the same one, and this removes the room they lived in rather than patching each.</p>
+        <ul>
+          <li><b>Trimming, re-aligning or re-mastering a plan can no longer skew the house.</b> A map&rsquo;s position used
+          to be written down twice, in two different units, and any operation that updated one copy and not the other left
+          the two disagreeing. There is one copy now, so that disagreement has nowhere to exist.</li>
+          <li><b>Two live errors died with it.</b> Calibration and Traceback were applying a map&rsquo;s horizontal scale to
+          the vertical axis, which on a trimmed reference map drew an object up to <b>ten metres</b> from where it actually
+          was. Nothing in the interface showed that anything was wrong.</li>
+          <li><b>Point Align stops squashing a map onto a differently-shaped one</b> (v0.37.1). Aligning a plan onto a map
+          with a different aspect ratio came out compressed by exactly the ratio between the two pictures.</li>
+          <li><b>Plans can be genuinely skewed, not just moved and scaled.</b> A scan that is slightly sheared &mdash; a
+          photograph of a paper plan, most often &mdash; can now be described exactly instead of approximately.</li>
+          <li><b>There is no &ldquo;master map&rdquo; to lose any more.</b> The star that marked one plan as the anchor for
+          all the others is gone; every map now carries its own position in metres, so nothing breaks when it is changed.</li>
+          <li><b>Restoring a backup no longer writes one map&rsquo;s alignment onto another.</b> Restores matched maps by
+          <i>name</i>, so a backup containing &ldquo;Main Floor&rdquo; would overwrite the alignment of any existing map
+          with that name.</li>
+        </ul>
+        <p style="margin-top:8px;font-size:13.5px;color:var(--mut)">On the beta channel while the conversion is proven on
+        real installs. It rewrites how every map records its position, so it takes a backup of every store before it
+        starts and marks each map as it goes, so an interrupted run can be resumed rather than half-applied.</p>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver" data-latest-version>v0.37.0</span>
         <span class="pill stable">Stable</span>
         <span class="reldate">23 August 2026</span>
