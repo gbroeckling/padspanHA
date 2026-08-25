@@ -1633,6 +1633,31 @@ export function render(ctx){
         while (objGroup.firstChild) objGroup.removeChild(objGroup.firstChild);
         while (tmpSvg.firstChild) objGroup.appendChild(tmpSvg.firstChild);
       }
+
+      // ── Scanner markers ────────────────────────────────────────────────
+      // They are emitted BEFORE the marker above, so everything up to it was
+      // just discarded — which is what keeps an active radio's blink running
+      // instead of restarting every poll. The cost is that a radio changing
+      // scan mode would not repaint until a full rebuild, and a scan mode CAN
+      // change at any time: every radio requests AUTO, meaning the manager
+      // promotes it to active on demand.
+      //
+      // So sync them here, and ONLY the ones whose markup actually differs.
+      // Comparing rendered markup rather than re-deriving the colour keeps
+      // buildIsoSVG the single source of truth — there is no second copy of
+      // the rule to drift — and leaving an unchanged group untouched is what
+      // preserves a running <animate>.
+      const freshStatic = fullSvg.substring(0, idx);
+      if (freshStatic.includes("data-scanner-src")) {
+        const holder = document.createElement("div");
+        holder.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg">${freshStatic}</svg>`;
+        for (const fresh of holder.querySelectorAll("[data-scanner-src]")) {
+          const src = fresh.getAttribute("data-scanner-src");
+          if (!src) continue;
+          const live = svgEl.querySelector(`[data-scanner-src="${CSS.escape(src)}"]`);
+          if (live && live.outerHTML !== fresh.outerHTML) live.replaceWith(fresh.cloneNode(true));
+        }
+      }
     }
 
     // Expose the light updater for poll use
