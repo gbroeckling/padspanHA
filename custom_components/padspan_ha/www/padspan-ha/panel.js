@@ -415,6 +415,12 @@ class PadSpanHaApp extends HTMLElement {
       model: { floors: [], room_meta: {}, scanners: {}, room_adjacency: {}, fabric_sync_mode: "auto", scanner_positions_m: {}, room_geometry_m: {}, rf_barriers_m: [], map_transforms: {}, beacon_positions_m: {}, fabric_floors: {} },
       live: { snapshot: null, sources: null, error: null },
       maps: { list: [], lastError: null },
+      // "no maps yet" and "maps have not arrived yet" are different facts. The
+      // onboarding card asks whether setup is done; before these fetches settle the
+      // honest answer is "unknown", and rendering unknown as "not done" told an
+      // established install it had never uploaded a floor plan. See _setupKnown.
+      _mapsLoaded: false,
+      _modelLoaded: false,
       mapsTab: "library",
       activeMapId: null,
       diag: null,
@@ -1528,6 +1534,7 @@ class PadSpanHaApp extends HTMLElement {
       const res = await this._callWS({ type: "padspan_ha/maps_list" });
       if(Array.isArray(res?.maps)){
         this.state.maps.list = res.maps;
+        this.state._mapsLoaded = true;      // an empty list is still an ANSWER
         if(this.state.activeMapId && !this.state.maps.list.find(m=>m.id===this.state.activeMapId)){
           this.state.activeMapId = null;
         }
@@ -1562,6 +1569,7 @@ class PadSpanHaApp extends HTMLElement {
         light_positions_m: {}, floor_elevations: {}, fabric_floors: {},
       };
       this.state.model = { ...defaults, ...(res && typeof res === "object" ? res : {}) };
+      this.state._modelLoaded = true;
     } catch (e) {
       // non-fatal
       console.warn("model_get failed", e);
@@ -2996,7 +3004,11 @@ class PadSpanHaApp extends HTMLElement {
         try { this.actions.settingsSet({ onboarding_completed: true }).catch(() => {}); } catch(e) {}
       }
 
-      if (!_onboardingDone && !_allDone && !this.state._onboardingDismissed && this.state.view === "overview") {
+      // Do not answer "is setup done?" before the stores that answer it have
+      // arrived. A new install still sees the card the moment they settle -
+      // an empty maps list is an answer; an unfetched one is not.
+      const _setupKnown = this.state._mapsLoaded && this.state._modelLoaded;
+      if (_setupKnown && !_onboardingDone && !_allDone && !this.state._onboardingDismissed && this.state.view === "overview") {
         const bar = el("div",{style:"background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px"});
         // Header
         const hdr = el("div",{style:"display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"});
