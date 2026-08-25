@@ -4,6 +4,32 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.6 — A radio that is transmitting says so (2026-08-25)
+
+### Fixed
+- **An established install is no longer told it has not started.** v0.38.5 flashed "Setup Progress — 0/5 — Upload Floor Plan" at settled installs on every panel open. Nothing was wrong with them: the check read the map list before it had been fetched, and an empty list was mistaken for an unfinished setup. It mattered most on exactly this release — 0.38.5 is the one that rewrote how every map stores its position, so being told you had never uploaded a floor plan invited the conclusion that the upgrade had eaten your setup, and a backup restore to fix a problem that did not exist. The distinction that had to be right: **an empty list is an answer, an unfetched one is not.** A genuinely new install is still onboarded the moment the fetches settle.
+- **The landing page had been rewriting its own release history.** The "What's new" entry for v0.37.0 was marked as the current-version claim — correct on the day it was written, when it was the newest entry — so every deploy restamped it. The live page ended up headed "v0.38.5 · Stable · 23 August 2026" over the text describing v0.37.0. A dated release entry is a statement about a past release, and nothing may stamp it now.
+
+### Radios say whether they are transmitting
+- **The inner ring of a radio's map marker turns red and blinks while that radio is actively scanning** — sending scan requests and reading the replies — and is unchanged while it only listens. Both the 3D house view and the flat map draw it, and the hover text names the mode.
+- The blink is a plain SVG animation with no timer behind it, and the marker is only redrawn when its state actually changes, so a radio that has been active for an hour is still mid-blink rather than restarting every few seconds.
+- **Only a confirmed "active" is drawn.** A radio set to *auto* is promoted for a few seconds at a time and is neither one thing nor the other; a radio that does not report its mode is unknown. Neither is coloured, because **not transmitting and not saying are different facts**.
+
+### Where your radios' scan mode actually comes from, which is not where you would think
+- Home Assistant 2026.6 changed the default scanning mode for every ESPHome Bluetooth proxy from active to *auto*, and it overrides what the device's own firmware config asks for. If your ESPHome YAML says `active: true` and PadSpan shows passive, **the YAML is not what decides any more** — editing and reflashing it cannot change this.
+- The setting that does decide is per device, in Home Assistant: **Settings → Devices & Services → ESPHome → *your device* → Configure → Bluetooth scanning mode**. Set it to Active and Home Assistant pins it and stops downgrading. There is no fleet-wide switch.
+- Worth knowing before changing anything: active scanning means the radio transmits, which costs 2.4 GHz airtime you may be sharing with Wi-Fi. Auto exists because it is a reasonable default, not because it is broken.
+
+### Counted in the usage report, if you have opted in
+- How many of your radios are in each scan mode, and how many were *asked* to be — two different numbers, and the difference is the whole point: on the install this was built against, **nothing** was set to passive, yet seventeen radios read passive, because that is what auto does between promotions.
+- Also whether a radio's mode ever changes, counted separately for auto and for pinned radios. A pinned radio should never change; if pinned radios turn out to change on other people's systems, the indicator above does not mean there what it means here — and that cannot be learned from one house. Counts only, as ever, and Preview still shows exactly what would be sent.
+- Overview and the Bluetooth view show your own split; the developer install-base view shows the fleet's, including how many people deliberately pinned a mode.
+
+### Also
+- **A marketing animation rendered from the data rather than screen-recorded.** Eight real hours of one house in 36 seconds: three storeys stacked isometrically, six devices that actually change rooms, each dragging a fading trail, wall clock in the corner. No cursor, no window chrome, reproducible from a script. A floor change is drawn as a cut rather than a path, because it is not one.
+
+---
+
 ## 0.38.5 — The card that announces an update broke the tab it appeared on (2026-08-25)
 
 ### Fixed
