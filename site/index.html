@@ -175,6 +175,21 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.5</span>
+        <span class="pill stable">Stable</span>
+        <span class="reldate">25 August 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Everything below this line reached everyone.</b> Stable moved from v0.37.0 straight to v0.38.5, so the whole 0.38 series — placement stored once in metres, the licence card, the what's-new card, and PadSpan Bright Pro — arrives in a single update.</li>
+          <li><b>Upgrading from 0.37?</b> Nothing to do. The placement conversion takes an automatic snapshot <i>before</i> it changes anything and refuses to run at all if that snapshot cannot be taken. If something ever looks wrong, restore it from inside PadSpan under Health → Backup/Restore — not by rolling back in HACS, which would leave you on an older version reading converted files.</li>
+          <li><b>The card that announces an update stopped breaking the tab it appeared on.</b> It referred to a name that had been deleted by an earlier tidy-up, and the line was unreachable until an install had a previous version on record — so it was invisible until the first person qualified to see the card. The card is now run in every one of those states by a test, rather than only read.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.0</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">25 August 2026</span>
@@ -207,7 +222,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
-        <span class="relver" data-latest-version>v0.37.0</span>
+        <span class="relver">v0.37.0</span>
         <span class="pill stable">Stable</span>
         <span class="reldate">23 August 2026</span>
       </div>

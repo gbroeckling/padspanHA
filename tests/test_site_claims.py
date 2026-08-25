@@ -46,8 +46,33 @@ def test_every_version_claim_is_stampable(html: str) -> None:
 
     version = json.loads(_MANIFEST.read_text(encoding="utf-8"))["version"]
     stamped, n = mod.stamp(html, version)
-    assert n >= 3, f"only {n} version claim(s) are stampable — deploy_site would leave the rest stale"
+    assert n >= 2, f"only {n} version claim(s) are stampable — deploy_site would leave the rest stale"
     assert mod._VER_TAG_CLAIM.findall(stamped) == [version] * n
+
+
+def test_no_release_history_entry_is_stampable(html: str) -> None:
+    """A dated entry in "What's new" is a statement about a PAST release. It is
+    a fact, not a claim about the current version, and stamping it rewrites
+    history.
+
+    This happened. The v0.37.0 entry carried `data-latest-version` because it
+    was the newest entry the day it was written; adding a v0.38.0 entry above
+    it left the marker sitting on history. Every deploy then relabelled it, and
+    on 2026-08-25 the live page carried "v0.38.5 · Stable · 23 August 2026"
+    over the text describing v0.37.0's changes.
+
+    `data-latest-version` belongs only on claims that mean "the current stable
+    release is X" — the hero badge and the licence section's requirement line.
+    """
+    import re
+
+    for block in re.findall(r'<div class="relitem">.*?</div>\s*</div>', html, re.S):
+        assert "data-latest-version" not in block, (
+            "a release-history entry is marked stampable, so deploy_site will rewrite its "
+            "version number to whatever ships next:\n"
+            f"{block[:300]}\n"
+            "Release history is immutable — remove data-latest-version and write the "
+            "literal version. Add a NEW entry for the new release instead.")
 
 
 def test_stated_ha_requirement_matches_hacs(html: str) -> None:
