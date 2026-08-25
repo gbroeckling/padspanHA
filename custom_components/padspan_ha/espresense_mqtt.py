@@ -301,6 +301,10 @@ class EspresenseMqtt:
                 "source": sc.source,
                 "name": f"{sc.room_name} (ESPresense)",
                 "connectable": False,
+                # ESPresense does not report its BLE scan mode over MQTT, and
+                # unknown must not be rendered as passive.
+                "scan_mode": None,
+                "requested_scan_mode": None,
                 "scanning": sc.online,
                 "adapter": "mqtt",
                 "last_heard_s": age_s,

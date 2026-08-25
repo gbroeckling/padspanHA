@@ -35,6 +35,32 @@ def _bytes_to_hex_list(b: bytes) -> str:
     return " ".join(f"0x{v:02X}" for v in b)
 
 
+def _scanning_mode(obj: Any, attr: str) -> Optional[str]:
+    """habluetooth's BluetoothScanningMode off a scanner, as a plain string.
+
+    ACTIVE means the radio TRANSMITS — it sends SCAN_REQ and reads the SCAN_RSP
+    that comes back, which is where a device puts its complete local name when
+    it will not fit in the 31-byte advertisement. PASSIVE only listens. AUTO
+    starts passive and is promoted to active on demand, so `current_mode`
+    genuinely changes over time.
+
+    Returns "active" / "passive" / "auto", or None when the attribute is absent
+    (older habluetooth) or the scanner did not say. None means UNKNOWN and must
+    never be presented as passive: not transmitting and not telling us are
+    different facts.
+    """
+    m = getattr(obj, attr, None)
+    if m is None:
+        return None
+    v = getattr(m, "value", None)          # Enum -> its value
+    if isinstance(v, str) and v:
+        return v.lower()
+    try:
+        return str(m).rsplit(".", 1)[-1].lower() or None
+    except Exception:
+        return None
+
+
 def _coerce_source(src: Any) -> str:
     # src may be a string, list/tuple/set of strings, or None.
     if src is None:
@@ -400,6 +426,21 @@ class BluetoothLive:
                         connectable = getattr(s, "connectable", None)
                         scanning = getattr(s, "scanning", None)
                         adapter = getattr(s, "adapter", None)
+                        # ACTIVE vs PASSIVE scanning — whether the radio
+                        # TRANSMITS. An active scanner sends SCAN_REQ and reads
+                        # the SCAN_RSP that comes back; a passive one only
+                        # listens. This is habluetooth's BluetoothScanningMode
+                        # and is NOT `connectable` (which is about opening GATT
+                        # connections) and NOT `scanning` (which only says the
+                        # scanner is running). Three separate facts.
+                        #
+                        # AUTO is a real third value: the scanner starts
+                        # passive and the manager promotes it to active on
+                        # demand, so `current_mode` genuinely changes over
+                        # time. current_mode is what it is doing NOW;
+                        # requested_mode is what was asked for.
+                        cur_mode = _scanning_mode(s, "current_mode")
+                        req_mode = _scanning_mode(s, "requested_mode")
 
                         _radio_src = _coerce_source(src) or ""
                         _lh = self._radio_last_heard.get(_radio_src)
@@ -409,6 +450,8 @@ class BluetoothLive:
                             "name": str(name or ""),
                             "connectable": bool(connectable) if connectable is not None else None,
                             "scanning": bool(scanning) if scanning is not None else None,
+                            "scan_mode": cur_mode,
+                            "requested_scan_mode": req_mode,
                             "adapter": str(adapter or "") if adapter is not None else "",
                             "last_heard_s": _lh_s,
                         })
@@ -428,6 +471,8 @@ class BluetoothLive:
                                 "name": f"Scanners active: {count} (upgrade HA for per-scanner list)",
                                 "connectable": None,
                                 "scanning": None,
+                                "scan_mode": None,
+                                "requested_scan_mode": None,
                                 "adapter": "",
                             }
                         )
@@ -551,6 +596,8 @@ class BluetoothLive:
                     "name": src,  # best-effort; enrichment in websocket.py adds device name
                     "connectable": False,
                     "scanning": True,
+                    "scan_mode": None,
+                    "requested_scan_mode": None,
                     "adapter": "",
                     "last_heard_s": _lh_s,
                 })

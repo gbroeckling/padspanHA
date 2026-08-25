@@ -38,9 +38,9 @@ export const SAMPLE_SNAPSHOT = {
 
   ble: {
     radios: [
-      { source: "living_room_hub", name: "Living Room Hub", scanning: true,  connectable: true,  adapter: "hci0", area_name: "Living Room",    ip: "192.168.1.40", ssid: "HomeNetwork", wifi_signal: -42, connection_type: "wireless" },
-      { source: "bedroom_hub",     name: "Bedroom Hub",     scanning: true,  connectable: true,  adapter: "hci0", area_name: "Master Bedroom", ip: "192.168.1.41", ssid: "HomeNetwork", wifi_signal: -58, connection_type: "wireless" },
-      { source: "kitchen_hub",     name: "Kitchen Hub",     scanning: true,  connectable: false, adapter: "hci0", area_name: "Kitchen",        ip: "192.168.1.42", connection_type: "wired" },
+      { source: "living_room_hub", name: "Living Room Hub", scanning: true,  connectable: true,  scan_mode: "active",  adapter: "hci0", area_name: "Living Room",    ip: "192.168.1.40", ssid: "HomeNetwork", wifi_signal: -42, connection_type: "wireless" },
+      { source: "bedroom_hub",     name: "Bedroom Hub",     scanning: true,  connectable: true,  scan_mode: "passive", adapter: "hci0", area_name: "Master Bedroom", ip: "192.168.1.41", ssid: "HomeNetwork", wifi_signal: -58, connection_type: "wireless" },
+      { source: "kitchen_hub",     name: "Kitchen Hub",     scanning: true,  connectable: false, scan_mode: null,      adapter: "hci0", area_name: "Kitchen",        ip: "192.168.1.42", connection_type: "wired" },
     ],
     advertisements: [
       { address: "AA:BB:CC:11:22:33", name: "Alice's Phone",  source: "living_room_hub", rssi: -58, age_s: 3,  connectable: true, service_uuids: ["0x180F","0x180A"], manufacturer_data: {"76":"0x10 0x07 0x38 0x1F"}, company_name: "Apple", device_type: "Nearby Info", service_names: ["Battery","Device Information"], service_uuid_map: {"0x180F":"Battery","0x180A":"Device Information"}, _xref: { key: "irk:aabbccddeeff00112233445566778899", kind: "private_ble", label: "Alice's iPhone", identified: true, room: "Living Room", canonical_id: "irk:aabbccddeeff00112233445566778899", all_addresses: ["AA:BB:CC:11:22:33","47:A2:1C:88:F3:D0","5E:C1:3A:92:D7:B4"] } },

@@ -320,6 +320,11 @@ async def ws_radio_audit(hass: HomeAssistant, connection, msg) -> None:
             "radio_name": rname,
             "connectable": radio.get("connectable"),
             "scanning": radio.get("scanning"),
+            # "active" / "passive" / "auto" / None. Whether the radio TRANSMITS
+            # (sends SCAN_REQ), which is a different fact from `connectable`
+            # (can open GATT connections) and from `scanning` (is running).
+            "scan_mode": radio.get("scan_mode"),
+            "requested_scan_mode": radio.get("requested_scan_mode"),
             "last_heard_s": radio.get("last_heard_s"),
         }
 

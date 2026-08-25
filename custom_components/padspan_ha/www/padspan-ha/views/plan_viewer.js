@@ -293,13 +293,25 @@ const { mapXform, fabricWorldRooms, worldGauge } =
             const liveR = liveRadioMap[src];
             const isOnline = !!liveR;
             const rxColor = isOnline ? "#52b788" : "#4a6052";
+            // Matches the iso view's radio marker exactly — see overview.js.
+            // ACTIVE means the radio TRANSMITS (sends SCAN_REQ); PASSIVE only
+            // listens. Not `connectable`, not `scanning`. Only a confirmed
+            // "active" is red: "auto" and null are not claims either way.
+            const rxActive = isOnline && liveR.scan_mode === "active";
+            const rxInner = rxActive ? "#f87171" : rxColor;
+            const rxMode = (isOnline && liveR.scan_mode)
+              ? ` · ${liveR.scan_mode === "active" ? "active, transmitting" : liveR.scan_mode === "passive" ? "passive, listening" : liveR.scan_mode}`
+              : "";
             const rxFull = r.label || (liveR && liveR.name) || r.source || "radio";
             const rxShort = _esc((_sid(src) || rxFull.substring(0,3)).toUpperCase());
             const rxSrc2d = _esc(src);
             // Compact: small radio glyph + 2-3 char id; full name on hover (title).
-            s += `<g data-scanner-src="${rxSrc2d}" style="cursor:pointer"><title>${_esc(rxFull)} ${isOnline?"● online":"○ offline"}</title>`;
+            s += `<g data-scanner-src="${rxSrc2d}" style="cursor:pointer"><title>${_esc(rxFull)} ${isOnline?"● online":"○ offline"}${rxMode}</title>`;
             s += `<circle cx="${_f(px)}" cy="${_f(py)}" r="${_mkR*1.8}" fill="none" stroke="${rxColor}" stroke-width="${_sw*0.5}" opacity="0.3"/>`;
-            s += `<circle cx="${_f(px)}" cy="${_f(py)}" r="${_mkR}" fill="none" stroke="${rxColor}" stroke-width="${_sw*0.7}" opacity="0.6"/>`;
+            s += rxActive
+              ? `<circle cx="${_f(px)}" cy="${_f(py)}" r="${_mkR}" fill="none" stroke="${rxInner}" stroke-width="${_sw*0.9}">`
+                + `<animate attributeName="opacity" values="1;0.15;1" dur="1.6s" repeatCount="indefinite"/></circle>`
+              : `<circle cx="${_f(px)}" cy="${_f(py)}" r="${_mkR}" fill="none" stroke="${rxColor}" stroke-width="${_sw*0.7}" opacity="0.6"/>`;
             s += `<circle cx="${_f(px)}" cy="${_f(py)}" r="${_mkR*0.5}" fill="${rxColor}" opacity="0.9"/>`;
             s += `<text x="${_f(px)}" y="${_f(py - _mkR*2.4)}" text-anchor="middle" fill="${rxColor}" font-size="${_fsScan*0.85}" font-weight="700">${rxShort}</text>`;
             s += `</g>`;

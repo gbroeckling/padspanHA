@@ -1216,12 +1216,37 @@ export function render(ctx){
           const _rTip = `${rsid} · ${(isLive ? liveRadio.name : null)||sc.source}`
             + (inRoom ? `\nArea: ${inRoom.room}` : "")
             + ((isLive && liveRadio.scanning!=null) ? `\nScanning: ${liveRadio.scanning?"Yes":"No"}` : "")
+            + ((isLive && liveRadio.scan_mode) ? `\nMode: ${liveRadio.scan_mode === "active" ? "Active — transmits scan requests" : liveRadio.scan_mode === "passive" ? "Passive — listens only" : liveRadio.scan_mode}` : "")
             + (isLive ? "" : "\n(offline)");
           const rxColor = isLive ? "#52b788" : "#4a6052";
+          // ACTIVE scanning means the radio TRANSMITS — it sends SCAN_REQ and
+          // reads the SCAN_RSP that comes back. PASSIVE only listens. That is
+          // habluetooth's BluetoothScanningMode, forwarded by ws_radios as
+          // `scan_mode`. It is NOT `connectable` (can open GATT connections)
+          // and NOT `scanning` (the scanner is running) — three separate
+          // facts, and the other two are easy to mistake for this one.
+          //
+          // Four states, not two: "auto" means the manager promotes it to
+          // active on demand, and null means we were not told. Only a
+          // confirmed "active" is drawn red; an unknown mode must never be
+          // presented as either transmitting or silent.
+          const rxActive = isLive && liveRadio.scan_mode === "active";
+          const rxInner = rxActive ? "#f87171" : rxColor;
           const rxOp = isLive ? 1.0 : 0.45;
           s += `<g data-scanner-src="${_esc(sc.source)}" data-tip="${_esc(_rTip)}" opacity="${rxOp}" style="cursor:pointer" ${_annT(Math.round(px), Math.round(py))}>`;
           s += `<circle cx="${Math.round(px)}" cy="${Math.round(py)}" r="15" fill="none" stroke="${rxColor}" stroke-width="1.3" opacity="0.3"/>`;
-          s += `<circle cx="${Math.round(px)}" cy="${Math.round(py)}" r="9"  fill="none" stroke="${rxColor}" stroke-width="1.5" opacity="0.6"/>`;
+          // The blink is a declarative SVG <animate> — the same mechanism
+          // follow.js and iso_lights.js already use. No timer, no extra
+          // render, nothing for the panel to track. Scanner markers are
+          // emitted BEFORE the ISO_OBJECTS_START marker, so they sit in the
+          // static half of the SVG that the 5-second object poll does not
+          // replace: the animation runs uninterrupted rather than restarting
+          // every poll. A non-active radio emits exactly the markup it always
+          // did, so nothing changes for the common case.
+          s += rxActive
+            ? `<circle cx="${Math.round(px)}" cy="${Math.round(py)}" r="9"  fill="none" stroke="${rxInner}" stroke-width="1.8">`
+              + `<animate attributeName="opacity" values="1;0.15;1" dur="1.6s" repeatCount="indefinite"/></circle>`
+            : `<circle cx="${Math.round(px)}" cy="${Math.round(py)}" r="9"  fill="none" stroke="${rxColor}" stroke-width="1.5" opacity="0.6"/>`;
           s += `<circle cx="${Math.round(px)}" cy="${Math.round(py)}" r="4.5" fill="${rxColor}" opacity="0.9"/>`;
           s += `<text x="${Math.round(px)}" y="${Math.round(py)-13}" text-anchor="middle" fill="${rxColor}" font-size="9" style="cursor:pointer" font-weight="700">${_esc(rsid)}</text>`;
           s += `</g>`;
