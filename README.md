@@ -2,7 +2,7 @@
 
 ### The most comprehensive BLE room-presence system for Home Assistant
 
-PadSpan™ HA goes far beyond "home or away." It tells you **which room** every Bluetooth device is in — updated every 5 seconds — with interactive floor plans, 3D multi-floor visualizations, a full calibration system, and 22 dedicated views. No other Home Assistant BLE integration comes close.
+PadSpan™ HA goes far beyond "home or away." It tells you **which room** every Bluetooth device is in — updated every 5 seconds — with interactive floor plans, 3D multi-floor visualizations, a full calibration system, and 24 dedicated views. No other Home Assistant BLE integration comes close.
 
 🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)**
 
@@ -128,7 +128,7 @@ For devices where you can't get an IRK, the experimental **MAC Rotation Bridging
 
 ### UI & Experience
 - **Pure Live mode** — immersive full-screen 3D dashboard with pan/zoom, floating glass overlays, and collapsible info panels
-- **22 dedicated views** with Basic and Advanced modes
+- **24 dedicated views** with Basic and Advanced modes
 - **5-step onboarding wizard** with auto-detection and progress tracking
 - Dark forest-green theme designed for always-on displays
 - Built-in **Training Hub** with 14 animated walkthroughs + full manual

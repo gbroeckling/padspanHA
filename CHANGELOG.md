@@ -4,6 +4,26 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.1 — An update says what it changed, and the paid half stops being a secret (2026-08-25)
+
+### What's new, once per version
+- **A card on Overview after an update**, naming the version you came from and linking the release notes. An update lands silently: Home Assistant's persistent notification is easy to miss and easy to dismiss unread, and the notes live somewhere the reader is not — so a release that fixes the thing somebody complained about goes unnoticed by the person who complained.
+- **It seeds rather than shows the first time it sees an install.** With no stored version there is no way to separate a genuine update from a first-ever install, and telling somebody who has just installed PadSpan that it "updated" is worse than saying nothing. First sight records the version quietly; the card appears only on a real change. `whatsnew_seen_version` holds it, and only a version-shaped string is stored — the panel writes it from its own build constant, so anything else is a bug or a probe.
+- The notes link is the same page the update-check manifest points at, defined once, so the notification and the card cannot disagree about where the notes are.
+
+### The two paid features stop being a secret
+- Until now the only place Forensics and light placement were named was a **refusal you hit by trying to use them**. The card mentions them once per release, in one line — and only to somebody it could be news to. **A PadSpan Pro customer is never pitched PadSpan Pro**; a Bright Pro key is told about Forensics and never sold the light placement it already owns; a lapsed licence is told its work is still there and still exportable, rather than being sold to.
+- The rule is a pure function rather than a branch buried in the card, so it is tested directly: `tests/js/pro_pitch.mjs` runs 26 checks over it, including that an unknown or missing tier falls back to the free wording — the safe side is telling somebody about a feature, never hiding one they paid for.
+
+### PadSpan Bright Pro can be bought
+- The lighting half is now a licence you can actually buy, and **PadSpan Pro still includes everything it does** — they are not alternatives, and there is never a reason to hold both. A key bought for lighting unlocks light placement inside PadSpan HA today.
+- Nothing in the integration changed to allow it beyond the tier already in the ladder: the licence server now reports which tier it sold, and a key issued before that existed still resolves to Pro, exactly as `licence.py` has always promised.
+
+### Fixed
+- **A near miss, recorded because it nearly shipped.** The card's notes URL was first imported with a top-level `await` in `panel.js`. Three lines above sits a comment saying a failure loading that module must not take the panel down — it falls back to showing everything. A top-level await turns that survivable failure into a blank panel for every user. The URL is read at render time now, and a test pins the rule for the whole file.
+
+---
+
 ## 0.38.0 — A map's placement lives once, in metres (2026-08-25)
 
 Four bugs — the pre-0.36 trim, #64's stale affine after Change Master, #62's wrong-aspect solve, and #67's dropped master flag — were never four bugs. A placement was written down **three times**: the stack's raw affine, the decomposition stored beside it, and the metric record. Every one of those failures was two of the three disagreeing, and `stack_desync` existed only because the design permitted it. This release deletes two of the copies. **2,455 lines go with them.**
