@@ -77,7 +77,7 @@ class Node {
     this._html = "";
     this._listeners = {};
     this.classList = new ClassList(this);
-    this.value = "";
+    this._value = "";
     this.checked = false;
     this.disabled = false;
     this.selected = false;
@@ -117,6 +117,19 @@ class Node {
   }
 
   _all(out = []) { for (const c of this.children) { out.push(c); c._all?.(out); } return out; }
+
+  // A <select> reports the value of its SELECTED <option>; the views read
+  // tgtSel.value / refSel.value to decide which map they are acting on, so the
+  // flat "" this used to hand back sent every one of those branches down the
+  // "no such map" path and made them untestable.
+  get value() {
+    if (this.localName === "select" && this._value === "") {
+      const o = this.children.find(c => c.selected) || this.children[0];
+      return o ? o.value : "";
+    }
+    return this._value;
+  }
+  set value(v) { this._value = String(v ?? ""); }
 
   // ── attributes ──
   setAttribute(k, v) {

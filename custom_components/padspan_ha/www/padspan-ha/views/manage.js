@@ -145,7 +145,12 @@ export function render(ctx){
                   floor_id: map.floor_id || "",
                   calibration: map.calibration || {},
                   notes: map.notes || "",
-                  stack: map.stack || {},
+                  // No `stack` key. Deleting an orphan room polygon is not a placement
+                  // write, and round-tripping the CLIENT's copy of the stack lets a stale
+                  // tab silently push back whatever it last saw - including a master flag
+                  // another tab has since changed (issue #67). async_update_map only
+                  // touches the stack when it is handed a dict, so omitting it preserves
+                  // whatever the server holds.
                 });
                 await ctx.actions.mapsRefresh();
                 ctx.toast(`Deleted orphan "${room}" from ${map.name||map.id}`);
@@ -203,7 +208,12 @@ export function render(ctx){
                     floor_id: map.floor_id || "",
                     calibration: map.calibration || {},
                     notes: map.notes || "",
-                    stack: map.stack || {},
+                    // No `stack` key. Deleting an orphan room polygon is not a placement
+                    // write, and round-tripping the CLIENT's copy of the stack lets a stale
+                    // tab silently push back whatever it last saw - including a master flag
+                    // another tab has since changed (issue #67). async_update_map only
+                    // touches the stack when it is handed a dict, so omitting it preserves
+                    // whatever the server holds.
                   });
                 } catch(e){ fail++; }
               }
@@ -647,6 +657,31 @@ export function render(ctx){
                 lbl.appendChild(document.createTextNode(_storeLabel(sk)));
                 dialog.appendChild(lbl);
                 checkboxes.push(cb);
+              }
+              // ── Maps and Model move together ──────────────────────────
+              // A map's picture and stack are in Maps; where that map SITS,
+              // in metres, is in Model (`map_transforms`, keyed by map id),
+              // and so is the world gauge that gives its stack a size. They
+              // are one fact in two files, so ticking either ticks both:
+              // restoring one alone pairs every map with a placement that
+              // belongs to a different set of maps.
+              //
+              // The backend refuses the mismatched selection outright — see
+              // ws_backup.ws_store_backup_restore — because the panel is not
+              // the only caller of a websocket command. This is so the owner
+              // never has to meet that refusal.
+              {
+                const _pair = checkboxes.filter(
+                  c => c.value === "padspan_ha.maps" || c.value === "padspan_ha.model");
+                if(_pair.length === 2){
+                  for(const c of _pair){
+                    c.addEventListener("change", () => {
+                      for(const o of _pair) o.checked = c.checked;
+                    });
+                    c.title = "Maps and Model are restored together — a map's "
+                            + "placement in metres lives in Model, keyed by map id.";
+                  }
+                }
               }
               // Map images checkbox
               if(bk.map_image_count > 0){

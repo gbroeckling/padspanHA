@@ -122,38 +122,3 @@ class TestTheGateIsObservable:
         assert 'self._spatial_debug[key] = (\n                                        f"wls_undetermined' not in src
 
 
-class TestTheRebuildCommandIsAdminOnly:
-    """It writes a map store and saves it, exactly like its sibling."""
-
-    def test_it_carries_require_admin(self):
-        src = (_SRC / "ws_fabric.py").read_text(encoding="utf-8")
-        i = src.index("async def ws_fabric_map_stack_rebuild")
-        decorators = src[max(0, i - 400):i]
-        assert "require_admin" in decorators, (
-            "the rebuild command writes maps.maps[].stack and saves the store; "
-            "its sibling ws_fabric_map_align_to_stack is admin-gated"
-        )
-
-    def test_its_sibling_still_is_too(self):
-        src = (_SRC / "ws_fabric.py").read_text(encoding="utf-8")
-        i = src.index("async def ws_fabric_map_align_to_stack")
-        assert "require_admin" in src[max(0, i - 400):i]
-
-
-class TestTheRepairDialogNamesTheRealSignal:
-    """A fault fires on iso_error, scale_error_frac OR origin_delta_m.
-
-    Naming only two of them meant a scale-only fault fell through and quoted an
-    origin delta that is inside its own tolerance — a number that reads as
-    nonsense to the person being asked to approve a permanent change.
-    """
-
-    def test_all_three_signals_can_be_explained(self):
-        js = (_SRC / "www" / "padspan-ha" / "views" / "maps.js").read_text(encoding="utf-8")
-        i = js.index("const why = gf.iso_error")
-        branch = js[i:i + 700]
-        assert "iso_error" in branch
-        assert "scale_error_frac" in branch, (
-            "a scale-only fault still falls through to the origin wording"
-        )
-        assert "origin_delta_m" in branch

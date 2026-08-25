@@ -7,8 +7,8 @@
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
 const { BUY_URL: _LIC_BUY_URL, PRO_PRICE: _LIC_PRICE, LICENCE_PATH: _LIC_PATH } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
-const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor, mapFracToMetres, metresToMapFrac,
-        worldAffine, composeAffine, stackFieldsFromAffine, changeMasterStacks } =
+const { makeStackXform, mapXform, imageAr, fabricWorldRooms, mapFracToMetres,
+        metresToMapFrac, placementFromColumns, placementStageAffine, worldGauge } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 // THE fabric frame — the Lights tab inverts drags through the exact function
 // the renderer draws with, so the two cannot disagree.
@@ -164,11 +164,13 @@ function _compareAllMaps(ctx, maps, resultDiv) {
     return;
   }
 
-  // Compute world-coordinate centroid for each room on each map.
-  // World transform: the map's stack alignment (offset, rotation, scale) maps
-  // normalised [0,1] map coords into a common world space anchored on the master.
-  const _worldCentroid = (map, cx, cy) =>
-    makeStackXform(map.stack, imageAr(map)).mapPt(cx, cy);
+  // Compute world-coordinate centroid for each room on each map, through each
+  // map's placement. Null for a map with no placement — a picture nobody has
+  // measured or placed has no world position to compare with anyone else's.
+  const _worldCentroid = (map, cx, cy) => {
+    const xf = mapXform(ctx.state.model, map);
+    return xf ? xf.mapPt(cx, cy) : null;
+  };
 
   // Build {roomName: [{map, wx, wy}]} for all visible maps
   const roomEntries = {};
@@ -355,13 +357,26 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
   const _floorOrder = _floors.map(f => f.id);
   const _sortedFloors = [..._floorMap.keys()].sort((a, b) => { const ia = _floorOrder.indexOf(a), ib = _floorOrder.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib); });
 
-  const currentMaster = maps.find(m => !!(m.stack?.is_master)) || null;
+  // THE MASTER IS GONE, and with it the banner that used to stand here.
+  //
+  // It was a boolean on one map's stack meaning "world units are this
+  // picture", and it decided three unrelated things: which map anchored every
+  // other map's metre origin, which map won a room-name collision, and which
+  // map an align was refused against. None of those questions exists any
+  // more. A map's placement is its own record in metres; a room-name
+  // collision is settled by `room_precedence`, which is creation order and
+  // cannot be nulled by a stack write; and an align is a placement like any
+  // other, so there is nothing to refuse.
+  //
+  // #67 was that flag being revoked by an unrelated save, leaving a store
+  // with no master, no way to set one from the UI, and rooms silently
+  // changing shape. Set Master, Unset Master, the Change Master wizard and
+  // `_alignMasterRefusal` are all deleted rather than guarded.
   const list = el("div",{style:"margin-top:10px;display:flex;flex-direction:column;gap:8px"});
-  const wizardContainer = el("div",{});
 
   for (const fid of _sortedFloors) {
     const floorMaps = _floorMap.get(fid) || [];
-    floorMaps.sort((a, b) => (b.stack?.is_master ? 1 : 0) - (a.stack?.is_master ? 1 : 0));
+    floorMaps.sort((a, b) => String(a.created || "").localeCompare(String(b.created || "")));
     const floorObj = _floors.find(f => f.id === fid);
     const floorName = floorObj ? (floorObj.name || fid) : fid;
     list.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#52b788;margin-top:8px;margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px"},
@@ -374,81 +389,22 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     const reco = _recommendPlacement(m.receivers||[], m.room_bounds||{}, libSnap);
     const thumb = _libraryThumb(m, ctx, reco);
 
-    const isMaster   = !!(m.stack?.is_master);
-    const isEligible = !isMaster && _isMasterEligible(m);
-
-    // Name row: master + outside badges inline
+    // Name row: outside badge inline
     const nameRow = el("div",{style:"display:flex;align-items:center;gap:6px"},[
       el("div",{style:"font-weight:700"}, m.name || m.id),
-      ...(isMaster ? [el("span",{style:"padding:1px 7px;border-radius:10px;background:#1a3a0a;border:1px solid #52b788;font-size:10px;color:#86efac;font-weight:600"},"⭐ Master")] : []),
       ...(_isOutsideMap(m) ? [el("span",{style:"padding:1px 7px;border-radius:10px;background:#1a2a0a;border:1px solid #6b8e23;font-size:10px;color:#9acd32;font-weight:600"},"Outside (Exp.)")] : []),
     ]);
 
+    const _pl = (ctx.state.model?.map_transforms || {})[m.id];
+    const _placed = !!(_pl && Number(_pl.scale_x_m) > 0 && Number(_pl.scale_y_m) > 0);
     const left = el("div",{style:"flex:1;min-width:0"},[
       nameRow,
       el("div",{class:"muted", style:"font-size:12px"}, `${m.image?.width||0}×${m.image?.height||0} • floor: ${(_floorName(ctx,m.floor_id))} • receivers: ${(m.receivers||[]).length}`),
-      el("div",{class:"muted", style:"font-size:12px"}, `updated: ${m.updated || ""}` + (reco ? " • gap detected" : "") + (isMaster ? " • alignment anchor" : "")),
+      el("div",{class:"muted", style:"font-size:12px"}, `updated: ${m.updated || ""}` + (reco ? " • gap detected" : "")
+        + (_placed ? ` • ${Number(_pl.scale_x_m).toFixed(1)}×${Number(_pl.scale_y_m).toFixed(1)} m` : " • not placed")),
     ]);
 
-    // Master set/unset button
-    let masterBtn = null;
-    if(isMaster){
-      masterBtn = el("button",{class:"btn inline",style:"font-size:11px;color:#94a3b8", onclick: async()=>{
-        if(!confirm(`Remove master status from "${m.name||m.id}"? It will no longer be protected from modification.`)) return;
-        const newStk = Object.assign({}, m.stack||{}, { is_master: false });
-        await ctx.actions.mapsUpdateQuiet({ map_id:m.id, stack:newStk });
-        ctx.toast("Master status removed");
-      }}, "Unset Master");
-    } else if(isEligible){
-      masterBtn = el("button",{class:"btn inline",style:"font-size:10px;padding:2px 6px;color:#6b7280;border-color:#334155", onclick: async()=>{
-        const _doSet = async ()=>{
-          const newStk = Object.assign({}, m.stack||{}, { is_master: true, master_set_date: new Date().toISOString().slice(0,10) });
-          await ctx.actions.mapsUpdateQuiet({ map_id:m.id, stack:newStk });
-          if(currentMaster){
-            const oldStk = Object.assign({}, currentMaster.stack||{}, { is_master: false });
-            await ctx.actions.mapsUpdateQuiet({ map_id:currentMaster.id, stack:oldStk });
-          }
-          ctx.toast("Map set as master — it is now your alignment anchor");
-        };
-        if(currentMaster){
-          const body = el("div",{style:"display:flex;flex-direction:column;gap:12px"},[
-            el("div",{style:"padding:10px 14px;border-radius:8px;background:#3b1010;border:1px solid #dc2626"},[
-              el("div",{style:"font-weight:700;color:#fca5a5;font-size:14px;margin-bottom:4px"}, "Warning: A master map is already set"),
-              el("div",{style:"color:#fca5a5;font-size:12px"}, `"${currentMaster.name||currentMaster.id}" is currently the master alignment anchor.`),
-            ]),
-            el("div",{style:"padding:10px 14px;border-radius:8px;background:#2a1a0a;border:1px solid #d97706"},[
-              el("div",{style:"font-weight:600;color:#fbbf24;font-size:12px;margin-bottom:4px"}, "Changing the master map can break your 3D stack alignment."),
-              el("div",{style:"color:#fbbf24;font-size:11px"}, "All other maps are positioned relative to the master. If you change it, you may need to re-align every map in the 3D stack."),
-            ]),
-            el("div",{style:"color:#94a3b8;font-size:12px"}, `This will remove master from "${currentMaster.name||currentMaster.id}" and set "${m.name||m.id}" as the new master.`),
-            el("div",{style:"display:flex;gap:8px;justify-content:flex-end;margin-top:4px"},[
-              el("button",{class:"btn inline", onclick:()=>ctx.actions.closeModal()}, "Cancel"),
-              el("button",{class:"btn danger", onclick:async ()=>{
-                await _doSet();
-                ctx.actions.closeModal();
-                await ctx.actions.mapsRefresh();
-              }}, "Replace Master"),
-            ]),
-          ]);
-          ctx.actions.openModal("Change Master Map?", body);
-        } else {
-          await _doSet();
-          await ctx.actions.mapsRefresh();
-        }
-      }}, "Set Master");
-    }
-
-    let changeMasterBtn = null;
-    if(isMaster && maps.length > 1){
-      changeMasterBtn = el("button",{class:"btn inline",style:"font-size:11px;color:#f59e0b;border-color:#d97706", onclick:()=>{
-        wizardContainer.innerHTML = "";
-        wizardContainer.appendChild(_changeMasterWizard(ctx, maps, m));
-      }}, "Change Master\u2026");
-    }
-
     const actions = el("div",{style:"display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap"});
-    if(masterBtn) actions.appendChild(masterBtn);
-    if(changeMasterBtn) actions.appendChild(changeMasterBtn);
     actions.appendChild(el("button",{class:"btn inline", onclick:()=>{ ctx.actions.mapsSetActive(m.id); ctx.actions.setMapsTab('edit'); }}, "Open"));
     actions.appendChild(el("button",{class:"btn inline danger", onclick:()=>{ _deleteMapModal(ctx, m, maps); }}, "Delete"));
 
@@ -459,7 +415,6 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
   }
   } // end floor loop
   wrap.appendChild(list);
-  wrap.appendChild(wizardContainer);
   return wrap;
 }
 
@@ -586,38 +541,42 @@ function _deleteMapModal(ctx, srcMap, allMaps){
     // Transform source map coords → world coords → target map coords to check
     // if migrated items would fall outside the target's [0,1] canvas.
     // This mirrors the backend's coordinate transform pipeline.
-    const srcStk = srcMap.stack || {};
-    const tgtStk = tgt.stack || {};
-    // Map-local (0–1) → world (shared coordinate space via stack transform)
-    const _mapToWorld = (px, py, stk) => makeStackXform(stk).mapPt(px, py);
-    // World → map-local (inverse of _mapToWorld)
-    const _worldToMap = (wx, wy, stk) => makeStackXform(stk).invMapPt(wx, wy);
+    // Source map fraction → target map fraction, THROUGH METRES. It went
+    // through world space on two `stack` dicts; a fraction of one picture is
+    // a place in the house and a place in the house is a fraction of another
+    // picture, so the shared frame is metres and there is nothing in the
+    // middle. Mirrors ws_maps.py's `_xform`, which is what actually performs
+    // the migration this is previewing. Identity when either map has no
+    // placement: two pictures with no metres between them have no spatial
+    // relationship, and the backend refuses the same way.
+    const _mdlX = ctx.state.model;
+    const _cross = (px, py, fromId, toId) => {
+      const m = mapFracToMetres((_mdlX?.map_transforms || {})[fromId], px, py);
+      const f = m && metresToMapFrac((_mdlX?.map_transforms || {})[toId], m[0], m[1]);
+      return f || [px, py];
+    };
 
     let hasOutOfBounds = false;
     const allPts = [];
     for(const rx of srcRx){
       const k = rx.source || rx.id || "";
       if(k && tgtRxSources.has(k)) continue;
-      const [wx,wy] = _mapToWorld(rx.x||0.5, rx.y||0.5, srcStk);
-      allPts.push(_worldToMap(wx, wy, tgtStk));
+      allPts.push(_cross(rx.x||0.5, rx.y||0.5, srcMap.id, tgt.id));
     }
     for(const bk of srcBk){
       const k = bk.key || "";
       if(k && tgtBkKeys.has(k)) continue;
-      const [wx,wy] = _mapToWorld(bk.x||0.5, bk.y||0.5, srcStk);
-      allPts.push(_worldToMap(wx, wy, tgtStk));
+      allPts.push(_cross(bk.x||0.5, bk.y||0.5, srcMap.id, tgt.id));
     }
     for(const rm of srcRooms){
       if(tgtRoomNames.has(rm)) continue;
       const b = (srcMap.room_bounds||{})[rm];
       if(b && b.type === "poly" && b.points){
         for(const p of b.points){
-          const [wx,wy] = _mapToWorld(p[0], p[1], srcStk);
-          allPts.push(_worldToMap(wx, wy, tgtStk));
+          allPts.push(_cross(p[0], p[1], srcMap.id, tgt.id));
         }
       } else if(b && b.type === "circle"){
-        const [wx,wy] = _mapToWorld(b.cx||0.5, b.cy||0.5, srcStk);
-        allPts.push(_worldToMap(wx, wy, tgtStk));
+        allPts.push(_cross(b.cx||0.5, b.cy||0.5, srcMap.id, tgt.id));
       }
     }
     if(allPts.length){
@@ -2000,19 +1959,36 @@ function _edit(ctx, map, allMaps){
         applyBtn.addEventListener("click", async () => {
           applyBtn.disabled = true; applyBtn.textContent = "Saving\u2026";
           const ppm = Math.round(avgPpm * 100) / 100;
-          const stk = map.stack || {};
           const fl = map.floor_id || "main";
-          const rotRad = (stk.rotation || 0) * Math.PI / 180;
-          const isMaster = !!(stk.is_master);
 
           // Compute transform directly and save to fabric (authority)
           const scale_x_m = Math.round((imgW / ppm) * 10000) / 10000;
           const scale_y_m = Math.round((imgH / ppm) * 10000) / 10000;
+          // NO origin and NO rotation, deliberately, for the same reason as
+          // shear below. This measures how BIG the map is; it does not measure
+          // where the map is or which way it faces. The three of them used to
+          // be derived from the stack here — `(0,0)` if the map carried the
+          // master flag, `x_offset * scale_x_m` otherwise, rotation off the
+          // alignment — which was this panel reading the OTHER copy of the
+          // placement and writing it back into this one. The stack is derived
+          // from this record now, so there is no other copy to read, and the
+          // writer's rule already keeps the stored pose for a payload that does
+          // not state one.
           const transform = {
-            origin_x_m: isMaster ? 0 : Math.round((stk.x_offset || 0) * scale_x_m * 10000) / 10000,
-            origin_y_m: isMaster ? 0 : Math.round((stk.y_offset || 0) * scale_y_m * 10000) / 10000,
             scale_x_m, scale_y_m,
-            rotation_rad: Math.round(rotRad * 1000000) / 1000000,
+            // NO shear_rad, deliberately. A placement field is changed only by
+            // a payload that STATES it, and a scale re-measure does not
+            // measure the lean — so this says nothing about it and the store
+            // keeps the one on disk.
+            //
+            // `shear_rad: Number(_savedTx.shear_rad) || 0` was worse than
+            // saying nothing twice over. `|| 0` turns "this panel has no
+            // cached record for that map" into an explicit "square", which is
+            // the straightening the backend rule exists to stop, said out
+            // loud so the backend obeys it. And when the panel DOES hold a
+            // record it may be stale — a Point Align writes σ that this tab
+            // does not see until its next refresh — so restating it puts the
+            // old lean back on a map that has since been realigned.
             floor_id: fl,
             reference_measurements: meas.map(m2 => ({
               p1: [m2.p1[0], m2.p1[1]], p2: [m2.p2[0], m2.p2[1]],
@@ -2285,15 +2261,13 @@ function _edit(ctx, map, allMaps){
   // ── Rotate Image Panel ─────────────────────────────────────────────────
   // Bakes rotation directly into the image file (not a CSS transform) so all
   // downstream code sees a pre-rotated image. Disabled once the map has
-  // tie-ins or is the master — rotating a connected map would invalidate all
-  // alignment relationships. Fresh maps (x_offset=0, scale=1, no tie-ins)
-  // don't count as "connected" and can still be rotated.
+  // tie-ins — rotating a map somebody has recorded constraints against would
+  // invalidate them.
   // Receiver and room-boundary coordinates are remapped through the same
   // rotation matrix so they stay aligned with the rotated image.
   const _stk = map.stack || {};
   const _hasStackTieIns = Array.isArray(_stk.tie_ins) && _stk.tie_ins.length > 0;
-  const _isMaster = !!_stk.is_master;
-  const _canRotate = !_hasStackTieIns && !_isMaster;
+  const _canRotate = !_hasStackTieIns;
 
   const rotatePanel = el("div",{style:"display:none;margin-top:10px"});
   if(_canRotate && url){
@@ -2732,222 +2706,90 @@ function _recommendPlacement(receivers, roomBounds, snap){
 }
 
 // ── Alignment Conflict & Tie-in Helpers ──────────────────────────────────────
-// Tie-ins are stored alignment snapshots (x_offset, y_offset, scale, rotation)
-// referencing a specific map. When the user drags a target map to a new
-// position, these helpers detect whether the new position conflicts with
-// previously recorded tie-in constraints.
 //
-// Conflict severity is computed as a weighted metric:
-//   55% offset distance + 30% scale difference + 15% rotation difference.
-// <5% → auto-average silently; 5–25% → offer Average & Save; >25% → warn.
+// A tie-in is a saved alignment constraint: "when I last checked this map
+// against that one, it sat HERE". It stores a PLACEMENT, in metres, and it is
+// compared against a candidate placement in metres.
+//
+// It used to store four stack fields — x_offset, y_offset, scale, rotation —
+// and compare them by a weighted blend of "% offset", "% scale difference" and
+// "degrees of rotation", each of which is a different unit and none of which
+// is a distance. That blend could not see a mirror or a lean at all (neither
+// is in any of the four), and the offset term was a fraction of the master
+// picture, so "20%" meant different distances on different houses. Every
+// tie-in was migrated to metres by `migrations._tie_ins_to_metres`.
+//
+// The disagreement is now the one this codebase defines everywhere else: the
+// greatest distance, over the map's four picture corners, between where two
+// placements put it. Same question, same units, one answer.
 
-// Returns array of conflict objects for any tie-ins that differ from the new position.
-function _checkAlignConflicts(newX, newY, newScale, newRot, tgtMap, allMaps) {
+// The tolerances, in metres, mirroring fabric_truth.PLACEMENT_AGREE_TOL_M.
+// A tie-in is a hand-recorded constraint, so the bar for "you have moved this
+// map since you tied it" is deliberately looser than the bar for a fault.
+const TIE_NOTICE_M = 0.30;   // worth mentioning
+const TIE_MINOR_M  = 1.00;   // small enough to average silently
+const TIE_MAJOR_M  = 3.00;   // an outright conflict
+
+// How far apart two placements put the same map, in metres — the JS mirror of
+// fabric_truth.placement_disagreement_m. Every degree of freedom is in it
+// because every one of them moves a corner.
+function _placementGapM(a, b) {
+  if (!a || !b) return null;
+  let worst = 0;
+  for (const [fx, fy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+    const p = mapFracToMetres(a, fx, fy), q = mapFracToMetres(b, fx, fy);
+    if (!p || !q) return null;
+    worst = Math.max(worst, Math.hypot(p[0] - q[0], p[1] - q[1]));
+  }
+  return Number.isFinite(worst) ? worst : null;
+}
+
+// Conflicts between a candidate placement and this map's stored tie-ins.
+function _checkAlignConflicts(place, tgtMap, allMaps) {
   const tieIns = (tgtMap?.stack?.tie_ins) || [];
-  if(!tieIns.length) return [];
+  if (!tieIns.length) return [];
   const conflicts = [];
-  for(const ti of tieIns) {
-    const refMap = allMaps.find(m=>m.id === ti.ref_map_id);
-    const refName = refMap ? (refMap.name||refMap.id) : (ti.ref_map_id||"Unknown");
-    const dx = newX - (ti.x_offset||0);
-    const dy = newY - (ti.y_offset||0);
-    const offPct   = Math.round(Math.sqrt(dx*dx + dy*dy) * 100);
-    const scaleDiff = Math.abs(newScale - (ti.scale||1.0)) / Math.max(Math.abs(newScale), Math.abs(ti.scale||1.0), 0.001);
-    const scalePct  = Math.round(scaleDiff * 100);
-    const rotRaw    = Math.abs(((newRot||0) - (ti.rotation||0) + 540) % 360 - 180);
-    const rotDiff   = Math.round(rotRaw * 10) / 10;
-    // Weighted overall variance: offset 55%, scale 30%, rotation 15%
-    const variancePct = Math.round(offPct * 0.55 + scalePct * 0.30 + (rotRaw / 180) * 100 * 0.15);
-    if(offPct >= 3 || scalePct >= 3 || rotRaw >= 3) {
-      conflicts.push({ ti, refName, offPct, scalePct, rotDiff, variancePct });
-    }
+  for (const ti of tieIns) {
+    const refMap = allMaps.find(m => m.id === ti.ref_map_id);
+    const refName = refMap ? (refMap.name || refMap.id) : (ti.ref_map_id || "Unknown");
+    const gap = _placementGapM(place, ti);
+    if (gap === null || gap < TIE_NOTICE_M) continue;
+    conflicts.push({ ti, refName, gapM: Math.round(gap * 100) / 100 });
   }
   return conflicts;
 }
 
-// Average the new alignment with all existing tie-in constraints equally.
-// Used for auto-reconciliation when conflicts are minor (<5% variance).
-function _averageAlignWithTieIns(newX, newY, newScale, newRot, tieIns) {
-  const xs = [newX], ys = [newY], ss = [newScale], rs = [newRot||0];
-  for(const ti of tieIns){
-    xs.push(ti.x_offset||0); ys.push(ti.y_offset||0);
-    ss.push(ti.scale||1.0);  rs.push(ti.rotation||0);
+// The average of a candidate placement and every tie-in, for the minor case.
+// Averaged as PLACEMENTS — the origin and the two metre axes — not as the old
+// four fields, so a mirrored or leaning tie-in averages the way it is drawn
+// rather than being silently straightened.
+function _averageAlignWithTieIns(place, tieIns) {
+  const all = [place, ...tieIns];
+  const acc = [[0, 0], [0, 0], [0, 0]];   // origin, x axis, y axis
+  for (const p of all) {
+    const o = mapFracToMetres(p, 0, 0);
+    const x = mapFracToMetres(p, 1, 0);
+    const y = mapFracToMetres(p, 0, 1);
+    if (!o || !x || !y) return null;
+    acc[0][0] += o[0]; acc[0][1] += o[1];
+    acc[1][0] += x[0] - o[0]; acc[1][1] += x[1] - o[1];
+    acc[2][0] += y[0] - o[0]; acc[2][1] += y[1] - o[1];
   }
-  const avg = arr => arr.reduce((a,b)=>a+b,0) / arr.length;
-  return { x_offset: avg(xs), y_offset: avg(ys), scale: avg(ss), rotation: avg(rs) };
+  const n = all.length;
+  return placementFromColumns(
+    [acc[0][0] / n, acc[0][1] / n],
+    [acc[1][0] / n, acc[1][1] / n],
+    [acc[2][0] / n, acc[2][1] / n]);
 }
 
-// Returns true if a map qualifies for master designation. A map is eligible
-// if it hasn't been moved/scaled/rotated from its default position — i.e.,
-// it's still "pristine" and would make a natural alignment anchor.
-function _isMasterEligible(m) {
-  if(_isOutsideMap(m)) return false;  // Outside maps cannot be masters
-  const s = m.stack || {};
-  return Math.abs(s.x_offset||0)          < 0.05
-      && Math.abs(s.y_offset||0)          < 0.05
-      && Math.abs((s.scale||1.0) - 1.0)   < 0.05
-      && Math.abs(s.rotation||0)          < 2.0
-      && Math.abs((s.scale_x_adj||1.0) - 1.0) < 0.05
-      && !s.ref_map_id;
-}
-
-// ── Change Master — Wizard ───────────────────────────────────────────────────
-// Changing the master moves the whole house into the new master's frame. The
-// arithmetic lives in stack_transform.changeMasterStacks, on the same affine
-// the renderer draws, so a Point-Aligned map and a hand-placed one move
-// together and every stack comes back describing one footprint (#64).
-
-// Execute the master swap: the new master to the pristine origin first, then
-// every other map into its frame. Returns how many maps besides the old
-// master were moved.
-async function _executeChangeMaster(ctx, oldMaster, newMaster, allMaps) {
-  const patches = changeMasterStacks(allMaps, newMaster.id);
-  if (!patches) {
-    if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("master_change_refused");
-    throw new Error("The new master's alignment cannot be inverted. Re-align it to the current master and try again.");
-  }
-  await ctx.actions.mapsUpdateQuiet({
-    map_id: newMaster.id,
-    stack: Object.assign({}, newMaster.stack || {}, patches[newMaster.id]),
-  });
-  let relinked = 0;
-  for (const m of allMaps) {
-    if (m.id === newMaster.id || !patches[m.id]) continue;
-    await ctx.actions.mapsUpdateQuiet({
-      map_id: m.id,
-      stack: Object.assign({}, m.stack || {}, patches[m.id]),
-    });
-    if (m.id !== oldMaster.id) relinked++;
-  }
-  if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("master_changed");
-  return relinked;
-}
-
-// Multi-step wizard for changing the master map. Step 1: risk warning.
-// Step 2: select new master + verify its alignment to the current master.
-// Step 3: execute swap and show result. The wizard enforces that the new
-// master must be aligned to the current master before the swap proceeds.
-function _changeMasterWizard(ctx, allMaps, currentMaster) {
-  const { el } = ctx.helpers;
-  const esc = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  const container = el("div",{});
-  let _newId = null;
-
-  function _step(n, result) {
-    container.innerHTML = "";
-    if (n < 1) return;
-    const card = el("div",{});
-
-    if (n === 1) {
-      // ── Warning ──
-      card.style.cssText = "padding:16px;border-radius:10px;background:#1a0a00;border:2px solid #dc2626;margin-top:12px";
-      card.appendChild(el("div",{style:"font-weight:700;font-size:15px;color:#fca5a5;margin-bottom:10px"}, "\u26A0 Change Master Map"));
-      card.appendChild(el("div",{style:"font-size:13px;color:#fbbf24;font-weight:600;margin-bottom:8px;padding:8px 10px;background:#2a1500;border-radius:6px;border:1px solid #d97706"},
-        "It is strongly recommended that you do not do this. There are no guarantees."));
-      card.appendChild(el("div",{style:"font-size:12px;color:#e2e8f0;line-height:1.7;margin-bottom:10px"},
-        "Changing the master map after other maps have been aligned to it is a destructive operation. " +
-        "PadSpan will attempt to recompute alignment transforms, but floating-point rounding, rotation artifacts, " +
-        "and cascading offsets mean the result may not match your current layout. You may need to manually re-align every map afterward."));
-      const riskList = el("div",{style:"margin:8px 0 12px;padding:10px;background:#0f0000;border-radius:6px;font-size:12px;color:#fca5a5;line-height:1.8"});
-      riskList.innerHTML = [
-        "\u2022 <b>All alignments may break</b> \u2014 maps positioned relative to the old master are recomputed with best-effort math",
-        "\u2022 <b>Calibration data drifts</b> \u2014 k-NN fingerprint positions are stored in the old master\u2019s coordinate system",
-        "\u2022 <b>Room boundary authority shifts</b> \u2014 the master\u2019s room polygons take precedence for presence detection",
-        "\u2022 <b>3D stack rearranges</b> \u2014 the isometric view anchors to the master as its base layer",
-        "\u2022 <b>Tie-in history is lost</b> \u2014 tie-in constraints are cleared on both old and new master",
-      ].join("<br>");
-      card.appendChild(riskList);
-      const btnRow = el("div",{style:"display:flex;gap:10px;flex-wrap:wrap"});
-      btnRow.appendChild(el("button",{class:"btn inline danger",style:"font-weight:600", onclick:()=> _step(2)}, "I understand the risks \u2014 continue"));
-      btnRow.appendChild(el("button",{class:"btn inline",style:"color:#94a3b8", onclick:()=> _step(0)}, "Cancel"));
-      card.appendChild(btnRow);
-    }
-
-    else if (n === 2) {
-      // ── Select + verify alignment ──
-      card.style.cssText = "padding:16px;border-radius:10px;background:#1a0a00;border:2px solid #d97706;margin-top:12px";
-      card.appendChild(el("div",{style:"font-weight:700;font-size:15px;color:#fbbf24;margin-bottom:10px"}, "\u26A0 Step 2 \u2014 Select & Verify Alignment"));
-      const others = allMaps.filter(m => m.id !== currentMaster.id);
-      if (!others.length) {
-        card.appendChild(el("div",{class:"muted"}, "No other maps available."));
-        card.appendChild(el("button",{class:"btn inline",style:"margin-top:8px;color:#94a3b8", onclick:()=> _step(0)}, "Cancel"));
-        container.appendChild(card); return;
-      }
-
-      if (!_newId) _newId = others[0].id;
-      const sel = document.createElement("select"); sel.className = "select"; sel.style.maxWidth = "300px";
-      for (const om of others) {
-        const o = document.createElement("option"); o.value = om.id; o.textContent = om.name || om.id;
-        if (om.id === _newId) o.selected = true;
-        sel.appendChild(o);
-      }
-      sel.addEventListener("change", () => { _newId = sel.value; _step(2); });
-      card.appendChild(el("div",{style:"margin-bottom:10px"},[ el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:4px"}, "New master:"), sel ]));
-
-      const newM = allMaps.find(m => m.id === _newId);
-      const ns = newM?.stack || {};
-      const hasAlign = newM && ns.ref_map_id === currentMaster.id;
-
-      const alignBox = el("div",{style:"margin:10px 0;padding:10px;border-radius:6px;font-size:12px;line-height:1.6"});
-      if (hasAlign) {
-        alignBox.style.cssText += ";background:#0a2a1a;border:1px solid #52b788;color:#86efac";
-        alignBox.innerHTML = "\u2713 <b>" + esc(newM.name||newM.id) + "</b> is aligned to the current master.<br>" +
-          '<span style="font-family:monospace;font-size:11px;color:#94a3b8">' +
-          "Offset: (" + (ns.x_offset||0).toFixed(3) + ", " + (ns.y_offset||0).toFixed(3) + ")  Scale: " + (ns.scale||1).toFixed(3) + "  Rot: " + (ns.rotation||0).toFixed(1) + "\u00B0</span><br><br>" +
-          "<b>Make sure this alignment is as accurate as possible before proceeding.</b> " +
-          "The swap moves every map by exactly this alignment, so maps stay consistent with each other either way \u2014 " +
-          "but an inaccurate alignment here becomes the new frame everything is measured in.";
-      } else {
-        alignBox.style.cssText += ";background:#1a0a00;border:1px solid #d97706;color:#fbbf24";
-        alignBox.innerHTML = "\u26A0 <b>" + esc(newM?.name||newM?.id||"?") + "</b> is <b>not aligned</b> to the current master.<br><br>" +
-          "You <b>must</b> align these two maps first. Go to the <b>Alignment</b> tab: set the current master (\u2B50) as Reference " +
-          "and this map as Target. Drag, scale, and rotate until structural features (walls, stairwells) match perfectly. " +
-          "Save the alignment, then return here.";
-      }
-      card.appendChild(alignBox);
-
-      const btnRow = el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;margin-top:10px"});
-      if (!hasAlign) {
-        btnRow.appendChild(el("button",{class:"btn inline",style:"background:#1e3a5f;border-color:#3b82f6;color:#93c5fd", onclick:()=>{
-          _step(0); ctx.actions.setMapsTab("alignment");
-        }}, "Go to Alignment tab"));
-      }
-      if (hasAlign) {
-        btnRow.appendChild(el("button",{class:"btn inline danger",style:"font-weight:600", onclick: async ()=>{
-          btnRow.innerHTML = '<span style="color:#94a3b8;font-size:12px">Executing swap\u2026</span>';
-          try {
-            const relinked = await _executeChangeMaster(ctx, currentMaster, newM, allMaps);
-            await ctx.actions.mapsRefresh();
-            _step(3, { ok: true, relinked });
-          } catch(e) { ctx.toast("Master swap failed: " + String(e), true); _step(3, { ok: false, err: String(e) }); }
-        }}, "Execute Master Swap"));
-      }
-      btnRow.appendChild(el("button",{class:"btn inline",style:"color:#94a3b8", onclick:()=> _step(0)}, "Cancel"));
-      card.appendChild(btnRow);
-    }
-
-    else if (n === 3) {
-      // ── Result ──
-      const ok = result?.ok;
-      card.style.cssText = "padding:16px;border-radius:10px;margin-top:12px;background:" + (ok ? "#0a1a0a" : "#1a0a00") + ";border:2px solid " + (ok ? "#52b788" : "#dc2626");
-      card.appendChild(el("div",{style:"font-weight:700;font-size:15px;color:" + (ok ? "#86efac" : "#fca5a5")}, ok ? "\u2713 Master Map Changed" : "\u26A0 Swap Failed"));
-      if (ok) {
-        card.appendChild(el("div",{style:"font-size:12px;color:#e2e8f0;line-height:1.7;margin-top:8px"},
-          "The master has been transferred and the old master placed in its frame. " +
-          (result.relinked > 0 ? result.relinked + " other map(s) were moved into the new master's frame with it. " : "") +
-          "Please verify all map alignments in the 3D Stack and Alignment tabs. " +
-          "If anything looks wrong, re-align the affected maps manually."));
-      } else {
-        card.appendChild(el("div",{style:"font-size:12px;color:#fca5a5;margin-top:8px"}, result?.err || "Unknown error"));
-      }
-      card.appendChild(el("button",{class:"btn inline",style:"margin-top:10px", onclick:()=> _step(0)}, "Close"));
-    }
-
-    container.appendChild(card);
-  }
-
-  _step(1);
-  return container;
+// A stack payload for a write that is not about placement.
+//
+// The stack holds no placement at all now — z_level, ceiling_height_m,
+// ref_map_id and tie_ins — so this is a plain merge. It kept its name and its
+// call sites because the RULE it enforced still holds and is now enforced by
+// the store: a field a payload does not STATE is unchanged.
+function _stackPatch(stk, fields) {
+  return Object.assign({}, stk || {}, fields);
 }
 
 // ── Emergency Tie-in Recovery ─────────────────────────────────────────────────
@@ -2956,68 +2798,45 @@ function _changeMasterWizard(ctx, allMaps, currentMaster) {
 // (those that agree with fewer than half the max-agreement cluster) are removed.
 // The saved primary alignment is treated as an implicit vote.
 // Returns array of { map, keptTieIns, removedTieIns, reason }.
-function _emergencyRecoverTieIns(allMaps) {
-  const OFF_T   = 0.20;   // normalized offset distance threshold
-  const SCALE_T = 0.25;   // scale difference threshold
-  const ROT_T   = 35;     // rotation degrees threshold
-  const plans   = [];
+function _emergencyRecoverTieIns(allMaps, model) {
+  const plans = [];
+  const txs = (model && model.map_transforms) || {};
 
   for(const m of allMaps){
     const tieIns = (m.stack?.tie_ins) || [];
     if(!tieIns.length) continue;
 
-    // Primary saved alignment (if it exists) is treated as an implicit vote
-    const hasPrimary = m.stack && (m.stack.x_offset !== undefined);
-    const pv = hasPrimary ? {
-      x: m.stack.x_offset ?? 0, y: m.stack.y_offset ?? 0,
-      s: m.stack.scale ?? 1,    r: m.stack.rotation ?? 0,
-      isPrimary: true,
-    } : null;
+    // The map's own saved placement is an implicit vote — it is where the
+    // owner last committed the map to, and it is now the same kind of object
+    // as a tie-in rather than a different set of fields.
+    const primary = txs[m.id];
+    const pv = (primary && Number(primary.scale_x_m) > 0) ? primary : null;
 
-    // Single tie-in: compare against primary only
     if(tieIns.length === 1){
       if(!pv) continue;
-      const ti = tieIns[0];
-      const dx = (ti.x_offset||0) - pv.x, dy = (ti.y_offset||0) - pv.y;
-      const offDist  = Math.sqrt(dx*dx + dy*dy);
-      const sDiff    = Math.abs((ti.scale||1) - pv.s);
-      const rDiff    = Math.abs(((ti.rotation||0) - pv.r + 540) % 360 - 180);
-      const varPct   = Math.round(offDist*100*0.55 + sDiff*100*0.30 + (rDiff/180)*100*0.15);
-      if(offDist > OFF_T * 1.5 || sDiff > SCALE_T * 1.5 || rDiff > ROT_T * 1.5){
+      const gap = _placementGapM(tieIns[0], pv);
+      if(gap !== null && gap > TIE_MAJOR_M){
         plans.push({ map: m, keptTieIns: [], removedTieIns: tieIns,
-          reason: `sole tie-in deviates ${varPct}% from saved position` });
+          reason: `sole tie-in puts this map ${gap.toFixed(1)} m from where it is saved` });
       }
       continue;
     }
 
-    // 2+ tie-ins: consensus cluster analysis
-    // Each slot: tie-in index maps to allVotes index; primary (if present) appended at end
-    const allVotes = [
-      ...tieIns.map(ti => ({ x: ti.x_offset||0, y: ti.y_offset||0, s: ti.scale||1, r: ti.rotation||0 })),
-      ...(pv ? [{ x: pv.x, y: pv.y, s: pv.s, r: pv.r }] : []),
-    ];
-
+    // 2+ tie-ins: consensus clustering on the one distance, in metres.
+    const allVotes = [...tieIns, ...(pv ? [pv] : [])];
     const agreeCount = allVotes.map((v, i) => {
       let n = 0;
       for(let j = 0; j < allVotes.length; j++){
         if(i === j) continue;
-        const w = allVotes[j];
-        const dx = v.x - w.x, dy = v.y - w.y;
-        const rDiff = Math.abs((v.r - w.r + 540) % 360 - 180);
-        if(Math.sqrt(dx*dx + dy*dy) <= OFF_T && Math.abs(v.s - w.s) <= SCALE_T && rDiff <= ROT_T) n++;
+        const g = _placementGapM(v, allVotes[j]);
+        if(g !== null && g <= TIE_MAJOR_M) n++;
       }
       return n;
     });
-
-    // Maximum agreements any single vote has
     const maxAgree = Math.max(...agreeCount);
-    // Drop votes with fewer than half the max agreement (outliers)
     const keepMin  = Math.max(1, Math.ceil(maxAgree / 2));
-
-    // Only tie-ins (not the primary vote) are removed
     const removedTieIns = tieIns.filter((_, i) => agreeCount[i] < keepMin);
     const keptTieIns    = tieIns.filter((_, i) => agreeCount[i] >= keepMin);
-
     if(removedTieIns.length > 0){
       plans.push({ map: m, keptTieIns, removedTieIns,
         reason: `${removedTieIns.length} outlier${removedTieIns.length>1?"s":""} outside consensus cluster` });
@@ -3136,7 +2955,7 @@ function _export(ctx, active, maps_list){
   const secJ = el("div",{class:"card",style:"margin-top:10px"});
   secJ.appendChild(el("div",{style:"font-weight:600;margin-bottom:4px"},"5 · Map Data Backup (JSON)"));
   secJ.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:8px"},
-    "Export a full backup of ALL maps including floor plan images. Use Restore to recover mapping data after reinstall."));
+    "Export a full backup of ALL maps including floor plan images, their 3D stack alignment and their real-world placement in metres. Use Restore to recover mapping data after reinstall."));
 
   // ── Backup button
   const backupStatus = el("div",{class:"muted",style:"font-size:12px;min-height:18px"});
@@ -3149,6 +2968,19 @@ function _export(ctx, active, maps_list){
         const m = allMaps[i];
         backupStatus.textContent = `Fetching ${i+1}/${allMaps.length}: ${m.name||m.id}…`;
         const entry = JSON.parse(JSON.stringify(m));
+        // The map's PLACEMENT, in metres. A backup carried the picture,
+        // the stack and the calibration and left this behind, so a
+        // restore brought back maps that sat nowhere: `map_transforms`
+        // lives in the Model store and is keyed by map id, and a restored
+        // map gets a NEW id, so the old record could never have found it
+        // again even when the Model store was restored beside it.
+        //
+        // Metres are gauge-free, so this is the copy that survives a
+        // restore into a house with a different world gauge — the stack
+        // beside it is in world units and does not. Written down now,
+        // while a second copy still exists to write down.
+        const _tx = (ctx.state.model?.map_transforms || {})[m.id];
+        if (_tx) entry.map_transform = JSON.parse(JSON.stringify(_tx));
         if(m.image?.filename){
           try{
             const resp = await fetch(ctx.helpers.mapImageUrl(m));
@@ -3209,7 +3041,7 @@ function _export(ctx, active, maps_list){
       const bm = _restoreData[i];
       restoreStatus.textContent = `Restoring ${i+1}/${_restoreData.length}: ${bm.name}…`;
       try{
-        await ctx.actions.mapsUpload({
+        const up = await ctx.actions.mapsUpload({
           name: bm.name||"Restored Map",
           filename: bm.image?.filename||"map.png",
           mime: bm.image?.mime||"image/png",
@@ -3218,13 +3050,29 @@ function _export(ctx, active, maps_list){
           png_base64: bm.png_base64||"",
           floor_id: bm.floor_id||"",
         });
-        // mapsUpload refreshes ctx.state.maps.list — find the new map by name
-        const newMap = (ctx.state.maps.list||[]).find(m=>m.name===(bm.name||"Restored Map"));
-        if(newMap){
+        // The upload says which map it created. This used to find it by name
+        // — first match wins — so a backup holding two maps of the same name,
+        // or two unnamed ones (both of which become "Restored Map"), wrote the
+        // second map's stack, calibration and notes onto the first and left
+        // the second at a default stack. Same id the Upload tab reads.
+        const newId = up?.map?.id;
+        if(newId){
           await ctx.actions.mapsUpdateQuiet({
-            map_id: newMap.id, calibration: bm.calibration||{},
+            map_id: newId, calibration: bm.calibration||{},
             notes: bm.notes||"", stack: bm.stack||{},
           });
+          // ...and where the map SITS, under its new id. Restoring the
+          // stack without this leaves the map drawn in the 3D assembly
+          // and placed nowhere in metres: every room, scanner and pin on
+          // it has no size, and Repair Positioning has nothing to repair
+          // it against. A backup written before this release has no
+          // `map_transform`, and those restore exactly as they did.
+          if(bm.map_transform){
+            await ctx.actions.callWS({
+              type: "padspan_ha/fabric_map_transform_set",
+              map_id: newId, transform: bm.map_transform,
+            });
+          }
         }
         ok++;
       }catch(e){ fail++; console.error("Restore failed for",bm.name,e); }
@@ -3523,36 +3371,63 @@ function _stack(ctx, maps, helpBtn){
   // Init alignment state — outside maps are excluded from alignment because
   // they use a different coordinate model (fitted to indoor bounding box).
   const _alignableMaps = maps.filter(m => !_isOutsideMap(m));
+
+  // WHAT THIS EDITOR EDITS: a map's PLACEMENT, in metres. It used to edit
+  // `maps[].stack` — a complete second description of where the map sits, in
+  // world units, which the metre record could not see and which every image
+  // operation had to remember to update in step. The gestures are unchanged;
+  // what they move is the one record, and Save is the one call that commits
+  // it. Nothing on screen is a coordinate any more: the stage IS the
+  // reference picture, so a drag is measured in the reference's own metres.
+  const _txOf = (id) => (ctx.state.model?.map_transforms || {})[id] || null;
+  const _placeOf = (id) => {
+    const t = _txOf(id);
+    if (!t || !(Number(t.scale_x_m) > 0) || !(Number(t.scale_y_m) > 0)) return null;
+    return { origin_x_m: Number(t.origin_x_m || 0), origin_y_m: Number(t.origin_y_m || 0),
+             scale_x_m: Number(t.scale_x_m), scale_y_m: Number(t.scale_y_m),
+             rotation_rad: Number(t.rotation_rad || 0), shear_rad: Number(t.shear_rad || 0) };
+  };
+  // Where a NEVER-PLACED map starts, and what Reset goes back to: on top of
+  // the reference, at the reference's width, undistorted in its own pixels.
+  // This is the only place the editor builds a placement out of nothing, and
+  // it needs one — a map with no record cannot be drawn at all, so without a
+  // starting position there would be nothing on screen to drag. Null when the
+  // REFERENCE has no placement either: two pictures and no metres between
+  // them is not something to guess a size from.
+  const _seedPlace = (tgt, refId) => {
+    const r = _placeOf(refId);
+    if (!r) return null;
+    return { origin_x_m: r.origin_x_m, origin_y_m: r.origin_y_m,
+             scale_x_m: r.scale_x_m, scale_y_m: r.scale_x_m * imageAr(tgt),
+             rotation_rad: r.rotation_rad, shear_rad: 0 };
+  };
+  // Every gesture below turns the map about its own centre, so the picture
+  // does not slide out from under the cursor while it is being resized.
+  const _keepCentre = (before, after) => {
+    const c0 = mapFracToMetres(before, 0.5, 0.5);
+    const c1 = mapFracToMetres(after, 0.5, 0.5);
+    if (!c0 || !c1) return after;
+    after.origin_x_m += c0[0] - c1[0];
+    after.origin_y_m += c0[1] - c1[1];
+    return after;
+  };
   if(!ctx.state.maps._stackAlign){
     const firstTgt = _alignableMaps[1] || _alignableMaps[0] || null;
     ctx.state.maps._stackAlign = {
-      refId:      _alignableMaps[0] ? _alignableMaps[0].id : null,
-      targetId:   firstTgt ? firstTgt.id : null,
-      x_offset:   firstTgt?.stack?.x_offset   ?? 0.0,
-      y_offset:   firstTgt?.stack?.y_offset   ?? 0.0,
-      scale:      firstTgt?.stack?.scale      ?? 1.0,
-      rotation:   firstTgt?.stack?.rotation   ?? 0.0,
-      scaleX_adj: firstTgt?.stack?.scale_x_adj ?? 1.0,
-      _m:         firstTgt?.stack?._m         || null,
-      _m_ar:      firstTgt?.stack?._m_ar      || null,
+      refId:    _alignableMaps[0] ? _alignableMaps[0].id : null,
+      targetId: firstTgt ? firstTgt.id : null,
+      place:    firstTgt ? _placeOf(firstTgt.id) : null,
     };
   }
   const alignState = ctx.state.maps._stackAlign;
-  if(alignState.rotation   === undefined) alignState.rotation   = 0.0;
-  if(alignState.scaleX_adj === undefined) alignState.scaleX_adj = 1.0;
 
   // Guard: ensure saved refId/targetId still valid after map deletions
   if(alignState.refId && !maps.find(m=>m.id===alignState.refId))
     alignState.refId = maps[0]?.id || null;
   if(alignState.targetId && !maps.find(m=>m.id===alignState.targetId)){
     const newTgt = maps[1] || maps[0] || null;
-    alignState.targetId  = newTgt?.id || null;
-    alignState.x_offset  = newTgt?.stack?.x_offset  ?? 0.0;
-    alignState.y_offset  = newTgt?.stack?.y_offset  ?? 0.0;
-    alignState.scale     = newTgt?.stack?.scale     ?? 1.0;
-    alignState.rotation  = newTgt?.stack?.rotation  ?? 0.0;
-    alignState._m        = newTgt?.stack?._m        || null;
-    alignState._m_ar     = newTgt?.stack?._m_ar     || null;
+    alignState.targetId = newTgt?.id || null;
+    alignState.place    = newTgt ? _placeOf(newTgt.id) : null;
   }
 
   // Level options: use HA floor registry if available, fall back to hardcoded names
@@ -3698,7 +3573,7 @@ function _stack(ctx, maps, helpBtn){
     const tdSave = document.createElement("td");
     tdSave.style.cssText = "padding:6px 8px";
     tdSave.appendChild(el("button",{class:"btn inline", onclick: async ()=>{
-      const newStk = Object.assign({}, m.stack || {},{
+      const newStk = _stackPatch(m.stack, {
         z_level: parseInt(zLevelInput.value, 10) || 0,
         ceiling_height_m: parseFloat(ceilInput.value) || 2.4,
       });
@@ -3732,82 +3607,45 @@ function _stack(ctx, maps, helpBtn){
   const refSel = document.createElement("select"); refSel.className = "select";
   const tgtSel = document.createElement("select"); tgtSel.className = "select";
   // Reference: masters sorted to top (they are the natural fixed reference); exclude Outside maps
-  const mapsForRef = [..._alignableMaps].sort((a,b) => (b.stack?.is_master?1:0) - (a.stack?.is_master?1:0));
+  // Reference first = the maps that are actually PLACED, oldest first. It
+  // sorted masters to the top; there is no master, and "has a placement" is
+  // the property that actually matters — you cannot align onto a picture that
+  // is nowhere.
+  const _placedIds = new Set(Object.keys(ctx.state.model?.map_transforms || {})
+    .filter(id => { const t = ctx.state.model.map_transforms[id];
+                    return t && Number(t.scale_x_m) > 0 && Number(t.scale_y_m) > 0; }));
+  const mapsForRef = [..._alignableMaps].sort(
+    (a,b) => (_placedIds.has(b.id)?1:0) - (_placedIds.has(a.id)?1:0));
   for(const m of mapsForRef){
     const oR = document.createElement("option"); oR.value = m.id;
-    oR.textContent = (m.stack?.is_master ? "⭐ " : "") + (m.name||m.id);
+    oR.textContent = (_placedIds.has(m.id) ? "" : "⚠ ") + (m.name||m.id);
     if(m.id === alignState.refId) oR.selected = true;
     refSel.appendChild(oR);
   }
   // Target: show all except Outside maps, flag masters so user is aware
   for(const m of _alignableMaps){
     const oT = document.createElement("option"); oT.value = m.id;
-    oT.textContent = (m.stack?.is_master ? "⭐ " : "") + (m.name||m.id);
+    oT.textContent = (_placedIds.has(m.id) ? "" : "⚠ ") + (m.name||m.id);
     if(m.id === alignState.targetId) oT.selected = true;
     tgtSel.appendChild(oT);
   }
   selRow.appendChild(el("div",{},[el("div",{class:"muted",style:"font-size:11px;margin-bottom:3px"},"Reference (fixed)"), refSel]));
   selRow.appendChild(el("div",{},[el("div",{class:"muted",style:"font-size:11px;margin-bottom:3px"},"Target (draggable)"), tgtSel]));
   card.appendChild(selRow);
-  // Warning shown when a master map is selected as target
-  const masterWarnDiv = el("div",{style:"display:none;margin-top:6px;padding:8px 10px;border-radius:6px;background:#1a0a00;border:1px solid #d97706;font-size:12px;color:#fbbf24"},
-    "⭐ This is a master map — your alignment anchor. Dragging or scaling it and saving will permanently revoke its master status.");
-  card.appendChild(masterWarnDiv);
-  const _updateMasterWarn = () => {
-    const tgtCheck = maps.find(m=>m.id===tgtSel.value);
-    masterWarnDiv.style.display = tgtCheck?.stack?.is_master ? "block" : "none";
-  };
-  tgtSel.addEventListener("change", _updateMasterWarn);
-  _updateMasterWarn();
-
-  // ── Dual-master conflict resolution ──
-  // When both the reference and target maps are masters and scale/rotation has
-  // been changed, only one can remain as master after saving. The user must
-  // explicitly choose which to keep. 'ref' = keep reference as master and
-  // revoke target, 'tgt' = keep target and revoke reference.
-  const dualMasterWarnDiv = el("div",{style:"display:none;margin-top:6px;padding:10px 12px;border-radius:6px;background:#0f0a1a;border:1px solid #7c3aed;font-size:12px"});
-  card.appendChild(dualMasterWarnDiv);
-  let dualMasterChoice = null; // 'ref' | 'tgt' | null
-  let _dmRefId = null, _dmTgtId = null;
-
-  const _checkDualMaster = (refId, tgtId) => {
-    const refM = maps.find(m=>m.id===refId);
-    const tgtM = maps.find(m=>m.id===tgtId);
-    const bothMaster = !!(refM?.stack?.is_master) && !!(tgtM?.stack?.is_master);
-    const scaleRotChanged = Math.abs(alignState.scale - 1.0) > 0.02 || Math.abs(alignState.rotation||0) > 2.0;
-    if(!bothMaster || !scaleRotChanged){
-      dualMasterWarnDiv.style.display = "none";
-      return;
-    }
-    // Reset choice if map pair changed
-    if(dualMasterChoice !== null && (_dmRefId !== refId || _dmTgtId !== tgtId)){
-      dualMasterChoice = null;
-    }
-    _dmRefId = refId; _dmTgtId = tgtId;
-    const escD = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-    const rName = escD(refM.name||refM.id);
-    const tName = escD(tgtM.name||tgtM.id);
-    const refSel_ = `background:#0a2a1a;border-color:#52b788;color:#86efac;font-weight:700`;
-    const tgtSel_ = `background:#0a2a1a;border-color:#52b788;color:#86efac;font-weight:700`;
-    const inactive = `color:#94a3b8`;
-    let html = `<div style="font-weight:600;color:#c084fc;margin-bottom:6px">⭐ Both maps are masters</div>`;
-    html += `<div style="color:#cbd5e1;font-size:11px;margin-bottom:8px">Scale or rotation has been changed. Only one map can remain the alignment anchor after saving. Choose which to keep as master:</div>`;
-    html += `<div style="display:flex;gap:8px;flex-wrap:wrap">`;
-    html += `<button id="_dmRef" class="btn inline" style="${dualMasterChoice==='ref' ? refSel_ : inactive}">Keep ⭐ "${rName}"</button>`;
-    html += `<button id="_dmTgt" class="btn inline" style="${dualMasterChoice==='tgt' ? tgtSel_ : inactive}">Keep ⭐ "${tName}"</button>`;
-    html += `</div>`;
-    dualMasterWarnDiv.innerHTML = html;
-    dualMasterWarnDiv.style.display = "block";
-    dualMasterWarnDiv.querySelector("#_dmRef").onclick = () => { dualMasterChoice = 'ref'; _checkDualMaster(refId, tgtId); };
-    dualMasterWarnDiv.querySelector("#_dmTgt").onclick = () => { dualMasterChoice = 'tgt'; _checkDualMaster(refId, tgtId); };
-  };
-
+  // The align refusal that used to stand here is gone with the master flag.
+  // An align is a placement like every other placement now, so there is no
+  // map an align may not be applied to (#67). What CAN refuse is the commit,
+  // and it refuses for a reason the owner can act on: it would strand the
+  // calibration pins off the map.
   const readoutDiv = el("div",{style:"margin-top:8px;font-size:12px;font-family:monospace;color:#94a3b8"});
   const updateReadout = ()=>{
-    const xAdj = alignState.scaleX_adj || 1.0;
-    const xStr = Math.abs(xAdj - 1.0) > 0.001 ? `  ScaleX: ${xAdj.toFixed(3)}` : "";
-    const mStr = alignState._m ? "  [matrix]" : "";
-    readoutDiv.textContent = `X: ${alignState.x_offset.toFixed(3)}  Y: ${alignState.y_offset.toFixed(3)}  Scale: ${alignState.scale.toFixed(3)}  Rot: ${(alignState.rotation||0).toFixed(1)}°${xStr}${mStr}`;
+    const p = alignState.place;
+    if(!p){ readoutDiv.textContent = "Not placed — pick a placed Reference, then press Reset to start this map on top of it."; return; }
+    const lean = Math.abs(p.shear_rad) > 1e-4 ? `  Lean: ${(p.shear_rad*180/Math.PI).toFixed(1)}°` : "";
+    readoutDiv.textContent =
+      `Origin: ${p.origin_x_m.toFixed(2)}, ${p.origin_y_m.toFixed(2)} m`
+      + `  Size: ${p.scale_x_m.toFixed(2)} × ${p.scale_y_m.toFixed(2)} m`
+      + `  Rot: ${(p.rotation_rad*180/Math.PI).toFixed(1)}°${lean}`;
   };
   updateReadout();
   card.appendChild(readoutDiv);
@@ -3839,29 +3677,13 @@ function _stack(ctx, maps, helpBtn){
     const refId = refSel.value;
     const tgtId = tgtSel.value;
 
-    // When target changes, reload its saved alignment
+    // When the target changes, load ITS placement. A map with none opens
+    // unplaced and the readout says so — it used to open at scale 1.0 in the
+    // corner of the stage, which looks exactly like a placement and is not
+    // one, and the pre-distortion correction below it existed because the
+    // stage was neither picture's frame. The stage IS the reference now.
     if(tgtId !== alignState.targetId){
-      const newTgt = maps.find(m=>m.id===tgtId);
-      alignState.x_offset   = newTgt?.stack?.x_offset    ?? 0.0;
-      alignState.y_offset   = newTgt?.stack?.y_offset    ?? 0.0;
-      alignState.scale      = newTgt?.stack?.scale       ?? 1.0;
-      alignState.rotation   = newTgt?.stack?.rotation    ?? 0.0;
-      alignState.scaleX_adj = newTgt?.stack?.scale_x_adj ?? 1.0;
-      alignState._m         = newTgt?.stack?._m          || null;
-      alignState._m_ar      = newTgt?.stack?._m_ar       || null;
-      // Never-aligned target with a different aspect ratio: the stage is
-      // sized to the REFERENCE map's AR and the target fills it
-      // (object-fit:fill), so it starts pre-distorted by refAR/tgtAR and
-      // users had to hand-hunt the X-stretch. Seed the correction so the
-      // target opens undistorted; any saved alignment is left alone.
-      if(newTgt?.stack?.scale_x_adj === undefined && !newTgt?.stack?._m){
-        const _refM2 = maps.find(m=>m.id===refId);
-        const _rAR = (_refM2?.image?.height||600)/(_refM2?.image?.width||800);
-        const _tAR = (newTgt?.image?.height||600)/(newTgt?.image?.width||800);
-        if(_tAR > 0 && Math.abs(_rAR/_tAR - 1) > 0.01){
-          alignState.scaleX_adj = Math.round((_rAR/_tAR)*1000)/1000;
-        }
-      }
+      alignState.place = _placeOf(tgtId);
     }
     alignState.refId    = refId;
     alignState.targetId = tgtId;
@@ -3878,7 +3700,16 @@ function _stack(ctx, maps, helpBtn){
     stageWrap.style.paddingBottom = `${ar * 100}%`;
     stageWrap.style.height = "0";
 
-    // Reference layer: image (if any) + SVG room bounds on top
+    // THE STAGE IS THE REFERENCE PICTURE. Sized to its shape, drawn
+    // untransformed, so a stage fraction and a reference fraction are the
+    // same number and the bridge to the target is metres.
+    //
+    // The reference layer used to carry its OWN stack transform on top of
+    // that — a hand-inlined second copy of the renderer, one of two in this
+    // function — which meant the stage was neither picture: the reference sat
+    // rotated and offset inside a box shaped like it, and every drag was
+    // measured in a frame nothing else in the codebase used. Deleting the
+    // second copy is what lets a drag be metres.
     const refLayer = document.createElement("div");
     refLayer.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none";
     const refUrl = ctx.helpers.mapImageUrl(refMap);
@@ -3892,22 +3723,9 @@ function _stack(ctx, maps, helpBtn){
     refSvgDiv.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%";
     refSvgDiv.innerHTML = _stackMapSVGStr(refMap, ctx, false, !refUrl);
     refLayer.appendChild(refSvgDiv);
-    // Apply reference map's own saved stack transform so it appears in its true aligned position.
-    // Without this, a map that was previously aligned rotated/scaled shows flat in the overlay.
-    const refStk = refMap.stack || {};
-    if(refStk._m || refStk.x_offset || refStk.y_offset || refStk.rotation || refStk.scale_x_adj || (refStk.scale && refStk.scale !== 1.0)){
-      refLayer.style.transformOrigin = "50% 50%";
-      if (refStk._m && refStk._m.length === 4) {
-        const _rar = refStk._m_ar || 1;
-        const rma = refStk._m[0], rmb = refStk._m[2] * _rar, rmc = refStk._m[1] / _rar, rmd = refStk._m[3];
-        refLayer.style.transform = `translate(${(refStk.x_offset||0)*100}%,${(refStk.y_offset||0)*100}%) matrix(${rma},${rmb},${rmc},${rmd},0,0)`;
-      } else {
-        const rsx = (refStk.scale || 1.0) * (refStk.scale_x_adj || 1.0);
-        const rsy = refStk.scale || 1.0;
-        refLayer.style.transform = `translate(${(refStk.x_offset||0)*100}%,${(refStk.y_offset||0)*100}%) rotate(${refStk.rotation||0}deg) scale(${rsx},${rsy})`;
-      }
-    }
     stageWrap.appendChild(refLayer);
+
+    const refPlace = _placeOf(refId);
 
     if(tgtMap && tgtMap.id !== refMap.id){
       const tgtLayer = document.createElement("div");
@@ -3929,52 +3747,73 @@ function _stack(ctx, maps, helpBtn){
       tgtLayer.style.opacity = String(ctx.state.maps._stackTgtOpacity || 0.55);
       tgtLayerRef = tgtLayer;
 
+      // ONE draw path, not two. It had a matrix branch and a decomposed
+      // branch, chosen by whether Point Align had run — the same two-branch
+      // shape as the renderer it copied, and the reason four controls had to
+      // null `_m` on one click so the picture would stop being drawn from a
+      // matrix they had not updated. A placement is a placement; where it
+      // lands on the reference's picture is `placementStageAffine`, and CSS
+      // matrix() draws every affine there is.
       applyCurrentTransform = ()=>{
-        if (alignState._m && alignState._m.length === 4) {
-          // Use CSS matrix() directly from solver — lossless affine transform.
-          const _ar = alignState._m_ar || 1;
-          const ma = alignState._m[0], mb = alignState._m[2] * _ar;
-          const mc = alignState._m[1] / _ar, md = alignState._m[3];
-          tgtLayer.style.transform = `translate(${alignState.x_offset*100}%,${alignState.y_offset*100}%) matrix(${ma},${mb},${mc},${md},0,0)`;
+        const af = alignState.place && refPlace
+          ? placementStageAffine(alignState.place, refPlace) : null;
+        if (af) {
+          // Stage x is a fraction of the stage WIDTH and stage y a fraction
+          // of its HEIGHT, while CSS matrix() works in pixels — hence the
+          // `ar` on the two cross terms.
+          const ma = af.m[0], mb = af.m[2] * ar, mc = af.m[1] / ar, md = af.m[3];
+          tgtLayer.style.display = "";
+          tgtLayer.style.transform =
+            `translate(${af.ox*100}%,${af.oy*100}%) matrix(${ma},${mb},${mc},${md},0,0)`;
         } else {
-          // Fallback: decomposed translate → rotate → scale chain.
-          const sx = (alignState.scale || 1.0) * (alignState.scaleX_adj || 1.0);
-          const sy = alignState.scale || 1.0;
-          tgtLayer.style.transform = `translate(${alignState.x_offset*100}%,${alignState.y_offset*100}%) rotate(${alignState.rotation||0}deg) scale(${sx},${sy})`;
+          // Unplaced, or a reference that is itself nowhere. Nothing is drawn
+          // rather than something drawn at a guessed size.
+          tgtLayer.style.display = "none";
         }
         updateReadout();
-        _checkDualMaster(refId, tgtId);
       };
       applyCurrentTransform();
 
-      let dragging = false, dragStartX = 0, dragStartY = 0, startOffX = 0, startOffY = 0;
+      // A drag moves the map's ORIGIN, in metres, by the same distance the
+      // cursor moved across the reference's own picture. The gesture is
+      // identical; the units are the house's.
+      let dragging = false, dragStartX = 0, dragStartY = 0;
+      let startOX = 0, startOY = 0;
       const stageRect = ()=>stageWrap.getBoundingClientRect();
       const _setDrag = (v)=>{ dragging=v; if(ctx.state.maps) ctx.state.maps._stackDragging=v; };
+      const _dragTo = (cx, cy)=>{
+        const p = alignState.place; if(!p || !refPlace) return;
+        const r = stageRect(); if(!r.width) return;
+        const a = mapFracToMetres(refPlace, 0.5, 0.5);
+        const b = mapFracToMetres(refPlace,
+          0.5 + (cx - dragStartX)/r.width, 0.5 + (cy - dragStartY)/r.height);
+        if(!a || !b) return;
+        p.origin_x_m = startOX + (b[0] - a[0]);
+        p.origin_y_m = startOY + (b[1] - a[1]);
+        applyCurrentTransform();
+      };
+      const _dragFrom = (cx, cy)=>{
+        _setDrag(true); dragStartX=cx; dragStartY=cy;
+        startOX = alignState.place?.origin_x_m ?? 0;
+        startOY = alignState.place?.origin_y_m ?? 0;
+      };
 
       tgtLayer.addEventListener("mousedown",(ev)=>{
-        _setDrag(true); dragStartX=ev.clientX; dragStartY=ev.clientY;
-        startOffX=alignState.x_offset; startOffY=alignState.y_offset;
+        _dragFrom(ev.clientX, ev.clientY);
         tgtLayer.style.cursor="grabbing"; ev.preventDefault();
       });
       tgtLayer.addEventListener("touchstart",(ev)=>{
         if(!ev.touches[0]) return;
-        _setDrag(true); dragStartX=ev.touches[0].clientX; dragStartY=ev.touches[0].clientY;
-        startOffX=alignState.x_offset; startOffY=alignState.y_offset;
+        _dragFrom(ev.touches[0].clientX, ev.touches[0].clientY);
         ev.preventDefault();
       },{passive:false});
       window.addEventListener("mousemove",(ev)=>{
         if(!dragging) return;
-        const r = stageRect(); if(!r.width) return;
-        alignState.x_offset = startOffX + (ev.clientX - dragStartX)/r.width;
-        alignState.y_offset = startOffY + (ev.clientY - dragStartY)/r.height;
-        applyCurrentTransform();
+        _dragTo(ev.clientX, ev.clientY);
       }, { signal });
       window.addEventListener("touchmove",(ev)=>{
         if(!dragging||!ev.touches[0]) return;
-        const r = stageRect(); if(!r.width) return;
-        alignState.x_offset = startOffX + (ev.touches[0].clientX - dragStartX)/r.width;
-        alignState.y_offset = startOffY + (ev.touches[0].clientY - dragStartY)/r.height;
-        applyCurrentTransform();
+        _dragTo(ev.touches[0].clientX, ev.touches[0].clientY);
       },{ passive:false, signal });
       window.addEventListener("mouseup",()=>{ _setDrag(false); tgtLayer.style.cursor="grab"; }, { signal });
       window.addEventListener("touchend",()=>{ _setDrag(false); }, { signal });
@@ -4015,7 +3854,33 @@ function _stack(ctx, maps, helpBtn){
 
   const ctrlRow = el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px"});
 
-  // Scale controls
+  // THE FOUR CONTROLS THAT USED TO NULL `_m`.
+  //
+  // Scale +/-, X +/- and Rotate each set `alignState._m = null` on click,
+  // because the map was being drawn from a solved matrix those controls had
+  // no way to update, and a decomposed edit beside a live matrix draws the
+  // matrix. That was three copies of one placement — the matrix, the fields,
+  // and the metre record — and it is why one click on any of these silently
+  // discarded a Point Align. There is one placement now, and every control
+  // edits it.
+  //
+  // Each turns the map about its OWN CENTRE, so the picture stays under the
+  // cursor while it is resized. `_keepCentre` is the whole of that.
+  const _editPlace = (fn) => {
+    const p = alignState.place;
+    if(!p){ ctx.toast("This map is not placed yet — press Reset to start it on the reference.", true); return; }
+    const next = fn({ ...p });
+    if(next) alignState.place = _keepCentre(p, next);
+    applyCurrentTransform();
+  };
+  const _scaleBy = (fx, fy) => _editPlace(p => {
+    const nx = p.scale_x_m * fx, ny = p.scale_y_m * fy;
+    // A map with no width is not a placement, and neither is one the size of
+    // the county. The bar is the same one `placement_is_readable` applies.
+    if(!(nx > 0.05 && ny > 0.05 && nx < 5000 && ny < 5000)) return null;
+    p.scale_x_m = nx; p.scale_y_m = ny; return p;
+  });
+
   if(ctx.state.maps._stackArLocked === undefined) ctx.state.maps._stackArLocked = true;
 
   const xMinusBtn = el("button",{class:"btn inline",title:"Stretch left/right only (horizontal squeeze/stretch)"},"X −");
@@ -4025,16 +3890,8 @@ function _stack(ctx, maps, helpBtn){
     xPlusBtn.disabled  = locked; xPlusBtn.style.opacity  = locked ? "0.3" : "";
   };
   _setXBtnState(ctx.state.maps._stackArLocked);
-  xMinusBtn.onclick = ()=>{
-    alignState.scaleX_adj = Math.max(0.1, Math.round(((alignState.scaleX_adj||1.0) - 0.05)*1000)/1000);
-    alignState._m = null; alignState._m_ar = null;
-    applyCurrentTransform();
-  };
-  xPlusBtn.onclick = ()=>{
-    alignState.scaleX_adj = Math.min(5.0, Math.round(((alignState.scaleX_adj||1.0) + 0.05)*1000)/1000);
-    alignState._m = null; alignState._m_ar = null;
-    applyCurrentTransform();
-  };
+  xMinusBtn.onclick = ()=>_scaleBy(1/1.05, 1);
+  xPlusBtn.onclick  = ()=>_scaleBy(1.05, 1);
 
   const lockArBtn = el("button",{
     class:"btn inline",
@@ -4053,34 +3910,26 @@ function _stack(ctx, maps, helpBtn){
     _setXBtnState(lk);
   };
 
+  const _scaleStep = ()=> ctx.state.maps._stackOutsideMode ? 1.25 : 1.05;
   ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap"},"Scale:"));
-  ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>{
-    const outside = ctx.state.maps._stackOutsideMode;
-    const step = outside ? 0.5 : 0.05;
-    const maxScale = outside ? 100.0 : 5.0;
-    alignState.scale = Math.min(maxScale, Math.round((alignState.scale + step) * 1000) / 1000);
-    alignState._m = null; alignState._m_ar = null;
-    applyCurrentTransform();
-  }},"Scale +"));
-  ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>{
-    const outside = ctx.state.maps._stackOutsideMode;
-    const step = outside ? 0.5 : 0.05;
-    const minScale = outside ? 0.01 : 0.1;
-    alignState.scale = Math.max(minScale, Math.round((alignState.scale - step) * 1000) / 1000);
-    alignState._m = null; alignState._m_ar = null;
-    applyCurrentTransform();
-  }},"Scale −"));
+  ctrlRow.appendChild(el("button",{class:"btn inline",
+    onclick:()=>{ const f=_scaleStep(); _scaleBy(f, f); }},"Scale +"));
+  ctrlRow.appendChild(el("button",{class:"btn inline",
+    onclick:()=>{ const f=1/_scaleStep(); _scaleBy(f, f); }},"Scale −"));
   ctrlRow.appendChild(lockArBtn);
   ctrlRow.appendChild(xPlusBtn);
   ctrlRow.appendChild(xMinusBtn);
 
-  // Outside map toggle — lifts scale limits for very large or outdoor spaces
+  // Outside map toggle — bigger steps for very large or outdoor spaces. The
+  // hard 0.1x-5x limits it used to lift were limits on a stack `scale`, which
+  // was a multiple of the master picture; a placement is in metres and its
+  // limit is the one above, which no house reaches.
   const outsideBtn = el("button",{
     class:"btn inline",
     style: ctx.state.maps._stackOutsideMode
       ? "background:#52b788;color:#071008;font-weight:700"
       : "color:#94a3b8",
-    title: "Outside map mode: larger scale range (0.01–100×) and bigger steps (0.5 per click)",
+    title: "Outside map mode: coarser steps (25% per click) for large outdoor spaces",
     onclick: ()=>{
       ctx.state.maps._stackOutsideMode = !ctx.state.maps._stackOutsideMode;
       outsideBtn.style.background = ctx.state.maps._stackOutsideMode ? "#52b788" : "";
@@ -4092,10 +3941,11 @@ function _stack(ctx, maps, helpBtn){
   ctrlRow.appendChild(outsideBtn);
 
   // Rotate controls
+  const _turn = (deg)=>_editPlace(p => { p.rotation_rad += deg * Math.PI / 180; return p; });
   ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap;margin-left:8px"},"Rotate:"));
-  ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>{ alignState.rotation = Math.round((alignState.rotation||0) - 15); alignState._m=null; alignState._m_ar=null; applyCurrentTransform(); }},"−15°"));
-  ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>{ alignState.rotation = Math.round((alignState.rotation||0) + 15); alignState._m=null; alignState._m_ar=null; applyCurrentTransform(); }},"﹢15°"));
-  ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>{ alignState.rotation = 0; alignState._m=null; alignState._m_ar=null; applyCurrentTransform(); }},"0°"));
+  ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>_turn(-15)},"−15°"));
+  ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>_turn(15)},"﹢15°"));
+  ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>_editPlace(p => { p.rotation_rad = 0; return p; })},"0°"));
 
   // View zoom controls (scales stage content so both maps are visible — zooming out reveals overflowed target maps)
   ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap;margin-left:8px"},"View:"));
@@ -4127,8 +3977,16 @@ function _stack(ctx, maps, helpBtn){
     if(tgtLayerRef) tgtLayerRef.style.opacity = String(ctx.state.maps._stackTgtOpacity);
   }},"▲"));
 
-  // Reset all alignment
-  ctrlRow.appendChild(el("button",{class:"btn inline",style:"margin-left:8px", onclick:()=>{ alignState.x_offset=0.0; alignState.y_offset=0.0; alignState.scale=1.0; alignState.rotation=0; alignState.scaleX_adj=1.0; alignState._m=null; alignState._m_ar=null; applyCurrentTransform(); }},"Reset"));
+  // Reset — back to the seed placement: on the reference, at its width, this
+  // picture's own shape. It is also how an unplaced map gets a first
+  // position, so it is the one control that works with no placement loaded.
+  ctrlRow.appendChild(el("button",{class:"btn inline",style:"margin-left:8px", onclick:()=>{
+    const tgtMap = maps.find(m=>m.id===(alignState.targetId||tgtSel.value));
+    const seed = tgtMap && _seedPlace(tgtMap, alignState.refId||refSel.value);
+    if(!seed){ ctx.toast("The Reference map has no placement yet — measure it first.", true); return; }
+    alignState.place = seed;
+    applyCurrentTransform();
+  }},"Reset"));
 
   // ── Point Align ────────────────────────────────────────────────────────────
   // Opens a MODAL OVERLAY (position:fixed) for side-by-side point matching.
@@ -4303,6 +4161,14 @@ function _stack(ctx, maps, helpBtn){
     const tgtMap = maps.find(m => m.id === tgtSel.value);
     if (!refMap) { ctx.toast("Select a reference map first", true); return; }
     if (!tgtMap || tgtMap.id === refMap.id) { ctx.toast("Select a different target map", true); return; }
+    // The align needs the reference to BE somewhere: the solve maps target
+    // fractions onto reference fractions, and turning that into a placement
+    // needs the reference's own metres. Refused here, before any points are
+    // placed, rather than after the Compute the Apply would then reject.
+    if (!_placeOf(refMap.id)) {
+      ctx.toast("The reference map has no placement yet — measure it, or align it onto a measured map first.", true);
+      return;
+    }
 
     // ── Local state (lives only while modal is open) ──
     const refPts = [];
@@ -4710,9 +4576,12 @@ function _stack(ctx, maps, helpBtn){
       applyBtn.textContent = bake ? "Bake & Apply" : "Apply";
       applyBtn.onclick = () => {
         if (bake && tgtMap.image && tgtMap.image.filename) {
-          alignState.x_offset = rDx; alignState.y_offset = rDy;
-          alignState.scale = 1.0; alignState.rotation = 0; alignState.scaleX_adj = 1.0;
-          alignState._m = null; alignState._m_ar = null;
+          // A BAKE puts the whole align into the PIXELS, so what is left for
+          // the placement is a translation. The backend composes the baked op
+          // into the record itself (`pixel_op` below → async_recompute_
+          // transform_for_map), so nothing is written here: the record it
+          // computes is the answer and a second one written from the panel
+          // would be the second copy this release deletes.
           _close();
           buildStage();
           const bakeImg = new Image();
@@ -4725,12 +4594,12 @@ function _stack(ctx, maps, helpBtn){
               // bsx != bsy whenever the two pictures are different shapes: an
               // align across shapes IS an anisotropic pixel stretch, and the
               // baked PNG has to carry it or the image comes out the wrong
-              // shape (issue #62).  A ROTATED bake then fails model_store's
-              // `uniform` check and the map's metric transform is dropped,
-              // which is correct and not a regression — the old uniform bake
-              // shipped a wrongly-shaped image while keeping a measurement
-              // that no longer described it — and the toast below asks for
-              // the re-measure.
+              // shape (issue #62).  A ROTATED bake used to drop the map's
+              // metric transform here — a general affine, which the
+              // five-field record could not hold — and the toast below asked
+              // for a re-measure.  The record carries σ now, so model_store
+              // composes it instead and the map stays measured; the toast is
+              // still wired for the ops that genuinely cannot be composed.
               const bsx = rScale * rStretch, bsy = rScale;
               const nw = Math.ceil(ow * bsx * cosA + oh * bsy * sinA);
               const nh = Math.ceil(ow * bsx * sinA + oh * bsy * cosA);
@@ -4757,33 +4626,32 @@ function _stack(ctx, maps, helpBtn){
           bakeImg.onerror = () => ctx.toast("Bake failed — image load error", true);
           bakeImg.src = _mapUrl(tgtMap);
         } else {
-          // ── Compose PA result with reference map's own stack transform ──
-          // The solver maps target → FLAT reference, but the reference is
-          // drawn through its own placement, so the target needs
-          // T_ref ∘ T_pa. T_ref is read as the world affine the renderer
-          // draws, whichever branch it is on; T_pa lands in the reference's
-          // centred image fraction, which is exactly T_ref's input. The
-          // result is written with the decomposition that agrees with it.
-          const refStk = refMap.stack || {};
-          const refAf = worldAffine(refStk, arHW);
-          const paAf = { M: rawM.slice(), c: [rDx, rDy] };
-          const fields = stackFieldsFromAffine(composeAffine(refAf, paAf), arHW);
-
-          alignState.x_offset   = fields.x_offset;
-          alignState.y_offset   = fields.y_offset;
-          alignState.scale      = fields.scale;
-          alignState.rotation   = fields.rotation;
-          alignState.scaleX_adj = fields.scale_x_adj;
-          alignState._m         = fields._m;
-          alignState._m_ar      = arHW;
-          console.log("[PtAlign Apply] ref placement: M=[" + refAf.M.map(v=>v.toFixed(4)).join(",") +
-            "] c=[" + refAf.c.map(v=>v.toFixed(4)).join(",") + "]");
-          console.log("[PtAlign Apply] PA raw: dx=" + rDx + " dy=" + rDy +
-            " M=[" + rawM.join(",") + "]");
-          console.log("[PtAlign Apply] Composed: dx=" + fields.x_offset + " dy=" + fields.y_offset +
-            " M=[" + fields._m.map(v=>v.toFixed(4)).join(",") + "]");
-          console.log("[PtAlign Apply] Decomposed: scale=" + fields.scale +
-            " rot=" + fields.rotation + " stretch=" + fields.scale_x_adj);
+          // ── Compose the solve with the reference's PLACEMENT ──
+          //
+          // The solver maps target fraction → reference fraction. Where a
+          // reference fraction IS, in metres, is the reference's record. So
+          // the target's placement is that composition, read off its two
+          // metre columns — one decomposition, the one `placementFromColumns`
+          // performs, mirroring the backend's.
+          //
+          // It composed two WORLD AFFINES and wrote back stack fields plus a
+          // matrix plus a decomposition: three descriptions of one placement,
+          // written together and updated apart. `worldAffine`,
+          // `composeAffine`, `invertAffine`, `decomposeFracMatrix` and
+          // `stackFieldsFromAffine` existed only to keep those three in step
+          // and are all deleted.
+          const refP = _placeOf(refMap.id);
+          if (!refP) { ctx.toast("The reference map has no placement — measure it first.", true); return; }
+          const toRefFrac = (u, v) => [
+            rawM[0]*(u-0.5) + rawM[1]*(v-0.5) + 0.5 + rDx,
+            rawM[2]*(u-0.5) + rawM[3]*(v-0.5) + 0.5 + rDy,
+          ];
+          const atM = (u, v) => { const f = toRefFrac(u, v); return mapFracToMetres(refP, f[0], f[1]); };
+          const o = atM(0, 0), ex = atM(1, 0), ey = atM(0, 1);
+          const solved = (o && ex && ey) ? placementFromColumns(
+            o, [ex[0]-o[0], ex[1]-o[1]], [ey[0]-o[0], ey[1]-o[1]]) : null;
+          if (!solved) { ctx.toast("That align is singular — the points are collinear.", true); return; }
+          alignState.place = solved;
           if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("point_align_applied");
           _close();
           buildStage();
@@ -5035,42 +4903,45 @@ function _stack(ctx, maps, helpBtn){
   // Tie-in list div
   const tieInListDiv = el("div",{style:"margin-top:6px"});
 
-  // Core save helper: saves the given (or current) alignment values to the backend
-  const performSave = async (overX, overY, overScale, overRot) => {
+  // THE COMMIT. One call, and it can refuse.
+  //
+  // An align used to be a "cosmetic" stack write that the metre record could
+  // not see; it is a placement, so it goes through `fabric_map_reanchor` —
+  // the one writer that preflights the calibration pins and writes NOTHING
+  // if the new placement would strand most of them off the map. That guard
+  // was written for a deliberate re-anchor and it is correct here for the
+  // same reason: this is a Save button, not a mouseup. The drag moves
+  // nothing on disk, so a writer that can decline never meets a live gesture,
+  // and the decline arrives as a sentence the owner can act on instead of a
+  // map that silently snaps back.
+  //
+  // `ref_map_id` is still recorded. It is provenance — what this map was
+  // aligned against — and nothing reads it for geometry.
+  const performSave = async (override) => {
     const tId = alignState.targetId || tgtSel.value;
     const tM  = (ctx.state.maps.list||[]).find(m=>m.id===tId) || maps.find(m=>m.id===tId);
     if(!tM) throw new Error("No target map selected");
-    const rId  = alignState.refId || refSel.value;
-    const rM2  = (ctx.state.maps.list||[]).find(m=>m.id===rId) || maps.find(m=>m.id===rId);
-    const x = overX   ?? alignState.x_offset;
-    const y = overY   ?? alignState.y_offset;
-    const s = overScale ?? alignState.scale;
-    const r = overRot ?? (alignState.rotation || 0);
-    const tgtWasMaster = !!(tM.stack?.is_master);
-    // Dual-master choice: 'tgt' = keep target as master, revoke reference instead
-    const keepTgt = dualMasterChoice === 'tgt' && tgtWasMaster && !!(rM2?.stack?.is_master);
-    const newStk = Object.assign({}, tM.stack||{}, {
-      x_offset: x, y_offset: y, scale: s, rotation: r,
-      scale_x_adj: alignState.scaleX_adj || 1.0,
-      ref_map_id: rId||null,
-      ref_ar: rM2 ? (rM2.image?.height||600)/(rM2.image?.width||800) : undefined,
-      _m: (overX !== undefined) ? null : (alignState._m || null),
-      _m_ar: (overX !== undefined) ? null : (alignState._m_ar || null),
-      ...(tgtWasMaster && !keepTgt ? { is_master: false } : {}),
-    });
-    await ctx.actions.mapsUpdateQuiet({ map_id: tM.id, stack: newStk });
-    // If user chose to keep target, also revoke master on the reference map
-    if(keepTgt && rM2){
-      const refStk2 = Object.assign({}, rM2.stack||{}, { is_master: false });
-      await ctx.actions.mapsUpdateQuiet({ map_id: rM2.id, stack: refStk2 });
+    const place = override || alignState.place;
+    if(!place) throw new Error("This map is not placed yet — press Reset to start it on the reference.");
+    try {
+      await ctx.actions.callWS({
+        type: "padspan_ha/fabric_map_reanchor", map_id: tM.id,
+        origin_x_m: place.origin_x_m, origin_y_m: place.origin_y_m,
+        scale_x_m: place.scale_x_m, scale_y_m: place.scale_y_m,
+        rotation_rad: place.rotation_rad, shear_rad: place.shear_rad,
+      });
+      if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("map_placement_committed");
+    } catch(e) {
+      if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("map_placement_refused");
+      throw e;
     }
-    const saved = (ctx.state.maps.list||[]).find(m=>m.id===tId);
-    if(saved?.stack) alignState.rotation = saved.stack.rotation ?? alignState.rotation;
+    const rId = alignState.refId || refSel.value;
+    if(rId && rId !== tM.id && (tM.stack||{}).ref_map_id !== rId){
+      await ctx.actions.mapsUpdateQuiet({ map_id: tM.id, stack: _stackPatch(tM.stack, { ref_map_id: rId }) });
+    }
+    alignState.place = { ...place };
+    await ctx.actions.modelRefresh();
     warnDiv.style.display = "none";
-    masterWarnDiv.style.display = "none";
-    dualMasterWarnDiv.style.display = "none";
-    dualMasterChoice = null;
-    return keepTgt ? false : tgtWasMaster; // true = target's master was revoked
   };
 
   // Render tie-in chips below ctrlRow
@@ -5095,7 +4966,7 @@ function _stack(ctx, maps, helpBtn){
           const tM3  = (ctx.state.maps.list||[]).find(m=>m.id===tId3) || maps.find(m=>m.id===tId3);
           if(!tM3) return;
           const newTIs = ((tM3?.stack?.tie_ins)||[]).filter(t=>t.ref_map_id !== ti.ref_map_id);
-          const newStk3 = Object.assign({}, tM3.stack||{}, { tie_ins: newTIs });
+          const newStk3 = _stackPatch(tM3.stack, { tie_ins: newTIs });
           try {
             await ctx.actions.mapsUpdateQuiet({ map_id: tM3.id, stack: newStk3 });
             ctx.toast("Tie-in removed");
@@ -5108,86 +4979,56 @@ function _stack(ctx, maps, helpBtn){
     tieInListDiv.appendChild(row2);
   };
 
-  // Save alignment — checks upstream conflicts and lists downstream dependents
+  // Save alignment — checks stored tie-ins and lists downstream dependents.
+  //
+  // The three thresholds are METRES now, not a weighted blend of "% offset",
+  // "% scale" and "degrees". They were three different units summed into one
+  // percentage, and none of them could see a mirror or a lean — so a map the
+  // tie-in put on the other side of the house scored zero and saved silently.
   const saveAlignBtn = el("button",{class:"btn inline", onclick: async (ev)=>{
     const btn = ev.currentTarget;
     const tId = alignState.targetId || tgtSel.value;
     const tM  = (ctx.state.maps.list||[]).find(m=>m.id===tId) || maps.find(m=>m.id===tId);
     if(!tM){ ctx.toast("No target map selected.", true); return; }
+    if(!alignState.place){ ctx.toast("This map is not placed yet — press Reset to start it on the reference.", true); return; }
     const allM = ctx.state.maps.list||maps;
     const escN = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 
-    // Dual-master guard: both maps are masters + scale/rotation changed + no choice made yet
-    const rId0 = alignState.refId || refSel.value;
-    const rM0  = allM.find(m=>m.id===rId0);
-    const srChanged = Math.abs(alignState.scale - 1.0) > 0.02 || Math.abs(alignState.rotation||0) > 2.0;
-    if(rM0?.stack?.is_master && tM?.stack?.is_master && srChanged && dualMasterChoice === null){
-      ctx.toast("Both maps are masters — choose which one keeps master status before saving.", true);
-      dualMasterWarnDiv.scrollIntoView?.({behavior:"smooth", block:"nearest"});
-      return;
-    }
-
-    // Upstream: tie-ins stored on this map pointing to reference maps
-    const conflicts = _checkAlignConflicts(
-      alignState.x_offset, alignState.y_offset,
-      alignState.scale, alignState.rotation||0, tM, allM
-    );
+    const conflicts = _checkAlignConflicts(alignState.place, tM, allM);
     // Downstream: other maps that have a tie-in pointing TO this map
     const downstream = allM.filter(m =>
       m.id !== tM.id && (m.stack?.tie_ins||[]).some(ti => ti.ref_map_id === tM.id)
     );
     const downstreamNames = downstream.map(m => m.name||m.id);
-
-    // Note about master revocation; keepTgt means reference lost master (not target)
-    const _mNote = wasM => {
-      if(!wasM) return "";
-      const rId0b = alignState.refId || refSel.value;
-      const rM0b  = allM.find(m=>m.id===rId0b);
-      if(dualMasterChoice === 'tgt' && rM0b) return `\n⭐ "${rM0b.name||rM0b.id}" master status revoked`;
-      return `\n⭐ Master status revoked`;
-    };
-    // No upstream conflicts — save immediately, note downstream if any
-    if(!conflicts.length){
+    const _run = async (place, label) => {
       btn.disabled = true; btn.textContent = "Saving…";
       try {
-        const wasM = await performSave();
-        const note = (downstreamNames.length
-          ? `Alignment saved ✔\n↳ Downstream maps may need re-checking: ${downstreamNames.join(", ")}`
-          : "Alignment saved ✔") + _mNote(wasM);
-        ctx.toast(note);
+        await performSave(place);
+        ctx.toast(downstreamNames.length
+          ? `Alignment saved ✔${label}\n↳ Downstream maps may need re-checking: ${downstreamNames.join(", ")}`
+          : `Alignment saved ✔${label}`);
       }
-      catch(e){ ctx.toast("Save failed: "+String(e), true); }
+      catch(e){ ctx.toast("Save failed: "+(e?.message||String(e)), true); }
       finally { try{ btn.disabled=false; btn.textContent="Save Alignment"; }catch(_){} }
+    };
+
+    if(!conflicts.length){ await _run(null, ""); return; }
+    // Everything within a metre of every tie-in: average silently.
+    if(conflicts.every(c=>c.gapM < TIE_MINOR_M)){
+      const avg = _averageAlignWithTieIns(alignState.place, (tM?.stack?.tie_ins)||[]);
+      await _run(avg, " (minor variance averaged with tie-ins)");
       return;
     }
-    // All tiny (<5%) — auto-average silently, note downstream if any
-    if(conflicts.every(c=>c.variancePct < 5)){
-      btn.disabled = true; btn.textContent = "Saving…";
-      try {
-        const tIns = (tM?.stack?.tie_ins)||[];
-        const avg = _averageAlignWithTieIns(alignState.x_offset, alignState.y_offset, alignState.scale, alignState.rotation||0, tIns);
-        const wasM = await performSave(avg.x_offset, avg.y_offset, avg.scale, avg.rotation);
-        const note = (downstreamNames.length
-          ? `Alignment saved ✔ (minor variance averaged)\n↳ Downstream maps may need re-checking: ${downstreamNames.join(", ")}`
-          : "Alignment saved ✔ (minor variance averaged with tie-ins)") + _mNote(wasM);
-        ctx.toast(note);
-      } catch(e){ ctx.toast("Save failed: "+String(e), true); }
-      finally { try{ btn.disabled=false; btn.textContent="Save Alignment"; }catch(_){} }
-      return;
-    }
-    // Show full warning: upstream conflicts + downstream note
-    const hasModerate = conflicts.some(c=>c.variancePct < 25);
+    const hasModerate = conflicts.some(c=>c.gapM < TIE_MAJOR_M);
     let html = `<div style="font-weight:600;color:#f59e0b;margin-bottom:8px">⚠ Alignment Conflicts Detected</div>`;
     html += `<div style="color:#cbd5e1;margin-bottom:8px;font-size:11px">This position differs from stored tie-in relationships for <strong>${escN(tM.name||tM.id)}</strong>:</div>`;
     html += `<ul style="margin:0 0 10px 14px;padding:0;color:#94a3b8;font-size:11px">`;
     for(const c of conflicts){
-      const sev = c.variancePct >= 25 ? "color:#f87171" : "color:#fbbf24";
+      const sev = c.gapM >= TIE_MAJOR_M ? "color:#f87171" : "color:#fbbf24";
       html += `<li style="margin-bottom:3px">Tied to <strong style="color:#e2e8f0">"${escN(c.refName)}"</strong>: `
-        + `offset ${c.offPct}%, scale ${c.scalePct}%, rotation ${c.rotDiff}° `
-        + `— <span style="${sev}">${c.variancePct}% overall variance</span></li>`;
+        + `<span style="${sev}">${c.gapM.toFixed(2)} m from where that tie-in puts this map</span></li>`;
     }
     html += `</ul>`;
-    // Downstream note (informational, not blocking)
     if(downstreamNames.length){
       html += `<div style="margin-bottom:10px;padding:7px 10px;border-radius:6px;background:#0a1a2a;border:1px solid #2563eb;font-size:11px;color:#93c5fd">`;
       html += `<strong>↓ Downstream maps tied to "${escN(tM.name||tM.id)}":</strong> `;
@@ -5202,66 +5043,41 @@ function _stack(ctx, maps, helpBtn){
     html += `</div>`;
     warnDiv.innerHTML = html;
     warnDiv.style.display = "block";
-    // Override
     warnDiv.querySelector("#_wOvrBtn").onclick = async()=>{
       warnDiv.style.display="none";
-      btn.disabled=true; btn.textContent="Saving…";
-      try{
-        const wasM = await performSave();
-        const note = (downstreamNames.length
-          ? `Alignment saved ✔ (override)\n↳ Update downstream maps: ${downstreamNames.join(", ")}`
-          : "Alignment saved ✔ (override)") + _mNote(wasM);
-        ctx.toast(note);
-      }
-      catch(e){ ctx.toast("Save failed: "+String(e), true); }
-      finally{ try{ btn.disabled=false; btn.textContent="Save Alignment"; }catch(_){} }
+      await _run(null, " (override)");
     };
-    // Average (only when hasModerate)
     const avgBtn = warnDiv.querySelector("#_wAvgBtn");
     if(avgBtn) avgBtn.onclick = async()=>{
       warnDiv.style.display="none";
-      btn.disabled=true; btn.textContent="Saving…";
-      try{
-        const tIns = (tM?.stack?.tie_ins)||[];
-        const avg = _averageAlignWithTieIns(alignState.x_offset, alignState.y_offset, alignState.scale, alignState.rotation||0, tIns);
-        const wasM = await performSave(avg.x_offset, avg.y_offset, avg.scale, avg.rotation);
-        const note = (downstreamNames.length
-          ? `Alignment saved ✔ (averaged)\n↳ Update downstream maps: ${downstreamNames.join(", ")}`
-          : "Alignment saved ✔ (averaged with tie-ins)") + _mNote(wasM);
-        ctx.toast(note);
-      } catch(e){ ctx.toast("Save failed: "+String(e), true); }
-      finally{ try{ btn.disabled=false; btn.textContent="Save Alignment"; }catch(_){} }
+      const avg = _averageAlignWithTieIns(alignState.place, (tM?.stack?.tie_ins)||[]);
+      await _run(avg, " (averaged with tie-ins)");
     };
-    // Cancel
     warnDiv.querySelector("#_wCxlBtn").onclick = ()=>{ warnDiv.style.display="none"; };
   }},"Save Alignment");
   ctrlRow.appendChild(saveAlignBtn);
 
   // ── Add Tie-in Button ──
-  // Tie-ins are stored alignment snapshots that serve as persistent constraints.
-  // Each tie-in records (x_offset, y_offset, scale, rotation) relative to a
-  // specific reference map + a date stamp. Multiple tie-ins from different
-  // reference maps create a constraint network. When the user saves a new
-  // alignment that conflicts with existing tie-ins, the conflict resolver
-  // either auto-averages (minor variance) or warns (significant variance).
+  // A tie-in records the PLACEMENT this map had when it was checked against a
+  // particular reference, plus a date. Several of them from different
+  // references make a constraint network, and a later Save that disagrees
+  // with them is either averaged (within a metre) or warned about.
   const addTieInBtn = el("button",{class:"btn inline",style:"margin-left:4px;background:#0a2a1a;border-color:#2d6a4f",
     onclick: async()=>{
       const tId = alignState.targetId || tgtSel.value;
       const tM  = (ctx.state.maps.list||[]).find(m=>m.id===tId) || maps.find(m=>m.id===tId);
       if(!tM){ ctx.toast("No target map selected.", true); return; }
+      if(!alignState.place){ ctx.toast("This map is not placed yet — nothing to tie.", true); return; }
       const rId = alignState.refId || refSel.value;
       const existing = (tM?.stack?.tie_ins)||[];
       // Replace any existing tie-in for the same ref
       const filtered = existing.filter(ti=>ti.ref_map_id !== rId);
       const newTieIns = [...filtered, {
         ref_map_id: rId,
-        x_offset:  alignState.x_offset,
-        y_offset:  alignState.y_offset,
-        scale:     alignState.scale,
-        rotation:  alignState.rotation||0,
-        date:      new Date().toISOString().slice(0,10),
+        date: new Date().toISOString().slice(0,10),
+        ...alignState.place,
       }];
-      const newStk = Object.assign({}, tM.stack||{}, { tie_ins: newTieIns });
+      const newStk = _stackPatch(tM.stack, { tie_ins: newTieIns });
       try {
         await ctx.actions.mapsUpdateQuiet({ map_id: tM.id, stack: newStk });
         ctx.toast("Tie-in added ✔");
@@ -5281,7 +5097,7 @@ function _stack(ctx, maps, helpBtn){
     style:"margin-top:10px;background:#1a0800;border-color:#7f1d1d;color:#fca5a5",
     onclick: ()=>{
       const allM = ctx.state.maps.list||maps;
-      const plans = _emergencyRecoverTieIns(allM);
+      const plans = _emergencyRecoverTieIns(allM, ctx.state.model);
       if(!plans.length){
         recovDetailPanel.style.display = "none";
         ctx.toast("No inconsistent tie-ins found — network looks healthy ✔");
@@ -5323,7 +5139,7 @@ function _stack(ctx, maps, helpBtn){
         try{
           for(const p of plans){
             const freshMap = (ctx.state.maps.list||maps).find(m=>m.id===p.map.id)||p.map;
-            await ctx.actions.mapsUpdateQuiet({ map_id: freshMap.id, stack: Object.assign({}, freshMap.stack||{}, { tie_ins: p.keptTieIns }) });
+            await ctx.actions.mapsUpdateQuiet({ map_id: freshMap.id, stack: _stackPatch(freshMap.stack, { tie_ins: p.keptTieIns }) });
           }
           recovDetailPanel.style.display="none";
           renderTieIns();
@@ -5742,7 +5558,9 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
   for(const m of visMaps){
     if(_isOutsideMap(m)) continue;
     const z = m.stack?.z_level ?? 0;
-    const bbPt = makeStackXform(m.stack, imageAr(m)).mapPt;
+    const _xfBB = mapXform(ctx.state.model, m);
+    if(!_xfBB) continue;    // unplaced: no footprint to take a bounding box of
+    const bbPt = _xfBB.mapPt;
     if(!_indoorBBByLevel.has(z)) _indoorBBByLevel.set(z,{minX:Infinity,minY:Infinity,maxX:-Infinity,maxY:-Infinity});
     const bb=_indoorBBByLevel.get(z);
     for(const [cx,cy] of [[0,0],[1,0],[1,1],[0,1]]){const[wx,wy]=bbPt(cx,cy);bb.minX=Math.min(bb.minX,wx);bb.minY=Math.min(bb.minY,wy);bb.maxX=Math.max(bb.maxX,wx);bb.maxY=Math.max(bb.maxY,wy);}
@@ -5788,7 +5606,9 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
     const outsideGroup = group.filter(m => _isOutsideMap(m));
     let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
     for(const m of indoorGroup){
-      const bbPt = makeStackXform(m.stack, imageAr(m)).mapPt;
+      const _xfG = mapXform(ctx.state.model, m);
+      if(!_xfG) continue;
+      const bbPt = _xfG.mapPt;
       for(const [cx,cy] of [[0,0],[1,0],[1,1],[0,1]]){
         const [wx,wy]=bbPt(cx,cy);
         minX=Math.min(minX,wx); minY=Math.min(minY,wy);
@@ -5826,7 +5646,9 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
           return [minX + px * (maxX - minX), minY + py * (maxY - minY)];
         };
       } else {
-        mapPt = makeStackXform(stk, imageAr(m)).mapPt;
+        const _xfM = mapXform(ctx.state.model, m);
+        if(!_xfM) continue;   // unplaced: nothing on this picture has a place
+        mapPt = _xfM.mapPt;
       }
 
       for(const [room, b] of Object.entries(m.room_bounds||{})){
@@ -5875,15 +5697,6 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
           s += `</g>`;
         }
       }
-      // Master map: gold dashed outline around its own footprint + star at centre
-      if(m.stack?.is_master){
-        const footprint = [[0,0],[1,0],[1,1],[0,1]].map(([cx,cy])=>{ const [wx,wy]=mapPt(cx,cy); return iso(wx,wy,z); });
-        s += `<polygon points="${ptsStr(footprint)}" fill="#fbbf2415" stroke="#fbbf24" stroke-width="2.5" stroke-dasharray="8,4" opacity="0.85"/>`;
-        const [cwx,cwy] = mapPt(0.5, 0.5);
-        const [cpx,cpy] = iso(cwx,cwy,z);
-        s += `<text x="${Math.round(cpx)}" y="${Math.round(cpy)}" text-anchor="middle" dominant-baseline="middle" font-size="24" opacity="0.9">⭐</text>`;
-        s += `<text x="${Math.round(cpx)}" y="${Math.round(cpy)+22}" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="600" opacity="0.8">master</text>`;
-      }
     }
 
     // Colored index dot at bottom-left corner of slab top face
@@ -5898,7 +5711,7 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
   sortedLevels.forEach((z, i)=>{
     const ly = BASE_H + 10 + i * LEGEND_ROW;
     const color = levelColor(z);
-    const groupLabel = byLevel.get(z).map(m=>(m.stack?.is_master?"⭐ ":"")+(m.name||m.id)).join(" + ");
+    const groupLabel = byLevel.get(z).map(m=>(m.name||m.id)).join(" + ");
     const ceil0 = byLevel.get(z)[0].stack?.ceiling_height_m || 2.4;
     s += `<circle cx="18" cy="${ly+11}" r="11" fill="${color}" opacity="0.9"/>`;
     s += `<text x="18" y="${ly+15}" text-anchor="middle" fill="#071008" font-size="12" font-weight="700">${i+1}</text>`;
@@ -7071,19 +6884,31 @@ function _blendLayouts(sets) {
   return out;
 }
 
-// A map's full-image footprint in metres from an origin/scale/rotation
-// transform — the visual aid for comparing where the system puts a photo vs
-// where the stack alignment puts it.
+// A map's frac->metre placement as an SVG matrix(a b c d e f), READ OFF
+// mapFracToMetres — the function every pin converts through — rather than
+// re-derived from the fields. The picture and the pins cannot then disagree
+// about where the map is, and this file grows no fourth copy of
+//
+//   metres = origin + R(rho) . [[Sx, -Sy*sin(sigma)], [0, Sy*cos(sigma)]] . frac
+//
+// x/y/width/height + rotate() is FOUR degrees of freedom and the record has
+// six: a sheared or mirrored placement drew square, in the one panel whose
+// job is to show two placements disagreeing.
+function _mapAffineM(t) {
+  const o = mapFracToMetres(t, 0, 0);
+  const ex = mapFracToMetres(t, 1, 0);
+  const ey = mapFracToMetres(t, 0, 1);
+  if (!o || !ex || !ey) return null;
+  return [ex[0] - o[0], ex[1] - o[1], ey[0] - o[0], ey[1] - o[1], o[0], o[1]];
+}
+
+// A map's full-image footprint in metres — the visual aid for comparing where
+// the system puts a photo vs where the stack alignment puts it.
 function _mapFootprintM(t) {
   if (!t || t.scale_x_m == null) return null;
-  const ox = Number(t.origin_x_m) || 0, oy = Number(t.origin_y_m) || 0;
-  const sx = Number(t.scale_x_m) || 0, sy = Number(t.scale_y_m) || 0;
-  const rot = Number(t.rotation_rad) || 0;
-  const c = Math.cos(rot), s = Math.sin(rot);
   return [[0, 0], [1, 0], [1, 1], [0, 1]].map(([fx, fy]) => {
-    const dx = fx * sx, dy = fy * sy;
-    return [Math.round((ox + dx * c - dy * s) * 1000) / 1000,
-            Math.round((oy + dx * s + dy * c) * 1000) / 1000];
+    const [xm, ym] = mapFracToMetres(t, fx, fy);
+    return [Math.round(xm * 1000) / 1000, Math.round(ym * 1000) / 1000];
   });
 }
 
@@ -7100,6 +6925,18 @@ function _fetchRoomsTruth(ctx, floorId) {
     .catch(err => { mapState._roomsTruthCache = { floorId, ts: Date.now(), data: null, error: String(err.message || err) }; })
     .finally(() => { mapState._roomsTruthLoading = null; ctx.actions.renderRooms(); });
 }
+
+// `_alignRepair` and the two repairs it routed to are deleted.
+//
+// It decided which of "Rebuild Stack" and "Fix alignment" to offer for a map
+// whose two stored placements disagreed. A map has one placement, so it
+// cannot disagree with itself: every one of the states that routing existed
+// for — a trim, a proportional crop, a deliberate resize, a turn — is
+// unrepresentable, and the two ws commands behind the buttons are gone.
+// `geometry_fault` still exists and still reaches this table, but it now
+// reports only the faults a single record can have: unreadable, unplaced, or
+// no world frame at all. None of those has a repair the panel can perform;
+// each has a sentence telling the owner what to do, in the Health tab.
 
 function _roomsTab(ctx, maps) {
   const { el, roomColor } = ctx.helpers;
@@ -7260,31 +7097,28 @@ function _roomsTab(ctx, maps) {
   if (floorMapsAll.length) _fetchRoomsTruth(ctx, floorId);
   const truthCache = (mapState._roomsTruthCache && mapState._roomsTruthCache.floorId === floorId)
     ? mapState._roomsTruthCache.data : null;
+  // TWO CANDIDATES, NOT THREE. The third was "Stack alignment" — the rooms
+  // as the hand-tuned stack composition drew them — and it was a real second
+  // opinion while the alignment was stored separately from the metre record.
+  // It is derived from that record now, so the two agreed to exactly 0.0 m
+  // over every map measured. Offering an owner a choice between two numbers
+  // that cannot differ is not a comparison.
   const candidates = {
-    stack: truthCache && truthCache.stack
-      ? { label: "Stack alignment", rooms: truthCache.stack.rooms, stats: truthCache.stack.stats }
-      : null,
     transforms: truthCache
-      ? { label: "System calibration", rooms: truthCache.transforms.rooms, stats: truthCache.transforms.stats }
+      ? { label: "Map placements", rooms: truthCache.transforms.rooms, stats: truthCache.transforms.stats }
       : null,
   };
-  // Blended layout: vertex-average of whichever sources the user trusts
-  // (default: saved fabric + stack alignment — deliberately NOT the
-  // fabricated per-map calibrations; averaging right with wrong is wrong).
-  // The persisted default is only established once the candidates have
-  // loaded — freezing it earlier would lock Stack off just because the
-  // fetch hadn't landed yet.
+  // Blended layout: vertex-average of whichever sources the user trusts.
   if (!mapState._roomsBlendSources && truthCache) {
-    mapState._roomsBlendSources = { fabric: true, stack: !!candidates.stack, transforms: false };
+    mapState._roomsBlendSources = { fabric: true, transforms: false };
   }
-  const blendSources = mapState._roomsBlendSources || { fabric: true, stack: false, transforms: false };
+  const blendSources = mapState._roomsBlendSources || { fabric: true, transforms: false };
   // Each trusted source keeps its own line style so the same room's copies
-  // are tellable apart when stacked: fabric solid, stack dashed, system dotted.
+  // are tellable apart when stacked: fabric solid, placements dotted.
   const _blendLabeledSets = () => {
     const sets = [];
     if (blendSources.fabric && Object.keys(fabricDraft).length) sets.push({ key: "fabric", label: "Fabric", rooms: fabricDraft, dashKind: null });
-    if (blendSources.stack && candidates.stack) sets.push({ key: "stack", label: "Stack", rooms: candidates.stack.rooms, dashKind: "long" });
-    if (blendSources.transforms && candidates.transforms) sets.push({ key: "transforms", label: "System", rooms: candidates.transforms.rooms, dashKind: "dot" });
+    if (blendSources.transforms && candidates.transforms) sets.push({ key: "transforms", label: "Placements", rooms: candidates.transforms.rooms, dashKind: "dot" });
     return sets;
   };
   const blendKey = JSON.stringify(blendSources);
@@ -7347,8 +7181,7 @@ function _roomsTab(ctx, maps) {
       : "";
     const fabricStats = { rooms: Object.keys(fabricDraft).length, clusters: _roomClusterCount(Object.entries(fabricDraft)) };
     const options = [["fabric", "Fabric (saved)", fabricStats]];
-    if (candidates.stack) options.push(["stack", "Stack alignment", candidates.stack.stats]);
-    if (candidates.transforms) options.push(["transforms", "System calibration", candidates.transforms.stats]);
+    if (candidates.transforms) options.push(["transforms", "Map placements", candidates.transforms.stats]);
     if (candidates.blended) options.push(["blended", "Blended", candidates.blended.stats]);
     for (const [key, label, stats] of options) {
       selRow.appendChild(el("button", {
@@ -7367,8 +7200,7 @@ function _roomsTab(ctx, maps) {
       const srcRow = el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:#94a3b8;margin-left:8px" });
       srcRow.appendChild(el("span", {}, "averaging:"));
       const srcs = [["fabric", "Fabric", Object.keys(fabricDraft).length > 0],
-                    ["stack", "Stack", !!candidates.stack],
-                    ["transforms", "System", !!candidates.transforms]];
+                    ["transforms", "Placements", !!candidates.transforms]];
       for (const [key, label, avail] of srcs) {
         const lbl = el("label", { style: `display:flex;gap:4px;align-items:center;cursor:pointer;${avail ? "" : "opacity:0.4"}` });
         const cb = document.createElement("input");
@@ -7386,11 +7218,9 @@ function _roomsTab(ctx, maps) {
       }
       selRow.appendChild(srcRow);
     }
-    if (truthCache && !candidates.stack) {
-      selRow.appendChild(el("span", { class: "muted", style: "font-size:10px" },
-        truthCache && mapState._roomsTruthCache.data === null
-          ? "candidates unavailable"
-          : "(no stack layout — no measured map anchors the frame)"));
+    if (truthCache && truthCache.no_world_frame_reason) {
+      selRow.appendChild(el("span", { class: "muted", style: "font-size:10px;color:#f87171" },
+        "no world frame — " + truthCache.no_world_frame_reason));
     }
     if (!truthCache && mapState._roomsTruthLoading) {
       selRow.appendChild(el("span", { class: "muted", style: "font-size:10px" }, "loading candidates…"));
@@ -7401,14 +7231,15 @@ function _roomsTab(ctx, maps) {
   // ── Alignment visual aid: the actual PHOTO ghosted at each placement ────
   // A bare rectangle reads as a random box; the map image rendered inside
   // it is what makes "where does this photo sit" judgeable by eye.
-  const alignRow = (truthCache && truthCache.alignment || [])
+  const alignRow = (truthCache && truthCache.placements || [])
     .find(a => a.map_id === mapState._roomsAlignPreview);
   const _alignMap = alignRow ? maps.find(m => m.id === alignRow.map_id) : null;
   const _alignImgUrl = _alignMap && _alignMap.image && _alignMap.image.filename
     ? ctx.helpers.mapImageUrl(_alignMap) : null;
+  // ONE ghost, because there is one placement. It drew two — "system" and
+  // "stack" — so an owner could see the disagreement and pick a side.
   const alignRects = alignRow ? [
-    alignRow.system ? { t: alignRow.system, pts: _mapFootprintM(alignRow.system), color: "#f59e0b", label: `system: ${alignRow.name}`, imgUrl: _alignImgUrl } : null,
-    alignRow.stack ? { t: alignRow.stack, pts: _mapFootprintM(alignRow.stack), color: "#38bdf8", label: `stack: ${alignRow.name}`, imgUrl: _alignImgUrl } : null,
+    alignRow.system ? { t: alignRow.system, pts: _mapFootprintM(alignRow.system), color: "#f59e0b", label: alignRow.name, imgUrl: _alignImgUrl } : null,
   ].filter(r => r && r.pts) : [];
 
   // ── Status / readout row ────────────────────────────────────────────────
@@ -7626,14 +7457,16 @@ function _roomsTab(ctx, maps) {
         const img = document.createElementNS("http://www.w3.org/2000/svg", "image");
         img.setAttribute("href", rect.imgUrl);
         img.setAttributeNS("http://www.w3.org/1999/xlink", "href", rect.imgUrl);
-        img.setAttribute("x", rect.t.origin_x_m);
-        img.setAttribute("y", rect.t.origin_y_m);
-        img.setAttribute("width", rect.t.scale_x_m);
-        img.setAttribute("height", rect.t.scale_y_m);
+        // The unit square, placed by the map's own affine. x/y/width/height +
+        // rotate() could not lean the y axis, so a sheared ghost was drawn
+        // square while its dashed footprint (same matrix) was not.
+        img.setAttribute("x", "0");
+        img.setAttribute("y", "0");
+        img.setAttribute("width", "1");
+        img.setAttribute("height", "1");
         img.setAttribute("preserveAspectRatio", "none");
         img.setAttribute("opacity", "0.35");
-        const deg = (Number(rect.t.rotation_rad) || 0) * 180 / Math.PI;
-        if (Math.abs(deg) > 0.001) img.setAttribute("transform", `rotate(${deg} ${rect.t.origin_x_m} ${rect.t.origin_y_m})`);
+        img.setAttribute("transform", `matrix(${_mapAffineM(rect.t).join(" ")})`);
         img.style.pointerEvents = "none";
         svg.insertBefore(img, svg.firstChild);
       }
@@ -8080,109 +7913,51 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
   }
   card.appendChild(admin);
 
-  // ── Map alignment: where the system thinks each map sits vs the stack ───
-  // A wrong system placement gets FIXED to match the hand-tuned alignment
-  // (repairing scanners/beacons/barriers derived from it), never discarded.
-  const alignRows = (truthCache && truthCache.alignment || []).filter(a => a.system || a.stack);
-  if (alignRows.length && candidates.stack) {
+  // ── Map placements ─────────────────────────────────────────────────────
+  // Where each map on this floor sits, in metres. It was "system calibration
+  // vs stack alignment", two columns and up to three repair buttons per row,
+  // plus a red warning telling the owner that pressing one of them could move
+  // their rooms. All of that existed because a map's placement was stored
+  // twice: the table showed the two copies, and the buttons overwrote one
+  // with the other. There is one copy, so there is one column, no repair to
+  // choose and nothing to warn about.
+  const placeRows = (truthCache && truthCache.placements || []).filter(a => a.system);
+  if (placeRows.length) {
     const aCard = el("div", { style: "margin-top:10px;padding:10px;background:#0a150e;border-radius:6px" });
     aCard.appendChild(el("div", { style: "font-weight:700;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px" },
-      "Map placements (system calibration vs stack alignment)"));
-    // These controls overwrite one stored placement with another. On a healthy
-    // install there is nothing here to fix, and "fixing" an alignment that was
-    // never wrong discards the good copy.
-    aCard.appendChild(el("div", {
-      style: "display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;padding:8px 10px;"
-           + "border:1px solid #b91c1c;border-left:3px solid #ef4444;border-radius:6px;"
-           + "background:rgba(185,28,28,.12);color:#fca5a5;font-size:11.5px;line-height:1.5",
-    }, [
-      el("div", { style: "font-size:13px;line-height:1" }, "⚠"),
-      el("div", {}, [
-        el("div", { style: "font-weight:700;color:#fecaca;margin-bottom:2px" },
-          "Only use these when a map is actually misaligned."),
-        el("div", {},
-          "Each control overwrites one stored placement with another. If your rooms and "
-          + "scanners already sit where they belong, there is nothing to fix here and "
-          + "applying a repair will move them. Use “Show” first and look."),
-      ]),
-    ]));
-    const tbl = el("div", { style: "display:grid;grid-template-columns:1fr auto auto auto auto;gap:3px 12px;font-size:11px;align-items:center" });
-    for (const h of ["Map", "System says", "Stack says", "", ""]) {
+      "Map placements"));
+    const tbl = el("div", { style: "display:grid;grid-template-columns:1fr auto auto auto;gap:3px 12px;font-size:11px;align-items:center" });
+    for (const h of ["Map", "Placed at", "", ""]) {
       tbl.appendChild(el("div", { style: "font-weight:600;color:#64748b;font-size:10px;text-transform:uppercase" }, h));
     }
     const fmt = (t) => t && t.scale_x_m != null
       ? `${Number(t.scale_x_m).toFixed(1)}×${Number(t.scale_y_m).toFixed(1)}m @ (${Number(t.origin_x_m).toFixed(1)}, ${Number(t.origin_y_m).toFixed(1)})`
       : "—";
-    for (const a of alignRows) {
+    for (const a of placeRows) {
       const showing = mapState._roomsAlignPreview === a.map_id;
+      const fault = a.geometry_fault;
       tbl.appendChild(el("div", { style: "color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" },
         a.name + (a.system && a.system.measured ? " 📏" : "")));
-      tbl.appendChild(el("div", { class: "mono", style: `color:${a.agrees ? "#52b788" : "#f59e0b"}` }, fmt(a.system)));
-      tbl.appendChild(el("div", { class: "mono", style: "color:#94a3b8" }, fmt(a.stack)));
+      tbl.appendChild(el("div", { class: "mono", style: `color:${fault ? "#f87171" : "#52b788"}` }, fmt(a.system)));
       tbl.appendChild(el("button", {
         class: "btn inline" + (showing ? " primary" : ""),
         style: "font-size:10px;padding:2px 8px",
-        title: "Draw both placements on the canvas — amber = system, cyan = stack",
+        title: "Draw this map's placement on the canvas",
         onclick: () => {
           mapState._roomsAlignPreview = showing ? null : a.map_id;
           ctx.actions.renderRooms();
         },
       }, showing ? "👁 Hide" : "👁 Show"));
-      // WHICH SIDE is stale decides the repair. `agrees` only says the two
-      // differ. A map flagged by geometry_fault has a stack that no longer
-      // describes its own image — the classic cause is a trim, which re-derives
-      // the metric record and leaves the stack behind (issue #62). Offering
-      // "Fix alignment" there would overwrite the good copy with the stale one.
-      if (a.geometry_fault) {
-        const gf = a.geometry_fault;
-        // A fault fires on any of three signals. Naming only two of them meant
-        // a scale-only fault fell through to the origin branch and quoted a
-        // distance that is inside its own tolerance — "0.2 m from what its
-        // scale says" reads as nonsense to the person being asked to approve.
-        const why = gf.iso_error > 0.02
-          ? `its own two scales disagree by ${(gf.iso_error * 100).toFixed(0)}%`
-          : gf.scale_error_frac > 0.05
-            ? `its stored scale is ${(gf.scale_error_frac * 100).toFixed(0)}% off what its alignment implies`
-            : `its placement is ${gf.origin_delta_m.toFixed(1)} m from what its scale says`;
-        tbl.appendChild(el("button", {
-          class: "btn inline primary", style: "font-size:10px;padding:2px 8px",
-          title: "Rebuild this map's stack alignment from its measured scale. "
-               + "The measurement itself is not touched.",
-          onclick: async () => {
-            if (!confirm(
-              `"${a.name}" has a stale alignment — ${why}.\n\n`
-              + "That is either a trim by an older build, which updated its measured scale "
-              + "but not its alignment, or a Point Align onto a map of a different shape, "
-              + "which gave this one that map's proportions.\n\n"
-              + "Rebuild the alignment from the measured scale? The measurement, the room "
-              + "fabric and your scanner positions are not touched."
-            )) return;
-            try {
-              const r = await ctx.actions.wsCall("padspan_ha/fabric_map_stack_rebuild", { map_id: a.map_id });
-              ctx.toast(r.cleared
-                ? `Rebuilt "${a.name}" — placement and scale agree again`
-                : `Rebuilt "${a.name}", but it still disagrees — please report this`, !r.cleared);
-              await refreshAfter();
-            } catch (err) { ctx.toast("Rebuild failed: " + (err.message || err), true); }
-          },
-        }, "Rebuild alignment"));
-      } else if (a.agrees) {
-        tbl.appendChild(el("div", { style: "color:#52b788;font-size:10px" }, "✓ aligned"));
-      } else if (a.stack) {
-        tbl.appendChild(el("button", {
-          class: "btn inline", style: "font-size:10px;padding:2px 8px",
-          onclick: async () => {
-            if (!confirm(`Fix "${a.name}" so the system's placement matches your stack alignment (${fmt(a.stack)})?\n\nThis overwrites the map's stored scale and origin. Scanner, beacon and barrier positions stay where they are — their metres are ground truth. Room fabric is not touched.`)) return;
-            try {
-              await ctx.actions.wsCall("padspan_ha/fabric_map_align_to_stack", { map_id: a.map_id });
-              ctx.toast(`Aligned "${a.name}" to its stack placement`);
-              await refreshAfter();
-            } catch (err) { ctx.toast("Align failed: " + (err.message || err), true); }
-          },
-        }, "Fix alignment"));
-      } else {
-        tbl.appendChild(el("div", { class: "muted", style: "font-size:10px" }, "no stack data"));
-      }
+      // The three faults a single record can still have. None of them has a
+      // repair the panel can perform on the owner's behalf — each is either
+      // "measure this map" or "this record is damaged" — so the row says what
+      // is wrong and the Health tab says what to do about it.
+      tbl.appendChild(fault
+        ? el("div", { style: "color:#f87171;font-size:10px" },
+            (fault.terms || []).includes("unreadable") ? "⚠ unreadable record"
+            : (fault.terms || []).includes("unplaced") ? "not placed"
+            : "⚠ " + (fault.terms || []).join(", "))
+        : el("div", { style: "color:#52b788;font-size:10px" }, "✓"));
     }
     aCard.appendChild(tbl);
     card.appendChild(aCard);

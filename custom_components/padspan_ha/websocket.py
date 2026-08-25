@@ -129,7 +129,6 @@ from .ws_calibration import (  # noqa: F401  (re-exported: registration, tests, 
     ws_calibration_save_point,
     ws_calibration_swap_radio,
     ws_object_evict,
-    ws_positioning_repair,
 )
 from .ws_radios import (  # noqa: F401  (re-exported: registration, tests, callers)
     ws_radio_area_set,
@@ -227,8 +226,6 @@ from .ws_fabric import (  # noqa: F401  (re-exported: registration, tests, calle
     ws_fabric_health,
     ws_fabric_light_position_set,
     ws_fabric_light_remove,
-    ws_fabric_map_align_to_stack,
-    ws_fabric_map_stack_rebuild,
     ws_fabric_map_reanchor,
     ws_fabric_map_transform_set,
     ws_fabric_reset_spatial,
@@ -308,7 +305,6 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_object_evict)
     websocket_api.async_register_command(hass, ws_calibration_compute_model)
     websocket_api.async_register_command(hass, ws_calibration_retrain_rf)
-    websocket_api.async_register_command(hass, ws_positioning_repair)
     websocket_api.async_register_command(hass, ws_calibration_swap_radio)
     websocket_api.async_register_command(hass, ws_calibration_relearn_radio)
     websocket_api.async_register_command(hass, ws_calibration_beacon_profiles)
@@ -368,8 +364,6 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_fabric_correct_room)
     websocket_api.async_register_command(hass, ws_fabric_floor_finalize)
     websocket_api.async_register_command(hass, ws_fabric_truth_candidates)
-    websocket_api.async_register_command(hass, ws_fabric_map_align_to_stack)
-    websocket_api.async_register_command(hass, ws_fabric_map_stack_rebuild)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_set)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_remove)
     websocket_api.async_register_command(hass, ws_fabric_map_transform_set)
@@ -497,6 +491,12 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
         "beacon_positions_m": beacon_positions_m,
         "fabric_floors": fabric_floors,
         "floor_elevations": _mdl_el.floor_base_elevations_m() if _mdl_el else {},
+        # The house's metre scale, stored. The panel used to work it out for
+        # itself, in `stack_transform.js`'s metreAnchor, from the maps and
+        # their transforms — a second implementation of the same measurement,
+        # which is how the reader and the writer came to be able to pick
+        # different maps. There is one number and this is where it comes from.
+        "world_gauge": mdl.world_gauge() if mdl else {"m_per_unit": None, "source_map_id": None},
     })
 
 

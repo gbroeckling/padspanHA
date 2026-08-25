@@ -272,3 +272,57 @@ def mock_hass(tmp_path: Path) -> MockHass:
 def mock_store() -> MockStore:
     """Return a fresh MockStore instance."""
     return MockStore()
+
+
+def seed_world_gauge(mdl: Any, maps: list) -> dict | None:
+    """Seed a test model store's world gauge from these maps.
+
+    R2 stopped measuring the house's metre scale on every read and started
+    storing it, so a fixture that wants a world frame has to have one — the
+    same way a real install gets one, from
+    `ModelStore.async_ensure_world_gauge` at startup or on its first
+    measurement. This is that, synchronously and without a store write, for
+    fixtures that build `mdl.data` by hand.
+
+    Returns the seed dict (or None), so a test can assert on what was chosen.
+    """
+    from custom_components.padspan_ha import fabric_truth
+
+    g = fabric_truth.measure_world_gauge(maps, mdl)
+    mdl.data["world_gauge"] = (
+        {"m_per_unit": g["m_per_unit"], "source_map_id": g["source_map_id"]}
+        if g else {"m_per_unit": None, "source_map_id": None}
+    )
+    return g
+
+
+async def migration_backup(hass: Any, note: str, store_keys: list) -> str:
+    """The auto-backup the migration is handed, for fixtures.
+
+    Step 13 — the one-way placement conversion — deletes what it reads, so it
+    refuses to run without a snapshot the same way `bright_import` does. A
+    fixture that wants the conversion to happen has to supply one; a fixture
+    that omits it is testing the refusal.
+    """
+    return "bk_test"
+
+
+def maps_store_with(maps: list) -> Any:
+    """A real MapsStore over an in-memory list of maps.
+
+    A MagicMock is not enough any more: the placement conversion writes back
+    through `async_update_map`, which is where a stack's placement fields are
+    stripped, so a fixture that mocks it out is not exercising the thing that
+    makes "one stored placement" true.
+    """
+    from unittest.mock import AsyncMock as _AM
+
+    from custom_components.padspan_ha.maps_store import MapsStore
+
+    ms = MapsStore.__new__(MapsStore)
+    ms.hass = MagicMock()
+    ms.store = _AM()
+    ms.store.async_save = _AM()
+    ms.maps_dir = Path(".")
+    ms.data = {"maps": maps}
+    return ms

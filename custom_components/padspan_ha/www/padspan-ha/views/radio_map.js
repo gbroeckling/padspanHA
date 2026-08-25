@@ -50,7 +50,7 @@ const DEFAULT_PATH_LOSS_N = 2.5; // indoor path-loss exponent
  * back to receiver pin positions: those are photo fractions, and re-deriving a
  * physical position from a picture is what moved scanners after a trim.
  *
- * mPerWorld is the measured metres-per-world-unit, so callers convert distance
+ * mPerWorld is the stored metres-per-world-unit, so callers convert distance
  * using what the fabric actually measured rather than assuming a plan width.
  *
  * floorDist is the number of slabs between a scanner's floor and the floor
@@ -68,7 +68,7 @@ function _floorId(floorMaps) {
 }
 
 function _fabricScanners(mapsList, model, drawnZ, mapZByMapId, scannerQuality, settings) {
-  const fab = fabricWorldScanners(mapsList, model);
+  const fab = fabricWorldScanners(model);
   if (!fab) return { scanners: [], mPerWorld: 0 };
 
   // Fallback floor→level only for floors the fabric has not levelled yet.
@@ -102,7 +102,7 @@ function _fabricScanners(mapsList, model, drawnZ, mapZByMapId, scannerQuality, s
       qualityOffset: scannerQuality[sc.source] || 0,
     });
   }
-  return { scanners: out, mPerWorld: fab.m_per_world };
+  return { scanners: out, mPerWorld: fab.m_per_unit };
 }
 
 // ── Color Scales ─────────────────────────────────────────────────────────────
@@ -623,7 +623,7 @@ export function modelFloorHeatmapSVG(floorMaps, mapPtFns, w2v, wBB, settings, al
 
   // Walls come from the fabric, in the same world frame as the scanners —
   // never from a list on a photograph.
-  const worldBarriers = fabricWorldBarriers(allMaps || floorMaps, model, _floorId(floorMaps)) || [];
+  const worldBarriers = fabricWorldBarriers(model, _floorId(floorMaps)) || [];
 
   // Build room boundary polygons in world coords (for adaptive data lookup)
   // — fabric-first, per-photo bounds as fallback
@@ -789,7 +789,7 @@ export function floorHeatmapSVG(calPoints, floorMaps, mapPtFns, w2v, wBB, scanne
   setHatchRange(Math.min(..._lvlRssis), Math.max(..._lvlRssis), _userGain, _userContrast);
 
   // ── 2. Walls, from the fabric, in the world frame ─────────────────────────
-  const worldBarriers = fabricWorldBarriers(allMaps || floorMaps, model, _floorId(floorMaps)) || [];
+  const worldBarriers = fabricWorldBarriers(model, _floorId(floorMaps)) || [];
 
   // ── 3. IDW interpolation in world space ────────────────────────────────────
   const wW = wBB.maxX - wBB.minX;

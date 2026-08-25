@@ -257,3 +257,103 @@ def test_sha256_helper() -> None:
     data = b"padspan"
     expected = hashlib.sha256(data).hexdigest()
     assert _sha256(data) == expected
+
+
+# ---------------------------------------------------------------------------
+# A field is changed only by a payload that STATES it
+# ---------------------------------------------------------------------------
+#
+# `async_update_map` rebuilt six stack fields from the constants in its own
+# signature every time it was handed a `stack` dict, so a caller sending one
+# field snapped the other five back to a pristine placement. It is the
+# identical "absent means delete" defect the σ rule fixed on `map_transforms`,
+# on the sibling record.
+#
+# FOUR OF THE SIX WERE PLACEMENT and are gone with the second copy: x_offset,
+# y_offset, scale and rotation said where the map sat, in world units, beside
+# a metre record that said the same thing differently. What is left is the
+# residue a placement cannot express — which storey, how tall, what it was
+# aligned against, and the tie-in constraints — and the rule still governs it.
+
+_PLACED = {"z_level": 2, "ceiling_height_m": 2.7, "ref_map_id": "m0",
+           "tie_ins": [{"ref_map_id": "m0", "origin_x_m": 1.0, "origin_y_m": 2.0,
+                        "scale_x_m": 20.0, "scale_y_m": 15.0,
+                        "rotation_rad": 0.0, "shear_rad": 0.0}]}
+
+_REBUILT_FROM_DEFAULTS = {"z_level": 0, "ceiling_height_m": 2.4}
+
+
+def _placed_map(tmp_path: Path) -> MapsStore:
+    store = _make_store(tmp_path)
+    store.data = {"maps": [{
+        "id": "m1", "name": "Ground", "floor_id": "main",
+        "image": {"width": 1600, "height": 1200},
+        "receivers": [], "notes": "", "calibration": {"mode": "none"},
+        "room_bounds": {}, "stack": dict(_PLACED),
+    }]}
+    return store
+
+
+@pytest.mark.parametrize("field,value", [("z_level", 3), ("ceiling_height_m", 3.1),
+                                         ("ref_map_id", "m9")],
+                         ids=["z_level", "ceiling_height_m", "ref_map_id"])
+@pytest.mark.asyncio
+async def test_a_partial_stack_update_changes_only_what_it_states(
+        tmp_path, field, value) -> None:
+    """The 3D Stack table edits one cell. It must not lose anything else."""
+    store = _placed_map(tmp_path)
+    await store.async_update_map("m1", stack={field: value})
+
+    stk = store.data["maps"][0]["stack"]
+    assert stk[field] == value, "the field the caller stated did not change"
+    for k, was in _PLACED.items():
+        if k == field:
+            continue
+        assert stk[k] == was, (
+            f"stating {field} reset {k} to {stk.get(k)}; the stored value was {was}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_no_placement_field_survives_a_stack_write(tmp_path) -> None:
+    """A stack cannot HOLD a placement any more, whatever a client sends.
+
+    The panel is not the only writer of this store — a restored backup and a
+    hand-edited `.storage` both come through here — so the sanitiser is what
+    makes "one stored placement" a property of the data rather than of the
+    code that usually writes it.
+    """
+    store = _placed_map(tmp_path)
+    await store.async_update_map("m1", stack={
+        "z_level": 1, "x_offset": 0.42, "y_offset": -0.17, "scale": 1.35,
+        "rotation": 30.0, "scale_x_adj": 1.1, "ref_ar": 0.75,
+        "is_master": True, "_m": [1, 0, 0, 1], "_m_ar": 0.75,
+    })
+    stk = store.data["maps"][0]["stack"]
+    assert set(stk) <= {"z_level", "ceiling_height_m", "ref_map_id", "tie_ins", "floor_id"}, (
+        f"a placement field survived a stack write: {sorted(set(stk))}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_map_with_no_stack_still_gets_the_defaults(tmp_path) -> None:
+    """Carried is not invented: with nothing stored the constants are right."""
+    store = _make_store(tmp_path)
+    store.data = {"maps": [{"id": "m1", "name": "Ground", "floor_id": "main",
+                            "image": {"width": 1600, "height": 1200},
+                            "receivers": [], "notes": "",
+                            "calibration": {"mode": "none"}, "room_bounds": {}}]}
+    await store.async_update_map("m1", stack={"z_level": 1})
+    stk = store.data["maps"][0]["stack"]
+    assert stk["z_level"] == 1
+    assert stk["ceiling_height_m"] == 2.4
+
+
+@pytest.mark.asyncio
+async def test_a_new_map_is_not_placed_anywhere(tmp_path) -> None:
+    """An uploaded picture has no position and no size until somebody gives it
+    one. It used to be born at scale 1.0 at the world origin, which is
+    indistinguishable from a placement and is not one."""
+    store = _make_store(tmp_path)
+    m = await store.async_add_map("Ground", "g.png", "image/png", 800, 600, _small_png_b64())
+    assert set(m["stack"]) == {"z_level", "ceiling_height_m"}

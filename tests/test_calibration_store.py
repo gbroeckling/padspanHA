@@ -818,11 +818,17 @@ async def test_reanchor_refuses_stranding_pose() -> None:
     assert cal.data["points"][0]["x_frac"] == pytest.approx(0.2)
 
 
-async def test_reanchor_from_stack_uses_legacy_rules() -> None:
-    """With no explicit pose the stack derives it — the one sanctioned
-    'make the world match the display' path (master → origin (0,0))."""
+async def test_reanchor_with_no_pose_moves_nothing_and_still_re_derives() -> None:
+    """With NO field stated this is a no-op that still runs the guard.
+
+    It used to derive the pose from the stack — "make the world match the
+    display", with `(0,0)` for whichever map carried the master flag. There is
+    no display-only copy to match: the stack is derived from this record, so
+    reading it here would be the record being re-derived from itself. The pins
+    still re-derive, which is what makes this the idempotence path.
+    """
     model = _real_model({
-        "origin_x_m": 6.0, "origin_y_m": 4.0,        # corrupt
+        "origin_x_m": 0.0, "origin_y_m": 0.0,
         "scale_x_m": 10.0, "scale_y_m": 8.0,
         "rotation_rad": 0.0, "floor_id": "main",
     })
@@ -830,9 +836,7 @@ async def test_reanchor_from_stack_uses_legacy_rules() -> None:
     cal = _make_store(pts)
     cal._model = model
 
-    res = await model.async_reanchor_map(
-        "map1", {"stack": {"is_master": True, "rotation": 0}}, cal,
-    )
+    res = await model.async_reanchor_map("map1", {"stack": {}}, cal)
     assert res["ok"] is True
     t = model.data["map_transforms"]["map1"]
     assert t["origin_x_m"] == 0.0 and t["origin_y_m"] == 0.0

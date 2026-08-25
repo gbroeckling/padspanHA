@@ -90,18 +90,11 @@ EVENTS: frozenset[str] = frozenset({
     "calibration_point_added", "capture_started", "forensics_query",
     "showcase_on", "backup_created", "backup_restored", "factory_reset",
     "bright_import",
-    # Map placement repairs, both directions. The fault COUNT in health says
-    # how many installs carry a broken map; these say whether people find the
-    # repair and which way it needed to go — a repair that nobody ever runs is
-    # a repair nobody can find.
-    "map_align_to_stack", "map_stack_rebuilt",
-    # The two tools that rewrite a map's placement through the stack algebra
-    # (issue #64): a completed master swap, one the wizard refused because the
-    # new master's placement could not be inverted, and a Point Align applied.
-    # `health.stack_desync` counts maps left describing two footprints; these
-    # are its denominator — without them a zero means "fixed" and "nobody ran
-    # it" in the same breath.
-    "master_changed", "master_change_refused", "point_align_applied",
+    # A map's placement committed from the align editor, and one the writer
+    # refused because it would have stranded the calibration pins. Both halves
+    # matter: a refusal nobody ever hits is a guard nobody needs, and a
+    # refusal everybody hits is a guard in the wrong place.
+    "map_placement_committed", "map_placement_refused", "point_align_applied",
     # IRK resolution, cumulative over the window: a NEW address resolved to a
     # registered key; a NEW rotating address that matched no key.
     "irk_resolved", "irk_unresolved_rpa",
@@ -358,33 +351,19 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     except Exception:
         resolving = 0
 
-    # Read-only self-check: maps whose geometry disagrees with itself.
+    # Read-only self-check: maps this install cannot draw.
+    #
+    # It used to count DISAGREEMENT — the gap between a map's metric record
+    # and its stack — under four headings. There is one placement now, so all
+    # four read zero on every install and are gone rather than reported as a
+    # clean bill of health nobody earned. What is left is a record that is not
+    # a placement, a map with no placement at all, and a house with no metre
+    # scale (which draws nothing, silently, and had no counter at all).
     _geometry_faults = 0
-    _anchor_faulted = False
-    # Whether ANY map is measured. Without one there is no metre anchor, so
-    # scale comes from a fallback and every distance in the house is a guess
-    # wearing units. A user reported measuring a map and seeing "no reflection
-    # of it" — from a report alone that install and a correctly measured one
-    # were identical, because absence was the one thing never sent.
+    _fault_unreadable = 0
+    _fault_unplaced = 0
+    _no_world_frame = False
     _has_anchor = False
-    # Which of the three signals actually tripped. A lumped fault count says
-    # something is wrong and nothing about what, which sends the developer
-    # back to asking for screenshots — the exact loop this report exists to
-    # end. They overlap by design: one map can trip more than one.
-    _fault_iso = 0
-    _fault_scale = 0
-    _fault_origin = 0
-    # Maps placed by Point Align, and whether the map anchoring the whole
-    # house is one of them. The anchor's KIND is the discriminator for issue
-    # #62: a trimmed Point-Aligned map and a trimmed ordinary one fail in
-    # different ways, and from a fault count alone the two are identical.
-    _maps_affine = 0
-    _anchor_affine = False
-    # Point-Aligned maps whose matrix and whose decomposed fields no longer
-    # describe the same footprint. Nothing else can see this: such a map draws
-    # correctly through its matrix while every stored number disagrees. It is
-    # the exposure metric for #64 step 3, which is known and not yet fixed.
-    _stack_desync = 0
     try:
         from . import fabric_truth as _ft  # noqa: PLC0415
         _mdl_store = dom.get(DATA_MODEL)
@@ -392,26 +371,18 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         if _mdl_store is not None:
             _faults = _ft.map_geometry_faults(_maps_list, _mdl_store)
             _geometry_faults = len(_faults)
-            _anchor_faulted = any(f.get("is_anchor") for f in _faults)
             for _f in _faults:
-                if float(_f.get("iso_error") or 0) > _ft.ANCHOR_ISO_TOL:
-                    _fault_iso += 1
-                if float(_f.get("scale_error_frac") or 0) > _ft.GEOMETRY_SCALE_TOL:
-                    _fault_scale += 1
-                if float(_f.get("origin_delta_m") or 0) > _ft.GEOMETRY_ORIGIN_TOL_M:
-                    _fault_origin += 1
-            _anchor = _ft.find_metre_anchor(_maps_list, _mdl_store) or {}
-            _anchor_id = _anchor.get("map_id")
-            _has_anchor = bool(_anchor_id)
-            for _m in _maps_list:
-                _raw = (_m.get("stack") or {}).get("_m")
-                if isinstance(_raw, (list, tuple)) and len(_raw) == 4:
-                    _maps_affine += 1
-                    if _m.get("id") == _anchor_id:
-                        _anchor_affine = True
-                _d = _ft.stack_desync(_m)
-                if _d is not None and _d > _ft.ANCHOR_ISO_TOL:
-                    _stack_desync += 1
+                # The terms the gate fired on, as the gate named them.
+                _terms = _f.get("terms") or []
+                if "unreadable" in _terms:
+                    _fault_unreadable += 1
+                if "unplaced" in _terms:
+                    _fault_unplaced += 1
+                if "no_world_frame" in _terms:
+                    _no_world_frame = True
+            # "Does this house have a metre scale" is whether the GAUGE is
+            # readable, not whether it remembers which picture it came from.
+            _has_anchor = _ft.metre_gauge(_mdl_store) is not None
     except Exception:
         pass
 
@@ -485,13 +456,20 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         # flag — no map names, no coordinates, nothing about the building.
         # This class of bug cost a user weeks of screenshots to surface once.
         "maps_geometry_faulted": _geometry_faults,
-        "geometry_anchor_faulted": _anchor_faulted,
-        "geometry_fault_iso": _fault_iso,
-        "geometry_fault_scale": _fault_scale,
-        "geometry_fault_origin": _fault_origin,
-        "maps_affine": _maps_affine,
-        "anchor_is_affine": _anchor_affine,
-        "stack_desync": _stack_desync,
+        "geometry_fault_unreadable": _fault_unreadable,
+        "geometry_fault_unplaced": _fault_unplaced,
+        # The one condition that blanks a working house: placements on disk
+        # and no scale to draw them at.
+        "geometry_no_world_frame": _no_world_frame,
+        # NULL, not zero, and deliberately still here. It counted maps whose
+        # solved matrix and whose decomposed fields described different
+        # footprints — a state that needed two stored copies of one placement
+        # to exist in. There is one copy, so the question has no answer, and a
+        # ZERO in a series that used to carry real counts reads as "fixed"
+        # rather than "unaskable". `maps_affine` and `anchor_is_affine` went
+        # the other way: they described which KIND of stack a map had, and a
+        # map does not have a stack.
+        "stack_desync": None,
         # The three "is it set up at all" flags. Each is only meaningful on a
         # multi-storey house, so each carries the floor test in it rather than
         # leaving a bare False to be misread as a fault on a bungalow.

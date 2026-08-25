@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -308,17 +309,97 @@ async def test_stretch_only_bake_preserves_transform(tmp_path: Path) -> None:
     assert t["rotation_rad"] == pytest.approx(0.0)
 
 
+def _baked_dims(deg: float, bsx: float, bsy: float,
+                ow: int = 1600, oh: int = 1200) -> tuple[int, int]:
+    """The canvas the client allocates for a baked rotate+stretch."""
+    rad = math.radians(deg)
+    ca, sa = abs(math.cos(rad)), abs(math.sin(rad))
+    return (math.ceil(ow * bsx * ca + oh * bsy * sa),
+            math.ceil(ow * bsx * sa + oh * bsy * ca))
+
+
 @pytest.mark.asyncio
-async def test_rotated_stretch_bake_invalidates(tmp_path: Path) -> None:
-    """Rotation + anisotropic stretch is unrepresentable — scale is dropped."""
+@pytest.mark.parametrize("deg,bsx,bsy", [(30, 1.5, 1.0), (90, 1.0, 1.4),
+                                         (-22.5, 0.8, 1.35)])
+async def test_rotated_stretch_bake_composes_instead_of_invalidating(
+        deg, bsx, bsy) -> None:
+    """A turn baked together with an anisotropic stretch is representable.
+
+    It is a general affine, and it was refused because the five-field record
+    could not hold one: `_invalidate()`, the whole placement gone, and the
+    panel's "re-measure the map" toast on a map that had been measured. The
+    record has σ now and six fields are complete over the invertible 2x2, so
+    the refusal outlived what it protected.
+
+    Reachable in one click: Point Align across two differently-shaped pictures
+    IS an anisotropic pixel stretch (issue #62), and it is almost always baked
+    with a rotation, so this is the ordinary path through that button and not
+    an exotic one.
+
+    What is asserted is the physical invariant, not the fields: every feature
+    that survived the bake is still at the same metres.
+    """
     store = _make_store(_MEASURED)
+    nw, nh = _baked_dims(deg, bsx, bsy)
     ok = await store.async_recompute_transform_for_map(
-        "m1", _map(2000, 1600), MagicMock(),
-        pixel_op={"deg": 30, "sx": 1.5, "sy": 1.0}, old_px=(1600, 1200),
+        "m1", _map(nw, nh), MagicMock(),
+        pixel_op={"deg": deg, "sx": bsx, "sy": bsy}, old_px=(1600, 1200),
     )
-    assert ok is False
-    assert "m1" not in store.data["map_transforms"]   # honestly unmeasured
-    store.store.async_save.assert_awaited()           # deletion persisted
+    assert ok, "a measured map read unmeasured after one bake"
+    t = store.data["map_transforms"]["m1"]
+    assert t.get("reference_measurements"), (
+        "the map lost the measurement that says it is measured"
+    )
+    for ofx, ofy in ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0), (0.375, 0.25)):
+        nfx, nfy = _client_rot_frac(ofx, ofy, 1600, 1200, deg, nw, nh, bsx, bsy)
+        wx, wy = store.map_frac_to_metres(nfx, nfy, "m1")
+        # Canvas dims round up to whole pixels — ~1 px is 0.05 m at 20 px/m.
+        assert wx == pytest.approx(ofx * 80.0, abs=0.06), (ofx, ofy)
+        assert wy == pytest.approx(ofy * 60.0, abs=0.06), (ofx, ofy)
+
+
+@pytest.mark.parametrize("deg,bsx,bsy,leans", [(30, 1.5, 1.0, True),
+                                              (90, 1.0, 1.4, False),
+                                              (-22.5, 0.8, 1.35, True)])
+def test_the_control_what_the_refusal_was_protecting(deg, bsx, bsy, leans) -> None:
+    """Why the refusal was right until σ existed, and where it was never right.
+
+    A turn baked with an anisotropic stretch leans the map's two axes apart,
+    and dropping that lean — which is all a five-field record could have
+    stored — moves the far corner of an 80 x 60 m map by metres. Refusing
+    beat writing a straightened record, so the branch was correct for the
+    record it was written against.
+
+    A QUARTER turn is the exception and always was: it swaps the two axes and
+    leaves them square, so five fields held it exactly. The blanket refusal
+    dropped that one too.
+    """
+    from custom_components.padspan_ha import fabric_truth
+
+    nw, nh = _baked_dims(deg, bsx, bsy)
+    o, ex, ey = (
+        _client_inverse(fx, fy, 1600, 1200, deg, nw, nh, bsx, bsy)
+        for fx, fy in ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0))
+    )
+    composed = fabric_truth.placement_from_columns(
+        (o[0] * 80.0, o[1] * 60.0),
+        ((ex[0] - o[0]) * 80.0, (ex[1] - o[1]) * 60.0),
+        ((ey[0] - o[0]) * 80.0, (ey[1] - o[1]) * 60.0))
+    assert (abs(composed["shear_rad"]) > 0.02) is leans, (
+        f"the bake leans {math.degrees(composed['shear_rad']):.2f}°"
+    )
+    five = {k: v for k, v in composed.items() if k != "shear_rad"}
+    assert (fabric_truth.placement_disagreement_m(composed, five) > 1.0) is leans
+
+
+def _client_inverse(fx, fy, ow, oh, deg, nw, nh, sx=1.0, sy=1.0):
+    """Where a NEW image fraction came from in the OLD image — the inverse of
+    `_client_rot_frac`, which is what the composition has to solve."""
+    rad = math.radians(deg)
+    px, py = fx * nw - nw / 2, fy * nh - nh / 2
+    rx = px * math.cos(rad) + py * math.sin(rad)
+    ry = py * math.cos(rad) - px * math.sin(rad)
+    return ((rx / sx + ow / 2) / ow, (ry / sy + oh / 2) / oh)
 
 
 @pytest.mark.asyncio
@@ -388,17 +469,26 @@ async def test_replace_keeps_anchored_pose(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_replace_without_prior_transform_derives_from_stack(tmp_path: Path) -> None:
-    """Fresh derivation (legacy px_per_meter, no transform) still uses stack."""
+async def test_replace_without_prior_transform_places_it_at_the_origin(tmp_path: Path) -> None:
+    """A map with no anchored placement is a map nobody has placed.
+
+    It used to read `x_offset * scale_x_m` off the stack here — the OTHER copy
+    of the placement — so replacing an unplaced map's image invented a
+    position for it out of a cosmetic alignment. There is no other copy; the
+    honest pose for a map nobody has placed is the origin, unturned, and the
+    scale this derives from px_per_meter is the only thing it actually knows.
+    """
     store = _make_store({})
     store.data["map_transforms"] = {}
-    m = _map(800, 600, stack={"is_master": False, "x_offset": 0.5, "y_offset": 0.5})
+    m = _map(800, 600, stack={"x_offset": 0.5, "y_offset": 0.5})
     m["calibration"]["px_per_meter"] = 10.0
     ok = await store.async_recompute_transform_for_map("m1", m, MagicMock())
     assert ok
     t = store.data["map_transforms"]["m1"]
-    assert t["origin_x_m"] == pytest.approx(40.0)    # 0.5 * 80
-    assert t["origin_y_m"] == pytest.approx(30.0)
+    assert t["origin_x_m"] == 0.0
+    assert t["origin_y_m"] == 0.0
+    assert t["scale_x_m"] == pytest.approx(80.0)
+    assert t["scale_y_m"] == pytest.approx(60.0)
 
 
 @pytest.mark.asyncio
@@ -450,48 +540,6 @@ async def test_set_map_transform_new_map_sanitizes_pose(tmp_path: Path) -> None:
     assert t["origin_y_m"] == 0.0
     assert t["rotation_rad"] == 0.0
     assert t["origin_anchored"] is True
-
-
-@pytest.mark.asyncio
-async def test_derive_transforms_skips_existing_valid_transform(tmp_path: Path) -> None:
-    """The migrate/boot derive path must never rewrite an existing pose,
-    measured or not — calibration pins may depend on it."""
-    store = _make_store({
-        "origin_x_m": 5.0, "origin_y_m": 3.0,
-        "scale_x_m": 80.0, "scale_y_m": 60.0,
-        "rotation_rad": 0.0, "floor_id": "main",
-    })  # valid origin, NO reference_measurements
-    maps_store = MagicMock()
-    maps_store.data = {"maps": [{
-        "id": "m1", "floor_id": "main",
-        "image": {"width": 1600, "height": 1200},
-        "stack": {"is_master": True},                 # would derive (0,0)
-        "calibration": {"px_per_meter": 20.0},
-    }]}
-    count = await store.async_derive_transforms(maps_store)
-    assert count == 1                                  # counted as done
-    t = store.data["map_transforms"]["m1"]
-    assert t["origin_x_m"] == pytest.approx(5.0)       # untouched
-    assert t["origin_y_m"] == pytest.approx(3.0)
-
-
-@pytest.mark.asyncio
-async def test_derive_transforms_rederives_broken_scaleless_transform(tmp_path: Path) -> None:
-    """A record with an origin but no usable scale must NOT be frozen —
-    skipping it would fabricate a 1m x 1m map forever (codex review)."""
-    store = _make_store({"origin_x_m": 5.0, "origin_y_m": 3.0, "floor_id": "main"})
-    maps_store = MagicMock()
-    maps_store.data = {"maps": [{
-        "id": "m1", "floor_id": "main",
-        "image": {"width": 1600, "height": 1200},
-        "stack": {"is_master": True},
-        "calibration": {"px_per_meter": 20.0},
-    }]}
-    count = await store.async_derive_transforms(maps_store)
-    assert count == 1
-    t = store.data["map_transforms"]["m1"]
-    assert t["scale_x_m"] == pytest.approx(80.0)     # re-derived, not frozen
-    assert t["scale_y_m"] == pytest.approx(60.0)
 
 
 @pytest.mark.asyncio
@@ -574,3 +622,186 @@ async def test_setup_stamp_is_persisted_even_when_nothing_else_changes(tmp_path:
     store2.store.async_save = AsyncMock()
     await store2.async_setup()
     store2.store.async_save.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# A sheared map, through every op this function handles
+# ---------------------------------------------------------------------------
+#
+# THE INVARIANT of an image operation: it changes the picture's pixels, not
+# where the house is. Every point still depicted is still in the same place.
+#
+# The tests above measure that for a SQUARE map — every fixture in this file
+# was origin/scale/rotation, five fields, and the record has six. σ is the
+# angle between the map's two axes, and rebuilding a placement out of its
+# fields drops it: the crop branch was fixed to ask the placement where a
+# fraction went instead, and the bake branch was still composing `ρ' = ρ − θ`
+# with the naive scales. A turn moves a map's two axes together only while
+# they are already square to each other, so a baked rotation on a sheared map
+# slid the picture sideways by the lean — 1.09 m on the 20 m map below at a
+# 30° turn, 2.18 m at 90° — while the record kept a σ that no longer described
+# the axes it was stored beside.
+
+
+_LEAN_DEG = 5.0
+
+# 20 m x 15 m at 80 px/m — isotropic pixel density, so the bake branch's
+# same-scale precondition holds and the op is composed rather than refused.
+_SHEARED = {
+    "origin_x_m": 3.0,
+    "origin_y_m": -1.0,
+    "scale_x_m": 20.0,
+    "scale_y_m": 15.0,
+    "rotation_rad": 0.25,
+    "shear_rad": math.radians(_LEAN_DEG),
+    "floor_id": "main",
+    "origin_anchored": True,
+    "reference_measurements": [
+        {"p1": [0.1, 0.5], "p2": [0.6, 0.5], "distance_m": 10.0,
+         "px_per_meter": 80.0, "angle_deg": 0, "date": "2026-07-01"},
+    ],
+}
+
+_GRID = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0), (0.5, 0.5), (0.137, 0.911)]
+
+
+def _unmeasured(width: int, height: int) -> dict:
+    """The map dict, with no legacy px_per_meter to short-circuit the ops."""
+    m = _map(width, height)
+    m["calibration"] = {"mode": "none", "px_per_meter": None, "reference_points": []}
+    return m
+
+
+# Each op, as (kwargs for the recompute, new pixel size, old frac → new frac).
+_OPS = {
+    "bake rotate 30": (
+        {"pixel_op": {"deg": 30, "sx": 1, "sy": 1}, "old_px": (1600, 1200)},
+        (1986, 1839),
+        lambda f: _client_rot_frac(f[0], f[1], 1600, 1200, 30, 1986, 1839),
+    ),
+    "bake rotate 90": (
+        {"pixel_op": {"deg": 90, "sx": 1, "sy": 1}, "old_px": (1600, 1200)},
+        (1200, 1600),
+        lambda f: _client_rot_frac(f[0], f[1], 1600, 1200, 90, 1200, 1600),
+    ),
+    "bake scale 0.5": (
+        {"pixel_op": {"deg": 0, "sx": 0.5, "sy": 0.5}, "old_px": (1600, 1200)},
+        (800, 600),
+        lambda f: f,
+    ),
+    "pure resample": (
+        {}, (800, 600), lambda f: f,
+    ),
+    "crop": (
+        {"crop": {"fx0": 0.18, "fy0": 0.31, "fx1": 0.77, "fy1": 0.94}},
+        (944, 756),
+        lambda f: ((f[0] - 0.18) / 0.59, (f[1] - 0.31) / 0.63),
+    ),
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("op", sorted(_OPS), ids=sorted(_OPS))
+async def test_no_image_operation_moves_a_sheared_map(op) -> None:
+    """Where the picture is does not depend on which raster it arrived in."""
+    kw, (nw, nh), refrac = _OPS[op]
+    store = _make_store(_SHEARED)
+    before = {f: store.map_frac_to_metres(*f, "m1") for f in _GRID}
+
+    ok = await store.async_recompute_transform_for_map(
+        "m1", _unmeasured(nw, nh), MagicMock(), **kw)
+    assert ok, "the fixture no longer exercises this op"
+
+    worst = 0.0
+    for f in _GRID:
+        g = refrac(f)
+        if not (-0.01 <= g[0] <= 1.01 and -0.01 <= g[1] <= 1.01):
+            continue        # cropped away — not depicted any more
+        # …and the 1% is for the corners of a TURNED raster, which land on the
+        # bounding box's edge and fall a rounded pixel either side of it. A
+        # crop puts what it discarded tenths of a fraction outside, so nothing
+        # this is meant to skip survives the margin.
+        after = store.map_frac_to_metres(*g, "m1")
+        worst = max(worst, math.hypot(*(a - b for a, b in zip(after, before[f]))))
+    # 1 mm: the record is rounded to 0.1 mm and 1 µrad, which on a 20 m span
+    # displaces the far corner by ~1e-4 m. The failures this guards are the
+    # metres in the control below.
+    assert worst < 1e-3, f"{op} moved the picture it kept by {worst:.4f} m"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("op", ["crop", "bake scale 0.5", "pure resample"])
+async def test_an_op_that_does_not_turn_the_map_leaves_the_lean_untouched(op) -> None:
+    """…and the lean is still ON THE RECORD, not merely implied by numbers
+    that happen to land in the right place.
+
+    A crop and an axis-aligned pixel scale rescale the two fraction axes
+    without turning either, and a resample does not touch them at all, so none
+    of the three says anything about the angle between them. σ is carried
+    forward untouched — to the digit, not to a tolerance.
+    """
+    kw, (nw, nh), _ = _OPS[op]
+    store = _make_store(_SHEARED)
+    await store.async_recompute_transform_for_map(
+        "m1", _unmeasured(nw, nh), MagicMock(), **kw)
+    t = store.data["map_transforms"]["m1"]
+    assert "shear_rad" in t, f"{op} dropped the lean from the record"
+    assert t["shear_rad"] == _SHEARED["shear_rad"], f"{op} restated the lean"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("op", ["bake rotate 30", "bake rotate 90"])
+async def test_a_baked_turn_restates_the_lean_it_does_not_drop_it(op) -> None:
+    """A turn is the one op here that DOES change σ, and it is not free to.
+
+    Fractions are of the BOUNDING BOX, and a turn gives the raster a new one:
+    the same two world axes come out of the new fraction space at a different
+    angle to each other (5° becomes 2.5° over the 30° bake below). So the
+    lean is recomputed rather than preserved — but recomputed is not dropped,
+    and the map is still not square. Where the picture ends up is the
+    invariant, and that is the test above.
+    """
+    kw, (nw, nh), _ = _OPS[op]
+    store = _make_store(_SHEARED)
+    await store.async_recompute_transform_for_map(
+        "m1", _unmeasured(nw, nh), MagicMock(), **kw)
+    t = store.data["map_transforms"]["m1"]
+    assert "shear_rad" in t, f"{op} dropped the lean from the record"
+    assert abs(float(t["shear_rad"])) > 0.01, (
+        f"{op} squared the map up: {t['shear_rad']}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_control_a_five_field_bake_moves_it_metres() -> None:
+    """The test above has to be failing for the right reason.
+
+    The composition that was here — `ρ' = ρ − θ`, the naive scales, and an
+    origin built from `R(ρ)·(centre ⊙ scale)` — is applied to the same
+    fixture, and the same corner is measured again. Neither of the two tests
+    above is passing because the fixture is square.
+    """
+    for deg, expect in ((30, 1.0), (90, 2.0)):
+        store = _make_store(_SHEARED)
+        rad = math.radians(deg)
+        nw, nh = (1986, 1839) if deg == 30 else (1200, 1600)
+        ppm, k = 1600 / 20.0, 1.0
+        rot0, o0x, o0y = 0.25, 3.0, -1.0
+        cox, coy = 1600 / 2 / ppm, 1200 / 2 / ppm
+        cnx, cny = nw / 2 / (ppm * k), nh / 2 / (ppm * k)
+        c0, s0 = math.cos(rot0), math.sin(rot0)
+        c1, s1 = math.cos(rot0 - rad), math.sin(rot0 - rad)
+        five = {
+            **_SHEARED,
+            "origin_x_m": o0x + (cox * c0 - coy * s0) - (cnx * c1 - cny * s1),
+            "origin_y_m": o0y + (cox * s0 + coy * c0) - (cnx * s1 + cny * c1),
+            "scale_x_m": nw / (ppm * k), "scale_y_m": nh / (ppm * k),
+            "rotation_rad": rot0 - rad,
+        }
+        moved = 0.0
+        for f in _GRID:
+            g = _client_rot_frac(f[0], f[1], 1600, 1200, deg, nw, nh)
+            a = _make_store(five).map_frac_to_metres(*g, "m1")
+            b = _make_store(_SHEARED).map_frac_to_metres(*f, "m1")
+            moved = max(moved, math.hypot(a[0] - b[0], a[1] - b[1]))
+        assert moved > expect, f"{deg} deg: only {moved:.4f} m"

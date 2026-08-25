@@ -36,6 +36,7 @@ import pytest
 
 from custom_components.padspan_ha import fabric_truth
 from custom_components.padspan_ha.model_store import ModelStore
+from tests.conftest import seed_world_gauge
 
 
 # Upstairs is 930x850, so this is the ratio the solver was handed — and the
@@ -101,18 +102,20 @@ def _basement_map() -> dict:
     }
 
 
-def _store() -> ModelStore:
+def _store(maps: list | None = None) -> ModelStore:
     store = ModelStore.__new__(ModelStore)
     store.hass = MagicMock()
     store.store = AsyncMock()
     store.data = {"map_transforms": {"basement": dict(_BASEMENT_T),
                                      "main": dict(_MAIN_T)}}
+    seed_world_gauge(store, maps if maps is not None else
+                     [_basement_map(), _main_map()])
     return store
 
 
 def _iso_error(m: dict, t: dict) -> float:
     """How far the map's two metres-per-world-unit figures disagree."""
-    world_w, world_h = fabric_truth.world_footprint(m)
+    world_w, world_h = fabric_truth.legacy_world_footprint(m)
     m_per_x, m_per_y = t["scale_x_m"] / world_w, t["scale_y_m"] / world_h
     return abs(m_per_y - m_per_x) / m_per_x
 
@@ -120,7 +123,7 @@ def _iso_error(m: dict, t: dict) -> float:
 def _placement_error(m: dict, t: dict, anchor: dict) -> tuple[float, float]:
     """(scale_error_frac, origin_delta_m) — the two halves map_geometry_faults
     compares, readable whether or not the map is over tolerance."""
-    st = fabric_truth.stack_metre_transform(m, anchor)
+    st = fabric_truth.legacy_stack_metre_transform(m, anchor)
     scale_err = max(abs(t["scale_x_m"] - st["scale_x_m"]) / t["scale_x_m"],
                     abs(t["scale_y_m"] - st["scale_y_m"]) / t["scale_y_m"])
     origin_delta = math.hypot(t["origin_x_m"] - st["origin_x_m"],
@@ -131,7 +134,7 @@ def _placement_error(m: dict, t: dict, anchor: dict) -> tuple[float, float]:
 def test_the_rigid_solve_gave_main_floor_the_reference_pictures_shape() -> None:
     """The invariant, stated where it broke: a footprint keeps its own aspect."""
     main = _main_map()
-    world_w, world_h = fabric_truth.world_footprint(main)
+    world_w, world_h = fabric_truth.legacy_world_footprint(main)
 
     assert _STORED_M[0] == _STORED_M[3], (
         "a == d is the whole defect: the solver could not express two different "
@@ -143,108 +146,45 @@ def test_the_rigid_solve_gave_main_floor_the_reference_pictures_shape() -> None:
     assert world_h / world_w != pytest.approx(fabric_truth.image_ar(main), abs=1e-3)
 
 
-def test_rjbutlers_stack_reproduces_the_health_card_he_reported() -> None:
-    """Control: his exact values, and the numbers he was shown come back out."""
+@pytest.mark.asyncio
+async def test_the_conversion_takes_his_measured_record_over_the_bad_solve() -> None:
+    """His store, through the one-way conversion. The record wins.
+
+    Main Floor's legacy stack draws it at Upstairs' aspect — the rigid solve's
+    defect, baked into a matrix — while its measured record says what he
+    actually measured. Those two disagree, and the disagreement has the `iso`
+    signature: the record does not match the picture as the stack drew it. That
+    is the branch where the RECORD wins, so the conversion keeps the
+    measurement and the bad solve goes with the stack it lived on.
+
+    The four repair buttons that existed for this state are deleted. There is
+    nothing left to repair: the map is drawn from the record now, so it is
+    drawn at the size he measured.
+    """
+    from custom_components.padspan_ha import migrations
+    from tests.conftest import maps_store_with, migration_backup
+
     maps = [_basement_map(), _main_map()]
     store = _store()
-    anchor = fabric_truth.find_metre_anchor(maps, store)
-    assert anchor["map_id"] == "basement"
-    assert anchor["m_per_world_x"] == pytest.approx(10.916)
+    anchor = fabric_truth.measure_world_gauge(maps, store)
+    assert anchor["source_map_id"] == "basement"
 
-    faults = {f["map_id"]: f for f in fabric_truth.map_geometry_faults(maps, store)}
-    assert list(faults) == ["main"]
-    # "axis scales disagree by 42%" — and it is exactly 1 - image_ar/_m_ar.
-    assert faults["main"]["iso_error"] == pytest.approx(0.4167, abs=1e-4)
-    assert faults["main"]["iso_error"] == pytest.approx(
-        1 - fabric_truth.image_ar(_main_map()) / _UPSTAIRS_AR, abs=1e-4)
-    # "stored scale 33% off placement" — 1.12767 world units is 12.31 m of a
-    # floor that measures 18.35 m, so 6.04 m of the garage end is not there.
-    assert faults["main"]["scale_error_frac"] == pytest.approx(0.3291, abs=1e-4)
-    assert faults["main"]["origin_delta_m"] == pytest.approx(0.944, abs=1e-3)
-    # And nothing else could have caught it: the stack agrees with itself.
-    assert fabric_truth.stack_desync(_main_map()) == pytest.approx(0.0)
+    # The signature that decides: the record against the map's own picture.
+    main_t = store.map_transform("main")
+    iso = fabric_truth.legacy_record_iso_error(_main_map(), main_t)
+    assert iso > fabric_truth.RECORD_ISO_TOL, f"the fixture no longer carries the iso signature ({iso})"
 
+    before = dict(main_t)
+    fab = MagicMock()
+    fab.data = {}
+    fab.store = AsyncMock()
+    ms = maps_store_with(maps)
+    out = await migrations._derive_world_placement(store, ms, fab, maps, anchor)
 
-def test_rebuild_alignment_clears_every_fault_metric() -> None:
-    """The repair for a store already in this state — the button he pressed.
-
-    stack_from_transform refused every `_m` stack, which is why "Rebuild
-    alignment" did nothing for him. His matrix carries no shear, so the
-    decomposed fields describe it exactly and the measured record — the half
-    that was always right — rebuilds the placement.
-    """
-    maps = [_basement_map(), _main_map()]
-    store = _store()
-    anchor = fabric_truth.find_metre_anchor(maps, store)
-
-    before_scale, before_origin = _placement_error(maps[1], _MAIN_T, anchor)
-    assert _iso_error(maps[1], _MAIN_T) == pytest.approx(0.4167, abs=1e-4)
-    assert before_scale == pytest.approx(0.3291, abs=1e-4)
-    assert before_origin == pytest.approx(0.944, abs=1e-3)
-
-    rebuilt = fabric_truth.stack_from_transform(maps[1], _MAIN_T, anchor)
-    assert rebuilt is not None, "the repair still refuses the map it exists for"
-    maps[1]["stack"] = rebuilt
-
-    # The matrix must go with it, or stack_world_xform keeps drawing the stale
-    # one and the repair is invisible.
-    assert rebuilt["_m"] is None and rebuilt["_m_ar"] is None
-
-    after_scale, after_origin = _placement_error(maps[1], _MAIN_T, anchor)
-    assert _iso_error(maps[1], _MAIN_T) == pytest.approx(0.0, abs=1e-3)
-    assert after_scale == pytest.approx(0.0, abs=1e-4)
-    assert after_origin == pytest.approx(0.0, abs=1e-3)
-    assert fabric_truth.map_geometry_faults(maps, store) == []
-
-    # The placement now IS the measured record: 18.3472 m x 9.7813 m at (0, 0).
-    st = fabric_truth.stack_metre_transform(maps[1], anchor)
-    assert st["scale_x_m"] == pytest.approx(_MAIN_T["scale_x_m"], abs=1e-3)
-    assert st["scale_y_m"] == pytest.approx(_MAIN_T["scale_y_m"], abs=1e-3)
-    # ...and it covers a world rectangle Main Floor's own shape again.
-    world_w, world_h = fabric_truth.world_footprint(maps[1])
-    assert world_h / world_w == pytest.approx(fabric_truth.image_ar(maps[1]), abs=1e-3)
+    assert out["record_won"] >= 1
+    assert store.map_transform("main") == before, "his measurement was overwritten"
+    # And the world copy is gone, so nothing can disagree with it again.
+    assert set(ms.data["maps"][1]["stack"]) <= {
+        "z_level", "ceiling_height_m", "ref_map_id", "tie_ins"}
 
 
-def test_the_repaired_map_is_safe_to_anchor_the_house() -> None:
-    """Order must stop mattering: the repaired map agrees with the Basement.
-
-    find_metre_anchor takes the FIRST map inside ANCHOR_ISO_TOL, so a repair
-    that only silences iso_error hands the whole house a new metre scale as
-    soon as the repaired map happens to be listed first.
-    """
-    store = _store()
-    maps = [_basement_map(), _main_map()]
-    anchor = fabric_truth.find_metre_anchor(maps, store)
-    maps[1]["stack"] = fabric_truth.stack_from_transform(maps[1], _MAIN_T, anchor)
-
-    main_first = fabric_truth.find_metre_anchor([maps[1], maps[0]], store)
-    assert main_first["m_per_world_x"] == pytest.approx(10.916, abs=1e-3), (
-        "the repaired map anchors the house at a different scale from the "
-        "Basement; every floor, scanner and barrier moves with it"
-    )
-
-
-def test_substituting_the_maps_own_aspect_into_m_ar_does_not_repair_it() -> None:
-    """The one-number fix that looks right and is not (raised on issue #62).
-
-    Setting `_m_ar` to Main Floor's own aspect drops iso_error to nothing, but
-    only because a == d makes the footprint's aspect identically `_m_ar` — the
-    metric then agrees with itself by definition while the placement stays
-    wrong. `_m` is untouched, so the floor is still 12.31 m of an 18.35 m
-    building, and it moves.
-    """
-    store = _store()
-    patched = _main_map(m_ar=853 / 1600)
-    maps = [_basement_map(), patched]
-    anchor = fabric_truth.find_metre_anchor(maps, store)
-
-    assert _iso_error(patched, _MAIN_T) == pytest.approx(0.0, abs=1e-4)
-    scale_err, origin_delta = _placement_error(patched, _MAIN_T, anchor)
-    assert scale_err == pytest.approx(0.3291, abs=1e-4), "still a third short"
-    assert origin_delta > fabric_truth.GEOMETRY_ORIGIN_TOL_M, "and it moved"
-    assert [f["map_id"] for f in fabric_truth.map_geometry_faults(maps, store)] == ["main"]
-
-    # Worse: it now qualifies to anchor the house, at 1.49x the true scale.
-    main_first = fabric_truth.find_metre_anchor([patched, maps[0]], store)
-    assert main_first["map_id"] == "main"
-    assert main_first["m_per_world_x"] == pytest.approx(16.27, abs=0.01)

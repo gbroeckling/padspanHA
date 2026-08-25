@@ -10,7 +10,12 @@
 // is lifted out of maps.js by text and run exactly as it ships — the same
 // string-surgery-then-node route tests/test_fabric_frame_contract.py uses on
 // views/iso_lights.js. Nothing here re-implements it, and the footprint is
-// measured through the renderer's own `worldAffine`, not a copy of it.
+// measured THROUGH THE PLACEMENT THE APPLY PATH WRITES: the solve composed
+// with the reference's own metre record and read off its two columns by
+// `placementFromColumns`, which is exactly what maps.js does on Apply. It used
+// to be measured through `worldAffine`'s `_m` branch, because a solved align
+// was stored as a matrix on the stack; there is no stack, so the invariant is
+// checked on the metres that are actually stored.
 //
 // Run:  node tests/js/point_align_solver.mjs <views dir>
 // Prints one JSON line: { "checks": [...], "failures": [...] }.
@@ -19,8 +24,19 @@ import { pathToFileURL } from "node:url";
 import { join } from "node:path";
 
 const VIEWS_DIR = process.argv[2];
-const { decomposeFracMatrix, worldAffine } =
+const { placementFromColumns, mapFracToMetres } =
   await import(pathToFileURL(join(VIEWS_DIR, "stack_transform.js")).href);
+
+// A reference map placed at the world origin, 100 m across, at the reference
+// picture's own aspect — one world unit of the old frame per 100 m, so the
+// numbers below stay comparable with the world-unit figures this used to
+// assert. `arT` is the TARGET picture's aspect; if the composition below
+// carries the reference's instead, this is where it shows.
+const REF_M = 100.0;
+function refPlacement(ar) {
+  return { origin_x_m: 0, origin_y_m: 0, scale_x_m: REF_M, scale_y_m: REF_M * ar,
+           rotation_rad: 0, shear_rad: 0 };
+}
 
 // ── The shipped solver, lifted out of maps.js ───────────────────────────────
 const SRC = fs.readFileSync(join(VIEWS_DIR, "maps.js"), "utf8");
@@ -105,13 +121,25 @@ function plant(ar, arT, s, thetaDeg, dx, dy) {
 const TGT = [{ x: 0.18, y: 0.22 }, { x: 0.81, y: 0.19 }, { x: 0.47, y: 0.83 },
              { x: 0.29, y: 0.61 }, { x: 0.73, y: 0.68 }, { x: 0.55, y: 0.36 }];
 
-// The footprint as the RENDERER reads it: the solver's matrix in the stack it
-// would be stored in, through worldAffine's `_m` branch.
+// The footprint as the STORE holds it: the solve composed with the
+// reference's placement and read off its two metre columns — the Apply path,
+// with the metres divided back by REF_M so the figures are the world units
+// this file has always quoted.
+function applied(r, ar) {
+  const R = refPlacement(ar);
+  const toRefFrac = (u, v) => [
+    r._m[0]*(u-0.5) + r._m[1]*(v-0.5) + 0.5 + r.x_offset,
+    r._m[2]*(u-0.5) + r._m[3]*(v-0.5) + 0.5 + r.y_offset,
+  ];
+  const at = (u, v) => { const f = toRefFrac(u, v); return mapFracToMetres(R, f[0], f[1]); };
+  const o = at(0, 0), ex = at(1, 0), ey = at(0, 1);
+  return placementFromColumns(o, [ex[0]-o[0], ex[1]-o[1]], [ey[0]-o[0], ey[1]-o[1]]);
+}
+
 function footprint(r, ar) {
-  const [a, b, c, d] = worldAffine(
-    { _m: r._m, _m_ar: ar, x_offset: r.x_offset, y_offset: r.y_offset }, ar).M;
-  const w = Math.hypot(a, c), h = Math.hypot(b, d);
-  return { w, h, ar: h / w, shear: Math.abs(a * b + c * d) / (w * h) };
+  const p = applied(r, ar);
+  const w = p.scale_x_m / REF_M, h = p.scale_y_m / REF_M;
+  return { w, h, ar: h / w, shear: Math.abs(Math.sin(p.shear_rad)) };
 }
 
 // ── (a) The footprint keeps the TARGET's aspect ─────────────────────────────
@@ -164,20 +192,26 @@ for (const ar of [853 / 1600, 850 / 930, 1.0, 1.7, 0.75]) {
   }
 }
 
-// ── (c) The decomposition describes the matrix it ships with ────────────────
-// Both are written to the stack, and stack_desync compares them: if they
-// disagree the preview draws one footprint and Apply stores another. The frame
-// is the reference's, which is what `_m_ar` records.
-const rel = (x, y) => Math.abs(x - y) <= 1e-9 * Math.max(1, Math.abs(y));
+// ── (c) The applied placement draws the map where the solve put it ─────────
+// The solver's own preview uses the matrix; Apply stores metres. If the two
+// disagreed the preview would draw one thing and the store hold another —
+// which is precisely the split this release deletes, so it is checked rather
+// than assumed. Every point the solve was given must land, in metres, where
+// the reference's record puts the reference point it was matched to.
 for (const G of [RJ, REV, { name: "same shape", ar: 0.75, arT: 0.75 }]) {
   for (const theta of [0, 12, -37]) {
     const f = plant(G.ar, G.arT, 0.87, theta, 0.02, 0.05);
-    const r = _solvePtAlignRigid(TGT.map((p) => f(p.x, p.y)), TGT, G.ar, G.arT);
-    const d = decomposeFracMatrix(r._m, G.ar);
-    check(`${G.name} @${theta}deg: the decomposition agrees with its own matrix`,
-      rel(r.scale, d.scale) && rel(r.scaleX_adj, d.scale_x_adj) && rel(r.rotation, d.rotation),
-      JSON.stringify({ solver: { scale: r.scale, scale_x_adj: r.scaleX_adj, rotation: r.rotation },
-                       decomposeFracMatrix: d }));
+    const ref = TGT.map((p) => f(p.x, p.y));
+    const r = _solvePtAlignRigid(ref, TGT, G.ar, G.arT);
+    const P = applied(r, G.ar), R = refPlacement(G.ar);
+    let worst = 0;
+    for (let i = 0; i < TGT.length; i++) {
+      const a = mapFracToMetres(P, TGT[i].x, TGT[i].y);
+      const b = mapFracToMetres(R, ref[i].x, ref[i].y);
+      worst = Math.max(worst, Math.hypot(a[0] - b[0], a[1] - b[1]));
+    }
+    check(`${G.name} @${theta}deg: every matched pair lands on its reference point`,
+      worst <= 1e-9 * REF_M, `worst ${worst} m over ${REF_M} m`);
   }
 }
 

@@ -4,6 +4,38 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.0 — A map's placement lives once, in metres (2026-08-25)
+
+Four bugs — the pre-0.36 trim, #64's stale affine after Change Master, #62's wrong-aspect solve, and #67's dropped master flag — were never four bugs. A placement was written down **three times**: the stack's raw affine, the decomposition stored beside it, and the metric record. Every one of those failures was two of the three disagreeing, and `stack_desync` existed only because the design permitted it. This release deletes two of the copies. **2,455 lines go with them.**
+
+### The record carries the whole placement
+- **A sixth degree of freedom.** `metres = origin + R(ρ)·[[Sx, −Sy·sin σ], [0, Sy·cos σ]]·frac`, σ ∈ (−π, π]. **σ = 0 is the old five-field arithmetic exactly** — verified bit-for-bit, zero differing IEEE-754 doubles across 53,900 comparisons in each direction, in Python and in JavaScript — so nothing moves on upgrade. σ = ±π *is* a mirror, so reflection is not a separate flag. Six fields reproduce every affine the renderer can draw to **1.9e-14 m**; five miss by up to 54 m. `shear_rad` had in fact been written to disk since the photo-divorce migration and read by nothing.
+- **One writer.** `_put_map_transform` carries forward any placement field a payload does not *state*, so a five-field rebuild is structurally impossible. The same rule now governs the stack and `reference_measurements` — an absent key no longer deletes the field that decides whether a map counts as measured.
+- **`stack_from_transform` derives the rotation** instead of reading it off the stack it is repairing. Against an empty stack that was wrong by 5.70 m at 7° and 93.30 m at 180°.
+
+### The world gauge is stored, not measured off a photograph
+- `find_metre_anchor` divided a measured width by a footprint read from the stack — and the stack is now derived from the record. **One stored isotropic scalar** replaces it. The anchor used to be the *first* qualifying map in the list, so the house's metre scale depended on array order: two self-consistent maps measured at different scales swung it **20%**, placing the same map 5.000 m differently. Gone.
+- `iso_error`, `degraded`, the candidate loop and the JavaScript twin are deleted. **Issue #62 is now unrepresentable rather than fixed** — metres carry no aspect ratio, so there is no pair of axis scales left to disagree.
+- Two live bugs died with it: the calibration and traceback views applied the x scale to y, drawing an object 10.000 m out of place on a trimmed anchor.
+
+### The stack is derived on read
+- Stored state shrinks to what is genuinely not placement — `z_level`, `ceiling_height_m`, `tie_ins`, `ref_map_id`. `tie_ins` are re-expressed in metres. `_recrop_stack`, `async_derive_transforms`, `changeMasterStacks`, `worldAffine` and its decompose/recompose pair, both repair commands, `maps_affine` and `stack_desync` are gone.
+- **`is_master` is deleted.** Room-merge precedence gets an order that cannot be nulled, and the align-onto-master refusal deletes along with the flag it was guarding — a guard is not a fix.
+- **The conversion**: it snapshots every store it can touch *before the first step that writes*, records a per-map marker as it goes so a mid-run failure is not re-run, refuses to proceed without a gauge, and reports per-map corner displacement. Where the two descriptions disagree, a **measured** record wins and an unmeasured one yields to the alignment the owner applied.
+
+### One agreement test, not five
+- Whether two placements agree was decided in five places, each comparing four terms of six, and none comparing rotation. On a 20×15 m map with an identical origin and identical scales, a ±5° lean read as agreeing at **2.61 m** apart, a 45° lean at 11.48 m, a 30° rotation difference at 12.94 m, a half-turn at **50.00 m** — panel tick shown, Repair Positioning skipping the map, Rebuild Stack refusing it. All three repair routes closed on a map that was metres wrong.
+- There is now one definition — the greatest distance in metres between where two placements put the same corner of the picture — used everywhere, alongside the component tests rather than instead of them. A fault names the terms that fired, so the Health critic and the usage report cannot drift from the gate that raised it.
+- Where the evidence is a size disagreement, neither half can be shown to be the stale one, so the panel offers **both** repairs instead of guessing.
+
+### Also fixed
+- A migration step marked itself done whether or not it ran. `LIGHTS_TO_METRES` was already silently broken by this — marked complete with no anchor, lights never converted, on precisely the installs that upgrade before measuring a map.
+- `ws_fabric_map_transform_set` had no admin check, unlike its three sibling handlers; a payload omitting `floor_id` silently moved the record to the main floor.
+- Restoring a JSON backup matched maps by **name**, so a restore wrote the backup's alignment onto a pre-existing same-named map.
+- A record that could not be read at all reported as *aligned*, and the one diagnostic written to find broken records skipped exactly them.
+
+---
+
 ## 0.37.1 — Point Align stops handing a map the wrong picture's proportions (#62) (2026-08-24)
 
 ### The rigid solve used one aspect ratio for two different pictures

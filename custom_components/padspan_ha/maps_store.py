@@ -24,7 +24,8 @@ Each map dict holds:
                (light_positions_m).
   - room_bounds: {roomName: {type:"poly", points:[[x,y],...]} | {type:"circle",...}}
   - calibration: {mode, px_per_meter, reference_points}
-  - stack: {z_level, x_offset, y_offset, scale, rotation, ...}  (alignment transform)
+  - stack: {z_level, ceiling_height_m, ref_map_id, tie_ins}  (everything about
+    a map that is NOT its placement — the placement is `model.map_transforms`)
   - floor_id, notes
 
 Coordinate convention: all positions are normalised 0-1 fractions of the image
@@ -111,7 +112,7 @@ class MapsStore:
                     if isinstance(r, dict):
                         r.setdefault("room", "")
                         r.setdefault("source", "")
-            m.setdefault("stack", {"z_level": 0, "x_offset": 0.0, "y_offset": 0.0, "scale": 1.0, "ceiling_height_m": 2.4})
+            m.setdefault("stack", {"z_level": 0, "ceiling_height_m": 2.4})
             m.setdefault("created", _now_iso())
             m.setdefault("updated", m.get("created", _now_iso()))
             # One-time migration (P0-11.3): a frontend falsy-zero bug
@@ -179,7 +180,11 @@ class MapsStore:
             "room_bounds": {},
             "floor_id": str(floor_id or DEFAULT_FLOOR_ID)[:40],
             "notes": "",
-            "stack": {"z_level": 0, "x_offset": 0.0, "y_offset": 0.0, "scale": 1.0, "ceiling_height_m": 2.4},
+            # No placement. A new picture is not anywhere until somebody
+            # measures it or places it, and saying so is what lets
+            # `map_geometry_faults` report it as `unplaced` instead of drawing
+            # it at a fabricated size in the corner of the house.
+            "stack": {"z_level": 0, "ceiling_height_m": 2.4},
         }
 
         self.data.setdefault("maps", [])
@@ -191,9 +196,9 @@ class MapsStore:
         """Update map metadata — only fields that are not None are changed.
 
         Each field is validated and sanitised (coords clamped 0-1, strings
-        truncated, etc.) before being stored.  The stack dict preserves
-        alignment fields (is_master, ref_map_id, ref_ar, scale_x_adj, tie_ins)
-        across partial updates so alignment state is never accidentally lost.
+        truncated, etc.) before being stored.  A field the payload does not
+        STATE is unchanged, never reset — the same rule the placement writer
+        enforces, for the same reason.
         """
         m = self.get_map(map_id)
         if not m:
@@ -287,57 +292,49 @@ class MapsStore:
             m["room_bounds"] = clean_rb
 
         if isinstance(stack, dict):
-            # Clamp numeric values to sane ranges to prevent broken rendering
-            z = max(0, min(20, int(stack.get("z_level", 0))))
-            sc = max(0.1, min(10.0, float(stack.get("scale", 1.0))))
-            ceil_h = max(1.5, min(MAX_HEIGHT_M, float(stack.get("ceiling_height_m", 2.4))))
-            rot = float(stack.get("rotation", 0.0))
+            # THE STACK IS NOT A PLACEMENT ANY MORE. Everything that said
+            # where a map sits — `x_offset`, `y_offset`, `scale`,
+            # `scale_x_adj`, `rotation`, `ref_ar`, `_m`, `_m_ar`,
+            # `is_master` — is gone, because it was a second copy of
+            # `map_transforms` and two stored copies of one fact drift. What
+            # is left is the residue that is genuinely not derivable from a
+            # placement: which storey the map is on, how tall that storey is,
+            # the tie-in constraints (now in metres), the provenance of what it
+            # was aligned against, and a legacy `floor_id` some views still
+            # read.
+            #
+            # The preserve block that used to be here — eight `elif`s reading
+            # the old stack for a field the payload omitted — went with them.
+            # It existed because a partial save would otherwise snap a map
+            # back to scale 1.0 at the origin, which is the "absent means
+            # delete" defect. Absent still means unchanged, but there are four
+            # fields now instead of thirteen and one rule covers all of them.
+            old_stk: dict[str, Any] = m.get("stack") or {}
+
+            def _kept(key: str, default: Any) -> Any:
+                """A field is changed only by a payload that STATES it."""
+                return stack[key] if key in stack else old_stk.get(key, default)
+
             new_stack: dict[str, Any] = {
-                "z_level": z,
-                "x_offset": float(stack.get("x_offset", 0.0)),
-                "y_offset": float(stack.get("y_offset", 0.0)),
-                "scale": sc,
-                "ceiling_height_m": ceil_h,
-                "rotation": rot,
+                "z_level": max(0, min(20, int(_kept("z_level", 0)))),
+                "ceiling_height_m": max(1.5, min(MAX_HEIGHT_M,
+                                                 float(_kept("ceiling_height_m", 2.4)))),
             }
-            # Preserve alignment fields that may not be in the incoming payload
-            # (e.g. when only z_level or ceiling_height is being updated from
-            # the 3D Stack table — the caller shouldn't need to re-send the
-            # full alignment state every time)
-            if "is_master" in stack:
-                new_stack["is_master"] = bool(stack["is_master"])
-            elif m.get("stack", {}).get("is_master"):
-                new_stack["is_master"] = True
-            if "ref_map_id" in stack:
-                new_stack["ref_map_id"] = str(stack["ref_map_id"]) if stack["ref_map_id"] else None
-            elif m.get("stack", {}).get("ref_map_id"):
-                new_stack["ref_map_id"] = m["stack"]["ref_map_id"]
-            if "ref_ar" in stack:
-                new_stack["ref_ar"] = float(stack["ref_ar"]) if stack["ref_ar"] is not None else None
-            elif m.get("stack", {}).get("ref_ar") is not None:
-                new_stack["ref_ar"] = m["stack"]["ref_ar"]
-            if "scale_x_adj" in stack:
-                new_stack["scale_x_adj"] = max(0.01, min(100.0, float(stack.get("scale_x_adj", 1.0))))
-            elif m.get("stack", {}).get("scale_x_adj") is not None:
-                new_stack["scale_x_adj"] = m["stack"]["scale_x_adj"]
-            if "tie_ins" in stack:
-                new_stack["tie_ins"] = stack["tie_ins"] if isinstance(stack["tie_ins"], list) else []
-            elif m.get("stack", {}).get("tie_ins"):
-                new_stack["tie_ins"] = m["stack"]["tie_ins"]
-            # Raw affine matrix from Point Align solver — stored as [m11,m12,m21,m22].
-            # If present, the stack renderer uses CSS matrix() instead of the lossy
-            # decomposed scale/rotation/scaleX_adj fallback.
-            if "_m" in stack:
-                raw_m = stack.get("_m")
-                if isinstance(raw_m, list) and len(raw_m) == 4:
-                    new_stack["_m"] = [float(v) for v in raw_m]
-                    new_stack["_m_ar"] = float(stack.get("_m_ar", 1.0))
-                else:
-                    new_stack["_m"] = None
-                    new_stack["_m_ar"] = None
-            elif m.get("stack", {}).get("_m"):
-                new_stack["_m"] = m["stack"]["_m"]
-                new_stack["_m_ar"] = m["stack"].get("_m_ar")
+            # `floor_id` is preserved although nothing writes it any more:
+            # three panel views still read it as a fallback ahead of the map's
+            # own `floor_id`, so dropping it here would silently move a legacy
+            # map to another storey. It is not a placement, so it is not this
+            # release's to remove — but it IS a second copy of one fact and
+            # the readers should be collapsed onto `m["floor_id"]`.
+            _fl = _kept("floor_id", None)
+            if _fl:
+                new_stack["floor_id"] = str(_fl)
+            _ref = _kept("ref_map_id", None)
+            if _ref:
+                new_stack["ref_map_id"] = str(_ref)
+            _ties = _kept("tie_ins", None)
+            if isinstance(_ties, list) and _ties:
+                new_stack["tie_ins"] = _ties
             m["stack"] = new_stack
 
         m["updated"] = _now_iso()
@@ -486,72 +483,6 @@ class MapsStore:
         self.data["maps"] = [x for x in self.data.get("maps", []) if x.get("id") != map_id]
         await self.store.async_save(self.data)
 
-    # ── Coordinate transforms for cross-map migration ──────────────────────
-    # These convert between a map's local (0-1) space and a shared "world"
-    # coordinate system.  Used when migrating receivers/bounds from a
-    # deleted map onto a surviving one (maps_delete_migrate).
-
-    @staticmethod
-    def map_to_world(px: float, py: float, stk: dict) -> tuple[float, float]:
-        """Map-local normalised (0-1) → world coords.
-
-        When a raw affine matrix ``_m`` is present (from Point Align solver),
-        uses it directly.  Otherwise falls back to decomposed
-        scale × scale_x_adj → rotate → translate.
-        Mirrors the JS ``_mapToWorld`` function in maps.js.
-        """
-        ox = float(stk.get("x_offset", 0.0))
-        oy = float(stk.get("y_offset", 0.0))
-        _m = stk.get("_m")
-        if _m and len(_m) == 4:
-            u, v = px - 0.5, py - 0.5
-            ar = float(stk.get("_m_ar") or stk.get("ref_ar") or 1.0)
-            rx = _m[0] * u + _m[1] * v + 0.5 + ox
-            ry = _m[2] * u + _m[3] * v + 0.5 + oy
-            return (rx, ar * ry)
-        sc = float(stk.get("scale", 1.0))
-        sx_adj = float(stk.get("scale_x_adj", 1.0))
-        ref_ar = float(stk.get("ref_ar") or (1.0))
-        rot = math.radians(float(stk.get("rotation", 0.0)))
-
-        dx = (px - 0.5) * sc * sx_adj
-        dy = (py - 0.5) * sc * ref_ar
-        rx = dx * math.cos(rot) - dy * math.sin(rot)
-        ry = dx * math.sin(rot) + dy * math.cos(rot)
-        return ((0.5 + ox) + rx, ref_ar * (0.5 + oy) + ry)
-
-    @staticmethod
-    def world_to_map(wx: float, wy: float, stk: dict) -> tuple[float, float]:
-        """World coords → map-local normalised (0-1).  Inverse of map_to_world."""
-        ox = float(stk.get("x_offset", 0.0))
-        oy = float(stk.get("y_offset", 0.0))
-        _m = stk.get("_m")
-        if _m and len(_m) == 4:
-            ar = float(stk.get("_m_ar") or stk.get("ref_ar") or 1.0)
-            rx = wx - 0.5 - ox
-            ry = wy / ar - 0.5 - oy  # undo AR scaling applied in map_to_world
-            det = _m[0] * _m[3] - _m[1] * _m[2]
-            if abs(det) < 1e-12:
-                return (0.5, 0.5)
-            return ((_m[3] * rx - _m[1] * ry) / det + 0.5,
-                    (-_m[2] * rx + _m[0] * ry) / det + 0.5)
-        sc = float(stk.get("scale", 1.0))
-        sx_adj = float(stk.get("scale_x_adj", 1.0))
-        ref_ar = float(stk.get("ref_ar") or (1.0))
-        rot = math.radians(float(stk.get("rotation", 0.0)))
-
-        rx = wx - (0.5 + ox)
-        ry = wy - ref_ar * (0.5 + oy)
-        # Inverse rotation
-        dx = rx * math.cos(-rot) - ry * math.sin(-rot)
-        dy = rx * math.sin(-rot) + ry * math.cos(-rot)
-        # Inverse scale
-        denom_x = sc * sx_adj if abs(sc * sx_adj) > 1e-9 else 1e-9
-        denom_y = sc * ref_ar if abs(sc * ref_ar) > 1e-9 else 1e-9
-        px = dx / denom_x + 0.5
-        py = dy / denom_y + 0.5
-        return (px, py)
-
     async def async_extend_canvas(
         self,
         map_id: str,
@@ -559,6 +490,7 @@ class MapsStore:
         pad_right: float,
         pad_top: float,
         pad_bottom: float,
+        model_store: Any = None,
     ) -> dict[str, Any]:
         """Extend a map's PNG canvas with dark padding and renormalise all
         stored coordinates.
@@ -568,6 +500,13 @@ class MapsStore:
 
         Returns the updated map dict and stores ``_pre_extend`` snapshot
         for undo.
+
+        `model_store` is not optional in effect: padding the canvas changes
+        what the picture covers, so the placement moves with it or every
+        fraction on this map converts to metres that are wrong by the pad.
+        See `ModelStore.async_rebase_placement`, which is where that one
+        operation lives for all four image ops. The default is None only
+        because an install with no model store has no placement to move.
         """
         m = self.get_map(map_id)
         if not m:
@@ -649,11 +588,19 @@ class MapsStore:
                     # Scale radius proportionally (use smaller factor)
                     b["r"] = float(b.get("r", 0.12)) * min(fw, fh)
 
+        # The picture now covers more world than it did, so the placement
+        # covers more world than it did. In OLD image fractions the new canvas
+        # spans from -add_l/old_w to (old_w + add_r)/old_w — a crop rectangle
+        # bigger than the picture, which is all a pad is.
+        if model_store is not None:
+            await model_store.async_rebase_placement(
+                map_id, -add_l / old_w, -add_t / old_h, new_w / old_w, new_h / old_h)
+
         m["updated"] = _now_iso()
         await self.store.async_save(self.data)
         return m
 
-    async def async_revert_extend(self, map_id: str) -> dict[str, Any] | None:
+    async def async_revert_extend(self, map_id: str, model_store: Any = None) -> dict[str, Any] | None:
         """Revert a canvas extension using the saved ``_pre_extend`` snapshot.
 
         Returns the updated map or None if no snapshot exists.
@@ -716,6 +663,12 @@ class MapsStore:
                     b["cx"] = _ux(b.get("cx", 0.5))
                     b["cy"] = _uy(b.get("cy", 0.5))
                     b["r"] = float(b.get("r", 0.12)) / min(fw, fh) if min(fw, fh) > 0 else 0.12
+
+        # And back: in the EXTENDED image's fractions the original picture
+        # spans from add_l/new_w across old_w/new_w, which undoes the rebase
+        # the extend applied — exactly, because both go through one function.
+        if model_store is not None:
+            await model_store.async_rebase_placement(map_id, ox, oy, fw, fh)
 
         del m["_pre_extend"]
         m["updated"] = _now_iso()

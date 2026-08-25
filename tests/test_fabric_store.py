@@ -388,32 +388,19 @@ def test_model_spatial_reads_loud_empty_without_fabric() -> None:
 
 @pytest.mark.asyncio
 async def test_unmeasured_map_gets_no_invented_scale() -> None:
-    """The 20m fabrication is gone. A photo nobody measured is a picture:
-    it gets no transform, so nothing can derive metres through it."""
+    """The 20 m fabrication is gone, and so is the derivation that carried it.
+
+    `async_derive_transforms` walked every map on boot and wrote a placement
+    for any that had `px_per_meter`, taking its ORIGIN from the stack — the
+    other stored copy of the placement — and `(0,0)` for whichever map carried
+    the master flag. It is deleted: a map's placement is written by the person
+    who measures or places it, once, and boot does not guess one.
+    """
+    from custom_components.padspan_ha.model_store import ModelStore
+
+    assert not hasattr(ModelStore, "async_derive_transforms")
     mdl = _make_model()
-    ms = _maps_store([
-        {"id": "measured", "floor_id": "main", "stack": {"is_master": True},
-         "calibration": {"px_per_meter": 100.0},
-         "image": {"width": 1000, "height": 800}},
-        {"id": "unmeasured", "floor_id": "main", "stack": {},
-         "calibration": {},
-         "image": {"width": 1000, "height": 800}},
-    ])
-    n = await mdl.async_derive_transforms(ms)
-    t = mdl.data["map_transforms"]
-    assert "measured" in t
-    assert "unmeasured" not in t
-    assert n == 1
-    assert t["measured"]["scale_x_m"] == pytest.approx(10.0)
-
-    # The fallback fired only when a caller supplied a width, so asserting the
-    # default behaviour proves nothing — the parameter itself has to be gone.
-    import inspect
-
-    assert "default_floor_width_m" not in inspect.signature(
-        mdl.async_derive_transforms).parameters
-    with pytest.raises(TypeError):
-        await mdl.async_derive_transforms(ms, default_floor_width_m=20.0)
+    assert mdl.data.get("map_transforms", {}) == {}
 
 
 def test_nothing_converts_photo_coordinates_into_data() -> None:
@@ -432,7 +419,13 @@ def test_nothing_converts_photo_coordinates_into_data() -> None:
         assert not hasattr(ModelStore, gone), gone
 
     src = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
-    allowed = {"migrations.py", "model_store.py", "fabric_truth.py", "calibration_store.py"}
+    # ws_maps.py joined the list when `maps_delete_migrate` stopped going
+    # through world space. Moving a room from a deleted photo onto a surviving
+    # one is a conversion BETWEEN two pictures, and the only honest bridge is
+    # the metres both of them are placed in — the two static helpers it used
+    # instead were a fourth copy of the renderer's affine.
+    allowed = {"migrations.py", "model_store.py", "fabric_truth.py",
+               "calibration_store.py", "ws_maps.py"}
     for path in src.glob("*.py"):
         text = path.read_text(encoding="utf-8")
         if path.name not in allowed:

@@ -12,7 +12,7 @@
 // need one to exist. Rooms are metre polygons from room_geometry_m; lights
 // are metres from light_positions_m; floors and their heights come from the
 // floor registry. It used to derive its world frame from a MEASURED PHOTO
-// (metreAnchor), draw each floor slab as that photo's footprint, and take a
+// (the stored world gauge), draw each floor slab as that photo's footprint, and take a
 // dropped light's floor from the map under it — so a house with no uploaded
 // plan, or one whose plan was never measured, rendered nothing at all and
 // refused to place a light. Everything the view needs is in the fabric, in

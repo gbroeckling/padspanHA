@@ -113,12 +113,12 @@ def test_the_fabric_source_exists_and_refuses_to_guess():
     assert "export function fabricWorldScanners(" in src
     body = src[src.index("export function fabricWorldScanners("):]
     body = body[:body.index("\n}\n") + 3]
-    assert "metreAnchor(" in body, (
-        "fabric metres must be converted through the measured anchor, not a "
-        "per-map scale guess"
+    assert "worldGauge(" in body, (
+        "fabric metres must be converted through the stored world gauge, not "
+        "a per-map scale guess and not a scale measured off a photograph"
     )
     assert "return null" in body, (
-        "an unanchored fabric must return null so callers render nothing, "
+        "an ungauged fabric must return null so callers render nothing, "
         "rather than falling back to photo coordinates"
     )
 
@@ -134,7 +134,7 @@ def test_no_assumed_map_width_anywhere():
     src = _radio_map()
     assert "MAP_SCALE_M" not in src, (
         "an assumed map width is back; convert world distance to metres with "
-        "the m_per_world the metre anchor actually measured"
+        "the stored world gauge"
     )
     assert "mPerWorld" in src, "the fabric's measured scale is not being used"
 
@@ -163,4 +163,4 @@ def test_every_live_rssi_model_uses_the_vertical_offset():
 def test_fabric_scanners_carry_height():
     stack = _STACK_TRANSFORM.read_text(encoding="utf-8", errors="replace")
     assert "abs_z" in stack, "fabricWorldScanners drops the scanner's absolute height"
-    assert "m_per_world" in stack, "fabricWorldScanners drops the measured scale"
+    assert "m_per_unit" in stack, "fabricWorldScanners drops the world gauge"

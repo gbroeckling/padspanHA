@@ -20,7 +20,10 @@ from homeassistant.util import dt as dt_util
 from .const import (
     DOMAIN,
     DATA_FABRIC,
+    DATA_MAPS,
+    DATA_MODEL,
     BACKUPS_STORE_KEY,
+    MAPS_STORE_KEY,
     MODEL_STORE_KEY,
     FABRIC_STORE_KEY,
 )
@@ -243,6 +246,42 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
     selected_keys = msg.get("store_keys")  # None = restore all
     restored = 0
 
+    # ── Maps and Model are ONE fact in two files ─────────────────────────
+    #
+    # A map's picture and stack live in `padspan_ha.maps`; where that map SITS,
+    # in metres, lives in `padspan_ha.model` under `map_transforms[map_id]`,
+    # and so does the world gauge that gives its stack a size. They are keyed
+    # to each other by map id, so restoring one without the other pairs each
+    # map with a placement belonging to a different set of maps:
+    #
+    #   Maps alone   — every restored map is placed by whatever the CURRENT
+    #                  model says about an id it may not contain. Maps that
+    #                  sit nowhere, or worse, sit somewhere wrong.
+    #   Model alone  — placements and a gauge for maps that are not there,
+    #                  and the maps that ARE there re-placed by records that
+    #                  were measured on different pictures.
+    #
+    # Refused rather than warned. The two checkboxes are also coupled in the
+    # panel (manage.js) so this is not normally reachable, but the panel is
+    # not the only caller of a websocket command and a refusal that lives in
+    # the UI is a refusal that does not exist. R3 makes this sharper still:
+    # once the stack is DERIVED from the metric record, a Maps-only restore
+    # brings back pictures with no placement at all.
+    if selected_keys is not None:
+        _sel = set(selected_keys)
+        _pair = {MAPS_STORE_KEY, MODEL_STORE_KEY} & set(stores_data)
+        _missing = _pair - _sel
+        if _pair & _sel and _missing:
+            connection.send_error(
+                msg["id"], "restore_incomplete",
+                "Maps and Model have to be restored together: a map's picture and "
+                "stack are in Maps, and where that map sits in metres is in Model, "
+                "keyed by map id. Restoring one without the other leaves every map "
+                "placed by a record that belongs to a different set of maps. "
+                f"Add {', '.join(sorted(_missing))} to the selection, or leave both out. "
+                "Nothing was changed.")
+            return
+
     # ── Pre-fabric backups (issue: hybrid restore) ───────────────────────
     # A backup taken before the fabric store existed has no fabric entry, so
     # the loop below rolls padspan_ha.model back while leaving the CURRENT
@@ -329,6 +368,25 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                     pass
         except Exception as e:
             _LOGGER.warning("Failed to restore map images: %s", e)
+
+    # ── The world gauge, after a Model restore ───────────────────────────
+    #
+    # A restore REPLACES `mdl.data` wholesale, so a backup taken before the
+    # gauge existed takes `world_gauge` away with it. The startup migration
+    # cannot put it back — its marker is already set and a marker is one-way —
+    # so the house would lose its metre scale permanently, at the moment the
+    # owner was trying to recover it. `async_ensure_world_gauge` is write-once
+    # and returns immediately when the gauge is already set, so this is a
+    # no-op on a restore that brought one back.
+    if restored:
+        try:
+            _mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+            _ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+            if _mdl is not None:
+                await _mdl.async_ensure_world_gauge(
+                    (_ms.data.get("maps") or []) if _ms else [])
+        except Exception:
+            _LOGGER.exception("Could not re-seed the world gauge after a restore")
 
     if restored:
         _bump(hass, "backup_restored")

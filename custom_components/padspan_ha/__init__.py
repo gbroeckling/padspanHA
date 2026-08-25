@@ -361,19 +361,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         except Exception as err:
             _LOGGER.debug("Deferred store init error: %s", err)
 
-        # Map transforms are display maths — where to DRAW a photo so the
-        # fabric lines up on it. They seed no coordinates: nothing converts
-        # image positions into fabric positions any more.
-        try:
-            mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-            ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
-            if mdl and ms:
-                n_transforms = await mdl.async_derive_transforms(ms)
-                if n_transforms:
-                    _LOGGER.info("Derived %d map transform(s) for display", n_transforms)
-        except Exception as err:
-            _LOGGER.debug("Map transform derivation skipped: %s", err)
-
         # Upgrade repair: existing installs carry coordinates that were
         # derived through photo placements, some of them wrong. Nothing
         # re-derives any more, so this repairs them once and marks itself
@@ -388,7 +375,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             if cal and mdl and not cal._model:
                 cal.set_model_store(mdl)
             if mdl and fab:
-                await async_run_photo_divorce(hass, mdl, ms, fab, cal)
+                # The auto-backup, injected the way bright_import takes it —
+                # step 13 deletes what it reads, so it does not run without a
+                # snapshot. `migrations` stays importable with no ws layer.
+                from .ws_backup import _auto_backup
+
+                await async_run_photo_divorce(hass, mdl, ms, fab, cal, _auto_backup)
         except Exception as err:
             _LOGGER.warning("Photo divorce migration failed (non-fatal): %s", err)
 

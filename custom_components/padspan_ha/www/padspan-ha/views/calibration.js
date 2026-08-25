@@ -23,19 +23,29 @@ const POLL_MS   = 1000;  // RSSI poll interval during collection (1s = ~60 sampl
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
 // Metres -> a fraction of THIS photo, for drawing only. Returns null when the
 // object has no real-world position or the point falls outside the image.
-function _metresToFracFactory(mapsList, modelTransforms) {
-  const anchor = metreAnchor(mapsList, modelTransforms);
+// `k` was `1 / anchor.m_per_world` — the X figure of a per-axis pair —
+// applied to BOTH components below. On a trimmed anchor (kx 20, ky 40)
+// that drew an object 10.00 m down the house at world 0.5000 instead of
+// 0.2500: 10.000 m out in y, on the overlay whose job is to show the
+// owner where their calibration points are. There is one gauge now and
+// `metresToWorld` is the one place it is inverted, so the pair this bug
+// needed to pick the wrong half of does not exist.
+function _metresToFracFactory(model) {
+  const gauge = worldGauge(model);
   return (obj, m) => {
-    if (!anchor || !obj || typeof obj.x_m !== "number" || typeof obj.y_m !== "number") return null;
-    const k = 1 / anchor.m_per_world;
-    const inv = makeStackXform(m.stack, imageAr(m)).invMapPt;
-    const [fx, fy] = inv(obj.x_m * k, obj.y_m * k);
+    if (!gauge || !obj || typeof obj.x_m !== "number" || typeof obj.y_m !== "number") return null;
+    const k = metresToWorld(gauge);
+    const xf = mapXform(model, m);
+    if (!xf) return null;
+    const f = xf.invMapPt(obj.x_m * k, obj.y_m * k);
+    if (!f) return null;
+    const [fx, fy] = f;
     if (!(fx >= -0.05 && fx <= 1.05 && fy >= -0.05 && fy <= 1.05)) return null;
     return [fx, fy];
   };
 }
 
-const { makeStackXform, imageAr, metreAnchor } =
+const { mapXform, worldGauge, metresToWorld } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 
 // ── Exports ──────────────────────────────────────────────────────────────────
@@ -1639,7 +1649,8 @@ function _tuneTab(ctx, el, cs, calData) {
   const mapXforms = {};
   for (const m of sorted) {
     const stk = m.stack || {};
-    const xf = makeStackXform(stk, imageAr(m));
+    const xf = mapXform(ctx.state.model, m);
+    if (!xf) continue;     // unplaced, or no world frame: draw nothing
     mapXforms[m.id] = { z: stk.z_level || 0, mapPt: xf.mapPt, invMapPt: xf.invMapPt };
   }
 
@@ -1696,9 +1707,8 @@ function _tuneTab(ctx, el, cs, calData) {
       let x0 = Infinity, y0_ = Infinity, x1 = -Infinity, y1_ = -Infinity;
       for (const m of group) {
         const xf = mapXforms[m.id]; if (!xf) continue;
-        const bbPt = makeStackXform(m.stack, imageAr(m)).mapPt;
         for (const [cx, cy] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
-          const [wx, wy] = bbPt(cx, cy);
+          const [wx, wy] = xf.mapPt(cx, cy);
           x0 = Math.min(x0, wx); y0_ = Math.min(y0_, wy); x1 = Math.max(x1, wx); y1_ = Math.max(y1_, wy);
         }
       }
@@ -2652,7 +2662,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   const wrap = el("div", { style: "display:flex;flex-direction:column;gap:10px" });
   const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
   const maps_list = (ctx.state.maps && ctx.state.maps.list) ? ctx.state.maps.list : [];
-  const _metresToFrac = _metresToFracFactory(maps_list, (ctx.state.model || {}).map_transforms);
+  const _metresToFrac = _metresToFracFactory(ctx.state.model);
 
   if (!maps_list.length) {
     wrap.appendChild(el("div", { class: "card" }, [
@@ -2897,7 +2907,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   const mapXforms = {};
   for (const m of sorted) {
     const stk = m.stack || {};
-    const xf = makeStackXform(stk, imageAr(m));
+    const xf = mapXform(ctx.state.model, m);
+    if (!xf) continue;     // unplaced, or no world frame: draw nothing
     mapXforms[m.id] = { z: stk.z_level || 0, mapPt: xf.mapPt, invMapPt: xf.invMapPt };
   }
 
@@ -2954,9 +2965,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       let x0 = Infinity, y0_ = Infinity, x1 = -Infinity, y1_ = -Infinity;
       for (const m of group) {
         const xf = mapXforms[m.id]; if (!xf) continue;
-        const bbPt = makeStackXform(m.stack, imageAr(m)).mapPt;
         for (const [cx2, cy2] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
-          const [wx, wy] = bbPt(cx2, cy2);
+          const [wx, wy] = xf.mapPt(cx2, cy2);
           x0 = Math.min(x0, wx); y0_ = Math.min(y0_, wy); x1 = Math.max(x1, wx); y1_ = Math.max(y1_, wy);
         }
       }

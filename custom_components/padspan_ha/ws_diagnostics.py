@@ -532,31 +532,74 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
         _mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
         if _ms and _mdl:
             for _f in _ft.map_geometry_faults(_ms.data.get("maps") or [], _mdl):
-                _bits = []
-                if _f["iso_error"] > _ft.ANCHOR_ISO_TOL:
-                    _bits.append(f"its two axis scales disagree by {_f['iso_error'] * 100:.0f}%")
-                if _f["scale_error_frac"] > _ft.GEOMETRY_SCALE_TOL:
-                    _bits.append(f"stored scale is {_f['scale_error_frac'] * 100:.0f}% off its placement")
-                if _f["origin_delta_m"] > _ft.GEOMETRY_ORIGIN_TOL_M:
-                    _bits.append(f"placed {_f['origin_delta_m']:.1f} m from where its scale says")
-                critics.append({
-                    "category": "map_geometry",
-                    "severity": "critical" if _f["is_anchor"] else "warning",
-                    "title": f"Map “{_f['name']}” disagrees with its own geometry",
-                    "message": (
-                        "This map's stored scale and its position in the stack no longer "
-                        "describe the same picture — " + ", ".join(_bits) + ". "
-                        + ("It is also the map anchoring every floor to metres, so rooms on "
-                           "OTHER floors will be drawn wrong too. "
-                           if _f["is_anchor"] else "")
-                        + "Trimming a map on a build before 0.36 did this."
-                    ),
-                    "action": (
-                        "Re-measure this map (Mapping → Edit → Measure) so its scale "
-                        "and placement are derived together again. Do NOT redraw the rooms — "
-                        "room geometry is stored in metres and is not what is wrong here."
-                    ),
-                })
+                # The terms the GATE fired on, named by the gate. Re-deriving
+                # them from the numbers here was a second copy of the
+                # thresholds, and it was the copy left behind whenever the
+                # gate moved.
+                #
+                # FOUR OF THEM ARE GONE. `iso`, `displacement`, `scale` and
+                # `origin` each measured a gap between a map's two stored
+                # placements, and there is one placement now — so all four
+                # read zero on every install, forever, and a sentence built
+                # out of them would be a critical warning with nothing in the
+                # middle of it. The two that remain are about the record
+                # alone, and the third is about the house.
+                _terms = _f.get("terms") or []
+                if "no_world_frame" in _terms:
+                    critics.append({
+                        "category": "map_geometry",
+                        "severity": "critical",
+                        "title": "The house has no metre scale, so nothing can be drawn",
+                        "message": (
+                            "Floor plans are placed in metres and drawn by dividing those "
+                            "metres by the house's scale — and this install has no scale, "
+                            "because no map has ever been measured against a known "
+                            "distance. Every view that draws a plan, a room or a scanner "
+                            "refuses rather than guessing a size, which is correct and "
+                            "completely silent: the screen is simply empty."
+                        ),
+                        "action": (
+                            "Measure any one map (Mapping → Edit → Measure) by marking two "
+                            "points a known distance apart. One measurement gives the whole "
+                            "house its scale."
+                        ),
+                    })
+                    continue
+                if "unreadable" in _terms:
+                    critics.append({
+                        "category": "map_geometry",
+                        "severity": "critical",
+                        "title": f"Map “{_f['name']}” has an unreadable placement",
+                        "message": (
+                            "This map's stored placement is not a placement: a scale is "
+                            "missing, empty, zero or not a number, or the two axes lie on "
+                            "one line, so nothing can work out where the map sits or how "
+                            "big it is. Saving a scale on a build before 0.37 could write "
+                            "one of these."
+                        ),
+                        "action": (
+                            "Re-measure this map (Mapping → Edit → Measure). "
+                            "Until then it cannot anchor metres and any room drawn on "
+                            "it has no size."
+                        ),
+                    })
+                    continue
+                if "unplaced" in _terms:
+                    critics.append({
+                        "category": "map_geometry",
+                        "severity": "warning",
+                        "title": f"Map “{_f['name']}” is not placed anywhere",
+                        "message": (
+                            "This map has no placement, so it has no position and no size "
+                            "in the house and nothing can draw it. That is the normal "
+                            "state for a plan that has just been uploaded."
+                        ),
+                        "action": (
+                            "Measure it (Mapping → Edit → Measure), or place it "
+                            "over a plan that is already measured in Mapping → 3D "
+                            "Stack and press Save Alignment."
+                        ),
+                    })
     except Exception:
         pass
 

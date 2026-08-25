@@ -9,7 +9,7 @@
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
+const { mapXform, fabricWorldRooms, worldGauge, metresToWorld } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 
 export function render(ctx) {
@@ -62,13 +62,15 @@ export function render(ctx) {
   const mapTransforms = {};
   for (const m of sorted) {
     const stk = m.stack || {};
-    mapTransforms[m.id] = { z: stk.z_level || 0, mapPt: makeStackXform(stk, imageAr(m)).mapPt };
+    const _xf = mapXform(ctx.state.model, m);
+    if (!_xf) continue;    // unplaced, or no world frame: draw nothing
+    mapTransforms[m.id] = { z: stk.z_level || 0, mapPt: _xf.mapPt };
   }
 
   // Build room centroid iso positions (rebuilt when sliders change)
   // Fabric-first: committed metre fabric (via measured anchor) wins; the
   // per-photo room_bounds below only fill rooms the fabric doesn't have.
-  const _tbFabricW = fabricWorldRooms(sorted, ctx.state.model);
+  const _tbFabricW = fabricWorldRooms(ctx.state.model);
   const _tbFloorZ = {};
   for (const m of sorted) {
     const fid = String(m.stack?.floor_id || m.floor_id || "main");
@@ -112,7 +114,7 @@ export function render(ctx) {
   }
   _rebuildRoomPositions();
 
-  const _anchor = metreAnchor(maps_list, (ctx.state.model || {}).map_transforms);
+  const _gauge = worldGauge(ctx.state.model);
   // A floor's slab height, so a metre position lands on the right storey.
   const _floorZByFloor = {};
   for (const m of maps_list) {
@@ -130,8 +132,13 @@ export function render(ctx) {
     // Recorded position, in metres. History is replayed in the world frame
     // via the metre anchor — no map id to resolve, so re-placing a photo
     // cannot move where something was an hour ago.
-    if (o.x_m != null && o.y_m != null && _anchor) {
-      const k = 1 / _anchor.m_per_world;
+    // `k` was `1 / _anchor.m_per_world` — the X figure of a per-axis pair
+    // — applied to BOTH components. On a trimmed anchor (kx 20, ky 40)
+    // that replayed an object 10.00 m down the house 10.000 m out in y,
+    // an hour of history drawn on the wrong side of the building. One
+    // gauge, inverted in one place, and there is no wrong half to pick.
+    if (o.x_m != null && o.y_m != null && _gauge) {
+      const k = metresToWorld(_gauge);
       const z = _floorZ(o.f) ?? 0;
       return iso(o.x_m * k, o.y_m * k, z);
     }
@@ -297,7 +304,7 @@ export function render(ctx) {
 
       let x0 = Infinity, y0_ = Infinity, x1 = -Infinity, y1_ = -Infinity;
       for (const m of group) {
-        const bbPt = makeStackXform(m.stack, imageAr(m)).mapPt;
+        const bbPt = (mapTransforms[m.id] || {}).mapPt; if (!bbPt) continue;
         for (const [cx, cy] of [[0, 0], [1, 0], [1, 1], [0, 1]]) { const [wx, wy] = bbPt(cx, cy); x0 = Math.min(x0, wx); y0_ = Math.min(y0_, wy); x1 = Math.max(x1, wx); y1_ = Math.max(y1_, wy); }
       }
       if (!isFinite(x0)) { x0 = 0; y0_ = 0; x1 = 1; y1_ = 0.75; }
@@ -324,7 +331,7 @@ export function render(ctx) {
         }
       }
       for (const m of group) {
-        const mapPt = makeStackXform(m.stack, imageAr(m)).mapPt;
+        const mapPt = (mapTransforms[m.id] || {}).mapPt; if (!mapPt) continue;
         if (!_tbFabHere.length) {
           for (const [room, b] of Object.entries(m.room_bounds || {})) {
             if (!b || b.type !== "poly" || !Array.isArray(b.points) || b.points.length < 3) continue;
@@ -613,7 +620,7 @@ export function render(ctx) {
 
       let x0 = Infinity, y0_ = Infinity, x1 = -Infinity, y1_ = -Infinity;
       for (const m of group) {
-        const bbPt = makeStackXform(m.stack, imageAr(m)).mapPt;
+        const bbPt = (mapTransforms[m.id] || {}).mapPt; if (!bbPt) continue;
         for (const [cx2, cy2] of [[0, 0], [1, 0], [1, 1], [0, 1]]) { const [wx, wy] = bbPt(cx2, cy2); x0 = Math.min(x0, wx); y0_ = Math.min(y0_, wy); x1 = Math.max(x1, wx); y1_ = Math.max(y1_, wy); }
       }
       if (!isFinite(x0)) { x0 = 0; y0_ = 0; x1 = 1; y1_ = 0.75; }
@@ -640,7 +647,7 @@ export function render(ctx) {
         }
       } else {
       for (const m of group) {
-        const mapPt = makeStackXform(m.stack, imageAr(m)).mapPt;
+        const mapPt = (mapTransforms[m.id] || {}).mapPt; if (!mapPt) continue;
         for (const [room, b] of Object.entries(m.room_bounds || {})) {
           if (!b || b.type !== "poly" || !Array.isArray(b.points) || b.points.length < 3) continue;
           const pp = b.points.map(p => { const [wx, wy] = mapPt(p[0], p[1]); return pt(iso(wx, wy, z)); }).join(" ");
@@ -1838,11 +1845,15 @@ export function render(ctx) {
       return null;
     };
     const transforms = ctx.state.model?.map_transforms || {};
+    // The six-field placement model — see stack_transform.js mapFracToMetres,
+    // which this is a local copy of. shear_rad leans the y axis off
+    // perpendicular; dropping it measured every distance on a sheared map
+    // through a placement the renderer never drew.
     const _toMetres = (x, y, mid) => {
       const t = transforms[mid]; if (!t) return null;
-      const sx = t.scale_x_m||1, sy = t.scale_y_m||1, rot = t.rotation_rad||0;
+      const sx = t.scale_x_m ?? 1, sy = t.scale_y_m ?? 1, rot = t.rotation_rad||0, sig = t.shear_rad||0;
       let dx = x*sx, dy = y*sy;
-      if (Math.abs(rot)>1e-9){const c=Math.cos(rot),s=Math.sin(rot);return[(t.origin_x_m||0)+dx*c-dy*s,(t.origin_y_m||0)+dx*s+dy*c];}
+      if (Math.abs(rot)>1e-9||Math.abs(sig)>1e-9){const c=Math.cos(rot),s=Math.sin(rot),cq=Math.cos(rot+sig),sq=Math.sin(rot+sig);return[(t.origin_x_m||0)+dx*c-dy*sq,(t.origin_y_m||0)+dx*s+dy*cq];}
       return [(t.origin_x_m||0)+dx,(t.origin_y_m||0)+dy];
     };
 

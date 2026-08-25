@@ -39,6 +39,7 @@ pastel RGB) so they're stable across sessions without needing explicit assignmen
 import asyncio
 import copy
 import hashlib
+import logging
 import math
 import re
 from dataclasses import dataclass, field
@@ -47,8 +48,11 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
+from . import fabric_truth
 from .const import MODEL_STORE_KEY, DEFAULT_FLOOR_ID, MAX_HEIGHT_M, LIGHT_SHAPE_KINDS, OUTDOOR_FLOOR_NAMES
 from .safe_store import wrap_store
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _slug(s: str) -> str:
@@ -74,12 +78,32 @@ def _hash_color_hex(name: str) -> str:
 DEFAULT_FLOOR_TO_FLOOR_M: float = 2.8
 
 
+# The six coordinates of a placement — see ModelStore.map_frac_to_metres.
+# `_put_map_transform` carries any of them a new record does not state, so
+# these are the fields a rebuild cannot drop by forgetting them.
+_PLACEMENT_FIELDS = ("origin_x_m", "origin_y_m", "scale_x_m", "scale_y_m",
+                     "rotation_rad", "shear_rad")
+
+# Carried with them: the provenance that decides whether a map counts as
+# MEASURED at all. It is not a coordinate, but it is subject to the same rule
+# and was subject to the same defect — a record that does not MENTION it had
+# been un-measuring the map, which is the σ bug on the one field that decides
+# whether the map can anchor the house to metres. Four callers carried it by
+# hand and the websocket writer, which takes an unvalidated dict straight from
+# a client, did not.
+# `floor_id` rides with them under the same rule. It is not a coordinate
+# either, but it decides which storey the map's rooms are drawn on, and the
+# record is REPLACED by the payload — so the one writer that takes a client
+# dict whole moved a map to 'main' whenever the client left the key out.
+_CARRIED_FIELDS = _PLACEMENT_FIELDS + ("reference_measurements", "floor_id")
+
+
 def _has_valid_origin(t: Any) -> bool:
     """True if a map transform carries finite numeric origin fields.
 
     A transform passing this check has an anchored world pose: its origin
     (and rotation) are authoritative and must never be re-derived from
-    presentation state (stack offsets / is_master).
+    presentation state.
     """
     if not isinstance(t, dict):
         return False
@@ -154,10 +178,33 @@ DEFAULT_DATA: dict[str, Any] = {
     },
     "map_transforms": {
         # map_id: { origin_x_m, origin_y_m, scale_x_m, scale_y_m, rotation_rad,
-        #           floor_id, origin_anchored }
+        #           shear_rad, floor_id, origin_anchored }
+        # shear_rad: σ, the sixth degree of freedom — see map_frac_to_metres.
+        # Absent means 0 (square axes), which is every placement written
+        # before the field existed.
         # origin_anchored: the world pose (origin + rotation) is write-once —
         # only the explicit re-anchor action may change it.
     },
+    # How many metres one unit of the shared stack world frame is.
+    #
+    #   { m_per_unit: float|None, source_map_id: str|None }
+    #
+    # ONE scalar, because metres carry no aspect ratio and neither does world
+    # space — see the note above `measure_world_gauge` in fabric_truth. This
+    # was measured on every read, by dividing a measured map's `scale_x_m` by
+    # the world footprint of its picture, which made the house's metre scale a
+    # property of a photograph and of the order the maps happened to be in
+    # (two self-consistent maps swing it 20%). It is measured once, written
+    # here, and read from here.
+    #
+    # None until something is measured, and None is a REFUSAL, not a cue to
+    # invent one. The 20 m fallback that used to fill this in was deleted for
+    # putting every position on an unmeasured plan at the wrong size silently.
+    #
+    # It is not the MEASURED flag: `map_transforms[id].reference_measurements`
+    # keeps that job. A map can be PLACED in gauge units without anyone having
+    # measured it, which is what makes an unmeasured floor plan drawable.
+    "world_gauge": {"m_per_unit": None, "source_map_id": None},
 }
 
 
@@ -209,72 +256,6 @@ def light_appearance(*, color: Any = "", shape: Any = "", rotation: Any = 0.0,
         "width_cm": _size(width_cm),
         "height_cm": _size(height_cm),
     }
-
-
-def _recrop_stack(stk: dict, fx0: float, fy0: float, fw: float, fh: float) -> dict | None:
-    """Re-derive a map's stack (its world footprint) after a crop.
-
-    The stack says how much shared world space a map's image spans and where
-    its centre sits. Cropping shrinks the picture, so both must move — but
-    only `async_recompute_transform_for_map` ever updated the map's METRIC
-    record, leaving the stack describing the pre-crop image. The metre anchor
-    divides one by the other, so the quotient drifted by the fraction cut off,
-    and by a *different* fraction per axis whenever the trim was not square
-    (issue #62, rjbutler: rooms stretched on one axis, an edge room pushed off
-    the drawn floor, and every other floor skewed too once the trimmed map
-    happened to be the one anchoring the house).
-
-    `ref_ar` is deliberately NOT touched. It is the world frame's y anisotropy,
-    shared with every map that references the same master, and it appears in
-    the y TRANSLATION term (`ar * (0.5 + oy)`) as well as the y span — so
-    rescaling it would both desync the frame and move the map. The x/y spans
-    are corrected through `scale` and `scale_x_adj` instead, which are this
-    map's own.
-
-    Returns a new stack dict, or None when the stack is not of a form this can
-    represent (the caller then leaves it alone rather than guessing).
-    """
-    if not isinstance(stk, dict) or not (fw > 0 and fh > 0):
-        return None
-    out = dict(stk)
-    ox = float(stk.get("x_offset") or 0.0)
-    oy = float(stk.get("y_offset") or 0.0)
-    # Centre of the retained rectangle, as a fraction of the OLD image.
-    u0 = (fx0 + fw / 2.0) - 0.5
-    v0 = (fy0 + fh / 2.0) - 0.5
-
-    _m = stk.get("_m")
-    if isinstance(_m, (list, tuple)) and len(_m) == 4:
-        a, b, c, d = (float(v) for v in _m)
-        # world = M·u + t. Substituting u = F·u' + u0 gives M' = M·F and the
-        # translation picks up M·u0 — the new centre's old world position.
-        out["_m"] = [a * fw, b * fh, c * fw, d * fh]
-        out["x_offset"] = ox + a * u0 + b * v0
-        out["y_offset"] = oy + c * u0 + d * v0
-        return out
-
-    sc = float(stk.get("scale") or 1.0)
-    sxadj = float(stk.get("scale_x_adj") or 1.0)
-    ar = float(stk.get("ref_ar") or 1.0)
-    if sc <= 0 or sxadj <= 0 or ar <= 0:
-        return None
-    rot = math.radians(float(stk.get("rotation") or 0.0))
-
-    # Where the new image's centre sits in world space under the OLD stack.
-    dx = u0 * sc * sxadj
-    dy = v0 * sc * ar
-    wx = (0.5 + ox) + dx * math.cos(rot) - dy * math.sin(rot)
-    wy = ar * (0.5 + oy) + dx * math.sin(rot) + dy * math.cos(rot)
-
-    # x span must scale by fw and y span by fh, with `ar` held fixed:
-    #   scale·ar        -> scale'·ar        =>  scale'  = scale · fh
-    #   scale·scale_x_adj -> scale'·sxadj'  =>  sxadj'  = sxadj · fw / fh
-    out["scale"] = sc * fh
-    out["scale_x_adj"] = sxadj * fw / fh
-    # The new centre is (0.5, 0.5) of the new image, where dx = dy = 0.
-    out["x_offset"] = wx - 0.5
-    out["y_offset"] = wy / ar - 0.5
-    return out
 
 
 @dataclass
@@ -330,6 +311,11 @@ class ModelStore:
                 self.data["room_geometry_m"] = {}
             if not isinstance(self.data.get("map_transforms"), dict):
                 self.data["map_transforms"] = {}
+            # Not seeded here — only shaped. Seeding needs the maps store, and
+            # a store that boots with the key absent must read as "nothing
+            # measured yet" rather than as a broken gauge.
+            if not isinstance(self.data.get("world_gauge"), dict):
+                self.data["world_gauge"] = dict(DEFAULT_DATA["world_gauge"])
             # ── Migration: freeze existing map-transform world poses ────────
             # The stored origin is already the effective origin every reader
             # uses, so this changes no numbers — it marks the pose write-once
@@ -388,6 +374,7 @@ class ModelStore:
             "rf_barriers_m": self.rf_barriers_m(),
             "map_transforms": dict(self.data.get("map_transforms", {})),
             "beacon_positions_m": self.beacon_positions_m(),
+            "world_gauge": self.world_gauge(),
         }
 
     def floors(self) -> list[dict[str, Any]]:
@@ -951,33 +938,98 @@ class ModelStore:
         """Return the affine transform for a specific map, or None."""
         return (self.data.get("map_transforms") or {}).get(map_id)
 
+    def world_gauge(self) -> dict[str, Any]:
+        """The stored world gauge: {m_per_unit: float|None, source_map_id}.
+
+        Shape only — `fabric_truth.metre_gauge` is what decides whether the
+        value is USABLE, and it is the one every consumer goes through. The
+        two are deliberately not the same function: this one answers "what is
+        on disk" (the panel and the backup need that, including a gauge that
+        is broken), and that one answers "is there a world frame" (every
+        renderer and repair path needs that, and must get None for a broken
+        gauge rather than a number).
+        """
+        g = self.data.get("world_gauge")
+        if not isinstance(g, dict):
+            return {"m_per_unit": None, "source_map_id": None}
+        return {"m_per_unit": g.get("m_per_unit"),
+                "source_map_id": g.get("source_map_id")}
+
+    async def async_ensure_world_gauge(self, maps_list: list[dict]) -> dict[str, Any] | None:
+        """Seed the world gauge if it has never been set. THE one writer.
+
+        Returns the usable gauge (as `fabric_truth.metre_gauge` returns it) or
+        None when nothing has been measured yet.
+
+        WRITE-ONCE, and that is the whole design. A gauge that were re-measured
+        on every write would be the per-render measurement again with an extra
+        step, and the failure it caused would be worse for being sticky: the
+        house's metre scale would move whenever a map was added, re-measured
+        or re-ordered, silently rescaling every room and every scanner that
+        had not moved. Once it is set, re-measuring a map changes THAT MAP's
+        record — which is what a re-measure means — and the map's placement
+        follows. The house does not resize because one plan was re-measured.
+
+        Called from the upgrade migration (for stores that already have
+        measured maps) and from the transform writer (so an install's FIRST
+        measurement seeds it). Both go through here, so "what can set the
+        house's scale" has one answer.
+
+        Logged at INFO with the map and the reason, because this freezes a
+        one-time judgement and the owner has to be able to see that it
+        happened and which picture it was taken from.
+        """
+        existing = fabric_truth.metre_gauge(self)
+        if existing:
+            return existing
+        seed = fabric_truth.measure_world_gauge(maps_list or [], self)
+        if not seed:
+            return None
+        self.data["world_gauge"] = {"m_per_unit": seed["m_per_unit"],
+                                    "source_map_id": seed["source_map_id"]}
+        await self.store.async_save(self.data)
+        _LOGGER.info(
+            "World gauge set: 1 world unit = %.6f m, measured from map %s — %s. "
+            "This is now stored and will not be re-measured; re-measuring a map "
+            "changes that map's placement, not the scale of the house.",
+            seed["m_per_unit"], seed["source_map_id"], seed["source_reason"],
+        )
+        return fabric_truth.metre_gauge(self)
+
     def has_spatial_model(self) -> bool:
         """Return True if real-world spatial data has been populated."""
         return bool(self.scanner_positions_m() or self.room_geometry_m() or self.beacon_positions_m())
 
     # ── Coordinate conversion ─────────────────────────────────────────────
 
+    # The placement model, written down once:
+    #
+    #   metres = origin + R(ρ) · [[Sx, -Sy·sin σ], [0, Sy·cos σ]] · frac
+    #
+    # ρ = rotation_rad is the x axis's bearing; σ = shear_rad is how far the y
+    # axis leans away from perpendicular to it, wrapped to (-π, π]. Five fields
+    # are NOT enough: they can only describe a placement whose axes are square
+    # to each other, and the renderer draws placements whose axes are not — a
+    # Point Align full transform, a MIRRORED placement, or any rotated
+    # placement on an anchor whose two axis scales disagree. All three were
+    # recorded as the nearest square placement: about 9 cm per metre of the
+    # map for a 5° lean, and the whole span of it for a mirror, moved
+    # silently and with no way back.
+    #
+    # σ = 0 is the five-field arithmetic BIT FOR BIT — `rot + 0.0` is `rot`
+    # exactly, so every existing placement converts through the same
+    # multiplications in the same order it always did. σ = ±π is a mirror, so
+    # reflection needs no flag of its own.
+
     def map_frac_to_metres(self, x_frac: float, y_frac: float, map_id: str) -> tuple[float, float] | None:
         """Convert map 0-1 fractions to real-world metres using stored transform."""
         t = (self.data.get("map_transforms") or {}).get(map_id)
         if not t:
             return None
-        ox = float(t.get("origin_x_m", 0))
-        oy = float(t.get("origin_y_m", 0))
-        sx = float(t.get("scale_x_m", 1))
-        sy = float(t.get("scale_y_m", 1))
-        rot = float(t.get("rotation_rad", 0))
-        # Apply: translate frac to centered, scale, rotate, offset
-        dx = x_frac * sx
-        dy = y_frac * sy
-        if abs(rot) > 1e-9:
-            cos_r = math.cos(rot)
-            sin_r = math.sin(rot)
-            rx = dx * cos_r - dy * sin_r
-            ry = dx * sin_r + dy * cos_r
-        else:
-            rx, ry = dx, dy
-        return (ox + rx, oy + ry)
+        # The arithmetic lives in fabric_truth beside the decomposition that
+        # is its inverse, so the record is evaluated in exactly one place —
+        # everything comparing two placements evaluates them the same way.
+        return fabric_truth.placement_metres(t, x_frac, y_frac)
 
     def metres_to_map_frac(self, x_m: float, y_m: float, map_id: str) -> tuple[float, float] | None:
         """Inverse: real-world metres to map 0-1 fractions."""
@@ -989,19 +1041,30 @@ class ModelStore:
         sx = float(t.get("scale_x_m", 1))
         sy = float(t.get("scale_y_m", 1))
         rot = float(t.get("rotation_rad", 0))
-        # Reverse: remove offset, inverse rotate, inverse scale
+        sig = float(t.get("shear_rad", 0) or 0)
+        # How far the picture REACHES on each axis: `Sx` across, and
+        # `Sy·|cos σ|` perpendicular to it, which is what a lean eats into. A
+        # zero scale and a quarter-turn lean are the same refusal, asked once,
+        # in metres. It was three thresholds, one of them on a bare cosine,
+        # and that one let a quarter turn through — rounded to the store's
+        # grid `cos σ` reads 3.3e-07. Held equal to
+        # `fabric_truth.placement_is_readable` and the panel's
+        # `metresToMapFrac`.
+        cos_s = math.cos(sig)
+        _min = fabric_truth.PLACEMENT_MIN_EXTENT_M
+        if abs(sx) < _min or abs(sy) * abs(cos_s) < _min:
+            return None
         rx = x_m - ox
         ry = y_m - oy
-        if abs(rot) > 1e-9:
-            cos_r = math.cos(-rot)
-            sin_r = math.sin(-rot)
-            dx = rx * cos_r - ry * sin_r
-            dy = rx * sin_r + ry * cos_r
-        else:
-            dx, dy = rx, ry
-        if abs(sx) < 1e-9 or abs(sy) < 1e-9:
-            return None
-        return (dx / sx, dy / sy)
+        if abs(rot) > 1e-9 or abs(sig) > 1e-9:
+            cos_r = math.cos(rot)
+            sin_r = math.sin(rot)
+            cos_q = math.cos(rot + sig)
+            sin_q = math.sin(rot + sig)
+            dx = rx * cos_q + ry * sin_q
+            dy = ry * cos_r - rx * sin_r
+            return (dx / (sx * cos_s), dy / (sy * cos_s))
+        return (rx / sx, ry / sy)
 
     # ── Spatial mutators ──────────────────────────────────────────────────
 
@@ -1041,6 +1104,52 @@ class ModelStore:
             return
         await fab.async_spatial_update(remove_barrier_ids=[str(barrier_id)], op="barrier_remove")
 
+    def _put_map_transform(self, map_id: str, transform: dict) -> dict:
+        """The ONE mutator of `map_transforms`. Nothing else may assign to it.
+
+        INVARIANT: a map's placement changes in exactly one place. Three call
+        sites used to assign `map_transforms[mid] = {...}` themselves — the
+        build-from-maps derivation, the image-replacement recompute and the
+        re-anchor preflight — so "what can move a map" was a question with
+        four answers, and any field added to the record (shear_rad is the
+        current one) had to be remembered at all four or it silently vanished
+        on whichever path forgot it. Every historical desync in this codebase
+        is two copies of a placement disagreeing; a second writer is how the
+        second copy gets made. (`maps[].stack` had the same problem and the
+        same fix: ws_fabric_map_stack_rebuild now goes through the maps
+        store's `async_update_map` instead of assigning `m["stack"]`.)
+
+        A field the new record does not MENTION is unchanged, not zero. That
+        is the one rule this writer enforces, and it is what makes a
+        five-field rebuild structurally impossible: a branch that builds a
+        `{...}` literal and forgets σ leaves the map's lean alone instead of
+        straightening it. Forgetting a field was the whole failure mode — the
+        record grew a sixth one and the crop branch carried it, the bake
+        branch did not, and each branch that rebuilds a record was one more
+        place to remember. Only a caller that STATES a field may change it.
+
+        `reference_measurements` is carried under the same rule, for the same
+        reason: it is not a coordinate, but it is what makes a map MEASURED,
+        and a record that omitted it turned a measured map into an unmeasured
+        one — silently, and with the measurement gone. Four callers remembered
+        it by hand; the fifth is a websocket handler taking a client dict.
+
+        The pose rules and the field sanitise stay in
+        async_set_map_transform, which has the policy the callers below are
+        explicitly opting out of. This is the choke point, not the policy —
+        it is where R3 will hook the derivation.
+
+        The carry is written INTO the caller's dict rather than onto a copy:
+        the record handed to this writer is the record stored, which is an
+        invariant of its own (test_map_transform_single_writer.py).
+        """
+        old = (self.data.get("map_transforms") or {}).get(str(map_id)) or {}
+        for _k in _CARRIED_FIELDS:
+            if _k not in transform and _k in old:
+                transform[_k] = old[_k]
+        self.data.setdefault("map_transforms", {})[str(map_id)] = transform
+        return transform
+
     async def async_set_map_transform(
         self, map_id: str, transform: dict, *, reanchor: bool = False
     ) -> None:
@@ -1050,17 +1159,78 @@ class ModelStore:
         transform carries a valid origin, saves keep it — a re-measure
         updates the scale without silently moving the world frame.  Only an
         explicit re-anchor (reanchor=True) may overwrite the pose.
+
+        `shear_rad` is SHAPE, not pose, so it follows the scales rather than
+        the origin: it says how the map's own two axes sit relative to each
+        other, which is what a re-measure is entitled to restate.
+
+        INVARIANT, for σ: it is changed only by a payload that STATES it.
+        "Shape, not pose" says a re-measure MAY restate σ; it does not say a
+        payload that never mentions σ has restated it as square.  Save Scale
+        sends exactly five fields, so defaulting the missing key to 0
+        straightened every sheared map the moment its scale was re-measured.
+
+        The same rule now covers `reference_measurements`, one level down in
+        `_put_map_transform`: an omitted key may not un-measure a map either.
+        It was left out of R1 as a separate policy question about the metre
+        anchor, and the answer is the same one — the record is otherwise
+        REPLACED by the payload, so the four callers that build a record by
+        hand carried it by hand, and the websocket writer that takes a client
+        dict did not.
+
+        The two SCALES are sanitised here rather than carried blindly,
+        because they are the only fields whose value can make every later
+        conversion raise or lie: `float(None)` is a TypeError in both
+        directions, and a zero is a singular matrix that answers the origin
+        for every point on the map. A payload that does not state a usable
+        one has not restated the scale.
         """
-        transforms = self.data.setdefault("map_transforms", {})
+        transforms = self.data.get("map_transforms") or {}
         new_t = dict(transform)
+        old_t = transforms.get(str(map_id))
         # Sanitize the pose to finite floats (the ws layer accepts any dict).
-        for _k in ("origin_x_m", "origin_y_m", "rotation_rad"):
+        # shear_rad rides with them: it is a coordinate of the placement like
+        # the others, and a string or a NaN in it would poison every later
+        # conversion the same way.  Its default is the STORED value rather
+        # than 0 — see the invariant above; an explicit `shear_rad: null` is
+        # still a statement, and still sanitises to 0.
+        for _k in ("origin_x_m", "origin_y_m", "rotation_rad", "shear_rad"):
+            _default = (old_t or {}).get(_k, 0) if _k == "shear_rad" else 0
             try:
-                _v = float(new_t.get(_k, 0) or 0)
+                _v = float(new_t.get(_k, _default) or 0)
             except (TypeError, ValueError):
                 _v = 0.0
             new_t[_k] = _v if math.isfinite(_v) else 0.0
-        old_t = transforms.get(str(map_id))
+        # The scales: strictly positive and finite, or not a scale at all.
+        # An unusable value falls back to the STORED scale — the σ rule again
+        # — and with nothing stored the key is dropped, so the map reads as
+        # having no scale rather than carrying a poisonous one. Every reader
+        # already handles an absent scale; none of them handles a null.
+        for _k in ("scale_x_m", "scale_y_m"):
+            try:
+                _v = float(new_t[_k])
+            except (KeyError, TypeError, ValueError):
+                _v = 0.0
+            if math.isfinite(_v) and _v > 0:
+                new_t[_k] = _v
+                continue
+            try:
+                _v = float((old_t or {}).get(_k))
+            except (TypeError, ValueError):
+                _v = 0.0
+            if math.isfinite(_v) and _v > 0:
+                new_t[_k] = _v
+            else:
+                # Nothing usable on either side. The key has to end up ABSENT,
+                # and `_put_map_transform`'s rule is that an absent key is
+                # carried from the old record — which would put the unusable
+                # stored value straight back. So it goes from the outgoing
+                # record too; that record is being replaced on the next line
+                # but one, and this is the only way to say "there is no scale"
+                # through a writer whose rule is "absent means unchanged".
+                new_t.pop(_k, None)
+                if old_t is not None:
+                    old_t.pop(_k, None)
         if not reanchor and _has_valid_origin(old_t):
             new_t["origin_x_m"] = float(old_t["origin_x_m"])
             new_t["origin_y_m"] = float(old_t["origin_y_m"])
@@ -1072,7 +1242,7 @@ class ModelStore:
             # incoming value — it would poison every later conversion.
             new_t["rotation_rad"] = _rot if math.isfinite(_rot) else 0.0
         new_t["origin_anchored"] = True
-        transforms[str(map_id)] = new_t
+        self._put_map_transform(map_id, new_t)
         await self.store.async_save(self.data)
 
     # ── Beacon positions (metre space) ──────────────────────────────────────
@@ -1173,106 +1343,6 @@ class ModelStore:
 
     # ── Migration: derive transforms + convert map data to metres ─────────
 
-    async def async_derive_transforms(self, maps_store: Any) -> int:
-        """Compute map_transforms from existing map calibration + stack data.
-
-        Master map on each floor gets origin (0,0). Other maps on the same floor
-        get their origin offset via the stack alignment.
-
-        A map with no px_per_meter calibration gets NO transform. There used
-        to be a fallback that assumed the image spanned a default floor width
-        (20 m), which algebraically forced every unmeasured map to exactly
-        that width regardless of what the photo showed — the single largest
-        source of wrong metres this project has had. A map with no real scale
-        is a picture; measure it, or place it in the 3D stack against a
-        measured map and adopt that pose.
-
-        Returns number of transforms computed.
-        """
-        transforms = self.data.setdefault("map_transforms", {})
-        count = 0
-
-        # Find master map per floor
-        maps_list = maps_store.data.get("maps") or []
-        master_per_floor: dict[str, dict] = {}  # floor_id → map dict
-        for m in maps_list:
-            fl = str(m.get("floor_id", DEFAULT_FLOOR_ID))
-            if (m.get("stack") or {}).get("is_master"):
-                master_per_floor[fl] = m
-
-        for m in maps_list:
-            mid = m.get("id", "")
-            if not mid:
-                continue
-            # Skip maps that already have a usable transform — its pose is
-            # anchored (calibration pins may depend on it) and re-deriving
-            # from stack state here is exactly the drift this design forbids.
-            # A broken record (origin but no usable scale) is NOT skipped:
-            # freezing it would fabricate a 1m x 1m map forever.
-            _existing = transforms.get(mid)
-            if _existing and (
-                _existing.get("reference_measurements")
-                or (_has_valid_origin(_existing) and _has_valid_scale(_existing))
-            ):
-                count += 1  # count as already done
-                continue
-            cal = m.get("calibration") or {}
-            ppm = cal.get("px_per_meter")
-            img = m.get("image") or {}
-            img_w = int(img.get("width") or 0)
-            img_h = int(img.get("height") or 0)
-            if img_w <= 0 or img_h <= 0:
-                continue
-
-            if ppm and float(ppm) > 0:
-                ppm = float(ppm)
-            else:
-                continue        # unmeasured: a picture, not a floor plan
-
-            # Scale: metres per 1.0 fraction
-            scale_x_m = img_w / ppm
-            scale_y_m = img_h / ppm
-
-            stk = m.get("stack") or {}
-            fl = str(m.get("floor_id", DEFAULT_FLOOR_ID))
-            rot_deg = float(stk.get("rotation", 0))
-            rot_rad = math.radians(rot_deg)
-
-            # Origin: master map = (0,0), others offset via stack
-            is_master = stk.get("is_master", False)
-            if is_master or mid == master_per_floor.get(fl, {}).get("id"):
-                origin_x = 0.0
-                origin_y = 0.0
-            else:
-                # Use stack x_offset, y_offset (normalised) scaled to master's metres
-                master = master_per_floor.get(fl)
-                if master:
-                    m_cal = (master.get("calibration") or {})
-                    m_ppm = float(m_cal.get("px_per_meter") or 0) or ppm
-                    m_img = master.get("image") or {}
-                    m_w = int(m_img.get("width") or img_w)
-                    m_h = int(m_img.get("height") or img_h)
-                    origin_x = float(stk.get("x_offset", 0)) * (m_w / m_ppm)
-                    origin_y = float(stk.get("y_offset", 0)) * (m_h / m_ppm)
-                else:
-                    origin_x = float(stk.get("x_offset", 0)) * scale_x_m
-                    origin_y = float(stk.get("y_offset", 0)) * scale_y_m
-
-            transforms[mid] = {
-                "origin_x_m": round(origin_x, 4),
-                "origin_y_m": round(origin_y, 4),
-                "scale_x_m": round(scale_x_m, 4),
-                "scale_y_m": round(scale_y_m, 4),
-                "rotation_rad": round(rot_rad, 6),
-                "floor_id": fl,
-                "origin_anchored": True,
-            }
-            count += 1
-
-        if count:
-            await self.store.async_save(self.data)
-        return count
-
     # ── Phase 4: map image replacement — recompute + re-derive ─────────────
 
     async def async_recompute_transform_for_map(
@@ -1291,13 +1361,16 @@ class ModelStore:
 
         pixel_op ({deg, sx, sy} with old_px = (old_w, old_h)): a baked
         rotate/scale, canvas form p' = c_new + R(deg)·diag(sx, sy)·(p − c_old).
-        A pure scale preserves extent; a rotation preserves pixel density, so
-        the transform composes: rotation subtracts, ppm multiplies, and the
-        origin picks up the centre-shift term.  Rotation combined with
-        anisotropic stretch is a general affine the origin/scale/rotation
-        model CANNOT represent — the transform (and its measurements) are
-        dropped so the map honestly reads unmeasured instead of silently
-        corrupting the scale, and fabric metre data is left untouched.
+        A pure scale preserves extent; anything with a turn in it is composed
+        by asking the OLD placement where the new image's corners came from,
+        which is exact for every invertible op — rotation with an anisotropic
+        stretch included.  That combination used to be refused as
+        unrepresentable and the whole record dropped, which was true of the
+        five-field model and stopped being true when σ was added: a rotated
+        anisotropic bake is a general affine, and six fields hold every
+        general affine there is.  A Point Align across two differently-shaped
+        pictures bakes exactly that (issue #62), so a measured map read
+        unmeasured after one click in the image editor.
 
         Neither: a pure resample, which preserves the real-world extent —
         unless the aspect ratio changed, which no known no-op replacement
@@ -1305,7 +1378,6 @@ class ModelStore:
 
         Returns True if the transform was updated (False = skipped or dropped).
         """
-        self._stack_recropped = False
         cal = map_dict.get("calibration") or {}
         img = map_dict.get("image") or {}
         img_w = int(img.get("width") or 0)
@@ -1343,66 +1415,68 @@ class ModelStore:
                     "rotation_rad": rot0,
                 }
             else:
-                ppm = ow / old_sx
-                iso_ok = abs(oh / old_sy - ppm) <= 0.02 * ppm
-                uniform = abs(bsx - bsy) <= 0.02 * max(bsx, bsy)
-                if not (iso_ok and uniform):
-                    # Rotation + anisotropic scale (or anisotropic px/m) is a
-                    # general affine — unrepresentable.  Drop the scale
-                    # honestly; fabric metres stay valid for a re-measure.
+                # ASK THE PLACEMENT where the new image's corners came from,
+                # then read the six fields off the two axes that come back —
+                # the same route the crop takes below, and for the same
+                # reason.  Rebuilt from the fields it was `ρ' = ρ − θ` with
+                # the naive scales, which is the FIVE-field composition: a
+                # turn moves a map's two axes together only while they are
+                # square to each other, so a baked rotation on a sheared map
+                # slid the picture by the lean — 1.09 m on this 20 m map at
+                # 5° and a 30° turn, 2.18 m at 90°, and the record kept a σ
+                # that no longer described the axes it was stored beside.
+                #
+                # New frac f' is at new pixel D₁·f' − c_new, which the op put
+                # there from old pixel c_old + diag(1/sx, 1/sy)·R(θ)⁻¹·(that).
+                # Over (ow, oh) that is the old fraction, and where THAT went
+                # in metres is a question for the placement, not for a second
+                # copy of it.
+                #
+                # The two divisors are PER AXIS because the op's are: the
+                # stretch is applied inside the turn, so undoing it comes
+                # after undoing the turn.  One averaged divisor is the same
+                # arithmetic when sx == sy, and the composition it could not
+                # do is the one this branch used to refuse.
+                c1, s1 = math.cos(theta), math.sin(theta)
+
+                def _from_frac(fx: float, fy: float) -> tuple[float, float] | None:
+                    px = img_w * fx - img_w / 2.0
+                    py = img_h * fy - img_h / 2.0
+                    ux = (px * c1 + py * s1) / bsx
+                    uy = (py * c1 - px * s1) / bsy
+                    return self.map_frac_to_metres(
+                        (ux + ow / 2.0) / ow, (uy + oh / 2.0) / oh, map_id)
+
+                _o = _from_frac(0.0, 0.0)
+                _ex = _from_frac(1.0, 0.0)
+                _ey = _from_frac(0.0, 1.0)
+                composed = fabric_truth.placement_from_columns(
+                    _o, (_ex[0] - _o[0], _ex[1] - _o[1]),
+                    (_ey[0] - _o[0], _ey[1] - _o[1]),
+                ) if _o and _ex and _ey else None
+                if composed is None:
+                    # Degenerate axes: the op collapsed the map to a line.
                     _invalidate()
                     await self.store.async_save(self.data)
                     return False
-                k = (bsx + bsy) / 2.0
-                ppm_new = ppm * k
-                rot_new = rot0 - theta
-                # origin' = o + R(rot0)·c_old/ppm − R(rot_new)·c_new/ppm_new
-                cox, coy = ow / 2.0 / ppm, oh / 2.0 / ppm
-                cnx, cny = img_w / 2.0 / ppm_new, img_h / 2.0 / ppm_new
-                c0, s0 = math.cos(rot0), math.sin(rot0)
-                c1, s1 = math.cos(rot_new), math.sin(rot_new)
-                composed = {
-                    "origin_x_m": o0x + (cox * c0 - coy * s0) - (cnx * c1 - cny * s1),
-                    "origin_y_m": o0y + (cox * s0 + coy * c0) - (cnx * s1 + cny * c1),
-                    "scale_x_m": img_w / ppm_new,
-                    "scale_y_m": img_h / ppm_new,
-                    "rotation_rad": rot_new,
-                }
 
-        # Crop: derive the new extent from the retained fraction of the old one.
+        # Crop: the new image is the retained rectangle of the old one, and
+        # `rebase_placement` is the ONE function that says what that does to a
+        # placement — the same one the canvas extend and its revert go
+        # through, because padding a canvas is a crop with the rectangle
+        # bigger than the picture. There is no second copy on the stack to
+        # keep in step any more: the stack is derived from what is written
+        # here, so issue #62 has nothing left to happen between.
         if composed is None and crop and old_t.get("scale_x_m") and old_t.get("scale_y_m"):
             _fx0 = float(crop.get("fx0", 0))
             _fy0 = float(crop.get("fy0", 0))
             _fw = float(crop.get("fx1", 1)) - _fx0
             _fh = float(crop.get("fy1", 1)) - _fy0
-            if _fw > 0 and _fh > 0:
-                _old_sx = float(old_t["scale_x_m"])
-                _old_sy = float(old_t["scale_y_m"])
-                scale_x_m = _old_sx * _fw
-                scale_y_m = _old_sy * _fh
-                # The cropped image's frac (0,0) sits at (fx0, fy0) of the old
-                # image, so the origin must shift by that offset in world space
-                # — otherwise every fabric position re-derives to the wrong
-                # frac, displaced by the cut-off margin.  The offset rotates
-                # with the map (world = origin + R·(frac ⊙ scale)).
-                _dx = _fx0 * _old_sx
-                _dy = _fy0 * _old_sy
-                _rot_old = float(old_t.get("rotation_rad", 0))
-                if abs(_rot_old) > 1e-9:
-                    _c, _s = math.cos(_rot_old), math.sin(_rot_old)
-                    _dx, _dy = _dx * _c - _dy * _s, _dx * _s + _dy * _c
-                crop_origin = (
-                    float(old_t.get("origin_x_m", 0)) + _dx,
-                    float(old_t.get("origin_y_m", 0)) + _dy,
-                )
-                # The stack has to follow the crop too, or the map keeps a
-                # post-crop metric extent beside a pre-crop world footprint and
-                # the metre anchor divides one by the other (issue #62).
-                _new_stk = _recrop_stack(map_dict.get("stack") or {},
-                                         _fx0, _fy0, _fw, _fh)
-                if _new_stk is not None:
-                    map_dict["stack"] = _new_stk
-                    self._stack_recropped = True
+            _rebased = fabric_truth.rebase_placement(old_t, _fx0, _fy0, _fw, _fh)
+            if _rebased is not None:
+                scale_x_m = _rebased["scale_x_m"]
+                scale_y_m = _rebased["scale_y_m"]
+                crop_origin = (_rebased["origin_x_m"], _rebased["origin_y_m"])
 
         if composed is None and not scale_x_m:
             ppm = cal.get("px_per_meter")
@@ -1428,13 +1502,10 @@ class ModelStore:
             scale_x_m = img_w / ppm
             scale_y_m = img_h / ppm
 
-        stk = map_dict.get("stack") or {}
         fl = str(map_dict.get("floor_id", DEFAULT_FLOOR_ID))
 
         if composed is not None:
-            # Baked op: everything comes from the composition — the stack
-            # rotation is untouched by a bake and must not overwrite the
-            # composed rotation.
+            # Baked op: everything comes from the composition.
             scale_x_m = composed["scale_x_m"]
             scale_y_m = composed["scale_y_m"]
             origin_x = composed["origin_x_m"]
@@ -1442,36 +1513,34 @@ class ModelStore:
             rot_rad = composed["rotation_rad"]
         else:
             # World pose.  An anchored transform keeps its origin and
-            # rotation — a plain image replacement must never re-derive them
-            # from the cosmetic stack.  A crop is world-anchored too: fabric
-            # data keeps its old world coordinates, so the origin comes from
-            # the crop offset — for masters too (a trimmed master's frac
-            # (0,0) is no longer world (0,0), and every consumer reads
-            # origin generically).
+            # rotation — a plain image replacement must never move the map.
+            # A crop is world-anchored too: fabric data keeps its old world
+            # coordinates, so the origin comes from the rebased placement.
+            #
+            # The three stack fallbacks that used to sit here are gone with
+            # the stack: `rotation` off the alignment, `(0,0)` for a map
+            # carrying the master flag, and `x_offset * scale_x_m` for
+            # everyone else. All three answered "where is this map" from the
+            # OTHER copy of the answer, which is what R3 deletes. A map with
+            # no anchored placement being handed a new image is a map nobody
+            # has placed, and the honest pose for one of those is the origin,
+            # unturned — which is what the record already says, since an
+            # unanchored record has no origin and no rotation to read.
             _anchored = _has_valid_origin(old_t)
-            if _anchored:
-                try:
-                    rot_rad = float(old_t.get("rotation_rad", 0) or 0)
-                except (TypeError, ValueError):
-                    rot_rad = 0.0
-                if not math.isfinite(rot_rad):
-                    rot_rad = 0.0
-            else:
-                rot_rad = math.radians(float(stk.get("rotation", 0)))
+            try:
+                rot_rad = float(old_t.get("rotation_rad", 0) or 0)
+            except (TypeError, ValueError):
+                rot_rad = 0.0
+            if not math.isfinite(rot_rad):
+                rot_rad = 0.0
             if crop_origin is not None:
                 origin_x, origin_y = crop_origin
             elif _anchored:
                 origin_x = float(old_t["origin_x_m"])
                 origin_y = float(old_t["origin_y_m"])
-            elif stk.get("is_master", False):
-                origin_x, origin_y = 0.0, 0.0
             else:
-                # Fresh derivation (no prior transform): stack offsets
-                # scaled by the map's metres are the only origin available.
-                origin_x = float(stk.get("x_offset", 0)) * scale_x_m
-                origin_y = float(stk.get("y_offset", 0)) * scale_y_m
+                origin_x, origin_y = 0.0, 0.0
 
-        transforms = self.data.setdefault("map_transforms", {})
         new_t = {
             "origin_x_m": round(origin_x, 4),
             "origin_y_m": round(origin_y, 4),
@@ -1485,7 +1554,54 @@ class ModelStore:
         # skip test), and replacing an image doesn't un-measure it.
         if old_t.get("reference_measurements"):
             new_t["reference_measurements"] = old_t["reference_measurements"]
-        transforms[map_id] = new_t
+        # σ is STATED only by the op that changes it. A baked rotation is the
+        # one this function handles that does — it turns the x axis and the y
+        # axis by different amounts unless they are already square, and a
+        # stretch baked with it leans them apart on its own — so the
+        # composition above hands back the lean it computed. A crop and an
+        # axis-aligned pixel scale rescale the fraction axes without turning
+        # either; neither says anything about the lean, so neither writes the
+        # key and `_put_map_transform` carries the stored one forward. Absent
+        # means unchanged, not square.
+        if composed and "shear_rad" in composed:
+            new_t["shear_rad"] = round(composed["shear_rad"], 6)
+        self._put_map_transform(map_id, new_t)
+        await self.store.async_save(self.data)
+        return True
+
+    async def async_rebase_placement(self, map_id: str, fx0: float, fy0: float,
+                                     fw: float, fh: float) -> bool:
+        """The new image is the old image's rectangle [fx0, fx0+fw] x [fy0,
+        fy0+fh]. Move the placement with it. Returns True if it wrote.
+
+        THE INVARIANT: an operation that changes what the picture COVERS
+        changes the placement, in the same call, always. A pixel of the
+        retained image has to stay on the same square metre of the house, and
+        the only thing that can keep it there is the record — the picture
+        carries no coordinates of its own.
+
+        There are four such operations and two of them did not do this.  Crop
+        and bake go through `async_recompute_transform_for_map`, which has
+        rebased the record for releases.  `async_extend_canvas` and
+        `async_revert_extend` renormalise every stored FRACTION — receivers,
+        beacons, room bounds — into the new image's frac space and never
+        touched the record, so a map padded 20% on the left kept a `scale_x_m`
+        describing the old width and an origin pointing at the old top-left
+        corner. That is issue #62 running the other way: live, unreported, and
+        in two functions rather than one.  Both now come through here.
+        """
+        old_t = (self.data.get("map_transforms") or {}).get(str(map_id))
+        rebased = fabric_truth.rebase_placement(old_t or {}, fx0, fy0, fw, fh)
+        if rebased is None:
+            return False        # unmeasured, or a degenerate rectangle
+        self._put_map_transform(str(map_id), {
+            "origin_x_m": round(rebased["origin_x_m"], 4),
+            "origin_y_m": round(rebased["origin_y_m"], 4),
+            "scale_x_m": round(rebased["scale_x_m"], 4),
+            "scale_y_m": round(rebased["scale_y_m"], 4),
+            "rotation_rad": round(rebased["rotation_rad"], 6),
+            "shear_rad": round(rebased["shear_rad"], 6),
+        })
         await self.store.async_save(self.data)
         return True
 
@@ -1581,16 +1697,32 @@ class ModelStore:
         self, map_id: str, map_dict: dict, cal_store: Any = None, *,
         origin_x_m: float | None = None, origin_y_m: float | None = None,
         rotation_rad: float | None = None,
+        scale_x_m: float | None = None, scale_y_m: float | None = None,
+        shear_rad: float | None = None,
     ) -> dict[str, Any]:
-        """Explicitly redefine a map's world pose (origin + rotation).
+        """THE EXPLICIT COMMIT of a map's placement. All six fields.
 
-        The ONLY sanctioned way to change an anchored pose.  The shared
-        metre fabric is the truth: the new pose re-derives THIS map's
-        fractional coordinates (calibration pins, receivers, barriers,
-        beacons) from stored metres.  With no explicit pose given, the pose
-        is derived from the current stack (make the world match the
-        display).  Preflights the calibration guard under the new pose and
-        writes NOTHING if most pins would strand off the map.
+        The only sanctioned way to move a map that is already placed.  The
+        shared metre fabric is the truth: the new placement re-derives THIS
+        map's fractional coordinates (calibration pins, receivers, barriers,
+        beacons) from stored metres.  Preflights the calibration guard under
+        the new placement and writes NOTHING if most pins would strand off
+        the map.
+
+        IT TOOK THREE FIELDS AND IT IS WHERE THE ALIGN EDITOR NOW LANDS, so it
+        takes six.  The editor used to write `maps[].stack` — a second
+        placement nothing here could see — and a drag that resized or sheared
+        a map went to a writer with no scale to give it.  With the stack
+        derived, a drag IS a placement, so it comes through the one writer
+        that can refuse it.  The refusal is what makes this a commit rather
+        than a gesture: a live 60 Hz drag must never meet a writer that can
+        silently decline, so the drag moves nothing on disk and the owner's
+        Save is the single call that either lands or comes back with a reason.
+
+        With NO field given this is a no-op that still runs the guard, which
+        is what an idempotence check wants.  It used to derive the pose from
+        the stack in that case ("make the world match the display"); there is
+        no display-only copy left to match.
 
         Mutates map_dict in place when map fracs re-derive — the caller
         must persist the maps store if map_items_rederived > 0.
@@ -1600,35 +1732,50 @@ class ModelStore:
         if not old_t or not old_t.get("scale_x_m") or not old_t.get("scale_y_m"):
             return {"ok": False, "error": "not_measured"}
 
-        stk = map_dict.get("stack") or {}
-        if origin_x_m is None and origin_y_m is None and rotation_rad is None:
-            # Legacy stack rules, applied for the last time — explicitly.
-            if stk.get("is_master", False):
-                nx, ny = 0.0, 0.0
-            else:
-                nx = float(stk.get("x_offset", 0)) * float(old_t["scale_x_m"])
-                ny = float(stk.get("y_offset", 0)) * float(old_t["scale_y_m"])
-            nrot = math.radians(float(stk.get("rotation", 0)))
-        else:
-            try:
-                nx = float(origin_x_m if origin_x_m is not None else old_t.get("origin_x_m", 0))
-                ny = float(origin_y_m if origin_y_m is not None else old_t.get("origin_y_m", 0))
-                nrot = float(rotation_rad if rotation_rad is not None else old_t.get("rotation_rad", 0) or 0)
-            except (TypeError, ValueError):
-                return {"ok": False, "error": "invalid_pose"}
-        if not all(math.isfinite(v) for v in (nx, ny, nrot)):
+        try:
+            nx = float(origin_x_m if origin_x_m is not None else old_t.get("origin_x_m", 0))
+            ny = float(origin_y_m if origin_y_m is not None else old_t.get("origin_y_m", 0))
+            nrot = float(rotation_rad if rotation_rad is not None else old_t.get("rotation_rad", 0) or 0)
+            nsx = float(scale_x_m if scale_x_m is not None else old_t["scale_x_m"])
+            nsy = float(scale_y_m if scale_y_m is not None else old_t["scale_y_m"])
+            nsig = float(shear_rad if shear_rad is not None else old_t.get("shear_rad", 0) or 0)
+        except (TypeError, ValueError):
+            return {"ok": False, "error": "invalid_pose"}
+        if not all(math.isfinite(v) for v in (nx, ny, nrot, nsx, nsy, nsig)):
             return {"ok": False, "error": "invalid_pose"}
 
+        # Only the fields the CALLER STATED are written, which is
+        # `_put_map_transform`'s rule read from the other side: a re-anchor
+        # that says nothing about the lean has not restated the lean, and
+        # writing the stored value back through the store's 1 µrad grid would
+        # quietly move it. The origin and rotation are always written because
+        # re-anchoring the pose is what this is for.
         new_t = dict(old_t)
         new_t["origin_x_m"] = round(nx, 4)
         new_t["origin_y_m"] = round(ny, 4)
         new_t["rotation_rad"] = round(nrot, 6)
+        if scale_x_m is not None:
+            new_t["scale_x_m"] = round(nsx, 4)
+        if scale_y_m is not None:
+            new_t["scale_y_m"] = round(nsy, 4)
+        if shear_rad is not None:
+            new_t["shear_rad"] = round(nsig, 6)
         new_t["origin_anchored"] = True
+        # A placement that covers no area does not place the map — the same
+        # sentence `placement_is_readable` applies to a zero scale, asked
+        # BEFORE the write rather than discovered after it. A commit is the
+        # last point at which a singular placement can be refused instead of
+        # stored, because after R3 nothing downstream compares it to anything.
+        if not fabric_truth.placement_is_readable(new_t):
+            return {"ok": False, "error": "invalid_pose"}
 
         # Preflight the remap guard under the new pose: swap in memory,
         # measure, and roll back before any await — nothing is persisted
-        # unless the pose keeps the pins on the map.
-        transforms[map_id] = new_t
+        # unless the pose keeps the pins on the map. The swap and both
+        # rollbacks go through the one mutator: a temporary placement is
+        # still a placement, and _put_map_transform is what makes "everything
+        # that can move a map" a list of one.
+        self._put_map_transform(map_id, new_t)
         owned = owned_bad = 0
         for p in (cal_store.data.get("points") or []) if cal_store else []:
             if p.get("x_m") is None or p.get("map_id", "") != map_id:
@@ -1642,7 +1789,7 @@ class ModelStore:
             if not fr or not (-0.05 <= fr[0] <= 1.05 and -0.05 <= fr[1] <= 1.05):
                 owned_bad += 1
         if owned and owned_bad * 2 > owned:
-            transforms[map_id] = old_t
+            self._put_map_transform(map_id, old_t)
             return {
                 "ok": False, "error": "points_out_of_range",
                 "owned": owned, "out_of_range": owned_bad,
@@ -1665,7 +1812,7 @@ class ModelStore:
                 )
             rederived = await self.async_rederive_map_fracs(map_id, map_dict)
         except Exception as err:
-            transforms[map_id] = old_t
+            self._put_map_transform(map_id, old_t)
             if cal_store and _cal_points_snap is not None:
                 cal_store.data["points"] = _cal_points_snap
             map_dict.clear()
@@ -1680,6 +1827,9 @@ class ModelStore:
             "origin_x_m": new_t["origin_x_m"],
             "origin_y_m": new_t["origin_y_m"],
             "rotation_rad": new_t["rotation_rad"],
+            "scale_x_m": new_t.get("scale_x_m"),
+            "scale_y_m": new_t.get("scale_y_m"),
+            "shear_rad": new_t.get("shear_rad", 0.0),
             "cal_points_remapped": remapped,
             "map_items_rederived": rederived,
             "owned": owned, "out_of_range": owned_bad,

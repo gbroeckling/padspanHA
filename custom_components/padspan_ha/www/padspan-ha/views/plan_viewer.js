@@ -19,7 +19,7 @@
 // Everything else — the 3D stack, presence, scanners, barriers — reads the
 // metric fabric and never a photograph. See tests/test_photo_divorce.py.
 
-const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
+const { mapXform, fabricWorldRooms, worldGauge } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 
   // ---------- EXPERIMENTAL: 2D Flat Map (replaces 3D iso when enabled) ----------
@@ -72,7 +72,11 @@ const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
     // Build transforms for ALL visible maps (not just renderMaps) so the
     // heatmap can include adjacent-floor calibration data for cross-floor bleed.
     for (const m of visible) {
-      _mapPts[m.id] = makeStackXform(m.stack, imageAr(m)).mapPt;
+      // Null for a map with no placement, or a house with no gauge. Left out
+      // rather than drawn at a guessed size — every reader below already
+      // skips a missing entry.
+      const _xf = mapXform(ctx.state.model, m);
+      if (_xf) _mapPts[m.id] = _xf.mapPt;
     }
 
     // ── Compute world bounding box of all floor maps ─────────────────────
@@ -187,12 +191,13 @@ const { makeStackXform, imageAr, fabricWorldRooms, metreAnchor } =
     // ── Fabric-first rooms: once the committed fabric exists (and a measured
     // map anchors it to the world frame), the house view draws IT — the
     // per-photo room_bounds below stay only as the un-anchored fallback.
-    const _fabricW2d = fabricWorldRooms(maps_list, ctx.state.model);
-    const _activeInv2d = makeStackXform(activeMap.stack, imageAr(activeMap)).invMapPt;
+    const _fabricW2d = fabricWorldRooms(ctx.state.model);
+    const _activeXf2d = mapXform(ctx.state.model, activeMap);
+    const _activeInv2d = _activeXf2d ? _activeXf2d.invMapPt : (() => null);
     const _fabricRooms2d = _fabricW2d
       ? Object.entries(_fabricW2d).filter(([, fr]) => fr.floor_id === String(activeFloorId || "main"))
       : null;
-    const _fabricPt2d = (wx, wy) => isStitched ? w2v(wx, wy) : _activeInv2d(wx, wy);
+    const _fabricPt2d = (wx, wy) => isStitched ? w2v(wx, wy) : (_activeInv2d(wx, wy) || [0.5, 0.5]);
 
     // Build SVG content — viewBox="0 0 1 {aspect}" with xMidYMid meet
     // for correct aspect ratio in stitched mode.

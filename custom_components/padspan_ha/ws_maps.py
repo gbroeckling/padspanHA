@@ -225,10 +225,12 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
     # because the photo they were once traced on was saved again.
 
     # ── Phase 3: remap calibration points from metres when map changes ───
-    # Skipped for stack-only saves (issue #56): the 3D alignment editor only
-    # writes the cosmetic stack, which the metre transform does not depend
-    # on — re-deriving fracs here was rewriting calibration pins through a
-    # transform whose origin no longer matched the stored metres.
+    # Skipped for stack-only saves (issue #56). The reason has changed and the
+    # skip is now structural: a stack CANNOT carry a placement, so a save that
+    # touches only the stack cannot have moved the map and re-deriving the
+    # calibration fracs through an unchanged placement would be work with no
+    # input. It used to be a judgement about which writes were "cosmetic",
+    # which is what a second stored placement forced.
     _stack_only = (
         msg.get("stack") is not None
         and msg.get("receivers") is None and _beacons is None
@@ -306,12 +308,8 @@ async def ws_maps_replace_image(hass: HomeAssistant, connection, msg) -> None:
             _scale_invalidated = _has_model and not _mdl.map_transform(_map_id)
             if _recomputed:
                 _n = await _mdl.async_rederive_map_fracs(_map_id, updated)
-                # A crop also rewrites the map's stack in place — its world
-                # footprint shrinks with the picture — so the maps store has to
-                # be saved even when no fracs needed re-deriving (issue #62).
-                if _n or getattr(_mdl, "_stack_recropped", False):
+                if _n:
                     await ms.store.async_save(ms.data)
-                _mdl._stack_recropped = False
             # Phase 3: remap calibration points (with updated transform)
             _cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
             if _cal:
@@ -402,18 +400,30 @@ async def ws_maps_delete_migrate(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "not_found", "Target map not found")
         return
 
-    src_stk = src_map.get("stack") or {}
-    tgt_stk = tgt_map.get("stack") or {}
+    _mdl_x = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
 
     def _xform(px: float, py: float) -> tuple[float, float]:
-        """Source map 0-1 → target map 0-1 via world coords.
+        """Source map 0-1 → target map 0-1, THROUGH METRES.
 
-        Maps use fractional coordinates [0,1].  The stack alignment gives each
-        map a world-space position/scale.  We go source→world→target to
-        preserve spatial accuracy when merging maps at different zoom levels.
+        It went source → world → target, on two `stack` dicts and a pair of
+        static helpers in the maps store that were a fourth copy of the
+        renderer's affine. Metres are the shared frame now — a fraction of one
+        picture is a place in the house, and a place in the house is a
+        fraction of another picture — so this is the two conversions every
+        other consumer already uses, with no world space in the middle.
+
+        Refuses (returns the point unchanged, so the caller's clamp keeps it
+        on the map) when either map has no placement: two pictures with no
+        metres between them have no spatial relationship to preserve, and
+        inventing one is how coordinates end up in the wrong room.
         """
-        wx, wy = ms.map_to_world(px, py, src_stk)
-        return ms.world_to_map(wx, wy, tgt_stk)
+        if not _mdl_x:
+            return (px, py)
+        _m_pt = _mdl_x.map_frac_to_metres(px, py, src_id)
+        if not _m_pt:
+            return (px, py)
+        _f = _mdl_x.metres_to_map_frac(_m_pt[0], _m_pt[1], tgt_id)
+        return _f if _f else (px, py)
 
     def _xform_bounds(bounds: dict) -> dict:
         """Transform a room_bounds entry from source → target space."""
@@ -520,7 +530,9 @@ async def ws_maps_delete_migrate(hass: HomeAssistant, connection, msg) -> None:
 
         if needs_extend and msg.get("extend_canvas"):
             try:
-                await ms.async_extend_canvas(tgt_id, pad_left, pad_right, pad_top, pad_bottom)
+                await ms.async_extend_canvas(
+                    tgt_id, pad_left, pad_right, pad_top, pad_bottom,
+                    model_store=hass.data.get(DOMAIN, {}).get(DATA_MODEL))
                 canvas_extended = True
                 tgt_map = ms.get_map(tgt_id)
                 old_w_ratio = 1.0 / (1.0 + pad_left + pad_right)
@@ -637,7 +649,9 @@ async def ws_maps_revert_extend(hass: HomeAssistant, connection, msg) -> None:
     if not ms:
         connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")
         return
-    result = await ms.async_revert_extend(msg.get("map_id") or "")
+    result = await ms.async_revert_extend(
+        msg.get("map_id") or "",
+        model_store=hass.data.get(DOMAIN, {}).get(DATA_MODEL))
     if result:
         connection.send_result(msg["id"], {"ok": True})
     else:

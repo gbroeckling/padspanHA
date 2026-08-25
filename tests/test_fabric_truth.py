@@ -5,7 +5,7 @@ motivated this module: a measured master (Electrical.jpg, 10.0364m x
 14.1982m), a same-size sibling whose own calibration was fabricated at 20m
 (Electrical-3), and a scaled sibling (Valance1). The hand-tuned stack
 composition must reassemble them into one coherent floor, and
-stack_metre_transform must recover the sibling's TRUE ~10m size — that
+legacy_stack_metre_transform must recover the sibling's TRUE ~10m size — that
 recovery is the "fix the alignment instead of throwing it away" repair.
 """
 
@@ -18,6 +18,7 @@ import pytest
 from custom_components.padspan_ha import fabric_truth as ft
 from custom_components.padspan_ha.fabric_store import FabricStore
 from custom_components.padspan_ha.model_store import ModelStore
+from tests.conftest import seed_world_gauge
 
 AR = 1600 / 1131  # 1.41468... — the shared reference aspect ratio
 M_PER_W = 10.0364
@@ -28,6 +29,7 @@ def _model(transforms: dict) -> ModelStore:
     mdl.hass = MagicMock()
     mdl.store = AsyncMock()
     mdl.data = {"map_transforms": transforms}
+    seed_world_gauge(mdl, [_master(), _sibling()])
     mdl.fabric = None
     return mdl
 
@@ -68,56 +70,58 @@ _FABRICATED_SIBLING = {
 
 def test_anchor_found_and_isotropic() -> None:
     mdl = _model(dict(_MEASURED))
-    anchor = ft.find_metre_anchor([_master(), _sibling()], mdl)
+    anchor = ft.measure_world_gauge([_master(), _sibling()], mdl)
     assert anchor is not None
-    assert anchor["map_id"] == "master"
-    assert anchor["m_per_world"] == pytest.approx(10.0364, abs=1e-3)
-    assert anchor["iso_error"] < 0.001          # 14.1982 / AR == 10.0364 exactly
+    assert anchor["source_map_id"] == "master"
+    assert anchor["m_per_unit"] == pytest.approx(10.0364, abs=1e-3)
+    # ISOTROPIC is now a property of the gauge, not a measurement of it: there
+    # is one scalar and `iso_error` has nothing to be the difference of. What
+    # is still checkable is that the map it was taken from agrees with its own
+    # picture — 14.1982 / AR == 10.0364 exactly.
+    assert ft.legacy_record_iso_error(_master(), _MEASURED["master"]) < 0.001
 
 
 def test_no_anchor_without_reference_measurements() -> None:
     mdl = _model(dict(_FABRICATED_SIBLING))     # fabricated scale, no refs
-    assert ft.find_metre_anchor([_master(), _sibling()], mdl) is None
+    assert ft.measure_world_gauge([_master(), _sibling()], mdl) is None
 
 
-# ── Stack composition ───────────────────────────────────────────────────────
+# ── Room composition ────────────────────────────────────────────────────────
 
 
-def test_master_stack_rooms_match_its_own_measured_calibration() -> None:
-    """On the identity master the stack path must equal the transforms path."""
+def test_there_is_one_room_candidate_not_two() -> None:
+    """`rooms_from_stack` is deleted.
+
+    It composed the hand-tuned stack and multiplied by the gauge; the stack is
+    the record divided by the gauge, so the multiplication puts it straight
+    back. Two candidates that agree by construction are one candidate and a
+    lie about it.
+    """
+    assert not hasattr(ft, "rooms_from_stack")
+
+
+def test_room_precedence_is_creation_order_and_cannot_be_nulled() -> None:
+    """The oldest map on a floor wins a room-name collision.
+
+    It was `is_master`, a boolean on the stack, and `maps_store` honoured any
+    `is_master` key present in a stack payload — so a view holding a stale
+    copy of a map revoked the star on an ordinary save and the rooms on that
+    floor silently changed shape (#67). `created` is written once by
+    `async_add_map` and by nothing else.
+    """
     bounds = {"Kitchen": {"type": "poly", "points": [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5]]}}
-    mdl = _model(dict(_MEASURED))
-    anchor = ft.find_metre_anchor([_master(bounds)], mdl)
-    via_stack = ft.rooms_from_stack([_master(bounds)], anchor)
-    via_transforms = ft.rooms_from_transforms([_master(bounds)], mdl)
-    for a, b in zip(via_stack["Kitchen"]["points_m"], via_transforms["Kitchen"]["points_m"]):
-        assert a[0] == pytest.approx(b[0], abs=0.01)
-        assert a[1] == pytest.approx(b[1], abs=0.01)
-
-
-def test_sibling_assembles_at_true_size_not_fabricated() -> None:
-    """The stack places the sibling at master scale (~10m), not its
-    fabricated 20m calibration — the disconnected-cluster fix in one number."""
-    bounds = {"Laundry": {"type": "poly", "points": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]}}
     mdl = _model({**_MEASURED, **_FABRICATED_SIBLING})
-    anchor = ft.find_metre_anchor([_master(), _sibling(bounds)], mdl)
-    via_stack = ft.rooms_from_stack([_sibling(bounds)], anchor)
-    xs = [p[0] for p in via_stack["Laundry"]["points_m"]]
-    ys = [p[1] for p in via_stack["Laundry"]["points_m"]]
-    assert max(xs) - min(xs) == pytest.approx(10.0364, abs=0.02)   # true width
-    assert max(ys) - min(ys) == pytest.approx(14.1982, abs=0.02)   # true height
-    # ...whereas its own fabricated calibration says 20m wide:
-    via_transforms = ft.rooms_from_transforms([_sibling(bounds)], mdl)
-    xs_t = [p[0] for p in via_transforms["Laundry"]["points_m"]]
-    assert max(xs_t) - min(xs_t) == pytest.approx(20.0, abs=0.02)
+    older = {**_master(bounds), "created": "2020-01-01T00:00:00+00:00"}
+    newer = {**_sibling(bounds), "created": "2024-06-01T00:00:00+00:00"}
+    for order in ([older, newer], [newer, older]):
+        rooms = ft.rooms_from_transforms(order, mdl)
+        assert rooms["Kitchen"]["source_map_id"] == "master", "list order decided it"
 
-
-def test_master_priority_in_stack_merge() -> None:
-    bounds = {"Kitchen": {"type": "poly", "points": [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5]]}}
-    mdl = _model(dict(_MEASURED))
-    anchor = ft.find_metre_anchor([_master(bounds)], mdl)
-    rooms = ft.rooms_from_stack([_master(bounds), _sibling(bounds)], anchor)
-    assert rooms["Kitchen"]["source_map_id"] == "master"
+    # And no stack write can change the answer.
+    for stk in ({}, {"is_master": True}, {"is_master": False}):
+        newer2 = {**newer, "stack": {**newer.get("stack", {}), **stk}}
+        rooms = ft.rooms_from_transforms([older, newer2], mdl)
+        assert rooms["Kitchen"]["source_map_id"] == "master"
 
 
 # ── Alignment repair transform ──────────────────────────────────────────────
@@ -125,8 +129,8 @@ def test_master_priority_in_stack_merge() -> None:
 
 def test_stack_metre_transform_recovers_master_calibration() -> None:
     mdl = _model(dict(_MEASURED))
-    anchor = ft.find_metre_anchor([_master()], mdl)
-    t = ft.stack_metre_transform(_master(), anchor)
+    anchor = ft.measure_world_gauge([_master()], mdl)
+    t = ft.legacy_stack_metre_transform(_master(), anchor)
     assert t["origin_x_m"] == pytest.approx(0.0, abs=0.01)
     assert t["origin_y_m"] == pytest.approx(0.0, abs=0.01)
     assert t["scale_x_m"] == pytest.approx(10.0364, abs=0.01)
@@ -139,8 +143,8 @@ def test_stack_metre_transform_repairs_fabricated_sibling() -> None:
     """The repair recovers the sibling's TRUE placement: master-sized
     (~10 x 14.2m), shifted up — NOT the fabricated 20 x 28.3m."""
     mdl = _model({**_MEASURED, **_FABRICATED_SIBLING})
-    anchor = ft.find_metre_anchor([_master(), _sibling()], mdl)
-    t = ft.stack_metre_transform(_sibling(), anchor)
+    anchor = ft.measure_world_gauge([_master(), _sibling()], mdl)
+    t = ft.legacy_stack_metre_transform(_sibling(), anchor)
     assert t["scale_x_m"] == pytest.approx(10.0364, abs=0.02)
     assert t["scale_y_m"] == pytest.approx(14.1982, abs=0.02)
     assert t["origin_x_m"] == pytest.approx(0.0198 * M_PER_W, abs=0.05)
@@ -169,8 +173,8 @@ def test_rotated_stack_has_rotation_no_shear() -> None:
     m = _master()
     m["stack"]["rotation"] = 30
     mdl = _model(dict(_MEASURED))
-    anchor = ft.find_metre_anchor([_master()], mdl)
-    t = ft.stack_metre_transform(m, anchor)
+    anchor = ft.measure_world_gauge([_master()], mdl)
+    t = ft.legacy_stack_metre_transform(m, anchor)
     assert t["rotation_rad"] == pytest.approx(0.5236, abs=1e-3)
     assert t["shear_rad"] < 1e-4, (
         "a rotation is being reported as shear: %r" % (t,))

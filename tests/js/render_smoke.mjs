@@ -161,6 +161,18 @@ const MAPS = [{
   rooms: [], rf_barriers: [],
 }];
 
+// The 3D Stack tab's maps. `_stack()` targets the SECOND alignable map, so the
+// master goes there: that is the branch where the align is refused and the
+// Point Align / Save Alignment / + Tie-in wiring is driven (#67).
+const STACK_MAPS = [
+  MAPS[0],
+  { id: "upper", name: "Upper.png", floor_id: "upper",
+    image: { width: 930, height: 850 },
+    stack: { is_master: true, scale: 1, scale_x_adj: 1, ref_ar: 0.53, rotation: 0,
+             x_offset: 0, y_offset: 0, z_level: 1, floor_id: "upper" },
+    receivers: [], rooms: [], rf_barriers: [] },
+];
+
 const OBJECTS = [
   { key: "ble:AA:BB:CC:DD:EE:01", address: "AA:BB:CC:DD:EE:01", kind: "ble", name: "Phone",
     user_label: "Phone", identified: true, room: "Kitchen", room_confidence: 0.8,
@@ -240,6 +252,21 @@ const FIXTURE = {
 // The names panel.js actually calls on a view module.
 const ENTRY_POINTS = new Set(["render", "render2DMap", "renderTags"]);
 
+// Extra fixtures, merged over the base one and rendered as their own pass.
+//
+// `render(ctx)` draws ONE tab, so one fixture covers one tab's code and no
+// more. maps.js is the extreme case: `_stack()` is 1700 lines behind
+// `mapsTab === "stack"`, and with the fixture never setting mapsTab it was the
+// LIBRARY tab being smoke-tested every time — a ReferenceError anywhere in the
+// 3D Stack and Alignment wiring shipped green, which is exactly the failure
+// mode this whole harness exists for.
+const VARIANTS = {
+  "maps.js": [
+    null,
+    { name: "stack", state: { mapsTab: "stack", maps: { list: STACK_MAPS } } },
+  ],
+};
+
 // What overview.js passes render2DMap (views/overview.js renderIsoFloorStack).
 const DEPS = () => ({
   esc,
@@ -269,15 +296,22 @@ for (const file of files) {
     continue;
   }
 
+  // One pass = one entry point rendered with one fixture.
+  // ENTRY POINTS ONLY. A view's exported helpers take real arguments this
+  // harness has no honest way to invent — calling roomColor(ctx) fails
+  // because of the harness, not the code, and a guard that reports its own
+  // noise is a guard people learn to ignore.
+  const passes = [];
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn !== "function") continue;
-    // ENTRY POINTS ONLY. A view's exported helpers take real arguments this
-    // harness has no honest way to invent — calling roomColor(ctx) fails
-    // because of the harness, not the code, and a guard that reports its own
-    // noise is a guard people learn to ignore.
     if (!ENTRY_POINTS.has(name)) continue;
+    for (const v of (VARIANTS[file] || [null])) passes.push([name, fn, v]);
+  }
+
+  for (const [name, fn, variant] of passes) {
     // A module cannot be structuredClone'd; attach it after the copy.
-    const ctx = makeCtx(Object.assign(structuredClone(FIXTURE), { _2dRadioMapMod: RADIO_MAP_MOD }));
+    const ctx = makeCtx(Object.assign(structuredClone(FIXTURE),
+      structuredClone((variant && variant.state) || {}), { _2dRadioMapMod: RADIO_MAP_MOD }));
     // Every node the render creates, so its innerHTML can be inspected after
     // the deferred work has run.
     const made = [];
@@ -308,10 +342,10 @@ for (const file of files) {
           if (!/<line [^>]*stroke-width="1.5" opacity="0.7"/.test(h)) throw new Error("warp overlay drew no grid on the fabric storey");
         }
       }
-      ran.push(`${file}:${name}`);
+      ran.push(`${file}:${name}` + (variant ? `[${variant.name}]` : ""));
     } catch (err) {
       failures.push({
-        file, fn: name,
+        file, fn: name + (variant ? `[${variant.name}]` : ""),
         error: String(err && err.message || err),
         stack: String(err && err.stack || "").split("\n").slice(0, 4).join(" | "),
       });
