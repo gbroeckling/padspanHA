@@ -4,6 +4,24 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.5 — The card that announces an update broke the tab it appeared on (2026-08-25)
+
+### Fixed
+- **The Overview tab went blank on the first install that qualified to see the what's-new card.** If you updated from 0.38.0 to 0.38.1, Overview stopped rendering. Nothing was lost and nothing was written wrong — the tab simply threw on the way to drawing, and Home Assistant showed an empty panel with a clean console. Update to 0.38.2 and it returns, card and all.
+- The cause was one undeclared name. `_whatsNewCard` referenced `notesUrl`, which had been declared nowhere since the refactor that removed a top-level `await import()` from `panel.js` and left the use site behind. JavaScript raises `ReferenceError` only when control actually reaches the line, and control could not reach it until an install had a *previous* version recorded — so on every install in existence the method returned early and the defect was invisible. 0.38.1 was the first release where anyone could satisfy `seen && seen !== APP_VERSION`, and they lost the tab for it.
+- **The same card could have been killed a second way**, and that is fixed in the same release: `proPitch` was called without a guard. Three lines above it sits an import of `editions.js` that is *deliberately* allowed to fail, with a comment saying a failure there must not take the panel down. The call site did not honour that contract, so a throw inside that module would have cost the tab by another route. It does now.
+
+### If you are coming from 0.37.x, read this one paragraph
+- This release carries **0.38.0's placement conversion**: a map's position now lives once, in metres, and the old duplicate copy is deleted. PadSpan takes an **automatic snapshot before the first step that writes** and refuses to convert at all if that snapshot cannot be taken — no snapshot, no conversion. Ordinary upgrades need no action; `sigma = 0` was verified bit-for-bit against the old arithmetic, zero differing doubles across 53,900 comparisons each way in both Python and JavaScript, so nothing moves.
+- **If something does look wrong, restore that snapshot from inside PadSpan** — Health → Backup/Restore, the entry named for this upgrade. Do **not** roll back in HACS: the stores carry no downgrade path, so an older version silently reads the converted files and you would lose the snapshot's usefulness along with it.
+
+### Why the suite did not catch it, and what changed so the next one is caught
+- `node --check` parses a file; it does not execute it, and an undeclared identifier is legal until reached. The suite was green with the defect in place — verified by putting the defect back and watching 1298 tests pass.
+- `tests/js/render_smoke.mjs` was built for exactly this failure and its own header lists four earlier instances of it. But it walks `views/`, and these cards live in `panel.js`, which had no such net beneath it. That was the gap, not the identifier.
+- `tests/js/whats_new_card.mjs` now *runs* the card against the module-level names `panel.js` actually provides — `el`, `APP_VERSION`, `EDITIONS` — and nothing besides, in each of the six states that gate it: no stored version, first sight, a real update, the same version, `editions.js` unavailable, and `proPitch` throwing. A card that reaches for anything outside that set throws in the harness instead of in somebody's browser. Confirmed by reintroducing the original defect: `node --check` still passed, the harness failed.
+
+---
+
 ## 0.38.1 — An update says what it changed, and the paid half stops being a secret (2026-08-25)
 
 ### What's new, once per version

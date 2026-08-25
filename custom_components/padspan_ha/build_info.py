@@ -24,15 +24,15 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-BUILD_VERSION = "0.38.1"
+BUILD_VERSION = "0.38.5"
 # Which build this is and the tier it is guaranteed without a key. Stamped by
 # scripts/release.py: "full"/"free" for PadSpan HA, "bright"/"free" for
 # PadSpan Bright. The floor is a constant of the BUILD, never fetched — see
 # licence.py. Every copy built carries its own floor and never asks permission.
 EDITION = "full"
 TIER_FLOOR = "free"
-BUILD_ID = "20260825T173757Z"
-CHANNEL = "beta"
+BUILD_ID = "20260825T191417Z"
+CHANNEL = "stable"
 
 # Backwards/for convenience
 VERSION = BUILD_VERSION
