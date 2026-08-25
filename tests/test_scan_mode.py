@@ -129,3 +129,34 @@ def test_only_the_active_marker_carries_the_animation(view: str) -> None:
     assert "<animate" not in passive_arm, (
         f"{view}: a non-active radio emits an <animate> node — every radio on a "
         "normal install is passive, so this would animate the whole map")
+
+
+# ── the markup itself, not the source text ──────────────────────────────────
+
+def test_the_marker_markup_is_right_for_every_radio_state() -> None:
+    """The checks above read the source. This one RUNS it.
+
+    `tests/js/radio_scan_mode.mjs` lifts the three expressions the marker is
+    built from out of BOTH renderers and evaluates them against every state a
+    scanner can be in — active, passive, auto, null, key-absent, offline — then
+    asserts the emitted SVG. Source that reads correctly and still emits the
+    wrong thing is exactly how the what's-new card took out the Overview tab on
+    2026-08-25; a text check would not have caught that either.
+    """
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+
+    script = pathlib.Path(__file__).parent / "js" / "radio_scan_mode.mjs"
+    res = subprocess.run(
+        [node, str(script), str(_WWW)],
+        capture_output=True, text=True, encoding="utf-8", timeout=60,
+    )
+    if res.returncode != 0:
+        pytest.fail(f"the radio marker emits the wrong markup:\n{res.stdout}\n{res.stderr[-2000:]}")
+    m = re.search(r"(\d+) passed, (\d+) failed", res.stdout)
+    assert m, f"harness produced no summary:\n{res.stdout}\n{res.stderr[-1500:]}"
+    assert int(m.group(1)) >= 30, f"only {m.group(1)} case(s) ran:\n{res.stdout}"
