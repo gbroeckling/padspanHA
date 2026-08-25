@@ -808,7 +808,12 @@ class PadSpanHaApp extends HTMLElement {
     // The rule lives in editions.js next to the tier vocabulary and is pure, so
     // it is tested without a browser; if editions failed to load there is simply
     // no pitch, which is the right way to fail.
-    const pitch = (EDITIONS && EDITIONS.proPitch) ? EDITIONS.proPitch(st) : null;
+    // The import above is deliberately allowed to fail, and this call site has
+    // to honour that same contract: editions.js is optional, so neither its
+    // absence NOR a throw inside it may cost the reader the Overview tab.
+    let pitch = null;
+    try { if (EDITIONS && EDITIONS.proPitch) pitch = EDITIONS.proPitch(st); }
+    catch (e) { console.warn("PadSpan: proPitch failed", e); }
     if (pitch) {
       const line = el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.55;margin-bottom:8px" });
       line.appendChild(document.createTextNode(pitch.text));
@@ -817,6 +822,10 @@ class PadSpanHaApp extends HTMLElement {
       card.appendChild(line);
     }
 
+    // Read at render time, not import time: a top-level await here would turn
+    // the survivable "editions failed to load" case above into a blank panel.
+    // The literal is the same URL release.py writes into the update manifest.
+    const notesUrl = (EDITIONS && EDITIONS.WHATSNEW_URL) || "https://padspan.traks.ca/#whatsnew";
     const notes = el("a", { class: "btn inline", href: notesUrl, target: "_blank", rel: "noopener",
       style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700;text-decoration:none" },
       "See what changed");
