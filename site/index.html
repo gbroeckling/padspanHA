@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PadSpan™ HA — BLE room-presence tracking for Home Assistant</title>
-<meta name="description" content="PadSpan HA tells you which room every Bluetooth device is in — interactive floor plans, 3D multi-floor maps, walk-around calibration, phone tracking, lighting maps, and 22 dedicated views for Home Assistant.">
+<meta name="description" content="PadSpan HA tells you which room every Bluetooth device is in — interactive floor plans, 3D multi-floor maps, walk-around calibration, phone tracking, lighting maps, and 24 dedicated views for Home Assistant.">
 <meta property="og:title" content="PadSpan™ HA — BLE room-presence tracking for Home Assistant">
-<meta property="og:description" content="Room-level BLE tracking with 3D floor plans, calibration, follow mode, and 22 views. The most comprehensive BLE presence system for Home Assistant.">
+<meta property="og:description" content="Room-level BLE tracking with 3D floor plans, calibration, follow mode, and 24 views. The most comprehensive BLE presence system for Home Assistant.">
 <meta property="og:image" content="https://padspan.traks.ca/images/social-preview.png">
 <meta property="og:url" content="https://padspan.traks.ca/">
 <link rel="icon" type="image/png" href="images/icon.png">
@@ -380,7 +380,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     </ul></div>
     <div class="feat"><h3>UI &amp; Experience</h3><ul>
       <li>Pure Live immersive full-screen 3D dashboard</li>
-      <li>22 dedicated views, Basic and Advanced modes</li>
+      <li>24 dedicated views, Basic and Advanced modes</li>
       <li>5-step onboarding wizard with auto-detection</li>
       <li>Training Hub: 14 animated walkthroughs + manual</li>
       <li>Sample mode — full demo, no hardware needed</li>
@@ -421,7 +421,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <li>WLED devices, with their own controls</li>
         <li><b>Showcase</b> mode and <b>Fit room</b></li>
       </ul>
-      <p style="font-size:13.5px;color:var(--mut);margin-top:6px">Placement is unlocked by a PadSpan Pro key today. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.</p>
+      <p style="font-size:13.5px;color:var(--mut);margin-top:6px">Unlocked by either key: <a href="#editions">PadSpan Bright Pro</a> at $35 CAD/year for the lighting half, or <a href="#pro">PadSpan Pro</a> at $45 for everything. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.</p>
     </div>
   </div>
 </section>
@@ -467,30 +467,48 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <ul>
         <li>A lighting-only download for people who want the map without the presence tracking</li>
         <li>Draws the house and the lights, switching only</li>
-        <li class="x">Light placement</li>
+        <li class="x">Light placement — that is Bright Pro</li>
       </ul>
     </div>
     <div class="ed">
       <h3>PadSpan Bright Pro</h3>
-      <div class="sub">Lighting edition · Bright key</div>
-      <div class="price">— <span class="pill soon">Not yet released</span></div>
+      <div class="sub">Lighting licence</div>
+      <div class="price">$35 <small style="font-size:13px;font-weight:600">CAD / yr</small></div>
       <ul>
-        <li>The whole lighting product</li>
-        <li>Placement, shapes, WLED, Showcase</li>
-        <li class="x">Presence tracking — that is what PadSpan HA is for</li>
+        <li><b>Light placement</b>, fixture shapes and sizes</li>
+        <li>WLED, Showcase, Fit room</li>
+        <li>Works in PadSpan HA today</li>
+        <li class="x">Forensics — that is PadSpan Pro</li>
       </ul>
+      <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+        <input type="hidden" name="cmd" value="_xclick">
+        <input type="hidden" name="business" value="garry@bcmail.net">
+        <input type="hidden" name="item_name" value="Buy PadSpan Bright Pro">
+        <input type="hidden" name="item_number" value="padspan-bright-annual">
+        <input type="hidden" name="amount" value="35.00">
+        <input type="hidden" name="currency_code" value="CAD">
+        <input type="hidden" name="no_shipping" value="1">
+        <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+        <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+        <button class="btn " type="submit" style="cursor:pointer;border:0;width:100%">Buy PadSpan Bright Pro</button>
+      </form>
     </div>
   </div>
 
   <div class="note">
-    <b>On the two Bright editions:</b> they are built and in testing, but they are not
-    released and there is nothing to download yet. They are listed here because PadSpan HA
-    already names them — if you try to place a light without a key, the software tells you
-    that placement needs PadSpan Bright Pro or PadSpan Pro, and until now there was nowhere
-    to find out what that meant. <b>Today the answer is simple: a PadSpan Pro key unlocks
-    light placement.</b> Watch
-    <a href="https://github.com/gbroeckling/padspanHA/discussions">Discussions</a> if you
-    want to hear when the Bright editions land.
+    <b>PadSpan Pro includes everything PadSpan Bright Pro does.</b> The two are not
+    alternatives — Pro is the whole product, Bright Pro is the lighting half of it at a
+    lower price. There is never a reason to buy both, and if you start with Bright Pro and
+    want the rest later, the upgrade is
+    <a href="#pro">$12</a> rather than a second full licence.
+    <br><br>
+    <b>A note on the download:</b> the standalone <i>PadSpan Bright</i> edition — a
+    lighting-only install for people who do not want presence tracking at all — is built
+    and in testing but not released yet. A Bright Pro licence is useful today regardless:
+    it unlocks light placement inside PadSpan HA, which is the free download everyone
+    already uses, and it will unlock the standalone edition when that ships. Watch
+    <a href="https://github.com/gbroeckling/padspanHA/discussions">Discussions</a> to hear
+    when it does.
   </div>
 </section>
 
@@ -544,7 +562,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <tr><td>Movement history playback</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
     <tr><td>Sample/demo mode</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
     <tr><td>Multi-language (11)</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Dedicated UI views</td><td class="num">22</td><td>Config flow</td><td>MQTT config</td><td>Web UI</td></tr>
+    <tr><td>Dedicated UI views</td><td class="num">24</td><td>Config flow</td><td>MQTT config</td><td>Web UI</td></tr>
     <tr><td>HA sensor entities</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
     <tr><td>Distance estimation</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="yes">✓</td></tr>
     <tr><td>Kalman RSSI filtering</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
@@ -624,6 +642,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <li><b>Forensics</b> — search which BLE devices were near your scanners in any time window. Recorded presence sessions (dwell time, peak signal, per-scanner detail) plus lower-confidence "possible" matches, with CSV export.</li>
         <li>Opt-in and privacy-guarded: off by default, explicit enable confirmation, configurable retention (7–90 days), recordings never leave your instance.</li>
         <li><b>Light placement</b> — place each light exactly where it hangs, with fixture shapes and sizes, WLED support, Showcase and Fit room. See <a href="#lights">Lighting</a>.</li>
+        <li><b>Everything in PadSpan Bright Pro is included.</b> Pro is the whole product; Bright Pro is its lighting half sold separately. Never buy both.</li>
         <li>More Pro features will join under the same key.</li>
       </ul>
     </div>
@@ -643,7 +662,23 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
         <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy PadSpan Pro with PayPal</button>
       </form>
-      <p style="font-size:12px;color:var(--mut,#94a3b8);margin-top:12px">Requires PadSpan HA v0.22.0 or newer. The current stable release is <span data-latest-version>v0.37.0</span>. Enter your key under Settings → Features → Forensics.</p>
+      <p style="font-size:12px;color:var(--mut,#94a3b8);margin-top:12px">Requires PadSpan HA v0.22.0 or newer. The current stable release is <span data-latest-version>v0.37.0</span>. Enter your key under Settings → Features → PadSpan licence.</p>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+        <div style="font-size:13px;color:var(--acc2);font-weight:700;margin-bottom:2px">Already have PadSpan Bright Pro?</div>
+        <p style="font-size:12px;color:var(--mut,#94a3b8);margin:0 0 10px">Change your existing key over to full PadSpan Pro for the rest of its term — you keep the same key and the same expiry date, and Forensics unlocks.</p>
+        <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+        <input type="hidden" name="cmd" value="_xclick">
+        <input type="hidden" name="business" value="garry@bcmail.net">
+        <input type="hidden" name="item_name" value="Upgrade to PadSpan Pro — $12">
+        <input type="hidden" name="item_number" value="padspan-bright-to-pro-upgrade">
+        <input type="hidden" name="amount" value="12.00">
+        <input type="hidden" name="currency_code" value="CAD">
+        <input type="hidden" name="no_shipping" value="1">
+        <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+        <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+        <button class="btn ghost" type="submit" style="cursor:pointer;border:0;width:100%">Upgrade to PadSpan Pro — $12</button>
+      </form>
+      </div>
     </div>
   </div>
 </section>

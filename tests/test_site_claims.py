@@ -75,6 +75,47 @@ def test_payment_plumbing_is_exact(html: str) -> None:
     assert "$45" in html, "the displayed price does not mention $45 while the form charges 45.00"
 
 
+# What the licence server (traks.ca/license, not in this repo) matches on. It
+# reads item_number, looks for these substrings, and requires at least the
+# matching price — so a renamed SKU or a lowered amount does not fail loudly, it
+# quietly issues the WRONG TIER or no key at all while PayPal still takes the
+# money. Checked here because the two live in different places and must agree.
+#   marker order in the server: upgrade -> bright -> padspan (most specific first)
+_SKUS = {
+    "padspan-bright-annual":        (35.00, ("bright",),               ("upgrade",)),
+    "padspan-pro-annual":           (45.00, ("padspan",),              ("upgrade", "bright")),
+    "padspan-bright-to-pro-upgrade": (12.00, ("upgrade", "padspan"),   ()),
+}
+
+
+def test_every_sku_routes_to_the_tier_it_claims(html: str) -> None:
+    import re
+
+    forms = re.findall(r"<form[^>]*paypal\.com/cgi-bin/webscr.*?</form>", html, re.S)
+    assert len(forms) == len(_SKUS), f"expected {len(_SKUS)} PayPal forms, found {len(forms)}"
+
+    seen = {}
+    for f in forms:
+        item = re.search(r'name="item_number" value="([^"]+)"', f)
+        amount = re.search(r'name="amount" value="([^"]+)"', f)
+        notify = re.search(r'name="notify_url" value="([^"]+)"', f)
+        assert item and amount and notify, "a PayPal form is missing item_number/amount/notify_url"
+        seen[item.group(1)] = float(amount.group(1))
+        assert notify.group(1) == "https://traks.ca/license/?action=ipn", (
+            f"{item.group(1)} does not notify the licence server — the money arrives and no key is issued")
+
+    assert set(seen) == set(_SKUS), f"SKUs on the page {sorted(seen)} != expected {sorted(_SKUS)}"
+
+    for sku, (price, must_have, must_not) in _SKUS.items():
+        assert seen[sku] == price, f"{sku} charges {seen[sku]}, the server expects at least {price}"
+        for marker in must_have:
+            assert marker in sku, f"{sku} lacks the {marker!r} marker the server matches on"
+        for marker in must_not:
+            assert marker not in sku, (
+                f"{sku} contains {marker!r}, which the server checks FIRST — it would be "
+                "routed to the wrong tier")
+
+
 def test_retired_features_do_not_come_back(html: str) -> None:
     """These three were advertised for months and never existed: settings keys
     read by nothing outside the settings screen itself. tests/test_telemetry.py
@@ -106,6 +147,22 @@ def test_the_release_history_covers_the_newest_release(html: str) -> None:
         f"CHANGELOG's newest release is {newest_minor}.x but the site's release history "
         f"only lists {sorted(set(listed), reverse=True)}. Add an entry to the What's new "
         "section, or the page describes older software than people are offered.")
+
+
+def test_the_view_count_agrees_with_the_readme(html: str) -> None:
+    """The site, the README and the repo description all quote a number of
+    "dedicated views". They said 22 while panel.js listed 24, and nobody could
+    say where 22 came from. Whatever the number is, these two must not disagree
+    — a visitor who counts them should not catch us out."""
+    import re
+
+    readme = (_ROOT / "README.md").read_text(encoding="utf-8")
+    r = re.search(r"\*\*(\d+) dedicated views\*\*", readme)
+    assert r, "the README no longer states a view count"
+    site = re.findall(r"(\d+) dedicated views", html)
+    assert site, "the site no longer states a view count"
+    assert set(site) == {r.group(1)}, (
+        f"README says {r.group(1)} dedicated views, the site says {sorted(set(site))}")
 
 
 def test_the_paid_and_lighting_products_are_explained(html: str) -> None:

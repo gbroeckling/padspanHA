@@ -33,6 +33,59 @@ export const PRO_PRICE = "$45 CAD/year";
 // points at (release.py sets notes_url to it), so the notification and the
 // in-panel card cannot disagree about where the release notes are.
 export const WHATSNEW_URL = "https://padspan.traks.ca/#whatsnew";
+
+// ── What to say about the paid half, to whom ────────────────────────────────
+// There are exactly two paid features, and most free installs have never seen
+// either — the only place they are named is a refusal you hit by trying to use
+// them. The what's-new card is a fair place to say what they are: once per
+// release, one line, no badge and no banner.
+//
+// What it says depends on what the licence already covers, because pitching
+// somebody a thing they have already bought is an insult:
+//
+//   pro     -> null. They have both. Say nothing.
+//   bright  -> Forensics only; light placement is already theirs.
+//   free    -> both.
+//   lapsed  -> what went read-only, and that nothing was lost.
+//
+// Pure on purpose: it takes the settings payload and returns text, so the rule
+// can be tested without a browser (tests/js/pro_pitch.mjs).
+export function proPitch(settings) {
+  const st = settings || {};
+  const tier = String(st.tier || "free").toLowerCase();
+  const hasKey = !!st.pro_has_key;
+  const lapsed = st.pro_active === false;
+
+  if (hasKey && lapsed) {
+    return {
+      kind: "lapsed",
+      text: "Your licence has lapsed, so Forensics and light placement are read-only. "
+          + "Everything you recorded and every light you placed is still here and still exportable. ",
+      cta: `Renew PadSpan Pro — ${PRO_PRICE}`,
+      url: BUY_URL,
+    };
+  }
+  if (tier === "pro") return null;
+  if (tier === "bright") {
+    return {
+      kind: "bright",
+      text: "Your key covers the lighting half. The one thing it does not is Forensics — "
+          + "which Bluetooth devices were near a given scanner in any time window, with dwell "
+          + "time and CSV export. ",
+      cta: `PadSpan Pro — ${PRO_PRICE}`,
+      url: BUY_URL,
+    };
+  }
+  return {
+    kind: "free",
+    text: "Two things a licence adds, in case you have never hit them: Forensics, which answers "
+        + "which Bluetooth devices were near a scanner in any time window; and light placement, "
+        + "which puts every light exactly where it hangs instead of clustered in the middle of "
+        + "its room. ",
+    cta: `PadSpan Pro — ${PRO_PRICE}`,
+    url: BUY_URL,
+  };
+}
 // The one true path to the licence card. If this moves, it moves here.
 export const LICENCE_PATH = "Settings \u2192 Features \u2192 PadSpan licence";
 

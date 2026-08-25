@@ -804,10 +804,19 @@ class PadSpanHaApp extends HTMLElement {
     card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
       `This install was on v${seen}. The release notes say what changed and why, in plain terms.`));
 
-    // editions.js owns this URL, but it is loaded non-blocking and a failure
-    // there must not take the panel down — so read it when present and fall
-    // back to the literal, exactly as EDITIONS falls back to "show everything".
-    const notesUrl = (EDITIONS && EDITIONS.WHATSNEW_URL) || "https://padspan.traks.ca/#whatsnew";
+    // The paid half, once per version, and only to someone it could be news to.
+    // The rule lives in editions.js next to the tier vocabulary and is pure, so
+    // it is tested without a browser; if editions failed to load there is simply
+    // no pitch, which is the right way to fail.
+    const pitch = (EDITIONS && EDITIONS.proPitch) ? EDITIONS.proPitch(st) : null;
+    if (pitch) {
+      const line = el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.55;margin-bottom:8px" });
+      line.appendChild(document.createTextNode(pitch.text));
+      line.appendChild(el("a", { href: pitch.url, target: "_blank", rel: "noopener",
+        style: "color:#52b788;font-weight:600;text-decoration:none" }, pitch.cta));
+      card.appendChild(line);
+    }
+
     const notes = el("a", { class: "btn inline", href: notesUrl, target: "_blank", rel: "noopener",
       style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700;text-decoration:none" },
       "See what changed");
