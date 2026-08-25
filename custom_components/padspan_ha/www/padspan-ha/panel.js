@@ -772,6 +772,52 @@ class PadSpanHaApp extends HTMLElement {
   // Overview for an install that finished setup before the switch existed.
   // Any answer sets telemetry_asked and the card never comes back; the
   // switch itself stays in Settings either way. Off until someone says yes.
+  // ── What's new, once per version ────────────────────────────────────────
+  // An update lands silently. Home Assistant's persistent notification is easy
+  // to miss and easy to dismiss without reading, and the release notes live
+  // somewhere the person is not. This says what happened where they already
+  // are, once, and then never again for that version.
+  //
+  // It is SEEDED, not shown, the first time the panel sees an install: with no
+  // stored version there is no way to tell a genuine update from a fresh
+  // install, and telling somebody who just installed PadSpan that it "updated"
+  // is worse than saying nothing. So the first sight records the version
+  // quietly and the card appears only on a real change.
+  _whatsNewCard(){
+    const st = this.state.settings;
+    if (!st || !("whatsnew_seen_version" in st)) return null;
+    const seen = String(st.whatsnew_seen_version || "");
+    if (seen === APP_VERSION) return null;
+
+    const remember = (toast) => {
+      this._callWS({ type: "padspan_ha/settings_set", whatsnew_seen_version: APP_VERSION })
+        .then(res => { if (res && res.settings) this.state.settings = res.settings; })
+        .catch(() => {})
+        .finally(() => { if (toast) this._toast(toast); this._scheduleRender(); });
+    };
+
+    if (!seen) { remember(null); return null; }   // first sight: record, show nothing
+
+    const card = el("div", { style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px" });
+    card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" },
+      `PadSpan HA updated to v${APP_VERSION}`));
+    card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
+      `This install was on v${seen}. The release notes say what changed and why, in plain terms.`));
+
+    // editions.js owns this URL, but it is loaded non-blocking and a failure
+    // there must not take the panel down — so read it when present and fall
+    // back to the literal, exactly as EDITIONS falls back to "show everything".
+    const notesUrl = (EDITIONS && EDITIONS.WHATSNEW_URL) || "https://padspan.traks.ca/#whatsnew";
+    const notes = el("a", { class: "btn inline", href: notesUrl, target: "_blank", rel: "noopener",
+      style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700;text-decoration:none" },
+      "See what changed");
+    notes.addEventListener("click", () => remember(null));
+    const dismiss = el("button", { class: "btn inline", style: "color:#94a3b8" }, "Dismiss");
+    dismiss.addEventListener("click", () => remember(`Hidden until the next update.`));
+    card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [notes, dismiss]));
+    return card;
+  }
+
   _telemetryAskCard(compact){
     const st = this.state.settings;
     if (!st || st.telemetry_enabled || st.telemetry_asked) return null;
@@ -2984,8 +3030,11 @@ class PadSpanHaApp extends HTMLElement {
         if (_ask) bar.appendChild(_ask);
         frag.appendChild(bar);
       } else if (this.state.view === "overview") {
-        // Setup is done or was skipped — the checklist is gone, so the ask
-        // stands on its own. Same card, same once.
+        // Setup is done or was skipped — the checklist is gone, so these cards
+        // stand on their own. What changed first: it is the more perishable of
+        // the two, and it is the reason the panel looks different today.
+        const _new = this._whatsNewCard();
+        if (_new) frag.appendChild(_new);
         const _ask = this._telemetryAskCard(false);
         if (_ask) frag.appendChild(_ask);
       }

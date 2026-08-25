@@ -9,6 +9,8 @@ Split out of websocket.py; registration stays there.
 
 from __future__ import annotations
 
+import re
+
 import logging
 import voluptuous as vol
 from typing import Any
@@ -48,6 +50,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("update_check_enabled"): bool,           # daily version ping (README)
         vol.Optional("telemetry_enabled"): bool,              # opt-in usage report (telemetry.py)
         vol.Optional("telemetry_asked"): bool,                # the ask card was answered; never shown again
+        vol.Optional("whatsnew_seen_version"): str,           # version the what's-new card last reported
         vol.Optional("vendor_lookup_enabled"): bool,
         vol.Optional("room_change_delay_s"): vol.Coerce(float),
         vol.Optional("away_timeout_m"): vol.Coerce(float),
@@ -179,6 +182,12 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 reset_windows(hass)
         if "telemetry_asked" in msg:
             payload["telemetry_asked"] = bool(msg.get("telemetry_asked"))
+        if "whatsnew_seen_version" in msg:
+            # A version string and nothing else. It is written by the panel from
+            # its own build constant, so anything that is not shaped like one is
+            # a bug or a probe; store an empty string rather than the input.
+            _wn = str(msg.get("whatsnew_seen_version") or "").strip()
+            payload["whatsnew_seen_version"] = _wn if re.fullmatch(r"\d+\.\d+\.\d+", _wn) else ""
         if "vendor_lookup_enabled" in msg:
             payload["vendor_lookup_enabled"] = bool(msg.get("vendor_lookup_enabled"))
         if "room_change_delay_s" in msg:

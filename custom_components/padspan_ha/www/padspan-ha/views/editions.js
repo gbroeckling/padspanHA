@@ -29,6 +29,10 @@
 export const BUY_URL = "https://padspan.traks.ca/#pro";
 export const LIGHTS_URL = "https://padspan.traks.ca/#lights";
 export const PRO_PRICE = "$45 CAD/year";
+// Where "what changed" lives. The same page the update-check manifest
+// points at (release.py sets notes_url to it), so the notification and the
+// in-panel card cannot disagree about where the release notes are.
+export const WHATSNEW_URL = "https://padspan.traks.ca/#whatsnew";
 // The one true path to the licence card. If this moves, it moves here.
 export const LICENCE_PATH = "Settings \u2192 Features \u2192 PadSpan licence";
 
