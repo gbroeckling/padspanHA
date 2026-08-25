@@ -212,6 +212,14 @@ export function render(ctx) {
     ]),
     el("div", { class: "bt-kpis" }, [
       stat(radios.length, "Scanners", { title: "BLE scanners reporting to this install" }),
+      // Active vs passive. ACTIVE transmits — it sends SCAN_REQ and reads the
+      // SCAN_RSP that comes back; PASSIVE only listens. Read from `scan_mode`,
+      // which bleak-esphome sets from the proxy's own firmware state report.
+      // "auto" is shown separately rather than folded in: HA promotes an auto
+      // scanner to active in short windows, so it is neither one nor the other.
+      stat(_scanModeLabel(radios), "Active / passive",
+        { title: "Active radios transmit scan requests and read the replies; passive radios only listen. "
+               + "Set per device in Settings → Devices & Services → ESPHome → Configure → Bluetooth scanning mode." }),
       stat(adsAll.length, "Recent ads", { title: "Advertisements in the current window" }),
       stat(diag.unique_cached || 0, "Unique MACs", { title: "Distinct addresses cached" }),
       stat(_res.irk_devices || 0, "Private BLE IRKs",
@@ -563,6 +571,18 @@ export function render(ctx) {
 // HA Bluetooth adapters), right panel shows devices heard by the selected scanner.
 // Each scanner row includes: short ID pill, name, room, metadata, RSSI offset
 // control, and a two-step "Reset radio" button (to prevent accidental data loss).
+/** "3 / 15" — active over passive, with auto called out when present.
+ *  Matches the same split shown on Overview; both read `scan_mode`, which is
+ *  the proxy's own firmware-reported mode, not a stored setting. */
+function _scanModeLabel(radios) {
+  const of = (r) => String((r && r.scan_mode) || "").toLowerCase();
+  const a = radios.filter(r => of(r) === "active").length;
+  const p = radios.filter(r => of(r) === "passive").length;
+  const au = radios.filter(r => of(r) === "auto").length;
+  return au ? `${a} / ${p} / ${au}` : `${a} / ${p}`;
+}
+
+
 function renderScanners(ctx, radios, sources, adsAll) {
   const { el, radioShortId } = ctx.helpers;
   const snap = (ctx.state.live && ctx.state.live.snapshot) || null;

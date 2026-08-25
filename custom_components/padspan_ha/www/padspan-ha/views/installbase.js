@@ -130,6 +130,33 @@ export function render(ctx) {
     }
     body.appendChild(g2);
 
+    // ── BLE scan mode ─────────────────────────────────────────────────────
+    // HA 2026.6 changed the default for every ESPHome proxy from active to
+    // auto, overriding what each device's own firmware asked for. Most people
+    // will not have noticed. Two different questions, so two different counts:
+    // how much of the fleet sits in each mode (radios), and how many people
+    // deliberately chose one (installs). `requested` is the choice; `mode` is
+    // the momentary state, and an auto scanner reads passive nearly always.
+    const smi = s.scan_mode_installs || {};
+    if (Object.keys(s.scan_modes_requested || {}).length || Object.keys(smi).length) {
+      const g2b = el("div", { class: "grid", style: "margin-bottom:12px" });
+      g2b.appendChild(barList(el, "Scan mode chosen (radios)", s.scan_modes_requested, null));
+      g2b.appendChild(barList(el, "Scan mode right now (radios)", s.scan_modes, null));
+      const nWith = (smi.any_active || 0) + (smi.all_auto || 0) + (smi.any_passive_pinned || 0);
+      g2b.appendChild(kv(el, "Who pinned a mode (installs)", [
+        ["Pinned at least one ACTIVE", smi.any_active || 0],
+        ["Pinned at least one PASSIVE", smi.any_passive_pinned || 0],
+        ["Left everything on auto", smi.all_auto || 0],
+        ["Too old to report it", smi.no_data || 0],
+      ]));
+      body.appendChild(g2b);
+      if (nWith) {
+        body.appendChild(el("div", { class: "muted", style: "margin:-6px 0 12px;font-size:12px" },
+          `${Math.round(100 * (smi.all_auto || 0) / nWith)}% of installs that can report it have left every radio on auto — ` +
+          "HA's 2026.6 default, which scans passively except in short promoted windows."));
+      }
+    }
+
     // ── flags, identity, geometry ─────────────────────────────────────────
     const g3 = el("div", { class: "grid", style: "margin-bottom:12px" });
     const flags = s.flags || {};

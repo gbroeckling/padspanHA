@@ -223,11 +223,53 @@ class BluetoothLive:
         # Used by the frontend to show a radio as "listening" even when its ads are old/filtered.
         self._radio_last_heard: Dict[str, dt.datetime] = {}  # source → datetime
         self._last_reseed: Optional[dt.datetime] = None  # periodic reseed for proxy scanners
+        # source → last observed scan mode, for counting transitions. Memory
+        # only: it exists to answer "does the reported mode actually move?",
+        # which cannot be answered from one reading.
+        self._last_scan_mode: Dict[str, str] = {}
         # Diagnostics: last seed result
         self.seed_method: str = "none"  # "per_scanner", "deduplicated", "failed"
         self.seed_scanner_count: int = 0
         self.seed_device_readings: int = 0
         self.seed_error: str = ""
+
+    def _note_scan_mode_flips(self, radios: List[Dict[str, Any]]) -> None:
+        """Count radios whose live scan mode CHANGED since the last snapshot.
+
+        One reading cannot tell a field that tracks the radio from one that
+        echoes a stored setting. Movement can — and the two counters mean
+        opposite things:
+
+          auto    a scanner on AUTO is promoted to active in short windows, so
+                  flips are expected. Seeing them proves the value is live.
+          pinned  HA leaves an explicitly ACTIVE or PASSIVE scanner alone, so
+                  flips should be ~0. A fleet where pinned radios keep changing
+                  would mean the mode is not under the owner's control there,
+                  which is the one result that makes the map indicator
+                  dishonest — and it cannot be seen from a single install.
+
+        Counts only, and only when the owner opted in. `bump` is a dict
+        increment when on and one lookup when off, so this is safe on the
+        snapshot path.
+        """
+        try:
+            from .telemetry import bump  # noqa: PLC0415 - avoids an import cycle
+        except Exception:
+            return
+        for r in radios:
+            src = r.get("source") or ""
+            mode = r.get("scan_mode")
+            if not src or not mode:
+                continue          # unknown is not a transition, and never a flip
+            prev = self._last_scan_mode.get(src)
+            self._last_scan_mode[src] = mode
+            if prev is None or prev == mode:
+                continue
+            req = str(r.get("requested_scan_mode") or "").lower()
+            if req == "auto":
+                bump(self.hass, "scan_mode_flip_auto")
+            else:
+                bump(self.hass, "scan_mode_flip_pinned")
 
     def unload(self) -> None:
         for u in self._unsubs:
@@ -607,6 +649,7 @@ class BluetoothLive:
             diag["adv_cache_size"] = sum(len(v) for v in self._seen_by_source.values())
             diag["unique_addresses"] = len(addr_best_age)
             diag["unique_after_cap"] = len(kept)
+            self._note_scan_mode_flips(radios)
 
             return {
                 "radios": radios,

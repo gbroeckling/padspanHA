@@ -180,6 +180,14 @@ $edges = array(
     'objects_total' => array(200, 1000, 3000, 10000),
 );
 $integrations = array(); $features = array(); $flags = array(); $scanner_kinds = array();
+// BLE scan mode. HA 2026.6 flipped the default for every ESPHome proxy from
+// active to auto, so most installs are now scanning passively without having
+// chosen to. Radio-level counts say how much of the fleet is in each mode;
+// the install-level tallies say how many PEOPLE deliberately pinned one, which
+// is the question worth answering. `requested` is the choice, `mode` is the
+// momentary state - an auto scanner reads passive nearly all the time.
+$scan_modes = array(); $scan_modes_requested = array();
+$scan_mode_installs = array('any_active' => 0, 'any_passive_pinned' => 0, 'all_auto' => 0, 'no_data' => 0);
 $env_sum = array('scanners' => 0, 'floors' => 0, 'rooms' => 0, 'calibration_points' => 0, 'irks' => 0);
 $identity = array('with_irks' => 0, 'resolving' => 0, 'silent' => 0, 'private_ble_device' => 0);
 $geometry = array('faulted' => 0, 'anchor_faulted' => 0, 'no_anchor' => 0, 'no_anchor_known' => 0,
@@ -195,6 +203,21 @@ foreach ($latest as $id => $r) {
     foreach ($env_sum as $k => $_) { $env_sum[$k] += (int)(isset($e[$k]) ? $e[$k] : 0); }
     foreach (as_map(isset($e['integrations']) ? $e['integrations'] : null) as $k => $n) { if ((int)$n > 0) { incr($integrations, $k); } }
     foreach (as_map(isset($e['scanner_kinds']) ? $e['scanner_kinds'] : null) as $k => $n) { incr($scanner_kinds, $k, (int)$n); }
+    foreach (as_map(isset($e['scan_modes']) ? $e['scan_modes'] : null) as $k => $n) { incr($scan_modes, $k, (int)$n); }
+    $req = as_map(isset($e['scan_modes_requested']) ? $e['scan_modes_requested'] : null);
+    foreach ($req as $k => $n) { incr($scan_modes_requested, $k, (int)$n); }
+    // One install counted once, by what it deliberately pinned. An install
+    // reporting nothing here is an older PadSpan, not an install with no
+    // radios - keep it separate so 'all_auto' is not inflated by silence.
+    if (!count($req)) {
+        $scan_mode_installs['no_data']++;
+    } else {
+        $act = (int)(isset($req['active']) ? $req['active'] : 0);
+        $pas = (int)(isset($req['passive']) ? $req['passive'] : 0);
+        if ($act > 0) { $scan_mode_installs['any_active']++; }
+        if ($pas > 0) { $scan_mode_installs['any_passive_pinned']++; }
+        if ($act === 0 && $pas === 0) { $scan_mode_installs['all_auto']++; }
+    }
     foreach (as_map(isset($r['features']) ? $r['features'] : null) as $k => $v) { if ($v === true) { incr($features, $k); } }
 
     // Health flags — installs where the flag is BAD. Each is only counted
@@ -302,6 +325,9 @@ $out = array(
     'env_sum' => $env_sum,
     'integrations' => $integrations,
     'scanner_kinds' => $scanner_kinds,
+    'scan_modes' => $scan_modes,
+    'scan_modes_requested' => $scan_modes_requested,
+    'scan_mode_installs' => $scan_mode_installs,
     'features' => $features,
     'flags' => $flags,
     'identity' => $identity,

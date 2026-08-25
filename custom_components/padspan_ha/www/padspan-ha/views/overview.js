@@ -85,6 +85,20 @@ export function render(ctx){
 
   const radios = (liveSnap && liveSnap.ble && Array.isArray(liveSnap.ble.radios)) ? liveSnap.ble.radios : [];
   const radiosCount = radios.length;
+  // Active-to-passive split. ACTIVE means the radio TRANSMITS — it sends
+  // SCAN_REQ and reads the SCAN_RSP that comes back; PASSIVE only listens.
+  // Counted from `scan_mode`, which bleak-esphome sets from the proxy's own
+  // firmware state report, so it is what the radio says it is doing.
+  // "auto" is NOT folded into either: HA promotes an auto scanner to active
+  // in short windows, so calling it passive would be wrong most of the time
+  // and right none of it. Unknown stays unknown for the same reason.
+  const _modeOf = (r) => String((r && r.scan_mode) || "").toLowerCase();
+  const radiosActive = radios.filter(r => _modeOf(r) === "active").length;
+  const radiosPassive = radios.filter(r => _modeOf(r) === "passive").length;
+  const radiosAuto = radios.filter(r => _modeOf(r) === "auto").length;
+  const radioModeLabel = radiosCount
+    ? `${radiosActive} active / ${radiosPassive} passive` + (radiosAuto ? ` / ${radiosAuto} auto` : "")
+    : "";
 
   // ---------- Modal helpers ----------
   function openRoomsList(){
@@ -2843,6 +2857,11 @@ export function render(ctx){
         el("div",{class:"k"}, "Bluetooth radios"),
         el("div",{class:"v"}, liveLoading ? "--" : String(radiosCount)),
       ]),
+      (!liveLoading && radioModeLabel)
+        ? el("div",{style:"margin-top:-2px;color:#94a3b8;font-size:12px",
+             title:"Active radios transmit scan requests and read the replies. Passive radios only listen. Set per device in Settings → Devices & Services → ESPHome → Configure."},
+            radioModeLabel)
+        : null,
       el("div",{class:"row"},[
         el("button",{class:"btn", onclick: openRadiosList}, "View radios list"),
       ]),

@@ -98,6 +98,19 @@ EVENTS: frozenset[str] = frozenset({
     # IRK resolution, cumulative over the window: a NEW address resolved to a
     # registered key; a NEW rotating address that matched no key.
     "irk_resolved", "irk_unresolved_rpa",
+    # A radio's live scan mode CHANGED. Counted separately by what that radio
+    # was asked to do, because the two carry opposite meanings and together
+    # they say whether the reported mode means the same thing on every install.
+    #
+    #   ..._auto    expected and frequent. An AUTO scanner is promoted to
+    #               active in short windows, so flips prove the field is
+    #               tracking the radio rather than echoing a stored setting.
+    #   ..._pinned  expected to be ~0. HA leaves an explicitly ACTIVE or
+    #               PASSIVE scanner alone, so a pinned radio that keeps
+    #               changing means the mode is NOT under the user's control
+    #               there — the one result that would make the map indicator
+    #               dishonest, and it cannot be seen from a single install.
+    "scan_mode_flip_auto", "scan_mode_flip_pinned",
 })
 # The panel's views (panel.js _VIEW_PATHS — tests/test_telemetry.py asserts
 # equality) and the sub-tabs of the two views that have them.
@@ -293,6 +306,32 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "disabled": sum(1 for r in radios if r.get("disabled")),
         "excluded": _len(settings.get("excluded_scanners") or []),
     }
+    # BLE scan mode. HA 2026.6 changed the default for every proxy from active
+    # to auto, overriding what each device's own firmware config asked for, and
+    # most people will not have noticed. Counting what installs actually run is
+    # the only way to see whether the fleet at large is now scanning passively.
+    #
+    # BOTH are reported because they answer different questions. `requested` is
+    # the CHOICE — the ESPHome config-entry option, or a deliberate pin. `mode`
+    # is the momentary state, and an AUTO scanner reads "passive" almost all of
+    # the time because it is only promoted to active in short windows. Reading
+    # one for the other is the mistake this whole feature came out of.
+    #
+    # Counts only. A scan mode is one of four fixed words and says nothing about
+    # the device, the house, or the person.
+    _MODES = ("active", "passive", "auto")
+
+    def _mode_counts(field: str) -> dict[str, int]:
+        out = {m: 0 for m in _MODES}
+        out["unknown"] = 0
+        for r in radios:
+            v = r.get(field)
+            v = str(v).lower() if v is not None else ""
+            out[v if v in out and v != "unknown" else "unknown"] += 1
+        return out
+
+    scan_modes = _mode_counts("scan_mode")
+    scan_modes_requested = _mode_counts("requested_scan_mode")
     by_kind: dict[str, int] = {}
     for o in obj_list:
         if isinstance(o, dict):
@@ -390,6 +429,8 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "scanners": len(radios),
         "scanner_kinds": scanner_kinds,
         "scanner_state": scanner_state,
+        "scan_modes": scan_modes,
+        "scan_modes_requested": scan_modes_requested,
         "floors": _len(floors) or _len(mdl.get("floors") or []),
         "rooms": rooms,
         "placed_lights": _len(fab.get("light_positions_m") or {}),

@@ -77,8 +77,10 @@ def _hass():
         is_identified_object=lambda key: key == _MAC1,
     )
     snapshot = {
-        "ble": {"radios": [{"source": _MAC1, "name": "ble-white3dprintedbox", "ip": _IP, "adapter": "x"},
-                           {"source": "hci0", "name": "local", "lost": True}],
+        "ble": {"radios": [{"source": _MAC1, "name": "ble-white3dprintedbox", "ip": _IP, "adapter": "x",
+                            "scan_mode": "active", "requested_scan_mode": "active"},
+                           {"source": "hci0", "name": "local", "lost": True,
+                            "scan_mode": "passive", "requested_scan_mode": "auto"}],
                 "diag": {"ok": True, "callback_active": True}},
         "objects": {"list": [
             {"kind": "ibeacon", "name": "Pixel 8 Pro", "address": _MAC1, "identified": True, "x_m": 1.0, "room": _ROOM,
@@ -116,6 +118,15 @@ def test_nothing_from_the_house_is_in_the_report():
     assert payload["env"]["placed_lights"] == 1 and payload["env"]["walls"] == 1 and payload["env"]["irks"] == 1
     assert payload["env"]["followed"] == 2 and payload["env"]["scanner_state"] == {"lost": 1, "disabled": 0, "excluded": 1}
     assert payload["env"]["objects_by_kind"] == {"ibeacon": 1, "ble": 1}
+    # Scan mode: counted by value, with an explicit unknown bucket so an older
+    # habluetooth that reports nothing is never silently counted as passive.
+    # Both are carried because they answer different questions — `requested` is
+    # the owner's choice, `scan_modes` is the momentary state, and an AUTO
+    # scanner reads "passive" nearly all the time.
+    assert payload["env"]["scan_modes"] == {"active": 1, "passive": 1, "auto": 0, "unknown": 0}
+    assert payload["env"]["scan_modes_requested"] == {"active": 1, "passive": 0, "auto": 1, "unknown": 0}
+    assert sum(payload["env"]["scan_modes"].values()) == payload["env"]["scanners"]
+
     assert payload["env"]["calibration_points"] == 2 and payload["env"]["calibration_auto_points"] == 1
     assert payload["env"]["integrations"]["esphome"] == 1 and payload["env"]["integrations"]["bermuda"] == 0
     assert payload["features"]["quiet_mode"] is True and payload["features"]["data_mode"] == "live"
@@ -253,7 +264,10 @@ def test_every_event_name_has_a_real_call_site():
                     for p in list(root.rglob("*.py")) + list(root.rglob("*.js")) if "telemetry.py" not in p.name)
     dead = [e for e in sorted(T.EVENTS)
             if not any(f'{fn}({arg}"{e}")' in src for fn in ("bump", "_bump", "self._count", "telemetryEvent", "ctx.actions.telemetryEvent")
-                       for arg in ("hass, ", "self._hass, ", "", "ctx, "))]
+                       # Call shapes actually used in the tree. `self.hass, ` is
+                       # BluetoothLive's convention (it stores hass unprefixed);
+                       # omitting it made a live counter look dead.
+                       for arg in ("hass, ", "self._hass, ", "self.hass, ", "", "ctx, "))]
     assert not dead, f"events with no call site: {dead}"
 
 
