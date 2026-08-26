@@ -164,6 +164,18 @@ class Node {
     const all = this._all();
     if (s.startsWith("#")) return all.filter(n => n.id === s.slice(1));
     if (s.startsWith(".")) return all.filter(n => n.classList?.contains?.(s.slice(1)));
+    // Attribute selectors: [attr] and [attr="value"], optionally after a tag.
+    // The product uses these (overview.js re-scales every [data-ann] on
+    // resize), and without them the shim silently returned nothing — which
+    // reads as "no annotations" rather than "this harness cannot see them".
+    const at = /^([a-zA-Z][\w-]*)?\[([\w-]+)(?:=["']?([^\]"']*)["']?)?\]$/.exec(s);
+    if (at) {
+      const [, tag, name, val] = at;
+      return all.filter(n =>
+        (!tag || n.localName === tag) &&
+        n.attributes && name in n.attributes &&
+        (val === undefined || String(n.attributes[name]) === val));
+    }
     return all.filter(n => n.localName === s);
   }
   closest(sel) {

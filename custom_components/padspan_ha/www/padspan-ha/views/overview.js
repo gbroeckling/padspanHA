@@ -661,6 +661,20 @@ export function render(ctx){
     // brought the giant labels back the moment the map was zoomed.
     const _REF_PX_PER_UNIT = 0.84;
     const ANN_K = "__ANNK__";
+    // ONE expression for k, used by the build and by the live resize update.
+    // Two copies would drift, and the symptom of drift here is text that is
+    // the wrong size until something forces a rebuild — which is exactly the
+    // bug the live update exists to fix.
+    const _annScaleFor = (hostW, vw) =>
+      (hostW > 0 && vw) ? Math.min(1, _REF_PX_PER_UNIT / (hostW / vw)) : 1;
+    /** The svg's content width in CSS px — clientWidth minus the 6% padding
+     *  each side, or every unit measures 12% too wide. */
+    const _annHostW = () => {
+      try {
+        const cs = getComputedStyle(isoDiv);
+        return (isoDiv.clientWidth || 0) - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+      } catch (e) { return 0; }
+    };
     const _annT = (x, y) => {
       const ax = Math.round(x), ay = Math.round(y);
       return `data-ann="${ax} ${ay}" transform="translate(${ax} ${ay}) scale(${ANN_K}) translate(${-ax} ${-ay})"`;
@@ -956,12 +970,7 @@ export function render(ctx){
         // from anywhere earlier degrades to "no scaling" rather than a throw.
         // The svg fills isoDiv's CONTENT box: clientWidth includes the 6%
         // side padding, so subtract it or every unit is measured 12% wide.
-        let hostW = 0;
-        try {
-          const cs = getComputedStyle(isoDiv);
-          hostW = (isoDiv.clientWidth || 0) - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
-        } catch (e) { hostW = 0; }
-        const k = (hostW > 0 && vw) ? Math.min(1, _REF_PX_PER_UNIT / (hostW / vw)) : 1;
+        const k = _annScaleFor(_annHostW(), vw);
         const kStr = k.toFixed(3);
         return `<svg viewBox="${vx} ${vy} ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg" width="100%" data-ann-k="${kStr}" style="height:auto;display:block;font-family:system-ui,sans-serif">`
           + `<rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="#071008"/>`
@@ -1573,12 +1582,52 @@ export function render(ctx){
     // must recover its labels wherever it is hosted. The builder owns the
     // maths; this only decides when to run it again. One observer per map.
     let _annRO = null, _annBuiltAtW = 0;
+    /** Re-scale every annotation to the CURRENT width, without rebuilding.
+     *
+     * k is otherwise fixed at build time, and the rebuild below only fires
+     * past a 4% width change — so a smaller resize never corrected the text
+     * at all, and a drag left it wrong until the threshold tripped and an
+     * expensive rebuild finished. Labels, beacon glyphs and markers looked
+     * too big while the panel was being scaled.
+     *
+     * The transform contract is already in the markup — `data-ann="x y"` is
+     * each annotation's anchor and `data-ann-k` is the factor applied — so
+     * this re-derives what the build would have written. Same thing Pure
+     * Live does to counter zoom (see purelive.js _counterScaleSVG); this
+     * counters the container instead. Attribute writes on nodes that already
+     * exist: no layout, no re-render, safe to run on every resize tick.
+     *
+     * Deliberately NOT a replacement for the rebuild: k only fixes the size
+     * of annotations, while a large resize also changes what fits, so the
+     * threshold rebuild stays.
+     */
+    const _applyAnnScale = ()=>{
+      const svgEl = isoDiv.querySelector("svg");
+      if(!svgEl) return;
+      const vb = (svgEl.getAttribute("viewBox") || "").split(/\s+/).map(Number);
+      const vw = vb.length === 4 ? vb[2] : 0;
+      if(!vw) return;
+      const k = _annScaleFor(_annHostW(), vw);
+      const kStr = k.toFixed(3);
+      if(svgEl.getAttribute("data-ann-k") === kStr) return;   // nothing moved
+      svgEl.setAttribute("data-ann-k", kStr);
+      for(const g of svgEl.querySelectorAll("[data-ann]")){
+        const [ax, ay] = (g.getAttribute("data-ann") || "0 0").split(" ").map(Number);
+        g.setAttribute("transform", `translate(${ax} ${ay}) scale(${kStr}) translate(${-ax} ${-ay})`);
+      }
+    };
+    ctx.state._isoApplyAnnScale = _applyAnnScale;
+
     const _watchAnnScale = ()=>{
       _annBuiltAtW = isoDiv.clientWidth || 0;
       if(_annRO || typeof ResizeObserver === "undefined") return;
       _annRO = new ResizeObserver(()=>{
         const w = isoDiv.clientWidth || 0;
         if(!w || !_annBuiltAtW) return;
+        // Correct the text size on EVERY tick — cheap, and it is what makes
+        // the map read correctly while it is still being resized.
+        _applyAnnScale();
+        // A big change also changes what fits, so that still earns a rebuild.
         if(Math.abs(w - _annBuiltAtW) / _annBuiltAtW > 0.04){
           _annBuiltAtW = w;
           _rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx));
