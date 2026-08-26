@@ -1402,9 +1402,34 @@ export function render(ctx){
         s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="3.5" fill="#071008" opacity="0.7"/>`;
         const awayTag = isAway ? " (Away)" : "";
         const fullLbl = lbl + awayTag;
-        const lblW = Math.min(fullLbl.length * 7 + 10, 140);
+        // The name plate is a share of the MAP, not a fixed 140 units.
+        //
+        // 140 is a constant; the map's width is not. A compact layout projects
+        // to ~600 units, so a full plate was 23% of the drawing — and because
+        // annotations are counter-scaled to a constant ON-SCREEN size, that is
+        // 23% of the panel too. Invisible at 1920px, a quarter of the width at
+        // 480px. Measured across the fleet of screen widths, the plate runs
+        // 6% -> 28% while the beacon's own rings stay between 1.4% and 6.4%:
+        // the plate is what makes a beacon look oversized, not the marker.
+        //
+        // The TEXT is shortened to match rather than the font being shrunk.
+        // Scaling the annotation down is the other way to cap the footprint
+        // and it costs legibility on exactly the small screens that need it —
+        // it puts the label at ~6px. A shorter name at a readable size beats a
+        // full name nobody can read; hover and the objects list still have it.
+        //
+        // Deliberately NOT a height cap on the svg. That caps the rendered
+        // width and puts blank bars down the sides — see 1f31908, which
+        // removed exactly that after five attempts had failed to fit the
+        // drawing any other way.
+        const _plateMax = Math.max(48, Math.min(140, 0.16 * _isoFrame().vw));
+        const _plateChars = Math.max(4, Math.floor((_plateMax - 10) / 7));
+        const shownLbl = fullLbl.length > _plateChars
+          ? fullLbl.slice(0, _plateChars - 1) + "…"
+          : fullLbl;
+        const lblW = Math.min(shownLbl.length * 7 + 10, _plateMax);
         s += `<rect x="${Math.round(bx)-lblW/2}" y="${Math.round(by)-32}" width="${lblW}" height="16" rx="3" fill="#071008" opacity="0.7"/>`;
-        s += `<text x="${Math.round(bx)}" y="${Math.round(by)-20}" text-anchor="middle" fill="${lblColor}" font-size="12" font-weight="700">${_esc(fullLbl)}</text>`;
+        s += `<text x="${Math.round(bx)}" y="${Math.round(by)-20}" text-anchor="middle" fill="${lblColor}" font-size="12" font-weight="700">${_esc(shownLbl)}</text>`;
         s += `</g>`;
       }
 

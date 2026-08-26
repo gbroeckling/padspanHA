@@ -74,3 +74,38 @@ def test_the_resize_observer_rescales_on_every_tick() -> None:
         "_applyAnnScale() is called after/inside the 4% rebuild gate. It must run on "
         "EVERY tick — being behind the gate is precisely the bug: a smaller resize "
         "never corrects the text, and a drag leaves it wrong until the threshold trips.")
+
+
+def test_the_map_svg_is_never_height_capped_again() -> None:
+    """A height cap on the iso svg puts blank bars down the sides.
+
+    Commit 1f31908 (2026-08-17) removed exactly that — "max-height:${vh}px
+    capped the rendered width to ~vw px. Removed." — after, in its own words,
+    five attempts had failed to fit the drawing any other way. The svg is
+    width:100% with a viewBox, so constraining its height makes it letterbox:
+    the drawing shrinks to fit the height and is centred, leaving dead space
+    left and right, and every annotation is then oversized for the small map
+    that remains.
+
+    It was reintroduced on 2026-08-25 while chasing oversized beacon labels,
+    and reproduced the identical symptom on the maintainer's screen. The commit
+    message was the whole answer and nothing enforced it, so now something does.
+
+    If a height cap is ever genuinely wanted here, delete this test in the same
+    commit and say why — do not weaken it.
+    """
+    src = _OVERVIEW.read_text(encoding="utf-8")
+    m = re.search(r"return `<svg viewBox=[^`]*`", src)
+    assert m, "the iso svg header is gone — did the renderer change?"
+    header = m.group(0)
+    assert "max-height" not in header and "maxHeight" not in header, (
+        "the iso <svg> carries a height cap. It is width:100% with a viewBox, so this "
+        "letterboxes the drawing and puts blank bars down the sides — the exact bug "
+        f"commit 1f31908 removed:\n{header[:220]}")
+
+    # ...and not smuggled onto the container either, which has the same effect.
+    m2 = re.search(r"isoDiv\.style\.cssText\s*=\s*([^;]+);", src)
+    assert m2, "the iso container styling is gone"
+    assert "max-height" not in m2.group(1) and "maxHeight" not in m2.group(1), (
+        "the iso map container is height-capped, which letterboxes the svg inside it "
+        f"just the same:\n{m2.group(1)[:220]}")
