@@ -947,7 +947,21 @@ export function render(ctx){
       const _isoFrame = ()=>{
         let vx=viewX, vy=viewY, vw=viewW, vh=HTOTAL;
         if(_isoBB && isFinite(_isoBB.minX)){
-          const PAD=60;
+          // ── Frame padding dial ────────────────────────────────────────
+          // PAD was a flat 60 units. 60 is a constant; the drawing's width is
+          // not — the same mistake as the beacon name plate's fixed 140. On a
+          // compact ~500-unit drawing, 60 a side is 12% blank EACH side, and
+          // that stacks with the container's own 6% CSS padding: the map ended
+          // up filling ~70% of the panel. On a 2500-unit drawing the same 60 is
+          // 2% and invisible, which is why this reads as "only on some screens"
+          // when it is really "only on some houses".
+          //
+          // Proportional holds the fill constant instead: ~85% of the panel at
+          // every drawing size. Clamped so a tiny drawing still gets a visible
+          // margin and a huge one does not run to the edge. Lower FRAME_PAD_F
+          // for a tighter fit, raise it for more breathing room.
+          const FRAME_PAD_F = 0.02;
+          const PAD = Math.max(12, Math.min(60, FRAME_PAD_F * (_isoBB.maxX - _isoBB.minX)));
           const x0=_isoBB.minX-PAD;
           const x1=_isoBB.maxX+PAD;
           const y0=Math.min(vy, _isoBB.minY-PAD);
@@ -1322,6 +1336,19 @@ export function render(ctx){
       _isoBBFrozen = true;
 
       const BEACON_CLR = "#fbbf24";
+      // ── Beacon size dial ──────────────────────────────────────────────
+      // Every dimension of a beacon marker — rings, dot, confidence badge,
+      // name plate and both text sizes — is multiplied by this. It exists as
+      // ONE number because "the beacons are too big" is a judgement about the
+      // whole marker, and tuning six literals separately guarantees they stop
+      // agreeing with each other.
+      //
+      // 1.0 is the size shipped up to v0.38.7. Lower it to shrink beacons;
+      // nothing else on the map is affected. The counter-scale (ANN_K) still
+      // holds the result at a constant on-screen size, so this changes how big
+      // a beacon is RELATIVE to the map, which is the actual complaint.
+      const BEACON_F = 0.70;
+      const _bf = (n) => Math.round(n * BEACON_F * 100) / 100;
       const _awayTimeoutS2 = ctx.helpers.awayTimeoutS(ctx.state.settings);
       for(const o of followedObjects){
         // Skip objects positioned on a hidden floor/map
@@ -1383,23 +1410,23 @@ export function render(ctx){
         }
         // Confidence circle (only when we have a real positioned match)
         if(posConf > 0){
-          const cr = Math.round(10 + (1-posConf)*24);
+          const cr = Math.round(_bf(10 + (1-posConf)*24));
           const op = (0.3 + posConf*0.55).toFixed(2);
           s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="${cr}" fill="none" stroke="${BEACON_CLR}" stroke-width="1.5" stroke-dasharray="5,3" opacity="${op}"/>`;
         }
         // Confidence badge below the dot (skip for away)
         if(!isAway){
-          const cW = Math.min(confLabel.length * 6.5 + 8, 65);
-          s += `<rect x="${Math.round(bx)-cW/2}" y="${Math.round(by)+18}" width="${cW}" height="13" rx="3" fill="#071008" opacity="0.8"/>`;
-          s += `<text x="${Math.round(bx)}" y="${Math.round(by)+28}" text-anchor="middle" fill="${confColor}" font-size="9" font-weight="600">${_esc(confLabel)}</text>`;
+          const cW = _bf(Math.min(confLabel.length * 6.5 + 8, 65));
+          s += `<rect x="${Math.round(bx)-cW/2}" y="${Math.round(by)+_bf(18)}" width="${cW}" height="${_bf(13)}" rx="3" fill="#071008" opacity="0.8"/>`;
+          s += `<text x="${Math.round(bx)}" y="${Math.round(by)+_bf(28)}" text-anchor="middle" fill="${confColor}" font-size="${_bf(9)}" font-weight="600">${_esc(confLabel)}</text>`;
           // Red warning ring only when truly bad (< 30% or no data)
           if(confPct < 30){
-            s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="20" fill="none" stroke="${confColor}" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.5"/>`;
+            s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="${_bf(20)}" fill="none" stroke="${confColor}" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.5"/>`;
           }
         }
-        s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="16" fill="${BEACON_CLR}" opacity="${glowOp}"/>`;
-        s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="11" fill="${BEACON_CLR}" stroke="#071008" stroke-width="1.5" opacity="${dotOp}"/>`;
-        s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="3.5" fill="#071008" opacity="0.7"/>`;
+        s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="${_bf(16)}" fill="${BEACON_CLR}" opacity="${glowOp}"/>`;
+        s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="${_bf(11)}" fill="${BEACON_CLR}" stroke="#071008" stroke-width="1.5" opacity="${dotOp}"/>`;
+        s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="${_bf(3.5)}" fill="#071008" opacity="0.7"/>`;
         const awayTag = isAway ? " (Away)" : "";
         const fullLbl = lbl + awayTag;
         // The name plate is a share of the MAP, not a fixed 140 units.
@@ -1422,14 +1449,14 @@ export function render(ctx){
         // width and puts blank bars down the sides — see 1f31908, which
         // removed exactly that after five attempts had failed to fit the
         // drawing any other way.
-        const _plateMax = Math.max(48, Math.min(140, 0.16 * _isoFrame().vw));
+        const _plateMax = _bf(Math.max(48, Math.min(140, 0.16 * _isoFrame().vw)));
         const _plateChars = Math.max(4, Math.floor((_plateMax - 10) / 7));
         const shownLbl = fullLbl.length > _plateChars
           ? fullLbl.slice(0, _plateChars - 1) + "…"
           : fullLbl;
         const lblW = Math.min(shownLbl.length * 7 + 10, _plateMax);
-        s += `<rect x="${Math.round(bx)-lblW/2}" y="${Math.round(by)-32}" width="${lblW}" height="16" rx="3" fill="#071008" opacity="0.7"/>`;
-        s += `<text x="${Math.round(bx)}" y="${Math.round(by)-20}" text-anchor="middle" fill="${lblColor}" font-size="12" font-weight="700">${_esc(shownLbl)}</text>`;
+        s += `<rect x="${Math.round(bx)-lblW/2}" y="${Math.round(by)-_bf(32)}" width="${lblW}" height="${_bf(16)}" rx="3" fill="#071008" opacity="0.7"/>`;
+        s += `<text x="${Math.round(bx)}" y="${Math.round(by)-_bf(20)}" text-anchor="middle" fill="${lblColor}" font-size="${_bf(12)}" font-weight="700">${_esc(shownLbl)}</text>`;
         s += `</g>`;
       }
 
