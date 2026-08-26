@@ -1687,11 +1687,24 @@ export function render(ctx){
       });
       _annRO.observe(isoDiv);
     };
-    // The svg is width:100% of this box, so its horizontal padding IS the
-    // side margin. 6% each side puts the drawing at ~88% of the panel: wide
-    // enough to read, with room to breathe at the edges rather than touching
-    // them. Percent, not px, so it holds its proportion on any screen.
-    isoDiv.style.cssText = "overflow:auto;border-radius:8px;background:#071008;padding:8px 6%";
+    // ── Side margin dial ──────────────────────────────────────────────
+    // The svg is width:100% of this box, so its horizontal padding IS the side
+    // margin. This was 6% each side — 12% of the panel — described as room to
+    // breathe. In use it was not breathing room, it was the reason the map had
+    // to be BROWSER-ZOOMED to fill the screen, and browser zoom is what made
+    // the beacons look oversized: zoom shrinks clientWidth, k = 0.84*vw/hostW
+    // rises, and annotations grow relative to a map that is already width:100%.
+    // So the blank sides were the cause and the big beacons were the symptom.
+    //
+    // 2% each side keeps the drawing off the edge without costing screen. With
+    // the frame padding now proportional too, the map fills ~93% of the panel
+    // instead of ~70%, which is the whole point: less blank, less zoom needed,
+    // beacons stay the size they were designed to be.
+    //
+    // Percent, not px, so it holds its proportion on any screen. Raise it if
+    // the map feels cramped against the edges.
+    const MAP_SIDE_PAD_PCT = 2;
+    isoDiv.style.cssText = "overflow:auto;border-radius:8px;background:#071008;padding:8px " + MAP_SIDE_PAD_PCT + "%";
 
     // ── 3D map loading indicator ────────────────────────────────────────
     const _isoProgressFill = { style: {} }; // stub — no visual progress bar
