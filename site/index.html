@@ -175,6 +175,37 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.6</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">25 August 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>An established install is no longer told it has not started.</b> v0.38.5 briefly flashed
+          &ldquo;Setup Progress &mdash; 0/5 &mdash; Upload Floor Plan&rdquo; at settled installs every time the panel
+          opened. Nothing was wrong with them: the check read the map list before it had been fetched, and an
+          empty list was mistaken for an unfinished setup. It mattered most on that release of all releases,
+          because 0.38.5 is the one that rewrote how every map stores its position &mdash; being told you had
+          never uploaded a floor plan invited the conclusion that the upgrade had eaten your setup. An empty
+          list is an answer; an unfetched one is not.</li>
+          <li><b>A radio that is transmitting now says so.</b> The inner ring of a radio&rsquo;s map marker turns
+          red and blinks while that radio is actively scanning, on both the 3D house view and the flat map, and
+          the hover text names the mode. Only a confirmed <i>active</i> is coloured &mdash; a radio on
+          <i>auto</i>, or one that does not report its mode at all, is left alone, because not transmitting and
+          not saying are different facts.</li>
+          <li><b>If your ESPHome YAML says <code>active: true</code> and PadSpan shows passive, the YAML is not
+          what decides any more.</b> Home Assistant 2026.6 changed the default scanning mode for every ESPHome
+          Bluetooth proxy to <i>auto</i>, and it overrides what the device&rsquo;s own firmware config asks for.
+          Reflashing cannot change this. The setting that does decide is per device, under
+          Settings &rarr; Devices &amp; Services &rarr; ESPHome &rarr; <i>your device</i> &rarr; Configure &rarr;
+          Bluetooth scanning mode. There is no fleet-wide switch. Worth knowing before you change it: active
+          scanning means the radio transmits, which costs 2.4&nbsp;GHz airtime you may be sharing with Wi-Fi.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.5</span>
         <span class="pill stable">Stable</span>
         <span class="reldate">25 August 2026</span>
