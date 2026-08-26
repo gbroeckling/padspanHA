@@ -4,6 +4,18 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.7 — Beacon labels stop crowding the map on small screens (2026-08-25)
+
+### Fixed
+- **A beacon's name plate no longer takes a quarter of the width on a small screen.** The plate was capped at a fixed size while the map it sits on is not: on a compact layout it worked out at roughly a quarter of the drawing, and because map labels are deliberately held at a constant on-screen size, that is a quarter of your panel too. Invisible on a wide monitor, dominating on a small one — which is why it looked fine most of the time. The plate is now a share of the map, and long names are shortened to fit rather than the text being shrunk: a name you can read beats a full name you cannot. Hover and the objects list still show the whole thing.
+- **Map labels re-scale while the panel is being resized**, instead of only after. The scale factor was fixed when the map was drawn and recomputed only on a full rebuild, which was itself gated behind a 4% width change — so a smaller resize never corrected the text at all, and dragging a window left labels the wrong size until the threshold tripped.
+- The landing page now carries a v0.38.6 entry, including the two things from that release a reader has to be told rather than shown: the setup card that briefly flashed at established installs, and where BLE scan mode actually comes from since Home Assistant 2026.6.
+
+### If you read "passive" on a proxy whose YAML says active
+That is the one worth repeating. Home Assistant 2026.6 made *auto* the default scanning mode for every ESPHome Bluetooth proxy, and it overrides the device's own configuration. Reflashing the device cannot change it. The setting that decides is per device, in Home Assistant: **Settings → Devices & Services → ESPHome → *your device* → Configure → Bluetooth scanning mode**.
+
+---
+
 ## 0.38.6 — A radio that is transmitting says so (2026-08-25)
 
 ### Fixed
