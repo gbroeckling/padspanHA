@@ -4,6 +4,18 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.8 — The 3D map uses the screen it is given (2026-08-26)
+
+### The map fills the panel instead of sitting in the middle of it
+- **The map was leaving about 30% of the panel blank down the sides**, and it was two separate margins stacking: the drawing's own frame padding, and the container's. Both were fixed sizes measured against a drawing whose width depends on your house — invisible on a large layout, a third of the screen on a compact one. That is also why this looked like a screen problem when it was really a *layout* problem. Both are proportional now, and the map fills roughly **93%** of the panel rather than 70%.
+- **This is why beacons looked oversized.** A map that only fills two-thirds of the screen gets browser-zoomed to fill it — and zooming in makes map labels and markers grow *relative* to the map, because the map is already sized to the full width. The blank sides were the cause; the large beacons were the symptom. With the space reclaimed, less zoom is needed and markers sit closer to the size they were drawn for.
+- **Beacon markers are also 30% smaller** in their own right — every part of one, from the rings to the name plate to the text, so the marker still looks like itself.
+
+### If you want them different
+All three are single numbers at the top of their section in the map view, and nothing else on the map depends on them: the beacon size, the frame padding, and the side margin. Adjust and reload.
+
+---
+
 ## 0.38.7 — Beacon labels stop crowding the map on small screens (2026-08-25)
 
 ### Fixed
