@@ -376,12 +376,19 @@ async def compute_occupancy_estimate(hass: HomeAssistant) -> dict[str, Any]:
         else:
             body["addresses"].extend(c["addresses"])
     unplaced = [p for p in people if not p["room"]]
+
+    def _assume(room: str | None, via: str) -> None:
+        # A room named after someone is theirs first ("Nicole's Office").
+        words = {w for w in (room or "").lower().replace("'s", "").split() if len(w) >= 3}
+        owner = next((p for p in unplaced if any(w in words for w in p["name"].lower().split())), unplaced[0])
+        unplaced.remove(owner)
+        owner["room"], owner["via"], owner["assumed"] = room, via, True
+
     for body in bodies:
         if body["room"] and any(p["room"] == body["room"] for p in people):
             body["explained"] = True
         elif unplaced:
-            owner = unplaced.pop(0)
-            owner["room"], owner["via"], owner["assumed"] = body["room"], "unclaimed phone nearby (assumed)", True
+            _assume(body["room"], "unclaimed phone nearby (assumed)")
             body["explained"] = True
     unknown_phones = [b for b in bodies if not b["explained"]]
 
@@ -390,8 +397,7 @@ async def compute_occupancy_estimate(hass: HomeAssistant) -> dict[str, Any]:
     for r in list(unaccounted):
         if not unplaced:
             break
-        owner = unplaced.pop(0)
-        owner["room"], owner["via"], owner["assumed"] = r, "occupancy sensor (assumed)", True
+        _assume(r, "occupancy sensor (assumed)")
         unaccounted.remove(r)
     firm = known + len(unknown_phones)
     floor = len(sensed["occupancy_rooms"]) or (1 if sensed["motion_rooms"] else 0)

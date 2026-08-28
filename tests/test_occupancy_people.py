@@ -377,6 +377,20 @@ def test_hybrid_off_is_phones_only(monkeypatch):
     assert res["confidence"] == "low"
 
 
+def test_a_room_named_after_someone_is_assumed_to_be_theirs(monkeypatch):
+    """Two people home, neither placed by a device: the phone in Nicole's Office is Nicole's,
+    the occupied Garry's Office is Garry's — not first-come, first-placed."""
+    persons = [_person("person.garry", "Garry", "device_tracker.pixel_8_pro"), PERSONS[2]]
+    scanners = dict(SCANNERS, s5=("Nicole's Office", "upper"))
+    ads = [_ad("4F:49:7F:E7:CD:2B", "s5", -58, apple="Nearby Info"), _ad("4F:49:7F:E7:CD:2B", "s2", -84, apple="Nearby Info")]
+    sensors = [_sensor("binary_sensor.office_occupancy", "occupancy", "on", "Garry's Office")]
+    res = _estimate(_hass(monkeypatch, persons=persons, trackers=TRACKERS, ads=ads, sensors=sensors, scanners=scanners))
+    where = {p["name"]: p["room"] for p in res["people"]}
+    assert where == {"Garry": "Garry's Office", "Nicole": "Nicole's Office"}
+    assert all(p["assumed"] for p in res["people"])
+    assert (res["total_estimate"], res["total_low"], res["total_high"]) == (2, 2, 2)
+
+
 def test_an_object_that_is_away_places_nobody(monkeypatch):
     """The Pixel went quiet: Garry is still home per HA, and the phone nearby is only assumed to be his."""
     gone = dict(THINGS)
