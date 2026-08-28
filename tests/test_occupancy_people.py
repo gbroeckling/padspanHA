@@ -184,12 +184,16 @@ def test_labelled_things_are_listed_and_never_counted(monkeypatch):
 
 
 def test_the_unclaimed_iphone_is_nicole_not_a_stranger(monkeypatch):
-    """One phone-class cluster on the air, one known person nobody placed: they are the same person."""
+    """A phone in the room Garry is placed in is his second device; the occupied
+    bedroom with nobody placed is where Nicole is assumed to be — nobody is a stranger."""
     res = _estimate(_the_house(monkeypatch))
     ev = res["evidence"]
     assert ev["phone_addresses"] == 2 and ev["phone_clusters"] == 1
     assert res["unknown"] == 0
-    assert res["total_high"] == 4  # …unless that phone and the bedroom presence are both guests
+    nicole = next(p for p in res["people"] if p["name"] == "Nicole")
+    assert nicole["room"] == "Bedroom" and nicole["assumed"] is True and "assumed" in nicole["via"]
+    assert ev["persons_unlocated"] == ["Nicole"]  # assumed is not placed
+    assert (res["total_low"], res["total_high"]) == (2, 2)
 
 
 def test_sensors_by_device_class_and_area(monkeypatch):
@@ -198,11 +202,11 @@ def test_sensors_by_device_class_and_area(monkeypatch):
     assert ev["occupancy_rooms"] == ["Living Room", "Bedroom"]      # the driveway radar (area Outside) is not a room
     assert ev["motion_rooms"] == []                                  # 30 h of 'on' is a held input, 50 min 'off' is nobody
     assert ev["stuck_sensors"] == ["binary_sensor.alarm_di1"]
-    assert ev["unaccounted_rooms"] == ["Bedroom"]                    # Living Room has Garry in it
+    assert ev["unaccounted_rooms"] == []                             # Living Room has Garry, Bedroom gets Nicole
     rooms = {r["room"]: r for r in res["rooms"]}
-    assert rooms["Living Room"]["people"] == [next(p["name"] for p in res["people"] if p["kind"] == "known" and p["room"])]
+    assert rooms["Living Room"]["people"] == [next(p["name"] for p in res["people"] if p["name"] in ("remote", "pixel"))]
     assert rooms["Living Room"]["phones"] == 1 and rooms["Living Room"]["occupancy"] is True
-    assert rooms["Bedroom"]["people"] == [] and rooms["Bedroom"]["occupancy"] is True
+    assert rooms["Bedroom"]["people"] == ["Nicole"] and rooms["Bedroom"]["occupancy"] is True
 
 
 # ── each rule on its own ────────────────────────────────────────────────────
@@ -214,14 +218,40 @@ def test_a_house_of_tagged_things_and_nobody_home_is_empty(monkeypatch):
     assert len(res["evidence"]["things_seen"]) == 6  # nobody claims the Pixel either
 
 
-def test_all_known_placed_so_a_phone_class_cluster_is_a_guest(monkeypatch):
+BEDROOM_PAIR = [
+    _ad("4F:49:7F:E7:CD:2B", "s3", -60, apple="Nearby Info"), _ad("4F:49:7F:E7:CD:2B", "s2", -85, apple="Nearby Info"),
+    _ad("75:88:1D:26:CE:2B", "s3", -61, apple="Nearby Info"), _ad("75:88:1D:26:CE:2B", "s2", -86, apple="Nearby Info"),
+]
+
+
+def test_a_phone_where_no_known_person_is_is_a_guest(monkeypatch):
+    persons = [_person("person.garry", "Garry", "device_tracker.pixel_8_pro")]
+    res = _estimate(_hass(monkeypatch, persons=persons, trackers=TRACKERS, objects=THINGS,
+                          ads=BEDROOM_PAIR, scanners=SCANNERS))
+    assert res["known"] == 1 and res["unknown"] == 1
+    assert (res["total_estimate"], res["total_low"], res["total_high"]) == (2, 2, 2)
+    guest = next(p for p in res["people"] if p["kind"] == "unknown")
+    assert guest["room"] == "Bedroom" and guest["via"] == "2 rotating addresses"
+
+
+def test_a_phone_in_the_room_a_known_person_is_placed_in_is_theirs(monkeypatch):
+    """Garry is in the Living Room by his Pixel; an anonymous phone there is his watch, not a guest."""
     persons = [_person("person.garry", "Garry", "device_tracker.pixel_8_pro")]
     res = _estimate(_hass(monkeypatch, persons=persons, trackers=TRACKERS, objects=THINGS,
                           ads=IPHONE_PAIR, scanners=SCANNERS))
-    assert res["known"] == 1 and res["unknown"] == 1
-    assert res["total_estimate"] == 2 and res["total_low"] == 2 and res["total_high"] == 2
-    guest = next(p for p in res["people"] if p["kind"] == "unknown")
-    assert guest["room"] == "Living Room" and guest["via"] == "2 rotating addresses"
+    assert res["known"] == 1 and res["unknown"] == 0 and res["total_estimate"] == 1
+
+
+def test_two_phone_clusters_in_one_room_are_one_person(monkeypatch):
+    """A phone on the desk and a watch on the wrist do not share a fingerprint; they share a room."""
+    apart_in_one_room = [
+        _ad("4F:49:7F:E7:CD:2B", "s1", -55, apple="Nearby Info"), _ad("4F:49:7F:E7:CD:2B", "s2", -70, apple="Nearby Info"),
+        _ad("75:88:1D:26:CE:2B", "s1", -72, apple="Nearby Info"), _ad("75:88:1D:26:CE:2B", "s2", -90, apple="Nearby Info"),
+    ]
+    res = _estimate(_hass(monkeypatch, ads=apart_in_one_room, scanners=SCANNERS))
+    assert res["evidence"]["phone_addresses"] == 2 and res["evidence"]["phone_clusters"] == 1
+    assert res["total_estimate"] == 1
+    assert res["people"][0]["via"] == "2 rotating addresses"
 
 
 @pytest.mark.parametrize("addr,kw,counts", [
@@ -285,14 +315,30 @@ def test_an_irk_phone_merges_with_its_person(monkeypatch):
     assert res["confidence"] == "high"
 
 
-def test_a_sensed_room_with_nobody_in_it_is_someone(monkeypatch):
+def test_an_occupied_room_with_nobody_placed_is_possibly_someone(monkeypatch):
+    """Garry is placed by a weak beacon; an occupied bedroom raises the ceiling, not the count."""
     persons = [_person("person.garry", "Garry", "device_tracker.pixel_8_pro")]
     sensors = [_sensor("binary_sensor.bedroom_presence", "presence", "on", "Bedroom")]
     res = _estimate(_hass(monkeypatch, persons=persons, trackers=TRACKERS, objects=THINGS, sensors=sensors, scanners=SCANNERS))
-    assert res["total_estimate"] == 2 and res["unknown"] == 1
-    someone = next(p for p in res["people"] if p["kind"] == "unknown")
-    assert someone == {"name": "Someone", "kind": "unknown", "room": "Bedroom", "via": "occupancy sensor"}
-    assert res["total_low"] == 1  # a sensor alone is not firm evidence
+    assert (res["total_estimate"], res["total_low"], res["total_high"]) == (1, 1, 2)
+    assert res["unknown"] == 0 and all(p["kind"] == "known" for p in res["people"])
+    assert res["evidence"]["unaccounted_rooms"] == ["Bedroom"]
+    assert res["confidence"] == "medium"
+
+
+def test_occupied_rooms_are_the_floor_when_nobody_is_known(monkeypatch):
+    sensors = [
+        _sensor("binary_sensor.bedroom_presence", "presence", "on", "Bedroom"),
+        _sensor("binary_sensor.living_room_occupancy", "occupancy", "on", "Living Room"),
+    ]
+    res = _estimate(_hass(monkeypatch, sensors=sensors, scanners=SCANNERS))
+    assert (res["total_estimate"], res["total_low"], res["total_high"]) == (2, 0, 2)
+    assert [p["name"] for p in res["people"]] == ["Someone", "Someone"]
+    assert sorted(p["room"] for p in res["people"]) == ["Bedroom", "Living Room"]
+    assert res["confidence"] == "low"
+    motion_only = [_sensor("binary_sensor.pantry_motion", "motion", "on", "Pantry")]
+    res = _estimate(_hass(monkeypatch, sensors=motion_only, scanners=SCANNERS))
+    assert res["total_estimate"] == 1 and res["people"][0] == {"name": "Someone", "kind": "unknown", "room": "Pantry", "via": "motion"}
 
 
 def test_motion_that_just_cleared_still_counts_and_a_held_input_does_not(monkeypatch):
@@ -332,12 +378,14 @@ def test_hybrid_off_is_phones_only(monkeypatch):
 
 
 def test_an_object_that_is_away_places_nobody(monkeypatch):
+    """The Pixel went quiet: Garry is still home per HA, and the phone nearby is only assumed to be his."""
     gone = dict(THINGS)
     gone["ibeacon:pixel"] = dict(THINGS["ibeacon:pixel"], age_s=900.0)
     res = _estimate(_the_house(monkeypatch, objects=gone))
     garry = next(p for p in res["people"] if p["name"] in ("remote", "pixel"))
-    assert garry["room"] is None
-    assert res["total_estimate"] == 2  # still home per HA, just not placed
+    assert garry["room"] == "Living Room" and garry["assumed"] is True
+    assert sorted(res["evidence"]["persons_unlocated"]) == ["Nicole", garry["name"]]
+    assert res["total_estimate"] == 2
 
 
 def test_no_bluetooth_is_still_a_full_answer(monkeypatch):

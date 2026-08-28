@@ -77,7 +77,7 @@ async function _loadOccupancy(ctx, el, container) {
       peopleCard.appendChild(el("div", { style: "display:flex;gap:10px;font-size:12px;align-items:baseline;flex-wrap:wrap;padding:2px 0" }, [
         el("span", { style: `color:${p.kind === "known" ? "#52b788" : "#f59e0b"};font-weight:600;min-width:120px` },
           p.name + ((p.aliases || []).length ? ` (${p.aliases.join(", ")})` : "")),
-        el("span", { style: "color:#e2e8f0" }, p.room || "not placed"),
+        el("span", { style: "color:#e2e8f0" }, (p.room || "not placed") + (p.assumed ? " (assumed)" : "")),
         el("span", { style: "color:#64748b;font-size:11px" }, p.via || ""),
       ]));
     }
@@ -109,7 +109,7 @@ async function _loadOccupancy(ctx, el, container) {
     const unacc = ev.unaccounted_rooms || [];
     const lines = [
       `${_plural(res.known || 0, "known person", "known people")} home` +
-        ((ev.persons_unlocated || []).length ? ` — ${ev.persons_unlocated.join(", ")} not placed by any device` : ""),
+        ((ev.persons_unlocated || []).length ? ` — ${ev.persons_unlocated.join(", ")} not placed by a device` : ""),
       `${_plural(ev.phone_clusters || 0, "unclaimed phone", "unclaimed phones")} heard` +
         (ev.phone_addresses ? ` (${_plural(ev.phone_addresses, "rotating address", "rotating addresses")}, clustered at ${res.cluster_threshold} dBm)` : ""),
       `${_plural(unacc.length, "sensed room", "sensed rooms")} with nobody placed` + (unacc.length ? `: ${unacc.join(", ")}` : ""),

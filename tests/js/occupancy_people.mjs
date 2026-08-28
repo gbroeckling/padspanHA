@@ -91,10 +91,12 @@ async function card(answer) {
   check("card: mounted into the section", c.section.children.includes(c.node));
   check("card: says what the number is", c.txt.includes("People in building") && c.txt.includes("people"));
   check("card: shows the estimate", c.txt.includes(String(LIVE.total_estimate)));
-  check("card: shows the range only because it is real", LIVE.total_low !== LIVE.total_high
-    && c.txt.includes(`${LIVE.total_low}–${LIVE.total_high}`));
+  check("card: shows the range only when it is real", LIVE.total_low !== LIVE.total_high
+    ? c.txt.includes(`${LIVE.total_low}–${LIVE.total_high}`)
+    : !c.txt.includes("–"), c.txt);
   check("card: names the people and the room that places one", c.txt.includes("Living Room") && c.txt.includes("Nicole"));
-  check("card: says who is home but not placed", c.txt.includes("Nicole home, not placed"));
+  check("card: marks an assumed room as assumed", c.txt.includes("Nicole · Bedroom (assumed)"), c.txt);
+  check("card: says who is not placed by a device", c.txt.includes("Nicole not placed by a device"), c.txt);
   check("card: says a phone was heard", c.txt.includes("1 phone heard"));
   check("card: names the sensed rooms", c.txt.includes("sensors: Living Room, Bedroom"));
   check("card: counts the tagged things as things", c.txt.includes("5 tagged things seen, not people"));

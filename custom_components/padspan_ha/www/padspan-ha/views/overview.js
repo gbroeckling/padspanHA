@@ -3421,12 +3421,12 @@ export function render(ctx){
       }
       // Who: every counted person, with a room when something places them.
       const who = (res.people || []).map(p => p.kind === "known"
-        ? p.name + (p.room ? ` · ${p.room}` : "")
+        ? p.name + (p.room ? ` · ${p.room}${p.assumed ? " (assumed)" : ""}` : "")
         : `+1 ${p.name === "Someone" ? "someone" : "unknown phone"}` + (p.room ? ` · ${p.room}` : ""));
       occWho.textContent = who.length ? who.join("  •  ") : "Nobody home";
       // Why: the evidence that was weighed — not addends.
       const why = [];
-      if ((ev.persons_unlocated || []).length) why.push(`${ev.persons_unlocated.join(", ")} home, not placed`);
+      if ((ev.persons_unlocated || []).length) why.push(`${ev.persons_unlocated.join(", ")} not placed by a device`);
       if (ev.phone_clusters) why.push(_plural(ev.phone_clusters, "phone heard", "phones heard"));
       const rooms = (ev.occupancy_rooms || []).concat((ev.motion_rooms || []).filter(r => !(ev.occupancy_rooms || []).includes(r)));
       if (rooms.length) why.push(`sensors: ${rooms.join(", ")}`);
@@ -3468,7 +3468,7 @@ export function render(ctx){
           body.appendChild(el("div",{style:"display:flex;gap:8px;font-size:12px;align-items:baseline;flex-wrap:wrap"},[
             el("span",{style:`color:${p.kind === "known" ? "#52b788" : "#f59e0b"};font-weight:600;min-width:110px`},
               p.name + ((p.aliases || []).length ? ` (${p.aliases.join(", ")})` : "")),
-            el("span",{style:"color:#e2e8f0"},p.room || "not placed"),
+            el("span",{style:"color:#e2e8f0"},(p.room || "not placed") + (p.assumed ? " (assumed)" : "")),
             el("span",{style:"color:#64748b;font-size:11px"},p.via || ""),
           ]));
         }
@@ -3493,7 +3493,7 @@ export function render(ctx){
         const unacc = ev.unaccounted_rooms || [];
         const how = [
           `${_plural(res.known || 0, "known person", "known people")} home` +
-            ((ev.persons_unlocated || []).length ? ` — ${ev.persons_unlocated.join(", ")} not placed` : ""),
+            ((ev.persons_unlocated || []).length ? ` — ${ev.persons_unlocated.join(", ")} not placed by a device` : ""),
           `${_plural(ev.phone_clusters || 0, "unclaimed phone", "unclaimed phones")} heard` +
             (ev.phone_addresses ? ` (${_plural(ev.phone_addresses, "rotating address", "rotating addresses")})` : ""),
           `${_plural(unacc.length, "sensed room", "sensed rooms")} with nobody placed` + (unacc.length ? `: ${unacc.join(", ")}` : ""),

@@ -126,8 +126,8 @@ The Training Hub has a dedicated walkthrough: **Private BLE (Apple Devices)**.
 The **Occupancy** view counts people in the building — never devices:
 
 1. **Known people** are your HA `person` entities that are home, one per phone (two person entities on the same device tracker are one person). A PadSpan object labelled with the phone's name, or linked to its tracker, places that person in a room.
-2. **Unclaimed phones** are rotating BLE addresses whose advert says "phone or watch in a pocket" (Apple Nearby Info / Handoff, wearable makers), heard strongly by two or more scanners. Addresses with the same signal at every scanner are one person — a phone and its watch, or a phone across an address rotation. Known people who are home but not placed are assumed to be these phones first; the rest are unknown people.
-3. **Occupancy, presence and motion sensors** (by `device_class`, in their HA area, indoors) say someone is in a room. A sensed room with nobody placed in it is one more person unless an unplaced known person explains it. Motion held on for over an hour is ignored as a stuck input.
+2. **Unclaimed phones** are rotating BLE addresses whose advert says "phone or watch in a pocket" (Apple Nearby Info / Handoff, wearable makers), heard strongly by two or more scanners. Phones in one room are one person — a phone and its watch, or a phone across an address rotation. A known person placed in that room owns them; a known person who is home but not placed is assumed to be them; the rest are unknown people.
+3. **Occupancy and presence sensors** (by `device_class`, in their HA area, indoors) are a floor: every occupied room needs a body, and the bodies are the people already counted. An occupied room with nobody placed in it raises the possible range, not the count, unless nobody is known at all. Motion places people and floors an otherwise empty count; motion held on for over an hour is ignored as a stuck input.
 4. **Tagged things** — keys, beacons, boxes, vehicles — are listed as seen and never counted.
 
 Record the real headcount in the view to keep it beside what the estimate said.

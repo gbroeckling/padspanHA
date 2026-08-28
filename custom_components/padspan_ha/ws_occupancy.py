@@ -356,40 +356,66 @@ async def compute_occupancy_estimate(hass: HomeAssistant) -> dict[str, Any]:
     # 3. Sensed rooms.
     sensed = _sensor_rooms(hass, room_names, room_floor) if hybrid else {
         "occupancy_rooms": [], "motion_rooms": [], "stuck_sensors": []}
-    placed_rooms = {p["room"] for p in people if p["room"]} | {c["room"] for c in clusters if c["room"]}
-    sensed_rooms = list(dict.fromkeys(sensed["occupancy_rooms"] + sensed["motion_rooms"]))
-    unaccounted = [r for r in sensed_rooms if r not in placed_rooms]
 
-    # 4. Fuse. Phones are firm evidence; a sensed room only raises the likely
-    #    number; every known person who is home but not placed explains one
-    #    piece of evidence before anything becomes an unknown person.
+    # 4. Fuse.
+    #    A phone body is one person per room, however many rotating addresses
+    #    sit there — a phone and its watch, or a phone across a rotation. A
+    #    known person placed in that room owns it; a known person who is home
+    #    but not placed is assumed to be it; what is left is an unknown
+    #    person, and that is firm evidence.
+    #    Occupancy is a floor: every occupied room needs a body, but the bodies
+    #    are the people already counted, wherever a weak beacon put them —
+    #    the first deploy added a person for every occupied room and said 4
+    #    with 2 home. Motion attributes, and floors an otherwise empty count.
     known = len(people)
-    unlocated = sum(1 for p in people if not p["room"])
-    anon = len(clusters)
-    low = known + max(0, anon - unlocated)
-    estimate = known + max(0, max(anon, len(unaccounted)) - unlocated)
-    high = known + anon + len(unaccounted)
+    bodies: list[dict[str, Any]] = []
+    for c in clusters:
+        body = next((b for b in bodies if c["room"] and b["room"] == c["room"]), None)
+        if body is None:
+            bodies.append({"room": c["room"], "addresses": list(c["addresses"]), "explained": False})
+        else:
+            body["addresses"].extend(c["addresses"])
+    unplaced = [p for p in people if not p["room"]]
+    for body in bodies:
+        if body["room"] and any(p["room"] == body["room"] for p in people):
+            body["explained"] = True
+        elif unplaced:
+            owner = unplaced.pop(0)
+            owner["room"], owner["via"], owner["assumed"] = body["room"], "unclaimed phone nearby (assumed)", True
+            body["explained"] = True
+    unknown_phones = [b for b in bodies if not b["explained"]]
+
+    placed_rooms = {p["room"] for p in people if p["room"]} | {b["room"] for b in unknown_phones if b["room"]}
+    unaccounted = [r for r in sensed["occupancy_rooms"] if r not in placed_rooms]
+    for r in list(unaccounted):
+        if not unplaced:
+            break
+        owner = unplaced.pop(0)
+        owner["room"], owner["via"], owner["assumed"] = r, "occupancy sensor (assumed)", True
+        unaccounted.remove(r)
+    firm = known + len(unknown_phones)
+    floor = len(sensed["occupancy_rooms"]) or (1 if sensed["motion_rooms"] else 0)
+    estimate = max(firm, floor)
+    low = firm
+    high = firm + len(unaccounted)
     unknown = estimate - known
 
     if not hybrid or known == 0:
         confidence = "low"
-    elif unlocated == 0 and anon == 0 and not unaccounted:
+    elif not unknown_phones and not unaccounted and all(p["room"] and not p.get("assumed") for p in people):
         confidence = "high"
     else:
         confidence = "medium"
 
-    # Who the unknown people are, by where the evidence sits.
+    # Who was counted, by where the evidence sits.
     counted: list[dict[str, Any]] = [
         {"name": p["name"], "kind": "known", "room": p["room"], "via": p["via"],
-         "aliases": p["aliases"]} for p in people]
-    slots = unknown
-    for c in clusters:
-        if slots <= 0:
-            break
-        counted.append({"name": "Unknown phone", "kind": "unknown", "room": c["room"],
-                        "via": f"{len(c['addresses'])} rotating address{'es' if len(c['addresses']) != 1 else ''}"})
-        slots -= 1
-    for r in unaccounted:
+         "aliases": p["aliases"], "assumed": bool(p.get("assumed"))} for p in people]
+    for b in unknown_phones:
+        counted.append({"name": "Unknown phone", "kind": "unknown", "room": b["room"],
+                        "via": f"{len(b['addresses'])} rotating address{'es' if len(b['addresses']) != 1 else ''}"})
+    slots = estimate - firm
+    for r in unaccounted + [m for m in sensed["motion_rooms"] if m not in placed_rooms and m not in unaccounted]:
         if slots <= 0:
             break
         counted.append({"name": "Someone", "kind": "unknown", "room": r,
@@ -435,8 +461,8 @@ async def compute_occupancy_estimate(hass: HomeAssistant) -> dict[str, Any]:
         "rooms": sorted(rooms.values(), key=lambda r: r["room"]),
         "evidence": {
             "persons_home": [p["name"] for p in people],
-            "persons_unlocated": [p["name"] for p in people if not p["room"]],
-            "phone_clusters": anon,
+            "persons_unlocated": [p["name"] for p in people if not p["room"] or p.get("assumed")],
+            "phone_clusters": len(bodies),
             "phone_addresses": len(fps),
             "occupancy_rooms": sensed["occupancy_rooms"],
             "motion_rooms": sensed["motion_rooms"],
