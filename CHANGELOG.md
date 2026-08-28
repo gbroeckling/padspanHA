@@ -4,6 +4,26 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## Unreleased — The occupancy number is people, not devices
+
+### What was wrong
+- **The big number on the Overview was a count of tagged things.** "7 identified" was a key fob, a test beacon, one truck beacon counted twice, a closet beacon, a box — and one phone. Two people were home. Every labelled object, every iBeacon with a label and every HA entity the collector accepted counted as one person; "3 persons home" was two person entities driving off the same phone plus one more; the "unidentified" devices it added were a Windows PC's non-rotating address and an AirTag-class Find My tag. The one phone on the air that *was* a person — an unlabelled iPhone — never became an object at all, because rotating addresses are dropped before the estimator sees them. Training could only ever raise the divisor on the unidentified term, so recording the real count made nothing better.
+
+### What it is now
+- **Known people** come from HA `person` entities that are home, one per device tracker. A PadSpan object labelled with the phone's name (or linked to its tracker) places that person in a room; it never counts on its own.
+- **Unclaimed phones and watches** are recognised on the air, not from objects: a rotating (resolvable private) address whose advert is what a phone or watch in a pocket sends — Apple Nearby Info / Handoff / Hotspot and the like, or a wearable maker — heard at −75 dBm or better by two or more scanners, with no local name. The locally-administered bit is not consulted (it is a random bit inside a rotating address, so the old test rejected half of all real phones). Addresses with the same signal at every scanner are one person: a phone and its watch, or a phone across an address rotation. Known people who are home but not placed are assumed to be these phones first; only the surplus are unknown people.
+- **Occupancy, presence and motion sensors** are read by `device_class` and their HA area — not by words in the entity id — indoors only (the driveway radar in area "Outside" is not a room). A sensed room with nobody placed in it is one more person unless an unplaced known person explains it; motion that cleared within two minutes still counts; motion held on for over an hour is a stuck input and is named as such.
+- **Tagged things are listed, never counted**, and the same physical thing with two addresses is listed once.
+- **The range is honest**: the low end is known people plus phones nobody can explain; the high end assumes every unexplained phone and sensed room is a guest. Confidence is high only when everyone counted is placed and nothing is unexplained.
+
+### The card and the tab
+- The Overview card is titled **People in building**, shows the number with its unit, a range pill only when the range is real, who is counted and where, and one line of what was weighed — no more "7 identified · 3 BLE clusters · 3 persons home" that read like a sum and was not one. It shares the top row through the responsive `grid-2` so it stacks on a phone, and says "Unavailable" with the reason instead of leaving an ellipsis when the call fails.
+- The modal and the Occupancy tab show Counted (who, where, how), Rooms with evidence, How the number was reached, and Seen — not people. The tab no longer reads keys the backend never sent ("multiplier undefinedx", "Total BLE 0", a history of "?"); recording a headcount stores it beside what the estimate said.
+- `sensor.padspan_occupancy` keeps `minimum` / `maximum` / `confidence` and now carries `known`, `unknown`, `people` and per-room evidence instead of the multiplier and device counts. Pure Live's ticker says "tracked", not "people", for its labelled-object count.
+- Tests: `tests/test_occupancy_people.py` builds the house as it was that day and requires 2; `tests/js/occupancy_people.mjs` runs the card, the modal and the tab against the estimator's real payload and fails on any "undefined".
+
+---
+
 ## 0.38.8 — The 3D map uses the screen it is given (2026-08-26)
 
 ### The map fills the panel instead of sitting in the middle of it

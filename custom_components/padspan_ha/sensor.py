@@ -560,18 +560,20 @@ class PadSpanOccupancySensor(CoordinatorEntity["PadSpanOccupancyCoordinator"], S
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         d = self.coordinator.data or {}
-        rooms = d.get("rooms") or []
+        # Rooms carry evidence, not a second headcount: who is placed there,
+        # how many unclaimed phones, whether a sensor says someone.
         room_summary = {
-            r["room"]: {"min": r.get("estimate_low"), "estimate": r.get("estimate"), "max": r.get("estimate_high")}
-            for r in rooms
+            r["room"]: {"people": r.get("people"), "phones": r.get("phones"),
+                        "occupancy": r.get("occupancy"), "motion": r.get("motion")}
+            for r in (d.get("rooms") or [])
         }
         return {
             "minimum": d.get("total_low"),
             "maximum": d.get("total_high"),
             "confidence": d.get("confidence"),
-            "identified": d.get("identified"),
-            "unidentified": d.get("unidentified"),
-            "clusters": d.get("clusters"),
-            "multiplier": d.get("multiplier"),
+            "known": d.get("known"),
+            "unknown": d.get("unknown"),
+            "people": [{"name": p.get("name"), "room": p.get("room"), "kind": p.get("kind")}
+                       for p in (d.get("people") or [])],
             "rooms": room_summary,
         }

@@ -123,11 +123,14 @@ The Training Hub has a dedicated walkthrough: **Private BLE (Apple Devices)**.
 
 ## Step 10: Occupancy Estimation
 
-The **Occupancy** view provides building and per-room people counts:
+The **Occupancy** view counts people in the building — never devices:
 
-1. Identified (tagged) devices count as 1 person each
-2. Unidentified BLE devices with dwell time >5 minutes are counted with a configurable multiplier
-3. Train the system by entering actual headcounts — the multiplier adjusts over time via EMA learning
+1. **Known people** are your HA `person` entities that are home, one per phone (two person entities on the same device tracker are one person). A PadSpan object labelled with the phone's name, or linked to its tracker, places that person in a room.
+2. **Unclaimed phones** are rotating BLE addresses whose advert says "phone or watch in a pocket" (Apple Nearby Info / Handoff, wearable makers), heard strongly by two or more scanners. Addresses with the same signal at every scanner are one person — a phone and its watch, or a phone across an address rotation. Known people who are home but not placed are assumed to be these phones first; the rest are unknown people.
+3. **Occupancy, presence and motion sensors** (by `device_class`, in their HA area, indoors) say someone is in a room. A sensed room with nobody placed in it is one more person unless an unplaced known person explains it. Motion held on for over an hour is ignored as a stuck input.
+4. **Tagged things** — keys, beacons, boxes, vehicles — are listed as seen and never counted.
+
+Record the real headcount in the view to keep it beside what the estimate said.
 
 ## What's Next?
 

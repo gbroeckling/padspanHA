@@ -63,7 +63,7 @@ thermostat and light switches.
 - Home/away detection with HA binary sensor entities
 - **Phone & watch tracking** — guided setup wizard with [irk-capture](https://github.com/DerekSeaman/irk-capture) integration, HA Companion App iBeacon for Android, and IRK resolution for Apple devices
 - Private BLE address resolution (iBeacon UUID + IRK support)
-- **Occupancy estimation** — hybrid people counting combining BLE devices, HA person entities, occupancy/motion sensors, and WiFi client counts with a trainable multiplier and RSSI co-location clustering
+- **Occupancy estimation** — people in the building, never devices: HA person entities (one per phone), unclaimed phones and watches recognised on the air by their rotating addresses and clustered by RSSI co-location, and occupancy/motion sensors by room; tagged things are listed, not counted
 
 ### Device Identity
 - **Stable device identity (padspan_id)** — every physical device gets an immutable ID that survives MAC rotation, iBeacon UUID changes, and firmware updates

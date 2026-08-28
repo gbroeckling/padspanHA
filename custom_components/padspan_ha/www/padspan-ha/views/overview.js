@@ -3381,45 +3381,66 @@ export function render(ctx){
       ]));
     }
   }
-  // ── Occupancy Estimator card (clickable, compact) ──────────────────────
+  // ── People in building (clickable) ─────────────────────────────────────
+  // The number is people. Known people come from HA person entities (one
+  // per phone), unknown people from unclaimed phones on the air and rooms
+  // whose sensors say someone; tagged things are listed, never counted.
   let occCard;
   {
-    occCard = el("div",{class:"card",style:"cursor:pointer;border-color:#5eead433;transition:border-color 0.2s;padding:8px 12px"});
+    const _confColor = c => c === "high" ? "#52b788" : c === "medium" ? "#f59e0b" : "#f87171";
+    occCard = el("div",{class:"card",style:"cursor:pointer;border-color:#5eead433;transition:border-color 0.2s;padding:10px 12px"});
     occCard.addEventListener("mouseenter",()=>{occCard.style.borderColor="#5eead4";});
     occCard.addEventListener("mouseleave",()=>{occCard.style.borderColor="#5eead433";});
-    const occContent = el("div",{style:"display:flex;align-items:center;gap:8px"});
-    const occNum = el("span",{style:"font-weight:800;font-size:18px;color:#5eead4;min-width:32px"},"\u2026");
-    const occText = el("span",{style:"font-size:11px;color:#94a3b8;flex:1"}, "Loading\u2026");
-    const occBadge = el("span",{style:"font-size:10px;padding:1px 6px;border-radius:10px;background:#0a2a2a;border:1px solid #5eead433;color:#5eead4;white-space:nowrap"});
-    occContent.appendChild(occNum);
-    occContent.appendChild(occText);
-    occContent.appendChild(occBadge);
-    occCard.appendChild(occContent);
+    occCard.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:baseline;gap:8px"},[
+      el("span",{style:"font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#94a3b8"},"People in building"),
+      el("span",{style:"font-size:10px;color:#5eead4;white-space:nowrap"},"Details ›"),
+    ]));
+    const occNum = el("span",{style:"font-weight:800;font-size:26px;line-height:1;color:#5eead4"},"…");
+    const occUnit = el("span",{style:"font-size:12px;color:#94a3b8"},"");
+    const occBadge = el("span",{style:"display:none;font-size:10px;padding:1px 6px;border-radius:10px;background:#0a2a2a;border:1px solid #5eead433;color:#5eead4;white-space:nowrap"});
+    occCard.appendChild(el("div",{style:"display:flex;align-items:baseline;gap:8px;margin-top:2px"},[occNum,occUnit,occBadge]));
+    const occWho = el("div",{style:"font-size:11px;color:#e2e8f0;margin-top:4px;line-height:1.4"},"Loading…");
+    const occWhy = el("div",{style:"font-size:11px;color:#94a3b8;margin-top:2px;line-height:1.4"},"");
+    occCard.appendChild(occWho);
+    occCard.appendChild(occWhy);
     section.appendChild(occCard);
 
-    // Async load occupancy data
+    const _plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+    const _fill = (res) => {
+      const n = res.total_estimate;
+      const col = _confColor(res.confidence);
+      const ev = res.evidence || {};
+      occNum.textContent = String(n); occNum.style.color = col;
+      occUnit.textContent = n === 1 ? "person" : "people";
+      if (res.total_low !== res.total_high) {
+        occBadge.textContent = `${res.total_low}–${res.total_high}`;
+        occBadge.title = "possible range";
+        occBadge.style.display = ""; occBadge.style.borderColor = col + "44"; occBadge.style.color = col;
+      } else {
+        occBadge.style.display = "none";
+      }
+      // Who: every counted person, with a room when something places them.
+      const who = (res.people || []).map(p => p.kind === "known"
+        ? p.name + (p.room ? ` · ${p.room}` : "")
+        : `+1 ${p.name === "Someone" ? "someone" : "unknown phone"}` + (p.room ? ` · ${p.room}` : ""));
+      occWho.textContent = who.length ? who.join("  •  ") : "Nobody home";
+      // Why: the evidence that was weighed — not addends.
+      const why = [];
+      if ((ev.persons_unlocated || []).length) why.push(`${ev.persons_unlocated.join(", ")} home, not placed`);
+      if (ev.phone_clusters) why.push(_plural(ev.phone_clusters, "phone heard", "phones heard"));
+      const rooms = (ev.occupancy_rooms || []).concat((ev.motion_rooms || []).filter(r => !(ev.occupancy_rooms || []).includes(r)));
+      if (rooms.length) why.push(`sensors: ${rooms.join(", ")}`);
+      if ((ev.things_seen || []).length) why.push(_plural(ev.things_seen.length, "tagged thing seen, not a person", "tagged things seen, not people"));
+      occWhy.textContent = why.join(" · ") || (res.hybrid_enabled === false ? "phones only — hybrid off" : "no sensors active");
+    };
+
+    // Async load
     (async () => {
       try {
-        const res = await ctx.actions.callWS({type:"padspan_ha/occupancy_estimate"});
-        const confColor = res.confidence === "high" ? "#52b788" : res.confidence === "medium" ? "#f59e0b" : "#f87171";
-        occNum.textContent = `~${res.total_estimate}`;
-        occNum.style.color = confColor;
-        // Build source summary
-        const hy = res.hybrid || {};
-        const parts = [];
-        if (res.identified > 0) parts.push(`${res.identified} identified`);
-        if (res.clusters != null && res.clusters > 0) parts.push(`${res.clusters} BLE clusters`);
-        if (hy.persons_home > 0) parts.push(`${hy.persons_home} person${hy.persons_home > 1 ? "s" : ""} home`);
-        if (hy.presence_sensors_active > 0) parts.push(`${hy.presence_sensors_active} occupancy sensor${hy.presence_sensors_active > 1 ? "s" : ""}`);
-        if (hy.motion_sensors_active > 0) parts.push(`${hy.motion_sensors_active} motion`);
-        if (hy.wifi_clients > 0) parts.push(`${hy.wifi_clients} WiFi`);
-        const bleOnly = res.ble_estimate != null && res.ble_estimate !== res.total_estimate;
-        occText.textContent = parts.join(" \u00b7 ") + (bleOnly ? ` (BLE alone: ${res.ble_estimate})` : "");
-        occBadge.textContent = `${res.total_low}\u2013${res.total_high}`;
-        occBadge.style.borderColor = confColor + "44";
-        occBadge.style.color = confColor;
+        _fill(await ctx.actions.callWS({type:"padspan_ha/occupancy_estimate"}));
       } catch(e) {
-        occText.textContent = "Unavailable";
+        occNum.textContent = "—"; occNum.style.color = "#64748b"; occUnit.textContent = "";
+        occWho.textContent = "Unavailable"; occWhy.textContent = String(e.message || e);
       }
     })();
 
@@ -3427,85 +3448,74 @@ export function render(ctx){
     occCard.addEventListener("click", async () => {
       try {
         const res = await ctx.actions.callWS({type:"padspan_ha/occupancy_estimate"});
-        const confColor = res.confidence === "high" ? "#52b788" : res.confidence === "medium" ? "#f59e0b" : "#f87171";
-        const body = el("div",{style:"max-width:500px"});
+        const col = _confColor(res.confidence);
+        const ev = res.evidence || {};
+        const body = el("div",{style:"max-width:520px"});
+        const H = t => el("div",{style:"font-weight:700;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;margin:12px 0 4px"},t);
 
-        // Summary
-        body.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;margin-bottom:12px"},[
-          el("div",{style:"font-size:32px"},"\ud83c\udfe0"),
+        body.appendChild(el("div",{style:"display:flex;align-items:baseline;gap:10px"},[
+          el("div",{style:`font-weight:800;font-size:28px;color:${col}`},String(res.total_estimate)),
           el("div",{},[
-            el("div",{style:`font-weight:800;font-size:20px;color:${confColor}`},
-              `~${res.total_estimate} people`),
-            el("div",{style:"font-size:12px;color:#94a3b8"},
-              `Range: ${res.total_low}\u2013${res.total_high} \u00b7 Confidence: ${res.confidence}`),
+            el("div",{style:"font-size:13px;color:#e2e8f0"},`${res.total_estimate === 1 ? "person" : "people"} in the building`),
+            el("div",{style:"font-size:11px;color:#94a3b8"},
+              (res.total_low !== res.total_high ? `possibly ${res.total_low}–${res.total_high} · ` : "") + `confidence ${res.confidence}`),
           ]),
         ]));
 
-        // Stats
-        body.appendChild(el("div",{style:"display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px"},[
-          el("div",{class:"card",style:"text-align:center;padding:8px"},[
-            el("div",{style:"font-size:18px;font-weight:700;color:#52b788"},String(res.identified)),
-            el("div",{style:"font-size:10px;color:#94a3b8"},"Identified"),
-          ]),
-          el("div",{class:"card",style:"text-align:center;padding:8px"},[
-            el("div",{style:"font-size:18px;font-weight:700;color:#f59e0b"},String(res.unidentified)),
-            el("div",{style:"font-size:10px;color:#94a3b8"},"Unidentified"),
-          ]),
-          el("div",{class:"card",style:"text-align:center;padding:8px"},[
-            el("div",{style:"font-size:18px;font-weight:700;color:#64748b"},String(res.excluded)),
-            el("div",{style:"font-size:10px;color:#94a3b8"},"Excluded"),
-          ]),
-        ]));
+        body.appendChild(H("Counted"));
+        if (!(res.people || []).length) body.appendChild(el("div",{style:"font-size:12px;color:#64748b"},"Nobody"));
+        for (const p of res.people || []) {
+          body.appendChild(el("div",{style:"display:flex;gap:8px;font-size:12px;align-items:baseline;flex-wrap:wrap"},[
+            el("span",{style:`color:${p.kind === "known" ? "#52b788" : "#f59e0b"};font-weight:600;min-width:110px`},
+              p.name + ((p.aliases || []).length ? ` (${p.aliases.join(", ")})` : "")),
+            el("span",{style:"color:#e2e8f0"},p.room || "not placed"),
+            el("span",{style:"color:#64748b;font-size:11px"},p.via || ""),
+          ]));
+        }
 
-        // Per-room table
-        if (res.rooms.length) {
-          body.appendChild(el("div",{style:"font-weight:700;font-size:12px;color:#94a3b8;margin-bottom:6px;text-transform:uppercase"},"Per-Room Breakdown"));
-          const tbl = el("div",{style:"display:grid;grid-template-columns:1fr auto auto auto;gap:3px 10px;font-size:11px;align-items:center"});
-          for (const h of ["Room","Identified","Unidentified","Estimate"]) {
-            tbl.appendChild(el("div",{style:"font-weight:600;color:#64748b;font-size:10px;text-transform:uppercase"},h));
-          }
+        if ((res.rooms || []).length) {
+          body.appendChild(H("Rooms with evidence"));
+          const tbl = el("div",{style:"display:grid;grid-template-columns:1fr auto;gap:3px 12px;font-size:11px;align-items:baseline"});
           for (const r of res.rooms) {
             const rc = ctx.helpers.roomColor ? ctx.helpers.roomColor(r.room) : "#5eead4";
+            const chips = [];
+            if ((r.people || []).length) chips.push(r.people.join(", "));
+            if (r.phones) chips.push(_plural(r.phones, "phone", "phones"));
+            if (r.occupancy) chips.push("occupancy");
+            if (r.motion) chips.push("motion");
             tbl.appendChild(el("div",{style:`color:${rc};font-weight:600`},r.room));
-            tbl.appendChild(el("div",{style:"text-align:right;color:#52b788"},String(r.identified)));
-            tbl.appendChild(el("div",{style:"text-align:right;color:#f59e0b"},String(r.unidentified)));
-            tbl.appendChild(el("div",{style:"text-align:right;font-weight:700;color:#e2e8f0"},
-              `~${r.estimate} (${r.estimate_low}\u2013${r.estimate_high})`));
+            tbl.appendChild(el("div",{style:"color:#94a3b8;text-align:right"},chips.join(" · ")));
           }
           body.appendChild(tbl);
         }
 
-        // Hybrid signals
-        const hy = res.hybrid || {};
-        const hybridOn = res.hybrid_enabled !== false;
-        if (hybridOn) {
-          body.appendChild(el("div",{style:"margin-top:12px;padding:8px 10px;background:rgba(94,234,212,.04);border:1px solid rgba(94,234,212,.12);border-radius:6px"},[
-            el("div",{style:"font-weight:700;font-size:11px;color:#5eead4;margin-bottom:4px"},
-              res.ble_estimate != null && res.ble_estimate !== res.total_estimate
-                ? `Hybrid: raised from BLE ${res.ble_estimate} \u2192 ${res.total_estimate}`
-                : "Hybrid signals"),
-            el("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;font-size:10px"},[
-              el("div",{style:`color:${hy.persons_home>0?"#52b788":"#475569"}`},`Persons home: ${hy.persons_home||0}`),
-              el("div",{style:"color:#94a3b8"},(hy.person_names||[]).join(", ")||"\u2014"),
-              el("div",{style:`color:${hy.presence_sensors_active>0?"#60a5fa":"#475569"}`},`Occupancy sensors: ${hy.presence_sensors_active||0}`),
-              el("div",{style:"color:#94a3b8"},(hy.presence_rooms||[]).join(", ")||"\u2014"),
-              el("div",{style:`color:${hy.motion_sensors_active>0?"#fbbf24":"#475569"}`},`Motion: ${hy.motion_sensors_active||0}`),
-              el("div",{style:"color:#94a3b8"},(hy.motion_rooms||[]).join(", ")||"\u2014"),
-              el("div",{style:`color:${hy.wifi_clients>0?"#a78bfa":"#475569"}`},`WiFi clients: ${hy.wifi_clients||0}`),
-              el("div",{style:"color:#94a3b8"},hy.wifi_source?hy.wifi_source.replace("sensor.",""):"\u2014"),
-            ]),
-          ]));
+        body.appendChild(H("How"));
+        const unacc = ev.unaccounted_rooms || [];
+        const how = [
+          `${_plural(res.known || 0, "known person", "known people")} home` +
+            ((ev.persons_unlocated || []).length ? ` — ${ev.persons_unlocated.join(", ")} not placed` : ""),
+          `${_plural(ev.phone_clusters || 0, "unclaimed phone", "unclaimed phones")} heard` +
+            (ev.phone_addresses ? ` (${_plural(ev.phone_addresses, "rotating address", "rotating addresses")})` : ""),
+          `${_plural(unacc.length, "sensed room", "sensed rooms")} with nobody placed` + (unacc.length ? `: ${unacc.join(", ")}` : ""),
+          `→ ${_plural(res.unknown || 0, "unknown person", "unknown people")} beyond the known`,
+        ];
+        if ((ev.stuck_sensors || []).length) how.push(`ignored, held on for over an hour: ${ev.stuck_sensors.join(", ")}`);
+        for (const line of how) body.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5"},line));
+
+        if ((ev.things_seen || []).length) {
+          body.appendChild(H(`Seen, not people (${ev.things_seen.length})`));
+          body.appendChild(el("div",{style:"font-size:11px;color:#64748b;line-height:1.5"},
+            ev.things_seen.map(t => t.label + (t.room ? ` · ${t.room}` : "")).join("  •  ")));
         }
 
-        // Settings info
         body.appendChild(el("div",{style:"margin-top:12px;font-size:10px;color:#64748b"},
-          `Multiplier: ${res.multiplier}x \u00b7 Dwell: ${res.dwell_min}m \u00b7 Training: ${res.training_count} obs \u00b7 Hybrid: ${hybridOn?"on":"off"}`));
+          `Training: ${res.training_count} obs · Hybrid: ${res.hybrid_enabled === false ? "off" : "on"}`));
 
         // Training input
         body.appendChild(el("div",{style:"margin-top:12px;padding-top:12px;border-top:1px solid #1b3526"}));
-        body.appendChild(el("div",{style:"font-weight:700;font-size:12px;color:#5eead4;margin-bottom:6px"},"\ud83c\udfaf Train the Estimator"));
+        body.appendChild(el("div",{style:"font-weight:700;font-size:12px;color:#5eead4;margin-bottom:6px"},"🎯 Record the real count"));
         body.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin-bottom:8px"},
-          "Enter how many people are actually in the building right now. This helps the system learn the correct device-to-person ratio."));
+          "Enter how many people are actually in the building right now. It is stored beside what the estimate said, so the two can be compared."));
         const trainRow = el("div",{style:"display:flex;align-items:center;gap:8px"});
         const trainInput = document.createElement("input");
         trainInput.type="number";trainInput.min="0";trainInput.max="500";trainInput.step="1";
@@ -3514,24 +3524,24 @@ export function render(ctx){
         trainRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"Actual count:"));
         trainRow.appendChild(trainInput);
         const trainBtn = el("button",{class:"btn save-pulse",style:"width:auto;padding:4px 14px;font-size:11px"});
-        trainBtn.textContent = "\ud83d\udcbe Train";
+        trainBtn.textContent = "💾 Save";
         trainBtn.addEventListener("click", async () => {
           const v = parseInt(trainInput.value);
-          if (v == null || v < 0) { ctx.toast("Enter a valid count"); return; }
-          trainBtn.disabled = true; trainBtn.textContent = "Saving\u2026"; trainBtn.classList.remove("save-pulse");
+          if (isNaN(v) || v < 0) { ctx.toast("Enter a valid count"); return; }
+          trainBtn.disabled = true; trainBtn.textContent = "Saving…"; trainBtn.classList.remove("save-pulse");
           try {
             const tr = await ctx.actions.callWS({type:"padspan_ha/occupancy_train",actual_count:v});
-            ctx.toast(`Trained: actual=${v}, computed multiplier=${tr.observation.computed_multiplier}x (${tr.total_observations} total observations)`);
-            trainBtn.textContent = "\u2714 Saved";
+            ctx.toast(`Saved: actual ${v}, estimate said ${tr.observation.estimated} (${tr.total_observations} observations)`);
+            trainBtn.textContent = "✔ Saved";
           } catch(e) {
-            ctx.toast("Train failed: "+(e.message||e));
-            trainBtn.disabled=false; trainBtn.textContent="Train"; trainBtn.classList.add("save-pulse");
+            ctx.toast("Save failed: "+(e.message||e));
+            trainBtn.disabled=false; trainBtn.textContent="Save"; trainBtn.classList.add("save-pulse");
           }
         });
         trainRow.appendChild(trainBtn);
         body.appendChild(trainRow);
 
-        ctx.actions.openModal("Occupancy Estimate", body, "Experimental");
+        ctx.actions.openModal("People in building", body, res.hybrid_enabled === false ? "Phones only — hybrid counting is off" : "People, not devices");
       } catch(e) {
         ctx.toast("Failed to load occupancy: "+(e.message||e));
       }
@@ -3539,7 +3549,7 @@ export function render(ctx){
   }
 
   // Put occupancy + companion on the same row to save vertical space
-  const _topRow = el("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px"});
+  const _topRow = el("div",{class:"grid-2",style:"margin-bottom:10px"});
   // occCard was already appended to section — remove and re-add to row
   if (occCard.parentNode) occCard.parentNode.removeChild(occCard);
   _topRow.appendChild(occCard);

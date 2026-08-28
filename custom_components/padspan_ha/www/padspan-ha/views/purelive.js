@@ -228,7 +228,7 @@ function Ticker({ dataMode, radios, objects, version, cal }) {
         ${dataMode === "live" ? "Live" : "Sample"}
       </div>
       <span>${radios} scanners</span>
-      <span>${objects} people</span>
+      <span>${objects} tracked</span>
       <div style="display:flex;align-items:center;gap:4px">
         <span className="pl-ticker-dot" style="background:${knn ? "#52b788" : "#64748b"}"></span>
         ${algo} ${knn ? "active" : "ready"}
