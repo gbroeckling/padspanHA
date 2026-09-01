@@ -962,6 +962,218 @@ def map_geometry_faults(maps_list: list[dict], model_store: Any) -> list[dict[st
     return out
 
 
+# How much smaller a floor's rooms are allowed to be, ON EITHER AXIS, than
+# the map they were built from before `room_footprint_faults` calls it wrong
+# rather than just incomplete. Deliberately loose: hallways, a garage, an
+# untraced utility room all legitimately shrink a floor's footprint below its
+# photo's, so this is not a precision check, it is a "did someone trace a
+# dollhouse" check.
+#
+# PER AXIS, not the diagonal. rjbutler's Main Floor (issue #62) was 10.7m x
+# 8.8m against a map measured at 18.3472m x 9.7813m — width at 0.583 of the
+# map, height at 0.900. A single diagonal ratio blends those two into 0.666,
+# which is nowhere near loose enough to call "incomplete floor plan" and
+# nowhere near tight enough to reliably clear a sensible threshold either —
+# it sits in the dead zone specifically because the real fault was ONE axis,
+# not both, which is the same shape as the Point-Align aspect bug that caused
+# it (`_solvePtAlignRigid` applying one image's aspect to both). The width
+# ratio alone is unambiguous; comparing axes separately keeps it that way
+# instead of laundering it through a blend that a one-axis error survives.
+ROOM_FOOTPRINT_MIN_FRAC = 0.65
+
+
+def room_footprint_faults(
+        room_geometry: dict[str, dict[str, Any]],
+        maps_list: list[dict], model_store: Any) -> list[dict[str, Any]]:
+    """Floors whose committed rooms are a different size than their own map.
+
+    READ ONLY, and the complement of `map_geometry_faults`: that function can
+    only ever see a map's OWN placement record, which the 0.38.0 consolidation
+    made internally consistent by construction — a placement that is readable
+    but simply WRONG passes it clean. Rooms are the one part of the fabric
+    still built from a map once and then kept forever independently of it
+    (see the Rooms tab header comment in maps.js): once traced, their metres
+    do not move just because the map they came from later gets a better
+    scale. A map fixed after its rooms were built leaves the rooms wrong with
+    nothing left pointing at them — issue #62 found exactly this on Main
+    Floor, after the map side was already believed fixed, and it took a
+    user's screenshots to see it.
+
+    Compares each floor's combined room bounding box against the largest
+    MEASURED map on that floor (measured, not merely placed — an aligned but
+    unmeasured map's scale can itself be a guess, and a guess proves nothing
+    against another guess). A floor with no rooms, or no measured map, has
+    nothing to compare and is skipped rather than reported as fine.
+
+    Compared per axis, not by diagonal — see ROOM_FOOTPRINT_MIN_FRAC for why.
+
+    `terms`:
+
+    `undersized` — the rooms are smaller than ROOM_FOOTPRINT_MIN_FRAC of the
+    map's own size on AT LEAST ONE axis. Consistent with the rooms having
+    been built while this map held a smaller, since-corrected placement.
+
+    `oversized` — the rooms are BIGGER than the map they were supposedly
+    traced on, on at least one axis, past ordinary rounding. Not a
+    heuristic: nothing traced on a photo can exceed that photo's own
+    physical size on either axis, so this is the map's current scale having
+    shrunk after the rooms were built, or rooms that were never really this
+    map's.
+    """
+    out: list[dict[str, Any]] = []
+    by_floor: dict[str, dict[str, dict]] = {}
+    for room, geo in (room_geometry or {}).items():
+        if isinstance(geo, dict):
+            fl = str(geo.get("floor_id") or "main")
+            by_floor.setdefault(fl, {})[room] = geo
+
+    maps_by_floor: dict[str, list[dict]] = {}
+    for m in (maps_list or []):
+        maps_by_floor.setdefault(str(m.get("floor_id") or "main"), []).append(m)
+
+    for fl, rooms in by_floor.items():
+        stats = rooms_stats(rooms)
+        room_w, room_h = stats["bbox_w_m"], stats["bbox_h_m"]
+        if room_w <= 0 or room_h <= 0:
+            continue
+
+        # The largest MEASURED map on this floor, by diagonal — the closest
+        # thing the floor has to a primary photo. Which map "wins" here is a
+        # separate question from whether either axis then disagrees with it.
+        best_map, best_sx, best_sy, best_diag = None, 0.0, 0.0, 0.0
+        for m in maps_by_floor.get(fl, []):
+            t = model_store.map_transform(m.get("id", "")) or {}
+            if not t.get("reference_measurements"):
+                continue
+            sx, sy = t.get("scale_x_m"), t.get("scale_y_m")
+            if not (isinstance(sx, (int, float)) and isinstance(sy, (int, float)) and sx > 0 and sy > 0):
+                continue
+            diag = math.hypot(sx, sy)
+            if diag > best_diag:
+                best_map, best_sx, best_sy, best_diag = m, sx, sy, diag
+        if best_map is None:
+            continue
+
+        w_frac, h_frac = room_w / best_sx, room_h / best_sy
+        entry = {
+            "floor_id": fl,
+            "map_id": best_map.get("id", ""),
+            "map_name": str(best_map.get("name") or best_map.get("id", "")),
+            "room_w_m": room_w, "room_h_m": room_h,
+            "map_w_m": round(best_sx, 1), "map_h_m": round(best_sy, 1),
+        }
+        if max(w_frac, h_frac) > 1.02:
+            out.append({**entry, "terms": ["oversized"], "footprint_frac": round(max(w_frac, h_frac), 3)})
+        elif min(w_frac, h_frac) < ROOM_FOOTPRINT_MIN_FRAC:
+            out.append({**entry, "terms": ["undersized"], "footprint_frac": round(min(w_frac, h_frac), 3)})
+    return out
+
+
+# ── Provenance-gated reconcile ───────────────────────────────────────────────
+# The one sanctioned way room geometry may be derived from map state after a
+# floor is built. Everything here is READ ONLY — the write goes through
+# FabricStore.async_correct_room like every other room write, and the caller
+# (ws_fabric) re-verifies eligibility at execution time rather than trusting
+# a list a client sent back.
+
+PLACEMENT_SNAPSHOT_FIELDS = ("origin_x_m", "origin_y_m", "scale_x_m",
+                             "scale_y_m", "rotation_rad", "shear_rad")
+
+
+def placement_snapshot(t: dict | None) -> dict[str, float] | None:
+    """The six placement fields, copied — the provenance stamp's payload.
+
+    None when the transform cannot place a map: a stamp is the claim "this
+    geometry is exactly what that placement implies", and an unreadable
+    placement implies nothing, so stamping from one would be a false claim
+    that later makes the room look reconcilable against garbage.
+    """
+    if not placement_is_readable(t or {}):
+        return None
+    return {
+        "origin_x_m": float(t.get("origin_x_m") or 0.0),
+        "origin_y_m": float(t.get("origin_y_m") or 0.0),
+        "scale_x_m": float(t["scale_x_m"]),
+        "scale_y_m": float(t["scale_y_m"]),
+        "rotation_rad": float(t.get("rotation_rad") or 0.0),
+        "shear_rad": float(t.get("shear_rad") or 0.0),
+    }
+
+
+def recompute_room_from_map(m: dict, room: str, model_store: Any) -> dict | None:
+    """One room's metre geometry, re-derived from its map's CURRENT placement.
+
+    Deliberately the same arithmetic as `rooms_from_transforms` — the number
+    the reconcile writes must be the number the "Map placements" candidate
+    previews, or the preview and the action would disagree about what "fixed"
+    looks like. Reads `room_bounds` and never writes it: the hand trace on
+    the photo is the source here, not a target.
+    """
+    mid = m.get("id", "")
+    b = (m.get("room_bounds") or {}).get(room)
+    if not mid or not isinstance(b, dict):
+        return None
+    t = model_store.map_transform(mid)
+    if not placement_is_readable(t or {}):
+        return None
+    avg_scale = (float(t.get("scale_x_m") or 0) + float(t.get("scale_y_m") or 0)) / 2
+    return _bounds_to_geo(b, lambda px, py: model_store.map_frac_to_metres(px, py, mid), avg_scale)
+
+
+def reconcilable_rooms(
+        room_geometry: dict[str, dict[str, Any]],
+        maps_list: list[dict], model_store: Any) -> list[dict[str, Any]]:
+    """Rooms it is safe to re-derive from their map, and only those.
+
+    Safe means every one of these, and each is a refusal on its own:
+
+      * The room carries BOTH provenance fields — its stored geometry is the
+        pure, unedited output of a named map's placement. A room without them
+        is hand-authored, hand-corrected since, or predates the stamping, and
+        in every one of those cases recomputing it would overwrite work or a
+        state this code cannot reason about. That room is out of reach.
+      * That map still exists and still carries a `room_bounds` trace for the
+        room — there is something real to recompute FROM.
+      * The map's current placement is readable — recomputing through a
+        broken placement manufactures garbage with a fresh stamp on it.
+      * The current placement DISAGREES with the stamp (`placements_agree`,
+        the same tolerances as everything else). Agreement means the stored
+        geometry already says what the map says, and rewriting it would be
+        churn with a new revision number.
+
+    What this cannot know: whether the CURRENT placement is itself right.
+    Provenance proves nothing hand-made is at stake; it does not prove the
+    new answer is the true one. That is why the reconcile stays an explicit,
+    visible action and never a side effect — the failure mode of trusting a
+    freshly-wrong transform silently is the exact incident (f3466fc) this
+    replaces.
+    """
+    maps_by_id = {m.get("id"): m for m in (maps_list or []) if m.get("id")}
+    out: list[dict[str, Any]] = []
+    for room, geo in (room_geometry or {}).items():
+        if not isinstance(geo, dict):
+            continue
+        smid = geo.get("source_map_id")
+        snap = geo.get("source_transform")
+        if not smid or not isinstance(snap, dict):
+            continue
+        m = maps_by_id.get(smid)
+        if not m or not isinstance((m.get("room_bounds") or {}).get(room), dict):
+            continue
+        cur = model_store.map_transform(smid) or {}
+        if not placement_is_readable(cur):
+            continue
+        if placements_agree(snap, cur):
+            continue
+        out.append({
+            "room": room,
+            "floor_id": str(geo.get("floor_id") or "main"),
+            "map_id": smid,
+            "map_name": str(m.get("name") or smid),
+        })
+    return out
+
+
 def placement_from_columns(
     origin: tuple[float, float],
     col_x: tuple[float, float],

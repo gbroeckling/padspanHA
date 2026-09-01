@@ -425,6 +425,29 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     except Exception:
         pass
 
+    # A floor whose rooms are a different size than the map they were built
+    # from — possible even when the map itself is now perfectly measured,
+    # because rooms are traced once and never re-derive. Counts only; no
+    # floor names, no coordinates. No total field: every fault is exactly one
+    # of the two terms, so the total is just their sum and a third number
+    # would only spend budget saying so.
+    _room_undersized = 0
+    _room_oversized = 0
+    try:
+        from . import fabric_truth as _ft  # noqa: PLC0415
+        _mdl_store = dom.get(DATA_MODEL)
+        _maps_list = maps.get("maps") or []
+        if _mdl_store is not None:
+            _rfaults = _ft.room_footprint_faults(_mdl_store.room_geometry_m(), _maps_list, _mdl_store)
+            for _rf in _rfaults:
+                _terms = _rf.get("terms") or []
+                if "undersized" in _terms:
+                    _room_undersized += 1
+                if "oversized" in _terms:
+                    _room_oversized += 1
+    except Exception:
+        pass
+
     env = {
         "scanners": len(radios),
         "scanner_kinds": scanner_kinds,
@@ -502,6 +525,13 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         # The one condition that blanks a working house: placements on disk
         # and no scale to draw them at.
         "geometry_no_world_frame": _no_world_frame,
+        # Floors whose rooms are a different size than the map they were
+        # built from — the failure mode `maps_geometry_faulted` above cannot
+        # see, because it only checks a map against itself. Rooms are traced
+        # once and never re-derive, so a map can be fixed today and its rooms
+        # can still be wrong from before. Counts only.
+        "room_footprint_undersized": _room_undersized,
+        "room_footprint_oversized": _room_oversized,
         # NULL, not zero, and deliberately still here. It counted maps whose
         # solved matrix and whose decomposed fields described different
         # footprints — a state that needed two stored copies of one placement

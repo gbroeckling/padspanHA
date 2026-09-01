@@ -603,6 +603,43 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
     except Exception:
         pass
 
+    # ── 2c. Room footprint vs. map scale ─────────────────────────────────────
+    # A map can be perfectly self-consistent (2b clean) and still be the
+    # WRONG size, if it was fixed after its rooms were already built from it.
+    # Rooms are traced once and kept independently of the map forever, so a
+    # correct map today says nothing about whether it was correct when these
+    # rooms were made. Issue #62, same install, the other half of the bug.
+    try:
+        if _ms and _mdl:
+            for _rf in _ft.room_footprint_faults(_mdl.room_geometry_m(), _ms.data.get("maps") or [], _mdl):
+                _oversized = "oversized" in _rf["terms"]
+                critics.append({
+                    "category": "room_footprint",
+                    "severity": "critical" if _oversized else "warning",
+                    "title": f"Floor ‘{_rf['floor_id']}’ rooms don’t match “{_rf['map_name']}”",
+                    "message": (
+                        f"Rooms span {_rf['room_w_m']}m × {_rf['room_h_m']}m; "
+                        f"“{_rf['map_name']}” measures {_rf['map_w_m']}m × {_rf['map_h_m']}m "
+                        f"({round(_rf['footprint_frac']*100)}% of the map on its worst axis). "
+                        + (
+                            "A room footprint can't exceed the photo it was traced on — "
+                            "this map's scale most likely changed after these rooms were built."
+                            if _oversized else
+                            "Consistent with these rooms being built while this map held a "
+                            "smaller, since-corrected placement."
+                        )
+                    ),
+                    "action": (
+                        "Don't redraw these rooms by hand to compensate — that discards real "
+                        "data to paper over a stale scale. In Mapping → Rooms, switch Layout to "
+                        "“Map placements” to preview this floor's rooms as this map's "
+                        "current placement implies them; if that preview looks right, Save "
+                        "commits it over the current fabric."
+                    ),
+                })
+    except Exception:
+        pass
+
     # ── 3. Scanner Disagreement (from coordinator Phase 3 data) ───────────────
     scanner_critics: list[dict[str, Any]] = []
     if coord and hasattr(coord, "_scanner_reliability"):

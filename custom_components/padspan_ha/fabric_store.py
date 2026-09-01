@@ -13,11 +13,27 @@ shapes per floor, in metres.  This is GROUND TRUTH, never a cache.
 Deliberately a physically separate persisted store (own storage key, own
 version lineage) from ModelStore.  A photo is one way to say where something
 is, never where it stays: rooms may be traced on one and adopted through the
-Rooms tab, but no code path derives room geometry from map state afterwards.
-A mis-pinned or never-measured photo has zero bearing on the fabric.
+Rooms tab, and after that exactly ONE code path may derive room geometry from
+map state again — the explicit, provenance-gated reconcile (see
+`fabric_truth.reconcilable_rooms`). It runs only as a deliberate action,
+never as a side effect of another save, and it may touch only a room whose
+stored value is provably the pure output of that map's placement
+(`source_transform` recorded, geometry never hand-edited since). A room a
+person has corrected is structurally out of its reach. A mis-pinned or
+never-measured photo still has zero bearing on the fabric.
+
+That is a deliberate loosening of what this header used to promise ("no code
+path derives room geometry from map state afterwards"). The old promise was
+written when the alternative was `async_rederive_map_fracs` — an automatic,
+silent, error-swallowing rewrite that fired as a side effect of unrelated
+saves and overwrote hand-traced work through whatever transform happened to
+be current (f3466fc). The reconcile is the opposite of that on every axis
+that made it dangerous: opt-in, reported, provenance-gated, and it writes
+through the one writer below rather than beside it.
 
 Exactly one method writes room geometry — nothing else may touch it:
-  async_correct_room    per-room direct correction (always allowed)
+  async_correct_room    per-room direct correction (always allowed);
+                        the reconcile persists through this same method.
 async_set_floor_committed flips only the committed flag, never geometry.
 
 Data layout in .storage/padspan_ha.fabric:
@@ -31,8 +47,15 @@ Data layout in .storage/padspan_ha.fabric:
             "type": "poly"|"circle",
             "floor_id": str,        # mirrors the parent key; entries stay self-describing
             "points_m": [[x,y],..] | "cx_m"/"cy_m"/"r_m": float,
-            "source_map_id": str|None,   # provenance, forensic only — never gates behavior
-            "committed_by": "commit"|"correction"|"legacy_import"|"external_import",
+            # Provenance. Present TOGETHER, only while the stored geometry is
+            # the pure, unedited output of that map's placement — the write
+            # that stamps them is a map-derived commit or a reconcile, and
+            # ANY other write (a hand correction above all) clears BOTH.
+            # They gate exactly one behavior: eligibility for the explicit
+            # reconcile. Nothing else may read them to decide anything.
+            "source_map_id": str|None,
+            "source_transform": dict|None,  # that map's placement at stamp time
+            "committed_by": "commit"|"correction"|"legacy_import"|"external_import"|"reconcile",
             "revision": int,
             "committed_at": iso,
           }
@@ -347,6 +370,8 @@ class FabricStore:
     async def async_correct_room(
         self, floor_id: str, room: str, geometry: dict[str, Any],
         committed_by: str = "correction",
+        source_map_id: str | None = None,
+        source_transform: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Directly set one room's real-world shape.  Always allowed —
         committed state never blocks correction, only bulk re-commits.
@@ -354,6 +379,16 @@ class FabricStore:
         committed_by="external_import" is merge-only: refuses if the room
         already exists anywhere (that's how external importers are prevented
         from silently overwriting corrected fabric).
+
+        Provenance is stamped only when BOTH source fields arrive together —
+        the caller asserting "this geometry is exactly what that map's
+        placement implies right now". Every other write CLEARS both, on
+        purpose: a hand correction makes that claim false even when the map
+        has not moved, and the old carry-forward here would have kept a claim
+        the geometry no longer honours. Provenance gates exactly one thing,
+        eligibility for the explicit reconcile, so a stale stamp is not a
+        cosmetic error — it is what would let the reconcile overwrite a
+        person's work.
         """
         fl = str(floor_id or DEFAULT_FLOOR_ID)
         room = str(room or "").strip()
@@ -369,13 +404,15 @@ class FabricStore:
         if other is not None and other != fl:
             return {"ok": False, "error": "room_on_other_floor", "floor_id": other}
 
+        stamped = bool(source_map_id) and isinstance(source_transform, dict)
         floor = self.data.setdefault("floors", {}).setdefault(fl, _default_floor())
         prev = (floor.get("rooms") or {}).get(room)
         revision = (int(prev.get("revision", 0)) + 1) if isinstance(prev, dict) else 1
         floor.setdefault("rooms", {})[room] = {
             **norm,
             "floor_id": fl,
-            "source_map_id": prev.get("source_map_id") if isinstance(prev, dict) else None,
+            "source_map_id": str(source_map_id) if stamped else None,
+            "source_transform": dict(source_transform) if stamped else None,
             "committed_by": committed_by,
             "revision": revision,
             "committed_at": dt_util.utcnow().isoformat(),

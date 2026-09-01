@@ -7226,6 +7226,41 @@ function _roomsTab(ctx, maps) {
       selRow.appendChild(el("span", { class: "muted", style: "font-size:10px" }, "loading candidates…"));
     }
     card.appendChild(selRow);
+
+    // ── Reconcile: rooms whose source map's placement has moved ──────────
+    // Only rooms the backend can PROVE are pure, unedited derivations of a
+    // map ever appear here — anything hand-corrected carries no provenance
+    // stamp and is out of this button's reach by construction. Explicit
+    // action, named rooms, reported outcome; never a side effect.
+    const _recon = (truthCache && truthCache.reconcilable) || [];
+    if (_recon.length) {
+      const rRow = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 8px;padding:8px 10px;background:rgba(245,158,11,.06);border:1px solid #f59e0b33;border-radius:8px" });
+      rRow.appendChild(el("span", { style: "font-size:11px;color:#f59e0b" },
+        `⚠ ${_recon.length} room${_recon.length !== 1 ? "s" : ""} built from a map whose placement has since changed: ${_recon.map(r => r.room).join(", ")}`));
+      rRow.appendChild(el("button", {
+        class: "btn inline",
+        style: "font-size:11px",
+        onclick: async (e) => {
+          const btn = e.currentTarget;
+          btn.disabled = true; btn.textContent = "Updating…";
+          try {
+            const res = await ctx.actions.wsCall("padspan_ha/fabric_rooms_reconcile", { floor_id: floorId });
+            const failed = (res.failed || []).length;
+            ctx.toast(failed
+              ? `Updated ${(res.fixed || []).length}, failed ${failed}: ${res.failed.map(f => f.room).join(", ")}`
+              : `✔ ${(res.fixed || []).length} room(s) updated from their map`, !!failed);
+          } catch (err) {
+            ctx.toast("Update failed: " + (err.message || err), true);
+          }
+          mapState._roomsDraftFloorId = null;
+          mapState._roomsTruthCache = null;
+          await ctx.actions.modelRefresh();
+        },
+      }, "↻ Update from map"));
+      rRow.appendChild(el("span", { class: "muted", style: "font-size:10px" },
+        "Rooms you've hand-corrected are never touched by this."));
+      card.appendChild(rRow);
+    }
   }
 
   // ── Alignment visual aid: the actual PHOTO ghosted at each placement ────
@@ -7824,8 +7859,15 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           let ok = 0, fail = 0;
           for (const room of rooms) {
             try {
+              // Provenance: only a pure Map-placements room the user did NOT
+              // touch may claim "this is exactly what that map's placement
+              // implies". A hand-tweaked room, or anything from a blended
+              // layout, commits with no claim — the backend then clears any
+              // stale stamp, which is what keeps the reconcile off it.
+              const pure = truth === "transforms" && !changedRooms.includes(room) && draft[room].source_map_id;
               await ctx.actions.wsCall("padspan_ha/fabric_correct_room", {
                 floor_id: floorId, room, geometry: _geomPayload(draft[room]),
+                ...(pure ? { source_map_id: draft[room].source_map_id } : {}),
               });
               ok++;
             } catch (err) { fail++; console.warn("fabric_correct_room failed", room, err); }

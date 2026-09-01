@@ -4,7 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## Unreleased — The occupancy number is people, not devices
+## 0.38.9 — Rooms remember the placement they were built from; the occupancy number is people (2026-09-01)
+
+### A map fixed after its rooms were built no longer leaves them silently wrong
+- **Rooms are adopted from a photo once and never re-derived** — that is what makes hand corrections safe, and it is also how issue #62's Main Floor stayed 10.7 m wide in a house measured at 18.35 m: the map's placement was corrected *after* its rooms were built, and nothing ever pointed back at them. Health now compares each floor's rooms against the largest measured map on that floor — per axis, because the real fault was one axis at 58% of the map with the other at 90%, and a single blended number hides exactly that — and names the floor. The usage report carries the count.
+- **Committing an untouched "Map placements" room now records the claim that commit makes**: which map, and that map's placement at that moment. Any hand correction clears the record — a corrected room makes no claim, so nothing automated can ever mistake it for one that does. A room whose recorded placement no longer matches its map appears in Mapping → Rooms with one button — **Update from map** — which re-derives those rooms through the same arithmetic the preview draws, reports every room by name, and structurally cannot reach a room you have ever shaped by hand.
+- **This is the one sanctioned map→fabric write since the fabric existed**, and it is shaped by the incident that created the rule it loosens (the old automatic rederive corrupted hand-traced work through drifting transforms, as a side effect, silently): explicit action only, never a side effect of another save; the photo trace is read, never written; every failure is reported, none swallowed.
+
+### The occupancy number is people, not devices
 
 ### What was wrong
 - **The big number on the Overview was a count of tagged things.** "7 identified" was a key fob, a test beacon, one truck beacon counted twice, a closet beacon, a box — and one phone. Two people were home. Every labelled object, every iBeacon with a label and every HA entity the collector accepted counted as one person; "3 persons home" was two person entities driving off the same phone plus one more; the "unidentified" devices it added were a Windows PC's non-rotating address and an AirTag-class Find My tag. The one phone on the air that *was* a person — an unlabelled iPhone — never became an object at all, because rotating addresses are dropped before the estimator sees them. Training could only ever raise the divisor on the unidentified term, so recording the real count made nothing better.

@@ -379,6 +379,7 @@ async def ws_fabric_floor_elevations_set(hass: HomeAssistant, connection, msg) -
         "floor_id": str,
         "room": str,
         "geometry": dict,
+        vol.Optional("source_map_id"): str,
     }
 )
 @websocket_api.async_response
@@ -387,6 +388,14 @@ async def ws_fabric_correct_room(hass: HomeAssistant, connection, msg) -> None:
 
     Always allowed — a committed floor blocks bulk re-commits, never
     corrections. This is the room editor's save path.
+
+    `source_map_id` is the client asserting "this geometry is, unedited, what
+    that map's placement implies right now" — the Rooms tab sends it only
+    when committing an untouched Map-placements candidate room. The stamp's
+    transform is read HERE, from the model store, never from the client: the
+    claim is about the server's current placement, so the server records what
+    that placement actually is. No readable placement, no stamp — the write
+    still happens, it just carries no claim.
     """
     fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
     if not fab:
@@ -397,7 +406,18 @@ async def ws_fabric_correct_room(hass: HomeAssistant, connection, msg) -> None:
     if not room or not isinstance(geo, dict):
         connection.send_error(msg["id"], "invalid", "room and geometry dict are required")
         return
-    res = await fab.async_correct_room(msg.get("floor_id") or DEFAULT_FLOOR_ID, room, geo)
+    source_map_id = (msg.get("source_map_id") or "").strip() or None
+    source_transform = None
+    if source_map_id:
+        from . import fabric_truth  # noqa: PLC0415
+        mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+        source_transform = fabric_truth.placement_snapshot(
+            mdl.map_transform(source_map_id) if mdl else None)
+        if source_transform is None:
+            source_map_id = None
+    res = await fab.async_correct_room(
+        msg.get("floor_id") or DEFAULT_FLOOR_ID, room, geo,
+        source_map_id=source_map_id, source_transform=source_transform)
     if not res.get("ok"):
         connection.send_error(msg["id"], res.get("error", "failed"), str(res))
         return
@@ -468,6 +488,13 @@ async def ws_fabric_truth_candidates(hass: HomeAssistant, connection, msg) -> No
             "geometry_fault": _faults.get(mid),
         })
 
+    # Rooms on this floor the explicit reconcile could safely re-derive —
+    # provenance-stamped, unedited since, their source map's placement moved.
+    # Rides in this response because the Rooms tab already fetches it on
+    # every render; the ACTION is its own command below.
+    reconcilable = [r for r in fabric_truth.reconcilable_rooms(fab.rooms_flat(), all_maps, mdl)
+                    if r["floor_id"] == fl]
+
     connection.send_result(msg["id"], {
         "floor_id": fl,
         "fabric": {"rooms": fabric_rooms, "stats": fabric_truth.rooms_stats(fabric_rooms)},
@@ -475,6 +502,65 @@ async def ws_fabric_truth_candidates(hass: HomeAssistant, connection, msg) -> No
         "world_gauge": gauge,
         "no_world_frame_reason": None if gauge else "no map anywhere in the house has a reference-measured scale",
         "placements": placements,
+        "reconcilable": reconcilable,
+    })
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/fabric_rooms_reconcile",
+        "floor_id": str,
+    }
+)
+@websocket_api.async_response
+async def ws_fabric_rooms_reconcile(hass: HomeAssistant, connection, msg) -> None:
+    """Re-derive this floor's provenance-clean rooms from their maps' current
+    placements. The ONE sanctioned map→fabric write, and only as this
+    explicit command — never a side effect of another save.
+
+    Eligibility is decided HERE, at execution time, by
+    `fabric_truth.reconcilable_rooms` — a client cannot widen the set by
+    sending room names, because it does not send any. A room a person has
+    hand-corrected carries no provenance stamp and is structurally out of
+    reach. Every skip and every failure is reported by name; nothing is
+    swallowed. (Its silent, unconditional ancestor is the f3466fc incident —
+    see the FabricStore header for why this one is shaped the way it is.)
+    """
+    from . import fabric_truth
+
+    fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    if not fab or not mdl or not ms:
+        connection.send_error(msg["id"], "no_stores", "Fabric/Model/Maps store not loaded")
+        return
+    fl = str(msg.get("floor_id") or DEFAULT_FLOOR_ID)
+    all_maps = ms.data.get("maps") or []
+    maps_by_id = {m.get("id"): m for m in all_maps if m.get("id")}
+
+    eligible = [r for r in fabric_truth.reconcilable_rooms(fab.rooms_flat(), all_maps, mdl)
+                if r["floor_id"] == fl]
+    fixed: list[str] = []
+    failed: list[dict[str, str]] = []
+    for r in eligible:
+        m = maps_by_id.get(r["map_id"])
+        geo = fabric_truth.recompute_room_from_map(m, r["room"], mdl) if m else None
+        if geo is None:
+            failed.append({"room": r["room"], "error": "recompute_failed"})
+            continue
+        snap = fabric_truth.placement_snapshot(mdl.map_transform(r["map_id"]))
+        res = await fab.async_correct_room(
+            fl, r["room"], geo, committed_by="reconcile",
+            source_map_id=r["map_id"], source_transform=snap)
+        if res.get("ok"):
+            fixed.append(r["room"])
+        else:
+            failed.append({"room": r["room"], "error": str(res.get("error", "failed"))})
+    if fixed:
+        _invalidate_snapshot_cache(hass)
+    connection.send_result(msg["id"], {
+        "floor_id": fl, "fixed": fixed, "failed": failed,
+        "eligible": [r["room"] for r in eligible],
     })
 
 
