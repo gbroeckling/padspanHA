@@ -739,7 +739,15 @@ function _upload(ctx, helpBtn, isBasic){
   const _outsideOpt = document.createElement("option");
   _outsideOpt.value = OUTSIDE_FLOOR_ID; _outsideOpt.textContent = "Outside (Experimental)";
   floorSel.appendChild(_outsideOpt);
-  if(!floorSel.value && floors[0]) floorSel.value = floors[0].id;
+  // Restore floor choice across rebuilds the same way the picked file survives
+  // them (see comment above _upload) — a rebuild mid-upload (e.g. WS reconnect)
+  // used to silently reset this <select> to floors[0], uploading to the wrong floor.
+  if(ctx.state._mapsUploadFloorId && Array.from(floorSel.options).some(o=>o.value===ctx.state._mapsUploadFloorId)){
+    floorSel.value = ctx.state._mapsUploadFloorId;
+  } else if(!floorSel.value && floors[0]){
+    floorSel.value = floors[0].id;
+  }
+  floorSel.addEventListener("change", ()=>{ ctx.state._mapsUploadFloorId = floorSel.value; });
 
   const name = el("input",{type:"text", placeholder:"Map name (e.g., Main Floor)"});
   const maxw = el("input",{type:"text", placeholder:"Max size (e.g., 1600). Default 1600"});
@@ -866,6 +874,7 @@ function _upload(ctx, helpBtn, isBasic){
       });
       status.textContent = "Uploaded \u2714";
       ctx.state._mapsUploadFile = null;
+      ctx.state._mapsUploadFloorId = null;
       // Open the newly uploaded map in the edit tab
       if(uploadRes?.map?.id) ctx.state.activeMapId = uploadRes.map.id;
       ctx.state.mapsTab = "edit";
