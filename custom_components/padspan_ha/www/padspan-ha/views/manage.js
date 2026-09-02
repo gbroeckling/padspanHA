@@ -134,17 +134,25 @@ export function render(ctx){
               bw.innerHTML = "";
               bw.appendChild(el("span",{class:"muted",style:"font-size:11px"},"Deleting…"));
               try {
-                // Strip the orphan room from the bounds and re-save the entire map
+                // Re-fetch before rebuilding: this payload round-trips the
+                // whole receivers list and room_bounds dict, and a tab left
+                // open across a server-side image op (trim, rotate — which
+                // renormalize every fraction) would push its OLD-space copy
+                // back over the server's corrected one. The stack got this
+                // guard first (issue #67); the geometry gets it now.
+                await ctx.actions.mapsRefreshQuiet();
+                const fresh = (ctx.state.maps?.list || []).find(x => x.id === map.id);
+                if(!fresh){ throw new Error("map no longer exists"); }
                 const newBounds = Object.fromEntries(
-                  Object.entries(map.room_bounds || {}).filter(([r]) => r !== room)
+                  Object.entries(fresh.room_bounds || {}).filter(([r]) => r !== room)
                 );
                 await ctx.actions.mapsUpdate({
-                  map_id: map.id,
-                  receivers: map.receivers || [],
+                  map_id: fresh.id,
+                  receivers: fresh.receivers || [],
                   room_bounds: newBounds,
-                  floor_id: map.floor_id || "",
-                  calibration: map.calibration || {},
-                  notes: map.notes || "",
+                  floor_id: fresh.floor_id || "",
+                  calibration: fresh.calibration || {},
+                  notes: fresh.notes || "",
                   // No `stack` key. Deleting an orphan room polygon is not a placement
                   // write, and round-tripping the CLIENT's copy of the stack lets a stale
                   // tab silently push back whatever it last saw - including a master flag
@@ -189,6 +197,10 @@ export function render(ctx){
             yes.addEventListener("click", async()=>{
               delAllWrap.innerHTML = "";
               delAllWrap.appendChild(el("span",{class:"muted",style:"font-size:12px"},"Cleaning up…"));
+              // Same stale-tab guard as the single delete: rebuild every
+              // payload from a fresh fetch, never from this tab's copy.
+              await ctx.actions.mapsRefreshQuiet();
+              const freshList = ctx.state.maps?.list || [];
               // Group by map so we do one update per map
               const byMap = new Map();
               for(const {map, room} of orphans){
@@ -198,16 +210,18 @@ export function render(ctx){
               let fail = 0;
               for(const {map, rooms} of byMap.values()){
                 try {
+                  const fresh = freshList.find(x => x.id === map.id);
+                  if(!fresh){ fail++; continue; }
                   const newBounds = Object.fromEntries(
-                    Object.entries(map.room_bounds || {}).filter(([r]) => !rooms.includes(r))
+                    Object.entries(fresh.room_bounds || {}).filter(([r]) => !rooms.includes(r))
                   );
                   await ctx.actions.mapsUpdate({
-                    map_id: map.id,
-                    receivers: map.receivers || [],
+                    map_id: fresh.id,
+                    receivers: fresh.receivers || [],
                     room_bounds: newBounds,
-                    floor_id: map.floor_id || "",
-                    calibration: map.calibration || {},
-                    notes: map.notes || "",
+                    floor_id: fresh.floor_id || "",
+                    calibration: fresh.calibration || {},
+                    notes: fresh.notes || "",
                     // No `stack` key. Deleting an orphan room polygon is not a placement
                     // write, and round-tripping the CLIENT's copy of the stack lets a stale
                     // tab silently push back whatever it last saw - including a master flag

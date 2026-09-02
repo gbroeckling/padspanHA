@@ -433,6 +433,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     # would only spend budget saying so.
     _room_undersized = 0
     _room_oversized = 0
+    _maps_divergent = 0
     try:
         from . import fabric_truth as _ft  # noqa: PLC0415
         _mdl_store = dom.get(DATA_MODEL)
@@ -445,6 +446,11 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
                     _room_undersized += 1
                 if "oversized" in _terms:
                     _room_oversized += 1
+            # Maps whose trace and committed fabric drifted apart as a group
+            # — the state that hid rjbutler's trimmed floors for weeks. A
+            # count of maps, nothing about the building.
+            _maps_divergent = len(_ft.room_divergence_faults(
+                _mdl_store.room_geometry_m(), _maps_list, _mdl_store))
     except Exception:
         pass
 
@@ -532,6 +538,8 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         # can still be wrong from before. Counts only.
         "room_footprint_undersized": _room_undersized,
         "room_footprint_oversized": _room_oversized,
+        # Maps whose two room records disagree by one shared factor.
+        "maps_divergent": _maps_divergent,
         # NULL, not zero, and deliberately still here. It counted maps whose
         # solved matrix and whose decomposed fields described different
         # footprints — a state that needed two stored copies of one placement

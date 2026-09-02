@@ -289,6 +289,7 @@ async def ws_maps_replace_image(hass: HomeAssistant, connection, msg) -> None:
             msg.get("height") or 0,
             msg.get("crop"),
             skip_frac_renorm=_has_model,
+            pixel_op=msg.get("pixel_op"),
         )
     except KeyError:
         connection.send_error(msg["id"], "not_found", "Map not found")
@@ -315,7 +316,14 @@ async def ws_maps_replace_image(hass: HomeAssistant, connection, msg) -> None:
             if _cal:
                 await _cal.async_remap_from_metres(_map_id)
     except Exception:
-        pass
+        # The image is already replaced and the trace renormalized WITH it —
+        # but the PLACEMENT was not rebased, so until a recompute succeeds
+        # (or the owner re-measures) every fraction on this map converts to
+        # metres through a record describing the pre-op picture. The trace
+        # and the image at least agree with each other, which is what makes
+        # the state repairable at all; a swallowed failure here is how a
+        # whole class of stale-space damage stayed invisible (issue #62).
+        _LOGGER.exception("maps_replace_image: transform recompute/rederive failed for %s — placement still describes the pre-op image until re-measured", _map_id)
 
     connection.send_result(msg["id"], {"map": updated, "scale_invalidated": _scale_invalidated})
 
@@ -431,12 +439,19 @@ async def ws_maps_delete_migrate(hass: HomeAssistant, connection, msg) -> None:
         if b.get("type") == "poly" and isinstance(b.get("points"), list):
             b["points"] = [list(_xform(p[0], p[1])) for p in b["points"] if len(p) >= 2]
         elif b.get("type") == "circle":
-            cx, cy = _xform(b.get("cx", 0.5), b.get("cy", 0.5))
+            # Every probe reads the SOURCE values, captured before anything
+            # is written. The radius probe used to read b["cx"] after the
+            # centre had already been overwritten with the TARGET value, so
+            # it transformed (target_cx + r, target_cy) as if it were a
+            # source point — a wrong radius whenever the two placements
+            # differ at all, which is the whole reason a migration runs.
+            scx = float(bounds.get("cx", 0.5))
+            scy = float(bounds.get("cy", 0.5))
+            r = float(bounds.get("r", 0.12))
+            cx, cy = _xform(scx, scy)
+            rx, ry = _xform(scx + r, scy)
             b["cx"] = cx
             b["cy"] = cy
-            # Scale radius: transform a point at (cx+r, cy) and measure distance
-            r = float(b.get("r", 0.12))
-            rx, ry = _xform(b.get("cx", 0.5) + r, b.get("cy", 0.5))
             b["r"] = max(0.01, ((rx - cx) ** 2 + (ry - cy) ** 2) ** 0.5)
         return b
 

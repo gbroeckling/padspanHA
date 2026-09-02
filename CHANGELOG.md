@@ -4,6 +4,20 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.10 — The trace follows its picture (2026-09-01)
+
+### An image edit takes the hand trace along, unconditionally
+- **A map carries two kinds of fractional data, and one flag was covering both.** Receivers and beacons are fabric-anchored — their truth is metres, their fractions a rendering, re-derived after any image op. The room trace is image-anchored — its only truth is "these fractions of this picture" — and there is nothing to re-derive it from. `skip_frac_renorm` skipped it anyway, so **every trim of a measured map left the trace in an image space that no longer existed** (issue #62, third act: rjbutler's basement and upstairs previews drew every room at ~55% of the photo's width — stale full-image fractions on a cropped image). The trace now renormalizes with every image edit — trims through the crop rectangle, baked rotates/scales through the same centred affine the placement composition uses, with the same precedence between them — and no flag reaches it. Verified end to end: a test runs both real code paths on a world-rotated map and demands every trace point land on the same square metre of house before and after.
+- **A stamp now names the picture it was made against.** A placement snapshot alone cannot tell a re-measure (trace still valid) from an image op the trace might have missed — both rewrite the same six fields. The image's identity settles it: the reconcile honours a stamp only while the map still shows that picture, unless the recompute converges on what is already stored — which is the signature of a completed image op, and reconciles as a harmless restamp.
+- **When a floor's two room records drift apart as a group, Health now says so.** The committed fabric and the map's trace describe the same rooms two ways; when either predates a change to the map, every shared room drifts by the same factor — and no human edits every room by an identical amount. The detector names the map and the factor, deliberately does not guess which side is stale, and points at the comparison that answers it in seconds: both layouts over the photo. The usage report counts affected maps.
+
+### Five more coordinate bugs, found chasing the above
+- **Migrating a circle between maps computed its radius from already-transformed values** — wrong whenever the two placements differ, which is the only time a migration runs. It now probes from the source record.
+- **"Revert migration" computed its cleanup and never saved it** — the button reverted the canvas extension and left every migrated item behind, clamped flat against the restored border. It now strips first, then un-extends.
+- **Restore-from-backup silently dropped the room trace and receiver pins** it had faithfully exported. A restore now brings back everything the backup holds.
+- **An extend snapshot survived later image edits**, so a revert after an intervening trim cropped the wrong rectangle out of the wrong image. Replacing the image now invalidates it.
+- **A tab left open across an image edit could push old-space geometry back over the server's corrected copy** — the Edit-tab draft now lives exactly as long as the picture it was traced against (keyed on the image's identity), and the Manage-tab orphan cleanup rebuilds its payloads from a fresh fetch, never the tab's copy.
+
 ## 0.38.9 — Rooms remember the placement they were built from; the occupancy number is people (2026-09-01)
 
 ### A map fixed after its rooms were built no longer leaves them silently wrong

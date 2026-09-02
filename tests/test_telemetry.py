@@ -136,7 +136,14 @@ def test_nothing_from_the_house_is_in_the_report():
     assert payload["health"]["uptime"] in ("<1h", "<1d", "1-7d", ">7d") and "uptime_h" not in payload["health"]
     assert payload["usage"] == {"light_placed": 1, "tab:bluetooth/irk_panel": 1, "tab:maps": 1}
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", payload["day"])  # a day, not a timestamp
-    assert len(text) < 3000
+    # The budget exists to force an argument over every byte, in the open.
+    # Raised 3000 → 3100 for `maps_divergent` (21 bytes): the count of maps
+    # whose two room records drifted apart as a group — the class that hid
+    # rjbutler's trimmed floors (issue #62) for weeks, and exactly the kind
+    # of silent state the report exists to surface. `stack_desync: None`
+    # (22 bytes) was considered and kept — its null carries meaning a zero
+    # would lie about, and its own test pins it.
+    assert len(text) < 3100
 
 
 def test_the_gate_refuses_every_identifier_shape():

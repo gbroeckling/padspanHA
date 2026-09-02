@@ -319,8 +319,11 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
         }}, "Review map"),
         el("button",{class:"btn danger", style:"font-size:12px", onclick:async ()=>{
           if(!confirm("Remove all migrated receivers, beacons, and room outlines from the target map?")) return;
-          // Remove migrated items from target map
-          const m = maps.find(x => x.id === _mig.targetMapId);
+          // Remove migrated items from target map — computed from a FRESH
+          // fetch, never this render's copy: the same stale-tab guard the
+          // orphan delete carries, for the same reason.
+          await ctx.actions.mapsRefreshQuiet();
+          const m = (ctx.state.maps?.list || []).find(x => x.id === _mig.targetMapId);
           if(!m){ ctx.toast("Target map not found", true); return; }
           const mig = _mig.migrated || {};
           const movedRxLabels = new Set(mig.receivers || []);
@@ -332,6 +335,19 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
           for(const [k,v] of Object.entries(m.room_bounds||{})){
             if(!movedRooms.has(k)) newBounds[k] = v;
           }
+          // Save the strip FIRST, then un-extend. The stripped lists used to
+          // be computed and never sent — the button reverted the canvas and
+          // nothing else, leaving every migrated item on the map to be
+          // clamped flat against the restored border. Order matters for the
+          // same reason: migrated items live in the extension margin, and
+          // reverting the canvas while they exist squashes them onto the
+          // edge before the strip could remove them.
+          try {
+            await ctx.actions.mapsUpdateQuiet({
+              map_id: _mig.targetMapId,
+              receivers: newRx, beacons: newBk, room_bounds: newBounds,
+            });
+          } catch(e){ ctx.toast("Revert failed: "+String(e), true); return; }
           // Revert canvas extension if it was applied
           if(_mig.canvasExtended){
             try {
@@ -339,6 +355,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
             } catch(e){ /* best effort */ }
           }
           delete ctx.state._lastMapMigration;
+          await ctx.actions.mapsRefresh();
           ctx.toast("Migrated data reverted");
         }}, "Revert migration"),
         el("button",{class:"btn inline", style:"font-size:11px", onclick:async ()=>{
@@ -1016,9 +1033,17 @@ function _edit(ctx, map, allMaps){
   const floorById = (id)=>floors.find(f=>f.id===id) || null;
 
   // --- Draft state (per-map) ---
-  // Reset drafts when switching to a different map. Drafts are mutable copies
-  // of the map's saved data; the original is untouched until "Save Layout".
-  if(!ctx.state.maps._draftReceivers || ctx.state.maps._draftMapId !== map.id){
+  // Reset drafts when switching to a different map — or when the map's
+  // PICTURE changed under this one. Drafts are fractions of an image; a
+  // trim, rotate or replace (from the toolbar here, another tab, another
+  // user) renormalizes the server's fractions into the new image space,
+  // and a draft seeded from the old picture then re-imposes old-space
+  // coordinates on Save, silently undoing the server's renormalization.
+  // The image sha is the picture's identity, so the draft lives exactly
+  // as long as the picture it was traced against.
+  const _draftImgSha = (map.image && map.image.sha256) || null;
+  if(!ctx.state.maps._draftReceivers || ctx.state.maps._draftMapId !== map.id
+     || ctx.state.maps._draftImageSha !== _draftImgSha){
     ctx.state.maps._draftReceivers = (map.receivers||[]).map(r=>({
       id: r.id||"",
       label: r.label||"",
@@ -1045,6 +1070,7 @@ function _edit(ctx, map, allMaps){
     ctx.state.maps._draftRoomBounds = JSON.parse(JSON.stringify(map.room_bounds||{}));
     ctx.state.maps._draftFloorId = map.floor_id || (floors[0] && floors[0].id) || "main";
     ctx.state.maps._draftMapId = map.id;
+    ctx.state.maps._draftImageSha = _draftImgSha;
     ctx.state.maps._selectedRxId = null;
     ctx.state.maps._mode = "receivers"; // receivers | rooms | barriers
     ctx.state.maps._selectedRoom = "";
@@ -3060,6 +3086,14 @@ function _export(ctx, active, maps_list){
           await ctx.actions.mapsUpdateQuiet({
             map_id: newId, calibration: bm.calibration||{},
             notes: bm.notes||"", stack: bm.stack||{},
+            // The backup carries the full map dict; the restore used to push
+            // only the four fields above, silently dropping the hand-traced
+            // room outlines, receiver pins and beacon pins it had faithfully
+            // saved. A restore that loses the trace is a restore that makes
+            // the user re-draw their house.
+            receivers: bm.receivers||[],
+            beacons: bm.beacons||[],
+            room_bounds: bm.room_bounds||{},
           });
           // ...and where the map SITS, under its new id. Restoring the
           // stack without this leaves the map drawn in the 3D assembly
@@ -7260,6 +7294,22 @@ function _roomsTab(ctx, maps) {
       rRow.appendChild(el("span", { class: "muted", style: "font-size:10px" },
         "Rooms you've hand-corrected are never touched by this."));
       card.appendChild(rRow);
+    }
+
+    // ── Group divergence: the trace and the fabric disagree by one factor ─
+    // No button, deliberately — the machine cannot know which record is the
+    // stale one. The human can, in seconds, by comparing both layouts over
+    // the photo; the row exists to make them look.
+    const _dvg = (truthCache && truthCache.divergence) || [];
+    if (_dvg.length) {
+      const dRow = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 8px;padding:8px 10px;background:rgba(245,158,11,.06);border:1px solid #f59e0b33;border-radius:8px" });
+      for (const d of _dvg) {
+        dRow.appendChild(el("span", { style: "font-size:11px;color:#f59e0b" },
+          `⚠ “${d.map_name}”: its trace and the saved rooms differ by one shared factor (×${d.ratio_x} across, ×${d.ratio_y} down) — one of the two predates a map change.`));
+      }
+      dRow.appendChild(el("span", { class: "muted", style: "font-size:10px" },
+        "Compare “Fabric (saved)” and “Map placements” over the photo; commit whichever matches the picture. Health → Auto Diagnostics has the full note."));
+      card.appendChild(dRow);
     }
   }
 

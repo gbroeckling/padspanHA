@@ -1069,6 +1069,91 @@ def room_footprint_faults(
     return out
 
 
+# A floor's two records of its rooms — the committed fabric and the map's
+# hand trace — can drift apart AS A GROUP when either predates a change to
+# the map (a re-measure moves what the trace derives to; an image op the
+# trace missed moves the trace). Per-room disagreement is what hand editing
+# looks like; the SAME offset on every room is what a stale record looks
+# like, because no human edits every room by an identical factor.
+ROOM_DIVERGENCE_MIN_ROOMS = 2      # one room can't establish a group
+ROOM_DIVERGENCE_BAND = 0.10        # group ratio within ±10% of 1 = agreement
+ROOM_DIVERGENCE_SPREAD = 1.15      # per-room ratios within 15% of each other
+
+
+def room_divergence_faults(
+        room_geometry: dict[str, dict[str, Any]],
+        maps_list: list[dict], model_store: Any) -> list[dict[str, Any]]:
+    """Maps whose hand trace and committed fabric disagree as a GROUP.
+
+    READ ONLY, and deliberately agnostic about WHICH side is stale — it
+    cannot know. The committed fabric may predate a placement fix (issue
+    #62's first half) or the trace may predate an image op that skipped it
+    (the second half — a measured-map trim before 0.38.10 renormalized
+    every fraction on the map except the trace). Either way the two records
+    stopped describing the same house, the divergence is one shared factor,
+    and a person looking at the "Map placements" preview against the photo
+    can tell in seconds which side matches reality. This exists so they
+    look — the state was invisible for months otherwise.
+
+    Fires only on the group signature: at least ROOM_DIVERGENCE_MIN_ROOMS
+    rooms present in BOTH records, their candidate/fabric size ratios
+    mutually consistent (spread under ROOM_DIVERGENCE_SPREAD — a hand edit
+    moves one room by its own amount, not every room by the same amount),
+    and the shared ratio outside the agreement band on either axis.
+
+    SCALE only, by choice: size ratios are what a skipped crop renorm, a
+    stale measurement and a stack-era placement all produce, and they are
+    dimensionless — no threshold in metres to tune. A pure-translation
+    group drift (same sizes, every room shifted by one vector — an
+    origin-only re-anchor after commit) passes this quietly; if that state
+    ever shows up in a report, a centroid-delta term belongs here beside
+    the ratios.
+    """
+    by_name: dict[str, dict] = {r: g for r, g in (room_geometry or {}).items()
+                                if isinstance(g, dict)}
+    out: list[dict[str, Any]] = []
+    for m in (maps_list or []):
+        mid = m.get("id", "")
+        bounds = m.get("room_bounds") or {}
+        if not mid or not bounds:
+            continue
+        ratios: list[tuple[str, float, float]] = []
+        for room in bounds:
+            fab_geo = by_name.get(room)
+            if not isinstance(fab_geo, dict):
+                continue
+            fb = geom_bbox_m(fab_geo)
+            cand = recompute_room_from_map(m, room, model_store)
+            cb = geom_bbox_m(cand) if cand else None
+            if not fb or not cb:
+                continue
+            fw, fh = fb[2] - fb[0], fb[3] - fb[1]
+            cw, ch = cb[2] - cb[0], cb[3] - cb[1]
+            if min(fw, fh, cw, ch) <= 0.05:
+                continue  # degenerate slivers prove nothing
+            ratios.append((room, cw / fw, ch / fh))
+        if len(ratios) < ROOM_DIVERGENCE_MIN_ROOMS:
+            continue
+        rx = [r[1] for r in ratios]
+        ry = [r[2] for r in ratios]
+        if max(rx) / min(rx) > ROOM_DIVERGENCE_SPREAD or max(ry) / min(ry) > ROOM_DIVERGENCE_SPREAD:
+            continue  # rooms disagree with EACH OTHER — hand edits, not a group shift
+        gx = sum(rx) / len(rx)
+        gy = sum(ry) / len(ry)
+        if abs(gx - 1.0) <= ROOM_DIVERGENCE_BAND and abs(gy - 1.0) <= ROOM_DIVERGENCE_BAND:
+            continue
+        out.append({
+            "map_id": mid,
+            "map_name": str(m.get("name") or mid),
+            "floor_id": str(m.get("floor_id") or "main"),
+            "rooms": [r[0] for r in ratios],
+            "ratio_x": round(gx, 3),
+            "ratio_y": round(gy, 3),
+            "terms": ["group_offset"],
+        })
+    return out
+
+
 # ── Provenance-gated reconcile ───────────────────────────────────────────────
 # The one sanctioned way room geometry may be derived from map state after a
 # floor is built. Everything here is READ ONLY — the write goes through
@@ -1098,6 +1183,48 @@ def placement_snapshot(t: dict | None) -> dict[str, float] | None:
         "rotation_rad": float(t.get("rotation_rad") or 0.0),
         "shear_rad": float(t.get("shear_rad") or 0.0),
     }
+
+
+def image_identity(m: dict) -> dict[str, Any] | None:
+    """The identity of a map's CURRENT picture — the other half of a stamp.
+
+    A placement snapshot alone cannot tell a re-measure from a crop: both
+    rewrite the same six fields and neither touches ρ or σ. What separates
+    them is the picture — a re-measure keeps it, an image op replaces its
+    bytes — so the stamp records which picture the claim was made against.
+    A stamp whose image differs from the map's current image is a claim
+    about a picture that no longer exists, and the reconcile treats it
+    accordingly (see `reconcilable_rooms`).
+    """
+    img = (m or {}).get("image") or {}
+    sha = str(img.get("sha256") or "")
+    if not sha:
+        return None
+    return {"sha256": sha,
+            "w": int(img.get("width") or 0), "h": int(img.get("height") or 0)}
+
+
+def geometry_close(a: dict | None, b: dict | None, tol_m: float = 0.05) -> bool:
+    """Do two room geometries describe the same shape, within tolerance?
+
+    Vertex-wise, not area-wise: two different rooms can share an area. The
+    tolerance covers the store's rounding (1 mm on points) compounded
+    through a frac→metre round trip, with margin — anything a human moved
+    is centimetres at least.
+    """
+    if not isinstance(a, dict) or not isinstance(b, dict) or a.get("type") != b.get("type"):
+        return False
+    if a.get("type") == "poly":
+        pa, pb = a.get("points_m") or [], b.get("points_m") or []
+        if len(pa) != len(pb) or not pa:
+            return False
+        return all(math.hypot(float(p[0]) - float(q[0]), float(p[1]) - float(q[1])) <= tol_m
+                   for p, q in zip(pa, pb))
+    if a.get("type") == "circle":
+        return (math.hypot(float(a.get("cx_m", 0)) - float(b.get("cx_m", 0)),
+                           float(a.get("cy_m", 0)) - float(b.get("cy_m", 0))) <= tol_m
+                and abs(float(a.get("r_m", 0)) - float(b.get("r_m", 0))) <= tol_m)
+    return False
 
 
 def recompute_room_from_map(m: dict, room: str, model_store: Any) -> dict | None:
@@ -1141,6 +1268,18 @@ def reconcilable_rooms(
         geometry already says what the map says, and rewriting it would be
         churn with a new revision number.
 
+    And one more, added when the trim bug's second half surfaced: the
+    IMAGE gate. A placement snapshot alone cannot tell a re-measure (bounds
+    still valid — the original use case) from an image op the bounds might
+    have missed (bounds possibly stale — reconciling would bake garbage
+    with a fresh stamp on it). The picture's identity settles it: a stamp
+    that recorded `source_image` is only honoured while the map still shows
+    that picture, UNLESS the recompute converges on what is already stored
+    — which is the signature of a completed image op (placement rebased AND
+    bounds renormalized together), where re-deriving is a harmless
+    re-stamp. A pre-image-gate stamp (no `source_image`) is honoured as it
+    always was; that window is days of one beta.
+
     What this cannot know: whether the CURRENT placement is itself right.
     Provenance proves nothing hand-made is at stake; it does not prove the
     new answer is the true one. That is why the reconcile stays an explicit,
@@ -1165,6 +1304,12 @@ def reconcilable_rooms(
             continue
         if placements_agree(snap, cur):
             continue
+        stamped_sha = str(((geo.get("source_image") or {}).get("sha256")) or "")
+        current_sha = str(((m.get("image") or {}).get("sha256")) or "")
+        if stamped_sha and current_sha and stamped_sha != current_sha:
+            cand = recompute_room_from_map(m, room, model_store)
+            if cand is None or not geometry_close(cand, geo):
+                continue
         out.append({
             "room": room,
             "floor_id": str(geo.get("floor_id") or "main"),

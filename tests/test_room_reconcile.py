@@ -126,6 +126,7 @@ async def test_a_hand_correction_clears_the_stamp() -> None:
     await fab.async_correct_room("main", "kitchen", {"type": "poly", "points_m": [[0, 0], [4.2, 0], [4.2, 3]]})
     rec = fab.data["floors"]["main"]["rooms"]["kitchen"]
     assert rec["source_map_id"] is None and rec["source_transform"] is None
+    assert rec["source_image"] is None, "the picture claim clears with the rest"
     assert rec["revision"] == 2
 
 
@@ -336,3 +337,107 @@ async def test_the_rjbutler_arc() -> None:
     assert conn.send_result.call_args[0][1]["fixed"] == ["kitchen"]
     assert fab.data["floors"]["main"]["rooms"]["kitchen"]["points_m"] == _derived_geo(mdl, "main_floor")["points_m"]
     assert fabric_truth.reconcilable_rooms(fab.rooms_flat(), maps, mdl) == []
+
+
+# ── the image gate ───────────────────────────────────────────────────────────
+# A placement snapshot alone cannot tell a re-measure (bounds valid, the
+# original use case) from an image op (bounds possibly stale — reconciling
+# would bake garbage with a fresh stamp on it). The picture's identity can.
+
+def _map_with_image(mid: str = "main_floor", sha: str = "aaa111") -> dict:
+    m = _map(mid)
+    m["image"].update({"filename": f"{mid}.png", "sha256": sha})
+    return m
+
+
+@pytest.mark.asyncio
+async def test_ws_correct_room_stamps_the_picture_identity() -> None:
+    from custom_components.padspan_ha.ws_fabric import ws_fabric_correct_room
+
+    maps = [_map_with_image()]
+    mdl = _mdl({"main_floor": dict(_NEW_T)}, maps)
+    fab = _fab()
+    hass = _hass_with(mdl, maps, fab)
+    conn = MagicMock()
+    await ws_fabric_correct_room(hass, conn, {
+        "id": 1, "floor_id": "main", "room": "kitchen",
+        "geometry": {"type": "poly", "points_m": [[0, 0], [4, 0], [4, 3]]},
+        "source_map_id": "main_floor",
+    })
+    rec = fab.data["floors"]["main"]["rooms"]["kitchen"]
+    assert rec["source_image"] == {"sha256": "aaa111", "w": 1600, "h": 853}
+
+
+@pytest.mark.asyncio
+async def test_a_changed_picture_takes_the_room_off_the_reconcile() -> None:
+    """Stamp says picture A, map now shows picture B, and the recompute does
+    not converge on what is stored — the trace may not have followed the
+    image op, so the reconcile refuses rather than baking a maybe."""
+    maps = [_map_with_image(sha="bbb222")]
+    mdl = _mdl({"main_floor": dict(_NEW_T)}, maps)
+    fab = _fab()
+    await fab.async_correct_room("main", "kitchen",
+                                 {"type": "poly", "points_m": [[1, 0.8], [5, 0.8], [5, 4], [1, 4]]},
+                                 source_map_id="main_floor",
+                                 source_transform=fabric_truth.placement_snapshot(_OLD_T),
+                                 source_image={"sha256": "aaa111", "w": 1600, "h": 853})
+    assert fabric_truth.reconcilable_rooms(fab.rooms_flat(), maps, mdl) == []
+
+
+@pytest.mark.asyncio
+async def test_a_completed_image_op_reconciles_as_a_harmless_restamp() -> None:
+    """The self-heal loop. A trim that took the trace along rebases the
+    placement AND renormalizes the bounds — so the recompute converges on
+    exactly what is stored. Different sha, same geometry: eligible, and the
+    reconcile refreshes the stamp without moving anything."""
+    from custom_components.padspan_ha.ws_fabric import ws_fabric_rooms_reconcile
+
+    maps = [_map_with_image(sha="bbb222")]
+    mdl = _mdl({"main_floor": dict(_NEW_T)}, maps)
+    fab = _fab()
+    # Stored geometry == exactly what the CURRENT placement derives (the
+    # completed-op state), but stamped under the OLD placement + OLD sha.
+    geo = fabric_truth.recompute_room_from_map(maps[0], "kitchen", mdl)
+    await fab.async_correct_room("main", "kitchen", geo,
+                                 source_map_id="main_floor",
+                                 source_transform=fabric_truth.placement_snapshot(_OLD_T),
+                                 source_image={"sha256": "aaa111", "w": 1600, "h": 853})
+    assert [r["room"] for r in fabric_truth.reconcilable_rooms(fab.rooms_flat(), maps, mdl)] == ["kitchen"]
+
+    hass = _hass_with(mdl, maps, fab)
+    conn = MagicMock()
+    await ws_fabric_rooms_reconcile(hass, conn, {"id": 1, "floor_id": "main"})
+    rec = fab.data["floors"]["main"]["rooms"]["kitchen"]
+    assert rec["points_m"] == geo["points_m"], "nothing moved"
+    assert rec["source_transform"] == fabric_truth.placement_snapshot(_NEW_T)
+    assert rec["source_image"]["sha256"] == "bbb222", "the stamp now names the current picture"
+
+
+@pytest.mark.asyncio
+async def test_a_pre_image_gate_stamp_is_honoured_as_before() -> None:
+    """0.38.9 stamps carry no source_image. They keep the behavior they
+    shipped with — eligible on placement divergence alone."""
+    maps = [_map_with_image(sha="bbb222")]
+    mdl = _mdl({"main_floor": dict(_NEW_T)}, maps)
+    fab = _fab()
+    await fab.async_correct_room("main", "kitchen",
+                                 {"type": "poly", "points_m": [[1, 0.8], [5, 0.8], [5, 4], [1, 4]]},
+                                 source_map_id="main_floor",
+                                 source_transform=fabric_truth.placement_snapshot(_OLD_T))
+    assert [r["room"] for r in fabric_truth.reconcilable_rooms(fab.rooms_flat(), maps, mdl)] == ["kitchen"]
+
+
+@pytest.mark.asyncio
+async def test_a_matching_picture_keeps_the_room_eligible() -> None:
+    """The forward-primary case: the stamp's picture IS the map's current
+    picture, only the placement moved — a re-measure. The gate must wave
+    this through; it exists to catch image ops, not to freeze reconciles."""
+    maps = [_map_with_image(sha="aaa111")]
+    mdl = _mdl({"main_floor": dict(_NEW_T)}, maps)
+    fab = _fab()
+    await fab.async_correct_room("main", "kitchen",
+                                 {"type": "poly", "points_m": [[1, 0.8], [5, 0.8], [5, 4], [1, 4]]},
+                                 source_map_id="main_floor",
+                                 source_transform=fabric_truth.placement_snapshot(_OLD_T),
+                                 source_image={"sha256": "aaa111", "w": 1600, "h": 853})
+    assert [r["room"] for r in fabric_truth.reconcilable_rooms(fab.rooms_flat(), maps, mdl)] == ["kitchen"]

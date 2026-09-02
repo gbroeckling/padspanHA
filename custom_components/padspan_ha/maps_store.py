@@ -349,22 +349,47 @@ class MapsStore:
         height: int,
         crop: dict | None = None,
         skip_frac_renorm: bool = False,
+        pixel_op: dict | None = None,
     ) -> dict[str, Any]:
         """Replace the PNG for an existing map and renormalize stored coordinates.
 
         crop (optional) describes the region of the *original* image that was
-        kept: {fx0, fy0, fx1, fy1} as 0-1 fractions.  All receiver positions
-        and room-bound polygon points are remapped so they remain correct in the
-        new (cropped) image coordinate space.
+        kept: {fx0, fy0, fx1, fy1} as 0-1 fractions.  pixel_op (optional)
+        describes a baked rotate/scale, {deg, sx, sy} in the canvas form
+        p' = c_new + R(deg)·diag(sx, sy)·(p − c_old) — the same declaration
+        `async_recompute_transform_for_map` composes the placement from.
 
-        skip_frac_renorm: when True, skip crop-based renormalization — the caller
-        will re-derive fractions from metre-space data (Phase 4).
+        THE INVARIANT, learned twice (issue #62, both halves): a map carries
+        two kinds of fractional data, and an image edit owes each a different
+        debt.
+
+          IMAGE-ANCHORED — `room_bounds`, the hand trace OF this picture.
+          Its only truth is "these fractions of this image". When the image
+          moves, the trace moves with it, HERE, in the same call,
+          unconditionally. There is no metre-space copy to re-derive it from
+          (`async_rederive_map_fracs` refuses it, correctly — f3466fc is what
+          re-deriving it looked like), so any edit that skips it leaves it
+          pointing at a picture that no longer exists. That skip was the trim
+          bug: `skip_frac_renorm` covered the trace for months, and every
+          measured map trimmed in that window kept pre-trim traces that no
+          code path could ever correct.
+
+          FABRIC-ANCHORED — receivers and beacons. Their truth is metres in
+          the fabric; their fractions are a rendering. `skip_frac_renorm`
+          exists for exactly them: a metre-model caller re-derives these
+          fractions from the fabric afterwards, and doing it here too would
+          be two writers. The flag now covers ONLY this kind.
         """
         m = self.get_map(map_id)
         if not m:
             raise KeyError("not_found")
 
         raw = base64.b64decode(png_base64)
+
+        # Old dims, captured before they are overwritten — the pixel_op
+        # arithmetic is centred on the old canvas.
+        _old_w = int((m.get("image") or {}).get("width") or 0)
+        _old_h = int((m.get("image") or {}).get("height") or 0)
 
         # Overwrite the same file so the browser cache-busts via map.updated timestamp
         file_path = (self.maps_dir / m["image"]["filename"]).resolve()
@@ -377,41 +402,111 @@ class MapsStore:
         m["image"]["size_bytes"] = len(raw)
         m["image"]["sha256"]     = _sha256(raw)
 
-        # Renormalize stored coordinates if a crop rectangle was supplied
-        # Phase 4: skip when metre-space data is authoritative (caller re-derives)
+        # An extend snapshot describes the picture it was taken from. This
+        # is a different picture now, so a later revert reading it would
+        # crop the wrong rectangle out of the wrong image and renormalize
+        # every fraction through ratios that describe neither.
+        m.pop("_pre_extend", None)
+
+        # ── Image-anchored data follows its image. No flag reaches this. ──
+        # Precedence mirrors async_recompute_transform_for_map exactly: a
+        # declared bake wins, a crop applies only without one. The two layers
+        # transform the placement and the trace through the SAME op or the
+        # invariant breaks quietly — no client sends both today, and if one
+        # ever does, both layers must still agree on which one happened.
+        if pixel_op and _old_w > 0 and _old_h > 0 and int(width) > 0 and int(height) > 0:
+            # The declared bake, in fraction space: centre the old canvas,
+            # apply R(deg)·diag(sx, sy), re-centre on the new canvas. Exact
+            # for every invertible bake, rotation with anisotropic stretch
+            # included — the same guarantee the placement composition gives.
+            _theta = math.radians(float(pixel_op.get("deg", 0) or 0))
+            _bsx = float(pixel_op.get("sx", 1) or 1)
+            _bsy = float(pixel_op.get("sy", 1) or 1)
+            _ct, _st = math.cos(_theta), math.sin(_theta)
+            _nw, _nh = float(width), float(height)
+            def _bake(px: float, py: float) -> tuple[float, float]:
+                dx = (float(px) - 0.5) * _old_w * _bsx
+                dy = (float(py) - 0.5) * _old_h * _bsy
+                return (max(0.0, min(1.0, 0.5 + (dx * _ct - dy * _st) / _nw)),
+                        max(0.0, min(1.0, 0.5 + (dx * _st + dy * _ct) / _nh)))
+            # A circle's radius is a width fraction; the bake changes how
+            # many pixels — and how much house — that fraction spans. Ratio
+            # of mean canvas extents: 1 for a pure rotate (dims swap), 1 for
+            # a proportional resample, the stretch itself for a stretch.
+            _r_scale = ((_old_w * _bsx + _old_h * _bsy) / (_nw + _nh)) if (_nw + _nh) > 0 else 1.0
+            self._renorm_room_bounds_xy(m, _bake, r_scale=_r_scale)
+            if not skip_frac_renorm:
+                # No metre model, so no re-derive is coming for the pins —
+                # they take the same bake the trace just took, or a rotate
+                # on an unmeasured map leaves them pointing at the wrong
+                # corner of the house forever (nothing else can fix them:
+                # there are no metres to re-derive from).
+                for _pin in list(m.get("receivers", [])) + list(m.get("beacons", [])):
+                    _pin["x"], _pin["y"] = _bake(_pin.get("x", 0), _pin.get("y", 0))
+        elif crop:
+            fx0 = float(crop.get("fx0", 0))
+            fy0 = float(crop.get("fy0", 0))
+            fw = float(crop.get("fx1", 1)) - fx0
+            fh = float(crop.get("fy1", 1)) - fy0
+            if fw > 0 and fh > 0:
+                def _bx(px: float) -> float:
+                    return max(0.0, min(1.0, (float(px) - fx0) / fw))
+                def _by(py: float) -> float:
+                    return max(0.0, min(1.0, (float(py) - fy0) / fh))
+                # The retained region magnifies by 1/fw × 1/fh; a radius is
+                # one number, so it takes the mean magnification — exact for
+                # a proportional trim, principled for a lopsided one. The
+                # old code never scaled it, so a measured-map trim shrank
+                # every circle room's real-world size by the trimmed-off
+                # fraction (and the reconcile's convergence check would then
+                # refuse the room forever, r_m being off).
+                self._renorm_room_bounds(m, _bx, _by, r_scale=2.0 / (fw + fh))
+
+        # ── Fabric-anchored overlays: only when no caller re-derives them. ──
         if crop and not skip_frac_renorm:
             fx0 = float(crop.get("fx0", 0))
             fy0 = float(crop.get("fy0", 0))
-            fx1 = float(crop.get("fx1", 1))
-            fy1 = float(crop.get("fy1", 1))
-            fw  = fx1 - fx0
-            fh  = fy1 - fy0
+            fw = float(crop.get("fx1", 1)) - fx0
+            fh = float(crop.get("fy1", 1)) - fy0
             if fw > 0 and fh > 0:
                 def _rx(px: float) -> float:
                     return max(0.0, min(1.0, (float(px) - fx0) / fw))
                 def _ry(py: float) -> float:
                     return max(0.0, min(1.0, (float(py) - fy0) / fh))
-
                 for r in m.get("receivers", []):
                     r["x"] = _rx(r.get("x", 0))
                     r["y"] = _ry(r.get("y", 0))
-
                 for bk in m.get("beacons", []):
                     bk["x"] = _rx(bk.get("x", 0))
                     bk["y"] = _ry(bk.get("y", 0))
 
-
-                for b in m.get("room_bounds", {}).values():
-                    if isinstance(b, dict):
-                        if b.get("type") == "poly" and isinstance(b.get("points"), list):
-                            b["points"] = [[_rx(p[0]), _ry(p[1])] for p in b["points"] if len(p) >= 2]
-                        elif b.get("type") == "circle":
-                            b["cx"] = _rx(b.get("cx", 0.5))
-                            b["cy"] = _ry(b.get("cy", 0.5))
-
         m["updated"] = _now_iso()
         await self.store.async_save(self.data)
         return m
+
+    @staticmethod
+    def _renorm_room_bounds(m: dict, fx, fy, r_scale: float = 1.0) -> None:
+        """Remap every room_bounds fraction through per-axis functions."""
+        for b in m.get("room_bounds", {}).values():
+            if isinstance(b, dict):
+                if b.get("type") == "poly" and isinstance(b.get("points"), list):
+                    b["points"] = [[fx(p[0]), fy(p[1])] for p in b["points"] if len(p) >= 2]
+                elif b.get("type") == "circle":
+                    b["cx"] = fx(b.get("cx", 0.5))
+                    b["cy"] = fy(b.get("cy", 0.5))
+                    b["r"] = max(0.005, min(0.5, float(b.get("r", 0.12)) * r_scale))
+
+    @staticmethod
+    def _renorm_room_bounds_xy(m: dict, f, r_scale: float = 1.0) -> None:
+        """Remap every room_bounds fraction through one (x, y) → (x, y)
+        function — for ops where the axes mix (a rotation)."""
+        for b in m.get("room_bounds", {}).values():
+            if isinstance(b, dict):
+                if b.get("type") == "poly" and isinstance(b.get("points"), list):
+                    b["points"] = [list(f(p[0], p[1])) for p in b["points"] if len(p) >= 2]
+                elif b.get("type") == "circle":
+                    b["cx"], b["cy"] = f(b.get("cx", 0.5), b.get("cy", 0.5))
+                    b["r"] = max(0.005, min(0.5, float(b.get("r", 0.12)) * r_scale))
 
     async def async_prune_stale_receivers(self, known_sources: set[str], known_names: set[str]) -> int:
         """Remove receivers from all maps that don't match any known radio.

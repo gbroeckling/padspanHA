@@ -7,6 +7,12 @@
 // tab wrote that tab's idea of the alignment back over whatever another tab
 // had since realigned.
 //
+// The same guard now covers the geometry itself: the payloads are built from
+// `fresh` — the map re-fetched from the server inside the click handler —
+// never from the render-time copy, so a tab left open across an image op
+// (whose renormalization rewrote every fraction server-side) can no longer
+// push old-space receivers and room_bounds back over the corrected ones.
+//
 // The object literals are lifted out of manage.js and EVALUATED, the same
 // string-surgery route tests/js/save_scale_payload.mjs uses on the Save Scale
 // payload: the shipped expression producing a real object, not a grep over its
@@ -39,21 +45,22 @@ if (literals.length !== 2) {
   throw new Error(`expected the single and the bulk delete, found ${literals.length}`);
 }
 
-// A map as the panel holds it, with the stack this tab last saw. `newBounds`
-// is what the handler computed: the orphan stripped out.
-const MAP = {
+// The map as the handler's re-fetch returns it — the SERVER's copy, which
+// is the whole point: the literals read `fresh`, never the render-time
+// `map`. `newBounds` is what the handler computed: the orphan stripped out.
+const FRESH = {
   id: "m1", name: "Ground",
   receivers: [{ source: "esp1", x: 0.2, y: 0.3 }],
   room_bounds: { Kitchen: { type: "poly", points: [[0, 0], [1, 0], [1, 1]] } },
   floor_id: "main",
   calibration: { mode: "none" },
   notes: "",
-  // What this tab saw before another tab realigned the map.
+  // Present on the server copy; the payload must still not carry it.
   stack: { is_master: true, scale: 1.0, scale_x_adj: 1.0, ref_ar: 0.75,
            rotation: 0, x_offset: 0, y_offset: 0 },
 };
-const NEW_BOUNDS = { Kitchen: MAP.room_bounds.Kitchen };
+const NEW_BOUNDS = { Kitchen: FRESH.room_bounds.Kitchen };
 
 const payloads = literals.map(
-  (lit) => new Function("map", "newBounds", "return " + lit + ";")(MAP, NEW_BOUNDS));
+  (lit) => new Function("fresh", "newBounds", "return " + lit + ";")(FRESH, NEW_BOUNDS));
 console.log(JSON.stringify({ payloads }));

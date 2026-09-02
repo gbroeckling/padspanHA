@@ -408,16 +408,21 @@ async def ws_fabric_correct_room(hass: HomeAssistant, connection, msg) -> None:
         return
     source_map_id = (msg.get("source_map_id") or "").strip() or None
     source_transform = None
+    source_image = None
     if source_map_id:
         from . import fabric_truth  # noqa: PLC0415
         mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+        ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
         source_transform = fabric_truth.placement_snapshot(
             mdl.map_transform(source_map_id) if mdl else None)
         if source_transform is None:
             source_map_id = None
+        elif ms:
+            source_image = fabric_truth.image_identity(ms.get_map(source_map_id))
     res = await fab.async_correct_room(
         msg.get("floor_id") or DEFAULT_FLOOR_ID, room, geo,
-        source_map_id=source_map_id, source_transform=source_transform)
+        source_map_id=source_map_id, source_transform=source_transform,
+        source_image=source_image)
     if not res.get("ok"):
         connection.send_error(msg["id"], res.get("error", "failed"), str(res))
         return
@@ -495,6 +500,12 @@ async def ws_fabric_truth_candidates(hass: HomeAssistant, connection, msg) -> No
     reconcilable = [r for r in fabric_truth.reconcilable_rooms(fab.rooms_flat(), all_maps, mdl)
                     if r["floor_id"] == fl]
 
+    # Maps on this floor whose trace and committed fabric have drifted apart
+    # as a group — one of the two records predates a map change, and only a
+    # person looking at the preview can tell which. Same ride-along.
+    divergence = [d for d in fabric_truth.room_divergence_faults(fab.rooms_flat(), all_maps, mdl)
+                  if d["floor_id"] == fl]
+
     connection.send_result(msg["id"], {
         "floor_id": fl,
         "fabric": {"rooms": fabric_rooms, "stats": fabric_truth.rooms_stats(fabric_rooms)},
@@ -503,6 +514,7 @@ async def ws_fabric_truth_candidates(hass: HomeAssistant, connection, msg) -> No
         "no_world_frame_reason": None if gauge else "no map anywhere in the house has a reference-measured scale",
         "placements": placements,
         "reconcilable": reconcilable,
+        "divergence": divergence,
     })
 
 
@@ -551,7 +563,8 @@ async def ws_fabric_rooms_reconcile(hass: HomeAssistant, connection, msg) -> Non
         snap = fabric_truth.placement_snapshot(mdl.map_transform(r["map_id"]))
         res = await fab.async_correct_room(
             fl, r["room"], geo, committed_by="reconcile",
-            source_map_id=r["map_id"], source_transform=snap)
+            source_map_id=r["map_id"], source_transform=snap,
+            source_image=fabric_truth.image_identity(m))
         if res.get("ok"):
             fixed.append(r["room"])
         else:

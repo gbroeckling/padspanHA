@@ -55,6 +55,7 @@ Data layout in .storage/padspan_ha.fabric:
             # reconcile. Nothing else may read them to decide anything.
             "source_map_id": str|None,
             "source_transform": dict|None,  # that map's placement at stamp time
+            "source_image": dict|None,      # {sha256, w, h} — that map's picture at stamp time
             "committed_by": "commit"|"correction"|"legacy_import"|"external_import"|"reconcile",
             "revision": int,
             "committed_at": iso,
@@ -372,6 +373,7 @@ class FabricStore:
         committed_by: str = "correction",
         source_map_id: str | None = None,
         source_transform: dict[str, Any] | None = None,
+        source_image: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Directly set one room's real-world shape.  Always allowed —
         committed state never blocks correction, only bulk re-commits.
@@ -413,6 +415,11 @@ class FabricStore:
             "floor_id": fl,
             "source_map_id": str(source_map_id) if stamped else None,
             "source_transform": dict(source_transform) if stamped else None,
+            # Which PICTURE the claim was made against. A placement snapshot
+            # alone cannot tell a re-measure from an image op; the image's
+            # identity can, and the reconcile refuses a stamp whose picture
+            # is gone. Rides the same all-or-nothing rule as the other two.
+            "source_image": dict(source_image) if stamped and isinstance(source_image, dict) else None,
             "committed_by": committed_by,
             "revision": revision,
             "committed_at": dt_util.utcnow().isoformat(),

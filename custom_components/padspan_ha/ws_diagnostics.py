@@ -640,6 +640,43 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
     except Exception:
         pass
 
+    # ── 2d. Room trace vs. committed fabric — group divergence ───────────────
+    # The two records of a floor's rooms (the map's hand trace, the committed
+    # fabric) can drift apart as a group when either predates a change to the
+    # map — a placement fix the fabric never followed, or an image op the
+    # trace missed (a measured-map trim before 0.38.10 renormalized every
+    # fraction on the map EXCEPT the trace). Per-room disagreement is hand
+    # editing; the same factor on every room is a stale record. Issue #62,
+    # third act: rjbutler's trimmed floors previewed wrong because the trace
+    # was still in pre-trim image space, and nothing said so.
+    try:
+        if _ms and _mdl:
+            for _dv in _ft.room_divergence_faults(_mdl.room_geometry_m(), _ms.data.get("maps") or [], _mdl):
+                critics.append({
+                    "category": "room_divergence",
+                    "severity": "warning",
+                    "title": f"Map “{_dv['map_name']}” and its committed rooms disagree as a group",
+                    "message": (
+                        f"{len(_dv['rooms'])} rooms appear in both this map's trace and the "
+                        f"committed fabric, and every one differs by the same factor "
+                        f"(×{_dv['ratio_x']} across, ×{_dv['ratio_y']} down). One shared factor "
+                        "is not hand editing — it means one of the two records predates a "
+                        "change to the map: the committed rooms predate a placement fix, or "
+                        "the trace predates a trim/rotate that moved the picture under it."
+                    ),
+                    "action": (
+                        "In Mapping → Rooms, compare Layout “Fabric (saved)” against "
+                        "“Map placements” over the floor photo — whichever matches the "
+                        "picture is the good record. If “Map placements” matches, commit it. "
+                        "If “Fabric (saved)” matches, the trace is stale: re-upload this "
+                        "map's original image (Mapping → Edit → Replace image), check the "
+                        "trace sits correctly on it, then redo the trim — from 0.38.10 the "
+                        "trace follows every image edit."
+                    ),
+                })
+    except Exception:
+        pass
+
     # ── 3. Scanner Disagreement (from coordinator Phase 3 data) ───────────────
     scanner_critics: list[dict[str, Any]] = []
     if coord and hasattr(coord, "_scanner_reliability"):
