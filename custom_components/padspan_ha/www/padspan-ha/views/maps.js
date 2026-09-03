@@ -6692,7 +6692,7 @@ function _lightsTab(ctx, maps, active) {
   const proTier = String(tier || "").toLowerCase() === "pro";
   const typeOverrides = (ctx.state.settings?.light_type_overrides && typeof ctx.state.settings.light_type_overrides === "object")
     ? ctx.state.settings.light_type_overrides : {};
-  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides);
+  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides, reg.pairMap);
 
   // Preview-as-panel: the exact sidebar interaction model, in place, on the
   // same camera — so "what will the household see" is one toggle away

@@ -826,6 +826,59 @@ export function rippleDelays(items, tap, pxPerMs){
     .sort((a,b)=>a.delayMs-b.delayMs);
 }
 
+// ── Motion + occupancy pairing ───────────────────────────────────────────────
+// Garry: "some of the sensors have two elements, motion and presence ...
+// merge into one in a logical way" — a single mmWave/radar unit commonly
+// exposes BOTH a momentary "motion" reading and a sustained "occupancy"
+// reading (occupancy stays on through stillness a pure motion algorithm
+// would clear) — same physical sensor, same room, two facets. Two
+// INDEPENDENT signals must both hold before folding them into one marker,
+// because "shares a device_id" alone is not safe: an alarm panel's
+// expander module is ALSO one device_id across several DIFFERENT rooms'
+// PIR zones (Garry: "think about what an alarm panel is, and how it
+// works" — the device_id groups by the INTEGRATION POINT, not by physical
+// sensing location).
+//   1. STRUCTURE: the device reports EXACTLY one motion entity and
+//      EXACTLY one occupancy entity — never more of either. A one-unit
+//      radar sensor can only ever report one of each; a multi-zone hub
+//      can report any count of either class, so this alone rules out a
+//      hub whose zones happen to split across both classes, which "has
+//      both classes present" would have wrongly merged.
+//   2. NAMING: the two entities' names must reduce to the same root once
+//      the class words are stripped ("Living Room Motion"/"Living Room
+//      Occupancy" -> "livingroom" both). A hub's unrelated zone names
+//      (Garry's real alarm panel: "Utility Room", "Nicole's Office",
+//      "Spare Bedroom", "Master Bedroom Entry" — all one device_id, all
+//      filed under the panel's OWN area "Utility") never coincide.
+// Exported and pure so it is testable against synthetic registries.
+function _nameRoot(name){
+  return String(name || "").toLowerCase()
+    .replace(/\b(motion|occupancy|presence|sensor)\b/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+export function computeMotionOccupancyPairs(entReg, states){
+  const byDevice = {};
+  for (const e of (entReg || [])) {
+    if (!e.entity_id.startsWith("binary_sensor.") || !e.device_id) continue;
+    const st = states && states[e.entity_id];
+    const cls = st && st.attributes && st.attributes.device_class;
+    if (cls !== "motion" && cls !== "occupancy") continue;
+    (byDevice[e.device_id] = byDevice[e.device_id] || [])
+      .push({ eid: e.entity_id, cls, name: st.attributes.friendly_name || e.entity_id });
+  }
+  const pairMap = {};   // secondary (occupancy) eid -> primary (motion) eid
+  for (const group of Object.values(byDevice)) {
+    const motionEnts = group.filter(g => g.cls === "motion");
+    const occEnts = group.filter(g => g.cls === "occupancy");
+    if (motionEnts.length !== 1 || occEnts.length !== 1) continue;
+    const [m] = motionEnts, [o] = occEnts;
+    const root = _nameRoot(m.name);
+    if (!root || root !== _nameRoot(o.name)) continue;
+    pairMap[o.eid] = m.eid;
+  }
+  return pairMap;
+}
+
 // ── Registry: entity_id → area name for every light ──────────────────────────
 // One implementation with ONE staleness rule so the two views can never
 // disagree about which room a light is in. `store` is a host-owned plain
@@ -867,7 +920,10 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
           // business. Same registry fetch, no extra round trip.
           platformMap[e.entity_id] = e.platform || null;
         }
-        store.reg = { ts: Date.now(), areaMap, platformMap };
+        // Same registry fetch, no extra round trip — hass.states is already
+        // in hand for the device_class/name each pairing decision needs.
+        const pairMap = computeMotionOccupancyPairs(reg, hass.states);
+        store.reg = { ts: Date.now(), areaMap, platformMap, pairMap };
         store.retryAfter = 0;
       } catch (_) {
         // A failed fetch must never become the authoritative answer. With a
@@ -875,7 +931,7 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         // stay in the loading state (the map keeps its placeholder) instead of
         // caching an empty areaMap for 60s, which would tell the user every
         // light in the house has no room.
-        if (store.reg) store.reg = { ts: Date.now(), areaMap: store.reg.areaMap, platformMap: store.reg.platformMap };
+        if (store.reg) store.reg = { ts: Date.now(), areaMap: store.reg.areaMap, platformMap: store.reg.platformMap, pairMap: store.reg.pairMap };
         else store.retryAfter = Date.now() + 10000;
       } finally {
         store.loading = false;
@@ -886,6 +942,7 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
   return {
     areaMap: store.reg ? store.reg.areaMap : {},
     platformMap: store.reg ? store.reg.platformMap : {},
+    pairMap: store.reg ? store.reg.pairMap || {} : {},
     loading: !store.reg,
   };
 }
@@ -902,9 +959,17 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
 // light's class outright (see isWledLight/isPartitionLight).
 // fan.* entities ride the same pipeline: same codes discipline (F-series),
 // same rooms, same table, same map — a ceiling has fans on it.
-export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides){
+export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides, pairMap){
   const paid = lightingUnlocked(tier);
   const pro = tierAtLeast(tier, "pro");
+  // A verified motion+occupancy pair (see computeMotionOccupancyPairs) rides
+  // the map as ONE marker on the motion entity — the occupancy half never
+  // gets its own row, its state and last_changed fold into the primary's
+  // below. primaryFor: secondary eid -> primary eid. secondaryOf: primary
+  // eid -> secondary eid, for the fold.
+  const primaryFor = pairMap || {};
+  const secondaryOf = {};
+  for (const [secEid, priEid] of Object.entries(primaryFor)) secondaryOf[priEid] = secEid;
   const lights = Object.keys(states || {})
     .filter(eid => eid.startsWith("light.") || eid.startsWith("fan.")
       // Motion sensors join by DEVICE CLASS, not domain alone — doors,
@@ -915,12 +980,20 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       // occupancy) and read identically on this map — found live: the
       // bathroom outlets' PIRs (binary_sensor.invisoutlet_occupancy*)
       // were invisible to the map until this line admitted their class.
+      // A verified pair's OCCUPANCY half is excluded here — it is not a
+      // separate device on this map, it is folded into its motion partner.
       || (eid.startsWith("binary_sensor.")
-          && ["motion", "occupancy"].includes(states[eid].attributes?.device_class)))
+          && ["motion", "occupancy"].includes(states[eid].attributes?.device_class)
+          && !primaryFor[eid]))
     .map(eid => ({
       entity_id:     eid,
       friendly_name: states[eid].attributes?.friendly_name || eid,
-      state:         states[eid].state,   // "on" | "off" | "unavailable"
+      // A paired primary's state is EITHER half being on — stillness that
+      // clears the motion algorithm can still hold the occupancy one, and
+      // that IS someone still being there. Unpaired entities are unaffected.
+      state:         secondaryOf[eid] && states[secondaryOf[eid]]
+                       ? (states[eid].state === "on" || states[secondaryOf[eid]].state === "on" ? "on" : "off")
+                       : states[eid].state,   // "on" | "off" | "unavailable"
       area_name:     areaMap[eid] || null,
       // The user's word beats detection, at pro: forced class from
       // settings.light_type_overrides. Never applies to a fan (the domain is
@@ -936,7 +1009,15 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       // that IS when it last stopped tripping. The renderer fades a purple
       // "recently active" pulse over the 6h after this, past which it draws
       // nothing. last_changed is HA's own top-level field, not an attribute.
-      last_changed:  eid.startsWith("binary_sensor.") ? (states[eid].last_changed || null) : null,
+      // A paired primary uses whichever half moved MORE RECENTLY — the
+      // "how long ago was anyone last here" question the glow answers has
+      // one true answer per physical sensor, not one per facet of it.
+      last_changed:  eid.startsWith("binary_sensor.")
+                       ? (secondaryOf[eid] && states[secondaryOf[eid]]
+                           ? (Date.parse(states[eid].last_changed || 0) >= Date.parse(states[secondaryOf[eid]].last_changed || 0)
+                               ? states[eid].last_changed : states[secondaryOf[eid]].last_changed)
+                           : (states[eid].last_changed || null))
+                       : null,
       // The effect list is what makes a light WLED-class (W-series code,
       // purple border, effects dialog). Free tier: every light is a light.
       effect_list:   paid && Array.isArray(states[eid].attributes?.effect_list) ? states[eid].attributes.effect_list : null,

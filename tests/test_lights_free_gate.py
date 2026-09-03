@@ -400,14 +400,161 @@ console.log(JSON.stringify({
     assert out["lamp"]["code"] == "A01", out["lamp"]
 
 
+# ── Motion + occupancy pairing ────────────────────────────────────────────────
+# Garry: "some of the sensors have two elements, motion and presence ...
+# merge into one in a logical way" — then caught a real gap in the first
+# design himself: "the alarm panel is an example where they are definitely
+# separate motion sensors. Think about what an alarm panel is, and how it
+# works." A hub (an alarm expander module, a multi-relay board) shares ONE
+# device_id across MANY physically separate zones; a one-unit radar sensor
+# shares one device_id across exactly two FACETS of the same physical spot.
+# computeMotionOccupancyPairs only merges when BOTH an exact 1-motion/
+# 1-occupancy shape AND matching names hold — either alone is not enough.
+
+def _pairing_script(ent_reg, states):
+    return f"""
+const ENT_REG = {json.dumps(ent_reg)};
+const STATES = {json.dumps(states)};
+console.log(JSON.stringify(LM.computeMotionOccupancyPairs(ENT_REG, STATES)));
+"""
+
+
+def test_a_real_one_unit_sensor_pairs(tmp_path):
+    """The two genuine pairs found live on Garry's own house."""
+    ent_reg = [
+        {"entity_id": "binary_sensor.living_room_motion", "device_id": "dev-livingroom"},
+        {"entity_id": "binary_sensor.living_room_occupancy", "device_id": "dev-livingroom"},
+        {"entity_id": "binary_sensor.smartsensor_motion", "device_id": "dev-g7tg"},
+        {"entity_id": "binary_sensor.smartsensor_occupancy", "device_id": "dev-g7tg"},
+    ]
+    states = {
+        "binary_sensor.living_room_motion": {"state": "off", "attributes": {"friendly_name": "Living Room Motion", "device_class": "motion"}},
+        "binary_sensor.living_room_occupancy": {"state": "off", "attributes": {"friendly_name": "Living Room Occupancy", "device_class": "occupancy"}},
+        "binary_sensor.smartsensor_motion": {"state": "off", "attributes": {"friendly_name": "G7TG Motion", "device_class": "motion"}},
+        "binary_sensor.smartsensor_occupancy": {"state": "off", "attributes": {"friendly_name": "G7TG Occupancy", "device_class": "occupancy"}},
+    }
+    out = _run_pipeline_script(tmp_path, _pairing_script(ent_reg, states))
+    assert out == {
+        "binary_sensor.living_room_occupancy": "binary_sensor.living_room_motion",
+        "binary_sensor.smartsensor_occupancy": "binary_sensor.smartsensor_motion",
+    }, out
+
+
+def test_an_alarm_panels_zones_never_pair(tmp_path):
+    """Garry's real alarm expander: four DIFFERENT rooms' PIR zones, one
+    device_id (the panel), all classed "motion" — none of them may merge
+    with anything. Structurally excluded by entity count alone (no
+    occupancy entity exists on this device at all)."""
+    ent_reg = [{"entity_id": f"binary_sensor.alarm_di{i}", "device_id": "dev-alarm"} for i in range(1, 5)]
+    names = ["Utility Room", "Nicole's Office", "Spare Bedroom", "Master Bedroom Entry"]
+    states = {f"binary_sensor.alarm_di{i}": {"state": "off", "attributes": {"friendly_name": names[i - 1], "device_class": "motion"}} for i in range(1, 5)}
+    out = _run_pipeline_script(tmp_path, _pairing_script(ent_reg, states))
+    assert out == {}, out
+
+
+def test_a_hub_with_both_classes_still_does_not_pair(tmp_path):
+    """The deeper trap Garry pointed at: a hub does not need to be
+    same-class to be wrong to merge. Two motion zones and two occupancy
+    zones on ONE device_id, four different rooms — "has both classes
+    present" alone would wrongly fold two of these together; the
+    exact-one-of-each-class rule must refuse the whole device instead."""
+    ent_reg = [
+        {"entity_id": "binary_sensor.hub_z1_motion", "device_id": "dev-hub"},
+        {"entity_id": "binary_sensor.hub_z2_motion", "device_id": "dev-hub"},
+        {"entity_id": "binary_sensor.hub_z3_occupancy", "device_id": "dev-hub"},
+        {"entity_id": "binary_sensor.hub_z4_occupancy", "device_id": "dev-hub"},
+    ]
+    states = {
+        "binary_sensor.hub_z1_motion": {"state": "off", "attributes": {"friendly_name": "Garage Motion", "device_class": "motion"}},
+        "binary_sensor.hub_z2_motion": {"state": "off", "attributes": {"friendly_name": "Hallway Motion", "device_class": "motion"}},
+        "binary_sensor.hub_z3_occupancy": {"state": "off", "attributes": {"friendly_name": "Den Occupancy", "device_class": "occupancy"}},
+        "binary_sensor.hub_z4_occupancy": {"state": "off", "attributes": {"friendly_name": "Loft Occupancy", "device_class": "occupancy"}},
+    }
+    out = _run_pipeline_script(tmp_path, _pairing_script(ent_reg, states))
+    assert out == {}, out
+
+
+def test_two_motion_zones_sharing_one_occupancy_names_room_stay_unpaired(tmp_path):
+    """Isolates the exact-one-of-each-class rule on its own: TWO motion
+    entities that both share a name root with ONE occupancy entity, all
+    one device_id — ambiguous which motion is "the" pair for the
+    occupancy half, so none of them may merge. (Neither the alarm-panel
+    test above nor the differently-named-hub test below actually proves
+    this specific rule: the alarm panel has zero occupancy entities to
+    begin with, and the differently-named hub is refused by the name
+    check first — either alone would let "at least one of each" slip by
+    undetected. Found by the mutation pass, not written up front.)"""
+    ent_reg = [
+        {"entity_id": "binary_sensor.den_motion_a", "device_id": "dev-den"},
+        {"entity_id": "binary_sensor.den_motion_b", "device_id": "dev-den"},
+        {"entity_id": "binary_sensor.den_occupancy", "device_id": "dev-den"},
+    ]
+    states = {
+        # Identical name roots on purpose ("Den Motion" both times, once
+        # class-words are stripped) — a distinguishing "A"/"B" suffix would
+        # ALSO fail the name check on its own, masking the count check the
+        # same way the first attempt at this test did.
+        "binary_sensor.den_motion_a": {"state": "off", "attributes": {"friendly_name": "Den Motion", "device_class": "motion"}},
+        "binary_sensor.den_motion_b": {"state": "off", "attributes": {"friendly_name": "Den Motion", "device_class": "motion"}},
+        "binary_sensor.den_occupancy": {"state": "off", "attributes": {"friendly_name": "Den Occupancy", "device_class": "occupancy"}},
+    }
+    out = _run_pipeline_script(tmp_path, _pairing_script(ent_reg, states))
+    assert out == {}, out
+
+
+def test_pairing_requires_matching_names_not_just_the_shape(tmp_path):
+    """Exactly one motion, exactly one occupancy, same device_id — the
+    right SHAPE — but unrelated names. The second, independent signal
+    must also refuse this, or the shape check alone would have merged
+    two coincidentally-shaped zones on a differently-configured hub."""
+    ent_reg = [
+        {"entity_id": "binary_sensor.hub_kitchen_motion", "device_id": "dev-hub2"},
+        {"entity_id": "binary_sensor.hub_garage_occupancy", "device_id": "dev-hub2"},
+    ]
+    states = {
+        "binary_sensor.hub_kitchen_motion": {"state": "off", "attributes": {"friendly_name": "Kitchen Motion", "device_class": "motion"}},
+        "binary_sensor.hub_garage_occupancy": {"state": "off", "attributes": {"friendly_name": "Garage Occupancy", "device_class": "occupancy"}},
+    }
+    out = _run_pipeline_script(tmp_path, _pairing_script(ent_reg, states))
+    assert out == {}, out
+
+
+def test_a_paired_sensor_merges_into_one_marker_or_state_max_recency(tmp_path):
+    """End to end through gatherLights: the occupancy half never gets its
+    own row; the primary's state is EITHER half being on (stillness the
+    motion algorithm clears must not read as "gone quiet" while occupancy
+    still says someone is there); last_changed is whichever half moved
+    more recently — one true answer to "how long ago", not two."""
+    out = _run_pipeline_script(tmp_path, """
+const AREA = {"binary_sensor.lr_motion": "Living Room", "binary_sensor.lr_occupancy": "Living Room"};
+const PAIR = {"binary_sensor.lr_occupancy": "binary_sensor.lr_motion"};
+// Motion cleared 10 minutes ago; occupancy (the more recent, "still there"
+// signal) is STILL on right now.
+const STATES = {
+  "binary_sensor.lr_motion":    {state: "off", last_changed: "2026-01-01T00:00:00.000Z",
+                                  attributes: {friendly_name: "Living Room Motion", device_class: "motion"}},
+  "binary_sensor.lr_occupancy": {state: "on",  last_changed: "2026-01-01T00:10:00.000Z",
+                                  attributes: {friendly_name: "Living Room Occupancy", device_class: "occupancy"}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {}, PAIR);
+const ids = lights.map(l => l.entity_id).sort();
+const primary = lights.find(l => l.entity_id === "binary_sensor.lr_motion");
+console.log(JSON.stringify({ids, state: primary && primary.state, last_changed: primary && primary.last_changed, code: primary && primary.code}));
+""")
+    assert out["ids"] == ["binary_sensor.lr_motion"], "the occupancy half must not appear as its own row"
+    assert out["state"] == "on", "occupancy still on must keep the merged marker active even though motion itself cleared"
+    assert out["last_changed"] == "2026-01-01T00:10:00.000Z", "the more recent half's timestamp wins"
+    assert out["code"] == "M01", out
+
+
 def test_both_hosts_pass_the_tier():
     """The gate is only as good as its callers: both hosts hand settings.tier
     to gatherLights and to the card, and neither re-derives the ladder."""
     panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     maps = (_VIEWS / "maps.js").read_text(encoding="utf-8")
     assert "this.state._tier" in panel and "tier: this.state._tier" in panel
-    assert "gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides)" in panel
-    assert "gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides)" in maps
+    assert "gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides, reg.pairMap)" in panel
+    assert "gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides, reg.pairMap)" in maps
     assert "\n    tier,\n" in maps
     for src, name in ((panel, "lights_panel.js"), (maps, "maps.js")):
         assert "LIGHTING_TIER" not in src, f"{name} re-derives the lighting gate; lights_map.js owns it"
