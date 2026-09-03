@@ -18,7 +18,14 @@
 // those invisible as strips. Everything else runs A01…A99, B01… with both
 // letters skipped so no series ever collides.
 
+// An explicit type override (Pro — settings.light_type_overrides, attached
+// by gatherLights as l.type_override only at pro tier) fully decides a
+// light's class: detection got it wrong, the user said so, the user wins.
+// "wled" forces the W-series treatment onto a strip whose integration
+// exposes no effect_list; "plain" strips it from a light that reports
+// effects it doesn't meaningfully have; absent means detect as always.
 export function isWledLight(l) {
+  if (l.type_override) return l.type_override === "wled";
   return Array.isArray(l.effect_list) && l.effect_list.length > 0;
 }
 
@@ -27,12 +34,44 @@ export function isWledLight(l) {
 // free-text and a partition can be silent about effects. "partition" is HA's
 // own core light platform for splitting one strip into ranges.
 export function isPartitionLight(l) {
+  if (l.type_override) return l.type_override === "partition";
   return l.platform === "partition";
 }
 
-// Distinct marker border/stroke per strip class, in both views.
+// A fan.* entity riding the lights pipeline — the map shows the whole
+// ceiling, and half of what hangs from a ceiling that switches is a fan.
+// Class comes from the entity domain alone; overrides don't apply (a light
+// cannot become a fan by declaration — the services wouldn't exist).
+export function isFan(l) {
+  return String(l.entity_id || "").startsWith("fan.");
+}
+
+// A motion sensor on the same ceiling. gatherLights only admits
+// binary_sensor entities whose device_class is "motion", so the domain
+// prefix is a sufficient test past that gate. Read-only: no toggle, no
+// popup — its job on the map is the blue pulse while motion is active.
+export function isMotionSensor(l) {
+  return String(l.entity_id || "").startsWith("binary_sensor.");
+}
+
+// The type-override chooser's vocabulary — the UI's copy of const.py's
+// LIGHT_TYPE_OVERRIDE_KINDS ("auto" = no override, expressed by omitting
+// the entity, never stored). A test holds the two equal.
+export const LIGHT_TYPE_OVERRIDES = [
+  ["auto",      "Auto (detected)"],
+  ["wled",      "WLED / effect strip"],
+  ["partition", "ESPHome partition"],
+  ["plain",     "Plain light"],
+];
+
+// Distinct marker border/stroke per class, in both views.
 export const WLED_BORDER = "#c084fc";
 export const PARTITION_BORDER = "#38bdf8";
+export const FAN_BORDER = "#34d399";
+export const MOTION_BORDER = "#3b82f6";
+// The pulse a motion sensor throws while active — visibly bluer than any
+// room hue so a triggered sensor reads at a glance across the whole map.
+export const MOTION_PULSE = "#3b82f6";
 
 // ── Fixture shape ────────────────────────────────────────────────────────────
 // The marker's OUTLINE answers "what kind of light is that" without reading
@@ -59,6 +98,7 @@ export const LIGHT_SHAPES = [
   ["triangle",  "Spot / directional"],
   ["diamond",   "Indicator LED"],
   ["perimeter", "Room perimeter / cove"],
+  ["motion",    "Motion sensor"],
 ];
 
 // "perimeter" is drawn once, structurally differently from every shape
@@ -82,6 +122,10 @@ export function deriveLightShape(l) {
   const t = `${l.entity_id || ""} ${l.friendly_name || ""}`.toLowerCase();
   const has = (...words) => words.some(w => t.includes(w));
 
+  // Real fan.* and motion binary_sensor.* entities are typed by DOMAIN —
+  // no name needed.
+  if (isFan(l)) return "fan";
+  if (isMotionSensor(l)) return "motion";
   // A fan exposed as a light entity is not a light at all — worth seeing.
   if (has("fan")) return "fan";
   if (has("chandelier")) return "chandelier";
@@ -113,23 +157,32 @@ export function resolveLightShape(l, overrides) {
   return deriveLightShape(l);
 }
 
-// Letters reserved for a strip-class series, skipped as the generic series
-// counts past them — precomputed once so a third reserved letter is a
-// one-line change here, not new arithmetic.
-const _SERIES_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter(c => c !== "P" && c !== "W");
+// Letters reserved for a class series, skipped as the generic series counts
+// past them — precomputed once so another reserved letter is a one-line
+// change here, not new arithmetic.
+const _SERIES_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter(c => c !== "F" && c !== "M" && c !== "P" && c !== "W");
 
-// Mutates each light in place: sets l.code, l.isWled and l.isPartition. Pass
-// EVERY light entity (including hidden ones) so codes stay stable when
-// visibility changes. WLED is checked first: a partition entity that ALSO
-// advertises effects (an ESPHome segment with its own effects: block) reads
-// as WLED-class — the more specific, more capable identity wins.
+// Mutates each light in place: sets l.code, l.isWled, l.isPartition,
+// l.isFan and l.isMotion. Pass EVERY entity (including hidden ones) so
+// codes stay stable when visibility changes. Domain classes first — a fan
+// is a fan, a sensor is a sensor, whatever they advertise; then WLED before
+// partition: a partition segment that ALSO carries effects reads as
+// WLED-class — the more capable identity wins.
 export function assignLightCodes(lights) {
   const sorted = [...lights].sort((a, b) => a.entity_id.localeCompare(b.entity_id));
-  let w = 0, p = 0, n = 0;
+  let f = 0, m = 0, w = 0, p = 0, n = 0;
   const seriesCode = (idx) =>
     _SERIES_LETTERS[Math.floor(idx / 99)] + String((idx % 99) + 1).padStart(2, "0");
   for (const l of sorted) {
-    if (isWledLight(l)) {
+    l.isFan = isFan(l);
+    l.isMotion = isMotionSensor(l);
+    if (l.isFan) {
+      l.isWled = false; l.isPartition = false;
+      l.code = "F" + String((f++ % 99) + 1).padStart(2, "0");
+    } else if (l.isMotion) {
+      l.isWled = false; l.isPartition = false;
+      l.code = "M" + String((m++ % 99) + 1).padStart(2, "0");
+    } else if (isWledLight(l)) {
       l.isWled = true; l.isPartition = false;
       l.code = "W" + String((w++ % 99) + 1).padStart(2, "0");
     } else if (isPartitionLight(l)) {

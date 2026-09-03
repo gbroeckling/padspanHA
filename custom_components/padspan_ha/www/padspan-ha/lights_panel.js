@@ -196,6 +196,10 @@ class PadSpanLightsApp extends HTMLElement {
       // Per-light shape overrides — set in the Mapping → Lights tab, read here
       // so both views draw the same fixture outlines.
       this.state._shapeOverrides = (s.light_shapes && typeof s.light_shapes === "object") ? s.light_shapes : {};
+      // Read for display parity with the Mapping tab (the only place they
+      // are edited): a light forced to a class there must wear the same
+      // class here, or the two "identical" views disagree on its code.
+      this.state._typeOverrides = (s.light_type_overrides && typeof s.light_type_overrides === "object") ? s.light_type_overrides : {};
       // The presentation modes are set in the Mapping → Lights tab and read
       // here for the same reason the shapes are: this panel DISPLAYS the map
       // that tab BUILDS, so a mode that changed only one of them would mean
@@ -246,18 +250,23 @@ class PadSpanLightsApp extends HTMLElement {
 
   async _toggle(eid){
     if(!this._hass) return;
+    // The service domain is the entity's own: light.* → light, fan.* → fan.
+    // A motion sensor is read-only — a tap on it is a no-op, its state is
+    // the blue pulse on the map.
+    const domain=String(eid).split(".")[0];
+    if(domain==="binary_sensor"){ this._toast("Motion sensors are read-only"); return; }
     const on=this._hass.states[eid]?.state==="on";
     try{
       // Off→on restores the level it was dimmed to. HA drops `brightness`
       // while a light is off, so this comes from the shared memory
       // gatherLights keeps — a light that never reported one (or a plain
-      // switch) sends none and behaves exactly as before.
+      // switch, or a fan) sends none and behaves exactly as before.
       const data={entity_id:eid};
-      if(!on){
+      if(!on && domain==="light"){
         const bri=lastBrightness(eid);
         if(bri!==null) data.brightness=bri;
       }
-      await this._hass.callService("light", on?"turn_off":"turn_on", data);
+      await this._hass.callService(domain, on?"turn_off":"turn_on", data);
       setTimeout(()=>this._render(), 600);
     }catch(e){ this._toast("Could not toggle "+eid, true); }
   }
@@ -301,6 +310,8 @@ class PadSpanLightsApp extends HTMLElement {
     ]));
 
     const on=st.state==="on";
+    // The service domain is the entity's own — this popup serves fans too.
+    const domain=String(eid).split(".")[0];
     const onBtn=el("button",{
       style:`width:100%;margin-bottom:14px;padding:10px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;`+
             `letter-spacing:.02em;transition:filter .15s ease;`+
@@ -308,16 +319,69 @@ class PadSpanLightsApp extends HTMLElement {
               :"background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);"),
       onclick:async()=>{
         const data={entity_id:eid};
-        if(!on){
+        if(!on && domain==="light"){
           const bri=lastBrightness(eid);
           if(bri!==null) data.brightness=bri;
         }
-        try{ await this._hass.callService("light", on?"turn_off":"turn_on", data); }catch(e){}
+        try{ await this._hass.callService(domain, on?"turn_off":"turn_on", data); }catch(e){}
         close();
         setTimeout(()=>this._render(), 400);
       },
     }, on?"Turn Off":"Turn On");
     box.appendChild(onBtn);
+
+    // ── Fan card ─────────────────────────────────────────────────────────
+    // Set up like WLED in access and use: same hold to open, same on/off,
+    // then the fan's own controls, each only when the entity offers it —
+    // speed (percentage), preset modes, oscillation, direction.
+    if(domain==="fan"){
+      const lblStyle="font-size:12px;color:#94a3b8;margin-bottom:4px";
+      const selStyle="width:100%;background:#1a2e1e;color:#52b788;border:1px solid #2d4a36;border-radius:8px;padding:6px";
+      const pillStyle=(active)=>`flex:1;padding:8px;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;`+
+        (active?"background:rgba(52,211,153,.18);color:#6ee7b7;border:1px solid rgba(52,211,153,.45);"
+               :"background:rgba(255,255,255,.04);color:#94a3b8;border:1px solid rgba(120,190,155,.18);");
+      const call=async(svc,data)=>{
+        try{ await this._hass.callService("fan", svc, {entity_id:eid, ...data}); }
+        catch(e){ this._toast("Could not set fan "+svc, true); }
+        setTimeout(()=>this._render(), 400);
+      };
+      if(typeof attrs.percentage==="number" || Number.isFinite(Number(attrs.percentage))){
+        const cur=Math.max(0,Math.min(100,Number(attrs.percentage)||0));
+        const step=Math.max(1,Math.round(Number(attrs.percentage_step)||1));
+        const pctLbl=el("div",{style:lblStyle}, `Speed: ${cur}%`);
+        const pct=document.createElement("input");
+        pct.type="range"; pct.min="0"; pct.max="100"; pct.step=String(step); pct.value=String(cur);
+        pct.style.cssText="width:100%;accent-color:#34d399";
+        pct.addEventListener("input",()=>{ pctLbl.textContent=`Speed: ${pct.value}%`; });
+        pct.addEventListener("change",()=>call("set_percentage",{percentage:parseInt(pct.value,10)}));
+        box.appendChild(el("div",{style:"margin-bottom:12px"},[pctLbl,pct]));
+      }
+      if(Array.isArray(attrs.preset_modes) && attrs.preset_modes.length){
+        const sel=document.createElement("select");
+        sel.style.cssText=selStyle;
+        for(const m of attrs.preset_modes){
+          const o=document.createElement("option"); o.value=m; o.textContent=m;
+          if(m===attrs.preset_mode) o.selected=true;
+          sel.appendChild(o);
+        }
+        sel.addEventListener("change",()=>call("set_preset_mode",{preset_mode:sel.value}));
+        box.appendChild(el("div",{style:"margin-bottom:12px"},[el("div",{style:lblStyle},"Preset"), sel]));
+      }
+      const row=el("div",{style:"display:flex;gap:8px"});
+      if(typeof attrs.oscillating==="boolean"){
+        row.appendChild(el("button",{style:pillStyle(attrs.oscillating),
+          onclick:()=>call("oscillate",{oscillating:!attrs.oscillating})}, attrs.oscillating?"Oscillating ✓":"Oscillate"));
+      }
+      if(attrs.direction==="forward" || attrs.direction==="reverse"){
+        const nxt=attrs.direction==="forward"?"reverse":"forward";
+        row.appendChild(el("button",{style:pillStyle(false), title:`Currently ${attrs.direction}`,
+          onclick:()=>call("set_direction",{direction:nxt})}, attrs.direction==="forward"?"⟳ Forward":"⟲ Reverse"));
+      }
+      if(row.childNodes.length) box.appendChild(row);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+      return;
+    }
 
     // Dimmability is a CAPABILITY, not a current value: Home Assistant drops
     // the brightness attribute entirely while a light is off, so testing the
@@ -432,7 +496,7 @@ class PadSpanLightsApp extends HTMLElement {
       ? ensureLightsRegistry(this._regStore, this._hass, this.state.model.areas, ()=>this._render())
       : { areaMap:{}, platformMap:{}, loading:true };
     const lightsLoading = reg.loading;
-    const lights = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap);
+    const lights = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides);
 
     if(!lights.length){
       root.appendChild(el("div",{class:"muted",style:"padding:8px"},"No light entities found."));
@@ -496,7 +560,7 @@ class PadSpanLightsApp extends HTMLElement {
               this._toggle(g.dataset.eid);
             });
             const l0=lightsByEid[g.dataset.eid];
-            if(l0 && (isWledLight(l0) || isPartitionLight(l0) || l0.dimmable)){
+            if(l0 && (isWledLight(l0) || isPartitionLight(l0) || l0.dimmable || l0.isFan)){
               let t=null;
               g.addEventListener("pointerdown",()=>{
                 g._lpFired=false;
@@ -515,7 +579,7 @@ class PadSpanLightsApp extends HTMLElement {
         });
       },
       onRowClick: (l)=> this._toggle(l.entity_id),
-      onRowLongPress: (l)=>{ if(isWledLight(l) || isPartitionLight(l) || l.dimmable) this._openWledDetail(l.entity_id); },
+      onRowLongPress: (l)=>{ if(isWledLight(l) || isPartitionLight(l) || l.dimmable || l.isFan) this._openWledDetail(l.entity_id); },
       onToggleHidden: (eid)=>{
         if(hidden.has(eid)) hidden.delete(eid);
         else hidden.add(eid);

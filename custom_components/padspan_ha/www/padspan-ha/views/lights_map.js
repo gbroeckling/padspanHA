@@ -13,7 +13,8 @@
 
 const { buildIsoSVG, shapeSvg, fabricFrame, sampleSceneField } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
-const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, WLED_BORDER, PARTITION_BORDER } =
+const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
+        WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 const { tierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
@@ -52,6 +53,7 @@ export function lightsHostForTier(host){
     showcase: false, onShowcase: null,
     fitRooms: false, onFitRooms: null,
     hideUntouched: false, untouchedCount: 0, onHideUntouched: null,
+    onTypeOverride: null, typeOverrides: {},
     isolux: false, onIsolux: null,
     sceneName: null, onScene: null, onSceneAngle: null, onSceneApply: null,
     rippleArmed: false, onRipple: null, onRippleFire: null,
@@ -151,7 +153,9 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         for (const d of (devReg || [])) if (d.area_id) devAreaId[d.id] = d.area_id;
         const areaMap = {}, platformMap = {};
         for (const e of (reg || [])) {
-          if (!e.entity_id.startsWith("light.")) continue;
+          // Fans and motion sensors ride the lights pipeline now, so their
+          // room assignment resolves the same way a light's does.
+          if (!/^(light|fan|binary_sensor)\./.test(e.entity_id)) continue;
           const aid = e.area_id || devAreaId[e.device_id] || null;
           areaMap[e.entity_id] = aid ? (areaIdToName[aid] || null) : null;
           // The platform that CREATED the entity — "partition" for an
@@ -189,15 +193,34 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
 // the plain series — no shape, no override, no WLED/partition (see
 // lightsHostForTier). platformMap = registry platformMap from
 // ensureLightsRegistry, entity_id → the integration that created it.
-export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap){
+// typeOverrides = settings.light_type_overrides — a PRO control: below pro
+// the stored map is ignored entirely (detection rules), at pro it decides a
+// light's class outright (see isWledLight/isPartitionLight).
+// fan.* entities ride the same pipeline: same codes discipline (F-series),
+// same rooms, same table, same map — a ceiling has fans on it.
+export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides){
   const paid = lightingUnlocked(tier);
+  const pro = tierAtLeast(tier, "pro");
   const lights = Object.keys(states || {})
-    .filter(eid => eid.startsWith("light."))
+    .filter(eid => eid.startsWith("light.") || eid.startsWith("fan.")
+      // Motion sensors join by DEVICE CLASS, not domain alone — doors,
+      // windows and every other binary_sensor stay out of a lighting map.
+      || (eid.startsWith("binary_sensor.") && states[eid].attributes?.device_class === "motion"))
     .map(eid => ({
       entity_id:     eid,
       friendly_name: states[eid].attributes?.friendly_name || eid,
       state:         states[eid].state,   // "on" | "off" | "unavailable"
       area_name:     areaMap[eid] || null,
+      // The user's word beats detection, at pro: forced class from
+      // settings.light_type_overrides. Never applies to a fan (the domain is
+      // the class) and never below pro.
+      type_override: pro && !eid.startsWith("fan.") && typeOverrides ? (typeOverrides[eid] || null) : null,
+      // The fan card's inputs, present only on fan.* entities.
+      pct:           eid.startsWith("fan.") ? (Number.isFinite(Number(states[eid].attributes?.percentage)) ? Number(states[eid].attributes.percentage) : null) : null,
+      preset_modes:  eid.startsWith("fan.") && Array.isArray(states[eid].attributes?.preset_modes) ? states[eid].attributes.preset_modes : null,
+      preset_mode:   eid.startsWith("fan.") ? (states[eid].attributes?.preset_mode || null) : null,
+      oscillating:   eid.startsWith("fan.") ? (typeof states[eid].attributes?.oscillating === "boolean" ? states[eid].attributes.oscillating : null) : null,
+      direction:     eid.startsWith("fan.") ? (states[eid].attributes?.direction || null) : null,
       // The effect list is what makes a light WLED-class (W-series code,
       // purple border, effects dialog). Free tier: every light is a light.
       effect_list:   paid && Array.isArray(states[eid].attributes?.effect_list) ? states[eid].attributes.effect_list : null,
@@ -615,9 +638,13 @@ export function buildLightsTable(host, lights){
     const row = el("tr", { style: `cursor:pointer;opacity:${isHidden ? "0.45" : "1"}` }, [
       // Code + the same outline the map draws, so a row and its marker are
       // recognisably the same object. W-series purple = WLED-class,
-      // P-series blue = an ESPHome-style partition segment.
+      // P-series blue = an ESPHome-style partition segment, F green = fan,
+      // M blue = motion sensor.
       el("td", { style: "white-space:nowrap" }, (() => {
-        const swatch = l.isWled ? WLED_BORDER : (l.isPartition ? PARTITION_BORDER : "#52b788");
+        const swatch = l.isWled ? WLED_BORDER
+          : (l.isPartition ? PARTITION_BORDER
+          : (l.isFan ? FAN_BORDER
+          : (l.isMotion ? MOTION_BORDER : "#52b788")));
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         svg.setAttribute("width", "15"); svg.setAttribute("height", "15");
         svg.setAttribute("viewBox", "0 0 15 15");
@@ -656,14 +683,35 @@ export function buildLightsTable(host, lights){
           })()
       ),
       el("td", {}, el("span", { class: `lv-state ${on ? "on" : "off"}` }, on ? "ON" : "OFF")),
-      el("td", { style: "text-align:center" }, el("button", {
-        class: "lv-act",
-        style: isHidden ? "opacity:0.5" : "",
-        onclick: (e) => {
-          e.stopPropagation();
-          host.onToggleHidden(l.entity_id);
-        },
-      }, isHidden ? "Show" : "Hide")),
+      el("td", { style: "text-align:center;white-space:nowrap" }, [
+        // Pro only (the Mapping tab passes onTypeOverride only at pro; the
+        // sidebar and every lower tier pass none): force the class when
+        // detection got it wrong. Lights only — a fan or sensor IS its
+        // domain, there is nothing to override.
+        ...(host.onTypeOverride && !l.isFan && !l.isMotion ? [(() => {
+          const sel = document.createElement("select");
+          sel.className = "lv-select";
+          sel.title = "Override how PadSpan classes this light (Pro)";
+          sel.style.marginRight = "6px";
+          const cur = (host.typeOverrides || {})[l.entity_id] || "auto";
+          for (const [kind, label] of LIGHT_TYPE_OVERRIDES) {
+            const o = el("option", { value: kind }, label);
+            if (kind === cur) o.selected = true;
+            sel.appendChild(o);
+          }
+          sel.addEventListener("click", e => e.stopPropagation());
+          sel.addEventListener("change", (e) => { e.stopPropagation(); sel.disabled = true; host.onTypeOverride(l.entity_id, sel.value); });
+          return sel;
+        })()] : []),
+        el("button", {
+          class: "lv-act",
+          style: isHidden ? "opacity:0.5" : "",
+          onclick: (e) => {
+            e.stopPropagation();
+            host.onToggleHidden(l.entity_id);
+          },
+        }, isHidden ? "Show" : "Hide"),
+      ]),
     ]);
     row.addEventListener("click", () => {
       if (row._lpFired) { row._lpFired = false; return; }

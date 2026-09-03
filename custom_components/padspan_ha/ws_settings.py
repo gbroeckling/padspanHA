@@ -24,6 +24,7 @@ from .const import (
     DATA_COORDINATOR,
     DATA_CALIBRATION,
     DATA_ESPRESENSE_MQTT,
+    LIGHT_TYPE_OVERRIDE_KINDS,
 )
 from .bluetooth_live import get_bluetooth_live
 from .ws_common import _LIGHT_SHAPE_KINDS, _OBJECT_HISTORY_DAYS_DEFAULT, _OBJECT_HISTORY_DAY_CHOICES, _get_settings, _invalidate_snapshot_cache, _padspan_pro_active
@@ -100,6 +101,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("light_theme"): bool,
         vol.Optional("ui_skin"): str,
         vol.Optional("light_shapes"): dict,
+        vol.Optional("light_type_overrides"): dict,
         vol.Optional("beacon_auto_calibrate"): bool,
         vol.Optional("overview_persistent_pins"): bool,
         vol.Optional("overview_show_walls"): bool,
@@ -356,6 +358,19 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 payload["light_shapes"] = {
                     str(k): str(v) for k, v in raw.items()
                     if str(v) in _LIGHT_SHAPE_KINDS and str(k).startswith("light.")
+                }
+        if "light_type_overrides" in msg:
+            # entity_id -> forced class (wled/partition/plain), same discipline
+            # as light_shapes above: closed vocabulary, light.* keys only,
+            # "auto" is expressed by omitting the entity. A Pro feature — the
+            # frontend only offers the control at pro and ignores the stored
+            # map below pro, but the storage itself is tier-blind like every
+            # other setting (data survives a lapsed licence).
+            raw = msg["light_type_overrides"]
+            if isinstance(raw, dict):
+                payload["light_type_overrides"] = {
+                    str(k): str(v) for k, v in raw.items()
+                    if str(v) in LIGHT_TYPE_OVERRIDE_KINDS and str(k).startswith("light.")
                 }
         if "object_history_days" in msg:
             _days = int(msg["object_history_days"])

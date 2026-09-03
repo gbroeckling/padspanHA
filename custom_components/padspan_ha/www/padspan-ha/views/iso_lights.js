@@ -18,7 +18,7 @@
 // refused to place a light. Everything the view needs is in the fabric, in
 // metres, and now that is the only thing it reads.
 
-const { WLED_BORDER, PARTITION_BORDER } =
+const { WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, MOTION_PULSE } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 
 function escSVG(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
@@ -274,6 +274,12 @@ export function shapeSvg(kind, cx, cy, r, attrs){
     case "perimeter":
       return `<rect x="${n(cx-HW)}" y="${n(cy-HW)}" width="${n(HW*2)}" height="${n(HW*2)}" `+
              `rx="${n(HW*0.42)}" ${attrs}/>`;
+    // A motion sensor: the ceiling-plan PIR symbol — a solid dome. The
+    // detection fan lives in the detail layer; what a sensor is DOING lives
+    // in the blue pulse drawn under the marker while it is triggered.
+    case "motion":
+      return poly(arcPts(cx,cy+HW*0.45,HW,HW*1.15,180,360,14)
+        .map(p=>`${n(p[0])},${n(p[1])}`).join(" "));
     case "triangle":
       return poly([[cx,cy-r],[cx+HW,cy+r*0.62],[cx-HW,cy+r*0.62]]
         .map(p=>`${n(p[0])},${n(p[1])}`).join(" "));
@@ -361,6 +367,9 @@ export function shapeDetailSvg(kind, cx, cy, r, ink, sw){
     // full-size on the floor: a boundary, traced inside another boundary.
     case "perimeter": return `<rect x="${n(cx-HW*0.62)}" y="${n(cy-HW*0.62)}" `+
                              `width="${n(HW*1.24)}" height="${n(HW*1.24)}" rx="${n(HW*0.3)}" ${a}/>`;
+    // The PIR lens segments across the dome.
+    case "motion": return path(sub(arcPts(cx,cy+HW*0.45,HW*0.6,HW*0.7,180,360,10)))+
+                          line(cx,cy-HW*0.25,cx,cy+HW*0.45);
     // A plain fixture plate: bevel, plus the lamp behind it.
     default:         return path(sub(arcPts(cx,cy,r*0.6,r*0.6,90,450,6)))+dot(cx,cy,HW*0.15);
   }
@@ -942,12 +951,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   if(SHOW){
     for(const l of lights){
       const li=lightsByEid[l.eid];
-      if(!li || li.state!=="on" || hiddenEids.has(l.eid)) continue;
+      if(!li || li.state!=="on" || hiddenEids.has(l.eid) || li.isFan || li.isMotion) continue;
       const c=(FIELD ? fieldColOf(l.x,l.y,l.z) : null) || glowCol(li,l.lp);
       if(!glowIds.has(c)) glowIds.set(c, `psglow_${glowIds.size}`);
     }
     for(const rname of Object.keys(byRoom||{})) for(const li of byRoom[rname]||[]){
-      if(li.state!=="on" || hiddenEids.has(li.entity_id)) continue;
+      if(li.state!=="on" || hiddenEids.has(li.entity_id) || li.isFan || li.isMotion) continue;
       const rc=FIELD && roomCentre.get(rname);
       const c=(rc ? fieldColOf(rc[0],rc[1],rc[2]) : null) || glowCol(li, null);
       if(!glowIds.has(c)) glowIds.set(c, `psglow_${glowIds.size}`);
@@ -1036,6 +1045,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
   // Floor surface patterns
   s+=`<defs>`;
+  // Motion pulse gradient — UNGATED (both modes): a triggered sensor is
+  // status, not presentation, and it has to read on the working map too.
+  s+=`<radialGradient id="psmotion">`+
+    `<stop offset="0%" stop-color="${MOTION_PULSE}" stop-opacity="0.55"/>`+
+    `<stop offset="60%" stop-color="${MOTION_PULSE}" stop-opacity="0.18"/>`+
+    `<stop offset="100%" stop-color="${MOTION_PULSE}" stop-opacity="0"/></radialGradient>`;
   if(SHOW){
     // Light pools. Four stops, not two: a linear ramp reads as a flat disc with
     // a hard edge, and the near-quadratic falloff here is what makes it look
@@ -1229,7 +1244,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // Showcase: a dark fixture is slate and recedes; the eye should go to
       // what is actually lit. Working mode keeps the flat pair it always had.
       const fill=on?lit:(SHOW?"#1b2733":"#374151");
-      const stripBorder=l.isWled?WLED_BORDER:(l.isPartition?PARTITION_BORDER:null);
+      const stripBorder=l.isWled?WLED_BORDER
+        :(l.isPartition?PARTITION_BORDER
+        :(l.isFan?FAN_BORDER
+        :(l.isMotion?MOTION_BORDER:null)));
       const stroke=SHOW
         ? (on?(stripBorder||"#f8fafc"):"#3f5165")
         : (stripBorder||"#60a5fa");
@@ -1358,15 +1376,23 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const ppx=inset.map(p=>pt(iso(p[0],p[1],room.z))).join(" ");
       const on=l.state==="on";
       const col=bodyCol(l,entry);
+      // The crisp line wears the SAME outline colours every other marker
+      // does (blue working / white lit / slate off, strip borders first) —
+      // it used to draw in the fixture's body colour, which for the default
+      // amber meant "a yellow line" indistinguishable from yellow-hued room
+      // outlines. The LIGHT'S colour still shows where it belongs: the
+      // Showcase glow underneath stays in the live colour.
+      const stripBorder=l.isWled?WLED_BORDER:(l.isPartition?PARTITION_BORDER:null);
+      const lineCol=SHOW ? (on?(stripBorder||"#f8fafc"):"#3f5165") : (stripBorder||"#60a5fa");
       const op=SHOW?(on?0.95:0.4):(on?1:0.45);
       const sw=Math.max(1.4, frame.scale*0.05);
       const eidAttr=`data-eid="${escSVG(l.entity_id)}"`;
-      let s2=`<polygon ${eidAttr} points="${ppx}" fill="none" stroke="${col}" stroke-width="${sw.toFixed(2)}" `+
+      let s2=`<polygon ${eidAttr} points="${ppx}" fill="none" stroke="${lineCol}" stroke-width="${sw.toFixed(2)}" `+
         `stroke-linejoin="round" opacity="${op}" pointer-events="none"/>`;
       // Showcase: the trace also glows, faintly, the same way a real cove
       // run washes the ceiling line beside it — a wider, softer duplicate
       // underneath the crisp line, reusing the blur filter the room clips
-      // already declared.
+      // already declared. This half keeps the fixture's own colour.
       if(SHOW && on) s2=`<polygon ${eidAttr} points="${ppx}" fill="none" stroke="${col}" `+
         `stroke-width="${(sw*3.5).toFixed(2)}" stroke-linejoin="round" opacity="0.28" `+
         `filter="url(#psclipsoft)" pointer-events="none"/>`+s2;
@@ -1397,8 +1423,27 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // coordinates and room polygons are in scope — {col} overrides the pool
     // colour (scene preview), {spill} is wall-spill line segments already
     // projected to px: [[x1,y1,x2,y2,fade], ...].
+    // The blue pulse a triggered motion sensor throws — both modes, drawn
+    // in the same underlay pass as the light pools so it sits beneath every
+    // marker. Two layers: a breathing soft disc, and a ring that expands
+    // and fades, radar-style, on a shared 1.6s clock.
+    const motionPulseSvg=(hx,hy)=>{
+      const r0=HEX_R*1.15;
+      return `<g pointer-events="none">`+
+        `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${(r0*1.6).toFixed(1)}" fill="url(#psmotion)" opacity="0.55">`+
+        `<animate attributeName="opacity" values="0.55;0.2;0.55" dur="1.6s" repeatCount="indefinite"/>`+
+        `</circle>`+
+        `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${r0.toFixed(1)}" fill="none" stroke="${MOTION_PULSE}" stroke-width="1.6">`+
+        `<animate attributeName="r" values="${(r0*0.7).toFixed(1)};${(r0*2.4).toFixed(1)}" dur="1.6s" repeatCount="indefinite"/>`+
+        `<animate attributeName="opacity" values="0.8;0" dur="1.6s" repeatCount="indefinite"/>`+
+        `</circle></g>`;
+    };
+
     const glowSvg=(l,hx,hy,entry,clipId,fx)=>{
       if(l.state!=="on") return "";
+      // Fans and motion sensors are on the map, but they are not light
+      // sources — nothing pools on the floor beneath them.
+      if(l.isFan||l.isMotion) return "";
       const col=(fx&&fx.col)||glowCol(l,entry);
       const b=briOf(l);
       const beam=BEAM[l.shape]||1;
@@ -1567,7 +1612,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // Wall spill: every wall of the fixture's room its pool actually
         // reaches, faded by how far away the wall is.
         let spillSegs=null;
-        if(room && l.state==="on"){
+        if(room && l.state==="on" && !l.isFan && !l.isMotion){
           const reach=poolReachM(l)*0.8;
           for(let i=0,j=room.pts.length-1;i<room.pts.length;j=i++){
             const d=pointSegDist(pl.x, pl.y, room.pts[j], room.pts[i]);
@@ -1649,6 +1694,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         }
       }
     }
+    // Triggered motion sensors pulse blue beneath their markers — BOTH
+    // modes, unlike the light pools above: a tripped sensor is live status,
+    // not a presentation effect.
+    for(const [l2,hx,hy] of jobs) if(l2.isMotion && l2.state==="on") s+=motionPulseSvg(hx,hy);
     for(const j of jobs) s+=markerSvg(...j);
 
     // Floor level badge

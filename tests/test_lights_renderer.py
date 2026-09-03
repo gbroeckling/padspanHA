@@ -1066,9 +1066,9 @@ def test_perimeter_shape(tmp_path):
         "const work=mk({}), show=mk({showcase:true});\n"
         "const out={};\n"
         "const traces=(svg,eid)=>[...svg.matchAll(\n"
-        "  new RegExp('<polygon data-eid=\"'+eid.replace('.','\\\\.')+'\" points=\"([^\"]+)\"[^>]*'\n"
-        "    +'stroke-width=\"([0-9.]+)\"[^>]*opacity=\"([0-9.]+)\"([^>]*)/>','g'))]\n"
-        "  .map(m=>({pts:m[1], sw:Number(m[2]), op:Number(m[3]), soft:m[4].includes('psclipsoft')}));\n"
+        "  new RegExp('<polygon data-eid=\"'+eid.replace('.','\\\\.')+'\" points=\"([^\"]+)\" fill=\"none\" '\n"
+        "    +'stroke=\"([^\"]+)\" stroke-width=\"([0-9.]+)\"[^>]*opacity=\"([0-9.]+)\"([^>]*)/>','g'))]\n"
+        "  .map(m=>({pts:m[1], stroke:m[2], sw:Number(m[3]), op:Number(m[4]), soft:m[5].includes('psclipsoft')}));\n"
         "const roomFillPts=/<polygon points=\"([^\"]+)\" fill=\"[^\"]*\" fill-opacity=\"0\\.16\"/.exec(work)[1];\n"
         "out.roomFillPts=roomFillPts;\n"
         "out.zeroWork=traces(work,'light.zero');\n"
@@ -1128,6 +1128,15 @@ def test_perimeter_shape(tmp_path):
     assert out["coveShow"][0]["sw"] > out["coveShow"][1]["sw"]
     assert out["coveShow"][0]["op"] < out["coveShow"][1]["op"]
     assert out["coveShow"][0]["soft"] and not out["coveShow"][1]["soft"], out["coveShow"]
+
+    # The crisp line wears the standard marker outline colours, never the
+    # fixture's body colour ("not a yellow line" — Garry): blue in the
+    # working map, white lit / slate off in Showcase. The GLOW half is where
+    # the fixture's own colour lives.
+    assert out["zeroWork"][0]["stroke"] == "#60a5fa", out["zeroWork"]
+    assert out["offWork"][0]["stroke"] == "#60a5fa", out["offWork"]
+    assert out["coveShow"][1]["stroke"] == "#f8fafc", out["coveShow"]
+    assert out["coveShow"][0]["stroke"] == "#22c55e", "the Showcase glow must keep the fixture's own colour"
 
     # A non-perimeter shape and a light outside every room draw no trace.
     assert out["circleWork"] == []

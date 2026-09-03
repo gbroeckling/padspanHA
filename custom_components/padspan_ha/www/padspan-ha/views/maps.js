@@ -6495,7 +6495,12 @@ function _lightsTab(ctx, maps, active) {
   // key and every placement is back.
   const paid = _isPro(ctx);
   if (!paid) { mapState._lightsDraftM = {}; mapState._selLight = null; mapState._lightsTransform = false; }
-  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap);
+  // The type override is PRO specifically — not the bright-or-pro gate
+  // _isPro answers. (_isPro's name predates the tier ladder; it means paid.)
+  const proTier = String(tier || "").toLowerCase() === "pro";
+  const typeOverrides = (ctx.state.settings?.light_type_overrides && typeof ctx.state.settings.light_type_overrides === "object")
+    ? ctx.state.settings.light_type_overrides : {};
+  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides);
 
   const head = el("div", { class: "card lv-mapcard", style: "margin-bottom:12px" }, [
     el("div", { class: "card-head" }, [
@@ -6548,17 +6553,21 @@ function _lightsTab(ctx, maps, active) {
 
   const toggle = async (eid) => {
     if (!ctx.hass) return;
+    // Service domain is the entity's own (light / fan); a motion sensor is
+    // read-only — same rules as the sidebar.
+    const domain = String(eid).split(".")[0];
+    if (domain === "binary_sensor") { ctx.toast("Motion sensors are read-only"); return; }
     const on = ctx.hass.states[eid]?.state === "on";
     try {
       // Off→on restores the last dimmed level (shared memory in
       // lights_map.js) — same behaviour as the sidebar, same source, so the
       // two views cannot disagree about what "on" brings back.
       const data = { entity_id: eid };
-      if (!on) {
+      if (!on && domain === "light") {
         const bri = lastBrightness(eid);
         if (bri !== null) data.brightness = bri;
       }
-      await ctx.hass.callService("light", on ? "turn_off" : "turn_on", data);
+      await ctx.hass.callService(domain, on ? "turn_off" : "turn_on", data);
       setTimeout(() => ctx.actions.renderRooms(), 600);
     } catch(err) {
       ctx.toast("Could not toggle " + eid, true);
@@ -6783,6 +6792,16 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not save hidden lights: " + String(e), true); }
       ctx.actions.renderRooms();
     },
+    // Pro only: force a light's class when detection got it wrong. Absent
+    // below pro, so the shared table renders no control there at all.
+    onTypeOverride: proTier ? async (eid, kind) => {
+      const next = { ...typeOverrides };
+      if (!kind || kind === "auto") delete next[eid]; else next[eid] = kind;
+      try { await ctx.actions.settingsSet({ light_type_overrides: next }); }
+      catch (e) { ctx.toast("Could not save the type override: " + String(e), true); }
+      ctx.actions.renderRooms();
+    } : null,
+    typeOverrides,
     afterAssign: () => {
       const st = ctx.state._lightsRegStore;
       if (st.reg) st.reg.ts = 0;   // background refresh, keep serving current copy

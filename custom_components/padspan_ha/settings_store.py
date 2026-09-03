@@ -76,6 +76,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # Reverting is this key (Settings → Appearance), not a redeploy.
     "ui_skin": "2025",   # "2025" | "classic"
     "light_shapes": {},     # entity_id -> marker shape; overrides the shape derived from the entity
+    "light_type_overrides": {},  # entity_id -> forced class (wled/partition/plain); Pro-only control, tier-blind storage
     "lights_showcase": False,  # Mapping -> Lights: presentation rendering of the same map
     "lights_fit_rooms": False,  # Mapping -> Lights Showcase: never draw a fixture larger than its room
     "lights_isolux": False,  # Mapping -> Lights Showcase: relative-illuminance contours on the metre grid

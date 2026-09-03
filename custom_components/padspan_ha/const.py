@@ -126,8 +126,18 @@ CRITIC_WARNING_ERROR_M = 1.2
 # shape but not an override (an override that says auto is simply absent).
 LIGHT_SHAPE_KINDS = frozenset({
     "hex", "circle", "bar", "line", "square", "triangle", "diamond",
-    "fan", "sconce", "pendant", "chandelier", "perimeter",
+    "fan", "sconce", "pendant", "chandelier", "perimeter", "motion",
 })
+
+# ── Light type overrides (Pro) ──────────────────────────────────────────────
+# Forces how a light is CLASSED — WLED-class, ESPHome-partition-class, or
+# plain — when detection gets it wrong (an addressable strip whose
+# integration exposes no effect_list, say, or a light that reports effects
+# it doesn't meaningfully have). The frontend copy is LIGHT_TYPE_OVERRIDES
+# in www/padspan-ha/views/light_codes.js — a test holds the two equal, the
+# same discipline as LIGHT_SHAPE_KINDS above ("auto" is the UI's word for
+# "no override" and is expressed by omitting the entity, never stored).
+LIGHT_TYPE_OVERRIDE_KINDS = frozenset({"wled", "partition", "plain"})
 
 # ── Outdoors ────────────────────────────────────────────────────────────────
 # What "the outdoor floor" is called: the fabric's sentinel and the names a
