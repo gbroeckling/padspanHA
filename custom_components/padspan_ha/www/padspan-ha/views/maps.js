@@ -19,7 +19,7 @@ const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM
 // verbatim by the Lights sidebar panel, so the two tools always show the
 // identical map; this tab layers the build tools on top of it.
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
-        sunAmbient } =
+        sunAmbient, lastBrightness } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape } =
@@ -6550,7 +6550,15 @@ function _lightsTab(ctx, maps, active) {
     if (!ctx.hass) return;
     const on = ctx.hass.states[eid]?.state === "on";
     try {
-      await ctx.hass.callService("light", on ? "turn_off" : "turn_on", { entity_id: eid });
+      // Off→on restores the last dimmed level (shared memory in
+      // lights_map.js) — same behaviour as the sidebar, same source, so the
+      // two views cannot disagree about what "on" brings back.
+      const data = { entity_id: eid };
+      if (!on) {
+        const bri = lastBrightness(eid);
+        if (bri !== null) data.brightness = bri;
+      }
+      await ctx.hass.callService("light", on ? "turn_off" : "turn_on", data);
       setTimeout(() => ctx.actions.renderRooms(), 600);
     } catch(err) {
       ctx.toast("Could not toggle " + eid, true);

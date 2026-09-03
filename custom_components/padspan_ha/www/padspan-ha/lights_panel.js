@@ -23,7 +23,7 @@ const { isWledLight, isPartitionLight } =
 // verbatim by the Mapping → Lights tab (the builder for this display), so the
 // two tools always show the identical map. All lights-view edits go in there.
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
-        sunAmbient } =
+        sunAmbient, lastBrightness } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 
 // ── DOM helpers ──────────────────────────────────────────────────────────────
@@ -48,10 +48,12 @@ function el(tag, attrs={}, children=[]){
 // TWO classes: WLED-class advertises an effect list; partition-class is an
 // ESPHome-style `light.partition` entity (a physical strip split by LED
 // range), signalled by the entity registry rather than by effects, since
-// most partitions carry none. Both get the long-press effects/detail popup
-// below. Everything else this panel shows (registry pipeline, map card,
-// index table) lives in views/lights_map.js, shared with the Mapping →
-// Lights tab.
+// most partitions carry none. Both get the long-press detail popup below —
+// and so does any plain DIMMABLE light (l.dimmable from the shared
+// pipeline): the popup is capability-driven, so a hold on a dimmer offers
+// brightness where a strip also offers colour and effects. Everything else
+// this panel shows (registry pipeline, map card, index table) lives in
+// views/lights_map.js, shared with the Mapping → Lights tab.
 
 // ── Persistence key ──────────────────────────────────────────────────────────
 const LS_HIDDEN = "padspan_ha_lights_hidden";
@@ -246,15 +248,26 @@ class PadSpanLightsApp extends HTMLElement {
     if(!this._hass) return;
     const on=this._hass.states[eid]?.state==="on";
     try{
-      await this._hass.callService("light", on?"turn_off":"turn_on", {entity_id:eid});
+      // Off→on restores the level it was dimmed to. HA drops `brightness`
+      // while a light is off, so this comes from the shared memory
+      // gatherLights keeps — a light that never reported one (or a plain
+      // switch) sends none and behaves exactly as before.
+      const data={entity_id:eid};
+      if(!on){
+        const bri=lastBrightness(eid);
+        if(bri!==null) data.brightness=bri;
+      }
+      await this._hass.callService("light", on?"turn_off":"turn_on", data);
       setTimeout(()=>this._render(), 600);
     }catch(e){ this._toast("Could not toggle "+eid, true); }
   }
 
-  // Detailed control popup for WLED-class lights (effect list present):
-  // on/off, brightness, RGB color, effect. Appended to document.body (not
-  // the shadow root) so it isn't clipped by the panel's scroll container —
-  // same reasoning as _toast, so styling is fully inline throughout.
+  // Detail popup, capability-driven: on/off always; brightness, RGB colour
+  // and effect each appear only when the light offers them. Reached by a
+  // long-press on WLED-class, partition and plain dimmable lights alike —
+  // a dimmer gets the slider, a strip gets the lot. Appended to
+  // document.body (not the shadow root) so it isn't clipped by the panel's
+  // scroll container — same reasoning as _toast, so styling is fully inline.
   _openWledDetail(eid){
     if(!this._hass) return;
     const st=this._hass.states[eid];
@@ -288,7 +301,12 @@ class PadSpanLightsApp extends HTMLElement {
       style:`width:100%;margin-bottom:12px;padding:8px;font-weight:700;border:none;border-radius:6px;cursor:pointer;`+
             `background:${on?"#fbbf24":"#374151"};color:${on?"#111827":"#fbbf24"}`,
       onclick:async()=>{
-        try{ await this._hass.callService("light", on?"turn_off":"turn_on", {entity_id:eid}); }catch(e){}
+        const data={entity_id:eid};
+        if(!on){
+          const bri=lastBrightness(eid);
+          if(bri!==null) data.brightness=bri;
+        }
+        try{ await this._hass.callService("light", on?"turn_off":"turn_on", data); }catch(e){}
         close();
         setTimeout(()=>this._render(), 400);
       },
@@ -452,12 +470,13 @@ class PadSpanLightsApp extends HTMLElement {
       toast: (m,isErr)=>this._toast(m,isErr),
       // Sidebar interaction: a hex controls the light (the Mapping tab's
       // host instead wires selection + drag-to-place on the same hexes).
-      // A tap is the light switch, whatever the light — turn_on restores the
-      // device's own last settings, so the map never second-guesses them.
-      // The effects popup moved to a LONG PRESS (500ms), and only for
-      // strip-class lights (WLED, or an ESPHome-style partition segment); it
-      // used to steal the plain tap on every one of them, which made the most
-      // capable lights the only ones you couldn't simply switch from the map.
+      // A tap is the light switch, whatever the light — and off→on restores
+      // the last dimmed level from the shared memory, so a lamp left at 20%
+      // comes back at 20%, not full. The detail popup is a LONG PRESS
+      // (500ms), for anything with more than on/off to offer: strip-class
+      // lights (WLED, ESPHome partition) and plain dimmables alike. It used
+      // to steal the plain tap on every effect-capable light, which made the
+      // most capable lights the only ones you couldn't simply switch.
       onHexesBuilt: (isoDiv)=>{
         requestAnimationFrame(()=>{
           isoDiv.querySelectorAll(".lhex").forEach(g=>{
@@ -467,7 +486,7 @@ class PadSpanLightsApp extends HTMLElement {
               this._toggle(g.dataset.eid);
             });
             const l0=lightsByEid[g.dataset.eid];
-            if(l0 && (isWledLight(l0) || isPartitionLight(l0))){
+            if(l0 && (isWledLight(l0) || isPartitionLight(l0) || l0.dimmable)){
               let t=null;
               g.addEventListener("pointerdown",()=>{
                 g._lpFired=false;
@@ -486,7 +505,7 @@ class PadSpanLightsApp extends HTMLElement {
         });
       },
       onRowClick: (l)=> this._toggle(l.entity_id),
-      onRowLongPress: (l)=>{ if(isWledLight(l) || isPartitionLight(l)) this._openWledDetail(l.entity_id); },
+      onRowLongPress: (l)=>{ if(isWledLight(l) || isPartitionLight(l) || l.dimmable) this._openWledDetail(l.entity_id); },
       onToggleHidden: (eid)=>{
         if(hidden.has(eid)) hidden.delete(eid);
         else hidden.add(eid);

@@ -76,6 +76,32 @@ export function sceneFieldFor(name, angleDeg){
   return f ? { stops: f.stops, angleDeg: Number(angleDeg)||0 } : null;
 }
 
+// ── Last dimmed level ────────────────────────────────────────────────────────
+// HA drops the `brightness` attribute the moment a light turns off, so "turn
+// it back on at the level it was dimmed to" needs a memory. gatherLights
+// records every ON light's brightness as it passes; the toggle paths read it
+// back when switching off→on. Best-effort persisted so it survives a reload;
+// everything is guarded because this module also runs under node in tests
+// and localStorage can be absent or full.
+const _LAST_BRI_KEY = "padspan_ha_last_bri";
+let _lastBri = null;
+function _briStore(){
+  if (_lastBri) return _lastBri;
+  _lastBri = {};
+  try { Object.assign(_lastBri, JSON.parse(localStorage.getItem(_LAST_BRI_KEY) || "{}")); } catch (_) {}
+  return _lastBri;
+}
+function _recordBrightness(eid, bri){
+  const s = _briStore();
+  if (s[eid] === bri) return;
+  s[eid] = bri;
+  try { localStorage.setItem(_LAST_BRI_KEY, JSON.stringify(s)); } catch (_) {}
+}
+export function lastBrightness(eid){
+  const v = _briStore()[eid];
+  return typeof v === "number" && v >= 1 && v <= 255 ? v : null;
+}
+
 // Daylight for the Showcase ground, from the sun HA already tracks: 0 at
 // civil-twilight end and below, 1 from +6° elevation up. Both hosts call
 // this so the builder and the sidebar agree on what time it is.
@@ -187,12 +213,24 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap)
       // Kelvin, ungated like rgb/bri: a white-only bulb's pool should read
       // warm or cool as the bulb actually is, not default amber.
       ct:            Number(states[eid].attributes?.color_temp_kelvin) || null,
+      // Dimmable is a CAPABILITY and ungated like rgb/bri — it gates whether
+      // a long-press has anything to offer, which is control, not a paid map
+      // feature. Same evidence rule the popup itself uses: the modes say so,
+      // or the light is reporting a brightness right now.
+      dimmable:      (Array.isArray(states[eid].attributes?.supported_color_modes)
+                        && states[eid].attributes.supported_color_modes.some(m => m !== "onoff" && m !== "unknown"))
+                     || typeof states[eid].attributes?.brightness === "number",
     }))
     .sort((a, b) =>
       (a.area_name || "\xff").localeCompare(b.area_name || "\xff") ||
       a.friendly_name.localeCompare(b.friendly_name));
   assignLightCodes(lights);
-  for (const l of lights) l.shape = paid ? resolveLightShape(l, shapeOverrides) : "hex";
+  for (const l of lights) {
+    l.shape = paid ? resolveLightShape(l, shapeOverrides) : "hex";
+    // The last dimmed level is only visible while a light is on — remember
+    // it here, on the pass both views already make, so off→on can restore it.
+    if (l.state === "on" && typeof l.bri === "number" && l.bri >= 1) _recordBrightness(l.entity_id, l.bri);
+  }
   return lights;
 }
 

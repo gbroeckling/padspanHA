@@ -272,6 +272,48 @@ def test_an_unknown_tier_is_free(out):
         assert not out[tier]["hasShowcaseBtn"], tier
 
 
+def test_last_dimmed_level_is_remembered_and_dimmable_is_derived(tmp_path):
+    """Off→on restores the level a light was dimmed to. HA drops `brightness`
+    the moment a light turns off, so gatherLights records it while the light
+    is ON and lastBrightness() serves it back — and `dimmable` (which gates
+    the long-press popup) derives from capability, not current state."""
+    _stage(tmp_path)
+    script = """
+import { install } from './dom_shim.mjs';
+install(globalThis);
+const LM = await import('./lights_map.mjs');
+const AREA = {"light.dim": "Kitchen", "light.plug": "Kitchen"};
+const ON = {
+  "light.dim":  {state: "on",  attributes: {friendly_name: "Dimmer", supported_color_modes: ["brightness"], brightness: 51}},
+  "light.plug": {state: "on",  attributes: {friendly_name: "Plug", supported_color_modes: ["onoff"]}},
+};
+const OFF = {
+  "light.dim":  {state: "off", attributes: {friendly_name: "Dimmer", supported_color_modes: ["brightness"]}},
+  "light.plug": {state: "off", attributes: {friendly_name: "Plug", supported_color_modes: ["onoff"]}},
+};
+const out = {};
+const onLights = LM.gatherLights(ON, AREA, {}, "pro");
+out.dimmableOn = onLights.find(l => l.entity_id === "light.dim").dimmable;
+out.plugDimmable = onLights.find(l => l.entity_id === "light.plug").dimmable;
+LM.gatherLights(OFF, AREA, {}, "pro");   // the off pass must NOT erase the memory
+out.remembered = LM.lastBrightness("light.dim");
+out.plugRemembered = LM.lastBrightness("light.plug");
+// Capability survives the light being off — modes still say it dims.
+out.dimmableOff = LM.gatherLights(OFF, AREA, {}, "pro").find(l => l.entity_id === "light.dim").dimmable;
+console.log(JSON.stringify(out));
+"""
+    (tmp_path / "run2.mjs").write_text(script, encoding="utf-8")
+    res = subprocess.run([_NODE, str(tmp_path / "run2.mjs")], capture_output=True,
+                         text=True, encoding="utf-8", timeout=120)
+    assert res.returncode == 0, f"node failed:\n{res.stderr[-4000:]}"
+    out = json.loads(res.stdout.strip().splitlines()[-1])
+    assert out["dimmableOn"] is True
+    assert out["dimmableOff"] is True, "capability must not vanish while the light is off"
+    assert out["plugDimmable"] is False, "an onoff-only light must not offer the popup"
+    assert out["remembered"] == 51, out
+    assert out["plugRemembered"] is None, "a light that never reported brightness has nothing to restore"
+
+
 def test_both_hosts_pass_the_tier():
     """The gate is only as good as its callers: both hosts hand settings.tier
     to gatherLights and to the card, and neither re-derives the ladder."""
