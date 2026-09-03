@@ -18,7 +18,7 @@
 // refused to place a light. Everything the view needs is in the fabric, in
 // metres, and now that is the only thing it reads.
 
-const { WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, MOTION_PULSE } =
+const { WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, MOTION_PULSE, TEMP_BORDER } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 
 function escSVG(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
@@ -280,6 +280,16 @@ export function shapeSvg(kind, cx, cy, r, attrs){
     case "motion":
       return poly(arcPts(cx,cy+HW*0.45,HW,HW*1.15,180,360,14)
         .map(p=>`${n(p[0])},${n(p[1])}`).join(" "));
+    // A thermometer: slim stem, round bulb at the foot — the one glyph here
+    // that isn't a light fixture at all, so it has to read as unmistakably
+    // something else. The reading itself (when fresh and placed) is drawn
+    // separately, in place of the code — this is just what marks the spot.
+    case "tempreadout": {
+      const bulbR=HW*0.42, stemW=HW*0.3, stemTop=cy-r*0.72, stemBot=cy+HW*0.18;
+      return `<rect x="${n(cx-stemW/2)}" y="${n(stemTop)}" width="${n(stemW)}" `+
+        `height="${n(stemBot-stemTop)}" rx="${n(stemW/2)}" ${attrs}/>`+
+        `<circle cx="${n(cx)}" cy="${n(cy+HW*0.55)}" r="${n(bulbR)}" ${attrs}/>`;
+    }
     case "triangle":
       return poly([[cx,cy-r],[cx+HW,cy+r*0.62],[cx-HW,cy+r*0.62]]
         .map(p=>`${n(p[0])},${n(p[1])}`).join(" "));
@@ -370,6 +380,9 @@ export function shapeDetailSvg(kind, cx, cy, r, ink, sw){
     // The PIR lens segments across the dome.
     case "motion": return path(sub(arcPts(cx,cy+HW*0.45,HW*0.6,HW*0.7,180,360,10)))+
                           line(cx,cy-HW*0.25,cx,cy+HW*0.45);
+    // The "mercury" filling the bulb — a solid dot, matching the fill
+    // convention every other detail dot here already uses.
+    case "tempreadout": return dot(cx,cy+HW*0.55,HW*0.22);
     // A plain fixture plate: bevel, plus the lamp behind it.
     default:         return path(sub(arcPts(cx,cy,r*0.6,r*0.6,90,450,6)))+dot(cx,cy,HW*0.15);
   }
@@ -396,6 +409,7 @@ export function lightClassOf(l){
   if(!l) return "light";
   if(l.isFan) return "fan";
   if(l.isMotion) return "motion";
+  if(l.isTemp) return "temp";
   if(l.isWled||l.isPartition) return "strip";
   return "light";
 }
@@ -892,6 +906,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // clock — every other opt here follows the same pattern.
   const NOW_MS=Number(opts.nowMs)||Date.now();
   const MOTION_RECENT_MS=6*60*60*1000;
+  // "if they gave the temperature in the last hour" — Garry.
+  const TEMP_FRESH_MS=60*60*1000;
   const mixHex=(a,b,t)=>{
     const pa=parseInt(a.slice(1),16), pb=parseInt(b.slice(1),16);
     const ch=(sh)=>Math.round(((pa>>sh)&255)+(((pb>>sh)&255)-((pa>>sh)&255))*t);
@@ -912,6 +928,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // icons. The sidebar upscales this 760-unit viewBox ~2.6x to its panel, so
   // 4.8 px here is ~12 px on screen and still perfectly readable.
   const CODE_PX = Math.max(4, Math.min(11, (HEX_R * 2 * 0.866) / 1.8));
+  // "3 digit, and larger" — Garry, on the temperature readout. Clearly
+  // bigger than the code at any scale, not just proportionate to it.
+  const TEMP_DIGIT_PX = Math.max(13, CODE_PX * 2.2);
   // The hit halo, in viewBox units: the sidebar draws this 760-unit box at
   // ~2.6x, so 9 units is ~23 px on screen — a 46 px target on a phone, the
   // platform minimum, even when the marker itself is the 5 px legibility floor.
@@ -1013,12 +1032,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   if(SHOW){
     for(const l of lights){
       const li=lightsByEid[l.eid];
-      if(!li || li.state!=="on" || hiddenEids.has(l.eid) || li.isFan || li.isMotion) continue;
+      if(!li || li.state!=="on" || hiddenEids.has(l.eid) || li.isFan || li.isMotion || li.isTemp) continue;
       const c=(FIELD ? fieldColOf(l.x,l.y,l.z) : null) || glowCol(li,l.lp);
       if(!glowIds.has(c)) glowIds.set(c, `psglow_${glowIds.size}`);
     }
     for(const rname of Object.keys(byRoom||{})) for(const li of byRoom[rname]||[]){
-      if(li.state!=="on" || hiddenEids.has(li.entity_id) || li.isFan || li.isMotion) continue;
+      if(li.state!=="on" || hiddenEids.has(li.entity_id) || li.isFan || li.isMotion || li.isTemp) continue;
       const rc=FIELD && roomCentre.get(rname);
       const c=(rc ? fieldColOf(rc[0],rc[1],rc[2]) : null) || glowCol(li, null);
       if(!glowIds.has(c)) glowIds.set(c, `psglow_${glowIds.size}`);
@@ -1322,7 +1341,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const stripBorder=l.isWled?WLED_BORDER
         :(l.isPartition?PARTITION_BORDER
         :(l.isFan?FAN_BORDER
-        :(l.isMotion?MOTION_BORDER:null)));
+        :(l.isMotion?MOTION_BORDER
+        :(l.isTemp?TEMP_BORDER:null))));
       const stroke=SHOW
         ? (on?(stripBorder||"#f8fafc"):"#3f5165")
         : (stripBorder||"#60a5fa");
@@ -1428,7 +1448,25 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // (same reasoning `sw` above already uses) — so a fixture given a real
       // width/height (the resize handles) doesn't swallow its own chip.
       const chipGap=HEX_R*Math.max(1,sx,sy)*1.15;
-      const lbl=HIDECODES ? "" : (CODECHIP ? codeChipSvg(l,hx,hy,SHOW?tCol:"#e2e8f0",chipGap) : (SHOW
+      // Garry: "devices telling the temperature can also act like a motion
+      // sensor, so rule is if they gave the temperature in the last hour
+      // and they are placed on the map, a shape can be chosen for that
+      // temp and inside is simply the temperature, 3 digit, and larger" —
+      // then: "only if placed like all others". `entry` is the placement
+      // record (null for an auto-clustered light — see the two call sites
+      // below), so that half of the rule is the SAME truthiness check
+      // every other placement-only behaviour here already uses. Replaces
+      // the code outright, unconditionally of HIDECODES/CODECHIP — a live
+      // reading is status, the same as the motion pulse, not a code.
+      const tempFreshMs=l.isTemp && l.last_changed ? NOW_MS-Date.parse(l.last_changed) : NaN;
+      const tempLbl=(l.isTemp && entry && Number.isFinite(l.temperature)
+                     && tempFreshMs>=0 && tempFreshMs<TEMP_FRESH_MS)
+        ? `<text x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
+          `font-family="ui-monospace,monospace" font-size="${TEMP_DIGIT_PX.toFixed(1)}" font-weight="800" `+
+          `fill="${tCol}" paint-order="stroke" stroke="#050d09" stroke-width="${(TEMP_DIGIT_PX*0.32).toFixed(1)}" `+
+          `stroke-linejoin="round" pointer-events="none">${l.temperature}</text>`
+        : null;
+      const lbl=tempLbl!==null ? tempLbl : (HIDECODES ? "" : (CODECHIP ? codeChipSvg(l,hx,hy,SHOW?tCol:"#e2e8f0",chipGap) : (SHOW
         ? `<text x="${hx.toFixed(1)}" y="${lblY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
           `font-family="ui-monospace,monospace" font-size="${(CODE_PX*0.92).toFixed(1)}" font-weight="700" `+
           `letter-spacing="0.06em" fill="${tCol}" paint-order="stroke" stroke="#050d09" `+
@@ -1436,7 +1474,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           `${escSVG(l.code)}</text>`
         : `<text x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
           `font-family="monospace" font-size="${CODE_PX.toFixed(1)}" font-weight="700" fill="${tCol}" pointer-events="none">`+
-          `${escSVG(l.code)}</text>`));
+          `${escSVG(l.code)}</text>`)));
 
       // data-cx/data-cy is the fixture's own centre. The drag used to recover
       // it from the label's x/y, which is only the same point while the label
@@ -1602,9 +1640,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
     const glowSvg=(l,hx,hy,entry,clipId,fx)=>{
       if(l.state!=="on") return "";
-      // Fans and motion sensors are on the map, but they are not light
-      // sources — nothing pools on the floor beneath them.
-      if(l.isFan||l.isMotion) return "";
+      // Fans, motion sensors and temperature readouts are on the map, but
+      // they are not light sources — nothing pools on the floor beneath them.
+      if(l.isFan||l.isMotion||l.isTemp) return "";
       const col=(fx&&fx.col)||glowCol(l,entry);
       const b=briOf(l);
       const beam=BEAM[l.shape]||1;
@@ -1812,7 +1850,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // Wall spill: every wall of the fixture's room its pool actually
         // reaches, faded by how far away the wall is.
         let spillSegs=null;
-        if(room && l.state==="on" && !l.isFan && !l.isMotion){
+        if(room && l.state==="on" && !l.isFan && !l.isMotion && !l.isTemp){
           const reach=poolReachM(l)*0.8;
           for(let i=0,j=room.pts.length-1;i<room.pts.length;j=i++){
             const d=pointSegDist(pl.x, pl.y, room.pts[j], room.pts[i]);

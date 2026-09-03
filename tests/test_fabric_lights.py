@@ -245,12 +245,13 @@ def test_the_backend_type_override_vocabulary_is_the_choosers() -> None:
 
 @pytest.mark.asyncio
 async def test_fans_and_motion_sensors_are_placeable_like_a_light() -> None:
-    """Placement was gated to light.* — fans and motion sensors now join the
+    """Placement was gated to light.* — fans, motion sensors and now
+    temperature sensors ("only if placed like all others" — Garry) join the
     map "just like a light", through the same command into the same store.
     Anything else is still refused."""
     mdl, fab = _mdl(), _fab()
     mdl.fabric = fab
-    for eid in ("fan.ceiling", "binary_sensor.hall_motion"):
+    for eid in ("fan.ceiling", "binary_sensor.hall_motion", "sensor.hall_temperature"):
         await ws_fabric_light_position_set(_hass(mdl), MagicMock(), {
             "id": 1, "entity_id": eid, "x_m": 1.5, "y_m": 2.5, "floor_id": "main"})
         assert mdl.light_positions_m()[eid]["x_m"] == 1.5, eid

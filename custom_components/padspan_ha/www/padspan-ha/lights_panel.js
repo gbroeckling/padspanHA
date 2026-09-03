@@ -260,9 +260,11 @@ class PadSpanLightsApp extends HTMLElement {
     if(!this._hass) return;
     // The service domain is the entity's own: light.* → light, fan.* → fan.
     // A motion sensor is read-only — a tap on it is a no-op, its state is
-    // the blue pulse on the map.
+    // the blue pulse on the map. A temperature sensor.* is read-only the
+    // same way — its "state" is the number it just showed on the marker.
     const domain=String(eid).split(".")[0];
     if(domain==="binary_sensor"){ this._toast("Motion sensors are read-only"); return; }
+    if(domain==="sensor"){ this._toast("Temperature sensors are read-only"); return; }
     const on=this._hass.states[eid]?.state==="on";
     // Optimistic: the marker flips NOW (shared claim in lights_map.js, so the
     // index row flips with it), and HA's next state reconciles it. A failed

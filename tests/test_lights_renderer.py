@@ -1288,6 +1288,53 @@ def test_motion_sensor_fades_blue_to_purple_over_six_hours_after_going_quiet(tmp
     assert out["activeHasBluePulse"], "the active (on) sensor must keep its own blue pulse"
 
 
+def test_temperature_readout_shows_digits_only_when_placed_and_fresh(tmp_path):
+    """Garry: "...a shape can be chosen for that temp and inside is simply
+    the temperature, 3 digit, and larger" — "if they gave the temperature
+    in the last hour" — "And only if placed like all others". Four
+    entities, only one of which should ever show its number: placed+fresh
+    shows the digits; placed+stale and unplaced+fresh both fall back to the
+    ordinary small code, exactly like every other shape does."""
+    NOW = 2_000_000_000_000
+    H = 3_600_000
+    model = {
+        "room_geometry_m": {"Hall": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
+        "light_positions_m": {
+            # Placed AND fresh — the only one that should show digits.
+            "sensor.fresh_placed": {"x_m": 1.0, "y_m": 2.0, "floor_id": "main"},
+            # Placed but stale (>1h) — falls back to its code.
+            "sensor.stale_placed": {"x_m": 3.0, "y_m": 2.0, "floor_id": "main"},
+        },
+        # sensor.fresh_unplaced deliberately has NO light_positions_m entry —
+        # it auto-clusters in "Hall" instead.
+    }
+    import datetime
+    iso = lambda ms: datetime.datetime.fromtimestamp(ms / 1000, tz=datetime.timezone.utc).isoformat()
+    lbe = {
+        "sensor.fresh_placed":   {"entity_id": "sensor.fresh_placed",   "state": "on", "code": "T01", "shape": "tempreadout", "isTemp": True, "temperature": 72, "last_changed": iso(NOW - 5 * 60_000)},
+        "sensor.stale_placed":   {"entity_id": "sensor.stale_placed",   "state": "on", "code": "T02", "shape": "tempreadout", "isTemp": True, "temperature": 68, "last_changed": iso(NOW - 2 * H)},
+        "sensor.fresh_unplaced": {"entity_id": "sensor.fresh_unplaced", "state": "on", "code": "T03", "shape": "tempreadout", "isTemp": True, "temperature": 105, "last_changed": iso(NOW - 60_000)},
+    }
+    by_room = {"Hall": [lbe["sensor.fresh_unplaced"]]}
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const BYROOM={json.dumps(by_room)};\n"
+        "const FLOORS=[{id:'main',name:'Main',level:0}];\n"
+        f"const svg=M.buildIsoSVG(MODEL,BYROOM,new Set(),null,150,0,LBE,false,FLOORS,{{nowMs:{NOW}}});\n"
+        "const out={\n"
+        "  freshPlacedShowsDigits: />72</.test(svg),\n"
+        "  stalePlacedShowsCode: />T02</.test(svg) && !/>68</.test(svg),\n"
+        "  freshUnplacedShowsCode: />T03</.test(svg) && !/>105</.test(svg),\n"
+        "};\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    assert out["freshPlacedShowsDigits"], "a placed, fresh reading must show its own number"
+    assert out["stalePlacedShowsCode"], "a placed but STALE reading must fall back to its code, not show a number"
+    assert out["freshUnplacedShowsCode"], "an UNPLACED reading must fall back to its code even when fresh"
+
+
 def test_use_surface_ergonomics_opts(tmp_path):
     """The ergonomics opts buildIsoSVG grew for the sidebar/preview use
     surface: codeChip splits the tap target into its own data-role="code"

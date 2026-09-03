@@ -6758,9 +6758,10 @@ function _lightsTab(ctx, maps, active) {
   const toggle = async (eid) => {
     if (!ctx.hass) return;
     // Service domain is the entity's own (light / fan); a motion sensor is
-    // read-only — same rules as the sidebar.
+    // read-only — same rules as the sidebar. So is a temperature sensor.*.
     const domain = String(eid).split(".")[0];
     if (domain === "binary_sensor") { ctx.toast("Motion sensors are read-only"); return; }
+    if (domain === "sensor") { ctx.toast("Temperature sensors are read-only"); return; }
     const on = ctx.hass.states[eid]?.state === "on";
     // Optimistic, like the sidebar: the marker flips now, HA reconciles.
     setOptimistic(eid, on ? "off" : "on");

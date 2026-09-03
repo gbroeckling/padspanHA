@@ -547,6 +547,43 @@ console.log(JSON.stringify({ids, state: primary && primary.state, last_changed: 
     assert out["code"] == "M01", out
 
 
+# ── Temperature sensors ───────────────────────────────────────────────────────
+# Garry: "same as wled or any other objects, devices telling the temperature
+# can also act like a motion sensor, so rule is if they gave the temperature
+# in the last hour and they are placed on the map, a shape can be chosen for
+# that temp and inside is simply the temperature, 3 digit, and larger" — then
+# "And only if placed like all others". Admission and code assignment are
+# pipeline-level (this file); the placed+fresh digit-display gate is
+# renderer-level (test_lights_renderer.py).
+
+def test_temperature_sensors_ride_the_pipeline_other_sensor_classes_do_not(tmp_path):
+    out = _run_pipeline_script(tmp_path, """
+const AREA = {"sensor.living_room_temp": "Living Room", "sensor.living_room_humidity": "Living Room", "light.lamp": "Living Room"};
+const STATES = {
+  "sensor.living_room_temp": {state: "71.6", last_updated: "2026-01-01T00:00:00.000Z",
+                               attributes: {friendly_name: "Living Room Temperature", device_class: "temperature"}},
+  // A humidity sensor is ALSO a plain sensor.* entity — must NOT be admitted.
+  "sensor.living_room_humidity": {state: "44", last_updated: "2026-01-01T00:00:00.000Z",
+                                   attributes: {friendly_name: "Living Room Humidity", device_class: "humidity"}},
+  "light.lamp": {state: "off", attributes: {friendly_name: "Lamp", supported_color_modes: ["onoff"]}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {}, {});
+const by = Object.fromEntries(lights.map(l => [l.entity_id, l]));
+console.log(JSON.stringify({
+  ids: lights.map(l => l.entity_id).sort(),
+  temp: by["sensor.living_room_temp"] && {code: by["sensor.living_room_temp"].code, isTemp: by["sensor.living_room_temp"].isTemp,
+    shape: by["sensor.living_room_temp"].shape, temperature: by["sensor.living_room_temp"].temperature,
+    last_changed: by["sensor.living_room_temp"].last_changed, dimmable: by["sensor.living_room_temp"].dimmable},
+}));
+""")
+    assert out["ids"] == ["light.lamp", "sensor.living_room_temp"], "a humidity sensor must not join the lights map"
+    t = out["temp"]
+    assert t["code"] == "T01" and t["isTemp"] and t["shape"] == "tempreadout", t
+    assert t["temperature"] == 72, f"71.6 must round to 72: {t}"
+    assert t["last_changed"] == "2026-01-01T00:00:00.000Z", "last_updated feeds the freshness gate, not an attribute"
+    assert t["dimmable"] is False, "a read-only sensor must never offer the brightness card"
+
+
 def test_both_hosts_pass_the_tier():
     """The gate is only as good as its callers: both hosts hand settings.tier
     to gatherLights and to the card, and neither re-derives the ladder."""

@@ -15,7 +15,7 @@ const { buildIsoSVG, shapeSvg, fabricFrame, sampleSceneField, pointInPolygon, of
         lightClassOf } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
-        WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER } =
+        WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, TEMP_BORDER } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 const { tierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
@@ -520,11 +520,13 @@ export function openAggregateSheet(api, { title, sub, items, actions }){
   for (const l of items) {
     const on = l.state === "on";
     const row = mk("div", _S.row);
-    const col = l.isWled ? WLED_BORDER : (l.isPartition ? PARTITION_BORDER : (l.isFan ? FAN_BORDER : (l.isMotion ? MOTION_BORDER : "#52b788")));
+    const col = l.isWled ? WLED_BORDER : (l.isPartition ? PARTITION_BORDER : (l.isFan ? FAN_BORDER : (l.isMotion ? MOTION_BORDER : (l.isTemp ? TEMP_BORDER : "#52b788"))));
     row.appendChild(mk("span", _S.code + `;color:${col}`, l.code));
     row.appendChild(mk("span", _S.name, l.friendly_name));
     if (l.isMotion) {
       row.appendChild(mk("span", _S.state(on), on ? "MOTION" : "clear"));
+    } else if (l.isTemp) {
+      row.appendChild(mk("span", _S.state(false), Number.isFinite(l.temperature) ? `${l.temperature}°` : "—"));
     } else {
       const b = mk("button", _S.onoff(on), on ? "On" : "Off");
       b.addEventListener("click", (e) => {
@@ -984,7 +986,12 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       // separate device on this map, it is folded into its motion partner.
       || (eid.startsWith("binary_sensor.")
           && ["motion", "occupancy"].includes(states[eid].attributes?.device_class)
-          && !primaryFor[eid]))
+          && !primaryFor[eid])
+      // Temperature sensors ride the same ceiling map — "same as WLED or
+      // any other object... devices telling the temperature can also act
+      // like a motion sensor" (Garry). sensor.* is a domain nothing else
+      // here admits, so this can never collide with a light/fan/binary_sensor.
+      || (eid.startsWith("sensor.") && states[eid].attributes?.device_class === "temperature"))
     .map(eid => ({
       entity_id:     eid,
       friendly_name: states[eid].attributes?.friendly_name || eid,
@@ -1008,16 +1015,28 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       // When a motion/occupancy sensor last flipped state — while it is OFF
       // that IS when it last stopped tripping. The renderer fades a purple
       // "recently active" pulse over the 6h after this, past which it draws
-      // nothing. last_changed is HA's own top-level field, not an attribute.
-      // A paired primary uses whichever half moved MORE RECENTLY — the
-      // "how long ago was anyone last here" question the glow answers has
-      // one true answer per physical sensor, not one per facet of it.
-      last_changed:  eid.startsWith("binary_sensor.")
+      // nothing. For a temperature sensor this is instead "when did it last
+      // REPORT" (last_updated, not last_changed — a steady room repeats the
+      // same reading every poll, and last_changed would go stale even
+      // though the device is actively still reporting), gating the "gave
+      // the temperature in the last hour" rule before the number shows.
+      // Either way it is HA's own top-level field, not an attribute.
+      // A paired motion/occupancy primary uses whichever half moved MORE
+      // RECENTLY — the "how long ago was anyone last here" question the
+      // glow answers has one true answer per physical sensor, not one per
+      // facet of it.
+      last_changed:  eid.startsWith("sensor.") ? (states[eid].last_updated || null)
+                     : eid.startsWith("binary_sensor.")
                        ? (secondaryOf[eid] && states[secondaryOf[eid]]
                            ? (Date.parse(states[eid].last_changed || 0) >= Date.parse(states[secondaryOf[eid]].last_changed || 0)
                                ? states[eid].last_changed : states[secondaryOf[eid]].last_changed)
                            : (states[eid].last_changed || null))
                        : null,
+      // The reading itself, rounded — "inside is simply the temperature, 3
+      // digit, and larger". Only sensor.* entities carry one; everything
+      // else is null, same gating convention as the fan card's own fields.
+      temperature:   eid.startsWith("sensor.") && Number.isFinite(Number(states[eid].state))
+                       ? Math.round(Number(states[eid].state)) : null,
       // The effect list is what makes a light WLED-class (W-series code,
       // purple border, effects dialog). Free tier: every light is a light.
       effect_list:   paid && Array.isArray(states[eid].attributes?.effect_list) ? states[eid].attributes.effect_list : null,
@@ -1550,12 +1569,13 @@ export function buildLightsTable(host, lights){
       // Code + the same outline the map draws, so a row and its marker are
       // recognisably the same object. W-series purple = WLED-class,
       // P-series blue = an ESPHome-style partition segment, F green = fan,
-      // M blue = motion sensor.
+      // M blue = motion sensor, T orange = temperature.
       el("td", { style: "white-space:nowrap" }, (() => {
         const swatch = l.isWled ? WLED_BORDER
           : (l.isPartition ? PARTITION_BORDER
           : (l.isFan ? FAN_BORDER
-          : (l.isMotion ? MOTION_BORDER : "#52b788")));
+          : (l.isMotion ? MOTION_BORDER
+          : (l.isTemp ? TEMP_BORDER : "#52b788"))));
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         svg.setAttribute("width", "15"); svg.setAttribute("height", "15");
         svg.setAttribute("viewBox", "0 0 15 15");
@@ -1593,11 +1613,13 @@ export function buildLightsTable(host, lights){
             return sel;
           })()
       ),
-      el("td", {}, el("span", { class: `lv-state ${on ? "on" : "off"}` }, on ? "ON" : "OFF")),
+      el("td", {}, l.isTemp
+        ? el("span", { class: "lv-state off" }, Number.isFinite(l.temperature) ? `${l.temperature}°` : "—")
+        : el("span", { class: `lv-state ${on ? "on" : "off"}` }, on ? "ON" : "OFF")),
       el("td", { style: "text-align:center;white-space:nowrap" }, [
         // The visible way to the controls (sidebar): a "⋯" that opens the
         // card — the same card the hold opens, offered in plain sight.
-        ...(host.onRowMore && !l.isMotion ? [el("button", {
+        ...(host.onRowMore && !l.isMotion && !l.isTemp ? [el("button", {
           class: "lv-act", title: "Controls", style: "margin-right:6px",
           onclick: (e) => { e.stopPropagation(); host.onRowMore(l); },
         }, "⋯")] : []),
@@ -1615,7 +1637,7 @@ export function buildLightsTable(host, lights){
         // sidebar and every lower tier pass none): force the class when
         // detection got it wrong. Lights only — a fan or sensor IS its
         // domain, there is nothing to override.
-        ...(host.onTypeOverride && !l.isFan && !l.isMotion ? [(() => {
+        ...(host.onTypeOverride && !l.isFan && !l.isMotion && !l.isTemp ? [(() => {
           const sel = document.createElement("select");
           sel.className = "lv-select";
           sel.title = "Override how PadSpan classes this light (Pro)";
