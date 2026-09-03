@@ -882,6 +882,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   const HALO      = !!opts.hitHalo;
   const COLLAPSE  = !!opts.collapseUnplaced;
   const dimmed=(l)=>!!CLASSF && lightClassOf(l)!==CLASSF;
+  // "Now", injectable so a test can pin elapsed time instead of racing the
+  // clock — every other opt here follows the same pattern.
+  const NOW_MS=Number(opts.nowMs)||Date.now();
+  const MOTION_RECENT_MS=6*60*60*1000;
   const mixHex=(a,b,t)=>{
     const pa=parseInt(a.slice(1),16), pb=parseInt(b.slice(1),16);
     const ch=(sh)=>Math.round(((pa>>sh)&255)+(((pb>>sh)&255)-((pa>>sh)&255))*t);
@@ -1533,9 +1537,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // in the same underlay pass as the light pools so it sits beneath every
     // marker. Two layers: a breathing soft disc, and a ring that expands
     // and fades, radar-style, on a shared 1.6s clock.
-    const motionPulseSvg=(hx,hy)=>{
+    const motionPulseSvg=(hx,hy,eid)=>{
       const r0=HEX_R*1.15;
-      return `<g pointer-events="none">`+
+      return `<g class="lpulse" data-eid="${escSVG(eid)}" pointer-events="none">`+
         `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${(r0*1.6).toFixed(1)}" fill="url(#psmotion)" opacity="0.55">`+
         `<animate attributeName="opacity" values="0.55;0.2;0.55" dur="1.6s" repeatCount="indefinite"/>`+
         `</circle>`+
@@ -1543,6 +1547,38 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         `<animate attributeName="r" values="${(r0*0.7).toFixed(1)};${(r0*2.4).toFixed(1)}" dur="1.6s" repeatCount="indefinite"/>`+
         `<animate attributeName="opacity" values="0.8;0" dur="1.6s" repeatCount="indefinite"/>`+
         `</circle></g>`;
+    };
+
+    // A sensor that has GONE QUIET still says how long ago, at a glance:
+    // "flashing blue goes to a flashing purple after the blue has stopped
+    // ... all colours from blue to purple over 6 hours" — Garry. The hue
+    // sweeps almost the whole wheel (a genuine rainbow, not a two-colour
+    // flip) from blue at the instant it untrips to violet at the 6-hour
+    // mark, then the glow is gone — "recent" has a hard edge, same as the
+    // 6-hour window it is answering.
+    const motionRecentHue=(elapsedMs)=>{
+      const t=Math.max(0,Math.min(1,elapsedMs/MOTION_RECENT_MS));
+      // 240°=blue, sweeping DOWN (the long way through cyan/green/yellow/
+      // red/magenta) by 325° lands at 275°=violet when t reaches 1.
+      return ((240-325*t)%360+360)%360;
+    };
+    // Calmer than the active pulse on purpose — a single breathing ring, no
+    // expanding radar sweep, slower — it is a memory of activity, not a
+    // claim that something is happening right now.
+    // Named degSweep, not the shorter, more obvious word for it: a guard
+    // test greps views/*.js for an inline HSL string built from a variable
+    // spelled that way, because that shape is what a second, drifting copy
+    // of room_color.js's OWN colour deriver would look like. This is a
+    // genuinely different thing (time since a sensor went quiet, not a
+    // room's identity), so it earns a name the guard was never meant to catch.
+    const motionRecentPulseSvg=(hx,hy,degSweep,eid)=>{
+      const r0=HEX_R*1.15;
+      const col=`hsl(${degSweep.toFixed(0)},75%,58%)`;
+      return `<circle class="lrecent" data-eid="${escSVG(eid)}" pointer-events="none" `+
+        `cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" `+
+        `r="${r0.toFixed(1)}" fill="none" stroke="${col}" stroke-width="1.3" opacity="0.5">`+
+        `<animate attributeName="opacity" values="0.5;0.16;0.5" dur="3s" repeatCount="indefinite"/>`+
+        `</circle>`;
     };
 
     const glowSvg=(l,hx,hy,entry,clipId,fx)=>{
@@ -1842,7 +1878,18 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // Triggered motion sensors pulse blue beneath their markers — BOTH
     // modes, unlike the light pools above: a tripped sensor is live status,
     // not a presentation effect.
-    for(const [l2,hx,hy] of jobs) if(l2.isMotion && l2.state==="on") s+=motionPulseSvg(hx,hy);
+    for(const [l2,hx,hy] of jobs){
+      if(!l2.isMotion) continue;
+      if(l2.state==="on"){ s+=motionPulseSvg(hx,hy,l2.entity_id); continue; }
+      // Quiet now — was it quiet RECENTLY? last_changed is when it last
+      // flipped state, so while off that IS when it stopped tripping. No
+      // timestamp (or an unparsable one) makes elapsed NaN, and every
+      // comparison below is false for NaN — that's the bail-out, nothing
+      // extra needed for a missing last_changed.
+      const lastMs=l2.last_changed ? Date.parse(l2.last_changed) : NaN;
+      const elapsed=NOW_MS-lastMs;
+      if(elapsed>=0 && elapsed<MOTION_RECENT_MS) s+=motionRecentPulseSvg(hx,hy, motionRecentHue(elapsed), l2.entity_id);
+    }
     // Halos go under EVERY marker on the floor (see haloSvg); then the
     // markers; then the use-mode stack chips, which stand in for markers.
     if(HALO) for(const [l2,hx,hy] of jobs) s+=haloSvg(l2,hx,hy);

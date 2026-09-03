@@ -932,6 +932,11 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       preset_mode:   eid.startsWith("fan.") ? (states[eid].attributes?.preset_mode || null) : null,
       oscillating:   eid.startsWith("fan.") ? (typeof states[eid].attributes?.oscillating === "boolean" ? states[eid].attributes.oscillating : null) : null,
       direction:     eid.startsWith("fan.") ? (states[eid].attributes?.direction || null) : null,
+      // When a motion/occupancy sensor last flipped state — while it is OFF
+      // that IS when it last stopped tripping. The renderer fades a purple
+      // "recently active" pulse over the 6h after this, past which it draws
+      // nothing. last_changed is HA's own top-level field, not an attribute.
+      last_changed:  eid.startsWith("binary_sensor.") ? (states[eid].last_changed || null) : null,
       // The effect list is what makes a light WLED-class (W-series code,
       // purple border, effects dialog). Free tier: every light is a light.
       effect_list:   paid && Array.isArray(states[eid].attributes?.effect_list) ? states[eid].attributes.effect_list : null,

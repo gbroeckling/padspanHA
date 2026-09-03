@@ -1215,6 +1215,79 @@ def test_motion_sensor_pulses_blue_while_triggered_and_fans_do_not_pool(tmp_path
     assert out["motionGlyph"] and out["fanGlyph"], out
 
 
+def test_motion_sensor_fades_blue_to_purple_over_six_hours_after_going_quiet(tmp_path):
+    """Garry: "if a motion detector went off in the last 6 hours the
+    flashing blue goes to a flashing purple after the blue has stopped" —
+    then: "Or, better yet, from blue to a rainbow, end at hour 6 with
+    purple" — then confirmed: "so all colours from blue to purple over 6
+    hours". last_changed is HA's own field for when a binary_sensor
+    stopped tripping; nowMs is injectable so this test does not race a
+    real clock."""
+    model = {
+        "room_geometry_m": {"Hall": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
+        "light_positions_m": {
+            "binary_sensor.just_now":  {"x_m": 1.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.mid":       {"x_m": 2.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.almost_six": {"x_m": 3.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.over_six":  {"x_m": 4.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.no_ts":     {"x_m": 5.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.active":    {"x_m": 6.0, "y_m": 2.0, "floor_id": "main"},
+        },
+    }
+    NOW = 1_000_000_000_000  # an arbitrary fixed epoch ms, matched by nowMs
+    H = 3_600_000
+    lbe = {
+        "binary_sensor.just_now":   {"entity_id": "binary_sensor.just_now",   "state": "off", "code": "M01", "shape": "motion", "isMotion": True, "last_changed": NOW - 1},
+        "binary_sensor.mid":        {"entity_id": "binary_sensor.mid",        "state": "off", "code": "M02", "shape": "motion", "isMotion": True, "last_changed": NOW - 3 * H},
+        "binary_sensor.almost_six": {"entity_id": "binary_sensor.almost_six", "state": "off", "code": "M03", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H - 1000)},
+        "binary_sensor.over_six":   {"entity_id": "binary_sensor.over_six",   "state": "off", "code": "M04", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H + 1000)},
+        "binary_sensor.no_ts":      {"entity_id": "binary_sensor.no_ts",      "state": "off", "code": "M05", "shape": "motion", "isMotion": True, "last_changed": None},
+        "binary_sensor.active":     {"entity_id": "binary_sensor.active",     "state": "on",  "code": "M06", "shape": "motion", "isMotion": True, "last_changed": NOW - 5 * H},
+    }
+    # Encode last_changed as real ISO strings (what gatherLights actually
+    # hands the renderer), built from the epoch-ms markers above.
+    import datetime
+    for l in lbe.values():
+        lc = l["last_changed"]
+        l["last_changed"] = (None if lc is None
+                             else datetime.datetime.fromtimestamp(lc / 1000, tz=datetime.timezone.utc).isoformat())
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        "const FLOORS=[{id:'main',name:'Main',level:0}];\n"
+        f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,{{nowMs:{NOW}}});\n"
+        "const hueFor=(eid)=>{\n"
+        "  const m=new RegExp('class=\"lrecent\" data-eid=\"'+eid.replace(/\\./g,'\\\\.')+'\"[^]*?stroke=\"hsl\\\\((\\\\d+),').exec(svg);\n"
+        "  return m ? parseInt(m[1],10) : null;\n"
+        "};\n"
+        "console.log(JSON.stringify({\n"
+        "  justNow: hueFor('binary_sensor.just_now'),\n"
+        "  mid: hueFor('binary_sensor.mid'),\n"
+        "  almostSix: hueFor('binary_sensor.almost_six'),\n"
+        "  overSix: hueFor('binary_sensor.over_six'),\n"
+        "  noTs: hueFor('binary_sensor.no_ts'),\n"
+        "  activeHasBluePulse: /fill=\"url\\(#psmotion\\)\"/.test(svg),\n"
+        "}));\n"
+    ))
+    # Just gone quiet: hue is (almost exactly) blue, 240°.
+    assert out["justNow"] is not None and abs(out["justNow"] - 240) <= 1, out
+    # Halfway (3h of 6): a genuinely different hue — the rainbow is moving,
+    # not a two-colour flip that would leave this looking like one endpoint.
+    assert out["mid"] is not None, out
+    assert abs(out["mid"] - 240) > 60 and abs(out["mid"] - 275) > 60, \
+        f"the 3h mark must read as neither blue nor violet, it's a sweep: {out}"
+    # Just under 6h: close to violet (275°), not yet gone.
+    assert out["almostSix"] is not None and abs(out["almostSix"] - 275) <= 2, out
+    # Past 6h: no glow at all — "recent" has a hard edge.
+    assert out["overSix"] is None, "a sensor quiet for over 6 hours must show no recent-pulse at all"
+    # No timestamp at all (defensive): no glow, no crash.
+    assert out["noTs"] is None, out
+    # An ACTIVELY triggered sensor keeps its existing blue pulse, unaffected
+    # by how long ago some OTHER sensor went quiet.
+    assert out["activeHasBluePulse"], "the active (on) sensor must keep its own blue pulse"
+
+
 def test_use_surface_ergonomics_opts(tmp_path):
     """The ergonomics opts buildIsoSVG grew for the sidebar/preview use
     surface: codeChip splits the tap target into its own data-role="code"
