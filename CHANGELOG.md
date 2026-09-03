@@ -4,6 +4,18 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.17 — Temperature sensors, and a smarter idea of "the same sensor" (2026-09-03)
+
+### Temperature sensors join the ceiling map
+- **A temperature sensor is a placeable device now**, the same as a light, fan or motion sensor — its own T-series code, a thermometer glyph, placed in metres like everything else. When it has reported within the last hour *and* it has actually been placed, its marker shows the reading itself — large, in place of the code — instead of making you hover or open anything to see it. A stale reading or an unplaced sensor falls back to the ordinary small code, exactly like every other shape does when it has nothing special to say.
+
+### Motion and occupancy sensors from the same physical unit merge into one marker
+- A single mmWave/radar sensor commonly reports two separate entities for the same spot — a momentary "motion" reading and a sustained "occupancy" reading that survives the stillness a motion algorithm's own timeout would clear. These now merge into one marker: it stays active while *either* half says someone's there, and its recency glow uses whichever half moved most recently. The merge only happens when a device reports exactly one of each *and* the two entities' names agree — a multi-zone hub (an alarm panel's expander module, say) sharing one device ID across several physically different rooms is never mistaken for a single sensor.
+
+### Finding and placing a light, two more ways
+- **Choose a light from the Mapping → Lights index and a slow ring flashes outward from wherever it actually is** — a third of the whole map across — so a small marker in a big house doesn't take a hunt to find.
+- **A drag-and-drop pin, parked in the corner of the map**, is a second way to place whichever light is selected — drag it from its corner onto the spot, instead of hunting for the light's own marker first.
+
 ## 0.38.16 — Fans, motion sensors, and a map that finally works like a map (2026-09-03)
 
 ### Fans and motion sensors join the ceiling
