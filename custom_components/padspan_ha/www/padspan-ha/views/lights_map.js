@@ -909,7 +909,14 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
     .filter(eid => eid.startsWith("light.") || eid.startsWith("fan.")
       // Motion sensors join by DEVICE CLASS, not domain alone — doors,
       // windows and every other binary_sensor stay out of a lighting map.
-      || (eid.startsWith("binary_sensor.") && states[eid].attributes?.device_class === "motion"))
+      // "occupancy" rides along with "motion": both are PIR presence
+      // sensors in HA's own taxonomy (motion = momentary, occupancy =
+      // sustained — e.g. an outlet-integrated bathroom sensor reports
+      // occupancy) and read identically on this map — found live: the
+      // bathroom outlets' PIRs (binary_sensor.invisoutlet_occupancy*)
+      // were invisible to the map until this line admitted their class.
+      || (eid.startsWith("binary_sensor.")
+          && ["motion", "occupancy"].includes(states[eid].attributes?.device_class)))
     .map(eid => ({
       entity_id:     eid,
       friendly_name: states[eid].attributes?.friendly_name || eid,

@@ -46,10 +46,11 @@ export function isFan(l) {
   return String(l.entity_id || "").startsWith("fan.");
 }
 
-// A motion sensor on the same ceiling. gatherLights only admits
-// binary_sensor entities whose device_class is "motion", so the domain
-// prefix is a sufficient test past that gate. Read-only: no toggle, no
-// popup — its job on the map is the blue pulse while motion is active.
+// A motion (or occupancy — HA's other PIR presence class) sensor on the
+// same ceiling. gatherLights only admits binary_sensor entities whose
+// device_class is "motion" or "occupancy", so the domain prefix is a
+// sufficient test past that gate. Read-only: no toggle, no popup — its
+// job on the map is the blue pulse while triggered.
 export function isMotionSensor(l) {
   return String(l.entity_id || "").startsWith("binary_sensor.");
 }
