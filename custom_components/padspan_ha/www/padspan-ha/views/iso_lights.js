@@ -882,6 +882,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   const HALO      = !!opts.hitHalo;
   const COLLAPSE  = !!opts.collapseUnplaced;
   const dimmed=(l)=>!!CLASSF && lightClassOf(l)!==CLASSF;
+  // The builder, choosing a light from the INDEX rather than the map: "make
+  // it easy to find" — one big ring flashes outward from wherever that light
+  // actually is, a third of the whole canvas across, so a small glyph in a
+  // big house is unmissable for a moment. One-shot (the host clears
+  // locateEid after the render that draws it), not a permanent decoration.
+  const LOCATE_EID = opts.locateEid ? String(opts.locateEid) : null;
   // "Now", injectable so a test can pin elapsed time instead of racing the
   // clock — every other opt here follows the same pattern.
   const NOW_MS=Number(opts.nowMs)||Date.now();
@@ -1581,6 +1587,19 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         `</circle>`;
     };
 
+    // "Choose an item in the list, make it easy to find" — one slow ring,
+    // a third of the whole canvas across, sweeping outward from wherever
+    // the light actually is and fading as it goes. Base opacity 0 so once
+    // the two repeats finish (SMIL reverts to the base value on completion)
+    // it is simply gone, not a ring left sitting on the map.
+    const LOCATE_R = W/6;
+    const locateSvg=(hx,hy)=>
+      `<circle class="llocate" pointer-events="none" cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" `+
+      `r="${(HEX_R*1.4).toFixed(1)}" fill="none" stroke="#e879f9" stroke-width="2.2" opacity="0">`+
+      `<animate attributeName="r" values="${(HEX_R*1.4).toFixed(1)};${LOCATE_R.toFixed(1)}" dur="1.9s" repeatCount="2" fill="freeze"/>`+
+      `<animate attributeName="opacity" values="0;0.75;0" dur="1.9s" repeatCount="2" fill="freeze"/>`+
+      `</circle>`;
+
     const glowSvg=(l,hx,hy,entry,clipId,fx)=>{
       if(l.state!=="on") return "";
       // Fans and motion sensors are on the map, but they are not light
@@ -1878,6 +1897,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // Triggered motion sensors pulse blue beneath their markers — BOTH
     // modes, unlike the light pools above: a tripped sensor is live status,
     // not a presentation effect.
+    if(LOCATE_EID){
+      const found=jobs.find(j=>j[0].entity_id===LOCATE_EID);
+      if(found) s+=locateSvg(found[1],found[2]);
+    }
     for(const [l2,hx,hy] of jobs){
       if(!l2.isMotion) continue;
       if(l2.state==="on"){ s+=motionPulseSvg(hx,hy,l2.entity_id); continue; }
@@ -1910,6 +1933,23 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     s+=`<text x="${badgeX}" y="${badgeY+6}" text-anchor="middle" fill="#071008" font-size="14" font-weight="700" pointer-events="none">${lidx+1}</text>`;
     s+=`</g>`;
     s+=`</g>`;
+  }
+
+  // A second way to place the selected light: a pin parked in the
+  // bottom-right corner of the canvas — always in the same spot, so it is
+  // always findable — that the builder drags out onto the map. Not tied to
+  // any entity (no data-eid); the host resolves the drop itself and this
+  // glyph simply snaps back home on the next render, exactly as every other
+  // interactive element here is rebuilt fresh each time.
+  if(opts.dropMarker){
+    const dx=W-40, dy=BASE_H-40;
+    s+=`<g class="ldropmarker" data-role="dropmarker" style="cursor:grab" pointer-events="all">`+
+      `<title>Drag onto the map to place the selected light</title>`+
+      `<circle cx="${dx}" cy="${dy}" r="17" fill="#1b0f24" fill-opacity="0.92" stroke="#e879f9" stroke-width="2"/>`+
+      `<circle cx="${dx}" cy="${dy}" r="17" fill="none" stroke="#e879f9" stroke-width="6" stroke-opacity="0.18"/>`+
+      `<line x1="${dx-7}" y1="${dy}" x2="${dx+7}" y2="${dy}" stroke="#f0abfc" stroke-width="2.2" stroke-linecap="round"/>`+
+      `<line x1="${dx}" y1="${dy-7}" x2="${dx}" y2="${dy+7}" stroke="#f0abfc" stroke-width="2.2" stroke-linecap="round"/>`+
+      `</g>`;
   }
 
   // Legend

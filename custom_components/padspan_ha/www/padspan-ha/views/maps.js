@@ -6185,6 +6185,46 @@ function _wireLightsBuild(ctx, isoDiv, o) {
 
   _wireLightsPicker(ctx, isoDiv, svg, o, toVB);
 
+  // The drop-marker pin: a second way to place the selected light, dragged
+  // from its parked corner onto the map. Reuses exactly the projection
+  // (toVB → frame.isoInv, inside o.onDropPlace) every other placement path
+  // here already goes through.
+  const dropG = isoDiv.querySelector('g[data-role="dropmarker"]');
+  if (dropG && o.onDropPlace) {
+    dropG.style.touchAction = "none";
+    dropG.addEventListener("pointerdown", (ev) => {
+      if (ev.button !== 0 && ev.pointerType === "mouse") return;
+      ev.preventDefault(); ev.stopPropagation();
+      const start = toVB(ev);
+      let moved = false;
+      try { dropG.setPointerCapture(ev.pointerId); } catch (_) {}
+      const mm = (e) => {
+        const v = toVB(e);
+        const dx = v.x - start.x, dy = v.y - start.y;
+        if (!moved && Math.abs(dx) + Math.abs(dy) > 4) moved = true;
+        if (moved) dropG.setAttribute("transform", `translate(${dx},${dy})`);
+      };
+      const up = (e) => {
+        dropG.removeEventListener("pointermove", mm);
+        dropG.removeEventListener("pointerup", up);
+        dropG.removeEventListener("pointercancel", up);
+        try { dropG.releasePointerCapture(ev.pointerId); } catch (_) {}
+        // The pin is redrawn fresh at its home corner on the next render
+        // regardless — no transform to clean up beyond this one frame.
+        if (!moved || e.type === "pointercancel") return;
+        const v = toVB(e);
+        // Dropped outside the drawing entirely (e.g. over the toolbar):
+        // treat it the same as a cancelled drag, not a placement at the edge.
+        const box = svg.viewBox && svg.viewBox.baseVal;
+        if (box && (v.x < box.x || v.x > box.x + box.width || v.y < box.y || v.y > box.y + box.height)) return;
+        o.onDropPlace(v.x, v.y);
+      };
+      dropG.addEventListener("pointermove", mm);
+      dropG.addEventListener("pointerup", up);
+      dropG.addEventListener("pointercancel", up);
+    });
+  }
+
   // Selection highlight — the one selected light (inspector) AND every light
   // in the multi-selection (shift-click, or a room name), so the map and the
   // lit index rows point at the same things.
@@ -6937,6 +6977,33 @@ function _lightsTab(ctx, maps, active) {
     ? { ...ctx.state.model,
         light_positions_m: { ...(ctx.state.model?.light_positions_m || {}), ...mapState._lightsDraftM } }
     : ctx.state.model;
+  // Hoisted out of the host object literal (rather than read back off
+  // `host.onDropPlace` inside it, which does not exist yet mid-construction)
+  // because _wireLightsBuild — wired below via onHexesBuilt — needs this
+  // SAME function to actually drive the pin's drag.
+  const onDropPlace = (paid && !preview && mapState._selLight) ? (vbX, vbY) => {
+    const sel = mapState._selLight;
+    const l = lightsByEid[sel.eid];
+    if (!l) return;
+    // The floor comes from the light's own room (or its prior placement,
+    // or the lowest drawn storey) — exactly the same precedence the
+    // placement queue already uses, so the two "drop it somewhere" tools
+    // never disagree about which storey a bare x/y lands on.
+    const floors2 = ctx.state.model?.floors || [];
+    const frame2 = fabricFrame(ctx.state.model, floors2, view.floorGap, view.horizGap);
+    const geo = (ctx.state.model?.room_geometry_m || {})[l.area_name];
+    let fid = geo && geo.floor_id ? String(geo.floor_id) : null;
+    if (!fid) { const prev = ((ctx.state.model || {}).light_positions_m || {})[sel.eid]; fid = prev && prev.floor_id ? String(prev.floor_id) : null; }
+    if (!fid) fid = _floorIdForZ(ctx, frame2.levels[0] || 0, frame2);
+    const z = _levelForFloorId(frame2, ctx.state.model, floors2, fid);
+    const [x_m, y_m] = frame2.isoInv(vbX, vbY, z);
+    _pushUndo(mapState, [sel.eid]);
+    _draftAt(ctx, { mapState, lightsByEid }, sel.eid, x_m, y_m, fid, "manual");
+    mapState._focusRow = sel.eid;
+    ctx.toast(`Placed ${l.code} · ${l.friendly_name}`);
+    ctx.actions.renderRooms();
+  } : null;
+
   const host = {
     el,
     floors,
@@ -6979,6 +7046,15 @@ function _lightsTab(ctx, maps, active) {
     // Map → index: the row of the light just selected on the map scrolls
     // into view, once.
     focusRowEid: mapState._focusRow || null,
+    // The locate ring (builder only — the sidebar has no index-driven
+    // selection to lose track of, and Preview shows the sidebar's own
+    // surface, not the builder's tools). Consumed after this one render.
+    locateEid: (paid && !preview) ? (mapState._locateEid || null) : null,
+    // The drop-marker pin: a second way to place the CURRENTLY SELECTED
+    // light, parked in the map's corner. Only offered when there is a
+    // selection to place — dragging it onto the map otherwise has nothing
+    // to do. (Defined above, hoisted so _wireLightsBuild can drive it too.)
+    onDropPlace,
     // Preview-as-sidebar asks the renderer for the use-surface ergonomics
     // (the sidebar's exact options) and wires the sidebar's exact gestures.
     codeChip: preview, hitHalo: preview, collapseUnplaced: preview,
@@ -6989,7 +7065,7 @@ function _lightsTab(ctx, maps, active) {
     onHexesBuilt: preview
       ? (isoDiv) => requestAnimationFrame(() => wireUseSurface(isoDiv, previewApi))
       : paid
-      ? (isoDiv) => _wireLightsBuild(ctx, isoDiv, { mapState, view, lightsByEid, model: modelForRender })
+      ? (isoDiv) => _wireLightsBuild(ctx, isoDiv, { mapState, view, lightsByEid, model: modelForRender, onDropPlace })
       : (isoDiv) => requestAnimationFrame(() => {
           isoDiv.querySelectorAll(".lhex").forEach(g => {
             g.style.cursor = "pointer";
@@ -7089,6 +7165,12 @@ function _lightsTab(ctx, maps, active) {
     onRowClick: (l) => {
       if (!paid) { toggle(l.entity_id); return; }
       mapState._selLight = { eid: l.entity_id, mapId: null };
+      // Choosing FROM THE LIST is exactly when you don't yet know where a
+      // light is on the map — the locate ring is a one-shot: it fires on
+      // this render and is cleared right after (see buildLightsTable's
+      // call site below), so it does not replay on every later edit while
+      // the same light stays selected.
+      mapState._locateEid = l.entity_id;
       ctx.actions.renderRooms();
     },
     onToggleHidden: async (eid) => {
@@ -7298,6 +7380,7 @@ function _lightsTab(ctx, maps, active) {
   // ── The shared light index table (brings its own card) ──────────────────
   wrap.appendChild(buildLightsTable(host, lights));
   mapState._focusRow = null;   // the scroll-into-view is a one-shot
+  mapState._locateEid = null;  // the locate ring is a one-shot too
 
   return wrap;
 }

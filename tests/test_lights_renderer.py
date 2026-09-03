@@ -1366,6 +1366,69 @@ def test_use_surface_ergonomics_opts(tmp_path):
     assert out["floorTapTarget"], "the floor badge must be a data-role=\"floor\" tap target unconditionally"
 
 
+def test_locate_ring_and_drop_marker(tmp_path):
+    """Garry, choosing a light from the Mapping -> Lights index: "I want the
+    item to be easy to find" — a slow ring flashes outward from wherever it
+    actually is, a third of the whole canvas across (locateEid). And: "put a
+    drag and drop marker on the lower right side of the map ... as a second
+    way to place the selected item" (dropMarker) — a fixed pin, not tied to
+    any entity, that the builder's own drag wiring reads by data-role."""
+    model = {
+        "room_geometry_m": {"Hall": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
+        "light_positions_m": {
+            "light.a": {"x_m": 2.0, "y_m": 2.0, "floor_id": "main"},
+            "light.b": {"x_m": 6.0, "y_m": 2.0, "floor_id": "main"},
+        },
+    }
+    lbe = {
+        "light.a": {"entity_id": "light.a", "state": "on", "code": "A01", "shape": "circle"},
+        "light.b": {"entity_id": "light.b", "state": "on", "code": "A02", "shape": "circle"},
+    }
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        "const FLOORS=[{id:'main',name:'Main',level:0}];\n"
+        "const mk=(o)=>M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,o);\n"
+        "const plain=mk({});\n"
+        "const locateA=mk({locateEid:'light.a'});\n"
+        "const locateNone=mk({locateEid:'light.nonexistent'});\n"
+        "const withPin=mk({dropMarker:true});\n"
+        "const ringNear=(svg,eid)=>{\n"
+        "  const g=svg.match(new RegExp('<g class=\"lhex\" data-eid=\"'+eid+'\"[^]*?data-cx=\"([^\"]+)\" data-cy=\"([^\"]+)\"'));\n"
+        "  return g ? {cx:parseFloat(g[1]), cy:parseFloat(g[2])} : null;\n"
+        "};\n"
+        "const ringMatch=/<circle class=\"llocate\"[^>]*cx=\"([^\"]+)\" cy=\"([^\"]+)\"[^>]*r=\"([^\"]+)\"/.exec(locateA);\n"
+        "console.log(JSON.stringify({\n"
+        "  plainHasNoRing: !/class=\"llocate\"/.test(plain),\n"
+        "  locateARingCount: (locateA.match(/class=\"llocate\"/g)||[]).length,\n"
+        "  locateNoneRingCount: (locateNone.match(/class=\"llocate\"/g)||[]).length,\n"
+        "  ringCx: ringMatch ? parseFloat(ringMatch[1]) : null,\n"
+        "  ringCy: ringMatch ? parseFloat(ringMatch[2]) : null,\n"
+        "  ringR: ringMatch ? parseFloat(ringMatch[3]) : null,\n"
+        "  markerA: ringNear(locateA, 'light\\\\.a'),\n"
+        "  animR: (/<animate attributeName=\"r\" values=\"[^;]+;([^\"]+)\"/.exec(locateA)||[])[1],\n"
+        "  plainHasNoPin: !/data-role=\"dropmarker\"/.test(plain),\n"
+        "  pinCount: (withPin.match(/data-role=\"dropmarker\"/g)||[]).length,\n"
+        "  pinHasNoEid: !new RegExp('data-role=\"dropmarker\"[^>]*data-eid').test(withPin),\n"
+        "}));\n"
+    ))
+    assert out["plainHasNoRing"], "a ring must never appear unasked"
+    assert out["locateARingCount"] == 1, out
+    assert out["locateNoneRingCount"] == 0, "an eid that matches nothing must draw no ring"
+    # The ring centres on the light's REAL drawn position, and its target
+    # radius is a third of the canvas (ISO.W / 6, since 6*radius = 3*diameter).
+    assert out["markerA"] is not None, out
+    assert abs(out["ringCx"] - out["markerA"]["cx"]) < 0.5 and abs(out["ringCy"] - out["markerA"]["cy"]) < 0.5, out
+    assert out["ringR"] < 20, "the ring must start small (it sweeps OUTWARD)"
+    # ISO.W is 760 — a third of the whole canvas as a diameter is W/6 as a radius.
+    assert out["animR"] is not None and abs(float(out["animR"]) - 760 / 6) < 1, \
+        f"the ring's target radius must be a third of the canvas: {out}"
+    assert out["plainHasNoPin"], "the drop pin must never appear unasked"
+    assert out["pinCount"] == 1, out
+    assert out["pinHasNoEid"], "the pin is not tied to any entity — the host resolves the drop itself"
+
+
 def test_code_chip_clears_an_oversized_fixture(tmp_path):
     """Found live (2026-09-03), on the house's own map: a fixture given a
     real width_cm/height_cm (this session's resize handles) can draw many

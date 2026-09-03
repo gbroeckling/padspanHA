@@ -1093,7 +1093,8 @@ export function buildLightsMapCard(hostIn){
         // The use-surface ergonomics — see buildIsoSVG for each.
         codeChip: !!host.codeChip, hideCodes: !codesShown,
         classFilter: host.classFilter || null, hitHalo: !!host.hitHalo,
-        collapseUnplaced: !!host.collapseUnplaced });
+        collapseUnplaced: !!host.collapseUnplaced,
+        locateEid: host.locateEid || null, dropMarker: !!host.onDropPlace });
     applyZoom();
     host.onHexesBuilt(isoDiv, rebuildISO);
   };
