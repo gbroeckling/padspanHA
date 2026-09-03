@@ -7200,6 +7200,12 @@ function _lightsTab(ctx, maps, active) {
       if (st.reg) st.reg.ts = 0;   // background refresh, keep serving current copy
       ctx.actions.renderRooms();
     },
+    // The index's own filter + sort — same as the sidebar's, independent
+    // of the map's layer chips.
+    tableClassFilter: mapState._tableClassFilter || "all",
+    onTableClassFilter: (cls) => { mapState._tableClassFilter = cls; ctx.actions.renderRooms(); },
+    tableSort: mapState._tableSort || null,
+    onTableSort: (next) => { mapState._tableSort = next; ctx.actions.renderRooms(); },
   };
   const mapCardEl = buildLightsMapCard(host);
   // The drafting grid on the stage says "editing" without a word.

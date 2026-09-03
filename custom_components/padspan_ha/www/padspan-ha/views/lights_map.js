@@ -136,7 +136,7 @@ export function effectiveState(eid, reported, now = Date.now()){
 // ── Device classes on the map ────────────────────────────────────────────────
 // The layer chips: the map keeps every class in view and DIMS the others,
 // because a fan's place on the ceiling is context for the light beside it.
-export const LIGHT_CLASSES = [["all","All"],["light","Lights"],["strip","Strips"],["fan","Fans"],["motion","Motion"]];
+export const LIGHT_CLASSES = [["all","All"],["light","Lights"],["strip","Strips"],["fan","Fans"],["motion","Motion"],["temp","Temps"]];
 export { lightClassOf };
 export function classMatches(l, cls){ return !cls || cls === "all" || lightClassOf(l) === cls; }
 
@@ -1537,22 +1537,82 @@ export function buildLightsTable(host, lights){
   }
 
   const hiddenCount = lights.filter(l => hidden.has(l.entity_id)).length;
+  // The filter pulldown and sort are LIST controls — independent of the
+  // map's own layer chips (host.classFilter dims the map; this hides rows
+  // in the table instead, the standard meaning of "filter" for a list) so
+  // picking a class here never has the side effect of changing what the
+  // map shows, which nothing asked for.
+  const tableFilter = host.tableClassFilter || "all";
+  const filtered = tableFilter === "all" ? lights : lights.filter(l => lightClassOf(l) === tableFilter);
   root.appendChild(el("div", { class: "lv-tbl-head" }, [
     el("span", { class: "lv-tbl-title" }, "Light Index"),
-    el("span", { class: "lv-count" }, String(lights.length)),
+    el("span", { class: "lv-count" }, tableFilter === "all" ? String(lights.length) : `${filtered.length} / ${lights.length}`),
     hiddenCount ? el("span", { class: "lv-hint" }, `${hiddenCount} hidden from map`) : null,
+    ...(host.onTableClassFilter ? [(() => {
+      const present = new Set(lights.map(l => lightClassOf(l)));
+      const sel = document.createElement("select");
+      sel.className = "lv-select"; sel.style.marginLeft = "auto";
+      sel.title = "Filter the list by device type";
+      for (const [cls, label] of LIGHT_CLASSES) {
+        if (cls !== "all" && !present.has(cls)) continue;
+        const o = el("option", { value: cls }, cls === "all" ? "All types" : label);
+        if (cls === tableFilter) o.selected = true;
+        sel.appendChild(o);
+      }
+      sel.addEventListener("change", () => host.onTableClassFilter(sel.value));
+      return sel;
+    })()] : []),
   ]));
 
+  // Sortable headers, the standard three-state cycle: click an unsorted
+  // column to sort it ascending, click again for descending, a third click
+  // returns to the natural (room, then name) order. The cycling logic
+  // lives here, once, so both hosts' onTableSort is a plain setter.
+  const sortState = host.tableSort || null;
+  const COLUMNS = [
+    ["code", "Code", (l) => l.code || ""],
+    ["name", "Light", (l) => (l.friendly_name || "").toLowerCase()],
+    ["room", "Room", (l) => (l.area_name || "").toLowerCase()],
+    // Sorted on exactly what the State column DISPLAYS — a temperature
+    // reading numerically (so 105° sorts above 68°, not alphabetically),
+    // everything else by its actual on/off.
+    ["state", "State", (l) => l.isTemp ? (Number.isFinite(l.temperature) ? l.temperature : -Infinity) : (l.state === "on" ? 1 : 0)],
+  ];
+  const th = (key, label, extraStyle) => {
+    if (!key || !host.onTableSort) return el("th", { style: extraStyle || "" }, label);
+    const active = sortState && sortState.column === key;
+    const arrow = active ? (sortState.dir === "asc" ? " ▲" : " ▼") : "";
+    return el("th", {
+      style: `cursor:pointer;user-select:none;${extraStyle || ""}`,
+      title: "Sort by " + label,
+      onclick: () => {
+        const next = !active ? { column: key, dir: "asc" }
+          : sortState.dir === "asc" ? { column: key, dir: "desc" }
+          : null;
+        host.onTableSort(next);
+      },
+    }, label + arrow);
+  };
   const tbl = el("table", { class: "table lv-table", style: "width:100%" });
   tbl.appendChild(el("thead", {}, el("tr", {}, [
-    el("th", {}, "Code"),
-    el("th", {}, "Light"),
-    el("th", {}, "Room"),
-    el("th", {}, "State"),
-    el("th", { style: "width:60px;text-align:center" }, "Map"),
+    th("code", "Code"),
+    th("name", "Light"),
+    th("room", "Room"),
+    th("state", "State"),
+    th(null, "Map", "width:60px;text-align:center"),
   ])));
   const tbody = el("tbody");
   const placements = (host.model && host.model.light_positions_m) || {};
+  if (sortState) {
+    const key = COLUMNS.find(([k]) => k === sortState.column)[2];
+    const dir = sortState.dir === "asc" ? 1 : -1;
+    lights = [...filtered].sort((a, b) => {
+      const av = key(a), bv = key(b);
+      return av < bv ? -dir : av > bv ? dir : 0;
+    });
+  } else {
+    lights = filtered;
+  }
   const selected = host.selectedEids || null;
   const queued = host.placeQueue || null;
   for (const l of lights) {

@@ -400,6 +400,128 @@ console.log(JSON.stringify({
     assert out["lamp"]["code"] == "A01", out["lamp"]
 
 
+_TABLE_EL = """
+function el(tag, attrs = {}, children = []) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") n.className = v;
+    else if (k.startsWith("on") && typeof v === "function") n.addEventListener(k.slice(2), v);
+    else if (v !== undefined && v !== null) n.setAttribute(k, String(v));
+  }
+  if (!Array.isArray(children)) children = [children];
+  for (const c of children) {
+    if (c === null || c === undefined) continue;
+    if (typeof c === "string" || typeof c === "number") n.appendChild(document.createTextNode(String(c)));
+    else n.appendChild(c);
+  }
+  return n;
+}
+"""
+
+
+def test_table_filter_dropdown_lists_only_present_classes_and_hides_the_rest(tmp_path):
+    """Garry: "Allow to filter by device type... as is standard in these
+    type of lists". The dropdown must never offer a class nothing on this
+    map has (a house with no WLED strip should never show "Strips"), and
+    picking one hides every other row while the count badge switches from a
+    plain count to an "N / total" fraction — the standard list-filter
+    contract."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const NOW = new Date().toISOString();
+const AREA = {"fan.ceiling": "Kitchen", "binary_sensor.hall_pir": "Hall", "light.lamp": "Kitchen",
+              "sensor.hall_temp": "Hall", "sensor.loft_temp": "Loft", "sensor.garage_temp": "Garage"};
+const STATES = {
+  "fan.ceiling":        {state: "on",  attributes: {friendly_name: "Ceiling Fan"}},
+  "binary_sensor.hall_pir": {state: "off", attributes: {friendly_name: "Hall PIR", device_class: "motion"}},
+  "light.lamp":         {state: "on",  attributes: {friendly_name: "Lamp"}},
+  "sensor.hall_temp":   {state: "68",  last_updated: NOW, attributes: {friendly_name: "Hall Temp", device_class: "temperature"}},
+  "sensor.loft_temp":   {state: "105", last_updated: NOW, attributes: {friendly_name: "Loft Temp", device_class: "temperature"}},
+  "sensor.garage_temp": {state: "9",   last_updated: NOW, attributes: {friendly_name: "Garage Temp", device_class: "temperature"}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
+let filterArg = "unset";
+const host = {
+  el, hiddenEids: new Set(), lightsLoading: false, model: {},
+  tableClassFilter: "all", onTableClassFilter: (v) => { filterArg = v; },
+};
+const root1 = LM.buildLightsTable(host, lights);
+const opts1 = [...root1.querySelectorAll("option")].map(o => o.getAttribute("value"));
+const rows1 = root1.querySelectorAll("tr[data-eid]").length;
+const badge1 = root1.querySelectorAll(".lv-count")[0].textContent;
+
+host.tableClassFilter = "temp";
+const root2 = LM.buildLightsTable(host, lights);
+const rows2 = [...root2.querySelectorAll("tr[data-eid]")].map(r => r.getAttribute("data-eid")).sort();
+const badge2 = root2.querySelectorAll(".lv-count")[0].textContent;
+
+// Fire the dropdown itself, the way an actual pick in the list would.
+const sel = root1.querySelectorAll("select")[0];
+sel.value = "fan";
+sel.dispatchEvent({ type: "change", stopPropagation(){}, preventDefault(){} });
+
+console.log(JSON.stringify({ opts1, rows1, badge1, rows2, badge2, filterArg }));
+""")
+    assert out["opts1"] == ["all", "light", "fan", "motion", "temp"], \
+        f"dropdown must list exactly the classes on this map, never an absent one like 'strip': {out['opts1']}"
+    assert out["rows1"] == 6, out
+    assert out["badge1"] == "6", "no filter active: the badge is a plain count, not an N / N fraction"
+    assert out["rows2"] == ["sensor.garage_temp", "sensor.hall_temp", "sensor.loft_temp"], out["rows2"]
+    assert out["badge2"] == "3 / 6", out["badge2"]
+    assert out["filterArg"] == "fan", "picking a dropdown option must hand its value straight to onTableClassFilter"
+
+
+def test_table_sort_cycles_three_states_and_orders_temperatures_numerically(tmp_path):
+    """Garry: "allow for sort by column as is standard in these type of
+    lists". Three clicks on a header must cycle ascending -> descending ->
+    back to the unsorted order — the standard contract. The State column's
+    own comment warns it sorts on the number, not the printed string: 9,
+    68, 105 only come out in that order under a NUMERIC sort ("105" <
+    "68" < "9" as text), so this fixture would catch a regression to
+    string comparison."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const NOW = new Date().toISOString();
+const AREA = {"sensor.a": "Hall", "sensor.b": "Hall", "sensor.c": "Hall"};
+const STATES = {
+  "sensor.a": {state: "9",   last_updated: NOW, attributes: {friendly_name: "Garage Temp", device_class: "temperature"}},
+  "sensor.b": {state: "68",  last_updated: NOW, attributes: {friendly_name: "Hall Temp",   device_class: "temperature"}},
+  "sensor.c": {state: "105", last_updated: NOW, attributes: {friendly_name: "Loft Temp",   device_class: "temperature"}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
+let sortArg = "unset";
+const host = { el, hiddenEids: new Set(), lightsLoading: false, model: {}, tableSort: null, onTableSort: (v) => { sortArg = v; } };
+
+// Click 1: unsorted -> ascending.
+let root = LM.buildLightsTable(host, lights);
+[...root.querySelectorAll("th")].find(t => t.textContent.startsWith("State")).click();
+const click1 = sortArg;
+
+// Ascending must read 9, 68, 105 — numeric order, which a string sort
+// ("105" < "68" < "9") would get backwards.
+host.tableSort = click1;
+root = LM.buildLightsTable(host, lights);
+const ascIds = [...root.querySelectorAll("tr[data-eid]")].map(r => r.getAttribute("data-eid"));
+
+// Click 2 (now sorted asc) -> descending.
+[...root.querySelectorAll("th")].find(t => t.textContent.startsWith("State")).click();
+const click2 = sortArg;
+host.tableSort = click2;
+root = LM.buildLightsTable(host, lights);
+const descIds = [...root.querySelectorAll("tr[data-eid]")].map(r => r.getAttribute("data-eid"));
+
+// Click 3 (now sorted desc) -> back to unsorted (null).
+[...root.querySelectorAll("th")].find(t => t.textContent.startsWith("State")).click();
+const click3 = sortArg;
+
+console.log(JSON.stringify({ click1, ascIds, click2, descIds, click3 }));
+""")
+    assert out["click1"] == {"column": "state", "dir": "asc"}, out["click1"]
+    assert out["ascIds"] == ["sensor.a", "sensor.b", "sensor.c"], \
+        f"9, 68, 105 must sort in that numeric order, got {out['ascIds']}"
+    assert out["click2"] == {"column": "state", "dir": "desc"}, out["click2"]
+    assert out["descIds"] == ["sensor.c", "sensor.b", "sensor.a"], out["descIds"]
+    assert out["click3"] is None, "a third click on the same column must return to the unsorted order"
+
+
 # ── Motion + occupancy pairing ────────────────────────────────────────────────
 # Garry: "some of the sensors have two elements, motion and presence ...
 # merge into one in a logical way" — then caught a real gap in the first

@@ -470,6 +470,14 @@ class PadSpanLightsApp extends HTMLElement {
         if(this._regStore.reg) this._regStore.reg.ts=0;
         this._render();
       },
+      // The index's own filter + sort — independent of the map's layer
+      // chips (classFilter/onClassFilter above): this hides rows outright,
+      // the ordinary meaning of "filter" for a list, so choosing a type
+      // here never has the side effect of dimming the map too.
+      tableClassFilter: this.state._tableClassFilter || "all",
+      onTableClassFilter: (cls)=>{ this.state._tableClassFilter=cls; this._render(); },
+      tableSort: this.state._tableSort || null,
+      onTableSort: (next)=>{ this.state._tableSort=next; this._render(); },
     };
 
     root.appendChild(buildLightsMapCard(host));
