@@ -314,6 +314,79 @@ console.log(JSON.stringify(out));
     assert out["plugRemembered"] is None, "a light that never reported brightness has nothing to restore"
 
 
+def _run_pipeline_script(tmp_path: Path, script_body: str) -> dict:
+    _stage(tmp_path)
+    script = ("import { install } from './dom_shim.mjs';\ninstall(globalThis);\n"
+              "const LM = await import('./lights_map.mjs');\n" + script_body)
+    (tmp_path / "run3.mjs").write_text(script, encoding="utf-8")
+    res = subprocess.run([_NODE, str(tmp_path / "run3.mjs")], capture_output=True,
+                         text=True, encoding="utf-8", timeout=120)
+    assert res.returncode == 0, f"node failed:\n{res.stderr[-4000:]}"
+    return json.loads(res.stdout.strip().splitlines()[-1])
+
+
+def test_type_override_forces_a_class_at_pro_and_is_ignored_below(tmp_path):
+    """Garry: "override the HA light type to any type of device the lights pro
+    system handles... Option only for the pro version". At pro the stored
+    override decides the class outright — a plain bulb becomes W-series, a
+    real WLED strip can be demoted to plain, a partition can be declared. At
+    bright (a paying Bright Pro customer) the same stored map is IGNORED and
+    detection rules, which is what makes it a Pro differentiator."""
+    out = _run_pipeline_script(tmp_path, """
+const AREA = {"light.bulb": "Kitchen", "light.strip": "Kitchen", "light.seg": "Kitchen"};
+const STATES = {
+  "light.bulb":  {state: "on", attributes: {friendly_name: "Plain Bulb", supported_color_modes: ["brightness"], brightness: 100}},
+  "light.strip": {state: "on", attributes: {friendly_name: "Real WLED", effect_list: ["Solid", "Rainbow"], rgb_color: [255,0,0]}},
+  "light.seg":   {state: "on", attributes: {friendly_name: "Zone Strip", supported_color_modes: ["rgb"]}},
+};
+const OVR = {"light.bulb": "wled", "light.strip": "plain", "light.seg": "partition"};
+const codesFor = (tier) => Object.fromEntries(LM.gatherLights(STATES, AREA, {}, tier, {}, OVR).map(l => [l.entity_id, {code: l.code, w: !!l.isWled, p: !!l.isPartition, shape: l.shape}]));
+console.log(JSON.stringify({pro: codesFor("pro"), bright: codesFor("bright"), none: codesFor("pro")}));
+""")
+    pro, bright = out["pro"], out["bright"]
+    assert pro["light.bulb"]["code"].startswith("W") and pro["light.bulb"]["w"], pro
+    assert pro["light.bulb"]["shape"] == "bar", "a forced WLED-class light takes the strip glyph"
+    assert not pro["light.strip"]["w"] and not pro["light.strip"]["code"].startswith("W"), pro
+    assert pro["light.seg"]["p"] and pro["light.seg"]["code"].startswith("P"), pro
+    # Bright: the override is invisible. Detection alone.
+    assert bright["light.strip"]["w"] and bright["light.strip"]["code"].startswith("W"), bright
+    assert not bright["light.bulb"]["w"] and not bright["light.bulb"]["code"].startswith("W"), bright
+    assert not bright["light.seg"]["p"], bright
+
+
+def test_fans_and_motion_sensors_ride_the_pipeline(tmp_path):
+    """Fans (F-series, fan glyph, their card's inputs) and motion sensors
+    (M-series, motion glyph, admitted by device_class only) share the lights
+    pipeline. A door sensor is a binary_sensor too and must NOT appear."""
+    out = _run_pipeline_script(tmp_path, """
+const AREA = {"fan.ceiling": "Kitchen", "binary_sensor.hall_pir": "Hall", "binary_sensor.front_door": "Hall", "light.lamp": "Kitchen"};
+const STATES = {
+  "fan.ceiling": {state: "on", attributes: {friendly_name: "Ceiling Fan", percentage: 66, preset_modes: ["breeze","sleep"], preset_mode: "breeze", oscillating: false, direction: "forward", effect_list: ["x"]}},
+  "binary_sensor.hall_pir": {state: "on", attributes: {friendly_name: "Hall PIR", device_class: "motion"}},
+  "binary_sensor.front_door": {state: "on", attributes: {friendly_name: "Front Door", device_class: "door"}},
+  "light.lamp": {state: "off", attributes: {friendly_name: "Lamp", supported_color_modes: ["onoff"]}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
+const by = Object.fromEntries(lights.map(l => [l.entity_id, l]));
+console.log(JSON.stringify({
+  ids: lights.map(l => l.entity_id).sort(),
+  fan: by["fan.ceiling"] && {code: by["fan.ceiling"].code, isFan: by["fan.ceiling"].isFan, w: by["fan.ceiling"].isWled, shape: by["fan.ceiling"].shape, pct: by["fan.ceiling"].pct, presets: by["fan.ceiling"].preset_modes, dir: by["fan.ceiling"].direction, osc: by["fan.ceiling"].oscillating},
+  pir: by["binary_sensor.hall_pir"] && {code: by["binary_sensor.hall_pir"].code, isMotion: by["binary_sensor.hall_pir"].isMotion, shape: by["binary_sensor.hall_pir"].shape, dimmable: by["binary_sensor.hall_pir"].dimmable},
+  lamp: by["light.lamp"] && {code: by["light.lamp"].code},
+}));
+""")
+    assert out["ids"] == ["binary_sensor.hall_pir", "fan.ceiling", "light.lamp"], out["ids"]
+    fan = out["fan"]
+    assert fan["code"] == "F01" and fan["isFan"] and fan["shape"] == "fan", fan
+    # A fan advertising an effect_list is STILL a fan, never WLED-class.
+    assert not fan["w"], fan
+    assert fan["pct"] == 66 and fan["presets"] == ["breeze", "sleep"] and fan["dir"] == "forward" and fan["osc"] is False, fan
+    pir = out["pir"]
+    assert pir["code"] == "M01" and pir["isMotion"] and pir["shape"] == "motion" and pir["dimmable"] is False, pir
+    # The plain lamp keeps the generic series — F and M are reserved.
+    assert out["lamp"]["code"] == "A01", out["lamp"]
+
+
 def test_both_hosts_pass_the_tier():
     """The gate is only as good as its callers: both hosts hand settings.tier
     to gatherLights and to the card, and neither re-derives the ladder."""

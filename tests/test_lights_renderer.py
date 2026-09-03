@@ -1174,6 +1174,47 @@ def test_perimeter_marker_hides_the_square_keeps_click_space_and_glow(tmp_path):
     assert out["poolGlows"], "the Showcase glow was lost"
 
 
+def test_motion_sensor_pulses_blue_while_triggered_and_fans_do_not_pool(tmp_path):
+    """Garry: "a blue pulsing glow around motion sensors when activated".
+    The pulse draws in BOTH modes (it is live status, not presentation),
+    only while the sensor is ON, and neither a fan nor a sensor ever throws
+    a light pool on the floor — they are on the map, not light sources."""
+    model = {
+        "room_geometry_m": {"Hall": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
+        "light_positions_m": {
+            "binary_sensor.pir_on":  {"x_m": 2.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.pir_off": {"x_m": 6.0, "y_m": 2.0, "floor_id": "main"},
+            "fan.ceiling":           {"x_m": 4.0, "y_m": 1.0, "floor_id": "main"},
+        },
+    }
+    lbe = {
+        "binary_sensor.pir_on":  {"entity_id": "binary_sensor.pir_on",  "state": "on",  "code": "M01", "shape": "motion", "isMotion": True},
+        "binary_sensor.pir_off": {"entity_id": "binary_sensor.pir_off", "state": "off", "code": "M02", "shape": "motion", "isMotion": True},
+        "fan.ceiling":           {"entity_id": "fan.ceiling",           "state": "on",  "code": "F01", "shape": "fan",    "isFan": True},
+    }
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        "const FLOORS=[{id:'main',name:'Main',level:0}];\n"
+        "const mk=(o)=>M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,o);\n"
+        "const work=mk({}), show=mk({showcase:true});\n"
+        "const pulses=(s)=>(s.match(/fill=\"url\\(#psmotion\\)\"/g)||[]).length;\n"
+        "const out={workPulses:pulses(work), showPulses:pulses(show),\n"
+        "  workAnimatesR:/<animate attributeName=\"r\"/.test(work),\n"
+        "  showPools:(show.match(/fill=\"url\\(#psglow_/g)||[]).length,\n"
+        "  motionGlyph:/<g class=\"lhex\" data-eid=\"binary_sensor\\.pir_on\"/.test(work),\n"
+        "  fanGlyph:/<g class=\"lhex\" data-eid=\"fan\\.ceiling\"/.test(work)};\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    # Exactly one sensor is triggered: one pulse disc in each mode, not two.
+    assert out["workPulses"] == 1 and out["showPulses"] == 1, out
+    assert out["workAnimatesR"], "the expanding ring animation is missing from the working map"
+    # The lit fan pools nothing; the sensors pool nothing; so Showcase has no light pools at all.
+    assert out["showPools"] == 0, out
+    assert out["motionGlyph"] and out["fanGlyph"], out
+
+
 # ── Showcase ────────────────────────────────────────────────────────────────
 
 _SHOWCASE_MODEL = {

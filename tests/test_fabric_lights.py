@@ -221,3 +221,41 @@ def test_the_backend_shape_vocabulary_is_the_renderers() -> None:
     front = re.findall(r'\["([a-z_]+)",', block)
     assert front, "could not read LIGHT_SHAPES from light_codes.js"
     assert set(front) == set(LIGHT_PIN_SHAPES), (sorted(front), sorted(LIGHT_PIN_SHAPES))
+
+
+def test_the_backend_type_override_vocabulary_is_the_choosers() -> None:
+    """Same discipline as the shapes: the Pro type-override chooser
+    (LIGHT_TYPE_OVERRIDES in light_codes.js) and the backend whitelist
+    (const.LIGHT_TYPE_OVERRIDE_KINDS) are two lists, and two lists drift —
+    the shape chooser once gained 'line' while the whitelist didn't, and
+    the save silently reverted to Auto. 'auto' is the chooser's word for
+    'no override' and is never stored, so it is the one legitimate difference."""
+    import re
+    from pathlib import Path
+    from custom_components.padspan_ha.const import LIGHT_TYPE_OVERRIDE_KINDS
+    js = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+          / "www" / "padspan-ha" / "views" / "light_codes.js").read_text(encoding="utf-8")
+    block = js[js.index("export const LIGHT_TYPE_OVERRIDES = ["):]
+    block = block[:block.index("];")]
+    front = set(re.findall(r'\["([a-z_]+)",', block))
+    assert front, "could not read LIGHT_TYPE_OVERRIDES from light_codes.js"
+    assert front - {"auto"} == set(LIGHT_TYPE_OVERRIDE_KINDS), (sorted(front), sorted(LIGHT_TYPE_OVERRIDE_KINDS))
+    assert "auto" in front
+
+
+@pytest.mark.asyncio
+async def test_fans_and_motion_sensors_are_placeable_like_a_light() -> None:
+    """Placement was gated to light.* — fans and motion sensors now join the
+    map "just like a light", through the same command into the same store.
+    Anything else is still refused."""
+    mdl, fab = _mdl(), _fab()
+    mdl.fabric = fab
+    for eid in ("fan.ceiling", "binary_sensor.hall_motion"):
+        await ws_fabric_light_position_set(_hass(mdl), MagicMock(), {
+            "id": 1, "entity_id": eid, "x_m": 1.5, "y_m": 2.5, "floor_id": "main"})
+        assert mdl.light_positions_m()[eid]["x_m"] == 1.5, eid
+    conn = MagicMock()
+    await ws_fabric_light_position_set(_hass(mdl), conn, {
+        "id": 2, "entity_id": "switch.kettle", "x_m": 1.0, "y_m": 1.0})
+    conn.send_error.assert_called_once()
+    assert "switch.kettle" not in mdl.light_positions_m()
