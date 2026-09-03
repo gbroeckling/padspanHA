@@ -7,8 +7,11 @@ and effects change. Deciding from either snapshot alone made the brightness
 slider and the colour picker appear and disappear on hardware that dims and
 colours perfectly well.
 
-These run the real decision from lights_panel.js under node, against the
-attribute shapes actually observed on a live install.
+These run the real decision from views/lights_map.js's shared control card
+under node, against the attribute shapes actually observed on a live
+install. The card used to live in lights_panel.js alone; it moved into the
+shared module so the Mapping tab's "Preview as sidebar" opens the identical
+card, not a second copy of the rule.
 """
 
 from __future__ import annotations
@@ -21,24 +24,25 @@ from pathlib import Path
 
 import pytest
 
-_PANEL = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "lights_panel.js"
+_PANEL = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "views" / "lights_map.js"
 _NODE = shutil.which("node")
 
 pytestmark = pytest.mark.skipif(_NODE is None, reason="node is not installed")
 
 
 def _extract_rules() -> tuple[str, str]:
-    """Lift the two capability expressions out of the panel source.
+    """Lift the two capability expressions out of the shared card's source.
 
     Reading them from the shipped file (rather than restating them here) is
     the point: a test that re-implements the rule cannot catch the rule
-    changing.
+    changing. Whitespace-tolerant, because the rule now lives in a file with
+    its own formatting conventions rather than lights_panel.js's.
     """
     src = _PANEL.read_text(encoding="utf-8")
-    dim = re.search(r"const dimmable =(.+?);", src, re.S)
-    assert dim, "could not find the dimmable rule in lights_panel.js"
-    col = re.search(r"if\((modes\.some\(m => \[\"rgb\".+?)\)\{", src, re.S)
-    assert col, "could not find the colour rule in lights_panel.js"
+    dim = re.search(r"const dimmable\s*=(.+?);", src, re.S)
+    assert dim, "could not find the dimmable rule in views/lights_map.js"
+    col = re.search(r"if\s*\((modes\.some\(m => \[\"rgb\".+?)\)\s*\{", src, re.S)
+    assert col, "could not find the colour rule in views/lights_map.js"
     return dim.group(1).strip(), col.group(1).strip()
 
 

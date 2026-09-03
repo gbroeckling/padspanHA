@@ -23,7 +23,8 @@ const { isWledLight, isPartitionLight } =
 // verbatim by the Mapping → Lights tab (the builder for this display), so the
 // two tools always show the identical map. All lights-view edits go in there.
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
-        sunAmbient, lastBrightness } =
+        sunAmbient, lastBrightness, setOptimistic, clearOptimistic,
+        wireUseSurface, openControlCard, openRoomSheet, openFloorSheet, setManyStates } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 
 // ── DOM helpers ──────────────────────────────────────────────────────────────
@@ -55,8 +56,12 @@ function el(tag, attrs={}, children=[]){
 // this panel shows (registry pipeline, map card, index table) lives in
 // views/lights_map.js, shared with the Mapping → Lights tab.
 
-// ── Persistence key ──────────────────────────────────────────────────────────
+// ── Persistence keys ─────────────────────────────────────────────────────────
 const LS_HIDDEN = "padspan_ha_lights_hidden";
+// The one-time coach mark ("tap to switch · code or hold for controls") —
+// per browser, because that is where the hands are.
+const LS_COACH = "padspan_ha_lights_coach_seen";
+const LS_CLASS = "padspan_ha_lights_class";
 
 // ── Custom element ────────────────────────────────────────────────────────────
 class PadSpanLightsApp extends HTMLElement {
@@ -70,6 +75,9 @@ class PadSpanLightsApp extends HTMLElement {
       _modelLoaded: false,
       _hiddenMapIds: new Set(),
       _hidden:     this._loadHidden(),
+      // Layer chips: which device class is in front. Remembered per browser.
+      _classFilter: (()=>{ try{ return localStorage.getItem(LS_CLASS)||"all"; }catch(_){ return "all"; } })(),
+      _coachSeen:   (()=>{ try{ return localStorage.getItem(LS_COACH)==="1"; }catch(_){ return false; } })(),
     };
     // Registry cache owned here, filled by the shared ensureLightsRegistry.
     this._regStore = {};
@@ -256,6 +264,12 @@ class PadSpanLightsApp extends HTMLElement {
     const domain=String(eid).split(".")[0];
     if(domain==="binary_sensor"){ this._toast("Motion sensors are read-only"); return; }
     const on=this._hass.states[eid]?.state==="on";
+    // Optimistic: the marker flips NOW (shared claim in lights_map.js, so the
+    // index row flips with it), and HA's next state reconciles it. A failed
+    // call takes the claim back at once and shakes the marker — a tap that
+    // did nothing must never look like a tap that worked.
+    setOptimistic(eid, on?"off":"on");
+    this._render();
     try{
       // Off→on restores the level it was dimmed to. HA drops `brightness`
       // while a light is off, so this comes from the shared memory
@@ -268,201 +282,66 @@ class PadSpanLightsApp extends HTMLElement {
       }
       await this._hass.callService(domain, on?"turn_off":"turn_on", data);
       setTimeout(()=>this._render(), 600);
-    }catch(e){ this._toast("Could not toggle "+eid, true); }
+    }catch(e){
+      clearOptimistic(eid);
+      this._render();
+      this._shake(eid);
+      this._toast("Could not toggle "+eid, true);
+    }
   }
 
-  // Detail popup, capability-driven: on/off always; brightness, RGB colour
-  // and effect each appear only when the light offers them. Reached by a
-  // long-press on WLED-class, partition and plain dimmable lights alike —
-  // a dimmer gets the slider, a strip gets the lot. Appended to
-  // document.body (not the shadow root) so it isn't clipped by the panel's
-  // scroll container — same reasoning as _toast, so styling is fully inline.
+  // The revert shake: a short wobble on the marker whose tap failed.
+  _shake(eid){
+    requestAnimationFrame(()=>{
+      const g=this.shadowRoot && this.shadowRoot.querySelector(`.lhex[data-eid="${String(eid).replace(/"/g,'\\"')}"]`);
+      if(!g) return;
+      g.classList.add("lv-shake");
+      setTimeout(()=>g.classList.remove("lv-shake"), 500);
+    });
+  }
+
+  // Aggregate actions: every light (and, separately, every fan) in a room
+  // or on a floor. Fans are never swept up by "all lights off" — the sheet
+  // offers them their own button, so the word "all" is never ambiguous.
+  async _setMany(eids, turnOn){
+    await setManyStates(this._hass, eids, turnOn, {toast:(m,e)=>this._toast(m,e), rerender:()=>this._render()});
+  }
+
+  // The control card (shared, views/lights_map.js): capability-driven —
+  // brightness / colour / effects for a light, speed / preset / oscillate /
+  // direction for a fan. The admin's pencil deep-links to the builder.
   _openWledDetail(eid){
-    if(!this._hass) return;
-    const st=this._hass.states[eid];
-    if(!st) return;
-    const attrs=st.attributes||{};
-    const effectList=Array.isArray(attrs.effect_list)?attrs.effect_list:[];
-    const rgb=Array.isArray(attrs.rgb_color)?attrs.rgb_color:[255,255,255];
-    const toHex=(c)=>"#"+c.map(v=>Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,"0")).join("");
-    const fromHex=(hex)=>{ const n=parseInt(hex.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; };
+    openControlCard(this._hass, eid, {
+      toast:(m,e)=>this._toast(m,e),
+      rerender:()=>this._render(),
+      onEdit: this._isAdmin() ? (e)=>this._gotoBuilder(e) : null,
+    });
+  }
 
-    const overlay=document.createElement("div");
-    overlay.style.cssText="position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10000;"+
-      "display:flex;align-items:center;justify-content:center;"+
-      "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)";
-    const close=()=>{ try{ document.body.removeChild(overlay); }catch(_){} };
-    overlay.addEventListener("click",e=>{ if(e.target===overlay) close(); });
+  _isAdmin(){ return !!(this._hass && this._hass.user && this._hass.user.is_admin); }
+  // Deep-link into the builder: the panel reads ?view= (existing), ?tab= and
+  // ?light= (panel.js) and lands on Mapping → Lights with the light selected.
+  _gotoBuilder(eid){
+    const q=new URLSearchParams({view:"maps", tab:"lights"});
+    if(eid) q.set("light", eid);
+    try{ window.location.assign(`/padspan-ha?${q.toString()}`); }catch(_){}
+  }
 
-    const box=el("div",{style:
-      "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.28);"+
-      "border-radius:16px;padding:20px;width:300px;max-width:90vw;"+
-      "color:#e2e8f0;font-family:Inter,system-ui,sans-serif;"+
-      "box-shadow:0 20px 60px rgba(0,0,0,.65),0 0 30px rgba(82,183,136,.08),inset 0 1px 0 rgba(255,255,255,.05)"});
-
-    box.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px"},[
-      el("div",{style:"font-weight:700;font-size:15px;letter-spacing:-.01em"}, attrs.friendly_name||eid),
-      el("button",{
-        style:"background:rgba(255,255,255,.04);border:1px solid rgba(120,190,155,.18);border-radius:8px;"+
-          "color:#94a3b8;font-size:13px;cursor:pointer;padding:3px 8px;line-height:1;flex-shrink:0",
-        onclick:close,
-      },"✕"),
-    ]));
-
-    const on=st.state==="on";
-    // The service domain is the entity's own — this popup serves fans too.
-    const domain=String(eid).split(".")[0];
-    const onBtn=el("button",{
-      style:`width:100%;margin-bottom:14px;padding:10px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;`+
-            `letter-spacing:.02em;transition:filter .15s ease;`+
-            (on?"background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#111827;border:1px solid rgba(255,255,255,.25);box-shadow:0 0 18px rgba(251,191,36,.35);"
-              :"background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);"),
-      onclick:async()=>{
-        const data={entity_id:eid};
-        if(!on && domain==="light"){
-          const bri=lastBrightness(eid);
-          if(bri!==null) data.brightness=bri;
-        }
-        try{ await this._hass.callService(domain, on?"turn_off":"turn_on", data); }catch(e){}
-        close();
-        setTimeout(()=>this._render(), 400);
-      },
-    }, on?"Turn Off":"Turn On");
-    box.appendChild(onBtn);
-
-    // ── Fan card ─────────────────────────────────────────────────────────
-    // Set up like WLED in access and use: same hold to open, same on/off,
-    // then the fan's own controls, each only when the entity offers it —
-    // speed (percentage), preset modes, oscillation, direction.
-    if(domain==="fan"){
-      const lblStyle="font-size:12px;color:#94a3b8;margin-bottom:4px";
-      const selStyle="width:100%;background:#1a2e1e;color:#52b788;border:1px solid #2d4a36;border-radius:8px;padding:6px";
-      const pillStyle=(active)=>`flex:1;padding:8px;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;`+
-        (active?"background:rgba(52,211,153,.18);color:#6ee7b7;border:1px solid rgba(52,211,153,.45);"
-               :"background:rgba(255,255,255,.04);color:#94a3b8;border:1px solid rgba(120,190,155,.18);");
-      const call=async(svc,data)=>{
-        try{ await this._hass.callService("fan", svc, {entity_id:eid, ...data}); }
-        catch(e){ this._toast("Could not set fan "+svc, true); }
-        setTimeout(()=>this._render(), 400);
-      };
-      if(typeof attrs.percentage==="number" || Number.isFinite(Number(attrs.percentage))){
-        const cur=Math.max(0,Math.min(100,Number(attrs.percentage)||0));
-        const step=Math.max(1,Math.round(Number(attrs.percentage_step)||1));
-        const pctLbl=el("div",{style:lblStyle}, `Speed: ${cur}%`);
-        const pct=document.createElement("input");
-        pct.type="range"; pct.min="0"; pct.max="100"; pct.step=String(step); pct.value=String(cur);
-        pct.style.cssText="width:100%;accent-color:#34d399";
-        pct.addEventListener("input",()=>{ pctLbl.textContent=`Speed: ${pct.value}%`; });
-        pct.addEventListener("change",()=>call("set_percentage",{percentage:parseInt(pct.value,10)}));
-        box.appendChild(el("div",{style:"margin-bottom:12px"},[pctLbl,pct]));
-      }
-      if(Array.isArray(attrs.preset_modes) && attrs.preset_modes.length){
-        const sel=document.createElement("select");
-        sel.style.cssText=selStyle;
-        for(const m of attrs.preset_modes){
-          const o=document.createElement("option"); o.value=m; o.textContent=m;
-          if(m===attrs.preset_mode) o.selected=true;
-          sel.appendChild(o);
-        }
-        sel.addEventListener("change",()=>call("set_preset_mode",{preset_mode:sel.value}));
-        box.appendChild(el("div",{style:"margin-bottom:12px"},[el("div",{style:lblStyle},"Preset"), sel]));
-      }
-      const row=el("div",{style:"display:flex;gap:8px"});
-      if(typeof attrs.oscillating==="boolean"){
-        row.appendChild(el("button",{style:pillStyle(attrs.oscillating),
-          onclick:()=>call("oscillate",{oscillating:!attrs.oscillating})}, attrs.oscillating?"Oscillating ✓":"Oscillate"));
-      }
-      if(attrs.direction==="forward" || attrs.direction==="reverse"){
-        const nxt=attrs.direction==="forward"?"reverse":"forward";
-        row.appendChild(el("button",{style:pillStyle(false), title:`Currently ${attrs.direction}`,
-          onclick:()=>call("set_direction",{direction:nxt})}, attrs.direction==="forward"?"⟳ Forward":"⟲ Reverse"));
-      }
-      if(row.childNodes.length) box.appendChild(row);
-      overlay.appendChild(box);
-      document.body.appendChild(overlay);
-      return;
-    }
-
-    // Dimmability is a CAPABILITY, not a current value: Home Assistant drops
-    // the brightness attribute entirely while a light is off, so testing the
-    // attribute hid the slider on every light that was off — which is exactly
-    // when you open this popup to set a level. supported_color_modes is
-    // present in both states; every mode except onoff/unknown carries
-    // brightness.
-    const modes = Array.isArray(attrs.supported_color_modes) ? attrs.supported_color_modes : [];
-    // ...and supported_color_modes is NOT stable for WLED. The same unit
-    // reports ['rgb'] in one state and ['onoff'] in another as segments and
-    // effects change, so deciding from the current snapshot made the
-    // brightness slider come and go on hardware that dims perfectly well.
-    // Three independent kinds of evidence, any one of which is enough:
-    // the modes say so, the light is reporting a brightness right now, or it
-    // is WLED-class — this popup only opens for effect-capable hardware, and
-    // that hardware dims. A slider a rare fixture ignores costs far less than
-    // a missing control on one that doesn't.
-    const dimmable = modes.some(m => m !== "onoff" && m !== "unknown")
-      || typeof attrs.brightness === "number"
-      || effectList.length > 0;
-    if(dimmable){
-      const pct=(v)=>Math.round((v/255)*100);
-      const cur=typeof attrs.brightness==="number" ? attrs.brightness : 255;
-      const briText=(v)=>`Brightness: ${pct(v)}%` + (on ? "" : " · turns the light on");
-      const briLbl=el("div",{style:"font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em"}, briText(cur));
-      const bri=document.createElement("input");
-      bri.type="range"; bri.min="1"; bri.max="255"; bri.value=String(cur);
-      bri.style.cssText="width:100%;accent-color:#fbbf24;height:20px;cursor:pointer";
-      bri.addEventListener("input",()=>{ briLbl.textContent=briText(bri.value); });
-      bri.addEventListener("change",async()=>{
-        try{ await this._hass.callService("light","turn_on",{entity_id:eid, brightness:parseInt(bri.value,10)}); }
-        catch(e){ this._toast("Could not set brightness", true); }
-        setTimeout(()=>this._render(), 400);
-      });
-      box.appendChild(el("div",{style:"margin-bottom:12px"},[briLbl,bri]));
-    }
-
-    // Colour has the same instability: a unit that reports a colour mode most
-    // of the time can report ['onoff'] for a moment, and the picker would
-    // vanish mid-session on hardware that plainly takes colour. A currently
-    // reported rgb_color is proof on its own, so either kind of evidence
-    // keeps the control. (Only a light that has never shown a colour mode
-    // AND is not reporting a colour loses it — that is the switched preset
-    // the picker genuinely could not drive.)
-    if(modes.some(m => ["rgb","rgbw","rgbww","hs","xy"].includes(m))
-       || Array.isArray(attrs.rgb_color)){
-      const colorInput=document.createElement("input");
-      colorInput.type="color";
-      colorInput.value=toHex(rgb);
-      colorInput.style.cssText="width:52px;height:32px;border:1px solid rgba(120,190,155,.25);border-radius:8px;"+
-        "background:rgba(255,255,255,.04);cursor:pointer;padding:2px";
-      colorInput.addEventListener("change",async()=>{
-        try{ await this._hass.callService("light","turn_on",{entity_id:eid, rgb_color:fromHex(colorInput.value)}); }
-        catch(e){ this._toast("Could not set colour", true); }
-        setTimeout(()=>this._render(), 400);
-      });
-      box.appendChild(el("div",{style:"margin-bottom:12px;display:flex;align-items:center;gap:10px"},[
-        el("span",{style:"font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em"},"Color"), colorInput,
-      ]));
-    }
-
-    if(effectList.length){
-      const effSel=document.createElement("select");
-      effSel.style.cssText="width:100%;background:rgba(15,26,18,.9);color:#8ee5b4;border:1px solid rgba(120,190,155,.28);"+
-        "border-radius:8px;padding:7px;font-size:12px;cursor:pointer";
-      for(const eff of effectList){
-        const o=document.createElement("option");
-        o.value=eff; o.textContent=eff;
-        if(eff===attrs.effect) o.selected=true;
-        effSel.appendChild(o);
-      }
-      effSel.addEventListener("change",async()=>{
-        try{ await this._hass.callService("light","turn_on",{entity_id:eid, effect:effSel.value}); }catch(e){}
-      });
-      box.appendChild(el("div",{},[
-        el("div",{style:"font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em"},"Effect"), effSel,
-      ]));
-    }
-
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
+  // The api the shared use surface and sheets act through — the sidebar's
+  // toggle (optimistic + shake), its control card, its aggregate action.
+  _useApi(lightsByEid, lights){
+    const controlsFor=(l0)=>!!(l0 && (isWledLight(l0)||isPartitionLight(l0)||l0.dimmable||l0.isFan));
+    const api={
+      hass:this._hass, lightsByEid, lights, controlsFor,
+      toggle:(eid)=>this._toggle(eid),
+      openControls:(eid)=>this._openWledDetail(eid),
+      setMany:(eids,on)=>this._setMany(eids,on),
+      toast:(m,e)=>this._toast(m,e),
+      rerender:()=>this._render(),
+    };
+    api.openRoom=(room, onlyEids)=>openRoomSheet(api, lights, room, onlyEids);
+    api.openFloor=(z)=>openFloorSheet(api, lights, this.state.model, z);
+    return api;
   }
 
   _render(){
@@ -482,11 +361,25 @@ class PadSpanLightsApp extends HTMLElement {
     root.appendChild(el("div",{class:"lv-hero"},[
       el("div",{class:"lv-hero-title"},"Lights"),
       el("span",{class:"lv-ver"},`v${APP_VERSION}`),
-      el("span",{class:"lv-hint"},"Tap to toggle \u00b7 hold for brightness, colour & effects"),
-      el("button",{class:"lv-act",style:"margin-left:auto",onclick:()=>{
+      el("span",{class:"lv-hint"},"Tap a light to switch it \u00b7 tap its code or hold for controls \u00b7 tap a room name for the whole room"),
+      // Admin only: the pencil to the builder. Same map, the other tool.
+      ...(this._isAdmin() ? [el("button",{class:"lv-act",style:"margin-left:auto",title:"Open Mapping \u2192 Lights",
+        onclick:()=>this._gotoBuilder(null)},"\u270e Edit map")] : []),
+      el("button",{class:"lv-act",style:this._isAdmin()?"":"margin-left:auto",onclick:()=>{
         this._regStore.reg=null; this._boot().then(()=>this._render());
       }},"\u21bb Refresh"),
     ]));
+    // One-time coach mark. Dismissed once per browser; never again.
+    if(!this.state._coachSeen){
+      root.appendChild(el("div",{class:"lv-coach"},[
+        el("span",{},"\u{1F4A1} Tap a light to switch it. Tap its code, or press and hold, for brightness, colour, effects and fan speed. Hold a dimmable light and slide up or down to dim it. Tap a room name for everything in the room."),
+        el("button",{class:"lv-act",onclick:()=>{
+          this.state._coachSeen=true;
+          try{ localStorage.setItem(LS_COACH,"1"); }catch(_){}
+          this._render();
+        }},"Got it"),
+      ]));
+    }
 
     // ── Shared data pipeline — identical to the Mapping → Lights tab ─────────
     // Room assignment needs the entity/device registry (a multi-MB dump);
@@ -542,44 +435,28 @@ class PadSpanLightsApp extends HTMLElement {
       saveView: ()=>this._saveSettings(),
       callWS: (msg)=>this._hass.callWS(msg),
       toast: (m,isErr)=>this._toast(m,isErr),
-      // Sidebar interaction: a hex controls the light (the Mapping tab's
-      // host instead wires selection + drag-to-place on the same hexes).
-      // A tap is the light switch, whatever the light — and off→on restores
-      // the last dimmed level from the shared memory, so a lamp left at 20%
-      // comes back at 20%, not full. The detail popup is a LONG PRESS
-      // (500ms), for anything with more than on/off to offer: strip-class
-      // lights (WLED, ESPHome partition) and plain dimmables alike. It used
-      // to steal the plain tap on every effect-capable light, which made the
-      // most capable lights the only ones you couldn't simply switch.
+      // The use surface — wireUseSurface (shared). The renderer is asked for the
+      // use-mode ergonomics: the code as its own tap target (codeChip), a
+      // ≥44 px halo under every marker (hitHalo), the piles of unplaced
+      // devices collapsed to one chip per room (collapseUnplaced), and the
+      // layer chips' class filter. The Mapping tab's host asks for none of
+      // these: there a click selects and a drag places.
+      codeChip: true,
+      hitHalo: true,
+      collapseUnplaced: true,
+      classFilter: this.state._classFilter,
+      onClassFilter: (cls)=>{
+        this.state._classFilter=cls;
+        try{ localStorage.setItem(LS_CLASS, cls); }catch(_){}
+        this._render();
+      },
       onHexesBuilt: (isoDiv)=>{
-        requestAnimationFrame(()=>{
-          isoDiv.querySelectorAll(".lhex").forEach(g=>{
-            g.addEventListener("click",e=>{
-              e.stopPropagation();
-              if(g._lpFired){ g._lpFired=false; return; }
-              this._toggle(g.dataset.eid);
-            });
-            const l0=lightsByEid[g.dataset.eid];
-            if(l0 && (isWledLight(l0) || isPartitionLight(l0) || l0.dimmable || l0.isFan)){
-              let t=null;
-              g.addEventListener("pointerdown",()=>{
-                g._lpFired=false;
-                t=setTimeout(()=>{ g._lpFired=true; this._openWledDetail(g.dataset.eid); },500);
-              });
-              const cancel=()=>{ if(t){ clearTimeout(t); t=null; } };
-              g.addEventListener("pointerup",cancel);
-              g.addEventListener("pointerleave",cancel);
-              g.addEventListener("pointercancel",cancel);
-              // Touch long-press raises a context menu on top of the popup.
-              g.addEventListener("contextmenu",e=>e.preventDefault());
-            }
-            g.addEventListener("mouseover",()=>{g.style.opacity="0.75";});
-            g.addEventListener("mouseout", ()=>{g.style.opacity="1";});
-          });
-        });
+        requestAnimationFrame(()=>wireUseSurface(isoDiv, this._useApi(lightsByEid, lights)));
       },
       onRowClick: (l)=> this._toggle(l.entity_id),
       onRowLongPress: (l)=>{ if(isWledLight(l) || isPartitionLight(l) || l.dimmable || l.isFan) this._openWledDetail(l.entity_id); },
+      // The "⋯" on every row: the controls in plain sight.
+      onRowMore: (l)=>{ if(isWledLight(l) || isPartitionLight(l) || l.dimmable || l.isFan) this._openWledDetail(l.entity_id); else this._toggle(l.entity_id); },
       onToggleHidden: (eid)=>{
         if(hidden.has(eid)) hidden.delete(eid);
         else hidden.add(eid);

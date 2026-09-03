@@ -19,7 +19,8 @@ const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM
 // verbatim by the Lights sidebar panel, so the two tools always show the
 // identical map; this tab layers the build tools on top of it.
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
-        sunAmbient, lastBrightness } =
+        sunAmbient, lastBrightness, spreadInRoom, createUndoStack, setOptimistic, clearOptimistic,
+        wireUseSurface, openControlCard, openRoomSheet, openFloorSheet, setManyStates } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape } =
@@ -6090,6 +6091,72 @@ function _floorIdForLight(ctx, eid, z, frame, lightsByEid) {
   return _floorIdForZ(ctx, z, frame);
 }
 
+// ── Undo / redo over the DRAFT ──────────────────────────────────────────────
+// Every edit (drag, nudge, handle, inspector field, spread, queue drop) first
+// records what the draft held for the lights it is about to touch. Undo
+// puts that back — a `null` means "no draft entry", i.e. back to what is
+// committed. Save clears the history: what is committed is not undoable
+// from here (Auto position is the way back for a committed placement).
+function _undoStack(mapState) {
+  return mapState._lightsUndo || (mapState._lightsUndo = createUndoStack());
+}
+function _draftSnapshot(mapState, eids) {
+  const d = mapState._lightsDraftM || {};
+  const snap = {};
+  for (const eid of eids) snap[eid] = d[eid] ? { ...d[eid] } : null;
+  return snap;
+}
+function _pushUndo(mapState, eids) { _undoStack(mapState).push(_draftSnapshot(mapState, eids)); }
+function _applySnapshot(mapState, snap) {
+  const d = mapState._lightsDraftM || (mapState._lightsDraftM = {});
+  for (const [eid, entry] of Object.entries(snap)) {
+    if (entry) d[eid] = { ...entry }; else delete d[eid];
+  }
+}
+function _lightsUndo(ctx, mapState) {
+  const st = _undoStack(mapState);
+  const top = st.peekUndo();
+  if (!top) return;
+  // What redo will need is the CURRENT draft of the same lights.
+  const prev = st.undo(_draftSnapshot(mapState, Object.keys(top)));
+  _applySnapshot(mapState, prev);
+  ctx.actions.renderRooms();
+}
+function _lightsRedo(ctx, mapState) {
+  const st = _undoStack(mapState);
+  const top = st.peekRedo();
+  if (!top) return;
+  const next = st.redo(_draftSnapshot(mapState, Object.keys(top)));
+  _applySnapshot(mapState, next);
+  ctx.actions.renderRooms();
+}
+
+// The level (iso z) a floor id is drawn at — the inverse of floorIdAtLevel,
+// through the same frame, so a queued drop lands on the storey its room is on.
+function _levelForFloorId(frame, model, floors, fid) {
+  for (const z of frame.levels) if (floorIdAtLevel(frame, model, floors, z) === String(fid)) return z;
+  const f = floors.find(x => String(x.id) === String(fid));
+  return f && Number.isFinite(Number(f.level)) ? Number(f.level) : (frame.levels[0] || 0);
+}
+
+// A draft entry for a light dropped at metres (x_m, y_m) on floor fid —
+// keeps whatever look it already had (colour, size, rotation, margin).
+function _draftAt(ctx, o, eid, x_m, y_m, fid, source) {
+  const draft = o.mapState._lightsDraftM || (o.mapState._lightsDraftM = {});
+  const prev = draft[eid] || ((ctx.state.model || {}).light_positions_m || {})[eid] || {};
+  draft[eid] = {
+    x_m: Math.round(x_m * 1000) / 1000, y_m: Math.round(y_m * 1000) / 1000, floor_id: fid,
+    color: prev.color || "#fbbf24",
+    rotation: prev.rotation || 0, width_cm: prev.width_cm || 0, height_cm: prev.height_cm || 0,
+    margin_cm: prev.margin_cm,
+    label: prev.label || (o.lightsByEid[eid] ? o.lightsByEid[eid].friendly_name : eid),
+    // Provenance, draft-only (see the Save handler): "manual" is a hand
+    // placement or a drag/nudge of one; "auto" is an accepted room-centre
+    // guess, shown as APPROXIMATE in the inspector until someone moves it.
+    source: source || "manual",
+  };
+}
+
 // Wire the build tools onto the shared iso SVG: click any hex to select it,
 // drag any hex to place/move it. Runs after every SVG rebuild.
 function _wireLightsBuild(ctx, isoDiv, o) {
@@ -6101,6 +6168,8 @@ function _wireLightsBuild(ctx, isoDiv, o) {
     const m = svg.getScreenCTM();
     return m ? p.matrixTransform(m.inverse()) : { x: 0, y: 0 };
   };
+  const mapState = o.mapState;
+  const selSet = mapState._selSet || (mapState._selSet = new Set());
   // The drag inverts through THE SAME frame the renderer just drew with —
   // same function, same fabric, same live slider values — so a dropped light
   // lands where it was dropped by construction. This used to be a re-derived
@@ -6116,20 +6185,102 @@ function _wireLightsBuild(ctx, isoDiv, o) {
 
   _wireLightsPicker(ctx, isoDiv, svg, o, toVB);
 
-  // Selection highlight
+  // Selection highlight — the one selected light (inspector) AND every light
+  // in the multi-selection (shift-click, or a room name), so the map and the
+  // lit index rows point at the same things.
   const selEid = o.mapState._selLight ? o.mapState._selLight.eid : null;
-  if (selEid) {
-    const g = isoDiv.querySelector(`g.lhex[data-eid="${CSS.escape(selEid)}"]`);
+  const highlight = (eid, strong) => {
+    const g = isoDiv.querySelector(`g.lhex[data-eid="${CSS.escape(eid)}"]`);
     // Not just polygons: a marker is a polygon, circle, rect or path depending
     // on the fixture shape, and selecting anything but a hexagon/triangle/
     // diamond would otherwise show no highlight at all. data-hit elements are
     // the invisible click plates, which are never the thing to outline.
     const mark = g && [...g.querySelectorAll("polygon,circle,rect,path,line")]
       .find(n => !n.hasAttribute("data-hit"));
-    if (mark) { mark.setAttribute("stroke", "#e879f9"); mark.setAttribute("stroke-width", "3.5"); }
+    if (mark) { mark.setAttribute("stroke", "#e879f9"); mark.setAttribute("stroke-width", strong ? "3.5" : "2.2"); }
+    return g;
+  };
+  for (const eid of selSet) if (eid !== selEid) highlight(eid, false);
+  if (selEid) {
+    const g = highlight(selEid, true);
     if (g && o.mapState._lightsTransform) {
       _wireTransformHandles(ctx, svg, g, selEid, frame, o, toVB);
     }
+  }
+
+  // Room name → select every light in the room (the multi-selection).
+  for (const rg of isoDiv.querySelectorAll("g.lroom[data-room]")) {
+    rg.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const room = rg.getAttribute("data-room");
+      const eids = Object.values(o.lightsByEid).filter(l => l.area_name === room).map(l => l.entity_id);
+      if (!eids.length) return;
+      selSet.clear();
+      for (const e of eids) selSet.add(e);
+      o.mapState._selLight = { eid: eids[0], mapId: null };
+      o.mapState._focusRow = eids[0];
+      ctx.actions.renderRooms();
+    });
+  }
+
+  // The placement queue: while lights are queued, a tap on the GROUND (not
+  // on a marker) drops the next one there, in metres, on the floor its room
+  // is on — or on the storey in focus when it has no room.
+  svg.addEventListener("click", (ev) => {
+    const q = o.mapState._placeQueue || [];
+    if (!q.length) return;
+    if (ev.target && ev.target.closest && ev.target.closest("g.lhex, g.lroom, g.lfloor, .lpick")) return;
+    const eid = q[0];
+    const l = o.lightsByEid[eid];
+    if (!l) { q.shift(); ctx.actions.renderRooms(); return; }
+    const floors = ctx.state.model?.floors || [];
+    // The room's floor, then a floor it was stored on before, then the
+    // lowest drawn storey — same order _floorIdForLight uses for a drag.
+    const geo = (ctx.state.model?.room_geometry_m || {})[l.area_name];
+    let fid = geo && geo.floor_id ? String(geo.floor_id) : null;
+    if (!fid) { const prev = ((ctx.state.model || {}).light_positions_m || {})[eid]; fid = prev && prev.floor_id ? String(prev.floor_id) : null; }
+    if (!fid) fid = _floorIdForZ(ctx, frame.levels[0] || 0, frame);
+    const z = _levelForFloorId(frame, ctx.state.model, floors, fid);
+    const v = toVB(ev);
+    const [x_m, y_m] = frame.isoInv(v.x, v.y, z);
+    _pushUndo(o.mapState, [eid]);
+    _draftAt(ctx, o, eid, x_m, y_m, fid, "manual");
+    q.shift();
+    o.mapState._selLight = { eid, mapId: null };
+    o.mapState._focusRow = eid;
+    ctx.toast(q.length ? `Placed ${l.code} · ${q.length} to go — tap the map for ${o.lightsByEid[q[0]] ? o.lightsByEid[q[0]].code : "the next"}` : `Placed ${l.code} — queue done`);
+    ctx.actions.renderRooms();
+  });
+
+  // Keyboard: arrows nudge the selection in metres (1 cm; 10 cm with Shift);
+  // Escape clears the selection AND the placement queue; Ctrl+Z / Ctrl+Y
+  // undo and redo. The stage takes focus on a click so the keys reach it.
+  isoDiv.setAttribute("tabindex", "0");
+  isoDiv.style.outline = "none";
+  if (!isoDiv._keysWired) {
+    isoDiv._keysWired = true;
+    isoDiv.addEventListener("pointerdown", () => { try { isoDiv.focus({ preventScroll: true }); } catch (_) {} });
+    isoDiv.addEventListener("keydown", (ev) => {
+      const ms = o.mapState;
+      if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); if (ev.shiftKey) _lightsRedo(ctx, ms); else _lightsUndo(ctx, ms); return; }
+      if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "y") { ev.preventDefault(); _lightsRedo(ctx, ms); return; }
+      if (ev.key === "Escape") { (ms._selSet || new Set()).clear(); ms._selLight = null; ms._placeQueue = []; ctx.actions.renderRooms(); return; }
+      const step = ev.shiftKey ? 0.10 : 0.01;
+      const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
+      if (!d) return;
+      ev.preventDefault();
+      const targets = ms._selSet && ms._selSet.size ? [...ms._selSet] : (ms._selLight ? [ms._selLight.eid] : []);
+      const placed = targets.filter(eid => (ms._lightsDraftM || {})[eid] || ((ctx.state.model || {}).light_positions_m || {})[eid]);
+      if (!placed.length) return;
+      _pushUndo(ms, placed);
+      for (const eid of placed) {
+        const cur = (ms._lightsDraftM || {})[eid] || ((ctx.state.model || {}).light_positions_m || {})[eid];
+        // A deliberate nudge is the same kind of hand-adjustment a drag is —
+        // it graduates an approximate position to manual, same as dragging it.
+        _draftAt(ctx, o, eid, Number(cur.x_m) + d[0], Number(cur.y_m) + d[1], cur.floor_id, "manual");
+      }
+      ctx.actions.renderRooms();
+    });
   }
 
   for (const g of isoDiv.querySelectorAll("g.lhex[data-eid]")) {
@@ -6172,6 +6323,16 @@ function _wireLightsBuild(ctx, isoDiv, o) {
       }
       let moved = false;
       try { g.setPointerCapture(ev.pointerId); } catch (_) {}
+      // Group drag: when the grabbed light is part of the multi-selection,
+      // every selected PLACED light moves with it by the same delta — each
+      // from its own centre, so the arrangement is kept.
+      const group = (selSet.has(eid) && selSet.size > 1)
+        ? [...selSet].filter(e2 => e2 !== eid).map(e2 => {
+            const g2 = isoDiv.querySelector(`g.lhex[data-eid="${CSS.escape(e2)}"][data-placed="1"]`);
+            return g2 ? { eid: e2, g: g2, cx: parseFloat(g2.getAttribute("data-cx")), cy: parseFloat(g2.getAttribute("data-cy")),
+                          z: parseFloat(g2.getAttribute("data-z") || "0") } : null;
+          }).filter(Boolean)
+        : [];
       const mm = (e) => {
         const v = toVB(e);
         const dx = v.x - start.x, dy = v.y - start.y;
@@ -6183,7 +6344,10 @@ function _wireLightsBuild(ctx, isoDiv, o) {
           moved = true;
           o.mapState._editDragging = true;   // suppress poll re-renders mid-drag
         }
-        if (moved) g.setAttribute("transform", `translate(${dx},${dy})`);
+        if (moved) {
+          g.setAttribute("transform", `translate(${dx},${dy})`);
+          for (const m of group) m.g.setAttribute("transform", `translate(${dx},${dy})`);
+        }
       };
       const up = (e) => {
         g.removeEventListener("pointermove", mm);
@@ -6194,8 +6358,17 @@ function _wireLightsBuild(ctx, isoDiv, o) {
         if (!moved || e.type === "pointercancel") {
           // Plain click (or a cancelled gesture): select the light; the
           // inspector holds the tools. Never write a position here.
+          // Shift-click adds to / removes from the multi-selection instead.
           g.removeAttribute("transform");
+          for (const m of group) m.g.removeAttribute("transform");
+          if (ev.shiftKey || (o.mapState._multiSelect && e.type !== "pointercancel")) {
+            if (selSet.has(eid)) selSet.delete(eid); else selSet.add(eid);
+            if (o.mapState._selLight && selSet.size && !selSet.has(o.mapState._selLight.eid)) selSet.add(o.mapState._selLight.eid);
+          } else {
+            selSet.clear();
+          }
           o.mapState._selLight = { eid, mapId: null };
+          o.mapState._focusRow = eid;
           ctx.actions.renderRooms();
           return;
         }
@@ -6205,42 +6378,20 @@ function _wireLightsBuild(ctx, isoDiv, o) {
         // when no photo has been measured.
         const [x_mRaw, y_mRaw] = frame.isoInv(originCx + (v.x - start.x),
                                               originCy + (v.y - start.y), z);
-        const x_m = Math.round(x_mRaw * 1000) / 1000;
-        const y_m = Math.round(y_mRaw * 1000) / 1000;
         const floorId = _floorIdForLight(ctx, eid, z, frame, o.lightsByEid);
-        const draft = o.mapState._lightsDraftM || (o.mapState._lightsDraftM = {});
-        // The DRAFT first, then what is committed. Reading only the committed
-        // model meant moving a light threw away any sizing or rotation done
-        // since the last save — you would shape a valance, nudge it half a
-        // metre, and watch it snap back to a default marker.
-        const prev = (draft[eid])
-          || ((ctx.state.model || {}).light_positions_m || {})[eid]
-          || {};
-        draft[eid] = {
-          x_m, y_m, floor_id: floorId,
-          color: prev.color || "#fbbf24",
-          // Size defaults to 0 = "just draw the default marker". It used to
-          // stamp 15×15 cm on every drop, which is a real measurement the user
-          // never made — and nothing rendered it, so it read as "sized" while
-          // looking unsized. Shape is NOT stored here: it is resolved per
-          // entity (derived, with the chooser's override) so a light looks the
-          // same whether or not it has been placed. Two sources for one
-          // property is what made the chooser feel flaky.
-          rotation: prev.rotation || 0,
-          width_cm: prev.width_cm || 0,
-          height_cm: prev.height_cm || 0,
-          // Left unset like width/height, deliberately NOT stamped: unlike
-          // those, margin's default isn't even a single number — it's
-          // scale-aware (defaultPerimeterMarginM, iso_lights.js), computed
-          // fresh at render time from THIS house's own metres-per-pixel. A
-          // flat stamp here (tried once, reverted) would freeze in whatever
-          // that number happened to be on the day the light was dropped,
-          // defeating the point. A previously-saved value survives via prev
-          // either way.
-          margin_cm: prev.margin_cm,
-          label: prev.label || (o.lightsByEid[eid] ? o.lightsByEid[eid].friendly_name : eid),
-        };
+        _pushUndo(o.mapState, [eid, ...group.map(m => m.eid)]);
+        // The draft entry keeps whatever look the light had (draft first, then
+        // committed): moving a light must never throw away its sizing.
+        // Size stays 0 = "the default marker" unless it was set; margin is
+        // left unset so the scale-aware default keeps applying; a hand drop
+        // is "manual" provenance whatever it was before.
+        _draftAt(ctx, o, eid, x_mRaw, y_mRaw, floorId, "manual");
+        for (const m of group) {
+          const [mx, my] = frame.isoInv(m.cx + (v.x - start.x), m.cy + (v.y - start.y), m.z);
+          _draftAt(ctx, o, m.eid, mx, my, _floorIdForLight(ctx, m.eid, m.z, frame, o.lightsByEid), "manual");
+        }
         o.mapState._selLight = { eid, mapId: null };
+        o.mapState._focusRow = eid;
         ctx.actions.renderRooms();
       };
       g.addEventListener("pointermove", mm);
@@ -6422,6 +6573,7 @@ function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
         h.removeEventListener("pointercancel", up);
         try { h.releasePointerCapture(ev.pointerId); } catch (_) {}
         o.mapState._editDragging = false;
+        _pushUndo(o.mapState, [eid]);
         const draft = o.mapState._lightsDraftM || (o.mapState._lightsDraftM = {});
         const prev = draft[eid] || { ...(((ctx.state.model || {}).light_positions_m || {})[eid] || {}) };
         // Sizing a light that has never been placed PLACES it, at the spot it
@@ -6502,11 +6654,23 @@ function _lightsTab(ctx, maps, active) {
     ? ctx.state.settings.light_type_overrides : {};
   const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides);
 
+  // Preview-as-panel: the exact sidebar interaction model, in place, on the
+  // same camera — so "what will the household see" is one toggle away
+  // without leaving the builder. A VIEW mode of this tab, never persisted.
+  const preview = paid && !!mapState._lightsPreview;
   const head = el("div", { class: "card lv-mapcard", style: "margin-bottom:12px" }, [
-    el("div", { class: "card-head" }, [
+    el("div", { class: "card-head", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap" }, [
       el("div", { class: "lv-hero-title", style: "font-size:16px" }, "Lights"),
+      // The mode, unmistakably: this tab EDITS the map the sidebar shows. A
+      // map that both operates and moves devices is a mode error waiting to
+      // happen, so the badge (and the drafting grid on the stage) say which
+      // one you are in at every moment.
+      ...(paid ? [el("span", { class: "lv-editing", style: preview ? "color:#8ee5b4;border-color:rgba(82,183,136,.55);background:rgba(82,183,136,.1)" : "" },
+        preview ? "Preview · as the sidebar" : "Editing")] : []),
       el("span", { class: "lv-hint" }, paid
-        ? "Builds the Lights sidebar's map — what you arrange here is exactly what the sidebar shows. Click a hex to select a light; drag it to where it really is."
+        ? (preview
+          ? "Exactly what the Lights sidebar does with this map: tap switches, code or hold opens controls, room names open the room."
+          : "Builds the Lights sidebar's map — what you arrange here is exactly what the sidebar shows. Click a hex to select a light; drag it to where it really is. Shift-click or click a room name to select several.")
         : "Every light in the house, one marker each, in its room. Click a marker to switch it."),
     ]),
   ]);
@@ -6558,6 +6722,9 @@ function _lightsTab(ctx, maps, active) {
     const domain = String(eid).split(".")[0];
     if (domain === "binary_sensor") { ctx.toast("Motion sensors are read-only"); return; }
     const on = ctx.hass.states[eid]?.state === "on";
+    // Optimistic, like the sidebar: the marker flips now, HA reconciles.
+    setOptimistic(eid, on ? "off" : "on");
+    ctx.actions.renderRooms();
     try {
       // Off→on restores the last dimmed level (shared memory in
       // lights_map.js) — same behaviour as the sidebar, same source, so the
@@ -6570,9 +6737,21 @@ function _lightsTab(ctx, maps, active) {
       await ctx.hass.callService(domain, on ? "turn_off" : "turn_on", data);
       setTimeout(() => ctx.actions.renderRooms(), 600);
     } catch(err) {
+      clearOptimistic(eid);
+      ctx.actions.renderRooms();
       ctx.toast("Could not toggle " + eid, true);
     }
   };
+  // The sidebar's exact api, for Preview-as-sidebar (shared use surface).
+  const controlsFor = (l0) => !!(l0 && (l0.isWled || l0.isPartition || l0.dimmable || l0.isFan));
+  const previewApi = {
+    hass: ctx.hass, lightsByEid, lights, controlsFor,
+    toggle, toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms(),
+    openControls: (eid) => openControlCard(ctx.hass, eid, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms() }),
+    setMany: (eids, on) => setManyStates(ctx.hass, eids, on, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms() }),
+  };
+  previewApi.openRoom = (room, onlyEids) => openRoomSheet(previewApi, lights, room, onlyEids);
+  previewApi.openFloor = (z) => openFloorSheet(previewApi, lights, ctx.state.model, z);
 
   // View settings live in mapState so slider positions survive re-renders;
   // seeded from (and saved to) the SAME settings keys the sidebar uses.
@@ -6594,13 +6773,115 @@ function _lightsTab(ctx, maps, active) {
       ctx.actions.renderRooms();
     },
   }, mapState._lightsTransform ? "⬒ Transform: ON" : "⬒ Transform");
-  if (paid) wrap.appendChild(el("div", { class: "card lv-tablecard", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px" }, [
+  // The builder's checklist: how much of the house is actually placed.
+  const nPlaced = lights.filter(l => placements[l.entity_id]).length;
+  const nApprox = lights.filter(l => placements[l.entity_id] && placements[l.entity_id].source === "auto").length;
+  const nNoRoom = lights.filter(l => !l.area_name).length;
+  const nUnplaced = lights.length - nPlaced;
+  const selSet = mapState._selSet || (mapState._selSet = new Set());
+  const queue = mapState._placeQueue || (mapState._placeQueue = []);
+  const undoSt = _undoStack(mapState);
+  if (paid && !preview) wrap.appendChild(el("div", { class: "card lv-tablecard", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px" }, [
     xfBtn,
-    el("span", { class: "lv-hint" },
+    el("button", {
+      class: "lv-tgl tone-blue" + (mapState._multiSelect ? " on" : ""),
+      title: "Touch-friendly multi-select: every tap adds to the selection (Shift-click does the same with a mouse)",
+      onclick: () => { mapState._multiSelect = !mapState._multiSelect; ctx.actions.renderRooms(); },
+    }, mapState._multiSelect ? "⧉ Select several: ON" : "⧉ Select several"),
+    el("button", { class: "lv-act", title: "Undo the last unsaved edit (Ctrl+Z)", disabled: undoSt.canUndo ? null : "disabled",
+      onclick: () => _lightsUndo(ctx, mapState) }, "↶ Undo"),
+    el("button", { class: "lv-act", title: "Redo (Ctrl+Y)", disabled: undoSt.canRedo ? null : "disabled",
+      onclick: () => _lightsRedo(ctx, mapState) }, "↷ Redo"),
+    el("button", {
+      class: "lv-tgl tone-green",
+      title: "See this map exactly as the Lights sidebar shows it, without leaving the builder",
+      onclick: () => { mapState._lightsPreview = true; ctx.actions.renderRooms(); },
+    }, "▶ Preview as sidebar"),
+    el("span", { class: "lv-check" }, [
+      el("b", {}, String(nPlaced)), "placed",
+      ...(nApprox ? ["·", el("b", {}, String(nApprox)), "approximate"] : []),
+      "·", el("b", {}, String(nUnplaced)), "unplaced",
+      ...(nNoRoom ? ["·", el("b", {}, String(nNoRoom)), "no room"] : []),
+    ]),
+    el("span", { class: "lv-hint", style: "flex-basis:100%" },
       mapState._lightsTransform
-        ? "Drag a light to move it. Drag its handles to resize; the round handle above rotates."
-        : "Drag any light to move it. Turn on Transform for resize and rotate handles."),
+        ? "Drag a light to move it. Drag its handles to resize; the round handle above rotates. Arrow keys nudge 1 cm (Shift: 10 cm)."
+        : "Drag any light to move it. Turn on Transform for resize and rotate handles. Arrow keys nudge the selection 1 cm (Shift: 10 cm)."),
   ]));
+  if (paid && preview) wrap.appendChild(el("div", { class: "card lv-tablecard", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px" }, [
+    el("button", { class: "lv-tgl tone-violet on", onclick: () => { mapState._lightsPreview = false; ctx.actions.renderRooms(); } }, "✎ Back to editing"),
+    el("span", { class: "lv-hint" }, "Nothing you do here changes the map — this is the sidebar's behaviour on the builder's camera."),
+  ]));
+
+  // ── Placement bar: the queue, spread-in-room, accept room centres ──────
+  // Bulk placement without dragging a pile apart. Queue lights from their
+  // index rows (or all of them), then tap the map once per light. Or spread
+  // a room's unplaced lights evenly inside its polygon in one go.
+  if (paid && !preview && nUnplaced) {
+    const roomsWithUnplaced = [...new Set(lights.filter(l => l.area_name && !placements[l.entity_id]).map(l => l.area_name))].sort();
+    const roomSel = document.createElement("select");
+    roomSel.className = "lv-select";
+    for (const r of roomsWithUnplaced) {
+      const n = lights.filter(l => l.area_name === r && !placements[l.entity_id]).length;
+      roomSel.appendChild(el("option", { value: r }, `${r} · ${n}`));
+    }
+    if (mapState._spreadRoom && roomsWithUnplaced.includes(mapState._spreadRoom)) roomSel.value = mapState._spreadRoom;
+    roomSel.addEventListener("change", () => { mapState._spreadRoom = roomSel.value; });
+    const floors0 = ctx.state.model?.floors || [];
+    const frame0 = fabricFrame(ctx.state.model, floors0, view.floorGap, view.horizGap);
+    const spread = (room) => {
+      const geo = (ctx.state.model?.room_geometry_m || {})[room];
+      if (!geo || geo.type !== "poly" || !Array.isArray(geo.points_m)) { ctx.toast("That room has no polygon to spread in", true); return; }
+      const eids = lights.filter(l => l.area_name === room && !placements[l.entity_id]).map(l => l.entity_id);
+      if (!eids.length) return;
+      const pts = spreadInRoom(geo.points_m, eids.length, 0.5);
+      const fid = String(geo.floor_id || _floorIdForZ(ctx, frame0.levels[0] || 0, frame0));
+      _pushUndo(mapState, eids);
+      eids.forEach((eid, i) => _draftAt(ctx, { mapState, lightsByEid }, eid, pts[i][0], pts[i][1], fid, "manual"));
+      selSet.clear(); for (const e of eids) selSet.add(e);
+      mapState._selLight = { eid: eids[0], mapId: null };
+      ctx.toast(`Spread ${eids.length} in ${room} — drag any to fine-tune, then Save`);
+      ctx.actions.renderRooms();
+    };
+    wrap.appendChild(el("div", { class: "card lv-tablecard", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px" }, [
+      el("span", { class: "lv-lbl" }, "Place"),
+      el("button", {
+        class: "lv-act" + (queue.length ? " primary" : ""),
+        title: queue.length ? "Tap the map once per queued light, in index order. Esc clears." : "Queue every unplaced light, then tap the map once per light",
+        onclick: () => {
+          if (queue.length) { mapState._placeQueue = []; }
+          else mapState._placeQueue = lights.filter(l => !placements[l.entity_id]).map(l => l.entity_id);
+          ctx.actions.renderRooms();
+        },
+      }, queue.length ? `◎ ${queue.length} queued — tap the map · clear` : "◎ Queue all unplaced"),
+      ...(queue.length ? [el("span", { class: "lv-hint" }, `Next: ${lightsByEid[queue[0]] ? lightsByEid[queue[0]].code + " " + lightsByEid[queue[0]].friendly_name : queue[0]}`)] : []),
+      el("span", { class: "lv-sep" }, ""),
+      el("span", { class: "lv-lbl" }, "Spread"),
+      roomSel,
+      el("button", { class: "lv-act", title: "Place this room's unplaced lights on an even grid inside the room, inset from its walls",
+        onclick: () => spread(roomSel.value) }, "⊞ Spread in room"),
+      el("span", { class: "lv-sep" }, ""),
+      el("button", { class: "lv-act", title: "Give every unplaced light with a room its room's centre as an APPROXIMATE position (drawn with a dashed halo until moved)",
+        onclick: () => {
+          const eids = lights.filter(l => l.area_name && !placements[l.entity_id]).map(l => l.entity_id);
+          if (!eids.length) return;
+          _pushUndo(mapState, eids);
+          let n = 0;
+          for (const eid of eids) {
+            const geo = (ctx.state.model?.room_geometry_m || {})[lightsByEid[eid].area_name];
+            if (!geo) continue;
+            const pts = geo.type === "poly" ? geo.points_m : null;
+            const cx = pts ? pts.reduce((a, p) => a + p[0], 0) / pts.length : Number(geo.cx_m) || 0;
+            const cy = pts ? pts.reduce((a, p) => a + p[1], 0) / pts.length : Number(geo.cy_m) || 0;
+            const fid = String(geo.floor_id || _floorIdForZ(ctx, frame0.levels[0] || 0, frame0));
+            _draftAt(ctx, { mapState, lightsByEid }, eid, cx, cy, fid, "auto");
+            n++;
+          }
+          ctx.toast(`${n} approximate positions — Save to keep them`);
+          ctx.actions.renderRooms();
+        } }, "≈ Accept room centres"),
+    ]));
+  }
 
   // Unsaved-work bar
   const dirtyEids = Object.keys(mapState._lightsDraftM || {});
@@ -6618,12 +6899,19 @@ function _lightsTab(ctx, maps, active) {
         let saved = 0;
         try {
           for (const eid of dirtyEids) {
-            const lp = mapState._lightsDraftM[eid];
+            // "source" (provenance: manual/auto) is a draft-only, pre-save
+            // signal — the backend schema has no field for it and a stray
+            // extra key fails the whole call. It exists to draw the
+            // APPROXIMATE badge and the dashed halo before Save; it does not
+            // need to survive one (an accepted room centre still IS just a
+            // placement — the next drag makes it a real one).
+            const { source, ...lp } = mapState._lightsDraftM[eid];
             await ctx.actions.wsCall("padspan_ha/fabric_light_position_set", { entity_id: eid, ...lp });
             delete mapState._lightsDraftM[eid];
             saved++;
           }
           await ctx.actions.modelRefresh();
+          _undoStack(mapState).clear();   // what is committed is not undoable from here
           ctx.toast("Light placements saved ✔");
         } catch(err) {
           await ctx.actions.mapsRefreshQuiet();
@@ -6636,6 +6924,7 @@ function _lightsTab(ctx, maps, active) {
       el("button", { class: "btn inline", onclick: () => {
         mapState._lightsDraftM = {};
         mapState._selLight = null;
+        _undoStack(mapState).clear();
         ctx.actions.renderRooms();
       } }, "Discard"),
     ]);
@@ -6676,9 +6965,30 @@ function _lightsTab(ctx, maps, active) {
     },
     callWS: (msg) => ctx.hass.callWS(msg),
     toast: (m, isErr) => ctx.toast(m, isErr),
+    // Layer chips (which class is in front) — a view choice of this tab.
+    classFilter: mapState._lightsClass || "all",
+    onClassFilter: (cls) => { mapState._lightsClass = cls; ctx.actions.renderRooms(); },
+    // The multi-selection and the placement queue light up their index rows.
+    selectedEids: paid ? new Set([...selSet, ...(mapState._selLight ? [mapState._selLight.eid] : [])]) : null,
+    placeQueue: paid && !preview ? new Set(queue) : null,
+    onPlaceRow: paid && !preview ? (eid) => {
+      const i = queue.indexOf(eid);
+      if (i >= 0) queue.splice(i, 1); else queue.push(eid);
+      ctx.actions.renderRooms();
+    } : null,
+    // Map → index: the row of the light just selected on the map scrolls
+    // into view, once.
+    focusRowEid: mapState._focusRow || null,
+    // Preview-as-sidebar asks the renderer for the use-surface ergonomics
+    // (the sidebar's exact options) and wires the sidebar's exact gestures.
+    codeChip: preview, hitHalo: preview, collapseUnplaced: preview,
     // Build-tool interaction: hexes select and drag instead of toggling.
     // Free tier: a hex switches the light, exactly as the sidebar does.
-    onHexesBuilt: paid
+    // Preview: the shared use surface — tap switches, chip/hold opens the
+    // control card, room names open the room sheet.
+    onHexesBuilt: preview
+      ? (isoDiv) => requestAnimationFrame(() => wireUseSurface(isoDiv, previewApi))
+      : paid
       ? (isoDiv) => _wireLightsBuild(ctx, isoDiv, { mapState, view, lightsByEid, model: modelForRender })
       : (isoDiv) => requestAnimationFrame(() => {
           isoDiv.querySelectorAll(".lhex").forEach(g => {
@@ -6808,10 +7118,13 @@ function _lightsTab(ctx, maps, active) {
       ctx.actions.renderRooms();
     },
   };
-  wrap.appendChild(buildLightsMapCard(host));
+  const mapCardEl = buildLightsMapCard(host);
+  // The drafting grid on the stage says "editing" without a word.
+  if (paid && !preview) { const stage = mapCardEl.querySelector(".lv-stage"); if (stage) stage.classList.add("editing"); }
+  wrap.appendChild(mapCardEl);
 
   // ── Selected-light inspector — the build tools for one light ────────────
-  const sel = paid ? mapState._selLight : null;
+  const sel = paid && !preview ? mapState._selLight : null;
   if (sel && lightsByEid[sel.eid]) {
     const l = lightsByEid[sel.eid];
     // The light's placement, from the fabric: the unsaved draft first, then
@@ -6827,6 +7140,27 @@ function _lightsTab(ctx, maps, active) {
       `${l.code} · ${l.friendly_name}`));
     if (l.isWled) insp.appendChild(el("span", { class: "lv-chip violet" }, "WLED"));
     if (l.isPartition) insp.appendChild(el("span", { class: "lv-chip blue" }, "PARTITION"));
+    // Provenance: an accepted room-centre guess is APPROXIMATE until moved.
+    if (entry && entry.source === "auto") insp.appendChild(el("span", { class: "lv-chip", style: "color:#fde68a;border:1px solid rgba(251,191,36,.45);background:rgba(251,191,36,.1)", title: "Placed at its room's centre by Accept room centres — drag it to where it really is" }, "APPROXIMATE"));
+    // Several selected: this light's look can be copied to all of them.
+    if (selSet.size > 1 && entry) insp.appendChild(el("button", {
+      class: "lv-act", title: "Copy this light's colour, size, rotation and margin to every selected light",
+      onclick: () => {
+        const others = [...selSet].filter(e => e !== sel.eid);
+        _pushUndo(mapState, others);
+        const draft = mapState._lightsDraftM || (mapState._lightsDraftM = {});
+        let n = 0;
+        for (const e of others) {
+          const cur = draft[e] || ((ctx.state.model?.light_positions_m || {})[e] ? { ...(ctx.state.model.light_positions_m[e]) } : null);
+          if (!cur) continue;   // an unplaced light has no entry to carry a look
+          cur.color = entry.color; cur.width_cm = entry.width_cm; cur.height_cm = entry.height_cm;
+          cur.rotation = entry.rotation; cur.margin_cm = entry.margin_cm;
+          draft[e] = cur; n++;
+        }
+        ctx.toast(n ? `Look applied to ${n}` : "No placed lights in the selection to apply it to");
+        ctx.actions.renderRooms();
+      },
+    }, `⎘ Apply look to ${selSet.size - 1} selected`));
 
     const on = l.state === "on";
     insp.appendChild(el("button", {
@@ -6870,6 +7204,7 @@ function _lightsTab(ctx, maps, active) {
       colorInput.value = entry.color || "#fbbf24";
       colorInput.className = "lv-swatch";
       colorInput.addEventListener("change", () => {
+        _pushUndo(mapState, [sel.eid]);
         const draft = mapState._lightsDraftM || (mapState._lightsDraftM = {});
         const cur = draft[sel.eid] || { ...((ctx.state.model?.light_positions_m || {})[sel.eid] || {}) };
         cur.color = colorInput.value;
@@ -6884,6 +7219,7 @@ function _lightsTab(ctx, maps, active) {
       // position. These fields existed in the schema and the save command from
       // the start; there was simply no way to set them and nothing drew them.
       const editEntry = (mutate) => {
+        _pushUndo(mapState, [sel.eid]);
         const draft = mapState._lightsDraftM || (mapState._lightsDraftM = {});
         const cur = draft[sel.eid] || { ...((ctx.state.model?.light_positions_m || {})[sel.eid] || {}) };
         mutate(cur);
@@ -6961,6 +7297,7 @@ function _lightsTab(ctx, maps, active) {
 
   // ── The shared light index table (brings its own card) ──────────────────
   wrap.appendChild(buildLightsTable(host, lights));
+  mapState._focusRow = null;   // the scroll-into-view is a one-shot
 
   return wrap;
 }

@@ -711,6 +711,16 @@ class PadSpanHaApp extends HTMLElement {
         this.state.view = reqView;
         this._urlPinnedView = reqView;   // exempt from complexity-fallback
       }
+      // ?tab=lights lands on a Mapping sub-tab; ?light=<entity_id> arrives
+      // with that light selected — the Lights sidebar's pencil deep-links
+      // here so "edit this light" is one tap from the map you are using.
+      const reqTab = q.get("tab");
+      if (reqView === "maps" && reqTab && /^[a-z]+$/.test(reqTab)) this.state.mapsTab = reqTab;
+      const reqLight = q.get("light");
+      if (reqLight && /^(light|fan|binary_sensor)\.[a-z0-9_]+$/.test(reqLight)) {
+        this.state.maps._selLight = { eid: reqLight, mapId: null };
+        this.state.maps._focusRow = reqLight;
+      }
       this.state.kioskMode = q.get("kiosk") === "1";
     } catch(e) { /* ignore */ }
 

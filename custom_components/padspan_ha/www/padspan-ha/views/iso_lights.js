@@ -375,6 +375,31 @@ export function shapeDetailSvg(kind, cx, cy, r, ink, sw){
   }
 }
 
+// Ray-cast point-in-polygon, in whatever units the polygon is in. Exported
+// because "spread these lights inside this room" (lights_map.js) needs the
+// same answer the renderer gives when it decides which room a fixture sits
+// in — one test for both, so a light can never be placed where the map
+// would then draw it outside.
+export function pointInPolygon(pts, x, y){
+  let inside=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const [xi,yi]=pts[i], [xj,yj]=pts[j];
+    if(((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/((yj-yi)||1e-9) + xi)) inside=!inside;
+  }
+  return inside;
+}
+
+// Which interaction class a device belongs to on the map. Four classes, not
+// four domains: a strip (WLED or partition) is a light with more to offer,
+// and the layer chips, the halo and the tap semantics all key off this.
+export function lightClassOf(l){
+  if(!l) return "light";
+  if(l.isFan) return "fan";
+  if(l.isMotion) return "motion";
+  if(l.isWled||l.isPartition) return "strip";
+  return "light";
+}
+
 // Cluster offsets (SVG px) for N hexes touching around a centre
 export function hexCluster(count, r){
   const d=r*Math.sqrt(3)+2;  // centre-to-centre distance (tiny gap between touching hexes)
@@ -834,6 +859,29 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // metres instead of their live colour. Preview only — nothing is written.
   const FIELD  = SHOW ? (opts.sceneField || null) : null;
   const ISOLUX = SHOW && !!opts.isolux;
+  // ── Ergonomics of control-from-a-map (both hosts opt in per surface) ──────
+  // codeChip: the code is a TAP TARGET of its own (data-role="code"), drawn
+  //   as a pill under the glyph — the glyph is the switch, the chip opens the
+  //   controls. Splitting the target is what makes the controls discoverable
+  //   without a hidden hold (the sidebar). The builder keeps the code on the
+  //   glyph: there a click selects, and nothing needs a second target.
+  // hideCodes: semantic zoom — at overview zoom the glyph and the room name
+  //   carry identity; the codes come back as the viewer zooms in.
+  // classFilter: "light" | "strip" | "fan" | "motion" — every other class is
+  //   DIMMED, not removed (spatial context stays), and stops taking taps.
+  // hitHalo: an invisible ≥44 px-on-screen disc under every marker, drawn
+  //   BEFORE the markers so a glyph always wins over a neighbour's halo.
+  // collapseUnplaced: use-mode — the room-centre cluster of unplaced devices
+  //   becomes ONE chip ("3 unplaced"), because a pile of overlapping markers
+  //   at an inferred position is a set of mis-taps waiting to happen. The
+  //   builder never collapses: dragging a marker out of the pile is how a
+  //   light gets placed.
+  const CODECHIP  = !!opts.codeChip;
+  const HIDECODES = !!opts.hideCodes;
+  const CLASSF    = opts.classFilter && opts.classFilter!=="all" ? String(opts.classFilter) : null;
+  const HALO      = !!opts.hitHalo;
+  const COLLAPSE  = !!opts.collapseUnplaced;
+  const dimmed=(l)=>!!CLASSF && lightClassOf(l)!==CLASSF;
   const mixHex=(a,b,t)=>{
     const pa=parseInt(a.slice(1),16), pb=parseInt(b.slice(1),16);
     const ch=(sh)=>Math.round(((pa>>sh)&255)+(((pb>>sh)&255)-((pa>>sh)&255))*t);
@@ -854,6 +902,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // icons. The sidebar upscales this 760-unit viewBox ~2.6x to its panel, so
   // 4.8 px here is ~12 px on screen and still perfectly readable.
   const CODE_PX = Math.max(4, Math.min(11, (HEX_R * 2 * 0.866) / 1.8));
+  // The hit halo, in viewBox units: the sidebar draws this 760-unit box at
+  // ~2.6x, so 9 units is ~23 px on screen — a 46 px target on a phone, the
+  // platform minimum, even when the marker itself is the 5 px legibility floor.
+  const HALO_R = Math.max(HEX_R*1.25, 9);
   const pt  = c=>`${Math.round(c[0])},${Math.round(c[1])}`;
   const pts = cs=>cs.map(pt).join(" ");
 
@@ -1027,14 +1079,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // they were dropped where they physically are, which is the better answer
   // anyway, and the fabric already knows it. Ray-cast against the polygons on
   // the light's own floor; a fixture outside every room is left as typed.
-  const pointInRoom=(pts,x,y)=>{
-    let inside=false;
-    for(let i=0,j=pts.length-1;i<pts.length;j=i++){
-      const [xi,yi]=pts[i], [xj,yj]=pts[j];
-      if(((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/((yj-yi)||1e-9) + xi)) inside=!inside;
-    }
-    return inside;
-  };
+  const pointInRoom=(pts,x,y)=>pointInPolygon(pts,x,y);
   // The fixture's measurements as they should be DRAWN. Its own long axis is
   // capped by the room's long axis, whichever way round it was entered.
   const fitCm=(l,entry)=>{
@@ -1235,6 +1280,21 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // `extra` carries data-* attributes (floor z, whether it is placed) so the
     // Mapping → Lights tab's build tools can act on any hex directly; the
     // sidebar ignores them.
+    // The code as its own tap target: a small pill under the glyph carrying
+    // data-role="code". The sidebar opens the controls from it; the glyph
+    // above stays the switch. pointer-events="all" so the pill's box, not
+    // just the glyph strokes of the letters, takes the tap.
+    const codeChipSvg=(l,hx,hy,tCol)=>{
+      const fs=CODE_PX*0.92;
+      const w=String(l.code||"").length*fs*0.64+fs*0.9, h=fs*1.5;
+      const cy=hy+HEX_R*1.55+fs*0.45;
+      return `<g data-role="code" style="cursor:pointer" pointer-events="all">`+
+        `<rect x="${(hx-w/2).toFixed(1)}" y="${(cy-h/2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" `+
+        `rx="${(h*0.35).toFixed(1)}" fill="#050d09" fill-opacity="0.72" stroke="${tCol}" stroke-opacity="0.45" stroke-width="0.6"/>`+
+        `<text x="${hx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
+        `font-family="ui-monospace,monospace" font-size="${fs.toFixed(1)}" font-weight="700" `+
+        `letter-spacing="0.06em" fill="${tCol}" pointer-events="none">${escSVG(l.code)}</text></g>`;
+    };
     const markerSvg=(l,hx,hy,entry,extra="")=>{
       const on=l.state==="on";
       // A custom pin colour applies to the LIT state only. Using it while the
@@ -1251,7 +1311,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const stroke=SHOW
         ? (on?(stripBorder||"#f8fafc"):"#3f5165")
         : (stripBorder||"#60a5fa");
-      const op=SHOW?(on?1:0.62):(on?1:0.45);
+      // A class the layer chips have filtered out is dimmed to a ghost and
+      // stops taking taps — it keeps its place on the map (that IS the
+      // context) but can no longer be switched by mistake.
+      const dim=dimmed(l);
+      const op=(SHOW?(on?1:0.62):(on?1:0.45))*(dim?0.22:1);
+      const gAttrs=`data-class="${lightClassOf(l)}"${dim?' pointer-events="none"':""}`;
       const tCol=SHOW?(on?lit:"#7f93a8"):(on?"#111827":"#e2e8f0");
       // A perimeter light's body IS its trace ("should be just the custom
       // shape formed to the room" — Garry, then: "Keep the glow, and the
@@ -1265,14 +1330,17 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       if(l.shape==="perimeter"){
         const HW=HEX_R*0.866;
         const pCol=SHOW?(on?lit:"#7f93a8"):(on?lit:"#94a3b8");
+        const pLbl=HIDECODES ? "" : (CODECHIP
+          ? codeChipSvg(l,hx,hy-HEX_R*1.55,pCol)   // the pill sits in the hit space, where the code was
+          : `<text x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
+            `font-family="ui-monospace,monospace" font-size="${CODE_PX.toFixed(1)}" font-weight="700" `+
+            `fill="${pCol}" paint-order="stroke" stroke="#050d09" stroke-width="${(CODE_PX*0.42).toFixed(1)}" `+
+            `stroke-linejoin="round" pointer-events="none">${escSVG(l.code)}</text>`);
         return `<g class="lhex" data-eid="${escSVG(l.entity_id)}" data-cx="${hx.toFixed(1)}" data-cy="${hy.toFixed(1)}"`+
-          `${extra?" "+extra:""} style="cursor:pointer" opacity="${op}">`+
+          `${extra?" "+extra:""} ${gAttrs} style="cursor:pointer" opacity="${op}">`+
           `<rect data-hit="1" x="${n(hx-HW)}" y="${n(hy-HW)}" width="${n(HW*2)}" height="${n(HW*2)}" `+
           `rx="${n(HW*0.42)}" fill="transparent" stroke="none"/>`+
-          `<text x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
-          `font-family="ui-monospace,monospace" font-size="${CODE_PX.toFixed(1)}" font-weight="700" `+
-          `fill="${pCol}" paint-order="stroke" stroke="#050d09" stroke-width="${(CODE_PX*0.42).toFixed(1)}" `+
-          `stroke-linejoin="round" pointer-events="none">${escSVG(l.code)}</text></g>`;
+          pLbl+`</g>`;
       }
       // Physical size and rotation, in real units. width_cm/height_cm and
       // rotation have been in the stored schema all along and the WS command
@@ -1338,7 +1406,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // never actually visible — which defeats a mode whose job is to make the
       // symbols readable. Underneath, haloed, it reads as a plan's fixture tag.
       const lblY=SHOW ? hy+HEX_R*1.55+CODE_PX*0.45 : hy;
-      const lbl=SHOW
+      // Semantic zoom hides the code entirely; the code CHIP (use surface)
+      // makes it a target of its own under the glyph in both modes; otherwise
+      // the code sits where it always did.
+      const lbl=HIDECODES ? "" : (CODECHIP ? codeChipSvg(l,hx,hy,SHOW?tCol:"#e2e8f0") : (SHOW
         ? `<text x="${hx.toFixed(1)}" y="${lblY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
           `font-family="ui-monospace,monospace" font-size="${(CODE_PX*0.92).toFixed(1)}" font-weight="700" `+
           `letter-spacing="0.06em" fill="${tCol}" paint-order="stroke" stroke="#050d09" `+
@@ -1346,14 +1417,40 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           `${escSVG(l.code)}</text>`
         : `<text x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
           `font-family="monospace" font-size="${CODE_PX.toFixed(1)}" font-weight="700" fill="${tCol}" pointer-events="none">`+
-          `${escSVG(l.code)}</text>`;
+          `${escSVG(l.code)}</text>`));
 
       // data-cx/data-cy is the fixture's own centre. The drag used to recover
       // it from the label's x/y, which is only the same point while the label
       // sits on the marker.
       return `<g class="lhex" data-eid="${escSVG(l.entity_id)}" data-cx="${hx.toFixed(1)}" data-cy="${hy.toFixed(1)}"`+
-        `${extra?" "+extra:""} style="cursor:pointer" opacity="${op}">`+
+        `${extra?" "+extra:""} ${gAttrs} style="cursor:pointer" opacity="${op}">`+
         body+lbl+`</g>`;
+    };
+    // The invisible tap disc under a marker (sidebar only). Drawn in its own
+    // pass BEFORE every marker on the floor, so a glyph is always above a
+    // neighbour's halo and a tap on what you can see goes where it looks.
+    const haloSvg=(l,hx,hy)=>dimmed(l) ? "" :
+      `<circle class="lhalo" data-eid="${escSVG(l.entity_id)}" data-class="${lightClassOf(l)}" `+
+      `cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${HALO_R.toFixed(1)}" fill="transparent" stroke="none" `+
+      `pointer-events="all" style="cursor:pointer"/>`;
+    // Use-mode stand-in for a room's pile of unplaced devices: one chip that
+    // says how many, lit if any is on, carrying every entity id so the host
+    // can open the room's sheet from it. Nothing here pretends to be a
+    // measured position.
+    const stackChipSvg=(room,eids,anyOn,cx,cy,z)=>{
+      const label=`${eids.length} unplaced`;
+      const fs=Math.max(5.5, CODE_PX*1.05);
+      const w=label.length*fs*0.58+fs*2.4, h=fs*2.1;
+      const col=anyOn?"#fbbf24":"#94a3b8";
+      return `<g class="lstack" data-role="stack" data-room="${escSVG(room)}" data-z="${z}" `+
+        `data-eids="${escSVG(eids.join(","))}" style="cursor:pointer" pointer-events="all">`+
+        `<rect x="${(cx-w/2).toFixed(1)}" y="${(cy-h/2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" `+
+        `rx="${(h/2).toFixed(1)}" fill="#0b1810" fill-opacity="0.88" stroke="${col}" stroke-opacity="0.6" `+
+        `stroke-width="0.8" stroke-dasharray="3,2"/>`+
+        `<polygon points="${hexPts(cx-w/2+fs*1.1, cy, fs*0.55)}" fill="${anyOn?col:"#374151"}" stroke="${col}" stroke-width="0.6"/>`+
+        `<text x="${(cx+fs*0.55).toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
+        `font-family="system-ui,sans-serif" font-size="${fs.toFixed(1)}" font-weight="600" fill="${col}" `+
+        `pointer-events="none">${escSVG(label)}</text></g>`;
     };
 
     // A "perimeter" light's real extent: the room it is dropped in, traced
@@ -1514,6 +1611,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // so a room polygon can never be painted over the fixtures of the room
     // beside it — and so Showcase can slide the light pools in underneath them.
     const jobs=[];
+    // Collapsed piles of unplaced devices (use-mode), flushed with the markers.
+    const stacks=[];
 
     // Rooms, straight from the metre fabric.
     for(const r of hereRooms){
@@ -1557,12 +1656,24 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // legible over the floor hatch and over a slab edge it happens to cross.
       // Showcase sets it in tracked small caps — the convention every printed
       // plan uses for a room name, and it stops competing with the fixture codes.
+      // The room's name is a TAP TARGET (data-role="room"): the sidebar opens
+      // the room's sheet from it — every light in the room, all off, all on —
+      // and the builder selects the room's lights. A transparent box behind
+      // the text takes the tap; the glyph strokes alone would be a needle.
+      {
+        const rfs=SHOW?6.6:7.4;
+        const rtxt=SHOW?String(r.room).toUpperCase():String(r.room);
+        const rw=rtxt.length*rfs*(SHOW?0.78:0.6)+10, rh=rfs*1.9;
+        s+=`<g class="lroom" data-role="room" data-room="${escSVG(r.room)}" data-z="${z}" style="cursor:pointer">`+
+          `<rect x="${(lix-rw/2).toFixed(1)}" y="${(liy-rh/2).toFixed(1)}" width="${rw.toFixed(1)}" height="${rh.toFixed(1)}" `+
+          `rx="3" fill="transparent" stroke="none" pointer-events="all"/>`;
+      }
       s+=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+
         `fill="${color}" font-size="${SHOW?"6.6":"7.4"}" font-family="system-ui,sans-serif" font-weight="600" `+
         (SHOW?`letter-spacing="0.16em" `:``)+
         `paint-order="stroke" stroke="#071008" stroke-width="2.5" stroke-linejoin="round" `+
         `opacity="${SHOW?"0.72":"0.95"}" pointer-events="none">`+
-        `${escSVG(SHOW?String(r.room).toUpperCase():r.room)}</text>`;
+        `${escSVG(SHOW?String(r.room).toUpperCase():r.room)}</text></g>`;
       // Room assignment isn't known yet (registry still loading) — show a
       // single pulsing placeholder instead of blocking the whole map on
       // a multi-MB registry fetch; real hexes replace it once it lands.
@@ -1576,14 +1687,39 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // position was already drawn at it.
       const roomLights=(byRoom[r.room]||[]).filter(l=>!hiddenEids.has(l.entity_id) && !placed[l.entity_id]);
       if(!roomLights.length) continue;
+      // A perimeter light traces its ROOM, which is already known here —
+      // no placement needed to see it. Unplaced means no entry, so this
+      // draws at the default margin; dragging it onto the map is only for
+      // adjusting margin, not for making the trace appear at all.
+      for(const l of roomLights) if(l.shape==="perimeter") s+=perimeterSvg(l, r, null);
+      // Use-mode: the pile becomes one chip. The chip is drawn with the
+      // markers (a job with no light) so it sits above the pools and the
+      // room fill like a marker would.
+      if(COLLAPSE){
+        const eids=roomLights.map(l=>l.entity_id);
+        const anyOn=roomLights.some(l=>l.state==="on");
+        stacks.push([r.room, eids, anyOn, ccx, ccy, z]);
+        continue;
+      }
       const offsets=hexCluster(roomLights.length, HEX_R);
+      // Build-mode: the pile stays a pile (drag one out to place it), but it
+      // is VISIBLY provisional — a dashed ring round the cluster says "these
+      // are inferred from the room, not measured", and how many there are.
+      {
+        let rr=0;
+        for(const [dx,dy] of offsets) rr=Math.max(rr, Math.hypot(dx,dy));
+        rr+=HEX_R+3;
+        s+=`<circle class="lprov" cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${rr.toFixed(1)}" fill="none" `+
+          `stroke="#94a3b8" stroke-width="0.7" stroke-dasharray="3,2.5" opacity="${SHOW?0.28:0.45}" pointer-events="none"/>`;
+        if(!SHOW && !HIDECODES){
+          const pfs=Math.max(4.5, CODE_PX*0.85);
+          s+=`<text x="${ccx.toFixed(1)}" y="${(ccy+rr+pfs*0.9).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
+            `font-family="system-ui,sans-serif" font-size="${pfs.toFixed(1)}" fill="#94a3b8" opacity="0.7" `+
+            `pointer-events="none">${roomLights.length} unplaced</text>`;
+        }
+      }
       roomLights.forEach((l,idx)=>{
         const [dx,dy]=offsets[idx];
-        // A perimeter light traces its ROOM, which is already known here —
-        // no placement needed to see it. Unplaced means no entry, so this
-        // draws at the 15cm default; dragging it onto the map is only for
-        // adjusting margin, not for making the trace appear at all.
-        if(l.shape==="perimeter") s+=perimeterSvg(l, r, null);
         const fx=SHOW&&FIELD ? {col: fieldColOf(cx,cy,z)} : undefined;
         jobs.push([l, ccx+dx, ccy+dy, null, `data-z="${z}"`, roomClip.get(r), fx]);
       });
@@ -1698,17 +1834,25 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // modes, unlike the light pools above: a tripped sensor is live status,
     // not a presentation effect.
     for(const [l2,hx,hy] of jobs) if(l2.isMotion && l2.state==="on") s+=motionPulseSvg(hx,hy);
+    // Halos go under EVERY marker on the floor (see haloSvg); then the
+    // markers; then the use-mode stack chips, which stand in for markers.
+    if(HALO) for(const [l2,hx,hy] of jobs) s+=haloSvg(l2,hx,hy);
     for(const j of jobs) s+=markerSvg(...j);
+    for(const st of stacks) s+=stackChipSvg(...st);
 
     // Floor level badge
     // The badge marks the storey, so it has to stay on the canvas. Slabs are
     // sized to their own floor now, so a narrow one can put its bottom-left
     // corner past the edge and the badge was drawn half outside the frame.
+    // It is a TAP TARGET too (data-role="floor"): the sidebar's floor sheet —
+    // everything on this storey, all off — hangs off it.
     const badgeX=Math.max(18, Math.min(W-18, Math.round(BL[0])));
     const badgeY=Math.round(BL[1]);
+    s+=`<g class="lfloor" data-role="floor" data-z="${z}" style="cursor:pointer">`;
     if(SHOW) s+=`<circle cx="${badgeX}" cy="${badgeY}" r="19" fill="none" stroke="${lyrColor}" stroke-width="1" opacity="0.3"/>`;
     s+=`<circle cx="${badgeX}" cy="${badgeY}" r="15" fill="${lyrColor}" opacity="0.95"/>`;
-    s+=`<text x="${badgeX}" y="${badgeY+6}" text-anchor="middle" fill="#071008" font-size="14" font-weight="700">${lidx+1}</text>`;
+    s+=`<text x="${badgeX}" y="${badgeY+6}" text-anchor="middle" fill="#071008" font-size="14" font-weight="700" pointer-events="none">${lidx+1}</text>`;
+    s+=`</g>`;
     s+=`</g>`;
   }
 

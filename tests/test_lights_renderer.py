@@ -1215,6 +1215,84 @@ def test_motion_sensor_pulses_blue_while_triggered_and_fans_do_not_pool(tmp_path
     assert out["motionGlyph"] and out["fanGlyph"], out
 
 
+def test_use_surface_ergonomics_opts(tmp_path):
+    """The ergonomics opts buildIsoSVG grew for the sidebar/preview use
+    surface: codeChip splits the tap target into its own data-role="code"
+    pill; hideCodes drops codes entirely (semantic zoom); classFilter dims
+    every OTHER class and stops it taking taps; hitHalo draws an invisible
+    tap disc under every marker; collapseUnplaced turns a room's unplaced
+    pile into ONE data-role="stack" chip. Room names and the floor badge are
+    tap targets (data-role="room"/"floor") unconditionally — every host can
+    use them, whether or not it asks for the rest."""
+    model = {
+        "room_geometry_m": {
+            "Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 4], [0, 4]]},
+        },
+        "light_positions_m": {
+            "light.placed": {"x_m": 3.0, "y_m": 2.0, "floor_id": "main"},
+        },
+    }
+    lbe = {
+        "light.placed": {"entity_id": "light.placed", "state": "on", "code": "A01", "shape": "circle"},
+        "fan.ceiling":  {"entity_id": "fan.ceiling", "state": "on", "code": "F01", "shape": "fan", "isFan": True},
+        "light.a":      {"entity_id": "light.a", "state": "off", "code": "A02", "shape": "hex"},
+        "light.b":      {"entity_id": "light.b", "state": "on",  "code": "A03", "shape": "hex"},
+    }
+    by_room = {"Kitchen": [lbe["fan.ceiling"], lbe["light.a"], lbe["light.b"]]}
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const BYROOM={json.dumps(by_room)};\n"
+        "const FLOORS=[{id:'main',name:'Main',level:0}];\n"
+        "const mk=(o)=>M.buildIsoSVG(MODEL,BYROOM,new Set(),null,150,0,LBE,false,FLOORS,o);\n"
+        "const plain=mk({});\n"
+        "const chip=mk({codeChip:true});\n"
+        "const hidden=mk({codeChip:true, hideCodes:true});\n"
+        "const filtered=mk({classFilter:'fan'});\n"
+        "const haloed=mk({hitHalo:true});\n"
+        "const collapsed=mk({collapseUnplaced:true});\n"
+        "const codeCount=(s)=>(s.match(/data-role=\"code\"/g)||[]).length;\n"
+        "const out={\n"
+        "  plainHasRoleCode: /data-role=\"code\"/.test(plain),\n"
+        "  chipHasRoleCode: codeCount(chip) >= 1,\n"
+        "  hiddenHasRoleCode: codeCount(hidden) === 0,\n"
+        "  hiddenHasCodeText: hidden.includes('A01'),\n"
+        "  // filtered=fan: the fan glyph is full-opacity and clickable; the two\n"
+        "  // plain lights are dimmed AND pointer-events:none.\n"
+        "  fanFull: /data-class=\"fan\"[^>]*opacity=\"1\"/.test(filtered) || /opacity=\"1\"[^>]*data-class=\"fan\"/.test(filtered),\n"
+        "  lightsDimmed: (filtered.match(/data-class=\"light\"[^>]*pointer-events=\"none\"/g)||[]).length"
+        " + (filtered.match(/pointer-events=\"none\"[^>]*data-class=\"light\"/g)||[]).length,\n"
+        "  plainNoHalo: !/class=\"lhalo\"/.test(plain),\n"
+        "  haloedCount: (haloed.match(/class=\"lhalo\"/g)||[]).length,\n"
+        "  haloForPlacedOnly: /data-eid=\"light\\.placed\"/.test(haloed.match(/<circle class=\"lhalo\"[^\\/]*\\/>/g)?.join('')||''),\n"
+        "  plainClusterMarkers: (plain.match(/<g class=\"lhex\" data-eid=\"(fan\\.ceiling|light\\.a|light\\.b)\"/g)||[]).length,\n"
+        "  collapsedStackChip: /data-role=\"stack\"/.test(collapsed),\n"
+        "  collapsedNoClusterMarkers: (collapsed.match(/<g class=\"lhex\" data-eid=\"(fan\\.ceiling|light\\.a|light\\.b)\"/g)||[]).length,\n"
+        "  collapsedStackCount: (collapsed.match(/3 unplaced/g)||[]).length,\n"
+        "  roomTapTarget: /data-role=\"room\" data-room=\"Kitchen\"/.test(plain),\n"
+        "  floorTapTarget: /data-role=\"floor\" data-z=\"0\"/.test(plain),\n"
+        "};\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    assert not out["plainHasRoleCode"], "the default render must not grow a code-chip target unasked"
+    assert out["chipHasRoleCode"], "codeChip must add a data-role=\"code\" target"
+    assert out["hiddenHasRoleCode"] and not out["hiddenHasCodeText"], "hideCodes must drop the code entirely, not just its chip"
+    assert out["fanFull"], "the matching class must stay full-opacity and clickable"
+    # Three "light"-class devices are drawn: the placed marker plus the two
+    # clustered in the room — classFilter:"fan" must dim every one of them.
+    assert out["lightsDimmed"] == 3, "every non-matching class must dim AND stop taking taps"
+    assert out["plainNoHalo"], "a halo must never appear unasked"
+    assert out["haloedCount"] >= 1, "hitHalo must draw at least one halo"
+    assert out["haloForPlacedOnly"], "the placed light's halo must exist"
+    assert out["plainClusterMarkers"] == 3, "without collapseUnplaced the pile stays three individual markers"
+    assert out["collapsedStackChip"], "collapseUnplaced must draw a stack chip"
+    assert out["collapsedNoClusterMarkers"] == 0, "collapseUnplaced must replace the individual markers, not add to them"
+    assert out["collapsedStackCount"] == 1, "one chip for the whole pile, not one per light"
+    assert out["roomTapTarget"], "the room name must be a data-role=\"room\" tap target unconditionally"
+    assert out["floorTapTarget"], "the floor badge must be a data-role=\"floor\" tap target unconditionally"
+
+
 # ── Showcase ────────────────────────────────────────────────────────────────
 
 _SHOWCASE_MODEL = {
