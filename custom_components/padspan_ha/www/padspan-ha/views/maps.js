@@ -6507,7 +6507,7 @@ function _lightsTab(ctx, maps, active) {
   ]);
   wrap.appendChild(head);
   if (!paid) {
-    wrap.appendChild(el("div", { class: "card", style: "padding:10px 12px;border:1px solid #b8860b;font-size:12px" }, [
+    wrap.appendChild(el("div", { class: "card lv-tablecard", style: "padding:10px 12px;border:1px solid rgba(251,191,36,.45);box-shadow:0 0 18px rgba(251,191,36,.07);font-size:12px;margin-bottom:12px" }, [
       el("span", { style: "font-weight:700;color:#fbbf24" }, "Free lighting map. "),
       el("span", { class: "muted" },
         "Placing each light where it really is, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room "
@@ -6803,20 +6803,15 @@ function _lightsTab(ctx, maps, active) {
     const entry = (mapState._lightsDraftM || {})[sel.eid]
       || ((ctx.state.model || {}).light_positions_m || {})[sel.eid]
       || null;
-    const insp = el("div", { class: "card", style: "display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 12px" });
-    insp.appendChild(el("div", { style: "font-weight:600;font-size:13px;min-width:140px" },
+    const insp = el("div", { class: "card lv-tablecard", style: "display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 12px;margin-bottom:12px" });
+    insp.appendChild(el("div", { class: "lv-tbl-title", style: "min-width:140px" },
       `${l.code} · ${l.friendly_name}`));
-    if (l.isWled) insp.appendChild(el("span", {
-      style: "font-size:11px;font-weight:700;color:#c084fc;border:1px solid #c084fc;border-radius:4px;padding:1px 6px",
-    }, "WLED"));
-    if (l.isPartition) insp.appendChild(el("span", {
-      style: "font-size:11px;font-weight:700;color:#38bdf8;border:1px solid #38bdf8;border-radius:4px;padding:1px 6px",
-    }, "PARTITION"));
+    if (l.isWled) insp.appendChild(el("span", { class: "lv-chip violet" }, "WLED"));
+    if (l.isPartition) insp.appendChild(el("span", { class: "lv-chip blue" }, "PARTITION"));
 
     const on = l.state === "on";
     insp.appendChild(el("button", {
-      class: "btn inline",
-      style: `background:${on ? "#fbbf24" : "#374151"};color:${on ? "#111827" : "#fbbf24"}`,
+      class: `lv-onoff ${on ? "on" : "off"}`,
       onclick: () => toggle(l.entity_id),
     }, on ? "Turn Off" : "Turn On"));
 
@@ -6826,9 +6821,9 @@ function _lightsTab(ctx, maps, active) {
     {
       const current = shapeOverrides[l.entity_id] || "auto";
       const derived = LIGHT_SHAPES.find(([k]) => k === deriveLightShape(l));
-      const shapeLbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8" }, "Shape");
+      const shapeLbl = el("label", { class: "lv-field" }, "Shape");
       const shapeSel = document.createElement("select");
-      shapeSel.className = "select";
+      shapeSel.className = "lv-select";
       for (const [kind, label] of LIGHT_SHAPES) {
         const o = document.createElement("option");
         o.value = kind;
@@ -6850,11 +6845,11 @@ function _lightsTab(ctx, maps, active) {
     }
 
     if (entry) {
-      const colorLbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8" }, "Hex colour");
+      const colorLbl = el("label", { class: "lv-field" }, "Hex colour");
       const colorInput = document.createElement("input");
       colorInput.type = "color";
       colorInput.value = entry.color || "#fbbf24";
-      colorInput.style.cssText = "width:36px;height:26px;border:none;background:none;cursor:pointer";
+      colorInput.className = "lv-swatch";
       colorInput.addEventListener("change", () => {
         const draft = mapState._lightsDraftM || (mapState._lightsDraftM = {});
         const cur = draft[sel.eid] || { ...((ctx.state.model?.light_positions_m || {})[sel.eid] || {}) };
@@ -6877,7 +6872,7 @@ function _lightsTab(ctx, maps, active) {
         ctx.actions.renderRooms();
       };
       const numBox = (labelText, key, min, max, step, suffix, dflt = 0) => {
-        const lbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8" }, labelText);
+        const lbl = el("label", { class: "lv-field" }, labelText);
         const inp = document.createElement("input");
         inp.type = "number";
         inp.min = String(min); inp.max = String(max); inp.step = String(step);
@@ -6886,14 +6881,14 @@ function _lightsTab(ctx, maps, active) {
         // show 0 while the map draws 15, and a save would then silently
         // change what a light without an opinion had been drawing as.
         inp.value = String(entry[key] === undefined || entry[key] === null ? dflt : Number(entry[key]) || 0);
-        inp.style.cssText = "width:64px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:2px 6px;font-size:11px";
+        inp.className = "lv-num";
         inp.addEventListener("change", () => {
           const v = Math.max(min, Math.min(max, parseFloat(inp.value) || 0));
           inp.value = String(v);
           editEntry(c => { c[key] = v; });
         });
         lbl.appendChild(inp);
-        if (suffix) lbl.appendChild(el("span", { style: "font-size:11px;color:#94a3b8" }, suffix));
+        if (suffix) lbl.appendChild(el("span", { style: "font-size:11px;color:rgba(226,240,232,.4)" }, suffix));
         return lbl;
       };
       if (l.shape === "perimeter") {
@@ -6910,18 +6905,18 @@ function _lightsTab(ctx, maps, active) {
         // actually gets saved.
         const _dfltMarginCm = Math.round(defaultPerimeterMarginM(fabricFrame(ctx.state.model, floors, 150, 0)) * 100);
         insp.appendChild(numBox("Margin", "margin_cm", 0, 500, 1, "cm", _dfltMarginCm));
-        insp.appendChild(el("span", { class: "muted", style: "font-size:11px" },
+        insp.appendChild(el("span", { class: "lv-hint" },
           "inset from the room's walls · 0 = right on the wall line"));
       } else {
         insp.appendChild(numBox("Width", "width_cm", 0, 2000, 1, "cm"));
         insp.appendChild(numBox("Length", "height_cm", 0, 2000, 1, "cm"));
         insp.appendChild(numBox("Rotate", "rotation", -180, 180, 5, "°"));
-        insp.appendChild(el("span", { class: "muted", style: "font-size:11px" },
+        insp.appendChild(el("span", { class: "lv-hint" },
           "0 = default marker size"));
       }
 
       insp.appendChild(el("button", {
-        class: "btn inline",
+        class: "lv-act",
         onclick: async () => {
           // Un-place it: back to automatic clustering in its room.
           delete (mapState._lightsDraftM || {})[sel.eid];
@@ -6934,12 +6929,12 @@ function _lightsTab(ctx, maps, active) {
         },
       }, "↺ Auto position"));
     } else {
-      insp.appendChild(el("span", { class: "muted", style: "font-size:12px" },
+      insp.appendChild(el("span", { class: "lv-hint" },
         l.area_name
           ? "Auto-clustered in its room — drag its hex to place it at its exact spot."
           : "Not on the map — assign it a room in the index below, then drag its hex into place."));
     }
-    insp.appendChild(el("button", { class: "btn inline", onclick: () => {
+    insp.appendChild(el("button", { class: "lv-act", onclick: () => {
       mapState._selLight = null; ctx.actions.renderRooms();
     } }, "Deselect"));
     wrap.appendChild(insp);
