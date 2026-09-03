@@ -6710,7 +6710,7 @@ function _lightsTab(ctx, maps, active) {
       el("span", { class: "lv-hint" }, paid
         ? (preview
           ? "Exactly what the Lights sidebar does with this map: tap switches, code or hold opens controls, room names open the room."
-          : "Builds the Lights sidebar's map — what you arrange here is exactly what the sidebar shows. Click a hex to select a light; drag it to where it really is. Shift-click or click a room name to select several.")
+          : "Builds the Lights sidebar's map — what you arrange here is exactly what the sidebar shows. Click a hex to select a light; drag it to where it really is. Shift-click or click a room name to select several. Can't find one on the map? Pick it in the list below — a ring flashes its spot, and the pink marker in the corner drags it into place.")
         : "Every light in the house, one marker each, in its room. Click a marker to switch it."),
     ]),
   ]);
