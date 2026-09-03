@@ -80,6 +80,7 @@ async def ws_fabric_scanner_remove(hass: HomeAssistant, connection, msg) -> None
         vol.Optional("rotation"): vol.Coerce(float),
         vol.Optional("width_cm"): vol.Coerce(float),
         vol.Optional("height_cm"): vol.Coerce(float),
+        vol.Optional("margin_cm"): vol.Coerce(float),
         vol.Optional("label"): str,
     }
 )
@@ -110,6 +111,7 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
         rotation=float(msg.get("rotation") or 0.0),
         width_cm=float(msg.get("width_cm") or 0.0),
         height_cm=float(msg.get("height_cm") or 0.0),
+        margin_cm=float(msg.get("margin_cm") or 0.0),
         label=(msg.get("label") or "").strip(),
     )
     _bump(hass, "light_placed")

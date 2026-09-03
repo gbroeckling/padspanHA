@@ -18,7 +18,7 @@
 // refused to place a light. Everything the view needs is in the fabric, in
 // metres, and now that is the only thing it reads.
 
-const { WLED_BORDER } =
+const { WLED_BORDER, PARTITION_BORDER } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 
 function escSVG(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
@@ -60,6 +60,114 @@ const arcPts=(ox,oy,rx,ry,a0,a1,steps)=>{
   return out;
 };
 const sub=(pts)=>pts.map((p,i)=>`${i?"L":"M"}${n(p[0])},${n(p[1])}`).join(" ")+"Z";
+
+// ── Room-perimeter geometry ──────────────────────────────────────────────────
+// Pure metre-space math, no projection, no fixture — kept standalone so it is
+// directly unit-testable against synthetic polygons rather than only through
+// rendered SVG path strings.
+//
+// Offsets every edge inward by marginM and re-intersects consecutive offset
+// edges to find each new vertex — the standard "shrink a simple polygon"
+// construction. Which side is "inward" is decided by comparing each edge's
+// two normals against the polygon's own centroid, which sidesteps ever
+// needing to know this codebase's winding or y-axis convention (this file
+// never assumes one elsewhere either). Good for the common case — rectangular
+// and mildly irregular rooms; a large margin on a very concave room can fold
+// the result on itself, which is why callers clamp marginM against the
+// room's own half-min-dimension before calling this.
+export function offsetPolygonInward(rawPts, marginM){
+  if(rawPts.length<3 || !(marginM>0)) return rawPts;
+  // Real traced rooms carry near-coincident vertices (Garry's Bedroom closes
+  // with two points 3.6cm apart) — a "wall" shorter than the margin's own
+  // scale contributes nothing but a phantom edge and a corner artifact to
+  // the offset, so collapse them first. The threshold rides the margin so a
+  // deliberately fine trace with a tiny margin keeps its detail.
+  const eps=Math.min(0.05, marginM*0.25);
+  const pts=[];
+  for(const p of rawPts){
+    const prev=pts[pts.length-1];
+    if(!prev || Math.hypot(p[0]-prev[0], p[1]-prev[1])>eps) pts.push(p);
+  }
+  while(pts.length>3 && Math.hypot(pts[0][0]-pts[pts.length-1][0], pts[0][1]-pts[pts.length-1][1])<=eps) pts.pop();
+  const cnt=pts.length;
+  if(cnt<3) return rawPts;
+  const ctr=[pts.reduce((a,p)=>a+p[0],0)/cnt, pts.reduce((a,p)=>a+p[1],0)/cnt];
+  const lines=[]; // one offset line per edge: a point on it, its direction, its normal
+  for(let i=0;i<cnt;i++){
+    const a=pts[i], b=pts[(i+1)%cnt];
+    const dx=b[0]-a[0], dy=b[1]-a[1];
+    const len=Math.hypot(dx,dy)||1e-9;
+    const ux=dx/len, uy=dy/len;
+    let nx=-uy, ny=ux;                       // one of the two perpendiculars
+    const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+    if((ctr[0]-mx)*nx+(ctr[1]-my)*ny<0){ nx=-nx; ny=-ny; }  // must point at the centroid
+    lines.push({ p:[a[0]+nx*marginM, a[1]+ny*marginM], d:[ux,uy], n:[nx,ny] });
+  }
+  // A sharp (acute) corner's true offset intersection can land many times
+  // marginM away from the vertex it came from — found live, on a real
+  // 11-vertex room, one corner overshot 0.14m to 0.49m. Past this limit the
+  // corner is BEVELLED instead: the midpoint of the vertex's own two normal
+  // offsets, which by construction can never be farther than marginM away
+  // (both points sit exactly marginM from the same vertex, on a circle around
+  // it, and a chord's midpoint never leaves that circle).
+  const MITER_LIMIT=2.5;
+  const out=[];
+  for(let i=0;i<cnt;i++){
+    const prev=lines[(i-1+cnt)%cnt], here=lines[i];
+    const [x1,y1]=prev.p, [dx1,dy1]=prev.d, [x2,y2]=here.p, [dx2,dy2]=here.d;
+    const denom=dx1*dy2-dy1*dx2;
+    let vx, vy;
+    if(Math.abs(denom)<1e-9){
+      // Parallel (or near-straight through this vertex): the incoming edge's
+      // own offset point is already correct here.
+      [vx,vy]=here.p;
+    } else {
+      const t=((x2-x1)*dy2-(y2-y1)*dx2)/denom;
+      vx=x1+dx1*t; vy=y1+dy1*t;
+    }
+    const orig=pts[i];
+    if(Math.hypot(vx-orig[0], vy-orig[1]) > marginM*MITER_LIMIT){
+      const p0=[orig[0]+prev.n[0]*marginM, orig[1]+prev.n[1]*marginM];
+      const p1=[orig[0]+here.n[0]*marginM, orig[1]+here.n[1]*marginM];
+      vx=(p0[0]+p1[0])/2; vy=(p0[1]+p1[1])/2;
+    }
+    out.push([vx,vy]);
+  }
+  return out;
+}
+
+// Half the smaller side of a polygon's own bounding box — the room-size term
+// callers clamp a requested margin against, so it can shrink toward a point
+// rather than fold past it.
+export function roomHalfMinDim(pts){
+  let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity;
+  for(const p of pts){ if(p[0]<a)a=p[0]; if(p[0]>c)c=p[0]; if(p[1]<b)b=p[1]; if(p[1]>d)d=p[1]; }
+  return Math.min(c-a,d-b)/2;
+}
+
+// The perimeter shape's DEFAULT margin when nothing has been set is a fixed
+// ON-SCREEN gap, not a fixed real-world one — found live, on Garry's own
+// house: a flat 15cm inset landed at frame.scale=26 px/m as a 4-7px sliver,
+// visually indistinguishable from the room's own outline stroke, which is
+// the actual bug behind "doesn't follow the room boundary at all". A small
+// apartment and a spread-out house do not share a scale, so a metre constant
+// can never stay visible on both; a pixel constant does, by construction.
+// Only the DEFAULT works this way — an explicit margin (0 included) always
+// wins, this only supplies what nothing was asked for.
+// ...but the pixel target is itself capped at a physically plausible cove
+// offset. Uncapped it computed 0.6m for Garry's house — and 0.6m consumed
+// 76% of his L-shaped Bedroom's 1.57m-wide lower arm, collapsing that whole
+// section of the trace into slivers at angles matching no wall ("some weird
+// square in the middle"). No real cove sits 60cm off the wall; 30cm is the
+// top of the plausible range, still lands ~8px at that house's scale
+// (double the invisible 15cm original), and a narrow room arm has to be
+// narrower than 60cm before it can collapse.
+const DEFAULT_TRACE_PX = 16;
+const DEFAULT_TRACE_MAX_M = 0.3;
+export function defaultPerimeterMarginM(frame){
+  const s = (frame && frame.scale) || 1;
+  return Math.max(0.05, Math.min(DEFAULT_TRACE_MAX_M, DEFAULT_TRACE_PX / s));
+}
 
 export function shapeSvg(kind, cx, cy, r, attrs){
   const poly=(pts)=>`<polygon points="${pts}" ${attrs}/>`;
@@ -158,6 +266,14 @@ export function shapeSvg(kind, cx, cy, r, attrs){
     case "square":
       return `<rect x="${n(cx-HW)}" y="${n(cy-HW)}" width="${n(HW*2)}" height="${n(HW*2)}" `+
              `rx="2" ${attrs}/>`;
+    // The drag handle/code-label icon for a room-perimeter light — its real
+    // extent is the traced room boundary drawn separately (perimeterSvg),
+    // not this point. A generously rounded plate reads as "a plate", between
+    // square's sharp corners and circle's full round; the actual "traces a
+    // boundary" idea is what the Showcase detail ring below carries.
+    case "perimeter":
+      return `<rect x="${n(cx-HW)}" y="${n(cy-HW)}" width="${n(HW*2)}" height="${n(HW*2)}" `+
+             `rx="${n(HW*0.42)}" ${attrs}/>`;
     case "triangle":
       return poly([[cx,cy-r],[cx+HW,cy+r*0.62],[cx-HW,cy+r*0.62]]
         .map(p=>`${n(p[0])},${n(p[1])}`).join(" "));
@@ -241,6 +357,10 @@ export function shapeDetailSvg(kind, cx, cy, r, ink, sw){
     case "triangle": return ring(cx,cy+r*0.26,HW*0.32)+
                             line(cx-HW*0.4,cy+r*0.55,cx+HW*0.4,cy+r*0.55);
     case "diamond":  return ring(cx,cy,HW*0.42)+dot(cx,cy,HW*0.15);
+    // An inset frame — the glyph's own echo of what it actually draws
+    // full-size on the floor: a boundary, traced inside another boundary.
+    case "perimeter": return `<rect x="${n(cx-HW*0.62)}" y="${n(cy-HW*0.62)}" `+
+                             `width="${n(HW*1.24)}" height="${n(HW*1.24)}" rx="${n(HW*0.3)}" ${a}/>`;
     // A plain fixture plate: bevel, plus the lamp behind it.
     default:         return path(sub(arcPts(cx,cy,r*0.6,r*0.6,90,450,6)))+dot(cx,cy,HW*0.15);
   }
@@ -617,6 +737,77 @@ export function floorIdAtLevel(frame, model, floors, z){
 }
 
 // ── Isometric 3-D SVG builder ────────────────────────────────────────────────
+// A spatial scene is a colour field laid across a floor, not a colour list:
+// every fixture samples the field at its own metres, so "Sunset" is warm on
+// one side of the house and dusk on the other. The same function drives the
+// preview AND the applied service calls, so the map cannot promise a colour
+// the lights don't get. field = {stops:[[r,g,b],...], angleDeg}; box = the
+// floor's metre bbox {x0,y0,x1,y1}.
+export function sampleSceneField(field, x, y, box){
+  const stops=(field&&field.stops)||[];
+  if(!stops.length) return [255,191,36];
+  if(stops.length===1) return stops[0];
+  const th=((Number(field.angleDeg)||0)*Math.PI)/180;
+  const ux=Math.cos(th), uy=Math.sin(th);
+  // Project the corners onto the axis so t spans exactly the floor, whatever
+  // the angle — normalising by width alone squashed diagonal scenes.
+  const px=[box.x0*ux+box.y0*uy, box.x1*ux+box.y0*uy, box.x0*ux+box.y1*uy, box.x1*ux+box.y1*uy];
+  const lo=Math.min(...px), hi=Math.max(...px);
+  const t=hi>lo ? Math.max(0, Math.min(1, ((x*ux+y*uy)-lo)/(hi-lo) )) : 0;
+  const seg=Math.min(stops.length-2, Math.floor(t*(stops.length-1)));
+  const f=t*(stops.length-1)-seg;
+  const a=stops[seg], b=stops[seg+1];
+  return [0,1,2].map(i=>Math.round(a[i]+(b[i]-a[i])*f));
+}
+
+// The colours a scene APPLY sends — one function against the same frame and
+// the same sampler the preview drew with, so the two cannot disagree. Returns
+// [{eid, rgb:[r,g,b]}] for every visible lit fixture: placed ones sampled at
+// their own metres, cluster ones at their room's centre.
+export function sceneColours(model, floors, byRoom, lightsByEid, hiddenEids, field, floorGap=150, horizGap=0){
+  if(!field) return [];
+  const frame=fabricFrame(model, floors, floorGap, horizGap);
+  const { rooms, lights }=frame;
+  const box=new Map();
+  for(const r of rooms){
+    const b=box.get(r.z)||{x0:Infinity,y0:Infinity,x1:-Infinity,y1:-Infinity};
+    for(const p of r.pts){
+      if(p[0]<b.x0)b.x0=p[0]; if(p[0]>b.x1)b.x1=p[0];
+      if(p[1]<b.y0)b.y0=p[1]; if(p[1]>b.y1)b.y1=p[1];
+    }
+    box.set(r.z,b);
+  }
+  for(const l of lights){
+    const b=box.get(l.z)||{x0:Infinity,y0:Infinity,x1:-Infinity,y1:-Infinity};
+    if(l.x<b.x0)b.x0=l.x; if(l.x>b.x1)b.x1=l.x;
+    if(l.y<b.y0)b.y0=l.y; if(l.y>b.y1)b.y1=l.y;
+    box.set(l.z,b);
+  }
+  const out=[], seen=new Set();
+  for(const pl of lights){
+    const li=lightsByEid[pl.eid];
+    if(!li || li.state!=="on" || (hiddenEids&&hiddenEids.has(pl.eid)) || seen.has(pl.eid)) continue;
+    const bx=box.get(pl.z);
+    if(!bx || !isFinite(bx.x0)) continue;
+    out.push({ eid: pl.eid, rgb: sampleSceneField(field, pl.x, pl.y, bx) });
+    seen.add(pl.eid);
+  }
+  for(const rname of Object.keys(byRoom||{})){
+    const r=rooms.find(rr=>rr.room===rname);
+    if(!r || !r.pts.length) continue;
+    const cx=r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length;
+    const cy=r.pts.reduce((a,p)=>a+p[1],0)/r.pts.length;
+    const bx=box.get(r.z);
+    if(!bx || !isFinite(bx.x0)) continue;
+    for(const li of byRoom[rname]||[]){
+      if(li.state!=="on" || seen.has(li.entity_id) || (hiddenEids&&hiddenEids.has(li.entity_id))) continue;
+      out.push({ eid: li.entity_id, rgb: sampleSceneField(field, cx, cy, bx) });
+      seen.add(li.entity_id);
+    }
+  }
+  return out;
+}
+
 // opts.showcase — the presentation renderer. Same fabric, same fixtures, same
 // silhouettes, same placement: what changes is the LIGHTING of the drawing.
 // Fixtures that are on cast a real pool in their own colour, markers get a
@@ -626,6 +817,19 @@ export function floorIdAtLevel(frame, model, floors, z){
 export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[], opts={}){
   const SHOW = !!opts.showcase;
   const FIT  = !!opts.fitRooms;
+  // Daylight, 0 (night) to 1 (full day), from the sun the callers already
+  // know about. Day lifts the ground and mutes the pools — a lit lamp at noon
+  // is a detail, not the drawing — and night is exactly the render as it was.
+  const AMB    = SHOW ? Math.max(0, Math.min(1, Number(opts.ambient)||0)) : 0;
+  // A spatial scene preview: pools sample this colour field at their own
+  // metres instead of their live colour. Preview only — nothing is written.
+  const FIELD  = SHOW ? (opts.sceneField || null) : null;
+  const ISOLUX = SHOW && !!opts.isolux;
+  const mixHex=(a,b,t)=>{
+    const pa=parseInt(a.slice(1),16), pb=parseInt(b.slice(1),16);
+    const ch=(sh)=>Math.round(((pa>>sh)&255)+(((pb>>sh)&255)-((pa>>sh)&255))*t);
+    return `#${[ch(16),ch(8),ch(0)].map(v=>v.toString(16).padStart(2,"0")).join("")}`;
+  };
   const {CX, CY, W, BASE_H} = ISO;
   const FG=floorGap;
   const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
@@ -658,9 +862,37 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // down both sides, and the zoom control could only slide it around inside
   // that box instead of making it bigger. The aspect ratio still comes from
   // the viewBox; the host sizes it.
+  // Per-floor metre bbox, needed BEFORE the gradient prepass: the scene field
+  // spans it (each storey gets the whole gradient) and the isolux grid walks
+  // it. The slab sizing below reads the same numbers.
+  const floorBox=new Map();
+  for(const z of levels){
+    let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity;
+    for(const r of rooms) if(r.z===z) for(const p of r.pts){
+      if(p[0]<a)a=p[0]; if(p[0]>c)c=p[0]; if(p[1]<b)b=p[1]; if(p[1]>d)d=p[1];
+    }
+    for(const l of lights) if(l.z===z){
+      if(l.x<a)a=l.x; if(l.x>c)c=l.x; if(l.y<b)b=l.y; if(l.y>d)d=l.y;
+    }
+    if(isFinite(a)) floorBox.set(z, {x0:a, y0:b, x1:c, y1:d});
+  }
+  // Room centroids by name — where an unplaced light clusters, so a scene
+  // field can give cluster lights the colour of the middle of their room.
+  const roomCentre=new Map();
+  for(const r of rooms){
+    if(!r.pts.length || roomCentre.has(r.room)) continue;
+    roomCentre.set(r.room, [r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length,
+                            r.pts.reduce((a,p)=>a+p[1],0)/r.pts.length, r.z]);
+  }
+  // The field colour a fixture previews, or null when no scene is active.
+  const fieldColOf=(x,y,z)=>{
+    const box=FIELD && floorBox.get(z);
+    return box ? QCOL(sampleSceneField(FIELD, x, y, box)) : null;
+  };
+
   let s=`<svg viewBox="0 ${viewY} ${W} ${HTOTAL}" xmlns="http://www.w3.org/2000/svg" width="100%" `+
     `data-natural-h="${HTOTAL}" style="display:block;font-family:system-ui,sans-serif">`;
-  s+=`<rect x="0" y="${viewY}" width="${W}" height="${HTOTAL}" fill="#071008"/>`;
+  s+=`<rect x="0" y="${viewY}" width="${W}" height="${HTOTAL}" fill="${AMB?mixHex("#071008","#22301f",AMB):"#071008"}"/>`;
 
   // ── Showcase: the colour a fixture actually throws ────────────────────────
   // A light that reports rgb_color is drawn and glows in ITS OWN colour, so a
@@ -672,9 +904,19 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const q=(v)=>Math.max(24, Math.min(255, Math.round(Math.max(0, Math.min(255, v))/24)*24));
     return `#${[q(c[0]),q(c[1]),q(c[2])].map(v=>v.toString(16).padStart(2,"0")).join("")}`;
   };
+  // Kelvin → RGB (Tanner Helland blackbody approximation, clamped to the
+  // 1800-6500K range real bulbs report). A white-only bulb has no rgb_color,
+  // but it does have a temperature — and 2700K vs 5000K is the difference
+  // between a living room and a workshop, which the default amber erased.
+  const kelvinRGB=(k)=>{
+    const t=Math.max(1800, Math.min(6500, k))/100;
+    const g=Math.round(99.47*Math.log(t)-161.12);
+    const b=t>=66 ? 255 : (t<=19 ? 0 : Math.round(138.52*Math.log(t-10)-305.04));
+    return [255, Math.max(0,Math.min(255,g)), Math.max(0,Math.min(255,b))];
+  };
   const glowCol=(l,entry)=>Array.isArray(l&&l.rgb)&&l.rgb.length>=3
     ? QCOL(l.rgb)
-    : ((entry&&entry.color)||"#fbbf24");
+    : (Number(l&&l.ct)>0 ? QCOL(kelvinRGB(l.ct)) : ((entry&&entry.color)||"#fbbf24"));
   const bodyCol=(l,entry)=>SHOW ? glowCol(l,entry) : ((entry&&entry.color)||"#fbbf24");
   // Detail has to be legible on whatever colour the fixture is throwing, and a
   // WLED run can be anything from pale yellow to deep blue — so the ink is
@@ -695,16 +937,19 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // One gradient per DISTINCT colour in use (quantised above), collected before
   // the defs are written. A per-light gradient would be one def per fixture.
   const glowIds=new Map();
+  // room record -> clipPath id, filled while the defs are written (SHOW only).
+  const roomClip=new Map();
   if(SHOW){
     for(const l of lights){
       const li=lightsByEid[l.eid];
       if(!li || li.state!=="on" || hiddenEids.has(l.eid)) continue;
-      const c=glowCol(li,l.lp);
+      const c=(FIELD ? fieldColOf(l.x,l.y,l.z) : null) || glowCol(li,l.lp);
       if(!glowIds.has(c)) glowIds.set(c, `psglow_${glowIds.size}`);
     }
     for(const rname of Object.keys(byRoom||{})) for(const li of byRoom[rname]||[]){
       if(li.state!=="on" || hiddenEids.has(li.entity_id)) continue;
-      const c=glowCol(li, null);
+      const rc=FIELD && roomCentre.get(rname);
+      const c=(rc ? fieldColOf(rc[0],rc[1],rc[2]) : null) || glowCol(li, null);
       if(!glowIds.has(c)) glowIds.set(c, `psglow_${glowIds.size}`);
     }
   }
@@ -803,6 +1048,21 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         `<stop offset="100%" stop-color="${col}" stop-opacity="0"/>`+
         `</radialGradient>`;
     }
+    // Softens the wall cut on a clipped pool: applied OUTSIDE the clip, so a
+    // couple of pixels of light feather over the boundary the way a doorway
+    // leaks. A hard polygon edge is the one artifact every hand-built
+    // floor-plan thread complains about.
+    s+=`<filter id="psclipsoft" x="-8%" y="-8%" width="116%" height="116%">`+
+      `<feGaussianBlur stdDeviation="1.6"/></filter>`;
+    // One clip path per room, so a fixture's pool can be stopped at its own
+    // walls. Light crossing a wall polygon reads as a rendering error the
+    // moment the drawing is good enough for anything else to read as real —
+    // and the fabric has known these polygons in metres all along.
+    for(let ri=0; ri<rooms.length; ri++){
+      const r=rooms[ri];
+      roomClip.set(r, `psclip_${ri}`);
+      s+=`<clipPath id="psclip_${ri}"><polygon points="${r.pts.map(p=>pt(iso(p[0],p[1],r.z))).join(" ")}"/></clipPath>`;
+    }
     // Contact shadow under a fixture — what actually sells a marker as an
     // object sitting in the room rather than a sticker on the glass.
     s+=`<radialGradient id="psshade">`+
@@ -867,15 +1127,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // One slab footprint for the whole stack: the largest floor's, so no floor
   // is cropped and every floor reads at the same scale.
   let slabHalfW=0, slabHalfH=0;
-  for(const z of levels){
-    let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity;
-    for(const r of rooms) if(r.z===z) for(const p of r.pts){
-      if(p[0]<a)a=p[0]; if(p[0]>c)c=p[0]; if(p[1]<b)b=p[1]; if(p[1]>d)d=p[1];
-    }
-    for(const l of lights) if(l.z===z){
-      if(l.x<a)a=l.x; if(l.x>c)c=l.x; if(l.y<b)b=l.y; if(l.y>d)d=l.y;
-    }
-    if(isFinite(a)){ slabHalfW=Math.max(slabHalfW,(c-a)/2); slabHalfH=Math.max(slabHalfH,(d-b)/2); }
+  for(const box of floorBox.values()){
+    slabHalfW=Math.max(slabHalfW,(box.x1-box.x0)/2);
+    slabHalfH=Math.max(slabHalfH,(box.y1-box.y0)/2);
   }
   // One padding for the whole stack, so slabs stay visually consistent even
   // though each is sized to its own floor.
@@ -975,20 +1229,52 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // Showcase: a dark fixture is slate and recedes; the eye should go to
       // what is actually lit. Working mode keeps the flat pair it always had.
       const fill=on?lit:(SHOW?"#1b2733":"#374151");
+      const stripBorder=l.isWled?WLED_BORDER:(l.isPartition?PARTITION_BORDER:null);
       const stroke=SHOW
-        ? (on?(l.isWled?WLED_BORDER:"#f8fafc"):"#3f5165")
-        : (l.isWled?WLED_BORDER:"#60a5fa");
+        ? (on?(stripBorder||"#f8fafc"):"#3f5165")
+        : (stripBorder||"#60a5fa");
       const op=SHOW?(on?1:0.62):(on?1:0.45);
       const tCol=SHOW?(on?lit:"#7f93a8"):(on?"#111827":"#e2e8f0");
+      // A perimeter light's body IS its trace ("should be just the custom
+      // shape formed to the room" — Garry, then: "Keep the glow, and the
+      // click space of the square, but hide the square"). So: the Showcase
+      // pool still glows (drawn from the jobs pass, untouched by this), the
+      // grab target is the EXACT rounded-rect footprint the square had —
+      // just transparent — and the code stays, centred in that space, so
+      // click, drag and long-press keep the target they always had. The
+      // legend keeps shapeSvg's small frame icon: a key needs a symbol,
+      // the map doesn't.
+      if(l.shape==="perimeter"){
+        const HW=HEX_R*0.866;
+        const pCol=SHOW?(on?lit:"#7f93a8"):(on?lit:"#94a3b8");
+        return `<g class="lhex" data-eid="${escSVG(l.entity_id)}" data-cx="${hx.toFixed(1)}" data-cy="${hy.toFixed(1)}"`+
+          `${extra?" "+extra:""} style="cursor:pointer" opacity="${op}">`+
+          `<rect data-hit="1" x="${n(hx-HW)}" y="${n(hy-HW)}" width="${n(HW*2)}" height="${n(HW*2)}" `+
+          `rx="${n(HW*0.42)}" fill="transparent" stroke="none"/>`+
+          `<text x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
+          `font-family="ui-monospace,monospace" font-size="${CODE_PX.toFixed(1)}" font-weight="700" `+
+          `fill="${pCol}" paint-order="stroke" stroke="#050d09" stroke-width="${(CODE_PX*0.42).toFixed(1)}" `+
+          `stroke-linejoin="round" pointer-events="none">${escSVG(l.code)}</text></g>`;
+      }
       // Physical size and rotation, in real units. width_cm/height_cm and
       // rotation have been in the stored schema all along and the WS command
       // has always accepted them — nothing ever drew them, which is why
       // "scaling and rotate don't work": they were never wired up. A metre of
       // fixture is frame.scale pixels, so a 2.4 m valance reads as a long bar
       // and a downlight stays a dot, at any zoom.
+      // A perimeter light's real extent is the traced boundary
+      // (perimeterSvg), never this point-icon — so its width_cm/height_cm/
+      // rotation are ignored here even if the entry carries real numbers
+      // (very likely, on a light that used to be some other shape: found
+      // live, a light still stamped 308x285cm from when it was literal pot
+      // lights stretched the plain "perimeter" square into a room-sized
+      // block sitting on top of its own trace — a second, distinct bug from
+      // the ones already fixed tonight, same root class: a control that
+      // only makes sense for OTHER shapes was never turned off for this one).
+      const isPerimeter=l.shape==="perimeter";
       const t=[];
-      const rot=Number(entry&&entry.rotation)||0;
-      const {wCm,hCm}=fitCm(l,entry);
+      const rot=isPerimeter ? 0 : (Number(entry&&entry.rotation)||0);
+      const {wCm,hCm}=isPerimeter ? {wCm:0,hCm:0} : fitCm(l,entry);
       const {sx,sy}=markerScale(wCm, hCm, frame.scale, HEX_R);
       if(rot||sx!==1||sy!==1){
         t.push(`translate(${hx.toFixed(1)},${hy.toFixed(1)})`);
@@ -1052,21 +1338,76 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         body+lbl+`</g>`;
     };
 
+    // A "perimeter" light's real extent: the room it is dropped in, traced
+    // inward by its own margin_cm. Drawn for BOTH modes — this is the
+    // fixture's shape, not a Showcase presentation effect — under everything
+    // else on the floor, same reasoning as the room fills it sits just above.
+    // entry is the fixture's placement record (pl.lp) — margin_cm lives there
+    // alongside width_cm/height_cm/rotation, same storage, same draft path.
+    const perimeterSvg=(l,room,entry)=>{
+      if(!room || room.pts.length<3) return "";
+      // Nullish, not ||: an explicit margin of 0 (right on the wall) is a
+      // real, meaningful choice and must not fall back to the default just
+      // because 0 is falsy — that would make a true zero unreachable.
+      const rawCm=entry&&entry.margin_cm;
+      const wantM=(rawCm===undefined||rawCm===null) ? defaultPerimeterMarginM(frame) : (Number(rawCm)||0)/100;
+      // Clamped so a margin typed larger than the room cannot fold the
+      // offset polygon back on itself — see offsetPolygonInward's own note.
+      const marginM=Math.max(0, Math.min(wantM, roomHalfMinDim(room.pts)*0.85));
+      const inset=offsetPolygonInward(room.pts, marginM);
+      const ppx=inset.map(p=>pt(iso(p[0],p[1],room.z))).join(" ");
+      const on=l.state==="on";
+      const col=bodyCol(l,entry);
+      const op=SHOW?(on?0.95:0.4):(on?1:0.45);
+      const sw=Math.max(1.4, frame.scale*0.05);
+      const eidAttr=`data-eid="${escSVG(l.entity_id)}"`;
+      let s2=`<polygon ${eidAttr} points="${ppx}" fill="none" stroke="${col}" stroke-width="${sw.toFixed(2)}" `+
+        `stroke-linejoin="round" opacity="${op}" pointer-events="none"/>`;
+      // Showcase: the trace also glows, faintly, the same way a real cove
+      // run washes the ceiling line beside it — a wider, softer duplicate
+      // underneath the crisp line, reusing the blur filter the room clips
+      // already declared.
+      if(SHOW && on) s2=`<polygon ${eidAttr} points="${ppx}" fill="none" stroke="${col}" `+
+        `stroke-width="${(sw*3.5).toFixed(2)}" stroke-linejoin="round" opacity="0.28" `+
+        `filter="url(#psclipsoft)" pointer-events="none"/>`+s2;
+      return s2;
+    };
+
     // Showcase underlay for one fixture: the pool it throws on the floor, and
     // the shadow it casts under itself. Both are drawn for the whole floor
     // BEFORE any marker, so one light's glow can never wash over another's
     // glyph. A floor circle projects to an ellipse of 0.5/0.866 — the same
     // ratio the iso projection uses — so the pool lies flat in the room.
-    const glowSvg=(l,hx,hy,entry)=>{
+    // Beam width is a property of the fixture TYPE — a spot at 20° and a
+    // chandelier at 120° do not throw the same pool from the same lamp. The
+    // factors are photometric defaults per type, not per-install tuning.
+    // Shared with the push sites, which need the same radius for wall spill.
+    const BEAM={triangle:0.68, diamond:0.45, sconce:0.8, chandelier:1.2, pendant:1.05};
+    // The pool's reach in METRES for a fixture — the number the wall-spill
+    // test asks "did the light reach this wall" with.
+    const poolReachM=(l)=>Math.max((HEX_R*2.2)/frame.scale, (1.0+1.4*briOf(l))*(BEAM[l.shape]||1));
+    const pointSegDist=(x,y,p,q)=>{
+      const dx=q[0]-p[0], dy=q[1]-p[1];
+      const L2=dx*dx+dy*dy;
+      const t=L2 ? Math.max(0, Math.min(1, ((x-p[0])*dx+(y-p[1])*dy)/L2)) : 0;
+      const ex=p[0]+t*dx-x, ey=p[1]+t*dy-y;
+      return Math.sqrt(ex*ex+ey*ey);
+    };
+    // fx: optional per-fixture extras computed at push time, where the metre
+    // coordinates and room polygons are in scope — {col} overrides the pool
+    // colour (scene preview), {spill} is wall-spill line segments already
+    // projected to px: [[x1,y1,x2,y2,fade], ...].
+    const glowSvg=(l,hx,hy,entry,clipId,fx)=>{
       if(l.state!=="on") return "";
-      const col=glowCol(l,entry);
+      const col=(fx&&fx.col)||glowCol(l,entry);
       const b=briOf(l);
+      const beam=BEAM[l.shape]||1;
       // In METRES, like everything else here: a fixture throws roughly 1.4 m at
       // a tenth and 3.4 m at full, which is what a downlight actually does on a
       // floor. Sizing the pool off the marker instead made it a bloom stuck to
       // the icon — markers are clamped to 5-14 px, so on a big site every pool
       // came out the same tiny disc no matter how large the room was.
-      const rad=Math.max(HEX_R*2.2, frame.scale*(1.0+1.4*b));
+      const rad=Math.max(HEX_R*2.2, frame.scale*(1.0+1.4*b)*beam);
       // A 3 m strip does not light a circle. The throw is ADDED to the
       // fixture's own length — multiplying by its scale instead made a 3 m run
       // throw three times as far as a downlight in every direction, and its
@@ -1078,10 +1419,42 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const half=(cm)=>((Number(cm)||0)/100)*frame.scale/2;
       const rx=rad+half(wCm);
       const ry=(rad+half(hCm))*0.577;
-      return `<g transform="translate(${hx.toFixed(1)},${hy.toFixed(1)})`+
-        `${rot?` rotate(${rot.toFixed(1)})`:""}"><ellipse cx="0" cy="0" `+
+      // Directional types throw AHEAD of the glyph, not around it: the spot
+      // glyph points up at rotation 0, so "forward" is -y in the rotated
+      // frame and the group's own rotate() carries the pool with the aim. A
+      // sconce washes off its wall the same way, just closer in.
+      const fwd=l.shape==="triangle" ? rad*0.5 : (l.shape==="sconce" ? rad*0.35 : 0);
+      // A very slow breathe, Showcase only — light is never as static as a
+      // print. Amplitude rides brightness so a dim lamp barely stirs, and the
+      // phase is staggered off the entity id so the house doesn't pulse in
+      // lockstep like a hazard beacon.
+      // Daylight mutes every pool together: at noon a lit lamp is a detail on
+      // a bright plan, not a beacon on a black one.
+      const op=(0.4+0.45*b)*(1-0.5*AMB);
+      let ph=0; const eid=String(l.entity_id||"");
+      for(let i=0;i<eid.length;i++) ph=(ph+eid.charCodeAt(i))%7;
+      // Wall spill: where the pool reaches its room's wall, a faint stroke of
+      // the pool's own colour runs along that wall — light climbing the
+      // skirting is what sells the clip as walls rather than a stencil.
+      let spill="";
+      for(const sg of (fx&&fx.spill)||[]){
+        spill+=`<line x1="${sg[0].toFixed(1)}" y1="${sg[1].toFixed(1)}" x2="${sg[2].toFixed(1)}" y2="${sg[3].toFixed(1)}" `+
+          `stroke="${col}" stroke-width="2.4" stroke-linecap="round" opacity="${(sg[4]*0.32*(1-0.5*AMB)).toFixed(2)}" pointer-events="none"/>`;
+      }
+      const pool=`<g transform="translate(${hx.toFixed(1)},${hy.toFixed(1)})`+
+        `${rot?` rotate(${rot.toFixed(1)})`:""}"><ellipse cx="0" cy="${fwd?(-fwd*0.577).toFixed(1):"0"}" `+
         `rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="url(#${glowIds.get(col)||"psshade"})" `+
-        `opacity="${(0.4+0.45*b).toFixed(2)}" pointer-events="none"/></g>`;
+        `opacity="${op.toFixed(2)}" pointer-events="none">`+
+        `<animate attributeName="opacity" values="${op.toFixed(2)};${(op*0.9).toFixed(2)};${op.toFixed(2)}" `+
+        `dur="${6+ph}s" begin="-${ph}s" repeatCount="indefinite"/>`+
+        `</ellipse></g>`;
+      // The pool stops at the room's walls; the fixture, its marker and its
+      // label do not — only the light is clipped, so a fixture dropped on a
+      // boundary still shows whole. The blur sits OUTSIDE the clip so the cut
+      // edge feathers a couple of pixels past the wall, like a doorway leak.
+      return clipId
+        ? `<g filter="url(#psclipsoft)"><g clip-path="url(#${clipId})">${pool}${spill}</g></g>`
+        : pool+spill;
     };
     // Small and faint, deliberately. At 1.45x the marker these were WIDER than
     // hexCluster's spacing (r*√3+2), so every room with more than one fixture
@@ -1114,7 +1487,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // punched through it in almost every room — "Garry's Office" with a hex
       // over the "y's". Horizontally it still tracks the centroid, so it reads
       // as that room's title rather than drifting to a corner.
-      let liy=Math.min(...ipts.map(p=>p[1]))+11;
+      let liy=Math.min(...ipts.map(p=>p[1]))+8;
       // ...and if a fixture happens to sit on that spot anyway, the name steps
       // up out of the way rather than being drawn through. The halo keeps it
       // readable once it crosses the room's own edge.
@@ -1140,7 +1513,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // Showcase sets it in tracked small caps — the convention every printed
       // plan uses for a room name, and it stops competing with the fixture codes.
       s+=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+
-        `fill="${color}" font-size="${SHOW?"7.6":"8.5"}" font-family="system-ui,sans-serif" font-weight="600" `+
+        `fill="${color}" font-size="${SHOW?"6.6":"7.4"}" font-family="system-ui,sans-serif" font-weight="600" `+
         (SHOW?`letter-spacing="0.16em" `:``)+
         `paint-order="stroke" stroke="#071008" stroke-width="2.5" stroke-linejoin="round" `+
         `opacity="${SHOW?"0.72":"0.95"}" pointer-events="none">`+
@@ -1161,7 +1534,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const offsets=hexCluster(roomLights.length, HEX_R);
       roomLights.forEach((l,idx)=>{
         const [dx,dy]=offsets[idx];
-        jobs.push([l, ccx+dx, ccy+dy, null, `data-z="${z}"`]);
+        // A perimeter light traces its ROOM, which is already known here —
+        // no placement needed to see it. Unplaced means no entry, so this
+        // draws at the 15cm default; dragging it onto the map is only for
+        // adjusting margin, not for making the trace appear at all.
+        if(l.shape==="perimeter") s+=perimeterSvg(l, r, null);
+        const fx=SHOW&&FIELD ? {col: fieldColOf(cx,cy,z)} : undefined;
+        jobs.push([l, ccx+dx, ccy+dy, null, `data-z="${z}"`, roomClip.get(r), fx]);
       });
     }
 
@@ -1172,7 +1551,35 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const l=lightsByEid[pl.eid];
       if(!l) continue;
       const [hx,hy]=iso(pl.x, pl.y, z);
-      jobs.push([l, hx, hy, pl.lp, `data-z="${z}" data-placed="1"`]);
+      // Which room this fixture sits in — from its POSITION, the same
+      // ray-cast the fit cap uses. Outside every polygon (a hallway, the
+      // garden) it is left unclipped/untraced. Needed in BOTH modes now: a
+      // perimeter light's shape depends on it, not only Showcase's pool clip.
+      let room=null;
+      if(SHOW || l.shape==="perimeter"){
+        for(const r of hereRooms){ if(pointInRoom(r.pts, pl.x, pl.y)){ room=r; break; } }
+      }
+      if(l.shape==="perimeter") s+=perimeterSvg(l, room, pl.lp);
+      let clip, fx;
+      if(SHOW){
+        clip=room?roomClip.get(room):undefined;
+        const col=FIELD ? fieldColOf(pl.x, pl.y, z) : null;
+        // Wall spill: every wall of the fixture's room its pool actually
+        // reaches, faded by how far away the wall is.
+        let spillSegs=null;
+        if(room && l.state==="on"){
+          const reach=poolReachM(l)*0.8;
+          for(let i=0,j=room.pts.length-1;i<room.pts.length;j=i++){
+            const d=pointSegDist(pl.x, pl.y, room.pts[j], room.pts[i]);
+            if(d<reach){
+              const a=iso(room.pts[j][0], room.pts[j][1], z), b2=iso(room.pts[i][0], room.pts[i][1], z);
+              (spillSegs=spillSegs||[]).push([a[0], a[1], b2[0], b2[1], 1-d/reach]);
+            }
+          }
+        }
+        if(col||spillSegs) fx={col, spill:spillSegs};
+      }
+      jobs.push([l, hx, hy, pl.lp, `data-z="${z}" data-placed="1"`, clip, fx]);
     }
 
     if(SHOW){
@@ -1180,9 +1587,67 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // opaque discs — two fixtures washing the same corner should read as a
       // brighter corner, which is the whole reason to draw them at all.
       s+=`<g style="mix-blend-mode:screen" pointer-events="none">`;
-      for(const [l,hx,hy,entry] of jobs) s+=glowSvg(l,hx,hy,entry);
+      for(const [l,hx,hy,entry,,clip,fx] of jobs) s+=glowSvg(l,hx,hy,entry,clip,fx);
       s+=`</g>`;
-      for(const [,hx,hy] of jobs) s+=shadeSvg(hx,hy);
+      // A contact shadow seats a MARKER on the floor; a perimeter light's
+      // marker is hidden (only its hit space and code remain), so a shadow
+      // there would be a smudge under nothing.
+      for(const [l2,hx,hy] of jobs) if(l2.shape!=="perimeter") s+=shadeSvg(hx,hy);
+
+      // ── Isolux contours — the engineer's view, honest because the grid is
+      // real metres and the sources are the fixtures' real positions and
+      // brightness. RELATIVE illuminance (lumens are unknown), three bands at
+      // fractions of this floor's own peak, marching-squares into thin paths.
+      if(ISOLUX){
+        const box=floorBox.get(z);
+        const srcs=hereLights
+          .filter(pl=>!hiddenEids.has(pl.eid) && lightsByEid[pl.eid] && lightsByEid[pl.eid].state==="on")
+          .map(pl=>({x:pl.x, y:pl.y, b:briOf(lightsByEid[pl.eid])}));
+        if(box && srcs.length){
+          const step=Math.max(0.25, Math.max(box.x1-box.x0, box.y1-box.y0)/56);
+          const pad=1.0;
+          const nx=Math.max(2, Math.ceil((box.x1-box.x0+2*pad)/step))+1;
+          const ny=Math.max(2, Math.ceil((box.y1-box.y0+2*pad)/step))+1;
+          const gx=(i)=>box.x0-pad+i*step, gy=(j)=>box.y0-pad+j*step;
+          const E=new Float64Array(nx*ny);
+          let emax=0;
+          for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){
+            let e=0;
+            for(const sc of srcs){
+              const dx=gx(i)-sc.x, dy=gy(j)-sc.y;
+              e+=sc.b/(dx*dx+dy*dy+0.35);
+            }
+            E[j*nx+i]=e; if(e>emax) emax=e;
+          }
+          const LEVELS_LX=[[0.5,"0.55"],[0.22,"0.4"],[0.09,"0.28"]];
+          for(const [frac,opac] of LEVELS_LX){
+            const thr=emax*frac;
+            let d="";
+            // Marching squares: interpolated crossing per cell edge, one line
+            // segment (two for the saddles) per crossed cell.
+            const lerpP=(x0,y0,e0,x1,y1,e1)=>{
+              const t=(thr-e0)/((e1-e0)||1e-9);
+              return [x0+(x1-x0)*t, y0+(y1-y0)*t];
+            };
+            for(let j=0;j<ny-1;j++) for(let i=0;i<nx-1;i++){
+              const e00=E[j*nx+i], e10=E[j*nx+i+1], e01=E[(j+1)*nx+i], e11=E[(j+1)*nx+i+1];
+              const c=(e00>thr?1:0)|(e10>thr?2:0)|(e11>thr?4:0)|(e01>thr?8:0);
+              if(c===0||c===15) continue;
+              const x0=gx(i), x1=gx(i+1), y0=gy(j), y1=gy(j+1);
+              const T=()=>lerpP(x0,y0,e00,x1,y0,e10), R=()=>lerpP(x1,y0,e10,x1,y1,e11);
+              const B=()=>lerpP(x0,y1,e01,x1,y1,e11), L=()=>lerpP(x0,y0,e00,x0,y1,e01);
+              const segs={1:[[L,T]],2:[[T,R]],3:[[L,R]],4:[[R,B]],5:[[L,T],[R,B]],6:[[T,B]],7:[[L,B]],
+                          8:[[B,L]],9:[[T,B]],10:[[T,R],[B,L]],11:[[R,B]],12:[[L,R]],13:[[T,R]],14:[[L,T]]}[c];
+              for(const [f1,f2] of segs){
+                const p1=f1(), p2=f2();
+                const a=iso(p1[0],p1[1],z), b2=iso(p2[0],p2[1],z);
+                d+=`M${a[0].toFixed(1)} ${a[1].toFixed(1)}L${b2[0].toFixed(1)} ${b2[1].toFixed(1)}`;
+              }
+            }
+            if(d) s+=`<path d="${d}" fill="none" stroke="#9fe3bd" stroke-width="0.7" opacity="${opac}" pointer-events="none"/>`;
+          }
+        }
+      }
     }
     for(const j of jobs) s+=markerSvg(...j);
 

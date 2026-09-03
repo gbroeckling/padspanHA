@@ -13,12 +13,13 @@ const { makeStackXform, mapXform, imageAr, fabricWorldRooms, mapFracToMetres,
 // THE fabric frame — the Lights tab inverts drags through the exact function
 // the renderer draws with, so the two cannot disagree.
 const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM,
-        floorIdAtLevel } =
+        floorIdAtLevel, sceneColours, defaultPerimeterMarginM } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 // THE shared Lights view (data pipeline, map card, index table) — used
 // verbatim by the Lights sidebar panel, so the two tools always show the
 // identical map; this tab layers the build tools on top of it.
-const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched } =
+const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
+        sunAmbient } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape } =
@@ -6228,6 +6229,15 @@ function _wireLightsBuild(ctx, isoDiv, o) {
           rotation: prev.rotation || 0,
           width_cm: prev.width_cm || 0,
           height_cm: prev.height_cm || 0,
+          // Left unset like width/height, deliberately NOT stamped: unlike
+          // those, margin's default isn't even a single number — it's
+          // scale-aware (defaultPerimeterMarginM, iso_lights.js), computed
+          // fresh at render time from THIS house's own metres-per-pixel. A
+          // flat stamp here (tried once, reverted) would freeze in whatever
+          // that number happened to be on the day the light was dropped,
+          // defeating the point. A previously-saved value survives via prev
+          // either way.
+          margin_cm: prev.margin_cm,
           label: prev.label || (o.lightsByEid[eid] ? o.lightsByEid[eid].friendly_name : eid),
         };
         o.mapState._selLight = { eid, mapId: null };
@@ -6474,7 +6484,7 @@ function _lightsTab(ctx, maps, active) {
   const floors = ctx.state.model?.floors || [];
   const reg = ctx.state._modelLoaded
     ? ensureLightsRegistry(ctx.state._lightsRegStore, ctx.hass, areas, () => ctx.actions.renderRooms())
-    : { areaMap: {}, loading: true };
+    : { areaMap: {}, platformMap: {}, loading: true };
   const shapeOverrides = (ctx.state.settings?.light_shapes && typeof ctx.state.settings.light_shapes === "object")
     ? ctx.state.settings.light_shapes : {};
   const tier = ctx.state.settings?.tier;
@@ -6485,7 +6495,7 @@ function _lightsTab(ctx, maps, active) {
   // key and every placement is back.
   const paid = _isPro(ctx);
   if (!paid) { mapState._lightsDraftM = {}; mapState._selLight = null; mapState._lightsTransform = false; }
-  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier);
+  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap);
 
   const head = el("div", { class: "card" }, [
     el("div", { class: "card-head" }, [
@@ -6694,6 +6704,60 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not save Showcase: " + String(e), true); }
       ctx.actions.renderRooms();
     },
+    // Day lifts the ground and mutes the pools; from the sun HA tracks.
+    ambient: sunAmbient(ctx.hass),
+    isolux: mapState._lightsIsolux === undefined
+      ? !!ctx.state.settings?.lights_isolux
+      : !!mapState._lightsIsolux,
+    onIsolux: async (v) => {
+      mapState._lightsIsolux = v;
+      try { await ctx.actions.settingsSet({ lights_isolux: v }); }
+      catch (e) { ctx.toast("Could not save Isolux: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
+    // Scene preview state is a view mode, deliberately NOT a setting: a
+    // preview left armed in storage would repaint the map on every open.
+    sceneName: mapState._lightsScene || null,
+    sceneAngle: mapState._lightsSceneAngle || 0,
+    onScene: (name) => { mapState._lightsScene = name; ctx.actions.renderRooms(); },
+    onSceneAngle: (deg) => { mapState._lightsSceneAngle = deg; ctx.actions.renderRooms(); },
+    onSceneApply: async (field) => {
+      if (!ctx.hass || !field) return;
+      const cols = sceneColours(ctx.state.model, floors, byRoom, lightsByEid, hiddenEids, field);
+      let ok = 0, fail = 0;
+      for (const c of cols) {
+        try {
+          await ctx.hass.callService("light", "turn_on",
+            { entity_id: c.eid, rgb_color: c.rgb, transition: 1 });
+          ok++;
+        } catch (err) { fail++; }
+      }
+      ctx.toast(fail ? `Scene sent to ${ok} lights, ${fail} failed` : `Scene sent to ${ok} lights`);
+      setTimeout(() => ctx.actions.renderRooms(), 1400);
+    },
+    rippleArmed: !!mapState._rippleArmed,
+    onRipple: (v) => { mapState._rippleArmed = v; ctx.actions.renderRooms(); },
+    onRippleFire: (delays) => {
+      mapState._rippleArmed = false;
+      if (!ctx.hass) return;
+      // A brightness pulse, on lights already on, capped so a hall of
+      // fixtures cannot flood the bus. +25% out, back down 700ms later.
+      let n = 0;
+      for (const d of delays) {
+        if (ctx.hass.states[d.eid]?.state !== "on") continue;
+        if (++n > 60) break;
+        setTimeout(() => {
+          ctx.hass.callService("light", "turn_on",
+            { entity_id: d.eid, brightness_step_pct: 25, transition: 0.2 }).catch(() => {});
+          setTimeout(() => {
+            ctx.hass.callService("light", "turn_on",
+              { entity_id: d.eid, brightness_step_pct: -25, transition: 0.6 }).catch(() => {});
+          }, 700);
+        }, d.delayMs);
+      }
+      ctx.toast(n ? `Ripple — ${n} lights` : "Ripple: no lights are on");
+      ctx.actions.renderRooms();
+    },
     // A table row selects the light on the map (toggle lives in the inspector).
     // A light has no owning map to look up any more — it has a position in
     // metres, or it has none and clusters in its room.
@@ -6739,6 +6803,9 @@ function _lightsTab(ctx, maps, active) {
     if (l.isWled) insp.appendChild(el("span", {
       style: "font-size:11px;font-weight:700;color:#c084fc;border:1px solid #c084fc;border-radius:4px;padding:1px 6px",
     }, "WLED"));
+    if (l.isPartition) insp.appendChild(el("span", {
+      style: "font-size:11px;font-weight:700;color:#38bdf8;border:1px solid #38bdf8;border-radius:4px;padding:1px 6px",
+    }, "PARTITION"));
 
     const on = l.state === "on";
     insp.appendChild(el("button", {
@@ -6803,12 +6870,16 @@ function _lightsTab(ctx, maps, active) {
         draft[sel.eid] = cur;
         ctx.actions.renderRooms();
       };
-      const numBox = (labelText, key, min, max, step, suffix) => {
+      const numBox = (labelText, key, min, max, step, suffix, dflt = 0) => {
         const lbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:12px;color:#94a3b8" }, labelText);
         const inp = document.createElement("input");
         inp.type = "number";
         inp.min = String(min); inp.max = String(max); inp.step = String(step);
-        inp.value = String(Number(entry[key]) || 0);
+        // dflt is what an UNSET field shows — must match the renderer's own
+        // fallback (perimeterSvg defaults margin_cm to 15) or the box would
+        // show 0 while the map draws 15, and a save would then silently
+        // change what a light without an opinion had been drawing as.
+        inp.value = String(entry[key] === undefined || entry[key] === null ? dflt : Number(entry[key]) || 0);
         inp.style.cssText = "width:64px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:2px 6px;font-size:11px";
         inp.addEventListener("change", () => {
           const v = Math.max(min, Math.min(max, parseFloat(inp.value) || 0));
@@ -6819,11 +6890,29 @@ function _lightsTab(ctx, maps, active) {
         if (suffix) lbl.appendChild(el("span", { style: "font-size:11px;color:#94a3b8" }, suffix));
         return lbl;
       };
-      insp.appendChild(numBox("Width", "width_cm", 0, 2000, 1, "cm"));
-      insp.appendChild(numBox("Length", "height_cm", 0, 2000, 1, "cm"));
-      insp.appendChild(numBox("Rotate", "rotation", -180, 180, 5, "°"));
-      insp.appendChild(el("span", { class: "muted", style: "font-size:11px" },
-        "0 = default marker size"));
+      if (l.shape === "perimeter") {
+        // A perimeter light has no width/length/rotation of its own — its
+        // extent IS the room it sits in. Margin is its only shape control:
+        // how far the traced line sits inside the room's own walls.
+        // The shown default has to match what an UNSET margin actually
+        // renders as (defaultPerimeterMarginM, iso_lights.js) — scale-aware,
+        // not a flat number, since a fixed cm value is invisible on a big
+        // house and oversized on a small room. Its own fabricFrame call
+        // (not the build tab's) because this inspector has no other reason
+        // to compute one; a mismatched gap/spacing slider only skews the
+        // PLACEHOLDER shown before anyone types a real value, never what
+        // actually gets saved.
+        const _dfltMarginCm = Math.round(defaultPerimeterMarginM(fabricFrame(ctx.state.model, floors, 150, 0)) * 100);
+        insp.appendChild(numBox("Margin", "margin_cm", 0, 500, 1, "cm", _dfltMarginCm));
+        insp.appendChild(el("span", { class: "muted", style: "font-size:11px" },
+          "inset from the room's walls · 0 = right on the wall line"));
+      } else {
+        insp.appendChild(numBox("Width", "width_cm", 0, 2000, 1, "cm"));
+        insp.appendChild(numBox("Length", "height_cm", 0, 2000, 1, "cm"));
+        insp.appendChild(numBox("Rotate", "rotation", -180, 180, 5, "°"));
+        insp.appendChild(el("span", { class: "muted", style: "font-size:11px" },
+          "0 = default marker size"));
+      }
 
       insp.appendChild(el("button", {
         class: "btn inline",

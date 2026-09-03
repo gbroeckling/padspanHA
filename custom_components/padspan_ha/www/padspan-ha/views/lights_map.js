@@ -11,9 +11,9 @@
 // Everything either view renders comes from here; the hosts differ only in
 // what an interaction does (sidebar: control the light — tab: place it).
 
-const { buildIsoSVG, shapeSvg, fabricFrame } =
+const { buildIsoSVG, shapeSvg, fabricFrame, sampleSceneField } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
-const { assignLightCodes, resolveLightShape, LIGHT_SHAPES } =
+const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, WLED_BORDER, PARTITION_BORDER } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 const { tierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
@@ -52,8 +52,46 @@ export function lightsHostForTier(host){
     showcase: false, onShowcase: null,
     fitRooms: false, onFitRooms: null,
     hideUntouched: false, untouchedCount: 0, onHideUntouched: null,
+    isolux: false, onIsolux: null,
+    sceneName: null, onScene: null, onSceneAngle: null, onSceneApply: null,
+    rippleArmed: false, onRipple: null, onRippleFire: null,
     hiddenEidsMap: host.hiddenEids,
   };
+}
+
+// ── Spatial scenes ───────────────────────────────────────────────────────────
+// A scene is a colour FIELD across the floor, not a list: each fixture takes
+// the field's colour at its own metres (sampleSceneField in iso_lights.js —
+// preview and apply share it, so the map never promises a colour the lights
+// don't get). Stops run along the field's angle, whole-floor.
+export const SCENE_FIELDS = {
+  Sunset: { stops: [[255,147,41],[255,94,58],[64,78,160]] },
+  Dusk:   { stops: [[120,140,255],[70,80,160],[25,30,70]] },
+  Ember:  { stops: [[255,120,30],[210,60,25],[120,20,40]] },
+  Ocean:  { stops: [[40,200,190],[30,120,200],[20,60,140]] },
+};
+export const SCENE_NAMES = Object.keys(SCENE_FIELDS);
+export function sceneFieldFor(name, angleDeg){
+  const f = SCENE_FIELDS[name];
+  return f ? { stops: f.stops, angleDeg: Number(angleDeg)||0 } : null;
+}
+
+// Daylight for the Showcase ground, from the sun HA already tracks: 0 at
+// civil-twilight end and below, 1 from +6° elevation up. Both hosts call
+// this so the builder and the sidebar agree on what time it is.
+export function sunAmbient(hass){
+  const e = Number(hass?.states?.["sun.sun"]?.attributes?.elevation);
+  return isFinite(e) ? Math.max(0, Math.min(1, (e + 6) / 12)) : 0;
+}
+
+// Ripple: fire-order for a tap — each fixture's delay is its real screen
+// distance over a wave speed. Pure computation so it can be tested without
+// timers; the caller owns the service calls.
+export function rippleDelays(items, tap, pxPerMs){
+  const v = Math.max(0.05, Number(pxPerMs)||0.35);
+  return items
+    .map(it=>({ eid: it.eid, delayMs: Math.round(Math.hypot(it.x-tap.x, it.y-tap.y)/v) }))
+    .sort((a,b)=>a.delayMs-b.delayMs);
 }
 
 // ── Registry: entity_id → area name for every light ──────────────────────────
@@ -85,13 +123,17 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         // device_id → area_id (entities commonly inherit area from device)
         const devAreaId = {};
         for (const d of (devReg || [])) if (d.area_id) devAreaId[d.id] = d.area_id;
-        const areaMap = {};
+        const areaMap = {}, platformMap = {};
         for (const e of (reg || [])) {
           if (!e.entity_id.startsWith("light.")) continue;
           const aid = e.area_id || devAreaId[e.device_id] || null;
           areaMap[e.entity_id] = aid ? (areaIdToName[aid] || null) : null;
+          // The platform that CREATED the entity — "partition" for an
+          // ESPHome-style split strip, whatever ELSE reports it is not our
+          // business. Same registry fetch, no extra round trip.
+          platformMap[e.entity_id] = e.platform || null;
         }
-        store.reg = { ts: Date.now(), areaMap };
+        store.reg = { ts: Date.now(), areaMap, platformMap };
         store.retryAfter = 0;
       } catch (_) {
         // A failed fetch must never become the authoritative answer. With a
@@ -99,7 +141,7 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         // stay in the loading state (the map keeps its placeholder) instead of
         // caching an empty areaMap for 60s, which would tell the user every
         // light in the house has no room.
-        if (store.reg) store.reg = { ts: Date.now(), areaMap: store.reg.areaMap };
+        if (store.reg) store.reg = { ts: Date.now(), areaMap: store.reg.areaMap, platformMap: store.reg.platformMap };
         else store.retryAfter = Date.now() + 10000;
       } finally {
         store.loading = false;
@@ -107,15 +149,21 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
       }
     })();
   }
-  return { areaMap: store.reg ? store.reg.areaMap : {}, loading: !store.reg };
+  return {
+    areaMap: store.reg ? store.reg.areaMap : {},
+    platformMap: store.reg ? store.reg.platformMap : {},
+    loading: !store.reg,
+  };
 }
 
 // ── Light list: every light entity, canonical codes, display sort ────────────
 // shapeOverrides = settings.light_shapes ({entity_id: shape}); a light with no
 // override wears its derived shape, so the whole house is typed on first paint.
 // tier = settings.tier: below `bright` every light is the default marker in
-// the plain series — no shape, no override, no WLED (see lightsHostForTier).
-export function gatherLights(states, areaMap, shapeOverrides, tier){
+// the plain series — no shape, no override, no WLED/partition (see
+// lightsHostForTier). platformMap = registry platformMap from
+// ensureLightsRegistry, entity_id → the integration that created it.
+export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap){
   const paid = lightingUnlocked(tier);
   const lights = Object.keys(states || {})
     .filter(eid => eid.startsWith("light."))
@@ -127,11 +175,18 @@ export function gatherLights(states, areaMap, shapeOverrides, tier){
       // The effect list is what makes a light WLED-class (W-series code,
       // purple border, effects dialog). Free tier: every light is a light.
       effect_list:   paid && Array.isArray(states[eid].attributes?.effect_list) ? states[eid].attributes.effect_list : null,
+      // Which integration created the entity — "partition" is the P-series
+      // signal (see isPartitionLight). Gated like effect_list: free tier
+      // never sees a strip class at all.
+      platform:      paid ? ((platformMap && platformMap[eid]) || null) : null,
       // What the fixture is actually throwing right now. Showcase draws and
       // glows each light in its OWN colour at its OWN brightness; the working
       // map ignores both.
       rgb:           Array.isArray(states[eid].attributes?.rgb_color) ? states[eid].attributes.rgb_color : null,
       bri:           Number(states[eid].attributes?.brightness) || null,
+      // Kelvin, ungated like rgb/bri: a white-only bulb's pool should read
+      // warm or cool as the bulb actually is, not default amber.
+      ct:            Number(states[eid].attributes?.color_temp_kelvin) || null,
     }))
     .sort((a, b) =>
       (a.area_name || "\xff").localeCompare(b.area_name || "\xff") ||
@@ -238,10 +293,31 @@ export function buildLightsMapCard(hostIn){
     // lists every light and stays the way to reach one that is filtered out.
     isoDiv.innerHTML = buildIsoSVG(host.model, host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
       view.floorGap, view.horizGap, host.lightsByEid, host.lightsLoading, floors,
-      { showcase: !!host.showcase, fitRooms: !!host.showcase && !!host.fitRooms });
+      { showcase: !!host.showcase, fitRooms: !!host.showcase && !!host.fitRooms,
+        ambient: host.ambient, isolux: !!host.showcase && !!host.isolux,
+        sceneField: host.showcase ? sceneFieldFor(host.sceneName, host.sceneAngle) : null });
     applyZoom();
     host.onHexesBuilt(isoDiv, rebuildISO);
   };
+
+  // Ripple: while armed, one tap anywhere on the drawing (a fixture hex
+  // included — the wave starts THERE) hands the caller each placed fixture's
+  // fire delay from its real distance to the tap. Coordinates go through the
+  // SVG's own screen matrix so zoom and scroll cannot skew the wave.
+  if (host.rippleArmed && host.onRippleFire) {
+    isoDiv.addEventListener("click", (e) => {
+      const svg = isoDiv.querySelector("svg");
+      if (!svg || !svg.createSVGPoint) return;
+      const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY;
+      const ctm = svg.getScreenCTM && svg.getScreenCTM();
+      if (!ctm) return;
+      const tap = p.matrixTransform(ctm.inverse());
+      const items = [...isoDiv.querySelectorAll('.lhex[data-placed="1"]')].map(g => ({
+        eid: g.dataset.eid, x: Number(g.dataset.cx), y: Number(g.dataset.cy),
+      }));
+      if (items.length) host.onRippleFire(rippleDelays(items, tap, 0.35));
+    }, { once: true });
+  }
 
   // Grouped, not a flat run of controls: view shaping, then saving, then zoom.
   // A single undifferentiated row of eight things reads as clutter and gives
@@ -284,6 +360,69 @@ export function buildLightsMapCard(hostIn){
           + "gap to the walls. Stored measurements are not changed.",
         onclick: () => host.onFitRooms(!host.fitRooms),
       }, host.fitRooms ? "⊞ Fit room ✓" : "⊞ Fit room"));
+    }
+
+    // Isolux — the engineer's overlay: relative-illuminance contours computed
+    // on a metre grid from the fixtures' real positions and brightness.
+    if (host.showcase && host.onIsolux) {
+      ctrlRow.appendChild(el("button", {
+        class: "btn inline",
+        style: host.isolux
+          ? "background:linear-gradient(135deg,#14532d,#16a34a);border-color:#86efac;color:#f0fdf4;font-size:11px;padding:2px 8px"
+          : "font-size:11px;padding:2px 8px",
+        title: "Relative illuminance contours on a real-metre grid — three bands "
+          + "at fractions of this floor's own peak.",
+        onclick: () => host.onIsolux(!host.isolux),
+      }, host.isolux ? "☼ Isolux ✓" : "☼ Isolux"));
+    }
+
+    // Spatial scene — a colour field across the floor; each fixture PREVIEWS
+    // the colour it would take at its own metres. Apply sends exactly the
+    // previewed colours; nothing changes until then.
+    if (host.showcase && host.onScene) {
+      const cur = host.sceneName || null;
+      ctrlRow.appendChild(el("button", {
+        class: "btn inline",
+        style: cur
+          ? "background:linear-gradient(135deg,#7c2d12,#db2777);border-color:#f9a8d4;color:#fdf2f8;font-size:11px;padding:2px 8px"
+          : "font-size:11px;padding:2px 8px",
+        title: "Cycle spatial scene previews — the field's colour at each fixture's "
+          + "own position. Nothing is applied until you press Apply.",
+        onclick: () => {
+          const i = SCENE_NAMES.indexOf(cur);
+          host.onScene(i >= SCENE_NAMES.length - 1 ? null : SCENE_NAMES[i + 1]);
+        },
+      }, cur ? `✨ ${cur}` : "✨ Scene"));
+      if (cur && host.onSceneAngle) {
+        ctrlRow.appendChild(el("button", {
+          class: "btn inline", style: "font-size:11px;padding:2px 8px",
+          title: "Rotate the scene's axis 45°",
+          onclick: () => host.onSceneAngle(((Number(host.sceneAngle)||0) + 45) % 360),
+        }, "↻"));
+      }
+      if (cur && host.onSceneApply) {
+        ctrlRow.appendChild(el("button", {
+          class: "btn inline",
+          style: "background:linear-gradient(135deg,#166534,#22c55e);border-color:#86efac;color:#f0fdf4;font-size:11px;padding:2px 8px",
+          title: "Send every lit fixture the colour it is previewing",
+          onclick: () => host.onSceneApply(sceneFieldFor(cur, host.sceneAngle)),
+        }, "Apply"));
+      }
+    }
+
+    // Ripple — arm, then tap the map: a wave lights outward from the tap at
+    // real-distance timing. A brightness pulse only, and only on lights that
+    // are already on.
+    if (host.showcase && host.onRipple) {
+      ctrlRow.appendChild(el("button", {
+        class: "btn inline",
+        style: host.rippleArmed
+          ? "background:linear-gradient(135deg,#1e3a8a,#3b82f6);border-color:#93c5fd;color:#eff6ff;font-size:11px;padding:2px 8px"
+          : "font-size:11px;padding:2px 8px",
+        title: "Arm, then tap the map — lights pulse outward from the tap in "
+          + "real-distance order. Only lights already on take part.",
+        onclick: () => host.onRipple(!host.rippleArmed),
+      }, host.rippleArmed ? "◉ Tap the map…" : "◉ Ripple"));
     }
   }
 
@@ -419,7 +558,8 @@ export function buildLightsMapCard(hostIn){
 // Extra host fields used here:
 //   callWS(msg) → Promise             for the Assign-room dropdown
 //   toast(msg, isError)
-//   onRowClick(l)                     sidebar: toggle/WLED popup — tab: select
+//   onRowClick(l)                     sidebar: toggle — tab: select
+//   onRowLongPress(l)                 optional; sidebar: effects popup (500ms hold)
 //   onToggleHidden(eid)               persist + re-render
 //   afterAssign()                     invalidate registry cache + re-render
 export function buildLightsTable(host, lights){
@@ -455,19 +595,17 @@ export function buildLightsTable(host, lights){
     const isHidden = hidden.has(l.entity_id);
     const row = el("tr", { style: `cursor:pointer;opacity:${isHidden ? "0.45" : "1"}` }, [
       // Code + the same outline the map draws, so a row and its marker are
-      // recognisably the same object. W-series purple = WLED-class.
-      el("td", { style: "white-space:nowrap" }, [
-        (() => {
-          const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-          svg.setAttribute("width", "15"); svg.setAttribute("height", "15");
-          svg.setAttribute("viewBox", "0 0 15 15");
-          svg.setAttribute("style", "vertical-align:-2px;margin-right:5px");
-          svg.innerHTML = shapeSvg(l.shape, 7.5, 7.5, 5.6,
-            `fill="none" stroke="${l.isWled ? "#c084fc" : "#52b788"}" stroke-width="1.6"`);
-          return svg;
-        })(),
-        el("span", { style: `font-family:monospace;font-weight:700;color:${l.isWled ? "#c084fc" : "#52b788"};font-size:12px` }, l.code),
-      ]),
+      // recognisably the same object. W-series purple = WLED-class,
+      // P-series blue = an ESPHome-style partition segment.
+      el("td", { style: "white-space:nowrap" }, (() => {
+        const swatch = l.isWled ? WLED_BORDER : (l.isPartition ? PARTITION_BORDER : "#52b788");
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("width", "15"); svg.setAttribute("height", "15");
+        svg.setAttribute("viewBox", "0 0 15 15");
+        svg.setAttribute("style", "vertical-align:-2px;margin-right:5px");
+        svg.innerHTML = shapeSvg(l.shape, 7.5, 7.5, 5.6, `fill="none" stroke="${swatch}" stroke-width="1.6"`);
+        return [svg, el("span", { style: `font-family:monospace;font-weight:700;color:${swatch};font-size:12px` }, l.code)];
+      })()),
       el("td", {}, l.friendly_name),
       el("td", { class: "muted" }, l.area_name
         ? el("span", {}, l.area_name)
@@ -511,7 +649,25 @@ export function buildLightsTable(host, lights){
         },
       }, isHidden ? "Show" : "Hide")),
     ]);
-    row.addEventListener("click", () => host.onRowClick(l));
+    row.addEventListener("click", () => {
+      if (row._lpFired) { row._lpFired = false; return; }
+      host.onRowClick(l);
+    });
+    // Optional long-press (500ms) — the sidebar hangs the effects popup on
+    // it so the plain tap stays the light switch; a host that passes no
+    // handler (the Mapping tab) keeps plain clicks only.
+    if (host.onRowLongPress) {
+      let lpTimer = null;
+      row.addEventListener("pointerdown", () => {
+        row._lpFired = false;
+        lpTimer = setTimeout(() => { row._lpFired = true; host.onRowLongPress(l); }, 500);
+      });
+      const lpCancel = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
+      row.addEventListener("pointerup", lpCancel);
+      row.addEventListener("pointerleave", lpCancel);
+      row.addEventListener("pointercancel", lpCancel);
+      row.addEventListener("contextmenu", (e) => e.preventDefault());
+    }
     tbody.appendChild(row);
   }
   tbl.appendChild(tbody);

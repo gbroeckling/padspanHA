@@ -9,15 +9,30 @@
 // toggles, and entity-registry load races (each view previously numbered by
 // its own display order, so the two tools disagreed).
 //
-// WLED-class lights (effect-capable) get the W-series (W01…); everything else
-// runs A01…A99, B01… with the letter W skipped so the series never collide.
+// WLED-class lights (effect-capable) get the W-series (W01…); ESPHome
+// `light.partition` runs (a physical addressable strip split into HA light
+// entities by LED range) get the P-series — same strip-class treatment, but
+// distinct, because a partition often carries NO effect_list at all: many
+// installs partition purely for independent colour zones, never touching
+// ESPHome's `effects:` block. Deriving from effect_list alone would leave
+// those invisible as strips. Everything else runs A01…A99, B01… with both
+// letters skipped so no series ever collides.
 
 export function isWledLight(l) {
   return Array.isArray(l.effect_list) && l.effect_list.length > 0;
 }
 
-// Distinct marker border/stroke for WLED-class lights in both views.
+// platform comes from the entity registry (config/entity_registry/list),
+// threaded through gatherLights — the only reliable signal, since naming is
+// free-text and a partition can be silent about effects. "partition" is HA's
+// own core light platform for splitting one strip into ranges.
+export function isPartitionLight(l) {
+  return l.platform === "partition";
+}
+
+// Distinct marker border/stroke per strip class, in both views.
 export const WLED_BORDER = "#c084fc";
+export const PARTITION_BORDER = "#38bdf8";
 
 // ── Fixture shape ────────────────────────────────────────────────────────────
 // The marker's OUTLINE answers "what kind of light is that" without reading
@@ -43,7 +58,22 @@ export const LIGHT_SHAPES = [
   ["chandelier","Chandelier / decorative"],
   ["triangle",  "Spot / directional"],
   ["diamond",   "Indicator LED"],
+  ["perimeter", "Room perimeter / cove"],
 ];
+
+// "perimeter" is drawn once, structurally differently from every shape
+// above: those are all a small icon inscribed at a point (see shapeSvg);
+// this one traces the ACTUAL room polygon the light is placed in, inset by
+// its own margin_cm, so it needs the room's real geometry at render time.
+// buildIsoSVG does that directly (perimeterSvg) — resolveLightShape below
+// only has to name it, same as any other kind. Still one point-icon
+// (shapeSvg's "perimeter" case) for the drag handle and the working-mode
+// code label, exactly like a WLED bar has both a small glyph AND a real
+// physical footprint once placed.
+//
+// V1 always traces the FULL closed loop — no partial-segment coverage.
+// That was flagged as a real follow-up (most physical cove runs don't wrap
+// an entire room) but is a separate, harder problem than what was asked for.
 
 // Name first, capability second: on a real install the friendly name carries
 // far more fixture information than supported_color_modes does ("Dining Table
@@ -70,8 +100,9 @@ export function deriveLightShape(l) {
           "wled", "led controller", "led-controller",
           "ws2812", "sk6812", "neopixel", "xmas", "christmas")) return "bar";
   if (has("flouresent", "fluorescent", "tube", "shop light")) return "square";
-  // Addressable/effect-capable hardware is a strip far more often than not.
-  if (isWledLight(l)) return "bar";
+  // Addressable/effect-capable hardware is a strip far more often than not —
+  // and a partition entity IS one by construction, effects or not.
+  if (isWledLight(l) || isPartitionLight(l)) return "bar";
   return "hex";
 }
 
@@ -82,22 +113,30 @@ export function resolveLightShape(l, overrides) {
   return deriveLightShape(l);
 }
 
-// Mutates each light in place: sets l.code and l.isWled. Pass EVERY light
-// entity (including hidden ones) so codes stay stable when visibility changes.
+// Letters reserved for a strip-class series, skipped as the generic series
+// counts past them — precomputed once so a third reserved letter is a
+// one-line change here, not new arithmetic.
+const _SERIES_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter(c => c !== "P" && c !== "W");
+
+// Mutates each light in place: sets l.code, l.isWled and l.isPartition. Pass
+// EVERY light entity (including hidden ones) so codes stay stable when
+// visibility changes. WLED is checked first: a partition entity that ALSO
+// advertises effects (an ESPHome segment with its own effects: block) reads
+// as WLED-class — the more specific, more capable identity wins.
 export function assignLightCodes(lights) {
   const sorted = [...lights].sort((a, b) => a.entity_id.localeCompare(b.entity_id));
-  let w = 0, n = 0;
-  const seriesCode = (idx) => {
-    let letter = Math.floor(idx / 99);
-    if (letter >= 22) letter++;              // skip 'W' — reserved for WLED
-    return String.fromCharCode(65 + letter) + String((idx % 99) + 1).padStart(2, "0");
-  };
+  let w = 0, p = 0, n = 0;
+  const seriesCode = (idx) =>
+    _SERIES_LETTERS[Math.floor(idx / 99)] + String((idx % 99) + 1).padStart(2, "0");
   for (const l of sorted) {
     if (isWledLight(l)) {
-      l.isWled = true;
+      l.isWled = true; l.isPartition = false;
       l.code = "W" + String((w++ % 99) + 1).padStart(2, "0");
+    } else if (isPartitionLight(l)) {
+      l.isWled = false; l.isPartition = true;
+      l.code = "P" + String((p++ % 99) + 1).padStart(2, "0");
     } else {
-      l.isWled = false;
+      l.isWled = false; l.isPartition = false;
       l.code = seriesCode(n++);
     }
   }

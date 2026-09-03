@@ -2,8 +2,9 @@
 
 Below the `bright` tier the lights map draws rooms, floors and one default
 marker per light at its room centre. Everything a key buys — placement,
-shape, size and rotation, the W-series/WLED distinction, Showcase, Fit room,
-Hide untouched — is withheld from the DRAWING, and only from the drawing.
+shape, size and rotation, the W-series/WLED and P-series/partition
+distinctions, Showcase, Fit room, Hide untouched — is withheld from the
+DRAWING, and only from the drawing.
 
 The way this goes wrong is a filter on stored data instead of on render
 inputs: a lapsed licence would then delete a weekend of placements. So the
@@ -70,8 +71,13 @@ _STATES = {
                                                   "effect_list": ["Solid", "Rainbow"],
                                                   "rgb_color": [255, 0, 0], "brightness": 200}},
     "light.loft":  {"state": "off", "attributes": {"friendly_name": "Loft Lamp"}},
+    # An ESPHome-style partition segment: no effect_list, and a friendly name
+    # with none of the strip-hinting words (valance/strip/tape/ws2812/...) —
+    # the ONLY thing that can make this "bar"-shaped is the registry platform.
+    "light.segment": {"state": "on", "attributes": {"friendly_name": "Garage East Wall"}},
 }
-_AREA_MAP = {"light.plain": "Kitchen", "light.strip": "Kitchen", "light.loft": "Loft"}
+_AREA_MAP = {"light.plain": "Kitchen", "light.strip": "Kitchen", "light.loft": "Loft", "light.segment": "Kitchen"}
+_PLATFORM_MAP = {"light.segment": "partition"}
 _SHAPES = {"light.plain": "chandelier"}
 
 _HARNESS = r"""
@@ -98,6 +104,7 @@ function el(tag, attrs = {}, children = []) {
 const MODEL = __MODEL__;
 const STATES = __STATES__;
 const AREA_MAP = __AREA_MAP__;
+const PLATFORM_MAP = __PLATFORM_MAP__;
 const SHAPES = __SHAPES__;
 
 // Render the whole shared card for a tier the way the hosts do, and hand back
@@ -106,7 +113,7 @@ function renderFor(tier) {
   const model = JSON.parse(JSON.stringify(MODEL));   // a fresh stored model per run
   const shapes = JSON.parse(JSON.stringify(SHAPES));
   const before = JSON.stringify(model) + "|" + JSON.stringify(shapes);
-  const lights = LM.gatherLights(STATES, AREA_MAP, shapes, tier);
+  const lights = LM.gatherLights(STATES, AREA_MAP, shapes, tier, PLATFORM_MAP);
   const lightsByEid = {}; for (const l of lights) lightsByEid[l.entity_id] = l;
   const byRoom = {};
   for (const l of lights) if (l.area_name) (byRoom[l.area_name] = byRoom[l.area_name] || []).push(l);
@@ -118,6 +125,9 @@ function renderFor(tier) {
     view: { floorGap: 150, horizGap: 0, focusIdx: 0, zoom: 1 },
     showcase: true, fitRooms: true, hideUntouched: true, untouchedCount: 1,
     onShowcase: () => calls.showcase++, onFitRooms: () => calls.fit++, onHideUntouched: () => calls.hide++,
+    isolux: false, onIsolux: () => {}, sceneName: null, onScene: () => {},
+    onSceneAngle: () => {}, onSceneApply: () => {}, rippleArmed: false, onRipple: () => {},
+    onRippleFire: () => {},
     saveView: async () => {}, callWS: async () => ({}), toast: () => {},
     onHexesBuilt: (isoDiv) => { svg = isoDiv.innerHTML; },
     onRowClick: () => {}, onToggleHidden: () => {}, afterAssign: () => {},
@@ -132,10 +142,11 @@ function renderFor(tier) {
   const codes = {}; for (const l of lights) codes[l.entity_id] = l.code;
   const shapesOut = {}; for (const l of lights) shapesOut[l.entity_id] = l.shape;
   const wled = {}; for (const l of lights) wled[l.entity_id] = !!l.isWled;
+  const partition = {}; for (const l of lights) partition[l.entity_id] = !!l.isPartition;
   return {
     untouched: before === after,
     hostModelSame: host.model === model,
-    codes, shapes: shapesOut, wled,
+    codes, shapes: shapesOut, wled, partition,
     placedMarkers: (svg.match(/data-placed="1"/g) || []).length,
     stripHasTransform: /<g class="lhex" data-eid="light\.strip"[^>]*>\s*<g transform=/.test(svg)
       || (marker("light.strip") || "").includes("transform="),
@@ -145,6 +156,9 @@ function renderFor(tier) {
     hasShowcaseBtn: buttons.some(t => t.includes("Showcase")),
     hasFitBtn: buttons.some(t => t.includes("Fit room")),
     hasUntouchedBtn: buttons.some(t => t.includes("ntouched")),
+    hasIsoluxBtn: buttons.some(t => t.includes("Isolux")),
+    hasSceneBtn: buttons.some(t => t.includes("Scene")),
+    hasRippleBtn: buttons.some(t => t.includes("Ripple")),
     svgLen: svg.length,
     svg,
   };
@@ -163,6 +177,7 @@ def _run(tmp_path: Path) -> dict:
     script = (_HARNESS.replace("__MODEL__", json.dumps(_MODEL))
               .replace("__STATES__", json.dumps(_STATES))
               .replace("__AREA_MAP__", json.dumps(_AREA_MAP))
+              .replace("__PLATFORM_MAP__", json.dumps(_PLATFORM_MAP))
               .replace("__SHAPES__", json.dumps(_SHAPES)))
     (tmp_path / "run.mjs").write_text(script, encoding="utf-8")
     res = subprocess.run([_NODE, str(tmp_path / "run.mjs")], capture_output=True,
@@ -213,12 +228,35 @@ def test_free_withholds_the_presentation_modes(out):
     assert not free["hasShowcaseBtn"], free["buttons"]
     assert not free["hasFitBtn"], free["buttons"]
     assert not free["hasUntouchedBtn"], free["buttons"]
+    assert not free["hasIsoluxBtn"], free["buttons"]
+    assert not free["hasSceneBtn"], free["buttons"]
+    assert not free["hasRippleBtn"], free["buttons"]
     # Hide-untouched is a paid filter: at free the loft lamp the host's
     # hiddenEidsMap would have hidden is drawn.
     assert free["loftDrawn"], "hide-untouched filter applied at free tier"
     for tier in ("bright", "pro"):
         assert out[tier]["hasShowcaseBtn"] and out[tier]["hasFitBtn"] and out[tier]["hasUntouchedBtn"], (tier, out[tier]["buttons"])
+        assert out[tier]["hasIsoluxBtn"] and out[tier]["hasSceneBtn"] and out[tier]["hasRippleBtn"], (tier, out[tier]["buttons"])
         assert not out[tier]["loftDrawn"], tier
+
+
+def test_paid_recognises_a_partition_light_without_effects(out):
+    """light.segment has NO effect_list and a friendly name with none of the
+    strip-hinting words — registry platform "partition" is the only signal
+    that can make this bar-shaped, P-coded and blue-bordered, so this proves
+    the detection is structural, not effect_list- or name-derived."""
+    free = out["free"]
+    assert free["shapes"]["light.segment"] == "hex", "partition shape leaked into the free-tier drawing"
+    assert not free["partition"]["light.segment"], "partition class leaked into the free-tier drawing"
+    for tier in ("bright", "pro"):
+        paid = out[tier]
+        assert paid["shapes"]["light.segment"] == "bar", (tier, paid["shapes"])
+        assert paid["partition"]["light.segment"], (tier, paid["partition"])
+        assert paid["codes"]["light.segment"].startswith("P"), (tier, paid["codes"])
+        # Mutually exclusive with WLED — a plain partition is not WLED-class.
+        assert not paid["wled"]["light.segment"], (tier, paid["wled"])
+        # And WLED keeps ITS OWN series: the two classes never collide.
+        assert paid["wled"]["light.strip"] and not paid["partition"]["light.strip"], tier
 
 
 def test_bright_and_pro_draw_the_same_lights_map(out):
@@ -240,8 +278,8 @@ def test_both_hosts_pass_the_tier():
     panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     maps = (_VIEWS / "maps.js").read_text(encoding="utf-8")
     assert "this.state._tier" in panel and "tier: this.state._tier" in panel
-    assert "gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier)" in panel
-    assert "gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier)" in maps
+    assert "gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap)" in panel
+    assert "gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap)" in maps
     assert "\n    tier,\n" in maps
     for src, name in ((panel, "lights_panel.js"), (maps, "maps.js")):
         assert "LIGHTING_TIER" not in src, f"{name} re-derives the lighting gate; lights_map.js owns it"

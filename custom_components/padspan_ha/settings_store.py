@@ -78,6 +78,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "light_shapes": {},     # entity_id -> marker shape; overrides the shape derived from the entity
     "lights_showcase": False,  # Mapping -> Lights: presentation rendering of the same map
     "lights_fit_rooms": False,  # Mapping -> Lights Showcase: never draw a fixture larger than its room
+    "lights_isolux": False,  # Mapping -> Lights Showcase: relative-illuminance contours on the metre grid
     "lights_hide_untouched": False,  # Mapping -> Lights: draw only fixtures that have been sized/rotated/coloured/shaped
     "overview_show_walls": False,   # Overview: draw RF barrier walls over the map
     "overview_show_outdoor": False, # Overview: draw outdoor areas (sheds, driveways) as an overlay

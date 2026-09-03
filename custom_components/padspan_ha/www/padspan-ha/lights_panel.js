@@ -12,17 +12,18 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.38.12";
-const BUILD_ID = "20260902T214916Z";
+const APP_VERSION = "0.38.13";
+const BUILD_ID = "20260903T031950Z";
 
 // Query inherited from our own module URL so the ?b= cache-buster propagates
 // (see docs/06_UI_CACHE_BUSTING.md).
-const { isWledLight } =
+const { isWledLight, isPartitionLight } =
   await import(`./views/light_codes.js${new URL(import.meta.url).search}`);
 // THE shared lights view — data pipeline, map card and index table, also used
 // verbatim by the Mapping → Lights tab (the builder for this display), so the
 // two tools always show the identical map. All lights-view edits go in there.
-const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched } =
+const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
+        sunAmbient } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 
 // ── DOM helpers ──────────────────────────────────────────────────────────────
@@ -43,10 +44,14 @@ function el(tag, attrs={}, children=[]){
   }
   return n;
 }
-// isWledLight comes from views/light_codes.js — a light counts as
-// "WLED-class" (effects + full color) if it advertises an effect list.
-// Everything else this panel shows (registry pipeline, map card, index
-// table) lives in views/lights_map.js, shared with the Mapping → Lights tab.
+// isWledLight / isPartitionLight come from views/light_codes.js — a strip's
+// TWO classes: WLED-class advertises an effect list; partition-class is an
+// ESPHome-style `light.partition` entity (a physical strip split by LED
+// range), signalled by the entity registry rather than by effects, since
+// most partitions carry none. Both get the long-press effects/detail popup
+// below. Everything else this panel shows (registry pipeline, map card,
+// index table) lives in views/lights_map.js, shared with the Mapping →
+// Lights tab.
 
 // ── Persistence key ──────────────────────────────────────────────────────────
 const LS_HIDDEN = "padspan_ha_lights_hidden";
@@ -196,6 +201,7 @@ class PadSpanLightsApp extends HTMLElement {
       this.state._showcase      = !!s.lights_showcase;
       this.state._fitRooms      = !!s.lights_fit_rooms;
       this.state._hideUntouched = !!s.lights_hide_untouched;
+      this.state._isolux        = !!s.lights_isolux;
       // The effective tier the backend computed (licence.py). Below `bright`
       // the shared pipeline draws the free map — see lights_map.js. A settings
       // fetch that failed keeps the tier it last knew rather than flickering
@@ -396,9 +402,9 @@ class PadSpanLightsApp extends HTMLElement {
     // shared loader refreshes in the background and re-renders when it lands.
     const reg = this.state._modelLoaded
       ? ensureLightsRegistry(this._regStore, this._hass, this.state.model.areas, ()=>this._render())
-      : { areaMap:{}, loading:true };
+      : { areaMap:{}, platformMap:{}, loading:true };
     const lightsLoading = reg.loading;
-    const lights = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier);
+    const lights = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap);
 
     if(!lights.length){
       root.appendChild(el("div",{class:"muted",style:"padding:8px"},"No light entities found."));
@@ -427,6 +433,8 @@ class PadSpanLightsApp extends HTMLElement {
       hiddenEids: hidden,
       showcase: !!this.state._showcase,
       fitRooms: !!this.state._fitRooms,
+      isolux: !!this.state._isolux,
+      ambient: sunAmbient(this._hass),
       // Same filter as the builder, from the same rule, over the same
       // placements — the map hides them, the index table below still lists
       // every light.
@@ -444,25 +452,41 @@ class PadSpanLightsApp extends HTMLElement {
       toast: (m,isErr)=>this._toast(m,isErr),
       // Sidebar interaction: a hex controls the light (the Mapping tab's
       // host instead wires selection + drag-to-place on the same hexes).
+      // A tap is the light switch, whatever the light — turn_on restores the
+      // device's own last settings, so the map never second-guesses them.
+      // The effects popup moved to a LONG PRESS (500ms), and only for
+      // strip-class lights (WLED, or an ESPHome-style partition segment); it
+      // used to steal the plain tap on every one of them, which made the most
+      // capable lights the only ones you couldn't simply switch from the map.
       onHexesBuilt: (isoDiv)=>{
         requestAnimationFrame(()=>{
           isoDiv.querySelectorAll(".lhex").forEach(g=>{
             g.addEventListener("click",e=>{
               e.stopPropagation();
-              const eid=g.dataset.eid;
-              const l=lightsByEid[eid];
-              if(l && isWledLight(l)) this._openWledDetail(eid);
-              else this._toggle(eid);
+              if(g._lpFired){ g._lpFired=false; return; }
+              this._toggle(g.dataset.eid);
             });
+            const l0=lightsByEid[g.dataset.eid];
+            if(l0 && (isWledLight(l0) || isPartitionLight(l0))){
+              let t=null;
+              g.addEventListener("pointerdown",()=>{
+                g._lpFired=false;
+                t=setTimeout(()=>{ g._lpFired=true; this._openWledDetail(g.dataset.eid); },500);
+              });
+              const cancel=()=>{ if(t){ clearTimeout(t); t=null; } };
+              g.addEventListener("pointerup",cancel);
+              g.addEventListener("pointerleave",cancel);
+              g.addEventListener("pointercancel",cancel);
+              // Touch long-press raises a context menu on top of the popup.
+              g.addEventListener("contextmenu",e=>e.preventDefault());
+            }
             g.addEventListener("mouseover",()=>{g.style.opacity="0.75";});
             g.addEventListener("mouseout", ()=>{g.style.opacity="1";});
           });
         });
       },
-      onRowClick: (l)=>{
-        if(isWledLight(l)) this._openWledDetail(l.entity_id);
-        else this._toggle(l.entity_id);
-      },
+      onRowClick: (l)=> this._toggle(l.entity_id),
+      onRowLongPress: (l)=>{ if(isWledLight(l) || isPartitionLight(l)) this._openWledDetail(l.entity_id); },
       onToggleHidden: (eid)=>{
         if(hidden.has(eid)) hidden.delete(eid);
         else hidden.add(eid);

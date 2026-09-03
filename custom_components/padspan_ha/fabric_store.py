@@ -73,7 +73,7 @@ Data layout in .storage/padspan_ha.fabric:
     "scanner_positions_m": { "<source>": {x_m, y_m, z_m, floor_id, map_id} },
     "beacon_positions_m":  { "<key>": {x_m, y_m, floor_id, room, kind, label, map_id} },
     "rf_barriers_m":       [ {id, name, material, attenuation_dbm, floor_id, points_m} ],
-    "light_positions_m":   { "<entity_id>": {x_m, y_m, floor_id, color, shape, rotation, width_cm, height_cm, label} },
+    "light_positions_m":   { "<entity_id>": {x_m, y_m, floor_id, color, shape, rotation, width_cm, height_cm, margin_cm, label} },
 
     "history": [ {ts, floor_id, room, op, revision} ]   # append-only, capped
   }

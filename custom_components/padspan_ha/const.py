@@ -19,7 +19,7 @@ Organisation:
 
 DOMAIN = "padspan_ha"
 NAME = "PadSpan HA"
-VERSION = "0.38.12"
+VERSION = "0.38.13"
 
 # ── Config-flow option keys ───────────────────────────────────────────────────
 CONF_ENABLE_CLOUD = "enable_cloud"
@@ -126,7 +126,7 @@ CRITIC_WARNING_ERROR_M = 1.2
 # shape but not an override (an override that says auto is simply absent).
 LIGHT_SHAPE_KINDS = frozenset({
     "hex", "circle", "bar", "line", "square", "triangle", "diamond",
-    "fan", "sconce", "pendant", "chandelier",
+    "fan", "sconce", "pendant", "chandelier", "perimeter",
 })
 
 # ── Outdoors ────────────────────────────────────────────────────────────────

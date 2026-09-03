@@ -59,11 +59,13 @@ async def test_a_light_is_placed_in_metres_with_no_map_involved() -> None:
     await ws_fabric_light_position_set(_hass(mdl), MagicMock(), {
         "id": 1, "entity_id": "light.kitchen", "x_m": 4.5, "y_m": -2.25,
         "floor_id": "main", "color": "#ff0000", "shape": "bar", "width_cm": 90,
+        "margin_cm": 33,
     })
     entry = mdl.light_positions_m()["light.kitchen"]
     assert (entry["x_m"], entry["y_m"]) == (4.5, -2.25)
     assert entry["floor_id"] == "main"
     assert entry["color"] == "#ff0000" and entry["shape"] == "bar"
+    assert entry["margin_cm"] == 33.0   # end-to-end: WS schema -> handler -> stored entry
     assert "map_id" not in entry and "x" not in entry
 
 
@@ -189,11 +191,19 @@ async def test_a_lights_appearance_is_normalised_on_the_way_in() -> None:
     legacy 'square' is a rect, rotation folds, size clamps, default 15 cm."""
     from custom_components.padspan_ha.model_store import light_appearance
     a = light_appearance(color="not-a-colour", shape="bar", rotation=405, width_cm=5000, height_cm=None)
-    assert a == {"color": "#fbbf24", "shape": "bar", "rotation": 45.0, "width_cm": 1000.0, "height_cm": 15.0}
+    assert a == {"color": "#fbbf24", "shape": "bar", "rotation": 45.0, "width_cm": 1000.0,
+                 "height_cm": 15.0, "margin_cm": 15.0}
     b = light_appearance(color="#12ab34", shape="pendant", rotation=0, width_cm=0, height_cm=0.2)
     assert b["color"] == "#12ab34" and b["shape"] == "pendant"
     assert b["width_cm"] == 1.0 and b["height_cm"] == 1.0   # explicit zero clamps, not defaults
     assert light_appearance(shape="warp-core")["shape"] == "hex"
+    # margin_cm reads the opposite way round from width/height: zero is a
+    # real answer (the perimeter shape's trace sits right on the wall), so
+    # it must NOT bounce up to the minimum the way size does.
+    assert light_appearance(margin_cm=None)["margin_cm"] == 15.0
+    assert light_appearance(margin_cm=0)["margin_cm"] == 0.0
+    assert light_appearance(margin_cm=9999)["margin_cm"] == 500.0
+    assert light_appearance(margin_cm=-5)["margin_cm"] == 0.0
 
 
 def test_the_backend_shape_vocabulary_is_the_renderers() -> None:

@@ -899,6 +899,272 @@ def test_the_dotted_line_can_still_be_clicked(tmp_path):
     assert abs(out["w"] - 2 * 10 * 0.866) < 0.11, out
 
 
+# ── Room-perimeter shape ──────────────────────────────────────────────────────
+
+def test_offset_polygon_inward_shrinks_a_square_correctly(tmp_path):
+    """Pure geometry, no fabric involved — proves the offset math directly
+    against a synthetic square rather than through a rendered path string."""
+    out = _run_js(tmp_path, (
+        "import { offsetPolygonInward, roomHalfMinDim } from './iso_lights.mjs';\n"
+        "const sq=[[0,0],[10,0],[10,10],[0,10]];\n"
+        "const rnd=(pts)=>pts.map(p=>[Math.round(p[0]*1e6)/1e6, Math.round(p[1]*1e6)/1e6]);\n"
+        "const out={};\n"
+        "out.half=roomHalfMinDim(sq);\n"
+        "out.zero=offsetPolygonInward(sq,0);\n"
+        "out.inset=rnd(offsetPolygonInward(sq,2));\n"
+        "const rect=[[0,0],[20,0],[20,6],[0,6]];\n"
+        "out.rectHalf=roomHalfMinDim(rect);\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    assert out["half"] == 5, "a 10x10 square's half-min-dimension is 5"
+    assert out["zero"] == [[0, 0], [10, 0], [10, 10], [0, 10]], "marginM=0 must not move a single point"
+    # Exact corners, in order: each new vertex is the intersection of the two
+    # adjacent edges after both are pushed 2 units toward the centroid.
+    assert out["inset"] == [[2, 2], [8, 2], [8, 8], [2, 8]], out["inset"]
+    assert out["rectHalf"] == 3, "a 20x6 rectangle's half-min-dimension is 3"
+
+
+# The real 9-vertex "Bedroom" room from Garry's own house (main floor) —
+# L-shaped, and it closes with two vertices only 3.6cm apart ((0.469,5.296)
+# vs (0.505,5.296)), which is how real hand-traced rooms come out. That
+# near-degenerate pair drew a visible stray "tail" on the offset trace until
+# near-coincident vertices were collapsed before offsetting.
+_BEDROOM = [[0.469,5.296],[5.755,5.296],[5.746,6.937],[4.944,6.974],[4.953,12.093],
+            [2.892,12.056],[2.902,10.498],[0.478,10.49],[0.505,5.296]]
+
+
+def test_offset_polygon_collapses_near_coincident_vertices_no_tail(tmp_path):
+    out = _run_js(tmp_path, (
+        "import { offsetPolygonInward } from './iso_lights.mjs';\n"
+        f"const room={json.dumps(_BEDROOM)};\n"
+        "const inset=offsetPolygonInward(room, 0.3);\n"
+        "const segLens=inset.map((p,i)=>{const q=inset[(i+1)%inset.length];"
+        "return Math.hypot(q[0]-p[0], q[1]-p[1]);});\n"
+        "console.log(JSON.stringify({n: inset.length, segLens}));\n"
+    ))
+    # The 3.6cm closing pair collapses to one vertex: 9 in, 8 out.
+    assert out["n"] == 8, out
+    # And no sliver edges survive anywhere — every drawn segment of the trace
+    # is a real wall's worth of line, not a phantom tail stub.
+    assert min(out["segLens"]) > 0.25, out["segLens"]
+
+
+# The real 11-vertex "North Suite" room from Garry's own house (basement
+# floor) — pulled live via padspan_ha/model_get during the investigation of
+# "doesn't follow the room boundary at all" (2026-09-02). Its last vertex is a
+# near-degenerate kink (edge 10->0 is only ~3cm long, barely off the line of
+# the long edge before it) — offsetting a 14cm margin there without a miter
+# limit shot the reconstructed vertex out to 0.493m, nearly 3.5x requested.
+_NORTH_SUITE = [[3.127,-9.19],[10.133,-9.163],[10.15,0.978],[6,0.932],[6.015,1.079],
+                [2.016,1.063],[2.046,-2.908],[1.143,-2.865],[1.129,-7.994],[3.127,-7.978],[3.144,-9.163]]
+
+
+def test_offset_polygon_inward_caps_a_sharp_corner_miter(tmp_path):
+    """The real room that exposed the bug: without a miter limit, the
+    near-degenerate last vertex overshot to ~0.49m on a 0.14m request. Its
+    ~3.2cm closing pair now ALSO collapses in the dedupe pass (10 vertices
+    out of 11), which removes that specific spike at the source — the miter
+    limit stays as the guard for genuinely acute corners, and this asserts
+    the combination: nothing anywhere strays past the limit."""
+    out = _run_js(tmp_path, (
+        "import { offsetPolygonInward } from './iso_lights.mjs';\n"
+        f"const room={json.dumps(_NORTH_SUITE)};\n"
+        "const inset=offsetPolygonInward(room, 0.14);\n"
+        "const near=inset.map(p=>Math.min(...room.map(q=>Math.hypot(p[0]-q[0], p[1]-q[1]))));\n"
+        "console.log(JSON.stringify({n: inset.length, near}));\n"
+    ))
+    assert out["n"] == 10, out
+    near = out["near"]
+    assert max(near) < 0.14 * 2.5 + 1e-6, f"a vertex strayed past the miter limit from every wall: {near}"
+    # Not flattened into meaninglessness either — most vertices still land
+    # close to the requested margin from their nearest source corner.
+    assert sum(1 for x in near if 0.10 < x < 0.25) >= 9, near
+
+
+def test_default_perimeter_margin_is_scale_aware_not_a_flat_cm_value(tmp_path):
+    """The actual bug: a flat 15cm default rendered as 4-7px on Garry's real
+    house (frame.scale~26 px/m) — indistinguishable from the room's own
+    outline stroke. The default must scale so the ON-SCREEN gap stays
+    roughly constant across houses of very different sizes/zoom."""
+    out = _run_js(tmp_path, (
+        "import { defaultPerimeterMarginM } from './iso_lights.mjs';\n"
+        "const small={scale: 80};\n"    # a small room/apartment, zoomed in
+        "const big={scale: 26.4};\n"    # Garry's real observed scale
+        "const out={};\n"
+        "out.small=defaultPerimeterMarginM(small);\n"
+        "out.big=defaultPerimeterMarginM(big);\n"
+        "out.smallPx=out.small*small.scale;\n"
+        "out.bigPx=out.big*big.scale;\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    # A bigger house (lower px/m) gets a bigger real-world default margin...
+    assert out["big"] > out["small"], out
+    # ...but capped at a physically plausible cove offset: uncapped, the pixel
+    # target computed 0.6m for Garry's real house, which collapsed the narrow
+    # 1.57m arm of his L-shaped Bedroom into slivers ("weird square in the
+    # middle"). 0.3m is the ceiling — real coves don't sit further off a wall.
+    assert out["big"] == 0.3, out
+    # The small/zoomed-in house still gets the true pixel target (under the cap)...
+    assert abs(out["smallPx"] - 16) < 0.5, out
+    # ...and even the capped big-house default stays visibly clear of the
+    # room's own outline stroke, unlike the original flat 15cm (4-7px there).
+    assert out["bigPx"] > 6, out
+
+
+_PERIM_MODEL = {
+    "room_geometry_m": {
+        "Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 4], [0, 4]]},
+    },
+    "light_positions_m": {
+        "light.cove":    {"x_m": 3.0, "y_m": 2.0, "floor_id": "main", "color": "#22c55e", "margin_cm": 50},
+        "light.zero":    {"x_m": 3.0, "y_m": 2.0, "floor_id": "main", "color": "#22c55e", "margin_cm": 0},
+        "light.huge":    {"x_m": 3.0, "y_m": 2.0, "floor_id": "main", "color": "#22c55e", "margin_cm": 100000},
+        "light.off":     {"x_m": 3.0, "y_m": 2.0, "floor_id": "main", "color": "#22c55e", "margin_cm": 50},
+        "light.circle":  {"x_m": 1.0, "y_m": 1.0, "floor_id": "main", "color": "#22c55e"},
+        "light.outside": {"x_m": 50.0, "y_m": 50.0, "floor_id": "main", "color": "#22c55e", "margin_cm": 50},
+    },
+}
+_PERIM_FLOORS = [{"id": "main", "name": "Main", "level": 0}]
+_PERIM_LBE = {
+    "light.cove":    {"entity_id": "light.cove",    "state": "on",  "code": "P01", "shape": "perimeter"},
+    "light.zero":    {"entity_id": "light.zero",    "state": "on",  "code": "P02", "shape": "perimeter"},
+    "light.huge":    {"entity_id": "light.huge",    "state": "on",  "code": "P03", "shape": "perimeter"},
+    "light.off":     {"entity_id": "light.off",     "state": "off", "code": "P04", "shape": "perimeter"},
+    "light.circle":  {"entity_id": "light.circle",  "state": "on",  "code": "A01", "shape": "circle"},
+    "light.outside": {"entity_id": "light.outside", "state": "on",  "code": "P05", "shape": "perimeter"},
+    # Never dragged onto the map — no entry in light_positions_m at all, only
+    # a room via HA area assignment, same shape every gatherLights() output
+    # carries for a light nobody has placed yet. This is the exact scenario
+    # that shipped broken: real bug (Garry, 2026-09-02), root cause was
+    # perimeterSvg only ever being called from the PLACED-lights loop.
+    "light.unplaced": {"entity_id": "light.unplaced", "state": "on", "code": "P06", "shape": "perimeter"},
+}
+_PERIM_BYROOM = {"Kitchen": [_PERIM_LBE["light.unplaced"]]}
+
+
+def _perim_bbox(pts_attr: str) -> tuple[float, float, float, float]:
+    """points='x1,y1 x2,y2 ...' -> (x0,y0,x1,y1) bounding box."""
+    xs, ys = [], []
+    for pair in pts_attr.strip().split():
+        x, y = pair.split(",")
+        xs.append(float(x)); ys.append(float(y))
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def test_perimeter_shape(tmp_path):
+    """One rendered house, every case checked against its own tagged trace
+    (data-eid on the perimeter polygon — added so this test could disambiguate
+    six lights in one SVG, since nothing else in the output names which
+    fixture a given room-boundary polygon belongs to)."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_PERIM_MODEL)};\n"
+        f"const FLOORS={json.dumps(_PERIM_FLOORS)};\n"
+        f"const LBE={json.dumps(_PERIM_LBE)};\n"
+        f"const BYROOM={json.dumps(_PERIM_BYROOM)};\n"
+        "const mk=(o)=>M.buildIsoSVG(MODEL,BYROOM,new Set(),null,150,0,LBE,false,FLOORS,o);\n"
+        "const work=mk({}), show=mk({showcase:true});\n"
+        "const out={};\n"
+        "const traces=(svg,eid)=>[...svg.matchAll(\n"
+        "  new RegExp('<polygon data-eid=\"'+eid.replace('.','\\\\.')+'\" points=\"([^\"]+)\"[^>]*'\n"
+        "    +'stroke-width=\"([0-9.]+)\"[^>]*opacity=\"([0-9.]+)\"([^>]*)/>','g'))]\n"
+        "  .map(m=>({pts:m[1], sw:Number(m[2]), op:Number(m[3]), soft:m[4].includes('psclipsoft')}));\n"
+        "const roomFillPts=/<polygon points=\"([^\"]+)\" fill=\"[^\"]*\" fill-opacity=\"0\\.16\"/.exec(work)[1];\n"
+        "out.roomFillPts=roomFillPts;\n"
+        "out.zeroWork=traces(work,'light.zero');\n"
+        "out.coveWork=traces(work,'light.cove');\n"
+        "out.coveShow=traces(show,'light.cove');\n"
+        "out.hugeWork=traces(work,'light.huge');\n"
+        "out.offWork=traces(work,'light.off');\n"
+        "out.circleWork=traces(work,'light.circle');\n"
+        "out.outsideWork=traces(work,'light.outside');\n"
+        "out.unplacedWork=traces(work,'light.unplaced');\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+
+    # The actual reported bug: a light that has never been dragged onto the
+    # map (no light_positions_m entry, only a room via HA area) must still
+    # trace that room's boundary — at the 15cm default, since there is no
+    # placement entry to hold a custom margin. Before the fix this list was
+    # empty because perimeterSvg was never called from the auto-cluster path.
+    assert len(out["unplacedWork"]) == 1, "an unplaced perimeter light drew no trace at all"
+    assert out["unplacedWork"][0]["pts"] != out["roomFillPts"], \
+        "should be inset by the 15cm default, not sitting exactly on the room's own outline"
+
+    # Zero margin: literally the room's own outline, not the 15cm fallback.
+    # This is the exact bug caught in review — `x || 15` would have failed it.
+    assert len(out["zeroWork"]) == 1
+    assert out["zeroWork"][0]["pts"] == out["roomFillPts"], "margin=0 must equal the room's own outline exactly"
+
+    # A real margin (50cm) genuinely shrinks the box on every side.
+    assert len(out["coveWork"]) == 1
+    rx0, ry0, rx1, ry1 = _perim_bbox(out["roomFillPts"])
+    cx0, cy0, cx1, cy1 = _perim_bbox(out["coveWork"][0]["pts"])
+    assert cx0 > rx0 and cy0 > ry0 and cx1 < rx1 and cy1 < ry1, (out["roomFillPts"], out["coveWork"])
+
+    # An absurd margin (1000m in a 6x4m room) clamps to a safe fraction of the
+    # room's own half-min-dimension. An unclamped offset doesn't collapse to
+    # zero area here (line-intersection reconstruction just keeps going) —
+    # it balloons the box to roughly 1994x1996 SVG units, far outside the
+    # room, which is the actual, specific failure mode a missing clamp
+    # produces and the one this checks for (a bare "positive area" assertion
+    # passed against the unclamped code path — caught in review by mutation
+    # testing, which is why this checks containment instead).
+    assert len(out["hugeWork"]) == 1
+    hx0, hy0, hx1, hy1 = _perim_bbox(out["hugeWork"][0]["pts"])
+    assert hx1 > hx0 and hy1 > hy0, "an oversized margin inverted the traced polygon"
+    pad = 2.0  # stroke width and float slop, in the same SVG-px units
+    assert hx0 >= rx0 - pad and hy0 >= ry0 - pad and hx1 <= rx1 + pad and hy1 <= ry1 + pad, \
+        ("a clamped trace must stay inside the room; got", (hx0, hy0, hx1, hy1), "room", (rx0, ry0, rx1, ry1))
+
+    # Structural shape, not a Showcase presentation effect: it draws in the
+    # WORKING map too, dimmer when the light is off (never invisible).
+    assert len(out["offWork"]) == 1
+    assert out["offWork"][0]["op"] < out["zeroWork"][0]["op"]
+
+    # Showcase adds a soft glow duplicate under the crisp line for a LIT
+    # fixture — two tagged polygons, the first wider and fainter.
+    assert len(out["coveShow"]) == 2, out["coveShow"]
+    assert out["coveShow"][0]["sw"] > out["coveShow"][1]["sw"]
+    assert out["coveShow"][0]["op"] < out["coveShow"][1]["op"]
+    assert out["coveShow"][0]["soft"] and not out["coveShow"][1]["soft"], out["coveShow"]
+
+    # A non-perimeter shape and a light outside every room draw no trace.
+    assert out["circleWork"] == []
+    assert out["outsideWork"] == []
+
+
+def test_perimeter_marker_hides_the_square_keeps_click_space_and_glow(tmp_path):
+    """Garry's spec, verbatim: "Keep the glow, and the click space of the
+    square, but hide the square." The marker group survives with its full
+    lhex/data-eid/data-cx/cy contract and a transparent rect the exact size
+    the square glyph had; no visible body; the Showcase pool still glows."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_PERIM_MODEL)};\n"
+        f"const FLOORS={json.dumps(_PERIM_FLOORS)};\n"
+        f"const LBE={json.dumps(_PERIM_LBE)};\n"
+        f"const BYROOM={json.dumps(_PERIM_BYROOM)};\n"
+        "const show=M.buildIsoSVG(MODEL,BYROOM,new Set(),null,150,0,LBE,false,FLOORS,{showcase:true});\n"
+        "const g=/<g class=\"lhex\" data-eid=\"light\\.cove\"[^>]*>([\\s\\S]*?)<\\/g>/.exec(show);\n"
+        "const out={found:!!g};\n"
+        "if(g){\n"
+        "  out.hasHitRect=/<rect data-hit=\"1\"[^>]*fill=\"transparent\"/.test(g[1]);\n"
+        "  out.hasCode=/>P01</.test(g[1]);\n"
+        "  out.hasVisibleBody=/<(rect(?! data-hit)|polygon|circle|path)[^>]*fill=\"(?!transparent|none)/.test(g[1]);\n"
+        "  out.hasAnchor=/data-cx=\"[0-9.-]+\" data-cy=\"[0-9.-]+\"/.test(g[0]);\n"
+        "}\n"
+        "out.poolGlows=/<ellipse[^>]*fill=\"url\\(#psglow_/.test(show);\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    assert out["found"], "the perimeter light lost its lhex marker group entirely"
+    assert out["hasHitRect"], "the square's click space is gone"
+    assert out["hasCode"], "the code label is gone"
+    assert not out["hasVisibleBody"], "the square is still visibly drawn"
+    assert out["hasAnchor"], "the drag anchor contract broke"
+    assert out["poolGlows"], "the Showcase glow was lost"
+
+
 # ── Showcase ────────────────────────────────────────────────────────────────
 
 _SHOWCASE_MODEL = {
@@ -974,6 +1240,94 @@ def test_showcase_moves_the_code_off_the_marker_and_keeps_the_drag_anchor(tmp_pa
     assert out["show"]["ty"] > out["show"]["cy"] + 5, out["show"]
     assert abs(out["show"]["cx"] - out["work"]["cx"]) < 0.2, out
     assert abs(out["show"]["cy"] - out["work"]["cy"]) < 0.2, out
+
+
+def test_showcase_pool_physics_kelvin_clip_beam_breathe(tmp_path):
+    """The four pool behaviours added together, each pinned by what it changes.
+
+    Kelvin: a white-only bulb (no rgb, color_temp 2700K) must pool WARM, not
+    the default amber — kelvinRGB(2700)=[255,167,87], quantised #ffa860.
+    Clip: a placed fixture inside a room polygon has its pool clipped to that
+    room's clipPath, so light stops at the walls.
+    Beam: a spot (triangle) throws AHEAD of the glyph — its pool ellipse is
+    offset off-centre — and tighter than a downlight's.
+    Breathe: pools carry a slow opacity animation; the working map carries
+    none of this.
+    """
+    out = _showcase(tmp_path, (
+        "const LBE2=JSON.parse(JSON.stringify(LBE));\n"
+        "LBE2['light.lit'].rgb=null; LBE2['light.lit'].ct=2700;\n"
+        "const warm=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE2,false,FLOORS,{showcase:true});\n"
+        "const st=/<radialGradient id=.psglow_0.><stop[^>]*stop-color=.([#0-9a-f]+)./.exec(warm);\n"
+        "out.kelvinStop=st?st[1]:null;\n"
+        "const on=mk({showcase:true});\n"
+        "out.hasClipDef=/<clipPath id=\"psclip_0\"><polygon /.test(on);\n"
+        "out.poolClipped=/<g clip-path=\"url\\(#psclip_0\\)\">/.test(on);\n"
+        "out.breathes=/<ellipse[^>]*fill=\"url\\(#psglow_0\\)\"[^>]*><animate attributeName=\"opacity\"/.test(on);\n"
+        "const LBE3=JSON.parse(JSON.stringify(LBE));\n"
+        "LBE3['light.lit'].shape='triangle';\n"
+        "const spot=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE3,false,FLOORS,{showcase:true});\n"
+        "const cyOf=(s)=>{const m=/fill=\"url\\(#psglow_0\\)\"/.exec(s); const e=/<ellipse cx=\"0\" cy=\"([-0-9.]+)\"[^>]*fill=\"url\\(#psglow_0\\)\"/.exec(s); return e?Number(e[1]):null;};\n"
+        "const rxOf=(s)=>{const e=/<ellipse cx=\"0\" cy=\"[-0-9.]+\" rx=\"([0-9.]+)\"[^>]*fill=\"url\\(#psglow_0\\)\"/.exec(s); return e?Number(e[1]):null;};\n"
+        "out.downCy=cyOf(on); out.spotCy=cyOf(spot);\n"
+        "out.downRx=rxOf(on); out.spotRx=rxOf(spot);\n"
+        "out.workInert=!/psclip_|<animate attributeName=\"opacity\" values=/.test(mk({}));\n"
+    ))
+    assert out["kelvinStop"] == "#ffa860", out["kelvinStop"]
+    assert out["hasClipDef"], "no room clipPath was defined"
+    assert out["poolClipped"], "the pool inside the Kitchen was not clipped to it"
+    assert out["breathes"], "pools no longer carry the breathing animation"
+    assert out["downCy"] == 0, out["downCy"]
+    assert out["spotCy"] is not None and out["spotCy"] < -1, out["spotCy"]
+    assert out["spotRx"] is not None and out["downRx"] is not None and out["spotRx"] < out["downRx"], (out["spotRx"], out["downRx"])
+    assert out["workInert"], "the working map picked up Showcase-only effects"
+
+
+def test_showcase_ambient_scene_spill_isolux(tmp_path):
+    """The presentation extensions land together; each asserts its own tell.
+
+    Ambient: full day lifts the ground to the mixed tone and mutes pools.
+    Scene field: pools take the field's colour at their own metres, so two
+    lit fixtures at opposite ends of the room draw DIFFERENT gradients.
+    Wall spill: a fixture within pool reach of a wall strokes that wall in
+    its own colour; one in the middle of the room strokes nothing.
+    Isolux: contour paths render only when asked, in Showcase.
+    sceneColours: apply-side colours come from the same sampler — the two
+    ends of the field resolve to (near) the end stops.
+    """
+    out = _showcase(tmp_path, (
+        # Both fixtures lit so the scene has two samples; one near the left wall.
+        "const LBE2=JSON.parse(JSON.stringify(LBE));\n"
+        "LBE2['light.dark'].state='on'; LBE2['light.dark'].rgb=[16,240,128]; LBE2['light.dark'].bri=255;\n"
+        "const MODEL2=JSON.parse(JSON.stringify(MODEL));\n"
+        "MODEL2.light_positions_m['light.lit'].x_m=0.8;\n"
+        "const mk2=(o)=>M.buildIsoSVG(MODEL2,{},new Set(),null,150,0,LBE2,false,FLOORS,o);\n"
+        "const night=mk2({showcase:true}), day=mk2({showcase:true, ambient:1});\n"
+        "out.nightBase=/<rect[^>]*fill=\"(#[0-9a-f]{6})\"/.exec(night)[1];\n"
+        "out.dayBase=/<rect[^>]*fill=\"(#[0-9a-f]{6})\"/.exec(day)[1];\n"
+        "const opOf=(s)=>Number(/<ellipse[^>]*fill=\"url\\(#psglow_0\\)\"[^>]*opacity=\"([0-9.]+)\"/.exec(s)[1]);\n"
+        "out.nightOp=opOf(night); out.dayOp=opOf(day);\n"
+        "out.spillNear=/<line[^>]*stroke=\"#18f078\"/.test(night);\n"
+        "const centre=mk({showcase:true});\n"
+        "out.spillCentre=/<line[^>]*stroke=\"#18f078\"/.test(centre);\n"
+        "const FIELD={stops:[[240,24,24],[24,24,240]], angleDeg:0};\n"
+        "const scene=mk2({showcase:true, sceneField:FIELD});\n"
+        "out.sceneGrads=new Set(scene.match(/fill=\"url\\(#psglow_\\d+\\)\"/g)||[]).size;\n"
+        "out.iso=/<path d=\"M[^\"]+\" fill=\"none\" stroke=\"#9fe3bd\"/.test(mk2({showcase:true, isolux:true}));\n"
+        "out.isoOff=/stroke=\"#9fe3bd\"/.test(night);\n"
+        "const cols=M.sceneColours(MODEL2,FLOORS,{},LBE2,new Set(),FIELD);\n"
+        "out.colA=cols.find(c=>c.eid==='light.lit').rgb; out.colB=cols.find(c=>c.eid==='light.dark').rgb;\n"
+    ))
+    assert out["nightBase"] == "#071008" and out["dayBase"] == "#22301f", (out["nightBase"], out["dayBase"])
+    assert out["dayOp"] < out["nightOp"] * 0.6, (out["dayOp"], out["nightOp"])
+    assert out["spillNear"], "a fixture 0.8m from the wall painted no spill on it"
+    assert not out["spillCentre"], "a fixture in the middle of a 10m room spilled on a wall"
+    assert out["sceneGrads"] >= 2, "two fixtures across the field POOLED the same colour — the field is not reaching the pools"
+    assert out["iso"], "isolux contours missing when asked"
+    assert not out["isoOff"], "isolux contours drawn without the toggle"
+    # Apply side: the fixture at x=0.8 sits near the red end, x=7 near the blue.
+    assert out["colA"][0] > 180 and out["colA"][2] < 100, out["colA"]
+    assert out["colB"][2] > 150 and out["colB"][0] < 120, out["colB"]
 
 
 def test_moving_a_light_does_not_count_as_touching_it(tmp_path):

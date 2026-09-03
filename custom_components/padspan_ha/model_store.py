@@ -224,8 +224,11 @@ LIGHT_PIN_DEFAULT_COLOR = "#fbbf24"
 LIGHT_PIN_DEFAULT_SIZE_CM = 15.0
 
 
+LIGHT_PIN_DEFAULT_MARGIN_CM = 15.0
+
 def light_appearance(*, color: Any = "", shape: Any = "", rotation: Any = 0.0,
-                     width_cm: Any = None, height_cm: Any = None) -> dict[str, Any]:
+                     width_cm: Any = None, height_cm: Any = None,
+                     margin_cm: Any = None) -> dict[str, Any]:
     """Normalise a light marker's appearance to what the fabric stores.
 
     Colour is a 6-digit hex or the default; shape is one of LIGHT_PIN_SHAPES
@@ -233,6 +236,10 @@ def light_appearance(*, color: Any = "", shape: Any = "", rotation: Any = 0.0,
     footprint is clamped to 1-1000 cm and defaults to 15 cm a side. An
     explicit zero size clamps to 1 cm rather than silently defaulting — the
     caller said zero, not nothing.
+
+    margin_cm is the "perimeter" shape's inset from the room's own walls —
+    unlike width/height, zero is a real answer (trace right on the wall
+    line), so it clamps down to 0 rather than up to 1.
     """
     c = str(color or "").strip()
     sh = str(shape or LIGHT_PIN_DEFAULT_SHAPE).strip().lower()
@@ -245,6 +252,14 @@ def light_appearance(*, color: Any = "", shape: Any = "", rotation: Any = 0.0,
         except (TypeError, ValueError):
             return LIGHT_PIN_DEFAULT_SIZE_CM
 
+    def _margin(v: Any) -> float:
+        if v is None or v == "":
+            return LIGHT_PIN_DEFAULT_MARGIN_CM
+        try:
+            return max(0.0, min(500.0, float(v)))
+        except (TypeError, ValueError):
+            return LIGHT_PIN_DEFAULT_MARGIN_CM
+
     try:
         rot = float(rotation or 0.0) % 360.0
     except (TypeError, ValueError):
@@ -255,6 +270,7 @@ def light_appearance(*, color: Any = "", shape: Any = "", rotation: Any = 0.0,
         "rotation": rot,
         "width_cm": _size(width_cm),
         "height_cm": _size(height_cm),
+        "margin_cm": _margin(margin_cm),
     }
 
 
@@ -1278,7 +1294,8 @@ class ModelStore:
     async def async_set_light_position_m(
         self, entity_id: str, x_m: float, y_m: float, floor_id: str,
         color: str = "", shape: str = "", rotation: float = 0.0,
-        width_cm: float = 0.0, height_cm: float = 0.0, label: str = "",
+        width_cm: float = 0.0, height_cm: float = 0.0, margin_cm: float = 0.0,
+        label: str = "",
     ) -> None:
         """Place a light in real-world metres — the only way a light is placed."""
         fab = getattr(self, "fabric", None)
@@ -1289,7 +1306,8 @@ class ModelStore:
             "floor_id": str(floor_id or DEFAULT_FLOOR_ID),
         }
         entry.update(light_appearance(color=color, shape=shape, rotation=rotation,
-                                      width_cm=width_cm, height_cm=height_cm))
+                                      width_cm=width_cm, height_cm=height_cm,
+                                      margin_cm=margin_cm))
         if label:
             entry["label"] = str(label)[:120]
         await fab.async_spatial_update(set_lights={str(entity_id): entry}, op="light_set")

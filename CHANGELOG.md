@@ -4,6 +4,36 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.13 — The lights map learns to draw light (2026-09-02)
+
+### Showcase renders light the way light behaves
+- **White bulbs pool warm or cool, as they actually are.** A colour-temperature-only bulb has no `rgb_color`, and its pool fell back to a flat default amber. It now tints from the bulb's own Kelvin (Tanner-Helland blackbody), so 2700K reads as a living room and 5000K as a workshop.
+- **Light stops at the walls.** Each fixture's pool is clipped to its own room's polygon — resolved from its position by the same ray-cast the room-fit cap uses — with a soft feathered edge past the boundary, like a doorway leak. Where a pool actually reaches a wall, a faint stroke of the pool's own colour runs along it.
+- **Beam shape is a property of the fixture type.** A spot throws a tighter pool, ahead of the glyph along its aim; a sconce washes forward off its wall; a chandelier spreads wider; an indicator LED barely pools.
+- **Pools breathe** — a slow, staggered sway, amplitude riding brightness, so the house never pulses in lockstep.
+- **Day and night**: the ground lifts and pools mute as the real sun rises (from `sun.sun`), and the night render is exactly what it always was.
+- **Spatial scenes**: a scene is a colour field across the floor, not a colour list — every lit fixture previews the field's colour at its own metres, and Apply sends exactly the previewed colours. Preview and apply share one sampler, so the map cannot promise a colour the lights don't get. Sunset, Dusk, Ember, Ocean; rotate the axis in 45° steps.
+- **Ripple**: arm it, tap the map, and a brightness pulse rolls outward through the house in real-distance order. Only lights already on take part.
+- **Isolux** (☼): relative-illuminance contours on a real-metre grid from the fixtures' real positions and brightness — three bands at fractions of the floor's own peak.
+
+### A tap is the light switch again
+- Tapping any effect-capable light used to open its control popup, which made the most capable lights the only ones you couldn't simply switch from the map. A tap now always toggles — the device's own last settings rule — and the popup moved to a half-second hold, on the map and in the index table alike.
+
+### ESPHome partition strips get the WLED treatment
+- A `light.partition` entity — one addressable strip split into segments by LED range — is recognised from the entity registry (most partitions configure no effects, so the effect-list test WLED uses would miss them entirely). P-series codes beside WLED's W-series, a blue border beside WLED's purple, the same strip glyph, the same hold-for-controls popup. A segment that also carries effects reads as WLED-class — the more capable identity wins.
+
+### A new fixture shape: room perimeter / cove
+- Traces the actual room polygon the light sits in — placed or still auto-clustered — inset by an adjustable margin, structurally unlike every other shape (those are an icon at a point; this is the room's own boundary, drawn from the fabric's metres). Dimmer when off, never invisible; in Showcase the trace glows like the cove run it represents, and only its code and click space remain at the drop point — the trace *is* the fixture's body.
+- The default margin is scale-aware: a fixed real-world inset is a clear line in a small flat and an invisible sliver on a spread-out house, so the default targets a fixed on-screen gap instead, capped at 30cm — no real cove sits further off a wall.
+- The offset survives real rooms: hand-traced polygons close with near-coincident vertices (centimetres apart) and carry near-straight kinks — both now collapse or bevel instead of drawing phantom tails and spiked corners. Every one of these behaviours is pinned by tests built from a real house's actual room coordinates, not synthetic rectangles — because the synthetic ones passed while the real ones failed.
+
+### Smaller fixes
+- Room names on the lights map sit smaller and closer to their room's edge.
+- The Mapping → Upload floor selector survives a rebuild mid-upload (a reconnect while browsing for a file silently reset it to the first floor — the file survived, the floor choice didn't; both do now). *(Shipped early as 0.38.12.)*
+
+## 0.38.11 / 0.38.12 — stable promotions (2026-09-02)
+- 0.38.11 promoted 0.38.10 to the stable channel. 0.38.12 added the upload floor-selector fix above.
+
 ## 0.38.10 — The trace follows its picture (2026-09-01)
 
 ### An image edit takes the hand trace along, unconditionally
