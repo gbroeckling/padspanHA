@@ -1550,8 +1550,12 @@ export function buildLightsTable(host, lights){
     hiddenCount ? el("span", { class: "lv-hint" }, `${hiddenCount} hidden from map`) : null,
     ...(host.onTableClassFilter ? [(() => {
       const present = new Set(lights.map(l => lightClassOf(l)));
+      // No auto right-margin: this card can be far wider than the viewport
+      // (it matches the isometric map beside it), and a control shoved to
+      // the far edge of a 1700px row is invisible without scrolling. It
+      // sits right next to the title instead, so it is always on-screen.
       const sel = document.createElement("select");
-      sel.className = "lv-select"; sel.style.marginLeft = "auto";
+      sel.className = "lv-select";
       sel.title = "Filter the list by device type";
       for (const [cls, label] of LIGHT_CLASSES) {
         if (cls !== "all" && !present.has(cls)) continue;
