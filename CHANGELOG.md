@@ -4,6 +4,28 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.16 — Fans, motion sensors, and a map that finally works like a map (2026-09-03)
+
+### Fans and motion sensors join the ceiling
+- **A fan is a first-class device on the map now**, not a decorative glyph on a light. `fan.*` entities get their own F-series code, glyph and border, and place in metres exactly like a light. A hold opens a control card set up the same way WLED's is: speed, preset, oscillate, direction — each offered only when the entity actually has it.
+- **Motion sensors join the list of placeable devices.** A triggered sensor pulses blue beneath its marker, in both the working map and Showcase, and is read-only to a tap — its job on the map is the pulse, not a switch. Admitted by device class, not domain: HA has two distinct PIR presence classes, `motion` (momentary) and `occupancy` (sustained — an outlet-integrated bathroom sensor reports this one), and the map now recognises both as the same thing a household actually means by "is anyone in there".
+- **A quiet sensor still says how long ago.** For six hours after it stops tripping, a calmer ring keeps glowing at its last spot, its colour sweeping almost the whole spectrum from blue the instant it goes quiet to violet at the six-hour mark — a rainbow of recency, not a status you have to go check the history for. Past six hours, nothing.
+- **A Pro-only override** in the Mapping → Lights index lets the household's own word beat detection when PadSpan gets a light's class wrong — force it to WLED, partition, or plain. Bright ignores the stored override entirely (detection rules there), which is what makes it a Pro feature.
+- The room-perimeter/cove trace's crisp line now wears the same outline convention every other marker does (blue working, white lit, slate off, strip borders) instead of the fixture's own colour — the glow underneath still carries that.
+
+### Control-from-the-map, redesigned around how a hand actually taps a screen
+- **A press-and-hold is no longer the only way to reach a light's controls.** Its short code is now its own target — tap it (or hold the light, still) to open brightness, colour, effects or fan speed; tap the light itself and it just switches. A ring fills under a hold before it opens, so the gesture is visible instead of a guess.
+- **Tap a room's name, or a floor's badge, for everything there at once** — a sheet lists every device with an All-off/All-on pair, lights and fans counted separately so "all off" never silently takes the fan with it, motion shown as status rather than a switch.
+- **A pile of unplaced devices in one room collapses to a single "N unplaced" chip** instead of a stack of overlapping markers fighting for the same tap.
+- **Layer chips** — Lights, Strips, Fans, Motion — dim every other class instead of hiding it, so context stays on the map while you work one kind of device at a time. Floor chips remember each storey's own zoom and scroll position and carry a live activity dot.
+- **Pinch to zoom, one finger to pan** — a real touch gesture pipeline on the map for the first time.
+- A tap flips a marker immediately and reverts with a shake if the light doesn't actually answer, instead of waiting on the round-trip in silence.
+
+### The builder gets the tools a floor plan actually needs
+- **An unmistakable "Editing" badge** and a drafting-grid backdrop while the Mapping tab is open, plus a one-tap **Preview as sidebar** that shows exactly what the household will see without leaving the builder.
+- **Queue several lights, then tap the map once per light** to place a whole room without dragging each one out of a pile by hand — or use **Spread in room** to lay every unplaced light in a room on an even grid inside its own walls in one move.
+- **Multi-select, undo/redo, arrow-key nudges, and copy-appearance-to-selection** — the ordinary toolkit of a layout editor, now on the lights map.
+
 ## 0.38.13 — The lights map learns to draw light (2026-09-02)
 
 ### Showcase renders light the way light behaves
