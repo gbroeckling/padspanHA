@@ -1293,6 +1293,56 @@ def test_use_surface_ergonomics_opts(tmp_path):
     assert out["floorTapTarget"], "the floor badge must be a data-role=\"floor\" tap target unconditionally"
 
 
+def test_code_chip_clears_an_oversized_fixture(tmp_path):
+    """Found live (2026-09-03), on the house's own map: a fixture given a
+    real width_cm/height_cm (this session's resize handles) can draw many
+    times the marker's base radius, and the code chip's gap was a flat
+    HEX_R*1.55 — on Garry's own "A14" it landed the chip INSIDE the lower
+    third of the glyph instead of clearly below it. The gap now scales with
+    the marker's actual drawn size (Math.max(sx,sy))."""
+    model = {
+        "room_geometry_m": {"Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [10, 0], [10, 10], [0, 10]]}},
+        "light_positions_m": {
+            "light.small": {"x_m": 2.0, "y_m": 2.0, "floor_id": "main"},
+            # A big chandelier — the exact shape of the reported bug.
+            "light.big":   {"x_m": 6.0, "y_m": 2.0, "floor_id": "main", "width_cm": 300, "height_cm": 300},
+        },
+    }
+    lbe = {
+        "light.small": {"entity_id": "light.small", "state": "on", "code": "A01", "shape": "chandelier"},
+        "light.big":   {"entity_id": "light.big",   "state": "on", "code": "A02", "shape": "chandelier"},
+    }
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        "const FLOORS=[{id:'main',name:'Main',level:0}];\n"
+        "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{codeChip:true});\n"
+        # A marker's own SHAPE can nest a <g transform=...> layer, so a lazy
+        # "up to the first </g>" regex truncates before the code chip, which
+        # is appended AFTER every shape layer. Slice on the string index of
+        # the NEXT sibling marker instead — that bound is always correct
+        # regardless of how deeply the shape itself nests.
+        "const chipY=(eid)=>{\n"
+        "  const start=svg.indexOf('data-eid=\"'+eid+'\"');\n"
+        "  const nextStart=svg.indexOf('<g class=\"lhex\"', start+1);\n"
+        "  const g=svg.slice(Math.max(0,start-40), nextStart>0?nextStart:svg.length);\n"
+        "  const m=/data-role=\"code\"[^]*?<rect x=\"[^\"]+\" y=\"([^\"]+)\"/.exec(g);\n"
+        "  return {chipTop: parseFloat(m[1]), cy: parseFloat(g.match(/data-cy=\"([^\"]+)\"/)[1])};\n"
+        "};\n"
+        "const small=chipY('light.small'), big=chipY('light.big');\n"
+        "console.log(JSON.stringify({\n"
+        "  smallGap: small.chipTop - small.cy,\n"
+        "  bigGap: big.chipTop - big.cy,\n"
+        "}));\n"
+    ))
+    # The big fixture's chip must sit measurably farther from its own centre
+    # than the small fixture's — the whole point of the fix — and specifically
+    # below where a flat HEX_R*1.55 gap (~15-20px at this scale) would land it.
+    assert out["bigGap"] > out["smallGap"] * 2, out
+    assert out["bigGap"] > 25, f"the chip must clear a 3m fixture's drawn extent: {out}"
+
+
 # ── Showcase ────────────────────────────────────────────────────────────────
 
 _SHOWCASE_MODEL = {

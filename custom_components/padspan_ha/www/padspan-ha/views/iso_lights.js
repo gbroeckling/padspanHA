@@ -1284,10 +1284,15 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // data-role="code". The sidebar opens the controls from it; the glyph
     // above stays the switch. pointer-events="all" so the pill's box, not
     // just the glyph strokes of the letters, takes the tap.
-    const codeChipSvg=(l,hx,hy,tCol)=>{
+    // gapPx is how far BELOW hy the chip sits — HEX_R*1.55 clears a marker
+    // drawn at its base radius, but a fixture given a real width_cm/height_cm
+    // (the resize handles this session added) can draw many times that size,
+    // and a fixed gap then lands the chip inside the glyph instead of below
+    // it. Callers whose marker can be scaled pass the ACTUAL half-height.
+    const codeChipSvg=(l,hx,hy,tCol,gapPx=HEX_R*1.55)=>{
       const fs=CODE_PX*0.92;
       const w=String(l.code||"").length*fs*0.64+fs*0.9, h=fs*1.5;
-      const cy=hy+HEX_R*1.55+fs*0.45;
+      const cy=hy+gapPx+fs*0.45;
       return `<g data-role="code" style="cursor:pointer" pointer-events="all">`+
         `<rect x="${(hx-w/2).toFixed(1)}" y="${(cy-h/2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" `+
         `rx="${(h*0.35).toFixed(1)}" fill="#050d09" fill-opacity="0.72" stroke="${tCol}" stroke-opacity="0.45" stroke-width="0.6"/>`+
@@ -1408,8 +1413,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const lblY=SHOW ? hy+HEX_R*1.55+CODE_PX*0.45 : hy;
       // Semantic zoom hides the code entirely; the code CHIP (use surface)
       // makes it a target of its own under the glyph in both modes; otherwise
-      // the code sits where it always did.
-      const lbl=HIDECODES ? "" : (CODECHIP ? codeChipSvg(l,hx,hy,SHOW?tCol:"#e2e8f0") : (SHOW
+      // the code sits where it always did. Its gap clears the marker's ACTUAL
+      // drawn size — Math.max(sx,sy) is a safe over-estimate at any rotation
+      // (same reasoning `sw` above already uses) — so a fixture given a real
+      // width/height (the resize handles) doesn't swallow its own chip.
+      const chipGap=HEX_R*Math.max(1,sx,sy)*1.15;
+      const lbl=HIDECODES ? "" : (CODECHIP ? codeChipSvg(l,hx,hy,SHOW?tCol:"#e2e8f0",chipGap) : (SHOW
         ? `<text x="${hx.toFixed(1)}" y="${lblY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
           `font-family="ui-monospace,monospace" font-size="${(CODE_PX*0.92).toFixed(1)}" font-weight="700" `+
           `letter-spacing="0.06em" fill="${tCol}" paint-order="stroke" stroke="#050d09" `+
