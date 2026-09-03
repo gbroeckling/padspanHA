@@ -279,27 +279,33 @@ class PadSpanLightsApp extends HTMLElement {
     const fromHex=(hex)=>{ const n=parseInt(hex.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; };
 
     const overlay=document.createElement("div");
-    overlay.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;"+
-      "display:flex;align-items:center;justify-content:center";
+    overlay.style.cssText="position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10000;"+
+      "display:flex;align-items:center;justify-content:center;"+
+      "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)";
     const close=()=>{ try{ document.body.removeChild(overlay); }catch(_){} };
     overlay.addEventListener("click",e=>{ if(e.target===overlay) close(); });
 
     const box=el("div",{style:
-      "background:#0f1c14;border:1px solid #2d5a3d;border-radius:10px;padding:20px;width:300px;max-width:90vw;"+
-      "color:#e2e8f0;font-family:Inter,system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.6)"});
+      "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.28);"+
+      "border-radius:16px;padding:20px;width:300px;max-width:90vw;"+
+      "color:#e2e8f0;font-family:Inter,system-ui,sans-serif;"+
+      "box-shadow:0 20px 60px rgba(0,0,0,.65),0 0 30px rgba(82,183,136,.08),inset 0 1px 0 rgba(255,255,255,.05)"});
 
-    box.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"},[
-      el("div",{style:"font-weight:700;font-size:15px"}, attrs.friendly_name||eid),
+    box.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px"},[
+      el("div",{style:"font-weight:700;font-size:15px;letter-spacing:-.01em"}, attrs.friendly_name||eid),
       el("button",{
-        style:"background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:2px 6px",
+        style:"background:rgba(255,255,255,.04);border:1px solid rgba(120,190,155,.18);border-radius:8px;"+
+          "color:#94a3b8;font-size:13px;cursor:pointer;padding:3px 8px;line-height:1;flex-shrink:0",
         onclick:close,
       },"✕"),
     ]));
 
     const on=st.state==="on";
     const onBtn=el("button",{
-      style:`width:100%;margin-bottom:12px;padding:8px;font-weight:700;border:none;border-radius:6px;cursor:pointer;`+
-            `background:${on?"#fbbf24":"#374151"};color:${on?"#111827":"#fbbf24"}`,
+      style:`width:100%;margin-bottom:14px;padding:10px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;`+
+            `letter-spacing:.02em;transition:filter .15s ease;`+
+            (on?"background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#111827;border:1px solid rgba(255,255,255,.25);box-shadow:0 0 18px rgba(251,191,36,.35);"
+              :"background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);"),
       onclick:async()=>{
         const data={entity_id:eid};
         if(!on){
@@ -336,10 +342,10 @@ class PadSpanLightsApp extends HTMLElement {
       const pct=(v)=>Math.round((v/255)*100);
       const cur=typeof attrs.brightness==="number" ? attrs.brightness : 255;
       const briText=(v)=>`Brightness: ${pct(v)}%` + (on ? "" : " · turns the light on");
-      const briLbl=el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:4px"}, briText(cur));
+      const briLbl=el("div",{style:"font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em"}, briText(cur));
       const bri=document.createElement("input");
       bri.type="range"; bri.min="1"; bri.max="255"; bri.value=String(cur);
-      bri.style.cssText="width:100%;accent-color:#52b788";
+      bri.style.cssText="width:100%;accent-color:#fbbf24;height:20px;cursor:pointer";
       bri.addEventListener("input",()=>{ briLbl.textContent=briText(bri.value); });
       bri.addEventListener("change",async()=>{
         try{ await this._hass.callService("light","turn_on",{entity_id:eid, brightness:parseInt(bri.value,10)}); }
@@ -361,20 +367,22 @@ class PadSpanLightsApp extends HTMLElement {
       const colorInput=document.createElement("input");
       colorInput.type="color";
       colorInput.value=toHex(rgb);
-      colorInput.style.cssText="width:44px;height:30px;border:none;background:none;cursor:pointer";
+      colorInput.style.cssText="width:52px;height:32px;border:1px solid rgba(120,190,155,.25);border-radius:8px;"+
+        "background:rgba(255,255,255,.04);cursor:pointer;padding:2px";
       colorInput.addEventListener("change",async()=>{
         try{ await this._hass.callService("light","turn_on",{entity_id:eid, rgb_color:fromHex(colorInput.value)}); }
         catch(e){ this._toast("Could not set colour", true); }
         setTimeout(()=>this._render(), 400);
       });
       box.appendChild(el("div",{style:"margin-bottom:12px;display:flex;align-items:center;gap:10px"},[
-        el("span",{style:"font-size:12px;color:#94a3b8"},"Color"), colorInput,
+        el("span",{style:"font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em"},"Color"), colorInput,
       ]));
     }
 
     if(effectList.length){
       const effSel=document.createElement("select");
-      effSel.style.cssText="width:100%;background:#1a2e1e;color:#52b788;border:1px solid #2d4a36;border-radius:4px;padding:6px";
+      effSel.style.cssText="width:100%;background:rgba(15,26,18,.9);color:#8ee5b4;border:1px solid rgba(120,190,155,.28);"+
+        "border-radius:8px;padding:7px;font-size:12px;cursor:pointer";
       for(const eff of effectList){
         const o=document.createElement("option");
         o.value=eff; o.textContent=eff;
@@ -385,7 +393,7 @@ class PadSpanLightsApp extends HTMLElement {
         try{ await this._hass.callService("light","turn_on",{entity_id:eid, effect:effSel.value}); }catch(e){}
       });
       box.appendChild(el("div",{},[
-        el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:4px"},"Effect"), effSel,
+        el("div",{style:"font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em"},"Effect"), effSel,
       ]));
     }
 
@@ -405,13 +413,15 @@ class PadSpanLightsApp extends HTMLElement {
     const root=el("div",{});
 
     // ── Header ────────────────────────────────────────────────────────────────
-    root.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap"},[
-      el("div",{style:"font-size:18px;font-weight:800;color:#e2e8f0"},"Lights"),
-      el("span",{style:"font-size:12px;color:#94a3b8"},`v${APP_VERSION}`),
-      el("span",{class:"muted",style:"font-size:12px"},"Tap hex or row to toggle \u00b7 Yellow\u00a0=\u00a0on \u00b7 Grey\u00a0=\u00a0off"),
-      el("button",{class:"btn inline",style:"margin-left:auto",onclick:()=>{
+    // The lv- vocabulary from styles.css (loaded in this shadow root), so the
+    // sidebar and the Mapping tab wear the same face.
+    root.appendChild(el("div",{class:"lv-hero"},[
+      el("div",{class:"lv-hero-title"},"Lights"),
+      el("span",{class:"lv-ver"},`v${APP_VERSION}`),
+      el("span",{class:"lv-hint"},"Tap to toggle \u00b7 hold for brightness, colour & effects"),
+      el("button",{class:"lv-act",style:"margin-left:auto",onclick:()=>{
         this._regStore.reg=null; this._boot().then(()=>this._render());
-      }},"Refresh"),
+      }},"\u21bb Refresh"),
     ]));
 
     // ── Shared data pipeline — identical to the Mapping → Lights tab ─────────
@@ -531,10 +541,12 @@ class PadSpanLightsApp extends HTMLElement {
     const t=document.createElement("div");
     t.textContent=msg;
     t.style.cssText=`position:fixed;bottom:24px;left:50%;transform:translateX(-50%);`+
-      `padding:10px 18px;border-radius:8px;font-size:13px;color:#e2e8f0;z-index:9999;`+
-      `background:${isError?"#7f1d1d":"#1a3a2a"};`+
-      `border:1px solid ${isError?"#dc2626":"#52b788"};`+
-      `box-shadow:0 2px 12px rgba(0,0,0,.5);white-space:pre-wrap;max-width:320px;text-align:center`;
+      `padding:10px 18px;border-radius:12px;font-size:13px;color:#e2e8f0;z-index:9999;`+
+      `background:${isError?"rgba(127,29,29,.92)":"rgba(16,40,26,.92)"};`+
+      `border:1px solid ${isError?"#dc2626":"rgba(82,183,136,.6)"};`+
+      `backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);`+
+      `box-shadow:0 8px 30px rgba(0,0,0,.5),0 0 20px ${isError?"rgba(220,38,38,.2)":"rgba(82,183,136,.15)"};`+
+      `white-space:pre-wrap;max-width:320px;text-align:center`;
     document.body.appendChild(t);
     setTimeout(()=>{ try{document.body.removeChild(t);}catch(_){} },3500);
   }

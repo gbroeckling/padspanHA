@@ -923,3 +923,139 @@
   #bluetooth .bt-seg{width:100%}
   #bluetooth .bt-seg .tab{flex:1 1 auto;text-align:center;min-height:38px}
 }
+
+/* ══ Lights view — the surface, refreshed ═══════════════════════════════════
+   Shared by the Lights sidebar panel AND the Mapping → Lights tab (both load
+   this sheet into their shadow roots), replacing the inline colour/size
+   strings inside views/lights_map.js with one vocabulary. Same rule as the
+   Bluetooth restyle above: structure and behaviour are untouched — the same
+   buttons, the same handlers, the same labels — type, colour, spacing and
+   state feedback are what change. Prefixed lv- so nothing else can catch it.
+
+     .lv-hero      the panel header: glowing-bulb title, version pill, hint
+     .lv-mapcard   the shared map card surface
+     .lv-toolbar   the control row: mode toggles + view sliders + zoom
+     .lv-tgl       a mode toggle — tones: violet/ember/green/pink/blue/teal
+     .lv-act       a quiet action button (Save / Reset / Apply)
+     .lv-range     the sliders (Floor, Spacing, L/R)
+     .lv-zoomseg   the zoom segmented control
+     .lv-stage     the drawing: deep radial ground behind the iso SVG
+     .lv-legend    the shape-vocabulary chips under the map
+     .lv-table     the light index — micro headers, hover rows, state chips
+     .lv-state     ON/OFF as a lit pill with a glowing dot                  */
+
+.lv-hero{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.lv-hero-title{font-size:20px;font-weight:800;letter-spacing:-.02em;color:#e8f0ea;display:flex;align-items:center;gap:10px;line-height:1.1}
+.lv-hero-title::before{content:"";flex:0 0 10px;width:10px;height:10px;border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,#ffe9a8,#fbbf24 60%,#b45309);
+  box-shadow:0 0 14px rgba(251,191,36,.75),0 0 34px rgba(251,191,36,.3)}
+.lv-ver{font-size:10.5px;padding:2px 9px;border-radius:999px;border:1px solid rgba(120,190,155,.22);
+  background:rgba(82,183,136,.08);color:rgba(226,240,232,.55);font-variant-numeric:tabular-nums;font-weight:600}
+.lv-hint{font-size:11.5px;color:rgba(226,240,232,.45);line-height:1.5}
+
+.lv-mapcard{background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
+  border:1px solid rgba(120,190,155,.16);border-radius:16px;padding:12px;margin-bottom:16px;
+  box-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 10px 30px rgba(0,0,0,.25)}
+
+/* ── the control row ────────────────────────────────────────────────────── */
+.lv-toolbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px;
+  padding:6px 8px;border:1px solid rgba(120,190,155,.14);border-radius:12px;
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(0,0,0,.2))}
+.lv-sep{width:1px;align-self:stretch;margin:2px 3px;
+  background:linear-gradient(180deg,transparent,rgba(120,190,155,.3),transparent)}
+.lv-lbl{font-size:9.5px;font-weight:600;white-space:nowrap;text-transform:uppercase;
+  letter-spacing:.09em;color:rgba(226,240,232,.38)}
+.lv-val{font-size:11.5px;color:#cbd5e1;font-variant-numeric:tabular-nums;min-width:34px}
+
+/* mode toggles: quiet glass at rest, a lit gradient with a matching glow on */
+.lv-tgl{width:auto;margin-top:0;font-size:11px;font-weight:600;letter-spacing:.01em;
+  padding:3px 10px;border-radius:8px;cursor:pointer;
+  background:rgba(255,255,255,.03);border:1px solid rgba(120,190,155,.18);
+  color:rgba(226,240,232,.65);
+  transition:border-color .15s ease,background .15s ease,color .15s ease,box-shadow .15s ease}
+.lv-tgl:hover{border-color:rgba(120,190,155,.42);background:rgba(255,255,255,.06);color:#e8f0ea}
+.lv-tgl.on{color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.lv-tgl.tone-violet.on{background:linear-gradient(135deg,#4c1d95,#7c3aed);border-color:rgba(196,181,253,.65);box-shadow:0 0 14px rgba(124,58,237,.4),inset 0 1px 0 rgba(255,255,255,.14)}
+.lv-tgl.tone-ember.on {background:linear-gradient(135deg,#7c2d12,#ea580c);border-color:rgba(253,186,116,.65);box-shadow:0 0 14px rgba(234,88,12,.4),inset 0 1px 0 rgba(255,255,255,.14)}
+.lv-tgl.tone-green.on {background:linear-gradient(135deg,#14532d,#16a34a);border-color:rgba(134,239,172,.65);box-shadow:0 0 14px rgba(22,163,74,.4),inset 0 1px 0 rgba(255,255,255,.14)}
+.lv-tgl.tone-pink.on  {background:linear-gradient(135deg,#7c2d12,#db2777);border-color:rgba(249,168,212,.65);box-shadow:0 0 14px rgba(219,39,119,.4),inset 0 1px 0 rgba(255,255,255,.14)}
+.lv-tgl.tone-blue.on  {background:linear-gradient(135deg,#1e3a8a,#3b82f6);border-color:rgba(147,197,253,.65);box-shadow:0 0 14px rgba(59,130,246,.4),inset 0 1px 0 rgba(255,255,255,.14)}
+.lv-tgl.tone-teal.on  {background:linear-gradient(135deg,#134e4a,#0d9488);border-color:rgba(94,234,212,.65);box-shadow:0 0 14px rgba(13,148,136,.4),inset 0 1px 0 rgba(255,255,255,.14)}
+
+/* quiet actions: Save view / Reset view / scene Apply */
+.lv-act{width:auto;margin-top:0;font-size:11px;font-weight:600;padding:3px 10px;border-radius:8px;
+  cursor:pointer;background:rgba(255,255,255,.03);border:1px solid rgba(120,190,155,.18);
+  color:rgba(226,240,232,.75);transition:border-color .15s ease,background .15s ease,color .15s ease}
+.lv-act:hover:not(:disabled){border-color:rgba(120,190,155,.45);background:rgba(255,255,255,.06);color:#e8f0ea}
+.lv-act:disabled{opacity:.45;cursor:default}
+.lv-act.primary{color:#f0fdf4;background:linear-gradient(135deg,#166534,#22c55e);border-color:rgba(134,239,172,.6)}
+.lv-act.primary:hover:not(:disabled){border-color:rgba(134,239,172,.9);background:linear-gradient(135deg,#15803d,#22c55e)}
+.lv-status{font-size:11px;color:rgba(226,240,232,.5);min-width:50px;display:inline-block}
+
+/* sliders: a slim track with a lit thumb */
+.lv-range{-webkit-appearance:none;appearance:none;height:4px;border-radius:999px;
+  background:rgba(120,190,155,.2);outline:none;cursor:pointer;vertical-align:middle}
+.lv-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;
+  background:#52b788;border:2px solid #0a150e;
+  box-shadow:0 0 0 1px rgba(82,183,136,.5),0 0 10px rgba(82,183,136,.4);
+  transition:box-shadow .15s ease}
+.lv-range::-webkit-slider-thumb:hover{box-shadow:0 0 0 1px rgba(82,183,136,.85),0 0 16px rgba(82,183,136,.65)}
+.lv-range::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:#52b788;
+  border:2px solid #0a150e;box-shadow:0 0 0 1px rgba(82,183,136,.5),0 0 10px rgba(82,183,136,.4)}
+.lv-range::-moz-range-track{height:4px;border-radius:999px;background:rgba(120,190,155,.2)}
+
+/* zoom: one segmented control instead of three loose buttons */
+.lv-zoomseg{display:inline-flex;border:1px solid rgba(120,190,155,.18);border-radius:9px;
+  overflow:hidden;background:rgba(0,0,0,.25)}
+.lv-zoomseg button{all:unset;box-sizing:border-box;padding:3px 10px;font-size:11px;font-weight:600;
+  color:rgba(226,240,232,.7);cursor:pointer;border-right:1px solid rgba(120,190,155,.14);
+  font-variant-numeric:tabular-nums;transition:background .13s ease,color .13s ease}
+.lv-zoomseg button:last-child{border-right:none}
+.lv-zoomseg button:hover{background:rgba(82,183,136,.16);color:#e8f0ea}
+
+/* ── the drawing ────────────────────────────────────────────────────────── */
+.lv-stage{overflow:auto;width:100%;padding:10px;border-radius:14px;
+  background:radial-gradient(120% 90% at 50% 0%,#0b1a10 0%,#071008 55%,#040a05 100%);
+  border:1px solid rgba(120,190,155,.14);
+  box-shadow:inset 0 0 44px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.03)}
+.lv-stage::-webkit-scrollbar{height:9px;width:9px}
+.lv-stage::-webkit-scrollbar-thumb{background:rgba(120,190,155,.25);border-radius:999px;border:2px solid #040a05}
+
+/* ── legend ─────────────────────────────────────────────────────────────── */
+.lv-legend{display:flex;flex-wrap:wrap;gap:5px 8px;align-items:center;margin-top:10px;
+  padding-top:9px;border-top:1px solid rgba(120,190,155,.12)}
+.lv-legend-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 5px;
+  border-radius:999px;border:1px solid rgba(120,190,155,.14);background:rgba(255,255,255,.025);
+  font-size:10.5px;color:rgba(226,240,232,.6)}
+
+/* ── the light index ────────────────────────────────────────────────────── */
+.lv-tablecard{background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
+  border:1px solid rgba(120,190,155,.16);border-radius:16px;padding:12px;
+  box-shadow:0 1px 0 rgba(255,255,255,.03) inset}
+.lv-tbl-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.lv-tbl-title{font-weight:700;font-size:13px;letter-spacing:.01em;color:#e8f0ea}
+.lv-count{font-size:10px;font-weight:700;padding:1px 8px;border-radius:999px;
+  border:1px solid rgba(120,190,155,.25);background:rgba(82,183,136,.1);
+  color:#8ee5b4;font-variant-numeric:tabular-nums}
+.lv-note{font-size:12px;color:rgba(226,240,232,.5);margin-bottom:10px}
+.lv-table th{font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:rgba(226,240,232,.38);border-bottom:1px solid rgba(120,190,155,.18);padding:7px 8px}
+.lv-table td{border-bottom:1px solid rgba(120,190,155,.07);padding:7px 8px;vertical-align:middle}
+.lv-table tbody tr{transition:background .12s ease}
+.lv-table tbody tr:hover{background:rgba(255,255,255,.03)}
+.lv-table tbody tr:last-child td{border-bottom:none}
+.lv-state{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;
+  font-size:10px;font-weight:700;letter-spacing:.06em}
+.lv-state::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.lv-state.on{color:#fbbf24;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4)}
+.lv-state.on::before{box-shadow:0 0 7px rgba(251,191,36,.9)}
+.lv-state.off{color:rgba(226,240,232,.4);background:rgba(255,255,255,.03);border:1px solid rgba(120,190,155,.14)}
+.lv-select{background:rgba(15,26,18,.85);color:#8ee5b4;border:1px solid rgba(120,190,155,.25);
+  border-radius:8px;padding:2px 6px;font-size:11px;cursor:pointer;width:auto;margin-top:0}
+.lv-select:focus{border-color:rgba(82,183,136,.65);outline:none}
+
+@media(max-width:768px){
+  .lv-toolbar{padding:6px}
+  .lv-tgl,.lv-act{min-height:32px}
+  .lv-hero-title{font-size:18px}
+}

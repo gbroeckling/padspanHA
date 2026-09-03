@@ -258,18 +258,16 @@ export function lightIsTouched(l, shapeOverrides, placements) {
 // a house with no fans never shows a fan key.
 function buildShapeLegend(el, lights){
   const present = new Set(lights.map(l => l.shape));
-  const row = el("div", { style:
-    "display:flex;flex-wrap:wrap;gap:.35rem 1rem;align-items:center;margin-top:8px;"+
-    "padding-top:8px;border-top:1px solid #1b3526" });
+  const row = el("div", { class: "lv-legend" });
   for (const [kind, label] of LIGHT_SHAPES) {
     if (kind === "auto" || !present.has(kind)) continue;
-    const cell = el("div", { style: "display:flex;align-items:center;gap:5px" });
+    const cell = el("span", { class: "lv-legend-chip" });
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("width", "18"); svg.setAttribute("height", "18");
+    svg.setAttribute("width", "16"); svg.setAttribute("height", "16");
     svg.setAttribute("viewBox", "0 0 18 18");
     svg.innerHTML = shapeSvg(kind, 9, 9, 6.5, 'fill="none" stroke="#94a3b8" stroke-width="1.6"');
     cell.appendChild(svg);
-    cell.appendChild(el("span", { style: "font-size:11px;color:#94a3b8" }, label));
+    cell.appendChild(el("span", {}, label));
     row.appendChild(cell);
   }
   return row.childNodes.length ? row : null;
@@ -291,7 +289,7 @@ export function buildLightsMapCard(hostIn){
   const host = lightsHostForTier(hostIn);
   const { el, view } = host;
   const floors = host.floors || [];
-  const mapCard = el("div", { class: "card", style: "padding:12px;margin-bottom:16px" });
+  const mapCard = el("div", { class: "card lv-mapcard" });
 
   // Floors come from the FABRIC (which floors actually contain rooms/lights),
   // never from which photos happen to be uploaded. A floor with no plan image
@@ -317,7 +315,7 @@ export function buildLightsMapCard(hostIn){
   // DRAWING inside it and scrolls — resizing this box instead just slid the
   // map from side to side, because the SVG was pinned to its natural size.
   const isoDiv = document.createElement("div");
-  isoDiv.style.cssText = "overflow:auto;border-radius:8px;background:#071008;padding:8px;width:100%";
+  isoDiv.className = "lv-stage";
 
   const applyZoom = () => {
     const svg = isoDiv.querySelector("svg");
@@ -359,28 +357,19 @@ export function buildLightsMapCard(hostIn){
 
   // Grouped, not a flat run of controls: view shaping, then saving, then zoom.
   // A single undifferentiated row of eight things reads as clutter and gives
-  // no clue which control affects what.
-  // Tight on purpose: this row carries three mode toggles now as well as the
-  // view controls, and at the old 14px gap it wrapped onto a second line on a
-  // normal panel — which pushed the map down and made the modes easy to miss.
-  const ctrlRow = el("div", { style:
-    "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;"
-    + "padding:5px 7px;background:#08120c;border:1px solid #16281d;border-radius:10px" });
-  const GROUP = "display:flex;gap:4px;align-items:center";
-  const SEP = () => el("span", { style:
-    "width:1px;align-self:stretch;background:#1b3526;margin:0 1px" }, "");
-  const LBL = "font-size:10px;white-space:nowrap;text-transform:uppercase;"
-    + "letter-spacing:0.04em;color:#64748b";
+  // no clue which control affects what. Everything here wears the lv-
+  // vocabulary from styles.css (both hosts load that sheet) — the toggles are
+  // quiet glass at rest and light up in their own tone when on, so which
+  // modes are active reads at a glance.
+  const ctrlRow = el("div", { class: "lv-toolbar" });
+  const SEP = () => el("span", { class: "lv-sep" }, "");
 
   // Showcase — first in the row because it changes everything to its right.
   // Only the Mapping tab offers it (the sidebar host passes no handler), and it
   // is a VIEW: every fixture stays exactly where it was put and stays editable.
   if (host.onShowcase) {
     ctrlRow.appendChild(el("button", {
-      class: "btn inline",
-      style: host.showcase
-        ? "background:linear-gradient(135deg,#4c1d95,#7c3aed);border-color:#c4b5fd;color:#f5f3ff;font-size:11px;padding:2px 8px"
-        : "font-size:11px;padding:2px 8px",
+      class: "lv-tgl tone-violet" + (host.showcase ? " on" : ""),
       title: "Presentation rendering — real fixture colour, light pools, contact shadows",
       onclick: () => host.onShowcase(!host.showcase),
     }, host.showcase ? "✦ Showcase ✓" : "✦ Showcase"));
@@ -390,10 +379,7 @@ export function buildLightsMapCard(hostIn){
     // never rewritten: turn it off and the typed sizes come straight back.
     if (host.showcase && host.onFitRooms) {
       ctrlRow.appendChild(el("button", {
-        class: "btn inline",
-        style: host.fitRooms
-          ? "background:linear-gradient(135deg,#7c2d12,#ea580c);border-color:#fdba74;color:#fff7ed;font-size:11px;padding:2px 8px"
-          : "font-size:11px;padding:2px 8px",
+        class: "lv-tgl tone-ember" + (host.fitRooms ? " on" : ""),
         title: "No fixture is drawn larger than the room it is in, with a small "
           + "gap to the walls. Stored measurements are not changed.",
         onclick: () => host.onFitRooms(!host.fitRooms),
@@ -404,10 +390,7 @@ export function buildLightsMapCard(hostIn){
     // on a metre grid from the fixtures' real positions and brightness.
     if (host.showcase && host.onIsolux) {
       ctrlRow.appendChild(el("button", {
-        class: "btn inline",
-        style: host.isolux
-          ? "background:linear-gradient(135deg,#14532d,#16a34a);border-color:#86efac;color:#f0fdf4;font-size:11px;padding:2px 8px"
-          : "font-size:11px;padding:2px 8px",
+        class: "lv-tgl tone-green" + (host.isolux ? " on" : ""),
         title: "Relative illuminance contours on a real-metre grid — three bands "
           + "at fractions of this floor's own peak.",
         onclick: () => host.onIsolux(!host.isolux),
@@ -420,10 +403,7 @@ export function buildLightsMapCard(hostIn){
     if (host.showcase && host.onScene) {
       const cur = host.sceneName || null;
       ctrlRow.appendChild(el("button", {
-        class: "btn inline",
-        style: cur
-          ? "background:linear-gradient(135deg,#7c2d12,#db2777);border-color:#f9a8d4;color:#fdf2f8;font-size:11px;padding:2px 8px"
-          : "font-size:11px;padding:2px 8px",
+        class: "lv-tgl tone-pink" + (cur ? " on" : ""),
         title: "Cycle spatial scene previews — the field's colour at each fixture's "
           + "own position. Nothing is applied until you press Apply.",
         onclick: () => {
@@ -433,15 +413,14 @@ export function buildLightsMapCard(hostIn){
       }, cur ? `✨ ${cur}` : "✨ Scene"));
       if (cur && host.onSceneAngle) {
         ctrlRow.appendChild(el("button", {
-          class: "btn inline", style: "font-size:11px;padding:2px 8px",
+          class: "lv-act",
           title: "Rotate the scene's axis 45°",
           onclick: () => host.onSceneAngle(((Number(host.sceneAngle)||0) + 45) % 360),
         }, "↻"));
       }
       if (cur && host.onSceneApply) {
         ctrlRow.appendChild(el("button", {
-          class: "btn inline",
-          style: "background:linear-gradient(135deg,#166534,#22c55e);border-color:#86efac;color:#f0fdf4;font-size:11px;padding:2px 8px",
+          class: "lv-act primary",
           title: "Send every lit fixture the colour it is previewing",
           onclick: () => host.onSceneApply(sceneFieldFor(cur, host.sceneAngle)),
         }, "Apply"));
@@ -453,10 +432,7 @@ export function buildLightsMapCard(hostIn){
     // are already on.
     if (host.showcase && host.onRipple) {
       ctrlRow.appendChild(el("button", {
-        class: "btn inline",
-        style: host.rippleArmed
-          ? "background:linear-gradient(135deg,#1e3a8a,#3b82f6);border-color:#93c5fd;color:#eff6ff;font-size:11px;padding:2px 8px"
-          : "font-size:11px;padding:2px 8px",
+        class: "lv-tgl tone-blue" + (host.rippleArmed ? " on" : ""),
         title: "Arm, then tap the map — lights pulse outward from the tap in "
           + "real-distance order. Only lights already on take part.",
         onclick: () => host.onRipple(!host.rippleArmed),
@@ -471,10 +447,7 @@ export function buildLightsMapCard(hostIn){
   if (host.onHideUntouched) {
     const n = host.untouchedCount || 0;
     ctrlRow.appendChild(el("button", {
-      class: "btn inline",
-      style: host.hideUntouched
-        ? "background:linear-gradient(135deg,#134e4a,#0d9488);border-color:#5eead4;color:#ecfeff;font-size:11px;padding:2px 8px"
-        : "font-size:11px;padding:2px 8px",
+      class: "lv-tgl tone-teal" + (host.hideUntouched ? " on" : ""),
       title: "Show only lights that have been resized, rotated, recoloured or "
         + "given a shape. Moving a light does not count as touching it.",
       onclick: () => host.onHideUntouched(!host.hideUntouched),
@@ -487,29 +460,31 @@ export function buildLightsMapCard(hostIn){
 
   // Floor focus slider
   if (sortedLevels.length > 1) {
-    const focusLbl = el("span", { style: "font-size:12px;color:#cbd5e1;min-width:80px" }, getFocusLbl(view.focusIdx));
+    const focusLbl = el("span", { class: "lv-val", style: "min-width:80px" }, getFocusLbl(view.focusIdx));
     const focusSlider = document.createElement("input");
     focusSlider.type = "range"; focusSlider.min = "0"; focusSlider.max = String(isoPos.length - 1);
-    focusSlider.style.cssText = "width:96px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
+    focusSlider.className = "lv-range";
+    focusSlider.style.width = "96px";
     focusSlider.value = String(view.focusIdx);
     focusSlider.addEventListener("input", () => {
       view.focusIdx = parseInt(focusSlider.value, 10);
       focusLbl.textContent = getFocusLbl(view.focusIdx);
       rebuildISO();
     });
-    ctrlRow.appendChild(el("span", { class: "muted", style: LBL }, "Floor"));
+    ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Floor"));
     ctrlRow.appendChild(focusSlider);
     ctrlRow.appendChild(focusLbl);
     resetFocusCtl = () => { focusSlider.value = "0"; focusLbl.textContent = getFocusLbl(0); };
   }
 
   // Floor gap slider
-  const gapLbl = el("span", { style: "font-size:12px;color:#cbd5e1;min-width:38px;font-variant-numeric:tabular-nums" }, String(view.floorGap));
+  const gapLbl = el("span", { class: "lv-val" }, String(view.floorGap));
   const gapSlider = document.createElement("input");
   // 60–340 matches the backend's clamp exactly. A wider slider silently stored
   // a different spacing than the one on screen.
   gapSlider.type = "range"; gapSlider.min = "60"; gapSlider.max = "340"; gapSlider.step = "10";
-  gapSlider.style.cssText = "width:78px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
+  gapSlider.className = "lv-range";
+  gapSlider.style.width = "78px";
   gapSlider.value = String(view.floorGap);
   gapSlider.addEventListener("input", () => {
     view.floorGap = parseInt(gapSlider.value, 10);
@@ -517,15 +492,16 @@ export function buildLightsMapCard(hostIn){
     rebuildISO();
   });
   ctrlRow.appendChild(SEP());
-  ctrlRow.appendChild(el("span", { class: "muted", style: LBL }, "Spacing"));
+  ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Spacing"));
   ctrlRow.appendChild(gapSlider);
   ctrlRow.appendChild(gapLbl);
 
   // L/R horizontal offset slider
-  const horizLbl = el("span", { style: "font-size:12px;color:#cbd5e1;min-width:38px;font-variant-numeric:tabular-nums" }, String(view.horizGap));
+  const horizLbl = el("span", { class: "lv-val" }, String(view.horizGap));
   const horizSlider = document.createElement("input");
   horizSlider.type = "range"; horizSlider.min = "-120"; horizSlider.max = "120"; horizSlider.step = "10";
-  horizSlider.style.cssText = "width:78px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
+  horizSlider.className = "lv-range";
+  horizSlider.style.width = "78px";
   horizSlider.value = String(view.horizGap);
   horizSlider.addEventListener("input", () => {
     view.horizGap = parseInt(horizSlider.value, 10);
@@ -533,13 +509,13 @@ export function buildLightsMapCard(hostIn){
     rebuildISO();
   });
   ctrlRow.appendChild(SEP());
-  ctrlRow.appendChild(el("span", { class: "muted", style: LBL }, "L / R"));
+  ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "L / R"));
   ctrlRow.appendChild(horizSlider);
   ctrlRow.appendChild(horizLbl);
 
   // Save / Reset view buttons + status label
-  const saveLbl = el("span", { style: "font-size:11px;color:#94a3b8;min-width:50px;display:inline-block" }, "");
-  const saveBtn = el("button", { class: "btn inline", style: "margin-left:4px;font-size:11px;padding:2px 8px",
+  const saveLbl = el("span", { class: "lv-status" }, "");
+  const saveBtn = el("button", { class: "lv-act", style: "margin-left:4px",
     onclick: async () => {
       saveBtn.disabled = true;
       try {
@@ -550,7 +526,7 @@ export function buildLightsMapCard(hostIn){
       saveBtn.disabled = false;
     },
   }, "Save view");
-  const resetBtn = el("button", { class: "btn inline", style: "font-size:11px;padding:2px 8px",
+  const resetBtn = el("button", { class: "lv-act",
     onclick: async () => {
       view.floorGap = 150; view.horizGap = 0; view.focusIdx = 0; view.zoom = 1.0;
       gapSlider.value = "150"; gapLbl.textContent = "150";
@@ -569,20 +545,22 @@ export function buildLightsMapCard(hostIn){
   ctrlRow.appendChild(resetBtn);
   ctrlRow.appendChild(saveLbl);
 
-  // Zoom controls
+  // Zoom controls — one segmented cluster rather than three loose buttons
   ctrlRow.appendChild(SEP());
-  ctrlRow.appendChild(el("span", { class: "muted", style: LBL }, "Zoom"));
-  ctrlRow.appendChild(el("button", { class: "btn inline", onclick: () => {
-    view.zoom = Math.max(0.4, Math.round((view.zoom - 0.1) * 10) / 10);
-    applyZoom();
-  } }, "Zoom −"));
-  ctrlRow.appendChild(el("button", { class: "btn inline", onclick: () => {
-    view.zoom = 1.0; applyZoom();
-  } }, "100%"));
-  ctrlRow.appendChild(el("button", { class: "btn inline", onclick: () => {
-    view.zoom = Math.min(2.5, Math.round((view.zoom + 0.1) * 10) / 10);
-    applyZoom();
-  } }, "Zoom +"));
+  ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Zoom"));
+  ctrlRow.appendChild(el("span", { class: "lv-zoomseg" }, [
+    el("button", { title: "Zoom out", onclick: () => {
+      view.zoom = Math.max(0.4, Math.round((view.zoom - 0.1) * 10) / 10);
+      applyZoom();
+    } }, "−"),
+    el("button", { title: "Reset zoom", onclick: () => {
+      view.zoom = 1.0; applyZoom();
+    } }, "100%"),
+    el("button", { title: "Zoom in", onclick: () => {
+      view.zoom = Math.min(2.5, Math.round((view.zoom + 0.1) * 10) / 10);
+      applyZoom();
+    } }, "+"),
+  ]));
 
   mapCard.appendChild(ctrlRow);
   mapCard.appendChild(isoDiv);
@@ -605,21 +583,24 @@ export function buildLightsTable(host, lights){
   const hidden = host.hiddenEids;
   // The card wrapper lives HERE, not in the hosts — same objects AND same
   // layout in both views.
-  const root = el("div", { class: "card", style: "padding:12px" });
+  const root = el("div", { class: "card lv-tablecard" });
 
   const unassigned = lights.filter(l => !l.area_name && !hidden.has(l.entity_id));
   if (host.lightsLoading) {
-    root.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" }, "Loading room assignments…"));
+    root.appendChild(el("div", { class: "lv-note" }, "Loading room assignments…"));
   } else if (unassigned.length) {
-    root.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
+    root.appendChild(el("div", { class: "lv-note" },
       `${unassigned.length} light(s) not assigned to a room — shown in index only.`));
   }
 
   const hiddenCount = lights.filter(l => hidden.has(l.entity_id)).length;
-  root.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#e2e8f0;margin-bottom:6px" },
-    `Light Index (${lights.length}${hiddenCount ? ` · ${hiddenCount} hidden from map` : ""})`));
+  root.appendChild(el("div", { class: "lv-tbl-head" }, [
+    el("span", { class: "lv-tbl-title" }, "Light Index"),
+    el("span", { class: "lv-count" }, String(lights.length)),
+    hiddenCount ? el("span", { class: "lv-hint" }, `${hiddenCount} hidden from map`) : null,
+  ]));
 
-  const tbl = el("table", { class: "table", style: "width:100%" });
+  const tbl = el("table", { class: "table lv-table", style: "width:100%" });
   tbl.appendChild(el("thead", {}, el("tr", {}, [
     el("th", {}, "Code"),
     el("th", {}, "Light"),
@@ -653,7 +634,7 @@ export function buildLightsTable(host, lights){
             const areas = host.model?.areas || [];
             if (!areas.length) return "—";
             const sel = document.createElement("select");
-            sel.style.cssText = "background:#1a2e1e;color:#52b788;border:1px solid #2d4a36;border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer";
+            sel.className = "lv-select";
             sel.appendChild(el("option", { value: "" }, "Assign room…"));
             for (const a of [...areas].sort((x, y) => x.name.localeCompare(y.name))) {
               sel.appendChild(el("option", { value: a.id }, a.name));
@@ -674,13 +655,10 @@ export function buildLightsTable(host, lights){
             return sel;
           })()
       ),
-      el("td", {}, el("span", {
-        style: `display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;` +
-               `background:${on ? "#fbbf24" : "#374151"};color:${on ? "#111827" : "#fbbf24"}`,
-      }, on ? "ON" : "OFF")),
+      el("td", {}, el("span", { class: `lv-state ${on ? "on" : "off"}` }, on ? "ON" : "OFF")),
       el("td", { style: "text-align:center" }, el("button", {
-        class: "btn inline",
-        style: `font-size:11px;padding:2px 6px${isHidden ? ";opacity:0.5" : ""}`,
+        class: "lv-act",
+        style: isHidden ? "opacity:0.5" : "",
         onclick: (e) => {
           e.stopPropagation();
           host.onToggleHidden(l.entity_id);

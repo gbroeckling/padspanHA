@@ -6497,10 +6497,10 @@ function _lightsTab(ctx, maps, active) {
   if (!paid) { mapState._lightsDraftM = {}; mapState._selLight = null; mapState._lightsTransform = false; }
   const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap);
 
-  const head = el("div", { class: "card" }, [
+  const head = el("div", { class: "card lv-mapcard", style: "margin-bottom:12px" }, [
     el("div", { class: "card-head" }, [
-      el("div", { style: "font-weight:700;font-size:15px" }, "Lights"),
-      el("span", { class: "muted", style: "font-size:12px" }, paid
+      el("div", { class: "lv-hero-title", style: "font-size:16px" }, "Lights"),
+      el("span", { class: "lv-hint" }, paid
         ? "Builds the Lights sidebar's map — what you arrange here is exactly what the sidebar shows. Click a hex to select a light; drag it to where it really is."
         : "Every light in the house, one marker each, in its room. Click a marker to switch it."),
     ]),
@@ -6579,17 +6579,15 @@ function _lightsTab(ctx, maps, active) {
   // Off by default: with handles live, a stray drag near a fixture resizes it
   // instead of moving it, and moving is the common action.
   const xfBtn = !paid ? null : el("button", {
-    class: "btn inline" + (mapState._lightsTransform ? " primary" : ""),
-    style: mapState._lightsTransform
-      ? "background:#4c1d95;border-color:#a78bfa;color:#ede9fe" : "",
+    class: "lv-tgl tone-violet" + (mapState._lightsTransform ? " on" : ""),
     onclick: () => {
       mapState._lightsTransform = !mapState._lightsTransform;
       ctx.actions.renderRooms();
     },
   }, mapState._lightsTransform ? "⬒ Transform: ON" : "⬒ Transform");
-  if (paid) wrap.appendChild(el("div", { class: "card", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px" }, [
+  if (paid) wrap.appendChild(el("div", { class: "card lv-tablecard", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px" }, [
     xfBtn,
-    el("span", { class: "muted", style: "font-size:11px" },
+    el("span", { class: "lv-hint" },
       mapState._lightsTransform
         ? "Drag a light to move it. Drag its handles to resize; the round handle above rotates."
         : "Drag any light to move it. Turn on Transform for resize and rotate handles."),
@@ -6598,7 +6596,7 @@ function _lightsTab(ctx, maps, active) {
   // Unsaved-work bar
   const dirtyEids = Object.keys(mapState._lightsDraftM || {});
   if (dirtyEids.length) {
-    const bar = el("div", { class: "card", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;border:1px solid #b8860b" }, [
+    const bar = el("div", { class: "card lv-tablecard", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;border:1px solid rgba(251,191,36,.5);box-shadow:0 0 18px rgba(251,191,36,.08);margin-bottom:12px" }, [
       el("span", { style: "font-size:12px;color:#fbbf24;font-weight:600" },
         `${dirtyEids.length} unsaved light placement${dirtyEids.length !== 1 ? "s" : ""}`),
       el("button", { class: "btn inline primary", onclick: async (e) => {
