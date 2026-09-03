@@ -1595,16 +1595,30 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
     // A sensor that has GONE QUIET still says how long ago, at a glance:
     // "flashing blue goes to a flashing purple after the blue has stopped
-    // ... all colours from blue to purple over 6 hours" — Garry. The hue
-    // sweeps almost the whole wheel (a genuine rainbow, not a two-colour
-    // flip) from blue at the instant it untrips to violet at the 6-hour
-    // mark, then the glow is gone — "recent" has a hard edge, same as the
-    // 6-hour window it is answering.
+    // ... all colours from blue to purple over 6 hours" — Garry, then: "the
+    // blue only stays on for 5 minutes, and the next color is visibly not
+    // blue" / "I need a clear 5 min indicator". A CONTINUOUS sweep across 6
+    // hours moves under 1°/minute — mathematically correct but invisible at
+    // a glance, which is what "not changing" actually meant. This is a
+    // STEP function instead: held stages, each a genuinely distinct hue,
+    // front-loaded (blue gets a firm 5-minute hold, then a big jump to
+    // cyan) because "how long ago, roughly" needs fine resolution early and
+    // only coarse resolution once it has been a while — the last stage
+    // (violet) is held for a full two hours so it reads as unmistakably
+    // purple well before the 6-hour cutoff, not for an instant at the edge.
+    const MOTION_COLOR_STOPS=[
+      [0,                240],  // blue — the active colour, holds firm
+      [5*60*1000,        195],  // cyan — the first, deliberately obvious jump
+      [20*60*1000,       155],  // teal
+      [45*60*1000,       110],  // green
+      [90*60*1000,        55],  // gold
+      [150*60*1000,       15],  // orange
+      [240*60*1000,      280],  // violet — held all the way to the 6h cutoff
+    ];
     const motionRecentHue=(elapsedMs)=>{
-      const t=Math.max(0,Math.min(1,elapsedMs/MOTION_RECENT_MS));
-      // 240°=blue, sweeping DOWN (the long way through cyan/green/yellow/
-      // red/magenta) by 325° lands at 275°=violet when t reaches 1.
-      return ((240-325*t)%360+360)%360;
+      let hue=MOTION_COLOR_STOPS[0][1];
+      for(const [atMs,h] of MOTION_COLOR_STOPS){ if(elapsedMs>=atMs) hue=h; else break; }
+      return hue;
     };
     // Calmer than the active pulse on purpose — a single breathing ring, no
     // expanding radar sweep, slower — it is a memory of activity, not a

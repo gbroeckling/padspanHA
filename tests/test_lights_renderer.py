@@ -1218,31 +1218,44 @@ def test_motion_sensor_pulses_blue_while_triggered_and_fans_do_not_pool(tmp_path
 def test_motion_sensor_fades_blue_to_purple_over_six_hours_after_going_quiet(tmp_path):
     """Garry: "if a motion detector went off in the last 6 hours the
     flashing blue goes to a flashing purple after the blue has stopped" —
-    then: "Or, better yet, from blue to a rainbow, end at hour 6 with
-    purple" — then confirmed: "so all colours from blue to purple over 6
-    hours". last_changed is HA's own field for when a binary_sensor
-    stopped tripping; nowMs is injectable so this test does not race a
-    real clock."""
+    "Or, better yet, from blue to a rainbow, end at hour 6 with purple" —
+    "so all colours from blue to purple over 6 hours" — then, watching it
+    live: "don't think the color is changing" (verified working — a
+    continuous sweep moves under 1deg/minute, correct but invisible) — "the
+    blue only stays on for 5 minutes, and the next color is visibly not
+    blue" / "I need a clear 5 min indicator". A STEP function now, not a
+    smooth blend: held stages, each a genuinely distinct hue, front-loaded.
+    last_changed is HA's own field for when a binary_sensor stopped
+    tripping; nowMs is injectable so this test does not race a real clock."""
     model = {
         "room_geometry_m": {"Hall": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
         "light_positions_m": {
-            "binary_sensor.just_now":  {"x_m": 1.0, "y_m": 2.0, "floor_id": "main"},
-            "binary_sensor.mid":       {"x_m": 2.0, "y_m": 2.0, "floor_id": "main"},
-            "binary_sensor.almost_six": {"x_m": 3.0, "y_m": 2.0, "floor_id": "main"},
-            "binary_sensor.over_six":  {"x_m": 4.0, "y_m": 2.0, "floor_id": "main"},
-            "binary_sensor.no_ts":     {"x_m": 5.0, "y_m": 2.0, "floor_id": "main"},
-            "binary_sensor.active":    {"x_m": 6.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.just_now":   {"x_m": 1.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.under_five": {"x_m": 2.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.just_after_five": {"x_m": 3.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.mid":        {"x_m": 4.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.almost_six": {"x_m": 5.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.over_six":   {"x_m": 6.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.no_ts":      {"x_m": 7.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.active":     {"x_m": 8.0, "y_m": 2.0, "floor_id": "main"},
         },
     }
     NOW = 1_000_000_000_000  # an arbitrary fixed epoch ms, matched by nowMs
     H = 3_600_000
+    M = 60_000
     lbe = {
-        "binary_sensor.just_now":   {"entity_id": "binary_sensor.just_now",   "state": "off", "code": "M01", "shape": "motion", "isMotion": True, "last_changed": NOW - 1},
-        "binary_sensor.mid":        {"entity_id": "binary_sensor.mid",        "state": "off", "code": "M02", "shape": "motion", "isMotion": True, "last_changed": NOW - 3 * H},
-        "binary_sensor.almost_six": {"entity_id": "binary_sensor.almost_six", "state": "off", "code": "M03", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H - 1000)},
-        "binary_sensor.over_six":   {"entity_id": "binary_sensor.over_six",   "state": "off", "code": "M04", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H + 1000)},
-        "binary_sensor.no_ts":      {"entity_id": "binary_sensor.no_ts",      "state": "off", "code": "M05", "shape": "motion", "isMotion": True, "last_changed": None},
-        "binary_sensor.active":     {"entity_id": "binary_sensor.active",     "state": "on",  "code": "M06", "shape": "motion", "isMotion": True, "last_changed": NOW - 5 * H},
+        "binary_sensor.just_now":        {"entity_id": "binary_sensor.just_now",        "state": "off", "code": "M01", "shape": "motion", "isMotion": True, "last_changed": NOW - 1},
+        # 4m59s quiet: STILL the held blue stage — the 5-minute promise means
+        # "holds THROUGH 5 minutes", not "starts fading immediately".
+        "binary_sensor.under_five":      {"entity_id": "binary_sensor.under_five",      "state": "off", "code": "M02", "shape": "motion", "isMotion": True, "last_changed": NOW - (5 * M - 1000)},
+        # 5m01s quiet: the very next instant after the hold — must already
+        # be a CLEARLY different hue, not a one-degree nudge off blue.
+        "binary_sensor.just_after_five": {"entity_id": "binary_sensor.just_after_five", "state": "off", "code": "M03", "shape": "motion", "isMotion": True, "last_changed": NOW - (5 * M + 1000)},
+        "binary_sensor.mid":             {"entity_id": "binary_sensor.mid",             "state": "off", "code": "M04", "shape": "motion", "isMotion": True, "last_changed": NOW - 3 * H},
+        "binary_sensor.almost_six":      {"entity_id": "binary_sensor.almost_six",      "state": "off", "code": "M05", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H - 1000)},
+        "binary_sensor.over_six":        {"entity_id": "binary_sensor.over_six",        "state": "off", "code": "M06", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H + 1000)},
+        "binary_sensor.no_ts":           {"entity_id": "binary_sensor.no_ts",           "state": "off", "code": "M07", "shape": "motion", "isMotion": True, "last_changed": None},
+        "binary_sensor.active":          {"entity_id": "binary_sensor.active",          "state": "on",  "code": "M08", "shape": "motion", "isMotion": True, "last_changed": NOW - 5 * H},
     }
     # Encode last_changed as real ISO strings (what gatherLights actually
     # hands the renderer), built from the epoch-ms markers above.
@@ -1263,6 +1276,8 @@ def test_motion_sensor_fades_blue_to_purple_over_six_hours_after_going_quiet(tmp
         "};\n"
         "console.log(JSON.stringify({\n"
         "  justNow: hueFor('binary_sensor.just_now'),\n"
+        "  underFive: hueFor('binary_sensor.under_five'),\n"
+        "  justAfterFive: hueFor('binary_sensor.just_after_five'),\n"
         "  mid: hueFor('binary_sensor.mid'),\n"
         "  almostSix: hueFor('binary_sensor.almost_six'),\n"
         "  overSix: hueFor('binary_sensor.over_six'),\n"
@@ -1270,15 +1285,21 @@ def test_motion_sensor_fades_blue_to_purple_over_six_hours_after_going_quiet(tmp
         "  activeHasBluePulse: /fill=\"url\\(#psmotion\\)\"/.test(svg),\n"
         "}));\n"
     ))
-    # Just gone quiet: hue is (almost exactly) blue, 240°.
-    assert out["justNow"] is not None and abs(out["justNow"] - 240) <= 1, out
-    # Halfway (3h of 6): a genuinely different hue — the rainbow is moving,
-    # not a two-colour flip that would leave this looking like one endpoint.
-    assert out["mid"] is not None, out
-    assert abs(out["mid"] - 240) > 60 and abs(out["mid"] - 275) > 60, \
-        f"the 3h mark must read as neither blue nor violet, it's a sweep: {out}"
-    # Just under 6h: close to violet (275°), not yet gone.
-    assert out["almostSix"] is not None and abs(out["almostSix"] - 275) <= 2, out
+    # Just gone quiet, and still under 5 minutes: BOTH hold at the exact
+    # same solid blue — no drift at all within the hold.
+    assert out["justNow"] == 240, out
+    assert out["underFive"] == 240, "the 5-minute hold must be a firm hold, not a slow drift toward it ending"
+    # The very next instant after 5 minutes: a BIG, unmistakable jump —
+    # "a clear 5 min indicator" — not a one-degree nudge off blue.
+    assert out["justAfterFive"] is not None and abs(out["justAfterFive"] - 240) >= 30, \
+        f"the step right after 5 minutes must be visibly not blue: {out}"
+    # 3h in: further along still — the march through the rainbow continues,
+    # neither blue nor the final violet.
+    assert out["mid"] is not None
+    assert abs(out["mid"] - 240) > 60 and abs(out["mid"] - 280) > 60, \
+        f"the 3h mark must read as neither blue nor violet: {out}"
+    # Just under 6h: the final stage — violet, held all the way to the edge.
+    assert out["almostSix"] == 280, out
     # Past 6h: no glow at all — "recent" has a hard edge.
     assert out["overSix"] is None, "a sensor quiet for over 6 hours must show no recent-pulse at all"
     # No timestamp at all (defensive): no glow, no crash.
