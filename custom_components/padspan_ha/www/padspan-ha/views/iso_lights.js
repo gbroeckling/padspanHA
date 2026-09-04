@@ -1598,17 +1598,34 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // coordinates and room polygons are in scope — {col} overrides the pool
     // colour (scene preview), {spill} is wall-spill line segments already
     // projected to px: [[x1,y1,x2,y2,fade], ...].
-    // The blue pulse a triggered motion sensor throws — both modes, drawn
-    // in the same underlay pass as the light pools so it sits beneath every
-    // marker. Two layers: a breathing soft disc, and a ring that expands
-    // and fades, radar-style, on a shared 1.6s clock.
-    const motionPulseSvg=(hx,hy,eid)=>{
+    // The pulse a CURRENTLY TRIGGERED motion sensor throws — drawn in the
+    // same underlay pass as the light pools so it sits beneath every marker.
+    // Two layers: a breathing soft disc, and a ring that expands and fades,
+    // radar-style, on a shared 1.6s clock.
+    //
+    // The ring's COLOUR is not fixed blue — it takes the same elapsed-since-
+    // last-transition hue the quiet-sensor ring uses (motionRecentHue,
+    // below). Before this, an "on" sensor was always the flat, unchanging
+    // brand blue for as long as its own hardware happened to keep reporting
+    // "on" — five seconds for a short-hold PIR, twenty minutes for a
+    // sensor with a long retrigger timer, indefinitely for a genuine
+    // occupancy/radar unit that stays "on" for as long as someone is
+    // actually in the room. Three different pieces of hardware, three
+    // completely different-looking markers, none of them related to Garry's
+    // actual spec ("start blue, stay blue for 5 minutes, and then cycle
+    // thru all colors") — that spec describes ONE continuous clock running
+    // from the last time the sensor changed state, and it has to keep
+    // running whether the sensor is currently on or has gone quiet, or two
+    // sensors with different hold-time firmware will never look the same
+    // even though nothing about the ROOM is actually different.
+    const motionPulseSvg=(hx,hy,eid,degSweep)=>{
       const r0=HEX_R*1.15;
+      const col=`hsl(${degSweep.toFixed(0)},75%,58%)`;
       return `<g class="lpulse" data-eid="${escSVG(eid)}" pointer-events="none">`+
         `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${(r0*1.6).toFixed(1)}" fill="url(#psmotion)" opacity="0.55">`+
         `<animate attributeName="opacity" values="0.55;0.2;0.55" dur="1.6s" repeatCount="indefinite"/>`+
         `</circle>`+
-        `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${r0.toFixed(1)}" fill="none" stroke="${MOTION_PULSE}" stroke-width="1.6">`+
+        `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${r0.toFixed(1)}" fill="none" stroke="${col}" stroke-width="1.6">`+
         `<animate attributeName="r" values="${(r0*0.7).toFixed(1)};${(r0*2.4).toFixed(1)}" dur="1.6s" repeatCount="indefinite"/>`+
         `<animate attributeName="opacity" values="0.8;0" dur="1.6s" repeatCount="indefinite"/>`+
         `</circle></g>`;
@@ -1982,24 +1999,39 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         }
       }
     }
-    // Triggered motion sensors pulse blue beneath their markers — BOTH
-    // modes, unlike the light pools above: a tripped sensor is live status,
-    // not a presentation effect.
+    // Motion sensors pulse beneath their markers — live status, not a
+    // presentation effect — on ONE clock whichever state they're in:
+    // elapsed since the ENTITY'S OWN last_changed, which is the moment it
+    // started triggering while "on" and the moment it stopped while "off".
+    // Using the same clock and the same colour schedule (motionRecentHue)
+    // for both is what makes hardware with a five-second hold timer, a
+    // twenty-minute one, and a sustained occupancy sensor that stays "on"
+    // for as long as someone is actually there all read the same way at
+    // the same elapsed time — none of that is visible here, only how long
+    // it has been since something changed. Past the outer cutoff nothing
+    // is drawn at all, on or off: a sensor still reporting "on" six hours
+    // later is a stuck sensor, not six hours of continuous fresh motion.
     if(LOCATE_EID){
       const found=jobs.find(j=>j[0].entity_id===LOCATE_EID);
       if(found) s+=locateSvg(found[1],found[2]);
     }
     for(const [l2,hx,hy] of jobs){
       if(!l2.isMotion) continue;
-      if(l2.state==="on"){ s+=motionPulseSvg(hx,hy,l2.entity_id); continue; }
-      // Quiet now — was it quiet RECENTLY? last_changed is when it last
-      // flipped state, so while off that IS when it stopped tripping. No
-      // timestamp (or an unparsable one) makes elapsed NaN, and every
-      // comparison below is false for NaN — that's the bail-out, nothing
-      // extra needed for a missing last_changed.
+      // No timestamp (or an unparsable one) makes rawElapsed NaN. While OFF
+      // that is a genuine bail-out — with no known quiet-since time there is
+      // no recency to show. While ON it is not: the sensor is demonstrably
+      // active RIGHT NOW regardless of whether last_changed happened to
+      // come through, so a missing/bad timestamp there falls back to
+      // elapsed 0 (blue, just like a fresh trigger) rather than drawing
+      // nothing and silently losing the one signal ("this sensor just
+      // tripped") the marker exists to show.
       const lastMs=l2.last_changed ? Date.parse(l2.last_changed) : NaN;
-      const elapsed=NOW_MS-lastMs;
-      if(elapsed>=0 && elapsed<MOTION_RECENT_MS) s+=motionRecentPulseSvg(hx,hy, motionRecentHue(elapsed), l2.entity_id);
+      const rawElapsed=NOW_MS-lastMs;
+      const elapsed=(l2.state==="on" && !(rawElapsed>=0)) ? 0 : rawElapsed;
+      if(!(elapsed>=0) || elapsed>=MOTION_RECENT_MS) continue;
+      const hue=motionRecentHue(elapsed);
+      if(l2.state==="on") s+=motionPulseSvg(hx,hy,l2.entity_id,hue);
+      else s+=motionRecentPulseSvg(hx,hy,hue,l2.entity_id);
     }
     // Halos go under EVERY marker on the floor (see haloSvg); then the
     // markers; then the use-mode stack chips, which stand in for markers.

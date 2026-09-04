@@ -1258,7 +1258,7 @@ def test_motion_sensor_pulses_blue_while_triggered_and_fans_do_not_pool(tmp_path
     assert out["motionGlyph"] and out["fanGlyph"], out
 
 
-def test_motion_sensor_fades_blue_to_green_over_two_hours_after_going_quiet(tmp_path):
+def test_motion_sensor_fades_blue_to_green_on_one_clock_whether_on_or_quiet(tmp_path):
     """Garry, across several rounds: "if a motion detector went off in the
     last 6 hours the flashing blue goes to a flashing purple after the blue
     has stopped" — "so all colours from blue to purple over 6 hours" — then,
@@ -1286,6 +1286,8 @@ def test_motion_sensor_fades_blue_to_green_over_two_hours_after_going_quiet(tmp_
             "binary_sensor.over_six":        {"x_m": 8.0, "y_m": 2.0, "floor_id": "main"},
             "binary_sensor.no_ts":           {"x_m": 9.0, "y_m": 2.0, "floor_id": "main"},
             "binary_sensor.active":          {"x_m": 10.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.active_fresh":    {"x_m": 11.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.active_stuck":    {"x_m": 12.0, "y_m": 2.0, "floor_id": "main"},
         },
     }
     NOW = 1_000_000_000_000  # an arbitrary fixed epoch ms, matched by nowMs
@@ -1311,7 +1313,18 @@ def test_motion_sensor_fades_blue_to_green_over_two_hours_after_going_quiet(tmp_
         "binary_sensor.almost_six":      {"entity_id": "binary_sensor.almost_six",      "state": "off", "code": "M07", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H - 1000)},
         "binary_sensor.over_six":        {"entity_id": "binary_sensor.over_six",        "state": "off", "code": "M08", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H + 1000)},
         "binary_sensor.no_ts":           {"entity_id": "binary_sensor.no_ts",           "state": "off", "code": "M09", "shape": "motion", "isMotion": True, "last_changed": None},
+        # A sensor that is CURRENTLY "on" runs the exact same clock as one
+        # that has gone quiet — elapsed since last_changed, same colour
+        # schedule. A hold-time or a genuine sustained-occupancy sensor that
+        # keeps reporting "on" must sweep through the same stages a
+        # momentary PIR does once it goes quiet, not stay flat blue for as
+        # long as its own hardware happens to keep the state "on".
         "binary_sensor.active":          {"entity_id": "binary_sensor.active",          "state": "on",  "code": "M10", "shape": "motion", "isMotion": True, "last_changed": NOW - 5 * H},
+        "binary_sensor.active_fresh":    {"entity_id": "binary_sensor.active_fresh",    "state": "on",  "code": "M11", "shape": "motion", "isMotion": True, "last_changed": NOW - 1000},
+        # Reporting "on" continuously past the 6h outer cutoff is a stuck
+        # sensor, not six hours of one continuous fresh event — it gets the
+        # same hard edge a quiet sensor gets: nothing drawn at all.
+        "binary_sensor.active_stuck":    {"entity_id": "binary_sensor.active_stuck",    "state": "on",  "code": "M12", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H + 1000)},
     }
     # Encode last_changed as real ISO strings (what gatherLights actually
     # hands the renderer), built from the epoch-ms markers above.
@@ -1330,6 +1343,10 @@ def test_motion_sensor_fades_blue_to_green_over_two_hours_after_going_quiet(tmp_
         "  const m=new RegExp('class=\"lrecent\" data-eid=\"'+eid.replace(/\\./g,'\\\\.')+'\"[^]*?stroke=\"hsl\\\\((\\\\d+),').exec(svg);\n"
         "  return m ? parseInt(m[1],10) : null;\n"
         "};\n"
+        "const pulseHueFor=(eid)=>{\n"
+        "  const m=new RegExp('class=\"lpulse\" data-eid=\"'+eid.replace(/\\./g,'\\\\.')+'\"[^]*?stroke=\"hsl\\\\((\\\\d+),').exec(svg);\n"
+        "  return m ? parseInt(m[1],10) : null;\n"
+        "};\n"
         "console.log(JSON.stringify({\n"
         "  justNow: hueFor('binary_sensor.just_now'),\n"
         "  underFive: hueFor('binary_sensor.under_five'),\n"
@@ -1340,7 +1357,10 @@ def test_motion_sensor_fades_blue_to_green_over_two_hours_after_going_quiet(tmp_
         "  almostSix: hueFor('binary_sensor.almost_six'),\n"
         "  overSix: hueFor('binary_sensor.over_six'),\n"
         "  noTs: hueFor('binary_sensor.no_ts'),\n"
-        "  activeHasBluePulse: /fill=\"url\\(#psmotion\\)\"/.test(svg),\n"
+        "  activeHue: pulseHueFor('binary_sensor.active'),\n"
+        "  activeFreshHue: pulseHueFor('binary_sensor.active_fresh'),\n"
+        "  activeStuckHue: pulseHueFor('binary_sensor.active_stuck'),\n"
+        "  activeStuckHasAnyPulseMarkup: /class=\"l(pulse|recent)\" data-eid=\"binary_sensor\\.active_stuck\"/.test(svg),\n"
         "}));\n"
     ))
     # Just gone quiet, and still under 5 minutes: BOTH hold at the exact
@@ -1364,9 +1384,22 @@ def test_motion_sensor_fades_blue_to_green_over_two_hours_after_going_quiet(tmp_
     assert out["overSix"] is None, "a sensor quiet for over 6 hours must show no recent-pulse at all"
     # No timestamp at all (defensive): no glow, no crash.
     assert out["noTs"] is None, out
-    # An ACTIVELY triggered sensor keeps its existing blue pulse, unaffected
-    # by how long ago some OTHER sensor went quiet.
-    assert out["activeHasBluePulse"], "the active (on) sensor must keep its own blue pulse"
+    # A CURRENTLY TRIGGERED sensor runs the exact same clock as a quiet one:
+    # 5h in, it reads green — the same stage a quiet sensor would show at
+    # the same elapsed time, not the flat, unchanging blue every "on"
+    # sensor used to show regardless of how long its own hardware had held
+    # the state.
+    assert out["activeHue"] == 120, \
+        f"an 'on' sensor 5h since its last transition must be green, same as a quiet one: {out}"
+    # An "on" sensor that JUST started must still start blue.
+    assert out["activeFreshHue"] == 240, out
+    # An "on" sensor stuck past the 6h outer cutoff gets the same hard edge
+    # a quiet one gets: no pulse ring, no recency ring — nothing, because a
+    # sensor still claiming "on" six hours after its last transition is
+    # stuck, not six hours of one continuous fresh event.
+    assert out["activeStuckHue"] is None, out
+    assert not out["activeStuckHasAnyPulseMarkup"], \
+        "a sensor stuck 'on' past 6h must draw no motion glow at all"
 
 
 def test_room_label_steps_out_of_a_markers_way_by_its_own_rendered_width(tmp_path):
