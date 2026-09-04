@@ -257,6 +257,11 @@ export function install(globalObj = globalThis) {
 
   globalObj.getComputedStyle = () => ({ getPropertyValue: () => "", width: "800px", height: "600px" });
   globalObj.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+  // `new Image()` is how views drop a floor-plan photo into the stage
+  // (maps.js's Edit tab, the Upload crop preview) — the same element
+  // document.createElement("img") already produces, just reached through
+  // the other constructor real browsers offer for it.
+  globalObj.Image = class extends Node { constructor() { super("img"); } };
   globalObj.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
   globalObj.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} };
   globalObj.MutationObserver = class { observe() {} disconnect() {} takeRecords() { return []; } };

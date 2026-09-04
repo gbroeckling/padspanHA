@@ -25,6 +25,11 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
+// "Is this map-setup step done?" — shared with the Overview onboarding
+// checklist (panel.js) so the two can never disagree about what's finished.
+const { hasScale: _wizHasScale, hasRooms: _wizHasRooms, hasReceivers: _wizHasReceivers,
+        undrawnAreaNames: _wizUndrawnAreas } =
+  await import(`./setup_status.js${new URL(import.meta.url).search}`);
 
 // ── Maps View ────────────────────────────────────────────────────────────────
 //
@@ -66,6 +71,15 @@ export function render(ctx){
   const maps = (ctx.state.maps && ctx.state.maps.list) ? ctx.state.maps.list : [];
   const activeId = ctx.state.activeMapId || (maps[0] && maps[0].id) || null;
   const active = maps.find(m=>m.id===activeId) || null;
+
+  // Setup Wizard — a guided walkthrough that takes over the whole Mapping
+  // surface while active (see _wizard below). Short-circuits before the
+  // normal tab bar so a household setting up a floor is never shown two
+  // navigation systems at once.
+  if (ctx.state._mapsWizard) {
+    root.appendChild(_wizard(ctx, maps, isBasic));
+    return root;
+  }
 
   const tab = ctx.state.mapsTab || "library";
   const setTab = (t)=>ctx.actions.setMapsTab(t);
@@ -287,6 +301,9 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
         ...(!isBasic && maps.length >= 2 ? [el("button",{class:"btn inline",style:"font-size:11px;padding:2px 10px;background:#0a1a2a;border-color:#1e4976;color:#7dd3fc",
           onclick:()=>{ _compareAllMaps(ctx, maps, _compareResultDiv); }
         }, "Compare Maps")] : []),
+        ...(maps.length ? [el("button",{class:"btn inline",style:"font-size:11px;padding:2px 10px",
+          onclick:()=>{ ctx.state.activeMapId = null; ctx.state._mapsWizard = { step: 1, mapId: null }; ctx.actions.renderRooms(); }
+        }, "+ Add a floor")] : []),
       ]),
       helpBtn("maps_library"),
     ]),
@@ -299,7 +316,22 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
   }
 
   if(!maps.length){
-    wrap.appendChild(el("div",{class:"muted", style:"margin-top:10px"},"No maps yet. Go to Upload tab."));
+    const empty = el("div",{style:"margin-top:14px;padding:18px;border-radius:10px;background:#0a1a12;border:1px solid #1a4228;text-align:center"});
+    empty.appendChild(el("div",{style:"font-weight:700;font-size:15px;margin-bottom:6px"}, "No floor plans yet"));
+    empty.appendChild(el("div",{class:"muted", style:"margin-bottom:14px;font-size:12.5px"},
+      "The setup wizard walks you through uploading a floor plan, setting its scale, drawing rooms, and placing scanners, one step at a time."));
+    const startBtn = el("button",{class:"btn primary", style:"font-size:13px;padding:8px 18px"}, "Start Setup Wizard");
+    startBtn.addEventListener("click", ()=>{
+      ctx.state._mapsWizard = { step: 1, mapId: null };
+      ctx.actions.renderRooms();
+    });
+    empty.appendChild(startBtn);
+    empty.appendChild(el("div",{style:"margin-top:10px"},[
+      el("span",{class:"muted", style:"font-size:11.5px"}, "Prefer to do it by hand? "),
+      (()=>{ const a = el("span",{style:"font-size:11.5px;color:#5eead4;cursor:pointer;text-decoration:underline"}, "Go to the Upload tab");
+        a.addEventListener("click", ()=>ctx.actions.setMapsTab("upload")); return a; })(),
+    ]));
+    wrap.appendChild(empty);
     return wrap;
   }
 
@@ -1032,6 +1064,240 @@ async function _preparePngFromUrl(imgUrl, maxDim, crop=null){
   const ab = await pngBlob.arrayBuffer();
   const b64 = _arrayBufferToBase64(ab);
   return {width:tw, height:th, pngBase64:b64};
+}
+
+// ── Setup Wizard ─────────────────────────────────────────────────────────────
+// A guided walkthrough of the four steps that build a working floor plan:
+// Upload, Scale, Rooms, Scanners. Every step re-uses the SAME tools the
+// ordinary tabs use (_upload, and _edit in its Measure/Rooms/Receivers
+// modes) — this is a thin shell around them, not a second copy of the
+// upload/drawing logic, so a bug fixed in the ordinary Edit tab is fixed
+// here too, automatically.
+//
+// ctx.state._mapsWizard = { step, mapId, _lastForcedStep } while open;
+// falsy means closed and the ordinary tab bar renders instead (see the
+// short-circuit at the top of render()).
+//
+// This is a different pattern from the Overview onboarding checklist, which
+// only ever deep-links to a bare tab and leaves the household to find the
+// right tool inside it themselves:
+//   - one task per screen, the current step highlighted among all of them
+//   - the actual tool for that step is embedded right here, not linked away
+//   - Back always works; every step but Upload can be skipped and returned
+//     to later — Upload can't, because there's nothing to edit without a map
+//   - "is this step done" is read from setup_status.js, the SAME functions
+//     the onboarding checklist uses — a second, driftable copy of "is this
+//     finished" is exactly the bug class this session already fixed once
+//     for LIGHT_SHAPES and the in-app help system
+const WIZARD_STEPS = [
+  { n: 1, id: "upload",   label: "Upload floor plan" },
+  { n: 2, id: "scale",    label: "Set the scale" },
+  { n: 3, id: "rooms",    label: "Draw rooms" },
+  { n: 4, id: "scanners", label: "Place scanners" },
+  { n: 5, id: "finish",   label: "Finish" },
+];
+
+// Only re-force the underlying Edit tool's mode when the wizard STEP
+// changes, not on every render — otherwise switching to Rooms mode by hand
+// while still on the Scale step (to peek ahead) would get stomped back to
+// Measure on the very next redraw.
+function _wizardForceEditMode(ctx, w, mode){
+  if (w._lastForcedStep !== w.step) {
+    ctx.state.maps._mode = mode;
+    w._lastForcedStep = w.step;
+  }
+}
+
+function _wizardFooter(ctx, w, opts){
+  opts = opts || {};
+  const { el } = ctx.helpers;
+  const bar = el("div",{style:"display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px;flex-wrap:wrap"});
+  const left = el("div",{});
+  if (w.step > 1) {
+    const b = el("button",{class:"btn inline"}, "← Back");
+    b.addEventListener("click", ()=>{ w.step -= 1; ctx.actions.renderRooms(); });
+    left.appendChild(b);
+  }
+  bar.appendChild(left);
+  const right = el("div",{style:"display:flex;gap:8px"});
+  if (opts.skip) {
+    const sk = el("button",{class:"btn inline", style:"color:#94a3b8"}, opts.skipLabel || "Skip for now");
+    sk.addEventListener("click", ()=>{ w.step += 1; ctx.actions.renderRooms(); });
+    right.appendChild(sk);
+  }
+  const nx = el("button",{class:"btn primary"}, opts.nextLabel || "Next →");
+  nx.addEventListener("click", ()=>{
+    if (opts.onNext) opts.onNext();
+    else { w.step += 1; ctx.actions.renderRooms(); }
+  });
+  right.appendChild(nx);
+  bar.appendChild(right);
+  return bar;
+}
+
+function _wizardUpload(ctx, isBasic){
+  const { el, helpBtn } = ctx.helpers;
+  const wrap = el("div",{});
+  wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
+    "First: a photo or scan of this floor. It doesn't need to be perfect — you'll set the real-world scale and trace rooms next."));
+  wrap.appendChild(_upload(ctx, helpBtn, isBasic));
+  return wrap;
+}
+
+function _wizardScale(ctx, map, maps, w){
+  const { el } = ctx.helpers;
+  _wizardForceEditMode(ctx, w, "measure");
+  const wrap = el("div",{});
+  const done = _wizHasScale(ctx.state);
+  wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
+    "Measure two points you know the real distance between — a doorway, a wall — so distances on the map match distances in the house. " +
+    "Rooms can be drawn without this, but wall attenuation and any real-world measurement need it, so it's worth doing now while you're here."));
+  if (done) wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1f14;border:1px solid #1a4228;border-radius:6px;color:#86efac;font-size:12.5px"},
+    "✓ Scale is set for this house."));
+  wrap.appendChild(_edit(ctx, map, maps));
+  wrap.appendChild(_wizardFooter(ctx, w, { skip: !done, skipLabel: "Skip — set this later" }));
+  return wrap;
+}
+
+function _wizardRooms(ctx, map, maps, w){
+  const { el } = ctx.helpers;
+  _wizardForceEditMode(ctx, w, "rooms");
+  const wrap = el("div",{});
+  const areaNames = ((ctx.state.model && ctx.state.model.areas) || []).map(a=>a.name).filter(Boolean);
+  const undrawn = _wizUndrawnAreas(ctx.state);
+  const drawnCount = areaNames.length - undrawn.length;
+  wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
+    "Trace the outline of each room from your Home Assistant areas onto the floor plan. Pick a room from the dropdown below the map, click around its outline, then Save Layout."));
+  if (areaNames.length) {
+    const check = el("div",{style:"margin-bottom:10px;padding:10px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px"});
+    check.appendChild(el("div",{style:"font-weight:700;font-size:12.5px;color:#52b788;margin-bottom:6px"},
+      `${drawnCount} of ${areaNames.length} room${areaNames.length===1?"":"s"} drawn`));
+    if (undrawn.length) {
+      const list = el("div",{style:"display:flex;flex-wrap:wrap;gap:6px"});
+      for (const name of undrawn) {
+        list.appendChild(el("span",{style:"font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,.12);color:#94a3b8"}, name));
+      }
+      check.appendChild(list);
+    } else {
+      check.appendChild(el("div",{style:"font-size:12px;color:#86efac"}, "Every room from Home Assistant has a boundary here."));
+    }
+    wrap.appendChild(check);
+  }
+  wrap.appendChild(_edit(ctx, map, maps));
+  wrap.appendChild(_wizardFooter(ctx, w, { skip: drawnCount < areaNames.length, skipLabel: "Skip — finish rooms later" }));
+  return wrap;
+}
+
+function _wizardScanners(ctx, map, maps, w){
+  const { el } = ctx.helpers;
+  _wizardForceEditMode(ctx, w, "receivers");
+  const wrap = el("div",{});
+  const count = map && map.receivers ? map.receivers.length : 0;
+  wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
+    "Place a marker for every Bluetooth scanner on this floor, where it's actually mounted. Double-click the map to add one, then drag it into position."));
+  wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:6px;color:#86efac;font-size:12.5px"},
+    count ? `${count} scanner${count===1?"":"s"} placed on this floor.` : "No scanners placed on this floor yet."));
+  wrap.appendChild(_edit(ctx, map, maps));
+  wrap.appendChild(_wizardFooter(ctx, w, { skip: count === 0, skipLabel: "Skip — place scanners later", nextLabel: "Finish →" }));
+  return wrap;
+}
+
+function _wizardFinish(ctx, map, isBasic){
+  const { el } = ctx.helpers;
+  const wrap = el("div",{class:"card"});
+  const rooms = map ? Object.keys(map.room_bounds || {}).length : 0;
+  const scanners = map ? (map.receivers||[]).length : 0;
+  wrap.appendChild(el("div",{style:"font-weight:700;font-size:16px;margin-bottom:8px"},
+    `${map ? (map.name || "This floor") : "This floor"} is set up`));
+  wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:14px;line-height:1.6"},
+    `${rooms} room${rooms===1?"":"s"} traced, ${scanners} scanner${scanners===1?"":"s"} placed. ` +
+    "Next: calibrate, so PadSpan learns what those scanners actually see from each room — a few minutes walking around with your phone gets you most of the way."));
+  const row = el("div",{style:"display:flex;gap:10px;flex-wrap:wrap"});
+  const calBtn = el("button",{class:"btn primary"}, "Go to Calibration →");
+  calBtn.addEventListener("click", ()=>{
+    ctx.state._mapsWizard = null;
+    if (isBasic) { ctx.state.complexity = "advanced"; try{ localStorage.setItem("padspan_complexity","advanced"); }catch(e){} }
+    ctx.state.view = "calibration";
+    if (ctx.state._calib) ctx.state._calib.tab = "beacon";
+    ctx.actions.renderRooms();
+  });
+  row.appendChild(calBtn);
+  const anotherBtn = el("button",{class:"btn inline"}, "+ Set up another floor");
+  anotherBtn.addEventListener("click", ()=>{
+    ctx.state.activeMapId = null;
+    ctx.state._mapsWizard = { step: 1, mapId: null };
+    ctx.actions.renderRooms();
+  });
+  row.appendChild(anotherBtn);
+  const doneBtn = el("button",{class:"btn inline"}, "Done");
+  doneBtn.addEventListener("click", ()=>{
+    ctx.state._mapsWizard = null;
+    ctx.state.mapsTab = "library";
+    ctx.actions.renderRooms();
+  });
+  row.appendChild(doneBtn);
+  wrap.appendChild(row);
+  return wrap;
+}
+
+function _wizard(ctx, maps, isBasic){
+  const { el } = ctx.helpers;
+  const w = ctx.state._mapsWizard;
+
+  // A map exists (just uploaded, or picked when the wizard was launched)
+  // but the wizard hasn't adopted it yet — happens the render right after
+  // _upload's own success handler sets activeMapId. Adopt it here rather
+  // than making someone click Next to acknowledge what already happened.
+  if (!w.mapId && ctx.state.activeMapId && maps.some(m => m.id === ctx.state.activeMapId)) {
+    w.mapId = ctx.state.activeMapId;
+  }
+  const map = maps.find(m => m.id === w.mapId) || null;
+  if (w.step === 1 && map) w.step = 2;
+  // Every step past Upload needs a map to draw on.
+  if (w.step > 1 && !map) w.step = 1;
+
+  const root = el("div",{});
+
+  const head = el("div",{class:"card", style:"margin-bottom:12px"});
+  const hrow = el("div",{style:"display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"});
+  hrow.appendChild(el("div",{style:"font-weight:700;font-size:16px"},
+    map ? `Setting up: ${map.name || "this floor plan"}` : "Set up a floor plan"));
+  const closeBtn = el("button",{class:"btn inline", style:"font-size:12px"}, "Exit setup");
+  closeBtn.addEventListener("click", ()=>{
+    ctx.state._mapsWizard = null;
+    ctx.state.mapsTab = map ? "edit" : "library";
+    ctx.actions.renderRooms();
+  });
+  hrow.appendChild(closeBtn);
+  head.appendChild(hrow);
+
+  const dots = el("div",{style:"display:flex;gap:6px;margin-top:12px"});
+  const stepList = el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:8px"});
+  for (const s of WIZARD_STEPS){
+    const isCurrent = s.n === w.step;
+    const reachable = s.n === 1 || !!map;
+    dots.appendChild(el("div",{style:`flex:1;height:4px;border-radius:2px;background:${s.n < w.step ? "#52b788" : isCurrent ? "#5eead4" : "#1b3526"}`}));
+    const chip = el("button",{
+      class: "btn inline" + (isCurrent ? " primary" : ""),
+      style: `font-size:11px;padding:3px 10px;` + (reachable ? "" : "opacity:.4;cursor:not-allowed"),
+    }, `${s.n}. ${s.label}`);
+    chip.disabled = !reachable;
+    if (reachable) chip.addEventListener("click", ()=>{ w.step = s.n; ctx.actions.renderRooms(); });
+    stepList.appendChild(chip);
+  }
+  head.appendChild(dots);
+  head.appendChild(stepList);
+  root.appendChild(head);
+
+  const body = el("div",{});
+  if (w.step === 1) body.appendChild(_wizardUpload(ctx, isBasic));
+  else if (w.step === 2) body.appendChild(_wizardScale(ctx, map, maps, w));
+  else if (w.step === 3) body.appendChild(_wizardRooms(ctx, map, maps, w));
+  else if (w.step === 4) body.appendChild(_wizardScanners(ctx, map, maps, w));
+  else body.appendChild(_wizardFinish(ctx, map, isBasic));
+  root.appendChild(body);
+
+  return root;
 }
 
 // ── Edit Tab ─────────────────────────────────────────────────────────────────
@@ -7059,6 +7325,136 @@ function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
   mkHandle(cx + halfW, cy + halfH, "wh", "nwse-resize", "Width + length");
 }
 
+// ── Lights Builder guided tour ────────────────────────────────────────────
+// The Lights builder is one dense page — placement, shapes, WLED, Showcase,
+// undo/redo — unlike Mapping's scattered tabs, so this isn't a wizard that
+// takes over the screen. It's a small floating card that points at the REAL
+// controls in sequence, in place, on the page the household will actually
+// use — the "hands-on" pattern research on setup wizards favours over a
+// separate flow to walk away from and never see the real thing in.
+//
+// ctx.state._lightsTour = { step } while open; falsy means closed. Auto-
+// opens once per browser (localStorage padspan_ha_lights_tour_seen), the
+// same mechanism the sidebar's own one-time coach mark already uses for a
+// different surface (padspan_ha_lights_coach_seen, lights_panel.js).
+function _lightsTourSteps(paid){
+  const steps = [
+    { title: "Welcome to the Lights builder",
+      body: "Every light starts out clustered at the centre of its room. This is where you tell PadSpan exactly where each one really hangs — and, if you have a key, its shape, size, colour and effects too.",
+      find: null },
+    { title: "Place a light",
+      body: "Drag any light on the map to its real spot. Or click Place next to its row in the list below the map, then tap the map where it is.",
+      find: (wrap) => wrap.querySelector(".lv-stage") },
+    { title: "Give it a shape",
+      body: "Click a light — on the map or in the list — to select it. A panel opens underneath with Shape, size and rotation. Pick the glyph that matches the real fixture, or leave it on Auto for PadSpan's own guess.",
+      find: (wrap) => _lightsTourFindTable(wrap) },
+    { title: "Fans, motion, temperature — and WLED",
+      body: "The chips above the map isolate one kind of device at a time — Lights, Strips, Fans, Motion, Temps. A strip with effects (WLED or similar) gets its own colour and effect controls: hold it, on the map or in the sidebar, to open them.",
+      find: (wrap) => wrap.querySelector(".lv-layerbar") },
+  ];
+  if (paid) {
+    steps.push({ title: "See how it'll really look",
+      body: "Turn on Showcase to see the room the way it'll really look — real fixture colours, light pools on the floor, shadows. It's a picture, not a mode: everything stays exactly where you put it and stays fully editable.",
+      find: (wrap) => _lightsTourFindButton(wrap, "Showcase") });
+  } else {
+    steps.push({ title: "What a key adds",
+      body: "Placement — what you just did — is free. Fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need PadSpan Bright Pro or PadSpan Pro. " + _LIC_PATH + " is where a key goes once you have one.",
+      find: null });
+  }
+  steps.push({ title: "You're set",
+    body: "Undo (Ctrl+Z) and Redo (Ctrl+Y) cover every edit before you save. Save Layout when you're happy — the separate Lights entry in your sidebar is what your household uses day to day, and it shows exactly what you just built here.",
+    find: null });
+  return steps;
+}
+
+function _lightsTourFindButton(wrap, text){
+  return Array.from(wrap.querySelectorAll("button")).find(b => b.textContent.includes(text)) || null;
+}
+function _lightsTourFindTable(wrap){
+  return wrap.querySelector("table") || Array.from(wrap.querySelectorAll("div")).find(d => /light index|unplaced/i.test(d.textContent || "")) || null;
+}
+
+// Imperative, not part of the declarative render tree — a highlight is a
+// transient pulse, not app state, the same reasoning the drag-brightness
+// readout in lights_map.js already applies to floating UI.
+function _lightsTourPulse(target){
+  if (!target) return;
+  try {
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    const prevOutline = target.style.outline, prevShadow = target.style.boxShadow, prevRadius = target.style.borderRadius;
+    target.style.transition = "outline-color .3s, box-shadow .3s";
+    target.style.outline = "3px solid #5eead4";
+    target.style.outlineOffset = "3px";
+    target.style.boxShadow = "0 0 0 6px rgba(94,234,212,.18)";
+    if (!prevRadius) target.style.borderRadius = "6px";
+    setTimeout(() => {
+      target.style.outline = prevOutline;
+      target.style.boxShadow = prevShadow;
+      target.style.borderRadius = prevRadius;
+    }, 2200);
+  } catch(e) { /* best-effort — a missed highlight is not worth surfacing */ }
+}
+
+function _lightsTourCard(ctx, wrap, paid){
+  const { el } = ctx.helpers;
+  const tour = ctx.state._lightsTour;
+  if (!tour) return null;
+  const steps = _lightsTourSteps(paid);
+  if (tour.step < 1) tour.step = 1;
+  if (tour.step > steps.length) tour.step = steps.length;
+  const s = steps[tour.step - 1];
+
+  const close = () => {
+    ctx.state._lightsTour = null;
+    try { localStorage.setItem("padspan_ha_lights_tour_seen", "1"); } catch(e) {}
+    ctx.actions.renderRooms();
+  };
+
+  const card = el("div", { style:
+    "position:fixed;right:18px;bottom:18px;width:320px;max-width:calc(100vw - 36px);z-index:400;"
+    + "background:#0a1a12;border:1px solid #2d6a4f;border-radius:12px;padding:14px 16px;"
+    + "box-shadow:0 8px 28px rgba(0,0,0,.5)" });
+
+  const head = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:6px" }, [
+    el("span", { style: "font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#5eead4;font-weight:700" },
+      `Guide · ${tour.step} of ${steps.length}`),
+    (() => { const x = el("button", { class: "btn inline", style: "font-size:11px;padding:1px 8px" }, "✕"); x.addEventListener("click", close); return x; })(),
+  ]);
+  card.appendChild(head);
+  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, s.title));
+  card.appendChild(el("div", { class: "muted", style: "font-size:12.5px;line-height:1.55;margin-bottom:10px" }, s.body));
+
+  const target = s.find ? s.find(wrap) : null;
+  if (target) {
+    const showBtn = el("button", { class: "btn inline", style: "font-size:11px" }, "Show me →");
+    showBtn.addEventListener("click", () => _lightsTourPulse(target));
+    card.appendChild(el("div", { style: "margin-bottom:10px" }, [showBtn]));
+  }
+
+  const nav = el("div", { style: "display:flex;justify-content:space-between;gap:8px" });
+  const left = el("div", {});
+  if (tour.step > 1) {
+    const b = el("button", { class: "btn inline", style: "font-size:11px" }, "← Back");
+    b.addEventListener("click", () => { tour.step -= 1; ctx.actions.renderRooms(); });
+    left.appendChild(b);
+  }
+  nav.appendChild(left);
+  const right = el("div", { style: "display:flex;gap:8px" });
+  if (tour.step < steps.length) {
+    const nx = el("button", { class: "btn primary", style: "font-size:11px" }, "Next →");
+    nx.addEventListener("click", () => { tour.step += 1; ctx.actions.renderRooms(); });
+    right.appendChild(nx);
+  } else {
+    const done = el("button", { class: "btn primary", style: "font-size:11px" }, "Done");
+    done.addEventListener("click", close);
+    right.appendChild(done);
+  }
+  nav.appendChild(right);
+  card.appendChild(nav);
+
+  return card;
+}
+
 function _lightsTab(ctx, maps, active) {
   const { el } = ctx.helpers;
   const mapState = ctx.state.maps;
@@ -7124,9 +7520,23 @@ function _lightsTab(ctx, maps, active) {
           ? "Exactly what the Lights sidebar does with this map: tap switches, code or hold opens controls, room names open the room."
           : "Builds the Lights sidebar's map — what you arrange here is exactly what the sidebar shows. Click a hex to select a light; drag it to where it really is. Shift-click or click a room name to select several. Can't find one on the map? Pick it in the list below — a ring flashes its spot, and the pink marker in the corner drags it into place.")
         : "Every light in the house, one marker each, in its room. Click a marker to switch it."),
+      (() => {
+        const b = el("button", { class: "btn inline", style: "font-size:11px;margin-left:auto" }, "🎓 Guide me");
+        b.addEventListener("click", () => { ctx.state._lightsTour = { step: 1 }; ctx.actions.renderRooms(); });
+        return b;
+      })(),
     ]),
   ]);
   wrap.appendChild(head);
+  // First visit to the builder, ever: open the tour once on its own. Same
+  // mechanism as the sidebar's coach mark (padspan_ha_lights_coach_seen),
+  // a different key because it's a different surface.
+  if (!ctx.state._lightsTour && !ctx.state._lightsTourAutoChecked) {
+    ctx.state._lightsTourAutoChecked = true;
+    let seen = true;
+    try { seen = localStorage.getItem("padspan_ha_lights_tour_seen") === "1"; } catch(e) {}
+    if (!seen) ctx.state._lightsTour = { step: 1 };
+  }
   if (!paid) {
     wrap.appendChild(el("div", { class: "card lv-tablecard", style: "padding:10px 12px;border:1px solid rgba(251,191,36,.45);box-shadow:0 0 18px rgba(251,191,36,.07);font-size:12px;margin-bottom:12px" }, [
       el("span", { style: "font-weight:700;color:#fbbf24" }, "Free lighting map. "),
@@ -7806,6 +8216,9 @@ function _lightsTab(ctx, maps, active) {
   wrap.appendChild(buildLightsTable(host, lights));
   mapState._focusRow = null;   // the scroll-into-view is a one-shot
   mapState._locateEid = null;  // the locate ring is a one-shot too
+
+  const tourCard = _lightsTourCard(ctx, wrap, paid);
+  if (tourCard) wrap.appendChild(tourCard);
 
   return wrap;
 }

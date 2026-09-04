@@ -2983,6 +2983,14 @@ class PadSpanHaApp extends HTMLElement {
     // step's completion from live state. Navigates to the right view on click.
     {
       const _onboardingDone = !!(this.state.settings && this.state.settings.onboarding_completed);
+      // These five checks are lifted BY TEXT into tests/js/onboarding_gate.mjs
+      // and tests/js/setup_status_parity.mjs, so keep them self-contained,
+      // inline boolean expressions — not a call out to another module. That
+      // is also why they read identically to views/setup_status.js's pure
+      // functions of the same name: the wizard (maps.js) uses that module
+      // directly; this card keeps its own copy so onboarding_gate.mjs can
+      // still evaluate the shipped condition standalone, and
+      // setup_status_parity.mjs asserts the two never drift apart.
       const _hasMaps = !!(this.state.maps && this.state.maps.list && this.state.maps.list.length);
       const _hasReceivers = _hasMaps && this.state.maps.list.some(m => (m.receivers || []).length > 0);
       // "Have you got rooms yet" is a question about the FABRIC. Asking it of
@@ -3000,10 +3008,10 @@ class PadSpanHaApp extends HTMLElement {
       const _hasFabricScanners = !!(this.state.model && this.state.model.scanner_positions_m && Object.keys(this.state.model.scanner_positions_m).length > 0);
       const _hasCal = _calPoints >= 5 || _hasModel || _hasFabricScanners;
       const _steps = [
-        { id: "upload",   label: "Upload Floor Plan",  done: _hasMaps,      view: "maps",        mapsTab: "upload", hint: "Maps \u2192 Upload a floor plan image" },
-        { id: "scale",    label: "Set Scale",           done: _hasScale,     view: "maps",        mapsTab: "edit",   hint: "Maps \u2192 Edit \u2192 Measure tool" },
-        { id: "rooms",    label: "Draw Rooms",          done: _hasRooms,     view: "maps",        mapsTab: "edit",   hint: "Maps \u2192 Edit \u2192 draw room boundaries" },
-        { id: "scanners", label: "Place Scanners",      done: _hasReceivers, view: "calibration", calibTab: "tune",  hint: "Calibration \u2192 Tune \u2192 drag scanners" },
+        { id: "upload",   label: "Upload Floor Plan",  done: _hasMaps,      wizardStep: 1, view: "maps",        mapsTab: "upload", hint: "Maps \u2192 Upload a floor plan image" },
+        { id: "scale",    label: "Set Scale",           done: _hasScale,     wizardStep: 2, view: "maps",        mapsTab: "edit",   hint: "Maps \u2192 Edit \u2192 Measure tool" },
+        { id: "rooms",    label: "Draw Rooms",          done: _hasRooms,     wizardStep: 3, view: "maps",        mapsTab: "edit",   hint: "Maps \u2192 Edit \u2192 draw room boundaries" },
+        { id: "scanners", label: "Place Scanners",      done: _hasReceivers, wizardStep: 4, view: "maps",        mapsTab: "edit",   hint: "Maps \u2192 Edit \u2192 drag scanners onto the plan" },
         { id: "calibrate",label: "Calibrate",           done: _hasCal,       view: "calibration", calibTab: "beacon", hint: "Calibration \u2192 Beacon Tune or Pin & Listen" },
       ];
       const _completedCount = _steps.filter(s => s.done).length;
@@ -3051,6 +3059,22 @@ class PadSpanHaApp extends HTMLElement {
           row.appendChild(el("span",{style:`color:${s.done ? "#52b788" : isNext ? "#5eead4" : "#64748b"};font-weight:${isNext ? "700" : "400"}`}, s.label));
           if (isNext) row.appendChild(el("span",{style:"font-size:10px;color:#94a3b8;margin-left:auto"}, s.hint));
           row.addEventListener("click", () => {
+            // The four map-building steps launch the Setup Wizard AT that
+            // step, on whatever map is already active (or the first one, or
+            // none yet — the wizard's own Upload step handles that) — rather
+            // than just dropping the household on a bare tab and leaving
+            // them to find the right tool inside it themselves.
+            if (s.wizardStep) {
+              this.state.view = "maps";
+              const _maps = (this.state.maps && this.state.maps.list) || [];
+              const _mapId = (this.state.activeMapId && _maps.some(m => m.id === this.state.activeMapId))
+                ? this.state.activeMapId
+                : ((_maps[0] && _maps[0].id) || null);
+              this.state._mapsWizard = { step: s.wizardStep, mapId: _mapId };
+              if (this.actions?.renderRooms) this.actions.renderRooms();
+              else this._scheduleRender();
+              return;
+            }
             // Auto-promote to Advanced if step needs calibration (not in Basic mode)
             if (s.view === "calibration" && this.state.complexity === "basic") {
               this.state.complexity = "advanced";

@@ -77,6 +77,12 @@ _PHOTO_TOOLING = {
     # "have you measured a plan yet?" — which is a question about setup
     # progress, not about the building. Judged valid and left alone.
     "panel.js": "app shell — state shape, model load, onboarding setup steps",
+    # The exact same "have you done this setup step yet" question panel.js
+    # was already exempted for above — now shared with the Setup Wizard
+    # (maps.js) so the two never quietly disagree (see
+    # test_setup_status_parity.py). It answers a question about setup
+    # progress, never the building's geometry.
+    "setup_status.js": "onboarding/wizard setup-progress checks",
 }
 
 # Files that still break the rule. SHRINKS ONLY. Never add to this.

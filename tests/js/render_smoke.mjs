@@ -264,6 +264,24 @@ const VARIANTS = {
   "maps.js": [
     null,
     { name: "stack", state: { mapsTab: "stack", maps: { list: STACK_MAPS } } },
+    { name: "upload", state: { mapsTab: "upload" } },
+    { name: "edit", state: { mapsTab: "edit" } },
+    // The Setup Wizard short-circuits render() entirely — each step is its
+    // own code path (_wizardUpload/_wizardScale/_wizardRooms/
+    // _wizardScanners/_wizardFinish), all otherwise unreached by the plain
+    // "library"/"stack" passes above.
+    { name: "wizard-upload",   state: { _mapsWizard: { step: 1, mapId: null } } },
+    { name: "wizard-scale",    state: { _mapsWizard: { step: 2, mapId: "ground" } } },
+    { name: "wizard-rooms",    state: { _mapsWizard: { step: 3, mapId: "ground" } } },
+    { name: "wizard-scanners", state: { _mapsWizard: { step: 4, mapId: "ground" } } },
+    { name: "wizard-finish",   state: { _mapsWizard: { step: 5, mapId: "ground" } } },
+    // Lights builder + its guided tour, both tiers (free draws the locked
+    // banner and a different tour step 5; paid draws the full toolkit).
+    { name: "lights-free", state: { mapsTab: "lights", settings: { tier: "free" } } },
+    { name: "lights-paid", state: { mapsTab: "lights", settings: { tier: "pro" } } },
+    { name: "lights-tour-free", state: { mapsTab: "lights", settings: { tier: "free" }, _lightsTour: { step: 1 } } },
+    { name: "lights-tour-paid-step5", state: { mapsTab: "lights", settings: { tier: "pro" }, _lightsTour: { step: 5 } } },
+    { name: "lights-tour-paid-step6", state: { mapsTab: "lights", settings: { tier: "pro" }, _lightsTour: { step: 6 } } },
   ],
 };
 
