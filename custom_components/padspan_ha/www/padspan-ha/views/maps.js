@@ -850,7 +850,21 @@ function _upload(ctx, helpBtn, isBasic){
     // Use file from ctx.state (survives re-renders), with file input as fallback
     const f = ctx.state._mapsUploadFile || (file.files && file.files[0]);
     if(!f){ status.textContent = "Pick an image file first. Supported: PNG, JPG, GIF, BMP, WebP, SVG."; return; }
-    let floor_id = (floorSel.value||"").trim();
+    // The floor the user actually chose, not whatever this <select> happens to
+    // be showing right now. render() re-runs on a 5s poll regardless of what
+    // the user is doing — spend that long in the native file-browse dialog and
+    // a poll tick rebuilds this dropdown from scratch mid-browse. Its OWN
+    // restore-on-rebuild logic above already guards the display; this button
+    // used to trust the DOM value anyway, so a rebuild that landed on
+    // floors[0] before the real one restored silently uploaded to the wrong
+    // floor with no warning (GitHub #62, rjbutler: silently landed on
+    // "basement"). ctx.state._mapsUploadFloorId is the same sticky value the
+    // display already restores from — trust it here too, falling back to the
+    // DOM only when it no longer names a real floor (deleted/renamed since).
+    const _validFloorIds = new Set(Array.from(floorSel.options).map(o => o.value));
+    let floor_id = (ctx.state._mapsUploadFloorId && _validFloorIds.has(ctx.state._mapsUploadFloorId))
+      ? ctx.state._mapsUploadFloorId
+      : (floorSel.value||"").trim();
     if(!floor_id){ status.textContent = "Choose a floor before uploading."; return; }
     if(floor_id === OUTSIDE_FLOOR_ID){
       const existingMaps = ctx.state.maps?.list || [];
