@@ -4,6 +4,28 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.18 — Filter, sort, a manual, and a floor-selector bug that fooled a customer (2026-09-03)
+
+### The light index gets filter and sort
+- **Filter the index by device type** — a dropdown above the table narrows it to just Lights, Strips, Fans, Motion or Temps, always listing only the types your house actually has.
+- **Sort by any column** — Code, Light, Room or State — with the standard three-click cycle: ascending, descending, back to the underlying order. State sorts a temperature reading numerically, not as a printed string.
+
+### Motion and the code chip, corrected
+- **A motion sensor's quick tap now opens a weekly activity calendar** instead of the read-only refusal — a 7-day × 24-hour grid, shaded by the hour, of when it actually tripped, pulled from Home Assistant's own history.
+- **The light's code no longer has its own always-open shortcut.** Every point on a marker now goes through the same rule: a quick tap switches, and only a genuine 500ms hold opens the controls card.
+
+### A real manual, in the Help tab
+- **PadSpan Bright Pro finally has a manual**, reachable from Mapping → Help: getting a licence and turning on the sidebar Lights panel, everyday control, building your map, placing and arranging lights, what the view modes and colours mean, and 3D Stack/Export/Health. Every claim in it was checked against the actual code, not written from memory.
+
+### Two bugs a customer actually hit
+- **A temperature sensor could never be placed on the map.** Assigning it a room genuinely saved to Home Assistant, but a registry scan silently excluded `sensor.*` entities from the map's own room lookup, so the light could never cluster into a room or be placed at all.
+- **GitHub #62 (rjbutler): an upload could silently land on the wrong floor.** The Mapping view re-renders on a five-second poll regardless of what you're doing, and a poll tick landing while the native file-browse dialog is open could rebuild the floor dropdown back to the first floor in the list before your real choice re-applied — and the Upload button trusted whatever the dropdown showed, not what you'd actually chosen. It now trusts the recorded choice instead, the same way the dropdown's own display already did.
+
+### Smaller things
+- Rooms now carry a soft centre-glow like the light pools do, dialled down — the same shaded look, less intense.
+- The builder's toolbar buttons are grouped with dividers — mode toggles, history, view, info — so a busy row scans faster. Nothing moved, hid, or changed what it does.
+- The sidebar's coach-mark and hint text now say plainly that motion and temperature tiles are read-only, and the builder's hint mentions the locate-ring and drop-marker ways to find and place a light.
+
 ## 0.38.17 — Temperature sensors, and a smarter idea of "the same sensor" (2026-09-03)
 
 ### Temperature sensors join the ceiling map
