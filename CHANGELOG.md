@@ -15,6 +15,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.21 — PadSpan Bright is ready for the HACS catalogue (2026-09-04)
+
+- **A Bright release now waits for its Tests, HACS and Hassfest checks to pass before it is created.** That is the order HACS requires for a default-catalogue submission; a failed check stops Bright before the tag or release is published.
+- **Bright's HACS links now stay with Bright.** Documentation and issue links point to `gbroeckling/padspanBright`, and its README has a one-click Add to HACS button, direct feature copy and no leftover internal or sales language.
+- This is the stable release that will accompany Bright's submission to the default HACS integration catalogue.
+
+---
+
 ## 0.38.20 — PadSpan Bright goes live, and the manual sounds like PadSpan again (2026-09-04)
 
 ### PadSpan Bright is now its own HACS integration

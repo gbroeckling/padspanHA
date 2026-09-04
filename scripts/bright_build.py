@@ -49,6 +49,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import zipfile
 from pathlib import Path
 
@@ -143,8 +144,10 @@ def _stamp(tree: Path, root: Path) -> None:
     m = json.loads(mp.read_text(encoding="utf-8"))
     m["domain"] = BRIGHT_DOMAIN
     m["name"] = BRIGHT_NAME
-    # documentation / issue_tracker already point at the main repo — the
-    # rename never touched `padspanHA` — and that is where they belong.
+    # HACS presents these links as Bright's own documentation and support.
+    # Keep them on the public Bright facade even though its files are generated.
+    m["documentation"] = f"https://github.com/{BRIGHT_REPO}"
+    m["issue_tracker"] = f"https://github.com/{BRIGHT_REPO}/issues"
     mp.write_text(json.dumps(m, indent=2) + "\n", encoding="utf-8")
 
     hp = tree / "hacs.json"
@@ -261,6 +264,68 @@ def run_suite(tree: Path) -> subprocess.CompletedProcess:
                           cwd=tree, env=env, text=True, capture_output=True, encoding="utf-8")
 
 
+def _wait_for_required_checks(repo: str, sha: str, timeout_s: int = 900) -> None:
+    """Wait for the pushed Bright commit to pass every public release check.
+
+    HACS's default-catalog checklist requires a release created *after* its
+    HACS and Hassfest actions pass. Tests joins them here because a green
+    catalog entry should never point at a commit whose own suite is red.
+    """
+    required = {"Tests", "HACS Validation", "Hassfest Validation"}
+    deadline = time.monotonic() + timeout_s
+    last_summary = None
+
+    while time.monotonic() < deadline:
+        result = subprocess.run(
+            ["gh", "run", "list", "--repo", repo, "--commit", sha,
+             "--limit", "20", "--json", "name,status,conclusion,url"],
+            text=True, capture_output=True, encoding="utf-8",
+        )
+        if result.returncode == 0:
+            runs = json.loads(result.stdout or "[]")
+            latest = {}
+            for run in runs:
+                name = run.get("name")
+                if name in required and name not in latest:
+                    latest[name] = run
+
+            summary = ", ".join(
+                f"{name}: " + (
+                    latest[name].get("conclusion") or latest[name].get("status") or "waiting"
+                    if name in latest else "waiting"
+                )
+                for name in sorted(required)
+            )
+            if summary != last_summary:
+                print(f"    {summary}", flush=True)
+                last_summary = summary
+
+            failed = [
+                (name, latest[name]) for name in required
+                if name in latest and latest[name].get("status") == "completed"
+                and latest[name].get("conclusion") != "success"
+            ]
+            if failed:
+                details = ", ".join(
+                    f"{name}={run.get('conclusion')} ({run.get('url')})"
+                    for name, run in failed
+                )
+                raise RuntimeError(f"Bright validation failed: {details}")
+
+            if all(
+                name in latest and latest[name].get("status") == "completed"
+                and latest[name].get("conclusion") == "success"
+                for name in required
+            ):
+                return
+        elif result.stderr.strip():
+            print(f"    waiting for GitHub checks: {result.stderr.strip()}", flush=True)
+
+        time.sleep(5)
+
+    raise RuntimeError(f"timed out waiting for Bright validation on {sha}")
+
+
 def publish(tree: Path, zip_path: Path, version: str, channel: str, source_sha: str,
             message: str | None = None, repo: str = BRIGHT_REPO) -> None:
     """Push the generated tree to the Bright repo as one commit on top of its
@@ -289,6 +354,12 @@ def publish(tree: Path, zip_path: Path, version: str, channel: str, source_sha: 
     subprocess.run(["git", "commit", "-q", "-m", msg], cwd=work, check=True)
     subprocess.run(["git", "tag", tag], cwd=work, check=True)
     subprocess.run(["git", "push", "-q", "origin", "HEAD"], cwd=work, check=True)
+    bright_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=work, check=True,
+        text=True, capture_output=True, encoding="utf-8",
+    ).stdout.strip()
+    print("  Waiting for Bright's Tests, HACS and Hassfest checks before releasing...")
+    _wait_for_required_checks(repo, bright_sha)
     subprocess.run(["git", "push", "-q", "origin", tag], cwd=work, check=True)
     notes = message or f"{BRIGHT_NAME} {tag} ({channel}) — generated from padspanHA {source_sha[:9]}"
     pre = [] if channel == "stable" else ["--prerelease"]

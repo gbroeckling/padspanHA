@@ -81,8 +81,8 @@ def test_the_shape_of_the_generated_tree(tree):
     assert (integ / "www" / "padspan-bright" / "lights_panel.js").is_file()
     m = json.loads((integ / "manifest.json").read_text(encoding="utf-8"))
     assert m["domain"] == "padspan_bright" and m["name"] == "PadSpan Bright"
-    assert "padspanHA" in m["documentation"] and "padspanHA" in m["issue_tracker"], \
-        "Bright's docs and issues live in the MAIN repo"
+    assert m["documentation"] == "https://github.com/gbroeckling/padspanBright"
+    assert m["issue_tracker"] == "https://github.com/gbroeckling/padspanBright/issues"
     h = json.loads((tree / "hacs.json").read_text(encoding="utf-8"))
     assert h["name"] == "PadSpan Bright" and h["content_in_root"] is False
     bi = (integ / "build_info.py").read_text(encoding="utf-8")
@@ -149,6 +149,17 @@ def test_release_publishes_bright_now_that_the_listing_is_live():
     assert src.index("create_github_release(tag, channel, message)") < src.index("bright_pass(version, channel, message)")
     # And the build tooling ships with the release commit.
     assert '"scripts/bright_build.py"' in src and '"scripts/bright_README.md"' in src
+
+
+def test_bright_publish_waits_for_validation_before_release():
+    """The HACS default-catalog checklist requires checks before release."""
+    src = (_ROOT / "scripts" / "bright_build.py").read_text(encoding="utf-8")
+    publish = src[src.index("def publish("):]
+    push_head = publish.index('["git", "push", "-q", "origin", "HEAD"]')
+    wait = publish.index("_wait_for_required_checks(repo, bright_sha)")
+    push_tag = publish.index('["git", "push", "-q", "origin", tag]')
+    release = publish.index('["gh", "release", "create"')
+    assert push_head < wait < push_tag < release
 
 
 def test_the_generated_suite_passes(tree):

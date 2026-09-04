@@ -13,7 +13,7 @@
 */
 
 const APP_VERSION = "0.38.21";
-const BUILD_ID = "20260904T170719Z";
+const BUILD_ID = "20260904T171809Z";
 
 // Query inherited from our own module URL so the ?b= cache-buster propagates
 // (see docs/06_UI_CACHE_BUSTING.md).
