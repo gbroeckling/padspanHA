@@ -383,9 +383,6 @@ export function wireUseSurface(isoDiv, api){
     };
     g.addEventListener("pointerdown", (e) => {
       if (e.button !== undefined && e.button !== 0 && e.pointerType === "mouse") return;
-      // The code chip is its own target; the group must not also start a
-      // press underneath it.
-      if (e.target && e.target.closest && e.target.closest('[data-role="code"]')) return;
       e.stopPropagation();
       try { g.setPointerCapture(e.pointerId); } catch (_) {}
       tracker.down(e.clientX, e.clientY, Date.now());
@@ -428,6 +425,10 @@ export function wireUseSurface(isoDiv, api){
       const r = e.type === "pointercancel" ? tracker.cancel() : tracker.up(Date.now());
       clearAll();
       try { g.releasePointerCapture(e.pointerId); } catch (_) {}
+      // Motion has nothing to switch — holdable is false for it, so it can
+      // never arm below and every real tap (quick or long) opens its own
+      // activity history instead of toggling into the read-only refusal.
+      if (l0.isMotion) { if (r === "tap" || r === "open") api.openActivity(eid); return; }
       if (r === "tap") { api.toggle(eid); return; }
       if (r === "open") { if (holdable) api.openControls(eid); else api.toggle(eid); return; }
       if (r === "drag-end") {
@@ -448,18 +449,12 @@ export function wireUseSurface(isoDiv, api){
     g.addEventListener("mouseout", () => { g.style.opacity = ""; });
   });
   q(".lhalo").forEach(c => wirePress(c, c.dataset.eid, Number(c.getAttribute("cx")), Number(c.getAttribute("cy")), Number(c.getAttribute("r")) + 2));
-  // The split target: the code chip opens the controls, or for a plain
-  // on/off light simply switches it (there is nothing else to open).
-  q('[data-role="code"]').forEach(chip => {
-    chip.addEventListener("click", (e) => {
-      e.stopPropagation(); e.preventDefault();
-      const g = chip.closest ? chip.closest(".lhex") : null;
-      const eid = g && g.dataset.eid;
-      if (!eid) return;
-      if (api.controlsFor(api.lightsByEid[eid])) api.openControls(eid); else api.toggle(eid);
-    });
-    chip.addEventListener("pointerdown", e => e.stopPropagation());
-  });
+  // The code chip is drawn INSIDE the marker's own group (see codeChipSvg in
+  // iso_lights.js) and has no wiring of its own any more — a tap there
+  // bubbles to the SAME pointerdown/up pair wirePress just attached to the
+  // marker, so it is identical to tapping the glyph: quick switches, a
+  // genuine 500ms hold opens the controls. It used to be its own always-open
+  // target; Garry never asked for that split and it is gone.
   q(".lroom").forEach(r => r.addEventListener("click", (e) => { e.stopPropagation(); api.openRoom(r.dataset.room); }));
   q(".lstack").forEach(st => st.addEventListener("click", (e) => { e.stopPropagation(); api.openRoom(st.dataset.room, String(st.dataset.eids || "").split(",").filter(Boolean)); }));
   q(".lfloor").forEach(f => f.addEventListener("click", (e) => { e.stopPropagation(); api.openFloor(f.dataset.z); }));
@@ -588,6 +583,133 @@ export function openFloorSheet(api, lights, model, z){
   }
   if (agg.fanEids.length) actions.push({ label: "Fans off", run: () => api.setMany(agg.fanEids, false) });
   openAggregateSheet(api, { title: f.name || `Floor ${z}`, sub: parts.join(" · "), items, actions });
+}
+
+// ── Weekly activity calendar (motion sensors) ────────────────────────────────
+// Garry: motion sensors have nothing to switch, so a quick tap opens this
+// instead of the read-only toast — "a calendar saying when the room last saw
+// activity in the last week... fully filled by the hour." Bucketing is pure
+// (motionWeeklyGrid) so the day/hour maths is tested without a browser; the
+// fetch + render sit next to it, same split as roomAggregate/openRoomSheet.
+//
+// Scoped to the ONE entity tapped — a paired motion+occupancy primary (see
+// computeMotionOccupancyPairs) shows only its own half's history, not its
+// secondary's too. Good enough for how most houses are wired; merging both
+// halves is a real extension, just not this one.
+
+// history: [{state, ts}], ts in ms, any order — "on" holds until the next
+// entry (or endMs for the last one). dayStarts is local midnight, oldest
+// first; grid[d][h] is true if the entity was "on" for any moment of that
+// local hour on day d.
+export function motionWeeklyGrid(history, endMs, days = 7) {
+  const endDay = new Date(endMs);
+  endDay.setHours(0, 0, 0, 0);
+  const startDay = new Date(endDay);
+  startDay.setDate(startDay.getDate() - (days - 1));
+
+  const dayStarts = [];
+  for (let d = 0; d < days; d++) {
+    const ds = new Date(startDay);
+    ds.setDate(ds.getDate() + d);
+    dayStarts.push(ds.getTime());
+  }
+  const windowEnd = dayStarts[days - 1] + 86400000;
+
+  const grid = dayStarts.map(() => new Array(24).fill(false));
+  const events = (history || [])
+    .filter(e => e && Number.isFinite(e.ts))
+    .slice()
+    .sort((a, b) => a.ts - b.ts);
+
+  for (let i = 0; i < events.length; i++) {
+    if (events[i].state !== "on") continue;
+    const stop = Math.min(i + 1 < events.length ? events[i + 1].ts : endMs, windowEnd);
+    let cur = Math.max(events[i].ts, dayStarts[0]);
+    // Walk the "on" interval one local hour at a time — Date arithmetic
+    // (not a fixed 3600000ms step) so a DST-shortened or -lengthened day
+    // still lands each moment in the hour a wall clock would show.
+    while (cur < stop) {
+      const dt = new Date(cur);
+      const dayIdx = Math.round(
+        (new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime() - dayStarts[0]) / 86400000
+      );
+      if (dayIdx >= 0 && dayIdx < days) grid[dayIdx][dt.getHours()] = true;
+      const nextHour = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours() + 1, 0, 0, 0).getTime();
+      cur = Math.min(nextHour, stop);
+    }
+  }
+  return { dayStarts, days, grid };
+}
+
+const _CAL_S = {
+  wrap: "display:grid;grid-template-columns:26px repeat(7,1fr);gap:2px;margin-top:6px",
+  hourLbl: "font-size:9px;color:rgba(226,240,232,.4);text-align:right;padding-right:4px;line-height:14px",
+  dayLbl: "font-size:10px;color:rgba(226,240,232,.65);text-align:center;font-weight:700;padding-bottom:3px",
+  cellOff: "width:100%;aspect-ratio:1;border-radius:3px;background:rgba(255,255,255,.04)",
+  cellOn: "width:100%;aspect-ratio:1;border-radius:3px;background:#3b82f6;box-shadow:0 0 5px rgba(59,130,246,.6)",
+};
+// hass.callApi is the standard authenticated REST helper every HA frontend
+// panel already has (the same connection object as callWS) — plain history
+// isn't cleanly a websocket command, so this is the one place this file
+// reaches for it instead.
+export async function openActivityCalendar(hass, eid) {
+  if (!hass) return;
+  const st = hass.states[eid];
+  const name = (st && st.attributes && st.attributes.friendly_name) || eid;
+  const now = Date.now();
+  const days = 7;
+  const startOfWindow = new Date(now);
+  startOfWindow.setDate(startOfWindow.getDate() - (days - 1));
+  startOfWindow.setHours(0, 0, 0, 0);
+
+  const mk = (tag, style, text) => { const n = document.createElement(tag); if (style) n.style.cssText = style; if (text !== undefined) n.textContent = text; return n; };
+  const overlay = mk("div", _S.overlay);
+  const desktop = typeof window !== "undefined" && window.innerWidth > 768;
+  if (desktop) overlay.style.alignItems = "center";
+  const close = () => { try { document.body.removeChild(overlay); } catch (_) {} };
+  overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+  const sheet = mk("div", _S.sheet + (desktop ? ";border-radius:16px" : ""));
+  const head = mk("div", _S.head);
+  const hl = mk("div"); hl.appendChild(mk("div", _S.title, name)); hl.appendChild(mk("div", _S.sub, "Activity — last 7 days"));
+  head.appendChild(hl);
+  const x = mk("button", _S.act, "✕"); x.addEventListener("click", close); head.appendChild(x);
+  sheet.appendChild(head);
+  const body = mk("div", "font-size:12px;color:rgba(226,240,232,.5)", "Loading…");
+  sheet.appendChild(body);
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+
+  try {
+    const raw = await hass.callApi(
+      "GET",
+      `history/period/${encodeURIComponent(startOfWindow.toISOString())}?filter_entity_id=${encodeURIComponent(eid)}&minimal_response&no_attributes`
+    );
+    const history = ((raw && raw[0]) || [])
+      .map(r => ({ state: r.state, ts: Date.parse(r.last_changed) }))
+      .filter(r => Number.isFinite(r.ts));
+    const { dayStarts, grid } = motionWeeklyGrid(history, now, days);
+
+    body.textContent = "";
+    const totalOnHours = grid.reduce((a, row) => a + row.filter(Boolean).length, 0);
+    body.appendChild(mk("div", "font-size:11.5px;color:rgba(226,240,232,.5);margin-bottom:6px",
+      totalOnHours ? `Tripped in ${totalOnHours} hour${totalOnHours === 1 ? "" : "s"} this week.` : "No activity in the last 7 days."));
+
+    const gridEl = mk("div", _CAL_S.wrap);
+    gridEl.appendChild(mk("div"));
+    for (const ds of dayStarts) gridEl.appendChild(mk("div", _CAL_S.dayLbl, new Date(ds).toLocaleDateString(undefined, { weekday: "short" })));
+    for (let h = 0; h < 24; h++) {
+      gridEl.appendChild(mk("div", _CAL_S.hourLbl, h % 3 === 0 ? String(h) : ""));
+      for (let d = 0; d < dayStarts.length; d++) {
+        const on = grid[d][h];
+        const cell = mk("div", on ? _CAL_S.cellOn : _CAL_S.cellOff);
+        cell.title = `${new Date(dayStarts[d]).toLocaleDateString()} ${String(h).padStart(2, "0")}:00 — ${on ? "activity" : "quiet"}`;
+        gridEl.appendChild(cell);
+      }
+    }
+    body.appendChild(gridEl);
+  } catch (_err) {
+    body.textContent = "Could not load history.";
+  }
 }
 
 // ── The control card ─────────────────────────────────────────────────────────

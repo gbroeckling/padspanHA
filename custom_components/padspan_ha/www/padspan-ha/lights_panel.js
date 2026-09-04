@@ -24,7 +24,7 @@ const { isWledLight, isPartitionLight } =
 // two tools always show the identical map. All lights-view edits go in there.
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, lastBrightness, setOptimistic, clearOptimistic,
-        wireUseSurface, openControlCard, openRoomSheet, openFloorSheet, setManyStates } =
+        wireUseSurface, openControlCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 
 // ── DOM helpers ──────────────────────────────────────────────────────────────
@@ -337,6 +337,7 @@ class PadSpanLightsApp extends HTMLElement {
       hass:this._hass, lightsByEid, lights, controlsFor,
       toggle:(eid)=>this._toggle(eid),
       openControls:(eid)=>this._openWledDetail(eid),
+      openActivity:(eid)=>openActivityCalendar(this._hass, eid),
       setMany:(eids,on)=>this._setMany(eids,on),
       toast:(m,e)=>this._toast(m,e),
       rerender:()=>this._render(),

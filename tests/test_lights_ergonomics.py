@@ -147,6 +147,130 @@ console.log(JSON.stringify({
     assert out["noStart"] == 128, "an unknown starting brightness must fall back to a sane midpoint"
 
 
+def test_wire_use_surface_quick_tap_toggles_and_only_a_real_hold_opens(tmp_path):
+    """Garry: "Tapping the code label was never meant to open the card...
+    remove that. Quick tap only opens the calendar on the motion items, all
+    other require the 500ms tap. quick taps turn things on or off." The code
+    chip used to be its own always-open target (stopPropagation on its own
+    pointerdown) — that carve-out is gone, so a marker's every pixel now goes
+    through the SAME tracker: a quick release toggles, and only a hold that
+    genuinely reaches HOLD_MS opens anything. Motion has nothing to switch,
+    so its own quick tap opens the activity calendar instead of toggling."""
+    out = _run(tmp_path, r"""
+function elx(tag, attrs) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, String(v));
+  return n;
+}
+const isoDiv = document.createElement("div");
+const svg = document.createElement("svg");
+isoDiv.appendChild(svg);
+const lightG = elx("g", {class: "lhex", "data-eid": "light.a", "data-cx": "10", "data-cy": "10"});
+const motionG = elx("g", {class: "lhex", "data-eid": "binary_sensor.m", "data-cx": "30", "data-cy": "30"});
+svg.appendChild(lightG);
+svg.appendChild(motionG);
+
+const calls = [];
+const lightsByEid = {
+  "light.a": { entity_id: "light.a", dimmable: true, isMotion: false },
+  "binary_sensor.m": { entity_id: "binary_sensor.m", isMotion: true, dimmable: false },
+};
+const api = {
+  hass: { states: {} }, lightsByEid,
+  controlsFor: (l) => !!(l && l.dimmable),
+  toggle: (eid) => calls.push(["toggle", eid]),
+  openControls: (eid) => calls.push(["openControls", eid]),
+  openActivity: (eid) => calls.push(["openActivity", eid]),
+  toast: () => {}, rerender: () => {},
+};
+LM.wireUseSurface(isoDiv, api);
+
+const noop = { stopPropagation(){}, preventDefault(){} };
+function press(g) { g.dispatchEvent({ ...noop, type: "pointerdown", button: 0, pointerType: "mouse", clientX: 0, clientY: 0, pointerId: 1, target: g }); }
+function release(g) { g.dispatchEvent({ ...noop, type: "pointerup", pointerId: 1, target: g }); }
+
+// Quick tap on a light: released well inside HOLD_MS -> toggle, never open.
+press(lightG); release(lightG);
+// Quick tap on motion: opens its calendar, never toggles into the read-only refusal.
+press(motionG); release(motionG);
+const quickTaps = calls.slice();
+// A REAL hold on the light: wait past HOLD_MS (500ms) for real before releasing.
+calls.length = 0;
+press(lightG);
+await new Promise(r => globalThis._realSetTimeout(r, 550));
+release(lightG);
+
+console.log(JSON.stringify({ quickTaps, holdCalls: calls }));
+""")
+    assert out["quickTaps"][0] == ["toggle", "light.a"], f"a quick tap must toggle, not open: {out['quickTaps']}"
+    assert out["quickTaps"][1] == ["openActivity", "binary_sensor.m"], \
+        f"a quick tap on motion must open its calendar: {out['quickTaps']}"
+    assert out["holdCalls"] == [["openControls", "light.a"]], \
+        f"a genuine 500ms hold must still open the controls card: {out['holdCalls']}"
+
+
+# ── Weekly activity calendar (motion) ────────────────────────────────────────
+
+def test_motion_weekly_grid_buckets_intervals_into_local_hours(tmp_path):
+    """Garry: "a calendar saying when the room last saw activity in the last
+    week... fully filled by the hour." motionWeeklyGrid is the pure bucketing
+    underneath it: an "on" interval marks every local hour it touches, a
+    still-open interval (no closing event yet) is bounded by "now" rather
+    than running forever, and anything entirely outside the 7-day window
+    must be invisible — a stray "on" from ten days ago must never make
+    today's calendar look busier than it was."""
+    out = _run(tmp_path, r"""
+// A fixed reference "now": Wednesday 2026-09-02, 15:30 local.
+const end = new Date(2026, 8, 2, 15, 30, 0, 0);
+const endMs = end.getTime();
+function at(daysAgo, hour, min) {
+  const d = new Date(end);
+  d.setDate(d.getDate() - daysAgo);
+  d.setHours(hour, min || 0, 0, 0);
+  return d.getTime();
+}
+
+const history = [
+  // Oldest displayed day (6 days ago): on 02:15 -> off 04:45. Hours 2,3,4.
+  { state: "on",  ts: at(6, 2, 15) },
+  { state: "off", ts: at(6, 4, 45) },
+  // Crosses midnight: on at 23:30 yesterday (1 day ago), off 01:15 today.
+  { state: "on",  ts: at(1, 23, 30) },
+  { state: "off", ts: at(0, 1, 15) },
+  // Entirely outside the 7-day window (10 days ago) -- must be invisible.
+  { state: "on",  ts: at(10, 12, 0) },
+  { state: "off", ts: at(10, 13, 0) },
+  // Still "on" right now, no closing event -- bounded by endMs (15:30).
+  { state: "on",  ts: at(0, 14, 0) },
+];
+
+const { dayStarts, days, grid } = LM.motionWeeklyGrid(history, endMs, 7);
+console.log(JSON.stringify({
+  days, dayCount: dayStarts.length,
+  oldestDayHours: grid[0],
+  yesterdayHour22: grid[5][22], yesterdayHour23: grid[5][23],
+  todayHour0: grid[6][0], todayHour1: grid[6][1], todayHour2: grid[6][2],
+  todayHour13: grid[6][13], todayHour14: grid[6][14], todayHour15: grid[6][15], todayHour16: grid[6][16],
+  anyMarkOutsideExpected: grid.flat().filter(Boolean).length,
+}));
+""")
+    assert out["days"] == 7 and out["dayCount"] == 7, out
+    assert out["oldestDayHours"][2] and out["oldestDayHours"][3] and out["oldestDayHours"][4], \
+        f"a 02:15-04:45 interval must mark hours 2, 3 and 4: {out['oldestDayHours']}"
+    assert not out["oldestDayHours"][1] and not out["oldestDayHours"][5], \
+        f"the hour just before and just after the interval must stay unmarked: {out['oldestDayHours']}"
+    assert out["yesterdayHour23"] and not out["yesterdayHour22"], \
+        "a midnight-crossing interval must mark hour 23 on the day it started"
+    assert out["todayHour0"] and out["todayHour1"] and not out["todayHour2"], \
+        "the same midnight-crossing interval must mark hours 0 and 1 on the day it ended, not hour 2"
+    assert out["todayHour14"] and out["todayHour15"] and not out["todayHour16"] and not out["todayHour13"], \
+        "a still-open interval must be bounded by \"now\" (15:30), marking 14 and 15 but never 16"
+    # 3 (oldest day) + 1 (hour 23 yesterday) + 2 (hours 0-1 today) + 2 (hours 14-15 today) = 8.
+    # The stray ten-days-ago event contributes zero — if it leaked in, this count would be wrong.
+    assert out["anyMarkOutsideExpected"] == 8, \
+        f"a stray on/off from 10 days ago (outside the 7-day window) must never appear: {out}"
+
+
 # ── Optimistic state ─────────────────────────────────────────────────────────
 
 def test_optimistic_state_wins_until_reconciled_or_expired(tmp_path):
