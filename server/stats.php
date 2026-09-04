@@ -53,7 +53,22 @@ if (is_readable($CACHE) && (time() - filemtime($CACHE)) < $CACHE_S && empty($_GE
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-function day_of($ts) { return substr($ts, 0, 10); }
+// The per-day chart and "today" read in the developer's own timezone, not
+// the server's UTC clock — a day genuinely starts and ends when it does for
+// the one person reading this dashboard. Only these two (the chart's own
+// buckets, and "today" which is the chart's last bucket restated as a
+// headline number) — the window cutoffs below stay UTC, since those are
+// N-days-back arithmetic, not a calendar boundary anyone is looking at.
+$PACIFIC_TZ = new DateTimeZone('America/Vancouver');
+function pacific_day($ts) {
+    global $PACIFIC_TZ;
+    // Accepts a Unix timestamp (int, from time()) or anything DateTime parses
+    // natively — gmdate('c') (ISO-8601 with offset) is what both the report
+    // spool's recv_ts and the ping log's own timestamp are stored as.
+    $dt = is_int($ts) ? new DateTime('@' . $ts) : new DateTime($ts);
+    $dt->setTimezone($PACIFIC_TZ);
+    return $dt->format('Y-m-d');
+}
 function bucket($v, $edges) {
     foreach ($edges as $e) { if ($v <= $e) { return '<= ' . $e; } }
     return '> ' . $edges[count($edges) - 1];
@@ -61,7 +76,7 @@ function bucket($v, $edges) {
 function incr(&$arr, $k, $n = 1) { $arr[$k] = (isset($arr[$k]) ? $arr[$k] : 0) + $n; }
 function as_map($v) { return is_array($v) ? $v : array(); }   // PHP re-encodes {} as []
 
-$today = gmdate('Y-m-d');
+$today = pacific_day(time());
 $cutoff = gmdate('Y-m-d', time() - $WINDOW_DAYS * 86400);
 $active_cut = gmdate('Y-m-d', time() - $ACTIVE_DAYS * 86400);
 $lapsed_cut = gmdate('Y-m-d', time() - $LAPSED_DAYS * 86400);
@@ -82,7 +97,14 @@ foreach (glob($DIR . '/*.jsonl') as $f) {
         if (!is_array($rec) || !isset($rec['report']['install_id'])) { continue; }
         $r = $rec['report'];
         $id = (string)$r['install_id'];
-        $d = isset($rec['recv_day']) ? (string)$rec['recv_day'] : $day;
+        // recv_ts (added alongside recv_day) carries real time-of-day, so a
+        // report can be bucketed into the day it actually landed in Pacific
+        // time. Older records (before recv_ts existed) have no time-of-day
+        // to convert — recv_day is already a bare UTC calendar day, and
+        // there's no way to recover which Pacific day that really was, so
+        // it's used as-is rather than guessed at.
+        $d = isset($rec['recv_ts']) ? pacific_day($rec['recv_ts'])
+           : (isset($rec['recv_day']) ? (string)$rec['recv_day'] : $day);
         $rows[$id . '|' . $d] = $r;
         if (!isset($first_seen[$id]) || $d < $first_seen[$id]) { $first_seen[$id] = $d; }
         if (!isset($last_seen[$id]) || $d > $last_seen[$id]) { $last_seen[$id] = $d; }
@@ -129,7 +151,7 @@ foreach ($latest as $r) {
 // ── per-day series (reports, distinct installs) over the window ──────────────
 $per_day = array();
 for ($i = $WINDOW_DAYS - 1; $i >= 0; $i--) {
-    $d = gmdate('Y-m-d', time() - $i * 86400);
+    $d = pacific_day(time() - $i * 86400);
     $per_day[$d] = array('day' => $d, 'reports' => 0, 'installs' => 0, 'pings' => 0);
 }
 foreach ($rows as $k => $r) {
@@ -148,7 +170,10 @@ if (is_readable($PINGS)) {
     while (($line = fgets($fh)) !== false) {
         $p = explode("\t", rtrim($line, "\n"));
         if (count($p) < 3) { continue; }
-        $d = day_of($p[0]);
+        // $p[0] is gmdate('c') (version.php) — full ISO-8601 with offset, so
+        // every ping ever logged can be re-bucketed into its real Pacific
+        // day, not just ones logged going forward.
+        $d = pacific_day($p[0]);
         if ($ping['first_day'] === null || $d < $ping['first_day']) { $ping['first_day'] = $d; }
         if ($d < $cutoff) { continue; }
         $h = hash('sha256', $p[1]);          // never stored, never emitted

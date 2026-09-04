@@ -52,7 +52,12 @@ foreach ($shapes as $rx) {
 }
 
 if (!is_dir($DIR) && !mkdir($DIR, 0750, true)) { http_response_code(500); echo '{"ok":false}'; exit; }
-$line = json_encode(array('recv_day' => gmdate('Y-m-d'), 'report' => $r), JSON_UNESCAPED_SLASHES) . "\n";
+// recv_day stays UTC (it also names the spool file, unchanged) — recv_ts is
+// the same moment with real time-of-day, so stats.php can bucket a report
+// into the developer's OWN calendar day instead of the server's. A day-only
+// string can't be converted after the fact; this is what lets it be done
+// correctly going forward without needing to touch the file layout.
+$line = json_encode(array('recv_day' => gmdate('Y-m-d'), 'recv_ts' => gmdate('c'), 'report' => $r), JSON_UNESCAPED_SLASHES) . "\n";
 $f = $DIR . '/' . gmdate('Y-m-d') . '.jsonl';
 if (file_put_contents($f, $line, FILE_APPEND | LOCK_EX) === false) { http_response_code(500); echo '{"ok":false}'; exit; }
 
