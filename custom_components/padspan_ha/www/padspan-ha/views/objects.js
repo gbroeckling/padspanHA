@@ -682,6 +682,7 @@ export function render(ctx){
           wtiBtn,
           wtiClear,
           _wtiRoom ? el("span",{style:"font-size:11px;color:#d8b4fe;font-weight:600"}, `Showing devices likely in: ${_wtiRoom}`) : null,
+          helpBtn("walk_to_identify"),
         ].filter(Boolean));
 
         // Compute scores if room is active

@@ -1046,7 +1046,7 @@ async function _preparePngFromUrl(imgUrl, maxDim, crop=null){
 // within the same session. Changes are only persisted on explicit "Save Layout".
 // Also includes Trim Image and Rotate Image sub-panels.
 function _edit(ctx, map, allMaps){
-  const { el, roomColor } = ctx.helpers;
+  const { el, roomColor, helpBtn } = ctx.helpers;
   const card = el("div",{class:"card"});
 
   if(!map){
@@ -1239,6 +1239,7 @@ function _edit(ctx, map, allMaps){
     el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), style:"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "RF Barriers"),
     el("button",{class:"btn inline"+(ctx.state.maps._mode==="measure"?" primary":""), style:"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc", onclick:()=>{ ctx.state.maps._mode="measure"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._measurePts=[]; renderAll(); renderTools(); }}, "\ud83d\udccf Measure"),
     el("span",{class:"muted", style:"font-size:12px"}, _modeHelp[ctx.state.maps._mode] || ""),
+    helpBtn("maps_edit"),
   ]);
 
   // Detect unsaved changes by comparing draft to saved
@@ -3228,9 +3229,11 @@ const BRIGHT_PRO_MANUAL = [
       },
       {
         "heading": "Motion and temperature are read-only",
-        "body": "Motion and temperature tiles are indicators, not switches — they show you what's happening rather than let you change it. Tap one and nothing turns on or off; the panel tells you it's read-only instead of switching anything.",
+        "body": "Motion and temperature tiles are indicators, not switches — they show you what's happening rather than let you change it. Tap a motion tile and it opens a 7-day activity history instead — how many hours it's tripped, day by day. Tap a temperature tile and the panel tells you it's read-only; there's nothing to switch.",
         "steps": [],
-        "notes": []
+        "notes": [
+          "Some sensors report both motion and presence for the same spot — common on radar/mmWave hardware. PadSpan recognises the pair and shows it as one tile, never two, but only when it's confident they're really the same physical sensor."
+        ]
       },
       {
         "heading": "For admins",
@@ -3509,10 +3512,38 @@ function _renderManualSection(el, sec){
 function _help(ctx){
   const { el } = ctx.helpers;
   const edition = String(ctx.state.settings?.edition || "full").toLowerCase();
+  const tier = String(ctx.state.settings?.tier || "").toLowerCase();
   const wrap = el("div", {});
   wrap.appendChild(el("div", {class:"muted", style:"margin-bottom:12px;font-size:12px"},
     "The PadSpan Bright Pro manual — everything the lighting product does, roughly in the order you’ll use it."));
   for (const sec of BRIGHT_PRO_MANUAL) wrap.appendChild(_renderManualSection(el, sec));
+
+  // Type override is gated to tier === "pro" specifically, not the ordinary
+  // bright-or-pro lighting gate — a Bright Pro key never unlocks it. So this
+  // section is Pro-only too, shown to whichever edition happens to be
+  // running a pro key (a full PadSpan Pro install, ordinarily — but also a
+  // Bright install if someone's typed a pro key into it, which the tier
+  // ladder allows).
+  if (tier === "pro"){
+    wrap.appendChild(_renderManualSection(el, {
+      heading: "Overriding how a light is classed (Pro)",
+      intro: "PadSpan derives what a light is — a plain fixture, a WLED/effect strip, or an ESPHome partition — from its own reported attributes. Pro lets you correct that guess by hand for the rare light it gets wrong.",
+      subsections: [
+        {
+          heading: "Set an override",
+          body: "",
+          steps: [
+            "In the light index below the map, find the light's row.",
+            "Use the dropdown before Show/Hide to set it to WLED, Partition, or Plain — or leave it on Auto to go back to PadSpan's own guess.",
+          ],
+          notes: [
+            "Not available for fans — there's nothing to override on a fan.",
+            "This is a Pro-only tool. A PadSpan Bright Pro key unlocks everything else on this page but not this override.",
+          ],
+        },
+      ],
+    }));
+  }
 
   // Presence/BLE mapping has no place in Bright: that build has no presence
   // entities to place a receiver for. Full-edition installs still see it,
