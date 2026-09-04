@@ -25,8 +25,8 @@ A **PadSpan Pro** key unlocks all of the same — one key, either download.
 
 ## Install
 
-1. HACS → Integrations → ⋮ → **Custom repositories** → add this repository as
-   an *Integration*.
+1. HACS → Integrations → ⋮ → **Custom repositories** → add
+   `https://github.com/gbroeckling/padspanBright` as an *Integration*.
 2. Install **PadSpan Bright**, restart Home Assistant.
 3. Settings → Devices & services → **Add integration** → PadSpan Bright.
 4. Open **PadSpan Bright** in the sidebar: draw your floors and rooms under

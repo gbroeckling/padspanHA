@@ -74,10 +74,11 @@ RENAMES: tuple[tuple[str, str], ...] = (
 OLD_NAMES: tuple[str, ...] = tuple(old for old, _ in RENAMES)
 
 # What travels. The integration and its suite, the HACS/legal/tooling files
-# a repo needs, and the marks HACS shows. Docs, changelog, dist and backups
-# stay behind — Bright's README is generated from scripts/bright_README.md.
+# and validation workflows a public HACS repo needs, and the marks HACS shows.
+# Docs, changelog, dist and backups stay behind — Bright's README is generated
+# from scripts/bright_README.md.
 COPY: tuple[str, ...] = (
-    "custom_components", "tests",
+    "custom_components", "tests", ".github",
     "hacs.json", "LICENSE", "pyproject.toml", "requirements_test.txt",
     "VERSION.txt", ".gitignore", "icon.png", "logo.png",
 )
@@ -168,6 +169,9 @@ def verify(tree: Path) -> None:
         problems.append(f"custom_components/{FULL_DOMAIN} still present")
     if not (integ / "www" / "padspan-bright" / "panel.js").is_file():
         problems.append("www/padspan-bright/panel.js missing (asset folder not renamed)")
+    for workflow in ("hacs.yml", "hassfest.yml"):
+        if not (tree / ".github" / "workflows" / workflow).is_file():
+            problems.append(f"missing HACS publication workflow: .github/workflows/{workflow}")
     for p in sorted(tree.rglob("*")):
         if not p.is_file() or not _is_text(p):
             continue

@@ -4,7 +4,8 @@ Builds a Bright tree from THIS working copy into a temp dir and holds it to
 the plan's guard 4 (the working tree is never touched — the rename runs on
 a copy or it does not run) plus the derivation contract: every old name gone,
 directories renamed, EDITION stamped, the free floor intact, the entity
-platforms empty, and the release script publishing nothing until told to.
+platforms empty, and the release script publishing only through its explicit
+launch switch.
 
 Skipped inside a Bright tree: a Bright tree does not derive a Bright tree.
 """
@@ -89,6 +90,8 @@ def test_the_shape_of_the_generated_tree(tree):
     assert 'TIER_FLOOR = "free"' in bi
     assert (tree / "README.md").read_text(encoding="utf-8").startswith("# PadSpan Bright")
     assert (tree / "tests").is_dir(), "the suite travels with the tree"
+    assert (tree / ".github" / "workflows" / "hacs.yml").is_file()
+    assert (tree / ".github" / "workflows" / "hassfest.yml").is_file()
     # Panels renamed so both editions can be installed at once (the importer)
     panel = (integ / "panel.py").read_text(encoding="utf-8")
     assert 'frontend_url_path="padspan-bright"' in panel
@@ -132,12 +135,14 @@ def test_the_zip_is_flat_and_bright(tree, tmp_path):
     assert not any("__pycache__" in x or x.endswith(".pyc") for x in names)
 
 
-def test_release_publishes_nothing_until_told():
-    """The listing is the one irreversible step; it must be an explicit flip."""
+def test_release_publishes_bright_now_that_the_listing_is_live():
+    """The public facade is live, so future full releases must ship Bright too."""
     src = (_ROOT / "scripts" / "release.py").read_text(encoding="utf-8")
     # A bare literal, so flipping it is a one-word commit that shows in a
     # diff — never something computed, fetched or defaulted from the env.
     assert re.search(r"^BRIGHT_PUBLISH = (True|False)$", src, re.M), "BRIGHT_PUBLISH must be a literal bool"
+    assert re.search(r"^BRIGHT_PUBLISH = True$", src, re.M), \
+        "the public Bright repo is live; every source release must publish its matching Bright build"
     assert "bright_pass(version, channel, message)" in src
     assert "if not BRIGHT_PUBLISH:" in src
     # The pass runs AFTER the full release is out, never before it.

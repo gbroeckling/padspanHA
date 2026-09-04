@@ -118,10 +118,10 @@ REPO = "gbroeckling/padspanHA"
 
 # ── PadSpan Bright — the generated edition ──
 # Built and verified on EVERY release so the pass can never rot. Published
-# only when this is True: the listing is the one publicly irreversible step
-# (the name is out once it is out), so flipping this is a deliberate commit,
-# made when the Bright repo exists and Garry says the listing goes live.
-BRIGHT_PUBLISH = False
+# The public Bright facade is live. Every PadSpan HA release now derives,
+# verifies and publishes the matching Bright tree automatically; Bright has no
+# independently maintained source and therefore nothing that can drift.
+BRIGHT_PUBLISH = True
 BRIGHT_ZIP = ROOT / "dist" / "padspan_bright.zip"    # git-ignored: it belongs to the Bright repo
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import bright_build  # noqa: E402  (sibling module)
