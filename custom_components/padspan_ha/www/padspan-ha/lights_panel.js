@@ -392,7 +392,7 @@ class PadSpanLightsApp extends HTMLElement {
       ? ensureLightsRegistry(this._regStore, this._hass, this.state.model.areas, ()=>this._render())
       : { areaMap:{}, platformMap:{}, loading:true };
     const lightsLoading = reg.loading;
-    const lights = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides, reg.pairMap);
+    const lights = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides, reg.pairMap, reg.manufacturerMap);
 
     if(!lights.length){
       root.appendChild(el("div",{class:"muted",style:"padding:8px"},"No light entities found."));

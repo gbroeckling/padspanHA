@@ -1031,8 +1031,18 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         for (const a of (areas || [])) areaIdToName[a.id] = a.name;
         // device_id → area_id (entities commonly inherit area from device)
         const devAreaId = {};
-        for (const d of (devReg || [])) if (d.area_id) devAreaId[d.id] = d.area_id;
-        const areaMap = {}, platformMap = {};
+        // device_id → manufacturer, for the index's Brand column. Many
+        // Zigbee/Tuya devices report their manufacturer as a raw firmware
+        // string (e.g. "_TZE204_ex3rcdha") rather than the name on the box
+        // — that is what HA itself knows, so it is what this shows too;
+        // sold-as branding for a white-label device is not something the
+        // device registry has ever known.
+        const devManufacturer = {};
+        for (const d of (devReg || [])) {
+          if (d.area_id) devAreaId[d.id] = d.area_id;
+          if (d.manufacturer) devManufacturer[d.id] = d.manufacturer;
+        }
+        const areaMap = {}, platformMap = {}, manufacturerMap = {};
         for (const e of (reg || [])) {
           // Fans and motion sensors ride the lights pipeline now, so their
           // room assignment resolves the same way a light's does. Temperature
@@ -1053,11 +1063,12 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
           // ESPHome-style split strip, whatever ELSE reports it is not our
           // business. Same registry fetch, no extra round trip.
           platformMap[e.entity_id] = e.platform || null;
+          manufacturerMap[e.entity_id] = devManufacturer[e.device_id] || null;
         }
         // Same registry fetch, no extra round trip — hass.states is already
         // in hand for the device_class/name each pairing decision needs.
         const pairMap = computeMotionOccupancyPairs(reg, hass.states);
-        store.reg = { ts: Date.now(), areaMap, platformMap, pairMap };
+        store.reg = { ts: Date.now(), areaMap, platformMap, manufacturerMap, pairMap };
         store.retryAfter = 0;
       } catch (_) {
         // A failed fetch must never become the authoritative answer. With a
@@ -1065,7 +1076,7 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         // stay in the loading state (the map keeps its placeholder) instead of
         // caching an empty areaMap for 60s, which would tell the user every
         // light in the house has no room.
-        if (store.reg) store.reg = { ts: Date.now(), areaMap: store.reg.areaMap, platformMap: store.reg.platformMap, pairMap: store.reg.pairMap };
+        if (store.reg) store.reg = { ts: Date.now(), areaMap: store.reg.areaMap, platformMap: store.reg.platformMap, manufacturerMap: store.reg.manufacturerMap, pairMap: store.reg.pairMap };
         else store.retryAfter = Date.now() + 10000;
       } finally {
         store.loading = false;
@@ -1076,6 +1087,7 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
   return {
     areaMap: store.reg ? store.reg.areaMap : {},
     platformMap: store.reg ? store.reg.platformMap : {},
+    manufacturerMap: store.reg ? store.reg.manufacturerMap || {} : {},
     pairMap: store.reg ? store.reg.pairMap || {} : {},
     loading: !store.reg,
   };
@@ -1093,7 +1105,11 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
 // light's class outright (see isWledLight/isPartitionLight).
 // fan.* entities ride the same pipeline: same codes discipline (F-series),
 // same rooms, same table, same map — a ceiling has fans on it.
-export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides, pairMap){
+// manufacturerMap = registry manufacturerMap from ensureLightsRegistry,
+// entity_id → the device registry's manufacturer string. Informational
+// only (identifying hardware, not a placement or styling control), so it
+// is ungated — free tier sees it same as everyone else.
+export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides, pairMap, manufacturerMap){
   const paid = lightingUnlocked(tier);
   const pro = tierAtLeast(tier, "pro");
   // A verified motion+occupancy pair (see computeMotionOccupancyPairs) rides
@@ -1173,6 +1189,11 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       // signal (see isPartitionLight). Gated like effect_list: free tier
       // never sees a strip class at all.
       platform:      paid ? ((platformMap && platformMap[eid]) || null) : null,
+      // The device registry's manufacturer string — identifying hardware,
+      // never gated. Often a raw Zigbee/Tuya firmware signature rather than
+      // a retail brand name; that is what HA itself knows, so it is what
+      // this shows.
+      brand:         (manufacturerMap && manufacturerMap[eid]) || null,
       // What the fixture is actually throwing right now. Showcase draws and
       // glows each light in its OWN colour at its OWN brightness; the working
       // map ignores both.
@@ -1711,6 +1732,7 @@ export function buildLightsTable(host, lights){
     ["code", "Code", (l) => l.code || ""],
     ["name", "Light", (l) => (l.friendly_name || "").toLowerCase()],
     ["room", "Room", (l) => (l.area_name || "").toLowerCase()],
+    ["brand", "Brand", (l) => (l.brand || "").toLowerCase()],
     // Sorted on exactly what the State column DISPLAYS — a temperature
     // reading numerically (so 105° sorts above 68°, not alphabetically),
     // everything else by its actual on/off.
@@ -1736,6 +1758,7 @@ export function buildLightsTable(host, lights){
     th("code", "Code"),
     th("name", "Light"),
     th("room", "Room"),
+    th("brand", "Brand"),
     th("state", "State"),
     th(null, "Map", "width:60px;text-align:center"),
   ])));
@@ -1811,6 +1834,7 @@ export function buildLightsTable(host, lights){
             return sel;
           })()
       ),
+      el("td", { class: "muted", style: "font-size:11px" }, l.brand || "—"),
       el("td", {}, l.isTemp
         ? el("span", { class: "lv-state off" }, Number.isFinite(l.temperature) ? `${l.temperature}°` : "—")
         : el("span", { class: `lv-state ${on ? "on" : "off"}` }, on ? "ON" : "OFF")),

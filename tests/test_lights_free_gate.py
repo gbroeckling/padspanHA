@@ -721,6 +721,36 @@ console.log(JSON.stringify({ids, state: primary && primary.state, last_changed: 
     assert out["code"] == "M01", out
 
 
+def test_brand_comes_from_the_device_registry_manufacturer_and_is_never_gated(tmp_path):
+    """Garry asked which two entities on the motion list were a specific
+    switch brand and there was no way to answer from inside PadSpan — the
+    index had no column for it. manufacturerMap threads the device
+    registry's OWN manufacturer string (often a raw Zigbee/Tuya firmware
+    signature, not the name on the box — that is what HA itself knows)
+    through gatherLights same as areaMap/platformMap already do. Unlike
+    platform, it is never tier-gated: identifying hardware is informational,
+    not a placement or styling control, so free tier sees it too."""
+    out = _run_pipeline_script(tmp_path, """
+const AREA = {"light.kitchen": "Kitchen", "light.hall": "Hall"};
+const MFR = {"light.kitchen": "_TZE204_ex3rcdha"};
+const STATES = {
+  "light.kitchen": {state: "on", attributes: {friendly_name: "Kitchen"}},
+  "light.hall":    {state: "off", attributes: {friendly_name: "Hall"}},
+};
+const free = LM.gatherLights(STATES, AREA, {}, "free", {}, {}, {}, MFR);
+const pro = LM.gatherLights(STATES, AREA, {}, "pro", {}, {}, {}, MFR);
+const byId = (lights, eid) => lights.find(l => l.entity_id === eid);
+console.log(JSON.stringify({
+  freeKnown: byId(free, "light.kitchen").brand,
+  freeUnknown: byId(free, "light.hall").brand,
+  proKnown: byId(pro, "light.kitchen").brand,
+}));
+""")
+    assert out["freeKnown"] == "_TZE204_ex3rcdha", "free tier must see the brand too — it is informational, not gated"
+    assert out["freeUnknown"] is None, "a device the registry has no manufacturer for reads null, not an empty string"
+    assert out["proKnown"] == "_TZE204_ex3rcdha", out
+
+
 # ── Temperature sensors ───────────────────────────────────────────────────────
 # Garry: "same as wled or any other objects, devices telling the temperature
 # can also act like a motion sensor, so rule is if they gave the temperature
@@ -764,8 +794,8 @@ def test_both_hosts_pass_the_tier():
     panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     maps = (_VIEWS / "maps.js").read_text(encoding="utf-8")
     assert "this.state._tier" in panel and "tier: this.state._tier" in panel
-    assert "gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides, reg.pairMap)" in panel
-    assert "gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides, reg.pairMap)" in maps
+    assert "gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides, reg.pairMap, reg.manufacturerMap)" in panel
+    assert "gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap)" in maps
     assert "\n    tier,\n" in maps
     for src, name in ((panel, "lights_panel.js"), (maps, "maps.js")):
         assert "LIGHTING_TIER" not in src, f"{name} re-derives the lighting gate; lights_map.js owns it"
