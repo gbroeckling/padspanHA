@@ -22,8 +22,6 @@ import pytest
 from custom_components.padspan_ha import ws_occupancy
 from custom_components.padspan_ha.const import DATA_MODEL, DATA_SETTINGS, DOMAIN
 
-NOW = datetime.now(timezone.utc)
-
 # Apple continuity subtype bytes (ble_enrichment.APPLE_SUBTYPES)
 APPLE = {"Nearby Info": 0x10, "AirPlay": 0x09, "iBeacon": 0x02, "Find My": 0x12, "Handoff": 0x0C, "AirPods": 0x07}
 MICROSOFT, GOOGLE, GARMIN = 6, 224, 80
@@ -32,8 +30,17 @@ MICROSOFT, GOOGLE, GARMIN = 6, 224, 80
 # ── builders ────────────────────────────────────────────────────────────────
 
 def _state(entity_id, state, *, changed_s_ago=0.0, **attrs):
+    # "now" at the moment THIS fixture is built, not once when the module was
+    # collected. compute_occupancy_estimate measures held time against the
+    # real wall clock (time.time(), ws_occupancy.py) — a module-level NOW
+    # fixed at collection made "cleared 60s ago" drift later and later as the
+    # suite ran, until a long enough run pushed it past MOTION_RECENT_S (120s)
+    # and flipped this test to failing depending on where in the suite (and
+    # how long the suite had been running) it happened to land — passed every
+    # time run alone, failed only sometimes under the full ~1s-per-test suite.
+    now = datetime.now(timezone.utc)
     return SimpleNamespace(entity_id=entity_id, state=state, attributes=attrs,
-                           last_changed=NOW - timedelta(seconds=changed_s_ago))
+                           last_changed=now - timedelta(seconds=changed_s_ago))
 
 
 def _person(eid, name, tracker, state="home"):
