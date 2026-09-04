@@ -267,6 +267,49 @@ def test_marker_stays_clickable_on_a_very_large_site(tmp_path):
     assert out["px"] >= 8, "a marker must not shrink into an unclickable speck"
 
 
+def test_room_shapes_carry_a_soft_centre_glow_like_the_light_pools(tmp_path):
+    """Garry: "That cool look you have inside the shape [the light pool]...
+    can the shape that is built by the room shape also have some of that,
+    maybe a bit less intense, but the same shaded look." A room polygon now
+    gets its own soft radial glow, tinted with the room's own colour — one
+    gradient definition per DISTINCT colour in use (the same dedup glowIds
+    already does for lights), referenced by every room polygon that colour,
+    in both the working view and Showcase. Loft is forced (via room_meta) to
+    the exact colour Kitchen's name hashes to, so the dedup is proven by
+    construction rather than by hoping two arbitrary names collide."""
+    base_model = {
+        "room_geometry_m": {
+            "Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 4], [0, 4]]},
+            "Loft":    {"type": "poly", "floor_id": "main", "points_m": [[8, 0], [13, 0], [13, 5], [8, 5]]},
+        },
+        "light_positions_m": {},
+    }
+    lbe = {}
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        "import { roomColor } from './room_color.mjs';\n"
+        f"const BASE_MODEL={json.dumps(base_model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        "const kitchenColor=roomColor('Kitchen', BASE_MODEL);\n"
+        "const MODEL={...BASE_MODEL, room_meta:{Loft:{color:kitchenColor}}};\n"
+        "const svgWork=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{});\n"
+        "const svgShow=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{showcase:true});\n"
+        "const defCount=(svg)=>(svg.match(/<radialGradient id=\"psroomglow_[^\"]*\"/g)||[]).length;\n"
+        "const usesGlow=(svg)=>/<polygon[^>]*fill=\"url\\(#psroomglow_[0-9]+\\)\"/.test(svg);\n"
+        "console.log(JSON.stringify({\n"
+        "  workDefCount: defCount(svgWork), showDefCount: defCount(svgShow),\n"
+        "  workUsesGlow: usesGlow(svgWork), showUsesGlow: usesGlow(svgShow),\n"
+        "}));\n"
+    ))
+    assert out["workDefCount"] == 1, \
+        f"Kitchen and Loft share one forced colour — must share one gradient definition, not two: {out}"
+    assert out["showDefCount"] == 1, out
+    assert out["workUsesGlow"], "the working view's room polygons must reference their glow gradient"
+    assert out["showUsesGlow"], "Showcase must keep the room glow alongside its own pswash sheen"
+
+
 def test_marker_never_exceeds_the_old_fixed_size(tmp_path):
     """A studio flat must not render saucers."""
     out = _marker_m(tmp_path, _sq(4, 3))

@@ -1125,6 +1125,27 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     `<stop offset="0%" stop-color="${MOTION_PULSE}" stop-opacity="0.55"/>`+
     `<stop offset="60%" stop-color="${MOTION_PULSE}" stop-opacity="0.18"/>`+
     `<stop offset="100%" stop-color="${MOTION_PULSE}" stop-opacity="0"/></radialGradient>`;
+  // Garry: "that cool look you have inside the [light glow]... can the shape
+  // built by the room shape also have some of that, a bit less intense, but
+  // the same shaded look" — the same near-quadratic radial falloff the light
+  // pools use (see glowIds below), tinted with each room's own colour and
+  // held far softer, so a room reads as gently lit from its centre instead
+  // of a flat colour block. UNGATED like psmotion: rooms exist in both
+  // modes, and objectBoundingBox (the default, no cx/cy/r given) centres
+  // this on whatever polygon references it with zero per-room geometry.
+  // One gradient per distinct room colour, same dedup as glowIds.
+  const roomGlowIds=new Map();
+  for(const r of rooms){
+    const rc=roomColor(r.room, model);
+    if(!roomGlowIds.has(rc)) roomGlowIds.set(rc, `psroomglow_${roomGlowIds.size}`);
+  }
+  for(const [rc,rid] of roomGlowIds){
+    s+=`<radialGradient id="${rid}">`+
+      `<stop offset="0%" stop-color="${rc}" stop-opacity="0.16"/>`+
+      `<stop offset="45%" stop-color="${rc}" stop-opacity="0.05"/>`+
+      `<stop offset="100%" stop-color="${rc}" stop-opacity="0"/>`+
+      `</radialGradient>`;
+  }
   if(SHOW){
     // Light pools. Four stops, not two: a linear ramp reads as a flat disc with
     // a hard edge, and the near-quadratic falloff here is what makes it look
@@ -1760,13 +1781,16 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       }
       if(SHOW){
         // Same polygon, given depth: a soft dark edge seats the room on the
-        // slab, the fill carries the room colour, and one sheen from the shared
-        // upper-left light source keeps every room lit from the same place.
+        // slab, the fill carries the room colour, one sheen from the shared
+        // upper-left light source keeps every room lit from the same place,
+        // and the room's own soft centre-glow (see roomGlowIds) rounds it out.
         s+=`<polygon points="${pp}" fill="none" stroke="#04100a" stroke-width="4" stroke-linejoin="round" opacity="0.5"/>`;
         s+=`<polygon points="${pp}" fill="${color}" fill-opacity="0.085" stroke="${color}" stroke-width="1.3" stroke-opacity="0.8" stroke-linejoin="round"/>`;
+        s+=`<polygon points="${pp}" fill="url(#${roomGlowIds.get(color)})" stroke="none" pointer-events="none"/>`;
         s+=`<polygon points="${pp}" fill="url(#pswash)" stroke="none" pointer-events="none"/>`;
       } else {
         s+=`<polygon points="${pp}" fill="${color}" fill-opacity="0.16" stroke="${color}" stroke-width="1.6" opacity="1"/>`;
+        s+=`<polygon points="${pp}" fill="url(#${roomGlowIds.get(color)})" stroke="none" pointer-events="none"/>`;
       }
       // paint-order puts the dark stroke UNDER the glyphs, so the name stays
       // legible over the floor hatch and over a slab edge it happens to cross.
