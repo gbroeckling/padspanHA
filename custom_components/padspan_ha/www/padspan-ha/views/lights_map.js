@@ -913,8 +913,18 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         const areaMap = {}, platformMap = {};
         for (const e of (reg || [])) {
           // Fans and motion sensors ride the lights pipeline now, so their
-          // room assignment resolves the same way a light's does.
-          if (!/^(light|fan|binary_sensor)\./.test(e.entity_id)) continue;
+          // room assignment resolves the same way a light's does. Temperature
+          // sensors too — same sensor.* + device_class=="temperature" test
+          // gatherLights itself uses. Missing this meant "Assign room…" in
+          // the index visibly saved (HA's own registry had it) but the light
+          // never left the "no room" list: this areaMap is the ONLY source
+          // gatherLights reads area_name from, so a sensor.* this loop never
+          // touched could never cluster onto the map or be placed at all —
+          // found live, 2026-09-03 (Garry: "don't see any way to move the
+          // temp in mapping, lights").
+          const isTempSensor = e.entity_id.startsWith("sensor.")
+            && hass.states[e.entity_id]?.attributes?.device_class === "temperature";
+          if (!/^(light|fan|binary_sensor)\./.test(e.entity_id) && !isTempSensor) continue;
           const aid = e.area_id || devAreaId[e.device_id] || null;
           areaMap[e.entity_id] = aid ? (areaIdToName[aid] || null) : null;
           // The platform that CREATED the entity — "partition" for an

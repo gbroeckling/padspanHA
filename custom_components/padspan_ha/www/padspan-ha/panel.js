@@ -717,7 +717,7 @@ class PadSpanHaApp extends HTMLElement {
       const reqTab = q.get("tab");
       if (reqView === "maps" && reqTab && /^[a-z]+$/.test(reqTab)) this.state.mapsTab = reqTab;
       const reqLight = q.get("light");
-      if (reqLight && /^(light|fan|binary_sensor)\.[a-z0-9_]+$/.test(reqLight)) {
+      if (reqLight && /^(light|fan|binary_sensor|sensor)\.[a-z0-9_]+$/.test(reqLight)) {
         this.state.maps._selLight = { eid: reqLight, mapId: null };
         this.state.maps._focusRow = reqLight;
       }

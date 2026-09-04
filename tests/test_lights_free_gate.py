@@ -400,6 +400,55 @@ console.log(JSON.stringify({
     assert out["lamp"]["code"] == "A01", out["lamp"]
 
 
+def test_ensure_lights_registry_resolves_a_temperature_sensors_room(tmp_path):
+    """Garry, live on the house (2026-09-03): "Don't see any way to move the
+    temp in mapping, lights." Root cause: ensureLightsRegistry's own entity
+    scan only ever admitted light./fan./binary_sensor. into areaMap — a
+    sensor.* temperature entity's "Assign room…" pick genuinely saved (HA's
+    own registry had it) but areaMap[eid] stayed undefined forever, so
+    gatherLights' l.area_name was always null and the light could never
+    cluster onto the map or be placed. A plain (non-temperature) sensor.*
+    must still be excluded — the fix is scoped to gatherLights' own
+    admission rule, not "every sensor.*"."""
+    out = _run_pipeline_script(tmp_path, """
+const AREAS = [{id: "bedroom", name: "Bedroom"}];
+const REG = [
+  {entity_id: "light.lamp", area_id: "bedroom", device_id: null, platform: "hue"},
+  {entity_id: "sensor.temp1", area_id: "bedroom", device_id: null, platform: "zha"},
+  {entity_id: "sensor.humidity1", area_id: "bedroom", device_id: null, platform: "zha"},
+];
+const STATES = {
+  "light.lamp": {state: "on", attributes: {friendly_name: "Lamp"}},
+  "sensor.temp1": {state: "68", attributes: {device_class: "temperature"}},
+  "sensor.humidity1": {state: "44", attributes: {device_class: "humidity"}},
+};
+const hass = {
+  states: STATES,
+  callWS: async ({type}) => {
+    if (type === "config/entity_registry/list") return REG;
+    if (type === "config/device_registry/list") return [];
+    return [];
+  },
+};
+const store = {};
+let loaded = false;
+LM.ensureLightsRegistry(store, hass, AREAS, () => { loaded = true; });
+// The DOM shim's setTimeout is a fake, manually-flushed queue (never fires
+// on its own) — but callWS above is a plain async function with no timers
+// of its own, so the fetch settles in a handful of microtask ticks. Yield
+// on microtasks only, never macrotasks, or this hangs forever.
+for (let i = 0; i < 1000 && !loaded; i++) await Promise.resolve();
+console.log(JSON.stringify({loaded, areaMap: store.reg ? store.reg.areaMap : null}));
+""")
+    assert out["loaded"], "the registry fetch never completed"
+    areaMap = out["areaMap"]
+    assert areaMap["light.lamp"] == "Bedroom", areaMap
+    assert areaMap["sensor.temp1"] == "Bedroom", \
+        f"a temperature sensor's own room pick must resolve here — this is the ONLY place gatherLights reads area_name from: {areaMap}"
+    assert "sensor.humidity1" not in areaMap, \
+        f"a non-temperature sensor.* must stay excluded — the fix is scoped to gatherLights' own admission rule: {areaMap}"
+
+
 _TABLE_EL = """
 function el(tag, attrs = {}, children = []) {
   const n = document.createElement(tag);
