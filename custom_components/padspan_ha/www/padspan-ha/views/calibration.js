@@ -81,11 +81,27 @@ export function render(ctx) {
   }
   const calData = ctx.state.calibration || { points: [], model: {} };
 
+  // Guided Calibration Wizard — short-circuits before the ordinary tab bar,
+  // same pattern as the Mapping Setup Wizard (maps.js). See _calibWizard
+  // below for why: Calibration is scattered across Tune/Setup/Roam/Model
+  // exactly like Mapping used to be scattered across Upload/Edit, and it is
+  // the step people are most likely to half-do — the manual needs whole
+  // paragraphs to explain what an LOO accuracy score even means.
+  if (ctx.state._calibWizard) {
+    root.appendChild(_calibWizard(ctx, el, cs, calData));
+    return root;
+  }
+
   // Header
   root.appendChild(el("div", { style: "margin-bottom:10px" }, [
-    el("div", { style: "display:flex;align-items:center;gap:8px" }, [
+    el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
       el("div", { style: "font-weight:700;font-size:16px;color:#52b788" }, "BLE Location Calibration"),
       ctx.helpers.helpBtn("calibration_overview"),
+      (() => {
+        const b = el("button", { class: "btn inline", style: "font-size:11px;margin-left:auto" }, "🧭 Guided calibration");
+        b.addEventListener("click", () => { ctx.state._calibWizard = { step: 1 }; ctx.actions.renderRooms(); });
+        return b;
+      })(),
     ]),
     el("div", { style: "font-size:12px;color:#78909c;margin-top:2px" },
       "Build a fingerprint database so PadSpan™ can pinpoint every beacon in 3D space."),
@@ -108,6 +124,188 @@ export function render(ctx) {
   if (cs.tab === "model") root.appendChild(_modelTab(ctx, el, cs, calData));
   if (cs.tab === "tune")  root.appendChild(_tuneTab(ctx, el, cs, calData));
   if (cs.tab === "beacon") root.appendChild(_beaconTuneTab(ctx, el, cs, calData));
+
+  return root;
+}
+
+// ── Guided Calibration Wizard ────────────────────────────────────────────────
+// A thin shell around the real tabs (_tuneTab, _setup, _roam, _modelTab) —
+// forces cs.tab to the right sub-view per step and reuses their rendering
+// verbatim, the same "compose, don't reimplement" approach the Mapping
+// Setup Wizard already established. What a wizard adds here is sequencing
+// and validation, not new UI: half of calibration is a physical task (walk
+// the house with a phone), so Roam's own live coverage heatmap and "next
+// target" crosshair already ARE the guided part — this shell just makes
+// sure nobody reaches it without a device chosen first.
+//
+// ctx.state._calibWizard = { step } while open; falsy means closed.
+const CALIB_WIZARD_STEPS = [
+  { n: 1, id: "tune",  label: "Check scanner positions" },
+  { n: 2, id: "setup", label: "Choose your device" },
+  { n: 3, id: "roam",  label: "Walk your home" },
+  { n: 4, id: "model", label: "Compute your model" },
+  { n: 5, id: "finish", label: "Finish" },
+];
+const CALIB_TAB_BY_STEP = { 1: "tune", 2: "setup", 3: "roam", 4: "model" };
+
+function _calibWizardFooter(ctx, el, w, opts) {
+  opts = opts || {};
+  const bar = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px;flex-wrap:wrap" });
+  const left = el("div", {});
+  if (w.step > 1) {
+    const b = el("button", { class: "btn inline" }, "← Back");
+    b.addEventListener("click", () => { w.step -= 1; ctx.actions.renderRooms(); });
+    left.appendChild(b);
+  }
+  bar.appendChild(left);
+  const right = el("div", { style: "display:flex;gap:8px" });
+  if (opts.skip) {
+    const sk = el("button", { class: "btn inline", style: "color:#94a3b8" }, opts.skipLabel || "Skip for now");
+    sk.addEventListener("click", () => { w.step += 1; ctx.actions.renderRooms(); });
+    right.appendChild(sk);
+  }
+  if (opts.next !== false) {
+    const nx = el("button", { class: "btn primary" }, opts.nextLabel || "Next →");
+    nx.addEventListener("click", () => { w.step += 1; ctx.actions.renderRooms(); });
+    right.appendChild(nx);
+  }
+  bar.appendChild(right);
+  return bar;
+}
+
+function _calibWizardTune(ctx, el, cs, calData, w) {
+  const wrap = el("div", {});
+  wrap.appendChild(el("div", { class: "muted", style: "margin-bottom:10px;line-height:1.5" },
+    "Optional, but worth a look before you start walking: drag any scanner marker that isn't quite where the real device is mounted. This step is about scanner positions, not signal samples — nothing here is collected or timed."));
+  wrap.appendChild(_tuneTab(ctx, el, cs, calData));
+  wrap.appendChild(_calibWizardFooter(ctx, el, w, { skip: true, skipLabel: "Skip — positions look fine" }));
+  return wrap;
+}
+
+function _calibWizardSetup(ctx, el, cs, calData, w) {
+  const wrap = el("div", {});
+  const ready = !!(cs.deviceId && cs.mapId);
+  wrap.appendChild(el("div", { class: "muted", style: "margin-bottom:10px;line-height:1.5" },
+    "Pick the phone or tag you'll carry while you walk, and which floor you're calibrating. Both are needed before the next step — Roam has nothing to show without them."));
+  wrap.appendChild(_setup(ctx, el, cs, calData));
+  wrap.appendChild(_calibWizardFooter(ctx, el, w, { next: ready, nextLabel: "Next →" }));
+  if (!ready) {
+    wrap.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:6px;text-align:right" },
+      "Choose a device and a floor above to continue."));
+  }
+  return wrap;
+}
+
+function _calibWizardRoam(ctx, el, cs, calData, w) {
+  const wrap = el("div", {});
+  const pts = (calData.points || []).filter(p => p.map_id === cs.mapId);
+  wrap.appendChild(el("div", { class: "muted", style: "margin-bottom:10px;line-height:1.5" },
+    "Walk to the blue crosshair, stand still, and press collect — the map tells you where to go next, and fills in as you cover the floor. " +
+    "There's no fixed number of points; more is always better, but the coverage bar below is a fair guide. Prefer tapping the map yourself instead of being guided? Pin & Listen (the ordinary Calibration tabs) does the same collection without the guidance."));
+  wrap.appendChild(_roam(ctx, el, cs, calData));
+  wrap.appendChild(_calibWizardFooter(ctx, el, w, {
+    skip: pts.length === 0, skipLabel: "Skip — I'll collect points later",
+    nextLabel: pts.length ? `Next →` : "Next →",
+  }));
+  return wrap;
+}
+
+function _calibWizardModel(ctx, el, cs, calData, w) {
+  const wrap = el("div", {});
+  wrap.appendChild(el("div", { class: "muted", style: "margin-bottom:10px;line-height:1.5" },
+    "Click Compute Model to fit the path-loss curves and run cross-validation against the points you just collected. The Est. Accuracy figure is how far off the model's guess was, on average, when tested against points it wasn't shown."));
+  wrap.appendChild(_modelTab(ctx, el, cs, calData));
+  wrap.appendChild(_calibWizardFooter(ctx, el, w, { nextLabel: "Finish →" }));
+  return wrap;
+}
+
+function _calibWizardFinish(ctx, el, cs, calData) {
+  const wrap = el("div", { class: "card" });
+  const pts = calData.points || [];
+  const mapPts = pts.filter(p => p.map_id === cs.mapId);
+  const model = calData.model || {};
+  const loo = model.loo_accuracy;
+  const accM = loo && typeof loo.mean_error_m === "number" ? loo.mean_error_m.toFixed(1) : null;
+
+  wrap.appendChild(el("div", { style: "font-weight:700;font-size:16px;margin-bottom:8px" }, "Calibration is underway"));
+  wrap.appendChild(el("div", { class: "muted", style: "margin-bottom:14px;line-height:1.6" },
+    `${mapPts.length} point${mapPts.length === 1 ? "" : "s"} on this floor, ${pts.length} total across the house` +
+    (accM ? `. Estimated accuracy: ~${accM}m.` : ". Compute a model once you have a handful of points to see an accuracy estimate.") +
+    " Calibration isn't a one-time thing — walk more of the house, or redo a room that reads oddly, any time from the ordinary Calibration tabs."));
+  const row = el("div", { style: "display:flex;gap:10px;flex-wrap:wrap" });
+  const qaBtn = el("button", { class: "btn primary" }, "See detailed quality report →");
+  qaBtn.addEventListener("click", () => {
+    ctx.state._calibWizard = null;
+    ctx.state.view = "qa";
+    ctx.actions.renderRooms();
+  });
+  row.appendChild(qaBtn);
+  const anotherBtn = el("button", { class: "btn inline" }, "+ Calibrate another floor");
+  anotherBtn.addEventListener("click", () => {
+    cs.mapId = null;
+    ctx.state._calibWizard = { step: 2 };
+    ctx.actions.renderRooms();
+  });
+  row.appendChild(anotherBtn);
+  const doneBtn = el("button", { class: "btn inline" }, "Done");
+  doneBtn.addEventListener("click", () => {
+    ctx.state._calibWizard = null;
+    cs.tab = "model";
+    ctx.actions.renderRooms();
+  });
+  row.appendChild(doneBtn);
+  wrap.appendChild(row);
+  return wrap;
+}
+
+function _calibWizard(ctx, el, cs, calData) {
+  const w = ctx.state._calibWizard;
+
+  // Every step past Setup needs a device and a floor — Roam and Model both
+  // read from cs.deviceId/cs.mapId the same way the ordinary tabs do.
+  const ready = !!(cs.deviceId && cs.mapId);
+  if (w.step === 2 && ready) w.step = 3;   // chosen — move on without a click
+  if (w.step > 2 && !ready) w.step = 2;    // lost/never had it — go back
+
+  // cs.tab drives which sub-view _tuneTab/_setup/_roam/_modelTab is a
+  // no-op for; keep it in sync so leaving the wizard lands somewhere sane.
+  if (CALIB_TAB_BY_STEP[w.step]) cs.tab = CALIB_TAB_BY_STEP[w.step];
+
+  const root = el("div", {});
+
+  const head = el("div", { class: "card", style: "margin-bottom:12px" });
+  const hrow = el("div", { style: "display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px" });
+  hrow.appendChild(el("div", { style: "font-weight:700;font-size:16px" }, "Guided calibration"));
+  const closeBtn = el("button", { class: "btn inline", style: "font-size:12px" }, "Exit guide");
+  closeBtn.addEventListener("click", () => { ctx.state._calibWizard = null; ctx.actions.renderRooms(); });
+  hrow.appendChild(closeBtn);
+  head.appendChild(hrow);
+
+  const dots = el("div", { style: "display:flex;gap:6px;margin-top:12px" });
+  const stepList = el("div", { style: "display:flex;flex-wrap:wrap;gap:4px;margin-top:8px" });
+  for (const s of CALIB_WIZARD_STEPS) {
+    const isCurrent = s.n === w.step;
+    const reachable = s.n <= 2 || ready;
+    dots.appendChild(el("div", { style: `flex:1;height:4px;border-radius:2px;background:${s.n < w.step ? "#52b788" : isCurrent ? "#5eead4" : "#1b3526"}` }));
+    const chip = el("button", {
+      class: "btn inline" + (isCurrent ? " primary" : ""),
+      style: `font-size:11px;padding:3px 10px;` + (reachable ? "" : "opacity:.4;cursor:not-allowed"),
+    }, `${s.n}. ${s.label}`);
+    chip.disabled = !reachable;
+    if (reachable) chip.addEventListener("click", () => { w.step = s.n; ctx.actions.renderRooms(); });
+    stepList.appendChild(chip);
+  }
+  head.appendChild(dots);
+  head.appendChild(stepList);
+  root.appendChild(head);
+
+  const body = el("div", {});
+  if (w.step === 1) body.appendChild(_calibWizardTune(ctx, el, cs, calData, w));
+  else if (w.step === 2) body.appendChild(_calibWizardSetup(ctx, el, cs, calData, w));
+  else if (w.step === 3) body.appendChild(_calibWizardRoam(ctx, el, cs, calData, w));
+  else if (w.step === 4) body.appendChild(_calibWizardModel(ctx, el, cs, calData, w));
+  else body.appendChild(_calibWizardFinish(ctx, el, cs, calData));
+  root.appendChild(body);
 
   return root;
 }

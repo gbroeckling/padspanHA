@@ -260,6 +260,15 @@ const ENTRY_POINTS = new Set(["render", "render2DMap", "renderTags"]);
 // LIBRARY tab being smoke-tested every time — a ReferenceError anywhere in the
 // 3D Stack and Alignment wiring shipped green, which is exactly the failure
 // mode this whole harness exists for.
+// The full default shape calibration.js's own render() seeds ctx.state._calib
+// with — a variant overriding just {tab} would leave duration/collecting/etc.
+// undefined, and the real tabs read those unconditionally.
+const CALIB_STATE = (over) => ({
+  tab: "tune", deviceId: null, deviceLabel: null, mapId: null, duration: 15,
+  pinX: null, pinY: null, pinRoom: null, pinLabel: "", collecting: false,
+  stopFlag: false, readings: null, savedThisSession: 0, ...over,
+});
+
 const VARIANTS = {
   "maps.js": [
     null,
@@ -282,6 +291,23 @@ const VARIANTS = {
     { name: "lights-tour-free", state: { mapsTab: "lights", settings: { tier: "free" }, _lightsTour: { step: 1 } } },
     { name: "lights-tour-paid-step5", state: { mapsTab: "lights", settings: { tier: "pro" }, _lightsTour: { step: 5 } } },
     { name: "lights-tour-paid-step6", state: { mapsTab: "lights", settings: { tier: "pro" }, _lightsTour: { step: 6 } } },
+  ],
+  "calibration.js": [
+    null, // default cs.tab === "tune"
+    { name: "setup",  state: { view: "calibration", _calib: CALIB_STATE({ tab: "setup" }) } },
+    { name: "pin-unguarded",  state: { view: "calibration", _calib: CALIB_STATE({ tab: "pin" }) } },
+    { name: "pin-ready",      state: { view: "calibration", _calib: CALIB_STATE({ tab: "pin", deviceId: "AA:BB:CC:DD:EE:01", mapId: "ground" }) } },
+    { name: "roam-unguarded", state: { view: "calibration", _calib: CALIB_STATE({ tab: "roam" }) } },
+    { name: "roam-ready",     state: { view: "calibration", _calib: CALIB_STATE({ tab: "roam", deviceId: "AA:BB:CC:DD:EE:01", mapId: "ground" }) } },
+    { name: "model", state: { view: "calibration", _calib: CALIB_STATE({ tab: "model" }) } },
+    { name: "beacon", state: { view: "calibration", _calib: CALIB_STATE({ tab: "beacon" }) } },
+    // Guided Calibration Wizard — each step its own code path
+    // (_calibWizardTune/Setup/Roam/Model/Finish), otherwise unreached.
+    { name: "wizard-tune",   state: { view: "calibration", _calibWizard: { step: 1 }, _calib: CALIB_STATE({}) } },
+    { name: "wizard-setup",  state: { view: "calibration", _calibWizard: { step: 2 }, _calib: CALIB_STATE({}) } },
+    { name: "wizard-roam",   state: { view: "calibration", _calibWizard: { step: 3 }, _calib: CALIB_STATE({ deviceId: "AA:BB:CC:DD:EE:01", mapId: "ground" }) } },
+    { name: "wizard-model",  state: { view: "calibration", _calibWizard: { step: 4 }, _calib: CALIB_STATE({ deviceId: "AA:BB:CC:DD:EE:01", mapId: "ground" }) } },
+    { name: "wizard-finish", state: { view: "calibration", _calibWizard: { step: 5 }, _calib: CALIB_STATE({ deviceId: "AA:BB:CC:DD:EE:01", mapId: "ground" }) } },
   ],
 };
 

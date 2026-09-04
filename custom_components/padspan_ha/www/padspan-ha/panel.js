@@ -3012,7 +3012,7 @@ class PadSpanHaApp extends HTMLElement {
         { id: "scale",    label: "Set Scale",           done: _hasScale,     wizardStep: 2, view: "maps",        mapsTab: "edit",   hint: "Maps \u2192 Edit \u2192 Measure tool" },
         { id: "rooms",    label: "Draw Rooms",          done: _hasRooms,     wizardStep: 3, view: "maps",        mapsTab: "edit",   hint: "Maps \u2192 Edit \u2192 draw room boundaries" },
         { id: "scanners", label: "Place Scanners",      done: _hasReceivers, wizardStep: 4, view: "maps",        mapsTab: "edit",   hint: "Maps \u2192 Edit \u2192 drag scanners onto the plan" },
-        { id: "calibrate",label: "Calibrate",           done: _hasCal,       view: "calibration", calibTab: "beacon", hint: "Calibration \u2192 Beacon Tune or Pin & Listen" },
+        { id: "calibrate",label: "Calibrate",           done: _hasCal,       calibWizard: true,   view: "calibration", calibTab: "beacon", hint: "Calibration \u2192 guided walk-through" },
       ];
       const _completedCount = _steps.filter(s => s.done).length;
       const _allDone = _completedCount === _steps.length;
@@ -3079,6 +3079,13 @@ class PadSpanHaApp extends HTMLElement {
             if (s.view === "calibration" && this.state.complexity === "basic") {
               this.state.complexity = "advanced";
               try { localStorage.setItem("padspan_complexity", "advanced"); } catch(e) {}
+            }
+            if (s.calibWizard) {
+              this.state.view = "calibration";
+              this.state._calibWizard = { step: 1 };
+              if (this.actions?.renderRooms) this.actions.renderRooms();
+              else this._scheduleRender();
+              return;
             }
             this.state.view = s.view;
             // Route to the correct sub-tab
