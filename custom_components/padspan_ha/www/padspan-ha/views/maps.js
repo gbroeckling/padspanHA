@@ -7367,6 +7367,12 @@ function _lightsTourSteps(paid){
   return steps;
 }
 
+// Both finders match by rendered TEXT/tag, not a class name or data
+// attribute — buildLightsMapCard/buildLightsTable (lights_map.js) own that
+// markup and don't expose stable hooks for it, and adding one just for a
+// tour would be new surface to keep in sync. A missed highlight (target
+// null) is harmless — the step still shows its text, just without a
+// "Show me" button — so a fuzzy-but-safe match beats a brittle exact one.
 function _lightsTourFindButton(wrap, text){
   return Array.from(wrap.querySelectorAll("button")).find(b => b.textContent.includes(text)) || null;
 }

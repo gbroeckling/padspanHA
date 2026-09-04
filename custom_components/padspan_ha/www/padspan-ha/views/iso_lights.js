@@ -1614,27 +1614,28 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         `</circle></g>`;
     };
 
-    // A sensor that has GONE QUIET still says how long ago, at a glance:
-    // "flashing blue goes to a flashing purple after the blue has stopped
-    // ... all colours from blue to purple over 6 hours" — Garry, then: "the
-    // blue only stays on for 5 minutes, and the next color is visibly not
-    // blue" / "I need a clear 5 min indicator". A CONTINUOUS sweep across 6
-    // hours moves under 1°/minute — mathematically correct but invisible at
-    // a glance, which is what "not changing" actually meant. This is a
-    // STEP function instead: held stages, each a genuinely distinct hue,
-    // front-loaded (blue gets a firm 5-minute hold, then a big jump to
-    // cyan) because "how long ago, roughly" needs fine resolution early and
-    // only coarse resolution once it has been a while — the last stage
-    // (violet) is held for a full two hours so it reads as unmistakably
-    // purple well before the 6-hour cutoff, not for an instant at the edge.
+    // A sensor that has GONE QUIET still says how long ago, at a glance.
+    // Revised twice against the same complaint, both times about the SAME
+    // thing: a smooth sweep is invisible at a glance, and the milestones
+    // must actually be reachable in the window that matters. Garry's final
+    // spec: "start blue, stay blue for 5 minutes, and then cycle thru all
+    // colors and end on green after 2 hours." A STEP function, held stages,
+    // front-loaded (blue gets a firm 5-minute hold, then a big jump) because
+    // "how long ago, roughly" needs fine resolution early and only coarse
+    // resolution once it has been a while — the last stage (green) is
+    // reached at the 2-hour mark and held from there, not swept to at the
+    // edge of some much longer cutoff. The sweep runs the LONG way round
+    // the wheel (through violet/magenta/red/orange/yellow), not the short
+    // way through cyan/teal, so it actually passes through every colour
+    // family on the way to green rather than just the two hues nearest blue.
     const MOTION_COLOR_STOPS=[
-      [0,                240],  // blue — the active colour, holds firm
-      [5*60*1000,        195],  // cyan — the first, deliberately obvious jump
-      [20*60*1000,       155],  // teal
-      [45*60*1000,       110],  // green
-      [90*60*1000,        55],  // gold
-      [150*60*1000,       15],  // orange
-      [240*60*1000,      280],  // violet — held all the way to the 6h cutoff
+      [0,          240],  // blue — the active colour, holds firm for 5 min
+      [5*60*1000,  280],  // violet — the first, deliberately obvious jump
+      [20*60*1000, 320],  // magenta
+      [40*60*1000,   0],  // red
+      [65*60*1000,  40],  // orange
+      [90*60*1000,  80],  // yellow
+      [120*60*1000,120],  // green — reached at 2h, held from there
     ];
     const motionRecentHue=(elapsedMs)=>{
       let hue=MOTION_COLOR_STOPS[0][1];
@@ -1769,13 +1770,27 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // over the "y's". Horizontally it still tracks the centroid, so it reads
       // as that room's title rather than drifting to a corner.
       let liy=Math.min(...ipts.map(p=>p[1]))+8;
+      // The label's own rendered footprint, computed here (not down by the
+      // <text> itself) because the collision check below needs it.
+      const rfs=SHOW?6.6:7.4;
+      const rtxt=SHOW?String(r.room).toUpperCase():String(r.room);
+      const rw=rtxt.length*rfs*(SHOW?0.78:0.6)+10, rh=rfs*1.9;
       // ...and if a fixture happens to sit on that spot anyway, the name steps
       // up out of the way rather than being drawn through. The halo keeps it
       // readable once it crosses the room's own edge.
+      //
+      // The half-width here MUST be the label's own half-width (rw/2), not a
+      // flat constant — a short name like "Den" and "SpareBedroomBath" occupy
+      // very different horizontal spans, and a fixed window sized for a short
+      // name lets a marker sit just outside it while still under the text of
+      // a long one. That was live on Garry's own house: "SPAREBEDROOMBATH"
+      // (16 characters, ~46px half-width in Showcase) against a flat ±34px
+      // window left its M08 marker checked as "not near" while visibly
+      // drawn through the name.
       {
         const near=(ly)=>hereLights.some(l=>{
           const [mx2,my2]=iso(l.x,l.y,z);
-          return Math.abs(mx2-lix)<34 && Math.abs(my2-ly)<9;
+          return Math.abs(mx2-lix)<rw/2 && Math.abs(my2-ly)<9;
         });
         for(let tries=0; tries<3 && near(liy); tries++) liy-=13;
       }
@@ -1801,9 +1816,6 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // and the builder selects the room's lights. A transparent box behind
       // the text takes the tap; the glyph strokes alone would be a needle.
       {
-        const rfs=SHOW?6.6:7.4;
-        const rtxt=SHOW?String(r.room).toUpperCase():String(r.room);
-        const rw=rtxt.length*rfs*(SHOW?0.78:0.6)+10, rh=rfs*1.9;
         s+=`<g class="lroom" data-role="room" data-room="${escSVG(r.room)}" data-z="${z}" style="cursor:pointer">`+
           `<rect x="${(lix-rw/2).toFixed(1)}" y="${(liy-rh/2).toFixed(1)}" width="${rw.toFixed(1)}" height="${rh.toFixed(1)}" `+
           `rx="3" fill="transparent" stroke="none" pointer-events="all"/>`;

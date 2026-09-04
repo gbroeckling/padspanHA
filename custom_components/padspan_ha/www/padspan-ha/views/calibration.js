@@ -205,7 +205,6 @@ function _calibWizardRoam(ctx, el, cs, calData, w) {
   wrap.appendChild(_roam(ctx, el, cs, calData));
   wrap.appendChild(_calibWizardFooter(ctx, el, w, {
     skip: pts.length === 0, skipLabel: "Skip — I'll collect points later",
-    nextLabel: pts.length ? `Next →` : "Next →",
   }));
   return wrap;
 }
@@ -267,8 +266,12 @@ function _calibWizard(ctx, el, cs, calData) {
   if (w.step === 2 && ready) w.step = 3;   // chosen — move on without a click
   if (w.step > 2 && !ready) w.step = 2;    // lost/never had it — go back
 
-  // cs.tab drives which sub-view _tuneTab/_setup/_roam/_modelTab is a
-  // no-op for; keep it in sync so leaving the wizard lands somewhere sane.
+  // cs.tab is what the ORDINARY (non-wizard) tab bar reads to pick a
+  // sub-view — keep it pointed at whichever one this step is showing, so
+  // exiting the wizard (or a stray render before it's closed) lands on the
+  // matching tab instead of wherever cs.tab was last left. Finish (step 5)
+  // has no tab of its own, so it's deliberately excluded from this map and
+  // cs.tab is left wherever it already was — Model, most likely.
   if (CALIB_TAB_BY_STEP[w.step]) cs.tab = CALIB_TAB_BY_STEP[w.step];
 
   const root = el("div", {});

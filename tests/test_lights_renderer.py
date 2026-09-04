@@ -1258,29 +1258,34 @@ def test_motion_sensor_pulses_blue_while_triggered_and_fans_do_not_pool(tmp_path
     assert out["motionGlyph"] and out["fanGlyph"], out
 
 
-def test_motion_sensor_fades_blue_to_purple_over_six_hours_after_going_quiet(tmp_path):
-    """Garry: "if a motion detector went off in the last 6 hours the
-    flashing blue goes to a flashing purple after the blue has stopped" —
-    "Or, better yet, from blue to a rainbow, end at hour 6 with purple" —
-    "so all colours from blue to purple over 6 hours" — then, watching it
-    live: "don't think the color is changing" (verified working — a
-    continuous sweep moves under 1deg/minute, correct but invisible) — "the
-    blue only stays on for 5 minutes, and the next color is visibly not
-    blue" / "I need a clear 5 min indicator". A STEP function now, not a
-    smooth blend: held stages, each a genuinely distinct hue, front-loaded.
-    last_changed is HA's own field for when a binary_sensor stopped
-    tripping; nowMs is injectable so this test does not race a real clock."""
+def test_motion_sensor_fades_blue_to_green_over_two_hours_after_going_quiet(tmp_path):
+    """Garry, across several rounds: "if a motion detector went off in the
+    last 6 hours the flashing blue goes to a flashing purple after the blue
+    has stopped" — "so all colours from blue to purple over 6 hours" — then,
+    watching it live: "don't think the color is changing" (a continuous
+    sweep moves under 1deg/minute, correct but invisible) — "the blue only
+    stays on for 5 minutes, and the next color is visibly not blue" — and
+    finally, the settled spec: "start blue, stay blue for 5 minutes, and
+    then cycle thru all colors and end on green after 2 hours." A STEP
+    function: held stages, each a genuinely distinct hue, front-loaded, the
+    sweep running the LONG way round the wheel (through violet, magenta,
+    red, orange, yellow) so it passes every colour family on the way to
+    green rather than just the two hues nearest blue. last_changed is HA's
+    own field for when a binary_sensor stopped tripping; nowMs is injectable
+    so this test does not race a real clock."""
     model = {
         "room_geometry_m": {"Hall": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
         "light_positions_m": {
-            "binary_sensor.just_now":   {"x_m": 1.0, "y_m": 2.0, "floor_id": "main"},
-            "binary_sensor.under_five": {"x_m": 2.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.just_now":        {"x_m": 1.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.under_five":      {"x_m": 2.0, "y_m": 2.0, "floor_id": "main"},
             "binary_sensor.just_after_five": {"x_m": 3.0, "y_m": 2.0, "floor_id": "main"},
-            "binary_sensor.mid":        {"x_m": 4.0, "y_m": 2.0, "floor_id": "main"},
-            "binary_sensor.almost_six": {"x_m": 5.0, "y_m": 2.0, "floor_id": "main"},
-            "binary_sensor.over_six":   {"x_m": 6.0, "y_m": 2.0, "floor_id": "main"},
-            "binary_sensor.no_ts":      {"x_m": 7.0, "y_m": 2.0, "floor_id": "main"},
-            "binary_sensor.active":     {"x_m": 8.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.mid_sweep":       {"x_m": 4.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.at_two_hours":    {"x_m": 5.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.past_two_hours":  {"x_m": 6.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.almost_six":      {"x_m": 7.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.over_six":        {"x_m": 8.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.no_ts":           {"x_m": 9.0, "y_m": 2.0, "floor_id": "main"},
+            "binary_sensor.active":          {"x_m": 10.0, "y_m": 2.0, "floor_id": "main"},
         },
     }
     NOW = 1_000_000_000_000  # an arbitrary fixed epoch ms, matched by nowMs
@@ -1294,11 +1299,19 @@ def test_motion_sensor_fades_blue_to_purple_over_six_hours_after_going_quiet(tmp
         # 5m01s quiet: the very next instant after the hold — must already
         # be a CLEARLY different hue, not a one-degree nudge off blue.
         "binary_sensor.just_after_five": {"entity_id": "binary_sensor.just_after_five", "state": "off", "code": "M03", "shape": "motion", "isMotion": True, "last_changed": NOW - (5 * M + 1000)},
-        "binary_sensor.mid":             {"entity_id": "binary_sensor.mid",             "state": "off", "code": "M04", "shape": "motion", "isMotion": True, "last_changed": NOW - 3 * H},
-        "binary_sensor.almost_six":      {"entity_id": "binary_sensor.almost_six",      "state": "off", "code": "M05", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H - 1000)},
-        "binary_sensor.over_six":        {"entity_id": "binary_sensor.over_six",        "state": "off", "code": "M06", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H + 1000)},
-        "binary_sensor.no_ts":           {"entity_id": "binary_sensor.no_ts",           "state": "off", "code": "M07", "shape": "motion", "isMotion": True, "last_changed": None},
-        "binary_sensor.active":          {"entity_id": "binary_sensor.active",          "state": "on",  "code": "M08", "shape": "motion", "isMotion": True, "last_changed": NOW - 5 * H},
+        # 50 min: between the 40-min (red) and 65-min (orange) stops — still
+        # mid-sweep, neither the start nor the end.
+        "binary_sensor.mid_sweep":       {"entity_id": "binary_sensor.mid_sweep",       "state": "off", "code": "M04", "shape": "motion", "isMotion": True, "last_changed": NOW - 50 * M},
+        # Exactly 2h: the stop table uses >=, so the boundary itself must
+        # already read as green, not the stage before it.
+        "binary_sensor.at_two_hours":    {"entity_id": "binary_sensor.at_two_hours",    "state": "off", "code": "M05", "shape": "motion", "isMotion": True, "last_changed": NOW - 2 * H},
+        "binary_sensor.past_two_hours":  {"entity_id": "binary_sensor.past_two_hours",  "state": "off", "code": "M06", "shape": "motion", "isMotion": True, "last_changed": NOW - 3 * H},
+        # Just under 6h: green is HELD all the way to the outer cutoff, not
+        # swept toward some later colour — there is no stage past green.
+        "binary_sensor.almost_six":      {"entity_id": "binary_sensor.almost_six",      "state": "off", "code": "M07", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H - 1000)},
+        "binary_sensor.over_six":        {"entity_id": "binary_sensor.over_six",        "state": "off", "code": "M08", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H + 1000)},
+        "binary_sensor.no_ts":           {"entity_id": "binary_sensor.no_ts",           "state": "off", "code": "M09", "shape": "motion", "isMotion": True, "last_changed": None},
+        "binary_sensor.active":          {"entity_id": "binary_sensor.active",          "state": "on",  "code": "M10", "shape": "motion", "isMotion": True, "last_changed": NOW - 5 * H},
     }
     # Encode last_changed as real ISO strings (what gatherLights actually
     # hands the renderer), built from the epoch-ms markers above.
@@ -1321,7 +1334,9 @@ def test_motion_sensor_fades_blue_to_purple_over_six_hours_after_going_quiet(tmp
         "  justNow: hueFor('binary_sensor.just_now'),\n"
         "  underFive: hueFor('binary_sensor.under_five'),\n"
         "  justAfterFive: hueFor('binary_sensor.just_after_five'),\n"
-        "  mid: hueFor('binary_sensor.mid'),\n"
+        "  midSweep: hueFor('binary_sensor.mid_sweep'),\n"
+        "  atTwoHours: hueFor('binary_sensor.at_two_hours'),\n"
+        "  pastTwoHours: hueFor('binary_sensor.past_two_hours'),\n"
         "  almostSix: hueFor('binary_sensor.almost_six'),\n"
         "  overSix: hueFor('binary_sensor.over_six'),\n"
         "  noTs: hueFor('binary_sensor.no_ts'),\n"
@@ -1336,13 +1351,15 @@ def test_motion_sensor_fades_blue_to_purple_over_six_hours_after_going_quiet(tmp
     # "a clear 5 min indicator" — not a one-degree nudge off blue.
     assert out["justAfterFive"] is not None and abs(out["justAfterFive"] - 240) >= 30, \
         f"the step right after 5 minutes must be visibly not blue: {out}"
-    # 3h in: further along still — the march through the rainbow continues,
-    # neither blue nor the final violet.
-    assert out["mid"] is not None
-    assert abs(out["mid"] - 240) > 60 and abs(out["mid"] - 280) > 60, \
-        f"the 3h mark must read as neither blue nor violet: {out}"
-    # Just under 6h: the final stage — violet, held all the way to the edge.
-    assert out["almostSix"] == 280, out
+    # 50 minutes in: further along still — the march through the rainbow
+    # continues, neither blue nor the final green.
+    assert out["midSweep"] is not None
+    assert abs(out["midSweep"] - 240) > 60 and out["midSweep"] != 120, \
+        f"the 50-min mark must read as neither blue nor green: {out}"
+    # Exactly 2h, and every point past it out to the 6h cutoff: green, held.
+    assert out["atTwoHours"] == 120, "2h is the stop's own boundary — must already be green, not the stage before it"
+    assert out["pastTwoHours"] == 120, out
+    assert out["almostSix"] == 120, "green is held all the way to the 6h edge, not swept past"
     # Past 6h: no glow at all — "recent" has a hard edge.
     assert out["overSix"] is None, "a sensor quiet for over 6 hours must show no recent-pulse at all"
     # No timestamp at all (defensive): no glow, no crash.
@@ -1350,6 +1367,61 @@ def test_motion_sensor_fades_blue_to_purple_over_six_hours_after_going_quiet(tmp
     # An ACTIVELY triggered sensor keeps its existing blue pulse, unaffected
     # by how long ago some OTHER sensor went quiet.
     assert out["activeHasBluePulse"], "the active (on) sensor must keep its own blue pulse"
+
+
+def test_room_label_steps_out_of_a_markers_way_by_its_own_rendered_width(tmp_path):
+    """Live on Garry's own house: the room name "SpareBedroomBath" (16
+    characters) was drawn straight through its own M08 marker. The label's
+    collision check compared a marker's position against a FIXED ±34px
+    window regardless of how wide the label's own text actually rendered —
+    a long name's real half-width (~40px here) reaches past that window, so
+    a marker sitting just outside 34px but still under the text was checked
+    as "not near" and never triggered the step-up. The fix makes the window
+    the label's own half-width, not a constant.
+
+    Same marker position, same distance from room centre, two room names:
+    a long one whose true half-width covers that marker (must step up) and
+    a short one whose true half-width does not (must not step — proving the
+    old bug wasn't "the window is too small everywhere", it was "the window
+    doesn't know how wide THIS label is").
+    """
+    NOW = 1_000_000_000_000
+
+    def render_with_room_name(room_name):
+        model = {
+            "room_geometry_m": {room_name: {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 3], [0, 3]]}},
+            # Calibrated against this exact room polygon: lands ~38px
+            # horizontally from the label's own x, ~13px above its
+            # unshifted y — inside a long name's half-width, outside a
+            # short one's, and within the (unchanged) ±9px vertical band
+            # either way.
+            "light_positions_m": {"binary_sensor.probe": {"x_m": 0.59, "y_m": -0.4, "floor_id": "main"}},
+        }
+        lbe = {"binary_sensor.probe": {"entity_id": "binary_sensor.probe", "state": "off", "code": "M08", "shape": "motion", "isMotion": True, "last_changed": None}}
+        return _run_js(tmp_path, (
+            "import * as M from './iso_lights.mjs';\n"
+            f"const MODEL={json.dumps(model)};\n"
+            f"const LBE={json.dumps(lbe)};\n"
+            "const FLOORS=[{id:'main',name:'Main',level:0}];\n"
+            f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,{{nowMs:{NOW}}});\n"
+            f"const m=/<text x=\"([\\d.-]+)\" y=\"([\\d.-]+)\" text-anchor=\"middle\"[^]*?>{room_name}/.exec(svg);\n"
+            "console.log(JSON.stringify({y: m ? parseFloat(m[2]) : null}));\n"
+        ))
+
+    long_name = render_with_room_name("SpareBedroomBath")
+    short_name = render_with_room_name("Den")
+    assert long_name["y"] is not None and short_name["y"] is not None
+    assert long_name["y"] < short_name["y"], (
+        "a long room name's label must step up and away from a marker its "
+        f"own rendered width reaches over — long={long_name}, short={short_name}"
+    )
+    # The short name's marker sits outside even ITS OWN (narrower) window,
+    # so it must render at the plain, unshifted top-edge position — proving
+    # the fix didn't just make the window bigger for everyone.
+    assert short_name["y"] == long_name["y"] + 13, (
+        f"the short name should be exactly one 13px step below the long "
+        f"name's shifted position, not shifted itself: long={long_name}, short={short_name}"
+    )
 
 
 def test_temperature_readout_shows_digits_only_when_placed_and_fresh(tmp_path):

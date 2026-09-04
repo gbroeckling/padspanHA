@@ -4,6 +4,23 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.19 — Three guided wizards, and a help system fact-checked line by line (2026-09-04)
+
+### Wizards for the three hardest parts of setup
+- **A Setup Wizard for Mapping** — Upload → Set Scale → Draw Rooms → Place Scanners → Finish, one task per screen, embedding the real Upload and Edit tools rather than re-implementing them. A live "N of M rooms drawn" checklist against your actual Home Assistant areas replaces the old checklist's bare "go check that tab yourself." Reachable from Library's empty state, a persistent "+ Add a floor" button, and the Overview checklist itself, whose map-building rows now launch the wizard at the right step instead of just switching tabs.
+- **A guided tour for the Lights builder** — a small "Guide me" card that highlights the real controls on the page in sequence (placement, shapes, WLED, Showcase), rather than taking over the screen the way the Mapping wizard does — the Lights builder is already one dense page, not scattered tabs. Tier-aware: free tier's last step is an honest note about what a key adds, instead of walking through a feature it doesn't have. Opens once on its own the first time you visit, same as the sidebar's existing coach mark.
+- **A guided Calibration wizard** — Check scanner positions → Choose your device → Walk your home → Compute your model → Finish. Half of calibration is a physical task, so the wizard's job is sequencing and validation, not new UI: it embeds Roam's own live coverage heatmap and "next target" crosshair rather than reinventing guidance, and won't let you wander into Roam or Model before a device and floor are actually chosen.
+
+All three share one rule with the checklist they replace: "is this step done" is asked exactly once and answered the same way everywhere it's asked — closing off the exact defect class that let Setup Progress flash "0/5, start over" at an established install in a past release.
+
+### The help system, fact-checked against the live code
+- Every one of the 44 in-app help entries was checked against the actual view source, not memory — 22 had drifted: removed features still documented, real features never mentioned, button labels that had changed (Receivers → Radios, Heatmap → Heat, Monitor → Advertisements), wrong tab names for where things actually live.
+- Two help keys were silently dead — `settings_presence` and `maps_stack` were each defined twice, and JavaScript quietly keeps only the second definition. Two more (`zones`, `insights`) were referenced by the manual but never defined, rendering blank.
+- The Bright Pro manual's motion-tile description was out of date (it still described the old read-only toast; a tap opens a 7-day activity history now) and never mentioned the Pro-only light-type-override tool — now documented, gated so Bright Pro customers aren't shown a feature they don't have.
+- A new guard test fails the suite if a help key is ever defined twice or referenced without existing — the same protection this codebase already has for the light-shape vocabulary and the Bright edition map.
+
+---
+
 ## 0.38.18 — Filter, sort, a manual, and a floor-selector bug that fooled a customer (2026-09-03)
 
 ### The light index gets filter and sort
