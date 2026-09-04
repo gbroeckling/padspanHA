@@ -4,6 +4,15 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.22 — PadSpan Bright is ready for the HACS catalogue (2026-09-04)
+
+- **A Bright release now waits for its Tests, HACS and Hassfest checks to pass before it is created.** That is the order HACS requires for a default-catalogue submission; a failed check stops Bright before the tag or release is published.
+- **Bright's HACS links now stay with Bright.** Documentation and issue links point to `gbroeckling/padspanBright`, and its README has a one-click Add to HACS button, direct feature copy and no leftover internal or sales language.
+- **The opt-in usage report now counts progress through the three guided setup tools.** It records which Mapping and Calibration wizard steps are reached, plus whether the Lights tour is finished or closed early. As with the rest of this report, it sends event counts only—never names, positions or the choices made inside a step.
+- This is the stable release that will accompany Bright's submission to the default HACS integration catalogue.
+
+---
+
 ## 0.38.21 — Every motion marker behaves the same way (2026-09-04)
 
 ### Motion + occupancy pairing no longer stretches one room's marker out of step with the rest
@@ -12,15 +21,6 @@ All notable changes to PadSpan HA are documented here.
 
 ### Room labels and the motion-recency ring, corrected in 0.38.19, now in the changelog
 - The 0.38.19 entry below didn't call these two out by name, though both shipped in that release: a room label's collision check against nearby markers now sizes its avoidance window to the label's own rendered width instead of a flat pixel count (a long room name like "Spare Bedroom Bath" could previously sit drawn through a marker that a short name would have correctly dodged); and the motion-recency ring's colour schedule was corrected to hold blue for the first five minutes, then sweep through the spectrum, reaching green at two hours and holding there until the ring disappears at six hours.
-
----
-
-## 0.38.22 — PadSpan Bright is ready for the HACS catalogue (2026-09-04)
-
-- **A Bright release now waits for its Tests, HACS and Hassfest checks to pass before it is created.** That is the order HACS requires for a default-catalogue submission; a failed check stops Bright before the tag or release is published.
-- **Bright's HACS links now stay with Bright.** Documentation and issue links point to `gbroeckling/padspanBright`, and its README has a one-click Add to HACS button, direct feature copy and no leftover internal or sales language.
-- **The opt-in usage report now counts progress through the three guided setup tools.** It records which Mapping and Calibration wizard steps are reached, plus whether the Lights tour is finished or closed early. As with the rest of this report, it sends event counts only—never names, positions or the choices made inside a step.
-- This is the stable release that will accompany Bright's submission to the default HACS integration catalogue.
 
 ---
 
