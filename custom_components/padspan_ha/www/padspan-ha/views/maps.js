@@ -3137,18 +3137,385 @@ function _export(ctx, active, maps_list){
   return card;
 }
 
+const BRIGHT_PRO_MANUAL = [
+  {
+    "heading": "Getting started: your licence and turning on the Lights panel",
+    "intro": "PadSpan Bright Pro is the lighting half of PadSpan, unlocked by a licence key. Here's what your key buys you, where you type it in, and the two steps that put an everyday Lights panel in your Home Assistant sidebar.",
+    "subsections": [
+      {
+        "heading": "What your licence unlocks",
+        "body": "PadSpan Bright, on its own, already shows every light on your map. Tap one to switch it, or tap and hold for brightness and colour. The only thing missing is placement: every light sits clustered in the middle of its room instead of where it really hangs, and the tools that let you drag it into place, rotate it, and give it its real shape and size, stay switched off.\n\nA PadSpan Bright Pro key removes that limit — it unlocks the whole lighting product, so you can drag every light to exactly where it hangs, rotate it, and set its true shape and size. Your sidebar doesn't change either way: a Bright build always shows three PadSpan tabs — Mapping, Health and Settings — whether or not you've entered a key.",
+        "steps": [],
+        "notes": []
+      },
+      {
+        "heading": "Enter your licence key",
+        "body": "",
+        "steps": [
+          "Open Settings, click the Features tab. The PadSpan licence card is the first thing you'll see.",
+          "Click Enter licence key. (It reads Replace licence key if a key is already loaded.)",
+          "Type your key into the box that pops up — it's formatted PSPAN-XXXX-XXXX-XXXX-XXXX — and confirm.",
+          "Look for the message confirming your licence was activated. The card updates to show you're licensed."
+        ],
+        "notes": [
+          "Don't have a key yet? The same card has a Buy PadSpan Pro button — $45 CAD/year — that takes you straight to the purchase page."
+        ]
+      },
+      {
+        "heading": "Turn on the everyday Lights panel",
+        "body": "",
+        "steps": [
+          "In Settings → Features, scroll down to the Mapped Light Control Goodie card, check Enable Mapped Light Control in sidebar, and click Save.",
+          "Restart Home Assistant. A separate Lights entry appears in your sidebar afterward — that's the one to use day to day, not the PadSpan Mapping tab."
+        ],
+        "notes": [
+          "Unchecking the box, saving, and restarting again removes the Lights entry the same way."
+        ]
+      }
+    ]
+  },
+  {
+    "heading": "The Lights panel: everyday control",
+    "intro": "This is the panel you open day to day — a 3D map of your house, floor by floor, with every light, strip, fan, motion sensor and temperature sensor sitting where it really is. Use it to switch things on and off, dim, and see what's happening in each room. (The map is drawn and edited in a different tool; admins can jump there from this panel.)",
+    "subsections": [
+      {
+        "heading": "Switch a light",
+        "body": "",
+        "steps": [
+          "Tap any light on the map to turn it on or off.",
+          "Tap its code, or press and hold it, to open its controls. What's on offer depends on the light — brightness for a plain dimmer, brightness plus colour and effects for a strip, speed for a fan.",
+          "Hold a dimmable light and slide up or down without letting go, to dim it. A percentage shows next to your finger while you drag; let go to set it.",
+          "Tap a room's name to control everything in it at once. You get All lights on and All lights off buttons, plus Fans on and Fans off buttons for any fans in the room — fans are never swept up in \"all lights.\""
+        ],
+        "notes": [
+          "If a switch doesn't take, the light flicks back and a message tells you it failed."
+        ]
+      },
+      {
+        "heading": "Layer chips and floors",
+        "body": "Above the map is a row of chips, split by a divider: what you're looking at on one side, and, in a multi-floor home, which floor on the other.",
+        "steps": [
+          "Tap All, Lights, Strips, Fans, Motion or Temps to bring just that kind of device to the front. Everything else dims and stops responding to taps until you tap that chip again, or tap All. Only the chips for devices your house actually has appear.",
+          "On a home with more than one floor, tap a floor's name to jump straight to it, or All to see every floor again. Each floor chip carries a small number showing how much is on up there.",
+          "Tap Find active to jump straight to whatever's on or tripped right now."
+        ],
+        "notes": []
+      },
+      {
+        "heading": "The light index",
+        "body": "Below the map is a table listing every light in the house, whether or not it's placed on the map.",
+        "steps": [
+          "Pick a type from the dropdown above the table — All types, Lights, Strips, Fans, Motion or Temps — to show only that kind.",
+          "Click a column heading — Code, Light, Room or State — to sort by it. Click the same heading again to reverse the order, and a third click puts the list back in its normal order."
+        ],
+        "notes": [
+          "State sorts off before on — click again to bring what's on to the top. For a temperature sensor it sorts by the reading itself, not just on or off."
+        ]
+      },
+      {
+        "heading": "Motion and temperature are read-only",
+        "body": "Motion and temperature tiles are indicators, not switches — they show you what's happening rather than let you change it. Tap one and nothing turns on or off; the panel tells you it's read-only instead of switching anything.",
+        "steps": [],
+        "notes": []
+      },
+      {
+        "heading": "For admins",
+        "body": "If you're signed in as an admin, an Edit map button appears at the top of the panel. It takes you to the builder where the map itself is drawn and lights are placed — a separate tool from the everyday control described here.",
+        "steps": [],
+        "notes": []
+      }
+    ]
+  },
+  {
+    "heading": "Building your map: floorplan, scale, walls and rooms",
+    "intro": "This is the one-time setup that has to happen before you can place a single light: upload a photo of your floor plan, tell PadSpan the real-world scale, then trace your rooms and, if you like, your interior walls. Do it once per floor, and revisit only when the floor plan itself changes.",
+    "subsections": [
+      {
+        "heading": "Upload a floor plan",
+        "body": "",
+        "steps": [
+          "Open the Upload tab.",
+          "Pick the floor this plan belongs to from the Floor dropdown — it lists whatever's set up in Home Assistant's Areas & Zones. Choose \"Outside (Experimental)\" for a yard or deck; only one outside plan is allowed at a time.",
+          "Choose an image file. PNG, JPG, GIF, BMP, WebP and SVG all work — whatever you pick is converted to PNG automatically.",
+          "Type a name in the Map name field, or leave it blank — it fills in from the file name.",
+          "Drag on the preview if you want to crop it first; click Reset Crop to start over.",
+          "Click Upload & Convert."
+        ],
+        "notes": [
+          "Upload one plan per floor. Mixing two levels into the same picture makes rooms harder to keep straight.",
+          "Once it uploads, you're taken straight into the Edit tab to start scaling and drawing rooms."
+        ]
+      },
+      {
+        "heading": "Find your plans in the Library",
+        "body": "Every plan you upload shows up in the Library tab, grouped by floor. Each one shows a thumbnail, its pixel size, and whether it's been scaled yet — \"not placed\" means the real-world size still isn't set. Tap Open to jump back into editing it, or Delete to remove it.",
+        "steps": [],
+        "notes": []
+      },
+      {
+        "heading": "Set the scale",
+        "body": "Rooms can be drawn on the picture alone, but walls need real-world metres. Set the scale first so distances on the map match distances in your home.",
+        "steps": [
+          "In the Edit tab, click Measure.",
+          "Click two points on the map that you know the real distance between — opposite ends of a wall, a doorway, anything you can check with a tape measure.",
+          "Type that distance in metres and click Add 1st Measurement.",
+          "Click two more points at a different angle from the first pair, and click Add 2nd Measurement. Measuring twice at different angles checks that the photo itself isn't stretched.",
+          "Check the result. A green result means the two measurements agree; a stretched-image warning means the photo may need re-exporting at the correct proportions.",
+          "Click the green Save Scale button to lock in the map's real-world size."
+        ],
+        "notes": [
+          "Click Start Over at any point to clear your measurements and begin again."
+        ]
+      },
+      {
+        "heading": "Draw your rooms",
+        "body": "",
+        "steps": [
+          "In the Edit tab, click Rooms.",
+          "Choose the room from the dropdown — these come from your Home Assistant areas.",
+          "Click Start drawing, then click around the room's outline on the photo, one point per corner.",
+          "Click Undo point if you misclick.",
+          "Double-click, or click Finish, once you've placed at least three points, to close the shape.",
+          "Click Save Layout when you're done."
+        ],
+        "notes": [
+          "Clear boundary removes the shape for whichever room is selected in the dropdown, so you can redraw it.",
+          "If a room already has a boundary on another plan, the dropdown warns you — drawing it again here creates a duplicate.",
+          "Revert throws away anything you haven't saved yet."
+        ]
+      },
+      {
+        "heading": "Add interior walls (optional)",
+        "body": "Marking your real interior walls keeps the map an accurate record of your home. This needs the scale set first — without it, there's nowhere to store a wall's real position.",
+        "steps": [
+          "In the Edit tab, click RF Barriers.",
+          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map.",
+          "Click along the wall on the photo, one point per corner or bend.",
+          "Click Undo point to remove the last point.",
+          "Double-click, or click Finish, once you have at least two points."
+        ],
+        "notes": [
+          "Cancel discards a wall you're still drawing.",
+          "A wall saves the moment you finish it — there's no separate Save Layout step for walls.",
+          "Click a wall on the map, or in the \"Walls on this floor\" list, to select it. Delete removes just that one; Delete all walls on this floor clears every wall on the current floor."
+        ]
+      }
+    ]
+  },
+  {
+    "heading": "Placing your lights",
+    "intro": "A light does nothing for your map until it sits where the real fixture actually is. This is the hands-on part: drag every light, fan, motion sensor and temperature sensor into its real spot, resize and rotate the ones that need it, and use the index below the map to find, queue and undo as you go.",
+    "subsections": [
+      {
+        "heading": "Place a light",
+        "body": "Open Mapping → Lights. Every light starts out clustered at the centre of its room, waiting to be placed. There are two ways to move it to its real spot: drag it there directly, or queue it and tap the map.",
+        "steps": [
+          "To place one by dragging: click its marker on the map and drag it to where the fixture really sits, then let go.",
+          "To place one by tapping: click Place next to its row in the light index below the map — or click \"Queue all unplaced\" to queue every unplaced light in the house at once.",
+          "Click the map exactly where that light is. It's placed, and the next light waiting in the queue is named in the bar above the map, ready for its own tap.",
+          "Press Esc, or click the queue button again, to clear whatever is still queued."
+        ],
+        "notes": [
+          "A placed light stays unsaved — shown in the amber bar above the map — until you click Save placements."
+        ]
+      },
+      {
+        "heading": "Place a whole room at once",
+        "body": "When several lights in the same room are still unplaced, you don't have to drag them one at a time.",
+        "steps": [
+          "Choose the room from the Spread dropdown above the map — it shows how many lights in that room are still unplaced.",
+          "Click \"Spread in room\" to lay them out on an even grid inside the room, inset from its walls. Drag any of them afterwards to fine-tune.",
+          "Or click \"Accept room centres\" to drop every unplaced light with a known room straight onto that room's centre as a rough placeholder. Each one is marked APPROXIMATE until you drag it to where it really is."
+        ],
+        "notes": [
+          "Spread in room needs the room's outline drawn on the map — if it isn't, you'll be told there's no shape to spread inside."
+        ]
+      },
+      {
+        "heading": "Resize and rotate a fixture",
+        "body": "A light's marker can be sized and turned to match the real fixture — a valance light stretched along a run of ceiling, a spot turned to face the right way.",
+        "steps": [
+          "Select the light, then click Transform to turn it on.",
+          "Drag the light itself to move it.",
+          "Drag its square handles to resize it, or the round handle above it to rotate it.",
+          "Use the arrow keys to nudge the selection by 1 cm — hold Shift for 10 cm.",
+          "Click Transform again to turn it off when you're done. With it left on, a stray drag near a fixture resizes it instead of moving it."
+        ],
+        "notes": []
+      },
+      {
+        "heading": "Select one light, or several — and find it again",
+        "body": "",
+        "steps": [
+          "Click a light's marker to select it. A pink outline marks it, and the tools underneath the map light up for it.",
+          "Shift-click other markers to add them to the selection — or click \"Select several\" first if you're on a touchscreen, so every tap adds to the selection without holding Shift.",
+          "Click a room's name on the map to select every light in that room in one go.",
+          "Don't know where a light is? Click its row in the index below instead — a pink ring flashes outward from its real spot on the map so you can spot it.",
+          "Or drag the pink marker parked in the map's bottom-right corner onto the map, and drop it where the fixture really is — a second way to place the light you've just selected, without hunting for its own marker first.",
+          "Press Esc to clear the whole selection and empty the placement queue together. Deselect, under the map, closes the tools for just the light you're inspecting — it won't clear a multi-selection; press Esc for that."
+        ],
+        "notes": []
+      },
+      {
+        "heading": "Undo, redo, and the light index",
+        "body": "",
+        "steps": [
+          "Click Undo (or press Ctrl+Z) to step back through your unsaved edits one at a time; click Redo (Ctrl+Y) to step forward again.",
+          "Use the filter dropdown above the light index to show only one kind of device at a time — lights, strips, fans, motion sensors or temperature sensors.",
+          "Click a column heading — Code, Light, Room or State — to sort the index by it. Click again to reverse the order; a third click returns to the underlying order, sorted by room and then by name.",
+          "Click \"Hide untouched\" to show only the fixtures you've actually resized, rotated, recoloured or given a shape — useful once most of the house is placed and you just want to see what's left to style. Moving a light on its own doesn't count as touching it.",
+          "Click Hide on a light's row to drop it off the map entirely — it stays listed in the index. Click Show on a hidden row to bring it back."
+        ],
+        "notes": [
+          "Undo and Redo only step through unsaved edits. Once you've saved, use Auto position on a saved light's own panel to send it back to being auto-clustered in its room."
+        ]
+      }
+    ]
+  },
+  {
+    "heading": "Working the map: view modes, fixture shapes and what the colours mean",
+    "intro": "Once your lights are placed, the map has more to tell you than which ones are on. The buttons above it change how you're looking at the layout — never what's saved — and every marker's outline colour tells you at a glance what kind of device you're looking at.",
+    "subsections": [
+      {
+        "heading": "The view buttons: Showcase, Isolux, Scene and Ripple",
+        "body": "Showcase turns the plan into a picture: fixtures draw in their real colour, light pools spread across the floor, and shadows fall the way they would in the room. Everything stays exactly where you put it and stays fully editable — Showcase is a look, not a mode.\n\nTurn Showcase on and four more buttons appear beside it. Fit room keeps a fixture from ever drawing bigger than the room it's in, with a small gap to the walls — it only changes the picture; what you've actually set for size and rotation is untouched. Isolux overlays banded contours across the floor showing how far the light really spreads, worked out from each fixture's true position and brightness — a heatmap of the spread, not the fixtures. Scene washes a coloured mood across the whole floor and previews the colour each fixture would take at its own spot: tap Scene to step through four moods — Sunset, Dusk, Ember, Ocean — one at a time, and tap past Ocean to turn it off. While a mood is showing, a rotate button turns its direction 45° at a time, and nothing reaches your real lights until you press Apply, which sends every fixture that's currently on the colour it's previewing. Ripple arms a wave: tap anywhere on the map and a pulse of brightness runs outward from that spot at the fixtures' real distances — only lights already on take part.",
+        "steps": [],
+        "notes": [
+          "Showcase, Fit room and Isolux are remembered the next time you open the map. Scene and Ripple are not — they reset when you leave, so a preview never repaints the map on its own."
+        ]
+      },
+      {
+        "heading": "Giving a light its own shape",
+        "body": "PadSpan guesses a fixture's shape from its name and type, but you can override any light's glyph by hand.",
+        "steps": [
+          "Tap a light on the map, or its row in the list below, to select it — a control strip opens under the map.",
+          "Find Shape in that strip.",
+          "Pick the glyph that matches the real fixture: Fixture (default), Pot / downlight, Strip / valance, Run / track, Fluorescent / tube, Ceiling fan, Pendant / drop, Wall sconce, Chandelier / decorative, Spot / directional, or Indicator LED.",
+          "For cove or valance lighting that traces a whole room, choose Room perimeter / cove instead — it swaps the width, length and rotation fields for a single Margin field: how far the traced line sits in from the room's walls.",
+          "Leave it on Auto (derived) to go back to PadSpan's own guess."
+        ],
+        "notes": [
+          "Motion sensor and Temperature readout are also in the shape list, but your motion and temperature entities already draw that way on their own — you won't need to set them."
+        ]
+      },
+      {
+        "heading": "Class chips and floor tabs",
+        "body": "",
+        "steps": [
+          "Above the map, tap a class chip — All, Lights, Strips, Fans, Motion or Temps — to isolate that class. Its count shows how many of that class are on the map; everything else dims and stops responding to taps.",
+          "Tap the same chip again, or tap All, to bring everything back.",
+          "On a house with more than one storey, floor tabs sit next to the chips: All, then one tab per floor. Each floor's tab carries a dot showing how many of its devices are on, and switches to a motion dot when something up there is tripped.",
+          "Tap a floor's tab to work on just that storey — its own zoom and scroll position come back the way you left them.",
+          "Tap Find active to jump straight to the first tripped sensor, or otherwise the first light that's on."
+        ],
+        "notes": []
+      },
+      {
+        "heading": "What the marker colours mean",
+        "body": "Every marker's outline colour tells you its class, the same colours on the map and in the light list below it. Purple is a WLED or other effect-capable strip. Blue is an ESPHome partition — one physical strip split into several zones, each with its own colour. Green is a fan; tap its code, or press and hold, to open its controls: a speed slider, a preset picker if the fan has named presets, and Oscillate and direction (Forward/Reverse) buttons if the fan supports them.\n\nMotion sensors are also outlined in blue and pulse while triggered. Once a sensor goes quiet, a calmer ring keeps glowing and steps through a sequence of colours so you can tell how long ago it last tripped without checking a time — blue for the first five minutes, then cyan, teal, green, gold and orange, settling into violet by the four-hour mark and staying violet out to the six-hour mark.\n\nTemperature sensors are outlined in orange. Once one is placed on the map, it shows its live reading as large digits in place of its code — but only while that reading is fresh, meaning it came in within the last hour. An older reading, or a temperature sensor that hasn't been placed yet, just shows its code like anything else.",
+        "steps": [],
+        "notes": [
+          "Motion and temperature sensors are read-only on the map — there's nothing to tap to switch them."
+        ]
+      }
+    ]
+  },
+  {
+    "heading": "3D Stack, Exporting Your Map, and Health",
+    "intro": "These three tools help you pull everything together: line up multiple floors into one building, take copies of your work with you, and check that PadSpan itself is running properly.",
+    "subsections": [
+      {
+        "heading": "Stacking Multiple Floors",
+        "body": "If your home has more than one floor, PadSpan needs to know how those floor plans sit on top of each other — which one is upstairs, which is down. That's what the 3D Stack tab is for. Line your floor plans up here so a light on the second floor shows above the right room on the first floor, instead of floating over the wrong spot. If you only have a single floor plan, there's nothing to stack — skip this tab.",
+        "steps": [],
+        "notes": [
+          "Further down the same tab, a 3D preview shows your whole building stacked together, so you can check the alignment looks right."
+        ]
+      },
+      {
+        "heading": "Align Two Floor Plans",
+        "body": "",
+        "steps": [
+          "Open the 3D Stack tab and, under Alignment Overlay, pick a Reference floor plan (the one that stays put) and a Target floor plan (the one you'll move).",
+          "Drag the Target plan — shown see-through, sitting on top of the Reference — until landmarks like stairwells or exterior walls line up between the two.",
+          "If the Target is the wrong size or turned the wrong way, use the Scale and Rotate buttons to fix it, then keep dragging until everything lines up.",
+          "Click Save Alignment to lock it in."
+        ],
+        "notes": []
+      },
+      {
+        "heading": "Exporting Your Map",
+        "body": "The Export tab lets you take copies of your work out of PadSpan. Pick a floor plan from the dropdown, then choose what you need: a plain image of the floor plan, a line drawing of your rooms and receivers, a combined picture with the floor plan and rooms together, or a 3D picture of the whole building — any of these are good for sharing or printing. For safekeeping, use Backup All Maps to save everything at once — every floor plan, its alignment in the 3D stack, and its real-world measurements — in one file you can restore from later if you reinstall or need to start over.",
+        "steps": [],
+        "notes": []
+      },
+      {
+        "heading": "Checking Health",
+        "body": "The Health tab is a quick status page for PadSpan — a snapshot of whether everything is running normally. If something on your map looks wrong, check Health first. It's the fastest way to see whether the problem is with PadSpan itself.",
+        "steps": [],
+        "notes": []
+      }
+    ]
+  }
+];
+
+// PadSpan Bright Pro's manual — the whole in-app "Help" tab now, drafted
+// then fact-checked section by section against this file, lights_map.js,
+// iso_lights.js, light_codes.js, settings.js and editions.js, so nothing
+// here names a button, tab or behaviour that isn't real. Every edition
+// sees it — it is the only manual PadSpan HA has ever shipped for the
+// lighting half of the product, Bright or not.
+function _renderManualSection(el, sec){
+  const card = el("div", {class:"card", style:"margin-bottom:14px"});
+  card.appendChild(el("div", {style:"font-weight:700;font-size:15px;color:#52b788"}, sec.heading));
+  if (sec.intro) card.appendChild(el("div", {class:"muted", style:"margin-top:6px;margin-bottom:10px;line-height:1.55"}, sec.intro));
+  for (const sub of sec.subsections){
+    const subWrap = el("div", {style:"margin-top:12px"});
+    subWrap.appendChild(el("div", {style:"font-weight:600;font-size:13px;margin-bottom:4px"}, sub.heading));
+    if (sub.body){
+      for (const para of sub.body.split("\n\n")){
+        subWrap.appendChild(el("div", {class:"muted", style:"margin-bottom:6px;line-height:1.55"}, para));
+      }
+    }
+    if (sub.steps && sub.steps.length){
+      const ol = document.createElement("ol");
+      ol.style.cssText = "margin:4px 0 8px 20px;padding:0;line-height:1.6;color:#e2e8f0;font-size:13px";
+      for (const s of sub.steps){ const li = document.createElement("li"); li.textContent = s; li.style.marginBottom = "3px"; ol.appendChild(li); }
+      subWrap.appendChild(ol);
+    }
+    for (const n of (sub.notes || [])){
+      subWrap.appendChild(el("div", {class:"muted",
+        style:"font-size:11.5px;margin-top:4px;padding-left:8px;border-left:2px solid rgba(120,190,155,.3);line-height:1.5"}, n));
+    }
+    card.appendChild(subWrap);
+  }
+  return card;
+}
+
 function _help(ctx){
   const { el } = ctx.helpers;
-  const card = el("div",{class:"card"});
-  card.appendChild(el("div",{style:"font-weight:700"},"How this mapping system works"));
-  card.appendChild(el("div",{class:"muted", style:"margin-top:8px;line-height:1.5"},[
-    "• Upload any floorplan image; the UI converts it to optimized PNG and stores it under /config/www/padspan_ha/maps/ so HA can serve it at /local/padspan_ha/maps/.",
-    el("br"),
-    "• Place receivers as normalized coordinates (0–1). This is the common industry approach (web GIS, indoor positioning) because it survives resizing.",
-    el("br"),
-    "• Next step after this: calibration layers (physical/distortion maps) + per-room fit, then drag-and-drop tag trajectories to validate.",
-  ]));
-  return card;
+  const edition = String(ctx.state.settings?.edition || "full").toLowerCase();
+  const wrap = el("div", {});
+  wrap.appendChild(el("div", {class:"muted", style:"margin-bottom:12px;font-size:12px"},
+    "The PadSpan Bright Pro manual — everything the lighting product does, roughly in the order you’ll use it."));
+  for (const sec of BRIGHT_PRO_MANUAL) wrap.appendChild(_renderManualSection(el, sec));
+
+  // Presence/BLE mapping has no place in Bright: that build has no presence
+  // entities to place a receiver for. Full-edition installs still see it,
+  // same content as before this manual existed.
+  if (edition !== "bright"){
+    const card = el("div",{class:"card"});
+    card.appendChild(el("div",{style:"font-weight:700"},"Presence & BLE mapping"));
+    card.appendChild(el("div",{class:"muted", style:"margin-top:8px;line-height:1.5"},[
+      "• Upload any floorplan image; the UI converts it to optimized PNG and stores it under /config/www/padspan_ha/maps/ so HA can serve it at /local/padspan_ha/maps/.",
+      el("br"),
+      "• Place receivers as normalized coordinates (0–1). This is the common industry approach (web GIS, indoor positioning) because it survives resizing.",
+      el("br"),
+      "• Next step after this: calibration layers (physical/distortion maps) + per-room fit, then drag-and-drop tag trajectories to validate.",
+    ]));
+    wrap.appendChild(card);
+  }
+  return wrap;
 }
 
 // ─── Sample Mode Demo Floor Plan ────────────────────────────────────────────
