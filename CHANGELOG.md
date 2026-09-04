@@ -4,6 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.21 — Every motion marker behaves the same way (2026-09-04)
+
+### Motion + occupancy pairing no longer stretches one room's marker out of step with the rest
+- **Fixed:** a device that reports both a `motion` and an `occupancy` binary_sensor from one physical unit (common on radar/mmWave hardware) rides the Lights map as a single merged marker — that part was correct — but its glow used to stay lit, and its recency ring used to keep resetting, for as long as *either* signal reported presence. A plain single-report PIR sensor only ever answers to its own signal. In practice this meant a house with a mix of hardware showed some motion markers pulsing far longer than others for no reason visible on the map. Found live: PadSpan's own G7TG and Living Room sensors were still glowing minutes after their own motion entities had cleared, held open by the paired occupancy half, while every other motion sensor in the house had already gone quiet.
+- **The fix:** a merged marker now reads only its own motion entity's state and last-changed time. The occupancy half is still folded away — it never draws as a second marker — but it no longer extends the glow. Every motion-class marker on the map now looks and behaves the same way, whatever hardware sits behind it.
+
+### Room labels and the motion-recency ring, corrected in 0.38.19, now in the changelog
+- The 0.38.19 entry below didn't call these two out by name, though both shipped in that release: a room label's collision check against nearby markers now sizes its avoidance window to the label's own rendered width instead of a flat pixel count (a long room name like "Spare Bedroom Bath" could previously sit drawn through a marker that a short name would have correctly dodged); and the motion-recency ring's colour schedule was corrected to hold blue for the first five minutes, then sweep through the spectrum, reaching green at two hours and holding there until the ring disappears at six hours.
+
+---
+
 ## 0.38.20 — PadSpan Bright goes live, and the manual sounds like PadSpan again (2026-09-04)
 
 ### PadSpan Bright is now its own HACS integration

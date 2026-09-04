@@ -1098,12 +1098,19 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
   const pro = tierAtLeast(tier, "pro");
   // A verified motion+occupancy pair (see computeMotionOccupancyPairs) rides
   // the map as ONE marker on the motion entity — the occupancy half never
-  // gets its own row, its state and last_changed fold into the primary's
-  // below. primaryFor: secondary eid -> primary eid. secondaryOf: primary
-  // eid -> secondary eid, for the fold.
+  // gets its own row. Garry: every motion-class marker should look and act
+  // the same to a viewer, so the merged marker reads its OWN state and
+  // last_changed only, below — an occupancy half that stays "on" after the
+  // motion signal itself clears no longer holds the glow open. Without
+  // this, a room with a dual-report sensor pulsed far longer than a room
+  // with a plain PIR, for no difference a viewer looking at the map could
+  // ever see (2026-09-04, live: G7TG and Living Room's paired occupancy
+  // halves were both still "on" minutes after their own motion entities
+  // had cleared, keeping those two markers lit while every unpaired PIR
+  // in the house had already gone quiet).
+  // primaryFor: secondary eid -> primary eid, used only to exclude the
+  // occupancy half from getting its own row.
   const primaryFor = pairMap || {};
-  const secondaryOf = {};
-  for (const [secEid, priEid] of Object.entries(primaryFor)) secondaryOf[priEid] = secEid;
   const lights = Object.keys(states || {})
     .filter(eid => eid.startsWith("light.") || eid.startsWith("fan.")
       // Motion sensors join by DEVICE CLASS, not domain alone — doors,
@@ -1127,12 +1134,7 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
     .map(eid => ({
       entity_id:     eid,
       friendly_name: states[eid].attributes?.friendly_name || eid,
-      // A paired primary's state is EITHER half being on — stillness that
-      // clears the motion algorithm can still hold the occupancy one, and
-      // that IS someone still being there. Unpaired entities are unaffected.
-      state:         secondaryOf[eid] && states[secondaryOf[eid]]
-                       ? (states[eid].state === "on" || states[secondaryOf[eid]].state === "on" ? "on" : "off")
-                       : states[eid].state,   // "on" | "off" | "unavailable"
+      state:         states[eid].state,   // "on" | "off" | "unavailable"
       area_name:     areaMap[eid] || null,
       // The user's word beats detection, at pro: forced class from
       // settings.light_type_overrides. Never applies to a fan (the domain is
@@ -1152,18 +1154,13 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       // same reading every poll, and last_changed would go stale even
       // though the device is actively still reporting), gating the "gave
       // the temperature in the last hour" rule before the number shows.
-      // Either way it is HA's own top-level field, not an attribute.
-      // A paired motion/occupancy primary uses whichever half moved MORE
-      // RECENTLY — the "how long ago was anyone last here" question the
-      // glow answers has one true answer per physical sensor, not one per
-      // facet of it.
+      // Either way it is HA's own top-level field, not an attribute. A
+      // paired primary reads its OWN last_changed only — see the fold
+      // comment above "state" for why the occupancy half is never
+      // consulted, here or there.
       last_changed:  eid.startsWith("sensor.") ? (states[eid].last_updated || null)
-                     : eid.startsWith("binary_sensor.")
-                       ? (secondaryOf[eid] && states[secondaryOf[eid]]
-                           ? (Date.parse(states[eid].last_changed || 0) >= Date.parse(states[secondaryOf[eid]].last_changed || 0)
-                               ? states[eid].last_changed : states[secondaryOf[eid]].last_changed)
-                           : (states[eid].last_changed || null))
-                       : null,
+                     : eid.startsWith("binary_sensor.") ? (states[eid].last_changed || null)
+                     : null,
       // The reading itself, rounded — "inside is simply the temperature, 3
       // digit, and larger". Only sensor.* entities carry one; everything
       // else is null, same gating convention as the fan card's own fields.

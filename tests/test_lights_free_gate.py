@@ -690,17 +690,20 @@ def test_pairing_requires_matching_names_not_just_the_shape(tmp_path):
     assert out == {}, out
 
 
-def test_a_paired_sensor_merges_into_one_marker_or_state_max_recency(tmp_path):
+def test_a_paired_sensor_merges_into_one_marker_reading_only_its_own_motion_state(tmp_path):
     """End to end through gatherLights: the occupancy half never gets its
-    own row; the primary's state is EITHER half being on (stillness the
-    motion algorithm clears must not read as "gone quiet" while occupancy
-    still says someone is there); last_changed is whichever half moved
-    more recently — one true answer to "how long ago", not two."""
+    own row, but it also never extends the merged marker's glow — the
+    primary reads its OWN state and last_changed only. Garry, 2026-09-04:
+    every motion-class marker should look and act the same to a viewer;
+    letting a sustained occupancy signal hold a paired marker "on" after
+    its own motion entity had cleared made that one room's marker behave
+    very differently from every plain single-report PIR in the house, for
+    a distinction nothing on the map explained."""
     out = _run_pipeline_script(tmp_path, """
 const AREA = {"binary_sensor.lr_motion": "Living Room", "binary_sensor.lr_occupancy": "Living Room"};
 const PAIR = {"binary_sensor.lr_occupancy": "binary_sensor.lr_motion"};
-// Motion cleared 10 minutes ago; occupancy (the more recent, "still there"
-// signal) is STILL on right now.
+// Motion cleared 10 minutes ago; occupancy (a different signal on the same
+// physical device) is STILL on right now.
 const STATES = {
   "binary_sensor.lr_motion":    {state: "off", last_changed: "2026-01-01T00:00:00.000Z",
                                   attributes: {friendly_name: "Living Room Motion", device_class: "motion"}},
@@ -713,8 +716,8 @@ const primary = lights.find(l => l.entity_id === "binary_sensor.lr_motion");
 console.log(JSON.stringify({ids, state: primary && primary.state, last_changed: primary && primary.last_changed, code: primary && primary.code}));
 """)
     assert out["ids"] == ["binary_sensor.lr_motion"], "the occupancy half must not appear as its own row"
-    assert out["state"] == "on", "occupancy still on must keep the merged marker active even though motion itself cleared"
-    assert out["last_changed"] == "2026-01-01T00:10:00.000Z", "the more recent half's timestamp wins"
+    assert out["state"] == "off", "the merged marker follows its own motion entity, not the occupancy half"
+    assert out["last_changed"] == "2026-01-01T00:00:00.000Z", "the merged marker's own timestamp, not the occupancy half's"
     assert out["code"] == "M01", out
 
 

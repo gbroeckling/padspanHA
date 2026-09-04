@@ -180,6 +180,23 @@ For devices where you can't get an IRK, the experimental **MAC Rotation Bridging
 
 ---
 
+## Editions
+
+Everything on this page is **PadSpan HA** — free, GPL v3, no key required.
+A licence key unlocks the rest on the *same install*: nothing to reinstall,
+nothing to reconfigure.
+
+| Edition | Key | What it is |
+|---------|:---:|------------|
+| **PadSpan HA** | none | Everything above, free forever. |
+| **PadSpan Pro** | `pro` | Every gated feature in PadSpan HA — light placement (shape, size, angle, WLED, Showcase), Forensics, and anything gated later. |
+| [**PadSpan Bright**](https://github.com/gbroeckling/padspanBright) | none | A separate, lighter HACS listing generated from this same source — just the lighting map, for anyone who wants light control without the BLE presence tracking. |
+| **PadSpan Bright Pro** | `bright` | Bright's full lighting toolset (placement, shapes, WLED, Showcase), priced separately from PadSpan Pro. |
+
+A PadSpan Pro key also unlocks Bright's tools if you install Bright instead — one key, either download. Pricing and purchase: [padspan.traks.ca](https://padspan.traks.ca).
+
+---
+
 ## Installation
 
 ### Via HACS (recommended)
