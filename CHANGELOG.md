@@ -4,6 +4,19 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.20 — PadSpan Bright goes live, and the manual sounds like PadSpan again (2026-09-04)
+
+### PadSpan Bright is now its own HACS integration
+- **PadSpan Bright now has a public repository of its own:** `gbroeckling/padspanBright`. It looks and installs like an independent HACS integration, but there is still only one source to maintain. Every PadSpan HA release builds the Bright tree from the same files, renames and checks it, runs its own test suite, and publishes the matching Bright release automatically.
+- **Bright cannot drift away from PadSpan HA.** Its repository is generated during the release rather than copied by hand or kept in sync later. A failed Bright build is reported and is never quietly published.
+
+### The manual says what the product does
+- **Removed the sales copy and developer language** that had crept into yesterday's Bright manual and Help entries. Instructions now name the control, say what it does, and stop there.
+- **Corrected four claims while rewriting them:** the sidebar Lights panel does not require a Pro key; correcting a wrongly detected light type is PadSpan Pro rather than Bright Pro; motion and temperature tiles are not switches, but motion still opens its seven-day history; and the motion-history ring now documents the real blue-to-green schedule used by the map.
+- **Long explanations are split into useful pieces.** Showcase, Fit room, Isolux, Scene and Ripple each have their own short description, and the Bluetooth, scanner, backup, Pins, Roam, Insights and Health help no longer expose internal terms where the screen itself does not use them.
+
+---
+
 ## 0.38.19 — Three guided wizards, and a help system fact-checked line by line (2026-09-04)
 
 ### Wizards for the three hardest parts of setup

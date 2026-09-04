@@ -3421,11 +3421,11 @@ function _export(ctx, active, maps_list){
 const BRIGHT_PRO_MANUAL = [
   {
     "heading": "Getting started: your licence and turning on the Lights panel",
-    "intro": "PadSpan Bright Pro is the lighting half of PadSpan, unlocked by a licence key. Here's what your key buys you, where you type it in, and the two steps that put an everyday Lights panel in your Home Assistant sidebar.",
+    "intro": "Bright Pro adds the tools for placing and styling fixtures on your map. Enter the licence key in Settings → Features. The separate Lights panel is turned on from the same page and does not require a Pro key.",
     "subsections": [
       {
         "heading": "What your licence unlocks",
-        "body": "PadSpan Bright, on its own, already shows every light on your map. Tap one to switch it, or tap and hold for brightness and colour. The only thing missing is placement: every light sits clustered in the middle of its room instead of where it really hangs, and the tools that let you drag it into place, rotate it, and give it its real shape and size, stay switched off.\n\nA PadSpan Bright Pro key removes that limit — it unlocks the whole lighting product, so you can drag every light to exactly where it hangs, rotate it, and set its true shape and size. Your sidebar doesn't change either way: a Bright build always shows three PadSpan tabs — Mapping, Health and Settings — whether or not you've entered a key.",
+        "body": "PadSpan Bright already shows every light on your map. Tap one to switch it, or tap and hold for brightness and colour. Without a Bright Pro key, unplaced lights stay grouped in the middle of their rooms and the placement and styling tools are switched off.\n\nA Bright Pro key lets you place each fixture where it really hangs, rotate it, set its shape and size, and use the Showcase, Isolux, Scene and Ripple map tools. Correcting a light that PadSpan has mistaken for the wrong type is a separate PadSpan Pro feature. Your sidebar does not depend on either key: a Bright build always shows Mapping, Health and Settings.",
         "steps": [],
         "notes": []
       },
@@ -3473,11 +3473,11 @@ const BRIGHT_PRO_MANUAL = [
         ]
       },
       {
-        "heading": "Layer chips and floors",
-        "body": "Above the map is a row of chips, split by a divider: what you're looking at on one side, and, in a multi-floor home, which floor on the other.",
+        "heading": "Choose what to show and which floor",
+        "body": "The buttons above the map are split into two groups: what to show, and, in a multi-floor home, which floor to show it on.",
         "steps": [
-          "Tap All, Lights, Strips, Fans, Motion or Temps to bring just that kind of device to the front. Everything else dims and stops responding to taps until you tap that chip again, or tap All. Only the chips for devices your house actually has appear.",
-          "On a home with more than one floor, tap a floor's name to jump straight to it, or All to see every floor again. Each floor chip carries a small number showing how much is on up there.",
+          "Tap All, Lights, Strips, Fans, Motion or Temps to bring just that kind of device to the front. Everything else dims and stops responding to taps until you tap the same button again, or tap All. Only buttons for devices your house actually has appear.",
+          "On a home with more than one floor, tap a floor's name to jump straight to it, or All to see every floor again. Each floor button carries a small number showing how much is on up there.",
           "Tap Find active to jump straight to whatever's on or tripped right now."
         ],
         "notes": []
@@ -3494,11 +3494,11 @@ const BRIGHT_PRO_MANUAL = [
         ]
       },
       {
-        "heading": "Motion and temperature are read-only",
+        "heading": "Motion and temperature aren't switches",
         "body": "Motion and temperature tiles are indicators, not switches — they show you what's happening rather than let you change it. Tap a motion tile and it opens a 7-day activity history instead — how many hours it's tripped, day by day. Tap a temperature tile and the panel tells you it's read-only; there's nothing to switch.",
         "steps": [],
         "notes": [
-          "Some sensors report both motion and presence for the same spot — common on radar/mmWave hardware. PadSpan recognises the pair and shows it as one tile, never two, but only when it's confident they're really the same physical sensor."
+          "Some sensors report both motion and presence for the same spot — common on radar/mmWave hardware. When PadSpan can match them to the same physical sensor, it shows one tile instead of two."
         ]
       },
       {
@@ -3587,7 +3587,7 @@ const BRIGHT_PRO_MANUAL = [
   },
   {
     "heading": "Placing your lights",
-    "intro": "A light does nothing for your map until it sits where the real fixture actually is. This is the hands-on part: drag every light, fan, motion sensor and temperature sensor into its real spot, resize and rotate the ones that need it, and use the index below the map to find, queue and undo as you go.",
+    "intro": "Open Mapping → Lights, then place each light, fan, motion sensor and temperature sensor where it is installed. Resize and rotate the fixtures that need it. The index below the map helps you find and queue them, or undo a change.",
     "subsections": [
       {
         "heading": "Place a light",
@@ -3657,11 +3657,11 @@ const BRIGHT_PRO_MANUAL = [
   },
   {
     "heading": "Working the map: view modes, fixture shapes and what the colours mean",
-    "intro": "Once your lights are placed, the map has more to tell you than which ones are on. The buttons above it change how you're looking at the layout — never what's saved — and every marker's outline colour tells you at a glance what kind of device you're looking at.",
+    "intro": "The buttons above the map change only what you see. They do not change saved placements, sizes or rotations. A marker's outline colour identifies the type of device.",
     "subsections": [
       {
         "heading": "The view buttons: Showcase, Isolux, Scene and Ripple",
-        "body": "Showcase turns the plan into a picture: fixtures draw in their real colour, light pools spread across the floor, and shadows fall the way they would in the room. Everything stays exactly where you put it and stays fully editable — Showcase is a look, not a mode.\n\nTurn Showcase on and four more buttons appear beside it. Fit room keeps a fixture from ever drawing bigger than the room it's in, with a small gap to the walls — it only changes the picture; what you've actually set for size and rotation is untouched. Isolux overlays banded contours across the floor showing how far the light really spreads, worked out from each fixture's true position and brightness — a heatmap of the spread, not the fixtures. Scene washes a coloured mood across the whole floor and previews the colour each fixture would take at its own spot: tap Scene to step through four moods — Sunset, Dusk, Ember, Ocean — one at a time, and tap past Ocean to turn it off. While a mood is showing, a rotate button turns its direction 45° at a time, and nothing reaches your real lights until you press Apply, which sends every fixture that's currently on the colour it's previewing. Ripple arms a wave: tap anywhere on the map and a pulse of brightness runs outward from that spot at the fixtures' real distances — only lights already on take part.",
+        "body": "Showcase draws fixtures in their current colours and adds light pools and shadows. It does not move a fixture or stop you from editing it.\n\nFit room appears when Showcase is on. It keeps a fixture's drawing inside its room with a small gap at the walls. Your saved size and rotation do not change.\n\nIsolux adds contour bands showing the estimated spread from each fixture's position and brightness.\n\nScene previews four colour layouts: Sunset, Dusk, Ember and Ocean. Tap Scene to move through them, then tap once more to turn the preview off. The rotate button turns the layout 45° at a time. Your lights do not change until you press Apply; Apply changes only the fixtures that are already on.\n\nRipple waits for you to tap the map, then runs a brightness pulse outward from that point. Only lights that are already on take part.",
         "steps": [],
         "notes": [
           "Showcase, Fit room and Isolux are remembered the next time you open the map. Scene and Ripple are not — they reset when you leave, so a preview never repaints the map on its own."
@@ -3695,7 +3695,7 @@ const BRIGHT_PRO_MANUAL = [
       },
       {
         "heading": "What the marker colours mean",
-        "body": "Every marker's outline colour tells you its class, the same colours on the map and in the light list below it. Purple is a WLED or other effect-capable strip. Blue is an ESPHome partition — one physical strip split into several zones, each with its own colour. Green is a fan; tap its code, or press and hold, to open its controls: a speed slider, a preset picker if the fan has named presets, and Oscillate and direction (Forward/Reverse) buttons if the fan supports them.\n\nMotion sensors are also outlined in blue and pulse while triggered. Once a sensor goes quiet, a calmer ring keeps glowing and steps through a sequence of colours so you can tell how long ago it last tripped without checking a time — blue for the first five minutes, then cyan, teal, green, gold and orange, settling into violet by the four-hour mark and staying violet out to the six-hour mark.\n\nTemperature sensors are outlined in orange. Once one is placed on the map, it shows its live reading as large digits in place of its code — but only while that reading is fresh, meaning it came in within the last hour. An older reading, or a temperature sensor that hasn't been placed yet, just shows its code like anything else.",
+        "body": "Marker outlines use the same colours on the map and in the light list. Purple is a WLED or other effect-capable strip. Blue is an ESPHome partition — one physical strip split into several zones, each with its own colour. Green is a fan; tap its code, or press and hold, to open its controls. Depending on the fan, those controls can include speed, presets, oscillation and direction.\n\nMotion sensors are also outlined in blue and pulse while triggered. After a sensor goes quiet, a slower ring shows roughly how long ago it last tripped: blue for the first five minutes, violet at five minutes, magenta at 20, red at 40, orange at 65, yellow at 90, and green from two hours until the ring disappears at six hours.\n\nTemperature sensors are outlined in orange. A placed sensor shows its reading as large digits while that reading is less than an hour old. If the reading is older, or the sensor has not been placed, the marker shows its code instead.",
         "steps": [],
         "notes": [
           "Motion and temperature sensors are read-only on the map — there's nothing to tap to switch them."
@@ -3705,7 +3705,7 @@ const BRIGHT_PRO_MANUAL = [
   },
   {
     "heading": "3D Stack, Exporting Your Map, and Health",
-    "intro": "These three tools help you pull everything together: line up multiple floors into one building, take copies of your work with you, and check that PadSpan itself is running properly.",
+    "intro": "Use 3D Stack to align floors, Export to save or share your maps, and Health to check the installation.",
     "subsections": [
       {
         "heading": "Stacking Multiple Floors",
@@ -3734,7 +3734,7 @@ const BRIGHT_PRO_MANUAL = [
       },
       {
         "heading": "Checking Health",
-        "body": "The Health tab is a quick status page for PadSpan — a snapshot of whether everything is running normally. If something on your map looks wrong, check Health first. It's the fastest way to see whether the problem is with PadSpan itself.",
+        "body": "Health shows the UI version and build, data mode, refresh time, discovered rooms, scanners and objects, scanner reliability, positioning checks and any problems found by System Critics. Check it when the map is missing data or a scanner or room is behaving unexpectedly.",
         "steps": [],
         "notes": []
       }
@@ -3792,8 +3792,8 @@ function _help(ctx){
   // ladder allows).
   if (tier === "pro"){
     wrap.appendChild(_renderManualSection(el, {
-      heading: "Overriding how a light is classed (Pro)",
-      intro: "PadSpan derives what a light is — a plain fixture, a WLED/effect strip, or an ESPHome partition — from its own reported attributes. Pro lets you correct that guess by hand for the rare light it gets wrong.",
+      heading: "Correct a light type (Pro)",
+      intro: "If PadSpan mistakes a plain light for a WLED strip or ESPHome partition, PadSpan Pro lets you choose the right type.",
       subsections: [
         {
           heading: "Set an override",
