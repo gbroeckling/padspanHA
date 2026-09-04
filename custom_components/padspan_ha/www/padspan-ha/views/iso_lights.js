@@ -1789,8 +1789,22 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       let liy=Math.min(...ipts.map(p=>p[1]))+8;
       // The label's own rendered footprint, computed here (not down by the
       // <text> itself) because the collision check below needs it.
-      const rfs=SHOW?6.6:7.4;
+      const rfsBase=SHOW?6.6:7.4;
       const rtxt=SHOW?String(r.room).toUpperCase():String(r.room);
+      // Shrink to fit the room's own isometric width — a fixed size read
+      // fine in an average room but visibly overflowed a small one, live on
+      // Garry's house: "PowderRoom" drew 61.5px wide inside a room only
+      // 48px wide. Only ever shrinks, never grows past the base size for a
+      // room with room to spare — a small gap (FIT_MARGIN) to the room's
+      // own edges keeps the label from touching them exactly, and MIN_RFS
+      // is the same small-text floor CODE_PX and the unplaced-cluster count
+      // already use elsewhere on this map.
+      const roomIsoW=Math.max(...ipts.map(p=>p[0]))-Math.min(...ipts.map(p=>p[0]));
+      const naturalW=rtxt.length*rfsBase*(SHOW?0.78:0.6)+10;
+      const FIT_MARGIN=0.88, MIN_RFS=4.5;
+      const rfs=(roomIsoW>0 && naturalW>roomIsoW*FIT_MARGIN)
+        ? Math.max(MIN_RFS, rfsBase*(roomIsoW*FIT_MARGIN)/naturalW)
+        : rfsBase;
       const rw=rtxt.length*rfs*(SHOW?0.78:0.6)+10, rh=rfs*1.9;
       // ...and if a fixture happens to sit on that spot anyway, the name steps
       // up out of the way rather than being drawn through. The halo keeps it
@@ -1838,7 +1852,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           `rx="3" fill="transparent" stroke="none" pointer-events="all"/>`;
       }
       s+=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+
-        `fill="${color}" font-size="${SHOW?"6.6":"7.4"}" font-family="system-ui,sans-serif" font-weight="600" `+
+        `fill="${color}" font-size="${rfs.toFixed(2)}" font-family="system-ui,sans-serif" font-weight="600" `+
         (SHOW?`letter-spacing="0.16em" `:``)+
         `paint-order="stroke" stroke="#071008" stroke-width="2.5" stroke-linejoin="round" `+
         `opacity="${SHOW?"0.72":"0.95"}" pointer-events="none">`+

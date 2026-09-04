@@ -456,7 +456,15 @@ class PadSpanLightsApp extends HTMLElement {
       onHexesBuilt: (isoDiv)=>{
         requestAnimationFrame(()=>wireUseSurface(isoDiv, this._useApi(lightsByEid, lights)));
       },
-      onRowClick: (l)=> this._toggle(l.entity_id),
+      // A row in the list is the same object as its marker on the map, so a
+      // tap here has to mean the same thing a tap THERE means — the map's
+      // own click handler (wirePress in lights_map.js) already special-cases
+      // motion to open its activity history instead of the read-only
+      // refusal; this row click went through the generic toggle path
+      // unconditionally and never got the same treatment, so clicking a
+      // motion sensor in the list still said "read-only" long after tapping
+      // its marker on the map started opening the calendar.
+      onRowClick: (l)=> l.isMotion ? openActivityCalendar(this._hass, l.entity_id) : this._toggle(l.entity_id),
       onRowLongPress: (l)=>{ if(isWledLight(l) || isPartitionLight(l) || l.dimmable || l.isFan) this._openWledDetail(l.entity_id); },
       // The "⋯" on every row: the controls in plain sight.
       onRowMore: (l)=>{ if(isWledLight(l) || isPartitionLight(l) || l.dimmable || l.isFan) this._openWledDetail(l.entity_id); else this._toggle(l.entity_id); },

@@ -8030,6 +8030,11 @@ function _lightsTab(ctx, maps, active) {
     // A light has no owning map to look up any more — it has a position in
     // metres, or it has none and clusters in its room.
     onRowClick: (l) => {
+      // Same rule the map's own marker click already applies (wirePress in
+      // lights_map.js): motion has nothing to toggle, so a tap opens its
+      // activity history instead of the read-only refusal — a free-tier row
+      // click went straight to toggle() and never got that treatment.
+      if (l.isMotion) { openActivityCalendar(ctx.hass, l.entity_id); return; }
       if (!paid) { toggle(l.entity_id); return; }
       mapState._selLight = { eid: l.entity_id, mapId: null };
       // Choosing FROM THE LIST is exactly when you don't yet know where a
