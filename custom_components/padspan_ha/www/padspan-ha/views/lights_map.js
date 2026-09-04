@@ -1438,6 +1438,11 @@ export function buildLightsMapCard(hostIn){
     }
   }
 
+  // A rendering mode (Showcase and its family) reads as one thing; "Hide
+  // untouched" is an independent filter, not part of that family — split so
+  // the row groups by what a button actually DOES, not just where it sits.
+  if (host.onShowcase && host.onHideUntouched) ctrlRow.appendChild(SEP());
+
   // Hide untouched — show only the fixtures that have actually been worked on.
   // MOVING a light is not work on the light: dropping it where it really is is
   // the baseline, and on a full house nearly everything has been dropped, so

@@ -7204,6 +7204,9 @@ function _lightsTab(ctx, maps, active) {
   const selSet = mapState._selSet || (mapState._selSet = new Set());
   const queue = mapState._placeQueue || (mapState._placeQueue = []);
   const undoSt = _undoStack(mapState);
+  // Grouped for scanning, not for function: mode toggles, then history, then
+  // view, each split by the same lv-sep divider the placement bar already
+  // uses — nothing here changes what any control does or when it shows.
   if (paid && !preview) wrap.appendChild(el("div", { class: "card lv-tablecard", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px" }, [
     xfBtn,
     el("button", {
@@ -7211,16 +7214,18 @@ function _lightsTab(ctx, maps, active) {
       title: "Touch-friendly multi-select: every tap adds to the selection (Shift-click does the same with a mouse)",
       onclick: () => { mapState._multiSelect = !mapState._multiSelect; ctx.actions.renderRooms(); },
     }, mapState._multiSelect ? "⧉ Select several: ON" : "⧉ Select several"),
+    el("span", { class: "lv-sep" }, ""),
     el("button", { class: "lv-act", title: "Undo the last unsaved edit (Ctrl+Z)", disabled: undoSt.canUndo ? null : "disabled",
       onclick: () => _lightsUndo(ctx, mapState) }, "↶ Undo"),
     el("button", { class: "lv-act", title: "Redo (Ctrl+Y)", disabled: undoSt.canRedo ? null : "disabled",
       onclick: () => _lightsRedo(ctx, mapState) }, "↷ Redo"),
+    el("span", { class: "lv-sep" }, ""),
     el("button", {
       class: "lv-tgl tone-green",
       title: "See this map exactly as the Lights sidebar shows it, without leaving the builder",
       onclick: () => { mapState._lightsPreview = true; ctx.actions.renderRooms(); },
     }, "▶ Preview as sidebar"),
-    el("span", { class: "lv-check" }, [
+    el("span", { class: "lv-check", style: "margin-left:auto" }, [
       el("b", {}, String(nPlaced)), "placed",
       ...(nApprox ? ["·", el("b", {}, String(nApprox)), "approximate"] : []),
       "·", el("b", {}, String(nUnplaced)), "unplaced",
