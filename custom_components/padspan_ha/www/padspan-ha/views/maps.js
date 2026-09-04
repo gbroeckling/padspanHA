@@ -1256,6 +1256,20 @@ function _wizard(ctx, maps, isBasic){
   // Every step past Upload needs a map to draw on.
   if (w.step > 1 && !map) w.step = 1;
 
+  // Opt-in usage report: which step was REACHED, once per distinct visit —
+  // guarded the same way _wizardForceEditMode guards its own re-force, so a
+  // re-render while sitting on one step (typing, dragging) never re-counts.
+  if (w._telemetryStep !== w.step) {
+    w._telemetryStep = w.step;
+    if (ctx.actions.telemetryEvent) {
+      if (w.step === 1) ctx.actions.telemetryEvent("wizard_maps_step_upload");
+      else if (w.step === 2) ctx.actions.telemetryEvent("wizard_maps_step_scale");
+      else if (w.step === 3) ctx.actions.telemetryEvent("wizard_maps_step_rooms");
+      else if (w.step === 4) ctx.actions.telemetryEvent("wizard_maps_step_scanners");
+      else if (w.step === 5) ctx.actions.telemetryEvent("wizard_maps_step_finish");
+    }
+  }
+
   const root = el("div",{});
 
   const head = el("div",{class:"card", style:"margin-bottom:12px"});
@@ -1264,6 +1278,9 @@ function _wizard(ctx, maps, isBasic){
     map ? `Setting up: ${map.name || "this floor plan"}` : "Set up a floor plan"));
   const closeBtn = el("button",{class:"btn inline", style:"font-size:12px"}, "Exit setup");
   closeBtn.addEventListener("click", ()=>{
+    // Reaching Finish already counts as the step-5 funnel entry above —
+    // this is only for someone who left before getting there.
+    if (w.step < 5 && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_maps_exited_early");
     ctx.state._mapsWizard = null;
     ctx.state.mapsTab = map ? "edit" : "library";
     ctx.actions.renderRooms();
@@ -7424,7 +7441,12 @@ function _lightsTourCard(ctx, wrap, paid){
   const head = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:6px" }, [
     el("span", { style: "font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#5eead4;font-weight:700" },
       `Guide · ${tour.step} of ${steps.length}`),
-    (() => { const x = el("button", { class: "btn inline", style: "font-size:11px;padding:1px 8px" }, "✕"); x.addEventListener("click", close); return x; })(),
+    (() => { const x = el("button", { class: "btn inline", style: "font-size:11px;padding:1px 8px" }, "✕");
+      x.addEventListener("click", () => {
+        if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("lights_tour_dismissed_early");
+        close();
+      });
+      return x; })(),
   ]);
   card.appendChild(head);
   card.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, s.title));
@@ -7452,7 +7474,10 @@ function _lightsTourCard(ctx, wrap, paid){
     right.appendChild(nx);
   } else {
     const done = el("button", { class: "btn primary", style: "font-size:11px" }, "Done");
-    done.addEventListener("click", close);
+    done.addEventListener("click", () => {
+      if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("lights_tour_completed");
+      close();
+    });
     right.appendChild(done);
   }
   nav.appendChild(right);
@@ -7528,7 +7553,11 @@ function _lightsTab(ctx, maps, active) {
         : "Every light in the house, one marker each, in its room. Click a marker to switch it."),
       (() => {
         const b = el("button", { class: "btn inline", style: "font-size:11px;margin-left:auto" }, "🎓 Guide me");
-        b.addEventListener("click", () => { ctx.state._lightsTour = { step: 1 }; ctx.actions.renderRooms(); });
+        b.addEventListener("click", () => {
+          ctx.state._lightsTour = { step: 1 };
+          if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("lights_tour_opened");
+          ctx.actions.renderRooms();
+        });
         return b;
       })(),
     ]),
@@ -7541,7 +7570,10 @@ function _lightsTab(ctx, maps, active) {
     ctx.state._lightsTourAutoChecked = true;
     let seen = true;
     try { seen = localStorage.getItem("padspan_ha_lights_tour_seen") === "1"; } catch(e) {}
-    if (!seen) ctx.state._lightsTour = { step: 1 };
+    if (!seen) {
+      ctx.state._lightsTour = { step: 1 };
+      if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("lights_tour_opened");
+    }
   }
   if (!paid) {
     wrap.appendChild(el("div", { class: "card lv-tablecard", style: "padding:10px 12px;border:1px solid rgba(251,191,36,.45);box-shadow:0 0 18px rgba(251,191,36,.07);font-size:12px;margin-bottom:12px" }, [

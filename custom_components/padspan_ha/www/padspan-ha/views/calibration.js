@@ -274,13 +274,30 @@ function _calibWizard(ctx, el, cs, calData) {
   // cs.tab is left wherever it already was — Model, most likely.
   if (CALIB_TAB_BY_STEP[w.step]) cs.tab = CALIB_TAB_BY_STEP[w.step];
 
+  // Opt-in usage report: which step was REACHED, once per distinct visit —
+  // same dedup-against-last-counted-step guard the Mapping Setup Wizard uses.
+  if (w._telemetryStep !== w.step) {
+    w._telemetryStep = w.step;
+    if (ctx.actions.telemetryEvent) {
+      if (w.step === 1) ctx.actions.telemetryEvent("wizard_calib_step_tune");
+      else if (w.step === 2) ctx.actions.telemetryEvent("wizard_calib_step_setup");
+      else if (w.step === 3) ctx.actions.telemetryEvent("wizard_calib_step_roam");
+      else if (w.step === 4) ctx.actions.telemetryEvent("wizard_calib_step_model");
+      else if (w.step === 5) ctx.actions.telemetryEvent("wizard_calib_step_finish");
+    }
+  }
+
   const root = el("div", {});
 
   const head = el("div", { class: "card", style: "margin-bottom:12px" });
   const hrow = el("div", { style: "display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px" });
   hrow.appendChild(el("div", { style: "font-weight:700;font-size:16px" }, "Guided calibration"));
   const closeBtn = el("button", { class: "btn inline", style: "font-size:12px" }, "Exit guide");
-  closeBtn.addEventListener("click", () => { ctx.state._calibWizard = null; ctx.actions.renderRooms(); });
+  closeBtn.addEventListener("click", () => {
+    if (w.step < 5 && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_calib_exited_early");
+    ctx.state._calibWizard = null;
+    ctx.actions.renderRooms();
+  });
   hrow.appendChild(closeBtn);
   head.appendChild(hrow);
 

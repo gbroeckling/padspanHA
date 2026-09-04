@@ -15,10 +15,11 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.21 — PadSpan Bright is ready for the HACS catalogue (2026-09-04)
+## 0.38.22 — PadSpan Bright is ready for the HACS catalogue (2026-09-04)
 
 - **A Bright release now waits for its Tests, HACS and Hassfest checks to pass before it is created.** That is the order HACS requires for a default-catalogue submission; a failed check stops Bright before the tag or release is published.
 - **Bright's HACS links now stay with Bright.** Documentation and issue links point to `gbroeckling/padspanBright`, and its README has a one-click Add to HACS button, direct feature copy and no leftover internal or sales language.
+- **The opt-in usage report now counts progress through the three guided setup tools.** It records which Mapping and Calibration wizard steps are reached, plus whether the Lights tour is finished or closed early. As with the rest of this report, it sends event counts only—never names, positions or the choices made inside a step.
 - This is the stable release that will accompany Bright's submission to the default HACS integration catalogue.
 
 ---

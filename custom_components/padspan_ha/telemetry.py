@@ -111,6 +111,24 @@ EVENTS: frozenset[str] = frozenset({
     #               there — the one result that would make the map indicator
     #               dishonest, and it cannot be seen from a single install.
     "scan_mode_flip_auto", "scan_mode_flip_pinned",
+    # The three guided wizards (v0.38.21): which step was REACHED, once per
+    # distinct visit to that step (the wizard dedupes against its own last-
+    # counted step, the same way a tab-open event never double-counts a
+    # re-render). This is a funnel: comparing step counts against each other
+    # shows where people stop advancing, on a feature that only exists in
+    # the browser and that the developer's one house cannot exercise every
+    # path of. "..._exited_early" is the explicit "Exit setup"/"Exit guide"
+    # click before the Finish step — the funnel alone cannot tell a
+    # deliberate exit from someone who just has not come back yet.
+    "wizard_maps_step_upload", "wizard_maps_step_scale", "wizard_maps_step_rooms",
+    "wizard_maps_step_scanners", "wizard_maps_step_finish", "wizard_maps_exited_early",
+    "wizard_calib_step_tune", "wizard_calib_step_setup", "wizard_calib_step_roam",
+    "wizard_calib_step_model", "wizard_calib_step_finish", "wizard_calib_exited_early",
+    # The Lights builder's guided tour: opened (button or auto-open on first
+    # visit), reached its last card and closed via Done, or closed via the
+    # ✕ before that. A tour with a high opened-to-dismissed ratio and a low
+    # completed count is a tour worth shortening, not a tour working as meant.
+    "lights_tour_opened", "lights_tour_completed", "lights_tour_dismissed_early",
 })
 # The panel's views (panel.js _VIEW_PATHS — tests/test_telemetry.py asserts
 # equality) and the sub-tabs of the two views that have them.
