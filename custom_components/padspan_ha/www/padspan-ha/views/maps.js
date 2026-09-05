@@ -8082,6 +8082,8 @@ function _lightsTab(ctx, maps, active) {
     onTableClassFilter: (cls) => { mapState._tableClassFilter = cls; ctx.actions.renderRooms(); },
     tableSort: mapState._tableSort || null,
     onTableSort: (next) => { mapState._tableSort = next; ctx.actions.renderRooms(); },
+    tableHealthFilter: !!mapState._tableHealthFilter,
+    onTableHealthFilter: (on) => { mapState._tableHealthFilter = on; ctx.actions.renderRooms(); },
   };
   const mapCardEl = buildLightsMapCard(host);
   // The drafting grid on the stage says "editing" without a word.

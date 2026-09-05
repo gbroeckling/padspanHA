@@ -788,6 +788,136 @@ console.log(JSON.stringify({
     assert t["dimmable"] is False, "a read-only sensor must never offer the brightness card"
 
 
+def test_health_flags_unavailable_or_unknown_regardless_of_class(tmp_path):
+    """Garry: "do a health check for all the devices". The one domain-agnostic
+    failure signal every entity type can report — HA's own "unavailable" or
+    "unknown" state — must fail the check no matter which class it's on."""
+    out = _run_pipeline_script(tmp_path, """
+const AREA = {"light.lamp": "Kitchen", "fan.ceiling": "Kitchen", "binary_sensor.pir": "Hall", "sensor.temp": "Hall"};
+const STATES = {
+  "light.lamp":       {state: "unavailable", attributes: {friendly_name: "Lamp"}},
+  "fan.ceiling":       {state: "unknown", attributes: {friendly_name: "Ceiling Fan"}},
+  "binary_sensor.pir": {state: "unavailable", attributes: {friendly_name: "PIR", device_class: "motion"}},
+  "sensor.temp":       {state: "unknown", attributes: {friendly_name: "Temp", device_class: "temperature"}},
+};
+const by = Object.fromEntries(LM.gatherLights(STATES, AREA, {}, "pro", {}, {}).map(l => [l.entity_id, l]));
+console.log(JSON.stringify(Object.fromEntries(Object.entries(by).map(([k, l]) => [k, {healthy: l.healthy, reason: l.healthReason}]))));
+""")
+    for eid in ("light.lamp", "fan.ceiling", "binary_sensor.pir", "sensor.temp"):
+        assert out[eid]["healthy"] is False, out
+        assert "unavailable" in out[eid]["reason"] or "unknown" in out[eid]["reason"], out[eid]
+
+
+def test_wled_health_flags_a_strip_that_lost_its_effect_list(tmp_path):
+    """A strip forced WLED-class (type_override, Pro) whose live effect_list
+    has gone empty is still reachable — still turns on and off — but has
+    quietly lost the one thing that made it a strip rather than a plain
+    light. That's worth surfacing even though the entity itself looks fine."""
+    out = _run_pipeline_script(tmp_path, """
+const AREA = {"light.strip": "Kitchen", "light.strip2": "Kitchen"};
+const STATES = {
+  "light.strip":  {state: "on", attributes: {friendly_name: "Forced WLED, effects gone"}},
+  "light.strip2": {state: "on", attributes: {friendly_name: "Real WLED", effect_list: ["Solid", "Rainbow"]}},
+};
+const OVR = {"light.strip": "wled"};
+const by = Object.fromEntries(LM.gatherLights(STATES, AREA, {}, "pro", {}, OVR).map(l => [l.entity_id, l]));
+console.log(JSON.stringify(Object.fromEntries(Object.entries(by).map(([k, l]) => [k, {isWled: l.isWled, healthy: l.healthy, reason: l.healthReason}]))));
+""")
+    assert out["light.strip"]["isWled"] is True
+    assert out["light.strip"]["healthy"] is False
+    assert "effect" in out["light.strip"]["reason"].lower(), out["light.strip"]
+    assert out["light.strip2"]["isWled"] is True and out["light.strip2"]["healthy"] is True, out["light.strip2"]
+
+
+def test_motion_health_flags_a_stuck_sensor_not_a_recent_trip(tmp_path):
+    """Mirrors iso_lights.js's own MOTION_RECENT_MS: a sensor still reporting
+    "on" six-plus hours after it last changed is stuck hardware, not a real
+    trip — the same line the map's own rendering already draws, reused here
+    rather than a second, possibly-disagreeing number."""
+    out = _run_pipeline_script(tmp_path, """
+const NOW = Date.parse("2026-09-05T12:00:00.000Z");
+const AREA = {"binary_sensor.stuck": "Hall", "binary_sensor.fresh": "Hall", "binary_sensor.quiet": "Hall"};
+const STATES = {
+  // 7h ago, still "on" — stuck.
+  "binary_sensor.stuck": {state: "on", last_changed: "2026-09-05T05:00:00.000Z", attributes: {friendly_name: "Stuck PIR", device_class: "motion"}},
+  // 1h ago, still "on" — a real, ongoing trip.
+  "binary_sensor.fresh": {state: "on", last_changed: "2026-09-05T11:00:00.000Z", attributes: {friendly_name: "Fresh PIR", device_class: "motion"}},
+  // "off" for 7h is just quiet, never "stuck" — only an "on" that never clears is.
+  "binary_sensor.quiet": {state: "off", last_changed: "2026-09-05T05:00:00.000Z", attributes: {friendly_name: "Quiet PIR", device_class: "motion"}},
+};
+const by = Object.fromEntries(LM.gatherLights(STATES, AREA, {}, "pro", {}, {}, {}, {}, NOW).map(l => [l.entity_id, l]));
+console.log(JSON.stringify(Object.fromEntries(Object.entries(by).map(([k, l]) => [k, {healthy: l.healthy, reason: l.healthReason}]))));
+""")
+    assert out["binary_sensor.stuck"]["healthy"] is False
+    assert "stuck" in out["binary_sensor.stuck"]["reason"].lower(), out["binary_sensor.stuck"]
+    assert out["binary_sensor.fresh"]["healthy"] is True, out["binary_sensor.fresh"]
+    assert out["binary_sensor.quiet"]["healthy"] is True, out["binary_sensor.quiet"]
+
+
+def test_temp_health_flags_a_stale_reading(tmp_path):
+    """Mirrors iso_lights.js's own TEMP_FRESH_MS ("if they gave the
+    temperature in the last hour" — Garry): a reading older than that, or
+    with no timestamp at all, is stale even if HA hasn't flipped the entity
+    to unavailable yet."""
+    out = _run_pipeline_script(tmp_path, """
+const NOW = Date.parse("2026-09-05T12:00:00.000Z");
+const AREA = {"sensor.stale": "Hall", "sensor.fresh": "Hall", "sensor.no_ts": "Hall"};
+const STATES = {
+  "sensor.stale": {state: "68", last_updated: "2026-09-05T09:00:00.000Z", attributes: {friendly_name: "Stale Temp", device_class: "temperature"}},
+  "sensor.fresh": {state: "68", last_updated: "2026-09-05T11:50:00.000Z", attributes: {friendly_name: "Fresh Temp", device_class: "temperature"}},
+  "sensor.no_ts": {state: "68", attributes: {friendly_name: "No Timestamp Temp", device_class: "temperature"}},
+};
+const by = Object.fromEntries(LM.gatherLights(STATES, AREA, {}, "pro", {}, {}, {}, {}, NOW).map(l => [l.entity_id, l]));
+console.log(JSON.stringify(Object.fromEntries(Object.entries(by).map(([k, l]) => [k, {healthy: l.healthy, reason: l.healthReason}]))));
+""")
+    assert out["sensor.stale"]["healthy"] is False, out["sensor.stale"]
+    assert out["sensor.fresh"]["healthy"] is True, out["sensor.fresh"]
+    assert out["sensor.no_ts"]["healthy"] is False, out["sensor.no_ts"]
+    assert "timestamp" in out["sensor.no_ts"]["reason"].lower(), out["sensor.no_ts"]
+
+
+def test_health_column_and_filter_button_hide_healthy_rows(tmp_path):
+    """The Health dot sits right after Room, before the other stat columns —
+    Garry: "in front of the other stats". The filter button (separate from
+    the class dropdown) narrows the list to only what's testing unhealthy,
+    and its label carries the live unhealthy count."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const AREA = {"light.ok": "Kitchen", "light.dead": "Kitchen", "binary_sensor.ok": "Hall", "binary_sensor.stuck": "Hall"};
+const STATES = {
+  "light.ok":          {state: "on", attributes: {friendly_name: "Good Lamp"}},
+  "light.dead":        {state: "unavailable", attributes: {friendly_name: "Dead Lamp"}},
+  "binary_sensor.ok":  {state: "off", attributes: {friendly_name: "OK PIR", device_class: "motion"}},
+  "binary_sensor.stuck": {state: "on", last_changed: "2020-01-01T00:00:00.000Z", attributes: {friendly_name: "Stuck PIR", device_class: "motion"}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
+const headerCols = [...LM.buildLightsTable({el, hiddenEids: new Set(), lightsLoading: false, model: {}, tableClassFilter: "all"}, lights)
+  .querySelectorAll("th")].map(th => th.textContent.replace(/[▲▼]/g, "").trim());
+
+let filterArg = "unset";
+const host = { el, hiddenEids: new Set(), lightsLoading: false, model: {},
+  tableClassFilter: "all", tableHealthFilter: false, onTableHealthFilter: (v) => { filterArg = v; } };
+const root1 = LM.buildLightsTable(host, lights);
+const rows1 = root1.querySelectorAll("tr[data-eid]").length;
+const btn1 = [...root1.querySelectorAll("button")].find(b => /unhealthy/i.test(b.textContent));
+
+host.tableHealthFilter = true;
+const root2 = LM.buildLightsTable(host, lights);
+const rows2 = [...root2.querySelectorAll("tr[data-eid]")].map(r => r.getAttribute("data-eid")).sort();
+const badge2 = root2.querySelectorAll(".lv-count")[0].textContent;
+
+btn1.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
+console.log(JSON.stringify({ headerCols, rows1, btn1Text: btn1.textContent, rows2, badge2, filterArg }));
+""")
+    assert "Health" in out["headerCols"]
+    assert out["headerCols"].index("Health") < out["headerCols"].index("Brand"), out["headerCols"]
+    assert out["headerCols"].index("Health") < out["headerCols"].index("State"), out["headerCols"]
+    assert out["rows1"] == 4, out
+    assert "(2)" in out["btn1Text"], "the button's own label carries the live unhealthy count"
+    assert out["rows2"] == ["binary_sensor.stuck", "light.dead"], out["rows2"]
+    assert out["badge2"] == "2 / 4", out["badge2"]
+    assert out["filterArg"] is True, "clicking the button while off must turn it on"
+
+
 def test_both_hosts_pass_the_tier():
     """The gate is only as good as its callers: both hosts hand settings.tier
     to gatherLights and to the card, and neither re-derives the ladder."""

@@ -487,6 +487,8 @@ class PadSpanLightsApp extends HTMLElement {
       onTableClassFilter: (cls)=>{ this.state._tableClassFilter=cls; this._render(); },
       tableSort: this.state._tableSort || null,
       onTableSort: (next)=>{ this.state._tableSort=next; this._render(); },
+      tableHealthFilter: !!this.state._tableHealthFilter,
+      onTableHealthFilter: (on)=>{ this.state._tableHealthFilter=on; this._render(); },
     };
 
     root.appendChild(buildLightsMapCard(host));

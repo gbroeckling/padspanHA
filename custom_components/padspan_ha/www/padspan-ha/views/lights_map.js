@@ -15,7 +15,7 @@ const { buildIsoSVG, shapeSvg, fabricFrame, sampleSceneField, pointInPolygon, of
         lightClassOf } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
-        WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, TEMP_BORDER } =
+        WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, TEMP_BORDER, healthOf } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 const { tierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
@@ -1109,7 +1109,7 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
 // entity_id → the device registry's manufacturer string. Informational
 // only (identifying hardware, not a placement or styling control), so it
 // is ungated — free tier sees it same as everyone else.
-export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides, pairMap, manufacturerMap){
+export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides, pairMap, manufacturerMap, nowMs){
   const paid = lightingUnlocked(tier);
   const pro = tierAtLeast(tier, "pro");
   // A verified motion+occupancy pair (see computeMotionOccupancyPairs) rides
@@ -1222,6 +1222,13 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
     // The last dimmed level is only visible while a light is on — remember
     // it here, on the pass both views already make, so off→on can restore it.
     if (l.state === "on" && typeof l.bri === "number" && l.bri >= 1) _recordBrightness(l.entity_id, l.bri);
+    // Computed fresh on every gather (states poll), not cached on the
+    // object across polls — a device recovering or going stale needs the
+    // dot to move without waiting for something else to invalidate it.
+    // nowMs is injectable (same pattern as buildIsoSVG's opts.nowMs) so a
+    // test can pin elapsed time instead of racing the real clock.
+    const h = healthOf(l, Number(nowMs) || Date.now());
+    l.healthy = h.healthy; l.healthReason = h.reason;
   }
   return lights;
 }
@@ -1698,11 +1705,24 @@ export function buildLightsTable(host, lights){
   // picking a class here never has the side effect of changing what the
   // map shows, which nothing asked for.
   const tableFilter = host.tableClassFilter || "all";
-  const filtered = tableFilter === "all" ? lights : lights.filter(l => lightClassOf(l) === tableFilter);
+  const healthFilter = !!host.tableHealthFilter;
+  const byClass = tableFilter === "all" ? lights : lights.filter(l => lightClassOf(l) === tableFilter);
+  const filtered = healthFilter ? byClass.filter(l => !l.healthy) : byClass;
+  const unhealthyCount = lights.filter(l => !l.healthy).length;
   root.appendChild(el("div", { class: "lv-tbl-head" }, [
     el("span", { class: "lv-tbl-title" }, "Light Index"),
-    el("span", { class: "lv-count" }, tableFilter === "all" ? String(lights.length) : `${filtered.length} / ${lights.length}`),
+    el("span", { class: "lv-count" }, (tableFilter === "all" && !healthFilter) ? String(lights.length) : `${filtered.length} / ${lights.length}`),
     hiddenCount ? el("span", { class: "lv-hint" }, `${hiddenCount} hidden from map`) : null,
+    ...(host.onTableHealthFilter ? [(() => {
+      const btn = el("button", {
+        class: "lv-act" + (healthFilter ? " primary" : ""),
+        title: unhealthyCount
+          ? `${unhealthyCount} device(s) test unhealthy right now`
+          : "Every device is healthy right now",
+        onclick: () => host.onTableHealthFilter(!healthFilter),
+      }, healthFilter ? "Showing unhealthy only ✕" : `Show unhealthy only${unhealthyCount ? ` (${unhealthyCount})` : ""}`);
+      return btn;
+    })()] : []),
     ...(host.onTableClassFilter ? [(() => {
       const present = new Set(lights.map(l => lightClassOf(l)));
       // No auto right-margin: this card can be far wider than the viewport
@@ -1732,6 +1752,7 @@ export function buildLightsTable(host, lights){
     ["code", "Code", (l) => l.code || ""],
     ["name", "Light", (l) => (l.friendly_name || "").toLowerCase()],
     ["room", "Room", (l) => (l.area_name || "").toLowerCase()],
+    ["health", "Health", (l) => (l.healthy ? 1 : 0)],
     ["brand", "Brand", (l) => (l.brand || "").toLowerCase()],
     // Sorted on exactly what the State column DISPLAYS — a temperature
     // reading numerically (so 105° sorts above 68°, not alphabetically),
@@ -1758,6 +1779,7 @@ export function buildLightsTable(host, lights){
     th("code", "Code"),
     th("name", "Light"),
     th("room", "Room"),
+    th("health", "Health", "text-align:center"),
     th("brand", "Brand"),
     th("state", "State"),
     th(null, "Map", "width:60px;text-align:center"),
@@ -1834,6 +1856,12 @@ export function buildLightsTable(host, lights){
             return sel;
           })()
       ),
+      el("td", { style: "text-align:center" }, el("span", {
+        title: l.healthy ? "Healthy" : (l.healthReason || "Unhealthy"),
+        style: `display:inline-block;width:9px;height:9px;border-radius:50%;` +
+               `background:${l.healthy ? "#52b788" : "#f87171"};` +
+               (l.healthy ? "" : "box-shadow:0 0 4px #f87171bb"),
+      })),
       el("td", { class: "muted", style: "font-size:11px" }, l.brand || "—"),
       el("td", {}, l.isTemp
         ? el("span", { class: "lv-state off" }, Number.isFinite(l.temperature) ? `${l.temperature}°` : "—")

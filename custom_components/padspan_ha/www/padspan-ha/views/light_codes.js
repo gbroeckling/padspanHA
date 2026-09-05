@@ -64,6 +64,65 @@ export function isTempSensor(l) {
   return String(l.entity_id || "").startsWith("sensor.");
 }
 
+// Health — a device can be reachable and still not actually be DOING its
+// job. What "healthy" means differs by class, so this isn't one check:
+//
+//  - Every class: HA itself says "unavailable" or "unknown" — the one
+//    domain-agnostic failure signal every entity type can report.
+//  - WLED strip: reachable, but its effect_list has gone empty — the whole
+//    reason it's classed WLED rather than a plain light. Still turns on
+//    and off; has quietly lost what made it a strip (a firmware update, an
+//    ESPHome effects: block removed, a JSON API hiccup).
+//  - Motion sensor: reachable, but stuck reporting "on" past the same
+//    outer cutoff the map's own glow rendering already treats as "stuck
+//    hardware, not continuous motion" (see iso_lights.js's
+//    MOTION_RECENT_MS) — a real PIR trip does not last six hours.
+//  - Temperature sensor: reachable, but its last reading is older than the
+//    same freshness window the map's own display gate already requires
+//    before showing a number at all (iso_lights.js's TEMP_FRESH_MS) — a
+//    sensor that stopped updating a while ago, even if HA hasn't yet
+//    flipped it to unavailable.
+//  - Fan / partition segment / plain light: reachability is the whole
+//    question — there's no established second signal for these the way
+//    there is for the three above, so inventing one would just be noise.
+//
+// MOTION_STUCK_MS/TEMP_FRESH_MS are the SAME durations as iso_lights.js's
+// own constants, not new numbers — kept local rather than imported since
+// iso_lights.js scopes them inside buildIsoSVG.
+const MOTION_STUCK_MS = 6 * 60 * 60 * 1000;
+const TEMP_FRESH_MS = 60 * 60 * 1000;
+
+export function healthOf(l, nowMs) {
+  if (l.state === "unavailable" || l.state === "unknown") {
+    return { healthy: false, reason: `Entity is ${l.state}` };
+  }
+  const now = Number(nowMs) || Date.now();
+  if (l.isMotion) {
+    const changed = l.last_changed ? Date.parse(l.last_changed) : NaN;
+    if (l.state === "on" && Number.isFinite(changed) && (now - changed) > MOTION_STUCK_MS) {
+      const hrs = Math.round((now - changed) / 3600000);
+      return { healthy: false, reason: `Stuck "on" for ~${hrs}h — likely a hardware fault, not continuous motion` };
+    }
+    return { healthy: true, reason: "" };
+  }
+  if (l.isTemp) {
+    const updated = l.last_changed ? Date.parse(l.last_changed) : NaN;
+    if (!Number.isFinite(updated)) return { healthy: false, reason: "No reading timestamp" };
+    if ((now - updated) > TEMP_FRESH_MS) {
+      const hrs = Math.round((now - updated) / 3600000);
+      return { healthy: false, reason: `No reading in over ${hrs}h` };
+    }
+    return { healthy: true, reason: "" };
+  }
+  if (isWledLight(l)) {
+    if (!Array.isArray(l.effect_list) || !l.effect_list.length) {
+      return { healthy: false, reason: "No effects reported — this WLED strip may have lost its effect list" };
+    }
+    return { healthy: true, reason: "" };
+  }
+  return { healthy: true, reason: "" };
+}
+
 // The type-override chooser's vocabulary — the UI's copy of const.py's
 // LIGHT_TYPE_OVERRIDE_KINDS ("auto" = no override, expressed by omitting
 // the entity, never stored). A test holds the two equal.
