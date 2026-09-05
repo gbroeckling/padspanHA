@@ -312,16 +312,23 @@ function chartCard(el, title, data, yOf, labelOf) {
     g.appendChild(svg("text", { x: PL - 4, y: y + 3, "text-anchor": "end", "font-size": 9, fill: INK2 }, String(Math.round(max * f))));
   }
   const tip = el("div", { style: `position:absolute;display:none;pointer-events:none;background:#0c1a0e;border:1px solid ${GRID};border-radius:6px;padding:4px 8px;font-size:11px;color:${INK};white-space:nowrap` });
+  // The last entry is always today (stats.php builds per_day oldest-first,
+  // today last) and is still accumulating for the rest of the Pacific day —
+  // plotted as an equal bar next to finished days, a normal mid-day dip here
+  // reads as a cliff. Dimmed + labelled so it isn't compared 1:1 with a
+  // completed day at a glance.
+  const todayIdx = data.length - 1;
   data.forEach((d, i) => {
+    const isToday = i === todayIdx;
     const v = vals[i];
     const x = PL + i * (plotW / Math.max(data.length, 1)) + 1;
     const h = Math.round((v / max) * plotH);
     const y = PT + plotH - h;
-    const bar = svg("rect", { x, y, width: bw, height: Math.max(h, v > 0 ? 2 : 0), rx: 2, fill: ACCENT });
+    const bar = svg("rect", { x, y, width: bw, height: Math.max(h, v > 0 ? 2 : 0), rx: 2, fill: ACCENT, opacity: isToday ? 0.45 : 1 });
     // hit target bigger than the mark
     const hit = svg("rect", { x: x - 1, y: PT, width: bw + 2, height: plotH, fill: "transparent" });
     hit.addEventListener("mouseenter", () => {
-      tip.textContent = `${labelOf(d)} · ${v}`;
+      tip.textContent = isToday ? `${labelOf(d)} · ${v} so far (today, still counting)` : `${labelOf(d)} · ${v}`;
       tip.style.display = "block";
       // Compute against the chart's actual rendered width (not the viewBox's
       // 520) and clamp to a few px so a narrow single-column layout can't push
