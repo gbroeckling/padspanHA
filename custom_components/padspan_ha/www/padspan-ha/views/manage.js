@@ -1673,6 +1673,8 @@ function _haEspresenseSection(ctx, el, settings){
     const prefixSave = el("button",{class:"btn inline",style:"font-size:11px;padding:3px 10px"});
     prefixSave.textContent = "Save";
     prefixSave.addEventListener("click", async()=>{
+      // Strip MQTT wildcard chars ('#' multi-level, '+' single-level) — left in, they'd
+      // corrupt the subscription topic built from this prefix in espresense_mqtt.py.
       const v = prefixInput.value.trim().replace(/#|\+/g,"").replace(/^\/|\/$/g,"");
       if(!v){ ctx.toast("Prefix cannot be empty", true); return; }
       prefixSave.disabled = true;

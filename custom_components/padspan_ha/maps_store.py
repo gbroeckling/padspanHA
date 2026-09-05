@@ -680,8 +680,10 @@ class MapsStore:
                 elif b.get("type") == "circle":
                     b["cx"] = _rx(b.get("cx", 0.5))
                     b["cy"] = _ry(b.get("cy", 0.5))
-                    # Scale radius proportionally (use smaller factor)
-                    b["r"] = float(b.get("r", 0.12)) * min(fw, fh)
+                    # Radius is one number; take the mean of the two axis
+                    # factors — exact for a proportional extend, principled
+                    # for a lopsided one (same convention as the crop path).
+                    b["r"] = float(b.get("r", 0.12)) * ((fw + fh) / 2.0)
 
         # The picture now covers more world than it did, so the placement
         # covers more world than it did. In OLD image fractions the new canvas
@@ -757,7 +759,10 @@ class MapsStore:
                 elif b.get("type") == "circle":
                     b["cx"] = _ux(b.get("cx", 0.5))
                     b["cy"] = _uy(b.get("cy", 0.5))
-                    b["r"] = float(b.get("r", 0.12)) / min(fw, fh) if min(fw, fh) > 0 else 0.12
+                    # Inverse of the mean-based scale applied in
+                    # async_extend_canvas (same convention as the crop path).
+                    _r_mean = (fw + fh) / 2.0
+                    b["r"] = float(b.get("r", 0.12)) / _r_mean if _r_mean > 0 else 0.12
 
         # And back: in the EXTENDED image's fractions the original picture
         # spans from add_l/new_w across old_w/new_w, which undoes the rebase

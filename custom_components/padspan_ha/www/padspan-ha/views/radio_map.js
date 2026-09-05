@@ -512,8 +512,10 @@ export function isoStoreyDistortionSVG(storey, iso, liveSnap, settings, range) {
   const wW = bb.maxX - bb.minX, wH = bb.maxY - bb.minY;
   // Square cells: one size for both axes.
   const cellSize = Math.min(wW, wH) / DISTORTION_GRID;
-  const resX = Math.max(2, Math.ceil(wW / cellSize));
-  const resY = Math.max(2, Math.ceil(wH / cellSize));
+  // Cap columns/rows: a long narrow storey (corridor-shaped) would otherwise
+  // produce hundreds of cells instead of the intended ~DISTORTION_GRID.
+  const resX = Math.min(90, Math.max(2, Math.ceil(wW / cellSize)));
+  const resY = Math.min(90, Math.max(2, Math.ceil(wH / cellSize)));
   const cellW = wW / resX, cellH = wH / resY;
   const f = v => v.toFixed(1);
   const z = storey.z;
@@ -1057,8 +1059,10 @@ export function floorDistortionSVG(calPoints, floorMaps, mapPtFns, w2v, wBB, all
 
   // Square cells
   const _flCellSize = Math.min(wW, wH) / DISTORTION_GRID;
-  const _flResX = Math.max(2, Math.ceil(wW / _flCellSize));
-  const _flResY = Math.max(2, Math.ceil(wH / _flCellSize));
+  // Cap columns/rows: a long narrow storey (corridor-shaped) would otherwise
+  // produce hundreds of cells instead of the intended ~DISTORTION_GRID.
+  const _flResX = Math.min(90, Math.max(2, Math.ceil(wW / _flCellSize)));
+  const _flResY = Math.min(90, Math.max(2, Math.ceil(wH / _flCellSize)));
   const cellW = wW / _flResX, cellH = wH / _flResY;
   const idwPts = calWorldPts.map(p => ({ x_frac: p.wx, y_frac: p.wy, rssi: p.rssi }));
   const fv = v => v.toFixed(5);

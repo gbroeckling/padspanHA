@@ -289,10 +289,19 @@ export function render(ctx){
     const accVal = (ph.accuracy && ph.accuracy.mean_error_m) || 0;
     const accColor = accVal>0 && accVal<0.75?"#52b788":accVal<1.8?"#ffd54f":accVal>0?"#ef5350":"#64748b";
     propStatusDiv.appendChild(_propBar("Distance Accuracy", accVal>0 ? Math.max(0,1-accVal/3) : 0, 1, accColor));
+    // avg_variance is per-room RSSI variance in dBm² (Welford variance over
+    // scanner readings, see adaptive_store.py / ws_diagnostics.py). The 15/25
+    // cutoffs and the /40 bar scale are empirically-chosen UI thresholds, not
+    // derived from a single documented constant (the backend's own gating
+    // threshold, _MAX_USEFUL_VARIANCE, is 50).
     const stab = ph.fingerprint_stability || {};
     const stabVal = stab.avg_variance || 0;
     const stabColor = stabVal>0 && stabVal<15?"#52b788":stabVal<25?"#ffd54f":stabVal>0?"#ef5350":"#64748b";
     propStatusDiv.appendChild(_propBar("Fingerprint Stability", stabVal>0 ? Math.max(0,1-stabVal/40) : 0, 1, stabColor));
+    // mean_delta is the mean RSSI delta in dBm between floor pairs
+    // (adaptive_store.py learned_floor_attenuation). The backend already
+    // flags "sufficient" at |mean_delta|>=8 dBm; the /15 here is a separate,
+    // empirically-chosen scale for how full this bar renders.
     const flr = ph.floor_separation || {};
     if(flr.pairs > 0){
       const flrColor = flr.sufficient?"#52b788":"#ffd54f";
@@ -657,6 +666,9 @@ export function render(ctx){
       const overlapBreadth = overlapPartners / maxPartners; // 0-1
       const deviceBreadth = a.totalDevices / maxDevices;    // 0-1
       const uniqueBonus = a.uniqueDevices / Math.max(1, a.totalDevices); // 0-1
+      // Chosen weighting: raw device reach (50%) is the primary signal, overlap
+      // with other scanners (35%) as a secondary signal, unique reach as a
+      // smaller bonus (15%). Not derived from a formula, just a picked split.
       covRaw[a.src] = Math.round((overlapBreadth * 35 + deviceBreadth * 50 + uniqueBonus * 15));
     }
 

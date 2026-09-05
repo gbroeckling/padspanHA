@@ -514,12 +514,26 @@ class CalibrationStore:
         pts = [p for p in self.data.get("points", []) if p.get("map_id") == map_id]
         grid = [0.0] * (GRID_N * GRID_N)
 
+        # Grid cells are square in x_frac/y_frac units but not in real metres
+        # on a non-square map (see loo_accuracy's docstring for the same bug,
+        # already fixed there). Scale the y axis by the map's real aspect
+        # ratio so the Gaussian's reach is isotropic in metres, not frac-units.
+        y_aspect = 1.0
+        transform = self._model.map_transform(map_id) if self._model else None
+        if transform:
+            sx = float(transform.get("scale_x_m") or 0)
+            sy = float(transform.get("scale_y_m") or 0)
+            if sx > 0 and sy > 0:
+                y_aspect = sy / sx
+
         for pt in pts:
             px = pt["x_frac"] * GRID_N
             py = pt["y_frac"] * GRID_N
             for cy in range(GRID_N):
                 for cx in range(GRID_N):
-                    dist = math.sqrt((cx + 0.5 - px) ** 2 + (cy + 0.5 - py) ** 2)
+                    dist = math.sqrt(
+                        (cx + 0.5 - px) ** 2 + ((cy + 0.5 - py) * y_aspect) ** 2
+                    )
                     contrib = _gaussian(dist, SIGMA_CELLS)
                     idx = cy * GRID_N + cx
                     grid[idx] = min(1.0, grid[idx] + contrib)
@@ -820,6 +834,9 @@ class CalibrationStore:
         # counts the best point's OWN shared scanners, not the top-k union.
         _mean_sq = scored[0][0]
         _shared_total = max(scored[0][1], 1)
+        # Reference variance for the RSSI-space confidence curve: confidence
+        # drops to 50% once mean_sq (per-scanner mean squared error, in dB²)
+        # reaches 25, i.e. roughly 5 dB RMS deviation per scanner.
         _REF_VARIANCE = 25.0
         _conf_rssi = 1.0 / (1.0 + _mean_sq / _REF_VARIANCE)
         _conf_coverage = min(_shared_total, 4) / 4.0

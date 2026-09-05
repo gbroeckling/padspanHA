@@ -263,8 +263,12 @@ export function render(ctx) {
   // ── SVG builder ────────────────────────────────────────────────────────
   function _buildTracebackSVG(frameIdx) {
     const maxIsoZ = sortedIsoLevels.length ? sortedIsoLevels[sortedIsoLevels.length - 1] : 0;
+    const minIsoZ = sortedIsoLevels.length ? sortedIsoLevels[0] : 0;
     const viewY = Math.min(0, CY - maxIsoZ * _ovFG - 50);
-    const HTOTAL = BASE_H + LEGEND_H - viewY;
+    // Basement/sub-ground floors (negative z_level) push content DOWN in
+    // screen-Y per iso()'s formula — extend the bottom edge too, or they clip.
+    const viewBottom = Math.max(BASE_H + LEGEND_H, CY - minIsoZ * _ovFG + 50);
+    const HTOTAL = viewBottom - viewY;
     let s = `<svg viewBox="0 ${viewY} ${W} ${HTOTAL}" xmlns="http://www.w3.org/2000/svg" width="100%" style="max-height:${HTOTAL}px;display:block;font-family:system-ui,sans-serif">`;
     s += `<rect x="0" y="${viewY}" width="${W}" height="${HTOTAL}" fill="#071008"/>`;
 
@@ -580,8 +584,12 @@ export function render(ctx) {
   // Each object gets a data-disco attribute for click handling.
   function _buildDiscoverySVG(results) {
     const maxIsoZ = sortedIsoLevels.length ? sortedIsoLevels[sortedIsoLevels.length - 1] : 0;
+    const minIsoZ = sortedIsoLevels.length ? sortedIsoLevels[0] : 0;
     const viewY = Math.min(0, CY - maxIsoZ * _ovFG - 50);
-    const HTOTAL = BASE_H + LEGEND_H - viewY;
+    // Basement/sub-ground floors (negative z_level) push content DOWN in
+    // screen-Y per iso()'s formula — extend the bottom edge too, or they clip.
+    const viewBottom = Math.max(BASE_H + LEGEND_H, CY - minIsoZ * _ovFG + 50);
+    const HTOTAL = viewBottom - viewY;
     let s = `<svg viewBox="0 ${viewY} ${W} ${HTOTAL}" xmlns="http://www.w3.org/2000/svg" width="100%" style="max-height:${HTOTAL}px;display:block;font-family:system-ui,sans-serif">`;
     s += `<rect x="0" y="${viewY}" width="${W}" height="${HTOTAL}" fill="#071008"/>`;
 
@@ -748,11 +756,12 @@ export function render(ctx) {
     // Count badge
     const placedCount = results.length - unplacedCount;
     if (results.length) {
-      const badgeW = 240;
-      s += `<rect x="6" y="${viewY + 4}" width="${badgeW}" height="22" rx="4" fill="#071008" opacity="0.85"/>`;
       const badgeTxt = placedCount === results.length
         ? `${results.length} new object${results.length !== 1 ? "s" : ""} discovered`
         : `${results.length} discovered (${placedCount} placed, ${unplacedCount} unplaced)`;
+      // Size from the actual text (multi-digit counts can run past a fixed width).
+      const badgeW = Math.min(badgeTxt.length * 6.5 + 24, 400);
+      s += `<rect x="6" y="${viewY + 4}" width="${badgeW}" height="22" rx="4" fill="#071008" opacity="0.85"/>`;
       s += `<text x="${badgeW / 2 + 6}" y="${viewY + 19}" text-anchor="middle" fill="#e879f9" font-size="11" font-weight="700">${badgeTxt}</text>`;
     }
 

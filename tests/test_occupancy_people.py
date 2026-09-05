@@ -431,3 +431,45 @@ def test_training_records_the_estimate_beside_the_truth(monkeypatch):
     st = h.data[DOMAIN][DATA_SETTINGS]
     assert st.data["occupancy_training"] == [obs]
     st.store.async_save.assert_awaited_once()
+
+
+# ── accuracy, from confirmed headcounts ──────────────────────────────────────
+
+def _obs(estimated, actual):
+    return {"estimated": estimated, "actual": actual}
+
+
+def test_accuracy_is_absent_with_no_confirmed_headcounts(monkeypatch):
+    res = _estimate(_the_house(monkeypatch))
+    assert res["accuracy"] == {"overall": None, "recent": None}
+
+
+def test_accuracy_summarizes_exact_match_rate_and_bias(monkeypatch):
+    training = [_obs(2, 2), _obs(3, 2), _obs(1, 2), _obs(5, 2)]
+    res = _estimate(_the_house(monkeypatch, settings={"occupancy_training": training}))
+    overall = res["accuracy"]["overall"]
+    assert overall["observations"] == 4
+    assert overall["exact_match_pct"] == 25.0
+    assert overall["within_one_pct"] == 75.0
+    assert overall["mean_abs_error"] == 1.25
+    # (0 + 1 - 1 + 3) / 4 = 0.75 — positive means the estimator over-counted
+    # on average across these four confirmations.
+    assert overall["bias"] == 0.75
+    assert res["accuracy"]["recent"] is None  # fewer than 20 observations
+
+
+def test_accuracy_recent_window_is_the_last_20_only(monkeypatch):
+    # 5 badly-wrong old observations followed by 20 exact ones: the all-time
+    # stat should still show the old errors, but "recent" should read as a
+    # clean 100% once enough good observations have pushed the bad ones out
+    # of the last-20 window — this is what lets Garry see tuning improving
+    # over time instead of one flat lifetime number.
+    training = [_obs(9, 1) for _ in range(5)] + [_obs(2, 2) for _ in range(20)]
+    res = _estimate(_the_house(monkeypatch, settings={"occupancy_training": training}))
+    overall = res["accuracy"]["overall"]
+    recent = res["accuracy"]["recent"]
+    assert overall["observations"] == 25
+    assert overall["exact_match_pct"] == 80.0  # 20 of 25
+    assert recent["observations"] == 20
+    assert recent["exact_match_pct"] == 100.0
+    assert recent["bias"] == 0.0

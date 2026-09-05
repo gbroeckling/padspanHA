@@ -449,10 +449,17 @@ async def ws_maps_delete_migrate(hass: HomeAssistant, connection, msg) -> None:
             scy = float(bounds.get("cy", 0.5))
             r = float(bounds.get("r", 0.12))
             cx, cy = _xform(scx, scy)
+            # Sample both axes: a single +x probe is wrong whenever the
+            # composed transform is anisotropic (different x/y scale, or a
+            # rotation between the two placements) — average the two
+            # probes' distances as a low-risk equivalent-circle radius.
             rx, ry = _xform(scx + r, scy)
+            rx2, ry2 = _xform(scx, scy + r)
+            r1 = ((rx - cx) ** 2 + (ry - cy) ** 2) ** 0.5
+            r2 = ((rx2 - cx) ** 2 + (ry2 - cy) ** 2) ** 0.5
             b["cx"] = cx
             b["cy"] = cy
-            b["r"] = max(0.01, ((rx - cx) ** 2 + (ry - cy) ** 2) ** 0.5)
+            b["r"] = max(0.01, (r1 + r2) / 2.0)
         return b
 
     tgt_receivers = list(tgt_map.get("receivers") or [])

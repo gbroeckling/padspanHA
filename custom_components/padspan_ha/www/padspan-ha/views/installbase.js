@@ -323,8 +323,14 @@ function chartCard(el, title, data, yOf, labelOf) {
     hit.addEventListener("mouseenter", () => {
       tip.textContent = `${labelOf(d)} · ${v}`;
       tip.style.display = "block";
-      const pct = (x + bw / 2) / W;
-      tip.style.left = `calc(${(pct * 100).toFixed(1)}% - 30px)`;
+      // Compute against the chart's actual rendered width (not the viewBox's
+      // 520) and clamp to a few px so a narrow single-column layout can't push
+      // the tooltip past the card's left edge with a flat 30px offset.
+      const rect = g.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const scale = rect.width / W;
+      const leftPx = Math.max(4, (rect.left - cardRect.left) + (x + bw / 2) * scale - 30);
+      tip.style.left = `${leftPx.toFixed(1)}px`;
       tip.style.top = "30px";
       bar.setAttribute("fill", INK);
     });

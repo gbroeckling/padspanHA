@@ -1333,7 +1333,11 @@ function renderVisualization(ctx, radios, ads, objIndex) {
   const deviceNodes = [];
   for (const src of Object.keys(bySrc)) {
     const sIdx = srcIndex.has(src) ? srcIndex.get(src) : -1;
-    const base = scannerNodes[Math.max(0, sIdx)] || { x: scannerNodeX, y: h / 2 };
+    // A scanner that dropped out of radios[] but still has stale recent ads
+    // has sIdx -1 — fall through to the neutral position rather than
+    // aliasing to scannerNodes[0], which would wrongly cluster its devices
+    // under the first scanner.
+    const base = (sIdx >= 0 ? scannerNodes[sIdx] : null) || { x: scannerNodeX, y: h / 2 };
     const list = bySrc[src].slice(0, 24);
     const blockH = list.length * DEV_ROW_H;
     const startY = base.y - blockH / 2;
@@ -1407,7 +1411,15 @@ function renderVisualization(ctx, radios, ads, objIndex) {
   scannerNodes.sort((a, b) => a.y - b.y);
   for (let i = 1; i < scannerNodes.length; i++) {
     if (scannerNodes[i].y - scannerNodes[i - 1].y < SCAN_GAP) {
+      const oldY = scannerNodes[i].y;
       scannerNodes[i].y = scannerNodes[i - 1].y + SCAN_GAP;
+      // Move this scanner's device cluster by the same amount, or the
+      // centering pass above is undone and the connecting lines no longer
+      // fan out symmetrically from the (now-shifted) scanner node.
+      const delta = scannerNodes[i].y - oldY;
+      for (const d of deviceNodes) {
+        if (d.src === scannerNodes[i].id) d.y += delta;
+      }
     }
   }
   // If scanners overflow the bottom, shift them all up as a block
@@ -1433,12 +1445,15 @@ function renderVisualization(ctx, radios, ads, objIndex) {
     if (neededH > h) h = neededH;
   }
 
-  // RSSI CSS class for line color: good (green), ok (amber), bad (red)
+  // RSSI CSS class for line color: good (green), ok (amber), bad (red).
+  // Derived from the shared sigLevel() cut-points (-55/-70/-82) rather than
+  // its own, so a given dBm reads as the same strength here and in the
+  // Scanners table's bar meter instead of two different scales disagreeing.
   const rssiClass = rssi => {
-    const v = Number(rssi);
-    if (!isFinite(v)) return "rssi-unk";
-    if (v >= -60) return "rssi-good";
-    if (v >= -80) return "rssi-ok";
+    const lvl = sigLevel(rssi);
+    if (!lvl) return "rssi-unk";
+    if (lvl >= 3) return "rssi-good";
+    if (lvl === 2) return "rssi-ok";
     return "rssi-bad";
   };
 

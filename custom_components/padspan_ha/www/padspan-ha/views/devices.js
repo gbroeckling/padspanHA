@@ -88,6 +88,10 @@ function _renderAll(ctx) {
   const bleDevices = objList
     .filter(o => o.kind === "ble" || o.kind === "private_ble" || o.kind === "ibeacon")
     .map(o => {
+      // private_ble/ibeacon use their stable canonical_id/key here, not the raw
+      // address: those kinds' addresses are BLE resolvable/rotating private
+      // addresses that change periodically, so falling back to raw address
+      // would break identity continuity across a MAC rotation.
       const stableId = o.kind === "private_ble" ? (o.canonical_id || o.address || "")
                       : o.kind === "ibeacon"     ? (o.key || o.address || "")
                       : (o.address || "");

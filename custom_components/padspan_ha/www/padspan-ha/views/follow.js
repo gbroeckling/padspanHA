@@ -384,7 +384,9 @@ function _buildMapCard(ctx, el, helpBtn, snap, chosen, haAreas, haFloors, radios
     const fillOp = isActive ? "22" : "10";
 
     s += `<rect x="${x}" y="${y}" width="${BW}" height="${BH}" fill="${color}${fillOp}" stroke="${color}" stroke-width="${strokeW}" rx="10"/>`;
-    s += `<text x="${x + BW/2}" y="${y + 22}" text-anchor="middle" fill="${color}" font-size="16" font-weight="700">${_esc(room)}</text>`;
+    // Cap the room name so a long HA area name can't overlap the neighboring box.
+    const roomName = room.length > 20 ? room.substring(0, 20) + "…" : room;
+    s += `<text x="${x + BW/2}" y="${y + 22}" text-anchor="middle" fill="${color}" font-size="16" font-weight="700">${_esc(roomName)}</text>`;
 
     const haArea  = haAreas.find(a => a.name === room);
     const haFloor = haFloors.find(f => f.id === (haArea?.floor_id || ""));

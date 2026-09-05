@@ -1967,6 +1967,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # RSSI margin confidence (for entity attributes)
             sorted_vals = sorted(ema.values(), reverse=True)
             if len(sorted_vals) >= 2:
+                # 15.0 dBm is the best-vs-second-best scanner gap treated as
+                # fully (1.0) confident; confidence tapers linearly to 0.0 as
+                # the gap closes. No empirical derivation for this figure is
+                # recorded in history or elsewhere in this file.
                 rssi_margin_confidence = round(
                     min(1.0, max(0.0, (sorted_vals[0] - sorted_vals[1]) / 15.0)), 2
                 )

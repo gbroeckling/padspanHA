@@ -356,6 +356,10 @@ const { mapXform, fabricWorldRooms, worldGauge } =
           const c = roomCentroids[o.room];
           const idx = (_roomObjIdx[o.room] || 0);
           _roomObjIdx[o.room] = idx + 1;
+          // No real per-object position exists in this flat view, so objects sharing
+          // a room's centroid are fanned out on a deliberate near-golden-angle spiral
+          // (2.4 rad ~= 137.5°) rather than stacking on one point. 0.3 sets how fast
+          // the spiral widens per object; the *3 cap bounds how far it can grow.
           const angle = idx * 2.4;
           const spread = 0.04;
           px = c.x + Math.cos(angle) * Math.min(spread * (1 + idx * 0.3), spread * 3);
@@ -682,7 +686,10 @@ const { mapXform, fabricWorldRooms, worldGauge } =
     const aspectPct = isStitched
       ? (wH / wW * 100).toFixed(2)
       : (imgH / imgW * 100).toFixed(2);
-    svgWrap.style.paddingBottom = `${Math.min(80, Math.max(30, aspectPct))}%`;
+    // Clamp only guards against a near-zero/degenerate ratio — buildSVG() stretches
+    // to fill this box exactly, so a real elongated plan (long strip or tall
+    // portrait) must keep its true proportions rather than being pulled toward square.
+    svgWrap.style.paddingBottom = `${Math.min(400, Math.max(8, aspectPct))}%`;
 
     const svgDiv = document.createElement("div");
     svgDiv.style.cssText = `position:absolute;top:0;left:0;width:100%;height:100%;transform-origin:0 0`;

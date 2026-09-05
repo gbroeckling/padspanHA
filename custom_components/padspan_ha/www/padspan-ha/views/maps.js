@@ -1660,10 +1660,13 @@ function _edit(ctx, map, allMaps){
       svg.appendChild(bLine);
       // Label at midpoint
       if(bar.points.length >= 2){
-        const midI = Math.floor(bar.points.length / 2);
+        const loI = Math.floor((bar.points.length - 1) / 2);
+        const hiI = Math.ceil((bar.points.length - 1) / 2);
+        const midX = (bar.points[loI][0] + bar.points[hiI][0]) / 2;
+        const midY = (bar.points[loI][1] + bar.points[hiI][1]) / 2;
         const blab = document.createElementNS("http://www.w3.org/2000/svg","text");
-        blab.setAttribute("x", clamp01(bar.points[midI][0]));
-        blab.setAttribute("y", clamp01(bar.points[midI][1] - 0.02));
+        blab.setAttribute("x", clamp01(midX));
+        blab.setAttribute("y", clamp01(midY - 0.02));
         blab.setAttribute("font-size","0.025");
         blab.setAttribute("text-anchor","middle");
         blab.setAttribute("fill", bc);
@@ -2805,7 +2808,7 @@ function _libraryThumb(m, ctx, reco){
   const ih = m.image?.height || 600;
   const ar = ih / iw;
   const TW = 96;
-  const TH = Math.max(48, Math.round(TW * ar));
+  const TH = Math.max(48, Math.min(150, Math.round(TW * ar)));
 
   const wrap = document.createElement("div");
   wrap.style.cssText = `position:relative;width:${TW}px;height:${TH}px;flex-shrink:0;`
@@ -6334,6 +6337,8 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
     s += `</svg>`; return s;
   }
 
+  // slabWZ is chosen so slabWZ*FLOOR_GAP cancels to a constant ~10px on-screen
+  // slab thickness, independent of the user's Floor Gap/Spacing slider value (60-340).
   const slabWZ = 10/FLOOR_GAP;
 
   for(const [z, group] of [...byLevel.entries()].sort((a,b)=>a[0]-b[0])){

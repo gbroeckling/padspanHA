@@ -925,6 +925,9 @@ export function render(ctx){
     const buildIsoSVG = (focusZ)=>{
       // Re-read objects from current snapshot (not stale closure)
       _refreshIsoObjects();
+      // Deliberately cancels _ovFG's own multiplier in the iso projection, so
+      // the room-slab extrusion keeps a fixed ~18px on-screen depth no matter
+      // where the Floor Gap slider is set.
       const slabWZ = 18/_ovFG;
       // Dynamic viewBox: expand to fit all floors.
       // Vertical: expand upward for tall floor stacks.
@@ -1051,6 +1054,8 @@ export function render(ctx){
           const sz = _fabZOf(p.floor_id);
           if (sz === undefined) continue;                 // floor with no rooms: not drawable
           const floorDist = Math.abs(_fabF.rankOf(sz) - rank);
+          // Deliberate render-time filter, not an oversight: scanners more
+          // than 2 storeys from the one being drawn are dropped, not shown.
           if (floorDist > 2) continue;
           const absZ = (Number(_bases[String(p.floor_id)]) || 0) + Number(p.z_m != null ? p.z_m : 2.4);
           scanners.push({ source, x_m: p.x_m, y_m: p.y_m, dz_m: absZ - deviceZ, dz: absZ - deviceZ, floorDist });
@@ -1058,6 +1063,8 @@ export function render(ctx){
         const barriers = [];
         for (const b of (_model.rf_barriers_m || [])) {
           const bz = _fabZOf(b.floor_id);
+          // Same deliberate render-time filter as scanners above: barriers
+          // more than 2 storeys away are dropped, not shown.
           if (bz === undefined || Math.abs(_fabF.rankOf(bz) - rank) > 2) continue;
           const points = (b.points_m || []).map(p => [Number(p[0]), Number(p[1])]);
           if (points.length >= 2) barriers.push({ points, attenuation_dbm: b.attenuation_dbm ?? 6 });
@@ -1206,9 +1213,16 @@ export function render(ctx){
           }
           if(!isFinite(ox0)) return;
           const sx = (ox1-ox0) || 1, sy = (oy1-oy0) || 1;
+          const indoorW = _indoorBB.maxX-_indoorBB.minX, indoorH = _indoorBB.maxY-_indoorBB.minY;
+          // One uniform scale (not separate sx/sy) so the outdoor shape's
+          // real aspect ratio survives the fit instead of being stretched to
+          // match the indoor bounding box; center it on whichever axis has
+          // slack left over.
+          const scale = Math.min(indoorW/sx, indoorH/sy);
+          const padX = (indoorW - sx*scale)/2, padY = (indoorH - sy*scale)/2;
           const fit = (px,py) => [
-            _indoorBB.minX + ((px-ox0)/sx) * (_indoorBB.maxX-_indoorBB.minX),
-            _indoorBB.minY + ((py-oy0)/sy) * (_indoorBB.maxY-_indoorBB.minY),
+            _indoorBB.minX + padX + (px-ox0)*scale,
+            _indoorBB.minY + padY + (py-oy0)*scale,
           ];
           for(const r of _outdoorFab){
             const pp = r.pts.map(p=>{const q=fit(p[0],p[1]);return pt(iso(q[0],q[1],z));}).join(" ");
@@ -1450,11 +1464,11 @@ export function render(ctx){
         // removed exactly that after five attempts had failed to fit the
         // drawing any other way.
         const _plateMax = _bf(Math.max(48, Math.min(140, 0.16 * _isoFrame().vw)));
-        const _plateChars = Math.max(4, Math.floor((_plateMax - 10) / 7));
+        const _plateChars = Math.max(4, Math.floor((_plateMax - 10) / (7*BEACON_F)));
         const shownLbl = fullLbl.length > _plateChars
           ? fullLbl.slice(0, _plateChars - 1) + "…"
           : fullLbl;
-        const lblW = Math.min(shownLbl.length * 7 + 10, _plateMax);
+        const lblW = Math.min(shownLbl.length * (7*BEACON_F) + 10, _plateMax);
         s += `<rect x="${Math.round(bx)-lblW/2}" y="${Math.round(by)-_bf(32)}" width="${lblW}" height="${_bf(16)}" rx="3" fill="#071008" opacity="0.7"/>`;
         s += `<text x="${Math.round(bx)}" y="${Math.round(by)-_bf(20)}" text-anchor="middle" fill="${lblColor}" font-size="${_bf(12)}" font-weight="700">${_esc(shownLbl)}</text>`;
         s += `</g>`;
@@ -3376,8 +3390,8 @@ export function render(ctx){
     const _hasFabric = Object.keys(ctx.state.model?.scanner_positions_m || {}).length > 0 || Object.keys(ctx.state.model?.room_geometry_m || {}).length > 0;
     if (_hasMaps && !_hasFabric) {
       section.appendChild(el("div",{style:"padding:10px 14px;border:2px solid #f59e0b;background:rgba(245,158,11,.08);border-radius:8px;margin-bottom:10px"},[
-        el("div",{style:"font-weight:700;color:#fbbf24;font-size:13px"},"\u26a0 Fabric migration needed"),
-        el("div",{style:"font-size:11px;color:#e2e8f0;margin-top:4px"},"Go to Health tab \u2192 Positioning Fabric \u2192 Migrate to Fabric to enable real-world positioning."),
+        el("div",{style:"font-weight:700;color:#fbbf24;font-size:13px"},"\u26a0 Positioning fabric not built yet"),
+        el("div",{style:"font-size:11px;color:#e2e8f0;margin-top:4px"},"Go to Mapping \u2192 Rooms and place scanners and draw rooms there \u2014 the positioning fabric builds from that automatically, there is nothing separate to migrate."),
       ]));
     }
   }

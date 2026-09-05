@@ -337,6 +337,17 @@ function isAway(obj, timeoutS){
 }
 
 /**
+ * RSSI (dBm) to a 0-100 signal-bar percentage: -100dBm=0%, -40dBm=100%,
+ * clamped at both ends. A missing/undefined rssi is treated as -100 (empty
+ * bar). This formula was duplicated verbatim at three call sites in this
+ * file (a fourth, separate copy lives in views/calibration.js); route all
+ * local signal-bar rendering through here instead of re-deriving it.
+ */
+function rssiToPercent(rssi){
+  return Math.max(0, Math.min(100, (((rssi ?? -100) + 100) / 60) * 100));
+}
+
+/**
  * Deterministic short ID for a BLE radio: letter-number-letter (e.g. "A3B").
  * Derived from a djb2 hash of the source string so it's stable across sessions
  * and compact enough to display as a visual badge in scanner lists.
@@ -1307,7 +1318,7 @@ class PadSpanHaApp extends HTMLElement {
 
   // Fetch settings and store quietly (no re-render, no toast) — called from _refreshAll
   async _fetchSettings(){
-    try{
+    const attempt = async () => {
       const res = await this._callWS({ type: "padspan_ha/settings_get" });
       if(res?.settings){
         this.state.settings = res.settings;
@@ -1322,7 +1333,22 @@ class PadSpanHaApp extends HTMLElement {
           this._followedLoadedFromServer = true;
         }
       }
-    }catch(e){}
+    };
+    try{
+      await attempt();
+    }catch(e){
+      // dataMode defaults to "sample" until this succeeds, so a swallowed
+      // failure here silently strands the user on demo data with no other
+      // symptom (issue #68). Most failures here are a transient WS hiccup on
+      // a fresh/first setup, so retry once after a short delay before giving up.
+      console.warn("PadSpan refresh: fetchSettings failed, retrying:", e);
+      try{
+        await new Promise(r => setTimeout(r, 750));
+        await attempt();
+      }catch(e2){
+        console.warn("PadSpan refresh: fetchSettings retry failed:", e2);
+      }
+    }
   }
   async _loadAlertConfigs(){
     try{
@@ -2343,7 +2369,7 @@ class PadSpanHaApp extends HTMLElement {
       }
       // RSSI summary
       if (obj.rssi != null) {
-        const pct = Math.max(0, Math.min(100, ((obj.rssi + 100) / 60) * 100));
+        const pct = rssiToPercent(obj.rssi);
         const bar = el("div", {style:`width:${pct.toFixed(0)}%;height:6px;background:#52b788;border-radius:3px;min-width:2px`});
         statusItems.push(el("div", {style:"display:flex;align-items:center;gap:8px;margin-top:2px"}, [
           el("span", {style:"font-weight:600"}, "Signal:"),
@@ -2421,7 +2447,7 @@ class PadSpanHaApp extends HTMLElement {
     }
     const _friendlySource = (src) => _radioMap[src] || src || "—";
     const makeSourceRow = (srcName, rssi, age_s) => {
-      const pct = Math.max(0, Math.min(100, ((rssi ?? -100) + 100) / 60 * 100));
+      const pct = rssiToPercent(rssi);
       const bar = el("div", {style:`width:${pct.toFixed(0)}%;height:6px;background:#52b788;border-radius:3px;min-width:2px`});
       const barWrap = el("div", {style:"width:80px;background:#1a2e1e;border-radius:3px"}, bar);
       return el("tr", {}, [
@@ -2816,7 +2842,7 @@ class PadSpanHaApp extends HTMLElement {
       for(const d of devices){
         const dName = d.user_label || d.name || d.address || "Unknown";
         const rssi = d.srcRssi;
-        const pct = Math.max(0, Math.min(100, ((rssi ?? -100) + 100) / 60 * 100));
+        const pct = rssiToPercent(rssi);
         const bar = el("div", {style:`width:${pct.toFixed(0)}%;height:5px;background:#52b788;border-radius:2px`});
         const barWrap = el("div", {style:"width:60px;background:#1a2e1e;border-radius:2px"}, bar);
         const ageTxt = d.srcAge != null ? (()=>{ const s=Math.round(Number(d.srcAge)); if(s<60) return s+"s"; const m=Math.floor(s/60); if(m<60) return m+"m"; return Math.floor(m/60)+"h"; })() : "";

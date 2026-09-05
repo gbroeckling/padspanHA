@@ -208,9 +208,12 @@ export function render(ctx){
     // Tower layout: horizontal scroll, each floor is a fixed-width column
     const towerWrap = el("div",{style:"display:flex;gap:10px;align-items:flex-end;min-height:160px;padding-top:24px;overflow-x:auto;padding-bottom:4px"});
 
-    // Calculate column width: fill available space, but guarantee room for text
+    // Calculate column width: fill available space, but guarantee room for text.
+    // Budget is sized to the card's typical rendered width (.grid columns are
+    // minmax(220px,1fr), minus card padding) rather than the card's max width,
+    // so low floor-counts don't get an oversized column and overflow.
     const floorCount = floorOrder.length || 1;
-    const colWidth = Math.max(120, Math.floor(460 / floorCount));
+    const colWidth = Math.max(120, Math.floor(200 / floorCount));
 
     for(const fo of floorOrder){
       const floorRooms = floorMap.get(fo.id) || [];

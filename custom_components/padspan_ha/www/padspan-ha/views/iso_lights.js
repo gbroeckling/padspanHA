@@ -1310,7 +1310,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const x0=ccx-halfW, x1=ccx+halfW, y0_=ccy-halfH, y1_=ccy+halfH;
 
     const TL=iso(x0,y0_,z), TR=iso(x1,y0_,z), BR=iso(x1,y1_,z), BL=iso(x0,y1_,z);
-    const TR_b=iso(x1,y0_,z-slabWZ), BR_b=iso(x1,y1_,z-slabWZ), BL_b=iso(x0,y1_,z-slabWZ);
+    const TR_b=iso(x1,y0_,rankOf(z)-slabWZ), BR_b=iso(x1,y1_,rankOf(z)-slabWZ), BL_b=iso(x0,y1_,rankOf(z)-slabWZ);
 
     s+=`<g opacity="${go}"${gpe}>`;
     // Slab sides
@@ -1426,6 +1426,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // The outline scales and rotates; the CODE never does. A rotated or
       // stretched label is the thing that stops the map being readable at a
       // glance, which is the entire point of the view.
+      // Divide by the MAX of sx/sy, not min or average: the scale() transform
+      // multiplies stroke-width by whichever axis a point moves along, so the
+      // larger factor is what would balloon the line — countering the smaller
+      // one instead would still leave the stretched axis too thick.
       const sw=t.length?(2/Math.max(sx,sy)):2;
       // One helper for every layer of the marker, so the halo, the body and the
       // gloss are the SAME silhouette at the SAME transform — the whole point
