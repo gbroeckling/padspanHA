@@ -317,6 +317,7 @@ class PadSpanLightsApp extends HTMLElement {
       toast:(m,e)=>this._toast(m,e),
       rerender:()=>this._render(),
       onEdit: this._isAdmin() ? (e)=>this._gotoBuilder(e) : null,
+      ip: this._regStore?.reg?.ipMap?.[eid] || null,
     });
   }
 

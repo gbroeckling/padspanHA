@@ -449,6 +449,43 @@ console.log(JSON.stringify({loaded, areaMap: store.reg ? store.reg.areaMap : nul
         f"a non-temperature sensor.* must stay excluded — the fix is scoped to gatherLights' own admission rule: {areaMap}"
 
 
+def test_ensure_lights_registry_resolves_ip_from_configuration_url(tmp_path):
+    """Garry: "when drilling into the wled controls, include a small chunk
+    that shows the ip address". WLED (and most ESPHome devices) already set
+    the device registry's own configuration_url to the unit's local web UI —
+    same registry fetch areaMap/manufacturerMap already use, no extra
+    network call per device. A device with no configuration_url (most
+    Zigbee/Tuya hardware) must read null, not throw or leave junk behind."""
+    out = _run_pipeline_script(tmp_path, """
+const AREAS = [];
+const REG = [
+  {entity_id: "light.strip", area_id: null, device_id: "d1", platform: "wled"},
+  {entity_id: "light.bulb", area_id: null, device_id: "d2", platform: "zha"},
+];
+const DEVREG = [
+  {id: "d1", configuration_url: "http://192.168.1.55/"},
+  {id: "d2"},
+];
+const hass = {
+  states: {"light.strip": {state: "on", attributes: {}}, "light.bulb": {state: "on", attributes: {}}},
+  callWS: async ({type}) => {
+    if (type === "config/entity_registry/list") return REG;
+    if (type === "config/device_registry/list") return DEVREG;
+    return [];
+  },
+};
+const store = {};
+let loaded = false;
+LM.ensureLightsRegistry(store, hass, AREAS, () => { loaded = true; });
+for (let i = 0; i < 1000 && !loaded; i++) await Promise.resolve();
+console.log(JSON.stringify({loaded, ipMap: store.reg ? store.reg.ipMap : null}));
+""")
+    assert out["loaded"], "the registry fetch never completed"
+    ipMap = out["ipMap"]
+    assert ipMap["light.strip"] == "192.168.1.55", ipMap
+    assert ipMap["light.bulb"] is None, "a device with no configuration_url must read null, not throw"
+
+
 _TABLE_EL = """
 function el(tag, attrs = {}, children = []) {
   const n = document.createElement(tag);

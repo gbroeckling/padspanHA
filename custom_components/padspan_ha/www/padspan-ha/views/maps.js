@@ -7653,7 +7653,8 @@ function _lightsTab(ctx, maps, active) {
   const previewApi = {
     hass: ctx.hass, lightsByEid, lights, controlsFor,
     toggle, toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms(),
-    openControls: (eid) => openControlCard(ctx.hass, eid, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms() }),
+    openControls: (eid) => openControlCard(ctx.hass, eid, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms(),
+      ip: ctx.state._lightsRegStore?.reg?.ipMap?.[eid] || null }),
     openActivity: (eid) => openActivityCalendar(ctx.hass, eid),
     setMany: (eids, on) => setManyStates(ctx.hass, eids, on, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms() }),
   };

@@ -908,6 +908,16 @@ export function openControlCard(hass, eid, api){
       try { await hass.callService("light", "turn_on", { entity_id: eid, effect: effSel.value }); } catch (e) {}
     });
     box.appendChild(el("div", {}, [el("div", { style: capLbl }, "Effect"), effSel]));
+    // The device registry's own configuration_url — WLED (and most ESPHome
+    // devices) set this to the unit's local web UI, so it's already known
+    // from the same registry fetch gatherLights uses for Brand, no extra
+    // round trip. Only shown here, in the WLED-specific block, per the ask
+    // ("when drilling into the wled controls") — a plain light has no
+    // per-device web UI worth surfacing.
+    if (api && api.ip) {
+      box.appendChild(el("div", { style: "font-size:11px;color:#64748b;margin-top:8px;text-align:center" },
+        `IP: ${api.ip}`));
+    }
   }
 
   overlay.appendChild(box);
@@ -1038,11 +1048,20 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         // sold-as branding for a white-label device is not something the
         // device registry has ever known.
         const devManufacturer = {};
+        // device_id → IP/hostname, for the WLED control card. WLED (and most
+        // ESPHome devices) set the device registry's own configuration_url
+        // to the device's local web UI — http://<ip>/ — so this is already
+        // in hand from the SAME fetch, no separate network call per device.
+        const devHost = {};
         for (const d of (devReg || [])) {
           if (d.area_id) devAreaId[d.id] = d.area_id;
           if (d.manufacturer) devManufacturer[d.id] = d.manufacturer;
+          if (d.configuration_url) {
+            try { devHost[d.id] = new URL(d.configuration_url).hostname || null; }
+            catch (_) { devHost[d.id] = null; }
+          }
         }
-        const areaMap = {}, platformMap = {}, manufacturerMap = {};
+        const areaMap = {}, platformMap = {}, manufacturerMap = {}, ipMap = {};
         for (const e of (reg || [])) {
           // Fans and motion sensors ride the lights pipeline now, so their
           // room assignment resolves the same way a light's does. Temperature
@@ -1064,11 +1083,12 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
           // business. Same registry fetch, no extra round trip.
           platformMap[e.entity_id] = e.platform || null;
           manufacturerMap[e.entity_id] = devManufacturer[e.device_id] || null;
+          ipMap[e.entity_id] = devHost[e.device_id] || null;
         }
         // Same registry fetch, no extra round trip — hass.states is already
         // in hand for the device_class/name each pairing decision needs.
         const pairMap = computeMotionOccupancyPairs(reg, hass.states);
-        store.reg = { ts: Date.now(), areaMap, platformMap, manufacturerMap, pairMap };
+        store.reg = { ts: Date.now(), areaMap, platformMap, manufacturerMap, ipMap, pairMap };
         store.retryAfter = 0;
       } catch (_) {
         // A failed fetch must never become the authoritative answer. With a
@@ -1076,7 +1096,7 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         // stay in the loading state (the map keeps its placeholder) instead of
         // caching an empty areaMap for 60s, which would tell the user every
         // light in the house has no room.
-        if (store.reg) store.reg = { ts: Date.now(), areaMap: store.reg.areaMap, platformMap: store.reg.platformMap, manufacturerMap: store.reg.manufacturerMap, pairMap: store.reg.pairMap };
+        if (store.reg) store.reg = { ts: Date.now(), areaMap: store.reg.areaMap, platformMap: store.reg.platformMap, manufacturerMap: store.reg.manufacturerMap, ipMap: store.reg.ipMap, pairMap: store.reg.pairMap };
         else store.retryAfter = Date.now() + 10000;
       } finally {
         store.loading = false;
@@ -1088,6 +1108,7 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
     areaMap: store.reg ? store.reg.areaMap : {},
     platformMap: store.reg ? store.reg.platformMap : {},
     manufacturerMap: store.reg ? store.reg.manufacturerMap || {} : {},
+    ipMap: store.reg ? store.reg.ipMap || {} : {},
     pairMap: store.reg ? store.reg.pairMap || {} : {},
     loading: !store.reg,
   };
