@@ -189,6 +189,15 @@ export function render(ctx) {
       ["Scanner Z uniform", geo.z_uniform],
       ["Calibration points with no floor", geo.cal_no_floor],
     ]));
+    const ad = s.adoption || {};
+    const tok = s.type_override_kinds || {};
+    g3.appendChild(kv(el, "Advanced feature adoption (installs)", [
+      ["Placed a motion sensor", ad.motion_sensors],
+      ["Placed a temperature sensor", ad.temp_sensors],
+      ["Placed a fan", ad.fans],
+      ["Used a light type override (pro)", ad.type_overrides],
+      ...Object.keys(tok).sort().map(k => [`  ↳ ${k}`, tok[k]]),
+    ]));
     body.appendChild(g3);
 
     // ── usage, tabs, errors ───────────────────────────────────────────────

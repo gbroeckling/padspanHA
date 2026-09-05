@@ -215,6 +215,14 @@ $scan_modes = array(); $scan_modes_requested = array();
 $scan_mode_installs = array('any_active' => 0, 'any_passive_pinned' => 0, 'all_auto' => 0, 'no_data' => 0);
 $env_sum = array('scanners' => 0, 'floors' => 0, 'rooms' => 0, 'calibration_points' => 0, 'irks' => 0);
 $identity = array('with_irks' => 0, 'resolving' => 0, 'silent' => 0, 'private_ble_device' => 0);
+// Advanced-feature adoption: installs (not raw item counts — one house with
+// 20 motion sensors should not outweigh 20 houses with one each) that have
+// placed at least one of the newer classes, or touched the pro-only type
+// override. `placed_by_domain`/`light_type_overrides_by_kind` are per-domain
+// counts (never entity ids), added the day these features needed a way to
+// answer "is anyone actually using this" instead of just "how many lights".
+$adoption = array('motion_sensors' => 0, 'temp_sensors' => 0, 'fans' => 0, 'type_overrides' => 0);
+$type_override_kinds = array();
 $geometry = array('faulted' => 0, 'anchor_faulted' => 0, 'no_anchor' => 0, 'no_anchor_known' => 0,
                   'floors_default' => 0, 'z_uniform' => 0, 'cal_no_floor' => 0, 'multi_floor' => 0);
 foreach ($latest as $id => $r) {
@@ -226,6 +234,15 @@ foreach ($latest as $id => $r) {
     incr($dist['tier'], (isset($r['edition']) ? $r['edition'] : '?') . '/' . (isset($r['tier']) ? $r['tier'] : '?'));
     foreach ($edges as $k => $ed) { incr($dist[$k], bucket((int)(isset($e[$k]) ? $e[$k] : 0), $ed)); }
     foreach ($env_sum as $k => $_) { $env_sum[$k] += (int)(isset($e[$k]) ? $e[$k] : 0); }
+    $pbd = as_map(isset($e['placed_by_domain']) ? $e['placed_by_domain'] : null);
+    if ((int)(isset($pbd['motion_sensor']) ? $pbd['motion_sensor'] : 0) > 0) { $adoption['motion_sensors']++; }
+    if ((int)(isset($pbd['temp_sensor']) ? $pbd['temp_sensor'] : 0) > 0) { $adoption['temp_sensors']++; }
+    if ((int)(isset($pbd['fan']) ? $pbd['fan'] : 0) > 0) { $adoption['fans']++; }
+    $tob = as_map(isset($e['light_type_overrides_by_kind']) ? $e['light_type_overrides_by_kind'] : null);
+    if (count($tob)) {
+        $adoption['type_overrides']++;
+        foreach ($tob as $k => $n) { incr($type_override_kinds, $k, (int)$n); }
+    }
     foreach (as_map(isset($e['integrations']) ? $e['integrations'] : null) as $k => $n) { if ((int)$n > 0) { incr($integrations, $k); } }
     foreach (as_map(isset($e['scanner_kinds']) ? $e['scanner_kinds'] : null) as $k => $n) { incr($scanner_kinds, $k, (int)$n); }
     foreach (as_map(isset($e['scan_modes']) ? $e['scan_modes'] : null) as $k => $n) { incr($scan_modes, $k, (int)$n); }
@@ -357,6 +374,8 @@ $out = array(
     'flags' => $flags,
     'identity' => $identity,
     'geometry' => $geometry,
+    'adoption' => $adoption,
+    'type_override_kinds' => $type_override_kinds,
     'usage' => $usage_out,
     'tabs' => $tabs_out,
     'ui_errors' => $ui_errors,

@@ -472,6 +472,34 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     except Exception:
         pass
 
+    # Placement adoption by domain, not just a single "placed_lights" total.
+    # light_positions_m is keyed by entity_id (light./fan./binary_sensor./
+    # sensor. all share the one placement store) — the domain prefix says
+    # which of the newer classes (motion, temperature) people have actually
+    # started using since they shipped, same question "placed_lights" alone
+    # could never answer. Counts only: entity_id strings themselves never
+    # leave this function (assert_shareable refuses anything entity-id-
+    # shaped), just how many of each domain prefix are placed.
+    _light_ids = list((fab.get("light_positions_m") or {}).keys())
+    placed_by_domain = {
+        "light": sum(1 for e in _light_ids if str(e).startswith("light.")),
+        "fan": sum(1 for e in _light_ids if str(e).startswith("fan.")),
+        "motion_sensor": sum(1 for e in _light_ids if str(e).startswith("binary_sensor.")),
+        "temp_sensor": sum(1 for e in _light_ids if str(e).startswith("sensor.")),
+    }
+
+    # Pro-only per-light type override (WLED/partition/plain) — one of the
+    # few settings that only does anything at pro tier (see light_codes.js
+    # isWledLight/isPartitionLight honouring it first), so counting it by
+    # chosen kind is a direct read on advanced-tier feature adoption rather
+    # than just "is this install on pro".
+    _overrides = settings.get("light_type_overrides") or {}
+    type_overrides_by_kind: dict[str, int] = {}
+    if isinstance(_overrides, dict):
+        for v in _overrides.values():
+            k = str(v)[:16] if v else "?"
+            type_overrides_by_kind[k] = type_overrides_by_kind.get(k, 0) + 1
+
     env = {
         "scanners": len(radios),
         "scanner_kinds": scanner_kinds,
@@ -481,6 +509,8 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "floors": _len(floors) or _len(mdl.get("floors") or []),
         "rooms": rooms,
         "placed_lights": _len(fab.get("light_positions_m") or {}),
+        "placed_by_domain": placed_by_domain,
+        "light_type_overrides_by_kind": type_overrides_by_kind,
         "walls": _len(fab.get("rf_barriers_m") or []),
         "maps": _len(maps.get("maps") or []),
         "scanner_positions": _len(fab.get("scanner_positions_m") or {}),

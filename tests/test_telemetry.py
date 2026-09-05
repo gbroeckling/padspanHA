@@ -31,8 +31,12 @@ _KEY = "PSPAN-AAAA-BBBB-CCCC-DDDD"
 _ROOM = "Nicole's Office"
 _FLOOR = "Spare Bedroom Closet"
 _LIGHT = "light.kitchen_valance"
+_FAN = "fan.bedroom_ceiling"
+_MOTION = "binary_sensor.hallway_motion"
+_TEMP = "sensor.attic_temp"
 _IP = "192.168.3.155"
-_SECRETS = [_MAC1, _MAC2, _UUID, _IRK, _KEY, _ROOM, _FLOOR, _LIGHT, _IP, "Garry", "Pixel 8 Pro", "MaschineBOX"]
+_SECRETS = [_MAC1, _MAC2, _UUID, _IRK, _KEY, _ROOM, _FLOOR, _LIGHT, _FAN, _MOTION, _TEMP, _IP,
+            "Garry", "Pixel 8 Pro", "MaschineBOX"]
 # Bluetooth Core Spec Vol 3 Part H, Appendix D.7 — a real key/address pair, for the resolver tests
 _SIG_IRK = bytes.fromhex("EC0234A357C8AD05341010A60A397D9B")
 _SIG_RPA = "70:81:94:0D:FB:AA"
@@ -50,6 +54,7 @@ def _hass():
         "quiet_mode": True, "lights_showcase": True, "data_mode": "live", "cpu_mode": "shared",
         "light_shapes": {_LIGHT: "bar"},
         "scanner_offsets": {_MAC1: 3},
+        "light_type_overrides": {_LIGHT: "wled"},
     })
     async def _set(**kw): settings.data.update(kw)
     settings.async_set = _set
@@ -57,7 +62,12 @@ def _hass():
         "floors": {"main": {"rooms": {_ROOM: {"type": "poly", "points_m": [[0, 0], [4, 0], [4, 3]]},
                                      "Kitchen": {"type": "poly", "points_m": [[0, 0], [1, 0], [1, 1]]}}},
                    "up": {"rooms": {_FLOOR: {"type": "poly", "points_m": [[0, 0], [1, 0], [1, 1]]}}}},
-        "light_positions_m": {_LIGHT: {"x_m": 1.234, "y_m": 5.678, "floor_id": "main"}},
+        "light_positions_m": {
+            _LIGHT: {"x_m": 1.234, "y_m": 5.678, "floor_id": "main"},
+            _FAN: {"x_m": 2.0, "y_m": 1.0, "floor_id": "main"},
+            _MOTION: {"x_m": 3.0, "y_m": 1.0, "floor_id": "main"},
+            _TEMP: {"x_m": 3.5, "y_m": 1.5, "floor_id": "main"},
+        },
         "rf_barriers_m": [{"id": "w1", "x1_m": 0, "y1_m": 0, "x2_m": 4, "y2_m": 0}],
         "scanner_positions_m": {_MAC1: {"x_m": 2.0, "y_m": 2.0}},
         "beacon_positions_m": {},
@@ -115,7 +125,9 @@ def test_nothing_from_the_house_is_in_the_report():
     # and it still says the useful things
     assert payload["env"]["scanners"] == 2 and payload["env"]["scanner_kinds"] == {"ip_known": 1, "espresense": 0, "other": 1}
     assert payload["env"]["rooms"] == 3 and payload["env"]["floors"] == 2
-    assert payload["env"]["placed_lights"] == 1 and payload["env"]["walls"] == 1 and payload["env"]["irks"] == 1
+    assert payload["env"]["placed_lights"] == 4 and payload["env"]["walls"] == 1 and payload["env"]["irks"] == 1
+    assert payload["env"]["placed_by_domain"] == {"light": 1, "fan": 1, "motion_sensor": 1, "temp_sensor": 1}
+    assert payload["env"]["light_type_overrides_by_kind"] == {"wled": 1}
     assert payload["env"]["followed"] == 2 and payload["env"]["scanner_state"] == {"lost": 1, "disabled": 0, "excluded": 1}
     assert payload["env"]["objects_by_kind"] == {"ibeacon": 1, "ble": 1}
     # Scan mode: counted by value, with an explicit unknown bucket so an older
@@ -143,7 +155,15 @@ def test_nothing_from_the_house_is_in_the_report():
     # of silent state the report exists to surface. `stack_desync: None`
     # (22 bytes) was considered and kept — its null carries meaning a zero
     # would lie about, and its own test pins it.
-    assert len(text) < 3100
+    # Raised 3100 → 3200 for `placed_by_domain` and
+    # `light_type_overrides_by_kind`: motion sensors and temperature readouts
+    # both shipped with no way to see whether anyone had actually started
+    # placing them, and `placed_lights` alone can't answer that — it already
+    # folded lights, fans, motion and temperature into one number. Per-domain
+    # counts (never entity ids) answer "is anyone using the newer classes"
+    # instead of just "how many lights". `light_type_overrides_by_kind` is
+    # the direct read on advanced (pro-only) type-override adoption.
+    assert len(text) < 3200
 
 
 def test_the_gate_refuses_every_identifier_shape():
