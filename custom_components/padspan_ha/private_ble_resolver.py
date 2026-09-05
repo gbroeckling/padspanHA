@@ -66,6 +66,19 @@ _CACHE_TTL_S = 1200
 _CACHE_MAX = 4096
 
 
+def _looks_generic(name: str, entry_id: str = "") -> bool:
+    """True for a fallback/auto-derived label, not something a person named
+    or HA's device registry gave — a MAC-ish or bare-hex string, the literal
+    entry_id, or the "PadSpan Device" fallback. Used to decide whether a
+    later source's name is worth adopting over an earlier one (see
+    PrivateBLEResolver.async_load's _add_device)."""
+    n = (name or "").strip()
+    if not n or n == entry_id or n == "PadSpan Device":
+        return True
+    import re as _re  # noqa: PLC0415
+    return bool(_re.fullmatch(r"[0-9A-Fa-f](?:[0-9A-Fa-f:-]*[0-9A-Fa-f])?", n)) and len(n.replace(":", "").replace("-", "")) >= 8
+
+
 class PrivateBLEResolver:
     """Loads IRKs from HA Private BLE Device config entries and resolves RPAs."""
 
@@ -88,25 +101,41 @@ class PrivateBLEResolver:
         """Read IRKs from private_ble_device, system Bluetooth bonds, mobile_app, and PadSpan settings."""
         self._devices.clear()
         self._source_info: list[dict[str, Any]] = []  # for UI status
-        seen_irk_hex: set[str] = set()
+        seen_irk_hex: dict[str, dict[str, Any]] = {}  # hex → the registered device dict
 
         def _add_device(irk_bytes: bytes, name: str, source: str, entry_id: str = "") -> None:
-            """Register a device if its IRK hasn't been seen yet."""
+            """Register a device if its IRK hasn't been seen yet.
+
+            Sources are tried in a fixed order (private_ble_device, system
+            Bluetooth bonds, mobile_app, companion_sensor, PadSpan settings)
+            and the first to see an IRK defines its identity — but "first
+            wins" was also silently deciding the NAME, discarding a real
+            friendly name from a later source forever if an earlier one only
+            had a generic/auto-derived one (GitHub #69: a phone stayed an
+            anonymous hex string in the beacon picker even though the user's
+            own Private BLE integration had it named, because whichever
+            source PadSpan checked first for that IRK had no usable name).
+            Identity still belongs to whichever source saw it first; only the
+            display name is upgradeable.
+            """
             # Normalise: we always store the hex of the byte order that actually matches.
             # Since _address_matches_irk tries both orders, either order is fine,
             # but we canonicalise to what we were given.
             h = irk_bytes.hex()
             h_rev = bytes(reversed(irk_bytes)).hex()
-            if h in seen_irk_hex or h_rev in seen_irk_hex:
+            existing = seen_irk_hex.get(h) or seen_irk_hex.get(h_rev)
+            if existing is not None:
+                if _looks_generic(existing["name"], "") and not _looks_generic(name, entry_id):
+                    existing["name"] = name
                 return
-            seen_irk_hex.add(h)
-            seen_irk_hex.add(h_rev)
             canonical_id = f"irk:{h}"
-            self._devices.append({
+            dev = {
                 "canonical_id": canonical_id,
                 "name": name,
                 "irk_bytes": irk_bytes,
-            })
+            }
+            self._devices.append(dev)
+            seen_irk_hex[h] = seen_irk_hex[h_rev] = dev
             self._source_info.append({
                 "name": name, "source": source,
                 "entry_id": entry_id,

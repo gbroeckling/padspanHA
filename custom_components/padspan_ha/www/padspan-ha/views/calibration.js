@@ -201,7 +201,7 @@ function _calibWizardRoam(ctx, el, cs, calData, w) {
   const pts = (calData.points || []).filter(p => p.map_id === cs.mapId);
   wrap.appendChild(el("div", { class: "muted", style: "margin-bottom:10px;line-height:1.5" },
     "Walk to the blue crosshair, stand still, and press collect — the map tells you where to go next, and fills in as you cover the floor. " +
-    "There's no fixed number of points; more is always better, but the coverage bar below is a fair guide. Prefer tapping the map yourself instead of being guided? Pin & Listen (the ordinary Calibration tabs) does the same collection without the guidance."));
+    "There's no fixed number of points; more is always better, but the coverage bar below is a fair guide. Prefer tapping the map yourself instead of being guided? Click ✕ Exit guide above, then the Pin & Listen tab — it does the same collection without the guidance."));
   wrap.appendChild(_roam(ctx, el, cs, calData));
   wrap.appendChild(_calibWizardFooter(ctx, el, w, {
     skip: pts.length === 0, skipLabel: "Skip — I'll collect points later",
@@ -292,7 +292,15 @@ function _calibWizard(ctx, el, cs, calData) {
   const head = el("div", { class: "card", style: "margin-bottom:12px" });
   const hrow = el("div", { style: "display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px" });
   hrow.appendChild(el("div", { style: "font-weight:700;font-size:16px" }, "Guided calibration"));
-  const closeBtn = el("button", { class: "btn inline", style: "font-size:12px" }, "Exit guide");
+  // Label/title spell out what this does, not just its name: the wizard
+  // fully replaces the ordinary tab bar while open (see render() above), so
+  // this is the ONLY way back to Pin & Listen or any other non-wizard tab —
+  // a real user got stuck here (GitHub #69) with no idea "Exit guide" was
+  // the door out.
+  const closeBtn = el("button", {
+    class: "btn inline", style: "font-size:12px",
+    title: "Close the wizard and return to the full Calibration tabs (Tune, Beacon Tune, Pin & Listen, Roam, Model)",
+  }, "✕ Exit guide → full tabs");
   closeBtn.addEventListener("click", () => {
     if (w.step < 5 && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_calib_exited_early");
     ctx.state._calibWizard = null;

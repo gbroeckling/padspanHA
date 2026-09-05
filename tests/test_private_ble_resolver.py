@@ -9,6 +9,7 @@ import pytest
 from custom_components.padspan_ha.private_ble_resolver import (
     PrivateBLEResolver,
     _is_rpa,
+    _looks_generic,
     _parse_irk,
 )
 
@@ -135,6 +136,45 @@ def test_parse_irk_empty_string() -> None:
 def test_parse_irk_garbage() -> None:
     """Non-hex, non-base64 garbage → None."""
     assert _parse_irk("this is not an irk at all!!!!") is None
+
+
+# ---------------------------------------------------------------------------
+# Tests: _looks_generic — is a name worth keeping, or a fallback worth
+# upgrading away from once a later IRK source offers something better?
+# ---------------------------------------------------------------------------
+
+
+def test_looks_generic_empty_name() -> None:
+    assert _looks_generic("") is True
+    assert _looks_generic("   ") is True
+
+
+def test_looks_generic_padspan_device_fallback() -> None:
+    assert _looks_generic("PadSpan Device") is True
+
+
+def test_looks_generic_equals_its_own_entry_id() -> None:
+    assert _looks_generic("01923a7b8c9d4e5f6a7b8c9d4e5f6a7b", "01923a7b8c9d4e5f6a7b8c9d4e5f6a7b") is True
+
+
+def test_looks_generic_mac_address() -> None:
+    assert _looks_generic("AA:BB:CC:DD:EE:FF") is True
+
+
+def test_looks_generic_bare_hex_string() -> None:
+    assert _looks_generic("01923a7b8c9d4e5f") is True
+
+
+def test_looks_generic_real_name_is_not_generic() -> None:
+    assert _looks_generic("Eric's iPhone") is False
+    assert _looks_generic("Alice's Phone") is False
+    assert _looks_generic("Bob's Pixel") is False
+
+
+def test_looks_generic_short_coincidental_hex_name_is_not_generic() -> None:
+    # A real name that happens to be all hex-valid characters, but short
+    # enough it's clearly a word someone typed, not a MAC/IRK fallback.
+    assert _looks_generic("BEEF") is False
 
 
 # ---------------------------------------------------------------------------
