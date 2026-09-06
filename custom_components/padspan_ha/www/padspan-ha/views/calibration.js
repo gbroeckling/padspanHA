@@ -1556,10 +1556,48 @@ function _matrixTab(ctx, el, cs, calData) {
   const model = calData.model || {};
   const pts = calData.points || [];
 
+  // Anchored beacons (gap #6, best-in-class roadmap) slot into this SAME
+  // matrix as extra, continuously-refreshed rows — the ground truth is the
+  // beacon's DECLARED pin position (anchor_true_x_m/y_m), never its own
+  // live solved x_m/y_m, which would make the row compare the solve
+  // against itself. "anchor:" + key is a marker buildCalibrationMatrix
+  // passes through unmodified as pointId, so the render loop below can
+  // tell an anchor row from a one-off calibration walk point without the
+  // pure matrix module needing to know "anchor" is a concept at all.
+  const liveObjs = ctx.state.live?.snapshot?.objects?.list || [];
+  const anchors = liveObjs.filter(o => o._pinned && o.anchor_true_x_m != null);
+  const anchorPoints = anchors.map(o => ({
+    id: "anchor:" + (o.key || o.address || o.entity_id || ""),
+    x_m: o.anchor_true_x_m, y_m: o.anchor_true_y_m, floor_id: o.anchor_true_floor_id,
+    room: o.room, label: (o.user_label || o.name || o.key || "anchor"),
+    scanner_readings: Object.entries(o._source_rssi || {}).map(([source, mean_rssi]) => ({ source, mean_rssi })),
+  }));
+
   const infoCard = el("div", { class: "card" });
   infoCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, "Calibration Error Matrix"));
   infoCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "Each cell compares a calibration point's known fabric distance to a scanner against the distance that scanner's path-loss fit derives from the point's own measured RSSI. Blue = the fit reports the point farther than it really is · green = accurate · red = closer than it really is. Grey = that scanner never heard this point."));
+    "Each cell compares a point's known fabric distance to a scanner against the distance that scanner's path-loss fit derives from the point's own measured RSSI. Blue = the fit reports the point farther than it really is · green = accurate · red = closer than it really is. Grey = that scanner never heard this point. 📍 rows are anchored beacons — pinned to a known position, refreshed live every poll instead of a one-off walk."));
+
+  if (anchors.length) {
+    const driftColor = { ok: "#52b788", warn: "#f59e0b", bad: "#f87171", unknown: "#4a6052" };
+    const driftCard = el("div", { class: "card" });
+    driftCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px" }, "📍 Anchored Beacon Drift"));
+    const tbody = el("tbody");
+    for (const o of anchors) {
+      const sev = o.anchor_drift_severity || "unknown";
+      tbody.appendChild(el("tr", {}, [
+        el("td", { style: "font-size:11px" }, o.user_label || o.name || o.key),
+        el("td", { class: "muted", style: "font-size:11px" }, o.room || "—"),
+        el("td", { style: "font-family:monospace;font-size:11px" }, o.anchor_drift_m != null ? `${o.anchor_drift_m}m` : "—"),
+        el("td", { style: `font-size:11px;font-weight:700;color:${driftColor[sev]}` }, sev.toUpperCase()),
+      ]));
+    }
+    driftCard.appendChild(el("table", { class: "table" }, [
+      el("thead", {}, el("tr", {}, [el("th", {}, "Beacon"), el("th", {}, "Room"), el("th", {}, "Drift"), el("th", {}, "Status")])),
+      tbody,
+    ]));
+    wrap.appendChild(driftCard);
+  }
   const recomputeWrap = el("div");
   const makeRecomputeBtn = () => {
     const b = el("button", { class: "btn" }, "Relearn (recompute model)");
@@ -1592,7 +1630,7 @@ function _matrixTab(ctx, el, cs, calData) {
   }
 
   const matrix = buildCalibrationMatrix({
-    points: pts,
+    points: pts.concat(anchorPoints),
     pathLoss,
     scannerPositions: ctx.state.model?.scanner_positions_m || {},
     floorElevations: ctx.state.model?.floor_elevations || {},
@@ -1601,7 +1639,7 @@ function _matrixTab(ctx, el, cs, calData) {
 
   if (!matrix.rows.length || !matrix.scanners.length) {
     wrap.appendChild(el("div", { class: "card" }, [
-      el("div", { class: "muted" }, "No metre-space calibration points against a positioned, metre-fitted scanner yet."),
+      el("div", { class: "muted" }, "No metre-space calibration points (or anchored beacons) against a positioned, metre-fitted scanner yet."),
     ]));
     return wrap;
   }
@@ -1627,9 +1665,10 @@ function _matrixTab(ctx, el, cs, calData) {
         title: `Expected ${c.expected_m}m · Measured ${c.measured_m}m · Error ${sign}${c.error_m}m · RSSI ${c.rssi}dBm`,
       }, `${sign}${c.error_m}`);
     });
+    const isAnchor = row.pointId.startsWith("anchor:");
     tbody.appendChild(el("tr", {}, [
       el("td", { style: "font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" },
-        row.label || row.room || "Unlabeled"),
+        (isAnchor ? "📍 " : "") + (row.label || row.room || "Unlabeled")),
       ...cellEls,
     ]));
   }

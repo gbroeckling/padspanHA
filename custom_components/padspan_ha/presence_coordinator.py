@@ -111,6 +111,7 @@ from .const import (
     DEFAULT_REF_POWER, DEFAULT_PATH_LOSS_EXP,
 )
 from . import fabric_truth as _fabric_truth
+from .beacon_drift import compute_drift_m, drift_severity
 from .presence_rules import (
     indoor_coverage_floor, is_outdoor_floor, modelled_coverage_floor,
     coverage_evidence, coverage_window_polls, outdoor_attribution,
@@ -1348,6 +1349,21 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             obj["room"] = _pin["room"]
                             self._confirmed_room[key] = _pin["room"]
                         obj["_pinned"] = True
+                        # Drift (gap #6, best-in-class roadmap): this branch
+                        # only ever overrides room — x_m/y_m above is still
+                        # the solver's own live SOLVED position, computed the
+                        # same way as for any other object. The pin's x_m/y_m
+                        # is the declared TRUE position. The gap between them
+                        # is a continuously-refreshed ground-truth check a
+                        # one-off calibration walk point can never give.
+                        if _pin.get("x_m") is not None:
+                            obj["anchor_true_x_m"] = _pin["x_m"]
+                            obj["anchor_true_y_m"] = _pin["y_m"]
+                            obj["anchor_true_floor_id"] = _pin.get("floor_id", "")
+                            obj["anchor_drift_m"] = compute_drift_m(
+                                obj.get("x_m"), obj.get("y_m"), _pin["x_m"], _pin["y_m"],
+                            )
+                            obj["anchor_drift_severity"] = drift_severity(obj["anchor_drift_m"])
 
                     # Every object, whichever branch produced it — BLE, iBeacon,
                     # a pinned beacon, an entity tracker that arrived pre-smoothed
