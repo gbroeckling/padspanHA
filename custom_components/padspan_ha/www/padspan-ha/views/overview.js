@@ -13,6 +13,10 @@ const { fabricFrame } =
 // The plan viewer — the one view whose subject IS the photograph.
 const { render2DMap } =
   await import(`./plan_viewer.js${new URL(import.meta.url).search}`);
+// Keyed morph + breadcrumb trails for the object layer — see its own header
+// for why this exists: without it, every tracked dot teleports each poll.
+const { mergeObjectLayer, trailPush, trailSvg } =
+  await import(`./iso_motion.js${new URL(import.meta.url).search}`);
 
 /**
  * Overview — "control tower" dashboard
@@ -1349,6 +1353,23 @@ export function render(ctx){
       if(_isoBB && isFinite(_isoBB.minX)) _bldgBB = {..._isoBB};
       _isoBBFrozen = true;
 
+      // Breadcrumb trails — a small per-object memory of recent positions,
+      // kept on ctx.state so it survives the poll-to-poll rebuild (this
+      // whole function reruns from scratch every 5s; the trail buffer
+      // must not). Only real server-positioned points go in (never the
+      // room-centroid stagger a few lines below) — that stagger is a
+      // layout fan-out for objects with no known position, and its little
+      // per-render jitter is not movement worth remembering.
+      if(!ctx.state._overviewTrails) ctx.state._overviewTrails = new Map();
+      const _trails = ctx.state._overviewTrails;
+      const _trailNow = Date.now();
+      s += trailSvg(_trails, () => "#fbbf24", _trailNow);
+      // trailSvg prunes each array's aged-out POINTS in place; an object
+      // gone for good (no longer tracked at all) leaves an empty array
+      // behind rather than a departed Map entry — drop those so the
+      // buffer does not grow for the lifetime of the HA process.
+      for(const [k, arr] of _trails) if(!arr.length) _trails.delete(k);
+
       const BEACON_CLR = "#fbbf24";
       // ── Beacon size dial ──────────────────────────────────────────────
       // Every dimension of a beacon marker — rings, dot, confidence badge,
@@ -1388,6 +1409,10 @@ export function render(ctx){
           if(z !== undefined){
             [bx,by]=iso(o.x_m, o.y_m, z);
             posConf = o.knn_confidence || 0;
+            // A real solver-placed point, not a room-centroid fallback —
+            // this is the one condition under which a trail is memory of
+            // actual movement rather than layout noise.
+            trailPush(_trails, o.key || o.address || o.entity_id || "", bx, by, _trailNow);
           }
         }
         if(bx == null && o.room && roomIsoPos[o.room]){
@@ -1511,6 +1536,7 @@ export function render(ctx){
           if(_oz !== undefined){
             const [ix,iy] = iso(obj.x_m, obj.y_m, _oz);
             [px,py]=[Math.round(ix), Math.round(iy)];
+            trailPush(_trails, oKey, px, py, _trailNow);
           } else if (obj.room && roomIsoPos[obj.room]) {
             const pos = roomIsoPos[obj.room];
             const idx = (_roomObjCount[obj.room] || 0);
@@ -1767,14 +1793,12 @@ export function render(ctx){
       const endSvg = fullSvg.lastIndexOf("</svg>");
       if (endSvg < 0) return;
       const dynHtml = fullSvg.substring(idx + marker.length, endSvg);
-      // Swap just the dynamic group contents
-      const tmp = document.createElement("div");
-      tmp.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg">${dynHtml}</svg>`;
-      const tmpSvg = tmp.querySelector("svg");
-      if (tmpSvg) {
-        while (objGroup.firstChild) objGroup.removeChild(objGroup.firstChild);
-        while (tmpSvg.firstChild) objGroup.appendChild(tmpSvg.firstChild);
-      }
+      // Keyed morph, not destroy-and-rebuild: an object keeps its own DOM
+      // node across polls and GLIDES from its old anchor to its new one
+      // (mergeObjectLayer, iso_motion.js) instead of teleporting. Trail
+      // lines and other unkeyed markup still get the plain swap they
+      // always had.
+      mergeObjectLayer(objGroup, dynHtml);
 
       // ── Scanner markers ────────────────────────────────────────────────
       // They are emitted BEFORE the marker above, so everything up to it was
