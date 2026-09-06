@@ -24,7 +24,7 @@ solution of its kind.
 | 11 | DONE (70d6c1a) — shared module + keyboard nav + Pin & Listen only; Overview iso, Mapping Edit, touch tooltips, numeric entry not done | Map interaction parity: pan/zoom everywhere, keyboard nav, touch tooltips, numeric entry | presentation |
 | 12 | DONE (cbb4bfd) — scoreboard + tinted confusion links + Roam priority card; accuracy-over-time trend not built | Per-room accuracy scoreboard + confusion pairs on the map, directed collect-more guidance | analytics |
 | 13 | DONE (2b29c56) — numeric position mark, not draggable; room-accuracy A/B only, position not re-solved | Ground-truth capture walks with accuracy scoring and settings A/B replay | history |
-| 14 | TODO | BLE + motion fusion made visible: per-room agreement badges, occupancy count chips | visualization |
+| 14 | DONE (23b24a8) — agreement badges + count chips on room polygons; solver demotion not built | BLE + motion fusion made visible: per-room agreement badges, occupancy count chips | visualization |
 | 15 | TODO | Room-polygon-clipped light glow + live-color room tinting (cinematic Showcase upgrade) | presentation |
 | 16 | TODO | Search-to-locate with fly-to camera; follow-mode pinning the live viewport to an object | presentation |
 | 17 | TODO | Activity review timeline (Frigate-style scrubable event feed; unifies Follow/Traceback history) | history |
@@ -253,8 +253,28 @@ the research output; the essentials are restated per item below.
     session gets a "Replay & Score" panel with baseline scoring and an A/B
     box for kalman_q/kalman_r/room_change_delay_s. REMAINING: no
     draggable/tap-to-place position picker; no position (metre-accuracy) A/B.
-14. **BLE+motion fusion visible** — per-room agreement badge (BLE vs motion),
-    person/device count chip on room polygons; optional solver demotion.
+14. **BLE+motion fusion visible** — DONE (badges + chips; solver demotion
+    not built). Verified first that ws_occupancy.py's compute_occupancy_estimate
+    already computed everything per room (people placed by BLE, unclaimed
+    phone count, HA occupancy/motion sensor flags) — occupancy.js's "Rooms
+    with evidence" table already listed it as a flat table, just never
+    compared the two evidence families or drawn it on a room shape. Added
+    one new field, `agreement` ("agree" | "ble_only" | "sensor_only"), from
+    evidence the room-building loop already had — no new sensor reads, no
+    change to positioning. maps.js's Rooms tab gets a "Show occupancy"
+    toggle (off by default — occupancy_estimate does real work, lazy-
+    fetched like objects.js's lost-and-found) drawing a small count+
+    agreement badge under each room's label, using the SAME room-polygon
+    surface gap #9's what-if ghost scanner already lives on (not the 3D iso
+    overview, for the same shared-view-risk reason). occupancy.js's table
+    gained an Agreement column for the non-map view. REMAINING: "optional
+    solver demotion" — letting a sensor/BLE disagreement lower a tracked
+    object's displayed room_confidence — not built; it would need to
+    cross-reference a SPECIFIC object's placement against its room's
+    sensor evidence (this gap's data is per-room, not per-object-vs-room),
+    and doing it safely would mean touching the live confidence pipeline
+    rather than only adding a read-only visualization, a materially
+    bigger and riskier change than the rest of this item.
 15. **Cinematic lights** — glow gradients clipped to room polygons via
     clipPath (no wall bleed), slab tint from blended live rgb/brightness,
     sun-driven ambient (hook exists in Showcase).
