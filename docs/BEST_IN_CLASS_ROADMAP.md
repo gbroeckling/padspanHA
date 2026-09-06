@@ -22,7 +22,7 @@ solution of its kind.
 | 9 | DONE (de8b986) — built in the 2D Rooms tab, not the 3D iso overview | Predictive what-if scanner placement (ghost scanner over the existing radio-map model) | analytics |
 | 10 | DONE (8e3eab9) — slotted into the existing object list, not a new dedicated view; column-sort not built | Persistent lost-and-found: "last known room" inventory that never resets to Unknown | presentation |
 | 11 | DONE (70d6c1a) — shared module + keyboard nav + Pin & Listen only; Overview iso, Mapping Edit, touch tooltips, numeric entry not done | Map interaction parity: pan/zoom everywhere, keyboard nav, touch tooltips, numeric entry | presentation |
-| 12 | TODO | Per-room accuracy scoreboard + confusion pairs on the map, directed collect-more guidance | analytics |
+| 12 | DONE (cbb4bfd) — scoreboard + tinted confusion links + Roam priority card; accuracy-over-time trend not built | Per-room accuracy scoreboard + confusion pairs on the map, directed collect-more guidance | analytics |
 | 13 | TODO | Ground-truth capture walks with accuracy scoring and settings A/B replay | history |
 | 14 | TODO | BLE + motion fusion made visible: per-room agreement badges, occupancy count chips | visualization |
 | 15 | TODO | Room-polygon-clipped light glow + live-color room tinting (cinematic Showcase upgrade) | presentation |
@@ -207,9 +207,28 @@ the research output; the essentials are restated per item below.
     a similar risk (attachPanZoom's drag-exclusion list doesn't know about
     them). Touch-activated tooltips and numeric X/Y coordinate entry —
     also named in this item — not built.
-12. **Per-room accuracy** — group existing LOO predictions by true room:
-    accuracy % list + trend, confusion pairs as tinted links between rooms,
-    "collect N more points in X" feeding Roam's next-target.
+12. **Per-room accuracy** — DONE (scoreboard + confusion links + directed
+    guidance; trend history not built). Verified first that loo_accuracy()
+    already held-out every calibration point and re-scored it against its
+    k-NN/RF neighbours for POSITION error, discarding the room label it
+    also implicitly predicts — the room-vote math (same weighted vote as
+    knn_locate's room_scores, same OOB-leaf vote as RandomForestLocator's
+    room_scores) already existed on the live path, just never run during
+    LOO. Extended both the k-NN loop and the RF out-of-bag loop to also
+    track (true_room, predicted_room) per held-out point in the SAME pass
+    used for position error (no second O(n²) walk), aggregated by a new
+    shared _summarize_room_confusion() into a per-room accuracy scoreboard
+    + sorted confusion-pair list, attached as room_confusion on both the
+    global and per-map loo_accuracy. Model tab gets a scoreboard card
+    (bars, worst room first) and, on each floor's mini map, tinted dashed
+    lines between confused rooms' centroids (reusing calibration.js's own
+    _roomCentroid — thicker/redder = confused more often). Roam tab gets a
+    "Priority: <room>" advisory card (using that map's OWN room_confusion)
+    ahead of the purely-geometric next-target crosshair, naming which room
+    is actually wrong and suggesting how many more points to collect —
+    the crosshair only knows about geometric coverage gaps, not accuracy.
+    REMAINING: no accuracy-over-time trend (would need to store historical
+    loo snapshots, not just the latest compute).
 13. **Ground-truth walks** — extend RSSI Vector Capture with a draggable
     truth marker; replay through solver for metre/room accuracy; A/B settings
     against the same capture.
