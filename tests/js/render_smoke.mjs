@@ -275,6 +275,27 @@ const VARIANTS = {
     { name: "stack", state: { mapsTab: "stack", maps: { list: STACK_MAPS } } },
     { name: "upload", state: { mapsTab: "upload" } },
     { name: "edit", state: { mapsTab: "edit" } },
+    // Rooms tab was never smoke-tested at all before gap #7 (best-in-class
+    // roadmap) added floorplan import to it — the default fixture's
+    // mapsTab lands on "library", same trap the comment above already
+    // describes for "stack".
+    { name: "rooms", state: { mapsTab: "rooms" } },
+    // Same tab with an imported candidate active, so the level-picker,
+    // import-notes line, and the "imported" entry in the truth selector
+    // all get exercised too, not just the empty/no-import state.
+    { name: "rooms-imported", state: { mapsTab: "rooms", maps: { list: MAPS,
+      // _roomsFloorId/_roomsDraftFloorId pinned to match so the Rooms tab's
+      // own floor-switch reset (which nulls _roomsImportedRaw whenever
+      // _roomsDraftFloorId !== the resolved floorId) does not immediately
+      // wipe the fixture before the imported-candidate code ever sees it.
+      _roomsFloorId: "main", _roomsDraftFloorId: "main",
+      _roomsImportedRaw: {
+        levels: [{ id: "l1", name: "Ground", elevation_m: 0 }, { id: "l2", name: "Upper", elevation_m: 3 }],
+        rooms: [{ name: "Den", level_id: "l1", points_m: [[0, 0], [3, 0], [3, 3], [0, 3]] }],
+        warnings: ["Skipped room 'Sliver': fewer than 3 usable points"],
+      },
+      _roomsImportedLevelId: "l1",
+    } } },
     // The Setup Wizard short-circuits render() entirely — each step is its
     // own code path (_wizardUpload/_wizardScale/_wizardRooms/
     // _wizardScanners/_wizardFinish), all otherwise unreached by the plain

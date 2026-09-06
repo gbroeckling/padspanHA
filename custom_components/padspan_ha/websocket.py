@@ -148,6 +148,9 @@ from .ws_maps import (  # noqa: F401  (re-exported: registration, tests, callers
     ws_maps_update,
     ws_maps_upload,
 )
+from .ws_floorplan_import import (  # noqa: F401  (re-exported: registration, tests, callers)
+    ws_floorplan_import_sh3d,
+)
 from .ws_objects import (  # noqa: F401  (re-exported: registration, tests, callers)
     ws_object_label_delete,
     ws_object_label_list,
@@ -282,6 +285,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_maps_delete)
     websocket_api.async_register_command(hass, ws_maps_delete_migrate)
     websocket_api.async_register_command(hass, ws_maps_revert_extend)
+    websocket_api.async_register_command(hass, ws_floorplan_import_sh3d)
     websocket_api.async_register_command(hass, ws_model_get)
     websocket_api.async_register_command(hass, ws_model_update)
     websocket_api.async_register_command(hass, ws_object_label_set)

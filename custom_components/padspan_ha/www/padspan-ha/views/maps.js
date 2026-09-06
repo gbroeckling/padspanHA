@@ -8489,6 +8489,77 @@ function _roomsTab(ctx, maps) {
     card.appendChild(addRow);
   }
 
+  // ── Import a floorplan file (gap #7, best-in-class roadmap; tier 1 of 3:
+  // Sweet Home 3D today, RoomPlan JSON and image room-detection are future
+  // tiers) ─────────────────────────────────────────────────────────────
+  // Parses to a CANDIDATE layout for THIS floor — nothing is written until
+  // the user reviews and commits it via the same mechanism "Map
+  // placements"/"Blended" already use below (the truth selector further
+  // down). Not added to the blend sources: a design file is a different
+  // kind of source than an empirical measurement, not another opinion to
+  // average against the fabric.
+  {
+    const importRow = el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px" });
+    const fileInput = document.createElement("input");
+    fileInput.type = "file"; fileInput.accept = ".sh3d"; fileInput.style.display = "none";
+    const importStatus = el("span", { class: "muted", style: "font-size:11px" }, "");
+    const importBtn = el("button", { class: "btn inline" }, "📐 Import floorplan (.sh3d)");
+    importBtn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files && fileInput.files[0];
+      fileInput.value = "";
+      if (!file) return;
+      importStatus.textContent = "Reading…";
+      try {
+        const b64 = await new Promise((res, rej) => {
+          const fr = new FileReader();
+          fr.onload = () => res(String(fr.result).split(",")[1] || "");
+          fr.onerror = rej; fr.readAsDataURL(file);
+        });
+        importStatus.textContent = "Parsing…";
+        const parsed = await ctx.actions.wsCall("padspan_ha/floorplan_import_sh3d", { sh3d_base64: b64 });
+        if (!parsed.rooms.length) {
+          ctx.toast("No usable rooms found in that file" + (parsed.warnings.length ? ": " + parsed.warnings[0] : ""), true);
+          importStatus.textContent = "";
+          return;
+        }
+        mapState._roomsImportedRaw = parsed;
+        mapState._roomsImportedLevelId = parsed.levels.length ? parsed.levels[0].id : null;
+        mapState._roomsTruth = "imported";
+        importStatus.textContent = "";
+        ctx.toast(`Imported ${parsed.rooms.length} room(s)` + (parsed.warnings.length ? ` — ${parsed.warnings.length} note(s) below` : ""));
+        ctx.actions.renderRooms();
+      } catch (err) {
+        importStatus.textContent = "";
+        ctx.toast("Import failed: " + (err.message || err), true);
+      }
+    });
+    importRow.appendChild(importBtn);
+    importRow.appendChild(fileInput);
+    importRow.appendChild(importStatus);
+    importRow.appendChild(el("span", { class: "muted", style: "font-size:11px" },
+      "Rooms come in as a candidate for this floor — review and edit below before committing."));
+    card.appendChild(importRow);
+
+    const importedRaw = mapState._roomsImportedRaw;
+    if (importedRaw && importedRaw.levels.length > 1) {
+      const lvlRow = el("div", { style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px" });
+      lvlRow.appendChild(el("span", { class: "muted", style: "font-size:11px" }, "File level for this floor:"));
+      for (const lvl of importedRaw.levels) {
+        lvlRow.appendChild(el("button", {
+          class: "btn inline" + (mapState._roomsImportedLevelId === lvl.id ? " primary" : ""),
+          style: "font-size:11px",
+          onclick: () => { mapState._roomsImportedLevelId = lvl.id; ctx.actions.renderRooms(); },
+        }, lvl.name));
+      }
+      card.appendChild(lvlRow);
+    }
+    if (importedRaw && importedRaw.warnings.length) {
+      card.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-bottom:4px" },
+        "Import notes: " + importedRaw.warnings.join(" · ")));
+    }
+  }
+
   // ── Draft: a scratch copy of this floor's geometry, reset on floor switch ─
   if (mapState._roomsDraftFloorId !== floorId) {
     const draft = {};
@@ -8506,6 +8577,11 @@ function _roomsTab(ctx, maps) {
     mapState._roomsScannerDraft = null;
     mapState._roomsBeaconDraft = null;
     mapState._roomsBarrierDraft = null;
+    // An imported floorplan was brought in for the floor it was imported
+    // on — a different floor's rooms are not this file's rooms just
+    // because the level-picker still points at some id from it.
+    mapState._roomsImportedRaw = null;
+    mapState._roomsImportedLevelId = null;
   }
 
   // ── Scanners: the other half of the fabric, edited in metres right here ──
@@ -8558,17 +8634,47 @@ function _roomsTab(ctx, maps) {
   if (floorMapsAll.length) _fetchRoomsTruth(ctx, floorId);
   const truthCache = (mapState._roomsTruthCache && mapState._roomsTruthCache.floorId === floorId)
     ? mapState._roomsTruthCache.data : null;
-  // TWO CANDIDATES, NOT THREE. The third was "Stack alignment" — the rooms
-  // as the hand-tuned stack composition drew them — and it was a real second
-  // opinion while the alignment was stored separately from the metre record.
-  // It is derived from that record now, so the two agreed to exactly 0.0 m
-  // over every map measured. Offering an owner a choice between two numbers
-  // that cannot differ is not a comparison.
+  // TWO CANDIDATES DERIVED FROM THIS HOUSE'S OWN MEASUREMENTS, NOT THREE.
+  // The third was "Stack alignment" — the rooms as the hand-tuned stack
+  // composition drew them — and it was a real second opinion while the
+  // alignment was stored separately from the metre record. It is derived
+  // from that record now, so the two agreed to exactly 0.0 m over every
+  // map measured. Offering an owner a choice between two numbers that
+  // cannot differ is not a comparison.
+  //
+  // "imported" (gap #7, best-in-class roadmap) is not a third opinion
+  // about the SAME measurements — it is an independent, externally-authored
+  // design file (Sweet Home 3D today) the owner explicitly chose to bring
+  // in, so it does not fall under that argument; see the import section
+  // above for why it also stays out of the blend sources below.
   const candidates = {
     transforms: truthCache
       ? { label: "Map placements", rooms: truthCache.transforms.rooms, stats: truthCache.transforms.stats }
       : null,
   };
+  {
+    const raw = mapState._roomsImportedRaw;
+    if (raw) {
+      const wantLevel = mapState._roomsImportedLevelId;
+      const roomsForLevel = raw.rooms.filter(r =>
+        !wantLevel || r.level_id === wantLevel || (r.level_id == null && raw.levels.length <= 1));
+      if (roomsForLevel.length) {
+        const importedRooms = {};
+        const usedNames = new Set();
+        roomsForLevel.forEach((r, i) => {
+          const base = (r.name || `Room ${i + 1}`).trim() || `Room ${i + 1}`;
+          let name = base, n = 2;
+          while (usedNames.has(name)) name = `${base} (${n++})`;
+          usedNames.add(name);
+          importedRooms[name] = { type: "poly", points_m: r.points_m };
+        });
+        candidates.imported = {
+          label: "Imported (SH3D)", rooms: importedRooms,
+          stats: { rooms: Object.keys(importedRooms).length, clusters: _roomClusterCount(Object.entries(importedRooms)) },
+        };
+      }
+    }
+  }
   // Blended layout: vertex-average of whichever sources the user trusts.
   if (!mapState._roomsBlendSources && truthCache) {
     mapState._roomsBlendSources = { fabric: true, transforms: false };
@@ -8634,7 +8740,10 @@ function _roomsTab(ctx, maps) {
   const changedRooms = Object.keys(draft).filter(_changed);
 
   // ── Truth selector — compare layouts before committing anything ────────
-  if (floorMapsAll.length) {
+  // Shows whenever there is a fabric-derived candidate (needs a map on this
+  // floor) OR an imported one (needs no map at all — a design file stands
+  // on its own).
+  if (floorMapsAll.length || candidates.imported) {
     const selRow = el("div", { style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px" });
     selRow.appendChild(el("span", { class: "muted", style: "font-size:12px" }, "Layout:"));
     const statLbl = (stats) => stats
@@ -8644,6 +8753,7 @@ function _roomsTab(ctx, maps) {
     const options = [["fabric", "Fabric (saved)", fabricStats]];
     if (candidates.transforms) options.push(["transforms", "Map placements", candidates.transforms.stats]);
     if (candidates.blended) options.push(["blended", "Blended", candidates.blended.stats]);
+    if (candidates.imported) options.push(["imported", "Imported (SH3D)", candidates.imported.stats]);
     for (const [key, label, stats] of options) {
       selRow.appendChild(el("button", {
         class: "btn inline" + (truth === key ? " primary" : ""),
