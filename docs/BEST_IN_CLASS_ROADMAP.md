@@ -28,7 +28,7 @@ solution of its kind.
 | 15 | DONE (72e93fb) — live-blended room tint added; clipPath wall-bleed prevention and sun-driven ambient were ALREADY shipped, undocumented | Room-polygon-clipped light glow + live-color room tinting (cinematic Showcase upgrade) | presentation |
 | 16 | DONE (5f29ca4) — search + fly-to camera in Pure Live only; follow is a one-shot "center camera" action, not continuous auto-pin | Search-to-locate with fly-to camera; follow-mode pinning the live viewport to an object | presentation |
 | 17 | DONE (82e12b4) — unified Follow's log onto movement_store; first-seen distinction + filters + Traceback jump on the existing Movement tab, not a new view; motion-burst not built | Activity review timeline (Frigate-style scrubable event feed; unifies Follow/Traceback history) | history |
-| 18 | TODO | Multi-floor navigation polish: animated explode/collapse, click-to-focus, saved viewpoints, swipe | presentation |
+| 18 | DONE (b82f34d) — crossfade transition + click-slab-to-focus + prev/next step buttons in Overview and Pure Live; saved viewpoint presets, kiosk auto-tour, and literal swipe-gesture detection not built | Multi-floor navigation polish: animated explode/collapse, click-to-focus, saved viewpoints, swipe | presentation |
 
 Full per-item build guidance (what to build, who has it, impact/effort) lives in
 the research output; the essentials are restated per item below.
@@ -362,9 +362,46 @@ the research output; the essentials are restated per item below.
     HA's own logbook/recorder either) — not started; Pure Live's own
     `ActivityFeed` still runs its separate tracker (a smaller duplicate
     left as-is rather than risking a third file mid-pass).
-18. **Multi-floor polish** — animated slab explode/collapse transitions,
-    click-slab-to-focus, saved viewpoint presets + kiosk auto-tour, swipe
-    floor switching. Explicitly NOT WebGL — stays pure-SVG.
+18. **Multi-floor polish** — DONE (crossfade + click-to-focus + step
+    buttons). Verified first that Overview's `_rebuildIso` already hard-cuts
+    between floors via an innerHTML swap (no diffing, so a true DOM
+    cross-fade between old and new content isn't possible without
+    duplicating the whole tree) and that a floor-focus index
+    (`ctx.state._overviewIsoFocusIdx`) was already the single shared state
+    both Overview and Pure Live read/write — the missing pieces were purely
+    interaction, not new state. Shipped: (a) a CSS opacity crossfade around
+    the swap — fade the container to 0, do the instant innerHTML swap, fade
+    back to 1, timed with `setTimeout` to match the 150ms CSS transition
+    (matches this codebase's existing preference for setTimeout sequencing
+    over `transitionend` listeners) — gated so the very FIRST build on page
+    load skips the fade (nothing to cross-fade from yet); (b) clicking a
+    room polygon in Overview's iso map now jumps `_overviewIsoFocusIdx` to
+    that room's floor, reusing the exact `2*levelIndex+1` formula gap #16's
+    fly-to already established from `fabricFrame().levels`, so both features
+    derive floor-index math from the same shared source instead of a third
+    copy; (c) new ◀/▶ step buttons in both Overview and Pure Live step
+    through actual floors one at a time, deliberately skipping the even
+    "floor-pair" combo indices reachable by dragging the slider directly —
+    "next floor" should mean the next real floor, not a two-floor combo
+    view. Debugged live in a real browser: a backgrounded/hidden automation
+    tab fully pauses `requestAnimationFrame` (not throttles — zero
+    executions, confirmed with a bare `rAF` probe with no app code
+    involved), which stalls the pre-existing (unchanged by this item)
+    double-rAF the heavy SVG build has always depended on — explaining an
+    initially-alarming "rooms intermittently vanish" finding that was a
+    test-methodology artifact, not a regression; verification was completed
+    by shimming `requestAnimationFrame`/short `setTimeout`s to run via
+    `queueMicrotask` for the test session only, which also surfaced a real
+    bug this pass introduced (Pure Live's new step buttons moved the index
+    by 1, landing on floor-pair combos Overview's buttons deliberately
+    skip) — fixed to share Overview's `cur+dir*2` stepping formula. REMAINING:
+    no animated 3D "explode the stack" transition (a core-rendering-path
+    risk on the most heavily-shared view, matching gap #11's own precedent
+    for staying conservative there) — the crossfade is the shipped
+    substitute; no saved viewpoint presets or kiosk auto-tour; no literal
+    swipe-gesture detection (buttons instead, to avoid conflicting with
+    Pure Live's existing single-finger pan gesture). Stays pure-SVG, no
+    WebGL, as scoped.
 
 ## Already ahead of the field — extend, don't rebuild
 
