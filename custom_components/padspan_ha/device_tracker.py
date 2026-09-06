@@ -27,6 +27,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, DATA_SETTINGS, DATA_DEVICE_REGISTRY
+from .geo_bridge import accuracy_from_confidence, metres_to_latlon
 from .presence_coordinator import PresenceCoordinator
 from .presence_rules import away_timeout_s, is_away
 
@@ -194,6 +195,26 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
         obj = self._obj
         return str(obj.get("user_label") or obj.get("name") or self._init_label)
 
+    def _latlon(self) -> tuple[float, float] | None:
+        """The object's real-world position, if the fabric has a GPS origin
+        configured (Settings) and this object has a solved x_m/y_m — gap #5,
+        best-in-class roadmap. Neither is guaranteed, so this returns None
+        rather than fabricating a position at the fabric's arbitrary (0, 0)
+        or at null island.
+        """
+        settings = self.coordinator.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        data = settings.data if settings else {}
+        origin_lat = data.get("fabric_origin_lat")
+        origin_lon = data.get("fabric_origin_lon")
+        if origin_lat is None or origin_lon is None:
+            return None
+        obj = self._obj
+        x_m, y_m = obj.get("x_m"), obj.get("y_m")
+        if not isinstance(x_m, (int, float)) or not isinstance(y_m, (int, float)):
+            return None
+        bearing = data.get("fabric_bearing_deg") or 0.0
+        return metres_to_latlon(float(x_m), float(y_m), float(origin_lat), float(origin_lon), float(bearing))
+
     # ── HA entity identity ────────────────────────────────────────────────────
 
     @property
@@ -240,11 +261,20 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
 
     @property
     def latitude(self) -> float | None:
-        return None
+        pos = self._latlon()
+        return pos[0] if pos else None
 
     @property
     def longitude(self) -> float | None:
-        return None
+        pos = self._latlon()
+        return pos[1] if pos else None
+
+    @property
+    def location_accuracy(self) -> int:
+        pos = self._latlon()
+        if not pos:
+            return 0
+        return round(accuracy_from_confidence(self._obj.get("knn_confidence") or self._obj.get("room_confidence")))
 
     @property
     def battery_level(self) -> int | None:

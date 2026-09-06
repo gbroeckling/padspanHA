@@ -24,6 +24,7 @@ from unittest.mock import AsyncMock, MagicMock
 _HA_MODULE_NAMES: list[str] = [
     "homeassistant",
     "homeassistant.components",
+    "homeassistant.components.device_tracker",
     "homeassistant.components.sensor",
     "homeassistant.components.websocket_api",
     "homeassistant.config_entries",
@@ -125,8 +126,15 @@ class _FakeDataUpdateCoordinator(_SubscriptableBase):
 
 
 class _FakeCoordinatorEntity(_SubscriptableBase):
-    """Stand-in for CoordinatorEntity that is subscriptable."""
-    pass
+    """Stand-in for CoordinatorEntity that is subscriptable.
+
+    Sets self.coordinator like the real base class — needed the moment any
+    subclass's properties read self.coordinator (e.g. device_tracker.py's
+    PadSpanDeviceTracker), not just the ones already exercised by tests.
+    """
+
+    def __init__(self, coordinator: Any, *args: Any, **kwargs: Any) -> None:
+        self.coordinator = coordinator
 
 
 _uc.DataUpdateCoordinator = _FakeDataUpdateCoordinator  # type: ignore[attr-defined]
@@ -143,6 +151,26 @@ for _reg in ("area_registry", "device_registry", "entity_registry"):
 
 # homeassistant.helpers.aiohttp_client
 _ha_mods["homeassistant.helpers.aiohttp_client"].async_get_clientsession = MagicMock  # type: ignore[attr-defined]
+
+# homeassistant.components.device_tracker
+_dt = _ha_mods["homeassistant.components.device_tracker"]
+
+
+class _FakeSourceType:
+    """Stand-in for device_tracker.SourceType (a StrEnum in real HA)."""
+    GPS = "gps"
+    ROUTER = "router"
+    BLUETOOTH = "bluetooth"
+    BLUETOOTH_LE = "bluetooth_le"
+
+
+class _FakeTrackerEntity:
+    """Stand-in for device_tracker.TrackerEntity (subclassed in device_tracker.py)."""
+    pass
+
+
+_dt.SourceType = _FakeSourceType      # type: ignore[attr-defined]
+_dt.TrackerEntity = _FakeTrackerEntity  # type: ignore[attr-defined]
 
 # homeassistant.components.sensor
 _sensor = _ha_mods["homeassistant.components.sensor"]

@@ -67,6 +67,15 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "kalman_q": 0.125,             # Kalman process noise (RSSI responsiveness)
     "kalman_r": 8.0,               # Kalman measurement noise (smoothing strength)
     "assumed_device_height_m": 1.0,  # carry height above the floor for 3D distance (pocketed phone)
+    # GPS bridge (gap #5, best-in-class roadmap): the fabric's own metre
+    # plane has no inherent relationship to true north or a real-world
+    # location — these three anchor it, so a tracked object's x_m/y_m can
+    # become a real latitude/longitude for HA's map. None until a person
+    # sets them; a device_tracker with no origin configured reports no GPS
+    # rather than fabricating one at (0, 0).
+    "fabric_origin_lat": None,   # latitude of the fabric's (x_m=0, y_m=0) point
+    "fabric_origin_lon": None,   # longitude of the fabric's (x_m=0, y_m=0) point
+    "fabric_bearing_deg": 0.0,   # compass bearing (clockwise from true north) the fabric's +Y axis points toward
     "light_theme": False,   # invert the panel colours (accessibility — dark theme unusable for some)
     # Panel chrome skin. "2025" loads the styles-2025.css overlay and the
     # grouped icon nav; "classic" is v0.35.0 chrome byte-for-byte, kept as a

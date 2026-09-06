@@ -60,6 +60,9 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("kalman_q"): vol.Coerce(float),
         vol.Optional("kalman_r"): vol.Coerce(float),
         vol.Optional("assumed_device_height_m"): vol.Coerce(float),
+        vol.Optional("fabric_origin_lat"): vol.Any(vol.Coerce(float), None),
+        vol.Optional("fabric_origin_lon"): vol.Any(vol.Coerce(float), None),
+        vol.Optional("fabric_bearing_deg"): vol.Coerce(float),
         vol.Optional("hidden_map_ids"): list,
         vol.Optional("followed_addrs"): list,
         vol.Optional("health_reminder_enabled"): bool,
@@ -207,6 +210,14 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["kalman_r"] = max(0.5, min(50.0, float(msg["kalman_r"])))
         if "assumed_device_height_m" in msg:
             payload["assumed_device_height_m"] = max(0.0, min(3.0, float(msg["assumed_device_height_m"])))
+        if "fabric_origin_lat" in msg:
+            _lat = msg["fabric_origin_lat"]
+            payload["fabric_origin_lat"] = None if _lat is None else max(-90.0, min(90.0, float(_lat)))
+        if "fabric_origin_lon" in msg:
+            _lon = msg["fabric_origin_lon"]
+            payload["fabric_origin_lon"] = None if _lon is None else max(-180.0, min(180.0, float(_lon)))
+        if "fabric_bearing_deg" in msg:
+            payload["fabric_bearing_deg"] = float(msg["fabric_bearing_deg"]) % 360.0
         if "hidden_map_ids" in msg:
             ids = msg["hidden_map_ids"]
             payload["hidden_map_ids"] = [str(x) for x in ids if isinstance(x, str)] if isinstance(ids, list) else []
