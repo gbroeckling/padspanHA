@@ -166,6 +166,26 @@ export function render(ctx){
     return v.toLocaleString();
   };
 
+  // Lost and found (gap #10, best-in-class roadmap): a PERSISTED last-
+  // confirmed room + timestamp per object, survives an HA restart — unlike
+  // the live snapshot's own o.last_room, which is session-only (in-memory
+  // on the coordinator, cleared on restart). Fetched once, lazily, and
+  // cached on ctx.state so a poll re-render doesn't refetch every 5s.
+  if (ctx.state._lostAndFound === undefined && !ctx.state._lostAndFoundLoading) {
+    ctx.state._lostAndFoundLoading = true;
+    ctx.actions.wsCall("padspan_ha/lost_and_found_get", {})
+      .then(res => { ctx.state._lostAndFound = (res && res.records) || {}; })
+      .catch(() => { ctx.state._lostAndFound = {}; })
+      .finally(() => { ctx.state._lostAndFoundLoading = false; ctx.actions.renderRooms(); });
+  }
+  const _lostAndFound = ctx.state._lostAndFound || {};
+  const _lastKnownText = (key) => {
+    const rec = key && _lostAndFound[key];
+    if (!rec || !rec.room) return null;
+    const ageS = Date.now() / 1000 - (rec.ts || 0);
+    return `📍 ${rec.room} · ${fmtAgo(ageS)} ago`;
+  };
+
   // --- Inline objects list (BLE scanner detections + entities) ---
   const _quietMode = !!(ctx.state.settings && ctx.state.settings.quiet_mode);
   const _followedAddrs = ctx.state.followedAddrs || new Set();
@@ -431,6 +451,10 @@ export function render(ctx){
           ? [
               el("span",{class:"badge",style:"background:#3a0a0a;color:#f87171;border-color:#7f1d1d;font-size:10px"}, "Away"),
               age ? el("div",{class:"muted",style:"font-size:10px;margin-top:2px"}, age) : null,
+              // Persistent lost-and-found (gap #10) — survives an HA
+              // restart, unlike `age`/o.last_room above which are session-only.
+              (() => { const t = _lastKnownText(o.key || o.address || o.entity_id || ""); return t
+                ? el("div",{class:"muted",style:"font-size:10px;margin-top:2px;color:#c4b5fd"}, t) : null; })(),
             ].filter(Boolean)
           : (age || "—"))),
       el("td",{class:"muted",style:"font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis"},
@@ -563,7 +587,7 @@ export function render(ctx){
           el("div",{class:"basic-obj-room"}, o._ghost
             ? "Enable BLE Transmitter in Companion App"
             : (isObjAway
-              ? (o.last_room ? `Last: ${o.last_room}` : "—")
+              ? (_lastKnownText(o.key || o.address || o.entity_id || "") || (o.last_room ? `Last: ${o.last_room}` : "—"))
               : room)),
           el("div",{class:"basic-obj-sub"}, [kind, o.company_name, o.device_type, isObjAway ? null : rssi].filter(Boolean).join(" · ")),
         ]),

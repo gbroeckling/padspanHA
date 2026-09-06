@@ -2660,6 +2660,30 @@ class PadSpanHaApp extends HTMLElement {
       });
       actionsRow.appendChild(followBtn);
     }
+    // Locate flash (gap #10, best-in-class roadmap) — jumps to Overview and
+    // flashes the object's marker (a ported one-shot ring, see overview.js's
+    // own header note on why it's reproduced there rather than imported).
+    // Cleared after the animation's own duration (2 x 1.9s) so it does not
+    // re-trigger on every 5s poll re-render.
+    {
+      const _locateKey = obj.key || addr || obj.entity_id || "";
+      if (_locateKey) {
+        const locateBtn = el("button", { class: "btn inline" }, "📍 Locate");
+        locateBtn.addEventListener("click", () => {
+          this.state._overviewLocateKey = _locateKey;
+          this.state.view = "overview";
+          this._closeModal();
+          this._scheduleRender();
+          setTimeout(() => {
+            if (this.state._overviewLocateKey === _locateKey) {
+              this.state._overviewLocateKey = null;
+              this._scheduleRender();
+            }
+          }, 3900);
+        });
+        actionsRow.appendChild(locateBtn);
+      }
+    }
     // Delete button — unfollow + remove label + purge from view
     if(_followKey || canRename){
       const deleteBtn = el("button",{

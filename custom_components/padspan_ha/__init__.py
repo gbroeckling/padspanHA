@@ -45,6 +45,7 @@ from .const import (
     DATA_OBJECTS,
     DATA_ALERTS,
     DATA_MOVEMENT,
+    DATA_LOST_AND_FOUND,
     DATA_ADAPTIVE,
     DATA_CALIBRATION,
     DATA_TRACEBACK,
@@ -62,6 +63,7 @@ from .maps_store import MapsStore
 from .model_store import ModelStore
 from .alert_store import AlertStore
 from .movement_store import MovementStore
+from .lost_and_found_store import LostAndFoundStore
 from .object_store import ObjectStore
 from .panel import async_setup_panel
 from .presence_coordinator import PresenceCoordinator
@@ -153,6 +155,11 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
         await mv_store.async_load()
         return (DATA_MOVEMENT, mv_store, f"MovementStore ready ({len(mv_store.entries)} entries)")
 
+    async def _init_lost_and_found():
+        lf_store = LostAndFoundStore(hass)
+        await lf_store.async_load()
+        return (DATA_LOST_AND_FOUND, lf_store, f"LostAndFoundStore ready ({len(lf_store.records)} records)")
+
     async def _init_forensics():
         from .forensics_store import ForensicsStore
         fs_store = ForensicsStore(hass)
@@ -238,6 +245,8 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
         deferred.append(_init_alerts())
     if DATA_MOVEMENT not in hass.data[DOMAIN]:
         deferred.append(_init_movement())
+    if DATA_LOST_AND_FOUND not in hass.data[DOMAIN]:
+        deferred.append(_init_lost_and_found())
     if DATA_FORENSICS not in hass.data[DOMAIN]:
         deferred.append(_init_forensics())
     if DATA_CAPTURE not in hass.data[DOMAIN]:

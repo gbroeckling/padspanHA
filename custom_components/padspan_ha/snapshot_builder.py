@@ -28,6 +28,7 @@ from .const import (
     DATA_COORDINATOR,
     DATA_CALIBRATION,
     DATA_TRACEBACK,
+    DATA_LOST_AND_FOUND,
     DATA_ESPRESENSE_MQTT,
     DATA_DEVICE_REGISTRY,
 )
@@ -2650,11 +2651,25 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
     # construction, including code not written yet.
     try:
         _away_s = away_timeout_s(hass)
+        _lost_and_found = hass.data.get(DOMAIN, {}).get(DATA_LOST_AND_FOUND)
         for _obj in (snap.get("objects") or {}).get("list") or []:
             if not is_away(_obj, _away_s):
                 continue
             if _obj.get("room"):
                 _obj["last_room"] = _obj["room"]
+                # Persistent lost-and-found (gap #10, best-in-class
+                # roadmap): the same one-time-per-transition moment
+                # `last_room` is set is exactly when a confirmation is
+                # worth persisting — the underlying room already goes
+                # blank right after, so this does not re-fire every poll.
+                if _lost_and_found:
+                    _key = _obj.get("key") or ""
+                    if _key:
+                        await _lost_and_found.record(
+                            _key, _obj["room"],
+                            label=_obj.get("user_label") or _obj.get("name"),
+                            padspan_id=_obj.get("padspan_id"),
+                        )
             _obj["room"] = ""
             _obj["away"] = True
     except Exception as _away_err:

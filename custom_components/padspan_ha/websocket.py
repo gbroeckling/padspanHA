@@ -315,6 +315,8 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_calibration_beacon_profiles)
     websocket_api.async_register_command(hass, ws_calibration_health_check)
     websocket_api.async_register_command(hass, ws_movement_history_get)
+    websocket_api.async_register_command(hass, ws_lost_and_found_get)
+    websocket_api.async_register_command(hass, ws_lost_and_found_forget)
     websocket_api.async_register_command(hass, ws_traceback_get)
     websocket_api.async_register_command(hass, ws_traceback_objects)
     websocket_api.async_register_command(hass, ws_insights_get)
@@ -636,6 +638,34 @@ async def ws_movement_history_get(hass: HomeAssistant, connection, msg) -> None:
     limit = msg.get("limit", 100)
     entries = mv.get_history(device=device, limit=limit)
     connection.send_result(msg["id"], {"entries": entries})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Lost and found (gap #10, best-in-class roadmap)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@websocket_api.websocket_command({"type": "padspan_ha/lost_and_found_get"})
+@websocket_api.async_response
+async def ws_lost_and_found_get(hass: HomeAssistant, connection, msg) -> None:
+    """Return every object's last-confirmed room + when — persisted, never
+    reset to Unknown (see lost_and_found_store.py's own header)."""
+    from .const import DATA_LOST_AND_FOUND
+    lf = hass.data.get(DOMAIN, {}).get(DATA_LOST_AND_FOUND)
+    connection.send_result(msg["id"], {"records": lf.get_all() if lf else {}})
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/lost_and_found_forget",
+    "key": str,
+})
+@websocket_api.async_response
+async def ws_lost_and_found_forget(hass: HomeAssistant, connection, msg) -> None:
+    """Explicitly clear one object's lost-and-found record."""
+    from .const import DATA_LOST_AND_FOUND
+    lf = hass.data.get(DOMAIN, {}).get(DATA_LOST_AND_FOUND)
+    if lf:
+        await lf.forget(msg["key"])
+    connection.send_result(msg["id"], {"ok": True})
 
 
 # Traceback playback

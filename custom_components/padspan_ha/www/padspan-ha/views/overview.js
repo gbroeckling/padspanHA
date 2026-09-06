@@ -686,6 +686,19 @@ export function render(ctx){
     const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
     const roomColorFn = ctx.helpers.roomColor;
     const _esc = s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    // Locate flash (gap #10, best-in-class roadmap) — ported from
+    // iso_lights.js's locateSvg (the Lights map's own "flash to find it"
+    // ring): that helper is scoped inside buildIsoSVG, a different
+    // renderer entirely, so the same expanding/fading one-shot ring is
+    // reproduced here rather than imported.
+    const _locateKey = ctx.state._overviewLocateKey || null;
+    const _isLocated = (k) => _locateKey && k === _locateKey;
+    const _locateRingSvg = (cx, cy) =>
+      `<circle class="llocate" pointer-events="none" cx="${Math.round(cx)}" cy="${Math.round(cy)}" `+
+      `r="18" fill="none" stroke="#e879f9" stroke-width="2.2" opacity="0">`+
+      `<animate attributeName="r" values="18;70" dur="1.9s" repeatCount="2" fill="freeze"/>`+
+      `<animate attributeName="opacity" values="0;0.75;0" dur="1.9s" repeatCount="2" fill="freeze"/>`+
+      `</circle>`;
     if(ctx.state._overviewFloorGap===undefined) ctx.state._overviewFloorGap = ctx.state.settings?.overview_iso_floor_gap ?? 150;
     if(ctx.state._overviewHorizGap===undefined) ctx.state._overviewHorizGap = ctx.state.settings?.overview_iso_horiz_gap ?? 0;
     let _ovFG=ctx.state._overviewFloorGap, _ovHG=ctx.state._overviewHorizGap;
@@ -1496,6 +1509,10 @@ export function render(ctx){
         const lblW = Math.min(shownLbl.length * (7*BEACON_F) + 10, _plateMax);
         s += `<rect x="${Math.round(bx)-lblW/2}" y="${Math.round(by)-_bf(32)}" width="${lblW}" height="${_bf(16)}" rx="3" fill="#071008" opacity="0.7"/>`;
         s += `<text x="${Math.round(bx)}" y="${Math.round(by)-_bf(20)}" text-anchor="middle" fill="${lblColor}" font-size="${_bf(12)}" font-weight="700">${_esc(shownLbl)}</text>`;
+        // Locate flash (gap #10) — inside the marker's own <g> so it
+        // inherits the same counter-scale transform as everything else
+        // drawn at this anchor.
+        if (_isLocated(o.key || o.address || o.entity_id || "")) s += _locateRingSvg(bx, by);
         s += `</g>`;
       }
 
@@ -1576,6 +1593,7 @@ export function render(ctx){
               s += `<line x1="${px}" y1="${py-27}" x2="${px}" y2="${py-14}" stroke="#ef4444" stroke-width="1.5"/>`;
               s += `<line x1="${px}" y1="${py+14}" x2="${px}" y2="${py+27}" stroke="#ef4444" stroke-width="1.5"/>`;
               if(objLabel) s += `<text x="${px}" y="${py+38}" text-anchor="middle" fill="#fca5a5" font-size="10" font-weight="600">${_esc(objLabel)}</text>`;
+              if(_isLocated(oKey)) s += _locateRingSvg(px, py);
               s += `</g>`;
             } else {
               // Teal dot for active objects (persistent mode)
@@ -1585,6 +1603,7 @@ export function render(ctx){
               s += `<circle cx="${px}" cy="${py}" r="9" fill="#5eead4" stroke="#071008" stroke-width="1.5" opacity="0.95"/>`;
               s += `<circle cx="${px}" cy="${py}" r="2.5" fill="#071008" opacity="0.7"/>`;
               if(objLabel) s += `<text x="${px}" y="${py+22}" text-anchor="middle" fill="#5eead4" font-size="10" font-weight="600">${_esc(objLabel)}</text>`;
+              if(_isLocated(oKey)) s += _locateRingSvg(px, py);
               s += `</g>`;
             }
           } else if(!obj.user_label){
@@ -1592,6 +1611,7 @@ export function render(ctx){
             s += `<g data-obj-key="${_ok}" data-tip="${_esc(_objTip(obj))}" style="cursor:pointer" opacity="0.6" ${_annT(Math.round(px), Math.round(py))}>`;
             s += _ring;
             s += `<circle cx="${px}" cy="${py}" r="6" fill="#f59e0b" stroke="#071008" stroke-width="1" opacity="0.7"/>`;
+            if(_isLocated(oKey)) s += _locateRingSvg(px, py);
             s += `</g>`;
           }
         }
