@@ -14,7 +14,7 @@ solution of its kind.
 | 1 | DONE (4fea4ae) — position glide + fade + trails; room-color re-tint still an instant snap, not crossfaded | Animated live movement: tweened markers, room-color transitions, fading trails | visualization |
 | 2 | DONE (9c5e792) — distance rings + room-vote bars in the detail modal; confidence halo was already shipped (always-on dashed ring, not gated on click) | Confidence/evidence visualization: per-scanner distance rings, per-room probability, confidence halo | visualization |
 | 3 | DONE (1211334) — point×scanner, not literally scanner×scanner (verified no scanner-to-scanner RSSI exists) | Scanner-pair calibration error matrix (heat-colored, reset/relearn buttons) | analytics |
-| 4 | TODO | Room-dwell analytics: time-in-room, occupancy heatmap, entries/exits, CSV export ("Insights" tab) | analytics |
+| 4 | DONE (e63d664) — table form; iso-map heat-tint not built this pass | Room-dwell analytics: time-in-room, occupancy heatmap, entries/exits, CSV export ("Insights" tab) | analytics |
 | 5 | TODO | GPS geolocation bridge: fabric→lat/long, device_tracker GPS attrs, HA map interop | platform |
 | 6 | TODO | Anchored beacons: stationary tags as ground truth (drift warnings, free auto-calibration) | editing |
 | 7 | TODO | Floorplan import: Sweet Home 3D first, then RoomPlan JSON, then image room-detection | editing |
@@ -84,9 +84,17 @@ the research output; the essentials are restated per item below.
    blue/green/red heat color by signed error, grey for a silent pair,
    per-cell tooltip, "Relearn" button calling the existing
    calibrationComputeModel action.
-4. **Room-dwell analytics** — "Insights" tab off existing server history:
-   per-object per-day time-in-room table, dwell heat tint per room on the iso
-   map, entry counts, concurrent-occupancy timeline, CSV/JSON export.
+4. **Room-dwell analytics** — DONE (table form). New dwell_analytics.py
+   aggregates TracebackStore's existing frames (verified first that nothing
+   already computes this — presence_coordinator.py's room/floor dwell
+   timers are ephemeral velocity-gate state, discarded on every room
+   change) into per-object per-day time-in-room + entry counts, and a
+   per-room hourly concurrent-occupancy count. New "Insights" tab
+   (views/insights.js): a Time-in-Room table, a Peak Concurrent Occupancy
+   summary, CSV export (reuses forensics.js's escaper) and JSON export.
+   REMAINING: dwell heat tint drawn ON the iso map's room polygons —
+   deliberately not touched this pass to avoid two features fighting over
+   overview.js's rendering pipeline so soon after gap #1.
 5. **GPS bridge** — settings lat/long/bearing for fabric origin; publish
    latitude/longitude/gps_accuracy on tracked device_trackers; alignment view.
 6. **Anchored beacons** — flag object as anchored at a fabric position (reuse
