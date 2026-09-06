@@ -20,7 +20,7 @@ solution of its kind.
 | 7 | DONE (9c10575) — tier 1/3 (Sweet Home 3D) only; RoomPlan JSON and image room-detection not started | Floorplan import: Sweet Home 3D first, then RoomPlan JSON, then image room-detection | editing |
 | 8 | DONE (53ee119) — lock domain only; cover/climate/media_player/camera/sensor not started | Bind arbitrary HA entities to the floorplan (climate/cover/lock/media/camera domain registry) | presentation |
 | 9 | DONE (de8b986) — built in the 2D Rooms tab, not the 3D iso overview | Predictive what-if scanner placement (ghost scanner over the existing radio-map model) | analytics |
-| 10 | TODO | Persistent lost-and-found: "last known room" inventory that never resets to Unknown | presentation |
+| 10 | DONE (8e3eab9) — slotted into the existing object list, not a new dedicated view; column-sort not built | Persistent lost-and-found: "last known room" inventory that never resets to Unknown | presentation |
 | 11 | TODO | Map interaction parity: pan/zoom everywhere, keyboard nav, touch tooltips, numeric entry | presentation |
 | 12 | TODO | Per-room accuracy scoreboard + confusion pairs on the map, directed collect-more guidance | analytics |
 | 13 | TODO | Ground-truth capture walks with accuracy scoring and settings A/B replay | history |
@@ -176,8 +176,21 @@ the research output; the essentials are restated per item below.
    building one was out of scope; the Rooms tab's existing runDrag gives
    proven screen↔metre conversion for free. A toggle drops a draggable
    ghost scanner; dragging it live-repaints the discrimination delta.
-10. **Lost-and-found** — persisted last-confirmed room/time per tagged object
-    (never Unknown), sortable list, locate flash (ring exists in iso_lights).
+10. **Lost-and-found** — DONE (core persistence + locate; sort deferred).
+    Verified first `last_room` already existed but was in-memory-only (a
+    bare dict on the coordinator, no Store — lost on restart) and carried
+    no timestamp; also verified movement_store.py's global 500-entry cap +
+    7-day age prune independently disqualify it — a new store with NO
+    pruning at all was the right call. New lost_and_found_store.py (one
+    {room,ts} record per object, overwritten in place, forever) wired into
+    the exact moment last_room is already set. objects.js shows the
+    persisted "last confirmed + time ago" for away objects; a new
+    "Locate" button (panel.js) jumps to Overview and flashes the marker —
+    the ring ported from iso_lights.js's locateSvg (scoped inside a
+    different renderer, so reproduced not imported), auto-clearing after
+    its own animation duration. REMAINING: slotted into the existing
+    object list rather than a new dedicated "sortable list" view —
+    column-sort-by-last-seen not built.
 11. **Interaction parity** — shared viewport helper from _attachPanZoom +
     Pure Live pinch; apply to Overview iso, Mapping Edit stage, Pin & Listen;
     arrows/+/-/0 keys; tap-activated tooltips on touch; numeric X/Y entry.
