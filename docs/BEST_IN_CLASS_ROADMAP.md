@@ -11,7 +11,7 @@ solution of its kind.
 
 | # | Status | Feature | Category |
 |---|--------|---------|----------|
-| 1 | IN PROGRESS | Animated live movement: tweened markers, room-color transitions, fading trails | visualization |
+| 1 | DONE (4fea4ae) — position glide + fade + trails; room-color re-tint still an instant snap, not crossfaded | Animated live movement: tweened markers, room-color transitions, fading trails | visualization |
 | 2 | TODO | Confidence/evidence visualization: per-scanner distance rings, per-room probability, confidence halo | visualization |
 | 3 | TODO | Scanner-pair calibration error matrix (heat-colored, reset/relearn buttons) | analytics |
 | 4 | TODO | Room-dwell analytics: time-in-room, occupancy heatmap, entries/exits, CSV export ("Insights" tab) | analytics |
@@ -35,13 +35,24 @@ the research output; the essentials are restated per item below.
 
 ## Per-item build notes
 
-1. **Animated live movement** — stable per-object `<g>` nodes in the iso object
-   layer (Overview `ISO_OBJECTS_START` partial swap currently string-replaces)
-   with CSS-transition transform + fill: dots slide ~1s to new positions and
-   re-tint to room color instead of teleporting each 5s poll. Optional fading
-   breadcrumb polyline (client ring buffer, world-metre frame). Apply to
-   Overview iso, Pure Live, Traceback frames. (ESPresense-companion has
-   spring-animated markers; most visible hobbyist-vs-commercial tell.)
+1. **Animated live movement** — DONE for position: `iso_motion.js`'s
+   `planObjectLayerMerge`/`mergeObjectLayer` key each object's `<g>` by
+   `data-obj-key`, glide it (CSS `translate` property, composes with
+   overview's counter-scale `transform` attribute) ~0.9s to its new anchor
+   instead of teleporting, fade new/departed objects, and preserve fresh
+   z-order. Wired into overview.js's `_updateIsoObjects` (Pure Live reuses
+   the same DOM node + updater, so it's covered too) and traceback.js's
+   playback frame renderer (markers now wrapped in a keyed `<g>`). Fading
+   breadcrumb trails (client ring buffer, world-metre frame, `trailPush`/
+   `trailSvg`) ship on Overview; Traceback already draws its own
+   server-frame-derived trail and doesn't need the client one.
+   REMAINING: room-color re-tint still swaps instantly with the fresh
+   markup rather than crossfading `fill` — the swapped-in node is a new
+   element, so there is no previous value for a CSS transition to animate
+   from; doing that properly needs attribute-level mutation of the kept
+   node instead of a wholesale replace. (ESPresense-companion has
+   spring-animated markers; most visible hobbyist-vs-commercial tell —
+   the position half of that gap is now closed.)
 2. **Confidence visualization** — click object → per-scanner distance rings in
    metre space projected to iso, "why this room" probability bars from existing
    k-NN/fingerprint scores, uncertainty halo. Backend: expose per-scanner
