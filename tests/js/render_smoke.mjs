@@ -301,6 +301,29 @@ const VARIANTS = {
     { name: "roam-ready",     state: { view: "calibration", _calib: CALIB_STATE({ tab: "roam", deviceId: "AA:BB:CC:DD:EE:01", mapId: "ground" }) } },
     { name: "model", state: { view: "calibration", _calib: CALIB_STATE({ tab: "model" }) } },
     { name: "beacon", state: { view: "calibration", _calib: CALIB_STATE({ tab: "beacon" }) } },
+    // Matrix tab needs its own calibration override (state merge is shallow —
+    // a variant's `calibration` key replaces FIXTURE's, not deep-merges) with
+    // BOTH points and model.path_loss set, or the grid-building code (the
+    // part actually worth smoke-testing) never runs and only the empty state
+    // does.
+    { name: "matrix", state: { view: "calibration", _calib: CALIB_STATE({ tab: "matrix" }),
+      calibration: {
+        points: [
+          { map_id: "ground", x_frac: 0.3, y_frac: 0.4, room: "Kitchen", x_m: 4, y_m: -3,
+            floor_id: "main",
+            scanner_readings: [{ source: "AA:01", mean_rssi: -55 }, { source: "AA:02", mean_rssi: -78 }] },
+          { map_id: "ground", x_frac: 0.6, y_frac: 0.7, room: "Living", x_m: 7, y_m: -6,
+            floor_id: "main",
+            scanner_readings: [{ source: "AA:01", mean_rssi: -68 }] },  // AA:02 silent — grey cell
+        ],
+        model: {
+          path_loss: {
+            "AA:01": { rssi_1m: -50, n: 2.2, r_squared: 0.8, point_count: 6, units: "m", scanner_name: "kitchen-esp" },
+            "AA:02": { rssi_1m: -55, n: 2.6, r_squared: 0.5, point_count: 5, units: "m", scanner_name: "upper-esp" },
+          },
+        },
+      },
+    } },
     // Guided Calibration Wizard — each step its own code path
     // (_calibWizardTune/Setup/Roam/Model/Finish), otherwise unreached.
     { name: "wizard-tune",   state: { view: "calibration", _calibWizard: { step: 1 }, _calib: CALIB_STATE({}) } },

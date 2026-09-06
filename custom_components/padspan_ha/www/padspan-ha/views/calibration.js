@@ -3,6 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 import { estimateDistanceM, formatDistanceM } from "./path_loss.js";
+import { buildCalibrationMatrix, errorColor } from "./calibration_matrix.js";
 
 // PadSpan HA — BLE Fingerprint Calibration
 // Phone-based signal collection for precise indoor location modelling.
@@ -108,7 +109,7 @@ export function render(ctx) {
   ]));
 
   // Tab bar
-  const TABS = [["tune","Tune"],["beacon","Beacon Tune"],["setup","Setup"],["pin","Pin & Listen"],["roam","Roam"],["model","Model"]];
+  const TABS = [["tune","Tune"],["beacon","Beacon Tune"],["setup","Setup"],["pin","Pin & Listen"],["roam","Roam"],["model","Model"],["matrix","Error Matrix"]];
   const tabBar = el("div", { class: "tabs", style: "margin-bottom:14px;flex-wrap:wrap;gap:4px" });
   for (const [id, label] of TABS) {
     tabBar.appendChild(el("button", {
@@ -122,6 +123,7 @@ export function render(ctx) {
   if (cs.tab === "pin")   root.appendChild(_pinAndListen(ctx, el, cs, calData));
   if (cs.tab === "roam")  root.appendChild(_roam(ctx, el, cs, calData));
   if (cs.tab === "model") root.appendChild(_modelTab(ctx, el, cs, calData));
+  if (cs.tab === "matrix") root.appendChild(_matrixTab(ctx, el, cs, calData));
   if (cs.tab === "tune")  root.appendChild(_tuneTab(ctx, el, cs, calData));
   if (cs.tab === "beacon") root.appendChild(_beaconTuneTab(ctx, el, cs, calData));
 
@@ -1540,6 +1542,100 @@ function _modelTab(ctx, el, cs, calData) {
   clearWrap.appendChild(makeClearBtn());
   actCard.appendChild(clearWrap);
   wrap.appendChild(actCard);
+
+  return wrap;
+}
+
+// ── Calibration Error Matrix (gap #3, best-in-class roadmap) ──────────────────
+// Point × scanner grid: geometric (fabric) distance vs. what that scanner's
+// own path-loss fit derives from the point's measured RSSI. See
+// calibration_matrix.js's header for why this — not scanner-to-scanner — is
+// the real "TX×RX" data this codebase has.
+function _matrixTab(ctx, el, cs, calData) {
+  const wrap = el("div", { style: "display:flex;flex-direction:column;gap:14px" });
+  const model = calData.model || {};
+  const pts = calData.points || [];
+
+  const infoCard = el("div", { class: "card" });
+  infoCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, "Calibration Error Matrix"));
+  infoCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
+    "Each cell compares a calibration point's known fabric distance to a scanner against the distance that scanner's path-loss fit derives from the point's own measured RSSI. Blue = the fit reports the point farther than it really is · green = accurate · red = closer than it really is. Grey = that scanner never heard this point."));
+  const recomputeWrap = el("div");
+  const makeRecomputeBtn = () => {
+    const b = el("button", { class: "btn" }, "Relearn (recompute model)");
+    b.addEventListener("click", async () => {
+      recomputeWrap.innerHTML = "";
+      recomputeWrap.appendChild(el("span", { class: "muted", style: "font-size:12px" }, "Recomputing…"));
+      try {
+        await ctx.actions.calibrationComputeModel();
+        ctx.state.calibration = await ctx.actions.calibrationGet();
+        ctx.toast("Model recomputed.");
+        ctx.actions.renderRooms();
+      } catch (e) {
+        ctx.toast("Recompute failed: " + String(e), true);
+        recomputeWrap.innerHTML = "";
+        recomputeWrap.appendChild(makeRecomputeBtn());
+      }
+    });
+    return b;
+  };
+  recomputeWrap.appendChild(makeRecomputeBtn());
+  infoCard.appendChild(recomputeWrap);
+  wrap.appendChild(infoCard);
+
+  const pathLoss = model.path_loss || {};
+  if (!Object.keys(pathLoss).length) {
+    wrap.appendChild(el("div", { class: "card" }, [
+      el("div", { class: "muted" }, "No path-loss fits yet — collect calibration points and Compute Model on the Model tab first."),
+    ]));
+    return wrap;
+  }
+
+  const matrix = buildCalibrationMatrix({
+    points: pts,
+    pathLoss,
+    scannerPositions: ctx.state.model?.scanner_positions_m || {},
+    floorElevations: ctx.state.model?.floor_elevations || {},
+    settings: ctx.state.settings || {},
+  });
+
+  if (!matrix.rows.length || !matrix.scanners.length) {
+    wrap.appendChild(el("div", { class: "card" }, [
+      el("div", { class: "muted" }, "No metre-space calibration points against a positioned, metre-fitted scanner yet."),
+    ]));
+    return wrap;
+  }
+
+  const gridCard = el("div", { class: "card" });
+  gridCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, "Point × Scanner error (metres)"));
+  const tableWrap = el("div", { style: "overflow-x:auto" });
+  const thead = el("thead", {}, el("tr", {}, [
+    el("th", {}, "Point"),
+    ...matrix.scanners.map(src => el("th",
+      { style: "font-size:10px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" },
+      pathLoss[src].scanner_name || src)),
+  ]));
+  const tbody = el("tbody");
+  for (const row of matrix.rows) {
+    const cellEls = matrix.scanners.map(src => {
+      const c = row.cells[src];
+      if (!c) return el("td", { style: "background:#0a150e;text-align:center;color:#4a6052;font-size:10px" }, "—");
+      const color = errorColor(c.error_m);
+      const sign = c.error_m > 0 ? "+" : "";
+      return el("td", {
+        style: `background:${color};text-align:center;font-size:10px;font-weight:600;color:#071008;cursor:default`,
+        title: `Expected ${c.expected_m}m · Measured ${c.measured_m}m · Error ${sign}${c.error_m}m · RSSI ${c.rssi}dBm`,
+      }, `${sign}${c.error_m}`);
+    });
+    tbody.appendChild(el("tr", {}, [
+      el("td", { style: "font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" },
+        row.label || row.room || "Unlabeled"),
+      ...cellEls,
+    ]));
+  }
+  tableWrap.appendChild(el("table", { class: "table" }, [thead, tbody]));
+  gridCard.appendChild(tableWrap);
+  wrap.appendChild(gridCard);
 
   return wrap;
 }
