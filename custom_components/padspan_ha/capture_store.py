@@ -245,6 +245,11 @@ class CaptureStore:
         self._s2f: dict[str, str] = {}
         self._gt_room: str = ""
         self._gt_keys: set[str] | None = None   # None = every object
+        # Optional ground-truth POSITION alongside the room label (gap #13,
+        # best-in-class roadmap) — lets a replay score metre error, not just
+        # room accuracy. None means the operator marked a room only.
+        self._gt_x_m: float | None = None
+        self._gt_y_m: float | None = None
         self._session_keys: set[str] | None = None
         self._followed: set[str] = set()
         self._warmed: set[str] = set()
@@ -302,6 +307,8 @@ class CaptureStore:
         self._followed = {str(f).upper() for f in (followed or ())} | {str(f) for f in (followed or ())}
         self._gt_room = ""
         self._gt_keys = None
+        self._gt_x_m = None
+        self._gt_y_m = None
         self._warmed = set()
         self._last_frame_ts = 0.0
         self._last_flush_ts = ts
@@ -453,6 +460,7 @@ class CaptureStore:
         return True
 
     def mark_ground_truth(self, room: str, keys: list[str] | None = None,
+                          x_m: float | None = None, y_m: float | None = None,
                           now: float | None = None) -> bool:
         """Record the operator's assertion of where a device actually is.
 
@@ -460,6 +468,12 @@ class CaptureStore:
         filter is used; without that either, EVERY captured object is labelled
         — a single-occupant walkthrough is what people record, and a mark that
         silently labelled nothing would be the worst of the three answers.
+
+        x_m/y_m are an OPTIONAL precise position alongside the room (gap #13,
+        best-in-class roadmap) — the "walk to a spot, mark it" position a
+        replay's metre-accuracy scoring needs.  Marking room-only (the
+        original behaviour) leaves them None, and a replay simply has no
+        metre error to report for that stretch of frames.
         """
         if self._session is None:
             return False
@@ -469,8 +483,14 @@ class CaptureStore:
         else:
             self._gt_keys = set(self._session_keys) if self._session_keys else None
         self._gt_room = str(room or "")
-        self._append({"t": "gt", "ts": round(ts, 2), "room": self._gt_room,
-                      "keys": sorted(self._gt_keys) if self._gt_keys else []})
+        gt_line: dict[str, Any] = {"t": "gt", "ts": round(ts, 2), "room": self._gt_room,
+                                    "keys": sorted(self._gt_keys) if self._gt_keys else []}
+        if x_m is not None and y_m is not None:
+            self._gt_x_m, self._gt_y_m = round(float(x_m), 3), round(float(y_m), 3)
+            gt_line["x"], gt_line["y"] = self._gt_x_m, self._gt_y_m
+        else:
+            self._gt_x_m = self._gt_y_m = None
+        self._append(gt_line)
         return True
 
     # ── frame construction ────────────────────────────────────────────────────
@@ -552,6 +572,8 @@ class CaptureStore:
             rec["p"] = str((pinned[key] or {}).get("room") or "")
         if self._gt_room and (self._gt_keys is None or key in self._gt_keys):
             rec["g"] = self._gt_room
+            if self._gt_x_m is not None and self._gt_y_m is not None:
+                rec["gx"], rec["gy"] = self._gt_x_m, self._gt_y_m
 
         label = obj.get("user_label") or obj.get("name")
         if label and str(label) != key:

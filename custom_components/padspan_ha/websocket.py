@@ -170,6 +170,7 @@ from .ws_capture import (  # noqa: F401  (re-exported: registration, tests, call
     ws_capture_get,
     ws_capture_list,
     ws_capture_mark,
+    ws_capture_replay,
     ws_capture_start,
     ws_capture_status,
     ws_capture_stop,
@@ -404,6 +405,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_capture_list)
     websocket_api.async_register_command(hass, ws_capture_get)
     websocket_api.async_register_command(hass, ws_capture_delete)
+    websocket_api.async_register_command(hass, ws_capture_replay)
     _ensure_log_handler()
     _LOGGER.debug("PadSpan HA websocket commands registered")
 

@@ -756,9 +756,12 @@ function _escHtml(str) {
 }
 
 // ── RSSI vector capture ───────────────────────────────────────────────────
-// Record a session, mark where the device really is, export the trace.
-// The panel does not replay anything — replay lives in pytest, where the
-// pipeline it is replaying actually runs.
+// Record a session, mark where the device really is, export the trace —
+// and now (gap #13, best-in-class roadmap) replay a finished session and
+// score it, and A/B a settings change against the SAME recorded walk.
+// Replay runs against an ISOLATED coordinator built fresh from the
+// capture's own header (capture_replay.py) — it never touches the live
+// coordinator's own filter/vote state.
 
 let _capTimer = null;
 
@@ -791,11 +794,21 @@ function _renderCapture(ctx, container) {
   const recBtn = el("button", {class:"btn", style:"width:auto;padding:4px 14px;font-size:11px"}, "⏺ Record");
   const markSel = el("select", {class:"input", style:"width:auto;padding:3px 8px;font-size:11px"});
   const markBtn = el("button", {class:"btn", style:"width:auto;padding:4px 14px;font-size:11px"}, "Mark room");
-  row.appendChild(recBtn); row.appendChild(markSel); row.appendChild(markBtn);
+  // Optional precise position alongside the room (gap #13, best-in-class
+  // roadmap) — numeric metre entry, not a draggable map pin: it always
+  // works regardless of whether a map is anchored to the fabric's world
+  // gauge, which a click-on-image picker would depend on. Left blank, the
+  // mark behaves exactly as before (room label only).
+  const markX = el("input", {class:"input", type:"number", step:"0.1", placeholder:"x (m)",
+    style:"width:64px;padding:3px 6px;font-size:11px"});
+  const markY = el("input", {class:"input", type:"number", step:"0.1", placeholder:"y (m)",
+    style:"width:64px;padding:3px 6px;font-size:11px"});
+  row.appendChild(recBtn); row.appendChild(markSel); row.appendChild(markX); row.appendChild(markY);
+  row.appendChild(markBtn);
 
   const roomNames = (ctx.state.live.snapshot?.rooms || []).map(r => r.name || r).filter(Boolean);
   for (const r of roomNames) markSel.appendChild(el("option", {value:r}, r));
-  markSel.disabled = markBtn.disabled = true;
+  markSel.disabled = markBtn.disabled = markX.disabled = markY.disabled = true;
 
   // One interval, cleared before it is ever replaced. A record button that
   // leaves a 5 s poll behind on every tab change is a leak nobody notices
@@ -815,12 +828,12 @@ function _renderCapture(ctx, container) {
         + (st.truncated ? ` · ${st.truncated} objects dropped` : "");
       status.style.color = "#fbbf24";
       recBtn.textContent = "⏹ Stop";
-      markSel.disabled = markBtn.disabled = false;
+      markSel.disabled = markBtn.disabled = markX.disabled = markY.disabled = false;
     } else {
       status.textContent = "Not recording.";
       status.style.color = "#94a3b8";
       recBtn.textContent = "⏺ Record";
-      markSel.disabled = markBtn.disabled = true;
+      markSel.disabled = markBtn.disabled = markX.disabled = markY.disabled = true;
     }
     recBtn.disabled = false;
     await _capList(ctx, sessions);
@@ -846,8 +859,11 @@ function _renderCapture(ctx, container) {
 
   markBtn.addEventListener("click", async () => {
     try {
-      const r = await ctx.actions.callWS({type:"padspan_ha/capture_mark", room:markSel.value});
-      ctx.toast(r.ok ? `Marked ${r.room}` : r.error);
+      const msg = {type:"padspan_ha/capture_mark", room:markSel.value};
+      const x = parseFloat(markX.value), y = parseFloat(markY.value);
+      if (isFinite(x) && isFinite(y)) { msg.x_m = x; msg.y_m = y; }
+      const r = await ctx.actions.callWS(msg);
+      ctx.toast(r.ok ? `Marked ${r.room}` + (msg.x_m != null ? ` @ (${x}, ${y})` : "") : r.error);
     } catch(e) { ctx.toast(`Failed: ${e.message||e}`, true); }
     await refresh();
   });
@@ -897,6 +913,16 @@ async function _capList(ctx, host) {
     });
     rowEl.appendChild(dl);
 
+    const replayBtn = el("button", {class:"btn", style:"width:auto;padding:2px 10px;font-size:10px"}, "Replay & Score");
+    const replayPanel = el("div", {style:"display:none;margin:6px 0 4px;padding:8px;background:#0a150e;border:1px solid #1b3526;border-radius:8px;font-size:11px"});
+    replayBtn.addEventListener("click", async () => {
+      const open = replayPanel.style.display !== "none";
+      if (open) { replayPanel.style.display = "none"; return; }
+      replayPanel.style.display = "block";
+      await _renderReplayPanel(ctx, replayPanel, s.id);
+    });
+    rowEl.appendChild(replayBtn);
+
     const del = el("button", {class:"btn", style:"width:auto;padding:2px 10px;font-size:10px;border-color:#f8717144;color:#fca5a5"}, "Delete");
     del.addEventListener("click", async () => {
       if (!confirm(`Delete capture session ${s.id}?`)) return;
@@ -906,6 +932,76 @@ async function _capList(ctx, host) {
       } catch(e) { ctx.toast(`Failed: ${e.message||e}`, true); }
     });
     rowEl.appendChild(del);
-    host.appendChild(rowEl);
+
+    const wrap = el("div", {style:"display:flex;flex-direction:column;width:100%"});
+    wrap.appendChild(rowEl);
+    wrap.appendChild(replayPanel);
+    host.appendChild(wrap);
   }
+}
+
+// Replay & Score panel for one finished session (gap #13, best-in-class
+// roadmap). Fetches padspan_ha/capture_replay, shows room accuracy + metre
+// error, and offers a small A/B: tweak a couple of the settings the replay
+// loop actually reads (kalman_q/r, room_change_delay_s) and re-run against
+// the SAME recorded frames. Position accuracy never moves in the variant —
+// see capture_replay.py's module docstring for why — so only the room
+// accuracy row is shown twice.
+async function _renderReplayPanel(ctx, panel, sessionId) {
+  const { el } = ctx.helpers;
+  panel.replaceChildren(el("div", {style:"color:#78909c"}, "Replaying…"));
+
+  let res;
+  try {
+    res = await ctx.actions.callWS({type:"padspan_ha/capture_replay", session_id: sessionId});
+  } catch(e) {
+    panel.replaceChildren(el("div", {style:"color:#fca5a5"}, `Replay failed: ${e.message || e}`));
+    return;
+  }
+
+  const scoreRow = (label, score) => el("div", {style:"margin-bottom:4px"}, [
+    el("span", {style:"color:#94a3b8"}, label + ": "),
+    score.room_accuracy != null
+      ? el("span", {style:"color:#e0e0e0"},
+          `${Math.round(score.room_accuracy * 100)}% room (${score.room_scored_count} labelled)`)
+      : el("span", {style:"color:#64748b"}, "no room labels"),
+    score.mean_error_m != null
+      ? el("span", {style:"color:#e0e0e0"},
+          ` · ${score.mean_error_m}m mean / ${score.max_error_m}m max position error (${score.position_scored_count} marked)`)
+      : el("span", {style:"color:#64748b"}, " · no position marks"),
+  ]);
+
+  panel.replaceChildren();
+  panel.appendChild(scoreRow("Baseline (recorded settings)", res.baseline));
+
+  const abRow = el("div", {style:"display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap"});
+  const qIn = el("input", {class:"input", type:"number", step:"0.01", placeholder:"kalman_q",
+    style:"width:80px;padding:2px 6px;font-size:10px"});
+  const rIn = el("input", {class:"input", type:"number", step:"0.5", placeholder:"kalman_r",
+    style:"width:80px;padding:2px 6px;font-size:10px"});
+  const dIn = el("input", {class:"input", type:"number", step:"1", placeholder:"room_change_delay_s",
+    style:"width:120px;padding:2px 6px;font-size:10px"});
+  const abBtn = el("button", {class:"btn", style:"width:auto;padding:2px 10px;font-size:10px"}, "Run A/B");
+  abRow.appendChild(qIn); abRow.appendChild(rIn); abRow.appendChild(dIn); abRow.appendChild(abBtn);
+  panel.appendChild(abRow);
+
+  const abResult = el("div", {style:"margin-top:6px"});
+  panel.appendChild(abResult);
+
+  abBtn.addEventListener("click", async () => {
+    const settings = {};
+    for (const [inp, key] of [[qIn, "kalman_q"], [rIn, "kalman_r"], [dIn, "room_change_delay_s"]]) {
+      const v = parseFloat(inp.value);
+      if (isFinite(v)) settings[key] = v;
+    }
+    if (!Object.keys(settings).length) { ctx.toast("Enter at least one setting to compare."); return; }
+    abResult.replaceChildren(el("div", {style:"color:#78909c"}, "Replaying variant…"));
+    try {
+      const ab = await ctx.actions.callWS({
+        type:"padspan_ha/capture_replay", session_id: sessionId, settings});
+      abResult.replaceChildren(scoreRow("Variant (" + Object.entries(settings).map(([k,v]) => `${k}=${v}`).join(", ") + ")", ab.variant));
+    } catch(e) {
+      abResult.replaceChildren(el("div", {style:"color:#fca5a5"}, `A/B failed: ${e.message || e}`));
+    }
+  });
 }

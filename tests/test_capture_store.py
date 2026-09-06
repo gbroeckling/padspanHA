@@ -303,6 +303,75 @@ async def test_a_truncated_frame_keeps_the_labelled_objects_and_says_so(tmp_path
     assert any(o.get("g") == "Kitchen" for o in frame["o"]), "the labelled object was dropped"
 
 
+# ---------------------------------------------------------------------------
+# Tests: ground-truth POSITION (gap #13, best-in-class roadmap)
+# ---------------------------------------------------------------------------
+
+
+async def test_marking_a_position_carries_it_onto_the_frame(tmp_path) -> None:
+    """x_m/y_m on mark_ground_truth reach every labelled frame as gx/gy."""
+    cap = _make_store(tmp_path)
+    await cap.async_load()
+    sid = await _start(cap, ["S1"], keys=None)
+    cap.mark_ground_truth("Kitchen", x_m=4.2, y_m=-1.5, now=T0 + 1)
+
+    cap.record_frame({"k1": _obj("k1")}, {"AA:BB:CC:00:00:01": {"S1": -60.0}}, {},
+                     {"S1": "Office"}, {"S1": "main"},
+                     poll_s=5.0, vote_window=4, vote_threshold=3,
+                     pinned={}, coord=FakeCoord(), now=T0 + 5)
+    await cap.async_flush(now=T0 + 5)
+
+    lines = _lines(cap, sid)
+    gt = [x for x in lines if x["t"] == "gt"][0]
+    assert gt["x"] == 4.2 and gt["y"] == -1.5
+
+    frame_obj = [x for x in lines if x["t"] == "f"][0]["o"][0]
+    assert frame_obj["g"] == "Kitchen"
+    assert frame_obj["gx"] == 4.2 and frame_obj["gy"] == -1.5
+
+
+async def test_marking_a_room_only_carries_no_position(tmp_path) -> None:
+    """The original room-only call shape still works and stamps no gx/gy."""
+    cap = _make_store(tmp_path)
+    await cap.async_load()
+    sid = await _start(cap, ["S1"], keys=None)
+    cap.mark_ground_truth("Kitchen", now=T0 + 1)
+
+    cap.record_frame({"k1": _obj("k1")}, {"AA:BB:CC:00:00:01": {"S1": -60.0}}, {},
+                     {"S1": "Office"}, {"S1": "main"},
+                     poll_s=5.0, vote_window=4, vote_threshold=3,
+                     pinned={}, coord=FakeCoord(), now=T0 + 5)
+    await cap.async_flush(now=T0 + 5)
+
+    frame_obj = [x for x in _lines(cap, sid) if x["t"] == "f"][0]["o"][0]
+    assert frame_obj["g"] == "Kitchen"
+    assert "gx" not in frame_obj and "gy" not in frame_obj
+
+
+async def test_a_later_room_only_mark_clears_the_earlier_position(tmp_path) -> None:
+    """Re-marking without x_m/y_m must not leave a stale position attached.
+
+    Walking into a new room and marking it by name only, after previously
+    dropping a precise pin somewhere else, must not silently keep scoring
+    metre error against the OLD spot.
+    """
+    cap = _make_store(tmp_path)
+    await cap.async_load()
+    sid = await _start(cap, ["S1"], keys=None)
+    cap.mark_ground_truth("Kitchen", x_m=4.2, y_m=-1.5, now=T0 + 1)
+    cap.mark_ground_truth("Living", now=T0 + 2)
+
+    cap.record_frame({"k1": _obj("k1")}, {"AA:BB:CC:00:00:01": {"S1": -60.0}}, {},
+                     {"S1": "Office"}, {"S1": "main"},
+                     poll_s=5.0, vote_window=4, vote_threshold=3,
+                     pinned={}, coord=FakeCoord(), now=T0 + 5)
+    await cap.async_flush(now=T0 + 5)
+
+    frame_obj = [x for x in _lines(cap, sid) if x["t"] == "f"][0]["o"][0]
+    assert frame_obj["g"] == "Living"
+    assert "gx" not in frame_obj and "gy" not in frame_obj
+
+
 async def test_a_session_stops_itself_at_its_deadline(tmp_path) -> None:
     cap = _make_store(tmp_path)
     await cap.async_load()

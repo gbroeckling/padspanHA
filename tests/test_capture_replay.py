@@ -9,18 +9,12 @@ flipped less — because there was no way to run yesterday's radio conditions
 through today's code. A capture makes the input reproducible, so the same walk
 can be scored before and after a change and the difference stated as a number.
 
-Two assertion modes, and the recorded frame supports both deliberately:
-
-  GOLDEN REGRESSION   replayed room == the frame's own `r`. A refactor that
-                      changes a single answer fails here. This works because
-                      the inputs and the output are recorded side by side.
-
-  ACCURACY BENCHMARK  replayed room == the frame's `g`, over the frames a human
-                      labelled. This is the one that makes a tuning change
-                      measurable instead of anecdotal.
-
-`load_capture` and `replay` are public so a future tuning test can import them
-and score a real exported trace without re-deriving any of this.
+The loader, coordinator builder, warm-state seeder, replay loop and accuracy
+scorer live in capture_replay.py now (gap #13, best-in-class roadmap) — moved
+out of this test file so ws_capture.py's `capture_replay` websocket command
+can run the SAME logic as a real feature, not a pytest-only tool. This file
+keeps only the synthetic-fixture builder and the tests that prove the moved
+code is still correct.
 
 No real trace is committed. A capture contains this house's scanner MACs, its
 device MACs, its room names and its device labels, and a real trace in git
@@ -32,13 +26,18 @@ deliberate decision.
 from __future__ import annotations
 
 import json
-from collections import deque
+import math
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
+from custom_components.padspan_ha.capture_replay import (
+    load_capture,
+    replay,
+    score_replay,
+)
 from custom_components.padspan_ha.capture_store import SCHEMA_VERSION, CaptureStore
 from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
 from custom_components.padspan_ha.presence_coordinator import PresenceCoordinator
@@ -49,154 +48,6 @@ from tests.conftest import MockHass, MockStore
 import time
 
 T0 = time.time()
-
-
-# ── loader ────────────────────────────────────────────────────────────────────
-
-def load_capture(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Return (header, frames) from an exported capture .jsonl.
-
-    Vectors come back keyed by SCANNER NAME again — the on-disk source index is
-    a storage detail and no consumer should have to know it. `env` deltas are
-    applied in order as they are encountered, which is what makes a session
-    that gained a radio mid-recording load correctly.
-
-    Ground truth is carried forward from each `gt` marker onto the frames that
-    follow it, so a caller sees one flat list rather than a state machine.
-    """
-    header: dict[str, Any] = {}
-    frames: list[dict[str, Any]] = []
-    src: list[str] = []
-
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        if not raw.strip():
-            continue
-        try:
-            rec = json.loads(raw)
-        except ValueError:
-            continue  # torn tail from a crash mid-append
-        kind = rec.get("t")
-        if kind == "hdr":
-            if int(rec.get("sv") or 0) != SCHEMA_VERSION:
-                raise ValueError(
-                    f"capture schema v{rec.get('sv')} but this loader speaks v{SCHEMA_VERSION}")
-            header = rec
-            src = list(rec.get("src") or [])
-        elif kind == "env":
-            if "src" in rec:
-                src = list(rec["src"])
-            for k in ("s2a", "s2f"):
-                if k in rec:
-                    header[k] = rec[k]
-        elif kind == "f":
-            frame = dict(rec)
-            frame["o"] = [_resolve(o, src) for o in (rec.get("o") or [])]
-            frames.append(frame)
-    if not header:
-        raise ValueError("no header line — not a capture file")
-    return header, frames
-
-
-def _resolve(obj: dict[str, Any], src: list[str]) -> dict[str, Any]:
-    out = dict(obj)
-    for field in ("v", "e"):
-        if field in out:
-            out[field] = {src[int(i)]: v for i, v in out[field].items() if int(i) < len(src)}
-    if "w" in out:
-        w = dict(out["w"])
-        for field in ("ema", "p", "m"):
-            if field in w:
-                w[field] = {src[int(i)]: v for i, v in w[field].items() if int(i) < len(src)}
-        out["w"] = w
-    return out
-
-
-# ── replay ────────────────────────────────────────────────────────────────────
-
-def build_coordinator(header: dict[str, Any]) -> PresenceCoordinator:
-    """A coordinator wired to the recorded settings and geometry.
-
-    _smooth_room re-reads Q, R, ref_power and the rest from the live settings
-    store on every call, so replaying under today's settings instead of the
-    recorded ones silently compares two different pipelines.
-    """
-    hass = MagicMock()
-    settings = MagicMock()
-    settings.data = dict(header.get("set") or {})
-    hass.data = {DOMAIN: {DATA_SETTINGS: settings}}
-
-    coord = PresenceCoordinator(hass)
-    coord._pending_room_changes = []
-    coord._scanner_positions = {
-        s: (p["x_m"], p["y_m"], p.get("floor_id", ""))
-        for s, p in (header.get("pos") or {}).items()
-    }
-    coord._room_centroids = {r: tuple(c) for r, c in (header.get("cent") or {}).items()}
-    coord._floor_bounds = dict(header.get("fb") or {})
-    coord._use_metres = bool(header.get("um"))
-    coord._pl_fits = dict(header.get("plf") or {})
-    return coord
-
-
-def seed_warm_state(coord: PresenceCoordinator, key: str, addr: str, w: dict[str, Any]) -> None:
-    """Restore the filter state the recording started from.
-
-    `w` is the state AFTER its own frame's update — i.e. exactly what the next
-    frame consumed. A replay therefore seeds from a key's first frame and
-    scores from its second, which costs one frame and makes the comparison
-    exact instead of warm-up biased.
-    """
-    coord._ema_rssi[addr] = dict(w.get("ema") or {})
-    coord._kalman_p[addr] = dict(w.get("p") or {})
-    coord._silence_miss[addr] = {k: int(v) for k, v in (w.get("m") or {}).items()}
-    if w.get("vt"):
-        coord._room_votes[key] = deque(w["vt"], maxlen=max(len(w["vt"]), 1))
-    if w.get("r"):
-        coord._confirmed_room[key] = w["r"]
-
-
-def replay(header: dict[str, Any], frames: list[dict[str, Any]],
-           coord: PresenceCoordinator | None = None) -> list[dict[str, Any]]:
-    """Re-run the recorded trace through _smooth_room.
-
-    Returns one row per (frame, object) from the SECOND frame of each key on,
-    each carrying what the pipeline said now (`got`), what it said when
-    recorded (`want`), and the human's label if there was one (`truth`).
-
-    Pinned objects are reported as `pinned` and excluded from `want`: a pin
-    overrides the pipeline after _smooth_room returns, so the recorded `r` for
-    a pinned beacon is the pin, not an answer the pipeline ever gave. Scoring
-    it as one fails every assertion for a reason nobody would find.
-    """
-    coord = coord or build_coordinator(header)
-    s2a = dict(header.get("s2a") or {})
-    s2f = dict(header.get("s2f") or {})
-    rooms = set(header.get("rooms") or ())
-    vw = int(header.get("vw") or 1)
-    vt = int(header.get("vt") or 1)
-    seeded: set[str] = set()
-    out: list[dict[str, Any]] = []
-
-    for frame in frames:
-        vw = int(frame.get("vw", vw))
-        vt = int(frame.get("vt", vt))
-        for obj in frame.get("o") or []:
-            key, addr = obj["k"], obj["a"]
-            if key not in seeded:
-                seeded.add(key)
-                seed_warm_state(coord, key, addr, obj.get("w") or {})
-                continue   # its inputs produced the state we just seeded
-            got = coord._smooth_room(key, addr, {addr: obj.get("v") or {}},
-                                     s2a, vw, vt, s2f, rooms)
-            out.append({
-                "ts": frame["ts"], "k": key,
-                "got": got,
-                "want": obj.get("r") if "p" not in obj else None,
-                "truth": obj.get("g"),
-                "pinned": obj.get("p"),
-                "conf": coord._room_confidence.get(key, 0.0),
-            })
-    return out
 
 
 # ── a synthetic recording, made the way a real one is ─────────────────────────
@@ -235,12 +86,19 @@ def _walk() -> list[tuple[float, dict[str, float]]]:
 
 
 async def _record(tmp_path: Path, *, ground_truth: bool = False,
+                  gt_pos: dict[str, tuple[float, float]] | None = None,
                   pinned: dict[str, dict[str, Any]] | None = None) -> Path:
     """Drive a real CaptureStore with a real coordinator over a synthetic walk.
 
     Deliberately not a hand-written .jsonl: the point of the fixture is that
     the recorder and the loader agree, and a hand-written file would only prove
     the loader agrees with me.
+
+    gt_pos (gap #13, best-in-class roadmap): {room: (x_m, y_m)} ground-truth
+    positions to mark alongside the room. When set, each frame's object also
+    carries a FIXED (1.23, 4.56) as the pipeline's own recorded position —
+    only the ground-truth side varies per room, which is what keeps the
+    metre-error arithmetic in the tests that use this easy to check by hand.
     """
     hass = MagicMock()
     settings = MagicMock()
@@ -262,12 +120,18 @@ async def _record(tmp_path: Path, *, ground_truth: bool = False,
         if ground_truth:
             room = "Office" if ts <= T0 + 5 * _DWELL else "Kitchen"
             if (cap._gt_room or "") != room:
-                cap.mark_ground_truth(room, now=ts)
+                pos = (gt_pos or {}).get(room)
+                if pos:
+                    cap.mark_ground_truth(room, x_m=pos[0], y_m=pos[1], now=ts)
+                else:
+                    cap.mark_ground_truth(room, now=ts)
         # The coordinator runs first — the hook records what the poll produced.
         got = coord._smooth_room(key, addr, {addr: vec}, dict(_AREA), 2, 2,
                                  dict(_FLOOR), {"Office", "Kitchen", "Hall"})
         obj = {"key": key, "kind": "ble", "address": addr, "identified": True,
                "room": got or "", "room_confidence": coord._room_confidence.get(key, 0.0)}
+        if gt_pos:
+            obj["x_m"], obj["y_m"] = 1.23, 4.56
         if pinned and key in pinned:
             obj["room"] = pinned[key]["room"]
         cap.record_frame({key: obj}, {addr: vec}, {}, dict(_AREA), dict(_FLOOR),
@@ -384,3 +248,60 @@ async def test_warm_state_is_carried_so_the_replay_does_not_start_cold(tmp_path)
     assert set(first["w"]["ema"]) <= set(_SRCS)
     # And only once per key — repeating it every frame is pure duplication.
     assert all("w" not in o for f in frames[1:] for o in f["o"])
+
+
+# ── score_replay (gap #13, best-in-class roadmap) ──────────────────────────────
+
+
+def test_score_replay_room_accuracy_over_labelled_rows_only() -> None:
+    """Only rows with a human room label count toward room accuracy."""
+    rows = [
+        {"got": "Kitchen", "truth": "Kitchen"},
+        {"got": "Office", "truth": "Kitchen"},
+        {"got": "Office", "truth": None},   # unlabelled — excluded
+    ]
+    result = score_replay(rows)
+    assert result["room_scored_count"] == 2
+    assert result["room_accuracy"] == 0.5
+
+
+def test_score_replay_metre_error_from_recorded_position_vs_ground_truth() -> None:
+    """A 3-4-5 triangle, and a row missing either side is skipped, not guessed."""
+    rows = [
+        {"got": "Kitchen", "truth": None, "mx": 3.0, "my": 4.0, "truth_x_m": 0.0, "truth_y_m": 0.0},
+        {"got": "Kitchen", "truth": None, "mx": None, "my": None, "truth_x_m": 1.0, "truth_y_m": 1.0},
+    ]
+    result = score_replay(rows)
+    assert result["position_scored_count"] == 1
+    assert result["mean_error_m"] == pytest.approx(5.0)
+    assert result["median_error_m"] == pytest.approx(5.0)
+    assert result["max_error_m"] == pytest.approx(5.0)
+
+
+def test_score_replay_with_nothing_labelled_reports_none_not_zero() -> None:
+    """No ground truth at all is an absent metric, not a false 0% or 0m."""
+    result = score_replay([{"got": "Kitchen", "truth": None, "mx": None, "my": None,
+                            "truth_x_m": None, "truth_y_m": None}])
+    assert result["room_accuracy"] is None
+    assert result["mean_error_m"] is None
+    assert result["room_scored_count"] == 0
+    assert result["position_scored_count"] == 0
+
+
+async def test_a_real_capture_scores_metre_error_against_a_position_mark(tmp_path) -> None:
+    """End-to-end: mark_ground_truth's x_m/y_m survives record → load → replay.
+
+    Every frame's own recorded position is fixed at (1.23, 4.56); the marks
+    below both plant ground truth at the origin, so the expected error is the
+    same fixed distance regardless of which room the walk was in.
+    """
+    header, frames = load_capture(await _record(
+        tmp_path, ground_truth=True,
+        gt_pos={"Office": (0.0, 0.0), "Kitchen": (0.0, 0.0)}))
+    rows = replay(header, frames)
+    scored = score_replay(rows)
+
+    expected = math.hypot(1.23, 4.56)
+    assert scored["position_scored_count"] > 0
+    assert scored["mean_error_m"] == pytest.approx(expected, abs=0.01)
+    assert scored["max_error_m"] == pytest.approx(expected, abs=0.01)

@@ -227,6 +227,87 @@ async def test_export_pages_the_file_and_reports_the_end(tmp_path) -> None:
     assert conn4.send_error.call_args[0][1] == "not_found"
 
 
+async def _recorded_session(hass, conn) -> str:
+    """Start a session, record a few real frames, stop it. Returns the session id."""
+    cap = hass.data[DOMAIN][DATA_CAPTURE]
+    await ws.ws_capture_start(hass, conn, {"id": 1, "minutes": 5})
+    sid = _result(conn)["session_id"]
+
+    cap.mark_ground_truth("Office", x_m=0.0, y_m=0.0)
+    obj = {"key": "ble:AA:BB:CC:DD:EE:01", "kind": "ble", "address": "AA:BB:CC:DD:EE:01",
+           "identified": True, "room": "Office", "room_confidence": 0.9,
+           "x_m": 1.0, "y_m": 0.0}
+    # Spaced 5 s apart — MIN_FRAME_INTERVAL_S (1 s) would otherwise drop all
+    # but the first if these landed within the same wall-clock second.
+    coord = hass.data[DOMAIN][PRESENCE_KEY]
+    for now in (1_700_000_000.0, 1_700_000_005.0, 1_700_000_010.0):
+        cap.record_frame({obj["key"]: obj}, {obj["address"]: {"S1": -55.0}}, {},
+                         {"S1": "Office"}, {"S1": "main"},
+                         poll_s=5.0, vote_window=1, vote_threshold=1,
+                         pinned={}, coord=coord, now=now)
+    await ws.ws_capture_stop(hass, _conn(), {"id": 2})
+    return sid
+
+
+async def test_replay_scores_a_finished_session(tmp_path) -> None:
+    """The payoff (gap #13, best-in-class roadmap), wired end-to-end.
+
+    The recorded object's OWN position (1.0, 0.0) against the ground-truth
+    mark at the origin is a fixed 1 m error — the number this test proves
+    reaches the websocket response.
+    """
+    hass, conn = _hass(tmp_path), _conn()
+    await hass.data[DOMAIN][DATA_CAPTURE].async_load()
+    sid = await _recorded_session(hass, conn)
+
+    conn2 = _conn()
+    await ws.ws_capture_replay(hass, conn2, {"id": 3, "session_id": sid})
+    res = _result(conn2)
+
+    assert res["ok"] is True
+    assert res["baseline"]["position_scored_count"] >= 1
+    assert res["baseline"]["mean_error_m"] == pytest.approx(1.0, abs=1e-6)
+    assert "variant" not in res
+
+
+async def test_replay_ab_runs_a_second_pass_under_overridden_settings(tmp_path) -> None:
+    """An optional `settings` overlay replays the SAME frames a second time."""
+    hass, conn = _hass(tmp_path), _conn()
+    await hass.data[DOMAIN][DATA_CAPTURE].async_load()
+    sid = await _recorded_session(hass, conn)
+
+    conn2 = _conn()
+    await ws.ws_capture_replay(hass, conn2, {
+        "id": 3, "session_id": sid, "settings": {"room_change_delay_s": 0.0}})
+    res = _result(conn2)
+
+    assert "baseline" in res and "variant" in res
+    assert res["variant_settings"]["room_change_delay_s"] == 0.0
+    # Position accuracy is unaffected by a room-smoothing setting — see
+    # capture_replay's module docstring for why position is not re-solved.
+    assert res["variant"]["mean_error_m"] == res["baseline"]["mean_error_m"]
+
+
+async def test_replay_refuses_a_session_still_recording(tmp_path) -> None:
+    """Replaying a live session would read a half-written file mid-append."""
+    hass, conn = _hass(tmp_path), _conn()
+    await hass.data[DOMAIN][DATA_CAPTURE].async_load()
+    await ws.ws_capture_start(hass, conn, {"id": 1, "minutes": 5})
+    sid = _result(conn)["session_id"]
+
+    conn2 = _conn()
+    await ws.ws_capture_replay(hass, conn2, {"id": 2, "session_id": sid})
+    assert conn2.send_error.call_args[0][1] == "still_recording"
+
+
+async def test_replay_refuses_an_unknown_session(tmp_path) -> None:
+    hass, conn = _hass(tmp_path), _conn()
+    await hass.data[DOMAIN][DATA_CAPTURE].async_load()
+
+    await ws.ws_capture_replay(hass, conn, {"id": 1, "session_id": "nope"})
+    assert conn.send_error.call_args[0][1] == "not_found"
+
+
 async def test_every_capture_command_is_registered(tmp_path) -> None:
     """websocket.py has no auto-discovery — a handler nobody registered is dead.
 

@@ -10,6 +10,8 @@ Split out of websocket.py; registration stays there.
 from __future__ import annotations
 
 import logging
+from typing import Any
+
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
@@ -159,17 +161,25 @@ async def ws_capture_status(hass: HomeAssistant, connection, msg) -> None:
         "type": "padspan_ha/capture_mark",
         vol.Required("room"): str,
         vol.Optional("keys", default=[]): list,
+        vol.Optional("x_m"): vol.Coerce(float),
+        vol.Optional("y_m"): vol.Coerce(float),
     }
 )
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_capture_mark(hass: HomeAssistant, connection, msg) -> None:
-    """Stamp ground truth: the operator asserting where a device really is."""
+    """Stamp ground truth: the operator asserting where a device really is.
+
+    x_m/y_m are optional (gap #13, best-in-class roadmap) — a precise
+    position alongside the room, so a later replay can score metre error and
+    not just room accuracy.
+    """
     cap = _capture_store(hass)
     if not cap or not cap.recording:
         connection.send_result(msg["id"], {"ok": False, "error": "Not recording"})
         return
-    cap.mark_ground_truth(str(msg["room"]), [str(k) for k in (msg.get("keys") or [])])
+    cap.mark_ground_truth(str(msg["room"]), [str(k) for k in (msg.get("keys") or [])],
+                          x_m=msg.get("x_m"), y_m=msg.get("y_m"))
     connection.send_result(msg["id"], {"ok": True, "room": str(msg["room"])})
 
 
@@ -220,3 +230,64 @@ async def ws_capture_delete(hass: HomeAssistant, connection, msg) -> None:
     cap = _capture_store(hass)
     removed = await cap.async_delete(str(msg["session_id"])) if cap else False
     connection.send_result(msg["id"], {"ok": True, "removed": removed})
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/capture_replay",
+        vol.Required("session_id"): str,
+        vol.Optional("settings"): dict,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_capture_replay(hass: HomeAssistant, connection, msg) -> None:
+    """Replay a finished capture through the room-smoothing pipeline and
+    score it (gap #13, best-in-class roadmap: "ground-truth capture walks
+    with accuracy scoring and settings A/B replay").
+
+    Runs against an ISOLATED PresenceCoordinator built fresh from the
+    capture's own recorded header (capture_replay.build_coordinator) —
+    never the live coordinator — so triggering this from the UI can never
+    disturb a running install's own filter/vote state.
+
+    An optional `settings` dict overlays the recorded header's own settings
+    for a SECOND replay pass ("variant"), returned alongside the untouched
+    "baseline" — the A/B. Only settings _smooth_room itself reads (kalman_q/
+    r, room_change_delay_s, ...) move the variant's room accuracy; metre
+    accuracy is unaffected by either pass — see capture_replay's module
+    docstring for why position is not re-solved here.
+    """
+    from .capture_replay import load_capture, replay, score_replay
+
+    cap = _capture_store(hass)
+    session_id = str(msg["session_id"])
+    meta = cap._meta(session_id) if cap else None
+    if not cap or not meta:
+        connection.send_error(msg["id"], "not_found", "No such capture session")
+        return
+    if meta.get("open"):
+        connection.send_error(msg["id"], "still_recording",
+                              "Stop the session before replaying it")
+        return
+
+    try:
+        header, frames = await hass.async_add_executor_job(
+            load_capture, cap._path(session_id))
+    except (OSError, ValueError) as err:
+        connection.send_error(msg["id"], "load_failed", str(err))
+        return
+    if not frames:
+        connection.send_error(msg["id"], "empty", "This session recorded no frames")
+        return
+
+    result: dict[str, Any] = {"ok": True, "baseline": score_replay(replay(header, frames))}
+
+    overrides = msg.get("settings")
+    if overrides:
+        ab_header = dict(header)
+        ab_header["set"] = {**dict(header.get("set") or {}), **dict(overrides)}
+        result["variant"] = score_replay(replay(ab_header, frames))
+        result["variant_settings"] = ab_header["set"]
+
+    connection.send_result(msg["id"], result)
