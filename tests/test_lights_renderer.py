@@ -1380,6 +1380,10 @@ def test_motion_sensor_fades_through_a_distinct_rainbow_while_quiet_but_stays_fi
         "  const m=new RegExp('class=\"lpulse\" data-eid=\"'+eid.replace(/\\./g,'\\\\.')+'\"[^]*?stroke=\"hsl\\\\((\\\\d+),').exec(svg);\n"
         "  return m ? parseInt(m[1],10) : null;\n"
         "};\n"
+        "const iconOpacityFor=(eid)=>{\n"
+        "  const m=new RegExp('class=\"lhex\" data-eid=\"'+eid.replace(/\\./g,'\\\\.')+'\"[^>]*opacity=\"([\\\\d.]+)\"').exec(svg);\n"
+        "  return m ? parseFloat(m[1]) : null;\n"
+        "};\n"
         "console.log(JSON.stringify({\n"
         "  justNow: pulseHueFor('binary_sensor.just_now'),\n"
         "  justNowCalmRing: hueFor('binary_sensor.just_now'),\n"
@@ -1397,6 +1401,10 @@ def test_motion_sensor_fades_through_a_distinct_rainbow_while_quiet_but_stays_fi
         "  activeFreshHue: pulseHueFor('binary_sensor.active_fresh'),\n"
         "  activeStuckHue: pulseHueFor('binary_sensor.active_stuck'),\n"
         "  activeStuckHasAnyPulseMarkup: /class=\"l(pulse|recent)\" data-eid=\"binary_sensor\\.active_stuck\"/.test(svg),\n"
+        "  justNowIcon: iconOpacityFor('binary_sensor.just_now'),\n"
+        "  underFiveIcon: iconOpacityFor('binary_sensor.under_five'),\n"
+        "  justAfterFiveIcon: iconOpacityFor('binary_sensor.just_after_five'),\n"
+        "  activeIcon: iconOpacityFor('binary_sensor.active'),\n"
         "}));\n"
     ))
     # The alarm-zone case, and the heart of round three: hardware already
@@ -1413,6 +1421,15 @@ def test_motion_sensor_fades_through_a_distinct_rainbow_while_quiet_but_stays_fi
     # stops read as.
     assert out["justAfterFive"] == 180 and out["justAfterFivePulse"] is None, \
         f"right after 5 minutes: calm ring at cyan, no animated flash: {out}"
+    # The marker ICON lights for the SAME window the pulse flashes (round
+    # four: "the blue solid flash for the motion icon still goes out ...
+    # The ring might be OK, but not the icon") — full opacity through the
+    # hold, dimmed only once the calm ring takes over.
+    assert out["justNowIcon"] == 1 and out["underFiveIcon"] == 1, \
+        f"the icon must stay lit through the whole hold window, not the raw hardware hold: {out}"
+    assert out["justAfterFiveIcon"] == 0.45, \
+        f"past the hold the icon dims like any off device: {out}"
+    assert out["activeIcon"] == 1, out
     # 50 minutes in: past the 40-min (yellow) stop, before the 65-min
     # (orange) one — neither blue nor the final magenta.
     assert out["midSweep"] == 60, f"the 50-min mark must read as yellow (the 40-min stop, held): {out}"

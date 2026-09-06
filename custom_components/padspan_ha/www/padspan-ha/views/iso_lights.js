@@ -1351,7 +1351,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         `letter-spacing="0.06em" fill="${tCol}" pointer-events="none">${escSVG(l.code)}</text></g>`;
     };
     const markerSvg=(l,hx,hy,entry,extra="")=>{
-      const on=l.state==="on";
+      // A motion sensor's icon lights for the SAME window its pulse
+      // flashes (motionActive — state, or the shared hold window), never
+      // the raw state alone: an alarm zone's hardware clears in ~5s and
+      // the icon used to go dark then, mid-flash. Every other class is the
+      // raw state, as always.
+      const on=l.isMotion ? motionActive(l) : l.state==="on";
       // A custom pin colour applies to the LIT state only. Using it while the
       // light is off made every placed light look permanently on, which breaks
       // the one thing the sidebar exists for.
@@ -1675,6 +1680,20 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // the quiet-state colour fade begins. One constant so the two can
     // never disagree about where "recently active" ends.
     const MOTION_HOLD_MS=5*60*1000;
+    // The ONE shared answer to "is this motion sensor active right now":
+    // genuinely "on", or within the hold window of its last transition.
+    // Every element that lights up for activity — the marker ICON's lit
+    // body and the flashing pulse beneath it — must go through this, or
+    // they drift apart: round four (Garry) was exactly that, "the blue
+    // solid flash for the motion icon still goes out ... The ring might
+    // be OK, but not the icon" — the pulse had the hold window, the icon
+    // was still keyed to the raw 5-second hardware hold.
+    const motionActive=(l)=>{
+      if(l.state==="on") return true;
+      const lastMs=l.last_changed ? Date.parse(l.last_changed) : NaN;
+      const e=NOW_MS-lastMs;
+      return e>=0 && e<MOTION_HOLD_MS;
+    };
     const MOTION_COLOR_STOPS=[
       [0,             240],  // blue — the active colour, holds firm for the whole hold window
       [MOTION_HOLD_MS,180],  // cyan
@@ -2089,7 +2108,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // honestly still claims "on" (sustained presence) keeps flashing for
       // as long as it does, which is the one difference that reflects the
       // ROOM rather than the firmware.
-      if(l2.state==="on" || elapsed<MOTION_HOLD_MS) s+=motionPulseSvg(hx,hy,l2.entity_id,MOTION_COLOR_STOPS[0][1]);
+      if(motionActive(l2)) s+=motionPulseSvg(hx,hy,l2.entity_id,MOTION_COLOR_STOPS[0][1]);
       else s+=motionRecentPulseSvg(hx,hy,motionRecentHue(elapsed),l2.entity_id);
     }
     // Halos go under EVERY marker on the floor (see haloSvg); then the
