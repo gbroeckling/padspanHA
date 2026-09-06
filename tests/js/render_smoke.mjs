@@ -316,6 +316,18 @@ const VARIANTS = {
       _roomsFloorId: "main", _roomsDraftFloorId: "main",
       _whatIfGhost: { x_m: 2, y_m: -2 },
     } } },
+    // BLE + motion fusion badges (gap #14, best-in-class roadmap) — all
+    // three agreement states, so _occupancyBadge's full branch coverage
+    // actually renders, not just the "toggle off, nothing drawn" default.
+    { name: "rooms-occupancy", state: { mapsTab: "rooms", maps: { list: MAPS,
+      _roomsFloorId: "main", _roomsDraftFloorId: "main",
+      _roomsShowOccupancy: true,
+    },
+      _occupancyEstimate: { rooms: [
+        { room: "Kitchen", people: ["Garry"], phones: 1, occupancy: true, motion: false, agreement: "agree" },
+        { room: "Living", people: [], phones: 2, occupancy: false, motion: false, agreement: "ble_only" },
+      ] },
+    } },
     // The Setup Wizard short-circuits render() entirely — each step is its
     // own code path (_wizardUpload/_wizardScale/_wizardRooms/
     // _wizardScanners/_wizardFinish), all otherwise unreached by the plain

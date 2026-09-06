@@ -333,6 +333,35 @@ def test_an_occupied_room_with_nobody_placed_is_possibly_someone(monkeypatch):
     assert res["confidence"] == "medium"
 
 
+# ── per-room agreement (gap #14, best-in-class roadmap) ─────────────────────
+
+def test_agreement_is_agree_when_ble_and_a_sensor_both_place_someone(monkeypatch):
+    res = _estimate(_the_house(monkeypatch))
+    rooms = {r["room"]: r for r in res["rooms"]}
+    assert rooms["Living Room"]["agreement"] == "agree"   # phone + occupancy sensor
+    assert rooms["Bedroom"]["agreement"] == "agree"        # Nicole assumed there + occupancy sensor
+
+
+def test_agreement_is_ble_only_when_no_sensor_backs_a_placed_phone(monkeypatch):
+    """A room with a phone or known person but no HA occupancy/motion evidence at all."""
+    persons = [_person("person.garry", "Garry", "device_tracker.pixel_8_pro")]
+    res = _estimate(_hass(monkeypatch, persons=persons, trackers=TRACKERS, objects=THINGS,
+                          ads=BEDROOM_PAIR, scanners=SCANNERS))
+    rooms = {r["room"]: r for r in res["rooms"]}
+    assert rooms["Bedroom"]["agreement"] == "ble_only"
+
+
+def test_agreement_is_sensor_only_when_nobody_is_ble_placed(monkeypatch):
+    """A room an HA sensor says is occupied, with no BLE evidence of anyone there."""
+    persons = [_person("person.garry", "Garry", "device_tracker.pixel_8_pro")]
+    sensors = [_sensor("binary_sensor.bedroom_presence", "presence", "on", "Bedroom")]
+    res = _estimate(_hass(monkeypatch, persons=persons, trackers=TRACKERS, objects=THINGS,
+                          sensors=sensors, scanners=SCANNERS))
+    rooms = {r["room"]: r for r in res["rooms"]}
+    assert rooms["Living Room"]["agreement"] == "ble_only"   # Garry's phone, no sensor there
+    assert rooms["Bedroom"]["agreement"] == "sensor_only"    # sensor only, nobody placed
+
+
 def test_occupied_rooms_are_the_floor_when_nobody_is_known(monkeypatch):
     sensors = [
         _sensor("binary_sensor.bedroom_presence", "presence", "on", "Bedroom"),

@@ -8247,6 +8247,28 @@ function _geomCentroid(g) {
   return [g.cx_m || 0, g.cy_m || 0];
 }
 
+// BLE-vs-motion/occupancy fusion badge for one occupancy_estimate room entry
+// (gap #14, best-in-class roadmap). `r.agreement` is computed server-side
+// (ws_occupancy.py) from evidence already gathered for the Occupancy tab;
+// this only decides how to draw it. "sensor_only" never appears without
+// SOME sensor being on/recently-motion, so it is real disagreement worth a
+// distinct colour, not a null state.
+function _occupancyBadge(r) {
+  const count = (r.people || []).length + (r.phones || 0);
+  const sensors = [r.occupancy ? "occupancy sensor" : null, r.motion ? "motion" : null].filter(Boolean).join(" + ") || "none";
+  const who = (r.people || []).join(", ") || (r.phones ? `${r.phones} unclaimed phone${r.phones === 1 ? "" : "s"}` : "nobody");
+  if (r.agreement === "agree") {
+    return { icon: "✓", color: "#52b788", count,
+      title: `BLE and sensors agree — ${who}; sensors: ${sensors}` };
+  }
+  if (r.agreement === "sensor_only") {
+    return { icon: "📡", color: "#60a5fa", count: 0,
+      title: `Sensor says occupied (${sensors}) but BLE placed nobody here` };
+  }
+  return { icon: "📶", color: "#f59e0b", count,
+    title: `BLE places ${who} here, but no occupancy/motion sensor confirms it` };
+}
+
 // Vertex-wise blend of the layouts the user trusts. Rooms present in several
 // sets are averaged point-by-point (valid because every candidate descends
 // from the SAME photo tracings, so vertex order corresponds); a room whose
@@ -8521,6 +8543,35 @@ function _roomsTab(ctx, maps) {
         "Drag a hypothetical scanner to see how much it would help tell adjacent rooms apart — nothing is placed until you Add it for real."),
     ]));
     card.appendChild(whatIfScore);
+  }
+
+  // ── BLE + motion fusion badges (gap #14, best-in-class roadmap) — a toggle
+  // rather than always-on: occupancy_estimate does real work (HA state scans,
+  // phone clustering) that costs nothing to the room-editing flow above when
+  // nobody has asked to see it. Lazy-fetched once per toggle-on, same pattern
+  // objects.js uses for lost_and_found_get — not re-fetched on every drag-
+  // triggered re-render of this tab.
+  {
+    const occBtn = el("button", {
+      class: "btn inline" + (mapState._roomsShowOccupancy ? " primary" : ""),
+    }, mapState._roomsShowOccupancy ? "👤 Occupancy: ON" : "👤 Show occupancy");
+    occBtn.addEventListener("click", () => {
+      mapState._roomsShowOccupancy = !mapState._roomsShowOccupancy;
+      if (mapState._roomsShowOccupancy) ctx.state._occupancyEstimate = undefined;
+      ctx.actions.renderRooms();
+    });
+    card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px" }, [
+      occBtn,
+      el("span", { class: "muted", style: "font-size:11px" },
+        "Per-room person/phone count and whether BLE and Home Assistant's own occupancy/motion sensors agree there is someone there."),
+    ]));
+    if (mapState._roomsShowOccupancy && ctx.state._occupancyEstimate === undefined && !ctx.state._occupancyEstimateLoading) {
+      ctx.state._occupancyEstimateLoading = true;
+      ctx.actions.wsCall("padspan_ha/occupancy_estimate", {})
+        .then(res => { ctx.state._occupancyEstimate = res || null; })
+        .catch(() => { ctx.state._occupancyEstimate = null; })
+        .finally(() => { ctx.state._occupancyEstimateLoading = false; ctx.actions.renderRooms(); });
+    }
   }
 
   // ── Draft: a scratch copy of this floor's geometry, reset on floor switch ─
@@ -9077,6 +9128,10 @@ function _roomsTab(ctx, maps) {
     }
 
     // Room labels
+    const occByRoom = {};
+    if (mapState._roomsShowOccupancy) {
+      for (const r of (ctx.state._occupancyEstimate?.rooms || [])) occByRoom[r.room] = r;
+    }
     for (const [room, g] of geoms) {
       const [cx, cy] = _geomCentroid(g);
       pinLayer.appendChild(el("div", {
@@ -9084,6 +9139,20 @@ function _roomsTab(ctx, maps) {
           `transform:translate(-50%,-50%);color:${roomColor(room)};font-size:11px;opacity:0.75;` +
           `pointer-events:none;white-space:nowrap;font-family:system-ui,sans-serif;z-index:1`,
       }, room));
+      // BLE + motion fusion badge (gap #14, best-in-class roadmap): a room
+      // with no evidence at all (occByRoom has no entry for it) draws
+      // nothing — a blank room is not "disagreement", it is simply unwatched.
+      const occ = occByRoom[room];
+      if (occ) {
+        const badge = _occupancyBadge(occ);
+        pinLayer.appendChild(el("div", {
+          title: badge.title,
+          style: `position:absolute;left:${((cx - bbox.minX) / bbox.width * 100).toFixed(2)}%;top:${((cy - bbox.minY) / bbox.height * 100).toFixed(2)}%;` +
+            `transform:translate(-50%,10px);background:${badge.color}22;border:1px solid ${badge.color};color:${badge.color};` +
+            `font-size:10px;font-weight:700;padding:1px 6px;border-radius:9px;pointer-events:none;white-space:nowrap;` +
+            `font-family:system-ui,sans-serif;z-index:2`,
+        }, `${badge.icon} ${badge.count}`));
+      }
     }
 
     // ── Scanner pins — draggable, in metres, no photo involved ───────────

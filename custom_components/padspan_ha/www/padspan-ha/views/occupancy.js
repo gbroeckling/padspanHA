@@ -94,17 +94,24 @@ async function _loadOccupancy(ctx, el, container) {
     if ((res.rooms || []).length) {
       const roomCard = el("div", { class: "card", style: "margin-bottom:12px" });
       roomCard.appendChild(H("Rooms with evidence"));
-      const grid = el("div", { style: "display:grid;grid-template-columns:1fr auto auto auto;gap:6px 14px;font-size:12px;align-items:center" });
-      for (const h of ["Room", "People", "Phones", "Sensors"]) {
+      const grid = el("div", { style: "display:grid;grid-template-columns:1fr auto auto auto auto;gap:6px 14px;font-size:12px;align-items:center" });
+      for (const h of ["Room", "People", "Phones", "Sensors", "Agreement"]) {
         grid.appendChild(el("div", { style: "font-weight:600;color:#64748b;font-size:10px;text-transform:uppercase" }, h));
       }
+      // BLE-vs-sensor agreement (gap #14, best-in-class roadmap) — computed
+      // server-side (ws_occupancy.py) from the same evidence already in
+      // this table; this only picks how to label it.
+      const AGREE_LABEL = { agree: ["✓ Agree", "#52b788"], ble_only: ["📶 BLE only", "#f59e0b"],
+        sensor_only: ["📡 Sensor only", "#60a5fa"] };
       for (const r of res.rooms) {
         const rc = ctx.helpers.roomColor ? ctx.helpers.roomColor(r.room) : "#5eead4";
         const sensors = [r.occupancy ? "occupancy" : null, r.motion ? "motion" : null].filter(Boolean).join(", ");
+        const [agreeText, agreeColor] = AGREE_LABEL[r.agreement] || ["—", "#64748b"];
         grid.appendChild(el("div", { style: `color:${rc};font-weight:600` }, r.room));
         grid.appendChild(el("div", { style: "color:#52b788" }, (r.people || []).join(", ") || "—"));
         grid.appendChild(el("div", { style: "text-align:right;color:#a78bfa;font-family:monospace" }, String(r.phones || 0)));
         grid.appendChild(el("div", { style: "color:#60a5fa" }, sensors || "—"));
+        grid.appendChild(el("div", { style: `color:${agreeColor};white-space:nowrap` }, agreeText));
       }
       roomCard.appendChild(grid);
       container.appendChild(roomCard);

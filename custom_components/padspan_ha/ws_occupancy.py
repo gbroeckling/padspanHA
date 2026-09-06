@@ -480,6 +480,19 @@ async def compute_occupancy_estimate(hass: HomeAssistant) -> dict[str, Any]:
     for r in sensed["motion_rooms"]:
         _room(r)["motion"] = True
 
+    # BLE-vs-sensor agreement (gap #14, best-in-class roadmap): every room
+    # in `rooms` already has SOME evidence (a room with none is never added
+    # by _room() above), so "none" never appears here — only whether the
+    # two evidence FAMILIES (BLE placement vs. HA occupancy/motion sensors)
+    # independently agree there is someone, or only one of them says so.
+    # A visualisation reads this directly; nothing here changes what the
+    # positioning pipeline itself does with a room.
+    for r in rooms.values():
+        has_ble = bool(r["people"]) or r["phones"] > 0
+        has_sensor = r["occupancy"] or r["motion"]
+        r["agreement"] = "agree" if has_ble and has_sensor \
+            else "ble_only" if has_ble else "sensor_only"
+
     # Things seen and not counted — one line per physical thing.
     things: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
