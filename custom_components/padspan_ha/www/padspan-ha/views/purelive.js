@@ -12,6 +12,15 @@
 import { h, render as preactRender, html } from "../lib/preact-bundle.js";
 import { useState, useEffect, useRef, useMemo } from "../lib/preact-bundle.js";
 
+// Same metric frame Overview's own iso map is built from (gap #16, best-in-
+// class roadmap: search + fly-to). Pure Live never draws its own copy of the
+// map — it reuses Overview's rendered DOM node (_mapNode below) — but a
+// fly-to target needs the fixture/room/scanner's PROJECTED position, and
+// this is the one pure, already-tested function that turns (x_m,y_m,floor_id)
+// into the exact same SVG-space point Overview's own renderer used.
+const { fabricFrame } =
+  await import(`./iso_lights.js${new URL(import.meta.url).search}`);
+
 // ── Persistent state ─────────────────────────────────────────────────────────
 let _mapNode = null;
 // The model snapshot the mounted map was built from. A model refetch (e.g.
@@ -119,6 +128,26 @@ function injectStyles(root) {
     @keyframes pl-feed-in{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
     .pl-feed-item .pl-feed-time{color:#64748b}
     .pl-feed-item .pl-feed-room{color:#52b788;font-weight:600}
+
+    /* ── Search + fly-to (gap #16, best-in-class roadmap) ─────────────── */
+    .pl-search{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:8;width:min(320px,70vw)}
+    .pl-search input{width:100%;box-sizing:border-box;padding:7px 12px;border-radius:12px;
+      border:1px solid rgba(255,255,255,.1);background:rgba(10,30,15,.7);backdrop-filter:blur(12px);
+      -webkit-backdrop-filter:blur(12px);color:#e2e8f0;font-size:12px;box-shadow:0 6px 24px rgba(0,0,0,.3)}
+    .pl-search input::placeholder{color:#64748b}
+    .pl-search-results{margin-top:4px;background:rgba(8,20,12,.92);backdrop-filter:blur(12px);
+      border:1px solid rgba(255,255,255,.08);border-radius:10px;overflow:hidden;
+      box-shadow:0 8px 28px rgba(0,0,0,.4);max-height:260px;overflow-y:auto}
+    .pl-search-result{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;
+      border-top:1px solid rgba(255,255,255,.04)}
+    .pl-search-result:first-child{border-top:none}
+    .pl-search-result:hover{background:rgba(82,183,136,.12)}
+    .pl-search-kind{font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:#52b788;
+      border:1px solid rgba(82,183,136,.35);border-radius:5px;padding:1px 5px;flex-shrink:0}
+    .pl-search-label{color:#e2e8f0;font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .pl-search-sub{color:#64748b;font-size:10px;flex-shrink:0}
+    .pl-tracked-chip .pl-tracked-locate{margin-left:4px;color:#5eead4;opacity:.8}
+    .pl-tracked-chip .pl-tracked-locate:hover{opacity:1}
 
     /* Map area wrapper — contains viewport + overlays */
     .pl-map-area{flex:1;position:relative;display:flex;flex-direction:column;min-height:0;overflow:hidden}
@@ -277,11 +306,35 @@ function _counterScaleSVG(container, scale) {
   }
 }
 
+// A plain rAF tween over the SAME mutable state object drag/zoom/pinch
+// already write to directly (gap #16, best-in-class roadmap) — no Preact
+// state involved, matching this component's existing imperative style, so
+// a fly-to mid-tween composes correctly with a user grabbing the map to pan
+// (the next mousedown just overwrites startTx/startTy from wherever the
+// tween had gotten to, exactly like it already does for any other s.tx/ty
+// write).
+function _tweenCamera(state, target, applyFn, durationMs) {
+  const from = { tx: state.tx, ty: state.ty, scale: state.scale };
+  const delta = { tx: target.tx - from.tx, ty: target.ty - from.ty, scale: target.scale - from.scale };
+  const t0 = (typeof performance !== "undefined" ? performance.now() : Date.now());
+  const ease = (t) => 1 - Math.pow(1 - t, 3); // ease-out cubic
+  const step = (now) => {
+    const t = Math.min(1, (now - t0) / durationMs);
+    const k = ease(t);
+    state.tx = from.tx + delta.tx * k;
+    state.ty = from.ty + delta.ty * k;
+    state.scale = from.scale + delta.scale * k;
+    applyFn();
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
 // ── Pan/Zoom Map Viewport ────────────────────────────────────────────────────
 // Wraps the iso map with mouse drag-to-pan, scroll-to-zoom, pinch-to-zoom,
 // and double-click/double-tap to reset.
 
-function MapViewport({ children }) {
+function MapViewport({ ctx, children }) {
   const viewportRef = useRef(null);
   const innerRef = useRef(null);
   const stateRef = useRef({ scale: 1, tx: 0, ty: 0, dragging: false, startX: 0, startY: 0, startTx: 0, startTy: 0, pinchDist: 0, pinchScale: 1 });
@@ -303,6 +356,40 @@ function MapViewport({ children }) {
     clearTimeout(zoomTimerRef.current);
     zoomTimerRef.current = setTimeout(() => setShowZoom(false), 1500);
   };
+
+  // Imperative camera API (gap #16, best-in-class roadmap: search + fly-to).
+  // Exposed the SAME way _mapNode/ctx.state._isoUpdateObjects already bridge
+  // out of this Preact tree, rather than prop-drilling a ref through the
+  // component that renders the search box — that box lives as a SIBLING of
+  // MapViewport in App, not a descendant, so a forwarded ref has nowhere to
+  // land without lifting state neither component otherwise needs.
+  useEffect(() => {
+    if (!ctx) return;
+    ctx.state._pureLiveCamera = {
+      // (relX, relY): the target's CURRENT on-screen position, measured by
+      // the caller via getBoundingClientRect relative to this viewport —
+      // ground truth, so flyTo needs no idea how the map inside is
+      // projected or scaled. opts.scale defaults to "at least a bit more
+      // zoomed in than now", never OUT, so flying to a result never makes
+      // the map smaller than the user already had it.
+      flyTo(relX, relY, opts = {}) {
+        const s = stateRef.current;
+        const targetScale = Math.min(MAX_SCALE, Math.max(opts.scale || 0, s.scale, 1.6));
+        const localX = (relX - s.tx) / s.scale;
+        const localY = (relY - s.ty) / s.scale;
+        const vp = viewportRef.current;
+        const vcx = vp ? vp.clientWidth / 2 : relX;
+        const vcy = vp ? vp.clientHeight / 2 : relY;
+        _tweenCamera(s, {
+          tx: vcx - targetScale * localX,
+          ty: vcy - targetScale * localY,
+          scale: targetScale,
+        }, applyTransform, opts.durationMs || 550);
+      },
+      getViewportEl: () => viewportRef.current,
+    };
+    return () => { delete ctx.state._pureLiveCamera; };
+  }, [ctx]);
 
   // Where a zoom is anchored when the user has not pointed at a spot.
   //
@@ -594,6 +681,175 @@ function MovementGhosts({ roomTagMap }) {
   `;
 }
 
+// ── Search + fly-to (gap #16, best-in-class roadmap) ─────────────────────────
+// "Search box matching objects/rooms/scanners, viewport tween to result +
+// locate flash." Scoped to Pure Live rather than plain Overview: Overview's
+// iso map has no pan/zoom camera at all (gap #11 explicitly left it that way
+// — retrofitting one was judged too risky on "the most complex, most
+// heavily-shared view in the codebase"), while Pure Live already has a real
+// one (MapViewport above). Building fly-to on top of a camera that already
+// exists is the low-risk path; Overview gets nothing new here.
+
+// {kind, key, label, sub, floor_id, x_m, y_m} for every object/room/scanner
+// the live snapshot + fabric currently know about. An object with no fabric
+// position (BLE-only, room-level placement) falls back to its ROOM's
+// centroid — the exact same fallback iso_lights.js/overview.js already use
+// for an "unplaced" light or object, so a search result never just vanishes
+// for a device the fabric hasn't pinned to the centimetre.
+function _buildSearchIndex(ctx) {
+  const snap = ctx.state.live?.snapshot;
+  const model = ctx.state.model || {};
+  const geo = model.room_geometry_m || {};
+  const roomCentroid = {};
+  for (const [room, g] of Object.entries(geo)) {
+    if (g?.type === "poly" && Array.isArray(g.points_m) && g.points_m.length) {
+      const n = g.points_m.length;
+      roomCentroid[room] = {
+        x_m: g.points_m.reduce((a, p) => a + p[0], 0) / n,
+        y_m: g.points_m.reduce((a, p) => a + p[1], 0) / n,
+        floor_id: g.floor_id || "main",
+      };
+    } else if (g?.type === "circle") {
+      roomCentroid[room] = { x_m: g.cx_m || 0, y_m: g.cy_m || 0, floor_id: g.floor_id || "main" };
+    }
+  }
+
+  const out = [];
+  for (const o of (snap?.objects?.list || [])) {
+    const key = o.key || o.address || o.entity_id;
+    if (!key) continue;
+    const label = o.user_label || o.private_ble_name || o.name || String(key).substring(0, 18);
+    const pos = (o.x_m != null && o.y_m != null)
+      ? { x_m: o.x_m, y_m: o.y_m, floor_id: o.floor_id }
+      : roomCentroid[o.room];
+    if (!pos) continue;   // no fabric position AND no room to fall back to
+    out.push({ kind: "object", key, label, sub: o.room || "", ...pos });
+  }
+  for (const [room, pos] of Object.entries(roomCentroid)) {
+    out.push({ kind: "room", key: room, label: room, sub: "Room", ...pos });
+  }
+  const scanPos = model.scanner_positions_m || {};
+  for (const r of (snap?.ble?.radios || [])) {
+    const pos = scanPos[r.source];
+    if (!pos) continue;
+    out.push({
+      kind: "scanner", key: r.source, label: r.name || r.source, sub: r.area_name || "Scanner",
+      x_m: pos.x_m, y_m: pos.y_m, floor_id: pos.floor_id,
+    });
+  }
+  return out;
+}
+
+// Switches Pure Live/Overview's shared floor-focus slider to the result's
+// floor (a plain instant switch — matching every OTHER floor change in this
+// codebase today; an ANIMATED slab transition is gap #18's job, not this
+// one's), then measures the result's own projected position via fabricFrame
+// and flies the camera there. Falls back to no-op rather than guessing if
+// the fabric is empty or the map DOM isn't mounted yet.
+function flyToResult(ctx, result) {
+  const floors = ctx.state.model?.floors || [];
+  const floorGap = ctx.state._overviewFloorGap ?? ctx.state.settings?.overview_iso_floor_gap ?? 150;
+  const horizGap = ctx.state._overviewHorizGap ?? ctx.state.settings?.overview_iso_horiz_gap ?? 0;
+  const frame = fabricFrame(ctx.state.model, floors, floorGap, horizGap);
+  if (frame.empty) return;
+
+  const z = frame.levelOf(result.floor_id || "main");
+  const floorIdx = frame.levels.indexOf(z);
+  const focusIdx = floorIdx >= 0 ? 2 * floorIdx + 1 : 0;   // see overview.js's _isoPos: [null, z0, [z0,z1], z1, ...]
+  const switchingFloor = floorIdx >= 0 && ctx.state._overviewIsoFocusIdx !== focusIdx;
+  if (switchingFloor) {
+    ctx.state._overviewIsoFocusIdx = focusIdx;
+    _mapNode = null;
+    ctx.actions.renderRooms();
+  }
+
+  // overview.js's own render ALWAYS shows a "Building 3D map…" placeholder
+  // first and defers the actual heavy SVG build (see its own "Initial
+  // load" comment) — true whether or not this call switched floors, and
+  // the defer's timing isn't something this module can wait on directly.
+  // Poll for the real map to land rather than guessing one fixed delay:
+  // a same-floor fly (the common case) usually finds it on the very first
+  // check, and a floor switch's rebuild gets however long it actually
+  // needs, up to a few seconds, before giving up silently.
+  const tryFly = (attempt) => {
+    const camera = ctx.state._pureLiveCamera;
+    const vp = camera?.getViewportEl();
+    // NOT document.querySelector — the whole panel lives inside a custom
+    // element's shadow root (<padspan-ha-app>), which the top-level
+    // `document` cannot see into at all. getRootNode() off a node already
+    // known to be inside that tree (the viewport) finds the actual
+    // shadow root regardless of how deep this component is mounted.
+    const mapRoot = vp?.getRootNode()?.querySelector?.("[data-padspan-map]");
+    const svg = mapRoot?.querySelector("svg");
+    const vb = svg?.viewBox?.baseVal;
+    const ready = camera && vp && svg && vb && vb.width && vb.height;
+    if (!ready) {
+      if (attempt < 20) setTimeout(() => tryFly(attempt + 1), 100);
+      return;
+    }
+    const svgRect = svg.getBoundingClientRect();
+    const vpRect = vp.getBoundingClientRect();
+    const [sx, sy] = frame.iso(result.x_m, result.y_m, z);
+    const pxPerUnitX = svgRect.width / vb.width, pxPerUnitY = svgRect.height / vb.height;
+    const relX = (svgRect.left - vpRect.left) + (sx - vb.x) * pxPerUnitX;
+    const relY = (svgRect.top - vpRect.top) + (sy - vb.y) * pxPerUnitY;
+    camera.flyTo(relX, relY, { scale: 1.8 });
+
+    if (result.kind === "object") {
+      // Reuses the existing "📍 Locate" ring (panel.js/overview.js,
+      // gap #10) rather than a new one — rooms/scanners have no equivalent
+      // marker to flash, so they get the fly-to zoom itself as feedback.
+      ctx.state._overviewLocateKey = result.key;
+      ctx.actions.renderRooms();
+      setTimeout(() => {
+        if (ctx.state._overviewLocateKey === result.key) {
+          ctx.state._overviewLocateKey = null;
+          ctx.actions.renderRooms();
+        }
+      }, 3900);
+    }
+  };
+  tryFly(0);
+}
+
+function SearchBox({ ctx }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const q = query.trim().toLowerCase();
+  const results = q
+    ? _buildSearchIndex(ctx).filter(r => r.label.toLowerCase().includes(q)).slice(0, 8)
+    : [];
+
+  const pick = (r) => {
+    flyToResult(ctx, r);
+    setQuery("");
+    setOpen(false);
+  };
+
+  return html`
+    <div className="pl-search">
+      <input type="text" placeholder="Search objects, rooms, scanners…" value=${query}
+             onInput=${(e) => { setQuery(e.target.value); setOpen(true); }}
+             onFocus=${() => setOpen(true)}
+             onBlur=${() => setTimeout(() => setOpen(false), 150)} />
+      ${open && results.length > 0 && html`
+        <div className="pl-search-results">
+          ${results.map(r => html`
+            <div key=${r.kind + r.key} className="pl-search-result"
+                 onMouseDown=${(e) => e.preventDefault()}
+                 onClick=${() => pick(r)}>
+              <span className="pl-search-kind">${r.kind}</span>
+              <span className="pl-search-label">${r.label}</span>
+              ${r.sub && html`<span className="pl-search-sub">${r.sub}</span>`}
+            </div>
+          `)}
+        </div>
+      `}
+    </div>
+  `;
+}
+
 // ── Followed Device Tracker ──────────────────────────────────────────────────
 // Shows followed devices as golden pulsing chips with their current room.
 function FollowedTracker({ ctx, snap }) {
@@ -614,6 +870,7 @@ function FollowedTracker({ ctx, snap }) {
       room: o.room || "Unknown",
       rssi: o.rssi,
       age: o.age_s,
+      x_m: o.x_m, y_m: o.y_m, floor_id: o.floor_id,
     });
   }
 
@@ -630,6 +887,13 @@ function FollowedTracker({ ctx, snap }) {
             <span style="font-size:10px;color:#94a3b8">in</span>
             <span style="font-size:11px;font-weight:600;color:#5eead4">${d.room}</span>
             ${d.rssi != null && html`<span style="font-size:9px;color:#64748b">${d.rssi}dBm</span>`}
+            ${d.x_m != null && d.y_m != null && html`
+              <span className="pl-tracked-locate" title="Center camera on ${d.label}"
+                    onClick=${(e) => { e.stopPropagation();
+                      flyToResult(ctx, { kind: "object", key: d.key, x_m: d.x_m, y_m: d.y_m, floor_id: d.floor_id }); }}>
+                🎯
+              </span>
+            `}
           </div>
         `)}
       </div>
@@ -686,7 +950,11 @@ function ActivityFeed({ roomTagMap }) {
 // ── Map Controls Bar ─────────────────────────────────────────────────────────
 function MapControls({ ctx }) {
   const settings = ctx.state.settings || {};
-  const [focusIdx, setFocusIdx] = useState(ctx.state._overviewIsoFocusIdx ?? 0);
+  // Read straight off ctx.state on every render, not local useState: a
+  // fly-to search result (gap #16, best-in-class roadmap) can switch the
+  // focused floor from OUTSIDE this component, and a stale local copy
+  // would leave the slider pointing at the wrong floor after that happens.
+  const focusIdx = ctx.state._overviewIsoFocusIdx ?? 0;
   const [gap, setGap] = useState(ctx.state._overviewFloorGap ?? 150);
   const [lr, setLr] = useState(ctx.state._overviewHorizGap ?? 0);
   const [walls, setWalls] = useState(!!ctx.state._overviewShowWalls);
@@ -710,7 +978,7 @@ function MapControls({ ctx }) {
       <span>Floor:</span>
       <input type="range" min="0" max="10" value=${focusIdx}
              style="width:70px;accent-color:#52b788"
-             onInput=${e => { const v=+e.target.value; setFocusIdx(v); ctx.state._overviewIsoFocusIdx=v; rebuild(); }} />
+             onInput=${e => { ctx.state._overviewIsoFocusIdx=+e.target.value; rebuild(); }} />
       <span>Gap:</span>
       <input type="range" min="60" max="340" step="10" value=${gap}
              style="width:60px;accent-color:#52b788"
@@ -780,9 +1048,10 @@ function App({ ctx }) {
   return html`
     <div className=${"pl-root" + (kiosk ? " pl-kiosk" : "")}>
       <div className="pl-map-area">
-        <${MapViewport}>
+        <${MapViewport} ctx=${ctx}>
           <${IsoMap} ctx=${ctx} />
         <//>
+        <${SearchBox} ctx=${ctx} />
         ${_isSusp && html`
           <div style=${{
             position:"absolute",top:"8px",left:"50%",transform:"translateX(-50%)",zIndex:100,
