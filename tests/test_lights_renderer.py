@@ -1258,21 +1258,40 @@ def test_motion_sensor_pulses_blue_while_triggered_and_fans_do_not_pool(tmp_path
     assert out["motionGlyph"] and out["fanGlyph"], out
 
 
-def test_motion_sensor_fades_blue_to_green_on_one_clock_whether_on_or_quiet(tmp_path):
+def test_motion_sensor_fades_through_a_distinct_rainbow_while_quiet_but_stays_fixed_blue_while_on(tmp_path):
     """Garry, across several rounds: "if a motion detector went off in the
     last 6 hours the flashing blue goes to a flashing purple after the blue
     has stopped" — "so all colours from blue to purple over 6 hours" — then,
     watching it live: "don't think the color is changing" (a continuous
     sweep moves under 1deg/minute, correct but invisible) — "the blue only
-    stays on for 5 minutes, and the next color is visibly not blue" — and
-    finally, the settled spec: "start blue, stay blue for 5 minutes, and
-    then cycle thru all colors and end on green after 2 hours." A STEP
-    function: held stages, each a genuinely distinct hue, front-loaded, the
-    sweep running the LONG way round the wheel (through violet, magenta,
-    red, orange, yellow) so it passes every colour family on the way to
-    green rather than just the two hues nearest blue. last_changed is HA's
-    own field for when a binary_sensor stopped tripping; nowMs is injectable
-    so this test does not race a real clock."""
+    stays on for 5 minutes, and the next color is visibly not blue" — then,
+    the one-clock-whether-on-or-quiet version: "why can't you get this
+    right! ... they start blue for 5 minutes, then cycle thru every color
+    ... after 2 hours end up on green ... all types of motion sensors and
+    occupance sensor replicate the same behavior. I need consistancy!" —
+    live data showed the actual bugs: (1) the first three stops (blue,
+    violet, magenta) are all "cool" blue-purple-pink tones that read as one
+    colour at a glance even though they are 40deg apart on paper, so a room
+    re-triggered inside 20 minutes only ever looked blue; (2) applying that
+    same elapsed-since-last-changed clock to the TRIGGERED state meant a
+    genuine occupancy/radar sensor that stays "on" for hours while someone
+    is continuously present faded all the way to the "long since quiet"
+    colour while the room was still actively occupied — backwards for
+    "simple occupancy viewing", and Garry's real complaint: "I need
+    consistent behaviour regardless of the sensor type."
+
+    Settled design: while TRIGGERED, always the same fixed active colour —
+    blue — whatever the device class or how long it has been "on"; that is
+    what actually makes a five-second-hold PIR and a sustained occupancy
+    sensor read identically, more directly than a shared elapsed clock did.
+    The elapsed-since-last-changed clock still runs, but only once a sensor
+    has gone QUIET, driving a step function through classic, immediately-
+    distinct colour-wheel colours (blue/cyan/green/yellow/orange/red/
+    magenta) — held stages, front-loaded, the long way round the wheel so
+    it passes every colour family on the way to the held end colour
+    (magenta, at 2h). last_changed is HA's own field for when a
+    binary_sensor stopped tripping; nowMs is injectable so this test does
+    not race a real clock."""
     model = {
         "room_geometry_m": {"Hall": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
         "light_positions_m": {
@@ -1313,12 +1332,12 @@ def test_motion_sensor_fades_blue_to_green_on_one_clock_whether_on_or_quiet(tmp_
         "binary_sensor.almost_six":      {"entity_id": "binary_sensor.almost_six",      "state": "off", "code": "M07", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H - 1000)},
         "binary_sensor.over_six":        {"entity_id": "binary_sensor.over_six",        "state": "off", "code": "M08", "shape": "motion", "isMotion": True, "last_changed": NOW - (6 * H + 1000)},
         "binary_sensor.no_ts":           {"entity_id": "binary_sensor.no_ts",           "state": "off", "code": "M09", "shape": "motion", "isMotion": True, "last_changed": None},
-        # A sensor that is CURRENTLY "on" runs the exact same clock as one
-        # that has gone quiet — elapsed since last_changed, same colour
-        # schedule. A hold-time or a genuine sustained-occupancy sensor that
-        # keeps reporting "on" must sweep through the same stages a
-        # momentary PIR does once it goes quiet, not stay flat blue for as
-        # long as its own hardware happens to keep the state "on".
+        # A sensor that is CURRENTLY "on" is always the fixed active colour
+        # (blue), whatever its device class or how long it has been "on" —
+        # a hold-time PIR and a genuine sustained-occupancy sensor that has
+        # been continuously "on" for hours must look identical, and neither
+        # one may fade toward the "long since quiet" colours while it is
+        # still actively triggered.
         "binary_sensor.active":          {"entity_id": "binary_sensor.active",          "state": "on",  "code": "M10", "shape": "motion", "isMotion": True, "last_changed": NOW - 5 * H},
         "binary_sensor.active_fresh":    {"entity_id": "binary_sensor.active_fresh",    "state": "on",  "code": "M11", "shape": "motion", "isMotion": True, "last_changed": NOW - 1000},
         # Reporting "on" continuously past the 6h outer cutoff is a stuck
@@ -1367,31 +1386,28 @@ def test_motion_sensor_fades_blue_to_green_on_one_clock_whether_on_or_quiet(tmp_
     # same solid blue — no drift at all within the hold.
     assert out["justNow"] == 240, out
     assert out["underFive"] == 240, "the 5-minute hold must be a firm hold, not a slow drift toward it ending"
-    # The very next instant after 5 minutes: a BIG, unmistakable jump —
-    # "a clear 5 min indicator" — not a one-degree nudge off blue.
-    assert out["justAfterFive"] is not None and abs(out["justAfterFive"] - 240) >= 30, \
-        f"the step right after 5 minutes must be visibly not blue: {out}"
-    # 50 minutes in: further along still — the march through the rainbow
-    # continues, neither blue nor the final green.
-    assert out["midSweep"] is not None
-    assert abs(out["midSweep"] - 240) > 60 and out["midSweep"] != 120, \
-        f"the 50-min mark must read as neither blue nor green: {out}"
-    # Exactly 2h, and every point past it out to the 6h cutoff: green, held.
-    assert out["atTwoHours"] == 120, "2h is the stop's own boundary — must already be green, not the stage before it"
-    assert out["pastTwoHours"] == 120, out
-    assert out["almostSix"] == 120, "green is held all the way to the 6h edge, not swept past"
+    # The very next instant after 5 minutes: a BIG, unmistakable jump to
+    # cyan — a genuinely different colour family, not a nudge within the
+    # same blue-purple cluster the earlier violet/magenta stops read as.
+    assert out["justAfterFive"] == 180, \
+        f"the step right after 5 minutes must be cyan, visibly a different colour family than blue: {out}"
+    # 50 minutes in: past the 40-min (yellow) stop, before the 65-min
+    # (orange) one — neither blue nor the final magenta.
+    assert out["midSweep"] == 60, f"the 50-min mark must read as yellow (the 40-min stop, held): {out}"
+    # Exactly 2h, and every point past it out to the 6h cutoff: magenta, held.
+    assert out["atTwoHours"] == 300, "2h is the stop's own boundary — must already be magenta, not the stage before it"
+    assert out["pastTwoHours"] == 300, out
+    assert out["almostSix"] == 300, "magenta is held all the way to the 6h edge, not swept past"
     # Past 6h: no glow at all — "recent" has a hard edge.
     assert out["overSix"] is None, "a sensor quiet for over 6 hours must show no recent-pulse at all"
     # No timestamp at all (defensive): no glow, no crash.
     assert out["noTs"] is None, out
-    # A CURRENTLY TRIGGERED sensor runs the exact same clock as a quiet one:
-    # 5h in, it reads green — the same stage a quiet sensor would show at
-    # the same elapsed time, not the flat, unchanging blue every "on"
-    # sensor used to show regardless of how long its own hardware had held
-    # the state.
-    assert out["activeHue"] == 120, \
-        f"an 'on' sensor 5h since its last transition must be green, same as a quiet one: {out}"
-    # An "on" sensor that JUST started must still start blue.
+    # A CURRENTLY TRIGGERED sensor is ALWAYS the fixed active colour (blue),
+    # never elapsed-shifted — 5h since its last transition must look
+    # identical to one that just started, not fade toward "long since
+    # quiet" while the room is still actively occupied.
+    assert out["activeHue"] == 240, \
+        f"an 'on' sensor must always read as the fixed active blue, whatever its elapsed time: {out}"
     assert out["activeFreshHue"] == 240, out
     # An "on" sensor stuck past the 6h outer cutoff gets the same hard edge
     # a quiet one gets: no pulse ring, no recency ring — nothing, because a

@@ -1607,21 +1607,32 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // Two layers: a breathing soft disc, and a ring that expands and fades,
     // radar-style, on a shared 1.6s clock.
     //
-    // The ring's COLOUR is not fixed blue — it takes the same elapsed-since-
-    // last-transition hue the quiet-sensor ring uses (motionRecentHue,
-    // below). Before this, an "on" sensor was always the flat, unchanging
-    // brand blue for as long as its own hardware happened to keep reporting
-    // "on" — five seconds for a short-hold PIR, twenty minutes for a
-    // sensor with a long retrigger timer, indefinitely for a genuine
-    // occupancy/radar unit that stays "on" for as long as someone is
-    // actually in the room. Three different pieces of hardware, three
-    // completely different-looking markers, none of them related to Garry's
-    // actual spec ("start blue, stay blue for 5 minutes, and then cycle
-    // thru all colors") — that spec describes ONE continuous clock running
-    // from the last time the sensor changed state, and it has to keep
-    // running whether the sensor is currently on or has gone quiet, or two
-    // sensors with different hold-time firmware will never look the same
-    // even though nothing about the ROOM is actually different.
+    // The ring's colour while triggered is ALWAYS the fixed active hue
+    // (MOTION_COLOR_STOPS[0][1]) — never elapsed-shifted, whatever the
+    // device class or how long it has been "on". Two things this fixes at
+    // once, both from Garry's own live reports:
+    //   1. (2026-09-03, the original problem this pulse exists to solve)
+    //      A short-hold PIR, a long-retrigger PIR and a sustained
+    //      occupancy/radar unit used to each look different simply because
+    //      their hardware holds "on" for a different length of time. A
+    //      fixed colour while triggered is the most direct fix — three
+    //      different pieces of hardware now look IDENTICAL while active,
+    //      which a shared elapsed clock (tried first, see git history)
+    //      does not actually guarantee.
+    //   2. (2026-09-05) That EARLIER fix — one continuous elapsed-since-
+    //      last-changed clock running whether "on" or "off" — swapped in a
+    //      worse inconsistency: a genuine occupancy/radar sensor that
+    //      stays "on" for hours while someone is continuously present has
+    //      a last_changed that is also hours old, so its pulse faded all
+    //      the way to the "long since quiet" colour while the room was
+    //      still actively occupied — backwards for "simple occupancy
+    //      viewing" (Garry: "I need consistent behaviour regardless of the
+    //      sensor type"). Triggered now always means the same thing, on
+    //      sight, for every sensor class: something is happening HERE,
+    //      RIGHT NOW. The elapsed clock still runs, but only once a sensor
+    //      goes QUIET (motionRecentPulseSvg, below) — that is genuinely a
+    //      "how long ago" question, and every class starts that clock at
+    //      the same place (last_changed, the moment it went quiet).
     const motionPulseSvg=(hx,hy,eid,degSweep)=>{
       const r0=HEX_R*1.15;
       const col=`hsl(${degSweep.toFixed(0)},75%,58%)`;
@@ -1636,27 +1647,29 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     };
 
     // A sensor that has GONE QUIET still says how long ago, at a glance.
-    // Revised twice against the same complaint, both times about the SAME
-    // thing: a smooth sweep is invisible at a glance, and the milestones
-    // must actually be reachable in the window that matters. Garry's final
-    // spec: "start blue, stay blue for 5 minutes, and then cycle thru all
-    // colors and end on green after 2 hours." A STEP function, held stages,
-    // front-loaded (blue gets a firm 5-minute hold, then a big jump) because
-    // "how long ago, roughly" needs fine resolution early and only coarse
-    // resolution once it has been a while — the last stage (green) is
-    // reached at the 2-hour mark and held from there, not swept to at the
-    // edge of some much longer cutoff. The sweep runs the LONG way round
-    // the wheel (through violet/magenta/red/orange/yellow), not the short
-    // way through cyan/teal, so it actually passes through every colour
-    // family on the way to green rather than just the two hues nearest blue.
+    // Revised three times against variations of the same complaint. First:
+    // a smooth sweep is invisible at a glance, and the milestones must
+    // actually be reachable in the window that matters — fixed by a STEP
+    // function, held stages, front-loaded (fine resolution early, coarse
+    // once it has been a while). Then (2026-09-05): the first three stops
+    // — blue/violet/magenta, all "cool" blue-purple-pink tones — read as
+    // one colour to a glance even though they are 40deg apart on paper, so
+    // in practice most rooms (re-triggered inside 20min, or quiet for
+    // hours) only ever LOOKED like two states, blue and green. Every stop
+    // below is now a classic, immediately-nameable colour-wheel colour
+    // (blue/cyan/green/yellow/orange/red/magenta), evenly spaced by eye
+    // rather than by degree count, still travelling the long way round the
+    // wheel so it passes through every colour family exactly once on the
+    // way to the held end colour (magenta, reached at 2h). Timings
+    // unchanged from the original spec — only which colour lands at each one.
     const MOTION_COLOR_STOPS=[
       [0,          240],  // blue — the active colour, holds firm for 5 min
-      [5*60*1000,  280],  // violet — the first, deliberately obvious jump
-      [20*60*1000, 320],  // magenta
-      [40*60*1000,   0],  // red
-      [65*60*1000,  40],  // orange
-      [90*60*1000,  80],  // yellow
-      [120*60*1000,120],  // green — reached at 2h, held from there
+      [5*60*1000,  180],  // cyan
+      [20*60*1000, 120],  // green
+      [40*60*1000,  60],  // yellow
+      [65*60*1000,  30],  // orange
+      [90*60*1000,   0],  // red
+      [120*60*1000,300],  // magenta — reached at 2h, held from there
     ];
     const motionRecentHue=(elapsedMs)=>{
       let hue=MOTION_COLOR_STOPS[0][1];
@@ -2018,17 +2031,18 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       }
     }
     // Motion sensors pulse beneath their markers — live status, not a
-    // presentation effect — on ONE clock whichever state they're in:
-    // elapsed since the ENTITY'S OWN last_changed, which is the moment it
-    // started triggering while "on" and the moment it stopped while "off".
-    // Using the same clock and the same colour schedule (motionRecentHue)
-    // for both is what makes hardware with a five-second hold timer, a
-    // twenty-minute one, and a sustained occupancy sensor that stays "on"
-    // for as long as someone is actually there all read the same way at
-    // the same elapsed time — none of that is visible here, only how long
-    // it has been since something changed. Past the outer cutoff nothing
-    // is drawn at all, on or off: a sensor still reporting "on" six hours
-    // later is a stuck sensor, not six hours of continuous fresh motion.
+    // presentation effect. Elapsed since the ENTITY'S OWN last_changed
+    // still runs on ONE clock whichever state a sensor is in (the moment
+    // it started triggering while "on", the moment it stopped while
+    // "off") — that part stays: it is still what decides when a stuck-"on"
+    // sensor should vanish rather than being drawn forever. What no longer
+    // depends on that elapsed value is the ACTIVE colour itself — see
+    // motionPulseSvg's own comment for why a fixed hue while triggered, not
+    // an elapsed-shifted one, is what actually makes a five-second-hold
+    // PIR, a twenty-minute one, and a sustained occupancy sensor read the
+    // same. Past the outer cutoff nothing is drawn at all, on or off: a
+    // sensor still reporting "on" six hours later is a stuck sensor, not
+    // six hours of continuous fresh motion.
     if(LOCATE_EID){
       const found=jobs.find(j=>j[0].entity_id===LOCATE_EID);
       if(found) s+=locateSvg(found[1],found[2]);
@@ -2040,16 +2054,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // no recency to show. While ON it is not: the sensor is demonstrably
       // active RIGHT NOW regardless of whether last_changed happened to
       // come through, so a missing/bad timestamp there falls back to
-      // elapsed 0 (blue, just like a fresh trigger) rather than drawing
-      // nothing and silently losing the one signal ("this sensor just
-      // tripped") the marker exists to show.
+      // elapsed 0 rather than drawing nothing and silently losing the one
+      // signal ("this sensor just tripped") the marker exists to show.
       const lastMs=l2.last_changed ? Date.parse(l2.last_changed) : NaN;
       const rawElapsed=NOW_MS-lastMs;
       const elapsed=(l2.state==="on" && !(rawElapsed>=0)) ? 0 : rawElapsed;
       if(!(elapsed>=0) || elapsed>=MOTION_RECENT_MS) continue;
-      const hue=motionRecentHue(elapsed);
-      if(l2.state==="on") s+=motionPulseSvg(hx,hy,l2.entity_id,hue);
-      else s+=motionRecentPulseSvg(hx,hy,hue,l2.entity_id);
+      if(l2.state==="on") s+=motionPulseSvg(hx,hy,l2.entity_id,MOTION_COLOR_STOPS[0][1]);
+      else s+=motionRecentPulseSvg(hx,hy,motionRecentHue(elapsed),l2.entity_id);
     }
     // Halos go under EVERY marker on the floor (see haloSvg); then the
     // markers; then the use-mode stack chips, which stand in for markers.
