@@ -18,7 +18,7 @@ solution of its kind.
 | 5 | DONE (e7285bc) — no "alignment view"; numeric settings fields only | GPS geolocation bridge: fabric→lat/long, device_tracker GPS attrs, HA map interop | platform |
 | 6 | DONE (ea14f51) — pinning/auto-cal already existed; drift + matrix rows were the actual gap | Anchored beacons: stationary tags as ground truth (drift warnings, free auto-calibration) | editing |
 | 7 | DONE (9c10575) — tier 1/3 (Sweet Home 3D) only; RoomPlan JSON and image room-detection not started | Floorplan import: Sweet Home 3D first, then RoomPlan JSON, then image room-detection | editing |
-| 8 | TODO | Bind arbitrary HA entities to the floorplan (climate/cover/lock/media/camera domain registry) | presentation |
+| 8 | DONE (53ee119) — lock domain only; cover/climate/media_player/camera/sensor not started | Bind arbitrary HA entities to the floorplan (climate/cover/lock/media/camera domain registry) | presentation |
 | 9 | TODO | Predictive what-if scanner placement (ghost scanner over the existing radio-map model) | analytics |
 | 10 | TODO | Persistent lost-and-found: "last known room" inventory that never resets to Unknown | presentation |
 | 11 | TODO | Map interaction parity: pan/zoom everywhere, keyboard nav, touch tooltips, numeric entry | presentation |
@@ -141,9 +141,26 @@ the research output; the essentials are restated per item below.
    available to test against; the parser is DTD-verified but not yet
    confirmed against a real file — treat the first real import as the
    actual validation.
-8. **HA entities on the map** — domain registry generalizing the lights
-   pipeline (glyphs, state text, threshold color, tap/hold cards) for climate,
-   cover, lock, media_player, camera, sensor.
+8. **HA entities on the map** — DONE for lock, the proof of the pattern.
+   Verified first that the pipeline's domain-dispatch was already an
+   established (if informal) pattern — fan/motion/temp were each added the
+   same way: an isX() classifier, a code-series letter, a glyph, a health
+   branch, a placement-whitelist entry. lock was chosen over cover/
+   climate/media_player/camera because its 3-state shape (locked/unlocked/
+   jammed) already matches every assumption this pipeline makes — one
+   glyph, a small closed state set, one tap action — matching a light's
+   on/off shape exactly, unlike climate/media_player's numeric ranges or
+   camera's live-image needs. Every extension point got the lock
+   treatment: classifier, L-series code, padlock glyph (new shapeSvg/
+   shapeDetailSvg case), jammed-is-unhealthy health check, class-filter
+   chip, list-table state text, and — the part that would have silently
+   broken locks specifically — lock/unlock services swapped in wherever
+   the pipeline assumed turn_on/turn_off (openControlCard, _toggle,
+   onRowClick), since the lock domain has neither service.
+   REMAINING: cover (natural next — same toggle shape, 4 states), climate
+   and media_player (need real new gauge/slider rendering, not just a new
+   glyph), camera (live image fetching — structurally unlike anything in
+   this pipeline), sensor (arbitrary, needs its own display convention).
 9. **What-if placement** — draggable ghost scanner recomputing the existing
    modelled-coverage overlay live + room-discrimination delta score.
 10. **Lost-and-found** — persisted last-confirmed room/time per tagged object
