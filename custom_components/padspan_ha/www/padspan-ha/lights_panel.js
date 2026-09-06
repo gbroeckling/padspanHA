@@ -265,12 +265,15 @@ class PadSpanLightsApp extends HTMLElement {
     const domain=String(eid).split(".")[0];
     if(domain==="binary_sensor"){ this._toast("Motion sensors are read-only"); return; }
     if(domain==="sensor"){ this._toast("Temperature sensors are read-only"); return; }
-    const on=this._hass.states[eid]?.state==="on";
+    // lock.* (gap #8, best-in-class roadmap) has no on/off at all —
+    // "locked" is its normal state, lock/unlock its services.
+    const isLockDomain=domain==="lock";
+    const on=isLockDomain ? this._hass.states[eid]?.state==="locked" : this._hass.states[eid]?.state==="on";
     // Optimistic: the marker flips NOW (shared claim in lights_map.js, so the
     // index row flips with it), and HA's next state reconciles it. A failed
     // call takes the claim back at once and shakes the marker — a tap that
     // did nothing must never look like a tap that worked.
-    setOptimistic(eid, on?"off":"on");
+    setOptimistic(eid, isLockDomain ? (on?"unlocked":"locked") : (on?"off":"on"));
     this._render();
     try{
       // Off→on restores the level it was dimmed to. HA drops `brightness`
@@ -282,7 +285,8 @@ class PadSpanLightsApp extends HTMLElement {
         const bri=lastBrightness(eid);
         if(bri!==null) data.brightness=bri;
       }
-      await this._hass.callService(domain, on?"turn_off":"turn_on", data);
+      const svc=isLockDomain ? (on?"unlock":"lock") : (on?"turn_off":"turn_on");
+      await this._hass.callService(domain, svc, data);
       setTimeout(()=>this._render(), 600);
     }catch(e){
       clearOptimistic(eid);
@@ -333,7 +337,7 @@ class PadSpanLightsApp extends HTMLElement {
   // The api the shared use surface and sheets act through — the sidebar's
   // toggle (optimistic + shake), its control card, its aggregate action.
   _useApi(lightsByEid, lights){
-    const controlsFor=(l0)=>!!(l0 && (isWledLight(l0)||isPartitionLight(l0)||l0.dimmable||l0.isFan));
+    const controlsFor=(l0)=>!!(l0 && (isWledLight(l0)||isPartitionLight(l0)||l0.dimmable||l0.isFan||l0.isLock));
     const api={
       hass:this._hass, lightsByEid, lights, controlsFor,
       toggle:(eid)=>this._toggle(eid),
@@ -466,9 +470,9 @@ class PadSpanLightsApp extends HTMLElement {
       // motion sensor in the list still said "read-only" long after tapping
       // its marker on the map started opening the calendar.
       onRowClick: (l)=> l.isMotion ? openActivityCalendar(this._hass, l.entity_id) : this._toggle(l.entity_id),
-      onRowLongPress: (l)=>{ if(isWledLight(l) || isPartitionLight(l) || l.dimmable || l.isFan) this._openWledDetail(l.entity_id); },
+      onRowLongPress: (l)=>{ if(isWledLight(l) || isPartitionLight(l) || l.dimmable || l.isFan || l.isLock) this._openWledDetail(l.entity_id); },
       // The "⋯" on every row: the controls in plain sight.
-      onRowMore: (l)=>{ if(isWledLight(l) || isPartitionLight(l) || l.dimmable || l.isFan) this._openWledDetail(l.entity_id); else this._toggle(l.entity_id); },
+      onRowMore: (l)=>{ if(isWledLight(l) || isPartitionLight(l) || l.dimmable || l.isFan || l.isLock) this._openWledDetail(l.entity_id); else this._toggle(l.entity_id); },
       onToggleHidden: (eid)=>{
         if(hidden.has(eid)) hidden.delete(eid);
         else hidden.add(eid);

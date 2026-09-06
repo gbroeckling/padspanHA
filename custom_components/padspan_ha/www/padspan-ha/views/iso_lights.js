@@ -18,7 +18,7 @@
 // refused to place a light. Everything the view needs is in the fabric, in
 // metres, and now that is the only thing it reads.
 
-const { WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, MOTION_PULSE, TEMP_BORDER } =
+const { WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, MOTION_PULSE, TEMP_BORDER, LOCK_BORDER } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 
 function escSVG(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
@@ -290,6 +290,22 @@ export function shapeSvg(kind, cx, cy, r, attrs){
         `height="${n(stemBot-stemTop)}" rx="${n(stemW/2)}" ${attrs}/>`+
         `<circle cx="${n(cx)}" cy="${n(cy+HW*0.55)}" r="${n(bulbR)}" ${attrs}/>`;
     }
+    // A padlock: solid shackle arch over a solid body — the universal
+    // access-control symbol, so a lock reads as a lock even to someone
+    // who has never seen this map before. Solid, like every glyph here
+    // (the code label is drawn across it — a hollow ring would leave dark
+    // text on the dark map, same reason "tempreadout" is a filled bulb).
+    case "lock": {
+      const bodyW=HW*1.3, bodyH=HW*0.9, bodyTop=cy+HW*0.15;
+      const shackleTop=bodyTop-HW*0.12, outerR=HW*0.62, innerR=HW*0.32;
+      const shackleD=sub([
+        ...arcPts(cx,shackleTop,outerR,outerR,180,360,12),
+        ...arcPts(cx,shackleTop,innerR,innerR,360,180,12),
+      ]);
+      return `<path d="${shackleD}" ${attrs}/>`+
+        `<rect x="${n(cx-bodyW/2)}" y="${n(bodyTop)}" width="${n(bodyW)}" `+
+        `height="${n(bodyH)}" rx="${n(bodyW*0.12)}" ${attrs}/>`;
+    }
     case "triangle":
       return poly([[cx,cy-r],[cx+HW,cy+r*0.62],[cx-HW,cy+r*0.62]]
         .map(p=>`${n(p[0])},${n(p[1])}`).join(" "));
@@ -373,6 +389,8 @@ export function shapeDetailSvg(kind, cx, cy, r, ink, sw){
     case "triangle": return ring(cx,cy+r*0.26,HW*0.32)+
                             line(cx-HW*0.4,cy+r*0.55,cx+HW*0.4,cy+r*0.55);
     case "diamond":  return ring(cx,cy,HW*0.42)+dot(cx,cy,HW*0.15);
+    // The keyhole — the one detail that says "lock" unambiguously at any size.
+    case "lock":     return dot(cx,cy+HW*0.08,HW*0.14)+line(cx,cy+HW*0.08,cx,cy+HW*0.42);
     // An inset frame — the glyph's own echo of what it actually draws
     // full-size on the floor: a boundary, traced inside another boundary.
     case "perimeter": return `<rect x="${n(cx-HW*0.62)}" y="${n(cy-HW*0.62)}" `+
@@ -410,6 +428,7 @@ export function lightClassOf(l){
   if(l.isFan) return "fan";
   if(l.isMotion) return "motion";
   if(l.isTemp) return "temp";
+  if(l.isLock) return "lock";
   if(l.isWled||l.isPartition) return "strip";
   return "light";
 }
@@ -1032,12 +1051,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   if(SHOW){
     for(const l of lights){
       const li=lightsByEid[l.eid];
-      if(!li || li.state!=="on" || hiddenEids.has(l.eid) || li.isFan || li.isMotion || li.isTemp) continue;
+      if(!li || li.state!=="on" || hiddenEids.has(l.eid) || li.isFan || li.isMotion || li.isTemp || li.isLock) continue;
       const c=(FIELD ? fieldColOf(l.x,l.y,l.z) : null) || glowCol(li,l.lp);
       if(!glowIds.has(c)) glowIds.set(c, `psglow_${glowIds.size}`);
     }
     for(const rname of Object.keys(byRoom||{})) for(const li of byRoom[rname]||[]){
-      if(li.state!=="on" || hiddenEids.has(li.entity_id) || li.isFan || li.isMotion || li.isTemp) continue;
+      if(li.state!=="on" || hiddenEids.has(li.entity_id) || li.isFan || li.isMotion || li.isTemp || li.isLock) continue;
       const rc=FIELD && roomCentre.get(rname);
       const c=(rc ? fieldColOf(rc[0],rc[1],rc[2]) : null) || glowCol(li, null);
       if(!glowIds.has(c)) glowIds.set(c, `psglow_${glowIds.size}`);
@@ -1356,7 +1375,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // the raw state alone: an alarm zone's hardware clears in ~5s and
       // the icon used to go dark then, mid-flash. Every other class is the
       // raw state, as always.
-      const on=l.isMotion ? motionActive(l) : l.state==="on";
+      // A lock has no "on"/"off" state at all — "locked" is its normal,
+      // secure state, so that is what reads as lit here, the same way a
+      // light being on is its normal active state. "unlocked" and
+      // "jammed" both read as dim/attention, same treatment as a light
+      // that's off.
+      const on=l.isMotion ? motionActive(l) : (l.isLock ? l.state==="locked" : l.state==="on");
       // A custom pin colour applies to the LIT state only. Using it while the
       // light is off made every placed light look permanently on, which breaks
       // the one thing the sidebar exists for.
@@ -1368,7 +1392,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         :(l.isPartition?PARTITION_BORDER
         :(l.isFan?FAN_BORDER
         :(l.isMotion?MOTION_BORDER
-        :(l.isTemp?TEMP_BORDER:null))));
+        :(l.isTemp?TEMP_BORDER
+        :(l.isLock?LOCK_BORDER:null)))));
       const stroke=SHOW
         ? (on?(stripBorder||"#f8fafc"):"#3f5165")
         : (stripBorder||"#60a5fa");

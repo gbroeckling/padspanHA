@@ -100,13 +100,16 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
         connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
         return
     eid = (msg.get("entity_id") or "").strip()
-    # Fans, motion sensors and temperature sensors are placed on the lights
-    # map exactly like a light — same store, same metres, same drag. The
-    # binary_sensor/sensor gates are by domain only; the frontend admits
-    # motion-class and temperature-class sensors alone, and a stray
-    # placement of another class is harmless (an unlit marker).
-    if not (eid.startswith("light.") or eid.startswith("fan.") or eid.startswith("binary_sensor.") or eid.startswith("sensor.")):
-        connection.send_error(msg["id"], "invalid", "a light, fan, motion-sensor or temperature-sensor entity_id is required")
+    # Fans, motion sensors, temperature sensors and (gap #8, best-in-class
+    # roadmap) locks are placed on the lights map exactly like a light —
+    # same store, same metres, same drag. The binary_sensor/sensor gates are
+    # by domain only; the frontend admits motion-class and temperature-class
+    # sensors alone, and a stray placement of another class is harmless (an
+    # unlit marker). lock.* needs no such gate — every lock entity is
+    # relevant, there is no sub-class to exclude.
+    if not (eid.startswith("light.") or eid.startswith("fan.") or eid.startswith("binary_sensor.")
+            or eid.startswith("sensor.") or eid.startswith("lock.")):
+        connection.send_error(msg["id"], "invalid", "a light, fan, motion-sensor, temperature-sensor or lock entity_id is required")
         return
     await mdl.async_set_light_position_m(
         eid, float(msg["x_m"]), float(msg["y_m"]),

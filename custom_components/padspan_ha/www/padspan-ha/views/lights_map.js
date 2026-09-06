@@ -15,7 +15,7 @@ const { buildIsoSVG, shapeSvg, fabricFrame, sampleSceneField, pointInPolygon, of
         lightClassOf } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
-        WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, TEMP_BORDER, healthOf } =
+        WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, TEMP_BORDER, LOCK_BORDER, healthOf } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 const { tierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
@@ -136,7 +136,7 @@ export function effectiveState(eid, reported, now = Date.now()){
 // ── Device classes on the map ────────────────────────────────────────────────
 // The layer chips: the map keeps every class in view and DIMS the others,
 // because a fan's place on the ceiling is context for the light beside it.
-export const LIGHT_CLASSES = [["all","All"],["light","Lights"],["strip","Strips"],["fan","Fans"],["motion","Motion"],["temp","Temps"]];
+export const LIGHT_CLASSES = [["all","All"],["light","Lights"],["strip","Strips"],["fan","Fans"],["motion","Motion"],["temp","Temps"],["lock","Locks"]];
 export { lightClassOf };
 export function classMatches(l, cls){ return !cls || cls === "all" || lightClassOf(l) === cls; }
 
@@ -772,9 +772,15 @@ export function openControlCard(hass, eid, api){
     el("button", { style: smallBtn + (api && api.onEdit ? "" : ";margin-left:auto"), onclick: close }, "✕"),
   ]));
 
-  const on = st.state === "on";
   // The service domain is the entity's own — this card serves fans too.
   const domain = String(eid).split(".")[0];
+  // lock.* has no on/off at all (gap #8, best-in-class roadmap: the first
+  // domain generalized beyond light/fan) — "locked" is its lit/normal
+  // state, lock/unlock are its services, and a jammed lock is neither, so
+  // it reads as "not locked" (offers Lock as the recovery action) with its
+  // own warning line below rather than a misleading Turn On/Off button.
+  const isLockDomain = domain === "lock";
+  const on = isLockDomain ? st.state === "locked" : st.state === "on";
   const onBtn = el("button", {
     style: "width:100%;margin-bottom:14px;padding:10px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;"
       + "letter-spacing:.02em;transition:filter .15s ease;"
@@ -786,13 +792,17 @@ export function openControlCard(hass, eid, api){
         const bri = lastBrightness(eid);
         if (bri !== null) data.brightness = bri;
       }
-      setOptimistic(eid, on ? "off" : "on");
-      try { await hass.callService(domain, on ? "turn_off" : "turn_on", data); } catch (e) { clearOptimistic(eid); }
+      const svc = isLockDomain ? (on ? "unlock" : "lock") : (on ? "turn_off" : "turn_on");
+      setOptimistic(eid, isLockDomain ? (on ? "unlocked" : "locked") : (on ? "off" : "on"));
+      try { await hass.callService(domain, svc, data); } catch (e) { clearOptimistic(eid); }
       close();
       setTimeout(rerender, 400);
     },
-  }, on ? "Turn Off" : "Turn On");
+  }, isLockDomain ? (on ? "Unlock" : "Lock") : (on ? "Turn Off" : "Turn On"));
   box.appendChild(onBtn);
+  if (isLockDomain && st.state === "jammed") {
+    box.appendChild(el("div", { style: "font-size:12px;color:#f87171;margin:-8px 0 12px" }, "⚠ Lock is jammed"));
+  }
 
   // ── Fan card ─────────────────────────────────────────────────────────
   if (domain === "fan") {
@@ -1167,16 +1177,22 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       // any other object... devices telling the temperature can also act
       // like a motion sensor" (Garry). sensor.* is a domain nothing else
       // here admits, so this can never collide with a light/fan/binary_sensor.
-      || (eid.startsWith("sensor.") && states[eid].attributes?.device_class === "temperature"))
+      || (eid.startsWith("sensor.") && states[eid].attributes?.device_class === "temperature")
+      // lock.* — gap #8, best-in-class roadmap: the first domain this
+      // pipeline generalized to beyond light/fan/binary_sensor/sensor.
+      // Whole domain, no device_class gate needed (every lock entity is
+      // relevant, unlike binary_sensor which admits door/window sensors
+      // too if left ungated).
+      || eid.startsWith("lock."))
     .map(eid => ({
       entity_id:     eid,
       friendly_name: states[eid].attributes?.friendly_name || eid,
       state:         states[eid].state,   // "on" | "off" | "unavailable"
       area_name:     areaMap[eid] || null,
       // The user's word beats detection, at pro: forced class from
-      // settings.light_type_overrides. Never applies to a fan (the domain is
-      // the class) and never below pro.
-      type_override: pro && !eid.startsWith("fan.") && typeOverrides ? (typeOverrides[eid] || null) : null,
+      // settings.light_type_overrides. Never applies to a fan or a lock
+      // (the domain is the class) and never below pro.
+      type_override: pro && !eid.startsWith("fan.") && !eid.startsWith("lock.") && typeOverrides ? (typeOverrides[eid] || null) : null,
       // The fan card's inputs, present only on fan.* entities.
       pct:           eid.startsWith("fan.") ? (Number.isFinite(Number(states[eid].attributes?.percentage)) ? Number(states[eid].attributes.percentage) : null) : null,
       preset_modes:  eid.startsWith("fan.") && Array.isArray(states[eid].attributes?.preset_modes) ? states[eid].attributes.preset_modes : null,
@@ -1778,7 +1794,8 @@ export function buildLightsTable(host, lights){
     // Sorted on exactly what the State column DISPLAYS — a temperature
     // reading numerically (so 105° sorts above 68°, not alphabetically),
     // everything else by its actual on/off.
-    ["state", "State", (l) => l.isTemp ? (Number.isFinite(l.temperature) ? l.temperature : -Infinity) : (l.state === "on" ? 1 : 0)],
+    ["state", "State", (l) => l.isTemp ? (Number.isFinite(l.temperature) ? l.temperature : -Infinity)
+      : l.isLock ? (l.state === "locked" ? 1 : 0) : (l.state === "on" ? 1 : 0)],
   ];
   const th = (key, label, extraStyle) => {
     if (!key || !host.onTableSort) return el("th", { style: extraStyle || "" }, label);
@@ -1820,7 +1837,7 @@ export function buildLightsTable(host, lights){
   const selected = host.selectedEids || null;
   const queued = host.placeQueue || null;
   for (const l of lights) {
-    const on = l.state === "on";
+    const on = l.isLock ? l.state === "locked" : l.state === "on";
     const isHidden = hidden.has(l.entity_id);
     // A row filtered out by the layer chips dims like its marker does; a
     // selected row (builder multi-select) is lit so the map and the index
@@ -1839,7 +1856,8 @@ export function buildLightsTable(host, lights){
           : (l.isPartition ? PARTITION_BORDER
           : (l.isFan ? FAN_BORDER
           : (l.isMotion ? MOTION_BORDER
-          : (l.isTemp ? TEMP_BORDER : "#52b788"))));
+          : (l.isTemp ? TEMP_BORDER
+          : (l.isLock ? LOCK_BORDER : "#52b788")))));
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         svg.setAttribute("width", "15"); svg.setAttribute("height", "15");
         svg.setAttribute("viewBox", "0 0 15 15");
@@ -1886,6 +1904,9 @@ export function buildLightsTable(host, lights){
       el("td", { class: "muted", style: "font-size:11px" }, l.brand || "—"),
       el("td", {}, l.isTemp
         ? el("span", { class: "lv-state off" }, Number.isFinite(l.temperature) ? `${l.temperature}°` : "—")
+        : l.isLock
+        ? el("span", { class: `lv-state ${l.state === "jammed" ? "off" : (on ? "on" : "off")}` },
+             l.state === "jammed" ? "JAMMED" : (on ? "LOCKED" : "UNLOCKED"))
         : el("span", { class: `lv-state ${on ? "on" : "off"}` }, on ? "ON" : "OFF")),
       el("td", { style: "text-align:center;white-space:nowrap" }, [
         // The visible way to the controls (sidebar): a "⋯" that opens the

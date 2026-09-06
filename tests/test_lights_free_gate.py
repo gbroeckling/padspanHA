@@ -400,6 +400,62 @@ console.log(JSON.stringify({
     assert out["lamp"]["code"] == "A01", out["lamp"]
 
 
+def test_lock_glyph_and_showcase_detail_are_well_formed_svg(tmp_path):
+    """shapeSvg("lock", ...) / shapeDetailSvg("lock", ...) are hand-written
+    path math (arcPts/sub — the same primitives "motion"'s dome already
+    uses) with no existing generic "render every LIGHT_SHAPES entry" test
+    to catch a malformed path — a self-intersecting or NaN-poisoned `d`
+    string would not throw, just render wrong, so check the output
+    directly rather than trust the shape registry cross-check alone."""
+    _stage(tmp_path)
+    script = ("const IL = await import('./iso_lights.mjs');\n"
+        "const body = IL.shapeSvg('lock', 50, 50, 12, 'fill=\"#fbbf24\" stroke=\"#071008\"');\n"
+        "const detail = IL.shapeDetailSvg('lock', 50, 50, 12, '#111827', 1.5);\n"
+        "console.log(JSON.stringify({body, detail}));\n")
+    (tmp_path / "run_lock_shape.mjs").write_text(script, encoding="utf-8")
+    res = subprocess.run([_NODE, str(tmp_path / "run_lock_shape.mjs")], capture_output=True,
+                         text=True, encoding="utf-8", timeout=60)
+    assert res.returncode == 0, f"node failed:\n{res.stderr[-4000:]}"
+    out = json.loads(res.stdout.strip().splitlines()[-1])
+    assert "<path" in out["body"] and "<rect" in out["body"], out["body"]
+    assert "NaN" not in out["body"], out["body"]
+    assert out["detail"] and "NaN" not in out["detail"], out["detail"]
+
+
+def test_locks_ride_the_pipeline(tmp_path):
+    """lock.* (gap #8, best-in-class roadmap: the first domain this pipeline
+    generalized to beyond light/fan/binary_sensor/sensor) — whole domain
+    admitted, no device_class gate needed (every lock entity is relevant),
+    L-series code, "lock" glyph, and never eligible for a type override
+    (the domain IS the class, same as a fan)."""
+    out = _run_pipeline_script(tmp_path, """
+const AREA = {"lock.front_door": "Entry", "light.lamp": "Kitchen"};
+const STATES = {
+  "lock.front_door": {state: "locked", attributes: {friendly_name: "Front Door"}},
+  "light.lamp": {state: "off", attributes: {friendly_name: "Lamp", supported_color_modes: ["onoff"]}},
+};
+const OVR = {"lock.front_door": "wled"};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, OVR, {}, {});
+const by = Object.fromEntries(lights.map(l => [l.entity_id, l]));
+console.log(JSON.stringify({
+  ids: lights.map(l => l.entity_id).sort(),
+  lock: by["lock.front_door"] && {
+    code: by["lock.front_door"].code, isLock: by["lock.front_door"].isLock,
+    shape: by["lock.front_door"].shape, state: by["lock.front_door"].state,
+    typeOverride: by["lock.front_door"].type_override,
+  },
+  lamp: by["light.lamp"] && {code: by["light.lamp"].code},
+}));
+""")
+    assert out["ids"] == ["light.lamp", "lock.front_door"], out["ids"]
+    lock = out["lock"]
+    assert lock["code"] == "L01" and lock["isLock"] and lock["shape"] == "lock", lock
+    assert lock["state"] == "locked", lock
+    assert lock["typeOverride"] is None, "a lock's class is its domain, never overridable"
+    # L is reserved — the plain lamp keeps the generic series.
+    assert out["lamp"]["code"] == "A01", out["lamp"]
+
+
 def test_ensure_lights_registry_resolves_a_temperature_sensors_room(tmp_path):
     """Garry, live on the house (2026-09-03): "Don't see any way to move the
     temp in mapping, lights." Root cause: ensureLightsRegistry's own entity
@@ -911,6 +967,26 @@ console.log(JSON.stringify(Object.fromEntries(Object.entries(by).map(([k, l]) =>
     assert out["sensor.fresh"]["healthy"] is True, out["sensor.fresh"]
     assert out["sensor.no_ts"]["healthy"] is False, out["sensor.no_ts"]
     assert "timestamp" in out["sensor.no_ts"]["reason"].lower(), out["sensor.no_ts"]
+
+
+def test_lock_health_flags_jammed_not_locked_or_unlocked(tmp_path):
+    """A jammed lock is reachable but not doing its job — the same "health"
+    frame WLED/motion/temp already use. Locked and unlocked are both
+    perfectly healthy states; only jammed is not."""
+    out = _run_pipeline_script(tmp_path, """
+const AREA = {"lock.a": "Entry", "lock.b": "Entry", "lock.c": "Entry"};
+const STATES = {
+  "lock.a": {state: "locked", attributes: {friendly_name: "A"}},
+  "lock.b": {state: "unlocked", attributes: {friendly_name: "B"}},
+  "lock.c": {state: "jammed", attributes: {friendly_name: "C"}},
+};
+const by = Object.fromEntries(LM.gatherLights(STATES, AREA, {}, "pro", {}, {}, {}, {}).map(l => [l.entity_id, l]));
+console.log(JSON.stringify(Object.fromEntries(Object.entries(by).map(([k, l]) => [k, {healthy: l.healthy, reason: l.healthReason}]))));
+""")
+    assert out["lock.a"]["healthy"] is True, out["lock.a"]
+    assert out["lock.b"]["healthy"] is True, out["lock.b"]
+    assert out["lock.c"]["healthy"] is False, out["lock.c"]
+    assert "jam" in out["lock.c"]["reason"].lower(), out["lock.c"]
 
 
 def test_health_column_and_filter_button_hide_healthy_rows(tmp_path):

@@ -64,6 +64,17 @@ export function isTempSensor(l) {
   return String(l.entity_id || "").startsWith("sensor.");
 }
 
+// A lock.* entity riding the lights pipeline (gap #8, best-in-class
+// roadmap: generalizing this pipeline beyond light.* to other HA domains).
+// Chosen as the FIRST domain to generalize to because its shape already
+// matches everything this pipeline assumes: one glyph, a small closed set
+// of states (locked/unlocked/jammed) rather than a numeric range, and one
+// unambiguous tap action — the same shape a light's on/off already has.
+// Class comes from the entity domain alone, like fan/motion/temp above.
+export function isLock(l) {
+  return String(l.entity_id || "").startsWith("lock.");
+}
+
 // Health — a device can be reachable and still not actually be DOING its
 // job. What "healthy" means differs by class, so this isn't one check:
 //
@@ -120,6 +131,12 @@ export function healthOf(l, nowMs) {
     }
     return { healthy: true, reason: "" };
   }
+  if (l.isLock) {
+    if (l.state === "jammed") {
+      return { healthy: false, reason: "Lock is jammed" };
+    }
+    return { healthy: true, reason: "" };
+  }
   return { healthy: true, reason: "" };
 }
 
@@ -142,6 +159,7 @@ export const MOTION_BORDER = "#3b82f6";
 // room hue so a triggered sensor reads at a glance across the whole map.
 export const MOTION_PULSE = "#3b82f6";
 export const TEMP_BORDER = "#fb923c";
+export const LOCK_BORDER = "#a78bfa";
 
 // ── Fixture shape ────────────────────────────────────────────────────────────
 // The marker's OUTLINE answers "what kind of light is that" without reading
@@ -170,6 +188,7 @@ export const LIGHT_SHAPES = [
   ["perimeter", "Room perimeter / cove"],
   ["motion",    "Motion sensor"],
   ["tempreadout", "Temperature readout"],
+  ["lock",      "Door lock"],
 ];
 
 // "perimeter" is drawn once, structurally differently from every shape
@@ -198,6 +217,7 @@ export function deriveLightShape(l) {
   if (isFan(l)) return "fan";
   if (isMotionSensor(l)) return "motion";
   if (isTempSensor(l)) return "tempreadout";
+  if (isLock(l)) return "lock";
   // A fan exposed as a light entity is not a light at all — worth seeing.
   if (has("fan")) return "fan";
   if (has("chandelier")) return "chandelier";
@@ -232,7 +252,7 @@ export function resolveLightShape(l, overrides) {
 // Letters reserved for a class series, skipped as the generic series counts
 // past them — precomputed once so another reserved letter is a one-line
 // change here, not new arithmetic.
-const _SERIES_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter(c => c !== "F" && c !== "M" && c !== "P" && c !== "T" && c !== "W");
+const _SERIES_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter(c => c !== "F" && c !== "L" && c !== "M" && c !== "P" && c !== "T" && c !== "W");
 
 // Mutates each light in place: sets l.code, l.isWled, l.isPartition,
 // l.isFan, l.isMotion and l.isTemp. Pass EVERY entity (including hidden ones) so
@@ -242,13 +262,14 @@ const _SERIES_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter(c => c !==
 // WLED-class — the more capable identity wins.
 export function assignLightCodes(lights) {
   const sorted = [...lights].sort((a, b) => a.entity_id.localeCompare(b.entity_id));
-  let f = 0, m = 0, w = 0, p = 0, t = 0, n = 0;
+  let f = 0, m = 0, w = 0, p = 0, t = 0, lk = 0, n = 0;
   const seriesCode = (idx) =>
     _SERIES_LETTERS[Math.floor(idx / 99)] + String((idx % 99) + 1).padStart(2, "0");
   for (const l of sorted) {
     l.isFan = isFan(l);
     l.isMotion = isMotionSensor(l);
     l.isTemp = isTempSensor(l);
+    l.isLock = isLock(l);
     if (l.isFan) {
       l.isWled = false; l.isPartition = false;
       l.code = "F" + String((f++ % 99) + 1).padStart(2, "0");
@@ -258,6 +279,9 @@ export function assignLightCodes(lights) {
     } else if (l.isTemp) {
       l.isWled = false; l.isPartition = false;
       l.code = "T" + String((t++ % 99) + 1).padStart(2, "0");
+    } else if (l.isLock) {
+      l.isWled = false; l.isPartition = false;
+      l.code = "L" + String((lk++ % 99) + 1).padStart(2, "0");
     } else if (isWledLight(l)) {
       l.isWled = true; l.isPartition = false;
       l.code = "W" + String((w++ % 99) + 1).padStart(2, "0");
