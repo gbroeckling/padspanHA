@@ -678,3 +678,53 @@ class TestEdgeCases:
         transitions = [(k, o, n) for k, o, n in coord._pending_room_changes if k == "dev1"]
         assert len(transitions) >= 1
         assert transitions[-1] == ("dev1", "RoomA", "RoomB")
+
+
+# ---------------------------------------------------------------------------
+# Tests: _source_distances_m — per-scanner distance estimates for gap #2
+# (best-in-class roadmap: confidence/evidence visualization)
+# ---------------------------------------------------------------------------
+
+
+class TestSourceDistances:
+    """Display-only per-scanner distance, mirroring the spatial solver's own
+    fit-selection order without touching its WLS/IDW loop."""
+
+    def test_empty_readings_yield_no_distances(self) -> None:
+        coord = _make_coordinator()
+        assert coord._source_distances_m({}, {}) == {}
+
+    def test_uses_the_per_scanner_calibration_fit_when_present(self) -> None:
+        coord = _make_coordinator()
+        coord._pl_fits = {"scanner1": {"rssi_1m": -50.0, "n": 2.0}}
+        out = coord._source_distances_m({"scanner1": -60.0}, {})
+        # d = 10^((ref - rssi) / (10n)) = 10^((-50 - -60)/20) = 10^0.5
+        # (rounded to 0.1 m, matching the implementation's display rounding)
+        assert out["scanner1"] == pytest.approx(10 ** 0.5, abs=0.05)
+
+    def test_falls_back_to_the_tags_own_measured_power_over_the_global_default(self) -> None:
+        coord = _make_coordinator(settings={"ref_power": -59.0, "path_loss_exp": 2.0})
+        # No fit for this scanner — a plausible RSSI@1m on the object (iBeacon
+        # measured power) must be used ahead of the global setting.
+        out = coord._source_distances_m({"scanner1": -70.0}, {"tx_power": -55.0})
+        assert out["scanner1"] == pytest.approx(10 ** ((-55.0 - -70.0) / 20.0), abs=0.05)
+
+    def test_an_implausible_tx_power_is_ignored_in_favour_of_the_global_default(self) -> None:
+        coord = _make_coordinator(settings={"ref_power": -59.0, "path_loss_exp": 2.0})
+        # BLE AD 0x0A radiated power (0..+12 dBm) is not an RSSI@1m value.
+        out = coord._source_distances_m({"scanner1": -70.0}, {"tx_power": 8.0})
+        assert out["scanner1"] == pytest.approx(10 ** ((-59.0 - -70.0) / 20.0), abs=0.05)
+
+    def test_falls_back_to_the_global_setting_with_no_fit_and_no_tx_power(self) -> None:
+        coord = _make_coordinator(settings={"ref_power": -59.0, "path_loss_exp": 2.0})
+        out = coord._source_distances_m({"scanner1": -79.0}, {})
+        assert out["scanner1"] == pytest.approx(10 ** ((-59.0 - -79.0) / 20.0), abs=0.05)
+
+    def test_covers_every_source_independently(self) -> None:
+        coord = _make_coordinator(settings={"ref_power": -59.0, "path_loss_exp": 2.0})
+        coord._pl_fits = {"scanner1": {"rssi_1m": -50.0, "n": 2.0}}
+        out = coord._source_distances_m(
+            {"scanner1": -60.0, "scanner2": -79.0}, {}
+        )
+        assert set(out) == {"scanner1", "scanner2"}
+        assert out["scanner1"] != out["scanner2"]

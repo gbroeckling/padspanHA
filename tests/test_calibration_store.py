@@ -992,6 +992,39 @@ def test_knn_room_is_topk_vote_not_single_nearest() -> None:
     assert res["nearest_room"] == "Kitchen"
 
 
+def test_knn_room_scores_expose_the_runner_up_not_just_the_winner() -> None:
+    """The best-in-class 'why this room' breakdown (gap #2): the weighted
+    room vote behind nearest_room must be visible, not discarded the moment
+    argmax picks a winner — a near-tie should show as two comparable
+    fractions, not a single 100% answer with no runner-up."""
+    pts = [
+        _make_point(x_frac=0.1, y_frac=0.1, room="Kitchen",
+                    readings={"s1": -60.0, "s2": -70.0}),
+        _make_point(x_frac=0.11, y_frac=0.11, room="Kitchen",
+                    readings={"s1": -60.5, "s2": -70.5}),
+        _make_point(x_frac=0.5, y_frac=0.5, room="Hallway",
+                    readings={"s1": -61.0, "s2": -71.0}),
+    ]
+    store = _make_store(pts)
+    res = store.knn_locate({"s1": -60.0, "s2": -70.0}, map_id="map1", k=3)
+    assert res is not None
+    assert res["nearest_room"] == "Kitchen"
+    scores = res["room_scores"]
+    assert set(scores) == {"Kitchen", "Hallway"}
+    assert scores["Kitchen"] > scores["Hallway"], \
+        "the winning room's fraction must exceed the runner-up's"
+    assert math.isclose(sum(scores.values()), 1.0, abs_tol=0.01), \
+        "room_scores is a probability-like breakdown — it must sum to 1"
+
+
+def test_knn_room_scores_is_empty_when_no_point_has_a_room_label() -> None:
+    pts = [_make_point(x_frac=0.2, y_frac=0.2, room="", readings={"s1": -60.0})]
+    store = _make_store(pts)
+    res = store.knn_locate({"s1": -60.0}, map_id="map1")
+    assert res is not None
+    assert res["room_scores"] == {}
+
+
 def test_knn_missing_penalty_is_symmetric() -> None:
     """A rich fingerprint matched by a sparse query must score worse than an
     equal-coverage fingerprint with identical shared readings."""

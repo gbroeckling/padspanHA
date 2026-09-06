@@ -1284,6 +1284,11 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                 obj["x_m"] = _pos["x_m"]
                                 obj["y_m"] = _pos["y_m"]
                                 obj["floor_id"] = _pos.get("floor_id", obj.get("floor_id", ""))
+                            # k-NN's weighted room vote, normalised to fractions —
+                            # the "why this room" breakdown. Only present when
+                            # _pos came from k-NN (spatial has no vote to show).
+                            if _pos.get("room_scores"):
+                                obj["room_scores"] = _pos["room_scores"]
                         # Store Kalman-smoothed per-source RSSI for scanner distance sensors
                         obj["_source_rssi"] = dict(self._ema_rssi.get(smooth_addr, {}))
                         # Propagate TX power if seen in advertisements
@@ -1291,6 +1296,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             obj.setdefault("tx_power", addr_tx_power[smooth_addr])
                         elif raw_addr in addr_tx_power:
                             obj.setdefault("tx_power", addr_tx_power[raw_addr])
+                        obj["source_distances_m"] = self._source_distances_m(obj["_source_rssi"], obj)
                         self._known_objs[key] = dict(obj)  # refresh with smoothed data
                     elif obj.get("kind") == "ibeacon":
                         obj = dict(obj)
@@ -1322,8 +1328,11 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                 obj["x_m"] = _pos_ib["x_m"]
                                 obj["y_m"] = _pos_ib["y_m"]
                                 obj["floor_id"] = _pos_ib.get("floor_id", obj.get("floor_id", ""))
+                            if _pos_ib.get("room_scores"):
+                                obj["room_scores"] = _pos_ib["room_scores"]
                         # Store Kalman-smoothed per-source RSSI for scanner distance sensors
                         obj["_source_rssi"] = dict(self._ema_rssi.get(key, {}))
+                        obj["source_distances_m"] = self._source_distances_m(obj["_source_rssi"], obj)
                         self._known_objs[key] = dict(obj)  # refresh with smoothed data
 
                     # ── Pinned beacon room override ──────────────────────────────────
@@ -3076,6 +3085,43 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._kalman_p.pop(prev_addr, None)
             self._silence_miss.pop(prev_addr, None)
         self._kalman_addr_key[key] = smooth_addr
+
+    def _source_distances_m(self, source_rssi: dict[str, float], obj: dict) -> dict[str, float]:
+        """Per-scanner distance estimate (metres) from Kalman-smoothed RSSI.
+
+        Display-only — the spatial solver's own multilateration in
+        _update_positions is the position of record. This mirrors that
+        solver's per-scanner fit selection (self._pl_fits, else the tag's
+        own measured power, else the global setting) so a ring drawn for
+        a scanner here uses the same number the solve itself would have,
+        without touching the solver's WLS/IDW loop to get it.
+        """
+        if not source_rssi:
+            return {}
+        _st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        _sd = (_st.data if _st else {}) or {}
+        _ref = float(_sd.get("ref_power", DEFAULT_REF_POWER))
+        _n_exp = float(_sd.get("path_loss_exp", DEFAULT_PATH_LOSS_EXP))
+        _tag_ref = None
+        _tp = obj.get("tx_power")
+        if _tp is not None:
+            try:
+                _tpf = float(_tp)
+            except (TypeError, ValueError):
+                _tpf = None
+            if _tpf is not None and -90.0 <= _tpf <= -30.0:
+                _tag_ref = _tpf
+        out: dict[str, float] = {}
+        for src, rssi in source_rssi.items():
+            fit = self._pl_fits.get(src)
+            if fit:
+                ref_s = float(fit.get("rssi_1m", _ref))
+                n_s = float(fit.get("n", _n_exp))
+            else:
+                ref_s = _tag_ref if _tag_ref is not None else _ref
+                n_s = _n_exp
+            out[src] = round(max(0.0, 10 ** ((ref_s - rssi) / (10.0 * n_s))), 1)
+        return out
 
     def is_identified_object(self, key: str) -> bool:
         """Whether the engine treats this object as someone's — a labelled

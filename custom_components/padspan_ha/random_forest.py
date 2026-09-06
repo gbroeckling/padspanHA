@@ -364,6 +364,13 @@ class RandomForestLocator:
 
         best_room = max(room_votes, key=lambda r: room_votes[r]) if room_votes else ""
         best_map = max(map_votes, key=lambda m: map_votes[m]) if map_votes else ""
+        # Normalise the leaf-vote to fractions — same "why this room" breakdown
+        # as knn_locate's room_scores, from the same discarded-after-argmax vote.
+        _room_votes_total = sum(room_votes.values())
+        room_scores = (
+            {r: round(v / _room_votes_total, 3) for r, v in room_votes.items()}
+            if _room_votes_total > 0 else {}
+        )
 
         # Confidence: combination of prediction variance and scanner coverage
         # Low variance across trees = high agreement = high confidence
@@ -384,6 +391,7 @@ class RandomForestLocator:
         result = {
             "confidence": confidence,
             "nearest_room": best_room,
+            "room_scores": room_scores,
             "map_id": best_map,
             "k_used": self.n_trees,
             "shared_scanners": shared,

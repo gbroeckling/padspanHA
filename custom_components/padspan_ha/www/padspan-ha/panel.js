@@ -388,6 +388,10 @@ function scannerStatus(radio, ads){
 // the lights renderer. panel.js hands it to every view as ctx.helpers.roomColor.
 const { roomColor } =
   await import(`./views/room_color.js${new URL(import.meta.url).search}`);
+// The object detail modal's "why is it here" evidence diagram (gap #2,
+// best-in-class roadmap) — a pure string builder, see its own header.
+const { buildEvidenceSvg, roomScoreBars } =
+  await import(`./views/evidence_diagram.js${new URL(import.meta.url).search}`);
 
 function pill(text){ return el("span",{class:"pill"}, text); }
 
@@ -2477,6 +2481,42 @@ class PadSpanHaApp extends HTMLElement {
         ]),
       ]);
       body.appendChild(srcSection);
+    }
+
+    // "Why this room?" — the k-NN/RF room vote normalised to fractions
+    // (gap #2, best-in-class roadmap), not just the single winning number
+    // the "Calibrated: X% confidence" line above already showed. A single
+    // room with 100% of the vote is not a "why" worth a bar chart.
+    const roomBars = roomScoreBars(obj.room_scores);
+    if (roomBars.length > 1) {
+      body.appendChild(el("div", {style:"margin-top:2px"}, [
+        el("div", {style:"font-weight:600;margin-bottom:6px"}, "Why this room?"),
+        ...roomBars.map(({room, pct}) => el("div", {style:"display:flex;align-items:center;gap:8px;margin-bottom:3px"}, [
+          el("span", {style:"width:90px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0"}, room),
+          el("div", {style:"flex:1;background:#1a2e1e;border-radius:3px"},
+            el("div", {style:`width:${pct}%;height:6px;background:${room===objRoom?"#52b788":"#4a6052"};border-radius:3px;min-width:2px`})),
+          el("span", {class:"muted", style:"font-size:11px;width:30px;text-align:right;flex-shrink:0"}, `${pct}%`),
+        ])),
+      ]));
+    }
+
+    // Evidence diagram — a dashed ring per scanner at its estimated distance
+    // for this object; where the rings overlap is the position's evidence,
+    // the same idea the spatial solver's multilateration uses (gap #2).
+    const _scanPosM = this.state.model?.scanner_positions_m || {};
+    const _evidenceScanners = Object.entries(obj.source_distances_m || {}).map(([src, dist]) => {
+      const p = _scanPosM[src] || {};
+      return { source: src, name: _friendlySource(src), x_m: p.x_m, y_m: p.y_m, distance_m: dist };
+    });
+    const _objXY = (typeof obj.x_m === "number" && typeof obj.y_m === "number") ? [obj.x_m, obj.y_m] : null;
+    const evidenceSvg = buildEvidenceSvg({ objXY: _objXY, scanners: _evidenceScanners });
+    if (evidenceSvg) {
+      const diagWrap = el("div", {});
+      diagWrap.innerHTML = evidenceSvg;
+      body.appendChild(el("div", {}, [
+        el("div", {style:"font-weight:600;margin-bottom:6px"}, "Evidence — distance from each scanner"),
+        diagWrap,
+      ]));
     }
 
     // Device info

@@ -96,6 +96,43 @@ class TestLeafIndexRoundTrip:
 
 
 # ---------------------------------------------------------------------------
+# Tests: room_scores — "why this room" breakdown (gap #2, best-in-class roadmap)
+# ---------------------------------------------------------------------------
+
+
+class TestRoomScores:
+    """The leaf-vote behind nearest_room must be exposed, not discarded."""
+
+    def test_room_scores_sums_to_one_and_favours_the_winner(self) -> None:
+        points = []
+        for i in range(8):
+            points.append(
+                _make_rf_point(
+                    room=f"room{i}",
+                    readings={"s0": -30.0 - 8.0 * i, "s1": -86.0 + 8.0 * i},
+                    x_m=float(i),
+                    y_m=float(i),
+                )
+            )
+        rf = RandomForestLocator(n_trees=40, max_depth=10, min_leaf=1, seed=42)
+        rf.train(points)
+        pt = points[3]
+        query = {r["source"]: r["mean_rssi"] for r in pt["scanner_readings"]}
+        result = rf.predict(query)
+        assert result is not None
+        scores = result["room_scores"]
+        assert scores, "a trained forest with room-labelled leaves must vote"
+        # Rounded to 3 decimals per room, so the sum drifts a little — bound
+        # the drift, don't demand exact equality.
+        assert abs(sum(scores.values()) - 1.0) < 0.01
+        assert max(scores, key=lambda r: scores[r]) == result["nearest_room"]
+
+    def test_room_scores_is_empty_before_training(self) -> None:
+        rf = RandomForestLocator()
+        assert rf.predict({"s0": -50.0}) is None
+
+
+# ---------------------------------------------------------------------------
 # Tests: bug 2 — confidence must not collapse in metre space
 # ---------------------------------------------------------------------------
 

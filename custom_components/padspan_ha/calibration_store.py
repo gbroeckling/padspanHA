@@ -863,6 +863,15 @@ class CalibrationStore:
             max(room_w, key=lambda r: room_w[r]) if room_w
             else str(scored[0][2].get("room", ""))
         )
+        # Normalise the vote to fractions — the "why this room" breakdown
+        # (gap #2, best-in-class roadmap). room_w already IS the evidence
+        # behind nearest_room; this just makes the runner-up rooms visible
+        # instead of discarding them the moment argmax picks a winner.
+        _room_w_total = sum(room_w.values())
+        room_scores = (
+            {r: round(w / _room_w_total, 3) for r, w in room_w.items()}
+            if _room_w_total > 0 else {}
+        )
 
         if rx_m is None:
             return None
@@ -872,6 +881,7 @@ class CalibrationStore:
             "floor_id": best_floor,
             "confidence": confidence,
             "nearest_room": nearest_room,
+            "room_scores": room_scores,
             "k_used": len(top_k),
             "shared_scanners": _shared_total,
         }
