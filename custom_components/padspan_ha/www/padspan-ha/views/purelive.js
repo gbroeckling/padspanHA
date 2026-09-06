@@ -958,6 +958,10 @@ function MapControls({ ctx }) {
   const [gap, setGap] = useState(ctx.state._overviewFloorGap ?? 150);
   const [lr, setLr] = useState(ctx.state._overviewHorizGap ?? 0);
   const [walls, setWalls] = useState(!!ctx.state._overviewShowWalls);
+  // Off by default (Garry, 2026-09-06): "the tracking line" reads as
+  // clutter until asked for; shared with Overview's own toggle since both
+  // read/write the same ctx.state flag and setting.
+  const [trails, setTrails] = useState(!!ctx.state._overviewShowTrails);
   const [pins, setPins] = useState(!!ctx.state._overviewPersistentPins);
   const [heat, setHeat] = useState(!!ctx.state._overviewShowHeatmap);
   const [dist, setDist] = useState(!!ctx.state._overviewShowDistortion);
@@ -989,6 +993,9 @@ function MapControls({ ctx }) {
              onInput=${e => { const v=+e.target.value; setLr(v); ctx.state._overviewHorizGap=v; rebuild(); }} />
       <button className=${walls?"on":""} onClick=${()=>{const v=!walls;setWalls(v);ctx.state._overviewShowWalls=v;rebuild();}}>
         Walls
+      </button>
+      <button className=${trails?"on":""} onClick=${()=>{const v=!trails;setTrails(v);ctx.state._overviewShowTrails=v;rebuild();}}>
+        Trails
       </button>
       <button className=${pins?"on":""} onClick=${()=>{const v=!pins;setPins(v);ctx.state._overviewPersistentPins=v;rebuild();}}>
         Pins

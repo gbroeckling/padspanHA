@@ -931,6 +931,9 @@ export function render(ctx){
 
     if(ctx.state._overviewPersistentPins === undefined) ctx.state._overviewPersistentPins = !!(ctx.state.settings && ctx.state.settings.overview_persistent_pins);
     if(ctx.state._overviewShowWalls === undefined) ctx.state._overviewShowWalls = !!(ctx.state.settings && ctx.state.settings.overview_show_walls);
+    // Off by default (Garry, 2026-09-06): the amber trail line reads as
+    // clutter until asked for.
+    if(ctx.state._overviewShowTrails === undefined) ctx.state._overviewShowTrails = !!(ctx.state.settings && ctx.state.settings.overview_show_trails);
     // Outdoor areas are OFF by default. They are drawn fitted into the
     // building's footprint rather than at their true metres — a shed 50 m down
     // the garden cannot share a frame with the house and leave either readable
@@ -1376,7 +1379,13 @@ export function render(ctx){
       if(!ctx.state._overviewTrails) ctx.state._overviewTrails = new Map();
       const _trails = ctx.state._overviewTrails;
       const _trailNow = Date.now();
-      s += trailSvg(_trails, () => "#fbbf24", _trailNow);
+      // Off by default (Garry, 2026-09-06): reads as clutter until asked
+      // for. Recording (trailPush, below) is ALSO gated on this same flag
+      // — this buffer is plain in-memory client state with no time-based
+      // cap of its own (trailSvg is what prunes aged-out points, and it
+      // does not run while hidden), so a kiosk tab left open for days with
+      // trails off must not accumulate points nobody will ever see.
+      if(ctx.state._overviewShowTrails) s += trailSvg(_trails, () => "#fbbf24", _trailNow);
       // trailSvg prunes each array's aged-out POINTS in place; an object
       // gone for good (no longer tracked at all) leaves an empty array
       // behind rather than a departed Map entry — drop those so the
@@ -1424,8 +1433,10 @@ export function render(ctx){
             posConf = o.knn_confidence || 0;
             // A real solver-placed point, not a room-centroid fallback —
             // this is the one condition under which a trail is memory of
-            // actual movement rather than layout noise.
-            trailPush(_trails, o.key || o.address || o.entity_id || "", bx, by, _trailNow);
+            // actual movement rather than layout noise. Gated on the same
+            // toggle as trailSvg above — off by default, so nothing is
+            // recorded until it is actually asked for.
+            if(ctx.state._overviewShowTrails) trailPush(_trails, o.key || o.address || o.entity_id || "", bx, by, _trailNow);
           }
         }
         if(bx == null && o.room && roomIsoPos[o.room]){
@@ -1553,7 +1564,7 @@ export function render(ctx){
           if(_oz !== undefined){
             const [ix,iy] = iso(obj.x_m, obj.y_m, _oz);
             [px,py]=[Math.round(ix), Math.round(iy)];
-            trailPush(_trails, oKey, px, py, _trailNow);
+            if(ctx.state._overviewShowTrails) trailPush(_trails, oKey, px, py, _trailNow);
           } else if (obj.room && roomIsoPos[obj.room]) {
             const pos = roomIsoPos[obj.room];
             const idx = (_roomObjCount[obj.room] || 0);
@@ -2156,6 +2167,22 @@ export function render(ctx){
       ctx.actions.settingsSet({ overview_show_walls: ctx.state._overviewShowWalls });
     });
     ctrlRow.appendChild(ovWallsBtn);
+
+    // Fading movement trail — off by default (Garry, 2026-09-06): "the
+    // tracking line" reads as clutter until asked for.
+    const ovTrailsBtn = document.createElement("button");
+    ovTrailsBtn.className = "btn inline";
+    const _trailStyle = (on) => `padding:1px 6px;font-size:10px;${on ? "background:#422006;border-color:#fbbf24;color:#fde68a;font-weight:700" : "color:#94a3b8"}`;
+    ovTrailsBtn.style.cssText = _trailStyle(ctx.state._overviewShowTrails);
+    ovTrailsBtn.textContent = ctx.state._overviewShowTrails ? "Trails ON" : "Trails";
+    ovTrailsBtn.addEventListener("click", ()=>{
+      ctx.state._overviewShowTrails = !ctx.state._overviewShowTrails;
+      ovTrailsBtn.style.cssText = _trailStyle(ctx.state._overviewShowTrails);
+      ovTrailsBtn.textContent = ctx.state._overviewShowTrails ? "Trails ON" : "Trails";
+      _rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx));
+      ctx.actions.settingsSet({ overview_show_trails: ctx.state._overviewShowTrails });
+    });
+    ctrlRow.appendChild(ovTrailsBtn);
 
     // ── Radio Map + Distortion toggles (mutually exclusive) ────────────────
     const _heatStyle = (on) => `padding:1px 6px;font-size:10px;${on ? "background:#2d1b4e;border-color:#a855f7;color:#d8b4fe;font-weight:700" : "color:#94a3b8"}`;
