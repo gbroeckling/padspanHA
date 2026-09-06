@@ -23,7 +23,6 @@ export function render(ctx) {
 
   // ── Persistent state ────────────────────────────────────────────────────────
   if (!ctx.state.followAddr) ctx.state.followAddr = "";
-  if (!ctx.state.followHistory) ctx.state.followHistory = {};    // addr → [{room, ts}]
   if (!ctx.state.followAlertConfig) ctx.state.followAlertConfig = {}; // addr → {email, on_change, watch_rooms:[]}
 
   // ── Resolve chosen object ────────────────────────────────────────────────────
@@ -43,16 +42,26 @@ export function render(ctx) {
     return false;
   }) || null) : null;
 
-  // Track movement (ring-buffer per tag)
-  if (chosen) {
-    const room = chosen.room || "";
-    const history = ctx.state.followHistory[addr] || [];
-    const last = history[history.length - 1];
-    if (!last || last.room !== room) {
-      history.push({ room, ts: Date.now() });
-      if (history.length > 60) history.shift();
-      ctx.state.followHistory[addr] = history;
-    }
+  // Movement log (gap #17, best-in-class roadmap: unify Follow's history
+  // onto the SAME server API history.js's Movement tab and manage.js's
+  // History tab already share, instead of a THIRD independent client-side
+  // tracker — this one previously an in-memory ring buffer, reset on every
+  // page reload, that only ever saw room labels this browser tab happened
+  // to be open for. Keyed on the resolved object's own canonical `key`
+  // (what presence_coordinator.py/movement_store.py actually record
+  // under `device`) rather than the raw followed address, which does not
+  // always match it (rotating MACs, ibeacon/private_ble keys).
+  const movementKey = chosen ? chosen.key : null;
+  if (movementKey && ctx.state._followMovementKey !== movementKey) {
+    ctx.state._followMovementKey = movementKey;
+    ctx.state._followMovementEntries = null;
+    ctx.actions.wsCall("padspan_ha/movement_history_get", { device: movementKey, limit: 60 }).then(r => {
+      if (ctx.state._followMovementKey !== movementKey) return;   // superseded by a later selection
+      ctx.state._followMovementEntries = (r && r.entries) || [];
+      ctx.actions.renderRooms();
+    }).catch(() => {
+      if (ctx.state._followMovementKey === movementKey) ctx.state._followMovementEntries = [];
+    });
   }
 
   // ── Header ──────────────────────────────────────────────────────────────────
@@ -92,7 +101,7 @@ export function render(ctx) {
   const mapCard = _buildMapCard(ctx, el, helpBtn, snap, chosen, haAreas, haFloors, radios);
 
   // ── Movement log (advanced only) ─────────────────────────────────────────────
-  const logCard = isBasic ? null : _buildLog(el, ctx.state.followHistory[addr] || []);
+  const logCard = isBasic ? null : _buildLog(el, ctx.state._followMovementEntries);
 
   // ── Alert config ─────────────────────────────────────────────────────────────
   const alertCard = _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic);
@@ -441,14 +450,20 @@ function _buildLog(el, history) {
   const card = el("div", { class: "card", style: "margin-bottom:10px" });
   card.appendChild(el("div", { class: "h2" }, "Movement log"));
 
+  if (history === null) {
+    card.appendChild(el("div", { class: "muted", style: "margin-top:6px" }, "Loading…"));
+    return card;
+  }
   if (!history.length) {
-    card.appendChild(el("div", { class: "muted", style: "margin-top:6px" }, "No movement recorded yet in this session."));
+    card.appendChild(el("div", { class: "muted", style: "margin-top:6px" }, "No movement recorded yet for this tag."));
     return card;
   }
 
+  // Server timestamps are epoch SECONDS (movement_store.py's time.time()),
+  // not the milliseconds this card's own client-side clock used to hand it.
   const fmtTs = ts => {
     try {
-      const d = new Date(ts);
+      const d = new Date(ts * 1000);
       return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     } catch { return ""; }
   };
@@ -460,13 +475,18 @@ function _buildLog(el, history) {
       el("th", {}, "Room"),
       el("th", {}, ""),
     ])),
-    el("tbody", {}, rows.map((entry, i) => {
-      const prev = rows[i + 1];
-      const arrow = prev ? el("td", { class: "muted", style: "font-size:11px" }, `← ${prev.room || "—"}`) : el("td", {}, "");
+    el("tbody", {}, rows.map((entry) => {
+      // A first-ever room confirmation is recorded with `from` unset (gap
+      // #17, best-in-class roadmap) — the same distinction history.js's
+      // Movement tab now makes, so the two views agree on what this means.
+      const firstSeen = !entry.from;
+      const detail = firstSeen
+        ? el("td", { style: "font-size:11px;color:#a78bfa;font-weight:600" }, "✨ First seen")
+        : el("td", { class: "muted", style: "font-size:11px" }, `← ${entry.from}`);
       return el("tr", {}, [
         el("td", { class: "mono", style: "font-size:11px;color:#94a3b8" }, fmtTs(entry.ts)),
-        el("td", { style: "font-weight:600;color:#5eead4" }, entry.room || "—"),
-        arrow,
+        el("td", { style: "font-weight:600;color:#5eead4" }, entry.to || "—"),
+        detail,
       ]);
     })),
   ]);

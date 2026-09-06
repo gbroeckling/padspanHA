@@ -147,6 +147,39 @@ export function render(ctx){
 // ═══════════════════════════════════════════════════════════════════════════
 // MOVEMENT TAB
 // ═══════════════════════════════════════════════════════════════════════════
+// A device's very first room confirmation is recorded exactly like any
+// other transition (presence_coordinator.py's _confirmed_room.get(key)
+// returns None for a key never seen before, and that None flows straight
+// into movement_store.record()'s `from`) \u2014 so this data already existed,
+// it just rendered as "unknown \u2192 room", indistinguishable from a real
+// transition or a genuine data gap. Gap #17, best-in-class roadmap: give
+// it its own identity instead of quietly collapsing it into "unknown".
+function _isFirstSeen(entry){ return !entry.from; }
+
+function _jumpToTraceback(ctx, entry){
+  const base = ctx.state._traceback || {
+    mode: "playback", playing: false, playDurationS: 300, frameIdx: 0, frames: [],
+    range: null, objKeys: [], filterKey: null, filterName: "All objects", rangePreset: 300,
+    startTs: null, endTs: null, _animTimer: null,
+    discoFromMin: 60, discoToMin: 0, discoResults: [], discoSelected: null,
+  };
+  const ts = entry.ts || (Date.now() / 1000);
+  ctx.state._traceback = {
+    ...base,
+    mode: "playback",
+    startTs: ts - 120,
+    endTs: ts + 120,
+    filterKey: entry.device || null,
+    filterName: entry.label || entry.device || "All objects",
+    frameIdx: 0,
+    frames: [],
+    playing: false,
+    range: null,
+  };
+  ctx.state.view = "traceback";
+  ctx.actions.renderRooms();
+}
+
 function _movement(ctx, el){
   const wrap = el("div",{});
 
@@ -177,9 +210,32 @@ function _movement(ctx, el){
     return wrap;
   }
 
+  // Type filters \u2014 same chip pattern as the Session Events tab above,
+  // applied to a different (and previously conflated) pair of kinds.
+  if(!ctx.state._movementFilters) ctx.state._movementFilters = new Set(["transition","first_seen"]);
+  const activeFilters = ctx.state._movementFilters;
+  const firstSeenCount = entries.filter(_isFirstSeen).length;
+  const transitionCount = entries.length - firstSeenCount;
+
   // Toolbar
-  const toolbar = el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:12px"});
-  toolbar.appendChild(el("div",{class:"muted",style:"font-size:11px"}, `${entries.length} transitions`));
+  const toolbar = el("div",{style:"display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px"});
+  const filterBtn = (kind, label, count, color) => {
+    const isActive = activeFilters.has(kind);
+    const btn = el("button",{
+      style:`font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid ${color};cursor:pointer;font-weight:600;transition:all 0.15s;`
+        + (isActive
+          ? `background:${color}22;color:${color};`
+          : `background:transparent;color:#64748b;border-color:#333;text-decoration:line-through;opacity:0.5;`)
+    }, `${label} (${count})`);
+    btn.addEventListener("click", ()=>{
+      if(activeFilters.has(kind)) activeFilters.delete(kind);
+      else activeFilters.add(kind);
+      ctx.actions.renderRooms();
+    });
+    return btn;
+  };
+  toolbar.appendChild(filterBtn("transition", "Room change", transitionCount, "#52b788"));
+  toolbar.appendChild(filterBtn("first_seen", "First seen", firstSeenCount, "#a78bfa"));
   toolbar.appendChild(el("div",{style:"flex:1"}));
   const refreshBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:2px 8px"}, "Refresh");
   refreshBtn.addEventListener("click", ()=>{
@@ -192,7 +248,11 @@ function _movement(ctx, el){
   // Timeline (newest first)
   const listContainer = el("div",{class:"list-scroll",style:"max-height:500px;overflow-y:auto;display:flex;flex-direction:column;gap:2px"});
 
-  const sorted = [...entries].reverse();
+  const sorted = [...entries].reverse()
+    .filter(e => activeFilters.has(_isFirstSeen(e) ? "first_seen" : "transition"));
+  if(!sorted.length){
+    listContainer.appendChild(el("div",{class:"muted",style:"padding:10px"}, "No entries match the current filters."));
+  }
   for(const entry of sorted){
     const ts = entry.ts ? new Date(entry.ts * 1000) : null;
     let timeStr = "\u2014";
@@ -209,17 +269,30 @@ function _movement(ctx, el){
     }
 
     const label = entry.label || entry.device || "Unknown";
-    const fromRoom = entry.from || "unknown";
     const toRoom = entry.to || "unknown";
+    const firstSeen = _isFirstSeen(entry);
     const rc = ctx.helpers.roomColor ? ctx.helpers.roomColor(toRoom) : "#52b788";
+    const borderColor = firstSeen ? "#a78bfa" : rc;
 
-    const row = el("div",{style:"display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:4px;background:rgba(255,255,255,0.02);border-left:3px solid " + rc});
+    const row = el("div",{style:"display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:4px;background:rgba(255,255,255,0.02);border-left:3px solid " + borderColor});
 
     row.appendChild(el("span",{style:"font-family:monospace;font-size:11px;color:#64748b;flex-shrink:0;width:72px"}, dateStr + timeStr));
     row.appendChild(el("span",{style:"font-size:12px;font-weight:600;color:#e2e8f0;min-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0"}, label));
-    row.appendChild(el("span",{style:"font-size:11px;color:#94a3b8;flex-shrink:0"}, fromRoom));
-    row.appendChild(el("span",{style:"font-size:11px;color:#5eead4"}, "\u2192"));
-    row.appendChild(el("span",{style:`font-size:11px;color:${rc};font-weight:600`}, toRoom));
+    if(firstSeen){
+      row.appendChild(el("span",{style:"font-size:11px;color:#a78bfa;font-weight:600"}, "\u2728 First seen in"));
+      row.appendChild(el("span",{style:`font-size:11px;color:${rc};font-weight:600`}, toRoom));
+    } else {
+      row.appendChild(el("span",{style:"font-size:11px;color:#94a3b8;flex-shrink:0"}, entry.from));
+      row.appendChild(el("span",{style:"font-size:11px;color:#5eead4"}, "\u2192"));
+      row.appendChild(el("span",{style:`font-size:11px;color:${rc};font-weight:600`}, toRoom));
+    }
+    row.appendChild(el("div",{style:"flex:1"}));
+    if(entry.device){
+      const tbBtn = el("button",{class:"btn inline",style:"font-size:10px;padding:2px 8px;flex-shrink:0"}, "\u25b6 Traceback");
+      tbBtn.title = "Open Traceback centred on this moment";
+      tbBtn.addEventListener("click", ()=>_jumpToTraceback(ctx, entry));
+      row.appendChild(tbBtn);
+    }
 
     listContainer.appendChild(row);
   }
