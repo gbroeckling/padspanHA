@@ -7,6 +7,10 @@
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
 const { BUY_URL: _LIC_BUY_URL, PRO_PRICE: _LIC_PRICE, LICENCE_PATH: _LIC_PATH } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
+// Shared pan/zoom viewport (gap #11, best-in-class roadmap) — extracted
+// from this file's own former _attachPanZoom, see pan_zoom.js's header.
+const { attachPanZoom } =
+  await import(`./pan_zoom.js${new URL(import.meta.url).search}`);
 const { makeStackXform, mapXform, imageAr, fabricWorldRooms, mapFracToMetres,
         metresToMapFrac, placementFromColumns, placementStageAffine, worldGauge } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
@@ -6641,90 +6645,13 @@ function _roomGeomBBoxM(roomGeoms) {
 // clustered around its room's centre otherwise. Pro adds: an "Add to Room"
 // picker for unplaced lights, drag-to-move (against the currently active
 // map), a shape/color/rotation inspector on the selected pin, and Save.
-// Vanilla-JS port of purelive.js's MapViewport (same math, same UX): wheel
-// zoom, drag pan, pinch zoom, double-click/tap reset. Pure Live's version is
-// a Preact hook-based component; this reimplements the same event-handling
-// logic imperatively for maps.js's plain-DOM rendering style. `inner` must
-// be an absolutely-positioned div filling `viewport` (transform-origin 0 0);
-// `viewport` should have position:relative + overflow:hidden.
-function _attachPanZoom(viewport, inner) {
-  const MIN_SCALE = 0.3, MAX_SCALE = 5;
-  const s = { scale: 1, tx: 0, ty: 0, dragging: false, startX: 0, startY: 0, startTx: 0, startTy: 0, pinchDist: 0, pinchScale: 1 };
-  const apply = () => { inner.style.transform = `translate(${s.tx}px, ${s.ty}px) scale(${s.scale})`; };
-  const zoomAt = (cx, cy, factor) => {
-    const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s.scale * factor));
-    const ratio = newScale / s.scale;
-    // The zoom-at-cursor fixed-point math assumes cursor coordinates
-    // relative to the inner element's own (untransformed) layout origin —
-    // inner is flex-centred inside the viewport, so subtract its layout
-    // offset. Without this, every zoom step drifts the content toward a
-    // corner and it quickly flies off screen.
-    const ox = inner.offsetLeft, oy = inner.offsetTop;
-    const px = cx - ox, py = cy - oy;
-    s.tx = px - ratio * (px - s.tx);
-    s.ty = py - ratio * (py - s.ty);
-    s.scale = newScale;
-    apply();
-  };
-  const reset = () => { s.scale = 1; s.tx = 0; s.ty = 0; apply(); };
-  // A light pin handles its own drag (_makeDraggable); the viewport's pan
-  // must not also fire for that same mousedown, or the pin and the whole
-  // canvas would both move at once.
-  const isExcluded = (t) => t.closest && t.closest("button,input,select,a,[data-light-pin],[data-room-handle]");
-
-  viewport.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    const r = viewport.getBoundingClientRect();
-    zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.12 : 0.89);
-  }, { passive: false });
-
-  viewport.addEventListener("mousedown", (e) => {
-    if (e.button !== 0 || isExcluded(e.target)) return;
-    s.dragging = true; s.startX = e.clientX; s.startY = e.clientY; s.startTx = s.tx; s.startTy = s.ty;
-    viewport.style.cursor = "grabbing";
-  });
-  window.addEventListener("mousemove", (e) => {
-    if (!s.dragging) return;
-    s.tx = s.startTx + (e.clientX - s.startX);
-    s.ty = s.startTy + (e.clientY - s.startY);
-    apply();
-  });
-  window.addEventListener("mouseup", () => { s.dragging = false; viewport.style.cursor = "grab"; });
-
-  viewport.addEventListener("touchstart", (e) => {
-    if (e.touches.length === 1) {
-      if (isExcluded(e.target)) return;
-      s.dragging = true; s.startX = e.touches[0].clientX; s.startY = e.touches[0].clientY; s.startTx = s.tx; s.startTy = s.ty;
-    } else if (e.touches.length === 2) {
-      s.dragging = false;
-      const dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;
-      s.pinchDist = Math.sqrt(dx * dx + dy * dy); s.pinchScale = s.scale;
-    }
-  }, { passive: false });
-  viewport.addEventListener("touchmove", (e) => {
-    e.preventDefault();
-    if (e.touches.length === 1 && s.dragging) {
-      s.tx = s.startTx + (e.touches[0].clientX - s.startX);
-      s.ty = s.startTy + (e.touches[0].clientY - s.startY);
-      apply();
-    } else if (e.touches.length === 2 && s.pinchDist > 0) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s.pinchScale * (dist / s.pinchDist)));
-      const r = viewport.getBoundingClientRect();
-      const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
-      const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
-      const ratio = newScale / s.scale;
-      s.tx = cx - ratio * (cx - s.tx); s.ty = cy - ratio * (cy - s.ty); s.scale = newScale;
-      apply();
-    }
-  }, { passive: false });
-  viewport.addEventListener("touchend", () => { s.dragging = false; s.pinchDist = 0; });
-
-  viewport.addEventListener("dblclick", (e) => { if (!isExcluded(e.target)) reset(); });
-
-  return { reset };
-}
+// Pan/zoom (wheel, drag, pinch, dblclick-reset, arrow/+/-/0 keys) is
+// attachPanZoom, shared from pan_zoom.js (gap #11, best-in-class roadmap)
+// — this file's own former _attachPanZoom, extracted so Overview's iso map
+// and Calibration's Pin & Listen can use the identical implementation
+// instead of two more hand-copies. `inner` must be an absolutely-
+// positioned div filling `viewport` (transform-origin 0 0); `viewport`
+// should have position:relative + overflow:hidden.
 
 
 // ─── Lights tab — the builder for the Lights sidebar's map ────────────────
@@ -8979,7 +8906,7 @@ function _roomsTab(ctx, maps) {
       onclick: () => panZoom.reset(),
     }, "Reset View");
     stage.appendChild(resetBtn);
-    const panZoom = _attachPanZoom(stage, inner);
+    const panZoom = attachPanZoom(stage, inner);
 
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "mapvector");

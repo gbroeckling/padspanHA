@@ -4,6 +4,7 @@
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 import { estimateDistanceM, formatDistanceM } from "./path_loss.js";
 import { buildCalibrationMatrix, errorColor } from "./calibration_matrix.js";
+import { attachPanZoom } from "./pan_zoom.js";
 
 // PadSpan HA — BLE Fingerprint Calibration
 // Phone-based signal collection for precise indoor location modelling.
@@ -722,7 +723,14 @@ function _pinAndListen(ctx, el, cs, calData) {
   }
 
   // ── Interactive map ──────────────────────────────────────────────────────
-  const mapWrap = el("div", { style: "position:relative;border-radius:10px;overflow:hidden;border:2px solid #1b3526;touch-action:none" });
+  // mapWrap is the pan/zoom viewport (gap #11, best-in-class roadmap);
+  // mapInner is the transformed layer the SVG actually lives in. Tap-to-
+  // place still works unmodified: getBoundingClientRect() on the SVG
+  // already reflects its current on-screen (post-transform) box, so the
+  // existing fraction-of-bounding-box math needs no changes.
+  const mapWrap = el("div", { style: "position:relative;border-radius:10px;overflow:hidden;border:2px solid #1b3526;touch-action:none;cursor:grab" });
+  const mapInner = el("div", { style: "position:absolute;top:0;left:0;width:100%;transform-origin:0 0" });
+  mapWrap.appendChild(mapInner);
   const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
 
   // Build SVG string
@@ -757,10 +765,11 @@ function _pinAndListen(ctx, el, cs, calData) {
     ${pinSvg}
   </svg>`;
 
-  mapWrap.innerHTML = svgStr;
+  mapInner.innerHTML = svgStr;
+  attachPanZoom(mapWrap, mapInner);
 
   // Tap handler — must attach after setting innerHTML
-  const svgEl = mapWrap.querySelector("svg");
+  const svgEl = mapInner.querySelector("svg");
   if (svgEl && !cs.collecting) {
     const onTap = (ev) => {
       const rect = svgEl.getBoundingClientRect();
