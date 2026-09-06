@@ -21,7 +21,7 @@ solution of its kind.
 | 8 | DONE (53ee119) — lock domain only; cover/climate/media_player/camera/sensor not started | Bind arbitrary HA entities to the floorplan (climate/cover/lock/media/camera domain registry) | presentation |
 | 9 | DONE (de8b986) — built in the 2D Rooms tab, not the 3D iso overview | Predictive what-if scanner placement (ghost scanner over the existing radio-map model) | analytics |
 | 10 | DONE (8e3eab9) — slotted into the existing object list, not a new dedicated view; column-sort not built | Persistent lost-and-found: "last known room" inventory that never resets to Unknown | presentation |
-| 11 | TODO | Map interaction parity: pan/zoom everywhere, keyboard nav, touch tooltips, numeric entry | presentation |
+| 11 | DONE (70d6c1a) — shared module + keyboard nav + Pin & Listen only; Overview iso, Mapping Edit, touch tooltips, numeric entry not done | Map interaction parity: pan/zoom everywhere, keyboard nav, touch tooltips, numeric entry | presentation |
 | 12 | TODO | Per-room accuracy scoreboard + confusion pairs on the map, directed collect-more guidance | analytics |
 | 13 | TODO | Ground-truth capture walks with accuracy scoring and settings A/B replay | history |
 | 14 | TODO | BLE + motion fusion made visible: per-room agreement badges, occupancy count chips | visualization |
@@ -191,9 +191,22 @@ the research output; the essentials are restated per item below.
     its own animation duration. REMAINING: slotted into the existing
     object list rather than a new dedicated "sortable list" view —
     column-sort-by-last-seen not built.
-11. **Interaction parity** — shared viewport helper from _attachPanZoom +
-    Pure Live pinch; apply to Overview iso, Mapping Edit stage, Pin & Listen;
-    arrows/+/-/0 keys; tap-activated tooltips on touch; numeric X/Y entry.
+11. **Interaction parity** — PARTIAL. Verified first _attachPanZoom
+    (maps.js) was already fully generic with exactly ONE caller (Rooms
+    tab) — Overview iso, Mapping Edit, and Pin & Listen all had zero
+    pan/zoom. Extracted to pan_zoom.js so views can share it, added
+    keyboard nav (arrows/+/-/0) once in the shared module (Rooms tab gets
+    it for free too), wired into Pin & Listen (tap-to-place needed zero
+    changes — getBoundingClientRect() already reflects the post-transform
+    box). REMAINING: Overview's iso map shares its DOM node with Pure Live
+    and has its own resize-driven counter-scale system plus gap #1's
+    mergeObjectLayer poll-surgery — retrofitting a transform wrapper there
+    needs careful, unhurried verification, not a rushed change to the
+    most complex, most heavily-shared view in the codebase. Mapping Edit's
+    multi-mode (receivers/rooms/barriers) click-to-draw interactions carry
+    a similar risk (attachPanZoom's drag-exclusion list doesn't know about
+    them). Touch-activated tooltips and numeric X/Y coordinate entry —
+    also named in this item — not built.
 12. **Per-room accuracy** — group existing LOO predictions by true room:
     accuracy % list + trend, confusion pairs as tinted links between rooms,
     "collect N more points in X" feeding Roam's next-target.
