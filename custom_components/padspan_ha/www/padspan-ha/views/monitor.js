@@ -9,6 +9,44 @@
  * on a different aspect of system state (BLE coverage, zone config, performance).
  */
 
+// Signal quality, per scanner (Diagnostics + Insights tabs).
+//
+// Averaging RSSI across every advertisement a scanner merely overhears
+// makes "quality" meaningless in practice: most BLE traffic in a real
+// house is someone else's phone two rooms away, or a passing car, so a
+// busy, healthy scanner reads no differently than a broken one — the
+// average trends toward "Poor" regardless of how well it actually covers
+// the devices near it (Garry, 2026-09-06: "the radios all say poor, this
+// tab is garbage"). Instead: for each device, only its STRONGEST scanner
+// (the one hearing it loudest) gets credit for that reading. That measures
+// how well a scanner covers what is actually close to it, which is what
+// "signal quality" should mean here — not how much distant noise it
+// happens to also pick up.
+export function _scannerQuality(ads) {
+  const bestPerAddr = new Map();
+  for (const ad of ads) {
+    const addr = ad.address || "";
+    if (!addr || ad.rssi == null || !ad.source) continue;
+    const cur = bestPerAddr.get(addr);
+    if (!cur || ad.rssi > cur.rssi) bestPerAddr.set(addr, { source: ad.source, rssi: ad.rssi });
+  }
+  const stats = {};
+  for (const { source, rssi } of bestPerAddr.values()) {
+    const s = (stats[source] = stats[source] || { rssiSum: 0, count: 0 });
+    s.rssiSum += rssi;
+    s.count++;
+  }
+  return stats;
+}
+
+export function _qualityGrade(avg) {
+  if (avg == null) return { label: "—", color: "#64748b" };
+  if (avg >= -60) return { label: "Excellent", color: "#52b788" };
+  if (avg >= -70) return { label: "Good", color: "#81c784" };
+  if (avg >= -80) return { label: "Fair", color: "#ffd54f" };
+  return { label: "Poor", color: "#ef5350" };
+}
+
 export function render(ctx){
   const { el, helpBtn, radioShortId } = ctx.helpers;
   const _sid = (source) => radioShortId ? radioShortId(source || "") : "";
@@ -116,31 +154,26 @@ export function render(ctx){
   const ads = (snap && snap.ble && snap.ble.advertisements) || [];
   if(radios.length > 0){
     const scannerData = {};
-    for(const r of radios) scannerData[r.source] = { name: r.name || r.source, devs: 0, rssiSum: 0, rssiCount: 0, radio: r };
+    for(const r of radios) scannerData[r.source] = { name: r.name || r.source, devs: 0, radio: r };
     for(const ad of ads){
       const src = ad.source || "";
-      if(!scannerData[src]) scannerData[src] = { name: src, devs: 0, rssiSum: 0, rssiCount: 0, radio: null };
+      if(!scannerData[src]) scannerData[src] = { name: src, devs: 0, radio: null };
       scannerData[src].devs++;
-      if(ad.rssi != null){ scannerData[src].rssiSum += ad.rssi; scannerData[src].rssiCount++; }
     }
+    const qualityBySrc = _scannerQuality(ads);
 
     const tbl = el("table",{style:"width:100%;font-size:12px;border-collapse:collapse;table-layout:fixed"});
     tbl.appendChild(el("tr",{},[
       el("th",{style:"text-align:left;padding:4px 6px;color:#94a3b8;font-weight:600;width:15%"},"ID"),
       el("th",{style:"text-align:left;padding:4px 6px;color:#94a3b8;font-weight:600;width:35%;overflow:hidden;text-overflow:ellipsis"},"Scanner"),
       el("th",{style:"text-align:right;padding:4px 6px;color:#94a3b8;font-weight:600;width:14%"},"Devices"),
-      el("th",{style:"text-align:right;padding:4px 6px;color:#94a3b8;font-weight:600;width:16%"},"Avg RSSI"),
+      el("th",{style:"text-align:right;padding:4px 6px;color:#94a3b8;font-weight:600;width:16%",title:"Average RSSI of each device's OWN strongest scanner only \u2014 a device closer to another scanner doesn't count against this one."},"Best-RSSI"),
       el("th",{style:"text-align:left;padding:4px 6px;color:#94a3b8;font-weight:600;width:20%"},"Quality"),
     ]));
     for(const [src, st] of Object.entries(scannerData).sort((a,b)=>b[1].devs-a[1].devs)){
-      const avg = st.rssiCount > 0 ? Math.round(st.rssiSum / st.rssiCount) : null;
-      let quality = "\u2014", qColor = "#64748b";
-      if(avg !== null){
-        if(avg >= -60){ quality = "Excellent"; qColor = "#52b788"; }
-        else if(avg >= -70){ quality = "Good"; qColor = "#81c784"; }
-        else if(avg >= -80){ quality = "Fair"; qColor = "#ffd54f"; }
-        else { quality = "Poor"; qColor = "#ef5350"; }
-      }
+      const q = qualityBySrc[src];
+      const avg = q && q.count > 0 ? Math.round(q.rssiSum / q.count) : null;
+      const { label: quality, color: qColor } = _qualityGrade(avg);
       const tr = el("tr",{style:"cursor:pointer"});
       tr.addEventListener("mouseenter", ()=>{ tr.style.background = "rgba(255,255,255,0.04)"; });
       tr.addEventListener("mouseleave", ()=>{ tr.style.background = ""; });
@@ -425,17 +458,16 @@ function _insights(ctx, el, _sid){
   grid.appendChild(occCard);
 
   // ── Signal Quality per scanner ──
-  const scannerStats = {};
+  const scannerTotals = {};
   for(const ad of ads){
     const src = ad.source || "unknown";
-    if(!scannerStats[src]) scannerStats[src] = { total: 0, rssiSum: 0, count: 0 };
-    scannerStats[src].total++;
-    if(ad.rssi != null){ scannerStats[src].rssiSum += ad.rssi; scannerStats[src].count++; }
+    scannerTotals[src] = (scannerTotals[src] || 0) + 1;
   }
+  const qualityBySrc2 = _scannerQuality(ads);
 
   const sigCard = el("div",{class:"card",style:"overflow:hidden"});
   sigCard.appendChild(el("div",{style:"font-weight:700;margin-bottom:10px"},"Signal Quality"));
-  if(Object.keys(scannerStats).length === 0){
+  if(Object.keys(scannerTotals).length === 0){
     sigCard.appendChild(el("div",{class:"muted"},"No scanner data available."));
   } else {
     const tbl = el("table",{style:"width:100%;font-size:12px;border-collapse:collapse;table-layout:fixed"});
@@ -443,18 +475,13 @@ function _insights(ctx, el, _sid){
       el("th",{style:"text-align:left;padding:4px 4px;color:#94a3b8;font-weight:600;width:15%"},"ID"),
       el("th",{style:"text-align:left;padding:4px 4px;color:#94a3b8;font-weight:600;width:32%;overflow:hidden;text-overflow:ellipsis"},"Scanner"),
       el("th",{style:"text-align:right;padding:4px 4px;color:#94a3b8;font-weight:600;width:16%"},"Devices"),
-      el("th",{style:"text-align:right;padding:4px 4px;color:#94a3b8;font-weight:600;width:18%"},"Avg RSSI"),
+      el("th",{style:"text-align:right;padding:4px 4px;color:#94a3b8;font-weight:600;width:18%",title:"Average RSSI of each device's OWN strongest scanner only \u2014 a device closer to another scanner doesn't count against this one."},"Best-RSSI"),
       el("th",{style:"text-align:left;padding:4px 4px;color:#94a3b8;font-weight:600;width:19%"},"Grade"),
     ]));
-    for(const [src, st] of Object.entries(scannerStats).sort((a,b)=>b[1].total-a[1].total)){
-      const avg = st.count > 0 ? Math.round(st.rssiSum / st.count) : null;
-      let grade = "\u2014", gradeColor = "#64748b";
-      if(avg !== null){
-        if(avg >= -60){ grade = "Excellent"; gradeColor = "#52b788"; }
-        else if(avg >= -70){ grade = "Good"; gradeColor = "#81c784"; }
-        else if(avg >= -80){ grade = "Fair"; gradeColor = "#ffd54f"; }
-        else { grade = "Poor"; gradeColor = "#ef5350"; }
-      }
+    for(const [src, total] of Object.entries(scannerTotals).sort((a,b)=>b[1]-a[1])){
+      const q = qualityBySrc2[src];
+      const avg = q && q.count > 0 ? Math.round(q.rssiSum / q.count) : null;
+      const { label: grade, color: gradeColor } = _qualityGrade(avg);
       const radio = radios.find(r=>r.source===src);
       const name = (radio && radio.name) || src;
       const tr = el("tr",{style:"cursor:pointer"});
@@ -466,7 +493,7 @@ function _insights(ctx, el, _sid){
       const _rn2 = ctx.helpers.radioName(src);
       tr.appendChild(el("td",{style:"padding:4px 4px;font-family:monospace;font-weight:700;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#7dd3fc",title:(_rn2?_rn2+" \u00b7 ":"")+src}, _sid(src)));
       tr.appendChild(el("td",{style:"padding:4px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#7dd3fc;text-decoration:underline;text-decoration-color:rgba(125,211,252,0.35);text-underline-offset:2px",title:name}, name));
-      tr.appendChild(el("td",{style:"padding:4px 4px;text-align:right"}, String(st.total)));
+      tr.appendChild(el("td",{style:"padding:4px 4px;text-align:right"}, String(total)));
       tr.appendChild(el("td",{style:"padding:4px 4px;text-align:right;font-family:monospace"}, avg !== null ? `${avg}` : "\u2014"));
       tr.appendChild(el("td",{style:`padding:4px 4px;color:${gradeColor};font-weight:600`}, grade));
       tbl.appendChild(tr);
