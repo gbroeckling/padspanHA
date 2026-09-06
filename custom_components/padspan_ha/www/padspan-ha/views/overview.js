@@ -1211,7 +1211,7 @@ export function render(ctx){
           const color = roomColorFn(room);
           const _objsHere = allObjects.filter(o=>_presentInRoom(ctx,o,room));
           const _roomTip = `${room}\n${_objsHere.length} object${_objsHere.length!==1?"s":""} detected`;
-          s += `<g data-tip="${_esc(_roomTip)}"><polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="2" opacity="0.9"/></g>`;
+          s += `<g data-tip="${_esc(_roomTip)}" data-room="${_esc(room)}" style="cursor:pointer"><polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="2" opacity="0.9"/></g>`;
           s += `<text x="${Math.round(lix)}" y="${Math.round(liy)+lidx*2}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600" `
              + `${_annT(Math.round(lix), Math.round(liy)+lidx*2)}>${_esc(room)}</text>`;
         };
@@ -1782,33 +1782,60 @@ export function render(ctx){
 
     /** Rebuild the 3D SVG with a progress indicator. */
     /** Full rebuild: replaces entire SVG (expensive — used for initial load + control changes) */
+    // Gap #18, best-in-class roadmap: a floor-focus change (or any other
+    // control toggle) used to swap the whole SVG instantly, which read as a
+    // flicker rather than a deliberate transition. A true "explode the
+    // stack apart" 3D animation would need the rebuild to preserve DOM
+    // continuity between the old and new content — a much larger change to
+    // the most heavily-shared rendering path in the codebase (the same
+    // risk gap #11 already declined to take here). A short opacity
+    // crossfade around the SAME instant innerHTML swap gets most of the
+    // visual benefit for none of that risk. Skipped on the very first
+    // build (nothing to fade FROM) via this one-shot flag.
+    let _isoRebuiltOnce = false;
     function _rebuildIso(focusZ) {
-      _isoProgressFill.style.transition = "none";
-      _isoProgressFill.style.width = "40%";
-      _isoProgressFill.style.background = "#a855f7";
-      requestAnimationFrame(() => {
+      const doBuild = () => {
+        _isoProgressFill.style.transition = "none";
+        _isoProgressFill.style.width = "40%";
+        _isoProgressFill.style.background = "#a855f7";
         requestAnimationFrame(() => {
-          isoDiv.innerHTML = buildIsoSVG(focusZ);
-          _watchAnnScale();
-          ctx.state._isoBuildPending = false;
-          // Inject a <g> wrapper for objects so we can swap it on polls
-          const svgEl = isoDiv.querySelector("svg");
-          if (svgEl) {
-            const marker = "<!-- ISO_OBJECTS_START -->";
-            const html = svgEl.innerHTML;
-            const idx = html.indexOf(marker);
-            if (idx >= 0) {
-              const staticPart = html.substring(0, idx);
-              const dynPart = html.substring(idx + marker.length);
-              svgEl.innerHTML = staticPart + `<g id="iso-objects">${dynPart}`;
+          requestAnimationFrame(() => {
+            isoDiv.innerHTML = buildIsoSVG(focusZ);
+            _watchAnnScale();
+            ctx.state._isoBuildPending = false;
+            // Inject a <g> wrapper for objects so we can swap it on polls
+            const svgEl = isoDiv.querySelector("svg");
+            if (svgEl) {
+              const marker = "<!-- ISO_OBJECTS_START -->";
+              const html = svgEl.innerHTML;
+              const idx = html.indexOf(marker);
+              if (idx >= 0) {
+                const staticPart = html.substring(0, idx);
+                const dynPart = html.substring(idx + marker.length);
+                svgEl.innerHTML = staticPart + `<g id="iso-objects">${dynPart}`;
+              }
             }
-          }
-          _isoProgressFill.style.transition = "width 0.2s";
-          _isoProgressFill.style.width = "100%";
-          _isoProgressFill.style.background = "#52b788";
-          setTimeout(() => { _isoProgressFill.style.width = "0"; }, 600);
+            _isoProgressFill.style.transition = "width 0.2s";
+            _isoProgressFill.style.width = "100%";
+            _isoProgressFill.style.background = "#52b788";
+            setTimeout(() => { _isoProgressFill.style.width = "0"; }, 600);
+            // Fade back in after the swap — the other half of the crossfade
+            // started below. Only runs once isoDiv was actually faded out.
+            if (isoDiv.style.opacity === "0") {
+              requestAnimationFrame(() => { isoDiv.style.opacity = "1"; });
+            }
+          });
         });
-      });
+      };
+
+      if (!_isoRebuiltOnce) {
+        _isoRebuiltOnce = true;
+        doBuild();
+        return;
+      }
+      isoDiv.style.transition = "opacity 150ms ease";
+      isoDiv.style.opacity = "0";
+      setTimeout(doBuild, 150);
     }
 
     /** Light update: only rebuilds object dots (cheap — used for 5s polls) */
@@ -1907,12 +1934,33 @@ export function render(ctx){
       }
       // Then check for object click
       const g = e.target.closest("[data-obj-key]");
-      if(!g) return;
-      const objKey = g.getAttribute("data-obj-key");
-      if(!objKey) return;
-      const obj = allObjects.find(o =>
-        (o.key||"") === objKey || (o.address||"") === objKey || (o.entity_id||"") === objKey);
-      if(obj) ctx.actions.showObjectDetail(obj);
+      if(g){
+        const objKey = g.getAttribute("data-obj-key");
+        if(!objKey) return;
+        const obj = allObjects.find(o =>
+          (o.key||"") === objKey || (o.address||"") === objKey || (o.entity_id||"") === objKey);
+        if(obj) ctx.actions.showObjectDetail(obj);
+        return;
+      }
+      // Click-to-focus (gap #18, best-in-class roadmap): a room polygon
+      // with no marker/scanner under the click point focuses its own
+      // floor — the direct way in, instead of the slider being the only
+      // path. A plain instant switch, matching the slider's own behaviour;
+      // the crossfade in _rebuildIso is what makes it read as deliberate.
+      const rg = e.target.closest("[data-room]");
+      if(!rg) return;
+      const room = rg.getAttribute("data-room");
+      const fid = room && _fabOK && _isoFabricW[room] && _isoFabricW[room].floor_id;
+      if(!fid) return;
+      const z = _fabF.levelOf(fid);
+      const lvlIdx = _fabF.levels.indexOf(z);
+      if(lvlIdx < 0) return;
+      const focusIdx = 2 * lvlIdx + 1;
+      if(ctx.state._overviewIsoFocusIdx === focusIdx) return;
+      ctx.state._overviewIsoFocusIdx = focusIdx;
+      focusSlider.value = String(focusIdx);
+      focusLbl.textContent = _getFocusLbl(focusIdx);
+      _rebuildIso(_getFocusZ(focusIdx));
     });
 
     const haFloors2 = ctx.state.model?.floors || [];
@@ -2040,9 +2088,38 @@ export function render(ctx){
     floorLbl.style.cssText = "color:#94a3b8";
     floorLbl.textContent = "Floor:";
     ctrlRow.appendChild(floorLbl);
+    // Step buttons (gap #18, best-in-class roadmap) — the practical benefit
+    // of "swipe floor switching" without the gesture-conflict risk: a
+    // single-finger swipe on the map is already how Pure Live's viewport
+    // pans, so a real swipe-to-change-floor detector would have to fight
+    // that existing, load-bearing gesture. A tap target sidesteps it.
+    // Always lands on a single floor, never an adjacent-pair position.
+    const _stepFloor = (dir) => {
+      const cur = ctx.state._overviewIsoFocusIdx ?? 0;
+      const next = Math.max(0, Math.min(_isoPos.length - 1, cur === 0 ? (dir > 0 ? 1 : 0) : cur + dir * 2));
+      if (next === cur) return;
+      ctx.state._overviewIsoFocusIdx = next;
+      focusSlider.value = String(next);
+      focusLbl.textContent = _getFocusLbl(next);
+      _rebuildIso(_getFocusZ(next));
+    };
+    const floorPrevBtn = document.createElement("button");
+    floorPrevBtn.className = "btn inline";
+    floorPrevBtn.style.cssText = "padding:1px 6px;font-size:10px;color:#94a3b8";
+    floorPrevBtn.textContent = "◀";
+    floorPrevBtn.title = "Previous floor";
+    floorPrevBtn.addEventListener("click", () => _stepFloor(-1));
+    ctrlRow.appendChild(floorPrevBtn);
     focusSlider.style.cssText = "width:90px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
     focusLbl.style.cssText = "color:#94a3b8;min-width:60px;display:inline-block";
     ctrlRow.appendChild(focusSlider);
+    const floorNextBtn = document.createElement("button");
+    floorNextBtn.className = "btn inline";
+    floorNextBtn.style.cssText = "padding:1px 6px;font-size:10px;color:#94a3b8";
+    floorNextBtn.textContent = "▶";
+    floorNextBtn.title = "Next floor";
+    floorNextBtn.addEventListener("click", () => _stepFloor(1));
+    ctrlRow.appendChild(floorNextBtn);
     ctrlRow.appendChild(focusLbl);
     // Outdoor — sits with the floor control because that is what it is: the
     // areas that are not a storey of the building.

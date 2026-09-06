@@ -969,6 +969,17 @@ function MapControls({ ctx }) {
 
   const rebuild = () => { _mapNode = null; ctx.actions.renderRooms(); };
 
+  // Steps by whole floors, skipping the even "floor-pair" combo indices —
+  // matches Overview's own _stepFloor so the two views' buttons agree on
+  // what "next floor" means for the same shared _overviewIsoFocusIdx.
+  const stepFloor = (dir) => {
+    const cur = ctx.state._overviewIsoFocusIdx ?? 0;
+    const next = Math.max(0, Math.min(10, cur === 0 ? (dir > 0 ? 1 : 0) : cur + dir * 2));
+    if (next === cur) return;
+    ctx.state._overviewIsoFocusIdx = next;
+    rebuild();
+  };
+
   if (!expanded) {
     return html`
       <div className="pl-controls" onClick=${() => setExpanded(true)} style="cursor:pointer;justify-content:center">
@@ -980,9 +991,11 @@ function MapControls({ ctx }) {
   return html`
     <div className="pl-controls">
       <span>Floor:</span>
+      <button title="Previous floor" onClick=${() => stepFloor(-1)}>◀</button>
       <input type="range" min="0" max="10" value=${focusIdx}
              style="width:70px;accent-color:#52b788"
              onInput=${e => { ctx.state._overviewIsoFocusIdx=+e.target.value; rebuild(); }} />
+      <button title="Next floor" onClick=${() => stepFloor(1)}>▶</button>
       <span>Gap:</span>
       <input type="range" min="60" max="340" step="10" value=${gap}
              style="width:60px;accent-color:#52b788"
