@@ -17,7 +17,7 @@ solution of its kind.
 | 4 | DONE (e63d664) — table form; iso-map heat-tint not built this pass | Room-dwell analytics: time-in-room, occupancy heatmap, entries/exits, CSV export ("Insights" tab) | analytics |
 | 5 | DONE (e7285bc) — no "alignment view"; numeric settings fields only | GPS geolocation bridge: fabric→lat/long, device_tracker GPS attrs, HA map interop | platform |
 | 6 | DONE (ea14f51) — pinning/auto-cal already existed; drift + matrix rows were the actual gap | Anchored beacons: stationary tags as ground truth (drift warnings, free auto-calibration) | editing |
-| 7 | TODO | Floorplan import: Sweet Home 3D first, then RoomPlan JSON, then image room-detection | editing |
+| 7 | DONE (9c10575) — tier 1/3 (Sweet Home 3D) only; RoomPlan JSON and image room-detection not started | Floorplan import: Sweet Home 3D first, then RoomPlan JSON, then image room-detection | editing |
 | 8 | TODO | Bind arbitrary HA entities to the floorplan (climate/cover/lock/media/camera domain registry) | presentation |
 | 9 | TODO | Predictive what-if scanner placement (ghost scanner over the existing radio-map model) | analytics |
 | 10 | TODO | Persistent lost-and-found: "last known room" inventory that never resets to Unknown | presentation |
@@ -124,9 +124,23 @@ the research output; the essentials are restated per item below.
    new solver plumbing needed. calibration.js's Error Matrix (#3) now takes
    anchors as extra rows (📍) using their DECLARED position, plus a
    dedicated drift summary card.
-7. **Floorplan import** — tiers: .sh3d (zip of XML, metres) → fabric rooms;
-   RoomPlan JSON→polygons; canvas contour room-candidates on uploaded images
-   pre-drawn into the Rooms editor. Mirror/flip fixup buttons.
+7. **Floorplan import** — tier 1/3 DONE (Sweet Home 3D). Verified the .sh3d
+   schema against the live official DTD before writing a parser (rooms are
+   siblings of level, not nested; centimetres; a pre-2016 legacy-format ZIP
+   is rejected with a clear error, not guessed at) — see sh3d_import.py's
+   header for the full citation trail. New floorplan_import_sh3d WS command
+   (ws_floorplan_import.py, sized for the next two tiers to share) parses
+   only — nothing is written to the fabric. Wired into maps.js's Rooms tab
+   as a new entry in its EXISTING "candidates" mechanism (same one "Map
+   placements"/"Blended" use for preview/edit/commit), so this needed zero
+   new preview/edit/commit UI — an upload button, a multi-level picker, and
+   an import-notes line were the only new UI. Also gave the Rooms tab its
+   first-ever render_smoke coverage in the process (it had none at all).
+   REMAINING: tier 2 (RoomPlan JSON), tier 3 (image contour detection), and
+   mirror/flip fixup buttons — not started. No real exported .sh3d file was
+   available to test against; the parser is DTD-verified but not yet
+   confirmed against a real file — treat the first real import as the
+   actual validation.
 8. **HA entities on the map** — domain registry generalizing the lights
    pipeline (glyphs, state text, threshold color, tap/hold cards) for climate,
    cover, lock, media_player, camera, sensor.
