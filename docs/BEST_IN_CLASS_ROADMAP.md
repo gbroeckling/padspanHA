@@ -27,7 +27,7 @@ solution of its kind.
 | 14 | DONE (23b24a8) — agreement badges + count chips on room polygons; solver demotion not built | BLE + motion fusion made visible: per-room agreement badges, occupancy count chips | visualization |
 | 15 | DONE (72e93fb) — live-blended room tint added; clipPath wall-bleed prevention and sun-driven ambient were ALREADY shipped, undocumented | Room-polygon-clipped light glow + live-color room tinting (cinematic Showcase upgrade) | presentation |
 | 16 | DONE (5f29ca4) — search + fly-to camera in Pure Live only; follow is a one-shot "center camera" action, not continuous auto-pin | Search-to-locate with fly-to camera; follow-mode pinning the live viewport to an object | presentation |
-| 17 | TODO | Activity review timeline (Frigate-style scrubable event feed; unifies Follow/Traceback history) | history |
+| 17 | DONE (82e12b4) — unified Follow's log onto movement_store; first-seen distinction + filters + Traceback jump on the existing Movement tab, not a new view; motion-burst not built | Activity review timeline (Frigate-style scrubable event feed; unifies Follow/Traceback history) | history |
 | 18 | TODO | Multi-floor navigation polish: animated explode/collapse, click-to-focus, saved viewpoints, swipe | presentation |
 
 Full per-item build guidance (what to build, who has it, impact/effort) lives in
@@ -328,9 +328,40 @@ the research output; the essentials are restated per item below.
     device (a continuous per-poll camera pin risks fighting a user's own
     pan/zoom and needed more live-tuning time than this pass had); no
     locate-flash equivalent for room/scanner results.
-17. **Review timeline** — room-change/first-seen/motion-burst event feed with
-    filters; click jumps Traceback scrubber; unify Follow + Traceback history
-    onto one server API.
+17. **Review timeline** — DONE (room-change + first-seen; motion-burst not
+    built; extended the existing Movement tab rather than a new view).
+    Verified first that THREE separate, independent client-side room-
+    change trackers already existed — Follow's own ephemeral ring buffer,
+    Pure Live's own ephemeral `ActivityFeed`, and history.js's Movement
+    tab / manage.js's History tab, which were the only two ALREADY sharing
+    one server API (`movement_history_get`) — and that "first seen" data
+    already existed too, just uncredited: `presence_coordinator.py`'s
+    `self._confirmed_room.get(key)` returns `None` for a device's first-
+    ever room confirmation, and that `None` already flows straight into
+    `movement_store.record()`'s `from` field — the loader just rendered it
+    as "unknown → room", indistinguishable from a real transition. Follow
+    now reads the SAME `movement_history_get` API (filtered by the
+    followed object's own canonical key, not its raw address, which does
+    not always match what the coordinator records under `device`),
+    dropping its own tracker. history.js's Movement tab gets: a genuine
+    first-seen/"returned" distinction (✨ badge, its own filter chip,
+    matching the sibling Session Events tab's existing chip pattern — a
+    DIFFERENT, unrelated event stream, not reused for this), and a "▶
+    Traceback" action per row that opens Traceback centred on that moment
+    (`ctx.state._traceback.startTs/endTs` ±2 min, `filterKey`) — the
+    literal "click jumps Traceback" ask, achieved within Traceback's
+    existing time-WINDOW loading model rather than building exact-frame
+    seeking. Deliberately did NOT put this behind a new top-level view —
+    history.js's Movement tab (already reachable, already this exact UI
+    shape) is the natural home, and history.js is itself deliberately
+    NOT in the sidebar MENU today (reachable by internal navigation only)
+    — a precedent worth keeping rather than adding yet another tab.
+    REMAINING: motion-burst — genuinely new plumbing (no existing
+    persistence of motion `binary_sensor` state CHANGES anywhere, only
+    live-state reads each occupancy request; this codebase never touches
+    HA's own logbook/recorder either) — not started; Pure Live's own
+    `ActivityFeed` still runs its separate tracker (a smaller duplicate
+    left as-is rather than risking a third file mid-pass).
 18. **Multi-floor polish** — animated slab explode/collapse transitions,
     click-slab-to-focus, saved viewpoint presets + kiosk auto-tour, swipe
     floor switching. Explicitly NOT WebGL — stays pure-SVG.
