@@ -313,6 +313,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_movement_history_get)
     websocket_api.async_register_command(hass, ws_traceback_get)
     websocket_api.async_register_command(hass, ws_traceback_objects)
+    websocket_api.async_register_command(hass, ws_insights_get)
     websocket_api.async_register_command(hass, ws_notify_services_list)
     websocket_api.async_register_command(hass, ws_notify_test)
     websocket_api.async_register_command(hass, ws_adaptive_status_get)
@@ -676,6 +677,41 @@ async def ws_traceback_objects(hass: HomeAssistant, connection, msg) -> None:
         "objects": tb.get_object_keys(),
         "range": tb.get_time_range(),
     })
+
+
+# Room-dwell analytics — Insights tab (gap #4, best-in-class roadmap)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/insights_get",
+    vol.Optional("days", default=7): vol.All(int, vol.Range(min=1, max=7)),
+})
+@websocket_api.async_response
+async def ws_insights_get(hass: HomeAssistant, connection, msg) -> None:
+    """Aggregate TracebackStore frames into time-in-room / entries / occupancy.
+
+    Days is capped at 7 — TracebackStore itself only retains 7 days
+    (traceback_store.py's MAX_AGE_S), so asking for more would silently
+    return the same data, not a longer history.
+    """
+    import time as _time
+    from .const import DATA_TRACEBACK
+    from .dwell_analytics import compute_dwell_stats
+    tb = hass.data.get(DOMAIN, {}).get(DATA_TRACEBACK)
+    if not tb:
+        connection.send_result(msg["id"], {"objects": {}, "days": [], "dwell": {}, "entries": {}, "occupancy": {}})
+        return
+    days = msg.get("days", 7)
+    end_ts = _time.time()
+    start_ts = end_ts - days * 86400
+    # No obj_key filter — every tracked object's dwell matters here, and
+    # 60480 comfortably covers the full 7-day retention window at ~10s/frame
+    # without triggering get_frames()'s downsampling (which would corrupt
+    # per-day time-in-room by dropping frames unevenly).
+    frames = tb.get_frames(start_ts=start_ts, end_ts=end_ts, max_frames=60480)
+    tz_name = getattr(hass.config, "time_zone", None) or "UTC"
+    stats = compute_dwell_stats(frames, tz_name=tz_name)
+    connection.send_result(msg["id"], stats)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

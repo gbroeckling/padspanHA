@@ -89,6 +89,7 @@ const _VIEW_PATHS = {
   sandbox:      "./views/sandbox.js",
   occupancy:    "./views/occupancy.js",
   installbase:  "./views/installbase.js",
+  insights:     "./views/insights.js",
 };
 
 // Views reachable by internal navigation but never listed in MENU. Being
@@ -159,6 +160,7 @@ const MENU = [
   ["training","Training","mdi:school-outline"],
   ["calibration","Calibration","mdi:crosshairs"],
   ["traceback","Traceback","mdi:history"],
+  ["insights","Insights","mdi:chart-timeline-variant"],
   ["forensics","Forensics","mdi:magnify-scan"],
   ["occupancy","Occupancy","mdi:account-group-outline"],
   ["health","Health","mdi:heart-pulse"],
@@ -173,7 +175,7 @@ const MENU = [
 //   Advanced  — default set plus user-chosen extras from Settings -> UI Structure
 //   Dev       — everything visible (includes QA, Sandbox, raw Debug, etc.)
 const BASIC_TABS = new Set(["follow", "overview", "maps", "settings", "training"]);
-const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","settings","training","manage","calibration","traceback","occupancy","health"]);
+const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","settings","training","manage","calibration","traceback","insights","occupancy","health"]);
 const DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox","installbase"];
 
 // Accent color per tab — used for the sidebar dot, mobile nav, and active highlights
