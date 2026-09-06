@@ -143,7 +143,11 @@ const MODEL = {
     "AA:02": { x_m: 8, y_m: -12, z_m: 2.2, floor_id: "upper" },
     "AA:03": { x_m: 4, y_m: -14, z_m: 2.2, floor_id: "basement" },
   },
-  light_positions_m: { "light.kitchen": { x_m: 5, y_m: -3, floor_id: "main", shape: "circle" } },
+  // width_cm/rotation make this fixture "touched" (lights_map.js's
+  // lightIsTouched) so the lights table's conditional Revert button
+  // (Garry, 2026-09-06) actually renders in these smoke passes instead of
+  // every light silently taking the "nothing to revert" branch.
+  light_positions_m: { "light.kitchen": { x_m: 5, y_m: -3, floor_id: "main", shape: "circle", width_cm: 40, rotation: 30 } },
   beacon_positions_m: {},
   rf_barriers_m: [{ name: "w1", floor_id: "main", points_m: [[0, 0], [4, 0]], attenuation_dbm: 6 }],
   floor_elevations: { basement: 0, main: 3.0, upper: 5.3 },

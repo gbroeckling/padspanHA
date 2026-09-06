@@ -1944,6 +1944,14 @@ export function buildLightsTable(host, lights){
           sel.addEventListener("change", (e) => { e.stopPropagation(); sel.disabled = true; host.onTypeOverride(l.entity_id, sel.value); });
           return sel;
         })()] : []),
+        // Undoes exactly what "touched" means above: a fixture with no size,
+        // rotation, colour or forced class of its own has nothing to revert,
+        // so the button only appears once there is something to step out of.
+        ...(host.onRevertUntouched && lightIsTouched(l, host.typeOverrides, placements) ? [el("button", {
+          class: "lv-act", style: "margin-right:6px",
+          title: "Clear this fixture's size, rotation, colour and class override — its position is kept",
+          onclick: (e) => { e.stopPropagation(); host.onRevertUntouched(l.entity_id); },
+        }, "Revert")] : []),
         el("button", {
           class: "lv-act",
           style: isHidden ? "opacity:0.5" : "",

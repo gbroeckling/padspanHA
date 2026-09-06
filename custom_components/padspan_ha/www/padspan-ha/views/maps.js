@@ -8002,6 +8002,32 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not save the type override: " + String(e), true); }
       ctx.actions.renderRooms();
     } : null,
+    // "Revert to untouched" (Garry, 2026-09-06) — clears exactly what
+    // lightIsTouched checks for size/rotation/colour, staged into the SAME
+    // draft-then-Save flow every other placement edit already goes
+    // through, so it is reviewable and undoable via the existing unsaved-
+    // changes bar rather than a silent, separate write. Position is kept —
+    // "touched" was never about where a fixture is, only how it looks.
+    onRevertUntouched: async (eid) => {
+      const draft = mapState._lightsDraftM || (mapState._lightsDraftM = {});
+      const cur = draft[eid] || ((ctx.state.model || {}).light_positions_m || {})[eid];
+      if (cur && Number.isFinite(Number(cur.x_m)) && Number.isFinite(Number(cur.y_m))) {
+        draft[eid] = {
+          x_m: cur.x_m, y_m: cur.y_m, floor_id: cur.floor_id,
+          color: "#fbbf24", rotation: 0, width_cm: 0, height_cm: 0,
+          margin_cm: cur.margin_cm,
+          label: cur.label || (lightsByEid[eid] ? lightsByEid[eid].friendly_name : eid),
+          source: "manual",
+        };
+      }
+      if (proTier && typeOverrides[eid]) {
+        const next = { ...typeOverrides };
+        delete next[eid];
+        try { await ctx.actions.settingsSet({ light_type_overrides: next }); }
+        catch (e) { ctx.toast("Could not clear the type override: " + String(e), true); }
+      }
+      ctx.actions.renderRooms();
+    },
     typeOverrides,
     afterAssign: () => {
       const st = ctx.state._lightsRegStore;
