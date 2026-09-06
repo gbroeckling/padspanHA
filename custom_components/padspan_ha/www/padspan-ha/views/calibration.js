@@ -341,6 +341,110 @@ function _calibWizard(ctx, el, cs, calData) {
   return root;
 }
 
+// ── Searchable single-select (touch-friendly replacement for long native <select>) ─
+// Visual/UX precedent: views/follow.js:_buildSelector (text input, clear affordance,
+// popup results, robust focus/blur/tap handling). Scoped to calibration so follow.js
+// stays untouched. Caller keeps its own eligibility, ordering, stable ids, labels,
+// and state updates; this helper only renders, filters, and picks.
+function _calibSearchSelect(opts) {
+  const items = opts.items || [];
+  const currentId = opts.currentId || "";
+  const currentUpper = String(currentId || "").toUpperCase();
+  const placeholder = opts.placeholder || "Search…";
+  const emptyText = opts.emptyText || "No matches";
+  const noItemsText = opts.noItemsText || "No options available";
+  const onPick = opts.onPick;
+  const onClear = opts.onClear;
+  const showClear = opts.showClear !== false && !!currentId;
+
+  const currentItem = items.find((it) =>
+    it.group === "raw" ? it.id === currentUpper : it.id === currentId
+  );
+
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "position:relative;margin-bottom:10px";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = currentItem ? currentItem.label : placeholder;
+  input.className = "select";
+  input.style.cssText = "width:100%;box-sizing:border-box;cursor:text";
+  input.value = "";
+  input.setAttribute("autocomplete", "off");
+  input.setAttribute("spellcheck", "false");
+
+  const clearBtn = document.createElement("button");
+  clearBtn.textContent = "×";
+  clearBtn.title = "Clear selection";
+  clearBtn.style.cssText = "position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:2px 6px;display:" + (showClear ? "block" : "none");
+  if (showClear && onClear) {
+    clearBtn.addEventListener("click", (ev) => { ev.stopPropagation(); onClear(); });
+  }
+
+  const list = document.createElement("div");
+  list.style.cssText = "position:absolute;left:0;right:0;top:100%;max-height:280px;overflow-y:auto;background:#1e293b;border:1px solid #334155;border-radius:0 0 8px 8px;z-index:100;display:none";
+
+  const _pick = (id) => {
+    list.style.display = "none";
+    input.value = "";
+    if (onPick) onPick(id);
+  };
+
+  const _row = (text, isHeader) => {
+    const d = document.createElement("div");
+    if (isHeader) {
+      d.style.cssText = "padding:6px 12px;font-size:11px;color:#64748b;background:#0f172a;position:sticky;top:0";
+    } else {
+      d.style.cssText = "padding:8px 12px;font-size:13px;color:#e2e8f0;cursor:pointer;border-bottom:1px solid #1e293b";
+    }
+    d.textContent = text;
+    return d;
+  };
+
+  const _renderList = (query) => {
+    list.innerHTML = "";
+    const q = (query || "").toLowerCase().trim();
+    const filtered = q ? items.filter((i) => i.search.includes(q)) : items;
+    if (!filtered.length) {
+      list.appendChild(_row(q ? emptyText : noItemsText, true));
+      return;
+    }
+    // Preserve the native optgroup cue when unfiltered and both groups exist.
+    const hasTracked = filtered.some((i) => i.group !== "raw");
+    const hasRaw = filtered.some((i) => i.group === "raw");
+    const grouped = !q && hasTracked && hasRaw;
+    const _addRow = (item) => {
+      const row = _row(item.label, false);
+      row.addEventListener("mouseenter", () => { row.style.background = "#334155"; });
+      row.addEventListener("mouseleave", () => { row.style.background = ""; });
+      row.addEventListener("mousedown", (ev) => { ev.preventDefault(); _pick(item.id); });
+      const isCur = item.group === "raw" ? item.id === currentUpper : item.id === currentId;
+      if (isCur) row.style.cssText += ";background:#1a3a2a;color:#52b788;font-weight:600";
+      list.appendChild(row);
+    };
+    if (grouped) {
+      const tracked = filtered.filter((i) => i.group !== "raw").slice(0, 50);
+      const raw = filtered.filter((i) => i.group === "raw").slice(0, 50);
+      for (const it of tracked) _addRow(it);
+      if (raw.length) {
+        list.appendChild(_row("── Raw BLE advertisements ──", true));
+        for (const it of raw) _addRow(it);
+      }
+    } else {
+      for (const item of filtered.slice(0, 50)) _addRow(item);
+    }
+  };
+
+  input.addEventListener("focus", () => { _renderList(input.value); list.style.display = "block"; });
+  input.addEventListener("input", () => { _renderList(input.value); list.style.display = "block"; });
+  input.addEventListener("blur", () => { setTimeout(() => { list.style.display = "none"; }, 150); });
+
+  wrap.appendChild(input);
+  wrap.appendChild(clearBtn);
+  wrap.appendChild(list);
+  return wrap;
+}
+
 // ── Setup tab ─────────────────────────────────────────────────────────────────
 function _setup(ctx, el, cs, calData) {
   const { radioShortId, scannerStatus } = ctx.helpers;
@@ -404,49 +508,39 @@ function _setup(ctx, el, cs, calData) {
     "Select the phone or tag that will act as your calibration beacon. It must be visible to your scanners (Bluetooth on, HA companion app running)."));
 
   if (allDevices) {
-    const sel = document.createElement("select");
-    sel.style.cssText = "width:100%;margin-bottom:10px;";
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = cs.deviceId ? "" : "— choose device —";
-    sel.appendChild(placeholder);
+    const stableIdOf = (o) => o.kind === "private_ble" ? (o.canonical_id || o.address || "")
+                      : o.kind === "ibeacon"     ? (o.key || o.address || "")
+                      : (o.address || o.entity_id || "");
+    const deviceItems = [];
     // Tracked objects — use stable identifiers for rotating-MAC devices
     for (const o of bleObjs) {
       // private_ble → canonical_id (irk:...), ibeacon → key, else → address/entity_id
-      const stableId = o.kind === "private_ble" ? (o.canonical_id || o.address || "")
-                      : o.kind === "ibeacon"     ? (o.key || o.address || "")
-                      : (o.address || o.entity_id || "");
-      const opt = document.createElement("option");
-      opt.value = stableId;
-      opt.textContent = (o.user_label || o.name || stableId) + (o.rssi ? ` (${o.rssi} dBm)` : "") + (o.kind === "private_ble" ? " [Private BLE]" : o.kind === "ibeacon" ? " [iBeacon]" : "");
-      if (stableId === cs.deviceId) opt.selected = true;
-      sel.appendChild(opt);
+      const stableId = stableIdOf(o);
+      const label = (o.user_label || o.name || stableId) + (o.rssi ? ` (${o.rssi} dBm)` : "") + (o.kind === "private_ble" ? " [Private BLE]" : o.kind === "ibeacon" ? " [iBeacon]" : "");
+      deviceItems.push({ id: stableId, label, search: `${label} ${stableId}`.toLowerCase(), group: "tracked" });
     }
     // Raw advertisement devices not already in objects.list (hidden in quiet mode)
     if (adOnlyDevices.length && !_quietMode) {
-      const grp = document.createElement("optgroup");
-      grp.label = "── Raw BLE advertisements ──";
       for (const d of adOnlyDevices) {
-        const opt = document.createElement("option");
-        opt.value = d.address;
-        opt.textContent = (d.name !== d.address ? d.name + "  " : "") + d.address + (d.rssi ? ` (${d.rssi} dBm)` : "");
-        if (d.address === (cs.deviceId || "").toUpperCase()) opt.selected = true;
-        grp.appendChild(opt);
+        const label = (d.name !== d.address ? d.name + "  " : "") + d.address + (d.rssi ? ` (${d.rssi} dBm)` : "");
+        deviceItems.push({ id: d.address, label, search: `${label} ${d.address}`.toLowerCase(), group: "raw" });
       }
-      sel.appendChild(grp);
     }
-    sel.addEventListener("change", () => {
-      cs.deviceId = sel.value;
-      const obj = bleObjs.find(o => {
-        const sid = o.kind === "private_ble" ? (o.canonical_id || o.address || "")
-                  : o.kind === "ibeacon"     ? (o.key || o.address || "")
-                  : (o.address || o.entity_id || "");
-        return sid === sel.value;
-      });
-      cs.deviceLabel = obj ? (obj.user_label || obj.name || sel.value) : sel.value;
+    const pickDevice = (value) => {
+      cs.deviceId = value;
+      const obj = bleObjs.find(o => stableIdOf(o) === value);
+      cs.deviceLabel = obj ? (obj.user_label || obj.name || value) : value;
       ctx.actions.renderRooms();
-    });
-    deviceCard.appendChild(sel);
+    };
+    deviceCard.appendChild(_calibSearchSelect({
+      items: deviceItems,
+      currentId: cs.deviceId || "",
+      placeholder: cs.deviceId ? "" : "Search devices…",
+      emptyText: "No matches",
+      noItemsText: "No devices available",
+      onPick: pickDevice,
+      onClear: () => pickDevice(""),
+    }));
   } else {
     deviceCard.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-bottom:10px" },
       "No BLE devices visible in snapshot. Switch to Live mode and ensure Bluetooth is active on your phone."));
