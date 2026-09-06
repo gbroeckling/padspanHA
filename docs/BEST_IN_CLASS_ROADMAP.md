@@ -23,7 +23,7 @@ solution of its kind.
 | 10 | DONE (8e3eab9) — slotted into the existing object list, not a new dedicated view; column-sort not built | Persistent lost-and-found: "last known room" inventory that never resets to Unknown | presentation |
 | 11 | DONE (70d6c1a) — shared module + keyboard nav + Pin & Listen only; Overview iso, Mapping Edit, touch tooltips, numeric entry not done | Map interaction parity: pan/zoom everywhere, keyboard nav, touch tooltips, numeric entry | presentation |
 | 12 | DONE (cbb4bfd) — scoreboard + tinted confusion links + Roam priority card; accuracy-over-time trend not built | Per-room accuracy scoreboard + confusion pairs on the map, directed collect-more guidance | analytics |
-| 13 | TODO | Ground-truth capture walks with accuracy scoring and settings A/B replay | history |
+| 13 | DONE (2b29c56) — numeric position mark, not draggable; room-accuracy A/B only, position not re-solved | Ground-truth capture walks with accuracy scoring and settings A/B replay | history |
 | 14 | TODO | BLE + motion fusion made visible: per-room agreement badges, occupancy count chips | visualization |
 | 15 | TODO | Room-polygon-clipped light glow + live-color room tinting (cinematic Showcase upgrade) | presentation |
 | 16 | TODO | Search-to-locate with fly-to camera; follow-mode pinning the live viewport to an object | presentation |
@@ -229,9 +229,30 @@ the research output; the essentials are restated per item below.
     the crosshair only knows about geometric coverage gaps, not accuracy.
     REMAINING: no accuracy-over-time trend (would need to store historical
     loo snapshots, not just the latest compute).
-13. **Ground-truth walks** — extend RSSI Vector Capture with a draggable
-    truth marker; replay through solver for metre/room accuracy; A/B settings
-    against the same capture.
+13. **Ground-truth walks** — DONE (numeric position mark, not draggable;
+    room-accuracy A/B, not position A/B). Verified first that replay
+    (`load_capture`/`build_coordinator`/`replay`) already existed complete
+    and correct — but ONLY inside tests/test_capture_replay.py, deliberately
+    ("The panel does not replay anything — replay lives in pytest"), and
+    that ground truth was room-only (`mark_ground_truth`, no position).
+    Promoted the replay logic verbatim into a new capture_replay.py so
+    ws_capture.py's new `capture_replay` command can run the SAME code as a
+    real feature; the test file now imports it instead of duplicating it.
+    Extended `mark_ground_truth` with optional x_m/y_m, carried onto every
+    labelled frame as `gx`/`gy` alongside the existing `g` room field. New
+    `score_replay()` reports room accuracy (from the replay's own `got` vs
+    `truth`) AND metre error (the frame's OWN recorded `mx`/`my` vs the
+    `gx`/`gy` mark) — the metre side does NOT re-solve position, since the
+    spatial locate step lives inside the full poll loop, not the replayable
+    _smooth_room path; a settings A/B therefore only ever moves the room-
+    accuracy number, which the UI states plainly rather than implying a
+    position A/B it cannot do. Health tab's capture card: a mark can carry
+    numeric x_m/y_m alongside the room (deliberately NOT a draggable map
+    pin — that would depend on the map being anchored to the fabric's world
+    gauge, a real dependency a numeric field has no need of); each finished
+    session gets a "Replay & Score" panel with baseline scoring and an A/B
+    box for kalman_q/kalman_r/room_change_delay_s. REMAINING: no
+    draggable/tap-to-place position picker; no position (metre-accuracy) A/B.
 14. **BLE+motion fusion visible** — per-room agreement badge (BLE vs motion),
     person/device count chip on room polygons; optional solver demotion.
 15. **Cinematic lights** — glow gradients clipped to room polygons via
