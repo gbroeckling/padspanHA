@@ -25,7 +25,7 @@ solution of its kind.
 | 12 | DONE (cbb4bfd) — scoreboard + tinted confusion links + Roam priority card; accuracy-over-time trend not built | Per-room accuracy scoreboard + confusion pairs on the map, directed collect-more guidance | analytics |
 | 13 | DONE (2b29c56) — numeric position mark, not draggable; room-accuracy A/B only, position not re-solved | Ground-truth capture walks with accuracy scoring and settings A/B replay | history |
 | 14 | DONE (23b24a8) — agreement badges + count chips on room polygons; solver demotion not built | BLE + motion fusion made visible: per-room agreement badges, occupancy count chips | visualization |
-| 15 | TODO | Room-polygon-clipped light glow + live-color room tinting (cinematic Showcase upgrade) | presentation |
+| 15 | DONE (72e93fb) — live-blended room tint added; clipPath wall-bleed prevention and sun-driven ambient were ALREADY shipped, undocumented | Room-polygon-clipped light glow + live-color room tinting (cinematic Showcase upgrade) | presentation |
 | 16 | TODO | Search-to-locate with fly-to camera; follow-mode pinning the live viewport to an object | presentation |
 | 17 | TODO | Activity review timeline (Frigate-style scrubable event feed; unifies Follow/Traceback history) | history |
 | 18 | TODO | Multi-floor navigation polish: animated explode/collapse, click-to-focus, saved viewpoints, swipe | presentation |
@@ -275,9 +275,29 @@ the research output; the essentials are restated per item below.
     and doing it safely would mean touching the live confidence pipeline
     rather than only adding a read-only visualization, a materially
     bigger and riskier change than the rest of this item.
-15. **Cinematic lights** — glow gradients clipped to room polygons via
-    clipPath (no wall bleed), slab tint from blended live rgb/brightness,
-    sun-driven ambient (hook exists in Showcase).
+15. **Cinematic lights** — DONE. Verified first, and found two of the three
+    asks were ALREADY fully shipped, just never marked done here: (a)
+    clipPath wall-bleed prevention already existed — iso_lights.js's
+    buildIsoSVG writes one `psclip_N` clipPath per room polygon and applies
+    it to every fixture's light pool (`clip-path="url(#...)"`), with a
+    `psclipsoft` Gaussian-blur filter OUTSIDE the clip so the cut feathers
+    like a real doorway leak rather than reading as a hard edge; (b) sun-
+    driven ambient already existed and was already wired end-to-end —
+    lights_map.js's exported `sunAmbient(hass)` reads `sun.sun`'s live
+    elevation attribute and both Showcase call sites (maps.js's Lights tab,
+    lights_panel.js) already pass it through as `opts.ambient`, lifting the
+    ground tone and muting pools by daylight — fully functional, not just a
+    "hook". The one genuinely missing piece — slab tint from BLENDED LIVE
+    rgb/brightness, not a static per-room display colour — is what got
+    built: a new `liveRoomColor(room, fallback)` in iso_lights.js walks the
+    same on/visible/non-utility fixtures glowIds already collects for that
+    room's light pools, brightness-weights their glow colours into one RGB
+    average, and feeds that into BOTH the room-tint gradient dedup
+    (roomGlowIds) and the room polygon's own fill/stroke — falling back to
+    the room's ordinary static colour the instant nothing is lit there, so
+    an empty/off room never reads as unlit black. Gated on Showcase only
+    (`if(!SHOW) return fallback`), so the working map is untouched.
+    REMAINING: nothing outstanding from this item's own description.
 16. **Search + fly-to + follow-mode** — search box matching objects/rooms/
     scanners, viewport tween to result + locate flash; follow pins Pure Live
     viewport to an object across floors.
