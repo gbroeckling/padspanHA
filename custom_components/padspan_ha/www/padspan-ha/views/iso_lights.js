@@ -1607,10 +1607,17 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // Two layers: a breathing soft disc, and a ring that expands and fades,
     // radar-style, on a shared 1.6s clock.
     //
-    // The ring's colour while triggered is ALWAYS the fixed active hue
+    // Drawn while a sensor is genuinely "on" OR still inside the shared
+    // hold window since its last transition (MOTION_HOLD_MS — see the call
+    // site), and its colour is ALWAYS the fixed active hue
     // (MOTION_COLOR_STOPS[0][1]) — never elapsed-shifted, whatever the
-    // device class or how long it has been "on". Two things this fixes at
-    // once, both from Garry's own live reports:
+    // device class or how long it has been "on". Three things this fixes,
+    // all from Garry's own live reports:
+    //   0. (2026-09-05, round three) An alarm panel's PIR zone self-clears
+    //      back to "off" ~5 seconds after triggering, so a flash tied to
+    //      the raw state alone lasted five SECONDS there while other
+    //      sensors' firmware held it for minutes — the hold window gives
+    //      every class the same minimum flash from the same real event.
     //   1. (2026-09-03, the original problem this pulse exists to solve)
     //      A short-hold PIR, a long-retrigger PIR and a sustained
     //      occupancy/radar unit used to each look different simply because
@@ -1662,14 +1669,20 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // wheel so it passes through every colour family exactly once on the
     // way to the held end colour (magenta, reached at 2h). Timings
     // unchanged from the original spec — only which colour lands at each one.
+    // The one hold duration every sensor class shares: how long the ACTIVE
+    // flashing treatment lasts from a sensor's most recent transition,
+    // whatever its own hardware hold-timer does — and, identically, where
+    // the quiet-state colour fade begins. One constant so the two can
+    // never disagree about where "recently active" ends.
+    const MOTION_HOLD_MS=5*60*1000;
     const MOTION_COLOR_STOPS=[
-      [0,          240],  // blue — the active colour, holds firm for 5 min
-      [5*60*1000,  180],  // cyan
-      [20*60*1000, 120],  // green
-      [40*60*1000,  60],  // yellow
-      [65*60*1000,  30],  // orange
-      [90*60*1000,   0],  // red
-      [120*60*1000,300],  // magenta — reached at 2h, held from there
+      [0,             240],  // blue — the active colour, holds firm for the whole hold window
+      [MOTION_HOLD_MS,180],  // cyan
+      [20*60*1000,    120],  // green
+      [40*60*1000,     60],  // yellow
+      [65*60*1000,     30],  // orange
+      [90*60*1000,      0],  // red
+      [120*60*1000,   300],  // magenta — reached at 2h, held from there
     ];
     const motionRecentHue=(elapsedMs)=>{
       let hue=MOTION_COLOR_STOPS[0][1];
@@ -2060,7 +2073,23 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const rawElapsed=NOW_MS-lastMs;
       const elapsed=(l2.state==="on" && !(rawElapsed>=0)) ? 0 : rawElapsed;
       if(!(elapsed>=0) || elapsed>=MOTION_RECENT_MS) continue;
-      if(l2.state==="on") s+=motionPulseSvg(hx,hy,l2.entity_id,MOTION_COLOR_STOPS[0][1]);
+      // The FLASHING treatment runs while a sensor is genuinely "on" OR is
+      // still inside the shared hold window since its last transition —
+      // NOT merely while the raw state is "on". The raw "on" duration is a
+      // hardware artefact: an alarm panel's PIR zone clears itself after
+      // ~5 seconds, a standalone PIR's retrigger timer holds for minutes,
+      // a radar unit holds for as long as someone is present. Tying the
+      // flash to the raw flag alone meant the alarm zones flashed for five
+      // SECONDS while other sensors flashed for minutes, for the identical
+      // real-world event (Garry: "Make them all behave the same way").
+      // Because last_changed also resets on the on→off transition, a
+      // short-hold sensor's off-flip lands within seconds of the trigger
+      // itself, so "within the hold window of the last transition" gives
+      // every class the same minimum flash — and a sensor whose hardware
+      // honestly still claims "on" (sustained presence) keeps flashing for
+      // as long as it does, which is the one difference that reflects the
+      // ROOM rather than the firmware.
+      if(l2.state==="on" || elapsed<MOTION_HOLD_MS) s+=motionPulseSvg(hx,hy,l2.entity_id,MOTION_COLOR_STOPS[0][1]);
       else s+=motionRecentPulseSvg(hx,hy,motionRecentHue(elapsed),l2.entity_id);
     }
     // Halos go under EVERY marker on the floor (see haloSvg); then the

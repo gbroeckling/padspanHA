@@ -1280,18 +1280,27 @@ def test_motion_sensor_fades_through_a_distinct_rainbow_while_quiet_but_stays_fi
     "simple occupancy viewing", and Garry's real complaint: "I need
     consistent behaviour regardless of the sensor type."
 
-    Settled design: while TRIGGERED, always the same fixed active colour —
-    blue — whatever the device class or how long it has been "on"; that is
-    what actually makes a five-second-hold PIR and a sustained occupancy
-    sensor read identically, more directly than a shared elapsed clock did.
-    The elapsed-since-last-changed clock still runs, but only once a sensor
-    has gone QUIET, driving a step function through classic, immediately-
-    distinct colour-wheel colours (blue/cyan/green/yellow/orange/red/
-    magenta) — held stages, front-loaded, the long way round the wheel so
-    it passes every colour family on the way to the held end colour
-    (magenta, at 2h). last_changed is HA's own field for when a
-    binary_sensor stopped tripping; nowMs is injectable so this test does
-    not race a real clock."""
+    Settled design, round three (Garry: "the blue flashing motion bulb only
+    flashes for 5 seconds for [any] of the alarm motion sensors!! They
+    should flash for 5 minutes like some of the other motion sensors, Make
+    them all behave the same way"): the ANIMATED flashing pulse runs while
+    a sensor is genuinely "on" OR is still within the shared 5-minute hold
+    window of its last transition — never merely while the raw state reads
+    "on". The raw "on" duration is a hardware artefact (an alarm panel's
+    PIR zone self-clears in ~5 seconds; a standalone PIR's retrigger timer
+    holds for minutes; a radar unit holds while someone is present), and
+    tying the flash to it alone made the identical real-world event flash
+    for seconds on one sensor and minutes on another. Because last_changed
+    also resets on the on→off flip, a short-hold sensor's off-transition
+    lands within seconds of the trigger itself, so the hold window gives
+    every class the same minimum flash. While flashing the colour is always
+    the fixed active blue. Only once a sensor has been QUIET past the hold
+    window does the calmer ring take over, driving a step function through
+    classic, immediately-distinct colour-wheel colours (cyan/green/yellow/
+    orange/red/magenta) — held stages, front-loaded, the long way round the
+    wheel to the held end colour (magenta, at 2h). last_changed is HA's own
+    field for when a binary_sensor last transitioned; nowMs is injectable
+    so this test does not race a real clock."""
     model = {
         "room_geometry_m": {"Hall": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
         "light_positions_m": {
@@ -1313,9 +1322,14 @@ def test_motion_sensor_fades_through_a_distinct_rainbow_while_quiet_but_stays_fi
     H = 3_600_000
     M = 60_000
     lbe = {
+        # The alarm-panel case: the zone triggered and its hardware already
+        # self-cleared back to "off" seconds later. The ANIMATED flash must
+        # still be running — the raw "on" hold-time never decides how long
+        # the flash lasts.
         "binary_sensor.just_now":        {"entity_id": "binary_sensor.just_now",        "state": "off", "code": "M01", "shape": "motion", "isMotion": True, "last_changed": NOW - 1},
-        # 4m59s quiet: STILL the held blue stage — the 5-minute promise means
-        # "holds THROUGH 5 minutes", not "starts fading immediately".
+        # 4m59s quiet: STILL inside the hold window — still the animated
+        # flash, still blue. "Holds THROUGH 5 minutes", not "starts fading
+        # (or calming) immediately".
         "binary_sensor.under_five":      {"entity_id": "binary_sensor.under_five",      "state": "off", "code": "M02", "shape": "motion", "isMotion": True, "last_changed": NOW - (5 * M - 1000)},
         # 5m01s quiet: the very next instant after the hold — must already
         # be a CLEARLY different hue, not a one-degree nudge off blue.
@@ -1367,9 +1381,12 @@ def test_motion_sensor_fades_through_a_distinct_rainbow_while_quiet_but_stays_fi
         "  return m ? parseInt(m[1],10) : null;\n"
         "};\n"
         "console.log(JSON.stringify({\n"
-        "  justNow: hueFor('binary_sensor.just_now'),\n"
-        "  underFive: hueFor('binary_sensor.under_five'),\n"
+        "  justNow: pulseHueFor('binary_sensor.just_now'),\n"
+        "  justNowCalmRing: hueFor('binary_sensor.just_now'),\n"
+        "  underFive: pulseHueFor('binary_sensor.under_five'),\n"
+        "  underFiveCalmRing: hueFor('binary_sensor.under_five'),\n"
         "  justAfterFive: hueFor('binary_sensor.just_after_five'),\n"
+        "  justAfterFivePulse: pulseHueFor('binary_sensor.just_after_five'),\n"
         "  midSweep: hueFor('binary_sensor.mid_sweep'),\n"
         "  atTwoHours: hueFor('binary_sensor.at_two_hours'),\n"
         "  pastTwoHours: hueFor('binary_sensor.past_two_hours'),\n"
@@ -1382,15 +1399,20 @@ def test_motion_sensor_fades_through_a_distinct_rainbow_while_quiet_but_stays_fi
         "  activeStuckHasAnyPulseMarkup: /class=\"l(pulse|recent)\" data-eid=\"binary_sensor\\.active_stuck\"/.test(svg),\n"
         "}));\n"
     ))
-    # Just gone quiet, and still under 5 minutes: BOTH hold at the exact
-    # same solid blue — no drift at all within the hold.
-    assert out["justNow"] == 240, out
-    assert out["underFive"] == 240, "the 5-minute hold must be a firm hold, not a slow drift toward it ending"
-    # The very next instant after 5 minutes: a BIG, unmistakable jump to
-    # cyan — a genuinely different colour family, not a nudge within the
-    # same blue-purple cluster the earlier violet/magenta stops read as.
-    assert out["justAfterFive"] == 180, \
-        f"the step right after 5 minutes must be cyan, visibly a different colour family than blue: {out}"
+    # The alarm-zone case, and the heart of round three: hardware already
+    # reads "off" seconds after the trigger, but the ANIMATED flashing
+    # pulse (not the calm ring) must still be running, blue, for the whole
+    # 5-minute hold — the raw "on" hold-time never decides the flash.
+    assert out["justNow"] == 240 and out["justNowCalmRing"] is None, \
+        f"seconds after triggering, an already-cleared sensor must still wear the ANIMATED blue flash: {out}"
+    assert out["underFive"] == 240 and out["underFiveCalmRing"] is None, \
+        "4m59s after its last transition the animated flash is still running — the hold is a firm hold"
+    # The very next instant after 5 minutes: the flash ends and the calm
+    # ring takes over at cyan — a genuinely different colour family, not a
+    # nudge within the same blue-purple cluster the earlier violet/magenta
+    # stops read as.
+    assert out["justAfterFive"] == 180 and out["justAfterFivePulse"] is None, \
+        f"right after 5 minutes: calm ring at cyan, no animated flash: {out}"
     # 50 minutes in: past the 40-min (yellow) stop, before the 65-min
     # (orange) one — neither blue nor the final magenta.
     assert out["midSweep"] == 60, f"the 50-min mark must read as yellow (the 40-min stop, held): {out}"
