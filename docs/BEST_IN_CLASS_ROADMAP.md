@@ -16,7 +16,7 @@ solution of its kind.
 | 3 | DONE (1211334) — point×scanner, not literally scanner×scanner (verified no scanner-to-scanner RSSI exists) | Scanner-pair calibration error matrix (heat-colored, reset/relearn buttons) | analytics |
 | 4 | DONE (e63d664) — table form; iso-map heat-tint not built this pass | Room-dwell analytics: time-in-room, occupancy heatmap, entries/exits, CSV export ("Insights" tab) | analytics |
 | 5 | DONE (e7285bc) — no "alignment view"; numeric settings fields only | GPS geolocation bridge: fabric→lat/long, device_tracker GPS attrs, HA map interop | platform |
-| 6 | TODO | Anchored beacons: stationary tags as ground truth (drift warnings, free auto-calibration) | editing |
+| 6 | DONE (ea14f51) — pinning/auto-cal already existed; drift + matrix rows were the actual gap | Anchored beacons: stationary tags as ground truth (drift warnings, free auto-calibration) | editing |
 | 7 | TODO | Floorplan import: Sweet Home 3D first, then RoomPlan JSON, then image room-detection | editing |
 | 8 | TODO | Bind arbitrary HA entities to the floorplan (climate/cover/lock/media/camera domain registry) | presentation |
 | 9 | TODO | Predictive what-if scanner placement (ghost scanner over the existing radio-map model) | analytics |
@@ -109,9 +109,21 @@ the research output; the essentials are restated per item below.
    an embedded real map) — numeric lat/lon/bearing fields only. That is a
    much bigger frontend undertaking (an embedded map widget) than the
    other roadmap items shipped this pass.
-6. **Anchored beacons** — flag object as anchored at a fabric position (reuse
-   drag/placement pipeline); pin marker; solver uses as live reference; drift
-   warning; extra rows in the #3 matrix.
+6. **Anchored beacons** — DONE. Verified first that most of this already
+   existed: pinning a beacon to a fabric position (model.py's
+   beacon_positions_m, placed via the existing drag pipeline in maps.js's
+   Rooms editor or Beacon Tune's click-to-place), the solver computing a
+   live position for it every poll same as any other object (the pin
+   override only ever touches room, never x_m/y_m), and auto-calibration
+   injection from pinned beacons (presence_coordinator.py's
+   _inject_beacon_calibration) — all pre-existing, not built this pass.
+   What was missing: new beacon_drift.py compares an anchor's live SOLVED
+   position against its DECLARED pin position (the actual "ground truth"
+   signal an anchor uniquely offers over a one-off calibration point) and
+   classifies ok/warn/bad. Wired into the existing pin-override block — no
+   new solver plumbing needed. calibration.js's Error Matrix (#3) now takes
+   anchors as extra rows (📍) using their DECLARED position, plus a
+   dedicated drift summary card.
 7. **Floorplan import** — tiers: .sh3d (zip of XML, metres) → fabric rooms;
    RoomPlan JSON→polygons; canvas contour room-candidates on uploaded images
    pre-drawn into the Rooms editor. Mirror/flip fixup buttons.
