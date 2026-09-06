@@ -81,6 +81,52 @@ def _std(vals: list[float]) -> float:
     return math.sqrt(sum((v - m) ** 2 for v in vals) / (len(vals) - 1))
 
 
+def _summarize_room_confusion(pairs: list[tuple[str, str]]) -> dict[str, Any]:
+    """Aggregate (true_room, predicted_room) LOO pairs into a per-room
+    accuracy scoreboard and a confusion-pair list (gap #12, best-in-class
+    roadmap: "per-room accuracy scoreboard + confusion pairs").
+
+    Shared by the k-NN LOO loop and the RF out-of-bag loop — both already
+    walk every held-out point and know its true room and (from the same
+    weighted/leaf vote used for position) its predicted room; this just
+    turns that stream of pairs into a scoreboard instead of discarding it
+    once the position error is recorded.
+    """
+    rooms: dict[str, dict[str, int]] = {}
+    confusion: dict[tuple[str, str], int] = {}
+    for true_room, pred_room in pairs:
+        r = rooms.setdefault(true_room, {"point_count": 0, "correct": 0})
+        r["point_count"] += 1
+        if pred_room == true_room:
+            r["correct"] += 1
+        else:
+            key = (true_room, pred_room)
+            confusion[key] = confusion.get(key, 0) + 1
+
+    rooms_out = {
+        name: {
+            "point_count": r["point_count"],
+            "correct": r["correct"],
+            "accuracy": round(r["correct"] / r["point_count"], 3) if r["point_count"] else 0.0,
+        }
+        for name, r in rooms.items()
+    }
+    pairs_out = sorted(
+        (
+            {"true_room": t, "pred_room": p, "count": c}
+            for (t, p), c in confusion.items()
+        ),
+        key=lambda d: (-d["count"], d["true_room"], d["pred_room"]),
+    )
+    total = sum(r["point_count"] for r in rooms.values())
+    total_correct = sum(r["correct"] for r in rooms.values())
+    return {
+        "rooms": rooms_out,
+        "confusion_pairs": pairs_out,
+        "overall_accuracy": round(total_correct / total, 3) if total else 0.0,
+    }
+
+
 @dataclass
 class CalibrationStore:
     hass: HomeAssistant
@@ -962,6 +1008,7 @@ class CalibrationStore:
 
         _loo_excluded = self.excluded_sources()
         errors_m: list[float] = []
+        room_pairs: list[tuple[str, str]] = []
         for i, pt in enumerate(pts):
             loo_pts = [p for j, p in enumerate(pts) if j != i]
             # Masked sources are excluded here too: this estimate is only
@@ -1009,17 +1056,38 @@ class CalibrationStore:
                 (pred_xm - float(pt["x_m"])) ** 2 + (pred_ym - float(pt["y_m"])) ** 2
             ))
 
+            # Room confusion (gap #12): same weighted vote as knn_locate's
+            # room_scores, reusing the SAME top_k neighbours already scored
+            # for position — an unlabeled held-out point has no ground truth
+            # to score against, so it is skipped here without affecting the
+            # position-error metric above.
+            true_room = str(pt.get("room") or "")
+            if true_room:
+                room_w: dict[str, float] = {}
+                for dist_sq, p2 in top_k:
+                    rm = str(p2.get("room") or "")
+                    if not rm:
+                        continue
+                    pw = float(p2.get("weight") or 1.0)
+                    room_w[rm] = room_w.get(rm, 0.0) + pw / (math.sqrt(dist_sq) + 1.0)
+                if room_w:
+                    pred_room = max(room_w, key=lambda r: room_w[r])
+                    room_pairs.append((true_room, pred_room))
+
         if not errors_m:
             return None
 
         errors_m.sort()
-        return {
+        result: dict[str, Any] = {
             "algorithm": "knn",
             "mean_error_m": round(_mean(errors_m), 3),
             "median_error_m": round(errors_m[len(errors_m) // 2], 3),
             "max_error_m": round(errors_m[-1], 3),
             "point_count": len(errors_m),
         }
+        if room_pairs:
+            result["room_confusion"] = _summarize_room_confusion(room_pairs)
+        return result
 
     def _rf_oob_accuracy(self, map_id: str | None = None) -> dict[str, Any] | None:
         """Out-of-bag validation accuracy for the trained Random Forest.
@@ -1045,6 +1113,7 @@ class CalibrationStore:
 
         errors: list[float] = []
         errors_m: list[float] = []
+        room_pairs: list[tuple[str, str]] = []
         for i, pt in enumerate(rf._points):
             if map_id and pt.get("map_id") != map_id:
                 continue
@@ -1057,29 +1126,42 @@ class CalibrationStore:
                     heard = True
             if not heard:
                 continue
-            x_preds = [
-                t.predict(row)
-                for t, bag in zip(rf._x_trees, x_inbag)
-                if i not in bag
-            ]
-            y_preds = [
-                t.predict(row)
-                for t, bag in zip(rf._y_trees, y_inbag)
-                if i not in bag
-            ]
-            if len(x_preds) < 3 or len(y_preds) < 3:
+            x_oob = [(t, bag) for t, bag in zip(rf._x_trees, x_inbag) if i not in bag]
+            y_oob = [(t, bag) for t, bag in zip(rf._y_trees, y_inbag) if i not in bag]
+            if len(x_oob) < 3 or len(y_oob) < 3:
                 continue  # in-bag for nearly every tree — no honest estimate
-            pred_x = sum(x_preds) / len(x_preds)
-            pred_y = sum(y_preds) / len(y_preds)
+            pred_x = sum(t.predict(row) for t, _ in x_oob) / len(x_oob)
+            pred_y = sum(t.predict(row) for t, _ in y_oob) / len(y_oob)
             err_m = math.sqrt(
                 (pred_x - float(pt["x_m"])) ** 2 + (pred_y - float(pt["y_m"])) ** 2
             )
             errors_m.append(err_m)
 
+            # Room confusion (gap #12): same leaf-majority vote as
+            # RandomForestLocator.predict's room_scores, restricted to the
+            # trees that are honestly out-of-bag for this point — an in-bag
+            # tree has already memorised this point's own room label.
+            true_room = str(pt.get("room") or "")
+            if true_room:
+                room_votes: dict[str, int] = {}
+                for t, _bag in x_oob + y_oob:
+                    leaf = t.predict_leaf(row)
+                    if not leaf:
+                        continue
+                    for idx in leaf.indices:
+                        orig = t.sample_idx[idx]
+                        if orig < len(rf._points):
+                            rm = str(rf._points[orig].get("room") or "")
+                            if rm:
+                                room_votes[rm] = room_votes.get(rm, 0) + 1
+                if room_votes:
+                    pred_room = max(room_votes, key=lambda r: room_votes[r])
+                    room_pairs.append((true_room, pred_room))
+
         if not errors_m:
             return None
         errors_m.sort()
-        return {
+        result: dict[str, Any] = {
             "algorithm": "rf",
             "validation": "oob",
             "mean_error_m": round(_mean(errors_m), 3),
@@ -1087,6 +1169,9 @@ class CalibrationStore:
             "max_error_m": round(errors_m[-1], 3),
             "point_count": len(errors_m),
         }
+        if room_pairs:
+            result["room_confusion"] = _summarize_room_confusion(room_pairs)
+        return result
 
     def _active_algorithm(self) -> str:
         """Active positioning algorithm from settings ('knn' | 'rf')."""

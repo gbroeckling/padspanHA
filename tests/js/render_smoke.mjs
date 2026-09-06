@@ -269,6 +269,19 @@ const CALIB_STATE = (over) => ({
   stopFlag: false, readings: null, savedThisSession: 0, ...over,
 });
 
+// gap #12 (best-in-class roadmap): per-room accuracy scoreboard + confusion
+// pairs. Shared between the Model tab's scoreboard/tinted-link variant and
+// Roam's "collect more" priority-card variant so both exercise the SAME
+// shape calibration_store.py's loo_accuracy() actually returns.
+const ROOM_CONFUSION = {
+  rooms: {
+    Kitchen: { point_count: 5, correct: 3, accuracy: 0.6 },
+    Living:  { point_count: 4, correct: 4, accuracy: 1.0 },
+  },
+  confusion_pairs: [{ true_room: "Kitchen", pred_room: "Living", count: 2 }],
+  overall_accuracy: 0.78,
+};
+
 const VARIANTS = {
   "maps.js": [
     null,
@@ -327,7 +340,45 @@ const VARIANTS = {
     { name: "pin-ready",      state: { view: "calibration", _calib: CALIB_STATE({ tab: "pin", deviceId: "AA:BB:CC:DD:EE:01", mapId: "ground" }) } },
     { name: "roam-unguarded", state: { view: "calibration", _calib: CALIB_STATE({ tab: "roam" }) } },
     { name: "roam-ready",     state: { view: "calibration", _calib: CALIB_STATE({ tab: "roam", deviceId: "AA:BB:CC:DD:EE:01", mapId: "ground" }) } },
+    // Roam's directed "collect more" priority card (gap #12) — otherwise
+    // only the purely-geometric coverage-gap crosshair ever renders.
+    { name: "roam-priority", state: { view: "calibration",
+      _calib: CALIB_STATE({ tab: "roam", deviceId: "AA:BB:CC:DD:EE:01", mapId: "ground" }),
+      calibration: {
+        points: [
+          { map_id: "ground", x_frac: 0.3, y_frac: 0.4, room: "Kitchen", x_m: 4, y_m: -3,
+            floor_id: "main", scanner_readings: [{ source: "AA:01", mean_rssi: -55 }] },
+          { map_id: "ground", x_frac: 0.6, y_frac: 0.7, room: "Living", x_m: 7, y_m: -6,
+            floor_id: "main", scanner_readings: [{ source: "AA:01", mean_rssi: -68 }] },
+        ],
+        model: { coverage_by_map: { ground: { loo_accuracy: { room_confusion: ROOM_CONFUSION } } } },
+      },
+    } },
     { name: "model", state: { view: "calibration", _calib: CALIB_STATE({ tab: "model" }) } },
+    // Per-room scoreboard + tinted confusion links on the mini floor plan
+    // (gap #12) — needs room_confusion on BOTH the global loo_accuracy (the
+    // scoreboard card) and the per-map coverage_by_map entry (the SVG
+    // links), plus room_bounds on the map so _roomCentroid resolves.
+    { name: "model-room-confusion", state: { view: "calibration", _calib: CALIB_STATE({ tab: "model" }),
+      calibration: {
+        points: [
+          { map_id: "ground", x_frac: 0.3, y_frac: 0.4, room: "Kitchen", x_m: 4, y_m: -3,
+            floor_id: "main", scanner_readings: [{ source: "AA:01", mean_rssi: -55 }, { source: "AA:02", mean_rssi: -78 }] },
+          { map_id: "ground", x_frac: 0.6, y_frac: 0.7, room: "Living", x_m: 7, y_m: -6,
+            floor_id: "main", scanner_readings: [{ source: "AA:01", mean_rssi: -68 }, { source: "AA:02", mean_rssi: -71 }] },
+        ],
+        model: {
+          loo_accuracy: { mean_error_m: 1.4, median_error_m: 1.1, max_error_m: 3.0, point_count: 9,
+            algorithm: "knn", room_confusion: ROOM_CONFUSION },
+          coverage_by_map: { ground: { loo_accuracy: { mean_error_m: 1.4, max_error_m: 3.0,
+            room_confusion: ROOM_CONFUSION } } },
+        },
+      },
+      maps: { list: [{ ...MAPS[0], room_bounds: {
+        Kitchen: { type: "poly", points: [[0.1, 0.1], [0.4, 0.1], [0.4, 0.4], [0.1, 0.4]] },
+        Living:  { type: "poly", points: [[0.5, 0.5], [0.9, 0.5], [0.9, 0.9], [0.5, 0.9]] },
+      } }] },
+    } },
     { name: "beacon", state: { view: "calibration", _calib: CALIB_STATE({ tab: "beacon" }) } },
     // Matrix tab needs its own calibration override (state merge is shallow —
     // a variant's `calibration` key replaces FIXTURE's, not deep-merges) with

@@ -1131,6 +1131,25 @@ function _roam(ctx, el, cs, calData) {
       : "Keep going — more points needed for a reliable model."));
   wrap.appendChild(progCard);
 
+  // Directed collect-more guidance (gap #12, best-in-class roadmap): the
+  // crosshair below only knows about geometric coverage gaps — it has no
+  // idea the model is actually WRONG in a room it already has points in.
+  // room_confusion (from LOO on this same map) does, so surface it as a
+  // priority card ahead of the purely-geometric next target.
+  const roomConf = calData.model?.coverage_by_map?.[cs.mapId]?.loo_accuracy?.room_confusion;
+  const weakRoom = roomConf ? _weakestRoom(roomConf) : null;
+  if (weakRoom) {
+    const wCard = el("div", { class: "card", style: "border-color:#f59e0b" });
+    wCard.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#f59e0b;margin-bottom:4px" },
+      `Priority: ${weakRoom.name}`));
+    wCard.appendChild(el("div", { style: "font-size:12px;margin-bottom:4px" },
+      `Only ${Math.round(weakRoom.accuracy * 100)}% of held-out points in ${weakRoom.name} are recognized correctly` +
+      (weakRoom.confusedWith ? ` — most often mistaken for ${weakRoom.confusedWith}.` : ".")));
+    wCard.appendChild(el("div", { class: "muted", style: "font-size:12px" },
+      `Collect ${weakRoom.suggested} more point${weakRoom.suggested === 1 ? "" : "s"} in ${weakRoom.name} to sharpen the model.`));
+    wrap.appendChild(wCard);
+  }
+
   // Coverage heatmap map
   const ar = (mapData.image.height || 600) / (mapData.image.width || 800);
   const vbH = ar * 100;
@@ -1307,6 +1326,16 @@ function _modelTab(ctx, el, cs, calData) {
   summCard.appendChild(statGrid);
   wrap.appendChild(summCard);
 
+  // Per-room accuracy scoreboard + confusion pairs (gap #12, best-in-class
+  // roadmap). Built from loo_accuracy's held-out room-vote pairs, grouped
+  // by TRUE room — an aggregate mean-error-in-metres number hides which
+  // specific room the model actually struggles with, or which two rooms
+  // it swaps for each other.
+  const roomConf = loo?.room_confusion;
+  if (roomConf && Object.keys(roomConf.rooms).length) {
+    wrap.appendChild(_roomAccuracyCard(ctx, el, roomConf));
+  }
+
   // Per-floor coverage — selector to choose which map to display
   const floorName = (fid) => {
     const f = floors.find(fl => fl.id === fid);
@@ -1342,6 +1371,7 @@ function _modelTab(ctx, el, cs, calData) {
       const grid = _computeCoverage(mapPts, GRID_N);
       const covered = grid.filter(v => v >= 0.5).length;
       const pct = Math.round(covered / (GRID_N * GRID_N) * 100);
+      const mapLoo = model.coverage_by_map?.[mid]?.loo_accuracy;
 
       // Stats row
       mapVizContainer.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px" }, [
@@ -1368,16 +1398,20 @@ function _modelTab(ctx, el, cs, calData) {
         const dotsSvg = mapPts.map(p =>
           `<circle cx="${(p.x_frac * 100).toFixed(1)}" cy="${(p.y_frac * vbH).toFixed(1)}" r="2" fill="#52b788" stroke="white" stroke-width="0.6" opacity="0.9"/>`
         ).join("");
+        const confSvg = _confusionLinksSvg(mapLoo?.room_confusion, mapData, vbH);
 
         const miniDiv = el("div", { style: "border-radius:6px;overflow:hidden;border:1px solid #1b3526;margin-bottom:6px" });
         miniDiv.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 ${vbH}" preserveAspectRatio="none" style="width:100%;display:block">
           <image href="${imgUrl}" x="0" y="0" width="100" height="${vbH}" preserveAspectRatio="none"/>
-          ${gSvg}${dotsSvg}
+          ${gSvg}${confSvg}${dotsSvg}
         </svg>`;
         mapVizContainer.appendChild(miniDiv);
+        if (confSvg) {
+          mapVizContainer.appendChild(el("div", { style: "font-size:10px;color:#78909c;margin-bottom:6px" },
+            [el("span", { style: "color:#dc2626" }, "┄ "), "Room confusion (thicker = more often mixed up)"]));
+        }
       }
 
-      const mapLoo = model.coverage_by_map?.[mid]?.loo_accuracy;
       if (mapLoo) {
         mapVizContainer.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:4px" },
           `Cross-validation accuracy: ~${mapLoo.mean_error_m}m mean · ${mapLoo.max_error_m}m max`));
@@ -1553,6 +1587,71 @@ function _modelTab(ctx, el, cs, calData) {
   wrap.appendChild(actCard);
 
   return wrap;
+}
+
+// ── Per-room accuracy scoreboard (gap #12, best-in-class roadmap) ─────────────
+// room_confusion groups the SAME held-out predictions loo_accuracy already
+// makes by their TRUE room, so "the model is ~1.8m off on average" becomes
+// "the model is right 60% of the time in the Office, and confuses it with
+// the Hallway 3 times" — actionable instead of a single blended number.
+function _roomAccuracyCard(ctx, el, roomConf) {
+  const card = el("div", { class: "card" });
+  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:4px" }, "Per-Room Accuracy"));
+  card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
+    "Leave-one-out room prediction, grouped by the room each point was actually collected in."));
+
+  const rooms = Object.entries(roomConf.rooms).sort((a, b) => a[1].accuracy - b[1].accuracy);
+  const rows = el("div", { style: "display:flex;flex-direction:column;gap:6px;margin-bottom:12px" });
+  for (const [name, r] of rooms) {
+    const pct = Math.round(r.accuracy * 100);
+    const color = pct >= 80 ? "#52b788" : pct >= 50 ? "#f59e0b" : "#dc2626";
+    rows.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px" }, [
+      el("div", { style: "font-size:12px;width:110px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, name),
+      el("div", { style: "flex:1;height:8px;background:#1b3526;border-radius:4px;overflow:hidden" }, [
+        el("div", { style: `width:${pct}%;height:100%;background:${color}` }),
+      ]),
+      el("div", { style: `font-family:monospace;font-size:11px;color:${color};width:36px;text-align:right;flex-shrink:0` }, `${pct}%`),
+      el("div", { class: "muted", style: "font-size:10px;width:52px;text-align:right;flex-shrink:0" }, `${r.correct}/${r.point_count}`),
+    ]));
+  }
+  card.appendChild(rows);
+
+  if (roomConf.confusion_pairs.length) {
+    card.appendChild(el("div", { style: "font-weight:600;font-size:12px;color:#94a3b8;margin-bottom:6px" }, "Confused With"));
+    const confList = el("div", { style: "display:flex;flex-direction:column;gap:4px" });
+    for (const p of roomConf.confusion_pairs.slice(0, 8)) {
+      confList.appendChild(el("div", { style: "font-size:11px;color:#cbd5e1;display:flex;align-items:center;gap:6px" }, [
+        el("span", {}, p.true_room),
+        el("span", { style: "color:#f59e0b" }, "→"),
+        el("span", {}, p.pred_room),
+        el("span", { class: "badge warn", style: "margin-left:auto;font-size:10px" }, `×${p.count}`),
+      ]));
+    }
+    card.appendChild(confList);
+  }
+
+  return card;
+}
+
+// Tinted room-to-room confusion links, drawn on a floor-plan SVG already
+// using viewBox="0 0 100 vbH" — one <line> per confusion pair whose rooms
+// both have a traced polygon/circle on THIS map, weighted (opacity + width)
+// by how often that pair was confused so the worst pairs read as the
+// boldest lines. Silently draws nothing for a pair with no centroid on
+// this particular map (multi-floor homes name rooms per floor).
+function _confusionLinksSvg(roomConf, mapData, vbH) {
+  if (!roomConf || !roomConf.confusion_pairs.length) return "";
+  const maxCount = Math.max(...roomConf.confusion_pairs.map(p => p.count));
+  let svg = "";
+  for (const p of roomConf.confusion_pairs) {
+    const c1 = _roomCentroid(p.true_room, mapData);
+    const c2 = _roomCentroid(p.pred_room, mapData);
+    if (!c1 || !c2) continue;
+    const w = 1 + 3 * (p.count / maxCount);
+    const op = (0.35 + 0.5 * (p.count / maxCount)).toFixed(2);
+    svg += `<line x1="${(c1[0] * 100).toFixed(1)}" y1="${(c1[1] * vbH).toFixed(1)}" x2="${(c2[0] * 100).toFixed(1)}" y2="${(c2[1] * vbH).toFixed(1)}" stroke="#dc2626" stroke-width="${w.toFixed(1)}" opacity="${op}" stroke-dasharray="2 1.5"/>`;
+  }
+  return svg;
 }
 
 // ── Calibration Error Matrix (gap #3, best-in-class roadmap) ──────────────────
@@ -1904,6 +2003,22 @@ function _nextTarget(grid, gridN) {
     }
   }
   return { x_frac: bx, y_frac: by };
+}
+
+// Picks the room LOO trusts least, from room_confusion (gap #12). Rooms
+// with only 1 held-out point are skipped — one wrong guess out of one is
+// noise, not a pattern worth sending someone to go collect more of.
+// `suggested` scales with how far off accuracy is: a room that's only
+// right half the time needs more extra points than one at 75%.
+function _weakestRoom(roomConf) {
+  const candidates = Object.entries(roomConf.rooms || {})
+    .filter(([, r]) => r.point_count >= 2 && r.accuracy < 0.8);
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => a[1].accuracy - b[1].accuracy);
+  const [name, r] = candidates[0];
+  const topConfusion = (roomConf.confusion_pairs || []).find(p => p.true_room === name);
+  const suggested = Math.max(2, Math.min(6, Math.round((1 - r.accuracy) * 5) + 1));
+  return { name, accuracy: r.accuracy, confusedWith: topConfusion?.pred_room || null, suggested };
 }
 
 // ── Tune tab — 3D iso map with draggable receiver markers ──────────────────
