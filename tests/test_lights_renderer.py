@@ -310,6 +310,58 @@ def test_room_shapes_carry_a_soft_centre_glow_like_the_light_pools(tmp_path):
     assert out["showUsesGlow"], "Showcase must keep the room glow alongside its own pswash sheen"
 
 
+def test_room_tint_blends_the_colour_of_its_own_lit_fixtures_in_showcase(tmp_path):
+    """Gap #15, best-in-class roadmap: "slab tint from blended live rgb/brightness".
+
+    A room whose lights are actually glowing a colour should tint that
+    colour on the slab — not just wear its assigned display colour. Falls
+    back to the static colour when the room has nothing lit (or byRoom
+    carries nothing for it at all, the shape every prior Showcase test in
+    this file already uses and must keep working unchanged).
+    """
+    base_model = {
+        "room_geometry_m": {
+            "Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 4], [0, 4]]},
+        },
+        "light_positions_m": {
+            "light.lit": {"x_m": 3.0, "y_m": 2.0, "floor_id": "main"},
+        },
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    lbe = {"light.lit": {"entity_id": "light.lit", "state": "on", "code": "A01",
+                         "shape": "circle", "isWled": False, "rgb": [16, 240, 128], "bri": 255}}
+    by_room = {"Kitchen": [{"entity_id": "light.lit", "state": "on", "rgb": [16, 240, 128], "bri": 255}]}
+
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        "import { roomColor } from './room_color.mjs';\n"
+        f"const MODEL={json.dumps(base_model)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const BYROOM={json.dumps(by_room)};\n"
+        "const out={};\n"
+        "out.staticColor=roomColor('Kitchen', MODEL);\n"
+        "const show=M.buildIsoSVG(MODEL,BYROOM,new Set(),null,150,0,LBE,false,FLOORS,{showcase:true});\n"
+        "const work=M.buildIsoSVG(MODEL,BYROOM,new Set(),null,150,0,LBE,false,FLOORS,{});\n"
+        "const showOff=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{showcase:true});\n"
+        "const strokeOf=(svg)=>{const m=/<polygon points=\"[^\"]+\" fill=\"none\" stroke=\"#04100a\"[^>]*\\/>\\s*<polygon[^>]*stroke=\"([^\"]+)\"/.exec(svg); return m?m[1]:null;};\n"
+        "out.showStroke=strokeOf(show);\n"
+        "out.workStroke=/<polygon[^>]*fill=\"[^\"]*\" fill-opacity=\"0\\.16\" stroke=\"([^\"]+)\"/.exec(work)?.[1]||null;\n"
+        "out.showOffStroke=strokeOf(showOff);\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    # The fixture reports rgb 16,240,128; quantised the same way glowIds
+    # quantises it elsewhere in this file (see #18f078 in the showcase tests).
+    assert out["showStroke"] == "#18f078", out
+    # Working (non-Showcase) mode is a "cinematic Showcase upgrade" — the
+    # working map keeps its ordinary static colour regardless of byRoom.
+    assert out["workStroke"] == out["staticColor"], out
+    # No lit fixture recorded for the room at all (byRoom={}) — the shape
+    # every OTHER Showcase test in this file uses — must fall back exactly
+    # as before.
+    assert out["showOffStroke"] == out["staticColor"], out
+
+
 def test_marker_never_exceeds_the_old_fixed_size(tmp_path):
     """A studio flat must not render saucers."""
     out = _marker_m(tmp_path, _sq(4, 3))

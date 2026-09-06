@@ -1043,6 +1043,29 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const b=Number(l&&l.bri);
     return isFinite(b)&&b>0 ? Math.max(0.12, Math.min(1, b/255)) : 0.8;
   };
+  // Slab tint from blended live rgb/brightness (gap #15, best-in-class
+  // roadmap): a room with its lights actually glowing magenta should read
+  // as tinted magenta on the floor, not just wear its assigned display
+  // colour. Brightness-weighted average of the SAME on/visible/non-utility
+  // fixtures glowIds already walks for this room's light pools, so a room
+  // with no fixture literally lit (a hallway, or every light off) keeps
+  // its ordinary static colour rather than reading as unlit black.
+  const liveRoomColor=(rname,fallback)=>{
+    if(!SHOW) return fallback;
+    const onLights=(byRoom[rname]||[]).filter(li=>
+      li.state==="on" && !hiddenEids.has(li.entity_id) && !li.isFan && !li.isMotion && !li.isTemp && !li.isLock);
+    if(!onLights.length) return fallback;
+    let rSum=0,gSum=0,bSum=0,wSum=0;
+    for(const li of onLights){
+      const m=/^#?([0-9a-f]{6})$/i.exec(glowCol(li,null));
+      if(!m) continue;
+      const v=parseInt(m[1],16), w=briOf(li);
+      rSum+=((v>>16)&255)*w; gSum+=((v>>8)&255)*w; bSum+=(v&255)*w; wSum+=w;
+    }
+    if(wSum<=0) return fallback;
+    const q=(x)=>Math.max(0,Math.min(255,Math.round(x/wSum)));
+    return `#${[q(rSum),q(gSum),q(bSum)].map(v=>v.toString(16).padStart(2,"0")).join("")}`;
+  };
   // One gradient per DISTINCT colour in use (quantised above), collected before
   // the defs are written. A per-light gradient would be one def per fixture.
   const glowIds=new Map();
@@ -1155,7 +1178,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // One gradient per distinct room colour, same dedup as glowIds.
   const roomGlowIds=new Map();
   for(const r of rooms){
-    const rc=roomColor(r.room, model);
+    const rc=liveRoomColor(r.room, roomColor(r.room, model));
     if(!roomGlowIds.has(rc)) roomGlowIds.set(rc, `psroomglow_${roomGlowIds.size}`);
   }
   for(const [rc,rid] of roomGlowIds){
@@ -1845,7 +1868,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
     // Rooms, straight from the metre fabric.
     for(const r of hereRooms){
-      const color=roomColor(r.room, model);
+      const color=liveRoomColor(r.room, roomColor(r.room, model));
       const ipts=r.pts.map(p=>iso(p[0],p[1],z));
       const pp=ipts.map(pt).join(" ");
       const cx=r.pts.reduce((a,p)=>a+p[0],0)/r.pts.length;
