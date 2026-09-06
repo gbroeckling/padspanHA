@@ -13,7 +13,7 @@ solution of its kind.
 |---|--------|---------|----------|
 | 1 | DONE (4fea4ae) — position glide + fade + trails; room-color re-tint still an instant snap, not crossfaded | Animated live movement: tweened markers, room-color transitions, fading trails | visualization |
 | 2 | DONE (9c5e792) — distance rings + room-vote bars in the detail modal; confidence halo was already shipped (always-on dashed ring, not gated on click) | Confidence/evidence visualization: per-scanner distance rings, per-room probability, confidence halo | visualization |
-| 3 | TODO | Scanner-pair calibration error matrix (heat-colored, reset/relearn buttons) | analytics |
+| 3 | DONE (1211334) — point×scanner, not literally scanner×scanner (verified no scanner-to-scanner RSSI exists) | Scanner-pair calibration error matrix (heat-colored, reset/relearn buttons) | analytics |
 | 4 | TODO | Room-dwell analytics: time-in-room, occupancy heatmap, entries/exits, CSV export ("Insights" tab) | analytics |
 | 5 | TODO | GPS geolocation bridge: fabric→lat/long, device_tracker GPS attrs, HA map interop | platform |
 | 6 | TODO | Anchored beacons: stationary tags as ground truth (drift warnings, free auto-calibration) | editing |
@@ -71,9 +71,19 @@ the research output; the essentials are restated per item below.
    to iso" phrasing. Scoped out this pass to avoid touching gap #1's
    freshly-built animation pipeline; would reuse the same source_distances_m
    data if built later.
-3. **Calibration error matrix** — TX×RX grid, expected (fabric positions) vs
-   measured (path-loss) distance, blue→green→red by error, tooltips, grey when
-   silent; link Relearn. Data exists server-side; new sub-view in calibration.js.
+3. **Calibration error matrix** — DONE. Verified first (reading
+   fit_path_loss()/path_loss_by_source() in calibration_store.py) that no
+   scanner ever hears another scanner's advertisement — "TX×RX" as literally
+   scanner×scanner does not exist in this codebase. The real pairwise data,
+   already computed and discarded inside fit_path_loss()'s regression, is
+   calibration-point×scanner: each point's known fabric distance to a
+   scanner vs. what that scanner's fitted path-loss curve derives from the
+   point's own RSSI. New calibration_matrix.js (pure, no DOM, reuses
+   path_loss.js's estimateDistanceM rather than a 3rd formula copy) builds
+   the grid; wired into calibration.js as an "Error Matrix" tab — diverging
+   blue/green/red heat color by signed error, grey for a silent pair,
+   per-cell tooltip, "Relearn" button calling the existing
+   calibrationComputeModel action.
 4. **Room-dwell analytics** — "Insights" tab off existing server history:
    per-object per-day time-in-room table, dwell heat tint per room on the iso
    map, entry counts, concurrent-occupancy timeline, CSV/JSON export.
