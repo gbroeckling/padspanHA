@@ -12,7 +12,7 @@ solution of its kind.
 | # | Status | Feature | Category |
 |---|--------|---------|----------|
 | 1 | DONE (4fea4ae) — position glide + fade + trails; room-color re-tint still an instant snap, not crossfaded | Animated live movement: tweened markers, room-color transitions, fading trails | visualization |
-| 2 | TODO | Confidence/evidence visualization: per-scanner distance rings, per-room probability, confidence halo | visualization |
+| 2 | DONE (9c5e792) — distance rings + room-vote bars in the detail modal; confidence halo was already shipped (always-on dashed ring, not gated on click) | Confidence/evidence visualization: per-scanner distance rings, per-room probability, confidence halo | visualization |
 | 3 | TODO | Scanner-pair calibration error matrix (heat-colored, reset/relearn buttons) | analytics |
 | 4 | TODO | Room-dwell analytics: time-in-room, occupancy heatmap, entries/exits, CSV export ("Insights" tab) | analytics |
 | 5 | TODO | GPS geolocation bridge: fabric→lat/long, device_tracker GPS attrs, HA map interop | platform |
@@ -53,10 +53,24 @@ the research output; the essentials are restated per item below.
    node instead of a wholesale replace. (ESPresense-companion has
    spring-animated markers; most visible hobbyist-vs-commercial tell —
    the position half of that gap is now closed.)
-2. **Confidence visualization** — click object → per-scanner distance rings in
-   metre space projected to iso, "why this room" probability bars from existing
-   k-NN/fingerprint scores, uncertainty halo. Backend: expose per-scanner
-   distance estimates + room scores in live_snapshot.
+2. **Confidence visualization** — DONE. The uncertainty halo already existed
+   before this pass (overview.js's always-visible dashed confidence ring,
+   sized/opacity by knn_confidence, plus a red warning ring under 30% —
+   ambient, not gated on a click, which is arguably better). What was
+   missing: presence_coordinator.py now exposes `source_distances_m`
+   (per-scanner distance, reusing the solver's own per-source calibration
+   fit) and `room_scores` (the k-NN/RF weighted room vote, previously
+   computed and discarded the instant argmax picked a winner) on live_snapshot
+   objects. The object detail modal (panel.js) renders both: a small
+   self-contained evidence diagram (evidence_diagram.js, flat top-down, NOT
+   the iso map's projection — deliberately decoupled from overview.js's
+   poll/glide machinery) with a dashed ring per scanner at its estimated
+   distance, and a "Why this room?" probability bar list.
+   REMAINING (not done): the rings are modal-only, not drawn live on the
+   main iso map itself on object click — the roadmap's literal "projected
+   to iso" phrasing. Scoped out this pass to avoid touching gap #1's
+   freshly-built animation pipeline; would reuse the same source_distances_m
+   data if built later.
 3. **Calibration error matrix** — TX×RX grid, expected (fabric positions) vs
    measured (path-loss) distance, blue→green→red by error, tooltips, grey when
    silent; link Relearn. Data exists server-side; new sub-view in calibration.js.
