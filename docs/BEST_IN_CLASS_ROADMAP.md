@@ -15,7 +15,7 @@ solution of its kind.
 | 2 | DONE (9c5e792) — distance rings + room-vote bars in the detail modal; confidence halo was already shipped (always-on dashed ring, not gated on click) | Confidence/evidence visualization: per-scanner distance rings, per-room probability, confidence halo | visualization |
 | 3 | DONE (1211334) — point×scanner, not literally scanner×scanner (verified no scanner-to-scanner RSSI exists) | Scanner-pair calibration error matrix (heat-colored, reset/relearn buttons) | analytics |
 | 4 | DONE (e63d664) — table form; iso-map heat-tint not built this pass | Room-dwell analytics: time-in-room, occupancy heatmap, entries/exits, CSV export ("Insights" tab) | analytics |
-| 5 | TODO | GPS geolocation bridge: fabric→lat/long, device_tracker GPS attrs, HA map interop | platform |
+| 5 | DONE (e7285bc) — no "alignment view"; numeric settings fields only | GPS geolocation bridge: fabric→lat/long, device_tracker GPS attrs, HA map interop | platform |
 | 6 | TODO | Anchored beacons: stationary tags as ground truth (drift warnings, free auto-calibration) | editing |
 | 7 | TODO | Floorplan import: Sweet Home 3D first, then RoomPlan JSON, then image room-detection | editing |
 | 8 | TODO | Bind arbitrary HA entities to the floorplan (climate/cover/lock/media/camera domain registry) | presentation |
@@ -95,8 +95,20 @@ the research output; the essentials are restated per item below.
    REMAINING: dwell heat tint drawn ON the iso map's room polygons —
    deliberately not touched this pass to avoid two features fighting over
    overview.js's rendering pipeline so soon after gap #1.
-5. **GPS bridge** — settings lat/long/bearing for fabric origin; publish
-   latitude/longitude/gps_accuracy on tracked device_trackers; alignment view.
+5. **GPS bridge** — DONE (core bridge). New geo_bridge.py converts fabric
+   (x_m, y_m) to real lat/long given a settings-configured origin +
+   bearing (verified first nothing like this existed — the fabric plane
+   has no relationship to true north or a real location). Wired into
+   device_tracker.py's PadSpanDeviceTracker, whose latitude/longitude
+   properties already existed but were hardcoded to None — additive to the
+   existing room-name location_name state, not a replacement. Settings →
+   GPS Bridge card sets origin lat/lon/bearing. Uncovered zero test
+   coverage on device_tracker.py itself (a metaclass TypeError on import
+   under the test stub) and fixed the conftest.py gap causing it.
+   REMAINING: no visual "alignment view" (dragging/rotating the fabric on
+   an embedded real map) — numeric lat/lon/bearing fields only. That is a
+   much bigger frontend undertaking (an embedded map widget) than the
+   other roadmap items shipped this pass.
 6. **Anchored beacons** — flag object as anchored at a fabric position (reuse
    drag/placement pipeline); pin marker; solver uses as live reference; drift
    warning; extra rows in the #3 matrix.
