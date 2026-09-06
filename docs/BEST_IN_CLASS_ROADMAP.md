@@ -26,7 +26,7 @@ solution of its kind.
 | 13 | DONE (2b29c56) — numeric position mark, not draggable; room-accuracy A/B only, position not re-solved | Ground-truth capture walks with accuracy scoring and settings A/B replay | history |
 | 14 | DONE (23b24a8) — agreement badges + count chips on room polygons; solver demotion not built | BLE + motion fusion made visible: per-room agreement badges, occupancy count chips | visualization |
 | 15 | DONE (72e93fb) — live-blended room tint added; clipPath wall-bleed prevention and sun-driven ambient were ALREADY shipped, undocumented | Room-polygon-clipped light glow + live-color room tinting (cinematic Showcase upgrade) | presentation |
-| 16 | TODO | Search-to-locate with fly-to camera; follow-mode pinning the live viewport to an object | presentation |
+| 16 | DONE (5f29ca4) — search + fly-to camera in Pure Live only; follow is a one-shot "center camera" action, not continuous auto-pin | Search-to-locate with fly-to camera; follow-mode pinning the live viewport to an object | presentation |
 | 17 | TODO | Activity review timeline (Frigate-style scrubable event feed; unifies Follow/Traceback history) | history |
 | 18 | TODO | Multi-floor navigation polish: animated explode/collapse, click-to-focus, saved viewpoints, swipe | presentation |
 
@@ -298,9 +298,36 @@ the research output; the essentials are restated per item below.
     an empty/off room never reads as unlit black. Gated on Showcase only
     (`if(!SHOW) return fallback`), so the working map is untouched.
     REMAINING: nothing outstanding from this item's own description.
-16. **Search + fly-to + follow-mode** — search box matching objects/rooms/
-    scanners, viewport tween to result + locate flash; follow pins Pure Live
-    viewport to an object across floors.
+16. **Search + fly-to + follow-mode** — DONE, scoped to Pure Live only.
+    Verified first that Overview's iso map has NO pan/zoom camera at all
+    (gap #11 deliberately left it that way — retrofitting one was judged
+    too risky on "the most complex, most heavily-shared view"), while Pure
+    Live already has a real one (`MapViewport`'s tx/ty/scale state) reusing
+    Overview's own rendered DOM node — building fly-to on a camera that
+    already exists, in the view that already has it, is the low-risk path.
+    New search index (`_buildSearchIndex`) reads objects/rooms/scanners
+    straight out of already-loaded `ctx.state` — no new backend endpoint.
+    Selecting a result switches Overview/Pure Live's shared floor-focus
+    slider if needed (a plain instant switch — an ANIMATED slab transition
+    is gap #18's job, not this one's), then measures the target's exact
+    projected position via `fabricFrame` (the SAME shared, already-tested
+    function `iso_lights.js` exports and Overview's own renderer uses) and
+    tweens the camera there via a new `_tweenCamera` rAF easing helper.
+    Object results also reuse the EXISTING "📍 Locate" ring (gap #10,
+    `_overviewLocateKey`) — rooms/scanners get the fly-to zoom itself as
+    feedback, no equivalent ring built for those. Followed-device chips
+    get a "🎯 center camera" action reusing the same fly-to. Debugged and
+    fixed live in a real browser (this JS — camera math, shadow-DOM
+    traversal, async map-rebuild timing — has no realistic unit-test
+    harness): a `document.querySelector` that cannot see into the panel's
+    shadow root, and a fixed-delay assumption that raced the map's own
+    async "Building 3D map…" → real-SVG rebuild after a floor switch
+    (replaced with a bounded retry-until-ready poll). REMAINING: "follow
+    pins Pure Live viewport to an object ACROSS FLOORS" is NOT a continuous
+    auto-follow — it is a one-shot "center camera now" action per followed
+    device (a continuous per-poll camera pin risks fighting a user's own
+    pan/zoom and needed more live-tuning time than this pass had); no
+    locate-flash equivalent for room/scanner results.
 17. **Review timeline** — room-change/first-seen/motion-burst event feed with
     filters; click jumps Traceback scrubber; unify Follow + Traceback history
     onto one server API.
