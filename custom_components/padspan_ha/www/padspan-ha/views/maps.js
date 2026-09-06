@@ -30,6 +30,10 @@ const { LIGHT_SHAPES, deriveLightShape } =
 const { hasScale: _wizHasScale, hasRooms: _wizHasRooms, hasReceivers: _wizHasReceivers,
         undrawnAreaNames: _wizUndrawnAreas } =
   await import(`./setup_status.js${new URL(import.meta.url).search}`);
+// What-if scanner placement (gap #9, best-in-class roadmap) — pure scoring,
+// see its own header for why this isn't a duplicate of anything else here.
+const { whatIfDelta } =
+  await import(`./whatif_placement.js${new URL(import.meta.url).search}`);
 
 // ── Maps View ────────────────────────────────────────────────────────────────
 //
@@ -8560,6 +8564,38 @@ function _roomsTab(ctx, maps) {
     }
   }
 
+  // ── What-if scanner placement (gap #9, best-in-class roadmap) — toggle
+  // and score readout live here (top controls); the draggable ghost pin
+  // itself is added further down, alongside the real scanner pins, where
+  // bbox/pinLayer/runDrag/scanDraft/allBarriers are already in scope. A
+  // plain object (not appended yet) lets that later code populate this
+  // fixed DOM position without needing bbox etc. available this early.
+  const whatIfScore = el("div", { style: "margin:4px 0 10px" });
+  {
+    const whatIfBtn = el("button", {
+      class: "btn inline" + (mapState._whatIfGhost ? " primary" : ""),
+    }, mapState._whatIfGhost ? "🔮 What-if scanner: ON" : "🔮 What-if scanner");
+    whatIfBtn.addEventListener("click", () => {
+      if (mapState._whatIfGhost) {
+        mapState._whatIfGhost = null;
+      } else {
+        // No bbox yet at this point in render — a room centroid (or the
+        // origin, with none) is a reasonable starting drop point; the
+        // user drags it from there.
+        const anyRoom = Object.values(fabricDraft)[0];
+        const c = anyRoom && _geomCentroid(anyRoom);
+        mapState._whatIfGhost = { x_m: c ? c[0] : 0, y_m: c ? c[1] : 0 };
+      }
+      ctx.actions.renderRooms();
+    });
+    card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px" }, [
+      whatIfBtn,
+      el("span", { class: "muted", style: "font-size:11px" },
+        "Drag a hypothetical scanner to see how much it would help tell adjacent rooms apart — nothing is placed until you Add it for real."),
+    ]));
+    card.appendChild(whatIfScore);
+  }
+
   // ── Draft: a scratch copy of this floor's geometry, reset on floor switch ─
   if (mapState._roomsDraftFloorId !== floorId) {
     const draft = {};
@@ -8582,6 +8618,10 @@ function _roomsTab(ctx, maps) {
     // because the level-picker still points at some id from it.
     mapState._roomsImportedRaw = null;
     mapState._roomsImportedLevelId = null;
+    // A what-if scanner's x_m/y_m were dragged into place on THIS floor's
+    // coordinate space — meaningless (and likely outside every room) on
+    // whatever floor comes next.
+    mapState._whatIfGhost = null;
   }
 
   // ── Scanners: the other half of the fabric, edited in metres right here ──
@@ -9157,6 +9197,68 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
       pin.addEventListener("touchstart", onDown, { passive: false });
       pinLayer.appendChild(pin);
       pinLayer.appendChild(cap);
+    }
+
+    // ── What-if scanner: the draggable ghost + its live score ────────────
+    // Scored against the SAME modelled-coverage physics radio_map.js's
+    // heatmap already uses (whatif_placement.js reuses its exports rather
+    // than re-deriving path-loss + wall-crossing a second time). Same-floor
+    // only — dz treated as 0 for every scanner including the ghost; a
+    // systematic height offset applied equally to every candidate would
+    // not meaningfully change a RELATIVE room-separation comparison.
+    if (mapState._whatIfGhost) {
+      const ghost = mapState._whatIfGhost;
+      const realScanners = Object.entries(scanDraft).map(([source, p]) =>
+        ({ x_m: p.x_m, y_m: p.y_m, dz: 0, source, floorDist: 0 }));
+      const wiBarriers = allBarriers.map(b => ({
+        points: (b.points_m || []).map(p => [Number(p[0]), Number(p[1])]),
+        attenuation_dbm: b.attenuation_dbm ?? 6,
+      }));
+      const wiRooms = {};
+      for (const [name, g] of Object.entries(fabricDraft)) {
+        if (g.type === "poly" && Array.isArray(g.points_m)) wiRooms[name] = { pts: g.points_m };
+      }
+      const adjacency = ctx.state.model?.room_adjacency || {};
+
+      const paintScore = () => {
+        const ghostScanner = { x_m: ghost.x_m, y_m: ghost.y_m, dz: 0, source: "__whatif_ghost__", floorDist: 0 };
+        const res = whatIfDelta(wiRooms, adjacency, realScanners, ghostScanner, wiBarriers);
+        const sign = res.delta > 0 ? "+" : "";
+        const color = res.delta > 0.05 ? "#52b788" : (res.delta < -0.05 ? "#f87171" : "#94a3b8");
+        whatIfScore.innerHTML = "";
+        whatIfScore.appendChild(el("div", {
+          style: "font-size:12px;padding:8px;background:#0a150e;border:1px solid #2d5a3d;border-radius:8px",
+        }, [
+          el("span", { style: "color:#94a3b8" }, "Room-discrimination score: "),
+          el("span", {}, `${res.baseline} dB → ${res.withGhost} dB `),
+          el("span", { style: `color:${color};font-weight:700` }, `(${sign}${res.delta} dB)`),
+          !res.pairs.length ? el("div", { class: "muted", style: "font-size:11px;margin-top:2px" },
+            "No adjacent-room pairs on this floor to score.") : null,
+        ].filter(Boolean)));
+      };
+      paintScore();
+
+      const gx = ((ghost.x_m - bbox.minX) / bbox.width * 100).toFixed(3);
+      const gy = ((ghost.y_m - bbox.minY) / bbox.height * 100).toFixed(3);
+      const ghostPin = el("div", {
+        title: `What-if scanner\n${ghost.x_m.toFixed(2)}, ${ghost.y_m.toFixed(2)} m — drag to test a position`,
+        style: `position:absolute;left:${gx}%;top:${gy}%;transform:translate(-50%,-50%);` +
+          `width:18px;height:18px;border-radius:50%;background:transparent;` +
+          `border:2px dashed #c084fc;box-shadow:0 0 8px #c084fc99;` +
+          `pointer-events:auto;cursor:grab;z-index:5;touch-action:none`,
+      });
+      const startGX = ghost.x_m, startGY = ghost.y_m;
+      const onGhostDown = (ev) => runDrag(ev, (dxm, dym) => {
+        ghost.x_m = Math.round((startGX + dxm) * 1000) / 1000;
+        ghost.y_m = Math.round((startGY + dym) * 1000) / 1000;
+        const lx = ((ghost.x_m - bbox.minX) / bbox.width * 100).toFixed(3);
+        const ly = ((ghost.y_m - bbox.minY) / bbox.height * 100).toFixed(3);
+        ghostPin.style.left = `${lx}%`; ghostPin.style.top = `${ly}%`;
+        paintScore();
+      });
+      ghostPin.addEventListener("mousedown", onGhostDown);
+      ghostPin.addEventListener("touchstart", onGhostDown, { passive: false });
+      pinLayer.appendChild(ghostPin);
     }
 
     // ── Barriers — draggable walls, in metres ────────────────────────────

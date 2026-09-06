@@ -296,6 +296,13 @@ const VARIANTS = {
       },
       _roomsImportedLevelId: "l1",
     } } },
+    // Ghost scanner active (gap #9, best-in-class roadmap) — exercises the
+    // live score readout and the draggable ghost pin, not just the toggle
+    // button's off state every other "rooms" variant leaves untouched.
+    { name: "rooms-whatif", state: { mapsTab: "rooms", maps: { list: MAPS,
+      _roomsFloorId: "main", _roomsDraftFloorId: "main",
+      _whatIfGhost: { x_m: 2, y_m: -2 },
+    } } },
     // The Setup Wizard short-circuits render() entirely — each step is its
     // own code path (_wizardUpload/_wizardScale/_wizardRooms/
     // _wizardScanners/_wizardFinish), all otherwise unreached by the plain

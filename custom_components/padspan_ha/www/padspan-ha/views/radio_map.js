@@ -31,15 +31,15 @@ const IDW_POWER = 2.5;     // IDW exponent (higher = more local, sharper near ba
 // dBm penalty per slab crossed. Tracks _SLAB_PENALTY_DB in presence_coordinator:
 // the picture and the solver must model cross-floor loss the same way, or the
 // heatmap shows a cross-floor reading the engine never believed.
-const FLOOR_ATTEN_DB = 10;
+export const FLOOR_ATTEN_DB = 10;
 const KNN_K = 3;           // k for LOO cross-validation
 const BARRIER_PENALTY_DB_TO_DIST = 0.01; // each dB of barrier attenuation adds this much "virtual distance"
 
 // ── Model-Based RF Propagation ───────────────────────────────────────────────
 // Computes predicted RSSI at any point based on scanner positions + path-loss
 // model. No calibration data needed — pure physics + wall attenuation.
-const DEFAULT_REF_POWER = -59;   // dBm at 1 meter
-const DEFAULT_PATH_LOSS_N = 2.5; // indoor path-loss exponent
+export const DEFAULT_REF_POWER = -59;   // dBm at 1 meter
+export const DEFAULT_PATH_LOSS_N = 2.5; // indoor path-loss exponent
 
 /**
  * Scanners for a modelled heatmap, in stack-world coordinates, from the fabric.
@@ -250,6 +250,8 @@ function _segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
  * Compute total barrier attenuation (dBm) between two points.
  * Checks every barrier segment for intersections with the line (x1,y1)→(x2,y2).
  */
+export function barrierAttenuation(x1, y1, x2, y2, barriers) { return _barrierAttenuation(x1, y1, x2, y2, barriers); }
+
 function _barrierAttenuation(x1, y1, x2, y2, barriers) {
   let totalDb = 0;
   for (const bar of barriers) {
