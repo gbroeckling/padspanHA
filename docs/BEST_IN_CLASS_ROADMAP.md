@@ -19,7 +19,7 @@ solution of its kind.
 | 6 | DONE (ea14f51) — pinning/auto-cal already existed; drift + matrix rows were the actual gap | Anchored beacons: stationary tags as ground truth (drift warnings, free auto-calibration) | editing |
 | 7 | DONE (9c10575) — tier 1/3 (Sweet Home 3D) only; RoomPlan JSON and image room-detection not started | Floorplan import: Sweet Home 3D first, then RoomPlan JSON, then image room-detection | editing |
 | 8 | DONE (53ee119) — lock domain only; cover/climate/media_player/camera/sensor not started | Bind arbitrary HA entities to the floorplan (climate/cover/lock/media/camera domain registry) | presentation |
-| 9 | TODO | Predictive what-if scanner placement (ghost scanner over the existing radio-map model) | analytics |
+| 9 | DONE (de8b986) — built in the 2D Rooms tab, not the 3D iso overview | Predictive what-if scanner placement (ghost scanner over the existing radio-map model) | analytics |
 | 10 | TODO | Persistent lost-and-found: "last known room" inventory that never resets to Unknown | presentation |
 | 11 | TODO | Map interaction parity: pan/zoom everywhere, keyboard nav, touch tooltips, numeric entry | presentation |
 | 12 | TODO | Per-room accuracy scoreboard + confusion pairs on the map, directed collect-more guidance | analytics |
@@ -161,8 +161,21 @@ the research output; the essentials are restated per item below.
    and media_player (need real new gauge/slider rendering, not just a new
    glyph), camera (live image fetching — structurally unlike anything in
    this pipeline), sensor (arbitrary, needs its own display convention).
-9. **What-if placement** — draggable ghost scanner recomputing the existing
-   modelled-coverage overlay live + room-discrimination delta score.
+9. **What-if placement** — DONE. Verified first that the existing modelled-
+   coverage heatmap is pure client-side JS (radio_map.js's
+   _modelRssiAt/_storeyModelGrid) — cheap to recompute live on every drag
+   frame, no server round-trip — and that no existing scoring (the LOO
+   cross-validation tooling) can evaluate a scanner that doesn't exist yet.
+   New whatif_placement.js computes a per-scanner RSSI fingerprint VECTOR
+   at a point (not just the strongest reading radio_map.js's own heatmap
+   keeps) and scores room-discrimination as mean fingerprint separation
+   across ADJACENT room pairs only — reuses radio_map.js's own newly-
+   exported physics (barrierAttenuation, path-loss constants) rather than
+   re-deriving it. Built into maps.js's Rooms tab (2D), NOT the 3D iso
+   overview — that view has no inverse iso→world projection today and
+   building one was out of scope; the Rooms tab's existing runDrag gives
+   proven screen↔metre conversion for free. A toggle drops a draggable
+   ghost scanner; dragging it live-repaints the discrimination delta.
 10. **Lost-and-found** — persisted last-confirmed room/time per tagged object
     (never Unknown), sortable list, locate flash (ring exists in iso_lights).
 11. **Interaction parity** — shared viewport helper from _attachPanZoom +
