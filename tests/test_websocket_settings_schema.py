@@ -63,11 +63,54 @@ _CALL_RE = re.compile(r"settingsSet\s*\(\s*\{|padspan_ha/settings_set")
 _KEY_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)\s*:")
 
 
+def _brace_object_start(src: str, m: "re.Match[str]") -> int:
+    """Index of the '{' that opens the settings payload object THIS match
+    identified, or -1. _CALL_RE's two alternatives — and two real call
+    shapes for the bare-string one — put that brace in three different
+    places relative to the match:
+      1. "settingsSet({"                                — the match itself
+         ends AT the brace: ctx.actions.settingsSet({ ... }).
+      2. "padspan_ha/settings_set", THEN a sibling {...} — the object is a
+         separate, later call argument: wsCall("padspan_ha/settings_set",
+         { ... }). Forward: skip the string's closing quote, whitespace and
+         comma after the match, expect '{' immediately.
+      3. "padspan_ha/settings_set" sitting INSIDE an object that already
+         opened earlier — callWS({ type: "padspan_ha/settings_set", ... }).
+         Searching forward here would walk past this object's own close and
+         land on an unrelated LATER brace (a catch block's, in one real
+         case), silently mis-scanning that block's own text as settings
+         keys — so this case needs a BACKWARD search for the enclosing,
+         still-unmatched '{'.
+    Tried in this order: (1) is unambiguous from the match text alone; then
+    (2) before (3), since when both a forward '{' is immediately adjacent
+    AND the match sits inside a real enclosing object, the forward one is
+    the actual payload (2's own shape never has a meaningful enclosing
+    object to fall back to)."""
+    if m.group().endswith("{"):
+        return m.end() - 1
+    j = m.end()
+    while j < len(src) and src[j] in "\"' \t\r\n,":
+        j += 1
+    if j < len(src) and src[j] == "{":
+        return j
+    depth = 0
+    i = m.start() - 1
+    while i >= 0:
+        if src[i] == "}":
+            depth += 1
+        elif src[i] == "{":
+            if depth == 0:
+                return i
+            depth -= 1
+        i -= 1
+    return -1
+
+
 def _payload_keys(src: str) -> set[str]:
     """Top-level keys of every settings_set payload literal in one JS file."""
     keys: set[str] = set()
     for m in _CALL_RE.finditer(src):
-        start = src.find("{", m.start())
+        start = _brace_object_start(src, m)
         if start < 0:
             continue
         depth, i = 0, start

@@ -1857,6 +1857,7 @@ export function buildLightsTable(host, lights){
     th("health", "Health", "text-align:center"),
     th("brand", "Brand"),
     th("state", "State"),
+    th(null, "Type", "text-align:center"),
     th(null, "Map", "width:60px;text-align:center"),
   ])));
   const tbody = el("tbody");
@@ -1955,6 +1956,34 @@ export function buildLightsTable(host, lights){
         ? el("span", { class: `lv-state ${l.state === "jammed" ? "off" : (on ? "on" : "off")}` },
              l.state === "jammed" ? "JAMMED" : (on ? "LOCKED" : "UNLOCKED"))
         : el("span", { class: `lv-state ${on ? "on" : "off"}` }, on ? "ON" : "OFF")),
+      // Its own column, next to State (Garry, 2026-09-07: "we still need
+      // another option next to state... a reassign to another device type
+      // pulldown" — it used to be buried in the far-right actions column,
+      // easy to miss among Place/Revert/Hide). Pro only (the Mapping tab
+      // passes onTypeOverride only at pro; the sidebar and every lower tier
+      // pass none): force the class when detection got it wrong. light.*
+      // entities only — checked on the DOMAIN, not l.isFan/isMotion/isTemp:
+      // a genuine fan./binary_sensor. entity's class really is its domain,
+      // nothing to override, but a light.* already overridden to "fan"
+      // (Garry, 2026-09-07: "some light switches are fan switches") now
+      // reads l.isFan===true too — gating on the derived flag would hide
+      // the only way to revert it.
+      el("td", { style: "text-align:center" },
+        (host.onTypeOverride && l.entity_id.startsWith("light.")) ? (() => {
+          const sel = document.createElement("select");
+          sel.className = "lv-select";
+          sel.title = "Override how PadSpan classes this light (Pro)";
+          const cur = (host.typeOverrides || {})[l.entity_id] || "auto";
+          for (const [kind, label] of LIGHT_TYPE_OVERRIDES) {
+            const o = el("option", { value: kind }, label);
+            if (kind === cur) o.selected = true;
+            sel.appendChild(o);
+          }
+          sel.addEventListener("click", e => e.stopPropagation());
+          sel.addEventListener("change", (e) => { e.stopPropagation(); sel.disabled = true; host.onTypeOverride(l.entity_id, sel.value); });
+          return sel;
+        })() : el("span", { class: "muted" }, "—")
+      ),
       el("td", { style: "text-align:center;white-space:nowrap" }, [
         // The visible way to the controls (sidebar): a "⋯" that opens the
         // card — the same card the hold opens, offered in plain sight.
@@ -1971,29 +2000,6 @@ export function buildLightsTable(host, lights){
             title: q ? "Queued — tap the map to place it" : "Queue it, then tap the map where it is",
             onclick: (e) => { e.stopPropagation(); host.onPlaceRow(l.entity_id); },
           }, q ? "Queued" : "Place");
-        })()] : []),
-        // Pro only (the Mapping tab passes onTypeOverride only at pro; the
-        // sidebar and every lower tier pass none): force the class when
-        // detection got it wrong. light.* entities only — checked on the
-        // DOMAIN, not l.isFan/isMotion/isTemp: a genuine fan./binary_sensor.
-        // entity's class really is its domain, nothing to override, but a
-        // light.* already overridden to "fan" (Garry, 2026-09-07: "some
-        // light switches are fan switches") now reads l.isFan===true too —
-        // gating on the derived flag would hide the only way to revert it.
-        ...(host.onTypeOverride && l.entity_id.startsWith("light.") ? [(() => {
-          const sel = document.createElement("select");
-          sel.className = "lv-select";
-          sel.title = "Override how PadSpan classes this light (Pro)";
-          sel.style.marginRight = "6px";
-          const cur = (host.typeOverrides || {})[l.entity_id] || "auto";
-          for (const [kind, label] of LIGHT_TYPE_OVERRIDES) {
-            const o = el("option", { value: kind }, label);
-            if (kind === cur) o.selected = true;
-            sel.appendChild(o);
-          }
-          sel.addEventListener("click", e => e.stopPropagation());
-          sel.addEventListener("change", (e) => { e.stopPropagation(); sel.disabled = true; host.onTypeOverride(l.entity_id, sel.value); });
-          return sel;
         })()] : []),
         // Undoes exactly what "touched" means above: a fixture with no size,
         // rotation, colour or forced class of its own has nothing to revert,

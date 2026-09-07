@@ -216,6 +216,8 @@ class PadSpanLightsApp extends HTMLElement {
       this.state._fitRooms      = !!s.lights_fit_rooms;
       this.state._hideUntouched = !!s.lights_hide_untouched;
       this.state._isolux        = !!s.lights_isolux;
+      this.state._automorph     = !!s.lights_automorph_enabled;
+      this.state._automorphPct  = Number(s.lights_automorph_room_pct) || 0;
       // The effective tier the backend computed (licence.py). Below `bright`
       // the shared pipeline draws the free map — see lights_map.js. A settings
       // fetch that failed keeps the tier it last knew rather than flickering
@@ -427,6 +429,13 @@ class PadSpanLightsApp extends HTMLElement {
       showcase: !!this.state._showcase,
       fitRooms: !!this.state._fitRooms,
       isolux: !!this.state._isolux,
+      // Read-only reflection, same reason as showcase/fitRooms/isolux above:
+      // Automorph is set in Mapping -> Lights and this panel displays the
+      // map that tab builds, so its aura must show here too, or the two
+      // "identical" views disagree on what the house currently looks like.
+      // No onAutomorph/onAutomorphRoomPct — this panel never edits modes.
+      automorph: !!this.state._automorph,
+      automorphRoomPct: this.state._automorphPct || 0,
       ambient: sunAmbient(this._hass),
       // Same filter as the builder, from the same rule, over the same
       // placements — the map hides them, the index table below still lists
@@ -484,6 +493,19 @@ class PadSpanLightsApp extends HTMLElement {
         if(this._regStore.reg) this._regStore.reg.ts=0;
         this._render();
       },
+      // A per-entity classification correction, not a presentation mode —
+      // unlike showcase/fitRooms/isolux above, this panel DOES let you edit
+      // it here, the same as Hide/Show and the Room-assignment dropdown
+      // already do. Pro only, matching the Mapping tab's own gate.
+      typeOverrides: this.state._typeOverrides,
+      onTypeOverride: String(this.state._tier||"").toLowerCase()==="pro" ? async (eid, kind) => {
+        const next = { ...this.state._typeOverrides };
+        if (!kind || kind === "auto") delete next[eid]; else next[eid] = kind;
+        this.state._typeOverrides = next;
+        try { await this._hass.callWS({ type: "padspan_ha/settings_set", light_type_overrides: next }); }
+        catch (e) { this._toast("Could not save the type override: " + String(e), true); }
+        this._render();
+      } : null,
       // The index's own filter + sort — independent of the map's layer
       // chips (classFilter/onClassFilter above): this hides rows outright,
       // the ordinary meaning of "filter" for a list, so choosing a type
