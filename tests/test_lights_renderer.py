@@ -1530,12 +1530,12 @@ def test_room_label_steps_out_of_a_markers_way_by_its_own_rendered_width(tmp_pat
     def render_with_room_name(room_name):
         model = {
             "room_geometry_m": {room_name: {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 3], [0, 3]]}},
-            # Calibrated against this exact room polygon: lands ~38px
-            # horizontally from the label's own x, ~13px above its
-            # unshifted y — inside a long name's half-width, outside a
+            # Calibrated against this exact room polygon (re-tuned 2026-09-07
+            # for the smaller rfsBase — "takes up too much space"): lands
+            # inside a long name's (now narrower) half-width, outside a
             # short one's, and within the (unchanged) ±9px vertical band
             # either way.
-            "light_positions_m": {"binary_sensor.probe": {"x_m": 0.59, "y_m": -0.4, "floor_id": "main"}},
+            "light_positions_m": {"binary_sensor.probe": {"x_m": 0.7, "y_m": -0.4, "floor_id": "main"}},
         }
         lbe = {"binary_sensor.probe": {"entity_id": "binary_sensor.probe", "state": "off", "code": "M08", "shape": "motion", "isMotion": True, "last_changed": None}}
         return _run_js(tmp_path, (

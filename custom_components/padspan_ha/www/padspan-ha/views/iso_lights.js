@@ -1865,6 +1865,16 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const jobs=[];
     // Collapsed piles of unplaced devices (use-mode), flushed with the markers.
     const stacks=[];
+    // Everything from a room's own NAME onward (label, provisional pile,
+    // unplaced count) is deferred the same way, into its own pass run only
+    // after every room's polygon on this floor is drawn (Garry, 2026-09-07:
+    // a name near a shared wall was landing under a NEIGHBOURING room's
+    // boundary whenever that room happened to iterate later — this was
+    // arbitrary array order, not geometry, so it read as "sometimes on top,
+    // sometimes under" with no visible pattern). Labels now paint over every
+    // boundary line on the floor, always, the same way markers already paint
+    // over every room.
+    const labelJobs=[];
 
     // Rooms, straight from the metre fabric.
     for(const r of hereRooms){
@@ -1886,7 +1896,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       let liy=Math.min(...ipts.map(p=>p[1]))+8;
       // The label's own rendered footprint, computed here (not down by the
       // <text> itself) because the collision check below needs it.
-      const rfsBase=SHOW?6.6:7.4;
+      // Trimmed ~10% (Garry, 2026-09-07: room names were "too much space" —
+      // shrink-to-fit below only ever shrinks further from here, never grows).
+      const rfsBase=SHOW?5.9:6.7;
       const rtxt=SHOW?String(r.room).toUpperCase():String(r.room);
       // Shrink to fit the room's own isometric width — a fixed size read
       // fine in an average room but visibly overflowed a small one, live on
@@ -1935,75 +1947,87 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         s+=`<polygon points="${pp}" fill="${color}" fill-opacity="0.16" stroke="${color}" stroke-width="1.6" opacity="1"/>`;
         s+=`<polygon points="${pp}" fill="url(#${roomGlowIds.get(color)})" stroke="none" pointer-events="none"/>`;
       }
-      // paint-order puts the dark stroke UNDER the glyphs, so the name stays
-      // legible over the floor hatch and over a slab edge it happens to cross.
-      // Showcase sets it in tracked small caps — the convention every printed
-      // plan uses for a room name, and it stops competing with the fixture codes.
-      // The room's name is a TAP TARGET (data-role="room"): the sidebar opens
-      // the room's sheet from it — every light in the room, all off, all on —
-      // and the builder selects the room's lights. A transparent box behind
-      // the text takes the tap; the glyph strokes alone would be a needle.
-      {
-        s+=`<g class="lroom" data-role="room" data-room="${escSVG(r.room)}" data-z="${z}" style="cursor:pointer">`+
-          `<rect x="${(lix-rw/2).toFixed(1)}" y="${(liy-rh/2).toFixed(1)}" width="${rw.toFixed(1)}" height="${rh.toFixed(1)}" `+
-          `rx="3" fill="transparent" stroke="none" pointer-events="all"/>`;
-      }
-      s+=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+
-        `fill="${color}" font-size="${rfs.toFixed(2)}" font-family="system-ui,sans-serif" font-weight="600" `+
-        (SHOW?`letter-spacing="0.16em" `:``)+
-        `paint-order="stroke" stroke="#071008" stroke-width="2.5" stroke-linejoin="round" `+
-        `opacity="${SHOW?"0.72":"0.95"}" pointer-events="none">`+
-        `${escSVG(SHOW?String(r.room).toUpperCase():r.room)}</text></g>`;
-      // Room assignment isn't known yet (registry still loading) — show a
-      // single pulsing placeholder instead of blocking the whole map on
-      // a multi-MB registry fetch; real hexes replace it once it lands.
-      if(lightsLoading){
-        s+=`<polygon points="${hexPts(ccx,ccy,HEX_R)}" fill="#374151" stroke="#60a5fa" stroke-width="2" opacity="0.5">`+
-          `<animate attributeName="opacity" values="0.25;0.65;0.25" dur="1.2s" repeatCount="indefinite"/>`+
-          `</polygon>`;
-        continue;
-      }
-      // Hexagon cluster for this room's unplaced lights — a light with a real
-      // position was already drawn at it.
-      const roomLights=(byRoom[r.room]||[]).filter(l=>!hiddenEids.has(l.entity_id) && !placed[l.entity_id]);
-      if(!roomLights.length) continue;
-      // A perimeter light traces its ROOM, which is already known here —
-      // no placement needed to see it. Unplaced means no entry, so this
-      // draws at the default margin; dragging it onto the map is only for
-      // adjusting margin, not for making the trace appear at all.
-      for(const l of roomLights) if(l.shape==="perimeter") s+=perimeterSvg(l, r, null);
-      // Use-mode: the pile becomes one chip. The chip is drawn with the
-      // markers (a job with no light) so it sits above the pools and the
-      // room fill like a marker would.
-      if(COLLAPSE){
-        const eids=roomLights.map(l=>l.entity_id);
-        const anyOn=roomLights.some(l=>l.state==="on");
-        stacks.push([r.room, eids, anyOn, ccx, ccy, z]);
-        continue;
-      }
-      const offsets=hexCluster(roomLights.length, HEX_R);
-      // Build-mode: the pile stays a pile (drag one out to place it), but it
-      // is VISIBLY provisional — a dashed ring round the cluster says "these
-      // are inferred from the room, not measured", and how many there are.
-      {
-        let rr=0;
-        for(const [dx,dy] of offsets) rr=Math.max(rr, Math.hypot(dx,dy));
-        rr+=HEX_R+3;
-        s+=`<circle class="lprov" cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${rr.toFixed(1)}" fill="none" `+
-          `stroke="#94a3b8" stroke-width="0.7" stroke-dasharray="3,2.5" opacity="${SHOW?0.28:0.45}" pointer-events="none"/>`;
-        if(!SHOW && !HIDECODES){
-          const pfs=Math.max(4.5, CODE_PX*0.85);
-          s+=`<text x="${ccx.toFixed(1)}" y="${(ccy+rr+pfs*0.9).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
-            `font-family="system-ui,sans-serif" font-size="${pfs.toFixed(1)}" fill="#94a3b8" opacity="0.7" `+
-            `pointer-events="none">${roomLights.length} unplaced</text>`;
+      // Deferred to labelJobs (see above): the name itself, plus everything
+      // that was drawn right after it — the loop below runs these only once
+      // every room's polygon on this floor is already painted.
+      labelJobs.push(() => {
+        // paint-order puts the dark stroke UNDER the glyphs, so the name
+        // stays legible over the floor hatch and over a slab edge it happens
+        // to cross. Showcase sets it in tracked small caps — the convention
+        // every printed plan uses for a room name, and it stops competing
+        // with the fixture codes. The room's name is a TAP TARGET
+        // (data-role="room"): the sidebar opens the room's sheet from it —
+        // every light in the room, all off, all on — and the builder selects
+        // the room's lights. A transparent box behind the text takes the
+        // tap; the glyph strokes alone would be a needle.
+        {
+          s+=`<g class="lroom" data-role="room" data-room="${escSVG(r.room)}" data-z="${z}" style="cursor:pointer">`+
+            `<rect x="${(lix-rw/2).toFixed(1)}" y="${(liy-rh/2).toFixed(1)}" width="${rw.toFixed(1)}" height="${rh.toFixed(1)}" `+
+            `rx="3" fill="transparent" stroke="none" pointer-events="all"/>`;
         }
-      }
-      roomLights.forEach((l,idx)=>{
-        const [dx,dy]=offsets[idx];
-        const fx=SHOW&&FIELD ? {col: fieldColOf(cx,cy,z)} : undefined;
-        jobs.push([l, ccx+dx, ccy+dy, null, `data-z="${z}"`, roomClip.get(r), fx]);
+        // Lighter and smaller than before (Garry, 2026-09-07: "takes up too
+        // much space" and needs to stay "somewhat transparent" over whatever
+        // it crosses) — a thinner halo and a lower opacity so a marker or
+        // boundary line underneath still reads through it.
+        s+=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+
+          `fill="${color}" font-size="${rfs.toFixed(2)}" font-family="system-ui,sans-serif" font-weight="600" `+
+          (SHOW?`letter-spacing="0.16em" `:``)+
+          `paint-order="stroke" stroke="#071008" stroke-width="1.8" stroke-linejoin="round" `+
+          `opacity="${SHOW?"0.6":"0.78"}" pointer-events="none">`+
+          `${escSVG(SHOW?String(r.room).toUpperCase():r.room)}</text></g>`;
+        // Room assignment isn't known yet (registry still loading) — show a
+        // single pulsing placeholder instead of blocking the whole map on
+        // a multi-MB registry fetch; real hexes replace it once it lands.
+        if(lightsLoading){
+          s+=`<polygon points="${hexPts(ccx,ccy,HEX_R)}" fill="#374151" stroke="#60a5fa" stroke-width="2" opacity="0.5">`+
+            `<animate attributeName="opacity" values="0.25;0.65;0.25" dur="1.2s" repeatCount="indefinite"/>`+
+            `</polygon>`;
+          return;
+        }
+        // Hexagon cluster for this room's unplaced lights — a light with a
+        // real position was already drawn at it.
+        const roomLights=(byRoom[r.room]||[]).filter(l=>!hiddenEids.has(l.entity_id) && !placed[l.entity_id]);
+        if(!roomLights.length) return;
+        // A perimeter light traces its ROOM, which is already known here —
+        // no placement needed to see it. Unplaced means no entry, so this
+        // draws at the default margin; dragging it onto the map is only for
+        // adjusting margin, not for making the trace appear at all.
+        for(const l of roomLights) if(l.shape==="perimeter") s+=perimeterSvg(l, r, null);
+        // Use-mode: the pile becomes one chip. The chip is drawn with the
+        // markers (a job with no light) so it sits above the pools and the
+        // room fill like a marker would.
+        if(COLLAPSE){
+          const eids=roomLights.map(l=>l.entity_id);
+          const anyOn=roomLights.some(l=>l.state==="on");
+          stacks.push([r.room, eids, anyOn, ccx, ccy, z]);
+          return;
+        }
+        const offsets=hexCluster(roomLights.length, HEX_R);
+        // Build-mode: the pile stays a pile (drag one out to place it), but
+        // it is VISIBLY provisional — a dashed ring round the cluster says
+        // "these are inferred from the room, not measured", and how many
+        // there are.
+        {
+          let rr=0;
+          for(const [dx,dy] of offsets) rr=Math.max(rr, Math.hypot(dx,dy));
+          rr+=HEX_R+3;
+          s+=`<circle class="lprov" cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${rr.toFixed(1)}" fill="none" `+
+            `stroke="#94a3b8" stroke-width="0.7" stroke-dasharray="3,2.5" opacity="${SHOW?0.28:0.45}" pointer-events="none"/>`;
+          if(!SHOW && !HIDECODES){
+            const pfs=Math.max(4.5, CODE_PX*0.85);
+            s+=`<text x="${ccx.toFixed(1)}" y="${(ccy+rr+pfs*0.9).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
+              `font-family="system-ui,sans-serif" font-size="${pfs.toFixed(1)}" fill="#94a3b8" opacity="0.7" `+
+              `pointer-events="none">${roomLights.length} unplaced</text>`;
+          }
+        }
+        roomLights.forEach((l,idx)=>{
+          const [dx,dy]=offsets[idx];
+          const fx=SHOW&&FIELD ? {col: fieldColOf(cx,cy,z)} : undefined;
+          jobs.push([l, ccx+dx, ccy+dy, null, `data-z="${z}"`, roomClip.get(r), fx]);
+        });
       });
     }
+    for(const fn of labelJobs) fn();
 
     // Placed lights — metres from the fabric, through the same projection the
     // rooms just used.
