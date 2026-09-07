@@ -1,5 +1,59 @@
 # Idea: Automorph — Aesthetic Shape Morphing for the Lights Map
 
+## V2 design requirements (2026-09-07, Garry's live feedback on shipped V1)
+
+Captured verbatim-in-spirit before implementation, in priority order:
+
+1. **Suppress the old glyph when morphing.** "Still not sure why you keep
+   all the old non morphed stuff showing on the map once it's turned on,
+   weird choice?" — once a fixture's aura is actively morphing, its old
+   small icon glyph must stop drawing. Mechanism researched and settled:
+   mirror the `perimeter` shape's own existing precedent in `markerSvg`
+   ("keep the glow, and the click space..., but hide the square") — a new
+   `suppressGlyph` flag that swaps the body for `layer()` re-invoked with
+   `data-hit="1" fill="transparent" stroke="none"` (transparent, NOT none —
+   SVG only hit-tests painted fills), preserving the per-shape footprint
+   AND rotation/scale transform for click/drag, plus the label/code-chip
+   and `<g data-eid/cx/cy>` wrapper untouched. Critical gates: only
+   suppress when that fixture's aura will actually paint (same
+   room-resolution truthiness `automorphAuraSvg` checks — a hallway
+   fixture with no room gets no aura and must keep its glyph), and never
+   for the unplaced/room-cluster path (never gets an aura at all), and
+   never for `perimeter` (already bodyless). Do not blind-spread the jobs
+   tuple into a new positional param — it already has 7 elements and a
+   naive 6th formal would silently receive the clip id.
+
+2. **Non-overlapping per-room partition.** "You have not built in a
+   complex and attractive non overlap of devices visually... a complex but
+   critical element of this feature." Multiple fixtures in one room must
+   DIVIDE the room's space between them (Voronoi-style zones of
+   influence), not all grow toward the same whole-room outline and stack.
+   Research in flight (grid nearest-fixture ownership + marching-squares
+   boundary extraction, mirroring the shipped isolux infrastructure, is
+   the leading candidate — handles concave rooms for free via the existing
+   `pointInRoom`, degrades to today's whole-room behaviour at 1 fixture).
+   Each fixture's extracted cell ring simply replaces the current shared
+   `offsetPolygonInward(room.pts, ...)` target in `automorphRing` — the
+   hardness slider and style dropdown then compose unchanged.
+
+3. **Manual shapes stay the guide.** "The existing manual shapes are
+   still meant to be a guide for the overall look, don't throw that info
+   away. Maybe a third slider for how closely the design pulls from
+   manual shapes in place." The per-fixture manual work
+   (width_cm/height_cm/rotation/shape kind) must keep shaping the result:
+   (a) the morph's icon endpoint should use the fixture's REAL manual
+   size/rotation, not the default HEX_R footprint V1 simplified to;
+   (b) manual size should WEIGHT the partition (a bigger manual shape
+   claims a bigger cell — weighted/power-diagram flavour of #2);
+   (c) a third slider ("manual influence", 0-100%) controlling how much
+   the morphed form retains the manual shape's character (aspect,
+   orientation, proportions) versus fully conforming to its cell.
+
+4. Overall bar, Garry's own words: "You are a long way off replacing the
+   manually made lighting visuals with this morph visual" — the goal is
+   for Automorph to genuinely stand in for the hand-made look, not just
+   decorate it.
+
 **Status: V1 SHIPPED 2026-09-07** (commits 0bc321e, 110ff8c) — the
 room-alignment slider only, as a decorative aura behind the existing icon;
 NOT the icon-outline replacement, and NOT slider 2 (edge hardness). See
