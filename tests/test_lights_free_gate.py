@@ -354,6 +354,60 @@ console.log(JSON.stringify({pro: codesFor("pro"), bright: codesFor("bright"), no
     assert not bright["light.seg"]["p"], bright
 
 
+def test_fan_override_reclassifies_a_light_switch_cosmetically_only(tmp_path):
+    """Garry, 2026-09-07: "some light switches are fan switches" — a light.*
+    entity wired to a fan with no speed/oscillate control of its own can be
+    declared "fan" so it reads correctly on the map (F-series code, fan
+    glyph, groups under the Fan filter), without pretending it gained real
+    fan services: oscillating/pct stay null because gatherLights only reads
+    those off a real fan.* entity_id, never off l.type_override."""
+    out = _run_pipeline_script(tmp_path, """
+const AREA = {"light.ceiling_switch": "Bedroom"};
+const STATES = {
+  "light.ceiling_switch": {state: "on", attributes: {friendly_name: "Ceiling Switch"}},
+};
+const OVR = {"light.ceiling_switch": "fan"};
+const l = LM.gatherLights(STATES, AREA, {}, "pro", {}, OVR)[0];
+console.log(JSON.stringify({
+  isFan: !!l.isFan, code: l.code, shape: l.shape,
+  oscillating: l.oscillating, pct: l.pct,
+}));
+""")
+    assert out["isFan"] is True, out
+    assert out["code"].startswith("F"), out
+    assert out["shape"] == "fan", out
+    assert out["oscillating"] is None and out["pct"] is None, (
+        "an overridden light must never claim real fan attributes it does not have", out,
+    )
+
+
+def test_type_override_dropdown_survives_being_overridden_to_fan(tmp_path):
+    """Regression: the override dropdown used to hide itself for any row
+    where l.isFan was true, on the assumption isFan meant "a real fan.*
+    entity, nothing to override" — which broke the moment a light.* could
+    BECOME isFan via override, since there was then no way back to "auto"."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const AREA = {"light.ceiling_switch": "Bedroom"};
+const STATES = {
+  "light.ceiling_switch": {state: "on", attributes: {friendly_name: "Ceiling Switch"}},
+};
+const OVR = {"light.ceiling_switch": "fan"};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, OVR);
+const host = { el, hiddenEids: new Set(), lightsLoading: false, model: {},
+  typeOverrides: OVR, onTypeOverride: () => {} };
+const root = LM.buildLightsTable(host, lights);
+const row = [...root.querySelectorAll("tr")].find(r => r.getAttribute("data-eid") === "light.ceiling_switch");
+const overrideSelect = [...row.querySelectorAll("select")].find(s =>
+  [...s.querySelectorAll("option")].some(o => o.getAttribute("value") === "fan"));
+const selectedValue = overrideSelect
+  ? overrideSelect.querySelectorAll("option")[[...overrideSelect.querySelectorAll("option")].findIndex(o => o.selected)]?.getAttribute("value")
+  : null;
+console.log(JSON.stringify({ found: !!overrideSelect, selectedValue }));
+""")
+    assert out["found"], "the type-override dropdown must still render for a row already overridden to fan"
+    assert out["selectedValue"] == "fan", "the dropdown must reflect the CURRENT override, not reset to auto"
+
+
 def test_fans_and_motion_sensors_ride_the_pipeline(tmp_path):
     """Fans (F-series, fan glyph, their card's inputs) and motion sensors
     (M-series, motion glyph, admitted by device_class only) share the lights

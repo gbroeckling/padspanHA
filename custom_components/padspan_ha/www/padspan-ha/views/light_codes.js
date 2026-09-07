@@ -40,9 +40,17 @@ export function isPartitionLight(l) {
 
 // A fan.* entity riding the lights pipeline — the map shows the whole
 // ceiling, and half of what hangs from a ceiling that switches is a fan.
-// Class comes from the entity domain alone; overrides don't apply (a light
-// cannot become a fan by declaration — the services wouldn't exist).
+// A real fan.* entity is never overridden either way (gatherLights never
+// attaches a type_override to one — see its own comment). "fan" IS a valid
+// override for a light.*, though (Garry, 2026-09-07: "some light switches
+// are fan switches") — cosmetic only: it changes the marker's shape, code
+// bucket and filter grouping, never which HA services get called. Every
+// control this map actually offers a fan (speed, oscillate, direction —
+// see openControlCard) already gates on the entity's OWN real attributes
+// (percentage_step, oscillating, ...), which a light.* entity simply does
+// not have, so an overridden light safely falls back to plain on/off.
 export function isFan(l) {
+  if (l.type_override) return l.type_override === "fan";
   return String(l.entity_id || "").startsWith("fan.");
 }
 
@@ -148,6 +156,7 @@ export const LIGHT_TYPE_OVERRIDES = [
   ["wled",      "WLED / effect strip"],
   ["partition", "ESPHome partition"],
   ["plain",     "Plain light"],
+  ["fan",       "Fan (switch only)"],
 ];
 
 // Distinct marker border/stroke per class, in both views.

@@ -140,7 +140,7 @@ LIGHT_SHAPE_KINDS = frozenset({
 # in www/padspan-ha/views/light_codes.js — a test holds the two equal, the
 # same discipline as LIGHT_SHAPE_KINDS above ("auto" is the UI's word for
 # "no override" and is expressed by omitting the entity, never stored).
-LIGHT_TYPE_OVERRIDE_KINDS = frozenset({"wled", "partition", "plain"})
+LIGHT_TYPE_OVERRIDE_KINDS = frozenset({"wled", "partition", "plain", "fan"})
 
 # ── Outdoors ────────────────────────────────────────────────────────────────
 # What "the outdoor floor" is called: the fabric's sentinel and the names a

@@ -1974,9 +1974,13 @@ export function buildLightsTable(host, lights){
         })()] : []),
         // Pro only (the Mapping tab passes onTypeOverride only at pro; the
         // sidebar and every lower tier pass none): force the class when
-        // detection got it wrong. Lights only — a fan or sensor IS its
-        // domain, there is nothing to override.
-        ...(host.onTypeOverride && !l.isFan && !l.isMotion && !l.isTemp ? [(() => {
+        // detection got it wrong. light.* entities only — checked on the
+        // DOMAIN, not l.isFan/isMotion/isTemp: a genuine fan./binary_sensor.
+        // entity's class really is its domain, nothing to override, but a
+        // light.* already overridden to "fan" (Garry, 2026-09-07: "some
+        // light switches are fan switches") now reads l.isFan===true too —
+        // gating on the derived flag would hide the only way to revert it.
+        ...(host.onTypeOverride && l.entity_id.startsWith("light.") ? [(() => {
           const sel = document.createElement("select");
           sel.className = "lv-select";
           sel.title = "Override how PadSpan classes this light (Pro)";
