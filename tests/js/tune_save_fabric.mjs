@@ -28,7 +28,11 @@ import { pathToFileURL } from "node:url";
 
 const VIEWS = process.argv[2];
 const SCENARIO = process.argv[3] || "moved";
-const SRC = fs.readFileSync(join(VIEWS, "calibration.js"), "utf8");
+// Normalized to LF regardless of the checkout's own line-ending convention —
+// every anchor string below is LF-only, and a Windows checkout with
+// core.autocrlf=true (this repo's default) turns the real file to CRLF,
+// which silently breaks every one of these raw text searches otherwise.
+const SRC = fs.readFileSync(join(VIEWS, "calibration.js"), "utf8").replace(/\r\n/g, "\n");
 
 function extractHandler(headMark, windowSize, tailMark) {
   const HEAD = headMark;

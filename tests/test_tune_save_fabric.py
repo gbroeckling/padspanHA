@@ -111,8 +111,12 @@ def v1_views(tmp_path_factory: pytest.TempPathFactory) -> Path:
     tail = "  });\n\n  // Reset button"
     t = src.find(tail, h)
     assert t > h, "save/reset anchor moved"
+    # newline="\n": Path.write_text's default translates \n to the platform
+    # separator on write, which on Windows re-introduces CRLF even though
+    # `src` (from read_text's universal-newlines default) is pure \n here —
+    # silently breaking the LF-only anchor search in tests/js/tune_save_fabric.mjs.
     (d / "calibration.js").write_text(
-        src[:h] + _V1_HANDLER + src[t + len("  });"):], encoding="utf-8")
+        src[:h] + _V1_HANDLER + src[t + len("  });"):], encoding="utf-8", newline="\n")
     return d
 
 
