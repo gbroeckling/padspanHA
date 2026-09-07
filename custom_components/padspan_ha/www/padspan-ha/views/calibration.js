@@ -47,8 +47,14 @@ function _metresToFracFactory(model) {
   };
 }
 
-const { mapXform, worldGauge, metresToWorld } =
+const { mapXform, worldGauge, metresToWorld, mapFracToMetres,
+        metresToMapFrac } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
+const { tuneSavePlanInit, tuneDiffMapDraft, tuneMissingFabricPins, tuneConflictingSources,
+        tuneReconcileDraft, tuneSyncTuneDrafts, tuneSnapBaseline,
+        tuneTryAcquire, tuneRelease } =
+  await import(`./tune_save_plan.js${new URL(import.meta.url).search}`);
+tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 
 // ── Exports ──────────────────────────────────────────────────────────────────
 export function render(ctx) {
@@ -2069,26 +2075,16 @@ function _tuneTab(ctx, el, cs, calData) {
   };
   const ts = ctx.state._calibTune;
 
-  // Build a stamp from maps data to detect external updates
-  const mapsStamp = maps_list.map(m => `${m.id}:${m.updated||""}:${(m.receivers||[]).length}`).join("|");
-  const hasDirty = Object.values(ts.dirtyMaps).some(Boolean);
-
-  // Re-sync draft receivers when maps data changes externally (and no unsaved edits)
-  // Keep ALL stored receivers — do not filter by live status (radios may not have reconnected yet)
-  if (!Object.keys(ts.draftReceivers).length || (mapsStamp !== ts._mapsStamp && !hasDirty)) {
-    for (const m of maps_list) {
-      ts.draftReceivers[m.id] = (m.receivers || [])
-        .map(r => ({
-          id: r.id || r.source || ("rx_" + Math.random().toString(16).slice(2, 10)), label: r.label || "", x: Number(r.x || 0), y: Number(r.y || 0), room: r.room || "", source: r.source || ""
-        }));
-    }
-    // Remove drafts for maps that no longer exist
-    for (const id of Object.keys(ts.draftReceivers)) {
-      if (!maps_list.find(m => m.id === id)) delete ts.draftReceivers[id];
-    }
-    ts._mapsStamp = mapsStamp;
-  }
-
+  // Single authoritative draft-sync, shared by initial render and
+  // Reset (see tuneSyncTuneDrafts): seeds empty drafts, reseeds CLEAN
+  // maps on metadata change, and reconciles clean drafts from the fabric
+  // whenever maps OR model data changed — a model arriving after the
+  // initial map-seeded render is the normal first-paint order. Dirty
+  // drafts (unsaved edits, failed writes) are never touched here.
+  tuneSyncTuneDrafts(ts, maps_list,
+    (ctx.state.model || {}).scanner_positions_m || {},
+    (ctx.state.model || {}).map_transforms || {});
+  const hasDirty = Object.values(ts.dirtyMaps || {}).some(Boolean);
   let _fg = ts.fg, _hg = ts.hg;
 
   // ── Transforms ────────────────────────────────────────────────────────────
@@ -2365,6 +2361,7 @@ function _tuneTab(ctx, el, cs, calData) {
       rxObj.x = nx;
       rxObj.y = ny;
       ts.dirtyMaps[mapId] = true;
+      ts._tuneRev = (ts._tuneRev || 0) + 1;
       const [newWx, newWy] = xf.mapPt(nx, ny);
       const [newPx, newPy] = iso(newWx, newWy, z);
       g.setAttribute("transform", `translate(${newPx - origPx},${newPy - origPy})`);
@@ -2416,6 +2413,7 @@ function _tuneTab(ctx, el, cs, calData) {
     if (!ts.draftReceivers[m.id]) ts.draftReceivers[m.id] = [];
     ts.draftReceivers[m.id].push(newRx);
     ts.dirtyMaps[m.id] = true;
+    ts._tuneRev = (ts._tuneRev || 0) + 1;
     ts.selectedRx = { mapId: m.id, rxId: newRx.id };
     ts.pendingPlace = null;
     ts._confirming = false;
@@ -2629,25 +2627,183 @@ function _tuneTab(ctx, el, cs, calData) {
   saveBtn.textContent = hasDirty ? "\ud83d\udcbe Save" : "Save";
   saveBtn.title = "Save updated receiver positions to all modified maps";
   saveBtn.addEventListener("click", async () => {
-    const dirtyIds = Object.keys(ts.dirtyMaps).filter(id => ts.dirtyMaps[id]);
-    if (!dirtyIds.length) { statusLbl.textContent = "No changes"; setTimeout(() => { statusLbl.textContent = ""; }, 2000); return; }
+    // Mutual exclusion across same-session fabric writers (this save,
+    // Height saves, removals): acquire BEFORE the first request, release
+    // unconditionally. A busy session toasts and changes nothing — there
+    // is deliberately no queue.
+    if (!tuneTryAcquire(ts)) {
+      ctx.toast("A save is in progress — try again in a moment", true);
+      return;
+    }
     saveBtn.disabled = true;
     statusLbl.textContent = "Saving...";
+    // Draft edits landing while this save is in flight bump ts._tuneRev;
+    // the save below never clears what it did not itself write.
+    const _revAtStart = ts._tuneRev || 0;
     try {
-      // Save to fabric (metre-space authority), then sync fracs back to maps
+      // Edit intent is difference-from-baseline per source. Convertible
+      // pins missing from the fabric join even from clean maps — a
+      // placed-but-never-saved pin must not read "No changes". Untouched
+      // rows never post, however stale.
+      const _model = ctx.state.model || {};
+      const _fabBase = JSON.parse(JSON.stringify(
+        _model.scanner_positions_m || {}));
+      const _tfs = _model.map_transforms || {};
+      for (const { mapId } of tuneMissingFabricPins(maps_list,
+          ts.draftReceivers, _fabBase, _tfs)) {
+        ts.dirtyMaps[mapId] = true;
+      }
+      const dirtyIds = Object.keys(ts.dirtyMaps).filter(id => ts.dirtyMaps[id]);
+      if (!dirtyIds.length) {
+        statusLbl.textContent = "No changes";
+        setTimeout(() => { statusLbl.textContent = ""; }, 2000);
+        return;
+      }
+      let _ok = 0;
+      const _failedMaps = {};
+      const _failedSources = {};
+      // Transaction candidates: map/source/exact snapshot fractions,
+      // with metadata (label/room) kept OUT of the WS payload.
+      const _cands = [];
       for (const mapId of dirtyIds) {
         const origMap = maps_list.find(m => m.id === mapId);
-        if (!origMap) continue;
+        if (!origMap) { _failedMaps[mapId] = true; continue; }
+        const _base = ((ts.editBaseline || {})[mapId]) || {};
+        const _plan = tuneDiffMapDraft(
+          origMap, ts.draftReceivers[mapId] || [], _fabBase, _tfs,
+          _base, true);
+        if (!_plan || _plan.refused) { _failedMaps[mapId] = true; continue; }
+        for (const _badSrc of (_plan.invalid || [])) {
+          _failedMaps[mapId] = true;
+          (_failedSources[mapId] = _failedSources[mapId] || {})[_badSrc] = true;
+        }
+        const _rows = ts.draftReceivers[mapId] || [];
+        for (const w of _plan.writes) {
+          const _row = _rows.find(r => (r && r.source) === w.source);
+          _cands.push({ mapId, source: w.source,
+            x: _row ? _row.x : null, y: _row ? _row.y : null,
+            label: _row ? (_row.label || "") : "",
+            room: _row ? (_row.room || "") : "",
+            payload: { type: "padspan_ha/fabric_scanner_position_set",
+              source: w.source, x_m: w.x_m, y_m: w.y_m,
+              floor_id: w.floor_id,
+              ...(w.z_m !== undefined ? { z_m: w.z_m } : {}) } });
+        }
       }
-      // Clear dirty state BEFORE refresh so re-rendered view shows clean state
-      ts.dirtyMaps = {};
-      ts.selectedRx = null;
-      ctx.toast("Receiver positions saved");
-      // mapsRefresh refreshes data + triggers re-render (which updates dirty label & stamp)
+      // Conflicts across ALL candidates (missing pins included) refuse
+      // every owner; then group the survivors by source — one payload per
+      // source no matter how many maps carry it. A failed request keeps
+      // ALL of its owners pending; _ok counts unique requests.
+      const _payloads = _cands.map(c => c.payload);
+      for (const _bad of tuneConflictingSources(_payloads)) {
+        for (const c of _cands) {
+          if (c.source === _bad) {
+            _failedMaps[c.mapId] = true;
+            (_failedSources[c.mapId] = _failedSources[c.mapId] || {})[_bad] = true;
+          }
+        }
+      }
+      const _txns = [];
+      for (const c of _cands) {
+        // Planning-failed maps (refused/invalid/missing) and conflicted
+        // sources never reach the wire; every one of their owners stays
+        // pending via the dirty flags below.
+        if (_failedMaps[c.mapId]) continue;
+        if ((_failedSources[c.mapId] || {})[c.source]) continue;
+        const _hit = _txns.find(t => t.source === c.source);
+        if (_hit) { _hit.owners.push({ mapId: c.mapId, x: c.x, y: c.y }); continue; }
+        _txns.push({ source: c.source, payload: c.payload,
+          owners: [{ mapId: c.mapId, x: c.x, y: c.y }] });
+      }
+      for (const t of _txns) {
+        if (_revAtStart !== (ts._tuneRev || 0)) break;
+        try {
+          const _res = await ctx.actions.callWS(t.payload);
+          // A transport-level resolve carrying ok:false is still a
+          // failure — never clear dirty on it.
+          if (_res && _res.ok === false) {
+            for (const o of t.owners) {
+              _failedMaps[o.mapId] = true;
+              (_failedSources[o.mapId] = _failedSources[o.mapId] || {})[t.source] = true;
+            }
+            continue;
+          }
+          _ok++;
+          // The baseline advances ONLY to the SUBMITTED snapshot — never
+          // to the mutable current draft, which may already hold newer
+          // edits. The ack is published locally so a swallowed refresh
+          // failure cannot revert it; rejected/conflicting/unsubmitted
+          // rows never advance.
+          ts.editBaseline = ts.editBaseline || {};
+          try {
+            const _lm = ctx.state.model || (ctx.state.model = {});
+            const _lspm = _lm.scanner_positions_m ||
+              (_lm.scanner_positions_m = {});
+            _lspm[t.source] = { x_m: t.payload.x_m, y_m: t.payload.y_m,
+              z_m: (t.payload.z_m !== undefined ? t.payload.z_m :
+                (((_lspm[t.source] || {}).z_m !== undefined) ?
+                  _lspm[t.source].z_m : 2.4)),
+              floor_id: t.payload.floor_id };
+          } catch (_e) { /* publication is best-effort */ }
+          for (const o of t.owners) {
+            ts.editBaseline[o.mapId] = ts.editBaseline[o.mapId] || {};
+            ts.editBaseline[o.mapId][t.source] = { x: o.x, y: o.y };
+          }
+        } catch (e) {
+          for (const o of t.owners) {
+            _failedMaps[o.mapId] = true;
+            (_failedSources[o.mapId] = _failedSources[o.mapId] || {})[t.source] = true;
+          }
+        }
+      }
+      const _failCount = Object.keys(_failedMaps).filter(id => _failedMaps[id]).length;
+      if (_revAtStart !== (ts._tuneRev || 0)) {
+        // Concurrent edit landed mid-save: report, keep every dirty flag
+        // the save did not itself clear, and let the newer state win —
+        // a retry sends the newer edit (its baseline still differs).
+        statusLbl.textContent = `Saved ${_ok} — map changed during save, review`;
+        ctx.toast(`Saved ${_ok}; edits changed during save — review before re-saving`, true);
+        saveBtn.disabled = false;
+      } else if (_failCount) {
+        ts.dirtyMaps = _failedMaps;
+        statusLbl.textContent = `Saved ${_ok}, failed ${_failCount} map(s)`;
+        ctx.toast(`Saved ${_ok} receiver(s), ${_failCount} map(s) failed — kept unsaved`, true);
+        saveBtn.disabled = false;
+      } else {
+        ts.dirtyMaps = {};
+        ts.selectedRx = null;
+        ctx.toast("Receiver positions saved");
+      }
+      // mapsRefresh alone does not refresh the model the height input reads
+      // (scanner_positions_m) — refresh both so new entries expose Save Z.
       await ctx.actions.mapsRefresh();
+      if (ctx.actions.modelRefresh) await ctx.actions.modelRefresh();
+      // Reconcile CLEAN drafts from authoritative fabric (inverse
+      // transform): saved moves stop reverting on Reset/fresh session and
+      // Tune-added pins stop vanishing. Failed/dirty maps are untouched,
+      // and reconciled rows advance their baselines so the reconcile
+      // itself never reads as a new edit.
+      try {
+        const _fabNow = (ctx.state.model && ctx.state.model.scanner_positions_m) || {};
+        const _tfsNow = (ctx.state.model && ctx.state.model.map_transforms) || {};
+        if (_revAtStart === (ts._tuneRev || 0)) {
+          for (const m of maps_list) {
+            if ((ts.dirtyMaps || {})[m.id]) continue;
+            const _next = tuneReconcileDraft(
+              m, ts.draftReceivers[m.id] || [], _fabNow, _tfsNow, false);
+            if (_next) {
+              ts.draftReceivers[m.id] = _next;
+              ts.editBaseline[m.id] = tuneSnapBaseline(_next);
+            }
+          }
+        }
+      } catch (e) { /* reconcile is best-effort; the save already landed */ }
     } catch (e) {
       ctx.toast("Save failed: " + String(e), true);
       statusLbl.textContent = "Error saving";
+      saveBtn.disabled = false;
+    } finally {
+      tuneRelease(ts);
       saveBtn.disabled = false;
     }
   });
@@ -2659,16 +2815,30 @@ function _tuneTab(ctx, el, cs, calData) {
   resetBtn.textContent = "Reset";
   resetBtn.title = "Discard unsaved changes and reload receiver positions";
   resetBtn.addEventListener("click", () => {
-    ts.draftReceivers = {};
-    for (const m of maps_list) {
-      ts.draftReceivers[m.id] = (m.receivers || [])
-        .map(r => ({
-          id: r.id || r.source || ("rx_" + Math.random().toString(16).slice(2, 10)), label: r.label || "", x: Number(r.x || 0), y: Number(r.y || 0), room: r.room || "", source: r.source || ""
-        }));
+    // Guard first: a Reset landing mid-save must not tear down the
+    // drafts the in-flight save is reading. Busy returns unchanged.
+    if (!tuneTryAcquire(ts)) {
+      ctx.toast("A save is in progress — try again in a moment", true);
+      return;
     }
-    ts.dirtyMaps = {};
-    ts.selectedRx = null;
-    ts.pendingPlace = null;
+    try {
+      ts._tuneRev = (ts._tuneRev || 0) + 1;
+      // Clear dirty flags, drafts AND baselines BEFORE re-syncing, so the
+      // shared routine takes its fresh path against the current
+      // acknowledged model (which carries every ack the save published,
+      // even when a refresh was swallowed). No new stamp mechanism: empty
+      // drafts already select the fresh path.
+      ts.dirtyMaps = {};
+      ts.draftReceivers = {};
+      ts.editBaseline = {};
+      tuneSyncTuneDrafts(ts, maps_list,
+        (ctx.state.model || {}).scanner_positions_m || {},
+        (ctx.state.model || {}).map_transforms || {});
+      ts.selectedRx = null;
+      ts.pendingPlace = null;
+    } finally {
+      tuneRelease(ts);
+    }
     ts.fg = ctx.state.settings?.overview_iso_floor_gap ?? 150;
     ts.hg = ctx.state.settings?.overview_iso_horiz_gap ?? 0;
     ts.focusIdx = 0;
@@ -2749,12 +2919,48 @@ function _tuneTab(ctx, el, cs, calData) {
       zBtn.title = "Mounting height above this scanner's own floor. Used for 3D distance; survives map syncs.";
       zBtn.addEventListener("click", async () => {
         const v = parseFloat(zInp.value);
-        if (!isFinite(v) || v < 0 || v > 100) { ctx.toast("Height must be 0–100 m", true); return; }
+        if (!Number.isFinite(v) || v < 0 || v > 100) {
+          ctx.toast("Height must be 0–100 m", true);
+          return;
+        }
+        // The lock is owned by this ENTIRE callback: acquired before the
+        // request, held through the acknowledged local update AND the
+        // awaited refresh, released unconditionally. A concurrent
+        // position save or removal is refused while held, and vice versa.
+        if (!tuneTryAcquire(ts)) {
+          ctx.toast("A save is in progress — try again in a moment", true);
+          return;
+        }
         try {
-          await ctx.actions.callWS({ type: "padspan_ha/fabric_scanner_z_set", source: rx.source, z_m: v });
+          const _hres = await ctx.actions.callWS({
+            type: "padspan_ha/fabric_scanner_z_set",
+            source: rx.source, z_m: v,
+          });
+          if (_hres && _hres.ok === false) {
+            ctx.toast("Save failed: height not stored", true);
+            return;
+          }
+          // Publish the ACKNOWLEDGED height locally before refreshing:
+          // modelRefresh swallows fetch errors, so a failed refresh must
+          // not lose the ack. Backend rounds to 2dp within 0–100.
+          try {
+            const _mdl = ctx.state.model || (ctx.state.model = {});
+            const _spm = _mdl.scanner_positions_m ||
+              (_mdl.scanner_positions_m = {});
+            const _hprev = _spm[rx.source];
+            _spm[rx.source] = {
+              ...(_hprev && typeof _hprev === "object" ? _hprev : {}),
+              z_m: Math.round(Math.max(0, Math.min(100, v)) * 100) / 100,
+            };
+          } catch (_e) { /* publication is best-effort */ }
           ctx.toast(`${rx.label || rx.source}: height set to ${v} m`);
-          ctx.actions.modelRefresh && ctx.actions.modelRefresh();
-        } catch (e) { ctx.toast("Save failed: " + String(e), true); }
+          ts._tuneRev = (ts._tuneRev || 0) + 1;
+          if (ctx.actions.modelRefresh) await ctx.actions.modelRefresh();
+        } catch (e) {
+          ctx.toast("Save failed: height not stored", true);
+        } finally {
+          tuneRelease(ts);
+        }
       });
       zRow.appendChild(zLbl); zRow.appendChild(zInp); zRow.appendChild(zBtn);
       infoCard.appendChild(zRow);
@@ -2768,30 +2974,63 @@ function _tuneTab(ctx, el, cs, calData) {
     removeBtn.textContent = "Remove from floor";
     removeBtn.title = "Remove this receiver from " + _floorName;
     removeBtn.addEventListener("click", async () => {
-      const d = ts.draftReceivers[_selMapId] || [];
-      const _removed = d.find(r => r.id === _selRxId);
-      ts.draftReceivers[_selMapId] = d.filter(r => r.id !== _selRxId);
-      ts.dirtyMaps[_selMapId] = true;
-      ts.selectedRx = null;
-      // Save immediately
-      const origMap = maps_list.find(m => m.id === _selMapId);
-      if (origMap) {
-        try {
-          // Drop it from the fabric FIRST. A batch save only writes the
-          // entries it carries — it never deletes — and the re-derive that
-          // follows re-injects any fabric scanner claiming this map, so
-          // saving the shortened draft alone would put it straight back.
-          const _rmSrc = (_removed && (_removed.source || _removed.id)) || "";
-          if (_rmSrc) {
-            await ctx.actions.callWS({ type: "padspan_ha/fabric_scanner_remove", source: _rmSrc });
-          }
-          ts.dirtyMaps = {};
-          ts._mapsStamp = null;
-          ctx.toast("Receiver removed");
-          await ctx.actions.mapsRefresh();
-        } catch (e) {
-          ctx.toast("Remove failed: " + String(e), true);
+      // The lock is acquired BEFORE any mutation: a busy session returns
+      // with everything unchanged. The request is pessimistic — the draft
+      // row is removed only after the backend acknowledges.
+      if (!tuneTryAcquire(ts)) {
+        ctx.toast("A save is in progress — try again in a moment", true);
+        return;
+      }
+      try {
+        const d = ts.draftReceivers[_selMapId] || [];
+        const _removed = d.find(r => r.id === _selRxId);
+        const _rmSrc = (_removed && (_removed.source || _removed.id)) || "";
+        if (!_rmSrc) return;
+        const origMap = maps_list.find(m => m.id === _selMapId);
+        if (!origMap) {
+          ctx.toast("Remove failed: map not found", true);
+          return;
         }
+        // Drop it from the backend FIRST. NOTE (pre-existing backend
+        // limitation, out of scope here): fabric_scanner_remove deletes
+        // the model's scanner metadata only — the fabric spatial entry
+        // persists server-side. This callback therefore claims no more
+        // than the metadata removal plus the local draft cleanup below.
+        let _rres = null;
+        try {
+          _rres = await ctx.actions.callWS({
+            type: "padspan_ha/fabric_scanner_remove", source: _rmSrc });
+        } catch (e) {
+          _rres = { ok: false };
+        }
+        if (_rres && _rres.ok === false) {
+          ctx.toast("Remove failed: receiver not removed", true);
+          return;
+        }
+        // After ack: targeted cleanup ONLY. Unrelated edits — including
+        // other rows on this SAME map — keep their coords, baselines and
+        // dirty flags exactly as they were.
+        ts.draftReceivers[_selMapId] = d.filter(r => r.id !== _selRxId);
+        if (ts.editBaseline && ts.editBaseline[_selMapId]) {
+          delete ts.editBaseline[_selMapId][_rmSrc];
+        }
+        ts._tuneRev = (ts._tuneRev || 0) + 1;
+        ts.selectedRx = null;
+        // Publish the removal locally, then refresh: a swallowed refresh
+        // failure must not resurrect the row in the local model.
+        try {
+          const _mdl = ctx.state.model || (ctx.state.model = {});
+          if (_mdl.scanners && typeof _mdl.scanners === "object") {
+            delete _mdl.scanners[_rmSrc];
+          }
+        } catch (_e) { /* publication is best-effort */ }
+        ctx.toast("Receiver removed");
+        await ctx.actions.mapsRefresh();
+        if (ctx.actions.modelRefresh) await ctx.actions.modelRefresh();
+      } catch (e) {
+        ctx.toast("Remove failed: " + String(e), true);
+      } finally {
+        tuneRelease(ts);
       }
     });
     infoCard.appendChild(removeBtn);
@@ -2984,6 +3223,7 @@ function _tuneTab(ctx, el, cs, calData) {
               ts.pendingPlace = null;
               // 4. Call radioResetQuiet — WS only, no re-render
               const res = await ctx.actions.radioResetQuiet(src);
+              ts._tuneRev = (ts._tuneRev || 0) + 1;
               const sm = res?.summary || {};
               const parts = [];
               if (removedMaps.length) parts.push(`${removedMaps.length} map(s)`);
