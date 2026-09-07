@@ -169,6 +169,122 @@ export function defaultPerimeterMarginM(frame){
   return Math.max(0.05, Math.min(DEFAULT_TRACE_MAX_M, DEFAULT_TRACE_PX / s));
 }
 
+// ── Automorph geometry: room-alignment shape morphing (Garry, 2026-09-07) ───
+// "A switch and two sliders... morph all shapes to fit room dimensions...
+// turn the cluttered overall look... into a work of art." Slider 1 (built
+// here) grows every fixture's icon outline toward its own room's shape.
+//
+// Full point-correspondence morphing between two arbitrary polygons is a
+// classical hard problem — see flubber (JS, MIT: "smoothly interpolate
+// between any two arbitrary SVG paths") for real prior art; it cannot be
+// installed here (no build step, no npm, and per this project's policy any
+// third-party code needs asking first), so this hand-ports its FALLBACK
+// strategy rather than its full topology-aware solver: resample both
+// outlines to the same point COUNT at even arc-length spacing, normalize
+// both to the same winding direction and the same start reference (each
+// ring's own topmost point relative to its centroid), then lerp
+// corresponding points straight-line. That fallback is exactly right here
+// because both endpoints are close to convex — a small symmetric icon and a
+// real room polygon (rectangular or mildly irregular, the "callers clamp
+// against a concave room" case offsetPolygonInward already documents) — the
+// case a full correspondence solver exists for is two very different,
+// concave, or knotted silhouettes, which a room trace essentially never is.
+const AUTOMORPH_N = 24;
+
+function _polySignedArea(pts){
+  let a=0;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++) a += (pts[j][0]*pts[i][1] - pts[i][0]*pts[j][1]);
+  return a/2;
+}
+
+// `count` evenly ARC-LENGTH-spaced points around a closed polygon, in the
+// ring's own point order — the step both morph endpoints need before they
+// can be lerped index-for-index (a hex's 6 vertices and a room's dozen
+// can't otherwise line up).
+export function resamplePolygonRing(pts, count){
+  if(!pts || pts.length<2 || count<3) return pts||[];
+  const segLens=[];
+  let total=0;
+  for(let i=0;i<pts.length;i++){
+    const a=pts[i], b=pts[(i+1)%pts.length];
+    const d=Math.hypot(b[0]-a[0], b[1]-a[1]);
+    segLens.push(d); total+=d;
+  }
+  if(total<=0) return pts.slice(0,count);
+  const out=[];
+  for(let k=0;k<count;k++){
+    let target=(total*k)/count;
+    let i=0;
+    while(i<segLens.length-1 && target>segLens[i]){ target-=segLens[i]; i++; }
+    const a=pts[i], b=pts[(i+1)%pts.length];
+    const segLen=segLens[i]||1e-9;
+    const t=target/segLen;
+    out.push([a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t]);
+  }
+  return out;
+}
+
+// Winds a ring to a consistent handedness and rotates its start to the
+// point nearest the top of its own bounding box. Two rings built by
+// completely different code (a hand-written icon outline, the room trace's
+// own vertex order) need a SHARED, deterministic starting reference before
+// lerping them index-for-index, or the interpolation twists through itself
+// whenever the two happened to start at unrelated angles around their
+// respective centroids.
+export function alignRingStart(pts){
+  if(!pts || pts.length<3) return pts||[];
+  let ring=pts;
+  if(_polySignedArea(ring) < 0) ring=[...ring].reverse();
+  const cx=ring.reduce((a,p)=>a+p[0],0)/ring.length;
+  const cy=ring.reduce((a,p)=>a+p[1],0)/ring.length;
+  let bestI=0, bestD=Infinity;
+  for(let i=0;i<ring.length;i++){
+    const ang=Math.atan2(ring[i][1]-cy, ring[i][0]-cx);
+    const d=Math.abs(ang-(-Math.PI/2));
+    if(d<bestD){ bestD=d; bestI=i; }
+  }
+  return ring.slice(bestI).concat(ring.slice(0,bestI));
+}
+
+// A small icon's own outline, LOCAL space centred on (0,0), at the same
+// radius shapeSvg's own glyphs use — v1 covers only the simple, roughly
+// convex families the design doc scopes for a first pass (circle, bar,
+// square); every other kind (fan, pendant, lock, hex itself, ...) falls
+// back to the plain hexagon every unstyled fixture already draws as, so an
+// unrecognised shape still morphs into something rather than nothing.
+export function iconRingLocal(shape, r){
+  const HW=r*0.866;
+  if(shape==="circle"){
+    const pts=[];
+    for(let i=0;i<AUTOMORPH_N;i++){ const a=i/AUTOMORPH_N*2*Math.PI; pts.push([Math.cos(a)*HW, Math.sin(a)*HW]); }
+    return pts;
+  }
+  if(shape==="bar" || shape==="square"){
+    const h=shape==="bar" ? r*0.55 : HW;
+    return [[-HW,-h],[HW,-h],[HW,h],[-HW,h]];
+  }
+  const pts=[];
+  for(let k=0;k<6;k++){ const a=(90+k*60)*Math.PI/180; pts.push([r*Math.cos(a), r*Math.sin(a)]); }
+  return pts;
+}
+
+// The morph itself. `iconLocal` is centred on (0,0) (iconRingLocal's own
+// output); `iconCx,iconCy` places it at the fixture's real drawn position.
+// `roomRingAbs` is the room's own outline in the SAME space (whatever space
+// the caller already projected both into — this function is unit-agnostic,
+// pure point arithmetic). t=0 returns the icon's own outline completely
+// untouched (no resampling, no alignment) — the "off = current behaviour
+// exactly" guarantee the switch and the slider's own rest position both
+// depend on.
+export function automorphRing(iconLocal, iconCx, iconCy, roomRingAbs, t){
+  const iconAbs=iconLocal.map(p=>[p[0]+iconCx, p[1]+iconCy]);
+  const clampT=Math.max(0, Math.min(1, t||0));
+  if(clampT<=0 || !roomRingAbs || roomRingAbs.length<3) return iconAbs;
+  const a=alignRingStart(resamplePolygonRing(iconAbs, AUTOMORPH_N));
+  const b=alignRingStart(resamplePolygonRing(roomRingAbs, AUTOMORPH_N));
+  return a.map((p,i)=>[p[0]+(b[i][0]-p[0])*clampT, p[1]+(b[i][1]-p[1])*clampT]);
+}
+
 export function shapeSvg(kind, cx, cy, r, attrs){
   const poly=(pts)=>`<polygon points="${pts}" ${attrs}/>`;
   // Every shape stays within the hexagon's own width (r*√3 ≈ 1.73r), because
@@ -914,6 +1030,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   const CLASSF    = opts.classFilter && opts.classFilter!=="all" ? String(opts.classFilter) : null;
   const HALO      = !!opts.hitHalo;
   const COLLAPSE  = !!opts.collapseUnplaced;
+  // Automorph (Garry, 2026-09-07): 0 disables it outright — see
+  // automorphAuraSvg/automorphRing below, near perimeterSvg.
+  const AUTOMORPH_PCT = opts.automorph ? Math.max(0, Math.min(100, Number(opts.automorphRoomPct) || 0)) : 0;
   const dimmed=(l)=>!!CLASSF && lightClassOf(l)!==CLASSF;
   // The builder, choosing a light from the INDEX rather than the map: "make
   // it easy to find" — one big ring flashes outward from wherever that light
@@ -1631,6 +1750,29 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       return s2;
     };
 
+    // Automorph's v1 rendering (Garry, 2026-09-07): a soft, fixture-coloured
+    // aura drawn BEHIND the ordinary icon, growing from a tight outline at
+    // the fixture toward its own room's inset shape as AUTOMORPH_PCT rises.
+    // Deliberately does NOT touch markerSvg's own output — that function
+    // already carries a lot of interdependent state (health dot, hit-test
+    // rect, code chip placement, rotation) a first pass shouldn't risk
+    // breaking. This is the smaller, reviewable step: the real morph maths
+    // (automorphRing) proven and shipped, with "replace the icon's own
+    // outline" left as a deliberate follow-up once this reads well live.
+    const automorphAuraSvg=(l,hx,hy,room,z)=>{
+      if(!(AUTOMORPH_PCT>0) || !room || room.pts.length<3) return "";
+      const marginM=Math.max(0, Math.min(defaultPerimeterMarginM(frame), roomHalfMinDim(room.pts)*0.85));
+      const roomPx=offsetPolygonInward(room.pts, marginM).map(p=>iso(p[0],p[1],z));
+      const ring=automorphRing(iconRingLocal(l.shape, HEX_R), hx, hy, roomPx, AUTOMORPH_PCT/100);
+      const d=ring.map((p,i)=>`${i?"L":"M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ")+"Z";
+      const on=l.isMotion ? motionActive(l) : (l.isLock ? l.state==="locked" : l.state==="on");
+      const col=on?bodyCol(l,null):"#475569";
+      const t=AUTOMORPH_PCT/100;
+      return `<path d="${d}" fill="${col}" fill-opacity="${(0.05+0.16*t).toFixed(2)}" `+
+        `stroke="${col}" stroke-opacity="${(0.18+0.22*t).toFixed(2)}" stroke-width="1.2" `+
+        `pointer-events="none" filter="url(#psclipsoft)"/>`;
+    };
+
     // Showcase underlay for one fixture: the pool it throws on the floor, and
     // the shadow it casts under itself. Both are drawn for the whole floor
     // BEFORE any marker, so one light's glow can never wash over another's
@@ -2039,12 +2181,15 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // Which room this fixture sits in — from its POSITION, the same
       // ray-cast the fit cap uses. Outside every polygon (a hallway, the
       // garden) it is left unclipped/untraced. Needed in BOTH modes now: a
-      // perimeter light's shape depends on it, not only Showcase's pool clip.
+      // perimeter light's shape depends on it, not only Showcase's pool clip
+      // — and now automorph's aura, which has the identical "grow toward
+      // MY room" requirement.
       let room=null;
-      if(SHOW || l.shape==="perimeter"){
+      if(SHOW || l.shape==="perimeter" || AUTOMORPH_PCT>0){
         for(const r of hereRooms){ if(pointInRoom(r.pts, pl.x, pl.y)){ room=r; break; } }
       }
       if(l.shape==="perimeter") s+=perimeterSvg(l, room, pl.lp);
+      else if(AUTOMORPH_PCT>0) s+=automorphAuraSvg(l, hx, hy, room, z);
       let clip, fx;
       if(SHOW){
         clip=room?roomClip.get(room):undefined;

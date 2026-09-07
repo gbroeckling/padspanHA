@@ -56,6 +56,7 @@ export function lightsHostForTier(host){
     hideUntouched: false, untouchedCount: 0, onHideUntouched: null,
     onTypeOverride: null, typeOverrides: {},
     isolux: false, onIsolux: null,
+    automorph: false, onAutomorph: null, automorphRoomPct: 0, onAutomorphRoomPct: null,
     sceneName: null, onScene: null, onSceneAngle: null, onSceneApply: null,
     rippleArmed: false, onRipple: null, onRippleFire: null,
     // Placement is paid, so the placement queue is too. And at free EVERY
@@ -1388,7 +1389,9 @@ export function buildLightsMapCard(hostIn){
         codeChip: !!host.codeChip, hideCodes: !codesShown,
         classFilter: host.classFilter || null, hitHalo: !!host.hitHalo,
         collapseUnplaced: !!host.collapseUnplaced,
-        locateEid: host.locateEid || null, dropMarker: !!host.onDropPlace });
+        locateEid: host.locateEid || null, dropMarker: !!host.onDropPlace,
+        automorph: !!host.automorph,
+        automorphRoomPct: view.automorphLivePct !== undefined ? view.automorphLivePct : (host.automorphRoomPct || 0) });
     applyZoom();
     host.onHexesBuilt(isoDiv, rebuildISO);
   };
@@ -1518,7 +1521,38 @@ export function buildLightsMapCard(hostIn){
       onclick: () => host.onHideUntouched(!host.hideUntouched),
     }, host.hideUntouched ? `◫ Untouched (${n})` : "◫ Hide untouched"));
   }
-  if (host.onShowcase || host.onHideUntouched) ctrlRow.appendChild(SEP());
+  // Automorph (Garry, 2026-09-07) — its own family, independent of Showcase:
+  // it works the same in either rendering mode, so it is not nested under
+  // the Showcase gate above. An aesthetic-only aura for now (see
+  // automorphAuraSvg in iso_lights.js): the icon itself is untouched.
+  if (host.onAutomorph) {
+    ctrlRow.appendChild(el("button", {
+      class: "lv-tgl tone-pink" + (host.automorph ? " on" : ""),
+      title: "Grows a soft aura behind each placed fixture toward its own room's "
+        + "shape — an aesthetic overlay, the fixture's own icon is unchanged.",
+      onclick: () => host.onAutomorph(!host.automorph),
+    }, host.automorph ? "◈ Automorph ✓" : "◈ Automorph"));
+    if (host.automorph && host.onAutomorphRoomPct) {
+      // Live while dragging (rebuildISO directly, no network — same "fast
+      // local preview" the Floor gap slider below uses), persisted only on
+      // release, so a drag does not spam settingsSet.
+      const pctLbl = el("span", { class: "lv-val", style: "min-width:34px" }, `${host.automorphRoomPct || 0}%`);
+      const pctSlider = document.createElement("input");
+      pctSlider.type = "range"; pctSlider.min = "0"; pctSlider.max = "100";
+      pctSlider.className = "lv-range";
+      pctSlider.style.width = "90px";
+      pctSlider.value = String(host.automorphRoomPct || 0);
+      pctSlider.addEventListener("input", () => {
+        view.automorphLivePct = parseInt(pctSlider.value, 10);
+        pctLbl.textContent = `${view.automorphLivePct}%`;
+        rebuildISO();
+      });
+      pctSlider.addEventListener("change", () => host.onAutomorphRoomPct(parseInt(pctSlider.value, 10)));
+      ctrlRow.appendChild(pctSlider);
+      ctrlRow.appendChild(pctLbl);
+    }
+  }
+  if (host.onShowcase || host.onHideUntouched || host.onAutomorph) ctrlRow.appendChild(SEP());
 
   // Reset needs to put the focus control back too — see resetFocusCtl below.
   let resetFocusCtl = () => {};

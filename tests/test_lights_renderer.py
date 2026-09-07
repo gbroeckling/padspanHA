@@ -2064,3 +2064,110 @@ def test_fit_to_room_caps_an_oversized_fixture_and_leaves_a_gap(tmp_path):
     # nothing about the cap.
     assert free_m > 3.0, ("the unconstrained fixture was not oversized to "
                           "begin with", free_m, out)
+
+
+# ── Automorph geometry (Garry, 2026-09-07) ───────────────────────────────────
+# The morph's pure maths — resample, align, lerp — tested directly against
+# synthetic squares/hexes, the same "prove it on a shape a human can check by
+# hand" approach the offsetPolygonInward tests above use.
+
+def test_resample_polygon_ring_preserves_point_count_and_perimeter(tmp_path):
+    out = _run_js(tmp_path, (
+        "import { resamplePolygonRing } from './iso_lights.mjs';\n"
+        "const sq=[[0,0],[10,0],[10,10],[0,10]];\n"
+        "const r=resamplePolygonRing(sq,8);\n"
+        "const perim=(pts)=>{let s=0;for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length];s+=Math.hypot(b[0]-a[0],b[1]-a[1]);}return s;};\n"
+        "console.log(JSON.stringify({count:r.length, first:r[0], perim:perim(r)}));\n"
+    ))
+    assert out["count"] == 8, "resampling must return exactly the requested point count"
+    assert out["first"] == [0, 0], "resampling starts exactly at the ring's own first point"
+    # Every resampled point lies ON the original square's boundary (straight
+    # edges), so the total perimeter is preserved exactly, not just approximated.
+    assert abs(out["perim"] - 40) < 1e-6, out["perim"]
+
+
+def test_align_ring_start_normalizes_winding_and_starts_at_the_top(tmp_path):
+    """Two rings built by unrelated code — a hand-written icon, a traced room
+    — cannot be lerped index-for-index unless both wind the same way and
+    start from the same reference point, or the interpolation twists through
+    itself. A clockwise square (negative signed area by this file's formula)
+    must come back reversed (positive area) and starting at its own
+    topmost point (smallest y — this file's y grows downward, so "top" is
+    the minimum, matching arcPts' own "y down" convention)."""
+    out = _run_js(tmp_path, (
+        "import { alignRingStart } from './iso_lights.mjs';\n"
+        "const cw=[[0,0],[0,10],[10,10],[10,0]];\n"
+        "const out=alignRingStart(cw);\n"
+        "const area=(pts)=>{let a=0;for(let i=0,j=pts.length-1;i<pts.length;j=i++)a+=pts[j][0]*pts[i][1]-pts[i][0]*pts[j][1];return a/2;};\n"
+        "console.log(JSON.stringify({out, area: area(out)}));\n"
+    ))
+    assert out["area"] > 0, "a clockwise ring must come back with reversed (positive) winding"
+    top_y = min(p[1] for p in out["out"])
+    assert out["out"][0][1] == top_y, (
+        "the ring must start at its own topmost point (min y), not wherever "
+        f"the original vertex order happened to begin: {out['out']}"
+    )
+
+
+def test_automorph_ring_at_zero_percent_is_the_icon_completely_untouched(tmp_path):
+    """The switch's and slider's own rest-position contract: t=0 must be
+    byte-for-byte the icon's own outline, translated to its position — no
+    resampling, no realignment, nothing that could shift a single pixel of
+    the map when Automorph is off or freshly turned on at 0%."""
+    out = _run_js(tmp_path, (
+        "import { iconRingLocal, automorphRing } from './iso_lights.mjs';\n"
+        "const icon=iconRingLocal('hex', 10);\n"
+        "const room=[[0,0],[200,0],[200,200],[0,200]];\n"
+        "const ring=automorphRing(icon, 50, 60, room, 0);\n"
+        "const expect=icon.map(p=>[p[0]+50, p[1]+60]);\n"
+        "console.log(JSON.stringify({ring, expect, equal: JSON.stringify(ring)===JSON.stringify(expect)}));\n"
+    ))
+    assert out["equal"], (
+        "t=0 must exactly equal the icon's own points translated to its "
+        f"position, unresampled: ring={out['ring']} expect={out['expect']}"
+    )
+
+
+def test_automorph_ring_at_full_percent_lands_exactly_on_the_room_boundary(tmp_path):
+    """t=1 is the fully-grown end of the slider — every returned point must
+    sit exactly on the room's own (inset) boundary, not somewhere between
+    the icon and the room. A concentric, axis-aligned icon and room (both
+    squares, same orientation) is the one case simple enough to check this
+    generically: every output point's x is 0 or 100, or its y is 0 or 100 —
+    a point strictly inside the square (a leftover from the icon) or outside
+    it (an overshoot) would fail this."""
+    out = _run_js(tmp_path, (
+        "import { iconRingLocal, automorphRing } from './iso_lights.mjs';\n"
+        "const icon=iconRingLocal('square', 10);\n"
+        "const room=[[0,0],[100,0],[100,100],[0,100]];\n"
+        "const ring=automorphRing(icon, 50, 50, room, 1);\n"
+        "console.log(JSON.stringify({ring}));\n"
+    ))
+    for p in out["ring"]:
+        on_boundary = (
+            abs(p[0] - 0) < 1e-6 or abs(p[0] - 100) < 1e-6
+            or abs(p[1] - 0) < 1e-6 or abs(p[1] - 100) < 1e-6
+        )
+        assert on_boundary, f"point {p} is not on the room's own square boundary: {out['ring']}"
+
+
+def test_automorph_ring_at_half_percent_sits_strictly_between_icon_and_room(tmp_path):
+    """A sanity check against a twisted/overshooting morph: at t=0.5, every
+    point's distance from the shared centre must be strictly between the
+    icon's own radius and the room's half-width — not collapsed back near
+    the icon, and not overshooting past the room."""
+    out = _run_js(tmp_path, (
+        "import { iconRingLocal, automorphRing } from './iso_lights.mjs';\n"
+        "const icon=iconRingLocal('circle', 10);\n"
+        "const room=[[0,0],[100,0],[100,100],[0,100]];\n"
+        "const ring=automorphRing(icon, 50, 50, room, 0.5);\n"
+        "const dist=ring.map(p=>Math.hypot(p[0]-50, p[1]-50));\n"
+        "console.log(JSON.stringify({dist}));\n"
+    ))
+    icon_r = 10 * 0.866
+    room_half_diag = (50 * 2 ** 0.5)
+    for d in out["dist"]:
+        assert icon_r < d < room_half_diag, (
+            f"a half-morphed point sat outside the icon..room range: {d} "
+            f"(icon_r={icon_r}, room_half_diag={room_half_diag})"
+        )

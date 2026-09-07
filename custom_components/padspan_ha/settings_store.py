@@ -90,6 +90,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "lights_fit_rooms": False,  # Mapping -> Lights Showcase: never draw a fixture larger than its room
     "lights_isolux": False,  # Mapping -> Lights Showcase: relative-illuminance contours on the metre grid
     "lights_hide_untouched": False,  # Mapping -> Lights: draw only fixtures that have been sized/rotated/coloured/shaped
+    "lights_automorph_enabled": False,  # Mapping -> Lights: room-alignment aura, off = today's rendering exactly
+    "lights_automorph_room_pct": 0,     # 0-100: how far each fixture's aura has grown toward its room's own shape
     "overview_show_walls": False,   # Overview: draw RF barrier walls over the map
     "overview_show_outdoor": False, # Overview: draw outdoor areas (sheds, driveways) as an overlay
     "overview_show_trails": False,  # Overview/Pure Live: fading movement trail behind each tracked object

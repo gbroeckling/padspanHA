@@ -7933,6 +7933,26 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not save Isolux: " + String(e), true); }
       ctx.actions.renderRooms();
     },
+    // Automorph (Garry, 2026-09-07): same remembered-rendering-mode pattern
+    // as Showcase/Isolux above, not an edit mode — a rendering-only overlay.
+    automorph: mapState._lightsAutomorph === undefined
+      ? !!ctx.state.settings?.lights_automorph_enabled
+      : !!mapState._lightsAutomorph,
+    onAutomorph: async (v) => {
+      mapState._lightsAutomorph = v;
+      try { await ctx.actions.settingsSet({ lights_automorph_enabled: v }); }
+      catch (e) { ctx.toast("Could not save Automorph: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
+    automorphRoomPct: mapState._lightsAutomorphPct === undefined
+      ? Number(ctx.state.settings?.lights_automorph_room_pct) || 0
+      : mapState._lightsAutomorphPct,
+    onAutomorphRoomPct: async (v) => {
+      mapState._lightsAutomorphPct = v;
+      try { await ctx.actions.settingsSet({ lights_automorph_room_pct: v }); }
+      catch (e) { ctx.toast("Could not save the Automorph amount: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
     // Scene preview state is a view mode, deliberately NOT a setting: a
     // preview left armed in storage would repaint the map on every open.
     sceneName: mapState._lightsScene || null,
