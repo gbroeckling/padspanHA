@@ -38,6 +38,9 @@ _HA_MODULE_NAMES: list[str] = [
     "homeassistant.helpers.storage",
     "homeassistant.helpers.typing",
     "homeassistant.helpers.update_coordinator",
+    "homeassistant.helpers.recorder",
+    "homeassistant.components.recorder",
+    "homeassistant.components.recorder.history",
     "homeassistant.util",
     "homeassistant.util.dt",
 ]
@@ -210,6 +213,32 @@ def _fake_utcnow() -> datetime:
 
 
 _ha_mods["homeassistant.util.dt"].utcnow = _fake_utcnow  # type: ignore[attr-defined]
+
+# homeassistant.helpers.recorder / homeassistant.components.recorder(.history)
+# Default: a healthy recorder with no history for anything (tests override
+# get_instance/get_last_state_changes per-scenario via monkeypatch on these
+# SAME stub module attributes — production code imports both names locally,
+# inside the function, every call, so a monkeypatch here is always seen).
+class FakeRecorderInstance:
+    def __init__(self, recording: bool = True, backlog: int = 0, migration_in_progress: bool = False) -> None:
+        self.recording = recording
+        self.backlog = backlog
+        self.migration_in_progress = migration_in_progress
+
+    async def async_add_executor_job(self, target, *args):
+        return target(*args)
+
+
+def _default_get_instance(hass):
+    return FakeRecorderInstance()
+
+
+def _default_get_last_state_changes(hass, number_of_states, entity_id):
+    return {}
+
+
+_ha_mods["homeassistant.helpers.recorder"].get_instance = _default_get_instance  # type: ignore[attr-defined]
+_ha_mods["homeassistant.components.recorder.history"].get_last_state_changes = _default_get_last_state_changes  # type: ignore[attr-defined]
 
 # ---------------------------------------------------------------------------
 # 2.5  Wire each stub submodule onto its parent stub as a real attribute

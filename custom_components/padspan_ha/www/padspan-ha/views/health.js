@@ -261,6 +261,7 @@ function _renderFabric(ctx, container, data) {
     { key: "identity", label: "Device Identity Registry" },
     { key: "multifloor", label: "Multi-Floor Accuracy" },
     { key: "occupancy", label: "Occupancy Estimator" },
+    { key: "recorder", label: "Phase 4 — HA Recorder Health" },
   ];
   for (const g of groups) {
     const gc = checks.filter(c => c.group === g.key);

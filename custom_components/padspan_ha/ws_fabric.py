@@ -1195,6 +1195,81 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
     except Exception:
         pass
 
+    # ── Phase 4: HA recorder health ────────────────────────────────────────
+    # A recorder can go silently comatose — its own thread stays alive, its
+    # queue drains, but rows stop landing in the database — with nothing
+    # anywhere warning about it (confirmed live on Garry's own install,
+    # 2026-09-02 to 09-07: five days of missing history across three
+    # unrelated integrations, discovered only by chance while looking at an
+    # unrelated chart). No entity-agnostic "is the DB still being written
+    # to" signal exists in HA's public API — recorder.recording/backlog only
+    # report the in-memory queue's own health, not whether commits actually
+    # land — so this cross-checks whichever entities changed most recently
+    # SYSTEM-WIDE (never scoped to padspan's own entities: this is a general
+    # HA recorder check, "so this is consistent" per Garry's own ask)
+    # against their own persisted history. Sampling several avoids a false
+    # "unhealthy" reading from picking the one candidate that happens to be
+    # excluded from recording entirely (recorder: exclude in configuration.yaml,
+    # or this integration's own settings.recorder excludes) rather than one
+    # the recorder has actually stopped writing.
+    try:
+        from homeassistant.components.recorder import history as _rec_history  # noqa: PLC0415
+        from homeassistant.helpers.recorder import get_instance as _rec_instance  # noqa: PLC0415
+        from homeassistant.util import dt as _dt_util  # noqa: PLC0415
+
+        _rec = _rec_instance(hass)
+        _recent_states = sorted(
+            (s for s in hass.states.async_all() if s.last_updated),
+            key=lambda s: s.last_updated, reverse=True,
+        )[:8]
+        _lag_s: float | None = None
+        _sample_eid: str | None = None
+        for _st in _recent_states:
+            _db = await _rec.async_add_executor_job(
+                _rec_history.get_last_state_changes, hass, 1, _st.entity_id)
+            _db_states = _db.get(_st.entity_id) or []
+            if not _db_states:
+                continue  # likely just excluded from recording — try the next candidate
+            _lag_s = (_dt_util.utcnow() - _db_states[-1].last_updated).total_seconds()
+            _sample_eid = _st.entity_id
+            break
+        if _sample_eid is None:
+            checks.append({
+                "group": "recorder", "name": "Recorder Writing History",
+                "ok": False, "value": "unknown",
+                "detail": "Every recently-changed entity sampled has no recorder "
+                          "history at all — cannot tell whether the recorder is writing.",
+            })
+        else:
+            # 15 minutes is generous over any real commit_interval (default 1s,
+            # rarely configured past a few minutes) — margin against false alarms,
+            # not a claim that a healthy recorder normally lags this much.
+            _healthy = _lag_s is not None and _lag_s < 900
+            checks.append({
+                "group": "recorder", "name": "Recorder Writing History",
+                "ok": _healthy,
+                "value": f"{int(_lag_s)}s behind" if _lag_s is not None else "unknown",
+                "detail": (
+                    f"{_sample_eid}'s last DB-persisted change is {int(_lag_s)}s behind its live state"
+                    if _healthy else
+                    f"{_sample_eid} changed live, but its last recorder entry is {int(_lag_s)}s old — "
+                    "the recorder may have stopped writing (a full HA core restart has fixed this before)"
+                ),
+            })
+        checks.append({
+            "group": "recorder", "name": "Recorder Thread",
+            "ok": bool(getattr(_rec, "recording", True)) and not getattr(_rec, "migration_in_progress", False),
+            "value": "running" if getattr(_rec, "recording", True) else "stopped",
+            "detail": f"queue backlog: {getattr(_rec, 'backlog', '?')}" +
+                      (" — schema migration in progress" if getattr(_rec, "migration_in_progress", False) else ""),
+        })
+    except Exception as _e:
+        checks.append({
+            "group": "recorder", "name": "Recorder Writing History",
+            "ok": False, "value": "error",
+            "detail": f"Could not check recorder health: {_e}",
+        })
+
     # ── Summary ──────────────────────────────────────────────────────────────
     total = len(checks)
     passed = sum(1 for c in checks if c["ok"])
