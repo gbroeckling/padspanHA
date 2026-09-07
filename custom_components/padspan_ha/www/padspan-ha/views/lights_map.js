@@ -58,6 +58,7 @@ export function lightsHostForTier(host){
     isolux: false, onIsolux: null,
     automorph: false, onAutomorph: null, automorphRoomPct: 0, onAutomorphRoomPct: null,
     automorphHardness: 0, onAutomorphHardness: null,
+    automorphStyle: "glow", onAutomorphStyle: null,
     sceneName: null, onScene: null, onSceneAngle: null, onSceneApply: null,
     rippleArmed: false, onRipple: null, onRippleFire: null,
     // Placement is paid, so the placement queue is too. And at free EVERY
@@ -139,6 +140,10 @@ export function effectiveState(eid, reported, now = Date.now()){
 // The layer chips: the map keeps every class in view and DIMS the others,
 // because a fan's place on the ceiling is context for the light beside it.
 export const LIGHT_CLASSES = [["all","All"],["light","Lights"],["strip","Strips"],["fan","Fans"],["motion","Motion"],["temp","Temps"],["lock","Locks"]];
+
+// Automorph's style dropdown vocabulary — the UI's copy of what
+// automorphAuraSvg (iso_lights.js) actually switches on.
+export const AUTOMORPH_STYLES = [["glow","Glow"],["blueprint","Blueprint"],["nebula","Nebula"]];
 export { lightClassOf };
 export function classMatches(l, cls){ return !cls || cls === "all" || lightClassOf(l) === cls; }
 
@@ -1393,7 +1398,8 @@ export function buildLightsMapCard(hostIn){
         locateEid: host.locateEid || null, dropMarker: !!host.onDropPlace,
         automorph: !!host.automorph,
         automorphRoomPct: view.automorphLivePct !== undefined ? view.automorphLivePct : (host.automorphRoomPct || 0),
-        automorphHardness: view.automorphLiveHardness !== undefined ? view.automorphLiveHardness : (host.automorphHardness || 0) });
+        automorphHardness: view.automorphLiveHardness !== undefined ? view.automorphLiveHardness : (host.automorphHardness || 0),
+        automorphStyle: host.automorphStyle || "glow" });
     applyZoom();
     host.onHexesBuilt(isoDiv, rebuildISO);
   };
@@ -1573,6 +1579,21 @@ export function buildLightsMapCard(hostIn){
       hardSlider.addEventListener("change", () => host.onAutomorphHardness(parseInt(hardSlider.value, 10)));
       ctrlRow.appendChild(hardSlider);
       ctrlRow.appendChild(hardLbl);
+    }
+    // Style — which of several distinct visual treatments paints the same
+    // morphed ring (Garry, 2026-09-07: "add a style pulldown to build more
+    // morph concepts into the build, I can always remove them later").
+    if (host.automorph && host.onAutomorphStyle) {
+      const styleSel = document.createElement("select");
+      styleSel.className = "lv-select";
+      styleSel.title = "Automorph's visual treatment";
+      for (const [kind, label] of AUTOMORPH_STYLES) {
+        const o = el("option", { value: kind }, label);
+        if (kind === (host.automorphStyle || "glow")) o.selected = true;
+        styleSel.appendChild(o);
+      }
+      styleSel.addEventListener("change", () => host.onAutomorphStyle(styleSel.value));
+      ctrlRow.appendChild(styleSel);
     }
   }
   if (host.onShowcase || host.onHideUntouched || host.onAutomorph) ctrlRow.appendChild(SEP());

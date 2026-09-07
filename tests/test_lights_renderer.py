@@ -2247,3 +2247,44 @@ def test_hardness_softening_scales_continuously_with_the_slider(tmp_path):
     assert "C" in out["d50"], out["d50"]
     assert "C" in out["d100"] and "L" not in out["d100"], out["d100"]
     assert out["d50"] != out["d100"], "50% soft must not already equal the fully-softened path"
+
+
+def test_automorph_style_dropdown_switches_the_rendered_treatment(tmp_path):
+    """Every style paints the SAME morphed ring differently — verified
+    through the real renderer (buildIsoSVG), not just the pure geometry:
+    glow (default) carries the blurred-wash filter and a stroke; blueprint
+    is stroke-only with dashes and per-vertex node circles, no fill and no
+    blur; nebula fills through the shared mask and has neither a filter
+    nor a stroke. An unrecognised style name must fall back to glow."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {"Office": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 6], [0, 6]]}},
+        "light_positions_m": {"light.lamp": {"x_m": 3, "y_m": 3, "floor_id": "main"}},
+    }
+    lbe = {"light.lamp": {"entity_id": "light.lamp", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None}}
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+
+    def render(style):
+        return _run_js(tmp_path, (
+            "import * as M from './iso_lights.mjs';\n"
+            f"const MODEL={json.dumps(model)};\n"
+            f"const LBE={json.dumps(lbe)};\n"
+            f"const FLOORS={json.dumps(floors)};\n"
+            f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+            f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:50, automorphStyle:{json.dumps(style)}}});\n"
+            "console.log(JSON.stringify({"
+            "psclipsoft: (svg.match(/filter=\"url\\(#psclipsoft\\)\"/g)||[]).length,"
+            "mask: (svg.match(/mask=\"url\\(#psautomorphmask\\)\"/g)||[]).length,"
+            "dashed: svg.includes('stroke-dasharray=\"4,3\"'),"
+            "}));\n"
+        ))
+
+    glow = render("glow")
+    blueprint = render("blueprint")
+    nebula = render("nebula")
+    unknown = render("bogus")
+
+    assert glow["psclipsoft"] >= 1 and not glow["dashed"] and glow["mask"] == 0, glow
+    assert blueprint["dashed"] and blueprint["psclipsoft"] == 0 and blueprint["mask"] == 0, blueprint
+    assert nebula["mask"] >= 1 and nebula["psclipsoft"] == 0 and not nebula["dashed"], nebula
+    assert unknown == glow, "an unrecognised style name must fall back to glow, not silently render nothing"

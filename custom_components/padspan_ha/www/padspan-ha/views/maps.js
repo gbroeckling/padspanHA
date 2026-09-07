@@ -7964,6 +7964,17 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not save the Automorph hardness: " + String(e), true); }
       ctx.actions.renderRooms();
     },
+    // Which of several distinct visual treatments paints the same morphed
+    // ring — see automorphAuraSvg in iso_lights.js.
+    automorphStyle: mapState._lightsAutomorphStyle === undefined
+      ? (ctx.state.settings?.lights_automorph_style || "glow")
+      : mapState._lightsAutomorphStyle,
+    onAutomorphStyle: async (v) => {
+      mapState._lightsAutomorphStyle = v;
+      try { await ctx.actions.settingsSet({ lights_automorph_style: v }); }
+      catch (e) { ctx.toast("Could not save the Automorph style: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
     // Scene preview state is a view mode, deliberately NOT a setting: a
     // preview left armed in storage would repaint the map on every open.
     sceneName: mapState._lightsScene || null,

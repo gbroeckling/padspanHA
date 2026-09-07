@@ -1079,6 +1079,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // Slider 2 — edge hardness, centered at 0 (today's straight-edged look,
   // either direction) — see applyHardness/ringPathD.
   const AUTOMORPH_HARDNESS = opts.automorph ? Math.max(-100, Math.min(100, Number(opts.automorphHardness) || 0)) : 0;
+  // Style — which of several distinct visual TREATMENTS paints the same
+  // morphed ring (see automorphAuraSvg). "glow" is the shipped default;
+  // the others are exploratory, kept behind this dropdown so any of them
+  // can be dropped later without touching the geometry underneath.
+  const AUTOMORPH_STYLE = ["glow","blueprint","nebula"].includes(opts.automorphStyle) ? opts.automorphStyle : "glow";
   const dimmed=(l)=>!!CLASSF && lightClassOf(l)!==CLASSF;
   // The builder, choosing a light from the INDEX rather than the map: "make
   // it easy to find" — one big ring flashes outward from wherever that light
@@ -1332,6 +1337,17 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     `<stop offset="0%" stop-color="${MOTION_PULSE}" stop-opacity="0.55"/>`+
     `<stop offset="60%" stop-color="${MOTION_PULSE}" stop-opacity="0.18"/>`+
     `<stop offset="100%" stop-color="${MOTION_PULSE}" stop-opacity="0"/></radialGradient>`;
+  // Automorph's "Nebula" style — a colour-agnostic soft-edge MASK (white
+  // fading to transparent) rather than a per-fixture gradient: any number
+  // of fixtures can share this ONE definition regardless of their own
+  // colour, so this stays cheap no matter how many auras are on screen —
+  // a true per-colour gradient would need one <radialGradient> per
+  // distinct colour in play, which is the defs-bloat a mask sidesteps.
+  s+=`<radialGradient id="psautomorphgrad">`+
+    `<stop offset="0%" stop-color="#fff" stop-opacity="1"/>`+
+    `<stop offset="55%" stop-color="#fff" stop-opacity="0.55"/>`+
+    `<stop offset="100%" stop-color="#fff" stop-opacity="0"/></radialGradient>`;
+  s+=`<mask id="psautomorphmask"><rect x="-20%" y="-20%" width="140%" height="140%" fill="url(#psautomorphgrad)"/></mask>`;
   // Garry: "that cool look you have inside the [light glow]... can the shape
   // built by the room shape also have some of that, a bit less intense, but
   // the same shaded look" — the same near-quadratic radial falloff the light
@@ -1822,10 +1838,34 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const roomCol=roomColor(room.room, model);
       const col=on?bodyCol(l,null):roomCol;
       const t=AUTOMORPH_PCT/100;
-      // Two layers, the way this map already lights a real fixture: a soft
-      // blurred wash carries the colour and the room-scale presence, a
-      // crisp, brighter outline on top keeps the room-conforming SHAPE
-      // itself readable as it grows, not just an ever-bigger smear.
+      // Exploratory alternate treatments (Garry, 2026-09-07: "add a style
+      // pulldown to build more morph concepts... I can always remove them
+      // later") — same ring/path every style paints, only HOW it's drawn
+      // differs, so dropping one later never touches the geometry above.
+      if(AUTOMORPH_STYLE==="blueprint"){
+        // Technical/architectural linework: no fill at all, a dashed
+        // outline plus a small node at every vertex — reads as a wireframe
+        // draft of the room shape rather than a glow.
+        const dashOp=(0.35+0.45*t).toFixed(2);
+        let nodes="";
+        for(const [px,py] of ring) nodes+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="1.6" `+
+          `fill="${col}" fill-opacity="${dashOp}" pointer-events="none"/>`;
+        return `<path d="${d}" fill="none" stroke="${col}" stroke-opacity="${dashOp}" stroke-width="1.1" `+
+          `stroke-dasharray="4,3" stroke-linejoin="round" pointer-events="none"/>`+nodes;
+      }
+      if(AUTOMORPH_STYLE==="nebula"){
+        // A single soft-edged colour wash: the mask (defined once, shared
+        // by every fixture regardless of colour — see psautomorphmask)
+        // fades the fill to nothing at the ring's own edge, reading as a
+        // glowing orb rather than a bounded shape with a stroke.
+        return `<path d="${d}" fill="${col}" fill-opacity="${(0.25+0.55*t).toFixed(2)}" `+
+          `stroke="none" mask="url(#psautomorphmask)" pointer-events="none"/>`;
+      }
+      // "glow" (default): two layers, the way this map already lights a
+      // real fixture — a soft blurred wash carries the colour and the
+      // room-scale presence, a crisp, brighter outline on top keeps the
+      // room-conforming SHAPE itself readable as it grows, not just an
+      // ever-bigger smear.
       const glow=`<path d="${d}" fill="${col}" fill-opacity="${(0.12+0.34*t).toFixed(2)}" `+
         `stroke="none" pointer-events="none" filter="url(#psclipsoft)"/>`;
       const edge=`<path d="${d}" fill="${col}" fill-opacity="${(0.05+0.14*t).toFixed(2)}" `+
