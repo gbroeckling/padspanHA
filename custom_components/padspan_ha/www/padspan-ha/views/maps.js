@@ -7953,6 +7953,17 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not save the Automorph amount: " + String(e), true); }
       ctx.actions.renderRooms();
     },
+    // Slider 2 — centered at 0, same rest-position contract as room_pct's
+    // own 0: today's straight-edged aura, unchanged either direction.
+    automorphHardness: mapState._lightsAutomorphHardness === undefined
+      ? Number(ctx.state.settings?.lights_automorph_hardness) || 0
+      : mapState._lightsAutomorphHardness,
+    onAutomorphHardness: async (v) => {
+      mapState._lightsAutomorphHardness = v;
+      try { await ctx.actions.settingsSet({ lights_automorph_hardness: v }); }
+      catch (e) { ctx.toast("Could not save the Automorph hardness: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
     // Scene preview state is a view mode, deliberately NOT a setting: a
     // preview left armed in storage would repaint the map on every open.
     sceneName: mapState._lightsScene || null,

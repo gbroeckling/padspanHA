@@ -285,6 +285,49 @@ export function automorphRing(iconLocal, iconCx, iconCy, roomRingAbs, t){
   return a.map((p,i)=>[p[0]+(b[i][0]-p[0])*clampT, p[1]+(b[i][1]-p[1])*clampT]);
 }
 
+// Slider 2 (edge hardness): centered at 0 — Garry's own spec, "this slider
+// starts in the center" and 0 is today's unchanged straight-edged treatment
+// either direction. Negative pushes every point outward from the ring's own
+// centroid, for a sharper, more angular "hard, geometrically aligned" look;
+// positive is handled separately, at path-build time (ringPathD below),
+// since softening needs the RAW points, not a transformed copy of them.
+export function applyHardness(ring, hardness){
+  const h=Math.max(-100, Math.min(100, hardness||0));
+  if(h>=0 || ring.length<3) return ring;
+  const cx=ring.reduce((a,p)=>a+p[0],0)/ring.length;
+  const cy=ring.reduce((a,p)=>a+p[1],0)/ring.length;
+  const k=1+(-h/100)*0.35; // up to +35% outward at hardness=-100
+  return ring.map(p=>[cx+(p[0]-cx)*k, cy+(p[1]-cy)*k]);
+}
+
+// Builds the SVG path `d` for a closed ring, honouring hardness's SOFT side
+// (hardness>0) — the hard side is already baked into `ring` by
+// applyHardness above, so a straight polygon through those points is all
+// this needs at hardness<=0. Soft is a closed Catmull-Rom spline through
+// every point (every point still on the curve, unlike a Bezier fit that
+// would drift off them) converted to cubic Beziers — the standard
+// construction, each segment's two control points derived from its
+// neighbours with a fixed 1/6 tension factor — scaled continuously by
+// hardness/100 so the dial softens gradually rather than snapping at some
+// threshold. hardness<=0 returns byte-identical output to before this
+// slider existed (plain M/L/Z), which is the "centered = unchanged"
+// contract the switch and both sliders all share.
+export function ringPathD(ring, hardness){
+  if(ring.length<3) return "";
+  const h=Math.max(0, Math.min(100, hardness||0));
+  if(h<=0) return ring.map((p,i)=>`${i?"L":"M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ")+"Z";
+  const n=ring.length;
+  const at=(i)=>ring[(i%n+n)%n];
+  let d=`M${ring[0][0].toFixed(1)},${ring[0][1].toFixed(1)}`;
+  for(let i=0;i<n;i++){
+    const p0=at(i-1), p1=at(i), p2=at(i+1), p3=at(i+2);
+    const c1=[p1[0]+(p2[0]-p0[0])/6*h/100, p1[1]+(p2[1]-p0[1])/6*h/100];
+    const c2=[p2[0]-(p3[0]-p1[0])/6*h/100, p2[1]-(p3[1]-p1[1])/6*h/100];
+    d+=` C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+  }
+  return d+"Z";
+}
+
 export function shapeSvg(kind, cx, cy, r, attrs){
   const poly=(pts)=>`<polygon points="${pts}" ${attrs}/>`;
   // Every shape stays within the hexagon's own width (r*√3 ≈ 1.73r), because
@@ -1033,6 +1076,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // Automorph (Garry, 2026-09-07): 0 disables it outright — see
   // automorphAuraSvg/automorphRing below, near perimeterSvg.
   const AUTOMORPH_PCT = opts.automorph ? Math.max(0, Math.min(100, Number(opts.automorphRoomPct) || 0)) : 0;
+  // Slider 2 — edge hardness, centered at 0 (today's straight-edged look,
+  // either direction) — see applyHardness/ringPathD.
+  const AUTOMORPH_HARDNESS = opts.automorph ? Math.max(-100, Math.min(100, Number(opts.automorphHardness) || 0)) : 0;
   const dimmed=(l)=>!!CLASSF && lightClassOf(l)!==CLASSF;
   // The builder, choosing a light from the INDEX rather than the map: "make
   // it easy to find" — one big ring flashes outward from wherever that light
@@ -1763,8 +1809,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       if(!(AUTOMORPH_PCT>0) || !room || room.pts.length<3) return "";
       const marginM=Math.max(0, Math.min(defaultPerimeterMarginM(frame), roomHalfMinDim(room.pts)*0.85));
       const roomPx=offsetPolygonInward(room.pts, marginM).map(p=>iso(p[0],p[1],z));
-      const ring=automorphRing(iconRingLocal(l.shape, HEX_R), hx, hy, roomPx, AUTOMORPH_PCT/100);
-      const d=ring.map((p,i)=>`${i?"L":"M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ")+"Z";
+      const ring=applyHardness(
+        automorphRing(iconRingLocal(l.shape, HEX_R), hx, hy, roomPx, AUTOMORPH_PCT/100),
+        AUTOMORPH_HARDNESS);
+      const d=ringPathD(ring, AUTOMORPH_HARDNESS);
       const on=l.isMotion ? motionActive(l) : (l.isLock ? l.state==="locked" : l.state==="on");
       // The room's OWN colour, not a flat grey — every fixture aura in the
       // same room shares it, so overlapping auras blend into one cohesive

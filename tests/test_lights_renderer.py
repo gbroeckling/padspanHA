@@ -2171,3 +2171,79 @@ def test_automorph_ring_at_half_percent_sits_strictly_between_icon_and_room(tmp_
             f"a half-morphed point sat outside the icon..room range: {d} "
             f"(icon_r={icon_r}, room_half_diag={room_half_diag})"
         )
+
+
+# ── Automorph slider 2: edge hardness (Garry, 2026-09-07) ───────────────────
+# "The second slider is to make all the shapes from hard edges to soft, this
+# one starts in the center." Centered at 0 = today's straight polygon,
+# unchanged either direction; negative sharpens (spikes outward from the
+# ring's own centroid), positive smooths (a closed Catmull-Rom spline).
+
+def test_hardness_zero_is_the_straight_polygon_completely_unchanged(tmp_path):
+    """The rest position's own contract: hardness=0 must produce the exact
+    same M/L/Z straight-polygon path as before this slider existed, and
+    applyHardness at 0 must not touch a single point."""
+    out = _run_js(tmp_path, (
+        "import { applyHardness, ringPathD } from './iso_lights.mjs';\n"
+        "const ring=[[0,0],[10,0],[10,10],[0,10]];\n"
+        "const same = JSON.stringify(applyHardness(ring, 0)) === JSON.stringify(ring);\n"
+        "const d = ringPathD(ring, 0);\n"
+        "console.log(JSON.stringify({same, d}));\n"
+    ))
+    assert out["same"], "applyHardness(ring, 0) must return the ring's points completely untouched"
+    assert out["d"] == "M0.0,0.0 L10.0,0.0 L10.0,10.0 L0.0,10.0Z", out["d"]
+
+
+def test_hardness_negative_spikes_outward_from_the_centroid(tmp_path):
+    """Negative hardness pushes every point away from the ring's own
+    centre by a fixed fraction (up to 35% at -100) — checked exactly
+    against a square centred on the origin, where the maths is easy to
+    hand-verify: each corner at radius r√2 should land at r√2 * 1.35."""
+    out = _run_js(tmp_path, (
+        "import { applyHardness } from './iso_lights.mjs';\n"
+        "const ring=[[-10,-10],[10,-10],[10,10],[-10,10]];\n"
+        "const out=applyHardness(ring, -100);\n"
+        "console.log(JSON.stringify({out}));\n"
+    ))
+    for p in out["out"]:
+        # Each corner was at (+-10,+-10); at -100 hardness (k=1.35) it must
+        # land at (+-13.5,+-13.5), same sign, same centre.
+        assert abs(abs(p[0]) - 13.5) < 1e-6 and abs(abs(p[1]) - 13.5) < 1e-6, out["out"]
+
+
+def test_hardness_positive_leaves_points_untouched_only_the_path_smooths(tmp_path):
+    """Positive (soft) hardness is deliberately NOT a point transform —
+    applyHardness must return the ring as-is; only ringPathD changes,
+    producing cubic-Bezier ("C") segments, one per ring point, instead of
+    straight lines."""
+    out = _run_js(tmp_path, (
+        "import { applyHardness, ringPathD } from './iso_lights.mjs';\n"
+        "const ring=[[0,0],[10,0],[10,10],[0,10]];\n"
+        "const same = JSON.stringify(applyHardness(ring, 100)) === JSON.stringify(ring);\n"
+        "const d = ringPathD(ring, 100);\n"
+        "const cCount = (d.match(/C/g)||[]).length;\n"
+        "const hasL = d.includes('L');\n"
+        "console.log(JSON.stringify({same, cCount, hasL}));\n"
+    ))
+    assert out["same"], "positive hardness must not transform the ring's points"
+    assert out["cCount"] == 4, "one cubic-bezier segment per ring point, at full softness"
+    assert not out["hasL"], "a fully-softened path must not contain any straight-line (L) segments"
+
+
+def test_hardness_softening_scales_continuously_with_the_slider(tmp_path):
+    """A half-soft path (hardness=50) must sit strictly between the sharp
+    corner (the straight polygon's own vertex) and the fully-softened
+    curve's control point — proving the dial is continuous, not a hard
+    flip between two fixed looks at some threshold."""
+    out = _run_js(tmp_path, (
+        "import { ringPathD } from './iso_lights.mjs';\n"
+        "const ring=[[0,0],[10,0],[10,10],[0,10]];\n"
+        "const d0 = ringPathD(ring, 0);\n"
+        "const d50 = ringPathD(ring, 50);\n"
+        "const d100 = ringPathD(ring, 100);\n"
+        "console.log(JSON.stringify({d0, d50, d100}));\n"
+    ))
+    assert "L" in out["d0"] and "C" not in out["d0"], out["d0"]
+    assert "C" in out["d50"], out["d50"]
+    assert "C" in out["d100"] and "L" not in out["d100"], out["d100"]
+    assert out["d50"] != out["d100"], "50% soft must not already equal the fully-softened path"

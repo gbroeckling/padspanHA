@@ -57,6 +57,7 @@ export function lightsHostForTier(host){
     onTypeOverride: null, typeOverrides: {},
     isolux: false, onIsolux: null,
     automorph: false, onAutomorph: null, automorphRoomPct: 0, onAutomorphRoomPct: null,
+    automorphHardness: 0, onAutomorphHardness: null,
     sceneName: null, onScene: null, onSceneAngle: null, onSceneApply: null,
     rippleArmed: false, onRipple: null, onRippleFire: null,
     // Placement is paid, so the placement queue is too. And at free EVERY
@@ -1391,7 +1392,8 @@ export function buildLightsMapCard(hostIn){
         collapseUnplaced: !!host.collapseUnplaced,
         locateEid: host.locateEid || null, dropMarker: !!host.onDropPlace,
         automorph: !!host.automorph,
-        automorphRoomPct: view.automorphLivePct !== undefined ? view.automorphLivePct : (host.automorphRoomPct || 0) });
+        automorphRoomPct: view.automorphLivePct !== undefined ? view.automorphLivePct : (host.automorphRoomPct || 0),
+        automorphHardness: view.automorphLiveHardness !== undefined ? view.automorphLiveHardness : (host.automorphHardness || 0) });
     applyZoom();
     host.onHexesBuilt(isoDiv, rebuildISO);
   };
@@ -1550,6 +1552,27 @@ export function buildLightsMapCard(hostIn){
       pctSlider.addEventListener("change", () => host.onAutomorphRoomPct(parseInt(pctSlider.value, 10)));
       ctrlRow.appendChild(pctSlider);
       ctrlRow.appendChild(pctLbl);
+    }
+    // Slider 2 — hardness, centered at 0 ("this slider starts in the
+    // center" — Garry, 2026-09-06): negative sharpens the aura's edges
+    // outward into a spikier silhouette, positive smooths them into a
+    // closed spline. Same live-preview-then-persist pattern as room_pct.
+    if (host.automorph && host.onAutomorphHardness) {
+      const hardLbl = el("span", { class: "lv-val", style: "min-width:34px" }, String(host.automorphHardness || 0));
+      const hardSlider = document.createElement("input");
+      hardSlider.type = "range"; hardSlider.min = "-100"; hardSlider.max = "100";
+      hardSlider.className = "lv-range";
+      hardSlider.style.width = "90px";
+      hardSlider.title = "Edge hardness — left sharpens, right softens, centre is unchanged";
+      hardSlider.value = String(host.automorphHardness || 0);
+      hardSlider.addEventListener("input", () => {
+        view.automorphLiveHardness = parseInt(hardSlider.value, 10);
+        hardLbl.textContent = String(view.automorphLiveHardness);
+        rebuildISO();
+      });
+      hardSlider.addEventListener("change", () => host.onAutomorphHardness(parseInt(hardSlider.value, 10)));
+      ctrlRow.appendChild(hardSlider);
+      ctrlRow.appendChild(hardLbl);
     }
   }
   if (host.onShowcase || host.onHideUntouched || host.onAutomorph) ctrlRow.appendChild(SEP());

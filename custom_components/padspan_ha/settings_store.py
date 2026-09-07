@@ -92,6 +92,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "lights_hide_untouched": False,  # Mapping -> Lights: draw only fixtures that have been sized/rotated/coloured/shaped
     "lights_automorph_enabled": False,  # Mapping -> Lights: room-alignment aura, off = today's rendering exactly
     "lights_automorph_room_pct": 0,     # 0-100: how far each fixture's aura has grown toward its room's own shape
+    "lights_automorph_hardness": 0,     # -100..100, centered: negative sharpens/spikes the aura's edges, positive smooths them into a closed spline; 0 = today's straight edge
     "overview_show_walls": False,   # Overview: draw RF barrier walls over the map
     "overview_show_outdoor": False, # Overview: draw outdoor areas (sheds, driveways) as an overlay
     "overview_show_trails": False,  # Overview/Pure Live: fading movement trail behind each tracked object
