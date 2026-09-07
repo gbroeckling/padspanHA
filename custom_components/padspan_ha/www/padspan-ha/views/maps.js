@@ -7808,6 +7808,19 @@ function _lightsTab(ctx, maps, active) {
     ctx.actions.renderRooms();
   } : null;
 
+  // Shared by onRowClick (paid, non-motion) and onSelectForPlacement (the
+  // code column, all device types): arm this light on the map.
+  const selectLightForPlacement = (l) => {
+    mapState._selLight = { eid: l.entity_id, mapId: null };
+    // Choosing FROM THE LIST is exactly when you don't yet know where a
+    // light is on the map — the locate ring is a one-shot: it fires on
+    // this render and is cleared right after (see buildLightsTable's
+    // call site below), so it does not replay on every later edit while
+    // the same light stays selected.
+    mapState._locateEid = l.entity_id;
+    ctx.actions.renderRooms();
+  };
+
   const host = {
     el,
     floors,
@@ -7973,14 +7986,17 @@ function _lightsTab(ctx, maps, active) {
       // click went straight to toggle() and never got that treatment.
       if (l.isMotion) { openActivityCalendar(ctx.hass, l.entity_id); return; }
       if (!paid) { toggle(l.entity_id); return; }
-      mapState._selLight = { eid: l.entity_id, mapId: null };
-      // Choosing FROM THE LIST is exactly when you don't yet know where a
-      // light is on the map — the locate ring is a one-shot: it fires on
-      // this render and is cleared right after (see buildLightsTable's
-      // call site below), so it does not replay on every later edit while
-      // the same light stays selected.
-      mapState._locateEid = l.entity_id;
-      ctx.actions.renderRooms();
+      selectLightForPlacement(l);
+    },
+    // The code column's own click (buildLightsTable's onSelectForPlacement):
+    // unlike onRowClick above, this ever bypasses the motion→activity-history
+    // redirect. An already-placed motion sensor has no "Place" queue button
+    // (that only appears with no position yet) and its row click always goes
+    // to the activity calendar, so before this existed there was no way at
+    // all to re-select one for map placement (Garry, 2026-09-07).
+    onSelectForPlacement: (l) => {
+      if (!paid) { toggle(l.entity_id); return; }
+      selectLightForPlacement(l);
     },
     onToggleHidden: async (eid) => {
       // Await the round-trip: settingsSet updates ctx.state.settings from the

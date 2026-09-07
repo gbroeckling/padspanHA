@@ -1717,6 +1717,9 @@ export function buildLightsMapCard(hostIn){
 //   callWS(msg) → Promise             for the Assign-room dropdown
 //   toast(msg, isError)
 //   onRowClick(l)                     sidebar: toggle — tab: select
+//   onSelectForPlacement(l)           optional; the code column's own click —
+//                                     always arms for map placement, bypassing
+//                                     onRowClick's per-type rules (tab only)
 //   onRowLongPress(l)                 optional; sidebar: effects popup (500ms hold)
 //   onToggleHidden(eid)               persist + re-render
 //   afterAssign()                     invalidate registry cache + re-render
@@ -1851,7 +1854,17 @@ export function buildLightsTable(host, lights){
       // recognisably the same object. W-series purple = WLED-class,
       // P-series blue = an ESPHome-style partition segment, F green = fan,
       // M blue = motion sensor, T orange = temperature.
-      el("td", { style: "white-space:nowrap" }, (() => {
+      // Its own click target, separate from the row's: the row click carries
+      // a per-type action (motion opens its activity history, free tier
+      // toggles), which for motion means there is otherwise NO way to
+      // re-select an already-placed sensor for map placement at all — this
+      // column exists specifically to arm a device for placement and must
+      // not be redirected by those per-type rules.
+      el("td", {
+        style: "white-space:nowrap" + (host.onSelectForPlacement ? ";cursor:pointer" : ""),
+        title: host.onSelectForPlacement ? "Select for map placement" : undefined,
+        onclick: host.onSelectForPlacement ? (e) => { e.stopPropagation(); host.onSelectForPlacement(l); } : undefined,
+      }, (() => {
         const swatch = l.isWled ? WLED_BORDER
           : (l.isPartition ? PARTITION_BORDER
           : (l.isFan ? FAN_BORDER

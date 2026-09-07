@@ -2189,10 +2189,16 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // interactive element here is rebuilt fresh each time.
   if(opts.dropMarker){
     const dx=W-40, dy=BASE_H-40;
+    // Flashes (Garry, 2026-09-07): a static pin in a corner is easy to select
+    // a light and then never notice — the outer ring breathes to draw the eye
+    // there for as long as something is actually armed and waiting for a tap.
     s+=`<g class="ldropmarker" data-role="dropmarker" style="cursor:grab" pointer-events="all">`+
       `<title>Drag onto the map to place the selected light</title>`+
       `<circle cx="${dx}" cy="${dy}" r="17" fill="#1b0f24" fill-opacity="0.92" stroke="#e879f9" stroke-width="2"/>`+
-      `<circle cx="${dx}" cy="${dy}" r="17" fill="none" stroke="#e879f9" stroke-width="6" stroke-opacity="0.18"/>`+
+      `<circle cx="${dx}" cy="${dy}" r="17" fill="none" stroke="#e879f9" stroke-width="6" stroke-opacity="0.18">`+
+        `<animate attributeName="stroke-opacity" values="0.15;0.6;0.15" dur="1.4s" repeatCount="indefinite"/>`+
+        `<animate attributeName="r" values="17;23;17" dur="1.4s" repeatCount="indefinite"/>`+
+      `</circle>`+
       `<line x1="${dx-7}" y1="${dy}" x2="${dx+7}" y2="${dy}" stroke="#f0abfc" stroke-width="2.2" stroke-linecap="round"/>`+
       `<line x1="${dx}" y1="${dy-7}" x2="${dx}" y2="${dy+7}" stroke="#f0abfc" stroke-width="2.2" stroke-linecap="round"/>`+
       `</g>`;

@@ -1031,6 +1031,58 @@ console.log(JSON.stringify({ headerCols, rows1, btn1Text: btn1.textContent, rows
     assert out["filterArg"] is True, "clicking the button while off must turn it on"
 
 
+def test_code_column_click_always_selects_even_for_motion(tmp_path):
+    """Regression (Garry, 2026-09-07): commit f091f5e made a motion row's
+    click always open its activity history (fixing a real free-tier bug —
+    it used to say "read-only") but that redirect applied on EVERY tier,
+    so a paid user lost the only way to re-select an already-placed motion
+    sensor for map placement (the "Place" queue button only exists while a
+    light has no position yet). The code/icon column is its own click
+    target specifically so it is never redirected, motion included."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const AREA = {"light.lamp": "Kitchen", "binary_sensor.pir": "Hall"};
+const STATES = {
+  "light.lamp": {state: "on", attributes: {friendly_name: "Lamp"}},
+  "binary_sensor.pir": {state: "off", attributes: {friendly_name: "Hall PIR", device_class: "motion"}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
+
+let rowClicked = null, selectedFor = null;
+const host = { el, hiddenEids: new Set(), lightsLoading: false, model: {},
+  onRowClick: (l) => { rowClicked = l.entity_id; },
+  onSelectForPlacement: (l) => { selectedFor = l.entity_id; } };
+const root = LM.buildLightsTable(host, lights);
+const motionRow = root.querySelector('tr[data-eid="binary_sensor.pir"]');
+const codeCell = motionRow.querySelectorAll("td")[0];
+codeCell.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
+console.log(JSON.stringify({ rowClicked, selectedFor }));
+""")
+    assert out["selectedFor"] == "binary_sensor.pir", \
+        "clicking the code column on a motion row must select it for placement"
+    assert out["rowClicked"] is None, \
+        "the code column's click must not also fall through to onRowClick (motion's activity-calendar redirect)"
+
+
+def test_code_column_is_inert_without_the_new_host_callback(tmp_path):
+    """The sidebar host (lights_panel.js) never passes onSelectForPlacement —
+    it has no map-placement concept — so the code column there stays a plain,
+    unclickable cell exactly as before this feature existed."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const AREA = {"light.lamp": "Kitchen"};
+const STATES = { "light.lamp": {state: "on", attributes: {friendly_name: "Lamp"}} };
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
+let rowClicked = null;
+const host = { el, hiddenEids: new Set(), lightsLoading: false, model: {},
+  onRowClick: (l) => { rowClicked = l.entity_id; } };
+const root = LM.buildLightsTable(host, lights);
+const row = root.querySelector('tr[data-eid="light.lamp"]');
+const codeCell = row.querySelectorAll("td")[0];
+codeCell.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
+console.log(JSON.stringify({ rowClicked }));
+""")
+    assert out["rowClicked"] is None, "with no onSelectForPlacement, the code column must not call onRowClick either"
+
+
 def test_both_hosts_pass_the_tier():
     """The gate is only as good as its callers: both hosts hand settings.tier
     to gatherLights and to the card, and neither re-derives the ladder."""
