@@ -1,11 +1,53 @@
 # Idea: Automorph — Aesthetic Shape Morphing for the Lights Map
 
-**Status: NOT STARTED — captured for later (Garry, 2026-09-06).** Not part of
-the ranked best-in-class roadmap (`docs/BEST_IN_CLASS_ROADMAP.md`); a
-separate, standalone feature idea. Garry asked for this to be written up as
-a complete, self-contained prompt so a future session (or Tuesday
-2026-09-08, if not picked up sooner) can start directly from this document
-with no other context.
+**Status: V1 SHIPPED 2026-09-07** (commits 0bc321e, 110ff8c) — the
+room-alignment slider only, as a decorative aura behind the existing icon;
+NOT the icon-outline replacement, and NOT slider 2 (edge hardness). See
+"V1 — what actually shipped" below for the exact scope and what remains.
+Not part of the ranked best-in-class roadmap
+(`docs/BEST_IN_CLASS_ROADMAP.md`); a separate, standalone feature idea.
+
+## V1 — what actually shipped (2026-09-07)
+
+A switch (`lights_automorph_enabled`) and a 0-100% slider
+(`lights_automorph_room_pct`) in Mapping → Lights, independent of Showcase.
+The morph math is real and tested (`resamplePolygonRing`/`alignRingStart`/
+`automorphRing` in `iso_lights.js`, unit tests in `test_lights_renderer.py`)
+— resample both the icon's outline and the room's own inset trace
+(`offsetPolygonInward`, the same algorithm `perimeterSvg` already uses) to
+the same point count, align to a shared winding/start reference, lerp. t=0
+is byte-identical to the icon's own outline, untouched.
+
+**Scope cut made deliberately, not yet revisited:** this does NOT replace
+the fixture's own rendered icon (`markerSvg`'s output — health dot,
+hit-test rect, code chip, rotation — is untouched). Instead it draws a
+soft, room-coloured, two-layer glow (blurred wash + crisper bright edge,
+using `roomColor` as the base so every fixture in a room blends into one
+cohesive colour wash, brighter when a fixture is actually on) BEHIND the
+existing icon. Verified live in both Showcase and working mode — reads as
+a genuine colour-wash/glow effect, not a flat smudge (an early all-grey
+version was tried and looked wrong; fixed same session).
+
+**Explicitly NOT built yet:**
+- Slider 2 (edge hardness, hard↔soft, centered) — no code at all.
+- Replacing the icon's own outline (the literal "the icon IS the room
+  shape" ask) — still the aura-behind-the-icon approach, chosen because
+  `markerSvg` has a lot of interdependent rendering (health dot, hit
+  rect, code chip, rotation) that a first pass shouldn't risk breaking.
+- Only `circle`/`bar`/`square`/hex-fallback shapes have a real
+  `iconRingLocal` outline; every other shape (fan, pendant, chandelier,
+  lock, ...) morphs from a plain hex approximation.
+- Only PLACED lights get an aura; unplaced (room-clustered) piles do not.
+- A fixture already typed `perimeter` is skipped (it already draws its
+  own room trace; automorph would be redundant/conflicting there).
+
+**Natural next steps, roughly in order:** (1) build slider 2 using the
+"straight polyline = hard, closed cardinal/Catmull-Rom spline through the
+same points = soft" technique — it composes with the SAME ring math
+already shipped, no new correspondence problem; (2) once both sliders read
+well, revisit whether to graduate from "aura behind the icon" to "the icon
+outline itself is the morphed ring", touching `markerSvg` deliberately and
+carefully; (3) extend `iconRingLocal` to more shape families.
 
 ## Origin (Garry's own words, verbatim, 2026-09-06)
 
