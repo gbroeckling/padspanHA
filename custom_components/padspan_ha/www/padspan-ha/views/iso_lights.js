@@ -1766,11 +1766,24 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const ring=automorphRing(iconRingLocal(l.shape, HEX_R), hx, hy, roomPx, AUTOMORPH_PCT/100);
       const d=ring.map((p,i)=>`${i?"L":"M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ")+"Z";
       const on=l.isMotion ? motionActive(l) : (l.isLock ? l.state==="locked" : l.state==="on");
-      const col=on?bodyCol(l,null):"#475569";
+      // The room's OWN colour, not a flat grey — every fixture aura in the
+      // same room shares it, so overlapping auras blend into one cohesive
+      // colour-wash for that room rather than a field of disconnected grey
+      // smudges. A lit fixture's own accent colour still pops brighter
+      // against it, so "what is actually on" stays the thing the eye finds.
+      const roomCol=roomColor(room.room, model);
+      const col=on?bodyCol(l,null):roomCol;
       const t=AUTOMORPH_PCT/100;
-      return `<path d="${d}" fill="${col}" fill-opacity="${(0.05+0.16*t).toFixed(2)}" `+
-        `stroke="${col}" stroke-opacity="${(0.18+0.22*t).toFixed(2)}" stroke-width="1.2" `+
-        `pointer-events="none" filter="url(#psclipsoft)"/>`;
+      // Two layers, the way this map already lights a real fixture: a soft
+      // blurred wash carries the colour and the room-scale presence, a
+      // crisp, brighter outline on top keeps the room-conforming SHAPE
+      // itself readable as it grows, not just an ever-bigger smear.
+      const glow=`<path d="${d}" fill="${col}" fill-opacity="${(0.12+0.34*t).toFixed(2)}" `+
+        `stroke="none" pointer-events="none" filter="url(#psclipsoft)"/>`;
+      const edge=`<path d="${d}" fill="${col}" fill-opacity="${(0.05+0.14*t).toFixed(2)}" `+
+        `stroke="${col}" stroke-opacity="${(0.4+0.5*t).toFixed(2)}" stroke-width="1.4" `+
+        `stroke-linejoin="round" pointer-events="none"/>`;
+      return glow+edge;
     };
 
     // Showcase underlay for one fixture: the pool it throws on the floor, and
