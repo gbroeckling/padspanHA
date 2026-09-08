@@ -3246,6 +3246,12 @@ def _aura_probe(tmp_path, *, state="on", pct=100, style="glow", subtlety=0):
         "  ao: (()=>{const m=/stroke=\"#020617\" stroke-opacity=\"([\\d.]+)\" stroke-width=\"([\\d.]+)\"/.exec(svg);"
         " return m?{op:parseFloat(m[1]),w:parseFloat(m[2])}:null;})(),\n"
         "  washOp: num(/fill=\"url\\(#psautomorphduo_(?:on|off)\\)\" fill-opacity=\"([\\d.]+)\"/),\n"
+        "  bloomOp: num(/fill=\"url\\(#psautomorphduo_(?:on|off)\\)\" fill-opacity=\"([\\d.]+)\" stroke=\"none\" mask=\"url\\(#psautomorphmask\\)\"/),\n"
+        "  edgeCoreFillOp: num(/fill=\"url\\(#psautomorphduo_(?:on|off)\\)\" fill-opacity=\"([\\d.]+)\" stroke=\"#/),\n"
+        "  glossMaxStop: (()=>{const m=/<linearGradient id=\"psglossauto_\\d+\"[^>]*>(?:<stop [^>]+\\/>)+/.exec(svg);"
+        " return m?Math.max(...[...m[0].matchAll(/stop-opacity=\"([\\d.]+)\"/g)].map(x=>parseFloat(x[1]))):null;})(),\n"
+        "  roomFillOp: num(/<polygon points=\"[^\"]+\" fill=\"[^\"]+\" fill-opacity=\"([\\d.]+)\" stroke=\"[^\"]+\" stroke-width=\"1.6\" opacity=\"1\"\\/>/),\n"
+        "  roomGlowCentre: num(/<radialGradient id=\"psroomglow_0\"><stop offset=\"0%\" stop-color=\"[^\"]+\" stop-opacity=\"([\\d.]+)\"/),\n"
         "  bloomCount: (svg.match(/mask=\"url\\(#psautomorphmask\\)\"/g)||[]).length,\n"
         "  rim: (()=>{const m=/fill=\"none\" stroke=\"url\\(#psglossrim\\)\" stroke-opacity=\"([\\d.]+)\" stroke-width=\"([\\d.]+)\"/.exec(svg);"
         " return m?{op:parseFloat(m[1]),w:parseFloat(m[2])}:null;})(),\n"
@@ -3326,18 +3332,60 @@ def test_automorph_on_and_off_differ_by_material_not_just_hex(tmp_path):
 
 
 def test_automorph_aura_fill_weight_stays_under_the_rooms_own_colour(tmp_path):
-    """The old ceilings (gloss to 0.9, wash to 0.36 at t=1) made the
-    neutral-grey overlay visually heavier than the room's own fill+glow
-    (~0.16-0.32) across most of its footprint — the reverse of 'grey stays
-    quiet next to the room's hue'. The rebalanced ceilings pin the merged
-    constants: composition's targets (gloss ~0.18+0.16t, wash ~0.06+0.14t)
-    with the on/off material deltas expressed AROUND them, so the combined
-    fill weight at t=1/subtlety 0 stays under roughly half the room's own,
-    and the thin edge — not the fills — signals 'distinct shape'."""
+    """Garry's standing directive: the grey aura stays QUIET next to the
+    room's own colour. The first rebalance cut wash/gloss to numbers that
+    LOOKED right per-layer, but the same edit series added bloom, the
+    duotone edge fill and an untapered 0.16 shadow on top, and nobody
+    re-summed: the five fills composited to ~0.58-0.64 at ring centre —
+    ~4x the 'under roughly half the room's own fill+glow' target the
+    in-code comment asserted, and heavier than the room's colour outright.
+    So this test no longer pins raw numbers alone: it rebuilds the
+    composited stack (1 - PROD(1-o), every fill at its centre-worst —
+    bloom's mask is 1.0 at the ring's own centre, gloss at its ramp's max
+    white stop) and asserts the RELATIONSHIP against the same render's own
+    room fill + glow-centre weights, so no future per-layer edit can drift
+    the total silently again. The exact constants are pinned too — they
+    are the budget's ledger — and the shadow must taper with t, so an
+    icon-sized low-t aura is never out-shadowed by its own shadow."""
     on = _aura_probe(tmp_path, state="on", pct=100)
     off = _aura_probe(tmp_path, state="off", pct=100)
-    assert on["washOp"] == 0.22 and off["washOp"] == 0.19, (on["washOp"], off["washOp"])
-    assert on["glossOp"] == 0.36 and off["glossOp"] == 0.29, (on["glossOp"], off["glossOp"])
+    # The ledger: change any of these and the composited assertion below is
+    # the number that has to survive the change.
+    assert on["shadow"]["op"] == 0.04 and off["shadow"]["op"] == 0.04, (on["shadow"], off["shadow"])
+    assert on["washOp"] == 0.04 and off["washOp"] == 0.03, (on["washOp"], off["washOp"])
+    assert on["bloomOp"] == 0.04 and off["bloomOp"] is None, (on["bloomOp"], off["bloomOp"])
+    assert on["edgeCoreFillOp"] == 0.02 and off["edgeCoreFillOp"] == 0.02, (
+        on["edgeCoreFillOp"], off["edgeCoreFillOp"])
+    assert on["glossOp"] == 0.05 and off["glossOp"] == 0.04, (on["glossOp"], off["glossOp"])
+
+    def composited(p):
+        stack = [p["shadow"]["op"], p["washOp"], p["edgeCoreFillOp"],
+                 p["glossOp"] * p["glossMaxStop"]]
+        if p["bloomOp"] is not None:
+            stack.append(p["bloomOp"])
+        prod = 1.0
+        for o in stack:
+            prod *= 1.0 - o
+        return 1.0 - prod
+
+    for p in (on, off):
+        room = p["roomFillOp"] + p["roomGlowCentre"]
+        # The budget's denominator comes from the render itself; if the
+        # room's own weight ever moves, the aura must be re-budgeted, not
+        # silently rescaled here.
+        assert room == 0.32, (p["roomFillOp"], p["roomGlowCentre"])
+        assert composited(p) <= 0.5 * room + 1e-9, (
+            f"the aura's composited fill weight ({composited(p):.3f}) must sit at or "
+            f"under half the room's own fill+glow ({room})"
+        )
+    assert composited(off) < composited(on), (composited(off), composited(on))
+    # Shadow taper: at t=1 the shadow may match the wash, never beat it, and
+    # it must shrink with t rather than sit at a flat weight sized for the
+    # room-large ring.
+    small = _aura_probe(tmp_path, state="on", pct=30)
+    assert small["shadow"]["op"] < on["shadow"]["op"], (small["shadow"], on["shadow"])
+    assert small["shadow"]["op"] <= small["washOp"], (small["shadow"], small["washOp"])
+    assert on["shadow"]["op"] <= on["washOp"], (on["shadow"], on["washOp"])
 
 
 def test_automorph_subtlety_fades_the_new_material_layers_too(tmp_path):

@@ -2744,8 +2744,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // Subtlety scales every opacity and stroke-width computed below —
       // one multiplier applied at the point of use, rather than threading
       // it through each style's own formula, so a future 4th style gets it
-      // for free by using these same two helpers.
-      const opac=(v)=>(v*_automorphOpacityMult).toFixed(2);
+      // for free by using these same two helpers. opac() floors its OUTPUT
+      // at 0.01: the slider's contract is "almost completely lost", never
+      // gone, and after the composition re-budget the quiet fills
+      // (0.02-0.05) times the 0.15 floor multiplier would otherwise round
+      // to an exactly-invisible 0.00 through toFixed(2). At subtlety 0 the
+      // multiplier is 1 and every input is >=0.01, so rest positions are
+      // byte-untouched.
+      const opac=(v)=>Math.max(v*_automorphOpacityMult, 0.01).toFixed(2);
       const swid=(v)=>(v*_automorphStrokeMult).toFixed(2);
       // Every tier is clipped to the fixture's own room — the identical
       // mechanism the Showcase pools use, and the reason the clipPath defs
@@ -2829,7 +2835,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       //     NOT url(#psshade): that gradient's def is Showcase-gated,
       //     and an invalid paint reference makes SVG drop the element
       //     entirely — the shadow would silently vanish on the working
-      //     map, where Automorph also runs.
+      //     map, where Automorph also runs. Its weight rides t like
+      //     every fill: the old flat 0.16 out-shadowed an icon-sized
+      //     low-t aura (whose own wash was half that), and was the
+      //     single heaviest slice of the over-budget stack the
+      //     wash/bloom bullet re-sums below.
       //   ao — one wide dark stroke under the wash: the wash's fill
       //     mutes its outer half, leaving the inner half reading as
       //     contact darkening just inside the boundary, so the interior
@@ -2837,14 +2847,20 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       //     lit cutout. Off fixtures get more of it — matte, inert
       //     surfaces show deeper contact shadow — lit ones push light
       //     out instead (the on/off split below).
-      //   wash / bloom — the room-scale presence. Ceilings deliberately
-      //     sit far below the original 0.10+0.26t wash and 0.5+0.4t
-      //     gloss: at t=1 that stack out-weighed the room's own
-      //     fill+glow (~0.16-0.32) it sits on, flipping "quiet grey
-      //     next to the room's hue" into grey OVER the hue. Rebalanced
-      //     so the combined fill weight stays under roughly half the
-      //     room's own at t=1/subtlety 0 — the thin edge, not the
-      //     fills, is what signals "distinct shape". Both fill through
+      //   wash / bloom — the room-scale presence. The five FILLS are
+      //     budgeted TOGETHER against the room's own colour — room fill
+      //     0.16 + psroomglow's 0.16 centre stop = 0.32 at its centre,
+      //     and the grey stays QUIET next to that hue — so the whole
+      //     stack (shadow 0.04 + wash 0.04 + bloom 0.04 + edgeCore fill
+      //     0.02 + gloss 0.05 x its ramp's 0.5 max stop) composites to
+      //     1-PROD(1-o) = 0.155 <= 0.16, under half the room's own at
+      //     t=1/subtlety 0. Cutting layers one at a time doesn't keep
+      //     that: the first rebalance trimmed wash/gloss while the same
+      //     edit series added bloom, the duotone edge fill and an
+      //     untapered shadow back on top, and nobody re-summed — the
+      //     stack composited to ~0.58-0.64 at centre, ~4x the ceiling,
+      //     grey OVER the hue. The thin edge, not the fills, is what
+      //     signals "distinct shape". Both fill through
       //     the shared duotone (see the colour-ownership comment above):
       //     lighter at the centre, base tone at the rim. The bloom (lit
       //     fixtures only) reuses nebula's shared psautomorphmask to
@@ -2879,20 +2895,20 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const diag=Math.hypot(maxX-minX, maxY-minY);
       const sdx=diag*0.05*0.41, sdy=diag*0.05*0.91;
       const shadow=`<g transform="translate(${sdx.toFixed(1)},${sdy.toFixed(1)})">`+
-        `<path d="${d}" fill="#020617" fill-opacity="${opac(0.16)}" stroke="none" pointer-events="none"/></g>`;
+        `<path d="${d}" fill="#020617" fill-opacity="${opac(0.02+0.02*t)}" stroke="none" pointer-events="none"/></g>`;
       const ao=`<path d="${d}" fill="none" stroke="#020617" stroke-opacity="${opac(on?0.10:0.18)}" `+
         `stroke-width="${swid(3.5)}" pointer-events="none"/>`;
-      const wash=`<path d="${d}" fill="${duo}" fill-opacity="${opac((on?0.08:0.05)+0.14*t)}" `+
+      const wash=`<path d="${d}" fill="${duo}" fill-opacity="${opac((on?0.02:0.01)+0.02*t)}" `+
         `stroke="none" pointer-events="none"/>`;
-      const bloom=on ? `<path d="${d}" fill="${duo}" fill-opacity="${opac(0.10+0.12*t)}" `+
+      const bloom=on ? `<path d="${d}" fill="${duo}" fill-opacity="${opac(0.02+0.02*t)}" `+
         `stroke="none" mask="url(#psautomorphmask)" pointer-events="none"/>` : "";
-      const edgeCore=`<path d="${d}" fill="${duo}" fill-opacity="${opac(0.04+0.1*t)}" `+
+      const edgeCore=`<path d="${d}" fill="${duo}" fill-opacity="${opac(0.01+0.01*t)}" `+
         `stroke="${ink}" stroke-opacity="${opac(0.28+0.32*t)}" stroke-width="${swid(1.3)}" `+
         `stroke-linejoin="round" pointer-events="none"/>`;
       const edgeRim=`<path d="${d}" fill="none" stroke="url(#psglossrim)" `+
         `stroke-opacity="${opac(on?0.55:0.35)}" stroke-width="${swid(0.9)}" `+
         `stroke-linejoin="round" pointer-events="none"/>`;
-      const gloss=`<path d="${d}" fill="url(#${glossAutoId})" fill-opacity="${opac((on?0.20:0.13)+0.16*t)}" `+
+      const gloss=`<path d="${d}" fill="url(#${glossAutoId})" fill-opacity="${opac((on?0.02:0.01)+0.03*t)}" `+
         `stroke="none" pointer-events="none"/>`;
       // ALL the soft layers share ONE blur: the filter sits on the outer
       // group, so the renderer blurs a single composited raster instead
