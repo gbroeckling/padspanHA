@@ -1780,12 +1780,31 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // Softens the wall cut on a clipped pool: applied OUTSIDE the clip, so a
   // couple of pixels of light feather over the boundary the way a doorway
   // leaks. A hard polygon edge is the one artifact every hand-built
-  // floor-plan thread complains about. UNGATED like psmotion: Automorph's
-  // aura wash blurs through this same filter, and Automorph runs on the
-  // working map too — were this def Showcase-only, the working aura would
-  // reference a filter that does not exist, which SVG resolves by not
-  // rendering the element at all, not by skipping the blur.
+  // floor-plan thread complains about. Only Showcase surfaces (pools, the
+  // perimeter cove glow) reference this def now — the Automorph aura,
+  // which used to share it, blurs through its own clone psaurasoft just
+  // below, whose region is sized for the aura's shadow-bearing blur
+  // group. Left UNGATED from that era: a bare def is inert, and re-gating
+  // it would buy the working map nothing.
   s+=`<filter id="psclipsoft" x="-8%" y="-8%" width="116%" height="116%">`+
+    `<feGaussianBlur stdDeviation="1.6"/></filter>`;
+  // Automorph's aura blur — a clone of psclipsoft with a WIDER region,
+  // and deliberately its own def. The aura's soft layers (cast shadow,
+  // ambient occlusion, wash, bloom) blur as ONE group per fixture, and
+  // that group's bbox includes the shadow's offset copy; a filter's
+  // default region is relative to the bbox of whatever it filters, and
+  // psclipsoft's -8% margin stops covering the blur's ~3-sigma bleed
+  // (~5px at stdDeviation 1.6) once the filtered bbox is small — the
+  // icon-sized low-t aura, and the shadow's trailing lower-right edge is
+  // the first thing a too-tight region visibly shears off. 12% covers
+  // the bleed for any group upwards of ~40px across; smaller than that,
+  // the clipped tail sits under ~2% alpha — invisible. Cloning rather
+  // than widening psclipsoft itself keeps the Showcase pools' raster
+  // area (region size IS raster cost) exactly what it was. UNGATED like
+  // psmotion: Automorph runs on the working map too, and an invalid
+  // filter reference makes SVG drop the element entirely, not skip the
+  // blur.
+  s+=`<filter id="psaurasoft" x="-12%" y="-12%" width="124%" height="124%">`+
     `<feGaussianBlur stdDeviation="1.6"/></filter>`;
   // One clip path per room, so a fixture's pool — and its Automorph aura —
   // can be stopped at its own walls. Light crossing a wall polygon reads as
@@ -2397,32 +2416,110 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // every fixture — see psautomorphmask) fades the fill to nothing
         // at the ring's own edge, reading as a glowing orb rather than a
         // bounded shape with a stroke. A wash with no crisp linework at
-        // all, so it rides entirely in the glow tier.
+        // all, so it rides entirely in the glow tier. Of the glow style's
+        // material stack, only the on/off MATERIAL split fits here: the
+        // orb language has no crisp bevel to hang a rim or AO ring on, a
+        // cast shadow is gated to the glow style on purpose, and the
+        // wash already draws through psautomorphmask, so adding the
+        // masked bloom would run the same fill through the same mask
+        // twice. A lit orb simply glows heavier than an inert one —
+        // state read as intensity, not as a swapped grey alone.
         return {glow: clipWrap(
-          `<path d="${d}" fill="${base}" fill-opacity="${opac(0.22+0.45*t)}" `+
+          `<path d="${d}" fill="${base}" fill-opacity="${opac((on?0.26:0.17)+0.45*t)}" `+
           `stroke="none" mask="url(#psautomorphmask)" pointer-events="none"/>`), edge:""};
       }
-      // "glow" (default): three layers — a soft blurred wash carries the
-      // room-scale presence, a crisp outline keeps the shape itself
-      // readable as it grows, and the shared psgloss ramp gives it the
-      // same embossed/shaded depth every other marker and room already
-      // has, instead of relying on colour for visual interest.
-      const glow=`<path d="${d}" fill="${base}" fill-opacity="${opac(0.10+0.26*t)}" `+
+      // "glow" (default): a material stack, every layer the SAME path `d`
+      // — no second geometry anywhere, so hardness/wobble/cell shape stay
+      // correct in every layer for free. Bottom to top: cast shadow,
+      // ambient-occlusion ring, wash, inner bloom (lit only) — the soft
+      // layers, blurred ONCE as a group — then crisp edgeCore, edgeRim
+      // and gloss. What each buys, and the constraint it protects:
+      //
+      //   shadow — a copy of `d` displaced along psgloss's own light-to-
+      //     dark diagonal (0.45,1.0 normalized -> 0.41,0.91), ~5% of the
+      //     ring's OWN bbox diagonal so it stays proportionate from
+      //     icon-small (t=0) to room-large (t=1). Without a displaced
+      //     dark shape nothing separates "object" from "floor it rests
+      //     on" and the aura floats as a decal — every marker already
+      //     earns its seat this way (psshade); the aura was the one
+      //     shaded surface that didn't. The ink is a flat near-black,
+      //     NOT url(#psshade): that gradient's def is Showcase-gated,
+      //     and an invalid paint reference makes SVG drop the element
+      //     entirely — the shadow would silently vanish on the working
+      //     map, where Automorph also runs.
+      //   ao — one wide dark stroke under the wash: the wash's fill
+      //     mutes its outer half, leaving the inner half reading as
+      //     contact darkening just inside the boundary, so the interior
+      //     reads as a form with a cross-section instead of a uniformly
+      //     lit cutout. Off fixtures get more of it — matte, inert
+      //     surfaces show deeper contact shadow — lit ones push light
+      //     out instead (the on/off split below).
+      //   wash / bloom — the room-scale presence. Ceilings deliberately
+      //     sit far below the original 0.10+0.26t wash and 0.5+0.4t
+      //     gloss: at t=1 that stack out-weighed the room's own
+      //     fill+glow (~0.16-0.32) it sits on, flipping "quiet grey
+      //     next to the room's hue" into grey OVER the hue. Rebalanced
+      //     so the combined fill weight stays under roughly half the
+      //     room's own at t=1/subtlety 0 — the thin edge, not the
+      //     fills, is what signals "distinct shape". The bloom (lit
+      //     fixtures only) reuses nebula's shared psautomorphmask to
+      //     fade its fill toward the ring's edge: light welling up from
+      //     inside, the one cue a re-tinted flat fill can never give.
+      //   edgeCore / edgeRim — one flat stroke all the way around was
+      //     the "flat sticker" tell: it outlines the silhouette without
+      //     saying which way the surface turns. edgeCore keeps the flat
+      //     role, dialed back for headroom; edgeRim strokes the same
+      //     `d` with url(#psgloss) — objectBoundingBox, so the shared
+      //     ramp lands bright on the upper-left arc and dark on the
+      //     lower-right of ANY polygon for free — a lit bevel with zero
+      //     new defs and zero new geometry. (psgloss's def is still
+      //     Showcase-gated, so rim and gloss stay invisible on the
+      //     working map for now — pre-existing for gloss; the planned
+      //     ungated psglossauto swap should repoint BOTH and cure them
+      //     in one move.)
+      //
+      // ON vs OFF is a MATERIAL split, not a hex swap: lit gets the
+      // bloom plus a slightly heavier wash/gloss/rim; off gets no bloom,
+      // lighter fills and the deeper AO — the two states differ in how
+      // the surface behaves, not merely in which grey it wears.
+      let minX=ring[0][0], minY=ring[0][1], maxX=minX, maxY=minY;
+      for(const [px,py] of ring){
+        if(px<minX)minX=px; if(px>maxX)maxX=px;
+        if(py<minY)minY=py; if(py>maxY)maxY=py;
+      }
+      const diag=Math.hypot(maxX-minX, maxY-minY);
+      const sdx=diag*0.05*0.41, sdy=diag*0.05*0.91;
+      const shadow=`<g transform="translate(${sdx.toFixed(1)},${sdy.toFixed(1)})">`+
+        `<path d="${d}" fill="#020617" fill-opacity="${opac(0.16)}" stroke="none" pointer-events="none"/></g>`;
+      const ao=`<path d="${d}" fill="none" stroke="#020617" stroke-opacity="${opac(on?0.10:0.18)}" `+
+        `stroke-width="${swid(3.5)}" pointer-events="none"/>`;
+      const wash=`<path d="${d}" fill="${base}" fill-opacity="${opac((on?0.08:0.05)+0.14*t)}" `+
         `stroke="none" pointer-events="none"/>`;
-      const edge=`<path d="${d}" fill="${base}" fill-opacity="${opac(0.04+0.1*t)}" `+
-        `stroke="${base}" stroke-opacity="${opac(0.35+0.45*t)}" stroke-width="${swid(1.4)}" `+
+      const bloom=on ? `<path d="${d}" fill="${base}" fill-opacity="${opac(0.10+0.12*t)}" `+
+        `stroke="none" mask="url(#psautomorphmask)" pointer-events="none"/>` : "";
+      const edgeCore=`<path d="${d}" fill="${base}" fill-opacity="${opac(0.04+0.1*t)}" `+
+        `stroke="${base}" stroke-opacity="${opac(0.28+0.32*t)}" stroke-width="${swid(1.3)}" `+
         `stroke-linejoin="round" pointer-events="none"/>`;
-      const gloss=`<path d="${d}" fill="url(#psgloss)" fill-opacity="${opac(0.5+0.4*t)}" `+
+      const edgeRim=`<path d="${d}" fill="none" stroke="url(#psgloss)" `+
+        `stroke-opacity="${opac(on?0.55:0.35)}" stroke-width="${swid(0.9)}" `+
+        `stroke-linejoin="round" pointer-events="none"/>`;
+      const gloss=`<path d="${d}" fill="url(#psgloss)" fill-opacity="${opac((on?0.20:0.13)+0.16*t)}" `+
         `stroke="none" pointer-events="none"/>`;
-      // The wash blurs OUTSIDE its clip — filter on the outer group, clip
+      // ALL the soft layers share ONE blur: the filter sits on the outer
+      // group, so the renderer blurs a single composited raster instead
+      // of rasterizing up to four separate feGaussianBlur passes per
+      // fixture — done the obvious way (one filter attribute per path)
+      // that would be ~400 blur passes at the ~100-fixture scale this
+      // feature targets, for an effect whose whole brief is "cheap".
+      // The blur is OUTSIDE the clip — filter on the outer group, clip
       // on the inner — so the cut edge feathers a couple of pixels over
-      // the wall exactly the way the clipped pools already do ("applied
-      // OUTSIDE the clip, so a couple of pixels of light feather over the
-      // boundary the way a doorway leaks"), instead of stopping in a
-      // razor line at the boundary. One blur per fixture, same count as
-      // when the filter attribute sat on the wash path itself.
-      return {glow: `<g filter="url(#psclipsoft)">${clipWrap(glow)}</g>`,
-              edge: clipWrap(edge+gloss)};
+      // the wall exactly the way the clipped pools already do, instead
+      // of stopping in a razor line. psaurasoft, not psclipsoft: the
+      // shadow's offset copy grows this group's bbox, so the aura owns a
+      // clone with a wider filter region (see the def's comment) while
+      // the pools keep their tighter, cheaper one untouched.
+      return {glow: `<g filter="url(#psaurasoft)">${clipWrap(shadow+ao+wash+bloom)}</g>`,
+              edge: clipWrap(edgeCore+edgeRim+gloss)};
     };
 
     // Showcase underlay for one fixture: the pool it throws on the floor, and

@@ -2386,10 +2386,12 @@ def test_hardness_softening_scales_continuously_with_the_slider(tmp_path):
 def test_automorph_style_dropdown_switches_the_rendered_treatment(tmp_path):
     """Every style paints the SAME morphed ring differently — verified
     through the real renderer (buildIsoSVG), not just the pure geometry:
-    glow (default) carries the blurred-wash filter and a stroke; blueprint
-    is stroke-only with dashes and per-vertex node circles, no fill and no
-    blur; nebula fills through the shared mask and has neither a filter
-    nor a stroke. An unrecognised style name must fall back to glow."""
+    glow (default) carries the aura's blur group (psaurasoft, its own
+    clone of the pool filter) and a stroke, plus — this fixture is lit —
+    exactly one masked inner bloom; blueprint is stroke-only with dashes
+    and per-vertex node circles, no fill and no blur; nebula fills through
+    the shared mask and has neither a blur group nor a stroke. An
+    unrecognised style name must fall back to glow."""
     NOW = 1_000_000_000_000
     model = {
         "room_geometry_m": {"Office": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 6], [0, 6]]}},
@@ -2407,7 +2409,7 @@ def test_automorph_style_dropdown_switches_the_rendered_treatment(tmp_path):
             f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
             f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:50, automorphStyle:{json.dumps(style)}}});\n"
             "console.log(JSON.stringify({"
-            "psclipsoft: (svg.match(/filter=\"url\\(#psclipsoft\\)\"/g)||[]).length,"
+            "blur: (svg.match(/filter=\"url\\(#psaurasoft\\)\"/g)||[]).length,"
             "mask: (svg.match(/mask=\"url\\(#psautomorphmask\\)\"/g)||[]).length,"
             "dashed: svg.includes('stroke-dasharray=\"4,3\"'),"
             "}));\n"
@@ -2418,9 +2420,12 @@ def test_automorph_style_dropdown_switches_the_rendered_treatment(tmp_path):
     nebula = render("nebula")
     unknown = render("bogus")
 
-    assert glow["psclipsoft"] >= 1 and not glow["dashed"] and glow["mask"] == 0, glow
-    assert blueprint["dashed"] and blueprint["psclipsoft"] == 0 and blueprint["mask"] == 0, blueprint
-    assert nebula["mask"] >= 1 and nebula["psclipsoft"] == 0 and not nebula["dashed"], nebula
+    # glow's single mask application is the on-state inner bloom: the lit
+    # material split borrows nebula's shared mask (one def, any number of
+    # fixtures) rather than defining a second fade of its own.
+    assert glow["blur"] >= 1 and not glow["dashed"] and glow["mask"] == 1, glow
+    assert blueprint["dashed"] and blueprint["blur"] == 0 and blueprint["mask"] == 0, blueprint
+    assert nebula["mask"] >= 1 and nebula["blur"] == 0 and not nebula["dashed"], nebula
     assert unknown == glow, "an unrecognised style name must fall back to glow, not silently render nothing"
 
 
@@ -2790,18 +2795,21 @@ def test_automorph_aura_paints_under_room_labels_in_two_floor_tiers(tmp_path):
         f"const FLOORS={json.dumps(floors)};\n"
         f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
         f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:60, automorphHardness:0, automorphStyle:'glow'}});\n"
-        # In working mode only the aura's glow tier carries psclipsoft, and
-        # only the aura's edge layer strokes in the on-state grey.
+        # In working mode only the aura's glow tier carries psaurasoft, and
+        # only the aura's edgeCore layer strokes in the on-state grey.
         "console.log(JSON.stringify({\n"
-        "  glowCount: (svg.match(/filter=\"url\\(#psclipsoft\\)\"/g)||[]).length,\n"
-        "  glowLast: svg.lastIndexOf('filter=\"url(#psclipsoft)\"'),\n"
+        "  glowCount: (svg.match(/filter=\"url\\(#psaurasoft\\)\"/g)||[]).length,\n"
+        "  glowLast: svg.lastIndexOf('filter=\"url(#psaurasoft)\"'),\n"
         "  edgeFirst: svg.indexOf('stroke=\"#94a3b8\"'),\n"
         "  edgeLast: svg.lastIndexOf('stroke=\"#94a3b8\"'),\n"
         "  labelFirst: svg.indexOf('<g class=\"lroom\"'),\n"
         "  markerFirst: svg.indexOf('<g class=\"lhex\"'),\n"
         "}));\n"
     ))
-    assert out["glowCount"] == 2, f"expected one blurred wash per fixture: {out}"
+    assert out["glowCount"] == 2, (
+        f"expected exactly ONE blur group per fixture — the shadow/AO/wash/bloom "
+        f"layers must share a single feGaussianBlur, never carry one each: {out}"
+    )
     assert out["edgeFirst"] >= 0 and out["labelFirst"] >= 0 and out["markerFirst"] >= 0, out
     assert out["glowLast"] < out["edgeFirst"], (
         f"every fixture's glow must flush before any fixture's crisp edge — interleaving "
@@ -2921,3 +2929,155 @@ def test_automorph_suppresses_the_glyph_only_where_an_aura_really_painted(tmp_pa
         "a fixture outside every room polygon gets no aura — suppressing its glyph too "
         "would leave nothing drawn there at all"
     )
+
+
+# ── Automorph material stack (the light/composition round of the 2026-09-07
+# design critique) ──────────────────────────────────────────────────────────
+# The glow style used to be three layers stamped in one position — wash,
+# flat stroke, gloss — a decal. The stack now gives the aura a material
+# read: a displaced cast shadow (it sits ON the floor), an ambient-
+# occlusion ring (it has a cross-section), a psgloss-stroked rim (lit from
+# the drawing's one upper-left sun), an on-only masked inner bloom (a lit
+# fixture EMITS; an inert one doesn't), and fill ceilings rebalanced to
+# stay under the room's own colour weight. All of it blurs through ONE
+# group filter per fixture, and every layer routes opacity/width through
+# the same subtlety multipliers as the originals.
+
+def _aura_probe(tmp_path, *, state="on", pct=100, style="glow", subtlety=0):
+    """Working-mode render of one lit-or-not fixture with Automorph up —
+    the smallest scene that exercises the full aura material stack — with
+    each layer's numbers extracted for assertion. In working mode the aura
+    is the only filter user, and #020617 is the aura's shadow/AO ink
+    alone, so the probes cannot alias anything else on the map."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {"Office": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 6], [0, 6]]}},
+        "light_positions_m": {"light.lamp": {"x_m": 3, "y_m": 3, "floor_id": "main"}},
+    }
+    lbe = {"light.lamp": {"entity_id": "light.lamp", "state": state, "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None}}
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    return _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+        f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:{pct}, automorphStyle:{json.dumps(style)}, automorphSubtlety:{subtlety}}});\n"
+        "const num=(re)=>{const m=re.exec(svg); return m?parseFloat(m[1]):null;};\n"
+        "console.log(JSON.stringify({\n"
+        "  shadow: (()=>{const m=/<g transform=\"translate\\(([\\d.]+),([\\d.]+)\\)\"><path d=\"[^\"]+\" fill=\"#020617\" fill-opacity=\"([\\d.]+)\"/.exec(svg);"
+        " return m?{dx:parseFloat(m[1]),dy:parseFloat(m[2]),op:parseFloat(m[3])}:null;})(),\n"
+        "  ao: (()=>{const m=/stroke=\"#020617\" stroke-opacity=\"([\\d.]+)\" stroke-width=\"([\\d.]+)\"/.exec(svg);"
+        " return m?{op:parseFloat(m[1]),w:parseFloat(m[2])}:null;})(),\n"
+        "  washOp: num(/fill=\"#(?:94a3b8|475569)\" fill-opacity=\"([\\d.]+)\"/),\n"
+        "  bloomCount: (svg.match(/mask=\"url\\(#psautomorphmask\\)\"/g)||[]).length,\n"
+        "  rim: (()=>{const m=/fill=\"none\" stroke=\"url\\(#psgloss\\)\" stroke-opacity=\"([\\d.]+)\" stroke-width=\"([\\d.]+)\"/.exec(svg);"
+        " return m?{op:parseFloat(m[1]),w:parseFloat(m[2])}:null;})(),\n"
+        "  glossOp: num(/fill=\"url\\(#psgloss\\)\" fill-opacity=\"([\\d.]+)\"/),\n"
+        "  blurGroups: (svg.match(/filter=\"url\\(#psaurasoft\\)\"/g)||[]).length,\n"
+        "  filterApps: (svg.match(/ filter=\"url\\(/g)||[]).length,\n"
+        "  shadowIdx: svg.indexOf('fill=\"#020617\"'),\n"
+        "  washIdx: svg.search(/fill=\"#(?:94a3b8|475569)\" fill-opacity=/),\n"
+        "}));\n"
+    ))
+
+
+def test_automorph_glow_aura_casts_a_displaced_contact_shadow(tmp_path):
+    """The aura floated: glow, edge and gloss were all stamped in the exact
+    same position, so nothing separated 'object' from 'floor it rests on'.
+    The bottom-most glow-tier layer is now a copy of the same `d` displaced
+    along psgloss's own light-to-dark diagonal (0.41,0.91 — down and to the
+    right of the drawing's one upper-left sun), scaled off the ring's own
+    bbox diagonal so it stays proportionate at any t. Gated to the glow
+    style: blueprint is deliberately a flat dashed wireframe, and nebula's
+    mask-faded orb has no cutout edge for a paper-shadow to sell."""
+    on = _aura_probe(tmp_path)
+    assert on["shadow"], "glow style must cast a displaced contact shadow"
+    assert on["shadow"]["dx"] > 0 and on["shadow"]["dy"] > 0, on["shadow"]
+    # psgloss's normalized light vector is (0.41, 0.91): more drop than slide.
+    assert on["shadow"]["dy"] > on["shadow"]["dx"], (
+        f"the shadow must fall along the shared light direction, mostly downward: {on['shadow']}"
+    )
+    assert 0 <= on["shadowIdx"] < on["washIdx"], (
+        f"the shadow is the bottom-most layer — it must be emitted before the wash: {on}"
+    )
+    for style in ("blueprint", "nebula"):
+        other = _aura_probe(tmp_path, style=style)
+        assert other["shadow"] is None and other["ao"] is None and other["rim"] is None, (
+            f"{style} must not grow the glow style's bevel/shadow language: {other}"
+        )
+
+
+def test_automorph_glow_soft_layers_share_one_blur_group(tmp_path):
+    """Shadow, AO, wash and bloom all want the same soft blur — done the
+    obvious way (a filter attribute per path) that is up to 4 rasterized
+    feGaussianBlur passes per fixture, ~400 at the ~100-fixture scale the
+    feature targets. They must share ONE group filter instead: exactly one
+    filter application in the whole working-mode render. And it must be the
+    aura's own psaurasoft clone with the wider region — the group's bbox
+    now includes the shadow's offset copy, and widening psclipsoft itself
+    would silently grow every Showcase pool's raster cost too."""
+    out = _aura_probe(tmp_path)
+    assert out["blurGroups"] == 1, f"the four soft layers must share one blur group: {out}"
+    assert out["filterApps"] == 1, (
+        f"no aura layer may carry its own filter attribute beside the group's: {out}"
+    )
+    src = (_VIEWS / "iso_lights.js").read_text(encoding="utf-8")
+    assert '<filter id="psaurasoft" x="-12%" y="-12%" width="124%" height="124%">' in src, (
+        "the aura's blur def must keep the widened region that covers the shadow-bearing "
+        "group's blur bleed"
+    )
+    assert '<filter id="psclipsoft" x="-8%" y="-8%" width="116%" height="116%">' in src, (
+        "the Showcase pools' clip-soften filter must keep its original tighter region — "
+        "the aura got a clone precisely so this one never had to grow"
+    )
+
+
+def test_automorph_on_and_off_differ_by_material_not_just_hex(tmp_path):
+    """On vs off used to differ ONLY by which grey base was picked — a
+    colour swap on a static sticker. Lit now gets the masked inner bloom
+    (light welling up from inside) plus a heavier wash/gloss/rim; off gets
+    no bloom, lighter fills, and DEEPER ambient occlusion — a matte, inert
+    surface shows more contact darkening, a lit one pushes light out."""
+    on = _aura_probe(tmp_path, state="on")
+    off = _aura_probe(tmp_path, state="off")
+    assert on["bloomCount"] == 1, f"a lit fixture must carry exactly one masked bloom: {on}"
+    assert off["bloomCount"] == 0, f"an off fixture must carry no bloom: {off}"
+    assert off["ao"]["op"] > on["ao"]["op"], (on["ao"], off["ao"])
+    assert on["washOp"] > off["washOp"], (on["washOp"], off["washOp"])
+    assert on["glossOp"] > off["glossOp"], (on["glossOp"], off["glossOp"])
+    assert on["rim"]["op"] > off["rim"]["op"], (on["rim"], off["rim"])
+
+
+def test_automorph_aura_fill_weight_stays_under_the_rooms_own_colour(tmp_path):
+    """The old ceilings (gloss to 0.9, wash to 0.36 at t=1) made the
+    neutral-grey overlay visually heavier than the room's own fill+glow
+    (~0.16-0.32) across most of its footprint — the reverse of 'grey stays
+    quiet next to the room's hue'. The rebalanced ceilings pin the merged
+    constants: composition's targets (gloss ~0.18+0.16t, wash ~0.06+0.14t)
+    with the on/off material deltas expressed AROUND them, so the combined
+    fill weight at t=1/subtlety 0 stays under roughly half the room's own,
+    and the thin edge — not the fills — signals 'distinct shape'."""
+    on = _aura_probe(tmp_path, state="on", pct=100)
+    off = _aura_probe(tmp_path, state="off", pct=100)
+    assert on["washOp"] == 0.22 and off["washOp"] == 0.19, (on["washOp"], off["washOp"])
+    assert on["glossOp"] == 0.36 and off["glossOp"] == 0.29, (on["glossOp"], off["glossOp"])
+
+
+def test_automorph_subtlety_fades_the_new_material_layers_too(tmp_path):
+    """House rule for every layer the material stack added: opacity and
+    stroke-width route through the same opac()/swid() multipliers as the
+    originals, so the subtlety slider keeps fading EVERYTHING — thinner and
+    fainter at 100, never zero (the slider's own 'almost completely lost,
+    not gone' contract)."""
+    a0 = _aura_probe(tmp_path, subtlety=0)
+    a100 = _aura_probe(tmp_path, subtlety=100)
+    for label, hi, lo in (
+        ("shadow opacity", a0["shadow"]["op"], a100["shadow"]["op"]),
+        ("AO opacity", a0["ao"]["op"], a100["ao"]["op"]),
+        ("AO width", a0["ao"]["w"], a100["ao"]["w"]),
+        ("rim opacity", a0["rim"]["op"], a100["rim"]["op"]),
+        ("rim width", a0["rim"]["w"], a100["rim"]["w"]),
+    ):
+        assert lo < hi, f"subtlety=100 must fade the {label} ({lo} !< {hi})"
+        assert lo > 0, f"subtlety=100 must fade the {label}, never erase it"
