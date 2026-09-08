@@ -422,7 +422,12 @@ console.log(JSON.stringify({ found: !!overrideSelect, selectedValue }));
 def test_fans_and_motion_sensors_ride_the_pipeline(tmp_path):
     """Fans (F-series, fan glyph, their card's inputs) and motion sensors
     (M-series, motion glyph, admitted by device_class only) share the lights
-    pipeline. A door sensor is a binary_sensor too and must NOT appear.
+    pipeline. A door sensor is a binary_sensor too — since the door/window
+    barrier project's step 1 (2026-09-08) it DOES appear now, its own
+    D-series, never mistaken for motion (see
+    test_doors_and_windows_ride_the_pipeline_distinct_from_motion for that
+    contract's own dedicated coverage) — this test only needs to confirm
+    admitting doors did not disturb fan/motion's own numbering or glyphs.
 
     Found live on the house's own map (2026-09-03, Garry): the bathroom
     outlets' built-in PIRs report device_class "occupancy", not "motion" —
@@ -449,7 +454,7 @@ console.log(JSON.stringify({
   lamp: by["light.lamp"] && {code: by["light.lamp"].code},
 }));
 """)
-    assert out["ids"] == ["binary_sensor.hall_pir", "binary_sensor.invisoutlet_occupancy", "fan.ceiling", "light.lamp"], out["ids"]
+    assert out["ids"] == ["binary_sensor.front_door", "binary_sensor.hall_pir", "binary_sensor.invisoutlet_occupancy", "fan.ceiling", "light.lamp"], out["ids"]
     fan = out["fan"]
     assert fan["code"] == "F01" and fan["isFan"] and fan["shape"] == "fan", fan
     # A fan advertising an effect_list is STILL a fan, never WLED-class.
@@ -1220,3 +1225,67 @@ console.log(JSON.stringify({{
 """)
     assert out["shown"], "the code must render by default (build mode, toggle off)"
     assert not out["hidden"], "hideDeviceCodes:true must suppress the code label everywhere, build mode included"
+
+
+def test_door_glyph_and_showcase_detail_are_well_formed_svg(tmp_path):
+    """shapeSvg("door", ...) / shapeDetailSvg("door", ...) — same reasoning
+    as the lock glyph test above: hand-written path/rect math with no
+    generic well-formed-SVG check, so verify the output directly."""
+    _stage(tmp_path)
+    script = ("const IL = await import('./iso_lights.mjs');\n"
+        "const body = IL.shapeSvg('door', 50, 50, 12, 'fill=\"#fbbf24\" stroke=\"#071008\"');\n"
+        "const detail = IL.shapeDetailSvg('door', 50, 50, 12, '#111827', 1.5);\n"
+        "console.log(JSON.stringify({body, detail}));\n")
+    (tmp_path / "run_door_shape.mjs").write_text(script, encoding="utf-8")
+    res = subprocess.run([_NODE, str(tmp_path / "run_door_shape.mjs")], capture_output=True,
+                         text=True, encoding="utf-8", timeout=60)
+    assert res.returncode == 0, f"node failed:\n{res.stderr[-4000:]}"
+    out = json.loads(res.stdout.strip().splitlines()[-1])
+    assert "<rect" in out["body"] and "<circle" in out["body"], out["body"]
+    assert "NaN" not in out["body"], out["body"]
+    assert out["detail"] and "NaN" not in out["detail"], out["detail"]
+
+
+def test_doors_and_windows_ride_the_pipeline_distinct_from_motion(tmp_path):
+    """Door/window barrier project, step 1 (Garry, 2026-09-08: "Also add
+    that device type to the list of devices in mapping, lighting"). A door
+    and a window binary_sensor are BOTH admitted (D-series code, "door"
+    glyph, isDoor true), a motion/occupancy binary_sensor still rides its
+    own class untouched, and a binary_sensor of neither device_class family
+    is still excluded — the precision isMotionSensor/isDoorSensor now need,
+    since binary_sensor. is no longer a single-purpose domain prefix."""
+    out = _run_pipeline_script(tmp_path, """
+const AREA = {"binary_sensor.front_door": "Entry", "binary_sensor.kitchen_window": "Kitchen",
+               "binary_sensor.hall_motion": "Hall", "binary_sensor.mystery": "Attic"};
+const STATES = {
+  "binary_sensor.front_door":   {state: "on",  attributes: {friendly_name: "Front Door", device_class: "door"}},
+  "binary_sensor.kitchen_window": {state: "off", attributes: {friendly_name: "Kitchen Window", device_class: "window"}},
+  "binary_sensor.hall_motion":  {state: "on",  attributes: {friendly_name: "Hall Motion", device_class: "motion"}},
+  "binary_sensor.mystery":      {state: "on",  attributes: {friendly_name: "Mystery Sensor", device_class: "moisture"}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {}, {}, {});
+const by = Object.fromEntries(lights.map(l => [l.entity_id, l]));
+console.log(JSON.stringify({
+  ids: lights.map(l => l.entity_id).sort(),
+  door: by["binary_sensor.front_door"] && {
+    code: by["binary_sensor.front_door"].code, isDoor: by["binary_sensor.front_door"].isDoor,
+    isMotion: by["binary_sensor.front_door"].isMotion, shape: by["binary_sensor.front_door"].shape,
+  },
+  window: by["binary_sensor.kitchen_window"] && {
+    code: by["binary_sensor.kitchen_window"].code, isDoor: by["binary_sensor.kitchen_window"].isDoor,
+  },
+  motion: by["binary_sensor.hall_motion"] && {
+    code: by["binary_sensor.hall_motion"].code, isDoor: by["binary_sensor.hall_motion"].isDoor,
+    isMotion: by["binary_sensor.hall_motion"].isMotion,
+  },
+}));
+""")
+    assert out["ids"] == ["binary_sensor.front_door", "binary_sensor.hall_motion", "binary_sensor.kitchen_window"], out["ids"]
+    door = out["door"]
+    assert door["code"] == "D01" and door["isDoor"] and not door["isMotion"] and door["shape"] == "door", door
+    window = out["window"]
+    assert window["code"] == "D02" and window["isDoor"], "a window shares the door's D-series code, not its own"
+    motion = out["motion"]
+    assert motion["code"] == "M01" and motion["isMotion"] and not motion["isDoor"], (
+        "a motion sensor must stay motion-classed now that binary_sensor. admits two device_class families", motion
+    )

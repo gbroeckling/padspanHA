@@ -18,7 +18,7 @@
 // refused to place a light. Everything the view needs is in the fabric, in
 // metres, and now that is the only thing it reads.
 
-const { WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, MOTION_PULSE, TEMP_BORDER, LOCK_BORDER } =
+const { WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, MOTION_PULSE, TEMP_BORDER, LOCK_BORDER, DOOR_BORDER } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 
 function escSVG(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
@@ -1046,6 +1046,18 @@ export function shapeSvg(kind, cx, cy, r, attrs){
         `<rect x="${n(cx-bodyW/2)}" y="${n(bodyTop)}" width="${n(bodyW)}" `+
         `height="${n(bodyH)}" rx="${n(bodyW*0.12)}" ${attrs}/>`;
     }
+    // A door leaf with its handle — the reflected-ceiling-plan symbol for
+    // an opening, portrait-proportioned (taller than wide) unlike every
+    // other glyph here so it reads as "a door" and not another fixture.
+    // Solid, like lock's body+shackle: a handle dot layered on the same
+    // fill reads as one silhouette, not a cutout (a true hole would need a
+    // mask against a background colour this glyph never actually sits on).
+    case "door": {
+      const bodyW=HW*0.9, bodyH=r*1.5, bodyTop=cy-bodyH/2;
+      return `<rect x="${n(cx-bodyW/2)}" y="${n(bodyTop)}" width="${n(bodyW)}" `+
+        `height="${n(bodyH)}" rx="${n(bodyW*0.16)}" ${attrs}/>`+
+        `<circle cx="${n(cx+bodyW/2-HW*0.18)}" cy="${n(cy)}" r="${n(HW*0.12)}" ${attrs}/>`;
+    }
     case "triangle":
       return poly([[cx,cy-r],[cx+HW,cy+r*0.62],[cx-HW,cy+r*0.62]]
         .map(p=>`${n(p[0])},${n(p[1])}`).join(" "));
@@ -1131,6 +1143,10 @@ export function shapeDetailSvg(kind, cx, cy, r, ink, sw){
     case "diamond":  return ring(cx,cy,HW*0.42)+dot(cx,cy,HW*0.15);
     // The keyhole — the one detail that says "lock" unambiguously at any size.
     case "lock":     return dot(cx,cy+HW*0.08,HW*0.14)+line(cx,cy+HW*0.08,cx,cy+HW*0.42);
+    // A single panel line, offset toward the handle side — the door leaf's
+    // own echo of a real panelled door, same spirit as perimeter's inset
+    // frame below.
+    case "door":     return line(cx-HW*0.2,cy-r*0.5,cx-HW*0.2,cy+r*0.5);
     // An inset frame — the glyph's own echo of what it actually draws
     // full-size on the floor: a boundary, traced inside another boundary.
     case "perimeter": return `<rect x="${n(cx-HW*0.62)}" y="${n(cy-HW*0.62)}" `+
@@ -1167,6 +1183,7 @@ export function lightClassOf(l){
   if(!l) return "light";
   if(l.isFan) return "fan";
   if(l.isMotion) return "motion";
+  if(l.isDoor) return "door";
   if(l.isTemp) return "temp";
   if(l.isLock) return "lock";
   if(l.isWled||l.isPartition) return "strip";
@@ -2448,8 +2465,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         :(l.isPartition?PARTITION_BORDER
         :(l.isFan?FAN_BORDER
         :(l.isMotion?MOTION_BORDER
+        :(l.isDoor?DOOR_BORDER
         :(l.isTemp?TEMP_BORDER
-        :(l.isLock?LOCK_BORDER:null)))));
+        :(l.isLock?LOCK_BORDER:null))))));
       const stroke=SHOW
         ? (on?(stripBorder||"#f8fafc"):"#3f5165")
         : (stripBorder||"#60a5fa");

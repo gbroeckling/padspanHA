@@ -265,11 +265,12 @@ class PadSpanLightsApp extends HTMLElement {
   async _toggle(eid){
     if(!this._hass) return;
     // The service domain is the entity's own: light.* → light, fan.* → fan.
-    // A motion sensor is read-only — a tap on it is a no-op, its state is
-    // the blue pulse on the map. A temperature sensor.* is read-only the
+    // A binary_sensor — motion or door/window — is read-only — a tap on it
+    // is a no-op, its state is the blue pulse (motion) or a static glyph
+    // (door/window) on the map. A temperature sensor.* is read-only the
     // same way — its "state" is the number it just showed on the marker.
     const domain=String(eid).split(".")[0];
-    if(domain==="binary_sensor"){ this._toast("Motion sensors are read-only"); return; }
+    if(domain==="binary_sensor"){ this._toast("Sensors are read-only"); return; }
     if(domain==="sensor"){ this._toast("Temperature sensors are read-only"); return; }
     // lock.* (gap #8, best-in-class roadmap) has no on/off at all —
     // "locked" is its normal state, lock/unlock its services.

@@ -140,7 +140,7 @@ export function effectiveState(eid, reported, now = Date.now()){
 // ── Device classes on the map ────────────────────────────────────────────────
 // The layer chips: the map keeps every class in view and DIMS the others,
 // because a fan's place on the ceiling is context for the light beside it.
-export const LIGHT_CLASSES = [["all","All"],["light","Lights"],["strip","Strips"],["fan","Fans"],["motion","Motion"],["temp","Temps"],["lock","Locks"]];
+export const LIGHT_CLASSES = [["all","All"],["light","Lights"],["strip","Strips"],["fan","Fans"],["motion","Motion"],["temp","Temps"],["lock","Locks"],["door","Doors/Windows"]];
 
 // Automorph's style dropdown vocabulary — the UI's copy of what
 // automorphAuraSvg (iso_lights.js) actually switches on.
@@ -1210,19 +1210,28 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
   const primaryFor = pairMap || {};
   const lights = Object.keys(states || {})
     .filter(eid => eid.startsWith("light.") || eid.startsWith("fan.")
-      // Motion sensors join by DEVICE CLASS, not domain alone — doors,
-      // windows and every other binary_sensor stay out of a lighting map.
-      // "occupancy" rides along with "motion": both are PIR presence
-      // sensors in HA's own taxonomy (motion = momentary, occupancy =
-      // sustained — e.g. an outlet-integrated bathroom sensor reports
-      // occupancy) and read identically on this map — found live: the
-      // bathroom outlets' PIRs (binary_sensor.invisoutlet_occupancy*)
-      // were invisible to the map until this line admitted their class.
+      // Motion sensors join by DEVICE CLASS, not domain alone — every
+      // other binary_sensor still stays out unless a later clause below
+      // names its own device_class explicitly. "occupancy" rides along
+      // with "motion": both are PIR presence sensors in HA's own taxonomy
+      // (motion = momentary, occupancy = sustained — e.g. an outlet-
+      // integrated bathroom sensor reports occupancy) and read identically
+      // on this map — found live: the bathroom outlets' PIRs
+      // (binary_sensor.invisoutlet_occupancy*) were invisible to the map
+      // until this line admitted their class.
       // A verified pair's OCCUPANCY half is excluded here — it is not a
       // separate device on this map, it is folded into its motion partner.
       || (eid.startsWith("binary_sensor.")
           && ["motion", "occupancy"].includes(states[eid].attributes?.device_class)
           && !primaryFor[eid])
+      // Door/window sensors (Garry, 2026-09-08 — door/window barrier
+      // project, step 1: "Also add that device type to the list of devices
+      // in mapping, lighting"). A separate clause from motion/occupancy on
+      // purpose: doors never fold into a motion pair (primaryFor is a
+      // motion+occupancy-only concept) and read on the map as their own
+      // class — a static "is this left open" glyph, not a pulse.
+      || (eid.startsWith("binary_sensor.")
+          && ["door", "window"].includes(states[eid].attributes?.device_class))
       // Temperature sensors ride the same ceiling map — "same as WLED or
       // any other object... devices telling the temperature can also act
       // like a motion sensor" (Garry). sensor.* is a domain nothing else
@@ -1231,13 +1240,18 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       // lock.* — gap #8, best-in-class roadmap: the first domain this
       // pipeline generalized to beyond light/fan/binary_sensor/sensor.
       // Whole domain, no device_class gate needed (every lock entity is
-      // relevant, unlike binary_sensor which admits door/window sensors
-      // too if left ungated).
+      // relevant).
       || eid.startsWith("lock."))
     .map(eid => ({
       entity_id:     eid,
       friendly_name: states[eid].attributes?.friendly_name || eid,
       state:         states[eid].state,   // "on" | "off" | "unavailable"
+      // Captured now that binary_sensor. admits TWO distinct device_class
+      // families (motion/occupancy and door/window) — isMotionSensor and
+      // isDoorSensor (light_codes.js) both need this to tell their own
+      // class apart post-gather; a bare domain-prefix check stopped being
+      // sufficient the moment a second binary_sensor family was admitted.
+      device_class:  states[eid].attributes?.device_class || null,
       area_name:     areaMap[eid] || null,
       // The user's word beats detection, at pro: forced class from
       // settings.light_type_overrides. Never applies to a fan or a lock

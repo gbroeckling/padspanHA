@@ -55,12 +55,24 @@ export function isFan(l) {
 }
 
 // A motion (or occupancy — HA's other PIR presence class) sensor on the
-// same ceiling. gatherLights only admits binary_sensor entities whose
-// device_class is "motion" or "occupancy", so the domain prefix is a
-// sufficient test past that gate. Read-only: no toggle, no popup — its
-// job on the map is the blue pulse while triggered.
+// same ceiling. gatherLights admits binary_sensor entities of TWO distinct
+// device_class families now (motion/occupancy here, door/window below), so
+// the domain prefix alone is no longer sufficient to tell them apart —
+// device_class (captured onto l by gatherLights) is the real test. Read-
+// only: no toggle, no popup — its job on the map is the blue pulse while
+// triggered.
 export function isMotionSensor(l) {
-  return String(l.entity_id || "").startsWith("binary_sensor.");
+  return String(l.entity_id || "").startsWith("binary_sensor.")
+    && ["motion", "occupancy"].includes(l.device_class);
+}
+
+// A door or window sensor (door/window barrier project, step 1, Garry
+// 2026-09-08: "add that device type to the list of devices in mapping,
+// lighting"). Read-only, same reasoning as motion above — its job on the
+// map is a static "open or closed" glyph, not a toggle.
+export function isDoorSensor(l) {
+  return String(l.entity_id || "").startsWith("binary_sensor.")
+    && ["door", "window"].includes(l.device_class);
 }
 
 // A sensor.* entity reporting device_class "temperature" — "same as WLED or
@@ -169,6 +181,7 @@ export const MOTION_BORDER = "#3b82f6";
 export const MOTION_PULSE = "#3b82f6";
 export const TEMP_BORDER = "#fb923c";
 export const LOCK_BORDER = "#a78bfa";
+export const DOOR_BORDER = "#fb7185";
 
 // ── Fixture shape ────────────────────────────────────────────────────────────
 // The marker's OUTLINE answers "what kind of light is that" without reading
@@ -198,6 +211,7 @@ export const LIGHT_SHAPES = [
   ["motion",    "Motion sensor"],
   ["tempreadout", "Temperature readout"],
   ["lock",      "Door lock"],
+  ["door",      "Door/window sensor"],
 ];
 
 // "perimeter" is drawn once, structurally differently from every shape
@@ -225,6 +239,7 @@ export function deriveLightShape(l) {
   // no name needed.
   if (isFan(l)) return "fan";
   if (isMotionSensor(l)) return "motion";
+  if (isDoorSensor(l)) return "door";
   if (isTempSensor(l)) return "tempreadout";
   if (isLock(l)) return "lock";
   // A fan exposed as a light entity is not a light at all — worth seeing.
@@ -261,22 +276,23 @@ export function resolveLightShape(l, overrides) {
 // Letters reserved for a class series, skipped as the generic series counts
 // past them — precomputed once so another reserved letter is a one-line
 // change here, not new arithmetic.
-const _SERIES_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter(c => c !== "F" && c !== "L" && c !== "M" && c !== "P" && c !== "T" && c !== "W");
+const _SERIES_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter(c => c !== "D" && c !== "F" && c !== "L" && c !== "M" && c !== "P" && c !== "T" && c !== "W");
 
 // Mutates each light in place: sets l.code, l.isWled, l.isPartition,
-// l.isFan, l.isMotion and l.isTemp. Pass EVERY entity (including hidden ones) so
-// codes stay stable when visibility changes. Domain classes first — a fan
-// is a fan, a sensor is a sensor, whatever they advertise; then WLED before
-// partition: a partition segment that ALSO carries effects reads as
-// WLED-class — the more capable identity wins.
+// l.isFan, l.isMotion, l.isDoor and l.isTemp. Pass EVERY entity (including
+// hidden ones) so codes stay stable when visibility changes. Domain classes
+// first — a fan is a fan, a sensor is a sensor, whatever they advertise;
+// then WLED before partition: a partition segment that ALSO carries
+// effects reads as WLED-class — the more capable identity wins.
 export function assignLightCodes(lights) {
   const sorted = [...lights].sort((a, b) => a.entity_id.localeCompare(b.entity_id));
-  let f = 0, m = 0, w = 0, p = 0, t = 0, lk = 0, n = 0;
+  let f = 0, m = 0, w = 0, p = 0, t = 0, lk = 0, d = 0, n = 0;
   const seriesCode = (idx) =>
     _SERIES_LETTERS[Math.floor(idx / 99)] + String((idx % 99) + 1).padStart(2, "0");
   for (const l of sorted) {
     l.isFan = isFan(l);
     l.isMotion = isMotionSensor(l);
+    l.isDoor = isDoorSensor(l);
     l.isTemp = isTempSensor(l);
     l.isLock = isLock(l);
     if (l.isFan) {
@@ -285,6 +301,9 @@ export function assignLightCodes(lights) {
     } else if (l.isMotion) {
       l.isWled = false; l.isPartition = false;
       l.code = "M" + String((m++ % 99) + 1).padStart(2, "0");
+    } else if (l.isDoor) {
+      l.isWled = false; l.isPartition = false;
+      l.code = "D" + String((d++ % 99) + 1).padStart(2, "0");
     } else if (l.isTemp) {
       l.isWled = false; l.isPartition = false;
       l.code = "T" + String((t++ % 99) + 1).padStart(2, "0");
