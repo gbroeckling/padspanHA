@@ -151,6 +151,44 @@ earlier ones, not the reverse.
   (a plain, solid, static wall) — this feature must never change how an
   install with no door sensors configured looks or behaves.
 
+## Prior art — what others do differently (researched 2026-09-08)
+
+Checked the actual field before assuming this was a solved problem
+elsewhere. No existing system, HA-ecosystem or academic, does what this
+plan proposes — a specific `binary_sensor.door` deterministically
+overriding one specific wall segment's attenuation in a live solver, the
+instant it changes. Two different approaches turned up instead:
+
+- **BPS** ([github.com/Hogster/BPS](https://github.com/Hogster/BPS)),
+  built on top of [Bermuda](https://github.com/agittins/bermuda) for Home
+  Assistant — the closest real-world comparison, same category of tool as
+  PadSpan (BLE trilateration + floorplan tracking). Handles door state
+  completely differently: no linked sensor, no per-wall override. Instead
+  it runs continuous statistical auto-calibration — samples every 30s into
+  a rolling ~6-hour window, re-solves every 15 minutes, and absorbs "a
+  door staying open" as one more source of drift alongside furniture
+  moving. It never knows WHICH door opened or why the signal shifted, it
+  just re-averages over time.
+- **Academic indoor-localization research** takes a third route: rather
+  than a static wall with a punched-through attenuation exception, recent
+  work uses geodesic/pathfinding-based path-loss models — signal loss is
+  computed along the actual shortest walkable route through the floorplan
+  ([Geodesic Path Model for Indoor Propagation Loss Prediction, PMC
+  9269714](https://pmc.ncbi.nlm.nih.gov/articles/PMC9269714/)). A doorway
+  falls out of the geometry as a low-loss path; it is never modeled as a
+  discrete sensor-driven event at all. See also [Obstruction-aware
+  Bluetooth Low Energy Indoor
+  Positioning](https://ewireless.eng.ed.ac.uk/sites/ewireless.eng.ed.ac.uk/files/attachments/Obstruction-aware%20Bluetooth%20Low%20Energy%20Indoor%20Positioning.pdf).
+
+What this means for the plan above: it trades "needs the actual door
+sensor and someone to mark the wall" for something neither alternative
+has — an immediate, exact correction on a real, known event, not an
+average that eventually catches up (BPS) and not a geometric assumption
+that can't tell a closed steel door from an open wooden one (geodesic
+models). There is no prior art to borrow the hard parts from, but also
+nothing indicating the idea itself is wrong — just genuinely new ground
+for this class of tool.
+
 ## Design decisions (resolved) — reference only
 
 Kept for the reasoning behind the plan above; not required to start
