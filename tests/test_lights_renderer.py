@@ -2450,7 +2450,10 @@ def test_automorph_subtlety_thins_opacity_and_stroke_without_ever_reaching_zero(
             f"const FLOORS={json.dumps(floors)};\n"
             f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
             f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:50, automorphStyle:'glow', automorphSubtlety:{subtlety}}});\n"
-            "const m = svg.match(/<path d=\"[^\"]+\" fill=\"#94a3b8\" fill-opacity=\"([\\d.]+)\"[^]*?stroke-width=\"([\\d.]+)\"/);\n"
+            # The wash's fill is the shared duotone gradient now (craft round:
+            # interiors own the depth cue), so the probe keys on its url ref
+            # rather than the old flat on-grey.
+            "const m = svg.match(/<path d=\"[^\"]+\" fill=\"url\\(#psautomorphduo_on\\)\" fill-opacity=\"([\\d.]+)\"[^]*?stroke-width=\"([\\d.]+)\"/);\n"
             "console.log(JSON.stringify({fillOpacity: m ? parseFloat(m[1]) : null, strokeWidth: m ? parseFloat(m[2]) : null}));\n"
         ))
         return out
@@ -2936,12 +2939,13 @@ def test_automorph_suppresses_the_glyph_only_where_an_aura_really_painted(tmp_pa
 # The glow style used to be three layers stamped in one position — wash,
 # flat stroke, gloss — a decal. The stack now gives the aura a material
 # read: a displaced cast shadow (it sits ON the floor), an ambient-
-# occlusion ring (it has a cross-section), a psgloss-stroked rim (lit from
-# the drawing's one upper-left sun), an on-only masked inner bloom (a lit
-# fixture EMITS; an inert one doesn't), and fill ceilings rebalanced to
-# stay under the room's own colour weight. All of it blurs through ONE
-# group filter per fixture, and every layer routes opacity/width through
-# the same subtlety multipliers as the originals.
+# occlusion ring (it has a cross-section), a rim stroked with the floor's
+# own psglossauto ramp (lit from the drawing's one upper-left sun), an
+# on-only masked inner bloom (a lit fixture EMITS; an inert one doesn't),
+# and fill ceilings rebalanced to stay under the room's own colour weight.
+# All of it blurs through ONE group filter per fixture, and every layer
+# routes opacity/width through the same subtlety multipliers as the
+# originals.
 
 def _aura_probe(tmp_path, *, state="on", pct=100, style="glow", subtlety=0):
     """Working-mode render of one lit-or-not fixture with Automorph up —
@@ -2969,15 +2973,15 @@ def _aura_probe(tmp_path, *, state="on", pct=100, style="glow", subtlety=0):
         " return m?{dx:parseFloat(m[1]),dy:parseFloat(m[2]),op:parseFloat(m[3])}:null;})(),\n"
         "  ao: (()=>{const m=/stroke=\"#020617\" stroke-opacity=\"([\\d.]+)\" stroke-width=\"([\\d.]+)\"/.exec(svg);"
         " return m?{op:parseFloat(m[1]),w:parseFloat(m[2])}:null;})(),\n"
-        "  washOp: num(/fill=\"#(?:94a3b8|475569)\" fill-opacity=\"([\\d.]+)\"/),\n"
+        "  washOp: num(/fill=\"url\\(#psautomorphduo_(?:on|off)\\)\" fill-opacity=\"([\\d.]+)\"/),\n"
         "  bloomCount: (svg.match(/mask=\"url\\(#psautomorphmask\\)\"/g)||[]).length,\n"
-        "  rim: (()=>{const m=/fill=\"none\" stroke=\"url\\(#psgloss\\)\" stroke-opacity=\"([\\d.]+)\" stroke-width=\"([\\d.]+)\"/.exec(svg);"
+        "  rim: (()=>{const m=/fill=\"none\" stroke=\"url\\(#psglossauto_\\d+\\)\" stroke-opacity=\"([\\d.]+)\" stroke-width=\"([\\d.]+)\"/.exec(svg);"
         " return m?{op:parseFloat(m[1]),w:parseFloat(m[2])}:null;})(),\n"
-        "  glossOp: num(/fill=\"url\\(#psgloss\\)\" fill-opacity=\"([\\d.]+)\"/),\n"
+        "  glossOp: num(/fill=\"url\\(#psglossauto_\\d+\\)\" fill-opacity=\"([\\d.]+)\"/),\n"
         "  blurGroups: (svg.match(/filter=\"url\\(#psaurasoft\\)\"/g)||[]).length,\n"
         "  filterApps: (svg.match(/ filter=\"url\\(/g)||[]).length,\n"
         "  shadowIdx: svg.indexOf('fill=\"#020617\"'),\n"
-        "  washIdx: svg.search(/fill=\"#(?:94a3b8|475569)\" fill-opacity=/),\n"
+        "  washIdx: svg.search(/fill=\"url\\(#psautomorphduo_(?:on|off)\\)\" fill-opacity=/),\n"
         "}));\n"
     ))
 
@@ -3081,3 +3085,248 @@ def test_automorph_subtlety_fades_the_new_material_layers_too(tmp_path):
     ):
         assert lo < hi, f"subtlety=100 must fade the {label} ({lo} !< {hi})"
         assert lo > 0, f"subtlety=100 must fade the {label}, never erase it"
+
+
+# ── Automorph colour & finish (the craft/composition colour round of the
+# 2026-09-07 design critique) ───────────────────────────────────────────────
+# Fill interiors move from flat state greys to TWO shared duotone radial
+# gradients (lighter centre fading to the base tone at the rim — the
+# distance-from-the-light depth cue); the rim/gloss sheen moves from the
+# per-shape psgloss to ONE userSpaceOnUse psglossauto per floor (every cell
+# on the slab lit from the same sun); a deterministic per-fixture lightness
+# offset derived from automorphFixtureWeight rides the flat ink; and the
+# final ring carries a small deterministic hand-inked jitter. The
+# colour-ownership split both fill features live by: the SHARED gradients
+# own the fill interiors (and so can carry no per-fixture offset), while
+# the weight offset expresses only through the flat-colour ink (and, for
+# inkless nebula, a narrow fill-opacity delta).
+
+def test_lighten_is_identity_at_zero_and_monotone_toward_white_or_black(tmp_path):
+    """pct=0 must return the INPUT STRING untouched — the contract that
+    keeps every default-weight fixture's ink byte-identical to before the
+    weight offset existed (weight 1 -> offset 0 -> today's exact hex).
+    Positive pct moves every channel toward white, negative toward black,
+    and ±100 clamps cleanly at the extremes."""
+    out = _run_js(tmp_path, (
+        "import { lighten } from './iso_lights.mjs';\n"
+        "console.log(JSON.stringify({\n"
+        "  idSame: lighten('#94a3b8', 0)==='#94a3b8',\n"
+        "  up: lighten('#94a3b8', 18), down: lighten('#94a3b8', -18),\n"
+        "  white: lighten('#94a3b8', 100), black: lighten('#94a3b8', -100),\n"
+        "}));\n"
+    ))
+    assert out["idSame"], "lighten(hex, 0) must be the exact input string"
+    base = [0x94, 0xA3, 0xB8]
+    up = [int(out["up"][i:i + 2], 16) for i in (1, 3, 5)]
+    down = [int(out["down"][i:i + 2], 16) for i in (1, 3, 5)]
+    assert all(u > b for u, b in zip(up, base)), (out["up"], base)
+    assert all(d < b for d, b in zip(down, base)), (out["down"], base)
+    assert out["white"] == "#ffffff" and out["black"] == "#000000", out
+
+
+def test_automorph_duotone_interiors_are_exactly_two_shared_defs(tmp_path):
+    """The aura's fill interiors key the one signal the partition computes
+    per fixture — distance from its own light — as a duotone: lighter at
+    the centre, the state's base tone at the rim. The defs must be exactly
+    TWO shared radialGradients, one per state and never per fixture (the
+    psautomorphgrad O(2) discipline), UNGATED because Automorph runs on the
+    working map and an invalid paint ref drops the element entirely. Stops
+    carry colour only — the referencing path's fill-opacity stays the
+    single authority on layer weight, so the pinned ceilings hold."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {"Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
+        "light_positions_m": {
+            "light.a": {"x_m": 1.5, "y_m": 2, "floor_id": "main"},
+            "light.b": {"x_m": 6.5, "y_m": 2, "floor_id": "main"},
+        },
+    }
+    lbe = {
+        "light.a": {"entity_id": "light.a", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None},
+        "light.b": {"entity_id": "light.b", "state": "off", "code": "A02", "shape": "circle", "isMotion": False, "last_changed": None},
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const mk=(o)=>M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,o);\n"
+        f"const on=mk({{nowMs:{NOW}, automorph:true, automorphRoomPct:60, automorphStyle:'glow'}});\n"
+        f"const plain=mk({{nowMs:{NOW}}});\n"
+        "const def=/<radialGradient id=\"psautomorphduo_on\"><stop offset=\"0%\" stop-color=\"(#[0-9a-f]{6})\"\\/>[^]*?offset=\"100%\" stop-color=\"(#[0-9a-f]{6})\"\\/><\\/radialGradient>/.exec(on);\n"
+        "console.log(JSON.stringify({\n"
+        "  defs: (on.match(/<radialGradient id=\"psautomorphduo_/g)||[]).length,\n"
+        "  onRefs: (on.match(/fill=\"url\\(#psautomorphduo_on\\)\"/g)||[]).length,\n"
+        "  offRefs: (on.match(/fill=\"url\\(#psautomorphduo_off\\)\"/g)||[]).length,\n"
+        "  plainDefs: (plain.match(/<radialGradient id=\"psautomorphduo_/g)||[]).length,\n"
+        "  centre: def?def[1]:null, rim: def?def[2]:null,\n"
+        "}));\n"
+    ))
+    assert out["defs"] == 2, f"exactly two shared duotone defs, never per fixture: {out}"
+    assert out["onRefs"] >= 1 and out["offRefs"] >= 1, (
+        f"each state's fill interiors must reference its own shared gradient: {out}"
+    )
+    assert out["plainDefs"] == 2, "the duotone defs must be UNGATED — present with Automorph off, like psmotion"
+    assert out["rim"] == "#94a3b8", f"the on-gradient's rim stop must be the on base tone itself: {out}"
+    centre = [int(out["centre"][i:i + 2], 16) for i in (1, 3, 5)]
+    rim = [int(out["rim"][i:i + 2], 16) for i in (1, 3, 5)]
+    assert all(c > r for c, r in zip(centre, rim)), (
+        f"the centre stop must be lighter than the rim on every channel: {out}"
+    )
+
+
+def test_automorph_sheen_is_one_userspace_ramp_per_floor(tmp_path):
+    """The rim and gloss used to stretch psgloss (objectBoundingBox) across
+    each cell's own bbox — a different highlight angle/spread on every
+    differently-proportioned cell, the exact 'two suns' drift psgloss's own
+    comment exists to prevent, and invisible in working mode besides (that
+    def is Showcase-gated). Both now point at psglossauto: ONE ungated
+    userSpaceOnUse gradient per FLOOR spanning the slab's projected bbox,
+    so every cell on the slab agrees where the sun is. psgloss itself stays
+    byte-identical for markers/rooms."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {"Office": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 6], [0, 6]]}},
+        "light_positions_m": {"light.lamp": {"x_m": 3, "y_m": 3, "floor_id": "main"}},
+    }
+    lbe = {"light.lamp": {"entity_id": "light.lamp", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None}}
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+        f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:60, automorphStyle:'glow'}});\n"
+        "console.log(JSON.stringify({\n"
+        "  defs: (svg.match(/<linearGradient id=\"psglossauto_/g)||[]).length,\n"
+        "  userSpace: svg.includes('<linearGradient id=\"psglossauto_0\" gradientUnits=\"userSpaceOnUse\"'),\n"
+        "  refs: (svg.match(/url\\(#psglossauto_0\\)/g)||[]).length,\n"
+        "  oldRefs: (svg.match(/url\\(#psgloss\\)/g)||[]).length,\n"
+        "}));\n"
+    ))
+    assert out["defs"] == 1, f"one psglossauto per floor — a one-floor scene defines exactly one: {out}"
+    assert out["userSpace"], "psglossauto must be userSpaceOnUse — per-floor, not per-shape"
+    assert out["refs"] == 2, f"both the rim stroke and the gloss fill must share the floor ramp: {out}"
+    assert out["oldRefs"] == 0, (
+        f"the aura may no longer lean on Showcase-gated psgloss anywhere in working mode: {out}"
+    )
+    src = (_VIEWS / "iso_lights.js").read_text(encoding="utf-8")
+    assert '<linearGradient id="psgloss" x1="0.15" y1="0" x2="0.6" y2="1">' in src, (
+        "psgloss itself must stay untouched — markers and rooms keep exactly what they have"
+    )
+
+
+def test_automorph_weight_offset_rides_the_ink_and_stays_inside_the_state_gap(tmp_path):
+    """A fixture with a big recorded manual footprint must read very
+    slightly more present: its flat INK (edgeCore's stroke) lightens by a
+    deterministic offset from automorphFixtureWeight. Two default-weight
+    neighbours — the common case — must keep byte-identical ink, and the
+    whole ±7% band must sit far inside the on/off gap so state stays
+    unambiguous. The shared duotone fills carry no offset by construction —
+    the ink is the offset's only channel in the glow style."""
+    NOW = 1_000_000_000_000
+
+    def render(b_extra):
+        model = {
+            "room_geometry_m": {"Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
+            "light_positions_m": {
+                "light.a": {"x_m": 1.5, "y_m": 2, "floor_id": "main"},
+                "light.b": {"x_m": 6.5, "y_m": 2, "floor_id": "main", **b_extra},
+            },
+        }
+        lbe = {
+            "light.a": {"entity_id": "light.a", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None},
+            "light.b": {"entity_id": "light.b", "state": "on", "code": "A02", "shape": "circle", "isMotion": False, "last_changed": None},
+        }
+        floors = [{"id": "main", "name": "Main", "level": 0}]
+        return _run_js(tmp_path, (
+            "import * as M from './iso_lights.mjs';\n"
+            f"const MODEL={json.dumps(model)};\n"
+            f"const LBE={json.dumps(lbe)};\n"
+            f"const FLOORS={json.dumps(floors)};\n"
+            f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+            f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:60, automorphStyle:'glow'}});\n"
+            "const inks=[...svg.matchAll(/fill=\"url\\(#psautomorphduo_on\\)\" fill-opacity=\"[\\d.]+\" stroke=\"(#[0-9a-f]{6})\"/g)].map(m=>m[1]);\n"
+            "import { lighten } from './iso_lights.mjs';\n"
+            "console.log(JSON.stringify({inks, onFloor: lighten('#94a3b8', -7), offCeil: lighten('#475569', 7)}));\n"
+        ))
+
+    sized = render({"width_cm": 300, "height_cm": 300})
+    assert len(sized["inks"]) == 2, f"expected one edgeCore ink per fixture: {sized}"
+    assert "#94a3b8" in sized["inks"], f"the default-weight fixture must keep today's exact ink: {sized}"
+    other = next(i for i in sized["inks"] if i != "#94a3b8")
+    big = [int(other[i:i + 2], 16) for i in (1, 3, 5)]
+    base = [0x94, 0xA3, 0xB8]
+    assert all(b >= s for b, s in zip(big, base)) and any(b > s for b, s in zip(big, base)), (
+        f"a heavier fixture's ink must lighten, never darken or hold: {sized}"
+    )
+    plain = render({})
+    assert plain["inks"] == ["#94a3b8", "#94a3b8"], (
+        f"two default-weight neighbours must stay essentially identical — exact same ink: {plain}"
+    )
+    on_floor = [int(sized["onFloor"][i:i + 2], 16) for i in (1, 3, 5)]
+    off_ceil = [int(sized["offCeil"][i:i + 2], 16) for i in (1, 3, 5)]
+    assert all(a > b for a, b in zip(on_floor, off_ceil)), (
+        f"the darkest possible on-ink must stay clearly lighter than the lightest possible "
+        f"off-ink — the offset band may never blur the on/off state read: {sized}"
+    )
+
+
+def test_automorph_ring_jitter_is_deterministic_bounded_and_fades_hard(tmp_path):
+    """The hand-inked jitter follows the cell wobble's own discipline: a
+    seeded sine of position, never Math.random(), so the fabric alone
+    reproduces a render. Zero amplitude (t=0, or hardness=-100) returns the
+    SAME array — the applyHardness passthrough convention. Amplitude scales
+    exactly linearly with t, fades linearly to zero on the negative-
+    hardness side (jitter on a 'geometrically aligned' shape reads as dirt,
+    not craft), never fades on the soft side, and is capped ~1px — far
+    inside the marginM non-overlap gap."""
+    out = _run_js(tmp_path, (
+        "import { automorphRingJitter } from './iso_lights.mjs';\n"
+        "const ring=[]; for(let i=0;i<24;i++){const a=i/24*2*Math.PI; ring.push([100+Math.cos(a)*40, 100+Math.sin(a)*40]);}\n"
+        "const disp=(o)=>Math.max(...o.map((p,i)=>Math.hypot(p[0]-ring[i][0], p[1]-ring[i][1])));\n"
+        "const j1=automorphRingJitter(ring,100,100,1,0);\n"
+        "console.log(JSON.stringify({\n"
+        "  identT0: automorphRingJitter(ring,100,100,0,0)===ring,\n"
+        "  identHard: automorphRingJitter(ring,100,100,1,-100)===ring,\n"
+        "  same: JSON.stringify(j1)===JSON.stringify(automorphRingJitter(ring,100,100,1,0)),\n"
+        "  seedMoves: JSON.stringify(automorphRingJitter(ring,120,80,1,0))!==JSON.stringify(j1),\n"
+        "  full: disp(j1),\n"
+        "  half: disp(automorphRingJitter(ring,100,100,0.5,0)),\n"
+        "  faded: disp(automorphRingJitter(ring,100,100,1,-50)),\n"
+        "  soft: disp(automorphRingJitter(ring,100,100,1,60)),\n"
+        "}));\n"
+    ))
+    assert out["identT0"] and out["identHard"], f"zero amplitude must be the same-array passthrough: {out}"
+    assert out["same"], "the jitter must be fully deterministic — two identical calls, identical output"
+    assert out["seedMoves"], "a different fixture position must seed a different waviness"
+    assert 0 < out["full"] <= 1.1 + 1e-9, f"amplitude must be real but capped ~1px: {out}"
+    assert abs(out["half"] - out["full"] * 0.5) < 1e-9, f"amplitude must scale linearly with t: {out}"
+    assert abs(out["faded"] - out["full"] * 0.5) < 1e-9, (
+        f"hardness -50 must halve the amplitude on its way to zero at -100: {out}"
+    )
+    assert abs(out["soft"] - out["full"]) < 1e-9, (
+        f"positive (soft) hardness must not fade the jitter — only the hard side reads it as dirt: {out}"
+    )
+
+
+def test_ring_jitter_applied_once_before_hardness_and_skipped_for_nebula():
+    """Structural pin, same discipline as the chaikinSmooth call-site pin:
+    exactly ONE jitter application, sitting between the morph and
+    applyHardness — so hardness spikes grow from inked points and the soft
+    spline runs through them — and skipped entirely for nebula, whose mask
+    fades the edge the jitter would decorate."""
+    src = _code_only((_VIEWS / "iso_lights.js").read_text(encoding="utf-8"))
+    calls = re.findall(r"(?<!function )automorphRingJitter\(", src)
+    assert len(calls) == 1, f"expected exactly one automorphRingJitter call site, found {len(calls)}"
+    assert 'const inked=(AUTOMORPH_STYLE==="nebula") ? morphed' in src, (
+        "nebula must skip the jitter at the one call site"
+    )
+    assert "automorphRingJitter(morphed, hx, hy, AUTOMORPH_PCT/100, AUTOMORPH_HARDNESS)" in src, (
+        "the jitter must ride the morphed ring, seeded from the fixture's own position"
+    )
+    assert "applyHardness(inked, AUTOMORPH_HARDNESS, hardCapPx)" in src, (
+        "hardness must operate on the inked ring — jitter before spikes, spikes before pathing"
+    )

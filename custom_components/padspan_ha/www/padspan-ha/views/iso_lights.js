@@ -352,6 +352,48 @@ export function automorphRing(iconLocal, iconCx, iconCy, roomRingAbs, t){
   return a.map((p,i)=>[p[0]+(b[i][0]-p[0])*clampT, p[1]+(b[i][1]-p[1])*clampT]);
 }
 
+// Hand-inked finish: a small deterministic per-vertex radial jitter on the
+// FINAL morphed ring — the same never-Math.random() discipline the cell
+// wobble established one level down (buildRoomFixtureCells seeds a sine
+// from the fixture's own position, because the fabric alone must reproduce
+// a render), extended upward: the partition BOUNDARY already reads organic
+// thanks to that wobble, but the perfectly clean ring sitting on top of it
+// read slightly too plastic/CAD-perfect next to its own bisector. Each
+// point slides along its own ray from the fixture (seedX,seedY — the
+// aura's true anchor) by a sine of its own position, low spatial frequency
+// so neighbouring points move together as a gentle waviness rather than
+// per-point noise.
+//
+// Amplitude discipline — why this can never fight the passes around it:
+//  - scales with t, so at the morph slider's low end the offsets vanish
+//    smoothly and the icon-outline identity contract is untouched;
+//  - fades linearly to ZERO on the negative-hardness side (gone entirely
+//    at -100): jitter on a "hard, geometrically aligned" shape reads as
+//    dirt, not craft;
+//  - capped at ~1px — far below the Chaikin/spike scale, so it decorates
+//    the deliberately smooth curve instead of competing with it, and far
+//    inside the marginM non-overlap gap, so it can never spend what the
+//    inset created between neighbouring cells.
+// Zero amplitude returns the SAME array untouched — the exact-passthrough
+// convention applyHardness's non-negative side already sets.
+// The caller skips this entirely for the nebula style (the mask already
+// fades that edge to nothing — the jitter would be invisible effort).
+export function automorphRingJitter(ring, seedX, seedY, t, hardness){
+  if(!ring || ring.length<3) return ring||[];
+  const h=Math.max(-100, Math.min(100, hardness||0));
+  const clampT=Math.max(0, Math.min(1, t||0));
+  const amp=1.1*clampT*(h<0 ? 1+h/100 : 1);
+  if(!(amp>0)) return ring;
+  const seed=seedX*37.1+seedY*91.7;
+  return ring.map(p=>{
+    const dx=p[0]-seedX, dy=p[1]-seedY;
+    const len=Math.hypot(dx, dy);
+    if(!(len>0)) return p;
+    const wob=Math.sin(seed + p[0]*0.16 + p[1]*0.12)*amp;
+    return [p[0]+dx/len*wob, p[1]+dy/len*wob];
+  });
+}
+
 // Slider 2 (edge hardness): centered at 0 — Garry's own spec, "this slider
 // starts in the center" and 0 is today's unchanged straight-edged treatment
 // either direction. Positive is handled separately, at path-build time
@@ -440,6 +482,30 @@ export function ringPathD(ring, hardness){
     d+=` C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
   }
   return d+"Z";
+}
+
+// ── Automorph colour ────────────────────────────────────────────────────────
+// The aura's two state greys (Garry, 2026-09-07: "follow the grey shaded
+// type visual you used before" — "on" is a brighter grey, never a different
+// hue). Module consts because the SAME two values must agree in two places:
+// automorphAuraSvg's flat ink, and the shared duotone gradient defs whose
+// rim stop each fill interior fades to.
+const AUTOMORPH_BASE_ON="#94a3b8", AUTOMORPH_BASE_OFF="#475569";
+
+// Lightness offset for a #rrggbb colour: pct>0 moves every channel toward
+// white, pct<0 toward black, and pct=0 returns the INPUT STRING untouched.
+// That exact identity at 0 is load-bearing, not an optimisation: the
+// per-fixture weight offset derived from automorphFixtureWeight is exactly
+// 0 for every default-weight fixture (no recorded manual size — the common
+// case), and those must keep today's byte-identical ink so two ordinary
+// neighbours stay essentially indistinguishable apart from edge and gap.
+// The offset is a bonus presence cue, never the primary separator.
+export function lighten(hex, pct){
+  if(!pct) return hex;
+  const f=Math.max(-100, Math.min(100, pct))/100;
+  const v=parseInt(hex.slice(1), 16);
+  const ch=(x)=>Math.round(f>0 ? x+(255-x)*f : x*(1+f));
+  return "#"+((1<<24)|(ch(v>>16&255)<<16)|(ch(v>>8&255)<<8)|ch(v&255)).toString(16).slice(1);
 }
 
 // ── Automorph non-overlap partitioning (Garry, 2026-09-07): "you have not
@@ -1756,6 +1822,29 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     `<stop offset="55%" stop-color="#fff" stop-opacity="0.55"/>`+
     `<stop offset="100%" stop-color="#fff" stop-opacity="0"/></radialGradient>`;
   s+=`<mask id="psautomorphmask"><rect x="-20%" y="-20%" width="140%" height="140%" fill="url(#psautomorphgrad)"/></mask>`;
+  // Automorph duotone interiors — exactly TWO shared radialGradients, one
+  // per state, NEVER per fixture (the same O(2) defs discipline as
+  // psautomorphgrad above). A flat two-value grey ignored the one signal
+  // the cell partition computes per fixture — how far a point is from its
+  // own light — so every aura fill interior now runs lighter at the centre
+  // and fades to the state's base tone at the rim, the classic
+  // hypsometric-duotone depth cue keyed to that distance. The stops carry
+  // COLOUR only (full stop opacity): the referencing path's own
+  // fill-opacity, routed through the subtlety multipliers, stays the
+  // single authority on layer weight, so the rebalanced fill ceilings and
+  // the subtlety slider keep their exact contracts. objectBoundingBox (the
+  // default) centres each fill on whatever ring references it —
+  // per-fixture geometry for free. Being SHARED, these can carry no
+  // per-fixture offset by construction — that cue lives in the flat ink
+  // instead (see automorphAuraSvg's colour-ownership comment). UNGATED
+  // like psmotion: Automorph runs on the working map too, and an invalid
+  // paint reference makes SVG drop the element entirely, not fall back.
+  for(const [duoId,duoBase] of [["psautomorphduo_on",AUTOMORPH_BASE_ON],["psautomorphduo_off",AUTOMORPH_BASE_OFF]]){
+    s+=`<radialGradient id="${duoId}">`+
+      `<stop offset="0%" stop-color="${lighten(duoBase,18)}"/>`+
+      `<stop offset="55%" stop-color="${lighten(duoBase,8)}"/>`+
+      `<stop offset="100%" stop-color="${duoBase}"/></radialGradient>`;
+  }
   // Garry: "that cool look you have inside the [light glow]... can the shape
   // built by the room shape also have some of that, a bit less intense, but
   // the same shaded look" — the same near-quadratic radial falloff the light
@@ -1995,6 +2084,36 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
     const TL=iso(x0,y0_,z), TR=iso(x1,y0_,z), BR=iso(x1,y1_,z), BL=iso(x0,y1_,z);
     const TR_b=iso(x1,y0_,rankOf(z)-slabWZ), BR_b=iso(x1,y1_,rankOf(z)-slabWZ), BL_b=iso(x0,y1_,rankOf(z)-slabWZ);
+
+    // One gloss ramp per FLOOR for the Automorph aura's sheen (rim + gloss
+    // layers): psgloss's stops and diagonal, but gradientUnits=
+    // userSpaceOnUse spanning this floor's own projected slab bbox instead
+    // of each shape's bounding box. psgloss leans on objectBoundingBox —
+    // cheap and correct while every shape sharing it is a near-uniform
+    // hexagon, but Automorph cells range from thin wedges to room-sized
+    // blobs, and the "same" 0.15,0 -> 0.6,1 ramp stretched per cell lands
+    // the highlight at a visibly different angle/spread on each one — the
+    // exact "two suns" outcome psgloss's own comment exists to prevent,
+    // compounding at the ~100-fixture scale. One def per floor (O(floors),
+    // free at any fixture count), every cell on the slab lit from the same
+    // upper-left. UNGATED on purpose: Automorph runs on the working map,
+    // and while the aura pointed at Showcase-gated psgloss its rim and
+    // gloss silently vanished there (invalid paint ref = element dropped).
+    // psgloss itself is untouched — markers and rooms keep exactly what
+    // they have. A gradient element renders nothing on its own, so it is
+    // safe outside <defs>; url() references resolve document-wide.
+    const glossAutoId=`psglossauto_${lidx}`;
+    {
+      const gxs=[TL[0],TR[0],BR[0],BL[0]], gys=[TL[1],TR[1],BR[1],BL[1]];
+      const gx0=Math.min(...gxs), gw=Math.max(...gxs)-gx0;
+      const gy0=Math.min(...gys), gh=Math.max(...gys)-gy0;
+      s+=`<linearGradient id="${glossAutoId}" gradientUnits="userSpaceOnUse" `+
+        `x1="${(gx0+gw*0.15).toFixed(1)}" y1="${gy0.toFixed(1)}" `+
+        `x2="${(gx0+gw*0.6).toFixed(1)}" y2="${(gy0+gh).toFixed(1)}">`+
+        `<stop offset="0%" stop-color="#fff" stop-opacity="0.5"/>`+
+        `<stop offset="45%" stop-color="#fff" stop-opacity="0.1"/>`+
+        `<stop offset="100%" stop-color="#000" stop-opacity="0.18"/></linearGradient>`;
+    }
 
     s+=`<g opacity="${go}"${gpe}>`;
     // Slab sides
@@ -2358,9 +2477,18 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // conservative floor: whichever direction a spike happens to point,
       // 85% of the projected gap is the most it can ever spend.
       const hardCapPx=marginM*frame.scale*Math.SQRT1_2*0.85;
-      const ring=applyHardness(
-        automorphRing(iconLocal, hx, hy, roomPx, AUTOMORPH_PCT/100),
-        AUTOMORPH_HARDNESS, hardCapPx);
+      // Pipeline order is deliberate: morph, then the hand-inked jitter,
+      // then hardness, then the path builder — so the spike operator grows
+      // its spikes from the inked points and the soft Catmull-Rom runs
+      // through them, instead of the jitter roughing up an already-built
+      // curve. Nebula skips the jitter entirely (its mask fades the edge
+      // to nothing — invisible effort); its amplitude already scales with
+      // t and dies on the negative-hardness side (see the helper's own
+      // comment for the amplitude discipline).
+      const morphed=automorphRing(iconLocal, hx, hy, roomPx, AUTOMORPH_PCT/100);
+      const inked=(AUTOMORPH_STYLE==="nebula") ? morphed
+        : automorphRingJitter(morphed, hx, hy, AUTOMORPH_PCT/100, AUTOMORPH_HARDNESS);
+      const ring=applyHardness(inked, AUTOMORPH_HARDNESS, hardCapPx);
       const d=ringPathD(ring, AUTOMORPH_HARDNESS);
       const on=l.isMotion ? motionActive(l) : (l.isLock ? l.state==="locked" : l.state==="on");
       // Neutral, colourless shading (Garry, 2026-09-07: "all these colors
@@ -2369,12 +2497,42 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // follow the grey shaded type visual you used before"). No per-room
       // or per-fixture hue — "on" reads as brighter, never as a different
       // colour, so this stays quiet next to the room borders' own colour
-      // instead of competing with them. `psgloss` is the SAME white-to-
-      // black diagonal gradient every marker and room sheen already uses
-      // ("one light source, upper-left, for the whole drawing") — reused
-      // verbatim here rather than inventing a second shading language.
-      const base=on?"#94a3b8":"#475569";
+      // instead of competing with them. The sheen ramp is psglossauto —
+      // the SAME white-to-black diagonal psgloss gives every marker and
+      // room ("one light source, upper-left, for the whole drawing"), but
+      // defined once per floor in user space across the slab's own bbox,
+      // so every differently-proportioned cell is lit from the one sun
+      // instead of each stretching its own copy of the ramp — see the
+      // gradient's own comment at its per-floor def.
+      const base=on?AUTOMORPH_BASE_ON:AUTOMORPH_BASE_OFF;
       const t=AUTOMORPH_PCT/100;
+      // COLOUR OWNERSHIP — two features pull the fill attribute in
+      // opposite directions, reconciled by splitting the channels:
+      //  - the two SHARED duotone radialGradients (psautomorphduo_on/off —
+      //    exactly two defs however many fixtures are on screen) own every
+      //    fill INTERIOR: lighter at the centre fading to the state's base
+      //    tone at the rim, the distance-from-the-light depth cue a flat
+      //    fill can never give. Shared defs cannot carry a per-fixture
+      //    offset by construction — expected and correct.
+      //  - the per-fixture WEIGHT offset therefore expresses only through
+      //    the flat-colour INK: automorphFixtureWeight (0.25-2.5, 1 with
+      //    no recorded manual size) maps to a deterministic ±7% lightness
+      //    band — edgeCore's stroke here, blueprint's linework and nodes,
+      //    and, because nebula has no ink at all, a narrow fill-opacity
+      //    delta (±0.028 ceiling) on its single wash. A bigger manually-
+      //    sized fixture reads very slightly more present, a small one
+      //    recedes. The band sits far inside the on/off gap (the darkest
+      //    on-ink stays well lighter than the lightest off-ink), so state
+      //    stays unambiguous, and weight 1 gives exactly today's ink
+      //    (lighten() returns the hex untouched at 0), so two default-
+      //    weight neighbours — the common case — stay essentially
+      //    identical apart from edge and gap. Deterministic from the
+      //    entry the call already receives — same no-Math.random()
+      //    discipline as the cell wobble, no new seed scheme.
+      const weightOffPct=Math.max(-7, Math.min(7,
+        (automorphFixtureWeight(entry&&entry.width_cm, entry&&entry.height_cm)-1)*6));
+      const ink=lighten(base, weightOffPct);
+      const duo=`url(#psautomorphduo_${on?"on":"off"})`;
       // Subtlety scales every opacity and stroke-width computed below —
       // one multiplier applied at the point of use, rather than threading
       // it through each style's own formula, so a future 4th style gets it
@@ -2404,11 +2562,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const dashOp=opac(0.35+0.45*t);
         let nodes="";
         for(const [px,py] of ring) nodes+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="1.6" `+
-          `fill="${base}" fill-opacity="${dashOp}" pointer-events="none"/>`;
+          `fill="${ink}" fill-opacity="${dashOp}" pointer-events="none"/>`;
         // All crisp linework, no blur anywhere — the whole style rides in
-        // the edge tier so it sits above every other fixture's wash.
+        // the edge tier so it sits above every other fixture's wash. Flat
+        // INK throughout (dashes and nodes both), so this style carries
+        // the per-fixture weight offset in its only channel; no fill
+        // interior exists here for the duotone to own.
         return {glow:"", edge: clipWrap(
-          `<path d="${d}" fill="none" stroke="${base}" stroke-opacity="${dashOp}" stroke-width="${swid(1.1)}" `+
+          `<path d="${d}" fill="none" stroke="${ink}" stroke-opacity="${dashOp}" stroke-width="${swid(1.1)}" `+
           `stroke-dasharray="4,3" stroke-linejoin="round" pointer-events="none"/>`+nodes)};
       }
       if(AUTOMORPH_STYLE==="nebula"){
@@ -2423,9 +2584,15 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // wash already draws through psautomorphmask, so adding the
         // masked bloom would run the same fill through the same mask
         // twice. A lit orb simply glows heavier than an inert one —
-        // state read as intensity, not as a swapped grey alone.
+        // state read as intensity, not as a swapped grey alone. The fill
+        // is the shared duotone (interior depth cue, like every other fill
+        // interior); with no ink channel at all in this style, the
+        // per-fixture weight offset rides a narrow fill-opacity delta
+        // instead (±0.028 at the weight clamps — a nudge in presence,
+        // nowhere near the ~0.09 on/off intensity split, so state stays
+        // unambiguous).
         return {glow: clipWrap(
-          `<path d="${d}" fill="${base}" fill-opacity="${opac((on?0.26:0.17)+0.45*t)}" `+
+          `<path d="${d}" fill="${duo}" fill-opacity="${opac((on?0.26:0.17)+0.45*t+weightOffPct*0.004)}" `+
           `stroke="none" mask="url(#psautomorphmask)" pointer-events="none"/>`), edge:""};
       }
       // "glow" (default): a material stack, every layer the SAME path `d`
@@ -2461,22 +2628,22 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       //     next to the room's hue" into grey OVER the hue. Rebalanced
       //     so the combined fill weight stays under roughly half the
       //     room's own at t=1/subtlety 0 — the thin edge, not the
-      //     fills, is what signals "distinct shape". The bloom (lit
+      //     fills, is what signals "distinct shape". Both fill through
+      //     the shared duotone (see the colour-ownership comment above):
+      //     lighter at the centre, base tone at the rim. The bloom (lit
       //     fixtures only) reuses nebula's shared psautomorphmask to
       //     fade its fill toward the ring's edge: light welling up from
       //     inside, the one cue a re-tinted flat fill can never give.
       //   edgeCore / edgeRim — one flat stroke all the way around was
       //     the "flat sticker" tell: it outlines the silhouette without
       //     saying which way the surface turns. edgeCore keeps the flat
-      //     role, dialed back for headroom; edgeRim strokes the same
-      //     `d` with url(#psgloss) — objectBoundingBox, so the shared
-      //     ramp lands bright on the upper-left arc and dark on the
-      //     lower-right of ANY polygon for free — a lit bevel with zero
-      //     new defs and zero new geometry. (psgloss's def is still
-      //     Showcase-gated, so rim and gloss stay invisible on the
-      //     working map for now — pre-existing for gloss; the planned
-      //     ungated psglossauto swap should repoint BOTH and cure them
-      //     in one move.)
+      //     role (in the per-fixture INK, the weight offset's channel),
+      //     dialed back for headroom; edgeRim strokes the same `d` with
+      //     the floor's psglossauto ramp, landing bright on the
+      //     upper-left arc and dark on the lower-right — a lit bevel
+      //     with one def per floor and zero new geometry, and because
+      //     the ramp is user-space across the whole slab, every cell's
+      //     bright arc agrees on where the sun is.
       //
       // ON vs OFF is a MATERIAL split, not a hex swap: lit gets the
       // bloom plus a slightly heavier wash/gloss/rim; off gets no bloom,
@@ -2493,17 +2660,17 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         `<path d="${d}" fill="#020617" fill-opacity="${opac(0.16)}" stroke="none" pointer-events="none"/></g>`;
       const ao=`<path d="${d}" fill="none" stroke="#020617" stroke-opacity="${opac(on?0.10:0.18)}" `+
         `stroke-width="${swid(3.5)}" pointer-events="none"/>`;
-      const wash=`<path d="${d}" fill="${base}" fill-opacity="${opac((on?0.08:0.05)+0.14*t)}" `+
+      const wash=`<path d="${d}" fill="${duo}" fill-opacity="${opac((on?0.08:0.05)+0.14*t)}" `+
         `stroke="none" pointer-events="none"/>`;
-      const bloom=on ? `<path d="${d}" fill="${base}" fill-opacity="${opac(0.10+0.12*t)}" `+
+      const bloom=on ? `<path d="${d}" fill="${duo}" fill-opacity="${opac(0.10+0.12*t)}" `+
         `stroke="none" mask="url(#psautomorphmask)" pointer-events="none"/>` : "";
-      const edgeCore=`<path d="${d}" fill="${base}" fill-opacity="${opac(0.04+0.1*t)}" `+
-        `stroke="${base}" stroke-opacity="${opac(0.28+0.32*t)}" stroke-width="${swid(1.3)}" `+
+      const edgeCore=`<path d="${d}" fill="${duo}" fill-opacity="${opac(0.04+0.1*t)}" `+
+        `stroke="${ink}" stroke-opacity="${opac(0.28+0.32*t)}" stroke-width="${swid(1.3)}" `+
         `stroke-linejoin="round" pointer-events="none"/>`;
-      const edgeRim=`<path d="${d}" fill="none" stroke="url(#psgloss)" `+
+      const edgeRim=`<path d="${d}" fill="none" stroke="url(#${glossAutoId})" `+
         `stroke-opacity="${opac(on?0.55:0.35)}" stroke-width="${swid(0.9)}" `+
         `stroke-linejoin="round" pointer-events="none"/>`;
-      const gloss=`<path d="${d}" fill="url(#psgloss)" fill-opacity="${opac((on?0.20:0.13)+0.16*t)}" `+
+      const gloss=`<path d="${d}" fill="url(#${glossAutoId})" fill-opacity="${opac((on?0.20:0.13)+0.16*t)}" `+
         `stroke="none" pointer-events="none"/>`;
       // ALL the soft layers share ONE blur: the filter sits on the outer
       // group, so the renderer blurs a single composited raster instead
