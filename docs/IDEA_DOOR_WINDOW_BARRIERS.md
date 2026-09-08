@@ -99,6 +99,14 @@ earlier ones, not the reverse.
      `attenuation_dbm` changes when the linked entity's mocked HA state
      flips open/closed, and that an unlinked or non-metal door leaves
      `attenuation_dbm` exactly as authored.
+   - **Debounce the flip** (lesson from the prior-art research below):
+     require the linked sensor's new state to hold across 2 consecutive
+     polls before applying the attenuation override, rather than trusting
+     the very first reading. Cheap, and guards against a flapping/bouncing
+     door sensor making the solver jitter right at a transition — both
+     alternative approaches researched below avoid trusting a single
+     instant reading blindly, in their own different ways; this is the
+     equivalent guard that costs almost nothing to add here.
 
 5. **Draw the open/closed state — Mapping → Lights first, since that is
    the stated point of the feature; Overview second.** For a barrier entry
@@ -188,6 +196,26 @@ that can't tell a closed steel door from an open wooden one (geodesic
 models). There is no prior art to borrow the hard parts from, but also
 nothing indicating the idea itself is wrong — just genuinely new ground
 for this class of tool.
+
+**Lessons actually worth taking from the comparison:**
+- **The speed advantage is real, not just claimed.** PadSpan's
+  `presence_coordinator.py` already polls roughly every 5s; BPS's
+  statistical correction re-solves every 15 minutes. Confirmed, not
+  assumed — this plan's live per-poll reactivity is a genuine, checkable
+  advantage over the closest comparable tool, not a hand-wave.
+- **Added to step 4 above**: a 2-poll debounce on the sensor flip before
+  applying the attenuation override. Both alternatives avoid trusting a
+  single instant reading blindly (BPS by smoothing over a rolling window,
+  the NLOS/obstruction-aware research by modeling uncertainty rather than
+  a hard number) — this is the cheap equivalent guard for this design.
+- **A real gap this feature does NOT address, worth naming rather than
+  silently leaving out**: an un-instrumented doorway (no sensor
+  configured) gets no correction at all, same as today. The geodesic
+  path-loss approach is the natural way to close that gap generally —
+  but it is a materially different, floorplan-geometry-wide technique,
+  not a small addition to this plan. Worth a one-line forward-pointer
+  only: a genuinely good separate future idea if better accuracy near
+  UN-instrumented doorways ever matters, not in scope here.
 
 ## Design decisions (resolved) — reference only
 
