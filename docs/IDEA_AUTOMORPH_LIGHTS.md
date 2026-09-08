@@ -23,18 +23,28 @@ Captured verbatim-in-spirit before implementation, in priority order:
    tuple into a new positional param — it already has 7 elements and a
    naive 6th formal would silently receive the clip id.
 
-2. **Non-overlapping per-room partition.** "You have not built in a
-   complex and attractive non overlap of devices visually... a complex but
-   critical element of this feature." Multiple fixtures in one room must
-   DIVIDE the room's space between them (Voronoi-style zones of
-   influence), not all grow toward the same whole-room outline and stack.
-   Research in flight (grid nearest-fixture ownership + marching-squares
-   boundary extraction, mirroring the shipped isolux infrastructure, is
-   the leading candidate — handles concave rooms for free via the existing
-   `pointInRoom`, degrades to today's whole-room behaviour at 1 fixture).
-   Each fixture's extracted cell ring simply replaces the current shared
-   `offsetPolygonInward(room.pts, ...)` target in `automorphRing` — the
-   hardness slider and style dropdown then compose unchanged.
+2. **Non-overlapping per-room partition. SHIPPED 2026-09-07.** "You have
+   not built in a complex and attractive non overlap of devices
+   visually... a complex but critical element of this feature." Multiple
+   fixtures in one room now DIVIDE the room's space between them instead
+   of all growing toward the same whole-room outline and stacking.
+   Implemented as designed: `buildRoomFixtureCells` (iso_lights.js) runs a
+   masked approximate-geodesic flood (8-connected Dijkstra, gated through
+   `pointInPolygon` so a concave/L-shaped room is handled correctly — a
+   source in one arm cannot shortcut through the missing corner into the
+   other) from EVERY fixture sharing a room, then per fixture takes
+   min-over-others minus its own distance as a scalar field and runs the
+   same marching-squares cell-case table isolux already uses to trace its
+   zero-crossing — a NEW `stitchSegmentsToRing` chains those disconnected
+   segments into one closed polygon (isolux itself never needed this; a
+   stroked contour draws fine disjoint, a filled cell does not). Out-of-
+   room cells get a large negative sentinel in every fixture's field, so
+   the room's own wall is traced as part of the cell boundary for free —
+   no separate polygon-clip pass. Each fixture's cell replaces the shared
+   `room.pts` target in `automorphAuraSvg` when one resolved; falls back
+   to the original full-room target otherwise (an edge case the geometry
+   couldn't resolve), so nothing regresses to "no aura at all". Also
+   subsumes #5 below — see there for the reach-cap mechanism.
 
 3. **Manual shapes stay the guide.** "The existing manual shapes are
    still meant to be a guide for the overall look, don't throw that info
@@ -42,32 +52,44 @@ Captured verbatim-in-spirit before implementation, in priority order:
    manual shapes in place." The per-fixture manual work
    (width_cm/height_cm/rotation/shape kind) must keep shaping the result:
    (a) the morph's icon endpoint should use the fixture's REAL manual
-   size/rotation, not the default HEX_R footprint V1 simplified to;
+   size/rotation, not the default HEX_R footprint V1 simplified to —
+   STILL OPEN;
    (b) manual size should WEIGHT the partition (a bigger manual shape
-   claims a bigger cell — weighted/power-diagram flavour of #2);
+   claims a bigger cell — weighted/power-diagram flavour of #2). SHIPPED
+   2026-09-07 alongside #2: `automorphFixtureWeight(width_cm, height_cm)`
+   returns 1 for a fixture with no recorded size, otherwise its footprint
+   diagonal relative to a 0.5m baseline, clamped to [0.25, 2.5] — divides
+   into each fixture's distance field (bigger footprint reaches farther
+   per unit of geodesic distance) and multiplies its own reach cap (see
+   #5) directly;
    (c) a third slider ("manual influence", 0-100%) controlling how much
    the morphed form retains the manual shape's character (aspect,
-   orientation, proportions) versus fully conforming to its cell.
+   orientation, proportions) versus fully conforming to its cell — STILL
+   OPEN, and blocked on (a): there is no real manual shape signal feeding
+   the morph's start point yet for this slider to blend away from.
 
 4. Overall bar, Garry's own words: "You are a long way off replacing the
    manually made lighting visuals with this morph visual" — the goal is
    for Automorph to genuinely stand in for the hand-made look, not just
    decorate it.
 
-5. **Common sense on size, even with only one fixture in a room.** "If the
-   existing manual shape is something very small in the corner, don't make
-   the morph take up the majority of the room." This applies even in the
-   N=1 case, which V1's "grow to the whole room" behaviour and the
-   room-alignment slider's own 100% endpoint both violate today by design.
-   Resolution: unify with #2/#3 rather than special-case N=1 — a lone
-   fixture's "cell" is still a weighted competition, just against the
-   room's own boundary/interior as an implicit competitor, so a small
-   manual footprint naturally yields a small cell and a large one can
-   still legitimately claim most or all of the room. Concretely: weight
-   the distance field by the fixture's manual footprint size (already
-   planned for partitioning multiple fixtures — "free, no separate
-   algorithm" per the research) and apply that SAME weighting when N=1,
-   rather than gating the whole-room target on a fixture count.
+5. **Common sense on size, even with only one fixture in a room. SHIPPED
+   2026-09-07.** "If the existing manual shape is something very small in
+   the corner, don't make the morph take up the majority of the room."
+   Unified with #2/#3 exactly as planned — no special-cased N=1 branch
+   exists in `buildRoomFixtureCells`. Every fixture's cell membership test
+   is `distance/weight + wobble <= maxReach`, where `maxReach` is that
+   fixture's own farthest ROOM VERTEX distance (not a fixed fraction of
+   room size — a corner-placed fixture is farther from the opposite corner
+   than any room-wide constant accounts for) times 1.5 times its weight.
+   With no competing fixture, min-over-others is +Infinity, so the reach
+   cap ALONE decides the cell — a lone default-weight (1) fixture still
+   comfortably covers the whole room (unchanged from V1's original
+   behaviour for the common case, since maxReach*1 always exceeds every
+   in-room distance for a convex room), while a lone SMALL manual footprint
+   (weight < 1) shrinks the same cap proportionally, giving exactly the
+   "common sense" sizing asked for. Verified by
+   `test_partition_single_tiny_fixture_stays_small_even_alone_in_its_room`.
 
 6. **Additional, separately requested and already shipped this pass while
    researching #2/#3:** a fourth control, "subtlety" (0-100, `lights_

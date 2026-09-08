@@ -328,6 +328,237 @@ export function ringPathD(ring, hardness){
   return d+"Z";
 }
 
+// ── Automorph non-overlap partitioning (Garry, 2026-09-07): "you have not
+// built in a complex and attractive non overlap of devices visually into the
+// morph... give a thorough rethink to complete the logic of this feature".
+// Before this, every fixture in a room morphed toward the SAME target — the
+// room's own full inset shape — so two lights sharing a room piled their
+// auras on top of each other instead of dividing the space. Each fixture now
+// gets its OWN cell within the room: the set of points closest to it among
+// every fixture sharing that room, found with a masked approximate-geodesic
+// flood (8-connected Dijkstra that only steps through room-interior cells) —
+// masking is what makes this correct on a concave (L-shaped) room, where a
+// straight-line Voronoi split would cut clean through a wall into the other
+// arm. A real Voronoi diagram (Fortune's algorithm) plus polygon clipping was
+// the other option researched for this; rejected because it is concavity-
+// blind (needs a separate, fragile clip pass to fix that up after the fact)
+// and because per-fixture SIZE weighting — the next paragraph — folds into a
+// distance-grid field for free but has no clean equivalent in exact-geometry
+// Voronoi without moving to power diagrams.
+//
+// Each fixture also carries a WEIGHT and a REACH CAP derived from its own
+// manual footprint (automorphFixtureWeight — 1 when no width_cm/height_cm is
+// recorded). The cap alone, not a hand-written N===1 branch, is what gives
+// "common sense" sizing when a fixture happens to be the ONLY one in its
+// room (Garry: "if the existing manual shape is something very small in the
+// corner, don't make the morph take up the majority of the room" — with no
+// other fixture to compete against, min-over-others is +Infinity and the cap
+// is the only thing left deciding membership, so a lone tiny fixture still
+// gets a small cell). Cells are also given a small deterministic wobble
+// (seeded from the fixture's own position — never Math.random(): the fabric
+// alone must reproduce a render) so a bisector between two ordinary fixtures
+// reads as a soft organic curve rather than a ruler-straight cut.
+const AUTOMORPH_BASELINE_DIAG_M = 0.5;
+export function automorphFixtureWeight(wCm, hCm){
+  const wM=(Number(wCm)||0)/100, hM=(Number(hCm)||0)/100;
+  if(!(wM>0) && !(hM>0)) return 1;
+  const diag=Math.hypot(wM, hM);
+  return Math.max(0.25, Math.min(2.5, diag/AUTOMORPH_BASELINE_DIAG_M));
+}
+
+// Small binary min-heap: Dijkstra needs a priority queue and nothing in this
+// file already provides one (no build step here to reach for a package).
+function _heapPush(heap, item){
+  heap.push(item);
+  let i=heap.length-1;
+  while(i>0){
+    const p=(i-1)>>1;
+    if(heap[p][0]<=heap[i][0]) break;
+    [heap[p],heap[i]]=[heap[i],heap[p]]; i=p;
+  }
+}
+function _heapPop(heap){
+  const top=heap[0], last=heap.pop();
+  if(heap.length){
+    heap[0]=last;
+    let i=0;
+    for(;;){
+      const l=i*2+1, r=i*2+2; let s=i;
+      if(l<heap.length && heap[l][0]<heap[s][0]) s=l;
+      if(r<heap.length && heap[r][0]<heap[s][0]) s=r;
+      if(s===i) break;
+      [heap[s],heap[i]]=[heap[i],heap[s]]; i=s;
+    }
+  }
+  return top;
+}
+
+// Single-source approximate geodesic distance over a masked grid — the
+// "masked" half of "masked flood": a cell outside the room mask is never
+// expanded THROUGH, so a source in one arm of an L-shaped room cannot
+// shortcut across the missing corner into the other arm. 8-connected with a
+// √2 diagonal cost so the field is isotropic rather than city-block.
+function _floodFrom(sx, sy, nx, ny, step, mask){
+  const dist=new Float64Array(nx*ny).fill(Infinity);
+  const si=Math.round(sx), sj=Math.round(sy);
+  if(si<0||si>=nx||sj<0||sj>=ny||!mask[sj*nx+si]) return dist;
+  dist[sj*nx+si]=0;
+  const heap=[[0, si, sj]];
+  const NB=[[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,Math.SQRT2],[1,-1,Math.SQRT2],[-1,1,Math.SQRT2],[-1,-1,Math.SQRT2]];
+  while(heap.length){
+    const [d,i,j]=_heapPop(heap);
+    if(d>dist[j*nx+i]) continue;
+    for(const [di,dj,cost] of NB){
+      const ni=i+di, nj=j+dj;
+      if(ni<0||ni>=nx||nj<0||nj>=ny||!mask[nj*nx+ni]) continue;
+      const nd=d+cost*step;
+      if(nd<dist[nj*nx+ni]){ dist[nj*nx+ni]=nd; _heapPush(heap,[nd,ni,nj]); }
+    }
+  }
+  return dist;
+}
+
+// Chains marching-squares' disconnected [x1,y1,x2,y2] segments into a closed
+// ring by matching shared endpoints. Isolux (see buildIsoSVG's own ISOLUX
+// block) never needed this — a stroked contour draws fine as disjoint
+// segments — but a FILLED cell polygon does. Endpoints are rounded before
+// keying so the same crossing point, computed independently from each of its
+// two adjacent cells, still matches despite float drift. Returns every ring
+// found, largest-area first: a cell only rarely splits into more than one
+// piece (a fixture pinched off from part of its own region by neighbours on
+// both sides in a narrow room), and the fixture itself always sits inside
+// the largest one.
+export function stitchSegmentsToRing(segments){
+  if(!segments || !segments.length) return [];
+  const key=(x,y)=>`${Math.round(x*64)},${Math.round(y*64)}`;
+  const adj=new Map();
+  const pointOf=new Map();
+  for(const [x1,y1,x2,y2] of segments){
+    const ka=key(x1,y1), kb=key(x2,y2);
+    if(ka===kb) continue;
+    if(!adj.has(ka)) adj.set(ka, []);
+    if(!adj.has(kb)) adj.set(kb, []);
+    adj.get(ka).push(kb); adj.get(kb).push(ka);
+    pointOf.set(ka,[x1,y1]); pointOf.set(kb,[x2,y2]);
+  }
+  const visited=new Set();
+  const rings=[];
+  for(const start of adj.keys()){
+    if(visited.has(start)) continue;
+    const ring=[]; let prev=null, cur=start;
+    while(cur && !visited.has(cur)){
+      visited.add(cur); ring.push(pointOf.get(cur));
+      const nbrs=adj.get(cur)||[];
+      const next=nbrs.find(k=>k!==prev && !visited.has(k));
+      prev=cur; cur=next||null;
+    }
+    if(ring.length>=3) rings.push(ring);
+  }
+  rings.sort((a,b)=>Math.abs(_polySignedArea(b))-Math.abs(_polySignedArea(a)));
+  return rings;
+}
+
+// Builds every fixture's own non-overlapping cell within one room, in the
+// ROOM'S OWN metre space (the same space room.pts already lives in) —
+// callers project to pixels the same way offsetPolygonInward's output
+// already is, via iso(). `fixtures` is [{id,x,y,weight}], weight from
+// automorphFixtureWeight. Returns a Map id -> ring ([x,y] metres, closed,
+// room-local) for every fixture whose cell resolved to a real polygon; a
+// fixture ABSENT from the result (a pathological room, or a cell squeezed to
+// nothing by its neighbours) is the caller's cue to fall back to today's
+// full-room shape for that one fixture rather than draw nothing.
+export function buildRoomFixtureCells(roomPts, fixtures){
+  const cells=new Map();
+  if(!roomPts || roomPts.length<3 || !fixtures || !fixtures.length) return cells;
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  for(const [x,y] of roomPts){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+  const dimM=Math.max(x1-x0, y1-y0, 0.5);
+  const step=Math.max(0.05, dimM/48);
+  const pad=step*2;
+  const nx=Math.max(3, Math.ceil((x1-x0+2*pad)/step)+1);
+  const ny=Math.max(3, Math.ceil((y1-y0+2*pad)/step)+1);
+  const gx=(i)=>x0-pad+i*step, gy=(j)=>y0-pad+j*step;
+  const mask=new Uint8Array(nx*ny);
+  for(let j=0;j<ny;j++) for(let i=0;i<nx;i++) mask[j*nx+i]=pointInPolygon(roomPts, gx(i), gy(j)) ? 1 : 0;
+
+  const fields=fixtures.map((f,idx)=>{
+    const fi=(f.x-gx(0))/step, fj=(f.y-gy(0))/step;
+    const dist=_floodFrom(fi, fj, nx, ny, step, mask);
+    const w=Math.max(0.1, f.weight||1);
+    // The cap is relative to THIS fixture's own worst-case distance across
+    // the room — the farthest ROOM VERTEX from its position — not a fixed
+    // fraction of the room's half-min-dimension. A fixture off in a corner
+    // is farther from the opposite corner than roomHalfMinDim ever accounts
+    // for; anchoring the cap there instead means weight=1 (no recorded
+    // manual size) reliably still covers the WHOLE room from anywhere
+    // inside it — today's original v1 behaviour for the common case — while
+    // a smaller weight shrinks the very same cap proportionally, which is
+    // what actually produces "common sense" sizing for a lone tiny fixture.
+    // The farthest point of a convex room from any interior point is always
+    // one of its own vertices; the ×1.5 buffer covers ordinary concave
+    // (L-shaped) rooms too, where a masked geodesic path can run a little
+    // longer than the straight-line distance this is measured with.
+    let maxVertexDist=0;
+    for(const [px,py] of roomPts) maxVertexDist=Math.max(maxVertexDist, Math.hypot(px-f.x, py-f.y));
+    const maxReach=Math.max(0.5, maxVertexDist*1.5)*w;
+    const seed=f.x*37.1+f.y*91.7+idx*13.37;
+    const amp=step*1.6;
+    return {
+      id:f.id, maxReach,
+      weighted:(i,j)=>{
+        const d=dist[j*nx+i];
+        if(!isFinite(d)) return Infinity;
+        const wob=amp*Math.sin(seed+gx(i)*2.3+gy(j)*1.7);
+        return d/w + wob;
+      },
+    };
+  });
+
+  const lerpAt=(ax,ay,fa,bx,by,fb)=>{
+    const t=(0-fa)/((fb-fa)||1e-9);
+    return [ax+(bx-ax)*t, ay+(by-ay)*t];
+  };
+  const segsById=new Map(fixtures.map(f=>[f.id,[]]));
+  for(const me of fields){
+    const F=new Float64Array(nx*ny);
+    for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){
+      const idx2=j*nx+i;
+      if(!mask[idx2]){ F[idx2]=-1e9; continue; }
+      const myD=me.weighted(i,j);
+      if(!(myD<=me.maxReach)){ F[idx2]=-1e9; continue; }
+      let best=Infinity;
+      for(const other of fields){
+        if(other===me) continue;
+        const od=other.weighted(i,j);
+        if(od<best) best=od;
+      }
+      F[idx2]=(best===Infinity ? me.maxReach*2 : best) - myD;
+    }
+    // Marching squares at threshold 0 — the exact cell-case table isolux
+    // uses, over this fixture's own field, in room-local metres.
+    const segs=segsById.get(me.id);
+    for(let j=0;j<ny-1;j++) for(let i=0;i<nx-1;i++){
+      const e00=F[j*nx+i], e10=F[j*nx+i+1], e01=F[(j+1)*nx+i], e11=F[(j+1)*nx+i+1];
+      const c=(e00>0?1:0)|(e10>0?2:0)|(e11>0?4:0)|(e01>0?8:0);
+      if(c===0||c===15) continue;
+      const gx0=gx(i), gx1=gx(i+1), gy0=gy(j), gy1=gy(j+1);
+      const T=()=>lerpAt(gx0,gy0,e00,gx1,gy0,e10), R=()=>lerpAt(gx1,gy0,e10,gx1,gy1,e11);
+      const B=()=>lerpAt(gx0,gy1,e01,gx1,gy1,e11), L=()=>lerpAt(gx0,gy0,e00,gx0,gy1,e01);
+      const cellSegs={1:[[L,T]],2:[[T,R]],3:[[L,R]],4:[[R,B]],5:[[L,T],[R,B]],6:[[T,B]],7:[[L,B]],
+                  8:[[B,L]],9:[[T,B]],10:[[T,R],[B,L]],11:[[R,B]],12:[[L,R]],13:[[T,R]],14:[[L,T]]}[c];
+      for(const [f1,f2] of cellSegs){
+        const p1=f1(), p2=f2();
+        segs.push([p1[0],p1[1],p2[0],p2[1]]);
+      }
+    }
+  }
+  for(const [id,segs] of segsById){
+    const rings=stitchSegmentsToRing(segs);
+    if(rings.length) cells.set(id, rings[0]);
+  }
+  return cells;
+}
+
 export function shapeSvg(kind, cx, cy, r, attrs){
   const poly=(pts)=>`<polygon points="${pts}" ${attrs}/>`;
   // Every shape stays within the hexagon's own width (r*√3 ≈ 1.73r), because
@@ -1514,6 +1745,29 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       }
     }
 
+    // Automorph non-overlap partitioning: one pass per floor, before any
+    // fixture is drawn, grouping this floor's placed lights by the room
+    // their POSITION falls in (same ray-cast the FIT block above already
+    // uses) and handing each room's group to buildRoomFixtureCells once.
+    // room -> Map(eid -> cell ring, room-local metres). A perimeter light
+    // draws its own trace (perimeterSvg), never an aura, so it never enters
+    // this grouping or competes for room space against fixtures that do.
+    const roomFixtureCells=new Map();
+    if(AUTOMORPH_PCT>0){
+      const byRoomFixtures=new Map();
+      for(const pl of hereLights){
+        if(hiddenEids.has(pl.eid)) continue;
+        const l=lightsByEid[pl.eid];
+        if(!l || l.shape==="perimeter") continue;
+        const r=hereRooms.find(rr=>pointInRoom(rr.pts, pl.x, pl.y));
+        if(!r || r.pts.length<3) continue;
+        const weight=automorphFixtureWeight(pl.lp&&pl.lp.width_cm, pl.lp&&pl.lp.height_cm);
+        if(!byRoomFixtures.has(r)) byRoomFixtures.set(r, []);
+        byRoomFixtures.get(r).push({id:pl.eid, x:pl.x, y:pl.y, weight});
+      }
+      for(const [r,fixtures] of byRoomFixtures) roomFixtureCells.set(r, buildRoomFixtureCells(r.pts, fixtures));
+    }
+
     // Every slab is the SAME SIZE, centred on the floor it belongs to.
     // Sizing each slab to its own contents made the stack look like the floors
     // were drawn at different scales — this basement legitimately reaches
@@ -1839,19 +2093,29 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       return s2;
     };
 
-    // Automorph's v1 rendering (Garry, 2026-09-07): a soft, fixture-coloured
-    // aura drawn BEHIND the ordinary icon, growing from a tight outline at
-    // the fixture toward its own room's inset shape as AUTOMORPH_PCT rises.
+    // Automorph's rendering (Garry, 2026-09-07): a soft, neutral-grey aura
+    // drawn BEHIND the ordinary icon, growing from a tight outline at the
+    // fixture toward a target shape as AUTOMORPH_PCT rises. That target is
+    // this fixture's own NON-OVERLAPPING CELL (cellPtsM, room-local metres,
+    // from buildRoomFixtureCells) when one was computed for it — every
+    // fixture sharing a room morphs toward its own share of the room instead
+    // of every fixture piling onto the same full-room shape. Falls back to
+    // the room's own full inset (today's original v1 target) when no cell
+    // exists for this fixture — a room with only one OTHER fixture placed via
+    // an area assignment rather than a real position, or any other case the
+    // partition couldn't resolve — so a fixture never silently loses its aura
+    // over an edge case in the newer geometry.
     // Deliberately does NOT touch markerSvg's own output — that function
     // already carries a lot of interdependent state (health dot, hit-test
     // rect, code chip placement, rotation) a first pass shouldn't risk
     // breaking. This is the smaller, reviewable step: the real morph maths
     // (automorphRing) proven and shipped, with "replace the icon's own
     // outline" left as a deliberate follow-up once this reads well live.
-    const automorphAuraSvg=(l,hx,hy,room,z)=>{
+    const automorphAuraSvg=(l,hx,hy,room,z,cellPtsM)=>{
       if(!(AUTOMORPH_PCT>0) || !room || room.pts.length<3) return "";
-      const marginM=Math.max(0, Math.min(defaultPerimeterMarginM(frame), roomHalfMinDim(room.pts)*0.85));
-      const roomPx=offsetPolygonInward(room.pts, marginM).map(p=>iso(p[0],p[1],z));
+      const targetPts=(cellPtsM && cellPtsM.length>=3) ? cellPtsM : room.pts;
+      const marginM=Math.max(0, Math.min(defaultPerimeterMarginM(frame), roomHalfMinDim(targetPts)*0.85));
+      const roomPx=offsetPolygonInward(targetPts, marginM).map(p=>iso(p[0],p[1],z));
       const ring=applyHardness(
         automorphRing(iconRingLocal(l.shape, HEX_R), hx, hy, roomPx, AUTOMORPH_PCT/100),
         AUTOMORPH_HARDNESS);
@@ -2333,7 +2597,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         for(const r of hereRooms){ if(pointInRoom(r.pts, pl.x, pl.y)){ room=r; break; } }
       }
       if(l.shape==="perimeter") s+=perimeterSvg(l, room, pl.lp);
-      else if(AUTOMORPH_PCT>0) s+=automorphAuraSvg(l, hx, hy, room, z);
+      else if(AUTOMORPH_PCT>0){
+        const cellsInRoom=room && roomFixtureCells.get(room);
+        const cellPtsM=cellsInRoom && cellsInRoom.get(pl.eid);
+        s+=automorphAuraSvg(l, hx, hy, room, z, cellPtsM);
+      }
       // Whether an aura ACTUALLY painted for this fixture — the same room
       // truthiness automorphAuraSvg itself bails on. This, not the bare
       // slider value, is what may suppress the old glyph: a hallway

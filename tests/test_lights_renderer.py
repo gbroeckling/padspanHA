@@ -2323,3 +2323,129 @@ def test_automorph_subtlety_thins_opacity_and_stroke_without_ever_reaching_zero(
     assert at100["fillOpacity"] > 0, "subtlety=100 must fade, not fully hide"
     assert at100["strokeWidth"] < at0["strokeWidth"], (at0, at100)
     assert at100["strokeWidth"] > 0, "subtlety=100 must thin, not zero out, the stroke"
+
+
+# ── Automorph non-overlap partitioning (Garry, 2026-09-07: "give a thorough
+# rethink to complete the logic of this feature") ───────────────────────────
+# Before this, every fixture sharing a room grew toward the SAME full-room
+# shape and piled on top of its neighbours. buildRoomFixtureCells instead
+# gives each fixture its own region: a masked approximate-geodesic flood per
+# fixture, weighted (and reach-capped) by its own manual footprint.
+
+def test_automorph_fixture_weight_default_and_scaled(tmp_path):
+    """No recorded manual size is a typical/default fixture (weight 1); a
+    tiny footprint weighs less (a smaller reach cap later); a very long one
+    weighs more, clamped so no single fixture's footprint can blow past the
+    [0.25, 2.5] band regardless of how extreme the entered dimensions are."""
+    out = _run_js(tmp_path, (
+        "import { automorphFixtureWeight as w } from './iso_lights.mjs';\n"
+        "console.log(JSON.stringify({"
+        "unset: w(0,0), unsetNull: w(undefined,undefined), tiny: w(15,15), "
+        "long: w(300,10), extreme: w(1,1)"
+        "}));\n"
+    ))
+    assert out["unset"] == 1 and out["unsetNull"] == 1, out
+    assert 0.25 <= out["tiny"] < 1, out
+    assert out["long"] == 2.5, "a very long fixture's weight must clamp at the 2.5 ceiling"
+    assert out["extreme"] == 0.25, "a near-zero footprint's weight must clamp at the 0.25 floor"
+
+
+def test_partition_two_fixtures_get_non_overlapping_cells(tmp_path):
+    """Two ordinary (default-weight) fixtures placed on opposite sides of a
+    square room must each get a cell containing their OWN position and
+    excluding the other's, and the two cells must not substantially overlap
+    — sampled across the room's interior, only a thin sliver near the shared
+    boundary may legitimately land in both (grid-resolution ambiguity right
+    at the dividing line), never a broad swath."""
+    out = _run_js(tmp_path, (
+        "import { buildRoomFixtureCells, pointInPolygon } from './iso_lights.mjs';\n"
+        "const room=[[0,0],[10,0],[10,10],[0,10]];\n"
+        "const fixtures=[{id:'a',x:2,y:5,weight:1},{id:'b',x:8,y:5,weight:1}];\n"
+        "const cells=buildRoomFixtureCells(room, fixtures);\n"
+        "const a=cells.get('a'), b=cells.get('b');\n"
+        "const aHasOwn = a ? pointInPolygon(a, 2, 5) : false;\n"
+        "const bHasOwn = b ? pointInPolygon(b, 8, 5) : false;\n"
+        "const aHasOther = a ? pointInPolygon(a, 8, 5) : false;\n"
+        "const bHasOther = b ? pointInPolygon(b, 2, 5) : false;\n"
+        "let both=0, either=0;\n"
+        "for(let x=0.5;x<10;x+=0.5) for(let y=0.5;y<10;y+=0.5){\n"
+        "  const inA = a && pointInPolygon(a, x, y), inB = b && pointInPolygon(b, x, y);\n"
+        "  if(inA||inB) either++;\n"
+        "  if(inA&&inB) both++;\n"
+        "}\n"
+        "console.log(JSON.stringify({hasA: !!a, hasB: !!b, aHasOwn, bHasOwn, aHasOther, bHasOther, both, either}));\n"
+    ))
+    assert out["hasA"] and out["hasB"], f"both fixtures must resolve to a real cell: {out}"
+    assert out["aHasOwn"] and out["bHasOwn"], f"a fixture's own cell must contain its own position: {out}"
+    assert not out["aHasOther"] and not out["bHasOther"], (
+        f"a fixture's cell must not contain the OTHER fixture's position — that was exactly "
+        f"the pre-fix bug (every fixture grew toward the same shared target): {out}"
+    )
+    overlap_frac = out["both"] / out["either"]
+    assert overlap_frac < 0.15, f"cells overlap too broadly to be a real partition: {out}"
+
+
+def test_partition_single_tiny_fixture_stays_small_even_alone_in_its_room(tmp_path):
+    """'Common sense' sizing (Garry, 2026-09-07): a fixture with a small
+    recorded manual footprint must NOT balloon to fill most of the room just
+    because it happens to be the only fixture present — the same reach-cap
+    weighting that divides a room between several fixtures also caps a lone
+    fixture's own cell, with no special-cased N=1 branch needed."""
+    out = _run_js(tmp_path, (
+        "import { buildRoomFixtureCells, automorphFixtureWeight } from './iso_lights.mjs';\n"
+        "const room=[[0,0],[10,0],[10,10],[0,10]];\n"
+        "const area=(pts)=>{ let a=0; for(let i=0,j=pts.length-1;i<pts.length;j=i++) "
+        "a+=pts[j][0]*pts[i][1]-pts[i][0]*pts[j][1]; return Math.abs(a)/2; };\n"
+        "const tinyW=automorphFixtureWeight(15,15), defaultW=automorphFixtureWeight(0,0);\n"
+        "const tinyCell=buildRoomFixtureCells(room, [{id:'x', x:1.2, y:1.2, weight:tinyW}]).get('x');\n"
+        "const defaultCell=buildRoomFixtureCells(room, [{id:'x', x:1.2, y:1.2, weight:defaultW}]).get('x');\n"
+        "console.log(JSON.stringify({tinyArea: tinyCell?area(tinyCell):null, defaultArea: defaultCell?area(defaultCell):null, roomArea: area(room)}));\n"
+    ))
+    assert out["tinyArea"] is not None and out["defaultArea"] is not None, out
+    assert out["tinyArea"] < out["defaultArea"], (
+        f"a tiny-footprint fixture alone in a room must still get a smaller cell than a "
+        f"default-weight fixture alone in the same room: {out}"
+    )
+    assert out["defaultArea"] > out["roomArea"] * 0.5, (
+        f"a default-weight lone fixture should still comfortably fill most of its room "
+        f"(today's original v1 behaviour, unchanged for the common case): {out}"
+    )
+
+
+def test_automorph_two_fixtures_sharing_a_room_render_different_auras(tmp_path):
+    """End-to-end through the real renderer: two fixtures placed in the SAME
+    room must render two DIFFERENT aura outlines at pct=100 — before this,
+    both fixtures resampled the identical full-room boundary and produced
+    the same point set (visually, two auras stacked on each other). Uses
+    hardness=0 (plain M/L/Z, easy to parse) and the 'blueprint' style, whose
+    dashed single-path-per-fixture output (see the style-dropdown test
+    above) is unambiguous to pull two separate 'd' strings out of."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {"Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
+        "light_positions_m": {
+            "light.a": {"x_m": 1.5, "y_m": 2, "floor_id": "main"},
+            "light.b": {"x_m": 6.5, "y_m": 2, "floor_id": "main"},
+        },
+    }
+    lbe = {
+        "light.a": {"entity_id": "light.a", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None},
+        "light.b": {"entity_id": "light.b", "state": "on", "code": "A02", "shape": "circle", "isMotion": False, "last_changed": None},
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+        f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:100, automorphHardness:0, automorphStyle:'blueprint'}});\n"
+        "const ds = [...svg.matchAll(/<path d=\"([^\"]+)\" fill=\"none\" stroke=\"[^\"]+\" \"?stroke-opacity/g)].map(m=>m[1]);\n"
+        "const ds2 = [...svg.matchAll(/<path d=\"([^\"]+)\"[^>]*stroke-dasharray=\"4,3\"/g)].map(m=>m[1]);\n"
+        "console.log(JSON.stringify({count: ds2.length, d0: ds2[0]||null, d1: ds2[1]||null}));\n"
+    ))
+    assert out["count"] == 2, f"expected exactly one blueprint aura path per fixture: {out}"
+    assert out["d0"] and out["d1"] and out["d0"] != out["d1"], (
+        f"the two fixtures' aura outlines must differ — identical outlines mean the partition "
+        f"was not applied and both fell back to the same full-room shape: {out}"
+    )
