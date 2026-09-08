@@ -1269,6 +1269,146 @@ def test_perimeter_marker_hides_the_square_keeps_click_space_and_glow(tmp_path):
     assert out["poolGlows"], "the Showcase glow was lost"
 
 
+def test_perimeter_automorph_off_is_byte_identical_to_the_legacy_trace(tmp_path):
+    """Garry (2026-09-07): the room-boundary shape was left out of "the
+    whole morph thing" and looked like "a serious mismatch" once every
+    other aura got the new material treatment. perimeterAuraSvg fixes
+    that — but ONLY while the switch is up. With Automorph off (absent, or
+    pct=0) the legacy perimeterSvg call must still be the only thing that
+    draws a perimeter trace, byte-identical to a render with no automorph
+    keys at all."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_PERIM_MODEL)};\n"
+        f"const FLOORS={json.dumps(_PERIM_FLOORS)};\n"
+        f"const LBE={json.dumps(_PERIM_LBE)};\n"
+        f"const BYROOM={json.dumps(_PERIM_BYROOM)};\n"
+        "const mk=(o)=>M.buildIsoSVG(MODEL,BYROOM,new Set(),null,150,0,LBE,false,FLOORS,o);\n"
+        "console.log(JSON.stringify({\n"
+        "  bare: mk({}),\n"
+        "  off: mk({automorph:false, automorphRoomPct:80, automorphStyle:'blueprint'}),\n"
+        "  pctZero: mk({automorph:true, automorphRoomPct:0, automorphStyle:'nebula'}),\n"
+        "}));\n"
+    ))
+    assert out["off"] == out["bare"], "automorph:false must render exactly like no automorph keys at all"
+    assert out["pctZero"] == out["bare"], "pct=0 is Automorph's own rest position — must stay byte-identical too"
+
+
+def test_perimeter_automorph_on_joins_the_floor_wide_aura_tiers(tmp_path):
+    """With the slider up, a perimeter light's trace stands down from the
+    legacy call and instead rides perimeterAuraSvg into the SAME floor-wide
+    glow/edge tiers every other aura uses (see
+    test_automorph_aura_paints_under_room_labels_in_two_floor_tiers) — so it
+    gets the shared blur group, sits under labels, and never double-draws."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_PERIM_MODEL)};\n"
+        f"const FLOORS={json.dumps(_PERIM_FLOORS)};\n"
+        f"const LBE={json.dumps(_PERIM_LBE)};\n"
+        f"const BYROOM={json.dumps(_PERIM_BYROOM)};\n"
+        "const svg=M.buildIsoSVG(MODEL,BYROOM,new Set(),null,150,0,LBE,false,FLOORS,"
+        "{automorph:true, automorphRoomPct:100, automorphHardness:0, automorphStyle:'glow'});\n"
+        "console.log(JSON.stringify({\n"
+        "  legacyTrace:/<polygon data-eid=\"light\\.cove\" points=/.test(svg),\n"
+        "  auraEdge:/<path data-eid=\"light\\.cove\" d=\"M[^\"]+\" fill=\"none\" stroke=\"#94a3b8\"/.test(svg),\n"
+        "  auraGlowFirst: svg.indexOf('filter=\"url(#psaurasoft)\"'),\n"
+        "  edgeFirst: svg.indexOf('data-eid=\"light.cove\" d='),\n"
+        "  labelFirst: svg.indexOf('<g class=\"lroom\"'),\n"
+        "  unplacedAura:/<path data-eid=\"light\\.unplaced\" d=\"M[^\"]+\" fill=\"none\" stroke=\"#94a3b8\"/.test(svg),\n"
+        "}));\n"
+    ))
+    assert not out["legacyTrace"], "the legacy <polygon> trace must stand down once Automorph is on"
+    assert out["auraEdge"], "the placed perimeter light must paint through perimeterAuraSvg instead"
+    assert out["auraGlowFirst"] >= 0 and out["auraGlowFirst"] < out["labelFirst"], out
+    assert out["edgeFirst"] >= 0 and out["edgeFirst"] < out["labelFirst"], (
+        "the perimeter aura must land before the first room label, same as every other aura", out
+    )
+    assert out["unplacedAura"], "an unplaced (area-only) perimeter light must also get the Automorph treatment"
+
+
+def test_perimeter_automorph_style_dropdown_switches_the_treatment(tmp_path):
+    """The style dropdown must restyle a perimeter trace exactly the way it
+    restyles a cell aura: blueprint dashes+nodes, nebula's shared duotone
+    glow, glow's stroke-centric material stack — never a filled interior on
+    any of the three (a cove line is a line, not a cell)."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_PERIM_MODEL)};\n"
+        f"const FLOORS={json.dumps(_PERIM_FLOORS)};\n"
+        f"const LBE={json.dumps(_PERIM_LBE)};\n"
+        f"const BYROOM={json.dumps(_PERIM_BYROOM)};\n"
+        "const mk=(style)=>M.buildIsoSVG(MODEL,BYROOM,new Set(),null,150,0,LBE,false,FLOORS,"
+        "{automorph:true, automorphRoomPct:100, automorphStyle:style});\n"
+        "const glow=mk('glow'), blueprint=mk('blueprint'), nebula=mk('nebula');\n"
+        "const coveD=(svg)=>{const m=/<path data-eid=\"light\\.cove\" d=\"([^\"]+)\"/.exec(svg); return m&&m[1];};\n"
+        "console.log(JSON.stringify({\n"
+        "  glowFill:/<path data-eid=\"light\\.cove\" d=\"[^\"]+\" fill=\"(?!none)/.test(glow),\n"
+        "  blueprintDash:/<path data-eid=\"light\\.cove\" d=\"[^\"]+\" fill=\"none\" stroke=\"#94a3b8\" stroke-opacity=\"[0-9.]+\" stroke-width=\"[0-9.]+\" stroke-dasharray=\"4,3\"/.test(blueprint),\n"
+        "  blueprintNodes:(blueprint.match(/<circle cx=\"[0-9.-]+\" cy=\"[0-9.-]+\" r=\"1\\.6\" fill=\"#94a3b8\"/g)||[]).length,\n"
+        "  nebulaDuo:/<path data-eid=\"light\\.cove\" d=\"[^\"]+\" fill=\"none\" stroke=\"url\\(#psautomorphduo_on\\)\"/.test(nebula),\n"
+        "  nebulaFill:/<path data-eid=\"light\\.cove\" d=\"[^\"]+\" fill=\"(?!none)/.test(nebula),\n"
+        "  glowD: coveD(glow), blueprintD: coveD(blueprint), nebulaD: coveD(nebula),\n"
+        "}));\n"
+    ))
+    assert not out["glowFill"], "glow style must stay stroke-centric on a perimeter trace — no filled interior"
+    assert out["blueprintDash"], "blueprint must dash the perimeter trace exactly like a cell aura"
+    assert out["blueprintNodes"] >= 3, "blueprint must drop vertex nodes along the perimeter ring too"
+    assert out["nebulaDuo"], "nebula must stroke through the shared duotone, keeping the orb-language colour ownership"
+    assert not out["nebulaFill"], "nebula must not fill a boundary-hugging line — that would eat the line itself"
+    # glow and blueprint both run the hand-inked jitter step, so they morph
+    # the identical inset ring byte-for-byte; nebula deliberately SKIPS
+    # jitter (its own soft treatment makes it invisible effort — see
+    # automorphInkedRing's comment), so its ring differs from the other
+    # two's by design, not by drift.
+    assert out["glowD"] == out["blueprintD"], out
+    assert out["nebulaD"] != out["glowD"], "nebula not skipping jitter would mean the style split silently vanished"
+
+
+def test_perimeter_automorph_honours_its_own_margin_cm(tmp_path):
+    """The Automorph treatment must still respect a perimeter light's own
+    margin_cm exactly as the legacy trace does — light.zero (margin 0) sits
+    on the room's own outline, light.cove (margin 50cm) is inset well
+    inside it, through the SAME automorphInsetRing pipeline."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_PERIM_MODEL)};\n"
+        f"const FLOORS={json.dumps(_PERIM_FLOORS)};\n"
+        f"const LBE={json.dumps(_PERIM_LBE)};\n"
+        f"const BYROOM={json.dumps(_PERIM_BYROOM)};\n"
+        "const svg=M.buildIsoSVG(MODEL,BYROOM,new Set(),null,150,0,LBE,false,FLOORS,"
+        "{automorph:true, automorphRoomPct:100, automorphHardness:0, automorphStyle:'glow'});\n"
+        "const bbox=(eid)=>{\n"
+        "  const m=new RegExp('<path data-eid=\"'+eid.replace('.','\\\\.')+'\" d=\"([^\"]+)\"').exec(svg);\n"
+        "  const nums=m[1].match(/-?[0-9.]+/g).map(Number);\n"
+        "  const xs=nums.filter((_,i)=>i%2===0), ys=nums.filter((_,i)=>i%2===1);\n"
+        "  return [Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];\n"
+        "};\n"
+        "console.log(JSON.stringify({zero:bbox('light.zero'), cove:bbox('light.cove')}));\n"
+    ))
+    zx0, zy0, zx1, zy1 = out["zero"]
+    cx0, cy0, cx1, cy1 = out["cove"]
+    assert cx0 > zx0 and cy0 > zy0 and cx1 < zx1 and cy1 < zy1, (
+        "a real margin_cm must still inset the Automorph-styled trace further than a zero margin", out
+    )
+
+
+def test_perimeter_automorph_render_is_deterministic(tmp_path):
+    """Determinism is a hard invariant end to end — two renders of the same
+    perimeter+Automorph scene, same nowMs, must be byte-identical."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_PERIM_MODEL)};\n"
+        f"const FLOORS={json.dumps(_PERIM_FLOORS)};\n"
+        f"const LBE={json.dumps(_PERIM_LBE)};\n"
+        f"const BYROOM={json.dumps(_PERIM_BYROOM)};\n"
+        "const o={nowMs:1700000000000, automorph:true, automorphRoomPct:70, automorphHardness:-40, automorphStyle:'glow'};\n"
+        "const a=M.buildIsoSVG(MODEL,BYROOM,new Set(),null,150,0,LBE,false,FLOORS,o);\n"
+        "const b=M.buildIsoSVG(MODEL,BYROOM,new Set(),null,150,0,LBE,false,FLOORS,o);\n"
+        "console.log(JSON.stringify({equal:a===b}));\n"
+    ))
+    assert out["equal"], "a perimeter-plus-Automorph render must be reproducible from the fabric alone"
+
+
 def test_motion_sensor_pulses_blue_while_triggered_and_fans_do_not_pool(tmp_path):
     """Garry: "a blue pulsing glow around motion sensors when activated".
     The pulse draws in BOTH modes (it is live status, not presentation),
@@ -2671,25 +2811,36 @@ def test_chaikin_smooth_passthrough_clamp_and_determinism(tmp_path):
 
 
 def test_chaikin_is_applied_once_at_the_shared_target_choice():
-    """The smoothing has exactly ONE application point — automorphAuraSvg's
-    targetPts choice — so a resolved cell and the room.pts fallback get the
-    identical corner language. Smoothing inside buildRoomFixtureCells AND at
-    the call site would double-smooth every resolved cell while the fallback
-    got a single pass; this pins the reconciled single-site scheme, and it
-    keeps the stored cells raw so the non-overlap partition tests above
-    measure the field competition itself, not a post-process of it.
-    The densifyRing wrapper is part of the pinned shape: Chaikin's cut rides
-    its input's edge length, so 'identical corner language' only holds when
-    both target kinds enter at the same ~0.1m edge scale — without it the
-    sparse room.pts fallback got metre-scale corner rounding where a cell
-    ring got cm-scale cleanup (see the densify unit test below for the
-    measured numbers)."""
+    """The smoothing has exactly ONE application point — automorphInsetRing,
+    the shared inset stage — so a resolved cell, the room.pts fallback AND
+    the perimeter trace (which rides the same helper since the 2026-09-08
+    perimeter round) get the identical corner language. Smoothing inside
+    buildRoomFixtureCells AND at the call site would double-smooth every
+    resolved cell while the fallback got a single pass; this pins the
+    reconciled single-site scheme, and it keeps the stored cells raw so the
+    non-overlap partition tests above measure the field competition itself,
+    not a post-process of it. The densifyRing wrapper is part of the pinned
+    shape: Chaikin's cut rides its input's edge length, so 'identical corner
+    language' only holds when every target kind enters at the same ~0.1m
+    edge scale — without it a sparse traced polygon got metre-scale corner
+    rounding where a cell ring got cm-scale cleanup (see the densify unit
+    test below for the measured numbers). Deliberately updated when the
+    inset stage moved from automorphAuraSvg's targetPts line into the
+    helper: the pinned intent — one smoothing application, no consumer with
+    its own corner language — is unchanged, and both consumers' routing is
+    pinned here so neither can quietly grow a private smoothing pass."""
     src = _code_only((_VIEWS / "iso_lights.js").read_text(encoding="utf-8"))
     calls = re.findall(r"(?<!function )chaikinSmooth\(", src)
     assert len(calls) == 1, f"expected exactly one chaikinSmooth call site, found {len(calls)}"
-    assert "chaikinSmooth(densifyRing((cellPtsM && cellPtsM.length>=3) ? cellPtsM : room.pts, 0.1), 2)" in src, (
-        "the one call site must wrap the cell/room-fallback choice itself — densified "
-        "to the same ~0.1m edge scale — so both target kinds are smoothed identically"
+    assert "chaikinSmooth(densifyRing(rawPts, 0.1), 2)" in src, (
+        "the one call site must live in automorphInsetRing, densified to the same "
+        "~0.1m edge scale, so every target kind is smoothed identically"
+    )
+    assert "automorphInsetRing(hasCell?cellPtsM:room.pts," in src, (
+        "the aura must route the cell/room-fallback choice through the shared inset stage"
+    )
+    assert "automorphInsetRing(room.pts, perimeterWantM(entry))" in src, (
+        "the perimeter trace must ride the same shared inset stage at its own margin_cm"
     )
 
 
@@ -3145,16 +3296,21 @@ def test_automorph_interior_margin_is_a_larger_multiple_of_the_wall_margin():
     margin between neighbours read as tiles laid nearly edge-to-edge. The
     interior case gets a distinctly larger multiple (1.6x) of the same
     frame-scaled base; the room-outline fallback keeps 1x; the
-    roomHalfMinDim clamp stays outside the multiplier so a tight cell can
-    never be inset past its own middle. Pinned structurally, the same way
-    the single chaikinSmooth call site is."""
+    roomHalfMinDim clamp (now inside the shared automorphInsetRing helper,
+    so the perimeter trace gets it for free too) stays outside the
+    multiplier so a tight cell can never be inset past its own middle.
+    Pinned structurally, the same way the single chaikinSmooth call site
+    is."""
     src = _code_only((_VIEWS / "iso_lights.js").read_text(encoding="utf-8"))
     assert "const hasCell=!!(cellPtsM && cellPtsM.length>=3);" in src, (
         "the margin multiplier must key on the same cell test the targetPts choice uses"
     )
-    assert "Math.min(defaultPerimeterMarginM(frame)*(hasCell?1.6:1), roomHalfMinDim(targetPts)*0.85)" in src, (
+    assert "automorphInsetRing(hasCell?cellPtsM:room.pts,\n        defaultPerimeterMarginM(frame)*(hasCell?1.6:1));" in src, (
         "the interior (resolved-cell) inset must be 1.6x the wall-tuned base margin, the "
-        "room fallback 1x, with the half-min-dimension clamp still bounding the product"
+        "room fallback 1x, passed into the shared inset helper"
+    )
+    assert "const marginM=Math.max(0, Math.min(baseMarginM, roomHalfMinDim(targetPts)*0.85));" in src, (
+        "the half-min-dimension clamp must still bound the margin inside the shared inset helper"
     )
 
 

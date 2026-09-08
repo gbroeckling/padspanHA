@@ -2209,8 +2209,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // their POSITION falls in (same ray-cast the FIT block above already
     // uses) and handing each room's group to buildRoomFixtureCells once.
     // room -> Map(eid -> cell ring, room-local metres). A perimeter light
-    // draws its own trace (perimeterSvg), never an aura, so it never enters
-    // this grouping or competes for room space against fixtures that do.
+    // draws its own trace (perimeterSvg — Automorph restyles it in place,
+    // see perimeterAuraSvg — never a cell aura), so it never enters this
+    // grouping or competes for room space against fixtures that do.
     const roomFixtureCells=new Map();
     if(AUTOMORPH_PCT>0){
       const byRoomFixtures=new Map();
@@ -2542,19 +2543,121 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         `pointer-events="none">${escSVG(label)}</text></g>`;
     };
 
+    // ── Shared Automorph rendering stages ───────────────────────────────────
+    // Split out of automorphAuraSvg (2026-09-08) so the perimeter trace can
+    // ride the IDENTICAL pipeline (Garry: the room-boundary shapes were left
+    // out of "the whole morph thing... and now is a serious mismatch"): one
+    // authority each for the smoothing/offset/containment maths and for the
+    // jitter/hardness/path chain, so the aura and the trace can never drift
+    // apart corner-language-first. Pure extractions — the aura's own output
+    // is byte-identical through them.
+    //
+    // Subtlety scales every opacity and stroke-width the Automorph
+    // treatments compute — one multiplier applied at the point of use,
+    // rather than threading it through each style's own formula, so a
+    // future 4th style gets it for free by using these same two helpers.
+    // opac() floors its OUTPUT at 0.01: the slider's contract is "almost
+    // completely lost", never gone, and after the composition re-budget the
+    // quiet fills (0.02-0.05) times the 0.15 floor multiplier would
+    // otherwise round to an exactly-invisible 0.00 through toFixed(2). At
+    // subtlety 0 the multiplier is 1 and every input is >=0.01, so rest
+    // positions are byte-untouched.
+    const opac=(v)=>Math.max(v*_automorphOpacityMult, 0.01).toFixed(2);
+    const swid=(v)=>(v*_automorphStrokeMult).toFixed(2);
+    // The inset stage. Two Chaikin passes over WHICHEVER target the caller
+    // chose — smoothing lives only here so the cell path, the room-trace
+    // fallback and the perimeter trace get the identical corner language,
+    // nothing upstream (the stored cells) or downstream (the AUTOMORPH_N
+    // resample, the icon endpoint) is ever smoothed twice — see
+    // chaikinSmooth's own comment for the grid-noise rationale and the
+    // metaball scope guardrail. densifyRing first, because "identical
+    // corner language" has to hold at the SCALE of the cut too: Chaikin's
+    // cut rides its input's edge length, so sparse traced polygons fed in
+    // raw got metre-scale corner rounding where a ~0.1m-edged cell ring got
+    // the intended cm-scale cleanup — see the helper's own comment for the
+    // measured failure.
+    //
+    // The ring handed back must honour TWO invariants everything after it
+    // silently trusts: it is SIMPLE (no self-intersections) and it sits at
+    // least 0.9*marginM inside its source ring EVERYWHERE — hardCapPx's
+    // whole safety argument ("a spike can never eat the non-overlap gap")
+    // assumes the gap actually exists before hardness runs. Feeding
+    // offsetPolygonInward the raw Chaikin output broke both: its miter
+    // construction — documented for sparse room traces — folds on a
+    // 270-520-point ring's tightly-spaced vertices (bowtie loops the
+    // adaptive 64-point resample then faithfully kept, where the old fixed
+    // 24 aliased them away), and left vertices essentially ON the
+    // pre-offset boundary, so at negative hardness neighbouring fixtures'
+    // rendered rings genuinely crossed. So: resample the smoothed target
+    // down to the SAME 64-point count automorphRing caps at BEFORE the
+    // offset (well-spaced input, and no detail lost that the final resample
+    // would have kept anyway), pruneRingFolds the inverted loops the offset
+    // intrinsically leaves where the margin exceeds the local curvature
+    // radius, then containRingInside projects any vertex still outside, or
+    // closer than 0.9*marginM to, the source ring back to clearance depth —
+    // with a final prune in case a projection itself crossed the ring.
+    // Measured on the scenes that exposed this: pruning alone already
+    // restores the full-margin clearance, so containment is the guarantee
+    // for the shapes nobody measured, not the workhorse.
+    //
+    // hardCapPx rides along because it must derive from the SAME margin the
+    // ring was just inset by. Hardness's negative side pushes ring points
+    // OUTWARD (applyHardness) — cap that push so it can never spend the gap
+    // this very inset just created between neighbouring cells and to the
+    // room's own walls. Units: marginM is metres, but the ring applyHardness
+    // receives is screen px. frame.scale is px-per-metre for an axis-aligned
+    // metre step, and the iso projection is anisotropic — a metre maps to
+    // between ~0.71x (SQRT1_2, the metre-space diagonal) and ~1.22x
+    // frame.scale px depending on direction — so the cap takes the
+    // conservative floor: whichever direction a spike happens to point, 85%
+    // of the projected gap is the most it can ever spend.
+    const automorphInsetRing=(rawPts, baseMarginM)=>{
+      const targetPts=chaikinSmooth(densifyRing(rawPts, 0.1), 2);
+      const marginM=Math.max(0, Math.min(baseMarginM, roomHalfMinDim(targetPts)*0.85));
+      const coarsePts=resamplePolygonRing(targetPts, 64);
+      const insetPts=pruneRingFolds(containRingInside(
+        pruneRingFolds(offsetPolygonInward(coarsePts, marginM)), coarsePts, marginM*0.9));
+      const hardCapPx=marginM*frame.scale*Math.SQRT1_2*0.85;
+      return {insetPts, hardCapPx};
+    };
+    // The ink/hardness/path chain. Order is deliberate: the hand-inked
+    // jitter, then hardness, then the path builder — so the spike operator
+    // grows its spikes from the inked points and the soft Catmull-Rom runs
+    // through them, instead of the jitter roughing up an already-built
+    // curve. Nebula skips the jitter entirely (its treatments fade or blur
+    // the edge to softness — invisible effort); its amplitude already
+    // scales with t and dies on the negative-hardness side (see the
+    // helper's own comment for the amplitude discipline). hx,hy seed the
+    // jitter — the shape's own anchor, whatever the caller anchors on.
+    const automorphInkedRing=(morphed, hx, hy, hardCapPx)=>{
+      const inked=(AUTOMORPH_STYLE==="nebula") ? morphed
+        : automorphRingJitter(morphed, hx, hy, AUTOMORPH_PCT/100, AUTOMORPH_HARDNESS);
+      const ring=applyHardness(inked, AUTOMORPH_HARDNESS, hardCapPx);
+      return {ring, d:ringPathD(ring, AUTOMORPH_HARDNESS)};
+    };
+    // The trace's requested margin in metres. Nullish, not ||: an explicit
+    // margin of 0 (right on the wall) is a real, meaningful choice and must
+    // not fall back to the default just because 0 is falsy — that would
+    // make a true zero unreachable (that bug shipped once). One authority
+    // because BOTH perimeter paths — the byte-stable legacy trace below and
+    // the Automorph treatment (perimeterAuraSvg) — must agree on it.
+    const perimeterWantM=(entry)=>{
+      const rawCm=entry&&entry.margin_cm;
+      return (rawCm===undefined||rawCm===null) ? defaultPerimeterMarginM(frame) : (Number(rawCm)||0)/100;
+    };
+
     // A "perimeter" light's real extent: the room it is dropped in, traced
     // inward by its own margin_cm. Drawn for BOTH modes — this is the
     // fixture's shape, not a Showcase presentation effect — under everything
     // else on the floor, same reasoning as the room fills it sits just above.
     // entry is the fixture's placement record (pl.lp) — margin_cm lives there
     // alongside width_cm/height_cm/rotation, same storage, same draft path.
+    // With Automorph up this legacy treatment stands down and
+    // perimeterAuraSvg below draws the trace instead; with the slider at 0
+    // this output is contractually BYTE-IDENTICAL to the pre-Automorph era.
     const perimeterSvg=(l,room,entry)=>{
       if(!room || room.pts.length<3) return "";
-      // Nullish, not ||: an explicit margin of 0 (right on the wall) is a
-      // real, meaningful choice and must not fall back to the default just
-      // because 0 is falsy — that would make a true zero unreachable.
-      const rawCm=entry&&entry.margin_cm;
-      const wantM=(rawCm===undefined||rawCm===null) ? defaultPerimeterMarginM(frame) : (Number(rawCm)||0)/100;
+      const wantM=perimeterWantM(entry);
       // Clamped so a margin typed larger than the room cannot fold the
       // offset polygon back on itself — see offsetPolygonInward's own note.
       const marginM=Math.max(0, Math.min(wantM, roomHalfMinDim(room.pts)*0.85));
@@ -2583,6 +2686,93 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         `stroke-width="${(sw*3.5).toFixed(2)}" stroke-linejoin="round" opacity="0.28" `+
         `filter="url(#psclipsoft)" pointer-events="none"/>`+s2;
       return s2;
+    };
+
+    // The perimeter trace in Automorph's design language (Garry, 2026-09-07:
+    // "why did you not include the shapes generated by room boundaries in
+    // the whole morph thing? That looked bad before, and now is a serious
+    // mismatch"). V1 skipped perimeter lights as redundant — right for the
+    // MORPH (the trace already IS the room shape, there is nothing to grow
+    // toward, so no automorphRing here and the pct slider only scales the
+    // treatment's presence) but wrong for the STYLING: the flat
+    // single-colour polygon above sat beside auras with smoothed corners
+    // and a lit-material stack. So with the slider up the trace is rebuilt
+    // through the SAME automorphInsetRing pipeline the auras use, at the
+    // fixture's OWN margin (perimeterWantM — margin_cm honoured exactly as
+    // the legacy trace honours it), reshaped by the same
+    // jitter+hardness+path chain (automorphInkedRing, seeded from the
+    // ring's own centroid: the trace is a room-anchored object, and an
+    // UNPLACED perimeter light has no fixture position to seed from), and
+    // restyled per AUTOMORPH_STYLE in each style's own language. A cove
+    // line is a LINE, not a cell, so NO style fills the interior:
+    //   glow — stroke-centric material: AO and the lit cove's colour glow
+    //     in the soft tier (the "working-mode glow" the legacy trace only
+    //     had in Showcase), ink core + psglossrim bevel in the crisp tier.
+    //     On/off is the aura's own MATERIAL split, never a hex swap: lit
+    //     gets the glow and the brighter rim, off gets no glow and the
+    //     deeper AO.
+    //   blueprint — the dashed wireframe + vertex nodes, state riding
+    //     linework brightness exactly like the aura's blueprint.
+    //   nebula — one soft wide glow through the shared blur, state read as
+    //     intensity. Stroked with the shared duotone so the orb language's
+    //     colour ownership holds (no mask: psautomorphmask fades a FILL
+    //     across its bbox — on a boundary-hugging line it would just eat
+    //     the line).
+    // No weight offset on the ink: automorphFixtureWeight is a manual-
+    // FOOTPRINT cue and a trace's extent is the room, not a footprint.
+    // Everything routes through opac()/swid() so subtlety fades it, the
+    // tiers are clipped to the room like every aura, and the markup joins
+    // the floor-wide glow/edge buffers so labels stay above it. Only
+    // automorph-gated defs are referenced (psaurasoft, psglossrim, the
+    // duotone pair, psclip_N) — the F2 gating contract — and this function
+    // is only ever called with AUTOMORPH_PCT>0. data-eid rides on every
+    // path, same tooling contract as the legacy polygons.
+    const perimeterAuraSvg=(l,room,entry)=>{
+      if(!(AUTOMORPH_PCT>0) || !room || room.pts.length<3) return null;
+      const {insetPts, hardCapPx}=automorphInsetRing(room.pts, perimeterWantM(entry));
+      const ringPx=insetPts.map(p=>iso(p[0],p[1],room.z));
+      let scx=0, scy=0;
+      for(const [px,py] of ringPx){ scx+=px; scy+=py; }
+      scx/=ringPx.length; scy/=ringPx.length;
+      const {ring, d}=automorphInkedRing(ringPx, scx, scy, hardCapPx);
+      const on=l.state==="on";
+      const t=AUTOMORPH_PCT/100;
+      const ink=on?AUTOMORPH_BASE_ON:AUTOMORPH_BASE_OFF;
+      const col=bodyCol(l,entry);
+      const eidAttr=`data-eid="${escSVG(l.entity_id)}"`;
+      const clip=roomClip.get(room);
+      const clipWrap=(m)=>(m&&clip)?`<g clip-path="url(#${clip})" pointer-events="none">${m}</g>`:m;
+      if(AUTOMORPH_STYLE==="blueprint"){
+        const dashOp=opac((on?0.45:0.30)+0.40*t);
+        let nodes="";
+        for(const [px,py] of ring) nodes+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="1.6" `+
+          `fill="${ink}" fill-opacity="${dashOp}" pointer-events="none"/>`;
+        return {glow:"", edge: clipWrap(
+          `<path ${eidAttr} d="${d}" fill="none" stroke="${ink}" stroke-opacity="${dashOp}" stroke-width="${swid(1.1)}" `+
+          `stroke-dasharray="4,3" stroke-linejoin="round" pointer-events="none"/>`+nodes)};
+      }
+      if(AUTOMORPH_STYLE==="nebula"){
+        return {glow: `<g filter="url(#psaurasoft)">`+clipWrap(
+          `<path ${eidAttr} d="${d}" fill="none" stroke="url(#psautomorphduo_${on?"on":"off"})" `+
+          `stroke-opacity="${opac((on?0.13:0.09)+0.22*t)}" stroke-width="${swid(6)}" `+
+          `stroke-linejoin="round" pointer-events="none"/>`)+`</g>`, edge:""};
+      }
+      // "glow": the aura's material stack minus every fill. The colour glow
+      // peaks at 0.28 at pct=100 — the exact weight the legacy Showcase
+      // cove glow carried, so a full slider lands on the familiar look.
+      const ao=`<path ${eidAttr} d="${d}" fill="none" stroke="#020617" stroke-opacity="${opac(on?0.10:0.18)}" `+
+        `stroke-width="${swid(3.5)}" pointer-events="none"/>`;
+      const coveGlow=on ? `<path ${eidAttr} d="${d}" fill="none" stroke="${col}" `+
+        `stroke-opacity="${opac(0.08+0.20*t)}" stroke-width="${swid(4.5)}" `+
+        `stroke-linejoin="round" pointer-events="none"/>` : "";
+      const edgeCore=`<path ${eidAttr} d="${d}" fill="none" stroke="${ink}" `+
+        `stroke-opacity="${opac(0.28+0.32*t)}" stroke-width="${swid(1.3)}" `+
+        `stroke-linejoin="round" pointer-events="none"/>`;
+      const edgeRim=`<path ${eidAttr} d="${d}" fill="none" stroke="url(#psglossrim)" `+
+        `stroke-opacity="${opac(on?0.55:0.35)}" stroke-width="${swid(0.9)}" `+
+        `stroke-linejoin="round" pointer-events="none"/>`;
+      return {glow: `<g filter="url(#psaurasoft)">${clipWrap(ao+coveGlow)}</g>`,
+              edge: clipWrap(edgeCore+edgeRim)};
     };
 
     // Automorph's rendering (Garry, 2026-09-07): a soft, neutral-grey aura
@@ -2616,87 +2806,33 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // convention exists to forbid.
     const automorphAuraSvg=(l,hx,hy,room,z,cellPtsM,entry)=>{
       if(!(AUTOMORPH_PCT>0) || !room || room.pts.length<3) return null;
-      // Two Chaikin passes over WHICHEVER target won the choice below —
-      // smoothing lives only here so the cell path and the room-trace
-      // fallback get the identical corner language, nothing upstream (the
-      // stored cells) or downstream (the AUTOMORPH_N resample, the icon
-      // endpoint) is ever smoothed twice, and the pass stays per-fixture,
-      // after the field competition — see chaikinSmooth's own comment for
-      // the grid-noise rationale and the metaball scope guardrail.
-      // densifyRing first, because "identical corner language" has to hold
-      // at the SCALE of the cut too: Chaikin's cut rides its input's edge
-      // length, so the sparse room.pts fallback fed in raw got metre-scale
-      // corner rounding where a ~0.1m-edged cell ring got the intended
-      // cm-scale cleanup — see the helper's own comment for the measured
-      // failure.
-      const targetPts=chaikinSmooth(densifyRing((cellPtsM && cellPtsM.length>=3) ? cellPtsM : room.pts, 0.1), 2);
-      // One inset constant was serving two different composition jobs.
-      // defaultPerimeterMarginM is tuned for exactly one of them: a shape
-      // sitting a plausible cove-distance off a static WALL. A resolved
-      // cell's inset does the OTHER job — separating two comparably-
-      // weighted aura objects from each other — and there 2x a wall-tuned
-      // margin between neighbours read as tiles laid nearly edge-to-edge.
-      // So the interior (fixture-vs-fixture) case gets a distinctly larger
-      // multiple of the same frame-scaled base — still pixel-constant at
-      // any zoom, by the same construction as the base — while the room-
-      // outline fallback keeps 1x, the wall-distance job the constant was
-      // actually tuned for. The roomHalfMinDim clamp stays outside the
-      // multiplier so a tight cell can never be inset past its own middle.
+      // Inset stage — the shared automorphInsetRing above (smoothing,
+      // well-spaced offset, fold pruning, containment, and the hardness cap
+      // derived from the same margin). One inset constant was serving two
+      // different composition jobs. defaultPerimeterMarginM is tuned for
+      // exactly one of them: a shape sitting a plausible cove-distance off
+      // a static WALL. A resolved cell's inset does the OTHER job —
+      // separating two comparably-weighted aura objects from each other —
+      // and there 2x a wall-tuned margin between neighbours read as tiles
+      // laid nearly edge-to-edge. So the interior (fixture-vs-fixture) case
+      // gets a distinctly larger multiple of the same frame-scaled base —
+      // still pixel-constant at any zoom, by the same construction as the
+      // base — while the room-outline fallback keeps 1x, the wall-distance
+      // job the constant was actually tuned for. The roomHalfMinDim clamp
+      // stays inside the helper, outside the multiplier, so a tight cell
+      // can never be inset past its own middle.
       const hasCell=!!(cellPtsM && cellPtsM.length>=3);
-      const marginM=Math.max(0, Math.min(defaultPerimeterMarginM(frame)*(hasCell?1.6:1), roomHalfMinDim(targetPts)*0.85));
-      // The ring handed downstream must honour TWO invariants everything
-      // after it silently trusts: it is SIMPLE (no self-intersections) and
-      // it sits at least 0.9*marginM inside its source ring EVERYWHERE —
-      // hardCapPx's whole safety argument ("a spike can never eat the
-      // non-overlap gap") assumes the gap actually exists before hardness
-      // runs. Feeding offsetPolygonInward the raw Chaikin output broke
-      // both: its miter construction — documented for sparse room traces —
-      // folds on a 270-520-point ring's tightly-spaced vertices (bowtie
-      // loops the adaptive 64-point resample then faithfully kept, where
-      // the old fixed 24 aliased them away), and left vertices essentially
-      // ON the pre-offset boundary, so at negative hardness neighbouring
-      // fixtures' rendered rings genuinely crossed. So: resample the
-      // smoothed target down to the SAME 64-point count automorphRing caps
-      // at BEFORE the offset (well-spaced input, and no detail lost that
-      // the final resample would have kept anyway), pruneRingFolds the
-      // inverted loops the offset intrinsically leaves where the margin
-      // exceeds the local curvature radius, then containRingInside
-      // projects any vertex still outside, or closer than 0.9*marginM to,
-      // the source ring back to clearance depth — with a final prune in
-      // case a projection itself crossed the ring. Measured on the scenes
-      // that exposed this: pruning alone already restores the full-margin
-      // clearance, so containment is the guarantee for the shapes nobody
-      // measured, not the workhorse.
-      const coarsePts=resamplePolygonRing(targetPts, 64);
-      const insetPts=pruneRingFolds(containRingInside(
-        pruneRingFolds(offsetPolygonInward(coarsePts, marginM)), coarsePts, marginM*0.9));
+      const {insetPts, hardCapPx}=automorphInsetRing(hasCell?cellPtsM:room.pts,
+        defaultPerimeterMarginM(frame)*(hasCell?1.6:1));
       const roomPx=insetPts.map(p=>iso(p[0],p[1],z));
       const iconLocal=automorphIconRing(l.shape, entry&&entry.width_cm, entry&&entry.height_cm,
         entry&&entry.rotation, frame.scale, HEX_R);
-      // Hardness's negative side pushes ring points OUTWARD (applyHardness)
-      // — cap that push so it can never spend the gap this very marginM
-      // inset just created between neighbouring cells and to the room's own
-      // walls. Units: marginM is metres, but the ring applyHardness receives
-      // is screen px. frame.scale is px-per-metre for an axis-aligned metre
-      // step, and the iso projection is anisotropic — a metre maps to
-      // between ~0.71x (SQRT1_2, the metre-space diagonal) and ~1.22x
-      // frame.scale px depending on direction — so the cap takes the
-      // conservative floor: whichever direction a spike happens to point,
-      // 85% of the projected gap is the most it can ever spend.
-      const hardCapPx=marginM*frame.scale*Math.SQRT1_2*0.85;
-      // Pipeline order is deliberate: morph, then the hand-inked jitter,
-      // then hardness, then the path builder — so the spike operator grows
-      // its spikes from the inked points and the soft Catmull-Rom runs
-      // through them, instead of the jitter roughing up an already-built
-      // curve. Nebula skips the jitter entirely (its mask fades the edge
-      // to nothing — invisible effort); its amplitude already scales with
-      // t and dies on the negative-hardness side (see the helper's own
-      // comment for the amplitude discipline).
+      // Morph toward the inset target, then the shared ink/hardness/path
+      // chain (jitter before spikes, spikes before pathing — see
+      // automorphInkedRing's own comment), seeded from the fixture's
+      // position, the aura's true anchor.
       const morphed=automorphRing(iconLocal, hx, hy, roomPx, AUTOMORPH_PCT/100);
-      const inked=(AUTOMORPH_STYLE==="nebula") ? morphed
-        : automorphRingJitter(morphed, hx, hy, AUTOMORPH_PCT/100, AUTOMORPH_HARDNESS);
-      const ring=applyHardness(inked, AUTOMORPH_HARDNESS, hardCapPx);
-      const d=ringPathD(ring, AUTOMORPH_HARDNESS);
+      const {ring, d}=automorphInkedRing(morphed, hx, hy, hardCapPx);
       const on=l.isMotion ? motionActive(l) : (l.isLock ? l.state==="locked" : l.state==="on");
       // Neutral, colourless shading (Garry, 2026-09-07: "all these colors
       // now are doing the exact opposite of keeping the visuals clean and
@@ -2741,18 +2877,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         (automorphFixtureWeight(entry&&entry.width_cm, entry&&entry.height_cm)-1)*6));
       const ink=lighten(base, weightOffPct);
       const duo=`url(#psautomorphduo_${on?"on":"off"})`;
-      // Subtlety scales every opacity and stroke-width computed below —
-      // one multiplier applied at the point of use, rather than threading
-      // it through each style's own formula, so a future 4th style gets it
-      // for free by using these same two helpers. opac() floors its OUTPUT
-      // at 0.01: the slider's contract is "almost completely lost", never
-      // gone, and after the composition re-budget the quiet fills
-      // (0.02-0.05) times the 0.15 floor multiplier would otherwise round
-      // to an exactly-invisible 0.00 through toFixed(2). At subtlety 0 the
-      // multiplier is 1 and every input is >=0.01, so rest positions are
-      // byte-untouched.
-      const opac=(v)=>Math.max(v*_automorphOpacityMult, 0.01).toFixed(2);
-      const swid=(v)=>(v*_automorphStrokeMult).toFixed(2);
+      // opac()/swid() — the shared subtlety multipliers — live with the
+      // shared Automorph stages above, so the perimeter treatment fades
+      // through the very same two helpers.
       // Every tier is clipped to the fixture's own room — the identical
       // mechanism the Showcase pools use, and the reason the clipPath defs
       // are UNGATED now (see the defs block): the wash's blur bleeds past
@@ -3287,8 +3414,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // A perimeter light traces its ROOM, which is already known here —
         // no placement needed to see it. Unplaced means no entry, so this
         // draws at the default margin; dragging it onto the map is only for
-        // adjusting margin, not for making the trace appear at all.
-        for(const l of roomLights) if(l.shape==="perimeter") s+=perimeterSvg(l, r, null);
+        // adjusting margin, not for making the trace appear at all. With
+        // Automorph up the floor-wide tier pass draws these instead (same
+        // fixtures, same filter — see its unplaced-perimeter loop), so the
+        // legacy call stands down rather than double-drawing.
+        for(const l of roomLights) if(l.shape==="perimeter" && !(AUTOMORPH_PCT>0)) s+=perimeterSvg(l, r, null);
         // Use-mode: the pile becomes one chip. The chip is drawn with the
         // markers (a job with no light) so it sits above the pools and the
         // room fill like a marker would.
@@ -3358,11 +3488,22 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       for(const pl of hereLights){
         if(hiddenEids.has(pl.eid)) continue;
         const l=lightsByEid[pl.eid];
-        if(!l || l.shape==="perimeter") continue;
+        if(!l) continue;
         // Same position ray-cast the partition pass above used to group
         // this floor's fixtures, so the aura and its cell agree on the room.
         let room=null;
         for(const r of hereRooms){ if(pointInRoom(r.pts, pl.x, pl.y)){ room=r; break; } }
+        // A perimeter light's trace joins these SAME tiers while the
+        // slider is up (restyled, never morphed — see perimeterAuraSvg);
+        // the legacy trace call in the placed loop below stands down then.
+        // auraByEid stays out of it: the suppressGlyph decision is about
+        // hiding a glyph BODY an aura replaced, and a perimeter marker
+        // hides its own body by its own precedent already.
+        if(l.shape==="perimeter"){
+          const tiers=perimeterAuraSvg(l, room, pl.lp);
+          if(tiers){ auraGlow+=tiers.glow; auraEdge+=tiers.edge; }
+          continue;
+        }
         const cellsInRoom=room && roomFixtureCells.get(room);
         const cellPtsM=cellsInRoom && cellsInRoom.get(pl.eid);
         const [hx,hy]=iso(pl.x, pl.y, z);
@@ -3370,6 +3511,19 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         if(!tiers) continue;
         auraByEid.set(pl.eid, true);
         auraGlow+=tiers.glow; auraEdge+=tiers.edge;
+      }
+      // Unplaced perimeter lights (room via HA area only, no placement
+      // entry) trace their room too — the same set the label job's legacy
+      // call walks, filtered the same way — but with Automorph up the
+      // trace belongs in these tiers, under the labels, with every other
+      // aura. Same lightsLoading gate as that job: no traces while the
+      // registry is still loading.
+      if(!lightsLoading) for(const r of hereRooms){
+        for(const l of (byRoom[r.room]||[])){
+          if(hiddenEids.has(l.entity_id) || placed[l.entity_id] || l.shape!=="perimeter") continue;
+          const tiers=perimeterAuraSvg(l, r, null);
+          if(tiers){ auraGlow+=tiers.glow; auraEdge+=tiers.edge; }
+        }
       }
       s+=auraGlow+auraEdge;
     }
@@ -3392,7 +3546,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       if(SHOW || l.shape==="perimeter"){
         for(const r of hereRooms){ if(pointInRoom(r.pts, pl.x, pl.y)){ room=r; break; } }
       }
-      if(l.shape==="perimeter") s+=perimeterSvg(l, room, pl.lp);
+      // With Automorph up the floor-wide tier pass above already drew this
+      // fixture's trace (perimeterAuraSvg) under the labels; the legacy
+      // call stands down rather than double-drawing.
+      if(l.shape==="perimeter" && !(AUTOMORPH_PCT>0)) s+=perimeterSvg(l, room, pl.lp);
       // Whether an aura ACTUALLY painted for this fixture — consulted from
       // the floor-wide tier pass, which recorded every fixture it emitted
       // markup for. The markup itself now lands up there (two tiers under
