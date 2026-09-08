@@ -1,340 +1,182 @@
 # Idea: Live Door/Window State — Opening Walls + Steel-Door RF Barriers
 
-**Status: NOT STARTED — captured for later (Garry, 2026-09-06).** Not part of
-the ranked best-in-class roadmap (`docs/BEST_IN_CLASS_ROADMAP.md`); a
-separate, standalone feature idea. Garry asked for this to be thought
-through and written up as a complete, self-contained prompt so a future
-session (or Tuesday 2026-09-08, if not picked up sooner) can start directly
-from this document with no other context.
+**Status: NOT STARTED.** Not part of the ranked best-in-class roadmap
+(`docs/BEST_IN_CLASS_ROADMAP.md`); a separate, standalone feature idea.
+Every open design question has now been resolved through conversation
+(2026-09-06 origin, 2026-09-08 scoping session) — the plan below is a
+straight, ordered build path. Start here; the "Design decisions" section
+below it is reference/rationale, not required reading to begin.
 
 ## Origin (Garry's own words, verbatim, 2026-09-06)
 
 > Another feature for mapping, lights, is door open or closed. A section of
 > wall opens up if a door open/closed sensor show the door/windows is open.
 > Add to that a toggle so that a steel door can be selected, and that also
-> registers in the padspan main as a radio blocking wall. Think this one
-> thru for the tuesday session.
+> registers in the padspan main as a radio blocking wall.
 
-## The problem being solved
-
-Today a wall/barrier in the fabric (`rf_barriers_m`) is a static line: fixed
-geometry, fixed `attenuation_dbm`, drawn once, never changing. Two things a
-real house has that this doesn't capture at all:
-
-1. **Visually**, a door or window is a gap in a wall that is sometimes open
-   and sometimes closed — the map currently draws every wall as one
-   unbroken dashed line regardless (`overview.js` — see "Relevant existing
-   code" below), so an open door looks identical to a closed one.
-2. **Physically**, a CLOSED steel door blocks BLE signal roughly like a
-   wall does; an OPEN steel door blocks essentially nothing — it's a hole.
-   Every other wall material in this codebase is currently a fixed,
-   always-on attenuation value with no live component at all.
-
-Grepped for any existing door/window integration first: none exists.
-`ws_occupancy.py`'s sensor classes are `("occupancy", "presence", "motion")`
-only (`ws_occupancy.py:73`) — no `binary_sensor` with `device_class: door`
-or `device_class: window` is read anywhere in this codebase today. This is
-new integration surface, not an extension of something half-built.
+And, 2026-09-08, sharpening the point of the whole feature: "this also
+will allow a tie in to a open/closed sensor, that is the whole point. I
+want the lighting map to clearly show when a door or window is left open."
 
 ## The feature, precisely
 
-Two coupled but separable pieces:
+A door or window is a short **section of an existing wall**, marked out in
+the Rooms-tab wall editor (the same place walls already get their material
+assigned) and linked to an HA `binary_sensor` (`device_class: door` or
+`window`). Two things follow from that link, live:
 
-1. **Visual door/window state on the map.** A door or window is placed on
-   a wall/barrier segment (or as its own short segment within one), linked
-   to an HA `binary_sensor` with `device_class: door` or `window`. When
-   that sensor reads `on` (open), the map draws a visible GAP in the wall
-   at that door/window's position instead of the unbroken line — "a
-   section of wall opens up." When `off` (closed), the wall draws solid,
-   same as every other barrier today.
-2. **Steel-door toggle → dynamic RF barrier.** A per-door toggle marks a
-   door as steel (vs. a default/other material). When steel:
-   - **Closed**: the door segment attenuates BLE signal like a real wall
-     — feed it into the SAME `attenuation_dbm` mechanism every other
-     barrier already uses (see below), not a parallel system.
-   - **Open**: the attenuation for that segment drops to ~0 — an open
-     steel door is a hole, not a wall, for radio purposes exactly as much
-     as it is for the eye.
-   A non-steel door/window (wood, glass) is visual-only in v1 — no RF
-   attenuation change either way; most residential interior doors and all
-   windows don't meaningfully block 2.4 GHz BLE regardless of open/closed,
-   and this project already default-attenuates ordinary walls at 6 dB
-   (`radio_map.js:259`, `bar.attenuation_dbm ?? 6`) — a non-steel door
-   already has a barrier's default value if it sits ON a barrier line, or
-   none if it doesn't. Steel is the one material where open-vs-closed is a
-   genuinely different physical situation worth modelling.
+1. **Visual**: the Mapping → Lights map (the primary place this needs to
+   read at a glance — that is "the whole point") shows a clear gap/open
+   indicator on that wall section whenever the linked sensor reads open,
+   and a solid wall when closed.
+2. **RF**: a per-section material choice of **metal** (steel — reuses the
+   wall editor's existing material picker, not a new "Steel toggle")
+   attenuates BLE signal like a wall while closed, and drops to ~0 while
+   open — feeding the SAME `attenuation_dbm` mechanism every other barrier
+   already uses. A non-metal door/window is visual-only: no RF change
+   either way (ordinary interior doors and glass don't meaningfully block
+   2.4 GHz BLE regardless of open/closed).
 
-## Relevant existing code to build on — do not reinvent
+Also required, independent of the above and shippable first: door/window
+sensors are admitted and shown as their **own recognized device type** in
+the Mapping → Lights index and map — the same way Motion and Temps already
+are — regardless of whether that sensor is yet linked to a wall section.
 
-- **Barrier data model**: `model_store.py:31` — `rf_barriers_m: [{points_m,
-  attenuation_dbm, floor_id}]` (also carries `id`, `name`, `material` per
-  the JS mirror at `stack_transform.js`'s `fabricWorldBarriers`:
-  `{id, name, material, attenuation_dbm, points}`). `model_store.py:948`
-  exposes `rf_barriers_m()`; editing lives in `ws_maps.py`/`maps.js`'s
-  Rooms tab (barrier draft, per the barrier-editing comments already in
-  that file).
-- **Barrier attenuation is ALREADY re-read every poll — the key finding
-  that makes the dynamic (open/closed) half of this feasible without
-  restructuring anything**: `presence_coordinator.py:670` — "RF barrier
-  data for Gaussian scoring penalty (rebuilt each poll)"; `:1175-1176`
-  re-fetches `self._rf_barriers` from `_model.rf_barriers_m()` on every
-  single poll cycle, and `:2143-2147` calls `_barrier_attenuation(...)`
-  fresh each time using whatever `attenuation_dbm` that fetch returned.
-  **This means `rf_barriers_m()` computing a barrier's attenuation from a
-  linked entity's LIVE state, instead of a stored constant, requires no
-  new polling loop, no new subscription, no change to
-  presence_coordinator.py at all** — only a change to what
-  `rf_barriers_m()` itself returns for a barrier that carries a
-  `linked_entity_id` + `material: "steel"`. The client-side mirror
-  (`radio_map.js:253` `barrierAttenuation`, used by the coverage-heatmap/
-  what-if tools) would need the SAME live-state check for its preview to
-  agree with the live solver, since it currently just reads
-  `bar.attenuation_dbm ?? 6` (`radio_map.js:259`) with no state awareness.
-- **Wall drawing on the map**: `overview.js:1263-1271` — barriers are
-  drawn once per storey as a single unbroken `<polyline>` per barrier
-  (`stroke-dasharray="5 8"`, gated on the existing `_overviewShowWalls`
-  toggle, `overview.js:933`). This is the ONE place (plus its Pure
-  Live/iso_lights.js siblings drawing barriers — check `iso_lights.js` and
-  any Stack-tab barrier rendering too) that would need to draw a GAP in
-  the polyline at a door/window's position along it, live-state-driven.
-  No existing code splits a barrier polyline into segments around a
-  midpoint gap — this is new drawing logic, not a toggle on something that
-  already exists.
-- **Precedent for binding an arbitrary HA entity to the floorplan**: gap
-  #8 of the best-in-class roadmap (DONE, commit `53ee119`) already built
-  exactly the "pick an HA entity, place/link it on the map, read its live
-  state each poll" pattern — for the `lock.*` domain. Read that
-  implementation first (`ws_fabric.py`'s placement whitelist,
-  `light_codes.js`'s `isLock`/`LIGHT_SHAPES`, `iso_lights.js`'s lock glyph,
-  `lights_map.js`'s lock control card) as the direct template for "pick a
-  `binary_sensor.door`/`binary_sensor.window` entity and place/link it,"
-  adapted from a placed MARKER to a barrier-attached GAP.
+## Implementation plan, in order
 
-## Technical challenges
+Each step is independently shippable and testable; later steps depend on
+earlier ones, not the reverse.
 
-1. **Where does a door "live" in the data model?** Two shapes to weigh:
-   (a) a door is its OWN small object type (new list, `doors_m` or similar,
-   each with its own `{x_m, y_m, floor_id, linked_entity_id, material,
-   width_m, angle}`), positioned independently and only VISUALLY
-   associated with whichever barrier polyline happens to pass near it; or
-   (b) a door is an attribute attached to a SPECIFIC point/segment on an
-   EXISTING barrier (`rf_barriers_m` entry gains an optional
-   `door: {linked_entity_id, material, offset_along_segment}`). (b) keeps
-   the RF-attenuation logic naturally scoped to "this barrier, this
-   segment" (no need to reconcile "does this independent door object sit
-   on this barrier" as a nearest-line-search every poll) but constrains a
-   door to only exist where a barrier has already been drawn — matching
-   the roadmap's own gap #8 domain-registry pattern would favour (a) for
-   consistency, but (b) is likely simpler and more physically honest
-   ("this wall has a door in it" rather than "there is a door floating
-   near this wall"). Decide before implementing; don't half-build both.
-2. **Wall-gap drawing.** A barrier is currently one polyline per barrier.
-   Drawing a gap means splitting it into two (or more, for multiple
-   doors on one wall) polyline segments around each open door's position,
-   recomputed live each render — a modest but real change to
-   `overview.js:1263-1271` and its Pure Live/iso_lights.js/Stack-tab
-   counterparts (barriers are drawn in more than one place; find every
-   caller before changing the shape barriers are described in, so one
-   view doesn't fall out of sync with the others). The gap's width should
-   probably be the door's own width in metres if stored (or a fixed
-   reasonable default like 0.9 m), not the whole barrier's length.
-3. **Steel-door attenuation lookup, live.** `rf_barriers_m()`
-   (`model_store.py:948`) currently just returns stored dicts — it has no
-   HA `hass` access to check a live entity state today (it's a pure data
-   accessor). Giving it (or a wrapper the coordinator calls instead) live
-   state access needs care: either `rf_barriers_m()` gains an optional
-   `hass` parameter and does the state lookup itself only for
-   steel-flagged barriers (cheap — most barriers won't have a linked
-   entity at all), or the state resolution happens in
-   `presence_coordinator.py` at the point it already calls
-   `_model.rf_barriers_m()` (`presence_coordinator.py:1175`), overriding
-   `attenuation_dbm` there for any barrier carrying a `linked_entity_id`
-   before handing the list to `_barrier_attenuation`. The second option
-   keeps `rf_barriers_m()` a pure data accessor and puts the "live" part
-   where live things already happen (the coordinator's own poll) —
-   probably the better fit with this codebase's existing separation.
-4. **Client-side heatmap/what-if preview parity.** `radio_map.js`'s
-   `barrierAttenuation` (used by the coverage heatmap and gap #9's what-if
-   ghost-scanner tool) is PURE CLIENT JS with no live HA state access of
-   its own — it works off whatever `rf_barriers_m` data the frontend
-   already has in `ctx.state.model`. If the backend resolves live state
-   into `attenuation_dbm` before the frontend ever sees it (folding the
-   open/closed state into the number the client already reads), this
-   requires NO separate client-side state-awareness at all — the
-   heatmap preview would just see today's attenuation number and be
-   correct automatically. Strongly prefer this shape (resolve live state
-   server-side, ship one number) over teaching the client its own
-   parallel live-state-lookup logic.
-5. **A door with no linked sensor.** Must degrade gracefully to "closed,
-   plain wall" (today's exact behaviour) — a door/window feature must
-   never make an install that hasn't configured any sensors look or
-   behave any differently than it does today.
+1. **Admit door/window sensors as a new class in Mapping → Lights.**
+   Smallest, most precedented step — directly mirrors how Motion and Temps
+   already work, no dependency on anything else in this plan.
+   - `lights_map.js`: extend the admission gate (currently
+     `/^(light|fan|binary_sensor)\./` plus an `isTempSensor` carve-out for
+     `sensor.*` + `device_class==="temperature"`) to also read
+     `binary_sensor.*` with `device_class` `door` or `window`.
+   - `light_codes.js`: add `isDoorSensor`/`isWindowSensor` (or one
+     combined `isOpening`), same shape as `isMotionSensor`/`isTempSensor`;
+     assign a class (`"door"` or reuse a shared `"opening"` class).
+   - `lights_map.js`'s `LIGHT_CLASSES`: add a `Doors/Windows` filter chip.
+   - `iso_lights.js`: a distinct glyph/border colour, same pattern as
+     `MOTION_BORDER`/the motion dome shape.
+   - Shows as a row in the Lights index table automatically once admitted.
+   - Test: extend the existing admission/class-filter render tests the
+     same way the motion/temp ones are already covered.
 
-## What "done" looks like
+2. **Extend the `rf_barriers_m` schema, additively.** Backend only, no
+   drawing or UI yet. Add optional `linked_entity_id` and `door_type`
+   fields to a barrier entry; leave `material`/`attenuation_dbm` as they
+   are (a door's material IS the existing `material` field — "steel" is
+   `metal`, not a new value). A barrier without these fields must render
+   and behave byte-identically to today.
 
-- A door/window can be added to a wall/barrier (via the Rooms tab, same
-  general editing surface `rf_barriers_m` already uses), linked to an HA
-  `binary_sensor` (`device_class: door` or `window`).
-- The map (at minimum the Overview/Pure Live iso view where walls already
-  draw today, `_overviewShowWalls`) shows a visible gap in the wall at
-  that door/window's position whenever its linked sensor reads open, and
-  a solid wall when closed — live, following the same ~5 s poll everything
-  else already uses.
-- A per-door "Steel" toggle. When set: the door's wall segment carries a
-  wall-like attenuation while closed, and near-zero while open, and this
-  measurably changes what the SAME positioning solver
-  (`presence_coordinator.py`) computes — not just a cosmetic overlay,
-  proven by comparing an object's confidence/room-vote near that doorway
-  with the door open vs. closed (e.g. via a capture-and-replay pass, gap
-  #13's tooling, comparing the two states on the same walk).
-- Tests: a pure-function test for the wall-gap-splitting geometry (given a
-  barrier polyline + a door's position + width, produces the two remaining
-  segments) using this repo's established pure-JS + node-harness pattern;
-  a Python test proving a steel-flagged barrier's resolved
-  `attenuation_dbm` actually changes when the linked entity's mocked HA
-  state flips open/closed, and that an unlinked or non-steel door leaves
-  `attenuation_dbm` exactly as authored.
+3. **Rooms-tab editing: select a wall section, split it, link a sensor.**
+   The one genuinely new UI interaction in this whole feature — nothing in
+   the codebase today splits a drawn wall polyline into pieces. Splitting
+   happens once, at edit time, producing an ordinary short `rf_barriers_m`
+   entry (the door) plus the shortened remainder of the original wall.
+   Reuse the existing material picker for that new entry's `material`;
+   reuse gap #8's entity-picker pattern (`53ee119`, the lock-domain
+   binding — the direct precedent for "pick an HA entity and link it to
+   something on the map") for `linked_entity_id`.
+   - Test: pure-function test for the section-split geometry (given a
+     barrier polyline + a split position + width, produces the two
+     resulting segments), this repo's established pure-JS + node-harness
+     pattern.
+
+4. **Live attenuation resolution.** In `presence_coordinator.py`, at the
+   point it already re-fetches `rf_barriers_m()` every poll, override
+   `attenuation_dbm` for any barrier carrying a `linked_entity_id` and
+   `material==="metal"`: closed → the material's normal value, open → ~0.
+   Resolve server-side, once, here — NOT in `rf_barriers_m()` itself
+   (keeps it a pure data accessor) and NOT by teaching the client-side
+   `radio_map.js` its own parallel state-lookup (`barrierAttenuation`
+   already just reads whatever `attenuation_dbm` it's given, so the
+   coverage-heatmap/what-if preview stays correct automatically once the
+   backend resolves the number once).
+   - Test: Python test proving a metal + linked barrier's resolved
+     `attenuation_dbm` changes when the linked entity's mocked HA state
+     flips open/closed, and that an unlinked or non-metal door leaves
+     `attenuation_dbm` exactly as authored.
+
+5. **Draw the open/closed state — Mapping → Lights first, since that is
+   the stated point of the feature; Overview second.** For a barrier entry
+   carrying a `linked_entity_id`: while open, skip drawing its polyline
+   (or draw it much fainter) and show a clear open indicator — a visible
+   gap at minimum, worth also giving a distinct colour/glyph so it reads
+   at a glance the way this session already gave motion (the pulse) and
+   Automorph (the on/off material split) a strong visual language.
+   `iso_lights.js` needs a new, narrowly-scoped barrier-drawing pass to do
+   this at all (it draws no barriers today) — scope it to exactly this,
+   no Automorph/aura interaction implied or needed. Apply the identical
+   open-state logic in `overview.js:1263-1271` (today's single unbroken
+   `<polyline>` per barrier) so the two views can never disagree about
+   whether a given door reads open.
+
+6. **Jump link from Mapping → Lights to the Rooms-tab wall editor.** Small
+   navigation convenience once steps 1-5 exist — a button that opens the
+   Rooms tab's wall editor, for someone working the Lights view who wants
+   to configure a door without hunting for where wall material lives.
+   Check `lights_panel.js`/`maps.js` for an existing cross-tab navigation
+   pattern before inventing one.
 
 ## Explicit non-goals for v1
 
-- Non-steel doors/windows do not affect RF attenuation at all — visual
-  only, per the reasoning above (ordinary interior doors/glass don't
-  meaningfully block 2.4 GHz BLE either way).
+- Non-metal doors/windows do not affect RF attenuation at all — visual
+  only (ordinary interior doors/glass don't meaningfully block 2.4 GHz
+  BLE either way).
 - No attempt to model PARTIALLY-open doors, only binary open/closed
   (matches the binary_sensor device class itself — there is no "how far
   open" signal to consume).
 - No new UI for hand-drawing a door's swing arc or hinge side — a door is
   a position + width + open/closed state, not an animated leaf.
-- Does not need to be wired into every view that draws a wall on day one
-  (Stack tab's 3D alignment view, if it separately draws barriers, is a
-  reasonable v2) — ship it in the Overview/Pure Live iso view first,
-  document what's deferred, the same tiering this session has used
-  throughout the best-in-class roadmap (e.g. gap #7's Sweet-Home-3D-only
-  floorplan import, gap #8's lock-domain-only entity binding).
+- Stack tab's 3D alignment view (if it separately draws barriers) is a
+  reasonable v2, not day one — same tiering this session used throughout
+  the best-in-class roadmap (e.g. gap #7's Sweet-Home-3D-only floorplan
+  import, gap #8's lock-domain-only entity binding).
+- A door with no linked sensor must degrade to exactly today's behaviour
+  (a plain, solid, static wall) — this feature must never change how an
+  install with no door sensors configured looks or behaves.
 
-## Research task before writing any implementation code
+## Design decisions (resolved) — reference only
 
-- Decide the data-model question in Technical Challenge #1 (door as its
-  own object vs. an attribute on an existing barrier) — this shapes
-  everything downstream and should not be revisited mid-implementation.
-- Read gap #8's full diff (commit `53ee119`) end-to-end first — it is the
-  most directly analogous precedent in this codebase (placing/linking an
-  arbitrary HA entity onto the floorplan, reading its live state each
-  poll, gating a UI toggle on it) and should shape this feature's shape
-  rather than being reinvented from scratch.
-- Confirm every place a barrier is currently drawn (Overview, Pure Live,
-  iso_lights.js, any Stack-tab rendering) before touching the drawing
-  code, so the wall-gap effect doesn't ship in one view and silently stay
-  a solid line in another.
+Kept for the reasoning behind the plan above; not required to start
+building from it.
 
-## Refined approach (Garry, 2026-09-08 — resolves Technical Challenges #1 and #2)
-
-Verified against the current tree first: `iso_lights.js` does NOT draw
-barriers at all (only `overview.js:1272` draws the real polyline; `maps.js`
-has the Rooms-tab wall editor plus one unrelated barrier-move-diff-tracking
-consumer; `radio_map.js`/`stack_transform.js` feed the RF heatmap/what-if
-preview). A material→attenuation table already exists in `maps.js`
-(`_MAT_ATTEN`: `metal:12, concrete:8, brick:4, custom:6, open:0` dB, with a
-matching `_MAT_COLORS`) — "steel" is not a new material, it is `metal`.
-Gap #8 (`53ee119`, lock-domain binding) remains the right precedent for
-"pick an HA entity and link it," but is smaller in scope than this feature:
-gap #8 was itself called "the simplest of the six remaining domains" in its
-own commit message, because a lock's state shape already matched the
-existing marker pipeline — this feature adds two mechanisms nothing in the
-codebase does today (splitting a drawn wall, and live-resolving an
-attenuation value), so it should be sized bigger than gap #8, not as an
-instance of it.
-
-The workflow, in Garry's words: "This involves choosing a section of wall,
-and marking it as a door/window/etc, with the option of choosing metal in
-the wall-defining portion of padspan." I.e. the SAME wall editor that
-already has the material picker — not a new door-specific control.
-
-This dissolves both hard technical challenges above, because the split
-happens once, at AUTHORING time, in the Rooms-tab editor — not live, on
-every render:
-
-- **Challenge #1 (data model) is answered.** A door is NOT its own object
-  type, and NOT an attribute bolted onto an existing whole-barrier entry
-  (the two options weighed above). It is an ordinary `rf_barriers_m` entry
-  — a short one, split out of the wall it was carved from — carrying the
-  SAME `material` field every barrier already has (so "steel" = pick
-  `metal` for that segment, no new attenuation concept), plus two new
-  fields: `linked_entity_id` (the bound `binary_sensor.door`/`window`) and
-  a `door_type` (door/window/etc, for icon/labeling only). Reuses the
-  existing schema instead of extending it with a parallel shape.
-- **Challenge #2 (wall-gap drawing) shrinks to almost nothing.** Nothing
-  needs to split a polyline around a gap position on every render, because
-  the split already happened when the section was carved out in the
-  editor. Drawing a gap becomes: for a barrier entry carrying a
-  `linked_entity_id`, skip drawing its polyline while the linked sensor
-  reads open (or draw it much fainter) — one conditional in `overview.js`,
-  not new segment-splitting geometry.
-
-What is now the actual new-build surface, smallest to largest:
-1. **The one genuinely new UI interaction**: select/drag a SECTION of an
-   existing wall polyline in the Rooms-tab editor and split it into its
-   own `rf_barriers_m` entry (keeping the remainder as the original
-   barrier, now shortened). Nothing in the codebase does this today — this
-   is the real new-build item, not an extension of something half-built.
-2. Linking that new short segment to a `binary_sensor` entity — direct
-   reuse of gap #8's entity-picker pattern.
-3. Live attenuation resolution in `presence_coordinator.py` (unchanged
-   from Technical Challenge #3 above: resolve server-side, at the point it
-   already re-fetches `rf_barriers_m()` each poll, so the client-side
-   heatmap/what-if preview in `radio_map.js` needs no new state-awareness
-   of its own — it already just reads whatever `attenuation_dbm` it's
-   given).
-4. The `overview.js` draw-time skip described above.
-
-Still open: whether the section-select UI drags along the barrier's own
-existing points (snapping a door's endpoints onto the wall's own drawn
-line) or lets a door's width be typed/dragged freely — decide when
-building the Rooms-tab piece, not before; everything else in this document
-is unaffected by that choice.
-
-### Editing surface: stays in the Rooms tab; Mapping → Lights gets a jump link
-
-Garry, 2026-09-08, first pass: "done in mapping, lighting. Maybe also
-mirrored where a wall is chosen as an alternate place to configure" — then,
-on reflection: "if it lives in the rooms tab, put a jump to there option in
-the mapping, lighting tab." Final decision: the actual door/window editing
-UI (the section-select + material/entity-link controls) stays in the
-**Rooms tab**, where wall editing and the `_MAT_ATTEN` material picker
-already live — it does NOT need to be rebuilt or duplicated in Mapping →
-Lights. This removes the scope increase the previous revision of this
-section flagged: `iso_lights.js` does not need new wall-drawing capability
-as a hard requirement for this feature to ship.
-
-Mapping → Lights instead gets a **jump link/button** to the Rooms tab's
-wall editor — a navigation convenience for someone working the Lights view
-who wants to configure a door, not a second editing surface. Small,
-contained addition (a button + a route/tab-switch call, following whatever
-pattern this app already uses for cross-tab navigation, if one exists —
-check `lights_panel.js`/`maps.js` for a precedent before inventing one).
-
-**Settled, not open** (Garry, immediately after: "this also will allow a
-tie in to a open/closed sensor, that is the whole point. I want the
-lighting map to clearly show when a door or window is left open") —
-visually showing open/closed state ON THE MAPPING → LIGHTS MAP is the
-actual point of the whole feature, not a deferred nice-to-have. So
-`iso_lights.js` DOES need new rendering capability (drawing a barrier's
-gap/open state), same as `overview.js`'s draw-time skip in item 4 above —
-it is just RENDERING-only, not editing: the section-select + material/
-entity-link controls still live solely in the Rooms tab (previous
-subsection), Lights only needs to READ the same `rf_barriers_m` entries
-and show a clear open indicator (a visible gap at minimum; consider also a
-distinct colour/glyph for "open" so it reads at a glance next to
-everything else this session already gave a strong on/off visual language
-to — motion's pulse, Automorph's on/off material split). Concretely: (a)
-give `iso_lights.js` a barrier-drawing pass it doesn't have today (new,
-scoped narrowly to reading `rf_barriers_m` + drawing gaps — no
-Automorph/aura interaction implied or needed), (b) apply the SAME
-open-state draw-time skip/gap logic `overview.js` will use, so the two
-views agree without a second implementation of "is this door open."
+- **Why a door is an ordinary `rf_barriers_m` entry, not a new object
+  type or an attribute bolted onto a whole barrier**: splitting the wall
+  once at edit time (step 3) means a door needs no new geometry concept
+  at render time, and no "does this door object sit on this barrier"
+  reconciliation every poll — it already IS a barrier, just a short one,
+  reusing the existing `material` field instead of inventing a parallel
+  attenuation concept for "steel."
+- **Why editing stays Rooms-tab-only rather than being duplicated in
+  Mapping → Lights**: the wall editor and its material picker already
+  live there; rebuilding that surface in Lights would be pure duplication
+  for no capability gain, versus a jump link (step 6).
+- **Why Mapping → Lights still needs new rendering (not just editing)
+  capability**: because showing open/closed state IS the feature's stated
+  purpose, not an optional extra — confirmed directly by Garry after the
+  editing-surface question was settled.
+- **Effort, by direct comparison**: gap #8 (lock-domain binding,
+  `53ee119`, 7 files / ~190 lines) is the closest precedent for "bind an
+  HA entity to the map," but its own commit message calls it the simplest
+  of six remaining domain generalizations, because a lock's state shape
+  already matched the existing marker pipeline. This feature adds two
+  mechanisms nothing in the codebase does today — splitting a drawn wall,
+  and live-resolving an attenuation value — so size it bigger than gap #8,
+  not as an instance of it. Step 1 (device-class admission) is the
+  exception: that step genuinely is gap-#8-sized, and can ship first and
+  independently.
+- **What was checked against the live tree, not assumed**: no existing
+  door/window integration anywhere (`ws_occupancy.py`'s sensor classes
+  are occupancy/presence/motion only); `iso_lights.js` draws zero
+  barriers today; a material→attenuation table already exists in
+  `maps.js` (`_MAT_ATTEN`: `metal:12, concrete:8, brick:4, custom:6,
+  open:0` dB, matching `_MAT_COLORS`) — confirming "steel" belongs there
+  as `metal`, not as a new key.
 
 ## Follow-up
 
-Saved to Engram (project memory) alongside this file, and a calendar
-reminder was placed for Tuesday 2026-09-08 in case this doesn't get picked
-up sooner.
+Saved to Engram (project memory) alongside this file.
