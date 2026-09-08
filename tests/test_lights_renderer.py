@@ -2449,3 +2449,85 @@ def test_automorph_two_fixtures_sharing_a_room_render_different_auras(tmp_path):
         f"the two fixtures' aura outlines must differ — identical outlines mean the partition "
         f"was not applied and both fell back to the same full-room shape: {out}"
     )
+
+
+# ── Automorph icon endpoint: the fixture's REAL manual footprint ────────────
+# (Garry, 2026-09-07: "the existing manual shapes are still meant to be a
+# guide for the overall look, don't throw that info away.") The morph's
+# starting shape is automorphIconRing — iconRingLocal scaled and rotated by
+# the SAME markerScale transform the real glyph already draws with — so a
+# strip's aura grows from its own long, angled footprint, not a generic hex.
+
+def test_automorph_icon_ring_without_manual_size_is_exactly_the_plain_icon(tmp_path):
+    """No recorded width/height and no rotation must be a byte-for-byte
+    no-op — the same identity contract every other Automorph control's rest
+    position holds, so no existing fixture's aura moves a pixel."""
+    out = _run_js(tmp_path, (
+        "import { automorphIconRing, iconRingLocal } from './iso_lights.mjs';\n"
+        "const a=automorphIconRing('circle', 0, 0, 0, 30, 10);\n"
+        "const b=iconRingLocal('circle', 10);\n"
+        "console.log(JSON.stringify({equal: JSON.stringify(a)===JSON.stringify(b)}));\n"
+    ))
+    assert out["equal"], "no manual size + no rotation must return iconRingLocal's own points untouched"
+
+
+def test_automorph_icon_ring_scales_per_axis_and_rotates_like_the_real_glyph(tmp_path):
+    """A wide manual footprint must stretch the ring along x (and leave y at
+    its soft-floored height); rotating the same fixture 90° must carry that
+    long axis to y — the same scale-then-rotate order the real glyph's own
+    `rotate(rot) scale(sx,sy)` transform applies to each point."""
+    out = _run_js(tmp_path, (
+        "import { automorphIconRing } from './iso_lights.mjs';\n"
+        "const ext=(pts)=>{let x=0,y=0;for(const p of pts){x=Math.max(x,Math.abs(p[0]));y=Math.max(y,Math.abs(p[1]));}return {x,y};};\n"
+        "const plain=ext(automorphIconRing('square', 0, 0, 0, 30, 10));\n"
+        "const wide=ext(automorphIconRing('square', 400, 20, 0, 30, 10));\n"
+        "const wideTurned=ext(automorphIconRing('square', 400, 20, 90, 30, 10));\n"
+        "console.log(JSON.stringify({plain, wide, wideTurned}));\n"
+    ))
+    plain, wide, turned = out["plain"], out["wide"], out["wideTurned"]
+    assert wide["x"] > plain["x"] * 2, f"a 4 m width must visibly stretch the ring along x: {out}"
+    assert wide["x"] > wide["y"] * 2, f"the stretched ring must actually be wide, not scaled uniformly: {out}"
+    assert abs(turned["x"] - wide["y"]) < 1e-6 and abs(turned["y"] - wide["x"]) < 1e-6, (
+        f"rotating 90° must swap the long axis exactly: {out}"
+    )
+
+
+def test_automorph_aura_grows_from_the_real_manual_footprint_not_a_generic_hex(tmp_path):
+    """End-to-end: at a low room%, a fixture with a real 240cm-wide manual
+    footprint must render a much WIDER aura outline than the identical
+    fixture with no manual size — before this, both started from the same
+    small default-radius icon and the manual shape information never reached
+    the morph at all."""
+    NOW = 1_000_000_000_000
+
+    def render(extra_lp):
+        model = {
+            "room_geometry_m": {"Office": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 8], [0, 8]]}},
+            "light_positions_m": {"light.strip": {"x_m": 4, "y_m": 4, "floor_id": "main", **extra_lp}},
+        }
+        lbe = {"light.strip": {"entity_id": "light.strip", "state": "on", "code": "W01", "shape": "bar", "isMotion": False, "last_changed": None}}
+        floors = [{"id": "main", "name": "Main", "level": 0}]
+        out = _run_js(tmp_path, (
+            "import * as M from './iso_lights.mjs';\n"
+            f"const MODEL={json.dumps(model)};\n"
+            f"const LBE={json.dumps(lbe)};\n"
+            f"const FLOORS={json.dumps(floors)};\n"
+            f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+            f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:1, automorphHardness:0, automorphStyle:'blueprint'}});\n"
+            "const m = svg.match(/<path d=\"([^\"]+)\"[^>]*stroke-dasharray=\"4,3\"/);\n"
+            "if(!m){ console.log(JSON.stringify({w: null})); }\n"
+            "else {\n"
+            "  const nums=[...m[1].matchAll(/(-?[\\d.]+),(-?[\\d.]+)/g)].map(mm=>[parseFloat(mm[1]),parseFloat(mm[2])]);\n"
+            "  const xs=nums.map(p=>p[0]);\n"
+            "  console.log(JSON.stringify({w: Math.max(...xs)-Math.min(...xs)}));\n"
+            "}\n"
+        ))
+        return out["w"]
+
+    plain_w = render({})
+    manual_w = render({"width_cm": 240, "height_cm": 5, "rotation": 0})
+    assert plain_w is not None and manual_w is not None, (plain_w, manual_w)
+    assert manual_w > plain_w * 2, (
+        f"a 240cm manual width must make the aura's outline visibly wider than the "
+        f"default icon's ({manual_w} vs {plain_w}) — the manual footprint must reach the morph"
+    )

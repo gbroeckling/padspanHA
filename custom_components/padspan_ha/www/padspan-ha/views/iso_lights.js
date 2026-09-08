@@ -268,6 +268,29 @@ export function iconRingLocal(shape, r){
   return pts;
 }
 
+// The morph's STARTING point should be the fixture's REAL manually-set
+// footprint, not the generic default-radius glyph iconRingLocal alone draws
+// (Garry, 2026-09-07: "the existing manual shapes are still meant to be a
+// guide for the overall look, don't throw that info away"). Reuses
+// markerScale verbatim — the SAME function the real (non-automorph) glyph's
+// own `translate(hx,hy) rotate(rot) scale(sx,sy)` transform already scales
+// and rotates with — so a 240cm strip at 30° starts the morph as its own
+// real long, angled shape instead of snapping to a small hex the instant
+// Automorph turns on, and the two stay visually consistent with each other.
+// With no manual size recorded, markerScale returns identity {sx:1,sy:1},
+// so this is a byte-for-byte no-op for every fixture that has none —
+// exactly today's iconRingLocal(shape, hexR) output, unchanged.
+export function automorphIconRing(shape, wCm, hCm, rotDeg, scale, hexR){
+  const local=iconRingLocal(shape, hexR);
+  const {sx,sy}=markerScale(wCm, hCm, scale, hexR);
+  const rot=(Number(rotDeg)||0)*Math.PI/180;
+  const cos=Math.cos(rot), sin=Math.sin(rot);
+  return local.map(([x,y])=>{
+    const sxp=x*sx, syp=y*sy;
+    return [sxp*cos-syp*sin, sxp*sin+syp*cos];
+  });
+}
+
 // The morph itself. `iconLocal` is centred on (0,0) (iconRingLocal's own
 // output); `iconCx,iconCy` places it at the fixture's real drawn position.
 // `roomRingAbs` is the room's own outline in the SAME space (whatever space
@@ -2111,13 +2134,15 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // breaking. This is the smaller, reviewable step: the real morph maths
     // (automorphRing) proven and shipped, with "replace the icon's own
     // outline" left as a deliberate follow-up once this reads well live.
-    const automorphAuraSvg=(l,hx,hy,room,z,cellPtsM)=>{
+    const automorphAuraSvg=(l,hx,hy,room,z,cellPtsM,entry)=>{
       if(!(AUTOMORPH_PCT>0) || !room || room.pts.length<3) return "";
       const targetPts=(cellPtsM && cellPtsM.length>=3) ? cellPtsM : room.pts;
       const marginM=Math.max(0, Math.min(defaultPerimeterMarginM(frame), roomHalfMinDim(targetPts)*0.85));
       const roomPx=offsetPolygonInward(targetPts, marginM).map(p=>iso(p[0],p[1],z));
+      const iconLocal=automorphIconRing(l.shape, entry&&entry.width_cm, entry&&entry.height_cm,
+        entry&&entry.rotation, frame.scale, HEX_R);
       const ring=applyHardness(
-        automorphRing(iconRingLocal(l.shape, HEX_R), hx, hy, roomPx, AUTOMORPH_PCT/100),
+        automorphRing(iconLocal, hx, hy, roomPx, AUTOMORPH_PCT/100),
         AUTOMORPH_HARDNESS);
       const d=ringPathD(ring, AUTOMORPH_HARDNESS);
       const on=l.isMotion ? motionActive(l) : (l.isLock ? l.state==="locked" : l.state==="on");
@@ -2600,7 +2625,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       else if(AUTOMORPH_PCT>0){
         const cellsInRoom=room && roomFixtureCells.get(room);
         const cellPtsM=cellsInRoom && cellsInRoom.get(pl.eid);
-        s+=automorphAuraSvg(l, hx, hy, room, z, cellPtsM);
+        s+=automorphAuraSvg(l, hx, hy, room, z, cellPtsM, pl.lp);
       }
       // Whether an aura ACTUALLY painted for this fixture — the same room
       // truthiness automorphAuraSvg itself bails on. This, not the bare
