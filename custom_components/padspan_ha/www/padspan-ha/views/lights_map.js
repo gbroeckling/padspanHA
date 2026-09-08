@@ -1031,6 +1031,38 @@ export function computeMotionOccupancyPairs(entReg, states){
   return pairMap;
 }
 
+// Brand column resolution (Garry, 2026-09-08: "why are you not seeing the
+// control4 lights as brand control4, sloppy... better logic for the search.
+// Blanks in the brand column should be rare"). Root cause, verified live:
+// manufacturer alone left ~60 Control4 devices behind an HC800 blank — HA's
+// device registry genuinely has no manufacturer string for them — while a
+// few C4 outlet modules DID report one, making the column read as
+// inconsistently sloppy rather than uniformly empty. Every device still
+// carries its OWNING INTEGRATION (identifiers[0][0], or the entity's own
+// platform when no device exists at all), so that becomes the fallback
+// brand — stylized for the integrations with a real retail name, title-
+// cased for everything else so a future integration resolves with no code
+// change ("control4" → "Control4" automatically). A small set of pure
+// transport/container domains stay honestly blank — they carry no brand
+// identity of their own to report.
+const _BRAND_STYLED = {
+  wled: "WLED", esphome: "ESPHome", hue: "Philips Hue", lifx: "LIFX",
+  tplink: "TP-Link", tradfri: "IKEA", wiz: "WiZ", flux_led: "Magic Home",
+  zha: "Zigbee", zwave_js: "Z-Wave", deconz: "deCONZ",
+  lutron_caseta: "Lutron", homekit_controller: "HomeKit",
+};
+const _BRAND_BLANK = new Set([
+  "mqtt", "template", "group", "light_group", "switch_as_x", "demo",
+  "homeassistant", "input_boolean", "adaptive_lighting", "scene",
+]);
+export function resolveBrand(manufacturer, identDomain, platform){
+  if (manufacturer) return manufacturer;
+  const domain = identDomain || platform || null;
+  if (!domain || _BRAND_BLANK.has(domain)) return null;
+  if (_BRAND_STYLED[domain]) return _BRAND_STYLED[domain];
+  return domain.split("_").map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(" ");
+}
+
 // ── Registry: entity_id → area name for every light ──────────────────────────
 // One implementation with ONE staleness rule so the two views can never
 // disagree about which room a light is in. `store` is a host-owned plain
@@ -1064,8 +1096,16 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         // string (e.g. "_TZE204_ex3rcdha") rather than the name on the box
         // — that is what HA itself knows, so it is what this shows too;
         // sold-as branding for a white-label device is not something the
-        // device registry has ever known.
+        // device registry has ever known. When a device has NO manufacturer
+        // at all (every Control4 device behind an HC800, live-verified),
+        // devIdentDomain below carries its owning integration instead —
+        // resolveBrand is what turns either into the column's final text.
         const devManufacturer = {};
+        // device_id → owning integration domain, from the device's own
+        // identifiers (a list of [domain, unique_id] pairs — defensively
+        // guarded, since a malformed/third-party entry could ship a bare
+        // string or an empty tuple instead of the documented shape).
+        const devIdentDomain = {};
         // device_id → IP/hostname, for the WLED control card. WLED (and most
         // ESPHome devices) set the device registry's own configuration_url
         // to the device's local web UI — http://<ip>/ — so this is already
@@ -1074,6 +1114,8 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         for (const d of (devReg || [])) {
           if (d.area_id) devAreaId[d.id] = d.area_id;
           if (d.manufacturer) devManufacturer[d.id] = d.manufacturer;
+          const firstIdent = Array.isArray(d.identifiers) ? d.identifiers[0] : null;
+          if (Array.isArray(firstIdent) && typeof firstIdent[0] === "string") devIdentDomain[d.id] = firstIdent[0];
           if (d.configuration_url) {
             try { devHost[d.id] = new URL(d.configuration_url).hostname || null; }
             catch (_) { devHost[d.id] = null; }
@@ -1100,7 +1142,7 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
           // ESPHome-style split strip, whatever ELSE reports it is not our
           // business. Same registry fetch, no extra round trip.
           platformMap[e.entity_id] = e.platform || null;
-          manufacturerMap[e.entity_id] = devManufacturer[e.device_id] || null;
+          manufacturerMap[e.entity_id] = resolveBrand(devManufacturer[e.device_id], devIdentDomain[e.device_id], e.platform);
           ipMap[e.entity_id] = devHost[e.device_id] || null;
         }
         // Same registry fetch, no extra round trip — hass.states is already

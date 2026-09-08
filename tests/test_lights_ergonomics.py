@@ -464,3 +464,43 @@ console.log(JSON.stringify({
     assert out["clampsLow"] == 0.4, out
     assert out["ignoresZeroDist"] == 1.5, "a degenerate (zero) prior distance must not divide by zero"
     assert out["ignoresNoop"] == 1.5, out
+
+
+# ── Brand column resolution ──────────────────────────────────────────────────
+
+def test_resolve_brand_precedence_and_the_control4_case(tmp_path):
+    """Garry (2026-09-08): "why are you not seeing the control4 lights as
+    brand control4, sloppy... better logic for the search. Blanks in the
+    brand column should be rare." Root cause verified live: the ~60
+    Control4 devices behind an HC800 have NO manufacturer in HA's device
+    registry at all, but every one carries identifiers[0][0]=="control4" —
+    resolveBrand falls back to the owning integration, stylized or
+    title-cased, so blanks become rare without special-casing Control4."""
+    out = _run(tmp_path, r"""
+console.log(JSON.stringify({
+  manufacturerWins: LM.resolveBrand("QuinLED", "wled", "wled"),
+  rawTuyaStringWins: LM.resolveBrand("_TZE204_ex3rcdha", "zha", "zha"),
+  theLiveControl4Case: LM.resolveBrand(null, "control4", "control4"),
+  platformFallbackNoDevice: LM.resolveBrand(null, null, "wled"),
+  styledTable_hue: LM.resolveBrand(null, "hue", "hue"),
+  styledTable_zwave: LM.resolveBrand(null, "zwave_js", "zwave_js"),
+  titleCaseUnlisted: LM.resolveBrand(null, "some_vendor_x", "some_vendor_x"),
+  transportsStayNull_mqtt: LM.resolveBrand(null, "mqtt", "mqtt"),
+  transportsStayNull_template: LM.resolveBrand(null, null, "template"),
+  allNullIsSafe: LM.resolveBrand(null, null, null),
+  emptyManufacturerFallsThrough: LM.resolveBrand("", "wled", "wled"),
+}));
+""")
+    assert out["manufacturerWins"] == "QuinLED", out
+    assert out["rawTuyaStringWins"] == "_TZE204_ex3rcdha", (
+        "a raw firmware manufacturer string is what HA itself knows — show it as-is, not stylized", out
+    )
+    assert out["theLiveControl4Case"] == "Control4", out
+    assert out["platformFallbackNoDevice"] == "WLED", "no device at all must still fall back to the entity's own platform"
+    assert out["styledTable_hue"] == "Philips Hue", out
+    assert out["styledTable_zwave"] == "Z-Wave", out
+    assert out["titleCaseUnlisted"] == "Some Vendor X", "an unlisted integration must title-case, not stay blank"
+    assert out["transportsStayNull_mqtt"] is None, "a pure transport carries no brand identity of its own"
+    assert out["transportsStayNull_template"] is None, out
+    assert out["allNullIsSafe"] is None, out
+    assert out["emptyManufacturerFallsThrough"] == "WLED", "a falsy-but-present manufacturer must still fall through to the domain"
