@@ -1718,7 +1718,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   const pts = cs=>cs.map(pt).join(" ");
 
   const levelColor=(z)=>LAYER_PAL[levels.indexOf(z)%LAYER_PAL.length];
-  const LEGEND_H=Math.max(1,levels.length)*30+24;
+  // +1 row: the motion colour-index strip below the floor rows (Garry,
+  // 2026-09-08) reuses this exact same growing-row layout, one row past
+  // the last floor.
+  const LEGEND_H=(Math.max(1,levels.length)+1)*30+24;
   // Top of the stack in DRAWN storeys, not level numbers — otherwise a gap in
   // the numbering reserved empty canvas above the building.
   const maxIsoZ = levels.length ? rankOf(levels[levels.length-1]) : 0;
@@ -1924,6 +1927,18 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   s+=`<defs>`;
   // Motion pulse gradient — UNGATED (both modes): a triggered sensor is
   // status, not presentation, and it has to read on the working map too.
+  // The motion legend strip's colour index (Garry, 2026-09-08: "a small
+  // line at the bottom, very narrow, with an index of the color order for
+  // the motion, starting at blue, and thru the colors to ending on
+  // green") — the SAME three hues MOTION_COLOR_STOPS opens on (240/180/120,
+  // blue/cyan/green: "just triggered" through "quiet a few minutes"), at
+  // the SAME saturation/lightness motionRecentPulseSvg's own hsl() string
+  // uses, so the strip is never a second, drifting copy of the real
+  // colours — just a static read of the first three stops.
+  s+=`<linearGradient id="psmotionlegend" x1="0" y1="0" x2="1" y2="0">`+
+    `<stop offset="0%" stop-color="hsl(240,75%,58%)"/>`+
+    `<stop offset="50%" stop-color="hsl(180,75%,58%)"/>`+
+    `<stop offset="100%" stop-color="hsl(120,75%,58%)"/></linearGradient>`;
   s+=`<radialGradient id="psmotion">`+
     `<stop offset="0%" stop-color="${MOTION_PULSE}" stop-opacity="0.55"/>`+
     `<stop offset="60%" stop-color="${MOTION_PULSE}" stop-opacity="0.18"/>`+
@@ -3773,6 +3788,17 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     s+=`<text x="18" y="${ly+15}" text-anchor="middle" fill="#071008" font-size="12" font-weight="700">${i+1}</text>`;
     s+=`<text x="36" y="${ly+15}" fill="${color}" font-size="18" font-weight="500">${escSVG(groupLabel)}</text>`;
   });
+  // Motion colour index (Garry, 2026-09-08) — one row past the last floor,
+  // in the space LEGEND_H's +1 above reserved. A "very narrow" strip on
+  // purpose: this is a reference key, not another marker competing for
+  // attention.
+  {
+    const my=BASE_H+10+levels.length*30;
+    s+=`<text x="18" y="${my+11}" fill="#9fb0a8" font-size="13" font-weight="500">Motion</text>`+
+      `<rect x="90" y="${my+5}" width="140" height="6" rx="3" fill="url(#psmotionlegend)"/>`+
+      `<text x="90" y="${my+26}" fill="#6b7d74" font-size="10">just triggered</text>`+
+      `<text x="230" y="${my+26}" text-anchor="end" fill="#6b7d74" font-size="10">quiet a few min</text>`;
+  }
 
   s+=`</svg>`;
   return s;

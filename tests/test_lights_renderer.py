@@ -4309,3 +4309,70 @@ def test_automorph_full_map_two_renders_are_byte_identical(tmp_path):
         "Date.now may appear exactly once: the deliberate nowMs fallback at the top of "
         "buildIsoSVG — a second site would seed paint from wall-clock time"
     )
+
+
+def test_motion_legend_strip_indexes_the_real_pulse_colours(tmp_path):
+    """Garry (2026-09-08): "also draw a small line at the bottom, very
+    narrow, with an index of the color order for the motion, starting at
+    blue, and thru the colors to ending on green." A static read of
+    MOTION_COLOR_STOPS' first three hues (240/180/120), at the SAME
+    hsl(...,75%,58%) formula the real pulse ring uses, appended one row
+    past the floor legend so it never overlaps."""
+    model = {
+        "room_geometry_m": {"Room": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [4, 0], [4, 4], [0, 4]]}},
+        "light_positions_m": {"light.a": {"x_m": 2, "y_m": 2, "floor_id": "main"}},
+    }
+    lbe = {"light.a": {"entity_id": "light.a", "state": "on", "code": "A01", "shape": "circle"}}
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{});\n"
+        "const grad=/<linearGradient id=\"psmotionlegend\"[^>]*>([\\s\\S]*?)<\\/linearGradient>/.exec(svg);\n"
+        "console.log(JSON.stringify({\n"
+        "  gradDefs: (svg.match(/id=\"psmotionlegend\"/g)||[]).length,\n"
+        "  gradBody: grad?grad[1]:null,\n"
+        "  stripRef: (svg.match(/fill=\"url\\(#psmotionlegend\\)\"/g)||[]).length,\n"
+        "  hasLabel: svg.includes('>Motion<'),\n"
+        "  stripBeforeSvgClose: svg.lastIndexOf('url(#psmotionlegend)') < svg.lastIndexOf('</svg>'),\n"
+        "}));\n"
+    ))
+    assert out["gradDefs"] == 1, "exactly one shared gradient def, not one per render call"
+    assert out["stripRef"] == 1, "exactly one strip drawn"
+    assert out["hasLabel"], out
+    assert out["stripBeforeSvgClose"], out
+    # The three stops must be the real pulse colours, byte-for-byte — never a
+    # second, drifting copy of motionRecentPulseSvg's own hsl() formula.
+    body = out["gradBody"] or ""
+    assert 'stop-color="hsl(240,75%,58%)"' in body, body
+    assert 'stop-color="hsl(180,75%,58%)"' in body, body
+    assert 'stop-color="hsl(120,75%,58%)"' in body, body
+
+
+def test_motion_legend_strip_reserves_its_own_row_past_the_floor_legend(tmp_path):
+    """A multi-floor render must not clip or overlap the strip under the
+    last floor row — LEGEND_H reserves exactly one extra row for it."""
+    model = {
+        "room_geometry_m": {
+            "R1": {"type": "poly", "floor_id": "f1", "points_m": [[0, 0], [4, 0], [4, 4], [0, 4]]},
+            "R2": {"type": "poly", "floor_id": "f2", "points_m": [[0, 0], [4, 0], [4, 4], [0, 4]]},
+            "R3": {"type": "poly", "floor_id": "f3", "points_m": [[0, 0], [4, 0], [4, 4], [0, 4]]},
+        },
+        "light_positions_m": {},
+    }
+    floors = [{"id": "f1", "name": "One", "level": 0}, {"id": "f2", "name": "Two", "level": 1}, {"id": "f3", "name": "Three", "level": 2}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,{},false,FLOORS,{});\n"
+        "const h=/height=\"([0-9.]+)\"/.exec(svg);\n"
+        "const stripM=/<rect x=\"90\" y=\"([0-9.]+)\"[^>]*fill=\"url\\(#psmotionlegend\\)\"/.exec(svg);\n"
+        "console.log(JSON.stringify({height:h?Number(h[1]):null, stripY:stripM?Number(stripM[1]):null}));\n"
+    ))
+    assert out["height"] is not None and out["stripY"] is not None, out
+    assert out["stripY"] + 12 <= out["height"], (
+        "the motion legend strip must fit fully inside the SVG's own declared height", out
+    )
