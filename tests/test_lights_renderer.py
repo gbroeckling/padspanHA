@@ -2223,8 +2223,13 @@ def test_automorph_resample_count_adapts_to_the_target_rings_own_density(tmp_pat
 # ── Automorph slider 2: edge hardness (Garry, 2026-09-07) ───────────────────
 # "The second slider is to make all the shapes from hard edges to soft, this
 # one starts in the center." Centered at 0 = today's straight polygon,
-# unchanged either direction; negative sharpens (spikes outward from the
-# ring's own centroid), positive smooths (a closed Catmull-Rom spline).
+# unchanged either direction; negative sharpens via a LOCAL Pucker-and-Bloat
+# push (each point away from its own neighbours' midpoint — straight runs
+# hold still, existing corners spike), positive smooths (a closed Catmull-Rom
+# spline). The negative push is bounded twice: by 75% of the point's own
+# shorter adjacent edge (no local self-intersection at -100) and by an
+# absolute cap the aura call site derives from its inset margin (hardness
+# must never eat the non-overlap gap between neighbouring cells).
 
 def test_hardness_zero_is_the_straight_polygon_completely_unchanged(tmp_path):
     """The rest position's own contract: hardness=0 must produce the exact
@@ -2241,21 +2246,96 @@ def test_hardness_zero_is_the_straight_polygon_completely_unchanged(tmp_path):
     assert out["d"] == "M0.0,0.0 L10.0,0.0 L10.0,10.0 L0.0,10.0Z", out["d"]
 
 
-def test_hardness_negative_spikes_outward_from_the_centroid(tmp_path):
-    """Negative hardness pushes every point away from the ring's own
-    centre by a fixed fraction (up to 35% at -100) — checked exactly
-    against a square centred on the origin, where the maths is easy to
-    hand-verify: each corner at radius r√2 should land at r√2 * 1.35."""
+def test_hardness_negative_spikes_corners_and_holds_straight_runs_still(tmp_path):
+    """Negative hardness is a LOCAL corner-sharpening operator (the
+    Pucker-and-Bloat technique), not the old centroid inflate: each point
+    is pushed away from the midpoint of its own two neighbours, so
+    'harder' actually ADDS angularity instead of uniformly scaling the
+    whole shape. Checked on a square listed WITH its edge midpoints: a
+    midpoint is collinear with its neighbours (zero local deviation) and
+    must not move AT ALL, while each true corner must spike outward within
+    its own quadrant. Also pins the operator's structural invariants:
+    point count preserved, and byte-identical output across two calls
+    (a render must be reproducible from the fabric alone)."""
+    ring = [[-10, -10], [0, -10], [10, -10], [10, 0],
+            [10, 10], [0, 10], [-10, 10], [-10, 0]]
     out = _run_js(tmp_path, (
         "import { applyHardness } from './iso_lights.mjs';\n"
-        "const ring=[[-10,-10],[10,-10],[10,10],[-10,10]];\n"
-        "const out=applyHardness(ring, -100);\n"
-        "console.log(JSON.stringify({out}));\n"
+        f"const ring={json.dumps(ring)};\n"
+        "const a=applyHardness(ring, -100);\n"
+        "const b=applyHardness(ring, -100);\n"
+        "console.log(JSON.stringify({a, same: JSON.stringify(a)===JSON.stringify(b), n: a.length}));\n"
     ))
-    for p in out["out"]:
-        # Each corner was at (+-10,+-10); at -100 hardness (k=1.35) it must
-        # land at (+-13.5,+-13.5), same sign, same centre.
-        assert abs(abs(p[0]) - 13.5) < 1e-6 and abs(abs(p[1]) - 13.5) < 1e-6, out["out"]
+    assert out["n"] == len(ring), "the operator must preserve the point count"
+    assert out["same"], "applyHardness must be deterministic"
+    for orig, p in zip(ring, out["a"]):
+        if 0 in orig:
+            # An edge midpoint: on the straight run between two corners.
+            assert p == orig, f"straight-run point {orig} must not move, got {p}"
+        else:
+            # A true corner: must move strictly outward, same quadrant.
+            assert abs(p[0]) > 10 and abs(p[1]) > 10, f"corner {orig} must spike outward, got {p}"
+            assert p[0] * orig[0] > 0 and p[1] * orig[1] > 0, f"corner {orig} left its quadrant: {p}"
+
+
+def test_hardness_negative_outward_push_respects_an_absolute_cap(tmp_path):
+    """The hardness slider must never blow through the non-overlap gap:
+    the optional third argument is a hard per-point displacement cap (the
+    aura call site derives it from the same inset margin that created the
+    gap). Every point's displacement must stay within the cap, cap=0 must
+    return the ring completely unchanged (a zero inset means the ring
+    already sits on the wall), and the cap must actually bind here —
+    i.e. the uncapped push in this scenario is larger."""
+    ring = [[-10, -10], [0, -10], [10, -10], [10, 0],
+            [10, 10], [0, 10], [-10, 10], [-10, 0]]
+    out = _run_js(tmp_path, (
+        "import { applyHardness } from './iso_lights.mjs';\n"
+        f"const ring={json.dumps(ring)};\n"
+        "const disp=(r)=>Math.max(...r.map((p,i)=>Math.hypot(p[0]-ring[i][0], p[1]-ring[i][1])));\n"
+        "const dCapped=disp(applyHardness(ring, -100, 2));\n"
+        "const dFree=disp(applyHardness(ring, -100));\n"
+        "const zeroSame=JSON.stringify(applyHardness(ring, -100, 0))===JSON.stringify(ring);\n"
+        "console.log(JSON.stringify({dCapped, dFree, zeroSame}));\n"
+    ))
+    assert out["dCapped"] <= 2 + 1e-9, f"a point moved {out['dCapped']} past the cap of 2"
+    assert out["dFree"] > 2, "the cap must actually bind in this scenario, or the test proves nothing"
+    assert out["zeroSame"], "cap=0 (no gap at all) must leave the ring completely unchanged"
+
+
+def test_hardness_negative_push_cannot_exceed_the_local_edge_length(tmp_path):
+    """Self-intersection guard: an already-sharp corner's amplified
+    deviation could overshoot its own neighbours at -100, folding the
+    outline over itself. The push is clamped to 75% of the shorter
+    adjacent edge, so a spike is always shorter than the edges it grows
+    between. Built on a needle whose deviation (~10) dwarfs its shortest
+    edge (~0.71) — uncapped, the raw push would be ~20."""
+    ring = [[10, 0], [9.5, 0.5], [-10, 1], [-10, -1]]
+    short_edge = (0.5 ** 2 + 0.5 ** 2) ** 0.5  # [10,0] to [9.5,0.5]
+    out = _run_js(tmp_path, (
+        "import { applyHardness } from './iso_lights.mjs';\n"
+        f"const ring={json.dumps(ring)};\n"
+        "const r=applyHardness(ring, -100);\n"
+        "const d0=Math.hypot(r[0][0]-ring[0][0], r[0][1]-ring[0][1]);\n"
+        "console.log(JSON.stringify({d0}));\n"
+    ))
+    assert 0 < out["d0"] <= short_edge * 0.75 + 1e-9, \
+        f"the needle point moved {out['d0']}, past 75% of its shorter edge ({short_edge * 0.75:.3f})"
+
+
+def test_hardness_non_negative_is_exact_passthrough_even_with_a_cap(tmp_path):
+    """The soft half lives entirely in ringPathD; applyHardness at any
+    hardness >= 0 must return the very same array untouched regardless of
+    the cap argument — the rest position (0) and the whole positive range
+    must be unreachable by the new clamp plumbing."""
+    out = _run_js(tmp_path, (
+        "import { applyHardness } from './iso_lights.mjs';\n"
+        "const ring=[[0,0],[10,0],[10,10],[0,10]];\n"
+        "const atZero=applyHardness(ring, 0, 5)===ring;\n"
+        "const atSoft=applyHardness(ring, 60, 5)===ring;\n"
+        "console.log(JSON.stringify({atZero, atSoft}));\n"
+    ))
+    assert out["atZero"], "hardness=0 with a cap must still be an exact (same-array) passthrough"
+    assert out["atSoft"], "positive hardness with a cap must still be an exact (same-array) passthrough"
 
 
 def test_hardness_positive_leaves_points_untouched_only_the_path_smooths(tmp_path):

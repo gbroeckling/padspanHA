@@ -354,17 +354,64 @@ export function automorphRing(iconLocal, iconCx, iconCy, roomRingAbs, t){
 
 // Slider 2 (edge hardness): centered at 0 — Garry's own spec, "this slider
 // starts in the center" and 0 is today's unchanged straight-edged treatment
-// either direction. Negative pushes every point outward from the ring's own
-// centroid, for a sharper, more angular "hard, geometrically aligned" look;
-// positive is handled separately, at path-build time (ringPathD below),
-// since softening needs the RAW points, not a transformed copy of them.
-export function applyHardness(ring, hardness){
+// either direction. Positive is handled separately, at path-build time
+// (ringPathD below), since softening needs the RAW points; every
+// non-negative input is therefore an EXACT passthrough here (the same array,
+// untouched — the rest-position contract the tests pin).
+//
+// The negative ("hard, geometrically aligned") side is the vector-tool
+// Pucker-and-Bloat operator, keyed to LOCAL structure: each point is pushed
+// away from the midpoint of its own two neighbours, so a point sitting on a
+// straight run (zero deviation from its neighbours' chord) does not move at
+// all, while a point that already IS a corner has that corner exaggerated
+// into a real spike. The first version was a uniform scale about the ring's
+// vertex-average centroid, and it failed twice over once the ring became a
+// fixture's own non-overlap CELL: a rounded cell scaled up is exactly as
+// rounded, just bigger — no angularity added, contradicting the slider's
+// "sharp, precise geometric angles" spec — and on a lopsided cell (fixture
+// near a wall, cell reaching much farther one way than the other) the
+// vertex average sits well away from the fixture itself, so "sharpen" read
+// as the whole aura ballooning off to one side of the light. The local
+// operator has no global centre at all, so there is nothing left to drift
+// off-anchor.
+//
+// The push is `gain * local deviation` with gain up to 2 at -100 — rings
+// arriving here are densely resampled (24-64 points at even arc spacing),
+// so per-point deviations are small and the old fractional factor would be
+// invisible; tripling the deviation reads as a real spike at corners while
+// leaving straight runs mathematically untouched. Two clamps then bound it,
+// because unbounded outward growth breaks real constraints:
+//  - `maxOutPx` (3rd arg, same units as the ring's own coordinates — the
+//    aura call site passes screen px): a HARD cap on each point's total
+//    displacement. The ring was just inset by marginM to create the
+//    deliberate gap between neighbouring cells and to the room's own
+//    walls; a push proportional to the ring's own size blows through that
+//    small fixed gap on any normal-sized cell, silently defeating the
+//    non-overlap partition with a control that was never meant to touch
+//    spacing. The call site derives the cap from the SAME margin it inset
+//    by, so very hard settings on tight cells plateau (intentional) but
+//    can never eat the gap or cross a wall. Omitted/null = uncapped, for
+//    unit-space callers.
+//  - 75% of the shorter adjacent edge: at -100 an already-sharp corner's
+//    amplified deviation could overshoot its own neighbours and locally
+//    self-intersect; a spike kept shorter than its own edges cannot fold
+//    over them.
+export function applyHardness(ring, hardness, maxOutPx){
   const h=Math.max(-100, Math.min(100, hardness||0));
   if(h>=0 || ring.length<3) return ring;
-  const cx=ring.reduce((a,p)=>a+p[0],0)/ring.length;
-  const cy=ring.reduce((a,p)=>a+p[1],0)/ring.length;
-  const k=1+(-h/100)*0.35; // up to +35% outward at hardness=-100
-  return ring.map(p=>[cx+(p[0]-cx)*k, cy+(p[1]-cy)*k]);
+  const n=ring.length;
+  const gain=(-h/100)*2; // push = gain * local deviation, before the clamps
+  const cap=(maxOutPx===undefined||maxOutPx===null)?Infinity:Math.max(0, maxOutPx);
+  return ring.map((p,i)=>{
+    const a=ring[(i-1+n)%n], b=ring[(i+1)%n];
+    const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+    const dx=p[0]-mx, dy=p[1]-my;
+    const dev=Math.hypot(dx, dy);
+    if(!(dev>0)) return p; // exactly on the chord — no direction to spike in
+    const edge=Math.min(Math.hypot(p[0]-a[0], p[1]-a[1]), Math.hypot(b[0]-p[0], b[1]-p[1]));
+    const push=Math.min(dev*gain, edge*0.75, cap);
+    return [p[0]+dx/dev*push, p[1]+dy/dev*push];
+  });
 }
 
 // Builds the SVG path `d` for a closed ring, honouring hardness's SOFT side
@@ -2245,9 +2292,20 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const roomPx=offsetPolygonInward(targetPts, marginM).map(p=>iso(p[0],p[1],z));
       const iconLocal=automorphIconRing(l.shape, entry&&entry.width_cm, entry&&entry.height_cm,
         entry&&entry.rotation, frame.scale, HEX_R);
+      // Hardness's negative side pushes ring points OUTWARD (applyHardness)
+      // — cap that push so it can never spend the gap this very marginM
+      // inset just created between neighbouring cells and to the room's own
+      // walls. Units: marginM is metres, but the ring applyHardness receives
+      // is screen px. frame.scale is px-per-metre for an axis-aligned metre
+      // step, and the iso projection is anisotropic — a metre maps to
+      // between ~0.71x (SQRT1_2, the metre-space diagonal) and ~1.22x
+      // frame.scale px depending on direction — so the cap takes the
+      // conservative floor: whichever direction a spike happens to point,
+      // 85% of the projected gap is the most it can ever spend.
+      const hardCapPx=marginM*frame.scale*Math.SQRT1_2*0.85;
       const ring=applyHardness(
         automorphRing(iconLocal, hx, hy, roomPx, AUTOMORPH_PCT/100),
-        AUTOMORPH_HARDNESS);
+        AUTOMORPH_HARDNESS, hardCapPx);
       const d=ringPathD(ring, AUTOMORPH_HARDNESS);
       const on=l.isMotion ? motionActive(l) : (l.isLock ? l.state==="locked" : l.state==="on");
       // Neutral, colourless shading (Garry, 2026-09-07: "all these colors
