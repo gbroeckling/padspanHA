@@ -1953,10 +1953,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // default) centres each fill on whatever ring references it —
   // per-fixture geometry for free. Being SHARED, these can carry no
   // per-fixture offset by construction — that cue lives in the flat ink
-  // instead (see automorphAuraSvg's colour-ownership comment). UNGATED
-  // like psmotion: Automorph runs on the working map too, and an invalid
-  // paint reference makes SVG drop the element entirely, not fall back.
-  for(const [duoId,duoBase] of [["psautomorphduo_on",AUTOMORPH_BASE_ON],["psautomorphduo_off",AUTOMORPH_BASE_OFF]]){
+  // instead (see automorphAuraSvg's colour-ownership comment). GATED on
+  // the slider, unlike psmotion (whose consumer exists in both modes):
+  // only the aura ever references these, so with Automorph off they were
+  // pure dead DOM — and the automorph-off render is contractually
+  // byte-identical to the pre-Automorph output.
+  if(AUTOMORPH_PCT>0) for(const [duoId,duoBase] of [["psautomorphduo_on",AUTOMORPH_BASE_ON],["psautomorphduo_off",AUTOMORPH_BASE_OFF]]){
     s+=`<radialGradient id="${duoId}">`+
       `<stop offset="0%" stop-color="${lighten(duoBase,18)}"/>`+
       `<stop offset="55%" stop-color="${lighten(duoBase,8)}"/>`+
@@ -1990,43 +1992,54 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // perimeter cove glow) reference this def now — the Automorph aura,
   // which used to share it, blurs through its own clone psaurasoft just
   // below, whose region is sized for the aura's shadow-bearing blur
-  // group. Left UNGATED from that era: a bare def is inert, and re-gating
-  // it would buy the working map nothing.
-  s+=`<filter id="psclipsoft" x="-8%" y="-8%" width="116%" height="116%">`+
-    `<feGaussianBlur stdDeviation="1.6"/></filter>`;
-  // Automorph's aura blur — a clone of psclipsoft with a WIDER region,
-  // and deliberately its own def. The aura's soft layers (cast shadow,
-  // ambient occlusion, wash, bloom) blur as ONE group per fixture, and
-  // that group's bbox includes the shadow's offset copy; a filter's
-  // default region is relative to the bbox of whatever it filters, and
-  // psclipsoft's -8% margin stops covering the blur's ~3-sigma bleed
-  // (~5px at stdDeviation 1.6) once the filtered bbox is small — the
-  // icon-sized low-t aura, and the shadow's trailing lower-right edge is
-  // the first thing a too-tight region visibly shears off. 12% covers
-  // the bleed for any group upwards of ~40px across; smaller than that,
-  // the clipped tail sits under ~2% alpha — invisible. Cloning rather
-  // than widening psclipsoft itself keeps the Showcase pools' raster
-  // area (region size IS raster cost) exactly what it was. UNGATED like
-  // psmotion: Automorph runs on the working map too, and an invalid
-  // filter reference makes SVG drop the element entirely, not skip the
-  // blur.
-  s+=`<filter id="psaurasoft" x="-12%" y="-12%" width="124%" height="124%">`+
-    `<feGaussianBlur stdDeviation="1.6"/></filter>`;
+  // group.
+  const emitClipSoft=()=>{
+    s+=`<filter id="psclipsoft" x="-8%" y="-8%" width="116%" height="116%">`+
+      `<feGaussianBlur stdDeviation="1.6"/></filter>`;
+  };
   // One clip path per room, so a fixture's pool — and its Automorph aura —
   // can be stopped at its own walls. Light crossing a wall polygon reads as
   // a rendering error the moment the drawing is good enough for anything
   // else to read as real — and the fabric has known these polygons in
-  // metres all along. UNGATED (both modes), the same precedent psmotion and
-  // psautomorphgrad already set: the aura is gated on the Automorph slider
-  // alone, never on Showcase, so its room clip has to exist on the working
-  // map too — while this loop lived inside if(SHOW), roomClip stayed EMPTY
-  // for the whole working-mode render and a blurred or hardness-spiked aura
-  // had nothing stopping it at its own room's wall. O(rooms) defs, not
-  // O(fixtures), so still cheap at any fixture count.
-  for(let ri=0; ri<rooms.length; ri++){
-    const r=rooms[ri];
-    roomClip.set(r, `psclip_${ri}`);
-    s+=`<clipPath id="psclip_${ri}"><polygon points="${r.pts.map(p=>pt(iso(p[0],p[1],r.z))).join(" ")}"/></clipPath>`;
+  // metres all along. O(rooms) defs, not O(fixtures), so still cheap at
+  // any fixture count.
+  const emitRoomClips=()=>{
+    for(let ri=0; ri<rooms.length; ri++){
+      const r=rooms[ri];
+      roomClip.set(r, `psclip_${ri}`);
+      s+=`<clipPath id="psclip_${ri}"><polygon points="${r.pts.map(p=>pt(iso(p[0],p[1],r.z))).join(" ")}"/></clipPath>`;
+    }
+  };
+  // Emitters rather than inline defs because these two are needed at
+  // DIFFERENT positions depending on who can reference them. The aura is
+  // gated on the Automorph slider alone, never on Showcase, so with
+  // Automorph on the room clips must exist on the working map too — while
+  // this loop lived inside if(SHOW), roomClip stayed EMPTY for the whole
+  // working-mode render and a blurred or hardness-spiked aura had nothing
+  // stopping it at its own room's wall. With Automorph OFF nothing outside
+  // if(SHOW) can reference either def, and the automorph-off render is
+  // contractually byte-identical to the pre-Automorph output — def ORDER
+  // included, which is why the showcase-only emission happens at the defs'
+  // pre-Automorph spot inside if(SHOW) below rather than up here.
+  if(AUTOMORPH_PCT>0){
+    emitClipSoft();
+    // Automorph's aura blur — a clone of psclipsoft with a WIDER region,
+    // and deliberately its own def. The aura's soft layers (cast shadow,
+    // ambient occlusion, wash, bloom) blur as ONE group per fixture, and
+    // that group's bbox includes the shadow's offset copy; a filter's
+    // default region is relative to the bbox of whatever it filters, and
+    // psclipsoft's -8% margin stops covering the blur's ~3-sigma bleed
+    // (~5px at stdDeviation 1.6) once the filtered bbox is small — the
+    // icon-sized low-t aura, and the shadow's trailing lower-right edge is
+    // the first thing a too-tight region visibly shears off. 12% covers
+    // the bleed for any group upwards of ~40px across; smaller than that,
+    // the clipped tail sits under ~2% alpha — invisible. Cloning rather
+    // than widening psclipsoft itself keeps the Showcase pools' raster
+    // area (region size IS raster cost) exactly what it was. Gated with
+    // the rest of the aura defs: only the aura references it.
+    s+=`<filter id="psaurasoft" x="-12%" y="-12%" width="124%" height="124%">`+
+      `<feGaussianBlur stdDeviation="1.6"/></filter>`;
+    emitRoomClips();
   }
   if(SHOW){
     // Light pools. Four stops, not two: a linear ramp reads as a flat disc with
@@ -2039,6 +2052,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         `<stop offset="62%" stop-color="${col}" stop-opacity="0.10"/>`+
         `<stop offset="100%" stop-color="${col}" stop-opacity="0"/>`+
         `</radialGradient>`;
+    }
+    // With Automorph off, psclipsoft and the room clips are emitted HERE —
+    // their pre-Automorph home between the pool gradients and psshade — so
+    // the showcase render stays byte-identical to that era in def order,
+    // not merely def set.
+    if(!(AUTOMORPH_PCT>0)){
+      emitClipSoft();
+      emitRoomClips();
     }
     // Contact shadow under a fixture — what actually sells a marker as an
     // object sitting in the room rather than a sticker on the glass.
@@ -2213,14 +2234,16 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // exact "two suns" outcome psgloss's own comment exists to prevent,
     // compounding at the ~100-fixture scale. One def per floor (O(floors),
     // free at any fixture count), every cell on the slab lit from the same
-    // upper-left. UNGATED on purpose: Automorph runs on the working map,
-    // and while the aura pointed at Showcase-gated psgloss its rim and
-    // gloss silently vanished there (invalid paint ref = element dropped).
-    // psgloss itself is untouched — markers and rooms keep exactly what
-    // they have. A gradient element renders nothing on its own, so it is
-    // safe outside <defs>; url() references resolve document-wide.
+    // upper-left. Gated on the SLIDER, not on Showcase: Automorph runs on
+    // the working map, and while the aura pointed at Showcase-gated
+    // psgloss its rim and gloss silently vanished there (invalid paint
+    // ref = element dropped) — but with Automorph off nothing references
+    // this ramp, and the render stays byte-identical to the pre-Automorph
+    // output. psgloss itself is untouched — markers and rooms keep exactly
+    // what they have. A gradient element renders nothing on its own, so it
+    // is safe outside <defs>; url() references resolve document-wide.
     const glossAutoId=`psglossauto_${lidx}`;
-    {
+    if(AUTOMORPH_PCT>0){
       const gxs=[TL[0],TR[0],BR[0],BL[0]], gys=[TL[1],TR[1],BR[1],BL[1]];
       const gx0=Math.min(...gxs), gw=Math.max(...gxs)-gx0;
       const gy0=Math.min(...gys), gh=Math.max(...gys)-gy0;

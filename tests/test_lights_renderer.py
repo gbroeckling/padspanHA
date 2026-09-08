@@ -1892,11 +1892,12 @@ def test_showcase_pool_physics_kelvin_clip_beam_breathe(tmp_path):
     none of this.
 
     workInert's contract was deliberately narrowed when the room clipPath
-    defs went UNGATED (the Automorph aura is gated on its own slider, never
-    on Showcase, so its room clip must exist on the working map too — the
-    same precedent psmotion/psautomorphgrad set): a bare def is inert, so
-    the working map is now policed for clip-path APPLICATION and the
-    breathing animation, not for the mere presence of psclip_ ids.
+    defs were re-gated on (SHOW || Automorph) — the Automorph aura is gated
+    on its own slider, never on Showcase, so its room clip must exist on
+    the working map too whenever the slider is up. A bare def is inert, so
+    the working map is policed for clip-path APPLICATION and the breathing
+    animation, not for the mere presence of psclip_ ids (which the
+    automorph-off byte-identity guard test polices separately).
     """
     out = _showcase(tmp_path, (
         "const LBE2=JSON.parse(JSON.stringify(LBE));\n"
@@ -3031,9 +3032,11 @@ def test_automorph_aura_is_clipped_to_its_room_in_both_modes(tmp_path):
     clip must exist and be APPLIED on the working map too. While the
     clipPath defs were built only under if(SHOW), roomClip stayed empty for
     the whole working-mode render and the aura's blur/hardness overshoot
-    had nothing stopping it at the room's own wall. The defs are UNGATED
-    now (psmotion/psautomorphgrad precedent): present even with Automorph
-    off, but only ever applied by something that actually clips."""
+    had nothing stopping it at the room's own wall. The defs are gated on
+    (SHOW || Automorph): present the moment anything can reference them,
+    absent otherwise — the working map with Automorph off is contractually
+    byte-identical to the pre-Automorph render (see
+    test_automorph_off_render_carries_no_automorph_defs)."""
     NOW = 1_000_000_000_000
     model = {
         "room_geometry_m": {"Office": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 6], [0, 6]]}},
@@ -3060,8 +3063,78 @@ def test_automorph_aura_is_clipped_to_its_room_in_both_modes(tmp_path):
     # glow style: the blurred wash clips inside its filter group AND the
     # edge/gloss tier clips — two applications for one fixture.
     assert out["appliedOn"] >= 2, f"the aura tiers must be clipped to their room: {out}"
-    assert out["defOff"], "the clip defs must be UNGATED — built with Automorph off too, like psmotion"
+    assert not out["defOff"], (
+        "with Automorph off nothing can reference a room clip on the working map, "
+        "so no psclip_ def may be emitted — the off render is byte-identical to pre-Automorph"
+    )
     assert out["appliedOff"] == 0, f"nothing may APPLY a clip on the working map with Automorph off: {out}"
+
+
+def test_automorph_off_render_carries_no_automorph_defs(tmp_path):
+    """The byte-identity contract, policed structurally: with Automorph off
+    the render may carry NONE of the aura-only defs — psautomorphduo_*,
+    psaurasoft, psglossauto_*, psclip_* (and, in working mode, the
+    Showcase-owned psclipsoft too) — because nothing in that render can
+    reference them. They were briefly emitted unconditionally: ~1-1.7KB of
+    dead DOM per render in the most common configuration (working map,
+    feature off), and a byte-level break of the automorph-off identity
+    contract. With the slider up they must all appear. In showcase-off the
+    Showcase-owned psclipsoft/psclip_ defs sit at their pre-Automorph
+    position AFTER the pool gradients, so def ORDER is byte-identical to
+    that era too; with Automorph on they sit BEFORE if(SHOW), because the
+    working map needs them regardless of Showcase."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {
+            "Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 4], [0, 4]]},
+            "Office": {"type": "poly", "floor_id": "main", "points_m": [[0, 4], [6, 4], [6, 8], [0, 8]]},
+        },
+        "light_positions_m": {
+            "light.a": {"x_m": 3, "y_m": 2, "floor_id": "main"},
+            "light.b": {"x_m": 3, "y_m": 6, "floor_id": "main"},
+        },
+    }
+    lbe = {
+        "light.a": {"entity_id": "light.a", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None},
+        "light.b": {"entity_id": "light.b", "state": "off", "code": "A02", "shape": "circle", "isMotion": False, "last_changed": None},
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        "const mk=(o)=>M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,o);\n"
+        "const auto={automorph:true, automorphRoomPct:50, automorphStyle:'glow'};\n"
+        f"const workOff=mk({{nowMs:{NOW}}});\n"
+        f"const workOn=mk({{nowMs:{NOW}, ...auto}});\n"
+        f"const showOff=mk({{nowMs:{NOW}, showcase:true}});\n"
+        f"const showOn=mk({{nowMs:{NOW}, showcase:true, ...auto}});\n"
+        "const hits=(s)=>({duo:s.includes('psautomorphduo_'), aura:s.includes('psaurasoft'),"
+        " gloss:s.includes('psglossauto_'), clip:s.includes('psclip_'), soft:s.includes('psclipsoft')});\n"
+        "const clipVsGlow=(s)=>s.indexOf('<clipPath id=\"psclip_0\"')-s.indexOf('<radialGradient id=\"psglow_0\"');\n"
+        "console.log(JSON.stringify({\n"
+        "  workOff: hits(workOff), workOn: hits(workOn), showOff: hits(showOff),\n"
+        "  showOffOrder: clipVsGlow(showOff), showOnOrder: clipVsGlow(showOn),\n"
+        "}));\n"
+    ))
+    assert out["workOff"] == {"duo": False, "aura": False, "gloss": False, "clip": False, "soft": False}, (
+        f"the working map with Automorph off must carry NO aura or Showcase defs at all: {out['workOff']}"
+    )
+    assert out["workOn"] == {"duo": True, "aura": True, "gloss": True, "clip": True, "soft": True}, (
+        f"with the slider up every aura def must be present on the working map: {out['workOn']}"
+    )
+    assert out["showOff"] == {"duo": False, "aura": False, "gloss": False, "clip": True, "soft": True}, (
+        f"showcase with Automorph off keeps its own psclipsoft/psclip_ defs but no aura-only ones: {out['showOff']}"
+    )
+    assert out["showOffOrder"] > 0, (
+        "showcase-off must emit psclip_0 AFTER psglow_0 — the pre-Automorph def order the "
+        "byte-identity contract covers"
+    )
+    assert out["showOnOrder"] < 0, (
+        "with Automorph on psclip_0 is emitted before the Showcase-only defs — the working "
+        "map needs it regardless of Showcase"
+    )
 
 
 def test_automorph_interior_margin_is_a_larger_multiple_of_the_wall_margin():
@@ -3328,8 +3401,9 @@ def test_automorph_duotone_interiors_are_exactly_two_shared_defs(tmp_path):
     per fixture — distance from its own light — as a duotone: lighter at
     the centre, the state's base tone at the rim. The defs must be exactly
     TWO shared radialGradients, one per state and never per fixture (the
-    psautomorphgrad O(2) discipline), UNGATED because Automorph runs on the
-    working map and an invalid paint ref drops the element entirely. Stops
+    psautomorphgrad O(2) discipline), gated on the slider because only the
+    aura ever references them — with Automorph off they are not emitted at
+    all (the off render is byte-identical to pre-Automorph). Stops
     carry colour only — the referencing path's fill-opacity stays the
     single authority on layer weight, so the pinned ceilings hold."""
     NOW = 1_000_000_000_000
@@ -3366,7 +3440,10 @@ def test_automorph_duotone_interiors_are_exactly_two_shared_defs(tmp_path):
     assert out["onRefs"] >= 1 and out["offRefs"] >= 1, (
         f"each state's fill interiors must reference its own shared gradient: {out}"
     )
-    assert out["plainDefs"] == 2, "the duotone defs must be UNGATED — present with Automorph off, like psmotion"
+    assert out["plainDefs"] == 0, (
+        "the duotone defs are aura-only — with Automorph off they may not be emitted "
+        "(automorph-off byte-identity contract)"
+    )
     assert out["rim"] == "#94a3b8", f"the on-gradient's rim stop must be the on base tone itself: {out}"
     centre = [int(out["centre"][i:i + 2], 16) for i in (1, 3, 5)]
     rim = [int(out["rim"][i:i + 2], 16) for i in (1, 3, 5)]
