@@ -290,9 +290,94 @@ export function fabricWorldBarriers(model, floorId) {
     const pts = (b.points_m || []).map(p => [Number(p[0]) * k, Number(p[1]) * k]);
     if (pts.length < 2) continue;
     out.push({ id: b.id, name: b.name, material: b.material,
-               attenuation_dbm: b.attenuation_dbm ?? 6, points: pts });
+               attenuation_dbm: b.attenuation_dbm ?? 6, points: pts,
+               // Door/window barrier project — passed through opaquely, like
+               // every other optional field on a barrier (material,
+               // attenuation_dbm): a door is an ORDINARY barrier entry, not a
+               // new shape, so nothing here needs to know its meaning, only
+               // carry it along for whichever view draws the open/closed
+               // state. null when this barrier isn't a door/window (the
+               // overwhelmingly common case), never an empty string.
+               linked_entity_id: b.linked_entity_id || null });
   }
   return out;
+}
+
+// ── Splitting a wall into a door/window section ─────────────────────────────
+//
+// A door is authored by carving a short section out of an existing wall's own
+// polyline, at EDIT time (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 3) — not by
+// inventing a new "door" object, and not by computing a gap live on every
+// render. These two pure functions do that carving; nothing here touches HA,
+// the fabric, or the DOM — the caller (maps.js's Rooms-tab editor) is the one
+// that turns the three resulting point lists into real barrier entries.
+
+// The closest point ON a polyline to an arbitrary (px,py) — used to snap a
+// click to the wall being marked, so a door's endpoints always lie exactly on
+// the line rather than near it. Returns {segIdx, t, x, y, distSq}: segIdx is
+// which segment the point falls on, t is 0..1 along that segment, (x,y) is
+// the snapped point itself, and distSq is how far the raw click was from it
+// (unused by the split itself, useful for a caller's own snap-tolerance
+// check). Degenerate (zero-length) segments are skipped rather than
+// producing a division by zero.
+export function nearestPointOnPolyline(points, px, py) {
+  let best = null;
+  for (let i = 0; i < points.length - 1; i++) {
+    const [x0, y0] = points[i], [x1, y1] = points[i + 1];
+    const dx = x1 - x0, dy = y1 - y0;
+    const len2 = dx * dx + dy * dy;
+    if (len2 <= 0) continue;
+    let t = ((px - x0) * dx + (py - y0) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const x = x0 + t * dx, y = y0 + t * dy;
+    const distSq = (px - x) * (px - x) + (py - y) * (py - y);
+    if (!best || distSq < best.distSq) best = { segIdx: i, t, x, y, distSq };
+  }
+  return best;
+}
+
+// A polyline position's own arc-length ordering key — segIdx dominates, t
+// breaks the tie within one segment. Lets the split accept its two positions
+// in whichever order they were clicked.
+function _polylinePosKey(pos) { return pos.segIdx + pos.t; }
+
+// Splits a polyline into up to three pieces at two positions already snapped
+// onto it (from nearestPointOnPolyline). Handles a wall of ANY point count,
+// not just a straight 2-point segment — a multi-point wall keeps every
+// original vertex that falls outside the carved section.
+//
+// Returns {before, middle, after}: `middle` is the door/window section;
+// `before`/`after` are the wall's own remaining pieces, or null when the
+// section reaches all the way to that end (nothing left to keep there) OR
+// collapses to a single point (the door spans the WHOLE original wall) — in
+// either case there is no degenerate one-point "wall" left behind. `middle`
+// is null too when posA and posB snap to the same point — a zero-width
+// door is the caller's job to prevent before ever reaching this function,
+// not something to paper over here with a fake 2-point line.
+export function splitPolylineAtTwoPositions(points, posA, posB) {
+  let a = posA, b = posB;
+  if (_polylinePosKey(a) > _polylinePosKey(b)) { const t = a; a = b; b = t; }
+
+  const dedupe = (pts) => pts.filter((p, i) =>
+    i === 0 || Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) > 1e-9);
+
+  const beforeRaw = [];
+  for (let i = 0; i <= a.segIdx; i++) beforeRaw.push(points[i]);
+  beforeRaw.push([a.x, a.y]);
+
+  const middleRaw = [[a.x, a.y]];
+  for (let i = a.segIdx + 1; i <= b.segIdx; i++) middleRaw.push(points[i]);
+  middleRaw.push([b.x, b.y]);
+
+  const afterRaw = [[b.x, b.y]];
+  for (let i = b.segIdx + 1; i < points.length; i++) afterRaw.push(points[i]);
+
+  const before = dedupe(beforeRaw), middle = dedupe(middleRaw), after = dedupe(afterRaw);
+  return {
+    before: before.length >= 2 ? before : null,
+    middle: middle.length >= 2 ? middle : null,
+    after: after.length >= 2 ? after : null,
+  };
 }
 
 // The model's map transform, in both directions. Mirrors ModelStore
