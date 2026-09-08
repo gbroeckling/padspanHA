@@ -691,6 +691,123 @@ export function chaikinSmooth(ring, iterations){
   return pts;
 }
 
+// Chaikin's cut scales with INPUT EDGE LENGTH — the same two passes that
+// give a ~0.1m-edged marching-squares cell ring the cm-scale noise cleanup
+// they exist for gave the sparse 4-8-vertex room.pts fallback METRE-scale
+// corner rounding instead (measured: a 6x4m room's smoothed fallback passed
+// 0.83m inside its own corner — reshaping the room, on input that had no
+// grid noise to remove). Splitting long edges first, with every ORIGINAL
+// vertex kept exact, hands Chaikin the same edge scale for both target
+// kinds, so the fallback gets the cells' corner language instead of an
+// orders-of-magnitude heavier one. Pure subdivision — points only ever
+// added ON existing edges, the traced shape itself untouched.
+export function densifyRing(pts, maxEdgeM){
+  if(!pts || pts.length<3 || !(maxEdgeM>0)) return pts||[];
+  const out=[];
+  const n=pts.length;
+  for(let i=0;i<n;i++){
+    const a=pts[i], b=pts[(i+1)%n];
+    out.push(a);
+    const cuts=Math.ceil(Math.hypot(b[0]-a[0], b[1]-a[1])/maxEdgeM);
+    for(let k=1;k<cuts;k++){
+      const t=k/cuts;
+      out.push([a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t]);
+    }
+  }
+  return out;
+}
+
+// Removes the inverted fold loops an inward offset leaves wherever the
+// margin exceeds the local radius of curvature. That folding is intrinsic
+// to per-vertex offsetting, not a bug in offsetPolygonInward: the TRUE
+// eroded region simply has no boundary there any more, and the standard
+// cure is exactly this — cut the ring at each self-intersection and keep
+// the dominant loop, dropping the small inverted one (measured on real
+// Chaikin-smoothed cell rings: 4-8 bowtie loops per cell at the aura's own
+// 1.6x margin, with bounding boxes up to 63x28px — plainly visible
+// self-crossing strokes at the hardness slider's REST position). Each
+// found crossing splits the ring into two candidate loops; the shorter
+// vertex run is the fold, so it is replaced by the intersection point
+// itself and the scan restarts. Deterministic (fixed scan order, no
+// randomness), and the guard bound only exists so a pathological ring
+// degrades to "some crossings survive" rather than looping forever.
+export function pruneRingFolds(ring){
+  if(!ring || ring.length<4) return ring||[];
+  const segX=(a,b,c,d)=>{
+    const d1x=b[0]-a[0], d1y=b[1]-a[1], d2x=d[0]-c[0], d2y=d[1]-c[1];
+    const den=d1x*d2y-d1y*d2x;
+    if(Math.abs(den)<1e-12) return null;
+    const t=((c[0]-a[0])*d2y-(c[1]-a[1])*d2x)/den;
+    const u=((c[0]-a[0])*d1y-(c[1]-a[1])*d1x)/den;
+    if(t<=1e-9 || t>=1-1e-9 || u<=1e-9 || u>=1-1e-9) return null;
+    return [a[0]+d1x*t, a[1]+d1y*t];
+  };
+  let pts=ring.slice();
+  for(let guard=0; guard<12; guard++){
+    const n=pts.length;
+    let found=false;
+    for(let i=0;i<n && !found;i++){
+      for(let j=i+1;j<n;j++){
+        if((j+1)%n===i || (i+1)%n===j) continue;
+        const X=segX(pts[i], pts[(i+1)%n], pts[j], pts[(j+1)%n]);
+        if(!X) continue;
+        const innerLen=j-i;
+        if(innerLen<=n-innerLen) pts=pts.slice(0,i+1).concat([X], pts.slice(j+1));
+        else pts=[X].concat(pts.slice(i+1, j+1));
+        found=true;
+        break;
+      }
+    }
+    if(!found || pts.length<4) return pts;
+  }
+  return pts;
+}
+
+// Containment pass over an inset ring: every vertex must sit INSIDE
+// `boundary` with at least `clearM` of clearance to it, or it is projected
+// back to exactly that clearance depth off its nearest boundary point.
+// This enforces the invariant the whole aura pipeline's safety argument
+// rests on — offsetPolygonInward's miter construction is trusted to leave
+// the inset ring a full margin inside its source ring, and hardCapPx then
+// spends a capped fraction of that margin on hardness spikes; when the
+// offset instead leaves a vertex ON the boundary (measured on real
+// Chaikin-densified cell rings: 61 of 400 vertices closer than HALF the
+// margin, minimum 0.001m), the "can never eat the gap" proof is void and
+// neighbouring fixtures' rendered rings genuinely cross. The projection
+// direction comes from the vertex's own nearest-point ray (inward for an
+// interior vertex, reversed for an escapee); a vertex exactly ON the
+// boundary has no ray, so it aims at the ring's own vertex average — good
+// enough for a point that pathological, and deterministic.
+export function containRingInside(ring, boundary, clearM){
+  if(!ring || ring.length<3 || !boundary || boundary.length<3 || !(clearM>0)) return ring||[];
+  const bn=boundary.length;
+  const ctr=[ring.reduce((a,p)=>a+p[0],0)/ring.length, ring.reduce((a,p)=>a+p[1],0)/ring.length];
+  return ring.map(p=>{
+    let bd=Infinity, bx=p[0], by=p[1];
+    for(let i=0;i<bn;i++){
+      const a=boundary[i], b=boundary[(i+1)%bn];
+      const dx=b[0]-a[0], dy=b[1]-a[1];
+      const L2=dx*dx+dy*dy;
+      let t=L2>0 ? ((p[0]-a[0])*dx+(p[1]-a[1])*dy)/L2 : 0;
+      if(t<0)t=0; else if(t>1)t=1;
+      const qx=a[0]+dx*t, qy=a[1]+dy*t;
+      const d=Math.hypot(p[0]-qx, p[1]-qy);
+      if(d<bd){ bd=d; bx=qx; by=qy; }
+    }
+    const inside=pointInPolygon(boundary, p[0], p[1]);
+    if(inside && bd>=clearM) return p;
+    let ux, uy;
+    if(bd>1e-9){
+      ux=(p[0]-bx)/bd; uy=(p[1]-by)/bd;
+      if(!inside){ ux=-ux; uy=-uy; }
+    } else {
+      const cl=Math.hypot(ctr[0]-bx, ctr[1]-by)||1e-9;
+      ux=(ctr[0]-bx)/cl; uy=(ctr[1]-by)/cl;
+    }
+    return [bx+ux*clearM, by+uy*clearM];
+  });
+}
+
 // Builds every fixture's own non-overlapping cell within one room, in the
 // ROOM'S OWN metre space (the same space room.pts already lives in) —
 // callers project to pixels the same way offsetPolygonInward's output
@@ -2448,7 +2565,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // endpoint) is ever smoothed twice, and the pass stays per-fixture,
       // after the field competition — see chaikinSmooth's own comment for
       // the grid-noise rationale and the metaball scope guardrail.
-      const targetPts=chaikinSmooth((cellPtsM && cellPtsM.length>=3) ? cellPtsM : room.pts, 2);
+      // densifyRing first, because "identical corner language" has to hold
+      // at the SCALE of the cut too: Chaikin's cut rides its input's edge
+      // length, so the sparse room.pts fallback fed in raw got metre-scale
+      // corner rounding where a ~0.1m-edged cell ring got the intended
+      // cm-scale cleanup — see the helper's own comment for the measured
+      // failure.
+      const targetPts=chaikinSmooth(densifyRing((cellPtsM && cellPtsM.length>=3) ? cellPtsM : room.pts, 0.1), 2);
       // One inset constant was serving two different composition jobs.
       // defaultPerimeterMarginM is tuned for exactly one of them: a shape
       // sitting a plausible cove-distance off a static WALL. A resolved
@@ -2463,7 +2586,33 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // multiplier so a tight cell can never be inset past its own middle.
       const hasCell=!!(cellPtsM && cellPtsM.length>=3);
       const marginM=Math.max(0, Math.min(defaultPerimeterMarginM(frame)*(hasCell?1.6:1), roomHalfMinDim(targetPts)*0.85));
-      const roomPx=offsetPolygonInward(targetPts, marginM).map(p=>iso(p[0],p[1],z));
+      // The ring handed downstream must honour TWO invariants everything
+      // after it silently trusts: it is SIMPLE (no self-intersections) and
+      // it sits at least 0.9*marginM inside its source ring EVERYWHERE —
+      // hardCapPx's whole safety argument ("a spike can never eat the
+      // non-overlap gap") assumes the gap actually exists before hardness
+      // runs. Feeding offsetPolygonInward the raw Chaikin output broke
+      // both: its miter construction — documented for sparse room traces —
+      // folds on a 270-520-point ring's tightly-spaced vertices (bowtie
+      // loops the adaptive 64-point resample then faithfully kept, where
+      // the old fixed 24 aliased them away), and left vertices essentially
+      // ON the pre-offset boundary, so at negative hardness neighbouring
+      // fixtures' rendered rings genuinely crossed. So: resample the
+      // smoothed target down to the SAME 64-point count automorphRing caps
+      // at BEFORE the offset (well-spaced input, and no detail lost that
+      // the final resample would have kept anyway), pruneRingFolds the
+      // inverted loops the offset intrinsically leaves where the margin
+      // exceeds the local curvature radius, then containRingInside
+      // projects any vertex still outside, or closer than 0.9*marginM to,
+      // the source ring back to clearance depth — with a final prune in
+      // case a projection itself crossed the ring. Measured on the scenes
+      // that exposed this: pruning alone already restores the full-margin
+      // clearance, so containment is the guarantee for the shapes nobody
+      // measured, not the workhorse.
+      const coarsePts=resamplePolygonRing(targetPts, 64);
+      const insetPts=pruneRingFolds(containRingInside(
+        pruneRingFolds(offsetPolygonInward(coarsePts, marginM)), coarsePts, marginM*0.9));
+      const roomPx=insetPts.map(p=>iso(p[0],p[1],z));
       const iconLocal=automorphIconRing(l.shape, entry&&entry.width_cm, entry&&entry.height_cm,
         entry&&entry.rotation, frame.scale, HEX_R);
       // Hardness's negative side pushes ring points OUTWARD (applyHardness)

@@ -2309,6 +2309,51 @@ def test_hardness_negative_outward_push_respects_an_absolute_cap(tmp_path):
     assert out["zeroSame"], "cap=0 (no gap at all) must leave the ring completely unchanged"
 
 
+def test_hardness_negative_gain_is_linear_in_the_slider_and_exact_at_the_endpoint(tmp_path):
+    """The negative side's amplitude anchor: push = (-h/100)*2 * local
+    deviation. Without this, a slider-magnitude-blind gain (hardness -1
+    spiking exactly like -100) passes every other hardness test — they pin
+    direction, locality, quadrant, count, determinism and the two clamps,
+    but no amplitude. Built on a shallow bump whose deviation (1) sits far
+    under both clamps (adjacent edges ~10, no cap passed), so the raw gain
+    formula is the ONLY thing deciding the displacement: -100 must double
+    the deviation exactly, -50 half of that, -25 half again — the linear
+    slider law, pinned at three points."""
+    out = _run_js(tmp_path, (
+        "import { applyHardness } from './iso_lights.mjs';\n"
+        "const ring=[[0,0],[10,1],[20,0],[20,10],[0,10]];\n"
+        "const bump=(h)=>applyHardness(ring, h)[1];\n"
+        "console.log(JSON.stringify({m100:bump(-100), m50:bump(-50), m25:bump(-25)}));\n"
+    ))
+    assert out["m100"] == [10, 3], (
+        f"at -100 the unclamped bump (deviation 1) must move by exactly 2: {out}"
+    )
+    assert out["m50"] == [10, 2], (
+        f"at -50 the push must be exactly HALF the -100 endpoint's — gain is linear in -h: {out}"
+    )
+    assert out["m25"] == [10, 1.5], (
+        f"at -25 the push must be exactly a quarter of the -100 endpoint's: {out}"
+    )
+
+
+def test_hardness_cap_is_derived_from_the_inset_margin_itself():
+    """Structural pin, same discipline as the marginM multiplier pin: the
+    absolute spike cap must be derived from the SAME margin the ring was
+    just inset by — marginM*frame.scale (metres to px) * SQRT1_2 (the iso
+    projection's most-compressed direction, so the cap holds whichever way
+    a spike points) * 0.85 (spend at most 85% of the projected gap). No
+    render test can pin this formula cheaply: with the inset ring holding
+    its full-margin clearance, the 75%-of-edge clamp also bounds ordinary
+    spikes, so a regressed cap only shows on shapes with long edges AND
+    tight margins — exactly the combination a fixed scene doesn't stage."""
+    src = _code_only((_VIEWS / "iso_lights.js").read_text(encoding="utf-8"))
+    assert "const hardCapPx=marginM*frame.scale*Math.SQRT1_2*0.85;" in src, (
+        "the hardness spike cap must stay derived from the inset margin that created "
+        "the gap it protects — an Infinity or unrelated-constant cap silently re-opens "
+        "the negative-hardness overlap defect on tight-margin scenes"
+    )
+
+
 def test_hardness_negative_push_cannot_exceed_the_local_edge_length(tmp_path):
     """Self-intersection guard: an already-sharp corner's amplified
     deviation could overshoot its own neighbours at -100, folding the
@@ -2631,14 +2676,53 @@ def test_chaikin_is_applied_once_at_the_shared_target_choice():
     the call site would double-smooth every resolved cell while the fallback
     got a single pass; this pins the reconciled single-site scheme, and it
     keeps the stored cells raw so the non-overlap partition tests above
-    measure the field competition itself, not a post-process of it."""
+    measure the field competition itself, not a post-process of it.
+    The densifyRing wrapper is part of the pinned shape: Chaikin's cut rides
+    its input's edge length, so 'identical corner language' only holds when
+    both target kinds enter at the same ~0.1m edge scale — without it the
+    sparse room.pts fallback got metre-scale corner rounding where a cell
+    ring got cm-scale cleanup (see the densify unit test below for the
+    measured numbers)."""
     src = _code_only((_VIEWS / "iso_lights.js").read_text(encoding="utf-8"))
     calls = re.findall(r"(?<!function )chaikinSmooth\(", src)
     assert len(calls) == 1, f"expected exactly one chaikinSmooth call site, found {len(calls)}"
-    assert "chaikinSmooth((cellPtsM && cellPtsM.length>=3) ? cellPtsM : room.pts" in src, (
-        "the one call site must wrap the cell/room-fallback choice itself, so both "
-        "target kinds are smoothed identically"
+    assert "chaikinSmooth(densifyRing((cellPtsM && cellPtsM.length>=3) ? cellPtsM : room.pts, 0.1), 2)" in src, (
+        "the one call site must wrap the cell/room-fallback choice itself — densified "
+        "to the same ~0.1m edge scale — so both target kinds are smoothed identically"
     )
+
+
+def test_densify_makes_the_sparse_fallback_smoothing_cm_scale(tmp_path):
+    """Chaikin's cut rides its input's edge length, so the same two passes
+    that clean cm-scale grid noise off a ~0.1m-edged cell ring rounded the
+    sparse 4-8-vertex room.pts fallback at METRE scale — measured: a 6x4m
+    room's smoothed fallback passed 0.83m inside its own corner, on input
+    that had zero digitization noise to remove, defeating 'barely changing
+    the traced position'. Pre-densified to ~0.1m edges the identical call
+    passes within ~2cm of the corner — the cells' corner language, at the
+    cells' scale. Also pins densifyRing's own contract: original vertices
+    kept exactly (subdivision only, never displacement), and an already-
+    dense ring passes through as a no-op."""
+    out = _run_js(tmp_path, (
+        "import { chaikinSmooth, densifyRing } from './iso_lights.mjs';\n"
+        "const sq=[[0,0],[6,0],[6,4],[0,4]];\n"
+        "const corner=(pts)=>Math.min(...pts.map(p=>Math.hypot(p[0]-6, p[1]-0)));\n"
+        "const raw=corner(chaikinSmooth(sq, 2));\n"
+        "const dens=corner(chaikinSmooth(densifyRing(sq, 0.1), 2));\n"
+        "const kept=densifyRing(sq, 0.1).some(p=>p[0]===6&&p[1]===0);\n"
+        "const fine=[[0,0],[0.05,0],[0.1,0],[0.1,0.05],[0.1,0.1],[0,0.1]];\n"
+        "const noop=JSON.stringify(densifyRing(fine, 0.1))===JSON.stringify(fine);\n"
+        "console.log(JSON.stringify({raw:+raw.toFixed(3), dens:+dens.toFixed(3), kept, noop}));\n"
+    ))
+    assert out["raw"] > 0.8, (
+        f"the raw sparse ring should document the defect scale (~0.83m of corner cut): {out}"
+    )
+    assert out["dens"] < 0.05, (
+        f"the densified ring must keep the smoothing at cm scale — the fallback aura has "
+        f"to track the room's actual corners: {out}"
+    )
+    assert out["kept"], "densifyRing must keep every original vertex exactly — subdivision only"
+    assert out["noop"], "a ring already at or under the edge scale must pass through untouched"
 
 
 def test_automorph_two_fixtures_sharing_a_room_render_different_auras(tmp_path):
@@ -2678,6 +2762,121 @@ def test_automorph_two_fixtures_sharing_a_room_render_different_auras(tmp_path):
         f"the two fixtures' aura outlines must differ — identical outlines mean the partition "
         f"was not applied and both fell back to the same full-room shape: {out}"
     )
+
+
+def test_automorph_rendered_rings_are_simple_and_never_cross_a_neighbours(tmp_path):
+    """The two invariants the whole inset stage exists to deliver, checked
+    on the DRAWN rings end-to-end — no earlier test ever parsed a rendered
+    ring for simplicity or tested two rendered rings against each other,
+    which is exactly how both defects shipped green:
+
+    - SIMPLE: every emitted aura ring must have zero self-intersections.
+      Before the resample-before-offset + fold-pruning repair, feeding
+      offsetPolygonInward the raw Chaikin output rendered every ring in
+      the 3-fixture strip scene with 5 self-crossing bowtie loops at the
+      hardness slider's REST position.
+    - SEPARATED: no ring vertex may sit inside a neighbouring fixture's
+      ring by more than ~1px, at ANY hardness. Before the repair the
+      4-downlight square scene penetrated 6.0px at hardness 0, and the
+      strip's ring genuinely crossed its neighbour's at 6 segment pairs
+      at -100 — hardCapPx's "can never eat the gap" argument was void
+      because the inset ring never had the gap to begin with.
+
+    Two scenes on purpose: the 4-pack of even circles (the symmetric
+    common case) and the 10x4m strip room whose 240cm rotated bar takes
+    weight 2.5 and carves concave neighbour cells (the hard case that
+    produced the worst folds). Hardness sweeps the full slider: -100
+    spikes, 0 straight polygons, +100 Catmull-Rom curves (whose on-curve
+    points are the ring's own vertices — the same ring, parsed from the
+    C endpoints)."""
+    NOW = 1_000_000_000_000
+    pack_model = {
+        "room_geometry_m": {"Sq": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [5, 0], [5, 5], [0, 5]]}},
+        "light_positions_m": {
+            "light.p1": {"x_m": 1.5, "y_m": 1.5, "floor_id": "main"},
+            "light.p2": {"x_m": 3.5, "y_m": 1.5, "floor_id": "main"},
+            "light.p3": {"x_m": 1.5, "y_m": 3.5, "floor_id": "main"},
+            "light.p4": {"x_m": 3.5, "y_m": 3.5, "floor_id": "main"},
+        },
+    }
+    pack_lbe = {
+        f"light.p{i}": {"entity_id": f"light.p{i}", "state": "on", "code": f"A0{i}",
+                        "shape": "circle", "isMotion": False, "last_changed": None}
+        for i in (1, 2, 3, 4)
+    }
+    strip_model = {
+        "room_geometry_m": {"Wide": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [10, 0], [10, 4], [0, 4]]}},
+        "light_positions_m": {
+            "light.a": {"x_m": 1.5, "y_m": 2, "floor_id": "main"},
+            "light.b": {"x_m": 5.0, "y_m": 2, "floor_id": "main", "width_cm": 240, "height_cm": 5, "rotation": 30},
+            "light.c": {"x_m": 8.5, "y_m": 2, "floor_id": "main"},
+        },
+    }
+    strip_lbe = {
+        "light.a": {"entity_id": "light.a", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None},
+        "light.b": {"entity_id": "light.b", "state": "on", "code": "A02", "shape": "bar", "isMotion": False, "last_changed": None},
+        "light.c": {"entity_id": "light.c", "state": "on", "code": "A03", "shape": "circle", "isMotion": False, "last_changed": None},
+    }
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const PACK={json.dumps(pack_model)};\n"
+        f"const PACKL={json.dumps(pack_lbe)};\n"
+        f"const STRIP={json.dumps(strip_model)};\n"
+        f"const STRIPL={json.dumps(strip_lbe)};\n"
+        "const FLOORS=[{id:'main',name:'Main',level:0}];\n"
+        "const pip=(pts,x,y)=>{let s=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){"
+        "const xi=pts[i][0],yi=pts[i][1],xj=pts[j][0],yj=pts[j][1];"
+        "if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))s=!s;}return s;};\n"
+        "const dTo=(pts,x,y)=>{let b=Infinity;for(let i=0;i<pts.length;i++){"
+        "const a=pts[i],c=pts[(i+1)%pts.length];const dx=c[0]-a[0],dy=c[1]-a[1],L2=dx*dx+dy*dy;"
+        "let t=L2>0?((x-a[0])*dx+(y-a[1])*dy)/L2:0;t=Math.max(0,Math.min(1,t));"
+        "b=Math.min(b,Math.hypot(x-a[0]-dx*t,y-a[1]-dy*t));}return b;};\n"
+        "const segX=(a,b,c,d)=>{const d1x=b[0]-a[0],d1y=b[1]-a[1],d2x=d[0]-c[0],d2y=d[1]-c[1];"
+        "const den=d1x*d2y-d1y*d2x;if(Math.abs(den)<1e-12)return false;"
+        "const t=((c[0]-a[0])*d2y-(c[1]-a[1])*d2x)/den,u=((c[0]-a[0])*d1y-(c[1]-a[1])*d1x)/den;"
+        "return t>1e-9&&t<1-1e-9&&u>1e-9&&u<1-1e-9;};\n"
+        "const selfX=(r)=>{let c=0;const n=r.length;for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){"
+        "if((j+1)%n===i||(i+1)%n===j)continue;if(segX(r[i],r[(i+1)%n],r[j],r[(j+1)%n]))c++;}return c;};\n"
+        "const parseRing=(d)=>{\n"
+        "  if(d.includes('C')){\n"
+        "    const m0=d.match(/^M(-?[\\d.]+),(-?[\\d.]+)/);\n"
+        "    const pts=[[+m0[1],+m0[2]]];\n"
+        "    for(const c of d.matchAll(/C(-?[\\d.]+),(-?[\\d.]+) (-?[\\d.]+),(-?[\\d.]+) (-?[\\d.]+),(-?[\\d.]+)/g)) pts.push([+c[5],+c[6]]);\n"
+        "    if(pts.length>1&&pts[0][0]===pts[pts.length-1][0]&&pts[0][1]===pts[pts.length-1][1]) pts.pop();\n"
+        "    return pts;\n"
+        "  }\n"
+        "  return [...d.matchAll(/[ML](-?[\\d.]+),(-?[\\d.]+)/g)].map(m=>[+m[1],+m[2]]);\n"
+        "};\n"
+        "const rings=(model,lbe,h)=>{\n"
+        "  const svg=M.buildIsoSVG(model,{},new Set(),null,150,0,lbe,false,FLOORS,\n"
+        "    {nowMs:1000000000000,automorph:true,automorphRoomPct:100,automorphHardness:h,automorphStyle:'glow'});\n"
+        "  return [...svg.matchAll(/<path d=\"([^\"]+)\" fill=\"url\\(#psautomorphduo_(?:on|off)\\)\" fill-opacity=\"[\\d.]+\" stroke=\"#/g)].map(m=>parseRing(m[1]));\n"
+        "};\n"
+        "const audit=(model,lbe,h)=>{\n"
+        "  const rs=rings(model,lbe,h);\n"
+        "  let pen=0;\n"
+        "  for(let i=0;i<rs.length;i++)for(let j=0;j<rs.length;j++){if(i===j)continue;\n"
+        "    for(const [x,y] of rs[i]) if(pip(rs[j],x,y)) pen=Math.max(pen,dTo(rs[j],x,y));}\n"
+        "  return {n:rs.length, pen:+pen.toFixed(2), selfX:rs.reduce((a,r)=>a+selfX(r),0)};\n"
+        "};\n"
+        "const out={};\n"
+        "for(const h of [-100,0,100]){ out['pack_'+h]=audit(PACK,PACKL,h); out['strip_'+h]=audit(STRIP,STRIPL,h); }\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    for h in (-100, 0, 100):
+        pack, strip = out[f"pack_{h}"], out[f"strip_{h}"]
+        assert pack["n"] == 4 and strip["n"] == 3, (
+            f"expected one edgeCore ring per fixture at hardness {h}: {out}"
+        )
+        assert pack["selfX"] == 0 and strip["selfX"] == 0, (
+            f"every rendered aura ring must be SIMPLE at hardness {h} — a self-crossing "
+            f"bowtie means the offset stage folded and nothing pruned it: {out}"
+        )
+        assert pack["pen"] <= 1.0 and strip["pen"] <= 1.0, (
+            f"no ring vertex may sit inside a neighbouring fixture's ring by more than "
+            f"~1px at hardness {h} — the non-overlap gap was spent before hardness even "
+            f"ran: {out}"
+        )
 
 
 # ── Automorph icon endpoint: the fixture's REAL manual footprint ────────────
