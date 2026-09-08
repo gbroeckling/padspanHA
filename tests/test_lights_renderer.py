@@ -3158,6 +3158,66 @@ def test_automorph_interior_margin_is_a_larger_multiple_of_the_wall_margin():
     )
 
 
+def test_automorph_cornered_fixture_loses_its_cell_but_never_its_aura(tmp_path):
+    """The hasCell=false fallback (room.pts target, 1x margin) is reachable
+    through the REAL partition, not just a code path the pins above
+    protect: a weight-0.25 fixture 5cm into a corner, crowded by three
+    weight-2.5 neighbours packed around it, is squeezed to nothing by the
+    field competition and comes back ABSENT from buildRoomFixtureCells —
+    its cue to fall back to the full-room shape rather than draw nothing.
+    Every other aura render in this file resolves a cell, so a runtime
+    break of only the fallback (`if(!hasCell) return null;`) left both
+    structural pins intact and the whole suite green while the cornered
+    fixture silently lost the aura the code comment promises it keeps.
+    The weights go through automorphFixtureWeight from the SAME footprints
+    the render sees, so the direct partition call proves the render scene
+    itself takes the fallback branch."""
+    NOW = 1_000_000_000_000
+    room_pts = [[0, 0], [8, 0], [8, 4], [0, 4]]
+    model = {
+        "room_geometry_m": {"Hall": {"type": "poly", "floor_id": "main", "points_m": room_pts}},
+        "light_positions_m": {
+            "light.t":  {"x_m": 0.05, "y_m": 0.05, "floor_id": "main", "width_cm": 5,   "height_cm": 5},
+            "light.b1": {"x_m": 0.3,  "y_m": 0.3,  "floor_id": "main", "width_cm": 300, "height_cm": 300},
+            "light.b2": {"x_m": 0.05, "y_m": 0.5,  "floor_id": "main", "width_cm": 300, "height_cm": 300},
+            "light.b3": {"x_m": 0.5,  "y_m": 0.05, "floor_id": "main", "width_cm": 300, "height_cm": 300},
+        },
+    }
+    lbe = {
+        eid: {"entity_id": eid, "state": "on", "code": f"A0{i}", "shape": "circle",
+              "isMotion": False, "last_changed": None}
+        for i, eid in enumerate(("light.t", "light.b1", "light.b2", "light.b3"), 1)
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const ROOM={json.dumps(room_pts)};\n"
+        "const wT=M.automorphFixtureWeight(5,5), wB=M.automorphFixtureWeight(300,300);\n"
+        "const cells=M.buildRoomFixtureCells(ROOM,[\n"
+        "  {id:'t',x:0.05,y:0.05,weight:wT},{id:'b1',x:0.3,y:0.3,weight:wB},\n"
+        "  {id:'b2',x:0.05,y:0.5,weight:wB},{id:'b3',x:0.5,y:0.05,weight:wB}]);\n"
+        f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+        f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:100, automorphHardness:0, automorphStyle:'glow'}});\n"
+        "console.log(JSON.stringify({wT, wB, keys:[...cells.keys()].sort(),\n"
+        "  auraGroups:(svg.match(/filter=\"url\\(#psaurasoft\\)\"/g)||[]).length}));\n"
+    ))
+    assert out["wT"] == 0.25 and out["wB"] == 2.5, (
+        f"the scene leans on the weight clamps — a 5x5cm footprint must floor at 0.25 and "
+        f"a 300x300cm one ceiling at 2.5, or the crowding below proves nothing: {out}"
+    )
+    assert out["keys"] == ["b1", "b2", "b3"], (
+        f"the partition itself must omit the crowded corner fixture (and ONLY it) — "
+        f"otherwise this scene never exercises the fallback branch: {out}"
+    )
+    assert out["auraGroups"] == 4, (
+        f"one glow-tier aura group per fixture: the cell-less fixture must still paint "
+        f"its aura through the room-shape fallback, never silently lose it: {out}"
+    )
+
+
 def test_automorph_suppresses_the_glyph_only_where_an_aura_really_painted(tmp_path):
     """The suppressGlyph decision must track what the floor-wide aura pass
     ACTUALLY emitted, per fixture — not the bare slider value. A fixture in
@@ -3549,6 +3609,63 @@ def test_automorph_sheen_is_one_userspace_ramp_per_floor(tmp_path):
     )
 
 
+def test_automorph_sheen_ramp_is_defined_and_referenced_per_floor_on_two_floors(tmp_path):
+    """The one-floor sheen test above cannot tell psglossauto_${lidx} from
+    a hardcoded psglossauto_0 — and that regression is exactly the
+    wrong-sun defect the per-floor def exists to prevent: an upper floor's
+    gloss sampling floor 0's user-space bbox, which sits elsewhere in iso
+    space, gets an off-range near-uniform ramp. Two floors, one lit
+    fixture each: each floor defines its own userSpaceOnUse ramp and each
+    fixture's gloss FILL references its OWN floor's — exactly one ref per
+    id, because the rim moved to the per-shape psglossrim sweep and the
+    gloss fill is the floor ramp's only consumer. Floors render in level
+    order, so the ref order also pins WHICH fixture holds which id — a
+    swapped-but-count-balanced mapping fails too."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {
+            "Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 6], [0, 6]]},
+            "Loft":    {"type": "poly", "floor_id": "up",   "points_m": [[0, 0], [5, 0], [5, 5], [0, 5]]},
+        },
+        "light_positions_m": {
+            "light.down": {"x_m": 3.0, "y_m": 3.0, "floor_id": "main"},
+            "light.up":   {"x_m": 2.5, "y_m": 2.5, "floor_id": "up"},
+        },
+    }
+    lbe = {
+        "light.down": {"entity_id": "light.down", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None},
+        "light.up":   {"entity_id": "light.up",   "state": "on", "code": "A02", "shape": "circle", "isMotion": False, "last_changed": None},
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}, {"id": "up", "name": "Upper", "level": 1}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+        f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:60, automorphStyle:'glow'}});\n"
+        "console.log(JSON.stringify({\n"
+        "  defs: (svg.match(/<linearGradient id=\"psglossauto_/g)||[]).length,\n"
+        "  upperUserSpace: svg.includes('<linearGradient id=\"psglossauto_1\" gradientUnits=\"userSpaceOnUse\"'),\n"
+        "  refs0: (svg.match(/url\\(#psglossauto_0\\)/g)||[]).length,\n"
+        "  refs1: (svg.match(/url\\(#psglossauto_1\\)/g)||[]).length,\n"
+        "  lowerFirst: svg.indexOf('url(#psglossauto_0)') < svg.indexOf('url(#psglossauto_1)'),\n"
+        "}));\n"
+    ))
+    assert out["defs"] == 2, f"two floors must define two per-floor ramps, one each: {out}"
+    assert out["upperUserSpace"], (
+        f"the upper floor's ramp must exist and be userSpaceOnUse like floor 0's: {out}"
+    )
+    assert out["refs0"] == 1 and out["refs1"] == 1, (
+        f"each fixture's gloss fill must ride its OWN floor's ramp exactly once — "
+        f"refs0=2/refs1=0 is the hardcoded-floor-0 wrong-sun regression: {out}"
+    )
+    assert out["lowerFirst"], (
+        f"floors render in level order, so the floor-0 fixture's ref must come first — "
+        f"a swapped mapping still lights the upper floor from the wrong sun: {out}"
+    )
+
+
 def test_automorph_weight_offset_rides_the_ink_and_stays_inside_the_state_gap(tmp_path):
     """A fixture with a big recorded manual footprint must read very
     slightly more present: its flat INK (edgeCore's stroke) lightens by a
@@ -3602,6 +3719,72 @@ def test_automorph_weight_offset_rides_the_ink_and_stays_inside_the_state_gap(tm
     assert all(a > b for a, b in zip(on_floor, off_ceil)), (
         f"the darkest possible on-ink must stay clearly lighter than the lightest possible "
         f"off-ink — the offset band may never blur the on/off state read: {sized}"
+    )
+
+
+def test_automorph_nebula_weight_delta_rides_the_wash_inside_the_state_gap(tmp_path):
+    """Nebula has no ink channel, so the per-fixture weight offset rides a
+    narrow fill-opacity delta on its single wash (weightOffPct*0.004,
+    ±0.028 at the weight clamps) — the contract the colour-ownership
+    comment states, tested nowhere until now: every nebula render in this
+    file used unsized fixtures, and the glow weight test's ink regex only
+    matches stroked paths, which nebula's stroke="none" wash never is.
+    Deleting the term (delta 0) or fat-fingering it x100 (delta 2.8,
+    swamping the ~0.09 on/off split) both kept the suite green. Two
+    probes: a both-on pair — the delta exists and stays at the 0.028
+    ceiling (the emitted attribute is quantized to 0.01 steps by opac's
+    toFixed(2), so it reads as at most 0.03) — and the worst direction, a
+    max-weight OFF fixture pushed UP toward an unsized ON one: the state
+    split must stay clearly ordered by more than the whole weight band."""
+    NOW = 1_000_000_000_000
+
+    def washes(b_extra, a_state, b_state):
+        model = {
+            "room_geometry_m": {"Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
+            "light_positions_m": {
+                "light.a": {"x_m": 1.5, "y_m": 2, "floor_id": "main"},
+                "light.b": {"x_m": 6.5, "y_m": 2, "floor_id": "main", **b_extra},
+            },
+        }
+        lbe = {
+            "light.a": {"entity_id": "light.a", "state": a_state, "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None},
+            "light.b": {"entity_id": "light.b", "state": b_state, "code": "A02", "shape": "circle", "isMotion": False, "last_changed": None},
+        }
+        floors = [{"id": "main", "name": "Main", "level": 0}]
+        out = _run_js(tmp_path, (
+            "import * as M from './iso_lights.mjs';\n"
+            f"const MODEL={json.dumps(model)};\n"
+            f"const LBE={json.dumps(lbe)};\n"
+            f"const FLOORS={json.dumps(floors)};\n"
+            f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+            f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:60, automorphStyle:'nebula'}});\n"
+            "const washes=[...svg.matchAll(/fill=\"url\\(#psautomorphduo_(on|off)\\)\" "
+            "fill-opacity=\"([\\d.]+)\" stroke=\"none\" mask=\"url\\(#psautomorphmask\\)\"/g)]"
+            ".map(m=>({state:m[1], op:parseFloat(m[2])}));\n"
+            "console.log(JSON.stringify({washes}));\n"
+        ))
+        return out["washes"]
+
+    both_on = washes({"width_cm": 300, "height_cm": 300}, "on", "on")
+    assert len(both_on) == 2 and all(w["state"] == "on" for w in both_on), (
+        f"expected one masked nebula wash per fixture, both lit: {both_on}"
+    )
+    delta = max(w["op"] for w in both_on) - min(w["op"] for w in both_on)
+    assert delta > 0, (
+        f"a max-weight fixture's wash must read very slightly heavier than a default "
+        f"neighbour's — the weight term vanished from nebula's one channel: {both_on}"
+    )
+    assert delta <= 0.03 + 1e-9, (
+        f"the weight delta must hold the ±0.028 ceiling (0.03 once quantized) — "
+        f"anything bigger starts competing with the on/off intensity split: {both_on}"
+    )
+    mixed = washes({"width_cm": 300, "height_cm": 300}, "on", "off")
+    on_op = next(w["op"] for w in mixed if w["state"] == "on")
+    off_op = next(w["op"] for w in mixed if w["state"] == "off")
+    assert on_op - off_op > 0.03, (
+        f"worst direction: a max-weight OFF wash pushed up its full delta must stay "
+        f"clearly under an unsized ON wash — by more than the whole weight band, or "
+        f"state stops being readable as intensity: {mixed}"
     )
 
 
@@ -3848,4 +4031,75 @@ def test_automorph_blueprint_carries_state_in_its_one_channel(tmp_path):
     )
     assert out["nodeOps"]["#94a3b8"] == on["op"] and out["nodeOps"]["#475569"] == off["op"], (
         f"the vertex nodes ride the same dashOp as their outline: {out}"
+    )
+
+
+# ── Determinism of the WHOLE automorph render, not just its helpers ─────────
+
+def test_automorph_full_map_two_renders_are_byte_identical(tmp_path):
+    """Determinism is a hard invariant, but it was pinned only per helper —
+    applyHardness, chaikinSmooth and automorphRingJitter each compare two
+    of their own calls — so entropy introduced in any unpinned painted
+    formula (the shadow's displacement, an opacity, a duotone stop, a
+    seed taken from Date.now() outside the pinned jitter site) passed
+    every existing test: helper units call helpers with fixed args, and
+    every render probe compares within one render. This closes the CLASS:
+    one scene with everything live — two floors, a sized rotated strip
+    (jitter + weight offset), negative hardness (spikes + jitter fade),
+    an off fixture — rendered twice per style in one node run with the
+    same nowMs. The fabric alone must reproduce the bytes."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {
+            "Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 4], [0, 4]]},
+            "Loft":    {"type": "poly", "floor_id": "up",   "points_m": [[0, 0], [5, 0], [5, 5], [0, 5]]},
+        },
+        "light_positions_m": {
+            "light.plain": {"x_m": 3.0, "y_m": 2.0, "floor_id": "main"},
+            "light.strip": {"x_m": 4.0, "y_m": 1.0, "floor_id": "main",
+                            "width_cm": 240, "height_cm": 5, "rotation": 30},
+            "light.up":    {"x_m": 2.5, "y_m": 2.5, "floor_id": "up"},
+        },
+    }
+    lbe = {
+        "light.plain": {"entity_id": "light.plain", "state": "on",  "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None},
+        "light.strip": {"entity_id": "light.strip", "state": "on",  "code": "W01", "shape": "bar",    "isMotion": False, "last_changed": None},
+        "light.up":    {"entity_id": "light.up",    "state": "off", "code": "A02", "shape": "circle", "isMotion": False, "last_changed": None},
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}, {"id": "up", "name": "Upper", "level": 1}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        "const res={};\n"
+        "for(const style of ['glow','nebula','blueprint']){\n"
+        f"  const opts={{nowMs:{NOW}, automorph:true, automorphRoomPct:100, automorphHardness:-60, automorphStyle:style}};\n"
+        "  const s1=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,opts);\n"
+        "  const s2=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,opts);\n"
+        "  res[style]={same:s1===s2, len:s1.length};\n"
+        "}\n"
+        "console.log(JSON.stringify(res));\n"
+    ))
+    for style in ("glow", "nebula", "blueprint"):
+        assert out[style]["len"] > 0, f"the {style} scene must actually render: {out}"
+        assert out[style]["same"], (
+            f"two identical {style} renders must be byte-identical — the fabric alone "
+            f"reproduces a render, no Math.random()/Date.now() anywhere in the paint path: {out}"
+        )
+    # Byte equality alone cannot see entropy smaller than the emitted
+    # quantization (a 1% Math.random() factor on a toFixed(1) coordinate
+    # usually rounds away — measured: that exact mutation stayed green), so
+    # the no-entropy discipline is ALSO pinned at the source, the hardCapPx
+    # pin's own rationale: Math.random appears nowhere in code, Date.now
+    # exactly once — buildIsoSVG's deliberate nowMs fallback, which every
+    # render test here pins away by passing nowMs.
+    src = _code_only((_VIEWS / "iso_lights.js").read_text(encoding="utf-8"))
+    assert "Math.random(" not in src, (
+        "Math.random must appear nowhere in the renderer's code — even sub-quantization "
+        "entropy breaks the fabric-reproduces-the-render contract"
+    )
+    assert src.count("Date.now(") == 1 and "const NOW_MS=Number(opts.nowMs)||Date.now();" in src, (
+        "Date.now may appear exactly once: the deliberate nowMs fallback at the top of "
+        "buildIsoSVG — a second site would seed paint from wall-clock time"
     )
