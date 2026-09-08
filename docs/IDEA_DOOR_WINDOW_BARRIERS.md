@@ -114,6 +114,18 @@ earlier ones, not the reverse.
    `<polyline>` per barrier) so the two views can never disagree about
    whether a given door reads open.
 
+   **Endpoint markers** (Garry, 2026-09-08): "have a small purple dot
+   showing on the two sides where the opening starts and ends." At the two
+   points where a linked segment meets the rest of the wall it was split
+   from, draw a small purple dot — in BOTH open and closed states (this
+   marks WHERE a configured door/window is on the wall, distinct from the
+   gap/solid-line difference that already conveys open-vs-closed). Note
+   for whoever builds this: `maps.js`'s existing `_MAT_COLORS` already uses
+   purple (`#a855f7`) for the `custom` material's own wall-line colour —
+   pick a clearly distinct purple (or confirm the reuse reads fine
+   side-by-side with a `custom`-material wall) rather than assume no
+   collision.
+
 6. **Jump link from Mapping → Lights to the Rooms-tab wall editor.** Small
    navigation convenience once steps 1-5 exist — a button that opens the
    Rooms tab's wall editor, for someone working the Lights view who wants
