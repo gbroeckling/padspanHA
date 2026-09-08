@@ -1573,7 +1573,16 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         `font-family="ui-monospace,monospace" font-size="${fs.toFixed(1)}" font-weight="700" `+
         `letter-spacing="0.06em" fill="${tCol}" pointer-events="none">${escSVG(l.code)}</text></g>`;
     };
-    const markerSvg=(l,hx,hy,entry,extra="")=>{
+    // suppressGlyph (Garry, 2026-09-07: "why do you keep all the old non
+    // morphed stuff showing... weird choice?"): when this fixture's
+    // Automorph aura is actively painting, the old glyph body stops
+    // drawing — mirroring the perimeter shape's own precedent below
+    // ("keep the glow, and the click space..., but hide the square").
+    // Only the BODY goes; the hit region (same silhouette, same
+    // rotate/scale transform, via the same layer() the body used),
+    // the code label/chip and the <g data-eid/cx/cy> wrapper all stay,
+    // so click/drag/tap and identity are untouched.
+    const markerSvg=(l,hx,hy,entry,extra="",suppressGlyph=false)=>{
       // A motion sensor's icon lights for the SAME window its pulse
       // flashes (motionActive — state, or the shared hold window), never
       // the raw state alone: an alarm zone's hardware clears in ~5s and
@@ -1673,7 +1682,16 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         : shapeSvg(l.shape, hx, hy, HEX_R, a);
 
       let body;
-      if(SHOW){
+      if(suppressGlyph){
+        // The aura is this fixture's visual now; what remains here is the
+        // SAME silhouette at the SAME transform, painted transparent —
+        // fill="transparent", never "none": SVG's default pointer-events
+        // (visiblePainted) hit-tests a transparent fill but not a none
+        // fill, so this is exactly what keeps the fixture clickable and
+        // draggable while invisible (the same deliberate choice
+        // perimeter's own hit rect makes below).
+        body=layer(`data-hit="1" fill="transparent" stroke="none" pointer-events="all"`);
+      } else if(SHOW){
         // Bloom hugging the silhouette (a stroke, so it follows any shape),
         // then the body, then the fixture's own detail, then a single
         // upper-left gloss over the lot. objectBoundingBox gradients mean one
@@ -2266,7 +2284,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         roomLights.forEach((l,idx)=>{
           const [dx,dy]=offsets[idx];
           const fx=SHOW&&FIELD ? {col: fieldColOf(cx,cy,z)} : undefined;
-          jobs.push([l, ccx+dx, ccy+dy, null, `data-z="${z}"`, roomClip.get(r), fx]);
+          // Trailing false: the unplaced/room-cluster path never gets an
+          // aura (only the placed-lights loop calls automorphAuraSvg), so
+          // its glyph must never be suppressed — hiding it here would
+          // leave nothing drawn at all.
+          jobs.push([l, ccx+dx, ccy+dy, null, `data-z="${z}"`, roomClip.get(r), fx, false]);
         });
       });
     }
@@ -2291,6 +2313,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       }
       if(l.shape==="perimeter") s+=perimeterSvg(l, room, pl.lp);
       else if(AUTOMORPH_PCT>0) s+=automorphAuraSvg(l, hx, hy, room, z);
+      // Whether an aura ACTUALLY painted for this fixture — the same room
+      // truthiness automorphAuraSvg itself bails on. This, not the bare
+      // slider value, is what may suppress the old glyph: a hallway
+      // fixture outside every room polygon gets no aura, so hiding its
+      // glyph too would leave nothing drawn there at all.
+      const auraPainted=AUTOMORPH_PCT>0 && l.shape!=="perimeter" && !!(room && room.pts.length>=3);
       let clip, fx;
       if(SHOW){
         clip=room?roomClip.get(room):undefined;
@@ -2310,7 +2338,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         }
         if(col||spillSegs) fx={col, spill:spillSegs};
       }
-      jobs.push([l, hx, hy, pl.lp, `data-z="${z}" data-placed="1"`, clip, fx]);
+      jobs.push([l, hx, hy, pl.lp, `data-z="${z}" data-placed="1"`, clip, fx, auraPainted]);
     }
 
     if(SHOW){
@@ -2323,7 +2351,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // A contact shadow seats a MARKER on the floor; a perimeter light's
       // marker is hidden (only its hit space and code remain), so a shadow
       // there would be a smudge under nothing.
-      for(const [l2,hx,hy] of jobs) if(l2.shape!=="perimeter") s+=shadeSvg(hx,hy);
+      // ...and the same reasoning excludes an aura-suppressed glyph (the
+      // tuple's trailing flag): its marker is hidden too, so a shadow
+      // there would equally be a smudge under nothing.
+      for(const j2 of jobs) if(j2[0].shape!=="perimeter" && !j2[7]) s+=shadeSvg(j2[1],j2[2]);
 
       // ── Isolux contours — the engineer's view, honest because the grid is
       // real metres and the sources are the fixtures' real positions and
@@ -2432,7 +2463,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // Halos go under EVERY marker on the floor (see haloSvg); then the
     // markers; then the use-mode stack chips, which stand in for markers.
     if(HALO) for(const [l2,hx,hy] of jobs) s+=haloSvg(l2,hx,hy);
-    for(const j of jobs) s+=markerSvg(...j);
+    // Explicit arguments, not a blind spread: the tuple's positions 5/6
+    // are clip/fx (consumed by the glow/shade passes above, not by
+    // markerSvg), and position 7 is the aura-painted flag — a spread would
+    // silently hand markerSvg the clip id as its suppressGlyph parameter.
+    for(const j of jobs) s+=markerSvg(j[0], j[1], j[2], j[3], j[4], !!j[7]);
     for(const st of stacks) s+=stackChipSvg(...st);
 
     // Floor level badge
