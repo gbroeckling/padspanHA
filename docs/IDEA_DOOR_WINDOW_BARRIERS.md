@@ -293,30 +293,33 @@ line) or lets a door's width be typed/dragged freely — decide when
 building the Rooms-tab piece, not before; everything else in this document
 is unaffected by that choice.
 
-### Primary surface: Mapping → Lights, mirrored into the Rooms-tab wall editor
+### Editing surface: stays in the Rooms tab; Mapping → Lights gets a jump link
 
-Garry, 2026-09-08: "done in mapping, lighting. Maybe also mirrored where a
-wall is chosen as an alternate place to configure." Two consequences:
+Garry, 2026-09-08, first pass: "done in mapping, lighting. Maybe also
+mirrored where a wall is chosen as an alternate place to configure" — then,
+on reflection: "if it lives in the rooms tab, put a jump to there option in
+the mapping, lighting tab." Final decision: the actual door/window editing
+UI (the section-select + material/entity-link controls) stays in the
+**Rooms tab**, where wall editing and the `_MAT_ATTEN` material picker
+already live — it does NOT need to be rebuilt or duplicated in Mapping →
+Lights. This removes the scope increase the previous revision of this
+section flagged: `iso_lights.js` does not need new wall-drawing capability
+as a hard requirement for this feature to ship.
 
-- **Primary authoring + rendering surface is Mapping → Lights**
-  (`iso_lights.js`), not the Rooms tab. This is a real scope increase from
-  the "smaller blast radius" note above: `iso_lights.js` draws NO
-  barriers today (verified — zero `rf_barriers_m` references), so before a
-  door/window can be placed or shown there at all, that view needs to gain
-  wall-drawing capability it currently lacks entirely. That is new
-  surface, not a rendering tweak — size it as its own sub-step alongside
-  the section-select UI in item 1 above, not folded into it for free.
-  `overview.js`'s existing draw-time open/closed skip (item 4 above) still
-  applies wherever barriers end up drawn, iso_lights.js included.
-- **The Rooms-tab wall editor becomes a mirrored ALTERNATE place to
-  configure the same door** — not a separate feature, not the primary
-  surface. Same underlying `rf_barriers_m` entry either way (per the data
-  model above), edited from whichever view is open; the two surfaces just
-  need to agree on the same schema and not drift into two parallel editing
-  UIs with different capabilities. Build the primary (Mapping → Lights)
-  surface first; the Rooms-tab mirror is then mostly "expose the same
-  material/linked-entity/door-type fields on an existing barrier-selection
-  affordance already there," not new logic.
+Mapping → Lights instead gets a **jump link/button** to the Rooms tab's
+wall editor — a navigation convenience for someone working the Lights view
+who wants to configure a door, not a second editing surface. Small,
+contained addition (a button + a route/tab-switch call, following whatever
+pattern this app already uses for cross-tab navigation, if one exists —
+check `lights_panel.js`/`maps.js` for a precedent before inventing one).
+
+Left genuinely open, and NOT settled by this note: whether a door's
+open/closed gap should also be VISUALLY drawn on the Mapping → Lights map
+itself once it exists (which would still need `iso_lights.js` to gain
+barrier-drawing, just as a rendering-only addition rather than an editing
+one) — Garry's messages here were specifically about the EDITING entry
+point, not about extending the Lights view's own rendered output. Decide
+that separately, if/when this gets built.
 
 ## Follow-up
 
