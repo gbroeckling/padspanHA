@@ -90,6 +90,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "lights_fit_rooms": False,  # Mapping -> Lights Showcase: never draw a fixture larger than its room
     "lights_isolux": False,  # Mapping -> Lights Showcase: relative-illuminance contours on the metre grid
     "lights_hide_untouched": False,  # Mapping -> Lights: draw only fixtures that have been sized/rotated/coloured/shaped
+    "lights_hide_device_codes": False,  # Mapping -> Lights: hide every marker's A01/M08-style code label, everywhere the map renders
     "lights_automorph_enabled": False,  # Mapping -> Lights: room-alignment aura, off = today's rendering exactly
     "lights_automorph_room_pct": 0,     # 0-100: how far each fixture's aura has grown toward its room's own shape
     "lights_automorph_hardness": 0,     # -100..100, centered: negative sharpens/spikes the aura's edges, positive smooths them into a closed spline; 0 = today's straight edge

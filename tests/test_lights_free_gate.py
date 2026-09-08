@@ -118,13 +118,14 @@ function renderFor(tier) {
   const byRoom = {};
   for (const l of lights) if (l.area_name) (byRoom[l.area_name] = byRoom[l.area_name] || []).push(l);
   let svg = "";
-  const calls = { showcase: 0, fit: 0, hide: 0 };
+  const calls = { showcase: 0, fit: 0, hide: 0, hideCodes: 0 };
   const host = {
     el, floors: model.floors, model, tier, byRoom, lightsByEid, lightsLoading: false,
     hiddenEids: new Set(), hiddenEidsMap: new Set(["light.loft"]),   // "hide untouched" would hide the loft lamp
     view: { floorGap: 150, horizGap: 0, focusIdx: 0, zoom: 1 },
     showcase: true, fitRooms: true, hideUntouched: true, untouchedCount: 1,
     onShowcase: () => calls.showcase++, onFitRooms: () => calls.fit++, onHideUntouched: () => calls.hide++,
+    hideDeviceCodes: false, onHideDeviceCodes: () => calls.hideCodes++,
     isolux: false, onIsolux: () => {}, sceneName: null, onScene: () => {},
     onSceneAngle: () => {}, onSceneApply: () => {}, rippleArmed: false, onRipple: () => {},
     onRippleFire: () => {},
@@ -156,6 +157,7 @@ function renderFor(tier) {
     hasShowcaseBtn: buttons.some(t => t.includes("Showcase")),
     hasFitBtn: buttons.some(t => t.includes("Fit room")),
     hasUntouchedBtn: buttons.some(t => t.includes("ntouched")),
+    hasHideCodesBtn: buttons.some(t => t.includes("ide codes") || t.includes("odes hidden")),
     hasIsoluxBtn: buttons.some(t => t.includes("Isolux")),
     hasSceneBtn: buttons.some(t => t.includes("Scene")),
     hasRippleBtn: buttons.some(t => t.includes("Ripple")),
@@ -238,6 +240,15 @@ def test_free_withholds_the_presentation_modes(out):
         assert out[tier]["hasShowcaseBtn"] and out[tier]["hasFitBtn"] and out[tier]["hasUntouchedBtn"], (tier, out[tier]["buttons"])
         assert out[tier]["hasIsoluxBtn"] and out[tier]["hasSceneBtn"] and out[tier]["hasRippleBtn"], (tier, out[tier]["buttons"])
         assert not out[tier]["loftDrawn"], tier
+
+
+def test_hide_device_codes_is_available_at_every_tier(out):
+    """Unlike the paid presentation modes (Showcase, Fit room, Hide
+    untouched, Isolux, Scene, Ripple), "Hide device codes" (Garry,
+    2026-09-08) is a basic decluttering option in the same spirit as
+    codeChip/hitHalo — not withheld by lightsHostForTier at free."""
+    for tier in ("free", "bright", "pro"):
+        assert out[tier]["hasHideCodesBtn"], (tier, out[tier]["buttons"])
 
 
 def test_paid_recognises_a_partition_light_without_effects(out):
@@ -1148,3 +1159,64 @@ def test_both_hosts_pass_the_tier():
     assert "\n    tier,\n" in maps
     for src, name in ((panel, "lights_panel.js"), (maps, "maps.js")):
         assert "LIGHTING_TIER" not in src, f"{name} re-derives the lighting gate; lights_map.js owns it"
+
+
+def test_hide_device_codes_actually_suppresses_the_code_label(tmp_path):
+    """Garry (2026-09-08): "Add an option in mapping, lights, to turn off
+    the device identifier text." Confirms the rendering effect, not just
+    the button's presence: with hideDeviceCodes true, a placed light's code
+    (e.g. "A01") never appears in the emitted SVG; with it false, the
+    existing zoom-driven behaviour is untouched — codeChip is false here
+    (build mode), so codesShown stays true regardless, and the label must
+    show unless the new explicit toggle is on."""
+    model = {
+        "room_geometry_m": {"Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 4], [0, 4]]}},
+        "light_positions_m": {"light.lamp": {"x_m": 3, "y_m": 2, "floor_id": "main"}},
+    }
+    states = {"light.lamp": {"state": "on", "attributes": {"friendly_name": "Lamp"}}}
+    area = {"light.lamp": "Kitchen"}
+    out = _run_pipeline_script(tmp_path, f"""
+function el(tag, attrs = {{}}, children = []) {{
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {{}})) {{
+    if (k === "class") n.className = v;
+    else if (k.startsWith("on") && typeof v === "function") n.addEventListener(k.slice(2), v);
+    else if (v !== undefined && v !== null) n.setAttribute(k, String(v));
+  }}
+  if (!Array.isArray(children)) children = [children];
+  for (const c of children) {{
+    if (c === null || c === undefined) continue;
+    if (typeof c === "string" || typeof c === "number") n.appendChild(document.createTextNode(String(c)));
+    else n.appendChild(c);
+  }}
+  return n;
+}}
+const MODEL = {json.dumps(model)};
+const STATES = {json.dumps(states)};
+const AREA = {json.dumps(area)};
+const lights = LM.gatherLights(STATES, AREA, {{}}, "pro", {{}});
+const lightsByEid = {{}}; for (const l of lights) lightsByEid[l.entity_id] = l;
+const byRoom = {{}}; for (const l of lights) if (l.area_name) (byRoom[l.area_name] = byRoom[l.area_name] || []).push(l);
+const code = lights[0].code;
+const render = (hideDeviceCodes) => {{
+  let svg = "";
+  const host = {{
+    el, floors: MODEL.floors, model: MODEL, tier: "pro", byRoom, lightsByEid, lightsLoading: false,
+    hiddenEids: new Set(), hiddenEidsMap: new Set(),
+    view: {{ floorGap: 150, horizGap: 0, focusIdx: 0, zoom: 1 }},
+    hideDeviceCodes, onHideDeviceCodes: () => {{}},
+    saveView: async () => {{}}, callWS: async () => ({{}}), toast: () => {{}},
+    onHexesBuilt: (isoDiv) => {{ svg = isoDiv.innerHTML; }},
+    onRowClick: () => {{}}, onToggleHidden: () => {{}}, afterAssign: () => {{}},
+  }};
+  LM.buildLightsMapCard(host);
+  return svg;
+}};
+console.log(JSON.stringify({{
+  code,
+  shown: render(false).includes(code),
+  hidden: render(true).includes(code),
+}}));
+""")
+    assert out["shown"], "the code must render by default (build mode, toggle off)"
+    assert not out["hidden"], "hideDeviceCodes:true must suppress the code label everywhere, build mode included"

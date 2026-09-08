@@ -7550,6 +7550,11 @@ function _lightsTab(ctx, maps, active) {
     ? !!ctx.state.settings?.lights_hide_untouched
     : !!mapState._lightsHideUntouched;
   const untouchedCount = lights.filter(l => !lightIsTouched(l, shapeOverrides, placements)).length;
+  // "Hide device codes" (Garry, 2026-09-08) — same draft-then-persist shape
+  // as hideUntouched above.
+  const hideDeviceCodes = mapState._lightsHideDeviceCodes === undefined
+    ? !!ctx.state.settings?.lights_hide_device_codes
+    : !!mapState._lightsHideDeviceCodes;
 
   const toggle = async (eid) => {
     if (!ctx.hass) return;
@@ -7900,6 +7905,13 @@ function _lightsTab(ctx, maps, active) {
       mapState._lightsHideUntouched = v;
       try { await ctx.actions.settingsSet({ lights_hide_untouched: v }); }
       catch (e) { ctx.toast("Could not save the filter: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
+    hideDeviceCodes,
+    onHideDeviceCodes: async (v) => {
+      mapState._lightsHideDeviceCodes = v;
+      try { await ctx.actions.settingsSet({ lights_hide_device_codes: v }); }
+      catch (e) { ctx.toast("Could not save the setting: " + String(e), true); }
       ctx.actions.renderRooms();
     },
     // Showcase is a rendering mode, not an edit mode: it is remembered like the

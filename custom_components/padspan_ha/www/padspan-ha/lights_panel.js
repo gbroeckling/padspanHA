@@ -215,6 +215,7 @@ class PadSpanLightsApp extends HTMLElement {
       this.state._showcase      = !!s.lights_showcase;
       this.state._fitRooms      = !!s.lights_fit_rooms;
       this.state._hideUntouched = !!s.lights_hide_untouched;
+      this.state._hideDeviceCodes = !!s.lights_hide_device_codes;
       this.state._isolux        = !!s.lights_isolux;
       this.state._automorph     = !!s.lights_automorph_enabled;
       this.state._automorphPct  = Number(s.lights_automorph_room_pct) || 0;
@@ -442,6 +443,9 @@ class PadSpanLightsApp extends HTMLElement {
       automorphHardness: this.state._automorphHardness || 0,
       automorphStyle: this.state._automorphStyle || "glow",
       automorphSubtlety: this.state._automorphSubtlety || 0,
+      // Same read-only reflection as the modes above — no onHideDeviceCodes,
+      // this panel never edits it, only displays what Mapping -> Lights set.
+      hideDeviceCodes: !!this.state._hideDeviceCodes,
       ambient: sunAmbient(this._hass),
       // Same filter as the builder, from the same rule, over the same
       // placements — the map hides them, the index table below still lists

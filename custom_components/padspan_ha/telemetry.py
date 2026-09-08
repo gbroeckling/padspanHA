@@ -159,6 +159,7 @@ UI_ERRORS: frozenset[str] = frozenset({f"ui_error:{v}" for v in VIEWS})
 # in the data (tests/test_telemetry.py holds the list to that).
 _FEATURE_FLAGS: tuple[str, ...] = (
     "quiet_mode", "lights_showcase", "lights_fit_rooms", "lights_hide_untouched",
+    "lights_hide_device_codes",
     "lights_panel_enabled", "radio_map_enabled", "distortion_map_enabled",
     "occupancy_hybrid_enabled", "rssi_capture_enabled", "forensics_enabled",
     "mac_rotation_bridging", "beacon_auto_calibrate", "beacon_profiling_enabled",

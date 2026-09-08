@@ -1434,8 +1434,12 @@ export function buildLightsMapCard(hostIn){
       { showcase: !!host.showcase, fitRooms: !!host.showcase && !!host.fitRooms,
         ambient: host.ambient, isolux: !!host.showcase && !!host.isolux,
         sceneField: host.showcase ? sceneFieldFor(host.sceneName, host.sceneAngle) : null,
-        // The use-surface ergonomics — see buildIsoSVG for each.
-        codeChip: !!host.codeChip, hideCodes: !codesShown,
+        // The use-surface ergonomics — see buildIsoSVG for each. hideCodes
+        // combines the existing zoom-driven auto-hide (preview/sidebar only)
+        // with an explicit, persisted user preference (Garry, 2026-09-08:
+        // "turn off the device identifier text") that applies everywhere,
+        // build mode included — the two never fight, either one hiding is enough.
+        codeChip: !!host.codeChip, hideCodes: !codesShown || !!host.hideDeviceCodes,
         classFilter: host.classFilter || null, hitHalo: !!host.hitHalo,
         collapseUnplaced: !!host.collapseUnplaced,
         locateEid: host.locateEid || null, dropMarker: !!host.onDropPlace,
@@ -1572,6 +1576,19 @@ export function buildLightsMapCard(hostIn){
         + "given a shape. Moving a light does not count as touching it.",
       onclick: () => host.onHideUntouched(!host.hideUntouched),
     }, host.hideUntouched ? `◫ Untouched (${n})` : "◫ Hide untouched"));
+  }
+  // Hide device codes (Garry, 2026-09-08: "turn off the device identifier
+  // text") — a persisted preference, independent of the existing zoom-driven
+  // auto-hide in preview/sidebar mode (codesVisibleAtZoom in rebuildISO
+  // above); this toggle applies everywhere, build mode included, and either
+  // mechanism hiding is enough — see the hideCodes line in rebuildISO.
+  if (host.onHideDeviceCodes) {
+    ctrlRow.appendChild(el("button", {
+      class: "lv-tgl tone-teal" + (host.hideDeviceCodes ? " on" : ""),
+      title: "Hide the A01/M08-style code label on every marker, everywhere "
+        + "this map renders — a decluttered view when you just want the shapes.",
+      onclick: () => host.onHideDeviceCodes(!host.hideDeviceCodes),
+    }, host.hideDeviceCodes ? "▤ Codes hidden" : "▤ Hide codes"));
   }
   // Automorph (Garry, 2026-09-07) — its own family, independent of Showcase:
   // it works the same in either rendering mode, so it is not nested under

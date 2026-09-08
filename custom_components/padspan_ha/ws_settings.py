@@ -76,6 +76,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lights_hidden"): list,
         vol.Optional("lights_showcase"): bool,
         vol.Optional("lights_hide_untouched"): bool,
+        vol.Optional("lights_hide_device_codes"): bool,
         vol.Optional("lights_fit_rooms"): bool,
         vol.Optional("lights_isolux"): bool,
         vol.Optional("lights_automorph_enabled"): bool,
@@ -361,6 +362,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 _bump(hass, "showcase_on")
         if "lights_hide_untouched" in msg:
             payload["lights_hide_untouched"] = bool(msg["lights_hide_untouched"])
+        if "lights_hide_device_codes" in msg:
+            payload["lights_hide_device_codes"] = bool(msg["lights_hide_device_codes"])
         if "lights_fit_rooms" in msg:
             payload["lights_fit_rooms"] = bool(msg["lights_fit_rooms"])
         if "lights_isolux" in msg:
