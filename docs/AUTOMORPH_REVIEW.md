@@ -9,7 +9,7 @@ geometry and counted crossings, byte-level diffs against the pre-change
 tree, and spec-compliant rasterization. The full 1726-test suite was green
 the whole time — these are the defects a green suite could not see.
 
-15 findings: 2 blockers, 5 majors, 8 minors. The dominant root cause:
+16 findings: 2 blockers, 6 majors, 8 minors. The dominant root cause:
 `offsetPolygonInward` was designed for sparse hand-traced room polygons
 and folds when fed the new dense Chaikin-smoothed cell rings — producing
 self-intersecting loops at the hardness rest position and letting
