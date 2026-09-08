@@ -313,13 +313,25 @@ contained addition (a button + a route/tab-switch call, following whatever
 pattern this app already uses for cross-tab navigation, if one exists —
 check `lights_panel.js`/`maps.js` for a precedent before inventing one).
 
-Left genuinely open, and NOT settled by this note: whether a door's
-open/closed gap should also be VISUALLY drawn on the Mapping → Lights map
-itself once it exists (which would still need `iso_lights.js` to gain
-barrier-drawing, just as a rendering-only addition rather than an editing
-one) — Garry's messages here were specifically about the EDITING entry
-point, not about extending the Lights view's own rendered output. Decide
-that separately, if/when this gets built.
+**Settled, not open** (Garry, immediately after: "this also will allow a
+tie in to a open/closed sensor, that is the whole point. I want the
+lighting map to clearly show when a door or window is left open") —
+visually showing open/closed state ON THE MAPPING → LIGHTS MAP is the
+actual point of the whole feature, not a deferred nice-to-have. So
+`iso_lights.js` DOES need new rendering capability (drawing a barrier's
+gap/open state), same as `overview.js`'s draw-time skip in item 4 above —
+it is just RENDERING-only, not editing: the section-select + material/
+entity-link controls still live solely in the Rooms tab (previous
+subsection), Lights only needs to READ the same `rf_barriers_m` entries
+and show a clear open indicator (a visible gap at minimum; consider also a
+distinct colour/glyph for "open" so it reads at a glance next to
+everything else this session already gave a strong on/off visual language
+to — motion's pulse, Automorph's on/off material split). Concretely: (a)
+give `iso_lights.js` a barrier-drawing pass it doesn't have today (new,
+scoped narrowly to reading `rf_barriers_m` + drawing gaps — no
+Automorph/aura interaction implied or needed), (b) apply the SAME
+open-state draw-time skip/gap logic `overview.js` will use, so the two
+views agree without a second implementation of "is this door open."
 
 ## Follow-up
 
