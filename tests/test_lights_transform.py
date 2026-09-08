@@ -243,10 +243,23 @@ def test_the_transform_preview_anchors_on_the_fixture_centre():
     """The group bounding box grows with the scaled outline and its label.
 
     Anchoring handles to it drifts them off-centre exactly when the fixture is
-    largest, which is when precision matters most.
+    largest, which is when precision matters most. The code label used to be
+    tried FIRST as the reliable anchor instead — real, but it stops existing
+    at all once "Hide device codes" is on (Garry, 2026-09-08), which silently
+    broke every Transform handle's position the moment that toggle shipped:
+    "the transform and move no longer work, because selecting something
+    shoots you to the bottom." data-cx/data-cy — set on every marker group
+    regardless of any display option, the SAME attribute the plain-drag path
+    already anchors on — must be tried FIRST now; the label stays only as a
+    fallback, ahead of the bounding box.
     """
-    assert 'querySelector("text")' in _handles_block(), (
-        "handles no longer anchor on the fixture's own centre label"
+    block = _handles_block()
+    cx_idx = block.index('getAttribute("data-cx")')
+    text_idx = block.index('querySelector("text")')
+    bbox_idx = block.index("getBBox()")
+    assert cx_idx < text_idx < bbox_idx, (
+        "the anchor priority must be data-cx/cy, then the label, then the "
+        "bounding box — not the label first", block
     )
 
 

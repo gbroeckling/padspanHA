@@ -7139,13 +7139,24 @@ function _wireLightsPicker(ctx, isoDiv, svg, o, toVB) {
 
 function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
   const NS = "http://www.w3.org/2000/svg";
-  // The code label is drawn at the fixture's exact centre and is never scaled
-  // or rotated, so it is the reliable anchor. The group's bounding box is not:
-  // it grows with the scaled outline and with the label's own box, so handles
-  // drifted off-centre exactly when the fixture was largest.
-  let cx, cy;
-  const lblEl = g.querySelector("text");
-  if (lblEl) { cx = Number(lblEl.getAttribute("x")); cy = Number(lblEl.getAttribute("y")); }
+  // data-cx/data-cy — the fixture's exact drawn centre, set on the marker
+  // group itself and never scaled, rotated, or removed by any display
+  // option — is the reliable anchor, the SAME attribute the plain-drag
+  // path (above, in the caller) already anchors on. The code label used to
+  // be tried first here, on the theory that it's centred and unscaled too
+  // — true, but it stops existing at all once "Hide device codes" is on
+  // (Garry, 2026-09-08), which silently broke every Transform handle's
+  // position the moment that toggle shipped. Kept as a fallback, in case a
+  // future marker kind is ever missing data-cx/cy; the group's bounding
+  // box is the last resort — it grows with the scaled outline and the
+  // label's own box, so handles drifted off-centre exactly when the
+  // fixture was largest.
+  let cx = Number(g.getAttribute("data-cx"));
+  let cy = Number(g.getAttribute("data-cy"));
+  if (!Number.isFinite(cx) || !Number.isFinite(cy)) {
+    const lblEl = g.querySelector("text");
+    if (lblEl) { cx = Number(lblEl.getAttribute("x")); cy = Number(lblEl.getAttribute("y")); }
+  }
   if (!Number.isFinite(cx) || !Number.isFinite(cy)) {
     try { const bb = g.getBBox(); cx = bb.x + bb.width / 2; cy = bb.y + bb.height / 2; }
     catch (_) { return; }
