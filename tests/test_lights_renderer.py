@@ -2173,6 +2173,53 @@ def test_automorph_ring_at_half_percent_sits_strictly_between_icon_and_room(tmp_
         )
 
 
+def test_best_rotational_match_recovers_a_cyclic_shift(tmp_path):
+    """Ring correspondence must come from geometry, not from each ring's own
+    'topmost point' guess: two copies of the SAME ring, one cyclically
+    rotated, are the case where the right answer is unambiguous — the search
+    must undo the rotation exactly (cost 0), so the subsequent index-for-
+    index lerp pairs every point with itself instead of twisting."""
+    out = _run_js(tmp_path, (
+        "import { bestRotationalMatch } from './iso_lights.mjs';\n"
+        "const a=[[0,0],[10,0],[10,10],[0,10]];\n"
+        "const b=a.slice(3).concat(a.slice(0,3));\n"
+        "const m=bestRotationalMatch(a,b);\n"
+        "console.log(JSON.stringify({m, equal: JSON.stringify(m)===JSON.stringify(a)}));\n"
+    ))
+    assert out["equal"], (
+        "bestRotationalMatch must rotate the shifted copy back into exact "
+        f"index-for-index alignment with the reference ring: {out['m']}"
+    )
+
+
+def test_automorph_resample_count_adapts_to_the_target_rings_own_density(tmp_path):
+    """AUTOMORPH_N is a floor, not the count: a sparse 4-vertex room polygon
+    still resamples to exactly 24 (the pre-cell behaviour, unchanged), but a
+    Chaikin-densified cell ring arriving with more points keeps its own
+    density — capped at 64 — so a cell's concave detail survives the
+    resample instead of being averaged away by a fixed sparse count."""
+    out = _run_js(tmp_path, (
+        "import { iconRingLocal, automorphRing } from './iso_lights.mjs';\n"
+        "const icon=iconRingLocal('circle', 10);\n"
+        "const circ=(n,r)=>Array.from({length:n},(_,i)=>{const a=i/n*2*Math.PI;"
+        "return [50+Math.cos(a)*r, 50+Math.sin(a)*r];});\n"
+        "const sparse=automorphRing(icon, 50, 50, [[0,0],[100,0],[100,100],[0,100]], 0.5);\n"
+        "const dense=automorphRing(icon, 50, 50, circ(40, 40), 0.5);\n"
+        "const capped=automorphRing(icon, 50, 50, circ(200, 40), 0.5);\n"
+        "console.log(JSON.stringify({sparse:sparse.length, dense:dense.length, capped:capped.length}));\n"
+    ))
+    assert out["sparse"] == 24, (
+        "a 4-vertex target must still resample to exactly AUTOMORPH_N=24, "
+        f"got {out['sparse']}"
+    )
+    assert out["dense"] == 40, (
+        f"a 40-point target must keep its own density, got {out['dense']}"
+    )
+    assert out["capped"] == 64, (
+        f"a 200-point target must cap at 64, got {out['capped']}"
+    )
+
+
 # ── Automorph slider 2: edge hardness (Garry, 2026-09-07) ───────────────────
 # "The second slider is to make all the shapes from hard edges to soft, this
 # one starts in the center." Centered at 0 = today's straight polygon,

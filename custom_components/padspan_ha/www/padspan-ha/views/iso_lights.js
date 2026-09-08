@@ -178,17 +178,30 @@ export function defaultPerimeterMarginM(frame){
 // classical hard problem — see flubber (JS, MIT: "smoothly interpolate
 // between any two arbitrary SVG paths") for real prior art; it cannot be
 // installed here (no build step, no npm, and per this project's policy any
-// third-party code needs asking first), so this hand-ports its FALLBACK
-// strategy rather than its full topology-aware solver: resample both
-// outlines to the same point COUNT at even arc-length spacing, normalize
-// both to the same winding direction and the same start reference (each
-// ring's own topmost point relative to its centroid), then lerp
-// corresponding points straight-line. That fallback is exactly right here
-// because both endpoints are close to convex — a small symmetric icon and a
-// real room polygon (rectangular or mildly irregular, the "callers clamp
-// against a concave room" case offsetPolygonInward already documents) — the
-// case a full correspondence solver exists for is two very different,
-// concave, or knotted silhouettes, which a room trace essentially never is.
+// third-party code needs asking first). The hand-built scheme: resample
+// both outlines to the SAME point count at even arc-length spacing,
+// normalize both to the same winding direction (alignRingStart), then let
+// a cyclic-shift search (bestRotationalMatch below) pick which of the
+// target's start indices lines up against the icon at minimum total
+// squared point-to-point distance, and lerp corresponding points
+// straight-line. An earlier version skipped the search and trusted each
+// ring's own topmost point as a shared start reference, justified by both
+// endpoints being near-convex; that justification died when the morph
+// target became a per-fixture CELL from buildRoomFixtureCells — carved by
+// distance-field competition against neighbours, routinely concave (a
+// bite taken out by one or two neighbours) or lopsided — where "nearest my
+// own bounding-box top" on a symmetric icon and on an irregular cell land
+// at unrelated relative positions around the outline, and a straight
+// index lerp between mismatched indices visibly crosses/twists at
+// mid-slider, exactly where the morph should read cleanest.
+//
+// AUTOMORPH_N is a FLOOR on the correspondence count, not the count
+// itself: automorphRing raises it toward the target ring's own
+// pre-resample density (capped at 64) so the Chaikin-densified cell rings
+// keep their concave detail — a notch sampled by only 24 points just gets
+// rounded away, silently blunting the very non-overlap partition the cell
+// system exists to make visible. A plain 4-8 vertex room polygon still
+// resamples to exactly 24, unchanged from before.
 const AUTOMORPH_N = 24;
 
 function _polySignedArea(pts){
@@ -291,6 +304,33 @@ export function automorphIconRing(shape, wCm, hCm, rotDeg, scale, hexR){
   });
 }
 
+// Cyclic-shift correspondence search: returns `b` rotated so its points
+// pair with `a`'s index-for-index at minimum total squared distance.
+// alignRingStart already normalized both rings' winding and gave each a
+// deterministic start, but its "topmost point" is a per-ring guess — on a
+// symmetric icon and an irregular concave cell those two tops have no
+// reason to sit at the same relative position around the outline, and a
+// lerp between mismatched indices twists through itself (see the design
+// comment above AUTOMORPH_N). O(N^2) — ~4096 ops at the N=64 cap, once
+// per fixture per render, trivial even at ~100 fixtures. Ties break
+// toward the smallest shift (strict <), so the result is fully
+// deterministic — a render must be reproducible from the fabric alone.
+export function bestRotationalMatch(a, b){
+  if(!a || !a.length || !b || !b.length) return b||[];
+  let bestShift=0, bestCost=Infinity;
+  for(let s=0;s<b.length;s++){
+    let c=0;
+    for(let i=0;i<a.length;i++){
+      const bp=b[(i+s)%b.length];
+      const dx=a[i][0]-bp[0], dy=a[i][1]-bp[1];
+      c+=dx*dx+dy*dy;
+    }
+    if(c<bestCost){ bestCost=c; bestShift=s; }
+  }
+  if(!bestShift) return b;
+  return b.map((_,i)=>b[(i+bestShift)%b.length]);
+}
+
 // The morph itself. `iconLocal` is centred on (0,0) (iconRingLocal's own
 // output); `iconCx,iconCy` places it at the fixture's real drawn position.
 // `roomRingAbs` is the room's own outline in the SAME space (whatever space
@@ -303,8 +343,12 @@ export function automorphRing(iconLocal, iconCx, iconCy, roomRingAbs, t){
   const iconAbs=iconLocal.map(p=>[p[0]+iconCx, p[1]+iconCy]);
   const clampT=Math.max(0, Math.min(1, t||0));
   if(clampT<=0 || !roomRingAbs || roomRingAbs.length<3) return iconAbs;
-  const a=alignRingStart(resamplePolygonRing(iconAbs, AUTOMORPH_N));
-  const b=alignRingStart(resamplePolygonRing(roomRingAbs, AUTOMORPH_N));
+  // Adaptive count — AUTOMORPH_N is the floor (see its own comment): a
+  // sparse hand-traced polygon still gets exactly 24, a Chaikin-densified
+  // cell ring gets its own density up to 64 so concave detail survives.
+  const N=Math.max(AUTOMORPH_N, Math.min(64, roomRingAbs.length));
+  const a=alignRingStart(resamplePolygonRing(iconAbs, N));
+  const b=bestRotationalMatch(a, alignRingStart(resamplePolygonRing(roomRingAbs, N)));
   return a.map((p,i)=>[p[0]+(b[i][0]-p[0])*clampT, p[1]+(b[i][1]-p[1])*clampT]);
 }
 
