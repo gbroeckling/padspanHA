@@ -227,6 +227,97 @@ Two coupled but separable pieces:
   code, so the wall-gap effect doesn't ship in one view and silently stay
   a solid line in another.
 
+## Refined approach (Garry, 2026-09-08 — resolves Technical Challenges #1 and #2)
+
+Verified against the current tree first: `iso_lights.js` does NOT draw
+barriers at all (only `overview.js:1272` draws the real polyline; `maps.js`
+has the Rooms-tab wall editor plus one unrelated barrier-move-diff-tracking
+consumer; `radio_map.js`/`stack_transform.js` feed the RF heatmap/what-if
+preview). A material→attenuation table already exists in `maps.js`
+(`_MAT_ATTEN`: `metal:12, concrete:8, brick:4, custom:6, open:0` dB, with a
+matching `_MAT_COLORS`) — "steel" is not a new material, it is `metal`.
+Gap #8 (`53ee119`, lock-domain binding) remains the right precedent for
+"pick an HA entity and link it," but is smaller in scope than this feature:
+gap #8 was itself called "the simplest of the six remaining domains" in its
+own commit message, because a lock's state shape already matched the
+existing marker pipeline — this feature adds two mechanisms nothing in the
+codebase does today (splitting a drawn wall, and live-resolving an
+attenuation value), so it should be sized bigger than gap #8, not as an
+instance of it.
+
+The workflow, in Garry's words: "This involves choosing a section of wall,
+and marking it as a door/window/etc, with the option of choosing metal in
+the wall-defining portion of padspan." I.e. the SAME wall editor that
+already has the material picker — not a new door-specific control.
+
+This dissolves both hard technical challenges above, because the split
+happens once, at AUTHORING time, in the Rooms-tab editor — not live, on
+every render:
+
+- **Challenge #1 (data model) is answered.** A door is NOT its own object
+  type, and NOT an attribute bolted onto an existing whole-barrier entry
+  (the two options weighed above). It is an ordinary `rf_barriers_m` entry
+  — a short one, split out of the wall it was carved from — carrying the
+  SAME `material` field every barrier already has (so "steel" = pick
+  `metal` for that segment, no new attenuation concept), plus two new
+  fields: `linked_entity_id` (the bound `binary_sensor.door`/`window`) and
+  a `door_type` (door/window/etc, for icon/labeling only). Reuses the
+  existing schema instead of extending it with a parallel shape.
+- **Challenge #2 (wall-gap drawing) shrinks to almost nothing.** Nothing
+  needs to split a polyline around a gap position on every render, because
+  the split already happened when the section was carved out in the
+  editor. Drawing a gap becomes: for a barrier entry carrying a
+  `linked_entity_id`, skip drawing its polyline while the linked sensor
+  reads open (or draw it much fainter) — one conditional in `overview.js`,
+  not new segment-splitting geometry.
+
+What is now the actual new-build surface, smallest to largest:
+1. **The one genuinely new UI interaction**: select/drag a SECTION of an
+   existing wall polyline in the Rooms-tab editor and split it into its
+   own `rf_barriers_m` entry (keeping the remainder as the original
+   barrier, now shortened). Nothing in the codebase does this today — this
+   is the real new-build item, not an extension of something half-built.
+2. Linking that new short segment to a `binary_sensor` entity — direct
+   reuse of gap #8's entity-picker pattern.
+3. Live attenuation resolution in `presence_coordinator.py` (unchanged
+   from Technical Challenge #3 above: resolve server-side, at the point it
+   already re-fetches `rf_barriers_m()` each poll, so the client-side
+   heatmap/what-if preview in `radio_map.js` needs no new state-awareness
+   of its own — it already just reads whatever `attenuation_dbm` it's
+   given).
+4. The `overview.js` draw-time skip described above.
+
+Still open: whether the section-select UI drags along the barrier's own
+existing points (snapping a door's endpoints onto the wall's own drawn
+line) or lets a door's width be typed/dragged freely — decide when
+building the Rooms-tab piece, not before; everything else in this document
+is unaffected by that choice.
+
+### Primary surface: Mapping → Lights, mirrored into the Rooms-tab wall editor
+
+Garry, 2026-09-08: "done in mapping, lighting. Maybe also mirrored where a
+wall is chosen as an alternate place to configure." Two consequences:
+
+- **Primary authoring + rendering surface is Mapping → Lights**
+  (`iso_lights.js`), not the Rooms tab. This is a real scope increase from
+  the "smaller blast radius" note above: `iso_lights.js` draws NO
+  barriers today (verified — zero `rf_barriers_m` references), so before a
+  door/window can be placed or shown there at all, that view needs to gain
+  wall-drawing capability it currently lacks entirely. That is new
+  surface, not a rendering tweak — size it as its own sub-step alongside
+  the section-select UI in item 1 above, not folded into it for free.
+  `overview.js`'s existing draw-time open/closed skip (item 4 above) still
+  applies wherever barriers end up drawn, iso_lights.js included.
+- **The Rooms-tab wall editor becomes a mirrored ALTERNATE place to
+  configure the same door** — not a separate feature, not the primary
+  surface. Same underlying `rf_barriers_m` entry either way (per the data
+  model above), edited from whichever view is open; the two surfaces just
+  need to agree on the same schema and not drift into two parallel editing
+  UIs with different capabilities. Build the primary (Mapping → Lights)
+  surface first; the Rooms-tab mirror is then mostly "expose the same
+  material/linked-entity/door-type fields on an existing barrier-selection
+  affordance already there," not new logic.
+
 ## Follow-up
 
 Saved to Engram (project memory) alongside this file, and a calendar
