@@ -1848,13 +1848,17 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         AUTOMORPH_HARDNESS);
       const d=ringPathD(ring, AUTOMORPH_HARDNESS);
       const on=l.isMotion ? motionActive(l) : (l.isLock ? l.state==="locked" : l.state==="on");
-      // The room's OWN colour, not a flat grey — every fixture aura in the
-      // same room shares it, so overlapping auras blend into one cohesive
-      // colour-wash for that room rather than a field of disconnected grey
-      // smudges. A lit fixture's own accent colour still pops brighter
-      // against it, so "what is actually on" stays the thing the eye finds.
-      const roomCol=roomColor(room.room, model);
-      const col=on?bodyCol(l,null):roomCol;
+      // Neutral, colourless shading (Garry, 2026-09-07: "all these colors
+      // now are doing the exact opposite of keeping the visuals clean and
+      // aesthetic, the border of the rooms are already a bit much...
+      // follow the grey shaded type visual you used before"). No per-room
+      // or per-fixture hue — "on" reads as brighter, never as a different
+      // colour, so this stays quiet next to the room borders' own colour
+      // instead of competing with them. `psgloss` is the SAME white-to-
+      // black diagonal gradient every marker and room sheen already uses
+      // ("one light source, upper-left, for the whole drawing") — reused
+      // verbatim here rather than inventing a second shading language.
+      const base=on?"#94a3b8":"#475569";
       const t=AUTOMORPH_PCT/100;
       // Exploratory alternate treatments (Garry, 2026-09-07: "add a style
       // pulldown to build more morph concepts... I can always remove them
@@ -1867,29 +1871,31 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const dashOp=(0.35+0.45*t).toFixed(2);
         let nodes="";
         for(const [px,py] of ring) nodes+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="1.6" `+
-          `fill="${col}" fill-opacity="${dashOp}" pointer-events="none"/>`;
-        return `<path d="${d}" fill="none" stroke="${col}" stroke-opacity="${dashOp}" stroke-width="1.1" `+
+          `fill="${base}" fill-opacity="${dashOp}" pointer-events="none"/>`;
+        return `<path d="${d}" fill="none" stroke="${base}" stroke-opacity="${dashOp}" stroke-width="1.1" `+
           `stroke-dasharray="4,3" stroke-linejoin="round" pointer-events="none"/>`+nodes;
       }
       if(AUTOMORPH_STYLE==="nebula"){
-        // A single soft-edged colour wash: the mask (defined once, shared
-        // by every fixture regardless of colour — see psautomorphmask)
-        // fades the fill to nothing at the ring's own edge, reading as a
-        // glowing orb rather than a bounded shape with a stroke.
-        return `<path d="${d}" fill="${col}" fill-opacity="${(0.25+0.55*t).toFixed(2)}" `+
+        // A single soft-edged wash: the mask (defined once, shared by
+        // every fixture — see psautomorphmask) fades the fill to nothing
+        // at the ring's own edge, reading as a glowing orb rather than a
+        // bounded shape with a stroke.
+        return `<path d="${d}" fill="${base}" fill-opacity="${(0.22+0.45*t).toFixed(2)}" `+
           `stroke="none" mask="url(#psautomorphmask)" pointer-events="none"/>`;
       }
-      // "glow" (default): two layers, the way this map already lights a
-      // real fixture — a soft blurred wash carries the colour and the
-      // room-scale presence, a crisp, brighter outline on top keeps the
-      // room-conforming SHAPE itself readable as it grows, not just an
-      // ever-bigger smear.
-      const glow=`<path d="${d}" fill="${col}" fill-opacity="${(0.12+0.34*t).toFixed(2)}" `+
+      // "glow" (default): three layers — a soft blurred wash carries the
+      // room-scale presence, a crisp outline keeps the shape itself
+      // readable as it grows, and the shared psgloss ramp gives it the
+      // same embossed/shaded depth every other marker and room already
+      // has, instead of relying on colour for visual interest.
+      const glow=`<path d="${d}" fill="${base}" fill-opacity="${(0.10+0.26*t).toFixed(2)}" `+
         `stroke="none" pointer-events="none" filter="url(#psclipsoft)"/>`;
-      const edge=`<path d="${d}" fill="${col}" fill-opacity="${(0.05+0.14*t).toFixed(2)}" `+
-        `stroke="${col}" stroke-opacity="${(0.4+0.5*t).toFixed(2)}" stroke-width="1.4" `+
+      const edge=`<path d="${d}" fill="${base}" fill-opacity="${(0.04+0.1*t).toFixed(2)}" `+
+        `stroke="${base}" stroke-opacity="${(0.35+0.45*t).toFixed(2)}" stroke-width="1.4" `+
         `stroke-linejoin="round" pointer-events="none"/>`;
-      return glow+edge;
+      const gloss=`<path d="${d}" fill="url(#psgloss)" fill-opacity="${(0.5+0.4*t).toFixed(2)}" `+
+        `stroke="none" pointer-events="none"/>`;
+      return glow+edge+gloss;
     };
 
     // Showcase underlay for one fixture: the pool it throws on the floor, and
