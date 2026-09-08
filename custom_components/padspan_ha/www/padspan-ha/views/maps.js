@@ -7975,6 +7975,16 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not save the Automorph style: " + String(e), true); }
       ctx.actions.renderRooms();
     },
+    // 0 = today's opacity/line-weight, 100 = thinned + faded near-invisible.
+    automorphSubtlety: mapState._lightsAutomorphSubtlety === undefined
+      ? Number(ctx.state.settings?.lights_automorph_subtlety) || 0
+      : mapState._lightsAutomorphSubtlety,
+    onAutomorphSubtlety: async (v) => {
+      mapState._lightsAutomorphSubtlety = v;
+      try { await ctx.actions.settingsSet({ lights_automorph_subtlety: v }); }
+      catch (e) { ctx.toast("Could not save the Automorph subtlety: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
     // Scene preview state is a view mode, deliberately NOT a setting: a
     // preview left armed in storage would repaint the map on every open.
     sceneName: mapState._lightsScene || null,

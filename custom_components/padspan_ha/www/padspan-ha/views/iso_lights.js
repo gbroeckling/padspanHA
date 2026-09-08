@@ -1084,6 +1084,15 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // the others are exploratory, kept behind this dropdown so any of them
   // can be dropped later without touching the geometry underneath.
   const AUTOMORPH_STYLE = ["glow","blueprint","nebula"].includes(opts.automorphStyle) ? opts.automorphStyle : "glow";
+  // Subtlety, 0-100 (Garry, 2026-09-07: "a slider for subtlety, so you can
+  // dial from objects looking full, to almost completely lost in
+  // background... with shades, thinner lines"). 0 = today's opacity/line-
+  // weight exactly; 100 thins every stroke to 40% width and caps every
+  // opacity at 15% of its normal value — never fully zero, so the control
+  // still reads as "very subtle" rather than "silently did nothing".
+  const AUTOMORPH_SUBTLETY = opts.automorph ? Math.max(0, Math.min(100, Number(opts.automorphSubtlety) || 0)) : 0;
+  const _automorphOpacityMult = 1 - (AUTOMORPH_SUBTLETY/100)*0.85;
+  const _automorphStrokeMult = 1 - (AUTOMORPH_SUBTLETY/100)*0.6;
   const dimmed=(l)=>!!CLASSF && lightClassOf(l)!==CLASSF;
   // The builder, choosing a light from the INDEX rather than the map: "make
   // it easy to find" — one big ring flashes outward from wherever that light
@@ -1860,6 +1869,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // verbatim here rather than inventing a second shading language.
       const base=on?"#94a3b8":"#475569";
       const t=AUTOMORPH_PCT/100;
+      // Subtlety scales every opacity and stroke-width computed below —
+      // one multiplier applied at the point of use, rather than threading
+      // it through each style's own formula, so a future 4th style gets it
+      // for free by using these same two helpers.
+      const opac=(v)=>(v*_automorphOpacityMult).toFixed(2);
+      const swid=(v)=>(v*_automorphStrokeMult).toFixed(2);
       // Exploratory alternate treatments (Garry, 2026-09-07: "add a style
       // pulldown to build more morph concepts... I can always remove them
       // later") — same ring/path every style paints, only HOW it's drawn
@@ -1868,11 +1883,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // Technical/architectural linework: no fill at all, a dashed
         // outline plus a small node at every vertex — reads as a wireframe
         // draft of the room shape rather than a glow.
-        const dashOp=(0.35+0.45*t).toFixed(2);
+        const dashOp=opac(0.35+0.45*t);
         let nodes="";
         for(const [px,py] of ring) nodes+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="1.6" `+
           `fill="${base}" fill-opacity="${dashOp}" pointer-events="none"/>`;
-        return `<path d="${d}" fill="none" stroke="${base}" stroke-opacity="${dashOp}" stroke-width="1.1" `+
+        return `<path d="${d}" fill="none" stroke="${base}" stroke-opacity="${dashOp}" stroke-width="${swid(1.1)}" `+
           `stroke-dasharray="4,3" stroke-linejoin="round" pointer-events="none"/>`+nodes;
       }
       if(AUTOMORPH_STYLE==="nebula"){
@@ -1880,7 +1895,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // every fixture — see psautomorphmask) fades the fill to nothing
         // at the ring's own edge, reading as a glowing orb rather than a
         // bounded shape with a stroke.
-        return `<path d="${d}" fill="${base}" fill-opacity="${(0.22+0.45*t).toFixed(2)}" `+
+        return `<path d="${d}" fill="${base}" fill-opacity="${opac(0.22+0.45*t)}" `+
           `stroke="none" mask="url(#psautomorphmask)" pointer-events="none"/>`;
       }
       // "glow" (default): three layers — a soft blurred wash carries the
@@ -1888,12 +1903,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // readable as it grows, and the shared psgloss ramp gives it the
       // same embossed/shaded depth every other marker and room already
       // has, instead of relying on colour for visual interest.
-      const glow=`<path d="${d}" fill="${base}" fill-opacity="${(0.10+0.26*t).toFixed(2)}" `+
+      const glow=`<path d="${d}" fill="${base}" fill-opacity="${opac(0.10+0.26*t)}" `+
         `stroke="none" pointer-events="none" filter="url(#psclipsoft)"/>`;
-      const edge=`<path d="${d}" fill="${base}" fill-opacity="${(0.04+0.1*t).toFixed(2)}" `+
-        `stroke="${base}" stroke-opacity="${(0.35+0.45*t).toFixed(2)}" stroke-width="1.4" `+
+      const edge=`<path d="${d}" fill="${base}" fill-opacity="${opac(0.04+0.1*t)}" `+
+        `stroke="${base}" stroke-opacity="${opac(0.35+0.45*t)}" stroke-width="${swid(1.4)}" `+
         `stroke-linejoin="round" pointer-events="none"/>`;
-      const gloss=`<path d="${d}" fill="url(#psgloss)" fill-opacity="${(0.5+0.4*t).toFixed(2)}" `+
+      const gloss=`<path d="${d}" fill="url(#psgloss)" fill-opacity="${opac(0.5+0.4*t)}" `+
         `stroke="none" pointer-events="none"/>`;
       return glow+edge+gloss;
     };

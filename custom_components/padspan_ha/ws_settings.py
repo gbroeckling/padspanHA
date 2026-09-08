@@ -82,6 +82,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lights_automorph_room_pct"): vol.Coerce(int),
         vol.Optional("lights_automorph_hardness"): vol.Coerce(int),
         vol.Optional("lights_automorph_style"): str,
+        vol.Optional("lights_automorph_subtlety"): vol.Coerce(int),
         vol.Optional("adaptive_learning_enabled"): bool,
         vol.Optional("adaptive_floor_detection"): bool,
         vol.Optional("signal_loss_linger_s"): vol.Coerce(int),
@@ -373,6 +374,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "lights_automorph_style" in msg:
             _style = str(msg["lights_automorph_style"] or "").strip().lower()
             payload["lights_automorph_style"] = _style if _style in ("glow", "blueprint", "nebula") else "glow"
+        if "lights_automorph_subtlety" in msg:
+            payload["lights_automorph_subtlety"] = max(0, min(100, int(msg["lights_automorph_subtlety"])))
         if "light_shapes" in msg:
             # entity_id -> shape kind. Only known kinds are stored; an unknown
             # value would just fall back to the default marker in the frontend,

@@ -54,6 +54,32 @@ Captured verbatim-in-spirit before implementation, in priority order:
    for Automorph to genuinely stand in for the hand-made look, not just
    decorate it.
 
+5. **Common sense on size, even with only one fixture in a room.** "If the
+   existing manual shape is something very small in the corner, don't make
+   the morph take up the majority of the room." This applies even in the
+   N=1 case, which V1's "grow to the whole room" behaviour and the
+   room-alignment slider's own 100% endpoint both violate today by design.
+   Resolution: unify with #2/#3 rather than special-case N=1 — a lone
+   fixture's "cell" is still a weighted competition, just against the
+   room's own boundary/interior as an implicit competitor, so a small
+   manual footprint naturally yields a small cell and a large one can
+   still legitimately claim most or all of the room. Concretely: weight
+   the distance field by the fixture's manual footprint size (already
+   planned for partitioning multiple fixtures — "free, no separate
+   algorithm" per the research) and apply that SAME weighting when N=1,
+   rather than gating the whole-room target on a fixture count.
+
+6. **Additional, separately requested and already shipped this pass while
+   researching #2/#3:** a fourth control, "subtlety" (0-100, `lights_
+   automorph_subtlety`) — dials every style's opacity down and every
+   stroke thinner toward "almost completely lost in background" at 100,
+   never fully to zero. And a full switch away from per-room/per-fixture
+   colour to neutral grey shading (reusing `psgloss`, the SAME embossed
+   white-to-black diagonal ramp every marker/room already uses) — "all
+   these colors... exact opposite of clean", "lines for shapes should be
+   mostly grey, so they don't clash with the room lines." Both live in
+   `iso_lights.js`'s automorphAuraSvg/AUTOMORPH_SUBTLETY.
+
 **Status: V1 SHIPPED 2026-09-07** (commits 0bc321e, 110ff8c) — the
 room-alignment slider only, as a decorative aura behind the existing icon;
 NOT the icon-outline replacement, and NOT slider 2 (edge hardness). See

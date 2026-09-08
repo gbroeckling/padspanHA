@@ -59,6 +59,7 @@ export function lightsHostForTier(host){
     automorph: false, onAutomorph: null, automorphRoomPct: 0, onAutomorphRoomPct: null,
     automorphHardness: 0, onAutomorphHardness: null,
     automorphStyle: "glow", onAutomorphStyle: null,
+    automorphSubtlety: 0, onAutomorphSubtlety: null,
     sceneName: null, onScene: null, onSceneAngle: null, onSceneApply: null,
     rippleArmed: false, onRipple: null, onRippleFire: null,
     // Placement is paid, so the placement queue is too. And at free EVERY
@@ -1399,7 +1400,8 @@ export function buildLightsMapCard(hostIn){
         automorph: !!host.automorph,
         automorphRoomPct: view.automorphLivePct !== undefined ? view.automorphLivePct : (host.automorphRoomPct || 0),
         automorphHardness: view.automorphLiveHardness !== undefined ? view.automorphLiveHardness : (host.automorphHardness || 0),
-        automorphStyle: host.automorphStyle || "glow" });
+        automorphStyle: host.automorphStyle || "glow",
+        automorphSubtlety: view.automorphLiveSubtlety !== undefined ? view.automorphLiveSubtlety : (host.automorphSubtlety || 0) });
     applyZoom();
     host.onHexesBuilt(isoDiv, rebuildISO);
   };
@@ -1594,6 +1596,27 @@ export function buildLightsMapCard(hostIn){
       }
       styleSel.addEventListener("change", () => host.onAutomorphStyle(styleSel.value));
       ctrlRow.appendChild(styleSel);
+    }
+    // Subtlety, 0-100 (Garry, 2026-09-07: "a slider for subtlety, so you
+    // can dial from objects looking full, to almost completely lost in
+    // background... with shades, thinner lines"). Same live-preview-then-
+    // persist pattern as the other two sliders.
+    if (host.automorph && host.onAutomorphSubtlety) {
+      const subLbl = el("span", { class: "lv-val", style: "min-width:34px" }, `${host.automorphSubtlety || 0}%`);
+      const subSlider = document.createElement("input");
+      subSlider.type = "range"; subSlider.min = "0"; subSlider.max = "100";
+      subSlider.className = "lv-range";
+      subSlider.style.width = "90px";
+      subSlider.title = "Subtlety — how much the aura fades toward the background";
+      subSlider.value = String(host.automorphSubtlety || 0);
+      subSlider.addEventListener("input", () => {
+        view.automorphLiveSubtlety = parseInt(subSlider.value, 10);
+        subLbl.textContent = `${view.automorphLiveSubtlety}%`;
+        rebuildISO();
+      });
+      subSlider.addEventListener("change", () => host.onAutomorphSubtlety(parseInt(subSlider.value, 10)));
+      ctrlRow.appendChild(subSlider);
+      ctrlRow.appendChild(subLbl);
     }
   }
   if (host.onShowcase || host.onHideUntouched || host.onAutomorph) ctrlRow.appendChild(SEP());

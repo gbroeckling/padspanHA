@@ -220,6 +220,7 @@ class PadSpanLightsApp extends HTMLElement {
       this.state._automorphPct  = Number(s.lights_automorph_room_pct) || 0;
       this.state._automorphHardness = Number(s.lights_automorph_hardness) || 0;
       this.state._automorphStyle = s.lights_automorph_style || "glow";
+      this.state._automorphSubtlety = Number(s.lights_automorph_subtlety) || 0;
       // The effective tier the backend computed (licence.py). Below `bright`
       // the shared pipeline draws the free map — see lights_map.js. A settings
       // fetch that failed keeps the tier it last knew rather than flickering
@@ -440,6 +441,7 @@ class PadSpanLightsApp extends HTMLElement {
       automorphRoomPct: this.state._automorphPct || 0,
       automorphHardness: this.state._automorphHardness || 0,
       automorphStyle: this.state._automorphStyle || "glow",
+      automorphSubtlety: this.state._automorphSubtlety || 0,
       ambient: sunAmbient(this._hass),
       // Same filter as the builder, from the same rule, over the same
       // placements — the map hides them, the index table below still lists

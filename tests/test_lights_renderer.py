@@ -2288,3 +2288,38 @@ def test_automorph_style_dropdown_switches_the_rendered_treatment(tmp_path):
     assert blueprint["dashed"] and blueprint["psclipsoft"] == 0 and blueprint["mask"] == 0, blueprint
     assert nebula["mask"] >= 1 and nebula["psclipsoft"] == 0 and not nebula["dashed"], nebula
     assert unknown == glow, "an unrecognised style name must fall back to glow, not silently render nothing"
+
+
+def test_automorph_subtlety_thins_opacity_and_stroke_without_ever_reaching_zero(tmp_path):
+    """0 must be today's exact opacity/stroke-width (the same contract every
+    other Automorph control's rest position holds); 100 must be visibly
+    thinner and fainter, but never fully invisible or zero-width — Garry
+    asked for "almost completely lost", not gone."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {"Office": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 6], [0, 6]]}},
+        "light_positions_m": {"light.lamp": {"x_m": 3, "y_m": 3, "floor_id": "main"}},
+    }
+    lbe = {"light.lamp": {"entity_id": "light.lamp", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None}}
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+
+    def render(subtlety):
+        out = _run_js(tmp_path, (
+            "import * as M from './iso_lights.mjs';\n"
+            f"const MODEL={json.dumps(model)};\n"
+            f"const LBE={json.dumps(lbe)};\n"
+            f"const FLOORS={json.dumps(floors)};\n"
+            f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+            f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:50, automorphStyle:'glow', automorphSubtlety:{subtlety}}});\n"
+            "const m = svg.match(/<path d=\"[^\"]+\" fill=\"#94a3b8\" fill-opacity=\"([\\d.]+)\"[^]*?stroke-width=\"([\\d.]+)\"/);\n"
+            "console.log(JSON.stringify({fillOpacity: m ? parseFloat(m[1]) : null, strokeWidth: m ? parseFloat(m[2]) : null}));\n"
+        ))
+        return out
+
+    at0 = render(0)
+    at100 = render(100)
+    assert at0["fillOpacity"] is not None and at100["fillOpacity"] is not None, (at0, at100)
+    assert at100["fillOpacity"] < at0["fillOpacity"], (at0, at100)
+    assert at100["fillOpacity"] > 0, "subtlety=100 must fade, not fully hide"
+    assert at100["strokeWidth"] < at0["strokeWidth"], (at0, at100)
+    assert at100["strokeWidth"] > 0, "subtlety=100 must thin, not zero out, the stroke"
