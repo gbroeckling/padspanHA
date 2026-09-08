@@ -1646,7 +1646,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // One gradient per DISTINCT colour in use (quantised above), collected before
   // the defs are written. A per-light gradient would be one def per fixture.
   const glowIds=new Map();
-  // room record -> clipPath id, filled while the defs are written (SHOW only).
+  // room record -> clipPath id, filled while the defs are written (both
+  // modes — see the UNGATED clipPath block below).
   const roomClip=new Map();
   if(SHOW){
     for(const l of lights){
@@ -1776,6 +1777,32 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       `<stop offset="100%" stop-color="${rc}" stop-opacity="0"/>`+
       `</radialGradient>`;
   }
+  // Softens the wall cut on a clipped pool: applied OUTSIDE the clip, so a
+  // couple of pixels of light feather over the boundary the way a doorway
+  // leaks. A hard polygon edge is the one artifact every hand-built
+  // floor-plan thread complains about. UNGATED like psmotion: Automorph's
+  // aura wash blurs through this same filter, and Automorph runs on the
+  // working map too — were this def Showcase-only, the working aura would
+  // reference a filter that does not exist, which SVG resolves by not
+  // rendering the element at all, not by skipping the blur.
+  s+=`<filter id="psclipsoft" x="-8%" y="-8%" width="116%" height="116%">`+
+    `<feGaussianBlur stdDeviation="1.6"/></filter>`;
+  // One clip path per room, so a fixture's pool — and its Automorph aura —
+  // can be stopped at its own walls. Light crossing a wall polygon reads as
+  // a rendering error the moment the drawing is good enough for anything
+  // else to read as real — and the fabric has known these polygons in
+  // metres all along. UNGATED (both modes), the same precedent psmotion and
+  // psautomorphgrad already set: the aura is gated on the Automorph slider
+  // alone, never on Showcase, so its room clip has to exist on the working
+  // map too — while this loop lived inside if(SHOW), roomClip stayed EMPTY
+  // for the whole working-mode render and a blurred or hardness-spiked aura
+  // had nothing stopping it at its own room's wall. O(rooms) defs, not
+  // O(fixtures), so still cheap at any fixture count.
+  for(let ri=0; ri<rooms.length; ri++){
+    const r=rooms[ri];
+    roomClip.set(r, `psclip_${ri}`);
+    s+=`<clipPath id="psclip_${ri}"><polygon points="${r.pts.map(p=>pt(iso(p[0],p[1],r.z))).join(" ")}"/></clipPath>`;
+  }
   if(SHOW){
     // Light pools. Four stops, not two: a linear ramp reads as a flat disc with
     // a hard edge, and the near-quadratic falloff here is what makes it look
@@ -1787,21 +1814,6 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         `<stop offset="62%" stop-color="${col}" stop-opacity="0.10"/>`+
         `<stop offset="100%" stop-color="${col}" stop-opacity="0"/>`+
         `</radialGradient>`;
-    }
-    // Softens the wall cut on a clipped pool: applied OUTSIDE the clip, so a
-    // couple of pixels of light feather over the boundary the way a doorway
-    // leaks. A hard polygon edge is the one artifact every hand-built
-    // floor-plan thread complains about.
-    s+=`<filter id="psclipsoft" x="-8%" y="-8%" width="116%" height="116%">`+
-      `<feGaussianBlur stdDeviation="1.6"/></filter>`;
-    // One clip path per room, so a fixture's pool can be stopped at its own
-    // walls. Light crossing a wall polygon reads as a rendering error the
-    // moment the drawing is good enough for anything else to read as real —
-    // and the fabric has known these polygons in metres all along.
-    for(let ri=0; ri<rooms.length; ri++){
-      const r=rooms[ri];
-      roomClip.set(r, `psclip_${ri}`);
-      s+=`<clipPath id="psclip_${ri}"><polygon points="${r.pts.map(p=>pt(iso(p[0],p[1],r.z))).join(" ")}"/></clipPath>`;
     }
     // Contact shadow under a fixture — what actually sells a marker as an
     // object sitting in the room rather than a sticker on the glass.
@@ -2278,8 +2290,19 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // breaking. This is the smaller, reviewable step: the real morph maths
     // (automorphRing) proven and shipped, with "replace the icon's own
     // outline" left as a deliberate follow-up once this reads well live.
+    //
+    // Returns null when no aura paints, else the markup split into TWO
+    // tiers — {glow, edge} — which the floor-wide aura pass (above the
+    // labelJobs flush) accumulates across every fixture and appends
+    // glow-tier-first: all blurred washes land under all crisp edges, so
+    // one fixture's blur can never muddy the crisp bisector edge a
+    // neighbouring cell already drew. Same two-pass discipline the pool
+    // underlay establishes for markers ("drawn for the whole floor BEFORE
+    // any marker, so one light's glow can never wash over another's
+    // glyph") — per-fixture interleaving was the one draw order that
+    // convention exists to forbid.
     const automorphAuraSvg=(l,hx,hy,room,z,cellPtsM,entry)=>{
-      if(!(AUTOMORPH_PCT>0) || !room || room.pts.length<3) return "";
+      if(!(AUTOMORPH_PCT>0) || !room || room.pts.length<3) return null;
       // Two Chaikin passes over WHICHEVER target won the choice below —
       // smoothing lives only here so the cell path and the room-trace
       // fallback get the identical corner language, nothing upstream (the
@@ -2288,7 +2311,20 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // after the field competition — see chaikinSmooth's own comment for
       // the grid-noise rationale and the metaball scope guardrail.
       const targetPts=chaikinSmooth((cellPtsM && cellPtsM.length>=3) ? cellPtsM : room.pts, 2);
-      const marginM=Math.max(0, Math.min(defaultPerimeterMarginM(frame), roomHalfMinDim(targetPts)*0.85));
+      // One inset constant was serving two different composition jobs.
+      // defaultPerimeterMarginM is tuned for exactly one of them: a shape
+      // sitting a plausible cove-distance off a static WALL. A resolved
+      // cell's inset does the OTHER job — separating two comparably-
+      // weighted aura objects from each other — and there 2x a wall-tuned
+      // margin between neighbours read as tiles laid nearly edge-to-edge.
+      // So the interior (fixture-vs-fixture) case gets a distinctly larger
+      // multiple of the same frame-scaled base — still pixel-constant at
+      // any zoom, by the same construction as the base — while the room-
+      // outline fallback keeps 1x, the wall-distance job the constant was
+      // actually tuned for. The roomHalfMinDim clamp stays outside the
+      // multiplier so a tight cell can never be inset past its own middle.
+      const hasCell=!!(cellPtsM && cellPtsM.length>=3);
+      const marginM=Math.max(0, Math.min(defaultPerimeterMarginM(frame)*(hasCell?1.6:1), roomHalfMinDim(targetPts)*0.85));
       const roomPx=offsetPolygonInward(targetPts, marginM).map(p=>iso(p[0],p[1],z));
       const iconLocal=automorphIconRing(l.shape, entry&&entry.width_cm, entry&&entry.height_cm,
         entry&&entry.rotation, frame.scale, HEX_R);
@@ -2326,6 +2362,18 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // for free by using these same two helpers.
       const opac=(v)=>(v*_automorphOpacityMult).toFixed(2);
       const swid=(v)=>(v*_automorphStrokeMult).toFixed(2);
+      // Every tier is clipped to the fixture's own room — the identical
+      // mechanism the Showcase pools use, and the reason the clipPath defs
+      // are UNGATED now (see the defs block): the wash's blur bleeds past
+      // the ring, and negative hardness spikes outward on purpose, so a
+      // wall-adjacent aura otherwise has a clear path across its room's
+      // own boundary line — worst in exactly the small rooms
+      // defaultPerimeterMarginM's own comment flags (the 1.57m bedroom
+      // arm). roomClip covers every room in both modes, but a missing id
+      // still degrades to unclipped rather than to an invalid reference,
+      // which SVG would answer by not drawing the aura at all.
+      const clip=roomClip.get(room);
+      const clipWrap=(m)=>(m&&clip)?`<g clip-path="url(#${clip})" pointer-events="none">${m}</g>`:m;
       // Exploratory alternate treatments (Garry, 2026-09-07: "add a style
       // pulldown to build more morph concepts... I can always remove them
       // later") — same ring/path every style paints, only HOW it's drawn
@@ -2338,16 +2386,21 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         let nodes="";
         for(const [px,py] of ring) nodes+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="1.6" `+
           `fill="${base}" fill-opacity="${dashOp}" pointer-events="none"/>`;
-        return `<path d="${d}" fill="none" stroke="${base}" stroke-opacity="${dashOp}" stroke-width="${swid(1.1)}" `+
-          `stroke-dasharray="4,3" stroke-linejoin="round" pointer-events="none"/>`+nodes;
+        // All crisp linework, no blur anywhere — the whole style rides in
+        // the edge tier so it sits above every other fixture's wash.
+        return {glow:"", edge: clipWrap(
+          `<path d="${d}" fill="none" stroke="${base}" stroke-opacity="${dashOp}" stroke-width="${swid(1.1)}" `+
+          `stroke-dasharray="4,3" stroke-linejoin="round" pointer-events="none"/>`+nodes)};
       }
       if(AUTOMORPH_STYLE==="nebula"){
         // A single soft-edged wash: the mask (defined once, shared by
         // every fixture — see psautomorphmask) fades the fill to nothing
         // at the ring's own edge, reading as a glowing orb rather than a
-        // bounded shape with a stroke.
-        return `<path d="${d}" fill="${base}" fill-opacity="${opac(0.22+0.45*t)}" `+
-          `stroke="none" mask="url(#psautomorphmask)" pointer-events="none"/>`;
+        // bounded shape with a stroke. A wash with no crisp linework at
+        // all, so it rides entirely in the glow tier.
+        return {glow: clipWrap(
+          `<path d="${d}" fill="${base}" fill-opacity="${opac(0.22+0.45*t)}" `+
+          `stroke="none" mask="url(#psautomorphmask)" pointer-events="none"/>`), edge:""};
       }
       // "glow" (default): three layers — a soft blurred wash carries the
       // room-scale presence, a crisp outline keeps the shape itself
@@ -2355,13 +2408,21 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // same embossed/shaded depth every other marker and room already
       // has, instead of relying on colour for visual interest.
       const glow=`<path d="${d}" fill="${base}" fill-opacity="${opac(0.10+0.26*t)}" `+
-        `stroke="none" pointer-events="none" filter="url(#psclipsoft)"/>`;
+        `stroke="none" pointer-events="none"/>`;
       const edge=`<path d="${d}" fill="${base}" fill-opacity="${opac(0.04+0.1*t)}" `+
         `stroke="${base}" stroke-opacity="${opac(0.35+0.45*t)}" stroke-width="${swid(1.4)}" `+
         `stroke-linejoin="round" pointer-events="none"/>`;
       const gloss=`<path d="${d}" fill="url(#psgloss)" fill-opacity="${opac(0.5+0.4*t)}" `+
         `stroke="none" pointer-events="none"/>`;
-      return glow+edge+gloss;
+      // The wash blurs OUTSIDE its clip — filter on the outer group, clip
+      // on the inner — so the cut edge feathers a couple of pixels over
+      // the wall exactly the way the clipped pools already do ("applied
+      // OUTSIDE the clip, so a couple of pixels of light feather over the
+      // boundary the way a doorway leaks"), instead of stopping in a
+      // razor line at the boundary. One blur per fixture, same count as
+      // when the filter attribute sat on the wash path itself.
+      return {glow: `<g filter="url(#psclipsoft)">${clipWrap(glow)}</g>`,
+              edge: clipWrap(edge+gloss)};
     };
 
     // Showcase underlay for one fixture: the pool it throws on the floor, and
@@ -2757,12 +2818,58 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           const [dx,dy]=offsets[idx];
           const fx=SHOW&&FIELD ? {col: fieldColOf(cx,cy,z)} : undefined;
           // Trailing false: the unplaced/room-cluster path never gets an
-          // aura (only the placed-lights loop calls automorphAuraSvg), so
-          // its glyph must never be suppressed — hiding it here would
-          // leave nothing drawn at all.
+          // aura (only the floor-wide aura pass over PLACED lights calls
+          // automorphAuraSvg), so its glyph must never be suppressed —
+          // hiding it here would leave nothing drawn at all.
           jobs.push([l, ccx+dx, ccy+dy, null, `data-z="${z}"`, roomClip.get(r), fx, false]);
         });
       });
+    }
+    // ── Automorph auras: the whole floor's, in two tiers, under the labels.
+    // Computed HERE — after every room's fill/border above is already in s,
+    // before the deferred label pass below runs — because the auras used to
+    // be appended from the placed-lights loop, which runs after the labels:
+    // every aura painted OVER its own room's name, the exact opposite of
+    // the convention documented above labelJobs ("Labels now paint over
+    // every boundary line on the floor, always"), and worst precisely where
+    // the name always sits — a cell reaching the room's top edge. Fixture
+    // CODE chips never had the problem (they defer into the marker pass);
+    // this ends the inconsistent treatment between the two label kinds.
+    //
+    // Two floor-wide buffers, not per-fixture concatenation: every
+    // fixture's blurred glow flushes before any fixture's crisp edge, so a
+    // later neighbour's wash can never muddy the shared cell bisector an
+    // earlier fixture's edge already drew — the same underlay discipline
+    // the light pools document for markers. Final floor order, bottom to
+    // top: room fills/borders, all aura glow, all aura edges, labels,
+    // markers/glyphs.
+    //
+    // auraByEid records which fixtures REALLY painted: the placed-lights
+    // loop below no longer generates the aura, but its suppressGlyph
+    // decision (hide the old glyph body only when an aura replaced it)
+    // still has to be per-fixture and true to what was emitted — a hallway
+    // fixture outside every room polygon gets no aura here, so hiding its
+    // glyph too would leave nothing drawn there at all.
+    const auraByEid=new Map();
+    if(AUTOMORPH_PCT>0){
+      let auraGlow="", auraEdge="";
+      for(const pl of hereLights){
+        if(hiddenEids.has(pl.eid)) continue;
+        const l=lightsByEid[pl.eid];
+        if(!l || l.shape==="perimeter") continue;
+        // Same position ray-cast the partition pass above used to group
+        // this floor's fixtures, so the aura and its cell agree on the room.
+        let room=null;
+        for(const r of hereRooms){ if(pointInRoom(r.pts, pl.x, pl.y)){ room=r; break; } }
+        const cellsInRoom=room && roomFixtureCells.get(room);
+        const cellPtsM=cellsInRoom && cellsInRoom.get(pl.eid);
+        const [hx,hy]=iso(pl.x, pl.y, z);
+        const tiers=automorphAuraSvg(l, hx, hy, room, z, cellPtsM, pl.lp);
+        if(!tiers) continue;
+        auraByEid.set(pl.eid, true);
+        auraGlow+=tiers.glow; auraEdge+=tiers.edge;
+      }
+      s+=auraGlow+auraEdge;
     }
     for(const fn of labelJobs) fn();
 
@@ -2776,25 +2883,22 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // Which room this fixture sits in — from its POSITION, the same
       // ray-cast the fit cap uses. Outside every polygon (a hallway, the
       // garden) it is left unclipped/untraced. Needed in BOTH modes now: a
-      // perimeter light's shape depends on it, not only Showcase's pool clip
-      // — and now automorph's aura, which has the identical "grow toward
-      // MY room" requirement.
+      // perimeter light's shape depends on it, not only Showcase's pool
+      // clip. (The aura resolves its own room in the floor-wide tier pass
+      // above, so it no longer forces this ray-cast here.)
       let room=null;
-      if(SHOW || l.shape==="perimeter" || AUTOMORPH_PCT>0){
+      if(SHOW || l.shape==="perimeter"){
         for(const r of hereRooms){ if(pointInRoom(r.pts, pl.x, pl.y)){ room=r; break; } }
       }
       if(l.shape==="perimeter") s+=perimeterSvg(l, room, pl.lp);
-      else if(AUTOMORPH_PCT>0){
-        const cellsInRoom=room && roomFixtureCells.get(room);
-        const cellPtsM=cellsInRoom && cellsInRoom.get(pl.eid);
-        s+=automorphAuraSvg(l, hx, hy, room, z, cellPtsM, pl.lp);
-      }
-      // Whether an aura ACTUALLY painted for this fixture — the same room
-      // truthiness automorphAuraSvg itself bails on. This, not the bare
-      // slider value, is what may suppress the old glyph: a hallway
-      // fixture outside every room polygon gets no aura, so hiding its
-      // glyph too would leave nothing drawn there at all.
-      const auraPainted=AUTOMORPH_PCT>0 && l.shape!=="perimeter" && !!(room && room.pts.length>=3);
+      // Whether an aura ACTUALLY painted for this fixture — consulted from
+      // the floor-wide tier pass, which recorded every fixture it emitted
+      // markup for. The markup itself now lands up there (two tiers under
+      // the labels), but THIS per-fixture record, not the bare slider
+      // value, is still what may suppress the old glyph: a hallway fixture
+      // outside every room polygon gets no aura, so hiding its glyph too
+      // would leave nothing drawn there at all.
+      const auraPainted=!!auraByEid.get(pl.eid);
       let clip, fx;
       if(SHOW){
         clip=room?roomClip.get(room):undefined;

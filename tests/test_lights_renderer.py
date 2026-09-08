@@ -1890,6 +1890,13 @@ def test_showcase_pool_physics_kelvin_clip_beam_breathe(tmp_path):
     offset off-centre — and tighter than a downlight's.
     Breathe: pools carry a slow opacity animation; the working map carries
     none of this.
+
+    workInert's contract was deliberately narrowed when the room clipPath
+    defs went UNGATED (the Automorph aura is gated on its own slider, never
+    on Showcase, so its room clip must exist on the working map too — the
+    same precedent psmotion/psautomorphgrad set): a bare def is inert, so
+    the working map is now policed for clip-path APPLICATION and the
+    breathing animation, not for the mere presence of psclip_ ids.
     """
     out = _showcase(tmp_path, (
         "const LBE2=JSON.parse(JSON.stringify(LBE));\n"
@@ -1908,7 +1915,7 @@ def test_showcase_pool_physics_kelvin_clip_beam_breathe(tmp_path):
         "const rxOf=(s)=>{const e=/<ellipse cx=\"0\" cy=\"[-0-9.]+\" rx=\"([0-9.]+)\"[^>]*fill=\"url\\(#psglow_0\\)\"/.exec(s); return e?Number(e[1]):null;};\n"
         "out.downCy=cyOf(on); out.spotCy=cyOf(spot);\n"
         "out.downRx=rxOf(on); out.spotRx=rxOf(spot);\n"
-        "out.workInert=!/psclip_|<animate attributeName=\"opacity\" values=/.test(mk({}));\n"
+        "out.workInert=!/clip-path=\"url\\(#psclip_|<animate attributeName=\"opacity\" values=/.test(mk({}));\n"
     ))
     assert out["kelvinStop"] == "#ffa860", out["kelvinStop"]
     assert out["hasClipDef"], "no room clipPath was defined"
@@ -2744,4 +2751,173 @@ def test_automorph_aura_grows_from_the_real_manual_footprint_not_a_generic_hex(t
     assert manual_w > plain_w * 2, (
         f"a 240cm manual width must make the aura's outline visibly wider than the "
         f"default icon's ({manual_w} vs {plain_w}) — the manual footprint must reach the morph"
+    )
+
+
+# ── Automorph aura draw order, room clip and interior margin ────────────────
+# (the composition/craft round of the 2026-09-07 design critique)
+# The aura used to be appended from the placed-lights loop — after the
+# deferred label pass, interleaved fixture by fixture, unclipped, and inset
+# by a margin tuned only for the wall case. Each test below pins one of the
+# corrections.
+
+def test_automorph_aura_paints_under_room_labels_in_two_floor_tiers(tmp_path):
+    """Composition: labels must paint over every boundary line on the floor
+    — the file's own documented rule — so every aura tier flushes BEFORE the
+    label pass, never after it the way the placed-lights loop used to.
+    Craft: the tiers are floor-wide, all blurred glow then all crisp edges,
+    so one fixture's wash can never paint over the crisp bisector edge its
+    neighbour already drew (the same underlay discipline the light pools
+    document for markers). Final order, bottom to top: room fills/borders,
+    all aura glow, all aura edges, labels, markers/glyphs."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {"Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
+        "light_positions_m": {
+            "light.a": {"x_m": 1.5, "y_m": 2, "floor_id": "main"},
+            "light.b": {"x_m": 6.5, "y_m": 2, "floor_id": "main"},
+        },
+    }
+    lbe = {
+        "light.a": {"entity_id": "light.a", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None},
+        "light.b": {"entity_id": "light.b", "state": "on", "code": "A02", "shape": "circle", "isMotion": False, "last_changed": None},
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+        f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:60, automorphHardness:0, automorphStyle:'glow'}});\n"
+        # In working mode only the aura's glow tier carries psclipsoft, and
+        # only the aura's edge layer strokes in the on-state grey.
+        "console.log(JSON.stringify({\n"
+        "  glowCount: (svg.match(/filter=\"url\\(#psclipsoft\\)\"/g)||[]).length,\n"
+        "  glowLast: svg.lastIndexOf('filter=\"url(#psclipsoft)\"'),\n"
+        "  edgeFirst: svg.indexOf('stroke=\"#94a3b8\"'),\n"
+        "  edgeLast: svg.lastIndexOf('stroke=\"#94a3b8\"'),\n"
+        "  labelFirst: svg.indexOf('<g class=\"lroom\"'),\n"
+        "  markerFirst: svg.indexOf('<g class=\"lhex\"'),\n"
+        "}));\n"
+    ))
+    assert out["glowCount"] == 2, f"expected one blurred wash per fixture: {out}"
+    assert out["edgeFirst"] >= 0 and out["labelFirst"] >= 0 and out["markerFirst"] >= 0, out
+    assert out["glowLast"] < out["edgeFirst"], (
+        f"every fixture's glow must flush before any fixture's crisp edge — interleaving "
+        f"lets a wash muddy a neighbour's already-drawn bisector edge: {out}"
+    )
+    assert out["edgeLast"] < out["labelFirst"], (
+        f"every aura tier must land before the first room label — auras were painting "
+        f"over the room's own name: {out}"
+    )
+    assert out["labelFirst"] < out["markerFirst"], (
+        f"markers/glyphs must stay above the labels, unchanged by the aura move: {out}"
+    )
+
+
+def test_automorph_aura_is_clipped_to_its_room_in_both_modes(tmp_path):
+    """The aura is gated on its own slider, never on Showcase — so its room
+    clip must exist and be APPLIED on the working map too. While the
+    clipPath defs were built only under if(SHOW), roomClip stayed empty for
+    the whole working-mode render and the aura's blur/hardness overshoot
+    had nothing stopping it at the room's own wall. The defs are UNGATED
+    now (psmotion/psautomorphgrad precedent): present even with Automorph
+    off, but only ever applied by something that actually clips."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {"Office": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 6], [0, 6]]}},
+        "light_positions_m": {"light.lamp": {"x_m": 3, "y_m": 3, "floor_id": "main"}},
+    }
+    lbe = {"light.lamp": {"entity_id": "light.lamp", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None}}
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const mk=(o)=>M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,o);\n"
+        f"const on=mk({{nowMs:{NOW}, automorph:true, automorphRoomPct:50, automorphStyle:'glow'}});\n"
+        f"const off=mk({{nowMs:{NOW}}});\n"
+        "console.log(JSON.stringify({\n"
+        "  defOn: /<clipPath id=\"psclip_0\"><polygon /.test(on),\n"
+        "  appliedOn: (on.match(/clip-path=\"url\\(#psclip_0\\)\"/g)||[]).length,\n"
+        "  defOff: /<clipPath id=\"psclip_0\"><polygon /.test(off),\n"
+        "  appliedOff: (off.match(/clip-path=/g)||[]).length,\n"
+        "}));\n"
+    ))
+    assert out["defOn"], "working mode with Automorph on defined no room clipPath"
+    # glow style: the blurred wash clips inside its filter group AND the
+    # edge/gloss tier clips — two applications for one fixture.
+    assert out["appliedOn"] >= 2, f"the aura tiers must be clipped to their room: {out}"
+    assert out["defOff"], "the clip defs must be UNGATED — built with Automorph off too, like psmotion"
+    assert out["appliedOff"] == 0, f"nothing may APPLY a clip on the working map with Automorph off: {out}"
+
+
+def test_automorph_interior_margin_is_a_larger_multiple_of_the_wall_margin():
+    """One inset constant was serving two different composition jobs:
+    defaultPerimeterMarginM is tuned for a shape a plausible cove-distance
+    off a static WALL, but a resolved cell's inset separates two
+    comparably-weighted aura objects from EACH OTHER — and 2x a wall-tuned
+    margin between neighbours read as tiles laid nearly edge-to-edge. The
+    interior case gets a distinctly larger multiple (1.6x) of the same
+    frame-scaled base; the room-outline fallback keeps 1x; the
+    roomHalfMinDim clamp stays outside the multiplier so a tight cell can
+    never be inset past its own middle. Pinned structurally, the same way
+    the single chaikinSmooth call site is."""
+    src = _code_only((_VIEWS / "iso_lights.js").read_text(encoding="utf-8"))
+    assert "const hasCell=!!(cellPtsM && cellPtsM.length>=3);" in src, (
+        "the margin multiplier must key on the same cell test the targetPts choice uses"
+    )
+    assert "Math.min(defaultPerimeterMarginM(frame)*(hasCell?1.6:1), roomHalfMinDim(targetPts)*0.85)" in src, (
+        "the interior (resolved-cell) inset must be 1.6x the wall-tuned base margin, the "
+        "room fallback 1x, with the half-min-dimension clamp still bounding the product"
+    )
+
+
+def test_automorph_suppresses_the_glyph_only_where_an_aura_really_painted(tmp_path):
+    """The suppressGlyph decision must track what the floor-wide aura pass
+    ACTUALLY emitted, per fixture — not the bare slider value. A fixture in
+    a room gets an aura, so its old glyph body hides (transparent hit
+    silhouette only); a hallway fixture outside every room polygon gets no
+    aura, and hiding its glyph too would leave nothing drawn there at all.
+    Guards the aura-generation move into the tier pass: the placed-lights
+    loop no longer computes the aura itself, so it must consult the pass's
+    own per-fixture record."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {"Office": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 6], [0, 6]]}},
+        "light_positions_m": {
+            "light.inroom": {"x_m": 3, "y_m": 3, "floor_id": "main"},
+            "light.hallway": {"x_m": 9, "y_m": 9, "floor_id": "main"},
+        },
+    }
+    lbe = {
+        "light.inroom": {"entity_id": "light.inroom", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None},
+        "light.hallway": {"entity_id": "light.hallway", "state": "on", "code": "A02", "shape": "circle", "isMotion": False, "last_changed": None},
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+        f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:50, automorphStyle:'glow'}});\n"
+        "const grab=(eid)=>{const g=new RegExp('<g class=\"lhex\" data-eid=\"'+eid+'\"[^>]*>([\\\\s\\\\S]*?)</g>').exec(svg); return g?g[1]:null;};\n"
+        "const visible=(b)=>/<(rect(?! data-hit)|polygon|circle|path)[^>]*fill=\"(?!transparent|none)/.test(b);\n"
+        "const hit=(b)=>/data-hit=\"1\" fill=\"transparent\"/.test(b);\n"
+        "const inroom=grab('light\\\\.inroom'), hall=grab('light\\\\.hallway');\n"
+        "console.log(JSON.stringify({\n"
+        "  found: !!(inroom&&hall),\n"
+        "  inroomVisible: inroom?visible(inroom):null, inroomHit: inroom?hit(inroom):null,\n"
+        "  hallVisible: hall?visible(hall):null,\n"
+        "}));\n"
+    ))
+    assert out["found"], "one of the two markers lost its lhex group entirely"
+    assert not out["inroomVisible"], "the aura'd fixture's old glyph body must be suppressed"
+    assert out["inroomHit"], "the suppressed glyph must keep its transparent hit silhouette"
+    assert out["hallVisible"], (
+        "a fixture outside every room polygon gets no aura — suppressing its glyph too "
+        "would leave nothing drawn there at all"
     )
