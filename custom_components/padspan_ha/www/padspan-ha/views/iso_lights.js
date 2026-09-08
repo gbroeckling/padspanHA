@@ -1938,7 +1938,21 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     `<stop offset="0%" stop-color="#fff" stop-opacity="1"/>`+
     `<stop offset="55%" stop-color="#fff" stop-opacity="0.55"/>`+
     `<stop offset="100%" stop-color="#fff" stop-opacity="0"/></radialGradient>`;
-  s+=`<mask id="psautomorphmask"><rect x="-20%" y="-20%" width="140%" height="140%" fill="url(#psautomorphgrad)"/></mask>`;
+  // maskContentUnits="objectBoundingBox" with FRACTION coordinates is what
+  // makes the shared def per-fixture at all. Mask content defaults to
+  // userSpaceOnUse, where percentage lengths resolve against the VIEWPORT
+  // (SVG 1.1 §7.10/§14.4) — so the original -20%..140% rect spanned the
+  // whole canvas and the fade was one canvas-centred vignette: bloom and
+  // nebula strength varied with where the room sat on the canvas
+  // (rasterized, identical shapes read ~0.11 alpha at a canvas corner vs
+  // 1.0 at its centre), and the ring's own edge had no fade anywhere. In
+  // bbox units the same -0.2..1.4 rect hugs each REFERENCING ring instead,
+  // and psautomorphgrad (objectBoundingBox itself) centres on it — light
+  // welling up from inside, identical wherever the fixture sits. This def
+  // is also part of the automorph-off output (it predates the aura-defs
+  // slider gate), so fixing it moved those bytes deliberately: nothing in
+  // an automorph-off render references the mask, dead-DOM bytes only.
+  s+=`<mask id="psautomorphmask" maskContentUnits="objectBoundingBox"><rect x="-0.2" y="-0.2" width="1.4" height="1.4" fill="url(#psautomorphgrad)"/></mask>`;
   // Automorph duotone interiors — exactly TWO shared radialGradients, one
   // per state, NEVER per fixture (the same O(2) defs discipline as
   // psautomorphgrad above). A flat two-value grey ignored the one signal
@@ -2039,6 +2053,26 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // the rest of the aura defs: only the aura references it.
     s+=`<filter id="psaurasoft" x="-12%" y="-12%" width="124%" height="124%">`+
       `<feGaussianBlur stdDeviation="1.6"/></filter>`;
+    // The aura rim's OWN sheen ramp — psgloss's exact stops, on the default
+    // objectBoundingBox units, cloned because the rim can use neither
+    // existing ramp: psgloss is Showcase-gated (an invalid paint ref makes
+    // SVG drop the element, so the rim would silently vanish on the
+    // working map), and the floor-wide userSpaceOnUse psglossauto decided
+    // bright-vs-dark by the fixture's POSITION on the slab — a fixture on
+    // a floor's lower-right had its entire rim past the ramp's 45% stop
+    // (max white opacity ~0.1): no bright arc anywhere, the exact
+    // flat-sticker outline the rim exists to kill. A rim's job is
+    // per-shape — "which side of THIS shape faces the light" — so it
+    // sweeps each referencing shape's own bbox: bright upper-left arc,
+    // dark lower-right, on every shape, still agreeing with the drawing's
+    // one upper-left sun. The stretched-per-cell spread that pushed the
+    // gloss FILL to psglossauto is harmless on a ~1px stroke with no
+    // visible interior. ONE shared def (O(1) at any fixture count), gated
+    // with the rest of the aura-only defs: only edgeRim references it.
+    s+=`<linearGradient id="psglossrim" x1="0.15" y1="0" x2="0.6" y2="1">`+
+      `<stop offset="0%" stop-color="#fff" stop-opacity="0.5"/>`+
+      `<stop offset="45%" stop-color="#fff" stop-opacity="0.1"/>`+
+      `<stop offset="100%" stop-color="#000" stop-opacity="0.18"/></linearGradient>`;
     emitRoomClips();
   }
   if(SHOW){
@@ -2223,8 +2257,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const TL=iso(x0,y0_,z), TR=iso(x1,y0_,z), BR=iso(x1,y1_,z), BL=iso(x0,y1_,z);
     const TR_b=iso(x1,y0_,rankOf(z)-slabWZ), BR_b=iso(x1,y1_,rankOf(z)-slabWZ), BL_b=iso(x0,y1_,rankOf(z)-slabWZ);
 
-    // One gloss ramp per FLOOR for the Automorph aura's sheen (rim + gloss
-    // layers): psgloss's stops and diagonal, but gradientUnits=
+    // One gloss ramp per FLOOR for the Automorph aura's gloss FILL (the
+    // rim is per-shape by design — see psglossrim in the aura defs):
+    // psgloss's stops and diagonal, but gradientUnits=
     // userSpaceOnUse spanning this floor's own projected slab bbox instead
     // of each shape's bounding box. psgloss leans on objectBoundingBox —
     // cheap and correct while every shape sharing it is a near-uniform
@@ -2669,13 +2704,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // follow the grey shaded type visual you used before"). No per-room
       // or per-fixture hue — "on" reads as brighter, never as a different
       // colour, so this stays quiet next to the room borders' own colour
-      // instead of competing with them. The sheen ramp is psglossauto —
-      // the SAME white-to-black diagonal psgloss gives every marker and
-      // room ("one light source, upper-left, for the whole drawing"), but
-      // defined once per floor in user space across the slab's own bbox,
-      // so every differently-proportioned cell is lit from the one sun
-      // instead of each stretching its own copy of the ramp — see the
-      // gradient's own comment at its per-floor def.
+      // instead of competing with them. The gloss FILL's sheen ramp is
+      // psglossauto — the SAME white-to-black diagonal psgloss gives every
+      // marker and room ("one light source, upper-left, for the whole
+      // drawing"), but defined once per floor in user space across the
+      // slab's own bbox, so every differently-proportioned cell's interior
+      // is lit from the one sun instead of each stretching its own copy of
+      // the ramp; the RIM sweeps each shape's own bbox through psglossrim
+      // instead — see both gradients' comments at their defs.
       const base=on?AUTOMORPH_BASE_ON:AUTOMORPH_BASE_OFF;
       const t=AUTOMORPH_PCT/100;
       // COLOUR OWNERSHIP — two features pull the fill attribute in
@@ -2731,7 +2767,15 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // Technical/architectural linework: no fill at all, a dashed
         // outline plus a small node at every vertex — reads as a wireframe
         // draft of the room shape rather than a glow.
-        const dashOp=opac(0.35+0.45*t);
+        // State rides the one channel this style has — linework
+        // brightness: lit linework runs a step brighter than unlit at
+        // every t (0.45..0.85 vs 0.30..0.70), so on/off never comes down
+        // to the ink hex alone (the "hex swap on a static sticker" tell
+        // the other styles' material splits exist to kill). Width, dash
+        // pattern and node radius stay state-independent on purpose:
+        // heavier lit linework would read as a different pen, not a lit
+        // fixture.
+        const dashOp=opac((on?0.45:0.30)+0.40*t);
         let nodes="";
         for(const [px,py] of ring) nodes+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="1.6" `+
           `fill="${ink}" fill-opacity="${dashOp}" pointer-events="none"/>`;
@@ -2811,11 +2855,17 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       //     saying which way the surface turns. edgeCore keeps the flat
       //     role (in the per-fixture INK, the weight offset's channel),
       //     dialed back for headroom; edgeRim strokes the same `d` with
-      //     the floor's psglossauto ramp, landing bright on the
-      //     upper-left arc and dark on the lower-right — a lit bevel
-      //     with one def per floor and zero new geometry, and because
-      //     the ramp is user-space across the whole slab, every cell's
-      //     bright arc agrees on where the sun is.
+      //     psglossrim — psgloss's stops swept across this shape's OWN
+      //     bbox — landing bright on the upper-left arc and dark on the
+      //     lower-right of every shape: a lit bevel with one shared def
+      //     and zero new geometry. NOT the floor-wide psglossauto: that
+      //     ramp decided bright-vs-dark by position on the slab (a
+      //     lower-right fixture's whole rim fell past the 45% stop — no
+      //     bright arc at all), while a bevel must say which way EACH
+      //     shape's surface turns; the per-bbox sweep still points every
+      //     bright arc at the same upper-left sun. The gloss FILL below
+      //     keeps the floor ramp — that is the layer the one-sun rule
+      //     was moved for.
       //
       // ON vs OFF is a MATERIAL split, not a hex swap: lit gets the
       // bloom plus a slightly heavier wash/gloss/rim; off gets no bloom,
@@ -2839,7 +2889,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const edgeCore=`<path d="${d}" fill="${duo}" fill-opacity="${opac(0.04+0.1*t)}" `+
         `stroke="${ink}" stroke-opacity="${opac(0.28+0.32*t)}" stroke-width="${swid(1.3)}" `+
         `stroke-linejoin="round" pointer-events="none"/>`;
-      const edgeRim=`<path d="${d}" fill="none" stroke="url(#${glossAutoId})" `+
+      const edgeRim=`<path d="${d}" fill="none" stroke="url(#psglossrim)" `+
         `stroke-opacity="${opac(on?0.55:0.35)}" stroke-width="${swid(0.9)}" `+
         `stroke-linejoin="round" pointer-events="none"/>`;
       const gloss=`<path d="${d}" fill="url(#${glossAutoId})" fill-opacity="${opac((on?0.20:0.13)+0.16*t)}" `+

@@ -3247,7 +3247,7 @@ def _aura_probe(tmp_path, *, state="on", pct=100, style="glow", subtlety=0):
         " return m?{op:parseFloat(m[1]),w:parseFloat(m[2])}:null;})(),\n"
         "  washOp: num(/fill=\"url\\(#psautomorphduo_(?:on|off)\\)\" fill-opacity=\"([\\d.]+)\"/),\n"
         "  bloomCount: (svg.match(/mask=\"url\\(#psautomorphmask\\)\"/g)||[]).length,\n"
-        "  rim: (()=>{const m=/fill=\"none\" stroke=\"url\\(#psglossauto_\\d+\\)\" stroke-opacity=\"([\\d.]+)\" stroke-width=\"([\\d.]+)\"/.exec(svg);"
+        "  rim: (()=>{const m=/fill=\"none\" stroke=\"url\\(#psglossrim\\)\" stroke-opacity=\"([\\d.]+)\" stroke-width=\"([\\d.]+)\"/.exec(svg);"
         " return m?{op:parseFloat(m[1]),w:parseFloat(m[2])}:null;})(),\n"
         "  glossOp: num(/fill=\"url\\(#psglossauto_\\d+\\)\" fill-opacity=\"([\\d.]+)\"/),\n"
         "  blurGroups: (svg.match(/filter=\"url\\(#psaurasoft\\)\"/g)||[]).length,\n"
@@ -3453,14 +3453,18 @@ def test_automorph_duotone_interiors_are_exactly_two_shared_defs(tmp_path):
 
 
 def test_automorph_sheen_is_one_userspace_ramp_per_floor(tmp_path):
-    """The rim and gloss used to stretch psgloss (objectBoundingBox) across
+    """The gloss FILL used to stretch psgloss (objectBoundingBox) across
     each cell's own bbox — a different highlight angle/spread on every
     differently-proportioned cell, the exact 'two suns' drift psgloss's own
     comment exists to prevent, and invisible in working mode besides (that
-    def is Showcase-gated). Both now point at psglossauto: ONE ungated
+    def is Showcase-gated). The fill now points at psglossauto: ONE ungated
     userSpaceOnUse gradient per FLOOR spanning the slab's projected bbox,
-    so every cell on the slab agrees where the sun is. psgloss itself stays
-    byte-identical for markers/rooms."""
+    so every cell's interior on the slab agrees where the sun is. The RIM
+    deliberately does NOT share it — a floor-wide ramp decided a rim's
+    bright-vs-dark by position on the slab; it sweeps each shape's own
+    bbox through psglossrim instead (see
+    test_automorph_rim_sweeps_each_shapes_own_bbox_not_the_floor). psgloss
+    itself stays byte-identical for markers/rooms."""
     NOW = 1_000_000_000_000
     model = {
         "room_geometry_m": {"Office": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 6], [0, 6]]}},
@@ -3484,7 +3488,10 @@ def test_automorph_sheen_is_one_userspace_ramp_per_floor(tmp_path):
     ))
     assert out["defs"] == 1, f"one psglossauto per floor — a one-floor scene defines exactly one: {out}"
     assert out["userSpace"], "psglossauto must be userSpaceOnUse — per-floor, not per-shape"
-    assert out["refs"] == 2, f"both the rim stroke and the gloss fill must share the floor ramp: {out}"
+    assert out["refs"] == 1, (
+        f"the gloss FILL alone rides the floor ramp — the rim moved to its own "
+        f"per-shape psglossrim sweep: {out}"
+    )
     assert out["oldRefs"] == 0, (
         f"the aura may no longer lean on Showcase-gated psgloss anywhere in working mode: {out}"
     )
@@ -3605,4 +3612,192 @@ def test_ring_jitter_applied_once_before_hardness_and_skipped_for_nebula():
     )
     assert "applyHardness(inked, AUTOMORPH_HARDNESS, hardCapPx)" in src, (
         "hardness must operate on the inked ring — jitter before spikes, spikes before pathing"
+    )
+
+
+# ── Automorph per-ring fade, per-shape rim, blueprint state split (the
+# 2026-09-08 five-lens review: svg lens f0, completeness lens f1/f2) ────────
+
+def test_automorph_mask_fades_at_the_rings_own_edge_not_the_viewports(tmp_path):
+    """psautomorphmask's content rect used percentage coordinates under the
+    default maskContentUnits=userSpaceOnUse, where percentage lengths
+    resolve against the VIEWPORT (SVG 1.1 §7.10/§14.4): the fade was one
+    canvas-centred vignette. Rasterized (resvg), three identical masked
+    squares read ~0.11 alpha at the canvas corners vs 1.0 at its centre,
+    and a real bloom/nebula ring had NO fade at its own edge — its whole
+    strength a function of where the room sat on the canvas, worst on tall
+    multi-floor stacks. The def must carry
+    maskContentUnits="objectBoundingBox" with FRACTION coordinates, so the
+    -0.2..1.4 rect (and psautomorphgrad, objectBoundingBox itself, centred
+    on it) hugs each REFERENCING ring: per-fixture centre-to-edge fade
+    from ONE shared def (post-fix raster: bloom centre 1.0, own bbox edge
+    ~0.1, corner 0.0, identical at any canvas position). The defect is
+    invisible to string matching, so the exact def string IS the pin —
+    both in the emitted render and at its single source site."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {"Office": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 6], [0, 6]]}},
+        "light_positions_m": {"light.lamp": {"x_m": 3, "y_m": 3, "floor_id": "main"}},
+    }
+    lbe = {"light.lamp": {"entity_id": "light.lamp", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None}}
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    def_pin = (
+        '<mask id="psautomorphmask" maskContentUnits="objectBoundingBox">'
+        '<rect x="-0.2" y="-0.2" width="1.4" height="1.4" fill="url(#psautomorphgrad)"/></mask>'
+    )
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const mk=(o)=>M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,o);\n"
+        f"const glow=mk({{nowMs:{NOW}, automorph:true, automorphRoomPct:100, automorphStyle:'glow'}});\n"
+        f"const nebula=mk({{nowMs:{NOW}, automorph:true, automorphRoomPct:100, automorphStyle:'nebula'}});\n"
+        f"const PIN={json.dumps(def_pin)};\n"
+        "console.log(JSON.stringify({\n"
+        "  glowDefs: (glow.match(/<mask id=\"psautomorphmask\"/g)||[]).length,\n"
+        "  glowPinned: glow.includes(PIN), nebulaPinned: nebula.includes(PIN),\n"
+        "  pctLeak: /<mask id=\"psautomorphmask\"[^>]*>[^]*?%[^]*?<\\/mask>/.test(glow),\n"
+        "  glowRefs: (glow.match(/mask=\"url\\(#psautomorphmask\\)\"/g)||[]).length,\n"
+        "  nebulaRefs: (nebula.match(/mask=\"url\\(#psautomorphmask\\)\"/g)||[]).length,\n"
+        "}));\n"
+    ))
+    assert out["glowDefs"] == 1, f"one shared mask def, never per fixture: {out}"
+    assert out["glowPinned"] and out["nebulaPinned"], (
+        "psautomorphmask must be the objectBoundingBox fraction-rect def — percentage "
+        "coordinates under default maskContentUnits resolve against the viewport and "
+        f"turn the fade into a canvas-centred vignette: {out}"
+    )
+    assert not out["pctLeak"], f"no percentage length may creep back into the mask content: {out}"
+    assert out["glowRefs"] == 1 and out["nebulaRefs"] >= 1, (
+        f"the lit bloom and the nebula wash must still fade through the shared mask: {out}"
+    )
+    src = (_VIEWS / "iso_lights.js").read_text(encoding="utf-8")
+    assert def_pin in src, "the fixed mask def must sit at its single source site, byte-exact"
+
+
+def test_automorph_rim_sweeps_each_shapes_own_bbox_not_the_floor(tmp_path):
+    """edgeRim stroked with the floor-wide userSpaceOnUse psglossauto, so
+    bright-vs-dark on a shape's rim was decided by the fixture's POSITION
+    on the floor, not by which side of each shape faces the light: on a
+    16x8m two-room floor the right-hand fixture's ENTIRE rim projected
+    past the ramp's 45% stop (offset fractions ~0.60..1.04 — max white
+    opacity ~0.07, a near-uniform dark outline, the exact flat-sticker
+    tell the rim exists to kill), while the left fixture's rim was bright
+    on most of its perimeter. The rim must stroke psglossrim — psgloss's
+    exact stops on default objectBoundingBox units, ONE shared aura-gated
+    def — so every shape's rim sweeps bright upper-left to dark
+    lower-right across its OWN bbox (offsets 0..1 by construction). The
+    gloss FILL keeps the floor-wide psglossauto: the one-sun rule was
+    moved for the interiors, not the bevel."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {
+            "West": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 8], [0, 8]]},
+            "East": {"type": "poly", "floor_id": "main", "points_m": [[8, 0], [16, 0], [16, 8], [8, 8]]},
+        },
+        "light_positions_m": {
+            "light.a": {"x_m": 1.5, "y_m": 4, "floor_id": "main"},
+            "light.b": {"x_m": 6.5, "y_m": 4, "floor_id": "main"},
+            "light.c": {"x_m": 14.5, "y_m": 4, "floor_id": "main"},
+        },
+    }
+    lbe = {
+        eid: {"entity_id": eid, "state": "on", "code": f"A0{i}", "shape": "circle", "isMotion": False, "last_changed": None}
+        for i, eid in enumerate(["light.a", "light.b", "light.c"], start=1)
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    def_pin = (
+        '<linearGradient id="psglossrim" x1="0.15" y1="0" x2="0.6" y2="1">'
+        '<stop offset="0%" stop-color="#fff" stop-opacity="0.5"/>'
+        '<stop offset="45%" stop-color="#fff" stop-opacity="0.1"/>'
+        '<stop offset="100%" stop-color="#000" stop-opacity="0.18"/></linearGradient>'
+    )
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const mk=(o)=>M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,o);\n"
+        f"const on=mk({{nowMs:{NOW}, automorph:true, automorphRoomPct:100, automorphHardness:0, automorphStyle:'glow'}});\n"
+        f"const off=mk({{nowMs:{NOW}}});\n"
+        f"const PIN={json.dumps(def_pin)};\n"
+        "console.log(JSON.stringify({\n"
+        "  rimRefs: (on.match(/fill=\"none\" stroke=\"url\\(#psglossrim\\)\"/g)||[]).length,\n"
+        "  rimOnFloorRamp: (on.match(/fill=\"none\" stroke=\"url\\(#psglossauto_/g)||[]).length,\n"
+        "  glossFillRefs: (on.match(/fill=\"url\\(#psglossauto_0\\)\"/g)||[]).length,\n"
+        "  rimDefs: (on.match(/<linearGradient id=\"psglossrim\"/g)||[]).length,\n"
+        "  pinned: on.includes(PIN),\n"
+        "  userSpaceLeak: on.includes('id=\"psglossrim\" gradientUnits'),\n"
+        "  offCarriesRim: off.includes('psglossrim'),\n"
+        "}));\n"
+    ))
+    assert out["rimRefs"] == 3, f"every fixture's rim must stroke the per-shape ramp: {out}"
+    assert out["rimOnFloorRamp"] == 0, (
+        f"no rim may stroke the floor-wide ramp — that decided bright-vs-dark by slab "
+        f"position instead of per shape: {out}"
+    )
+    assert out["glossFillRefs"] == 3, f"the gloss FILL must keep the one-sun floor ramp: {out}"
+    assert out["rimDefs"] == 1 and out["pinned"], (
+        f"psglossrim is ONE shared def carrying psgloss's exact stops: {out}"
+    )
+    assert not out["userSpaceLeak"], (
+        f"psglossrim must stay on default objectBoundingBox units — user space would "
+        f"recreate the position-dependent rim: {out}"
+    )
+    assert not out["offCarriesRim"], (
+        f"psglossrim is aura-only — the automorph-off render may not carry it "
+        f"(byte-identity contract): {out}"
+    )
+
+
+def test_automorph_blueprint_carries_state_in_its_one_channel(tmp_path):
+    """light[3]'s problem statement — every aura opacity formula identical
+    for on and off, the sole difference the base hex — stayed literally
+    true for the blueprint style: a lit and an unlit fixture rendered
+    byte-identically except for the grey (both 0.80/1.10 at pct=100).
+    Blueprint's one channel is linework brightness, so state must ride it:
+    lit dashes and nodes a step brighter than unlit at every t
+    (0.45+0.40t vs 0.30+0.40t), while width, dash pattern and node radius
+    stay state-independent — heavier lit linework would read as a
+    different pen, not a lit fixture."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {"Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
+        "light_positions_m": {
+            "light.a": {"x_m": 1.5, "y_m": 2, "floor_id": "main"},
+            "light.b": {"x_m": 6.5, "y_m": 2, "floor_id": "main"},
+        },
+    }
+    lbe = {
+        "light.a": {"entity_id": "light.a", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None},
+        "light.b": {"entity_id": "light.b", "state": "off", "code": "A02", "shape": "circle", "isMotion": False, "last_changed": None},
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+        f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:100, automorphStyle:'blueprint'}});\n"
+        "const dashes=[...svg.matchAll(/<path d=\"[^\"]+\" fill=\"none\" stroke=\"(#[0-9a-f]{6})\""
+        " stroke-opacity=\"([\\d.]+)\" stroke-width=\"([\\d.]+)\" stroke-dasharray=\"([^\"]+)\"/g)]"
+        ".map(m=>({hex:m[1], op:parseFloat(m[2]), w:m[3], dash:m[4]}));\n"
+        "const nodeOps={};\n"
+        "for(const m of svg.matchAll(/<circle cx=\"[-\\d.]+\" cy=\"[-\\d.]+\" r=\"1.6\" fill=\"(#[0-9a-f]{6})\" fill-opacity=\"([\\d.]+)\"/g))"
+        " nodeOps[m[1]]=parseFloat(m[2]);\n"
+        "console.log(JSON.stringify({dashes, nodeOps}));\n"
+    ))
+    assert len(out["dashes"]) == 2, f"expected one dashed outline per fixture: {out}"
+    by_hex = {d["hex"]: d for d in out["dashes"]}
+    on, off = by_hex["#94a3b8"], by_hex["#475569"]
+    assert on["op"] == 0.85 and off["op"] == 0.70, (
+        f"blueprint linework must carry state — lit brighter than unlit at every t: {out}"
+    )
+    assert on["w"] == off["w"] and on["dash"] == off["dash"], (
+        f"width and dash pattern stay state-independent — brightness is the one channel: {out}"
+    )
+    assert out["nodeOps"]["#94a3b8"] == on["op"] and out["nodeOps"]["#475569"] == off["op"], (
+        f"the vertex nodes ride the same dashOp as their outline: {out}"
     )
