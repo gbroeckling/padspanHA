@@ -1923,22 +1923,82 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
              hCm:(Number(entry&&entry.height_cm)||0)*k };
   };
 
+  // A sensor that has GONE QUIET still says how long ago, at a glance.
+  // Revised three times against variations of the same complaint. First:
+  // a smooth sweep is invisible at a glance, and the milestones must
+  // actually be reachable in the window that matters — fixed by a STEP
+  // function, held stages, front-loaded (fine resolution early, coarse
+  // once it has been a while). Then (2026-09-05): the first three stops
+  // — blue/violet/magenta, all "cool" blue-purple-pink tones — read as
+  // one colour to a glance even though they are 40deg apart on paper, so
+  // in practice most rooms (re-triggered inside 20min, or quiet for
+  // hours) only ever LOOKED like two states, blue and green. Every stop
+  // below is now a classic, immediately-nameable colour-wheel colour
+  // (blue/cyan/green/yellow/orange/red/magenta), evenly spaced by eye
+  // rather than by degree count, still travelling the long way round the
+  // wheel so it passes through every colour family exactly once on the
+  // way to the held end colour (magenta, reached at 2h). Timings
+  // unchanged from the original spec — only which colour lands at each one.
+  // The one hold duration every sensor class shares: how long the ACTIVE
+  // flashing treatment lasts from a sensor's most recent transition,
+  // whatever its own hardware hold-timer does — and, identically, where
+  // the quiet-state colour fade begins. One constant so the two can
+  // never disagree about where "recently active" ends. Hoisted above the
+  // defs block (originally declared down with motionActive/
+  // motionRecentHue, which still read it fine from here — same function
+  // scope) so the legend strip below can build itself from this ONE real
+  // array instead of a second, hand-copied list of hues.
+  const MOTION_HOLD_MS=5*60*1000;
+  const MOTION_COLOR_STOPS=[
+    [0,             240],  // blue — the active colour, holds firm for the whole hold window
+    [MOTION_HOLD_MS,180],  // cyan
+    [20*60*1000,    120],  // green
+    [40*60*1000,     60],  // yellow
+    [65*60*1000,     30],  // orange
+    [90*60*1000,      0],  // red
+    [120*60*1000,   300],  // magenta — reached at 2h, held from there
+  ];
+  // The legend strip's own stop offsets (Garry, 2026-09-08: "make sure
+  // that's actually aligned with what is happening on the map" — the
+  // first version spaced all colours evenly by INDEX, which does not
+  // match the real fade at all: cyan's real window is 15 minutes, red's
+  // is 30). Every band's WIDTH is proportional to its real held duration
+  // (a smooth <linearGradient> blend would misrepresent the fade too —
+  // the real thing is hard STEPS, held stages, never a blend between two
+  // colours — so each colour gets two same-offset-adjacent stops, a hard
+  // edge, not a gradient). Magenta has no finite duration (held forever
+  // past 2h), so it gets a fixed terminal band rather than a proportional
+  // one no finite width could honestly represent.
+  const MOTION_LEGEND_HELD_PCT=10;
+  const MOTION_LEGEND_SPAN_MS=MOTION_COLOR_STOPS[MOTION_COLOR_STOPS.length-1][0];
+  let motionLegendStops="";
+  for(let mi=0; mi<MOTION_COLOR_STOPS.length; mi++){
+    // Named degSweep, not "hue" — see motionRecentPulseSvg's own comment:
+    // a guard test greps for an inline hue-templated HSL colour string as
+    // the shape a second, drifting copy of room_color.js's own colour
+    // deriver would take, and a variable spelled "hue" trips that same
+    // pattern by starting with "h" right after the interpolation brace.
+    const [atMs,degSweep]=MOTION_COLOR_STOPS[mi];
+    const isLast=mi===MOTION_COLOR_STOPS.length-1;
+    const p0=isLast ? (100-MOTION_LEGEND_HELD_PCT) : (atMs/MOTION_LEGEND_SPAN_MS)*(100-MOTION_LEGEND_HELD_PCT);
+    const p1=isLast ? 100 : (MOTION_COLOR_STOPS[mi+1][0]/MOTION_LEGEND_SPAN_MS)*(100-MOTION_LEGEND_HELD_PCT);
+    const col=`hsl(${degSweep},75%,58%)`;
+    motionLegendStops+=`<stop offset="${p0.toFixed(2)}%" stop-color="${col}"/>`+
+      `<stop offset="${p1.toFixed(2)}%" stop-color="${col}"/>`;
+  }
+
   // Floor surface patterns
   s+=`<defs>`;
   // Motion pulse gradient — UNGATED (both modes): a triggered sensor is
   // status, not presentation, and it has to read on the working map too.
-  // The motion legend strip's colour index (Garry, 2026-09-08: "a small
-  // line at the bottom, very narrow, with an index of the color order for
-  // the motion, starting at blue, and thru the colors to ending on
-  // green") — the SAME three hues MOTION_COLOR_STOPS opens on (240/180/120,
-  // blue/cyan/green: "just triggered" through "quiet a few minutes"), at
-  // the SAME saturation/lightness motionRecentPulseSvg's own hsl() string
-  // uses, so the strip is never a second, drifting copy of the real
-  // colours — just a static read of the first three stops.
-  s+=`<linearGradient id="psmotionlegend" x1="0" y1="0" x2="1" y2="0">`+
-    `<stop offset="0%" stop-color="hsl(240,75%,58%)"/>`+
-    `<stop offset="50%" stop-color="hsl(180,75%,58%)"/>`+
-    `<stop offset="100%" stop-color="hsl(120,75%,58%)"/></linearGradient>`;
+  // The motion legend strip's colour index (Garry, 2026-09-08 — first
+  // "a small line at the bottom... starting at blue, and thru the colors
+  // to ending on green", then "I ask for all the colors in the shift
+  // from blue to green for motion. Every color in the rainbow" — every
+  // stop MOTION_COLOR_STOPS actually has, not just the first three) —
+  // built from motionLegendStops above so this can never become a second,
+  // drifting copy of the real colours or their real timing.
+  s+=`<linearGradient id="psmotionlegend" x1="0" y1="0" x2="1" y2="0">${motionLegendStops}</linearGradient>`;
   s+=`<radialGradient id="psmotion">`+
     `<stop offset="0%" stop-color="${MOTION_PULSE}" stop-opacity="0.55"/>`+
     `<stop offset="60%" stop-color="${MOTION_PULSE}" stop-opacity="0.18"/>`+
@@ -3159,28 +3219,6 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         `</circle></g>`;
     };
 
-    // A sensor that has GONE QUIET still says how long ago, at a glance.
-    // Revised three times against variations of the same complaint. First:
-    // a smooth sweep is invisible at a glance, and the milestones must
-    // actually be reachable in the window that matters — fixed by a STEP
-    // function, held stages, front-loaded (fine resolution early, coarse
-    // once it has been a while). Then (2026-09-05): the first three stops
-    // — blue/violet/magenta, all "cool" blue-purple-pink tones — read as
-    // one colour to a glance even though they are 40deg apart on paper, so
-    // in practice most rooms (re-triggered inside 20min, or quiet for
-    // hours) only ever LOOKED like two states, blue and green. Every stop
-    // below is now a classic, immediately-nameable colour-wheel colour
-    // (blue/cyan/green/yellow/orange/red/magenta), evenly spaced by eye
-    // rather than by degree count, still travelling the long way round the
-    // wheel so it passes through every colour family exactly once on the
-    // way to the held end colour (magenta, reached at 2h). Timings
-    // unchanged from the original spec — only which colour lands at each one.
-    // The one hold duration every sensor class shares: how long the ACTIVE
-    // flashing treatment lasts from a sensor's most recent transition,
-    // whatever its own hardware hold-timer does — and, identically, where
-    // the quiet-state colour fade begins. One constant so the two can
-    // never disagree about where "recently active" ends.
-    const MOTION_HOLD_MS=5*60*1000;
     // The ONE shared answer to "is this motion sensor active right now":
     // genuinely "on", or within the hold window of its last transition.
     // Every element that lights up for activity — the marker ICON's lit
@@ -3195,15 +3233,6 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const e=NOW_MS-lastMs;
       return e>=0 && e<MOTION_HOLD_MS;
     };
-    const MOTION_COLOR_STOPS=[
-      [0,             240],  // blue — the active colour, holds firm for the whole hold window
-      [MOTION_HOLD_MS,180],  // cyan
-      [20*60*1000,    120],  // green
-      [40*60*1000,     60],  // yellow
-      [65*60*1000,     30],  // orange
-      [90*60*1000,      0],  // red
-      [120*60*1000,   300],  // magenta — reached at 2h, held from there
-    ];
     const motionRecentHue=(elapsedMs)=>{
       let hue=MOTION_COLOR_STOPS[0][1];
       for(const [atMs,h] of MOTION_COLOR_STOPS){ if(elapsedMs>=atMs) hue=h; else break; }
@@ -3789,15 +3818,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     s+=`<text x="36" y="${ly+15}" fill="${color}" font-size="18" font-weight="500">${escSVG(groupLabel)}</text>`;
   });
   // Motion colour index (Garry, 2026-09-08) — one row past the last floor,
-  // in the space LEGEND_H's +1 above reserved. A "very narrow" strip on
-  // purpose: this is a reference key, not another marker competing for
-  // attention.
+  // in the space LEGEND_H's +1 above reserved. "Thin, all in one row, 1/4
+  // of the size you have now, and no extra row of text for no reason" —
+  // label and strip share the SAME line, no caption row beneath it.
   {
     const my=BASE_H+10+levels.length*30;
     s+=`<text x="18" y="${my+11}" fill="#9fb0a8" font-size="13" font-weight="500">Motion</text>`+
-      `<rect x="90" y="${my+5}" width="140" height="6" rx="3" fill="url(#psmotionlegend)"/>`+
-      `<text x="90" y="${my+26}" fill="#6b7d74" font-size="10">just triggered</text>`+
-      `<text x="230" y="${my+26}" text-anchor="end" fill="#6b7d74" font-size="10">quiet a few min</text>`;
+      `<rect x="70" y="${my+7}" width="140" height="1.5" rx="0.75" fill="url(#psmotionlegend)"/>`;
   }
 
   s+=`</svg>`;

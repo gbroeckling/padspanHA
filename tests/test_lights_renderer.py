@@ -4311,13 +4311,19 @@ def test_automorph_full_map_two_renders_are_byte_identical(tmp_path):
     )
 
 
-def test_motion_legend_strip_indexes_the_real_pulse_colours(tmp_path):
-    """Garry (2026-09-08): "also draw a small line at the bottom, very
+def test_motion_legend_strip_indexes_every_real_pulse_colour_in_proportion(tmp_path):
+    """Garry (2026-09-08), in order: "a small line at the bottom, very
     narrow, with an index of the color order for the motion, starting at
-    blue, and thru the colors to ending on green." A static read of
-    MOTION_COLOR_STOPS' first three hues (240/180/120), at the SAME
-    hsl(...,75%,58%) formula the real pulse ring uses, appended one row
-    past the floor legend so it never overlaps."""
+    blue, and thru the colors to ending on green" — then, seeing only the
+    first three stops, "I ask for all the colors in the shift from blue to
+    green for motion. Every color in the rainbow" — then "make sure that's
+    actually aligned with what is happening on the map." All three land
+    here: every one of MOTION_COLOR_STOPS' seven hues appears (not just the
+    first three), as hard-edged bands (never a smooth blend — the real fade
+    is discrete held stages, per motionRecentHue's own step function) whose
+    WIDTHS are proportional to each colour's real held duration, with a
+    fixed terminal band for magenta (held indefinitely past 2h, so no
+    finite width could honestly represent it)."""
     model = {
         "room_geometry_m": {"Room": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [4, 0], [4, 4], [0, 4]]}},
         "light_positions_m": {"light.a": {"x_m": 2, "y_m": 2, "floor_id": "main"}},
@@ -4331,24 +4337,51 @@ def test_motion_legend_strip_indexes_the_real_pulse_colours(tmp_path):
         f"const FLOORS={json.dumps(floors)};\n"
         "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{});\n"
         "const grad=/<linearGradient id=\"psmotionlegend\"[^>]*>([\\s\\S]*?)<\\/linearGradient>/.exec(svg);\n"
+        "const body=grad?grad[1]:'';\n"
+        "const stops=[...body.matchAll(/<stop offset=\"([0-9.]+)%\" stop-color=\"hsl\\((\\d+),75%,58%\\)\"\\/>/g)]\n"
+        "  .map(m=>({pct:Number(m[1]), hue:Number(m[2])}));\n"
         "console.log(JSON.stringify({\n"
         "  gradDefs: (svg.match(/id=\"psmotionlegend\"/g)||[]).length,\n"
-        "  gradBody: grad?grad[1]:null,\n"
         "  stripRef: (svg.match(/fill=\"url\\(#psmotionlegend\\)\"/g)||[]).length,\n"
         "  hasLabel: svg.includes('>Motion<'),\n"
+        "  noCaptionRow: !svg.includes('just triggered') && !svg.includes('quiet a few min'),\n"
         "  stripBeforeSvgClose: svg.lastIndexOf('url(#psmotionlegend)') < svg.lastIndexOf('</svg>'),\n"
+        "  stops,\n"
         "}));\n"
     ))
     assert out["gradDefs"] == 1, "exactly one shared gradient def, not one per render call"
     assert out["stripRef"] == 1, "exactly one strip drawn"
     assert out["hasLabel"], out
+    assert out["noCaptionRow"], "no extra row of text below the strip"
     assert out["stripBeforeSvgClose"], out
-    # The three stops must be the real pulse colours, byte-for-byte — never a
-    # second, drifting copy of motionRecentPulseSvg's own hsl() formula.
-    body = out["gradBody"] or ""
-    assert 'stop-color="hsl(240,75%,58%)"' in body, body
-    assert 'stop-color="hsl(180,75%,58%)"' in body, body
-    assert 'stop-color="hsl(120,75%,58%)"' in body, body
+    stops = out["stops"]
+    # 7 colours x 2 stops each (hard step edges) = 14.
+    assert len(stops) == 14, stops
+    hues_in_order = [s["hue"] for s in stops[::2]]
+    assert hues_in_order == [240, 180, 120, 60, 30, 0, 300], (
+        "every one of MOTION_COLOR_STOPS' seven hues, in order — not just the first three", hues_in_order
+    )
+    # Each colour is a hard-edged band: both its own stops share one offset pair,
+    # and the next colour starts exactly where the previous one ended (no gap,
+    # no blend region).
+    for i in range(0, len(stops), 2):
+        assert stops[i]["hue"] == stops[i + 1]["hue"], stops
+    for i in range(1, len(stops) - 1, 2):
+        assert abs(stops[i]["pct"] - stops[i + 1]["pct"]) < 0.01, (
+            "a colour band must end exactly where the next one begins — no blended transition", stops
+        )
+    # Widths proportional to real held duration: cyan's real window (5-20min =
+    # 15min) must be visibly wider than blue's (0-5min = 5min) — 3x, roughly.
+    blue_w = stops[1]["pct"] - stops[0]["pct"]
+    cyan_w = stops[3]["pct"] - stops[2]["pct"]
+    red_w = stops[11]["pct"] - stops[10]["pct"]
+    assert cyan_w > blue_w * 2, (blue_w, cyan_w)
+    assert red_w > blue_w * 2, (blue_w, red_w)
+    # Magenta (the final, indefinitely-held colour) gets a fixed terminal
+    # band, not a proportional one — and it must reach exactly 100%.
+    assert abs(stops[13]["pct"] - 100.0) < 0.01, stops
+    magenta_w = stops[13]["pct"] - stops[12]["pct"]
+    assert 5 <= magenta_w <= 15, ("fixed terminal band, not proportional", magenta_w)
 
 
 def test_motion_legend_strip_reserves_its_own_row_past_the_floor_legend(tmp_path):
@@ -4369,7 +4402,7 @@ def test_motion_legend_strip_reserves_its_own_row_past_the_floor_legend(tmp_path
         f"const FLOORS={json.dumps(floors)};\n"
         "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,{},false,FLOORS,{});\n"
         "const h=/height=\"([0-9.]+)\"/.exec(svg);\n"
-        "const stripM=/<rect x=\"90\" y=\"([0-9.]+)\"[^>]*fill=\"url\\(#psmotionlegend\\)\"/.exec(svg);\n"
+        "const stripM=/<rect x=\"70\" y=\"([0-9.]+)\"[^>]*fill=\"url\\(#psmotionlegend\\)\"/.exec(svg);\n"
         "console.log(JSON.stringify({height:h?Number(h[1]):null, stripY:stripM?Number(stripM[1]):null}));\n"
     ))
     assert out["height"] is not None and out["stripY"] is not None, out
