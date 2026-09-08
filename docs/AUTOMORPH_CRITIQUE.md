@@ -11,18 +11,33 @@ File/line references describe the tree at commit `70f3fae` (the state the
 critique reviewed); symbols drift as fixes land — trust the symbol names,
 not the line numbers.
 
-Application order (the order the fixes are being applied in): group A
+Application order (the order the fixes were applied in): group A
 cell-ring smoothing → B ring correspondence → C `applyHardness` rework →
 D composition/paint order → E1 lighting/layer stack → E2 colour systems.
-Statuses below are updated as work lands. Three findings stay deferred
-behind the gates the critique itself set; they are the natural next pass
-after a live visual check.
+24 of 27 findings are now applied (statuses below); three stay deferred
+behind the gates the critique itself set, for the next pass after a live
+visual check.
+
+**Adversarial review of the applied work (2026-09-08).** After all six
+groups landed, five independent read-only reviewers re-examined the
+result — one lens each for geometry, SVG output, finding-completeness,
+regression risk, and test quality. 16 findings, every one backed by
+execution (node renders with parsed ring geometry, byte-level diffs
+against the pre-critique tree, spec-compliant rasterization) rather than
+reading — full record in `AUTOMORPH_REVIEW.md`. The dominant root cause:
+`offsetPolygonInward` was built for sparse hand-traced room polygons and
+folded when fed the new dense Chaikin-smoothed cell rings, producing
+self-intersecting rings at the hardness rest position and letting
+neighbouring auras cross the non-overlap gap — both blockers. All 16
+were fixed, reproduction-first (each repair had to rebuild the finding's
+exact failure scenario and observe the defect before touching code); the
+findings below that a repair corrected say so inline.
 
 ## Shape — morph geometry
 
 ### 1. Fixed 24-point arc-length correspondence twists mid-slider shapes on concave cells
 
-**Status:** Applying — group B (correspondence)
+**Status:** Applied — `80efdf3`.
 
 **Impact:** high
 
@@ -34,7 +49,7 @@ after a live visual check.
 
 ### 2. Marching-squares cell rings have no baseline smoothing -- grid jitter shows even at the hardness slider's 'clean' rest position
 
-**Status:** Applying — group A (smoothing)
+**Status:** Applied — `f869e46`. Corrected by `4e5b4f7` — the 2026-09-08 adversarial review found the offset stage folded on this smoothed input; 4e5b4f7 fixed the root cause.
 
 **Impact:** high
 
@@ -46,7 +61,7 @@ after a live visual check.
 
 ### 3. applyHardness spikes away from the ring's own vertex-average centroid, not the fixture -- drifts off-anchor on lopsided cells
 
-**Status:** Applying — group C (hardness rework)
+**Status:** Applied — `cfb6888`.
 
 **Impact:** medium
 
@@ -58,7 +73,7 @@ after a live visual check.
 
 ### 4. Room polygons keep every traced/original vertex (plus occasional MITER_LIMIT bevel corners) with no smoothing pass of their own
 
-**Status:** Applying — group A (smoothing)
+**Status:** Applied — `f869e46`. Corrected by `4e5b4f7` — the 2026-09-08 adversarial review found this smoothing rounded the sparse room-fallback ring at metre scale; 4e5b4f7 made the smoothing scale-aware.
 
 **Impact:** medium
 
@@ -82,7 +97,7 @@ after a live visual check.
 
 ### 6. No cast/contact shadow behind the shape — it floats instead of sitting on the floor
 
-**Status:** Applying — group E1 (lighting)
+**Status:** Applied — `bd9f515`. Corrected by `357fd4e` — the 2026-09-08 adversarial review found the shared bloom/nebula mask faded against the canvas, not the ring; 357fd4e made it bbox-relative.
 
 **Impact:** high
 
@@ -94,7 +109,7 @@ after a live visual check.
 
 ### 7. Stroke is one flat colour/opacity all the way around — reads as a decal outline, not a lit bevel
 
-**Status:** Applying — group E1 (lighting)
+**Status:** Applied — `bd9f515`. Corrected by `357fd4e` — the 2026-09-08 adversarial review found the floor-wide gradient defeated the per-shape lit rim; 357fd4e gave the rim its own per-shape gradient.
 
 **Impact:** high
 
@@ -106,7 +121,7 @@ after a live visual check.
 
 ### 8. No ambient occlusion — the shape's interior reads as flat as its edge
 
-**Status:** Applying — group E1 (lighting)
+**Status:** Applied — `bd9f515`.
 
 **Impact:** medium
 
@@ -118,7 +133,7 @@ after a live visual check.
 
 ### 9. On vs off differ ONLY by base hex colour — 'on' doesn't read as self-luminous, just re-tinted
 
-**Status:** Applying — group E1 (lighting)
+**Status:** Applied — `bd9f515`. Corrected by `357fd4e` — the 2026-09-08 adversarial review found blueprint never got an on/off split; 357fd4e added one.
 
 **Impact:** medium
 
@@ -130,7 +145,7 @@ after a live visual check.
 
 ### 10. Naively stacking these new layers multiplies feGaussianBlur passes per fixture — a real cost at ~100 fixtures
 
-**Status:** Applying — group E1 (lighting)
+**Status:** Applied — `bd9f515`. 8de7bba later gated this def so it is only emitted when Automorph can reference it, restoring automorph-off byte-identity.
 
 **Impact:** medium
 
@@ -144,7 +159,7 @@ after a live visual check.
 
 ### 11. Hardness slider can blow through the non-overlap gap it was given
 
-**Status:** Applying — group C (hardness rework)
+**Status:** Applied — `cfb6888`.
 
 **Impact:** high
 
@@ -156,7 +171,7 @@ after a live visual check.
 
 ### 12. Aura paints over the room's own name, breaking the file's own label rule
 
-**Status:** Applying — group D (composition)
+**Status:** Applied — `34437a6`.
 
 **Impact:** high
 
@@ -168,7 +183,7 @@ after a live visual check.
 
 ### 13. Aura's opacity ceiling outweighs the room's own colour identity
 
-**Status:** Applying — group E1 (lighting)
+**Status:** Applied — `bd9f515`. Corrected by `a965458` — the 2026-09-08 adversarial review found the rebalance missed its own stated target by ~4x once every layer was summed; a965458 re-budgeted all five together.
 
 **Impact:** high
 
@@ -180,7 +195,7 @@ after a live visual check.
 
 ### 14. One inset constant serves two different composition jobs
 
-**Status:** Applying — group D (composition)
+**Status:** Applied — `34437a6`.
 
 **Impact:** medium
 
@@ -192,7 +207,7 @@ after a live visual check.
 
 ### 15. Shared diagonal highlight drifts per-cell instead of reading as one light source
 
-**Status:** Applying — group E2 (colour)
+**Status:** Applied — `ea25659`.
 
 **Impact:** medium
 
@@ -204,7 +219,7 @@ after a live visual check.
 
 ### 16. Flat grey gives neighbours no way to read as separate objects beyond a thin edge
 
-**Status:** Applying — group E2 (colour)
+**Status:** Applied — `ea25659`.
 
 **Impact:** medium
 
@@ -216,7 +231,7 @@ after a live visual check.
 
 ### 17. Aura has no clip-path in working mode (or Showcase), so blur/overshoot can cross the room's own wall
 
-**Status:** Applying — group D (composition)
+**Status:** Applied — `34437a6`. 8de7bba later gated these defs so they are only emitted when Automorph can reference it, restoring automorph-off byte-identity.
 
 **Impact:** medium
 
@@ -230,7 +245,7 @@ after a live visual check.
 
 ### 18. Metaball-style junction smoothing via Chaikin corner-cutting on the raw partition ring
 
-**Status:** Applying — group A (smoothing)
+**Status:** Applied — `f869e46`. Corrected by `4e5b4f7` — the 2026-09-08 adversarial review found neighbouring rendered rings could still cross; 4e5b4f7 fixed the shared inset pipeline this smoothing feeds.
 
 **Impact:** high
 
@@ -242,7 +257,7 @@ after a live visual check.
 
 ### 19. applyHardness's negative side is a uniform scale, not a corner-sharpening operator
 
-**Status:** Applying — group C (hardness rework)
+**Status:** Applied — `cfb6888`.
 
 **Impact:** high
 
@@ -254,7 +269,7 @@ after a live visual check.
 
 ### 20. Batch glow/edge/gloss into shared layer passes across all fixtures instead of per-fixture interleaving
 
-**Status:** Applying — group D (composition)
+**Status:** Applied — `34437a6`.
 
 **Impact:** medium
 
@@ -266,7 +281,7 @@ after a live visual check.
 
 ### 21. Distance-based duotone radial fill instead of flat on/off grey
 
-**Status:** Applying — group E2 (colour)
+**Status:** Applied — `ea25659`.
 
 **Impact:** medium
 
@@ -278,7 +293,7 @@ after a live visual check.
 
 ### 22. Deterministic per-vertex ring jitter as a hand-inked finish, extending the existing wobble convention upward
 
-**Status:** Applying — group E2 (colour)
+**Status:** Applied — `ea25659`.
 
 **Impact:** low
 
@@ -290,7 +305,7 @@ after a live visual check.
 
 ### 23. Paper-cutout contact shadow under the aura, matching psgloss's established light direction
 
-**Status:** Applying — group E1 (lighting, reconciled with the light lens's shadow finding)
+**Status:** Applied — `bd9f515`.
 
 **Impact:** medium
 
