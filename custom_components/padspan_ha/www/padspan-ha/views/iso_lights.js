@@ -481,6 +481,59 @@ export function stitchSegmentsToRing(segments){
   return rings;
 }
 
+// Chaikin corner-cutting: each pass replaces every edge (a,b) with its 25%
+// and 75% points, so every corner is cut by a chord and every OUTPUT point
+// lies ON an edge of that pass's INPUT ring — the property that makes this
+// safe next to the non-overlap partition: sliding points along their own
+// edges can never change a ring's topology or push it broadly into a
+// neighbour's cell the way a blur/inflate could.
+//
+// WHY it exists: the marching-squares cell rings (buildRoomFixtureCells) are
+// quantized to a coarse grid (step = dimM/48) over an only-approximately-
+// isotropic 8-connected Dijkstra field, and at the hardness slider's rest
+// position (0) ringPathD draws its points as a raw M/L/Z polygon — so the
+// grid's stairstep noise renders directly as small zig-zags along what
+// should read as a soft, deliberate bisector. That noise is a NEW artifact
+// the cell partition introduced; "hardness 0 = today's clean straight
+// treatment" never meant "show the sampling grid". The room-trace fallback
+// has the same class of artifact from the other side (hand-trace
+// digitization noise, offsetPolygonInward's occasional flat MITER bevels).
+// This pass is pure grid/trace-noise cleanup, always on regardless of
+// AUTOMORPH_HARDNESS — mechanically separate from ringPathD's Catmull-Rom,
+// which stays the aesthetic hard/soft dial.
+//
+// WHERE it is applied — exactly ONCE, at automorphAuraSvg's targetPts
+// choice, so the cell path and the room.pts fallback share one corner
+// language and nothing is ever smoothed twice; never on the already-
+// resampled AUTOMORPH_N ring and never on the icon endpoint, which would
+// break the "t=0 = icon outline byte-identical" contract. Iterations are
+// CLAMPED at 2 here rather than trusted to callers: beyond that, corner
+// cutting starts eating the real concave corners of an L-shaped trace
+// instead of the grid noise it exists to remove.
+//
+// Scope guardrail (this is the "metaball-style" borrow, so be precise about
+// which half): only the SMOOTHING half of metaball rendering — post-process
+// one fixture's marching-squares boundary into a soft curve — is taken.
+// The MERGING half (blending two blobs' fields so their silhouettes fuse)
+// is the exact opposite of the partition's purpose: never blend two
+// fixtures' weighted() fields before marching squares.
+export function chaikinSmooth(ring, iterations){
+  const passes=Math.max(0, Math.min(2, Math.floor(iterations!==undefined?iterations:1)));
+  let pts=ring||[];
+  for(let it=0; it<passes; it++){
+    if(pts.length<3) break;
+    const out=[];
+    const n=pts.length;
+    for(let i=0;i<n;i++){
+      const a=pts[i], b=pts[(i+1)%n];
+      out.push([a[0]+(b[0]-a[0])*0.25, a[1]+(b[1]-a[1])*0.25]);
+      out.push([a[0]+(b[0]-a[0])*0.75, a[1]+(b[1]-a[1])*0.75]);
+    }
+    pts=out;
+  }
+  return pts;
+}
+
 // Builds every fixture's own non-overlapping cell within one room, in the
 // ROOM'S OWN metre space (the same space room.pts already lives in) —
 // callers project to pixels the same way offsetPolygonInward's output
@@ -2136,7 +2189,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // outline" left as a deliberate follow-up once this reads well live.
     const automorphAuraSvg=(l,hx,hy,room,z,cellPtsM,entry)=>{
       if(!(AUTOMORPH_PCT>0) || !room || room.pts.length<3) return "";
-      const targetPts=(cellPtsM && cellPtsM.length>=3) ? cellPtsM : room.pts;
+      // Two Chaikin passes over WHICHEVER target won the choice below —
+      // smoothing lives only here so the cell path and the room-trace
+      // fallback get the identical corner language, nothing upstream (the
+      // stored cells) or downstream (the AUTOMORPH_N resample, the icon
+      // endpoint) is ever smoothed twice, and the pass stays per-fixture,
+      // after the field competition — see chaikinSmooth's own comment for
+      // the grid-noise rationale and the metaball scope guardrail.
+      const targetPts=chaikinSmooth((cellPtsM && cellPtsM.length>=3) ? cellPtsM : room.pts, 2);
       const marginM=Math.max(0, Math.min(defaultPerimeterMarginM(frame), roomHalfMinDim(targetPts)*0.85));
       const roomPx=offsetPolygonInward(targetPts, marginM).map(p=>iso(p[0],p[1],z));
       const iconLocal=automorphIconRing(l.shape, entry&&entry.width_cm, entry&&entry.height_cm,

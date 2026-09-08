@@ -2412,6 +2412,93 @@ def test_partition_single_tiny_fixture_stays_small_even_alone_in_its_room(tmp_pa
     )
 
 
+# ── Chaikin baseline smoothing of the automorph TARGET (2026-09-07 critique:
+# the marching-squares cell rings render their sampling grid's stairstep as
+# zig-zags even at hardness=0 — a NEW artifact the partition introduced, not
+# what "0 = today's clean straight treatment" ever meant — and the room-trace
+# fallback carries digitization noise and miter bevels of its own). The fix
+# is chaikinSmooth, applied exactly once at automorphAuraSvg's targetPts
+# choice so BOTH target kinds share one corner language.
+
+def test_chaikin_smooth_cuts_corners_but_only_along_the_rings_own_edges(tmp_path):
+    """One pass replaces each edge with its 25%/75% points: the point count
+    doubles, the ring is treated as CLOSED (the last->first edge is cut like
+    any other, and no original corner vertex survives), and every output
+    point lies ON an edge of the input ring — the property that makes the
+    pass unable to change topology or push a cell broadly into a
+    neighbour's, unlike a blur or inflate. Two passes are exactly one pass
+    applied twice, so that per-pass on-edge guarantee composes."""
+    out = _run_js(tmp_path, (
+        "import { chaikinSmooth } from './iso_lights.mjs';\n"
+        "const ring=[[0,0],[10,0],[10,10],[0,10]];\n"
+        "const onEdge=(p)=>{ for(let i=0;i<ring.length;i++){\n"
+        "  const a=ring[i], b=ring[(i+1)%ring.length];\n"
+        "  const cross=Math.abs((b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0]));\n"
+        "  const within=p[0]>=Math.min(a[0],b[0])-1e-9 && p[0]<=Math.max(a[0],b[0])+1e-9\n"
+        "    && p[1]>=Math.min(a[1],b[1])-1e-9 && p[1]<=Math.max(a[1],b[1])+1e-9;\n"
+        "  if(cross<1e-9 && within) return true; } return false; };\n"
+        "const one=chaikinSmooth(ring, 1);\n"
+        "const two=chaikinSmooth(ring, 2);\n"
+        "const composed=chaikinSmooth(chaikinSmooth(ring, 1), 1);\n"
+        "console.log(JSON.stringify({\n"
+        "  oneLen: one.length, twoLen: two.length,\n"
+        "  allOnEdge: one.every(onEdge),\n"
+        "  cornerSurvives: one.some(p=>ring.some(q=>p[0]===q[0]&&p[1]===q[1])),\n"
+        "  closingEdgeCut: one.some(p=>p[0]===0 && p[1]>0 && p[1]<10),\n"
+        "  composes: JSON.stringify(two)===JSON.stringify(composed),\n"
+        "}));\n"
+    ))
+    assert out["oneLen"] == 8 and out["twoLen"] == 16, f"each pass must double the point count: {out}"
+    assert out["allOnEdge"], f"every smoothed point must lie on an edge of the input ring: {out}"
+    assert not out["cornerSurvives"], f"corner cutting must remove every original corner vertex: {out}"
+    assert out["closingEdgeCut"], f"the closing (last->first) edge must be cut like any other: {out}"
+    assert out["composes"], f"two passes must equal one pass applied twice: {out}"
+
+
+def test_chaikin_smooth_passthrough_clamp_and_determinism(tmp_path):
+    """A degenerate under-3-point ring passes through untouched (never
+    fabricate geometry from nothing); iterations clamp at 2 — past that,
+    corner cutting starts eating an L-shaped trace's REAL concave corners
+    rather than the grid noise it exists to remove; and the output is a pure
+    function of the input ring alone — the same determinism contract the
+    cell wobble already documents (the fabric alone must reproduce a
+    render)."""
+    out = _run_js(tmp_path, (
+        "import { chaikinSmooth } from './iso_lights.mjs';\n"
+        "const ring=[[0,0],[10,0],[10,10],[0,10]];\n"
+        "const j=JSON.stringify;\n"
+        "console.log(j({\n"
+        "  twoPt: j(chaikinSmooth([[0,0],[5,5]], 2))===j([[0,0],[5,5]]),\n"
+        "  empty: j(chaikinSmooth(null, 2))===j([]),\n"
+        "  clamped: j(chaikinSmooth(ring, 5))===j(chaikinSmooth(ring, 2)),\n"
+        "  zero: j(chaikinSmooth(ring, 0))===j(ring),\n"
+        "  deterministic: j(chaikinSmooth(ring, 2))===j(chaikinSmooth(ring, 2)),\n"
+        "}));\n"
+    ))
+    assert out["twoPt"], "an under-3-point ring must pass through untouched"
+    assert out["empty"], "a null ring must come back as an empty ring, not a crash"
+    assert out["clamped"], "iterations beyond 2 must clamp — over-smoothing eats real concave corners"
+    assert out["zero"], "zero iterations must be a no-op"
+    assert out["deterministic"], "same ring in, same points out — no hidden randomness"
+
+
+def test_chaikin_is_applied_once_at_the_shared_target_choice():
+    """The smoothing has exactly ONE application point — automorphAuraSvg's
+    targetPts choice — so a resolved cell and the room.pts fallback get the
+    identical corner language. Smoothing inside buildRoomFixtureCells AND at
+    the call site would double-smooth every resolved cell while the fallback
+    got a single pass; this pins the reconciled single-site scheme, and it
+    keeps the stored cells raw so the non-overlap partition tests above
+    measure the field competition itself, not a post-process of it."""
+    src = _code_only((_VIEWS / "iso_lights.js").read_text(encoding="utf-8"))
+    calls = re.findall(r"(?<!function )chaikinSmooth\(", src)
+    assert len(calls) == 1, f"expected exactly one chaikinSmooth call site, found {len(calls)}"
+    assert "chaikinSmooth((cellPtsM && cellPtsM.length>=3) ? cellPtsM : room.pts" in src, (
+        "the one call site must wrap the cell/room-fallback choice itself, so both "
+        "target kinds are smoothed identically"
+    )
+
+
 def test_automorph_two_fixtures_sharing_a_room_render_different_auras(tmp_path):
     """End-to-end through the real renderer: two fixtures placed in the SAME
     room must render two DIFFERENT aura outlines at pct=100 — before this,
