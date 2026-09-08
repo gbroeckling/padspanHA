@@ -3422,6 +3422,56 @@ def test_automorph_suppresses_the_glyph_only_where_an_aura_really_painted(tmp_pa
     )
 
 
+def test_automorph_never_auras_or_suppresses_motion_fan_or_temp_markers(tmp_path):
+    """Live regression, reported by Garry (2026-09-08): "the center not
+    activating on motion... only some sensors" — a motion sensor sharing a
+    room with a real light was pulled into the non-overlap partition (only
+    l.shape==="perimeter" was excluded), got a real aura, and had its own
+    glyph body suppressed exactly like a real light's — even though motion
+    sensors read activity through motionActive() + their own pulse ring
+    (a separate code path, unaffected), never through an aura. The pulse
+    kept firing; the glyph underneath it silently went transparent. Same
+    root cause for isFan/isTemp: neither was excluded either. A real light
+    in the SAME room still gets its normal aura+suppression."""
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {"Room": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 6], [0, 6]]}},
+        "light_positions_m": {
+            "light.real":              {"x_m": 1.5, "y_m": 1.5, "floor_id": "main"},
+            "binary_sensor.motion":    {"x_m": 4.5, "y_m": 1.5, "floor_id": "main"},
+            "fan.ceiling":             {"x_m": 1.5, "y_m": 4.5, "floor_id": "main"},
+            "sensor.temp":             {"x_m": 4.5, "y_m": 4.5, "floor_id": "main"},
+        },
+    }
+    lbe = {
+        "light.real":           {"entity_id": "light.real", "state": "on", "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None},
+        "binary_sensor.motion": {"entity_id": "binary_sensor.motion", "state": "on", "code": "M01", "shape": "hex", "isMotion": True, "last_changed": None},
+        "fan.ceiling":          {"entity_id": "fan.ceiling", "state": "on", "code": "F01", "shape": "hex", "isFan": True, "last_changed": None},
+        "sensor.temp":          {"entity_id": "sensor.temp", "state": "on", "code": "T01", "shape": "hex", "isTemp": True, "last_changed": None},
+    }
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+        f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:100, automorphStyle:'glow'}});\n"
+        "const grab=(eid)=>{const g=new RegExp('<g class=\"lhex\" data-eid=\"'+eid.replace(/\\\\./g,'\\\\\\\\.')+'\"[^>]*>([\\\\s\\\\S]*?)</g>').exec(svg); return g?g[1]:null;};\n"
+        "const visible=(b)=>/<(rect(?! data-hit)|polygon|circle|path)[^>]*fill=\"(?!transparent|none)/.test(b);\n"
+        "console.log(JSON.stringify({\n"
+        "  realVisible: (b=>b?visible(b):null)(grab('light.real')),\n"
+        "  motionVisible: (b=>b?visible(b):null)(grab('binary_sensor.motion')),\n"
+        "  fanVisible: (b=>b?visible(b):null)(grab('fan.ceiling')),\n"
+        "  tempVisible: (b=>b?visible(b):null)(grab('sensor.temp')),\n"
+        "}));\n"
+    ))
+    assert not out["realVisible"], "the real light's glyph must still be suppressed by its own aura (unchanged behaviour)"
+    assert out["motionVisible"], "a motion sensor's glyph body must never be suppressed — it must never be pulled into the partition or get an aura in the first place"
+    assert out["fanVisible"], "a fan's glyph body must never be suppressed"
+    assert out["tempVisible"], "a temp readout's glyph body must never be suppressed"
+
+
 # ── Automorph material stack (the light/composition round of the 2026-09-07
 # design critique) ──────────────────────────────────────────────────────────
 # The glow style used to be three layers stamped in one position — wash,

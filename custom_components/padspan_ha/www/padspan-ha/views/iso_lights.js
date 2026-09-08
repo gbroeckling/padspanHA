@@ -2218,7 +2218,19 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       for(const pl of hereLights){
         if(hiddenEids.has(pl.eid)) continue;
         const l=lightsByEid[pl.eid];
-        if(!l || l.shape==="perimeter") continue;
+        // Motion/fan/temp fixtures are on the map but are not the "lights"
+        // Automorph was built for (docs/IDEA_AUTOMORPH_LIGHTS.md) — they
+        // carry their own established visual language (the pulse ring and
+        // border colour for motion, isFan's own treatment, a temp readout)
+        // that has nothing to do with a room-alignment aura. Left
+        // unexcluded here they still competed for and won a real partition
+        // cell purely by sharing a room with a real light, which then
+        // suppressed their own glyph body via automorphAuraSvg's aura-
+        // painted flag below — the exact live bug Garry reported ("the
+        // center not activating on motion... only some sensors"): the
+        // pulse ring is a separate code path and kept firing, but the
+        // glyph itself had been swapped for a transparent hit rect.
+        if(!l || l.shape==="perimeter" || l.isMotion || l.isFan || l.isTemp) continue;
         const r=hereRooms.find(rr=>pointInRoom(rr.pts, pl.x, pl.y));
         if(!r || r.pts.length<3) continue;
         const weight=automorphFixtureWeight(pl.lp&&pl.lp.width_cm, pl.lp&&pl.lp.height_cm);
@@ -2805,7 +2817,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // glyph") — per-fixture interleaving was the one draw order that
     // convention exists to forbid.
     const automorphAuraSvg=(l,hx,hy,room,z,cellPtsM,entry)=>{
-      if(!(AUTOMORPH_PCT>0) || !room || room.pts.length<3) return null;
+      // Defensive twin of the exclusion in the partition-grouping pass
+      // above — motion/fan/temp never get a cell there any more, but this
+      // function must refuse to aura them even if ever called directly.
+      if(!(AUTOMORPH_PCT>0) || !room || room.pts.length<3 || l.isMotion || l.isFan || l.isTemp) return null;
       // Inset stage — the shared automorphInsetRing above (smoothing,
       // well-spaced offset, fold pruning, containment, and the hardness cap
       // derived from the same margin). One inset constant was serving two
