@@ -1854,7 +1854,10 @@ def test_temperature_readout_shows_digits_only_when_placed_and_fresh(tmp_path):
 def test_use_surface_ergonomics_opts(tmp_path):
     """The ergonomics opts buildIsoSVG grew for the sidebar/preview use
     surface: codeChip splits the tap target into its own data-role="code"
-    pill; hideCodes drops codes entirely (semantic zoom); classFilter dims
+    pill; hideCodes drops the code's TEXT (semantic zoom) but — when
+    codeChip is also on — keeps that pill's own tap target, invisibly
+    (Garry, 2026-09-09: hiding it was silently shrinking the sidebar's tap
+    target to the glyph alone); classFilter dims
     every OTHER class and stops it taking taps; hitHalo draws an invisible
     tap disc under every marker; collapseUnplaced turns a room's unplaced
     pile into ONE data-role="stack" chip. Room names and the floor badge are
@@ -1892,8 +1895,9 @@ def test_use_surface_ergonomics_opts(tmp_path):
         "const out={\n"
         "  plainHasRoleCode: /data-role=\"code\"/.test(plain),\n"
         "  chipHasRoleCode: codeCount(chip) >= 1,\n"
-        "  hiddenHasRoleCode: codeCount(hidden) === 0,\n"
+        "  hiddenChipCount: codeCount(hidden),\n"
         "  hiddenHasCodeText: hidden.includes('A01'),\n"
+        "  hiddenHasPointerEventsAll: /data-role=\"code\"[^>]*pointer-events=\"all\"/.test(hidden),\n"
         "  // filtered=fan: the fan glyph is full-opacity and clickable; the two\n"
         "  // plain lights are dimmed AND pointer-events:none.\n"
         "  fanFull: /data-class=\"fan\"[^>]*opacity=\"1\"/.test(filtered) || /opacity=\"1\"[^>]*data-class=\"fan\"/.test(filtered),\n"
@@ -1913,7 +1917,13 @@ def test_use_surface_ergonomics_opts(tmp_path):
     ))
     assert not out["plainHasRoleCode"], "the default render must not grow a code-chip target unasked"
     assert out["chipHasRoleCode"], "codeChip must add a data-role=\"code\" target"
-    assert out["hiddenHasRoleCode"] and not out["hiddenHasCodeText"], "hideCodes must drop the code entirely, not just its chip"
+    # Garry, 2026-09-09: hiding codes silently shrank the sidebar's tap
+    # target down to the glyph alone, because the chip's OWN hit region
+    # (pointer-events="all") went with the text. hideCodes must hide the
+    # TEXT, not the place you tap — the pill's invisible now, not gone.
+    assert out["hiddenChipCount"] >= 1, "hideCodes must keep the chip's tap target, invisibly"
+    assert not out["hiddenHasCodeText"], "the code text itself must not render when hidden"
+    assert out["hiddenHasPointerEventsAll"], "the invisible chip must still take the tap"
     assert out["fanFull"], "the matching class must stay full-opacity and clickable"
     # Three "light"-class devices are drawn: the placed marker plus the two
     # clustered in the room — classFilter:"fan" must dim every one of them.

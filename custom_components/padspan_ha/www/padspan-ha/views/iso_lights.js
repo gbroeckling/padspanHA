@@ -2434,16 +2434,30 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // (the resize handles this session added) can draw many times that size,
     // and a fixed gap then lands the chip inside the glyph instead of below
     // it. Callers whose marker can be scaled pass the ACTUAL half-height.
-    const codeChipSvg=(l,hx,hy,tCol,gapPx=HEX_R*1.55)=>{
+    // invisible: same pill, same tap target, no pixels — the "hide device
+    // codes" preference (Garry, 2026-09-09) must hide the TEXT, not the
+    // place you tap. Without this, hiding codes silently shrank the
+    // sidebar's tap target down to the glyph alone: the pill was the ONLY
+    // thing here ever drawn with pointer-events enabled of its own (the
+    // plain label below is pointer-events="none" even when shown — it
+    // never caught a tap either way), so skipping it outright also
+    // skipped the one extra bit of hit area codeChip mode actually added.
+    // "all" on the <g> below means a fully transparent rect still takes
+    // the tap; the shape is what matters; the paint is optional.
+    const codeChipSvg=(l,hx,hy,tCol,gapPx=HEX_R*1.55,invisible=false)=>{
       const fs=CODE_PX*0.92;
       const w=String(l.code||"").length*fs*0.64+fs*0.9, h=fs*1.5;
       const cy=hy+gapPx+fs*0.45;
-      return `<g data-role="code" style="cursor:pointer" pointer-events="all">`+
-        `<rect x="${(hx-w/2).toFixed(1)}" y="${(cy-h/2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" `+
-        `rx="${(h*0.35).toFixed(1)}" fill="#050d09" fill-opacity="0.72" stroke="${tCol}" stroke-opacity="0.45" stroke-width="0.6"/>`+
+      const rect=invisible
+        ? `<rect x="${(hx-w/2).toFixed(1)}" y="${(cy-h/2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" `+
+          `rx="${(h*0.35).toFixed(1)}" fill="transparent" stroke="none"/>`
+        : `<rect x="${(hx-w/2).toFixed(1)}" y="${(cy-h/2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" `+
+          `rx="${(h*0.35).toFixed(1)}" fill="#050d09" fill-opacity="0.72" stroke="${tCol}" stroke-opacity="0.45" stroke-width="0.6"/>`;
+      const text=invisible ? "" :
         `<text x="${hx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
         `font-family="ui-monospace,monospace" font-size="${fs.toFixed(1)}" font-weight="700" `+
-        `letter-spacing="0.06em" fill="${tCol}" pointer-events="none">${escSVG(l.code)}</text></g>`;
+        `letter-spacing="0.06em" fill="${tCol}" pointer-events="none">${escSVG(l.code)}</text>`;
+      return `<g data-role="code" style="cursor:pointer" pointer-events="all">`+rect+text+`</g>`;
     };
     // suppressGlyph (Garry, 2026-09-07: "why do you keep all the old non
     // morphed stuff showing... weird choice?"): when this fixture's
@@ -2502,7 +2516,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       if(l.shape==="perimeter"){
         const HW=HEX_R*0.866;
         const pCol=SHOW?(on?lit:"#7f93a8"):(on?lit:"#94a3b8");
-        const pLbl=HIDECODES ? "" : (CODECHIP
+        const pLbl=HIDECODES ? (CODECHIP ? codeChipSvg(l,hx,hy-HEX_R*1.55,pCol,HEX_R*1.55,true) : "") : (CODECHIP
           ? codeChipSvg(l,hx,hy-HEX_R*1.55,pCol)   // the pill sits in the hit space, where the code was
           : `<text x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
             `font-family="ui-monospace,monospace" font-size="${CODE_PX.toFixed(1)}" font-weight="700" `+
@@ -2616,7 +2630,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           `fill="${tCol}" paint-order="stroke" stroke="#050d09" stroke-width="${(TEMP_DIGIT_PX*0.32).toFixed(1)}" `+
           `stroke-linejoin="round" pointer-events="none">${l.temperature}</text>`
         : null;
-      const lbl=tempLbl!==null ? tempLbl : (HIDECODES ? "" : (CODECHIP ? codeChipSvg(l,hx,hy,SHOW?tCol:"#e2e8f0",chipGap) : (SHOW
+      // HIDECODES + CODECHIP (the sidebar, always; the builder's own
+      // "Preview as sidebar") keeps the chip's tap target, invisibly — see
+      // codeChipSvg's own comment. Plain HIDECODES (the builder's normal
+      // editing view) still draws nothing: that label was pointer-events
+      // "none" even when shown, so no live hit region has ever depended on
+      // it — hiding it changes what is drawn, not what is clickable.
+      const lbl=tempLbl!==null ? tempLbl : (HIDECODES ? (CODECHIP ? codeChipSvg(l,hx,hy,SHOW?tCol:"#e2e8f0",chipGap,true) : "") : (CODECHIP ? codeChipSvg(l,hx,hy,SHOW?tCol:"#e2e8f0",chipGap) : (SHOW
         ? `<text x="${hx.toFixed(1)}" y="${lblY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
           `font-family="ui-monospace,monospace" font-size="${(CODE_PX*0.92).toFixed(1)}" font-weight="700" `+
           `letter-spacing="0.06em" fill="${tCol}" paint-order="stroke" stroke="#050d09" `+

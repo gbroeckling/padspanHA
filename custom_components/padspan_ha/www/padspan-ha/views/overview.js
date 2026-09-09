@@ -2102,6 +2102,9 @@ export function render(ctx){
       roomListPanel.style.display = ctx.state._overviewShowRoomList ? "block" : "none";
     });
 
+    // Spacing sliders (Gap, L/R below) share this debounce timer — see the
+    // comment on ovGapSlider's own "input" handler.
+    let _ovGapDebounce = null;
     // Spacing slider
     const ovGapLbl = document.createElement("span");
     ovGapLbl.style.cssText = "font-size:12px;color:#94a3b8;min-width:36px;display:inline-block;text-align:right";
@@ -2110,12 +2113,21 @@ export function render(ctx){
     ovGapSlider.type="range"; ovGapSlider.min="60"; ovGapSlider.max="340"; ovGapSlider.step="10";
     ovGapSlider.style.cssText = "width:110px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
     ovGapSlider.value = String(ctx.state._overviewFloorGap);
+    // Debounced, not called on every tick (Garry, 2026-09-09: "the screen
+    // goes so light you can't see what you are adjusting"). _rebuildIso
+    // crossfades the map to opacity 0 and back on EVERY call; dragging a
+    // slider fires "input" far faster than that 150ms fade can complete,
+    // so each tick re-armed the fade-out before the previous one ever
+    // reached fade-back-in — the map stayed near-invisible for the whole
+    // drag. Same 150ms debounce the heat/contrast sliders already use
+    // below, for the identical reason.
     ovGapSlider.addEventListener("input",()=>{
       ctx.state._overviewFloorGap = parseInt(ovGapSlider.value, 10);
       _ovFG = ctx.state._overviewFloorGap;
       ovGapLbl.textContent = String(ctx.state._overviewFloorGap);
       _rebuildPositions();
-      _rebuildIso(ctx.state._overviewIsoFocus);
+      if (_ovGapDebounce) clearTimeout(_ovGapDebounce);
+      _ovGapDebounce = setTimeout(() => { _rebuildIso(ctx.state._overviewIsoFocus); }, 150);
     });
 
     // L/R horizontal offset slider
@@ -2131,7 +2143,8 @@ export function render(ctx){
       _ovHG = ctx.state._overviewHorizGap;
       ovHorizLbl.textContent = String(ctx.state._overviewHorizGap);
       _rebuildPositions();
-      _rebuildIso(ctx.state._overviewIsoFocus);
+      if (_ovGapDebounce) clearTimeout(_ovGapDebounce);
+      _ovGapDebounce = setTimeout(() => { _rebuildIso(ctx.state._overviewIsoFocus); }, 150);
     });
 
     const ctrlRow = document.createElement("div");
