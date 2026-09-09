@@ -71,9 +71,13 @@ def _remove_panels(hass: HomeAssistant) -> None:
 async def async_setup_panel(hass: HomeAssistant) -> None:
     hass.data.setdefault(DOMAIN, {})
 
-    # Re-register panels whenever called (clear stale registrations first).
+    # Re-register panels whenever called (clear stale registrations first) —
+    # but only if we actually registered them before. On a fresh start there's
+    # nothing to remove yet, and calling async_remove_panel anyway just logs
+    # "Removing unknown panel" on every boot for no reason.
     # This ensures HACS reloads (without full restart) always get the new module_url/BUILD_ID.
-    _remove_panels(hass)
+    if hass.data[DOMAIN].get(DATA_PANEL_REGISTERED):
+        _remove_panels(hass)
     hass.data[DOMAIN][DATA_PANEL_REGISTERED] = False
 
     await _register_static(hass, Path(__file__).parent / "www")
