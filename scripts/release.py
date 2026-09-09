@@ -444,8 +444,20 @@ def git_commit_tag_push(version, tag, message=None):
             discovered.append(str(f.relative_to(ROOT)).replace("\\", "/"))
 
     all_files = STATIC_FILES + discovered
-    files = " ".join(f'"{p}"' for p in all_files)
-    run_ok(f"git add {files}")
+    # `git add` with every path quoted on one command line blows Windows'
+    # ~8191-char CreateProcess limit once the integration grows past ~120
+    # files (hit at 0.38.23, 150 files). --pathspec-from-file reads the list
+    # from a temp file instead, so the command line itself stays short no
+    # matter how many files a release stages.
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".txt", delete=False, encoding="utf-8"
+    ) as f:
+        f.write("\n".join(all_files) + "\n")
+        pathspec_file = f.name
+    try:
+        run_ok(f'git add --pathspec-from-file="{pathspec_file}"')
+    finally:
+        os.unlink(pathspec_file)
     commit_msg = message or f"release {tag}"
     # Escape double quotes in message for shell safety
     safe_msg = commit_msg.replace('"', '\\"')
