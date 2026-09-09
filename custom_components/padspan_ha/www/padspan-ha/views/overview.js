@@ -942,7 +942,15 @@ export function render(ctx){
     if(ctx.state._overviewShowHeatmap === undefined) ctx.state._overviewShowHeatmap = false;
     if(ctx.state._overviewShowDistortion === undefined) ctx.state._overviewShowDistortion = false;
 
-    const buildIsoSVG = (focusZ)=>{
+    const buildIsoSVG = (focusZ, opts)=>{
+      // _updateIsoObjects (every poll) runs this for the objects markup ONLY
+      // — it discards everything before ISO_OBJECTS_START, including the
+      // whole heat/warp pass. That pass now costs a canvas PNG encode per
+      // storey, not just string building, so paying it every poll for output
+      // that is immediately thrown away is real, measured main-thread cost
+      // on top of the normal poll work. skipOverlays lets that path opt out;
+      // a real rebuild (toggle, slider, initial mount) never sets it.
+      const _skipOverlays = !!(opts && opts.skipOverlays);
       // Re-read objects from current snapshot (not stale closure)
       _refreshIsoObjects();
       // Deliberately cancels _ovFG's own multiplier in the iso projection, so
@@ -1083,9 +1091,17 @@ export function render(ctx){
         const barriers = [];
         for (const b of (_model.rf_barriers_m || [])) {
           const bz = _fabZOf(b.floor_id);
-          // Same deliberate render-time filter as scanners above: barriers
-          // more than 2 storeys away are dropped, not shown.
-          if (bz === undefined || Math.abs(_fabF.rankOf(bz) - rank) > 2) continue;
+          if (bz === undefined) continue;
+          // Same shape as scanners above: kept within 2 storeys because
+          // radio_map.js needs the walls between a device and a scanner on
+          // another floor for its attenuation math — but carrying floorDist
+          // so the DRAW loop below can keep only this storey's own walls.
+          // Without that, every wall within 2 storeys was painted onto every
+          // nearby storey at that storey's height: the upstairs walls drawn
+          // across the main floor, and vice versa (Garry, 2026-09-09: "some
+          // of the walls are OK, maybe a floor to floor bleed?").
+          const floorDist = Math.abs(_fabF.rankOf(bz) - rank);
+          if (floorDist > 2) continue;
           const points = (b.points_m || []).map(p => [Number(p[0]), Number(p[1])]);
           if (points.length < 2) continue;
           // A linked door/window's live open/closed reads straight off the
@@ -1093,7 +1109,7 @@ export function render(ctx){
           // so the two views can never disagree about whether a given door
           // reads open (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 5).
           barriers.push({
-            points, attenuation_dbm: b.attenuation_dbm ?? 6,
+            points, attenuation_dbm: b.attenuation_dbm ?? 6, floorDist,
             linked_entity_id: b.linked_entity_id || null,
             linkedOpen: b.linked_entity_id ? (ctx.hass?.states?.[b.linked_entity_id]?.state === "on") : false,
           });
@@ -1112,8 +1128,8 @@ export function render(ctx){
       // Overlays: configure the module once, then find the RSSI range across
       // ALL storeys so they share one colour scale — scaled to itself, a badly
       // covered floor looks as green as a good one.
-      const _heatOn = _isoRadioMapOn && _isoRadioMapMod && ctx.state._overviewShowHeatmap;
-      const _warpOn = !!(ctx.state.settings && ctx.state.settings.distortion_map_enabled) && _isoRadioMapMod && ctx.state._overviewShowDistortion;
+      const _heatOn = !_skipOverlays && _isoRadioMapOn && _isoRadioMapMod && ctx.state._overviewShowHeatmap;
+      const _warpOn = !_skipOverlays && !!(ctx.state.settings && ctx.state.settings.distortion_map_enabled) && _isoRadioMapMod && ctx.state._overviewShowDistortion;
       let _ovRange = null;
       if (_heatOn || _warpOn) {
         const M = _isoRadioMapMod;
@@ -1277,6 +1293,9 @@ export function render(ctx){
         // floor traced from two pictures drew every wall twice.
         if(ctx.state._overviewShowWalls){
           for(const bar of storey.barriers){
+            // Only this storey's own walls — the neighbours are in the list
+            // for radio_map.js, not for drawing (same filter scanners use).
+            if(bar.floorDist !== 0) continue;
             const bp = bar.points.map(p=>pt(iso(p[0], p[1], z))).join(" ");
             if(!bar.linked_entity_id){
               s += `<polyline points="${bp}" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3" stroke-dasharray="5 8" stroke-linecap="round"/>`;
@@ -1827,6 +1846,11 @@ export function render(ctx){
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             isoDiv.innerHTML = buildIsoSVG(focusZ);
+            // Must run HERE, not at any of _rebuildIso's callers: buildIsoSVG
+            // just ran synchronously (this line), so setHatchRange has set
+            // this build's scale — a caller reading it before this deferred
+            // rAF pair runs would show the PREVIOUS build's dBm range.
+            if (_heatLegendRefresh) _heatLegendRefresh();
             _watchAnnScale();
             ctx.state._isoBuildPending = false;
             // Inject a <g> wrapper for objects so we can swap it on polls
@@ -1869,8 +1893,10 @@ export function render(ctx){
       const svgEl = isoDiv.querySelector("svg");
       const objGroup = svgEl && svgEl.querySelector("#iso-objects");
       if (!svgEl || !objGroup) return; // no static base yet, skip
-      // Build the full SVG and extract just the objects portion
-      const fullSvg = buildIsoSVG(_getFocusZ(ctx.state._overviewIsoFocusIdx));
+      // Build the full SVG and extract just the objects portion. skipOverlays:
+      // the heat/warp markup this builds lands entirely before the marker
+      // below and is discarded, so there is no reason to pay for it here.
+      const fullSvg = buildIsoSVG(_getFocusZ(ctx.state._overviewIsoFocusIdx), { skipOverlays: true });
       const marker = "<!-- ISO_OBJECTS_START -->";
       const idx = fullSvg.indexOf(marker);
       if (idx < 0) return;
@@ -2292,6 +2318,7 @@ export function render(ctx){
     const _distStyle = (on) => `padding:1px 6px;font-size:10px;${on ? "background:#431407;border-color:#f97316;color:#fdba74;font-weight:700" : "color:#94a3b8"}`;
     let _ovHeatBtn = null, _ovDistBtn = null;
     let _isoOverlayCtrl = null; // slider bar — toggled by _syncOverlayBtns
+    let _heatLegendRefresh = null; // dBm legend in that bar — set once it exists
 
     const _syncOverlayBtns = () => {
       if (_ovHeatBtn) {
@@ -2307,6 +2334,10 @@ export function render(ctx){
         const show = ctx.state._overviewShowHeatmap || ctx.state._overviewShowDistortion;
         _isoOverlayCtrl.style.display = show ? "flex" : "none";
       }
+      // _heatLegendRefresh is NOT called here — buildIsoSVG (and the
+      // setHatchRange call inside it) has not run yet at this point;
+      // _rebuildIso's own doBuild calls it once the new scale actually
+      // exists. Calling it here would show the PREVIOUS build's dBm range.
       _rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx));
     };
 
@@ -2435,6 +2466,8 @@ export function render(ctx){
         _showProgress(30, "Rendering...");
         if (_overlayTimer) clearTimeout(_overlayTimer);
         _overlayTimer = setTimeout(() => {
+          // _rebuildIso's own doBuild calls _heatLegendRefresh once the new
+          // scale exists — see the comment on that call.
           _rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx));
           _showProgress(100, sv > 0 && ctx.state._adaptiveObs ? `${ctx.state._adaptiveObs} obs` : "Ready");
         }, 150);
@@ -2444,7 +2477,33 @@ export function render(ctx){
       d.sl.addEventListener("input", _isoOverlayUpdate);
       src.sl.addEventListener("input", _isoOverlayUpdate);
 
-      isoOverlayCtrl.append(g.lbl, g.sl, c.lbl, c.sl, d.lbl, d.sl, src.lbl, src.sl, progressBar, statusLbl, iSaveBtn);
+      // The coverage legend: the ramp as a bar, its two ends labelled with the
+      // dBm they stand for on the CURRENT scale (gain/contrast move them).
+      // Heat only — the warp overlay draws lines, not a fill.
+      const legendWrap = document.createElement("span");
+      legendWrap.style.cssText = "display:none;align-items:center;gap:5px;margin-left:4px";
+      const legendLo = document.createElement("span");
+      legendLo.style.cssText = "font-size:9px;color:#94a3b8;font-variant-numeric:tabular-nums";
+      const legendBar = document.createElement("span");
+      legendBar.style.cssText = "display:inline-block;width:96px;height:8px;border-radius:4px;border:1px solid #1a4228";
+      const legendHi = document.createElement("span");
+      legendHi.style.cssText = legendLo.style.cssText;
+      legendWrap.append(legendLo, legendBar, legendHi);
+      _heatLegendRefresh = () => {
+        const M = _isoRadioMapMod;
+        // Same gate as _heatOn (buildIsoSVG) — otherwise the legend can keep
+        // showing (with a stale scale) after radio_map_enabled is turned off
+        // while Heat's own toggle state is still true from before.
+        const on = _isoRadioMapOn && !!ctx.state._overviewShowHeatmap && M && typeof M.heatScale === "function";
+        legendWrap.style.display = on ? "inline-flex" : "none";
+        if (!on) return;
+        const sc = M.heatScale();
+        legendBar.style.background = M.heatRampCSS();
+        legendLo.textContent = `${Math.round(sc.worst)} dBm`;
+        legendHi.textContent = `${Math.round(sc.best)} dBm`;
+      };
+
+      isoOverlayCtrl.append(g.lbl, g.sl, c.lbl, c.sl, d.lbl, d.sl, src.lbl, src.sl, legendWrap, progressBar, statusLbl, iSaveBtn);
       outer.appendChild(isoOverlayCtrl);
     }
 
@@ -2454,7 +2513,9 @@ export function render(ctx){
     // Deferred initial build: outer is now fully constructed with all elements.
     // When the browser appends it to the DOM, the rAF fires and builds the SVG
     // with the progress bar visible.
-    requestAnimationFrame(() => _rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx)));
+    requestAnimationFrame(() => {
+      _rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx));
+    });
 
     return outer;
   }

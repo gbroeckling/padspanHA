@@ -4,6 +4,24 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.25 — Overview: walls stay on their own floor, and the coverage heatmap is a real heatmap (2026-09-09)
+
+### Walls no longer bleed between floors
+- **Fixed:** with Walls on, the Overview drew every wall within two storeys onto every nearby storey, at that storey's height — the upstairs walls across the main floor, and the main floor's across upstairs. Found live: "some of the walls are OK, maybe a floor to floor bleed?" — exactly it. Walls are still gathered across neighbouring storeys, because the coverage model needs the walls between a device and a scanner on another floor; they are now only *drawn* on the storey they belong to, the same rule scanner markers already followed. This dates from August and is unrelated to the door/window work.
+
+### The coverage heatmap is now continuous
+- **Rebuilt:** the storey heat was a 36×36 mosaic of hatch-filled cells in 16 colour steps, each cell a sparse dotted texture rotated to a different angle — which read as noise. It is now a continuous raster: the coverage model is sampled on a finer grid, smoothly interpolated to pixels, coloured on a continuous ramp, and placed as one image mapped exactly onto the slab and clipped to the rooms, so it no longer spills into the gaps between them. Walls read as real shadow steps and scanners as hot spots.
+- **Same meaning, better ramp:** red is still poor and green still good, but the ramp is now interpolated in a perceptual colour space with lightness rising steadily from worst to best, so the picture reads by brightness alone as well as by hue.
+- **A dBm legend** now sits in the overlay bar while Heat is on; its two ends follow the Gain and Contrast sliders.
+- A browser that cannot encode an image falls back to the previous hatch drawing.
+
+### Since 0.38.22 (the 0.38.23 and 0.38.24 pre-releases)
+- **Door and window sensors on the map.** A `binary_sensor` with device class `door` or `window` is linked to a section of wall in Mapping → Rooms → RF Barriers (pick the wall, click its two ends, choose the sensor). Mapping → Lights and the Overview then show that section open or closed live, with a small marker at each end of the opening; a steel section (material *metal*) also stops attenuating the coverage model while it is open. Unlinked walls and installs with no door sensors are unchanged.
+- Automorph aura fixes from the design critique; the motion legend shows every real colour sized to real durations; a "Hide device codes" toggle on Mapping → Lights.
+- `recorder` is now declared in the manifest's `after_dependencies` (the recorder health check imports it); Hassfest had been failing on the repository since that check shipped.
+
+---
+
 ## 0.38.22 — PadSpan Bright is ready for the HACS catalogue (2026-09-04)
 
 - **A Bright release now waits for its Tests, HACS and Hassfest checks to pass before it is created.** That is the order HACS requires for a default-catalogue submission; a failed check stops Bright before the tag or release is published.

@@ -323,7 +323,11 @@ export function getMapScanners(calPoints, mapId) {
 //     z,          // the storey's height in the frame; what iso(x, y, z) takes
 //     rooms:     [{ room, pts: [[x_m, y_m], ...] }],        // rooms on it
 //     scanners:  [{ source, x_m, y_m, dz_m, floorDist }],   // within 2 storeys
-//     barriers:  [{ points: [[x_m, y_m], ...], attenuation_dbm }],
+//     barriers:  [{ points: [[x_m, y_m], ...], attenuation_dbm, floorDist }],
+//                // also within 2 storeys, for a cross-floor scanner's ray —
+//                // _modelRssiAt skips a wall whose floorDist exceeds the
+//                // scanner's own, so a same-floor ray only ever crosses
+//                // this storey's walls, matching the 2D model.
 //     calPoints: [{ x_m, y_m, query: { source: rssi } }],   // taken on it
 //   }
 //
@@ -338,7 +342,12 @@ export function getMapScanners(calPoints, mapId) {
 // dz_m is scanner height minus the assumed device height on the drawn storey,
 // so a ceiling radio directly overhead models as a slant range, not zero.
 
-const ISO_GRID = 36;        // 36x36 cells per storey heatmap
+const ISO_RASTER_GRID = 56; // model samples across a storey's extent — the
+                             // ONLY resolution the model runs at now; the
+                             // range pass, the raster and the hatch-mosaic
+                             // fallback all read the same cached grid (see
+                             // _storeyModelGridCached) instead of each
+                             // sampling the model at its own resolution.
 const DISTORTION_GRID = 30; // ~30 cells across the storey's shorter side
 
 /** The storey's extent in metres: the box around its rooms. Null if none. */
@@ -389,6 +398,16 @@ function _modelRssiAt(x, y, scanners, barriers, refPower, pathLossN, quality) {
     let rssi = (refPower + (quality[sc.source] || 0)) - 10 * pathLossN * Math.log10(distM);
     if (sc.floorDist > 0) rssi -= sc.floorDist * FLOOR_ATTEN_DB;
     for (const bar of barriers) {
+      // barriers carries every wall within 2 storeys (overview.js's
+      // _storeyOf) because a scanner on another floor DOES need this
+      // storey's and the intervening storeys' walls. A same-floor scanner
+      // (floorDist 0) does not — its ray never leaves this storey, so a
+      // wall on a DIFFERENT floor whose plan-view projection happens to
+      // cross the ray must not attenuate it. Caught live: the 2D sibling
+      // (modelFloorHeatmapSVG) already filters to same-floor walls only via
+      // fabricWorldBarriers, so the two heatmaps disagreed on this exact
+      // case before this line existed.
+      if ((bar.floorDist ?? 0) > (sc.floorDist ?? 0)) continue;
       const bp = bar.points;
       for (let i = 0; i < bp.length - 1; i++) {
         if (_segmentsIntersect(x, y, sc.x_m, sc.y_m, bp[i][0], bp[i][1], bp[i + 1][0], bp[i + 1][1])) {
@@ -418,7 +437,7 @@ export function isoHatchDefs() {
  * the range it spans. Null when there is nothing to model (no rooms, or no
  * scanner within reach).
  */
-function _storeyModelGrid(storey, liveSnap, settings) {
+function _storeyModelGrid(storey, liveSnap, settings, res = ISO_RASTER_GRID) {
   const bb = _storeyExtent(storey);
   if (!bb) return null;
   const scanners = storey.scanners || [];
@@ -429,7 +448,6 @@ function _storeyModelGrid(storey, liveSnap, settings) {
   const quality = _scannerQuality(liveSnap);
   const roomPolys = (_sourceBlend > 0 && _adaptiveFingerprints) ? _storeyRoomPolys(storey) : [];
 
-  const res = ISO_GRID;
   const cellW = (bb.maxX - bb.minX) / res, cellH = (bb.maxY - bb.minY) / res;
   let minR = 0, maxR = -120;
   const grid = new Float32Array(res * res);
@@ -450,30 +468,234 @@ function _storeyModelGrid(storey, liveSnap, settings) {
   return { bb, res, cellW, cellH, grid, minR, maxR };
 }
 
+// Storey objects are recreated fresh every build (overview.js's _storeyOf
+// makes a new one per z per call), so a plain WeakMap self-clears — nothing
+// to invalidate, nothing that outlives the build it was made for. The range
+// pass, the raster paint and the hatch-mosaic fallback all want the SAME
+// modelled grid for the same storey; without this each ran the model
+// separately, up to three times per storey per build (one 36-cell pass for
+// the range, a 56-cell pass for the raster, then a THIRD 36-cell pass if the
+// raster's canvas encode failed) at model-plus-canvas cost that runs on
+// every full rebuild — gain/contrast slider moves included.
+const _storeyGridCache = new WeakMap();
+function _storeyModelGridCached(storey, liveSnap, settings) {
+  let g = _storeyGridCache.get(storey);
+  if (g === undefined) {
+    g = _storeyModelGrid(storey, liveSnap, settings);
+    _storeyGridCache.set(storey, g);
+  }
+  return g;
+}
+
 /**
  * The RSSI range a storey's model spans, so the caller can put every storey
  * on ONE colour scale — otherwise each floor is scaled to itself and a badly
  * covered floor looks as green as a good one. Null when nothing models.
  */
 export function isoStoreyRssiRange(storey, liveSnap, settings) {
-  const g = _storeyModelGrid(storey, liveSnap, settings);
+  const g = _storeyModelGridCached(storey, liveSnap, settings);
   return g ? { minR: g.minR, maxR: g.maxR } : null;
 }
 
+// ── Continuous coverage raster ──────────────────────────────────────────────
+// The storey heat used to be a 36×36 mosaic of iso-projected quads, each filled
+// with one of 16 sparse dotted-hatch patterns rotated to a different angle per
+// bucket: ~1300 mismatched, mostly-empty textures in 16 colour steps, which is
+// what "very poor resolution" looked like (Garry, 2026-09-09). Real coverage
+// tools draw a continuous interpolated raster clipped to the plan. So: model
+// the RSSI on a finer grid, upsample it bilinearly to pixels, colour each pixel
+// from a continuous ramp, encode to PNG once, and place it as ONE <image> whose
+// matrix() maps it onto the slab exactly (the iso projection is affine in x,y
+// for a fixed storey). The hatch mosaic stays as the fallback wherever a real
+// 2D canvas is unavailable (node's DOM shim), so every install still draws.
+
+const ISO_RASTER_UP   = 4;    // pixels per model sample after bilinear upsample
+const ISO_RASTER_ALPHA = 158; // 0.62 — the slab pattern and room fills stay legible
+
+// Red = worst, green = best, as everywhere else in PadSpan. Interpolated in
+// OKLab so there is no muddy band between stops, and with lightness rising
+// monotonically from worst to best so the magnitude reads by luminance alone
+// (colour-vision deficiency, print, a dim panel) — not only by hue.
+// Stops: deep red → red → amber → lime → mint. OKLab L ≈ .38 .53 .72 .82 .86.
+const HEAT_STOPS = [
+  [0.00, 0x6b, 0x0d, 0x12],
+  [0.25, 0xc8, 0x26, 0x2a],
+  [0.50, 0xef, 0x8f, 0x1f],
+  [0.72, 0xb9, 0xd3, 0x32],
+  [1.00, 0x3e, 0xf0, 0xa3],
+];
+const _s2l = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+const _l2s = c => { c = Math.max(0, Math.min(1, c)); return Math.round(255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055)); };
+/** sRGB 0–255 → OKLab. Exported for the ramp-monotonicity test. */
+export function srgbToOklab(r, g, b) {
+  const lr = _s2l(r), lg = _s2l(g), lb = _s2l(b);
+  const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
+  const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
+  const s = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
+  return [
+    0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+  ];
+}
+function _oklabToSrgb(L, a, b) {
+  const l = Math.pow(L + 0.3963377774 * a + 0.2158037573 * b, 3);
+  const m = Math.pow(L - 0.1055613458 * a - 0.0638541728 * b, 3);
+  const s = Math.pow(L - 0.0894841775 * a - 1.2914855480 * b, 3);
+  return [
+    _l2s(+4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+    _l2s(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+    _l2s(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s),
+  ];
+}
+// 256-entry LUT, built once: t in [0,1] → [r,g,b].
+const HEAT_LUT = (() => {
+  const lab = HEAT_STOPS.map(([t, r, g, b]) => [t, ...srgbToOklab(r, g, b)]);
+  const out = new Uint8ClampedArray(256 * 3);
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255;
+    let k = 0;
+    while (k < lab.length - 2 && t > lab[k + 1][0]) k++;
+    const [t0, L0, a0, b0] = lab[k], [t1, L1, a1, b1] = lab[k + 1];
+    const u = t1 > t0 ? Math.max(0, Math.min(1, (t - t0) / (t1 - t0))) : 0;
+    const [r, g, b] = _oklabToSrgb(L0 + (L1 - L0) * u, a0 + (a1 - a0) * u, b0 + (b1 - b0) * u);
+    out[i * 3] = r; out[i * 3 + 1] = g; out[i * 3 + 2] = b;
+  }
+  return out;
+})();
+/** Ramp colour for t in [0,1] (0 = worst, 1 = best). Clamped. */
+export function heatRamp(t) {
+  const i = Math.max(0, Math.min(255, Math.round((isFinite(t) ? t : 0) * 255)));
+  return [HEAT_LUT[i * 3], HEAT_LUT[i * 3 + 1], HEAT_LUT[i * 3 + 2]];
+}
+/** The ramp as a CSS gradient, for a legend bar beside the map. */
+export function heatRampCSS(n = 12) {
+  const stops = [];
+  for (let i = 0; i <= n; i++) {
+    const [r, g, b] = heatRamp(i / n);
+    stops.push(`rgb(${r},${g},${b}) ${((i / n) * 100).toFixed(0)}%`);
+  }
+  return `linear-gradient(90deg, ${stops.join(", ")})`;
+}
+/** The dBm the ramp's two ends currently stand for (after gain/contrast). */
+export function heatScale() {
+  return { worst: HATCH_WORST, best: HATCH_BEST };
+}
+
 /**
- * Modelled coverage heatmap for one storey: hatched cells over the storey's
- * extent, coloured by the strongest scanner's predicted RSSI, blended with
- * the room's observed offset when a source blend is set. `range` is the
- * shared colour scale ({minR, maxR}); the storey's own range when omitted.
+ * Bilinearly upsample a res×res RSSI grid to (res·up)×(res·up) RGBA pixels,
+ * coloured through the ramp on the [worst, worst+range] dBm scale. A NaN
+ * sample is transparent (nothing modelled); anything at or below `worst`
+ * is the deepest red, as the hatch mosaic already drew it.
+ */
+export function heatRaster(grid, res, up, worst, range, alpha = ISO_RASTER_ALPHA) {
+  const w = res * up, h = res * up;
+  const px = new Uint8ClampedArray(w * h * 4);
+  const inv = range > 0 ? 1 / range : 0;
+  for (let y = 0; y < h; y++) {
+    // Sample centres: pixel (y+0.5)/up lands on grid coordinate gy - 0.5.
+    const fy = Math.max(0, Math.min(res - 1, (y + 0.5) / up - 0.5));
+    const y0 = Math.floor(fy), y1 = Math.min(res - 1, y0 + 1), ty = fy - y0;
+    for (let x = 0; x < w; x++) {
+      const fx = Math.max(0, Math.min(res - 1, (x + 0.5) / up - 0.5));
+      const x0 = Math.floor(fx), x1 = Math.min(res - 1, x0 + 1), tx = fx - x0;
+      const v00 = grid[y0 * res + x0], v10 = grid[y0 * res + x1];
+      const v01 = grid[y1 * res + x0], v11 = grid[y1 * res + x1];
+      const v = (v00 * (1 - tx) + v10 * tx) * (1 - ty) + (v01 * (1 - tx) + v11 * tx) * ty;
+      const o = (y * w + x) * 4;
+      if (!isFinite(v)) { px[o + 3] = 0; continue; }
+      const t = (v - worst) * inv;
+      const c = heatRamp(t);
+      px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2]; px[o + 3] = alpha;
+    }
+  }
+  return { px, w, h };
+}
+
+/**
+ * The SVG matrix(a b c d e f) that maps a w×h image onto the storey's extent
+ * under `iso`: image pixel (0,0) lands on iso(bb.minX, bb.minY), (w,0) on
+ * iso(bb.maxX, bb.minY), (0,h) on iso(bb.minX, bb.maxY). Exact because the
+ * projection is affine in x,y for a fixed storey.
+ */
+export function isoImageMatrix(iso, bb, z, w, h) {
+  const p0 = iso(bb.minX, bb.minY, z), p1 = iso(bb.maxX, bb.minY, z), p3 = iso(bb.minX, bb.maxY, z);
+  return [
+    (p1[0] - p0[0]) / w, (p1[1] - p0[1]) / w,
+    (p3[0] - p0[0]) / h, (p3[1] - p0[1]) / h,
+    p0[0], p0[1],
+  ];
+}
+
+/**
+ * RGBA pixels → PNG data URL through a 2D canvas. Null wherever a real canvas
+ * is unavailable (node's DOM shim answers createImageData with undefined), so
+ * the caller falls back to the hatch mosaic instead of drawing a blank image.
+ */
+export function rasterPNG(px, w, h) {
+  try {
+    if (typeof document === "undefined" || !document.createElement) return null;
+    const cv = document.createElement("canvas");
+    cv.width = w; cv.height = h;
+    const c2 = cv.getContext && cv.getContext("2d");
+    if (!c2 || typeof c2.createImageData !== "function") return null;
+    const img = c2.createImageData(w, h);
+    if (!img || !img.data || img.data.length !== px.length) return null;
+    img.data.set(px);
+    c2.putImageData(img, 0, 0);
+    const url = cv.toDataURL("image/png");
+    return (typeof url === "string" && url.length > 40 && url.startsWith("data:image/png")) ? url : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+/**
+ * Modelled coverage heatmap for one storey: a continuous raster over the
+ * storey's extent, clipped to its rooms, coloured by the strongest scanner's
+ * predicted RSSI and blended with the room's observed offset when a source
+ * blend is set; the hatch mosaic where no canvas can encode a raster. `range`
+ * is the shared colour scale ({minR, maxR}); the storey's own range when
+ * omitted.
  */
 export function isoStoreyHeatmapSVG(storey, iso, liveSnap, settings, range) {
-  const g = _storeyModelGrid(storey, liveSnap, settings);
-  if (!g) return "";
-  const { bb, res, cellW, cellH, grid } = g;
-  setHatchRange(range ? range.minR : g.minR, range ? range.maxR : g.maxR, _userGain, _userContrast);
-
-  const f = v => v.toFixed(1);
   const z = storey.z;
+  const f = v => v.toFixed(1);
+
+  // ── Raster path ── same grid isoStoreyRssiRange already modelled for the
+  // shared range, and the one the fallback below reuses if the canvas fails.
+  const gr = _storeyModelGridCached(storey, liveSnap, settings);
+  if (!gr) return "";
+  setHatchRange(range ? range.minR : gr.minR, range ? range.maxR : gr.maxR, _userGain, _userContrast);
+  const ras = heatRaster(gr.grid, gr.res, ISO_RASTER_UP, HATCH_WORST, HATCH_RANGE);
+  const png = rasterPNG(ras.px, ras.w, ras.h);
+  if (png) {
+    const [a, b, c, d, e, ff] = isoImageMatrix(iso, gr.bb, z, ras.w, ras.h);
+    // The scale terms are small (screen px per raster px); one decimal would
+    // round them to zero and collapse the image.
+    const m = v => (+v).toFixed(5);
+    const clipId = `rmisoclip_${String(z).replace(/[^0-9A-Za-z_-]/g, "_")}`;
+    let s = `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse">`;
+    for (const r of (storey.rooms || [])) {
+      const pp = (r.pts || []).map(p => { const q = iso(p[0], p[1], z); return `${f(q[0])},${f(q[1])}`; }).join(" ");
+      if (pp) s += `<polygon points="${pp}"/>`;
+    }
+    s += `</clipPath>`;
+    // The clip lives on a wrapper <g>, not on the <image>: a userSpaceOnUse
+    // clip-path is evaluated in the clipped element's OWN coordinate system,
+    // so on the transformed image the screen-space room polygons would be
+    // pushed through the matrix too and clip to a wedge in the wrong place.
+    s += `<g clip-path="url(#${clipId})">`
+       + `<image href="${png}" x="0" y="0" width="${ras.w}" height="${ras.h}" preserveAspectRatio="none" `
+       + `transform="matrix(${m(a)} ${m(b)} ${m(c)} ${m(d)} ${m(e)} ${m(ff)})"/>`
+       + `</g>`;
+    return s;
+  }
+
+  // ── Fallback: the hatch mosaic — same grid as the raster attempt above,
+  // not a third model pass; setHatchRange already ran, so the fallback
+  // colours against the exact same scale the raster would have painted.
+  const { bb, res, cellW, cellH, grid } = gr;
   const _pfx = "rmiso";
   let s = "";
   // Slight overlap prevents hairline gaps between cells in iso projection.

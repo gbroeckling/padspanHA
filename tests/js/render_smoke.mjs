@@ -149,7 +149,16 @@ const MODEL = {
   // every light silently taking the "nothing to revert" branch.
   light_positions_m: { "light.kitchen": { x_m: 5, y_m: -3, floor_id: "main", shape: "circle", width_cm: 40, rotation: 30 } },
   beacon_positions_m: {},
-  rf_barriers_m: [{ name: "w1", floor_id: "main", points_m: [[0, 0], [4, 0]], attenuation_dbm: 6 }],
+  // Two storeys, so the Overview's Walls-on pass (overview.js's per-storey
+  // floorDist===0 draw filter) has something to prove: w1 draws only on
+  // main, w2 (linked, so it also exercises the open/closed endpoint dots)
+  // only on upper. Before that filter existed, both were painted on BOTH
+  // storeys — the floor-to-floor bleed Garry found live, 2026-09-09.
+  rf_barriers_m: [
+    { name: "w1", floor_id: "main", points_m: [[0, 0], [4, 0]], attenuation_dbm: 6 },
+    { name: "w2", floor_id: "upper", points_m: [[3, -20], [12, -20]], attenuation_dbm: 6,
+      linked_entity_id: "binary_sensor.bed_door" },
+  ],
   floor_elevations: { basement: 0, main: 3.0, upper: 5.3 },
   map_transforms: {
     ground: { scale_x_m: 20, scale_y_m: 14.2, reference_measurements: [{ m: 20 }] },
@@ -247,6 +256,7 @@ const FIXTURE = {
   // is asked, and both paths deserve to run.
   _overviewShowHeatmap: true,
   _overviewShowDistortion: true,
+  _overviewShowWalls: true,
   _2dFocusIdx: 0,
   _ctx: {},
 };
@@ -502,6 +512,16 @@ for (const file of files) {
           // warp grid must be present with heat and warp both on.
           if (!h.includes('fill="url(#rmiso')) throw new Error("heat overlay drew no cells on the fabric storey");
           if (!/<line [^>]*stroke-width="1.5" opacity="0.7"/.test(h)) throw new Error("warp overlay drew no grid on the fabric storey");
+          // Walls draw ONLY on their own storey. FIXTURE has one wall on
+          // "main" and one (linked) on "upper" across three drawn storeys
+          // (basement/main/upper) — 2 polylines and 2 endpoint dots is
+          // "each wall once, on its own floor"; 6 of either is every wall
+          // painted on every nearby storey, the floor-to-floor bleed Garry
+          // found live (2026-09-09) and this pins against its return.
+          const wallLines = (h.match(/stroke-dasharray="5 8"/g) || []).length;
+          if (wallLines !== 2) throw new Error(`walls drew ${wallLines} polylines, expected 2 (one per storey's own wall) — floor-to-floor bleed`);
+          const doorDots = (h.match(/fill="#9333ea"/g) || []).length;
+          if (doorDots !== 2) throw new Error(`walls drew ${doorDots} linked-door endpoint dots, expected 2 — floor-to-floor bleed`);
         }
       }
       ran.push(`${file}:${name}` + (variant ? `[${variant.name}]` : ""));
