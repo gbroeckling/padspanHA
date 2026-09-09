@@ -1714,7 +1714,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
 
   const frame = fabricFrame(model, floors, floorGap, horizGap);
-  const { iso, rooms, lights, levels, rankOf } = frame;
+  const { iso, rooms, lights: rawLights, levels, rankOf } = frame;
+  // A door/window's real position is a SECTION OF WALL, not a point (see
+  // docs/IDEA_DOOR_WINDOW_BARRIERS.md) — so even a legacy light_positions_m
+  // entry for one is never drawn as a freestanding marker here. The barrier
+  // pass below, keyed off rf_barriers_m's own linked_entity_id, is the only
+  // thing that ever marks where a door/window actually is on this map.
+  const lights = rawLights.filter(l => !(lightsByEid[l.eid] && lightsByEid[l.eid].isDoor));
   // Markers are sized from the fabric's own scale, not a fixed pixel count.
   const HEX_R = markerRadiusPx(frame.scale);
   // The label must FIT INSIDE its marker. A monospace glyph is about 0.6 em
@@ -3485,8 +3491,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           return;
         }
         // Hexagon cluster for this room's unplaced lights — a light with a
-        // real position was already drawn at it.
-        const roomLights=(byRoom[r.room]||[]).filter(l=>!hiddenEids.has(l.entity_id) && !placed[l.entity_id]);
+        // real position was already drawn at it. A door/window never joins
+        // this pile: dragging one out of a room-centre cluster to "place" it
+        // is exactly the meaningless interaction this class was pulled out
+        // of (see the `lights` filter above and the barrier pass below).
+        const roomLights=(byRoom[r.room]||[]).filter(l=>!hiddenEids.has(l.entity_id) && !placed[l.entity_id] && !l.isDoor);
         if(!roomLights.length) return;
         // A perimeter light traces its ROOM, which is already known here —
         // no placement needed to see it. Unplaced means no entry, so this
@@ -3533,6 +3542,39 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           jobs.push([l, ccx+dx, ccy+dy, null, `data-z="${z}"`, roomClip.get(r), fx, false]);
         });
       });
+    }
+    // ── Door/window barriers: the one wall this map ever draws, and only a
+    // LINKED opening — an ordinary rf_barriers_m wall stays Rooms-tab-only;
+    // this is narrowly the open/closed indicator the whole feature is for
+    // (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 5; Garry, 2026-09-08: "I want
+    // the lighting map to clearly show when a door or window is left open").
+    {
+      const barDim = CLASSF && CLASSF!=="door" ? 0.22 : 1;
+      for(const bar of ((model && model.rf_barriers_m) || [])){
+        if(!bar.linked_entity_id || hiddenEids.has(bar.linked_entity_id)) continue;
+        if(frame.levelOf(String(bar.floor_id || "main"))!==z) continue;
+        const bpts=(bar.points_m||[]).map(p=>[Number(p[0]), Number(p[1])]);
+        if(bpts.length<2 || bpts.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1]))) continue;
+        const dl=lightsByEid[bar.linked_entity_id];
+        const isOpen=!!(dl && dl.state==="on");
+        const ppx=bpts.map(p=>pt(iso(p[0],p[1],z))).join(" ");
+        s+=isOpen
+          ? `<polyline points="${ppx}" fill="none" stroke="${DOOR_BORDER}" stroke-width="2" `+
+            `stroke-dasharray="3,5" stroke-linecap="round" opacity="${(0.55*barDim).toFixed(2)}" pointer-events="none"/>`
+          : `<polyline points="${ppx}" fill="none" stroke="#94a3b8" stroke-width="2.6" `+
+            `stroke-linecap="round" opacity="${(0.85*barDim).toFixed(2)}" pointer-events="none"/>`;
+        // The two points where this opening meets the rest of the wall it
+        // was split from — Garry, 2026-09-08: "a small purple dot showing on
+        // the two sides where the opening starts and ends", in BOTH states
+        // (it marks WHERE the door is, not whether it's open). #9333ea is
+        // deliberately not maps.js's _MAT_COLORS.custom purple (#a855f7) —
+        // checked, not assumed, per the design doc's own warning.
+        for(const p of [bpts[0], bpts[bpts.length-1]]){
+          const [dx,dy]=iso(p[0],p[1],z);
+          s+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="2.6" fill="#9333ea" `+
+            `stroke="#1b0f24" stroke-width="0.8" opacity="${barDim.toFixed(2)}" pointer-events="none"/>`;
+        }
+      }
     }
     // ── Automorph auras: the whole floor's, in two tiers, under the labels.
     // Computed HERE — after every room's fill/border above is already in s,

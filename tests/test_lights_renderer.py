@@ -220,6 +220,106 @@ def test_empty_fabric_points_at_the_fabric_not_at_uploading_a_photo(tmp_path):
     assert "uploaded" not in out["svg"], "no photo is involved in this view"
 
 
+# ── Door/window barriers: no point marker, a wall-opening pass instead ──────
+# (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 5; Garry, 2026-09-08: "The
+# placement in mapping and lights is not making any sense... Please review
+# and make usable based on opening up an area of a space with a purple dot
+# on each side of the opening.") A door/window's real position is a SECTION
+# OF WALL, never a point — these tests pin that it never gets a freestanding
+# marker (placed or clustered), and that a linked barrier draws the actual
+# open/closed indicator and endpoint dots instead.
+
+def test_a_placed_door_never_draws_a_point_marker(tmp_path):
+    """Even a legacy light_positions_m entry for a door must never surface as
+    a hex — the barrier pass, not a dragged point, is its only marker."""
+    model = {**_MODEL, "light_positions_m": {**_MODEL["light_positions_m"],
+             "binary_sensor.frontdoor": {"x_m": 1.0, "y_m": 1.0, "floor_id": "main"}}}
+    lbe = {**_LIGHTS_BY_EID, "binary_sensor.frontdoor": {
+        "entity_id": "binary_sensor.frontdoor", "state": "off", "code": "D01",
+        "shape": "door", "isDoor": True}}
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
+        f"const LBE={json.dumps(lbe)};\nconst out={{}};\n"
+        "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS);"
+        "out.svg=svg; out.placed=(svg.match(/data-placed=\"1\"/g)||[]).length;"
+        "out.hasDoorGroup=svg.includes('data-eid=\"binary_sensor.frontdoor\"');"
+        "console.log(JSON.stringify(out));"
+    ))
+    assert out["placed"] == 2, "the two ordinary lights still draw — only the door is withheld"
+    assert out["hasDoorGroup"] is False, "a placed door/window must never get its own marker group"
+
+
+def test_an_unplaced_door_never_joins_the_room_cluster(tmp_path):
+    """No light_positions_m entry at all — the path an unplaced light takes
+    to the room-centre hex pile. A door must never ride that pile either."""
+    lbe = {**_LIGHTS_BY_EID, "binary_sensor.frontdoor": {
+        "entity_id": "binary_sensor.frontdoor", "state": "off", "code": "D01",
+        "shape": "door", "isDoor": True, "area_name": "Kitchen"}}
+    by_room = {"Kitchen": [lbe["binary_sensor.frontdoor"]]}
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_MODEL)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
+        f"const LBE={json.dumps(lbe)};\nconst BYROOM={json.dumps(by_room)};\nconst out={{}};\n"
+        "const svg=M.buildIsoSVG(MODEL,BYROOM,new Set(),null,150,0,LBE,false,FLOORS);"
+        "out.hasDoorGroup=svg.includes('data-eid=\"binary_sensor.frontdoor\"');"
+        "out.unplacedNote=svg.includes('1 unplaced');"
+        "console.log(JSON.stringify(out));"
+    ))
+    assert out["hasDoorGroup"] is False, "an unplaced door must not appear in the room's hex pile"
+    assert out["unplacedNote"] is False, "a door alone in a room must not count toward '<n> unplaced'"
+
+
+def _barrier_harness(model: dict, lbe: dict) -> str:
+    return (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
+        f"const LBE={json.dumps(lbe)};\nconst out={{}};\n"
+        "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS);"
+        "out.svg=svg;\nconsole.log(JSON.stringify(out));\n"
+    )
+
+
+_BARRIER_MODEL = {**_MODEL, "rf_barriers_m": [
+    {"id": "b1", "floor_id": "main", "material": "wood", "attenuation_dbm": 4,
+     "points_m": [[1, 1], [3, 1]], "linked_entity_id": "binary_sensor.frontdoor"},
+]}
+_BARRIER_LBE = {**_LIGHTS_BY_EID, "binary_sensor.frontdoor": {
+    "entity_id": "binary_sensor.frontdoor", "state": "off", "code": "D01",
+    "shape": "door", "isDoor": True}}
+
+
+def test_a_linked_closed_barrier_draws_a_solid_line_and_two_purple_dots(tmp_path):
+    out = _run_js(tmp_path, _barrier_harness(_BARRIER_MODEL, _BARRIER_LBE))
+    svg = out["svg"]
+    assert svg.count('fill="#9333ea"') == 2, "exactly one purple dot per endpoint of the barrier"
+    assert "#fb7185" not in svg, "closed must not draw the open accent colour"
+    assert 'stroke="#94a3b8"' in svg, "closed reads as the neutral wall line"
+
+
+def test_a_linked_open_barrier_fades_the_line_but_keeps_both_dots(tmp_path):
+    lbe = {**_BARRIER_LBE, "binary_sensor.frontdoor": {**_BARRIER_LBE["binary_sensor.frontdoor"], "state": "on"}}
+    out = _run_js(tmp_path, _barrier_harness(_BARRIER_MODEL, lbe))
+    svg = out["svg"]
+    assert svg.count('fill="#9333ea"') == 2, "the endpoint dots mark WHERE the opening is in both states"
+    assert "#fb7185" in svg, "open must draw the distinct accent colour, not just fade to nothing"
+    assert 'stroke="#94a3b8"' not in svg, "open must not also draw the closed neutral line"
+
+
+def test_an_unlinked_barrier_draws_nothing_on_this_map(tmp_path):
+    """A door with NO rf_barriers_m match at all — the unlinked path from the
+    Lights table (host.doorLinkedIds excludes it) — must render exactly as
+    an install with no door sensors configured at all (explicit non-goal in
+    docs/IDEA_DOOR_WINDOW_BARRIERS.md: "must never change how an install
+    with no door sensors configured looks or behaves")."""
+    model = {**_MODEL, "rf_barriers_m": [
+        {"id": "b1", "floor_id": "main", "material": "wood", "attenuation_dbm": 4,
+         "points_m": [[1, 1], [3, 1]], "linked_entity_id": None},
+    ]}
+    out = _run_js(tmp_path, _barrier_harness(model, _LIGHTS_BY_EID))
+    assert "#9333ea" not in out["svg"], "an unlinked (ordinary) wall draws nothing here — Rooms-tab-only"
+
+
 # ── Marker scale ────────────────────────────────────────────────────────────
 # A marker is an object in a room, so it is measured in metres. It used to be a
 # flat 14 px, which was fine when the world was a normalised photo but became

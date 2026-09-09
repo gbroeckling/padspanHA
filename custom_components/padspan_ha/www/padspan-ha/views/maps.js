@@ -12,7 +12,8 @@ const { BUY_URL: _LIC_BUY_URL, PRO_PRICE: _LIC_PRICE, LICENCE_PATH: _LIC_PATH } 
 const { attachPanZoom } =
   await import(`./pan_zoom.js${new URL(import.meta.url).search}`);
 const { makeStackXform, mapXform, imageAr, fabricWorldRooms, mapFracToMetres,
-        metresToMapFrac, placementFromColumns, placementStageAffine, worldGauge } =
+        metresToMapFrac, placementFromColumns, placementStageAffine, worldGauge,
+        nearestPointOnPolyline, splitPolylineAtTwoPositions } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 // THE fabric frame — the Lights tab inverts drags through the exact function
 // the renderer draws with, so the two cannot disagree.
@@ -1498,7 +1499,8 @@ function _edit(ctx, map, allMaps){
       const pts = (b.points_m || []).map(p => metresToMapFrac(tf, Number(p[0]), Number(p[1]))).filter(Boolean);
       if (pts.length < 2) continue;
       out.push({ id: b.id, name: b.name || "", material: b.material || "custom",
-                 attenuation_dbm: b.attenuation_dbm ?? 6, points: pts });
+                 attenuation_dbm: b.attenuation_dbm ?? 6, points: pts,
+                 linked_entity_id: b.linked_entity_id || null });
     }
     return out;
   };
@@ -1519,6 +1521,71 @@ function _edit(ctx, map, allMaps){
       await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_remove", barrier_id: id });
       await ctx.actions.modelRefresh();
     } catch (e) { ctx.toast("Could not remove wall: " + (e.message || e), true); }
+  };
+
+  // ── Door/window barrier project, step 3: mark a door/window on a wall ──────
+  // Authoring a door means carving a short section out of an EXISTING wall's
+  // own polyline (docs/IDEA_DOOR_WINDOW_BARRIERS.md) — the two clicks this
+  // collects (see the stage click handler below) snap onto that wall via
+  // nearestPointOnPolyline and get cut with splitPolylineAtTwoPositions
+  // (stack_transform.js); this function turns the resulting pieces into real
+  // barrier entries. Whichever real remaining piece exists first (before,
+  // then after) keeps the ORIGINAL barrier's own id — anything already
+  // pointing at this wall (a room boundary edge, say) should keep resolving
+  // to something real rather than have its id vanish out from under it. The
+  // door itself only inherits that id when nothing survives (the section
+  // spans the whole original wall) — otherwise it is a genuinely new barrier.
+  const _commitDoorMark = async (barId, entityId, material) => {
+    const pts2 = ctx.state.maps._doorMarkPts;
+    if (!pts2 || pts2.length !== 2) return;
+    const bar = _fabricWallsHere().find(b => b.id === barId);
+    if (!bar) { ctx.toast("That wall no longer exists.", true); return; }
+    const split = splitPolylineAtTwoPositions(bar.points, pts2[0], pts2[1]);
+    if (!split.middle) { ctx.toast("Pick two different points on the wall.", true); return; }
+    const tf = _wallTx();
+    if (!tf) return;
+    const toMetres = (fracPts) => fracPts.map(p => mapFracToMetres(tf, clamp01(p[0]), clamp01(p[1])))
+      .map(q => [Math.round(q[0] * 1000) / 1000, Math.round(q[1] * 1000) / 1000]);
+    const fid = _wallFloor();
+    const atten = _MAT_ATTEN[material] ?? bar.attenuation_dbm ?? 6;
+    const setBarrier = (barrier) => ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set", barrier });
+    try {
+      let doorId = null;
+      if (split.before) {
+        await setBarrier({ id: barId, name: bar.name, material: bar.material,
+          attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: toMetres(split.before) });
+        const r = await setBarrier({ name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
+          floor_id: fid, points_m: toMetres(split.middle), linked_entity_id: entityId });
+        doorId = r && r.barrier ? r.barrier.id : null;
+        if (split.after) {
+          await setBarrier({ name: `${bar.name || "Wall"} (2)`, material: bar.material,
+            attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: toMetres(split.after) });
+        }
+      } else if (split.after) {
+        await setBarrier({ id: barId, name: bar.name, material: bar.material,
+          attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: toMetres(split.after) });
+        const r = await setBarrier({ name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
+          floor_id: fid, points_m: toMetres(split.middle), linked_entity_id: entityId });
+        doorId = r && r.barrier ? r.barrier.id : null;
+      } else {
+        await setBarrier({ id: barId, name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
+          floor_id: fid, points_m: toMetres(split.middle), linked_entity_id: entityId });
+        doorId = barId;
+      }
+      await ctx.actions.modelRefresh();
+      ctx.state.maps._doorMarkBarrierId = null;
+      ctx.state.maps._doorMarkPts = null;
+      if (doorId) ctx.state.maps._selectedBarrierId = doorId;
+      ctx.toast(`Door/window marked on "${bar.name || "wall"}".`);
+    } catch (e) {
+      ctx.toast("Could not mark the door: " + (e.message || e), true);
+    }
+    renderAll(); renderTools();
+  };
+  const _cancelDoorMark = () => {
+    ctx.state.maps._doorMarkBarrierId = null;
+    ctx.state.maps._doorMarkPts = null;
+    renderAll(); renderTools();
   };
 
   // --- Right panel (tools) ---
@@ -1680,6 +1747,22 @@ function _edit(ctx, map, allMaps){
         blab.setAttribute("fill", bc);
         blab.textContent = bar.material === "open" ? "Open (Loft)" : (bar.material||"metal") + " (" + (bar.attenuation_dbm||12) + "dB)";
         svg.appendChild(blab);
+      }
+    }
+
+    // Door/window marking: the two points picked so far, snapped onto the
+    // wall being marked. Purple, same colour the Lights map's own barrier
+    // endpoint dots will use once a door is live (docs/
+    // IDEA_DOOR_WINDOW_BARRIERS.md's step 5) — one visual language for
+    // "here is where a door is" end to end.
+    if(ctx.state.maps._doorMarkBarrierId && ctx.state.maps._doorMarkPts){
+      for(const p of ctx.state.maps._doorMarkPts){
+        const dot = document.createElementNS("http://www.w3.org/2000/svg","circle");
+        dot.setAttribute("cx", clamp01(p.x)); dot.setAttribute("cy", clamp01(p.y));
+        dot.setAttribute("r", "0.008"); dot.setAttribute("fill", "#a855f7");
+        dot.setAttribute("stroke", "white"); dot.setAttribute("stroke-width", "0.0015");
+        dot.style.pointerEvents = "none";
+        svg.appendChild(dot);
       }
     }
 
@@ -1992,6 +2075,92 @@ function _edit(ctx, map, allMaps){
             ? "Click on the map to start drawing a wall. It is stored in metres in the fabric the moment you finish."
             : "Measure this map first (Measure tool): walls are stored in metres, and this map has no scale yet.")));
 
+      // Door/window marking (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 3):
+      // active only while ctx.state.maps._doorMarkBarrierId is set (a
+      // per-barrier "Add door/window" button below arms it). Two clicks on
+      // the wall pick the section; once both are down, this becomes the
+      // confirmation panel — pick the linked sensor and the door's own
+      // material, then commit the split.
+      if(ctx.state.maps._doorMarkBarrierId){
+        const dmBar = _fabricWallsHere().find(b => b.id === ctx.state.maps._doorMarkBarrierId);
+        const dmPts = ctx.state.maps._doorMarkPts || [];
+        const panel = el("div",{style:"margin-top:12px;padding:10px;border:1px solid #7c3aed;border-radius:8px;background:#1a1030"});
+        panel.appendChild(el("div",{style:"font-size:12px;font-weight:600;color:#c4b5fd"},
+          `Marking a door/window on "${(dmBar && dmBar.name) || "wall"}"`));
+        if(!dmBar){
+          panel.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-top:6px"}, "That wall no longer exists."));
+          panel.appendChild(el("button",{class:"btn inline",style:"margin-top:8px",onclick:_cancelDoorMark},"Close"));
+        } else if(dmPts.length < 2){
+          panel.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-top:6px"},
+            `Click ${dmPts.length===0?"two points":"one more point"} on this wall — the opening's own start and end. ${dmPts.length}/2 picked.`));
+          panel.appendChild(el("button",{class:"btn inline",style:"margin-top:8px",onclick:_cancelDoorMark},"Cancel"));
+        } else {
+          // Entity picker: every binary_sensor.* whose device_class is door
+          // or window — the exact admission gate step 1 gave these entities
+          // in Mapping → Lights, reused here so the two surfaces can never
+          // disagree about which entities qualify.
+          const states = (ctx.hass && ctx.hass.states) || {};
+          const candidates = Object.keys(states)
+            .filter(eid => eid.startsWith("binary_sensor.")
+              && ["door","window"].includes(states[eid].attributes?.device_class))
+            .sort((a,b) => (states[a].attributes?.friendly_name||a).localeCompare(states[b].attributes?.friendly_name||b));
+          const entSel = document.createElement("select");
+          entSel.className = "select";
+          if(!candidates.length){
+            const o = document.createElement("option"); o.value=""; o.textContent="No door/window sensors found";
+            entSel.appendChild(o); entSel.disabled = true;
+          } else {
+            const placeholder = document.createElement("option");
+            placeholder.value=""; placeholder.textContent="Choose a door/window sensor…";
+            entSel.appendChild(placeholder);
+            for(const eid of candidates){
+              const o = document.createElement("option");
+              o.value = eid; o.textContent = states[eid].attributes?.friendly_name || eid;
+              entSel.appendChild(o);
+            }
+          }
+          entSel.value = ctx.state.maps._doorMarkEntity || "";
+          entSel.addEventListener("change", ()=>{ ctx.state.maps._doorMarkEntity = entSel.value; renderTools(); });
+          panel.appendChild(el("div",{style:"margin-top:8px"},[
+            el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"}, "Linked sensor"),
+            entSel,
+          ]));
+
+          const dmMatSel = document.createElement("select");
+          dmMatSel.className = "select";
+          for(const [mat, atten] of [["metal",12],["concrete",8],["brick",4],["custom",6],["open",0]]){
+            const o = document.createElement("option");
+            o.value = mat; o.textContent = `${mat.charAt(0).toUpperCase()+mat.slice(1)} (${atten} dB)`;
+            dmMatSel.appendChild(o);
+          }
+          // Defaults to the PARENT wall's own material — a door cut into a
+          // metal wall is presumably steel too, matching the physical
+          // reality Garry described ("a steel door... registers... as a
+          // radio blocking wall"); still freely overridable per door.
+          dmMatSel.value = ctx.state.maps._doorMarkMaterial || (dmBar && dmBar.material) || "metal";
+          dmMatSel.addEventListener("change", ()=>{ ctx.state.maps._doorMarkMaterial = dmMatSel.value; });
+          panel.appendChild(el("div",{style:"margin-top:8px"},[
+            el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"}, "Door/window material"),
+            dmMatSel,
+          ]));
+
+          const createBtn = el("button",{class:"btn inline primary", style:"margin-top:10px",
+            onclick: async ()=>{
+              const entityId = ctx.state.maps._doorMarkEntity;
+              if(!entityId){ ctx.toast("Choose a door/window sensor first.", true); return; }
+              await _commitDoorMark(dmBar.id, entityId, dmMatSel.value);
+              ctx.state.maps._doorMarkEntity = null;
+              ctx.state.maps._doorMarkMaterial = null;
+            }}, "Create door/window");
+          const redoBtn = el("button",{class:"btn inline", style:"margin-top:10px;margin-left:8px",
+            onclick: ()=>{ ctx.state.maps._doorMarkPts = []; renderAll(); renderTools(); }}, "Pick again");
+          const cancelBtn = el("button",{class:"btn inline", style:"margin-top:10px;margin-left:8px",
+            onclick:_cancelDoorMark}, "Cancel");
+          panel.appendChild(el("div",{},[createBtn, redoBtn, cancelBtn]));
+        }
+        right.appendChild(panel);
+      }
+
       // The fabric's walls on this floor
       const bList = _fabricWallsHere();
       if(bList.length){
@@ -2013,10 +2182,32 @@ function _edit(ctx, map, allMaps){
           const row = el("div",{style:`display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid ${isSel?"#52b788":"#1b3526"};border-radius:6px;background:${isSel?"#0f1f16":"#0a150e"};margin-bottom:4px;cursor:pointer`});
           row.addEventListener("click", ()=>{ ctx.state.maps._selectedBarrierId = bar.id; renderAll(); renderTools(); });
           row.appendChild(el("span",{style:`width:10px;height:3px;background:${bc};flex-shrink:0;border-radius:1px`}));
+          // A door/window's own linked sensor, shown by its friendly name
+          // when HA has it, else the raw entity_id rather than nothing —
+          // "Verify before asserting": never silently swallow a linked
+          // entity that just hasn't loaded yet.
+          const linkedName = bar.linked_entity_id
+            ? ((ctx.hass && ctx.hass.states[bar.linked_entity_id]?.attributes?.friendly_name) || bar.linked_entity_id)
+            : null;
           row.appendChild(el("div",{style:"flex:1"},[
             el("div",{style:"font-size:12px;font-weight:600"}, bar.name || `Barrier ${bi+1}`),
             el("div",{class:"muted",style:"font-size:10px"}, bar.material === "open" ? `Open (Loft) · ${(bar.points||[]).length} pts` : `${bar.material} · ${bar.attenuation_dbm}dB · ${(bar.points||[]).length} pts`),
+            linkedName ? el("div",{style:"font-size:10px;color:#c4b5fd;margin-top:2px"}, `🚪 ${linkedName}`) : null,
           ]));
+          if(!bar.linked_entity_id){
+            const doorBtn = el("button",{class:"btn tiny"},"Door");
+            doorBtn.title = "Mark a door/window on this wall";
+            doorBtn.addEventListener("click", (ev)=>{
+              ev.stopPropagation();
+              ctx.state.maps._selectedBarrierId = bar.id;
+              ctx.state.maps._doorMarkBarrierId = bar.id;
+              ctx.state.maps._doorMarkPts = [];
+              ctx.state.maps._doorMarkEntity = null;
+              ctx.state.maps._doorMarkMaterial = null;
+              renderAll(); renderTools();
+            });
+            row.appendChild(doorBtn);
+          }
           row.appendChild(delBtn);
           layersDiv.appendChild(row);
         }
@@ -2437,6 +2628,22 @@ function _edit(ctx, map, allMaps){
   });
 
   stage.addEventListener("click", (ev)=>{
+    // Door/window marking: two clicks, each snapped onto the wall being
+    // marked (never onto raw cursor position — a door's endpoints must lie
+    // exactly on the line it is carved from).
+    if(ctx.state.maps._doorMarkBarrierId){
+      const bar = _fabricWallsHere().find(b => b.id === ctx.state.maps._doorMarkBarrierId);
+      if(!bar){ ctx.state.maps._doorMarkBarrierId = null; ctx.state.maps._doorMarkPts = null; return; }
+      const rect = overlay.getBoundingClientRect();
+      const x = clamp01((ev.clientX - rect.left) / rect.width);
+      const y = clamp01((ev.clientY - rect.top) / rect.height);
+      const snapped = nearestPointOnPolyline(bar.points, x, y);
+      if(!snapped) return;
+      if(!ctx.state.maps._doorMarkPts) ctx.state.maps._doorMarkPts = [];
+      if(ctx.state.maps._doorMarkPts.length < 2) ctx.state.maps._doorMarkPts.push(snapped);
+      renderAll(); renderTools();
+      return;
+    }
     // Measure mode: collect 2 points (minimal DOM update, no full re-render)
     if(ctx.state.maps._mode==="measure"){
       const rect = overlay.getBoundingClientRect();
@@ -7629,11 +7836,19 @@ function _lightsTab(ctx, maps, active) {
       ctx.actions.renderRooms();
     },
   }, mapState._lightsTransform ? "⬒ Transform: ON" : "⬒ Transform");
+  // A door/window is never dragged to a point (docs/IDEA_DOOR_WINDOW_BARRIERS.md
+  // — it's a section of wall, linked in Rooms), so it takes no part in any of
+  // the point-placement bookkeeping below: not the placed/unplaced checklist,
+  // not the bulk queue, not Spread or Accept-room-centres. Counting them here
+  // was exactly what made "75 placed · 80 unplaced" mean nothing (Garry,
+  // 2026-09-08) — 80 included every door/window sensor in the house, each one
+  // permanently "unplaced" because point-placement was never its own concept.
+  const placeableLights = lights.filter(l => !l.isDoor);
   // The builder's checklist: how much of the house is actually placed.
-  const nPlaced = lights.filter(l => placements[l.entity_id]).length;
-  const nApprox = lights.filter(l => placements[l.entity_id] && placements[l.entity_id].source === "auto").length;
+  const nPlaced = placeableLights.filter(l => placements[l.entity_id]).length;
+  const nApprox = placeableLights.filter(l => placements[l.entity_id] && placements[l.entity_id].source === "auto").length;
   const nNoRoom = lights.filter(l => !l.area_name).length;
-  const nUnplaced = lights.length - nPlaced;
+  const nUnplaced = placeableLights.length - nPlaced;
   const selSet = mapState._selSet || (mapState._selSet = new Set());
   const queue = mapState._placeQueue || (mapState._placeQueue = []);
   const undoSt = _undoStack(mapState);
@@ -7679,11 +7894,11 @@ function _lightsTab(ctx, maps, active) {
   // index rows (or all of them), then tap the map once per light. Or spread
   // a room's unplaced lights evenly inside its polygon in one go.
   if (paid && !preview && nUnplaced) {
-    const roomsWithUnplaced = [...new Set(lights.filter(l => l.area_name && !placements[l.entity_id]).map(l => l.area_name))].sort();
+    const roomsWithUnplaced = [...new Set(placeableLights.filter(l => l.area_name && !placements[l.entity_id]).map(l => l.area_name))].sort();
     const roomSel = document.createElement("select");
     roomSel.className = "lv-select";
     for (const r of roomsWithUnplaced) {
-      const n = lights.filter(l => l.area_name === r && !placements[l.entity_id]).length;
+      const n = placeableLights.filter(l => l.area_name === r && !placements[l.entity_id]).length;
       roomSel.appendChild(el("option", { value: r }, `${r} · ${n}`));
     }
     if (mapState._spreadRoom && roomsWithUnplaced.includes(mapState._spreadRoom)) roomSel.value = mapState._spreadRoom;
@@ -7693,7 +7908,7 @@ function _lightsTab(ctx, maps, active) {
     const spread = (room) => {
       const geo = (ctx.state.model?.room_geometry_m || {})[room];
       if (!geo || geo.type !== "poly" || !Array.isArray(geo.points_m)) { ctx.toast("That room has no polygon to spread in", true); return; }
-      const eids = lights.filter(l => l.area_name === room && !placements[l.entity_id]).map(l => l.entity_id);
+      const eids = placeableLights.filter(l => l.area_name === room && !placements[l.entity_id]).map(l => l.entity_id);
       if (!eids.length) return;
       const pts = spreadInRoom(geo.points_m, eids.length, 0.5);
       const fid = String(geo.floor_id || _floorIdForZ(ctx, frame0.levels[0] || 0, frame0));
@@ -7711,7 +7926,7 @@ function _lightsTab(ctx, maps, active) {
         title: queue.length ? "Tap the map once per queued light, in index order. Esc clears." : "Queue every unplaced light, then tap the map once per light",
         onclick: () => {
           if (queue.length) { mapState._placeQueue = []; }
-          else mapState._placeQueue = lights.filter(l => !placements[l.entity_id]).map(l => l.entity_id);
+          else mapState._placeQueue = placeableLights.filter(l => !placements[l.entity_id]).map(l => l.entity_id);
           ctx.actions.renderRooms();
         },
       }, queue.length ? `◎ ${queue.length} queued — tap the map · clear` : "◎ Queue all unplaced"),
@@ -7724,7 +7939,7 @@ function _lightsTab(ctx, maps, active) {
       el("span", { class: "lv-sep" }, ""),
       el("button", { class: "lv-act", title: "Give every unplaced light with a room its room's centre as an APPROXIMATE position (drawn with a dashed halo until moved)",
         onclick: () => {
-          const eids = lights.filter(l => l.area_name && !placements[l.entity_id]).map(l => l.entity_id);
+          const eids = placeableLights.filter(l => l.area_name && !placements[l.entity_id]).map(l => l.entity_id);
           if (!eids.length) return;
           _pushUndo(mapState, eids);
           let n = 0;
@@ -7876,6 +8091,20 @@ function _lightsTab(ctx, maps, active) {
       const i = queue.indexOf(eid);
       if (i >= 0) queue.splice(i, 1); else queue.push(eid);
       ctx.actions.renderRooms();
+    } : null,
+    // A door/window's "placed" is a link, not a point — the table's own Map
+    // column reads this instead of onPlaceRow/placements for l.isDoor rows.
+    doorLinkedIds: new Set((ctx.state.model?.rf_barriers_m || [])
+      .filter(b => b.linked_entity_id).map(b => b.linked_entity_id)),
+    // Jump to the one place a door/window actually gets configured (Rooms →
+    // RF Barriers) — builder only, same gate as onPlaceRow, matching the
+    // "editing stays Rooms-tab-only" decision in
+    // docs/IDEA_DOOR_WINDOW_BARRIERS.md.
+    onConfigureDoor: paid && !preview ? () => {
+      mapState._mode = "barriers";
+      mapState._selectedRxId = null;
+      mapState._drawing = null;
+      ctx.actions.setMapsTab("rooms");
     } : null,
     // Map → index: the row of the light just selected on the map scrolls
     // into view, once.

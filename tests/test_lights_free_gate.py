@@ -1289,3 +1289,53 @@ console.log(JSON.stringify({
     assert motion["code"] == "M01" and motion["isMotion"] and not motion["isDoor"], (
         "a motion sensor must stay motion-classed now that binary_sensor. admits two device_class families", motion
     )
+
+
+def test_a_door_row_shows_link_status_not_a_place_button(tmp_path):
+    """Garry, 2026-09-08: "The placement in mapping and lights is not making
+    any sense... make usable based on opening up an area of a space with a
+    purple dot on each side of the opening." A door/window has no point to
+    place — the Map column reads doorLinkedIds/onConfigureDoor instead of
+    placements/onPlaceRow, and the code column's "arm for placement" click
+    is switched off, for a door row specifically."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const AREA = {"binary_sensor.front_door": "Entry", "binary_sensor.back_door": "Entry", "light.lamp": "Kitchen"};
+const STATES = {
+  "binary_sensor.front_door": {state: "off", attributes: {friendly_name: "Front Door", device_class: "door"}},
+  "binary_sensor.back_door":  {state: "off", attributes: {friendly_name: "Back Door", device_class: "door"}},
+  "light.lamp": {state: "on", attributes: {friendly_name: "Lamp"}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {}, {}, {});
+
+let configuredFor = null, selectedFor = null;
+const host = { el, hiddenEids: new Set(), lightsLoading: false, model: {},
+  doorLinkedIds: new Set(["binary_sensor.front_door"]),
+  onConfigureDoor: (l) => { configuredFor = l.entity_id; },
+  onSelectForPlacement: (l) => { selectedFor = l.entity_id; },
+  onPlaceRow: (eid) => {}, placeQueue: new Set() };
+const root = LM.buildLightsTable(host, lights);
+
+const linkedRow = root.querySelector('tr[data-eid="binary_sensor.front_door"]');
+const unlinkedRow = root.querySelector('tr[data-eid="binary_sensor.back_door"]');
+const lampRow = root.querySelector('tr[data-eid="light.lamp"]');
+
+const linkedMapCell = linkedRow.querySelectorAll("td")[7].textContent;
+const unlinkedBtn = [...unlinkedRow.querySelectorAll("td")[7].querySelectorAll("button")]
+  .find(b => /Link in Rooms/.test(b.textContent));
+unlinkedBtn.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
+
+const doorCodeCell = unlinkedRow.querySelectorAll("td")[0];
+doorCodeCell.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
+
+const lampHasPlace = [...lampRow.querySelectorAll("td")[7].querySelectorAll("button")]
+  .some(b => /Place/.test(b.textContent));
+
+console.log(JSON.stringify({
+  linkedMapCell, hasUnlinkedBtn: !!unlinkedBtn, configuredFor, selectedFor, lampHasPlace,
+}));
+""")
+    assert "🔗 Linked" in out["linkedMapCell"], out["linkedMapCell"]
+    assert out["hasUnlinkedBtn"] is True, "an unlinked door must offer a Link in Rooms button"
+    assert out["configuredFor"] == "binary_sensor.back_door", "the button must call host.onConfigureDoor with the row's light"
+    assert out["selectedFor"] is None, "a door's code column must never arm point-placement"
+    assert out["lampHasPlace"] is True, "an ordinary light must keep its Place button unaffected"

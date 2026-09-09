@@ -15,7 +15,7 @@ const { buildIsoSVG, shapeSvg, fabricFrame, sampleSceneField, pointInPolygon, of
         lightClassOf } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
-        WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, TEMP_BORDER, LOCK_BORDER, healthOf } =
+        WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, TEMP_BORDER, LOCK_BORDER, DOOR_BORDER, healthOf } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 const { tierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
@@ -1357,7 +1357,11 @@ export function lightIsTouched(l, shapeOverrides, placements) {
 // the outlines are decodable. Only the kinds actually present are listed, so
 // a house with no fans never shows a fan key.
 function buildShapeLegend(el, lights){
-  const present = new Set(lights.map(l => l.shape));
+  // "door" is deliberately never in this set: a door/window sensor never
+  // draws a point marker on this map (see the barrier-drawing pass in
+  // iso_lights.js) — a legend entry for a glyph that never appears would be
+  // its own small case of "doesn't make sense" (Garry, 2026-09-08).
+  const present = new Set(lights.map(l => l.shape).filter(k => k !== "door"));
   const row = el("div", { class: "lv-legend" });
   for (const [kind, label] of LIGHT_SHAPES) {
     if (kind === "auto" || !present.has(kind)) continue;
@@ -2036,16 +2040,21 @@ export function buildLightsTable(host, lights){
       // column exists specifically to arm a device for placement and must
       // not be redirected by those per-type rules.
       el("td", {
-        style: "white-space:nowrap" + (host.onSelectForPlacement ? ";cursor:pointer" : ""),
-        title: host.onSelectForPlacement ? "Select for map placement" : undefined,
-        onclick: host.onSelectForPlacement ? (e) => { e.stopPropagation(); host.onSelectForPlacement(l); } : undefined,
+        // A door/window has no point on the map to select FOR — it is a
+        // section of wall, configured in Rooms (see the Map column below),
+        // so this column's "arm for placement" click is switched off for it
+        // rather than arming a placement that can never mean anything.
+        style: "white-space:nowrap" + (host.onSelectForPlacement && !l.isDoor ? ";cursor:pointer" : ""),
+        title: host.onSelectForPlacement && !l.isDoor ? "Select for map placement" : undefined,
+        onclick: host.onSelectForPlacement && !l.isDoor ? (e) => { e.stopPropagation(); host.onSelectForPlacement(l); } : undefined,
       }, (() => {
         const swatch = l.isWled ? WLED_BORDER
           : (l.isPartition ? PARTITION_BORDER
           : (l.isFan ? FAN_BORDER
           : (l.isMotion ? MOTION_BORDER
           : (l.isTemp ? TEMP_BORDER
-          : (l.isLock ? LOCK_BORDER : "#52b788")))));
+          : (l.isLock ? LOCK_BORDER
+          : (l.isDoor ? DOOR_BORDER : "#52b788"))))));
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         svg.setAttribute("width", "15"); svg.setAttribute("height", "15");
         svg.setAttribute("viewBox", "0 0 15 15");
@@ -2131,16 +2140,31 @@ export function buildLightsTable(host, lights){
           class: "lv-act", title: "Controls", style: "margin-right:6px",
           onclick: (e) => { e.stopPropagation(); host.onRowMore(l); },
         }, "⋯")] : []),
-        // The placement queue (builder): arm this light, then tap the map
-        // where it is. Only offered while it has no position of its own.
-        ...(host.onPlaceRow && !placements[l.entity_id] ? [(() => {
+        // A door/window is never dragged to a point — it is a section of an
+        // existing wall, configured in Rooms (docs/IDEA_DOOR_WINDOW_BARRIERS.md).
+        // This column shows its link status instead of a Place button: the
+        // same information "placed" conveys for everything else, in the
+        // terms that actually apply to a door (Garry, 2026-09-08: the
+        // point-marker "placement" here "is not making any sense").
+        ...(l.isDoor ? [
+          (host.doorLinkedIds && host.doorLinkedIds.has(l.entity_id))
+            ? el("span", { class: "lv-hint", title: "Shows open/closed on the map at the wall section it's linked to" }, "🔗 Linked")
+            : (host.onConfigureDoor ? el("button", {
+                class: "lv-act", style: "margin-right:6px",
+                title: "Pick a wall section in Rooms → RF Barriers and link it to this sensor",
+                onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(l); },
+              }, "Link in Rooms →")
+              : el("span", { class: "lv-hint" }, "Not linked"))
+        ] : (host.onPlaceRow && !placements[l.entity_id] ? [(() => {
+          // The placement queue (builder): arm this light, then tap the map
+          // where it is. Only offered while it has no position of its own.
           const q = !!(queued && queued.has(l.entity_id));
           return el("button", {
             class: "lv-act" + (q ? " primary" : ""), style: "margin-right:6px",
             title: q ? "Queued — tap the map to place it" : "Queue it, then tap the map where it is",
             onclick: (e) => { e.stopPropagation(); host.onPlaceRow(l.entity_id); },
           }, q ? "Queued" : "Place");
-        })()] : []),
+        })()] : [])),
         // Undoes exactly what "touched" means above: a fixture with no size,
         // rotation, colour or forced class of its own has nothing to revert,
         // so the button only appears once there is something to step out of.

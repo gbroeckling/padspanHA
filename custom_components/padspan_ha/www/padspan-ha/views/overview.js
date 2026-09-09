@@ -1087,7 +1087,16 @@ export function render(ctx){
           // more than 2 storeys away are dropped, not shown.
           if (bz === undefined || Math.abs(_fabF.rankOf(bz) - rank) > 2) continue;
           const points = (b.points_m || []).map(p => [Number(p[0]), Number(p[1])]);
-          if (points.length >= 2) barriers.push({ points, attenuation_dbm: b.attenuation_dbm ?? 6 });
+          if (points.length < 2) continue;
+          // A linked door/window's live open/closed reads straight off the
+          // entity — the SAME field iso_lights.js's own barrier pass reads,
+          // so the two views can never disagree about whether a given door
+          // reads open (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 5).
+          barriers.push({
+            points, attenuation_dbm: b.attenuation_dbm ?? 6,
+            linked_entity_id: b.linked_entity_id || null,
+            linkedOpen: b.linked_entity_id ? (ctx.hass?.states?.[b.linked_entity_id]?.state === "on") : false,
+          });
         }
         const calPts = [];
         for (const p of calPoints) {
@@ -1269,7 +1278,24 @@ export function render(ctx){
         if(ctx.state._overviewShowWalls){
           for(const bar of storey.barriers){
             const bp = bar.points.map(p=>pt(iso(p[0], p[1], z))).join(" ");
-            s += `<polyline points="${bp}" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3" stroke-dasharray="5 8" stroke-linecap="round"/>`;
+            if(!bar.linked_entity_id){
+              s += `<polyline points="${bp}" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3" stroke-dasharray="5 8" stroke-linecap="round"/>`;
+              continue;
+            }
+            // Linked: closed reads as the ordinary wall above; open fades to
+            // a thin rose dash (iso_lights.js's DOOR_BORDER, #fb7185, inlined
+            // — this file has no light_codes.js import of its own) rather
+            // than vanishing outright, so a viewer can still see WHERE the
+            // opening is while it's open.
+            s += bar.linkedOpen
+              ? `<polyline points="${bp}" fill="none" stroke="#fb7185" stroke-opacity="0.5" stroke-width="2" stroke-dasharray="3 6" stroke-linecap="round"/>`
+              : `<polyline points="${bp}" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3" stroke-dasharray="5 8" stroke-linecap="round"/>`;
+            // The two points where this opening meets the rest of the wall —
+            // in BOTH states, same purple as iso_lights.js's own pass.
+            for(const p of [bar.points[0], bar.points[bar.points.length-1]]){
+              const [dx,dy] = iso(p[0], p[1], z);
+              s += `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="2.6" fill="#9333ea" stroke="#1b0f24" stroke-width="0.8"/>`;
+            }
           }
         }
 

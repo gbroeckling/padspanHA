@@ -459,6 +459,12 @@ class PadSpanLightsApp extends HTMLElement {
         : hidden,
       lightsByEid,
       lightsLoading,
+      // Read-only reflection of link status — no onConfigureDoor, this
+      // sidebar has no Rooms tab of its own to jump to (that lives in
+      // Mapping, a separate panel route); the table just shows whether a
+      // door/window is linked, same status Mapping -> Lights shows.
+      doorLinkedIds: new Set((this.state.model?.rf_barriers_m || [])
+        .filter(b => b.linked_entity_id).map(b => b.linked_entity_id)),
       view: this._view,
       saveView: ()=>this._saveSettings(),
       callWS: (msg)=>this._hass.callWS(msg),

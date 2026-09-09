@@ -1,11 +1,24 @@
 # Idea: Live Door/Window State — Opening Walls + Steel-Door RF Barriers
 
-**Status: NOT STARTED.** Not part of the ranked best-in-class roadmap
+**Status: IN PROGRESS.** Not part of the ranked best-in-class roadmap
 (`docs/BEST_IN_CLASS_ROADMAP.md`); a separate, standalone feature idea.
-Every open design question has now been resolved through conversation
-(2026-09-06 origin, 2026-09-08 scoping session) — the plan below is a
-straight, ordered build path. Start here; the "Design decisions" section
-below it is reference/rationale, not required reading to begin.
+Steps 1 (corrected), 2 (implicit — the backend already passed extra
+`rf_barriers_m` fields through unchanged), 3 and the Mapping → Lights /
+Overview half of 5 are built. Step 4 (live attenuation resolution) and step
+6 (jump link — partly folded into step 1's correction, see below) remain.
+
+**Correction to step 1, 2026-09-08 (live, deployed):** Garry, looking at the
+shipped step 1 on the real map: "The placement in mapping and lights is not
+making any sense, and is not consistant... Not sure what you created here"
+— a door/window sensor was admitted as a freely-draggable point marker,
+mirroring Motion/Temps exactly as step 1 originally specified. That was
+wrong: a door has no physical point of its own the way a PIR or a
+thermostat does — its real position is a SECTION OF WALL, which step 3
+already models. Two disconnected representations of the same sensor (a
+floating icon AND a wall link) is what "doesn't make sense" meant. Fixed by
+retiring the point-marker path for this class entirely and pulling step 5's
+visual forward to be step 1's real replacement — see "Design decisions"
+below for the corrected shape of step 1.
 
 ## Origin (Garry's own words, verbatim, 2026-09-06)
 
@@ -47,22 +60,32 @@ are — regardless of whether that sensor is yet linked to a wall section.
 Each step is independently shippable and testable; later steps depend on
 earlier ones, not the reverse.
 
-1. **Admit door/window sensors as a new class in Mapping → Lights.**
-   Smallest, most precedented step — directly mirrors how Motion and Temps
-   already work, no dependency on anything else in this plan.
-   - `lights_map.js`: extend the admission gate (currently
-     `/^(light|fan|binary_sensor)\./` plus an `isTempSensor` carve-out for
-     `sensor.*` + `device_class==="temperature"`) to also read
-     `binary_sensor.*` with `device_class` `door` or `window`.
-   - `light_codes.js`: add `isDoorSensor`/`isWindowSensor` (or one
-     combined `isOpening`), same shape as `isMotionSensor`/`isTempSensor`;
-     assign a class (`"door"` or reuse a shared `"opening"` class).
-   - `lights_map.js`'s `LIGHT_CLASSES`: add a `Doors/Windows` filter chip.
-   - `iso_lights.js`: a distinct glyph/border colour, same pattern as
-     `MOTION_BORDER`/the motion dome shape.
-   - Shows as a row in the Lights index table automatically once admitted.
-   - Test: extend the existing admission/class-filter render tests the
-     same way the motion/temp ones are already covered.
+1. **DONE, corrected 2026-09-08 — admit door/window sensors as a new class
+   in Mapping → Lights, WITHOUT a point marker.** Originally specified (and
+   first shipped) as a direct mirror of Motion/Temps — a draggable point
+   icon. Live feedback showed that was wrong: a door has no point of its
+   own to place. The corrected shape:
+   - `lights_map.js`: admission gate, `LIGHT_CLASSES` chip, `light_codes.js`
+     `isDoorSensor`/`DOOR_BORDER`/D-series code — all as originally planned,
+     unchanged. Still shows as a row in the Lights index table.
+   - **Never joins point-placement**: `iso_lights.js`'s `buildIsoSVG` drops
+     any door/window entity from both the placed-marker loop (even a legacy
+     `light_positions_m` entry) and the room's unplaced hex-cluster pile —
+     a door is never a draggable icon, placed or not. `maps.js`'s
+     `_lightsTab` excludes doors from the placed/unplaced checklist, the
+     bulk queue, Spread and Accept-room-centres (`placeableLights`).
+   - **The Lights table's Map column** shows link status instead of a Place
+     button for a door row: "🔗 Linked" once an `rf_barriers_m` entry names
+     it as `linked_entity_id`, otherwise a "Link in Rooms →" button
+     (`onConfigureDoor`) that jumps straight to Rooms → RF Barriers — a
+     small piece of step 6 pulled forward specifically for this row, since
+     without it an unlinked door had no path forward at all.
+   - The actual spatial visual is step 5's barrier pass, below — a door's
+     marker IS the wall section it's linked to, nothing else.
+   - Test: `tests/test_lights_renderer.py` (marker suppression, both
+     placed and unplaced), `tests/test_lights_free_gate.py` (table link
+     status + code-column click gating), `tests/test_door_window_barriers.py`
+     (placement-bookkeeping exclusion, `onConfigureDoor`/`doorLinkedIds`).
 
 2. **Extend the `rf_barriers_m` schema, additively.** Backend only, no
    drawing or UI yet. Add optional `linked_entity_id` and `door_type`
@@ -108,31 +131,27 @@ earlier ones, not the reverse.
      instant reading blindly, in their own different ways; this is the
      equivalent guard that costs almost nothing to add here.
 
-5. **Draw the open/closed state — Mapping → Lights first, since that is
-   the stated point of the feature; Overview second.** For a barrier entry
-   carrying a `linked_entity_id`: while open, skip drawing its polyline
-   (or draw it much fainter) and show a clear open indicator — a visible
-   gap at minimum, worth also giving a distinct colour/glyph so it reads
-   at a glance the way this session already gave motion (the pulse) and
-   Automorph (the on/off material split) a strong visual language.
-   `iso_lights.js` needs a new, narrowly-scoped barrier-drawing pass to do
-   this at all (it draws no barriers today) — scope it to exactly this,
-   no Automorph/aura interaction implied or needed. Apply the identical
-   open-state logic in `overview.js:1263-1271` (today's single unbroken
-   `<polyline>` per barrier) so the two views can never disagree about
-   whether a given door reads open.
+5. **DONE (Mapping → Lights + Overview) — draw the open/closed state.** For
+   a barrier entry carrying a `linked_entity_id`: closed draws the ordinary
+   wall/barrier line; open fades it and switches to a thin rose dash
+   (`DOOR_BORDER`, `#fb7185`) — a visible, distinctly-coloured indicator, not
+   a silent gap, matching the strong visual language motion (the pulse) and
+   Automorph already established. `iso_lights.js` gained a new, narrowly
+   scoped barrier-drawing pass for exactly this (it still draws no
+   *unlinked* barrier — that stays Rooms-tab-only); an unlinked door leaves
+   the map byte-identical to before this feature existed. `overview.js`'s
+   existing `<polyline>`-per-barrier loop (`_storeyOf`'s `barriers` array,
+   `ctx.state._overviewShowWalls`) got the same open/closed branch, reading
+   the SAME linked entity's live HA state, so the two views can never
+   disagree about whether a given door reads open.
 
    **Endpoint markers** (Garry, 2026-09-08): "have a small purple dot
-   showing on the two sides where the opening starts and ends." At the two
-   points where a linked segment meets the rest of the wall it was split
-   from, draw a small purple dot — in BOTH open and closed states (this
-   marks WHERE a configured door/window is on the wall, distinct from the
-   gap/solid-line difference that already conveys open-vs-closed). Note
-   for whoever builds this: `maps.js`'s existing `_MAT_COLORS` already uses
-   purple (`#a855f7`) for the `custom` material's own wall-line colour —
-   pick a clearly distinct purple (or confirm the reuse reads fine
-   side-by-side with a `custom`-material wall) rather than assume no
-   collision.
+   showing on the two sides where the opening starts and ends." Shipped in
+   both views — `#9333ea`, confirmed distinct from `maps.js`'s
+   `_MAT_COLORS.custom` purple (`#a855f7`) and from the drop-marker pink
+   (`#e879f9`) already used elsewhere on the Lights map, per the caution
+   below. Drawn at the barrier's own first/last `points_m` entry, in BOTH
+   open and closed states.
 
 6. **Jump link from Mapping → Lights to the Rooms-tab wall editor.** Small
    navigation convenience once steps 1-5 exist — a button that opens the
