@@ -4,6 +4,15 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.26 — Link a door or window right from the Lights map (2026-09-09)
+
+### Linking a door/window sensor no longer sends you to a different tab
+- **Moved:** an unlinked door/window row in Mapping → Lights now has a **Link on map** button. Click it, then click the wall on the Lights map itself, then its two ends — the sensor is linked, right there. Previously the row's button ("Link in Rooms →") jumped to Mapping → Rooms → RF Barriers to do the same thing; found live: "no-one can see the thing you seem to think is there." The wall-splitting and linking underneath is unchanged — same fabric fields, same effect on the map either way — only the tool moved to where the trigger actually is: placing the sensor.
+- While armed, every other unlinked wall on the current storey now shows faintly on the Lights map so there is something to click — a wall otherwise only ever shows there once it is already a linked door.
+- Esc, or the row's own Cancel button, backs out cleanly at any point in the 3-click pick.
+
+---
+
 ## 0.38.25 — Overview: walls stay on their own floor, and the coverage heatmap is a real heatmap (2026-09-09)
 
 ### Walls no longer bleed between floors

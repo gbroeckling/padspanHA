@@ -1698,6 +1698,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // big house is unmissable for a moment. One-shot (the host clears
   // locateEid after the render that draws it), not a permanent decoration.
   const LOCATE_EID = opts.locateEid ? String(opts.locateEid) : null;
+  // In-progress door/window link (maps.js's on-map wall picker, triggered
+  // from the Lights table's "Link on map"): the wall picked so far, and
+  // however many of its two end-points are down.
+  const DOOR_LINK_BAR = opts.doorLinkBarrierId ? String(opts.doorLinkBarrierId) : null;
+  const DOOR_LINK_PTS = Array.isArray(opts.doorLinkPts) ? opts.doorLinkPts : null;
+  const DOOR_LINK_ARMED = !!opts.doorLinkArmedEid;
   // "Now", injectable so a test can pin elapsed time instead of racing the
   // clock — every other opt here follows the same pattern.
   const NOW_MS=Number(opts.nowMs)||Date.now();
@@ -3550,6 +3556,22 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // the lighting map to clearly show when a door or window is left open").
     {
       const barDim = CLASSF && CLASSF!=="door" ? 0.22 : 1;
+      // Every OTHER unlinked wall, while the on-map link picker is armed —
+      // without this there is nothing to click: an ordinary wall otherwise
+      // never draws here at all (see the comment above), so the very first
+      // click of the 3-click flow had no visible target. Faint on purpose —
+      // this is "here is where you CAN click", not the wall's real presence
+      // the way Overview's Walls toggle draws it.
+      if(DOOR_LINK_ARMED) for(const bar of ((model && model.rf_barriers_m) || [])){
+        if(bar.linked_entity_id) continue;
+        if(String(bar.id)===DOOR_LINK_BAR) continue; // drawn highlighted, below
+        if(frame.levelOf(String(bar.floor_id || "main"))!==z) continue;
+        const bpts=(bar.points_m||[]).map(p=>[Number(p[0]), Number(p[1])]);
+        if(bpts.length<2 || bpts.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1]))) continue;
+        const ppx=bpts.map(p=>pt(iso(p[0],p[1],z))).join(" ");
+        s+=`<polyline points="${ppx}" fill="none" stroke="#94a3b8" stroke-width="2" `+
+          `stroke-dasharray="4,4" stroke-linecap="round" opacity="0.45" pointer-events="none"/>`;
+      }
       for(const bar of ((model && model.rf_barriers_m) || [])){
         if(!bar.linked_entity_id || hiddenEids.has(bar.linked_entity_id)) continue;
         if(frame.levelOf(String(bar.floor_id || "main"))!==z) continue;
@@ -3573,6 +3595,27 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           const [dx,dy]=iso(p[0],p[1],z);
           s+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="2.6" fill="#9333ea" `+
             `stroke="#1b0f24" stroke-width="0.8" opacity="${barDim.toFixed(2)}" pointer-events="none"/>`;
+        }
+      }
+      // The wall picked so far in the on-map link flow — drawn regardless of
+      // CLASSF/hidden (the user is mid-gesture; hiding it would be the tool
+      // vanishing out from under them) — cyan, so it reads as "armed", not
+      // as an ordinary or a linked wall (white / DOOR_BORDER above).
+      if(DOOR_LINK_BAR){
+        const dlBar=((model && model.rf_barriers_m)||[]).find(b=>String(b.id)===DOOR_LINK_BAR);
+        if(dlBar && frame.levelOf(String(dlBar.floor_id||"main"))===z){
+          const dpts=(dlBar.points_m||[]).map(p=>[Number(p[0]),Number(p[1])]);
+          if(dpts.length>=2 && dpts.every(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]))){
+            const ppx=dpts.map(p=>pt(iso(p[0],p[1],z))).join(" ");
+            s+=`<polyline points="${ppx}" fill="none" stroke="#22d3ee" stroke-width="3.2" `+
+              `stroke-linecap="round" opacity="0.9" pointer-events="none"/>`;
+          }
+        }
+        if(DOOR_LINK_PTS) for(const p of DOOR_LINK_PTS){
+          if(!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+          const [dx,dy]=iso(p.x,p.y,z);
+          s+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="4" fill="#22d3ee" `+
+            `stroke="#083344" stroke-width="1" pointer-events="none"/>`;
         }
       }
     }

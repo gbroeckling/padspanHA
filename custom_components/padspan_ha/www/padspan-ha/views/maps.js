@@ -6995,6 +6995,106 @@ function _draftAt(ctx, o, eid, x_m, y_m, fid, source) {
   };
 }
 
+// ── Door/window linking, directly on the Lights map ─────────────────────────
+// Garry, 2026-09-09: the tool has to work FROM Lights, triggered by placing
+// the door/window sensor — not by a trip to Rooms → RF Barriers ("no-one can
+// see the thing you seem to think is there"). Reuses the exact fabric-level
+// mechanics Rooms → RF Barriers itself uses — nearestPointOnPolyline /
+// splitPolylineAtTwoPositions (stack_transform.js) and the same
+// fabric_rf_barrier_set/remove calls — only the click surface is new: this
+// map is already in world metres (frame.isoInv), so unlike the Rooms-tab
+// editor there is no photo-fraction round-trip at all. Three clicks: the
+// wall, then its two ends. No material step — defaults to the wall's own
+// material, same default the Rooms-tab picker starts on.
+
+// Nearest fabric wall to a click, searched across every storey THIS map
+// draws (there is no single "current floor" the way Overview's slider has).
+// Each barrier is tested against its OWN storey's inverse projection, so a
+// click is compared in the storey it actually lands on, not some other z.
+export function _doorLinkPickWall(ctx, o, frame, v) {
+  const model = o.model || ctx.state.model;
+  const floors = model?.floors || [];
+  let best = null;
+  for (const bar of (model?.rf_barriers_m || [])) {
+    if (bar.linked_entity_id) continue; // already a door — pick a different wall
+    const pts = (bar.points_m || []).map(p => [Number(p[0]), Number(p[1])]);
+    if (pts.length < 2) continue;
+    const fid = String(bar.floor_id || "main");
+    const z = _levelForFloorId(frame, model, floors, fid);
+    const [cx, cy] = frame.isoInv(v.x, v.y, z);
+    const hit = nearestPointOnPolyline(pts, cx, cy);
+    if (hit && (!best || hit.distSq < best.distSq)) best = { bar, fid, hit };
+  }
+  return best;
+}
+
+// 60cm — generous, since a wall is the only thing this mode's clicks can
+// possibly mean; nothing else on the map competes for the same click.
+const _DOOR_LINK_SNAP_M2 = 0.6 * 0.6;
+
+export function _cancelDoorLink(mapState) {
+  mapState._doorLinkEid = null;
+  mapState._doorLinkBarrierId = null;
+  mapState._doorLinkFloorId = null;
+  mapState._doorLinkPts = null;
+}
+
+export async function _commitDoorLink(ctx, mapState) {
+  const barId = mapState._doorLinkBarrierId;
+  const fid = mapState._doorLinkFloorId;
+  const pts2 = mapState._doorLinkPts;
+  const eid = mapState._doorLinkEid;
+  const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.id === barId);
+  if (!bar || !pts2 || pts2.length !== 2 || !eid) { _cancelDoorLink(mapState); ctx.actions.renderRooms(); return; }
+  const points = (bar.points_m || []).map(p => [Number(p[0]), Number(p[1])]);
+  const split = splitPolylineAtTwoPositions(points, pts2[0], pts2[1]);
+  if (!split.middle) {
+    ctx.toast("Pick two different points on the wall.", true);
+    mapState._doorLinkPts = [];
+    ctx.actions.renderRooms();
+    return;
+  }
+  // Millimetre precision, matching the Rooms-tab picker's own rounding.
+  const round3 = (pts) => pts && pts.map(p => [Math.round(p[0] * 1000) / 1000, Math.round(p[1] * 1000) / 1000]);
+  split.before = round3(split.before); split.middle = round3(split.middle); split.after = round3(split.after);
+  // Defaults to the PARENT wall's own material — a door cut into a metal
+  // wall is presumably steel too, matching the Rooms-tab picker's own
+  // default; still editable afterward from either surface.
+  const material = bar.material || "custom";
+  const atten = bar.attenuation_dbm ?? 6;
+  const setBarrier = (barrier) => ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set", barrier });
+  try {
+    let doorId = null;
+    if (split.before) {
+      await setBarrier({ id: barId, name: bar.name, material: bar.material,
+        attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: split.before });
+      const r = await setBarrier({ name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
+        floor_id: fid, points_m: split.middle, linked_entity_id: eid });
+      doorId = r && r.barrier ? r.barrier.id : null;
+      if (split.after) {
+        await setBarrier({ name: `${bar.name || "Wall"} (2)`, material: bar.material,
+          attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: split.after });
+      }
+    } else if (split.after) {
+      await setBarrier({ id: barId, name: bar.name, material: bar.material,
+        attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: split.after });
+      const r = await setBarrier({ name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
+        floor_id: fid, points_m: split.middle, linked_entity_id: eid });
+      doorId = r && r.barrier ? r.barrier.id : null;
+    } else {
+      await setBarrier({ id: barId, name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
+        floor_id: fid, points_m: split.middle, linked_entity_id: eid });
+      doorId = barId;
+    }
+    await ctx.actions.modelRefresh();
+    ctx.toast(`Linked — "${bar.name || "wall"}" now shows open/closed on the map.`);
+  } catch (e) {
+    ctx.toast("Could not link the door: " + (e.message || e), true);
+  }
+  _cancelDoorLink(mapState);
+  ctx.actions.renderRooms();
+}
+
 // Wire the build tools onto the shared iso SVG: click any hex to select it,
 // drag any hex to place/move it. Runs after every SVG rebuild.
 function _wireLightsBuild(ctx, isoDiv, o) {
@@ -7101,12 +7201,48 @@ function _wireLightsBuild(ctx, isoDiv, o) {
     });
   }
 
+  // Door/window linking: armed by the Lights row's "Link on map" button
+  // (host.onConfigureDoor). First click on the map picks the nearest wall
+  // (_doorLinkPickWall); the next two snap onto THAT wall's own polyline and
+  // commit as soon as both are down (_commitDoorLink) — no material step,
+  // it defaults to the wall's own.
+  svg.addEventListener("click", (ev) => {
+    if (!mapState._doorLinkEid) return;
+    if (ev.target && ev.target.closest && ev.target.closest("g.lhex, g.lroom, g.lfloor, .lpick")) return;
+    const v = toVB(ev);
+    if (!mapState._doorLinkBarrierId) {
+      const picked = _doorLinkPickWall(ctx, o, frame, v);
+      if (!picked || picked.hit.distSq > _DOOR_LINK_SNAP_M2) { ctx.toast("Click closer to a wall.", true); return; }
+      mapState._doorLinkBarrierId = picked.bar.id;
+      mapState._doorLinkFloorId = picked.fid;
+      mapState._doorLinkPts = [];
+      ctx.toast(`"${picked.bar.name || "Wall"}" selected — click the two ends of the opening.`);
+      ctx.actions.renderRooms();
+      return;
+    }
+    const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.id === mapState._doorLinkBarrierId);
+    if (!bar) { _cancelDoorLink(mapState); ctx.toast("That wall no longer exists.", true); ctx.actions.renderRooms(); return; }
+    const points = (bar.points_m || []).map(p => [Number(p[0]), Number(p[1])]);
+    const z = _levelForFloorId(frame, ctx.state.model, ctx.state.model?.floors || [], mapState._doorLinkFloorId);
+    const [cx, cy] = frame.isoInv(v.x, v.y, z);
+    const hit = nearestPointOnPolyline(points, cx, cy);
+    if (!hit || hit.distSq > _DOOR_LINK_SNAP_M2) { ctx.toast("Click closer to that wall.", true); return; }
+    mapState._doorLinkPts.push(hit);
+    if (mapState._doorLinkPts.length < 2) {
+      ctx.toast("One more point — the opening's other end.");
+      ctx.actions.renderRooms();
+      return;
+    }
+    _commitDoorLink(ctx, mapState);
+  });
+
   // The placement queue: while lights are queued, a tap on the GROUND (not
   // on a marker) drops the next one there, in metres, on the floor its room
   // is on — or on the storey in focus when it has no room.
   svg.addEventListener("click", (ev) => {
     const q = o.mapState._placeQueue || [];
     if (!q.length) return;
+    if (mapState._doorLinkEid) return;
     if (ev.target && ev.target.closest && ev.target.closest("g.lhex, g.lroom, g.lfloor, .lpick")) return;
     const eid = q[0];
     const l = o.lightsByEid[eid];
@@ -7142,7 +7278,7 @@ function _wireLightsBuild(ctx, isoDiv, o) {
       const ms = o.mapState;
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); if (ev.shiftKey) _lightsRedo(ctx, ms); else _lightsUndo(ctx, ms); return; }
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "y") { ev.preventDefault(); _lightsRedo(ctx, ms); return; }
-      if (ev.key === "Escape") { (ms._selSet || new Set()).clear(); ms._selLight = null; ms._placeQueue = []; ctx.actions.renderRooms(); return; }
+      if (ev.key === "Escape") { (ms._selSet || new Set()).clear(); ms._selLight = null; ms._placeQueue = []; _cancelDoorLink(ms); ctx.actions.renderRooms(); return; }
       const step = ev.shiftKey ? 0.10 : 0.01;
       const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
       if (!d) return;
@@ -8096,15 +8232,23 @@ function _lightsTab(ctx, maps, active) {
     // column reads this instead of onPlaceRow/placements for l.isDoor rows.
     doorLinkedIds: new Set((ctx.state.model?.rf_barriers_m || [])
       .filter(b => b.linked_entity_id).map(b => b.linked_entity_id)),
-    // Jump to the one place a door/window actually gets configured (Rooms →
-    // RF Barriers) — builder only, same gate as onPlaceRow, matching the
-    // "editing stays Rooms-tab-only" decision in
-    // docs/IDEA_DOOR_WINDOW_BARRIERS.md.
-    onConfigureDoor: paid && !preview ? () => {
-      mapState._mode = "barriers";
-      mapState._selectedRxId = null;
-      mapState._drawing = null;
-      ctx.actions.setMapsTab("rooms");
+    // Arms the on-map wall picker (see _wireLightsBuild's click handler and
+    // _commitDoorLink) — builder only, same gate as onPlaceRow. Garry,
+    // 2026-09-09: linking has to work FROM Lights, triggered by placing the
+    // door/window sensor, not by a trip to Rooms — "no-one can see the thing
+    // you seem to think is there". Passing null cancels (the row's own
+    // Cancel button, and Escape, both do this).
+    doorLinkArmedEid: mapState._doorLinkEid || null,
+    doorLinkBarrierId: mapState._doorLinkBarrierId || null,
+    doorLinkPts: mapState._doorLinkPts || null,
+    onConfigureDoor: paid && !preview ? (l) => {
+      mapState._doorLinkEid = l ? l.entity_id : null;
+      mapState._doorLinkBarrierId = null;
+      mapState._doorLinkFloorId = null;
+      mapState._doorLinkPts = null;
+      mapState._placeQueue = []; // mutually exclusive with normal placement
+      if (l) ctx.toast(`Click a wall on the map to link it to ${l.friendly_name || l.entity_id}.`);
+      ctx.actions.renderRooms();
     } : null,
     // Map → index: the row of the light just selected on the map scrolls
     // into view, once.

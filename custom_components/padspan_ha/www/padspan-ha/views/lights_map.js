@@ -1461,6 +1461,12 @@ export function buildLightsMapCard(hostIn){
         classFilter: host.classFilter || null, hitHalo: !!host.hitHalo,
         collapseUnplaced: !!host.collapseUnplaced,
         locateEid: host.locateEid || null, dropMarker: !!host.onDropPlace,
+        // In-progress door/window link (see maps.js's _wireLightsBuild click
+        // handler): highlights the picked wall and any picked points so the
+        // 3-click flow (wall, then its two ends) has visible feedback.
+        doorLinkArmedEid: host.doorLinkArmedEid || null,
+        doorLinkBarrierId: host.doorLinkBarrierId || null,
+        doorLinkPts: host.doorLinkPts || null,
         automorph: !!host.automorph,
         automorphRoomPct: view.automorphLivePct !== undefined ? view.automorphLivePct : (host.automorphRoomPct || 0),
         automorphHardness: view.automorphLiveHardness !== undefined ? view.automorphLiveHardness : (host.automorphHardness || 0),
@@ -2141,19 +2147,26 @@ export function buildLightsTable(host, lights){
           onclick: (e) => { e.stopPropagation(); host.onRowMore(l); },
         }, "⋯")] : []),
         // A door/window is never dragged to a point — it is a section of an
-        // existing wall, configured in Rooms (docs/IDEA_DOOR_WINDOW_BARRIERS.md).
-        // This column shows its link status instead of a Place button: the
-        // same information "placed" conveys for everything else, in the
-        // terms that actually apply to a door (Garry, 2026-09-08: the
-        // point-marker "placement" here "is not making any sense").
+        // existing wall. This column shows its link status instead of a
+        // Place button: the same information "placed" conveys for everything
+        // else, in the terms that actually apply to a door (Garry,
+        // 2026-09-08: the point-marker "placement" here "is not making any
+        // sense"). Linking happens right here on the Lights map — click
+        // Link, then click the wall on the map (Garry, 2026-09-09: the tool
+        // "needs to work in lights", triggered by placing the door/window
+        // sensor, not by a trip to Rooms). Rooms → RF Barriers still works
+        // too — same fabric, same fields, either surface.
         ...(l.isDoor ? [
           (host.doorLinkedIds && host.doorLinkedIds.has(l.entity_id))
             ? el("span", { class: "lv-hint", title: "Shows open/closed on the map at the wall section it's linked to" }, "🔗 Linked")
             : (host.onConfigureDoor ? el("button", {
-                class: "lv-act", style: "margin-right:6px",
-                title: "Pick a wall section in Rooms → RF Barriers and link it to this sensor",
-                onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(l); },
-              }, "Link in Rooms →")
+                class: "lv-act" + (host.doorLinkArmedEid === l.entity_id ? " primary" : ""),
+                style: "margin-right:6px",
+                title: host.doorLinkArmedEid === l.entity_id
+                  ? "Click the wall on the map, then its two ends — Esc to cancel"
+                  : "Click, then click a wall on the map to link it to this sensor",
+                onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(host.doorLinkArmedEid === l.entity_id ? null : l); },
+              }, host.doorLinkArmedEid === l.entity_id ? "Cancel" : "Link on map")
               : el("span", { class: "lv-hint" }, "Not linked"))
         ] : (host.onPlaceRow && !placements[l.entity_id] ? [(() => {
           // The placement queue (builder): arm this light, then tap the map

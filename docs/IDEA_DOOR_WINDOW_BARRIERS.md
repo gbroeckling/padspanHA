@@ -4,12 +4,32 @@
 best-in-class roadmap (`docs/BEST_IN_CLASS_ROADMAP.md`); a separate,
 standalone feature idea. Steps 1 (corrected), 2 (implicit — the backend
 already passed extra `rf_barriers_m` fields through unchanged), 3, 4 and the
-Mapping → Lights / Overview half of 5 are built; step 6 shipped as the
-`onConfigureDoor` jump link pulled forward into step 1's correction
-(`maps.js`, switches to Rooms → RF Barriers). Only the explicit v1
+Mapping → Lights / Overview half of 5 are built. Only the explicit v1
 non-goals below (Stack tab's 3D barrier drawing, partial-open modeling,
 swing-arc UI, un-instrumented-doorway geodesic correction) remain out of
 scope, by design.
+
+**Correction to step 3/6, 2026-09-09 (live, deployed):** the plan's own
+"Why editing stays Rooms-tab-only" decision (see "Design decisions" below)
+was wrong in practice. Garry, after step 6's jump link shipped: "What
+imaginary setup do you think I see for setting up a door or windows in the
+software???? ... no-one can see the thing you seem to think is there ...
+needs to be under lights to build." Then: "In lights it's triggered by a
+sensor for open/close being placed." Fixed by moving the trigger AND the
+picking interaction itself onto the Lights map: an unlinked door/window row
+has a **Link on map** button (`maps.js`'s `onConfigureDoor`, replacing the
+old jump to Rooms); clicking it arms `mapState._doorLinkEid`, and three
+clicks on the Lights map — the wall (drawn faintly while armed, since an
+ordinary wall otherwise never shows there — `iso_lights.js`), then its two
+ends — commit via `_doorLinkPickWall`/`_commitDoorLink`. These reuse the
+exact fabric mechanics the Rooms-tab picker already used
+(`nearestPointOnPolyline`/`splitPolylineAtTwoPositions`, stack_transform.js;
+the same `fabric_rf_barrier_set`/`remove` calls) — only the click surface
+changed, and it is actually simpler: the Lights map is already in world
+metres (`frame.isoInv`), so unlike the Rooms-tab photo overlay there is no
+photo-fraction round-trip at all. Rooms → RF Barriers still works
+unchanged — same fabric, either surface — it is just no longer the ONLY
+way in. Tests: `tests/test_lights_door_link.py`.
 
 **Correction to step 1, 2026-09-08 (live, deployed):** Garry, looking at the
 shipped step 1 on the real map: "The placement in mapping and lights is not

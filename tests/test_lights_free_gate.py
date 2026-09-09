@@ -1321,7 +1321,7 @@ const lampRow = root.querySelector('tr[data-eid="light.lamp"]');
 
 const linkedMapCell = linkedRow.querySelectorAll("td")[7].textContent;
 const unlinkedBtn = [...unlinkedRow.querySelectorAll("td")[7].querySelectorAll("button")]
-  .find(b => /Link in Rooms/.test(b.textContent));
+  .find(b => /Link on map/.test(b.textContent));
 unlinkedBtn.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
 
 const doorCodeCell = unlinkedRow.querySelectorAll("td")[0];
@@ -1335,7 +1335,7 @@ console.log(JSON.stringify({
 }));
 """)
     assert "🔗 Linked" in out["linkedMapCell"], out["linkedMapCell"]
-    assert out["hasUnlinkedBtn"] is True, "an unlinked door must offer a Link in Rooms button"
+    assert out["hasUnlinkedBtn"] is True, "an unlinked door must offer a Link on map button"
     assert out["configuredFor"] == "binary_sensor.back_door", "the button must call host.onConfigureDoor with the row's light"
     assert out["selectedFor"] is None, "a door's code column must never arm point-placement"
     assert out["lampHasPlace"] is True, "an ordinary light must keep its Place button unaffected"

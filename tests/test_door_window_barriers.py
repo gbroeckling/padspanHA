@@ -371,12 +371,20 @@ def test_placement_bookkeeping_excludes_doors():
         assert needle in block, f"missing or reverted to `lights`: {needle!r}"
 
 
-def test_configure_door_jumps_to_the_rooms_barriers_editor():
+def test_configure_door_arms_the_on_map_link_picker():
+    """Garry, 2026-09-09, after finding nothing at Mapping -> Rooms: the
+    tool has to work FROM Lights, triggered by placing the door/window
+    sensor — not a jump to a different tab. onConfigureDoor now arms
+    mapState._doorLinkEid; maps.js's SVG click handler and
+    _doorLinkPickWall/_commitDoorLink do the rest (see
+    tests/test_lights_door_link.py for the actual wall-picking logic)."""
     block = _lights_tab_block()
     idx = block.index("onConfigureDoor:")
     snippet = block[idx:block.index("\n    }", idx) + 8]
-    assert 'mapState._mode = "barriers"' in snippet, snippet
-    assert 'ctx.actions.setMapsTab("rooms")' in snippet, snippet
+    assert "mapState._doorLinkEid = l ? l.entity_id : null" in snippet, snippet
+    assert 'ctx.actions.setMapsTab("rooms")' not in snippet, (
+        "onConfigureDoor must not send anyone away to Rooms any more"
+    )
     # Same gate as onPlaceRow — a door's own configure entry point only
     # exists where point-placement tools exist at all (the paid, editing
     # builder), never in Preview or below Pro.
