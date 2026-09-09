@@ -43,6 +43,14 @@ SHOTS = {
         "line2": "tour, in 45s",
         "sub": ["Floor plans, calibration, replay", "PadSpan HA for Home Assistant"],
     },
+    "bright": {
+        "source": "bright-thumbnail-source.png",
+        "bias": 0.65,
+        "out": "youtube-thumbnail-bright.png",
+        "line1": "Lights, drawn at",
+        "line2": "real size",
+        "sub": ["Not a dot on a map - the actual strip", "PadSpan Bright for Home Assistant"],
+    },
 }
 
 

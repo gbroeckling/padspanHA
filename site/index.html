@@ -128,6 +128,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <a href="#screenshots">Screenshots</a>
     <a href="#features">Features</a>
     <a href="#lights">Lights</a>
+    <a href="#bright">Bright</a>
     <a href="#editions">Editions</a>
     <a href="#compare">Compare</a>
     <a href="#install">Install</a>
@@ -352,6 +353,9 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <a class="shot" href="images/bluetooth-visualization.png" target="_blank"><img src="images/bluetooth-visualization.png" alt="Bluetooth visualization" loading="lazy"><div class="cap"><b>Bluetooth Visualization</b>Live scanner and device signal landscape</div></a>
     <a class="shot" href="images/maps-library.png" target="_blank"><img src="images/maps-library.png" alt="Maps library view" loading="lazy"><div class="cap"><b>Maps Library View</b>Floor plan management</div></a>
     <a class="shot" href="images/sandbox-dashboard.jpg" target="_blank"><img src="images/sandbox-dashboard.jpg" alt="Sandbox dashboard" loading="lazy"><div class="cap"><b>Sandbox Dashboard</b>Experimental playground</div></a>
+    <a class="shot" href="images/bright-overview.jpg" target="_blank"><img src="images/bright-overview.jpg" alt="Lighting map with floors and rooms" loading="lazy"><div class="cap"><b>Lighting Map</b>Every light on the same floor plan as the rooms</div></a>
+    <a class="shot" href="images/bright-fixture-editor.jpg" target="_blank"><img src="images/bright-fixture-editor.jpg" alt="Fixture editor with real width, length and rotation" loading="lazy"><div class="cap"><b>Real Size &amp; Angle</b>Width, length and rotation in centimetres, not a dot</div></a>
+    <a class="shot" href="images/bright-wled-card.png" target="_blank"><img src="images/bright-wled-card.png" alt="WLED light control card" loading="lazy"><div class="cap"><b>WLED Control Card</b>Brightness, colour and effect, live against the real strip</div></a>
   </div>
 </section>
 
@@ -464,8 +468,8 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <ul>
         <li><b>Place each light exactly</b> where it hangs, in metres</li>
         <li>Fixture shapes and sizes — a strip is not a spot</li>
-        <li>WLED devices, with their own controls</li>
-        <li><b>Showcase</b> mode and <b>Fit room</b></li>
+        <li>WLED strips, with brightness, colour and effect control, live</li>
+        <li><b>Automorph</b> — a soft aura from each fixture into its room</li>
       </ul>
       <p style="font-size:13.5px;color:var(--mut);margin-top:6px">Unlocked by either key: <a href="#editions">PadSpan Bright Pro</a> at $35 CAD/year for the lighting half, or <a href="#pro">PadSpan Pro</a> at $45 for everything. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.</p>
     </div>
@@ -726,6 +730,33 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       </form>
       </div>
     </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="bright">
+  <div class="kick">PadSpan Bright</div>
+  <h2>The lighting half, on its own</h2>
+  <p class="lede">Every light on the same floor plan as the rooms — free to run, with real placement and WLED control behind a key. <a href="https://github.com/gbroeckling/padspanBright">PadSpan Bright on GitHub</a>.</p>
+  <div class="tablewrap">
+  <table>
+    <tr><th style="text-align:left">Feature</th><th>Bright (free)</th><th>Bright Pro</th></tr>
+    <tr><td>Floors &amp; rooms drawn as an isometric plan</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    <tr><td>One marker per light, tap (or its row) to toggle</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    <tr><td>Hide lights you don't want cluttering the map</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    <tr><td>Place each light at its real position on the floor plan</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Real shape, size (width × length) and rotation</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>WLED strip/series placement, sized and angled to the strip</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Brightness, colour and effect control per light, live</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Automorph room-aura rendering (Glow / Blueprint / Nebula)</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Import an existing house from PadSpan Bright into PadSpan HA</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+  </table>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-top:18px">
+    <a class="shot" href="images/bright-overview.jpg" target="_blank"><img src="images/bright-overview.jpg" alt="Lighting map with floors and rooms" loading="lazy"><div class="cap"><b>Lighting Map</b>Every light on the same floor plan as the rooms</div></a>
+    <a class="shot" href="images/bright-fixture-editor.jpg" target="_blank"><img src="images/bright-fixture-editor.jpg" alt="Fixture editor with real width, length and rotation" loading="lazy"><div class="cap"><b>Real Size &amp; Angle</b>Width, length and rotation in centimetres, not a dot</div></a>
+    <a class="shot" href="images/bright-wled-card.png" target="_blank"><img src="images/bright-wled-card.png" alt="WLED light control card" loading="lazy"><div class="cap"><b>WLED Control Card</b>Brightness, colour and effect, live against the real strip</div></a>
   </div>
 </section>
 

@@ -11,6 +11,17 @@ different: same code, same fixes, same version number.
 
 [![Open your Home Assistant instance and add PadSpan Bright to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanBright&category=integration)
 
+## Screenshots
+
+|                                                                                                                                        |                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ![Floors and rooms drawn as an isometric plan](https://raw.githubusercontent.com/gbroeckling/padspanHA/main/images/bright-overview.jpg) | ![A light placed at its real width, length and rotation in centimetres](https://raw.githubusercontent.com/gbroeckling/padspanHA/main/images/bright-fixture-editor.jpg) |
+| The floor plan — every light on your real rooms, not a list.                                                                          | Real size and angle, in centimetres, not a dot.                                                                                                     |
+
+![The control card a WLED strip opens on long-press: on/off, brightness, colour and effect, live against the real device](https://raw.githubusercontent.com/gbroeckling/padspanHA/main/images/bright-wled-card.png)
+
+Long-press a light on the map for its full card — this one's a WLED strip mid-effect.
+
 ## What you get
 
 **PadSpan Bright (no key)** — floors, rooms and one marker per light,
@@ -18,10 +29,24 @@ clustered in its room. Tap a marker or a row to toggle the light. Hide the
 lights you never want on the map.
 
 **PadSpan Bright Pro (key)** — place each light where it really is; set its
-shape (pot, strip, pendant, sconce, fan…), size and angle in real units; use
-WLED series and effects; and open Showcase, Fit room, Isolux, Scene and Ripple.
+shape (pot, strip, pendant, sconce, fan…), size and angle in real units; place
+WLED strips and control their brightness, colour and effects live from the
+map; and turn on Automorph, which grows a soft aura from each fixture into
+its room (Glow, Blueprint or Nebula style).
 
 A **PadSpan Pro** key unlocks all of the same — one key, either download.
+
+| Feature                                                     | Bright (free) | Bright Pro |
+| ------------------------------------------------------------ | :-----------: | :--------: |
+| Floors & rooms drawn as an isometric plan                    |       ✓       |     ✓      |
+| One marker per light, tap (or its row) to toggle              |       ✓       |     ✓      |
+| Hide lights you don't want cluttering the map                |       ✓       |     ✓      |
+| Place each light at its real position on the floor plan        |               |     ✓      |
+| Real shape, size (width × length) and rotation                |               |     ✓      |
+| WLED strip/series placement, sized and angled to the strip     |               |     ✓      |
+| Brightness, colour and effect control per light, live         |               |     ✓      |
+| Automorph room-aura rendering (Glow / Blueprint / Nebula)      |               |     ✓      |
+| Import an existing house from PadSpan Bright into PadSpan HA |       ✓       |     ✓      |
 
 ## Install
 
