@@ -1343,6 +1343,15 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
 // shape of its own. The default amber every drop stamps is not a colour choice.
 const _DROP_COLOR = "#fbbf24";
 export function lightIsTouched(l, shapeOverrides, placements) {
+  // A door/window has no size, rotation or colour of its own to have
+  // touched — that whole concept belonged to point-placement, which a door
+  // stopped using in the step 1 correction (docs/IDEA_DOOR_WINDOW_BARRIERS.md).
+  // Left unguarded, a door carrying a leftover light_positions_m entry from
+  // BEFORE that correction (width_cm/rotation/colour, from when it still
+  // drew as a draggable point) read as "touched": the Untouched count and
+  // filter were both wrong, and its row offered a "Revert" that would have
+  // re-written that same stale entry right back into the draft.
+  if (l.isDoor) return false;
   const eid = l.entity_id;
   if (shapeOverrides && shapeOverrides[eid]) return true;
   const p = placements && placements[eid];
@@ -1641,6 +1650,7 @@ export function buildLightsMapCard(hostIn){
         rebuildISO();
       });
       pctSlider.addEventListener("change", () => host.onAutomorphRoomPct(parseInt(pctSlider.value, 10)));
+      ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Room %"));
       ctrlRow.appendChild(pctSlider);
       ctrlRow.appendChild(pctLbl);
     }
@@ -1662,6 +1672,7 @@ export function buildLightsMapCard(hostIn){
         rebuildISO();
       });
       hardSlider.addEventListener("change", () => host.onAutomorphHardness(parseInt(hardSlider.value, 10)));
+      ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Hardness"));
       ctrlRow.appendChild(hardSlider);
       ctrlRow.appendChild(hardLbl);
     }
@@ -1698,6 +1709,7 @@ export function buildLightsMapCard(hostIn){
         rebuildISO();
       });
       subSlider.addEventListener("change", () => host.onAutomorphSubtlety(parseInt(subSlider.value, 10)));
+      ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Subtlety"));
       ctrlRow.appendChild(subSlider);
       ctrlRow.appendChild(subLbl);
     }
@@ -1812,6 +1824,13 @@ export function buildLightsMapCard(hostIn){
       applyZoom();
     } }, "+"),
   ]));
+
+  // Garry, 2026-09-09: "all sliders need a ? to bring up a card that
+  // completely describes their function" — this row had none at all
+  // (Overview's matching row does, via overview_3d_controls). Builder
+  // only: the sidebar never sets host.helpBtn, since it never sets the
+  // Automorph/Gap/Floor/L-R controls this card explains either.
+  if (host.helpBtn) ctrlRow.appendChild(host.helpBtn("lights_build_controls"));
 
   mapCard.appendChild(ctrlRow);
 

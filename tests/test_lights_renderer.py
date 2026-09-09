@@ -2243,6 +2243,7 @@ def test_moving_a_light_does_not_count_as_touching_it(tmp_path):
     out = _run_js(tmp_path, (
         body + "\n"
         "const T=(over,pl)=>lightIsTouched({entity_id:'light.x'},over,pl);\n"
+        "const TD=(over,pl)=>lightIsTouched({entity_id:'light.x',isDoor:true},over,pl);\n"
         "console.log(JSON.stringify({\n"
         "  never:      T({}, {}),\n"
         "  movedOnly:  T({}, {'light.x':{x_m:1,y_m:2,floor_id:'main'}}),\n"
@@ -2253,6 +2254,14 @@ def test_moving_a_light_does_not_count_as_touching_it(tmp_path):
         "  rotated:    T({}, {'light.x':{x_m:1,y_m:2,rotation:30}}),\n"
         "  recoloured: T({}, {'light.x':{x_m:1,y_m:2,color:'#ff00aa'}}),\n"
         "  shaped:     T({'light.x':'bar'}, {}),\n"
+        # A door/window carrying a leftover light_positions_m entry from
+        # BEFORE the step 1 correction (when it still drew as a draggable,
+        # sizeable point) must read as untouched regardless -- that data is
+        # debris, not a real customization; see the guard's own comment.
+        "  doorSized:      TD({}, {'light.x':{x_m:1,y_m:2,width_cm:240}}),\n"
+        "  doorRotated:    TD({}, {'light.x':{x_m:1,y_m:2,rotation:30}}),\n"
+        "  doorRecoloured: TD({}, {'light.x':{x_m:1,y_m:2,color:'#ff00aa'}}),\n"
+        "  doorShaped:     TD({'light.x':'bar'}, {}),\n"
         "}));\n"
     ))
     # Not touched: never placed, dropped, or dropped with the default stamp.
@@ -2267,6 +2276,12 @@ def test_moving_a_light_does_not_count_as_touching_it(tmp_path):
     assert out["rotated"] is True, out
     assert out["recoloured"] is True, out
     assert out["shaped"] is True, out
+    # A door/window never reads as touched, even carrying pre-correction
+    # placement debris that WOULD count for an ordinary light.
+    assert out["doorSized"] is False, out
+    assert out["doorRotated"] is False, out
+    assert out["doorRecoloured"] is False, out
+    assert out["doorShaped"] is False, out
 
 
 def test_fit_to_room_caps_an_oversized_fixture_and_leaves_a_gap(tmp_path):

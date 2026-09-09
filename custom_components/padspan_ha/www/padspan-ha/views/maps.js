@@ -8199,6 +8199,13 @@ function _lightsTab(ctx, maps, active) {
     lightsByEid,
     lightsLoading: reg.loading,
     view,
+    // Builder-only — the sidebar (lights_panel.js) never sets Automorph or
+    // the Gap/Floor/L-R spacing sliders in the first place, so it has
+    // nothing here that needs its own help card. Garry, 2026-09-09: "all
+    // sliders need a ? to bring up a card that completely describes their
+    // function" — this control row (Showcase/Automorph/Floor/Gap/L-R/Zoom)
+    // had none at all, unlike Overview's matching row.
+    helpBtn: ctx.helpers.helpBtn,
     // settingsSet re-renders the whole maps view, which detaches the shared
     // card's "Saved ✓" label before it can be read — so confirm with a toast,
     // which outlives the re-render. A failure must not look like a success.
