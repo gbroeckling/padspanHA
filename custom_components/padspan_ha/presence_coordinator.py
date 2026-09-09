@@ -681,6 +681,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._floor_bounds: dict[str, tuple[float, float, float, float]] = {}
         # List of barrier dicts: [{points, attenuation_dbm, map_id}, ...]
         self._rf_barriers: list[dict] = []
+        # {linked_entity_id: (raw_state, consecutive_count, confirmed_state)}
+        # — 2-poll debounce for door/window barrier attenuation overrides.
+        self._door_debounce: dict[str, tuple[str | None, int, str | None]] = {}
         # Phase 2: True when spatial data is in metres (not map fractions)
         self._use_metres: bool = False
 
@@ -1179,9 +1182,11 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         "attenuation_dbm": float(b.get("attenuation_dbm", 6)),
                         "material": str(b.get("material", "custom")),
                         "floor_id": str(b.get("floor_id", "")),
+                        "linked_entity_id": b.get("linked_entity_id"),
                     }
                     for b in _mb if len(b.get("points_m") or []) >= 2
                 ]
+                self._resolve_door_attenuation()
                 if self._room_centroids or self._scanner_positions:
                     self._use_metres = True
         except Exception:
@@ -3033,6 +3038,43 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as _corr_err:
             _LOGGER.debug("Corroboration check for %s failed: %s", room, _corr_err)
             return None
+
+    # ── Door/window barrier attenuation (IDEA_DOOR_WINDOW_BARRIERS.md step 4) ──
+
+    def _resolve_door_attenuation(self) -> None:
+        """Override a linked steel door/window barrier's live attenuation.
+
+        Closed leaves the barrier's authored (material) attenuation_dbm
+        alone; open drops it to ~0. Resolved here, once, server-side, so the
+        solver and the client-side what-if preview — which only ever reads
+        attenuation_dbm — stay correct automatically. A non-metal or
+        unlinked barrier is untouched, unconditionally.
+
+        Debounced across 2 consecutive polls: a flip must be read twice in a
+        row before it's applied, so a flapping sensor can't jitter the
+        solver right at a transition.
+        """
+        for _bar in self._rf_barriers:
+            _eid = _bar.get("linked_entity_id")
+            if not _eid or _bar.get("material") != "metal":
+                continue
+            try:
+                _state = self.hass.states.get(_eid)
+                _raw = _state.state if _state is not None else None
+                if _raw not in ("on", "off"):
+                    continue
+                _prev_raw, _count, _confirmed = self._door_debounce.get(
+                    _eid, (None, 0, None)
+                )
+                _count = _count + 1 if _raw == _prev_raw else 1
+                if _count >= 2:
+                    _confirmed = _raw
+                self._door_debounce[_eid] = (_raw, _count, _confirmed)
+                # binary_sensor door/window device_class: "on" == open.
+                if _confirmed == "on":
+                    _bar["attenuation_dbm"] = 0.0
+            except Exception as _door_err:
+                _LOGGER.debug("Door attenuation resolve for %s failed: %s", _eid, _door_err)
 
     # ── Object state cleanup ─────────────────────────────────────────────
 

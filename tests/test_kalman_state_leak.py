@@ -184,7 +184,7 @@ class TestEvictStillWorks:
             "_pl_fits",
             "_scanner_abs_z", "_floor_bases", "_floor_stack_idx", "_espresense_dist",
             "_addr_tx_power", "_source_to_area", "_source_to_floor", "_room_to_floor",
-            "_scanner_agree", "_scanner_reliability", "_co_visible",
+            "_scanner_agree", "_scanner_reliability", "_co_visible", "_door_debounce",
         }
         unexpected = [n for n in leaked if n not in by_other_key]
         assert not unexpected, (

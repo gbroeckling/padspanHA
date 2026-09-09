@@ -1,11 +1,15 @@
 # Idea: Live Door/Window State — Opening Walls + Steel-Door RF Barriers
 
-**Status: IN PROGRESS.** Not part of the ranked best-in-class roadmap
-(`docs/BEST_IN_CLASS_ROADMAP.md`); a separate, standalone feature idea.
-Steps 1 (corrected), 2 (implicit — the backend already passed extra
-`rf_barriers_m` fields through unchanged), 3 and the Mapping → Lights /
-Overview half of 5 are built. Step 4 (live attenuation resolution) and step
-6 (jump link — partly folded into step 1's correction, see below) remain.
+**Status: ALL SIX STEPS BUILT, 2026-09-09.** Not part of the ranked
+best-in-class roadmap (`docs/BEST_IN_CLASS_ROADMAP.md`); a separate,
+standalone feature idea. Steps 1 (corrected), 2 (implicit — the backend
+already passed extra `rf_barriers_m` fields through unchanged), 3, 4 and the
+Mapping → Lights / Overview half of 5 are built; step 6 shipped as the
+`onConfigureDoor` jump link pulled forward into step 1's correction
+(`maps.js`, switches to Rooms → RF Barriers). Only the explicit v1
+non-goals below (Stack tab's 3D barrier drawing, partial-open modeling,
+swing-arc UI, un-instrumented-doorway geodesic correction) remain out of
+scope, by design.
 
 **Correction to step 1, 2026-09-08 (live, deployed):** Garry, looking at the
 shipped step 1 on the real map: "The placement in mapping and lights is not
@@ -108,7 +112,7 @@ earlier ones, not the reverse.
      resulting segments), this repo's established pure-JS + node-harness
      pattern.
 
-4. **Live attenuation resolution.** In `presence_coordinator.py`, at the
+4. **DONE, 2026-09-09 — live attenuation resolution.** In `presence_coordinator.py`, at the
    point it already re-fetches `rf_barriers_m()` every poll, override
    `attenuation_dbm` for any barrier carrying a `linked_entity_id` and
    `material==="metal"`: closed → the material's normal value, open → ~0.
@@ -153,12 +157,14 @@ earlier ones, not the reverse.
    below. Drawn at the barrier's own first/last `points_m` entry, in BOTH
    open and closed states.
 
-6. **Jump link from Mapping → Lights to the Rooms-tab wall editor.** Small
-   navigation convenience once steps 1-5 exist — a button that opens the
-   Rooms tab's wall editor, for someone working the Lights view who wants
-   to configure a door without hunting for where wall material lives.
-   Check `lights_panel.js`/`maps.js` for an existing cross-tab navigation
-   pattern before inventing one.
+6. **DONE, shipped as part of step 1's correction — jump link from
+   Mapping → Lights to the Rooms-tab wall editor.** `maps.js`'s
+   `onConfigureDoor` (paid/builder-only, same gate as `onPlaceRow`) switches
+   the map into barriers mode and jumps to the Rooms tab; `lights_map.js`
+   wires it to the Lights table's "Link in Rooms →" button for an unlinked
+   door row (see step 1). Originally scoped as a later, separate step, but
+   pulled forward once step 1's correction showed an unlinked door had no
+   path forward at all without it.
 
 ## Explicit non-goals for v1
 
