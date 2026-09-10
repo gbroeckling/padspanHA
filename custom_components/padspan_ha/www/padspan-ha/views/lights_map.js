@@ -144,7 +144,9 @@ export const LIGHT_CLASSES = [["all","All"],["light","Lights"],["strip","Strips"
 
 // Automorph's style dropdown vocabulary — the UI's copy of what
 // automorphAuraSvg (iso_lights.js) actually switches on.
-export const AUTOMORPH_STYLES = [["glow","Glow"],["blueprint","Blueprint"],["nebula","Nebula"]];
+export const AUTOMORPH_STYLES = [["glow","Glow"],["blueprint","Blueprint"],["nebula","Nebula"],
+  ["circuit","Circuit"],["contour","Contour"],["facet","Facet"],["sumie","Ink Wash"],
+  ["stainedglass","Stained Glass"],["engrave","Engrave"],["constellation","Constellation"],["woven","Woven"]];
 export { lightClassOf };
 export function classMatches(l, cls){ return !cls || cls === "all" || lightClassOf(l) === cls; }
 
@@ -1483,8 +1485,10 @@ export function buildLightsMapCard(hostIn){
         doorCircleArmedEid: host.doorCircleArmedEid || null,
         doorCircleM: host.doorCircleM || null,
         // Working, proven beacons (Garry, 2026-09-09) — read-only, host
-        // provides the already-filtered list or nothing at all.
-        beacons: host.beacons || null,
+        // provides the already-filtered list or nothing at all. Off by
+        // default (Garry, 2026-09-09: "should be selectable, and off by
+        // default") — showBeacons is the opt-in.
+        beacons: host.showBeacons ? (host.beacons || null) : null,
         automorph: !!host.automorph,
         automorphRoomPct: view.automorphLivePct !== undefined ? view.automorphLivePct : (host.automorphRoomPct || 0),
         automorphHardness: view.automorphLiveHardness !== undefined ? view.automorphLiveHardness : (host.automorphHardness || 0),
@@ -1636,6 +1640,18 @@ export function buildLightsMapCard(hostIn){
         + "this map renders — a decluttered view when you just want the shapes.",
       onclick: () => host.onHideDeviceCodes(!host.hideDeviceCodes),
     }, host.hideDeviceCodes ? "▤ Codes hidden" : "▤ Hide codes"));
+  }
+  // Working, proven beacons (Garry, 2026-09-09) — read-only overlay, off by
+  // default: "Show beacons on lighting page should be selectable, and off
+  // by default." Their name text follows the Hide codes toggle above (see
+  // the HIDECODES check beside the beacon label in buildIsoSVG).
+  if (host.onShowBeacons) {
+    ctrlRow.appendChild(el("button", {
+      class: "lv-tgl tone-teal" + (host.showBeacons ? " on" : ""),
+      title: "Show working, identified beacons on the map — a read-only dot "
+        + "at each one's last known position, same as Overview. Nothing to place.",
+      onclick: () => host.onShowBeacons(!host.showBeacons),
+    }, host.showBeacons ? "◉ Beacons shown" : "◉ Show beacons"));
   }
   // Automorph (Garry, 2026-09-07) — its own family, independent of Showcase:
   // it works the same in either rendering mode, so it is not nested under

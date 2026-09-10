@@ -77,6 +77,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lights_showcase"): bool,
         vol.Optional("lights_hide_untouched"): bool,
         vol.Optional("lights_hide_device_codes"): bool,
+        vol.Optional("lights_show_beacons"): bool,
         vol.Optional("lights_fit_rooms"): bool,
         vol.Optional("lights_isolux"): bool,
         vol.Optional("lights_automorph_enabled"): bool,
@@ -364,6 +365,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["lights_hide_untouched"] = bool(msg["lights_hide_untouched"])
         if "lights_hide_device_codes" in msg:
             payload["lights_hide_device_codes"] = bool(msg["lights_hide_device_codes"])
+        if "lights_show_beacons" in msg:
+            payload["lights_show_beacons"] = bool(msg["lights_show_beacons"])
         if "lights_fit_rooms" in msg:
             payload["lights_fit_rooms"] = bool(msg["lights_fit_rooms"])
         if "lights_isolux" in msg:
@@ -376,7 +379,10 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["lights_automorph_hardness"] = max(-100, min(100, int(msg["lights_automorph_hardness"])))
         if "lights_automorph_style" in msg:
             _style = str(msg["lights_automorph_style"] or "").strip().lower()
-            payload["lights_automorph_style"] = _style if _style in ("glow", "blueprint", "nebula") else "glow"
+            payload["lights_automorph_style"] = _style if _style in (
+                "glow", "blueprint", "nebula", "circuit", "contour", "facet",
+                "sumie", "stainedglass", "engrave", "constellation", "woven",
+            ) else "glow"
         if "lights_automorph_subtlety" in msg:
             payload["lights_automorph_subtlety"] = max(0, min(100, int(msg["lights_automorph_subtlety"])))
         if "light_shapes" in msg:

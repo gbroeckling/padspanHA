@@ -1689,7 +1689,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // morphed ring (see automorphAuraSvg). "glow" is the shipped default;
   // the others are exploratory, kept behind this dropdown so any of them
   // can be dropped later without touching the geometry underneath.
-  const AUTOMORPH_STYLE = ["glow","blueprint","nebula"].includes(opts.automorphStyle) ? opts.automorphStyle : "glow";
+  const AUTOMORPH_STYLE = ["glow","blueprint","nebula","circuit","contour","facet","sumie",
+    "stainedglass","engrave","constellation","woven"].includes(opts.automorphStyle) ? opts.automorphStyle : "glow";
   // Subtlety, 0-100 (Garry, 2026-09-07: "a slider for subtlety, so you can
   // dial from objects looking full, to almost completely lost in
   // background... with shades, thinner lines"). 0 = today's opacity/line-
@@ -3106,6 +3107,350 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           `<path d="${d}" fill="${duo}" fill-opacity="${opac((on?0.26:0.17)+0.45*t+weightOffPct*0.004)}" `+
           `stroke="none" mask="url(#psautomorphmask)" pointer-events="none"/>`), edge:""};
       }
+      // Five more exploratory treatments (Garry, 2026-09-09: "dig around
+      // hard for 5 more candidates... look at what other options are out
+      // there in the artistic world") — same ring/d/on/t/ink/duo contract
+      // as blueprint/nebula above, nothing new required of the geometry.
+      if(AUTOMORPH_STYLE==="circuit"){
+        // State reads as electrical continuity, not brightness: off is a
+        // broken dashed trace with hollow via pads (unpowered bare
+        // copper); on closes into one solid trace with filled diamond
+        // pads (current has continuity). No wash, no blur — pure ink,
+        // `duo` reserved only for the on-state pad fill so state never
+        // reads as a hue swap.
+        const traceOp = on ? (0.04+0.05*t) : (0.02+0.02*t);
+        const traceWidth = on ? 1.6 : 1.2;
+        const traceDash = on ? "none" : "3 5";
+        const mainTrace = `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${swid(traceWidth)}" stroke-linejoin="miter" stroke-linecap="square" stroke-dasharray="${traceDash}" opacity="${opac(traceOp)}" pointer-events="none"/>`;
+
+        const viaCount = Math.max(3, Math.round(3+4*t));
+        const step = Math.max(1, Math.floor(ring.length/viaCount));
+        const markerOp = on ? (0.02+0.025*t) : (0.012+0.01*t);
+        const stubLen = 5+3*t;
+        const padSize = (on ? 2.6 : 2.0)+1.2*t;
+
+        let vias = "";
+        for(let i=0;i<ring.length;i+=step){
+          const vx = ring[i][0], vy = ring[i][1];
+          const horiz = Math.floor(i/step)%2===0;
+          const dir = (i%4<2) ? 1 : -1;
+          const sx = horiz ? dir*stubLen : 0;
+          const sy = horiz ? 0 : dir*stubLen;
+          const pad = on
+            ? `<rect x="${vx-padSize/2}" y="${vy-padSize/2}" width="${padSize}" height="${padSize}" transform="rotate(45 ${vx} ${vy})" fill="${duo}" pointer-events="none"/>`
+            : `<rect x="${vx-padSize/2}" y="${vy-padSize/2}" width="${padSize}" height="${padSize}" fill="none" stroke="${ink}" stroke-width="${swid(0.75)}" pointer-events="none"/>`;
+          vias += `<g opacity="${opac(markerOp)}" pointer-events="none"><line x1="${vx}" y1="${vy}" x2="${vx+sx}" y2="${vy+sy}" stroke="${ink}" stroke-width="${swid(on?1:0.75)}" stroke-linecap="square" pointer-events="none"/>${pad}</g>`;
+        }
+
+        return {glow: "", edge: clipWrap(`<g pointer-events="none">${mainTrace}${vias}</g>`)};
+      }
+      if(AUTOMORPH_STYLE==="contour"){
+        // Topographic contour bands: several nested copies of the ring,
+        // each scaled toward the fixture's own anchor (hx,hy) instead of
+        // one outline — real contour lines are surveyed polylines, not
+        // Bezier curves, so straight segments between ring's own sampled
+        // vertices is the correct craft, not a shortcut. Bands fade with
+        // distance from the anchor and alternate bold/thin ("index"
+        // contours), the material/intensity split this style carries
+        // instead of a hex swap.
+        const bandAt=(f)=>{
+          let bp="";
+          for(let i=0;i<ring.length;i++){
+            const vx=ring[i][0], vy=ring[i][1];
+            bp+=(i===0?"M":"L")+(hx+(vx-hx)*f).toFixed(1)+","+(hy+(vy-hy)*f).toFixed(1)+" ";
+          }
+          return bp+"Z";
+        };
+        const fracs=on ? [0.34,0.52,0.70,0.86,1] : [0.40,0.62,0.84,1];
+        const stateMul=on ? 1 : 0.8;
+        const bandCount=fracs.length;
+        let edge="";
+        for(let i=0;i<bandCount;i++){
+          const frac=fracs[i];
+          const distFade=1-0.55*(i/(bandCount-1));
+          const isIndex=(i%2===0);
+          const raw=(0.02+0.015*t)*distFade*stateMul*(isIndex?1:0.6);
+          const sw=swid((isIndex?0.9:0.5)+(isIndex?0.3:0.2)*t);
+          const path=(frac===1) ? d : bandAt(frac);
+          edge+=`<path d="${path}" fill="none" stroke="${ink}" stroke-opacity="${opac(raw)}" `+
+            `stroke-width="${sw}" stroke-linejoin="round" pointer-events="none"/>`;
+        }
+        return {glow:"", edge: clipWrap(edge)};
+      }
+      if(AUTOMORPH_STYLE==="facet"){
+        // A fan of flat triangular wedges from the fixture's own anchor to
+        // every ring vertex, each lightened toward white or darkened
+        // toward near-black by how much it faces the shared upper-left
+        // light — a low-poly paper-sculpture read, hard edges only, zero
+        // gradient softness inside any one facet.
+        const n = ring.length;
+        const baseHex = on ? AUTOMORPH_BASE_ON : AUTOMORPH_BASE_OFF;
+        const baseR = parseInt(baseHex.slice(1,3),16), baseG = parseInt(baseHex.slice(3,5),16), baseB = parseInt(baseHex.slice(5,7),16);
+        const WHITE = [255,255,255], NEARBLACK = [12,12,12];
+        const mixRgb = (c,to,amt) => [0,1,2].map(i => Math.round(c[i] + (to[i]-c[i])*amt));
+        const LX = -0.7071, LY = -0.7071;
+        const CONTRAST = on ? 0.50 : 0.22;
+        const fillOp = (0.035 + 0.035*t) * (on ? 1.1 : 0.85);
+
+        const facets = ring.map((p,i) => {
+          const q = ring[(i+1) % n];
+          let fdx = (p[0]+q[0])/2 - hx, fdy = (p[1]+q[1])/2 - hy;
+          const len = Math.hypot(fdx,fdy) || 1;
+          fdx /= len; fdy /= len;
+          const facing = fdx*LX + fdy*LY;
+          const blend = facing * CONTRAST;
+          const rgb = blend >= 0
+            ? mixRgb([baseR,baseG,baseB], WHITE, Math.min(1, blend))
+            : mixRgb([baseR,baseG,baseB], NEARBLACK, Math.min(1, -blend));
+          return `<path d="M${hx},${hy} L${p[0]},${p[1]} L${q[0]},${q[1]} Z" fill="rgb(${rgb[0]},${rgb[1]},${rgb[2]})" fill-opacity="${opac(fillOp)}" pointer-events="none"/>`;
+        }).join("");
+
+        const spokeOp = 0.008 + 0.018*t;
+        const spokes = ring.map(p =>
+          `<line x1="${hx}" y1="${hy}" x2="${p[0]}" y2="${p[1]}" stroke="${ink}" stroke-width="${swid(0.6)}" stroke-opacity="${opac(spokeOp)}" pointer-events="none"/>`
+        ).join("");
+
+        const rimOp = 0.008 + 0.018*t;
+        const rim = `<path d="${d}" fill="none" stroke="url(#psglossrim)" stroke-width="${swid(on ? 1.1 : 0.8)}" stroke-opacity="${opac(rimOp)}" pointer-events="none"/>`;
+
+        return {glow: clipWrap(facets), edge: spokes + rim};
+      }
+      if(AUTOMORPH_STYLE==="sumie"){
+        // Ink-wash brush stroke: a wide, soft, blurred bleed along the
+        // ring (ink soaking into paper) under a crisp but irregular
+        // dry-brush dash on top — never a regular machine rhythm — plus a
+        // couple of soft pooling blots where a real brush would linger.
+        // Flat and matte throughout; no bevel, no cast shadow.
+        const smul = on ? 1 : 0.6;
+
+        const bleedW = swid((on?5:3.5)+3*t);
+        const bleedOp = opac((0.018+0.018*t)*smul);
+        const bleedStroke = `<path d="${d}" fill="none" stroke="${on?AUTOMORPH_BASE_ON:AUTOMORPH_BASE_OFF}" stroke-width="${bleedW}" stroke-linecap="round" stroke-linejoin="round" transform="translate(0.6,0.4)" opacity="${bleedOp}" pointer-events="none"/>`;
+
+        const rawIdx = [0, Math.floor(ring.length/3), Math.floor(2*ring.length/3)];
+        const blotIdx = rawIdx.filter((v,i,a)=> ring[v] && a.indexOf(v)===i);
+        const blotR = ((1.1+1.2*t)*(on?1.1:0.85)).toFixed(2);
+        const blotOp = opac((0.015+0.012*t)*smul);
+        const blots = blotIdx.map(i=>{
+          const p = ring[i];
+          return `<circle cx="${p[0]}" cy="${p[1]}" r="${blotR}" fill="${duo}" opacity="${blotOp}" pointer-events="none"/>`;
+        }).join('');
+
+        const glow = clipWrap(`<g filter="url(#psaurasoft)" pointer-events="none">${bleedStroke}${blots}</g>`);
+
+        const dash = on ? "14,1.5,9,1,17,2,6,1.5" : "5,3,2,4,7,5,3,3.5,6,4";
+        const crispW = swid((on?1.6:1.1)+0.5*t);
+        const crispOp = opac((0.045+0.035*t)*smul);
+        const edge = `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${crispW}" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="${dash}" opacity="${crispOp}" pointer-events="none"/>`;
+
+        return {glow, edge};
+      }
+      if(AUTOMORPH_STYLE==="stainedglass"){
+        // The ring fan-cut from the fixture's own anchor into uneven
+        // wedge panes, each a flat solid-toned cell at its own opacity
+        // (hand-cut glass), with heavy dead-flat near-black leading along
+        // every pane boundary and the outer frame. On vs off is the
+        // panes' and the backlight wash's own opacity roughly doubling —
+        // more luminous, as if backlit — the leading itself never changes.
+        const n = ring.length;
+        if(n < 3) return {glow: "", edge: ""};
+
+        const LEAD = "#0a0a0c";
+        const paneCount = 5 + (Math.abs(Math.round(hx + hy)) % 3);
+        const seed = hx * 0.7 + hy * 1.3;
+        const rnd = (i) => { const x = Math.sin(seed + i * 12.9898) * 43758.5453; return x - Math.floor(x); };
+
+        const cutIdx = [];
+        for(let k = 0; k < paneCount; k++){
+          const spacing = n / paneCount;
+          const jitter = (rnd(k) - 0.5) * spacing * 0.7;
+          const raw = Math.round(k * spacing + jitter);
+          cutIdx.push(((raw % n) + n) % n);
+        }
+        const cuts = [...new Set(cutIdx)].sort((a, b) => a - b);
+        const m = cuts.length;
+        if(m < 3) return {glow: "", edge: ""};
+
+        const baseTone = on ? AUTOMORPH_BASE_ON : AUTOMORPH_BASE_OFF;
+        const paneMax = on ? 0.04 : 0.018;
+        const washMax = (on ? 0.03 : 0.018) * (1 + weightOffPct / 100);
+        const floor = 0.15 + 0.85 * t;
+
+        let panes = "";
+        let spokes = "";
+        for(let k = 0; k < m; k++){
+          const i0 = cuts[k];
+          const i1 = cuts[(k + 1) % m];
+          let pts = `${hx},${hy} `;
+          let idx = i0;
+          let guard = 0;
+          while(guard <= n){
+            pts += `${ring[idx][0]},${ring[idx][1]} `;
+            if(idx === i1) break;
+            idx = (idx + 1) % n;
+            guard++;
+          }
+          const variance = 0.7 + 0.6 * rnd(k * 7 + 3);
+          const paneOp = paneMax * floor * variance;
+          panes += `<path d="M ${pts.trim()} Z" fill="${baseTone}" fill-opacity="${opac(paneOp)}" pointer-events="none"/>`;
+          spokes += `<line x1="${hx}" y1="${hy}" x2="${ring[i0][0]}" y2="${ring[i0][1]}" stroke="${LEAD}" stroke-width="${swid(1.2)}" stroke-opacity="${opac(0.065)}" stroke-linecap="round" pointer-events="none"/>`;
+        }
+
+        const wash = `<path d="${d}" fill="${duo}" fill-opacity="${opac(washMax * floor)}" mask="url(#psautomorphmask)" pointer-events="none"/>`;
+        const glowMarkup = clipWrap(wash + panes);
+
+        const outerLead = `<path d="${d}" fill="none" stroke="${LEAD}" stroke-width="${swid(1.4)}" stroke-opacity="${opac(0.07)}" pointer-events="none"/>`;
+        const edgeMarkup = outerLead + spokes;
+
+        return {glow: glowMarkup, edge: edgeMarkup};
+      }
+      if(AUTOMORPH_STYLE==="engrave"){
+        // A field of fine, evenly-weighted parallel hatch lines — a
+        // banknote/etching-plate shading pass, nothing but linework. Off
+        // draws one direction, spaced wide (a light outline pass); on
+        // crosses a second pass at 90° and both tighten, the classic
+        // engraver's move from outline to shading. Every stroke holds one
+        // constant, quiet ink weight — state and t read entirely through
+        // line density and direction-count, never opacity.
+        let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+        for(const [px,py] of ring){
+          if(px<minX)minX=px; if(px>maxX)maxX=px;
+          if(py<minY)minY=py; if(py>maxY)maxY=py;
+        }
+        const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+        const diag=Math.hypot(maxX-minX,maxY-minY)/2+4;
+
+        const LINEOP=0.07;
+        function hatchSet(angleDeg,spacing){
+          const rad=angleDeg*Math.PI/180;
+          const ux=Math.cos(rad), uy=Math.sin(rad);
+          const nx=-uy, ny=ux;
+          let out="";
+          for(let off=-diag; off<=diag; off+=spacing){
+            const bx=cx+nx*off, by=cy+ny*off;
+            const x1=(bx-ux*diag).toFixed(1), y1=(by-uy*diag).toFixed(1);
+            const x2=(bx+ux*diag).toFixed(1), y2=(by+uy*diag).toFixed(1);
+            out+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${ink}" stroke-width="${swid(0.6)}" stroke-opacity="${opac(LINEOP)}" pointer-events="none"/>`;
+          }
+          return out;
+        }
+
+        const cap=(2*diag)/24;
+        let hatch;
+        if(on){
+          const spacing=Math.max(10-6*t,cap);
+          hatch=hatchSet(45,spacing)+hatchSet(135,spacing);
+        }else{
+          const spacing=Math.max(16-7*t,cap);
+          hatch=hatchSet(45,spacing);
+        }
+        // Clipped to the ring's OWN outline, which is unique per fixture
+        // (position, size, morph state) — never a registered <clipPath>
+        // def keyed by fixture, the same per-fixture-defs bloat this
+        // file's automorph defs are built to avoid elsewhere (compare
+        // psautomorphduo_on/off — exactly two, by STATE — and
+        // psglossauto_${lidx} — one per FLOOR, never per fixture). An
+        // inline CSS clip-path carries the same per-fixture cost class as
+        // the `d` attribute itself already emitted on every path here —
+        // no def, no id, nothing added to <defs>.
+        return {glow:"", edge: `<g clip-path="path('${d}')" pointer-events="none">${hatch}</g>`};
+      }
+      if(AUTOMORPH_STYLE==="constellation"){
+        // A sparse star-chart: every ring vertex becomes a tiny star (a
+        // soft duotone halo plus a crisp core dot), joined by faint
+        // straight vertex-to-vertex chords — literal polygon edges, never
+        // the smoothed ring path — with one or two even fainter spokes
+        // reaching back to the fixture's own anchor. No fill, wash or
+        // dashing anywhere; the interior stays empty, a chart rather than
+        // a rendering. On is bigger/brighter/denser; off shrinks to faint
+        // pinpricks with the spokes almost gone.
+        const n = ring.length;
+
+        const coreR   = (on ? 1.5 : 1.0) + (on ? 1.0 : 0.6) * t;
+        const haloR   = (on ? 3.2 : 2.1) + (on ? 1.6 : 0.9) * t;
+        const coreOp  = opac(on ? 0.046 : 0.020);
+        const haloOp  = opac(on ? 0.024 : 0.011);
+        const chordW  = swid(on ? 0.7 : 0.45);
+        const chordOp = opac((on ? 0.024 : 0.011) * (0.35 + 0.65 * t));
+        const spokeW  = swid(on ? 0.5 : 0.35);
+        const spokeOp = opac((on ? 0.014 : 0.006) * t);
+
+        let chords = "";
+        for(let i = 0; i < n; i++){
+          const [cx1, cy1] = ring[i];
+          const [cx2, cy2] = ring[(i + 1) % n];
+          chords += `<line x1="${cx1}" y1="${cy1}" x2="${cx2}" y2="${cy2}" stroke="${ink}" stroke-width="${chordW}" opacity="${chordOp}" pointer-events="none"/>`;
+        }
+
+        let spokes = "";
+        for(const i of [0, Math.floor(n / 2)]){
+          const [sx, sy] = ring[i];
+          spokes += `<line x1="${hx}" y1="${hy}" x2="${sx}" y2="${sy}" stroke="${ink}" stroke-width="${spokeW}" opacity="${spokeOp}" pointer-events="none"/>`;
+        }
+
+        let halos = "";
+        for(let i = 0; i < n; i++){
+          const [hpx, hpy] = ring[i];
+          halos += `<circle cx="${hpx}" cy="${hpy}" r="${haloR}" fill="${duo}" opacity="${haloOp}" pointer-events="none"/>`;
+        }
+        const glow = clipWrap(`<g filter="url(#psaurasoft)" pointer-events="none">${halos}</g>`);
+
+        let cores = "";
+        for(let i = 0; i < n; i++){
+          const [rpx, rpy] = ring[i];
+          cores += `<circle cx="${rpx}" cy="${rpy}" r="${coreR}" fill="${ink}" opacity="${coreOp}" pointer-events="none"/>`;
+        }
+
+        return {glow, edge: chords + spokes + cores};
+      }
+      if(AUTOMORPH_STYLE==="woven"){
+        // A thin continuous binding line follows the ring like a basket's
+        // rim coil, crossed at regular intervals by short perpendicular
+        // ticks that alternate paint order to fake an over/under
+        // interlace — half painted first (tucked under), half after (on
+        // top, each capped with a tiny gradient-lit knot). On samples
+        // tighter and paints heavier (a defined, close weave); off spaces
+        // out and fades (loose and slack).
+        const ringLen = ring.length;
+        const stateOn = on ? 1 : 0.62;
+        const step = on ? 2 : 3;
+        const wf = 1 + (weightOffPct/7)*0.12;
+        const tickHalf = (4.5 + 3.5*t) * wf;
+        const spineOpac = (0.045 + 0.02*t) * stateOn;
+        const overOpac  = (0.06 + 0.025*t) * stateOn;
+        const underOpac = (0.04 + 0.016*t) * stateOn;
+        const knotOpac  = (0.05 + 0.02*t) * stateOn;
+        const knotR     = (1.1 + 0.6*t) * wf;
+        const spineW = on ? 1.7 : 1.2;
+        const overW  = on ? 1.5 : 1.05;
+        const underW = on ? 1.1 : 0.8;
+        const spineColor = on ? AUTOMORPH_BASE_ON : AUTOMORPH_BASE_OFF;
+
+        let under = "";
+        let over = "";
+        for(let i=0;i<ringLen;i+=step){
+          const [x,y] = ring[i];
+          const [px,py] = ring[(i - 1 + ringLen) % ringLen];
+          const [nx,ny] = ring[(i + 1) % ringLen];
+          let tx = nx - px, ty = ny - py;
+          const len = Math.hypot(tx,ty) || 1;
+          tx /= len; ty /= len;
+          const perpx = -ty, perpy = tx;
+          const x1 = x - perpx*tickHalf, y1 = y - perpy*tickHalf;
+          const x2 = x + perpx*tickHalf, y2 = y + perpy*tickHalf;
+          const isOver = (Math.floor(i/step) % 2) === 0;
+          if(isOver){
+            over += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${ink}" stroke-width="${swid(overW)}" stroke-linecap="round" opacity="${opac(overOpac)}" pointer-events="none"/>`;
+            over += `<circle cx="${x2.toFixed(1)}" cy="${y2.toFixed(1)}" r="${knotR.toFixed(2)}" fill="${duo}" opacity="${opac(knotOpac)}" pointer-events="none"/>`;
+          } else {
+            under += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${ink}" stroke-width="${swid(underW)}" stroke-linecap="round" opacity="${opac(underOpac)}" pointer-events="none"/>`;
+          }
+        }
+
+        const spine = `<path d="${d}" fill="none" stroke="${spineColor}" stroke-width="${swid(spineW)}" opacity="${opac(spineOpac)}" pointer-events="none"/>`;
+
+        return {glow: "", edge: clipWrap(`<g pointer-events="none">${under}${spine}${over}</g>`)};
+      }
       // "glow" (default): a material stack, every layer the SAME path `d`
       // — no second geometry anywhere, so hardness/wobble/cell shape stay
       // correct in every layer for free. Bottom to top: cast shadow,
@@ -3724,7 +4069,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const [bx,by]=iso(b.x_m, b.y_m, z);
       s+=`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="4.5" fill="#5eead4" `+
         `stroke="#0a1a12" stroke-width="1.2" opacity="0.9" pointer-events="none"/>`;
-      if(b.label){
+      // "Hide codes" also covers beacon names (Garry, 2026-09-09: "when txt
+      // is turned off, should include beacons text") — one declutter switch,
+      // not two separate label toggles to remember.
+      if(b.label && !HIDECODES){
         s+=`<text x="${bx.toFixed(1)}" y="${(by-9).toFixed(1)}" text-anchor="middle" `+
           `font-family="system-ui,sans-serif" font-size="9" font-weight="600" fill="#5eead4" `+
           `paint-order="stroke" stroke="#0a1a12" stroke-width="2.2" stroke-linejoin="round" `+

@@ -163,7 +163,13 @@ def test_nothing_from_the_house_is_in_the_report():
     # counts (never entity ids) answer "is anyone using the newer classes"
     # instead of just "how many lights". `light_type_overrides_by_kind` is
     # the direct read on advanced (pro-only) type-override adoption.
-    assert len(text) < 3200
+    # Raised 3200 → 3300 for three lights_* switches the report never carried
+    # (`lights_isolux`, `lights_automorph_enabled`, `lights_show_beacons`) plus
+    # `lights_automorph_style` as an enum — Garry, 2026-09-09: "Collect info
+    # for opt-in on how lights is configured and used". Each was already a
+    # real, working feature (isolux contours, the Automorph aura, the beacons
+    # overlay) the report simply never mentioned.
+    assert len(text) < 3300
 
 
 def test_the_gate_refuses_every_identifier_shape():

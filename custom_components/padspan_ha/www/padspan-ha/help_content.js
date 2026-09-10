@@ -365,6 +365,7 @@ export const HELP = {
       "SHOWCASE — Switches to the same presentation rendering the Lights sidebar uses day to day (ambient dimming, glow), instead of the flatter working view most editing is easiest in.",
       "HIDE UNTOUCHED / UNTOUCHED (N) — Hides every fixture that has never been given a size, rotation, colour or shape of its own (only ever dropped at its default look). N is how many that currently is. Moving a fixture does not count as 'touching' it — nearly every fixture on a finished house has been moved, so that would hide almost nothing.",
       "HIDE CODES / CODES HIDDEN — Hides the A01/M08-style code label on every marker. The marker itself, and everything you can do with it, is unchanged — this is a decluttered view only.",
+      "SHOW BEACONS / BEACONS SHOWN — Overlays working, identified beacons as read-only dots, same as the Overview map. Off by default. Their name text follows Hide Codes — turn codes off and beacon names hide too.",
       "AUTOMORPH — Grows a soft aura behind each placed fixture toward its own room's shape. Purely a visual aura; the fixture's own icon is never changed by it. Turning it on reveals four more controls:",
       "  ROOM % — How far the aura reaches into the room, as a percentage of the room's own size. 0 keeps it tight to the fixture; higher lets it spread further before it fades out.",
       "  HARDNESS — The aura's edge shape. Centre (0) is unchanged; left sharpens the edge into a spikier outline, right softens it into a smoother, rounder one.",

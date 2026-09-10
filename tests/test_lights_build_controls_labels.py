@@ -162,6 +162,35 @@ def test_sticky_control_row_is_opt_in_per_host(tmp_path):
     assert out["sticky"] is True, "host.stickyToolbar: true must add lv-toolbar-sticky"
 
 
+def test_show_beacons_toggle_is_opt_in_and_off_by_default(tmp_path):
+    """Garry, 2026-09-09: "Show beacons on lighting page should be
+    selectable, and off by default." The button itself only exists when the
+    host wires onShowBeacons (the Mapping builder does; the sidebar never
+    passed beacons in the first place), and even then starts unchecked."""
+    out = _run(_base_host("") + (
+        "out.found = !!card.querySelector('.lv-tgl.tone-teal')"
+        " && [...card.querySelectorAll('button')].some(b => b.textContent.includes('Show beacons'));\n"
+    ))
+    assert out["found"] is False, "no onShowBeacons on the host must render no beacons toggle at all"
+
+    out = _run(_base_host("  showBeacons: false, onShowBeacons: () => {},\n") + (
+        "const btns = [...card.querySelectorAll('button')].filter(b => b.textContent.includes('Beacons') || b.textContent.includes('beacons'));\n"
+        "out.count = btns.length;\n"
+        "out.text = btns[0] ? btns[0].textContent : null;\n"
+        "out.on = btns[0] ? btns[0].classList.contains('on') : null;\n"
+    ))
+    assert out["count"] == 1, out
+    assert out["text"] == "◉ Show beacons", out
+    assert out["on"] is False, "must not default to the 'on' visual state"
+
+    out = _run(_base_host("  showBeacons: true, onShowBeacons: () => {},\n") + (
+        "const btn = [...card.querySelectorAll('button')].find(b => b.textContent.includes('Beacons'));\n"
+        "out.text = btn.textContent; out.on = btn.classList.contains('on');\n"
+    ))
+    assert out["text"] == "◉ Beacons shown", out
+    assert out["on"] is True
+
+
 def test_help_button_renders_when_the_host_provides_one(tmp_path):
     calls = []
     out = _run(_base_host(

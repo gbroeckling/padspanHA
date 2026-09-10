@@ -159,7 +159,8 @@ UI_ERRORS: frozenset[str] = frozenset({f"ui_error:{v}" for v in VIEWS})
 # in the data (tests/test_telemetry.py holds the list to that).
 _FEATURE_FLAGS: tuple[str, ...] = (
     "quiet_mode", "lights_showcase", "lights_fit_rooms", "lights_hide_untouched",
-    "lights_hide_device_codes",
+    "lights_hide_device_codes", "lights_isolux", "lights_automorph_enabled",
+    "lights_show_beacons",
     "lights_panel_enabled", "radio_map_enabled", "distortion_map_enabled",
     "occupancy_hybrid_enabled", "rssi_capture_enabled", "forensics_enabled",
     "mac_rotation_bridging", "beacon_auto_calibrate", "beacon_profiling_enabled",
@@ -175,7 +176,7 @@ _FEATURE_FLAGS: tuple[str, ...] = (
 )
 # Small enumerations reported by value (each from a fixed vocabulary in
 # ws_settings; anything unexpected is dropped by assert_shareable's length rule).
-_FEATURE_ENUMS: tuple[str, ...] = ("data_mode", "cpu_mode")
+_FEATURE_ENUMS: tuple[str, ...] = ("data_mode", "cpu_mode", "lights_automorph_style")
 
 # What a report may contain at the top level — anything else is a bug.
 _TOP_KEYS: frozenset[str] = frozenset({

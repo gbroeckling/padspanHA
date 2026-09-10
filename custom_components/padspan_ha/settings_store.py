@@ -91,10 +91,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "lights_isolux": False,  # Mapping -> Lights Showcase: relative-illuminance contours on the metre grid
     "lights_hide_untouched": False,  # Mapping -> Lights: draw only fixtures that have been sized/rotated/coloured/shaped
     "lights_hide_device_codes": False,  # Mapping -> Lights: hide every marker's A01/M08-style code label, everywhere the map renders
+    "lights_show_beacons": False,  # Mapping -> Lights: overlay working, identified beacons (read-only, no placement); off by default
     "lights_automorph_enabled": False,  # Mapping -> Lights: room-alignment aura, off = today's rendering exactly
     "lights_automorph_room_pct": 0,     # 0-100: how far each fixture's aura has grown toward its room's own shape
     "lights_automorph_hardness": 0,     # -100..100, centered: negative sharpens/spikes the aura's edges, positive smooths them into a closed spline; 0 = today's straight edge
-    "lights_automorph_style": "glow",   # "glow" | "blueprint" | "nebula" — which visual treatment paints the same morphed shape
+    "lights_automorph_style": "glow",   # "glow" | "blueprint" | "nebula" | "circuit" | "contour" | "facet" | "sumie" | "stainedglass" | "engrave" | "constellation" | "woven" — which visual treatment paints the same morphed shape
     "lights_automorph_subtlety": 0,     # 0-100: 0 = full opacity/line-weight (today's look), 100 = thinned lines + faded near-invisible
     "overview_show_walls": False,   # Overview: draw RF barrier walls over the map
     "overview_show_outdoor": False, # Overview: draw outdoor areas (sheds, driveways) as an overlay

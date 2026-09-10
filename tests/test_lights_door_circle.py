@@ -181,6 +181,31 @@ out.stateAfter = mapState;
     )
 
 
+def test_commit_failure_names_the_nearest_wall_and_the_actual_gap():
+    """Reported a second time — "it is not [in the wrong place]" — so a
+    generic "move or resize" hint alone was not enough to tell whether this
+    really is the room-outline confusion or something the circle's own
+    numbers would show at a glance. w1 spans y=0 from x=2..8; a circle at
+    (5, 1.5) r=1 falls exactly 0.5m short of reaching it."""
+    out = _run("""
+const ctx = makeCtx(MODEL);
+const mapState = { _doorCircleEid: 'binary_sensor.kitchen_door',
+  _doorCircleM: { x_m: 5, y_m: 1.5, r_m: 1, floorId: 'main' } };
+await M._commitDoorCircle(ctx, mapState);
+out.calls = calls;
+out.toasts = toasts;
+""")
+    assert out["calls"] == [], out["calls"]
+    msgs = [t["m"] for t in out["toasts"] if t["isErr"]]
+    assert msgs, out["toasts"]
+    msg = msgs[0]
+    assert "Kitchen wall" in msg, msg
+    assert "0.50m" in msg, msg
+    assert 'floor "main"' in msg, msg
+    assert "r=1.00m" in msg, msg
+    assert "(5.00, 1.50)" in msg, msg
+
+
 def test_commit_with_no_matching_wall_names_the_room_outline_confusion():
     """Garry, 2026-09-09: "the done right now just says move or resize so
     it crosses the line, but it already is" — a circle drawn over a ROOM's

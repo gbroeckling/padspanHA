@@ -7068,9 +7068,29 @@ export async function _commitDoorCircle(ctx, mapState) {
     // over a ROOM's edge, with no rf_barriers_m wall drawn along it, can
     // never match anything no matter how it's dragged: only Rooms → RF
     // Barriers wall geometry counts here, not the room outline itself.
-    ctx.toast(unlinked.length
+    //
+    // Reported a second time, more insistently — "it is not [in the wrong
+    // place]" — so the generic wording alone was not enough to pin down
+    // whether this is really the room-outline confusion above or something
+    // else this circle's own numbers would show at a glance. Naming the
+    // actual nearest wall and how far short the circle falls turns the
+    // NEXT report into an exact repro instead of another guess.
+    let nearestName = null, nearestGapM = null;
+    for (const b of unlinked) {
+      const pts = (b.points_m || []).map(p => [Number(p[0]), Number(p[1])]);
+      if (pts.length < 2) continue;
+      const hit = nearestPointOnPolyline(pts, circle.x_m, circle.y_m);
+      if (!hit) continue;
+      const gap = Math.sqrt(hit.distSq) - circle.r_m;
+      if (nearestGapM === null || gap < nearestGapM) { nearestGapM = gap; nearestName = b.name || "wall"; }
+    }
+    const detail = nearestName
+      ? ` Nearest wall ("${nearestName}") is ${nearestGapM > 0 ? nearestGapM.toFixed(2) + "m past the circle's own edge" : "already inside the circle, but not crossing its boundary twice"} — floor "${fid}", circle r=${circle.r_m.toFixed(2)}m at (${circle.x_m.toFixed(2)}, ${circle.y_m.toFixed(2)}).`
+      : "";
+    ctx.toast((unlinked.length
       ? "Move or resize the circle so it crosses a wall — a room's own outline doesn't count, only a wall drawn in Rooms → RF Barriers does."
-      : "No wall is drawn on this floor yet — add one in Rooms → RF Barriers first, then link it here.",
+      : "No wall is drawn on this floor yet — add one in Rooms → RF Barriers first, then link it here.")
+      + detail,
       true);
     return;
   }
@@ -8028,6 +8048,12 @@ function _lightsTab(ctx, maps, active) {
   const hideDeviceCodes = mapState._lightsHideDeviceCodes === undefined
     ? !!ctx.state.settings?.lights_hide_device_codes
     : !!mapState._lightsHideDeviceCodes;
+  // "Show beacons" (Garry, 2026-09-09) — same draft-then-persist shape as
+  // hideDeviceCodes above, but off by default: a read-only overlay someone
+  // opts into, not a surprise addition to an already-busy map.
+  const showBeacons = mapState._lightsShowBeacons === undefined
+    ? !!ctx.state.settings?.lights_show_beacons
+    : !!mapState._lightsShowBeacons;
 
   const toggle = async (eid) => {
     if (!ctx.hass) return;
@@ -8479,6 +8505,13 @@ function _lightsTab(ctx, maps, active) {
     onHideDeviceCodes: async (v) => {
       mapState._lightsHideDeviceCodes = v;
       try { await ctx.actions.settingsSet({ lights_hide_device_codes: v }); }
+      catch (e) { ctx.toast("Could not save the setting: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
+    showBeacons,
+    onShowBeacons: async (v) => {
+      mapState._lightsShowBeacons = v;
+      try { await ctx.actions.settingsSet({ lights_show_beacons: v }); }
       catch (e) { ctx.toast("Could not save the setting: " + String(e), true); }
       ctx.actions.renderRooms();
     },

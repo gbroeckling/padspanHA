@@ -566,6 +566,23 @@ def test_beacons_are_never_clickable(tmp_path):
         "a beacon must never be a click target — no placement, no interaction")
 
 
+def test_hide_codes_also_hides_a_beacons_name_but_not_its_dot(tmp_path):
+    """Garry, 2026-09-09: "when txt is turned off, should include beacons
+    text" — one declutter switch (Hide codes / HIDECODES) covers both the
+    device code labels and a beacon's name, not two toggles to remember."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_MODEL)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
+        f"const LBE={json.dumps(_LIGHTS_BY_EID)};\nconst out={{}};\n"
+        "const beacons=[{key:'ble:AA', label:'Garry Phone', x_m:3, y_m:2, floor_id:'main'}];\n"
+        "out.svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{beacons,hideCodes:true});"
+        "console.log(JSON.stringify(out));"
+    ))
+    svg = out["svg"]
+    assert "Garry Phone" not in svg, "hideCodes must also hide a beacon's name text"
+    assert 'fill="#5eead4"' in svg, "hideCodes must not hide the beacon's dot, only its text"
+
+
 def test_without_beacons_opt_nothing_changes(tmp_path):
     out = _run_js(tmp_path, (
         "import * as M from './iso_lights.mjs';\n"
@@ -2997,6 +3014,99 @@ def test_automorph_style_dropdown_switches_the_rendered_treatment(tmp_path):
     assert unknown == glow, "an unrecognised style name must fall back to glow, not silently render nothing"
 
 
+# ── Five more style candidates ──────────────────────────────────────────────
+# Garry, 2026-09-09: "dig around hard for 5 more candidates that will add to
+# the realm of attractive options" — circuit, contour, facet, sumie,
+# stainedglass, engrave, constellation, woven. Same contract as
+# glow/blueprint/nebula above: each paints the SAME morphed ring/`d`, no new
+# geometry, on/off is a material split rather than a hex swap.
+
+_NEW_STYLES = ("circuit", "contour", "facet", "sumie", "stainedglass",
+               "engrave", "constellation", "woven")
+
+
+def _render_style(tmp_path, style, *, state="on"):
+    NOW = 1_000_000_000_000
+    model = {
+        "room_geometry_m": {"Office": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [6, 0], [6, 6], [0, 6]]}},
+        "light_positions_m": {"light.lamp": {"x_m": 3, "y_m": 3, "floor_id": "main"}},
+    }
+    lbe = {"light.lamp": {"entity_id": "light.lamp", "state": state, "code": "A01", "shape": "circle", "isMotion": False, "last_changed": None}}
+    floors = [{"id": "main", "name": "Main", "level": 0}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\nconst LBE={json.dumps(lbe)};\nconst FLOORS={json.dumps(floors)};\n"
+        f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,"
+        f"{{nowMs:{NOW}, automorph:true, automorphRoomPct:50, automorphStyle:{json.dumps(style)}}});\n"
+        "console.log(JSON.stringify({svg}));\n"
+    ))
+    return out["svg"]
+
+
+def test_every_new_style_renders_and_differs_from_glow_and_each_other(tmp_path):
+    glow = _render_style(tmp_path, "glow")
+    rendered = {style: _render_style(tmp_path, style) for style in _NEW_STYLES}
+    for style, svg in rendered.items():
+        assert len(svg) > len(glow) // 4, f"{style} rendered suspiciously little: {len(svg)} bytes"
+        assert svg != glow, f"{style} must not be byte-identical to glow"
+    seen = list(rendered.values())
+    for i, a in enumerate(seen):
+        for b in seen[i + 1:]:
+            assert a != b, "two distinct new styles rendered byte-identical output"
+
+
+def test_every_new_style_differs_between_on_and_off(tmp_path):
+    """State (lit vs not) must always be a material split, never a no-op —
+    the same discipline test_automorph_on_and_off_differ_by_material_not_just_hex
+    pins for glow/blueprint/nebula."""
+    for style in _NEW_STYLES:
+        on = _render_style(tmp_path, style, state="on")
+        off = _render_style(tmp_path, style, state="off")
+        assert on != off, f"{style} must render differently on vs off"
+
+
+def test_engrave_never_registers_a_per_fixture_clip_def(tmp_path):
+    """The per-fixture-defs-bloat discipline this file's OWN automorph defs
+    already hold to (psautomorphduo_on/off — exactly two, by state;
+    psglossauto_${lidx} — one per floor, never per fixture): engrave clips
+    its hatch to the ring's own outline (unique per fixture) via an inline
+    CSS clip-path, never a registered <clipPath> def keyed by position — that
+    would grow one extra def per engrave-styled fixture on the floor. The
+    scene's ROOM clip (psclip_0, shared per room via clipWrap/roomClip, the
+    same mechanism every other style already rides) is expected and fine —
+    what must NOT grow is the <clipPath> count between styles."""
+    glow = _render_style(tmp_path, "glow")
+    engrave = _render_style(tmp_path, "engrave")
+    assert glow.count("<clipPath") == engrave.count("<clipPath"), (
+        "engrave must not register any <clipPath> def beyond the shared room clip glow already carries")
+    assert "clip-path=\"path(" in engrave, "engrave must clip its hatch via an inline clip-path"
+
+
+def test_engrave_crosshatches_when_on_and_single_hatches_when_off(tmp_path):
+    on = _render_style(tmp_path, "engrave", state="on")
+    off = _render_style(tmp_path, "engrave", state="off")
+    # Two perpendicular passes (45deg and 135deg lines) when on; only one
+    # direction when off. Anchored on the hatch lines' own fixed
+    # stroke-opacity (LINEOP=0.07, constant regardless of on/t) so this
+    # doesn't pick up unrelated <line> elements (the motion legend, etc.)
+    # scattered elsewhere in the same scene.
+    import math
+
+    def _angles(svg):
+        angles = set()
+        for m in re.finditer(
+            r'<line x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" y2="([\d.-]+)" stroke="[^"]+" '
+            r'stroke-width="[^"]+" stroke-opacity="0\.07"', svg):
+            x1, y1, x2, y2 = (float(v) for v in m.groups())
+            dx, dy = x2 - x1, y2 - y1
+            if abs(dx) > 0.5 or abs(dy) > 0.5:
+                # mod 180, not 90: 45deg and 135deg lines must stay distinct.
+                angles.add(round(math.degrees(math.atan2(dy, dx))) % 180)
+        return angles
+    assert len(_angles(on)) >= 2, "on must cross-hatch in two directions"
+    assert len(_angles(off)) == 1, "off must draw only one hatch direction"
+
+
 def test_automorph_subtlety_thins_opacity_and_stroke_without_ever_reaching_zero(tmp_path):
     """0 must be today's exact opacity/stroke-width (the same contract every
     other Automorph control's rest position holds); 100 must be visibly
@@ -4661,7 +4771,7 @@ def test_automorph_full_map_two_renders_are_byte_identical(tmp_path):
         f"const LBE={json.dumps(lbe)};\n"
         f"const FLOORS={json.dumps(floors)};\n"
         "const res={};\n"
-        "for(const style of ['glow','nebula','blueprint']){\n"
+        "for(const style of ['glow','nebula','blueprint','circuit','contour','facet','sumie','stainedglass','engrave','constellation','woven']){\n"
         f"  const opts={{nowMs:{NOW}, automorph:true, automorphRoomPct:100, automorphHardness:-60, automorphStyle:style}};\n"
         "  const s1=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,opts);\n"
         "  const s2=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,opts);\n"
@@ -4669,7 +4779,8 @@ def test_automorph_full_map_two_renders_are_byte_identical(tmp_path):
         "}\n"
         "console.log(JSON.stringify(res));\n"
     ))
-    for style in ("glow", "nebula", "blueprint"):
+    for style in ("glow", "nebula", "blueprint", "circuit", "contour", "facet", "sumie",
+                  "stainedglass", "engrave", "constellation", "woven"):
         assert out[style]["len"] > 0, f"the {style} scene must actually render: {out}"
         assert out[style]["same"], (
             f"two identical {style} renders must be byte-identical — the fabric alone "
