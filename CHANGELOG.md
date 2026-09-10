@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.32 — A linked door/window/lock wall always shows now, and 8 Automorph styles that were rendering invisibly (2026-09-10)
+
+### A linked door/window/lock wall always shows on the Lights map, regardless of any filter
+- **Fixed:** after linking a door to a wall, nothing showed on the map at all — not even the grey "closed" line, whatever the door's real state. `lightIsTouched` always returned false for any door, so "Hide untouched" hid it and its wall segment right back; a linked door now counts as touched. Garry: "any setting should not negate a door showing up properly" — a linked wall's open/closed (or locked/unlocked) state is load-bearing information about the house, not clutter, so it now ignores hiddenEids entirely and is immune to the layer-chip class-filter dim as well, while every other filter still applies normally to ordinary lights. The closed-state line also renders at full opacity now instead of 0.85, so it reads as a definite, solid wall next to the dashed open state.
+
+### Eight Automorph styles were painting real geometry nobody could actually see
+- **Fixed:** Circuit, Contour, Facet, Ink Wash, Stained Glass, Engrave, Constellation and Woven — the 8 styles added in 0.38.30 — used opacity values roughly 5-15x fainter than Glow/Blueprint/Nebula, so switching to any of them looked like nothing happened. Rendered all 11 side by side to confirm and rescaled each style's opacity into the same visible range the original three already use. Engrave's crosshatch also mispositioned outside the room it was meant to trace — its clip-path needed an explicit `view-box` reference, found by testing live in the browser.
+
+---
+
 ## 0.38.31 — A Free/Bright/Bright Pro/Pro onboarding wizard, and a stale "not released" claim fixed (2026-09-10)
 
 ### A new wizard explains what each tier actually unlocks

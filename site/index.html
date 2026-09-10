@@ -175,6 +175,20 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   <div class="rel" style="margin-top:26px">
 
     <div class="relitem">
+      <div class="relhead">
+        <span class="relver">v0.38.32</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">10 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Fixed:</b> after linking a door to a wall, nothing showed on the map at all — not even the grey "closed" line, whatever the door's real state. <code>lightIsTouched</code> always returned false for any door, so "Hide untouched" hid it and its wall segment right back; a linked door now counts as touched. Garry: "any setting should not negate a door showing up properly" — a linked wall's open/closed (or locked/unlocked) state is load-bearing information about the house, not clutter, so it now ignores hiddenEids entirely and is immune to the layer-chip class-filter dim as well, while every other filter still applies normally to ordinary lights. The closed-state line also renders at full opacity now instead of 0.85, so it reads as a definite, solid wall next to the dashed open state.</li>
+          <li><b>Fixed:</b> Circuit, Contour, Facet, Ink Wash, Stained Glass, Engrave, Constellation and Woven — the 8 styles added in 0.38.30 — used opacity values roughly 5-15x fainter than Glow/Blueprint/Nebula, so switching to any of them looked like nothing happened. Rendered all 11 side by side to confirm and rescaled each style's opacity into the same visible range the original three already use. Engrave's crosshatch also mispositioned outside the room it was meant to trace — its clip-path needed an explicit <code>view-box</code> reference, found by testing live in the browser.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
       <div class="relhead"><span class="relver">v0.38.7 – v0.38.31</span><span class="reldate">25 August – 10 September 2026</span></div>
       <div class="relbody">
         <p style="margin-bottom:4px">Everything below this line was shipped one release at a time and never made it up here as it happened — 25 releases' worth, grouped by what actually changed rather than listed one by one. The <a href="https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md">full changelog</a> has the day-by-day version.</p>
