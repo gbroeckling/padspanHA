@@ -100,6 +100,20 @@ def test_payment_plumbing_is_exact(html: str) -> None:
     assert "$45" in html, "the displayed price does not mention $45 while the form charges 45.00"
 
 
+def test_bright_is_not_claimed_unreleased(html: str) -> None:
+    """gbroeckling/padspanBright went public and live 2026-09-09 (BRIGHT_PUBLISH
+    = True in scripts/release.py) — the page said "Not yet released" /
+    "not released yet" for days after that, telling paying customers the
+    standalone download did not exist when it did. Pinned so a future revert
+    of BRIGHT_PUBLISH (or a copy-paste of old prose) cannot silently bring the
+    stale claim back without this test catching it."""
+    lowered = html.lower()
+    assert "not yet released" not in lowered, "Bright is live — this claim is stale"
+    assert "not released yet" not in lowered, "Bright is live — this claim is stale"
+    assert "github.com/gbroeckling/padspanbright" in lowered, (
+        "the live Bright repo should be linked now that it exists")
+
+
 # What the licence server (traks.ca/license, not in this repo) matches on. It
 # reads item_number, looks for these substrings, and requires at least the
 # matching price — so a renamed SKU or a lowered amount does not fail loudly, it

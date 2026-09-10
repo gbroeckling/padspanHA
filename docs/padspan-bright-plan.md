@@ -2,7 +2,11 @@
 
 **Written** 2026-08-14 · **Against** gbroeckling/padspanHA at v0.32.31 · **Resume** Thursday 2026-08-20
 **Report (same content, formatted):** https://claude.ai/code/artifact/05fbbdb9-2ef4-48c5-9cb2-1310e2f6e0a6
-**Status: PLANNED. No code written. Nothing in this document has been implemented.**
+**Status: IMPLEMENTED AND LIVE as of 2026-09-09.** `gbroeckling/padspanBright` is public
+(`BRIGHT_PUBLISH = True` in `scripts/release.py`); PadSpan Bright Pro sells at $35 CAD/yr
+against PadSpan Pro's $45 (a ~22% discount, not the 30% in constraint 3 below — the actual
+number, not this plan's, is authoritative). This document is kept as design history; the
+constraints below describe the REQUEST as given, not necessarily the exact shipped figures.
 
 ---
 

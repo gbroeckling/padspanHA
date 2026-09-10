@@ -397,6 +397,20 @@ export const HELP = {
     ],
   },
 
+  // ── Tiers: Free, Bright, Bright Pro, Pro ─────────────────────────────────
+  settings_tiers: {
+    title: "Free, Bright, Bright Pro, Pro — What Each Unlocks",
+    body: [
+      "Two separate things decide what you see and what you can do: which download you installed (PadSpan HA, the full app, or PadSpan Bright, a lighting-only download), and whether a licence key is on this install. A key from either family unlocks the SAME two paid features — Forensics, and placing lights exactly where they hang — it's which download you're running that decides whether the presence-tracking half exists to unlock at all.",
+      "PADSPAN HA (this app, full) — Presence tracking, Overview, Follow, Pure Live, Occupancy, Calibration, mapping and everything else here is free, with no key, forever. A key upgrades this install to PadSpan Pro.",
+      "PADSPAN BRIGHT — A separate, lighter download for a household that only wants lighting from a map, not presence tracking. Free forever on its own: place lights on a map, control them, no key needed. A key upgrades a Bright install to PadSpan Bright Pro.",
+      "PADSPAN PRO — Forensics (which Bluetooth devices were near a given scanner in any time window, with dwell time and CSV export) and light placement (fixture shapes and sizes, WLED, Showcase, Fit room) on a full PadSpan HA install.",
+      "PADSPAN BRIGHT PRO — The same light-placement unlock as Pro, on a PadSpan Bright install. Forensics needs presence tracking to have anything to report on, so it isn't part of Bright Pro — that's the one thing a Bright Pro key doesn't reach that a full Pro key does.",
+      "A key never expires into a wall: when a licence lapses, editing goes read-only but nothing you already built is removed, hidden, or stops being exportable.",
+      "Enter or replace a key any time in Settings → Features → PadSpan licence, near the top of this tab — the same card shows this install's edition and tier and, if a key is on file, when it expires.",
+    ],
+  },
+
   // ── Settings Features ──────────────────────────────────────────────────
   settings_features: {
     title: "Experimental Features — Preview & Test",

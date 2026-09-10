@@ -29,6 +29,13 @@
 export const BUY_URL = "https://padspan.traks.ca/#pro";
 export const LIGHTS_URL = "https://padspan.traks.ca/#lights";
 export const PRO_PRICE = "$45 CAD/year";
+// The other two SKUs padspan.traks.ca#editions actually sells — pinned exactly
+// against the site's own PayPal forms by tests/test_site_claims.py. Added so
+// anything quoting the Bright ladder (the tiers help card, the onboarding
+// wizard) has one source too, the same discipline PRO_PRICE already gives Pro.
+export const BRIGHT_PRICE = "$35 CAD/year";
+export const BRIGHT_UPGRADE_PRICE = "$12 CAD";
+export const EDITIONS_URL = "https://padspan.traks.ca/#editions";
 // Where "what changed" lives. The same page the update-check manifest
 // points at (release.py sets notes_url to it), so the notification and the
 // in-panel card cannot disagree about where the release notes are.

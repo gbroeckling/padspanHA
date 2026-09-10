@@ -7014,10 +7014,27 @@ function _draftAt(ctx, o, eid, x_m, y_m, fid, source) {
 
 // Which floor a first click (before any circle exists) lands on — there is
 // no single "current floor" the way Overview's slider has, since this map
-// draws every storey stacked in one SVG. Resolved the same way the old
-// wall-picker did: try every floor's own inverse projection and keep
-// whichever lands nearest a wall on THAT floor — a click is always close to
-// walls on the storey it visually lands on and far from every other storey's.
+// draws every storey stacked in one SVG. Try every floor's own wall set and
+// keep whichever lands nearest the click — but the comparison has to happen
+// in SCREEN space, not each floor's own inverse-projected world space.
+//
+// Found live (Garry, 2026-09-09/10) — the "save fails though the circle is
+// placed correctly" report: the ORIGINAL version here reprojected the SAME
+// screen click through every candidate floor's OWN isoInv, then compared the
+// resulting WORLD-space distances to that floor's own walls across floors.
+// That compares numbers from different, non-aligned coordinate systems: each
+// floor is stacked at its own screen offset (the Spacing/L-R sliders), so
+// the reprojected point is a DIFFERENT world location per floor, and a wall
+// on a floor nowhere near where the user actually clicked can still "win"
+// purely because that floor's own stack offset happens to land its
+// reprojection close to it — not because the click was anywhere near it on
+// screen. A circle dragged squarely onto a Main-floor wall recorded world
+// coordinates ~15m away, on the far side of the house, because a different
+// floor's wall's screen-projected position happened to be nearer in THAT
+// floor's own reprojected-world sense. Fixed: project every candidate wall
+// INTO screen space instead, and compare against the click point directly —
+// screen pixels are the one coordinate system every floor shares.
+//
 // Falls back to the lowest drawn storey when there are no walls to compare
 // against yet (a bare click still has to land somewhere).
 export function _doorCircleFloorForClick(ctx, o, frame, v) {
@@ -7030,11 +7047,14 @@ export function _doorCircleFloorForClick(ctx, o, frame, v) {
     if (pts.length < 2) continue;
     const fid = String(bar.floor_id || "main");
     const z = _levelForFloorId(frame, model, floors, fid);
-    const [cx, cy] = frame.isoInv(v.x, v.y, z);
-    const hit = nearestPointOnPolyline(pts, cx, cy);
-    if (hit && (!best || hit.distSq < best.distSq)) best = { fid, cx, cy, distSq: hit.distSq };
+    const screenPts = pts.map(([px, py]) => frame.iso(px, py, z));
+    const hit = nearestPointOnPolyline(screenPts, v.x, v.y);
+    if (hit && (!best || hit.distSq < best.distSq)) best = { fid, z, distSq: hit.distSq };
   }
-  if (best) return { fid: best.fid, cx: best.cx, cy: best.cy };
+  if (best) {
+    const [cx, cy] = frame.isoInv(v.x, v.y, best.z);
+    return { fid: best.fid, cx, cy };
+  }
   const fid = _floorIdForZ(ctx, frame.levels[0] || 0, frame);
   const z = _levelForFloorId(frame, model, floors, fid);
   const [cx, cy] = frame.isoInv(v.x, v.y, z);

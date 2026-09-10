@@ -112,6 +112,43 @@ out.fid = picked.fid; out.cx = picked.cx; out.cy = picked.cy;
     assert abs(out["cx"] - 5) < 0.05 and abs(out["cy"] - 0) < 0.05, out
 
 
+def test_floor_for_click_ranks_candidate_walls_by_plain_screen_distance():
+    """Part of the still-open "the circle is drawn in the wrong place, it
+    is not" investigation (Garry, 2026-09-09/10) — not confirmed to be the
+    root cause of that report, but a real, provable defect found while
+    digging into it: the original version ranked candidate walls by the
+    WORLD-space distance from the click (reprojected through each
+    candidate's own isoInv) to that wall's own world points. Algebraically
+    that reduces to comparing |A^-1(V - Q)| for each wall's own TRUE
+    on-screen position Q, where A^-1 is fabricFrame's fixed inverse
+    projection matrix — a real metric, but not a Euclidean one: iso()'s two
+    isometric screen axes are scaled differently (0.866 vs 0.5), so it
+    weighs the two screen directions unevenly instead of matching plain
+    on-screen proximity. The fix ranks candidates by plain screen distance
+    to the click instead, which is unambiguously what "nearest on screen"
+    should mean regardless of axis. Pinned here the direct way: an
+    unmissably-nearer wall (10px away) must win over a farther one
+    (400px away) on a DIFFERENT floor, confirming the ranking reaches
+    across floors and lands on the one actually under the click."""
+    out = _run("""
+const ctx = makeCtx(MODEL);
+const zMain = frame.levelOf('main');
+const zUpper = frame.levelOf('upper');
+const [vx, vy] = frame.iso(5, 0, zMain);
+const [nearX, nearY] = frame.isoInv(vx + 10, vy, zMain);     // main: unmissably close
+const [farX, farY] = frame.isoInv(vx + 400, vy, zUpper);     // upper: unmissably far
+const skewed = JSON.parse(JSON.stringify(MODEL));
+skewed.rf_barriers_m.push({ id: 'wNear', name: 'Near wall', floor_id: 'main', material: 'wood',
+  attenuation_dbm: 4, points_m: [[nearX - 0.01, nearY], [nearX + 0.01, nearY]] });
+skewed.rf_barriers_m.push({ id: 'wFar', name: 'Far wall', floor_id: 'upper', material: 'wood',
+  attenuation_dbm: 4, points_m: [[farX - 0.01, farY], [farX + 0.01, farY]] });
+const picked = M._doorCircleFloorForClick(ctx, { model: skewed }, frame, { x: vx, y: vy });
+out.fid = picked.fid; out.cx = picked.cx; out.cy = picked.cy;
+""")
+    assert out["fid"] == "main", out
+    assert abs(out["cx"] - 5) < 0.05 and abs(out["cy"] - 0) < 0.05, out
+
+
 def test_floor_for_click_falls_back_to_the_lowest_storey_with_no_walls_yet():
     """A bare click with nothing to compare against yet still has to land
     somewhere — the lowest drawn storey, at the raw click position."""

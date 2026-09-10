@@ -16,7 +16,7 @@
  *
  * Uses a "draft" copy of the model so edits don't take effect until Save.
  */
-const { BUY_URL, PRO_PRICE, LICENCE_PATH } =
+const { BUY_URL, PRO_PRICE, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 
 export function render(ctx){
@@ -2685,6 +2685,161 @@ function _settingsPresence(ctx, el){
 // Enterprise-preview features gated behind settings toggles.
 // All default to off and are labeled experimental.
 
+// ── Tiers/Pro onboarding wizard ─────────────────────────────────────────────
+// A dedicated walkthrough for what Free/Bright/Bright Pro/Pro each unlock and
+// how to upgrade — Garry, 2026-09-09/10: "build a wizzard too" -> scoped to
+// "Bright/Pro onboarding" when asked which of the existing three guided
+// wizards (Maps setup, Calibration, the Lights builder tour) it should
+// extend. It extends none of them: Maps/Calibration embed a real tool per
+// step, and the Lights tour points at live map UI — this has no tool or
+// on-map target to embed, it is pure explanation, so it is a short,
+// all-informational step sequence instead, launched from the licence card
+// rather than auto-opened (nobody needs an unsolicited tier pitch).
+// ctx.state._tiersWizard = { step } while open; falsy means closed.
+const TIERS_WIZARD_STEPS = [
+  { n: 1, id: "free",    label: "What's always free" },
+  { n: 2, id: "ladder",  label: "The tiers" },
+  { n: 3, id: "upgrade", label: "Upgrading" },
+];
+
+function _tiersWizardFooter(ctx, w, opts){
+  opts = opts || {};
+  const { el } = ctx.helpers;
+  const bar = el("div",{style:"display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px"});
+  const left = el("div",{});
+  if (w.step > 1) {
+    const b = el("button",{class:"btn inline"}, "← Back");
+    b.addEventListener("click", ()=>{ w.step -= 1; ctx.actions.renderRooms(); });
+    left.appendChild(b);
+  }
+  bar.appendChild(left);
+  const nx = el("button",{class:"btn primary"}, opts.nextLabel || "Next →");
+  nx.addEventListener("click", ()=>{
+    if (opts.onNext) opts.onNext();
+    else { w.step += 1; ctx.actions.renderRooms(); }
+  });
+  bar.appendChild(nx);
+  return bar;
+}
+
+function _tiersWizardFree(ctx, w, isBright){
+  const { el } = ctx.helpers;
+  const wrap = el("div",{});
+  wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.6"},
+    isBright
+      ? "This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Placing lights on a map and controlling them from here is free, no key, forever."
+      : "This install is PadSpan HA. Presence tracking, Overview, Follow, Pure Live, Occupancy, Calibration, mapping and everything else here is free, no key, forever."));
+  wrap.appendChild(el("div",{style:"padding:10px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px;font-size:12.5px;color:#94a3b8;line-height:1.6"},
+    "A key only ever unlocks two things beyond that: Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), and light placement (fixture shapes and sizes, WLED, Showcase, Fit room). Nothing free is a trial of anything — it stays free whether or not you ever add a key."));
+  wrap.appendChild(_tiersWizardFooter(ctx, w));
+  return wrap;
+}
+
+function _tiersWizardLadder(ctx, w, isBright){
+  const { el } = ctx.helpers;
+  const wrap = el("div",{});
+  const row = (name, price, desc) => el("div",{style:"padding:10px 12px;margin-bottom:8px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px"}, [
+    el("div",{style:"display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"}, [
+      el("span",{style:"font-weight:700;font-size:13px;color:#52b788"}, name),
+      price ? el("span",{style:"font-size:11px;color:#94a3b8"}, price) : null,
+    ].filter(Boolean)),
+    el("div",{style:"font-size:12px;color:#94a3b8;margin-top:4px;line-height:1.5"}, desc),
+  ]);
+  if (isBright) {
+    wrap.appendChild(row("PadSpan Bright (free)", null,
+      "Place lights on a map, control them. No key, no time limit."));
+    wrap.appendChild(row("PadSpan Bright Pro", BRIGHT_PRICE,
+      "Fixture shapes and sizes, WLED, Showcase, Fit room — light placement exactly where it hangs. Forensics needs presence tracking to report on, so it isn't part of this edition."));
+    wrap.appendChild(el("div",{class:"muted",style:"font-size:11.5px;margin-top:6px;line-height:1.5"},
+      "Want presence tracking too? That's a separate, full download — PadSpan HA — not an upgrade of this one."));
+  } else {
+    wrap.appendChild(row("PadSpan HA (free)", null,
+      "Presence tracking and everything else in this app except the two paid features below. No key, no time limit."));
+    wrap.appendChild(row("PadSpan Pro", PRO_PRICE,
+      "Adds Forensics and light placement (fixture shapes and sizes, WLED, Showcase, Fit room) to this install."));
+    wrap.appendChild(el("div",{class:"muted",style:"font-size:11.5px;margin-top:6px;line-height:1.5"},
+      "Only want lighting, not presence tracking? PadSpan Bright is a lighter, separate download built for exactly that."));
+  }
+  wrap.appendChild(_tiersWizardFooter(ctx, w));
+  return wrap;
+}
+
+function _tiersWizardUpgrade(ctx, w, isBright){
+  const { el } = ctx.helpers;
+  const wrap = el("div",{});
+  wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.6"},
+    `A licence key is entered once, right on this install, at ${LICENCE_PATH} — the same card shows this install's edition and tier, and how long a key has left.`));
+  const row = el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px"});
+  row.appendChild(el("a",{class:"btn inline", href: isBright ? EDITIONS_URL : BUY_URL, target:"_blank", rel:"noopener",
+    style:"border-color:#52b788;color:#a7f3d0;text-decoration:none"},
+    isBright ? `Buy PadSpan Bright Pro — ${BRIGHT_PRICE}` : `Buy PadSpan Pro — ${PRO_PRICE}`));
+  wrap.appendChild(row);
+  if (isBright) {
+    wrap.appendChild(el("div",{class:"muted",style:"font-size:11.5px;line-height:1.5"},
+      `Already have a Bright key and want the full app's Pro tier instead? The changeover is ${BRIGHT_UPGRADE_PRICE} — same key, same expiry, Forensics unlocks once you're on the full download.`));
+  }
+  wrap.appendChild(_tiersWizardFooter(ctx, w, { nextLabel: "Done", onNext: () => {
+    if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_tiers_completed");
+    ctx.state._tiersWizard = null;
+    ctx.actions.renderRooms();
+  } }));
+  return wrap;
+}
+
+function _tiersWizard(ctx){
+  const { el } = ctx.helpers;
+  const w = ctx.state._tiersWizard;
+  const isBright = String((ctx.state.settings || {}).edition || "full").toLowerCase() === "bright";
+
+  // Opt-in usage report: which step was REACHED, once per distinct visit —
+  // the same dedupe-on-render-not-on-step-change guard the Maps wizard uses,
+  // so sitting on one step across re-renders never double-counts.
+  if (w._telemetryStep !== w.step) {
+    w._telemetryStep = w.step;
+    if (ctx.actions.telemetryEvent) {
+      if (w.step === 1) ctx.actions.telemetryEvent("wizard_tiers_step_free");
+      else if (w.step === 2) ctx.actions.telemetryEvent("wizard_tiers_step_ladder");
+      else if (w.step === 3) ctx.actions.telemetryEvent("wizard_tiers_step_upgrade");
+    }
+  }
+
+  const root = el("div",{});
+  const head = el("div",{class:"card", style:"margin-bottom:12px;border:1px solid #2d5a3d;background:#0f1a12"});
+  const hrow = el("div",{style:"display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"});
+  const titleRow = el("div",{style:"display:flex;align-items:center;gap:8px"},
+    [el("div",{style:"font-weight:700;font-size:15px;color:#52b788"}, "Free, Bright, Bright Pro, Pro")]);
+  if (ctx.helpers.helpBtn) titleRow.appendChild(ctx.helpers.helpBtn("settings_tiers"));
+  hrow.appendChild(titleRow);
+  const closeBtn = el("button",{class:"btn inline", style:"font-size:12px"}, "Exit");
+  closeBtn.addEventListener("click", ()=>{
+    if (w.step < 3 && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_tiers_exited_early");
+    ctx.state._tiersWizard = null;
+    ctx.actions.renderRooms();
+  });
+  hrow.appendChild(closeBtn);
+  head.appendChild(hrow);
+  const dots = el("div",{style:"display:flex;gap:6px;margin-top:12px"});
+  const stepList = el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:8px"});
+  for (const s of TIERS_WIZARD_STEPS){
+    const isCurrent = s.n === w.step;
+    dots.appendChild(el("div",{style:`flex:1;height:4px;border-radius:2px;background:${s.n < w.step ? "#52b788" : isCurrent ? "#5eead4" : "#1b3526"}`}));
+    const chip = el("button",{class: "btn inline" + (isCurrent ? " primary" : ""), style:"font-size:11px;padding:3px 10px"},
+      `${s.n}. ${s.label}`);
+    chip.addEventListener("click", ()=>{ w.step = s.n; ctx.actions.renderRooms(); });
+    stepList.appendChild(chip);
+  }
+  head.appendChild(dots);
+  head.appendChild(stepList);
+  root.appendChild(head);
+
+  const body = el("div",{class:"card"});
+  if (w.step === 1) body.appendChild(_tiersWizardFree(ctx, w, isBright));
+  else if (w.step === 2) body.appendChild(_tiersWizardLadder(ctx, w, isBright));
+  else body.appendChild(_tiersWizardUpgrade(ctx, w, isBright));
+  root.appendChild(body);
+  return root;
+}
+
 // ── PadSpan licence ─────────────────────────────────────────────────────────
 // The single place to see what this install is licensed for, enter a key, and
 // find out where a key comes from. It exists because the only key field used to
@@ -2768,6 +2923,10 @@ function _settingsLicence(ctx, el){
       } }, "Show licence key");
     row.appendChild(revealBtn);
   }
+  const tourBtn = el("button", { class: "btn inline", style: "font-size:12px",
+    onclick: () => { ctx.state._tiersWizard = { step: 1 }; ctx.actions.renderRooms(); } },
+    "What does each tier unlock?");
+  row.appendChild(tourBtn);
   card.appendChild(row);
 
   card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:10px;line-height:1.5" },
@@ -2779,6 +2938,7 @@ function _settingsLicence(ctx, el){
 }
 
 function _settingsFeatures(ctx, el){
+  if (ctx.state._tiersWizard) return _tiersWizard(ctx);
   const settings = ctx.state.settings || {};
   const wrap = el("div",{});
 

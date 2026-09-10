@@ -129,6 +129,13 @@ EVENTS: frozenset[str] = frozenset({
     # ✕ before that. A tour with a high opened-to-dismissed ratio and a low
     # completed count is a tour worth shortening, not a tour working as meant.
     "lights_tour_opened", "lights_tour_completed", "lights_tour_dismissed_early",
+    # The Free/Bright/Bright Pro/Pro onboarding wizard (Settings -> Features
+    # -> PadSpan licence -> "What does each tier unlock?"): which step was
+    # reached, once per distinct visit, and whether it was finished via Done
+    # or abandoned before the last step — same funnel shape as the other
+    # guided wizards above.
+    "wizard_tiers_step_free", "wizard_tiers_step_ladder", "wizard_tiers_step_upgrade",
+    "wizard_tiers_completed", "wizard_tiers_exited_early",
 })
 # The panel's views (panel.js _VIEW_PATHS — tests/test_telemetry.py asserts
 # equality) and the sub-tabs of the two views that have them.
