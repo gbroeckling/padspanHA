@@ -182,6 +182,11 @@ function injectStyles(root) {
 }
 
 // ── Odometer ─────────────────────────────────────────────────────────────────
+// Each digit is its own vertical strip of all ten glyphs (0-9 stacked in a
+// column); showing digit n is just translateY(-n em) to scroll that glyph
+// into view, with the CSS transition on transform (see .pl-odo-digit above)
+// giving the classic mechanical-odometer roll for free whenever `value`
+// changes — no per-digit animation logic needed here at all.
 function Odometer({ value, size = "22px", color }) {
   const str = String(value ?? 0);
   return html`

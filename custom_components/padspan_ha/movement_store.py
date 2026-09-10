@@ -9,6 +9,15 @@ Persistent movement history store.
 
 Records room-to-room transitions for tracked BLE devices so the frontend
 can show a movement timeline.  Older entries are pruned automatically.
+
+This is a bounded LOG for a timeline display, not a source of truth for
+"where was this device last seen" — the global MAX_ENTRIES cap and the
+MAX_AGE_S prune below are both fine for that purpose (a timeline only
+needs recent history) but would silently violate "never forget a device's
+last known room" if anything else depended on this store for that.
+lost_and_found_store.py exists specifically because that guarantee was
+needed elsewhere: see its own module docstring for why it could not just
+reuse this store instead.
 """
 
 import logging
@@ -22,8 +31,9 @@ from .const import MOVEMENT_STORE_KEY
 
 _LOGGER = logging.getLogger(__name__)
 
-MAX_ENTRIES = 500          # total entries kept across all devices
-MAX_AGE_S = 86400 * 7     # prune entries older than 7 days
+MAX_ENTRIES = 500        # total entries kept across ALL devices combined, not per-device —
+                          # a timeline display only needs to be recent, not exhaustive
+MAX_AGE_S = 86400 * 7    # prune entries older than 7 days, for the same reason
 
 
 class MovementStore:

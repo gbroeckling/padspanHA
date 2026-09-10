@@ -105,6 +105,13 @@ export function render(ctx){
     : "";
 
   // ---------- Modal helpers ----------
+  // The Rooms KPI's "View rooms list" modal: every room the tag map knows
+  // about (not just ones with a live object in them right now), with a
+  // followed-entity marker and a click-through to the same room detail
+  // view the iso map's own room click opens. Built from roomTagMap rather
+  // than the fabric's room_geometry_m so it still works before any room
+  // has been drawn on a map — a room only needs mapped entities to show up
+  // here, not geometry.
   function openRoomsList(){
     const body = el("div",{});
     const rows = Object.keys(roomTagMap).sort().map((room)=>{
@@ -142,6 +149,13 @@ export function render(ctx){
     ctx.actions.openModal("Rooms", body, "Current room→entity map");
   }
 
+  // The Bluetooth radios KPI's "View radios list" modal: every scanner HA
+  // knows about, live or not, with its HA-registry area and a way to
+  // (re)assign, mark Lost, or mark Disabled from one place — the same
+  // three-state area value openAreaAssign below writes. A row's click
+  // target excludes the Assign/Change button itself so the two actions
+  // (open scanner detail vs. open the area picker) don't fight over the
+  // same click.
   function openRadiosList(){
     const body = el("div",{});
     const r = radios || [];
@@ -199,6 +213,15 @@ export function render(ctx){
     ctx.actions.openModal("Bluetooth Radios", body, "ID = 3-letter label code · Areas read from HA device registry");
   }
 
+  // The area-picker sub-modal opened from a radio's Assign/Change button.
+  // A radio's area is really a three-state value, not just "which HA
+  // area": a normal area name, "__lost__" (excluded from location math —
+  // the scanner is physically gone or unreliable but its config should
+  // stay), or "__disabled__" (intentionally turned off). Lost and
+  // Disabled are modelled as sentinel option VALUES in the same <select>
+  // rather than a separate checkbox so the three states stay mutually
+  // exclusive by construction — a real area is always cleared when either
+  // sentinel is chosen, and vice versa, without extra code to enforce it.
   function openAreaAssign(radio, areas){
     const sid = _sid(radio.source);
     if(dataMode !== "live"){
@@ -274,8 +297,18 @@ export function render(ctx){
     ctx.actions.openModal("Assign Area", body, `HA area for "${radio.name || radio.source}"`);
   }
 
+  // Best-effort OUI vendor lookup for one BLE row's Vendor cell, called
+  // from the Objects modal's post-open queue (see the concurrency limiter
+  // at the bottom of openObjectsList) rather than up front for every row —
+  // a modal can list hundreds of BLE addresses and the lookup is a network
+  // call, so doing it eagerly for rows the user may never scroll to would
+  // be wasted work and wasted rate-limit budget on whatever the lookup
+  // service imposes.
   async function fillVendorCell(mac, cell){
-    // Cache by prefix (AA:BB:CC)
+    // Cache by prefix (AA:BB:CC): the OUI (vendor-assigned) portion of a
+    // MAC is shared by every device from that vendor, so once one address
+    // with a given prefix has been looked up, every other row sharing it
+    // is filled from ctx.state._vendorCache instead of re-querying.
     ctx.state._vendorCache = ctx.state._vendorCache || {};
     const prefix = (mac||"").split(":").slice(0,3).join(":").toUpperCase();
     if(!prefix){ cell.textContent = ""; return; }
@@ -297,6 +330,13 @@ export function render(ctx){
     }
   }
 
+  // Formats one vendor-lookup response (macvendors.com + maclookup.app,
+  // called server-side — see fillVendorCell) into the Vendor cell's badge
+  // markup. Two independent sources can each have an opinion on the same
+  // MAC; maclookup's is preferred when both answered because it is also
+  // the one source able to flag "randomized"/"private" addresses, which
+  // matters more to a viewer than which of the two vendor-name strings is
+  // shown.
   function renderVendorHTML(res){
     if(!res || res.enabled === false){
       return `<span class="badge warn">Vendor lookup disabled</span>`;
@@ -318,6 +358,14 @@ export function render(ctx){
     return String(s||"").replace(/[&<>"']/g,(c)=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[c]));
   }
 
+  // The Objects KPI's modal — every tracked object (HA entities plus raw
+  // BLE/iBeacon/private_ble advertisements), filterable by kind, status,
+  // OUI commonness and a "how far back" age slider, with a best-effort
+  // vendor lookup queued after the modal opens (see fillVendorCell).
+  // Live-mode only: sample mode has no BLE advertisement monitor stream to
+  // list. `initialFilter` lets a caller (the Unidentified count button)
+  // open the modal pre-filtered instead of the viewer having to set it by
+  // hand every time.
   function openObjectsList(initialFilter="all"){
     if(!liveSnap || !liveSnap.objects){
       const body = el("div",{},[
@@ -2533,6 +2581,14 @@ export function render(ctx){
     return outer;
   }
   // ---------- Room + radio grid (auto-generated from live HA data) ----------
+  // The last-resort fallback view: reached when renderIsoFloorStack finds
+  // no fabric (no rooms drawn in Mapping → Rooms yet) AND no legacy
+  // per-photo floor plan either. Built purely from HA's own area/floor
+  // registry plus whatever roomTagMap already knows, so an install can see
+  // ITS radios and objects grouped by area before ever touching Mapping —
+  // the whole point being that Overview has something meaningful to show
+  // from day one, not a blank card telling the user to go map their house
+  // first.
   function renderRoomGrid(){
     const haAreas  = (ctx.state.model && Array.isArray(ctx.state.model.areas))  ? ctx.state.model.areas  : [];
     const haFloors = (ctx.state.model && Array.isArray(ctx.state.model.floors)) ? ctx.state.model.floors : [];
@@ -2664,6 +2720,12 @@ export function render(ctx){
   }
 
   // ---------- Floor plan SVG ----------
+  // Legacy fallback, sitting between the fabric-driven 3D stack and the
+  // registry-only room grid: renders `liveSnap.floor_plan`, a single flat
+  // per-photo layout the server can still hand back for an install that
+  // has a floor plan but no room_geometry_m fabric yet. Only reached from
+  // renderIsoFloorStack's own no-fabric branch, and only if the server
+  // actually sent one — otherwise renderRoomGrid is the fallback instead.
   function renderFloorPlan(fp){
     if(!fp) return null;
     const vw = fp.vw || 800;

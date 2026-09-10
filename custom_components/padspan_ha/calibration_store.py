@@ -129,6 +129,12 @@ def _summarize_room_confusion(pairs: list[tuple[str, str]]) -> dict[str, Any]:
 
 @dataclass
 class CalibrationStore:
+    # @dataclass only supplies __init__ when the class doesn't define its
+    # own — this class does (below), so these field declarations exist
+    # purely to document the shape of the instance attributes for readers
+    # and type checkers. The default_factory here is never actually called;
+    # __init__ always sets self.data itself, then async_setup()/
+    # async_setup_fast() immediately replace it again from the store.
     hass: HomeAssistant
     store: Store
     data: dict[str, Any] = field(default_factory=lambda: {"points": [], "model": {}})

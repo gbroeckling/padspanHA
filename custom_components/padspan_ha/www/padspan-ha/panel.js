@@ -1511,6 +1511,19 @@ class PadSpanHaApp extends HTMLElement {
    * This separation lets the UI show live positions while preserving the
    * saved map for settings/configuration views.
    */
+  /**
+   * Reconcile the three room-tag-map sources into the one `roomTagMap` views
+   * actually read. A snapshot (live or sample) can carry its OWN live-derived
+   * tag map (room_tag_map_live) alongside the persisted one (room_tag_map);
+   * live takes priority when present because it reflects the current
+   * session's actual detections, not just what was last saved. With no
+   * snapshot at all (e.g. before the first live_snapshot fetch lands) fall
+   * back to whatever was last fetched from the backend via _getRoomTags
+   * (savedRoomTagMap), so the UI never blanks out mid-boot. savedRoomTagMap
+   * itself is only ever refreshed from a LIVE snapshot — sample mode's
+   * static demo data has no real persisted map to promote it to, and doing
+   * so would overwrite the real saved map with demo content.
+   */
   _recomputeDerived(){
     const saved = this.state.savedRoomTagMap || {};
     const snap = this.state.live?.snapshot;

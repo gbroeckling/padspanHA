@@ -156,6 +156,11 @@ export function render(ctx){
 // it its own identity instead of quietly collapsing it into "unknown".
 function _isFirstSeen(entry){ return !entry.from; }
 
+// Centres a fresh Traceback playback window on this movement entry's own
+// timestamp — +/-120s is wide enough to see the approach and departure
+// around the transition without forcing a manual range pick, and resets
+// every other traceback field (frames, discovery results, playback state)
+// so a stale prior session's data can't bleed into this new window.
 function _jumpToTraceback(ctx, entry){
   const base = ctx.state._traceback || {
     mode: "playback", playing: false, playDurationS: 300, frameIdx: 0, frames: [],

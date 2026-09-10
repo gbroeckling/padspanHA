@@ -15,6 +15,12 @@ from .const import DOMAIN, VERSION
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> dict[str, Any]:
+    """HA's standard diagnostics hook (this exact function name/signature is
+    what HA's "Download diagnostics" button calls — see async_get_config_entry_diagnostics
+    in HA core). entry.data/options are included as-is: this integration's
+    config entry never stores credentials or tokens (BLE scanning is local,
+    no cloud login), so there is nothing here that needs redacting before
+    a user pastes this into a bug report."""
     coord = hass.data.get(DOMAIN, {}).get("coordinator")
     return {
         "version": VERSION,

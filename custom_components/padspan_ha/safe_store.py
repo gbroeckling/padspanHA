@@ -53,6 +53,12 @@ class SafeStore:
                 )
                 return False
         except Exception as exc:  # noqa: BLE001
+            # Only a warning, not a failed save: async_save() above already
+            # completed without raising, so the write itself succeeded. This
+            # read-back is a belt-and-suspenders sanity check on top of that,
+            # and a transient read error here (e.g. a momentary disk hiccup)
+            # must not be reported as a lost write when the write itself is
+            # fine — that would be a false alarm, not a caught bug.
             _LOGGER.warning(
                 "PadSpan save verification read-back failed for %s: %s (save may still be ok)",
                 self._name,

@@ -234,9 +234,11 @@ class RandomForestLocator:
 
         self._points = valid
 
-        # Build feature index: only use scanners that appear in ≥20% of points.
-        # Rare scanners are mostly MISSING_RSSI, which dominates tree splits
-        # and causes all predictions to converge to the majority room.
+        # Build feature index: only use scanners that appear in >=15% of points
+        # (the min_appearances formula below — stale comment previously said
+        # 20%, which hasn't matched the code's 0.15 multiplier). Rare scanners
+        # are mostly MISSING_RSSI, which dominates tree splits and causes all
+        # predictions to converge to the majority room.
         src_counts: dict[str, int] = {}
         for p in valid:
             for r in p.get("scanner_readings", []):

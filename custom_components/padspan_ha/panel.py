@@ -38,6 +38,14 @@ WEB_COMPONENT        = "padspan-ha-app"
 LIGHTS_WEB_COMPONENT = "padspan-lights-app"
 
 async def _register_static(hass: HomeAssistant, static_dir: Path, url: str = STATIC_URL) -> None:
+    # Three fallbacks, newest API first: HA has changed how integrations
+    # register a static path more than once (StaticPathConfig is the current
+    # signature; async_register_static_path and the synchronous
+    # register_static_path are what it looked like on older cores). Trying
+    # each in turn means this integration keeps working across the HA
+    # versions users actually run, instead of pinning to one and breaking on
+    # upgrade or downgrade. Silent on failure here on purpose — the only
+    # signal that matters is whether ANY of the three worked.
     try:
         from homeassistant.components.http import StaticPathConfig  # type: ignore
         await hass.http.async_register_static_paths(

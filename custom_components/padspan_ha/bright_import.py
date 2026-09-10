@@ -248,6 +248,9 @@ async def async_import(hass: HomeAssistant, backup: Any) -> dict[str, Any]:
         from .telemetry import bump as _bump  # noqa: PLC0415
         _bump(hass, "bright_import")
     except Exception:
+        # Opt-in usage counter only — a Bright import that just moved a
+        # person's whole house across products must never fail, or even log
+        # a scary traceback, because the counter that describes it choked.
         pass
 
     # 5. Reload so every store re-reads its file through its own setup path.

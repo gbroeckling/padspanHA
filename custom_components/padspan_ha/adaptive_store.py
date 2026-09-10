@@ -75,6 +75,12 @@ def _empty_data() -> dict[str, Any]:
 class AdaptiveStore:
     hass: HomeAssistant
     store: Store
+    # default_factory is never actually invoked: __init__ below is defined
+    # explicitly in the class body, so @dataclass skips generating its own
+    # and this field's default machinery goes unused (data is set directly
+    # in __init__ instead). Kept for the type annotation and because the
+    # same pattern already exists elsewhere in this codebase (e.g.
+    # CalibrationStore) — harmless, just not what it looks like at a glance.
     data: dict[str, Any] = field(default_factory=_empty_data)
 
     def __init__(self, hass: HomeAssistant) -> None:

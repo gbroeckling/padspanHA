@@ -552,6 +552,13 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             return candidates
 
         def _apply_net_info(radio: dict, entities: list) -> None:
+            """Copy IP/SSID/signal/connection-type fields onto `radio` from
+            whichever candidate entities matched it, first-match-wins per
+            field (radio.get(...) is only falsy the first time a field is
+            filled). unknown/unavailable states are skipped so a proxy that
+            hasn't reported yet doesn't stamp a permanent blank over a value
+            a later entity in the list would have supplied.
+            """
             for ent in entities:
                 eid = ent.entity_id or ""
                 eid_lower = eid.lower()

@@ -231,6 +231,15 @@ async def ws_fabric_room_add(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "invalid", "room is required")
         return
     floor_id = (msg.get("floor_id") or "").strip() or DEFAULT_FLOOR_ID
+    # Three separate writes, not one: async_ensure_rooms only guarantees the
+    # room EXISTS in room_meta (it defaults floor_id to DEFAULT_FLOOR_ID and
+    # is shared with callers that never want to move an existing room), so a
+    # caller asking for a specific floor has to move it explicitly afterward
+    # — and only if the room already has a room_meta entry to move (it always
+    # will, straight out of async_ensure_rooms, but the guard costs nothing).
+    # The adjacency entry is seeded separately because a brand-new room with
+    # no neighbours yet still needs a `[]` list to exist, or later adjacency
+    # reads/writes that assume every known room has an entry would KeyError.
     await mdl.async_ensure_rooms([room])
     # Update floor_id if provided
     rm = mdl.data.get("room_meta", {})
@@ -304,6 +313,12 @@ async def ws_fabric_sync_mode_set(hass: HomeAssistant, connection, msg) -> None:
         try:
             await mdl.async_sync_from_ha()
         except Exception:
+            # The mode switch itself already succeeded and was already
+            # persisted above — this is only the "don't make the user wait
+            # for the next scheduled sync" convenience. A failure here (HA
+            # areas/registry transiently unavailable, say) must not fail the
+            # whole command and revert a mode the user just chose; the next
+            # scheduled sync picks it up regardless.
             pass
     connection.send_result(msg["id"], {"ok": True, "mode": mode})
 
@@ -1339,6 +1354,11 @@ async def ws_fabric_resync(hass: HomeAssistant, connection, msg) -> None:
             if _radio_srcs:
                 pruned = await mdl.async_prune_non_radio_scanners(_radio_srcs)
         except Exception:
+            # Pruning is a cleanup pass on top of the clean rebuild
+            # `async_resync_clean` already committed above — a snapshot that
+            # is momentarily empty or a coordinator still warming up must not
+            # fail the whole resync command over a step that is safe to skip
+            # and simply leaves a few non-radio scanner entries for next time.
             pass
     # Force snapshot sync to pick up floor_ids
     try:
@@ -1347,6 +1367,10 @@ async def ws_fabric_resync(hass: HomeAssistant, connection, msg) -> None:
         if _radios:
             await mdl.async_sync_from_snapshot(_radios)
     except Exception:
+        # Same reasoning as the prune step above: this is a best-effort
+        # freshness pass after the resync already succeeded, not a
+        # precondition for it — an empty/unavailable snapshot here just means
+        # floor_ids catch up on the next regular sync instead of immediately.
         pass
     final_count = len(mdl.data.get("scanners", {}))
     connection.send_result(msg["id"], {

@@ -55,6 +55,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
         try:
+            # Single-instance only: everything this integration owns (BLE live
+            # feeds, the fabric/model store, hass.data[DOMAIN] state) is keyed
+            # per-HASS, not per-config-entry, so a second entry would just
+            # collide with the first rather than run a genuinely separate copy.
             if self.hass.config_entries.async_entries(DOMAIN):
                 return self.async_abort(reason="already_configured")
 
@@ -73,5 +77,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
             return self.async_create_entry(title=NAME, data=data)
         except Exception as err:
+            # An unhandled exception here would otherwise surface to the user
+            # as a raw HA config-flow crash screen with no way to retry
+            # cleanly; log the real cause for diagnosis and abort gracefully
+            # instead.
             _LOGGER.exception("ConfigFlow user crashed (v%s): %s", VERSION, err)
             return self.async_abort(reason="unknown")

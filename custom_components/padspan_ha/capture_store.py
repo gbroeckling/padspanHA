@@ -847,6 +847,10 @@ class CaptureStore:
             days = int((getattr(st, "data", None) or {}).get(
                 "rssi_capture_retention_days", DEFAULT_RETENTION_DAYS))
         except Exception:
+            # Any failure reading the setting (missing store, bad value) falls
+            # back to the default rather than raising — this feeds _prune(),
+            # and a pruning pass that cannot run at all leaks disk faster than
+            # a wrong-but-safe retention window ever would.
             return DEFAULT_RETENTION_DAYS
         return days if days in RETENTION_CHOICES else DEFAULT_RETENTION_DAYS
 

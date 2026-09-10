@@ -5,6 +5,16 @@
 // PadSpan HA — User-facing help content
 // Each entry: { title, body: string[] }
 // Opened by the ? help buttons in Basic, Advanced, and Development modes.
+//
+// A key defined twice below is not a syntax error — it's a SILENT one: the
+// second definition simply wins and the first becomes dead prose nobody will
+// ever see again (this has bitten real content twice: settings_presence and
+// maps_stack each had two definitions, only the second ever reachable).
+// training.js's helpKeys arrays pull text from this dict by key at render
+// time and just skip any key that isn't found here, so a typo'd or removed
+// key doesn't error either — it quietly renders nothing (how `zones` and
+// `insights` sat broken). tests/test_help_content_coverage.py guards both
+// failure modes; keep it green rather than re-deriving this by hand.
 
 export const HELP = {
 

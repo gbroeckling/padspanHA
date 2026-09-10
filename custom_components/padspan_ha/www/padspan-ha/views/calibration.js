@@ -2062,6 +2062,15 @@ function _rssiRow(el, name, rssi, samples, age_s, txPower, opts) {
   ].filter(Boolean));
 }
 
+// Roam's coverage heatmap: how well `pts` (calibration points on one map)
+// blankets a gridN×gridN grid over that map. Each point spreads a Gaussian
+// "reach" (sigma = SIGMA_C grid cells) onto every cell — near cells get most
+// of its contribution, far cells get almost none — and a cell's value is the
+// SUM of every point's contribution, clamped to 1. This is deliberately not
+// nearest-point-distance: two points close together should read as MORE
+// covered than either alone (their Gaussians add), which is what "walk a
+// few extra steps near a wall for better signal" actually looks like on the
+// ground, not a Voronoi diagram of exact nearest-neighbour cells.
 function _computeCoverage(pts, gridN) {
   const grid = new Array(gridN * gridN).fill(0);
   for (const pt of pts) {
@@ -2079,6 +2088,16 @@ function _computeCoverage(pts, gridN) {
   return grid;
 }
 
+// Picks the single worst-covered cell in _computeCoverage's grid as the next
+// place to walk to — Roam's blue crosshair. Ties break toward the FIRST cell
+// scanned (top-left, row-major), which is fine: a genuine tie means either
+// choice is an equally good next step. The small edgePen on border cells is
+// not a coverage discount — it nudges the target inward on a tie so the
+// suggested spot tends to land somewhere reachable near the middle of a
+// room rather than pinned against a wall or the map's own edge, where a
+// grid cell can score as "uncovered" simply for being outside every
+// existing point's Gaussian reach, not because a person could usefully
+// stand there.
 function _nextTarget(grid, gridN) {
   let min = 2, bx = 0.5, by = 0.5;
   for (let cy = 0; cy < gridN; cy++) {
@@ -6337,6 +6356,13 @@ function _beaconTuneTab(ctx, el, cs, calData) {
 }
 
 
+// Standard even-odd ray-casting point-in-polygon test: cast a ray from
+// (px,py) toward +x and count how many polygon edges it crosses — odd means
+// inside, even means outside. `points` is an ordinary (unclosed) [x,y]
+// polygon in the same 0-1 fractional space every room_bounds entry uses, so
+// this one function serves every "is this map position inside room X"
+// question in the file (auto-detecting a room under a dropped pin, or a
+// Guide/coverage-grid cell candidate).
 function _pointInPoly(px, py, points) {
   let inside = false;
   const n = points.length;

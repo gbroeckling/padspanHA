@@ -227,6 +227,9 @@ async def ws_capture_get(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_capture_delete(hass: HomeAssistant, connection, msg) -> None:
+    """Remove one recorded session file by id. Silently reports removed=False
+    for an unknown id rather than erroring — the UI list can go stale by one
+    entry (another tab deleted it first) without that being a real failure."""
     cap = _capture_store(hass)
     removed = await cap.async_delete(str(msg["session_id"])) if cap else False
     connection.send_result(msg["id"], {"ok": True, "removed": removed})

@@ -2353,7 +2353,12 @@ function renderIrkPanel(ctx, snap) {
         const verified = found.filter(f => f.verified);
         addMsg.textContent = `Found ${found.length} IRK${found.length !== 1 ? "s" : ""}: ${newOnes.length} new, ${verified.length} verified against live RPAs.`;
 
-        // Auto-add verified new ones
+        // Auto-add verified new ones — silently, no confirmation prompt. Safe
+        // because "verified" already means the backend matched it against a
+        // live rotating address (the same bar _addIrk's own manual flow
+        // requires before it will save without the explicit "unverified"
+        // override); an unverified find is left for the person to add by
+        // hand instead, exactly like the manual Add & Validate path.
         for (const f of found) {
           if (!f.already_registered && f.verified) {
             try {
@@ -2422,6 +2427,8 @@ function renderIrkPanel(ctx, snap) {
           const newOnes = found.filter(f => !f.already_registered);
           const verified = found.filter(f => f.verified);
           wizScanMsg.textContent = `Found ${found.length} IRK${found.length !== 1 ? "s" : ""}: ${newOnes.length} new, ${verified.length} verified.`;
+          // Same silent-save-if-verified rule as the IRK Manager's own
+          // Auto-Detect handler above — see its comment for why this is safe.
           for (const f of found) {
             if (!f.already_registered && f.verified) {
               try {

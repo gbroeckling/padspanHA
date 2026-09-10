@@ -96,6 +96,16 @@ async def async_setup_entry(
     # label → list of scanner sensor entities
     label_scanner_sensors: dict[tuple[str, str], PadSpanScannerDistanceSensor] = {}
 
+    # Creates entities for newly-seen labelled devices, and MIGRATES existing
+    # entities to a fresher coordinator key when one shows up for the same
+    # label — never creates a second entity for the same label. This is the
+    # fix for two related historical bugs: rotating-MAC devices (unlabelled
+    # IRK, random-static MACs) used to mint a brand-new sensor.*_2 entity
+    # every time the MAC rotated, and remove/re-add of a labelled device
+    # without a full factory reset could duplicate entities too. Migration
+    # always prefers the coordinator entry with the lowest age_s (freshest
+    # data), on the theory that whichever key is currently reporting live
+    # data is the one still attached to the real device.
     @callback
     def _check_new() -> None:
         if not coordinator.data:

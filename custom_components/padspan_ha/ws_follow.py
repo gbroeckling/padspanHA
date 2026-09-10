@@ -101,6 +101,9 @@ async def ws_follow_alert_save(hass: HomeAssistant, connection, msg) -> None:
         if _dev_reg:
             _pid = _dev_reg.resolve(addr)
     except Exception:
+        # padspan_id is an optional stable-identity hint, not the record key
+        # (addr still is) — a resolve failure here must not block saving the
+        # alert config the user actually asked to save.
         pass
     if alert_store:
         await alert_store.async_save_config(addr, config, padspan_id=_pid)
@@ -168,6 +171,9 @@ async def ws_area_delete(hass: HomeAssistant, connection, msg) -> None:
                 updated_meta = {k: v for k, v in room_meta.items() if k != area_name}
                 await mdl.async_update(room_meta=updated_meta)
         except Exception:
+            # The HA area is already gone by this point (ar.async_delete
+            # above succeeded) — a failure tidying up the PadSpan-side
+            # room_meta leftover must not surface as a failed area delete.
             pass
     connection.send_result(msg["id"], {"deleted": area_id, "name": area_name})
 

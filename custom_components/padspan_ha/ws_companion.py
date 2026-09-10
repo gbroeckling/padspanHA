@@ -35,6 +35,19 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
     Returns a list of phones with their iBeacon UUID, visibility status,
     IRK availability, and whether they're already followed.  Disabled
     sensors are included so the UI can prompt the user to enable them.
+
+    Six discovery tiers run in cascade, each only attempted if the previous
+    ones found nothing: entity registry (BLE Transmitter sensors — the
+    normal case) -> device registry (catches Android, which never registers
+    a disabled sensor at all) -> notify.mobile_app_* services (created the
+    moment the Companion App registers, even with every sensor disabled) ->
+    device_tracker.* entities (also always present) -> mobile_app webhook
+    storage -> a broad phone-model-name device search plus a raw live-BLE
+    iBeacon scan as the last resort. No single HA API reliably reports "the
+    Companion App is installed but its BLE sensor is off" across both iOS
+    and Android, so this widens the net rather than picking one that misses
+    real phones on one platform. Every tier's own reasoning is at its own
+    section comment below; this is the reason there are six of them.
     """
     try:
         from homeassistant.helpers import entity_registry as er

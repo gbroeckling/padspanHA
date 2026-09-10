@@ -40,6 +40,9 @@ export function buildEvidenceSvg(opts) {
   for (const s of placeable) {
     pts.push([s.x_m, s.y_m]);
     if (typeof s.distance_m === "number" && s.distance_m > 0) {
+      // Bound the whole dashed ring, not just its centre — otherwise a
+      // scanner near the edge of the frame gets its ring clipped, hiding
+      // exactly the overlap the diagram exists to show.
       pts.push([s.x_m - s.distance_m, s.y_m - s.distance_m]);
       pts.push([s.x_m + s.distance_m, s.y_m + s.distance_m]);
     }

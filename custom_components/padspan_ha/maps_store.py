@@ -73,6 +73,12 @@ class MapsStore:
     hass: HomeAssistant
     store: Store
     maps_dir: Path
+    # This default_factory is dead code: @dataclass only generates __init__
+    # when the class doesn't define its own, and this class does (below) —
+    # so the factory never runs and `data` is always set by the explicit
+    # __init__ instead. Left as the field's declared default only so the
+    # dataclass machinery (repr, field introspection) still sees a type and
+    # a sane fallback; not something a future edit here should rely on.
     data: dict[str, Any] = field(default_factory=lambda: {"maps": []})
 
     def __init__(self, hass: HomeAssistant) -> None:

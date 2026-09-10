@@ -624,6 +624,14 @@ export function render(ctx){
     }
 
     // Hardware Score: compare shared-device RSSI across radios
+    // Raw RSSI can't tell a good antenna from a scanner that just happens to
+    // sit closer to more devices — both look like "strong signal". Comparing
+    // two scanners' readings of the SAME device at the SAME moment cancels
+    // that out: whatever the device's real distance/transmit power was, it
+    // was identical for both readings, so the delta between them isolates
+    // the receiver-hardware difference. Averaged over every shared device and
+    // every neighbor, that delta becomes a hardware quality signal that
+    // proximity/placement can't fake.
     // For each radio, compute mean RSSI delta vs each neighbor for shared devices
     const hwDeltas = {}; // src → array of deltas (positive = reads stronger)
     for(const a of analyses){

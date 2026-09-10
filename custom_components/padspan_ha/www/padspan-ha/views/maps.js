@@ -1035,6 +1035,9 @@ function _arrayBufferToBase64(buffer){
   return btoa(binary);
 }
 
+// Promise wrapper around the DOM Image element's load/error events — the
+// awaitable primitive _preparePngFromUrl needs to decode an already-uploaded
+// map image before it can redraw it onto a canvas (crop/trim/resize).
 function _loadImage(url){
   return new Promise((resolve,reject)=>{
     const img = new Image();
@@ -1118,6 +1121,11 @@ function _wizardForceEditMode(ctx, w, mode){
   }
 }
 
+// The Back / Skip / Next bar every wizard step ends with. `opts.skip` gates
+// whether a Skip button appears at all (a step already satisfied, e.g. scale
+// already set, shows Skip so re-doing it is optional, not mandatory); `onNext`
+// lets a step run its own validation/side-effect before advancing instead of
+// the default plain `w.step += 1`.
 function _wizardFooter(ctx, w, opts){
   opts = opts || {};
   const { el } = ctx.helpers;
@@ -1145,6 +1153,15 @@ function _wizardFooter(ctx, w, opts){
   return bar;
 }
 
+// The five wizard screens below (Upload, Scale, Rooms, Scanners, Finish) are
+// thin wrappers: each states the task in plain language, shows the relevant
+// completion state, then embeds the SAME underlying tool the ordinary tabs
+// use (_upload or _edit in a forced mode) so nothing here duplicates drawing
+// or upload logic. Each step's `skip` gate is deliberately worded around
+// what makes THAT step "good enough to move on" rather than one shared rule:
+// Scale and Rooms gate on "not fully done yet"; Scanners gates on "literally
+// none placed" — an install with just one or two scanners has already made a
+// real choice there, so Skip only offers itself when nothing has been done.
 function _wizardUpload(ctx, isBasic){
   const { el, helpBtn } = ctx.helpers;
   const wrap = el("div",{});
@@ -1250,6 +1267,10 @@ function _wizardFinish(ctx, map, isBasic){
   return wrap;
 }
 
+// Top-level wizard shell: progress dots + step chips, then dispatches to
+// whichever _wizardXxx screen matches ctx.state._mapsWizard.step. A step
+// chip past the current one is only clickable once a map exists (`reachable`)
+// — there is nothing to jump ahead TO before Upload has produced one.
 function _wizard(ctx, maps, isBasic){
   const { el } = ctx.helpers;
   const w = ctx.state._mapsWizard;
@@ -2969,6 +2990,9 @@ function _slug(s){
   return String(s||"").trim().toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"") || "floor";
 }
 
+// A plain <select> of every HA floor plus a synthetic "Outside" option —
+// shared by every place a map/room needs a floor assigned, so the "Outside"
+// sentinel (OUTSIDE_FLOOR_ID) only ever gets added to the list in one place.
 function _floorSelect(floors, value, onChange){
   const sel = document.createElement("select");
   sel.className = "select";
@@ -3009,8 +3033,11 @@ function _autoRoomCircle(rxs){
   return {cx: clamp01(cx), cy: clamp01(cy), r: 0.12};
 }
 
+// Plain arithmetic-mean centroid of a room polygon's vertices, clamped into
+// [0,1] map-fraction space — good enough for placing a UI label inside a
+// room, not a true polygon centroid (which would weight by area and could
+// land outside a concave room); nothing here needs that precision.
 function _centroid(points){
-  // Simple average (good enough for UI label)
   if(!points || !points.length) return [0.5,0.5];
   let x=0,y=0;
   for(const p of points){ x+=p[0]; y+=p[1]; }
@@ -3088,6 +3115,9 @@ function _libraryThumb(m, ctx, reco){
   return wrap;
 }
 
+// Plain-text dump of a map's receivers + room bounds — the "Copy layout as
+// text" export in the Edit tab, meant for pasting into a support request or
+// a personal note, not for re-import (there is no parser for this format).
 function _layoutText(receivers, roomBounds){
   const lines = [];
   lines.push("Receivers:");
@@ -4011,6 +4041,10 @@ function _renderManualSection(el, sec){
   return card;
 }
 
+// The Help tab: renders BRIGHT_PRO_MANUAL's static sections, then appends
+// two conditional ones (type-override, presence/BLE) whose gating rules
+// don't fit that shared data structure and so live here as one-off checks
+// instead of extra fields every other section would have to ignore.
 function _help(ctx){
   const { el } = ctx.helpers;
   const edition = String(ctx.state.settings?.edition || "full").toLowerCase();
@@ -4103,6 +4137,13 @@ function _sampleDemo(ctx){
   return card;
 }
 
+// Builds the hand-drawn "Smith Residence" demo floor plan as a raw SVG
+// string, room shapes/furniture/labels hardcoded in absolute pixel space
+// (not the normalized 0-1 fractions real maps use — this SVG's own viewBox
+// IS its coordinate space, so there's no image to be a fraction OF). `fp`
+// lets a live snapshot's own sample data override the fallback arrays below
+// when one exists, so the demo can eventually be data-driven without this
+// function changing shape.
 function _buildDemoSVG(fp){
   const rooms = (fp && fp.rooms) || [
     { id:"living_room",    name:"Living Room",    x:10,  y:10,  w:370, h:200, color:"#52b788" },
@@ -4323,6 +4364,21 @@ function _floorHeights(ctx){
   return wrap;
 }
 
+// ── 3D Stack Tab (large — this single function renders the whole tab) ──────
+// Aligns every uploaded map into one shared metre-space building: floor
+// assignment/heights, a drag/scale/rotate overlay editor (reference map
+// underneath, semi-transparent target on top), the Point Align 6-DOF
+// least-squares solver for matched point pairs, the tie-in constraint system
+// (saved alignment snapshots that later aligns are checked and optionally
+// averaged against), and the 3D isometric preview of the resulting stack.
+// One map's PLACEMENT (map_transforms[id]) is the single source of truth
+// this whole editor moves — see the WHAT THIS EDITOR EDITS comment just
+// below for why that replaced the older `maps[].stack` design. Kept as one
+// function rather than split up because nearly everything here closes over
+// the same handful of local helpers (_placeOf, _seedPlace, _keepCentre,
+// alignState) and HA's render-on-every-poll model means splitting it would
+// mean threading all of that through parameters instead of closures, for no
+// behavioural difference — see this file's header for how the tabs relate.
 function _stack(ctx, maps, helpBtn){
   const { el, esc } = ctx.helpers;
   helpBtn = helpBtn || (()=>null);
@@ -7072,6 +7128,16 @@ export function _cancelDoorCircle(mapState) {
   mapState._doorCircleM = null;
 }
 
+// Turns the in-progress door/window/lock circle (drawn on the Lights map,
+// see iso_lights.js's own DOOR_CIRCLE_M preview) into a real, saved
+// rf_barriers_m record linked to an entity. In order: find the wall the
+// circle actually crosses (an existing RF Barrier, or — failing that —
+// synthesize one from whichever room polygon edge the circle sits over, so
+// a wall with no RF Barrier drawn on it can still host a door); refuse with
+// a precise, actionable toast if nothing crosses at all; split that wall's
+// polyline into before/opening/after at the two crossing points; and save
+// the opening's own barrier (steel by default when the parent wall isn't,
+// per Garry's 2026-09-10 ask, still overridable) linked to the entity.
 export async function _commitDoorCircle(ctx, mapState) {
   const eid = mapState._doorCircleEid;
   const circle = mapState._doorCircleM;
@@ -7673,6 +7739,11 @@ function _wireLightsPicker(ctx, isoDiv, svg, o, toVB) {
   });
 }
 
+// Draws and wires the rotate-handle + resize-box overlay for whichever
+// fixture is selected in the Lights builder's Transform mode — a dashed
+// box at the fixture's own drawn size plus a line-and-knob above it for
+// rotation, both anchored on the fixture's true centre (see the cx/cy
+// fallback chain just below for why that's less obvious than it sounds).
 function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
   const NS = "http://www.w3.org/2000/svg";
   // data-cx/data-cy — the fixture's exact drawn centre, set on the marker
@@ -7901,6 +7972,14 @@ function _lightsTourPulse(target){
   } catch(e) { /* best-effort — a missed highlight is not worth surfacing */ }
 }
 
+// The floating "Guide N of M" card that walks a first-time visitor through
+// the Lights builder — a fixed-position overlay (not part of the normal
+// document flow) so it stays put while the tab underneath re-renders on
+// every step change. `s.find` lets a step locate and pulse-highlight a real
+// on-screen control (_lightsTourPulse) instead of just describing it in
+// words. Dismissal is remembered in localStorage, per-browser, so the tour
+// doesn't reappear on every visit once seen — see ctx.state._lightsTour's
+// own null check above for how a null tour object means "not running".
 function _lightsTourCard(ctx, wrap, paid){
   const { el } = ctx.helpers;
   const tour = ctx.state._lightsTour;
@@ -7969,6 +8048,21 @@ function _lightsTourCard(ctx, wrap, paid){
   return card;
 }
 
+// ── Lights Tab (large — the whole Lights builder lives in this function) ───
+// The paid build tools layered on top of the free lights map every sidebar
+// panel already shows (buildLightsMapCard/buildLightsTable from
+// lights_map.js — the SAME functions, so the map here and the sidebar's map
+// can never visually disagree). Below `bright` tier this renders that free
+// view alone with the build tools withheld (paid=false short-circuits the
+// draft state below to empty so nothing paid-only can leak through even if
+// a key lapses mid-session). Owns: the drag/select/inspector loop over a
+// DRAFT position map (mapState._lightsDraftM — nothing here writes the real
+// light_positions_m until Save), the undo/redo stack over that draft (see
+// the "Undo / redo over the DRAFT" section below), Transform mode's
+// rotate/resize handles, the door/window/lock circle tool, Automorph's
+// style/slider controls, and the onboarding tour. `active` (the currently
+// selected map) is read for its floor/scale context; the fixture data
+// itself is entity-registry-wide, not per-map.
 function _lightsTab(ctx, maps, active) {
   const { el } = ctx.helpers;
   const mapState = ctx.state.maps;
@@ -9005,6 +9099,9 @@ function _roomClusterCount(geoms, gapM = 1.0) {
   return new Set(Array.from({length: n}, (_, i) => find(i))).size;
 }
 
+// Centroid of a room_geometry_m entry in world metres — vertex average for a
+// polygon (fine for the Rooms tab's own label placement; not area-weighted),
+// the stored centre directly for a circle.
 function _geomCentroid(g) {
   if (g.type === "poly") {
     const n = g.points_m.length;

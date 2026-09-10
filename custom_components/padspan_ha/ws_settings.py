@@ -498,6 +498,16 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             _raw_rm = msg["espresense_room_map"]
             payload["espresense_room_map"] = {str(k): str(v) for k, v in _raw_rm.items()} if isinstance(_raw_rm, dict) else {}
         # ── Occupancy estimation controls ──────────────────────────────────
+        # occupancy_multiplier/occupancy_dwell_min appear to be unreachable
+        # as written: unlike occupancy_hybrid_enabled/occupancy_cluster_threshold
+        # just below, neither key is declared in this handler's
+        # @websocket_command vol.Schema above, and nothing in the frontend
+        # (grepped the whole www/ tree) ever sends either one — only
+        # ws_fabric.py reads occupancy_multiplier back out, always via
+        # `.get(..., 1.5)`, i.e. always the default. Left as-is (no
+        # behavior change in scope here); worth confirming whether these
+        # are dead legacy code or a still-planned control missing its
+        # schema entry and its frontend UI.
         if "occupancy_multiplier" in msg:
             payload["occupancy_multiplier"] = max(0.5, min(10.0, float(msg["occupancy_multiplier"])))
         if "occupancy_dwell_min" in msg:

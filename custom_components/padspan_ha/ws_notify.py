@@ -154,6 +154,11 @@ async def ws_notify_test(hass: HomeAssistant, connection, msg) -> None:
 
     # Determine if the chosen value is an entity_id (e.g. "notify.smtp")
     is_entity = chosen.startswith("notify.")
+    # `attempts` is an ordered list of things to actually try, most-likely-
+    # to-work first, built up from whichever of (explicit choice / auto-pick)
+    # applies below — each is tried in turn until one succeeds, because the
+    # legacy-vs-2024+ notify split (see ws_notify_services_list's WHY) means
+    # there is no single call shape guaranteed to work for a given target.
     attempts: list[tuple[str, str, dict[str, Any]]] = []  # (description, svc_name, payload)
 
     if is_entity and has_send_message:

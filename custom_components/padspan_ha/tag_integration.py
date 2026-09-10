@@ -25,7 +25,13 @@ _LOGGER = logging.getLogger(__name__)
 
 DATA_TAG_INTEGRATION = "tag_integration"
 
-# Cooldown for room-change tag events (seconds per object)
+# Cooldown for room-change tag events (seconds per object). A followed
+# object flickering between two rooms at a boundary (or briefly losing and
+# regaining its strongest scanner) would otherwise fire a fresh tag_scanned
+# — and the automations hanging off it — on every recomputed room, not just
+# on a real, settled move. 30s is long enough to absorb that flicker while
+# still being short enough that a genuine walk-through-the-house sequence
+# still produces one event per room.
 _ROOM_TAG_COOLDOWN_S = 30
 
 
@@ -202,7 +208,12 @@ class TagIntegration:
                 })
                 return
 
-            # Pick the one with the strongest RSSI (most likely to be the nearby object)
+            # Pick the one with the strongest RSSI: an NFC tap only tells us
+            # WHICH ROOM the phone was in, not which of several unidentified
+            # objects the person actually meant. The strongest signal is the
+            # object physically closest to the scanners covering that room —
+            # the best available proxy for "the one the phone tapped near" —
+            # so ties are broken toward proximity rather than, say, first-seen.
             best_key = None
             best_rssi = -999.0
             best_obj = None
@@ -320,7 +331,15 @@ class TagIntegration:
             if not transmitting_id:
                 return
 
-            # Parse UUID-Major-Minor
+            # Parse UUID-Major-Minor out of the HA Companion App's BLE
+            # Transmitter sensor value, which packs all three into one
+            # dash-joined string (uuid-major-minor) rather than exposing them
+            # as separate attributes. This exact block is duplicated verbatim
+            # in _get_phone_room below — both need the identical parse but
+            # are independent small helpers with different failure handling
+            # around them, so the duplication is deliberate rather than an
+            # oversight; keep any future fix to this parsing in sync in both
+            # places.
             parts = transmitting_id.rsplit("-", 2)
             uuid_str = ""
             major = 0

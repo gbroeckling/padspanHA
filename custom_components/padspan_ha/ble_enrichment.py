@@ -307,6 +307,11 @@ def enrich_object(obj: Dict[str, Any]) -> Dict[str, Any]:
 
     # ── Device type — Apple Continuity subtype (most specific) ──
     device_type = None
+    # Both key forms are checked because manufacturer_data's key type depends
+    # on where obj came from: live bleak/HA bluetooth objects use the int
+    # company ID (76) directly, while anything that has round-tripped through
+    # JSON (websocket capture replay, stored snapshots) turns dict keys into
+    # strings ("76") — JSON has no integer-keyed object type.
     apple_payload = manuf.get("76") or manuf.get(76)
     if apple_payload is not None:
         device_type = decode_apple_subtype(apple_payload)

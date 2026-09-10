@@ -80,7 +80,12 @@ export function render(ctx){
       tbl.appendChild(el("div",{class:"mono"},String(rel)));
     }
     shCard.appendChild(tbl);
-    // Flag scanners with low reliability
+    // Flag scanners with low reliability — but only once a scanner has had
+    // a fair number of polls to be judged on (>= 12): a scanner that just
+    // came online has an unstable, low-sample reliability score that says
+    // more about "not enough data yet" than "this scanner disagrees with
+    // consensus," and would otherwise show as a false alarm on every fresh
+    // install or newly-added scanner.
     const bad = entries.filter(([,d]) => d.reliability < 0.7 && d.polls >= 12);
     if(bad.length){
       const warn = el("div",{style:"margin-top:8px;padding:8px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:6px;font-size:11px;color:#fca5a5"});

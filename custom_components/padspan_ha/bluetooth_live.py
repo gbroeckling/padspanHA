@@ -78,6 +78,15 @@ def _coerce_source(src: Any) -> str:
 
 
 def _service_info_to_record(si: Any, seen: Optional[dt.datetime] = None) -> Dict[str, Any]:
+    """Flatten a BluetoothServiceInfo(Bleak)-like object into a plain dict.
+
+    Everything below is `getattr(..., None)` rather than direct attribute
+    access because the shape of this object has genuinely varied across HA
+    core / bleak versions (RSSI and manufacturer/service data sometimes sit
+    directly on `si`, sometimes nested under `si.advertisement` instead) —
+    the fallbacks exist to survive whichever shape the running HA actually
+    hands us, not defensive padding against inputs that can't occur.
+    """
     seen_dt = seen or getattr(si, "time", None) or getattr(si, "seen", None) or _now()
     if isinstance(seen_dt, (int, float)):
         # Some implementations may use unix seconds.
@@ -283,6 +292,12 @@ class BluetoothLive:
 
     @callback
     def _on_adv(self, service_info: Any, change: Any = None) -> None:
+        # The live habluetooth callback registered in async_setup_bluetooth_live
+        # (both ACTIVE and PASSIVE registrations point here) — HA calls this
+        # synchronously on its event loop for every advertisement any scanner
+        # hears, so the whole body is one try/except: raising here would
+        # propagate into HA's bluetooth dispatch and could take scanning down
+        # for every integration, not just ours, over a single malformed ad.
         # Store latest reading per {address, source} — preserves all radios' views of a device
         try:
             addr = getattr(service_info, "address", None) or ""

@@ -860,7 +860,11 @@ async def ws_ha_entities_audit(hass: HomeAssistant, connection, msg) -> None:
     except Exception:
         pass
 
-    # Classify entity type from unique_id suffix
+    # Classify entity type from unique_id suffix. These suffixes are set at
+    # entity-creation time, not here — "__tracker" (device_tracker.py),
+    # "__area" / "__distance" (sensor.py's per-room area and distance
+    # sensors), and "__dist__<scanner>" (sensor.py's per-scanner distance
+    # sensors — one per scanner, hence its own embedded scanner id).
     def _etype(uid: str) -> str:
         if "__tracker" in uid:
             return "tracker"

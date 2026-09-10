@@ -41,6 +41,13 @@ const BARRIER_PENALTY_DB_TO_DIST = 0.01; // each dB of barrier attenuation adds 
 export const DEFAULT_REF_POWER = -59;   // dBm at 1 meter
 export const DEFAULT_PATH_LOSS_N = 2.5; // indoor path-loss exponent
 
+// The floor a set of floor maps is drawn for — the id every wall on that
+// floor carries in the fabric.
+function _floorId(floorMaps) {
+  const m = (floorMaps || [])[0];
+  return m ? String((m.stack && m.stack.floor_id) || m.floor_id || "main") : null;
+}
+
 /**
  * Scanners for a modelled heatmap, in stack-world coordinates, from the fabric.
  *
@@ -60,13 +67,6 @@ export const DEFAULT_PATH_LOSS_N = 2.5; // indoor path-loss exponent
  * dz is the scanner's height above the assumed device height on the drawn
  * floor, so the model can use a real slant range.
  */
-// The floor a set of floor maps is drawn for — the id every wall on that
-// floor carries in the fabric.
-function _floorId(floorMaps) {
-  const m = (floorMaps || [])[0];
-  return m ? String((m.stack && m.stack.floor_id) || m.floor_id || "main") : null;
-}
-
 function _fabricScanners(mapsList, model, drawnZ, mapZByMapId, scannerQuality, settings) {
   const fab = fabricWorldScanners(model);
   if (!fab) return { scanners: [], mPerWorld: 0 };
@@ -299,6 +299,7 @@ function _idw(qx, qy, points, barriers) {
   return wSum > 0 ? vSum / wSum : null;
 }
 
+/** Scanner sources seen on one map's own calibration points, most-sampled first. */
 export function getMapScanners(calPoints, mapId) {
   const mapPts = (calPoints || []).filter(p => p.map_id === mapId);
   const scannerMap = {};
@@ -790,17 +791,6 @@ export function isoStoreyDistortionSVG(storey, iso, liveSnap, settings, range) {
 const FLOOR_GRID = 42; // 42x42 grid in world space
 
 /**
- * Generate a unified floor heatmap in view-normalized coordinates.
- *
- * @param {Array} calPoints - ALL calibration points from calibrationGet()
- * @param {Array} floorMaps - maps on this floor [{id, rf_barriers, ...}]
- * @param {Object} mapPtFns - {mapId: (lx,ly)=>[wx,wy]} transform per map
- * @param {Function} w2v - (wx,wy)=>[vx,vy] world→view transform
- * @param {Object} wBB - {minX,minY,maxX,maxY} world bounding box
- * @param {string|null} scannerSource - specific scanner or null for combined
- * @returns {string} SVG content (rects + markers in view coords)
- */
-/**
  * Model-based RF heatmap — uses scanner positions + path-loss physics.
  * No calibration data needed. Shows predicted signal coverage from known
  * scanner locations, attenuated by walls.
@@ -969,7 +959,20 @@ export function modelFloorHeatmapSVG(floorMaps, mapPtFns, w2v, wBB, settings, al
   return s;
 }
 
-// Legacy calibration-based heatmap (kept as fallback)
+/**
+ * Legacy calibration-based heatmap (kept as fallback for installs still
+ * relying on measured calibration points rather than the model-based
+ * heatmap above). Generates a unified floor heatmap in view-normalized
+ * coordinates by IDW-interpolating measured RSSI, not physics.
+ *
+ * @param {Array} calPoints - ALL calibration points from calibrationGet()
+ * @param {Array} floorMaps - maps on this floor [{id, rf_barriers, ...}]
+ * @param {Object} mapPtFns - {mapId: (lx,ly)=>[wx,wy]} transform per map
+ * @param {Function} w2v - (wx,wy)=>[vx,vy] world→view transform
+ * @param {Object} wBB - {minX,minY,maxX,maxY} world bounding box
+ * @param {string|null} scannerSource - specific scanner or null for combined
+ * @returns {string} SVG content (rects + markers in view coords)
+ */
 export function floorHeatmapSVG(calPoints, floorMaps, mapPtFns, w2v, wBB, scannerSource, allMaps, model) {
   if (!calPoints || !floorMaps.length) return "";
 

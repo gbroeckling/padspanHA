@@ -332,6 +332,16 @@ async def ws_maps_replace_image(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_maps_delete(hass: HomeAssistant, connection, msg) -> None:
+    """Delete a map and scrub every OTHER store's reference to it.
+
+    Nothing cascades automatically when a map disappears — calibration
+    points, traceback frames, and the settings' hidden_map_ids list all
+    hold their own copy of map_id, so each is walked and cleaned up here
+    explicitly before the map record itself is removed. Each cleanup is
+    best-effort (a failure there must never block the delete the user
+    actually asked for) except the delete itself, which is the one step
+    allowed to fail loudly.
+    """
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not ms:
         connection.send_error(msg["id"], "no_maps_store", "Maps store not initialized")

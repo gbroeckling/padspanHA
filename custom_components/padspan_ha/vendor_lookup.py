@@ -79,6 +79,10 @@ def _oui_prefix(mac_norm: str) -> str:
 
 @dataclass
 class VendorCache:
+    # @dataclass here is for the free __repr__/__eq__ only — construction
+    # needs a real HomeAssistant instance to build the Store (Store(hass, ...)
+    # can't be expressed as a dataclass field default), so __init__ is fully
+    # hand-written below and the dataclass-generated one never runs.
     hass: HomeAssistant
     store: Store
     data: Dict[str, Any]

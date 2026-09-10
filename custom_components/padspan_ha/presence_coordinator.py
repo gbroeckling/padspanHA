@@ -242,7 +242,19 @@ def _segments_intersect(
     ax: float, ay: float, bx: float, by: float,
     cx: float, cy: float, dx: float, dy: float,
 ) -> bool:
-    """Return True if segment AB crosses segment CD."""
+    """Return True if segment AB crosses segment CD.
+
+    Standard orientation-test approach: a point P is "left of" or "right
+    of" a directed line through two other points depending on the sign of
+    the cross product of (line direction) x (direction to P). AB crosses
+    CD exactly when A and B fall on OPPOSITE sides of line CD, AND C and D
+    fall on opposite sides of line AB — checking one pair alone would also
+    pass for two segments that merely come close without truly crossing
+    (e.g. AB's line crosses CD's line, but outside CD's own extent).
+    Feeds `_barrier_attenuation` below: an RF barrier (wall/door) attenuates
+    a scanner-to-device signal only when the line between them actually
+    crosses the barrier's drawn segment, not merely its infinite extension.
+    """
     def _cross(o1x: float, o1y: float, o2x: float, o2y: float, o3x: float, o3y: float) -> float:
         return (o2x - o1x) * (o3y - o1y) - (o2y - o1y) * (o3x - o1x)
     d1 = _cross(cx, cy, dx, dy, ax, ay)

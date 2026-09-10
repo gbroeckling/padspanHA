@@ -394,9 +394,11 @@ class ModelStore:
         }
 
     def floors(self) -> list[dict[str, Any]]:
+        """Return the floor list (id/name/level/elevation), stored order."""
         return list(self.data.get("floors", []))
 
     def room_meta(self) -> dict[str, dict[str, Any]]:
+        """Return {room_name: {floor_id, color}} for every known room."""
         return dict(self.data.get("room_meta", {}))
 
     # ── Fabric accessors ────────────────────────────────────────────────────
@@ -1854,10 +1856,15 @@ class ModelStore:
         }
 
     def has_floor(self, floor_id: str) -> bool:
+        """True if `floor_id` is one of the stored floors."""
         fid = str(floor_id or "")
         return any(f.get("id") == fid for f in self.data.get("floors", []))
 
     async def async_ensure_rooms(self, rooms: list[str]) -> None:
+        """Backfill room_meta for any of `rooms` missing an entry (or missing
+        floor_id/color on an existing one), defaulting to the main floor and
+        a hash-derived colour. Idempotent — a room already fully populated is
+        left untouched and this is a no-op write."""
         changed = False
         rm: dict[str, Any] = self.data.get("room_meta", {}) or {}
         for r in rooms or []:
@@ -1879,6 +1886,13 @@ class ModelStore:
             await self.store.async_save(self.data)
 
     async def async_update(self, *, floors: list[dict[str, Any]] | None = None, room_meta: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Settings-page save path: replace floors and/or room_meta wholesale
+        (each only if the caller passed one), then return a fresh snapshot.
+        Floors are MERGED against the prior record (not replaced) because the
+        floor editor only ever posts {id, name} — a straight overwrite would
+        wipe every stored elevation field on the next unrelated floor rename.
+        room_meta entries are validated per-room (floor_id must reference a
+        real floor, or fall back to the default) rather than trusted whole."""
         if isinstance(floors, list):
             norm_floors: list[dict[str, Any]] = []
             seen: set[str] = set()

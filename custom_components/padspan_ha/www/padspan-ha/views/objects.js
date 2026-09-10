@@ -627,6 +627,11 @@ export function render(ctx){
 
       // Compute scores: for each unidentified object, how strongly does it correlate
       // with scanners in the selected room? Uses live advertisement RSSI data.
+      // Same scoring formula as the advanced/dev-mode block above (_wtiScoresAdv) —
+      // this is basic mode's own copy rather than a shared call, since the two
+      // code paths compute it at different points in render() with different
+      // locally-scoped inputs (isBasic branches early and returns before the
+      // advanced-mode section runs). Keep both in sync if the formula changes.
       function _computeWtiScores(targetRoom) {
         const ads = (liveSnap && liveSnap.ble && liveSnap.ble.advertisements) || [];
         const radios = (liveSnap && liveSnap.ble && liveSnap.ble.radios) || [];

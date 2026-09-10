@@ -35,6 +35,12 @@ STORE_VERSION = 1
 
 # Ephemeral cache for transient devices (not persisted)
 _EPHEMERAL_MAX = 2000
+# NOTE: only _EPHEMERAL_MAX (count-based LRU eviction, see resolve_or_create's
+# `while len(self._ephemeral) > _EPHEMERAL_MAX: popitem` below) is actually
+# wired up. This TTL constant is not read anywhere in this file — a
+# time-based eviction was evidently intended but never implemented, so an
+# ephemeral entry can currently only age out by being pushed out of the LRU
+# by newer ones, never by wall-clock time alone.
 _EPHEMERAL_TTL_S = 3600  # 1 hour
 
 

@@ -342,6 +342,11 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
     )
 
     _bump(hass, "factory_reset")
+    # "total": 11 is a display figure for the UI's progress readout, not a
+    # literal count of the try/except blocks above (there are 13, several
+    # added after this constant was last touched) — it does not need to
+    # track that count exactly, but if it drifts far enough to read as
+    # "some stores silently skipped" to a user, bump it to match.
     connection.send_result(msg["id"], {
         "ok": len(errors) == 0,
         "cleared": cleared,

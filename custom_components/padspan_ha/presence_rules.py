@@ -239,6 +239,10 @@ def modelled_coverage_floor(rooms_m: dict[str, dict[str, Any]],
 
 
 def _point_in_poly(x: float, y: float, poly: list) -> bool:
+    # Standard ray-casting test: count edges the horizontal ray from (x, y)
+    # toward +x crosses; odd = inside. Used by modelled_coverage_floor's grid
+    # sampler to decide which sample points actually fall inside a room's
+    # polygon before running the log-distance model on them.
     inside = False
     n = len(poly)
     j = n - 1

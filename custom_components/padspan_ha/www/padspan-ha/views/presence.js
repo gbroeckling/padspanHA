@@ -111,7 +111,13 @@ export function render(ctx){
           const label = (o && o.user_label) || (o && o.name) || d.name || d.addr;
           const rssiStr = d.rssi!=null ? `RSSI ${d.rssi}` : "";
 
-          // Use stable identifier for private_ble/ibeacon
+          // Use stable identifier for private_ble/ibeacon — their raw BLE
+          // address is not a durable key (private_ble MAC addresses rotate
+          // periodically by the Bluetooth spec's own design; an iBeacon has
+          // no MAC-like address at all, just a UUID/major/minor triple), so
+          // tagging by d.addr here would silently orphan the tag the next
+          // time the address rotates. canonical_id/key are the identity the
+          // backend already resolved rotation/beacon-id down to.
           const kind = o && o.kind;
           const tagAddr = kind === "private_ble" ? (o.canonical_id || d.addr)
                         : kind === "ibeacon"     ? (o.key || d.addr)

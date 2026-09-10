@@ -70,6 +70,18 @@ async def async_setup_entry(
 
     @callback
     def _check_new() -> None:
+        """Create one tracker per labelled device, and keep it on its freshest key.
+
+        A labelled device's underlying `key` can rotate (a MAC-address BLE key
+        with no registered IRK, a degraded-mode IRK device) — each rotation
+        would otherwise mint a brand-new tracker under the new key while the
+        old one goes stale, fragmenting one physical device into several
+        entities over time. `label_entity` tracks one tracker per label
+        instead, and both branches below (an already-tracked key, and a newly
+        seen key sharing a label already in use) retarget the existing
+        entity's `_key` to whichever candidate has the lower `age_s` — the
+        one actually producing fresh data right now.
+        """
         if not coordinator.data:
             return
         st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)

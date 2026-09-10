@@ -685,6 +685,13 @@ function _health(ctx, el){
 }
 
 // ── Phase 4: Inline critics for Monitor → Health sub-tab ─────────────────
+// Module-level (not per-render) cache: _health() re-runs on every Rooms
+// re-render, which the poll loop triggers often, and system_critics is a
+// real backend computation (confusion matrix, per-critic checks) — without
+// this, switching tabs or an unrelated poll tick would re-run it every
+// time. 30s balances "stale enough to miss a just-fixed issue" against
+// "cheap enough to not matter" for a tab nobody stares at continuously;
+// the explicit Refresh button below exists for "I want it now".
 let _monCriticsCache = null;
 let _monCriticsFetchTs = 0;
 

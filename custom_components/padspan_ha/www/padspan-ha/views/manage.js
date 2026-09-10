@@ -2625,7 +2625,21 @@ function _beaconChars(ctx, el){
       tuneTd.appendChild(tuneBtn);
       tr.appendChild(tuneTd);
 
-      // Group action
+      // Group action — the backend auto-groups beacons by model (iBeacon UUID
+      // prefix, manufacturer, BLE name) so a new beacon of a known type can
+      // inherit that model's signal defaults immediately instead of starting
+      // cold with zero calibration data. That's usually right, but two
+      // identical-model beacons can still sit in very different real-world
+      // spots (a thin phone case vs. a thick wallet, a pocket vs. a bag) and
+      // end up with meaningfully different signal behaviour despite sharing
+      // a model key. "Ungroup" (Solo) lets one such beacon opt out of the
+      // shared model and build its own independent profile from its own
+      // calibration data only; "Regroup" reverses that, deleting the
+      // override so it falls back to the auto-computed model key next
+      // render. The `solo:<device_id prefix>` value is just a unique key,
+      // never re-parsed — its ONLY job is to not collide with any real
+      // model_key a grouping pass could produce, so this beacon's effective
+      // model is guaranteed to contain nobody else.
       const grpTd = el("td",{style:"padding:4px 6px"});
       const isOverridden = !!overrides[b.device_id];
       if (group.length > 1 || isOverridden) {

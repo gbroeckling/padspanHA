@@ -32,6 +32,9 @@ export function hasFabricRooms(state) {
     && Object.keys(state.model.room_geometry_m).length > 0);
 }
 
+/** hasFabricRooms first (the one true record), OR any per-map room_bounds — a
+ * house that only ever drew rooms on a photo, never building a fabric, still
+ * reads as started. */
 export function hasRooms(state) {
   return hasFabricRooms(state)
     || (hasMaps(state) && state.maps.list.some(m => Object.keys(m.room_bounds || {}).length > 0));

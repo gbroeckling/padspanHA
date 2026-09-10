@@ -480,6 +480,15 @@ class FabricStore:
 
     @staticmethod
     def _norm_point_entry(entry: Any, *, need_z: bool) -> dict[str, Any] | None:
+        """Validate + normalize one scanner/beacon/light spatial entry.
+
+        Shared by all three point kinds in async_spatial_update — only
+        scanners carry a z_m (floor height matters for trilateration;
+        beacons/lights are floor-plan points). Returns None on any
+        malformed/non-finite coordinate so a single bad entry in a batch is
+        skipped rather than corrupting the whole write (callers count only
+        what actually normalized).
+        """
         if not isinstance(entry, dict):
             return None
         out = dict(entry)

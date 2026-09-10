@@ -14,6 +14,9 @@
 // two copies disagreeing. It is derived on read now and there is nothing left
 // to disagree.
 
+// Height/width. 600/800 (a 4:3 portrait-of-landscape ratio) is only ever hit
+// before a map's own image dimensions have loaded — a temporary placeholder
+// shape, never a real house measurement.
 export function imageAr(map) {
   return ((map && map.image && map.image.height) || 600) /
          ((map && map.image && map.image.width) || 800);

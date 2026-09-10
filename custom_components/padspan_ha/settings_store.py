@@ -196,6 +196,14 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 
 @dataclass
 class SettingsStore:
+    # The three field annotations below do NOT get their usual @dataclass
+    # treatment: this class defines its own __init__ immediately after them,
+    # and @dataclass never generates/overrides __init__ when the class
+    # already has one. They still document the instance's shape (and drive
+    # __repr__/__eq__, which the dataclass machinery does still generate),
+    # but SettingsStore(hass=..., store=..., data=...) — the signature these
+    # annotations imply — is not how this class is actually constructed;
+    # only SettingsStore(hass) is.
     hass: HomeAssistant
     store: Store
     data: dict[str, Any]

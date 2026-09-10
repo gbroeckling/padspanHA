@@ -542,6 +542,13 @@ async function _loadRegistryAsync(ctx, el, container) {
   }
 }
 
+// Entity trackers (tagsRaw above) report a device_tracker STATE, not a room
+// name — for a person/device_tracker entity that state is usually the
+// generic "home"/"not_home" rather than a room, so those need remapping to
+// something a person reads as a location; a zone-tracker's state is already
+// a real place name and passes through untouched. unknown/unavailable can't
+// be treated as "in some room called Unknown", so they clear to "" instead
+// (the row falls into the "No room" pill rather than a fake location).
 function normalizeRoom(state) {
   const s = String(state || "").trim();
   if (!s || s === "unknown" || s === "unavailable") return "";
