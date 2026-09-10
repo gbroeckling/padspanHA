@@ -452,7 +452,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 <section class="wrap" id="lights">
   <div class="kick">Lighting</div>
   <h2>Your lights on the same floor plan</h2>
-  <p class="lede">PadSpan already knows the shape of your house in metres — the rooms, the floors, the walls. <b>Mapping → Lights</b> puts your Home Assistant lights on that same plan, so you can see and switch them where they actually are instead of hunting through a list of entity names.</p>
+  <p class="lede">PadSpan already knows the shape of your house in metres — the rooms, the floors, the walls. <b>Mapping → Lights</b> puts your Home Assistant lights, fans, motion and temperature sensors, locks, and doors and windows on that same plan, so you can see and switch them where they actually are instead of hunting through a list of entity names.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
     <div class="feat">
       <h3>Free, in every install <span class="pill free">No key</span></h3>
@@ -469,6 +469,9 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <li><b>Place each light exactly</b> where it hangs, in metres</li>
         <li>Fixture shapes and sizes — a strip is not a spot</li>
         <li>WLED strips, with brightness, colour and effect control, live</li>
+        <li>Fans, motion &amp; temperature sensors and locks placed the same way</li>
+        <li>Doors &amp; windows on a wall — live open/closed state, modelled as real RF barriers</li>
+        <li>Motion flash and fade normalized across every sensor's hardware hold time</li>
         <li><b>Automorph</b> — a soft aura from each fixture into its room</li>
       </ul>
       <p style="font-size:13.5px;color:var(--mut);margin-top:6px">Unlocked by either key: <a href="#editions">PadSpan Bright Pro</a> at $35 CAD/year for the lighting half, or <a href="#pro">PadSpan Pro</a> at $45 for everything. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.</p>
@@ -603,7 +606,9 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <tr><td>Room boundary editor</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
     <tr><td>Walls as RF barriers</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
     <tr><td>Fingerprint calibration</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
-    <tr><td>Lighting map on the floor plan</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Lighting map on the floor plan (lights, fans, sensors, locks)</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Door/window RF barriers (live open/closed, material-aware)</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Motion hold-time normalized across sensor hardware</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
     <tr><td>Hybrid occupancy counting</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
     <tr><td>Stable device identity</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
     <tr><td>Training hub (14 walkthroughs)</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
@@ -738,7 +743,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 <section class="wrap" id="bright">
   <div class="kick">PadSpan Bright</div>
   <h2>The lighting half, on its own</h2>
-  <p class="lede">Every light on the same floor plan as the rooms — free to run, with real placement and WLED control behind a key. <a href="https://github.com/gbroeckling/padspanBright">PadSpan Bright on GitHub</a>.</p>
+  <p class="lede">Every light, fan, sensor, lock, door and window on the same floor plan as the rooms — free to run, with real placement, WLED control and RF-aware doors behind a key. <a href="https://github.com/gbroeckling/padspanBright">PadSpan Bright on GitHub</a>.</p>
   <div class="tablewrap">
   <table>
     <tr><th style="text-align:left">Feature</th><th>Bright (free)</th><th>Bright Pro</th></tr>
@@ -749,6 +754,10 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <tr><td>Real shape, size (width × length) and rotation</td><td class="no">—</td><td class="yes">✓</td></tr>
     <tr><td>WLED strip/series placement, sized and angled to the strip</td><td class="no">—</td><td class="yes">✓</td></tr>
     <tr><td>Brightness, colour and effect control per light, live</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Fans, motion sensors, temperature sensors and locks placed on the map</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Doors &amp; windows linked to a wall, live open/closed state on the map</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Closed doors modelled as real RF barriers (material-aware attenuation)</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Motion flash/fade normalized across every sensor's hardware hold time</td><td class="no">—</td><td class="yes">✓</td></tr>
     <tr><td>Automorph room-aura rendering (Glow / Blueprint / Nebula)</td><td class="no">—</td><td class="yes">✓</td></tr>
     <tr><td>Import an existing house from PadSpan Bright into PadSpan HA</td><td class="yes">✓</td><td class="yes">✓</td></tr>
   </table>

@@ -1,8 +1,9 @@
 # PadSpan Bright
 
-**A lighting map for Home Assistant.** Every light in your house on an
-isometric plan of your floors and rooms — tap to switch, drag to place, drawn
-the way an electrician draws a lighting plan.
+**A lighting map for Home Assistant.** Every light, fan, motion and
+temperature sensor, lock, and door or window in your house on an isometric
+plan of your floors and rooms — tap to switch, drag to place, drawn the way
+an electrician draws a lighting plan.
 
 PadSpan Bright is the lighting half of [PadSpan HA](https://github.com/gbroeckling/padspanHA),
 on its own, with none of the room-presence machinery showing. It is generated
@@ -28,25 +29,38 @@ Long-press a light on the map for its full card — this one's a WLED strip mid-
 clustered in its room. Tap a marker or a row to toggle the light. Hide the
 lights you never want on the map.
 
-**PadSpan Bright Pro (key)** — place each light where it really is; set its
-shape (pot, strip, pendant, sconce, fan…), size and angle in real units; place
-WLED strips and control their brightness, colour and effects live from the
-map; and turn on Automorph, which grows a soft aura from each fixture into
-its room (Glow, Blueprint or Nebula style).
+**PadSpan Bright Pro (key)** — place every light, fan, motion sensor,
+temperature sensor and lock exactly where it really is; set shape (pot,
+strip, pendant, sconce, fan…), size and angle in real units; place WLED
+strips and control their brightness, colour and effects live from the map;
+mark a door or window on a wall and see it open or closed live on the map,
+with closed doors modelled as real RF barriers (steel doors block harder than
+hollow-core); and turn on Automorph, which grows a soft aura from each
+fixture into its room (Glow, Blueprint or Nebula style).
+
+Every motion sensor's flash and fade run through the same normalizer no
+matter the hardware underneath — an alarm-panel PIR that self-clears in 5
+seconds and a radar sensor that holds "on" for 20 minutes both read the same
+way on the map: a 5-minute flash, then a graduated fade through six colours
+the longer it's been quiet.
 
 A **PadSpan Pro** key unlocks all of the same — one key, either download.
 
-| Feature                                                     | Bright (free) | Bright Pro |
-| ------------------------------------------------------------ | :-----------: | :--------: |
-| Floors & rooms drawn as an isometric plan                    |       ✓       |     ✓      |
-| One marker per light, tap (or its row) to toggle              |       ✓       |     ✓      |
-| Hide lights you don't want cluttering the map                |       ✓       |     ✓      |
-| Place each light at its real position on the floor plan        |               |     ✓      |
-| Real shape, size (width × length) and rotation                |               |     ✓      |
-| WLED strip/series placement, sized and angled to the strip     |               |     ✓      |
-| Brightness, colour and effect control per light, live         |               |     ✓      |
-| Automorph room-aura rendering (Glow / Blueprint / Nebula)      |               |     ✓      |
-| Import an existing house from PadSpan Bright into PadSpan HA |       ✓       |     ✓      |
+| Feature                                                             | Bright (free) | Bright Pro |
+| --------------------------------------------------------------------- | :-----------: | :--------: |
+| Floors & rooms drawn as an isometric plan                             |       ✓       |     ✓      |
+| One marker per light, tap (or its row) to toggle                       |       ✓       |     ✓      |
+| Hide lights you don't want cluttering the map                         |       ✓       |     ✓      |
+| Place each light at its real position on the floor plan                 |               |     ✓      |
+| Real shape, size (width × length) and rotation                         |               |     ✓      |
+| WLED strip/series placement, sized and angled to the strip              |               |     ✓      |
+| Brightness, colour and effect control per light, live                  |               |     ✓      |
+| Fans, motion sensors, temperature sensors and locks placed on the map      |               |     ✓      |
+| Doors & windows linked to a wall, live open/closed state on the map     |               |     ✓      |
+| Closed doors modelled as real RF barriers (material-aware attenuation) |               |     ✓      |
+| Motion flash/fade normalized across every sensor's hardware hold time   |               |     ✓      |
+| Automorph room-aura rendering (Glow / Blueprint / Nebula)               |               |     ✓      |
+| Import an existing house from PadSpan Bright into PadSpan HA          |       ✓       |     ✓      |
 
 ## Install
 
