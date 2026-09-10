@@ -3118,14 +3118,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // pads (current has continuity). No wash, no blur — pure ink,
         // `duo` reserved only for the on-state pad fill so state never
         // reads as a hue swap.
-        const traceOp = on ? (0.04+0.05*t) : (0.02+0.02*t);
+        const traceOp = on ? (0.40+0.50*t) : (0.20+0.20*t);
         const traceWidth = on ? 1.6 : 1.2;
         const traceDash = on ? "none" : "3 5";
         const mainTrace = `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${swid(traceWidth)}" stroke-linejoin="miter" stroke-linecap="square" stroke-dasharray="${traceDash}" opacity="${opac(traceOp)}" pointer-events="none"/>`;
 
         const viaCount = Math.max(3, Math.round(3+4*t));
         const step = Math.max(1, Math.floor(ring.length/viaCount));
-        const markerOp = on ? (0.02+0.025*t) : (0.012+0.01*t);
+        const markerOp = on ? (0.20+0.25*t) : (0.12+0.10*t);
         const stubLen = 5+3*t;
         const padSize = (on ? 2.6 : 2.0)+1.2*t;
 
@@ -3169,7 +3169,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           const frac=fracs[i];
           const distFade=1-0.55*(i/(bandCount-1));
           const isIndex=(i%2===0);
-          const raw=(0.02+0.015*t)*distFade*stateMul*(isIndex?1:0.6);
+          const raw=(0.20+0.15*t)*distFade*stateMul*(isIndex?1:0.6);
           const sw=swid((isIndex?0.9:0.5)+(isIndex?0.3:0.2)*t);
           const path=(frac===1) ? d : bandAt(frac);
           edge+=`<path d="${path}" fill="none" stroke="${ink}" stroke-opacity="${opac(raw)}" `+
@@ -3190,7 +3190,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const mixRgb = (c,to,amt) => [0,1,2].map(i => Math.round(c[i] + (to[i]-c[i])*amt));
         const LX = -0.7071, LY = -0.7071;
         const CONTRAST = on ? 0.50 : 0.22;
-        const fillOp = (0.035 + 0.035*t) * (on ? 1.1 : 0.85);
+        const fillOp = (0.35 + 0.35*t) * (on ? 1.1 : 0.85);
 
         const facets = ring.map((p,i) => {
           const q = ring[(i+1) % n];
@@ -3205,12 +3205,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           return `<path d="M${hx},${hy} L${p[0]},${p[1]} L${q[0]},${q[1]} Z" fill="rgb(${rgb[0]},${rgb[1]},${rgb[2]})" fill-opacity="${opac(fillOp)}" pointer-events="none"/>`;
         }).join("");
 
-        const spokeOp = 0.008 + 0.018*t;
+        const spokeOp = 0.08 + 0.18*t;
         const spokes = ring.map(p =>
           `<line x1="${hx}" y1="${hy}" x2="${p[0]}" y2="${p[1]}" stroke="${ink}" stroke-width="${swid(0.6)}" stroke-opacity="${opac(spokeOp)}" pointer-events="none"/>`
         ).join("");
 
-        const rimOp = 0.008 + 0.018*t;
+        const rimOp = 0.08 + 0.18*t;
         const rim = `<path d="${d}" fill="none" stroke="url(#psglossrim)" stroke-width="${swid(on ? 1.1 : 0.8)}" stroke-opacity="${opac(rimOp)}" pointer-events="none"/>`;
 
         return {glow: clipWrap(facets), edge: spokes + rim};
@@ -3224,13 +3224,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const smul = on ? 1 : 0.6;
 
         const bleedW = swid((on?5:3.5)+3*t);
-        const bleedOp = opac((0.018+0.018*t)*smul);
+        const bleedOp = opac((0.18+0.18*t)*smul);
         const bleedStroke = `<path d="${d}" fill="none" stroke="${on?AUTOMORPH_BASE_ON:AUTOMORPH_BASE_OFF}" stroke-width="${bleedW}" stroke-linecap="round" stroke-linejoin="round" transform="translate(0.6,0.4)" opacity="${bleedOp}" pointer-events="none"/>`;
 
         const rawIdx = [0, Math.floor(ring.length/3), Math.floor(2*ring.length/3)];
         const blotIdx = rawIdx.filter((v,i,a)=> ring[v] && a.indexOf(v)===i);
         const blotR = ((1.1+1.2*t)*(on?1.1:0.85)).toFixed(2);
-        const blotOp = opac((0.015+0.012*t)*smul);
+        const blotOp = opac((0.15+0.12*t)*smul);
         const blots = blotIdx.map(i=>{
           const p = ring[i];
           return `<circle cx="${p[0]}" cy="${p[1]}" r="${blotR}" fill="${duo}" opacity="${blotOp}" pointer-events="none"/>`;
@@ -3240,7 +3240,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
         const dash = on ? "14,1.5,9,1,17,2,6,1.5" : "5,3,2,4,7,5,3,3.5,6,4";
         const crispW = swid((on?1.6:1.1)+0.5*t);
-        const crispOp = opac((0.045+0.035*t)*smul);
+        const crispOp = opac((0.45+0.35*t)*smul);
         const edge = `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${crispW}" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="${dash}" opacity="${crispOp}" pointer-events="none"/>`;
 
         return {glow, edge};
@@ -3272,8 +3272,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         if(m < 3) return {glow: "", edge: ""};
 
         const baseTone = on ? AUTOMORPH_BASE_ON : AUTOMORPH_BASE_OFF;
-        const paneMax = on ? 0.04 : 0.018;
-        const washMax = (on ? 0.03 : 0.018) * (1 + weightOffPct / 100);
+        const paneMax = on ? 0.40 : 0.18;
+        const washMax = (on ? 0.30 : 0.18) * (1 + weightOffPct / 100);
         const floor = 0.15 + 0.85 * t;
 
         let panes = "";
@@ -3293,13 +3293,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           const variance = 0.7 + 0.6 * rnd(k * 7 + 3);
           const paneOp = paneMax * floor * variance;
           panes += `<path d="M ${pts.trim()} Z" fill="${baseTone}" fill-opacity="${opac(paneOp)}" pointer-events="none"/>`;
-          spokes += `<line x1="${hx}" y1="${hy}" x2="${ring[i0][0]}" y2="${ring[i0][1]}" stroke="${LEAD}" stroke-width="${swid(1.2)}" stroke-opacity="${opac(0.065)}" stroke-linecap="round" pointer-events="none"/>`;
+          spokes += `<line x1="${hx}" y1="${hy}" x2="${ring[i0][0]}" y2="${ring[i0][1]}" stroke="${LEAD}" stroke-width="${swid(1.2)}" stroke-opacity="${opac(0.65)}" stroke-linecap="round" pointer-events="none"/>`;
         }
 
         const wash = `<path d="${d}" fill="${duo}" fill-opacity="${opac(washMax * floor)}" mask="url(#psautomorphmask)" pointer-events="none"/>`;
         const glowMarkup = clipWrap(wash + panes);
 
-        const outerLead = `<path d="${d}" fill="none" stroke="${LEAD}" stroke-width="${swid(1.4)}" stroke-opacity="${opac(0.07)}" pointer-events="none"/>`;
+        const outerLead = `<path d="${d}" fill="none" stroke="${LEAD}" stroke-width="${swid(1.4)}" stroke-opacity="${opac(0.70)}" pointer-events="none"/>`;
         const edgeMarkup = outerLead + spokes;
 
         return {glow: glowMarkup, edge: edgeMarkup};
@@ -3320,7 +3320,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
         const diag=Math.hypot(maxX-minX,maxY-minY)/2+4;
 
-        const LINEOP=0.07;
+        const LINEOP=0.70;
         function hatchSet(angleDeg,spacing){
           const rad=angleDeg*Math.PI/180;
           const ux=Math.cos(rad), uy=Math.sin(rad);
@@ -3352,8 +3352,15 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // psglossauto_${lidx} — one per FLOOR, never per fixture). An
         // inline CSS clip-path carries the same per-fixture cost class as
         // the `d` attribute itself already emitted on every path here —
-        // no def, no id, nothing added to <defs>.
-        return {glow:"", edge: `<g clip-path="path('${d}')" pointer-events="none">${hatch}</g>`};
+        // no def, no id, nothing added to <defs>. Needs the `view-box`
+        // geometry-box explicitly: hatch lines run diag past the ring on
+        // every side (see hatchSet), so the clipped content's own bounding
+        // box is nothing like the ring itself, and clip-path's default
+        // reference box is that bounding box, not the SVG's coordinate
+        // space — without `view-box` the path's own coordinates get
+        // reinterpreted relative to that wrong origin and the visible clip
+        // silhouette lands offset from the ring it was meant to trace.
+        return {glow:"", edge: `<g style="clip-path:path('${d}') view-box" pointer-events="none">${hatch}</g>`};
       }
       if(AUTOMORPH_STYLE==="constellation"){
         // A sparse star-chart: every ring vertex becomes a tiny star (a
@@ -3368,12 +3375,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
         const coreR   = (on ? 1.5 : 1.0) + (on ? 1.0 : 0.6) * t;
         const haloR   = (on ? 3.2 : 2.1) + (on ? 1.6 : 0.9) * t;
-        const coreOp  = opac(on ? 0.046 : 0.020);
-        const haloOp  = opac(on ? 0.024 : 0.011);
+        const coreOp  = opac(on ? 0.46 : 0.20);
+        const haloOp  = opac(on ? 0.24 : 0.11);
         const chordW  = swid(on ? 0.7 : 0.45);
-        const chordOp = opac((on ? 0.024 : 0.011) * (0.35 + 0.65 * t));
+        const chordOp = opac((on ? 0.24 : 0.11) * (0.35 + 0.65 * t));
         const spokeW  = swid(on ? 0.5 : 0.35);
-        const spokeOp = opac((on ? 0.014 : 0.006) * t);
+        const spokeOp = opac((on ? 0.14 : 0.06) * t);
 
         let chords = "";
         for(let i = 0; i < n; i++){
@@ -3416,10 +3423,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const step = on ? 2 : 3;
         const wf = 1 + (weightOffPct/7)*0.12;
         const tickHalf = (4.5 + 3.5*t) * wf;
-        const spineOpac = (0.045 + 0.02*t) * stateOn;
-        const overOpac  = (0.06 + 0.025*t) * stateOn;
-        const underOpac = (0.04 + 0.016*t) * stateOn;
-        const knotOpac  = (0.05 + 0.02*t) * stateOn;
+        const spineOpac = (0.45 + 0.20*t) * stateOn;
+        const overOpac  = (0.60 + 0.25*t) * stateOn;
+        const underOpac = (0.40 + 0.16*t) * stateOn;
+        const knotOpac  = (0.50 + 0.20*t) * stateOn;
         const knotR     = (1.1 + 0.6*t) * wf;
         const spineW = on ? 1.7 : 1.2;
         const overW  = on ? 1.5 : 1.05;

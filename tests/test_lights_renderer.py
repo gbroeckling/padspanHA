@@ -3091,7 +3091,7 @@ def test_engrave_never_registers_a_per_fixture_clip_def(tmp_path):
     engrave = _render_style(tmp_path, "engrave")
     assert glow.count("<clipPath") == engrave.count("<clipPath"), (
         "engrave must not register any <clipPath> def beyond the shared room clip glow already carries")
-    assert "clip-path=\"path(" in engrave, "engrave must clip its hatch via an inline clip-path"
+    assert "clip-path:path(" in engrave, "engrave must clip its hatch via an inline clip-path"
 
 
 def test_engrave_crosshatches_when_on_and_single_hatches_when_off(tmp_path):
@@ -3099,7 +3099,7 @@ def test_engrave_crosshatches_when_on_and_single_hatches_when_off(tmp_path):
     off = _render_style(tmp_path, "engrave", state="off")
     # Two perpendicular passes (45deg and 135deg lines) when on; only one
     # direction when off. Anchored on the hatch lines' own fixed
-    # stroke-opacity (LINEOP=0.07, constant regardless of on/t) so this
+    # stroke-opacity (LINEOP=0.70, constant regardless of on/t) so this
     # doesn't pick up unrelated <line> elements (the motion legend, etc.)
     # scattered elsewhere in the same scene.
     import math
@@ -3108,7 +3108,7 @@ def test_engrave_crosshatches_when_on_and_single_hatches_when_off(tmp_path):
         angles = set()
         for m in re.finditer(
             r'<line x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" y2="([\d.-]+)" stroke="[^"]+" '
-            r'stroke-width="[^"]+" stroke-opacity="0\.07"', svg):
+            r'stroke-width="[^"]+" stroke-opacity="0\.70"', svg):
             x1, y1, x2, y2 = (float(v) for v in m.groups())
             dx, dy = x2 - x1, y2 - y1
             if abs(dx) > 0.5 or abs(dy) > 0.5:
