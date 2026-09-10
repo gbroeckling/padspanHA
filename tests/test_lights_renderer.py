@@ -2518,6 +2518,7 @@ def test_moving_a_light_does_not_count_as_touching_it(tmp_path):
         body + "\n"
         "const T=(over,pl)=>lightIsTouched({entity_id:'light.x'},over,pl);\n"
         "const TD=(over,pl)=>lightIsTouched({entity_id:'light.x',isDoor:true},over,pl);\n"
+        "const TDL=(over,pl,linked)=>lightIsTouched({entity_id:'light.x',isDoor:true},over,pl,linked);\n"
         "console.log(JSON.stringify({\n"
         "  never:      T({}, {}),\n"
         "  movedOnly:  T({}, {'light.x':{x_m:1,y_m:2,floor_id:'main'}}),\n"
@@ -2536,6 +2537,12 @@ def test_moving_a_light_does_not_count_as_touching_it(tmp_path):
         "  doorRotated:    TD({}, {'light.x':{x_m:1,y_m:2,rotation:30}}),\n"
         "  doorRecoloured: TD({}, {'light.x':{x_m:1,y_m:2,color:'#ff00aa'}}),\n"
         "  doorShaped:     TD({'light.x':'bar'}, {}),\n"
+        # 2026-09-10, live report: linking a door to a wall — the only real
+        # "work" a door has — still hid it and its wall segment behind
+        # "Hide untouched", with no way to tell the link had worked at all.
+        "  doorLinked:        TDL({}, {}, new Set(['light.x'])),\n"
+        "  doorUnlinkedOther: TDL({}, {}, new Set(['light.y'])),\n"
+        "  doorNoLinkedSet:   TDL({}, {}, undefined),\n"
         "}));\n"
     ))
     # Not touched: never placed, dropped, or dropped with the default stamp.
@@ -2550,12 +2557,17 @@ def test_moving_a_light_does_not_count_as_touching_it(tmp_path):
     assert out["rotated"] is True, out
     assert out["recoloured"] is True, out
     assert out["shaped"] is True, out
-    # A door/window never reads as touched, even carrying pre-correction
-    # placement debris that WOULD count for an ordinary light.
+    # A door/window never reads as touched from placement debris, even
+    # carrying stale fields that WOULD count for an ordinary light.
     assert out["doorSized"] is False, out
     assert out["doorRotated"] is False, out
     assert out["doorRecoloured"] is False, out
     assert out["doorShaped"] is False, out
+    # But it DOES read as touched once actually linked to a wall — the only
+    # real work a door has — so "Hide untouched" stops hiding a working link.
+    assert out["doorLinked"] is True, out
+    assert out["doorUnlinkedOther"] is False, out
+    assert out["doorNoLinkedSet"] is False, out
 
 
 def test_fit_to_room_caps_an_oversized_fixture_and_leaves_a_gap(tmp_path):

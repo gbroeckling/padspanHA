@@ -8080,6 +8080,11 @@ function _lightsTab(ctx, maps, active) {
 
   // Hidden lights — the same backend set the sidebar persists.
   const hiddenEids = new Set(Array.isArray(ctx.state.settings?.lights_hidden) ? ctx.state.settings.lights_hidden : []);
+  // A door counts as "touched" once it is actually linked to a wall — see
+  // lightIsTouched's own comment. Built once here from the live fabric so
+  // both the untouched COUNT and the "Hide untouched" set below agree.
+  const linkedDoorEids = new Set((ctx.state.model?.rf_barriers_m || [])
+    .map(b => b.linked_entity_id).filter(Boolean));
 
   const byRoom = {};
   for (const l of lights) {
@@ -8096,7 +8101,7 @@ function _lightsTab(ctx, maps, active) {
   const hideUntouched = mapState._lightsHideUntouched === undefined
     ? !!ctx.state.settings?.lights_hide_untouched
     : !!mapState._lightsHideUntouched;
-  const untouchedCount = lights.filter(l => !lightIsTouched(l, shapeOverrides, placements)).length;
+  const untouchedCount = lights.filter(l => !lightIsTouched(l, shapeOverrides, placements, linkedDoorEids)).length;
   // "Hide device codes" (Garry, 2026-09-08) — same draft-then-persist shape
   // as hideUntouched above.
   const hideDeviceCodes = mapState._lightsHideDeviceCodes === undefined
@@ -8544,7 +8549,7 @@ function _lightsTab(ctx, maps, active) {
         }),
     transform: !!mapState._lightsTransform,
     hiddenEidsMap: hideUntouched
-      ? new Set([...hiddenEids, ...lights.filter(l => !lightIsTouched(l, shapeOverrides, placements))
+      ? new Set([...hiddenEids, ...lights.filter(l => !lightIsTouched(l, shapeOverrides, placements, linkedDoorEids))
                                         .map(l => l.entity_id)])
       : hiddenEids,
     hideUntouched,

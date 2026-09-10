@@ -1355,7 +1355,7 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
 // Work means the fixture was described: given a size, an angle, a colour, or a
 // shape of its own. The default amber every drop stamps is not a colour choice.
 const _DROP_COLOR = "#fbbf24";
-export function lightIsTouched(l, shapeOverrides, placements) {
+export function lightIsTouched(l, shapeOverrides, placements, linkedDoorEids) {
   // A door/window has no size, rotation or colour of its own to have
   // touched — that whole concept belonged to point-placement, which a door
   // stopped using in the step 1 correction (docs/IDEA_DOOR_WINDOW_BARRIERS.md).
@@ -1364,7 +1364,14 @@ export function lightIsTouched(l, shapeOverrides, placements) {
   // drew as a draggable point) read as "touched": the Untouched count and
   // filter were both wrong, and its row offered a "Revert" that would have
   // re-written that same stale entry right back into the draft.
-  if (l.isDoor) return false;
+  //
+  // Garry, 2026-09-10, live report: linking a door to a wall (the ONLY real
+  // "work" a door has) still left it reading as untouched — "Hide untouched"
+  // hid it right back, including the wall segment itself, with no way to
+  // tell from the map that the link had actually worked. A door IS touched
+  // once it is actually linked to a wall (rf_barriers_m.linked_entity_id) —
+  // linkedDoorEids is that set, built by the caller from the fabric.
+  if (l.isDoor) return !!(linkedDoorEids && linkedDoorEids.has(l.entity_id));
   const eid = l.entity_id;
   if (shapeOverrides && shapeOverrides[eid]) return true;
   const p = placements && placements[eid];

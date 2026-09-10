@@ -3946,7 +3946,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // "use the same logic as the open door to build a break in the wall
     // that has the lock").
     {
-      const barDim = CLASSF && CLASSF!=="door" ? 0.22 : 1;
+      // Garry, 2026-09-10: "any setting should not negate a door showing up
+      // properly" — a layer-chip filter (Lights/Strips/Fans/Motion) used to
+      // dim a door/window/lock wall to 22% opacity when some OTHER class was
+      // selected. Its open/closed (or locked/unlocked) state is load-bearing
+      // information about the house, not clutter a layer filter should mute.
+      const barDim = 1;
       // Which wall (if any) the in-progress circle currently straddles —
       // computed once per floor, shared by the "every other wall" faint pass
       // below and the "this one, with a gap" pass after it, and the exact
@@ -3997,7 +4002,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           `stroke-dasharray="4,4" stroke-linecap="round" opacity="0.45" pointer-events="none"/>`;
       }
       for(const bar of ((model && model.rf_barriers_m) || [])){
-        if(!bar.linked_entity_id || hiddenEids.has(bar.linked_entity_id)) continue;
+        // Garry, 2026-09-10: "any setting should not negate a door showing
+        // up properly" — a linked wall is never gated by hiddenEids (the
+        // "hide this fixture" / "hide untouched" declutter filters). Those
+        // exist to declutter ordinary placeable lights; a door/window/lock's
+        // open state is load-bearing information about the house, not
+        // clutter, and must show regardless of any filter.
+        if(!bar.linked_entity_id) continue;
         if(frame.levelOf(String(bar.floor_id || "main"))!==z) continue;
         const bpts=(bar.points_m||[]).map(p=>[Number(p[0]), Number(p[1])]);
         if(bpts.length<2 || bpts.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1]))) continue;
@@ -4016,11 +4027,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
               `stroke-linecap="round" opacity="${barDim.toFixed(2)}" pointer-events="none"/>`;
         } else {
           const isOpen=!!(dl && dl.state==="on");
+          // Garry, 2026-09-10: the closed line was easy to misread as faint/
+          // uncertain next to the dashed open state — full opacity when
+          // closed makes it read as a definite, solid wall.
           s+=isOpen
             ? `<polyline points="${ppx}" fill="none" stroke="${DOOR_BORDER}" stroke-width="2" `+
               `stroke-dasharray="3,5" stroke-linecap="round" opacity="${(0.55*barDim).toFixed(2)}" pointer-events="none"/>`
             : `<polyline points="${ppx}" fill="none" stroke="#94a3b8" stroke-width="2.6" `+
-              `stroke-linecap="round" opacity="${(0.85*barDim).toFixed(2)}" pointer-events="none"/>`;
+              `stroke-linecap="round" opacity="${barDim.toFixed(2)}" pointer-events="none"/>`;
         }
         // The two points where this opening meets the rest of the wall it
         // was split from — Garry, 2026-09-08: "a small purple dot showing on
