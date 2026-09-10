@@ -382,6 +382,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["lights_automorph_style"] = _style if _style in (
                 "glow", "blueprint", "nebula", "circuit", "contour", "facet",
                 "sumie", "stainedglass", "engrave", "constellation", "woven",
+                "halo", "pulse", "chevron",
             ) else "glow"
         if "lights_automorph_subtlety" in msg:
             payload["lights_automorph_subtlety"] = max(0, min(100, int(msg["lights_automorph_subtlety"])))

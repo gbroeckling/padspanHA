@@ -146,7 +146,8 @@ export const LIGHT_CLASSES = [["all","All"],["light","Lights"],["strip","Strips"
 // automorphAuraSvg (iso_lights.js) actually switches on.
 export const AUTOMORPH_STYLES = [["glow","Glow"],["blueprint","Blueprint"],["nebula","Nebula"],
   ["circuit","Circuit"],["contour","Contour"],["facet","Facet"],["sumie","Ink Wash"],
-  ["stainedglass","Stained Glass"],["engrave","Engrave"],["constellation","Constellation"],["woven","Woven"]];
+  ["stainedglass","Stained Glass"],["engrave","Engrave"],["constellation","Constellation"],["woven","Woven"],
+  ["halo","Halo"],["pulse","Pulse"],["chevron","Chevron"]];
 export { lightClassOf };
 export function classMatches(l, cls){ return !cls || cls === "all" || lightClassOf(l) === cls; }
 

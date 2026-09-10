@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.33 — Automorph styles pushed much bolder, and three new ones: Halo, Pulse, Chevron (2026-09-10)
+
+### The 8 styles fixed in 0.38.32 were still too subtle
+- **Changed:** Garry, testing live: "the styles are still way to subtle." Rescaled Circuit, Contour, Facet, Ink Wash, Stained Glass, Engrave, Constellation and Woven again — this time well past the original three's own magnitude rather than merely matching it — thickened key strokes, and raised Stained Glass's fade-in floor so it isn't washed out at low slider percentages. Constellation's "on" spoke lines also had a real bug fixed along the way: their opacity multiplied by `t` alone, so at slider 0 they were exactly zero regardless of state.
+
+### Three new Automorph styles: Halo, Pulse, Chevron
+- **Added:** **Halo** — one thick, near-opaque ring plus a soft blurred glow, built purely to be unmistakable at a glance with no fine detail to lean in for. **Pulse** — a solid ring with a wave of size-varying dots travelling around it, phased by the slider. **Chevron** — hazard-tape chevron ticks around the ring, pointing outward when on and tucked inward when off.
+
+---
+
 ## 0.38.32 — A linked door/window/lock wall always shows now, and 8 Automorph styles that were rendering invisibly (2026-09-10)
 
 ### A linked door/window/lock wall always shows on the Lights map, regardless of any filter

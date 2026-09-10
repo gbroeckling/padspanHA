@@ -1690,7 +1690,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // the others are exploratory, kept behind this dropdown so any of them
   // can be dropped later without touching the geometry underneath.
   const AUTOMORPH_STYLE = ["glow","blueprint","nebula","circuit","contour","facet","sumie",
-    "stainedglass","engrave","constellation","woven"].includes(opts.automorphStyle) ? opts.automorphStyle : "glow";
+    "stainedglass","engrave","constellation","woven","halo","pulse","chevron"].includes(opts.automorphStyle) ? opts.automorphStyle : "glow";
   // Subtlety, 0-100 (Garry, 2026-09-07: "a slider for subtlety, so you can
   // dial from objects looking full, to almost completely lost in
   // background... with shades, thinner lines"). 0 = today's opacity/line-
@@ -3118,16 +3118,16 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // pads (current has continuity). No wash, no blur — pure ink,
         // `duo` reserved only for the on-state pad fill so state never
         // reads as a hue swap.
-        const traceOp = on ? (0.40+0.50*t) : (0.20+0.20*t);
-        const traceWidth = on ? 1.6 : 1.2;
+        const traceOp = on ? (0.70+0.30*t) : (0.45+0.25*t);
+        const traceWidth = on ? 2.2 : 1.8;
         const traceDash = on ? "none" : "3 5";
         const mainTrace = `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${swid(traceWidth)}" stroke-linejoin="miter" stroke-linecap="square" stroke-dasharray="${traceDash}" opacity="${opac(traceOp)}" pointer-events="none"/>`;
 
         const viaCount = Math.max(3, Math.round(3+4*t));
         const step = Math.max(1, Math.floor(ring.length/viaCount));
-        const markerOp = on ? (0.20+0.25*t) : (0.12+0.10*t);
+        const markerOp = on ? (0.55+0.35*t) : (0.35+0.25*t);
         const stubLen = 5+3*t;
-        const padSize = (on ? 2.6 : 2.0)+1.2*t;
+        const padSize = (on ? 3.4 : 2.6)+1.2*t;
 
         let vias = "";
         for(let i=0;i<ring.length;i+=step){
@@ -3169,8 +3169,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           const frac=fracs[i];
           const distFade=1-0.55*(i/(bandCount-1));
           const isIndex=(i%2===0);
-          const raw=(0.20+0.15*t)*distFade*stateMul*(isIndex?1:0.6);
-          const sw=swid((isIndex?0.9:0.5)+(isIndex?0.3:0.2)*t);
+          const raw=(0.55+0.30*t)*distFade*stateMul*(isIndex?1:0.6);
+          const sw=swid((isIndex?1.6:1.0)+(isIndex?0.5:0.3)*t);
           const path=(frac===1) ? d : bandAt(frac);
           edge+=`<path d="${path}" fill="none" stroke="${ink}" stroke-opacity="${opac(raw)}" `+
             `stroke-width="${sw}" stroke-linejoin="round" pointer-events="none"/>`;
@@ -3190,7 +3190,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const mixRgb = (c,to,amt) => [0,1,2].map(i => Math.round(c[i] + (to[i]-c[i])*amt));
         const LX = -0.7071, LY = -0.7071;
         const CONTRAST = on ? 0.50 : 0.22;
-        const fillOp = (0.35 + 0.35*t) * (on ? 1.1 : 0.85);
+        const fillOp = (0.50 + 0.35*t) * (on ? 1.1 : 0.85);
 
         const facets = ring.map((p,i) => {
           const q = ring[(i+1) % n];
@@ -3205,12 +3205,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           return `<path d="M${hx},${hy} L${p[0]},${p[1]} L${q[0]},${q[1]} Z" fill="rgb(${rgb[0]},${rgb[1]},${rgb[2]})" fill-opacity="${opac(fillOp)}" pointer-events="none"/>`;
         }).join("");
 
-        const spokeOp = 0.08 + 0.18*t;
+        const spokeOp = 0.25 + 0.35*t;
         const spokes = ring.map(p =>
           `<line x1="${hx}" y1="${hy}" x2="${p[0]}" y2="${p[1]}" stroke="${ink}" stroke-width="${swid(0.6)}" stroke-opacity="${opac(spokeOp)}" pointer-events="none"/>`
         ).join("");
 
-        const rimOp = 0.08 + 0.18*t;
+        const rimOp = 0.25 + 0.35*t;
         const rim = `<path d="${d}" fill="none" stroke="url(#psglossrim)" stroke-width="${swid(on ? 1.1 : 0.8)}" stroke-opacity="${opac(rimOp)}" pointer-events="none"/>`;
 
         return {glow: clipWrap(facets), edge: spokes + rim};
@@ -3223,14 +3223,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // Flat and matte throughout; no bevel, no cast shadow.
         const smul = on ? 1 : 0.6;
 
-        const bleedW = swid((on?5:3.5)+3*t);
-        const bleedOp = opac((0.18+0.18*t)*smul);
+        const bleedW = swid((on?7:5)+3*t);
+        const bleedOp = opac((0.35+0.30*t)*smul);
         const bleedStroke = `<path d="${d}" fill="none" stroke="${on?AUTOMORPH_BASE_ON:AUTOMORPH_BASE_OFF}" stroke-width="${bleedW}" stroke-linecap="round" stroke-linejoin="round" transform="translate(0.6,0.4)" opacity="${bleedOp}" pointer-events="none"/>`;
 
         const rawIdx = [0, Math.floor(ring.length/3), Math.floor(2*ring.length/3)];
         const blotIdx = rawIdx.filter((v,i,a)=> ring[v] && a.indexOf(v)===i);
         const blotR = ((1.1+1.2*t)*(on?1.1:0.85)).toFixed(2);
-        const blotOp = opac((0.15+0.12*t)*smul);
+        const blotOp = opac((0.30+0.20*t)*smul);
         const blots = blotIdx.map(i=>{
           const p = ring[i];
           return `<circle cx="${p[0]}" cy="${p[1]}" r="${blotR}" fill="${duo}" opacity="${blotOp}" pointer-events="none"/>`;
@@ -3240,7 +3240,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
         const dash = on ? "14,1.5,9,1,17,2,6,1.5" : "5,3,2,4,7,5,3,3.5,6,4";
         const crispW = swid((on?1.6:1.1)+0.5*t);
-        const crispOp = opac((0.45+0.35*t)*smul);
+        const crispOp = opac((0.65+0.30*t)*smul);
         const edge = `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${crispW}" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="${dash}" opacity="${crispOp}" pointer-events="none"/>`;
 
         return {glow, edge};
@@ -3272,9 +3272,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         if(m < 3) return {glow: "", edge: ""};
 
         const baseTone = on ? AUTOMORPH_BASE_ON : AUTOMORPH_BASE_OFF;
-        const paneMax = on ? 0.40 : 0.18;
-        const washMax = (on ? 0.30 : 0.18) * (1 + weightOffPct / 100);
-        const floor = 0.15 + 0.85 * t;
+        const paneMax = on ? 0.60 : 0.30;
+        const washMax = (on ? 0.45 : 0.25) * (1 + weightOffPct / 100);
+        const floor = 0.45 + 0.55 * t;
 
         let panes = "";
         let spokes = "";
@@ -3293,13 +3293,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           const variance = 0.7 + 0.6 * rnd(k * 7 + 3);
           const paneOp = paneMax * floor * variance;
           panes += `<path d="M ${pts.trim()} Z" fill="${baseTone}" fill-opacity="${opac(paneOp)}" pointer-events="none"/>`;
-          spokes += `<line x1="${hx}" y1="${hy}" x2="${ring[i0][0]}" y2="${ring[i0][1]}" stroke="${LEAD}" stroke-width="${swid(1.2)}" stroke-opacity="${opac(0.65)}" stroke-linecap="round" pointer-events="none"/>`;
+          spokes += `<line x1="${hx}" y1="${hy}" x2="${ring[i0][0]}" y2="${ring[i0][1]}" stroke="${LEAD}" stroke-width="${swid(1.2)}" stroke-opacity="${opac(0.85)}" stroke-linecap="round" pointer-events="none"/>`;
         }
 
         const wash = `<path d="${d}" fill="${duo}" fill-opacity="${opac(washMax * floor)}" mask="url(#psautomorphmask)" pointer-events="none"/>`;
         const glowMarkup = clipWrap(wash + panes);
 
-        const outerLead = `<path d="${d}" fill="none" stroke="${LEAD}" stroke-width="${swid(1.4)}" stroke-opacity="${opac(0.70)}" pointer-events="none"/>`;
+        const outerLead = `<path d="${d}" fill="none" stroke="${LEAD}" stroke-width="${swid(1.8)}" stroke-opacity="${opac(0.90)}" pointer-events="none"/>`;
         const edgeMarkup = outerLead + spokes;
 
         return {glow: glowMarkup, edge: edgeMarkup};
@@ -3320,7 +3320,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
         const diag=Math.hypot(maxX-minX,maxY-minY)/2+4;
 
-        const LINEOP=0.70;
+        const LINEOP=0.85;
         function hatchSet(angleDeg,spacing){
           const rad=angleDeg*Math.PI/180;
           const ux=Math.cos(rad), uy=Math.sin(rad);
@@ -3330,7 +3330,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
             const bx=cx+nx*off, by=cy+ny*off;
             const x1=(bx-ux*diag).toFixed(1), y1=(by-uy*diag).toFixed(1);
             const x2=(bx+ux*diag).toFixed(1), y2=(by+uy*diag).toFixed(1);
-            out+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${ink}" stroke-width="${swid(0.6)}" stroke-opacity="${opac(LINEOP)}" pointer-events="none"/>`;
+            out+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${ink}" stroke-width="${swid(0.8)}" stroke-opacity="${opac(LINEOP)}" pointer-events="none"/>`;
           }
           return out;
         }
@@ -3338,10 +3338,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const cap=(2*diag)/24;
         let hatch;
         if(on){
-          const spacing=Math.max(10-6*t,cap);
+          const spacing=Math.max(8-5*t,cap);
           hatch=hatchSet(45,spacing)+hatchSet(135,spacing);
         }else{
-          const spacing=Math.max(16-7*t,cap);
+          const spacing=Math.max(13-6*t,cap);
           hatch=hatchSet(45,spacing);
         }
         // Clipped to the ring's OWN outline, which is unique per fixture
@@ -3373,14 +3373,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // pinpricks with the spokes almost gone.
         const n = ring.length;
 
-        const coreR   = (on ? 1.5 : 1.0) + (on ? 1.0 : 0.6) * t;
-        const haloR   = (on ? 3.2 : 2.1) + (on ? 1.6 : 0.9) * t;
-        const coreOp  = opac(on ? 0.46 : 0.20);
-        const haloOp  = opac(on ? 0.24 : 0.11);
-        const chordW  = swid(on ? 0.7 : 0.45);
-        const chordOp = opac((on ? 0.24 : 0.11) * (0.35 + 0.65 * t));
-        const spokeW  = swid(on ? 0.5 : 0.35);
-        const spokeOp = opac((on ? 0.14 : 0.06) * t);
+        const coreR   = (on ? 2.2 : 1.5) + (on ? 1.2 : 0.8) * t;
+        const haloR   = (on ? 4.5 : 3.2) + (on ? 2.0 : 1.2) * t;
+        const coreOp  = opac(on ? 0.75 : 0.40);
+        const haloOp  = opac(on ? 0.45 : 0.22);
+        const chordW  = swid(on ? 0.9 : 0.6);
+        const chordOp = opac((on ? 0.45 : 0.22) * (0.55 + 0.45 * t));
+        const spokeW  = swid(on ? 0.7 : 0.5);
+        const spokeOp = opac((on ? 0.30 : 0.15) * (0.3 + 0.7 * t));
 
         let chords = "";
         for(let i = 0; i < n; i++){
@@ -3423,14 +3423,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const step = on ? 2 : 3;
         const wf = 1 + (weightOffPct/7)*0.12;
         const tickHalf = (4.5 + 3.5*t) * wf;
-        const spineOpac = (0.45 + 0.20*t) * stateOn;
-        const overOpac  = (0.60 + 0.25*t) * stateOn;
-        const underOpac = (0.40 + 0.16*t) * stateOn;
-        const knotOpac  = (0.50 + 0.20*t) * stateOn;
+        const spineOpac = (0.65 + 0.25*t) * stateOn;
+        const overOpac  = (0.80 + 0.20*t) * stateOn;
+        const underOpac = (0.55 + 0.20*t) * stateOn;
+        const knotOpac  = (0.70 + 0.25*t) * stateOn;
         const knotR     = (1.1 + 0.6*t) * wf;
-        const spineW = on ? 1.7 : 1.2;
-        const overW  = on ? 1.5 : 1.05;
-        const underW = on ? 1.1 : 0.8;
+        const spineW = on ? 2.2 : 1.6;
+        const overW  = on ? 2.0 : 1.4;
+        const underW = on ? 1.5 : 1.1;
         const spineColor = on ? AUTOMORPH_BASE_ON : AUTOMORPH_BASE_OFF;
 
         let under = "";
@@ -3457,6 +3457,81 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const spine = `<path d="${d}" fill="none" stroke="${spineColor}" stroke-width="${swid(spineW)}" opacity="${opac(spineOpac)}" pointer-events="none"/>`;
 
         return {glow: "", edge: clipWrap(`<g pointer-events="none">${under}${spine}${over}</g>`)};
+      }
+      // Three more styles (Garry, 2026-09-10: the first 8 candidates read as
+      // "way too subtle" even after the opacity fix above, plus "add some
+      // more ideas") — same ring/d/on/t/ink/duo contract as every style
+      // above, tuned deliberately BOLDER than the original three so there is
+      // no ambiguity about whether something is drawing.
+      if(AUTOMORPH_STYLE==="halo"){
+        // Maximum-legibility treatment, on purpose: one thick near-opaque
+        // ring plus a soft blurred halo behind it. No dash, no wash, no
+        // fine detail to lean in for — this style exists purely to be
+        // unmistakable at a glance, at any slider position.
+        const ringOp = on ? (0.85+0.15*t) : (0.55+0.20*t);
+        const ringW  = swid((on ? 3.6 : 2.6) + 1.4*t);
+        const glowOp = opac((on ? 0.30 : 0.16) + 0.20*t);
+        const glowW  = swid((on ? 10 : 7) + 4*t);
+        const glow = clipWrap(`<g filter="url(#psaurasoft)" pointer-events="none">`+
+          `<path d="${d}" fill="none" stroke="${duo}" stroke-width="${glowW}" stroke-opacity="${glowOp}" pointer-events="none"/></g>`);
+        const edge = clipWrap(`<path d="${d}" fill="none" stroke="${ink}" stroke-width="${ringW}" `+
+          `stroke-opacity="${opac(ringOp)}" stroke-linejoin="round" pointer-events="none"/>`);
+        return {glow, edge};
+      }
+      if(AUTOMORPH_STYLE==="pulse"){
+        // A solid base ring with a wave of pulse-dots travelling around
+        // it — dot size follows a sine wave keyed to position around the
+        // ring (three lobes) and phase-shifted by `t`, so it reads as
+        // energy moving along the silhouette rather than uniform beading
+        // (constellation's language). Deliberately stays ON the ring
+        // itself, never scaled past it: a fixture whose ring already
+        // fills most of its room has nowhere to expand into once clipped
+        // to the room boundary — an earlier "ripples expanding outward"
+        // version vanished completely in exactly that common case.
+        const n = ring.length;
+        const base = `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${swid(on?2.2:1.5)}" `+
+          `stroke-opacity="${opac(on?0.80:0.50)}" stroke-linejoin="round" pointer-events="none"/>`;
+        const phase = t * Math.PI * 2;
+        let dots = "";
+        for(let i=0;i<n;i+=2){
+          const wave = (Math.sin((i/n)*Math.PI*2*3 + phase) + 1) / 2;
+          const r = (on?1.4:0.9) + (on?3.2:2.0)*wave;
+          const op = (on?0.35:0.20) + (on?0.50:0.30)*wave;
+          const [px,py] = ring[i];
+          dots += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${r.toFixed(2)}" fill="${duo}" `+
+            `opacity="${opac(op)}" pointer-events="none"/>`;
+        }
+        return {glow: clipWrap(`<g filter="url(#psaurasoft)" pointer-events="none">${dots}</g>`), edge: clipWrap(base)};
+      }
+      if(AUTOMORPH_STYLE==="chevron"){
+        // Hazard-tape chevrons around the ring, tangent-aligned — pointing
+        // outward when on (energized, alert), tucked inward when off (at
+        // rest). Segmented ticks read as a different language than woven's
+        // continuous coil or circuit's traces.
+        const ringLen = ring.length;
+        const step = on ? 3 : 4;
+        const armLen = (5+2*t) * (on?1.15:0.85);
+        const chevOp = on ? (0.65+0.30*t) : (0.35+0.20*t);
+        let marks = "";
+        for(let i=0;i<ringLen;i+=step){
+          const [x,y] = ring[i];
+          const [px,py] = ring[(i-1+ringLen)%ringLen];
+          const [nx,ny] = ring[(i+1)%ringLen];
+          let tx = nx-px, ty = ny-py;
+          const len = Math.hypot(tx,ty) || 1;
+          tx/=len; ty/=len;
+          const nrmx = -ty, nrmy = tx;
+          const dir = on ? 1 : -1;
+          const apex = [x + nrmx*armLen*dir*0.6, y + nrmy*armLen*dir*0.6];
+          const a1 = [x - tx*armLen, y - ty*armLen];
+          const a2 = [x + tx*armLen, y + ty*armLen];
+          marks += `<path d="M${a1[0].toFixed(1)},${a1[1].toFixed(1)} L${apex[0].toFixed(1)},${apex[1].toFixed(1)} `+
+            `L${a2[0].toFixed(1)},${a2[1].toFixed(1)}" fill="none" stroke="${ink}" stroke-width="${swid(on?1.6:1.2)}" `+
+            `stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${opac(chevOp)}" pointer-events="none"/>`;
+        }
+        const spine = `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${swid(on?1.0:0.8)}" `+
+          `stroke-opacity="${opac((on?0.30:0.18)+0.15*t)}" stroke-linejoin="round" pointer-events="none"/>`;
+        return {glow:"", edge: clipWrap(spine+marks)};
       }
       // "glow" (default): a material stack, every layer the SAME path `d`
       // — no second geometry anywhere, so hardness/wobble/cell shape stay
