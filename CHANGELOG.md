@@ -4,6 +4,21 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.27 — The door/window tool is now a circle you drag onto the opening (2026-09-09)
+
+### Linking a door or window is now place-a-circle, not pick-a-wall
+- **Rebuilt from scratch:** 0.38.26's "click the wall, then its two ends" picker turned out impossible to use in practice, and — worse — was never actually visible in normal use. An unlinked door/window row in Mapping → Lights now has a **Place** button. Click it, click the map once to drop a 1-metre circle, drag its body to position it and its rim handle to resize it, then **Done**. The two points where the circle crosses a wall become the edges of the opening; while you're positioning it, the wall segment inside the circle is drawn with a gap so it's obvious what you're about to cut. **Cancel**, or Esc, backs out at any point.
+- The linking itself is unchanged underneath — same fabric fields, same open/closed indicator on the map either way.
+
+### Every WLED card's IP address is now a link
+- The control card for a WLED-class light shows its device's IP the same as before, but it's now a real link that opens the unit's own web UI in a new tab — one click to go deeper instead of a phone-typed address.
+
+### The Lights builder's control row is easier to read
+- The three Automorph sliders (Room %, Hardness, Subtlety) plus the style dropdown, and the Floor/Spacing/L-R view sliders, now each sit in their own faintly shaded group instead of one flat run of controls — each related set reads as one thing at a glance.
+- The Automorph style dropdown now has a visible "Style" label, matching the sliders beside it.
+
+---
+
 ## 0.38.26 — Link a door or window right from the Lights map (2026-09-09)
 
 ### Linking a door/window sensor no longer sends you to a different tab

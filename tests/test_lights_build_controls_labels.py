@@ -116,6 +116,35 @@ def test_automorph_sliders_are_all_three_labelled(tmp_path):
     assert out["rangeInputCount"] >= 3, out
 
 
+def test_related_sliders_are_visually_grouped_not_a_flat_run(tmp_path):
+    """Garry, 2026-09-09: "put sliders in sets with a slight shading change
+    to differentiate" — Automorph's own three (+ its style dropdown) sit in
+    one shaded lv-ctrlgroup pill, Floor/Spacing/L-R sit in a second, so each
+    set reads as one thing rather than eight loose controls in a row."""
+    out = _run(_base_host(
+        "  automorph: true,\n"
+        "  onAutomorph: () => {}, automorphRoomPct: 28, onAutomorphRoomPct: () => {},\n"
+        "  automorphHardness: 6, onAutomorphHardness: () => {},\n"
+        "  automorphSubtlety: 16, onAutomorphSubtlety: () => {},\n"
+        "  automorphStyle: 'nebula', onAutomorphStyle: () => {},\n"
+    ) + (
+        "const groups = [...card.querySelectorAll('.lv-ctrlgroup')];\n"
+        "out.count = groups.length;\n"
+        "out.texts = groups.map(g => g.textContent);\n"
+    ))
+    assert out["count"] >= 2, out
+    automorphGroup = next((t for t in out["texts"] if "Room %" in t), None)
+    layoutGroup = next((t for t in out["texts"] if "Spacing" in t), None)
+    assert automorphGroup is not None, "no shaded group holds the Automorph sliders"
+    for label in ("Room %", "Hardness", "Style", "Subtlety"):
+        assert label in automorphGroup, (label, automorphGroup)
+    assert layoutGroup is not None, "no shaded group holds the Floor/Spacing/L-R sliders"
+    for label in ("Floor", "Spacing", "L / R"):
+        assert label in layoutGroup, (label, layoutGroup)
+    # The two sets are DIFFERENT groups, not one blob everything landed in.
+    assert automorphGroup != layoutGroup, "Automorph and Floor/Spacing/L-R must be separate groups"
+
+
 def test_help_button_renders_when_the_host_provides_one(tmp_path):
     calls = []
     out = _run(_base_host(
@@ -157,9 +186,9 @@ def test_help_content_has_a_complete_entry_for_every_control_in_the_row(tmp_path
     a = help_src.index("lights_build_controls: {")
     entry = help_src[a: help_src.index("\n  },", a)]
 
-    row_labels = ["Room %", "Hardness", "Subtlety", "Floor", "Spacing", "L / R", "Zoom", "Save view", "Reset view"]
+    row_labels = ["Room %", "Hardness", "Style", "Subtlety", "Floor", "Spacing", "L / R", "Zoom", "Save view", "Reset view"]
     for label in row_labels:
         assert label in row_text, f"test fixture sanity: {label!r} not even rendered"
-    for label in ["ROOM %", "HARDNESS", "SUBTLETY", "FLOOR", "SPACING", "L / R", "ZOOM", "SAVE VIEW", "RESET VIEW",
+    for label in ["ROOM %", "HARDNESS", "STYLE", "SUBTLETY", "FLOOR", "SPACING", "L / R", "ZOOM", "SAVE VIEW", "RESET VIEW",
                   "SHOWCASE", "UNTOUCHED", "CODES"]:
         assert label in entry, f"lights_build_controls never mentions {label!r}, but the row renders it"

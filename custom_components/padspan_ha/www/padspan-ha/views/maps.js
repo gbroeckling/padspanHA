@@ -13,7 +13,8 @@ const { attachPanZoom } =
   await import(`./pan_zoom.js${new URL(import.meta.url).search}`);
 const { makeStackXform, mapXform, imageAr, fabricWorldRooms, mapFracToMetres,
         metresToMapFrac, placementFromColumns, placementStageAffine, worldGauge,
-        nearestPointOnPolyline, splitPolylineAtTwoPositions } =
+        nearestPointOnPolyline, splitPolylineAtTwoPositions,
+        circlePolylineIntersections, bestCircleWall } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 // THE fabric frame — the Lights tab inverts drags through the exact function
 // the renderer draws with, so the two cannot disagree.
@@ -6996,62 +6997,78 @@ function _draftAt(ctx, o, eid, x_m, y_m, fid, source) {
 }
 
 // ── Door/window linking, directly on the Lights map ─────────────────────────
-// Garry, 2026-09-09: the tool has to work FROM Lights, triggered by placing
-// the door/window sensor — not by a trip to Rooms → RF Barriers ("no-one can
-// see the thing you seem to think is there"). Reuses the exact fabric-level
-// mechanics Rooms → RF Barriers itself uses — nearestPointOnPolyline /
-// splitPolylineAtTwoPositions (stack_transform.js) and the same
-// fabric_rf_barrier_set/remove calls — only the click surface is new: this
-// map is already in world metres (frame.isoInv), so unlike the Rooms-tab
-// editor there is no photo-fraction round-trip at all. Three clicks: the
-// wall, then its two ends. No material step — defaults to the wall's own
-// material, same default the Rooms-tab picker starts on.
+// Garry, 2026-09-09, from scratch after the first attempt ("pick a wall,
+// then its two ends") turned out "impossible to use" and — worse — "was
+// never visible": "when in the device, open/close sensor, allow the
+// placement of a circle, that circle will start at 1 meter in real world
+// size. The tool will allow you to increase the size of the circle, and
+// then also move the circle. When clicking done, the two places the line
+// intersects with the room line, those will be the edges of the opening.
+// The part in the circle will be the opening." One click places the circle;
+// dragging its body moves it, dragging its rim handle resizes it; Done cuts
+// the wall it's over. The geometry (which wall, where it cuts) is
+// circlePolylineIntersections/bestCircleWall (wall_geom.js, re-exported by
+// stack_transform.js for this import line) — the SAME
+// functions the live on-map preview uses (iso_lights.js), so preview and
+// commit can never name a different wall or a different cut.
 
-// Nearest fabric wall to a click, searched across every storey THIS map
-// draws (there is no single "current floor" the way Overview's slider has).
-// Each barrier is tested against its OWN storey's inverse projection, so a
-// click is compared in the storey it actually lands on, not some other z.
-export function _doorLinkPickWall(ctx, o, frame, v) {
+// Which floor a first click (before any circle exists) lands on — there is
+// no single "current floor" the way Overview's slider has, since this map
+// draws every storey stacked in one SVG. Resolved the same way the old
+// wall-picker did: try every floor's own inverse projection and keep
+// whichever lands nearest a wall on THAT floor — a click is always close to
+// walls on the storey it visually lands on and far from every other storey's.
+// Falls back to the lowest drawn storey when there are no walls to compare
+// against yet (a bare click still has to land somewhere).
+export function _doorCircleFloorForClick(ctx, o, frame, v) {
   const model = o.model || ctx.state.model;
   const floors = model?.floors || [];
   let best = null;
   for (const bar of (model?.rf_barriers_m || [])) {
-    if (bar.linked_entity_id) continue; // already a door — pick a different wall
+    if (bar.linked_entity_id) continue;
     const pts = (bar.points_m || []).map(p => [Number(p[0]), Number(p[1])]);
     if (pts.length < 2) continue;
     const fid = String(bar.floor_id || "main");
     const z = _levelForFloorId(frame, model, floors, fid);
     const [cx, cy] = frame.isoInv(v.x, v.y, z);
     const hit = nearestPointOnPolyline(pts, cx, cy);
-    if (hit && (!best || hit.distSq < best.distSq)) best = { bar, fid, hit };
+    if (hit && (!best || hit.distSq < best.distSq)) best = { fid, cx, cy, distSq: hit.distSq };
   }
-  return best;
+  if (best) return { fid: best.fid, cx: best.cx, cy: best.cy };
+  const fid = _floorIdForZ(ctx, frame.levels[0] || 0, frame);
+  const z = _levelForFloorId(frame, model, floors, fid);
+  const [cx, cy] = frame.isoInv(v.x, v.y, z);
+  return { fid, cx, cy };
 }
 
-// 60cm — generous, since a wall is the only thing this mode's clicks can
-// possibly mean; nothing else on the map competes for the same click.
-const _DOOR_LINK_SNAP_M2 = 0.6 * 0.6;
+// A world-space radius, clamped to something a door or window could
+// plausibly be — guards against a runaway drag collapsing it to nothing or
+// stretching it across the whole building.
+const DOOR_CIRCLE_MIN_R = 0.2;
+const DOOR_CIRCLE_MAX_R = 6;
 
-export function _cancelDoorLink(mapState) {
-  mapState._doorLinkEid = null;
-  mapState._doorLinkBarrierId = null;
-  mapState._doorLinkFloorId = null;
-  mapState._doorLinkPts = null;
+export function _cancelDoorCircle(mapState) {
+  mapState._doorCircleEid = null;
+  mapState._doorCircleM = null;
 }
 
-export async function _commitDoorLink(ctx, mapState) {
-  const barId = mapState._doorLinkBarrierId;
-  const fid = mapState._doorLinkFloorId;
-  const pts2 = mapState._doorLinkPts;
-  const eid = mapState._doorLinkEid;
-  const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.id === barId);
-  if (!bar || !pts2 || pts2.length !== 2 || !eid) { _cancelDoorLink(mapState); ctx.actions.renderRooms(); return; }
+export async function _commitDoorCircle(ctx, mapState) {
+  const eid = mapState._doorCircleEid;
+  const circle = mapState._doorCircleM;
+  if (!eid || !circle) { _cancelDoorCircle(mapState); ctx.actions.renderRooms(); return; }
+  const fid = circle.floorId;
+  const barriers = (ctx.state.model?.rf_barriers_m || []).filter(b => String(b.floor_id || "main") === String(fid));
+  const match = bestCircleWall(barriers, circle.x_m, circle.y_m, circle.r_m);
+  if (!match) {
+    ctx.toast("Move or resize the circle so it crosses a wall.", true);
+    return;
+  }
+  const bar = match.bar;
   const points = (bar.points_m || []).map(p => [Number(p[0]), Number(p[1])]);
-  const split = splitPolylineAtTwoPositions(points, pts2[0], pts2[1]);
+  const hits = match.hits;
+  const split = splitPolylineAtTwoPositions(points, hits[0], hits[hits.length - 1]);
   if (!split.middle) {
-    ctx.toast("Pick two different points on the wall.", true);
-    mapState._doorLinkPts = [];
-    ctx.actions.renderRooms();
+    ctx.toast("Move the circle so it crosses more of the wall.", true);
     return;
   }
   // Millimetre precision, matching the Rooms-tab picker's own rounding.
@@ -7064,34 +7081,30 @@ export async function _commitDoorLink(ctx, mapState) {
   const atten = bar.attenuation_dbm ?? 6;
   const setBarrier = (barrier) => ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set", barrier });
   try {
-    let doorId = null;
     if (split.before) {
-      await setBarrier({ id: barId, name: bar.name, material: bar.material,
+      await setBarrier({ id: bar.id, name: bar.name, material: bar.material,
         attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: split.before });
-      const r = await setBarrier({ name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
+      await setBarrier({ name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
         floor_id: fid, points_m: split.middle, linked_entity_id: eid });
-      doorId = r && r.barrier ? r.barrier.id : null;
       if (split.after) {
         await setBarrier({ name: `${bar.name || "Wall"} (2)`, material: bar.material,
           attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: split.after });
       }
     } else if (split.after) {
-      await setBarrier({ id: barId, name: bar.name, material: bar.material,
+      await setBarrier({ id: bar.id, name: bar.name, material: bar.material,
         attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: split.after });
-      const r = await setBarrier({ name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
+      await setBarrier({ name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
         floor_id: fid, points_m: split.middle, linked_entity_id: eid });
-      doorId = r && r.barrier ? r.barrier.id : null;
     } else {
-      await setBarrier({ id: barId, name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
+      await setBarrier({ id: bar.id, name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
         floor_id: fid, points_m: split.middle, linked_entity_id: eid });
-      doorId = barId;
     }
     await ctx.actions.modelRefresh();
     ctx.toast(`Linked — "${bar.name || "wall"}" now shows open/closed on the map.`);
   } catch (e) {
     ctx.toast("Could not link the door: " + (e.message || e), true);
   }
-  _cancelDoorLink(mapState);
+  _cancelDoorCircle(mapState);
   ctx.actions.renderRooms();
 }
 
@@ -7122,6 +7135,7 @@ function _wireLightsBuild(ctx, isoDiv, o) {
                             o.view.floorGap, o.view.horizGap);
 
   _wireLightsPicker(ctx, isoDiv, svg, o, toVB);
+  _wireDoorCircle(ctx, isoDiv, svg, o, toVB, frame, mapState);
 
   // The drop-marker pin: a second way to place the selected light, dragged
   // from its parked corner onto the map. Reuses exactly the projection
@@ -7201,39 +7215,21 @@ function _wireLightsBuild(ctx, isoDiv, o) {
     });
   }
 
-  // Door/window linking: armed by the Lights row's "Link on map" button
-  // (host.onConfigureDoor). First click on the map picks the nearest wall
-  // (_doorLinkPickWall); the next two snap onto THAT wall's own polyline and
-  // commit as soon as both are down (_commitDoorLink) — no material step,
-  // it defaults to the wall's own.
+  // Door/window circle tool: armed by the Lights row's "Place" button
+  // (host.onConfigureDoor). The first click after arming drops a 1m-radius
+  // circle right there; once it exists, this handler steps aside — dragging
+  // the circle (its body to move, its rim handle to resize — see
+  // _wireDoorCircle below) is how it's adjusted from then on, and the row's
+  // Done/Cancel buttons (host.onDoorCircleDone/onConfigureDoor(null)) finish
+  // the gesture, not another click on the map.
   svg.addEventListener("click", (ev) => {
-    if (!mapState._doorLinkEid) return;
+    if (!mapState._doorCircleEid || mapState._doorCircleM) return;
     if (ev.target && ev.target.closest && ev.target.closest("g.lhex, g.lroom, g.lfloor, .lpick")) return;
     const v = toVB(ev);
-    if (!mapState._doorLinkBarrierId) {
-      const picked = _doorLinkPickWall(ctx, o, frame, v);
-      if (!picked || picked.hit.distSq > _DOOR_LINK_SNAP_M2) { ctx.toast("Click closer to a wall.", true); return; }
-      mapState._doorLinkBarrierId = picked.bar.id;
-      mapState._doorLinkFloorId = picked.fid;
-      mapState._doorLinkPts = [];
-      ctx.toast(`"${picked.bar.name || "Wall"}" selected — click the two ends of the opening.`);
-      ctx.actions.renderRooms();
-      return;
-    }
-    const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.id === mapState._doorLinkBarrierId);
-    if (!bar) { _cancelDoorLink(mapState); ctx.toast("That wall no longer exists.", true); ctx.actions.renderRooms(); return; }
-    const points = (bar.points_m || []).map(p => [Number(p[0]), Number(p[1])]);
-    const z = _levelForFloorId(frame, ctx.state.model, ctx.state.model?.floors || [], mapState._doorLinkFloorId);
-    const [cx, cy] = frame.isoInv(v.x, v.y, z);
-    const hit = nearestPointOnPolyline(points, cx, cy);
-    if (!hit || hit.distSq > _DOOR_LINK_SNAP_M2) { ctx.toast("Click closer to that wall.", true); return; }
-    mapState._doorLinkPts.push(hit);
-    if (mapState._doorLinkPts.length < 2) {
-      ctx.toast("One more point — the opening's other end.");
-      ctx.actions.renderRooms();
-      return;
-    }
-    _commitDoorLink(ctx, mapState);
+    const picked = _doorCircleFloorForClick(ctx, o, frame, v);
+    mapState._doorCircleM = { x_m: picked.cx, y_m: picked.cy, r_m: 1, floorId: picked.fid };
+    ctx.toast("Drag the circle to position it, drag its edge to resize, then Done.");
+    ctx.actions.renderRooms();
   });
 
   // The placement queue: while lights are queued, a tap on the GROUND (not
@@ -7242,7 +7238,7 @@ function _wireLightsBuild(ctx, isoDiv, o) {
   svg.addEventListener("click", (ev) => {
     const q = o.mapState._placeQueue || [];
     if (!q.length) return;
-    if (mapState._doorLinkEid) return;
+    if (mapState._doorCircleEid) return;
     if (ev.target && ev.target.closest && ev.target.closest("g.lhex, g.lroom, g.lfloor, .lpick")) return;
     const eid = q[0];
     const l = o.lightsByEid[eid];
@@ -7278,7 +7274,7 @@ function _wireLightsBuild(ctx, isoDiv, o) {
       const ms = o.mapState;
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); if (ev.shiftKey) _lightsRedo(ctx, ms); else _lightsUndo(ctx, ms); return; }
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "y") { ev.preventDefault(); _lightsRedo(ctx, ms); return; }
-      if (ev.key === "Escape") { (ms._selSet || new Set()).clear(); ms._selLight = null; ms._placeQueue = []; _cancelDoorLink(ms); ctx.actions.renderRooms(); return; }
+      if (ev.key === "Escape") { (ms._selSet || new Set()).clear(); ms._selLight = null; ms._placeQueue = []; _cancelDoorCircle(ms); ctx.actions.renderRooms(); return; }
       const step = ev.shiftKey ? 0.10 : 0.01;
       const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
       if (!d) return;
@@ -7413,6 +7409,89 @@ function _wireLightsBuild(ctx, isoDiv, o) {
       g.addEventListener("pointercancel", up);
     });
   }
+}
+
+// Door/window circle tool: drag the circle's body to move it, drag its rim
+// handle to resize it. Both live-preview with a plain SVG transform on the
+// group — a screen-space translate for a move, a scale about the circle's
+// own screen centre for a resize (the iso projection is affine per floor, so
+// scaling the already-drawn ellipse by k on screen is exactly what scaling
+// the world-space radius by k would have drawn) — the same technique the
+// free-transform handles below use for a light's own size. mapState is only
+// written on release, which is what the next render (the Done button, the
+// live wall-gap preview) reads.
+function _wireDoorCircle(ctx, isoDiv, svg, o, toVB, frame, mapState) {
+  const g = isoDiv.querySelector('g[data-role="doorcircle"]');
+  if (!g || !mapState._doorCircleM) return;
+  const circle = mapState._doorCircleM;
+  const cx = parseFloat(g.getAttribute("data-cx"));
+  const cy = parseFloat(g.getAttribute("data-cy"));
+  const z = parseFloat(g.getAttribute("data-z") || "0");
+  if (!Number.isFinite(cx) || !Number.isFinite(cy)) return;
+
+  g.style.touchAction = "none";
+  g.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0 && ev.pointerType === "mouse") return;
+    ev.preventDefault(); ev.stopPropagation();
+    const start = toVB(ev);
+    try { g.setPointerCapture(ev.pointerId); } catch (_) {}
+    mapState._editDragging = true;
+    const mm = (e) => {
+      const v = toVB(e);
+      g.setAttribute("transform", `translate(${(v.x - start.x).toFixed(1)},${(v.y - start.y).toFixed(1)})`);
+    };
+    const up = (e) => {
+      g.removeEventListener("pointermove", mm);
+      g.removeEventListener("pointerup", up);
+      g.removeEventListener("pointercancel", up);
+      try { g.releasePointerCapture(ev.pointerId); } catch (_) {}
+      mapState._editDragging = false;
+      if (e.type !== "pointercancel") {
+        const v = toVB(e);
+        const [x_m, y_m] = frame.isoInv(cx + (v.x - start.x), cy + (v.y - start.y), z);
+        mapState._doorCircleM = { ...circle, x_m, y_m };
+      }
+      ctx.actions.renderRooms();
+    };
+    g.addEventListener("pointermove", mm);
+    g.addEventListener("pointerup", up);
+    g.addEventListener("pointercancel", up);
+  });
+
+  const handle = g.querySelector('[data-role="doorcircle-resize"]');
+  if (!handle) return;
+  handle.style.touchAction = "none";
+  handle.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0 && ev.pointerType === "mouse") return;
+    ev.preventDefault(); ev.stopPropagation();
+    const hx0 = parseFloat(handle.getAttribute("cx"));
+    const hy0 = parseFloat(handle.getAttribute("cy"));
+    const startDist = Math.hypot(hx0 - cx, hy0 - cy) || 1;
+    try { handle.setPointerCapture(ev.pointerId); } catch (_) {}
+    mapState._editDragging = true;
+    let k = 1;
+    const mm = (e) => {
+      const v = toVB(e);
+      k = Math.max(0.05, Math.hypot(v.x - cx, v.y - cy) / startDist);
+      g.setAttribute("transform",
+        `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${k.toFixed(4)}) translate(${(-cx).toFixed(1)},${(-cy).toFixed(1)})`);
+    };
+    const up = (e) => {
+      handle.removeEventListener("pointermove", mm);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+      try { handle.releasePointerCapture(ev.pointerId); } catch (_) {}
+      mapState._editDragging = false;
+      if (e.type !== "pointercancel") {
+        const r_m = Math.max(DOOR_CIRCLE_MIN_R, Math.min(DOOR_CIRCLE_MAX_R, circle.r_m * k));
+        mapState._doorCircleM = { ...circle, r_m };
+      }
+      ctx.actions.renderRooms();
+    };
+    handle.addEventListener("pointermove", mm);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
+  });
 }
 
 // ── Free transform: resize and rotate a light on the map itself ────────────
@@ -8239,24 +8318,23 @@ function _lightsTab(ctx, maps, active) {
     // column reads this instead of onPlaceRow/placements for l.isDoor rows.
     doorLinkedIds: new Set((ctx.state.model?.rf_barriers_m || [])
       .filter(b => b.linked_entity_id).map(b => b.linked_entity_id)),
-    // Arms the on-map wall picker (see _wireLightsBuild's click handler and
-    // _commitDoorLink) — builder only, same gate as onPlaceRow. Garry,
-    // 2026-09-09: linking has to work FROM Lights, triggered by placing the
-    // door/window sensor, not by a trip to Rooms — "no-one can see the thing
-    // you seem to think is there". Passing null cancels (the row's own
-    // Cancel button, and Escape, both do this).
-    doorLinkArmedEid: mapState._doorLinkEid || null,
-    doorLinkBarrierId: mapState._doorLinkBarrierId || null,
-    doorLinkPts: mapState._doorLinkPts || null,
+    // Arms the on-map circle tool (see _wireLightsBuild's click handler,
+    // _wireDoorCircle's drag handlers, and _commitDoorCircle) — builder
+    // only, same gate as onPlaceRow. Garry, 2026-09-09: linking has to work
+    // FROM Lights, triggered by placing the door/window sensor, not by a
+    // trip to Rooms — "no-one can see the thing you seem to think is
+    // there". Passing null cancels (the row's own Cancel button, and
+    // Escape, both do this).
+    doorCircleArmedEid: mapState._doorCircleEid || null,
+    doorCircleM: mapState._doorCircleM || null,
     onConfigureDoor: paid && !preview ? (l) => {
-      mapState._doorLinkEid = l ? l.entity_id : null;
-      mapState._doorLinkBarrierId = null;
-      mapState._doorLinkFloorId = null;
-      mapState._doorLinkPts = null;
+      mapState._doorCircleEid = l ? l.entity_id : null;
+      mapState._doorCircleM = null;
       mapState._placeQueue = []; // mutually exclusive with normal placement
-      if (l) ctx.toast(`Click a wall on the map to link it to ${l.friendly_name || l.entity_id}.`);
+      if (l) ctx.toast(`Click the map to place a circle over the opening for ${l.friendly_name || l.entity_id}.`);
       ctx.actions.renderRooms();
     } : null,
+    onDoorCircleDone: paid && !preview ? () => { _commitDoorCircle(ctx, mapState); } : null,
     // Map → index: the row of the light just selected on the map scrolls
     // into view, once.
     focusRowEid: mapState._focusRow || null,

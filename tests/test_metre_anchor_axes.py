@@ -61,8 +61,10 @@ MODEL_ROOMS = {
 
 
 def _run(tmp_path: Path, script: str) -> dict:
-    src = (_VIEWS / "stack_transform.js").read_text(encoding="utf-8")
-    (tmp_path / "stack_transform.mjs").write_text(src, encoding="utf-8")
+    for name in ("stack_transform", "wall_geom"):
+        src = (_VIEWS / f"{name}.js").read_text(encoding="utf-8")
+        src = src.replace('"./wall_geom.js"', '"./wall_geom.mjs"')
+        (tmp_path / f"{name}.mjs").write_text(src, encoding="utf-8")
     (tmp_path / "run.mjs").write_text(
         "import * as S from './stack_transform.mjs';\nconst out={};\n"
         + script + "\nconsole.log(JSON.stringify(out));\n", encoding="utf-8")

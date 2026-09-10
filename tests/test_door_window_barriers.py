@@ -28,8 +28,10 @@ pytestmark = pytest.mark.skipif(_NODE is None, reason="node is not installed")
 
 
 def _run(tmp_path: Path, script: str) -> dict:
-    src = (_VIEWS / "stack_transform.js").read_text(encoding="utf-8")
-    (tmp_path / "stack_transform.mjs").write_text(src, encoding="utf-8")
+    for name in ("stack_transform", "wall_geom"):
+        src = (_VIEWS / f"{name}.js").read_text(encoding="utf-8")
+        src = src.replace('"./wall_geom.js"', '"./wall_geom.mjs"')
+        (tmp_path / f"{name}.mjs").write_text(src, encoding="utf-8")
     (tmp_path / "run.mjs").write_text(
         "import * as S from './stack_transform.mjs';\nconst out={};\n"
         + script + "\nconsole.log(JSON.stringify(out));\n", encoding="utf-8")
@@ -371,17 +373,19 @@ def test_placement_bookkeeping_excludes_doors():
         assert needle in block, f"missing or reverted to `lights`: {needle!r}"
 
 
-def test_configure_door_arms_the_on_map_link_picker():
-    """Garry, 2026-09-09, after finding nothing at Mapping -> Rooms: the
-    tool has to work FROM Lights, triggered by placing the door/window
-    sensor — not a jump to a different tab. onConfigureDoor now arms
-    mapState._doorLinkEid; maps.js's SVG click handler and
-    _doorLinkPickWall/_commitDoorLink do the rest (see
-    tests/test_lights_door_link.py for the actual wall-picking logic)."""
+def test_configure_door_arms_the_on_map_circle_tool():
+    """Garry, 2026-09-09, from scratch after the wall-then-two-points picker
+    turned out "impossible to use" and "was never visible": onConfigureDoor
+    now arms mapState._doorCircleEid — the first map click drops a circle
+    (maps.js's SVG click handler / _doorCircleFloorForClick), dragging it
+    moves/resizes it (_wireDoorCircle), and Done cuts the wall it matches
+    (_commitDoorCircle, bestCircleWall) — see
+    tests/test_lights_door_circle.py for the actual behaviour."""
     block = _lights_tab_block()
     idx = block.index("onConfigureDoor:")
     snippet = block[idx:block.index("\n    }", idx) + 8]
-    assert "mapState._doorLinkEid = l ? l.entity_id : null" in snippet, snippet
+    assert "mapState._doorCircleEid = l ? l.entity_id : null" in snippet, snippet
+    assert "mapState._doorCircleM = null" in snippet, snippet
     assert 'ctx.actions.setMapsTab("rooms")' not in snippet, (
         "onConfigureDoor must not send anyone away to Rooms any more"
     )
@@ -391,9 +395,144 @@ def test_configure_door_arms_the_on_map_link_picker():
     assert "paid && !preview ?" in snippet, snippet
 
 
+def test_on_door_circle_done_commits_and_is_gated_the_same_way():
+    block = _lights_tab_block()
+    idx = block.index("onDoorCircleDone:")
+    snippet = block[idx:idx + 120]
+    assert "_commitDoorCircle(ctx, mapState)" in snippet, snippet
+    assert "paid && !preview ?" in snippet, snippet
+
+
 def test_door_linked_ids_are_read_from_rf_barriers_m():
     block = _lights_tab_block()
     idx = block.index("doorLinkedIds:")
     snippet = block[idx:idx + 160]
     assert "ctx.state.model?.rf_barriers_m" in snippet, snippet
     assert "b.linked_entity_id" in snippet, snippet
+
+
+# ── circlePolylineIntersections — the opening tool's actual geometry ────────
+# Garry, 2026-09-09: place a circle over the opening, size/drag it, click
+# Done — "the two places the line intersects with the room line... will be
+# the edges of the opening. The part in the circle will be the opening."
+
+def test_a_straight_wall_through_the_middle_of_the_circle_crosses_twice(tmp_path):
+    out = _run(tmp_path, """
+const pts = [[0, 0], [10, 0]];
+out.hits = S.circlePolylineIntersections(pts, 5, 0, 2);
+""")
+    hits = out["hits"]
+    assert len(hits) == 2, hits
+    xs = sorted(h["x"] for h in hits)
+    assert abs(xs[0] - 3) < 1e-6 and abs(xs[1] - 7) < 1e-6, hits
+    assert all(abs(h["y"]) < 1e-6 for h in hits), hits
+
+
+def test_a_wall_entirely_inside_the_circle_has_both_endpoints_as_the_edges(tmp_path):
+    """A short wall fully swallowed by the circle never crosses its
+    boundary at all — the opening must still resolve to the wall's own
+    two ends, not fail with nothing found."""
+    out = _run(tmp_path, """
+const pts = [[4, 0], [6, 0]];
+out.hits = S.circlePolylineIntersections(pts, 5, 0, 10);
+""")
+    hits = out["hits"]
+    assert len(hits) == 2, hits
+    xs = sorted(h["x"] for h in hits)
+    assert abs(xs[0] - 4) < 1e-6 and abs(xs[1] - 6) < 1e-6, hits
+
+
+def test_a_wall_that_ends_inside_the_circle_gives_one_crossing_and_the_endpoint(tmp_path):
+    out = _run(tmp_path, """
+const pts = [[-10, 0], [3, 0]];   // runs in from the left, ends well inside r=5 at x=5
+out.hits = S.circlePolylineIntersections(pts, 5, 0, 5);
+""")
+    hits = out["hits"]
+    assert len(hits) == 2, hits
+    xs = sorted(h["x"] for h in hits)
+    assert abs(xs[0] - 0) < 1e-6, hits    # the crossing, entering the circle at x=0
+    assert abs(xs[1] - 3) < 1e-6, hits    # the wall's own end, inside the circle
+
+
+def test_a_wall_nowhere_near_the_circle_has_no_hits(tmp_path):
+    out = _run(tmp_path, """
+const pts = [[100, 100], [110, 100]];
+out.hits = S.circlePolylineIntersections(pts, 0, 0, 5);
+""")
+    assert out["hits"] == [], out["hits"]
+
+
+def test_a_multi_point_wall_crossing_twice_takes_the_two_extreme_hits(tmp_path):
+    """An L-shaped wall whose corner sits INSIDE the circle, both ends
+    OUTSIDE: each leg crosses the boundary once, and the corner itself is
+    also a real (inside) hit — three positions in total, which is correct,
+    not a bug. What actually matters for the caller (which only ever takes
+    the first and last by arc-length) is that those two extremes are the
+    genuine boundary crossings on each leg, not the corner."""
+    out = _run(tmp_path, """
+const pts = [[-10, 3], [0, 3], [0, -10]];   // corner (0,3): dist 3, inside r=5
+out.hits = S.circlePolylineIntersections(pts, 0, 0, 5);
+""")
+    hits = out["hits"]
+    assert len(hits) == 3, hits
+    first, last = hits[0], hits[-1]
+    assert first["segIdx"] == 0 and last["segIdx"] == 1, hits
+    # Both extremes lie exactly on the circle (distance r=5 from its centre,
+    # 0,0) — the corner, checked separately below, is the one hit that does not.
+    assert abs(first["x"] ** 2 + first["y"] ** 2 - 25) < 1e-6, hits
+    assert abs(last["x"] ** 2 + last["y"] ** 2 - 25) < 1e-6, hits
+    # The corner is a genuine hit too — inside the circle, between the two
+    # boundary crossings by arc-length — but is neither extreme.
+    assert hits[1]["x"] == 0 and hits[1]["y"] == 3, hits
+
+
+def test_hits_feed_splitpolylineattwopositions_directly(tmp_path):
+    """The whole point: no conversion needed between the two functions."""
+    out = _run(tmp_path, """
+const pts = [[0, 0], [10, 0]];
+const hits = S.circlePolylineIntersections(pts, 5, 0, 2);
+const split = S.splitPolylineAtTwoPositions(pts, hits[0], hits[1]);
+out.before = split.before; out.middle = split.middle; out.after = split.after;
+""")
+    assert out["before"] == [[0, 0], [3, 0]], out
+    assert out["middle"] == [[3, 0], [7, 0]], out
+    assert out["after"] == [[7, 0], [10, 0]], out
+
+
+# ── bestCircleWall — the ONE "which wall does this circle match" function,
+# shared by the live on-map preview (iso_lights.js) and the commit handler
+# (maps.js's _commitDoorCircle), so they can never disagree.
+
+def test_best_circle_wall_picks_the_nearest_among_several(tmp_path):
+    out = _run(tmp_path, """
+const walls = [
+  { id: 'far', points_m: [[100, 100], [110, 100]] },
+  { id: 'near', points_m: [[0, 0], [10, 0]] },
+  { id: 'linked', linked_entity_id: 'binary_sensor.already', points_m: [[4, -1], [6, -1]] },
+];
+out.match = S.bestCircleWall(walls, 5, 0, 2);
+""")
+    m = out["match"]
+    assert m is not None, out
+    assert m["bar"]["id"] == "near", m
+    assert len(m["hits"]) == 2, m
+
+
+def test_best_circle_wall_skips_already_linked_walls(tmp_path):
+    """An already-linked barrier is a door, not a wall — never a candidate
+    for a second circle to match, even when it is the closest thing."""
+    out = _run(tmp_path, """
+const walls = [
+  { id: 'door', linked_entity_id: 'binary_sensor.already', points_m: [[0, 0], [10, 0]] },
+];
+out.match = S.bestCircleWall(walls, 5, 0, 2);
+""")
+    assert out["match"] is None, out["match"]
+
+
+def test_best_circle_wall_returns_null_when_nothing_crosses(tmp_path):
+    out = _run(tmp_path, """
+const walls = [{ id: 'w1', points_m: [[100, 100], [110, 100]] }];
+out.match = S.bestCircleWall(walls, 0, 0, 2);
+""")
+    assert out["match"] is None, out["match"]

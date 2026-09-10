@@ -368,7 +368,7 @@ export const HELP = {
       "AUTOMORPH — Grows a soft aura behind each placed fixture toward its own room's shape. Purely a visual aura; the fixture's own icon is never changed by it. Turning it on reveals four more controls:",
       "  ROOM % — How far the aura reaches into the room, as a percentage of the room's own size. 0 keeps it tight to the fixture; higher lets it spread further before it fades out.",
       "  HARDNESS — The aura's edge shape. Centre (0) is unchanged; left sharpens the edge into a spikier outline, right softens it into a smoother, rounder one.",
-      "  Style dropdown (Glow / Blueprint / Nebula, …) — Which of several distinct visual treatments paints the aura. Purely a look — switch freely, nothing else changes.",
+      "  STYLE — Which of several distinct visual treatments (Glow / Blueprint / Nebula, …) paints the aura. Purely a look — switch freely, nothing else changes.",
       "  SUBTLETY — How much the aura fades toward the background. 0 keeps it fully visible; higher dials it down toward barely-there.",
       "FLOOR — Focuses the drawing on one storey (or an adjacent pair) instead of the whole stack, so a specific floor draws larger and is easier to work on.",
       "SPACING (Gap) — How far apart floors are drawn, vertically, in the isometric stack. Purely visual — it does not change any stored measurement.",

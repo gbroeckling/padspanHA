@@ -933,8 +933,14 @@ export function openControlCard(hass, eid, api){
     // ("when drilling into the wled controls") — a plain light has no
     // per-device web UI worth surfacing.
     if (api && api.ip) {
-      box.appendChild(el("div", { style: "font-size:11px;color:#64748b;margin-top:8px;text-align:center" },
-        `IP: ${api.ip}`));
+      box.appendChild(el("div", { style: "font-size:11px;color:#64748b;margin-top:8px;text-align:center" }, [
+        "IP: ",
+        el("a", {
+          href: `http://${api.ip}`, target: "_blank", rel: "noopener noreferrer",
+          style: "color:#8ee5b4;text-decoration:underline;cursor:pointer",
+          onclick: (e) => e.stopPropagation(),
+        }, api.ip),
+      ]));
     }
   }
 
@@ -1470,12 +1476,12 @@ export function buildLightsMapCard(hostIn){
         classFilter: host.classFilter || null, hitHalo: !!host.hitHalo,
         collapseUnplaced: !!host.collapseUnplaced,
         locateEid: host.locateEid || null, dropMarker: !!host.onDropPlace,
-        // In-progress door/window link (see maps.js's _wireLightsBuild click
-        // handler): highlights the picked wall and any picked points so the
-        // 3-click flow (wall, then its two ends) has visible feedback.
-        doorLinkArmedEid: host.doorLinkArmedEid || null,
-        doorLinkBarrierId: host.doorLinkBarrierId || null,
-        doorLinkPts: host.doorLinkPts || null,
+        // In-progress door/window circle (see maps.js's _wireLightsBuild
+        // click handler and _wireDoorCircle's drag handlers): drawn with a
+        // live wall-gap preview so positioning it is visible feedback, not
+        // a guess.
+        doorCircleArmedEid: host.doorCircleArmedEid || null,
+        doorCircleM: host.doorCircleM || null,
         automorph: !!host.automorph,
         automorphRoomPct: view.automorphLivePct !== undefined ? view.automorphLivePct : (host.automorphRoomPct || 0),
         automorphHardness: view.automorphLiveHardness !== undefined ? view.automorphLiveHardness : (host.automorphHardness || 0),
@@ -1634,6 +1640,12 @@ export function buildLightsMapCard(hostIn){
         + "shape — an aesthetic overlay, the fixture's own icon is unchanged.",
       onclick: () => host.onAutomorph(!host.automorph),
     }, host.automorph ? "◈ Automorph ✓" : "◈ Automorph"));
+    // The four Automorph tuning controls read as one cluster — a faint
+    // shaded pill (lv-ctrlgroup, styles.css) sets them apart from the mode
+    // toggles beside them, the same way lv-zoomseg already set the zoom
+    // trio apart. Garry, 2026-09-09: "put sliders in sets with a slight
+    // shading change to differentiate."
+    const automorphGroup = host.automorph ? el("span", { class: "lv-ctrlgroup" }) : null;
     if (host.automorph && host.onAutomorphRoomPct) {
       // Live while dragging (rebuildISO directly, no network — same "fast
       // local preview" the Floor gap slider below uses), persisted only on
@@ -1650,9 +1662,9 @@ export function buildLightsMapCard(hostIn){
         rebuildISO();
       });
       pctSlider.addEventListener("change", () => host.onAutomorphRoomPct(parseInt(pctSlider.value, 10)));
-      ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Room %"));
-      ctrlRow.appendChild(pctSlider);
-      ctrlRow.appendChild(pctLbl);
+      automorphGroup.appendChild(el("span", { class: "lv-lbl" }, "Room %"));
+      automorphGroup.appendChild(pctSlider);
+      automorphGroup.appendChild(pctLbl);
     }
     // Slider 2 — hardness, centered at 0 ("this slider starts in the
     // center" — Garry, 2026-09-06): negative sharpens the aura's edges
@@ -1672,9 +1684,9 @@ export function buildLightsMapCard(hostIn){
         rebuildISO();
       });
       hardSlider.addEventListener("change", () => host.onAutomorphHardness(parseInt(hardSlider.value, 10)));
-      ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Hardness"));
-      ctrlRow.appendChild(hardSlider);
-      ctrlRow.appendChild(hardLbl);
+      automorphGroup.appendChild(el("span", { class: "lv-lbl" }, "Hardness"));
+      automorphGroup.appendChild(hardSlider);
+      automorphGroup.appendChild(hardLbl);
     }
     // Style — which of several distinct visual treatments paints the same
     // morphed ring (Garry, 2026-09-07: "add a style pulldown to build more
@@ -1689,7 +1701,8 @@ export function buildLightsMapCard(hostIn){
         styleSel.appendChild(o);
       }
       styleSel.addEventListener("change", () => host.onAutomorphStyle(styleSel.value));
-      ctrlRow.appendChild(styleSel);
+      automorphGroup.appendChild(el("span", { class: "lv-lbl" }, "Style"));
+      automorphGroup.appendChild(styleSel);
     }
     // Subtlety, 0-100 (Garry, 2026-09-07: "a slider for subtlety, so you
     // can dial from objects looking full, to almost completely lost in
@@ -1709,15 +1722,22 @@ export function buildLightsMapCard(hostIn){
         rebuildISO();
       });
       subSlider.addEventListener("change", () => host.onAutomorphSubtlety(parseInt(subSlider.value, 10)));
-      ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Subtlety"));
-      ctrlRow.appendChild(subSlider);
-      ctrlRow.appendChild(subLbl);
+      automorphGroup.appendChild(el("span", { class: "lv-lbl" }, "Subtlety"));
+      automorphGroup.appendChild(subSlider);
+      automorphGroup.appendChild(subLbl);
     }
+    if (automorphGroup && automorphGroup.children.length) ctrlRow.appendChild(automorphGroup);
   }
   if (host.onShowcase || host.onHideUntouched || host.onAutomorph) ctrlRow.appendChild(SEP());
 
   // Reset needs to put the focus control back too — see resetFocusCtl below.
   let resetFocusCtl = () => {};
+
+  // Floor / Spacing / L-R are the other slider set — where the storeys sit,
+  // not what's drawn on them — grouped in their own shaded pill for the
+  // same reason Automorph's own three are (Garry, 2026-09-09: "put sliders
+  // in sets with a slight shading change to differentiate").
+  const layoutGroup = el("span", { class: "lv-ctrlgroup" });
 
   // Floor focus slider
   if (sortedLevels.length > 1) {
@@ -1734,9 +1754,9 @@ export function buildLightsMapCard(hostIn){
       // The floor chips below mirror the slider.
       for (const b of mapCard.querySelectorAll("button")) if (b._floorIdx !== undefined) b.classList.toggle("on", b._floorIdx === view.focusIdx);
     });
-    ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Floor"));
-    ctrlRow.appendChild(focusSlider);
-    ctrlRow.appendChild(focusLbl);
+    layoutGroup.appendChild(el("span", { class: "lv-lbl" }, "Floor"));
+    layoutGroup.appendChild(focusSlider);
+    layoutGroup.appendChild(focusLbl);
     resetFocusCtl = (idx = 0) => { focusSlider.value = String(idx); focusLbl.textContent = getFocusLbl(idx); };
   }
 
@@ -1754,10 +1774,9 @@ export function buildLightsMapCard(hostIn){
     gapLbl.textContent = String(view.floorGap);
     rebuildISO();
   });
-  ctrlRow.appendChild(SEP());
-  ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Spacing"));
-  ctrlRow.appendChild(gapSlider);
-  ctrlRow.appendChild(gapLbl);
+  layoutGroup.appendChild(el("span", { class: "lv-lbl" }, "Spacing"));
+  layoutGroup.appendChild(gapSlider);
+  layoutGroup.appendChild(gapLbl);
 
   // L/R horizontal offset slider
   const horizLbl = el("span", { class: "lv-val" }, String(view.horizGap));
@@ -1771,10 +1790,11 @@ export function buildLightsMapCard(hostIn){
     horizLbl.textContent = String(view.horizGap);
     rebuildISO();
   });
+  layoutGroup.appendChild(el("span", { class: "lv-lbl" }, "L / R"));
+  layoutGroup.appendChild(horizSlider);
+  layoutGroup.appendChild(horizLbl);
   ctrlRow.appendChild(SEP());
-  ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "L / R"));
-  ctrlRow.appendChild(horizSlider);
-  ctrlRow.appendChild(horizLbl);
+  ctrlRow.appendChild(layoutGroup);
 
   // Save / Reset view buttons + status label
   const saveLbl = el("span", { class: "lv-status" }, "");
@@ -2171,23 +2191,39 @@ export function buildLightsTable(host, lights){
         // else, in the terms that actually apply to a door (Garry,
         // 2026-09-08: the point-marker "placement" here "is not making any
         // sense"). Linking happens right here on the Lights map — click
-        // Link, then click the wall on the map (Garry, 2026-09-09: the tool
-        // "needs to work in lights", triggered by placing the door/window
-        // sensor, not by a trip to Rooms). Rooms → RF Barriers still works
-        // too — same fabric, same fields, either surface.
-        ...(l.isDoor ? [
-          (host.doorLinkedIds && host.doorLinkedIds.has(l.entity_id))
-            ? el("span", { class: "lv-hint", title: "Shows open/closed on the map at the wall section it's linked to" }, "🔗 Linked")
-            : (host.onConfigureDoor ? el("button", {
-                class: "lv-act" + (host.doorLinkArmedEid === l.entity_id ? " primary" : ""),
-                style: "margin-right:6px",
-                title: host.doorLinkArmedEid === l.entity_id
-                  ? "Click the wall on the map, then its two ends — Esc to cancel"
-                  : "Click, then click a wall on the map to link it to this sensor",
-                onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(host.doorLinkArmedEid === l.entity_id ? null : l); },
-              }, host.doorLinkArmedEid === l.entity_id ? "Cancel" : "Link on map")
-              : el("span", { class: "lv-hint" }, "Not linked"))
-        ] : (host.onPlaceRow && !placements[l.entity_id] ? [(() => {
+        // Place, then click the map to drop a circle over the opening, drag
+        // it to fit, then Done (Garry, 2026-09-09, from scratch: the earlier
+        // wall-then-two-points picker "was never visible" and "impossible to
+        // use"). Rooms → RF Barriers still works too — same fabric, same
+        // fields, either surface.
+        ...(l.isDoor ? (() => {
+          if (host.doorLinkedIds && host.doorLinkedIds.has(l.entity_id)) {
+            return [el("span", { class: "lv-hint", title: "Shows open/closed on the map at the wall section it's linked to" }, "🔗 Linked")];
+          }
+          if (!host.onConfigureDoor) return [el("span", { class: "lv-hint" }, "Not linked")];
+          if (host.doorCircleArmedEid !== l.entity_id) {
+            return [el("button", {
+              class: "lv-act", style: "margin-right:6px",
+              title: "Click, then click the map to place a circle over the opening",
+              onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(l); },
+            }, "Place")];
+          }
+          const hasCircle = !!host.doorCircleM;
+          return [
+            ...(hasCircle ? [el("button", {
+              class: "lv-act primary", style: "margin-right:6px",
+              title: "Cut the opening where the circle crosses a wall",
+              onclick: (e) => { e.stopPropagation(); host.onDoorCircleDone && host.onDoorCircleDone(); },
+            }, "Done")] : []),
+            el("button", {
+              class: "lv-act", style: "margin-right:6px",
+              title: hasCircle
+                ? "Discard the circle — Esc does this too"
+                : "Click the map to place a circle, then drag it to fit — Esc cancels",
+              onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(null); },
+            }, "Cancel"),
+          ];
+        })() : (host.onPlaceRow && !placements[l.entity_id] ? [(() => {
           // The placement queue (builder): arm this light, then tap the map
           // where it is. Only offered while it has no position of its own.
           const q = !!(queued && queued.has(l.entity_id));

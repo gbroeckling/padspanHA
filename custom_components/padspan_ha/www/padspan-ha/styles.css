@@ -938,6 +938,7 @@
      .lv-tgl       a mode toggle — tones: violet/ember/green/pink/blue/teal
      .lv-act       a quiet action button (Save / Reset / Apply)
      .lv-range     the sliders (Floor, Spacing, L/R)
+     .lv-ctrlgroup a shaded cluster around one related set of sliders
      .lv-zoomseg   the zoom segmented control
      .lv-stage     the drawing: deep radial ground behind the iso SVG
      .lv-legend    the shape-vocabulary chips under the map
@@ -966,6 +967,13 @@
 .lv-lbl{font-size:9.5px;font-weight:600;white-space:nowrap;text-transform:uppercase;
   letter-spacing:.09em;color:rgba(226,240,232,.38)}
 .lv-val{font-size:11.5px;color:#cbd5e1;font-variant-numeric:tabular-nums;min-width:34px}
+
+/* A related set of sliders (Automorph's own three, the view-layout three)
+   reads as one thing at a glance — a faint shade + hairline, one step
+   lighter than the toolbar's own background, never louder than that. */
+.lv-ctrlgroup{display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+  padding:3px 8px;border-radius:9px;
+  background:rgba(255,255,255,.025);border:1px solid rgba(120,190,155,.10)}
 
 /* mode toggles: quiet glass at rest, a lit gradient with a matching glow on */
 .lv-tgl{width:auto;margin-top:0;font-size:11px;font-weight:600;letter-spacing:.01em;

@@ -31,6 +31,14 @@ function escSVG(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<",
 // file calls it — so import it and re-export the same binding.
 import { roomColor } from "./room_color.js";
 export { roomColor };
+// The one shared "which wall does this circle match" function — the same
+// one the door/window circle tool's commit handler uses (maps.js), so the
+// live preview drawn here can never name a different wall than what
+// actually gets cut on Done. Pure polyline/circle geometry, no photo or
+// map-placement code — wall_geom.js, not stack_transform.js, which the
+// lights render path may never import (test_no_lights_file_touches_the_
+// photo_machinery).
+import { bestCircleWall, splitPolylineAtTwoPositions } from "./wall_geom.js";
 
 // Flat-top hexagon points in SVG px (pointy-top orientation)
 export function hexPts(cx, cy, r){
@@ -1698,12 +1706,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // big house is unmissable for a moment. One-shot (the host clears
   // locateEid after the render that draws it), not a permanent decoration.
   const LOCATE_EID = opts.locateEid ? String(opts.locateEid) : null;
-  // In-progress door/window link (maps.js's on-map wall picker, triggered
-  // from the Lights table's "Link on map"): the wall picked so far, and
-  // however many of its two end-points are down.
-  const DOOR_LINK_BAR = opts.doorLinkBarrierId ? String(opts.doorLinkBarrierId) : null;
-  const DOOR_LINK_PTS = Array.isArray(opts.doorLinkPts) ? opts.doorLinkPts : null;
-  const DOOR_LINK_ARMED = !!opts.doorLinkArmedEid;
+  // In-progress door/window circle (maps.js's on-map circle tool, triggered
+  // from the Lights table's "Place"): the circle placed so far, if any —
+  // {x_m, y_m, r_m, floorId} — and whether the tool is armed at all (armed
+  // with no circle yet just means "waiting for the first click").
+  const DOOR_CIRCLE_ARMED = !!opts.doorCircleArmedEid;
+  const DOOR_CIRCLE_M = opts.doorCircleM && Number.isFinite(Number(opts.doorCircleM.x_m))
+    && Number.isFinite(Number(opts.doorCircleM.y_m)) && Number.isFinite(Number(opts.doorCircleM.r_m))
+    ? opts.doorCircleM : null;
   // "Now", injectable so a test can pin elapsed time instead of racing the
   // clock — every other opt here follows the same pattern.
   const NOW_MS=Number(opts.nowMs)||Date.now();
@@ -3576,15 +3586,28 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // the lighting map to clearly show when a door or window is left open").
     {
       const barDim = CLASSF && CLASSF!=="door" ? 0.22 : 1;
-      // Every OTHER unlinked wall, while the on-map link picker is armed —
-      // without this there is nothing to click: an ordinary wall otherwise
-      // never draws here at all (see the comment above), so the very first
-      // click of the 3-click flow had no visible target. Faint on purpose —
-      // this is "here is where you CAN click", not the wall's real presence
-      // the way Overview's Walls toggle draws it.
-      if(DOOR_LINK_ARMED) for(const bar of ((model && model.rf_barriers_m) || [])){
+      // Which wall (if any) the in-progress circle currently straddles —
+      // computed once per floor, shared by the "every other wall" faint pass
+      // below and the "this one, with a gap" pass after it, and the exact
+      // function maps.js's _commitDoorCircle uses too (bestCircleWall,
+      // stack_transform.js) — so the live preview here and the final commit
+      // can never name a different wall or a different cut.
+      let circleMatch = null;
+      if(DOOR_CIRCLE_M && frame.levelOf(String(DOOR_CIRCLE_M.floorId||"main"))===z){
+        const floorBars = ((model && model.rf_barriers_m) || [])
+          .filter(b => String(b.floor_id||"main")===String(DOOR_CIRCLE_M.floorId||"main"));
+        circleMatch = bestCircleWall(floorBars, DOOR_CIRCLE_M.x_m, DOOR_CIRCLE_M.y_m, DOOR_CIRCLE_M.r_m);
+      }
+      // Every OTHER unlinked wall, while the circle tool is armed — without
+      // this there is nothing on the map to aim the circle at: an ordinary
+      // wall otherwise never draws here at all (see the comment above).
+      // Faint on purpose — "here is roughly where the walls are", not the
+      // wall's real presence the way Overview's Walls toggle draws it. The
+      // wall the circle currently matches is skipped here — drawn (with its
+      // gap) below instead.
+      if(DOOR_CIRCLE_ARMED) for(const bar of ((model && model.rf_barriers_m) || [])){
         if(bar.linked_entity_id) continue;
-        if(String(bar.id)===DOOR_LINK_BAR) continue; // drawn highlighted, below
+        if(circleMatch && bar===circleMatch.bar) continue; // drawn with a gap, below
         if(frame.levelOf(String(bar.floor_id || "main"))!==z) continue;
         const bpts=(bar.points_m||[]).map(p=>[Number(p[0]), Number(p[1])]);
         if(bpts.length<2 || bpts.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1]))) continue;
@@ -3617,26 +3640,41 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
             `stroke="#1b0f24" stroke-width="0.8" opacity="${barDim.toFixed(2)}" pointer-events="none"/>`;
         }
       }
-      // The wall picked so far in the on-map link flow — drawn regardless of
-      // CLASSF/hidden (the user is mid-gesture; hiding it would be the tool
-      // vanishing out from under them) — cyan, so it reads as "armed", not
-      // as an ordinary or a linked wall (white / DOOR_BORDER above).
-      if(DOOR_LINK_BAR){
-        const dlBar=((model && model.rf_barriers_m)||[]).find(b=>String(b.id)===DOOR_LINK_BAR);
-        if(dlBar && frame.levelOf(String(dlBar.floor_id||"main"))===z){
-          const dpts=(dlBar.points_m||[]).map(p=>[Number(p[0]),Number(p[1])]);
-          if(dpts.length>=2 && dpts.every(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]))){
-            const ppx=dpts.map(p=>pt(iso(p[0],p[1],z))).join(" ");
-            s+=`<polyline points="${ppx}" fill="none" stroke="#22d3ee" stroke-width="3.2" `+
-              `stroke-linecap="round" opacity="0.9" pointer-events="none"/>`;
-          }
+      // The wall the circle currently straddles, drawn WITH A GAP over the
+      // part inside the circle — Garry, 2026-09-09: "make sure when the
+      // circle is visible, the room line in the circle is gone, so the user
+      // understands what is going on". Cyan, so it reads as "armed and
+      // matched", not an ordinary (grey) or linked (white/DOOR_BORDER) wall.
+      if(circleMatch){
+        const bpts=(circleMatch.bar.points_m||[]).map(p=>[Number(p[0]), Number(p[1])]);
+        const hits=circleMatch.hits;
+        const split=splitPolylineAtTwoPositions(bpts, hits[0], hits[hits.length-1]);
+        for(const seg of [split.before, split.after]){
+          if(!seg || seg.length<2) continue;
+          const ppx=seg.map(p=>pt(iso(p[0],p[1],z))).join(" ");
+          s+=`<polyline points="${ppx}" fill="none" stroke="#22d3ee" stroke-width="3.2" `+
+            `stroke-linecap="round" opacity="0.9" pointer-events="none"/>`;
         }
-        if(DOOR_LINK_PTS) for(const p of DOOR_LINK_PTS){
-          if(!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
-          const [dx,dy]=iso(p.x,p.y,z);
-          s+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="4" fill="#22d3ee" `+
-            `stroke="#083344" stroke-width="1" pointer-events="none"/>`;
-        }
+      }
+      // The circle itself — sampled in world metres and projected through
+      // this floor's iso transform (affine per fixed z, so a world circle
+      // always projects to a true ellipse). A drag handle sits on its rim,
+      // due east in world space, for the resize gesture (maps.js's
+      // _wireDoorCircle) — data-cx/cy/z let that wiring find this group's
+      // own screen centre without re-deriving the projection.
+      if(DOOR_CIRCLE_M && frame.levelOf(String(DOOR_CIRCLE_M.floorId||"main"))===z){
+        const {x_m: ccx, y_m: ccy, r_m: cr} = DOOR_CIRCLE_M;
+        const [scx,scy]=iso(ccx,ccy,z);
+        const N=48, ring=[];
+        for(let i=0;i<N;i++){ const t=(i/N)*Math.PI*2; ring.push(pt(iso(ccx+cr*Math.cos(t), ccy+cr*Math.sin(t), z))); }
+        const [hx,hy]=iso(ccx+cr, ccy, z);
+        s+=`<g class="ldoorcircle" data-role="doorcircle" data-cx="${scx.toFixed(1)}" data-cy="${scy.toFixed(1)}" `+
+          `data-z="${z}" style="cursor:move">`+
+          `<polygon points="${ring.join(" ")}" fill="#22d3ee" fill-opacity="0.14" stroke="#22d3ee" `+
+          `stroke-width="2" stroke-dasharray="2,3"/>`+
+          `<circle data-role="doorcircle-resize" cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="7" `+
+          `fill="#22d3ee" stroke="#083344" stroke-width="1.5" style="cursor:ew-resize"/>`+
+          `</g>`;
       }
     }
     // ── Automorph auras: the whole floor's, in two tiers, under the labels.

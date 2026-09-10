@@ -30,8 +30,14 @@ const VIEWS_DIR = process.argv[2];
 const CASES = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 
 const tmp = fs.mkdtempSync(join(os.tmpdir(), "padspan-derived-"));
+// stack_transform.js re-exports its polyline/circle geometry from
+// wall_geom.js — has to come along too, under the same .mjs trick, with the
+// specifier rewritten.
+const wg = join(tmp, "wall_geom.mjs");
+fs.writeFileSync(wg, fs.readFileSync(join(VIEWS_DIR, "wall_geom.js"), "utf8"));
 const st = join(tmp, "stack_transform.mjs");
-fs.writeFileSync(st, fs.readFileSync(join(VIEWS_DIR, "stack_transform.js"), "utf8"));
+fs.writeFileSync(st, fs.readFileSync(join(VIEWS_DIR, "stack_transform.js"), "utf8")
+  .replace('"./wall_geom.js"', '"./wall_geom.mjs"'));
 const { makeStackXform, mapXform, placementStageAffine, placementFromColumns,
         mapFracToMetres, metresToMapFrac, worldGauge } =
   await import(pathToFileURL(st).href);

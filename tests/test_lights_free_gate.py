@@ -40,11 +40,12 @@ _QUERY = "${new URL(import.meta.url).search}"
 
 def _stage(tmp_path: Path) -> None:
     """Copy the shared lights pipeline and its imports to .mjs, specifiers rewritten."""
-    for name in ("lights_map", "iso_lights", "light_codes", "room_color", "editions"):
+    for name in ("lights_map", "iso_lights", "light_codes", "room_color", "editions", "wall_geom"):
         src = (_VIEWS / f"{name}.js").read_text(encoding="utf-8")
         for dep in ("iso_lights", "light_codes", "editions"):
             src = src.replace(f"./{dep}.js{_QUERY}", f"./{dep}.mjs")
         src = src.replace('"./room_color.js"', '"./room_color.mjs"')
+        src = src.replace('"./wall_geom.js"', '"./wall_geom.mjs"')
         (tmp_path / f"{name}.mjs").write_text(src, encoding="utf-8")
     shutil.copy(_SHIM, tmp_path / "dom_shim.mjs")
 
@@ -1321,7 +1322,7 @@ const lampRow = root.querySelector('tr[data-eid="light.lamp"]');
 
 const linkedMapCell = linkedRow.querySelectorAll("td")[7].textContent;
 const unlinkedBtn = [...unlinkedRow.querySelectorAll("td")[7].querySelectorAll("button")]
-  .find(b => /Link on map/.test(b.textContent));
+  .find(b => /Place/.test(b.textContent));
 unlinkedBtn.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
 
 const doorCodeCell = unlinkedRow.querySelectorAll("td")[0];
@@ -1335,7 +1336,7 @@ console.log(JSON.stringify({
 }));
 """)
     assert "🔗 Linked" in out["linkedMapCell"], out["linkedMapCell"]
-    assert out["hasUnlinkedBtn"] is True, "an unlinked door must offer a Link on map button"
+    assert out["hasUnlinkedBtn"] is True, "an unlinked door must offer a Place button"
     assert out["configuredFor"] == "binary_sensor.back_door", "the button must call host.onConfigureDoor with the row's light"
     assert out["selectedFor"] is None, "a door's code column must never arm point-placement"
     assert out["lampHasPlace"] is True, "an ordinary light must keep its Place button unaffected"

@@ -39,11 +39,12 @@ _QUERY = "${new URL(import.meta.url).search}"
 def _stage(tmp_path: Path) -> None:
     """Same staging as test_lights_free_gate.py — the shared pipeline and its
     imports, copied to .mjs with specifiers rewritten so node can run them."""
-    for name in ("lights_map", "iso_lights", "light_codes", "room_color", "editions"):
+    for name in ("lights_map", "iso_lights", "light_codes", "room_color", "editions", "wall_geom"):
         src = (_VIEWS / f"{name}.js").read_text(encoding="utf-8")
         for dep in ("iso_lights", "light_codes", "editions"):
             src = src.replace(f"./{dep}.js{_QUERY}", f"./{dep}.mjs")
         src = src.replace('"./room_color.js"', '"./room_color.mjs"')
+        src = src.replace('"./wall_geom.js"', '"./wall_geom.mjs"')
         (tmp_path / f"{name}.mjs").write_text(src, encoding="utf-8")
     shutil.copy(_SHIM, tmp_path / "dom_shim.mjs")
 

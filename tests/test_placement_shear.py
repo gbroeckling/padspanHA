@@ -329,8 +329,10 @@ def test_the_js_twins_agree_with_python_to_the_micron(tmp_path) -> None:
     draws through them without asking the backend — so a σ the frontend
     ignores is a map drawn in one place and a pin drawn in another.
     """
-    src = (_VIEWS / "stack_transform.js").read_text(encoding="utf-8")
-    (tmp_path / "stack_transform.mjs").write_text(src, encoding="utf-8")
+    for name in ("stack_transform", "wall_geom"):
+        src = (_VIEWS / f"{name}.js").read_text(encoding="utf-8")
+        src = src.replace('"./wall_geom.js"', '"./wall_geom.mjs"')
+        (tmp_path / f"{name}.mjs").write_text(src, encoding="utf-8")
 
     # traceback.js is a view module, not importable on its own; lift its
     # _toMetres by text so the check is of the SHIPPING line, not a copy.
@@ -385,8 +387,10 @@ def test_the_js_twin_refuses_the_placements_python_refuses(tmp_path) -> None:
     the panel then divides by ~6e-17 and lays pins out at coordinates of order
     1e16 while the backend correctly answers "no such fraction".
     """
-    src = (_VIEWS / "stack_transform.js").read_text(encoding="utf-8")
-    (tmp_path / "stack_transform.mjs").write_text(src, encoding="utf-8")
+    for name in ("stack_transform", "wall_geom"):
+        src = (_VIEWS / f"{name}.js").read_text(encoding="utf-8")
+        src = src.replace('"./wall_geom.js"', '"./wall_geom.mjs"')
+        (tmp_path / f"{name}.mjs").write_text(src, encoding="utf-8")
 
     base = {"origin_x_m": 2.0, "origin_y_m": -3.0, "scale_x_m": 10.0,
             "scale_y_m": 10.0, "rotation_rad": 0.3}

@@ -98,6 +98,7 @@ def v1_views(tmp_path_factory: pytest.TempPathFactory) -> Path:
     fixture's purpose only where noted)."""
     d = tmp_path_factory.mktemp("v1views")
     shutil.copy(_VIEWS / "stack_transform.js", d / "stack_transform.js")
+    shutil.copy(_VIEWS / "wall_geom.js", d / "wall_geom.js")
     shutil.copy(_VIEWS / "tune_save_plan.js", d / "tune_save_plan.js")
     src = _CALIB.read_text(encoding="utf-8")
     head = '  saveBtn.addEventListener("click", async () => {'

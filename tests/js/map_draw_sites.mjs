@@ -32,10 +32,15 @@ function check(name, ok, detail) {
 
 // maps.js is a .js file with top-level `await import`, so node will only load
 // it as a module through an .mjs copy. Only stack_transform is needed whole —
-// the two draw helpers come out of maps.js by text.
+// the two draw helpers come out of maps.js by text. stack_transform.js
+// re-exports its polyline/circle geometry from wall_geom.js, so that has to
+// come along too, under the same .mjs trick, with the specifier rewritten.
 const tmp = fs.mkdtempSync(join(os.tmpdir(), "padspan-draw-"));
+const wg = join(tmp, "wall_geom.mjs");
+fs.writeFileSync(wg, fs.readFileSync(join(VIEWS_DIR, "wall_geom.js"), "utf8"));
 const st = join(tmp, "stack_transform.mjs");
-fs.writeFileSync(st, fs.readFileSync(join(VIEWS_DIR, "stack_transform.js"), "utf8"));
+fs.writeFileSync(st, fs.readFileSync(join(VIEWS_DIR, "stack_transform.js"), "utf8")
+  .replace('"./wall_geom.js"', '"./wall_geom.mjs"'));
 const { mapFracToMetres } = await import(pathToFileURL(st).href);
 
 function grabFn(name) {                       // top-level `function name(...)`

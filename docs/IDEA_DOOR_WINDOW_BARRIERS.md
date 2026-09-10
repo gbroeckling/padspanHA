@@ -15,21 +15,52 @@ was wrong in practice. Garry, after step 6's jump link shipped: "What
 imaginary setup do you think I see for setting up a door or windows in the
 software???? ... no-one can see the thing you seem to think is there ...
 needs to be under lights to build." Then: "In lights it's triggered by a
-sensor for open/close being placed." Fixed by moving the trigger AND the
-picking interaction itself onto the Lights map: an unlinked door/window row
-has a **Link on map** button (`maps.js`'s `onConfigureDoor`, replacing the
-old jump to Rooms); clicking it arms `mapState._doorLinkEid`, and three
-clicks on the Lights map — the wall (drawn faintly while armed, since an
-ordinary wall otherwise never shows there — `iso_lights.js`), then its two
-ends — commit via `_doorLinkPickWall`/`_commitDoorLink`. These reuse the
-exact fabric mechanics the Rooms-tab picker already used
-(`nearestPointOnPolyline`/`splitPolylineAtTwoPositions`, stack_transform.js;
-the same `fabric_rf_barrier_set`/`remove` calls) — only the click surface
-changed, and it is actually simpler: the Lights map is already in world
-metres (`frame.isoInv`), so unlike the Rooms-tab photo overlay there is no
-photo-fraction round-trip at all. Rooms → RF Barriers still works
-unchanged — same fabric, either surface — it is just no longer the ONLY
-way in. Tests: `tests/test_lights_door_link.py`.
+sensor for open/close being placed." Fixed by moving the trigger onto the
+Lights map: an unlinked door/window row got a **Link on map** button
+(`maps.js`'s `onConfigureDoor`, replacing the old jump to Rooms) that armed
+a 3-click wall-then-two-points picker.
+
+**Second correction to step 3/6, 2026-09-09 (live, deployed) — the picker
+above was rebuilt from scratch.** Garry: "you did a rediculusly poor job
+designing the door/windows mapping, lights, opening creation tool ... what
+you had designed was imposible to use" — and separately, after the first
+tool shipped: "you tool as you just described was never visable". Verifying
+a synthetic JS click could reach the old handler was never proof a person
+could actually find and use it. The replacement, specified whole: "when in
+the device, open/close sensor, allow the placement of a circle, that circle
+will start at 1 meter in real world size. The tool will allow you to
+increase the size of the circle, and then also move the circle. When
+clicking done, the two places the line intersects with the room line, those
+will be the edges of the opening. The part in the circle will be the
+opening." An unlinked door/window row now shows a **Place** button; clicking
+it arms `mapState._doorCircleEid`, and the first map click drops a 1m-radius
+circle there (`_doorCircleFloorForClick`, resolving which floor/wall it
+should sit near the same way the old picker resolved a wall). From then on
+dragging the circle's body moves it and dragging a handle on its rim resizes
+it (`_wireDoorCircle`, both live-previewed with a plain SVG transform, no
+rebuild mid-drag); the row's **Done** button commits
+(`_commitDoorCircle`) and **Cancel** discards. Which wall a circle matches —
+`bestCircleWall`, and the two intersection points that become the opening's
+edges (`circlePolylineIntersections`) — is ONE shared pure-geometry function
+so the live preview (`iso_lights.js`, drawn with the matched wall's segment
+inside the circle omitted — "when the circle is visible, the room line in
+the circle is gone, so the user understands what is going on") and the
+final commit can never disagree. That geometry, plus
+`nearestPointOnPolyline`/`splitPolylineAtTwoPositions` (same as the Rooms-tab
+picker always used), now live in their own `wall_geom.js` rather than
+`stack_transform.js`: the lights render path is architecturally barred from
+importing `stack_transform.js` at all (photo/map-placement machinery —
+`tests/test_lights_renderer.py`'s `test_no_lights_file_touches_the_photo_
+machinery`), and this geometry is pure polyline/circle math with no photo
+concept in it. `stack_transform.js` re-exports the same names, so
+`maps.js`'s Rooms-tab editor and the door tool's commit path both still
+import from there unchanged. Same commit call
+(`fabric_rf_barrier_set`) as before; the Lights map is already in world
+metres (`frame.isoInv`), so there is still no photo-fraction round-trip.
+Rooms → RF Barriers still works unchanged — same fabric, either surface —
+it is just no longer the ONLY way in. Tests:
+`tests/test_lights_door_circle.py`,
+`tests/test_door_window_barriers.py`'s circle-geometry section.
 
 **Correction to step 1, 2026-09-08 (live, deployed):** Garry, looking at the
 shipped step 1 on the real map: "The placement in mapping and lights is not
