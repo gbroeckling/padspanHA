@@ -4,6 +4,22 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.30 — Beacons are opt-in, 8 new Automorph styles, better door-circle diagnostics (2026-09-09)
+
+### The beacons overlay is now opt-in, off by default
+- **Changed:** the working-beacons overlay added in 0.38.29 now needs an explicit **Show beacons** toggle in the Mapping → Lights control row — Garry: "should be selectable, and off by default." A beacon's own name text now also follows the existing **Hide codes** toggle instead of always showing, so there's one declutter switch for identifier text, not two to remember.
+
+### Eight new Automorph aura styles
+- **Added:** Circuit, Contour, Facet, Ink Wash, Stained Glass, Engrave, Constellation and Woven join Glow, Blueprint and Nebula in the Style dropdown — Garry: "dig around hard for 5 more candidates... look at what other options are out there in the artistic world." Each paints the same morphed ring every existing style shares, just with a genuinely different visual grammar: electrical continuity (solid vs. broken trace), topographic contour bands, a faceted low-poly fan lit from one side, a soft ink-wash brush stroke, leaded stained-glass panes, a banknote-style crosshatch, a sparse star chart, and a woven over/under interlace. All stay inside the existing greyscale-only, opacity-budgeted material system — switch freely, purely a look.
+
+### The door/window circle tool's save error carries more detail
+- **Improved:** "Move or resize the circle so it crosses a wall" now names the nearest wall, how far its edge is from the circle, and the floor and coordinates involved, to help pin down a still-open report of the save failing on a circle that looks correctly placed.
+
+### The opt-in usage report now covers more of the Lights builder
+- **Added:** whether Isolux, Automorph and the beacons overlay are switched on, and which Automorph style is chosen, now count toward the existing opt-in "help improve PadSpan" report (Settings → Presence). Off by default, like every other counter here — nothing changes unless that switch is already on.
+
+---
+
 ## 0.38.29 — Locks on the wall, working beacons on the map, closer markers stay clickable (2026-09-09)
 
 ### A lock can now be linked to the wall section it's mounted in
