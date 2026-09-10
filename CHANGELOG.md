@@ -4,6 +4,19 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.31 — A Free/Bright/Bright Pro/Pro onboarding wizard, and a stale "not released" claim fixed (2026-09-10)
+
+### A new wizard explains what each tier actually unlocks
+- **Added:** Settings → Features → PadSpan licence now has a **"What does each tier unlock?"** button — a short, 3-step walkthrough (what's always free, the tiers, upgrading) separate from the existing Maps/Calibration setup wizards and the Lights builder tour. It reads this install's own edition and only ever describes the tier ladder that install can actually buy into. A matching help card ("?" on the wizard) covers the same ground as a static reference for anyone who just wants to read it.
+
+### The marketing site no longer claims PadSpan Bright isn't out yet
+- **Fixed:** padspan.traks.ca still said the standalone PadSpan Bright download was "Not yet released" — it has been public since 2026-09-09. The page now links the real download and describes the current, live state.
+
+### A door-circle wall-picker defect, found while digging into a still-open report
+- **Fixed:** the "which wall is nearest my click" comparison, used when first placing a door/window/lock circle, measured distance in a way biased toward one screen direction over the other instead of plain on-screen proximity. Not confirmed to be the cause of the "circle is drawn in the wrong place" report still under investigation, but a real, provable defect on its own.
+
+---
+
 ## 0.38.30 — Beacons are opt-in, 8 new Automorph styles, better door-circle diagnostics (2026-09-09)
 
 ### The beacons overlay is now opt-in, off by default
