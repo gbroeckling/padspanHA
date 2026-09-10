@@ -38,7 +38,7 @@ export { roomColor };
 // map-placement code — wall_geom.js, not stack_transform.js, which the
 // lights render path may never import (test_no_lights_file_touches_the_
 // photo_machinery).
-import { bestCircleWall, splitPolylineAtTwoPositions } from "./wall_geom.js";
+import { bestCircleWall, splitPolylineAtTwoPositions, roomEdgeForCircle, circlePolylineIntersections } from "./wall_geom.js";
 
 // Flat-top hexagon points in SVG px (pointy-top orientation)
 export function hexPts(cx, cy, r){
@@ -3955,9 +3955,29 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // can never name a different wall or a different cut.
       let circleMatch = null;
       if(DOOR_CIRCLE_M && frame.levelOf(String(DOOR_CIRCLE_M.floorId||"main"))===z){
+        const dcFid = String(DOOR_CIRCLE_M.floorId||"main");
         const floorBars = ((model && model.rf_barriers_m) || [])
-          .filter(b => String(b.floor_id||"main")===String(DOOR_CIRCLE_M.floorId||"main"));
+          .filter(b => String(b.floor_id||"main")===dcFid);
         circleMatch = bestCircleWall(floorBars, DOOR_CIRCLE_M.x_m, DOOR_CIRCLE_M.y_m, DOOR_CIRCLE_M.r_m);
+        // No RF Barrier straddles it — a room's own edge might (Garry,
+        // 2026-09-10: "I draw the circle, it is visually perfect over the
+        // wall I need the door in"). Synthesized as the SAME {bar, hits}
+        // shape a real match has, purely so the drawing code below needs no
+        // special case; maps.js's _commitDoorCircle creates the real
+        // barrier from this exact edge on Done — this is only ever a
+        // preview of that, never a write.
+        // Same guard as maps.js's commit: an already-linked barrier crossing
+        // the circle still means a real wall is recorded here, so no
+        // room-edge preview should suggest a duplicate is about to be made.
+        const alreadyExplained = floorBars.some(b => {
+          const pts=(b.points_m||[]).map(p=>[Number(p[0]),Number(p[1])]);
+          return pts.length>=2 && circlePolylineIntersections(pts, DOOR_CIRCLE_M.x_m, DOOR_CIRCLE_M.y_m, DOOR_CIRCLE_M.r_m).length>=2;
+        });
+        if(!circleMatch && !alreadyExplained){
+          const roomEdge = roomEdgeForCircle((model && model.room_geometry_m), dcFid,
+            DOOR_CIRCLE_M.x_m, DOOR_CIRCLE_M.y_m, DOOR_CIRCLE_M.r_m);
+          if(roomEdge) circleMatch = { bar: { points_m: roomEdge.points, name: roomEdge.room }, hits: roomEdge.hits };
+        }
       }
       // Every OTHER unlinked wall, while the circle tool is armed — without
       // this there is nothing on the map to aim the circle at: an ordinary

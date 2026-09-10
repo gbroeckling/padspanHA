@@ -81,7 +81,19 @@ def _run(script: str) -> dict:
         "function makeCtx(model) {\n"
         "  return { state: { model }, hass: {},\n"
         "    actions: {\n"
-        "      callWS: async (msg) => { calls.push(msg); return { barrier: { id: 'new_' + calls.length } }; },\n"
+        "      callWS: async (msg) => {\n"
+        "        calls.push(msg);\n"
+        "        // Simulate the backend + modelRefresh round-trip a real create does:\n"
+        "        // a fabric_rf_barrier_set with no id lands in rf_barriers_m with a\n"
+        "        // fresh one, so a bestCircleWall() call later in the SAME commit (after\n"
+        "        // modelRefresh) can find the wall this commit just made from a room edge.\n"
+        "        if (msg.type === 'padspan_ha/fabric_rf_barrier_set' && msg.barrier && !msg.barrier.id) {\n"
+        "          const id = 'new_' + calls.length;\n"
+        "          model.rf_barriers_m = [...(model.rf_barriers_m || []), { ...msg.barrier, id }];\n"
+        "          return { barrier: { id } };\n"
+        "        }\n"
+        "        return { barrier: { id: 'new_' + calls.length } };\n"
+        "      },\n"
         "      modelRefresh: async () => {},\n"
         "      renderRooms: () => {},\n"
         "    },\n"
@@ -170,7 +182,15 @@ out.fid = picked.fid; out.cx = picked.cx; out.cy = picked.cy;
 def test_commit_splits_the_wall_and_links_the_middle_section_to_the_sensor():
     """A circle centred at (4.5,0) r=2 crosses w1 (spanning x=2..8) at
     x=2.5 and x=6.5 — must split into a before piece, a linked middle (the
-    door), and an after piece, three fabric_rf_barrier_set calls."""
+    door), and an after piece, three fabric_rf_barrier_set calls.
+
+    2026-09-10: the door segment's own material now asks (once) whether to
+    set it to steel instead of inheriting the parent wall's — dom_shim.mjs
+    stubs confirm() to always return true (real dialogs never block a
+    test), so the middle piece here always comes out "metal"/12dB rather
+    than w1's own "concrete"/8dB. The two REMAINING wall pieces (before/
+    after) must still keep the parent's real material — only the door
+    itself is asked about."""
     out = _run("""
 const ctx = makeCtx(MODEL);
 const mapState = { _doorCircleEid: 'binary_sensor.kitchen_door',
@@ -189,12 +209,14 @@ out.toasts = toasts;
     assert len(linked) == 1, calls
     mid = linked[0]["barrier"]
     assert mid["floor_id"] == "main", mid
-    assert mid["material"] == "concrete", "must default to the parent wall's own material"
-    assert mid["attenuation_dbm"] == 8, mid
+    assert mid["material"] == "metal", "the shim always confirms the steel prompt"
+    assert mid["attenuation_dbm"] == 12, mid
     xs = [p[0] for p in mid["points_m"]]
     assert abs(min(xs) - 2.5) < 0.01 and abs(max(xs) - 6.5) < 0.01, mid
     unlinked = [c for c in calls if c["barrier"].get("linked_entity_id") is None]
     assert len(unlinked) == 2, "the two remaining wall pieces must stay unlinked"
+    assert all(c["barrier"]["material"] == "concrete" for c in unlinked), (
+        "only the door segment is affected by the steel prompt — the rest of the wall keeps its own material")
     assert not any(t["isErr"] for t in out["toasts"]), out["toasts"]
 
 
@@ -243,12 +265,18 @@ out.toasts = toasts;
     assert "(5.00, 1.50)" in msg, msg
 
 
-def test_commit_with_no_matching_wall_names_the_room_outline_confusion():
+def test_commit_with_nothing_nearby_says_so():
     """Garry, 2026-09-09: "the done right now just says move or resize so
-    it crosses the line, but it already is" — a circle drawn over a ROOM's
-    own outline, where main HAS unlinked walls elsewhere but none under the
-    circle, must say so isn't a wall the tool knows about, not just repeat
-    the generic hint as if repositioning would fix it."""
+    it crosses the line, but it already is" — a circle drawn somewhere with
+    no RF Barrier AND no room edge anywhere near it (MODEL's Kitchen/Bed
+    rooms are a 10x8 rectangle; (50,50) is nowhere close) must say so,
+    rather than repeat the generic hint as if repositioning would fix it.
+
+    2026-09-10, after "I draw the circle, it is visually perfect over the
+    wall I need the door in": a room's own edge now DOES count (see
+    test_commit_auto_creates_a_wall_from_the_room_edge_when_none_is_drawn
+    below) — this test only proves the genuinely-nothing-here case still
+    fails clearly, not that room outlines are ignored."""
     out = _run("""
 const ctx = makeCtx(MODEL);
 const mapState = { _doorCircleEid: 'binary_sensor.kitchen_door',
@@ -259,13 +287,22 @@ out.toasts = toasts;
 """)
     assert out["calls"] == [], out["calls"]
     assert any(t["isErr"] for t in out["toasts"]), out["toasts"]
-    assert any("room's own outline doesn't count" in t["m"] for t in out["toasts"]), out["toasts"]
+    assert any("crosses a wall" in t["m"] for t in out["toasts"]), out["toasts"]
 
 
-def test_commit_with_no_walls_drawn_on_the_floor_at_all_says_so():
-    """A floor with ZERO rf_barriers_m entries can never match anything no
-    matter how the circle is dragged — that is a different, more useful
-    thing to tell someone than "move or resize the circle"."""
+def test_commit_auto_creates_a_wall_from_the_room_edge_when_none_is_drawn():
+    """Garry, 2026-09-10, live report: circle at (10.74,-13.79) r=1.42 —
+    5.54m from the nearest actual RF Barrier, but 0.085m from a real room's
+    own polygon edge. "I draw the circle, it is visually perfect over the
+    wall I need the door in... fix that error, not I should see things the
+    way you do in the background."
+
+    A floor with ZERO rf_barriers_m entries used to be an unconditional
+    dead end ("No wall is drawn on this floor yet"). MODEL's Kitchen room
+    is [[0,0],[10,0],[10,8],[0,8]] on floor main; a circle at (5,0) r=1
+    sits exactly on its y=0 edge — the same shape as the live report. The
+    tool must now synthesize a barrier from that edge and finish the link
+    in the same commit, with no separate trip to Rooms → RF Barriers."""
     out = _run("""
 const model = { ...MODEL, rf_barriers_m: [] };
 const ctx = makeCtx(model);
@@ -274,9 +311,42 @@ const mapState = { _doorCircleEid: 'binary_sensor.kitchen_door',
 await M._commitDoorCircle(ctx, mapState);
 out.calls = calls;
 out.toasts = toasts;
+out.armedAfter = mapState._doorCircleEid;
+""")
+    assert not any(t["isErr"] for t in out["toasts"]), out["toasts"]
+    assert any("Linked" in t["m"] for t in out["toasts"]), out["toasts"]
+    assert out["armedAfter"] is None, "must disarm after a successful auto-create"
+    calls = out["calls"]
+    # Call 1: the synthesized parent wall, taken verbatim from the Kitchen
+    # room's own (0,0)-(10,0) edge — nothing invented beyond that.
+    created = calls[0]["barrier"]
+    assert created["floor_id"] == "main", created
+    assert created.get("linked_entity_id") is None, created
+    assert sorted(created["points_m"]) == [[0, 0], [10, 0]], created
+    # The rest of this commit is the ordinary split path, now running
+    # against the wall this same commit just made.
+    linked = [c for c in calls if c["barrier"].get("linked_entity_id") == "binary_sensor.kitchen_door"]
+    assert len(linked) == 1, calls
+    xs = [p[0] for p in linked[0]["barrier"]["points_m"]]
+    assert abs(min(xs) - 4) < 0.01 and abs(max(xs) - 6) < 0.01, linked[0]
+
+
+def test_commit_still_fails_when_neither_a_wall_nor_a_room_edge_is_near():
+    """The room-edge fallback must not swallow the genuinely-nothing-here
+    case — MODEL's Kitchen/Bed rooms are a 10x8 rectangle; (50,50) is
+    nowhere near either a barrier or a room edge even with rf_barriers_m
+    emptied out."""
+    out = _run("""
+const model = { ...MODEL, rf_barriers_m: [] };
+const ctx = makeCtx(model);
+const mapState = { _doorCircleEid: 'binary_sensor.kitchen_door',
+  _doorCircleM: { x_m: 50, y_m: 50, r_m: 1, floorId: 'main' } };
+await M._commitDoorCircle(ctx, mapState);
+out.calls = calls;
+out.toasts = toasts;
 """)
     assert out["calls"] == [], out["calls"]
-    assert any("No wall is drawn on this floor yet" in t["m"] for t in out["toasts"]), out["toasts"]
+    assert any(t["isErr"] for t in out["toasts"]), out["toasts"]
 
 
 def test_cancel_clears_both_fields():

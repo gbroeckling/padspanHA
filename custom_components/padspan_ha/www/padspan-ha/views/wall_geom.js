@@ -161,3 +161,44 @@ export function bestCircleWall(barriers, cx, cy, r) {
   }
   return best ? { bar: best.bar, hits: best.hits } : null;
 }
+
+// When no RF Barrier crosses the circle, a ROOM's own polygon edge might —
+// Garry, 2026-09-10, after the room-outline-vs-barrier distinction was
+// explained instead of fixed, rightly rejected: "I draw the circle, it is
+// visually perfect over the wall I need the door in... fix that error, not
+// I should see things the way you do in the background." The room boundary
+// the user sees on screen already IS the wall; requiring it to also exist
+// as a separately hand-traced rf_barriers_m entry was the actual defect.
+// Returns the two room-polygon vertices bounding whichever edge the circle
+// crosses, closest first, PLUS `hits` against that same 2-point segment (in
+// the shape splitPolylineAtTwoPositions/bestCircleWall already use) — the
+// exact geometry a new barrier is created from, with nothing invented.
+// Shared by the live preview (iso_lights.js) and the commit (maps.js's
+// _commitDoorCircle) for the same reason bestCircleWall itself is: they can
+// never disagree about what will happen on Done. `roomGeometry` is
+// model.room_geometry_m: {room: {type,floor_id,points_m}} — circle-shaped
+// rooms have no discrete edges and are skipped.
+export function roomEdgeForCircle(roomGeometry, floorId, cx, cy, r) {
+  let best = null;
+  for (const [room, g] of Object.entries(roomGeometry || {})) {
+    if (!g || g.type !== "poly" || String(g.floor_id || "main") !== String(floorId)) continue;
+    const pts = (g.points_m || []).map(p => [Number(p[0]), Number(p[1])]);
+    if (pts.length < 3) continue;
+    const first = pts[0], last = pts[pts.length - 1];
+    const closed = (first[0] === last[0] && first[1] === last[1]) ? pts : [...pts, first];
+    const hits = circlePolylineIntersections(closed, cx, cy, r);
+    if (hits.length < 2) continue;
+    const near = nearestPointOnPolyline(closed, cx, cy);
+    if (!near) continue;
+    if (!best || near.distSq < best.distSq) {
+      const segIdx = Math.min(near.segIdx, closed.length - 2);
+      const points = [closed[segIdx], closed[segIdx + 1]];
+      // Re-run against just this one segment: the hits above carry segIdx
+      // values relative to the WHOLE closed polygon, not this 2-point pair.
+      const segHits = circlePolylineIntersections(points, cx, cy, r);
+      if (segHits.length < 2) continue;
+      best = { room, distSq: near.distSq, points, hits: segHits };
+    }
+  }
+  return best;
+}

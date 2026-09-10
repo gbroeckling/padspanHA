@@ -14,7 +14,7 @@ const { attachPanZoom } =
 const { makeStackXform, mapXform, imageAr, fabricWorldRooms, mapFracToMetres,
         metresToMapFrac, placementFromColumns, placementStageAffine, worldGauge,
         nearestPointOnPolyline, splitPolylineAtTwoPositions,
-        circlePolylineIntersections, bestCircleWall } =
+        circlePolylineIntersections, bestCircleWall, roomEdgeForCircle } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 // THE fabric frame — the Lights tab inverts drags through the exact function
 // the renderer draws with, so the two cannot disagree.
@@ -7080,21 +7080,45 @@ export async function _commitDoorCircle(ctx, mapState) {
   const allBarriers = ctx.state.model?.rf_barriers_m || [];
   const barriers = allBarriers.filter(b => String(b.floor_id || "main") === String(fid));
   const unlinked = barriers.filter(b => !b.linked_entity_id);
-  const match = bestCircleWall(barriers, circle.x_m, circle.y_m, circle.r_m);
+  let match = bestCircleWall(barriers, circle.x_m, circle.y_m, circle.r_m);
+
+  // Only synthesize a barrier from a room edge when NOTHING already
+  // explains this wall — bestCircleWall deliberately excludes an
+  // ALREADY-LINKED barrier above, but an already-linked one crossing the
+  // circle still means a real wall is recorded right here; a circle on an
+  // existing door must find nothing to cut, not invent a duplicate,
+  // overlapping wall on top of it (test_commit_never_matches_an_already_
+  // linked_wall).
+  const alreadyExplained = !match && barriers.some(b => {
+    const pts = (b.points_m || []).map(p => [Number(p[0]), Number(p[1])]);
+    return pts.length >= 2 && circlePolylineIntersections(pts, circle.x_m, circle.y_m, circle.r_m).length >= 2;
+  });
+
+  if (!match && !alreadyExplained) {
+    const roomEdge = roomEdgeForCircle(ctx.state.model?.room_geometry_m, fid, circle.x_m, circle.y_m, circle.r_m);
+    if (roomEdge) {
+      try {
+        const r = await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set", barrier: {
+          name: `Wall (${roomEdge.room})`, material: "custom", attenuation_dbm: 6,
+          floor_id: fid, points_m: roomEdge.points } });
+        await ctx.actions.modelRefresh();
+        if (r && r.barrier) {
+          const refreshed = (ctx.state.model?.rf_barriers_m || [])
+            .filter(b => String(b.floor_id || "main") === String(fid));
+          match = bestCircleWall(refreshed, circle.x_m, circle.y_m, circle.r_m);
+        }
+      } catch (e) {
+        ctx.toast("Could not create a wall from the room edge: " + (e.message || e), true);
+        return;
+      }
+    }
+  }
+
   if (!match) {
-    // Two different failures read very differently to the person doing
-    // this — Garry, 2026-09-09: "the done right now just says move or
-    // resize so it crosses the line, but it already is". A circle drawn
-    // over a ROOM's edge, with no rf_barriers_m wall drawn along it, can
-    // never match anything no matter how it's dragged: only Rooms → RF
-    // Barriers wall geometry counts here, not the room outline itself.
-    //
-    // Reported a second time, more insistently — "it is not [in the wrong
-    // place]" — so the generic wording alone was not enough to pin down
-    // whether this is really the room-outline confusion above or something
-    // else this circle's own numbers would show at a glance. Naming the
-    // actual nearest wall and how far short the circle falls turns the
-    // NEXT report into an exact repro instead of another guess.
+    // Neither an existing RF Barrier nor any room's own polygon edge
+    // crosses the circle — genuinely nothing here to link to yet. Naming
+    // the actual nearest wall and how far short the circle falls turns the
+    // next report into an exact repro instead of another guess.
     let nearestName = null, nearestGapM = null;
     for (const b of unlinked) {
       const pts = (b.points_m || []).map(p => [Number(p[0]), Number(p[1])]);
@@ -7107,11 +7131,7 @@ export async function _commitDoorCircle(ctx, mapState) {
     const detail = nearestName
       ? ` Nearest wall ("${nearestName}") is ${nearestGapM > 0 ? nearestGapM.toFixed(2) + "m past the circle's own edge" : "already inside the circle, but not crossing its boundary twice"} — floor "${fid}", circle r=${circle.r_m.toFixed(2)}m at (${circle.x_m.toFixed(2)}, ${circle.y_m.toFixed(2)}).`
       : "";
-    ctx.toast((unlinked.length
-      ? "Move or resize the circle so it crosses a wall — a room's own outline doesn't count, only a wall drawn in Rooms → RF Barriers does."
-      : "No wall is drawn on this floor yet — add one in Rooms → RF Barriers first, then link it here.")
-      + detail,
-      true);
+    ctx.toast("Move or resize the circle so it crosses a wall — either an RF Barrier or a room's own edge." + detail, true);
     return;
   }
   const bar = match.bar;
@@ -7127,9 +7147,23 @@ export async function _commitDoorCircle(ctx, mapState) {
   split.before = round3(split.before); split.middle = round3(split.middle); split.after = round3(split.after);
   // Defaults to the PARENT wall's own material — a door cut into a metal
   // wall is presumably steel too, matching the Rooms-tab picker's own
-  // default; still editable afterward from either surface.
-  const material = bar.material || "custom";
-  const atten = bar.attenuation_dbm ?? 6;
+  // default; still editable afterward from either surface. Garry,
+  // 2026-09-10: ask once, here, whether the door/window itself should
+  // actually be steel (12 dB — same value the Rooms-tab material table
+  // uses for "metal") rather than silently inherit the wall's material —
+  // real exterior doors are frequently steel even when the wall around
+  // them isn't, and this is the one place that knows a door is being cut
+  // at all. Only the door/window section changes; the rest of the wall
+  // keeps whatever material it already had.
+  let material = bar.material || "custom";
+  let atten = bar.attenuation_dbm ?? 6;
+  if (material !== "metal" && confirm(
+    `Set this door/window to steel (12 dB) instead of "${material}" (${atten} dB), inherited ` +
+    `from the wall it's cut from? Only the door/window itself changes — the rest of the wall ` +
+    `keeps its own material.`)) {
+    material = "metal";
+    atten = 12;
+  }
   const setBarrier = (barrier) => ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set", barrier });
   try {
     if (split.before) {

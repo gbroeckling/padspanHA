@@ -317,7 +317,7 @@ export function fabricWorldBarriers(model, floorId) {
 // nothing else"). Re-exported here so every existing caller of
 // stack_transform.js keeps working unchanged.
 export { nearestPointOnPolyline, splitPolylineAtTwoPositions,
-         circlePolylineIntersections, bestCircleWall } from "./wall_geom.js";
+         circlePolylineIntersections, bestCircleWall, roomEdgeForCircle } from "./wall_geom.js";
 
 // The model's map transform, in both directions. Mirrors ModelStore
 // map_frac_to_metres / metres_to_map_frac exactly — keep the two in sync:

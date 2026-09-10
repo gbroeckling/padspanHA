@@ -498,7 +498,7 @@ function _buildLog(el, history) {
 function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic) {
   const cfg = ctx.state.followAlertConfig[addr] || {};
   const name = chosen.user_label || chosen.name || addr || "tag";
-  const saved = !!(cfg.email && cfg.on_room_change);
+  const saved = !!(cfg.email && (cfg.on_room_change || cfg.on_arrive || cfg.on_depart));
 
   const card = el("div", { class: "card" });
   card.appendChild(el("div", { class: "card-head" }, [
@@ -559,6 +559,24 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
     ctx.state.followAlertConfig[addr] = cfg;
   });
 
+  // Arrive/depart toggles — the SAME two events the HA bus already fires
+  // (padspan_device_arrived/departed) and PadSpan automation rules already
+  // trigger on, now reaching the same notify path on_room_change already
+  // has, not a second one (presence_coordinator.py's _run_automations,
+  // _send_follow_notify shared with the room-change alert below).
+  const chkArrive = el("input", { type: "checkbox" });
+  if (cfg.on_arrive) chkArrive.checked = true;
+  chkArrive.addEventListener("change", () => {
+    cfg.on_arrive = chkArrive.checked;
+    ctx.state.followAlertConfig[addr] = cfg;
+  });
+  const chkDepart = el("input", { type: "checkbox" });
+  if (cfg.on_depart) chkDepart.checked = true;
+  chkDepart.addEventListener("change", () => {
+    cfg.on_depart = chkDepart.checked;
+    ctx.state.followAlertConfig[addr] = cfg;
+  });
+
   const saveStatus = el("span", { class: "muted", style: "font-size:11px" });
   const saveBtn = el("button", { class: "btn", style: "margin-top:10px" }, "Save");
   saveBtn.addEventListener("click", async () => {
@@ -610,6 +628,12 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
       el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
         chkChange, el("span", {}, `Email me when ${name} moves`),
       ]),
+      el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
+        chkArrive, el("span", {}, `Email me when ${name} arrives home`),
+      ]),
+      el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
+        chkDepart, el("span", {}, `Email me when ${name} leaves`),
+      ]),
     ]));
   } else {
     const watchRooms = cfg.watch_rooms || [];
@@ -642,6 +666,14 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
       el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
         chkChange,
         el("span", {}, `Alert on every room change for "${name}"`),
+      ]),
+      el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
+        chkArrive,
+        el("span", {}, `Alert when "${name}" arrives home`),
+      ]),
+      el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
+        chkDepart,
+        el("span", {}, `Alert when "${name}" leaves`),
       ]),
       checkboxes.length ? el("div", {}, [
         el("div", { class: "muted", style: "font-size:11px;margin-bottom:4px" }, "Only alert for these rooms (unchecked = all):"),

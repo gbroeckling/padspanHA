@@ -743,6 +743,12 @@ function _pinAndListen(ctx, el, cs, calData) {
   const ar = (mapData.image.height || 600) / (mapData.image.width || 800);
   const imgUrl = ctx.helpers.mapImageUrl(mapData);
   const vbH = ar * 100;
+  // mapInner is position:absolute, so its real (content-driven) height never
+  // propagates up to mapWrap — a position:relative box with no other in-flow
+  // content collapses to ~0px, clipping the whole map invisible under
+  // overflow:hidden. Tying mapWrap's own box to the SAME aspect ratio the
+  // SVG's own viewBox already uses gives it real height with no measurement.
+  mapWrap.style.aspectRatio = `100 / ${vbH}`;
 
   // Existing calibration points as dots
   let dotsSvg = mapPts.map(p => {
@@ -1190,14 +1196,25 @@ function _roam(ctx, el, cs, calData) {
     <line x1="${(parseFloat(tx) - 7)}" y1="${ty}" x2="${(parseFloat(tx) - 13)}" y2="${ty}" stroke="#60a5fa" stroke-width="1.5"/>
     <line x1="${(parseFloat(tx) + 7)}" y1="${ty}" x2="${(parseFloat(tx) + 13)}" y2="${ty}" stroke="#60a5fa" stroke-width="1.5"/>`;
 
-  const mapWrap = el("div", { style: "border-radius:10px;overflow:hidden;border:2px solid #1b3526" });
-  mapWrap.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 ${vbH}"
+  // mapWrap is the pan/zoom viewport (gap #11, best-in-class roadmap — Pin
+  // & Listen already got this; Roam is this map's own direct sibling, same
+  // floor-plan SVG, same file, same helper already imported at the top),
+  // mapInner the transformed layer, matching _pinAndListen's exact shape.
+  const mapWrap = el("div", { style: "position:relative;border-radius:10px;overflow:hidden;border:2px solid #1b3526;touch-action:none;cursor:grab" });
+  const mapInner = el("div", { style: "position:absolute;top:0;left:0;width:100%;transform-origin:0 0" });
+  mapWrap.appendChild(mapInner);
+  // See the matching comment in _pinAndListen: mapInner's real height never
+  // propagates up through position:absolute, so mapWrap needs its own
+  // aspect-ratio tie or it collapses to ~0px under overflow:hidden.
+  mapWrap.style.aspectRatio = `100 / ${vbH}`;
+  mapInner.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 ${vbH}"
       preserveAspectRatio="none" style="width:100%;display:block">
     <image href="${imgUrl}" x="0" y="0" width="100" height="${vbH}" preserveAspectRatio="none"/>
     ${gridSvg}
     ${dotsSvg}
     ${pct < 100 ? targetSvg : ""}
   </svg>`;
+  attachPanZoom(mapWrap, mapInner);
   wrap.appendChild(mapWrap);
 
   // Legend
@@ -1560,6 +1577,73 @@ function _modelTab(ctx, el, cs, calData) {
     document.body.removeChild(a); URL.revokeObjectURL(url);
   });
   actCard.appendChild(expBtn);
+
+  // Import — the counterpart Export JSON never had (Garry, 2026-09-10:
+  // "do 2-10" -> #10). Mirrors Maps' own "Backup All Maps (JSON)" /
+  // "Restore from Backup" round-trip (maps.js's Export tab), but there is
+  // no batch calibration-restore endpoint — calibration_save_point saves
+  // ONE point and always mints it a fresh id (calibration_store.py's
+  // async_add_point), so a point-by-point loop is correct here, not a
+  // shortcut, and duplicate detection has to happen on the client since the
+  // backend never sees the old id to compare against. The model itself is
+  // deliberately NOT restored from the file — it is a derived artifact of
+  // the points (calibration_compute_model), not raw data; recomputing it
+  // from the restored points is the right move, not re-injecting a stale
+  // serialized one.
+  const impWrap = el("div", { style: "margin-top:14px;border-top:1px solid #1b3526;padding-top:12px" });
+  impWrap.appendChild(el("div", { style: "font-weight:600;font-size:13px;margin-bottom:4px" }, "Import"));
+  impWrap.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px" },
+    "Choose a padspan_calibration.json file exported above. Points that already exist (same map, position and collection time) are skipped."));
+
+  const impInput = document.createElement("input");
+  impInput.type = "file"; impInput.accept = ".json,application/json"; impInput.style.display = "none";
+  const impPreview = el("div", { style: "font-size:12px;color:#94a3b8;min-height:18px;margin-top:6px" });
+  const impStatus = el("div", { class: "muted", style: "font-size:12px;min-height:18px;margin-top:4px" });
+  const impBtn = el("button", { class: "btn inline", style: "display:none" }, "Import Points");
+  let _importData = null;
+
+  const _dedupeKey = (p) => `${p.map_id}|${Number(p.x_frac).toFixed(4)}|${Number(p.y_frac).toFixed(4)}|${p.collected_at || ""}`;
+
+  impInput.addEventListener("change", async () => {
+    const file = impInput.files?.[0]; if (!file) return;
+    impPreview.textContent = "Reading…"; impBtn.style.display = "none"; _importData = null;
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (!Array.isArray(parsed.points)) {
+        impPreview.textContent = "❌ Not a valid PadSpan calibration export."; return;
+      }
+      const existingKeys = new Set(pts.map(_dedupeKey));
+      const toImport = parsed.points.filter(p => !existingKeys.has(_dedupeKey(p)));
+      const skipCount = parsed.points.length - toImport.length;
+      impPreview.textContent = `${parsed.points.length} point${parsed.points.length !== 1 ? "s" : ""} in file: ${toImport.length} to import${skipCount ? `, ${skipCount} already present (skipped)` : ""}.`;
+      if (toImport.length) { _importData = toImport; impBtn.style.display = ""; }
+    } catch (e) { impPreview.textContent = "❌ Parse error: " + String(e); }
+  });
+
+  impBtn.addEventListener("click", async () => {
+    if (!_importData?.length) return;
+    if (!confirm(`Import ${_importData.length} calibration point(s)?`)) return;
+    impBtn.disabled = true; let ok = 0, fail = 0;
+    for (let i = 0; i < _importData.length; i++) {
+      const p = _importData[i];
+      impStatus.textContent = `Importing ${i + 1}/${_importData.length}…`;
+      try {
+        await ctx.actions.calibrationSavePoint(p);
+        ok++;
+      } catch (e) { fail++; console.error("Calibration import failed for point", i, e); }
+    }
+    impStatus.textContent = `Imported ${ok} point${ok !== 1 ? "s" : ""}${fail ? ` (${fail} failed)` : ""} ✓ — recompute the model to include them.`;
+    impBtn.disabled = false; _importData = null; impBtn.style.display = "none";
+    ctx.state.calibration = await ctx.actions.calibrationGet();
+    ctx.actions.renderRooms();
+  });
+
+  const impChooseBtn = el("button", { class: "btn inline", onclick: () => impInput.click() }, "Choose File…");
+  impWrap.appendChild(el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, [impChooseBtn, impBtn]));
+  impWrap.appendChild(impInput);
+  impWrap.appendChild(impPreview);
+  impWrap.appendChild(impStatus);
+  actCard.appendChild(impWrap);
 
   // Clear all
   const clearWrap = el("div", { style: "margin-top:10px;display:flex;gap:8px;align-items:center" });

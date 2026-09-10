@@ -145,6 +145,18 @@ export function healthOf(l, nowMs) {
     }
     return { healthy: true, reason: "" };
   }
+  // A door/window is the same shape of stuck-state problem as motion
+  // (Garry, 2026-09-09: "I want the lighting map to clearly show when a
+  // door or window is left open") — reuses the SAME threshold, not a new
+  // number, since "left open" and "stuck on" are the same real-world event.
+  if (l.isDoor) {
+    const changed = l.last_changed ? Date.parse(l.last_changed) : NaN;
+    if (l.state === "on" && Number.isFinite(changed) && (now - changed) > MOTION_STUCK_MS) {
+      const hrs = Math.round((now - changed) / 3600000);
+      return { healthy: false, reason: `Open for ~${hrs}h` };
+    }
+    return { healthy: true, reason: "" };
+  }
   if (isWledLight(l)) {
     if (!Array.isArray(l.effect_list) || !l.effect_list.length) {
       return { healthy: false, reason: "No effects reported — this WLED strip may have lost its effect list" };

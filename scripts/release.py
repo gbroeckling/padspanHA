@@ -577,6 +577,97 @@ MANIFEST_URL = "https://padspan.traks.ca/api/version.php"
 _SSH = "ssh -o BatchMode=yes -o ConnectTimeout=15"
 
 
+def _changelog_section(version):
+    """Return (title, date, body) for CHANGELOG.md's own section on `version`,
+    or None if it isn't there. Anchored to a bare "## X.Y.Z — title (date)"
+    header — the exact shape every entry has used since this repo started."""
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    pattern = re.compile(
+        r"^## " + re.escape(version) + r"\s*[—-]\s*(.+?)\s*\((\d{4}-\d{2}-\d{2})\)\s*$",
+        re.MULTILINE)
+    m = pattern.search(changelog)
+    if not m:
+        return None
+    title, date = m.group(1), m.group(2)
+    nxt = changelog.find("\n## ", m.end())
+    body = changelog[m.end(): nxt if nxt != -1 else len(changelog)]
+    return title, date, body
+
+
+def _md_inline_to_html(text):
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+    text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', text)
+    return text
+
+
+def update_whatsnew_entry(version, channel):
+    """Prepend one auto-generated #whatsnew entry to site/index.html, built
+    straight from this release's own CHANGELOG.md section.
+
+    GitHub #72: the whatsnew section is hand-authored prose, and nothing ever
+    forced anyone to update it — 25 releases (v0.38.7 through v0.38.31) went
+    out with the page never mentioning any of them. release.py already
+    publishes the version manifest so *that* can't drift; this closes the
+    same hole for the page a human actually reads. It only touches the repo
+    copy — deploy_site.py still only ships site/index.html on a --stable
+    release, same as before, so a beta's entry lands on the live page the
+    next time a stable release runs.
+
+    Never raises. A miss here must be SEEN (non-zero exit from main) but must
+    not unwind a release that is otherwise already out."""
+    site_path = ROOT / "site" / "index.html"
+    html = site_path.read_text(encoding="utf-8")
+
+    if f'<span class="relver">v{version}<' in html:
+        print(f"  whatsnew: v{version} already present in site/index.html, skipping")
+        return True
+
+    section = _changelog_section(version)
+    if not section:
+        print(f"  !! whatsnew: no CHANGELOG.md section found for {version} — "
+              "site/index.html was NOT updated. Add the CHANGELOG entry (it "
+              "should already exist — CHANGELOG.md is written before this "
+              "script runs) and re-run, or edit site/index.html by hand.")
+        return False
+    title, date, body = section
+    bullets = re.findall(r"^- (.+)$", body, re.MULTILINE)
+    if not bullets:
+        print(f"  !! whatsnew: CHANGELOG.md section for {version} has no '- ' "
+              "bullets to draw from — site/index.html was NOT updated.")
+        return False
+
+    marker = '  <div class="rel" style="margin-top:26px">\n'
+    if marker not in html:
+        print("  !! whatsnew: could not find the entry-list insertion point "
+              "in site/index.html (the \"rel\" wrapper div) — NOT updated.")
+        return False
+
+    pill = ('<span class="pill stable">Stable</span>' if channel == "stable"
+            else '<span class="pill soon">Beta channel</span>')
+    date_str = f"{datetime.datetime.strptime(date, '%Y-%m-%d'):%-d %B %Y}" if os.name != "nt" \
+        else "{} {:%B %Y}".format(datetime.datetime.strptime(date, "%Y-%m-%d").day,
+                                   datetime.datetime.strptime(date, "%Y-%m-%d"))
+    items = "\n".join(f"          <li>{_md_inline_to_html(b)}</li>" for b in bullets)
+    entry = (
+        '    <div class="relitem">\n'
+        '      <div class="relhead">\n'
+        f'        <span class="relver">v{version}</span>\n'
+        f'        {pill}\n'
+        f'        <span class="reldate">{date_str}</span>\n'
+        '      </div>\n'
+        '      <div class="relbody">\n'
+        '        <ul>\n'
+        f'{items}\n'
+        '        </ul>\n'
+        '      </div>\n'
+        '    </div>\n'
+    )
+    site_path.write_text(html.replace(marker, marker + "\n" + entry, 1), encoding="utf-8")
+    print(f"  whatsnew: added v{version} ({title}) to site/index.html — {len(bullets)} bullet(s)")
+    return True
+
+
 def publish_update_manifest(version, channel):
     """Bump latest.json on the colo: every release moves latest_beta, a
     stable release moves latest_stable with it. Returns True on verified
@@ -663,6 +754,13 @@ def main():
     print("\nUpdating source files...")
     update_version_files(version, build_id, channel)
 
+    print("\nUpdating What's New entry...")
+    whatsnew_ok = update_whatsnew_entry(version, channel)
+    if not whatsnew_ok:
+        print("  !! site/index.html's #whatsnew section does not mention this "
+              "release. Fix it (by hand or by re-running) before or after — "
+              "it will not block the rest of this release.")
+
     print("\nBuilding zip...")
     build_zip()
 
@@ -699,7 +797,7 @@ def main():
 
     print(f"\n=== Done! {tag} ({channel}) is live on GitHub. ===\n")
 
-    if not manifest_ok or not site_ok:
+    if not manifest_ok or not site_ok or not whatsnew_ok:
         sys.exit(3)
 
     if "--no-bright" in flags:

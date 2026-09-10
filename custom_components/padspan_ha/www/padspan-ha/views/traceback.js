@@ -961,6 +961,53 @@ export function render(ctx) {
     if (tb._animTimer) { cancelAnimationFrame(tb._animTimer); tb._animTimer = null; }
   }
 
+  // ── Export ────────────────────────────────────────────────────────────
+  // Traceback carries the richest per-frame data of the three diagnostic
+  // history views (x_m/y_m, room, rssi, confidence, scanner) yet was the
+  // only one with no export at all — Forensics and Insights both already
+  // have one. Same escaper/download helper as insights.js's own export
+  // (matching, not shared, per this codebase's existing convention there);
+  // exports exactly the currently-loaded playback window (tb.frames), one
+  // CSV row per (frame, object) pair since a frame holds every object seen
+  // in that ~10s tick, not one object each.
+  function _csvEsc(v) {
+    v = String(v == null ? "" : v);
+    if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
+    return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  }
+
+  function _downloadBlob(content, type, filename) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function _tracebackFilename(ext) {
+    return `padspan-traceback-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.${ext}`;
+  }
+
+  function _exportTracebackCsv() {
+    const lines = ["timestamp,key,name,room,floor,x_m,y_m,confidence,rssi,scanner,kind"];
+    for (const frame of tb.frames) {
+      const ts = new Date(frame.ts * 1000).toISOString();
+      for (const o of frame.o || []) {
+        lines.push([
+          ts, o.k, o.n || "", o.r, o.f || "",
+          o.x_m ?? "", o.y_m ?? "", o.c ?? "", o.rssi ?? "", o.src || "", o.t || "",
+        ].map(_csvEsc).join(","));
+      }
+    }
+    _downloadBlob(lines.join("\n"), "text/csv", _tracebackFilename("csv"));
+  }
+
+  function _exportTracebackJson() {
+    _downloadBlob(JSON.stringify(tb.frames, null, 2), "application/json", _tracebackFilename("json"));
+  }
+
   // ── Controls card ──────────────────────────────────────────────────────
   const ctrlCard = document.createElement("div");
   ctrlCard.className = "card";
@@ -1143,6 +1190,18 @@ export function render(ctx) {
       infoLbl.textContent = tb.filterKey ? "No data for this object" : "No data in range";
     }
     filterRow.appendChild(infoLbl);
+    if (tb.frames.length) {
+      const exportCsvBtn = document.createElement("button");
+      exportCsvBtn.className = "btn tiny";
+      exportCsvBtn.textContent = "Export CSV";
+      exportCsvBtn.addEventListener("click", _exportTracebackCsv);
+      filterRow.appendChild(exportCsvBtn);
+      const exportJsonBtn = document.createElement("button");
+      exportJsonBtn.className = "btn tiny";
+      exportJsonBtn.textContent = "Export JSON";
+      exportJsonBtn.addEventListener("click", _exportTracebackJson);
+      filterRow.appendChild(exportJsonBtn);
+    }
     ctrlCard.appendChild(filterRow);
 
     if (!tb.frames.length) {

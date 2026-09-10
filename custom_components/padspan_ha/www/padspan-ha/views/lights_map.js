@@ -525,13 +525,18 @@ export function openAggregateSheet(api, { title, sub, items, actions }){
   for (const l of items) {
     const on = l.state === "on";
     const row = mk("div", _S.row);
-    const col = l.isWled ? WLED_BORDER : (l.isPartition ? PARTITION_BORDER : (l.isFan ? FAN_BORDER : (l.isMotion ? MOTION_BORDER : (l.isTemp ? TEMP_BORDER : "#52b788"))));
+    const col = l.isWled ? WLED_BORDER : (l.isPartition ? PARTITION_BORDER : (l.isFan ? FAN_BORDER : (l.isMotion ? MOTION_BORDER : (l.isTemp ? TEMP_BORDER : (l.isDoor ? DOOR_BORDER : "#52b788")))));
     row.appendChild(mk("span", _S.code + `;color:${col}`, l.code));
     row.appendChild(mk("span", _S.name, l.friendly_name));
     if (l.isMotion) {
       row.appendChild(mk("span", _S.state(on), on ? "MOTION" : "clear"));
     } else if (l.isTemp) {
       row.appendChild(mk("span", _S.state(false), Number.isFinite(l.temperature) ? `${l.temperature}°` : "—"));
+    } else if (l.isDoor) {
+      // Read-only, same as motion/temp above — a door/window sensor is not
+      // a switch, and the generic On/Off button below would fire a toggle
+      // that does nothing but surface a read-only toast.
+      row.appendChild(mk("span", _S.state(on), on ? "OPEN" : "CLOSED"));
     } else {
       const b = mk("button", _S.onoff(on), on ? "On" : "Off");
       b.addEventListener("click", (e) => {
@@ -2173,6 +2178,8 @@ export function buildLightsTable(host, lights){
         : l.isLock
         ? el("span", { class: `lv-state ${l.state === "jammed" ? "off" : (on ? "on" : "off")}` },
              l.state === "jammed" ? "JAMMED" : (on ? "LOCKED" : "UNLOCKED"))
+        : l.isDoor
+        ? el("span", { class: `lv-state ${on ? "on" : "off"}` }, on ? "OPEN" : "CLOSED")
         : el("span", { class: `lv-state ${on ? "on" : "off"}` }, on ? "ON" : "OFF")),
       // Its own column, next to State (Garry, 2026-09-07: "we still need
       // another option next to state... a reassign to another device type

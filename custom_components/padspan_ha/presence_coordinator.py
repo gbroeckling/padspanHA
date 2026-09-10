@@ -1489,7 +1489,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         if _arrived or _departed:
             try:
-                await self._run_automations(_arrived, _departed, result)
+                await self._run_automations(_arrived, _departed, result, now)
             except Exception as _auto_err:
                 _LOGGER.warning("Automations error (non-fatal): %s", _auto_err)
 
@@ -3214,7 +3214,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # ── PadSpan automations ─────────────────────────────────────────────────
 
     async def _run_automations(
-        self, arrived: set[str], departed: set[str], result: dict[str, Any]
+        self, arrived: set[str], departed: set[str], result: dict[str, Any], now: float
     ) -> None:
         """Fire HA events and execute PadSpan automation rules for arrive/depart."""
         # Build key→label lookup
@@ -3254,6 +3254,49 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "device_key": key, "label": label,
             })
             _LOGGER.info("Device departed: %s (%s)", label, key[:30])
+
+        # ── Fire follow-alerts for arrive/depart ─────────────────────────
+        # The _arrived/_departed sets were already computed for the HA bus
+        # events above; this reuses the SAME sets and the SAME labelled-only
+        # filter (an unlabelled rotating-MAC "arrival" is noise, not
+        # something worth an email) rather than a second pass. Direct
+        # extension of the existing on_room_change alert pipeline
+        # (alert_store.py's config, _send_follow_notify's dispatch) — same
+        # email/notify_service config, just two more trigger conditions
+        # next to on_room_change.
+        from .const import DATA_ALERTS
+        alert_store = self.hass.data.get(DOMAIN, {}).get(DATA_ALERTS)
+        if alert_store:
+            for key, event, suffix in (
+                *((k, "arrive", "arrive") for k in arrived),
+                *((k, "depart", "depart") for k in departed),
+            ):
+                label = _key_labels.get(key, "")
+                if not label:
+                    continue
+                try:
+                    cfg = alert_store.get_config(key)
+                    if not cfg:
+                        _obj = result.get(key) or self._known_objs.get(key) or {}
+                        _addr = _obj.get("address") or ""
+                        if _addr:
+                            cfg = alert_store.get_config(_addr)
+                    if not cfg or not cfg.get(f"on_{event}"):
+                        continue
+                    if (now - self._alert_last_sent.get(f"{key}:{suffix}", 0.0)) < 60:
+                        continue
+                    if event == "arrive":
+                        room = (result.get(key) or {}).get("room", "")
+                        message = f"{label} arrived" + (f" ({room})" if room else "")
+                    else:
+                        message = f"{label} left"
+                    sent = await self._send_follow_notify(
+                        key, cfg, f"PadSpan: {label} {event}d", message, now, suffix,
+                    )
+                    if sent:
+                        _LOGGER.info("Follow %s alert sent for %s", event, label)
+                except Exception as err:
+                    _LOGGER.warning("Follow %s alert failed for %s: %s", event, key, err)
 
         # ── Execute PadSpan automation rules ─────────────────────────────
         try:
@@ -3516,77 +3559,88 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 obj = result.get(key) or self._known_objs.get(key) or {}
                 label = obj.get("user_label") or obj.get("name") or key
 
-                # Find a notify service — prefer user-configured, fall back to first available
-                # Supports both legacy notify.{name} and new HA 2024+ entity-based notify
-                services = self.hass.services.async_services().get("notify", {})
-                has_send_message = "send_message" in services
-                entity_ids = [s.entity_id for s in self.hass.states.async_all("notify")]
-                legacy = [k for k in services if k != "send_message"]
-
-                if not services and not entity_ids:
-                    _LOGGER.warning("Alert: no notify services available in HA")
-                    continue
-
-                preferred = cfg.get("notify_service") or ""
-
-                message = (
-                    f"{label} moved from {old_room or 'unknown'} to {new_room}"
+                message = f"{label} moved from {old_room or 'unknown'} to {new_room}"
+                sent = await self._send_follow_notify(
+                    key, cfg, f"PadSpan: {label} moved", message, now, "room",
                 )
-                alert_data: dict[str, Any] = {
-                    "title": f"PadSpan: {label} moved",
-                    "message": message,
-                }
-                sent = False
-                # Try entity-based send_message first if applicable
-                if preferred.startswith("notify.") and has_send_message:
-                    try:
-                        payload = {**alert_data, "entity_id": preferred}
-                        if email:
-                            payload["target"] = email
-                        await self.hass.services.async_call("notify", "send_message", payload)
-                        sent = True
-                    except Exception:
-                        # Fall through to legacy
-                        pass
-                if not sent and preferred and preferred in services:
-                    try:
-                        await self.hass.services.async_call(
-                            "notify", preferred, {**alert_data, "target": email} if email else alert_data,
-                        )
-                        sent = True
-                    except Exception:
-                        try:
-                            await self.hass.services.async_call("notify", preferred, alert_data)
-                            sent = True
-                        except Exception:
-                            pass
-                if not sent:
-                    # Auto-pick: prefer entity with mail/smtp, then legacy, then first available
-                    auto_targets: list[tuple[str, str, dict[str, Any]]] = []
-                    for eid in entity_ids:
-                        if has_send_message:
-                            auto_targets.append(("send_message", eid, {**alert_data, "entity_id": eid}))
-                    for svc in legacy:
-                        auto_targets.append((svc, svc, alert_data))
-                    # Sort: prefer mail/smtp
-                    auto_targets.sort(key=lambda t: (0 if "mail" in t[1].lower() or "smtp" in t[1].lower() else 1))
-                    for svc_name, _label, payload in auto_targets:
-                        try:
-                            await self.hass.services.async_call("notify", svc_name, payload)
-                            sent = True
-                            break
-                        except Exception:
-                            continue
                 if sent:
-                    self._alert_last_sent[key] = now
                     _LOGGER.info(
                         "Follow alert sent for %s: %s → %s (to %s via %s)",
-                        label, old_room, new_room, email, preferred or "auto",
+                        label, old_room, new_room, email, cfg.get("notify_service") or "auto",
                     )
                 else:
                     _LOGGER.warning("Follow alert: all send attempts failed for %s", label)
             except Exception as err:
                 _LOGGER.warning("Follow alert failed for %s: %s", key, err)
+
+    async def _send_follow_notify(
+        self, key: str, cfg: dict[str, Any], title: str, message: str,
+        now: float, cooldown_suffix: str,
+    ) -> bool:
+        """Send one Follow-alert notification — the shared dispatch logic
+        _process_room_alerts (on_room_change) and _run_automations
+        (on_arrive/on_depart) both call, so the three alert types can never
+        disagree about how a notification actually gets sent, or drift
+        apart as one is fixed and the other forgotten. Tries the configured
+        service first (entity-based send_message, then legacy notify.*),
+        falling back to auto-detection (preferring mail/smtp). Returns
+        whether it sent. cooldown_suffix keys the 60s per-device throttle
+        by ALERT TYPE, not just device — a room-change alert and an arrival
+        alert commonly fire in the same poll for a newly-arrived device,
+        and sharing one cooldown key would let the first silently eat the
+        second.
+        """
+        email = (cfg.get("email") or "").strip()
+        services = self.hass.services.async_services().get("notify", {})
+        has_send_message = "send_message" in services
+        entity_ids = [s.entity_id for s in self.hass.states.async_all("notify")]
+        legacy = [k for k in services if k != "send_message"]
+        if not services and not entity_ids:
+            _LOGGER.warning("Alert: no notify services available in HA")
+            return False
+
+        preferred = cfg.get("notify_service") or ""
+        alert_data: dict[str, Any] = {"title": title, "message": message}
+        sent = False
+        if preferred.startswith("notify.") and has_send_message:
+            try:
+                payload = {**alert_data, "entity_id": preferred}
+                if email:
+                    payload["target"] = email
+                await self.hass.services.async_call("notify", "send_message", payload)
+                sent = True
+            except Exception:
+                pass
+        if not sent and preferred and preferred in services:
+            try:
+                await self.hass.services.async_call(
+                    "notify", preferred, {**alert_data, "target": email} if email else alert_data,
+                )
+                sent = True
+            except Exception:
+                try:
+                    await self.hass.services.async_call("notify", preferred, alert_data)
+                    sent = True
+                except Exception:
+                    pass
+        if not sent:
+            auto_targets: list[tuple[str, str, dict[str, Any]]] = []
+            for eid in entity_ids:
+                if has_send_message:
+                    auto_targets.append(("send_message", eid, {**alert_data, "entity_id": eid}))
+            for svc in legacy:
+                auto_targets.append((svc, svc, alert_data))
+            auto_targets.sort(key=lambda t: (0 if "mail" in t[1].lower() or "smtp" in t[1].lower() else 1))
+            for svc_name, _label, payload in auto_targets:
+                try:
+                    await self.hass.services.async_call("notify", svc_name, payload)
+                    sent = True
+                    break
+                except Exception:
+                    continue
+        if sent:
+            self._alert_last_sent[f"{key}:{cooldown_suffix}"] = now
+        return sent
 
     def clear_scanner(self, source: str) -> int:
         """Remove a scanner from all devices' Kalman filter state.
