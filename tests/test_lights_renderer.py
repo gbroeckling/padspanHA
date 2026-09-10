@@ -298,12 +298,16 @@ def test_a_linked_closed_barrier_draws_a_solid_line_and_two_purple_dots(tmp_path
     assert 'stroke="#94a3b8"' in svg, "closed reads as the neutral wall line"
 
 
-def test_a_linked_open_barrier_fades_the_line_but_keeps_both_dots(tmp_path):
+def test_a_linked_open_barrier_draws_nothing_but_keeps_both_dots(tmp_path):
+    """Garry, 2026-09-10 (repeated, emphatically): "the doors when open
+    show a grey line where the door is, I want nothing there." A prior
+    pass drew a dashed accent-coloured line for the open state instead of
+    a true gap -- open must now draw nothing for the wall itself."""
     lbe = {**_BARRIER_LBE, "binary_sensor.frontdoor": {**_BARRIER_LBE["binary_sensor.frontdoor"], "state": "on"}}
     out = _run_js(tmp_path, _barrier_harness(_BARRIER_MODEL, lbe))
     svg = out["svg"]
     assert svg.count('fill="#9333ea"') == 2, "the endpoint dots mark WHERE the opening is in both states"
-    assert "#fb7185" in svg, "open must draw the distinct accent colour, not just fade to nothing"
+    assert "#fb7185" not in svg, "open must draw nothing for the wall itself — a true gap, not a coloured line"
     assert 'stroke="#94a3b8"' not in svg, "open must not also draw the closed neutral line"
 
 

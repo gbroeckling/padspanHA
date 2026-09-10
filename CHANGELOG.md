@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.34 — An open door/window now draws nothing at all, not a coloured line (2026-09-10)
+
+### Open no longer draws a line at the doorway
+- **Fixed:** Garry, repeatedly: "the doors when open show a grey line where the door is, I want nothing there." A linked door/window's open state was drawing a dashed accent-coloured line across the opening instead of a true gap. Open now draws nothing for the wall section itself — the two purple dots marking where the opening is still show in both states, only the line is gone. Closed is unchanged (solid grey line).
+
+---
+
 ## 0.38.33 — Automorph styles pushed much bolder, and three new ones: Halo, Pulse, Chevron (2026-09-10)
 
 ### The 8 styles fixed in 0.38.32 were still too subtle

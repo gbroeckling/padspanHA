@@ -4109,14 +4109,16 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
               `stroke-linecap="round" opacity="${barDim.toFixed(2)}" pointer-events="none"/>`;
         } else {
           const isOpen=!!(dl && dl.state==="on");
-          // Garry, 2026-09-10: the closed line was easy to misread as faint/
-          // uncertain next to the dashed open state — full opacity when
-          // closed makes it read as a definite, solid wall.
-          s+=isOpen
-            ? `<polyline points="${ppx}" fill="none" stroke="${DOOR_BORDER}" stroke-width="2" `+
-              `stroke-dasharray="3,5" stroke-linecap="round" opacity="${(0.55*barDim).toFixed(2)}" pointer-events="none"/>`
-            : `<polyline points="${ppx}" fill="none" stroke="#94a3b8" stroke-width="2.6" `+
+          // Garry, 2026-09-10 (repeated, emphatically): "the doors when
+          // open show a grey line where the door is, I want nothing
+          // there." A prior pass drew a dashed DOOR_BORDER line for the
+          // open state instead of a true gap — replaced with nothing at
+          // all: open means the wall section is gone, full stop. Closed
+          // still draws the solid grey line.
+          if(!isOpen){
+            s+=`<polyline points="${ppx}" fill="none" stroke="#94a3b8" stroke-width="2.6" `+
               `stroke-linecap="round" opacity="${barDim.toFixed(2)}" pointer-events="none"/>`;
+          }
         }
         // The two points where this opening meets the rest of the wall it
         // was split from — Garry, 2026-09-08: "a small purple dot showing on
