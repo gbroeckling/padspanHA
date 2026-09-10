@@ -4,6 +4,20 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.29 — Locks on the wall, working beacons on the map, closer markers stay clickable (2026-09-09)
+
+### A lock can now be linked to the wall section it's mounted in
+- **Added:** a `lock.*` entity keeps its ordinary point marker on the Mapping → Lights map exactly as before, and now ALSO offers **Link wall** in the Map column — the same circle-placement tool the door/window opening uses. Locked reads as a plain closed wall, the same grey a closed door/window already draws; unlocked flashes red on that wall section instead of drawing a blank gap, since a lock doesn't physically open the wall the way a door does.
+
+### Working, proven beacons now show on the Mapping → Lights map
+- **Added:** a tracked BLE/iBeacon device the positioning engine has actually located, and that's either identified or carries a name you gave it, now draws as a small teal dot with its label — the same colour Overview already marks a proven beacon with. Read-only: no click, no placement, nothing invented for a beacon with no real position yet.
+
+### Two clickable-marker fixes
+- **Fixed:** two markers placed close together could have OVERLAPPING invisible tap targets, so a tap that looked like it landed on one marker's own visible shape could still fire its neighbour instead. Each marker's tap target now shrinks to stay clear of its nearest neighbour, never below its own glyph's own size.
+- **Fixed:** a light selected on the map could still silently absorb an arrow-key press minutes later — the map keeps keyboard focus for as long as nothing else takes it, so a key meant for something else entirely (scrolling, typing elsewhere) could nudge a stale selection with nothing on screen to notice by. Nudging now only happens while the pointer is actually over the map.
+
+---
+
 ## 0.38.28 — The door circle's Done moves to the usual Save bar, and its errors say why (2026-09-09)
 
 ### Committing a door/window circle now uses the same Save bar as everything else

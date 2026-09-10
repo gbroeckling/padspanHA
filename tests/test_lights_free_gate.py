@@ -1340,3 +1340,43 @@ console.log(JSON.stringify({
     assert out["configuredFor"] == "binary_sensor.back_door", "the button must call host.onConfigureDoor with the row's light"
     assert out["selectedFor"] is None, "a door's code column must never arm point-placement"
     assert out["lampHasPlace"] is True, "an ordinary light must keep its Place button unaffected"
+
+
+def test_a_lock_row_keeps_its_place_button_and_also_offers_link_wall(tmp_path):
+    """Garry, 2026-09-09: "look into what locks would look like in mapping,
+    lights... some of the same visibility as other devices if placed" plus
+    "use the same logic as the open door to build a break in the wall that
+    has the lock... use the basic infrastructure for the open door build" —
+    a lock is NOT routed into the door-only branch: it keeps its ordinary
+    point-marker Place button (unlike a door/window sensor, it has a real
+    physical spot) AND additionally offers to link the same entity to a
+    wall section, side by side in the same cell."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const AREA = {"lock.front_door": "Entry", "light.lamp": "Kitchen"};
+const STATES = {
+  "lock.front_door": {state: "locked", attributes: {friendly_name: "Front Door Lock"}},
+  "light.lamp": {state: "on", attributes: {friendly_name: "Lamp"}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {}, {}, {});
+
+let configuredFor = null, placedFor = null;
+const host = { el, hiddenEids: new Set(), lightsLoading: false, model: {},
+  doorLinkedIds: new Set(),
+  onConfigureDoor: (l) => { configuredFor = l.entity_id; },
+  onPlaceRow: (eid) => { placedFor = eid; }, placeQueue: new Set() };
+const root = LM.buildLightsTable(host, lights);
+
+const lockRow = root.querySelector('tr[data-eid="lock.front_door"]');
+const cellBtns = [...lockRow.querySelectorAll("td")[7].querySelectorAll("button")];
+const btnsText = cellBtns.map(b => b.textContent.trim());
+const placeBtn = cellBtns.find(b => /^Place$/.test(b.textContent.trim()));
+const linkBtn = cellBtns.find(b => /Link wall/.test(b.textContent));
+placeBtn.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
+linkBtn.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
+
+console.log(JSON.stringify({ btns: btnsText, configuredFor, placedFor }));
+""")
+    assert any(b == "Place" for b in out["btns"]), out["btns"]
+    assert any("Link wall" in b for b in out["btns"]), out["btns"]
+    assert out["placedFor"] == "lock.front_door", "the ordinary Place button must still arm the point-placement queue"
+    assert out["configuredFor"] == "lock.front_door", "Link wall must call host.onConfigureDoor with the lock"

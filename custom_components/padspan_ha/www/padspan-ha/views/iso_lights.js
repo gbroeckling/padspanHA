@@ -1714,6 +1714,15 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   const DOOR_CIRCLE_M = opts.doorCircleM && Number.isFinite(Number(opts.doorCircleM.x_m))
     && Number.isFinite(Number(opts.doorCircleM.y_m)) && Number.isFinite(Number(opts.doorCircleM.r_m))
     ? opts.doorCircleM : null;
+  // Working, proven beacons — read-only (Garry, 2026-09-09: "add working
+  // proven beacons to the mapping, lights section under devices. For now
+  // have them look the same as they do in overview... No placement for
+  // them of course"). Each is {key, label, x_m, y_m, floor_id} — the
+  // caller (maps.js) is the one that decides "working, proven" (identified
+  // or user-labelled, with a real server position); this only draws
+  // whatever it's handed, on its own floor, with no click handler at all —
+  // never a device to place, size, rotate or link.
+  const BEACONS = Array.isArray(opts.beacons) ? opts.beacons : null;
   // "Now", injectable so a test can pin elapsed time instead of racing the
   // clock — every other opt here follows the same pattern.
   const NOW_MS=Number(opts.nowMs)||Date.now();
@@ -1735,7 +1744,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // docs/IDEA_DOOR_WINDOW_BARRIERS.md) — so even a legacy light_positions_m
   // entry for one is never drawn as a freestanding marker here. The barrier
   // pass below, keyed off rf_barriers_m's own linked_entity_id, is the only
-  // thing that ever marks where a door/window actually is on this map.
+  // thing that ever marks where a door/window actually is on this map. A
+  // lock keeps its ordinary point marker (Garry, 2026-09-09: "some of the
+  // same visibility as other devices if placed") — wall-linking one is
+  // additive, drawn alongside it by the barrier pass below, not instead of it.
   const lights = rawLights.filter(l => !(lightsByEid[l.eid] && lightsByEid[l.eid].isDoor));
   // Markers are sized from the fabric's own scale, not a fixed pixel count.
   const HEX_R = markerRadiusPx(frame.scale);
@@ -2666,9 +2678,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // The invisible tap disc under a marker (sidebar only). Drawn in its own
     // pass BEFORE every marker on the floor, so a glyph is always above a
     // neighbour's halo and a tap on what you can see goes where it looks.
-    const haloSvg=(l,hx,hy)=>dimmed(l) ? "" :
+    const haloSvg=(l,hx,hy,maxR)=>dimmed(l) ? "" :
       `<circle class="lhalo" data-eid="${escSVG(l.entity_id)}" data-class="${lightClassOf(l)}" `+
-      `cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${HALO_R.toFixed(1)}" fill="transparent" stroke="none" `+
+      `cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${Math.max(HEX_R,Math.min(HALO_R,maxR)).toFixed(1)}" fill="transparent" stroke="none" `+
       `pointer-events="all" style="cursor:pointer"/>`;
     // Use-mode stand-in for a room's pile of unplaced devices: one chip that
     // says how many, lit if any is on, carrying every entity id so the host
@@ -3530,7 +3542,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // real position was already drawn at it. A door/window never joins
         // this pile: dragging one out of a room-centre cluster to "place" it
         // is exactly the meaningless interaction this class was pulled out
-        // of (see the `lights` filter above and the barrier pass below).
+        // of (see the `lights` filter above and the barrier pass below). A
+        // lock still can — it keeps its ordinary point placement.
         const roomLights=(byRoom[r.room]||[]).filter(l=>!hiddenEids.has(l.entity_id) && !placed[l.entity_id] && !l.isDoor);
         if(!roomLights.length) return;
         // A perimeter light traces its ROOM, which is already known here —
@@ -3579,11 +3592,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         });
       });
     }
-    // ── Door/window barriers: the one wall this map ever draws, and only a
-    // LINKED opening — an ordinary rf_barriers_m wall stays Rooms-tab-only;
-    // this is narrowly the open/closed indicator the whole feature is for
-    // (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 5; Garry, 2026-09-08: "I want
-    // the lighting map to clearly show when a door or window is left open").
+    // ── Door/window/lock barriers: the one wall this map ever draws, and
+    // only a LINKED section — an ordinary rf_barriers_m wall stays
+    // Rooms-tab-only; this is narrowly the open/closed (or locked/unlocked)
+    // indicator the whole feature is for (docs/IDEA_DOOR_WINDOW_BARRIERS.md,
+    // step 5; Garry, 2026-09-08: "I want the lighting map to clearly show
+    // when a door or window is left open"; 2026-09-09, extended to locks:
+    // "use the same logic as the open door to build a break in the wall
+    // that has the lock").
     {
       const barDim = CLASSF && CLASSF!=="door" ? 0.22 : 1;
       // Which wall (if any) the in-progress circle currently straddles —
@@ -3621,13 +3637,26 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const bpts=(bar.points_m||[]).map(p=>[Number(p[0]), Number(p[1])]);
         if(bpts.length<2 || bpts.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1]))) continue;
         const dl=lightsByEid[bar.linked_entity_id];
-        const isOpen=!!(dl && dl.state==="on");
         const ppx=bpts.map(p=>pt(iso(p[0],p[1],z))).join(" ");
-        s+=isOpen
-          ? `<polyline points="${ppx}" fill="none" stroke="${DOOR_BORDER}" stroke-width="2" `+
-            `stroke-dasharray="3,5" stroke-linecap="round" opacity="${(0.55*barDim).toFixed(2)}" pointer-events="none"/>`
-          : `<polyline points="${ppx}" fill="none" stroke="#94a3b8" stroke-width="2.6" `+
-            `stroke-linecap="round" opacity="${(0.85*barDim).toFixed(2)}" pointer-events="none"/>`;
+        if(dl && dl.isLock){
+          // A lock reports its OWN state, not the opening's — the section
+          // stays drawn either way (a lock does not make the wall vanish
+          // the way an open door does); unlocked is the alert, so it
+          // flashes red instead of looking like just another closed door.
+          const locked=dl.state==="locked";
+          s+=locked
+            ? `<polyline points="${ppx}" fill="none" stroke="#94a3b8" stroke-width="2.6" `+
+              `stroke-linecap="round" opacity="${(0.85*barDim).toFixed(2)}" pointer-events="none"/>`
+            : `<polyline points="${ppx}" fill="none" class="lv-lockflash" stroke-width="3" `+
+              `stroke-linecap="round" opacity="${barDim.toFixed(2)}" pointer-events="none"/>`;
+        } else {
+          const isOpen=!!(dl && dl.state==="on");
+          s+=isOpen
+            ? `<polyline points="${ppx}" fill="none" stroke="${DOOR_BORDER}" stroke-width="2" `+
+              `stroke-dasharray="3,5" stroke-linecap="round" opacity="${(0.55*barDim).toFixed(2)}" pointer-events="none"/>`
+            : `<polyline points="${ppx}" fill="none" stroke="#94a3b8" stroke-width="2.6" `+
+              `stroke-linecap="round" opacity="${(0.85*barDim).toFixed(2)}" pointer-events="none"/>`;
+        }
         // The two points where this opening meets the rest of the wall it
         // was split from — Garry, 2026-09-08: "a small purple dot showing on
         // the two sides where the opening starts and ends", in BOTH states
@@ -3675,6 +3704,31 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           `<circle data-role="doorcircle-resize" cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="7" `+
           `fill="#22d3ee" stroke="#083344" stroke-width="1.5" style="cursor:ew-resize"/>`+
           `</g>`;
+      }
+    }
+    // ── Beacons: read-only, no click handler, never a device to place —
+    // Garry, 2026-09-09: "add working proven beacons to the mapping, lights
+    // section under devices. For now have them look the same as they do in
+    // overview... No placement for them of course." Overview's own beacon
+    // system (away/present states, trails, outside-tethering, persistent
+    // pins) is a substantial, live-updating subsystem in its own right —
+    // this basic pass draws the one thing that actually carries over
+    // cleanly: a dot at the same teal Overview uses for a proven beacon,
+    // with its name beside it.
+    if(BEACONS) for(const b of BEACONS){
+      // typeof, not Number(...): Number(null) is 0, a real coordinate — a
+      // beacon with no server position at all would silently draw at world
+      // (0,0) instead of being skipped. Found by its own test.
+      if(typeof b.x_m!=="number" || !Number.isFinite(b.x_m) || typeof b.y_m!=="number" || !Number.isFinite(b.y_m)) continue;
+      if(frame.levelOf(String(b.floor_id||"main"))!==z) continue;
+      const [bx,by]=iso(b.x_m, b.y_m, z);
+      s+=`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="4.5" fill="#5eead4" `+
+        `stroke="#0a1a12" stroke-width="1.2" opacity="0.9" pointer-events="none"/>`;
+      if(b.label){
+        s+=`<text x="${bx.toFixed(1)}" y="${(by-9).toFixed(1)}" text-anchor="middle" `+
+          `font-family="system-ui,sans-serif" font-size="9" font-weight="600" fill="#5eead4" `+
+          `paint-order="stroke" stroke="#0a1a12" stroke-width="2.2" stroke-linejoin="round" `+
+          `opacity="0.9" pointer-events="none">${escSVG(String(b.label).slice(0,20))}</text>`;
       }
     }
     // ── Automorph auras: the whole floor's, in two tiers, under the labels.
@@ -3921,7 +3975,30 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     }
     // Halos go under EVERY marker on the floor (see haloSvg); then the
     // markers; then the use-mode stack chips, which stand in for markers.
-    if(HALO) for(const [l2,hx,hy] of jobs) s+=haloSvg(l2,hx,hy);
+    // A halo enlarges the tap target well past the glyph itself — good for
+    // one isolated marker, but two markers placed closer together than
+    // 2×HALO_R apart get OVERLAPPING invisible discs, so a tap that looks
+    // like it lands on marker B's own visible shape can still fall inside
+    // marker A's halo and fire A instead. Garry, 2026-09-09: "some of the
+    // clickable lights also activate the light next to them when the shape
+    // implies that should not happen." Each halo is capped at half the
+    // screen distance to its nearest neighbour on this floor — never below
+    // HEX_R, so a marker's own visible shape is always at least as tappable
+    // as it looks, whatever a crowded neighbourhood does to the halo around it.
+    if(HALO) for(let i=0;i<jobs.length;i++){
+      const [l2,hx,hy]=jobs[i];
+      let nearest=Infinity;
+      for(let k=0;k<jobs.length;k++){
+        if(k===i) continue;
+        // A dimmed neighbour (an active class filter hiding it) draws no
+        // halo of its own — nothing there to overlap with, so it must not
+        // shrink a VISIBLE marker's tap target just for sitting nearby.
+        if(dimmed(jobs[k][0])) continue;
+        const d=Math.hypot(jobs[k][1]-hx, jobs[k][2]-hy);
+        if(d<nearest) nearest=d;
+      }
+      s+=haloSvg(l2,hx,hy,nearest/2);
+    }
     // Explicit arguments, not a blind spread: the tuple's positions 5/6
     // are clip/fx (consumed by the glow/shade passes above, not by
     // markerSvg), and position 7 is the aura-painted flag — a spread would

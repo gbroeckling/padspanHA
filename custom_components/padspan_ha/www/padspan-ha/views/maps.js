@@ -7279,9 +7279,26 @@ function _wireLightsBuild(ctx, isoDiv, o) {
   // undo and redo. The stage takes focus on a click so the keys reach it.
   isoDiv.setAttribute("tabindex", "0");
   isoDiv.style.outline = "none";
+  if (mapState._stageHovering === undefined) mapState._stageHovering = false;
   if (!isoDiv._keysWired) {
     isoDiv._keysWired = true;
     isoDiv.addEventListener("pointerdown", () => { try { isoDiv.focus({ preventScroll: true }); } catch (_) {} });
+    // Tracked on mapState, not isoDiv — isoDiv itself is recreated by every
+    // full ctx.actions.renderRooms() (selecting a light is exactly such a
+    // render), so a flag living on the DOM node would reset to "not
+    // hovering" on the very next render even while the pointer never
+    // actually left the stage, making "click a light, then immediately
+    // press an arrow key" — the ordinary case — silently do nothing (found
+    // in review). mapState survives across renders, so once a real
+    // pointerenter has fired it stays true through any number of rebuilds
+    // until an actual pointerleave. Not isoDiv.matches(":hover") either —
+    // a real hover pseudo-class needs a CSS engine the node test harness's
+    // dom_shim doesn't have, and pointerenter/leave is exactly what :hover
+    // resolves to anyway for a mouse/trackpad (the only input that sends
+    // real arrow-key events at all — a touch device with no physical
+    // keyboard never fires this handler in the first place).
+    isoDiv.addEventListener("pointerenter", (ev) => { if (ev.pointerType !== "touch") mapState._stageHovering = true; });
+    isoDiv.addEventListener("pointerleave", () => { mapState._stageHovering = false; });
     isoDiv.addEventListener("keydown", (ev) => {
       const ms = o.mapState;
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); if (ev.shiftKey) _lightsRedo(ctx, ms); else _lightsUndo(ctx, ms); return; }
@@ -7290,6 +7307,17 @@ function _wireLightsBuild(ctx, isoDiv, o) {
       const step = ev.shiftKey ? 0.10 : 0.01;
       const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
       if (!d) return;
+      // The stage keeps DOM focus for as long as nothing else takes it —
+      // clicking non-interactive page content (reading something, say)
+      // doesn't move focus away, so a selection made minutes earlier could
+      // still silently absorb an arrow key pressed for an unrelated reason
+      // (scrolling by habit, navigating elsewhere) and nudge it a step.
+      // Requiring the pointer to actually be over the stage right now — the
+      // same gate map/canvas tools everywhere use for keyboard shortcuts —
+      // closes that off without a timer or any other state to get stale.
+      // Found live, 2026-09-09: "some of the motion sensors on the lights
+      // tab are beginning to wander from their locations."
+      if (!ms._stageHovering) return;
       ev.preventDefault();
       const targets = ms._selSet && ms._selSet.size ? [...ms._selSet] : (ms._selLight ? [ms._selLight.eid] : []);
       const placed = targets.filter(eid => (ms._lightsDraftM || {})[eid] || ((ctx.state.model || {}).light_positions_m || {})[eid]);
@@ -8070,6 +8098,10 @@ function _lightsTab(ctx, maps, active) {
   // was exactly what made "75 placed · 80 unplaced" mean nothing (Garry,
   // 2026-09-08) — 80 included every door/window sensor in the house, each one
   // permanently "unplaced" because point-placement was never its own concept.
+  // A lock is NOT excluded here — unlike a door/window it keeps its normal
+  // point placement (Garry, 2026-09-09: "some of the same visibility as
+  // other devices if placed"); wall-linking a lock is a SEPARATE, additive
+  // capability (see the Map column below), not a replacement for it.
   const placeableLights = lights.filter(l => !l.isDoor);
   // The builder's checklist: how much of the house is actually placed.
   const nPlaced = placeableLights.filter(l => placements[l.entity_id]).length;
@@ -8304,6 +8336,31 @@ function _lightsTab(ctx, maps, active) {
     ctx.actions.renderRooms();
   };
 
+  // Working, proven beacons — read-only, no placement (Garry, 2026-09-09:
+  // "add working proven beacons to the mapping, lights section under
+  // devices. For now have them look the same as they do in overview...
+  // No placement for them of course"). "Working, proven" mirrors the exact
+  // test Overview's own map already applies to a beacon (o.user_label ||
+  // o.identified) — a name someone gave it, or the positioning engine's own
+  // confidence, not raw unidentified BLE noise. Only ones the server has an
+  // actual position for draw at all; there is no room-centroid guess here
+  // the way Overview falls back to — a basic v1 draws only what it truly
+  // knows, nothing invented.
+  const beacons = (ctx.state.live?.snapshot?.objects?.list || [])
+    .filter(o => (o.kind === "ble" || o.kind === "private_ble" || o.kind === "ibeacon")
+      && !o._stale && !o._ghost
+      && (o.user_label || o.identified)
+      // typeof, not Number(o.x_m): Number(null) is 0, a real coordinate —
+      // this would otherwise admit every position-less object at world (0,0).
+      && typeof o.x_m === "number" && Number.isFinite(o.x_m)
+      && typeof o.y_m === "number" && Number.isFinite(o.y_m))
+    .map(o => ({
+      key: o.key || o.address || o.entity_id || "",
+      label: o.user_label || o.private_ble_name || o.name || "",
+      x_m: o.x_m, y_m: o.y_m,
+      floor_id: o.floor_id || null,
+    }));
+
   const host = {
     el,
     floors,
@@ -8313,6 +8370,7 @@ function _lightsTab(ctx, maps, active) {
     hiddenEids,
     lightsByEid,
     lightsLoading: reg.loading,
+    beacons,
     view,
     // Builder-only — the sidebar (lights_panel.js) never sets Automorph or
     // the Gap/Floor/L-R spacing sliders in the first place, so it has

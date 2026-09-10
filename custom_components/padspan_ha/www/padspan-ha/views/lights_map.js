@@ -1482,6 +1482,9 @@ export function buildLightsMapCard(hostIn){
         // a guess.
         doorCircleArmedEid: host.doorCircleArmedEid || null,
         doorCircleM: host.doorCircleM || null,
+        // Working, proven beacons (Garry, 2026-09-09) — read-only, host
+        // provides the already-filtered list or nothing at all.
+        beacons: host.beacons || null,
         automorph: !!host.automorph,
         automorphRoomPct: view.automorphLivePct !== undefined ? view.automorphLivePct : (host.automorphRoomPct || 0),
         automorphHardness: view.automorphLiveHardness !== undefined ? view.automorphLiveHardness : (host.automorphHardness || 0),
@@ -2196,8 +2199,8 @@ export function buildLightsTable(host, lights){
         // else, in the terms that actually apply to a door (Garry,
         // 2026-09-08: the point-marker "placement" here "is not making any
         // sense"). Linking happens right here on the Lights map — click
-        // Place, then click the map to drop a circle over the opening, drag
-        // it to fit (Garry, 2026-09-09, from scratch: the earlier
+        // Place, then click the map to drop a circle over the wall section,
+        // drag it to fit (Garry, 2026-09-09, from scratch: the earlier
         // wall-then-two-points picker "was never visible" and "impossible to
         // use"). Committing it is the SAME unsaved-changes bar every other
         // draft edit on this map already uses (Garry, 2026-09-09: "the done
@@ -2213,7 +2216,7 @@ export function buildLightsTable(host, lights){
           if (host.doorCircleArmedEid !== l.entity_id) {
             return [el("button", {
               class: "lv-act", style: "margin-right:6px",
-              title: "Click, then click the map to place a circle over the opening",
+              title: "Click, then click the map to place a circle over the wall section",
               onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(l); },
             }, "Place")];
           }
@@ -2224,16 +2227,46 @@ export function buildLightsTable(host, lights){
               : "Click the map to place a circle, then drag it to fit — Esc cancels",
             onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(null); },
           }, "Cancel")];
-        })() : (host.onPlaceRow && !placements[l.entity_id] ? [(() => {
-          // The placement queue (builder): arm this light, then tap the map
-          // where it is. Only offered while it has no position of its own.
-          const q = !!(queued && queued.has(l.entity_id));
-          return el("button", {
-            class: "lv-act" + (q ? " primary" : ""), style: "margin-right:6px",
-            title: q ? "Queued — tap the map to place it" : "Queue it, then tap the map where it is",
-            onclick: (e) => { e.stopPropagation(); host.onPlaceRow(l.entity_id); },
-          }, q ? "Queued" : "Place");
-        })()] : [])),
+        })() : [
+          ...(host.onPlaceRow && !placements[l.entity_id] ? [(() => {
+            // The placement queue (builder): arm this light, then tap the map
+            // where it is. Only offered while it has no position of its own.
+            const q = !!(queued && queued.has(l.entity_id));
+            return el("button", {
+              class: "lv-act" + (q ? " primary" : ""), style: "margin-right:6px",
+              title: q ? "Queued — tap the map to place it" : "Queue it, then tap the map where it is",
+              onclick: (e) => { e.stopPropagation(); host.onPlaceRow(l.entity_id); },
+            }, q ? "Queued" : "Place");
+          })()] : []),
+          // A lock keeps its ordinary point marker above (it still has a
+          // real physical spot, unlike a door/window sensor) — this is
+          // ADDITIONAL: optionally link the SAME lock to the wall section
+          // it's mounted in, so unlocked flashes red there too. Garry,
+          // 2026-09-09: "use the same logic as the open door to build a
+          // break in the wall that has the lock... use the basic
+          // infrastructure for the open door build." Labelled "Link wall",
+          // not "Place" — a lock row can show both buttons at once, and two
+          // buttons both saying "Place" would be meaningless.
+          ...(l.isLock && host.onConfigureDoor ? (() => {
+            if (host.doorLinkedIds && host.doorLinkedIds.has(l.entity_id)) {
+              return [el("span", { class: "lv-hint", title: "Flashes red on the map, on the wall section it's linked to, whenever unlocked" }, "🔗 Linked")];
+            }
+            if (host.doorCircleArmedEid !== l.entity_id) {
+              return [el("button", {
+                class: "lv-act", style: "margin-right:6px",
+                title: "Click, then click the map to place a circle over the wall section it's mounted in",
+                onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(l); },
+              }, "Link wall")];
+            }
+            return [el("button", {
+              class: "lv-act", style: "margin-right:6px",
+              title: host.doorCircleM
+                ? "Discard the circle — Esc does this too"
+                : "Click the map to place a circle, then drag it to fit — Esc cancels",
+              onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(null); },
+            }, "Cancel")];
+          })() : []),
+        ]),
         // Undoes exactly what "touched" means above: a fixture with no size,
         // rotation, colour or forced class of its own has nothing to revert,
         // so the button only appears once there is something to step out of.

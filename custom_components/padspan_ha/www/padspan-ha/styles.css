@@ -1115,6 +1115,16 @@
 .lv-shake{animation:lv-shake .45s ease-in-out;transform-box:fill-box;transform-origin:center}
 @keyframes lv-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}
   60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+
+/* A lock's own wall section (Garry, 2026-09-09: "use the same logic as the
+   open door to build a break in the wall that has the lock. But unlike the
+   open door, the section is not blank, but flashing red") — unlocked is the
+   alert state, so the segment keeps drawing (a lock doesn't open the wall
+   the way a door does) and flashes red instead of reading as just another
+   closed door. Locked is drawn with the SAME grey/solid style closed
+   doors/windows already use, no animation. */
+@keyframes lv-lockflash{0%,100%{stroke:#f87171;opacity:.55}50%{stroke:#dc2626;opacity:1}}
+.lv-lockflash{stroke:#dc2626;animation:lv-lockflash 1s ease-in-out infinite}
 .lv-readout{position:fixed;z-index:10001;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:800;
   font-variant-numeric:tabular-nums;color:#111827;background:linear-gradient(135deg,#f59e0b,#fbbf24);
   box-shadow:0 0 18px rgba(251,191,36,.6);pointer-events:none;font-family:Inter,system-ui,sans-serif}

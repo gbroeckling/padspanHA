@@ -307,6 +307,39 @@ def test_a_linked_open_barrier_fades_the_line_but_keeps_both_dots(tmp_path):
     assert 'stroke="#94a3b8"' not in svg, "open must not also draw the closed neutral line"
 
 
+_LOCK_BARRIER_MODEL = {**_MODEL, "rf_barriers_m": [
+    {"id": "b1", "floor_id": "main", "material": "wood", "attenuation_dbm": 4,
+     "points_m": [[1, 1], [3, 1]], "linked_entity_id": "lock.frontdoor"},
+]}
+_LOCK_BARRIER_LBE = {**_LIGHTS_BY_EID, "lock.frontdoor": {
+    "entity_id": "lock.frontdoor", "state": "locked", "code": "K01",
+    "shape": "lock", "isLock": True}}
+
+
+def test_a_linked_locked_barrier_draws_the_same_neutral_line_as_a_closed_door(tmp_path):
+    """Garry, 2026-09-09: "use the same logic as the open door to build a
+    break in the wall that has the lock" — locked reads exactly like a
+    closed door/window (grey, solid, both purple dots)."""
+    out = _run_js(tmp_path, _barrier_harness(_LOCK_BARRIER_MODEL, _LOCK_BARRIER_LBE))
+    svg = out["svg"]
+    assert 'stroke="#94a3b8"' in svg, "locked reads as the same neutral wall line a closed door does"
+    assert svg.count('fill="#9333ea"') == 2, "the endpoint dots mark the wall section for a lock too"
+    assert "lv-lockflash" not in svg, "locked must not flash"
+
+
+def test_a_linked_unlocked_barrier_flashes_red_instead_of_going_blank(tmp_path):
+    """Garry, 2026-09-09: "use the same logic as the open door to build a
+    break in the wall that has the lock. But unlike the open door, the
+    section is not blank, but flashing red.\""""
+    lbe = {**_LOCK_BARRIER_LBE, "lock.frontdoor": {**_LOCK_BARRIER_LBE["lock.frontdoor"], "state": "unlocked"}}
+    out = _run_js(tmp_path, _barrier_harness(_LOCK_BARRIER_MODEL, lbe))
+    svg = out["svg"]
+    assert "lv-lockflash" in svg, "unlocked must flash, not draw a static line"
+    assert 'stroke="#94a3b8"' not in svg, "unlocked must not also draw the locked neutral line"
+    assert "#fb7185" not in svg, "a lock's alert state is its own thing, not the door-open colour"
+    assert svg.count('fill="#9333ea"') == 2, "the endpoint dots still mark the wall section while unlocked"
+
+
 def test_an_unlinked_barrier_draws_nothing_on_this_map(tmp_path):
     """A door with NO rf_barriers_m match at all — the unlinked path from the
     Lights table (host.doorLinkedIds excludes it) — must render exactly as
@@ -319,6 +352,229 @@ def test_an_unlinked_barrier_draws_nothing_on_this_map(tmp_path):
     ]}
     out = _run_js(tmp_path, _barrier_harness(model, _LIGHTS_BY_EID))
     assert "#9333ea" not in out["svg"], "an unlinked (ordinary) wall draws nothing here — Rooms-tab-only"
+
+
+# ── Hit-halo overlap ─────────────────────────────────────────────────────────
+# The invisible tap disc under every marker (sidebar only, opts.hitHalo) is
+# deliberately bigger than the glyph itself, for a fingertip. Garry,
+# 2026-09-09: "some of the clickable lights also activate the light next to
+# them when the shape implies that should not happen" — two markers placed
+# closer together than the halo's own diameter get OVERLAPPING invisible
+# discs, so a tap that looks like it lands on one marker can still fall
+# inside its close neighbour's halo. Each halo is now capped at half the
+# distance to its nearest neighbour.
+
+_HALO_MODEL = {
+    "room_geometry_m": {"Kitchen": {"type": "poly", "floor_id": "main",
+                         "points_m": [[0, 0], [10, 0], [10, 10], [0, 10]]}},
+    "light_positions_m": {
+        # Two lights 20 cm apart — closer than the default halo's own
+        # diameter, the crowded-neighbourhood case.
+        "light.a": {"x_m": 5.0, "y_m": 5.0, "floor_id": "main"},
+        "light.b": {"x_m": 5.2, "y_m": 5.0, "floor_id": "main"},
+        # One light 5 m from anything else — the isolated case, where the
+        # full enlarged halo is exactly the point (an easy fingertip target).
+        "light.lonely": {"x_m": 0.5, "y_m": 0.5, "floor_id": "main"},
+    },
+}
+_HALO_LBE = {
+    "light.a":      {"entity_id": "light.a",      "state": "on", "code": "A01", "shape": "circle", "isWled": False},
+    "light.b":      {"entity_id": "light.b",      "state": "on", "code": "A02", "shape": "circle", "isWled": False},
+    "light.lonely": {"entity_id": "light.lonely",  "state": "on", "code": "A03", "shape": "circle", "isWled": False},
+}
+
+
+def _halo_radii(svg: str) -> dict:
+    return {m.group(1): float(m.group(2)) for m in
+            re.finditer(r'<circle class="lhalo" data-eid="([^"]+)"[^>]*\br="([\d.]+)"', svg)}
+
+
+def test_close_neighbours_shrink_each_others_halo(tmp_path):
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_HALO_MODEL)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
+        f"const LBE={json.dumps(_HALO_LBE)};\nconst out={{}};\n"
+        "out.svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{hitHalo:true});"
+        "console.log(JSON.stringify(out));"
+    ))
+    radii = _halo_radii(out["svg"])
+    assert set(radii) == {"light.a", "light.b", "light.lonely"}, radii
+    assert radii["light.a"] < radii["light.lonely"], (
+        "a crowded marker's halo must shrink below what an isolated marker gets", radii)
+    assert radii["light.b"] < radii["light.lonely"], radii
+    # Symmetric: two lights equidistant from each other and nothing else
+    # shrink to (about) the same radius.
+    assert abs(radii["light.a"] - radii["light.b"]) < 0.5, radii
+
+
+def test_a_dimmed_neighbour_does_not_shrink_a_visible_markers_halo(tmp_path):
+    """A class-filtered-out neighbour draws no halo of its own (haloSvg
+    returns "" for a dimmed marker) — it must not shrink a VISIBLE marker's
+    tap target just for sitting nearby, since there is no competing halo to
+    actually overlap with. Found in adversarial review of the fix above."""
+    model = {**_HALO_MODEL, "light_positions_m": {
+        # light.b deliberately excluded — its own (real, undimmed) halo
+        # would independently shrink light.a's and defeat the point of
+        # this test. Only a class-filtered-out neighbour is present.
+        "light.a":      _HALO_MODEL["light_positions_m"]["light.a"],
+        "light.lonely": _HALO_MODEL["light_positions_m"]["light.lonely"],
+        # A fan 20 cm from light.a — the same crowded distance light.b sat
+        # at in the base fixture, but this one will be class-filtered away.
+        "fan.close": {"x_m": 5.2, "y_m": 5.0, "floor_id": "main"},
+    }}
+    lbe = {**_HALO_LBE, "fan.close": {"entity_id": "fan.close", "state": "on", "code": "F01", "shape": "circle", "isFan": True}}
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
+        f"const LBE={json.dumps(lbe)};\nconst out={{}};\n"
+        # Isolated baseline: no fan in the model at all, light.a's own halo alone.
+        f"const isolatedModel={json.dumps(_HALO_MODEL)};\n"
+        f"const isolatedLbe={json.dumps(_HALO_LBE)};\n"
+        "out.isolatedSvg=M.buildIsoSVG(isolatedModel,{},new Set(),null,150,0,isolatedLbe,false,FLOORS,{hitHalo:true});\n"
+        # The fan is present but filtered out (classFilter:'light' dims anything not class 'light').
+        "out.filteredSvg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{hitHalo:true, classFilter:'light'});"
+        "console.log(JSON.stringify(out));"
+    ))
+    isolated_radii = _halo_radii(out["isolatedSvg"])
+    filtered_radii = _halo_radii(out["filteredSvg"])
+    assert "fan.close" not in filtered_radii, "a dimmed marker must not draw a halo of its own either"
+    assert abs(filtered_radii["light.a"] - isolated_radii["light.lonely"]) < 0.5, (
+        "light.a's halo, with its only close neighbour dimmed, must be the SAME size "
+        "an isolated marker gets — not shrunk for a neighbour that draws no halo at all",
+        filtered_radii, isolated_radii,
+    )
+
+
+def test_a_halo_never_shrinks_past_the_markers_own_glyph_radius(tmp_path):
+    """Two lights placed absurdly close (1 cm apart) must still each get a
+    real, tappable halo — never smaller than the glyph's own HEX_R, however
+    little room there is between them."""
+    model = {**_HALO_MODEL, "light_positions_m": {
+        **_HALO_MODEL["light_positions_m"],
+        "light.b": {"x_m": 5.01, "y_m": 5.0, "floor_id": "main"},
+    }}
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
+        f"const LBE={json.dumps(_HALO_LBE)};\nconst out={{}};\n"
+        "const f=M.fabricFrame(MODEL,FLOORS,150,0);\n"
+        "out.hexR=M.markerRadiusPx(f.scale);\n"
+        "out.svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{hitHalo:true});"
+        "console.log(JSON.stringify(out));"
+    ))
+    radii = _halo_radii(out["svg"])
+    hex_r = out["hexR"]
+    assert radii["light.a"] >= hex_r - 0.1, (radii, hex_r)
+    assert radii["light.b"] >= hex_r - 0.1, (radii, hex_r)
+
+
+def test_without_hit_halo_nothing_changes(tmp_path):
+    """The builder (opts.hitHalo unset) never drew halos at all — this fix
+    must not change that."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_HALO_MODEL)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
+        f"const LBE={json.dumps(_HALO_LBE)};\nconst out={{}};\n"
+        "out.svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{});"
+        "console.log(JSON.stringify(out));"
+    ))
+    assert "lhalo" not in out["svg"], "no hitHalo opt means no halos at all, unchanged"
+
+
+# ── Beacons ───────────────────────────────────────────────────────────────
+# Garry, 2026-09-09: "add working proven beacons to the mapping, lights
+# section under devices. For now have them look the same as they do in
+# overview... No placement for them of course." maps.js is the one that
+# decides "working, proven" and hands opts.beacons an already-filtered list;
+# buildIsoSVG only draws exactly what it's given, with no click handler.
+
+def test_a_beacon_draws_a_dot_and_its_label_on_its_own_floor(tmp_path):
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_MODEL)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
+        f"const LBE={json.dumps(_LIGHTS_BY_EID)};\nconst out={{}};\n"
+        "const beacons=[{key:'ble:AA', label:'Garry Phone', x_m:3, y_m:2, floor_id:'main'}];\n"
+        "out.svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{beacons});"
+        "console.log(JSON.stringify(out));"
+    ))
+    svg = out["svg"]
+    assert 'fill="#5eead4"' in svg, "a beacon dot must use the same teal Overview marks a proven beacon with"
+    assert "Garry Phone" in svg, "the beacon's own label must be drawn beside its dot"
+
+
+def test_a_beacon_with_no_label_still_draws_its_dot(tmp_path):
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_MODEL)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
+        f"const LBE={json.dumps(_LIGHTS_BY_EID)};\nconst out={{}};\n"
+        "const beacons=[{key:'ble:AA', label:'', x_m:3, y_m:2, floor_id:'main'}];\n"
+        "out.svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{beacons});"
+        "console.log(JSON.stringify(out));"
+    ))
+    assert 'fill="#5eead4"' in out["svg"], out["svg"]
+
+
+def test_a_beacon_with_no_real_position_draws_nothing_invented(tmp_path):
+    """No room-centroid stagger fallback the way Overview has one — a basic
+    v1 draws only what it truly knows."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_MODEL)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
+        f"const LBE={json.dumps(_LIGHTS_BY_EID)};\nconst out={{}};\n"
+        "const beacons=[{key:'ble:AA', label:'Ghost', x_m:null, y_m:null, floor_id:'main'}];\n"
+        "out.svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{beacons});"
+        "console.log(JSON.stringify(out));"
+    ))
+    assert "Ghost" not in out["svg"], "a beacon with no real x_m/y_m must not be invented a position"
+
+
+def test_a_beacon_draws_at_its_own_floors_projection_not_anothers(tmp_path):
+    """Same per-floor gate the door/window/lock barriers already use
+    (frame.levelOf(b.floor_id) !== z, skip) — pinned here the direct way:
+    the dot must land exactly where the beacon's OWN floor projects (x_m,
+    y_m), never where a different floor's projection would put the same
+    metres."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_MODEL)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
+        f"const LBE={json.dumps(_LIGHTS_BY_EID)};\nconst out={{}};\n"
+        "const f=M.fabricFrame(MODEL,FLOORS,150,0);\n"
+        "const [bxUp,byUp]=f.iso(2,2,f.levelOf('up'));\n"
+        "const [bxMain,byMain]=f.iso(2,2,f.levelOf('main'));\n"
+        "const beacons=[{key:'ble:AA', label:'Upstairs Tag', x_m:2, y_m:2, floor_id:'up'}];\n"
+        "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{beacons});\n"
+        "out.atUp=svg.includes(`cx=\"${bxUp.toFixed(1)}\" cy=\"${byUp.toFixed(1)}\" r=\"4.5\" fill=\"#5eead4\"`);\n"
+        "out.atMain=svg.includes(`cx=\"${bxMain.toFixed(1)}\" cy=\"${byMain.toFixed(1)}\" r=\"4.5\" fill=\"#5eead4\"`);\n"
+        "console.log(JSON.stringify(out));"
+    ))
+    assert out["atUp"] is True, "the beacon must draw at its own floor's projected position"
+    assert out["atMain"] is False, "it must not also draw at the position main's projection would put the same metres"
+
+
+def test_beacons_are_never_clickable(tmp_path):
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_MODEL)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
+        f"const LBE={json.dumps(_LIGHTS_BY_EID)};\nconst out={{}};\n"
+        "const beacons=[{key:'ble:AA', label:'Tag', x_m:3, y_m:2, floor_id:'main'}];\n"
+        "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{beacons});\n"
+        "const i=svg.indexOf('Tag');\n"
+        "out.nearby=svg.slice(Math.max(0,i-260), i+40);\n"
+        "console.log(JSON.stringify(out));"
+    ))
+    assert 'pointer-events="none"' in out["nearby"], (
+        "a beacon must never be a click target — no placement, no interaction")
+
+
+def test_without_beacons_opt_nothing_changes(tmp_path):
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(_MODEL)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
+        f"const LBE={json.dumps(_LIGHTS_BY_EID)};\nconst out={{}};\n"
+        "out.svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{});"
+        "console.log(JSON.stringify(out));"
+    ))
+    assert '"#5eead4"' not in out["svg"], "no beacons opt means no beacon dots, unchanged"
 
 
 # ── Marker scale ────────────────────────────────────────────────────────────
