@@ -181,7 +181,12 @@ out.stateAfter = mapState;
     )
 
 
-def test_commit_with_no_matching_wall_toasts_and_does_not_call_ws():
+def test_commit_with_no_matching_wall_names_the_room_outline_confusion():
+    """Garry, 2026-09-09: "the done right now just says move or resize so
+    it crosses the line, but it already is" — a circle drawn over a ROOM's
+    own outline, where main HAS unlinked walls elsewhere but none under the
+    circle, must say so isn't a wall the tool knows about, not just repeat
+    the generic hint as if repositioning would fix it."""
     out = _run("""
 const ctx = makeCtx(MODEL);
 const mapState = { _doorCircleEid: 'binary_sensor.kitchen_door',
@@ -192,6 +197,24 @@ out.toasts = toasts;
 """)
     assert out["calls"] == [], out["calls"]
     assert any(t["isErr"] for t in out["toasts"]), out["toasts"]
+    assert any("room's own outline doesn't count" in t["m"] for t in out["toasts"]), out["toasts"]
+
+
+def test_commit_with_no_walls_drawn_on_the_floor_at_all_says_so():
+    """A floor with ZERO rf_barriers_m entries can never match anything no
+    matter how the circle is dragged — that is a different, more useful
+    thing to tell someone than "move or resize the circle"."""
+    out = _run("""
+const model = { ...MODEL, rf_barriers_m: [] };
+const ctx = makeCtx(model);
+const mapState = { _doorCircleEid: 'binary_sensor.kitchen_door',
+  _doorCircleM: { x_m: 5, y_m: 0, r_m: 1, floorId: 'main' } };
+await M._commitDoorCircle(ctx, mapState);
+out.calls = calls;
+out.toasts = toasts;
+""")
+    assert out["calls"] == [], out["calls"]
+    assert any("No wall is drawn on this floor yet" in t["m"] for t in out["toasts"]), out["toasts"]
 
 
 def test_cancel_clears_both_fields():

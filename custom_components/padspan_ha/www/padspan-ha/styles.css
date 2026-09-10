@@ -962,6 +962,16 @@
 .lv-toolbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px;
   padding:6px 8px;border:1px solid rgba(120,190,155,.14);border-radius:12px;
   background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(0,0,0,.2))}
+/* Mapping → Lights only (Garry, 2026-09-09: "the scroll hides the controls,
+   needs fixing for mapping area, but works better this way in lights and
+   overview") — the SAME card, sidebar-side, stays exactly as it was: this
+   class is opt-in, set by the host only for the builder surface. Pinned to
+   the top of the scrolling map card, with an opaque backdrop matching
+   lv-mapcard's own so the map/table scrolling underneath never shows
+   through — a translucent sticky bar would look broken, not docked. */
+.lv-toolbar-sticky{position:sticky;top:0;z-index:20;
+  background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
+  box-shadow:0 6px 14px -6px rgba(0,0,0,.5)}
 .lv-sep{width:1px;align-self:stretch;margin:2px 3px;
   background:linear-gradient(180deg,transparent,rgba(120,190,155,.3),transparent)}
 .lv-lbl{font-size:9.5px;font-weight:600;white-space:nowrap;text-transform:uppercase;

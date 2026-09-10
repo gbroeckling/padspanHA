@@ -378,8 +378,8 @@ def test_configure_door_arms_the_on_map_circle_tool():
     turned out "impossible to use" and "was never visible": onConfigureDoor
     now arms mapState._doorCircleEid — the first map click drops a circle
     (maps.js's SVG click handler / _doorCircleFloorForClick), dragging it
-    moves/resizes it (_wireDoorCircle), and Done cuts the wall it matches
-    (_commitDoorCircle, bestCircleWall) — see
+    moves/resizes it (_wireDoorCircle), and the unsaved-opening bar (not a
+    button in the row) commits it via bestCircleWall/_commitDoorCircle — see
     tests/test_lights_door_circle.py for the actual behaviour."""
     block = _lights_tab_block()
     idx = block.index("onConfigureDoor:")
@@ -395,12 +395,31 @@ def test_configure_door_arms_the_on_map_circle_tool():
     assert "paid && !preview ?" in snippet, snippet
 
 
-def test_on_door_circle_done_commits_and_is_gated_the_same_way():
+def test_unsaved_opening_bar_is_the_commit_not_a_row_button():
+    """Garry, 2026-09-09: "the done should be the commit normally used at
+    the top, not it's own unique thing" — the same unsaved-changes bar
+    convention the light-placements draft already uses (Save + Discard),
+    gated on a circle actually existing, not a bespoke Done button down in
+    the Lights row."""
     block = _lights_tab_block()
-    idx = block.index("onDoorCircleDone:")
-    snippet = block[idx:idx + 120]
+    idx = block.index("mapState._doorCircleEid && mapState._doorCircleM")
+    snippet = block[idx: idx + 1300]
     assert "_commitDoorCircle(ctx, mapState)" in snippet, snippet
-    assert "paid && !preview ?" in snippet, snippet
+    assert "_cancelDoorCircle(mapState)" in snippet, snippet
+    assert "Unsaved door/window opening" in snippet, snippet
+    assert "onDoorCircleDone" not in block, "the old per-row Done handler must be gone, not just unused"
+
+
+def test_sticky_toolbar_is_set_for_the_builder_but_not_while_previewing():
+    """Garry, 2026-09-09: "the scroll hides the controls, needs fixing for
+    mapping area, but works better this way in lights and overview" —
+    Mapping → Lights is the one surface that needs it; Preview mode
+    deliberately mimics the (non-sticky) sidebar, so it must not set this
+    either. tests/test_lights_build_controls_labels.py checks the resulting
+    DOM class end to end; this pins the actual wiring that decides it."""
+    block = _lights_tab_block()
+    idx = block.index("stickyToolbar:")
+    assert "!preview" in block[idx: idx + 40], block[idx: idx + 40]
 
 
 def test_door_linked_ids_are_read_from_rf_barriers_m():

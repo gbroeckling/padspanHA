@@ -1519,7 +1519,12 @@ export function buildLightsMapCard(hostIn){
   // vocabulary from styles.css (both hosts load that sheet) — the toggles are
   // quiet glass at rest and light up in their own tone when on, so which
   // modes are active reads at a glance.
-  const ctrlRow = el("div", { class: "lv-toolbar" });
+  // Sticky only where the host asks for it (Garry, 2026-09-09: "the scroll
+  // hides the controls, needs fixing for mapping area, but works better
+  // this way in lights and overview") — the builder tab is long enough to
+  // scroll the controls out of reach; the sidebar card (host.stickyToolbar
+  // unset) already stays reachable as it is, so it is left untouched.
+  const ctrlRow = el("div", { class: "lv-toolbar" + (host.stickyToolbar ? " lv-toolbar-sticky" : "") });
   const SEP = () => el("span", { class: "lv-sep" }, "");
 
   // Showcase — first in the row because it changes everything to its right.
@@ -2192,10 +2197,14 @@ export function buildLightsTable(host, lights){
         // 2026-09-08: the point-marker "placement" here "is not making any
         // sense"). Linking happens right here on the Lights map — click
         // Place, then click the map to drop a circle over the opening, drag
-        // it to fit, then Done (Garry, 2026-09-09, from scratch: the earlier
+        // it to fit (Garry, 2026-09-09, from scratch: the earlier
         // wall-then-two-points picker "was never visible" and "impossible to
-        // use"). Rooms → RF Barriers still works too — same fabric, same
-        // fields, either surface.
+        // use"). Committing it is the SAME unsaved-changes bar every other
+        // draft edit on this map already uses (Garry, 2026-09-09: "the done
+        // should be the commit normally used at the top, not it's own unique
+        // thing") — this column only arms/cancels the gesture, it never
+        // itself commits. Rooms → RF Barriers still works too — same
+        // fabric, same fields, either surface.
         ...(l.isDoor ? (() => {
           if (host.doorLinkedIds && host.doorLinkedIds.has(l.entity_id)) {
             return [el("span", { class: "lv-hint", title: "Shows open/closed on the map at the wall section it's linked to" }, "🔗 Linked")];
@@ -2208,21 +2217,13 @@ export function buildLightsTable(host, lights){
               onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(l); },
             }, "Place")];
           }
-          const hasCircle = !!host.doorCircleM;
-          return [
-            ...(hasCircle ? [el("button", {
-              class: "lv-act primary", style: "margin-right:6px",
-              title: "Cut the opening where the circle crosses a wall",
-              onclick: (e) => { e.stopPropagation(); host.onDoorCircleDone && host.onDoorCircleDone(); },
-            }, "Done")] : []),
-            el("button", {
-              class: "lv-act", style: "margin-right:6px",
-              title: hasCircle
-                ? "Discard the circle — Esc does this too"
-                : "Click the map to place a circle, then drag it to fit — Esc cancels",
-              onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(null); },
-            }, "Cancel"),
-          ];
+          return [el("button", {
+            class: "lv-act", style: "margin-right:6px",
+            title: host.doorCircleM
+              ? "Discard the circle — Esc does this too"
+              : "Click the map to place a circle, then drag it to fit — Esc cancels",
+            onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(null); },
+          }, "Cancel")];
         })() : (host.onPlaceRow && !placements[l.entity_id] ? [(() => {
           // The placement queue (builder): arm this light, then tap the map
           // where it is. Only offered while it has no position of its own.

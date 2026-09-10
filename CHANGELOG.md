@@ -4,6 +4,19 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.28 — The door circle's Done moves to the usual Save bar, and its errors say why (2026-09-09)
+
+### Committing a door/window circle now uses the same Save bar as everything else
+- **Moved:** the circle tool's own "Done" button is gone. Once a circle is placed, an amber "Unsaved door/window opening" bar appears at the top of Mapping → Lights, with **💾 Save opening** and **Discard** — the exact same bar every other draft edit on this map already uses, not a one-off button buried in the row (Garry, 2026-09-09: "the done should be the commit normally used at the top, not it's own unique thing"). The row itself now only offers **Place**/**Cancel**.
+
+### The circle tool's error message says what actually went wrong
+- **Fixed:** "Move or resize the circle so it crosses a wall" used to show even when the circle visibly did cross something — a room's own outline, which this tool has never recognized as a wall; only a wall drawn in Rooms → RF Barriers counts. The message now says that directly, and a floor with no walls drawn at all gets its own message telling you to add one first, rather than implying repositioning the circle would help.
+
+### The Mapping → Lights control row no longer scrolls out of reach
+- **Fixed:** scrolling down to reach the light index hid the Showcase/Automorph/Floor/Spacing controls above, with no way back to them but scrolling up — Garry: "the scroll hides the controls, needs fixing for mapping area." The control row now stays pinned to the top of the view while you scroll the map and index beneath it. The Lights sidebar card and Overview, which didn't have this problem, are unchanged.
+
+---
+
 ## 0.38.27 — The door/window tool is now a circle you drag onto the opening (2026-09-09)
 
 ### Linking a door or window is now place-a-circle, not pick-a-wall

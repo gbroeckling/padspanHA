@@ -145,6 +145,23 @@ def test_related_sliders_are_visually_grouped_not_a_flat_run(tmp_path):
     assert automorphGroup != layoutGroup, "Automorph and Floor/Spacing/L-R must be separate groups"
 
 
+def test_sticky_control_row_is_opt_in_per_host(tmp_path):
+    """Garry, 2026-09-09: "the scroll hides the controls, needs fixing for
+    mapping area, but works better this way in lights and overview" — the
+    Mapping builder host sets stickyToolbar; the Lights sidebar
+    (lights_panel.js) never does, so this SAME shared card must default to
+    its old, non-sticky behaviour when the flag is absent."""
+    out = _run(_base_host("") + (
+        "out.stickyByDefault = card.querySelector('.lv-toolbar').classList.contains('lv-toolbar-sticky');\n"
+    ))
+    assert out["stickyByDefault"] is False, "the control row must not be sticky unless the host asks for it"
+
+    out = _run(_base_host("  stickyToolbar: true,\n") + (
+        "out.sticky = card.querySelector('.lv-toolbar').classList.contains('lv-toolbar-sticky');\n"
+    ))
+    assert out["sticky"] is True, "host.stickyToolbar: true must add lv-toolbar-sticky"
+
+
 def test_help_button_renders_when_the_host_provides_one(tmp_path):
     calls = []
     out = _run(_base_host(

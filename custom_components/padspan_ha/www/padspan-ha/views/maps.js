@@ -7057,10 +7057,21 @@ export async function _commitDoorCircle(ctx, mapState) {
   const circle = mapState._doorCircleM;
   if (!eid || !circle) { _cancelDoorCircle(mapState); ctx.actions.renderRooms(); return; }
   const fid = circle.floorId;
-  const barriers = (ctx.state.model?.rf_barriers_m || []).filter(b => String(b.floor_id || "main") === String(fid));
+  const allBarriers = ctx.state.model?.rf_barriers_m || [];
+  const barriers = allBarriers.filter(b => String(b.floor_id || "main") === String(fid));
+  const unlinked = barriers.filter(b => !b.linked_entity_id);
   const match = bestCircleWall(barriers, circle.x_m, circle.y_m, circle.r_m);
   if (!match) {
-    ctx.toast("Move or resize the circle so it crosses a wall.", true);
+    // Two different failures read very differently to the person doing
+    // this — Garry, 2026-09-09: "the done right now just says move or
+    // resize so it crosses the line, but it already is". A circle drawn
+    // over a ROOM's edge, with no rf_barriers_m wall drawn along it, can
+    // never match anything no matter how it's dragged: only Rooms → RF
+    // Barriers wall geometry counts here, not the room outline itself.
+    ctx.toast(unlinked.length
+      ? "Move or resize the circle so it crosses a wall — a room's own outline doesn't count, only a wall drawn in Rooms → RF Barriers does."
+      : "No wall is drawn on this floor yet — add one in Rooms → RF Barriers first, then link it here.",
+      true);
     return;
   }
   const bar = match.bar;
@@ -7219,16 +7230,17 @@ function _wireLightsBuild(ctx, isoDiv, o) {
   // (host.onConfigureDoor). The first click after arming drops a 1m-radius
   // circle right there; once it exists, this handler steps aside — dragging
   // the circle (its body to move, its rim handle to resize — see
-  // _wireDoorCircle below) is how it's adjusted from then on, and the row's
-  // Done/Cancel buttons (host.onDoorCircleDone/onConfigureDoor(null)) finish
-  // the gesture, not another click on the map.
+  // _wireDoorCircle below) is how it's adjusted from then on, and the
+  // unsaved-opening bar at the top of the tab (Save/Discard, same as every
+  // other draft edit here) finishes the gesture, not another click on the
+  // map or a button in the row.
   svg.addEventListener("click", (ev) => {
     if (!mapState._doorCircleEid || mapState._doorCircleM) return;
     if (ev.target && ev.target.closest && ev.target.closest("g.lhex, g.lroom, g.lfloor, .lpick")) return;
     const v = toVB(ev);
     const picked = _doorCircleFloorForClick(ctx, o, frame, v);
     mapState._doorCircleM = { x_m: picked.cx, y_m: picked.cy, r_m: 1, floorId: picked.fid };
-    ctx.toast("Drag the circle to position it, drag its edge to resize, then Done.");
+    ctx.toast("Drag the circle to position it, drag its edge to resize, then Save opening above.");
     ctx.actions.renderRooms();
   });
 
@@ -7418,8 +7430,8 @@ function _wireLightsBuild(ctx, isoDiv, o) {
 // scaling the already-drawn ellipse by k on screen is exactly what scaling
 // the world-space radius by k would have drawn) — the same technique the
 // free-transform handles below use for a light's own size. mapState is only
-// written on release, which is what the next render (the Done button, the
-// live wall-gap preview) reads.
+// written on release, which is what the next render (the Save-opening bar,
+// the live wall-gap preview) reads.
 function _wireDoorCircle(ctx, isoDiv, svg, o, toVB, frame, mapState) {
   const g = isoDiv.querySelector('g[data-role="doorcircle"]');
   if (!g || !mapState._doorCircleM) return;
@@ -8222,6 +8234,30 @@ function _lightsTab(ctx, maps, active) {
     wrap.appendChild(bar);
   }
 
+  // Unsaved door/window opening — the SAME unsaved-changes bar every other
+  // draft edit on this map already uses, not a one-off "Done" button buried
+  // in the row (Garry, 2026-09-09: "the done should be the commit normally
+  // used at the top, not it's own unique thing"). The row only arms the
+  // circle tool and can Cancel it; committing always happens here.
+  if (mapState._doorCircleEid && mapState._doorCircleM) {
+    const doorL = lightsByEid[mapState._doorCircleEid];
+    const doorBar = el("div", { class: "card lv-tablecard", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;border:1px solid rgba(251,191,36,.5);box-shadow:0 0 18px rgba(251,191,36,.08);margin-bottom:12px" }, [
+      el("span", { style: "font-size:12px;color:#fbbf24;font-weight:600" },
+        `Unsaved door/window opening — ${doorL ? `${doorL.code} ${doorL.friendly_name}` : mapState._doorCircleEid}`),
+      el("button", { class: "btn inline primary", onclick: async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true; btn.textContent = "Saving…";
+        await _commitDoorCircle(ctx, mapState);
+        ctx.actions.renderRooms();
+      } }, "💾 Save opening"),
+      el("button", { class: "btn inline", onclick: () => {
+        _cancelDoorCircle(mapState);
+        ctx.actions.renderRooms();
+      } }, "Discard"),
+    ]);
+    wrap.appendChild(doorBar);
+  }
+
   // ── THE shared map card — identical to the Lights sidebar ───────────────
   // Unsaved drags overlay the fabric's light positions; maps are untouched.
   const modelForRender = Object.keys(mapState._lightsDraftM || {}).length
@@ -8285,6 +8321,11 @@ function _lightsTab(ctx, maps, active) {
     // function" — this control row (Showcase/Automorph/Floor/Gap/L-R/Zoom)
     // had none at all, unlike Overview's matching row.
     helpBtn: ctx.helpers.helpBtn,
+    // Sticky control row — builder only, and not while Preview is showing
+    // the sidebar's own (non-sticky) behaviour on the builder's camera.
+    // Garry, 2026-09-09: "the scroll hides the controls, needs fixing for
+    // mapping area, but works better this way in lights and overview."
+    stickyToolbar: !preview,
     // settingsSet re-renders the whole maps view, which detaches the shared
     // card's "Saved ✓" label before it can be read — so confirm with a toast,
     // which outlives the re-render. A failure must not look like a success.
@@ -8334,7 +8375,6 @@ function _lightsTab(ctx, maps, active) {
       if (l) ctx.toast(`Click the map to place a circle over the opening for ${l.friendly_name || l.entity_id}.`);
       ctx.actions.renderRooms();
     } : null,
-    onDoorCircleDone: paid && !preview ? () => { _commitDoorCircle(ctx, mapState); } : null,
     // Map → index: the row of the light just selected on the map scrolls
     // into view, once.
     focusRowEid: mapState._focusRow || null,
