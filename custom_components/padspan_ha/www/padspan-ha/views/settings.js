@@ -2727,7 +2727,7 @@ function _tiersWizardFree(ctx, w, isBright){
   const wrap = el("div",{});
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.6"},
     isBright
-      ? "This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Placing lights on a map and controlling them from here is free, no key, forever."
+      ? "This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Every light shown room-by-room on a map and switched on or off from here is free, no key, forever. Placing each one exactly where it hangs needs a key — see below."
       : "This install is PadSpan HA. Presence tracking, Overview, Follow, Pure Live, Occupancy, Calibration, mapping and everything else here is free, no key, forever."));
   wrap.appendChild(el("div",{style:"padding:10px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px;font-size:12.5px;color:#94a3b8;line-height:1.6"},
     "A key only ever unlocks two things beyond that: Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), and light placement (fixture shapes and sizes, WLED, Showcase, Fit room). The free tier above is not a trial of anything — it stays free whether or not you ever add a key. If you want to see light placement on your own house first, a one-time 3-month PadSpan Bright Pro trial is available below — no card, and nothing is taken away when it ends, editing just returns to the free view."));
