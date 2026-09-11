@@ -1690,7 +1690,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // the others are exploratory, kept behind this dropdown so any of them
   // can be dropped later without touching the geometry underneath.
   const AUTOMORPH_STYLE = ["glow","blueprint","nebula","circuit","contour","facet","sumie",
-    "stainedglass","engrave","constellation","woven","halo","pulse","chevron"].includes(opts.automorphStyle) ? opts.automorphStyle : "glow";
+    "stainedglass","constellation","halo","pulse"].includes(opts.automorphStyle) ? opts.automorphStyle : "glow";
   // Subtlety, 0-100 (Garry, 2026-09-07: "a slider for subtlety, so you can
   // dial from objects looking full, to almost completely lost in
   // background... with shades, thinner lines"). 0 = today's opacity/line-
@@ -3304,64 +3304,6 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
         return {glow: glowMarkup, edge: edgeMarkup};
       }
-      if(AUTOMORPH_STYLE==="engrave"){
-        // A field of fine, evenly-weighted parallel hatch lines — a
-        // banknote/etching-plate shading pass, nothing but linework. Off
-        // draws one direction, spaced wide (a light outline pass); on
-        // crosses a second pass at 90° and both tighten, the classic
-        // engraver's move from outline to shading. Every stroke holds one
-        // constant, quiet ink weight — state and t read entirely through
-        // line density and direction-count, never opacity.
-        let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-        for(const [px,py] of ring){
-          if(px<minX)minX=px; if(px>maxX)maxX=px;
-          if(py<minY)minY=py; if(py>maxY)maxY=py;
-        }
-        const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
-        const diag=Math.hypot(maxX-minX,maxY-minY)/2+4;
-
-        const LINEOP=0.85;
-        function hatchSet(angleDeg,spacing){
-          const rad=angleDeg*Math.PI/180;
-          const ux=Math.cos(rad), uy=Math.sin(rad);
-          const nx=-uy, ny=ux;
-          let out="";
-          for(let off=-diag; off<=diag; off+=spacing){
-            const bx=cx+nx*off, by=cy+ny*off;
-            const x1=(bx-ux*diag).toFixed(1), y1=(by-uy*diag).toFixed(1);
-            const x2=(bx+ux*diag).toFixed(1), y2=(by+uy*diag).toFixed(1);
-            out+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${ink}" stroke-width="${swid(0.8)}" stroke-opacity="${opac(LINEOP)}" pointer-events="none"/>`;
-          }
-          return out;
-        }
-
-        const cap=(2*diag)/24;
-        let hatch;
-        if(on){
-          const spacing=Math.max(8-5*t,cap);
-          hatch=hatchSet(45,spacing)+hatchSet(135,spacing);
-        }else{
-          const spacing=Math.max(13-6*t,cap);
-          hatch=hatchSet(45,spacing);
-        }
-        // Clipped to the ring's OWN outline, which is unique per fixture
-        // (position, size, morph state) — never a registered <clipPath>
-        // def keyed by fixture, the same per-fixture-defs bloat this
-        // file's automorph defs are built to avoid elsewhere (compare
-        // psautomorphduo_on/off — exactly two, by STATE — and
-        // psglossauto_${lidx} — one per FLOOR, never per fixture). An
-        // inline CSS clip-path carries the same per-fixture cost class as
-        // the `d` attribute itself already emitted on every path here —
-        // no def, no id, nothing added to <defs>. Needs the `view-box`
-        // geometry-box explicitly: hatch lines run diag past the ring on
-        // every side (see hatchSet), so the clipped content's own bounding
-        // box is nothing like the ring itself, and clip-path's default
-        // reference box is that bounding box, not the SVG's coordinate
-        // space — without `view-box` the path's own coordinates get
-        // reinterpreted relative to that wrong origin and the visible clip
-        // silhouette lands offset from the ring it was meant to trace.
-        return {glow:"", edge: `<g style="clip-path:path('${d}') view-box" pointer-events="none">${hatch}</g>`};
-      }
       if(AUTOMORPH_STYLE==="constellation"){
         // A sparse star-chart: every ring vertex becomes a tiny star (a
         // soft duotone halo plus a crisp core dot), joined by faint
@@ -3410,59 +3352,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
         return {glow, edge: chords + spokes + cores};
       }
-      if(AUTOMORPH_STYLE==="woven"){
-        // A thin continuous binding line follows the ring like a basket's
-        // rim coil, crossed at regular intervals by short perpendicular
-        // ticks that alternate paint order to fake an over/under
-        // interlace — half painted first (tucked under), half after (on
-        // top, each capped with a tiny gradient-lit knot). On samples
-        // tighter and paints heavier (a defined, close weave); off spaces
-        // out and fades (loose and slack).
-        const ringLen = ring.length;
-        const stateOn = on ? 1 : 0.62;
-        const step = on ? 2 : 3;
-        const wf = 1 + (weightOffPct/7)*0.12;
-        const tickHalf = (4.5 + 3.5*t) * wf;
-        const spineOpac = (0.65 + 0.25*t) * stateOn;
-        const overOpac  = (0.80 + 0.20*t) * stateOn;
-        const underOpac = (0.55 + 0.20*t) * stateOn;
-        const knotOpac  = (0.70 + 0.25*t) * stateOn;
-        const knotR     = (1.1 + 0.6*t) * wf;
-        const spineW = on ? 2.2 : 1.6;
-        const overW  = on ? 2.0 : 1.4;
-        const underW = on ? 1.5 : 1.1;
-        const spineColor = on ? AUTOMORPH_BASE_ON : AUTOMORPH_BASE_OFF;
-
-        let under = "";
-        let over = "";
-        for(let i=0;i<ringLen;i+=step){
-          const [x,y] = ring[i];
-          const [px,py] = ring[(i - 1 + ringLen) % ringLen];
-          const [nx,ny] = ring[(i + 1) % ringLen];
-          let tx = nx - px, ty = ny - py;
-          const len = Math.hypot(tx,ty) || 1;
-          tx /= len; ty /= len;
-          const perpx = -ty, perpy = tx;
-          const x1 = x - perpx*tickHalf, y1 = y - perpy*tickHalf;
-          const x2 = x + perpx*tickHalf, y2 = y + perpy*tickHalf;
-          const isOver = (Math.floor(i/step) % 2) === 0;
-          if(isOver){
-            over += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${ink}" stroke-width="${swid(overW)}" stroke-linecap="round" opacity="${opac(overOpac)}" pointer-events="none"/>`;
-            over += `<circle cx="${x2.toFixed(1)}" cy="${y2.toFixed(1)}" r="${knotR.toFixed(2)}" fill="${duo}" opacity="${opac(knotOpac)}" pointer-events="none"/>`;
-          } else {
-            under += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${ink}" stroke-width="${swid(underW)}" stroke-linecap="round" opacity="${opac(underOpac)}" pointer-events="none"/>`;
-          }
-        }
-
-        const spine = `<path d="${d}" fill="none" stroke="${spineColor}" stroke-width="${swid(spineW)}" opacity="${opac(spineOpac)}" pointer-events="none"/>`;
-
-        return {glow: "", edge: clipWrap(`<g pointer-events="none">${under}${spine}${over}</g>`)};
-      }
-      // Three more styles (Garry, 2026-09-10: the first 8 candidates read as
+      // Halo and Pulse (Garry, 2026-09-10: the first 8 candidates read as
       // "way too subtle" even after the opacity fix above, plus "add some
       // more ideas") — same ring/d/on/t/ink/duo contract as every style
       // above, tuned deliberately BOLDER than the original three so there is
-      // no ambiguity about whether something is drawing.
+      // no ambiguity about whether something is drawing. (A third style from
+      // this batch, Chevron, and two earlier styles, Engrave and Woven, were
+      // all cut on Garry's word, 2026-09-10: "all misses.")
       if(AUTOMORPH_STYLE==="halo"){
         // Maximum-legibility treatment, on purpose: one thick near-opaque
         // ring plus a soft blurred halo behind it. No dash, no wash, no
@@ -3502,36 +3398,6 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
             `opacity="${opac(op)}" pointer-events="none"/>`;
         }
         return {glow: clipWrap(`<g filter="url(#psaurasoft)" pointer-events="none">${dots}</g>`), edge: clipWrap(base)};
-      }
-      if(AUTOMORPH_STYLE==="chevron"){
-        // Hazard-tape chevrons around the ring, tangent-aligned — pointing
-        // outward when on (energized, alert), tucked inward when off (at
-        // rest). Segmented ticks read as a different language than woven's
-        // continuous coil or circuit's traces.
-        const ringLen = ring.length;
-        const step = on ? 3 : 4;
-        const armLen = (5+2*t) * (on?1.15:0.85);
-        const chevOp = on ? (0.65+0.30*t) : (0.35+0.20*t);
-        let marks = "";
-        for(let i=0;i<ringLen;i+=step){
-          const [x,y] = ring[i];
-          const [px,py] = ring[(i-1+ringLen)%ringLen];
-          const [nx,ny] = ring[(i+1)%ringLen];
-          let tx = nx-px, ty = ny-py;
-          const len = Math.hypot(tx,ty) || 1;
-          tx/=len; ty/=len;
-          const nrmx = -ty, nrmy = tx;
-          const dir = on ? 1 : -1;
-          const apex = [x + nrmx*armLen*dir*0.6, y + nrmy*armLen*dir*0.6];
-          const a1 = [x - tx*armLen, y - ty*armLen];
-          const a2 = [x + tx*armLen, y + ty*armLen];
-          marks += `<path d="M${a1[0].toFixed(1)},${a1[1].toFixed(1)} L${apex[0].toFixed(1)},${apex[1].toFixed(1)} `+
-            `L${a2[0].toFixed(1)},${a2[1].toFixed(1)}" fill="none" stroke="${ink}" stroke-width="${swid(on?1.6:1.2)}" `+
-            `stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${opac(chevOp)}" pointer-events="none"/>`;
-        }
-        const spine = `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${swid(on?1.0:0.8)}" `+
-          `stroke-opacity="${opac((on?0.30:0.18)+0.15*t)}" stroke-linejoin="round" pointer-events="none"/>`;
-        return {glow:"", edge: clipWrap(spine+marks)};
       }
       // "glow" (default): a material stack, every layer the SAME path `d`
       // — no second geometry anywhere, so hardness/wobble/cell shape stay
