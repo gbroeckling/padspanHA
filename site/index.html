@@ -176,6 +176,20 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.36</span>
+        <span class="pill stable">Stable</span>
+        <span class="reldate">11 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Fixed:</b> the Lights map and Overview both assumed a linked door/window sensor's <code>state=="on"</code> always means open. At least one real sensor (a HOBEIAN vibration sensor doing duty as "Upper Garage Car Door Contact") reports backwards — <code>state=="on"</code> means closed. Both views' barrier-draw code (two separate copies of the same open/closed logic) now honour a new per-wall <b>Invert</b> toggle, added next to Delete in the Rooms wall-list row. Confirmed live: this specific door now reads correctly.</li>
+          <li><b>Fixed:</b> saving a Showcase preset once 50 already existed silently discarded the just-saved one while still reporting "Saved ✓" — the 50-preset cap kept the oldest 50 instead of the most recent 50. Also fixed: saving a preset immediately after changing a Showcase/Automorph control, before that change's own save finished, could capture the value from *before* the change instead of what was on screen. Neither had a test before today; both do now, alongside 10 more tests for preset validation that also had none.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.35</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">10 September 2026</span>
