@@ -395,6 +395,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 "elevated_blueprint", "material_you", "neon_precision", "luxury_realestate",
                 "wabi_sabi", "hygge", "aurora", "automotive_hud", "art_deco",
                 "swiss_style", "bauhaus", "nightscape", "holographic", "retro_futurism",
+                "obsidian_noir",
             ) else "classic"
         if "light_shapes" in msg:
             # entity_id -> shape kind. Only known kinds are stored; an unknown

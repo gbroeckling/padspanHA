@@ -656,6 +656,42 @@ export const SHOWCASE_THEMES = {
     labelColorOff: "#a79cc0",
     codeChipBg: "#150f26",
     codeChipBgOpacity: 0.7,
+  },
+  obsidian_noir: {
+    // Garry, 2026-09-10: "one of the themes need to be mostly black, that
+    // is missing" — every other theme still keeps a lit room fill or a
+    // tinted vignette as its ground; this one goes almost to true black
+    // everywhere and lets the light pools themselves be the only bright
+    // thing on screen, home-theatre-room style, with one warm brass accent
+    // instead of a clinical white so it still reads as premium rather than
+    // as an OLED test pattern.
+    label: "Obsidian Noir",
+    vignetteStops: [[0,"#1a1a1a",0.7], [55,"#0a0a0a",0.4], [100,"#000000",0]],
+    slabStops: [[0,"#2a2a2a",0.05], [100,"#000000",0.3]],
+    slabSideTop: {fill:"#0f0f0f", fillOpacity:0.55, stroke:"#000000"},
+    slabSideFront: {fill:"#050505", fillOpacity:0.62, stroke:"#000000"},
+    glossStops: [[0,"#ffffff",0.16], [45,"#ffffff",0.04], [100,"#000000",0.32]],
+    washStops: [[0,"#ffffff",0.04], [100,"#ffffff",0]],
+    shadeStops: [[0,"#000000",0.72], [55,"#000000",0.36], [100,"#000000",0]],
+    roomEdgeStroke: "#000000",
+    roomFillOpacity: 0.05,
+    roomStrokeOpacity: 0.55,
+    roomStrokeWidth: 1.1,
+    roomGlowStops: [[0,0.10], [45,0.03], [100,0]],
+    roomLabelOpacity: 0.5,
+    roomLabelLetterSpacing: "0.2em",
+    roomLabelUppercase: true,
+    poolStops: [[0,0.95], [26,0.42], [60,0.13], [100,0]],
+    fixtureOffFill: "#0d0d0d",
+    fixtureOnStrokeFallback: "#e8c78a",
+    fixtureOffStroke: "#2a2a2a",
+    fixtureBloomOpacity: 0.42,
+    fixtureBodyOnOpacity: 0.95,
+    fixtureBodyOffOpacity: 0.42,
+    inkOffColor: "#4a4a4a",
+    labelColorOff: "#5a5a5a",
+    codeChipBg: "#000000",
+    codeChipBgOpacity: 0.85,
   },};
 export const SHOWCASE_THEME_NAMES = Object.keys(SHOWCASE_THEMES);
 
