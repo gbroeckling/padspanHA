@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.36 — A backwards-reporting door sensor now reads correctly, and two real Showcase-preset bugs fixed (2026-09-11)
+
+### A door/window sensor that reports backwards can now be told so
+- **Fixed:** the Lights map and Overview both assumed a linked door/window sensor's `state=="on"` always means open. At least one real sensor (a HOBEIAN vibration sensor doing duty as "Upper Garage Car Door Contact") reports backwards — `state=="on"` means closed. Both views' barrier-draw code (two separate copies of the same open/closed logic) now honour a new per-wall **Invert** toggle, added next to Delete in the Rooms wall-list row. Confirmed live: this specific door now reads correctly.
+
+### Two real bugs found by a structured code review, both fixed
+- **Fixed:** saving a Showcase preset once 50 already existed silently discarded the just-saved one while still reporting "Saved ✓" — the 50-preset cap kept the oldest 50 instead of the most recent 50. Also fixed: saving a preset immediately after changing a Showcase/Automorph control, before that change's own save finished, could capture the value from *before* the change instead of what was on screen. Neither had a test before today; both do now, alongside 10 more tests for preset validation that also had none.
+
+---
+
 ## 0.38.35 — Showcase and Automorph redesign: 21 themes, 9 new aura shapes, and a preset system (2026-09-10)
 
 ### Showcase gets a Theme picker with 21 new palettes
