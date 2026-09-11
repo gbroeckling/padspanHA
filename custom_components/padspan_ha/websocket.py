@@ -163,6 +163,7 @@ from .ws_forensics import (  # noqa: F401  (re-exported: registration, tests, ca
     ws_forensics_license_reveal,
     ws_forensics_query,
     ws_forensics_stats,
+    ws_trial_start,
 )
 from .ws_capture import (  # noqa: F401  (re-exported: registration, tests, callers)
     _capture_store,
@@ -397,6 +398,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_forensics_clear)
     websocket_api.async_register_command(hass, ws_forensics_license_activate)
     websocket_api.async_register_command(hass, ws_forensics_license_reveal)
+    websocket_api.async_register_command(hass, ws_trial_start)
     # RSSI vector capture (opt-in session recorder; replay fixtures)
     websocket_api.async_register_command(hass, ws_capture_start)
     websocket_api.async_register_command(hass, ws_capture_stop)

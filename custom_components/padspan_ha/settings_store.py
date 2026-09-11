@@ -182,6 +182,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # Set only via the padspan_ha/forensics_license_activate command.
     "forensics_license_key": "",
     "forensics_license_expires": "",
+    # True only for a key minted by padspan_ha/trial_start (the one-time 3-month
+    # Bright Pro trial). Display-only — licence.py's tier ladder does not read
+    # it, a trial key gates identically to a purchased one.
+    "license_is_trial": False,
     # ── Enterprise preview features (off by default) ─────────────────────────
     "walk_to_identify_enabled": False,      # spatial correlation device discovery ("who just walked in?")
     "radio_map_enabled": False,             # RSSI heatmap overlay on floor plan maps

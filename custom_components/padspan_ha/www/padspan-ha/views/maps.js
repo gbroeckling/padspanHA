@@ -8179,7 +8179,8 @@ function _lightsTab(ctx, maps, active) {
       el("span", { style: "font-weight:700;color:#fbbf24" }, "Free lighting map. "),
       el("span", { class: "muted" },
         "Placing each light where it really is, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room "
-        + "need PadSpan Bright Pro or PadSpan Pro. Already have a key? Enter it in " + _LIC_PATH + ". "),
+        + "need PadSpan Bright Pro or PadSpan Pro. Already have a key? Enter it in " + _LIC_PATH + ". "
+        + "Want to see it on your own house first? A one-time 3-month free trial (no card) is in " + _LIC_PATH + " too. "),
       el("a", { href: _LIC_BUY_URL, target: "_blank", rel: "noopener", style: "color:#fbbf24;font-weight:700" },
         "Get PadSpan Pro \u2014 " + _LIC_PRICE),
     ]));

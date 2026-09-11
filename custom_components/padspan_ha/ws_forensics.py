@@ -225,6 +225,79 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
         })
 
 
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/trial_start",
+        vol.Required("email"): str,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
+    """Start the one-time 3-month PadSpan Bright Pro trial.
+
+    Mints a real trial key server-side (same validate/activate path a
+    purchase uses, so expiry/grace/the editing-only gate all just work) and
+    stores it immediately — no email round-trip needed on this end. The
+    licence server is the enforcement point for "only once": it is keyed on
+    both this install's `machine` id and the email, because either alone is
+    trivial to reset (reinstall vs. a throwaway address), and it rate-limits
+    by requesting IP on top of that. This command only surfaces whatever the
+    server decides.
+    """
+    email = str(msg.get("email") or "").strip()
+    if "@" not in email:
+        connection.send_error(msg["id"], "invalid_email", "A real email address is required")
+        return
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if not st:
+        connection.send_error(msg["id"], "not_ready", "Settings store not available")
+        return
+    try:
+        import json as _json  # noqa: PLC0415
+        from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
+        try:
+            from homeassistant.helpers.instance_id import async_get as _instance_id  # noqa: PLC0415
+            machine = await _instance_id(hass)
+        except Exception:
+            machine = "padspan-ha"
+        session = async_get_clientsession(hass)
+        async with session.post(
+            "https://traks.ca/license/",
+            params={"action": "trial_start", "product": "padspan"},
+            data={"email": email, "machine": machine},
+            timeout=15,
+        ) as resp:
+            text = await resp.text()
+        data = _json.loads(text.lstrip("﻿"))
+    except Exception as err:
+        connection.send_error(msg["id"], "network",
+            f"Could not reach the licence server ({err}). Check the internet connection and try again.")
+        return
+    if data.get("ok"):
+        from .licence import normalize_tier  # noqa: PLC0415
+        await st.async_set(
+            forensics_license_key=str(data.get("key") or ""),
+            forensics_license_expires=str(data.get("expires_at") or ""),
+            license_tier=normalize_tier(data.get("tier"), default="bright"),
+            license_is_trial=True,
+            forensics_enabled=True,
+        )
+        _invalidate_snapshot_cache(hass)
+        connection.send_result(msg["id"], {
+            "ok": True,
+            "expires_at": data.get("expires_at"),
+            "days_left": data.get("days_left"),
+            "settings": _get_settings(hass),
+        })
+    else:
+        connection.send_result(msg["id"], {
+            "ok": False,
+            "status": data.get("status") or "unavailable",
+            "message": data.get("message") or "Could not start a trial for this install.",
+        })
+
+
 @websocket_api.websocket_command({"type": "padspan_ha/forensics_stats"})
 @websocket_api.async_response
 async def ws_forensics_stats(hass: HomeAssistant, connection, msg) -> None:

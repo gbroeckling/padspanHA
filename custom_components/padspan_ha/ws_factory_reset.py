@@ -111,7 +111,7 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         _live_settings = domain.get(DATA_SETTINGS)
         _keep_licence = {
             k: (_live_settings.data if _live_settings else {}).get(k, "")
-            for k in ("forensics_license_key", "forensics_license_expires")
+            for k in ("forensics_license_key", "forensics_license_expires", "license_is_trial")
         }
         st = _St(hass, 1, SETTINGS_STORE_KEY)
         await st.async_save({**dict(DEFAULT_SETTINGS), **{

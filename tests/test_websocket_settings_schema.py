@@ -29,6 +29,7 @@ def _schema_keys() -> set[str]:
 _BACKEND_ONLY = {
     "forensics_license_key",       # padspan_ha/forensics_license_activate
     "forensics_license_expires",   # ditto — derived at activation
+    "license_is_trial",            # padspan_ha/trial_start — same reason, never user-settable
     "irk_devices",                 # private-BLE resolver bookkeeping
     "room_tag_map",                # tag integration / live snapshot
     "telemetry_install_id",        # minted by telemetry.py; replaced via telemetry_reset_id
