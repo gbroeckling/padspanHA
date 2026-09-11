@@ -176,6 +176,22 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.35</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">10 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Added:</b> Garry called Showcase "a big disappointment," specifically flagging the mint-green light pools as too bright, and asked for a redesign "using the latest in UI design." Twenty distinct high-end visual directions were mocked up and reviewed live, then all twenty were built as real, selectable themes rather than picking a single favourite. A new <b>Theme</b> dropdown sits next to the Showcase toggle in Mapping → Lights: Cinematic Glass, Neo HUD, Editorial Minimalist, Ambient Premium, Dataviz Precision, Organic Bioluminescent, Elevated Blueprint, Material You, Neon Precision, Luxury Real Estate, Wabi-Sabi, Hygge, Aurora, Automotive HUD, Art Deco, Swiss Style, Bauhaus, Nightscape, Holographic and Retro-Futurism, alongside the original <b>Classic</b> look (unchanged, and still the default). A 21st theme, <b>Obsidian Noir</b>, was added afterward — Garry: "one of the themes need to be mostly black, that is missing" — near-black everywhere with a warm brass accent so the light pools themselves stay the only bright thing on screen. Every theme repaints the same fixtures, rooms and floor stack — nothing about what Showcase draws changes, only the palette it draws with. Verified against a room with 5 lights as well as single-light rooms, so overlapping light pools were checked in every theme, not just isolated fixtures.</li>
+          <li><b>Added:</b> every one of Automorph's original 11 styles painted the exact same silhouette (a fixture's own room-morphed outline) in a different colour or line treatment. Garry: "need more options that generate differing shapes... really dig for top notch options." Nine new styles instead modify the real boundary or fill geometry: <b>Spike Crown</b> (a jagged star/gear outline), <b>Scalloped Wave</b> (a smooth wavy shell edge), <b>Bloom</b> (rounded flower petals), <b>Geode Cluster</b> (a multi-core fractured-crystal fan), <b>Honeycomb</b> (a hex-tessellated interior), <b>Orbit Rings</b> (concentric tilted ellipses with orbiting satellite dots), <b>Puzzle Piece</b> (an interlocking jigsaw-tab boundary), <b>Block Extrude</b> (a raised 3D plinth with lit top and shaded side walls) and <b>Shatter</b> (a cracked-glass fracture web). Two more candidates (a pleated-paper fold and a fine sunburst) were built and cut for reading too similarly to Spike Crown's jaggedness once several fixtures shared a room, matching this session's established "build extra, keep the best" process.</li>
+          <li><b>Fixed:</b> a real bug found while building these — an internal style-name whitelist inside <code>iso_lights.js</code> was a bare literal array duplicated separately from the Style dropdown's own list and the backend's validator, so a style added to the dropdown silently rendered as "Glow" if that one array wasn't also updated; caught by comparing rendered shapes against what was expected. All three now derive from one exported registry (<code>AUTOMORPH_STYLE_LABELS</code>), so a future style only needs adding in one JS place plus the backend's own Python whitelist.</li>
+          <li><b>Added:</b> Garry: "we now have thousands of combinations in the mapping, lights setup, we need to build a preset system... clearly separate from all other settings on that tab." Mapping → Lights now has a <b>Presets</b> picker — its own violet-tinted box below the main toolbar — to name and save the current Theme + Automorph (enabled/room%/hardness/style/subtlety) + Fit room/Isolux/Beacons/Codes combination, then recall or delete it later. Applying a preset is one settings write covering everything it captured.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.34</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">10 September 2026</span>
