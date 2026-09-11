@@ -8813,19 +8813,26 @@ function _lightsTab(ctx, maps, active) {
       ctx.actions.renderRooms();
     },
     onSavePreset: async (name) => {
+      // Read the SAME mapState override every sibling handler above treats
+      // as the true current value (falling back to ctx.state.settings only
+      // when no override is set yet) — never ctx.state.settings alone. That
+      // only updates after its own settingsSet round-trip resolves, so
+      // reading it directly could capture a stale pre-change value if Save
+      // is clicked right after changing a control, before that trip lands
+      // (found in review).
       const values = {
-        lights_showcase: !!ctx.state.settings?.lights_showcase,
-        lights_showcase_theme: ctx.state.settings?.lights_showcase_theme || "classic",
-        lights_fit_rooms: !!ctx.state.settings?.lights_fit_rooms,
-        lights_isolux: !!ctx.state.settings?.lights_isolux,
-        lights_show_beacons: !!ctx.state.settings?.lights_show_beacons,
-        lights_hide_device_codes: !!ctx.state.settings?.lights_hide_device_codes,
-        lights_hide_untouched: !!ctx.state.settings?.lights_hide_untouched,
-        lights_automorph_enabled: !!ctx.state.settings?.lights_automorph_enabled,
-        lights_automorph_room_pct: Number(ctx.state.settings?.lights_automorph_room_pct) || 0,
-        lights_automorph_hardness: Number(ctx.state.settings?.lights_automorph_hardness) || 0,
-        lights_automorph_style: ctx.state.settings?.lights_automorph_style || "glow",
-        lights_automorph_subtlety: Number(ctx.state.settings?.lights_automorph_subtlety) || 0,
+        lights_showcase: !!(mapState._lightsShowcase === undefined ? ctx.state.settings?.lights_showcase : mapState._lightsShowcase),
+        lights_showcase_theme: (mapState._lightsShowcaseTheme === undefined ? ctx.state.settings?.lights_showcase_theme : mapState._lightsShowcaseTheme) || "classic",
+        lights_fit_rooms: !!(mapState._lightsFitRooms === undefined ? ctx.state.settings?.lights_fit_rooms : mapState._lightsFitRooms),
+        lights_isolux: !!(mapState._lightsIsolux === undefined ? ctx.state.settings?.lights_isolux : mapState._lightsIsolux),
+        lights_show_beacons: !!(mapState._lightsShowBeacons === undefined ? ctx.state.settings?.lights_show_beacons : mapState._lightsShowBeacons),
+        lights_hide_device_codes: !!(mapState._lightsHideDeviceCodes === undefined ? ctx.state.settings?.lights_hide_device_codes : mapState._lightsHideDeviceCodes),
+        lights_hide_untouched: !!(mapState._lightsHideUntouched === undefined ? ctx.state.settings?.lights_hide_untouched : mapState._lightsHideUntouched),
+        lights_automorph_enabled: !!(mapState._lightsAutomorph === undefined ? ctx.state.settings?.lights_automorph_enabled : mapState._lightsAutomorph),
+        lights_automorph_room_pct: Number(mapState._lightsAutomorphPct === undefined ? ctx.state.settings?.lights_automorph_room_pct : mapState._lightsAutomorphPct) || 0,
+        lights_automorph_hardness: Number(mapState._lightsAutomorphHardness === undefined ? ctx.state.settings?.lights_automorph_hardness : mapState._lightsAutomorphHardness) || 0,
+        lights_automorph_style: (mapState._lightsAutomorphStyle === undefined ? ctx.state.settings?.lights_automorph_style : mapState._lightsAutomorphStyle) || "glow",
+        lights_automorph_subtlety: Number(mapState._lightsAutomorphSubtlety === undefined ? ctx.state.settings?.lights_automorph_subtlety : mapState._lightsAutomorphSubtlety) || 0,
       };
       const rest = (ctx.state.settings?.lights_showcase_presets || []).filter((p) => p.name !== name);
       try {
