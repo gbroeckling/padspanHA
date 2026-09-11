@@ -97,6 +97,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "lights_automorph_hardness": 0,     # -100..100, centered: negative sharpens/spikes the aura's edges, positive smooths them into a closed spline; 0 = today's straight edge
     "lights_automorph_style": "glow",   # "glow" | "blueprint" | "nebula" | "circuit" | "contour" | "facet" | "sumie" | "stainedglass" | "constellation" | "halo" | "pulse" — which visual treatment paints the same morphed shape
     "lights_automorph_subtlety": 0,     # 0-100: 0 = full opacity/line-weight (today's look), 100 = thinned lines + faded near-invisible
+    "lights_showcase_theme": "classic",  # which palette Showcase paints with — "classic" reproduces today's look byte-for-byte; see SHOWCASE_THEMES in iso_lights.js for the full list
     "overview_show_walls": False,   # Overview: draw RF barrier walls over the map
     "overview_show_outdoor": False, # Overview: draw outdoor areas (sheds, driveways) as an overlay
     "overview_show_trails": False,  # Overview/Pure Live: fading movement trail behind each tracked object

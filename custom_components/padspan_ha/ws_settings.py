@@ -85,6 +85,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lights_automorph_hardness"): vol.Coerce(int),
         vol.Optional("lights_automorph_style"): str,
         vol.Optional("lights_automorph_subtlety"): vol.Coerce(int),
+        vol.Optional("lights_showcase_theme"): str,
         vol.Optional("adaptive_learning_enabled"): bool,
         vol.Optional("adaptive_floor_detection"): bool,
         vol.Optional("signal_loss_linger_s"): vol.Coerce(int),
@@ -386,6 +387,15 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             ) else "glow"
         if "lights_automorph_subtlety" in msg:
             payload["lights_automorph_subtlety"] = max(0, min(100, int(msg["lights_automorph_subtlety"])))
+        if "lights_showcase_theme" in msg:
+            _sctheme = str(msg["lights_showcase_theme"] or "").strip().lower()
+            payload["lights_showcase_theme"] = _sctheme if _sctheme in (
+                "classic", "cinematic_glass", "neo_hud", "editorial_minimalist",
+                "ambient_premium", "dataviz_precision", "organic_bioluminescent",
+                "elevated_blueprint", "material_you", "neon_precision", "luxury_realestate",
+                "wabi_sabi", "hygge", "aurora", "automotive_hud", "art_deco",
+                "swiss_style", "bauhaus", "nightscape", "holographic", "retro_futurism",
+            ) else "classic"
         if "light_shapes" in msg:
             # entity_id -> shape kind. Only known kinds are stored; an unknown
             # value would just fall back to the default marker in the frontend,

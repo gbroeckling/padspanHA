@@ -12,7 +12,7 @@
 // what an interaction does (sidebar: control the light — tab: place it).
 
 const { buildIsoSVG, shapeSvg, fabricFrame, sampleSceneField, pointInPolygon, offsetPolygonInward,
-        lightClassOf } =
+        lightClassOf, SHOWCASE_THEMES } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, TEMP_BORDER, LOCK_BORDER, DOOR_BORDER, healthOf } =
@@ -148,6 +148,10 @@ export const AUTOMORPH_STYLES = [["glow","Glow"],["blueprint","Blueprint"],["neb
   ["circuit","Circuit"],["contour","Contour"],["facet","Facet"],["sumie","Ink Wash"],
   ["stainedglass","Stained Glass"],["constellation","Constellation"],
   ["halo","Halo"],["pulse","Pulse"]];
+// Showcase's theme dropdown vocabulary — derived from SHOWCASE_THEMES itself
+// (iso_lights.js) rather than a hand-copied list, so a theme added there
+// shows up here for free and can never drift out of sync on the name/label.
+export const SHOWCASE_THEME_OPTIONS = Object.entries(SHOWCASE_THEMES).map(([key, t]) => [key, t.label]);
 export { lightClassOf };
 export function classMatches(l, cls){ return !cls || cls === "all" || lightClassOf(l) === cls; }
 
@@ -1479,7 +1483,8 @@ export function buildLightsMapCard(hostIn){
     codesShown = host.codeChip ? codesVisibleAtZoom(view.zoom) : true;
     isoDiv.innerHTML = buildIsoSVG(host.model, host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
       view.floorGap, view.horizGap, host.lightsByEid, host.lightsLoading, floors,
-      { showcase: !!host.showcase, fitRooms: !!host.showcase && !!host.fitRooms,
+      { showcase: !!host.showcase, showcaseTheme: host.showcaseTheme || "classic",
+        fitRooms: !!host.showcase && !!host.fitRooms,
         ambient: host.ambient, isolux: !!host.showcase && !!host.isolux,
         sceneField: host.showcase ? sceneFieldFor(host.sceneName, host.sceneAngle) : null,
         // The use-surface ergonomics — see buildIsoSVG for each. hideCodes
@@ -1556,6 +1561,27 @@ export function buildLightsMapCard(hostIn){
       title: "Presentation rendering — real fixture colour, light pools, contact shadows",
       onclick: () => host.onShowcase(!host.showcase),
     }, host.showcase ? "✦ Showcase ✓" : "✦ Showcase"));
+
+    // Theme — which of 21 distinct palettes Showcase paints with (Garry,
+    // 2026-09-10: "let's build all 20" — one design bake-off, judged live,
+    // turned into a real dropdown the same way Automorph's Style pulldown
+    // already works). "Classic" reproduces today's look exactly; every
+    // other entry is a full re-skin of the same fixtures, rooms and floor
+    // stack — nothing about WHAT draws changes, only the palette it draws
+    // with.
+    if (host.showcase && host.onShowcaseTheme) {
+      const themeSel = document.createElement("select");
+      themeSel.className = "lv-select";
+      themeSel.title = "Showcase's colour palette and material treatment";
+      for (const [kind, label] of SHOWCASE_THEME_OPTIONS) {
+        const o = el("option", { value: kind }, label);
+        if (kind === (host.showcaseTheme || "classic")) o.selected = true;
+        themeSel.appendChild(o);
+      }
+      themeSel.addEventListener("change", () => host.onShowcaseTheme(themeSel.value));
+      ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Theme"));
+      ctrlRow.appendChild(themeSel);
+    }
 
     // Fit to room — only offered while Showcase is on, because it is a
     // constraint on the presentation, not an edit. Stored measurements are

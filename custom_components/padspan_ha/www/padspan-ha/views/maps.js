@@ -8688,6 +8688,18 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not save Showcase: " + String(e), true); }
       ctx.actions.renderRooms();
     },
+    // Which of Showcase's palettes paints the same fixtures/rooms/floor
+    // stack — see SHOWCASE_THEMES in iso_lights.js. Same remembered-setting
+    // pattern as automorphStyle below.
+    showcaseTheme: mapState._lightsShowcaseTheme === undefined
+      ? (ctx.state.settings?.lights_showcase_theme || "classic")
+      : mapState._lightsShowcaseTheme,
+    onShowcaseTheme: async (v) => {
+      mapState._lightsShowcaseTheme = v;
+      try { await ctx.actions.settingsSet({ lights_showcase_theme: v }); }
+      catch (e) { ctx.toast("Could not save the Showcase theme: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
     // Day lifts the ground and mutes the pools; from the sun HA tracks.
     ambient: sunAmbient(ctx.hass),
     isolux: mapState._lightsIsolux === undefined
