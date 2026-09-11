@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.35 — 20 new Showcase themes, replacing the too-bright classic green (2026-09-10)
+
+### Showcase gets a Theme picker with 20 new palettes
+- **Added:** Garry called Showcase "a big disappointment," specifically flagging the mint-green light pools as too bright, and asked for a redesign "using the latest in UI design." Twenty distinct high-end visual directions were mocked up and reviewed live, then all twenty were built as real, selectable themes rather than picking a single favourite. A new **Theme** dropdown sits next to the Showcase toggle in Mapping → Lights: Cinematic Glass, Neo HUD, Editorial Minimalist, Ambient Premium, Dataviz Precision, Organic Bioluminescent, Elevated Blueprint, Material You, Neon Precision, Luxury Real Estate, Wabi-Sabi, Hygge, Aurora, Automotive HUD, Art Deco, Swiss Style, Bauhaus, Nightscape, Holographic and Retro-Futurism, alongside the original **Classic** look (unchanged, and still the default). Every theme repaints the same fixtures, rooms and floor stack — nothing about what Showcase draws changes, only the palette it draws with. Verified against a room with 5 lights as well as single-light rooms, so overlapping light pools were checked in every theme, not just isolated fixtures.
+
+---
+
 ## 0.38.34 — An open door/window now draws nothing at all, not a coloured line (2026-09-10)
 
 ### Open no longer draws a line at the doorway
