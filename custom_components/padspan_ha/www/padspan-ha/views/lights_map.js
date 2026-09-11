@@ -12,7 +12,7 @@
 // what an interaction does (sidebar: control the light — tab: place it).
 
 const { buildIsoSVG, shapeSvg, fabricFrame, sampleSceneField, pointInPolygon, offsetPolygonInward,
-        lightClassOf, SHOWCASE_THEMES } =
+        lightClassOf, SHOWCASE_THEMES, AUTOMORPH_STYLE_LABELS } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         WLED_BORDER, PARTITION_BORDER, FAN_BORDER, MOTION_BORDER, TEMP_BORDER, LOCK_BORDER, DOOR_BORDER, healthOf } =
@@ -142,12 +142,14 @@ export function effectiveState(eid, reported, now = Date.now()){
 // because a fan's place on the ceiling is context for the light beside it.
 export const LIGHT_CLASSES = [["all","All"],["light","Lights"],["strip","Strips"],["fan","Fans"],["motion","Motion"],["temp","Temps"],["lock","Locks"],["door","Doors/Windows"]];
 
-// Automorph's style dropdown vocabulary — the UI's copy of what
-// automorphAuraSvg (iso_lights.js) actually switches on.
-export const AUTOMORPH_STYLES = [["glow","Glow"],["blueprint","Blueprint"],["nebula","Nebula"],
-  ["circuit","Circuit"],["contour","Contour"],["facet","Facet"],["sumie","Ink Wash"],
-  ["stainedglass","Stained Glass"],["constellation","Constellation"],
-  ["halo","Halo"],["pulse","Pulse"]];
+// Automorph's style dropdown vocabulary — derived from AUTOMORPH_STYLE_LABELS
+// itself (iso_lights.js) rather than a hand-copied list. A style added there
+// used to also need updating here AND in the validation array iso_lights.js
+// checked opts.automorphStyle against — miss either and the new style's
+// if-block became unreachable with no error, exactly what happened while
+// building the 9 shape styles below "glow"/"pulse". One registry now feeds
+// both.
+export const AUTOMORPH_STYLES = Object.entries(AUTOMORPH_STYLE_LABELS);
 // Showcase's theme dropdown vocabulary — derived from SHOWCASE_THEMES itself
 // (iso_lights.js) rather than a hand-copied list, so a theme added there
 // shows up here for free and can never drift out of sync on the name/label.

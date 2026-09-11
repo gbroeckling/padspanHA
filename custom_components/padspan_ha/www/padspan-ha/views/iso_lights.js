@@ -695,6 +695,27 @@ export const SHOWCASE_THEMES = {
   },};
 export const SHOWCASE_THEME_NAMES = Object.keys(SHOWCASE_THEMES);
 
+// Automorph's style dropdown vocabulary — single source of truth for both
+// the label a fixture's Style pulldown shows (lights_map.js derives its
+// options straight from this) and the validation AUTOMORPH_STYLE itself
+// runs below. Before this registry existed, an unrecognised style key was
+// checked against a bare literal array duplicated inline at the validation
+// site — adding a style there without ALSO updating lights_map.js's own
+// hand-written dropdown array (or ws_settings.py's backend whitelist) left
+// the new style's if-block in automorphAuraSvg completely unreachable, with
+// AUTOMORPH_STYLE silently falling back to "glow" and no error anywhere:
+// exactly what happened here while building the 9 shape styles below,
+// caught only by comparing rendered output against the expected shapes.
+export const AUTOMORPH_STYLE_LABELS = {
+  glow: "Glow", blueprint: "Blueprint", nebula: "Nebula", circuit: "Circuit",
+  contour: "Contour", facet: "Facet", sumie: "Ink Wash", stainedglass: "Stained Glass",
+  constellation: "Constellation", halo: "Halo", pulse: "Pulse",
+  spikecrown: "Spike Crown", scallop: "Scalloped Wave", bloomflower: "Bloom",
+  geode: "Geode Cluster", honeycomb: "Honeycomb", orbitring: "Orbit Rings",
+  puzzle: "Puzzle Piece", extrude: "Block Extrude", shatter: "Shatter",
+};
+export const AUTOMORPH_STYLE_NAMES = Object.keys(AUTOMORPH_STYLE_LABELS);
+
 // Flat-top hexagon points in SVG px (pointy-top orientation)
 export function hexPts(cx, cy, r){
   const pts=[];
@@ -2349,8 +2370,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // morphed ring (see automorphAuraSvg). "glow" is the shipped default;
   // the others are exploratory, kept behind this dropdown so any of them
   // can be dropped later without touching the geometry underneath.
-  const AUTOMORPH_STYLE = ["glow","blueprint","nebula","circuit","contour","facet","sumie",
-    "stainedglass","constellation","halo","pulse"].includes(opts.automorphStyle) ? opts.automorphStyle : "glow";
+  const AUTOMORPH_STYLE = AUTOMORPH_STYLE_NAMES.includes(opts.automorphStyle) ? opts.automorphStyle : "glow";
   // Subtlety, 0-100 (Garry, 2026-09-07: "a slider for subtlety, so you can
   // dial from objects looking full, to almost completely lost in
   // background... with shades, thinner lines"). 0 = today's opacity/line-
@@ -4039,6 +4059,717 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
             `opacity="${opac(op)}" pointer-events="none"/>`;
         }
         return {glow: clipWrap(`<g filter="url(#psaurasoft)" pointer-events="none">${dots}</g>`), edge: clipWrap(base)};
+      }
+      if(AUTOMORPH_STYLE==="spikecrown"){
+        // Genuine crown/star silhouette: walk ring's own vertices in order
+        // and place each one inside a spikeCount-sized index segment; a
+        // tent wave over that segment (0 at the segment's two edges, 1 at
+        // its middle) pulls the middle vertex sharply OUTWARD along its own
+        // hx,hy radial and pulls the edge vertices slightly INWARD, so the
+        // built path is a real gear/crown outline, not ring redrawn. Off
+        // reshapes the tent with a power <1 (broad, rounded plateau near
+        // the peak = a blunt bump) and a small outward pull; on reshapes it
+        // with a power >1 (narrow, pointed peak = a knife-tip) and a tall
+        // outward pull, plus a bright dot at every tip that off omits
+        // outright — sharpness, height and dot COUNT all carry state,
+        // never hue. Spike count comes from ring.length so every fixture's
+        // crown is stable frame to frame without any randomness.
+        const n = ring.length;
+        if(n < 3) return {glow:"", edge:""};
+        const spikeCount = 7 + (n % 4); // deterministic 7..10 points
+        const segLen = n / spikeCount;
+        const outAmt = on ? (0.42 + 0.30*t) : (0.14 + 0.10*t);
+        const inAmt  = on ? (0.11 + 0.06*t) : (0.05 + 0.03*t);
+        const tentPow = on ? 2.0 : 0.65;
+        const tents = [];
+        const pts = [];
+        for(let i=0;i<n;i++){
+          const seg = i / segLen;
+          const frac = seg - Math.floor(seg);
+          const tent = 1 - Math.abs(2*frac - 1); // 0 at segment edges, 1 at its middle
+          tents.push(tent);
+          const shaped = Math.pow(tent, tentPow);
+          const vx = ring[i][0], vy = ring[i][1];
+          const dx = vx - hx, dy = vy - hy;
+          const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+          const ux = dx / dist, uy = dy / dist;
+          const mult = 1 + outAmt*shaped - inAmt*(1 - shaped);
+          pts.push([hx + ux*dist*mult, hy + uy*dist*mult]);
+        }
+        let crownPath = "";
+        for(let i=0;i<n;i++){
+          crownPath += (i===0?"M":"L") + pts[i][0].toFixed(1) + "," + pts[i][1].toFixed(1) + " ";
+        }
+        crownPath += "Z";
+        // Tip vertices = local maxima of the (unshaped) tent wave, one per spike.
+        const tips = [];
+        for(let i=0;i<n;i++){
+          const prev = tents[(i-1+n)%n], next = tents[(i+1)%n];
+          if(tents[i] >= prev && tents[i] >= next && tents[i] > 0.55) tips.push(i);
+        }
+        const bandOp = opac((on ? 0.26 : 0.16) + 0.10*t);
+        const band = `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${swid(0.8+0.4*t)}" `+
+          `stroke-opacity="${bandOp}" pointer-events="none"/>`;
+        const fillOp = opac((on ? 0.16 : 0.08) + 0.08*t);
+        const fillMarkup = `<path d="${crownPath}" fill="${duo}" fill-opacity="${fillOp}" pointer-events="none"/>`;
+        const crownOp = opac((on ? 0.68 : 0.38) + 0.28*t);
+        const crownW  = swid((on ? 2.0 : 1.4) + 0.9*t);
+        const crownMain = `<path d="${crownPath}" fill="none" stroke="${ink}" stroke-width="${crownW}" `+
+          `stroke-opacity="${crownOp}" stroke-linejoin="miter" pointer-events="none"/>`;
+        let tipDots = "";
+        let glow = "";
+        if(on){
+          const dotR = swid(1.5 + 0.9*t);
+          const dotOp = opac(0.70 + 0.30*t);
+          for(const ti of tips){
+            const [tx, ty] = pts[ti];
+            tipDots += `<circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${dotR}" fill="${ink}" `+
+              `fill-opacity="${dotOp}" pointer-events="none"/>`;
+          }
+          let tipGlow = "";
+          const glowR = swid(3.2 + 2.0*t);
+          const glowDotOp = opac(0.32 + 0.24*t);
+          for(const ti of tips){
+            const [tx, ty] = pts[ti];
+            tipGlow += `<circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${glowR}" fill="${duo}" `+
+              `fill-opacity="${glowDotOp}" pointer-events="none"/>`;
+          }
+          glow = clipWrap(`<g filter="url(#psaurasoft)" pointer-events="none">${tipGlow}</g>`);
+        }
+        const edge = clipWrap(fillMarkup + band + crownMain + tipDots);
+        return {glow, edge};
+      }
+      // "scallop" — the ring's own outline is resampled around its centroid and
+      // pushed in/out by a sine wave (radius * (1 + amp*sin(waveCount*angle+phase))),
+      // then rewoven through a Catmull-Rom spline so the result reads as a smooth
+      // ocean-wave / shell-scallop edge instead of the plain polygon. A second,
+      // smaller nested wave (80% scale, higher frequency, opposite phase) rides
+      // inside the outer one for a layered-water look. Off = slow (few waves),
+      // barely-rippled; on = faster wave count and fuller amplitude, brighter —
+      // both driven by the ring's own local radius so the silhouette still tracks
+      // the room shape. Phase/frequency jitter comes from a deterministic sine-hash
+      // of the fixture's own position, so every render of the same fixture is identical.
+      if(AUTOMORPH_STYLE==="scallop"){
+        let cx=0, cy=0;
+        for(const [vx,vy] of ring){ cx+=vx; cy+=vy; }
+        cx/=ring.length; cy/=ring.length;
+
+        const polar = ring.map(([vx,vy])=>{
+          let a = Math.atan2(vy-cy, vx-cx);
+          if(a<0) a += Math.PI*2;
+          return {a, r: Math.hypot(vx-cx, vy-cy)};
+        }).sort((p,q)=>p.a-q.a);
+        const pm = polar.length;
+
+        const baseRadiusAt=(angIn)=>{
+          let a = angIn % (Math.PI*2);
+          if(a<0) a += Math.PI*2;
+          if(a<=polar[0].a || a>=polar[pm-1].a){
+            const span = (Math.PI*2 - polar[pm-1].a) + polar[0].a;
+            const along = a>=polar[pm-1].a ? (a-polar[pm-1].a) : (a + Math.PI*2 - polar[pm-1].a);
+            const f = span===0 ? 0 : along/span;
+            return polar[pm-1].r + (polar[0].r - polar[pm-1].r)*f;
+          }
+          for(let i=0;i<pm-1;i++){
+            if(a>=polar[i].a && a<=polar[i+1].a){
+              const span = polar[i+1].a - polar[i].a;
+              const f = span===0 ? 0 : (a-polar[i].a)/span;
+              return polar[i].r + (polar[i+1].r - polar[i].r)*f;
+            }
+          }
+          return polar[0].r;
+        };
+
+        const seed = hx*0.7 + hy*1.3;
+        const rnd = (i) => { const x = Math.sin(seed + i*12.9898) * 43758.5453; return x - Math.floor(x); };
+        const phaseA = rnd(1) * Math.PI * 2;
+        const phaseB = phaseA + Math.PI/3 + rnd(2)*0.6;
+
+        const outerWaves = on ? 7 : 4;
+        const innerWaves = on ? 9 : 5;
+        const outerAmp = (on ? 0.09 : 0.03) + (on ? 0.05 : 0.02)*t;
+        const innerAmp = outerAmp * 0.55;
+
+        const N = 56;
+        const buildWave=(scale, amp, waves, phase)=>{
+          const pts=[];
+          for(let i=0;i<N;i++){
+            const ang = (i/N)*Math.PI*2;
+            const base = baseRadiusAt(ang)*scale;
+            const r = base * (1 + amp*Math.sin(waves*ang + phase));
+            pts.push([cx+Math.cos(ang)*r, cy+Math.sin(ang)*r]);
+          }
+          return pts;
+        };
+        const smoothClosedPath=(pts)=>{
+          const n = pts.length;
+          let s = "";
+          for(let i=0;i<n;i++){
+            const p0=pts[(i-1+n)%n], p1=pts[i], p2=pts[(i+1)%n], p3=pts[(i+2)%n];
+            if(i===0) s += "M"+p1[0].toFixed(2)+","+p1[1].toFixed(2)+" ";
+            const c1x=p1[0]+(p2[0]-p0[0])/6, c1y=p1[1]+(p2[1]-p0[1])/6;
+            const c2x=p2[0]-(p3[0]-p1[0])/6, c2y=p2[1]-(p3[1]-p1[1])/6;
+            s += "C"+c1x.toFixed(2)+","+c1y.toFixed(2)+" "+c2x.toFixed(2)+","+c2y.toFixed(2)+" "+p2[0].toFixed(2)+","+p2[1].toFixed(2)+" ";
+          }
+          return s+"Z";
+        };
+
+        const outerPts = buildWave(1, outerAmp, outerWaves, phaseA);
+        const innerPts = buildWave(0.80, innerAmp, innerWaves, phaseB);
+        const outerPath = smoothClosedPath(outerPts);
+        const innerPath = smoothClosedPath(innerPts);
+
+        const dotStep = on ? 4 : 7;
+        let dots = "";
+        for(let i=0;i<N;i+=dotStep){
+          const ang = (i/N)*Math.PI*2;
+          const crest = Math.sin(outerWaves*ang + phaseA);
+          if(crest>0.3){
+            const [px,py] = outerPts[i];
+            const r = (on?1.4:0.8) + (on?1.6:0.8)*crest;
+            const op = ((on?0.30:0.16) + (on?0.35:0.18)*crest) * (0.5+0.5*t);
+            dots += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${r.toFixed(2)}" fill="${duo}" opacity="${opac(op)}" pointer-events="none"/>`;
+          }
+        }
+
+        const glow = clipWrap(`<g filter="url(#psaurasoft)" pointer-events="none">`+
+          `<path d="${outerPath}" fill="${duo}" stroke="none" fill-opacity="${opac((on?0.28:0.14)+0.16*t)}" pointer-events="none"/></g>`);
+
+        const edge = clipWrap(
+          `<path d="${outerPath}" fill="none" stroke="${ink}" stroke-width="${swid((on?2.0:1.3)+0.8*t)}" `+
+          `stroke-opacity="${opac((on?0.75:0.45)+0.20*t)}" stroke-linejoin="round" pointer-events="none"/>`+
+          `<path d="${innerPath}" fill="none" stroke="${ink}" stroke-width="${swid((on?1.1:0.7)+0.4*t)}" `+
+          `stroke-opacity="${opac((on?0.40:0.22)+0.14*t)}" stroke-linejoin="round" pointer-events="none"/>`+
+          dots
+        );
+
+        return {glow, edge};
+      }
+      // "bloomflower" — reshapes the ring's own silhouette into a soft scalloped bloom.
+      // The ring's vertices are resampled into a continuous radius-by-angle profile (interpolated
+      // between the room's actual vertices, not a plain circle) so the flower still follows the
+      // room's real proportions. A fixed 5/6/7-petal count comes from ring.length%3 (deterministic),
+      // and each petal is a single cubic bezier running waist->tip->waist so the outline stays
+      // rounded and organic, never faceted. Off = shallow bulge / mild pinch (a barely-scalloped
+      // closed bud); on = big bulge / deep pinch (a fully flared bloom), plus a bright stamen dot
+      // at the fixture's own anchor point.
+      if(AUTOMORPH_STYLE==="bloomflower"){
+        const n = ring.length;
+        const pf = (v) => v.toFixed(2);
+        const pt = (a,r) => [hx + r*Math.cos(a), hy + r*Math.sin(a)];
+        // angle-sorted polar profile of the room outline around the fixture anchor, so a radius
+        // can be interpolated for any angle (keeps the bloom faithful to non-circular rooms)
+        const polar = ring.map(p => {
+          const dx = p[0]-hx, dy = p[1]-hy;
+          let a = Math.atan2(dy,dx);
+          if(a < 0) a += Math.PI*2;
+          return {a, r: Math.hypot(dx,dy)};
+        }).sort((p,q) => p.a - q.a);
+        const baseRadius = (angle) => {
+          let a = angle % (Math.PI*2);
+          if(a < 0) a += Math.PI*2;
+          for(let i=0;i<polar.length;i++){
+            const p0 = polar[i], p1 = polar[(i+1)%polar.length];
+            let a0 = p0.a, a1 = p1.a;
+            if(a1 <= a0) a1 += Math.PI*2;
+            const aa = a < a0 ? a + Math.PI*2 : a;
+            if(aa <= a1){
+              const span = (a1 - a0) || 1;
+              return p0.r + (p1.r - p0.r) * ((aa - a0) / span);
+            }
+          }
+          return polar[0].r;
+        };
+        const seed = hx * 0.7 + hy * 1.3;
+        const rnd = (i) => { const x = Math.sin(seed + i * 12.9898) * 43758.5453; return x - Math.floor(x); };
+        const P = 5 + (n % 3); // 5, 6 or 7 petals, fixed per fixture
+        const seg = (Math.PI*2) / P;
+        const rot = rnd(0) * seg; // per-fixture rotation so same-P flowers don't all align
+        const tipPeak = on ? 1.34 : 1.06;
+        const waistTrough = on ? 0.74 : 0.93;
+        const bulge = 1 + (tipPeak - 1) * t;
+        const waist = 1 - (1 - waistTrough) * t;
+        let bloomD = "";
+        for(let i=0;i<P;i++){
+          const aStart = i*seg + rot, aEnd = aStart + seg, aMid = aStart + seg/2;
+          const rStart = baseRadius(aStart) * waist;
+          const rEnd = baseRadius(aEnd) * waist;
+          const rTip = baseRadius(aMid) * bulge;
+          const pStart = pt(aStart, rStart), pEnd = pt(aEnd, rEnd);
+          const rCtrl = rTip * 1.06; // slight overshoot: a cubic's midpoint falls short of its control points
+          const c1 = pt(aStart + seg*0.25, rCtrl), c2 = pt(aStart + seg*0.75, rCtrl);
+          if(i===0) bloomD += `M${pf(pStart[0])},${pf(pStart[1])} `;
+          bloomD += `C${pf(c1[0])},${pf(c1[1])} ${pf(c2[0])},${pf(c2[1])} ${pf(pEnd[0])},${pf(pEnd[1])} `;
+        }
+        bloomD += "Z";
+        const glowFill = `<path d="${bloomD}" fill="${duo}" fill-opacity="${opac((on?0.55:0.28)*(0.35+0.65*t))}" pointer-events="none"/>`;
+        const glow = clipWrap(`<g filter="url(#psaurasoft)" pointer-events="none">${glowFill}</g>`);
+        const edgeStroke = `<path d="${bloomD}" fill="none" stroke="${ink}" stroke-width="${swid((on?1.5:1.0)+0.4*t)}" stroke-linejoin="round" stroke-opacity="${opac((on?0.85:0.5)*(0.4+0.6*t))}" pointer-events="none"/>`;
+        const stamen = on ? `<circle cx="${pf(hx)}" cy="${pf(hy)}" r="${swid(1.6+1.1*t)}" fill="${ink}" fill-opacity="${opac(0.9)}" pointer-events="none"/>` : "";
+        const edge = clipWrap(edgeStroke + stamen);
+        return {glow, edge};
+      }
+      if(AUTOMORPH_STYLE==="geode"){
+        // A fractured crystal cluster grown from 2-3 interior seed points
+        // scattered around the fixture's own anchor, not one central fan
+        // (facet) or one fan-cut anchor (stainedglass): every ring EDGE is
+        // claimed by whichever seed's angle it sits closest to (a circular
+        // nearest-neighbour partition — exactly a contiguous arc per seed,
+        // since edges are already angle-ordered around the anchor), then
+        // fanned to that seed's own apex. Wherever the claimed seed changes
+        // between two neighbouring edges is a crystal seam, drawn as a pair
+        // of ridge lines back to both apexes, so the shape reads as several
+        // stones grown together rather than one uniform radial spray.
+        // Per-facet lightness is a deterministic seeded jitter
+        // (stainedglass's rnd() trick) blended toward white/near-black with
+        // a hard cut, never a gradient. Off keeps the jitter shallow and
+        // the fill low (dull matte rock); on widens the jitter spread and
+        // lifts the fill so facets contrast hard against each other, like
+        // light catching separate crystal faces.
+        const n = ring.length;
+        if(n < 3) return {glow: "", edge: ""};
+
+        const seed = hx * 0.7 + hy * 1.3;
+        const rnd = (i) => { const x = Math.sin(seed + i * 12.9898) * 43758.5453; return x - Math.floor(x); };
+
+        const avgR = ring.reduce((s,p)=>s+Math.hypot(p[0]-hx, p[1]-hy), 0) / n;
+        const numSeeds = rnd(90) < 0.5 ? 2 : 3;
+        const startAng = rnd(91) * Math.PI * 2;
+        const cores = [];
+        for(let k=0;k<numSeeds;k++){
+          const ang = startAng + (k/numSeeds)*Math.PI*2 + (rnd(92+k)-0.5)*0.5;
+          const r = avgR * (0.14 + 0.22*rnd(96+k));
+          cores.push({x: hx+Math.cos(ang)*r, y: hy+Math.sin(ang)*r, ang});
+        }
+        const TWO_PI = Math.PI*2;
+        const angDist = (a,b) => { const dd = Math.abs(a-b) % TWO_PI; return dd > Math.PI ? TWO_PI-dd : dd; };
+
+        const assign = [];
+        for(let i=0;i<n;i++){
+          const p = ring[i], q = ring[(i+1)%n];
+          const edgeAng = Math.atan2((p[1]+q[1])/2-hy, (p[0]+q[0])/2-hx);
+          let bestK = 0, bestD = Infinity;
+          for(let k=0;k<numSeeds;k++){
+            const dd = angDist(edgeAng, cores[k].ang);
+            if(dd < bestD){ bestD = dd; bestK = k; }
+          }
+          assign.push(bestK);
+        }
+
+        const baseHex = on ? AUTOMORPH_BASE_ON : AUTOMORPH_BASE_OFF;
+        const baseR = parseInt(baseHex.slice(1,3),16), baseG = parseInt(baseHex.slice(3,5),16), baseB = parseInt(baseHex.slice(5,7),16);
+        const WHITE = [255,255,255], NEARBLACK = [10,10,10];
+        const mixRgb = (c,to,amt) => [0,1,2].map(ci => Math.round(c[ci] + (to[ci]-c[ci])*amt));
+        const CONTRAST = on ? 0.55 : 0.16;
+        const fillOp = (0.46 + 0.38*t) * (on ? 1.15 : 0.72);
+
+        let facets = "", seams = "";
+        for(let i=0;i<n;i++){
+          const p = ring[i], q = ring[(i+1)%n];
+          const k = assign[i];
+          const c = cores[k];
+          const jitter = rnd(i*7+11)*2 - 1;
+          const blend = jitter*CONTRAST;
+          const rgb = blend >= 0
+            ? mixRgb([baseR,baseG,baseB], WHITE, Math.min(1,blend))
+            : mixRgb([baseR,baseG,baseB], NEARBLACK, Math.min(1,-blend));
+          facets += `<path d="M${c.x.toFixed(1)},${c.y.toFixed(1)} L${p[0].toFixed(1)},${p[1].toFixed(1)} L${q[0].toFixed(1)},${q[1].toFixed(1)} Z" `+
+            `fill="rgb(${rgb[0]},${rgb[1]},${rgb[2]})" fill-opacity="${opac(fillOp)}" pointer-events="none"/>`;
+          const prevK = assign[(i-1+n)%n];
+          if(prevK !== k){
+            const pc = cores[prevK];
+            const seamOp = opac(0.45 + 0.30*t);
+            const seamW = swid(0.7);
+            seams += `<line x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${pc.x.toFixed(1)}" y2="${pc.y.toFixed(1)}" stroke="${ink}" stroke-width="${seamW}" stroke-opacity="${seamOp}" pointer-events="none"/>`+
+              `<line x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${c.x.toFixed(1)}" y2="${c.y.toFixed(1)}" stroke="${ink}" stroke-width="${seamW}" stroke-opacity="${seamOp}" pointer-events="none"/>`;
+          }
+        }
+
+        const rim = `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${swid(on?1.2:0.9)}" `+
+          `stroke-opacity="${opac(0.30+0.35*t)}" stroke-linejoin="round" pointer-events="none"/>`;
+
+        return {glow: clipWrap(facets), edge: clipWrap(rim + seams)};
+      }
+      // Honeycomb — the ring's interior is broken into a hex tessellation
+      // instead of any fan/radial pattern: hexR is derived from the ring's
+      // OWN bounding-box diagonal (diag/10), so cell count stays roughly
+      // scale-invariant across the ROOM% slider — an icon-small ring and a
+      // full room-sized ring both settle around the same handful of cells
+      // instead of the grid getting denser as the ring grows. A hex is kept
+      // only when its CENTER falls inside `ring` (local ray-cast test), so
+      // the honeycomb roughly follows the room's own silhouette even though
+      // individual hex edges can poke slightly past it — real honeycomb
+      // never perfectly follows an arbitrary boundary either, and the whole
+      // group is clip-wrapped to the fixture's room regardless. Each
+      // surviving hex is deterministically marked "occupied" (duo-filled,
+      // like a cell with something inside) or left bare structural outline
+      // via the shared sine-hash rnd(); occupied DENSITY — never hue — is
+      // what carries on/off and the t slider: mostly empty structure at low
+      // t/off, filling in toward a busy hive at high t/on.
+      if(AUTOMORPH_STYLE==="honeycomb"){
+        const minX=Math.min(...ring.map(p=>p[0])), maxX=Math.max(...ring.map(p=>p[0]));
+        const minY=Math.min(...ring.map(p=>p[1])), maxY=Math.max(...ring.map(p=>p[1]));
+        const diag=Math.hypot(maxX-minX, maxY-minY);
+        const hexR=Math.max(3, diag/10);
+        const vertSpacing=1.5*hexR;
+        const horizSpacing=Math.sqrt(3)*hexR;
+        const cx0=(minX+maxX)/2, cy0=(minY+maxY)/2;
+        const rowSpan=Math.ceil((maxY-minY)/(2*vertSpacing))+1;
+        const colSpan=Math.ceil((maxX-minX)/(2*horizSpacing))+1;
+
+        // Local point-in-polygon (ray casting) — only needed to test hex
+        // centers against `ring`, so it stays a plain function inside this
+        // block rather than a shared top-level helper.
+        const pip=(px,py,poly)=>{
+          let inside=false;
+          for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+            const xi=poly[i][0], yi=poly[i][1], xj=poly[j][0], yj=poly[j][1];
+            if(((yi>py)!==(yj>py)) && (px < (xj-xi)*(py-yi)/(yj-yi+1e-9)+xi)) inside=!inside;
+          }
+          return inside;
+        };
+
+        const seed = hx * 0.7 + hy * 1.3;
+        const rnd = (i) => { const x = Math.sin(seed + i * 12.9898) * 43758.5453; return x - Math.floor(x); };
+
+        const density=(on?0.55:0.20)+(on?0.35:0.25)*t;
+        const outlineOp=opac((on?0.55:0.40)+0.30*t);
+        const outlineW=swid(0.9);
+        const fillOp=opac((on?0.55:0.30)+0.30*t);
+
+        const MAX_CELLS=40;
+        let cellIdx=0;
+        let cells="";
+        outer:
+        for(let row=-rowSpan; row<=rowSpan; row++){
+          const cy=cy0+row*vertSpacing;
+          const stagger=(((row%2)+2)%2===1) ? horizSpacing/2 : 0;
+          for(let col=-colSpan; col<=colSpan; col++){
+            const cx=cx0+col*horizSpacing+stagger;
+            if(!pip(cx,cy,ring)) continue;
+            if(cellIdx>=MAX_CELLS) break outer;
+            let pts="";
+            for(let k=0;k<6;k++){
+              const ang=Math.PI/180*(60*k-30);
+              const vx=cx+hexR*Math.cos(ang), vy=cy+hexR*Math.sin(ang);
+              pts+=(k===0?"":" ")+vx.toFixed(1)+","+vy.toFixed(1);
+            }
+            const occupied=rnd(cellIdx)<density;
+            const fillAttr=occupied ? `fill="${duo}" fill-opacity="${fillOp}"` : `fill="none"`;
+            cells+=`<polygon points="${pts}" ${fillAttr} stroke="${ink}" stroke-opacity="${outlineOp}" `+
+              `stroke-width="${outlineW}" stroke-linejoin="round" pointer-events="none"/>`;
+            cellIdx++;
+          }
+        }
+
+        const rim=`<path d="${d}" fill="none" stroke="${ink}" stroke-opacity="${opac((on?0.30:0.18)+0.15*t)}" `+
+          `stroke-width="${swid(1.0)}" pointer-events="none"/>`;
+
+        return {glow:"", edge: clipWrap(`<g pointer-events="none">${rim}${cells}</g>`)};
+      }
+      // ORBIT RINGS — atomic/orbital-model look: instead of tracing ring's
+      // own polygon (or a scaled copy of it, which is what "contour" does),
+      // this reads ring's OWN bounding extent around the fixture's anchor
+      // and draws 2-3 true concentric ellipses sized as fractions of that
+      // extent, each tilted by a different deterministic angle so they
+      // read as a Bohr-model / orbital diagram rather than stacked flat
+      // rings. A handful of "electron" dots ride specific ellipses at an
+      // angle that advances with t — the same static-phase trick pulse
+      // uses to fake motion from a single frozen render — plus a bright
+      // "nucleus" dot at hx,hy itself. Off collapses to 2 tight, dim
+      // orbits with faint electrons and a dark nucleus; on opens to 3 full
+      // orbits with brighter, faster-advancing electrons and a lit core.
+      if(AUTOMORPH_STYLE==="orbitring"){
+        const seed = hx * 0.7 + hy * 1.3;
+        const rnd = (i) => { const x = Math.sin(seed + i * 12.9898) * 43758.5453; return x - Math.floor(x); };
+
+        let maxDx = 4, maxDy = 4;
+        for(const [px,py] of ring){
+          maxDx = Math.max(maxDx, Math.abs(px - hx));
+          maxDy = Math.max(maxDy, Math.abs(py - hy));
+        }
+
+        const fracs = on ? [0.46, 0.70, 0.95] : [0.55, 0.88];
+        const phase = t * Math.PI * 2;
+
+        let orbits = "", satEdge = "", satGlow = "";
+        for(let i=0;i<fracs.length;i++){
+          const frac = fracs[i];
+          const rx = maxDx * frac, ry = maxDy * frac;
+          const rotDeg = (rnd(i*2+1) - 0.5) * 110 + i * 30;
+          const rotRad = rotDeg * Math.PI / 180;
+          const orbitOp = opac((on ? 0.55 : 0.26) + 0.20*t - i*0.05);
+          const orbitW = swid((on ? 1.5 : 1.0) - i*0.15);
+          orbits += `<ellipse cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" `+
+            `fill="none" stroke="${ink}" stroke-width="${orbitW}" stroke-opacity="${orbitOp}" `+
+            `transform="rotate(${rotDeg.toFixed(1)} ${hx.toFixed(1)} ${hy.toFixed(1)})" pointer-events="none"/>`;
+
+          // Satellite phase advances faster on outer orbits (like real
+          // orbital periods scaling with radius, just inverted for a
+          // livelier read at a glance) — angle is phase (from t) plus a
+          // per-orbit hashed offset so they never all line up.
+          const ang = phase * (1 + i*0.35) + rnd(i*5+2) * Math.PI * 2;
+          const ex = rx * Math.cos(ang), ey = ry * Math.sin(ang);
+          const sx = hx + ex * Math.cos(rotRad) - ey * Math.sin(rotRad);
+          const sy = hy + ex * Math.sin(rotRad) + ey * Math.cos(rotRad);
+          const satR = (on ? 2.0 : 1.3) + 0.5*t;
+          const satOp = opac((on ? 0.85 : 0.45) + 0.15*t);
+          satEdge += `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${satR.toFixed(2)}" fill="${duo}" `+
+            `stroke="${ink}" stroke-width="${swid(0.4)}" opacity="${satOp}" pointer-events="none"/>`;
+          satGlow += `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${(satR*2.2).toFixed(2)}" fill="${duo}" `+
+            `opacity="${opac(on ? 0.30 : 0.14)}" pointer-events="none"/>`;
+        }
+
+        const nucleusR = (on ? 3.0 : 1.6) + 0.6*t;
+        const nucleus = `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${nucleusR.toFixed(2)}" fill="${ink}" `+
+          `opacity="${opac(on ? 0.90 : 0.42)}" pointer-events="none"/>`;
+        const nucleusGlow = `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${(nucleusR*2.4).toFixed(2)}" fill="${duo}" `+
+          `opacity="${opac(on ? 0.38 : 0.16)}" pointer-events="none"/>`;
+
+        const glow = clipWrap(`<g filter="url(#psaurasoft)" pointer-events="none">${nucleusGlow}${satGlow}</g>`);
+        const edge = clipWrap(`<g pointer-events="none">${orbits}${satEdge}${nucleus}</g>`);
+        return {glow, edge};
+      }
+      // "puzzle" — every other style paints the SAME smooth ring; this one
+      // is the one candidate that reshapes the boundary itself. Each edge
+      // of `ring` gets a single cubic-bezier knob riding its own outward
+      // normal — bulging past the edge (a tab) or cut into it (a blank),
+      // the classic jigsaw motif, alternating tab/blank by edge parity. A
+      // strict parity alternation reads as a toothed gear, so a seeded hash
+      // flips ~1 edge in 5 against that base rhythm — just enough
+      // irregularity to read as hand-fitted puzzle pieces instead of a
+      // machined cog. Bump depth is a FRACTION of each edge's own length
+      // (not a fixed px), so the knuckles stay proportionate whether `ring`
+      // is a tight 24-point icon or a dense 64-point room trace, and grow
+      // with on/t exactly like every other style's presence: barely-there
+      // nicks off, deep interlocking knuckles on. The gloss arc on each
+      // tab's crown only appears lit — nothing to catch light on a blank.
+      if(AUTOMORPH_STYLE==="puzzle"){
+        const seed = hx * 0.7 + hy * 1.3;
+        const rnd = (i) => { const x = Math.sin(seed + i * 12.9898) * 43758.5453; return x - Math.floor(x); };
+        const n = ring.length;
+        let ccx=0, ccy=0;
+        for(const p of ring){ ccx+=p[0]; ccy+=p[1]; }
+        ccx/=n; ccy/=n;
+        const depthFrac = on ? (0.11+0.20*t) : (0.04+0.08*t);
+        const hlOn = on && t>0.03;
+        let pd="", hl="";
+        for(let i=0;i<n;i++){
+          const p=ring[i], q=ring[(i+1)%n];
+          if(i===0) pd+="M"+p[0].toFixed(1)+","+p[1].toFixed(1)+" ";
+          const ex=q[0]-p[0], ey=q[1]-p[1], len=Math.hypot(ex,ey);
+          if(len<1){ pd+="L"+q[0].toFixed(1)+","+q[1].toFixed(1)+" "; continue; }
+          const tx=ex/len, ty=ey/len;
+          let nx=-ty, ny=tx;
+          const midx=(p[0]+q[0])/2, midy=(p[1]+q[1])/2;
+          if(nx*(ccx-midx)+ny*(ccy-midy) > 0){ nx=-nx; ny=-ny; }
+          const outward=(i%2===0)!==(rnd(i*2.7)>0.8);
+          const dir=outward?1:-1;
+          const depth=len*depthFrac;
+          const m1x=p[0]+tx*len*0.30, m1y=p[1]+ty*len*0.30;
+          const m2x=p[0]+tx*len*0.70, m2y=p[1]+ty*len*0.70;
+          const c1x=m1x+nx*dir*depth*1.33, c1y=m1y+ny*dir*depth*1.33;
+          const c2x=m2x+nx*dir*depth*1.33, c2y=m2y+ny*dir*depth*1.33;
+          pd+="L"+m1x.toFixed(1)+","+m1y.toFixed(1)+" C"+c1x.toFixed(1)+","+c1y.toFixed(1)+" "+
+              c2x.toFixed(1)+","+c2y.toFixed(1)+" "+m2x.toFixed(1)+","+m2y.toFixed(1)+" "+
+              "L"+q[0].toFixed(1)+","+q[1].toFixed(1)+" ";
+          if(hlOn && outward){
+            const apx=midx+nx*dir*depth, apy=midy+ny*dir*depth;
+            const g1x=apx-tx*len*0.09, g1y=apy-ty*len*0.09;
+            const g2x=apx+tx*len*0.09, g2y=apy+ty*len*0.09;
+            hl+=`<path d="M${g1x.toFixed(1)},${g1y.toFixed(1)} Q${apx.toFixed(1)},${apy.toFixed(1)} `+
+              `${g2x.toFixed(1)},${g2y.toFixed(1)}" fill="none" stroke="${duo}" stroke-width="${swid(1.1)}" `+
+              `stroke-opacity="${opac(0.40*t)}" stroke-linecap="round" pointer-events="none"/>`;
+          }
+        }
+        pd+="Z";
+        const lineOp=opac((on?0.55:0.34)+0.35*t);
+        const lineW=swid((on?2.0:1.3)+0.9*t);
+        const fillOp=opac((on?0.16:0.07)+0.16*t);
+        const glowOp=opac((on?0.16:0.08)+0.14*t);
+        const glowW=swid((on?7:5)+3*t);
+        const glow=clipWrap(`<g filter="url(#psaurasoft)" pointer-events="none">`+
+          `<path d="${pd}" fill="none" stroke="${duo}" stroke-width="${glowW}" `+
+          `stroke-opacity="${glowOp}" stroke-linejoin="round" pointer-events="none"/></g>`);
+        const edge=clipWrap(
+          `<path d="${pd}" fill="${duo}" fill-opacity="${fillOp}" stroke="${ink}" `+
+          `stroke-opacity="${lineOp}" stroke-width="${lineW}" stroke-linejoin="round" pointer-events="none"/>`+hl);
+        return {glow, edge};
+      }
+      // BLOCK EXTRUDE — the ring read as a solid raised plinth instead of a
+      // flat outline: the same silhouette drawn twice (top face at its own
+      // position, a darker base face pushed down-and-right, opposite the
+      // shared upper-left light) with flat mid-tone side-wall quads closing
+      // the gap between every matching pair of edges. Depth is driven by
+      // BOTH on/off (off = a shallow dim slab, on = a tall bright block)
+      // AND the room% slider t (near-flat at t=0, full height at t=1),
+      // scaled off the ring's own bounding extent so small and large auras
+      // extrude proportionately. Three flat RGB tones only, via facet's own
+      // mixRgb-toward-white/black technique reused verbatim — no gradients
+      // inside any one face, hard edges throughout.
+      if(AUTOMORPH_STYLE==="extrude"){
+        const n = ring.length;
+        if(n < 3) return {glow: "", edge: ""};
+
+        let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+        for(const [px,py] of ring){
+          if(px<minX) minX=px; if(px>maxX) maxX=px;
+          if(py<minY) minY=py; if(py>maxY) maxY=py;
+        }
+        const size = Math.max(maxX-minX, maxY-minY) || 1;
+
+        // Depth: shallow+dim when off, tall+bright when on; both gated by
+        // t so t=0 always reads as nearly flat regardless of state.
+        const depthMul = (on ? 1.0 : 0.30) * (0.15 + 0.85*t);
+        const dx = size*0.12*depthMul;
+        const dy = size*0.18*depthMul;
+
+        const baseHex = on ? AUTOMORPH_BASE_ON : AUTOMORPH_BASE_OFF;
+        const baseR = parseInt(baseHex.slice(1,3),16), baseG = parseInt(baseHex.slice(3,5),16), baseB = parseInt(baseHex.slice(5,7),16);
+        const WHITE = [255,255,255], NEARBLACK = [10,10,10];
+        const mixRgb = (c,to,amt) => [0,1,2].map(i => Math.round(c[i] + (to[i]-c[i])*amt));
+        const topRgb  = mixRgb([baseR,baseG,baseB], WHITE, on ? 0.32 : 0.14);
+        const sideRgb = mixRgb([baseR,baseG,baseB], NEARBLACK, 0.22);
+        const baseRgb = mixRgb([baseR,baseG,baseB], NEARBLACK, 0.48);
+        const toRgbStr = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
+        const edgeRgbStr = toRgbStr(NEARBLACK);
+
+        const baseRing = ring.map(([x,y]) => [x+dx, y+dy]);
+        const ptsToPath = (pts) => {
+          let p = "";
+          for(let i=0;i<pts.length;i++) p += (i===0?"M":"L")+pts[i][0].toFixed(1)+","+pts[i][1].toFixed(1)+" ";
+          return p+"Z";
+        };
+        const baseD = ptsToPath(baseRing);
+
+        let sides = "";
+        for(let i=0;i<n;i++){
+          const j = (i+1)%n;
+          const [tx1,ty1] = ring[i], [tx2,ty2] = ring[j];
+          const [bx1,by1] = baseRing[i], [bx2,by2] = baseRing[j];
+          sides += `M${tx1.toFixed(1)},${ty1.toFixed(1)} L${tx2.toFixed(1)},${ty2.toFixed(1)} `+
+            `L${bx2.toFixed(1)},${by2.toFixed(1)} L${bx1.toFixed(1)},${by1.toFixed(1)} Z `;
+        }
+
+        const topOp  = opac((on?0.62:0.34) + 0.22*t);
+        const sideOp = opac((on?0.46:0.26) + 0.16*t);
+        const baseOp = opac((on?0.34:0.18) + 0.10*t);
+
+        const baseFace = `<path d="${baseD}" fill="${toRgbStr(baseRgb)}" fill-opacity="${baseOp}" `+
+          `stroke="${edgeRgbStr}" stroke-width="${swid(0.6)}" stroke-opacity="${opac(0.35)}" pointer-events="none"/>`;
+        const sideWalls = `<path d="${sides}" fill="${toRgbStr(sideRgb)}" fill-opacity="${sideOp}" `+
+          `stroke="${edgeRgbStr}" stroke-width="${swid(0.5)}" stroke-opacity="${opac(0.30)}" stroke-linejoin="miter" pointer-events="none"/>`;
+        const topFace = `<path d="${d}" fill="${toRgbStr(topRgb)}" fill-opacity="${topOp}" `+
+          `stroke="${ink}" stroke-width="${swid(on?1.3:0.9)}" stroke-opacity="${opac(0.85)}" stroke-linejoin="round" pointer-events="none"/>`;
+
+        const shadowPts = ring.map(([x,y]) => [x+dx*1.4, y+dy*1.4]);
+        const shadowOp = opac((on?0.28:0.15) * (0.4+0.6*t));
+        const shadow = `<path d="${ptsToPath(shadowPts)}" fill="#050505" fill-opacity="${shadowOp}" pointer-events="none"/>`;
+        const glow = clipWrap(`<g filter="url(#psaurasoft)" pointer-events="none">${shadow}</g>`);
+
+        return {glow, edge: clipWrap(baseFace + sideWalls + topFace)};
+      }
+      if(AUTOMORPH_STYLE==="shatter"){
+        // Cracked-ice fracture web: a handful of interior seed points are
+        // scattered around the ring's OWN centroid (not hx/hy -- that's
+        // what the fan styles radiate from), each snapped by a straight
+        // "crack" to its nearest ring-boundary vertex (one seed also gets
+        // a second-nearest crack), plus a short seed-to-seed chain. Seed
+        // positions come from the seeded sine-hash, so the chain (drawn in
+        // index order) already crosses itself irregularly -- exactly the
+        // messy, non-radial look real ice fractures have, without needing
+        // a real Voronoi/mesh solve. Segment count is deliberately capped
+        // (seedCount 3-4 -> 6-8 total lines) so it stays a few sharp
+        // fracture lines rather than a dense web. A couple of the
+        // resulting seed/vertex triangles get a near-invisible flat tint
+        // as an optional "broken shard" hint. On lets the primary cracks
+        // catch a soft duo glow (bright/thin/sharp); off drops the glow
+        // entirely and dims to dull hairlines -- no hue ever changes.
+        const n = ring.length;
+        if(n < 3) return {glow: "", edge: ""};
+
+        const seed = hx * 0.7 + hy * 1.3;
+        const rnd = (i) => { const x = Math.sin(seed + i * 12.9898) * 43758.5453; return x - Math.floor(x); };
+
+        let ccx = 0, ccy = 0;
+        for(const [vx, vy] of ring){ ccx += vx; ccy += vy; }
+        ccx /= n; ccy /= n;
+        let maxR = 0;
+        for(const [vx, vy] of ring){
+          const dx = vx - ccx, dy = vy - ccy;
+          const r = Math.sqrt(dx * dx + dy * dy);
+          if(r > maxR) maxR = r;
+        }
+
+        const seedCount = 3 + (rnd(0) < 0.5 ? 0 : 1); // 3 or 4 interior seeds
+        const pts = [];
+        for(let i = 0; i < seedCount; i++){
+          const ang = rnd(i * 2 + 1) * Math.PI * 2;
+          const frac = 0.12 + rnd(i * 2 + 2) * 0.50; // stay well inside the ring's rough extent
+          pts.push([ccx + Math.cos(ang) * maxR * frac, ccy + Math.sin(ang) * maxR * frac]);
+        }
+        const nearestOf = pts.map(([px, py]) => {
+          let bi = 0, bd = Infinity, si = 0, sd = Infinity;
+          for(let j = 0; j < n; j++){
+            const dx = ring[j][0] - px, dy = ring[j][1] - py;
+            const dd = dx * dx + dy * dy;
+            if(dd < bd){ si = bi; sd = bd; bi = j; bd = dd; }
+            else if(dd < sd){ si = j; sd = dd; }
+          }
+          return [bi, si];
+        });
+        const extraIdx = Math.floor(rnd(9) * seedCount); // the one seed that gets a 2nd vertex crack
+
+        const crackOp = opac((on ? 0.62 : 0.28) + 0.30 * t);
+        const crackW  = swid((on ? 0.85 : 0.60) + 0.35 * t);
+        const chainOp = opac((on ? 0.42 : 0.18) + 0.22 * t);
+        const chainW  = swid((on ? 0.65 : 0.50) + 0.25 * t);
+        const shardBase = on ? 0.05 : 0.02;
+        const shardT    = on ? 0.10 : 0.05;
+
+        let cracks = "";
+        let fills = "";
+        for(let i = 0; i < seedCount; i++){
+          const [sx, sy] = pts[i];
+          const [ni, si] = nearestOf[i];
+          const v1 = ring[ni];
+          cracks += `<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${v1[0].toFixed(1)}" y2="${v1[1].toFixed(1)}" `+
+            `stroke="${ink}" stroke-width="${crackW}" stroke-opacity="${crackOp}" stroke-linecap="round" pointer-events="none"/>`;
+          if(i === extraIdx){
+            const v2 = ring[si];
+            cracks += `<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${v2[0].toFixed(1)}" y2="${v2[1].toFixed(1)}" `+
+              `stroke="${ink}" stroke-width="${crackW}" stroke-opacity="${crackOp}" stroke-linecap="round" pointer-events="none"/>`;
+            const shardOp = opac(shardBase + shardT * t);
+            fills += `<path d="M ${sx.toFixed(1)},${sy.toFixed(1)} L ${v1[0].toFixed(1)},${v1[1].toFixed(1)} L ${v2[0].toFixed(1)},${v2[1].toFixed(1)} Z" `+
+              `fill="${ink}" fill-opacity="${shardOp}" pointer-events="none"/>`;
+          }
+        }
+        for(let i = 0; i < seedCount - 1; i++){
+          const [ax, ay] = pts[i];
+          const [bx, by] = pts[i + 1];
+          cracks += `<line x1="${ax.toFixed(1)}" y1="${ay.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" `+
+            `stroke="${ink}" stroke-width="${chainW}" stroke-opacity="${chainOp}" stroke-linecap="round" pointer-events="none"/>`;
+          if(i === 0){
+            const v1 = ring[nearestOf[0][0]];
+            const shardOp = opac(shardBase * 0.7 + shardT * 0.7 * t);
+            fills += `<path d="M ${ax.toFixed(1)},${ay.toFixed(1)} L ${bx.toFixed(1)},${by.toFixed(1)} L ${v1[0].toFixed(1)},${v1[1].toFixed(1)} Z" `+
+              `fill="${ink}" fill-opacity="${shardOp}" pointer-events="none"/>`;
+          }
+        }
+
+        let glow = "";
+        if(on){
+          let glints = "";
+          for(let i = 0; i < seedCount; i++){
+            const [sx, sy] = pts[i];
+            const v1 = ring[nearestOf[i][0]];
+            glints += `<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${v1[0].toFixed(1)}" y2="${v1[1].toFixed(1)}" `+
+              `stroke="${duo}" stroke-width="${swid(2.2 + 1.2 * t)}" stroke-opacity="${opac(0.22 + 0.18 * t)}" stroke-linecap="round" pointer-events="none"/>`;
+          }
+          glow = clipWrap(`<g filter="url(#psaurasoft)" pointer-events="none">${glints}</g>`);
+        }
+
+        return {glow, edge: clipWrap(fills + cracks)};
       }
       // "glow" (default): a material stack, every layer the SAME path `d`
       // — no second geometry anywhere, so hardness/wobble/cell shape stay

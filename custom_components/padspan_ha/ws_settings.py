@@ -39,6 +39,8 @@ _LOGGER = logging.getLogger(__name__)
 _AUTOMORPH_STYLES = (
     "glow", "blueprint", "nebula", "circuit", "contour", "facet",
     "sumie", "stainedglass", "constellation", "halo", "pulse",
+    "spikecrown", "scallop", "bloomflower", "geode", "honeycomb",
+    "orbitring", "puzzle", "extrude", "shatter",
 )
 _SHOWCASE_THEMES = (
     "classic", "cinematic_glass", "neo_hud", "editorial_minimalist",
