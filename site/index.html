@@ -176,6 +176,21 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.37</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">11 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Added:</b> an install with no licence key gets a <b>Start 3-month free trial</b> button in Settings → Features → PadSpan licence — one email, no payment info, no reinstall. It mints a real trial key through the same licence-server path a purchase uses, so it gates identically: expiry, the 14-day grace window and the editing-only gate (nothing already placed is ever lost) all apply exactly as they do for a paid key, with no separate logic anywhere. One redo is allowed if it's needed again (matched on email or install id, so rotating just one of the two doesn't reset it); the licence server also throttles by requesting IP so a script can't mint a stream of fabricated identities. The free-lighting paywall banner and the tiers wizard both now point at it instead of asserting no trial exists.</li>
+          <li><b>Added:</b> opt-in telemetry now includes up to 10 of an install's saved Showcase preset *values* (never the preset's own name), giving a future top-10 pulldown real data to learn from.</li>
+          <li><b>Fixed:</b> the Lights map's floor index used to draw one row per floor, so a multi-storey house grew a legend taller than the map itself — every floor now shares one line, and the canvas height shrinks to the real footprint instead of always reserving the worst-case size.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.36</span>
         <span class="pill stable">Stable</span>
         <span class="reldate">11 September 2026</span>

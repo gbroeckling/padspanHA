@@ -2337,7 +2337,14 @@ export function buildLightsTable(host, lights){
         // fabric, same fields, either surface.
         ...(l.isDoor ? (() => {
           if (host.doorLinkedIds && host.doorLinkedIds.has(l.entity_id)) {
-            return [el("span", { class: "lv-hint", title: "Shows open/closed on the map at the wall section it's linked to" }, "🔗 Linked")];
+            return [
+              el("span", { class: "lv-hint", title: "Shows open/closed on the map at the wall section it's linked to" }, "🔗 Linked"),
+              ...(host.onUnlinkDoor ? [el("button", {
+                class: "lv-act", style: "margin-left:6px",
+                title: "Unlink from that wall section — the wall itself is left in place; Place then reappears here",
+                onclick: (e) => { e.stopPropagation(); host.onUnlinkDoor(l); },
+              }, "Unlink")] : []),
+            ];
           }
           if (!host.onConfigureDoor) return [el("span", { class: "lv-hint" }, "Not linked")];
           if (host.doorCircleArmedEid !== l.entity_id) {
@@ -2376,7 +2383,14 @@ export function buildLightsTable(host, lights){
           // buttons both saying "Place" would be meaningless.
           ...(l.isLock && host.onConfigureDoor ? (() => {
             if (host.doorLinkedIds && host.doorLinkedIds.has(l.entity_id)) {
-              return [el("span", { class: "lv-hint", title: "Flashes red on the map, on the wall section it's linked to, whenever unlocked" }, "🔗 Linked")];
+              return [
+                el("span", { class: "lv-hint", title: "Flashes red on the map, on the wall section it's linked to, whenever unlocked" }, "🔗 Linked"),
+                ...(host.onUnlinkDoor ? [el("button", {
+                  class: "lv-act", style: "margin-left:6px",
+                  title: "Unlink from that wall section — the wall itself is left in place; Link wall then reappears here",
+                  onclick: (e) => { e.stopPropagation(); host.onUnlinkDoor(l); },
+                }, "Unlink")] : []),
+              ];
             }
             if (host.doorCircleArmedEid !== l.entity_id) {
               return [el("button", {

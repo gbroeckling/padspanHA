@@ -420,6 +420,68 @@ console.log(JSON.stringify({ found: !!overrideSelect, selectedValue }));
     assert out["selectedValue"] == "fan", "the dropdown must reflect the CURRENT override, not reset to auto"
 
 
+def test_linked_door_row_offers_a_clickable_unlink_that_falls_back_to_place(tmp_path):
+    """Garry, 2026-09-11, repairing a mis-linked Truck Door: "you need to
+    make the linked option under map clickable, and have the option to
+    unlink, and then place again when that is done... missing essential
+    operational logic". A linked door/window row used to show a static
+    "Linked" span with no action at all. Clicking the new Unlink button
+    must call host.onUnlinkDoor with the light, and once doorLinkedIds no
+    longer lists the entity, the SAME row must fall back to the existing
+    Place button on its own — no separate "place again" wiring needed."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const AREA = {"binary_sensor.truck_door": "Garage"};
+const STATES = {
+  "binary_sensor.truck_door": {state: "on", attributes: {friendly_name: "Truck Door", device_class: "door"}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
+let unlinkedEid = null;
+const linkedHost = { el, hiddenEids: new Set(), lightsLoading: false, model: {},
+  doorLinkedIds: new Set(["binary_sensor.truck_door"]), onConfigureDoor: () => {},
+  onUnlinkDoor: (l) => { unlinkedEid = l.entity_id; } };
+const rootLinked = LM.buildLightsTable(linkedHost, lights);
+const rowLinked = [...rootLinked.querySelectorAll("tr")].find(r => r.getAttribute("data-eid") === "binary_sensor.truck_door");
+const stillHasLinkedLabel = rowLinked.textContent.includes("Linked");
+const unlinkBtn = [...rowLinked.querySelectorAll("button")].find(b => b.textContent === "Unlink");
+unlinkBtn.dispatchEvent({ type: "click", stopPropagation(){} });
+
+// Not-linked-anymore host, same light — the ONLY thing that changed.
+const unlinkedHost = { el, hiddenEids: new Set(), lightsLoading: false, model: {},
+  doorLinkedIds: new Set(), onConfigureDoor: () => {}, onUnlinkDoor: () => {} };
+const rootAfter = LM.buildLightsTable(unlinkedHost, lights);
+const rowAfter = [...rootAfter.querySelectorAll("tr")].find(r => r.getAttribute("data-eid") === "binary_sensor.truck_door");
+const placeBtn = [...rowAfter.querySelectorAll("button")].find(b => b.textContent === "Place");
+
+console.log(JSON.stringify({ stillHasLinkedLabel, foundUnlinkBtn: !!unlinkBtn, unlinkedEid, foundPlaceAfterUnlink: !!placeBtn }));
+""")
+    assert out["stillHasLinkedLabel"], "the linked status label must stay visible alongside the new action"
+    assert out["foundUnlinkBtn"], "a linked door/window row must offer a clickable Unlink action"
+    assert out["unlinkedEid"] == "binary_sensor.truck_door", out
+    assert out["foundPlaceAfterUnlink"], "once unlinked, the row must fall back to the existing Place button"
+
+
+def test_linked_lock_row_offers_a_clickable_unlink(tmp_path):
+    """The same gap existed for a lock linked to a wall section (Garry,
+    2026-09-09's "Link wall" feature) — same static span, same missing
+    action, fixed the same way."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const AREA = {"lock.shed": "Yard"};
+const STATES = { "lock.shed": {state: "locked", attributes: {friendly_name: "Shed Lock"}} };
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
+let unlinkedEid = null;
+const host = { el, hiddenEids: new Set(), lightsLoading: false, model: {},
+  doorLinkedIds: new Set(["lock.shed"]), onConfigureDoor: () => {},
+  onUnlinkDoor: (l) => { unlinkedEid = l.entity_id; } };
+const root = LM.buildLightsTable(host, lights);
+const row = [...root.querySelectorAll("tr")].find(r => r.getAttribute("data-eid") === "lock.shed");
+const unlinkBtn = [...row.querySelectorAll("button")].find(b => b.textContent === "Unlink");
+unlinkBtn.dispatchEvent({ type: "click", stopPropagation(){} });
+console.log(JSON.stringify({ foundUnlinkBtn: !!unlinkBtn, unlinkedEid }));
+""")
+    assert out["foundUnlinkBtn"], "a linked lock row must offer a clickable Unlink action too"
+    assert out["unlinkedEid"] == "lock.shed", out
+
+
 def test_fans_and_motion_sensors_ride_the_pipeline(tmp_path):
     """Fans (F-series, fan glyph, their card's inputs) and motion sensors
     (M-series, motion glyph, admitted by device_class only) share the lights

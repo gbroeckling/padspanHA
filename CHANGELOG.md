@@ -4,6 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.37 — A one-time 3-month PadSpan Bright Pro trial, no card required (2026-09-11)
+
+### Try light placement on your own house before buying
+- **Added:** an install with no licence key gets a **Start 3-month free trial** button in Settings → Features → PadSpan licence — one email, no payment info, no reinstall. It mints a real trial key through the same licence-server path a purchase uses, so it gates identically: expiry, the 14-day grace window and the editing-only gate (nothing already placed is ever lost) all apply exactly as they do for a paid key, with no separate logic anywhere. One redo is allowed if it's needed again (matched on email or install id, so rotating just one of the two doesn't reset it); the licence server also throttles by requesting IP so a script can't mint a stream of fabricated identities. The free-lighting paywall banner and the tiers wizard both now point at it instead of asserting no trial exists.
+
+### Showcase preset telemetry groundwork, and a shrunk Lights map floor index
+- **Added:** opt-in telemetry now includes up to 10 of an install's saved Showcase preset *values* (never the preset's own name), giving a future top-10 pulldown real data to learn from.
+- **Fixed:** the Lights map's floor index used to draw one row per floor, so a multi-storey house grew a legend taller than the map itself — every floor now shares one line, and the canvas height shrinks to the real footprint instead of always reserving the worst-case size.
+
+---
+
 ## 0.38.36 — A backwards-reporting door sensor now reads correctly, and two real Showcase-preset bugs fixed (2026-09-11)
 
 ### A door/window sensor that reports backwards can now be told so

@@ -8635,6 +8635,27 @@ function _lightsTab(ctx, maps, active) {
       if (l) ctx.toast(`Click the map to place a circle over the opening for ${l.friendly_name || l.entity_id}.`);
       ctx.actions.renderRooms();
     } : null,
+    // The other half of "linked" (Garry, 2026-09-11: "make the linked option
+    // under map clickable, and have the option to unlink, and then place
+    // again" — a mis-drawn link, like a door repaired onto the wrong wall
+    // section, had no way back to the Place button at all). Clears the
+    // link only — the wall segment itself is left in place, same as the
+    // Rooms tab's own Invert button leaves the rest of the barrier alone,
+    // so a wrongly-placed one still needs a manual delete from Rooms → RF
+    // Barriers if its geometry, not just its link, is wrong. Once cleared,
+    // doorLinkedIds no longer contains this entity and the row's own "Place"
+    // button (above) reappears on its own — no separate re-place wiring.
+    onUnlinkDoor: paid && !preview ? async (l) => {
+      const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.linked_entity_id === l.entity_id);
+      if (!bar) { ctx.toast("That link no longer exists.", true); return; }
+      try {
+        await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set",
+          barrier: { ...bar, linked_entity_id: null } });
+        await ctx.actions.modelRefresh();
+        ctx.toast(`Unlinked — "${l.friendly_name || l.entity_id}" can be placed again.`);
+      } catch (e) { ctx.toast("Could not unlink: " + (e.message || e), true); }
+      ctx.actions.renderRooms();
+    } : null,
     // Map → index: the row of the light just selected on the map scrolls
     // into view, once.
     focusRowEid: mapState._focusRow || null,
