@@ -439,6 +439,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                                 "lights_isolux": bool(_vals.get("lights_isolux")),
                                 "lights_show_beacons": bool(_vals.get("lights_show_beacons")),
                                 "lights_hide_device_codes": bool(_vals.get("lights_hide_device_codes")),
+                                "lights_hide_untouched": bool(_vals.get("lights_hide_untouched")),
                                 "lights_automorph_enabled": bool(_vals.get("lights_automorph_enabled")),
                                 "lights_automorph_room_pct": max(0, min(100, int(_vals.get("lights_automorph_room_pct") or 0))),
                                 "lights_automorph_hardness": max(-100, min(100, int(_vals.get("lights_automorph_hardness") or 0))),

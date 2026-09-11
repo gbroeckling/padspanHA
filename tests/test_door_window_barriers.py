@@ -337,6 +337,33 @@ def test_the_door_button_is_withheld_once_a_wall_is_already_a_door():
     assert "if(!bar.linked_entity_id){" in gate, gate
 
 
+def test_the_invert_button_only_offers_itself_for_a_linked_non_lock_barrier():
+    """At least one real sensor (Upper Garage Car Door Contact) reports
+    backwards -- the Invert toggle flips a barrier's open/closed reading.
+    Locks read "locked"/"unlocked", not "on"/"off", so inverting one would
+    be meaningless; the toggle must only appear for a linked door/window
+    contact sensor."""
+    src = _MAPS.read_text(encoding="utf-8", errors="replace")
+    idx = src.index('invertBtn.title = "This sensor reports backwards')
+    gate = src[:idx][-400:]
+    assert 'if(bar.linked_entity_id && !bar.linked_entity_id.startsWith("lock.")){' in gate, gate
+
+
+def test_invert_button_flips_the_barriers_own_invert_state_by_id():
+    """The toggle must update the barrier BY ID with its own raw record
+    (from rf_barriers_m, in real metres) -- not the transformed row object
+    _fabricWallsHere() builds for display, which only carries fractional
+    map coordinates and would corrupt the wall's geometry if resent as
+    points_m."""
+    src = _MAPS.read_text(encoding="utf-8", errors="replace")
+    idx = src.index('invertBtn.addEventListener("click"')
+    block = src[idx:]
+    block = block[:block.index("\n            });") + len("\n            });")]
+    assert "ctx.state.model?.rf_barriers_m || []).find(b => b.id === bar.id)" in block, block
+    assert "invert_state: !raw.invert_state" in block, block
+    assert "...raw" in block, block
+
+
 # ── Mapping → Lights: doors take no part in point-placement ─────────────────
 # Garry, 2026-09-08, live on the deployed map: "The placement in mapping and
 # lights is not making any sense, and is not consistant... Not sure what you

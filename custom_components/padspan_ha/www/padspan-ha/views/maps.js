@@ -1522,7 +1522,8 @@ function _edit(ctx, map, allMaps){
       if (pts.length < 2) continue;
       out.push({ id: b.id, name: b.name || "", material: b.material || "custom",
                  attenuation_dbm: b.attenuation_dbm ?? 6, points: pts,
-                 linked_entity_id: b.linked_entity_id || null });
+                 linked_entity_id: b.linked_entity_id || null,
+                 invert_state: !!b.invert_state });
     }
     return out;
   };
@@ -2229,6 +2230,27 @@ function _edit(ctx, map, allMaps){
               renderAll(); renderTools();
             });
             row.appendChild(doorBtn);
+          }
+          // Some contact sensors report backwards ("on" means closed) — at
+          // least one real one does (Upper Garage Car Door Contact). Locks
+          // read "locked"/"unlocked", not "on"/"off", so this toggle only
+          // makes sense for a linked door/window contact sensor.
+          if(bar.linked_entity_id && !bar.linked_entity_id.startsWith("lock.")){
+            const invertBtn = el("button",{class:"btn tiny" + (bar.invert_state ? " primary" : "")},
+              bar.invert_state ? "Inverted" : "Invert");
+            invertBtn.title = "This sensor reports backwards (\"on\" means closed, not open) — flip the reading";
+            invertBtn.addEventListener("click", async (ev)=>{
+              ev.stopPropagation();
+              const raw = (ctx.state.model?.rf_barriers_m || []).find(b => b.id === bar.id);
+              if(!raw){ ctx.toast("That wall no longer exists.", true); return; }
+              try {
+                await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set",
+                  barrier: { ...raw, invert_state: !raw.invert_state } });
+                await ctx.actions.modelRefresh();
+                renderAll(); renderTools();
+              } catch (e) { ctx.toast("Could not update: " + (e.message || e), true); }
+            });
+            row.appendChild(invertBtn);
           }
           row.appendChild(delBtn);
           layersDiv.appendChild(row);
@@ -8780,6 +8802,7 @@ function _lightsTab(ctx, maps, active) {
       mapState._lightsIsolux = values.lights_isolux;
       mapState._lightsShowBeacons = values.lights_show_beacons;
       mapState._lightsHideDeviceCodes = values.lights_hide_device_codes;
+      mapState._lightsHideUntouched = values.lights_hide_untouched;
       mapState._lightsAutomorph = values.lights_automorph_enabled;
       mapState._lightsAutomorphPct = values.lights_automorph_room_pct;
       mapState._lightsAutomorphHardness = values.lights_automorph_hardness;
@@ -8797,6 +8820,7 @@ function _lightsTab(ctx, maps, active) {
         lights_isolux: !!ctx.state.settings?.lights_isolux,
         lights_show_beacons: !!ctx.state.settings?.lights_show_beacons,
         lights_hide_device_codes: !!ctx.state.settings?.lights_hide_device_codes,
+        lights_hide_untouched: !!ctx.state.settings?.lights_hide_untouched,
         lights_automorph_enabled: !!ctx.state.settings?.lights_automorph_enabled,
         lights_automorph_room_pct: Number(ctx.state.settings?.lights_automorph_room_pct) || 0,
         lights_automorph_hardness: Number(ctx.state.settings?.lights_automorph_hardness) || 0,

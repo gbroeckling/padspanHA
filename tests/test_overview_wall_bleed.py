@@ -54,3 +54,14 @@ def test_scanners_and_walls_use_the_same_draw_time_rule():
     """One rule for both: collected wide for the model, drawn narrow."""
     assert "if(sc.floorDist !== 0) continue;" in _OVERVIEW
     assert "if(bar.floorDist !== 0) continue;" in _OVERVIEW
+
+
+def test_linked_open_reading_flips_for_an_inverted_barrier():
+    """At least one real sensor (Upper Garage Car Door Contact) reports
+    backwards -- state=="on" means CLOSED, not open. b.invert_state must
+    flip linkedOpen here the SAME way it flips isOpen in iso_lights.js's
+    own barrier pass, or the two views would disagree about whether a
+    given door reads open."""
+    body = _storey_of()
+    bar = body[body.index("const barriers = [];"):]
+    assert 'state === "on") !== !!b.invert_state' in bar, bar

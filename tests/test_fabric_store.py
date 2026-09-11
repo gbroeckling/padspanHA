@@ -337,6 +337,27 @@ async def test_barriers_are_addressed_by_id_and_a_new_one_gets_one() -> None:
 
 
 @pytest.mark.asyncio
+async def test_barrier_invert_state_defaults_false_and_round_trips() -> None:
+    """A linked sensor's open/closed reading normally means state=="on" is
+    open — invert_state flips that for the one real sensor (Upper Garage
+    Car Door Contact) that reports backwards. Absent entirely, it must
+    normalize to a real False (never missing/None), and an explicit True
+    must survive untouched."""
+    fab = _spatial_fabric()
+    await fab.async_spatial_update(set_barriers=[
+        {"name": "Normal Door", "points_m": [[0, 0], [1, 0]], "floor_id": "main",
+         "linked_entity_id": "binary_sensor.normal"},
+        {"name": "Backwards Door", "points_m": [[2, 0], [3, 0]], "floor_id": "main",
+         "linked_entity_id": "binary_sensor.backwards", "invert_state": True},
+    ], op="seed")
+    walls = fab.rf_barriers_m()
+    normal = next(b for b in walls if b["name"] == "Normal Door")
+    backwards = next(b for b in walls if b["name"] == "Backwards Door")
+    assert normal["invert_state"] is False
+    assert backwards["invert_state"] is True
+
+
+@pytest.mark.asyncio
 async def test_placement_is_ground_truth_across_a_transform_change() -> None:
     """The doctrine, end to end, with no photo anywhere in it.
 

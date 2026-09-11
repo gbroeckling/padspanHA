@@ -1155,11 +1155,15 @@ export function render(ctx){
           // A linked door/window's live open/closed reads straight off the
           // entity — the SAME field iso_lights.js's own barrier pass reads,
           // so the two views can never disagree about whether a given door
-          // reads open (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 5).
+          // reads open (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 5). Same
+          // invert_state flip as iso_lights.js's barrier pass, for the same
+          // reason: at least one real sensor reports backwards.
           barriers.push({
             points, attenuation_dbm: b.attenuation_dbm ?? 6, floorDist,
             linked_entity_id: b.linked_entity_id || null,
-            linkedOpen: b.linked_entity_id ? (ctx.hass?.states?.[b.linked_entity_id]?.state === "on") : false,
+            linkedOpen: b.linked_entity_id
+              ? (ctx.hass?.states?.[b.linked_entity_id]?.state === "on") !== !!b.invert_state
+              : false,
           });
         }
         const calPts = [];

@@ -1920,7 +1920,7 @@ export function buildLightsMapCard(hostIn){
   mapCard.appendChild(ctrlRow);
 
   // Presets — a saved snapshot of the whole Showcase "look" bundle (Theme +
-  // Automorph + Fit room/Isolux/Beacons/Codes). Garry, 2026-09-10: "we now
+  // Automorph + Fit room/Isolux/Beacons/Codes/Untouched). Garry, 2026-09-10: "we now
   // have thousands of combinations in the mapping, lights setup, we need to
   // build a preset system... clearly separate from all other settings on
   // that tab." Deliberately its OWN box below the toolbar (see .lv-presetbar

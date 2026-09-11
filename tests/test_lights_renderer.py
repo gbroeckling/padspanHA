@@ -311,6 +311,37 @@ def test_a_linked_open_barrier_draws_nothing_but_keeps_both_dots(tmp_path):
     assert 'stroke="#94a3b8"' not in svg, "open must not also draw the closed neutral line"
 
 
+_INVERTED_BARRIER_MODEL = {**_MODEL, "rf_barriers_m": [
+    {"id": "b1", "floor_id": "main", "material": "wood", "attenuation_dbm": 4,
+     "points_m": [[1, 1], [3, 1]], "linked_entity_id": "binary_sensor.frontdoor",
+     "invert_state": True},
+]}
+
+
+def test_an_inverted_barrier_reads_state_on_as_closed(tmp_path):
+    """At least one real sensor (Upper Garage Car Door Contact) reports
+    backwards: state=="on" means CLOSED, not open. invert_state flips the
+    reading for just that one barrier -- "on" must draw the same as a
+    normal barrier's "off" (closed)."""
+    lbe = {**_BARRIER_LBE, "binary_sensor.frontdoor": {**_BARRIER_LBE["binary_sensor.frontdoor"], "state": "on"}}
+    out = _run_js(tmp_path, _barrier_harness(_INVERTED_BARRIER_MODEL, lbe))
+    svg = out["svg"]
+    assert svg.count('fill="#9333ea"') == 2, "exactly one purple dot per endpoint of the barrier"
+    assert "#fb7185" not in svg, "closed must not draw the open accent colour"
+    assert 'stroke="#94a3b8"' in svg, "inverted + state=on reads as closed"
+
+
+def test_an_inverted_barrier_reads_state_off_as_open(tmp_path):
+    """The other half of the invert flip -- state=="off" must now read as
+    OPEN (draws nothing for the wall itself) for an inverted barrier."""
+    lbe = {**_BARRIER_LBE, "binary_sensor.frontdoor": {**_BARRIER_LBE["binary_sensor.frontdoor"], "state": "off"}}
+    out = _run_js(tmp_path, _barrier_harness(_INVERTED_BARRIER_MODEL, lbe))
+    svg = out["svg"]
+    assert svg.count('fill="#9333ea"') == 2, "the endpoint dots mark WHERE the opening is in both states"
+    assert "#fb7185" not in svg, "open must draw nothing for the wall itself — a true gap, not a coloured line"
+    assert 'stroke="#94a3b8"' not in svg, "inverted + state=off reads as open, not closed"
+
+
 _LOCK_BARRIER_MODEL = {**_MODEL, "rf_barriers_m": [
     {"id": "b1", "floor_id": "main", "material": "wood", "attenuation_dbm": 4,
      "points_m": [[1, 1], [3, 1]], "linked_entity_id": "lock.frontdoor"},

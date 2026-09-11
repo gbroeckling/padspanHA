@@ -5346,7 +5346,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
             : `<polyline points="${ppx}" fill="none" class="lv-lockflash" stroke-width="3" `+
               `stroke-linecap="round" opacity="${barDim.toFixed(2)}" pointer-events="none"/>`;
         } else {
-          const isOpen=!!(dl && dl.state==="on");
+          // A linked sensor's "open" reading assumes normal binary_sensor
+          // semantics (state=="on" == open) — wrong for at least one real
+          // sensor (Upper Garage Car Door Contact) that reports backwards.
+          // bar.invert_state flips the reading for just that one barrier.
+          const rawOn=!!(dl && dl.state==="on");
+          const isOpen=bar.invert_state ? !rawOn : rawOn;
           // Garry, 2026-09-10 (repeated, emphatically): "the doors when
           // open show a grey line where the door is, I want nothing
           // there." A prior pass drew a dashed DOOR_BORDER line for the

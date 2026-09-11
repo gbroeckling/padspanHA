@@ -533,6 +533,12 @@ class FabricStore:
         out["floor_id"] = str(out.get("floor_id") or DEFAULT_FLOOR_ID)
         out["id"] = str(out.get("id") or "").strip()[:40] or f"bar_{os.urandom(4).hex()}"
         out.pop("map_id", None)   # a wall is not "on" a photograph
+        # A linked door/window/lock's open/closed reading assumes normal
+        # binary_sensor semantics (state=="on" == open). At least one real
+        # sensor (Upper Garage Car Door Contact) reports backwards — flip
+        # the reading for this one barrier without touching the sensor or
+        # every other barrier linked to normal-reporting sensors.
+        out["invert_state"] = bool(out.get("invert_state"))
         return out
 
     async def async_spatial_update(
