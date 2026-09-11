@@ -1917,6 +1917,74 @@ export function buildLightsMapCard(hostIn){
 
   mapCard.appendChild(ctrlRow);
 
+  // Presets — a saved snapshot of the whole Showcase "look" bundle (Theme +
+  // Automorph + Fit room/Isolux/Beacons/Codes). Garry, 2026-09-10: "we now
+  // have thousands of combinations in the mapping, lights setup, we need to
+  // build a preset system... clearly separate from all other settings on
+  // that tab." Deliberately its OWN box below the toolbar (see .lv-presetbar
+  // in styles.css) rather than one more control folded into the row above —
+  // applying a preset changes several unrelated settings at once, a bigger
+  // action than any single toggle beside it, and it reads that way too.
+  if (host.showcase && host.onSavePreset) {
+    const presets = host.showcasePresets || [];
+    const presetBar = el("div", { class: "lv-presetbar" });
+    presetBar.appendChild(el("span", { class: "lv-lbl" }, "Presets"));
+
+    const presetSel = document.createElement("select");
+    presetSel.className = "lv-select";
+    presetSel.title = "A saved combination of Theme, Automorph and the other Showcase controls";
+    presetSel.appendChild(el("option", { value: "" }, presets.length ? "— Select a look —" : "No saved looks yet"));
+    for (const p of presets) presetSel.appendChild(el("option", { value: p.name }, p.name));
+    presetBar.appendChild(presetSel);
+
+    const presetStatus = el("span", { class: "lv-status" }, "");
+    const flashPreset = (msg) => { presetStatus.textContent = msg; setTimeout(() => { presetStatus.textContent = ""; }, 2000); };
+
+    presetBar.appendChild(el("button", {
+      class: "lv-act primary",
+      title: "Apply this preset's Theme, Automorph and other Showcase settings",
+      onclick: async () => {
+        const p = presets.find((x) => x.name === presetSel.value);
+        if (!p) { flashPreset("Pick a preset first"); return; }
+        await host.onApplyPreset(p.values);
+        flashPreset("Applied ✓");
+      },
+    }, "Apply"));
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "lv-preset-name";
+    nameInput.placeholder = "Name this look…";
+    nameInput.maxLength = 60;
+    presetBar.appendChild(nameInput);
+
+    presetBar.appendChild(el("button", {
+      class: "lv-act",
+      title: "Save the current Theme, Automorph and other Showcase settings under this name — overwrites a saved look with the same name",
+      onclick: async () => {
+        const name = nameInput.value.trim();
+        if (!name) { flashPreset("Type a name first"); return; }
+        await host.onSavePreset(name);
+        nameInput.value = "";
+        flashPreset("Saved ✓");
+      },
+    }, "Save current"));
+
+    const delBtn = el("button", { class: "lv-act", title: "Delete the selected preset" }, "Delete");
+    delBtn.disabled = !presetSel.value;
+    delBtn.addEventListener("click", async () => {
+      if (!presetSel.value) return;
+      const name = presetSel.value;
+      await host.onDeletePreset(name);
+      flashPreset("Deleted");
+    });
+    presetSel.addEventListener("change", () => { delBtn.disabled = !presetSel.value; });
+    presetBar.appendChild(delBtn);
+    presetBar.appendChild(presetStatus);
+
+    mapCard.appendChild(presetBar);
+  }
+
   // ── Layers + navigation bar ─────────────────────────────────────────────
   // Separate from the view-shaping toolbar above: this row is about WHAT you
   // are looking at (which device classes, which storey), not how it is drawn.

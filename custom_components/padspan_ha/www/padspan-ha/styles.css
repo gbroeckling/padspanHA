@@ -972,6 +972,21 @@
 .lv-toolbar-sticky{position:sticky;top:0;z-index:20;
   background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
   box-shadow:0 6px 14px -6px rgba(0,0,0,.5)}
+/* Presets — Garry, 2026-09-10: "thousands of combinations in the mapping,
+   lights setup, we need a preset system... clearly separate from all other
+   settings on that tab." A second, independent box rather than another
+   lv-ctrlgroup pill INSIDE the main toolbar — same violet accent Showcase's
+   own toggle uses (a preset is fundamentally a saved Showcase/Automorph
+   look), but its own border and background so it never reads as part of
+   the toolbar above it. */
+.lv-presetbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px;
+  padding:6px 8px;border:1px solid rgba(196,181,253,.22);border-radius:12px;
+  background:linear-gradient(180deg,rgba(124,58,237,.07),rgba(0,0,0,.2))}
+.lv-presetbar .lv-lbl{color:rgba(216,197,255,.55)}
+.lv-preset-name{background:rgba(15,26,18,.85);color:#e8f0ea;
+  border:1px solid rgba(196,181,253,.3);border-radius:8px;padding:2px 8px;
+  font-size:11px;width:150px}
+.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-sep{width:1px;align-self:stretch;margin:2px 3px;
   background:linear-gradient(180deg,transparent,rgba(120,190,155,.3),transparent)}
 .lv-lbl{font-size:9.5px;font-weight:600;white-space:nowrap;text-transform:uppercase;

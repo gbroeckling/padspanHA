@@ -8763,6 +8763,61 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not save the Automorph subtlety: " + String(e), true); }
       ctx.actions.renderRooms();
     },
+    // Presets — a saved snapshot of the whole Showcase "look" bundle. Garry,
+    // 2026-09-10: "we now have thousands of combinations in the mapping,
+    // lights setup, we need to build a preset system." Each preset's
+    // `values` uses the real setting keys directly (the same keys every
+    // individual handler above already settingsSet's), so applying one is a
+    // single settingsSet call; the mapState overrides are set alongside it
+    // only so the UI reflects the change immediately, same reason every
+    // individual onXxx handler above sets its own override.
+    showcasePresets: Array.isArray(ctx.state.settings?.lights_showcase_presets)
+      ? ctx.state.settings.lights_showcase_presets : [],
+    onApplyPreset: async (values) => {
+      mapState._lightsShowcase = values.lights_showcase;
+      mapState._lightsShowcaseTheme = values.lights_showcase_theme;
+      mapState._lightsFitRooms = values.lights_fit_rooms;
+      mapState._lightsIsolux = values.lights_isolux;
+      mapState._lightsShowBeacons = values.lights_show_beacons;
+      mapState._lightsHideDeviceCodes = values.lights_hide_device_codes;
+      mapState._lightsAutomorph = values.lights_automorph_enabled;
+      mapState._lightsAutomorphPct = values.lights_automorph_room_pct;
+      mapState._lightsAutomorphHardness = values.lights_automorph_hardness;
+      mapState._lightsAutomorphStyle = values.lights_automorph_style;
+      mapState._lightsAutomorphSubtlety = values.lights_automorph_subtlety;
+      try { await ctx.actions.settingsSet(values); }
+      catch (e) { ctx.toast("Could not apply the preset: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
+    onSavePreset: async (name) => {
+      const values = {
+        lights_showcase: !!ctx.state.settings?.lights_showcase,
+        lights_showcase_theme: ctx.state.settings?.lights_showcase_theme || "classic",
+        lights_fit_rooms: !!ctx.state.settings?.lights_fit_rooms,
+        lights_isolux: !!ctx.state.settings?.lights_isolux,
+        lights_show_beacons: !!ctx.state.settings?.lights_show_beacons,
+        lights_hide_device_codes: !!ctx.state.settings?.lights_hide_device_codes,
+        lights_automorph_enabled: !!ctx.state.settings?.lights_automorph_enabled,
+        lights_automorph_room_pct: Number(ctx.state.settings?.lights_automorph_room_pct) || 0,
+        lights_automorph_hardness: Number(ctx.state.settings?.lights_automorph_hardness) || 0,
+        lights_automorph_style: ctx.state.settings?.lights_automorph_style || "glow",
+        lights_automorph_subtlety: Number(ctx.state.settings?.lights_automorph_subtlety) || 0,
+      };
+      const rest = (ctx.state.settings?.lights_showcase_presets || []).filter((p) => p.name !== name);
+      try {
+        await ctx.actions.settingsSet({ lights_showcase_presets: [...rest, { name, values }] });
+        ctx.toast(`Saved "${name}"`);
+      } catch (e) { ctx.toast("Could not save the preset: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
+    onDeletePreset: async (name) => {
+      const rest = (ctx.state.settings?.lights_showcase_presets || []).filter((p) => p.name !== name);
+      try {
+        await ctx.actions.settingsSet({ lights_showcase_presets: rest });
+        ctx.toast(`Deleted "${name}"`);
+      } catch (e) { ctx.toast("Could not delete the preset: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
     // Scene preview state is a view mode, deliberately NOT a setting: a
     // preview left armed in storage would repaint the map on every open.
     sceneName: mapState._lightsScene || null,

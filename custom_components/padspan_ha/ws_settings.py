@@ -31,6 +31,24 @@ from .ws_common import _LIGHT_SHAPE_KINDS, _OBJECT_HISTORY_DAYS_DEFAULT, _OBJECT
 
 _LOGGER = logging.getLogger(__name__)
 
+# Shared whitelists — referenced both by the individual lights_automorph_style
+# / lights_showcase_theme setters below AND by the Showcase preset sanitizer
+# (a preset's saved "values" blob must never let a removed/renamed style or
+# theme key persist forever in someone's saved presets), so a new style or
+# theme only ever needs adding in ONE Python-side place.
+_AUTOMORPH_STYLES = (
+    "glow", "blueprint", "nebula", "circuit", "contour", "facet",
+    "sumie", "stainedglass", "constellation", "halo", "pulse",
+)
+_SHOWCASE_THEMES = (
+    "classic", "cinematic_glass", "neo_hud", "editorial_minimalist",
+    "ambient_premium", "dataviz_precision", "organic_bioluminescent",
+    "elevated_blueprint", "material_you", "neon_precision", "luxury_realestate",
+    "wabi_sabi", "hygge", "aurora", "automotive_hud", "art_deco",
+    "swiss_style", "bauhaus", "nightscape", "holographic", "retro_futurism",
+    "obsidian_noir",
+)
+
 
 @websocket_api.websocket_command({"type": "padspan_ha/settings_get"})
 
@@ -86,6 +104,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lights_automorph_style"): str,
         vol.Optional("lights_automorph_subtlety"): vol.Coerce(int),
         vol.Optional("lights_showcase_theme"): str,
+        vol.Optional("lights_showcase_presets"): list,
         vol.Optional("adaptive_learning_enabled"): bool,
         vol.Optional("adaptive_floor_detection"): bool,
         vol.Optional("signal_loss_linger_s"): vol.Coerce(int),
@@ -380,23 +399,54 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["lights_automorph_hardness"] = max(-100, min(100, int(msg["lights_automorph_hardness"])))
         if "lights_automorph_style" in msg:
             _style = str(msg["lights_automorph_style"] or "").strip().lower()
-            payload["lights_automorph_style"] = _style if _style in (
-                "glow", "blueprint", "nebula", "circuit", "contour", "facet",
-                "sumie", "stainedglass", "constellation",
-                "halo", "pulse",
-            ) else "glow"
+            payload["lights_automorph_style"] = _style if _style in _AUTOMORPH_STYLES else "glow"
         if "lights_automorph_subtlety" in msg:
             payload["lights_automorph_subtlety"] = max(0, min(100, int(msg["lights_automorph_subtlety"])))
         if "lights_showcase_theme" in msg:
             _sctheme = str(msg["lights_showcase_theme"] or "").strip().lower()
-            payload["lights_showcase_theme"] = _sctheme if _sctheme in (
-                "classic", "cinematic_glass", "neo_hud", "editorial_minimalist",
-                "ambient_premium", "dataviz_precision", "organic_bioluminescent",
-                "elevated_blueprint", "material_you", "neon_precision", "luxury_realestate",
-                "wabi_sabi", "hygge", "aurora", "automotive_hud", "art_deco",
-                "swiss_style", "bauhaus", "nightscape", "holographic", "retro_futurism",
-                "obsidian_noir",
-            ) else "classic"
+            payload["lights_showcase_theme"] = _sctheme if _sctheme in _SHOWCASE_THEMES else "classic"
+        if "lights_showcase_presets" in msg:
+            # Named snapshots of the whole Showcase "look" bundle — Garry:
+            # "we now have thousands of combinations in the mapping, lights
+            # setup, we need to build a preset system." Each entry's `values`
+            # uses the SAME real setting keys this schema already validates
+            # individually above, so applying a preset is one plain
+            # settingsSet(values) call on the frontend with no translation
+            # layer — and so this sanitizer is the one place a saved preset
+            # is defended against a stale/removed style or theme key, a
+            # future settings-schema change, or hand-edited storage.
+            _presets_in = msg["lights_showcase_presets"]
+            _presets_out = []
+            if isinstance(_presets_in, list):
+                for _p in _presets_in[:50]:
+                    if not isinstance(_p, dict):
+                        continue
+                    _name = str(_p.get("name") or "").strip()[:60]
+                    _vals = _p.get("values")
+                    if not _name or not isinstance(_vals, dict):
+                        continue
+                    try:
+                        _style2 = str(_vals.get("lights_automorph_style") or "").strip().lower()
+                        _theme2 = str(_vals.get("lights_showcase_theme") or "").strip().lower()
+                        _presets_out.append({
+                            "name": _name,
+                            "values": {
+                                "lights_showcase": bool(_vals.get("lights_showcase")),
+                                "lights_showcase_theme": _theme2 if _theme2 in _SHOWCASE_THEMES else "classic",
+                                "lights_fit_rooms": bool(_vals.get("lights_fit_rooms")),
+                                "lights_isolux": bool(_vals.get("lights_isolux")),
+                                "lights_show_beacons": bool(_vals.get("lights_show_beacons")),
+                                "lights_hide_device_codes": bool(_vals.get("lights_hide_device_codes")),
+                                "lights_automorph_enabled": bool(_vals.get("lights_automorph_enabled")),
+                                "lights_automorph_room_pct": max(0, min(100, int(_vals.get("lights_automorph_room_pct") or 0))),
+                                "lights_automorph_hardness": max(-100, min(100, int(_vals.get("lights_automorph_hardness") or 0))),
+                                "lights_automorph_style": _style2 if _style2 in _AUTOMORPH_STYLES else "glow",
+                                "lights_automorph_subtlety": max(0, min(100, int(_vals.get("lights_automorph_subtlety") or 0))),
+                            },
+                        })
+                    except (TypeError, ValueError):
+                        continue  # one malformed preset must not reject the whole save
+            payload["lights_showcase_presets"] = _presets_out
         if "light_shapes" in msg:
             # entity_id -> shape kind. Only known kinds are stored; an unknown
             # value would just fall back to the default marker in the frontend,
