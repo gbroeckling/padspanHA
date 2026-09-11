@@ -46,11 +46,15 @@ MANIFEST = ROOT / "custom_components" / "padspan_ha" / "manifest.json"
 HOST = "administrator@75.157.233.12"
 REMOTE_DIR = "/var/www/clients/client1/web10/web/padspan"
 REMOTE = REMOTE_DIR + "/index.html"
-# Small files that live beside the page. Each exists because the access log
-# showed 404s for it: robots.txt was asked for 62 times in 15 days, and
-# .htaccess redirects the URLs people GUESS — /pricing, /plans, /docs, /faq —
-# which were 404ing visitors looking for the page that sells.
-SIDECARS = ("robots.txt", "sitemap.xml", ".htaccess")
+# Small files that live beside the page. robots.txt/sitemap.xml/.htaccess
+# exist because the access log showed 404s for them: robots.txt was asked
+# for 62 times in 15 days, and .htaccess redirects the URLs people GUESS —
+# /pricing, /plans, /docs, /faq — which were 404ing visitors looking for the
+# page that sells. showcase-themes.html is a standalone static page (no
+# data-latest-version elements, so it never needs stamping) linked from the
+# #lights section as a sneak peek — it rides along unmodified, same as the
+# others.
+SIDECARS = ("robots.txt", "sitemap.xml", ".htaccess", "showcase-themes.html")
 URL = "https://padspan.traks.ca/"
 MANIFEST_URL = "https://padspan.traks.ca/api/version.php"
 SSH = "ssh -o BatchMode=yes -o ConnectTimeout=20"
