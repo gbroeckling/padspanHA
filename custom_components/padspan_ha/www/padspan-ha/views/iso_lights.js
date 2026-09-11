@@ -2450,15 +2450,33 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   const pts = cs=>cs.map(pt).join(" ");
 
   const levelColor=(z)=>LAYER_PAL[levels.indexOf(z)%LAYER_PAL.length];
-  // +1 row: the motion colour-index strip below the floor rows (Garry,
-  // 2026-09-08) reuses this exact same growing-row layout, one row past
-  // the last floor.
-  const LEGEND_H=(Math.max(1,levels.length)+1)*30+24;
+  // Where the building actually ends on screen, not the fixed worst-case
+  // canvas BASE_H was allocated for (Garry, 2026-09-11: "why is there such a
+  // big gap between the bottom of the map and the index, color bar"). S
+  // (fabricFrame, above) is the SMALLER of a width-fit and a height-fit
+  // scale — a house whose footprint is wide relative to its isometric depth
+  // gets width-capped, so the drawing never uses the vertical room BASE_H
+  // reserves for the tallest case, leaving a dead strip below the last room.
+  // 70px of pad covers a room's own stroke, its floor badge and marker
+  // halos, which sit slightly past the room polygon's own bottom edge.
+  let contentMaxY = -Infinity;
+  for(const r of rooms) for(const p of r.pts){
+    const py = iso(p[0], p[1], r.z)[1];
+    if(py > contentMaxY) contentMaxY = py;
+  }
+  const LEGEND_Y0 = isFinite(contentMaxY) ? Math.min(BASE_H, contentMaxY + 70) : BASE_H;
+  // ONE fixed row for the whole bottom strip — floor index AND the motion
+  // colour index share it (Garry, 2026-09-11: the old formula gave the
+  // floor index its OWN row per floor, so a 4-storey house drew a legend
+  // taller than the map itself; then "put that on the same line as the
+  // motion color index bar, be more efficient with the rapidly evaporating
+  // space" — so the two rows became one).
+  const LEGEND_H=32;
   // Top of the stack in DRAWN storeys, not level numbers — otherwise a gap in
   // the numbering reserved empty canvas above the building.
   const maxIsoZ = levels.length ? rankOf(levels[levels.length-1]) : 0;
   const viewY   = Math.min(0, CY - maxIsoZ*FG - 50);   // 50 px top padding
-  const HTOTAL  = BASE_H + LEGEND_H - viewY;
+  const HTOTAL  = LEGEND_Y0 + LEGEND_H - viewY;
 
   // width:100% with NO height cap. `max-height:${HTOTAL}px` pinned the drawing
   // to its natural size, so on any panel wider than the 760-unit viewBox the
@@ -5738,7 +5756,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // glyph simply snaps back home on the next render, exactly as every other
   // interactive element here is rebuilt fresh each time.
   if(opts.dropMarker){
-    const dx=W-40, dy=BASE_H-40;
+    const dx=W-40, dy=LEGEND_Y0-40;
     // Flashes (Garry, 2026-09-07): a static pin in a corner is easy to select
     // a light and then never notice — the outer ring breathes to draw the eye
     // there for as long as something is actually armed and waiting for a tap.
@@ -5754,24 +5772,31 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       `</g>`;
   }
 
-  // Legend
-  s+=`<line x1="10" y1="${BASE_H+4}" x2="${W-10}" y2="${BASE_H+4}" stroke="#1b3526" stroke-width="0.8"/>`;
-  levels.forEach((z,i)=>{
-    const ly=BASE_H+10+i*30, color=levelColor(z);
-    const fl=(floors||[]).find(f=>Number(f.level)===z);
-    const groupLabel=fl?(fl.name||`Floor ${z}`):`Floor ${z}`;
-    s+=`<circle cx="18" cy="${ly+11}" r="11" fill="${color}" opacity="0.9"/>`;
-    s+=`<text x="18" y="${ly+15}" text-anchor="middle" fill="#071008" font-size="12" font-weight="700">${i+1}</text>`;
-    s+=`<text x="36" y="${ly+15}" fill="${color}" font-size="18" font-weight="500">${escSVG(groupLabel)}</text>`;
-  });
-  // Motion colour index (Garry, 2026-09-08) — one row past the last floor,
-  // in the space LEGEND_H's +1 above reserved. "Thin, all in one row, 1/4
-  // of the size you have now, and no extra row of text for no reason" —
-  // label and strip share the SAME line, no caption row beneath it.
+  // Floor index + motion colour index — ONE shared line (Garry, 2026-09-11,
+  // in two steps: first "why on earth is the floor index taking up massive
+  // space... make it 1/8 the size, and only one line" collapsed one row
+  // PER FLOOR down to one row; then "put that on the same line as the
+  // motion color index bar, be more efficient with the rapidly evaporating
+  // space" merged that row and the motion strip's row into this single one.
+  // Floors lay out left to right, each spaced by its own label's width,
+  // then "Motion" and its strip continue right where the last floor ends.
+  s+=`<line x1="10" y1="${LEGEND_Y0+4}" x2="${W-10}" y2="${LEGEND_Y0+4}" stroke="#1b3526" stroke-width="0.8"/>`;
   {
-    const my=BASE_H+10+levels.length*30;
-    s+=`<text x="18" y="${my+11}" fill="#9fb0a8" font-size="13" font-weight="500">Motion</text>`+
-      `<rect x="70" y="${my+7}" width="140" height="1.5" rx="0.75" fill="url(#psmotionlegend)"/>`;
+    const R=7, FS=10, ly=LEGEND_Y0+10+R;
+    let lx=18+R;
+    levels.forEach((z,i)=>{
+      const color=levelColor(z);
+      const fl=(floors||[]).find(f=>Number(f.level)===z);
+      const label=fl?(fl.name||`Floor ${z}`):`Floor ${z}`;
+      s+=`<circle cx="${lx}" cy="${ly}" r="${R}" fill="${color}" opacity="0.9"/>`;
+      s+=`<text x="${lx}" y="${ly+3}" text-anchor="middle" fill="#071008" font-size="8" font-weight="700">${i+1}</text>`;
+      lx+=R+5;
+      s+=`<text x="${lx}" y="${ly+3}" fill="${color}" font-size="${FS}" font-weight="500">${escSVG(label)}</text>`;
+      lx+=Math.max(24, label.length*FS*0.6)+18+R;
+    });
+    s+=`<text x="${lx}" y="${ly+3}" fill="#9fb0a8" font-size="10" font-weight="500">Motion</text>`;
+    lx+="Motion".length*10*0.6+14;
+    s+=`<rect x="${lx}" y="${ly-2}" width="120" height="1.5" rx="0.75" fill="url(#psmotionlegend)"/>`;
   }
 
   s+=`</svg>`;

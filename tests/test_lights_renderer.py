@@ -4884,9 +4884,12 @@ def test_motion_legend_strip_indexes_every_real_pulse_colour_in_proportion(tmp_p
     assert 5 <= magenta_w <= 15, ("fixed terminal band, not proportional", magenta_w)
 
 
-def test_motion_legend_strip_reserves_its_own_row_past_the_floor_legend(tmp_path):
-    """A multi-floor render must not clip or overlap the strip under the
-    last floor row — LEGEND_H reserves exactly one extra row for it."""
+def test_motion_strip_sits_on_the_same_row_as_the_floor_index(tmp_path):
+    """Garry (2026-09-11): "put that on the same line as the motion color
+    index bar, be more efficient with the rapidly evaporating space" — the
+    motion strip must sit on the SAME row as the floor badges (same y
+    rhythm, right after the last floor's label), not a row of its own, and
+    must still fit fully inside the SVG's own declared height."""
     model = {
         "room_geometry_m": {
             "R1": {"type": "poly", "floor_id": "f1", "points_m": [[0, 0], [4, 0], [4, 4], [0, 4]]},
@@ -4902,10 +4905,94 @@ def test_motion_legend_strip_reserves_its_own_row_past_the_floor_legend(tmp_path
         f"const FLOORS={json.dumps(floors)};\n"
         "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,{},false,FLOORS,{});\n"
         "const h=/height=\"([0-9.]+)\"/.exec(svg);\n"
-        "const stripM=/<rect x=\"70\" y=\"([0-9.]+)\"[^>]*fill=\"url\\(#psmotionlegend\\)\"/.exec(svg);\n"
-        "console.log(JSON.stringify({height:h?Number(h[1]):null, stripY:stripM?Number(stripM[1]):null}));\n"
+        "const stripM=/<rect x=\"[0-9.]+\" y=\"([0-9.]+)\" width=\"120\"[^>]*fill=\"url\\(#psmotionlegend\\)\"/.exec(svg);\n"
+        "const badgeM=/<circle cx=\"[0-9.]+\" cy=\"([0-9.]+)\" r=\"7\" fill=/.exec(svg);\n"
+        "console.log(JSON.stringify({height:h?Number(h[1]):null, stripY:stripM?Number(stripM[1]):null, badgeCy:badgeM?Number(badgeM[1]):null}));\n"
     ))
-    assert out["height"] is not None and out["stripY"] is not None, out
+    assert out["height"] is not None and out["stripY"] is not None and out["badgeCy"] is not None, out
     assert out["stripY"] + 12 <= out["height"], (
         "the motion legend strip must fit fully inside the SVG's own declared height", out
+    )
+    assert abs((out["stripY"] + 2) - out["badgeCy"]) < 0.01, (
+        "the motion strip must align with the floor badges' own row, not sit on a separate one", out
+    )
+
+
+def test_floor_index_is_one_row_not_one_row_per_floor(tmp_path):
+    """Garry (2026-09-11): "why on earth is the floor index taking up
+    massive space at the bottom of the map... make it 1/8 of the size, and
+    only one line!" Every floor badge must share the same cy (one row), and
+    a 4-floor house must not be taller than a 1-floor one."""
+    def _svg_height(n_floors):
+        rooms = {f"R{i}": {"type": "poly", "floor_id": f"f{i}", "points_m": [[0, 0], [4, 0], [4, 4], [0, 4]]}
+                 for i in range(n_floors)}
+        floors = [{"id": f"f{i}", "name": f"Floor{i}", "level": i} for i in range(n_floors)]
+        model = {"room_geometry_m": rooms, "light_positions_m": {}}
+        out = _run_js(tmp_path, (
+            "import * as M from './iso_lights.mjs';\n"
+            f"const MODEL={json.dumps(model)};\n"
+            f"const FLOORS={json.dumps(floors)};\n"
+            "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,{},false,FLOORS,{});\n"
+            "const h=/height=\"([0-9.]+)\"/.exec(svg);\n"
+            "const badgeYs=[...svg.matchAll(/<circle cx=\"[0-9.]+\" cy=\"([0-9.]+)\" r=\"7\" fill=/g)]"
+            "  .map(m=>Number(m[1]));\n"
+            "console.log(JSON.stringify({height:h?Number(h[1]):null, badgeYs}));\n"
+        ))
+        return out
+
+    one = _svg_height(1)
+    four = _svg_height(4)
+    assert one["height"] is not None and four["height"] is not None, (one, four)
+    assert four["height"] == one["height"], (
+        "the floor index must not grow the SVG's total height as floors are added", one, four
+    )
+    assert len(four["badgeYs"]) == 4, four
+    assert len(set(four["badgeYs"])) == 1, (
+        "all four floor badges must sit on the same row (one cy value)", four["badgeYs"]
+    )
+
+
+def _legend_line_y(tmp_path, points_m):
+    model = {
+        "room_geometry_m": {"R1": {"type": "poly", "floor_id": "f1", "points_m": points_m}},
+        "light_positions_m": {},
+    }
+    floors = [{"id": "f1", "name": "Main", "level": 0}]
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,{},false,FLOORS,{});\n"
+        "const line=[...svg.matchAll(/<line x1=\"10\" y1=\"([0-9.]+)\"[^>]*stroke=\"#1b3526\"/g)][0];\n"
+        "console.log(JSON.stringify({legendLineY: line?Number(line[1]):null}));\n"
+    ))
+    assert out["legendLineY"] is not None, out
+    return out["legendLineY"]
+
+
+def test_legend_line_tracks_the_drawings_own_bottom_not_a_fixed_worst_case(tmp_path):
+    """Garry (2026-09-11): "why is there such a big gap between the bottom
+    of the map and the index, color bar" — the legend used to sit at a
+    fixed BASE_H+4=944 no matter how much of the canvas the drawing actually
+    used. A plain rectangular room (always width-bound — S is capped by
+    width for any axis-aligned rectangle, since an isometric rectangle's own
+    u/v extents are always equal) must now pull the legend well above 944."""
+    y = _legend_line_y(tmp_path, [[0, 0], [4, 0], [4, 4], [0, 4]])
+    assert y < 900, (
+        "the legend line must sit close to the room's own drawn bottom edge, "
+        "not the fixed worst-case position of 944", y
+    )
+
+
+def test_legend_line_still_caps_at_the_canvas_edge_for_a_height_bound_shape(tmp_path):
+    """The shrink-to-content fix must not break the original invariant that
+    the drawing (and therefore the legend below it) never overflows the
+    canvas: a room shaped so its OWN scale is height-bound (elongated along
+    the isometric v-diagonal, not just wide in plan) should still land the
+    legend at essentially the old fixed position, because it genuinely uses
+    that much of the canvas."""
+    y = _legend_line_y(tmp_path, [[0, 0], [2, -2], [22, 18], [20, 20]])
+    assert abs(y - 944) < 1, (
+        "a height-bound room's own drawing should reach right up to the "
+        "canvas edge, same as the old fixed layout", y
     )
