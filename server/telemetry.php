@@ -27,7 +27,7 @@ if ($raw === false || strlen($raw) > $MAX) { http_response_code(413); echo '{"ok
 $r = json_decode($raw, true);
 if (!is_array($r)) { http_response_code(400); echo '{"ok":false}'; exit; }
 
-$allowed = array('schema','install_id','day','version','edition','tier','ha_version','python','env','features','usage','health','errors');
+$allowed = array('schema','install_id','day','version','edition','tier','ha_version','python','env','features','usage','health','errors','presets');
 foreach (array_keys($r) as $k) {
     if (!in_array($k, $allowed, true)) { http_response_code(400); echo '{"ok":false,"why":"key"}'; exit; }
 }

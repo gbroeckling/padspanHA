@@ -20,6 +20,10 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
         points that never got a floor, whether any map is measured
     uncaught panel errors by view — the half of PadSpan the Python log
         cannot see (see UI_ERRORS)
+    up to 10 saved Showcase presets' VALUES (theme, Automorph settings, a
+        few display toggles) — never the preset's own name — so popular
+        combinations across installs can surface in every install's own
+        "Popular presets" pulldown (see popular_presets.py)
 
 The reason, in one sentence: the developer has one house to test on, and
 this is how features that only exist elsewhere (an iPhone with an IRK, a
@@ -185,10 +189,31 @@ _FEATURE_FLAGS: tuple[str, ...] = (
 # ws_settings; anything unexpected is dropped by assert_shareable's length rule).
 _FEATURE_ENUMS: tuple[str, ...] = ("data_mode", "cpu_mode", "lights_automorph_style")
 
+# Saved Showcase "look" presets (Mapping -> Lights) — Garry: "add presets and
+# their components into the opt-in records" so popular combinations across
+# installs can surface as a shared "Top 10" pulldown (see popular_presets.py
+# and server/popular_presets.php). Every one of these fields is already the
+# same trust tier as the live lights_automorph_style/lights_showcase_theme
+# ENUMS reported in `features` above — a theme key, a style key, a few
+# booleans, three small numbers — just captured as a considered, SAVED
+# combination rather than momentary state. A preset's user-typed NAME is
+# never included: it is the one field on a preset a person could put
+# something personal into, and popularity only needs the values.
+_PRESET_VALUE_KEYS: tuple[str, ...] = (
+    "lights_showcase", "lights_showcase_theme", "lights_fit_rooms",
+    "lights_isolux", "lights_show_beacons", "lights_hide_device_codes",
+    "lights_hide_untouched", "lights_automorph_enabled",
+    "lights_automorph_room_pct", "lights_automorph_hardness",
+    "lights_automorph_style", "lights_automorph_subtlety",
+)
+# Even though up to 50 presets can be saved, only a courtesy sample is
+# shared — plenty for popularity counting, nowhere near the whole list.
+_PRESET_SHARE_CAP = 10
+
 # What a report may contain at the top level — anything else is a bug.
 _TOP_KEYS: frozenset[str] = frozenset({
     "schema", "install_id", "day", "version", "edition", "tier", "ha_version",
-    "python", "env", "features", "usage", "health", "errors",
+    "python", "env", "features", "usage", "health", "errors", "presets",
 })
 
 # Identifier shapes that must never appear in any value.
@@ -541,6 +566,14 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         v = settings.get(k)
         if isinstance(v, str) and 0 < len(v) <= 16:
             features[k] = v
+    presets: list[dict[str, Any]] = []
+    for p in (settings.get("lights_showcase_presets") or [])[:_PRESET_SHARE_CAP]:
+        if not isinstance(p, dict):
+            continue
+        vals = p.get("values")
+        if not isinstance(vals, dict):
+            continue
+        presets.append({k: vals[k] for k in _PRESET_VALUE_KEYS if k in vals})
     started = dom.get(_DATA_STARTED)
     health = {
         "crypto_ok": bool(resolver.get("crypto_ok", True)),
@@ -652,6 +685,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "usage": usage,
         "health": health,
         "errors": errors,
+        "presets": presets,
     }
     return payload
 

@@ -52,6 +52,16 @@ def _hass():
         "forensics_license_key": _KEY,
         "excluded_scanners": [_MAC2],
         "quiet_mode": True, "lights_showcase": True, "data_mode": "live", "cpu_mode": "shared",
+        "lights_showcase_presets": [
+            {"name": _ROOM, "values": {
+                "lights_showcase": True, "lights_showcase_theme": "hygge",
+                "lights_fit_rooms": False, "lights_isolux": False, "lights_show_beacons": False,
+                "lights_hide_device_codes": False, "lights_hide_untouched": False,
+                "lights_automorph_enabled": True, "lights_automorph_room_pct": 40,
+                "lights_automorph_hardness": -10, "lights_automorph_style": "geode",
+                "lights_automorph_subtlety": 0,
+            }},
+        ],
         "light_shapes": {_LIGHT: "bar"},
         "scanner_offsets": {_MAC1: 3},
         "light_type_overrides": {_LIGHT: "wled"},
@@ -148,6 +158,16 @@ def test_nothing_from_the_house_is_in_the_report():
     assert payload["health"]["uptime"] in ("<1h", "<1d", "1-7d", ">7d") and "uptime_h" not in payload["health"]
     assert payload["usage"] == {"light_placed": 1, "tab:bluetooth/irk_panel": 1, "tab:maps": 1}
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", payload["day"])  # a day, not a timestamp
+    # The preset's VALUES travel; its user-typed NAME (here _ROOM, already
+    # covered by the _SECRETS loop above) never does.
+    assert payload["presets"] == [{
+        "lights_showcase": True, "lights_showcase_theme": "hygge",
+        "lights_fit_rooms": False, "lights_isolux": False, "lights_show_beacons": False,
+        "lights_hide_device_codes": False, "lights_hide_untouched": False,
+        "lights_automorph_enabled": True, "lights_automorph_room_pct": 40,
+        "lights_automorph_hardness": -10, "lights_automorph_style": "geode",
+        "lights_automorph_subtlety": 0,
+    }]
     # The budget exists to force an argument over every byte, in the open.
     # Raised 3000 → 3100 for `maps_divergent` (21 bytes): the count of maps
     # whose two room records drifted apart as a group — the class that hid
@@ -169,7 +189,47 @@ def test_nothing_from_the_house_is_in_the_report():
     # for opt-in on how lights is configured and used". Each was already a
     # real, working feature (isolux contours, the Automorph aura, the beacons
     # overlay) the report simply never mentioned.
-    assert len(text) < 3300
+    # Raised 3300 → 3700 for `presets` — Garry, 2026-09-11: "add presets and
+    # their components into the opt-in records" so popular Showcase-preset
+    # combinations across installs can surface in a shared pulldown. One
+    # preset's values here cost ~350 bytes; the cap is 10 per report (see
+    # _PRESET_SHARE_CAP), so a full report could run well past this fixture's
+    # single-preset size — the cap, not this test, is what bounds it in
+    # practice, and it is exercised on its own in test_presets_are_capped_.
+    assert len(text) < 3700
+
+
+def test_presets_are_capped_at_ten_per_report():
+    """Up to 50 presets can be saved; only a courtesy sample travels."""
+    h = _hass()
+    one = {"lights_showcase": True, "lights_showcase_theme": "classic", "lights_fit_rooms": False,
+           "lights_isolux": False, "lights_show_beacons": False, "lights_hide_device_codes": False,
+           "lights_hide_untouched": False, "lights_automorph_enabled": False,
+           "lights_automorph_room_pct": 0, "lights_automorph_hardness": 0,
+           "lights_automorph_style": "glow", "lights_automorph_subtlety": 0}
+    h.data[DOMAIN][DATA_SETTINGS].data["lights_showcase_presets"] = [
+        {"name": f"Look {i}", "values": one} for i in range(15)
+    ]
+    payload = T.build_payload(h)
+    T.assert_shareable(payload)
+    assert len(payload["presets"]) == 10
+
+
+def test_a_malformed_preset_entry_is_skipped_not_crashed_on():
+    """Settings storage is sanitized before it gets here (ws_settings.py), but
+    telemetry must not assume that -- a hand-edited .storage file or an old
+    schema version should degrade to "skip it", never a stack trace that
+    breaks the whole day's report."""
+    h = _hass()
+    h.data[DOMAIN][DATA_SETTINGS].data["lights_showcase_presets"] = [
+        "not-a-dict",
+        {"name": "No values"},
+        {"name": "Values not a dict", "values": "nope"},
+        {"name": "Fine", "values": {"lights_showcase_theme": "hygge"}},
+    ]
+    payload = T.build_payload(h)
+    T.assert_shareable(payload)
+    assert payload["presets"] == [{"lights_showcase_theme": "hygge"}]
 
 
 def test_the_gate_refuses_every_identifier_shape():
