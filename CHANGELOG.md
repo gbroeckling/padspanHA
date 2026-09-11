@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.38 — Stable promotion of the 3-month PadSpan Bright Pro trial (2026-09-11)
+
+### Promoted to stable
+- **Changed:** everything in 0.38.37 below, promoted from beta to stable so HACS's default channel picks up the trial — no code changes since.
+
+---
+
 ## 0.38.37 — A one-time 3-month PadSpan Bright Pro trial, no card required (2026-09-11)
 
 ### Try light placement on your own house before buying
