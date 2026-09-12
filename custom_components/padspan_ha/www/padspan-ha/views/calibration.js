@@ -343,6 +343,11 @@ function _calibWizard(ctx, el, cs, calData) {
 // popup results, robust focus/blur/tap handling). Scoped to calibration so follow.js
 // stays untouched. Caller keeps its own eligibility, ordering, stable ids, labels,
 // and state updates; this helper only renders, filters, and picks.
+//
+// Keyboard + screen-reader support restores what the native <select> gave for
+// free: ArrowUp/ArrowDown move through results, Enter picks, Escape closes,
+// and the input/list/rows carry combobox/listbox/option roles.
+let _calibSelSeq = 0;
 function _calibSearchSelect(opts) {
   const items = opts.items || [];
   const currentId = opts.currentId || "";
@@ -358,6 +363,9 @@ function _calibSearchSelect(opts) {
     it.group === "raw" ? it.id === currentUpper : it.id === currentId
   );
 
+  const selSeq = (++_calibSelSeq);
+  const listId = "calib-beacon-list-" + selSeq;
+
   const wrap = document.createElement("div");
   wrap.style.cssText = "position:relative;margin-bottom:10px";
 
@@ -369,10 +377,17 @@ function _calibSearchSelect(opts) {
   input.value = "";
   input.setAttribute("autocomplete", "off");
   input.setAttribute("spellcheck", "false");
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-expanded", "false");
+  input.setAttribute("aria-controls", listId);
+  input.setAttribute("aria-autocomplete", "list");
+  input.setAttribute("aria-label", "Beacon device");
 
   const clearBtn = document.createElement("button");
   clearBtn.textContent = "×";
   clearBtn.title = "Clear selection";
+  clearBtn.type = "button";
+  clearBtn.setAttribute("aria-label", "Clear selection");
   clearBtn.style.cssText = "position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:2px 6px;display:" + (showClear ? "block" : "none");
   if (showClear && onClear) {
     clearBtn.addEventListener("click", (ev) => { ev.stopPropagation(); onClear(); });
@@ -380,9 +395,50 @@ function _calibSearchSelect(opts) {
 
   const list = document.createElement("div");
   list.style.cssText = "position:absolute;left:0;right:0;top:100%;max-height:280px;overflow-y:auto;background:#1e293b;border:1px solid #334155;border-radius:0 0 8px 8px;z-index:100;display:none";
+  list.id = listId;
+  list.setAttribute("role", "listbox");
+  list.setAttribute("aria-label", "Matching devices");
+
+  // Selectable rows currently rendered (headers/empty notes excluded), in order.
+  let visibleRows = [];
+  let visibleIds = [];
+  let visibleIsCur = [];
+  let highlighted = -1;
+
+  const _setExpanded = (open) => {
+    input.setAttribute("aria-expanded", open ? "true" : "false");
+  };
+
+  const _paintHighlight = () => {
+    visibleRows.forEach((row, idx) => {
+      if (idx === highlighted) {
+        row.style.background = "#334155";
+      } else if (visibleIsCur[idx]) {
+        row.style.background = "#1a3a2a";
+      } else {
+        row.style.background = "";
+      }
+    });
+    if (highlighted >= 0 && visibleRows[highlighted]) {
+      input.setAttribute("aria-activedescendant", visibleRows[highlighted].id);
+      const hi = visibleRows[highlighted];
+      if (hi && hi.scrollIntoView) {
+        try { hi.scrollIntoView({ block: "nearest" }); } catch (_e) { /* layout not available */ }
+      }
+    } else {
+      input.removeAttribute("aria-activedescendant");
+    }
+  };
+
+  const _close = () => {
+    list.style.display = "none";
+    highlighted = -1;
+    input.removeAttribute("aria-activedescendant");
+    _setExpanded(false);
+  };
 
   const _pick = (id) => {
-    list.style.display = "none";
+    _close();
     input.value = "";
     if (onPick) onPick(id);
   };
@@ -391,6 +447,7 @@ function _calibSearchSelect(opts) {
     const d = document.createElement("div");
     if (isHeader) {
       d.style.cssText = "padding:6px 12px;font-size:11px;color:#64748b;background:#0f172a;position:sticky;top:0";
+      d.setAttribute("role", "presentation");
     } else {
       d.style.cssText = "padding:8px 12px;font-size:13px;color:#e2e8f0;cursor:pointer;border-bottom:1px solid #1e293b";
     }
@@ -400,6 +457,11 @@ function _calibSearchSelect(opts) {
 
   const _renderList = (query) => {
     list.innerHTML = "";
+    visibleRows = [];
+    visibleIds = [];
+    visibleIsCur = [];
+    highlighted = -1;
+    input.removeAttribute("aria-activedescendant");
     const q = (query || "").toLowerCase().trim();
     const filtered = q ? items.filter((i) => i.search.includes(q)) : items;
     if (!filtered.length) {
@@ -412,12 +474,20 @@ function _calibSearchSelect(opts) {
     const grouped = !q && hasTracked && hasRaw;
     const _addRow = (item) => {
       const row = _row(item.label, false);
-      row.addEventListener("mouseenter", () => { row.style.background = "#334155"; });
-      row.addEventListener("mouseleave", () => { row.style.background = ""; });
-      row.addEventListener("mousedown", (ev) => { ev.preventDefault(); _pick(item.id); });
       const isCur = item.group === "raw" ? item.id === currentUpper : item.id === currentId;
+      const idx = visibleRows.length;
+      row.setAttribute("data-row", "1");
+      row.setAttribute("role", "option");
+      row.id = listId + "-opt-" + idx;
+      row.setAttribute("aria-selected", isCur ? "true" : "false");
+      row.addEventListener("mouseenter", () => { highlighted = idx; _paintHighlight(); });
+      row.addEventListener("mouseleave", () => { _paintHighlight(); });
+      row.addEventListener("mousedown", (ev) => { ev.preventDefault(); _pick(item.id); });
       if (isCur) row.style.cssText += ";background:#1a3a2a;color:#52b788;font-weight:600";
       list.appendChild(row);
+      visibleRows.push(row);
+      visibleIds.push(item.id);
+      visibleIsCur.push(isCur);
     };
     if (grouped) {
       const tracked = filtered.filter((i) => i.group !== "raw").slice(0, 50);
@@ -432,9 +502,56 @@ function _calibSearchSelect(opts) {
     }
   };
 
-  input.addEventListener("focus", () => { _renderList(input.value); list.style.display = "block"; });
-  input.addEventListener("input", () => { _renderList(input.value); list.style.display = "block"; });
-  input.addEventListener("blur", () => { setTimeout(() => { list.style.display = "none"; }, 150); });
+  const _open = () => {
+    _renderList(input.value);
+    list.style.display = "block";
+    _setExpanded(true);
+  };
+
+  input.addEventListener("focus", () => { _open(); });
+  input.addEventListener("input", () => { _open(); });
+  input.addEventListener("blur", () => { setTimeout(() => { _close(); }, 150); });
+  input.addEventListener("keydown", (ev) => {
+    const key = ev.key || "";
+    const open = list.style.display !== "none";
+    if (!open) {
+      // Native select opens on arrows; match that so keyboard users can start here.
+      if (key === "ArrowDown" || key === "ArrowUp") {
+        ev.preventDefault();
+        _open();
+      }
+      return;
+    }
+    if (key === "ArrowDown") {
+      ev.preventDefault();
+      if (!visibleRows.length) return;
+      highlighted = Math.min(highlighted + 1, visibleRows.length - 1);
+      _paintHighlight();
+    } else if (key === "ArrowUp") {
+      ev.preventDefault();
+      if (!visibleRows.length) return;
+      highlighted = highlighted <= 0 ? 0 : highlighted - 1;
+      _paintHighlight();
+    } else if (key === "Home") {
+      ev.preventDefault();
+      if (!visibleRows.length) return;
+      highlighted = 0;
+      _paintHighlight();
+    } else if (key === "End") {
+      ev.preventDefault();
+      if (!visibleRows.length) return;
+      highlighted = visibleRows.length - 1;
+      _paintHighlight();
+    } else if (key === "Enter") {
+      ev.preventDefault();
+      const id = highlighted >= 0 ? visibleIds[highlighted] : visibleIds[0];
+      if (id !== undefined) _pick(id);
+    } else if (key === "Escape") {
+      ev.preventDefault();
+      _close();
+      input.blur();
+    }
+  });
 
   wrap.appendChild(input);
   wrap.appendChild(clearBtn);
