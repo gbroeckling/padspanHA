@@ -3186,8 +3186,16 @@ function _makeDraggable(node, receiver, container, onMoved=null, isEnabled=null,
     receiver.y = clamp01(y);
     node.style.left = `${Math.round(receiver.x*10000)/100}%`;
     node.style.top  = `${Math.round(receiver.y*10000)/100}%`;
-    if(onMoved) onMoved();
+    // NOTE: no onMoved() here - the Edit tab's onMoved rebuilds every marker
+    // (renderAll), which deletes the active touch target mid-gesture. The
+    // browser then retargets the rest of the touch stream to the detached
+    // node, so on mobile only the first touchmove step applied and the marker
+    // crept a short distance and stopped (desktop mouse re-hit-tests each
+    // event, which is why only touch was affected). The commit render runs
+    // once on release in onUp below.
   };
+  // Single commit point: refresh the marker list + summary once the gesture
+  // ends, so the dragged node stays connected for the whole touch stream.
   const onUp = ()=>{
     if(!dragging) return;
     dragging = false;
@@ -3203,6 +3211,10 @@ function _makeDraggable(node, receiver, container, onMoved=null, isEnabled=null,
   node.addEventListener("touchstart", onDown, {passive:false});
   window.addEventListener("touchmove", onMove, {passive:false});
   window.addEventListener("touchend", onUp);
+  // An OS-cancelled gesture (call, alert, browser takeover) must release the
+  // drag the same way a lift does - otherwise dragging/_editDragging stay
+  // stuck true and the poll re-render guard freezes the panel until reload.
+  window.addEventListener("touchcancel", onUp);
 }
 
 // Format receiver list as a numbered text summary (for debug display).
