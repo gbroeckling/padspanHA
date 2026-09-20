@@ -986,10 +986,16 @@ export function alignRingStart(pts){
 // fan's hub+arms, lock's shackle+body) keeps only its single dominant mass
 // as one ring — automorphRing needs one simple, non-self-intersecting
 // outline to morph, not the full multi-piece drawing shapeDetailSvg adds on
-// top. Only the true sensor readouts (motion/temp/humidity/air) and the
-// fan DOMAIN class stay on hex, matched by the render's own gate on
-// isMotion/isFan/isTemp/isAir/isHumidity a few hundred lines down — they
-// never reach this function's output at all.
+// top. Only a fixture whose class actually casts light ever reaches this
+// function at all — automorphAuraSvg's own gate (`!castsLight(l)`, a few
+// hundred lines down) returns null before calling it otherwise, so every
+// read-only sensor readout (motion/temp/humidity/air/flood) and every
+// domain class that isn't a light (fan/lock/door) stays on hex, same as
+// before Automorph existed. lock/door DO have real cases below — reachable
+// only through the shape-OVERRIDE system, when a real light/wled/partition
+// fixture is cosmetically set to draw as one of their glyphs, not through
+// an actual lock.*/binary_sensor.door entity (those never cast light
+// either, so they never get this far).
 export function iconRingLocal(shape, r){
   const HW=r*0.866;
   if(shape==="circle"){
@@ -1815,6 +1821,24 @@ export function shapeSvg(kind, cx, cy, r, attrs){
       return `<circle cx="${n(cx)}" cy="${n(bulbCy)}" r="${n(bulbR)}" ${attrs}/>`+
         `<path d="${drop}" ${attrs}/>`;
     }
+    // A flood/water-leak sensor: a puddle — wide, flat and gently
+    // scalloped, unlike every other glyph here (all taller than wide, or
+    // round). Water AT REST pools; it doesn't hang like a drop (humidity's
+    // teardrop, already spoken for) or explode outward (the alarm ring,
+    // floodRingSvg, drawn separately only while actually wet). Wider than
+    // HW on purpose — silhouette alone should say "not a lit fixture, not
+    // another sensor" even with the colour stripped out. Chosen from 3
+    // candidates rendered at true marker scale — see issue #81.
+    case "flood": {
+      const rx=HW*1.08, ry=HW*0.52, baseY=cy+HW*0.10;
+      const LOBES=5, AMP=0.07, STEPS=32, pts=[];
+      for(let i=0;i<=STEPS;i++){
+        const t=(i/STEPS)*Math.PI*2;
+        const k=1+AMP*Math.sin(t*LOBES);
+        pts.push(`${n(cx+rx*k*Math.cos(t))},${n(baseY+ry*k*Math.sin(t))}`);
+      }
+      return poly(pts.join(" "));
+    }
     // A padlock: solid shackle arch over a solid body — the universal
     // access-control symbol, so a lock reads as a lock even to someone
     // who has never seen this map before. Solid, like every glyph here
@@ -1944,6 +1968,14 @@ export function shapeDetailSvg(kind, cx, cy, r, ink, sw){
     case "tempreadout": return dot(cx,cy+HW*0.55,HW*0.22);
     // The wind strokes ARE the glyph; no separate detail.
     case "airquality": return "";
+    // Two flattened ripple-rings on the puddle's own surface — an echo of
+    // the alarm ring (floodRingSvg) at rest, not a literal miniature of
+    // it, and elliptical (matching the puddle's own proportions) rather
+    // than circular so it doesn't read as "circle"'s bullseye detail.
+    case "flood": {
+      const arc=(rr)=>path(sub(arcPts(cx,cy+HW*0.10,rr*1.6,rr*0.75,0,360,20)));
+      return arc(HW*0.5)+arc(HW*0.24);
+    }
     // A plain fixture plate: bevel, plus the lamp behind it.
     default:         return path(sub(arcPts(cx,cy,r*0.6,r*0.6,90,450,6)))+dot(cx,cy,HW*0.15);
   }

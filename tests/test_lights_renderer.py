@@ -1618,6 +1618,59 @@ def test_every_shape_is_visible_as_an_outline(tmp_path):
         )
 
 
+def _polygon_bbox(svg: str) -> tuple[float, float, float, float]:
+    """(minx, miny, maxx, maxy) across every polygon/path/rect/circle point
+    findable in an SVG fragment — good enough for a bounding-box check on
+    the simple glyphs this file renders, without a real SVG parser."""
+    xs, ys = [], []
+    for m in re.finditer(r'points="([^"]+)"', svg):
+        for pair in m.group(1).split():
+            x, y = pair.split(",")
+            xs.append(float(x)); ys.append(float(y))
+    for m in re.finditer(r'\bd="([^"]+)"', svg):
+        for x, y in re.findall(r'([\-\d.]+),([\-\d.]+)', m.group(1)):
+            xs.append(float(x)); ys.append(float(y))
+    assert xs and ys, f"found no drawable points in: {svg}"
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def test_flood_marker_has_its_own_shape_not_the_hex_fallback(tmp_path):
+    """Issue #81: a placed flood sensor's marker, index swatch, drag handle
+    and shape legend all silently fell through to shapeSvg's `default: poly
+    (hexPts(...))` — the plain hexagon every unclassified fixture gets —
+    because shapeSvg/shapeDetailSvg had no `case "flood"` even though
+    LIGHT_SHAPES/LIGHT_SHAPE_KINDS both already listed it. Picked from 3
+    candidates rendered at true marker scale and reviewed directly."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        "const a='fill=\"#ef4444\" stroke=\"none\"';\n"
+        "console.log(JSON.stringify({\n"
+        "  flood: M.shapeSvg('flood', 20, 20, 14, a),\n"
+        "  hex:   M.shapeSvg('not_a_real_shape_kind', 20, 20, 14, a),\n"
+        "  floodDetail: M.shapeDetailSvg('flood', 20, 20, 14, '#f1f5f9', 2),\n"
+        "  defaultDetail: M.shapeDetailSvg('not_a_real_shape_kind', 20, 20, 14, '#f1f5f9', 2),\n"
+        "}));\n"
+    ))
+    assert out["flood"] != out["hex"], "flood still falls through to the plain hex fallback"
+    assert out["floodDetail"] != out["defaultDetail"], (
+        "flood's Showcase detail still falls through to the generic bevel+lamp default")
+
+
+def test_flood_marker_reads_as_a_puddle_wider_than_tall(tmp_path):
+    """The chosen design (a low, flat, gently-scalloped puddle) is the one
+    visual trait that makes it distinct from every other glyph here by
+    silhouette alone, not just by colour — every other class is roughly as
+    tall as it is wide, or taller (door). Pinned so a future tweak can't
+    accidentally narrow it back toward that shared proportion."""
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        "console.log(JSON.stringify(M.shapeSvg('flood', 20, 20, 14, 'fill=\"#ef4444\"')));\n"
+    ))
+    minx, miny, maxx, maxy = _polygon_bbox(out)
+    width, height = maxx - minx, maxy - miny
+    assert width > height * 1.5, f"flood's glyph is not distinctly wider than tall: {width}x{height}"
+
+
 def test_the_dotted_line_can_still_be_clicked(tmp_path):
     """Only the dashes were painted, so only the dashes were hittable."""
     out = _run_js(tmp_path, (
