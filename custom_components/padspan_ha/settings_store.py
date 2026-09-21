@@ -102,6 +102,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "lights_showcase_theme": "classic",  # which palette Showcase paints with — "classic" reproduces today's look byte-for-byte; see SHOWCASE_THEMES in iso_lights.js for the full list
     "lights_showcase_presets": [],  # named snapshots of the whole Showcase "look" bundle (theme + automorph + fit/isolux/beacons/codes, plus the optional overview_iso_* layout trio); see the Presets picker in Mapping -> Lights and its sanitizer in ws_settings.py
     "whole_house_presets": [],  # named snapshots of real light/fan DEVICE state, stored in scene.apply shape; see _sanitize_whole_house_presets in ws_settings.py
+    "atlas_layout_v2": False,  # Garry, 2026-09-21: reversible trial of the packed/fit-to-screen Atlas layout — see layoutTierFor in views/lights_map.js
     "overview_show_walls": False,   # Overview: draw RF barrier walls over the map
     "overview_show_outdoor": False, # Overview: draw outdoor areas (sheds, driveways) as an overlay
     "overview_show_trails": False,  # Overview/Pure Live: fading movement trail behind each tracked object

@@ -362,6 +362,33 @@ export async function applyWholeHouse(hass, preset){
   return { applied, skipped };
 }
 
+// ── Layout v2 (Garry, 2026-09-21) ──────────────────────────────────────────────
+// "the left to right use of space was often empty due to bad planning, the
+// program should read the resolution of the monitor, and stack more in a
+// row so less scrolling is needed." Driven by the panel's MEASURED width
+// (ResizeObserver), not screen.width: the HA sidebar, PadSpan's own sidebar
+// and a non-maximised window all take width the monitor's resolution never
+// mentions. Reversible as a whole: settings.atlas_layout_v2 (host.layoutV2)
+// — off, and every line below is skipped and the classic layout is
+// byte-for-byte what it was.
+export function layoutTierFor(widthPx){
+  const w = Number(widthPx) || 0;
+  return w < 900 ? "narrow" : w < 1500 ? "medium" : w < 2300 ? "wide" : "ultra";
+}
+// The drawing is taller than it is wide, and classic sizing pins it to the
+// stage's WIDTH — so the wider the monitor, the taller the map and the more
+// there is to scroll. v2 fits the whole house in the space actually on
+// screen: the width at which the drawing is no taller than availH, never
+// wider than the stage. Zoom multiplies from there, so "100%" means "the
+// whole house, no scrolling".
+export function fitWidthPx(stageW, availH, vbW, vbH){
+  if (!(stageW > 0) || !(availH > 0) || !(vbW > 0) || !(vbH > 0)) return 0;
+  return Math.max(160, Math.min(stageW, availH * vbW / vbH));
+}
+// Which folds are open is a per-browser habit, not a house setting.
+const _foldOpen = (name) => { try { return localStorage.getItem("padspan_lv_fold_" + name) === "1"; } catch (_) { return false; } };
+const _foldSave = (name, open) => { try { localStorage.setItem("padspan_lv_fold_" + name, open ? "1" : "0"); } catch (_) {} };
+
 // One flood sensor's alarm state — live wet, OR still within its
 // flood_latch.py latch window. The single place this "live OR latched"
 // check lives, so the aggregate counts, the row labels and the Reset
@@ -1884,6 +1911,34 @@ export function buildLightsMapCard(hostIn){
   const { el, view } = host;
   const floors = host.floors || [];
   const mapCard = el("div", { class: "card lv-mapcard" });
+  // Layout v2 — see layoutTierFor's note. DISPLAY is the sidebar panel's
+  // variant: that screen IS the house map, so nothing sits beside it but a
+  // slim icon rail, and every bar below opens OVER the map as a drawer.
+  const V2 = !!host.layoutV2;
+  const DISPLAY = V2 && !!host.displayMode;
+  if (V2) mapCard.classList.add("lv-v2");
+  if (DISPLAY) mapCard.classList.add("lv-display");
+  const fold = (name, title) => {
+    const d = document.createElement("details");
+    d.className = "lv-fold";
+    if (_foldOpen(name)) d.open = true;
+    const sum = document.createElement("summary");
+    sum.textContent = title;
+    d.appendChild(sum);
+    const body = el("div", { class: "lv-fold-body" });
+    d.appendChild(body);
+    d.addEventListener("toggle", () => _foldSave(name, !!d.open));
+    return { d, body };
+  };
+  const drawers = {};
+  const mount = (node, name) => {
+    if (!DISPLAY) { mapCard.appendChild(node); return; }
+    if (!drawers[name]) {
+      drawers[name] = el("div", { class: "lv-drawer" + (view.drawer === name ? " open" : "") });
+      mapCard.appendChild(drawers[name]);
+    }
+    drawers[name].appendChild(node);
+  };
 
   // Floors come from the FABRIC (which floors actually contain rooms/lights),
   // never from which photos happen to be uploaded. A floor with no plan image
@@ -1934,7 +1989,25 @@ export function buildLightsMapCard(hostIn){
   const applyZoom = () => {
     const svg = isoDiv.querySelector("svg");
     if (!svg) return;
-    svg.style.width = `${Math.round(view.zoom * 100)}%`;
+    if (V2) {
+      // Not laid out yet (the host appends this card after it is built):
+      // leave the SVG at its own width="100%" — the ResizeObserver below
+      // calls back here the moment the stage has a real size.
+      if (!(isoDiv.clientWidth > 0)) return;
+      const vb = String(svg.getAttribute("viewBox") || "").trim().split(/\s+/).map(Number);
+      const top = isoDiv.getBoundingClientRect().top;
+      const availH = Math.max(260, (window.innerHeight || 800) - Math.max(0, top) - (DISPLAY ? 10 : 22));
+      const fit = fitWidthPx(isoDiv.clientWidth - 22, availH - 22, vb[2], vb[3]);
+      const wPx = `${Math.round(fit * (view.zoom || 1))}px`;
+      if (fit > 0 && svg.style.width !== wPx) svg.style.width = wPx;
+      svg.style.display = "block";
+      svg.style.margin = "0 auto";
+      const mh = `${Math.round(availH)}px`;
+      if (isoDiv.style.maxHeight !== mh) isoDiv.style.maxHeight = mh;
+      if (DISPLAY && isoDiv.style.minHeight !== mh) isoDiv.style.minHeight = mh;
+    } else {
+      svg.style.width = `${Math.round(view.zoom * 100)}%`;
+    }
     if (host.codeChip && codesShown !== null && codesShown !== codesVisibleAtZoom(view.zoom)) rebuildISO();
   };
   // Zoom about a point (pinch midpoint / wheel): keep what is under the
@@ -2048,6 +2121,14 @@ export function buildLightsMapCard(hostIn){
       onclick: () => host.onShowcase(!host.showcase),
     }, host.showcase ? "✦ Showcase ✓" : "✦ Showcase"));
 
+    // v2: Theme / Fit room / Isolux / Scene / Ripple only exist while
+    // Showcase is on — five more controls the moment it is. Folded.
+    let presTarget = ctrlRow;
+    if (V2 && host.showcase) {
+      const pf = fold("showcase", "Showcase options");
+      ctrlRow.appendChild(pf.d);
+      presTarget = pf.body;
+    }
     // Theme — which of 21 distinct palettes Showcase paints with (Garry,
     // 2026-09-10: "let's build all 20" — one design bake-off, judged live,
     // turned into a real dropdown the same way Automorph's Style pulldown
@@ -2065,15 +2146,15 @@ export function buildLightsMapCard(hostIn){
         themeSel.appendChild(o);
       }
       themeSel.addEventListener("change", () => host.onShowcaseTheme(themeSel.value));
-      ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Theme"));
-      ctrlRow.appendChild(themeSel);
+      presTarget.appendChild(el("span", { class: "lv-lbl" }, "Theme"));
+      presTarget.appendChild(themeSel);
     }
 
     // Fit to room — only offered while Showcase is on, because it is a
     // constraint on the presentation, not an edit. Stored measurements are
     // never rewritten: turn it off and the typed sizes come straight back.
     if (host.showcase && host.onFitRooms) {
-      ctrlRow.appendChild(el("button", {
+      presTarget.appendChild(el("button", {
         class: "lv-tgl tone-ember" + (host.fitRooms ? " on" : ""),
         title: "No fixture is drawn larger than the room it is in, with a small "
           + "gap to the walls. Stored measurements are not changed.",
@@ -2084,7 +2165,7 @@ export function buildLightsMapCard(hostIn){
     // Isolux — the engineer's overlay: relative-illuminance contours computed
     // on a metre grid from the fixtures' real positions and brightness.
     if (host.showcase && host.onIsolux) {
-      ctrlRow.appendChild(el("button", {
+      presTarget.appendChild(el("button", {
         class: "lv-tgl tone-green" + (host.isolux ? " on" : ""),
         title: "Relative illuminance contours on a real-metre grid — three bands "
           + "at fractions of this floor's own peak.",
@@ -2097,7 +2178,7 @@ export function buildLightsMapCard(hostIn){
     // previewed colours; nothing changes until then.
     if (host.showcase && host.onScene) {
       const cur = host.sceneName || null;
-      ctrlRow.appendChild(el("button", {
+      presTarget.appendChild(el("button", {
         class: "lv-tgl tone-pink" + (cur ? " on" : ""),
         title: "Cycle spatial scene previews — the field's colour at each fixture's "
           + "own position. Nothing is applied until you press Apply.",
@@ -2107,14 +2188,14 @@ export function buildLightsMapCard(hostIn){
         },
       }, cur ? `✨ ${cur}` : "✨ Scene"));
       if (cur && host.onSceneAngle) {
-        ctrlRow.appendChild(el("button", {
+        presTarget.appendChild(el("button", {
           class: "lv-act",
           title: "Rotate the scene's axis 45°",
           onclick: () => host.onSceneAngle(((Number(host.sceneAngle)||0) + 45) % 360),
         }, "↻"));
       }
       if (cur && host.onSceneApply) {
-        ctrlRow.appendChild(el("button", {
+        presTarget.appendChild(el("button", {
           class: "lv-act primary",
           title: "Send every lit fixture the colour it is previewing",
           onclick: () => host.onSceneApply(sceneFieldFor(cur, host.sceneAngle)),
@@ -2126,7 +2207,7 @@ export function buildLightsMapCard(hostIn){
     // real-distance timing. A brightness pulse only, and only on lights that
     // are already on.
     if (host.showcase && host.onRipple) {
-      ctrlRow.appendChild(el("button", {
+      presTarget.appendChild(el("button", {
         class: "lv-tgl tone-blue" + (host.rippleArmed ? " on" : ""),
         title: "Arm, then tap the map — lights pulse outward from the tap in "
           + "real-distance order. Only lights already on take part.",
@@ -2276,9 +2357,15 @@ export function buildLightsMapCard(hostIn){
       automorphGroup.appendChild(subSlider);
       automorphGroup.appendChild(subLbl);
     }
-    if (automorphGroup && automorphGroup.children.length) ctrlRow.appendChild(automorphGroup);
+    if (automorphGroup && automorphGroup.children.length) {
+      if (V2) {
+        const af = fold("automorph", "Automorph tuning");
+        af.body.appendChild(automorphGroup);
+        ctrlRow.appendChild(af.d);
+      } else ctrlRow.appendChild(automorphGroup);
+    }
   }
-  ctrlRow.appendChild(groupLbl("Layout & view"));
+  if (!V2) ctrlRow.appendChild(groupLbl("Layout & view"));
 
   // Reset needs to put the focus control back too — see resetFocusCtl below.
   let resetFocusCtl = () => {};
@@ -2343,8 +2430,13 @@ export function buildLightsMapCard(hostIn){
   layoutGroup.appendChild(el("span", { class: "lv-lbl" }, "L / R"));
   layoutGroup.appendChild(horizSlider);
   layoutGroup.appendChild(horizLbl);
-  ctrlRow.appendChild(SEP());
-  ctrlRow.appendChild(layoutGroup);
+  // v2: set once when the floors are first stacked, so folded — and not on
+  // the display panel at all: Save view writes EVERYONE's default, which
+  // makes these setup controls, and setup lives in Mapping -> Atlas.
+  const layoutFold = V2 && !DISPLAY ? fold("layout", "Layout & view") : null;
+  const layoutTarget = layoutFold ? layoutFold.body : ctrlRow;
+  if (!V2) { ctrlRow.appendChild(SEP()); ctrlRow.appendChild(layoutGroup); }
+  else if (layoutFold) layoutFold.body.appendChild(layoutGroup);
 
   // Save / Reset view buttons + status label
   const saveLbl = el("span", { class: "lv-status" }, "");
@@ -2374,9 +2466,12 @@ export function buildLightsMapCard(hostIn){
       } catch (e) { saveLbl.textContent = "Error"; resetBtn.disabled = false; }
     },
   }, "Reset view");
-  ctrlRow.appendChild(saveBtn);
-  ctrlRow.appendChild(resetBtn);
-  ctrlRow.appendChild(saveLbl);
+  if (!DISPLAY) {
+    layoutTarget.appendChild(saveBtn);
+    layoutTarget.appendChild(resetBtn);
+    layoutTarget.appendChild(saveLbl);
+  }
+  if (layoutFold) ctrlRow.appendChild(layoutFold.d);
 
   // Zoom controls — one segmented cluster rather than three loose buttons
   ctrlRow.appendChild(SEP());
@@ -2401,8 +2496,17 @@ export function buildLightsMapCard(hostIn){
   // only: the sidebar never sets host.helpBtn, since it never sets the
   // Automorph/Gap/Floor/L-R controls this card explains either.
   if (host.helpBtn) ctrlRow.appendChild(host.helpBtn("lights_build_controls"));
+  // Layout v2 is a trial (Garry: "let's try it, make it reversable") — one
+  // click back to the classic layout, and one click forward again.
+  if (host.onLayoutV2) {
+    ctrlRow.appendChild(el("button", {
+      class: "lv-act",
+      title: V2 ? "Go back to the classic Atlas layout" : "Try the new Atlas layout — packed toolbar, the map fitted to the screen, the table beside it on a wide monitor",
+      onclick: () => host.onLayoutV2(!V2),
+    }, V2 ? "▦ Classic layout" : "▦ New layout"));
+  }
 
-  mapCard.appendChild(ctrlRow);
+  mount(ctrlRow, "view");
 
   // Presets — a saved snapshot of the whole Showcase "look" bundle (Theme +
   // Automorph + Fit room/Isolux/Beacons/Codes/Untouched). Garry, 2026-09-10: "we now
@@ -2416,6 +2520,7 @@ export function buildLightsMapCard(hostIn){
   // tab for quick changes") get quick-apply only — no Save/Delete, the same
   // read-only-for-modes line this card draws for showcase/automorph/etc.
   // elsewhere: editing the underlying looks stays in Mapping -> Lights.
+  const presetBars = [];
   if (host.showcase && (host.onSavePreset || host.onApplyPreset)) {
     const presets = host.showcasePresets || [];
     const presetBar = el("div", { class: "lv-presetbar" });
@@ -2482,7 +2587,7 @@ export function buildLightsMapCard(hostIn){
     }
     presetBar.appendChild(presetStatus);
 
-    mapCard.appendChild(presetBar);
+    presetBars.push({ key: "look", label: "Look", node: presetBar });
   }
 
   // Whole House Presets — its own box, like the Showcase Presets bar above,
@@ -2542,8 +2647,33 @@ export function buildLightsMapCard(hostIn){
       whBar.appendChild(whDel);
     }
     whBar.appendChild(whStatus);
-    mapCard.appendChild(whBar);
+    presetBars.push({ key: "house", label: "Whole house", node: whBar });
   }
+  // Classic: each bar is its own full-width row. v2 with both present: ONE
+  // row, switched by a two-way tab that takes the place of each bar's own
+  // label — they are the same shape and do different jobs, so they share
+  // the space instead of stacking.
+  if (V2 && presetBars.length === 2) {
+    const active = presetBars.some((b) => b.key === view.presetTab) ? view.presetTab : "look";
+    const strips = [];
+    const show = (key) => {
+      view.presetTab = key;
+      for (const b of presetBars) b.node.hidden = b.key !== key;
+      for (const st of strips) for (const btn of st.children) btn.classList.toggle("on", btn._tabKey === key);
+    };
+    for (const b of presetBars) {
+      const strip = el("span", { class: "lv-tabs" });
+      for (const t of presetBars) {
+        const btn = el("button", { class: "lv-tab", onclick: () => show(t.key) }, t.label);
+        btn._tabKey = t.key;
+        strip.appendChild(btn);
+      }
+      strips.push(strip);
+      b.node.replaceChild(strip, b.node.firstChild);
+    }
+    show(active);
+  }
+  for (const b of presetBars) mount(b.node, "presets");
 
   // ── Layers + navigation bar ─────────────────────────────────────────────
   // Separate from the view-shaping toolbar above: this row is about WHAT you
@@ -2616,7 +2746,7 @@ export function buildLightsMapCard(hostIn){
           isoDiv.scrollTop += (gr.top + gr.height / 2) - (sr.top + sr.height / 2);
         } }, "◎ Find active"));
     }
-    mapCard.appendChild(bar);
+    mount(bar, "layers");
   }
 
   // 2026-09-16 live finding: the sticky toolbar (host.stickyToolbar, above)
@@ -2650,7 +2780,41 @@ export function buildLightsMapCard(hostIn){
       setTimeout(() => { spacer.style.height = ctrlRow.getBoundingClientRect().height + "px"; }, 0);
     }
   }
+  if (DISPLAY) {
+    // The slim rail — the only thing allowed beside the house map. Each icon
+    // opens its bar OVER the map; tapping the map (or the icon again) puts
+    // it away. view.drawer / view.railHidden live on the persistent view
+    // object, so the 5s re-render neither closes an open drawer nor brings
+    // a hidden rail back.
+    const rail = el("div", { class: "lv-rail" + (view.railHidden ? " hidden" : "") });
+    const drawerBtns = [];
+    const setDrawer = (name) => {
+      view.drawer = view.drawer === name ? null : name;
+      for (const k of Object.keys(drawers)) drawers[k].classList.toggle("open", k === view.drawer);
+      for (const b of drawerBtns) b.classList.toggle("on", b._drawer === view.drawer);
+    };
+    const railBtn = (icon, title, onclick) => el("button", { class: "lv-railbtn", title, onclick }, icon);
+    for (const [name, icon, title] of [["layers", "☰", "Floors and device types"],
+                                        ["presets", "★", "Presets — looks and whole house"],
+                                        ["view", "⚙", "Zoom and view options"]]) {
+      if (!drawers[name]) continue;
+      const b = railBtn(icon, title, () => setDrawer(name));
+      b._drawer = name;
+      if (view.drawer === name) b.classList.add("on");
+      drawerBtns.push(b);
+      rail.appendChild(b);
+    }
+    for (const a of host.railActions || []) rail.appendChild(railBtn(a.icon, a.title, a.onclick));
+    rail.appendChild(railBtn(view.railHidden ? "›" : "‹", view.railHidden ? "Show the controls" : "Hide the controls", () => {
+      view.railHidden = !view.railHidden;
+      if (view.railHidden && view.drawer) setDrawer(view.drawer);
+      rail.classList.toggle("hidden", !!view.railHidden);
+    }));
+    mapCard.appendChild(rail);
+    isoDiv.addEventListener("pointerdown", () => { if (view.drawer) setDrawer(view.drawer); });
+  }
   mapCard.appendChild(isoDiv);
+  if (V2 && typeof ResizeObserver !== "undefined") new ResizeObserver(() => applyZoom()).observe(isoDiv);
   const legend = buildShapeLegend(el, Object.values(host.lightsByEid));
   if (legend) mapCard.appendChild(legend);
   rebuildISO();

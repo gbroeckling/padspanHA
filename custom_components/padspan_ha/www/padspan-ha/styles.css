@@ -1100,6 +1100,59 @@
 .lv-stage::-webkit-scrollbar{height:9px;width:9px}
 .lv-stage::-webkit-scrollbar-thumb{background:rgba(120,190,155,.25);border-radius:999px;border:2px solid #040a05}
 
+/* ── Layout v2 (Garry, 2026-09-21) ──────────────────────────────────────────
+   Reversible trial, gated entirely by .lv-v2 on .lv-mapcard (host.layoutV2 —
+   see layoutTierFor in views/lights_map.js). Nothing here ever applies to
+   the classic layout; every rule below is scoped under .lv-v2. */
+
+/* Groups pack left-to-right and only wrap when a row actually runs out of
+   room, instead of every .lv-grouplbl forcing its own full-width line —
+   "the left to right use of space was often empty due to bad planning." */
+.lv-v2 > .lv-toolbar .lv-grouplbl{flex-basis:auto;margin-top:0;padding-top:0;border-top:none}
+.lv-v2 > .lv-toolbar .lv-grouplbl:not(:first-child){margin-left:4px}
+
+/* A folded group — Automorph tuning / Layout & view / Showcase's extras.
+   Same shaded-pill body .lv-ctrlgroup already uses, opened by a one-line
+   summary instead of always showing every control inside it. */
+.lv-fold{display:inline-flex;flex-direction:column;background:rgba(255,255,255,.025);
+  border:1px solid rgba(120,190,155,.14);border-radius:9px;margin:2px 2px;overflow:hidden}
+.lv-fold summary{list-style:none;cursor:pointer;padding:4px 10px;font-size:11px;font-weight:600;
+  color:rgba(226,240,232,.75);display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap}
+.lv-fold summary::-webkit-details-marker{display:none}
+.lv-fold summary::before{content:"\25b8";font-size:9px;color:rgba(226,240,232,.4);transition:transform .12s ease}
+.lv-fold[open] summary::before{transform:rotate(90deg)}
+.lv-fold[open] summary{border-bottom:1px solid rgba(120,190,155,.12)}
+.lv-fold-body{display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap;padding:6px 10px 8px}
+
+/* The merged Presets / Whole House bar — a two-way tab standing in for
+   each bar's own leading label, sharing one row instead of stacking two. */
+.lv-tabs{display:inline-flex;border:1px solid rgba(196,181,253,.25);border-radius:8px;overflow:hidden;margin-right:2px}
+.lv-tab{font-size:11px;font-weight:600;background:rgba(255,255,255,.02);color:rgba(216,197,255,.55);
+  border:none;padding:4px 11px;cursor:pointer}
+.lv-tab:not(:last-child){border-right:1px solid rgba(196,181,253,.2)}
+.lv-tab.on{background:rgba(124,58,237,.35);color:#f3edff}
+
+/* ── Display mode (the sidebar Atlas panel; host.displayMode) ────────────
+   "the atlas sidebar... is a house map, anything to the sides is a
+   distraction... if the sidebar is incredibly small that might be ok." No
+   tool sits beside the map; every bar becomes a drawer that opens OVER it,
+   put away by a slim icon rail down one edge. */
+.lv-mapcard.lv-display{padding:0;overflow:hidden;position:relative;background:#040a05}
+.lv-mapcard.lv-display .lv-stage{border-radius:0;border:none;width:calc(100% - 44px);margin-left:44px}
+.lv-rail{position:absolute;left:0;top:0;bottom:0;width:44px;display:flex;flex-direction:column;
+  align-items:center;gap:4px;padding:8px 0;background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
+  border-right:1px solid rgba(120,190,155,.14);z-index:5;transition:transform .18s ease}
+.lv-rail.hidden{transform:translateX(-100%)}
+.lv-rail.hidden ~ .lv-stage{width:100%;margin-left:0}
+.lv-railbtn{width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,.03);
+  border:1px solid rgba(120,190,155,.16);color:rgba(226,240,232,.65);font-size:15px;cursor:pointer}
+.lv-railbtn.on{background:rgba(124,58,237,.3);border-color:rgba(196,181,253,.5);color:#f3edff}
+.lv-drawer{position:absolute;left:44px;top:0;right:0;max-height:0;overflow:hidden;z-index:4;
+  background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
+  box-shadow:0 10px 24px -8px rgba(0,0,0,.6);transition:max-height .16s ease}
+.lv-drawer.open{max-height:220px;overflow-y:auto;border-bottom:1px solid rgba(120,190,155,.16)}
+.lv-drawer .lv-toolbar,.lv-drawer .lv-presetbar{margin:0;border:none;background:none;border-radius:0}
+
 /* ── legend ─────────────────────────────────────────────────────────────── */
 .lv-legend{display:flex;flex-wrap:wrap;gap:5px 8px;align-items:center;margin-top:10px;
   padding-top:9px;border-top:1px solid rgba(120,190,155,.12)}

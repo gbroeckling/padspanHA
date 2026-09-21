@@ -334,6 +334,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lights_showcase_theme"): str,
         vol.Optional("lights_showcase_presets"): list,
         vol.Optional("whole_house_presets"): list,
+        vol.Optional("atlas_layout_v2"): bool,
         vol.Optional("adaptive_learning_enabled"): bool,
         vol.Optional("adaptive_floor_detection"): bool,
         vol.Optional("signal_loss_linger_s"): vol.Coerce(int),
@@ -625,6 +626,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["lights_show_beacons"] = bool(msg["lights_show_beacons"])
         if "lights_fit_rooms" in msg:
             payload["lights_fit_rooms"] = bool(msg["lights_fit_rooms"])
+        if "atlas_layout_v2" in msg:
+            payload["atlas_layout_v2"] = bool(msg["atlas_layout_v2"])
         if "lights_isolux" in msg:
             payload["lights_isolux"] = bool(msg["lights_isolux"])
         if "lights_automorph_enabled" in msg:

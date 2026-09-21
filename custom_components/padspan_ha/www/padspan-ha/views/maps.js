@@ -8992,6 +8992,17 @@ function _lightsTab(ctx, maps, active) {
     // Garry, 2026-09-09: "the scroll hides the controls, needs fixing for
     // mapping area, but works better this way in lights and overview."
     stickyToolbar: !preview,
+    // Layout v2 (Garry, 2026-09-21) — reversible trial: packed toolbar
+    // groups, the map fitted to the screen instead of scaled to the
+    // stage's width, a table-beside-map column on a wide monitor. This
+    // screen is the WORKBENCH (host.displayMode unset) — tools belong
+    // beside the map here, unlike the sidebar's edge-to-edge display.
+    layoutV2: !!ctx.state.settings?.atlas_layout_v2,
+    onLayoutV2: async (on) => {
+      try { await ctx.actions.settingsSet({ atlas_layout_v2: on }); }
+      catch (e) { ctx.toast("Could not change the Atlas layout: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
     // settingsSet re-renders the whole maps view, which detaches the shared
     // card's "Saved ✓" label before it can be read — so confirm with a toast,
     // which outlives the re-render. A failure must not look like a success.

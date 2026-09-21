@@ -228,6 +228,12 @@ class PadSpanLightsApp extends HTMLElement {
       // authored in Mapping -> Lights, this panel just switches between them.
       this.state._showcasePresets = Array.isArray(s.lights_showcase_presets) ? s.lights_showcase_presets : [];
       this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];
+      // Layout v2 (Garry, 2026-09-21) is a house-wide trial toggle, set
+      // from the builder only — this panel reflects it, same convention
+      // as showcase/automorph above, but renders its OWN DISPLAY variant
+      // (host.displayMode below): edge-to-edge map, a slim rail, no
+      // onLayoutV2 handed to the host, so no toggle button shows here.
+      this.state._atlasLayoutV2 = !!s.atlas_layout_v2;
       // {entity_id: epoch-s of its most recent "on"} — flood_latch.py's
       // event listener writes this server-side; ungated, same reasoning as
       // the tier read above (a flood alarm isn't a paid convenience).
@@ -414,6 +420,13 @@ class PadSpanLightsApp extends HTMLElement {
       tier: this.state._tier,
       byRoom,
       hiddenEids: hidden,
+      // This screen IS the house map (Garry, 2026-09-21: "anything to the
+      // sides is a distraction from the purpose of the screen") — v2's
+      // display variant: edge-to-edge map, a slim icon rail, every bar a
+      // drawer over the map. No onLayoutV2: the toggle lives in the
+      // builder only, this panel just reflects what it's set to.
+      layoutV2: !!this.state._atlasLayoutV2,
+      displayMode: true,
       showcase: !!this.state._showcase,
       showcaseTheme: this.state._showcaseTheme || "classic",
       fitRooms: !!this.state._fitRooms,

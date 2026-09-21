@@ -104,6 +104,16 @@ class Node {
     return c;
   }
   removeChild(c) { const i = this.children.indexOf(c); if (i >= 0) this.children.splice(i, 1); return c; }
+  // Standard DOM, added when a view (Atlas layout v2's merged presets bar)
+  // needed it and got nothing but a TypeError instead — same additive
+  // reasoning as every other method here.
+  replaceChild(newC, oldC) {
+    const i = this.children.indexOf(oldC);
+    if (i < 0) return oldC;
+    newC.parentNode = this;
+    this.children[i] = newC;
+    return oldC;
+  }
   remove() { this.parentNode?.removeChild(this); }
   replaceChildren(...cs) { this.children.length = 0; cs.forEach(c => this.appendChild(c)); }
   cloneNode() { const n = new Node(this.localName, this.namespaceURI); n.className = this.className; return n; }
@@ -199,9 +209,18 @@ class Node {
     }
     return all.filter(n => n.localName === s);
   }
+  // Was a no-op stub (walked to the root and always returned null) — several
+  // views (lights_map.js, maps.js, overview.js, ...) call this for real, so
+  // every node test using it was silently getting "never found" regardless
+  // of the actual tree. Walk to the root, collect every real match there,
+  // then walk up from `this` (inclusive) for the first one in that set —
+  // the standard closest()-is-an-inclusive-ancestor-search semantics.
   closest(sel) {
+    let root = this;
+    while (root.parentNode) root = root.parentNode;
+    const matches = new Set(root.querySelectorAll ? root.querySelectorAll(sel) : []);
     let n = this;
-    while (n) { if (n.querySelectorAll && [n].concat().some(() => false)) break; n = n.parentNode; }
+    while (n) { if (matches.has(n)) return n; n = n.parentNode; }
     return null;
   }
 
