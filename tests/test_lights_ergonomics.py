@@ -631,8 +631,14 @@ console.log(JSON.stringify(cases));
 
 
 def test_state_word_of_flood_latched_beats_live_and_matches_floodisalarming(tmp_path):
+    # floodIsAlarming (lights_map.js) checks the latch against the REAL
+    # Date.now(), not a value this script controls — so the fixture's
+    # expires_at has to be built off the actual current time too, or the
+    # "still latched" case silently expires and starts failing days after
+    # whenever this was written (found the hard way: a hardcoded literal
+    # date here rotted exactly like that within 48 hours).
     out = _run(tmp_path, r"""
-const NOW_S = new Date('2026-09-19T12:00:00Z').getTime() / 1000;
+const NOW_S = Date.now() / 1000;
 const latches = { "binary_sensor.dried_but_latched": { triggered_at: NOW_S - 3600, expires_at: NOW_S + 3600 } };
 const wet    = LM.stateWordOf({ isFlood: true, state: "on", entity_id: "binary_sensor.wet" }, latches);
 const alarm  = LM.stateWordOf({ isFlood: true, state: "off", entity_id: "binary_sensor.dried_but_latched" }, latches);
