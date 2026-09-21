@@ -47,6 +47,12 @@ Found by the week-review workflow, 2026-09-19: the read-modify-write into
 flood_latches must be serialized (see _async_latch's lock) — two different
 sensors triggering back-to-back used to read the same pre-update snapshot
 and silently clobber each other's write.
+
+Same review, 2026-09-19: deleting a moisture sensor's entity used to leave
+its flood_latches entry behind forever — nothing here listened for the
+entity going away. _on_entity_registry_updated below closes that; a rename
+(HA's "update" action) is deliberately left alone, since migrating the key
+to a new entity_id is a different, bigger feature nobody has asked for.
 """
 
 import asyncio
@@ -66,6 +72,7 @@ _LOGGER = logging.getLogger(__name__)
 ACTIVE_WINDOW_S = 2 * 24 * 60 * 60
 
 _DATA_UNSUB = "_flood_latch_unsub"
+_DATA_UNSUB_REGISTRY = "_flood_latch_unsub_registry"
 _DATA_LOCK = "_flood_latch_lock"
 
 
@@ -126,6 +133,22 @@ def _on_state_changed(hass: HomeAssistant, event: Event) -> None:
     hass.async_create_task(_async_latch(hass, new_state.entity_id))
 
 
+@ha_callback
+def _on_entity_registry_updated(hass: HomeAssistant, event: Event) -> None:
+    """A deleted entity's flood_latches entry (if it has one) is now about
+    nothing — the emergency banner would otherwise keep showing it as an
+    ACTIVE alarm, identified only by its dead entity_id, for up to the full
+    2-day window. Only "remove" is handled; a rename ("update" with a
+    changed entity_id) leaves the old key in place rather than migrating it
+    — out of scope here, see the module docstring."""
+    if event.data.get("action") != "remove":
+        return
+    entity_id = event.data.get("entity_id")
+    if not entity_id:
+        return
+    hass.async_create_task(async_reset_latch(hass, entity_id))
+
+
 def async_setup_flood_latch(hass: HomeAssistant) -> None:
     """Idempotent across config-entry reloads — same shape as
     forensics_store.async_setup_forensics's sampler registration."""
@@ -142,15 +165,20 @@ def async_setup_flood_latch(hass: HomeAssistant) -> None:
     dom[_DATA_UNSUB] = hass.bus.async_listen(
         "state_changed", functools.partial(_on_state_changed, hass)
     )
+    dom[_DATA_UNSUB_REGISTRY] = hass.bus.async_listen(
+        "entity_registry_updated", functools.partial(_on_entity_registry_updated, hass)
+    )
 
 
 def async_stop_flood_latch(hass: HomeAssistant) -> None:
-    unsub = hass.data.get(DOMAIN, {}).pop(_DATA_UNSUB, None)
-    if unsub:
-        try:
-            unsub()
-        except Exception:
-            pass
+    dom = hass.data.get(DOMAIN, {})
+    for key in (_DATA_UNSUB, _DATA_UNSUB_REGISTRY):
+        unsub = dom.pop(key, None)
+        if unsub:
+            try:
+                unsub()
+            except Exception:
+                pass
 
 
 async def async_reset_latch(hass: HomeAssistant, entity_id: str) -> bool:

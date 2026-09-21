@@ -48,6 +48,7 @@ from unittest.mock import AsyncMock, MagicMock
 from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
 from custom_components.padspan_ha.flood_latch import (
     ACTIVE_WINDOW_S,
+    _on_entity_registry_updated,
     _on_state_changed,
     async_reset_latch,
     async_setup_flood_latch,
@@ -97,22 +98,32 @@ def _state_event(entity_id, state, device_class="moisture"):
 def test_setup_registers_a_partial_not_a_lambda() -> None:
     """The listener passed to hass.bus.async_listen must be a functools.partial
     wrapping _on_state_changed directly — never a lambda/closure, which is
-    exactly what broke live (see module docstring)."""
+    exactly what broke live (see module docstring). Same requirement for the
+    entity_registry_updated listener (2026-09-19, the orphan-cleanup fix) —
+    it schedules a task the same way and would fail the same way on a
+    worker thread if it were ever registered as a lambda."""
     hass = _hass(_settings())
     async_setup_flood_latch(hass)
-    assert hass.bus.async_listen.call_count == 1
-    event_name, listener = hass.bus.async_listen.call_args[0]
-    assert event_name == "state_changed"
-    assert isinstance(listener, functools.partial)
-    assert listener.func is _on_state_changed
-    assert listener.args == (hass,)
+    assert hass.bus.async_listen.call_count == 2
+    calls = {c.args[0]: c.args[1] for c in hass.bus.async_listen.call_args_list}
+    assert set(calls) == {"state_changed", "entity_registry_updated"}
+
+    state_listener = calls["state_changed"]
+    assert isinstance(state_listener, functools.partial)
+    assert state_listener.func is _on_state_changed
+    assert state_listener.args == (hass,)
+
+    registry_listener = calls["entity_registry_updated"]
+    assert isinstance(registry_listener, functools.partial)
+    assert registry_listener.func is _on_entity_registry_updated
+    assert registry_listener.args == (hass,)
 
 
 def test_setup_is_idempotent_across_reloads() -> None:
     hass = _hass(_settings())
     async_setup_flood_latch(hass)
     async_setup_flood_latch(hass)
-    assert hass.bus.async_listen.call_count == 1
+    assert hass.bus.async_listen.call_count == 2
 
 
 def test_stop_unsubscribes_and_allows_resetup() -> None:
@@ -120,7 +131,7 @@ def test_stop_unsubscribes_and_allows_resetup() -> None:
     async_setup_flood_latch(hass)
     async_stop_flood_latch(hass)
     async_setup_flood_latch(hass)
-    assert hass.bus.async_listen.call_count == 2
+    assert hass.bus.async_listen.call_count == 4  # 2 listeners, twice
 
 
 # ---------------------------------------------------------------------------
@@ -281,3 +292,45 @@ async def test_reset_is_a_no_op_when_nothing_latched() -> None:
     result = await async_reset_latch(hass, "binary_sensor.kitchen_leak")
     assert result is False
     st.async_set.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Tests: _on_entity_registry_updated (orphan cleanup, 2026-09-19)
+# ---------------------------------------------------------------------------
+
+
+def _registry_event(entity_id, action="remove"):
+    return SimpleNamespace(data={"action": action, "entity_id": entity_id})
+
+
+async def test_a_deleted_entitys_latch_is_forgotten() -> None:
+    st = _settings({"binary_sensor.old_leak": {"triggered_at": 1.0, "expires_at": 2.0}})
+    hass = _hass(st)
+    _on_entity_registry_updated(hass, _registry_event("binary_sensor.old_leak"))
+    assert len(hass.tasks) == 1
+    await hass.tasks[0]
+    st.async_set.assert_called_once_with(flood_latches={})
+
+
+async def test_deleting_an_entity_with_no_latch_is_a_silent_no_op() -> None:
+    st = _settings({"binary_sensor.other": {"triggered_at": 1.0, "expires_at": 2.0}})
+    hass = _hass(st)
+    _on_entity_registry_updated(hass, _registry_event("binary_sensor.some_unrelated_light"))
+    await hass.tasks[0]
+    st.async_set.assert_not_called()
+
+
+def test_a_rename_is_left_alone_not_migrated() -> None:
+    """action="update" (a rename included) must not schedule anything —
+    migrating the key to the new entity_id is a different, bigger feature
+    nobody has asked for; see the module docstring."""
+    st = _settings({"binary_sensor.old_name": {"triggered_at": 1.0, "expires_at": 2.0}})
+    hass = _hass(st)
+    _on_entity_registry_updated(hass, _registry_event("binary_sensor.new_name", action="update"))
+    assert hass.tasks == []
+
+
+def test_ignores_an_event_with_no_entity_id() -> None:
+    hass = _hass(_settings())
+    _on_entity_registry_updated(hass, SimpleNamespace(data={"action": "remove"}))
+    assert hass.tasks == []

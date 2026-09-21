@@ -18,6 +18,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      # Several test files (test_device_class_registry.py and others) run a
+      # real node subprocess to check cross-file JS/Python contracts, and
+      # SKIP rather than FAIL when node isn't on PATH — before this step,
+      # they only ran because ubuntu-latest happens to ship node, an
+      # undeclared dependency a runner-image change could silently drop.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
       - name: Install test dependencies
         run: pip install -r requirements_test.txt
       - name: Run tests

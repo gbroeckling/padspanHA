@@ -4,6 +4,30 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.55 — Security hardening, two flood-alarm reliability fixes, and a real flood marker (2026-09-20)
+
+### Security
+- **Fixed:** an independent security review found presence automations could fire ANY Home Assistant service against ANY entity (not just the turn-on/turn-off against lights/switches the UI actually offers) — a rule saved by a non-admin household or guest account could unlock a door on the next BLE arrival with no tap and no confirmation. Now enforced against the same allowlist the UI itself offers, both when a rule is saved and again at the moment it actually fires.
+- **Fixed:** four groups of commands (backup create/list/restore/delete; forensics location history and raw-signal reads; the floor-plan Sweet Home 3D importer; adding/removing a Private BLE identity key) were reachable by any non-admin account, inconsistent with sibling commands in the same areas that already required an admin. All now require admin.
+- **Fixed:** the Sweet Home 3D floor-plan importer only capped the compressed upload size — a small, crafted file could inflate to gigabytes when decompressed. Added a decompressed-size cap and rejected malformed XML outright.
+
+### Flood sensors
+- **Fixed:** two different flood sensors triggering within the same instant could silently overwrite each other's alarm — only the later one would end up latched, the other vanishing with no error. Properly serialized so both survive.
+- **Fixed:** the always-visible emergency banner, the map's flood ripple, and the Mapping tab only refreshed their view of active alarms on boot, a manual Refresh, or switching back to the tab — a display just being watched (a wall-mounted kiosk, in particular) could miss a newly-tripped alarm indefinitely. Now refreshes automatically about every 30 seconds while live data is on screen, matching the sidebar Lights panel's existing behavior.
+- **Fixed:** deleting a flood sensor's entity from Home Assistant used to leave its alarm behind forever — the emergency banner had no way to know the sensor was gone, and would keep showing it as active (identified only by its now-dead entity ID) for up to the full 2-day window. The banner now forgets an alarm the moment its sensor is deleted.
+- **Added:** a flood sensor's marker finally has its own look — a wide, low, gently-scalloped puddle — instead of the plain default hexagon every unclassified fixture falls back to. The alarm ripple was always there; the marker itself just never read as "flood sensor" at rest.
+
+### Atlas device map
+- **Changed:** unified how every fixture class (lights, fans, locks, motion/door/flood/air-quality/humidity/temperature sensors) is recognized, labeled and counted across the map, sidebar and tables — previously each surface kept its own hand-maintained copy of "which classes does this apply to," and the copies had quietly drifted. Fixed several small inconsistencies this turned up along the way: a locked lock could read "Off" instead of "Locked" in some views, a temperature/humidity/air-quality sensor could get placed but never keep its assigned room, and room/floor summary totals only counted some classes.
+- **Fixed:** the Turn On/Off button and tap-to-toggle on a lock in the Atlas builder called Home Assistant services that don't exist, so both always silently failed.
+- **Fixed:** press-and-hold — used to jump to a device's row in the list, or to select a fixture for editing rather than dragging it — was measured in map-zoom units instead of real screen pixels, so it could fail to register (or misfire as a drag) depending on how far the map was zoomed. Also didn't work at all on doors, windows or locks, since those are drawn as invisible wall sections with nothing to press. Both fixed; holding now works the same way on every device, at any zoom.
+
+### Documentation
+- **Fixed:** the README and website's "N dedicated views" and "N animated walkthroughs" claims had drifted from the app's real counts (in more than one place, and to more than one wrong number).
+- **Added:** flood alarm latching and the emergency banner — shipped two releases ago — are now actually documented, in the Atlas Guide and the in-app Training Hub.
+
+---
+
 ## 0.38.54 — Fix: flood alarms never actually latched (2026-09-18)
 
 ### Flood sensors
