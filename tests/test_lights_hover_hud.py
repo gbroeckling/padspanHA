@@ -16,6 +16,7 @@ wiring it.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 _WWW = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
@@ -71,7 +72,8 @@ def test_the_sidebar_wires_the_same_hud():
     lights tab". The sidebar has no selection, so its "Under" does what a
     tap on that marker does (motion -> activity, holdable -> controls, else
     toggle) — the SAME api wireUseSurface acts through."""
-    assert "wireHoverHud }" in _block(_PANEL, "const { ensureLightsRegistry", "await import(`./views/lights_map.js")
+    import_block = _block(_PANEL, "const { ensureLightsRegistry", "await import(`./views/lights_map.js")
+    assert re.search(r"\bwireHoverHud\b", import_block), import_block
     hooks = _block(_PANEL, "onHexesBuilt: (isoDiv)=>{", "onRowClick:")
     assert "wireUseSurface(isoDiv, api);" in hooks and "wireHoverHud(isoDiv, {" in hooks
     assert "api.openActivity(eid)" in hooks and "api.openControls(eid)" in hooks and "api.toggle(eid)" in hooks

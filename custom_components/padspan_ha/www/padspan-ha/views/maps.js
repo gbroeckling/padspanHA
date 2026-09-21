@@ -27,7 +27,8 @@ const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, spreadInRoom, createUndoStack, toggleEntity,
         wireUseSurface, openControlCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates,
-        isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS } =
+        isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
+        captureWholeHouse, applyWholeHouse } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasControlCard, hasFixedGlyph } =
@@ -9250,6 +9251,32 @@ function _lightsTab(ctx, maps, active) {
     // individual onXxx handler above sets its own override.
     showcasePresets: Array.isArray(ctx.state.settings?.lights_showcase_presets)
       ? ctx.state.settings.lights_showcase_presets : [],
+    // Whole House Presets — Set remembers real device state (on/off,
+    // brightness, colour, fan speed) for every light and fan; Apply is one
+    // scene.apply call, done from THIS frontend under the calling user's own
+    // HA permissions, not a new server-side service-calling command.
+    wholeHousePresets: Array.isArray(ctx.state.settings?.whole_house_presets)
+      ? ctx.state.settings.whole_house_presets : [],
+    onWholeHouseSet: async (name) => {
+      const cap = captureWholeHouse(lights, ctx.hass?.states || {});
+      const rest = (ctx.state.settings?.whole_house_presets || []).filter((p) => p.name !== name);
+      const preset = { name, created_at: Date.now() / 1000, entities: cap.entities };
+      try { await ctx.actions.settingsSet({ whole_house_presets: [...rest, preset] }); }
+      catch (e) { ctx.toast("Could not set the whole house preset: " + String(e), true); return null; }
+      ctx.actions.renderRooms();
+      return cap;
+    },
+    onWholeHouseApply: async (preset) => {
+      if (!ctx.hass) return null;
+      try { return await applyWholeHouse(ctx.hass, preset); }
+      catch (e) { ctx.toast("Could not apply the whole house preset: " + String(e), true); return null; }
+    },
+    onWholeHouseDelete: async (name) => {
+      const rest = (ctx.state.settings?.whole_house_presets || []).filter((p) => p.name !== name);
+      try { await ctx.actions.settingsSet({ whole_house_presets: rest }); ctx.toast(`Deleted "${name}"`); }
+      catch (e) { ctx.toast("Could not delete the whole house preset: " + String(e), true); }
+      ctx.actions.renderRooms();
+    },
     onApplyPreset: async (values) => {
       mapState._lightsShowcase = values.lights_showcase;
       mapState._lightsShowcaseTheme = values.lights_showcase_theme;

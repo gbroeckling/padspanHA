@@ -652,3 +652,130 @@ console.log(JSON.stringify({
     assert out["alarm"] == {"text": "ALARM", "lit": True, "sortValue": 1, "latched": True}
     assert out["dry"] == {"text": "DRY", "lit": False, "sortValue": 0, "latched": False}
     assert out["alarmMatchesFloodIsAlarming"] is True
+
+
+# ── Whole House Presets (2026-09-21) ─────────────────────────────────────────
+# Garry: "a pull down like presets, but call whole house presets. There will
+# be a set, and a name on it. It will remember every setting in the house
+# when set is hit, and bring all settings back when selected." Real DEVICE
+# state (not the map's own look, which is the Showcase Presets bar above) —
+# captureWholeHouse/applyWholeHouse are the shared pipeline both the Mapping
+# tab and the sidebar drive.
+
+def test_capture_whole_house_keeps_only_lights_and_fans_never_a_lock(tmp_path):
+    out = _run(tmp_path, """
+const lights = [
+  { entity_id: "light.kitchen", isTemp: false },
+  { entity_id: "fan.ceiling" },
+  { entity_id: "lock.front_door", isLock: true },
+  { entity_id: "binary_sensor.motion", isMotion: true },
+  { entity_id: "binary_sensor.leak", isFlood: true },
+];
+const states = {
+  "light.kitchen": { state: "on", attributes: {} },
+  "fan.ceiling": { state: "on", attributes: {} },
+  "lock.front_door": { state: "locked", attributes: {} },
+  "binary_sensor.motion": { state: "on", attributes: {} },
+  "binary_sensor.leak": { state: "off", attributes: {} },
+};
+const cap = LM.captureWholeHouse(lights, states);
+console.log(JSON.stringify({ keys: Object.keys(cap.entities).sort(), count: cap.count, skipped: cap.skipped }));
+""")
+    assert out["keys"] == ["fan.ceiling", "light.kitchen"], out
+    assert out["count"] == 2 and out["skipped"] == 0
+
+
+def test_capture_whole_house_an_off_light_stores_only_off_no_stale_attributes(tmp_path):
+    out = _run(tmp_path, """
+const lights = [{ entity_id: "light.hall" }];
+const states = { "light.hall": { state: "off", attributes: { brightness: 200, color_mode: "rgb", rgb_color: [1,2,3] } } };
+console.log(JSON.stringify(LM.captureWholeHouse(lights, states).entities));
+""")
+    assert out == {"light.hall": {"state": "off"}}
+
+
+def test_capture_whole_house_a_light_keeps_brightness_and_only_its_own_color_mode(tmp_path):
+    out = _run(tmp_path, """
+const lights = [{ entity_id: "light.a" }, { entity_id: "light.b" }];
+const states = {
+  "light.a": { state: "on", attributes: { brightness: 180, color_mode: "rgb", rgb_color: [10,20,30], hs_color: [999,999], effect: "Rainbow", effect_list: ["Rainbow", "Chase"] } },
+  "light.b": { state: "on", attributes: { brightness: 90, color_mode: "color_temp", color_temp_kelvin: 3200, effect: "Not Offered", effect_list: ["Something Else"] } },
+};
+console.log(JSON.stringify(LM.captureWholeHouse(lights, states).entities));
+""")
+    assert out["light.a"] == {"state": "on", "brightness": 180, "color_mode": "rgb", "rgb_color": [10, 20, 30], "effect": "Rainbow"}, out
+    assert "hs_color" not in out["light.a"], "must not carry an attribute belonging to a DIFFERENT color_mode"
+    assert out["light.b"] == {"state": "on", "brightness": 90, "color_mode": "color_temp", "color_temp_kelvin": 3200}, out
+    assert "effect" not in out["light.b"], "an effect the light does not currently list must not be captured"
+
+
+def test_capture_whole_house_a_fan_keeps_its_own_fields(tmp_path):
+    out = _run(tmp_path, """
+const lights = [{ entity_id: "fan.loft" }];
+const states = { "fan.loft": { state: "on", attributes: { percentage: 66, preset_mode: "breeze", oscillating: true, direction: "reverse" } } };
+console.log(JSON.stringify(LM.captureWholeHouse(lights, states).entities));
+""")
+    assert out == {"fan.loft": {"state": "on", "percentage": 66, "preset_mode": "breeze", "oscillating": True, "direction": "reverse"}}
+
+
+def test_capture_whole_house_skips_and_counts_an_unavailable_device(tmp_path):
+    out = _run(tmp_path, """
+const lights = [{ entity_id: "light.a" }, { entity_id: "light.b" }];
+const states = { "light.a": { state: "unavailable", attributes: {} } };  // light.b entirely missing from states
+console.log(JSON.stringify(LM.captureWholeHouse(lights, states)));
+""")
+    assert out["entities"] == {} and out["count"] == 0 and out["skipped"] == 2
+
+
+def test_apply_whole_house_calls_scene_apply_with_only_the_stored_entities(tmp_path):
+    out = _run(tmp_path, """
+const calls = [];
+const hass = { callService: async (d, s, data) => { calls.push([d, s, data]); },
+                states: { "light.a": { state: "on" }, "fan.b": { state: "off" } } };
+const preset = { entities: { "light.a": { state: "on", brightness: 5 }, "fan.b": { state: "off" } } };
+const r = await LM.applyWholeHouse(hass, preset);
+console.log(JSON.stringify({ calls, r }));
+""")
+    assert out["calls"] == [["scene", "apply", {"entities": {"light.a": {"state": "on", "brightness": 5}, "fan.b": {"state": "off"}}}]]
+    assert out["r"] == {"applied": 2, "skipped": 0}
+
+
+def test_apply_whole_house_skips_a_device_thats_unavailable_or_gone_now(tmp_path):
+    out = _run(tmp_path, """
+const calls = [];
+const hass = { callService: async (d, s, data) => { calls.push([d, s, data]); },
+                states: { "light.here": { state: "on" }, "light.now_unavailable": { state: "unavailable" } } };
+// light.deleted is in the preset but no longer in hass.states at all.
+const preset = { entities: { "light.here": { state: "on" }, "light.now_unavailable": { state: "on" }, "light.deleted": { state: "on" } } };
+const r = await LM.applyWholeHouse(hass, preset);
+console.log(JSON.stringify({ calls, r }));
+""")
+    assert out["calls"] == [["scene", "apply", {"entities": {"light.here": {"state": "on"}}}]]
+    assert out["r"] == {"applied": 1, "skipped": 2}
+
+
+def test_apply_whole_house_refuses_a_non_light_fan_domain_even_from_hand_edited_storage(tmp_path):
+    """Defense in depth on the client side too — the backend sanitizer already
+    refuses this at save time, but a preset object built by hand (or from an
+    older/foreign storage copy) must not be trusted at apply time either."""
+    out = _run(tmp_path, """
+const calls = [];
+const hass = { callService: async (d, s, data) => { calls.push([d, s, data]); },
+                states: { "lock.front_door": { state: "locked" }, "light.ok": { state: "on" } } };
+const preset = { entities: { "lock.front_door": { state: "unlocked" }, "light.ok": { state: "on" } } };
+const r = await LM.applyWholeHouse(hass, preset);
+console.log(JSON.stringify({ calls, r }));
+""")
+    assert out["calls"] == [["scene", "apply", {"entities": {"light.ok": {"state": "on"}}}]]
+    assert "lock.front_door" not in str(out["calls"])
+
+
+def test_apply_whole_house_calls_nothing_when_everything_is_skipped(tmp_path):
+    out = _run(tmp_path, """
+const calls = [];
+const hass = { callService: async (d, s, data) => { calls.push([d, s, data]); }, states: {} };
+const r = await LM.applyWholeHouse(hass, { entities: { "light.gone": { state: "on" } } });
+console.log(JSON.stringify({ calls, r }));
+""")
+    assert out["calls"] == []
+    assert out["r"] == {"applied": 0, "skipped": 1}

@@ -25,7 +25,7 @@ const { hasControlCard } =
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, toggleEntity,
         wireUseSurface, openControlCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates,
-        wireHoverHud } =
+        wireHoverHud, captureWholeHouse, applyWholeHouse } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 
 // ── DOM helpers ──────────────────────────────────────────────────────────────
@@ -227,6 +227,7 @@ class PadSpanLightsApp extends HTMLElement {
       // Quick-apply only (see onApplyPreset in the host below) — presets are
       // authored in Mapping -> Lights, this panel just switches between them.
       this.state._showcasePresets = Array.isArray(s.lights_showcase_presets) ? s.lights_showcase_presets : [];
+      this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];
       // {entity_id: epoch-s of its most recent "on"} — flood_latch.py's
       // event listener writes this server-side; ungated, same reasoning as
       // the tier read above (a flood alarm isn't a paid convenience).
@@ -433,6 +434,35 @@ class PadSpanLightsApp extends HTMLElement {
       // stays an editing action for Mapping -> Lights, same line as the
       // read-only modes above.
       showcasePresets: this.state._showcasePresets || [],
+      // Whole House Presets — quick-apply from the sidebar, same as the
+      // Showcase presets above (Garry, 2026-09-11 precedent: no edit UI in
+      // the everyday panel, editing stays in Mapping -> Lights). Set/Delete
+      // are included too, since this is the panel someone reaches for on a
+      // wall kiosk without opening the full builder.
+      wholeHousePresets: this.state._wholeHousePresets || [],
+      onWholeHouseSet: async (name) => {
+        const lights = Object.values(this.state.lightsByEid || {});
+        const cap = captureWholeHouse(lights, this._hass?.states || {});
+        const rest = (this.state._wholeHousePresets || []).filter((p) => p.name !== name);
+        const preset = { name, created_at: Date.now() / 1000, entities: cap.entities };
+        try { await this._hass.callWS({ type: "padspan_ha/settings_set", whole_house_presets: [...rest, preset] }); }
+        catch (e) { return null; }
+        this.state._wholeHousePresets = [...rest, preset];
+        this._render();
+        return cap;
+      },
+      onWholeHouseApply: async (preset) => {
+        if (!this._hass) return null;
+        try { return await applyWholeHouse(this._hass, preset); }
+        catch (e) { return null; }
+      },
+      onWholeHouseDelete: async (name) => {
+        const rest = (this.state._wholeHousePresets || []).filter((p) => p.name !== name);
+        try { await this._hass.callWS({ type: "padspan_ha/settings_set", whole_house_presets: rest }); }
+        catch (e) { return; }
+        this.state._wholeHousePresets = rest;
+        this._render();
+      },
       onApplyPreset: async (values) => {
         this.state._showcase = !!values.lights_showcase;
         this.state._showcaseTheme = values.lights_showcase_theme || "classic";

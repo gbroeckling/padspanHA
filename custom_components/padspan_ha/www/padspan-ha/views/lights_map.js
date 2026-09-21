@@ -17,7 +17,7 @@ const { buildIsoSVG, shapeSvg, fabricFrame, sampleSceneField, pointInPolygon, of
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         TEMP_BORDER, healthOf,
         AIR_QUALITY_CLASSES, AIR_BORDER, airQualityBadness, airQualityWord, isAirQualityEntity,
-        classBorder, isControllable, hasFixedGlyph, isAtlasEntity } =
+        classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 const { tierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
@@ -298,6 +298,70 @@ export function airWorstOf(airLights){
   }
   return worst;
 }
+// ── Whole House Presets ─────────────────────────────────────────────────────────────
+// Garry, 2026-09-21: "a pull down like presets, but call whole house presets.
+// There will be a set, and a name on it. It will remember every setting in
+// the house when set is hit, and bring all settings back when selected."
+// A named snapshot of real DEVICE state — not the map's look (that is the
+// Showcase Presets bar). Shared here so the Mapping tab and the sidebar
+// capture and restore identically. Entities are kept in exactly the shape
+// HA's own scene.apply takes, so restoring is ONE native service call and
+// HA, not PadSpan, works out how to get each light/fan back there.
+const _WHP_DOMAIN = /^(?:light|fan)\./;
+// A light's colour lives under whichever attribute its CURRENT color_mode
+// names; saving the others too would hand scene.apply a contradiction.
+const _WHP_COLOR_ATTR = { hs: "hs_color", xy: "xy_color", rgb: "rgb_color", rgbw: "rgbw_color",
+                          rgbww: "rgbww_color", color_temp: "color_temp_kelvin" };
+
+// What Set remembers: every eligible device (DEVICE_CLASSES.inPresets — real
+// lights and fans, never a lock) that is plainly on or off right now. An
+// unavailable device has no state worth restoring and is counted, not stored.
+export function captureWholeHouse(lights, states){
+  const entities = {}; let skipped = 0;
+  for (const l of lights || []) {
+    const eid = l && l.entity_id;
+    if (!eid || !inWholeHousePresets(l) || !_WHP_DOMAIN.test(eid)) continue;
+    const st = states && states[eid];
+    if (!st || (st.state !== "on" && st.state !== "off")) { skipped++; continue; }
+    if (st.state === "off") { entities[eid] = { state: "off" }; continue; }
+    const a = st.attributes || {}, e = { state: "on" };
+    if (eid.startsWith("light.")) {
+      if (typeof a.brightness === "number") e.brightness = a.brightness;
+      if (typeof a.color_mode === "string") {
+        e.color_mode = a.color_mode;
+        const k = _WHP_COLOR_ATTR[a.color_mode];
+        if (k && a[k] != null) e[k] = a[k];
+      }
+      // Only an effect the light itself lists can be asked for again.
+      if (typeof a.effect === "string" && Array.isArray(a.effect_list) && a.effect_list.includes(a.effect)) e.effect = a.effect;
+    } else {
+      if (typeof a.percentage === "number") e.percentage = a.percentage;
+      if (typeof a.preset_mode === "string" && a.preset_mode) e.preset_mode = a.preset_mode;
+      if (typeof a.oscillating === "boolean") e.oscillating = a.oscillating;
+      if (a.direction === "forward" || a.direction === "reverse") e.direction = a.direction;
+    }
+    entities[eid] = e;
+  }
+  return { entities, count: Object.keys(entities).length, skipped };
+}
+
+// Bring a saved preset back. The light./fan. test is the client-side twin of
+// the backend sanitizer's allowlist — a preset can never drive any other
+// domain even from hand-edited storage. A device that is gone or unavailable
+// right now is skipped and counted rather than failing the whole call.
+export async function applyWholeHouse(hass, preset){
+  const entities = {}; let skipped = 0;
+  for (const [eid, s] of Object.entries((preset && preset.entities) || {})) {
+    if (!_WHP_DOMAIN.test(eid) || !s || (s.state !== "on" && s.state !== "off")) continue;
+    const live = hass && hass.states && hass.states[eid];
+    if (!live || live.state === "unavailable") { skipped++; continue; }
+    entities[eid] = s;
+  }
+  const applied = Object.keys(entities).length;
+  if (applied) await hass.callService("scene", "apply", { entities });
+  return { applied, skipped };
+}
+
 // One flood sensor's alarm state — live wet, OR still within its
 // flood_latch.py latch window. The single place this "live OR latched"
 // check lives, so the aggregate counts, the row labels and the Reset
@@ -2419,6 +2483,66 @@ export function buildLightsMapCard(hostIn){
     presetBar.appendChild(presetStatus);
 
     mapCard.appendChild(presetBar);
+  }
+
+  // Whole House Presets — its own box, like the Showcase Presets bar above,
+  // but about the HOUSE rather than the map's look, so it shows whether or
+  // not Showcase is on. Apply changes every light and fan at once, so it is
+  // a two-click confirm (the same pattern as the flood Reset and untag).
+  if (host.onWholeHouseApply && tierAtLeast(host.tier, "pro")) {
+    const whp = host.wholeHousePresets || [];
+    const whBar = el("div", { class: "lv-presetbar" });
+    whBar.appendChild(el("span", { class: "lv-lbl" }, "Whole house"));
+    const whSel = document.createElement("select");
+    whSel.className = "lv-select";
+    whSel.title = "A saved state of every light and fan in the house — on/off, brightness, colour, effect, speed";
+    whSel.appendChild(el("option", { value: "" }, whp.length ? "▾ Choose a whole house preset" : "▾ No whole house presets yet"));
+    for (const p of whp) whSel.appendChild(el("option", { value: p.name }, `${p.name} (${Object.keys(p.entities || {}).length})`));
+    whBar.appendChild(whSel);
+    const whStatus = el("span", { class: "lv-status" }, "");
+    const whFlash = (msg, ms = 2600) => { whStatus.textContent = msg; setTimeout(() => { whStatus.textContent = ""; }, ms); };
+
+    const whApply = el("button", { class: "lv-act primary", title: "Put every light and fan back the way this preset remembers it — including turning OFF what was off" }, "Apply");
+    let whArmed = null;
+    const whDisarm = () => { whArmed = null; whApply.textContent = "Apply"; };
+    whApply.addEventListener("click", async () => {
+      const p = whp.find((x) => x.name === whSel.value);
+      if (!p) { whFlash("Pick a preset first"); return; }
+      if (whArmed !== p.name) { whArmed = p.name; whApply.textContent = "Yes, change the whole house"; return; }
+      whDisarm();
+      const r = await host.onWholeHouseApply(p);
+      if (r) whFlash(r.skipped ? `Applied ${r.applied} of ${r.applied + r.skipped} — ${r.skipped} unavailable` : `Applied to ${r.applied} ✓`, 4000);
+    });
+    whSel.addEventListener("change", whDisarm);
+    whBar.appendChild(whApply);
+
+    if (host.onWholeHouseSet) {
+      const whName = document.createElement("input");
+      whName.type = "text";
+      whName.className = "lv-preset-name";
+      whName.placeholder = "Type a name to set…";
+      whName.maxLength = 60;
+      whBar.appendChild(whName);
+      whBar.appendChild(el("button", {
+        class: "lv-act",
+        title: "Remember how every light and fan is set right now, under this name — overwrites a preset with the same name",
+        onclick: async () => {
+          const name = whName.value.trim();
+          if (!name) { whFlash("Type a name first"); return; }
+          const r = await host.onWholeHouseSet(name);
+          if (r) { whName.value = ""; whFlash(`Set ✓ — ${r.count} devices` + (r.skipped ? `, ${r.skipped} unavailable` : ""), 4000); }
+        },
+      }, "Set"));
+    }
+    if (host.onWholeHouseDelete) {
+      const whDel = el("button", { class: "lv-act", title: "Delete the selected whole house preset" }, "Delete");
+      whDel.disabled = true;
+      whDel.addEventListener("click", async () => { if (whSel.value) { await host.onWholeHouseDelete(whSel.value); whFlash("Deleted"); } });
+      whSel.addEventListener("change", () => { whDel.disabled = !whSel.value; });
+      whBar.appendChild(whDel);
+    }
+    whBar.appendChild(whStatus);
+    mapCard.appendChild(whBar);
   }
 
   // ── Layers + navigation bar ─────────────────────────────────────────────
