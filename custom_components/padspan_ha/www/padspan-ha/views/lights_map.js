@@ -378,12 +378,24 @@ export function layoutTierFor(widthPx){
 // The drawing is taller than it is wide, and classic sizing pins it to the
 // stage's WIDTH — so the wider the monitor, the taller the map and the more
 // there is to scroll. v2 fits the whole house in the space actually on
-// screen: the width at which the drawing is no taller than availH, never
-// wider than the stage. Zoom multiplies from there, so "100%" means "the
-// whole house, no scrolling".
+// screen.
+//
+// 2026-09-21 correction: the first cut of this took the SMALLER of the
+// width-fit and height-fit ("contain" — never overflow either edge), which
+// sounds right but isn't, for this specific shape: a multi-floor stack's
+// viewBox is usually much taller than it is wide, so the width needed to
+// keep it within availH is far narrower than the screen actually offers —
+// "no scrolling" was won by shrinking the whole map into a small box
+// centered in a sea of empty space either side of it (Garry: "the map
+// shouldn't be some tiny thing in the middle of the screen"). isoDiv (the
+// stage) already scrolls on its own — that's the map's own pan mechanism,
+// not page scroll — so there is no real cost to overflowing ONE axis.
+// Taking the LARGER of the two fits ("cover") instead always fills the
+// screen edge to edge on at least one axis, panning to reach the rest on
+// the other — the same tradeoff `background-size:cover` makes.
 export function fitWidthPx(stageW, availH, vbW, vbH){
   if (!(stageW > 0) || !(availH > 0) || !(vbW > 0) || !(vbH > 0)) return 0;
-  return Math.max(160, Math.min(stageW, availH * vbW / vbH));
+  return Math.max(160, stageW, availH * vbW / vbH);
 }
 // Which folds are open is a per-browser habit, not a house setting.
 const _foldOpen = (name) => { try { return localStorage.getItem("padspan_lv_fold_" + name) === "1"; } catch (_) { return false; } };
