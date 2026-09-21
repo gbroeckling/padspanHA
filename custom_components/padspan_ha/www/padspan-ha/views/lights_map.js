@@ -2878,8 +2878,21 @@ export function buildLightsMapCard(hostIn){
   // correct. Real browsers clamp an out-of-range scrollLeft/scrollTop to
   // the content's own current bounds, so this is safe even if the drawing
   // shrank since the value was saved.
-  if (view.scrollLeft !== undefined) isoDiv.scrollLeft = view.scrollLeft;
-  if (view.scrollTop !== undefined) isoDiv.scrollTop = view.scrollTop;
+  //
+  // mapCard is still DETACHED here — the caller appends the div this
+  // function returns into the live document only after it gets it back.
+  // Setting scrollLeft/scrollTop on an element with no layout box yet is a
+  // silent no-op, so every poll-driven rebuild (both Atlas hosts rebuild
+  // the whole card from scratch on their ~5s timer) was quietly dropping
+  // the user's pan position back to 0,0 the moment it redrew — "the
+  // position of the map keeps resetting after 5-10 seconds." Deferred one
+  // frame so it runs after the caller's synchronous appendChild.
+  if (view.scrollLeft !== undefined || view.scrollTop !== undefined) {
+    requestAnimationFrame(() => {
+      if (view.scrollLeft !== undefined) isoDiv.scrollLeft = view.scrollLeft;
+      if (view.scrollTop !== undefined) isoDiv.scrollTop = view.scrollTop;
+    });
+  }
   return mapCard;
 }
 

@@ -34,7 +34,7 @@ pytestmark = pytest.mark.skipif(_NODE is None, reason="node is not installed")
 def _run(script: str) -> dict:
     src = (
         "import { pathToFileURL } from 'node:url';\n"
-        f"const {{ install }} = await import(pathToFileURL({json.dumps(str(_ROOT / 'tests' / 'js' / 'dom_shim.mjs'))}).href);\n"
+        f"const {{ install, flush }} = await import(pathToFileURL({json.dumps(str(_ROOT / 'tests' / 'js' / 'dom_shim.mjs'))}).href);\n"
         "install(globalThis);\n"
         f"const LM = await import(pathToFileURL({json.dumps(str(_VIEWS / 'lights_map.js'))}).href);\n"
         "const out={};\n" + script + "\nconsole.log(JSON.stringify(out));\n"
@@ -173,7 +173,20 @@ def test_pan_position_survives_a_full_rebuild_of_the_card(tmp_path):
     nothing about a poll landing right after a real pinch finished and
     silently resetting the pan a moment later. view (the same persistent
     object zoom already lives on) now carries the pan position across
-    rebuilds too."""
+    rebuilds too.
+
+    2026-09-21 correction, still live despite this test passing: the
+    restore ran synchronously inside buildLightsMapCard, before the
+    caller's own appendChild puts the returned card into the real
+    document — setting scrollLeft/scrollTop on an element with no layout
+    box yet is a silent no-op in a real browser, so every poll rebuild was
+    still dropping the pan back to 0,0. This shim doesn't model that
+    attached-vs-detached distinction (a bare assignment "works" here
+    either way), which is exactly how the original bug passed this test
+    while still reproducing live. The fix defers the restore one
+    requestAnimationFrame so it runs after attachment; card2 is now
+    actually appended to the document, and the frame is flushed, to
+    exercise the real order of operations as closely as this harness can."""
     out = _run(_EL_JS + (
         f"const MODEL={json.dumps(_MODEL)};\n"
         "const view = { floorGap: 150, horizGap: 0, focusIdx: 0, zoom: 1 };\n"
@@ -184,10 +197,14 @@ def test_pan_position_survives_a_full_rebuild_of_the_card(tmp_path):
         "  onHexesBuilt: () => {}, onRowClick: () => {}, onToggleHidden: () => {}, afterAssign: () => {},\n"
         "};\n"
         "const card1 = LM.buildLightsMapCard(host);\n"
+        "document.body.appendChild(card1);\n"
         "const stage1 = card1.querySelector('.lv-stage');\n"
         "stage1.scrollLeft = 123; stage1.scrollTop = 45;\n"
         "stage1.dispatchEvent({ type: 'scroll' });\n"
+        "card1.remove();\n"
         "const card2 = LM.buildLightsMapCard(host);\n"
+        "document.body.appendChild(card2);\n"
+        "await flush();\n"
         "const stage2 = card2.querySelector('.lv-stage');\n"
         "out.sameNode = stage1 === stage2;\n"
         "out.scrollLeft = stage2.scrollLeft;\n"
