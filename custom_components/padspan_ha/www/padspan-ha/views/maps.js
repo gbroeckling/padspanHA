@@ -28,7 +28,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         sunAmbient, spreadInRoom, createUndoStack, toggleEntity,
         wireUseSurface, openControlCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates,
         isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
-        captureWholeHouse, applyWholeHouse } =
+        captureWholeHouse, applyWholeHouse, layoutTierFor } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasControlCard, hasFixedGlyph } =
@@ -8542,6 +8542,13 @@ function _lightsTab(ctx, maps, active) {
   // same camera — so "what will the household see" is one toggle away
   // without leaving the builder. A VIEW mode of this tab, never persisted.
   const preview = paid && !!mapState._lightsPreview;
+  // Garry, 2026-09-21: "add in a close option for the atlas help at the
+  // top, takes up crazy amounts of space" — the sidebar already has this
+  // (its coach mark, padspan_ha_lights_coach_seen), the builder's own
+  // header hint never got one. Same one-time-per-browser dismissal; "Guide
+  // me" still opens the full tour on demand, so closing this loses nothing.
+  let hintClosed = true;
+  try { hintClosed = localStorage.getItem("padspan_ha_lights_hint_closed") === "1"; } catch(e) {}
   const head = el("div", { class: "card lv-mapcard", style: "margin-bottom:12px" }, [
     el("div", { class: "card-head", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap" }, [
       el("div", { class: "lv-hero-title", style: "font-size:16px" }, "Atlas"),
@@ -8551,11 +8558,21 @@ function _lightsTab(ctx, maps, active) {
       // one you are in at every moment.
       ...(paid ? [el("span", { class: "lv-editing", style: preview ? "color:#8ee5b4;border-color:rgba(82,183,136,.55);background:rgba(82,183,136,.1)" : "" },
         preview ? "Preview · as the sidebar" : "Editing")] : []),
-      el("span", { class: "lv-hint" }, paid
-        ? (preview
-          ? "Exactly what the Atlas sidebar does with this map: tap switches, code or hold opens controls, room names open the room."
-          : "Builds the Atlas sidebar's map — what you arrange here is exactly what the sidebar shows. Tap a hex to switch it, same as everywhere else; hold it still to select it for editing, and drag it to where it really is. Shift-click or click a room name to select several. Can't find one on the map? Pick it in the list below — a ring flashes its spot, and the pink marker in the corner drags it into place.")
-        : "Every light in the house, one marker each, in its room. Click a marker to switch it."),
+      ...(hintClosed ? [] : [
+        el("span", { class: "lv-hint" }, paid
+          ? (preview
+            ? "Exactly what the Atlas sidebar does with this map: tap switches, code or hold opens controls, room names open the room."
+            : "Builds the Atlas sidebar's map — what you arrange here is exactly what the sidebar shows. Tap a hex to switch it, same as everywhere else; hold it still to select it for editing, and drag it to where it really is. Shift-click or click a room name to select several. Can't find one on the map? Pick it in the list below — a ring flashes its spot, and the pink marker in the corner drags it into place.")
+          : "Every light in the house, one marker each, in its room. Click a marker to switch it."),
+        (() => {
+          const x = el("button", { class: "btn inline", title: "Close this — \"Guide me\" opens the full tour any time", style: "font-size:11px;padding:2px 7px" }, "✕");
+          x.addEventListener("click", () => {
+            try { localStorage.setItem("padspan_ha_lights_hint_closed", "1"); } catch(e) {}
+            ctx.actions.renderRooms();
+          });
+          return x;
+        })(),
+      ]),
       (() => {
         const b = el("button", { class: "btn inline", style: "font-size:11px;margin-left:auto" }, "🎓 Guide me");
         b.addEventListener("click", () => {
@@ -9491,7 +9508,26 @@ function _lightsTab(ctx, maps, active) {
   const mapCardEl = buildLightsMapCard(host);
   // The drafting grid on the stage says "editing" without a word.
   if (paid && !preview) { const stage = mapCardEl.querySelector(".lv-stage"); if (stage) stage.classList.add("editing"); }
-  wrap.appendChild(mapCardEl);
+  // Layout v2 (Garry, 2026-09-21, "get it done"): on a wide enough monitor
+  // the map, the inspector and the device table sit in COLUMNS instead of
+  // stacking — the actual "stack more in a row so less scrolling is
+  // needed" ask, not just the toolbar/fold work already shipped. Measured
+  // against the WRAPPER's own width (ResizeObserver), same reasoning as
+  // the map's own fit-to-screen sizing: the HA sidebar and this panel's
+  // own width, not the monitor's resolution, decide what fits.
+  const cols = host.layoutV2 ? el("div", { class: "lv-atlascols" }) : wrap;
+  if (host.layoutV2) {
+    wrap.appendChild(cols);
+    if (typeof ResizeObserver !== "undefined") {
+      new ResizeObserver((entries) => {
+        const w = entries[0].contentRect.width;
+        const tier = LM.layoutTierFor(w);
+        cols.classList.toggle("lv-cols-2", tier === "wide");
+        cols.classList.toggle("lv-cols-3", tier === "ultra");
+      }).observe(cols);
+    }
+  }
+  cols.appendChild(mapCardEl);
 
   // ── Selected-light inspector — the build tools for one light ────────────
   const sel = paid && !preview ? mapState._selLight : null;
@@ -9505,7 +9541,10 @@ function _lightsTab(ctx, maps, active) {
     const entry = (mapState._lightsDraftM || {})[sel.eid]
       || ((ctx.state.model || {}).light_positions_m || {})[sel.eid]
       || null;
-    const insp = el("div", { class: "card lv-tablecard", style: "display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 12px;margin-bottom:12px" });
+    // lv-atlascol-inspector: layout v2's ultrawide 3rd column (map | table |
+    // inspector) targets this specifically — insp shares .lv-tablecard with
+    // the device table itself, so class alone can't tell them apart.
+    const insp = el("div", { class: "card lv-tablecard lv-atlascol-inspector", style: "display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 12px;margin-bottom:12px" });
     insp.appendChild(el("div", { class: "lv-tbl-title", style: "min-width:140px" },
       `${l.code} · ${l.friendly_name}`));
     if (l.isWled) insp.appendChild(el("span", { class: "lv-chip violet" }, "WLED"));
@@ -9679,11 +9718,13 @@ function _lightsTab(ctx, maps, active) {
     insp.appendChild(el("button", { class: "lv-act", onclick: () => {
       mapState._selLight = null; ctx.actions.renderRooms();
     } }, "Deselect"));
-    wrap.appendChild(insp);
+    cols.appendChild(insp);
   }
 
   // ── The shared light index table (brings its own card) ──────────────────
-  wrap.appendChild(buildLightsTable(host, lights));
+  const tableEl = buildLightsTable(host, lights);
+  tableEl.classList.add("lv-atlascol-table");
+  cols.appendChild(tableEl);
   mapState._focusRow = null;   // the scroll-into-view is a one-shot
   mapState._locateEid = null;  // the locate ring is a one-shot too
 

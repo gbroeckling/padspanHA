@@ -1153,6 +1153,23 @@
 .lv-drawer.open{max-height:220px;overflow-y:auto;border-bottom:1px solid rgba(120,190,155,.16)}
 .lv-drawer .lv-toolbar,.lv-drawer .lv-presetbar{margin:0;border:none;background:none;border-radius:0}
 
+/* The builder's own columns (Garry, 2026-09-21: "get it done" — the rest of
+   the layout plan). Below "wide" this is just a column of stacked cards,
+   identical to the classic layout it replaces (.lv-atlascols only exists at
+   all when layoutV2 is on — see maps.js's `cols`). At "wide" the map and the
+   device table sit side by side; at "ultra" the selected-light inspector
+   (when a light is selected) joins as a third column. */
+.lv-atlascols{display:flex;flex-direction:column;gap:0}
+.lv-atlascols.lv-cols-2,.lv-atlascols.lv-cols-3{display:grid;align-items:start;gap:12px}
+.lv-atlascols.lv-cols-2{grid-template-columns:minmax(0,1fr) minmax(320px,440px)}
+.lv-atlascols.lv-cols-3{grid-template-columns:minmax(0,1fr) minmax(320px,420px) minmax(270px,340px)}
+.lv-atlascols.lv-cols-2 .lv-mapcard,.lv-atlascols.lv-cols-3 .lv-mapcard{grid-column:1;grid-row:1/-1}
+.lv-atlascols.lv-cols-2 .lv-atlascol-table,.lv-atlascols.lv-cols-3 .lv-atlascol-table{grid-column:2;margin-bottom:0}
+.lv-atlascols.lv-cols-3 .lv-atlascol-inspector{grid-column:3;margin-bottom:0}
+/* No 3rd column yet (wide, not ultra) — the inspector, if one is open,
+   stacks above the table in the same column rather than vanishing. */
+.lv-atlascols.lv-cols-2 .lv-atlascol-inspector{grid-column:2;margin-bottom:0}
+
 /* ── legend ─────────────────────────────────────────────────────────────── */
 .lv-legend{display:flex;flex-wrap:wrap;gap:5px 8px;align-items:center;margin-top:10px;
   padding-top:9px;border-top:1px solid rgba(120,190,155,.12)}
