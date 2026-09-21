@@ -57,6 +57,8 @@ Showcase is a set of 19 curated visual themes for the whole map — colour, room
 
 The **presets bar** saves a whole look — Showcase theme, Automorph style, and optionally floor/spacing/layout — under a name you choose, and loads it back later with **Apply**. Older presets saved before layout was included never move your camera when applied.
 
+**Whole House Presets** is a different kind of preset, right beside it: instead of the map's *look*, **Set** remembers every light and fan's real state — on/off, brightness, colour, effect, fan speed — and **Apply** puts the whole house back exactly that way, including turning off anything that was off when it was saved. It asks you to confirm before applying, since it changes every light and fan at once. Locks are never included.
+
 ## On a touchscreen or phone
 
 Atlas is tuned for touch, not just a mouse: pinch-zoom is the map's own gesture (it no longer fights the browser's page-zoom for the same pinch), panning survives the map's periodic background refresh instead of resetting to the top-left, and tap targets line up with what's actually drawn on screen — including Automorph's aura, so the tappable area matches the visible glow rather than a small fixed circle at the fixture's anchor.

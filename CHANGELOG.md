@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.56 — Whole House Presets, and a trial of a decluttered Atlas layout (2026-09-21)
+
+### Atlas
+- **Added:** Whole House Presets — a "Set" button remembers every light and fan's real state (on/off, brightness, colour, effect, fan speed) under a name; picking that name from the pulldown puts the whole house back, including turning off anything that was off when it was saved. Applying is a two-click confirm, since it changes every light and fan at once. Locks are never included, on purpose — a saved preset must never be able to unlock a door. PadSpan Pro, same tier as the existing Presets.
+- **Added (trial, off by default):** a reworked Atlas layout — Settings → Features → "New layout" in the Mapping tab. The map now fits the actual screen instead of scaling to the width of its box (previously a wider monitor meant a *taller* map and more scrolling); the toolbar's groups pack left-to-right instead of each forcing its own line; less-used controls (Automorph tuning, Layout & view, Showcase's extra toggles) collapse behind a fold instead of always showing; the two Presets bars share one row with a tab instead of stacking. The sidebar Atlas panel gets its own variant of this: the map runs edge to edge and every control becomes a drawer that opens over it from a slim icon rail, since that screen is the house map, not a workbench. One click back to the classic layout at any time.
+
+---
+
 ## 0.38.55 — Security hardening, two flood-alarm reliability fixes, and a real flood marker (2026-09-20)
 
 ### Security
