@@ -2887,11 +2887,31 @@ export function buildLightsMapCard(hostIn){
   // the user's pan position back to 0,0 the moment it redrew — "the
   // position of the map keeps resetting after 5-10 seconds." Deferred one
   // frame so it runs after the caller's synchronous appendChild.
+  //
+  // V2 also fits the drawing to the screen via a ResizeObserver, which
+  // only gets real numbers once isoDiv is attached — same frame this
+  // restore runs in, order unspecified between the two. If that fit lands
+  // AFTER this restore, its width change can shrink scrollWidth out from
+  // under the position just set, clamping it down — a slow drift toward
+  // 0,0 across repeated poll rebuilds ("keeps getting moved to some
+  // useless position"), and each rebuild both re-fitting AND re-clamping
+  // is exactly what reads as the map "getting smaller" over time too.
+  // Calling applyZoom() explicitly, synchronously, right before restoring
+  // — rather than trusting the observer to have already run — makes the
+  // fit settle first in EVERY case, so the restore always lands on final,
+  // stable bounds instead of racing whichever happens to fire second.
+  //
+  // setTimeout, not requestAnimationFrame: this Atlas panel is often a
+  // wall-kiosk tab that is not always the OS's frontmost/focused window,
+  // and Chrome fully suspends rAF (indefinitely, not just throttled) in a
+  // backgrounded tab — the restore would then silently never run at all,
+  // which reproduces as this exact bug. setTimeout still fires there.
   if (view.scrollLeft !== undefined || view.scrollTop !== undefined) {
-    requestAnimationFrame(() => {
+    setTimeout(() => {
+      applyZoom();
       if (view.scrollLeft !== undefined) isoDiv.scrollLeft = view.scrollLeft;
       if (view.scrollTop !== undefined) isoDiv.scrollTop = view.scrollTop;
-    });
+    }, 0);
   }
   return mapCard;
 }

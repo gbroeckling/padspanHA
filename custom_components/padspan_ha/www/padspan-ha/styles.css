@@ -1044,6 +1044,11 @@
   color:rgba(226,240,232,.65);
   transition:border-color .15s ease,background .15s ease,color .15s ease,box-shadow .15s ease}
 .lv-tgl:hover{border-color:rgba(120,190,155,.42);background:rgba(255,255,255,.06);color:#e8f0ea}
+/* Garry, 2026-09-21: "the transform button and the save button should be
+   bigger" — the Atlas builder's Transform toggle and its Save placements
+   button specifically, not every lv-tgl/.btn on the page. */
+.lv-tgl-big{font-size:14px;padding:8px 18px;border-radius:10px}
+.lv-btn-big{font-size:14px;font-weight:700;padding:12px 22px}
 .lv-tgl.on{color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
 .lv-tgl.tone-violet.on{background:linear-gradient(135deg,#4c1d95,#7c3aed);border-color:rgba(196,181,253,.65);box-shadow:0 0 14px rgba(124,58,237,.4),inset 0 1px 0 rgba(255,255,255,.14)}
 .lv-tgl.tone-ember.on {background:linear-gradient(135deg,#7c2d12,#ea580c);border-color:rgba(253,186,116,.65);box-shadow:0 0 14px rgba(234,88,12,.4),inset 0 1px 0 rgba(255,255,255,.14)}
