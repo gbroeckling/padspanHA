@@ -22,6 +22,7 @@ from custom_components.padspan_ha.ws_settings import (
     _normalize_showcase_theme,
     _sanitize_light_shapes,
     _sanitize_showcase_presets,
+    _sanitize_whole_house_presets,
 )
 
 
@@ -182,3 +183,88 @@ def test_sanitize_light_shapes_drops_an_empty_key():
 def test_sanitize_light_shapes_returns_empty_dict_for_non_dict_input():
     assert _sanitize_light_shapes(None) == {}
     assert _sanitize_light_shapes([("light.x", "circle")]) == {}
+
+
+# ── _sanitize_whole_house_presets ────────────────────────────────────────────
+
+def _whp(name="Evening", entities=None, **extra):
+    return {"name": name, "created_at": 1790000000.5,
+            "entities": entities if entities is not None else {"light.kitchen": {"state": "on", "brightness": 180}},
+            **extra}
+
+
+def test_whole_house_presets_pass_through_a_well_formed_preset():
+    out = _sanitize_whole_house_presets([_whp(entities={
+        "light.kitchen": {"state": "on", "brightness": 180, "color_mode": "rgb", "rgb_color": [255, 120, 0], "effect": "Rainbow"},
+        "light.hall": {"state": "off", "brightness": 40},
+        "fan.ceiling": {"state": "on", "percentage": 66, "preset_mode": "breeze", "oscillating": True, "direction": "reverse"},
+    })])
+    assert len(out) == 1 and out[0]["name"] == "Evening" and out[0]["created_at"] == 1790000000.5
+    e = out[0]["entities"]
+    assert e["light.kitchen"] == {"state": "on", "brightness": 180, "color_mode": "rgb", "rgb_color": [255, 120, 0], "effect": "Rainbow"}
+    assert e["light.hall"] == {"state": "off"}, "an OFF device stores nothing but off — stale attributes must not ride along"
+    assert e["fan.ceiling"] == {"state": "on", "percentage": 66, "preset_mode": "breeze", "oscillating": True, "direction": "reverse"}
+
+
+def test_whole_house_presets_refuse_every_domain_but_light_and_fan():
+    """The security line: a saved preset must never be able to unlock a
+    door, open a cover, disarm a panel or run a script when applied."""
+    out = _sanitize_whole_house_presets([_whp(entities={
+        "lock.front_door": {"state": "unlocked"},
+        "cover.garage": {"state": "open"},
+        "alarm_control_panel.house": {"state": "disarmed"},
+        "switch.heater": {"state": "on"},
+        "script.anything": {"state": "on"},
+        "light.ok": {"state": "on"},
+    })])
+    assert list(out[0]["entities"]) == ["light.ok"]
+
+
+def test_whole_house_presets_refuse_malformed_entity_ids_and_states():
+    out = _sanitize_whole_house_presets([_whp(entities={
+        "light.ok": {"state": "on"},
+        "light.Bad Id": {"state": "on"},
+        "light.x; drop": {"state": "on"},
+        "light.unavail": {"state": "unavailable"},
+        "light.notadict": "on",
+        42: {"state": "on"},
+    })])
+    assert list(out[0]["entities"]) == ["light.ok"]
+
+
+def test_whole_house_presets_clamp_and_drop_bad_attribute_values():
+    out = _sanitize_whole_house_presets([_whp(entities={
+        "light.a": {"state": "on", "brightness": 9999, "color_temp_kelvin": 5, "color_mode": "not_a_mode",
+                    "rgb_color": [1, 2], "hs_color": [10.123456, float("nan")], "effect": "x" * 500},
+        "light.b": {"state": "on", "brightness": True},
+        "fan.c": {"state": "on", "percentage": -40, "oscillating": "yes", "direction": "sideways"},
+    })])
+    e = out[0]["entities"]
+    assert e["light.a"]["brightness"] == 255 and e["light.a"]["color_temp_kelvin"] == 1000
+    assert "color_mode" not in e["light.a"] and "rgb_color" not in e["light.a"] and "hs_color" not in e["light.a"]
+    assert len(e["light.a"]["effect"]) == 100
+    assert e["light.b"] == {"state": "on"}, "a bool is not a brightness"
+    assert e["fan.c"] == {"state": "on", "percentage": 0}
+
+
+def test_whole_house_presets_drop_malformed_presets_without_rejecting_the_rest():
+    out = _sanitize_whole_house_presets([
+        "not-a-dict", {"name": "", "entities": {"light.a": {"state": "on"}}},
+        {"name": "No entities"}, {"name": "Only a lock", "entities": {"lock.x": {"state": "locked"}}},
+        _whp("Good One"),
+    ])
+    assert [p["name"] for p in out] == ["Good One"]
+
+
+def test_whole_house_presets_keep_the_newest_and_cap_name_and_entity_count():
+    presets = [_whp(f"Old {i}") for i in range(20)] + [_whp("N" * 100)]
+    out = _sanitize_whole_house_presets(presets)
+    assert len(out) == 20 and out[-1]["name"] == "N" * 60
+    assert "Old 0" not in [p["name"] for p in out]
+    big = _sanitize_whole_house_presets([_whp(entities={f"light.l{i}": {"state": "on"} for i in range(400)})])
+    assert len(big[0]["entities"]) == 300
+
+
+def test_whole_house_presets_return_empty_list_for_non_list_input():
+    assert _sanitize_whole_house_presets(None) == []
+    assert _sanitize_whole_house_presets({"name": "x"}) == []

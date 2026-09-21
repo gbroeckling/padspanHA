@@ -9,6 +9,7 @@ Split out of websocket.py; registration stays there.
 
 from __future__ import annotations
 
+import math
 import re
 
 import logging
@@ -170,6 +171,111 @@ def _sanitize_showcase_presets(presets_in: Any) -> list[dict[str, Any]]:
             continue  # one malformed preset must not reject the whole save
     return presets_out
 
+# ── Whole House Presets ──────────────────────────────────────────────────────
+# Garry, 2026-09-21: "a pull down like presets, but call whole house presets.
+# There will be a set, and a name on it. It will remember every setting in
+# the house when set is hit, and bring all settings back when selected."
+#
+# A named snapshot of real DEVICE state (not PadSpan's own view settings —
+# that is lights_showcase_presets above). Each preset's `entities` is stored
+# in exactly the shape HA's own scene.apply service takes
+# ({entity_id: {"state": "on", "brightness": 120, ...}}), so applying one is
+# a single native service call from the frontend, under the calling user's
+# own HA permissions — no server-side service-calling code, so nothing new
+# for the Phase 2i allowlist to police. light.* and fan.* ONLY: a saved
+# preset that could unlock a door (or arm/disarm anything) is exactly the
+# hole that security pass closed, so locks, covers, alarm panels and every
+# other domain are refused here regardless of what a client sends.
+_WHP_DOMAINS = ("light.", "fan.")
+_WHP_MAX_PRESETS = 20
+_WHP_MAX_ENTITIES = 300
+_WHP_ENTITY_ID = re.compile(r"^(?:light|fan)\.[a-z0-9_]+$")
+_WHP_COLOR_ATTRS = {"hs_color": 2, "xy_color": 2, "rgb_color": 3, "rgbw_color": 4, "rgbww_color": 5}
+_WHP_COLOR_MODES = frozenset({"onoff", "brightness", "color_temp", "hs", "xy", "rgb", "rgbw", "rgbww", "white"})
+
+
+def _whp_number(v: Any) -> float | None:
+    """A real finite number, or None. bool is an int subclass — refused."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    f = float(v)
+    return f if math.isfinite(f) else None
+
+
+def _sanitize_whole_house_entity(eid: Any, raw: Any) -> dict[str, Any] | None:
+    """One entity's saved state in scene.apply shape, or None to drop it.
+    Only "on"/"off" are storable — an unavailable/unknown device at capture
+    time has no state worth restoring."""
+    if not isinstance(eid, str) or not _WHP_ENTITY_ID.match(eid) or not isinstance(raw, dict):
+        return None
+    state = raw.get("state")
+    if state not in ("on", "off"):
+        return None
+    if state == "off":
+        return {"state": "off"}
+    out: dict[str, Any] = {"state": "on"}
+    if eid.startswith("light."):
+        b = _whp_number(raw.get("brightness"))
+        if b is not None:
+            out["brightness"] = max(1, min(255, int(round(b))))
+        mode = raw.get("color_mode")
+        if isinstance(mode, str) and mode in _WHP_COLOR_MODES:
+            out["color_mode"] = mode
+        k = _whp_number(raw.get("color_temp_kelvin"))
+        if k is not None:
+            out["color_temp_kelvin"] = max(1000, min(12000, int(round(k))))
+        for attr, n in _WHP_COLOR_ATTRS.items():
+            v = raw.get(attr)
+            if isinstance(v, (list, tuple)) and len(v) == n:
+                nums = [_whp_number(x) for x in v]
+                if all(x is not None for x in nums):
+                    out[attr] = [round(x, 4) for x in nums]
+        eff = raw.get("effect")
+        if isinstance(eff, str) and eff.strip():
+            out["effect"] = eff.strip()[:100]
+    else:  # fan.
+        pct = _whp_number(raw.get("percentage"))
+        if pct is not None:
+            out["percentage"] = max(0, min(100, int(round(pct))))
+        pm = raw.get("preset_mode")
+        if isinstance(pm, str) and pm.strip():
+            out["preset_mode"] = pm.strip()[:60]
+        if isinstance(raw.get("oscillating"), bool):
+            out["oscillating"] = raw["oscillating"]
+        if raw.get("direction") in ("forward", "reverse"):
+            out["direction"] = raw["direction"]
+    return out
+
+
+def _sanitize_whole_house_presets(presets_in: Any) -> list[dict[str, Any]]:
+    """Same discipline as _sanitize_showcase_presets: malformed entries are
+    dropped without rejecting the rest, names are capped at 60, and the cap
+    keeps the NEWEST (the frontend appends a new preset last). A preset left
+    with no storable entity at all is dropped — it could restore nothing."""
+    out: list[dict[str, Any]] = []
+    if not isinstance(presets_in, list):
+        return out
+    for p in presets_in[-_WHP_MAX_PRESETS:]:
+        if not isinstance(p, dict):
+            continue
+        name = str(p.get("name") or "").strip()[:60]
+        ents_in = p.get("entities")
+        if not name or not isinstance(ents_in, dict):
+            continue
+        entities: dict[str, Any] = {}
+        for eid, raw in ents_in.items():
+            if len(entities) >= _WHP_MAX_ENTITIES:
+                break
+            clean = _sanitize_whole_house_entity(eid, raw)
+            if clean is not None:
+                entities[eid] = clean
+        if not entities:
+            continue
+        created = _whp_number(p.get("created_at"))
+        out.append({"name": name, "created_at": created if created and created > 0 else 0, "entities": entities})
+    return out
+
+
 
 @websocket_api.websocket_command({"type": "padspan_ha/settings_get"})
 
@@ -227,6 +333,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lights_automorph_subtlety"): vol.Coerce(int),
         vol.Optional("lights_showcase_theme"): str,
         vol.Optional("lights_showcase_presets"): list,
+        vol.Optional("whole_house_presets"): list,
         vol.Optional("adaptive_learning_enabled"): bool,
         vol.Optional("adaptive_floor_detection"): bool,
         vol.Optional("signal_loss_linger_s"): vol.Coerce(int),
@@ -534,6 +641,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["lights_showcase_theme"] = _normalize_showcase_theme(msg["lights_showcase_theme"])
         if "lights_showcase_presets" in msg:
             payload["lights_showcase_presets"] = _sanitize_showcase_presets(msg["lights_showcase_presets"])
+        if "whole_house_presets" in msg:
+            payload["whole_house_presets"] = _sanitize_whole_house_presets(msg["whole_house_presets"])
         if "light_shapes" in msg and isinstance(msg["light_shapes"], dict):
             # A non-dict is ignored, not stored as empty — same discipline
             # as every other dict-shaped setting here: a malformed payload
