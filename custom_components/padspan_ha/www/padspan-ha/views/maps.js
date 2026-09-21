@@ -9305,6 +9305,18 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not delete the whole house preset: " + String(e), true); }
       ctx.actions.renderRooms();
     },
+    // Vacation Mode (Garry, 2026-09-21) — the "permanent option" in the
+    // Whole House Presets list. Admin-only server-side (vacation_mode_
+    // enabled requires admin — see ws_settings.py); a non-admin picking
+    // this just gets the same error toast settingsSet already surfaces.
+    // Disabling and the intensity slider live in panel.js's banner, since
+    // they must stay reachable on every tab, not just this one.
+    onVacationModeEnable: async () => {
+      try { await ctx.actions.settingsSet({ vacation_mode_enabled: true }); }
+      catch (e) { ctx.toast("Could not turn on Vacation Mode: " + String(e), true); return false; }
+      ctx.actions.renderRooms();
+      return true;
+    },
     onApplyPreset: async (values) => {
       mapState._lightsShowcase = values.lights_showcase;
       mapState._lightsShowcaseTheme = values.lights_showcase_theme;

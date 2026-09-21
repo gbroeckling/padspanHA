@@ -476,6 +476,16 @@ class PadSpanLightsApp extends HTMLElement {
         this.state._wholeHousePresets = rest;
         this._render();
       },
+      // Vacation Mode's own "permanent option" — quick-apply from the
+      // sidebar too, same as any other Whole House Preset here. Disabling
+      // and the intensity slider stay in panel.js's global banner, not
+      // this panel, since they must be reachable from every tab.
+      onVacationModeEnable: async () => {
+        if (!this._hass) return false;
+        try { await this._hass.callWS({ type: "padspan_ha/settings_set", vacation_mode_enabled: true }); }
+        catch (e) { return false; }
+        return true;
+      },
       onApplyPreset: async (values) => {
         this.state._showcase = !!values.lights_showcase;
         this.state._showcaseTheme = values.lights_showcase_theme || "classic";

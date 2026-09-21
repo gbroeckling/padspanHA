@@ -2601,6 +2601,16 @@ export function buildLightsMapCard(hostIn){
     const whSel = document.createElement("select");
     whSel.className = "lv-select";
     whSel.title = "A saved state of every light and fan in the house — on/off, brightness, colour, effect, speed";
+    // Vacation Mode (Garry, 2026-09-21: "a permanent option, vacation") — a
+    // fixed entry, always first, never deleted: it isn't a saved snapshot
+    // like everything else in this list, it turns on the ongoing
+    // average-day pattern from vacation_mode.py until disabled (from the
+    // banner — see panel.js's _updateVacationBanner). Reserved value, never
+    // a real preset name (60-char cap, plain text — can't collide).
+    const VACATION_VALUE = "__vacation__";
+    if (host.onVacationModeEnable) {
+      whSel.appendChild(el("option", { value: VACATION_VALUE }, "🌴 Vacation Mode"));
+    }
     whSel.appendChild(el("option", { value: "" }, whp.length ? "▾ Choose a whole house preset" : "▾ No whole house presets yet"));
     for (const p of whp) whSel.appendChild(el("option", { value: p.name }, `${p.name} (${Object.keys(p.entities || {}).length})`));
     whBar.appendChild(whSel);
@@ -2611,6 +2621,13 @@ export function buildLightsMapCard(hostIn){
     let whArmed = null;
     const whDisarm = () => { whArmed = null; whApply.textContent = "Apply"; };
     whApply.addEventListener("click", async () => {
+      if (whSel.value === VACATION_VALUE) {
+        if (whArmed !== VACATION_VALUE) { whArmed = VACATION_VALUE; whApply.textContent = "Yes, turn on Vacation Mode"; return; }
+        whDisarm();
+        const ok = await host.onVacationModeEnable();
+        if (ok) whFlash("Vacation Mode on ✓", 4000);
+        return;
+      }
       const p = whp.find((x) => x.name === whSel.value);
       if (!p) { whFlash("Pick a preset first"); return; }
       if (whArmed !== p.name) { whArmed = p.name; whApply.textContent = "Yes, change the whole house"; return; }
@@ -2642,8 +2659,8 @@ export function buildLightsMapCard(hostIn){
     if (host.onWholeHouseDelete) {
       const whDel = el("button", { class: "lv-act", title: "Delete the selected whole house preset" }, "Delete");
       whDel.disabled = true;
-      whDel.addEventListener("click", async () => { if (whSel.value) { await host.onWholeHouseDelete(whSel.value); whFlash("Deleted"); } });
-      whSel.addEventListener("change", () => { whDel.disabled = !whSel.value; });
+      whDel.addEventListener("click", async () => { if (whSel.value && whSel.value !== VACATION_VALUE) { await host.onWholeHouseDelete(whSel.value); whFlash("Deleted"); } });
+      whSel.addEventListener("change", () => { whDel.disabled = !whSel.value || whSel.value === VACATION_VALUE; });
       whBar.appendChild(whDel);
     }
     whBar.appendChild(whStatus);
