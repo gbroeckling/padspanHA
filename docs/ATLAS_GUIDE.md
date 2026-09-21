@@ -59,6 +59,8 @@ The **presets bar** saves a whole look — Showcase theme, Automorph style, and 
 
 **Whole House Presets** is a different kind of preset, right beside it: instead of the map's *look*, **Set** remembers every light and fan's real state — on/off, brightness, colour, effect, fan speed — and **Apply** puts the whole house back exactly that way, including turning off anything that was off when it was saved. It asks you to confirm before applying, since it changes every light and fan at once. Locks are never included.
 
+**🌴 Vacation Mode** is the one permanent entry at the top of that same list — it isn't a saved snapshot. Instead it learns your house's own real day-to-day pattern from Home Assistant's own history (per light, per day of the week) and keeps turning lights on and off to match it — randomly, not on a fixed schedule, so it doesn't look mechanical — until you disable it. Turning it on shows a banner at the top of every tab with an **Energy saving** slider: 100% replays the full pattern, lower settings scale down how much comes on at once, so it can double as a lighter-footprint mode as well as an away-from-home one. Requires an administrator account to turn on.
+
 ## On a touchscreen or phone
 
 Atlas is tuned for touch, not just a mouse: pinch-zoom is the map's own gesture (it no longer fights the browser's page-zoom for the same pinch), panning survives the map's periodic background refresh instead of resetting to the top-left, and tap targets line up with what's actually drawn on screen — including Automorph's aura, so the tappable area matches the visible glow rather than a small fixed circle at the fixture's anchor.

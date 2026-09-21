@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.57 — Vacation Mode (2026-09-21)
+
+### Atlas
+- **Added:** Vacation Mode — a permanent entry in the Whole House Presets list, right beside your own saved presets. Instead of replaying a single saved snapshot, it learns each light's own real pattern from Home Assistant's history (per day of the week) and keeps turning lights on and off to match it — with some randomness built in, so it doesn't look like a mechanical timer — until you turn it off. A banner shown on every tab while it's running carries an Energy Saving slider (100% down to 5%): lower settings mean fewer lights come on at once, for a lower-power version of the same idea. Turning it on requires an administrator account. Needs a few days of Home Assistant's own recorder history to build a useful pattern for a given light and time of day.
+
+---
+
 ## 0.38.56 — Whole House Presets, and a trial of a decluttered Atlas layout (2026-09-21)
 
 ### Atlas
