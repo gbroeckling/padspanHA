@@ -1918,6 +1918,43 @@ export function buildLightsMapCard(hostIn){
   const DISPLAY = V2 && !!host.displayMode;
   if (V2) mapCard.classList.add("lv-v2");
   if (DISPLAY) mapCard.classList.add("lv-display");
+
+  // Vacation Mode banner — pinned dead-center of the screen, on both Atlas
+  // surfaces (this shared card) and nowhere else (Garry, 2026-09-21: "I
+  // wanted the banner to show in the two atlas screens, and pinned dead
+  // center until it is turned off"). Built fresh into the DOM only while
+  // on, rather than toggled with a CSS class — panel.js's old top-bar
+  // version used a bare `.hidden{display:none}` that a same-specificity
+  // `.vacation-banner{display:flex}` declared later in the stylesheet
+  // always beat, so the banner never actually hid or showed correctly.
+  // Independent of V2/DISPLAY: it must show on the classic layout too.
+  if (host.vacationModeEnabled) {
+    const pctLbl = el("span", { style: "font-variant-numeric:tabular-nums" }, `${host.vacationModeIntensity || 100}%`);
+    const slider = document.createElement("input");
+    slider.type = "range"; slider.min = "5"; slider.max = "100"; slider.step = "5";
+    slider.className = "lv-vacation-slider";
+    slider.value = String(host.vacationModeIntensity || 100);
+    slider.addEventListener("input", () => { pctLbl.textContent = `${slider.value}%`; });
+    slider.addEventListener("change", () => host.onVacationModeIntensity && host.onVacationModeIntensity(parseInt(slider.value, 10)));
+    const disableBtn = el("button", {
+      class: "btn inline",
+      onclick: async () => {
+        disableBtn.disabled = true;
+        const ok = host.onVacationModeDisable && await host.onVacationModeDisable();
+        if (!ok) disableBtn.disabled = false;
+      },
+    }, "Disable");
+    mapCard.appendChild(el("div", { class: "lv-vacation" }, [
+      el("span", {}, "🌴"),
+      el("span", { class: "lv-vacation-label" }, "Vacation mode on"),
+      el("span", { class: "lv-vacation-slider-wrap" }, [
+        el("span", { class: "muted", style: "font-size:11px" }, "Energy saving"),
+        slider,
+        pctLbl,
+      ]),
+      disableBtn,
+    ]));
+  }
   const fold = (name, title) => {
     const d = document.createElement("details");
     d.className = "lv-fold";

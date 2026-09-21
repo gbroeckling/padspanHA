@@ -234,6 +234,10 @@ class PadSpanLightsApp extends HTMLElement {
       // (host.displayMode below): edge-to-edge map, a slim rail, no
       // onLayoutV2 handed to the host, so no toggle button shows here.
       this.state._atlasLayoutV2 = !!s.atlas_layout_v2;
+      // Vacation Mode's own state — read here too now that the banner lives
+      // in the shared Atlas card (both hosts), not panel.js's global chrome.
+      this.state._vacationModeEnabled = !!s.vacation_mode_enabled;
+      this.state._vacationModeIntensity = Number.isFinite(Number(s.vacation_mode_intensity)) ? Number(s.vacation_mode_intensity) : 100;
       // {entity_id: epoch-s of its most recent "on"} — flood_latch.py's
       // event listener writes this server-side; ungated, same reasoning as
       // the tier read above (a flood alarm isn't a paid convenience).
@@ -477,14 +481,34 @@ class PadSpanLightsApp extends HTMLElement {
         this._render();
       },
       // Vacation Mode's own "permanent option" — quick-apply from the
-      // sidebar too, same as any other Whole House Preset here. Disabling
-      // and the intensity slider stay in panel.js's global banner, not
-      // this panel, since they must be reachable from every tab.
+      // sidebar too, same as any other Whole House Preset here. The banner
+      // itself (Disable + intensity slider), pinned dead-center of the
+      // screen, is built into the shared card below (Garry, 2026-09-21:
+      // "I wanted the banner to show in the two atlas screens" — this one
+      // and Mapping -> Atlas, nowhere else, so it lives in the shared
+      // renderer rather than panel.js's global chrome).
       onVacationModeEnable: async () => {
         if (!this._hass) return false;
         try { await this._hass.callWS({ type: "padspan_ha/settings_set", vacation_mode_enabled: true }); }
         catch (e) { return false; }
+        this.state._vacationModeEnabled = true;
+        this._render();
         return true;
+      },
+      vacationModeEnabled: !!this.state._vacationModeEnabled,
+      vacationModeIntensity: this.state._vacationModeIntensity || 100,
+      onVacationModeDisable: async () => {
+        if (!this._hass) return false;
+        try { await this._hass.callWS({ type: "padspan_ha/settings_set", vacation_mode_enabled: false }); }
+        catch (e) { this._toast("Could not disable Vacation Mode: " + String(e), true); return false; }
+        this.state._vacationModeEnabled = false;
+        this._render();
+        return true;
+      },
+      onVacationModeIntensity: async (pct) => {
+        this.state._vacationModeIntensity = pct;
+        try { await this._hass.callWS({ type: "padspan_ha/settings_set", vacation_mode_intensity: pct }); }
+        catch (e) { this._toast("Could not change the intensity: " + String(e), true); }
       },
       onApplyPreset: async (values) => {
         this.state._showcase = !!values.lights_showcase;

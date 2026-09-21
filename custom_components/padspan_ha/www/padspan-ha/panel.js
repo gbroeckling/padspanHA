@@ -630,20 +630,6 @@ class PadSpanHaApp extends HTMLElement {
               <button class="btn inline" id="complexityToggle" title="Cycle between Basic, Advanced, and Development modes">Advanced</button>
             </span>
           </div>
-          <!-- Vacation Mode (vacation_mode.py) — a bar at the top of the
-               content area, not buried in Whole House Presets where it was
-               turned on (Garry, 2026-09-21: "a banner in the middle of the
-               screen"). Hidden entirely while off. -->
-          <div id="vacationBanner" class="vacation-banner hidden">
-            <span>🌴</span>
-            <span id="vacationBannerLabel">Vacation mode on</span>
-            <span class="vacation-banner-slider">
-              <span class="muted" style="font-size:11px">Energy saving</span>
-              <input type="range" id="vacationBannerSlider" min="5" max="100" step="5" value="100">
-              <span id="vacationBannerPct" style="font-variant-numeric:tabular-nums">100%</span>
-            </span>
-            <button class="btn inline" id="vacationBannerDisable" style="margin-left:auto">Disable</button>
-          </div>
           <div id="toast" class="toast hidden"></div>
           <div id="modal" class="modal hidden"></div>
           <div id="content"></div>
@@ -692,24 +678,6 @@ class PadSpanHaApp extends HTMLElement {
     this.$("#refresh").addEventListener("click", ()=>this._refreshAll(true));
     this.$("#autodiag").addEventListener("click", ()=>this._runAutoDiag(true));
     this.$("#toggleSide").addEventListener("click", ()=>this.$("#app").classList.toggle("mini"));
-
-    // Vacation Mode banner — static shell elements (never rebuilt, unlike
-    // the emergency banner's per-render rows), so wired here ONCE rather
-    // than in _updateVacationBanner, which runs on every poll tick and
-    // would otherwise stack up duplicate listeners.
-    {
-      const pctLbl = this.$("#vacationBannerPct");
-      const slider = this.$("#vacationBannerSlider");
-      slider.addEventListener("input", () => { pctLbl.textContent = `${slider.value}%`; });
-      slider.addEventListener("change", async () => {
-        try { await this._callWS({ type: "padspan_ha/settings_set", vacation_mode_intensity: parseInt(slider.value, 10) }); }
-        catch(e){ this._toast("Could not change the intensity: " + String(e), true); }
-      });
-      this.$("#vacationBannerDisable").addEventListener("click", async () => {
-        try { await this._callWS({ type: "padspan_ha/settings_set", vacation_mode_enabled: false }); await this._loadSettings(); }
-        catch(e){ this._toast("Could not disable Vacation Mode: " + String(e), true); }
-      });
-    }
 
     // Mobile navigation wiring
     const _openDrawer = () => {
@@ -1784,7 +1752,6 @@ class PadSpanHaApp extends HTMLElement {
     this.$("#statusBadge").textContent = `Status: ${st}`;
     this.$("#cloudBadge").textContent = "Cloud disabled";
     this._updateEmergencyBanner();
-    this._updateVacationBanner();
 
     const b = this.$("#dataModeToggle");
     if(b) b.textContent = (this.state.dataMode === "live") ? "Live" : "Sample";
@@ -1862,31 +1829,6 @@ class PadSpanHaApp extends HTMLElement {
       wrap.appendChild(makeResetBtn());
       row.appendChild(wrap);
       listEl.appendChild(row);
-    }
-  }
-
-  /** Vacation Mode (vacation_mode.py) — a bar at the top of the content
-   *  area, visible on every tab while enabled. Show/hide + reflect the
-   *  intensity slider only; the slider/Disable listeners are wired once,
-   *  in the constructor, not here (this runs on every poll tick). */
-  _updateVacationBanner(){
-    const s = this.state.settings || {};
-    const banner = this.$("#vacationBanner");
-    if(!banner) return;
-    if(!s.vacation_mode_enabled){
-      banner.classList.add("hidden");
-      return;
-    }
-    banner.classList.remove("hidden");
-    const slider = this.$("#vacationBannerSlider");
-    const pctLbl = this.$("#vacationBannerPct");
-    const intensity = Number.isFinite(Number(s.vacation_mode_intensity)) ? Number(s.vacation_mode_intensity) : 100;
-    // Never clobber the slider mid-drag — the same "don't rebuild under
-    // the user's hands" guard the sidebar's own poll already uses.
-    const active = this.shadowRoot?.activeElement;
-    if(slider && active !== slider){
-      slider.value = String(intensity);
-      if(pctLbl) pctLbl.textContent = `${intensity}%`;
     }
   }
 

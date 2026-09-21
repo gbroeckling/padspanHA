@@ -9309,13 +9309,29 @@ function _lightsTab(ctx, maps, active) {
     // Whole House Presets list. Admin-only server-side (vacation_mode_
     // enabled requires admin — see ws_settings.py); a non-admin picking
     // this just gets the same error toast settingsSet already surfaces.
-    // Disabling and the intensity slider live in panel.js's banner, since
-    // they must stay reachable on every tab, not just this one.
+    // The banner itself (Disable + intensity slider) is built into the
+    // shared card below, pinned dead-center of the screen, and shows only
+    // on this tab and the sidebar Atlas panel — not panel.js's global
+    // chrome (Garry: "I wanted the banner to show in the two atlas
+    // screens").
     onVacationModeEnable: async () => {
       try { await ctx.actions.settingsSet({ vacation_mode_enabled: true }); }
       catch (e) { ctx.toast("Could not turn on Vacation Mode: " + String(e), true); return false; }
       ctx.actions.renderRooms();
       return true;
+    },
+    vacationModeEnabled: !!ctx.state.settings?.vacation_mode_enabled,
+    vacationModeIntensity: Number.isFinite(Number(ctx.state.settings?.vacation_mode_intensity))
+      ? Number(ctx.state.settings.vacation_mode_intensity) : 100,
+    onVacationModeDisable: async () => {
+      try { await ctx.actions.settingsSet({ vacation_mode_enabled: false }); }
+      catch (e) { ctx.toast("Could not disable Vacation Mode: " + String(e), true); return false; }
+      ctx.actions.renderRooms();
+      return true;
+    },
+    onVacationModeIntensity: async (pct) => {
+      try { await ctx.actions.settingsSet({ vacation_mode_intensity: pct }); }
+      catch (e) { ctx.toast("Could not change the intensity: " + String(e), true); }
     },
     onApplyPreset: async (values) => {
       mapState._lightsShowcase = values.lights_showcase;

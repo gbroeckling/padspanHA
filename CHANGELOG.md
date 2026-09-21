@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.58 — Vacation Mode banner fix, and the new Atlas layout is now the default (2026-09-21)
+
+### Atlas
+- **Fixed:** the Vacation Mode banner never actually showed or hid correctly — a CSS rule with the same specificity as the one meant to hide it, declared later in the stylesheet, always won, so the banner's visibility didn't track whether Vacation Mode was actually on. It also lived in the app's global chrome, showing on every tab; it's now built into the shared Atlas map instead, so it appears only on the two Atlas screens (Mapping → Atlas and the sidebar Atlas panel) and nowhere else, pinned dead-center of the screen rather than a top bar, and stays there until Vacation Mode is actually turned off.
+- **Changed:** the reworked Atlas layout (v0.38.56's trial) is now on by default — "▦ Classic layout" in the Mapping → Atlas toolbar still reverts it per-install at any time.
+
+---
+
 ## 0.38.57 — Vacation Mode (2026-09-21)
 
 ### Atlas

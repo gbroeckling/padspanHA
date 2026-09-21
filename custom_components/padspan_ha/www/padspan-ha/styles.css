@@ -22,14 +22,19 @@
    nothing is latched. Deliberately louder than .pill: this is an alarm,
    not a status readout. */
 /* Vacation Mode (vacation_mode.py) — informational, not an alarm, so a
-   warm amber-green rather than the emergency banner's red. A full-width
-   bar at the top of the content area, not a floating overlay — impossible
-   to miss without blocking whatever tab is actually open underneath it. */
-.vacation-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;
-  padding:8px 12px;border-radius:10px;background:rgba(120,90,20,.28);border:1px solid #b58a1f;
-  font-size:12.5px;color:#fde9b8}
-.vacation-banner-slider{display:flex;align-items:center;gap:6px}
-.vacation-banner-slider input[type="range"]{width:100px;accent-color:#e0b23a}
+   warm amber-green rather than the emergency banner's red. Pinned dead
+   center of the screen, not a top bar (Garry, 2026-09-21: "pinned dead
+   center until it is turned off") — built only into the shared Atlas
+   card (lights_map.js), so it shows on the two Atlas screens only, never
+   panel.js's global chrome. Built into the DOM only while on, so there is
+   no .hidden toggle here to fight a same-specificity display rule. */
+.lv-vacation{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:40;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;max-width:min(90vw,520px);
+  padding:10px 14px;border-radius:12px;background:rgba(30,22,6,.92);border:1px solid #b58a1f;
+  box-shadow:0 6px 24px rgba(0,0,0,.45);font-size:12.5px;color:#fde9b8}
+.lv-vacation-label{font-weight:700}
+.lv-vacation-slider-wrap{display:flex;align-items:center;gap:6px}
+.lv-vacation-slider{width:100px;accent-color:#e0b23a}
 .emergency-banner{margin-top:12px;padding:8px 10px;border-radius:10px;background:rgba(127,29,29,.35);border:1px solid #dc2626}
 .emergency-banner-head{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#fecaca;cursor:pointer}
 .emergency-banner-list{margin-top:6px;display:flex;flex-direction:column;gap:4px}

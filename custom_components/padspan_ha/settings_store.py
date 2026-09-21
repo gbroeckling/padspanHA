@@ -102,7 +102,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "lights_showcase_theme": "classic",  # which palette Showcase paints with — "classic" reproduces today's look byte-for-byte; see SHOWCASE_THEMES in iso_lights.js for the full list
     "lights_showcase_presets": [],  # named snapshots of the whole Showcase "look" bundle (theme + automorph + fit/isolux/beacons/codes, plus the optional overview_iso_* layout trio); see the Presets picker in Mapping -> Lights and its sanitizer in ws_settings.py
     "whole_house_presets": [],  # named snapshots of real light/fan DEVICE state, stored in scene.apply shape; see _sanitize_whole_house_presets in ws_settings.py
-    "atlas_layout_v2": False,  # Garry, 2026-09-21: reversible trial of the packed/fit-to-screen Atlas layout — see layoutTierFor in views/lights_map.js
+    "atlas_layout_v2": True,  # Garry, 2026-09-21: shipped as the default Atlas layout after the trial (still a toggle — "▦ Classic layout" reverts it) — see layoutTierFor in views/lights_map.js
     "vacation_mode_enabled": False,       # Garry, 2026-09-21: acts like an average day from real light history until disabled — see vacation_mode.py
     "vacation_mode_intensity": 100,       # 5-100 — scales every light's on-probability, doubling as an energy-saving mode at low settings
     "vacation_mode_pattern": {},          # backend-only: {entity_id: {"weekday:HHMM": on_probability}} built from HA's own recorder history
