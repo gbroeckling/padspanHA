@@ -35,6 +35,8 @@ _BACKEND_ONLY = {
     "telemetry_install_id",        # minted by telemetry.py; replaced via telemetry_reset_id
     "telemetry_last_day",          # stamped by telemetry.py on an accepted send
     "flood_latches",               # flood_latch.py's state-change listener + padspan_ha/flood_reset
+    "vacation_mode_pattern",           # vacation_mode.py — built from HA's own recorder history
+    "vacation_mode_pattern_built_at",  # ditto — stamped alongside the pattern
 }
 
 

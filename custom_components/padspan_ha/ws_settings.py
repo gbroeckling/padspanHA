@@ -335,6 +335,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lights_showcase_presets"): list,
         vol.Optional("whole_house_presets"): list,
         vol.Optional("atlas_layout_v2"): bool,
+        vol.Optional("vacation_mode_enabled"): bool,
+        vol.Optional("vacation_mode_intensity"): vol.Coerce(int),
         vol.Optional("adaptive_learning_enabled"): bool,
         vol.Optional("adaptive_floor_detection"): bool,
         vol.Optional("signal_loss_linger_s"): vol.Coerce(int),
@@ -628,6 +630,20 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["lights_fit_rooms"] = bool(msg["lights_fit_rooms"])
         if "atlas_layout_v2" in msg:
             payload["atlas_layout_v2"] = bool(msg["atlas_layout_v2"])
+        if "vacation_mode_enabled" in msg:
+            # Admin-only: unlike a saved Whole House Preset (a one-shot,
+            # user-initiated apply), this autonomously operates real lights
+            # on a schedule while nobody may be home to notice something
+            # wrong with it — a materially bigger lever than the rest of
+            # this feature, same reasoning as telemetry_enabled/
+            # espresense_companion_url above.
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized", "Only an administrator can change Vacation Mode")
+                return
+            payload["vacation_mode_enabled"] = bool(msg["vacation_mode_enabled"])
+        if "vacation_mode_intensity" in msg:
+            payload["vacation_mode_intensity"] = max(5, min(100, int(msg["vacation_mode_intensity"])))
         if "lights_isolux" in msg:
             payload["lights_isolux"] = bool(msg["lights_isolux"])
         if "lights_automorph_enabled" in msg:

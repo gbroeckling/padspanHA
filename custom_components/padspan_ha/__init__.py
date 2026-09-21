@@ -626,6 +626,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _LOGGER.debug("Flood latch setup failed: %s", err)
 
+    # Vacation Mode's 5-minute check — a per-tick no-op unless
+    # vacation_mode_enabled is on (see vacation_mode.py).
+    try:
+        from .vacation_mode import async_setup_vacation_mode
+        async_setup_vacation_mode(hass)
+    except Exception as err:
+        _LOGGER.debug("Vacation mode setup failed: %s", err)
+
     return True
 
 
@@ -671,6 +679,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_stop_flood_latch(hass)
     except Exception as err:
         _LOGGER.debug("Flood latch teardown error: %s", err)
+
+    # Stop Vacation Mode's check timer
+    try:
+        from .vacation_mode import async_stop_vacation_mode
+        async_stop_vacation_mode(hass)
+    except Exception as err:
+        _LOGGER.debug("Vacation mode teardown error: %s", err)
 
     # Stop presence coordinator (and its CPU-mode compute executor)
     try:

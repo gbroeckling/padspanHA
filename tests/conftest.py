@@ -212,7 +212,17 @@ def _fake_utcnow() -> datetime:
     return datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
 
 
+def _fake_as_local(value: datetime) -> datetime:
+    # Real HA converts to hass.config's configured timezone; the stub has
+    # no house to be configured, so "local" is UTC's own naive wall-clock
+    # here — good enough for anything that only needs a real, consistent
+    # datetime object back (vacation_mode.py's day-of-week/time-of-day
+    # bucketing), not an actual UTC-offset test.
+    return value.replace(tzinfo=None) if value.tzinfo else value
+
+
 _ha_mods["homeassistant.util.dt"].utcnow = _fake_utcnow  # type: ignore[attr-defined]
+_ha_mods["homeassistant.util.dt"].as_local = _fake_as_local  # type: ignore[attr-defined]
 
 # homeassistant.helpers.recorder / homeassistant.components.recorder(.history)
 # Default: a healthy recorder with no history for anything (tests override
