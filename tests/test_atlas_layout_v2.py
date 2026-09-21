@@ -104,25 +104,27 @@ def test_layout_tier_for_the_documented_breakpoints():
     assert out["ultra"] == ["ultra", "ultra"]
 
 
-def test_fit_width_px_always_fills_the_stage_width():
-    """2026-09-21 correction: this used to shrink WIDTH to whatever kept a
-    taller-than-wide viewBox within availH ("contain"), which for a
-    multi-floor stack (much taller than wide) meant a narrow, centered map
-    surrounded by empty space either side of it — Garry: "the map shouldn't
-    be some tiny thing in the middle of the screen." isoDiv already scrolls
-    on its own (the map's pan mechanism), so there's no real cost to a tall
-    drawing overflowing vertically — only the container's own maxHeight
-    (set elsewhere, in applyZoom) needs to cap what's visible, not the
-    drawing's own width. fitWidthPx now always returns the stage's own
-    width, whatever the viewBox's proportions or the available height."""
-    out = _run(
-        "out.tallDrawing = LM.fitWidthPx(2400, 800, 760, 940);\n"
-        "out.wideDrawing = LM.fitWidthPx(500, 4000, 940, 760);\n"
-        "out.degenerate = [LM.fitWidthPx(0, 800, 760, 940), LM.fitWidthPx(800, 0, 760, 940), LM.fitWidthPx(800, 800, 0, 940)];\n"
-    )
-    assert out["tallDrawing"] == 2400, "must fill the stage's width even when the drawing is much taller than wide"
-    assert out["wideDrawing"] == 500, "must fill the stage's width even when the drawing is much wider than tall"
-    assert out["degenerate"] == [0, 0, 0]
+def test_v2_height_cap_is_seeded_synchronously_from_a_previous_build_to_avoid_a_flash():
+    """2026-09-21 fix: a freshly rebuilt isoDiv had NO maxHeight at all
+    until applyZoom's real measurement corrected it a moment later (a
+    ResizeObserver callback, or a deferred timer) — every poll-triggered
+    rebuild (every ~5s) started tall/unconstrained and then visibly
+    collapsed down to the fitted height once that correction landed,
+    which is what "a visible flash on the screen every 5 seconds" was.
+    view (the same persistent object the pan position and zoom already
+    live on, and that survives a full card rebuild) now caches the last
+    real measurement as view._lastAvailH, applied synchronously the
+    moment a fresh isoDiv is created — so a rebuild's very first paint
+    already matches the fitted size, nothing left to collapse into."""
+    out = _run(_base_host("  layoutV2: true,\n") + (
+        "host.view._lastAvailH = 555;\n"
+        "const card2 = LM.buildLightsMapCard(host);\n"
+        "const stage2 = card2.querySelector('.lv-stage');\n"
+        "out.seededSynchronously = stage2.style.maxHeight;\n"
+    ))
+    assert out["seededSynchronously"] == "555px", (
+        "a fresh isoDiv must carry the previous build's measured height from the moment it's created, "
+        "not only after a later async correction runs")
 
 
 # ── classic vs v2 ─────────────────────────────────────────────────────────────

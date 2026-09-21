@@ -375,28 +375,6 @@ export function layoutTierFor(widthPx){
   const w = Number(widthPx) || 0;
   return w < 900 ? "narrow" : w < 1500 ? "medium" : w < 2300 ? "wide" : "ultra";
 }
-// The drawing is taller than it is wide, and classic sizing pins it to the
-// stage's WIDTH — so the wider the monitor, the taller the map and the more
-// there is to scroll. v2 fits the whole house in the space actually on
-// screen.
-//
-// 2026-09-21 correction: the first cut of this shrank WIDTH to whatever kept
-// the drawing within availH ("contain"), which sounds right but isn't for
-// this shape — a multi-floor stack's viewBox is usually much taller than
-// wide, so the width that keeps it within the available height is far
-// narrower than the screen actually offers. "No scrolling" was won by
-// shrinking the whole map into a small box centered in empty space either
-// side of it (Garry: "the map shouldn't be some tiny thing in the middle of
-// the screen"). isoDiv (the stage) already scrolls on its own — that's the
-// map's own pan mechanism, not page scroll — so there was never a real cost
-// to overflowing vertically. Width now always fills the stage; the
-// container's own maxHeight + overflow:auto (see applyZoom) is what keeps
-// a tall drawing from pushing the rest of the page down, exactly as
-// before — only the WIDTH stopped shrinking to avoid that scroll.
-export function fitWidthPx(stageW, availH, vbW, vbH){
-  if (!(stageW > 0) || !(availH > 0) || !(vbW > 0) || !(vbH > 0)) return 0;
-  return Math.max(160, stageW);
-}
 // Which folds are open is a per-browser habit, not a house setting.
 const _foldOpen = (name) => { try { return localStorage.getItem("padspan_lv_fold_" + name) === "1"; } catch (_) { return false; } };
 const _foldSave = (name, open) => { try { localStorage.setItem("padspan_lv_fold_" + name, open ? "1" : "0"); } catch (_) {} };
@@ -2014,6 +1992,21 @@ export function buildLightsMapCard(hostIn){
   // map from side to side, because the SVG was pinned to its natural size.
   const isoDiv = document.createElement("div");
   isoDiv.className = "lv-stage";
+  // Same flash, different dimension: V2's height cap (below, in applyZoom)
+  // can only be MEASURED once this card is attached and laid out, so a
+  // freshly rebuilt isoDiv started every poll cycle with NO maxHeight at
+  // all — full, unconstrained natural height — until the deferred
+  // applyZoom() call landed a moment later and collapsed it down to the
+  // fitted size. Every poll tick, every ~5s: a visible snap from tall to
+  // fitted (Garry: "a visible flash on the screen every 5 seconds").
+  // Seeding the LAST computed height synchronously, right now, means the
+  // very first paint already matches what applyZoom would have set —
+  // nothing to visibly collapse into once the real measurement runs.
+  if (V2 && view._lastAvailH) {
+    const mh = `${Math.round(view._lastAvailH)}px`;
+    isoDiv.style.maxHeight = mh;
+    if (DISPLAY) isoDiv.style.minHeight = mh;
+  }
   // Pan position, mirrored into view (the same persistent object zoom
   // already lives on) so it survives a full rebuild of this card, not just
   // an in-place rebuildISO() — the whole card (this isoDiv included) is
@@ -2038,24 +2031,39 @@ export function buildLightsMapCard(hostIn){
   const applyZoom = () => {
     const svg = isoDiv.querySelector("svg");
     if (!svg) return;
+    // Width, V2 or classic alike: a plain CSS percentage of the stage,
+    // exactly like classic always did. V2 used to compute this as a pixel
+    // value instead (isoDiv.clientWidth, needing real layout — unavailable
+    // until this card was attached, and even then only measurable from a
+    // ResizeObserver callback or a deferred timer), but that pixel value
+    // was always going to equal "100% of the stage" in the end anyway once
+    // the fit-to-height shrink was removed (see git history) — a plain
+    // 100% already says exactly that, synchronously, on the very first
+    // paint, with nothing to defer and nothing that can race the height
+    // cap below. That JS/ResizeObserver path was the source of two live
+    // bugs at once: a visible flash every poll rebuild (default size →
+    // measured fit, a moment apart) and, whenever the ResizeObserver or
+    // the deferred correction failed to run at all (this Atlas panel is
+    // routinely a wall-kiosk tab that may not be the OS's focused window),
+    // the map simply never getting fitted — reading as "not reaching side
+    // to side."
+    svg.style.width = `${Math.round((view.zoom || 1) * 100)}%`;
     if (V2) {
-      // Not laid out yet (the host appends this card after it is built):
-      // leave the SVG at its own width="100%" — the ResizeObserver below
-      // calls back here the moment the stage has a real size.
-      if (!(isoDiv.clientWidth > 0)) return;
-      const vb = String(svg.getAttribute("viewBox") || "").trim().split(/\s+/).map(Number);
-      const top = isoDiv.getBoundingClientRect().top;
-      const availH = Math.max(260, (window.innerHeight || 800) - Math.max(0, top) - (DISPLAY ? 10 : 22));
-      const fit = fitWidthPx(isoDiv.clientWidth - 22, availH - 22, vb[2], vb[3]);
-      const wPx = `${Math.round(fit * (view.zoom || 1))}px`;
-      if (fit > 0 && svg.style.width !== wPx) svg.style.width = wPx;
       svg.style.display = "block";
       svg.style.margin = "0 auto";
-      const mh = `${Math.round(availH)}px`;
-      if (isoDiv.style.maxHeight !== mh) isoDiv.style.maxHeight = mh;
-      if (DISPLAY && isoDiv.style.minHeight !== mh) isoDiv.style.minHeight = mh;
-    } else {
-      svg.style.width = `${Math.round(view.zoom * 100)}%`;
+      // The height cap DOES still need real measurement (the viewport's
+      // own height minus this element's position in it — not expressible
+      // as a plain CSS percentage of the stage) and so still waits on
+      // attachment; view._lastAvailH (seeded onto a fresh isoDiv at
+      // creation, above) keeps that from being a second source of flash.
+      if (isoDiv.clientWidth > 0) {
+        const top = isoDiv.getBoundingClientRect().top;
+        const availH = Math.max(260, (window.innerHeight || 800) - Math.max(0, top) - (DISPLAY ? 10 : 22));
+        view._lastAvailH = availH; // seeds the next rebuild's isoDiv synchronously — see there
+        const mh = `${Math.round(availH)}px`;
+        if (isoDiv.style.maxHeight !== mh) isoDiv.style.maxHeight = mh;
+        if (DISPLAY && isoDiv.style.minHeight !== mh) isoDiv.style.minHeight = mh;
+      }
     }
     if (host.codeChip && codesShown !== null && codesShown !== codesVisibleAtZoom(view.zoom)) rebuildISO();
   };
