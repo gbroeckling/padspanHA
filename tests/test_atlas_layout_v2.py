@@ -104,21 +104,24 @@ def test_layout_tier_for_the_documented_breakpoints():
     assert out["ultra"] == ["ultra", "ultra"]
 
 
-def test_fit_width_px_fits_the_taller_than_wide_drawing_to_screen_height():
-    """A viewBox 760 wide, 940 tall (roughly the real iso canvas's own
-    proportions) in a stage with plenty of width but limited height must be
-    sized DOWN to fit the height, not stretched to the stage's full width —
-    the exact bug this whole feature exists to fix."""
+def test_fit_width_px_always_fills_the_stage_width():
+    """2026-09-21 correction: this used to shrink WIDTH to whatever kept a
+    taller-than-wide viewBox within availH ("contain"), which for a
+    multi-floor stack (much taller than wide) meant a narrow, centered map
+    surrounded by empty space either side of it — Garry: "the map shouldn't
+    be some tiny thing in the middle of the screen." isoDiv already scrolls
+    on its own (the map's pan mechanism), so there's no real cost to a tall
+    drawing overflowing vertically — only the container's own maxHeight
+    (set elsewhere, in applyZoom) needs to cap what's visible, not the
+    drawing's own width. fitWidthPx now always returns the stage's own
+    width, whatever the viewBox's proportions or the available height."""
     out = _run(
-        "out.fitsHeight = LM.fitWidthPx(2400, 800, 760, 940);\n"
-        "out.fitsWidth = LM.fitWidthPx(500, 4000, 760, 940);\n"
+        "out.tallDrawing = LM.fitWidthPx(2400, 800, 760, 940);\n"
+        "out.wideDrawing = LM.fitWidthPx(500, 4000, 940, 760);\n"
         "out.degenerate = [LM.fitWidthPx(0, 800, 760, 940), LM.fitWidthPx(800, 0, 760, 940), LM.fitWidthPx(800, 800, 0, 940)];\n"
     )
-    # height-constrained: width = availH * vbW/vbH = 800 * 760/940
-    assert abs(out["fitsHeight"] - 800 * 760 / 940) < 0.5
-    assert out["fitsHeight"] < 2400, "must not blow out to the stage's full width when height is the constraint"
-    # width-constrained: capped at the stage's own width
-    assert out["fitsWidth"] == 500
+    assert out["tallDrawing"] == 2400, "must fill the stage's width even when the drawing is much taller than wide"
+    assert out["wideDrawing"] == 500, "must fill the stage's width even when the drawing is much wider than tall"
     assert out["degenerate"] == [0, 0, 0]
 
 
