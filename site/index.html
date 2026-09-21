@@ -176,6 +176,20 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.58</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">21 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Fixed:</b> the Vacation Mode banner never actually showed or hid correctly — a CSS rule with the same specificity as the one meant to hide it, declared later in the stylesheet, always won, so the banner's visibility didn't track whether Vacation Mode was actually on. It also lived in the app's global chrome, showing on every tab; it's now built into the shared Atlas map instead, so it appears only on the two Atlas screens (Mapping → Atlas and the sidebar Atlas panel) and nowhere else, pinned dead-center of the screen rather than a top bar, and stays there until Vacation Mode is actually turned off.</li>
+          <li><b>Changed:</b> the reworked Atlas layout (v0.38.56's trial) is now on by default — "▦ Classic layout" in the Mapping → Atlas toolbar still reverts it per-install at any time.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.57</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">21 September 2026</span>
