@@ -5673,13 +5673,18 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         if(BARRIER_HIT && dl){
           const a=bpts[0], b=bpts[bpts.length-1];
           const [mx,my]=iso((a[0]+b[0])/2,(a[1]+b[1])/2,z);
-          // data-invert/data-name carry enough of the barrier's own fields
-          // (not just the entity's) for a click handler to reconstruct the
-          // SAME open/closed reading this pass just drew, without a second
-          // model lookup — bar.invert_state lives on the barrier, not the
-          // entity, and is invisible to anything keyed on eid alone.
+          // data-invert/data-name/data-opener/data-lock carry enough of the
+          // BARRIER's own fields (not just the sensor entity's) for a click
+          // handler to reconstruct the same object this pass just drew from,
+          // without a second model lookup — invert_state, and now the
+          // opener/lock links, live on the barrier, invisible to anything
+          // keyed on the sensor's eid alone (2026-09-22: openBarrierCard's
+          // opener/lock sections silently never showed from this hit-path
+          // until these two joined data-invert/data-name here — found live,
+          // not guessed, clicking a real linked opener on the Atlas sidebar).
           s+=`<polyline class="lbarhit" data-eid="${escSVG(bar.linked_entity_id)}" data-cx="${mx.toFixed(1)}" data-cy="${my.toFixed(1)}" `+
             `data-invert="${bar.invert_state?1:0}" data-name="${escSVG(bar.name||"")}" `+
+            `data-opener="${escSVG(bar.linked_opener_entity_id||"")}" data-lock="${escSVG(bar.linked_lock_entity_id||"")}" `+
             `points="${ppx}" fill="none" stroke="#000" stroke-opacity="0" stroke-width="16" stroke-linecap="round" `+
             `pointer-events="stroke" style="cursor:pointer"/>`;
         }

@@ -450,27 +450,35 @@ def test_the_builder_can_ask_for_a_press_target_over_a_linked_opening(tmp_path):
 
 def test_the_press_target_carries_the_barriers_own_invert_and_name(tmp_path):
     """A click handler on the hit path only has the DOM to work from — it
-    has no second model lookup available — so the two fields that live on
-    the BARRIER rather than the linked entity (invert_state, name) must ride
-    along as data attributes, or a click on this one exact barrier (Upper
-    Garage Car Door Contact, wired backwards) would show the reading
-    inverted from what the map itself just drew."""
+    has no second model lookup available — so the fields that live on the
+    BARRIER rather than the linked entity (invert_state, name, and now the
+    opener/lock links) must ride along as data attributes, or a click on
+    this one exact barrier (Upper Garage Car Door Contact, wired backwards)
+    would show the reading inverted from what the map itself just drew —
+    and, found live 2026-09-22 clicking a real linked opener on the Atlas
+    sidebar: without data-opener/data-lock here too, a barrier's opener and
+    lock silently never showed from this hit-path at all, only from the
+    builder's own editing-mode click (which looks the barrier up directly,
+    never through the DOM)."""
     inverted_model = {**_MODEL, "rf_barriers_m": [
         {"id": "b1", "floor_id": "main", "material": "wood", "attenuation_dbm": 4,
          "points_m": [[1, 1], [3, 1]], "linked_entity_id": "binary_sensor.frontdoor",
-         "invert_state": True, "name": "Upper Garage Car Door Contact"},
+         "invert_state": True, "name": "Upper Garage Car Door Contact",
+         "linked_opener_entity_id": "switch.frontdoor_opener", "linked_lock_entity_id": "lock.frontdoor"},
     ]}
     script = (
         "import * as M from './iso_lights.mjs';\n"
         f"const MODEL={json.dumps(inverted_model)};\nconst FLOORS={json.dumps(_FLOORS)};\n"
         f"const LBE={json.dumps(_BARRIER_LBE)};\n"
         "const hit=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,LBE,false,FLOORS,{barrierHit:true});\n"
-        "const m=/<polyline class=\"lbarhit\"[^>]*data-invert=\"([^\"]*)\"[^>]*data-name=\"([^\"]*)\"/.exec(hit);\n"
-        "console.log(JSON.stringify({invert: m&&m[1], name: m&&m[2]}));\n"
+        "const m=/<polyline class=\"lbarhit\"[^>]*data-invert=\"([^\"]*)\"[^>]*data-name=\"([^\"]*)\"[^>]*data-opener=\"([^\"]*)\"[^>]*data-lock=\"([^\"]*)\"/.exec(hit);\n"
+        "console.log(JSON.stringify({invert: m&&m[1], name: m&&m[2], opener: m&&m[3], lock: m&&m[4]}));\n"
     )
     out = _run_js(tmp_path, script)
     assert out["invert"] == "1", out
     assert out["name"] == "Upper Garage Car Door Contact", out
+    assert out["opener"] == "switch.frontdoor_opener", out
+    assert out["lock"] == "lock.frontdoor", out
 
 
 def test_a_linked_closed_barrier_draws_a_solid_line_and_two_purple_dots(tmp_path):

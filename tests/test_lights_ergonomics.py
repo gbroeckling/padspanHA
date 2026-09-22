@@ -245,6 +245,48 @@ console.log(JSON.stringify({ cardOpened: document.body.children.length > 0 }));
     assert out["cardOpened"] is True, "a click on the barrier hit path must open its card"
 
 
+def test_wire_use_surface_carries_the_hit_paths_opener_and_lock_into_the_card(tmp_path):
+    """Found live, 2026-09-22, clicking a real linked opener on the Atlas
+    sidebar: the hit path reconstructs a bar-shaped object from data
+    attributes alone (no second model lookup from this shared function),
+    and data-opener/data-lock were missing from that reconstruction — the
+    click opened a card, but it silently showed the plain-sensor read-only
+    note instead of the Trigger button, even though the real barrier record
+    had a linked opener. Fixed alongside the renderer emitting those two
+    attributes in the first place (test_lights_renderer.py)."""
+    out = _run(tmp_path, r"""
+function elx(tag, attrs) {
+  const n = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, String(v));
+  return n;
+}
+const isoDiv = document.createElement("div");
+const svg = document.createElement("svg");
+isoDiv.appendChild(svg);
+const hb = elx("polyline", {
+  class: "lbarhit", "data-eid": "binary_sensor.truck_door",
+  "data-cx": "10", "data-cy": "10", "data-invert": "0", "data-name": "Truck Door",
+  "data-opener": "switch.upper_garage_truck_door", "data-lock": "",
+});
+svg.appendChild(hb);
+const api = {
+  hass: { states: {
+    "binary_sensor.truck_door": { state: "off", attributes: {} },
+    "switch.upper_garage_truck_door": { state: "off", attributes: { friendly_name: "Upper Garage Truck Door" } },
+  } },
+  lightsByEid: {}, controlsFor: () => false,
+  toggle: () => {}, openControls: () => {}, openActivity: () => {},
+  toast: () => {}, rerender: () => {},
+};
+LM.wireUseSurface(isoDiv, api);
+hb.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
+const overlay = document.body.children[document.body.children.length - 1];
+console.log(JSON.stringify({ buttons: [...overlay.querySelectorAll("button")].map(b => b.textContent) }));
+""")
+    assert "Trigger" in out["buttons"], \
+        f"the opener carried through data-opener must render its Trigger button: {out['buttons']}"
+
+
 def test_open_barrier_card_shows_a_paired_locks_control_and_leads_with_open(tmp_path):
     """Garry, 2026-09-22: "then the new card could have a lock control on
     it if the door has a smart lock" — the merge researched and built

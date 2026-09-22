@@ -899,7 +899,10 @@ export function wireUseSurface(isoDiv, api){
     e.stopPropagation();
     const eid = hb.dataset.eid;
     if (!eid || !api.hass) return;
-    const bar = { linked_entity_id: eid, invert_state: hb.dataset.invert === "1", name: hb.dataset.name || null };
+    const bar = {
+      linked_entity_id: eid, invert_state: hb.dataset.invert === "1", name: hb.dataset.name || null,
+      linked_opener_entity_id: hb.dataset.opener || null, linked_lock_entity_id: hb.dataset.lock || null,
+    };
     openBarrierCard(api.hass, bar, api);
   }));
 }
