@@ -176,6 +176,20 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.67</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">22 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Added:</b> a linked door/window on the map can now have an opener (a garage door, gate, or any other powered opening) and a lock tied to it too, all three shown and controlled from the one card its wall opening's line already opens. New Devices → Door Openers tab marks which cover/switch/button entities are openers; a linked row in Mapping → Atlas then offers "+ Opener" and "+ Lock" right alongside its existing Unlink and Steel controls. A relay-style opener (most garage door switches) gets a plain Trigger button rather than Open/Close, since its own on/off doesn't reliably mean either — the door's real sensor reading is shown alongside it for context.</li>
+          <li><b>Fixed:</b> clicking a linked barrier's line on the Atlas sidebar panel (or the builder's "Preview as sidebar") could open the card without showing its opener or lock, even when one was linked — the click handler there rebuilds what it needs from the map's own drawing rather than looking the barrier up again, and two fields were missing from that handoff. Found and fixed testing live against two real garage doors.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.66</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">22 September 2026</span>
