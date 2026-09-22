@@ -4,6 +4,15 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.63 — Atlas map sizing settled, zoom saved, presets side by side (2026-09-22)
+
+### Atlas
+- **Fixed:** the map's size on both Atlas screens. Across v0.38.59–v0.38.62 the new layout kept fitting the drawing to whatever vertical space the controls above it happened to leave — every attempt to measure that height and apply it before you could see a gap fixed one symptom and produced another (a flash every few seconds, then not filling the width, then the whole map shrinking and going short). The height cap is gone entirely: the map fills the full width and its height follows the drawing's own shape, exactly as the classic layout always did. Nothing is measured, nothing is deferred, nothing left to drift.
+- **Added:** the Atlas zoom level is now saved with the rest of the view (Save view / Reset view), so the sidebar Atlas panel keeps the zoom you dialed in across reboots and reloads. Previously it silently reset to 100% every time the browser restarted — on a kiosk left running for months, that read as the map "getting smaller" again and again.
+- **Changed:** the Presets (saved looks) and Whole House Presets bars now share one row side by side — Look on the left, Whole house on the right — instead of a tab that hid one behind the other.
+
+---
+
 ## 0.38.58 — Vacation Mode banner fix, and the new Atlas layout is now the default (2026-09-21)
 
 ### Atlas

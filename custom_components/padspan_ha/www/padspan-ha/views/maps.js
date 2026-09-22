@@ -8686,7 +8686,11 @@ function _lightsTab(ctx, maps, active) {
     floorGap: ctx.state.settings?.overview_iso_floor_gap ?? 150,
     horizGap: ctx.state.settings?.overview_iso_horiz_gap ?? 0,
     focusIdx: ctx.state.settings?.overview_iso_focus ?? 0,
-    zoom: 1.0,
+    // Persisted too (Garry, 2026-09-22: "stabilize the zoom in, so when
+    // that is locked well, it can stay that way for months") — the
+    // sidebar Atlas panel is set up once and left running unattended; an
+    // in-memory-only zoom reset to 1.0 on every reboot/reload.
+    zoom: ctx.state.settings?.overview_iso_zoom ?? 1.0,
   };
   const view = mapState._lightsView;
 
@@ -9036,6 +9040,7 @@ function _lightsTab(ctx, maps, active) {
           overview_iso_floor_gap: view.floorGap,
           overview_iso_horiz_gap: view.horizGap,
           overview_iso_focus:     view.focusIdx,
+          overview_iso_zoom:      view.zoom,
         });
         ctx.toast("Map view saved ✔");
       } catch (e) {
@@ -9361,6 +9366,7 @@ function _lightsTab(ctx, maps, active) {
       if (values.overview_iso_floor_gap !== undefined) view.floorGap = values.overview_iso_floor_gap;
       if (values.overview_iso_horiz_gap !== undefined) view.horizGap = values.overview_iso_horiz_gap;
       if (values.overview_iso_focus !== undefined) view.focusIdx = values.overview_iso_focus ?? 0;
+      if (values.overview_iso_zoom !== undefined) view.zoom = values.overview_iso_zoom;
       try { await ctx.actions.settingsSet(values); }
       catch (e) { ctx.toast("Could not apply the preset: " + String(e), true); }
       ctx.actions.renderRooms();
@@ -9392,6 +9398,7 @@ function _lightsTab(ctx, maps, active) {
         overview_iso_floor_gap: view.floorGap,
         overview_iso_horiz_gap: view.horizGap,
         overview_iso_focus:     view.focusIdx,
+        overview_iso_zoom:      view.zoom,
       };
       const rest = (ctx.state.settings?.lights_showcase_presets || []).filter((p) => p.name !== name);
       try {

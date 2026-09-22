@@ -166,6 +166,8 @@ def _sanitize_showcase_presets(presets_in: Any) -> list[dict[str, Any]]:
             if "overview_iso_focus" in vals:
                 f = vals["overview_iso_focus"]
                 values["overview_iso_focus"] = int(f) if f is not None else None
+            if vals.get("overview_iso_zoom") is not None:
+                values["overview_iso_zoom"] = max(0.4, min(2.5, float(vals["overview_iso_zoom"])))
             presets_out.append({"name": name, "values": values})
         except (TypeError, ValueError):
             continue  # one malformed preset must not reject the whole save
@@ -319,6 +321,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("overview_iso_floor_gap"): vol.Coerce(int),
         vol.Optional("overview_iso_horiz_gap"): vol.Coerce(int),
         vol.Optional("overview_iso_focus"): vol.Any(int, None),
+        vol.Optional("overview_iso_zoom"): vol.Coerce(float),
         vol.Optional("lights_hidden"): list,
         vol.Optional("lights_showcase"): bool,
         vol.Optional("lights_hide_untouched"): bool,
@@ -567,6 +570,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "overview_iso_focus" in msg:
             v = msg["overview_iso_focus"]
             payload["overview_iso_focus"] = int(v) if v is not None else None
+        if "overview_iso_zoom" in msg:
+            payload["overview_iso_zoom"] = max(0.4, min(2.5, float(msg["overview_iso_zoom"])))
         if "lights_hidden" in msg:
             ids = msg["lights_hidden"]
             payload["lights_hidden"] = [str(x) for x in ids if isinstance(x, str)] if isinstance(ids, list) else []

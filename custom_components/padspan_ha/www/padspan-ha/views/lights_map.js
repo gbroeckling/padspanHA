@@ -2002,11 +2002,6 @@ export function buildLightsMapCard(hostIn){
   // Seeding the LAST computed height synchronously, right now, means the
   // very first paint already matches what applyZoom would have set —
   // nothing to visibly collapse into once the real measurement runs.
-  if (V2 && view._lastAvailH) {
-    const mh = `${Math.round(view._lastAvailH)}px`;
-    isoDiv.style.maxHeight = mh;
-    if (DISPLAY) isoDiv.style.minHeight = mh;
-  }
   // Pan position, mirrored into view (the same persistent object zoom
   // already lives on) so it survives a full rebuild of this card, not just
   // an in-place rebuildISO() — the whole card (this isoDiv included) is
@@ -2048,22 +2043,26 @@ export function buildLightsMapCard(hostIn){
     // the map simply never getting fitted — reading as "not reaching side
     // to side."
     svg.style.width = `${Math.round((view.zoom || 1) * 100)}%`;
+    // 2026-09-22, after three straight rounds of this still being wrong
+    // live (a visible flash, then not filling the width, then the whole
+    // map shrinking further and "stupid short" — Garry: "you really need
+    // to rethink what you are doing here"): V2 also used to CAP isoDiv's
+    // height to whatever vertical space the toolbar/presets chrome above
+    // it happened to leave, computed from a real layout measurement that
+    // could only run once this card was attached — every attempt to make
+    // that measurement land before the user could see the gap (a
+    // ResizeObserver, a deferred timer, seeding a cached value) fixed one
+    // symptom and produced another, because the real problem was the cap
+    // itself: capping height at all means the map's SIZE depends on how
+    // much chrome happens to sit above it, which is exactly what kept
+    // making it smaller as more got added there. Classic never had this
+    // problem because it never had this cap — height simply follows the
+    // drawing's own aspect ratio at 100% width, same as classic, and the
+    // page scrolls for whatever doesn't fit, same as classic. No
+    // measurement, no attachment, nothing left to get wrong here.
     if (V2) {
       svg.style.display = "block";
       svg.style.margin = "0 auto";
-      // The height cap DOES still need real measurement (the viewport's
-      // own height minus this element's position in it — not expressible
-      // as a plain CSS percentage of the stage) and so still waits on
-      // attachment; view._lastAvailH (seeded onto a fresh isoDiv at
-      // creation, above) keeps that from being a second source of flash.
-      if (isoDiv.clientWidth > 0) {
-        const top = isoDiv.getBoundingClientRect().top;
-        const availH = Math.max(260, (window.innerHeight || 800) - Math.max(0, top) - (DISPLAY ? 10 : 22));
-        view._lastAvailH = availH; // seeds the next rebuild's isoDiv synchronously — see there
-        const mh = `${Math.round(availH)}px`;
-        if (isoDiv.style.maxHeight !== mh) isoDiv.style.maxHeight = mh;
-        if (DISPLAY && isoDiv.style.minHeight !== mh) isoDiv.style.minHeight = mh;
-      }
     }
     if (host.codeChip && codesShown !== null && codesShown !== codesVisibleAtZoom(view.zoom)) rebuildISO();
   };
@@ -2723,31 +2722,21 @@ export function buildLightsMapCard(hostIn){
     whBar.appendChild(whStatus);
     presetBars.push({ key: "house", label: "Whole house", node: whBar });
   }
-  // Classic: each bar is its own full-width row. v2 with both present: ONE
-  // row, switched by a two-way tab that takes the place of each bar's own
-  // label — they are the same shape and do different jobs, so they share
-  // the space instead of stacking.
+  // Classic: each bar is its own full-width row. v2 with both present:
+  // ONE row, side by side — Look on the left, Whole house on the right
+  // (Garry, 2026-09-22: "presets and whole house should share a row, one
+  // to the left, one to the right"). An earlier cut of this switched
+  // between them with a tab instead of showing both at once, trading a
+  // row of vertical space for having to click to see the other bar —
+  // wrong tradeoff when the actual goal was using LESS vertical space,
+  // not hiding a whole bar.
   if (V2 && presetBars.length === 2) {
-    const active = presetBars.some((b) => b.key === view.presetTab) ? view.presetTab : "look";
-    const strips = [];
-    const show = (key) => {
-      view.presetTab = key;
-      for (const b of presetBars) b.node.hidden = b.key !== key;
-      for (const st of strips) for (const btn of st.children) btn.classList.toggle("on", btn._tabKey === key);
-    };
-    for (const b of presetBars) {
-      const strip = el("span", { class: "lv-tabs" });
-      for (const t of presetBars) {
-        const btn = el("button", { class: "lv-tab", onclick: () => show(t.key) }, t.label);
-        btn._tabKey = t.key;
-        strip.appendChild(btn);
-      }
-      strips.push(strip);
-      b.node.replaceChild(strip, b.node.firstChild);
-    }
-    show(active);
+    const row = el("div", { class: "lv-presetrow" });
+    for (const b of presetBars) row.appendChild(b.node);
+    mount(row, "presets");
+  } else {
+    for (const b of presetBars) mount(b.node, "presets");
   }
-  for (const b of presetBars) mount(b.node, "presets");
 
   // ── Layers + navigation bar ─────────────────────────────────────────────
   // Separate from the view-shaping toolbar above: this row is about WHAT you

@@ -120,10 +120,18 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "maps_iso_floor_gap":    200,   # px spacing between floors
     "maps_iso_horiz_gap":    0,     # px L/R horizontal offset
     "maps_iso_focus":        None,  # z_level to highlight, or null = all
-    # 3D isometric view layout (Overview tab)
+    # 3D isometric view layout (Overview tab) — also the Atlas builder's own
+    # camera (Mapping -> Atlas seeds host.view from these same keys).
     "overview_iso_floor_gap": 150,
     "overview_iso_horiz_gap": 0,
     "overview_iso_focus":     None,
+    # Atlas's own zoom (Garry, 2026-09-22: "stabilize the zoom in, so when
+    # that is locked well, it can stay that way for months if needed" — the
+    # sidebar Atlas panel is set up once and left running unattended; an
+    # in-memory-only zoom reset to 1.0 on every reboot/reload, which is
+    # exactly the kind of drift that made "the map keeps getting smaller"
+    # look like a recurring bug rather than a one-time setting never saved).
+    "overview_iso_zoom":      1.0,
     # Advanced-mode extra tabs (user picks from Settings → UI Structure)
     "advanced_extra_tabs": [],
     # HA entity publishing controls

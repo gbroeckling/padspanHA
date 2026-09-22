@@ -201,6 +201,11 @@ class PadSpanLightsApp extends HTMLElement {
         this._view.floorGap = s.overview_iso_floor_gap ?? 150;
         this._view.horizGap = s.overview_iso_horiz_gap ?? 0;
         this._view.focusIdx = s.overview_iso_focus     ?? 0;
+        // Persisted zoom (Garry, 2026-09-22: "stabilize the zoom in, so when
+        // that is locked well, it can stay that way for months") — this
+        // panel is set up once and left running unattended; an in-memory
+        // zoom reset to 1.0 on every reboot/reload.
+        this._view.zoom     = s.overview_iso_zoom      ?? 1.0;
       }
       // Per-light shape overrides — set in the Mapping → Lights tab, read here
       // so both views draw the same fixture outlines.
@@ -278,6 +283,7 @@ class PadSpanLightsApp extends HTMLElement {
         overview_iso_floor_gap:  this._view.floorGap,
         overview_iso_horiz_gap:  this._view.horizGap,
         overview_iso_focus:      this._view.focusIdx,
+        overview_iso_zoom:       this._view.zoom,
       });
     }catch(e){ throw e; }
   }
@@ -529,6 +535,7 @@ class PadSpanLightsApp extends HTMLElement {
         if (values.overview_iso_floor_gap !== undefined) this._view.floorGap = values.overview_iso_floor_gap;
         if (values.overview_iso_horiz_gap !== undefined) this._view.horizGap = values.overview_iso_horiz_gap;
         if (values.overview_iso_focus !== undefined) this._view.focusIdx = values.overview_iso_focus ?? 0;
+        if (values.overview_iso_zoom !== undefined) this._view.zoom = values.overview_iso_zoom;
         try { await this._hass.callWS({ type: "padspan_ha/settings_set", ...values }); }
         catch (e) { this._toast("Could not apply the preset: " + String(e), true); }
         this._render();

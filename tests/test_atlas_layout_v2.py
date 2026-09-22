@@ -12,7 +12,7 @@ default) so the classic layout is byte-for-byte unchanged when it's off —
 test_lights_build_controls_labels.py and the rest of the existing suite
 already pin that with layoutV2 simply absent from every host fixture there.
 These tests exercise the v2 path specifically: the packed/folded toolbar,
-the merged presets tab, and the display-mode rail + drawers.
+the merged presets row, and the display-mode rail + drawers.
 
 Runs the real module under node; skipped, not failed, without node.
 """
@@ -104,27 +104,25 @@ def test_layout_tier_for_the_documented_breakpoints():
     assert out["ultra"] == ["ultra", "ultra"]
 
 
-def test_v2_height_cap_is_seeded_synchronously_from_a_previous_build_to_avoid_a_flash():
-    """2026-09-21 fix: a freshly rebuilt isoDiv had NO maxHeight at all
-    until applyZoom's real measurement corrected it a moment later (a
-    ResizeObserver callback, or a deferred timer) — every poll-triggered
-    rebuild (every ~5s) started tall/unconstrained and then visibly
-    collapsed down to the fitted height once that correction landed,
-    which is what "a visible flash on the screen every 5 seconds" was.
-    view (the same persistent object the pan position and zoom already
-    live on, and that survives a full card rebuild) now caches the last
-    real measurement as view._lastAvailH, applied synchronously the
-    moment a fresh isoDiv is created — so a rebuild's very first paint
-    already matches the fitted size, nothing left to collapse into."""
+def test_v2_stage_has_no_height_cap():
+    """2026-09-22, after three straight rounds of the map's SIZE still
+    being wrong live (a visible flash, then not filling the width, then
+    the whole thing shrinking further and "stupid short" — Garry: "you
+    really need to rethink what you are doing here"): every attempt to
+    measure the right height and apply it before the user could see a gap
+    fixed one symptom and produced another, because capping height at all
+    means the map's size depends on how much chrome happens to sit above
+    it — exactly what kept making it smaller as more got added there.
+    There is no height cap anymore, V2 or classic: the stage follows the
+    drawing's own aspect ratio at 100% width, and the page scrolls for
+    whatever doesn't fit, same as classic always did."""
     out = _run(_base_host("  layoutV2: true,\n") + (
-        "host.view._lastAvailH = 555;\n"
-        "const card2 = LM.buildLightsMapCard(host);\n"
-        "const stage2 = card2.querySelector('.lv-stage');\n"
-        "out.seededSynchronously = stage2.style.maxHeight;\n"
+        "const stage = card.querySelector('.lv-stage');\n"
+        "out.maxHeight = stage.style.maxHeight;\n"
+        "out.minHeight = stage.style.minHeight;\n"
     ))
-    assert out["seededSynchronously"] == "555px", (
-        "a fresh isoDiv must carry the previous build's measured height from the moment it's created, "
-        "not only after a later async correction runs")
+    assert out["maxHeight"] == "", "V2 must not cap the stage's height"
+    assert out["minHeight"] == "", "V2 must not force the stage's height either"
 
 
 # ── classic vs v2 ─────────────────────────────────────────────────────────────
@@ -187,45 +185,35 @@ def test_layoutv2_toggle_button_flips_the_setting_both_ways():
     assert out2["calledWith"] is False, "the toggle from v2 must turn it back OFF"
 
 
-def test_layoutv2_merges_both_preset_bars_into_one_tabbed_row():
-    """The promise was "one row, switched by a tab, instead of two stacked
-    rows" — a tab-panel implementation (both bars present, exactly one
-    visible at a time) satisfies that exactly as well as collapsing to a
-    single DOM node would, and is the standard shape for this pattern; the
-    real property to pin is that they can never BOTH show at once, and that
-    the visible one actually follows the tab that's on."""
+def test_layoutv2_merges_both_preset_bars_into_one_side_by_side_row():
+    """2026-09-22 correction: the first cut of this switched between the two
+    bars with a tab (both present, exactly one visible at a time) — trading
+    a row of vertical space for having to click to see the other bar. Garry:
+    "presets and whole house should share a row, one to the left, one to
+    the right" — both bars visible at once, side by side in one wrapper,
+    never hidden."""
     out = _run(_base_host(
         "  layoutV2: true, onLayoutV2: () => {},\n"
         "  showcase: true, onShowcase: () => {},\n"
         "  showcasePresets: [{ name: 'Evening', values: {} }], onApplyPreset: async () => {}, onSavePreset: async () => {},\n"
         "  wholeHousePresets: [{ name: 'Movie', entities: {} }], onWholeHouseApply: async () => {}, onWholeHouseSet: async () => {},\n"
     ) + (
+        "const row = card.querySelector('.lv-presetrow');\n"
+        "out.hasRow = !!row;\n"
         "const bars = [...card.querySelectorAll('.lv-presetbar')];\n"
         "out.barCount = bars.length;\n"
-        "out.visibleCountBefore = bars.filter(b => !b.hidden).length;\n"
-        "out.tabTexts = [...card.querySelectorAll('.lv-tab')].map(t => t.textContent);\n"
-        "const looks = [...card.querySelectorAll('.lv-tab')].find(t => t.textContent === 'Look');\n"
-        "const house = [...card.querySelectorAll('.lv-tab')].find(t => t.textContent === 'Whole house');\n"
-        "out.lookOnBefore = looks.classList.contains('on');\n"
-        "const lookBarVisibleBefore = bars.find(b => b.textContent.includes('Evening') && !b.hidden);\n"
-        "out.lookBarVisibleBefore = !!lookBarVisibleBefore;\n"
-        "house.dispatchEvent({ type: 'click' });\n"
-        "out.lookOnAfter = looks.classList.contains('on');\n"
-        "out.houseOnAfter = house.classList.contains('on');\n"
-        "out.visibleCountAfter = bars.filter(b => !b.hidden).length;\n"
-        "out.houseBarVisibleAfter = bars.some(b => b.textContent.includes('Movie') && !b.hidden);\n"
-        "out.lookBarVisibleAfter = bars.some(b => b.textContent.includes('Evening') && !b.hidden);\n"
+        "out.bothInRow = row ? bars.every(b => row.contains(b)) : false;\n"
+        "out.noneHidden = bars.every(b => !b.hidden);\n"
+        "out.lookBarVisible = bars.some(b => b.textContent.includes('Evening') && !b.hidden);\n"
+        "out.houseBarVisible = bars.some(b => b.textContent.includes('Movie') && !b.hidden);\n"
+        "out.noTabs = card.querySelectorAll('.lv-tab').length === 0;\n"
     ))
+    assert out["hasRow"] is True, "both bars must sit inside one shared row wrapper"
     assert out["barCount"] == 2, "the Look and Whole house bars themselves — pinned so a future change is deliberate"
-    assert set(out["tabTexts"]) == {"Look", "Whole house"}
-    assert out["visibleCountBefore"] == 1, "the two bars must never both be visible, even before any click"
-    assert out["lookOnBefore"] is True and out["lookBarVisibleBefore"] is True, "Look is the default tab"
-    assert out["lookOnAfter"] is False and out["houseOnAfter"] is True
-    assert out["visibleCountAfter"] == 1, "still exactly one visible after switching tabs — never both, never neither"
-    assert out["houseBarVisibleAfter"] is True and out["lookBarVisibleAfter"] is False
-    assert set(out["tabTexts"]) == {"Look", "Whole house"}
-    assert out["lookOnBefore"] is True and out["lookOnAfter"] is False
-    assert out["houseOnAfter"] is True
+    assert out["bothInRow"] is True
+    assert out["noneHidden"] is True, "neither bar is ever hidden — no tab to switch away from one"
+    assert out["lookBarVisible"] is True and out["houseBarVisible"] is True, "both visible at once, not one-at-a-time"
+    assert out["noTabs"] is True, "the old tab switcher is gone, not just unused"
 
 
 # ── display mode (the sidebar) ────────────────────────────────────────────

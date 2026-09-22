@@ -1143,13 +1143,11 @@
 .lv-fold[open] summary{border-bottom:1px solid rgba(120,190,155,.12)}
 .lv-fold-body{display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap;padding:6px 10px 8px}
 
-/* The merged Presets / Whole House bar — a two-way tab standing in for
-   each bar's own leading label, sharing one row instead of stacking two. */
-.lv-tabs{display:inline-flex;border:1px solid rgba(196,181,253,.25);border-radius:8px;overflow:hidden;margin-right:2px}
-.lv-tab{font-size:11px;font-weight:600;background:rgba(255,255,255,.02);color:rgba(216,197,255,.55);
-  border:none;padding:4px 11px;cursor:pointer}
-.lv-tab:not(:last-child){border-right:1px solid rgba(196,181,253,.2)}
-.lv-tab.on{background:rgba(124,58,237,.35);color:#f3edff}
+/* The merged Presets / Whole House row — both bars side by side, Look on
+   the left and Whole house on the right, sharing one row instead of
+   stacking two (Garry, 2026-09-22: "one to the left, one to the right"). */
+.lv-presetrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.lv-presetrow .lv-presetbar{flex:1 1 300px;margin-bottom:0}
 
 /* ── Display mode (the sidebar Atlas panel; host.displayMode) ────────────
    "the atlas sidebar... is a house map, anything to the sides is a
