@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.67 — A door/window's sensor, opener and lock, tied together (2026-09-22)
+
+### Atlas
+- **Added:** a linked door/window on the map can now have an opener (a garage door, gate, or any other powered opening) and a lock tied to it too, all three shown and controlled from the one card its wall opening's line already opens. New Devices → Door Openers tab marks which cover/switch/button entities are openers; a linked row in Mapping → Atlas then offers "+ Opener" and "+ Lock" right alongside its existing Unlink and Steel controls. A relay-style opener (most garage door switches) gets a plain Trigger button rather than Open/Close, since its own on/off doesn't reliably mean either — the door's real sensor reading is shown alongside it for context.
+- **Fixed:** clicking a linked barrier's line on the Atlas sidebar panel (or the builder's "Preview as sidebar") could open the card without showing its opener or lock, even when one was linked — the click handler there rebuilds what it needs from the map's own drawing rather than looking the barrier up again, and two fields were missing from that handoff. Found and fixed testing live against two real garage doors.
+
+---
+
 ## 0.38.66 — Click a door/window/lock line on the Atlas map (2026-09-22)
 
 ### Atlas
