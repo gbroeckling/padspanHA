@@ -176,6 +176,19 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.65</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">22 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Fixed:</b> both Atlas screens (Mapping → Atlas and the sidebar Atlas panel) were still drawing the house small and centered, with a lot of empty canvas down both sides — the thing v0.38.57–v0.38.64 kept trying to fix from the outside in. Two separate causes, both closed out now: the map's own internal scale picked whichever of width-fit or height-fit was smaller (a leftover "contain into a fixed box" formula), so it now scales to width alone, matching the "no height cap" rule the container side already followed; and four sensors had placements 30–40 metres from the house, which forces the map's frame to stretch out to include them — those four are back in the unplaced queue rather than distorting the canvas.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.64</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">22 September 2026</span>
