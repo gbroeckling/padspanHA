@@ -4,6 +4,15 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.68 — Build an opener or lock from bare relays (2026-09-22)
+
+### Atlas / Devices
+- **Added:** Devices → Door Openers now has a "Build an opener or lock from relays" wizard at the bottom of the list, for a door or window with no ready-made opener/lock entity — just a relay. Three kinds, taken directly from patterns already hand-built elsewhere in this house rather than invented: a momentary opener (one relay, pulse-and-release — the same shape as the garage door scripts), a two-direction motor opener (two relays with a hardware interlock, a travel timer, and the same three boot-safe/failsafe automations the Bedroom1 window automations use), and a momentary-strike lock (one relay, remembers locked/unlocked since a spring strike has no position to read back). Every piece the wizard creates — script(s), automation(s), a Template cover/lock, and a state-memory helper when no sensor is linked — is a real Home Assistant object, built the same way HA's own Settings → Helpers → Template does it; "Remove" deletes exactly those pieces and nothing else. Researched Control4 for a real door-lock relay to design against: the front door's lock (item 607, category "locks") was never bridged into Home Assistant, so it can't be picked up by this wizard yet — the momentary-strike-lock kind is ready for whenever a lock relay like it (or the Kwikset Zigbee lock Garry is adding to the back door) is reachable from HA.
+- **Added:** door/window openers can now be `script.*` entities too, not just `cover./switch./button.` — found Garry's own `script.garage_door_car`/`script.garage_door_truck`, the correct controller to trigger rather than the raw relay underneath it, invisible to Devices → Door Openers before now.
+- **Added:** an Invert toggle on a linked door/window's row in Mapping → Atlas, for a contact sensor that reports the opposite of what's actually happening (confirmed on Upper Garage Car Door).
+
+---
+
 ## 0.38.67 — A door/window's sensor, opener and lock, tied together (2026-09-22)
 
 ### Atlas

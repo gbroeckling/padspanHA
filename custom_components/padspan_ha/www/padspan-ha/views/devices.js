@@ -641,26 +641,600 @@ function _renderDoorOpeners(ctx) {
     card.appendChild(el("div", { style: "font-size:12px;color:#64748b;padding:8px 0" },
       "No cover, switch, button, or script entities with “door”, “gate”, “garage”, or “opener” in their name were found. " +
       "Nothing on this install looks like a door/window opener by name — if one exists under a different name, it can still be added from the picker on its wall opening's row in Mapping → Atlas."));
+  } else {
+    for (const eid of candidates) {
+      const st = states[eid];
+      const row = el("div", {
+        style: "display:flex;align-items:center;gap:10px;border:1px solid #1b3526;border-radius:8px;"
+          + "padding:8px 12px;margin-bottom:4px;background:#0d1f14",
+      });
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = marked.has(eid);
+      cb.style.cssText = "accent-color:#52b788;width:16px;height:16px";
+      cb.addEventListener("change", () => toggle(eid, cb.checked));
+      row.appendChild(cb);
+      row.appendChild(el("div", { style: "flex:1;min-width:0" }, [
+        el("div", { style: "font-weight:600;font-size:13px" }, (st.attributes || {}).friendly_name || eid),
+        el("div", { style: "font-size:10px;color:#64748b" }, `${eid} · ${st.state}`),
+      ]));
+      card.appendChild(row);
+    }
+  }
+
+  const wrap = el("div", {}, [card, _renderRelayWizard(ctx)]);
+  return wrap;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Build an opener or lock from relay(s)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Garry, 2026-09-22 (verbatim): "a windows opener may need to import a relay
+// and set it up with logic to open and close a window. We also have cases
+// where we need to import a relay for a door lock, I have one in this house.
+// In the filter, and at the bottom of the list we need to have an option to
+// create door or windows opener or lock from relay/relays. And from there
+// have a card to build a lock/opener from a relay, with accompanying logic
+// for that."
+//
+// The three "kinds" below aren't invented — they're Garry's own three
+// relay patterns, already hand-built elsewhere in this house, generalized to
+// any relay pair:
+//   1. Momentary opener — one relay, pulse-and-release. His own
+//      script.garage_door_car / script.garage_door_truck, pulsing
+//      switch.prodino1_relay_1/2 for 1s. No separate template entity: the
+//      generated script itself IS the opener, exactly like his own two.
+//   2. Two-direction motor opener — two relays with a hardware interlock (a
+//      "which script is running" mutex, not just a timer), a travel timer,
+//      and three boot-safe/failsafe automations. His own "Bedroom1 Window"
+//      scripts + automations against light.windowopenerbedroom1_light/
+//      _light_2 (a ZHA relay board exposed as two light entities), 180s
+//      travel. Wrapped in a Template Cover so it self-reports like a real
+//      cover — same shape openBarrierCard already understands.
+//   3. Momentary-strike lock — one relay, pulse-and-release like kind 1, but
+//      the release is electrical (a spring-loaded strike) rather than
+//      mechanical, so lock/unlock STATE needs to be remembered somewhere —
+//      there's no position to read back. Researched in Control4: item 607
+//      "Front Door" (relaysingle_doorlock_c4, category "locks") on the
+//      Utility Room IO Extender is a real momentary door-lock relay in this
+//      house, but it was never bridged into HA (no lock.* or switch.*
+//      entity exists for it) — this kind exists for whenever a relay like
+//      it IS reachable from HA, wired or Zigbee (a z2m relay board, a
+//      Shelly, a ProDino spare channel). Garry is separately buying a
+//      Kwikset Zigbee lock for the back door — that pairs as a native
+//      lock.* entity directly (already handled: lockCandidates below lists
+//      every lock.* with no allowlist needed) and doesn't go through this
+//      wizard at all; this kind is for a BARE relay with no such lock of
+//      its own.
+//
+// Every generated piece is a REAL HA object — a script and/or automation via
+// the REST config API, a Template lock/cover via the same config-entries
+// flow HA's own Settings -> Helpers -> Template uses, and (only when no
+// sensor is linked to give ground truth) an input_boolean to remember
+// open/closed or locked/unlocked across restarts. Nothing here is simulated
+// inside PadspanHA. settings.door_composites is the receipt: every id this
+// wizard created, so "Remove" can delete every piece and only those pieces —
+// never touching anything Garry built by hand.
+
+const _RELAY_DOMAINS = ["switch.", "light."];
+const _RELAY_KINDS = [
+  { id: "momentary_opener", label: "Momentary opener (garage door, gate)" },
+  { id: "two_direction_opener", label: "Two-direction opener (motorized window, blind, awning)" },
+  { id: "momentary_lock", label: "Momentary-strike lock (electric door strike)" },
+];
+const _COVER_DEVICE_CLASSES = ["window", "door", "garage", "gate", "blind", "shade", "shutter", "awning", "curtain", "damper"];
+
+// A safe, predictable HA object_id from whatever name Garry types — every
+// script/automation/helper id this wizard creates shares this one prefixed
+// slug so a whole composite is trivially greppable/removable as a set.
+export function relaySlug(name) {
+  const base = String(name || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return "padspanha_" + (base || "relay");
+}
+
+function _relayDomain(eid) { return String(eid).split(".")[0]; }
+
+// Kind 1 — mirrors script.garage_door_car/_truck exactly: turn on, delay,
+// turn off. The script IS the opener; no template entity, no helper.
+export function buildMomentaryOpener({ slug, name, relayEid, pulseSeconds }) {
+  const dom = _relayDomain(relayEid);
+  const scriptId = `${slug}_trigger`;
+  return {
+    scripts: [{
+      id: scriptId,
+      config: {
+        alias: `${name} - Trigger`,
+        mode: "single",
+        sequence: [
+          { action: `${dom}.turn_on`, target: { entity_id: relayEid } },
+          { delay: { seconds: pulseSeconds } },
+          { action: `${dom}.turn_off`, target: { entity_id: relayEid } },
+        ],
+      },
+    }],
+    automations: [],
+    helper: null,
+    templateFlow: null,
+    openerEntityId: `script.${scriptId}`,
+  };
+}
+
+// Kind 2 — mirrors the Bedroom1 Window scripts + its three automations:
+// each direction script cancels the OTHER direction's script first (the
+// interlock), asserts both relays into the right state, then a travel-timed
+// auto-off; "relays off on HA start" (a mid-travel HA restart must not leave
+// a relay energized), "failsafe relay on past travel" (relay stuck on past
+// travel time = force off), "failsafe both relays on" (both somehow on at
+// once = force off immediately, the interlock's belt-and-suspenders).
+// Wrapped in a Template Cover so it self-reports through openBarrierCard
+// exactly like a real cover.
+export function buildTwoDirectionOpener({ slug, name, openRelayEid, closeRelayEid, travelSeconds, deviceClass, sensorEid, invert }) {
+  const openDom = _relayDomain(openRelayEid), closeDom = _relayDomain(closeRelayEid);
+  const openScriptId = `${slug}_open`, closeScriptId = `${slug}_close`, stopScriptId = `${slug}_stop`;
+  const helperId = sensorEid ? null : `${slug}_is_open`;
+  // Proportional safety margin on the failsafe, in the same spirit as
+  // Bedroom1's own 180s travel / 230s failsafe (~28%); floored at 10s so a
+  // short travel time still gets a meaningful margin.
+  const failsafeSeconds = travelSeconds + Math.max(10, Math.round(travelSeconds / 4));
+
+  const stateSet = helperId ? [{ action: "input_boolean.turn_on", target: { entity_id: `input_boolean.${helperId}` } }] : [];
+  const stateClear = helperId ? [{ action: "input_boolean.turn_off", target: { entity_id: `input_boolean.${helperId}` } }] : [];
+
+  const scripts = [
+    {
+      id: openScriptId,
+      config: {
+        alias: `${name} - OPEN`,
+        mode: "restart",
+        sequence: [
+          { action: "script.turn_off", target: { entity_id: `script.${closeScriptId}` }, continue_on_error: true },
+          { action: `${closeDom}.turn_off`, target: { entity_id: closeRelayEid } },
+          { action: `${openDom}.turn_on`, target: { entity_id: openRelayEid } },
+          ...stateSet,
+          { delay: { seconds: travelSeconds } },
+          { action: `${openDom}.turn_off`, target: { entity_id: openRelayEid } },
+        ],
+      },
+    },
+    {
+      id: closeScriptId,
+      config: {
+        alias: `${name} - CLOSE`,
+        mode: "restart",
+        sequence: [
+          { action: "script.turn_off", target: { entity_id: `script.${openScriptId}` }, continue_on_error: true },
+          { action: `${openDom}.turn_off`, target: { entity_id: openRelayEid } },
+          { action: `${closeDom}.turn_on`, target: { entity_id: closeRelayEid } },
+          ...stateClear,
+          { delay: { seconds: travelSeconds } },
+          { action: `${closeDom}.turn_off`, target: { entity_id: closeRelayEid } },
+        ],
+      },
+    },
+    {
+      id: stopScriptId,
+      config: {
+        alias: `${name} - STOP`,
+        mode: "single",
+        sequence: [
+          { action: "script.turn_off", target: { entity_id: [`script.${openScriptId}`, `script.${closeScriptId}`] }, continue_on_error: true },
+          { action: `${openDom}.turn_off`, target: { entity_id: openRelayEid } },
+          { action: `${closeDom}.turn_off`, target: { entity_id: closeRelayEid } },
+        ],
+      },
+    },
+  ];
+
+  const relaysOff = [
+    { action: `${openDom}.turn_off`, target: { entity_id: openRelayEid } },
+    { action: `${closeDom}.turn_off`, target: { entity_id: closeRelayEid } },
+  ];
+  const automations = [
+    {
+      id: `${slug}_relays_off_on_start`,
+      config: {
+        alias: `${name} - relays off on HA start`,
+        triggers: [{ platform: "homeassistant", event: "start" }],
+        actions: relaysOff,
+        mode: "single",
+      },
+    },
+    {
+      id: `${slug}_relay_failsafe`,
+      config: {
+        alias: `${name} - failsafe relay on past travel`,
+        triggers: [{ platform: "state", entity_id: [openRelayEid, closeRelayEid], to: "on", for: { seconds: failsafeSeconds } }],
+        actions: relaysOff,
+        mode: "single",
+      },
+    },
+    {
+      id: `${slug}_both_relays_on`,
+      config: {
+        alias: `${name} - failsafe both relays on`,
+        triggers: [{
+          platform: "template",
+          value_template: `{{ is_state('${openRelayEid}','on') and is_state('${closeRelayEid}','on') }}`,
+          for: { seconds: 3 },
+        }],
+        actions: relaysOff,
+        mode: "single",
+      },
+    },
+  ];
+
+  let stateTemplate;
+  if (sensorEid) {
+    stateTemplate = _relayDomain(sensorEid) === "cover"
+      ? `{{ states('${sensorEid}') }}`
+      : (invert
+        ? `{{ 'closed' if is_state('${sensorEid}','on') else 'open' }}`
+        : `{{ 'open' if is_state('${sensorEid}','on') else 'closed' }}`);
+  } else {
+    stateTemplate = `{{ 'open' if is_state('input_boolean.${helperId}','on') else 'closed' }}`;
+  }
+
+  return {
+    scripts,
+    automations,
+    helper: helperId ? { id: helperId, name: `${name} position memory` } : null,
+    templateFlow: {
+      step: "cover",
+      fields: {
+        name,
+        state: stateTemplate,
+        open_cover: [{ action: `script.${openScriptId}` }],
+        close_cover: [{ action: `script.${closeScriptId}` }],
+        stop_cover: [{ action: `script.${stopScriptId}` }],
+        device_class: deviceClass,
+      },
+    },
+    openerEntityId: null, // not knowable until the flow creates it — resolved from the entity registry afterward
+  };
+}
+
+// Kind 3 — a single momentary relay (the electric-strike release) plus an
+// input_boolean to remember locked/unlocked (there is no position to read
+// back from a spring strike). Unlock clears the memory and pulses the
+// relay; a companion automation re-arms "locked" after relockSeconds,
+// matching the "auto-off timer finished" idiom already used all over this
+// house's own automations.yaml rather than a blocking in-script delay.
+export function buildMomentaryLock({ slug, name, relayEid, pulseSeconds, relockSeconds }) {
+  const dom = _relayDomain(relayEid);
+  const helperId = `${slug}_locked`;
+  const unlockScriptId = `${slug}_unlock`;
+  return {
+    scripts: [{
+      id: unlockScriptId,
+      config: {
+        alias: `${name} - Unlock`,
+        mode: "single",
+        sequence: [
+          { action: "input_boolean.turn_off", target: { entity_id: `input_boolean.${helperId}` } },
+          { action: `${dom}.turn_on`, target: { entity_id: relayEid } },
+          { delay: { seconds: pulseSeconds } },
+          { action: `${dom}.turn_off`, target: { entity_id: relayEid } },
+        ],
+      },
+    }],
+    automations: [{
+      id: `${slug}_auto_relock`,
+      config: {
+        alias: `${name} - auto re-lock`,
+        triggers: [{ platform: "state", entity_id: `input_boolean.${helperId}`, to: "off", for: { seconds: relockSeconds } }],
+        actions: [{ action: "input_boolean.turn_on", target: { entity_id: `input_boolean.${helperId}` } }],
+        mode: "single",
+      },
+    }],
+    helper: { id: helperId, name: `${name} state memory` },
+    templateFlow: {
+      step: "lock",
+      fields: {
+        name,
+        state: `{{ 'locked' if is_state('input_boolean.${helperId}','on') else 'unlocked' }}`,
+        lock: [{ action: "input_boolean.turn_on", target: { entity_id: `input_boolean.${helperId}` } }],
+        unlock: [{ action: `script.${unlockScriptId}` }],
+      },
+    },
+    openerEntityId: null,
+  };
+}
+
+// Runs a build plan (from one of the three builders above) against the real
+// HA config APIs, in dependency order — helper before the scripts/
+// automations that reference it, scripts before the template flow's
+// lock/unlock actions reference them, reload before the template flow reads
+// them back. Returns { entity_id, generated } for settings.door_composites;
+// throws if any step fails.
+async function _runBuildPlan(ctx, build) {
+  const hass = ctx.hass;
+  const generated = { scripts: [], automations: [], helper_id: null, template_entry_id: null };
+
+  if (build.helper) {
+    const r = await ctx.actions.callWS({ type: "input_boolean/create", name: build.helper.id });
+    generated.helper_id = (r && r.id) || build.helper.id;
+  }
+  for (const s of build.scripts) {
+    await hass.callApi("POST", `config/script/config/${s.id}`, s.config);
+    generated.scripts.push(s.id);
+  }
+  for (const a of build.automations) {
+    await hass.callApi("POST", `config/automation/config/${a.id}`, a.config);
+    generated.automations.push(a.id);
+  }
+  if (build.scripts.length) await hass.callApi("POST", "services/script/reload", {});
+  if (build.automations.length) await hass.callApi("POST", "services/automation/reload", {});
+
+  let entityId = build.openerEntityId;
+  if (build.templateFlow) {
+    const menu = await hass.callApi("POST", "config/config_entries/flow", { handler: "template" });
+    const stepRes = await hass.callApi("POST", `config/config_entries/flow/${menu.flow_id}`, { next_step_id: build.templateFlow.step });
+    const submitRes = await hass.callApi("POST", `config/config_entries/flow/${stepRes.flow_id}`, build.templateFlow.fields);
+    if (submitRes.type !== "create_entry" || !submitRes.result || !submitRes.result.entry_id) {
+      throw new Error("Template entity was not created: " + JSON.stringify(submitRes.errors || submitRes));
+    }
+    generated.template_entry_id = submitRes.result.entry_id;
+    const reg = await hass.callWS({ type: "config/entity_registry/list" });
+    const match = (reg || []).find(e => e.config_entry_id === generated.template_entry_id);
+    if (match) entityId = match.entity_id;
+  }
+
+  return { entityId, generated };
+}
+
+// The reverse of _runBuildPlan — deletes exactly what settings.door_composites
+// recorded for this one composite, nothing else. Best-effort: keeps going
+// past individual failures (an already-hand-deleted piece is not a reason to
+// abandon the rest of the cleanup) and reports what it could and couldn't
+// remove.
+async function _teardownComposite(ctx, generated) {
+  const hass = ctx.hass;
+  const failures = [];
+  if (generated.template_entry_id) {
+    try { await hass.callApi("DELETE", `config/config_entries/entry/${generated.template_entry_id}`); }
+    catch (e) { failures.push("template entity"); }
+  }
+  for (const id of generated.automations || []) {
+    try { await hass.callApi("DELETE", `config/automation/config/${id}`); }
+    catch (e) { failures.push(`automation ${id}`); }
+  }
+  for (const id of generated.scripts || []) {
+    try { await hass.callApi("DELETE", `config/script/config/${id}`); }
+    catch (e) { failures.push(`script ${id}`); }
+  }
+  if (generated.helper_id) {
+    try { await ctx.actions.callWS({ type: "input_boolean/delete", input_boolean_id: generated.helper_id }); }
+    catch (e) { failures.push("helper"); }
+  }
+  if (generated.automations && generated.automations.length) {
+    try { await hass.callApi("POST", "services/automation/reload", {}); } catch (e) { /* best-effort */ }
+  }
+  if (generated.scripts && generated.scripts.length) {
+    try { await hass.callApi("POST", "services/script/reload", {}); } catch (e) { /* best-effort */ }
+  }
+  return failures;
+}
+
+function _relayCandidates(states) {
+  return Object.keys(states)
+    .filter(eid => _RELAY_DOMAINS.some(d => eid.startsWith(d)))
+    .map(eid => ({ entity_id: eid, friendly_name: (states[eid].attributes || {}).friendly_name || eid }))
+    .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
+}
+
+function _sensorCandidates(states) {
+  return Object.keys(states)
+    .filter(eid => eid.startsWith("binary_sensor.") || eid.startsWith("cover."))
+    .map(eid => ({ entity_id: eid, friendly_name: (states[eid].attributes || {}).friendly_name || eid }))
+    .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
+}
+
+function _relaySelect(candidates, placeholder) {
+  const sel = document.createElement("select");
+  sel.style.cssText = "width:100%;background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;border-radius:8px;padding:7px;font-size:12px;margin-bottom:8px";
+  const none = document.createElement("option"); none.value = ""; none.textContent = placeholder;
+  sel.appendChild(none);
+  for (const c of candidates) {
+    const o = document.createElement("option");
+    o.value = c.entity_id; o.textContent = `${c.friendly_name} (${c.entity_id})`;
+    sel.appendChild(o);
+  }
+  return sel;
+}
+
+function _renderRelayWizard(ctx) {
+  const { el } = ctx.helpers;
+  const card = el("div", { class: "card" });
+  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:8px" }, "Build an Opener or Lock from Relays"));
+  card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-bottom:12px" },
+    "For a door or window with no ready-made opener/lock entity — just a bare relay. Builds the same kind of script, automation, and (for a two-direction motor or a strike lock) template entity Garry's own garage doors and Bedroom1 window already use, then offers the result the same way any other opener or lock is offered."));
+
+  const composites = (ctx.state.settings && ctx.state.settings.door_composites) || [];
+  if (composites.length) {
+    card.appendChild(el("div", { style: "font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px" }, "Built from relays"));
+    for (const c of composites) {
+      const st = ctx.hass && ctx.hass.states && ctx.hass.states[c.entity_id];
+      const row = el("div", {
+        style: "display:flex;align-items:center;gap:10px;border:1px solid #1b3526;border-radius:8px;padding:8px 12px;margin-bottom:4px;background:#0d1f14",
+      });
+      row.appendChild(el("div", { style: "flex:1;min-width:0" }, [
+        el("div", { style: "font-weight:600;font-size:13px" }, c.name || c.entity_id),
+        el("div", { style: "font-size:10px;color:#64748b" }, `${c.entity_id} · ${st ? st.state : "unknown"} · ${(_RELAY_KINDS.find(k => k.id === c.kind) || {}).label || c.kind}`),
+      ]));
+      const removeBtn = el("button", {
+        style: "background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.35);border-radius:8px;color:#fca5a5;font-size:12px;cursor:pointer;padding:5px 10px",
+        onclick: async () => {
+          removeBtn.disabled = true; removeBtn.textContent = "Removing…";
+          const failures = await _teardownComposite(ctx, c.generated || {});
+          const next = composites.filter(x => x.id !== c.id);
+          const nextOpeners = new Set((ctx.state.settings && ctx.state.settings.door_opener_ids) || []);
+          nextOpeners.delete(c.entity_id);
+          try {
+            await ctx.actions.settingsSet({ door_composites: next, door_opener_ids: [...nextOpeners] });
+            ctx.toast(failures.length ? `Removed, but couldn't delete: ${failures.join(", ")}` : "Removed.", !!failures.length);
+          } catch (e) { ctx.toast("Could not save: " + (e.message || e), true); }
+          ctx.actions.renderRooms();
+        },
+      }, "Remove");
+      row.appendChild(removeBtn);
+      card.appendChild(row);
+    }
+  }
+
+  if (!ctx.state._relayWizardOpen) {
+    card.appendChild(el("button", {
+      class: "btn inline", style: "font-size:12px;margin-top:4px",
+      onclick: () => { ctx.state._relayWizardOpen = true; ctx.actions.renderRooms(); },
+    }, "+ Build an opener or lock from relays"));
     return card;
   }
 
-  for (const eid of candidates) {
-    const st = states[eid];
-    const row = el("div", {
-      style: "display:flex;align-items:center;gap:10px;border:1px solid #1b3526;border-radius:8px;"
-        + "padding:8px 12px;margin-bottom:4px;background:#0d1f14",
-    });
-    const cb = document.createElement("input");
-    cb.type = "checkbox"; cb.checked = marked.has(eid);
-    cb.style.cssText = "accent-color:#52b788;width:16px;height:16px";
-    cb.addEventListener("change", () => toggle(eid, cb.checked));
-    row.appendChild(cb);
-    row.appendChild(el("div", { style: "flex:1;min-width:0" }, [
-      el("div", { style: "font-weight:600;font-size:13px" }, (st.attributes || {}).friendly_name || eid),
-      el("div", { style: "font-size:10px;color:#64748b" }, `${eid} · ${st.state}`),
-    ]));
-    card.appendChild(row);
+  // ── Open form ────────────────────────────────────────────────────────────
+  if (!ctx.state._relayWizardKind) ctx.state._relayWizardKind = _RELAY_KINDS[0].id;
+  const kind = ctx.state._relayWizardKind;
+  const states = (ctx.hass && ctx.hass.states) || {};
+  const relayCandidates = _relayCandidates(states);
+  const sensorCandidates = _sensorCandidates(states);
+  const usedRelays = new Set(composites.flatMap(c => c.relays || []));
+
+  const form = el("div", { style: "border:1px solid #2d4a36;border-radius:10px;padding:12px;margin-top:8px;background:#0d1f14" });
+
+  const kindSel = document.createElement("select");
+  kindSel.style.cssText = "width:100%;background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;border-radius:8px;padding:7px;font-size:12px;margin-bottom:10px";
+  for (const k of _RELAY_KINDS) {
+    const o = document.createElement("option"); o.value = k.id; o.textContent = k.label; if (k.id === kind) o.selected = true;
+    kindSel.appendChild(o);
+  }
+  kindSel.addEventListener("change", () => { ctx.state._relayWizardKind = kindSel.value; ctx.actions.renderRooms(); });
+  form.appendChild(kindSel);
+
+  const nameInput = document.createElement("input");
+  nameInput.type = "text"; nameInput.placeholder = "Name (e.g. \"Back Door Strike\", \"Bedroom2 Window\")";
+  nameInput.style.cssText = "width:100%;background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;border-radius:8px;padding:7px;font-size:13px;margin-bottom:8px";
+  form.appendChild(nameInput);
+
+  const relaySel1 = _relaySelect(relayCandidates, kind === "two_direction_opener" ? "— open relay —" : "— relay —");
+  form.appendChild(relaySel1);
+  let relaySel2 = null;
+  if (kind === "two_direction_opener") {
+    relaySel2 = _relaySelect(relayCandidates, "— close relay —");
+    form.appendChild(relaySel2);
+  }
+  if (relayCandidates.some(c => usedRelays.has(c.entity_id))) {
+    form.appendChild(el("div", { style: "font-size:10px;color:#64748b;margin-bottom:8px" },
+      "A relay already used by another built opener/lock still shows here — nothing stops reusing it, but it's rarely intended."));
   }
 
+  let classSel = null;
+  if (kind === "two_direction_opener") {
+    classSel = document.createElement("select");
+    classSel.style.cssText = "width:100%;background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;border-radius:8px;padding:7px;font-size:12px;margin-bottom:8px";
+    for (const dc of _COVER_DEVICE_CLASSES) {
+      const o = document.createElement("option"); o.value = dc; o.textContent = dc[0].toUpperCase() + dc.slice(1);
+      classSel.appendChild(o);
+    }
+    form.appendChild(classSel);
+  }
+
+  const secondsInput = document.createElement("input");
+  secondsInput.type = "number"; secondsInput.min = "1";
+  secondsInput.value = kind === "two_direction_opener" ? "30" : kind === "momentary_lock" ? "3" : "1";
+  const secondsLabel = kind === "two_direction_opener" ? "Travel time, seconds (full open or close)"
+    : kind === "momentary_lock" ? "Unlock pulse, seconds" : "Pulse, seconds";
+  form.appendChild(el("div", { style: "font-size:10px;color:#64748b;margin-bottom:2px" }, secondsLabel));
+  secondsInput.style.cssText = "width:100%;background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;border-radius:8px;padding:7px;font-size:13px;margin-bottom:8px";
+  form.appendChild(secondsInput);
+
+  let relockInput = null;
+  if (kind === "momentary_lock") {
+    relockInput = document.createElement("input");
+    relockInput.type = "number"; relockInput.min = "1"; relockInput.value = "5";
+    form.appendChild(el("div", { style: "font-size:10px;color:#64748b;margin-bottom:2px" }, "Auto re-lock after, seconds"));
+    relockInput.style.cssText = "width:100%;background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;border-radius:8px;padding:7px;font-size:13px;margin-bottom:8px";
+    form.appendChild(relockInput);
+  }
+
+  let sensorSel = null, invertCb = null;
+  if (kind === "two_direction_opener") {
+    sensorSel = _relaySelect(sensorCandidates, "— optional: link a sensor for ground truth —");
+    form.appendChild(sensorSel);
+    const invertRow = el("div", { style: "display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11px;color:#94a3b8" });
+    invertCb = document.createElement("input"); invertCb.type = "checkbox";
+    invertRow.appendChild(invertCb);
+    invertRow.appendChild(el("span", {}, "Invert the sensor (it reads backwards)"));
+    form.appendChild(invertRow);
+    form.appendChild(el("div", { style: "font-size:10px;color:#64748b;margin-bottom:8px" },
+      "Without a sensor, position is remembered from the open/close commands alone — accurate as long as nothing moves it outside HA."));
+  }
+
+  const errorMsg = el("div", { style: "font-size:11px;color:#f87171;margin-bottom:8px;display:none" });
+  form.appendChild(errorMsg);
+
+  const buildBtn = el("button", {
+    style: "background:linear-gradient(135deg,#166534,#22c55e);color:#f0fdf4;border:1px solid rgba(134,239,172,.6);"
+      + "border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;padding:7px 14px;margin-right:6px",
+    onclick: async () => {
+      errorMsg.style.display = "none";
+      const name = nameInput.value.trim();
+      const relay1 = relaySel1.value;
+      const relay2 = relaySel2 ? relaySel2.value : null;
+      const seconds = parseInt(secondsInput.value, 10);
+      if (!name) { errorMsg.textContent = "Name is required."; errorMsg.style.display = "block"; return; }
+      if (!relay1 || (kind === "two_direction_opener" && !relay2)) {
+        errorMsg.textContent = "Pick every relay this kind needs."; errorMsg.style.display = "block"; return;
+      }
+      if (kind === "two_direction_opener" && relay1 === relay2) {
+        errorMsg.textContent = "The open and close relays must be different."; errorMsg.style.display = "block"; return;
+      }
+      if (!Number.isFinite(seconds) || seconds < 1) { errorMsg.textContent = "Enter a valid number of seconds."; errorMsg.style.display = "block"; return; }
+
+      const slug = relaySlug(name);
+      let build, relays;
+      if (kind === "momentary_opener") {
+        build = buildMomentaryOpener({ slug, name, relayEid: relay1, pulseSeconds: seconds });
+        relays = [relay1];
+      } else if (kind === "two_direction_opener") {
+        build = buildTwoDirectionOpener({
+          slug, name, openRelayEid: relay1, closeRelayEid: relay2, travelSeconds: seconds,
+          deviceClass: classSel.value, sensorEid: sensorSel.value || null, invert: !!invertCb.checked,
+        });
+        relays = [relay1, relay2];
+      } else {
+        const relock = parseInt(relockInput.value, 10);
+        if (!Number.isFinite(relock) || relock < 1) { errorMsg.textContent = "Enter a valid re-lock time."; errorMsg.style.display = "block"; return; }
+        build = buildMomentaryLock({ slug, name, relayEid: relay1, pulseSeconds: seconds, relockSeconds: relock });
+        relays = [relay1];
+      }
+
+      buildBtn.disabled = true; buildBtn.textContent = "Building…";
+      try {
+        const { entityId, generated } = await _runBuildPlan(ctx, build);
+        if (!entityId) throw new Error("Built, but couldn't find the resulting entity.");
+        const composite = { id: slug, kind, name, entity_id: entityId, relays, generated };
+        const nextComposites = [...composites, composite];
+        const settingsPatch = { door_composites: nextComposites };
+        if (kind !== "momentary_lock") {
+          const nextOpeners = new Set((ctx.state.settings && ctx.state.settings.door_opener_ids) || []);
+          nextOpeners.add(entityId);
+          settingsPatch.door_opener_ids = [...nextOpeners];
+        }
+        await ctx.actions.settingsSet(settingsPatch);
+        ctx.toast(`Built ${entityId}.`);
+        ctx.state._relayWizardOpen = false;
+        ctx.actions.renderRooms();
+      } catch (e) {
+        buildBtn.disabled = false; buildBtn.textContent = "Build";
+        errorMsg.textContent = "Could not build: " + (e.message || e);
+        errorMsg.style.display = "block";
+      }
+    },
+  }, "Build");
+  form.appendChild(buildBtn);
+
+  form.appendChild(el("button", {
+    class: "btn inline", style: "font-size:12px",
+    onclick: () => { ctx.state._relayWizardOpen = false; ctx.actions.renderRooms(); },
+  }, "Cancel"));
+
+  card.appendChild(form);
   return card;
 }

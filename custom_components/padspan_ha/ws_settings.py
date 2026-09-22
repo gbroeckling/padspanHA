@@ -368,6 +368,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("light_shapes"): dict,
         vol.Optional("light_type_overrides"): dict,
         vol.Optional("door_opener_ids"): list,
+        vol.Optional("door_composites"): list,
         vol.Optional("beacon_auto_calibrate"): bool,
         vol.Optional("overview_persistent_pins"): bool,
         vol.Optional("overview_show_walls"): bool,
@@ -706,6 +707,20 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     str(eid) for eid in raw
                     if isinstance(eid, str) and eid.startswith(("cover.", "switch.", "button.", "script."))
                 })
+        if "door_composites" in msg:
+            # The receipt for Devices -> Door Openers' "build from relays"
+            # wizard — every HA object (script/automation/template entity/
+            # helper) the frontend created for one composite, so a later
+            # Remove can delete exactly those objects via the same REST/WS
+            # calls that created them. The frontend owns the shape entirely
+            # (it both writes and reads this list); the backend only keeps
+            # entries that are at minimum a dict with a string "id", so a
+            # malformed message can't wedge garbage into storage.
+            raw = msg["door_composites"]
+            if isinstance(raw, list):
+                payload["door_composites"] = [
+                    c for c in raw if isinstance(c, dict) and isinstance(c.get("id"), str)
+                ]
         if "object_history_days" in msg:
             _days = int(msg["object_history_days"])
             payload["object_history_days"] = (
