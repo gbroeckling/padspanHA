@@ -1737,3 +1737,38 @@ console.log(JSON.stringify({ btns: btnsText, configuredFor, placedFor }));
     assert any("Link wall" in b for b in out["btns"]), out["btns"]
     assert out["placedFor"] == "lock.front_door", "the ordinary Place button must still arm the point-placement queue"
     assert out["configuredFor"] == "lock.front_door", "Link wall must call host.onConfigureDoor with the lock"
+
+
+def test_build_from_relays_button_sits_under_the_class_filter_and_jumps_out(tmp_path):
+    """Garry, 2026-09-22: "add this to the mapping atlas section under the
+    devices filter pull down. That's where I wanted it, leave it where it
+    is as well" — his original ask named this spot ("In the filter, and at
+    the bottom of the list") alongside Devices -> Door Openers, where the
+    wizard actually got built. host.onBuildFromRelays is the hook maps.js
+    wires to jump there rather than a second copy of the wizard; the
+    button must sit right after the table head row (below the filter
+    pulldown), and be entirely absent for a host that doesn't offer it —
+    the sidebar Atlas panel, which has no Devices section to land in."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const AREA = {"light.lamp": "Kitchen"};
+const STATES = { "light.lamp": {state: "on", attributes: {friendly_name: "Lamp"}} };
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
+
+let jumped = false;
+const hostWith = { el, hiddenEids: new Set(), lightsLoading: false, model: {}, onBuildFromRelays: () => { jumped = true; } };
+const rootWith = LM.buildLightsTable(hostWith, lights);
+const btn = [...rootWith.querySelectorAll("button")].find(b => b.textContent.trim() === "+ Build an opener or lock from relays");
+const headRow = rootWith.querySelector(".lv-tbl-head");
+const beforeTable = headRow && headRow.nextSibling === btn.parentNode;
+btn.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
+
+const hostWithout = { el, hiddenEids: new Set(), lightsLoading: false, model: {} };
+const rootWithout = LM.buildLightsTable(hostWithout, lights);
+const absent = ![...rootWithout.querySelectorAll("button")].some(b => b.textContent.includes("Build an opener"));
+
+console.log(JSON.stringify({ found: !!btn, beforeTable, jumped, absent }));
+""")
+    assert out["found"], "the button must render when host.onBuildFromRelays is provided"
+    assert out["beforeTable"], "it must sit directly under the table head (the filter pulldown row), not buried lower"
+    assert out["jumped"], "clicking it must call host.onBuildFromRelays"
+    assert out["absent"], "a host with no onBuildFromRelays (the sidebar Atlas panel) must show nothing here"

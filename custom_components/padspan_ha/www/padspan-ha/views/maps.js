@@ -9126,6 +9126,25 @@ function _lightsTab(ctx, maps, active) {
       } catch (e) { ctx.toast("Could not link the lock: " + (e.message || e), true); }
       ctx.actions.renderRooms();
     } : null,
+    // Garry, 2026-09-22, after the relay wizard shipped to Devices -> Door
+    // Openers only: "add this to the mapping atlas section under the
+    // devices filter pull down. That's where I wanted it, leave it where
+    // it is as well" — his original ask ("In the filter, and at the
+    // bottom of the list") named TWO spots and only the list got built.
+    // This is the other one: the table's own class-filter pulldown
+    // (buildLightsTable's "Filter the list by device type" <select>, the
+    // thing actually meant by "devices filter pull down" — there's no
+    // literal HTML <select> anywhere else on this screen). Not a second
+    // implementation of the wizard — jumps to the one that already exists,
+    // same "all avenues lead to the same tool" shape as the on-map circle
+    // tool above. Builder only, same gate as every other link/build
+    // action here.
+    onBuildFromRelays: paid && !preview ? () => {
+      ctx.state.view = "devices";
+      ctx.state._devicesTab = "openers";
+      ctx.state._relayWizardOpen = true;
+      ctx.actions.renderRooms();
+    } : null,
     // Arms the on-map circle tool (see _wireLightsBuild's click handler,
     // _wireDoorCircle's drag handlers, and _commitDoorCircle) — builder
     // only, same gate as onPlaceRow. Garry, 2026-09-09: linking has to work

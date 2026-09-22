@@ -3301,6 +3301,22 @@ export function buildLightsTable(host, lights){
     })()] : []),
   ]));
 
+  // Garry, 2026-09-22: "add this to the mapping atlas section under the
+  // devices filter pull down. That's where I wanted it, leave it where it
+  // is as well" — his original request named this SAME spot ("In the
+  // filter, and at the bottom of the list") alongside Devices -> Door
+  // Openers, which is where the wizard actually got built first. Rather
+  // than a second implementation, this jumps straight into that one —
+  // same "all avenues lead to the same tool" shape the on-map wall-opening
+  // circle tool already uses. host-gated (builder only, paid, not
+  // preview) so it's absent from the sidebar Atlas panel, which has no
+  // Devices section of its own to land in.
+  if (host.onBuildFromRelays) {
+    root.appendChild(el("div", { style: "padding:0 12px 10px;border-bottom:1px solid #1b3526" },
+      el("button", { class: "lv-act", onclick: host.onBuildFromRelays },
+        "+ Build an opener or lock from relays")));
+  }
+
   // Sortable headers, the standard three-state cycle: click an unsorted
   // column to sort it ascending, click again for descending, a third click
   // returns to the natural (room, then name) order. The cycling logic
