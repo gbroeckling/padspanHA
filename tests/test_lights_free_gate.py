@@ -929,6 +929,99 @@ def test_a_hub_with_both_classes_still_does_not_pair(tmp_path):
     assert out == {}, out
 
 
+# ── computeDoorLockPairs: the same mechanism, lock.* + an opening class ──────
+# Garry, 2026-09-22: "the new card could have a lock control on it if the
+# door has a smart lock" — same shape as motion/occupancy above, and the
+# same hazard proven by Garry's OWN real alarm panel (device_id "dev-alarm",
+# entities alarm_di1..4): one device_id, several unrelated door/window zones
+# for different rooms. Only ever pairs when the lock and its opening sensor
+# are the SAME physical unit (an integrated smart lock reporting both, e.g.
+# August/Schlage/Yale/Level) — Garry has neither domain in his real house
+# yet, so this is unverified against real hardware; these three fixtures are
+# synthetic, mirroring the three above one-for-one.
+
+def _door_lock_pairing_script(ent_reg, states):
+    return f"""
+const ENT_REG = {json.dumps(ent_reg)};
+const STATES = {json.dumps(states)};
+console.log(JSON.stringify(LM.computeDoorLockPairs(ENT_REG, STATES)));
+"""
+
+
+def test_an_integrated_lock_with_door_sensing_pairs(tmp_path):
+    """A smart deadbolt whose own official integration exposes both a
+    lock.* entity and a separate binary_sensor.* door-position reading
+    under one device_id."""
+    ent_reg = [
+        {"entity_id": "lock.front_door_lock", "device_id": "dev-frontdoor"},
+        {"entity_id": "binary_sensor.front_door_sensor", "device_id": "dev-frontdoor"},
+        {"entity_id": "lock.garage_side_lock", "device_id": "dev-garageside"},
+        {"entity_id": "binary_sensor.garage_side_sensor", "device_id": "dev-garageside"},
+    ]
+    states = {
+        "lock.front_door_lock": {"state": "locked", "attributes": {"friendly_name": "Front Door Lock"}},
+        "binary_sensor.front_door_sensor": {"state": "off", "attributes": {"friendly_name": "Front Door Sensor", "device_class": "door"}},
+        "lock.garage_side_lock": {"state": "unlocked", "attributes": {"friendly_name": "Garage Side Lock"}},
+        "binary_sensor.garage_side_sensor": {"state": "off", "attributes": {"friendly_name": "Garage Side Sensor", "device_class": "door"}},
+    }
+    out = _run_pipeline_script(tmp_path, _door_lock_pairing_script(ent_reg, states))
+    assert out == {
+        "binary_sensor.front_door_sensor": "lock.front_door_lock",
+        "binary_sensor.garage_side_sensor": "lock.garage_side_lock",
+    }, out
+
+
+def test_an_alarm_panels_door_zones_never_pair_with_an_unrelated_lock(tmp_path):
+    """Garry's real alarm expander again, this time WITH a lock domain
+    entity added to the same device_id (an "arm/disarm" virtual lock some
+    alarm integrations expose) — must not get paired with any zone that
+    just happens to share the panel."""
+    ent_reg = [{"entity_id": f"binary_sensor.alarm_di{i}", "device_id": "dev-alarm"} for i in range(1, 5)]
+    ent_reg.append({"entity_id": "lock.alarm_arm_disarm", "device_id": "dev-alarm"})
+    names = ["Utility Room", "Nicole's Office", "Spare Bedroom", "Master Bedroom Entry"]
+    states = {f"binary_sensor.alarm_di{i}": {"state": "off", "attributes": {"friendly_name": names[i - 1], "device_class": "door"}} for i in range(1, 5)}
+    states["lock.alarm_arm_disarm"] = {"state": "locked", "attributes": {"friendly_name": "Alarm Panel"}}
+    out = _run_pipeline_script(tmp_path, _door_lock_pairing_script(ent_reg, states))
+    assert out == {}, out
+
+
+def test_a_hub_with_two_locks_and_two_doors_still_does_not_pair(tmp_path):
+    """Same deeper trap as the motion/occupancy sibling: "has both classes
+    present" alone would wrongly fold two of these together. Two locks and
+    two door sensors on ONE device_id, four different doors — the
+    exact-one-of-each rule must refuse the whole device."""
+    ent_reg = [
+        {"entity_id": "lock.hub_l1", "device_id": "dev-hub"},
+        {"entity_id": "lock.hub_l2", "device_id": "dev-hub"},
+        {"entity_id": "binary_sensor.hub_d1", "device_id": "dev-hub"},
+        {"entity_id": "binary_sensor.hub_d2", "device_id": "dev-hub"},
+    ]
+    states = {
+        "lock.hub_l1": {"state": "locked", "attributes": {"friendly_name": "Front Lock"}},
+        "lock.hub_l2": {"state": "locked", "attributes": {"friendly_name": "Back Lock"}},
+        "binary_sensor.hub_d1": {"state": "off", "attributes": {"friendly_name": "Front Door", "device_class": "door"}},
+        "binary_sensor.hub_d2": {"state": "off", "attributes": {"friendly_name": "Back Door", "device_class": "door"}},
+    }
+    out = _run_pipeline_script(tmp_path, _door_lock_pairing_script(ent_reg, states))
+    assert out == {}, out
+
+
+def test_a_cover_can_pair_with_a_lock_too(tmp_path):
+    """A garage door opener (cover.*) is an "opening" the same way a
+    binary_sensor door contact is — its own state IS the open/closed
+    reading — so a co-located lock on the same device pairs the same way."""
+    ent_reg = [
+        {"entity_id": "cover.side_garage_door", "device_id": "dev-sidegarage"},
+        {"entity_id": "lock.side_garage_lock", "device_id": "dev-sidegarage"},
+    ]
+    states = {
+        "cover.side_garage_door": {"state": "closed", "attributes": {"friendly_name": "Side Garage Door"}},
+        "lock.side_garage_lock": {"state": "locked", "attributes": {"friendly_name": "Side Garage Lock"}},
+    }
+    out = _run_pipeline_script(tmp_path, _door_lock_pairing_script(ent_reg, states))
+    assert out == {"cover.side_garage_door": "lock.side_garage_lock"}, out
+
+
 def test_two_motion_zones_sharing_one_occupancy_names_room_stay_unpaired(tmp_path):
     """Isolates the exact-one-of-each-class rule on its own: TWO motion
     entities that both share a name root with ONE occupancy entity, all

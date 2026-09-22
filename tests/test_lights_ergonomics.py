@@ -245,6 +245,51 @@ console.log(JSON.stringify({ cardOpened: document.body.children.length > 0 }));
     assert out["cardOpened"] is True, "a click on the barrier hit path must open its card"
 
 
+def test_open_barrier_card_shows_a_paired_locks_control_and_leads_with_open(tmp_path):
+    """Garry, 2026-09-22: "then the new card could have a lock control on
+    it if the door has a smart lock" — the merge researched and built
+    after the click-to-open feature above: computeDoorLockPairs finds the
+    lock, openBarrierCard shows BOTH. State priority follows the research
+    (Home Assistant community pattern for combining a lock + door sensor
+    into one card): the LEAST secure fact leads — an open door says "Open"
+    regardless of lock state, only a closed door lets the lock's own state
+    lead the headline."""
+    out = _run(tmp_path, r"""
+const hass = {
+  states: {
+    "binary_sensor.front_door": { state: "on", attributes: { friendly_name: "Front Door" } },
+    "lock.front_door_lock": { state: "locked", attributes: { friendly_name: "Front Door Lock" } },
+  },
+  callService: async () => {},
+};
+const api = { doorLockMap: { "binary_sensor.front_door": "lock.front_door_lock" }, toast: () => {}, rerender: () => {} };
+const bar = { linked_entity_id: "binary_sensor.front_door", name: "Front Door" };
+LM.openBarrierCard(hass, bar, api);
+const openText = document.body.textContent;
+const openButtons = document.body.querySelectorAll("button").map(b => b.textContent);
+while (document.body.children.length) document.body.removeChild(document.body.children[0]);
+
+hass.states["binary_sensor.front_door"].state = "off";
+LM.openBarrierCard(hass, bar, api);
+const closedLockedText = document.body.textContent;
+while (document.body.children.length) document.body.removeChild(document.body.children[0]);
+
+hass.states["lock.front_door_lock"].state = "unlocked";
+LM.openBarrierCard(hass, bar, api);
+const closedUnlockedText = document.body.textContent;
+const closedUnlockedButtons = document.body.querySelectorAll("button").map(b => b.textContent);
+
+console.log(JSON.stringify({ openText, openButtons, closedLockedText, closedUnlockedText, closedUnlockedButtons }));
+""")
+    assert "Open" in out["openText"], out["openText"]
+    assert "Closed" not in out["openText"], "an open door must not also claim to be closed"
+    assert any("Lock" in b or "Unlock" in b for b in out["openButtons"]), \
+        "the lock control must still show even while the door is open"
+    assert "Closed" in out["closedLockedText"] and "Locked" in out["closedLockedText"], out["closedLockedText"]
+    assert "Closed" in out["closedUnlockedText"] and "Unlocked" in out["closedUnlockedText"], out["closedUnlockedText"]
+    assert "Lock" in out["closedUnlockedButtons"], "closed-and-unlocked must offer a Lock button"
+
+
 # ── Weekly activity calendar (motion) ────────────────────────────────────────
 
 def test_motion_weekly_grid_buckets_intervals_into_local_hours(tmp_path):

@@ -346,6 +346,9 @@ class PadSpanLightsApp extends HTMLElement {
       setMany:(eids,on)=>this._setMany(eids,on),
       toast:(m,e)=>this._toast(m,e),
       rerender:()=>this._render(),
+      // Barrier card's paired-lock lookup (computeDoorLockPairs) — same
+      // registry fetch as everything else in _regStore, no extra round trip.
+      doorLockMap: this._regStore?.reg?.doorLockMap || {},
       floodLatches: this.state._floodLatches || {},
       onFloodReset: (eid)=>{
         this._hass.callWS({ type: "padspan_ha/flood_reset", entity_id: eid })

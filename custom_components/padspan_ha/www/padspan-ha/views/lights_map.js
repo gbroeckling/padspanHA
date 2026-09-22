@@ -1430,6 +1430,33 @@ export function openControlCard(hass, eid, api){
   document.body.appendChild(overlay);
 }
 
+// The Lock/Unlock button + jammed note, factored out because the barrier
+// card below needs it in two different shapes: a barrier linked STRAIGHT
+// to a lock (no separate opening entity at all — the original, simpler
+// case), and a barrier linked to a plain opening sensor that HAPPENS to
+// have a paired lock (computeDoorLockPairs) on the same physical unit.
+function _lockControlBlock(el, hass, lockEid, lockSt, { toast, rerender, close }){
+  const nodes = [];
+  const on = lockSt.state === "locked";
+  nodes.push(el("button", {
+    style: "width:100%;margin-bottom:6px;padding:10px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;"
+      + "letter-spacing:.02em;"
+      + (on ? "background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#111827;border:1px solid rgba(255,255,255,.25);box-shadow:0 0 18px rgba(251,191,36,.35);"
+            : "background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);"),
+    onclick: async () => {
+      const svc = on ? "unlock" : "lock";
+      setOptimistic(lockEid, on ? "unlocked" : "locked");
+      try { await hass.callService("lock", svc, { entity_id: lockEid }); } catch (e) { clearOptimistic(lockEid); toast("Could not " + svc, true); }
+      close();
+      setTimeout(rerender, 400);
+    },
+  }, on ? "Unlock" : "Lock"));
+  if (lockSt.state === "jammed") {
+    nodes.push(el("div", { style: "font-size:12px;color:#f87171;margin-bottom:6px" }, "⚠ Lock is jammed"));
+  }
+  return nodes;
+}
+
 // ── The door/window/lock barrier card ───────────────────────────────────────
 // A barrier is a section of WALL, not an entity of its own — bar.invert_state
 // flips the open/closed reading for just ONE barrier (the Upper Garage Car
@@ -1437,9 +1464,17 @@ export function openControlCard(hass, eid, api){
 // just the linked entity id, and computes the exact same reading the map
 // itself draws (iso_lights.js's barrier pass). lock.* and cover.* are the
 // only two domains with a real service to call; a plain binary_sensor
-// contact has nothing to open or close remotely — it says so instead of
-// showing a button that would just fail, same spirit as the read-only
-// motion/temperature/air-quality tiles elsewhere on this map.
+// contact has nothing to open or close remotely — it says so, UNLESS the
+// same physical unit also has a paired lock (api.doorLockMap, Garry,
+// 2026-09-22: "the new card could have a lock control on it if the door
+// has a smart lock"), in which case that gets its own button here too —
+// researched first: a lock+door-sensor combined into one card is a
+// recurring want in the Home Assistant community with no core answer,
+// and the couple of floor-plan cards that DO combine them pair by the
+// same physical opening, same as this does. State priority follows the
+// same research: an OPEN reading leads regardless of lock state (the
+// least-secure fact first) — the lock only gets to lead the headline
+// once the door is actually closed.
 export function openBarrierCard(hass, bar, api){
   if (!hass || !bar || !bar.linked_entity_id) return;
   const eid = bar.linked_entity_id;
@@ -1449,6 +1484,14 @@ export function openBarrierCard(hass, bar, api){
   const toast = api && api.toast ? api.toast : () => {};
   const rerender = api && api.rerender ? api.rerender : () => {};
   const domain = String(eid).split(".")[0];
+  const isLockDomain = domain === "lock";
+  // Only looked up when the barrier's OWN link isn't already a lock —
+  // that's the simpler, older case, untouched. Unverified against real
+  // hardware: Garry has neither a lock.* nor a cover.* entity in his real
+  // house yet, so doorLockMap can only ever be exercised by a synthetic
+  // registry today (see its own tests) or a future real install.
+  const lockEid = !isLockDomain && api && api.doorLockMap ? api.doorLockMap[eid] : null;
+  const lockSt = lockEid ? hass.states[lockEid] : null;
 
   const overlay = document.createElement("div");
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10000;"
@@ -1470,16 +1513,20 @@ export function openBarrierCard(hass, bar, api){
     el("button", { style: smallBtn + ";margin-left:auto", onclick: close }, "✕"),
   ]));
 
-  const isLockDomain = domain === "lock";
   let stateLabel, isAlert;
   if (isLockDomain) {
     stateLabel = st.state === "locked" ? "Locked" : st.state === "jammed" ? "Jammed" : "Unlocked";
     isAlert = st.state !== "locked";
   } else {
-    const rawOn = st.state === "on";
-    const isOpen = bar.invert_state ? !rawOn : rawOn;
-    stateLabel = isOpen ? "Open" : "Closed";
-    isAlert = isOpen;
+    const isOpen = domain === "cover" ? st.state === "open" : (bar.invert_state ? st.state !== "on" : st.state === "on");
+    if (isOpen) {
+      stateLabel = "Open"; isAlert = true;
+    } else if (lockSt) {
+      stateLabel = lockSt.state === "locked" ? "Closed & Locked" : lockSt.state === "jammed" ? "Closed — Lock Jammed" : "Closed, Unlocked";
+      isAlert = lockSt.state !== "locked";
+    } else {
+      stateLabel = "Closed"; isAlert = false;
+    }
   }
   box.appendChild(el("div", {
     style: "display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;"
@@ -1489,24 +1536,9 @@ export function openBarrierCard(hass, bar, api){
         : "color:#86efac;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.4)"),
   }, stateLabel));
 
+  const lockCtx = { toast, rerender, close };
   if (isLockDomain) {
-    const on = st.state === "locked";
-    box.appendChild(el("button", {
-      style: "width:100%;margin-bottom:6px;padding:10px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;"
-        + "letter-spacing:.02em;"
-        + (on ? "background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#111827;border:1px solid rgba(255,255,255,.25);box-shadow:0 0 18px rgba(251,191,36,.35);"
-              : "background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);"),
-      onclick: async () => {
-        const svc = on ? "unlock" : "lock";
-        setOptimistic(eid, on ? "unlocked" : "locked");
-        try { await hass.callService("lock", svc, { entity_id: eid }); } catch (e) { clearOptimistic(eid); toast("Could not " + svc, true); }
-        close();
-        setTimeout(rerender, 400);
-      },
-    }, on ? "Unlock" : "Lock"));
-    if (st.state === "jammed") {
-      box.appendChild(el("div", { style: "font-size:12px;color:#f87171;margin-bottom:6px" }, "⚠ Lock is jammed"));
-    }
+    for (const n of _lockControlBlock(el, hass, eid, st, lockCtx)) box.appendChild(n);
   } else if (domain === "cover") {
     const state = st.state; // open | closed | opening | closing
     const busy = state === "opening" || state === "closing";
@@ -1524,9 +1556,14 @@ export function openBarrierCard(hass, bar, api){
         setTimeout(rerender, 400);
       },
     }, busy ? (state === "opening" ? "Opening…" : "Closing…") : (isOpen ? "Close" : "Open")));
-  } else {
+  } else if (!lockSt) {
     box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5" },
       "This is a plain contact sensor — it reports state only, there's no way to open or close it remotely."));
+  }
+
+  if (lockSt) {
+    box.appendChild(el("div", { style: "font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px" }, "Lock"));
+    for (const n of _lockControlBlock(el, hass, lockEid, lockSt, lockCtx)) box.appendChild(n);
   }
 
   overlay.appendChild(box);
@@ -1620,6 +1657,64 @@ export function computeMotionOccupancyPairs(entReg, states){
     pairMap[o.eid] = m.eid;
   }
   return pairMap;
+}
+
+// Same shape, same hazard, one domain swapped in for the other: a barrier
+// (Atlas door/window card) can only ever LINK to one entity, but a real
+// door often has TWO — a plain contact reporting open/closed, and,
+// separately, a smart lock reporting locked/unlocked. Garry, 2026-09-22:
+// "the new card could have a lock control on it if the door has a smart
+// lock" — researched first (HA community threads on combining a lock +
+// door-sensor into one card is a recurring, unsolved-by-core-HA request;
+// the couple of floor-plan cards that DO show both do it exactly this way,
+// pairing by the same physical opening). Reusing computeMotionOccupancyPairs'
+// exact two-part safety rule rather than a lighter version of it: Garry's
+// OWN real alarm panel (device_id "dev-alarm", entities alarm_di1..4) is
+// the live proof the hazard is real here too — one device_id, several
+// unrelated door/window zones for different rooms. A lock domain entity
+// sharing that SAME device_id (an "arm/disarm" virtual lock some alarm
+// integrations expose, say) must never get paired with a zone that just
+// happens to sit on the same panel.
+//   1. STRUCTURE: exactly one "opening" entity (binary_sensor door/window/
+//      garage_door/opening, or a cover) and exactly one lock, per device.
+//   2. NAMING: same root once "lock"/"door"/"window"/"contact"/"sensor"
+//      are stripped, so a hub's unrelated names never coincide by luck.
+// Auto-pairing only ever helps when the lock and its sensor are the SAME
+// physical unit (an integrated smart lock reporting both facets, e.g.
+// August/Schlage/Yale/Level via their official integration) — Garry has
+// none of either domain in his real house yet, so this is unverified
+// against real hardware; a lock and sensor from two different products
+// share no device_id and this deliberately finds nothing for that case.
+function _doorLockNameRoot(name){
+  return String(name || "").toLowerCase()
+    .replace(/\b(lock|door|window|contact|sensor|opening)\b/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+const _OPENING_CLASSES = new Set(["door", "window", "garage_door", "opening"]);
+export function computeDoorLockPairs(entReg, states){
+  const byDevice = {};
+  for (const e of (entReg || [])) {
+    if (!e.device_id) continue;
+    const isLock = e.entity_id.startsWith("lock.");
+    const isCover = e.entity_id.startsWith("cover.");
+    const st = states && states[e.entity_id];
+    const cls = st && st.attributes && st.attributes.device_class;
+    const isOpening = isCover || (e.entity_id.startsWith("binary_sensor.") && _OPENING_CLASSES.has(cls));
+    if (!isLock && !isOpening) continue;
+    (byDevice[e.device_id] = byDevice[e.device_id] || [])
+      .push({ eid: e.entity_id, facet: isLock ? "lock" : "opening", name: (st && st.attributes && st.attributes.friendly_name) || e.entity_id });
+  }
+  const doorLockMap = {};   // opening eid -> paired lock eid
+  for (const group of Object.values(byDevice)) {
+    const locks = group.filter(g => g.facet === "lock");
+    const openings = group.filter(g => g.facet === "opening");
+    if (locks.length !== 1 || openings.length !== 1) continue;
+    const [lock] = locks, [opening] = openings;
+    const root = _doorLockNameRoot(lock.name);
+    if (!root || root !== _doorLockNameRoot(opening.name)) continue;
+    doorLockMap[opening.eid] = lock.eid;
+  }
+  return doorLockMap;
 }
 
 // Brand column resolution (Garry, 2026-09-08: "why are you not seeing the
@@ -1749,7 +1844,8 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         // Same registry fetch, no extra round trip — hass.states is already
         // in hand for the device_class/name each pairing decision needs.
         const pairMap = computeMotionOccupancyPairs(reg, hass.states);
-        store.reg = { ts: Date.now(), areaMap, platformMap, manufacturerMap, ipMap, pairMap };
+        const doorLockMap = computeDoorLockPairs(reg, hass.states);
+        store.reg = { ts: Date.now(), areaMap, platformMap, manufacturerMap, ipMap, pairMap, doorLockMap };
         store.retryAfter = 0;
       } catch (_) {
         // A failed fetch must never become the authoritative answer. With a
@@ -1757,7 +1853,7 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         // stay in the loading state (the map keeps its placeholder) instead of
         // caching an empty areaMap for 60s, which would tell the user every
         // light in the house has no room.
-        if (store.reg) store.reg = { ts: Date.now(), areaMap: store.reg.areaMap, platformMap: store.reg.platformMap, manufacturerMap: store.reg.manufacturerMap, ipMap: store.reg.ipMap, pairMap: store.reg.pairMap };
+        if (store.reg) store.reg = { ts: Date.now(), areaMap: store.reg.areaMap, platformMap: store.reg.platformMap, manufacturerMap: store.reg.manufacturerMap, ipMap: store.reg.ipMap, pairMap: store.reg.pairMap, doorLockMap: store.reg.doorLockMap };
         else store.retryAfter = Date.now() + 10000;
       } finally {
         store.loading = false;
@@ -1771,6 +1867,7 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
     manufacturerMap: store.reg ? store.reg.manufacturerMap || {} : {},
     ipMap: store.reg ? store.reg.ipMap || {} : {},
     pairMap: store.reg ? store.reg.pairMap || {} : {},
+    doorLockMap: store.reg ? store.reg.doorLockMap || {} : {},
     loading: !store.reg,
   };
 }

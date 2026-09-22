@@ -7598,7 +7598,8 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
       const wasArmed = armed; armed = false; clear();
       if (!wasArmed) {
         const bar = ((o.model && o.model.rf_barriers_m) || []).find(b => b.linked_entity_id === heid);
-        if (bar) openBarrierCard(ctx.hass, bar, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms() });
+        if (bar) openBarrierCard(ctx.hass, bar, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms(),
+          doorLockMap: ctx.state._lightsRegStore?.reg?.doorLockMap || {} });
         return;
       }
       o.mapState._focusRow = heid;
@@ -8677,6 +8678,7 @@ function _lightsTab(ctx, maps, active) {
       ip: ctx.state._lightsRegStore?.reg?.ipMap?.[eid] || null }),
     openActivity: (eid) => openActivityCalendar(ctx.hass, eid),
     setMany: (eids, on) => setManyStates(ctx.hass, eids, on, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms() }),
+    doorLockMap: ctx.state._lightsRegStore?.reg?.doorLockMap || {},
     floodLatches: (ctx.state.settings && ctx.state.settings.flood_latches) || {},
     onFloodReset: (eid) => {
       ctx.actions.wsCall("padspan_ha/flood_reset", { entity_id: eid })
