@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.65 — The Atlas map's dead space, for real this time (2026-09-22)
+
+### Atlas
+- **Fixed:** both Atlas screens (Mapping → Atlas and the sidebar Atlas panel) were still drawing the house small and centered, with a lot of empty canvas down both sides — the thing v0.38.57–v0.38.64 kept trying to fix from the outside in. Two separate causes, both closed out now: the map's own internal scale picked whichever of width-fit or height-fit was smaller (a leftover "contain into a fixed box" formula), so it now scales to width alone, matching the "no height cap" rule the container side already followed; and four sensors had placements 30–40 metres from the house, which forces the map's frame to stretch out to include them — those four are back in the unplaced queue rather than distorting the canvas.
+
+---
+
 ## 0.38.64 — The Presets row's real bug, and the zoomed-in flicker (2026-09-22)
 
 ### Atlas
