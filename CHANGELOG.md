@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.69 — The relay wizard's other entry point, under Atlas's own filter (2026-09-22)
+
+### Atlas
+- **Added:** a "+ Build an opener or lock from relays" button now sits directly under the Light Index's own "Filter the list by device type" pulldown in Mapping → Atlas — the other of the two spots originally asked for (only Devices → Door Openers got built at first). It jumps straight into that same wizard rather than duplicating it.
+
+---
+
 ## 0.38.68 — Build an opener or lock from bare relays (2026-09-22)
 
 ### Atlas / Devices
