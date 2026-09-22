@@ -524,6 +524,44 @@ console.log(JSON.stringify({ foundNotSteelBtn: !!steelBtn1, toggled, foundSteelB
     assert out["foundSteelBtn"], "a linked, already-steel door row must show 'Steel ✓' instead"
 
 
+def test_linked_door_row_offers_an_invert_toggle_reflecting_current_state(tmp_path):
+    """Garry, 2026-09-22: "you need an invert option for the door sensors,
+    since it shows the exact opposite of what's actually going on" — same
+    standing-toggle shape as Steel (this codebase already had invert_state
+    for exactly this, Rooms -> RF Barriers only; now reachable from the
+    row he's actually using): "Invert" when reading normally (click sets
+    it), "Inverted ✓" when already flipped (click clears it)."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const AREA = {"binary_sensor.truck_door": "Garage"};
+const STATES = {
+  "binary_sensor.truck_door": {state: "on", attributes: {friendly_name: "Truck Door", device_class: "door"}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
+let toggled = null;
+
+// Not inverted yet: button reads "Invert", clicking it calls onToggleDoorInvert.
+const notInvertedHost = { el, hiddenEids: new Set(), lightsLoading: false, model: {},
+  doorLinkedIds: new Set(["binary_sensor.truck_door"]), doorInvertByEid: {"binary_sensor.truck_door": false},
+  onConfigureDoor: () => {}, onUnlinkDoor: () => {},
+  onToggleDoorInvert: (l) => { toggled = l.entity_id; } };
+const root1 = LM.buildLightsTable(notInvertedHost, lights);
+const row1 = [...root1.querySelectorAll("tr")].find(r => r.getAttribute("data-eid") === "binary_sensor.truck_door");
+const invertBtn1 = [...row1.querySelectorAll("button")].find(b => b.textContent === "Invert");
+invertBtn1.dispatchEvent({ type: "click", stopPropagation(){} });
+
+// Already inverted: button reads "Inverted ✓" instead.
+const invertedHost = { ...notInvertedHost, doorInvertByEid: {"binary_sensor.truck_door": true} };
+const root2 = LM.buildLightsTable(invertedHost, lights);
+const row2 = [...root2.querySelectorAll("tr")].find(r => r.getAttribute("data-eid") === "binary_sensor.truck_door");
+const invertBtn2 = [...row2.querySelectorAll("button")].find(b => b.textContent === "Inverted \\u2713");
+
+console.log(JSON.stringify({ foundNotInvertedBtn: !!invertBtn1, toggled, foundInvertedBtn: !!invertBtn2 }));
+""")
+    assert out["foundNotInvertedBtn"], "a linked, non-inverted door row must offer an 'Invert' button"
+    assert out["toggled"] == "binary_sensor.truck_door", out
+    assert out["foundInvertedBtn"], "a linked, already-inverted door row must show 'Inverted ✓' instead"
+
+
 def test_linked_door_row_offers_an_opener_picker_that_links_the_choice(tmp_path):
     """Garry, 2026-09-22: "there need to be the ability to link a door
     closer to a door sensor" — a linked door/window row now also offers

@@ -383,6 +383,56 @@ console.log(JSON.stringify({ text, buttons }));
         "the current sensor reading must be shown as context next to a relay's Trigger button"
 
 
+def test_open_barrier_card_script_opener_triggers_via_script_turn_on(tmp_path):
+    """Garry, 2026-09-22: "there is a garage door controller in HA, can you
+    find it" — script.garage_door_car/_truck, a wrapped controller rather
+    than the raw relay underneath it. Same generic Trigger as a switch
+    (its own on/off means running/idle, not open/closed — never Open/
+    Close), but calls script.turn_on, not switch.toggle, and the caption
+    must not claim it presses a relay when it might not."""
+    out = _run(tmp_path, r"""
+const hass = {
+  states: {
+    "binary_sensor.car_door": { state: "off", attributes: { friendly_name: "Car Door" } },
+    "script.garage_door_car": { state: "off", attributes: { friendly_name: "Garage Door - Car" } },
+  },
+  callService: async (domain, svc, data) => { window.__lastCall = [domain, svc, data.entity_id]; },
+};
+const bar = { linked_entity_id: "binary_sensor.car_door", linked_opener_entity_id: "script.garage_door_car", name: "Car Door" };
+LM.openBarrierCard(hass, bar, { toast: () => {}, rerender: () => {} });
+const text = document.body.textContent;
+const buttons = [...document.body.querySelectorAll("button")].map(b => b.textContent);
+const btn = buttons.includes("Trigger") ? [...document.body.querySelectorAll("button")].find(b => b.textContent === "Trigger") : null;
+if (btn) btn.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
+console.log(JSON.stringify({ text, buttons, lastCall: window.__lastCall }));
+""")
+    assert "Trigger" in out["buttons"], out["buttons"]
+    assert "Open" not in out["buttons"] and "Close" not in out["buttons"], out["buttons"]
+    assert "relay" not in out["text"].lower(), "a script's caption must not claim it presses a relay"
+    assert out["lastCall"] == ["script", "turn_on", "script.garage_door_car"], out["lastCall"]
+
+
+def test_open_barrier_card_running_script_opener_shows_busy_and_wont_retrigger(tmp_path):
+    """A script's own state IS meaningful, unlike a switch's — "on" means
+    it is currently running. While running, retriggering it must be
+    refused client-side (mirrors the cover's opening/closing busy state)."""
+    out = _run(tmp_path, r"""
+const hass = {
+  states: {
+    "script.garage_door_car": { state: "on", attributes: { friendly_name: "Garage Door - Car" } },
+  },
+  callService: async () => { window.__called = true; },
+};
+const bar = { linked_opener_entity_id: "script.garage_door_car", name: "Car Door" };
+LM.openBarrierCard(hass, bar, { toast: () => {}, rerender: () => {} });
+const btn = [...document.body.querySelectorAll("button")].find(b => b.textContent === "Running…");
+if (btn) btn.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
+console.log(JSON.stringify({ foundRunningBtn: !!btn, called: !!window.__called }));
+""")
+    assert out["foundRunningBtn"], "a running script opener must show 'Running…', not 'Trigger'"
+    assert out["called"] is False, "clicking while running must not fire a second call"
+
+
 def test_open_barrier_card_opener_only_with_no_sensor_reads_honestly(tmp_path):
     """Garry, 2026-09-22: "we need logic for this to work on an opening
     without a sensor." A barrier with only an opener and no sensor at all

@@ -581,7 +581,15 @@ function normalizeRoom(state) {
 // upper_garage_car_door / switch.upper_garage_truck_door, sitting right
 // next to the two garage-door contact sensors already linked on the map,
 // with no way before now to tie the relay to that same wall opening.
-const _OPENER_DOMAINS = ["cover.", "switch.", "button."];
+//
+// script. joined the list the same day (Garry: "there is a garage door
+// controller in HA, can you find it, there is nothing in the device list")
+// — his own script.garage_door_car/script.garage_door_truck, which is
+// almost certainly the RIGHT thing to trigger (whatever sequencing or
+// safety logic those scripts hold, not just the raw relay underneath
+// them) but was invisible here, cover/switch/button being the only three
+// domains this ever admitted.
+const _OPENER_DOMAINS = ["cover.", "switch.", "button.", "script."];
 const _OPENER_NAME_HINT = /\b(door|gate|garage|opener)\b/i;
 
 function _isDoorOpenersPaidTier(ctx) {
@@ -594,7 +602,7 @@ function _renderDoorOpeners(ctx) {
   const card = el("div", { class: "card" });
   card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:8px" }, "Door / Window Openers"));
   card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-bottom:12px" },
-    "Mark a cover, switch, or button entity as a door/window opener (a garage door, gate, or any other powered opening) so it can be offered and linked from a door/window's own row in Mapping → Atlas, right alongside its sensor and its lock."));
+    "Mark a cover, switch, button, or script entity as a door/window opener (a garage door, gate, or any other powered opening) so it can be offered and linked from a door/window's own row in Mapping → Atlas, right alongside its sensor and its lock."));
 
   if (!_isDoorOpenersPaidTier(ctx)) {
     card.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;background:#2a220a;border:1px solid #78350f;border-radius:8px;padding:10px" },
@@ -631,7 +639,7 @@ function _renderDoorOpeners(ctx) {
 
   if (!candidates.length) {
     card.appendChild(el("div", { style: "font-size:12px;color:#64748b;padding:8px 0" },
-      "No cover, switch, or button entities with “door”, “gate”, “garage”, or “opener” in their name were found. " +
+      "No cover, switch, button, or script entities with “door”, “gate”, “garage”, or “opener” in their name were found. " +
       "Nothing on this install looks like a door/window opener by name — if one exists under a different name, it can still be added from the picker on its wall opening's row in Mapping → Atlas."));
     return card;
   }

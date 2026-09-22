@@ -687,20 +687,24 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     if str(v) in LIGHT_TYPE_OVERRIDE_KINDS and str(k).startswith("light.")
                 }
         if "door_opener_ids" in msg:
-            # A flat allowlist, not a classifier: cover./switch./button. cover
-            # nearly every domain in the house (raw device relays especially
-            # give no reliable hint they open a door rather than run a pump),
-            # so — unlike light_type_overrides' closed vocabulary of forced
-            # CLASSES — this is a closed vocabulary of DOMAINS only, and
-            # membership itself is the entire signal: Garry, 2026-09-22,
-            # confirming two real garage-door relays as the motivating case
-            # ("Upper Garage Car Door"/"Upper Garage Truck Door", switch.*
-            # with no device_class of their own to test against).
+            # A flat allowlist, not a classifier: cover./switch./button./
+            # script. cover nearly every domain in the house (raw device
+            # relays especially give no reliable hint they open a door
+            # rather than run a pump), so — unlike light_type_overrides'
+            # closed vocabulary of forced CLASSES — this is a closed
+            # vocabulary of DOMAINS only, and membership itself is the
+            # entire signal: Garry, 2026-09-22, confirming two real
+            # garage-door relays as the motivating case ("Upper Garage Car
+            # Door"/"Upper Garage Truck Door", switch.* with no
+            # device_class of their own to test against). script. joined
+            # the same day — his own script.garage_door_car/_truck, likely
+            # the CORRECT thing to trigger rather than the raw relay
+            # underneath it, whatever sequencing those scripts do.
             raw = msg["door_opener_ids"]
             if isinstance(raw, list):
                 payload["door_opener_ids"] = sorted({
                     str(eid) for eid in raw
-                    if isinstance(eid, str) and eid.startswith(("cover.", "switch.", "button."))
+                    if isinstance(eid, str) and eid.startswith(("cover.", "switch.", "button.", "script."))
                 })
         if "object_history_days" in msg:
             _days = int(msg["object_history_days"])

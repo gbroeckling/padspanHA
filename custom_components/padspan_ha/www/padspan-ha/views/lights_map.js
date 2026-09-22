@@ -1530,9 +1530,10 @@ function _pickEntityOverlay(title, candidates, onPick){
 // regardless of lock state (the least-secure fact first); the lock only
 // leads once closed; with no sensor AND no self-reporting cover opener,
 // there is genuinely no open/closed reading, and this says so rather than
-// guessing. A switch/button opener gets a plain "Trigger" — its own on/off
-// does not reliably mean open/closed (usually a momentary pulse toggling
-// direction), so it is never labelled Open/Close; the sensor's real
+// guessing. A switch/button/script opener gets a plain "Trigger" — none of
+// the three has a position of its own worth trusting (a relay's on/off is
+// its own transient state, not the door's; a script's on/off means
+// running/idle), so it is never labelled Open/Close; the sensor's real
 // reading is shown as context right beside the button instead.
 export function openBarrierCard(hass, bar, api){
   if (!hass || !bar) return;
@@ -1633,19 +1634,37 @@ export function openBarrierCard(hass, bar, api){
         setTimeout(rerender, 400);
       },
     }, busy ? (state === "opening" ? "Opening…" : "Closing…") : (openerIsOpen ? "Close" : "Open")));
-  } else if (openerSt && (openerDomain === "switch" || openerDomain === "button")) {
+  } else if (openerSt && (openerDomain === "switch" || openerDomain === "button" || openerDomain === "script")) {
+    // Garry, 2026-09-22, finding a real gap: "there is a garage door
+    // controller in HA... nothing in the device list" — script.
+    // garage_door_car/_truck, a wrapped controller (probably the correct
+    // thing to trigger, whatever sequencing it does) rather than the raw
+    // relay underneath it. None of these three domains have a position of
+    // their own worth trusting: a switch/button's on/off is the relay's
+    // own transient state, not the door's; a script's on/off means
+    // "running" or "idle", not open or closed. So this stays a single
+    // generic Trigger for all three — never labelled Open/Close — with
+    // the caption naming what it actually does instead of assuming a
+    // relay specifically.
+    const svc = { switch: "toggle", button: "press", script: "turn_on" }[openerDomain];
+    const running = openerDomain === "script" && openerSt.state === "on";
     box.appendChild(el("button", {
-      style: "width:100%;margin-bottom:4px;padding:10px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;"
-        + "letter-spacing:.02em;background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);",
+      style: "width:100%;margin-bottom:4px;padding:10px;font-weight:700;font-size:13px;border-radius:10px;"
+        + "letter-spacing:.02em;" + (running ? "opacity:.5;cursor:default;" : "cursor:pointer;")
+        + "background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);",
       onclick: async () => {
-        try { await hass.callService(openerDomain, openerDomain === "button" ? "press" : "toggle", { entity_id: openerEid }); }
+        if (running) return;
+        try { await hass.callService(openerDomain, svc, { entity_id: openerEid }); }
         catch (e) { toast("Could not trigger the opener", true); }
         close();
         setTimeout(rerender, 400);
       },
-    }, "Trigger"));
+    }, running ? "Running…" : "Trigger"));
+    const openWord = isOpen === true ? "open" : isOpen === false ? "closed" : "unknown";
+    const doneBy = openerDomain === "script" ? "runs the same script this install's own automations use"
+      : "presses the same relay as the wall button";
     box.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;line-height:1.4;margin-bottom:10px" },
-      `Currently ${isOpen === true ? "open" : isOpen === false ? "closed" : "unknown"} — this presses the same relay as the wall button, so it may open OR close depending on the door's current position.`));
+      `Currently ${openWord} — this ${doneBy}, so it may open OR close depending on the door's current position.`));
   } else if (sensorSt && sensorDomain !== "lock" && !openerEid) {
     box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom: 4px" },
       "This is a plain contact sensor — it reports state only, there's no way to open or close it remotely."));
@@ -3514,6 +3533,18 @@ export function buildLightsTable(host, lights){
                   : "Set this door/window itself to steel (12 dB), independent of the wall it's cut from",
                 onclick: (e) => { e.stopPropagation(); host.onToggleDoorSteel(l); },
               }, isSteel ? "Steel ✓" : "Steel")] : []),
+              // Garry, 2026-09-22: "you need an invert option for the door
+              // sensors, since it shows the exact opposite of what's
+              // actually going on" — same standing-toggle shape as Steel,
+              // now reachable from the row he's actually using instead of
+              // only from Rooms → RF Barriers.
+              ...(host.onToggleDoorInvert ? [el("button", {
+                class: "lv-act" + ((host.doorInvertByEid || {})[l.entity_id] ? " primary" : ""), style: "margin-left:6px",
+                title: (host.doorInvertByEid || {})[l.entity_id]
+                  ? "Reading inverted — click to read it normally again"
+                  : "This sensor reports backwards (e.g. \"on\" actually means closed) — click to flip the reading",
+                onclick: (e) => { e.stopPropagation(); host.onToggleDoorInvert(l); },
+              }, (host.doorInvertByEid || {})[l.entity_id] ? "Inverted ✓" : "Invert")] : []),
               ...(host.onUnlinkDoor ? [el("button", {
                 class: "lv-act", style: "margin-left:6px",
                 title: "Unlink from that wall section — the wall itself is left in place; Place then reappears here",
@@ -3539,7 +3570,7 @@ export function buildLightsTable(host, lights){
                 if (!host.onLinkDoorOpener) return [];
                 return [el("button", {
                   class: "lv-act", style: "margin-left:6px",
-                  title: "Link the opener (a cover, switch, or button marked in Devices → Door Openers) that moves this same opening",
+                  title: "Link the opener (a cover, switch, button, or script marked in Devices → Door Openers) that moves this same opening",
                   onclick: (e) => {
                     e.stopPropagation();
                     _pickEntityOverlay(`Opener for ${l.friendly_name || l.entity_id}`, host.doorOpenerCandidates || [],

@@ -9078,6 +9078,9 @@ function _lightsTab(ctx, maps, active) {
     // toggle below — keyed the same way doorLinkedIds is.
     doorMaterialByEid: Object.fromEntries((ctx.state.model?.rf_barriers_m || [])
       .filter(b => b.linked_entity_id).map(b => [b.linked_entity_id, b.material])),
+    // Same, for the row's own Invert toggle.
+    doorInvertByEid: Object.fromEntries((ctx.state.model?.rf_barriers_m || [])
+      .filter(b => b.linked_entity_id).map(b => [b.linked_entity_id, !!b.invert_state])),
     // The opener/lock ALSO tied to this same wall opening (Garry,
     // 2026-09-22: "three things need a logical link... all of these sit on
     // the opening" — the barrier IS that opening, so these two new fields
@@ -9175,6 +9178,25 @@ function _lightsTab(ctx, maps, active) {
           barrier: { ...bar, material: toSteel ? "metal" : "custom", attenuation_dbm: toSteel ? 12 : 6 } });
         await ctx.actions.modelRefresh();
         ctx.toast(toSteel ? "Set to steel (12 dB)." : "No longer steel (6 dB).");
+      } catch (e) { ctx.toast("Could not update: " + (e.message || e), true); }
+      ctx.actions.renderRooms();
+    } : null,
+    // Garry, 2026-09-22: "you need an invert option for the door sensors,
+    // since it shows the exact opposite of what's actually going on" — the
+    // Rooms → RF Barriers editor has had an Invert toggle for a while
+    // (bar.invert_state, since the Upper Garage Car Door Contact's own
+    // reversed wiring), but reaching it meant leaving the Atlas row and
+    // re-finding the same wall over there. Same standing-toggle shape as
+    // Steel, right beside it, on the surface Garry's actually using.
+    onToggleDoorInvert: paid && !preview ? async (l) => {
+      const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.linked_entity_id === l.entity_id);
+      if (!bar) { ctx.toast("That link no longer exists.", true); return; }
+      const inverted = !bar.invert_state;
+      try {
+        await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set",
+          barrier: { ...bar, invert_state: inverted } });
+        await ctx.actions.modelRefresh();
+        ctx.toast(inverted ? "Reading inverted." : "Reading no longer inverted.");
       } catch (e) { ctx.toast("Could not update: " + (e.message || e), true); }
       ctx.actions.renderRooms();
     } : null,
