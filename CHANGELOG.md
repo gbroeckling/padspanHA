@@ -4,6 +4,15 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.64 — The Presets row's real bug, and the zoomed-in flicker (2026-09-22)
+
+### Atlas
+- **Fixed:** the Presets / Whole House row was still wrapping to 3+ lines per bar. Root cause: a global `input[type="text"]{width:100%}` rule outweighs a plain class in CSS specificity, so the "save as" name field's own `width:150px` silently lost that fight and rendered at nearly the bar's full width, shoving Save/Delete onto their own line every time. Both bars now genuinely fit on one line each.
+- **Fixed:** a visible flicker/jump when zoomed in, worst on every ~5s poll rebuild — the pan-position restore (v0.38.60/61) ran on a `setTimeout`, which still leaves the browser a chance to paint one frame at the wrong (0,0) scroll position first; at high zoom that's a full jump to the top-left corner, which could read as content getting shoved to the sides. Switched to `queueMicrotask`, which is guaranteed to run before the next paint — nothing left to flash.
+- **Removed:** a ResizeObserver left over from the old height-fitting code that no longer did anything (width and height are both plain CSS now) but still re-ran on every resize.
+
+---
+
 ## 0.38.63 — Atlas map sizing settled, zoom saved, presets side by side (2026-09-22)
 
 ### Atlas

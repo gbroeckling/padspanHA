@@ -1992,16 +1992,6 @@ export function buildLightsMapCard(hostIn){
   // map from side to side, because the SVG was pinned to its natural size.
   const isoDiv = document.createElement("div");
   isoDiv.className = "lv-stage";
-  // Same flash, different dimension: V2's height cap (below, in applyZoom)
-  // can only be MEASURED once this card is attached and laid out, so a
-  // freshly rebuilt isoDiv started every poll cycle with NO maxHeight at
-  // all — full, unconstrained natural height — until the deferred
-  // applyZoom() call landed a moment later and collapsed it down to the
-  // fitted size. Every poll tick, every ~5s: a visible snap from tall to
-  // fitted (Garry: "a visible flash on the screen every 5 seconds").
-  // Seeding the LAST computed height synchronously, right now, means the
-  // very first paint already matches what applyZoom would have set —
-  // nothing to visibly collapse into once the real measurement runs.
   // Pan position, mirrored into view (the same persistent object zoom
   // already lives on) so it survives a full rebuild of this card, not just
   // an in-place rebuildISO() — the whole card (this isoDiv included) is
@@ -2877,50 +2867,40 @@ export function buildLightsMapCard(hostIn){
     isoDiv.addEventListener("pointerdown", () => { if (view.drawer) setDrawer(view.drawer); });
   }
   mapCard.appendChild(isoDiv);
-  if (V2 && typeof ResizeObserver !== "undefined") new ResizeObserver(() => applyZoom()).observe(isoDiv);
   const legend = buildShapeLegend(el, Object.values(host.lightsByEid));
   if (legend) mapCard.appendChild(legend);
   rebuildISO();
   // Restore the pan position a previous rebuild of this same card saved
   // (see the scroll listener above) — skipped on the very first-ever
   // mount, where there is nothing to restore yet and 0,0 is already
-  // correct. Real browsers clamp an out-of-range scrollLeft/scrollTop to
-  // the content's own current bounds, so this is safe even if the drawing
-  // shrank since the value was saved.
+  // correct.
   //
   // mapCard is still DETACHED here — the caller appends the div this
-  // function returns into the live document only after it gets it back.
-  // Setting scrollLeft/scrollTop on an element with no layout box yet is a
-  // silent no-op, so every poll-driven rebuild (both Atlas hosts rebuild
-  // the whole card from scratch on their ~5s timer) was quietly dropping
-  // the user's pan position back to 0,0 the moment it redrew — "the
-  // position of the map keeps resetting after 5-10 seconds." Deferred one
-  // frame so it runs after the caller's synchronous appendChild.
+  // function returns into the live document only after it gets it back —
+  // and setting scrollLeft/scrollTop on a detached element (scrollWidth/
+  // clientWidth both 0) doesn't just silently no-op, it actively CLAMPS
+  // whatever was asked for down to 0 at the moment of assignment; the
+  // value doesn't become "pending" and pick up correctly once attached.
   //
-  // V2 also fits the drawing to the screen via a ResizeObserver, which
-  // only gets real numbers once isoDiv is attached — same frame this
-  // restore runs in, order unspecified between the two. If that fit lands
-  // AFTER this restore, its width change can shrink scrollWidth out from
-  // under the position just set, clamping it down — a slow drift toward
-  // 0,0 across repeated poll rebuilds ("keeps getting moved to some
-  // useless position"), and each rebuild both re-fitting AND re-clamping
-  // is exactly what reads as the map "getting smaller" over time too.
-  // Calling applyZoom() explicitly, synchronously, right before restoring
-  // — rather than trusting the observer to have already run — makes the
-  // fit settle first in EVERY case, so the restore always lands on final,
-  // stable bounds instead of racing whichever happens to fire second.
-  //
-  // setTimeout, not requestAnimationFrame: this Atlas panel is often a
-  // wall-kiosk tab that is not always the OS's frontmost/focused window,
-  // and Chrome fully suspends rAF (indefinitely, not just throttled) in a
-  // backgrounded tab — the restore would then silently never run at all,
-  // which reproduces as this exact bug. setTimeout still fires there.
+  // v0.38.60/61 deferred this via setTimeout, which reliably ran AFTER
+  // the caller's own appendChild (JS between the two is one uninterrupted
+  // script, so attachment always finishes first) — but setTimeout is a
+  // MACROtask, and the browser gets a chance to paint a frame between the
+  // end of the current script and the next macrotask running. That frame
+  // paints at scrollLeft/scrollTop 0. At 100% zoom that's a small, easy
+  // to miss jump; zoomed in — where the drawing is far wider than the
+  // stage — it's a full jump to the top-left corner, reading as "flicker"
+  // or "everything gets pushed to the sides" (Garry). queueMicrotask
+  // instead: microtasks are guaranteed to drain BEFORE the next paint, no
+  // exceptions, so there is no frame left for the wrong position to ever
+  // be visible in — and unlike requestAnimationFrame, they still run in a
+  // backgrounded tab (this Atlas panel is routinely a wall-kiosk tab that
+  // isn't always the OS's focused window).
   if (view.scrollLeft !== undefined || view.scrollTop !== undefined) {
-    setTimeout(() => {
-      applyZoom();
+    queueMicrotask(() => {
       if (view.scrollLeft !== undefined) isoDiv.scrollLeft = view.scrollLeft;
       if (view.scrollTop !== undefined) isoDiv.scrollTop = view.scrollTop;
-    }, 0);
+    });
   }
   return mapCard;
 }

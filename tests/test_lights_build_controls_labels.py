@@ -175,18 +175,26 @@ def test_pan_position_survives_a_full_rebuild_of_the_card(tmp_path):
     object zoom already lives on) now carries the pan position across
     rebuilds too.
 
-    2026-09-21 correction, still live despite this test passing: the
-    restore ran synchronously inside buildLightsMapCard, before the
-    caller's own appendChild puts the returned card into the real
+    2026-09-21/22 correction, still live despite this test passing twice
+    over: the restore ran synchronously inside buildLightsMapCard, before
+    the caller's own appendChild puts the returned card into the real
     document — setting scrollLeft/scrollTop on an element with no layout
-    box yet is a silent no-op in a real browser, so every poll rebuild was
-    still dropping the pan back to 0,0. This shim doesn't model that
-    attached-vs-detached distinction (a bare assignment "works" here
-    either way), which is exactly how the original bug passed this test
-    while still reproducing live. The fix defers the restore one
-    requestAnimationFrame so it runs after attachment; card2 is now
-    actually appended to the document, and the frame is flushed, to
-    exercise the real order of operations as closely as this harness can."""
+    box yet doesn't just no-op, it actively CLAMPS the value to 0 at
+    assignment time, so every poll rebuild was still dropping the pan
+    back to 0,0. This shim doesn't model that attached-vs-detached
+    distinction (a bare assignment "works" here either way), which is
+    exactly how the original bug passed this test while still reproducing
+    live. Deferring via requestAnimationFrame (then setTimeout, after rAF
+    turned out to be fully suspended in a backgrounded kiosk tab) fixed
+    the VALUE but not the flicker: both are macrotask-adjacent, and the
+    browser gets to paint a frame at scrollLeft 0 in the gap before either
+    runs — small and easy to miss at 100% zoom, a full jump to the
+    top-left corner once zoomed in. queueMicrotask instead: microtasks are
+    guaranteed to drain before the next paint, so there is no frame left
+    for 0,0 to ever be visible in, and they still run in a backgrounded
+    tab. card2 is actually appended to the document, and flush() drains
+    the microtask queue, to exercise the real order of operations as
+    closely as this harness can."""
     out = _run(_EL_JS + (
         f"const MODEL={json.dumps(_MODEL)};\n"
         "const view = { floorGap: 150, horizGap: 0, focusIdx: 0, zoom: 1 };\n"
