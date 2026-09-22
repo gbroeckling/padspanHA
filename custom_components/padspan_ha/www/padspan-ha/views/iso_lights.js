@@ -2285,13 +2285,21 @@ export function fabricFrame(model, floors, floorGap, horizGap){
     minU=-(sX+sY)/2; maxU=(sX+sY)/2; minV=-(sX+sY)/2; maxV=(sX+sY)/2;
   }
   const spanU = Math.max(0.001, maxU-minU);
-  const spanV = Math.max(0.001, maxV-minV);
   // Recentre on the DRAWN shape. Without this the projection is centred on the
   // metre bbox centre, which lands off to one side whenever the footprint is
   // not symmetric — the uneven margins above.
   const uMid = (minU+maxU)/2, vMid = (minV+maxV)/2;
 
-  const S = Math.min((W-90)/(spanU*0.866), (BASE_H-260)/(spanV*0.5));
+  // Width alone, not Math.min(widthFit, heightFit). The min() was a "contain"
+  // fit into a fixed 760x940 box — for a spread-out multi-floor stack (tall
+  // spanV) the HEIGHT branch won, scaling the whole drawing down so it used
+  // less than the full W-90 width even though nothing forced that: this is
+  // the same "dead space either side" the container/CSS side of this file
+  // already stopped doing (search "NO height cap" below) — the SVG's own
+  // internal scale was still doing it one layer deeper. Height has no cap
+  // downstream (viewY/HTOTAL/LEGEND_Y0 all measure real drawn extent, not a
+  // fixed BASE_H), so there is nothing left that needs height to stay small.
+  const S = (W-90)/(spanU*0.866);
 
   // Floors are STACKED, not scattered. These floors do not share a footprint
   // in the metre frame — each was built in its own band (upper y≈-21..6, main
