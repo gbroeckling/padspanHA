@@ -4,6 +4,15 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.66 — Click a door/window/lock line on the Atlas map (2026-09-22)
+
+### Atlas
+- **Added:** click a door/window/lock line on either Atlas screen (the sidebar panel, and Mapping → Atlas' own "Preview as sidebar" mode) to open a card showing whether it's open or closed, with a button to open/close or lock/unlock it when the linked entity actually supports that. A plain contact sensor (all of today's real doors) says so honestly instead of showing a button that would just fail. Bright/Pro only, same gate as every other placement/editing feature on this map.
+- **Added:** when a door has a smart lock, its card shows the lock's own state and a Lock/Unlock button too, found automatically when the lock and the door sensor are the same physical device (an integrated smart lock reporting both). An open door always leads the card regardless of lock state; a closed door shows "Closed & Locked" or "Closed, Unlocked".
+- The builder's editing-mode hold-to-jump-to-index-row gesture on these lines is unchanged; a plain tap there (previously a no-op) now opens the same card.
+
+---
+
 ## 0.38.65 — The Atlas map's dead space, for real this time (2026-09-22)
 
 ### Atlas
