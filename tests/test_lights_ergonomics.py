@@ -290,6 +290,95 @@ console.log(JSON.stringify({ openText, openButtons, closedLockedText, closedUnlo
     assert "Lock" in out["closedUnlockedButtons"], "closed-and-unlocked must offer a Lock button"
 
 
+def test_open_barrier_card_explicit_opener_gets_real_open_close(tmp_path):
+    """Garry, 2026-09-22: "three things need a logical link... all of these
+    sit on the opening" — bar.linked_opener_entity_id is a SEPARATE field
+    from the sensor now, not just the barrier's own link being a cover. A
+    cover opener gets the real open_cover/close_cover control, same as
+    before, just sourced from the new field."""
+    out = _run(tmp_path, r"""
+const hass = {
+  states: {
+    "binary_sensor.side_door": { state: "off", attributes: { friendly_name: "Side Door" } },
+    "cover.side_gate": { state: "closed", attributes: { friendly_name: "Side Gate Motor" } },
+  },
+  callService: async () => {},
+};
+const bar = { linked_entity_id: "binary_sensor.side_door", linked_opener_entity_id: "cover.side_gate", name: "Side Door" };
+LM.openBarrierCard(hass, bar, { toast: () => {}, rerender: () => {} });
+const text = document.body.textContent;
+const buttons = document.body.querySelectorAll("button").map(b => b.textContent);
+console.log(JSON.stringify({ text, buttons }));
+""")
+    assert "Closed" in out["text"], out["text"]
+    assert "Open" in out["buttons"], "a cover opener must show a real Open button, not a generic Trigger"
+
+
+def test_open_barrier_card_switch_opener_gets_a_generic_trigger_with_context(tmp_path):
+    """A relay switch's own on/off does not reliably mean the door is open
+    or closed (usually a momentary pulse toggling direction each press),
+    so it must never be labelled Open/Close — just "Trigger", with the
+    real sensor reading shown as context. Garry's own real case:
+    switch.upper_garage_truck_door next to its already-linked sensor."""
+    out = _run(tmp_path, r"""
+const hass = {
+  states: {
+    "binary_sensor.truck_door": { state: "on", attributes: { friendly_name: "Truck Door" } },
+    "switch.upper_garage_truck_door": { state: "off", attributes: { friendly_name: "Upper Garage Truck Door" } },
+  },
+  callService: async () => {},
+};
+const bar = { linked_entity_id: "binary_sensor.truck_door", linked_opener_entity_id: "switch.upper_garage_truck_door", name: "Truck Door" };
+LM.openBarrierCard(hass, bar, { toast: () => {}, rerender: () => {} });
+const text = document.body.textContent;
+const buttons = document.body.querySelectorAll("button").map(b => b.textContent);
+console.log(JSON.stringify({ text, buttons }));
+""")
+    assert "Trigger" in out["buttons"], out["buttons"]
+    assert "Open" not in out["buttons"] and "Close" not in out["buttons"], \
+        "a relay opener must never be labelled Open/Close — its own state doesn't reliably mean either"
+    assert "open" in out["text"].lower() and "relay" in out["text"].lower(), \
+        "the current sensor reading must be shown as context next to a relay's Trigger button"
+
+
+def test_open_barrier_card_opener_only_with_no_sensor_reads_honestly(tmp_path):
+    """Garry, 2026-09-22: "we need logic for this to work on an opening
+    without a sensor." A barrier with only an opener and no sensor at all
+    (a relay with nothing self-reporting) has no way to know open or
+    closed — the card must say so rather than guess, while the Trigger
+    button still works."""
+    out = _run(tmp_path, r"""
+const hass = {
+  states: { "switch.gate_relay": { state: "off", attributes: { friendly_name: "Gate Relay" } } },
+  callService: async () => {},
+};
+const bar = { linked_opener_entity_id: "switch.gate_relay", name: "Side Gate" };
+LM.openBarrierCard(hass, bar, { toast: () => {}, rerender: () => {} });
+const text = document.body.textContent;
+const buttons = document.body.querySelectorAll("button").map(b => b.textContent);
+console.log(JSON.stringify({ text, buttons }));
+""")
+    assert "No reading" in out["text"], out["text"]
+    assert "Trigger" in out["buttons"], "the opener must still be controllable with no sensor present"
+
+
+def test_open_barrier_card_cover_opener_alone_self_reports_open_closed(tmp_path):
+    """The older, simpler shape still works: a barrier linked STRAIGHT to a
+    cover, nothing else — the cover self-reports, so it substitutes for a
+    sensor without needing a separate linked_entity_id at all."""
+    out = _run(tmp_path, r"""
+const hass = {
+  states: { "cover.garage_main": { state: "open", attributes: { friendly_name: "Main Garage Door" } } },
+  callService: async () => {},
+};
+const bar = { linked_entity_id: "cover.garage_main", name: "Main Garage" };
+LM.openBarrierCard(hass, bar, { toast: () => {}, rerender: () => {} });
+const text = document.body.textContent;
+console.log(JSON.stringify({ text }));
+""")
+    assert "Open" in out["text"] and "Closed" not in out["text"], out["text"]
+
+
 # ── Weekly activity calendar (motion) ────────────────────────────────────────
 
 def test_motion_weekly_grid_buckets_intervals_into_local_hours(tmp_path):

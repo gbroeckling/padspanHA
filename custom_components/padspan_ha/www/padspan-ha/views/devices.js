@@ -3,10 +3,11 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 /**
- * Devices view — three sub-tabs:
+ * Devices view — four sub-tabs:
  *   All      — unified deduped list of HA entity trackers + BLE objects
  *   By Room  — objects grouped by room with rich filtering (was Objects view)
  *   Registry — device identity registry (padspan_id management)
+ *   Openers  — mark a cover/switch/button as a door/window opener (Atlas)
  */
 
 // ── Sub-tab state ────────────────────────────────────────────────────────────
@@ -14,6 +15,7 @@ const TABS = [
   { id: "all",      label: "All Devices" },
   { id: "by_room",  label: "By Room" },
   { id: "registry", label: "Registry" },
+  { id: "openers",  label: "Door Openers" },
 ];
 
 export function render(ctx) {
@@ -45,6 +47,8 @@ export function render(ctx) {
     root.appendChild(_renderByRoom(ctx));
   } else if (tab === "registry") {
     root.appendChild(_renderRegistry(ctx));
+  } else if (tab === "openers") {
+    root.appendChild(_renderDoorOpeners(ctx));
   } else {
     root.appendChild(_renderAll(ctx));
   }
@@ -555,4 +559,100 @@ function normalizeRoom(state) {
   if (s === "not_home") return "Away";
   if (s === "home") return "Home";
   return s;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Tab: Door Openers
+// ═══════════════════════════════════════════════════════════════════════════════
+// Garry, 2026-09-22: "Add a section to devices that is for door/windows
+// openers." A cover/switch/button entity has no device_class an Atlas
+// barrier's other two roles can lean on the way binary_sensor's door/window/
+// garage_door/opening classes already do — a raw relay switch gives no
+// reliable signal it moves a garage door rather than, say, a pump — so
+// membership in this list IS the classification, same shape as
+// light_type_overrides' per-entity override elsewhere in Devices, just a
+// flat allowlist instead of a class map. Once marked, the entity is offered
+// as an "Opener" choice from a linked door/window's own row in Mapping ->
+// Atlas (the SAME wall-opening creation tool every other link already uses
+// — Garry: "maybe all avenues lead to the same wall section creation
+// tool?" — confirmed, no second tool built).
+//
+// Two REAL candidates on Garry's own house motivated this: switch.
+// upper_garage_car_door / switch.upper_garage_truck_door, sitting right
+// next to the two garage-door contact sensors already linked on the map,
+// with no way before now to tie the relay to that same wall opening.
+const _OPENER_DOMAINS = ["cover.", "switch.", "button."];
+const _OPENER_NAME_HINT = /\b(door|gate|garage|opener)\b/i;
+
+function _isDoorOpenersPaidTier(ctx) {
+  const t = String((ctx.state.settings && ctx.state.settings.tier) || "").toLowerCase();
+  return t === "bright" || t === "pro";
+}
+
+function _renderDoorOpeners(ctx) {
+  const { el } = ctx.helpers;
+  const card = el("div", { class: "card" });
+  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:8px" }, "Door / Window Openers"));
+  card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-bottom:12px" },
+    "Mark a cover, switch, or button entity as a door/window opener (a garage door, gate, or any other powered opening) so it can be offered and linked from a door/window's own row in Mapping → Atlas, right alongside its sensor and its lock."));
+
+  if (!_isDoorOpenersPaidTier(ctx)) {
+    card.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;background:#2a220a;border:1px solid #78350f;border-radius:8px;padding:10px" },
+      "Door Openers is a Bright / Pro feature."));
+    return card;
+  }
+
+  const states = (ctx.hass && ctx.hass.states) || {};
+  const marked = new Set((ctx.state.settings && ctx.state.settings.door_opener_ids) || []);
+
+  const candidates = Object.keys(states)
+    .filter(eid => _OPENER_DOMAINS.some(d => eid.startsWith(d)))
+    .filter(eid => marked.has(eid) || _OPENER_NAME_HINT.test(eid) || _OPENER_NAME_HINT.test((states[eid].attributes || {}).friendly_name || ""))
+    .sort((a, b) => {
+      // Marked first, then name-matched-but-unmarked, then alphabetical —
+      // so a real find (the two garage relays) doesn't get lost in a long
+      // "button." dump of unrelated identify/restart buttons that also
+      // happen to share a domain prefix.
+      const am = marked.has(a) ? 0 : 1, bm = marked.has(b) ? 0 : 1;
+      if (am !== bm) return am - bm;
+      const an = (states[a].attributes || {}).friendly_name || a;
+      const bn = (states[b].attributes || {}).friendly_name || b;
+      return an.localeCompare(bn);
+    });
+
+  const toggle = async (eid, checked) => {
+    const next = new Set(marked);
+    if (checked) next.add(eid); else next.delete(eid);
+    try {
+      await ctx.actions.settingsSet({ door_opener_ids: [...next] });
+      ctx.toast(checked ? "Marked as an opener." : "No longer an opener.");
+    } catch (e) { ctx.toast("Could not save: " + (e.message || e), true); }
+  };
+
+  if (!candidates.length) {
+    card.appendChild(el("div", { style: "font-size:12px;color:#64748b;padding:8px 0" },
+      "No cover, switch, or button entities with “door”, “gate”, “garage”, or “opener” in their name were found. " +
+      "Nothing on this install looks like a door/window opener by name — if one exists under a different name, it can still be added from the picker on its wall opening's row in Mapping → Atlas."));
+    return card;
+  }
+
+  for (const eid of candidates) {
+    const st = states[eid];
+    const row = el("div", {
+      style: "display:flex;align-items:center;gap:10px;border:1px solid #1b3526;border-radius:8px;"
+        + "padding:8px 12px;margin-bottom:4px;background:#0d1f14",
+    });
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = marked.has(eid);
+    cb.style.cssText = "accent-color:#52b788;width:16px;height:16px";
+    cb.addEventListener("change", () => toggle(eid, cb.checked));
+    row.appendChild(cb);
+    row.appendChild(el("div", { style: "flex:1;min-width:0" }, [
+      el("div", { style: "font-weight:600;font-size:13px" }, (st.attributes || {}).friendly_name || eid),
+      el("div", { style: "font-size:10px;color:#64748b" }, `${eid} · ${st.state}`),
+    ]));
+    card.appendChild(row);
+  }
+
+  return card;
 }

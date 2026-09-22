@@ -1457,41 +1457,115 @@ function _lockControlBlock(el, hass, lockEid, lockSt, { toast, rerender, close }
   return nodes;
 }
 
+// A small "pick one of these" overlay — the row-level "+ Opener"/"+ Lock"
+// buttons below use it to attach a second (or third) role to an ALREADY
+// linked wall opening without reaching for the on-map circle tool again.
+function _pickEntityOverlay(title, candidates, onPick){
+  const el = _mkEl;
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10000;"
+    + "display:flex;align-items:center;justify-content:center;"
+    + "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)";
+  const close = () => { try { document.body.removeChild(overlay); } catch (_) {} };
+  overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+  const box = el("div", { style:
+    "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.28);"
+    + "border-radius:16px;padding:20px;width:300px;max-width:90vw;"
+    + "color:#e2e8f0;font-family:Inter,system-ui,sans-serif;"
+    + "box-shadow:0 20px 60px rgba(0,0,0,.65)" });
+  box.appendChild(el("div", { style: "font-weight:700;font-size:15px;margin-bottom:12px" }, title));
+  if (!candidates.length) {
+    box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:12px" },
+      "Nothing available to link yet."));
+  }
+  const sel = document.createElement("select");
+  sel.style.cssText = "width:100%;background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;"
+    + "border-radius:8px;padding:7px;font-size:13px;margin-bottom:12px";
+  const none = document.createElement("option"); none.value = ""; none.textContent = "— choose —";
+  sel.appendChild(none);
+  for (const c of candidates) {
+    const o = document.createElement("option");
+    o.value = c.entity_id; o.textContent = c.friendly_name;
+    sel.appendChild(o);
+  }
+  box.appendChild(sel);
+  box.appendChild(el("div", { style: "display:flex;gap:8px" }, [
+    el("button", {
+      style: "flex:1;padding:9px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;"
+        + "background:linear-gradient(135deg,#166534,#22c55e);color:#f0fdf4;border:1px solid rgba(134,239,172,.6)",
+      onclick: () => { if (!sel.value) return; onPick(sel.value); close(); },
+    }, "Link"),
+    el("button", {
+      style: "padding:9px 14px;font-size:13px;border-radius:10px;cursor:pointer;"
+        + "background:rgba(255,255,255,.04);border:1px solid rgba(120,190,155,.18);color:#94a3b8",
+      onclick: close,
+    }, "Cancel"),
+  ]));
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
+
 // ── The door/window/lock barrier card ───────────────────────────────────────
-// A barrier is a section of WALL, not an entity of its own — bar.invert_state
-// flips the open/closed reading for just ONE barrier (the Upper Garage Car
-// Door Contact reports backwards), so this card is keyed on the barrier, not
-// just the linked entity id, and computes the exact same reading the map
-// itself draws (iso_lights.js's barrier pass). lock.* and cover.* are the
-// only two domains with a real service to call; a plain binary_sensor
-// contact has nothing to open or close remotely — it says so, UNLESS the
-// same physical unit also has a paired lock (api.doorLockMap, Garry,
-// 2026-09-22: "the new card could have a lock control on it if the door
-// has a smart lock"), in which case that gets its own button here too —
-// researched first: a lock+door-sensor combined into one card is a
-// recurring want in the Home Assistant community with no core answer,
-// and the couple of floor-plan cards that DO combine them pair by the
-// same physical opening, same as this does. State priority follows the
-// same research: an OPEN reading leads regardless of lock state (the
-// least-secure fact first) — the lock only gets to lead the headline
-// once the door is actually closed.
+// A barrier is a section of WALL, not an entity of its own — up to THREE
+// roles can be tied to it (Garry, 2026-09-22: "three things need a logical
+// link, door/window open/close sensors, door/window openers, and locks...
+// all of these sit on the opening"): linked_entity_id (the sensor, ground
+// truth for open/closed), linked_opener_entity_id (a cover, or a switch/
+// button relay — what actually moves it), linked_lock_entity_id (locked/
+// unlocked). Any of the three may be absent; the two older, simpler shapes
+// still work unchanged — a barrier linked straight to a lock with nothing
+// else, or straight to a cover with nothing else (the cover IS the sensor
+// then, it self-reports). bar.invert_state flips the SENSOR's reading for
+// just one barrier (the Upper Garage Car Door Contact reports backwards).
+//
+// Researched first: a lock+door-sensor combined into one card is a
+// recurring want in the Home Assistant community with no core answer, and
+// the couple of floor-plan cards that DO combine them pair by the same
+// physical opening, same as this does — Control4's garage drivers and the
+// Matter/HomeKit relay-kit pattern bind a relay + sensor to one door
+// explicitly the same way. State priority: an OPEN reading leads
+// regardless of lock state (the least-secure fact first); the lock only
+// leads once closed; with no sensor AND no self-reporting cover opener,
+// there is genuinely no open/closed reading, and this says so rather than
+// guessing. A switch/button opener gets a plain "Trigger" — its own on/off
+// does not reliably mean open/closed (usually a momentary pulse toggling
+// direction), so it is never labelled Open/Close; the sensor's real
+// reading is shown as context right beside the button instead.
 export function openBarrierCard(hass, bar, api){
-  if (!hass || !bar || !bar.linked_entity_id) return;
-  const eid = bar.linked_entity_id;
-  const st = hass.states[eid];
-  if (!st) return;
+  if (!hass || !bar) return;
   const el = _mkEl;
   const toast = api && api.toast ? api.toast : () => {};
   const rerender = api && api.rerender ? api.rerender : () => {};
-  const domain = String(eid).split(".")[0];
-  const isLockDomain = domain === "lock";
-  // Only looked up when the barrier's OWN link isn't already a lock —
-  // that's the simpler, older case, untouched. Unverified against real
-  // hardware: Garry has neither a lock.* nor a cover.* entity in his real
-  // house yet, so doorLockMap can only ever be exercised by a synthetic
-  // registry today (see its own tests) or a future real install.
-  const lockEid = !isLockDomain && api && api.doorLockMap ? api.doorLockMap[eid] : null;
+
+  const sensorEid = bar.linked_entity_id || null;
+  const sensorSt = sensorEid ? hass.states[sensorEid] : null;
+  const sensorDomain = sensorEid ? String(sensorEid).split(".")[0] : null;
+  // Explicit opener link, or — the older, simpler shape — the barrier's
+  // OWN link being a cover directly (it needs no separate sensor field;
+  // a cover already reports its own open/closed state).
+  const openerEid = bar.linked_opener_entity_id || (sensorDomain === "cover" ? sensorEid : null);
+  const openerSt = openerEid ? hass.states[openerEid] : null;
+  const openerDomain = openerEid ? String(openerEid).split(".")[0] : null;
+  // Explicit lock link, or — the original, simplest shape of all — the
+  // barrier's own link being a lock directly, nothing else attached.
+  const explicitLockEid = bar.linked_lock_entity_id || (sensorDomain === "lock" ? sensorEid : null);
+  // Auto-suggested pairing (computeDoorLockPairs) only when nothing is
+  // explicitly linked — the same physical unit as the sensor reporting
+  // both facets. Unverified against real hardware: Garry has neither a
+  // lock.* nor a cover.* entity in his real house yet.
+  const suggestedLockEid = !explicitLockEid && sensorEid && api && api.doorLockMap ? api.doorLockMap[sensorEid] : null;
+  const lockEid = explicitLockEid || suggestedLockEid;
   const lockSt = lockEid ? hass.states[lockEid] : null;
+
+  if (!sensorSt && !openerSt && !lockSt) return; // nothing real to show a card for
+
+  // ── Open/closed reading ────────────────────────────────────────────────
+  let isOpen = null;
+  if (sensorSt && sensorDomain !== "lock") {
+    isOpen = sensorDomain === "cover" ? sensorSt.state === "open" : (bar.invert_state ? sensorSt.state !== "on" : sensorSt.state === "on");
+  } else if (openerSt && openerDomain === "cover" && openerEid !== sensorEid) {
+    isOpen = openerSt.state === "open";
+  }
 
   const overlay = document.createElement("div");
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10000;"
@@ -1508,25 +1582,25 @@ export function openBarrierCard(hass, bar, api){
 
   const smallBtn = "background:rgba(255,255,255,.04);border:1px solid rgba(120,190,155,.18);border-radius:8px;"
     + "color:#94a3b8;font-size:13px;cursor:pointer;padding:3px 8px;line-height:1;flex-shrink:0";
+  const displayName = bar.name || (sensorSt||openerSt||lockSt).attributes?.friendly_name || sensorEid || openerEid || lockEid;
   box.appendChild(el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px" }, [
-    el("div", { style: "font-weight:700;font-size:15px;letter-spacing:-.01em" }, bar.name || (st.attributes||{}).friendly_name || eid),
+    el("div", { style: "font-weight:700;font-size:15px;letter-spacing:-.01em" }, displayName),
     el("button", { style: smallBtn + ";margin-left:auto", onclick: close }, "✕"),
   ]));
 
   let stateLabel, isAlert;
-  if (isLockDomain) {
-    stateLabel = st.state === "locked" ? "Locked" : st.state === "jammed" ? "Jammed" : "Unlocked";
-    isAlert = st.state !== "locked";
-  } else {
-    const isOpen = domain === "cover" ? st.state === "open" : (bar.invert_state ? st.state !== "on" : st.state === "on");
-    if (isOpen) {
-      stateLabel = "Open"; isAlert = true;
-    } else if (lockSt) {
+  if (isOpen === true) {
+    stateLabel = "Open"; isAlert = true;
+  } else if (isOpen === false) {
+    if (lockSt) {
       stateLabel = lockSt.state === "locked" ? "Closed & Locked" : lockSt.state === "jammed" ? "Closed — Lock Jammed" : "Closed, Unlocked";
       isAlert = lockSt.state !== "locked";
-    } else {
-      stateLabel = "Closed"; isAlert = false;
-    }
+    } else { stateLabel = "Closed"; isAlert = false; }
+  } else if (lockSt) {
+    stateLabel = lockSt.state === "locked" ? "Locked" : lockSt.state === "jammed" ? "Jammed" : "Unlocked";
+    isAlert = lockSt.state !== "locked";
+  } else {
+    stateLabel = "No reading"; isAlert = false;
   }
   box.appendChild(el("div", {
     style: "display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;"
@@ -1537,30 +1611,44 @@ export function openBarrierCard(hass, bar, api){
   }, stateLabel));
 
   const lockCtx = { toast, rerender, close };
-  if (isLockDomain) {
-    for (const n of _lockControlBlock(el, hass, eid, st, lockCtx)) box.appendChild(n);
-  } else if (domain === "cover") {
-    const state = st.state; // open | closed | opening | closing
+
+  // ── Opener ──────────────────────────────────────────────────────────────
+  if (openerSt && openerDomain === "cover") {
+    const state = openerSt.state; // open | closed | opening | closing
     const busy = state === "opening" || state === "closing";
-    const isOpen = state === "open";
+    const openerIsOpen = state === "open";
     box.appendChild(el("button", {
       style: "width:100%;margin-bottom:6px;padding:10px;font-weight:700;font-size:13px;border-radius:10px;"
         + "letter-spacing:.02em;" + (busy ? "opacity:.5;cursor:default;" : "cursor:pointer;")
-        + (isOpen ? "background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#111827;border:1px solid rgba(255,255,255,.25);box-shadow:0 0 18px rgba(251,191,36,.35);"
-                  : "background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);"),
+        + (openerIsOpen ? "background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#111827;border:1px solid rgba(255,255,255,.25);box-shadow:0 0 18px rgba(251,191,36,.35);"
+                        : "background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);"),
       onclick: async () => {
         if (busy) return;
-        const svc = isOpen ? "close_cover" : "open_cover";
-        try { await hass.callService("cover", svc, { entity_id: eid }); } catch (e) { toast("Could not " + (isOpen ? "close" : "open"), true); }
+        const svc = openerIsOpen ? "close_cover" : "open_cover";
+        try { await hass.callService("cover", svc, { entity_id: openerEid }); } catch (e) { toast("Could not " + (openerIsOpen ? "close" : "open"), true); }
         close();
         setTimeout(rerender, 400);
       },
-    }, busy ? (state === "opening" ? "Opening…" : "Closing…") : (isOpen ? "Close" : "Open")));
-  } else if (!lockSt) {
-    box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5" },
+    }, busy ? (state === "opening" ? "Opening…" : "Closing…") : (openerIsOpen ? "Close" : "Open")));
+  } else if (openerSt && (openerDomain === "switch" || openerDomain === "button")) {
+    box.appendChild(el("button", {
+      style: "width:100%;margin-bottom:4px;padding:10px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;"
+        + "letter-spacing:.02em;background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);",
+      onclick: async () => {
+        try { await hass.callService(openerDomain, openerDomain === "button" ? "press" : "toggle", { entity_id: openerEid }); }
+        catch (e) { toast("Could not trigger the opener", true); }
+        close();
+        setTimeout(rerender, 400);
+      },
+    }, "Trigger"));
+    box.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;line-height:1.4;margin-bottom:10px" },
+      `Currently ${isOpen === true ? "open" : isOpen === false ? "closed" : "unknown"} — this presses the same relay as the wall button, so it may open OR close depending on the door's current position.`));
+  } else if (sensorSt && sensorDomain !== "lock" && !openerEid) {
+    box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom: 4px" },
       "This is a plain contact sensor — it reports state only, there's no way to open or close it remotely."));
   }
 
+  // ── Lock ────────────────────────────────────────────────────────────────
   if (lockSt) {
     box.appendChild(el("div", { style: "font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px" }, "Lock"));
     for (const n of _lockControlBlock(el, hass, lockEid, lockSt, lockCtx)) box.appendChild(n);
@@ -3428,6 +3516,58 @@ export function buildLightsTable(host, lights){
                 title: "Unlink from that wall section — the wall itself is left in place; Place then reappears here",
                 onclick: (e) => { e.stopPropagation(); host.onUnlinkDoor(l); },
               }, "Unlink")] : []),
+              // The SAME wall opening's other two roles (Garry, 2026-09-22:
+              // "all of these sit on the opening... that wall opening") —
+              // attached here rather than by dropping the circle tool a
+              // second time, since the wall section already exists.
+              ...(() => {
+                const openerEid = (host.doorOpenerByEid || {})[l.entity_id];
+                if (openerEid) {
+                  const name = (host.doorOpenerCandidates || []).find(c => c.entity_id === openerEid)?.friendly_name || openerEid;
+                  return [
+                    el("span", { class: "lv-hint", style: "margin-left:8px", title: openerEid }, `Opener: ${name}`),
+                    ...(host.onLinkDoorOpener ? [el("button", {
+                      class: "lv-act", style: "margin-left:4px",
+                      title: "Unlink the opener — the sensor link is untouched",
+                      onclick: (e) => { e.stopPropagation(); host.onLinkDoorOpener(l, null); },
+                    }, "✕")] : []),
+                  ];
+                }
+                if (!host.onLinkDoorOpener) return [];
+                return [el("button", {
+                  class: "lv-act", style: "margin-left:6px",
+                  title: "Link the opener (a cover, switch, or button marked in Devices → Door Openers) that moves this same opening",
+                  onclick: (e) => {
+                    e.stopPropagation();
+                    _pickEntityOverlay(`Opener for ${l.friendly_name || l.entity_id}`, host.doorOpenerCandidates || [],
+                      (eid) => host.onLinkDoorOpener(l, eid));
+                  },
+                }, "+ Opener")];
+              })(),
+              ...(() => {
+                const lockEid = (host.doorLockByEid || {})[l.entity_id];
+                if (lockEid) {
+                  const name = (host.lockCandidates || []).find(c => c.entity_id === lockEid)?.friendly_name || lockEid;
+                  return [
+                    el("span", { class: "lv-hint", style: "margin-left:8px", title: lockEid }, `Lock: ${name}`),
+                    ...(host.onLinkDoorLock ? [el("button", {
+                      class: "lv-act", style: "margin-left:4px",
+                      title: "Unlink the lock — the sensor link is untouched",
+                      onclick: (e) => { e.stopPropagation(); host.onLinkDoorLock(l, null); },
+                    }, "✕")] : []),
+                  ];
+                }
+                if (!host.onLinkDoorLock) return [];
+                return [el("button", {
+                  class: "lv-act", style: "margin-left:6px",
+                  title: "Link a lock to this same opening",
+                  onclick: (e) => {
+                    e.stopPropagation();
+                    _pickEntityOverlay(`Lock for ${l.friendly_name || l.entity_id}`, host.lockCandidates || [],
+                      (eid) => host.onLinkDoorLock(l, eid));
+                  },
+                }, "+ Lock")];
+              })(),
             ];
           }
           if (!host.onConfigureDoor) return [el("span", { class: "lv-hint" }, "Not linked")];

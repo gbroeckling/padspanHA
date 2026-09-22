@@ -524,6 +524,77 @@ console.log(JSON.stringify({ foundNotSteelBtn: !!steelBtn1, toggled, foundSteelB
     assert out["foundSteelBtn"], "a linked, already-steel door row must show 'Steel ✓' instead"
 
 
+def test_linked_door_row_offers_an_opener_picker_that_links_the_choice(tmp_path):
+    """Garry, 2026-09-22: "there need to be the ability to link a door
+    closer to a door sensor" — a linked door/window row now also offers
+    "+ Opener", opening a small picker (candidates come from Devices ->
+    Door Openers, host.doorOpenerCandidates) whose choice is handed to
+    host.onLinkDoorOpener(light, entity_id). Real motivating case: Garry's
+    own switch.upper_garage_truck_door, sitting unlinked next to this exact
+    sensor."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const AREA = {"binary_sensor.truck_door": "Garage"};
+const STATES = {
+  "binary_sensor.truck_door": {state: "on", attributes: {friendly_name: "Truck Door", device_class: "door"}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
+let linkedArgs = null;
+const host = { el, hiddenEids: new Set(), lightsLoading: false, model: {},
+  doorLinkedIds: new Set(["binary_sensor.truck_door"]), onConfigureDoor: () => {}, onUnlinkDoor: () => {},
+  doorOpenerCandidates: [{entity_id: "switch.upper_garage_truck_door", friendly_name: "Upper Garage Truck Door"}],
+  onLinkDoorOpener: (l, eid) => { linkedArgs = [l.entity_id, eid]; } };
+const root = LM.buildLightsTable(host, lights);
+const row = [...root.querySelectorAll("tr")].find(r => r.getAttribute("data-eid") === "binary_sensor.truck_door");
+const addBtn = [...row.querySelectorAll("button")].find(b => b.textContent === "+ Opener");
+addBtn.dispatchEvent({ type: "click", stopPropagation(){} });
+// The picker overlay is appended to document.body, outside the table root.
+const sel = document.body.querySelector("select");
+const opt = [...sel.querySelectorAll("option")].find(o => o.value === "switch.upper_garage_truck_door");
+opt.selected = true;
+const linkBtn = [...document.body.querySelectorAll("button")].find(b => b.textContent === "Link");
+linkBtn.dispatchEvent({ type: "click" });
+console.log(JSON.stringify({ foundAddBtn: !!addBtn, foundPicker: !!sel, linkedArgs }));
+""")
+    assert out["foundAddBtn"], "a linked door/window row must offer '+ Opener' when none is linked yet"
+    assert out["foundPicker"], "clicking + Opener must open a picker"
+    assert out["linkedArgs"] == ["binary_sensor.truck_door", "switch.upper_garage_truck_door"], out
+
+
+def test_linked_door_row_shows_its_opener_and_lock_with_their_own_unlink(tmp_path):
+    """Once linked, the row shows what it's tied to (not just a bare '+')
+    and each gets its own removal — mirroring the sensor's own Unlink,
+    scoped to just that one role."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const AREA = {"binary_sensor.truck_door": "Garage"};
+const STATES = {
+  "binary_sensor.truck_door": {state: "on", attributes: {friendly_name: "Truck Door", device_class: "door"}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
+let unlinkedOpener = null, unlinkedLock = null;
+const host = { el, hiddenEids: new Set(), lightsLoading: false, model: {},
+  doorLinkedIds: new Set(["binary_sensor.truck_door"]), onConfigureDoor: () => {}, onUnlinkDoor: () => {},
+  doorOpenerByEid: {"binary_sensor.truck_door": "switch.upper_garage_truck_door"},
+  doorOpenerCandidates: [{entity_id: "switch.upper_garage_truck_door", friendly_name: "Upper Garage Truck Door"}],
+  doorLockByEid: {"binary_sensor.truck_door": "lock.garage_side"},
+  lockCandidates: [{entity_id: "lock.garage_side", friendly_name: "Garage Side Lock"}],
+  onLinkDoorOpener: (l, eid) => { unlinkedOpener = eid; },
+  onLinkDoorLock: (l, eid) => { unlinkedLock = eid; } };
+const root = LM.buildLightsTable(host, lights);
+const row = [...root.querySelectorAll("tr")].find(r => r.getAttribute("data-eid") === "binary_sensor.truck_door");
+const hasOpenerName = row.textContent.includes("Upper Garage Truck Door");
+const hasLockName = row.textContent.includes("Garage Side Lock");
+const xBtns = [...row.querySelectorAll("button")].filter(b => b.textContent === "✕");
+xBtns[0].dispatchEvent({ type: "click", stopPropagation(){} });
+xBtns[1].dispatchEvent({ type: "click", stopPropagation(){} });
+console.log(JSON.stringify({ hasOpenerName, hasLockName, xCount: xBtns.length, unlinkedOpener, unlinkedLock }));
+""")
+    assert out["hasOpenerName"], "the row must show which opener it's linked to, not just that one exists"
+    assert out["hasLockName"], "the row must show which lock it's linked to too"
+    assert out["xCount"] == 2, "each of opener and lock gets its own removal control"
+    assert out["unlinkedOpener"] is None, "removing must call onLinkDoorOpener with null, not delete anything else"
+    assert out["unlinkedLock"] is None, out
+
+
 def test_fans_and_motion_sensors_ride_the_pipeline(tmp_path):
     """Fans (F-series, fan glyph, their card's inputs) and motion sensors
     (M-series, motion glyph, admitted by device_class only) share the lights

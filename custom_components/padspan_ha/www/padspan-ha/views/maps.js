@@ -9078,6 +9078,51 @@ function _lightsTab(ctx, maps, active) {
     // toggle below — keyed the same way doorLinkedIds is.
     doorMaterialByEid: Object.fromEntries((ctx.state.model?.rf_barriers_m || [])
       .filter(b => b.linked_entity_id).map(b => [b.linked_entity_id, b.material])),
+    // The opener/lock ALSO tied to this same wall opening (Garry,
+    // 2026-09-22: "three things need a logical link... all of these sit on
+    // the opening" — the barrier IS that opening, so these two new fields
+    // live on it directly, right beside linked_entity_id, no separate
+    // registry). Keyed the same way doorMaterialByEid is; a barrier with
+    // nothing in either field just isn't in these maps.
+    doorOpenerByEid: Object.fromEntries((ctx.state.model?.rf_barriers_m || [])
+      .filter(b => b.linked_entity_id && b.linked_opener_entity_id)
+      .map(b => [b.linked_entity_id, b.linked_opener_entity_id])),
+    doorLockByEid: Object.fromEntries((ctx.state.model?.rf_barriers_m || [])
+      .filter(b => b.linked_entity_id && b.linked_lock_entity_id)
+      .map(b => [b.linked_entity_id, b.linked_lock_entity_id])),
+    // Candidates for the row's own "+ Opener"/"+ Lock" picker — openers are
+    // a curated allowlist (Devices → Door Openers: no device_class can
+    // tell a garage-door relay from any other switch), locks are just every
+    // lock.* entity in the house, no allowlist needed (lock.* already means
+    // exactly one thing).
+    doorOpenerCandidates: ((ctx.state.settings && ctx.state.settings.door_opener_ids) || [])
+      .filter(eid => ctx.hass?.states?.[eid])
+      .map(eid => ({ entity_id: eid, friendly_name: ctx.hass.states[eid].attributes?.friendly_name || eid })),
+    lockCandidates: Object.keys(ctx.hass?.states || {})
+      .filter(eid => eid.startsWith("lock."))
+      .map(eid => ({ entity_id: eid, friendly_name: ctx.hass.states[eid].attributes?.friendly_name || eid })),
+    onLinkDoorOpener: paid && !preview ? async (l, openerEid) => {
+      const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.linked_entity_id === l.entity_id);
+      if (!bar) { ctx.toast("That link no longer exists.", true); return; }
+      try {
+        await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set",
+          barrier: { ...bar, linked_opener_entity_id: openerEid || null } });
+        await ctx.actions.modelRefresh();
+        ctx.toast(openerEid ? "Opener linked." : "Opener unlinked.");
+      } catch (e) { ctx.toast("Could not link the opener: " + (e.message || e), true); }
+      ctx.actions.renderRooms();
+    } : null,
+    onLinkDoorLock: paid && !preview ? async (l, lockEid) => {
+      const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.linked_entity_id === l.entity_id);
+      if (!bar) { ctx.toast("That link no longer exists.", true); return; }
+      try {
+        await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set",
+          barrier: { ...bar, linked_lock_entity_id: lockEid || null } });
+        await ctx.actions.modelRefresh();
+        ctx.toast(lockEid ? "Lock linked." : "Lock unlinked.");
+      } catch (e) { ctx.toast("Could not link the lock: " + (e.message || e), true); }
+      ctx.actions.renderRooms();
+    } : null,
     // Arms the on-map circle tool (see _wireLightsBuild's click handler,
     // _wireDoorCircle's drag handlers, and _commitDoorCircle) — builder
     // only, same gate as onPlaceRow. Garry, 2026-09-09: linking has to work
