@@ -239,6 +239,8 @@ hb.setAttribute('class', 'lbarhit');
 hb.setAttribute('data-eid', 'binary_sensor.frontdoor');
 hb.setAttribute('data-cx', '10'); hb.setAttribute('data-cy', '10');
 svg.appendChild(hb);
+o.model = { ...MODEL, rf_barriers_m: [{ id: 'b1', floor_id: 'main', linked_entity_id: 'binary_sensor.frontdoor', name: 'Front Door' }] };
+ctx.hass = { states: { 'binary_sensor.frontdoor': { state: 'off', attributes: {} } } };
 M._wireLightsBuild(ctx, isoDiv, o);
 """
 
@@ -255,17 +257,23 @@ out.focusRow = o.mapState._focusRow || null;
     assert out["toggleCalls"] == [], out
 
 
-def test_a_tap_on_a_door_or_lock_section_does_nothing():
-    """A door has nothing to switch, and a lock must never be one stray tap
-    from unlocking — the section answers a HOLD only."""
+def test_a_tap_on_a_door_or_lock_section_opens_its_card_not_the_index_row():
+    """A door has nothing to switch and a lock must never be one stray tap
+    from unlocking — so a plain tap must never toggle anything or select
+    the row for editing (that's the HOLD's job, tested above). Garry,
+    2026-09-22: it should instead open the same open/closed card the Atlas
+    sidebar offers — a tap is safe because the card itself changes nothing;
+    only a button pressed INSIDE it would."""
     out = _run(_BARHIT + """
 hb.dispatchEvent({ type: 'pointerdown', button: 0, pointerType: 'mouse', pointerId: 2,
   clientX: 50, clientY: 50, preventDefault(){}, stopPropagation(){} });
 hb.dispatchEvent({ type: 'pointerup', pointerId: 2, clientX: 50, clientY: 50 });
 out.focusRow = o.mapState._focusRow || null;
+out.cardOpened = document.body.children.length > 0;
 """)
-    assert out["focusRow"] is None, out
-    assert out["toggleCalls"] == [] and out["renderCalls"] == [], out
+    assert out["focusRow"] is None, "a tap must not select the row for editing"
+    assert out["toggleCalls"] == [] and out["renderCalls"] == [], "a tap must never itself change anything"
+    assert out["cardOpened"] is True, "a tap must open the barrier's own card"
 
 
 def test_a_second_touch_on_the_same_door_section_does_not_hijack_the_first():

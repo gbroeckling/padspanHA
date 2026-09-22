@@ -210,6 +210,41 @@ console.log(JSON.stringify({ quickTaps, holdCalls: calls }));
         f"a genuine 500ms hold must still open the controls card: {out['holdCalls']}"
 
 
+def test_wire_use_surface_a_click_on_a_barrier_hit_path_opens_its_card(tmp_path):
+    """Garry, 2026-09-22: "the ability to click on the line... bring up a
+    card that clearly says this door/window is open, and the ability to
+    open/close it". The hit path (iso_lights.js, BARRIER_HIT) carries
+    data-invert/data-name because the barrier's own invert_state has no
+    home on the linked entity itself — wireUseSurface has to rebuild a
+    barrier-shaped object from exactly those attributes to get the SAME
+    open/closed reading the map just drew."""
+    out = _run(tmp_path, r"""
+function elx(tag, attrs) {
+  const n = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, String(v));
+  return n;
+}
+const isoDiv = document.createElement("div");
+const svg = document.createElement("svg");
+isoDiv.appendChild(svg);
+const hb = elx("polyline", {
+  class: "lbarhit", "data-eid": "binary_sensor.frontdoor",
+  "data-cx": "10", "data-cy": "10", "data-invert": "1", "data-name": "Upper Garage Car Door Contact",
+});
+svg.appendChild(hb);
+const api = {
+  hass: { states: { "binary_sensor.frontdoor": { state: "off", attributes: {} } } },
+  lightsByEid: {}, controlsFor: () => false,
+  toggle: () => {}, openControls: () => {}, openActivity: () => {},
+  toast: () => {}, rerender: () => {},
+};
+LM.wireUseSurface(isoDiv, api);
+hb.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });
+console.log(JSON.stringify({ cardOpened: document.body.children.length > 0 }));
+""")
+    assert out["cardOpened"] is True, "a click on the barrier hit path must open its card"
+
+
 # ── Weekly activity calendar (motion) ────────────────────────────────────────
 
 def test_motion_weekly_grid_buckets_intervals_into_local_hours(tmp_path):

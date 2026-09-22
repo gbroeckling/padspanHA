@@ -887,6 +887,21 @@ export function wireUseSurface(isoDiv, api){
   q(".lroom").forEach(r => r.addEventListener("click", (e) => { e.stopPropagation(); api.openRoom(r.dataset.room); }));
   q(".lstack").forEach(st => st.addEventListener("click", (e) => { e.stopPropagation(); api.openRoom(st.dataset.room, String(st.dataset.eids || "").split(",").filter(Boolean)); }));
   q(".lfloor").forEach(f => f.addEventListener("click", (e) => { e.stopPropagation(); api.openFloor(f.dataset.z); }));
+  // Door/window/lock barrier line (Garry, 2026-09-22: "the ability to click
+  // on the line... bring up a card that clearly says this door/window is
+  // open, and the ability to open/close it"). Only present at all when the
+  // renderer was asked for barrierHit — Bright/Pro tier, same gate as every
+  // other placement/editing feature; free never draws this hit-path, so
+  // there is nothing here for free to wire up either. A plain click is
+  // safe (it only shows a card, never itself toggles anything), unlike the
+  // builder's own hold-to-select gesture on the same element.
+  q(".lbarhit").forEach(hb => hb.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const eid = hb.dataset.eid;
+    if (!eid || !api.hass) return;
+    const bar = { linked_entity_id: eid, invert_state: hb.dataset.invert === "1", name: hb.dataset.name || null };
+    openBarrierCard(api.hass, bar, api);
+  }));
 }
 
 // ── The room / floor sheet ───────────────────────────────────────────────────
@@ -1409,6 +1424,109 @@ export function openControlCard(hass, eid, api){
         }, api.ip),
       ]));
     }
+  }
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
+
+// ── The door/window/lock barrier card ───────────────────────────────────────
+// A barrier is a section of WALL, not an entity of its own — bar.invert_state
+// flips the open/closed reading for just ONE barrier (the Upper Garage Car
+// Door Contact reports backwards), so this card is keyed on the barrier, not
+// just the linked entity id, and computes the exact same reading the map
+// itself draws (iso_lights.js's barrier pass). lock.* and cover.* are the
+// only two domains with a real service to call; a plain binary_sensor
+// contact has nothing to open or close remotely — it says so instead of
+// showing a button that would just fail, same spirit as the read-only
+// motion/temperature/air-quality tiles elsewhere on this map.
+export function openBarrierCard(hass, bar, api){
+  if (!hass || !bar || !bar.linked_entity_id) return;
+  const eid = bar.linked_entity_id;
+  const st = hass.states[eid];
+  if (!st) return;
+  const el = _mkEl;
+  const toast = api && api.toast ? api.toast : () => {};
+  const rerender = api && api.rerender ? api.rerender : () => {};
+  const domain = String(eid).split(".")[0];
+
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10000;"
+    + "display:flex;align-items:center;justify-content:center;"
+    + "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)";
+  const close = () => { try { document.body.removeChild(overlay); } catch (_) {} };
+  overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+
+  const box = el("div", { style:
+    "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.28);"
+    + "border-radius:16px;padding:20px;width:300px;max-width:90vw;"
+    + "color:#e2e8f0;font-family:Inter,system-ui,sans-serif;"
+    + "box-shadow:0 20px 60px rgba(0,0,0,.65),0 0 30px rgba(82,183,136,.08),inset 0 1px 0 rgba(255,255,255,.05)" });
+
+  const smallBtn = "background:rgba(255,255,255,.04);border:1px solid rgba(120,190,155,.18);border-radius:8px;"
+    + "color:#94a3b8;font-size:13px;cursor:pointer;padding:3px 8px;line-height:1;flex-shrink:0";
+  box.appendChild(el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px" }, [
+    el("div", { style: "font-weight:700;font-size:15px;letter-spacing:-.01em" }, bar.name || (st.attributes||{}).friendly_name || eid),
+    el("button", { style: smallBtn + ";margin-left:auto", onclick: close }, "✕"),
+  ]));
+
+  const isLockDomain = domain === "lock";
+  let stateLabel, isAlert;
+  if (isLockDomain) {
+    stateLabel = st.state === "locked" ? "Locked" : st.state === "jammed" ? "Jammed" : "Unlocked";
+    isAlert = st.state !== "locked";
+  } else {
+    const rawOn = st.state === "on";
+    const isOpen = bar.invert_state ? !rawOn : rawOn;
+    stateLabel = isOpen ? "Open" : "Closed";
+    isAlert = isOpen;
+  }
+  box.appendChild(el("div", {
+    style: "display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;"
+      + "font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:14px;"
+      + (isAlert
+        ? "color:#fca5a5;background:rgba(248,113,113,.14);border:1px solid rgba(248,113,113,.5)"
+        : "color:#86efac;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.4)"),
+  }, stateLabel));
+
+  if (isLockDomain) {
+    const on = st.state === "locked";
+    box.appendChild(el("button", {
+      style: "width:100%;margin-bottom:6px;padding:10px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;"
+        + "letter-spacing:.02em;"
+        + (on ? "background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#111827;border:1px solid rgba(255,255,255,.25);box-shadow:0 0 18px rgba(251,191,36,.35);"
+              : "background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);"),
+      onclick: async () => {
+        const svc = on ? "unlock" : "lock";
+        setOptimistic(eid, on ? "unlocked" : "locked");
+        try { await hass.callService("lock", svc, { entity_id: eid }); } catch (e) { clearOptimistic(eid); toast("Could not " + svc, true); }
+        close();
+        setTimeout(rerender, 400);
+      },
+    }, on ? "Unlock" : "Lock"));
+    if (st.state === "jammed") {
+      box.appendChild(el("div", { style: "font-size:12px;color:#f87171;margin-bottom:6px" }, "⚠ Lock is jammed"));
+    }
+  } else if (domain === "cover") {
+    const state = st.state; // open | closed | opening | closing
+    const busy = state === "opening" || state === "closing";
+    const isOpen = state === "open";
+    box.appendChild(el("button", {
+      style: "width:100%;margin-bottom:6px;padding:10px;font-weight:700;font-size:13px;border-radius:10px;"
+        + "letter-spacing:.02em;" + (busy ? "opacity:.5;cursor:default;" : "cursor:pointer;")
+        + (isOpen ? "background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#111827;border:1px solid rgba(255,255,255,.25);box-shadow:0 0 18px rgba(251,191,36,.35);"
+                  : "background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);"),
+      onclick: async () => {
+        if (busy) return;
+        const svc = isOpen ? "close_cover" : "open_cover";
+        try { await hass.callService("cover", svc, { entity_id: eid }); } catch (e) { toast("Could not " + (isOpen ? "close" : "open"), true); }
+        close();
+        setTimeout(rerender, 400);
+      },
+    }, busy ? (state === "opening" ? "Opening…" : "Closing…") : (isOpen ? "Close" : "Open")));
+  } else {
+    box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5" },
+      "This is a plain contact sensor — it reports state only, there's no way to open or close it remotely."));
   }
 
   overlay.appendChild(box);

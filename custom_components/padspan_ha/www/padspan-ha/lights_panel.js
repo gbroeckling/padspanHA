@@ -422,12 +422,16 @@ class PadSpanLightsApp extends HTMLElement {
 
     // ── The shared map card — identical map to the Mapping → Lights tab ──────
     const floors=this.state.model.floors||[];
+    // Door/window/lock click-to-control (Garry, 2026-09-22) — same gate as
+    // maps.js's own barrierHit (_isPro there): Bright or Pro, never free.
+    const paid=["bright","pro"].includes(String(this.state._tier||"").toLowerCase());
 
     const host={
       el,
       floors,
       model: this.state.model,
       tier: this.state._tier,
+      barrierHit: paid,
       byRoom,
       hiddenEids: hidden,
       // This screen IS the house map (Garry, 2026-09-21: "anything to the

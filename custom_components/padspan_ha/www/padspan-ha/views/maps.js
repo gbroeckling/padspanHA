@@ -26,7 +26,7 @@ const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM
 // identical map; this tab layers the build tools on top of it.
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, spreadInRoom, createUndoStack, toggleEntity,
-        wireUseSurface, openControlCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates,
+        wireUseSurface, openControlCard, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates,
         isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
         captureWholeHouse, applyWholeHouse, layoutTierFor } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
@@ -7549,10 +7549,13 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
 
   // A linked door / window / lock is a section of WALL, not a marker — the
   // renderer draws it pointer-events:none, so it never had anything to press.
-  // The builder asks for an invisible hit path over each one (barrierHit) and
-  // a still hold on it jumps the index to that device's row, the same gesture
-  // every marker already has. Hold ONLY: a tap does nothing — a door has
-  // nothing to switch, and a lock must never be one stray tap from unlocking.
+  // The builder asks for an invisible hit path over each one (barrierHit).
+  // A still HOLD on it jumps the index to that device's row, the same
+  // gesture every marker already has. A plain TAP (Garry, 2026-09-22: "the
+  // ability to click on the line... bring up a card") opens the same
+  // open/closed card the Atlas sidebar offers — safe on a bare tap, since
+  // the card itself never changes anything; only a button pressed INSIDE
+  // it does, same two-step shape as every other holdable marker's controls.
   for (const hb of isoDiv.querySelectorAll("polyline.lbarhit[data-eid]")) {
     const heid = hb.getAttribute("data-eid");
     hb.style.touchAction = "none";
@@ -7593,7 +7596,11 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
     hb.addEventListener("pointerup", (ev) => {
       if (ev.pointerId !== capId) return;
       const wasArmed = armed; armed = false; clear();
-      if (!wasArmed) return;
+      if (!wasArmed) {
+        const bar = ((o.model && o.model.rf_barriers_m) || []).find(b => b.linked_entity_id === heid);
+        if (bar) openBarrierCard(ctx.hass, bar, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms() });
+        return;
+      }
       o.mapState._focusRow = heid;
       ctx.actions.renderRooms();
     });
@@ -9139,12 +9146,16 @@ function _lightsTab(ctx, maps, active) {
     // Preview-as-sidebar asks the renderer for the use-surface ergonomics
     // (the sidebar's exact options) and wires the sidebar's exact gestures.
     codeChip: preview, hitHalo: preview, collapseUnplaced: preview,
-    // paid && !preview, matching every sibling builder-only flag here — a
-    // free-tier install has no build tools wired (_wireLightsBuild never
-    // runs for it), so `!preview` alone drew an inert invisible hit-stroke
-    // over every linked barrier with nothing ever listening to it. Found
-    // in the Phase 2a press-and-hold audit, 2026-09-19.
-    barrierHit: paid && !preview,
+    // paid alone, NOT paid && !preview any more (2026-09-22): the hit-path
+    // used to be builder-editing-only dead weight (a hold there jumped the
+    // index row, nothing in Preview or the sidebar ever listened), so
+    // Preview correctly left it off. Now that a plain click opens the same
+    // card the real sidebar offers (wireUseSurface), excluding Preview
+    // would make it the one thing "Preview as sidebar" doesn't actually
+    // preview. `!preview` originally guarded free tier in EDITING mode
+    // only (_wireLightsBuild never runs there anyway) — paid alone already
+    // covers that.
+    barrierHit: paid,
     // Build-tool interaction: hexes select and drag instead of toggling.
     // Free tier: a hex switches the light, exactly as the sidebar does.
     // Preview: the shared use surface — tap switches, chip/hold opens the
