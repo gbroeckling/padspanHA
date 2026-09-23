@@ -216,3 +216,41 @@ async def test_a_reboot_write_sends_rb_and_does_not_re_read(fake):
     assert post[3]["rb"] is True
     assert fake.calls[-1][0] == "POST"
     assert conn.results[0]["after"] is None
+
+
+async def test_a_restore_is_admin_only_and_takes_a_safety_copy_first(fake, monkeypatch):
+    uploads = []
+
+    async def _up(h, host, fname, data, pin=None):
+        uploads.append((host, fname, data))
+
+    monkeypatch.setattr(W, "_upload", _up)
+    folder = Path(fake.tmp, "padspan_ha", "wled_backups", "aabbccddeeff", "20260101-000000")
+    folder.mkdir(parents=True)
+    (folder / "presets.json").write_text(json.dumps({"0": {}, "1": {"n": "Old"}}))
+
+    conn = _Conn(admin=False)
+    await W.ws_wled_backups(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north",
+                                               "action": "restore_presets", "backup_id": "20260101-000000"})
+    assert conn.errors[0][0] == "unauthorized" and not uploads
+
+    conn = _Conn(admin=True)
+    await W.ws_wled_backups(fake.hass, conn, {"id": 2, "entity_id": "light.upper_north",
+                                               "action": "restore_presets", "backup_id": "20260101-000000"})
+    assert not conn.errors, conn.errors
+    assert uploads == [("192.168.2.122", "presets.json", {"0": {}, "1": {"n": "Old"}})]
+    safety = conn.results[0]["safety_backup"]
+    assert (folder.parent / safety / "presets.json").exists(), "the device's current presets are kept first"
+
+
+async def test_a_restore_reads_only_this_devices_folder(fake, monkeypatch):
+    """The folder is keyed by the device's own MAC: another unit's backup
+    can't be pushed here (never copy presets.json between devices)."""
+    monkeypatch.setattr(W, "_upload", lambda *a, **k: None)
+    other = Path(fake.tmp, "padspan_ha", "wled_backups", "112233445566", "20260101-000000")
+    other.mkdir(parents=True)
+    (other / "presets.json").write_text("{}")
+    conn = _Conn(admin=True)
+    await W.ws_wled_backups(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north",
+                                               "action": "restore_presets", "backup_id": "20260101-000000"})
+    assert conn.errors and conn.errors[0][0] == "not_found"

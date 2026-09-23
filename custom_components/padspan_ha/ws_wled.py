@@ -224,6 +224,37 @@ async def _request(hass: HomeAssistant, host: str, method: str, path: str,
         raise WledError("bad_reply", "The device's reply wasn't JSON") from err
 
 
+async def _upload(hass: HomeAssistant, host: str, filename: str, data: Any, pin: str | None = None) -> None:
+    """Multipart upload to /upload (the device's own file endpoint): the only
+    way to put a whole presets.json or cfg.json back. cfg.json reboots it."""
+    import aiohttp  # noqa: PLC0415
+    from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
+
+    session = async_get_clientsession(hass)
+    if pin:
+        # The PIN unlocks the device for 15 minutes (one device-wide flag).
+        await _request(hass, host, "POST", "json/state", {"pin": pin}, POST_TIMEOUT_S)
+    form = aiohttp.FormData()
+    form.add_field("data", json.dumps(data, separators=(",", ":")).encode(), filename=filename,
+                   content_type="application/json")
+    try:
+        async with session.post(f"http://{host}/upload", data=form,
+                                timeout=aiohttp.ClientTimeout(total=POST_TIMEOUT_S * 2)) as resp:
+            if resp.status == 401:
+                raise WledError("pin_required", "This WLED device has a settings PIN — enter it to continue")
+            if resp.status >= 400:
+                raise WledError("http_error", f"The device refused the upload (HTTP {resp.status})")
+    except WledError:
+        raise
+    except asyncio.TimeoutError as err:
+        # cfg.json makes the device reboot mid-reply; that is expected.
+        if filename != "cfg.json":
+            raise WledError("timeout", f"No answer from {host}") from err
+    except aiohttp.ClientError as err:
+        if filename != "cfg.json":
+            raise WledError("unreachable", f"Can't reach {host}: {err}") from err
+
+
 def _backup_dir(hass: HomeAssistant, mac: str) -> Path:
     safe = re.sub(r"[^0-9a-fA-F]", "", mac or "") or "unknown"
     return Path(hass.config.path(DOMAIN, "wled_backups", safe.lower()))
@@ -397,8 +428,9 @@ async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/wled_backups",
-    vol.Optional("action", default="list"): vol.In(["list", "create", "get"]),
+    vol.Optional("action", default="list"): vol.In(["list", "create", "get", "restore_presets", "restore_cfg"]),
     vol.Optional("backup_id"): vol.Match(r"^\d{8}-\d{6}$"),
+    vol.Optional("pin"): vol.All(str, vol.Length(max=4)),
     **_TARGET,
 })
 @websocket_api.async_response
@@ -427,6 +459,42 @@ async def ws_wled_backups(hass: HomeAssistant, connection, msg) -> None:
             return
         backup_id = await hass.async_add_executor_job(_write_backup_sync, folder, files)
         connection.send_result(msg["id"], {"backup": backup_id})
+        return
+    if action in ("restore_presets", "restore_cfg"):
+        # Only back to the SAME device: another unit's LED count breaks every
+        # segment bound in its presets (Garry's rule: never copy presets.json
+        # between devices). The folder is keyed by this device's own MAC.
+        if not _is_admin(connection):
+            connection.send_error(msg["id"], "unauthorized", "Only an administrator can restore a WLED backup")
+            return
+        bid = msg.get("backup_id")
+        fname = "presets.json" if action == "restore_presets" else "cfg.json"
+
+        def _read_one() -> Any:
+            f = folder / str(bid) / fname
+            return json.loads(f.read_text(encoding="utf-8")) if bid and f.is_file() else None
+
+        data = await hass.async_add_executor_job(_read_one)
+        if data is None:
+            connection.send_error(msg["id"], "not_found", f"That backup has no {fname} for this device")
+            return
+        # A safety copy of what is there now, before anything is overwritten.
+        try:
+            now_files = {"cfg.json": await _request(hass, tgt["host"], "GET", "json/cfg"),
+                         "presets.json": await _request(hass, tgt["host"], "GET", "presets.json"), "info.json": info}
+            safety = await hass.async_add_executor_job(_write_backup_sync, folder, now_files)
+            await _upload(hass, tgt["host"], fname, data, msg.get("pin"))
+        except WledError as e:
+            connection.send_error(msg["id"], e.code, str(e))
+            return
+        verified = None
+        if action == "restore_presets":
+            try:
+                verified = cfg_hash(await _request(hass, tgt["host"], "GET", "presets.json")) == cfg_hash(data)
+            except WledError:
+                verified = False
+        connection.send_result(msg["id"], {"restored": fname, "from": bid, "safety_backup": safety,
+                                           "verified": verified, "rebooting": action == "restore_cfg"})
         return
     if action == "get":
         bid = msg.get("backup_id")

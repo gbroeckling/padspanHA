@@ -128,3 +128,44 @@ out.write = writes[0];
 """)
     assert out["catalog"] and out["sliders"]
     assert out["write"] == {"seg": [{"id": 0, "fx": 3, "fxdef": True}]}
+
+
+def test_presets_list_applies_live_and_renames_without_touching_content():
+    out = _run("""
+const writes = [];
+DEVICE["presets.json"] = { "0": {}, "1": { n: "Boot", on: true, bri: 200, seg: [{ id: 0, start: 0, stop: 120, fx: 3 }] },
+                           "2": { n: "Party", playlist: { ps: [1], dur: [100], transition: [7] } } };
+const pane = document.createElement("div");
+globalThis.prompt = () => "Evening";
+await WA.mountWledAdvanced(pane, { hass: fakeHass(writes), eid: "light.upper_north", api: { wled: { isAdmin: true }, toast: () => {} } });
+await settle();
+all(pane).find(n => n.textContent === "Presets & playlists").click();
+await settle();
+const t = texts(pane);
+out.summary = t.some(x => x.includes("1 segment · Fire 2012 · brightness 78%"));
+out.playlist = t.some(x => x === "Playlist · 1 presets");
+out.boot = t.includes("boot");
+all(pane).filter(n => n.textContent === "Apply")[0].click();
+await settle();
+all(pane).filter(n => n.textContent === "Rename")[0].click();
+await settle();
+out.writes = writes;
+""")
+    assert out["summary"] and out["playlist"] and out["boot"]
+    assert out["writes"][0] == {"ps": 1}
+    assert out["writes"][1] == {"n": "Evening", "on": True, "bri": 200,
+                                "seg": [{"id": 0, "start": 0, "stop": 120, "fx": 3}], "psave": 1, "o": True}
+
+
+def test_non_admins_can_apply_but_not_change_presets():
+    out = _run("""
+const pane = document.createElement("div");
+await WA.mountWledAdvanced(pane, { hass: fakeHass([]), eid: "light.upper_north", api: { wled: { isAdmin: false }, toast: () => {} } });
+await settle();
+all(pane).find(n => n.textContent === "Presets & playlists").click();
+await settle();
+const t = texts(pane);
+out.apply = t.includes("Apply");
+out.edits = ["Rename", "Delete", "Update", "+ Save current as preset", "+ New playlist"].filter(x => t.includes(x));
+""")
+    assert out == {"apply": True, "edits": []}
