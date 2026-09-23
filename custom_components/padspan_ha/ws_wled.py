@@ -627,8 +627,11 @@ async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
         except WledError:
             after = None
         # A config write resets the live "send my changes" switch to the
-        # saved one (0.15+): put the live one back (round 5).
-        if isinstance(live_send, bool):
+        # saved one (0.15+): put the live one back (round 5) — unless this
+        # write sets the saved switch itself, which the admin meant to act
+        # now (round 6).
+        send_patch = ((msg["patch"].get("if") or {}).get("sync") or {}).get("send") or {}
+        if isinstance(live_send, bool) and not ({"en", "dir"} & set(send_patch)):
             try:
                 now_send = ((await _request(hass, host, "GET", "json/state")).get("udpn") or {}).get("send")
                 if isinstance(now_send, bool) and now_send != live_send:

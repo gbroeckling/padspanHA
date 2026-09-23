@@ -506,3 +506,53 @@ async def test_a_failed_identify_request_still_restores(fake, monkeypatch):
     assert timers and timers[0][0] == 0
     await timers[0][1]()
     assert posts[-1]["seg"][0]["fx"] == 3, "the saved state went back"
+
+
+# ── round 6 ──────────────────────────────────────────────────────────────────
+
+
+class _Dev015:
+    """A WLED 0.15 device as far as sync goes: a cfg write sets the live
+    "send" to the saved one (sendNotificationsRT = sendNotifications)."""
+
+    def __init__(self, en=False, live=False):
+        self.cfg = {"if": {"sync": {"send": {"en": en, "dir": True, "grp": 1}, "recv": {"grp": 1}}}}
+        self.live = live
+
+    async def req(self, h, host, method, path, body=None, timeout=0, retries=0):
+        if path == "json/info":
+            return {"mac": "aa:bb:cc:dd:ee:ff", "arch": "esp32", "ver": "0.15.1"}
+        if path == "presets.json":
+            return {"0": {}}
+        if path == "json/cfg" and method == "GET":
+            return self.cfg
+        if path == "json/cfg":
+            send = ((body.get("if") or {}).get("sync") or {}).get("send") or {}
+            if "en" in send:
+                self.cfg["if"]["sync"]["send"]["en"] = send["en"]
+            self.live = self.cfg["if"]["sync"]["send"]["en"]
+            return {"success": True}
+        if path == "json/state" and method == "GET":
+            return {"udpn": {"send": self.live, "sgrp": 1, "rgrp": 1}}
+        if path == "json/state":
+            self.live = (body.get("udpn") or {}).get("send", self.live)
+        return {}
+
+
+async def test_saving_sending_on_is_not_undone_live(fake, monkeypatch):
+    dev = _Dev015(en=False, live=False)
+    monkeypatch.setattr(W, "_request", dev.req)
+    conn = _Conn()
+    patch = {"if": {"sync": {"send": {"en": True, "dir": True, "grp": 1}}}}
+    await W.ws_wled_cfg(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "patch": patch,
+                                           "base_hash": W.cfg_hash(dev.cfg)})
+    assert not conn.errors and dev.live is True
+
+
+async def test_an_unrelated_save_keeps_the_live_send_switch(fake, monkeypatch):
+    dev = _Dev015(en=False, live=True)          # someone switched sending on live
+    monkeypatch.setattr(W, "_request", dev.req)
+    conn = _Conn()
+    await W.ws_wled_cfg(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "patch": {"def": {"ps": 2}},
+                                           "base_hash": W.cfg_hash(dev.cfg)})
+    assert not conn.errors and dev.live is True

@@ -86,7 +86,7 @@ function liveSyncCard(ctx) {
     groupChips(u.rgrp, v => write({ send: !!u.send, sgrp: u.sgrp || 0, rgrp: v }), !ctx.isAdmin),
   ]));
   card.appendChild(h("div", { style: `font-size:11px;color:${C.faint};margin-top:4px` },
-    "These act now. The next settings save keeps the group numbers for good and resets “Send my changes” to the saved setting below."
+    "These act now, until the device restarts. A settings save can make them permanent."
     + (ctx.isAdmin ? "" : " An administrator changes the groups.")));
   return card;
 }
