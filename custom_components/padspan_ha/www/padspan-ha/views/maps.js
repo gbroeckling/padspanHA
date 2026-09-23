@@ -9034,12 +9034,19 @@ function _lightsTab(ctx, maps, active) {
     // stage's width, a table-beside-map column on a wide monitor. This
     // screen is the WORKBENCH (host.displayMode unset) — tools belong
     // beside the map here, unlike the sidebar's edge-to-edge display.
-    layoutV2: !!ctx.state.settings?.atlas_layout_v2,
-    onLayoutV2: async (on) => {
+    // Gated to Pro specifically (Garry, 2026-09-23) — the same proTier
+    // split typeOverrides already uses above, not the bright-or-pro
+    // `paid` gate everything else on this screen uses. The setting
+    // itself still defaults true for everyone (settings_store.py), so a
+    // Bright/free install simply never sees the column layout regardless
+    // of what's stored; the toggle to turn it off/on only appears at all
+    // when host.onLayoutV2 is non-null, so it's absent below Pro too.
+    layoutV2: proTier && !!ctx.state.settings?.atlas_layout_v2,
+    onLayoutV2: proTier ? async (on) => {
       try { await ctx.actions.settingsSet({ atlas_layout_v2: on }); }
       catch (e) { ctx.toast("Could not change the Atlas layout: " + String(e), true); }
       ctx.actions.renderRooms();
-    },
+    } : null,
     // settingsSet re-renders the whole maps view, which detaches the shared
     // card's "Saved ✓" label before it can be read — so confirm with a toast,
     // which outlives the re-render. A failure must not look like a success.

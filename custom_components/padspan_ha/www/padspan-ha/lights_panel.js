@@ -442,7 +442,9 @@ class PadSpanLightsApp extends HTMLElement {
       // display variant: edge-to-edge map, a slim icon rail, every bar a
       // drawer over the map. No onLayoutV2: the toggle lives in the
       // builder only, this panel just reflects what it's set to.
-      layoutV2: !!this.state._atlasLayoutV2,
+      // Gated to Pro specifically (Garry, 2026-09-23) — same split as the
+      // builder's own proTier, not the bright-or-pro `paid` above.
+      layoutV2: String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2,
       displayMode: true,
       showcase: !!this.state._showcase,
       showcaseTheme: this.state._showcaseTheme || "classic",
