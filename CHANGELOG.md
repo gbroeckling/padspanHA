@@ -4,6 +4,30 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.75 — Full house activity, fixed properly (2026-09-23)
+
+An independent review of the last two releases found real problems behind a passing test suite. All fixed:
+
+### Traceback — Full house activity
+- **Fixed:** every motion sensor showed as "just triggered" at the start of every playback.
+- **Fixed:** the house can now be replayed while nobody is home — each light, door or motion change gets its own moment on the timeline, and tapping an event in the list lands on it (it used to land just before it, showing the door still shut).
+- **Fixed:** the event list was flooded by temperature and air-quality readings; it now lists lights, doors, locks and motion, and no longer jumps back to the top while playing.
+- **Fixed:** watching history could change the brightness a light turns on at next time.
+- **Fixed:** while history is loading (or if it fails) the map no longer shows today's states under a past time — there's a Retry.
+- **Fixed:** the Floor slider picks the right floor on the Atlas map; long ranges (1–7 days) now cover the whole range instead of only the first few hours.
+
+### Traceback — modes
+- **Fixed:** Playback had no controls if Traceback was opened on Insights or Busy Times; the Full house activity switch showed up in the wrong modes; Insights could go blank when switching modes quickly; New Objects' pins could stay on screen after returning to Playback.
+
+### Follow — Locate
+- **Fixed:** a lost tag with no current room now says it's out of range and where it was last seen; following your own phone says so; directions now update every few seconds instead of every 35.
+
+### Vacation Mode
+- **Fixed:** with Home Assistant's default 10 days of history, a trip started on a Friday had no weekend data and left the house dark all weekend — a weekday without enough history now uses the same time on any day.
+- **Fixed:** light groups are left to their member lights; a light left on when Vacation Mode is switched off isn't learned as your routine; switching it off mid-check no longer switches a light afterwards; a failed first build retries hourly instead of every 5 minutes; restoring a backup or a factory reset keeps its record of past vacations.
+
+---
+
 ## 0.38.74 — Vacation Mode never learns from itself, and shows up in Traceback (2026-09-23)
 
 ### Vacation Mode
