@@ -4,6 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.73 — Full house activity in Traceback; Insights, Busy Times and Locate move in (2026-09-23)
+
+### Traceback
+- **Added (PadSpan Pro):** a "🏠 Full house activity" option on Playback. Turn it on and Traceback shows your Atlas map instead of the 3D stack, and plays the whole house back alongside the beacons — every light (with its colour and brightness), door, window, lock and motion sensor as it was at that moment. Beacons keep Traceback's own markers and trails. The same play, scrub, speed, range and object filter controls drive it, and a list under the map shows every change in the window; tap one to jump there. House history comes from Home Assistant's own recorder (10 days by default), so nothing new is recorded; beacon history keeps 7 days.
+- **Changed:** Insights and Busy Times are now modes of Traceback (Playback · New Objects · Insights · Busy Times) instead of tabs of their own — all three read the same history. Old links to either still land on them.
+
+### Follow
+- **Changed:** Locate is now an option on Follow — pick a tag, tap "📍 Locate", and it guides you to the tag you're already following, with no second pick to make. Still PadSpan Pro. Its own tab is gone; old links land on Follow with Locate on.
+
+---
+
 ## 0.38.72 — Atlas's column layout is a Pro feature (2026-09-23)
 
 ### Atlas
