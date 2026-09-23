@@ -408,10 +408,18 @@ export function floodIsAlarming(l, floodLatches){
 // two hosts build that button in genuinely different DOM idioms (mk() vs
 // el()) — unifying the WORD and the SORT VALUE retires the actual
 // duplicated logic; the markup stays each host's own.
-export function stateWordOf(l, floodLatches){
+// A door or lock reads by the same rules the Atlas draws it by (round 6):
+// barrierNoReading's "no reading", and a door's own invert_state
+// (doorInvert: {entity_id: true} — doorInvertOf(model)).
+export const doorInvertOf = (model) => Object.fromEntries((model?.rf_barriers_m || [])
+  .filter(b => b.linked_entity_id).map(b => [b.linked_entity_id, !!b.invert_state]));
+export function stateWordOf(l, floodLatches, doorInvert){
   if (l.isMotion) {
     const on = l.state === "on";
     return { text: on ? "MOTION" : "clear", lit: on, sortValue: on ? 1 : 0 };
+  }
+  if ((l.isLock || l.isDoor) && barrierNoReading(l)) {
+    return { text: "NO READING", lit: false, sortValue: -1 };
   }
   if (l.isLock) {
     const jammed = l.state === "jammed";
@@ -431,7 +439,7 @@ export function stateWordOf(l, floodLatches){
     return { text: airQualityLabel(l), lit: false, sortValue: Number.isFinite(b) ? b : -Infinity };
   }
   if (l.isDoor) {
-    const on = l.state === "on";
+    const on = (l.state === "on") !== !!(doorInvert && doorInvert[l.entity_id]);
     return { text: on ? "OPEN" : "CLOSED", lit: on, sortValue: on ? 1 : 0 };
   }
   if (l.isFlood) {
@@ -964,7 +972,7 @@ export function openAggregateSheet(api, { title, sub, items, actions }){
     const col = classBorder(l, "#52b788");
     row.appendChild(mk("span", _S.code + `;color:${col}`, l.code));
     row.appendChild(mk("span", _S.name, l.friendly_name));
-    const sw = stateWordOf(l, api.floodLatches);
+    const sw = stateWordOf(l, api.floodLatches, api.doorInvertByEid);
     if (sw) {
       row.appendChild(mk("span", _S.state(sw.lit), sw.text));
       if (l.isLock) {
@@ -3397,7 +3405,7 @@ export function buildLightsTable(host, lights){
     // openAggregateSheet and this table's own render chain below; one of
     // those three had already drifted (the flood latch was invisible to
     // this exact sort key until fixed by hand, separately, the same day).
-    ["state", "State", (l) => { const sw = stateWordOf(l, host.floodLatches); return sw ? sw.sortValue : (l.state === "on" ? 1 : 0); }],
+    ["state", "State", (l) => { const sw = stateWordOf(l, host.floodLatches, host.doorInvertByEid); return sw ? sw.sortValue : (l.state === "on" ? 1 : 0); }],
   ];
   const th = (key, label, extraStyle) => {
     if (!key || !host.onTableSort) return el("th", { style: extraStyle || "" }, label);
@@ -3525,7 +3533,7 @@ export function buildLightsTable(host, lights){
         // room/floor sheet's, and this table's own separate sort key);
         // two had already drifted into live bugs (a locked lock read "Off"
         // here once, the flood latch was invisible to the sort key).
-        const sw = stateWordOf(l, host.floodLatches);
+        const sw = stateWordOf(l, host.floodLatches, host.doorInvertByEid);
         if (!sw) return el("span", { class: `lv-state ${on ? "on" : "off"}` }, on ? "ON" : "OFF");
         const stateSpan = el("span", { class: `lv-state ${sw.lit ? "on" : "off"}` }, sw.text);
         if (l.isFlood && sw.latched && host.onFloodReset) {

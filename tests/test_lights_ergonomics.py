@@ -1066,3 +1066,24 @@ console.log(JSON.stringify({ door, lock, closedLockOffline }));
     assert "No reading" in out["door"] and "Open" not in out["door"], out["door"]
     assert "No reading" in out["lock"] and "Unlocked" not in out["lock"], out["lock"]
     assert "Closed" in out["closedLockOffline"] and "Unlocked" not in out["closedLockOffline"], out["closedLockOffline"]
+
+
+def test_state_word_reads_doors_and_locks_the_way_the_atlas_draws_them(tmp_path):
+    """Review round 6: the table and room/floor sheets said CLOSED for an
+    offline door, UNLOCKED for an offline lock, and OPEN for the inverted
+    Upper Garage Car Door while it was closed — right beside its own
+    'Inverted ✓' button. Same rules as the Atlas now."""
+    out = _run(tmp_path, r"""
+const inv = { "binary_sensor.garage": true };
+console.log(JSON.stringify({
+  offlineDoor: LM.stateWordOf({ isDoor: true, entity_id: "binary_sensor.x", state: "unavailable" }, {}, {}).text,
+  offlineLock: LM.stateWordOf({ isLock: true, entity_id: "lock.x", state: "unknown" }, {}, {}).text,
+  invClosed:   LM.stateWordOf({ isDoor: true, entity_id: "binary_sensor.garage", state: "on" }, {}, inv).text,
+  invOpen:     LM.stateWordOf({ isDoor: true, entity_id: "binary_sensor.garage", state: "off" }, {}, inv).text,
+  plainOpen:   LM.stateWordOf({ isDoor: true, entity_id: "binary_sensor.y", state: "on" }, {}, inv).text,
+  map: LM.doorInvertOf({ rf_barriers_m: [{ linked_entity_id: "binary_sensor.garage", invert_state: true }, { points_m: [] }] }),
+}));
+""")
+    assert out["offlineDoor"] == "NO READING" and out["offlineLock"] == "NO READING"
+    assert out["invClosed"] == "CLOSED" and out["invOpen"] == "OPEN" and out["plainOpen"] == "OPEN"
+    assert out["map"] == {"binary_sensor.garage": True}

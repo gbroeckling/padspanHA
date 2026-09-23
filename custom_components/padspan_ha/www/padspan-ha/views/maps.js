@@ -26,7 +26,7 @@ const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM
 // identical map; this tab layers the build tools on top of it.
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, spreadInRoom, createUndoStack, toggleEntity,
-        wireUseSurface, openControlCard, controlApiFor, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates,
+        wireUseSurface, openControlCard, controlApiFor, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
         captureWholeHouse, applyWholeHouse, layoutTierFor } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
@@ -8679,6 +8679,7 @@ function _lightsTab(ctx, maps, active) {
     openActivity: (eid) => openActivityCalendar(ctx.hass, eid),
     setMany: (eids, on) => setManyStates(ctx.hass, eids, on, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms() }),
     doorLockMap: ctx.state._lightsRegStore?.reg?.doorLockMap || {},
+    doorInvertByEid: doorInvertOf(ctx.state.model),
     floodLatches: (ctx.state.settings && ctx.state.settings.flood_latches) || {},
     onFloodReset: (eid) => {
       ctx.actions.wsCall("padspan_ha/flood_reset", { entity_id: eid })
@@ -9086,8 +9087,7 @@ function _lightsTab(ctx, maps, active) {
     doorMaterialByEid: Object.fromEntries((ctx.state.model?.rf_barriers_m || [])
       .filter(b => b.linked_entity_id).map(b => [b.linked_entity_id, b.material])),
     // Same, for the row's own Invert toggle.
-    doorInvertByEid: Object.fromEntries((ctx.state.model?.rf_barriers_m || [])
-      .filter(b => b.linked_entity_id).map(b => [b.linked_entity_id, !!b.invert_state])),
+    doorInvertByEid: doorInvertOf(ctx.state.model),
     // The opener/lock ALSO tied to this same wall opening (Garry,
     // 2026-09-22: "three things need a logical link... all of these sit on
     // the opening" — the barrier IS that opening, so these two new fields

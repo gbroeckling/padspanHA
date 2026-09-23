@@ -24,7 +24,7 @@ const { hasControlCard } =
 // two tools always show the identical map. All lights-view edits go in there.
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, toggleEntity,
-        wireUseSurface, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates,
+        wireUseSurface, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         wireHoverHud, captureWholeHouse, applyWholeHouse } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 
@@ -349,6 +349,7 @@ class PadSpanLightsApp extends HTMLElement {
       // Barrier card's paired-lock lookup (computeDoorLockPairs) — same
       // registry fetch as everything else in _regStore, no extra round trip.
       doorLockMap: this._regStore?.reg?.doorLockMap || {},
+      doorInvertByEid: doorInvertOf(this.state.model),
       floodLatches: this.state._floodLatches || {},
       onFloodReset: (eid)=>{
         this._hass.callWS({ type: "padspan_ha/flood_reset", entity_id: eid })
@@ -570,6 +571,7 @@ class PadSpanLightsApp extends HTMLElement {
       // door/window is linked, same status Mapping -> Lights shows.
       doorLinkedIds: new Set((this.state.model?.rf_barriers_m || [])
         .filter(b => b.linked_entity_id).map(b => b.linked_entity_id)),
+      doorInvertByEid: doorInvertOf(this.state.model),
       view: this._view,
       saveView: ()=>this._saveSettings(),
       callWS: (msg)=>this._hass.callWS(msg),

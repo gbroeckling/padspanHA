@@ -96,7 +96,7 @@ def test_the_light_index_state_column_shows_open_closed_not_on_off():
     s = (_VIEWS / "lights_map.js").read_text(encoding="utf-8")
     # Two call sites share this exact substring (the sort key, then the
     # render chain below it) — the render chain is the later one.
-    i = s.rindex("const sw = stateWordOf(l, host.floodLatches);")
+    i = s.rindex("const sw = stateWordOf(l, host.floodLatches, host.doorInvertByEid);")
     state_cell = s[i:i + 800]
     assert "l.isDoor" not in state_cell, "door's OPEN/CLOSED word moved to stateWordOf — must not be re-derived here"
 
@@ -121,4 +121,4 @@ def test_aggregate_sheet_gives_doors_a_readonly_badge_not_a_dead_toggle_button()
     agg_fn = s[s.index("export function openAggregateSheet("):]
     agg_fn = agg_fn[:agg_fn.index("\n}\n")]
     assert "l.isDoor" not in agg_fn, "door's state word moved to stateWordOf — must not be re-special-cased here"
-    assert "const sw = stateWordOf(l, api.floodLatches);" in agg_fn
+    assert "const sw = stateWordOf(l, api.floodLatches, api.doorInvertByEid);" in agg_fn
