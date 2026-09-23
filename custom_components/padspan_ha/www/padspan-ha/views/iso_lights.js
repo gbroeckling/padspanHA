@@ -5742,6 +5742,40 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       if(typeof b.x_m!=="number" || !Number.isFinite(b.x_m) || typeof b.y_m!=="number" || !Number.isFinite(b.y_m)) continue;
       if(frame.levelOf(String(b.floor_id||"main"))!==z) continue;
       const [bx,by]=iso(b.x_m, b.y_m, z);
+      // Traceback's Full house activity (Garry, 2026-09-23: "same beacon
+      // style, but full activity display") hands each beacon its playback
+      // colour, recent trail and room: draw Traceback's own marker, not the
+      // read-only teal dot the live Atlas uses.
+      if(b.color){
+        const col=escSVG(b.color);
+        const trail=(Array.isArray(b.trail)?b.trail:[])
+          .filter(p=>Number.isFinite(p[0]) && Number.isFinite(p[1]))
+          .map(p=>iso(p[0], p[1], z));
+        if(trail.length){
+          const pts=[...trail,[bx,by]].map(p=>`${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+          s+=`<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2" stroke-dasharray="8,6" `+
+            `stroke-linecap="round" stroke-linejoin="round" opacity="0.55" pointer-events="none"/>`;
+          trail.forEach((p,i)=>{
+            s+=`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4" fill="${col}" `+
+              `opacity="${(0.15+0.3*i/Math.max(1,trail.length)).toFixed(2)}" pointer-events="none"/>`;
+          });
+        }
+        s+=`<g pointer-events="none"><circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="18" fill="${col}" opacity="0.14"/>`+
+          `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="11" fill="${col}" stroke="#071008" stroke-width="2" opacity="0.95"/>`+
+          `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="3.5" fill="#071008" opacity="0.7"/>`;
+        if(b.label){
+          const lbl=String(b.label).slice(0,16), w=Math.min(lbl.length*7+14,130);
+          s+=`<rect x="${(bx-w/2).toFixed(1)}" y="${(by-31).toFixed(1)}" width="${w}" height="17" rx="4" fill="#071008" stroke="${col}" stroke-width="1" opacity="0.9"/>`+
+            `<text x="${bx.toFixed(1)}" y="${(by-18.5).toFixed(1)}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="${col}">${escSVG(lbl)}</text>`;
+        }
+        if(b.room){
+          const rl=String(b.room).slice(0,18), rw=Math.min(rl.length*6+10,120);
+          s+=`<rect x="${(bx-rw/2).toFixed(1)}" y="${(by+14).toFixed(1)}" width="${rw}" height="14" rx="3" fill="#071008" opacity="0.75"/>`+
+            `<text x="${bx.toFixed(1)}" y="${(by+24.5).toFixed(1)}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="#94a3b8">${escSVG(rl)}</text>`;
+        }
+        s+=`</g>`;
+        continue;
+      }
       s+=`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="4.5" fill="#5eead4" `+
         `stroke="#0a1a12" stroke-width="1.2" opacity="0.9" pointer-events="none"/>`;
       // "Hide codes" also covers beacon names (Garry, 2026-09-09: "when txt

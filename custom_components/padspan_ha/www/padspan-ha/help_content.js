@@ -533,6 +533,8 @@ export const HELP = {
       "Objects that never changed rooms during the recording period are hidden automatically once there are enough moving objects to make that useful — you don't need to turn this on yourself.",
       "NEW OBJECTS HEARD — A separate search, not part of playback: shows which BLE devices were first seen within a chosen time window (e.g. \"from 30 min ago to 10 min ago\"), for spotting something new that showed up.",
       "Object positions use k-NN fingerprint data when available (precise sub-room placement) or fall back to room centroids. Older recordings before v0.14.71 only have room-level data.",
+      "INSIGHTS and BUSY TIMES — two more modes on the same row: time-in-room tables, and which rooms are busiest and when. Both read the same history playback does.",
+      "FULL HOUSE ACTIVITY (PadSpan Pro) — an option of Playback. Turn it on and the map becomes your Atlas map, and the whole house plays back with the beacons: every light, door, window, lock and motion sensor as it was at that moment. The same play, scrub, speed and range controls drive it. The list under the map shows every change in the window — tap one to jump there. House history comes from Home Assistant's own recorder, so it reaches back as far as your recorder keeps (10 days by default); beacon history keeps 7 days.",
     ],
   },
 

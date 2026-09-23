@@ -23,6 +23,12 @@ const insightsView =
   await import(`./insights.js${new URL(import.meta.url).search}`);
 const busyTimesView =
   await import(`./busy_times.js${new URL(import.meta.url).search}`);
+// Full house activity — the Pro option that plays the whole house back on the
+// Atlas map (see house_activity.js's header).
+const houseActivity =
+  await import(`./house_activity.js${new URL(import.meta.url).search}`);
+const { tierAtLeast, currentTier } =
+  await import(`./editions.js${new URL(import.meta.url).search}`);
 
 export function render(ctx) {
   const { el, esc: _esc } = ctx.helpers;
@@ -207,6 +213,10 @@ export function render(ctx) {
     delete ctx.state._tracebackInitialMode;
   }
   const tb = ctx.state._traceback;
+  if (!tb.house) tb.house = { on: false, timeline: null, events: [], eids: [], window: null, loading: false, error: null };
+  // PadSpan Pro specifically — below Pro the switch is not offered at all.
+  const _houseOK = tierAtLeast(currentTier(ctx.state.settings), "pro");
+  const _houseActive = () => _houseOK && tb.house.on && tb.mode === "playback";
 
   // ── Clear stale timer from previous render ──────────────────────────
   // If we're re-rendering while a timer is running, kill it so it doesn't
@@ -854,7 +864,91 @@ export function render(ctx) {
     return { svg: full, viewY, HTOTAL };
   }
 
+  // ── Full house activity: the Atlas map, drawn from history ──────────────
+  function _houseFrameColor(key) {
+    if (!tb._colorMap) {
+      const TB_COLORS = ["#fbbf24", "#60a5fa", "#f87171", "#34d399", "#c4b5fd", "#fb923c", "#5eead4", "#f472b6", "#a3e635", "#818cf8"];
+      tb._colorMap = {};
+      let ci = 0;
+      for (const f of tb.frames) for (const o of (f.o || [])) {
+        if (!tb._colorMap[o.k]) { tb._colorMap[o.k] = TB_COLORS[ci % TB_COLORS.length]; ci++; }
+      }
+    }
+    return tb._colorMap[key] || "#fbbf24";
+  }
+
+  function _renderHouseFrame() {
+    const hs = tb.house;
+    if (!tb.frames.length) {
+      mapDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#64748b;font-size:14px">No traceback frames loaded. Select a time range and press Play.</div>`;
+      _renderHouseEvents();
+      return;
+    }
+    const scanners = new Set(((ctx.state.live?.snapshot?.ble?.radios) || [])
+      .flatMap(r => [r.source, r.name]).filter(Boolean).map(v => String(v).toUpperCase()));
+    const svg = houseActivity.renderHouseFrame(ctx, hs, tb.frames, tb.frameIdx, {
+      keep: (o) => !scanners.has(String(o.k || "").toUpperCase()),
+      colorOf: _houseFrameColor,
+      labelOf: (o) => String(o.n || o.k || "?").replace(/^(entity:|ble:|sensor\.|device_tracker\.)/, "").replace(/_/g, " ").substring(0, 16),
+    }, () => { if (_houseActive()) _renderHouseFrame(); });
+    const ts = tb.frames[tb.frameIdx].ts;
+    const status = hs.loading ? "Loading house history…"
+      : hs.error ? `House history unavailable: ${_esc(hs.error.substring(0, 80))}`
+      : `${hs.events.filter(e => e.t <= ts * 1000).length} of ${hs.events.length} house events so far`;
+    mapDiv.innerHTML =
+      `<div style="display:flex;gap:10px;align-items:center;margin-bottom:6px;font-size:12px">` +
+      `<span style="font-family:monospace;font-weight:700;color:#fbbf24;font-size:15px">${_esc(_fmtDate(ts))}</span>` +
+      `<span style="color:#94a3b8">${status}</span>` +
+      `<span style="margin-left:auto;color:#64748b;font-family:monospace">${tb.frameIdx + 1} / ${tb.frames.length}</span></div>` + svg;
+    // One history fetch per loaded window; a new time range fetches again.
+    const win = [tb.frames[0].ts, tb.frames[tb.frames.length - 1].ts];
+    const stale = !hs.window || hs.window[0] !== win[0] || hs.window[1] !== win[1];
+    if (stale && !hs.loading && hs.eids.length) {
+      hs.window = win;
+      houseActivity.loadHouseHistory(ctx, hs, win[0], win[1]).then(() => { if (_houseActive()) _renderHouseFrame(); });
+    }
+    _renderHouseEvents();
+  }
+
+  // Side list of every house state change in the window; tap one to jump there.
+  const houseEventsCard = document.createElement("div");
+  houseEventsCard.className = "card";
+  houseEventsCard.style.cssText = "margin-bottom:10px;max-height:260px;overflow:auto;font-size:12px";
+  function _renderHouseEvents() {
+    const hs = tb.house;
+    houseEventsCard.innerHTML = "";
+    const head = document.createElement("div");
+    head.style.cssText = "font-weight:700;font-size:13px;margin-bottom:6px;color:#fbbf24";
+    head.textContent = "🏠 House activity";
+    houseEventsCard.appendChild(head);
+    if (!hs.events.length) {
+      const m = document.createElement("div");
+      m.className = "muted";
+      m.textContent = hs.loading ? "Loading…" : "No lights, doors, locks or motion changed in this window.";
+      houseEventsCard.appendChild(m);
+      return;
+    }
+    const nowMs = tb.frames[tb.frameIdx] ? tb.frames[tb.frameIdx].ts * 1000 : Infinity;
+    for (const e of hs.events.slice(-500)) {
+      const row = document.createElement("div");
+      row.style.cssText = `display:flex;gap:8px;padding:2px 4px;cursor:pointer;border-radius:4px;opacity:${e.t <= nowMs ? 1 : 0.4}`;
+      row.innerHTML = `<span style="font-family:monospace;color:#94a3b8">${_esc(_fmtTime(e.t / 1000))}</span>` +
+        `<span style="flex:1">${_esc(e.name)}</span><span style="color:#fbbf24">${_esc(e.from)} → ${_esc(e.to)}</span>`;
+      row.addEventListener("click", () => {
+        _stopPlayback();
+        let i = 0;
+        while (i + 1 < tb.frames.length && tb.frames[i + 1].ts * 1000 <= e.t) i++;
+        tb.frameIdx = i;
+        _renderFrame();
+        _updateScrubber();
+        _buildControls();
+      });
+      houseEventsCard.appendChild(row);
+    }
+  }
+
   function _renderFrame() {
+    if (_houseActive()) { _renderHouseFrame(); return; }
     if (!tb.frames.length) {
       mapDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#64748b;font-size:14px">No traceback frames loaded. Select a time range and press Play.</div>`;
       return;
@@ -1792,6 +1886,9 @@ export function render(ctx) {
     discoCard.style.display = mode === "discovery" ? "" : "none";
     analyticsPane.style.display = onMap ? "none" : "";
     if (_distCardRef) _distCardRef.style.display = onMap ? "" : "none";
+    houseBtn.style.display = mode === "playback" ? "" : "none";
+    houseEventsCard.style.display = _houseActive() ? "" : "none";
+    // The iso sliders (floor focus, spacing) drive the Atlas drawing too.
     analyticsPane.innerHTML = "";
     if (mode === "insights") analyticsPane.appendChild(insightsView.render(ctx));
     else if (mode === "busytimes") analyticsPane.appendChild(busyTimesView.render(ctx));
@@ -1838,10 +1935,30 @@ export function render(ctx) {
   modeRow.appendChild(_makeModeBtn("Insights", "insights"));
   modeRow.appendChild(_makeModeBtn("Busy Times", "busytimes"));
 
+  // Full house activity (PadSpan Pro) — an option of Playback, off until picked.
+  const houseBtn = document.createElement("button");
+  houseBtn.className = "btn inline";
+  const _paintHouseBtn = () => {
+    houseBtn.textContent = tb.house.on ? "🏠 Full house activity: on" : "🏠 Full house activity";
+    houseBtn.style.cssText = "margin-left:auto;font-size:12px;padding:4px 14px;" + (tb.house.on
+      ? "font-weight:700;background:#fbbf2422;color:#fbbf24;border-color:#fbbf24"
+      : "color:#94a3b8;border-color:#1b3526");
+  };
+  houseBtn.addEventListener("click", () => {
+    tb.house.on = !tb.house.on;
+    _paintHouseBtn();
+    _applyModeVisibility(tb.mode);
+    _resetStaticBase();     // the 3D stack's cached base is gone from mapDiv either way
+    _renderFrame();
+  });
+  _paintHouseBtn();
+  if (_houseOK) modeRow.appendChild(houseBtn);
+
   // ── Assemble ───────────────────────────────────────────────────────────
   outer.appendChild(modeRow);
   outer.appendChild(isoCtrlRow);
   outer.appendChild(mapDiv);
+  outer.appendChild(houseEventsCard);
 
   // Every mode's card is appended; only the active mode's is visible
   outer.appendChild(ctrlCard);
