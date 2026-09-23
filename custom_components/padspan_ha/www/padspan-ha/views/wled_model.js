@@ -363,14 +363,19 @@ export function maxLedsFor(info) {
 export const typeName = (type) => BUS_TYPES[Number(type) & 0x7f] || `Type ${Number(type) & 0x7f}`;
 
 /** What must be fixed before outputs can be saved (a missing pin makes WLED
- * silently skip the output; a bad address sends frames nowhere). */
-export function outputBlockers(ins) {
+ * silently skip the output; a bad address sends frames nowhere). Only
+ * outputs the person changed: one the device already runs as it is never
+ * blocks saving another (round 6 — a working Art-Net broadcast output, or
+ * one addressed by host name, refused every save). */
+export function outputBlockers(ins, saved) {
   const out = [];
+  const asIs = new Set((saved || []).map(b => JSON.stringify(b)));
   (ins || []).forEach((b, i) => {
     const kind = busKind(b.type), n = busPinCount(b.type), pins = (b.pin || []).slice(0, n);
-    if (kind === "hub75") return;
+    if (kind === "hub75" || asIs.has(JSON.stringify(b))) return;
     if (kind === "network") {
-      const ok = pins.length === 4 && pins.every(o => Number.isInteger(o) && o >= 0 && o <= 255) && pins[0] !== 0 && pins[3] !== 255 && pins[0] < 224;
+      if (b.text) return;                       // sent by host name (WLED 16): the address is WLED's to resolve
+      const ok = pins.length === 4 && pins.every(o => Number.isInteger(o) && o >= 0 && o <= 255) && pins[0] !== 0 && pins[0] < 224;
       if (!ok) out.push(`Output ${i + 1}: give the full address of the device to send to (like 192.168.2.119)`);
       return;
     }
@@ -380,6 +385,36 @@ export function outputBlockers(ins) {
   return out;
 }
 export const MAX_LEDS_PER_BUS = 2048;
+
+/** A new LED type for an output. Pins reset only when the kind or the pin
+ * count changes (WS281x → SK6812 keeps its GPIO); a new kind also drops the
+ * values WLED sets per kind — frequency, mA per LED, the output's limit —
+ * so the save doesn't send the old kind's (round 6). */
+export function retypedOutput(b, newType) {
+  const t = Number(newType);
+  const out = { ...b, type: t | (b.type & 0x80) };
+  if (busKind(t) !== busKind(b.type) || busPinCount(t) !== busPinCount(b.type)) {
+    out.pin = Array(busPinCount(t)).fill(busKind(t) === "network" ? 0 : -1);
+  }
+  if (busKind(t) !== busKind(b.type)) { delete out.freq; delete out.ledma; delete out.maxpwr; }
+  return out;
+}
+
+/** The state back, split so each request fits the device's buffer — the
+ * same rule as ws_wled.py restore_bodies / max_body_for. */
+export function restoreBodies(state, info) {
+  const max = String((info && info.arch) || "").toLowerCase().includes("8266") ? 10240 : 24576;
+  const head = { on: state.on ?? true, bri: state.bri ?? 128, tt: 0 };
+  const bodies = [];
+  let cur = [];
+  for (const s of state.seg || []) {
+    const seg = { ...s }; delete seg.len; delete seg.lc;
+    if (cur.length && JSON.stringify({ ...head, seg: [...cur, seg] }).length > max - 64) { bodies.push({ ...head, seg: cur }); cur = [seg]; }
+    else cur.push(seg);
+  }
+  bodies.push({ ...head, seg: cur });
+  return bodies;
+}
 
 /** Problems with a set of LED outputs, before they're saved. */
 export function outputWarnings(ins, info, pins) {

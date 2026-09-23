@@ -184,7 +184,7 @@ function editor(ctx, cfg, hash, pins) {
     return wrap;
   }
   wrap.appendChild(h("button", { style: S.btnPrimary + ";margin-top:8px", onclick: async () => {
-    const blockers = M.outputBlockers(led.ins);
+    const blockers = M.outputBlockers(led.ins, led._saved);
     if (blockers.length) { ctx.toast(blockers[0], true); return; }
     const w = M.outputWarnings(led.ins, ctx.info, pins);
     const summary = led.ins.map((b, i) => `${i + 1}: ${M.typeName(b.type)}, ${b.len} LEDs from ${b.start}, `
@@ -221,10 +221,14 @@ function busCard(ctx, led, b, i, perBus, ro, changed) {
     } }, "Remove"),
   ].filter(Boolean)));
   const grid = h("div", { style: "display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px" });
-  // A new type starts with fresh pins for its own count — never leftover
-  // GPIOs read as IP octets or the other way round (round 5).
+  // A new kind of type starts with fresh pins — never leftover GPIOs read
+  // as IP octets or the other way round (rounds 5-6: M.retypedOutput).
   grid.appendChild(field("LED type", ro || kind === "hub75" ? h("span", {}, M.typeName(b.type))
-    : select(types, cur, v => set({ type: Number(v) | (b.type & 0x80), pin: Array(M.busPinCount(v)).fill(M.busKind(v) === "network" ? 0 : -1) }), "100%")));
+    : select(types, cur, v => {
+      const nb = M.retypedOutput(b, v);
+      for (const k of Object.keys(b)) if (!(k in nb)) delete b[k];
+      set(nb);
+    }, "100%")));
   grid.appendChild(field("First LED", ro ? h("span", {}, String(b.start || 0)) : numberBox(b.start || 0, v => set({ start: v }), { max: 16384 })));
   grid.appendChild(field("How many LEDs", ro ? h("span", {}, String(b.len))
     : numberBox(b.len || 0, v => set({ len: v }), { min: 1, max: kind === "network" ? 16384 : M.MAX_LEDS_PER_BUS })));
@@ -276,7 +280,12 @@ function busCard(ctx, led, b, i, perBus, ro, changed) {
 
 // Show pure R, G, B on this output; the person taps what they actually see.
 async function colourWizard(ctx, led, bus, i, changed) {
-  const saved = JSON.parse(JSON.stringify(ctx.state));
+  // What the lights are doing NOW — the tab's copy may be minutes old, and
+  // HA or an automation may have changed them since (round 6).
+  let saved;
+  try { saved = (await ctx.get("json/si")).state || ctx.state; }
+  catch (e) { ctx.toast("Couldn't read the device: " + errText(e), true); return; }
+  saved = JSON.parse(JSON.stringify(saved));
   const start = bus.start || 0, stop = start + (Number(bus.len) || 0);
   const answers = {};
   const overlay = h("div", { style: "position:fixed;inset:0;z-index:10001;background:rgba(3,8,5,.7);display:flex;align-items:center;justify-content:center" });
@@ -291,7 +300,8 @@ async function colourWizard(ctx, led, bus, i, changed) {
   const restore = async () => {
     overlay.remove();
     try {
-      ctx.state = await ctx.post({ on: saved.on, bri: saved.bri, tt: 0, seg: (saved.seg || []).map(s => { const r = { ...s }; delete r.len; delete r.lc; return r; }) }) || ctx.state;
+      // Split to fit the device's buffer, like the backend's identify restore.
+      for (const body of M.restoreBodies(saved, ctx.info)) ctx.state = await ctx.post(body) || ctx.state;
       if (Number(saved.pl) > 0) await ctx.post({ ps: saved.pl });       // resume a running playlist
     } catch (e) { ctx.toast("Couldn't put the lights back: " + errText(e), true); }
   };

@@ -241,3 +241,50 @@ out.cols_br = M.panelPath({ w: 2, h: 2, v: 1, b: 1, r: 1 });
     assert out["rows"] == [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]]
     assert out["serp"] == [[0, 0], [1, 0], [2, 0], [2, 1], [1, 1], [0, 1]]
     assert out["cols_br"][0] == [1, 1] and out["cols_br"][-1] == [0, 0]
+
+
+# ── review round 6 ───────────────────────────────────────────────────────────
+
+
+def test_an_output_the_device_already_runs_never_blocks_saving_another():
+    out = _run("""
+const artnet = { start: 60, len: 170, pin: [192, 168, 2, 255], type: 82 };      // a working broadcast
+const byName = { start: 230, len: 50, pin: [0, 0, 0, 0], type: 80, text: "wled-porch.local" };
+const strip = { start: 0, len: 60, pin: [16], type: 22 };
+const saved = JSON.parse(JSON.stringify([strip, artnet, byName]));
+out.untouched = M.outputBlockers([{ ...strip, len: 61 }, artnet, byName], saved);
+out.edited = M.outputBlockers([strip, { ...artnet, pin: [0, 168, 2, 9] }], saved);
+out.nameEdited = M.outputBlockers([{ ...byName, len: 60 }], saved);
+out.broadcast = M.outputBlockers([{ ...artnet, len: 100 }], saved);
+""")
+    assert out["untouched"] == []
+    assert len(out["edited"]) == 1 and "Output 2" in out["edited"][0]
+    assert out["nameEdited"] == [], "a host-named output is WLED's to resolve"
+    assert out["broadcast"] == [], "x.x.x.255 is a valid Art-Net broadcast"
+
+
+def test_a_type_change_keeps_pins_within_a_kind_and_drops_the_old_kinds_values():
+    out = _run("""
+const ws = { start: 0, len: 60, pin: [16], type: 22 | 0x80, freq: 0, ledma: 55, maxpwr: 850 };
+out.same = M.retypedOutput(ws, 31);           // SK6812: same kind, one pin
+out.twoPin = M.retypedOutput(ws, 51);         // APA102: two pins
+out.net = M.retypedOutput(ws, 80);            // DDP
+""")
+    assert out["same"]["pin"] == [16] and out["same"]["type"] == 31 | 0x80 and out["same"]["ledma"] == 55
+    assert out["twoPin"]["pin"] == [-1, -1] and "freq" not in out["twoPin"] and "ledma" not in out["twoPin"]
+    assert out["net"]["pin"] == [0, 0, 0, 0] and "maxpwr" not in out["net"]
+
+
+def test_the_wizard_restore_is_split_to_fit_the_device():
+    out = _run("""
+const seg = (id) => ({ id, start: id * 10, stop: id * 10 + 10, len: 10, lc: 1, n: "x".repeat(200), col: [[1,2,3],[0,0,0],[0,0,0]] });
+const state = { on: true, bri: 90, seg: Array.from({ length: 64 }, (_, i) => seg(i)) };
+const b8266 = M.restoreBodies(state, { arch: "esp8266" });
+out.n8266 = b8266.length;
+out.max = Math.max(...b8266.map(b => JSON.stringify(b).length));
+out.all = b8266.flatMap(b => b.seg.map(s => s.id)).length;
+out.noLen = b8266.every(b => b.seg.every(s => !("len" in s) && !("lc" in s)));
+out.n32 = M.restoreBodies(state, { arch: "esp32" }).length;
+""")
+    assert out["n8266"] > 1 and out["max"] <= 10240 and out["all"] == 64 and out["noLen"]
+    assert out["n32"] < out["n8266"]
