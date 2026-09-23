@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.72 — Atlas's column layout is a Pro feature (2026-09-23)
+
+### Atlas
+- **Changed:** the two/three-column Atlas layout (map, table, and inspector side by side instead of stacked) is now gated to Pro specifically, not Bright — a Bright install no longer sees the column layout or the toggle that switches it, regardless of what was stored while it was open to everyone during its trial.
+
+---
+
 ## 0.38.71 — Atlas's column layout, actually working (2026-09-23)
 
 ### Atlas
