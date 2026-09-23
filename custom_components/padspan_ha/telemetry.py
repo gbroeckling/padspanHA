@@ -147,7 +147,7 @@ VIEWS: frozenset[str] = frozenset({
     "follow", "overview", "purelive", "objects", "devices", "bluetooth", "presence",
     "history", "monitor", "maps", "events", "health", "settings", "manage", "debug",
     "diagnostics", "qa", "training", "calibration", "traceback", "forensics",
-    "sandbox", "occupancy", "installbase", "locate",
+    "sandbox", "occupancy", "installbase",
 })
 SUBTABS: dict[str, frozenset[str]] = {
     "bluetooth": frozenset({"visualization", "monitor", "scanners", "irk_panel", "esphome_configs"}),

@@ -6,6 +6,11 @@
 // Real-time tag tracker: pick a tag, see its current room + floor, movement log, and alert config.
 // Position updates arrive via the existing 5s live-snapshot poll — no extra timers needed.
 
+// Locate lives here as an option (Garry, 2026-09-23): it works on where the
+// followed object is right now, the same live poll Follow already runs.
+const locateView =
+  await import(`./locate.js${new URL(import.meta.url).search}`);
+
 export function render(ctx) {
   const { el, esc, helpBtn, radioShortId } = ctx.helpers;
   const _sid = (source) => radioShortId ? radioShortId(source || "") : "";
@@ -97,6 +102,19 @@ export function render(ctx) {
   // ── Current status ──────────────────────────────────────────────────────────
   const statusCard = _buildStatus(ctx, el, helpBtn, chosen, haAreas, haFloors, ads, dataMode, isBasic);
 
+  // ── Locate (option, off until picked) ───────────────────────────────────────
+  const locateKey = chosen.key || chosen.address || chosen.entity_id || "";
+  const locateBtn = el("button", { class: "btn inline", style: ctx.state._followLocateOn
+    ? "font-weight:700;background:#818cf822;color:#818cf8;border-color:#818cf8" : "" },
+    ctx.state._followLocateOn ? "📍 Locate: on" : "📍 Locate");
+  locateBtn.addEventListener("click", () => {
+    ctx.state._followLocateOn = !ctx.state._followLocateOn;
+    ctx.actions.renderRooms();
+  });
+  const locateRow = el("div", { style: "margin:0 0 10px" }, [locateBtn]);
+  const locateCard = ctx.state._followLocateOn && locateKey
+    ? locateView.render(ctx, { targetKey: locateKey }) : null;
+
   // ── Mini-map (room grid with tag highlighted) ────────────────────────────────
   const mapCard = _buildMapCard(ctx, el, helpBtn, snap, chosen, haAreas, haFloors, radios);
 
@@ -106,7 +124,7 @@ export function render(ctx) {
   // ── Alert config ─────────────────────────────────────────────────────────────
   const alertCard = _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic);
 
-  return el("div", { id: "follow" }, [header, selectorCard, statusCard, mapCard, logCard, alertCard].filter(Boolean));
+  return el("div", { id: "follow" }, [header, selectorCard, statusCard, locateRow, locateCard, mapCard, logCard, alertCard].filter(Boolean));
 }
 
 // ── Tag selector card ──────────────────────────────────────────────────────────

@@ -46,12 +46,16 @@ let _targetKey = "";
 let _lastDistance = null;
 let _lastDistanceKey = "";
 
-export function render(ctx) {
+// Mounted by Follow (its "📍 Locate" option, Garry 2026-09-23) rather than
+// being a tab of its own: `targetKey` is the object Follow already has
+// chosen, so there is no second "Find:" pick to make.
+export function render(ctx, { targetKey } = {}) {
   const { el, helpBtn } = ctx.helpers;
-  const root = el("section", { id: "locate" });
+  const root = el("section", { id: "locate", class: "card" });
+  if (targetKey) _targetKey = targetKey;
 
-  root.appendChild(el("div", { class: "row", style: "align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap" }, [
-    el("h2", {}, "Locate"),
+  root.appendChild(el("div", { class: "row", style: "align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap" }, [
+    el("div", { style: "font-weight:700;font-size:14px" }, "📍 Locate"),
     helpBtn("locate"),
     el("span", { class: "muted", style: "font-size:11px" }, "which way to walk, room by room — no compass, no camera"),
   ]));
@@ -61,7 +65,7 @@ export function render(ctx) {
     return root;
   }
 
-  const pickerCard = el("div", { class: "card" });
+  const pickerCard = el("div");
   const body = el("div");
   root.appendChild(pickerCard);
   root.appendChild(body);
@@ -91,7 +95,7 @@ export function render(ctx) {
       ctx.actions.wsCall("padspan_ha/settings_set", { locate_self_key: val }).catch(() => {});
       renderBody();
     }));
-    pickerCard.appendChild(_buildPicker(ctx, "Find:", _targetKey, candidates.filter(c => c.key !== selfKey), (val) => {
+    if (!targetKey) pickerCard.appendChild(_buildPicker(ctx, "Find:", _targetKey, candidates.filter(c => c.key !== selfKey), (val) => {
       _targetKey = val;
       renderBody();
     }));
