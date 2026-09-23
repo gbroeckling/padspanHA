@@ -248,7 +248,7 @@ def test_a_thinned_week_keeps_people_on_house_frames():
     everyone from every house-event frame."""
     out = _run("""
 const raw = []; for (let i = 0; i < 20; i++) raw.push({ ts: i * 150, o: [{ k: "a" }] });
-const m = H.HA.mergeHouseFrames(raw, [{ t: 1_560_000 }, { t: 9_000_000 }]);     // +60 s after a frame; far past the end
+const m = H.HA.mergeHouseFrames(raw, [{ t: 1_560_000 }, { t: 9_000_000 }], 150);  // thinned to 150 s; +60 s after a frame; far past the end
 out.carried = m.find(f => f.ts === 1560).o.length;
 out.past = m.find(f => f.ts === 9000).o.length;
 """)
@@ -264,9 +264,10 @@ H.HA.loadHouseHistory(ctx, hs, 100, 200);
 out.timeline = hs.timeline; out.events = hs.events.length; out.loading = hs.loading;
 // an entity with rows, asked about before its first row, is omitted — not drawn "live"
 const tl = H.HA.buildStateTimeline({ "light.b": [{ s: "on", lu: 500 }] });
-out.beforeFirst = Object.keys(H.HA.statesAt(tl, { "light.b": { state: "off" } }, ["light.b"], 100_000));
+out.beforeFirst = H.HA.statesAt(tl, { "light.b": { state: "off" } }, ["light.b"], 100_000)["light.b"].state;
 """)
-    assert out == {"timeline": None, "events": 0, "loading": True, "beforeFirst": []}
+    # Before its first row the state is unknown — never today's "off", never missing.
+    assert out == {"timeline": None, "events": 0, "loading": True, "beforeFirst": "unknown"}
 
 
 def test_an_unavailable_gap_does_not_hide_the_change_across_it():
@@ -275,3 +276,31 @@ const tl = H.HA.buildStateTimeline({ "light.porch": [{ s: "off", lu: 0 }, { s: "
 out.ev = H.HA.activityEvents(tl, e => e, 0, 1e9).map(e => [e.from, e.to, e.t / 1000]);
 """)
     assert out["ev"] == [["off", "on", 20]]
+
+
+# ── Round 3 (2026-09-23) ─────────────────────────────────────────────────────
+
+
+def test_a_click_lands_on_its_own_event_when_another_is_300_ms_earlier():
+    """Motion at T, the automation's light at T+0.3 s: clicking the light
+    landed on the motion frame and drew the light still off."""
+    out = _run("""
+const raw = [{ ts: 10, o: [] }];
+const ev = [{ t: 1_000_000 }, { t: 1_000_300 }];
+const m = H.HA.mergeHouseFrames(raw, ev);
+let i = 0; const e = ev[1];
+while (i < m.length - 1 && m[i].ts * 1000 < e.t) i++;       // the row handler's rule
+out.landed = m[i].ts;
+""")
+    assert out["landed"] == 1000.3
+
+
+def test_isolated_sightings_are_not_carried_for_hours():
+    """A tag seen twice an hour apart has no 'cadence' — carrying it across
+    the gap drew it long after it was last recorded (round 3)."""
+    out = _run("""
+const m = H.HA.mergeHouseFrames([{ ts: 0, o: [{ k: "fob" }] }, { ts: 3600, o: [{ k: "fob" }] }],
+                                [{ t: 1_800_000 }, { t: 7_600_000 }]);
+out.carried = m.filter(f => f.house).map(f => f.o.length);
+""")
+    assert out["carried"] == [0, 0]

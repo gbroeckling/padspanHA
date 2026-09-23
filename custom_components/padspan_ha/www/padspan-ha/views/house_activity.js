@@ -88,9 +88,16 @@ export function statesAt(timeline, liveStates, eids, tMs) {
   const out = {};
   for (const eid of eids) {
     const list = timeline[eid];
-    if (!list) { if (liveStates[eid]) out[eid] = liveStates[eid]; continue; }   // not recorded at all
-    const r = _rowAt(list, tMs);
-    if (!r) continue;              // recorded, but not yet at tMs: nothing to show, never today's state
+    const r = list ? _rowAt(list, tMs) : null;
+    if (!r) {
+      // Not recorded (excluded from the recorder), or no row yet at tMs:
+      // what it was then is unknown — drawn as unknown, never as today's
+      // state under a past timestamp, and never silently missing.
+      const lv = liveStates[eid];
+      if (lv) out[eid] = { entity_id: eid, state: "unknown", attributes: lv.attributes || {},
+        last_changed: new Date(0).toISOString(), last_updated: new Date(0).toISOString() };
+      continue;
+    }
     const attrs = r.attributes && Object.keys(r.attributes).length ? r.attributes : (liveStates[eid]?.attributes || {});
     out[eid] = {
       entity_id: eid,
@@ -170,7 +177,7 @@ export function inVacation(periods, tMs) {
  * 30 s made everyone vanish on every event of a week's replay. Past that
  * bound nobody is drawn: nobody was recorded.
  */
-export function mergeHouseFrames(rawFrames, events) {
+export function mergeHouseFrames(rawFrames, events, thinnedStrideS = 0) {
   const have = new Set(rawFrames.map(f => f.ts));
   const extra = [];
   for (const e of events || []) {
@@ -180,11 +187,11 @@ export function mergeHouseFrames(rawFrames, events) {
     extra.push({ ts, o: null, house: true });
   }
   if (!extra.length) return rawFrames.slice();
-  const gaps = [];
-  for (let k = 1; k < rawFrames.length; k++) gaps.push(rawFrames[k].ts - rawFrames[k - 1].ts);
-  gaps.sort((a, b) => a - b);
-  const median = gaps.length ? gaps[gaps.length >> 1] : 0;
-  const carryS = Math.max(30, 1.5 * median);
+  // The bound comes from how the backend THINNED the list (a capped list
+  // is evenly strided), never from the gaps themselves: a tag seen in two
+  // isolated moments an hour apart has a one-hour "cadence" that is really
+  // an absence (re-review round 3).
+  const carryS = Math.max(30, 1.5 * (Number(thinnedStrideS) || 0));
   const all = [...rawFrames, ...extra].sort((a, b) => a.ts - b.ts);
   let last = null;
   for (const f of all) {

@@ -84,8 +84,8 @@ out.lc = at(1160)["light.kitchen"].last_updated;
     assert out["bri"] == 200
     assert out["after"] == "off"
     assert out["door"] == ["off", "on"]
-    # Not in the recorder at all: nothing else to show but its live state.
-    assert out["unrecorded"] == "on"
+    # Not in the recorder at all: what it was then is unknown — never today's state.
+    assert out["unrecorded"] == "unknown"
     assert out["lc"] == "1970-01-01T00:19:10.000Z"
 
 

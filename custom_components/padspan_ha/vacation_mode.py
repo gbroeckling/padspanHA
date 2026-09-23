@@ -89,6 +89,7 @@ LOG_MAX = 20000               # ~1000 switches/day in a 40-light house fits
 LOG_SAVE_DELAY_S = 60         # well inside the 5-min tick: Store's delay is a trailing debounce
 # A pattern build that found nothing usable is not retried every tick.
 RETRY_EMPTY_S = 3600
+RETRY_FAILED_S = 900
 
 _VM_UNSUB = "_vacation_mode_unsub"
 _VM_LOG = "_vacation_mode_log"
@@ -265,8 +266,9 @@ def decide_states(
 async def _async_fetch_history(
     hass: HomeAssistant, entity_ids: list[str], days: int, end: datetime | None = None
 ) -> dict[str, list[tuple[float, str]]] | None:
-    """{} when the recorder answered with nothing; None when the query itself
-    failed — a failure is retried next tick, an empty answer only hourly."""
+    """{} when there is nothing to read (no recorder, or no rows); None when
+    the query itself failed — a failure is retried in 15 minutes, an empty
+    answer after an hour."""
     if not entity_ids:
         return {}
     try:
@@ -274,12 +276,18 @@ async def _async_fetch_history(
         from homeassistant.components.recorder.history import get_significant_states  # noqa: PLC0415
         from homeassistant.util import dt as dt_util  # noqa: PLC0415
     except Exception as err:
+        # No recorder at all is not a failed query: it's an empty answer, and
+        # waits the hour like one (re-review round 3).
         _LOGGER.debug("Vacation mode: recorder not available: %s", err)
-        return None
+        return {}
     end = end or dt_util.utcnow()
     start = end - timedelta(days=days)
     try:
         instance = get_instance(hass)
+    except Exception as err:        # recorder not set up: nothing to read, not a failure
+        _LOGGER.debug("Vacation mode: recorder not set up: %s", err)
+        return {}
+    try:
         raw = await instance.async_add_executor_job(
             get_significant_states, hass, start, end, entity_ids
         )
@@ -293,24 +301,26 @@ async def _async_fetch_history(
 
 
 def _eligible_entity_ids(hass: HomeAssistant) -> list[str]:
-    """Every light and fan except groups (attributes.entity_id is a list):
-    a group and its members would each be decided on their own and fight,
-    and a group switched on reads, bulb by bulb, as a person's doing
-    (review 2026-09-23)."""
+    """Every light and fan, with each group counted once — a group and its
+    members decided separately fight, and read bulb by bulb as a person's
+    doing (review 2026-09-23). Which side is kept depends on the kind:
+    - a light.group helper (attributes.entity_id) is a convenience over
+      real lights: keep the members, drop the helper;
+    - an integration group (attributes.group_entities, HA 2026.3+ — WLED's
+      main light, ZHA and MQTT groups) is the device's own control: WLED's
+      main light is the strip's power, and its segment lights can't turn
+      the strip on. Keep the group, drop its members (re-review round 3)."""
     try:
-        out = []
-        for eid in hass.states.async_entity_ids():
-            if not eid.startswith(VM_DOMAINS):
-                continue
-            st = hass.states.get(eid)
-            attrs = st.attributes if st is not None and st.attributes else {}
-            # light.group helpers list members as entity_id; integration
-            # groups (WLED's main light, ZHA and MQTT groups) as
-            # group_entities (HA 2026.3+) — re-review 2026-09-23.
-            if any(isinstance(attrs.get(k), (list, tuple)) for k in ("entity_id", "group_entities")):
-                continue
-            out.append(eid)
-        return out
+        states = {eid: hass.states.get(eid) for eid in hass.states.async_entity_ids() if eid.startswith(VM_DOMAINS)}
+        drop: set[str] = set()
+        for eid, st in states.items():
+            attrs = (st.attributes if st is not None and st.attributes else {}) or {}
+            if isinstance(attrs.get("entity_id"), (list, tuple)):
+                drop.add(eid)
+            members = attrs.get("group_entities")
+            if isinstance(members, (list, tuple)):
+                drop.update(m for m in members if m != eid)
+        return [eid for eid in states if eid not in drop]
     except Exception:
         return []
 
@@ -379,7 +389,10 @@ async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
     end = dt_util.utc_from_timestamp(enabled_at)
     history = await _async_fetch_history(hass, entity_ids, HISTORY_DAYS, end=end)
     if history is None:
-        return                      # the query failed: try again next tick
+        # The query failed: retry in 15 minutes, not every tick and not after
+        # the hour an empty answer waits.
+        await st.async_set(vacation_mode_pattern_attempt=[enabled_at, now_ts - RETRY_EMPTY_S + RETRY_FAILED_S])
+        return
     pattern = build_pattern(history, dt_util.as_local(end),
                             exclude=st.data.get("vacation_mode_periods") or []) if history else {}
     if not pattern:

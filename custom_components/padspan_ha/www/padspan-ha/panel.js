@@ -1093,10 +1093,11 @@ class PadSpanHaApp extends HTMLElement {
           const _liveSet = new Set(["overview","follow","monitor"]);
           const _isLiveView = _liveSet.has(this.state?.view);
           const sinceGoodRender = this._lastGoodRender ? performance.now() - this._lastGoodRender : 0;
-          // Follow/Monitor re-render on purpose only every 35 s (_SLOW_INTERVAL
-          // in the poll) — a 20 s threshold force-rebuilt them every ~20-25 s,
-          // outside the poll's focus guard, snapping an open picker shut.
-          const _stallMs = (this.state?.view === "follow" || this.state?.view === "monitor") ? 45_000 : 20_000;
+          // Follow/Monitor re-render from the poll every 20 s (_SLOW_INTERVAL),
+          // through its focus guard. The watchdog stays above that, so it only
+          // steps in on a real stall — it used to beat the poll to it and
+          // rebuild outside the guard, snapping an open picker shut.
+          const _stallMs = (this.state?.view === "follow" || this.state?.view === "monitor") ? 30_000 : 20_000;
           if(sinceGoodRender > _stallMs){
             if(!_isLiveView){
               // Non-live view: just reset the timer, don't force render
@@ -1321,7 +1322,7 @@ class PadSpanHaApp extends HTMLElement {
       const _view = this.state.view;
       const _fastViews = new Set(["overview","purelive"]);  // efficient partial update
       const _slowViews = new Set(["follow","monitor"]);                 // full rebuild — throttle
-      const _SLOW_INTERVAL = 35_000;
+      const _SLOW_INTERVAL = 20_000;   // the ~20 s cadence Follow/Monitor have always had in practice
 
       if(_fastViews.has(_view)){
         // Overview: always re-render (uses _isoUpdateObjects or Preact diffing)

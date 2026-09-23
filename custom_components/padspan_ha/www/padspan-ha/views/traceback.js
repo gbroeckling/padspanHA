@@ -240,55 +240,64 @@ export function render(ctx) {
   }
 
   // ── Data loading ───────────────────────────────────────────────────────
+  // A load collects into locals and publishes the raw frames and their
+  // window together, once, after its last await — so history landing
+  // mid-load can never be merged into a half-loaded list, nor a merged list
+  // be mistaken for the raw one (re-review round 3). tb.frames is only ever
+  // written by _applyHouseFrames. A newer load supersedes an older one.
   async function _loadTracebackData() {
+    const seq = (tb._loadSeq = (tb._loadSeq || 0) + 1);
+    let frames = [], range = null, autoExpanded = false, objKeys = tb.objKeys || [];
+    const now = Date.now() / 1000;
+    const startTs = tb.startTs || (now - tb.rangePreset);
+    const endTs = tb.endTs || now;
+    let loadedRange = [startTs, endTs];
     try {
-      const now = Date.now() / 1000;
-      const startTs = tb.startTs || (now - tb.rangePreset);
-      const endTs = tb.endTs || now;
       const res = await ctx.actions.wsCall("padspan_ha/traceback_get", {
         start_ts: startTs,
         end_ts: endTs,
         obj_key: tb.filterKey || undefined,
         max_frames: 4000,
       });
-      tb.frames = res.frames || [];
-      tb.range = res.range || { start: 0, end: 0, count: 0 };
-      tb.frameIdx = 0;
-      // The window asked for — Full house activity fetches the house over it,
-      // not just over the span beacon frames happen to cover.
-      tb._loadedRange = [startTs, endTs];
-      tb._staticKeys = null;  // recompute on next render
-      tb._colorMap = null;
-      tb._scannerSet = null;
+      frames = res.frames || [];
+      range = res.range || { start: 0, end: 0, count: 0 };
 
       // If filtering by object and no frames found, auto-expand to full data range
-      if (tb.filterKey && !tb.frames.length && tb.range && tb.range.start > 0) {
+      if (tb.filterKey && !frames.length && range && range.start > 0) {
         const fullRes = await ctx.actions.wsCall("padspan_ha/traceback_get", {
-          start_ts: tb.range.start,
-          end_ts: tb.range.end || now,
+          start_ts: range.start,
+          end_ts: range.end || now,
           obj_key: tb.filterKey,
           max_frames: 4000,
         });
-        tb.frames = fullRes.frames || [];
-        tb._staticKeys = null;  // recompute on next render
-      tb._colorMap = null;
-      tb._scannerSet = null;
-        if (tb.frames.length) {
-          tb._autoExpanded = true;
-          tb._loadedRange = [tb.range.start, tb.range.end || now];
+        frames = fullRes.frames || [];
+        if (frames.length) {
+          autoExpanded = true;
+          loadedRange = [range.start, range.end || now];
         }
-      } else {
-        tb._autoExpanded = false;
       }
 
       const objRes = await ctx.actions.wsCall("padspan_ha/traceback_objects", {});
-      tb.objKeys = objRes.objects || [];
-      tb.range = objRes.range || tb.range;
+      objKeys = objRes.objects || [];
+      range = objRes.range || range;
     } catch (e) {
       console.error("Traceback load error:", e);
-      tb.frames = [];
+      frames = [];
     }
-    tb.rawFrames = tb.frames;
+    if (seq !== tb._loadSeq) return;          // a newer load owns the timeline
+    tb.range = range || { start: 0, end: 0, count: 0 };
+    tb.objKeys = objKeys;
+    tb._autoExpanded = autoExpanded;
+    tb._loadedRange = loadedRange;
+    // A list at the backend's cap was thinned evenly across the window
+    // (get_frames): its spacing is the cadence, not an absence.
+    tb._rawThinnedS = frames.length >= 4000 && frames.length > 1
+      ? (frames[frames.length - 1].ts - frames[0].ts) / (frames.length - 1) : 0;
+    tb.rawFrames = frames;
+    tb.frameIdx = 0;
+    tb._staticKeys = null;
+    tb._colorMap = null;
+    tb._scannerSet = null;
     _applyHouseFrames();
   }
 
@@ -307,7 +316,7 @@ export function render(ctx) {
     const win = tb._loadedRange;
     const ready = _houseOK && hs.on && hs.timeline && win && hs.window
       && hs.window[0] === win[0] && hs.window[1] === win[1];
-    const next = ready ? houseActivity.mergeHouseFrames(raw, hs.events) : raw;
+    const next = ready ? houseActivity.mergeHouseFrames(raw, hs.events, tb._rawThinnedS || 0) : raw;
     if (tb._framesFrom === (ready ? hs.version : -1) && tb._framesRaw === raw) return;
     tb._framesFrom = ready ? hs.version : -1;
     tb._framesRaw = raw;
@@ -916,8 +925,11 @@ export function render(ctx) {
   // A fetch started by an earlier mount of this tab still repaints THIS one.
   let _chainedPending = null;
   function _houseLoaded() {
-    _applyHouseFrames();
-    if (!_houseActive() || mapDiv.isConnected === false) return;   // hidden mode, or a detached earlier mount
+    // A detached earlier mount must not touch the shared timeline: its
+    // _applyHouseFrames would start playback in its own, invisible closure.
+    if (mapDiv.isConnected === false) return;
+    _applyHouseFrames();                       // merged even while Insights is open
+    if (!_houseActive()) return;
     _buildControls();
     _renderHouseEvents(true);
     _renderFrame();
@@ -1048,7 +1060,7 @@ export function render(ctx) {
         _stopPlayback();
         // The event has a frame of its own (mergeHouseFrames): land ON it.
         let i = 0;
-        while (i < tb.frames.length - 1 && tb.frames[i].ts * 1000 < e.t - 500) i++;
+        while (i < tb.frames.length - 1 && tb.frames[i].ts * 1000 < e.t) i++;
         tb.frameIdx = i;
         _renderFrame();
         _updateScrubber();
@@ -1677,12 +1689,15 @@ export function render(ctx) {
   ovSaveBtn.addEventListener("click", async ()=>{
     ovSaveBtn.disabled = true;
     try{
-      // In house mode the slider walks the Atlas's floors, a different list
-      // from the 3D stack's — its index is not an overview_iso_focus value.
+      // In house mode the slider walks the Atlas's floors; overview_iso_focus
+      // is the key the Atlas screens (Mapping → Lights, the Atlas sidebar)
+      // already read and save as an Atlas index, so house mode saves it the
+      // same way — and "Saved ✓" means the floor was saved.
+      const focusToSave = _houseActive() ? tb.house.focusIdx : ctx.state._overviewIsoFocusIdx;
       await ctx.actions.settingsSet({
         overview_iso_floor_gap: ctx.state._overviewFloorGap,
         overview_iso_horiz_gap: ctx.state._overviewHorizGap,
-        ...(_houseActive() ? {} : { overview_iso_focus: ctx.state._overviewIsoFocusIdx }),
+        overview_iso_focus:     focusToSave,
       });
       ovSaveLbl.textContent = "Saved \u2713";
       setTimeout(()=>{ ovSaveLbl.textContent = ""; }, 2000);

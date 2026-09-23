@@ -508,16 +508,19 @@ def test_light_groups_are_left_to_their_members():
 
 
 
-def test_integration_groups_are_left_to_their_members_too():
-    """HA 2026.3+ integration groups (WLED main light, ZHA, MQTT) publish
-    members as group_entities, not entity_id (re-review 2026-09-23)."""
+def test_an_integration_group_is_kept_and_its_members_dropped():
+    """HA 2026.3+ integration groups (group_entities) are the device's own
+    control: WLED's main light IS the strip's power — its segment lights
+    can't turn the strip on (re-review round 3). Keep the group."""
     import custom_components.padspan_ha.vacation_mode as vm
     states = {
         "light.strip_main": SimpleNamespace(state="on", attributes={"group_entities": ["light.strip", "light.strip_segment_1"]}),
         "light.strip": SimpleNamespace(state="on", attributes={}),
+        "light.strip_segment_1": SimpleNamespace(state="on", attributes={}),
+        "light.k": SimpleNamespace(state="on", attributes={}),
     }
     hass = SimpleNamespace(states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
-    assert vm._eligible_entity_ids(hass) == ["light.strip"]
+    assert vm._eligible_entity_ids(hass) == ["light.strip_main", "light.k"]
 
 
 def test_an_unavailable_blip_does_not_end_the_left_on_exclusion():
@@ -526,7 +529,9 @@ def test_an_unavailable_blip_does_not_end_the_left_on_exclusion():
     assert entity_exclusions(changes, [[50.0, 200.0]], 1000.0) == [[50.0, 900.0]]
 
 
-async def test_a_failed_recorder_query_is_retried_next_tick_not_in_an_hour(monkeypatch):
+async def test_a_failed_recorder_query_is_retried_in_15_minutes_not_an_hour(monkeypatch):
+    """A failed query (not an empty answer) waits 15 minutes — not every
+    tick (a warning flood) and not the hour an empty answer waits."""
     import custom_components.padspan_ha.vacation_mode as vm
     fetch = AsyncMock(return_value=None)          # the query itself failed
     monkeypatch.setattr(vm, "_async_fetch_history", fetch)
@@ -535,5 +540,23 @@ async def test_a_failed_recorder_query_is_retried_next_tick_not_in_an_hour(monke
     st = _settings(vacation_mode_enabled=True, vacation_mode_enabled_at=enabled_at)
     await _async_refresh_pattern_if_stale(_hass(st), st)
     await _async_refresh_pattern_if_stale(_hass(st), st)
-    assert fetch.await_count == 2
-    assert "vacation_mode_pattern_attempt" not in st.data or st.data["vacation_mode_pattern_attempt"][0] != enabled_at
+    assert fetch.await_count == 1
+    att = st.data["vacation_mode_pattern_attempt"]
+    from datetime import timezone
+    now = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc).timestamp()   # conftest's utcnow
+    assert att[0] == enabled_at
+    assert now - att[1] == vm.RETRY_EMPTY_S - vm.RETRY_FAILED_S   # due again in 15 min
+
+
+async def test_no_recorder_is_an_empty_answer_not_a_failure(monkeypatch):
+    """Without the recorder every tick warned and retried (round 3): it is
+    nothing to read, and waits the hour like an empty answer."""
+    import custom_components.padspan_ha.vacation_mode as vm
+    from homeassistant.helpers import recorder as rec
+
+    def boom(hass):
+        raise KeyError("recorder")
+
+    monkeypatch.setattr(rec, "get_instance", boom, raising=False)
+    got = await vm._async_fetch_history(SimpleNamespace(), ["light.a"], 30)
+    assert got == {}
