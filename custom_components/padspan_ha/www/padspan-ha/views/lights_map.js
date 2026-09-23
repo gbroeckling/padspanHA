@@ -1228,6 +1228,18 @@ function _mkEl(tag, attrs = {}, children = []){
   }
   return n;
 }
+// What both hosts hand openControlCard about a light, from the one registry
+// fetch they share — so the sidebar and the builder can't drift (they have
+// before). `wled` is present only for a light of HA's WLED integration: it
+// turns on the card's Advanced tab (views/wled_advanced.js).
+export function controlApiFor(reg, eid, { tier, isAdmin } = {}){
+  const platform = reg && reg.platformMap ? reg.platformMap[eid] : null;
+  return {
+    ip: (reg && reg.ipMap && reg.ipMap[eid]) || null,
+    wled: platform === "wled" ? { tier: tier || null, isAdmin: !!isAdmin } : null,
+  };
+}
+
 export function openControlCard(hass, eid, api){
   if (!hass) return;
   const st = hass.states[eid];
@@ -1427,6 +1439,46 @@ export function openControlCard(hass, eid, api){
         }, api.ip),
       ]));
     }
+  }
+
+  // ── WLED: Controls | Advanced ────────────────────────────────────────
+  // Advanced (Bright Pro / Pro) is the full WLED workbench — segments,
+  // effects from the device's own metadata, and more (wled_advanced.js),
+  // reached through PadSpan's backend, never the browser (ws_wled.py).
+  if (api && api.wled && lightingUnlocked(api.wled.tier)) {
+    const controls = el("div");
+    // Everything after the header moves into the Controls pane.
+    for (const node of Array.from(box.children).slice(1)) { box.removeChild(node); controls.appendChild(node); }
+    const advanced = el("div", { style: "display:none" });
+    const tabBtn = (active) => "flex:1;padding:6px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;"
+      + (active ? "background:rgba(192,132,252,.16);color:#c084fc;border:1px solid #c084fc"
+                : "background:rgba(255,255,255,.04);color:#94a3b8;border:1px solid rgba(120,190,155,.18)");
+    const tControls = el("button", { style: tabBtn(true) }, "Controls");
+    const tAdvanced = el("button", { style: tabBtn(false) }, "Advanced");
+    let mounted = false;
+    const show = async (adv) => {
+      tControls.setAttribute("style", tabBtn(!adv)); tAdvanced.setAttribute("style", tabBtn(adv));
+      controls.style.display = adv ? "none" : "";
+      advanced.style.display = adv ? "" : "none";
+      // The workbench needs room: a wide sheet, scrolling inside the viewport.
+      box.style.width = adv ? "min(960px,96vw)" : "300px";
+      box.style.maxHeight = adv ? "92vh" : "";
+      box.style.overflow = adv ? "auto" : "";
+      if (adv && !mounted) {
+        mounted = true;
+        try {
+          const mod = await import(`./wled_advanced.js${new URL(import.meta.url).search}`);
+          await mod.mountWledAdvanced(advanced, { hass, eid, api });
+        } catch (e) {
+          advanced.textContent = "Couldn't open the WLED workbench: " + String((e && e.message) || e);
+        }
+      }
+    };
+    tControls.addEventListener("click", () => show(false));
+    tAdvanced.addEventListener("click", () => show(true));
+    box.appendChild(el("div", { style: "display:flex;gap:6px;margin-bottom:12px" }, [tControls, tAdvanced]));
+    box.appendChild(controls);
+    box.appendChild(advanced);
   }
 
   overlay.appendChild(box);

@@ -24,7 +24,7 @@ const { hasControlCard } =
 // two tools always show the identical map. All lights-view edits go in there.
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, toggleEntity,
-        wireUseSurface, openControlCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates,
+        wireUseSurface, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates,
         wireHoverHud, captureWholeHouse, applyWholeHouse } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 
@@ -321,7 +321,7 @@ class PadSpanLightsApp extends HTMLElement {
       toast:(m,e)=>this._toast(m,e),
       rerender:()=>this._render(),
       onEdit: this._isAdmin() ? (e)=>this._gotoBuilder(e) : null,
-      ip: this._regStore?.reg?.ipMap?.[eid] || null,
+      ...controlApiFor(this._regStore?.reg, eid, { tier: this.state._tier, isAdmin: this._isAdmin() }),
     });
   }
 

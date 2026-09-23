@@ -26,7 +26,7 @@ const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM
 // identical map; this tab layers the build tools on top of it.
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, spreadInRoom, createUndoStack, toggleEntity,
-        wireUseSurface, openControlCard, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates,
+        wireUseSurface, openControlCard, controlApiFor, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates,
         isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
         captureWholeHouse, applyWholeHouse, layoutTierFor } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
@@ -8675,7 +8675,7 @@ function _lightsTab(ctx, maps, active) {
     hass: ctx.hass, lightsByEid, lights, controlsFor,
     toggle, toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms(),
     openControls: (eid) => openControlCard(ctx.hass, eid, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms(),
-      ip: ctx.state._lightsRegStore?.reg?.ipMap?.[eid] || null }),
+      ...controlApiFor(ctx.state._lightsRegStore?.reg, eid, { tier: ctx.state.settings?.tier, isAdmin: !!ctx.hass?.user?.is_admin }) }),
     openActivity: (eid) => openActivityCalendar(ctx.hass, eid),
     setMany: (eids, on) => setManyStates(ctx.hass, eids, on, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms() }),
     doorLockMap: ctx.state._lightsRegStore?.reg?.doorLockMap || {},
