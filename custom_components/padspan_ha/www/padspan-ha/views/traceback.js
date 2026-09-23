@@ -247,7 +247,7 @@ export function render(ctx) {
   // written by _applyHouseFrames. A newer load supersedes an older one.
   async function _loadTracebackData() {
     const seq = (tb._loadSeq = (tb._loadSeq || 0) + 1);
-    let frames = [], range = null, autoExpanded = false, objKeys = tb.objKeys || [];
+    let frames = [], matched = 0, range = null, autoExpanded = false, objKeys = tb.objKeys || [];
     const now = Date.now() / 1000;
     const startTs = tb.startTs || (now - tb.rangePreset);
     const endTs = tb.endTs || now;
@@ -260,6 +260,7 @@ export function render(ctx) {
         max_frames: 4000,
       });
       frames = res.frames || [];
+      matched = Number(res.matched) || frames.length;
       range = res.range || { start: 0, end: 0, count: 0 };
 
       // If filtering by object and no frames found, auto-expand to full data range
@@ -271,6 +272,7 @@ export function render(ctx) {
           max_frames: 4000,
         });
         frames = fullRes.frames || [];
+        matched = Number(fullRes.matched) || frames.length;
         if (frames.length) {
           autoExpanded = true;
           loadedRange = [range.start, range.end || now];
@@ -289,10 +291,9 @@ export function render(ctx) {
     tb.objKeys = objKeys;
     tb._autoExpanded = autoExpanded;
     tb._loadedRange = loadedRange;
-    // A list at the backend's cap was thinned evenly across the window
-    // (get_frames): its spacing is the cadence, not an absence.
-    tb._rawThinnedS = frames.length >= 4000 && frames.length > 1
-      ? (frames[frames.length - 1].ts - frames[0].ts) / (frames.length - 1) : 0;
+    // How much the backend thinned the window (1 = every recorded frame) —
+    // the beacon carry's bound scales with it (house_activity.mergeHouseFrames).
+    tb._rawThinFactor = frames.length ? Math.max(1, matched / frames.length) : 1;
     tb.rawFrames = frames;
     tb.frameIdx = 0;
     tb._staticKeys = null;
@@ -316,7 +317,7 @@ export function render(ctx) {
     const win = tb._loadedRange;
     const ready = _houseOK && hs.on && hs.timeline && win && hs.window
       && hs.window[0] === win[0] && hs.window[1] === win[1];
-    const next = ready ? houseActivity.mergeHouseFrames(raw, hs.events, tb._rawThinnedS || 0) : raw;
+    const next = ready ? houseActivity.mergeHouseFrames(raw, hs.events, tb._rawThinFactor || 1) : raw;
     if (tb._framesFrom === (ready ? hs.version : -1) && tb._framesRaw === raw) return;
     tb._framesFrom = ready ? hs.version : -1;
     tb._framesRaw = raw;
@@ -1618,7 +1619,7 @@ export function render(ctx) {
   function _syncFocusSlider() {
     if (_houseActive()) {
       const { positions, labelOf } = houseActivity.atlasFocusPositions(ctx.state.model, ctx.state._overviewFloorGap, ctx.state._overviewHorizGap);
-      if (tb.house.focusIdx == null) tb.house.focusIdx = ctx.state.settings?.overview_iso_focus ?? 0;
+      if (tb.house.focusIdx == null) tb.house.focusIdx = ctx.state.settings?.traceback_house_focus ?? 0;
       tb.house.focusIdx = Math.max(0, Math.min(tb.house.focusIdx, positions.length - 1));
       focusSlider.max = String(positions.length - 1);
       focusSlider.value = String(tb.house.focusIdx);
@@ -1689,15 +1690,19 @@ export function render(ctx) {
   ovSaveBtn.addEventListener("click", async ()=>{
     ovSaveBtn.disabled = true;
     try{
-      // In house mode the slider walks the Atlas's floors; overview_iso_focus
-      // is the key the Atlas screens (Mapping → Lights, the Atlas sidebar)
-      // already read and save as an Atlas index, so house mode saves it the
-      // same way — and "Saved ✓" means the floor was saved.
-      const focusToSave = _houseActive() ? tb.house.focusIdx : ctx.state._overviewIsoFocusIdx;
-      await ctx.actions.settingsSet({
+      // House mode walks the Atlas's floors — a different list from the 3D
+      // stack's photo floors — so it keeps its floor under its own key;
+      // overview_iso_focus stays the 3D stack's (round 4).
+      const house = _houseActive();
+      const houseFocus = tb.house.focusIdx;
+      await ctx.actions.settingsSet(house ? {
         overview_iso_floor_gap: ctx.state._overviewFloorGap,
         overview_iso_horiz_gap: ctx.state._overviewHorizGap,
-        overview_iso_focus:     focusToSave,
+        traceback_house_focus:  houseFocus,
+      } : {
+        overview_iso_floor_gap: ctx.state._overviewFloorGap,
+        overview_iso_horiz_gap: ctx.state._overviewHorizGap,
+        overview_iso_focus:     ctx.state._overviewIsoFocusIdx,
       });
       ovSaveLbl.textContent = "Saved \u2713";
       setTimeout(()=>{ ovSaveLbl.textContent = ""; }, 2000);

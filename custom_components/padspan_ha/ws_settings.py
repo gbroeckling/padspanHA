@@ -338,6 +338,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lights_showcase_presets"): list,
         vol.Optional("whole_house_presets"): list,
         vol.Optional("atlas_layout_v2"): bool,
+        vol.Optional("traceback_house_focus"): vol.Coerce(int),
         vol.Optional("vacation_mode_enabled"): bool,
         vol.Optional("vacation_mode_intensity"): vol.Coerce(int),
         vol.Optional("adaptive_learning_enabled"): bool,
@@ -637,6 +638,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["lights_fit_rooms"] = bool(msg["lights_fit_rooms"])
         if "atlas_layout_v2" in msg:
             payload["atlas_layout_v2"] = bool(msg["atlas_layout_v2"])
+        if "traceback_house_focus" in msg:
+            payload["traceback_house_focus"] = max(0, min(64, int(msg["traceback_house_focus"])))
         if "vacation_mode_enabled" in msg:
             # Admin-only: unlike a saved Whole House Preset (a one-shot,
             # user-initiated apply), this autonomously operates real lights

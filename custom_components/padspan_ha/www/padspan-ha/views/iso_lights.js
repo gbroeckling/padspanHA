@@ -5630,7 +5630,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         if(bpts.length<2 || bpts.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1]))) continue;
         const dl=lightsByEid[bar.linked_entity_id];
         const ppx=bpts.map(p=>pt(iso(p[0],p[1],z))).join(" ");
-        if(dl && dl.isLock){
+        // No reading (offline, or no history at a replayed moment): a quiet
+        // dashed line — never the red "unlocked" alarm nor an open gap, which
+        // is what "unknown" fell through to (review 2026-09-23; an offline
+        // lock flashed red live too).
+        if(dl && (dl.state==="unknown" || dl.state==="unavailable")){
+          s+=`<polyline points="${ppx}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="3,4" `+
+            `stroke-linecap="round" opacity="${(0.7*barDim).toFixed(2)}" pointer-events="none"/>`;
+        } else if(dl && dl.isLock){
           // A lock reports its OWN state, not the opening's — the section
           // stays drawn either way (a lock does not make the wall vanish
           // the way an open door does); unlocked is the alert, so it

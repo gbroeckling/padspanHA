@@ -259,8 +259,11 @@ class TracebackStore:
         end_ts: float | None = None,
         obj_key: str | None = None,
         max_frames: int = 4000,
-    ) -> list[dict[str, Any]]:
-        """Return frames within the time window, optionally filtered to one object."""
+        with_count: bool = False,
+    ) -> list[dict[str, Any]] | tuple[list[dict[str, Any]], int]:
+        """Return frames within the time window, optionally filtered to one
+        object. with_count: also the number of frames the window held before
+        thinning — how a replay tells a thinned list from a real absence."""
         now = time.time()
         if start_ts is None:
             start_ts = now - 300  # default 5 min
@@ -291,8 +294,9 @@ class TracebackStore:
             n = len(result)
             result = [result[round(i * (n - 1) / (max_frames - 1))] for i in range(max_frames)] \
                 if max_frames > 1 else result[-1:]
+            return (result, n) if with_count else result
 
-        return result
+        return (result, len(result)) if with_count else result
 
     def get_object_keys(self) -> list[dict[str, str]]:
         """Return all unique object keys seen in traceback with their latest label/kind."""

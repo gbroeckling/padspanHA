@@ -235,13 +235,15 @@ def _settings(**data):
 
 
 def _states(**entities):
-    return {eid: SimpleNamespace(state=state) for eid, state in entities.items()}
+    # Every real HA State has attributes.
+    return {eid: SimpleNamespace(state=state, attributes={}) for eid, state in entities.items()}
 
 
 def _hass(st, states=None):
     return SimpleNamespace(
         data={DOMAIN: {DATA_SETTINGS: st}},
-        states=SimpleNamespace(get=lambda eid: (states or {}).get(eid)),
+        states=SimpleNamespace(get=lambda eid: (states or {}).get(eid),
+                               async_entity_ids=lambda: list(states or {})),
         services=SimpleNamespace(async_call=AsyncMock()),
     )
 
@@ -447,7 +449,9 @@ def test_a_light_left_on_after_vacation_mode_is_not_learned():
 def test_switch_fields_and_restore_fields_keep_the_span_bookkeeping():
     from custom_components.padspan_ha.vacation_mode import restore_fields, switch_fields
     now = 10_000.0
-    assert switch_fields({"vacation_mode_enabled": False}, True, now) == {"vacation_mode_enabled_at": now}
+    # A new vacation starts with a fresh pattern — the last trip's isn't reused.
+    assert switch_fields({"vacation_mode_enabled": False}, True, now) == {
+        "vacation_mode_enabled_at": now, "vacation_mode_pattern": {}, "vacation_mode_pattern_until": 0}
     off = switch_fields({"vacation_mode_enabled": True, "vacation_mode_enabled_at": 9000.0}, False, now)
     assert off == {"vacation_mode_periods": [[9000.0, now]], "vacation_mode_enabled_at": 0}
     assert switch_fields({"vacation_mode_enabled": True}, True, now) == {}
@@ -520,7 +524,13 @@ def test_an_integration_group_is_kept_and_its_members_dropped():
         "light.k": SimpleNamespace(state="on", attributes={}),
     }
     hass = SimpleNamespace(data={}, states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
-    assert vm._eligible_entity_ids(hass) == ["light.strip_main", "light.k"]
+    import pytest as _pt
+    mp = _pt.MonkeyPatch()
+    mp.setattr(vm, "_platform_of", lambda h, eid: "wled" if eid == "light.strip_main" else None)
+    try:
+        assert vm._eligible_entity_ids(hass) == ["light.strip_main", "light.k"]
+    finally:
+        mp.undo()
 
 
 def test_an_unavailable_blip_does_not_end_the_left_on_exclusion():
@@ -575,3 +585,63 @@ def test_team_followers_are_left_to_their_leader(monkeypatch):
                            states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
     monkeypatch.setattr(W, "follower_light_entities", lambda h, teams: {"light.follower"})
     assert vm._eligible_entity_ids(hass) == ["light.leader"]
+
+
+
+def test_a_zha_group_is_dropped_and_its_bulbs_kept(monkeypatch):
+    """One lamp's routine must not light a whole floor; overlapping groups
+    must not fight over shared bulbs (round 4)."""
+    import custom_components.padspan_ha.vacation_mode as vm
+    states = {
+        "light.downstairs": SimpleNamespace(state="on", attributes={"group_entities": ["light.a", "light.b", "light.c"]}),
+        "light.kitchen": SimpleNamespace(state="on", attributes={"group_entities": ["light.b", "light.c"]}),
+        "light.a": SimpleNamespace(state="on", attributes={}), "light.b": SimpleNamespace(state="on", attributes={}),
+        "light.c": SimpleNamespace(state="on", attributes={}),
+    }
+    monkeypatch.setattr(vm, "_platform_of", lambda h, eid: "zha")
+    hass = SimpleNamespace(data={}, states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
+    assert vm._eligible_entity_ids(hass) == ["light.a", "light.b", "light.c"]
+
+
+def test_an_offline_wled_main_light_leaves_its_segment_switchable(monkeypatch):
+    import custom_components.padspan_ha.vacation_mode as vm
+    states = {"light.strip_main": SimpleNamespace(state="unavailable", attributes={"group_entities": ["light.strip"]}),
+              "light.strip": SimpleNamespace(state="on", attributes={})}
+    monkeypatch.setattr(vm, "_platform_of", lambda h, eid: "wled")
+    hass = SimpleNamespace(data={}, states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
+    assert vm._eligible_entity_ids(hass) == ["light.strip"]
+
+
+def test_a_helper_that_also_lists_group_entities_keeps_its_members(monkeypatch):
+    import custom_components.padspan_ha.vacation_mode as vm
+    states = {"light.helper": SimpleNamespace(state="on", attributes={"entity_id": ["light.a"], "group_entities": ["light.a"]}),
+              "light.a": SimpleNamespace(state="on", attributes={})}
+    monkeypatch.setattr(vm, "_platform_of", lambda h, eid: "group")
+    hass = SimpleNamespace(data={}, states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
+    assert vm._eligible_entity_ids(hass) == ["light.a"]
+
+
+async def test_the_tick_applies_todays_rules_to_an_older_pattern(monkeypatch):
+    """A pattern built under older rules may still name a group's members."""
+    import custom_components.padspan_ha.vacation_mode as vm
+    now = datetime(2026, 1, 15, 12, 0, 0)
+    key = bucket_key(now)
+    st = _settings(vacation_mode_enabled=True, vacation_mode_enabled_at=now.timestamp(), vacation_mode_pattern_until=now.timestamp(),
+                   vacation_mode_pattern={"light.helper": {key: 1.0}, "light.a": {key: 1.0}})
+    states = {"light.helper": SimpleNamespace(state="off", attributes={"entity_id": ["light.a"]}),
+              "light.a": SimpleNamespace(state="off", attributes={})}
+    hass = _hass(st, states)
+    await _async_tick(hass)
+    hass.services.async_call.assert_called_once_with("light", "turn_on", {"entity_id": "light.a"})
+
+
+async def test_a_previous_trips_pattern_is_not_reused(monkeypatch):
+    import custom_components.padspan_ha.vacation_mode as vm
+    monkeypatch.setattr(vm, "_async_refresh_pattern_if_stale", AsyncMock())
+    now = datetime(2026, 1, 15, 12, 0, 0)
+    st = _settings(vacation_mode_enabled=True, vacation_mode_enabled_at=now.timestamp(),
+                   vacation_mode_pattern_until=now.timestamp() - 86400 * 20,        # built for an earlier trip
+                   vacation_mode_pattern={"light.a": {bucket_key(now): 1.0}})
+    hass = _hass(st, {"light.a": SimpleNamespace(state="off", attributes={})})
+    await _async_tick(hass)
+    hass.services.async_call.assert_not_called()

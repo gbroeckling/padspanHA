@@ -177,7 +177,7 @@ export function inVacation(periods, tMs) {
  * 30 s made everyone vanish on every event of a week's replay. Past that
  * bound nobody is drawn: nobody was recorded.
  */
-export function mergeHouseFrames(rawFrames, events, thinnedStrideS = 0) {
+export function mergeHouseFrames(rawFrames, events, thinFactor = 1) {
   const have = new Set(rawFrames.map(f => f.ts));
   const extra = [];
   for (const e of events || []) {
@@ -187,11 +187,17 @@ export function mergeHouseFrames(rawFrames, events, thinnedStrideS = 0) {
     extra.push({ ts, o: null, house: true });
   }
   if (!extra.length) return rawFrames.slice();
-  // The bound comes from how the backend THINNED the list (a capped list
-  // is evenly strided), never from the gaps themselves: a tag seen in two
-  // isolated moments an hour apart has a one-hour "cadence" that is really
-  // an absence (re-review round 3).
-  const carryS = Math.max(30, 1.5 * (Number(thinnedStrideS) || 0));
+  // Beacons are recorded at the presence poll (1-60 s, the coordinator's
+  // clamp), so 1.5 x the typical gap bounds "still there" — but never more
+  // than 1.5 x 60 s times however much the backend THINNED the list: a tag
+  // seen twice an hour apart has a one-hour "gap" that is really an absence
+  // (rounds 3 and 4).
+  const gaps = [];
+  for (let k = 1; k < rawFrames.length; k++) gaps.push(rawFrames[k].ts - rawFrames[k - 1].ts);
+  gaps.sort((a, b) => a - b);
+  const median = gaps.length ? gaps[gaps.length >> 1] : 0;
+  const cap = 90 * Math.max(1, Number(thinFactor) || 1);
+  const carryS = Math.max(30, Math.min(1.5 * median, cap));
   const all = [...rawFrames, ...extra].sort((a, b) => a.ts - b.ts);
   let last = null;
   for (const f of all) {

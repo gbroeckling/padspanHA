@@ -300,28 +300,48 @@ async def _async_fetch_history(
     return out
 
 
+def _platform_of(hass: HomeAssistant, entity_id: str) -> str | None:
+    from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
+    ent = er.async_get(hass).async_get(entity_id)
+    return getattr(ent, "platform", None) if ent else None
+
+
 def _eligible_entity_ids(hass: HomeAssistant) -> list[str]:
-    """Every light and fan, with each group counted once — a group and its
-    members decided separately fight, and read bulb by bulb as a person's
-    doing (review 2026-09-23). Which side is kept depends on the kind:
-    - a light.group helper (attributes.entity_id) is a convenience over
-      real lights: keep the members, drop the helper;
-    - an integration group (attributes.group_entities, HA 2026.3+ — WLED's
-      main light, ZHA and MQTT groups) is the device's own control: WLED's
-      main light is the strip's power, and its segment lights can't turn
-      the strip on. Keep the group, drop its members (re-review round 3)."""
+    """Every light and fan, each physical light decided exactly once — a group
+    and its members decided separately fight, and read bulb by bulb as a
+    person's doing (reviews 2026-09-23). The members are what's kept, with
+    ONE exception:
+    - a light.group helper (attributes.entity_id) — drop the helper; and
+      recognised first, so a helper that also publishes group_entities
+      never takes its members down with it;
+    - an integration group (attributes.group_entities, HA 2026.3+):
+      * WLED's main light, while it works, IS the strip's power — its
+        segment lights can't turn the strip on: keep it, drop its segments;
+      * anything else (ZHA, MQTT groups) — drop the group, keep the bulbs:
+        one lamp's routine must not light a whole floor, and overlapping
+        groups would fight over shared bulbs (round 4)."""
     try:
         states = {eid: hass.states.get(eid) for eid in hass.states.async_entity_ids() if eid.startswith(VM_DOMAINS)}
-        drop: set[str] = set()
-        for eid, st in states.items():
-            attrs = (st.attributes if st is not None and st.attributes else {}) or {}
-            if isinstance(attrs.get("entity_id"), (list, tuple)):
-                drop.add(eid)
-            members = attrs.get("group_entities")
-            if isinstance(members, (list, tuple)):
-                drop.update(m for m in members if m != eid)
     except Exception:
         return []
+    drop: set[str] = set()
+    for eid, st in states.items():
+        attrs = (st.attributes if st is not None and st.attributes else {}) or {}
+        if isinstance(attrs.get("entity_id"), (list, tuple)):
+            drop.add(eid)
+            continue
+        members = attrs.get("group_entities")
+        if not isinstance(members, (list, tuple)):
+            continue
+        try:
+            wled_main = _platform_of(hass, eid) == "wled"
+        except Exception:  # noqa: BLE001 — no registry: treat as an ordinary group
+            wled_main = False
+        usable = st is not None and st.state not in ("unavailable", "unknown") and not attrs.get("restored")
+        if wled_main and usable:
+            drop.update(m for m in members if m != eid)
+        else:
+            drop.add(eid)
     # A WLED team follower takes its lights from its leader over sync;
     # switching it separately would fight the leader (ws_wled.py teams). A
     # registry hiccup here costs only the team filtering, never the whole list.
@@ -343,7 +363,8 @@ def switch_fields(data: dict, turn_on: bool, now_ts: float) -> dict:
     vacation_mode_periods. No change, no fields."""
     was_on = bool(data.get("vacation_mode_enabled"))
     if turn_on and not was_on:
-        return {"vacation_mode_enabled_at": now_ts}
+        # A new vacation gets a new pattern — the last trip's is not reused.
+        return {"vacation_mode_enabled_at": now_ts, "vacation_mode_pattern": {}, "vacation_mode_pattern_until": 0}
     if was_on and not turn_on:
         return {
             "vacation_mode_periods": closed_periods(data.get("vacation_mode_periods") or [],
@@ -459,6 +480,16 @@ async def _async_tick(hass: HomeAssistant) -> None:
     if not st.data.get("vacation_mode_enabled"):
         return
     pattern = st.data.get("vacation_mode_pattern") or {}
+    # Only a pattern built for THIS vacation: while a new one's build is
+    # failing or empty, an earlier trip's pattern is not reused (round 4).
+    enabled_at = st.data.get("vacation_mode_enabled_at") or 0
+    until = st.data.get("vacation_mode_pattern_until") or st.data.get("vacation_mode_pattern_built_at") or 0
+    if enabled_at and until < enabled_at:        # same rule as the refresh's
+        return
+    # A pattern built under older rules may name lights the current ones
+    # leave out (group members, team followers): apply the rules now.
+    eligible = set(_eligible_entity_ids(hass))
+    pattern = {eid: b for eid, b in pattern.items() if eid in eligible}
     if not pattern:
         return
     intensity = st.data.get("vacation_mode_intensity")

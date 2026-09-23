@@ -149,3 +149,13 @@ def test_a_long_range_is_downsampled_across_the_whole_window_not_cut_short(tmp_p
     assert len(got) == 100
     assert got[0]["ts"] == 0.0
     assert got[-1]["ts"] == 9_999.0         # the window's last frame is kept
+
+
+
+def test_get_frames_reports_how_many_the_window_held(tmp_path) -> None:
+    tb = _make_store(tmp_path)
+    tb.frames = [{"ts": float(i), "o": [_obj()]} for i in range(1000)]
+    frames, matched = tb.get_frames(start_ts=0, end_ts=1000, max_frames=100, with_count=True)
+    assert len(frames) == 100 and matched == 1000
+    frames, matched = tb.get_frames(start_ts=0, end_ts=10, max_frames=100, with_count=True)
+    assert matched == len(frames) == 11

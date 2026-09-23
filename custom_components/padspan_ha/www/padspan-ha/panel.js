@@ -3145,14 +3145,16 @@ class PadSpanHaApp extends HTMLElement {
     // Only applies to fromPoll=true — explicit renders (tab clicks, actions)
     // must always go through immediately.
     if(fromPoll){
+      // A deliberate skip is a live view, not a stall: stamp it, or the
+      // watchdog rebuilds the view mid-typing (round 4).
       try {
         const active = (this.shadowRoot || this).querySelector(":focus");
         if(active){
           const tag = active.tagName;
-          if(tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+          if(tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA"){ this._lastGoodRender = performance.now(); return; }
         }
       } catch(e) { /* ignore */ }
-      if(this._lastUserInteraction && (performance.now() - this._lastUserInteraction) < 3000) return;
+      if(this._lastUserInteraction && (performance.now() - this._lastUserInteraction) < 3000){ this._lastGoodRender = performance.now(); return; }
     }
     // Verify $content is a live node in the shadow DOM (not a stale detached reference)
     if(!this.$content || !this.$content.isConnected){

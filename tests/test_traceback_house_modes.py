@@ -304,3 +304,17 @@ const m = H.HA.mergeHouseFrames([{ ts: 0, o: [{ k: "fob" }] }, { ts: 3600, o: [{
 out.carried = m.filter(f => f.house).map(f => f.o.length);
 """)
     assert out["carried"] == [0, 0]
+
+
+def test_carry_follows_the_real_recording_rate():
+    """Round 4: a 60 s presence poll must keep people on house frames; an
+    isolated sighting must not be stretched; a thinned week scales with how
+    much it was thinned."""
+    out = _run("""
+const every = (step, n) => Array.from({ length: n }, (_, i) => ({ ts: i * step, o: [{ k: "a" }] }));
+const c = (raw, t, f) => H.HA.mergeHouseFrames(raw, [{ t: t * 1000 }], f).find(x => x.house).o.length;
+out.poll60 = c(every(60, 50), 60 * 10 + 75, 1);           // 75 s after a frame, 60 s cadence
+out.isolated = c([{ ts: 0, o: [{ k: "a" }] }, { ts: 3600, o: [{ k: "a" }] }], 1800, 1);
+out.thinned = c(every(150, 50), 150 * 10 + 200, 15);       // 200 s after a frame, thinned 15x
+""")
+    assert out == {"poll60": 1, "isolated": 0, "thinned": 1}
