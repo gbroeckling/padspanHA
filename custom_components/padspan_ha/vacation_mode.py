@@ -365,10 +365,15 @@ def _eligible_entity_ids(hass: HomeAssistant) -> list[str]:
 
 def learned_pattern(data: dict) -> dict:
     """The newest pattern learned under today's rules — from history that
-    ended when a vacation began (pattern_until set), so never from Vacation
-    Mode's own switching. One from before pattern_until existed may have
-    been, and is never carried."""
-    if data.get("vacation_mode_pattern") and data.get("vacation_mode_pattern_until"):
+    ended when a vacation began (pattern_until set) and began after every
+    vacation in it was recorded (vacation_mode_tracked_since), so never from
+    Vacation Mode's own switching. An install that ran Vacation Mode before
+    spans were recorded has unrecorded ones in the recorder for up to
+    HISTORY_DAYS (round 6); a pattern that could have learned from those,
+    or one from before pattern_until existed, is never carried."""
+    since = data.get("vacation_mode_tracked_since") or 0
+    until = data.get("vacation_mode_pattern_until") or 0
+    if data.get("vacation_mode_pattern") and until and (not since or until - HISTORY_DAYS * 86400 >= since):
         return data["vacation_mode_pattern"]
     return data.get("vacation_mode_pattern_prev") or {}
 
@@ -401,17 +406,22 @@ def restore_fields(live: dict, restored: dict, now_ts: float) -> dict:
     spans, and apply the on/off change the restore makes as a switch. A
     vacation restored ON starts now with a fresh pattern, never an old one."""
     out = {"vacation_mode_periods": list(live.get("vacation_mode_periods") or []),
-           "vacation_mode_pattern_prev": learned_pattern(live)}
+           "vacation_mode_pattern_prev": learned_pattern(live),
+           "vacation_mode_tracked_since": live.get("vacation_mode_tracked_since") or 0}
     turn_on = bool(restored.get("vacation_mode_enabled"))
     out.update(switch_fields({**live, **out}, turn_on, now_ts))
     if turn_on and live.get("vacation_mode_enabled"):
         for k in ("vacation_mode_enabled_at", "vacation_mode_pattern",
                   "vacation_mode_pattern_until", "vacation_mode_pattern_built_at"):
             out[k] = live.get(k)
-    elif turn_on:
-        out.update(vacation_mode_pattern={}, vacation_mode_pattern_until=0, vacation_mode_pattern_built_at=0)
     else:
-        out.setdefault("vacation_mode_enabled_at", 0)
+        # Restored on as a new vacation, or off: the backup's own pattern is
+        # never let back in — the live one is already kept as prev, and an
+        # older backup's would otherwise outrank it at the next switch-on
+        # (round 6).
+        out.update(vacation_mode_pattern={}, vacation_mode_pattern_until=0, vacation_mode_pattern_built_at=0)
+        if not turn_on:
+            out.setdefault("vacation_mode_enabled_at", 0)
     return out
 
 

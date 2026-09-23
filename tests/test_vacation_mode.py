@@ -740,3 +740,43 @@ def test_the_single_pass_build_matches_state_at_everywhere():
         if b:
             want[eid] = b
     assert got == want
+
+
+def test_a_pattern_that_could_have_learned_unrecorded_vacations_isnt_carried():
+    """Round 6: an install that ran Vacation Mode before spans were recorded
+    has unrecorded ones in the recorder for 30 days; a pattern whose history
+    window reaches back before vacation_mode_tracked_since isn't carried."""
+    from custom_components.padspan_ha.vacation_mode import HISTORY_DAYS, learned_pattern
+    since = 1_000_000_000.0
+    pat = {"light.a": {"*:1200": 1.0}}
+    early = {"vacation_mode_pattern": pat, "vacation_mode_pattern_until": since + 86400 * 5, "vacation_mode_tracked_since": since}
+    late = {**early, "vacation_mode_pattern_until": since + 86400 * (HISTORY_DAYS + 1)}
+    assert learned_pattern(early) == {}
+    assert learned_pattern({**early, "vacation_mode_pattern_prev": {"light.b": {}}}) == {"light.b": {}}
+    assert learned_pattern(late) == pat
+    assert learned_pattern({**early, "vacation_mode_tracked_since": 0}) == pat
+
+
+def test_restoring_an_old_backup_while_home_never_brings_its_pattern_back():
+    """Round 6: with Vacation Mode off in the backup, its pattern got through
+    and outranked the live one at the next switch-on."""
+    from custom_components.padspan_ha.vacation_mode import restore_fields, switch_fields
+    live_pat, old_pat = {"light.a": {"*:1200": 1.0}}, {"light.z": {"*:0100": 1.0}}
+    live = {"vacation_mode_enabled": False, "vacation_mode_pattern": live_pat, "vacation_mode_pattern_until": 5000.0,
+            "vacation_mode_tracked_since": 0}
+    backup = {"vacation_mode_enabled": False, "vacation_mode_pattern": old_pat, "vacation_mode_pattern_until": 4000.0}
+    r = restore_fields(live, backup, 9000.0)
+    restored = {**backup, **r}
+    assert restored["vacation_mode_pattern"] == {} and restored["vacation_mode_pattern_prev"] == live_pat
+    assert switch_fields(restored, True, 10_000.0)["vacation_mode_pattern_prev"] == live_pat
+
+
+async def test_the_upgrade_stamp_is_set_only_where_vacation_mode_ran(monkeypatch):
+    from custom_components.padspan_ha import settings_store as ss
+    for loaded, stamped in (({"vacation_mode_pattern_built_at": 5.0}, True), ({"light_theme": True}, False), (None, False)):
+        saved = {}
+        store = ss.SettingsStore.__new__(ss.SettingsStore)
+        store.store = SimpleNamespace(async_load=AsyncMock(return_value=loaded),
+                                      async_save=AsyncMock(side_effect=lambda d: saved.update(d)))
+        data = await store.async_load()
+        assert (data["vacation_mode_tracked_since"] > 0) is stamped, loaded
