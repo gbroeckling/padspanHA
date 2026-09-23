@@ -292,23 +292,34 @@ export function render(ctx) {
     _applyHouseFrames();
   }
 
-  // With Full house activity on and its history in, every house event is a
-  // frame of its own (houseActivity.mergeHouseFrames); otherwise the beacon
-  // frames alone. Keeps the playhead on the same moment across the swap.
+  // THE one place tb.frames is derived (re-review 2026-09-23: three call
+  // sites each half-did it). With Full house activity on and this window's
+  // history in, every house event is a frame of its own
+  // (houseActivity.mergeHouseFrames); otherwise the beacon frames alone.
+  // Decided on the switch, not the visible mode, so history that lands while
+  // Insights is open is merged all the same. The playhead keeps its moment —
+  // except at the very start, which stays the start (an empty-house stretch
+  // before the first beacon frame must not already be "played"). A running
+  // playback is restarted on the new list, whose length it paces by.
   function _applyHouseFrames() {
     const raw = tb.rawFrames || tb.frames || [];
     const hs = tb.house;
     const win = tb._loadedRange;
-    const ready = _houseActive() && hs.timeline && win && hs.window
+    const ready = _houseOK && hs.on && hs.timeline && win && hs.window
       && hs.window[0] === win[0] && hs.window[1] === win[1];
     const next = ready ? houseActivity.mergeHouseFrames(raw, hs.events) : raw;
-    if (next === tb.frames) return;
-    const atTs = tb.frames[tb.frameIdx] ? tb.frames[tb.frameIdx].ts : null;
+    if (tb._framesFrom === (ready ? hs.version : -1) && tb._framesRaw === raw) return;
+    tb._framesFrom = ready ? hs.version : -1;
+    tb._framesRaw = raw;
+    const wasPlaying = tb.playing;
+    if (wasPlaying) _stopPlayback();
+    const atTs = tb.frameIdx > 0 && tb.frames[tb.frameIdx] ? tb.frames[tb.frameIdx].ts : null;
     tb.frames = next;
     let i = 0;
     if (atTs != null) while (i + 1 < next.length && next[i + 1].ts <= atTs) i++;
     tb.frameIdx = Math.min(i, Math.max(0, next.length - 1));
     tb._staticKeys = null; tb._colorMap = null;
+    if (wasPlaying && next.length) _startPlayback();
   }
 
   // ── SVG builder ────────────────────────────────────────────────────────
@@ -905,11 +916,24 @@ export function render(ctx) {
   // A fetch started by an earlier mount of this tab still repaints THIS one.
   let _chainedPending = null;
   function _houseLoaded() {
-    if (!_houseActive() || mapDiv.isConnected === false) return;   // a detached earlier mount
     _applyHouseFrames();
+    if (!_houseActive() || mapDiv.isConnected === false) return;   // hidden mode, or a detached earlier mount
     _buildControls();
     _renderHouseEvents(true);
     _renderFrame();
+  }
+
+  let _regTimer = null;
+  function _startHouseLoad() {
+    const hs = tb.house, win = tb._loadedRange;
+    houseActivity.loadHouseHistory(ctx, hs, win[0], win[1]);
+    _chainedPending = hs.pending;
+    hs.pending.then(_houseLoaded);
+  }
+  const _retryHtml = `<button class="btn tiny" data-house-retry>Retry</button>`;
+  function _wireRetry() {
+    const retry = mapDiv.querySelector && mapDiv.querySelector("[data-house-retry]");
+    if (retry) retry.addEventListener("click", () => { tb.house.window = null; tb.house.error = null; _renderHouseFrame(); });
   }
 
   function _renderHouseFrame() {
@@ -920,15 +944,16 @@ export function render(ctx) {
       _chainedPending = hs.pending;
       hs.pending.then(_houseLoaded);
     }
+    // The entity list comes from the live house (filled by renderHouseFrame);
+    // start the fetch BEFORE the status is written, so it says "Loading".
+    if (!hs.eids.length) houseActivity.renderHouseFrame(ctx, hs, [], 0, {}, () => {});
+    if (stale && !hs.loading && hs.eids.length) _startHouseLoad();
+    const errLine = hs.error ? `House history unavailable: ${_esc(hs.error.substring(0, 80))} ${_retryHtml}` : null;
+
     if (!tb.frames.length) {
       mapDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#64748b;font-size:14px">${
-        hs.loading ? "Loading house history…" : "No beacon or house activity in this time range. Try a longer range."}</div>`;
-      // The history still has to be fetched to know that: nobody home all
-      // window leaves no beacon frames, but the house may have been busy.
-      if (stale && !hs.loading) {
-        houseActivity.renderHouseFrame(ctx, hs, [], 0, {}, () => {});   // fills hs.eids
-        if (hs.eids.length) { houseActivity.loadHouseHistory(ctx, hs, win[0], win[1]); _chainedPending = hs.pending; hs.pending.then(_houseLoaded); }
-      }
+        hs.loading ? "Loading house history…" : errLine || "No beacon or house activity in this time range. Try a longer range."}</div>`;
+      _wireRetry();
       _renderHouseEvents();
       return;
     }
@@ -939,30 +964,25 @@ export function render(ctx) {
       colorOf: _houseFrameColor,
       labelOf: (o) => String(o.n || o.k || "?").replace(/^(entity:|ble:|sensor\.|device_tracker\.)/, "").replace(/_/g, " ").substring(0, 16),
     }, () => {});
-    const ts = tb.frames[tb.frameIdx].ts;
+    const frame = tb.frames[tb.frameIdx];
+    const ts = frame.ts;
     let done = 0;
     for (const e of hs.events) { if (e.t <= ts * 1000) done++; else break; }
     const status = hs.loading ? "Loading house history…"
-      : hs.error ? `House history unavailable: ${_esc(hs.error.substring(0, 80))} <button class="btn tiny" data-house-retry>Retry</button>`
-      : `${done} of ${hs.events.length} house events so far`
+      : errLine || (`${done} of ${hs.events.length} house events so far`
         + (houseActivity.inVacation(hs.vacationPeriods, ts * 1000) ? " · 🌴 Vacation Mode on" : "")
-        + (tb.frames[tb.frameIdx].house && !(tb.frames[tb.frameIdx].o || []).length ? " · no tracked beacon home" : "");
+        + (frame.house && !(frame.o || []).length ? " · no tracked beacon home" : ""));
     mapDiv.innerHTML =
       `<div style="display:flex;gap:10px;align-items:center;margin-bottom:6px;font-size:12px;flex-wrap:wrap">` +
       `<span style="font-family:monospace;font-weight:700;color:#fbbf24;font-size:15px">${_esc(_fmtDate(ts))}</span>` +
       `<span style="color:#94a3b8">${status}</span>` +
       `<span style="margin-left:auto;color:#64748b;font-family:monospace">${tb.frameIdx + 1} / ${tb.frames.length}</span></div>` + svg;
-    const retry = mapDiv.querySelector("[data-house-retry]");
-    if (retry) retry.addEventListener("click", () => { hs.window = null; hs.error = null; _renderHouseFrame(); });
-    // One history fetch per loaded window; a new time range fetches again.
-    if (stale && !hs.loading && hs.eids.length) {
-      houseActivity.loadHouseHistory(ctx, hs, win[0], win[1]);
-      _chainedPending = hs.pending;
-      hs.pending.then(_houseLoaded);
-    }
+    _wireRetry();
     // The entity registry (rooms for every light) may still be arriving:
-    // look again shortly rather than leave lights unplaced.
-    if (hs.regLoading && !tb.playing) setTimeout(() => { if (_houseActive() && mapDiv.isConnected !== false) _renderHouseFrame(); }, 1500);
+    // look again once shortly — one timer per mount, never a chain per render.
+    if (hs.regLoading && !tb.playing && !_regTimer) {
+      _regTimer = setTimeout(() => { _regTimer = null; if (_houseActive() && mapDiv.isConnected !== false) _renderHouseFrame(); }, 1500);
+    }
     _renderHouseEvents();
   }
 
@@ -979,8 +999,11 @@ export function render(ctx) {
     const nowMs = tb.frames[tb.frameIdx] ? tb.frames[tb.frameIdx].ts * 1000 : Infinity;
     let at = 0;
     while (at < hs.events.length && hs.events[at].t <= nowMs) at++;
-    const key = `${hs.version || 0}|${hs.loading}|${hs.events.length}`;
-    const inRange = at >= _evFrom + 50 && at <= _evFrom + EVENTS_SHOWN - 50;
+    const key = `${hs.version || 0}|${hs.loading}|${hs.events.length}|${hs.error || ""}`;
+    // A window clamped to either end of the list stays put while the playhead
+    // is inside it (re-review: rebuilt every frame near the start and end).
+    const inRange = (at >= _evFrom + 50 || _evFrom === 0)
+      && (at <= _evFrom + EVENTS_SHOWN - 50 || _evFrom + EVENTS_SHOWN >= hs.events.length);
     if (!force && _evBuilt === key && (inRange || hs.events.length <= EVENTS_SHOWN)) {
       for (const r of _evRows) {
         const op = r.t <= nowMs ? "1" : "0.4";
@@ -998,7 +1021,8 @@ export function render(ctx) {
     if (!hs.events.length) {
       const m = document.createElement("div");
       m.className = "muted";
-      m.textContent = hs.loading ? "Loading…" : "No lights, doors, locks or motion changed in this window.";
+      m.textContent = hs.loading ? "Loading…" : hs.error ? "House history unavailable — see Retry above the map."
+        : "No lights, doors, locks or motion changed in this window.";
       houseEventsCard.appendChild(m);
       return;
     }
@@ -1014,7 +1038,10 @@ export function render(ctx) {
     for (const e of shown) {
       const row = document.createElement("div");
       row.style.cssText = `display:flex;gap:8px;padding:2px 4px;cursor:pointer;border-radius:4px;opacity:${e.t <= nowMs ? 1 : 0.4}`;
-      row.innerHTML = `<span style="font-family:monospace;color:#94a3b8">${_esc(_fmtDate(e.t / 1000))}</span>` +
+      const d = new Date(e.t);
+      const when = d.toLocaleDateString([], { month: "short", day: "numeric" }) + " "
+        + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      row.innerHTML = `<span style="font-family:monospace;color:#94a3b8">${_esc(when)}</span>` +
         `<span style="flex:1">${e.vacation ? '<span title="Switched by Vacation Mode">🌴 </span>' : ""}${_esc(e.name)}</span>` +
         `<span style="color:#fbbf24">${_esc(e.from)} → ${_esc(e.to)}</span>`;
       row.addEventListener("click", () => {
@@ -1121,7 +1148,9 @@ export function render(ctx) {
     tb._playStartTs = performance.now();
     tb._playStartFrame = tb.frameIdx;
     const totalFrames = tb.frames.length;
-    const msPerFrame = Math.max(16, (tb.playDurationS * 1000) / totalFrames);
+    // No 16 ms floor: a long list advances several frames per animation tick
+    // rather than running over the chosen duration.
+    const msPerFrame = Math.max(1, (tb.playDurationS * 1000) / totalFrames);
 
     function _tick(now) {
       if (!tb.playing) return;
@@ -1648,10 +1677,12 @@ export function render(ctx) {
   ovSaveBtn.addEventListener("click", async ()=>{
     ovSaveBtn.disabled = true;
     try{
+      // In house mode the slider walks the Atlas's floors, a different list
+      // from the 3D stack's — its index is not an overview_iso_focus value.
       await ctx.actions.settingsSet({
         overview_iso_floor_gap: ctx.state._overviewFloorGap,
         overview_iso_horiz_gap: ctx.state._overviewHorizGap,
-        overview_iso_focus:     ctx.state._overviewIsoFocusIdx,
+        ...(_houseActive() ? {} : { overview_iso_focus: ctx.state._overviewIsoFocusIdx }),
       });
       ovSaveLbl.textContent = "Saved \u2713";
       setTimeout(()=>{ ovSaveLbl.textContent = ""; }, 2000);
@@ -2036,7 +2067,7 @@ export function render(ctx) {
       if (mode === "playback") {
         // Traceback may have opened in another mode and never loaded.
         if (!ctrlCard.children.length) _loadTracebackData().then(() => { _buildControls(); _renderFrame(); });
-        else _renderFrame();
+        else { _applyHouseFrames(); _buildControls(); _renderHouseEvents(true); _renderFrame(); }
       } else if (mode === "discovery") {
         _runDiscoverySearch();
         _buildDiscoControls();

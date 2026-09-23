@@ -88,8 +88,9 @@ export function statesAt(timeline, liveStates, eids, tMs) {
   const out = {};
   for (const eid of eids) {
     const list = timeline[eid];
-    const r = list ? _rowAt(list, tMs) : null;
-    if (!r) { if (liveStates[eid]) out[eid] = liveStates[eid]; continue; }
+    if (!list) { if (liveStates[eid]) out[eid] = liveStates[eid]; continue; }   // not recorded at all
+    const r = _rowAt(list, tMs);
+    if (!r) continue;              // recorded, but not yet at tMs: nothing to show, never today's state
     const attrs = r.attributes && Object.keys(r.attributes).length ? r.attributes : (liveStates[eid]?.attributes || {});
     out[eid] = {
       entity_id: eid,
@@ -116,12 +117,17 @@ export function activityEvents(timeline, nameOf, startMs, endMs) {
   const ev = [];
   for (const [eid, list] of Object.entries(timeline)) {
     if (!isEventEntity(eid)) continue;
-    for (let i = 1; i < list.length; i++) {
+    // Compare each real state with the last REAL state before it, so an
+    // "off → unavailable → on" still reads as the off → on it was
+    // (re-review 2026-09-23: skipping both sides of a gap lost the change).
+    let prev = null;
+    for (let i = 0; i < list.length; i++) {
       const r = list[i];
-      if (r.t < startMs || r.t > endMs) continue;
-      if (r.state === list[i - 1].state) continue;      // attribute-only update
-      if (_NOT_A_CHANGE.has(r.state) || _NOT_A_CHANGE.has(list[i - 1].state)) continue;
-      ev.push({ t: r.t, eid, name: nameOf(eid), from: list[i - 1].state, to: r.state });
+      if (_NOT_A_CHANGE.has(r.state)) continue;
+      if (i > 0 && prev !== null && r.state !== prev && r.t >= startMs && r.t <= endMs) {
+        ev.push({ t: r.t, eid, name: nameOf(eid), from: prev, to: r.state });
+      }
+      prev = r.state;
     }
   }
   return ev.sort((a, b) => a.t - b.t);
@@ -153,22 +159,32 @@ export function inVacation(periods, tMs) {
 /**
  * Traceback only records a frame while a tracked object is home, so playback
  * over beacon frames alone could never show the house while it was empty —
- * the very case the 🌴 marking exists for (review 2026-09-23). With house
- * activity on, every house event gets a frame of its own at its own moment.
- * A synthetic frame carries the beacons of the last real frame only if that
- * frame is at most `carryS` old; after that nobody is drawn, as nobody was
- * recorded.
+ * the very case the 🌴 marking exists for. With house activity on, every
+ * house event gets a frame of its own, at the event's exact moment (a frame
+ * rounded to the second could land before the change and draw the old
+ * state — re-review 2026-09-23).
+ *
+ * A synthetic frame carries the beacons of the last real frame while the gap
+ * is no longer than the beacon cadence itself — beacon frames arrive ~10 s
+ * apart, but a long range comes back evenly thinned (get_frames), so a fixed
+ * 30 s made everyone vanish on every event of a week's replay. Past that
+ * bound nobody is drawn: nobody was recorded.
  */
-export function mergeHouseFrames(rawFrames, events, carryS = 30) {
-  const have = new Set(rawFrames.map(f => Math.round(f.ts)));
+export function mergeHouseFrames(rawFrames, events) {
+  const have = new Set(rawFrames.map(f => f.ts));
   const extra = [];
   for (const e of events || []) {
-    const ts = Math.round(e.t / 1000);
+    const ts = e.t / 1000;
     if (have.has(ts)) continue;
     have.add(ts);
     extra.push({ ts, o: null, house: true });
   }
   if (!extra.length) return rawFrames.slice();
+  const gaps = [];
+  for (let k = 1; k < rawFrames.length; k++) gaps.push(rawFrames[k].ts - rawFrames[k - 1].ts);
+  gaps.sort((a, b) => a - b);
+  const median = gaps.length ? gaps[gaps.length >> 1] : 0;
+  const carryS = Math.max(30, 1.5 * median);
   const all = [...rawFrames, ...extra].sort((a, b) => a.ts - b.ts);
   let last = null;
   for (const f of all) {
@@ -269,6 +285,9 @@ export function loadHouseHistory(ctx, hs, startS, endS) {
     include_start_time_state: true,
   };
   const call = (ids, extra) => ids.length ? ctx.hass.callWS({ ...base, entity_ids: ids, ...extra }) : Promise.resolve({});
+  // A new window starts empty: the old window's timeline would draw live
+  // states (before its first row) and list the old events meanwhile.
+  hs.timeline = null; hs.events = []; hs.vacationPeriods = [];
   hs.loading = true; hs.error = null; hs.window = [startS, endS];
   hs.pending = (async () => {
     try {

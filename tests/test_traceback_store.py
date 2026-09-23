@@ -148,4 +148,4 @@ def test_a_long_range_is_downsampled_across_the_whole_window_not_cut_short(tmp_p
     got = tb.get_frames(start_ts=0, end_ts=10_000, max_frames=100)
     assert len(got) == 100
     assert got[0]["ts"] == 0.0
-    assert got[-1]["ts"] >= 9_800           # reaches the end of the window
+    assert got[-1]["ts"] == 9_999.0         # the window's last frame is kept

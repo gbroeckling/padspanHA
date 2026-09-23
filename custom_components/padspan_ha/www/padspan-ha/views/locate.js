@@ -45,6 +45,10 @@ const { tierAtLeast, currentTier } =
 let _targetKey = "";
 let _lastDistance = null;
 let _lastDistanceKey = "";
+// The cue is measured between two snapshots: drawing the same snapshot again
+// (a full Follow rebuild after the per-poll refresh) repeats it, rather than
+// comparing a distance with itself and dropping it (re-review 2026-09-23).
+let _lastSnap = null, _lastDelta = "";
 
 // Mounted by Follow (its "📍 Locate" option, Garry 2026-09-23) rather than
 // being a tab of its own: `targetKey` is the object Follow already has
@@ -60,6 +64,8 @@ export function render(ctx, { targetKey } = {}) {
     el("span", { class: "muted", style: "font-size:11px" }, "which way to walk, room by room — no compass, no camera"),
   ]));
 
+  // Every root this returns answers _refresh (Follow calls it each poll).
+  root._refresh = () => {};
   if (!tierAtLeast(currentTier(ctx.state.settings), "pro")) {
     root.appendChild(_buildProGateCard(ctx, "Locate"));
     return root;
@@ -225,13 +231,21 @@ function _buildGuidance(ctx, self, target) {
       `Same room — ${target.room}`));
     if (self.floor_id === target.floor_id && typeof self.x_m === "number" && typeof target.x_m === "number") {
       const dist = Math.hypot(target.x_m - self.x_m, target.y_m - self.y_m);
+      const pairKey = self.key + ">" + target.key;
+      const snap = ctx.state.live?.snapshot || null;
       let delta = "";
-      if (_lastDistanceKey === self.key + ">" + target.key && _lastDistance != null) {
-        const diff = dist - _lastDistance;
-        if (Math.abs(diff) > 0.3) delta = diff < 0 ? " — getting closer" : " — getting further";
+      if (snap && snap === _lastSnap && _lastDistanceKey === pairKey) {
+        delta = _lastDelta;                       // same snapshot drawn again
+      } else {
+        if (_lastDistanceKey === pairKey && _lastDistance != null) {
+          const diff = dist - _lastDistance;
+          if (Math.abs(diff) > 0.3) delta = diff < 0 ? " — getting closer" : " — getting further";
+        }
+        _lastDistance = dist;
+        _lastDistanceKey = pairKey;
+        _lastSnap = snap;
+        _lastDelta = delta;
       }
-      _lastDistance = dist;
-      _lastDistanceKey = self.key + ">" + target.key;
       card.appendChild(el("div", { style: "font-size:28px;font-weight:700" }, `${dist.toFixed(1)} m${delta}`));
       card.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:4px" },
         "Straight-line distance from your tracked position — look around, you're close."));

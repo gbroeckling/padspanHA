@@ -1093,7 +1093,11 @@ class PadSpanHaApp extends HTMLElement {
           const _liveSet = new Set(["overview","follow","monitor"]);
           const _isLiveView = _liveSet.has(this.state?.view);
           const sinceGoodRender = this._lastGoodRender ? performance.now() - this._lastGoodRender : 0;
-          if(sinceGoodRender > 20_000){
+          // Follow/Monitor re-render on purpose only every 35 s (_SLOW_INTERVAL
+          // in the poll) — a 20 s threshold force-rebuilt them every ~20-25 s,
+          // outside the poll's focus guard, snapping an open picker shut.
+          const _stallMs = (this.state?.view === "follow" || this.state?.view === "monitor") ? 45_000 : 20_000;
+          if(sinceGoodRender > _stallMs){
             if(!_isLiveView){
               // Non-live view: just reset the timer, don't force render
               this._lastGoodRender = performance.now();

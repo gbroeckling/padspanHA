@@ -505,3 +505,35 @@ def test_light_groups_are_left_to_their_members():
     }
     hass = SimpleNamespace(states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
     assert vm._eligible_entity_ids(hass) == ["light.a"]
+
+
+
+def test_integration_groups_are_left_to_their_members_too():
+    """HA 2026.3+ integration groups (WLED main light, ZHA, MQTT) publish
+    members as group_entities, not entity_id (re-review 2026-09-23)."""
+    import custom_components.padspan_ha.vacation_mode as vm
+    states = {
+        "light.strip_main": SimpleNamespace(state="on", attributes={"group_entities": ["light.strip", "light.strip_segment_1"]}),
+        "light.strip": SimpleNamespace(state="on", attributes={}),
+    }
+    hass = SimpleNamespace(states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
+    assert vm._eligible_entity_ids(hass) == ["light.strip"]
+
+
+def test_an_unavailable_blip_does_not_end_the_left_on_exclusion():
+    from custom_components.padspan_ha.vacation_mode import entity_exclusions
+    changes = [(100.0, "on"), (300.0, "unavailable"), (310.0, "on"), (900.0, "off")]
+    assert entity_exclusions(changes, [[50.0, 200.0]], 1000.0) == [[50.0, 900.0]]
+
+
+async def test_a_failed_recorder_query_is_retried_next_tick_not_in_an_hour(monkeypatch):
+    import custom_components.padspan_ha.vacation_mode as vm
+    fetch = AsyncMock(return_value=None)          # the query itself failed
+    monkeypatch.setattr(vm, "_async_fetch_history", fetch)
+    monkeypatch.setattr(vm, "_eligible_entity_ids", lambda hass: ["light.a"])
+    enabled_at = datetime(2026, 1, 15, 11, 0, 0).timestamp()
+    st = _settings(vacation_mode_enabled=True, vacation_mode_enabled_at=enabled_at)
+    await _async_refresh_pattern_if_stale(_hass(st), st)
+    await _async_refresh_pattern_if_stale(_hass(st), st)
+    assert fetch.await_count == 2
+    assert "vacation_mode_pattern_attempt" not in st.data or st.data["vacation_mode_pattern_attempt"][0] != enabled_at

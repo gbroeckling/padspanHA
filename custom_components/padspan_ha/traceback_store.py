@@ -287,8 +287,10 @@ class TracebackStore:
         # 7-day range replayed only its oldest ~9 hours (review 2026-09-23,
         # found through Traceback's Full house activity).
         if len(result) > max_frames:
-            step = len(result) / max_frames
-            result = [result[int(i * step)] for i in range(max_frames)]
+            # First and last frame both kept: the window's end is its "now".
+            n = len(result)
+            result = [result[round(i * (n - 1) / (max_frames - 1))] for i in range(max_frames)] \
+                if max_frames > 1 else result[-1:]
 
         return result
 

@@ -86,7 +86,7 @@ PERIODS_MAX = 50
 LOG_STORE_KEY = "padspan_ha.vacation_log"
 LOG_MAX_AGE_S = 8 * 86400     # Traceback keeps 7 days; one spare
 LOG_MAX = 20000               # ~1000 switches/day in a 40-light house fits
-LOG_SAVE_DELAY_S = 300        # one write per tick at most
+LOG_SAVE_DELAY_S = 60         # well inside the 5-min tick: Store's delay is a trailing debounce
 # A pattern build that found nothing usable is not retried every tick.
 RETRY_EMPTY_S = 3600
 
@@ -225,7 +225,10 @@ def entity_exclusions(changes: list[tuple[float, str]], periods: list, now_ts: f
         if end is None:
             out.append([start, None])
             continue
-        nxt = next((ts for ts, _ in ordered if ts > end), None)
+        # The first REAL on/off change away from how Vacation Mode left it —
+        # an "unavailable" blip in between is not someone touching the light.
+        left = state_at(changes, end)
+        nxt = next((ts for ts, st in ordered if ts > end and st in ("on", "off") and st != left), None)
         out.append([start, nxt if nxt is not None else now_ts])
     return out
 
@@ -261,7 +264,9 @@ def decide_states(
 
 async def _async_fetch_history(
     hass: HomeAssistant, entity_ids: list[str], days: int, end: datetime | None = None
-) -> dict[str, list[tuple[float, str]]]:
+) -> dict[str, list[tuple[float, str]]] | None:
+    """{} when the recorder answered with nothing; None when the query itself
+    failed — a failure is retried next tick, an empty answer only hourly."""
     if not entity_ids:
         return {}
     try:
@@ -270,7 +275,7 @@ async def _async_fetch_history(
         from homeassistant.util import dt as dt_util  # noqa: PLC0415
     except Exception as err:
         _LOGGER.debug("Vacation mode: recorder not available: %s", err)
-        return {}
+        return None
     end = end or dt_util.utcnow()
     start = end - timedelta(days=days)
     try:
@@ -280,7 +285,7 @@ async def _async_fetch_history(
         )
     except Exception as err:
         _LOGGER.warning("Vacation mode: could not read history, skipping this cycle: %s", err)
-        return {}
+        return None
     out: dict[str, list[tuple[float, str]]] = {}
     for entity_id, states in (raw or {}).items():
         out[entity_id] = [(s.last_changed.timestamp(), s.state) for s in states if s.last_changed]
@@ -298,8 +303,11 @@ def _eligible_entity_ids(hass: HomeAssistant) -> list[str]:
             if not eid.startswith(VM_DOMAINS):
                 continue
             st = hass.states.get(eid)
-            members = st.attributes.get("entity_id") if st is not None and st.attributes else None
-            if isinstance(members, (list, tuple)):
+            attrs = st.attributes if st is not None and st.attributes else {}
+            # light.group helpers list members as entity_id; integration
+            # groups (WLED's main light, ZHA and MQTT groups) as
+            # group_entities (HA 2026.3+) — re-review 2026-09-23.
+            if any(isinstance(attrs.get(k), (list, tuple)) for k in ("entity_id", "group_entities")):
                 continue
             out.append(eid)
         return out
@@ -370,6 +378,8 @@ async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
     entity_ids = _eligible_entity_ids(hass)
     end = dt_util.utc_from_timestamp(enabled_at)
     history = await _async_fetch_history(hass, entity_ids, HISTORY_DAYS, end=end)
+    if history is None:
+        return                      # the query failed: try again next tick
     pattern = build_pattern(history, dt_util.as_local(end),
                             exclude=st.data.get("vacation_mode_periods") or []) if history else {}
     if not pattern:
