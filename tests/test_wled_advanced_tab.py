@@ -305,3 +305,46 @@ await settle();
 out.call = calls.filter(Boolean)[0];
 """)
     assert out["call"] == {"type": "padspan_ha/wled_identify", "entity_id": "light.upper_north", "seg_id": 0, "seconds": 10}
+
+
+def test_the_settings_section_saves_only_what_changed_and_gamma_whole():
+    out = _run("""
+const calls = [];
+DEVICE["json/cfg"] = { id: { name: "Upper North", mdns: "upper-north" }, def: { on: true, bri: 128, ps: 1 },
+  light: { "scale-bri": 100, "pal-mode": 0, aseg: false, gc: { bri: 1, col: 2.2, val: 2.2 }, tr: { dur: 7, rpc: 5, hrp: true },
+           nl: { mode: 1, dur: 60, tbri: 0, macro: 0 } },
+  if: { ntp: { en: false, host: "0.wled.pool.ntp.org", tz: 0, offset: 0, ampm: false, ln: 0, lt: 0 } },
+  timers: { cntdwn: { goal: [20, 1, 1, 0, 0, 0], macro: 0 }, ins: [] },
+  hw: { btn: { pull: true, tt: 32, ins: [{ type: 2, pin: [0], macros: [0, 0, 0] }] } } };
+const hass = { states: {}, callWS: async (m) => {
+  calls.push(m);
+  if (m.type === "padspan_ha/wled_get") return { data: DEVICE[m.path], hash: "H" };
+  if (m.type === "padspan_ha/wled_cfg") return { backup: "b", after: DEVICE["json/cfg"], hash: "H2", unexpected: [] };
+  return { data: DEVICE["json/si"].state };
+} };
+const pane = document.createElement("div");
+await WA.mountWledAdvanced(pane, { hass, eid: "light.upper_north", api: { wled: { isAdmin: true }, toast: () => {} } });
+await settle();
+all(pane).find(n => n.textContent === "Settings").click();
+await settle(); await settle();
+const t = texts(pane);
+out.sections = ["Device", "When it starts", "Transitions & brightness", "Nightlight", "Time", "Schedules", "Buttons"].every(s => t.includes(s));
+out.noMqtt = !t.includes("MQTT");                         // this device reports none
+out.ntpWarn = t.some(x => x.includes("Internet time is off"));
+// Turn gamma-correct brightness on, then save that section.
+const gl = all(pane).filter(n => n.tagName === "DIV" && n.textContent === "Gamma-correct brightness").pop();
+const cb = all(gl.parentNode).find(n => n.tagName === "INPUT");
+cb.checked = true; cb.dispatchEvent(new Event("change"));
+await settle();
+all(pane).find(n => n.tagName === "BUTTON" && (n.textContent || "").startsWith("Save 1 change")).click();
+await settle();
+all(pane).find(n => n.textContent === "+ At sunset").click();
+all(pane).find(n => n.textContent === "Save schedules").click();
+await settle();
+out.patches = calls.filter(c => c.type === "padspan_ha/wled_cfg").map(c => c.patch);
+""")
+    assert out["sections"] and out["noMqtt"] and out["ntpWarn"]
+    assert len(out["patches"]) == 2, out["patches"]
+    gamma, timers = out["patches"]
+    assert gamma == {"light": {"gc": {"bri": 2.2, "col": 2.2, "val": 2.2}}}      # whole gc, bri now on
+    assert timers["timers"]["ins"][0]["hour"] == 254 and timers["timers"]["ins"][0]["dow"] == 127

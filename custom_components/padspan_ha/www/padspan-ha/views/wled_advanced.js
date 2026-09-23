@@ -28,6 +28,7 @@ const { presetsView } = await import(`./wled_tab_presets.js${_q}`);
 const { backupView } = await import(`./wled_tab_backup.js${_q}`);
 const { syncView } = await import(`./wled_tab_sync.js${_q}`);
 const { ledsView } = await import(`./wled_tab_leds.js${_q}`);
+const { settingsView } = await import(`./wled_tab_settings.js${_q}`);
 
 // ── Mount ────────────────────────────────────────────────────────────────────
 
@@ -68,7 +69,7 @@ export async function mountWledAdvanced(pane, { hass, eid, api }) {
     return;
   }
 
-  const TABS = [["layout", "Layout"], ["effect", "Effect"], ["presets", "Presets & playlists"], ["leds", "LEDs"], ["sync", "Sync & team"], ["backup", "Backup"], ["info", "Info"]];
+  const TABS = [["layout", "Layout"], ["effect", "Effect"], ["presets", "Presets & playlists"], ["leds", "LEDs"], ["sync", "Sync & team"], ["settings", "Settings"], ["backup", "Backup"], ["info", "Info"]];
   const paintHead = () => {
     head.innerHTML = "";
     const info = ctx.info;
@@ -96,6 +97,7 @@ export async function mountWledAdvanced(pane, { hass, eid, api }) {
     else if (ctx.tab === "backup") body.appendChild(backupView(ctx));
     else if (ctx.tab === "sync") body.appendChild(syncView(ctx));
     else if (ctx.tab === "leds") body.appendChild(ledsView(ctx));
+    else if (ctx.tab === "settings") body.appendChild(settingsView(ctx));
     else body.appendChild(infoView(ctx));
   };
   // Every write answers with the new state (ws_wled adds v:true); re-read
