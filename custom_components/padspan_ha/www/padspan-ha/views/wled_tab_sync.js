@@ -135,17 +135,34 @@ async function teamCard(ctx, host) {
   const card = h("div", { style: S.card + `;border-color:${C.purple}` });
   host.appendChild(card);
   card.appendChild(h("div", { style: "font-weight:700;margin-bottom:6px" }, "Team — WLED devices that act as one light"));
-  let teams, devices;
+  let teams, devices, listHash;
   try {
-    [{ teams }, { devices }] = await Promise.all([
+    let got;
+    [got, { devices }] = await Promise.all([
       ctx.hass.callWS({ type: "padspan_ha/wled_teams_get" }),
       ctx.hass.callWS({ type: "padspan_ha/wled_devices" }),
     ]);
+    teams = got.teams; listHash = got.hash;
   } catch (e) { card.appendChild(h("div", { style: `color:${C.red};font-size:12px` }, "Couldn't read teams: " + errText(e))); return; }
   const me = devices.find(d => d.lights.includes(ctx.eid));
   if (!me) { card.appendChild(h("div", { style: `font-size:12px;color:${C.dim}` }, "This light's device isn't in Home Assistant's WLED integration.")); return; }
   const nameOf = (id) => (devices.find(d => d.device_id === id) || {}).name || "a removed device";
-  const saveTeams = (list) => ctx.hass.callWS({ type: "padspan_ha/wled_teams_set", teams: list });
+  // The whole list is replaced on each save: sent with the version this card
+  // read, so another window's change is refused rather than dropped (round 6).
+  const saveTeams = async (list) => {
+    const r = await ctx.hass.callWS({ type: "padspan_ha/wled_teams_set", teams: list, ...(listHash ? { base_hash: listHash } : {}) });
+    listHash = r && r.hash; teams = (r && r.teams) || list;
+    return r;
+  };
+  // One thing at a time: a second press while devices are being changed
+  // would read the first run's half-done state as the "before" (round 6).
+  const buttons = [];
+  const busy = async (fn) => {
+    if (buttons.some(b => b.disabled)) return;
+    buttons.forEach(b => { b.disabled = true; });
+    try { await fn(); } finally { buttons.forEach(b => { b.disabled = false; }); }
+  };
+  const btn = (style, label, fn, title) => { const b = h("button", { style, title, onclick: () => busy(fn) }, label); buttons.push(b); return b; };
   const mine = teams.find(t => t.leader === me.device_id || t.followers.includes(me.device_id));
 
   if (mine) {
@@ -158,12 +175,13 @@ async function teamCard(ctx, host) {
     card.appendChild(h("div", { style: `font-size:12px;color:${C.dim}` },
       `In Home Assistant, control ${nameOf(mine.leader)}; the others follow it over WLED sync. Vacation Mode switches only the leader.`));
     if ((mine.incomplete || []).length) card.appendChild(h("div", { style: `font-size:12px;color:${C.amber};margin-top:6px` },
-      `⚠ Not finished on ${mine.incomplete.map(nameOf).join(", ")} — they couldn't be reached. Try again when they're back.`));
+      `⚠ Not finished on ${mine.incomplete.map(nameOf).join(", ")} — they couldn't be reached or the setup was interrupted. `
+      + "A break-up puts their old sync settings back."));
     if (ctx.isAdmin) {
       const row = h("div", { style: "display:flex;gap:6px;margin-top:8px;flex-wrap:wrap" });
-      row.appendChild(h("button", { style: S.btn + `;color:${C.red}`, onclick: async () => {
+      row.appendChild(btn(S.btn + `;color:${C.red}`, (mine.incomplete || []).length ? "Break up (retry)" : "Break up the team", async () => {
         if (!confirm(`Break up "${mine.name}"? Each device gets back the sync settings it had before the team.`)) return;
-        const failed = await applyTeam(ctx, mine, devices, card, "leave", mine.incomplete && mine.incomplete.length ? mine.incomplete : null);
+        const { failed } = await applyTeam(ctx, mine, devices, card, "leave", mine.incomplete && mine.incomplete.length ? mine.incomplete : null);
         const rest = teams.filter(t => t !== mine);
         try {
           // Kept, marked incomplete, while a member couldn't be reset — or the
@@ -172,12 +190,13 @@ async function teamCard(ctx, host) {
           ctx.toast(failed.length ? "Some devices couldn't be reset — see the card" : "Team removed", failed.length > 0);
           teamCard(ctx, host);
         } catch (e) { ctx.toast("Couldn't update the team list: " + errText(e), true); }
-      } }, (mine.incomplete || []).length ? "Try the break-up again" : "Break up the team"));
-      row.appendChild(h("button", { style: S.btn, title: "Remove the team from PadSpan without touching the devices", onclick: async () => {
-        if (!confirm(`Forget "${mine.name}" without changing any device? Their sync settings stay as they are now.`)) return;
+      }));
+      row.appendChild(btn(S.btn, "Forget", async () => {
+        if (!confirm(`Forget "${mine.name}" without changing any device?\n\nTheir sync settings stay as they are now, so they `
+          + `keep following sync group ${mine.group}. Setting up another team on that group would make them follow it.`)) return;
         try { await saveTeams(teams.filter(t => t !== mine)); ctx.toast("Team forgotten"); teamCard(ctx, host); }
         catch (e) { ctx.toast("Couldn't update the team list: " + errText(e), true); }
-      } }, "Forget"));
+      }, "Remove the team from PadSpan without touching the devices"));
       card.appendChild(row);
     }
     return;
@@ -197,8 +216,8 @@ async function teamCard(ctx, host) {
   const others = devices.filter(d => d.device_id !== me.device_id);
   const list = h("div", { style: "margin:6px 0" });
   for (const d of others) {
-    const busy = taken.has(d.device_id);
-    list.appendChild(h("div", { style: "margin:2px 0" + (busy ? ";opacity:.5" : "") }, busy
+    const inTeam = taken.has(d.device_id);
+    list.appendChild(h("div", { style: "margin:2px 0" + (inTeam ? ";opacity:.5" : "") }, inTeam
       ? h("span", { style: `font-size:12px;color:${C.dim}` }, `${d.name} — already in a team`)
       : check(`${d.name}${d.sw_version ? ` · v${d.sw_version}` : ""}${d.available === false ? " · offline" : ""}`, false,
         v => { if (v) draft.followers.add(d.device_id); else draft.followers.delete(d.device_id); })));
@@ -213,54 +232,91 @@ async function teamCard(ctx, host) {
     h("span", { style: `font-size:12px;color:${C.dim}` }, "Sync group"),
     select(free.map(g => [g, String(g)]), draft.group, v => { draft.group = Number(v); }),
   ]));
-  card.appendChild(h("button", { style: S.btnPrimary + ";margin-top:8px", onclick: async () => {
+  card.appendChild(btn(S.btnPrimary + ";margin-top:8px", "Set up the team", async () => {
     if (!draft.followers.size) { ctx.toast("Pick at least one device to follow this one", true); return; }
     const team = { id: `team-${me.device_id.slice(0, 8)}`, name: draft.name, mode: "mirror", group: draft.group,
-      leader: me.device_id, followers: [...draft.followers], prior: {} };
+      leader: me.device_id, followers: [...draft.followers], prior: {}, incomplete: [] };
+    const members = [team.leader, ...team.followers];
+    const bit = M.maskOf([team.group]);
+    const status = h("div", { style: `font-size:12px;color:${C.dim};margin-top:8px` }, "Checking the devices…");
+    card.appendChild(status);
+    // 1. Read every member first: each one's sync settings are what a
+    //    break-up puts back. Nothing is changed if one can't be read.
+    const gens = {};
+    try {
+      for (const id of members) {
+        const [{ cfg }, info] = await Promise.all([deviceCfg(ctx, id), deviceInfo(ctx, id)]);
+        const sync = (cfg.if && cfg.if.sync) || {};
+        team.prior[id] = { send: { ...(sync.send || {}) }, recv: { ...(sync.recv || {}) } };
+        gens[id] = M.wledGen(info);
+      }
+    } catch (e) { status.remove(); ctx.toast("Nothing was changed — a device couldn't be read: " + errText(e), true); return; }
+    // 2. Any other device already following this group would follow the
+    //    leader too (a forgotten team, or one set up by hand).
+    const listening = [];
+    for (const d of others.filter(o => !members.includes(o.device_id) && o.available !== false)) {
+      try {
+        const { cfg } = await deviceCfg(ctx, d.device_id);
+        if (((((cfg.if || {}).sync || {}).recv || {}).grp || 0) & bit) listening.push(d.name);
+      } catch (e) { /* offline: can't tell */ }
+    }
+    status.remove();
     if (!confirm(`Set up "${team.name}" on sync group ${team.group}?\n\n${me.name} will send only on group ${team.group}; `
       + `${team.followers.map(nameOf).join(", ")} will follow only group ${team.group} (they stop following any other group). `
-      + "Each device is backed up first, and a break-up puts every device's sync settings back.")) return;
-    const failed = await applyTeam(ctx, team, devices, card, "join");
-    if (failed.length) {
-      // All or nothing: the devices that did change are put back.
-      const done = [team.leader, ...team.followers].filter(d => !failed.includes(d) && team.prior[d]);
-      if (done.length) await applyTeam(ctx, team, devices, card, "leave", done);
-      ctx.toast("The team wasn't set up — every device that changed was put back", true);
+      + "Each device is backed up first, and a break-up puts every device's sync settings back."
+      + (listening.length ? `\n\n⚠ ${listening.join(", ")} already follow group ${team.group} and would follow ${me.name} too. `
+        + "Cancel and pick another group unless that's what you want." : ""))) return;
+    // 3. Recorded before any device changes, as not finished on every
+    //    member: a failure, a closed card or a reload leaves a team that a
+    //    break-up can undo, never devices changed with nothing recorded.
+    try { await saveTeams([...teams, { ...team, incomplete: members }]); }
+    catch (e) { ctx.toast("Nothing was changed — the team couldn't be recorded: " + errText(e), true); return; }
+    const { failed, touched } = await applyTeam(ctx, team, devices, card, "join", null, gens);
+    if (!failed.length) {
+      try { await saveTeams(teams.map(t => t.id === team.id && t.leader === team.leader ? { ...team, incomplete: [] } : t)); ctx.toast(`"${team.name}" is set up`); }
+      catch (e) { ctx.toast("The devices are set, but the team couldn't be marked finished: " + errText(e), true); }
+      teamCard(ctx, host);
       return;
     }
-    try {
-      await saveTeams([...teams, team]);
-      ctx.toast(`"${team.name}" is set up`); teamCard(ctx, host);
-    } catch (e) { ctx.toast("Devices are set, but the team couldn't be recorded: " + errText(e), true); }
-  } }, "Set up the team"));
+    // 4. All or nothing: every device that changed (or may have) goes back.
+    const back = touched.length ? (await applyTeam(ctx, team, devices, card, "leave", touched)).failed : [];
+    const rest = teams.filter(t => !(t.id === team.id && t.leader === team.leader));
+    try { await saveTeams(back.length ? [...rest, { ...team, incomplete: back }] : rest); }
+    catch (e) { /* the recorded team stays, marked not finished everywhere */ }
+    ctx.toast(back.length ? `The team wasn't set up, and ${back.map(nameOf).join(", ")} couldn't be put back — see the card`
+      : "The team wasn't set up — every device that changed was put back", true);
+    if (back.length) teamCard(ctx, host);
+  }));
 }
 
 /**
  * join: the leader sends ONLY on the team group (and stops receiving it);
- * followers receive ONLY the team group (and stop sending on it) — saved
- * through the safe config write and applied live. Each member's previous
- * send/recv is stored in team.prior first. leave: puts team.prior back (or,
- * for a team recorded before priors existed, just takes the group away).
- * `only` limits it to some devices. Returns the devices that failed.
+ * followers receive ONLY the team group (and stop sending on it) — from
+ * the settings read into team.prior, saved through the safe config write
+ * and applied live. Stops at the first failure. leave: puts team.prior back
+ * (or, for a team recorded before priors existed, just takes the group
+ * away), trying every device. `only` limits it to some devices.
+ * Returns { failed, touched } — touched: devices whose settings were (or,
+ * after a lost reply, may have been) changed.
  */
-async function applyTeam(ctx, team, devices, card, mode, only) {
+async function applyTeam(ctx, team, devices, card, mode, only, gens = {}) {
   const bit = M.maskOf([team.group]);
   const log = h("div", { style: "font-size:12px;margin-top:8px" });
   card.appendChild(log);
   const nameOf = (id) => (devices.find(d => d.device_id === id) || {}).name || id;
-  const failed = [];
+  const failed = [], touched = [];
   const members = [[team.leader, "leader"], ...team.followers.map(f => [f, "follower"])]
     .filter(([id]) => !only || only.includes(id));
   for (const [id, role] of members) {
     const line = h("div", {}, `${nameOf(id)} (${role})…`);
     log.appendChild(line);
+    let wrote = false;
     try {
-      const [{ cfg }, info] = await Promise.all([deviceCfg(ctx, id), deviceInfo(ctx, id)]);
-      const sync = (cfg.if && cfg.if.sync) || {};
-      let send = { ...(sync.send || {}) }, recv = { ...(sync.recv || {}) };
+      let send, recv;
       if (mode === "join") {
-        team.prior[id] = { send: { ...send }, recv: { ...recv } };
-        const gen15 = M.wledGen(info) >= 15;
+        const prior = team.prior[id];
+        const gen15 = (gens[id] || 0) >= 15;
+        send = { ...prior.send }; recv = { ...prior.recv };
         if (role === "leader") {
           send = { ...send, grp: bit, dir: true, ...(gen15 ? { en: true } : {}) };
           recv = { ...recv, grp: (recv.grp || 0) & ~bit };
@@ -269,11 +325,19 @@ async function applyTeam(ctx, team, devices, card, mode, only) {
           send = { ...send, grp: (send.grp || 0) & ~bit };
         }
       } else {
+        const { cfg } = await deviceCfg(ctx, id);
+        const sync = (cfg.if && cfg.if.sync) || {};
+        send = { ...(sync.send || {}) }; recv = { ...(sync.recv || {}) };
         const prior = team.prior && team.prior[id];
         if (prior) { send = { ...send, ...prior.send }; recv = { ...recv, ...prior.recv }; }
         else { send = { ...send, grp: (send.grp || 0) & ~bit }; recv = { ...recv, grp: (recv.grp || 0) & ~bit }; }
       }
-      await deviceCfgWrite(ctx, id, { if: { sync: { send, recv } } });
+      try { await deviceCfgWrite(ctx, id, { if: { sync: { send, recv } } }); wrote = true; }
+      catch (e) {
+        // A lost reply may still have been applied.
+        if (e && (e.code === "timeout" || e.code === "unreachable")) wrote = true;
+        throw e;
+      }
       // …and live, so it works now, not only after a restart.
       await deviceState(ctx, id, { udpn: { send: !!(send.en ?? send.dir), sgrp: send.grp || 0, rgrp: recv.grp || 0 } });
       line.textContent = `✓ ${nameOf(id)} (${role})`;
@@ -283,8 +347,10 @@ async function applyTeam(ctx, team, devices, card, mode, only) {
       line.textContent = `✕ ${nameOf(id)} (${role}): ${errText(e)}`;
       line.style.color = C.red;
     }
+    if (wrote) touched.push(id);
+    if (mode === "join" && failed.length) break;
   }
-  return failed;
+  return { failed, touched };
 }
 
 // ── What this device sees on the network ──

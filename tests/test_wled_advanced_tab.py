@@ -206,7 +206,9 @@ all(pane).find(n => n.textContent === "Set up the team").click();
 await settle(); await settle();
 out.cfg = calls.filter(c => c.type === "padspan_ha/wled_cfg").map(c => [c.device_id, c.patch, c.base_hash]);
 out.live = calls.filter(c => c.type === "padspan_ha/wled_state" && c.device_id).map(c => [c.device_id, c.body]);
-out.team = (calls.find(c => c.type === "padspan_ha/wled_teams_set") || {}).teams;
+const sets = calls.filter(c => c.type === "padspan_ha/wled_teams_set");
+out.recorded = sets[0] && sets[0].teams;
+out.team = sets[sets.length - 1] && sets[sets.length - 1].teams;
 """)
     # Group 1 is every WLED's factory default: a team never takes it (round 5).
     lead, fol = out["cfg"]
@@ -221,6 +223,9 @@ out.team = (calls.find(c => c.type === "padspan_ha/wled_teams_set") || {}).teams
     assert team["group"] == 2 and team["leader"] == "dL" and team["followers"] == ["dF"]
     # What break-up puts back.
     assert team["prior"]["dF"]["recv"] == {"grp": 1, "bri": False, "col": False, "fx": False, "pal": False}
+    # Recorded BEFORE any device changed, as not finished everywhere (round 6);
+    # marked finished at the end.
+    assert out["recorded"][0]["incomplete"] == ["dL", "dF"] and team["incomplete"] == []
 
 
 def test_the_leds_section_saves_every_output_whole_and_warns_first():
@@ -391,3 +396,176 @@ out.unsubs = unsubs;
 """)
     assert out["msg"] == {"type": "padspan_ha/wled_live", "entity_id": "light.upper_north"}
     assert out["unsubs"] == 1
+
+
+# ── review round 6 ───────────────────────────────────────────────────────────
+
+
+def test_a_failed_team_setup_puts_back_every_device_that_changed():
+    """A follower's config write succeeded but its live write failed: it
+    used to count only as 'failed', was never put back, and kept following
+    only the team group with its old settings thrown away."""
+    out = _run(r"""
+const calls = [];
+const toasts = [];
+const devices = [
+  { device_id: "dL", name: "Upper North", lights: ["light.upper_north"], sw_version: "0.15.3" },
+  { device_id: "dA", name: "A", lights: ["light.a"], sw_version: "0.15.3" },
+  { device_id: "dB", name: "B", lights: ["light.b"], sw_version: "0.15.3" },
+];
+const cfgs = {
+  dL: { if: { sync: { send: { en: true, dir: false, grp: 1 }, recv: { grp: 1, bri: true } } } },
+  dA: { if: { sync: { send: { en: true, dir: false, grp: 1 }, recv: { grp: 1, bri: false, col: false, fx: false, pal: false } } } },
+  dB: { if: { sync: { send: { en: true, dir: false, grp: 1 }, recv: { grp: 1 } } } },
+};
+let recorded = null;
+const hass = { states: {}, callWS: async (m) => {
+  calls.push(JSON.parse(JSON.stringify(m)));
+  if (m.type === "padspan_ha/wled_get" && m.device_id) return m.path === "json/cfg" ? { data: cfgs[m.device_id], hash: "h" + m.device_id }
+    : { data: { ver: "0.15.3", vid: 2503090 } };
+  if (m.type === "padspan_ha/wled_get") return { data: DEVICE[m.path], hash: "hme" };
+  if (m.type === "padspan_ha/wled_teams_get") return { teams: [] };
+  if (m.type === "padspan_ha/wled_devices") return { devices };
+  if (m.type === "padspan_ha/wled_teams_set") { recorded = m.teams; return { teams: m.teams }; }
+  if (m.type === "padspan_ha/wled_cfg") {
+    if (m.device_id === "dB") { const e = new Error("i2c"); e.code = "i2c_in_use"; throw e; }
+    // the device applies it
+    cfgs[m.device_id] = JSON.parse(JSON.stringify({ ...cfgs[m.device_id], if: { sync: { ...cfgs[m.device_id].if.sync, ...m.patch.if.sync } } }));
+    return { backup: "b", unexpected: [] };
+  }
+  if (m.type === "padspan_ha/wled_state" && m.device_id === "dA" && !globalThis._aBusyOnce) { globalThis._aBusyOnce = true; const e = new Error("busy"); e.code = "busy"; throw e; }
+  return { data: DEVICE["json/si"].state };
+} };
+globalThis.confirm = () => true;
+const pane = document.createElement("div");
+await WA.mountWledAdvanced(pane, { hass, eid: "light.upper_north", api: { wled: { isAdmin: true }, toast: (t, bad) => toasts.push([t, !!bad]) } });
+await settle();
+all(pane).find(n => n.textContent === "Sync & team").click();
+await settle();
+for (const nm of ["A", "B"]) {
+  const box = all(pane).find(n => n.tagName === "LABEL" && (n.textContent || "").startsWith(nm + " "));
+  const cb = box.children[0]; cb.checked = true; cb.dispatchEvent(new Event("change"));
+}
+all(pane).find(n => n.textContent === "Set up the team").click();
+for (let i = 0; i < 6; i++) await settle();
+out.cfgWrites = calls.filter(c => c.type === "padspan_ha/wled_cfg").map(c => [c.device_id, JSON.stringify(c.patch.if.sync.recv.grp), JSON.stringify(c.patch.if.sync.send.grp)]);
+out.finalCfgA = cfgs.dA.if.sync;
+out.recorded = recorded;
+out.toasts = toasts.filter(t => t[1]);
+
+""")
+    # Stops at the first failure: B is never touched.
+    assert [w[0] for w in out["cfgWrites"]] == ["dL", "dA", "dL", "dA"], out["cfgWrites"]
+    assert out["finalCfgA"]["recv"]["grp"] == 1, "A is back on its own group"
+    assert out["recorded"] == [], "nothing left recorded once everything is back"
+    assert out["toasts"] and "every device that changed was put back" in out["toasts"][-1][0]
+
+
+def test_a_second_press_during_setup_does_nothing():
+    """Pressed again mid-setup, the second run read the leader's half-done
+    state as its 'before', and a later break-up left it on the team group."""
+    out = _run(r"""
+const devices = [
+  { device_id: "dL", name: "Upper North", lights: ["light.upper_north"], sw_version: "0.15.3" },
+  { device_id: "dA", name: "A", lights: ["light.a"], sw_version: "0.15.3" },
+];
+const cfgs = {
+  dL: { if: { sync: { send: { en: false, dir: false, grp: 1 }, recv: { grp: 1, bri: true } } } },
+  dA: { if: { sync: { send: { en: true, dir: false, grp: 1 }, recv: { grp: 1, bri: false, col: false, fx: false } } } },
+};
+const saves = [];
+let secondClick = null;
+let cfgWrites = 0;
+const tick = () => new Promise(r => globalThis._realSetTimeout(r, 5));
+const hass = { states: {}, callWS: async (m) => {
+  await tick();                                   // a real round trip
+  if (m.type === "padspan_ha/wled_get" && m.device_id) return m.path === "json/cfg" ? { data: JSON.parse(JSON.stringify(cfgs[m.device_id])), hash: "h" }
+    : { data: { ver: "0.15.3", vid: 2503090 } };
+  if (m.type === "padspan_ha/wled_get") return { data: DEVICE[m.path], hash: "hme" };
+  if (m.type === "padspan_ha/wled_teams_get") return { teams: [] };
+  if (m.type === "padspan_ha/wled_devices") return { devices };
+  if (m.type === "padspan_ha/wled_teams_set") { saves.push(JSON.parse(JSON.stringify(m.teams))); return { teams: m.teams }; }
+  if (m.type === "padspan_ha/wled_cfg") {
+    const s = cfgs[m.device_id].if.sync; Object.assign(s, JSON.parse(JSON.stringify(m.patch.if.sync)));
+    cfgWrites++;
+    if (cfgWrites === 1 && secondClick) secondClick();   // the person presses again after the leader is done
+    return { backup: "b", unexpected: [] };
+  }
+  return { data: DEVICE["json/si"].state };
+} };
+globalThis.confirm = () => true;
+const pane = document.createElement("div");
+await WA.mountWledAdvanced(pane, { hass, eid: "light.upper_north", api: { wled: { isAdmin: true }, toast: () => {} } });
+await settle();
+all(pane).find(n => n.textContent === "Sync & team").click();
+for (let i = 0; i < 4; i++) await settle();
+const box = all(pane).find(n => n.tagName === "LABEL" && (n.textContent || "").startsWith("A "));
+const cb = box.children[0]; cb.checked = true; cb.dispatchEvent(new Event("change"));
+const btn = all(pane).find(n => n.textContent === "Set up the team");
+secondClick = () => btn.click();
+btn.click();
+for (let i = 0; i < 20; i++) await settle();
+out.saves = saves.length;
+out.lastRecordedPriorLeader = saves.length ? saves[saves.length - 1][0].prior.dL : null;
+out.firstRecordedPriorLeader = saves.length ? saves[0][0].prior.dL : null;
+
+""")
+    assert out["saves"] == 2, out           # recorded, then marked finished — once
+    assert out["firstRecordedPriorLeader"]["send"] == {"en": False, "dir": False, "grp": 1}
+    assert out["lastRecordedPriorLeader"]["send"] == {"en": False, "dir": False, "grp": 1}
+
+
+def test_a_device_that_cant_be_put_back_keeps_the_team_for_a_retry():
+    """A's live write keeps failing, so the rollback can't finish on it: the
+    team stays recorded as not finished on A, so a break-up can retry."""
+    out = _run(r"""
+const calls = [];
+const toasts = [];
+const devices = [
+  { device_id: "dL", name: "Upper North", lights: ["light.upper_north"], sw_version: "0.15.3" },
+  { device_id: "dA", name: "A", lights: ["light.a"], sw_version: "0.15.3" },
+  { device_id: "dB", name: "B", lights: ["light.b"], sw_version: "0.15.3" },
+];
+const cfgs = {
+  dL: { if: { sync: { send: { en: true, dir: false, grp: 1 }, recv: { grp: 1, bri: true } } } },
+  dA: { if: { sync: { send: { en: true, dir: false, grp: 1 }, recv: { grp: 1, bri: false, col: false, fx: false, pal: false } } } },
+  dB: { if: { sync: { send: { en: true, dir: false, grp: 1 }, recv: { grp: 1 } } } },
+};
+let recorded = null;
+const hass = { states: {}, callWS: async (m) => {
+  calls.push(JSON.parse(JSON.stringify(m)));
+  if (m.type === "padspan_ha/wled_get" && m.device_id) return m.path === "json/cfg" ? { data: cfgs[m.device_id], hash: "h" + m.device_id }
+    : { data: { ver: "0.15.3", vid: 2503090 } };
+  if (m.type === "padspan_ha/wled_get") return { data: DEVICE[m.path], hash: "hme" };
+  if (m.type === "padspan_ha/wled_teams_get") return { teams: [] };
+  if (m.type === "padspan_ha/wled_devices") return { devices };
+  if (m.type === "padspan_ha/wled_teams_set") { recorded = m.teams; return { teams: m.teams }; }
+  if (m.type === "padspan_ha/wled_cfg") {
+    if (m.device_id === "dB") { const e = new Error("i2c"); e.code = "i2c_in_use"; throw e; }
+    // the device applies it
+    cfgs[m.device_id] = JSON.parse(JSON.stringify({ ...cfgs[m.device_id], if: { sync: { ...cfgs[m.device_id].if.sync, ...m.patch.if.sync } } }));
+    return { backup: "b", unexpected: [] };
+  }
+  if (m.type === "padspan_ha/wled_state" && m.device_id === "dA") { const e = new Error("busy"); e.code = "busy"; throw e; }
+  return { data: DEVICE["json/si"].state };
+} };
+globalThis.confirm = () => true;
+const pane = document.createElement("div");
+await WA.mountWledAdvanced(pane, { hass, eid: "light.upper_north", api: { wled: { isAdmin: true }, toast: (t, bad) => toasts.push([t, !!bad]) } });
+await settle();
+all(pane).find(n => n.textContent === "Sync & team").click();
+await settle();
+for (const nm of ["A", "B"]) {
+  const box = all(pane).find(n => n.tagName === "LABEL" && (n.textContent || "").startsWith(nm + " "));
+  const cb = box.children[0]; cb.checked = true; cb.dispatchEvent(new Event("change"));
+}
+all(pane).find(n => n.textContent === "Set up the team").click();
+for (let i = 0; i < 6; i++) await settle();
+out.cfgWrites = calls.filter(c => c.type === "padspan_ha/wled_cfg").map(c => [c.device_id, JSON.stringify(c.patch.if.sync.recv.grp), JSON.stringify(c.patch.if.sync.send.grp)]);
+out.finalCfgA = cfgs.dA.if.sync;
+out.recorded = recorded;
+out.toasts = toasts.filter(t => t[1]);
+
+""")
+    assert out["recorded"] and out["recorded"][0]["incomplete"] == ["dA"], out["recorded"]
+    assert "couldn't be put back" in out["toasts"][-1][0]
