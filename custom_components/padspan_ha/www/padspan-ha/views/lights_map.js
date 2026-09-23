@@ -12,7 +12,7 @@
 // what an interaction does (sidebar: control the light — tab: place it).
 
 const { buildIsoSVG, shapeSvg, fabricFrame, sampleSceneField, pointInPolygon, offsetPolygonInward,
-        lightClassOf, SHOWCASE_THEMES, AUTOMORPH_STYLE_LABELS, floodLatchActive } =
+        lightClassOf, SHOWCASE_THEMES, AUTOMORPH_STYLE_LABELS, floodLatchActive, barrierNoReading } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         TEMP_BORDER, healthOf,
@@ -1616,12 +1616,16 @@ export function openBarrierCard(hass, bar, api){
   if (!sensorSt && !openerSt && !lockSt) return; // nothing real to show a card for
 
   // ── Open/closed reading ────────────────────────────────────────────────
+  // An offline sensor or lock reads as no reading, the same as the Atlas
+  // draws it (barrierNoReading) — not "Open", not a red "Unlocked".
   let isOpen = null;
   if (sensorSt && sensorDomain !== "lock") {
-    isOpen = sensorDomain === "cover" ? sensorSt.state === "open" : (bar.invert_state ? sensorSt.state !== "on" : sensorSt.state === "on");
-  } else if (openerSt && openerDomain === "cover" && openerEid !== sensorEid) {
+    if (!barrierNoReading(sensorSt))
+      isOpen = sensorDomain === "cover" ? sensorSt.state === "open" : (bar.invert_state ? sensorSt.state !== "on" : sensorSt.state === "on");
+  } else if (openerSt && openerDomain === "cover" && openerEid !== sensorEid && !barrierNoReading(openerSt)) {
     isOpen = openerSt.state === "open";
   }
+  const lockRead = lockSt && !barrierNoReading(lockSt) ? lockSt : null;
 
   const overlay = document.createElement("div");
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10000;"
@@ -1648,13 +1652,13 @@ export function openBarrierCard(hass, bar, api){
   if (isOpen === true) {
     stateLabel = "Open"; isAlert = true;
   } else if (isOpen === false) {
-    if (lockSt) {
-      stateLabel = lockSt.state === "locked" ? "Closed & Locked" : lockSt.state === "jammed" ? "Closed — Lock Jammed" : "Closed, Unlocked";
-      isAlert = lockSt.state !== "locked";
+    if (lockRead) {
+      stateLabel = lockRead.state === "locked" ? "Closed & Locked" : lockRead.state === "jammed" ? "Closed — Lock Jammed" : "Closed, Unlocked";
+      isAlert = lockRead.state !== "locked";
     } else { stateLabel = "Closed"; isAlert = false; }
-  } else if (lockSt) {
-    stateLabel = lockSt.state === "locked" ? "Locked" : lockSt.state === "jammed" ? "Jammed" : "Unlocked";
-    isAlert = lockSt.state !== "locked";
+  } else if (lockRead) {
+    stateLabel = lockRead.state === "locked" ? "Locked" : lockRead.state === "jammed" ? "Jammed" : "Unlocked";
+    isAlert = lockRead.state !== "locked";
   } else {
     stateLabel = "No reading"; isAlert = false;
   }

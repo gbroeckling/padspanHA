@@ -318,3 +318,23 @@ out.isolated = c([{ ts: 0, o: [{ k: "a" }] }, { ts: 3600, o: [{ k: "a" }] }], 18
 out.thinned = c(every(150, 50), 150 * 10 + 200, 15);       // 200 s after a frame, thinned 15x
 """)
     assert out == {"poll60": 1, "isolated": 0, "thinned": 1}
+
+
+def test_reset_forgets_the_saved_house_floor_too():
+    """Review round 5: Reset showed "All floors" and "Reset ✓" in house mode,
+    but never cleared traceback_house_focus — the next visit opened on the
+    old floor again."""
+    out = _run("""
+const { ctx } = H.makeCtx({ wsCall: (t) => t === "padspan_ha/traceback_get" ? { frames: [], range: {} }
+  : t === "padspan_ha/traceback_objects" ? { objects: [] } : {} });
+const sent = [];
+ctx.actions.settingsSet = async (p) => { sent.push(p); return {}; };
+ctx.state._traceback = undefined;
+const outer = H.TB.render(ctx);
+await settle();
+all(outer).find(n => String(n.textContent).startsWith("🏠 Full house activity")).click();
+all(outer).find(n => n.tagName === "BUTTON" && n.textContent === "Reset").click();
+await settle();
+out.sent = sent;
+""")
+    assert out["sent"] and out["sent"][-1].get("traceback_house_focus") == 0, out

@@ -518,7 +518,10 @@ for (const file of files) {
           // "each wall once, on its own floor"; 6 of either is every wall
           // painted on every nearby storey, the floor-to-floor bleed Garry
           // found live (2026-09-09) and this pins against its return.
-          const wallLines = (h.match(/stroke-dasharray="5 8"/g) || []).length;
+          // (The linked one's door isn't in the fixture's states: a
+          // dangling link draws as no reading, "3 4" — round 5.)
+          const wallLines = (h.match(/stroke-dasharray="5 8"/g) || []).length
+            + (h.match(/stroke="#64748b" stroke-opacity="0.7" stroke-width="2" stroke-dasharray="3 4"/g) || []).length;
           if (wallLines !== 2) throw new Error(`walls drew ${wallLines} polylines, expected 2 (one per storey's own wall) — floor-to-floor bleed`);
           const doorDots = (h.match(/fill="#9333ea"/g) || []).length;
           if (doorDots !== 2) throw new Error(`walls drew ${doorDots} linked-door endpoint dots, expected 2 — floor-to-floor bleed`);

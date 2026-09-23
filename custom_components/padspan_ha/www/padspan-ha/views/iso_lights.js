@@ -35,6 +35,15 @@ export const FLOOD_ACTIVE_WINDOW_S = 2 * 24 * 60 * 60;
 // nowMs fallback (NOW_MS below) is the only wall-clock read the renderer
 // may ever make; a second one here would break "the fabric alone
 // reproduces a render" (test_lights_renderer.py).
+/** A linked door/window/lock with nothing to say: no state at all (a
+ * dangling link, a replay whose history isn't in or failed) or HA's
+ * unknown/unavailable. The ONE rule the Atlas, its barrier card and
+ * Overview's walls all read by — never an open door, never a red
+ * "unlocked" (round 5). */
+export function barrierNoReading(st){
+  return !st || st.state === "unknown" || st.state === "unavailable";
+}
+
 export function floodLatchActive(triggeredAtS, nowMs){
   if(!Number.isFinite(triggeredAtS) || !Number.isFinite(nowMs)) return false;
   const age=(nowMs/1000)-triggeredAtS;
@@ -5634,7 +5643,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // dashed line — never the red "unlocked" alarm nor an open gap, which
         // is what "unknown" fell through to (review 2026-09-23; an offline
         // lock flashed red live too).
-        if(dl && (dl.state==="unknown" || dl.state==="unavailable")){
+        if(barrierNoReading(dl)){
           s+=`<polyline points="${ppx}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="3,4" `+
             `stroke-linecap="round" opacity="${(0.7*barDim).toFixed(2)}" pointer-events="none"/>`;
         } else if(dl && dl.isLock){

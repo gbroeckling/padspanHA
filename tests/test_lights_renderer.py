@@ -6134,3 +6134,23 @@ def test_room_label_always_lands_inside_its_own_room_polygon(tmp_path):
         "console.log(JSON.stringify({inside: pip([mx,my], MODEL.room_geometry_m.Nook.points_m), mx, my}));\n"
     ))
     assert out["inside"], f"the room name must land inside its own room polygon: {out}"
+
+
+# ── review round 5: one no-reading rule ─────────────────────────────────────
+
+
+def test_an_inverted_barrier_with_no_state_at_all_draws_no_data_not_open(tmp_path):
+    """House mode while its history is loading (or failed), or a dangling
+    link: the linked door has no entry at all. The inverted garage door used
+    to draw open at every replayed moment."""
+    lbe = {k: v for k, v in _BARRIER_LBE.items() if k != "binary_sensor.frontdoor"}
+    svg = _run_js(tmp_path, _barrier_harness(_INVERTED_BARRIER_MODEL, lbe))["svg"]
+    assert 'stroke="#64748b" stroke-width="2" stroke-dasharray="3,4"' in svg, "no reading draws the quiet dashed line"
+    assert 'stroke="#94a3b8"' not in svg, "and never claims closed either"
+    assert svg.count('fill="#9333ea"') == 2, "the endpoint dots still mark the opening"
+
+
+def test_an_offline_inverted_barrier_draws_no_data_not_open(tmp_path):
+    lbe = {**_BARRIER_LBE, "binary_sensor.frontdoor": {**_BARRIER_LBE["binary_sensor.frontdoor"], "state": "unavailable"}}
+    svg = _run_js(tmp_path, _barrier_harness(_INVERTED_BARRIER_MODEL, lbe))["svg"]
+    assert 'stroke-dasharray="3,4"' in svg and 'stroke="#94a3b8"' not in svg

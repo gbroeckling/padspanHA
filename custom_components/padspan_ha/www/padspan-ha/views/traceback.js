@@ -1729,7 +1729,7 @@ export function render(ctx) {
     _renderFrame();
     ovResetBtn.disabled = true;
     try{
-      await ctx.actions.settingsSet({ overview_iso_floor_gap:150, overview_iso_horiz_gap:0, overview_iso_focus:0 });
+      await ctx.actions.settingsSet({ overview_iso_floor_gap:150, overview_iso_horiz_gap:0, overview_iso_focus:0, traceback_house_focus:0 });
       ovSaveLbl.textContent = "Reset \u2713";
       setTimeout(()=>{ ovSaveLbl.textContent = ""; }, 2000);
     }catch(e){ ovSaveLbl.textContent = "Error"; }

@@ -65,3 +65,14 @@ def test_linked_open_reading_flips_for_an_inverted_barrier():
     body = _storey_of()
     bar = body[body.index("const barriers = [];"):]
     assert 'state === "on") !== !!b.invert_state' in bar, bar
+
+
+
+def test_an_offline_linked_door_is_no_reading_not_open():
+    """Review round 5: an offline inverted door read open here (unavailable
+    != "on", flipped). The same barrierNoReading rule as the Atlas."""
+    body = _storey_of()
+    bar = body[body.index("const barriers = [];"):]
+    assert "barrierNoReading(linkedSt)" in bar, bar
+    assert "linkedOpen: b.linked_entity_id && !linkedNoReading" in bar, bar
+    assert "bar.linkedNoReading" in _OVERVIEW

@@ -8,7 +8,7 @@
 // The metric frame the lights map draws with. Metres in, screen out, no photo
 // anywhere in it — the 3D map below uses THIS, and the stack_transform import
 // above survives only for the experimental 2D map, which is swept next.
-const { fabricFrame } =
+const { fabricFrame, barrierNoReading } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 // The plan viewer — the one view whose subject IS the photograph.
 const { render2DMap } =
@@ -1158,11 +1158,16 @@ export function render(ctx){
           // reads open (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 5). Same
           // invert_state flip as iso_lights.js's barrier pass, for the same
           // reason: at least one real sensor reports backwards.
+          // No reading (barrierNoReading) is neither open nor closed: an
+          // offline inverted door must not read open (round 5).
+          const linkedSt = b.linked_entity_id ? ctx.hass?.states?.[b.linked_entity_id] : null;
+          const linkedNoReading = !!b.linked_entity_id && barrierNoReading(linkedSt);
           barriers.push({
             points, attenuation_dbm: b.attenuation_dbm ?? 6, floorDist,
             linked_entity_id: b.linked_entity_id || null,
-            linkedOpen: b.linked_entity_id
-              ? (ctx.hass?.states?.[b.linked_entity_id]?.state === "on") !== !!b.invert_state
+            linkedNoReading,
+            linkedOpen: b.linked_entity_id && !linkedNoReading
+              ? (linkedSt.state === "on") !== !!b.invert_state
               : false,
           });
         }
@@ -1358,7 +1363,9 @@ export function render(ctx){
             // — this file has no light_codes.js import of its own) rather
             // than vanishing outright, so a viewer can still see WHERE the
             // opening is while it's open.
-            s += bar.linkedOpen
+            s += bar.linkedNoReading
+              ? `<polyline points="${bp}" fill="none" stroke="#64748b" stroke-opacity="0.7" stroke-width="2" stroke-dasharray="3 4" stroke-linecap="round"/>`
+              : bar.linkedOpen
               ? `<polyline points="${bp}" fill="none" stroke="#fb7185" stroke-opacity="0.5" stroke-width="2" stroke-dasharray="3 6" stroke-linecap="round"/>`
               : `<polyline points="${bp}" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3" stroke-dasharray="5 8" stroke-linecap="round"/>`;
             // The two points where this opening meets the rest of the wall —

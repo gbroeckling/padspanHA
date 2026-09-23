@@ -1040,3 +1040,29 @@ console.log(JSON.stringify({ calls, r }));
 """)
     assert out["calls"] == []
     assert out["r"] == {"applied": 0, "skipped": 1}
+
+
+def test_open_barrier_card_says_no_reading_for_an_offline_sensor_or_lock(tmp_path):
+    """Review round 5: the Atlas draws an offline door or lock as a quiet
+    'no data' line; the card that opens from it said 'Open' (an inverted
+    door) or a red 'Unlocked'. One rule, barrierNoReading, for both."""
+    out = _run(tmp_path, r"""
+const hass = { states: {
+  "binary_sensor.garage": { state: "unavailable", attributes: { friendly_name: "Garage" } },
+  "lock.front": { state: "unknown", attributes: { friendly_name: "Front Lock" } },
+}, callService: async () => {} };
+const api = { toast: () => {}, rerender: () => {} };
+LM.openBarrierCard(hass, { linked_entity_id: "binary_sensor.garage", invert_state: true, name: "Garage" }, api);
+const door = document.body.textContent;
+while (document.body.children.length) document.body.removeChild(document.body.children[0]);
+LM.openBarrierCard(hass, { linked_entity_id: "lock.front", name: "Front" }, api);
+const lock = document.body.textContent;
+while (document.body.children.length) document.body.removeChild(document.body.children[0]);
+hass.states["binary_sensor.garage"].state = "off";
+LM.openBarrierCard(hass, { linked_entity_id: "binary_sensor.garage", linked_lock_entity_id: "lock.front", name: "Garage" }, api);
+const closedLockOffline = document.body.textContent;
+console.log(JSON.stringify({ door, lock, closedLockOffline }));
+""")
+    assert "No reading" in out["door"] and "Open" not in out["door"], out["door"]
+    assert "No reading" in out["lock"] and "Unlocked" not in out["lock"], out["lock"]
+    assert "Closed" in out["closedLockOffline"] and "Unlocked" not in out["closedLockOffline"], out["closedLockOffline"]
