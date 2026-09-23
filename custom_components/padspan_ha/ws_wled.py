@@ -195,22 +195,40 @@ def deep_merge(base: Any, patch: Any) -> Any:
     return patch
 
 
+# Values WLED works out for itself after a write — never "unexpected".
+_COMPUTED = ("vid", "rev", "hw.led.total")
+
+
 def unexpected_changes(before: dict, patch: dict, after: dict, limit: int = 20) -> list[str]:
-    """Leaves that changed although the write didn't ask for it."""
+    """Leaves that changed although the write didn't ask for it. A list the
+    write sent is compared element by element over the keys it sent (WLED
+    fills in the rest of a new output itself — round 5)."""
     want = deep_merge(before, patch)
     out: list[str] = []
 
-    def walk(a: Any, b: Any, path: str) -> None:
-        if len(out) >= limit:
+    def walk(a: Any, b: Any, sent: Any, path: str) -> None:
+        if len(out) >= limit or path in _COMPUTED:
             return
         if isinstance(a, dict) and isinstance(b, dict):
             for k in set(a) | set(b):
-                walk(a.get(k, _MISSING), b.get(k, _MISSING), f"{path}.{k}" if path else str(k))
+                walk(a.get(k, _MISSING), b.get(k, _MISSING),
+                     sent.get(k, _MISSING) if isinstance(sent, dict) else _MISSING, f"{path}.{k}" if path else str(k))
+        elif isinstance(sent, list) and isinstance(b, list):
+            if len(sent) != len(b):
+                out.append(path)
+                return
+            for n, (sv, bv) in enumerate(zip(sent, b)):
+                if isinstance(sv, dict) and isinstance(bv, dict):
+                    for k, v in sv.items():
+                        if k in bv and bv[k] != v:
+                            out.append(f"{path}[{n}].{k}")
+                elif sv != bv:
+                    out.append(f"{path}[{n}]")
         elif a != b and not (a is _MISSING and b is None):
             out.append(path)
 
-    walk(want, after, "")
-    return sorted(p for p in out if p not in ("vid", "rev"))
+    walk(want, after, patch, "")
+    return sorted(out)
 
 
 # What a non-admin may see of the config: no network, Wi-Fi, MQTT, OTA or
@@ -227,6 +245,20 @@ def redact_cfg(cfg: Any) -> Any:
     if isinstance(out.get("if"), dict):
         out["if"] = {k: v for k, v in out["if"].items() if k in _CFG_OPEN_IF}
     return out
+
+
+def i2c_at_risk(info: dict | None, cfg: dict | None) -> list[int] | None:
+    """On an ESP32 whose I2C bus is in use, EVERY /json/cfg write makes WLED
+    switch I2C off at the next restart (cfg.cpp: Wire.setPins fails once the
+    bus runs, and the pins are then saved as -1 — at 0.14.4/0.15.4/16.0.1;
+    WLED's own UI never writes /json/cfg). The pins, or None when safe."""
+    arch = str((info or {}).get("arch", "")).lower()
+    if "esp32" not in arch:
+        return None
+    pins = (((cfg or {}).get("hw") or {}).get("if") or {}).get("i2c-pin")
+    if isinstance(pins, list) and len(pins) >= 2 and all(isinstance(x, int) and x >= 0 for x in pins[:2]):
+        return pins[:2]
+    return None
 
 
 def cfg_hash(cfg: Any) -> str:
@@ -537,6 +569,13 @@ async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
     if err:
         connection.send_error(msg["id"], "refused", err)
         return
+    i2c = i2c_at_risk(info, before)
+    if i2c:
+        connection.send_error(msg["id"], "i2c_in_use", (
+            f"This controller uses GPIO {i2c[0]} and {i2c[1]} for an I2C add-on (a sensor, display or clock). "
+            "Saving settings through WLED's config API would switch I2C off at its next restart — a WLED "
+            "firmware limitation. Change this on the device's own settings page instead."))
+        return
     if cfg_hash(before) != msg["base_hash"]:
         connection.send_error(msg["id"], "changed",
                               "The device's settings changed since you opened them — reload and try again")
@@ -556,6 +595,10 @@ async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
     if presets is not None:
         files["presets.json"] = presets
     backup_id = await hass.async_add_executor_job(_write_backup_sync, folder, files)
+    try:
+        live_send = ((await _request(hass, host, "GET", "json/state")).get("udpn") or {}).get("send")
+    except WledError:
+        live_send = None
     body = with_preserved(msg["patch"], before)
     if msg.get("pin"):
         body["pin"] = msg["pin"]
@@ -583,6 +626,15 @@ async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
             after = await _request(hass, host, "GET", "json/cfg")
         except WledError:
             after = None
+        # A config write resets the live "send my changes" switch to the
+        # saved one (0.15+): put the live one back (round 5).
+        if isinstance(live_send, bool):
+            try:
+                now_send = ((await _request(hass, host, "GET", "json/state")).get("udpn") or {}).get("send")
+                if isinstance(now_send, bool) and now_send != live_send:
+                    await _request(hass, host, "POST", "json/state", {"udpn": {"send": live_send}}, POST_TIMEOUT_S)
+            except WledError:
+                pass
     connection.send_result(msg["id"], {
         "backup": backup_id, "before": before, "after": after,
         "hash": cfg_hash(after) if after is not None else None,
@@ -816,34 +868,18 @@ def restore_bodies(state: dict, max_bytes: int) -> list[dict]:
     return bodies
 
 
-@websocket_api.websocket_command({
-    "type": "padspan_ha/wled_identify",
-    vol.Required("seg_id"): vol.All(int, vol.Range(min=0, max=63)),
-    vol.Optional("seconds", default=10): vol.All(int, vol.Range(min=2, max=60)),
-    **_TARGET,
-})
-@websocket_api.async_response
-async def ws_wled_identify(hass: HomeAssistant, connection, msg) -> None:
-    tgt = await _gate(hass, connection, msg)
-    if tgt is None:
-        return
-    host = tgt["host"]
-    active: dict = hass.data.setdefault(DOMAIN, {}).setdefault(_IDENTIFY, {})
-    job = active.get(host)
-    try:
-        if job is None:
-            si = await _request(hass, host, "GET", "json/si")
-            job = {"state": si.get("state") or {}, "max": max_body_for(si.get("info")), "cancel": None}
-            active[host] = job
-        elif job.get("cancel"):
-            job["cancel"]()                       # re-aim: one restore, from the original state
-        await _request(hass, host, "POST", "json/state", identify_body(job["state"], msg["seg_id"]), POST_TIMEOUT_S)
-    except WledError as e:
-        active.pop(host, None)
-        connection.send_error(msg["id"], e.code, str(e))
-        return
+def _identify_lock(hass: HomeAssistant, host: str) -> asyncio.Lock:
+    locks: dict = hass.data.setdefault(DOMAIN, {}).setdefault("_wled_identify_locks", {})
+    return locks.setdefault(host, asyncio.Lock())
 
-    async def _restore(_now: Any = None) -> None:
+
+async def _identify_restore(hass: HomeAssistant, host: str, job: dict) -> None:
+    """Put the saved state back — under the device's lock, so an identify
+    arriving meanwhile waits and then starts from the restored state (round
+    5: an identify during a restore, or two overlapping first calls, left
+    the strip white)."""
+    active: dict = hass.data.setdefault(DOMAIN, {}).setdefault(_IDENTIFY, {})
+    async with _identify_lock(hass, host):
         if active.get(host) is not job:
             return
         saved = job["state"]
@@ -858,11 +894,61 @@ async def ws_wled_identify(hass: HomeAssistant, connection, msg) -> None:
             except WledError as e:
                 _LOGGER.warning("WLED identify: restoring %s failed (try %d): %s", host, attempt + 1, e)
                 await asyncio.sleep(2 * (attempt + 1))
-        active.pop(host, None)
+        if active.get(host) is job:
+            active.pop(host, None)
 
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/wled_identify",
+    vol.Required("seg_id"): vol.All(int, vol.Range(min=0, max=63)),
+    vol.Optional("seconds", default=10): vol.All(int, vol.Range(min=2, max=60)),
+    **_TARGET,
+})
+@websocket_api.async_response
+async def ws_wled_identify(hass: HomeAssistant, connection, msg) -> None:
+    tgt = await _gate(hass, connection, msg)
+    if tgt is None:
+        return
     from homeassistant.helpers.event import async_call_later  # noqa: PLC0415
-    job["cancel"] = async_call_later(hass, msg["seconds"], _restore)
+
+    host = tgt["host"]
+    active: dict = hass.data.setdefault(DOMAIN, {}).setdefault(_IDENTIFY, {})
+    async with _identify_lock(hass, host):
+        job = active.get(host)
+        if job is None:
+            try:
+                si = await _request(hass, host, "GET", "json/si")
+            except WledError as e:          # nothing changed on the device yet
+                connection.send_error(msg["id"], e.code, str(e))
+                return
+            job = {"state": si.get("state") or {}, "max": max_body_for(si.get("info")), "cancel": None}
+            active[host] = job
+        elif job.get("cancel"):
+            job["cancel"]()                 # re-aim: one restore, from the ORIGINAL state
+            job["cancel"] = None
+
+        async def _fire(_now: Any = None) -> None:
+            await _identify_restore(hass, host, job)
+
+        try:
+            await _request(hass, host, "POST", "json/state", identify_body(job["state"], msg["seg_id"]), POST_TIMEOUT_S)
+        except WledError as e:
+            # The device may have applied it (a timeout isn't a "no"): never
+            # drop the saved state — put it back right away (round 5).
+            job["cancel"] = async_call_later(hass, 0, _fire)
+            connection.send_error(msg["id"], e.code, f"{e} — putting the lights back")
+            return
+        job["cancel"] = async_call_later(hass, msg["seconds"], _fire)
     connection.send_result(msg["id"], {"seconds": msg["seconds"]})
+
+
+async def async_restore_pending_identify(hass: HomeAssistant) -> None:
+    """On shutdown: put back any strip still lit by Identify (round 5)."""
+    active: dict = (hass.data.get(DOMAIN) or {}).get(_IDENTIFY) or {}
+    for host, job in list(active.items()):
+        if job.get("cancel"):
+            job["cancel"]()
+        await _identify_restore(hass, host, job)
 
 
 # ── Live view: the strip's real colours, streamed ───────────────────────────
@@ -970,10 +1056,20 @@ async def ws_wled_live(hass: HomeAssistant, connection, msg) -> None:
 TEAM_MODES = ("mirror",)
 
 
-def sanitize_teams(hass: HomeAssistant, teams: Any) -> list[dict[str, Any]] | str:
-    """The stored shape, or the reason the list was refused."""
+def _team_key(t: dict) -> tuple:
+    return (str(t.get("leader")), tuple(t.get("followers") or ()), t.get("group"))
+
+
+def sanitize_teams(hass: HomeAssistant, teams: Any, stored: list | None = None) -> list[dict[str, Any]] | str:
+    """The stored shape, or the reason the list was refused. A team already
+    stored unchanged isn't re-checked against HA (round 5: one offline or
+    deleted member blocked every other team change, for good); a new or
+    changed team must name real WLED devices. A sync group belongs to one
+    team (two teams on one group would all follow both leaders)."""
     if not isinstance(teams, list) or len(teams) > 16:
         return "teams must be a list of at most 16"
+    known = {_team_key(t) for t in (stored or []) if isinstance(t, dict)}
+    groups: set = set()
     out, seen = [], set()
     for t in teams:
         if not isinstance(t, dict):
@@ -987,16 +1083,26 @@ def sanitize_teams(hass: HomeAssistant, teams: Any) -> list[dict[str, Any]] | st
             return "a team's sync group must be 1-8"
         if not followers or leader in followers or len(set(followers)) != len(followers):
             return "a team needs a leader and one or more different followers"
+        if group in groups:
+            return f"sync group {group} is already another team's"
+        groups.add(group)
+        is_new = (leader, tuple(followers), group) not in known
         for dev in [leader, *followers]:
-            if resolve_device(hass, device_id=dev) is None:
+            if is_new and resolve_device(hass, device_id=dev) is None:
                 return f"{dev} isn't a WLED device in Home Assistant"
             if dev in seen:
                 return "a device can be in only one team"
             seen.add(dev)
+        prior = t.get("prior") if isinstance(t.get("prior"), dict) else {}
         out.append({"id": str(t.get("id") or f"team{len(out) + 1}")[:32],
                     "name": str(t.get("name") or "WLED team")[:64],
                     "mode": t.get("mode", "mirror"), "group": group,
-                    "leader": leader, "followers": followers})
+                    "leader": leader, "followers": followers,
+                    # Each member's sync settings before the team — what
+                    # break-up puts back (only the send/recv blocks).
+                    "prior": {str(d): {k: v for k, v in (p or {}).items() if k in ("send", "recv")}
+                              for d, p in prior.items() if str(d) in (leader, *followers)},
+                    "incomplete": [str(d) for d in (t.get("incomplete") or []) if str(d) in (leader, *followers)]})
     return out
 
 
@@ -1028,7 +1134,8 @@ async def ws_wled_teams_set(hass: HomeAssistant, connection, msg) -> None:
     if not _tier_at_least(hass, TIER):
         connection.send_error(msg["id"], "bright_required", TIER_MSG)
         return
-    teams = sanitize_teams(hass, msg["teams"])
+    st0 = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    teams = sanitize_teams(hass, msg["teams"], (st0.data.get("wled_teams") if st0 else None) or [])
     if isinstance(teams, str):
         connection.send_error(msg["id"], "invalid", teams)
         return
@@ -1041,6 +1148,14 @@ async def ws_wled_teams_set(hass: HomeAssistant, connection, msg) -> None:
 
 
 def async_register(hass: HomeAssistant) -> None:
+    from homeassistant.const import EVENT_HOMEASSISTANT_STOP  # noqa: PLC0415
+
+    async def _on_stop(_event: Any) -> None:
+        await async_restore_pending_identify(hass)
+
+    dom = hass.data.setdefault(DOMAIN, {})
+    if not dom.get("_wled_stop_listener"):
+        dom["_wled_stop_listener"] = hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _on_stop)
     for cmd in (ws_wled_devices, ws_wled_get, ws_wled_state, ws_wled_cfg, ws_wled_backups,
                 ws_wled_identify, ws_wled_matrix, ws_wled_live, ws_wled_teams_get, ws_wled_teams_set):
         websocket_api.async_register_command(hass, cmd)

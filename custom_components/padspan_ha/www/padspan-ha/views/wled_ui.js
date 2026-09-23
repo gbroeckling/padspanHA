@@ -87,6 +87,13 @@ export const select = (options, value, onChange, width) => {
 export const field = (label, node, title) => h("div", { title }, [h("div", { style: S.lbl }, label), node]);
 export const errText = (e) => String((e && (e.message || e.code)) || e);
 
+/** After a config write: say it's saved, and name anything that changed
+ * without being asked for (ws_wled.py 'unexpected' — round 5). */
+export function reportCfg(ctx, r, label) {
+  const odd = ((r && r.unexpected) || []).filter(p => !p.startsWith("nw.") && !p.startsWith("ap."));
+  ctx.toast(`${label} (a backup was taken first)` + (odd.length ? ` — but these changed too: ${odd.slice(0, 5).join(", ")}` : ""), odd.length > 0);
+}
+
 /** The first unused preset slot (1-250). */
 export function firstFreePreset(presets) {
   for (let i = 1; i <= 250; i++) if (!presets || !presets[String(i)]) return i;

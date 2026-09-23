@@ -260,7 +260,8 @@ def test_teams_are_validated_before_they_are_stored(fake, monkeypatch):
     monkeypatch.setattr(W, "resolve_device", lambda h, entity_id=None, device_id=None:
                         {"host": "x"} if device_id in ("dL", "dF", "dG") else None)
     ok = W.sanitize_teams(fake.hass, [{"name": "T", "group": 3, "leader": "dL", "followers": ["dF"]}])
-    assert ok == [{"id": "team1", "name": "T", "mode": "mirror", "group": 3, "leader": "dL", "followers": ["dF"]}]
+    assert ok == [{"id": "team1", "name": "T", "mode": "mirror", "group": 3, "leader": "dL", "followers": ["dF"],
+                   "prior": {}, "incomplete": []}]
     bad = [
         [{"group": 9, "leader": "dL", "followers": ["dF"]}],                  # group out of range
         [{"group": 1, "leader": "dL", "followers": []}],                       # no followers
@@ -436,3 +437,72 @@ def test_one_upstream_per_device_closed_by_the_last_viewer():
     assert not tasks[0].cancelled
     r.remove(2)
     assert tasks[0].cancelled
+
+
+
+# ── round 5 ──────────────────────────────────────────────────────────────────
+
+
+def test_a_stored_team_isnt_rechecked_and_groups_are_one_teams(monkeypatch, fake):
+    monkeypatch.setattr(W, "resolve_device", lambda h, entity_id=None, device_id=None: None)   # every device offline
+    stored = [{"group": 2, "leader": "dA", "followers": ["dB"]}]
+    # Unchanged stored team: kept though its devices can't be resolved right now.
+    assert not isinstance(W.sanitize_teams(fake.hass, stored, stored), str)
+    # A second team on the same group is refused.
+    monkeypatch.setattr(W, "resolve_device", lambda h, entity_id=None, device_id=None: {"host": "x"})
+    assert "already another team" in W.sanitize_teams(fake.hass, stored + [{"group": 2, "leader": "dC", "followers": ["dD"]}], stored)
+
+
+def test_config_writes_are_refused_on_an_esp32_using_i2c():
+    assert W.i2c_at_risk({"arch": "esp32"}, {"hw": {"if": {"i2c-pin": [21, 22]}}}) == [21, 22]
+    assert W.i2c_at_risk({"arch": "esp32"}, {"hw": {"if": {"i2c-pin": [-1, -1]}}}) is None
+    assert W.i2c_at_risk({"arch": "esp8266"}, {"hw": {"if": {"i2c-pin": [4, 5]}}}) is None
+
+
+async def test_a_cfg_write_to_an_i2c_esp32_is_refused_before_anything_is_sent(fake):
+    fake.state["cfg"] = {"hw": {"if": {"i2c-pin": [21, 22]}}}
+    conn = _Conn()
+    await W.ws_wled_cfg(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "patch": {"def": {"ps": 2}},
+                                           "base_hash": W.cfg_hash(fake.state["cfg"])})
+    assert conn.errors[0][0] == "i2c_in_use"
+    assert not any(c[0] == "POST" for c in fake.calls)
+
+
+def test_computed_values_and_filled_in_output_keys_are_not_unexpected():
+    before = {"hw": {"led": {"total": 30, "ins": [{"start": 0, "len": 30, "type": 22}]}}}
+    patch = {"hw": {"led": {"ins": [{"start": 0, "len": 60, "type": 22}]}}}
+    after = {"hw": {"led": {"total": 60, "ins": [{"start": 0, "len": 60, "type": 22, "drv": 0, "maxpwr": 0}]}}}
+    assert W.unexpected_changes(before, patch, after) == []
+    after_bad = {"hw": {"led": {"total": 60, "ins": [{"start": 0, "len": 30, "type": 22}]}}}
+    assert W.unexpected_changes(before, patch, after_bad) == ["hw.led.ins[0].len"]
+
+
+async def test_a_failed_identify_request_still_restores(fake, monkeypatch):
+    posts, timers = [], []
+
+    async def _req(h, host, method, path, body=None, timeout=0, retries=0):
+        if method == "GET":
+            return {"state": {"on": True, "bri": 50, "seg": [{"id": 0, "start": 0, "stop": 10, "fx": 3}]}, "info": {"arch": "esp32"}}
+        posts.append(body)
+        if len(posts) == 1:
+            raise W.WledError("timeout", "no answer")
+        return {}
+
+    monkeypatch.setattr(W, "_request", _req)
+    import sys
+    import types
+
+    def later(hass, delay, fn):
+        timers.append((delay, fn))
+        return lambda: None
+
+    ev = types.ModuleType("homeassistant.helpers.event")
+    ev.async_call_later = later
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.event", ev)
+    fake.hass.data = {}
+    conn = _Conn()
+    await W.ws_wled_identify(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "seg_id": 0, "seconds": 10})
+    assert conn.errors and "putting the lights back" in conn.errors[0][1]
+    assert timers and timers[0][0] == 0
+    await timers[0][1]()
+    assert posts[-1]["seg"][0]["fx"] == 3, "the saved state went back"

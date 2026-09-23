@@ -22,7 +22,7 @@
 
 const _q = new URL(import.meta.url).search;
 const M = await import(`./wled_model.js${_q}`);
-const { C, S, h, numberBox, check, select, field, errText } = await import(`./wled_ui.js${_q}`);
+const { C, S, h, numberBox, check, select, field, errText, reportCfg } = await import(`./wled_ui.js${_q}`);
 
 export function ledsView(ctx) {
   const root = h("div");
@@ -126,6 +126,7 @@ function matrixPreview(panels) {
 function editor(ctx, cfg, hash, pins) {
   const led = JSON.parse(JSON.stringify((cfg.hw && cfg.hw.led) || {}));
   led.ins = Array.isArray(led.ins) ? led.ins : [];
+  Object.defineProperty(led, "_saved", { value: JSON.parse(JSON.stringify(led.ins)), enumerable: false });
   const ro = !ctx.isAdmin;
   const wrap = h("div");
   const warnBox = h("div");
@@ -145,15 +146,18 @@ function editor(ctx, cfg, hash, pins) {
   const leds = ctx.info.leds || {};
   power.appendChild(h("div", { style: `font-size:12px;color:${C.dim};margin-bottom:6px` },
     leds.pwr !== undefined ? `Drawing about ${leds.pwr} mA now (WLED's estimate).` : ""));
+  const txt = (v) => h("span", { style: "font-size:12px" }, String(v));
+  // The global mA-per-LED is 0.14's; 0.15+ ignores it (per output instead).
+  const globalLedma = "ledma" in led && M.wledGen(ctx.info) < 15;
   power.appendChild(h("div", { style: "display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end" }, [
-    field("Power supply limit (mA, 0 = none)", numberBox(led.maxpwr ?? 0, v => { led.maxpwr = v; }, { max: 65000, width: 90 }),
+    field("Power supply limit (mA, 0 = none)", ro ? txt(led.maxpwr ?? 0) : numberBox(led.maxpwr ?? 0, v => { led.maxpwr = v; }, { max: 65000, width: 90 }),
       "WLED dims everything to stay under this — set it to your supply's rating, less a margin"),
-    "ledma" in led ? field("mA per LED", numberBox(led.ledma ?? 55, v => { led.ledma = v; }, { max: 255 })) : null,
-    field("Frame rate limit (0 = none)", numberBox(led.fps ?? 42, v => { led.fps = v; }, { max: 250 })),
+    globalLedma ? field("mA per LED", ro ? txt(led.ledma) : numberBox(led.ledma ?? 55, v => { led.ledma = v; }, { max: 255 })) : null,
+    field("Frame rate limit (0 = none)", ro ? txt(led.fps ?? 42) : numberBox(led.fps ?? 42, v => { led.fps = v; }, { max: 250 })),
   ].filter(Boolean)));
   const whites = h("div", { style: "margin-top:8px" });
-  if ("cct" in led) whites.appendChild(check("Correct white balance", led.cct, v => { led.cct = v; }));
-  if ("cr" in led) whites.appendChild(check("White from RGB (CCT)", led.cr, v => { led.cr = v; }));
+  if ("cct" in led) whites.appendChild(ro ? txt(`White balance correction: ${led.cct ? "on" : "off"}  `) : check("Correct white balance", led.cct, v => { led.cct = v; }));
+  if ("cr" in led) whites.appendChild(ro ? txt(`White from RGB: ${led.cr ? "on" : "off"}`) : check("White from RGB (CCT)", led.cr, v => { led.cr = v; }));
   if (whites.childNodes.length) power.appendChild(whites);
 
   // ── Outputs ──
@@ -180,16 +184,18 @@ function editor(ctx, cfg, hash, pins) {
     return wrap;
   }
   wrap.appendChild(h("button", { style: S.btnPrimary + ";margin-top:8px", onclick: async () => {
+    const blockers = M.outputBlockers(led.ins);
+    if (blockers.length) { ctx.toast(blockers[0], true); return; }
     const w = M.outputWarnings(led.ins, ctx.info, pins);
-    const summary = led.ins.map((b, i) => `${i + 1}: ${M.BUS_TYPES[b.type & 0x7f] || "type " + b.type}, ${b.len} LEDs from ${b.start}, `
+    const summary = led.ins.map((b, i) => `${i + 1}: ${M.typeName(b.type)}, ${b.len} LEDs from ${b.start}, `
       + (M.busKind(b.type) === "network" ? `to ${(b.pin || []).join(".")}` : `GPIO ${(b.pin || []).slice(0, M.busPinCount(b.type)).join("+")}`)
       + `, ${M.orderName(b.order)}`).join("\n");
     if (!confirm(`Save these LED outputs?\n\n${summary}${w.length ? "\n\n⚠ " + w.join("\n⚠ ") : ""}\n\nThe device is backed up first.`)) return;
     const patch = { hw: { led: { ...led, ins: led.ins.map(({ _i, ...b }) => b) } } };
     delete patch.hw.led.total;               // informational only
     try {
-      await ctx.call("padspan_ha/wled_cfg", { patch, base_hash: hash });
-      ctx.toast("LED outputs saved (a backup was taken first)");
+      const r = await ctx.call("padspan_ha/wled_cfg", { patch, base_hash: hash });
+      reportCfg(ctx, r, "LED outputs saved");
       const si = await ctx.get("json/si");
       ctx.info = si.info || ctx.info; ctx.state = si.state || ctx.state;
       ctx.repaint();
@@ -201,7 +207,11 @@ function editor(ctx, cfg, hash, pins) {
 function busCard(ctx, led, b, i, perBus, ro, changed) {
   const kind = M.busKind(b.type);
   const card = h("div", { style: S.card });
-  const types = Object.entries(M.BUS_TYPES).map(([id, name]) => [Number(id), name]).sort((a, b) => a[1].localeCompare(b[1]));
+  const cur = b.type & 0x7f;
+  const types = Object.entries(M.BUS_TYPES).map(([id, name]) => [Number(id), name])
+    .filter(([id]) => M.busKind(id) !== "hub75")               // HUB75 needs its own panel values: not offered
+    .sort((a, b) => a[1].localeCompare(b[1]));
+  if (!types.some(([id]) => id === cur)) types.unshift([cur, M.typeName(cur)]);   // keep what the device has
   const set = (patch) => { Object.assign(b, patch); changed(); };
   card.appendChild(h("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px" }, [
     h("b", {}, `Output ${i + 1}`),
@@ -211,10 +221,13 @@ function busCard(ctx, led, b, i, perBus, ro, changed) {
     } }, "Remove"),
   ].filter(Boolean)));
   const grid = h("div", { style: "display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px" });
-  grid.appendChild(field("LED type", ro ? h("span", {}, M.BUS_TYPES[b.type & 0x7f] || String(b.type))
-    : select(types, b.type & 0x7f, v => set({ type: Number(v) | (b.type & 0x80), pin: (b.pin || []).slice(0, M.busPinCount(v)) }), "100%")));
+  // A new type starts with fresh pins for its own count — never leftover
+  // GPIOs read as IP octets or the other way round (round 5).
+  grid.appendChild(field("LED type", ro || kind === "hub75" ? h("span", {}, M.typeName(b.type))
+    : select(types, cur, v => set({ type: Number(v) | (b.type & 0x80), pin: Array(M.busPinCount(v)).fill(M.busKind(v) === "network" ? 0 : -1) }), "100%")));
   grid.appendChild(field("First LED", ro ? h("span", {}, String(b.start || 0)) : numberBox(b.start || 0, v => set({ start: v }), { max: 16384 })));
-  grid.appendChild(field("How many LEDs", ro ? h("span", {}, String(b.len)) : numberBox(b.len || 0, v => set({ len: v }), { min: 1, max: M.MAX_LEDS_PER_BUS })));
+  grid.appendChild(field("How many LEDs", ro ? h("span", {}, String(b.len))
+    : numberBox(b.len || 0, v => set({ len: v }), { min: 1, max: kind === "network" ? 16384 : M.MAX_LEDS_PER_BUS })));
   const pinN = M.busPinCount(b.type);
   if (pinN) {
     const labels = kind === "network" ? ["IP", "", "", ""] : kind === "2pin" ? ["Data GPIO", "Clock GPIO"] : pinN > 1 ? Array.from({ length: pinN }, (_, k) => `GPIO ${k + 1}`) : ["Data GPIO"];
@@ -235,16 +248,28 @@ function busCard(ctx, led, b, i, perBus, ro, changed) {
   }
   if (perBus && kind !== "network" && kind !== "onoff" && kind !== "pwm") {
     grid.appendChild(field("This output's limit (mA)", ro ? h("span", {}, String(b.maxpwr ?? 0)) : numberBox(b.maxpwr ?? 0, v => set({ maxpwr: v }), { max: 65000, width: 80 })));
+    grid.appendChild(field("mA per LED", ro ? h("span", {}, String(b.ledma ?? 55)) : numberBox(b.ledma ?? 55, v => set({ ledma: v }), { max: 255, width: 60 }),
+      "55 for most 5 V strips; lower for 12 V"));
   }
   card.appendChild(grid);
   const opts = h("div", { style: "margin-top:8px" });
   if (!ro) {
     opts.appendChild(check("Reversed", b.rev, v => set({ rev: v }), "The strip is wired from the far end"));
     if (kind === "digital") opts.appendChild(check("Refresh when off", !!(b.type & 0x80) || b.ref, v => set({ ref: v })));
+  } else {
+    opts.appendChild(h("span", { style: `font-size:12px;color:${C.dim}` }, b.rev ? "Reversed" : "Not reversed"));
   }
   card.appendChild(opts);
-  if (!ro && (kind === "digital" || kind === "2pin")) {
-    card.appendChild(h("button", { style: S.btn + ";margin-top:6px", title: "Lights this output red, green then blue — tap what you see", onclick: () => colourWizard(ctx, led, b, i, changed) }, "🎨 Colour-order wizard"));
+  if (!ro && (kind === "digital" || kind === "2pin") && !(ctx.info.leds && ctx.info.leds.matrix)) {
+    card.appendChild(h("button", { style: S.btn + ";margin-top:6px", title: "Lights this output red, green then blue — tap what you see", onclick: () => {
+      // The wizard lights what the DEVICE has; unsaved edits to this output
+      // would make its answer about the wrong thing (round 5).
+      const saved = (led._saved || [])[i];
+      if (!saved || saved.start !== b.start || saved.len !== b.len || saved.order !== b.order || saved.type !== b.type) {
+        ctx.toast("Save this output's changes first — the wizard works on what the device is running", true); return;
+      }
+      colourWizard(ctx, led, b, i, changed);
+    } }, "🎨 Colour-order wizard"));
   }
   return card;
 }
@@ -261,10 +286,14 @@ async function colourWizard(ctx, led, bus, i, changed) {
     { id: 0, start, stop, on: true, bri: 255, fx: 0, frz: false, col: [rgb, [0, 0, 0], [0, 0, 0]] },
     ...(saved.seg || []).filter(s => s.id !== 0).map(s => ({ id: s.id, on: false })),
   ] });
+  // Put the lights back WITHOUT repainting the tab: a repaint would re-read
+  // the device and throw away the wizard's answer before Save (round 5).
   const restore = async () => {
     overlay.remove();
-    await ctx.write({ on: saved.on, bri: saved.bri, tt: 0, seg: (saved.seg || []).map(s => { const r = { ...s }; delete r.len; delete r.lc; return r; }) },
-      "put the lights back");
+    try {
+      ctx.state = await ctx.post({ on: saved.on, bri: saved.bri, tt: 0, seg: (saved.seg || []).map(s => { const r = { ...s }; delete r.len; delete r.lc; return r; }) }) || ctx.state;
+      if (Number(saved.pl) > 0) await ctx.post({ ps: saved.pl });       // resume a running playlist
+    } catch (e) { ctx.toast("Couldn't put the lights back: " + errText(e), true); }
   };
   const ask = (label, rgb) => new Promise(async (resolve) => {
     box.innerHTML = "";

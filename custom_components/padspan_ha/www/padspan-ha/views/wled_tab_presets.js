@@ -15,7 +15,7 @@
 
 const _q = new URL(import.meta.url).search;
 const M = await import(`./wled_model.js${_q}`);
-const { C, S, h, numberBox, check, select, errText, firstFreePreset } = await import(`./wled_ui.js${_q}`);
+const { C, S, h, numberBox, check, select, errText, firstFreePreset, reportCfg } = await import(`./wled_ui.js${_q}`);
 
 export async function loadPresets(ctx, force) {
   const pmt = ctx.info.fs && ctx.info.fs.pmt;
@@ -49,9 +49,9 @@ export function presetsView(ctx) {
   const setBoot = async (id) => {
     try {
       const cur = await ctx.call("padspan_ha/wled_get", { path: "json/cfg" });
-      await ctx.call("padspan_ha/wled_cfg", { patch: { def: { ps: id } }, base_hash: cur.hash });
+      const r = await ctx.call("padspan_ha/wled_cfg", { patch: { def: { ps: id } }, base_hash: cur.hash });
       ctx.info.leds = { ...(ctx.info.leds || {}), bootps: id };
-      ctx.toast(`Preset ${id} is now what the device starts with`);
+      reportCfg(ctx, r, `Preset ${id} is now what the device starts with`);
       paint();
     } catch (e) { ctx.toast("Couldn't set the boot preset: " + errText(e), true); }
   };

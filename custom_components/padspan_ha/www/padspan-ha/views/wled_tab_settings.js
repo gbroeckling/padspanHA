@@ -25,7 +25,7 @@
 
 const _q = new URL(import.meta.url).search;
 const M = await import(`./wled_model.js${_q}`);
-const { C, S, h, numberBox, textBox, check, select, field, errText } = await import(`./wled_ui.js${_q}`);
+const { C, S, h, numberBox, textBox, check, select, field, errText, reportCfg } = await import(`./wled_ui.js${_q}`);
 
 const getP = (o, path) => path.reduce((a, k) => (a && typeof a === "object" ? a[k] : undefined), o);
 function setP(o, path, v) {
@@ -174,9 +174,7 @@ async function saveSection(ctx, state, patch, reboot, label) {
   try {
     const r = await ctx.call("padspan_ha/wled_cfg", { patch, base_hash: state.hash, reboot });
     if (r.after) { state.cfg = r.after; state.hash = r.hash; }
-    const odd = (r.unexpected || []).filter(p => !p.startsWith("nw.") && !p.startsWith("ap."));
-    ctx.toast(`${label} saved${reboot ? " — restarting" : ""} (backup taken first)`
-      + (odd.length ? `. Also changed: ${odd.slice(0, 4).join(", ")}` : ""), odd.length > 0);
+    reportCfg(ctx, r, `${label} saved${reboot ? " — restarting" : ""}`);
     return true;
   } catch (e) { ctx.toast(`Couldn't save ${label}: ${errText(e)}`, true); return false; }
 }

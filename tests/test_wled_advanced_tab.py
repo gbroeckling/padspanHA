@@ -208,15 +208,19 @@ out.cfg = calls.filter(c => c.type === "padspan_ha/wled_cfg").map(c => [c.device
 out.live = calls.filter(c => c.type === "padspan_ha/wled_state" && c.device_id).map(c => [c.device_id, c.body]);
 out.team = (calls.find(c => c.type === "padspan_ha/wled_teams_set") || {}).teams;
 """)
-    # No team exists yet, so the draft takes sync group 1 — the first no team uses.
+    # Group 1 is every WLED's factory default: a team never takes it (round 5).
     lead, fol = out["cfg"]
     assert lead[0] == "dL" and lead[2] == "hdL"
-    assert lead[1] == {"if": {"sync": {"send": {"en": True, "dir": True, "grp": 1}}}}
+    # The leader sends ONLY on the team group and stops receiving it.
+    assert lead[1] == {"if": {"sync": {"send": {"en": True, "dir": True, "grp": 2}, "recv": {"grp": 1, "bri": True}}}}
     assert fol[0] == "dF"
-    assert fol[1] == {"if": {"sync": {"recv": {"grp": 1, "bri": True, "col": True, "fx": True, "pal": True}}}}
-    assert out["live"] == [["dL", {"udpn": {"send": True, "sgrp": 1}}], ["dF", {"udpn": {"rgrp": 1}}]]
-    assert out["team"] == [{"id": "team-dL", "name": "Upper North team", "mode": "mirror", "group": 1,
-                            "leader": "dL", "followers": ["dF"]}]
+    # Followers follow ONLY the team group and don't send on it.
+    assert fol[1] == {"if": {"sync": {"send": {"grp": 1}, "recv": {"grp": 2, "bri": True, "col": True, "fx": True, "pal": True}}}}
+    assert out["live"] == [["dL", {"udpn": {"send": True, "sgrp": 2, "rgrp": 1}}], ["dF", {"udpn": {"send": False, "sgrp": 1, "rgrp": 2}}]]
+    team = out["team"][0]
+    assert team["group"] == 2 and team["leader"] == "dL" and team["followers"] == ["dF"]
+    # What break-up puts back.
+    assert team["prior"]["dF"]["recv"] == {"grp": 1, "bri": False, "col": False, "fx": False, "pal": False}
 
 
 def test_the_leds_section_saves_every_output_whole_and_warns_first():

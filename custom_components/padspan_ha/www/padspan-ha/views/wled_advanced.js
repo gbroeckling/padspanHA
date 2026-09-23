@@ -22,7 +22,7 @@
 const _q = new URL(import.meta.url).search;
 const M = await import(`./wled_model.js${_q}`);
 
-const { C, S, h, slider, numberBox, check, firstFreePreset, errText } = await import(`./wled_ui.js${_q}`);
+const { C, S, h, slider, numberBox, check, firstFreePreset, errText, reportCfg } = await import(`./wled_ui.js${_q}`);
 // Sections with their own module, loaded with the workbench.
 const { presetsView } = await import(`./wled_tab_presets.js${_q}`);
 const { backupView } = await import(`./wled_tab_backup.js${_q}`);
@@ -320,13 +320,15 @@ function dragEdge(ev, ctx, s, edge, bar, block, count, pct) {
   const handle = ev.currentTarget;
   const rect = bar.getBoundingClientRect();
   if (!rect.width) return;                    // not laid out: nothing to drag against
-  let start = s.start, stop = s.stop;
+  if (ev.button !== undefined && ev.button !== 0) return;     // primary button / touch only
+  let start = s.start, stop = s.stop, moved = false;
   const tip = h("div", { style: "position:absolute;top:-22px;font-size:11px;background:#000;color:#fff;padding:1px 5px;border-radius:4px;pointer-events:none" });
   block.appendChild(tip);
   // Captured, so the release lands on the handle — not on the backdrop,
   // whose click closes the card (review 2026-09-23).
   try { handle.setPointerCapture(ev.pointerId); } catch (_) {}
   const move = (e) => {
+    moved = true;
     const led = Math.round(((e.clientX - rect.left) / rect.width) * count);
     if (edge === "start") start = Math.max(0, Math.min(stop - 1, led));
     else stop = Math.min(count, Math.max(start + 1, led));
@@ -338,8 +340,13 @@ function dragEdge(ev, ctx, s, edge, bar, block, count, pct) {
     handle.removeEventListener("pointerup", onUp);
     handle.removeEventListener("pointercancel", onCancel);
     tip.remove();
-    // The click that follows a drag must not select or close anything.
-    window.addEventListener("click", (c) => { c.stopPropagation(); c.preventDefault(); }, { capture: true, once: true });
+    // The click that follows a real drag must not select or close anything;
+    // a plain tap on a handle stays a tap (round 5).
+    if (commit && moved) {
+      const eat = (c) => { c.stopPropagation(); c.preventDefault(); };
+      window.addEventListener("click", eat, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener("click", eat, { capture: true }), 400);
+    }
     if (!commit) { block.style.left = pct(s.start); block.style.width = pct(M.segLen(s)); return; }
     if (start !== s.start || stop !== s.stop) ctx.write({ seg: [M.segBoundsWrite(s, start, stop)] }, "move the segment");
   };
@@ -391,7 +398,10 @@ function bootPresetBar(ctx, segs) {
         const what = layoutPreset ? `update preset ${slot} ("${name}")` : `save it as new preset ${slot}`
           + (id ? ` — preset ${id} stays as it is, but the device will start with ${slot} instead` : "");
         if (!confirm(`Keep this layout, with its colours and effects, after a restart: ${what}?`)) return;
-        const body = { psave: slot, n: name, ib: true, sb: true };
+        // An updated boot preset keeps its quick-load label and its own
+        // choice about brightness (round 5).
+        const body = { psave: slot, n: name, ib: layoutPreset ? boot.bri !== undefined : true, sb: true };
+        if (layoutPreset && boot.ql) body.ql = boot.ql;
         // psave's bootps is 0.15+ stock only; elsewhere the boot preset is
         // set through the config (def.ps), which the backend backs up first.
         const viaPsave = M.has(ctx.info, "bootPreset");
@@ -401,7 +411,7 @@ function bootPresetBar(ctx, segs) {
         if (!viaPsave) {
           try {
             const cur = await ctx.call("padspan_ha/wled_get", { path: "json/cfg" });
-            await ctx.call("padspan_ha/wled_cfg", { patch: { def: { ps: slot } }, base_hash: cur.hash });
+            reportCfg(ctx, await ctx.call("padspan_ha/wled_cfg", { patch: { def: { ps: slot } }, base_hash: cur.hash }), `Preset ${slot} is the boot preset`);
           } catch (e) { ctx.toast(`Saved as preset ${slot}, but couldn't make it the boot preset: ${errText(e)}`, true); return; }
         }
         ctx.info.leds = { ...(ctx.info.leds || {}), bootps: slot };
@@ -548,7 +558,10 @@ function effectView(ctx) {
   const st = ctx.state;
   const segs = (st.seg || []).filter(s => M.segLen(s) > 0);
   const root = h("div");
-  if (ctx.effectTargets === undefined) ctx.effectTargets = new Set([ctx.selSeg ?? (segs[0] || {}).id].filter(v => v !== undefined && v !== null));
+  if (ctx.effectTargets === undefined) ctx.effectTargets = new Set();
+  // A target deleted meanwhile must not leave the tab writing to nothing.
+  for (const id of [...ctx.effectTargets]) if (!segs.some(s => s.id === id)) ctx.effectTargets.delete(id);
+  if (!ctx.effectTargets.size) { const d = segs.find(s => s.id === ctx.selSeg) || segs[0]; if (d) ctx.effectTargets.add(d.id); }
   const targets = segs.filter(s => ctx.effectTargets.has(s.id));
   const first = targets[0] || segs[0];
 

@@ -307,6 +307,7 @@ export const maskOf = (groups) => (groups || []).reduce((m, g) => m | (1 << (g -
 // Type ids from WLED's const.h / bus_manager (16.0.1).
 export const BUS_TYPES = {
   22: "WS281x", 24: "WS281x 400 kHz", 25: "TM1829", 26: "UCS8903", 27: "APA106", 33: "TM1914",
+  46: "PWM 6-channel",
   30: "SK6812/WS2814 RGBW", 29: "UCS8904 RGBW", 31: "TM1814 RGBW", 28: "FW1906 RGB+CCT", 32: "WS2805 RGB+CCT",
   34: "SM16825 RGB+CCT", 19: "WS2811 white", 21: "WWA",
   50: "WS2801", 51: "APA102", 52: "LPD8806", 53: "P9813", 54: "LPD6803",
@@ -320,7 +321,7 @@ export function busKind(type) {
   if (t >= 65 && t <= 66) return "hub75";
   if (t >= 50 && t <= 54) return "2pin";
   if (t === 40) return "onoff";
-  if (t >= 41 && t <= 45) return "pwm";
+  if (t >= 41 && t <= 47) return "pwm";                 // 41-47: 1 to 7 PWM channels
   return "digital";
 }
 /** How many pin[] entries the type uses (network: the 4 IP octets). */
@@ -351,11 +352,32 @@ export function orderFromObservation(currentOrder, seen) {
   return ORDERS.includes(t) ? t : null;          // not a permutation: a mis-tap
 }
 
+/** The firmware's MAX_LEDS for this chip and generation (const.h): an
+ * output ending past it is silently never created (round 5). */
 export function maxLedsFor(info) {
   const arch = String((info && info.arch) || "").toLowerCase();
   if (arch.includes("8266")) return 1536;
   if (arch.includes("s2")) return 2048;
-  return 16384;
+  return wledGen(info) >= 16 ? 16384 : 8192;
+}
+export const typeName = (type) => BUS_TYPES[Number(type) & 0x7f] || `Type ${Number(type) & 0x7f}`;
+
+/** What must be fixed before outputs can be saved (a missing pin makes WLED
+ * silently skip the output; a bad address sends frames nowhere). */
+export function outputBlockers(ins) {
+  const out = [];
+  (ins || []).forEach((b, i) => {
+    const kind = busKind(b.type), n = busPinCount(b.type), pins = (b.pin || []).slice(0, n);
+    if (kind === "hub75") return;
+    if (kind === "network") {
+      const ok = pins.length === 4 && pins.every(o => Number.isInteger(o) && o >= 0 && o <= 255) && pins[0] !== 0 && pins[3] !== 255 && pins[0] < 224;
+      if (!ok) out.push(`Output ${i + 1}: give the full address of the device to send to (like 192.168.2.119)`);
+      return;
+    }
+    if (pins.length < n || pins.some(p => !Number.isInteger(p) || p < 0)) out.push(`Output ${i + 1}: choose ${n === 1 ? "its GPIO" : `all ${n} GPIOs`}`);
+    if (!(Number(b.len) > 0)) out.push(`Output ${i + 1}: how many LEDs?`);
+  });
+  return out;
 }
 export const MAX_LEDS_PER_BUS = 2048;
 
@@ -370,6 +392,8 @@ export function outputWarnings(ins, info, pins) {
     const len = Number(b.len) || 0;
     total += kind === "network" ? 0 : len;
     if (len > MAX_LEDS_PER_BUS && kind !== "network") out.push(`An output has ${len} LEDs — WLED allows ${MAX_LEDS_PER_BUS} per output`);
+    const endAt = (Number(b.start) || 0) + len;
+    if (endAt > maxLedsFor(info)) out.push(`An output ends at LED ${endAt} — this firmware on this chip stops at ${maxLedsFor(info)}, so WLED won't create it`);
     if (kind === "network" || kind === "hub75") continue;
     for (const p of (b.pin || []).slice(0, busPinCount(b.type))) {
       if (p === undefined || p === null || p < 0) continue;
@@ -414,7 +438,10 @@ export function paletteList(info, builtIns) {
 
 /** WLED's own effect defaults (FX.h DEFAULT_*), overlaid with the effect's. */
 export function effectDefaults(meta) {
-  return { sx: 128, ix: 128, c1: 128, c2: 128, c3: 16, o1: false, o2: false, o3: false, ...(meta ? meta.defaults : {}) };
+  const d = { sx: 128, ix: 128, c1: 128, c2: 128, c3: 16, o1: false, o2: false, o3: false, ...(meta ? meta.defaults : {}) };
+  // WLED reads options as booleans — a number is ignored (round 5).
+  for (const k of ["o1", "o2", "o3"]) d[k] = !!Number(d[k]);
+  return d;
 }
 
 /**
