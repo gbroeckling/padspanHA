@@ -320,9 +320,20 @@ def _eligible_entity_ids(hass: HomeAssistant) -> list[str]:
             members = attrs.get("group_entities")
             if isinstance(members, (list, tuple)):
                 drop.update(m for m in members if m != eid)
-        return [eid for eid in states if eid not in drop]
     except Exception:
         return []
+    # A WLED team follower takes its lights from its leader over sync;
+    # switching it separately would fight the leader (ws_wled.py teams). A
+    # registry hiccup here costs only the team filtering, never the whole list.
+    st = (hass.data.get(DOMAIN) or {}).get(DATA_SETTINGS)
+    teams = (st.data.get("wled_teams") if st else None) or []
+    if teams:
+        try:
+            from .ws_wled import follower_light_entities  # noqa: PLC0415
+            drop |= follower_light_entities(hass, teams)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Vacation mode: couldn't read WLED teams, switching every light: %s", err)
+    return [eid for eid in states if eid not in drop]
 
 
 def switch_fields(data: dict, turn_on: bool, now_ts: float) -> dict:

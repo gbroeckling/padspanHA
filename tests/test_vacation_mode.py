@@ -503,7 +503,7 @@ def test_light_groups_are_left_to_their_members():
         "light.a": SimpleNamespace(state="on", attributes={}),
         "switch.x": SimpleNamespace(state="on", attributes={}),
     }
-    hass = SimpleNamespace(states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
+    hass = SimpleNamespace(data={}, states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
     assert vm._eligible_entity_ids(hass) == ["light.a"]
 
 
@@ -519,7 +519,7 @@ def test_an_integration_group_is_kept_and_its_members_dropped():
         "light.strip_segment_1": SimpleNamespace(state="on", attributes={}),
         "light.k": SimpleNamespace(state="on", attributes={}),
     }
-    hass = SimpleNamespace(states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
+    hass = SimpleNamespace(data={}, states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
     assert vm._eligible_entity_ids(hass) == ["light.strip_main", "light.k"]
 
 
@@ -560,3 +560,18 @@ async def test_no_recorder_is_an_empty_answer_not_a_failure(monkeypatch):
     monkeypatch.setattr(rec, "get_instance", boom, raising=False)
     got = await vm._async_fetch_history(SimpleNamespace(), ["light.a"], 30)
     assert got == {}
+
+
+
+def test_team_followers_are_left_to_their_leader(monkeypatch):
+    """A WLED team follower takes its lights from the leader over sync;
+    Vacation Mode switching it too would fight the leader."""
+    import custom_components.padspan_ha.vacation_mode as vm
+    import custom_components.padspan_ha.ws_wled as W
+    states = {"light.leader": SimpleNamespace(state="on", attributes={}),
+              "light.follower": SimpleNamespace(state="on", attributes={})}
+    st = SimpleNamespace(data={"wled_teams": [{"leader": "d1", "followers": ["d2"], "group": 1}]})
+    hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: st}},
+                           states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
+    monkeypatch.setattr(W, "follower_light_entities", lambda h, teams: {"light.follower"})
+    assert vm._eligible_entity_ids(hass) == ["light.leader"]

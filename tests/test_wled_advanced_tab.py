@@ -169,3 +169,51 @@ out.apply = t.includes("Apply");
 out.edits = ["Rename", "Delete", "Update", "+ Save current as preset", "+ New playlist"].filter(x => t.includes(x));
 """)
     assert out == {"apply": True, "edits": []}
+
+
+def test_a_team_sets_the_group_on_every_device_then_records_it():
+    """Leader sends to the group, followers follow it — saved (through the
+    safe cfg write, one per device) and live — and only then is the team
+    recorded, so HA and Vacation Mode drive just the leader."""
+    out = _run("""
+const calls = [];
+const devices = [
+  { device_id: "dL", name: "Upper North", lights: ["light.upper_north"], sw_version: "16.0.1" },
+  { device_id: "dF", name: "Upper South", lights: ["light.upper_south"], sw_version: "0.15.3" },
+  { device_id: "dX", name: "Driveway", lights: ["light.driveway"] },
+];
+const cfgs = { dL: { if: { sync: { send: { en: false, dir: false, grp: 1 }, recv: { grp: 1, bri: true } } } },
+               dF: { if: { sync: { send: { grp: 1 }, recv: { grp: 1, bri: false, col: false, fx: false, pal: false } } } } };
+const hass = { states: {}, callWS: async (m) => {
+  calls.push(m);
+  if (m.type === "padspan_ha/wled_get" && m.device_id) return m.path === "json/cfg" ? { data: cfgs[m.device_id], hash: "h" + m.device_id }
+    : { data: { ver: m.device_id === "dL" ? "16.0.1" : "0.15.3", vid: m.device_id === "dL" ? 2607070 : 2503090 } };
+  if (m.type === "padspan_ha/wled_get") return { data: DEVICE[m.path], hash: "hme" };
+  if (m.type === "padspan_ha/wled_teams_get") return { teams: [] };
+  if (m.type === "padspan_ha/wled_devices") return { devices };
+  if (m.type === "padspan_ha/wled_teams_set") return { teams: m.teams };
+  return { data: DEVICE["json/si"].state };
+} };
+globalThis.confirm = () => true;
+const pane = document.createElement("div");
+await WA.mountWledAdvanced(pane, { hass, eid: "light.upper_north", api: { wled: { isAdmin: true }, toast: () => {} } });
+await settle();
+all(pane).find(n => n.textContent === "Sync & team").click();
+await settle();
+const box = all(pane).find(n => n.tagName === "LABEL" && (n.textContent || "").startsWith("Upper South"));
+const cb = box.children[0]; cb.checked = true; cb.dispatchEvent(new Event("change"));
+all(pane).find(n => n.textContent === "Set up the team").click();
+await settle(); await settle();
+out.cfg = calls.filter(c => c.type === "padspan_ha/wled_cfg").map(c => [c.device_id, c.patch, c.base_hash]);
+out.live = calls.filter(c => c.type === "padspan_ha/wled_state" && c.device_id).map(c => [c.device_id, c.body]);
+out.team = (calls.find(c => c.type === "padspan_ha/wled_teams_set") || {}).teams;
+""")
+    # No team exists yet, so the draft takes sync group 1 — the first no team uses.
+    lead, fol = out["cfg"]
+    assert lead[0] == "dL" and lead[2] == "hdL"
+    assert lead[1] == {"if": {"sync": {"send": {"en": True, "dir": True, "grp": 1}}}}
+    assert fol[0] == "dF"
+    assert fol[1] == {"if": {"sync": {"recv": {"grp": 1, "bri": True, "col": True, "fx": True, "pal": True}}}}
+    assert out["live"] == [["dL", {"udpn": {"send": True, "sgrp": 1}}], ["dF", {"udpn": {"rgrp": 1}}]]
+    assert out["team"] == [{"id": "team-dL", "name": "Upper North team", "mode": "mirror", "group": 1,
+                            "leader": "dL", "followers": ["dF"]}]

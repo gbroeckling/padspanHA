@@ -511,6 +511,88 @@ async def ws_wled_backups(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"backups": await hass.async_add_executor_job(_list_backups_sync, folder)})
 
 
+# ── Teams: WLED devices that act as one light ───────────────────────────────
+# Garry, 2026-09-23: "include teaming with other wled devices for proper
+# light control in HA". A team is a leader and its followers, joined by a
+# WLED sync group (the card sets the groups on every device, each through the
+# safe cfg write). PadSpan records the team so the rest of HA drives only the
+# leader: Vacation Mode leaves followers alone (vacation_mode.py), instead of
+# switching them independently and fighting the leader's sync.
+
+TEAM_MODES = ("mirror",)
+
+
+def sanitize_teams(hass: HomeAssistant, teams: Any) -> list[dict[str, Any]] | str:
+    """The stored shape, or the reason the list was refused."""
+    if not isinstance(teams, list) or len(teams) > 16:
+        return "teams must be a list of at most 16"
+    out, seen = [], set()
+    for t in teams:
+        if not isinstance(t, dict):
+            return "each team must be an object"
+        leader = str(t.get("leader") or "")
+        followers = [str(f) for f in (t.get("followers") or []) if f]
+        group = t.get("group")
+        if t.get("mode", "mirror") not in TEAM_MODES:
+            return f"unknown team mode {t.get('mode')!r}"
+        if not isinstance(group, int) or not 1 <= group <= 8:
+            return "a team's sync group must be 1-8"
+        if not followers or leader in followers or len(set(followers)) != len(followers):
+            return "a team needs a leader and one or more different followers"
+        for dev in [leader, *followers]:
+            if resolve_device(hass, device_id=dev) is None:
+                return f"{dev} isn't a WLED device in Home Assistant"
+            if dev in seen:
+                return "a device can be in only one team"
+            seen.add(dev)
+        out.append({"id": str(t.get("id") or f"team{len(out) + 1}")[:32],
+                    "name": str(t.get("name") or "WLED team")[:64],
+                    "mode": t.get("mode", "mirror"), "group": group,
+                    "leader": leader, "followers": followers})
+    return out
+
+
+def follower_light_entities(hass: HomeAssistant, teams: list | None) -> set[str]:
+    """Every light entity of a team follower — the lights the rest of HA
+    should leave to their leader."""
+    from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
+
+    devs = {f for t in (teams or []) if isinstance(t, dict) for f in (t.get("followers") or [])}
+    if not devs:
+        return set()
+    reg = er.async_get(hass)
+    return {e.entity_id for d in devs for e in er.async_entries_for_device(reg, d) if e.entity_id.startswith("light.")}
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/wled_teams_get"})
+@websocket_api.async_response
+async def ws_wled_teams_get(hass: HomeAssistant, connection, msg) -> None:
+    from .const import DATA_SETTINGS  # noqa: PLC0415
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    connection.send_result(msg["id"], {"teams": list((st.data if st else {}).get("wled_teams") or [])})
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/wled_teams_set", vol.Required("teams"): list})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_wled_teams_set(hass: HomeAssistant, connection, msg) -> None:
+    from .const import DATA_SETTINGS  # noqa: PLC0415
+    if not _tier_at_least(hass, TIER):
+        connection.send_error(msg["id"], "bright_required", TIER_MSG)
+        return
+    teams = sanitize_teams(hass, msg["teams"])
+    if isinstance(teams, str):
+        connection.send_error(msg["id"], "invalid", teams)
+        return
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if not st:
+        connection.send_error(msg["id"], "no_settings", "Settings not loaded")
+        return
+    await st.async_set(wled_teams=teams)
+    connection.send_result(msg["id"], {"teams": teams})
+
+
 def async_register(hass: HomeAssistant) -> None:
-    for cmd in (ws_wled_devices, ws_wled_get, ws_wled_state, ws_wled_cfg, ws_wled_backups):
+    for cmd in (ws_wled_devices, ws_wled_get, ws_wled_state, ws_wled_cfg, ws_wled_backups,
+                ws_wled_teams_get, ws_wled_teams_set):
         websocket_api.async_register_command(hass, cmd)

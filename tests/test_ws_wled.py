@@ -254,3 +254,28 @@ async def test_a_restore_reads_only_this_devices_folder(fake, monkeypatch):
     await W.ws_wled_backups(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north",
                                                "action": "restore_presets", "backup_id": "20260101-000000"})
     assert conn.errors and conn.errors[0][0] == "not_found"
+
+
+def test_teams_are_validated_before_they_are_stored(fake, monkeypatch):
+    monkeypatch.setattr(W, "resolve_device", lambda h, entity_id=None, device_id=None:
+                        {"host": "x"} if device_id in ("dL", "dF", "dG") else None)
+    ok = W.sanitize_teams(fake.hass, [{"name": "T", "group": 3, "leader": "dL", "followers": ["dF"]}])
+    assert ok == [{"id": "team1", "name": "T", "mode": "mirror", "group": 3, "leader": "dL", "followers": ["dF"]}]
+    bad = [
+        [{"group": 9, "leader": "dL", "followers": ["dF"]}],                  # group out of range
+        [{"group": 1, "leader": "dL", "followers": []}],                       # no followers
+        [{"group": 1, "leader": "dL", "followers": ["dL"]}],                   # leader follows itself
+        [{"group": 1, "leader": "dL", "followers": ["dNOPE"]}],                # not a WLED device
+        [{"group": 1, "leader": "dL", "followers": ["dF"]},
+         {"group": 2, "leader": "dG", "followers": ["dF"]}],                   # dF in two teams
+        [{"group": 1, "leader": "dL", "followers": ["dF"], "mode": "ddp"}],    # unknown mode
+    ]
+    for teams in bad:
+        assert isinstance(W.sanitize_teams(fake.hass, teams), str), teams
+
+
+def test_team_writes_are_admin_only():
+    src = inspect.getsource(W)
+    i = src.index("async def ws_wled_teams_set")
+    head = src[src.rindex("@websocket_api.websocket_command", 0, i):i]
+    assert "@websocket_api.require_admin" in head
