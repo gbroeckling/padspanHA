@@ -89,7 +89,7 @@ out.overlap = t.some(x => x.includes("Segments 0 and 1 overlap on LEDs 40–49")
 out.gap = t.some(x => x.includes("LEDs 100–119 aren't in any segment"));
 out.range = t.some(x => x === "LEDs 0–49 (50)");
 out.unsaved = t.some(x => x.includes("Not saved for the next boot"));
-out.saveBtn = t.some(x => x === "Save as boot preset");
+out.saveBtn = t.some(x => x === "Keep after restart");
 out.version = t.some(x => x === "v16.0.1");
 """)
     assert out == {"overlap": True, "gap": True, "range": True, "unsaved": True, "saveBtn": True, "version": True}
@@ -101,7 +101,7 @@ const writes = [];
 const pane = document.createElement("div");
 await WA.mountWledAdvanced(pane, { hass: fakeHass(writes), eid: "light.upper_north", api: { wled: { isAdmin: false, tier: "bright" }, toast: () => {} } });
 await settle();
-out.saveBtn = texts(pane).some(x => x === "Save as boot preset");
+out.saveBtn = texts(pane).some(x => x === "Keep after restart");
 all(pane).find(n => n.textContent === "Split in half").click();
 await settle();
 out.write = writes[0];
@@ -252,3 +252,56 @@ out.patch = (calls.find(c => c.type === "padspan_ha/wled_cfg") || {}).patch;
     assert "GPIO 16 is used by two outputs" in out["confirmText"]
     led = out["patch"]["hw"]["led"]
     assert "total" not in led and len(led["ins"]) == 2 and led["ins"][1]["rev"] is True
+
+
+
+def test_a_playlist_boot_preset_is_never_overwritten():
+    """Boot preset 1 is a playlist: keeping the layout saves a NEW preset and
+    points the boot at it (review 2026-09-23)."""
+    out = _run("""
+const writes = [];
+DEVICE["presets.json"] = { "0": {}, "1": { n: "Party", playlist: { ps: [2], dur: [100] } }, "2": { n: "Red", seg: [{ id: 0, start: 0, stop: 120 }] } };
+globalThis.confirm = () => true;
+const pane = document.createElement("div");
+await WA.mountWledAdvanced(pane, { hass: fakeHass(writes), eid: "light.upper_north", api: { wled: { isAdmin: true }, toast: () => {} } });
+await settle();
+out.text = texts(pane).find(x => x.includes("a playlist")) || "";
+all(pane).find(n => n.textContent === "Keep after restart").click();
+await settle();
+out.write = writes[0];
+""")
+    assert "a playlist" in out["text"]
+    assert out["write"] == {"psave": 3, "n": "Layout", "ib": True, "sb": True, "bootps": 3}
+
+
+def test_a_typed_range_that_would_delete_the_segment_is_refused():
+    out = _run("""
+const writes = []; const toasts = [];
+const pane = document.createElement("div");
+await WA.mountWledAdvanced(pane, { hass: fakeHass(writes), eid: "light.upper_north", api: { wled: { isAdmin: true }, toast: (m) => toasts.push(m) } });
+await settle();
+all(pane).filter(n => n.textContent === "▼")[0].click();
+await settle();
+const label = all(pane).filter(n => n.tagName === "DIV" && n.textContent === "First LED").pop();   // the label itself, not its wrapper
+const first = label.parentNode.children[1];
+first.value = "70"; first.dispatchEvent(new Event("change"));
+await settle();
+out.writes = writes; out.toast = toasts.pop() || "";
+""")
+    assert out["writes"] == [] and "must come after the first" in out["toast"]
+
+
+def test_identify_is_asked_of_the_backend():
+    out = _run("""
+const calls = [];
+const hass = fakeHass([]);
+const orig = hass.callWS;
+hass.callWS = async (m) => { calls.push(m.type === "padspan_ha/wled_identify" ? m : null); return orig(m).catch(() => ({})); };
+const pane = document.createElement("div");
+await WA.mountWledAdvanced(pane, { hass, eid: "light.upper_north", api: { wled: { isAdmin: false }, toast: () => {} } });
+await settle();
+all(pane).find(n => n.textContent === "💡 Identify").click();
+await settle();
+out.call = calls.filter(Boolean)[0];
+""")
+    assert out["call"] == {"type": "padspan_ha/wled_identify", "entity_id": "light.upper_north", "seg_id": 0, "seconds": 10}

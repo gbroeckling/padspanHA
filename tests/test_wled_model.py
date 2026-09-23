@@ -65,7 +65,8 @@ out.noPal = M.parseFxData("!;;;", 0);
     assert o["flags"]["volume"] and o["defaults"] == {"c3": 10}
     assert [c["label"] for c in o["colors"]] == ["Fx", "Bg"]
     assert [s["key"] for s in out["none"]["sliders"]] == ["sx", "ix"] and out["none"]["palette"]
-    assert out["noneHi"]["sliders"] == []            # no metadata, fx >= 128: no default sliders
+    # No metadata: fx < 128 shows 2 sliders, fx >= 128 all 5 (WLED 16 index.js).
+    assert [x["key"] for x in out["noneHi"]["sliders"]] == ["sx", "ix", "c1", "c2", "c3"]
     assert out["noPal"]["palette"] is False
 
 
@@ -173,3 +174,59 @@ out.kinds = [M.busKind(22), M.busKind(22 | 0x80), M.busKind(51), M.busKind(44), 
     assert "overlap" in w and "LEDs 190–299 belong to no output" in w
     assert "this chip handles 1536" in w
     assert out["kinds"] == ["digital", "digital", "2pin", "pwm", "network", 5, 4]
+
+
+
+def test_metadata_sections_follow_wleds_own_ui():
+    """A missing colour or palette section hides them; a numeric palette
+    section hides the palette (index.js setEffectParameters)."""
+    out = _run("""
+out.onlySliders = M.parseFxData("!,!", 10);
+out.numPal = M.parseFxData("!;!;0;1", 11);
+""")
+    assert out["onlySliders"]["colors"] == [] and out["onlySliders"]["palette"] is False
+    assert out["numPal"]["palette"] is False and [c["label"] for c in out["numPal"]["colors"]] == ["Fx"]
+
+
+def test_matrix_layouts_are_checked_as_rectangles_and_split_along_the_longer_side():
+    out = _run("""
+const m = { w: 16, h: 8 };
+out.ok = M.layoutWarnings([{ id: 0, start: 0, stop: 8, startY: 0, stopY: 8 }, { id: 1, start: 8, stop: 16, startY: 0, stopY: 8 }], 128, 32, m);
+out.overlap = M.layoutWarnings([{ id: 0, start: 0, stop: 10, startY: 0, stopY: 8 }, { id: 1, start: 8, stop: 16, startY: 0, stopY: 8 }], 128, 32, m).map(w => w.kind);
+out.split = M.splitWrites({ id: 0, start: 0, stop: 16, startY: 0, stopY: 8, n: "Wall" }, 1, m);
+out.tall = M.splitWrites({ id: 0, start: 0, stop: 4, startY: 0, stopY: 8 }, 1, m);
+out.room = [M.canAddSegment([{ id: 0, start: 0, stop: 1 }, { id: 1, start: 1, stop: 2 }], 2), M.canAddSegment([{ id: 0, start: 0, stop: 1 }], 2)];
+out.bounds = [M.boundsValid(5, 5), M.boundsValid(5, 6), M.boundsValid(0, 4, 3, 3)];
+""")
+    assert out["ok"] == [] and out["overlap"] == ["overlap"]
+    # Split along X; both halves keep the full Y range.
+    assert out["split"] == [{"id": 0, "start": 0, "stop": 8, "n": "Wall", "startY": 0, "stopY": 8},
+                            {"id": 1, "start": 8, "stop": 16, "startY": 0, "stopY": 8, "n": "Wall (2)"}]
+    assert out["tall"][0]["stopY"] == 4 and out["tall"][1] == {"id": 1, "start": 0, "stop": 4, "startY": 4, "stopY": 8, "n": "Segment 0 (2)"}
+    assert out["room"] == [False, True]
+    assert out["bounds"] == [False, True, False]
+
+
+def test_moonmodules_gets_its_own_options_and_no_stock_only_features():
+    out = _run("""
+const mm = { repo: "MoonModules/WLED", ver: "0.15.0", vid: 2503010 };
+out.m12 = M.m12Options(mm).map(o => o[1]);
+out.has = ["bootPreset", "resetSegs", "segBlend"].map(f => M.has(mm, f));
+out.stock = M.m12Options({ ver: "16.0.1", vid: 2607070 }).map(o => o[1]);
+out.sim = M.SOUND_SIM.map(o => o[1]);
+""")
+    assert out["m12"][4] == "jMap" and len(out["m12"]) == 8
+    assert out["has"] == [False, False, False]
+    assert out["stock"] == ["Pixels", "Bar", "Arc", "Corner", "Pinwheel"]
+    assert out["sim"][0] == "BeatSin"
+
+
+def test_custom_palettes_have_their_firmware_ids():
+    out = _run("""
+out.v15 = M.paletteList({ ver: "0.15.3", cpalcount: 2 }, ["Default", "Party"]).map(p => p[0]);
+out.v16 = M.paletteList({ ver: "16.0.1", vid: 2607070, cpalcount: 1, umpalcount: 1, umpalnames: ["Audio"] }, ["Default"]);
+out.def = M.effectDefaults({ defaults: { sx: 64 } });
+""")
+    assert out["v15"] == [0, 1, 255, 254]
+    assert out["v16"] == [[0, "Default"], [200, "~ Custom 0 ~"], [255, "Audio"]]
+    assert out["def"]["sx"] == 64 and out["def"]["ix"] == 128 and out["def"]["c3"] == 16

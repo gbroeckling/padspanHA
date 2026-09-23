@@ -109,7 +109,7 @@ function editor(ctx, cfg, hash, pins) {
       ctx.toast("LED outputs saved (a backup was taken first)");
       const si = await ctx.get("json/si");
       ctx.info = si.info || ctx.info; ctx.state = si.state || ctx.state;
-      wrap.dispatchEvent(new CustomEvent("repaint", { bubbles: true }));
+      ctx.repaint();
     } catch (e) { ctx.toast("Couldn't save: " + errText(e), true); }
   } }, "Save LED outputs"));
   return wrap;

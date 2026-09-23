@@ -22,7 +22,7 @@
 const _q = new URL(import.meta.url).search;
 const M = await import(`./wled_model.js${_q}`);
 
-const { C, S, h, slider, numberBox, check, firstFreePreset } = await import(`./wled_ui.js${_q}`);
+const { C, S, h, slider, numberBox, check, firstFreePreset, errText } = await import(`./wled_ui.js${_q}`);
 // Sections with their own module, loaded with the workbench.
 const { presetsView } = await import(`./wled_tab_presets.js${_q}`);
 const { backupView } = await import(`./wled_tab_backup.js${_q}`);
@@ -43,7 +43,7 @@ export async function mountWledAdvanced(pane, { hass, eid, api }) {
   const post = (body) => call("padspan_ha/wled_state", { body }).then(r => r.data);
 
   const ctx = { hass, eid, isAdmin, toast, get, post, call, info: null, state: null, effects: [], pals: [],
-    presets: null, cfg: null, tab: "layout", selSeg: null, openSeg: null, identifying: false };
+    presets: null, cfg: null, tab: "layout", selSeg: null, openSeg: null };
 
   pane.innerHTML = "";
   const head = h("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px" });
@@ -53,10 +53,15 @@ export async function mountWledAdvanced(pane, { hass, eid, api }) {
   pane.appendChild(head); pane.appendChild(tabs); pane.appendChild(body); body.appendChild(status);
 
   try {
-    const [si, eff, fxd, pal] = await Promise.all([get("json/si"), get("json/eff"), get("json/fxdata"), get("json/pal")]);
+    // One after another: WLED 0.14/0.15 answer overlapping requests with
+    // "busy" (review 2026-09-23); the backend retries a busy reply too.
+    const si = await get("json/si");
     ctx.info = si.info || {}; ctx.state = si.state || {};
+    const eff = await get("json/eff");
+    const fxd = await get("json/fxdata");
+    const pal = await get("json/pal");
     ctx.effects = M.effectCatalog(eff, fxd);
-    ctx.pals = Array.isArray(pal) ? pal : [];
+    ctx.pals = M.paletteList(ctx.info, Array.isArray(pal) ? pal : []);
   } catch (e) {
     status.textContent = "Couldn't read the device: " + ((e && (e.message || e.code)) || e);
     status.style.color = C.red;
@@ -108,7 +113,7 @@ export async function mountWledAdvanced(pane, { hass, eid, api }) {
     catch (e) { toast(`Couldn't ${what || "apply that"}: ${(e && (e.message || e.code)) || e}`, true); return false; }
   };
   // Local view changes (selection, filters) repaint in place.
-  body.addEventListener("repaint", () => paint());
+  ctx.repaint = () => paint();
   paintTabs();
   paint();
 }
@@ -124,7 +129,7 @@ function layoutView(ctx, refresh) {
   if (ctx.selSeg === null || !segs.some(s => s.id === ctx.selSeg)) ctx.selSeg = (segs.find(s => s.sel) || segs[0] || {}).id ?? null;
 
   // Warnings — what no other WLED tool checks (WLED closed overlap checks as not planned).
-  const warns = M.layoutWarnings(st.seg || [], count, info.leds && info.leds.maxseg);
+  const warns = M.layoutWarnings(st.seg || [], count, info.leds && info.leds.maxseg, matrix);
   if (warns.length) {
     root.appendChild(h("div", { style: S.card + `;border-color:rgba(251,191,36,.45)` },
       warns.map(w => h("div", { style: `font-size:12px;color:${C.amber};margin:2px 0` }, "⚠ " + w.text))));
@@ -139,25 +144,36 @@ function layoutView(ctx, refresh) {
   // Actions
   const sel = segs.find(s => s.id === ctx.selSeg);
   const actions = h("div", { style: "display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px" });
-  actions.appendChild(h("button", { style: S.btn, title: "Fills the first uncovered stretch, or splits the longest segment", onclick: () => {
-    const r = M.smartAddRange(st.seg || [], count);
-    if (!r) return;
+  // WLED silently ignores a segment past its limit — and a split would then
+  // shrink the original with nowhere for the other half (review 2026-09-23).
+  const maxSeg = info.leds && info.leds.maxseg;
+  const room = M.canAddSegment(st.seg || [], maxSeg);
+  const full = room ? "" : `;opacity:.45;cursor:not-allowed`;
+  const fullTip = `This device allows ${maxSeg} segments`;
+  actions.appendChild(h("button", { style: S.btn + full, title: room ? (matrix ? "Adds a segment covering the whole matrix — then set its area"
+    : "Fills the first uncovered stretch, or splits the longest segment") : fullTip, onclick: () => {
+    if (!room) { ctx.toast(fullTip, true); return; }
     const id = M.nextSegId(st.seg || []);
-    const seg = [];
-    if (r.split) { const s = segs.find(x => x.id === r.split.id); seg.push(M.segBoundsWrite(s, s.start, r.split.stop)); }
-    seg.push({ id, start: r.start, stop: r.stop, n: `Segment ${id}` });
+    let seg;
+    if (matrix) seg = [{ id, start: 0, stop: Number(matrix.w) || 1, startY: 0, stopY: Number(matrix.h) || 1, n: `Segment ${id}` }];
+    else {
+      const r = M.smartAddRange(st.seg || [], count);
+      if (!r) return;
+      seg = [];
+      if (r.split) { const s = segs.find(x => x.id === r.split.id); seg.push(M.segBoundsWrite(s, s.start, r.split.stop)); }
+      seg.push({ id, start: r.start, stop: r.stop, n: `Segment ${id}` });
+    }
     ctx.selSeg = id;
     ctx.write({ seg }, "add a segment");
   } }, "+ Add segment"));
   if (sel) {
-    actions.appendChild(h("button", { style: S.btn, onclick: () => {
-      if (M.segLen(sel) < 2) return;
-      const mid = sel.start + Math.floor(M.segLen(sel) / 2);
-      const id = M.nextSegId(st.seg || []);
-      ctx.write({ seg: [M.segBoundsWrite(sel, sel.start, mid), { id, start: mid, stop: sel.stop, n: `${sel.n || "Segment " + sel.id} (2)` }] }, "split the segment");
+    actions.appendChild(h("button", { style: S.btn + full, title: room ? "" : fullTip, onclick: () => {
+      if (!room) { ctx.toast(fullTip, true); return; }
+      const w = M.splitWrites(sel, M.nextSegId(st.seg || []), matrix);
+      if (w) ctx.write({ seg: w }, "split the segment");
     } }, "Split in half"));
     actions.appendChild(h("button", { style: S.btn, title: "Lights this segment white on the real strip for 10 seconds, then puts everything back",
-      onclick: () => identify(ctx, sel) }, ctx.identifying ? "Identifying…" : "💡 Identify"));
+      onclick: () => identify(ctx, sel) }, "💡 Identify"));
     if (segs.length > 1) actions.appendChild(h("button", { style: S.btn + `;color:${C.red}`, onclick: () => {
       if (!confirm(`Delete ${sel.n || "segment " + sel.id}? (LEDs ${sel.start}–${sel.stop - 1})`)) return;
       ctx.selSeg = null;
@@ -199,7 +215,7 @@ function stripView(ctx, segs, count) {
       + `border:2px solid ${selected ? "#fff" : "rgba(0,0,0,.35)"};box-sizing:border-box;cursor:pointer;`
       + "display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;text-shadow:0 1px 2px #000;overflow:hidden",
       title: `${s.n || "Segment " + s.id} · ${M.segRangeLabel(s)}`,
-      onclick: () => { ctx.selSeg = s.id; ctx.openSeg = s.id; wrap.dispatchEvent(new CustomEvent("repaint", { bubbles: true })); } },
+      onclick: () => { ctx.selSeg = s.id; ctx.openSeg = s.id; ctx.repaint(); } },
       s.n || String(s.id));
     for (const edge of ["start", "stop"]) {
       const handle = h("div", { style: `position:absolute;${edge === "start" ? "left" : "right"}:-2px;top:0;bottom:0;width:10px;`
@@ -217,25 +233,36 @@ function stripView(ctx, segs, count) {
 
 function dragEdge(ev, ctx, s, edge, bar, block, count, pct) {
   ev.preventDefault(); ev.stopPropagation();
+  const handle = ev.currentTarget;
   const rect = bar.getBoundingClientRect();
+  if (!rect.width) return;                    // not laid out: nothing to drag against
   let start = s.start, stop = s.stop;
   const tip = h("div", { style: "position:absolute;top:-22px;font-size:11px;background:#000;color:#fff;padding:1px 5px;border-radius:4px;pointer-events:none" });
   block.appendChild(tip);
+  // Captured, so the release lands on the handle — not on the backdrop,
+  // whose click closes the card (review 2026-09-23).
+  try { handle.setPointerCapture(ev.pointerId); } catch (_) {}
   const move = (e) => {
-    const led = Math.round(((e.clientX - rect.left) / Math.max(1, rect.width)) * count);
+    const led = Math.round(((e.clientX - rect.left) / rect.width) * count);
     if (edge === "start") start = Math.max(0, Math.min(stop - 1, led));
     else stop = Math.min(count, Math.max(start + 1, led));
     block.style.left = pct(start); block.style.width = pct(stop - start);
     tip.textContent = `${start}–${stop - 1} (${stop - start})`;
   };
-  const up = () => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", up);
+  const end = (commit) => () => {
+    handle.removeEventListener("pointermove", move);
+    handle.removeEventListener("pointerup", onUp);
+    handle.removeEventListener("pointercancel", onCancel);
     tip.remove();
+    // The click that follows a drag must not select or close anything.
+    window.addEventListener("click", (c) => { c.stopPropagation(); c.preventDefault(); }, { capture: true, once: true });
+    if (!commit) { block.style.left = pct(s.start); block.style.width = pct(M.segLen(s)); return; }
     if (start !== s.start || stop !== s.stop) ctx.write({ seg: [M.segBoundsWrite(s, start, stop)] }, "move the segment");
   };
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", up);
+  const onUp = end(true), onCancel = end(false);
+  handle.addEventListener("pointermove", move);
+  handle.addEventListener("pointerup", onUp);
+  handle.addEventListener("pointercancel", onCancel);
 }
 
 function matrixView(ctx, segs, matrix) {
@@ -250,7 +277,7 @@ function matrixView(ctx, segs, matrix) {
       + `top:${100 * y0 / hgt}%;height:${100 * (y1 - y0) / hgt}%;background:${segColor(s)}88;box-sizing:border-box;`
       + `border:2px solid ${s.id === ctx.selSeg ? "#fff" : "rgba(0,0,0,.35)"};font-size:10px;color:#fff;cursor:pointer;`
       + "display:flex;align-items:center;justify-content:center;text-shadow:0 1px 2px #000",
-      onclick: () => { ctx.selSeg = s.id; ctx.openSeg = s.id; wrap.dispatchEvent(new CustomEvent("repaint", { bubbles: true })); } }, s.n || String(s.id)));
+      onclick: () => { ctx.selSeg = s.id; ctx.openSeg = s.id; ctx.repaint(); } }, s.n || String(s.id)));
   }
   wrap.appendChild(grid);
   return wrap;
@@ -258,27 +285,45 @@ function matrixView(ctx, segs, matrix) {
 
 function bootPresetBar(ctx, segs) {
   const bar = h("div", { style: "font-size:12px;margin:0 0 4px" });
-  const bootId = ctx.info.leds && ctx.info.leds.bootps;
   const run = async () => {
     try {
-      if (!ctx.presets) ctx.presets = await ctx.get("presets.json");
-      const id = bootId || Number((await ctx.get("json/cfg")).def?.ps) || 0;
-      const differs = id ? M.layoutDiffersFromPreset(segs, ctx.presets[String(id)]) : true;
+      const presets = ctx.presets || (ctx.presets = await ctx.get("presets.json"));
+      const id = Number((ctx.info.leds && ctx.info.leds.bootps) || (await ctx.get("json/cfg")).def?.ps) || 0;
+      const boot = id ? presets[String(id)] : null;
+      // Only a preset that SAVES a layout can be compared or overwritten: a
+      // playlist or an API-command preset is left alone (review 2026-09-23).
+      const layoutPreset = !!(boot && !boot.playlist && Array.isArray(boot.seg));
+      const differs = layoutPreset ? M.layoutDiffersFromPreset(segs, boot) : true;
       bar.innerHTML = "";
       if (!differs) { bar.appendChild(h("span", { style: `color:${C.green}` }, `✓ This layout is saved — it's what the device starts with (preset ${id}).`)); return; }
-      bar.appendChild(h("span", { style: `color:${C.amber}` }, id
+      bar.appendChild(h("span", { style: `color:${C.amber}` }, layoutPreset
         ? `⚠ Not saved for the next boot — after a restart the device goes back to preset ${id}'s layout. `
-        : "⚠ No boot preset — after a restart the device may come back with a different layout. "));
-      if (ctx.isAdmin) {
-        const free = id || firstFreePreset(ctx.presets);
-        bar.appendChild(h("button", { style: S.btnPrimary + ";margin-left:6px", onclick: async () => {
-          const name = (ctx.presets[String(free)] && ctx.presets[String(free)].n) || "Layout";
-          if (!confirm(`Save the current layout, colours and effects as preset ${free} ("${name}") and make it the boot preset?`)) return;
-          const body = { psave: free, n: name, ib: true, sb: true };
-          if (M.has(ctx.info, "bootPreset")) body.bootps = free;
-          if (await ctx.write(body, "save the boot preset")) { ctx.presets = null; ctx.toast(`Saved as preset ${free}`); }
-        } }, "Save as boot preset"));
-      }
+        : id ? `⚠ The device starts with preset ${id} (${boot && boot.playlist ? "a playlist" : "not a saved layout"}), so this layout isn't kept after a restart. `
+          : "⚠ No boot preset — after a restart the device may come back with a different layout. "));
+      if (!ctx.isAdmin) return;
+      const slot = layoutPreset ? id : firstFreePreset(presets);
+      const name = layoutPreset ? (boot.n || `Preset ${id}`) : "Layout";
+      bar.appendChild(h("button", { style: S.btnPrimary + ";margin-left:6px", onclick: async () => {
+        const what = layoutPreset ? `update preset ${slot} ("${name}")` : `save it as new preset ${slot}`
+          + (id ? ` — preset ${id} stays as it is, but the device will start with ${slot} instead` : "");
+        if (!confirm(`Keep this layout, with its colours and effects, after a restart: ${what}?`)) return;
+        const body = { psave: slot, n: name, ib: true, sb: true };
+        // psave's bootps is 0.15+ stock only; elsewhere the boot preset is
+        // set through the config (def.ps), which the backend backs up first.
+        const viaPsave = M.has(ctx.info, "bootPreset");
+        if (viaPsave) body.bootps = slot;
+        ctx.presets = null;
+        if (!(await ctx.write(body, "save the layout"))) return;
+        if (!viaPsave) {
+          try {
+            const cur = await ctx.call("padspan_ha/wled_get", { path: "json/cfg" });
+            await ctx.call("padspan_ha/wled_cfg", { patch: { def: { ps: slot } }, base_hash: cur.hash });
+          } catch (e) { ctx.toast(`Saved as preset ${slot}, but couldn't make it the boot preset: ${errText(e)}`, true); return; }
+        }
+        ctx.info.leds = { ...(ctx.info.leds || {}), bootps: slot };
+        ctx.toast(`Saved as preset ${slot} — the device starts with it now`);
+        ctx.repaint();
+      } }, "Keep after restart"));
     } catch (e) {
       bar.textContent = "";
     }
@@ -288,25 +333,15 @@ function bootPresetBar(ctx, segs) {
 }
 
 // LedFx's pattern: the chosen segment lights up on the real hardware so you
-// can find it; everything goes back the way it was after 10 seconds.
+// can find it. The backend holds the saved state and puts it back after
+// 10 s (with retries, resuming a running playlist) — a locked phone or a
+// closed card can't leave the strip stuck (review 2026-09-23). A frozen
+// segment comes back running.
 async function identify(ctx, seg) {
-  if (ctx.identifying) return;
-  ctx.identifying = true;
-  const saved = JSON.parse(JSON.stringify(ctx.state));
-  const segs = (saved.seg || []).map(s => s.id === seg.id
-    ? { id: s.id, on: true, bri: 255, frz: false, fx: 0, col: [[255, 255, 255], [0, 0, 0], [0, 0, 0]] }
-    : { id: s.id, on: false });
   try {
-    await ctx.post({ on: true, bri: Math.max(96, saved.bri || 0), tt: 0, seg: segs });
-    ctx.toast(`Lit ${seg.n || "segment " + seg.id} (LEDs ${seg.start}–${seg.stop - 1}) for 10 s`);
-    await new Promise(r => setTimeout(r, 10000));
-  } finally {
-    const restore = { on: saved.on, bri: saved.bri, tt: 0, seg: (saved.seg || []).map(s => {
-      const r = { ...s }; delete r.len; delete r.lc; return r;
-    }) };
-    ctx.identifying = false;
-    await ctx.write(restore, "put the lights back");
-  }
+    await ctx.call("padspan_ha/wled_identify", { seg_id: seg.id, seconds: 10 });
+    ctx.toast(`Lighting ${seg.n || "segment " + seg.id} (${M.segRangeLabel(seg)}) for 10 s — then everything goes back`);
+  } catch (e) { ctx.toast("Couldn't identify: " + errText(e), true); }
 }
 
 function segmentRow(ctx, s, open) {
@@ -317,7 +352,11 @@ function segmentRow(ctx, s, open) {
   const swatch = document.createElement("input");
   swatch.type = "color"; swatch.value = segColor(s);
   swatch.style.cssText = "width:30px;height:24px;border:none;background:none;cursor:pointer;padding:0";
-  swatch.addEventListener("change", () => set({ col: [M.hexToCol(swatch.value)] }, "set the colour"));
+  // Keep the white channel of an RGBW colour (review 2026-09-23).
+  swatch.addEventListener("change", () => {
+    const c0 = (s.col || [])[0];
+    set({ col: [M.hexToCol(swatch.value, Array.isArray(c0) && c0.length > 3 ? c0[3] : undefined)] }, "set the colour");
+  });
   const name = document.createElement("input");
   name.value = s.n || ""; name.placeholder = `Segment ${s.id}`;
   name.style.cssText = S.input + ";flex:1;min-width:90px";
@@ -330,18 +369,31 @@ function segmentRow(ctx, s, open) {
     h("span", { style: `font-size:11px;color:${C.dim}` }, is2D ? `X ${s.start}–${s.stop - 1}, Y ${s.startY || 0}–${(s.stopY || 1) - 1}` : M.segRangeLabel(s)),
     h("span", { style: `font-size:11px;color:${C.faint}` }, effName),
     onBtn,
-    h("button", { style: S.btn, onclick: () => { ctx.selSeg = s.id; ctx.openSeg = open ? null : s.id; row.dispatchEvent(new CustomEvent("repaint", { bubbles: true })); } }, open ? "▲" : "▼"),
+    h("button", { style: S.btn, onclick: () => { ctx.selSeg = s.id; ctx.openSeg = open ? null : s.id; ctx.repaint(); } }, open ? "▲" : "▼"),
   ]));
   if (!open) return row;
 
   const grid = h("div", { style: "display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px" });
   const field = (label, node, title) => h("div", { title }, [h("div", { style: S.lbl }, label), node]);
   // Inclusive first/last LED — WLED's exclusive stop reads as a bug to people.
-  grid.appendChild(field(is2D ? "First column" : "First LED", numberBox(s.start, v => ctx.write({ seg: [M.segBoundsWrite(s, v, s.stop)] }, "move the segment"))));
-  grid.appendChild(field(is2D ? "Last column" : "Last LED", numberBox(s.stop - 1, v => ctx.write({ seg: [M.segBoundsWrite(s, s.start, v + 1)] }, "move the segment"))));
+  // start >= stop is how WLED deletes a segment: refused here, never sent
+  // from a typo (review 2026-09-23).
+  const bounds = (start, stop, startY, stopY) => {
+    if (!M.boundsValid(start, stop, startY, stopY)) {
+      ctx.toast("The last LED (and last row) must come after the first — to remove a segment use Delete", true);
+      ctx.repaint();
+      return;
+    }
+    const w = M.segBoundsWrite(s, start, stop);
+    if (startY !== undefined) { w.startY = startY; w.stopY = stopY; }
+    ctx.write({ seg: [w] }, "move the segment");
+  };
+  const y0 = s.startY || 0, y1 = s.stopY || 1;
+  grid.appendChild(field(is2D ? "First column" : "First LED", numberBox(s.start, v => bounds(v, s.stop, is2D ? y0 : undefined, is2D ? y1 : undefined))));
+  grid.appendChild(field(is2D ? "Last column" : "Last LED", numberBox(s.stop - 1, v => bounds(s.start, v + 1, is2D ? y0 : undefined, is2D ? y1 : undefined))));
   if (is2D) {
-    grid.appendChild(field("First row", numberBox(s.startY || 0, v => set({ startY: v, n: s.n }, "move the segment"))));
-    grid.appendChild(field("Last row", numberBox((s.stopY || 1) - 1, v => set({ stopY: v + 1, n: s.n }, "move the segment"))));
+    grid.appendChild(field("First row", numberBox(y0, v => bounds(s.start, s.stop, v, y1))));
+    grid.appendChild(field("Last row", numberBox(y1 - 1, v => bounds(s.start, s.stop, y0, v + 1))));
   }
   grid.appendChild(field("Opacity", slider(s.bri ?? 255, 255, v => set({ bri: v }, "set the opacity"))));
   grid.appendChild(field("Grouping", numberBox(s.grp || 1, v => set({ grp: v }, "set grouping"), { min: 1, max: 255 }), "Light N LEDs as one"));
@@ -375,12 +427,10 @@ function segmentRow(ctx, s, open) {
     sel.addEventListener("change", () => onChange(parseInt(sel.value, 10)));
     return sel;
   };
-  more.appendChild(field("Sound simulation", select([[0, "Off"], [1, "Weird 1"], [2, "Weird 2"], [3, "Weird 3"]], s.si || 0,
-    v => set({ si: v }, "set sound simulation")), "Fake audio for audio-reactive effects when there's no microphone"));
+  more.appendChild(field("Sound simulation", select(M.SOUND_SIM, s.si || 0,
+    v => set({ si: v }, "set sound simulation")), "The pattern audio-reactive effects follow when no microphone is in use"));
   if (is2D) {
-    const m12 = [[0, "Pixels"], [1, "Bar"], [2, "Arc"], [3, "Corner"]];
-    if (M.has(info, "pinwheel")) m12.push([4, "Pinwheel"]);
-    more.appendChild(field("1D effect on 2D", select(m12, s.m12 || 0, v => set({ m12: v }, "set 1D-to-2D"))));
+    more.appendChild(field("1D effect on 2D", select(M.m12Options(info), s.m12 || 0, v => set({ m12: v }, "set 1D-to-2D"))));
   }
   if (M.has(info, "segBlend")) {
     const modes = ["Top", "Bottom", "Add", "Subtract", "Difference", "Average", "Multiply", "Divide", "Lighten", "Darken",
@@ -422,11 +472,12 @@ function effectView(ctx) {
     [h("span", { style: S.lbl + ";margin:0 6px 0 0" }, "Apply to")]);
   for (const s of segs) {
     chips.appendChild(h("button", { style: ctx.effectTargets.has(s.id) ? S.btnOn : S.btn, onclick: () => {
-      if (ctx.effectTargets.has(s.id)) ctx.effectTargets.delete(s.id); else ctx.effectTargets.add(s.id);
-      chips.dispatchEvent(new CustomEvent("repaint", { bubbles: true }));
+      if (ctx.effectTargets.has(s.id)) { if (ctx.effectTargets.size > 1) ctx.effectTargets.delete(s.id); }   // keep one
+      else ctx.effectTargets.add(s.id);
+      ctx.repaint();
     } }, s.n || `Segment ${s.id}`));
   }
-  chips.appendChild(h("button", { style: S.btn, onclick: () => { segs.forEach(s => ctx.effectTargets.add(s.id)); chips.dispatchEvent(new CustomEvent("repaint", { bubbles: true })); } }, "All"));
+  chips.appendChild(h("button", { style: S.btn, onclick: () => { segs.forEach(s => ctx.effectTargets.add(s.id)); ctx.repaint(); } }, "All"));
   root.appendChild(chips);
   const toTargets = (patch, what) => ctx.write({ seg: targets.map(s => ({ id: s.id, ...patch })) }, what);
 
@@ -443,7 +494,8 @@ function effectView(ctx) {
     if (meta.palette) {
       const sel = document.createElement("select");
       sel.style.cssText = S.input + ";width:100%";
-      ctx.pals.forEach((n, i) => { const o = document.createElement("option"); o.value = String(i); o.textContent = n; if (i === first.pal) o.selected = true; sel.appendChild(o); });
+      const pals = ctx.pals.some(([id]) => id === first.pal) ? ctx.pals : [...ctx.pals, [first.pal, `Palette ${first.pal}`]];
+      for (const [id, n] of pals) { const o = document.createElement("option"); o.value = String(id); o.textContent = n; if (id === first.pal) o.selected = true; sel.appendChild(o); }
       sel.addEventListener("change", () => toTargets({ pal: parseInt(sel.value, 10) }, "set the palette"));
       grid.appendChild(h("div", {}, [h("div", { style: S.lbl }, meta.paletteLabel || "Palette"), sel]));
     }
@@ -451,8 +503,10 @@ function effectView(ctx) {
     if (meta.toggles.length) {
       card.appendChild(h("div", { style: "margin-top:8px" }, meta.toggles.map(t => check(t.label, first[t.key], v => toTargets({ [t.key]: v }, "set " + t.label)))));
     }
+    // fxdef only acts on an effect CHANGE, so the defaults are sent
+    // explicitly (review 2026-09-23).
     card.appendChild(h("button", { style: S.btn + ";margin-top:8px", title: "The effect's own default speed, intensity, palette and options",
-      onclick: () => toTargets({ fx: first.fx, fxdef: true }, "reset the effect") }, "Effect defaults"));
+      onclick: () => toTargets(M.effectDefaults(meta), "reset the effect") }, "Effect defaults"));
     root.appendChild(card);
   }
 
@@ -487,7 +541,7 @@ function effectView(ctx) {
   search.addEventListener("input", () => { ctx.effSearch = search.value; paintList(); });
   const fbar = h("div", { style: "display:flex;gap:6px;flex-wrap:wrap;align-items:center" }, [search]);
   for (const [id, label] of filters) {
-    fbar.appendChild(h("button", { style: ctx.effFilter === id ? S.btnOn : S.btn, onclick: () => { ctx.effFilter = id; fbar.dispatchEvent(new CustomEvent("repaint", { bubbles: true })); } }, label));
+    fbar.appendChild(h("button", { style: ctx.effFilter === id ? S.btnOn : S.btn, onclick: () => { ctx.effFilter = id; ctx.repaint(); } }, label));
   }
   root.appendChild(fbar);
   paintList();

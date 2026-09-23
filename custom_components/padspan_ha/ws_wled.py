@@ -78,10 +78,17 @@ MAX_BODY_ESP32 = 24576
 _GET_PATHS = re.compile(
     r"^(json|json/(state|info|si|eff|fxdata|pal|nodes|cfg|pins|net)"
     r"|json/palx(\?page=\d{1,3})?"
-    r"|presets\.json|cfg\.json|palette\d{1,3}\.json|ledmap\d{0,2}\.json)$"
+    r"|presets\.json|cfg\.json|palette\d{1,3}\.json|ledmap\d{0,2}\.json)"
 )
-# Keys in a /json/state body that persist or disrupt: admin only.
-_ADMIN_STATE_KEYS = frozenset({"psave", "pdel", "bootps", "rb", "rmcpal", "wifi"})
+# What a non-admin may send to /json/state: live, unsaved changes only
+# (review 2026-09-23). Everything else — preset writes, reboot, the settings
+# PIN, the clock, sync groups (config-backed: the next config save would
+# persist them), usermod keys — is an administrator's. A denylist let
+# unknown and usermod keys through.
+_OPEN_STATE_KEYS = frozenset({"on", "bri", "transition", "tt", "tb", "seg", "ps", "playlist", "np",
+                              "mainseg", "lor", "live", "rSeg", "ledmap", "v", "nl", "udpn"})
+_OPEN_NL_KEYS = frozenset({"on", "dur"})
+_OPEN_UDPN_KEYS = frozenset({"send", "nn"})
 # Never forwarded, whoever asks.
 _FORBIDDEN_STATE_KEYS = frozenset({"win"})
 # Never sent through /json/cfg: WLED APPENDS hw.com instead of replacing it.
@@ -93,7 +100,7 @@ _FORBIDDEN_CFG_PATHS = (("hw", "com"),)
 
 def check_get_path(path: str) -> str | None:
     """None if `path` may be read, else the reason."""
-    if not isinstance(path, str) or not _GET_PATHS.match(path):
+    if not isinstance(path, str) or not _GET_PATHS.fullmatch(path):
         return f"path not allowed: {path!r}"
     return None
 
@@ -105,8 +112,14 @@ def check_state_body(body: Any, is_admin: bool, max_bytes: int = MAX_BODY_ESP826
     for key in body:
         if key in _FORBIDDEN_STATE_KEYS:
             return f"'{key}' is never sent (legacy API; custom forks wedge on it)"
-        if key in _ADMIN_STATE_KEYS and not is_admin:
+        if is_admin:
+            continue
+        if key not in _OPEN_STATE_KEYS:
             return f"'{key}' changes the device for everyone — an administrator must do it"
+        if key == "nl" and isinstance(body[key], dict) and set(body[key]) - _OPEN_NL_KEYS:
+            return "the nightlight's mode and target are an administrator's to change"
+        if key == "udpn" and isinstance(body[key], dict) and set(body[key]) - _OPEN_UDPN_KEYS:
+            return "sync groups are saved settings — an administrator must change them"
     # A playlist is only persistent when saved with psave, which is gated above.
     size = len(json.dumps(body, separators=(",", ":")))
     if size > max_bytes:
@@ -132,6 +145,88 @@ def check_cfg_patch(patch: Any, max_bytes: int = MAX_BODY_ESP8266) -> str | None
     if size > max_bytes:
         return f"config patch is {size} bytes; this device accepts at most {max_bytes}"
     return None
+
+
+# WLED's config parser MERGES most keys but RESETS these when a write leaves
+# them out (checked in cfg.cpp deserializeConfig at 0.14.4 / 0.15.4 / 16.0.1,
+# review 2026-09-23): the frame rate to 42, the global auto-white override to
+# off, gamma to its defaults, and every paired ESP-NOW remote. So each write
+# carries the device's current values for them unless it changes them.
+_RESET_IF_ABSENT = (("hw", "led", "fps"), ("hw", "led", "rgbwm"), ("light", "gc"), ("nw", "linked_remote"))
+
+
+def _get_path(obj: Any, path: tuple) -> Any:
+    for k in path:
+        if not isinstance(obj, dict) or k not in obj:
+            return _MISSING
+        obj = obj[k]
+    return obj
+
+
+_MISSING = object()
+
+
+def with_preserved(patch: dict, before: dict) -> dict:
+    """The patch, plus the current value of every reset-if-absent key it
+    doesn't set itself (only keys the device actually has)."""
+    body = json.loads(json.dumps(patch))
+    for path in _RESET_IF_ABSENT:
+        cur = _get_path(before, path)
+        if cur is _MISSING or _get_path(body, path) is not _MISSING:
+            continue
+        node = body
+        for k in path[:-1]:
+            node = node.setdefault(k, {})
+            if not isinstance(node, dict):
+                break
+        else:
+            node[path[-1]] = cur
+    return body
+
+
+def deep_merge(base: Any, patch: Any) -> Any:
+    """What a config should look like after a write: objects merge, anything
+    else (arrays included — WLED replaces them) is taken from the patch."""
+    if isinstance(base, dict) and isinstance(patch, dict):
+        out = dict(base)
+        for k, v in patch.items():
+            out[k] = deep_merge(base.get(k), v)
+        return out
+    return patch
+
+
+def unexpected_changes(before: dict, patch: dict, after: dict, limit: int = 20) -> list[str]:
+    """Leaves that changed although the write didn't ask for it."""
+    want = deep_merge(before, patch)
+    out: list[str] = []
+
+    def walk(a: Any, b: Any, path: str) -> None:
+        if len(out) >= limit:
+            return
+        if isinstance(a, dict) and isinstance(b, dict):
+            for k in set(a) | set(b):
+                walk(a.get(k, _MISSING), b.get(k, _MISSING), f"{path}.{k}" if path else str(k))
+        elif a != b and not (a is _MISSING and b is None):
+            out.append(path)
+
+    walk(want, after, "")
+    return sorted(p for p in out if p not in ("vid", "rev"))
+
+
+# What a non-admin may see of the config: no network, Wi-Fi, MQTT, OTA or
+# usermod sections (a usermod can hold secrets — WireGuard keys, review
+# 2026-09-23). The Advanced tab shows non-admins these read-only.
+_CFG_OPEN_SECTIONS = ("def", "hw", "light", "if")
+_CFG_OPEN_IF = ("sync", "live", "nodes")
+
+
+def redact_cfg(cfg: Any) -> Any:
+    if not isinstance(cfg, dict):
+        return cfg
+    out = {k: cfg[k] for k in _CFG_OPEN_SECTIONS if k in cfg}
+    if isinstance(out.get("if"), dict):
+        out["if"] = {k: v for k, v in out["if"].items() if k in _CFG_OPEN_IF}
+    return out
 
 
 def cfg_hash(cfg: Any) -> str:
@@ -170,11 +265,23 @@ def resolve_device(hass: HomeAssistant, entity_id: str | None = None,
     entries = _wled_entries(hass)
     for entry_id in getattr(dev, "config_entries", ()) or ():
         entry = entries.get(entry_id)
-        host = entry and (entry.data or {}).get("host")
+        if entry is None or getattr(entry, "disabled_by", None):
+            continue
+        state = getattr(entry, "state", None)
+        if state is not None and getattr(state, "value", state) != "loaded":
+            continue            # a failed or unloaded entry's host isn't trusted
+        host = (entry.data or {}).get("host")
         if host:
+            # unique_id is the MAC HA verified when the device was added —
+            # the key for its backups, never the MAC the device claims.
             return {"host": str(host), "device_id": device_id, "entry_id": entry_id,
+                    "mac": _norm_mac(getattr(entry, "unique_id", None)),
                     "name": dev.name_by_user or dev.name or str(host)}
     return None
+
+
+def _norm_mac(mac: Any) -> str:
+    return re.sub(r"[^0-9a-f]", "", str(mac or "").lower())
 
 
 def _target(hass: HomeAssistant, msg: dict) -> dict[str, Any] | None:
@@ -195,17 +302,41 @@ class WledError(Exception):
         self.code = code
 
 
+def _url(host: str, path: str):
+    """http://host/path?query — built, not formatted, so an IPv6 host works."""
+    from yarl import URL  # noqa: PLC0415
+    p, _, q = path.partition("?")
+    return URL.build(scheme="http", host=host.strip("[]"), path="/" + p, query_string=q)
+
+
 async def _request(hass: HomeAssistant, host: str, method: str, path: str,
-                   body: Any = None, timeout: float = GET_TIMEOUT_S) -> Any:
+                   body: Any = None, timeout: float = GET_TIMEOUT_S, retries: int = 2) -> Any:
+    """One call to the device. WLED 0.14/0.15 answer an overlapping request
+    with 503 "busy"; that is retried briefly. Redirects are never followed —
+    a device at a WLED entry's address must not be able to steer HA to any
+    other host (review 2026-09-23)."""
+    for attempt in range(retries + 1):
+        try:
+            return await _request_once(hass, host, method, path, body, timeout)
+        except WledError as e:
+            if e.code != "busy" or attempt == retries:
+                raise
+            await asyncio.sleep(0.4 * (attempt + 1))
+    raise WledError("busy", "The device is busy — try again in a moment")
+
+
+async def _request_once(hass: HomeAssistant, host: str, method: str, path: str,
+                        body: Any, timeout: float) -> Any:
     import aiohttp  # noqa: PLC0415
     from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
 
     session = async_get_clientsession(hass)
-    url = f"http://{host}/{path}"
     try:
-        async with session.request(method, url, json=body,
+        async with session.request(method, _url(host, path), json=body, allow_redirects=False,
                                    timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
             text = await resp.text()
+            if 300 <= resp.status < 400:
+                raise WledError("bad_reply", "The device answered with a redirect — refused")
             if resp.status == 401:
                 raise WledError("pin_required", "This WLED device has a settings PIN — enter it to continue")
             if resp.status == 503:
@@ -238,7 +369,7 @@ async def _upload(hass: HomeAssistant, host: str, filename: str, data: Any, pin:
     form.add_field("data", json.dumps(data, separators=(",", ":")).encode(), filename=filename,
                    content_type="application/json")
     try:
-        async with session.post(f"http://{host}/upload", data=form,
+        async with session.post(_url(host, "upload"), data=form, allow_redirects=False,
                                 timeout=aiohttp.ClientTimeout(total=POST_TIMEOUT_S * 2)) as resp:
             if resp.status == 401:
                 raise WledError("pin_required", "This WLED device has a settings PIN — enter it to continue")
@@ -261,9 +392,17 @@ def _backup_dir(hass: HomeAssistant, mac: str) -> Path:
 
 
 def _write_backup_sync(folder: Path, files: dict[str, Any]) -> str:
-    stamp = time.strftime("%Y%m%d-%H%M%S")
-    dest = folder / stamp
-    dest.mkdir(parents=True, exist_ok=True)
+    base = time.strftime("%Y%m%d-%H%M%S")
+    folder.mkdir(parents=True, exist_ok=True)
+    stamp, n = base, 1
+    while True:                       # two backups in one second never share a folder
+        dest = folder / stamp
+        try:
+            dest.mkdir(exist_ok=False)
+            break
+        except FileExistsError:
+            n += 1
+            stamp = f"{base}-{n}"
     for name, data in files.items():
         (dest / name).write_text(json.dumps(data, indent=1), encoding="utf-8")
     kept = sorted((p for p in folder.iterdir() if p.is_dir()), key=lambda p: p.name)
@@ -340,8 +479,13 @@ async def ws_wled_get(hass: HomeAssistant, connection, msg) -> None:
     except WledError as e:
         connection.send_error(msg["id"], e.code, str(e))
         return
-    connection.send_result(msg["id"], {"data": data, "device": tgt["name"],
-                                       "hash": cfg_hash(data) if msg["path"] == "json/cfg" else None})
+    is_cfg = msg["path"] in ("json/cfg", "cfg.json")
+    connection.send_result(msg["id"], {
+        "data": data if (not is_cfg or _is_admin(connection)) else redact_cfg(data),
+        "device": tgt["name"],
+        # The hash is of the full config — what a write is compared against.
+        "hash": cfg_hash(data) if msg["path"] == "json/cfg" else None,
+    })
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/wled_state", vol.Required("body"): dict, **_TARGET})
@@ -401,20 +545,37 @@ async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
         presets = await _request(hass, host, "GET", "presets.json")
     except WledError:
         presets = None
-    folder = _backup_dir(hass, str(info.get("mac", "")))
+    # Backups are keyed by the MAC HA verified for this device; a device
+    # claiming a different one is refused (never another unit's presets).
+    if tgt.get("mac") and _norm_mac(info.get("mac")) and _norm_mac(info.get("mac")) != tgt["mac"]:
+        connection.send_error(msg["id"], "mac_mismatch",
+                              "The device reports a different MAC than Home Assistant has for it — refused")
+        return
+    folder = _backup_dir(hass, tgt.get("mac") or str(info.get("mac", "")))
     files = {"cfg.json": before, "info.json": info}
     if presets is not None:
         files["presets.json"] = presets
     backup_id = await hass.async_add_executor_job(_write_backup_sync, folder, files)
-    body = dict(msg["patch"])
+    body = with_preserved(msg["patch"], before)
     if msg.get("pin"):
         body["pin"] = msg["pin"]
     if msg.get("reboot"):
         body["rb"] = True
     try:
-        await _request(hass, host, "POST", "json/cfg", body, POST_TIMEOUT_S)
+        await _request(hass, host, "POST", "json/cfg", body, POST_TIMEOUT_S, retries=0)
     except WledError as e:
-        connection.send_error(msg["id"], e.code, f"{e} (nothing was changed; backup {backup_id} kept)")
+        if e.code in ("timeout", "unreachable"):
+            # The device may have applied it before the reply was lost.
+            try:
+                after = await _request(hass, host, "GET", "json/cfg")
+                changed = cfg_hash(after) != cfg_hash(before)
+            except WledError:
+                changed = None
+            what = ("it WAS applied" if changed else "it was not applied" if changed is False
+                    else "whether it was applied is unknown")
+            connection.send_error(msg["id"], e.code, f"{e} — {what}; backup {backup_id} kept")
+        else:
+            connection.send_error(msg["id"], e.code, f"{e} (nothing was changed; backup {backup_id} kept)")
         return
     after = None
     if not msg.get("reboot"):
@@ -422,14 +583,18 @@ async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
             after = await _request(hass, host, "GET", "json/cfg")
         except WledError:
             after = None
-    connection.send_result(msg["id"], {"backup": backup_id, "before": before, "after": after,
-                                       "hash": cfg_hash(after) if after is not None else None})
+    connection.send_result(msg["id"], {
+        "backup": backup_id, "before": before, "after": after,
+        "hash": cfg_hash(after) if after is not None else None,
+        # Anything that moved without being asked for — shown to the admin.
+        "unexpected": unexpected_changes(before, msg["patch"], after) if after is not None else [],
+    })
 
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/wled_backups",
     vol.Optional("action", default="list"): vol.In(["list", "create", "get", "restore_presets", "restore_cfg"]),
-    vol.Optional("backup_id"): vol.Match(r"^\d{8}-\d{6}$"),
+    vol.Optional("backup_id"): vol.Match(r"^\d{8}-\d{6}(-\d{1,3})?$"),
     vol.Optional("pin"): vol.All(str, vol.Length(max=4)),
     **_TARGET,
 })
@@ -444,7 +609,13 @@ async def ws_wled_backups(hass: HomeAssistant, connection, msg) -> None:
     except WledError as e:
         connection.send_error(msg["id"], e.code, str(e))
         return
-    folder = _backup_dir(hass, str(info.get("mac", "")))
+    # Backups are keyed by the MAC HA verified for this device; a device
+    # claiming a different one is refused (never another unit's presets).
+    if tgt.get("mac") and _norm_mac(info.get("mac")) and _norm_mac(info.get("mac")) != tgt["mac"]:
+        connection.send_error(msg["id"], "mac_mismatch",
+                              "The device reports a different MAC than Home Assistant has for it — refused")
+        return
+    folder = _backup_dir(hass, tgt.get("mac") or str(info.get("mac", "")))
     action = msg.get("action", "list")
     if action == "create":
         if not _is_admin(connection):
@@ -497,6 +668,9 @@ async def ws_wled_backups(hass: HomeAssistant, connection, msg) -> None:
                                            "verified": verified, "rebooting": action == "restore_cfg"})
         return
     if action == "get":
+        if not _is_admin(connection):
+            connection.send_error(msg["id"], "unauthorized", "Only an administrator can open a WLED backup")
+            return
         bid = msg.get("backup_id")
         if not bid:
             connection.send_error(msg["id"], "bad_request", "backup_id is required")
@@ -509,6 +683,95 @@ async def ws_wled_backups(hass: HomeAssistant, connection, msg) -> None:
         connection.send_result(msg["id"], {"backup": bid, "files": await hass.async_add_executor_job(_read)})
         return
     connection.send_result(msg["id"], {"backups": await hass.async_add_executor_job(_list_backups_sync, folder)})
+
+
+# ── Identify: light one segment on the real strip, then put everything back ──
+# Server-side (review 2026-09-23): a browser timer died with a locked phone or
+# a closed card and left the strip stuck white. The backend keeps the saved
+# state, restores it after `seconds` with retries (in chunks the device's
+# buffer accepts), resumes a running playlist, and a second Identify during
+# an active one keeps the ORIGINAL saved state.
+
+_IDENTIFY = "_wled_identify"
+_SEG_RESTORE_DROP = ("len", "lc")
+
+
+def identify_body(state: dict, seg_id: int) -> dict:
+    """Target segment solid white at full opacity; every other segment off
+    (nothing else about them is touched)."""
+    segs = []
+    for s in state.get("seg") or []:
+        if s.get("id") == seg_id:
+            segs.append({"id": seg_id, "on": True, "bri": 255, "fx": 0, "frz": False,
+                         "col": [[255, 255, 255], [0, 0, 0], [0, 0, 0]]})
+        else:
+            segs.append({"id": s.get("id"), "on": False})
+    return {"on": True, "bri": max(96, int(state.get("bri") or 0)), "tt": 0, "seg": segs}
+
+
+def restore_bodies(state: dict, max_bytes: int) -> list[dict]:
+    """The saved state back, split so each request fits the device buffer."""
+    segs = [{k: v for k, v in s.items() if k not in _SEG_RESTORE_DROP} for s in (state.get("seg") or [])]
+    head = {"on": state.get("on", True), "bri": state.get("bri", 128), "tt": 0}
+    bodies, cur = [], []
+    for seg in segs:
+        trial = {**head, "seg": cur + [seg]}
+        if cur and len(json.dumps(trial, separators=(",", ":"))) > max_bytes - 64:
+            bodies.append({**head, "seg": cur})
+            cur = [seg]
+        else:
+            cur.append(seg)
+    bodies.append({**head, "seg": cur})
+    return bodies
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/wled_identify",
+    vol.Required("seg_id"): vol.All(int, vol.Range(min=0, max=63)),
+    vol.Optional("seconds", default=10): vol.All(int, vol.Range(min=2, max=60)),
+    **_TARGET,
+})
+@websocket_api.async_response
+async def ws_wled_identify(hass: HomeAssistant, connection, msg) -> None:
+    tgt = await _gate(hass, connection, msg)
+    if tgt is None:
+        return
+    host = tgt["host"]
+    active: dict = hass.data.setdefault(DOMAIN, {}).setdefault(_IDENTIFY, {})
+    job = active.get(host)
+    try:
+        if job is None:
+            si = await _request(hass, host, "GET", "json/si")
+            job = {"state": si.get("state") or {}, "max": max_body_for(si.get("info")), "cancel": None}
+            active[host] = job
+        elif job.get("cancel"):
+            job["cancel"]()                       # re-aim: one restore, from the original state
+        await _request(hass, host, "POST", "json/state", identify_body(job["state"], msg["seg_id"]), POST_TIMEOUT_S)
+    except WledError as e:
+        active.pop(host, None)
+        connection.send_error(msg["id"], e.code, str(e))
+        return
+
+    async def _restore(_now: Any = None) -> None:
+        if active.get(host) is not job:
+            return
+        saved = job["state"]
+        for attempt in range(4):
+            try:
+                for body in restore_bodies(saved, job["max"]):
+                    await _request(hass, host, "POST", "json/state", body, POST_TIMEOUT_S)
+                pl = saved.get("pl")
+                if isinstance(pl, int) and pl > 0:
+                    await _request(hass, host, "POST", "json/state", {"ps": pl}, POST_TIMEOUT_S)
+                break
+            except WledError as e:
+                _LOGGER.warning("WLED identify: restoring %s failed (try %d): %s", host, attempt + 1, e)
+                await asyncio.sleep(2 * (attempt + 1))
+        active.pop(host, None)
+
+    from homeassistant.helpers.event import async_call_later  # noqa: PLC0415
+    job["cancel"] = async_call_later(hass, msg["seconds"], _restore)
+    connection.send_result(msg["id"], {"seconds": msg["seconds"]})
 
 
 # ── Teams: WLED devices that act as one light ───────────────────────────────
@@ -594,5 +857,5 @@ async def ws_wled_teams_set(hass: HomeAssistant, connection, msg) -> None:
 
 def async_register(hass: HomeAssistant) -> None:
     for cmd in (ws_wled_devices, ws_wled_get, ws_wled_state, ws_wled_cfg, ws_wled_backups,
-                ws_wled_teams_get, ws_wled_teams_set):
+                ws_wled_identify, ws_wled_teams_get, ws_wled_teams_set):
         websocket_api.async_register_command(hass, cmd)

@@ -32,7 +32,29 @@ export const FEATURES = {
   nextInPlaylist: 15,  // state.np
   pinwheel: 15,        // m12 = 4
 };
-export const has = (info, feature) => wledGen(info) >= (FEATURES[feature] || 99);
+// MoonModules WLED-MM shares version numbers with stock but not these
+// features (review 2026-09-23): its m12 table differs (4 = jMap), and rSeg,
+// segment blend, blend styles and psave's bootps are stock-only.
+const STOCK_ONLY = new Set(["blendStyle", "segBlend", "resetSegs", "bootPreset", "pinwheel", "pins", "segCaps"]);
+export function isMoonModules(info) {
+  const txt = [info && info.repo, info && info.brand, info && info.product, info && info.cn, info && info.ver].join(" ");
+  return /moon/i.test(txt);
+}
+export const has = (info, feature) => {
+  if (isMoonModules(info) && STOCK_ONLY.has(feature)) return false;
+  return wledGen(info) >= (FEATURES[feature] || 99);
+};
+/** 1D-on-2D expansion options, per firmware family. */
+export function m12Options(info) {
+  if (isMoonModules(info)) {
+    return [[0, "Pixels"], [1, "Bar"], [2, "Arc"], [3, "Corner"], [4, "jMap"], [5, "Circle"], [6, "Block"], [7, "Pinwheel"]];
+  }
+  const o = [[0, "Pixels"], [1, "Bar"], [2, "Arc"], [3, "Corner"]];
+  if (wledGen(info) >= 15) o.push([4, "Pinwheel"]);
+  return o;
+}
+/** WLED's own names for sound simulation (FX.h): there is no "off". */
+export const SOUND_SIM = [[0, "BeatSin"], [1, "WeWillRockYou"], [2, "10/13"], [3, "14/3"]];
 
 /** A stock build says so; anything else is a fork or a board build. */
 export function forkOf(info) {
@@ -54,27 +76,38 @@ const SLIDER_DEFAULT = { sx: "Speed", ix: "Intensity", c1: "Custom 1", c2: "Cust
   o1: "Option 1", o2: "Option 2", o3: "Option 3" };
 const COLOR_DEFAULT = ["Fx", "Bg", "Cs"];
 
+// Mirrors WLED 16's index.js setEffectParameters rule for rule (review
+// 2026-09-23): with metadata, a MISSING colour or palette section means
+// hidden, and a numeric palette section means hidden; with none, fx < 128
+// shows 2 sliders and fx >= 128 all 5, plus 3 colours and the palette.
 export function parseFxData(str, fxId = 0) {
   const out = { sliders: [], toggles: [], colors: [], palette: false, paletteLabel: null,
     flags: { single: false, d1: true, d2: false, volume: false, frequency: false }, defaults: {} };
   if (str === undefined || str === null || str === "") {
-    if (fxId < 128) out.sliders = [{ key: "sx", label: "Speed" }, { key: "ix", label: "Intensity" }];
-    out.colors = COLOR_DEFAULT.map((label, i) => ({ slot: i, label }));
+    const n = fxId < 128 ? 2 : 5;
+    out.sliders = SLIDER_KEYS.slice(0, n).map(k => ({ key: k, label: SLIDER_DEFAULT[k], max: k === "c3" ? 31 : 255 }));
+    out.colors = COLOR_DEFAULT.map((label, i) => ({ slot: i, label: String(i + 1) }));
     out.palette = true;
     return out;
   }
   const parts = String(str).split(";");
   const sl = (parts[0] || "").split(",");
-  SLIDER_KEYS.forEach((k, i) => {
+  SLIDER_KEYS.slice(0, 5).forEach((k, i) => {
     const raw = sl[i];
     if (raw === undefined || raw === "") return;
-    const label = raw === "!" ? SLIDER_DEFAULT[k] : raw;
-    (k.startsWith("o") ? out.toggles : out.sliders).push({ key: k, label, max: k === "c3" ? 31 : 255 });
+    out.sliders.push({ key: k, label: raw === "!" ? SLIDER_DEFAULT[k] : raw, max: k === "c3" ? 31 : 255 });
   });
-  const cols = parts.length > 1 ? (parts[1] || "").split(",") : ["!", "!", "!"];
+  if (sl.length > 5) {
+    SLIDER_KEYS.slice(5).forEach((k, i) => {
+      const raw = sl[5 + i];
+      if (raw === undefined || raw === "") return;
+      out.toggles.push({ key: k, label: raw === "!" ? SLIDER_DEFAULT[k] : raw });
+    });
+  }
+  const cols = parts.length > 1 && parts[1] !== "" ? parts[1].split(",") : [];
   cols.forEach((c, i) => { if (c !== "" && i < 3) out.colors.push({ slot: i, label: c === "!" ? COLOR_DEFAULT[i] : c }); });
-  const pal = parts.length > 2 ? parts[2] : "!";
-  out.palette = pal !== "" && pal !== undefined;
+  const pal = parts.length > 2 ? String(parts[2] || "").split(",")[0] : "";
+  out.palette = pal !== "" && isNaN(Number(pal.split("=")[0]));
   if (out.palette && pal !== "!") out.paletteLabel = pal.split("=")[0] || null;
   const flags = parts.length > 3 ? String(parts[3] || "") : "1";
   out.flags = {
@@ -107,8 +140,10 @@ export function segRangeLabel(s) {
   return `LEDs ${s.start}–${s.stop - 1} (${n})`;
 }
 
-/** Problems with a 1D layout, in words a person can act on. */
-export function layoutWarnings(segs, ledCount, maxSeg) {
+/** Problems with a layout, in words a person can act on. A matrix is
+ * checked as rectangles (x and y); a strip as ranges. */
+export function layoutWarnings(segs, ledCount, maxSeg, matrix) {
+  if (matrix) return matrixWarnings(segs, matrix, maxSeg);
   const live = (segs || []).filter(s => segLen(s) > 0).sort((a, b) => a.start - b.start);
   const out = [];
   for (let i = 1; i < live.length; i++) {
@@ -127,6 +162,30 @@ export function layoutWarnings(segs, ledCount, maxSeg) {
   }
   if (maxSeg && (segs || []).length > maxSeg) out.push({ kind: "count",
     text: `${(segs || []).length} segments — this device allows ${maxSeg}` });
+  return out;
+}
+
+function matrixWarnings(segs, matrix, maxSeg) {
+  const w = Number(matrix.w) || 0, hgt = Number(matrix.h) || 0;
+  const live = (segs || []).filter(s => segLen(s) > 0);
+  const rect = (s) => [s.start, s.stop, s.startY || 0, s.stopY || 1];
+  const out = [];
+  for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {
+    const [ax0, ax1, ay0, ay1] = rect(live[i]), [bx0, bx1, by0, by1] = rect(live[j]);
+    if (ax0 < bx1 && bx0 < ax1 && ay0 < by1 && by0 < ay1 && !(live[i].bm || live[j].bm)) {
+      out.push({ kind: "overlap", ids: [live[i].id, live[j].id], text: `Segments ${live[i].id} and ${live[j].id} overlap` });
+    }
+  }
+  let area = 0;
+  for (const s of live) {
+    const [x0, x1, y0, y1] = rect(s);
+    if (x1 > w || y1 > hgt) out.push({ kind: "beyond", ids: [s.id], text: `Segment ${s.id} reaches past the ${w}×${hgt} matrix` });
+    area += Math.max(0, Math.min(x1, w) - x0) * Math.max(0, Math.min(y1, hgt) - y0);
+  }
+  if (!out.some(o => o.kind === "overlap") && area < w * hgt) {
+    out.push({ kind: "gap", text: `${w * hgt - area} of the matrix's ${w * hgt} LEDs aren't in any segment` });
+  }
+  if (maxSeg && (segs || []).length > maxSeg) out.push({ kind: "count", text: `${(segs || []).length} segments — this device allows ${maxSeg}` });
   return out;
 }
 
@@ -162,6 +221,34 @@ export function nextSegId(segs) {
   while (ids.has(id)) id++;
   return id;
 }
+
+/** Split a segment in two along its longer axis (a matrix keeps the other
+ * axis's bounds). Returns [first-half write, new segment], or null. */
+export function splitWrites(seg, newId, matrix) {
+  if (matrix) {
+    const w = seg.stop - seg.start, hgt = (seg.stopY || 1) - (seg.startY || 0);
+    if (w < 2 && hgt < 2) return null;
+    const name = (seg.n || `Segment ${seg.id}`) + " (2)";
+    if (w >= hgt) {
+      const mid = seg.start + Math.floor(w / 2);
+      return [segBoundsWrite(seg, seg.start, mid), { id: newId, start: mid, stop: seg.stop, startY: seg.startY || 0, stopY: seg.stopY || 1, n: name }];
+    }
+    const midY = (seg.startY || 0) + Math.floor(hgt / 2);
+    return [{ ...segBoundsWrite(seg, seg.start, seg.stop), startY: seg.startY || 0, stopY: midY },
+      { id: newId, start: seg.start, stop: seg.stop, startY: midY, stopY: seg.stopY || 1, n: name }];
+  }
+  if (segLen(seg) < 2) return null;
+  const mid = seg.start + Math.floor(segLen(seg) / 2);
+  return [segBoundsWrite(seg, seg.start, mid), { id: newId, start: mid, stop: seg.stop, n: `${seg.n || "Segment " + seg.id} (2)` }];
+}
+
+/** Room for one more segment? WLED silently ignores one past maxseg. */
+export const canAddSegment = (segs, maxSeg) => !maxSeg || nextSegId(segs) < maxSeg;
+
+/** A bounds edit that WLED would read as a delete (start >= stop) is refused. */
+export const boundsValid = (start, stop, startY, stopY) =>
+  Number.isFinite(start) && Number.isFinite(stop) && stop > start
+  && (startY === undefined || stopY === undefined || stopY > startY);
 
 /** One segment write: bounds changes always resend the name (v16 clears it). */
 export function segBoundsWrite(seg, start, stop) {
@@ -303,4 +390,29 @@ export function outputWarnings(ins, info, pins) {
   const max = maxLedsFor(info);
   if (total > max) out.push(`${total} LEDs in all — this chip handles ${max}`);
   return out;
+}
+
+
+/**
+ * Every palette the segment can use, [id, name]. /json/pal lists built-ins
+ * only (review 2026-09-23); custom palettes count down from 255 (0.14/0.15)
+ * or from 200 (16), usermod palettes from 255 (16, umpalnames).
+ */
+export function paletteList(info, builtIns) {
+  const out = (builtIns || []).map((n, i) => [i, n]);
+  const cp = Number(info && info.cpalcount) || 0;
+  const gen = wledGen(info);
+  const top = gen >= 16 ? 200 : 255;
+  for (let i = 0; i < cp; i++) out.push([top - i, `~ Custom ${i} ~`]);
+  if (gen >= 16) {
+    const names = (info && info.umpalnames) || [];
+    const n = Number(info && info.umpalcount) || names.length;
+    for (let i = 0; i < n; i++) out.push([255 - i, names[i] || `Usermod ${i}`]);
+  }
+  return out;
+}
+
+/** WLED's own effect defaults (FX.h DEFAULT_*), overlaid with the effect's. */
+export function effectDefaults(meta) {
+  return { sx: 128, ix: 128, c1: 128, c2: 128, c3: 16, o1: false, o2: false, o3: false, ...(meta ? meta.defaults : {}) };
 }

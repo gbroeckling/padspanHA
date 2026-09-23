@@ -38,7 +38,7 @@ def test_allowlisted_reads(path):
 @pytest.mark.parametrize("path", [
     "win&T=1", "update", "updatebootloader", "reset", "edit?func=list", "upload",
     "json/state?x=1", "../json/cfg", "json/../reset", "http://evil/json", "wsec.json",
-    "json/live", "settings/leds", "json/cfg/extra", "", "presets.json.bak", None,
+    "json/live", "settings/leds", "json/cfg/extra", "", "presets.json.bak", None, "json/cfg" + chr(10),
 ])
 def test_everything_else_is_refused(path):
     assert W.check_get_path(path) is not None
@@ -48,7 +48,7 @@ def test_win_is_never_sent_even_by_an_admin():
     assert W.check_state_body({"win": "FX=1"}, is_admin=True)
 
 
-@pytest.mark.parametrize("key", ["psave", "pdel", "bootps", "rb", "rmcpal", "wifi"])
+@pytest.mark.parametrize("key", ["psave", "pdel", "bootps", "rb", "rmcpal", "wifi", "pin", "time", "AudioReactive"])
 def test_persisting_keys_need_an_admin(key):
     assert W.check_state_body({key: 1}, is_admin=False)
     assert W.check_state_body({key: 1}, is_admin=True) is None
@@ -137,7 +137,7 @@ def fake(monkeypatch, tmp_path):
     calls = []
     state = {"cfg": {"hw": {"led": {"maxpwr": 850}}}}
 
-    async def _req(h, host, method, path, body=None, timeout=0):
+    async def _req(h, host, method, path, body=None, timeout=0, retries=0):
         calls.append((method, host, path, body))
         if path == "json/info":
             return {"mac": "aa:bb:cc:dd:ee:ff", "arch": "esp32"}
@@ -279,3 +279,110 @@ def test_team_writes_are_admin_only():
     i = src.index("async def ws_wled_teams_set")
     head = src[src.rindex("@websocket_api.websocket_command", 0, i):i]
     assert "@websocket_api.require_admin" in head
+
+
+
+# ── review 2026-09-23 (round 4 + first WLED review) ─────────────────────────
+
+
+def test_a_non_admin_cannot_move_sync_groups_or_the_nightlight_target():
+    assert W.check_state_body({"udpn": {"sgrp": 0, "rgrp": 0}}, is_admin=False)
+    assert W.check_state_body({"udpn": {"send": True}}, is_admin=False) is None
+    assert W.check_state_body({"nl": {"on": True, "dur": 30}}, is_admin=False) is None
+    assert W.check_state_body({"nl": {"on": True, "tbri": 0}}, is_admin=False)
+
+
+def test_a_cfg_write_carries_the_keys_wled_resets_when_absent():
+    """WLED's cfg parser resets fps, the auto-white override, gamma and paired
+    ESP-NOW remotes when a write leaves them out (cfg.cpp, 0.14–16)."""
+    before = {"hw": {"led": {"fps": 120, "rgbwm": 3, "maxpwr": 850}}, "light": {"gc": {"bri": 2.2, "col": 1.0, "val": 2.2}},
+              "nw": {"linked_remote": ["aabbccddeeff"]}, "def": {"ps": 1}}
+    body = W.with_preserved({"def": {"ps": 4}}, before)
+    assert body == {"def": {"ps": 4}, "hw": {"led": {"fps": 120, "rgbwm": 3}},
+                    "light": {"gc": {"bri": 2.2, "col": 1.0, "val": 2.2}}, "nw": {"linked_remote": ["aabbccddeeff"]}}
+    # A key the write sets itself is left as the write has it.
+    assert W.with_preserved({"hw": {"led": {"fps": 60}}}, before)["hw"]["led"]["fps"] == 60
+    # Only keys the device has.
+    assert W.with_preserved({"def": {"ps": 2}}, {"def": {"ps": 1}}) == {"def": {"ps": 2}}
+
+
+def test_unexpected_changes_are_reported():
+    before = {"hw": {"led": {"fps": 120}}, "def": {"ps": 1}, "vid": 1}
+    after = {"hw": {"led": {"fps": 42}}, "def": {"ps": 4}, "vid": 2}
+    assert W.unexpected_changes(before, {"def": {"ps": 4}}, after) == ["hw.led.fps"]
+
+
+def test_non_admins_see_a_redacted_config():
+    cfg = {"def": {"ps": 1}, "hw": {"led": {}}, "light": {}, "nw": {"ins": [{"ssid": "x"}]}, "ap": {}, "ota": {},
+           "um": {"WireGuard": {"key": "SECRET"}}, "if": {"sync": {}, "mqtt": {"user": "u"}, "live": {}}}
+    r = W.redact_cfg(cfg)
+    assert set(r) == {"def", "hw", "light", "if"} and set(r["if"]) == {"sync", "live"}
+    assert "SECRET" not in json.dumps(r)
+
+
+async def test_a_non_admin_read_of_the_config_is_redacted_but_hashed_whole(fake):
+    fake.state["cfg"] = {"def": {"ps": 1}, "um": {"WireGuard": {"key": "SECRET"}}}
+    conn = _Conn(admin=False)
+    await W.ws_wled_get(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "path": "json/cfg"})
+    assert "SECRET" not in json.dumps(conn.results[0]["data"])
+    assert conn.results[0]["hash"] == W.cfg_hash(fake.state["cfg"])
+
+
+async def test_backup_contents_are_admin_only(fake):
+    conn = _Conn(admin=False)
+    await W.ws_wled_backups(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "action": "get",
+                                               "backup_id": "20260101-000000"})
+    assert conn.errors[0][0] == "unauthorized"
+
+
+async def test_a_device_claiming_another_mac_is_refused(fake, monkeypatch):
+    real = W.resolve_device
+    monkeypatch.setattr(W, "resolve_device", lambda h, **k: {**real(h, **k), "mac": "112233445566"} if real(h, **k) else None)
+    conn = _Conn(admin=True)
+    await W.ws_wled_backups(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "action": "create"})
+    assert conn.errors[0][0] == "mac_mismatch"
+
+
+def test_two_backups_in_one_second_never_share_a_folder(tmp_path):
+    a = W._write_backup_sync(tmp_path, {"cfg.json": {"a": 1}})
+    b = W._write_backup_sync(tmp_path, {"cfg.json": {"b": 2}})
+    assert a != b and json.loads((tmp_path / a / "cfg.json").read_text()) == {"a": 1}
+
+
+def test_urls_are_built_so_an_ipv6_host_works():
+    assert str(W._url("192.168.2.122", "json/palx?page=2")) == "http://192.168.2.122/json/palx?page=2"
+    assert str(W._url("fd00::12", "json/info")) == "http://[fd00::12]/json/info"
+
+
+async def test_busy_is_retried_and_redirects_are_refused(monkeypatch):
+    calls = []
+
+    async def once(h, host, method, path, body, timeout):
+        calls.append(path)
+        if len(calls) < 3:
+            raise W.WledError("busy", "busy")
+        return {"ok": 1}
+
+    monkeypatch.setattr(W, "_request_once", once)
+    monkeypatch.setattr(W.asyncio, "sleep", lambda s: _noop())
+    assert await W._request(None, "h", "GET", "json/info") == {"ok": 1} and len(calls) == 3
+    src = inspect.getsource(W)
+    body = src[src.index("async def _request_once"):src.index("async def _upload")]
+    assert "allow_redirects=False" in body and "300 <= resp.status < 400" in body
+
+
+async def _noop():
+    return None
+
+
+
+def test_identify_lights_only_the_target_and_restores_in_device_sized_chunks():
+    state = {"on": True, "bri": 40, "pl": 3, "seg": [{"id": i, "start": i * 10, "stop": i * 10 + 10, "fx": 5, "len": 10, "lc": 1,
+                                                     "n": "x" * 40} for i in range(30)]}
+    body = W.identify_body(state, 2)
+    assert body["bri"] == 96 and body["seg"][2]["col"][0] == [255, 255, 255]
+    assert body["seg"][0] == {"id": 0, "on": False}          # nothing else about others is touched
+    chunks = W.restore_bodies(state, 1024)
+    assert len(chunks) > 1 and all(len(json.dumps(c, separators=(",", ":"))) <= 1024 for c in chunks)
+    assert sum(len(c["seg"]) for c in chunks) == 30
+    assert all("len" not in s and "lc" not in s for c in chunks for s in c["seg"])
