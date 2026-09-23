@@ -9662,7 +9662,16 @@ function _lightsTab(ctx, maps, active) {
     if (typeof ResizeObserver !== "undefined") {
       new ResizeObserver((entries) => {
         const w = entries[0].contentRect.width;
-        const tier = LM.layoutTierFor(w);
+        // layoutTierFor is destructured from lights_map.js at the top of
+        // this module — there is no namespace object bound here (the test
+        // files and lights_panel.js use one; this file never did). From
+        // the day layout v2 shipped (2026-09-21) this called it through
+        // that nonexistent namespace, so the observer threw on every
+        // resize and the column layout never engaged. Caught live in the
+        // 2026-09-23 head-to-toe 2D map review as an uncaught
+        // ReferenceError on Atlas; tests/test_maps_no_unbound_namespace.py
+        // guards the whole class now.
+        const tier = layoutTierFor(w);
         cols.classList.toggle("lv-cols-2", tier === "wide");
         cols.classList.toggle("lv-cols-3", tier === "ultra");
       }).observe(cols);
