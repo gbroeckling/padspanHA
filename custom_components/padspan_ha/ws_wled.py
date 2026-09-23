@@ -1068,11 +1068,13 @@ def sanitize_teams(hass: HomeAssistant, teams: Any, stored: list | None = None) 
     stored unchanged isn't re-checked against HA (round 5: one offline or
     deleted member blocked every other team change, for good); a new or
     changed team must name real WLED devices. A sync group belongs to one
-    team (two teams on one group would all follow both leaders)."""
+    team (two teams on one group would all follow both leaders) — checked
+    for a new or changed team; two stored ones already sharing a group
+    never block an unrelated change (round 6)."""
     if not isinstance(teams, list) or len(teams) > 16:
         return "teams must be a list of at most 16"
     known = {_team_key(t) for t in (stored or []) if isinstance(t, dict)}
-    groups: set = set()
+    groups: dict = {}          # group -> is that team new/changed
     out, seen = [], set()
     for t in teams:
         if not isinstance(t, dict):
@@ -1086,10 +1088,10 @@ def sanitize_teams(hass: HomeAssistant, teams: Any, stored: list | None = None) 
             return "a team's sync group must be 1-8"
         if not followers or leader in followers or len(set(followers)) != len(followers):
             return "a team needs a leader and one or more different followers"
-        if group in groups:
-            return f"sync group {group} is already another team's"
-        groups.add(group)
         is_new = (leader, tuple(followers), group) not in known
+        if group in groups and (is_new or groups[group]):
+            return f"sync group {group} is already another team's"
+        groups[group] = groups.get(group, False) or is_new
         for dev in [leader, *followers]:
             if is_new and resolve_device(hass, device_id=dev) is None:
                 return f"{dev} isn't a WLED device in Home Assistant"
@@ -1126,10 +1128,12 @@ def follower_light_entities(hass: HomeAssistant, teams: list | None) -> set[str]
 async def ws_wled_teams_get(hass: HomeAssistant, connection, msg) -> None:
     from .const import DATA_SETTINGS  # noqa: PLC0415
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-    connection.send_result(msg["id"], {"teams": list((st.data if st else {}).get("wled_teams") or [])})
+    teams = list((st.data if st else {}).get("wled_teams") or [])
+    connection.send_result(msg["id"], {"teams": teams, "hash": cfg_hash(teams)})
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/wled_teams_set", vol.Required("teams"): list})
+@websocket_api.websocket_command({"type": "padspan_ha/wled_teams_set", vol.Required("teams"): list,
+                                  vol.Optional("base_hash"): str})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_wled_teams_set(hass: HomeAssistant, connection, msg) -> None:
@@ -1138,7 +1142,13 @@ async def ws_wled_teams_set(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "bright_required", TIER_MSG)
         return
     st0 = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-    teams = sanitize_teams(hass, msg["teams"], (st0.data.get("wled_teams") if st0 else None) or [])
+    stored = (st0.data.get("wled_teams") if st0 else None) or []
+    # The whole list is replaced: refused when it changed since the caller
+    # read it (another window), or that window's team would be dropped.
+    if msg.get("base_hash") and msg["base_hash"] != cfg_hash(list(stored)):
+        connection.send_error(msg["id"], "changed", "The team list changed in another window — reload and try again")
+        return
+    teams = sanitize_teams(hass, msg["teams"], stored)
     if isinstance(teams, str):
         connection.send_error(msg["id"], "invalid", teams)
         return
@@ -1147,7 +1157,7 @@ async def ws_wled_teams_set(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "no_settings", "Settings not loaded")
         return
     await st.async_set(wled_teams=teams)
-    connection.send_result(msg["id"], {"teams": teams})
+    connection.send_result(msg["id"], {"teams": teams, "hash": cfg_hash(teams)})
 
 
 def async_register(hass: HomeAssistant) -> None:

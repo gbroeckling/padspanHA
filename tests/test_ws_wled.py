@@ -16,7 +16,7 @@ import inspect
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -556,3 +556,28 @@ async def test_an_unrelated_save_keeps_the_live_send_switch(fake, monkeypatch):
     await W.ws_wled_cfg(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "patch": {"def": {"ps": 2}},
                                            "base_hash": W.cfg_hash(dev.cfg)})
     assert not conn.errors and dev.live is True
+
+
+def test_two_stored_teams_on_one_group_dont_block_an_unrelated_change(monkeypatch, fake):
+    """Stored before the one-group rule: every later save (even a break-up
+    of another team) used to be refused."""
+    monkeypatch.setattr(W, "resolve_device", lambda h, entity_id=None, device_id=None: {"host": "x"})
+    stored = [{"group": 2, "leader": "dA", "followers": ["dB"]}, {"group": 2, "leader": "dC", "followers": ["dD"]},
+              {"group": 3, "leader": "dE", "followers": ["dF"]}]
+    assert not isinstance(W.sanitize_teams(fake.hass, stored[:2], stored), str)
+    # …but a NEW team on that group is still refused.
+    assert isinstance(W.sanitize_teams(fake.hass, stored[:2] + [{"group": 2, "leader": "dG", "followers": ["dH"]}], stored), str)
+
+
+async def test_a_team_list_changed_in_another_window_is_refused(fake):
+    from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+    stored = [{"id": "t", "name": "T", "mode": "mirror", "group": 3, "leader": "dL", "followers": ["dF"], "prior": {}, "incomplete": []}]
+    st = SimpleNamespace(data={"wled_teams": stored}, async_set=AsyncMock())
+    fake.hass.data = {DOMAIN: {DATA_SETTINGS: st}}
+    conn = _Conn()
+    await W.ws_wled_teams_set(fake.hass, conn, {"id": 1, "teams": [], "base_hash": W.cfg_hash([])})
+    assert conn.errors and conn.errors[0][0] == "changed"
+    st.async_set.assert_not_called()
+    conn = _Conn()
+    await W.ws_wled_teams_set(fake.hass, conn, {"id": 2, "teams": [], "base_hash": W.cfg_hash(stored)})
+    assert not conn.errors and conn.results[0]["hash"] == W.cfg_hash([])
