@@ -215,3 +215,92 @@ export function fmtUptime(s) {
 /** WLED sync groups are an 8-bit mask; people think in group numbers. */
 export const groupsOf = (mask) => [1, 2, 3, 4, 5, 6, 7, 8].filter(g => (Number(mask) || 0) & (1 << (g - 1)));
 export const maskOf = (groups) => (groups || []).reduce((m, g) => m | (1 << (g - 1)), 0);
+
+// ── LED outputs (cfg hw.led.ins) ─────────────────────────────────────────────
+// Type ids from WLED's const.h / bus_manager (16.0.1).
+export const BUS_TYPES = {
+  22: "WS281x", 24: "WS281x 400 kHz", 25: "TM1829", 26: "UCS8903", 27: "APA106", 33: "TM1914",
+  30: "SK6812/WS2814 RGBW", 29: "UCS8904 RGBW", 31: "TM1814 RGBW", 28: "FW1906 RGB+CCT", 32: "WS2805 RGB+CCT",
+  34: "SM16825 RGB+CCT", 19: "WS2811 white", 21: "WWA",
+  50: "WS2801", 51: "APA102", 52: "LPD8806", 53: "P9813", 54: "LPD6803",
+  40: "On/off relay", 41: "PWM white", 42: "PWM CCT", 43: "PWM RGB", 44: "PWM RGBW", 45: "PWM RGB+CCT",
+  80: "DDP RGB (network)", 88: "DDP RGBW (network)", 82: "Art-Net RGB (network)", 89: "Art-Net RGBW (network)",
+  65: "HUB75 half-scan", 66: "HUB75 quarter-scan",
+};
+export function busKind(type) {
+  const t = Number(type) & 0x7f;                 // bit 7 is "refresh when off"
+  if (t >= 80 && t <= 95) return "network";
+  if (t >= 65 && t <= 66) return "hub75";
+  if (t >= 50 && t <= 54) return "2pin";
+  if (t === 40) return "onoff";
+  if (t >= 41 && t <= 45) return "pwm";
+  return "digital";
+}
+/** How many pin[] entries the type uses (network: the 4 IP octets). */
+export function busPinCount(type) {
+  const k = busKind(type);
+  if (k === "network") return 4;
+  if (k === "2pin") return 2;
+  if (k === "pwm") return (Number(type) & 0x7f) - 40;
+  if (k === "hub75") return 0;
+  return 1;
+}
+export const ORDERS = ["GRB", "RGB", "BRG", "RBG", "BGR", "GBR"];
+export const W_SWAPS = ["none", "W ↔ B", "W ↔ G", "W ↔ R"];
+export const orderName = (order) => ORDERS[(Number(order) || 0) & 0x0f] || "GRB";
+export const wSwapOf = (order) => ((Number(order) || 0) >> 4) & 0x0f;
+export const orderCode = (name, wSwap = 0) => ((Math.max(0, ORDERS.indexOf(name)) & 0x0f) | ((wSwap & 0x0f) << 4));
+
+/**
+ * The colour-order wizard's answer. The device sent pure red, green, blue
+ * under its current order; `seen` is what the person saw for each
+ * ({R:"G", G:"R", B:"B"}). The strip's true byte order is the current order
+ * with each channel replaced by what it showed — and that true order is the
+ * setting that makes the strip right.
+ */
+export function orderFromObservation(currentOrder, seen) {
+  const cur = orderName(currentOrder);
+  const t = cur.split("").map(ch => seen[ch]).join("");
+  return ORDERS.includes(t) ? t : null;          // not a permutation: a mis-tap
+}
+
+export function maxLedsFor(info) {
+  const arch = String((info && info.arch) || "").toLowerCase();
+  if (arch.includes("8266")) return 1536;
+  if (arch.includes("s2")) return 2048;
+  return 16384;
+}
+export const MAX_LEDS_PER_BUS = 2048;
+
+/** Problems with a set of LED outputs, before they're saved. */
+export function outputWarnings(ins, info, pins) {
+  const out = [];
+  const used = new Map();
+  let total = 0;
+  const sorted = [...(ins || [])].map((b, i) => ({ ...b, _i: i })).sort((a, b) => (a.start || 0) - (b.start || 0));
+  for (const b of ins || []) {
+    const kind = busKind(b.type);
+    const len = Number(b.len) || 0;
+    total += kind === "network" ? 0 : len;
+    if (len > MAX_LEDS_PER_BUS && kind !== "network") out.push(`An output has ${len} LEDs — WLED allows ${MAX_LEDS_PER_BUS} per output`);
+    if (kind === "network" || kind === "hub75") continue;
+    for (const p of (b.pin || []).slice(0, busPinCount(b.type))) {
+      if (p === undefined || p === null || p < 0) continue;
+      if (used.has(p)) out.push(`GPIO ${p} is used by two outputs`);
+      used.set(p, true);
+      const pi = (pins || []).find(x => x.p === p);
+      if (pi && (pi.c & 0x20)) out.push(`GPIO ${p} is input-only — it can't drive LEDs`);
+      // Pins the LED outputs already hold report as a Bus…/LED owner — fine.
+      if (pi && pi.a && pi.o !== undefined && !/led|bus/i.test(String(pi.n || ""))) out.push(`GPIO ${p} is already used by ${pi.n || "something else"}`);
+    }
+  }
+  for (let i = 1; i < sorted.length; i++) {
+    const a = sorted[i - 1], b = sorted[i];
+    const aEnd = (a.start || 0) + (Number(a.len) || 0);
+    if ((b.start || 0) < aEnd) out.push(`Outputs ${a._i + 1} and ${b._i + 1} overlap (LED ${b.start})`);
+    else if ((b.start || 0) > aEnd) out.push(`LEDs ${aEnd}–${b.start - 1} belong to no output`);
+  }
+  const max = maxLedsFor(info);
+  if (total > max) out.push(`${total} LEDs in all — this chip handles ${max}`);
+  return out;
+}

@@ -217,3 +217,38 @@ out.team = (calls.find(c => c.type === "padspan_ha/wled_teams_set") || {}).teams
     assert out["live"] == [["dL", {"udpn": {"send": True, "sgrp": 1}}], ["dF", {"udpn": {"rgrp": 1}}]]
     assert out["team"] == [{"id": "team-dL", "name": "Upper North team", "mode": "mirror", "group": 1,
                             "leader": "dL", "followers": ["dF"]}]
+
+
+def test_the_leds_section_saves_every_output_whole_and_warns_first():
+    """hw.led.ins is always sent in full (WLED replaces every output from
+    it); problems are named before saving; non-admins only look."""
+    out = _run("""
+const calls = [];
+DEVICE["json/cfg"] = { hw: { led: { total: 120, maxpwr: 850, fps: 42, cct: false,
+  ins: [{ start: 0, len: 60, pin: [16], order: 0, rev: false, skip: 0, type: 22 },
+        { start: 60, len: 60, pin: [16], order: 1, rev: true, skip: 0, type: 22 }] } } };
+const hass = { states: {}, callWS: async (m) => {
+  calls.push(m);
+  if (m.type === "padspan_ha/wled_get") return { data: m.path === "json/pins" ? [] : DEVICE[m.path], hash: "H" };
+  if (m.type === "padspan_ha/wled_cfg") return { backup: "x" };
+  return { data: DEVICE["json/si"].state };
+} };
+globalThis.confirm = (msg) => { out.confirmText = msg; return true; };
+for (const admin of [false, true]) {
+  const pane = document.createElement("div");
+  await WA.mountWledAdvanced(pane, { hass, eid: "light.upper_north", api: { wled: { isAdmin: admin }, toast: () => {} } });
+  await settle();
+  all(pane).find(n => n.textContent === "LEDs").click();
+  await settle(); await settle();
+  const t = texts(pane);
+  out["warn" + admin] = t.some(x => x.includes("GPIO 16 is used by two outputs"));
+  out["save" + admin] = t.includes("Save LED outputs");
+  if (admin) { all(pane).find(n => n.textContent === "Save LED outputs").click(); await settle(); }
+}
+out.patch = (calls.find(c => c.type === "padspan_ha/wled_cfg") || {}).patch;
+""")
+    assert out["warnfalse"] and out["warntrue"]
+    assert out["savefalse"] is False and out["savetrue"] is True
+    assert "GPIO 16 is used by two outputs" in out["confirmText"]
+    led = out["patch"]["hw"]["led"]
+    assert "total" not in led and len(led["ins"]) == 2 and led["ins"][1]["rev"] is True

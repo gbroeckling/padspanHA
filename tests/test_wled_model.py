@@ -135,3 +135,41 @@ out.fork = [M.forkOf({ repo: "MoonModules/WLED" }), M.forkOf({ repo: "wled/WLED"
     assert out["g"] == [1, 3] and out["m"] == 5
     assert out["e"][0].startswith("Rebooted after a brownout") and out["e"][1].startswith("A file-system") and out["e"][2] is None
     assert out["fork"] == ["MoonModules/WLED", None]
+
+
+def test_the_colour_order_wizard_finds_the_strips_true_order():
+    """Sent pure R, G, B under the current order; the person says what they
+    saw; the true order is the current order with each channel replaced."""
+    out = _run("""
+out.a = M.orderFromObservation(M.orderCode("RGB"), { R: "G", G: "R", B: "B" });   // a GRB strip set to RGB
+out.b = M.orderFromObservation(M.orderCode("GRB"), { R: "R", G: "G", B: "B" });   // already right
+out.c = M.orderFromObservation(M.orderCode("GRB"), { R: "B", G: "R", B: "G" });
+out.bad = M.orderFromObservation(M.orderCode("GRB"), { R: "R", G: "R", B: "B" }); // a mis-tap
+out.code = [M.orderCode("BGR"), M.orderCode("GRB", 3), M.orderName(0x31), M.wSwapOf(0x31)];
+""")
+    assert out["a"] == "GRB" and out["b"] == "GRB"
+    # Current GRB; seen R→B, G→R, B→G ⇒ true order = [seen(G), seen(R), seen(B)] = "RBG".
+    assert out["c"] == "RBG"
+    assert out["bad"] is None
+    assert out["code"] == [4, 0x30, "RGB", 3]
+
+
+def test_led_output_warnings():
+    out = _run("""
+const info = { arch: "esp8266" };
+const ins = [
+  { start: 0, len: 100, pin: [2], type: 22 },
+  { start: 90, len: 100, pin: [2], type: 22 },
+  { start: 300, len: 2100, pin: [4], type: 22 },
+  { start: 0, len: 50, pin: [192, 168, 2, 119], type: 80 },
+];
+out.w = M.outputWarnings(ins, info, [{ p: 4, c: 0x20 }]);
+out.kinds = [M.busKind(22), M.busKind(22 | 0x80), M.busKind(51), M.busKind(44), M.busKind(80), M.busPinCount(45), M.busPinCount(88)];
+""")
+    w = " | ".join(out["w"])
+    assert "GPIO 2 is used by two outputs" in w
+    assert "input-only" in w
+    assert "2100 LEDs" in w and "2048 per output" in w
+    assert "overlap" in w and "LEDs 190–299 belong to no output" in w
+    assert "this chip handles 1536" in w
+    assert out["kinds"] == ["digital", "digital", "2pin", "pwm", "network", 5, 4]
