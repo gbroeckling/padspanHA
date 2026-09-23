@@ -241,6 +241,7 @@ class Node {
       get: (_t, k) => (k === "canvas" ? this
         : k === "measureText" ? (() => ({ width: 10 }))
         : k === "getImageData" ? (() => ({ data: new Uint8ClampedArray(4) }))
+        : k === "createImageData" ? ((w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(Math.max(1, w * h) * 4) }))
         : k === "createLinearGradient" || k === "createRadialGradient"
           ? (() => ({ addColorStop() {} }))
         : (() => undefined)),

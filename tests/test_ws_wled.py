@@ -406,3 +406,33 @@ def test_matrix_writes_are_admin_only():
     i = src.index("async def ws_wled_matrix")
     head = src[src.rindex("@websocket_api.websocket_command", 0, i):i]
     assert "@websocket_api.require_admin" in head
+
+
+def test_live_frames_are_decoded_like_wleds_own_liveview():
+    assert W.decode_live_frame(bytes([0x4C, 1, 255, 0, 0, 0, 255, 0])) == {"w": 0, "h": 0, "rgb": bytes([255, 0, 0, 0, 255, 0])}
+    assert W.decode_live_frame(bytes([0x4C, 2, 16, 8, 1, 2, 3])) == {"w": 16, "h": 8, "rgb": bytes([1, 2, 3])}
+    assert W.decode_live_frame(b'{"state":1}') is None
+
+
+def test_one_upstream_per_device_closed_by_the_last_viewer():
+    tasks = []
+
+    class _Task:
+        def __init__(self):
+            self.cancelled = False
+
+        def done(self):
+            return False
+
+        def cancel(self):
+            self.cancelled = True
+
+    hass = SimpleNamespace(async_create_background_task=lambda coro, name: (coro.close(), tasks.append(_Task()), tasks[-1])[2])
+    r = W._LiveRelay(hass, "192.168.2.122")
+    r.add(1, lambda p: None)
+    r.add(2, lambda p: None)
+    assert len(tasks) == 1
+    r.remove(1)
+    assert not tasks[0].cancelled
+    r.remove(2)
+    assert tasks[0].cancelled

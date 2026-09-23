@@ -865,6 +865,100 @@ async def ws_wled_identify(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"seconds": msg["seconds"]})
 
 
+# ── Live view: the strip's real colours, streamed ───────────────────────────
+# One upstream WebSocket per device (WLED /ws, {"lv":true}), opened by the
+# first viewer and closed by the last, relayed at <= 10 fps. An ESP8266 has
+# only 3 WebSocket slots and drops the oldest — HA's own WLED integration
+# holds one — so the card asks before starting on one.
+
+_LIVE = "_wled_live"
+LIVE_MIN_INTERVAL_S = 0.1
+
+
+def decode_live_frame(data: bytes) -> dict | None:
+    """WLED's binary live frame: 'L', version (1 strip / 2 matrix), [w, h],
+    then RGB triplets. None if it isn't one."""
+    if len(data) < 2 or data[0] != 0x4C:
+        return None
+    if data[1] == 2 and len(data) >= 4:
+        return {"w": data[2], "h": data[3], "rgb": bytes(data[4:])}
+    return {"w": 0, "h": 0, "rgb": bytes(data[2:])}
+
+
+class _LiveRelay:
+    def __init__(self, hass: HomeAssistant, host: str) -> None:
+        self.hass, self.host = hass, host
+        self.subs: dict[int, Any] = {}
+        self.task: asyncio.Task | None = None
+        self._last = 0.0
+
+    def add(self, key: int, send) -> None:
+        self.subs[key] = send
+        if self.task is None or self.task.done():
+            self.task = self.hass.async_create_background_task(self._run(), f"padspan_wled_live_{self.host}")
+
+    def remove(self, key: int) -> None:
+        self.subs.pop(key, None)
+        if not self.subs and self.task:
+            self.task.cancel()
+
+    async def _run(self) -> None:
+        import aiohttp  # noqa: PLC0415
+        import base64  # noqa: PLC0415
+        from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
+
+        url = _url(self.host, "ws").with_scheme("ws")
+        try:
+            async with async_get_clientsession(self.hass).ws_connect(url, heartbeat=20) as ws:
+                await ws.send_str('{"lv":true}')
+                async for m in ws:
+                    if not self.subs:
+                        break
+                    if m.type != aiohttp.WSMsgType.BINARY:
+                        continue
+                    now = time.monotonic()
+                    if now - self._last < LIVE_MIN_INTERVAL_S:
+                        continue
+                    self._last = now
+                    frame = decode_live_frame(m.data)
+                    if frame is None:
+                        continue
+                    payload = {"w": frame["w"], "h": frame["h"], "rgb": base64.b64encode(frame["rgb"]).decode()}
+                    for send in list(self.subs.values()):
+                        send(payload)
+                try:
+                    await ws.send_str('{"lv":false}')
+                except Exception:  # noqa: BLE001 — closing anyway
+                    pass
+        except asyncio.CancelledError:
+            raise
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("WLED live view %s ended: %s", self.host, err)
+            for send in list(self.subs.values()):
+                send({"error": str(err)[:120]})
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/wled_live", **_TARGET})
+@websocket_api.async_response
+async def ws_wled_live(hass: HomeAssistant, connection, msg) -> None:
+    tgt = await _gate(hass, connection, msg)
+    if tgt is None:
+        return
+    relays: dict = hass.data.setdefault(DOMAIN, {}).setdefault(_LIVE, {})
+    relay = relays.get(tgt["host"]) or relays.setdefault(tgt["host"], _LiveRelay(hass, tgt["host"]))
+    key = id(connection) ^ msg["id"]
+
+    def _send(payload: dict) -> None:
+        connection.send_message(websocket_api.event_message(msg["id"], payload))
+
+    def _unsub() -> None:
+        relay.remove(key)
+
+    connection.subscriptions[msg["id"]] = _unsub
+    relay.add(key, _send)
+    connection.send_result(msg["id"])
+
+
 # ── Teams: WLED devices that act as one light ───────────────────────────────
 # Garry, 2026-09-23: "include teaming with other wled devices for proper
 # light control in HA". A team is a leader and its followers, joined by a
@@ -948,5 +1042,5 @@ async def ws_wled_teams_set(hass: HomeAssistant, connection, msg) -> None:
 
 def async_register(hass: HomeAssistant) -> None:
     for cmd in (ws_wled_devices, ws_wled_get, ws_wled_state, ws_wled_cfg, ws_wled_backups,
-                ws_wled_identify, ws_wled_matrix, ws_wled_teams_get, ws_wled_teams_set):
+                ws_wled_identify, ws_wled_matrix, ws_wled_live, ws_wled_teams_get, ws_wled_teams_set):
         websocket_api.async_register_command(hass, cmd)

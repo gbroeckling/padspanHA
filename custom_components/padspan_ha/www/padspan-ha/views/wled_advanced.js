@@ -51,7 +51,10 @@ export async function mountWledAdvanced(pane, { hass, eid, api }) {
   const tabs = h("div", { style: "display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" });
   const body = h("div");
   const status = h("div", { style: `font-size:12px;color:${C.dim};padding:14px 0` }, "Reading the device…");
-  pane.appendChild(head); pane.appendChild(tabs); pane.appendChild(body); body.appendChild(status);
+  // WLED's main-page controls, always in reach: power, brightness,
+  // transition, nightlight, live override — live changes, anyone licensed.
+  const now = h("div", { style: S.card + ";display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:8px" });
+  pane.appendChild(head); pane.appendChild(now); pane.appendChild(tabs); pane.appendChild(body); body.appendChild(status);
 
   try {
     // One after another: WLED 0.14/0.15 answer overlapping requests with
@@ -82,14 +85,40 @@ export async function mountWledAdvanced(pane, { hass, eid, api }) {
     const err = M.describeError(ctx.state.error);
     if (err) head.appendChild(h("div", { style: `flex-basis:100%;font-size:12px;color:${C.amber}` }, "⚠ " + err));
   };
+  const paintNow = () => {
+    now.innerHTML = "";
+    const st = ctx.state;
+    now.appendChild(h("button", { style: st.on ? S.btnOn : S.btn, onclick: () => ctx.write({ on: !st.on }, "switch it") }, st.on ? "⏻ On" : "⏻ Off"));
+    now.appendChild(h("div", { style: "flex:1;min-width:140px" }, [h("div", { style: S.lbl }, `Brightness ${Math.round((st.bri || 0) / 2.55)}%`),
+      slider(st.bri || 0, 255, v => ctx.write({ bri: v }, "set the brightness"), 1)]));
+    now.appendChild(h("div", { style: "min-width:120px" }, [h("div", { style: S.lbl }, `Fade ${((st.transition ?? 7) / 10).toFixed(1)} s`),
+      slider(st.transition ?? 7, 100, v => ctx.write({ transition: v }, "set the fade"))]));
+    const nl = st.nl || {};
+    now.appendChild(h("div", { style: "display:flex;gap:4px;align-items:center" }, [
+      h("button", { style: nl.on ? S.btnOn : S.btn, title: "Fades down over the nightlight time, then off",
+        onclick: () => ctx.write({ nl: { on: !nl.on, dur: nl.dur || 60 } }, "switch the nightlight") },
+        nl.on ? `🌙 ${nl.rem > 0 ? Math.ceil(nl.rem / 60) + " min left" : "on"}` : "🌙 Nightlight"),
+      numberBox(nl.dur || 60, v => ctx.write({ nl: { on: !!nl.on, dur: v } }, "set the nightlight"), { min: 1, max: 255, width: 52 }),
+      h("span", { style: `font-size:11px;color:${C.dim}` }, "min"),
+    ]));
+    if (ctx.info.live) now.appendChild(h("div", { style: "display:flex;gap:4px;align-items:center" }, [
+      h("span", { style: `font-size:11px;color:${C.amber}` }, `Receiving ${ctx.info.lm || "realtime"} data`),
+      h("button", { style: (st.lor ? S.btnOn : S.btn), title: "Ignore the stream until turned off (or until the device restarts)",
+        onclick: () => ctx.write({ lor: st.lor ? 0 : 2 }, "override the stream") }, st.lor ? "Override on" : "Override"),
+    ]));
+  };
   const paintTabs = () => {
     tabs.innerHTML = "";
     for (const [id, label] of TABS) {
-      tabs.appendChild(h("button", { style: ctx.tab === id ? S.btnOn : S.btn, onclick: () => { ctx.tab = id; paintTabs(); paint(); } }, label));
+      tabs.appendChild(h("button", { style: ctx.tab === id ? S.btnOn : S.btn, onclick: () => {
+        if (id !== "layout" && ctx.liveUnsub) { try { ctx.liveUnsub(); } catch (_) {} ctx.liveUnsub = null; }
+        ctx.tab = id; paintTabs(); paint();
+      } }, label));
     }
   };
   const paint = () => {
     paintHead();
+    paintNow();
     body.innerHTML = "";
     if (ctx.tab === "layout") body.appendChild(layoutView(ctx, refresh));
     else if (ctx.tab === "effect") body.appendChild(effectView(ctx, refresh));
@@ -116,6 +145,13 @@ export async function mountWledAdvanced(pane, { hass, eid, api }) {
   };
   // Local view changes (selection, filters) repaint in place.
   ctx.repaint = () => paint();
+  ctx.onLive = (f) => {
+    if (pane.isConnected === false) {             // the card was closed
+      if (ctx.liveUnsub) { try { ctx.liveUnsub(); } catch (_) {} ctx.liveUnsub = null; }
+      return;
+    }
+    if (ctx.liveDraw) ctx.liveDraw(f);
+  };
   paintTabs();
   paint();
 }
@@ -137,6 +173,8 @@ function layoutView(ctx, refresh) {
       warns.map(w => h("div", { style: `font-size:12px;color:${C.amber};margin:2px 0` }, "⚠ " + w.text))));
   }
 
+  // Live view: the real LED colours, streamed through the backend.
+  root.appendChild(liveView(ctx, count, matrix));
   // Strip (1D) or grid (2D).
   root.appendChild(matrix ? matrixView(ctx, segs, matrix) : stripView(ctx, segs, count));
 
@@ -193,6 +231,50 @@ function layoutView(ctx, refresh) {
 }
 
 function segColor(s) { return M.colToHex((s.col && s.col[0]) || [128, 128, 128]); }
+
+// WLED+'s best idea: see the strip while you edit it. One backend relay per
+// device (ws_wled.py), <= 10 fps; stops when the card closes or the tab
+// changes. An ESP8266 has 3 live slots and HA holds one — asked first.
+function liveView(ctx, count, matrix) {
+  const wrap = h("div", { style: "margin-bottom:8px" });
+  const canvas = document.createElement("canvas");
+  canvas.style.cssText = "width:100%;height:" + (matrix ? "auto" : "14px") + ";border-radius:4px;image-rendering:pixelated;display:none;background:#000";
+  const stop = () => { if (ctx.liveUnsub) { try { ctx.liveUnsub(); } catch (_) {} ctx.liveUnsub = null; } };
+  const draw = (f) => {
+    if (f.error) { ctx.toast("Live view stopped: " + f.error, true); stop(); btn.textContent = "▶ Live view"; return; }
+    const bin = atob(f.rgb || "");
+    const n = Math.floor(bin.length / 3);
+    const w = f.w || n, hgt = f.h || 1;
+    if (canvas.width !== w || canvas.height !== hgt) { canvas.width = w; canvas.height = hgt; }
+    const g = canvas.getContext && canvas.getContext("2d");
+    if (!g) return;
+    const img = g.createImageData(w, hgt);
+    for (let i = 0; i < n && i < w * hgt; i++) {
+      img.data[i * 4] = bin.charCodeAt(i * 3); img.data[i * 4 + 1] = bin.charCodeAt(i * 3 + 1);
+      img.data[i * 4 + 2] = bin.charCodeAt(i * 3 + 2); img.data[i * 4 + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  };
+  const btn = h("button", { style: S.btn, onclick: async () => {
+    if (ctx.liveUnsub) { stop(); canvas.style.display = "none"; btn.textContent = "▶ Live view"; return; }
+    if (/8266/i.test(String(ctx.info.arch || "")) && !confirm("This controller allows only 3 live connections and Home Assistant already uses one. Watch it live anyway?")) return;
+    const conn = ctx.hass.connection;
+    if (!conn || !conn.subscribeMessage) { ctx.toast("Live view isn't available here", true); return; }
+    try {
+      // Frames go to whichever canvas is on screen now (a repaint makes a
+      // new one); a closed card stops the stream (ctx.onLive, in the mount).
+      ctx.liveUnsub = await conn.subscribeMessage((f) => ctx.onLive(f), { type: "padspan_ha/wled_live", entity_id: ctx.eid });
+      canvas.style.display = "block";
+      btn.textContent = "■ Stop live view";
+    } catch (e) { ctx.toast("Couldn't start the live view: " + errText(e), true); }
+  } }, ctx.liveUnsub ? "■ Stop live view" : "▶ Live view");
+  if (ctx.liveUnsub) canvas.style.display = "block";
+  ctx.liveDraw = draw;
+  wrap.appendChild(h("div", { style: "display:flex;gap:8px;align-items:center;margin-bottom:4px" }, [btn,
+    h("span", { style: `font-size:11px;color:${C.faint}` }, "The real LED colours, as they are now")]));
+  wrap.appendChild(canvas);
+  return wrap;
+}
 
 function stripView(ctx, segs, count) {
   const wrap = h("div", { style: S.card });

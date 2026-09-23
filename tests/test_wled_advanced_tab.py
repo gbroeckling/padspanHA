@@ -365,3 +365,25 @@ out.card = t.includes("2D matrix") && t.includes("Save matrix");
 out.svg = all(pane).some(n => String(n.innerHTML || "").includes("<polyline") && String(n.innerHTML).includes("#22c55e"));
 """)
     assert out == {"card": True, "svg": True}
+
+
+def test_live_view_subscribes_and_stops_when_the_card_closes():
+    out = _run("""
+const subs = []; let unsubs = 0;
+const hass = fakeHass([]);
+hass.connection = { subscribeMessage: async (cb, msg) => { subs.push({ cb, msg }); return () => { unsubs++; }; } };
+const holder = document.createElement("div"); document.body.appendChild(holder);
+const pane = document.createElement("div"); holder.appendChild(pane);
+await WA.mountWledAdvanced(pane, { hass, eid: "light.upper_north", api: { wled: { isAdmin: false }, toast: () => {} } });
+await settle();
+all(pane).find(n => n.textContent === "▶ Live view").click();
+await settle();
+out.msg = subs[0] && subs[0].msg;
+subs[0].cb({ w: 0, h: 0, rgb: "/wAA" });                  // one red LED, drawn without error
+document.body.removeChild(holder);                       // the card closes
+Object.defineProperty(pane, "isConnected", { value: false });
+subs[0].cb({ w: 0, h: 0, rgb: "/wAA" });
+out.unsubs = unsubs;
+""")
+    assert out["msg"] == {"type": "padspan_ha/wled_live", "entity_id": "light.upper_north"}
+    assert out["unsubs"] == 1
