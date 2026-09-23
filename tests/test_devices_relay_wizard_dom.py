@@ -255,3 +255,78 @@ console.log(JSON.stringify({ calls, composites: state.settings.door_composites, 
     assert out["composites"] == []
     # The unrelated opener id must survive; only this composite's own entity_id is stripped.
     assert out["openerIds"] == ["switch.unrelated"]
+
+
+def test_relay_light_build_skips_seconds_and_scripts_template_only_no_opener_id(tmp_path):
+    """Garry, 2026-09-23: "a relay controlled poe switch is used to control
+    a light... I need the same magic... so a light shows in HA." The plain
+    light kind takes only a name and one relay — no seconds field renders at
+    all — and the build is a single Template-light flow call, no scripts,
+    no automations, no helper, and (like a lock) never lands in
+    door_opener_ids: a light.* entity doesn't belong in that allowlist."""
+    out = _run(tmp_path, """
+const calls = [];
+const state = {
+  settings: { tier: "pro", door_opener_ids: [], door_composites: [] },
+  _devicesTab: "openers", _relayWizardOpen: true, _relayWizardKind: "relay_light",
+};
+const hass = {
+  states: { "switch.pakedge_port_4": { state: "off", attributes: { friendly_name: "Pakedge Port 4" } } },
+  callApi: async (method, path, body) => {
+    calls.push([method, path, body]);
+    if (path === "config/config_entries/flow") return { flow_id: "f1", type: "menu" };
+    if (path === "config/config_entries/flow/f1" && body && body.next_step_id === "light") return { flow_id: "f1", type: "form" };
+    if (path === "config/config_entries/flow/f1" && body && body.name) {
+      return { type: "create_entry", result: { entry_id: "e2" } };
+    }
+    return { result: "ok" };
+  },
+  callWS: async (msg) => {
+    calls.push(["hass.callWS", msg]);
+    if (msg.type === "config/entity_registry/list") {
+      return [{ entity_id: "light.padspanha_hall_poe_light", config_entry_id: "e2" }];
+    }
+    return {};
+  },
+};
+let saved = null;
+const ctx = {
+  helpers: { el }, state, hass,
+  actions: {
+    renderRooms: () => {},
+    settingsSet: async (patch) => { saved = patch; Object.assign(state.settings, patch); },
+    callWS: async (msg) => { calls.push(["actions.callWS", msg]); return {}; },
+  },
+  toast: () => {},
+};
+let root = D.render(ctx);
+const noSecondsField = ![...root.querySelectorAll("div")].some(d => (d.textContent||"").trim() === "Pulse, seconds");
+const nameInput = [...root.querySelectorAll("input")].find(i => i.type === "text");
+nameInput.value = "Hall PoE Light";
+const relaySelects = [...root.querySelectorAll("select")];
+// [0] = kind, [1] = the one relay picker (no second relay select for this kind).
+relaySelects[1].value = "switch.pakedge_port_4";
+const onlyTwoSelects = relaySelects.length === 2;
+const buildBtn = [...root.querySelectorAll("button")].find(b => b.textContent === "Build");
+buildBtn.click();
+await flush();
+
+console.log(JSON.stringify({ calls, saved, noSecondsField, onlyTwoSelects,
+  composites: state.settings.door_composites, openerIds: state.settings.door_opener_ids }));
+""")
+    assert out["noSecondsField"], "relay_light must not render a seconds/pulse field at all"
+    assert out["onlyTwoSelects"], "relay_light needs only the kind select and one relay select"
+    api_calls = [c for c in out["calls"] if c[0] in ("POST", "DELETE")]
+    assert [c[1] for c in api_calls] == [
+        "config/config_entries/flow", "config/config_entries/flow/f1", "config/config_entries/flow/f1",
+    ], "the whole build must be exactly the three template-flow calls — no script or automation creation"
+    assert out["openerIds"] == [], "a light.* entity must never be added to door_opener_ids"
+    assert len(out["composites"]) == 1
+    c = out["composites"][0]
+    assert c["kind"] == "relay_light"
+    assert c["entity_id"] == "light.padspanha_hall_poe_light"
+    assert c["relays"] == ["switch.pakedge_port_4"]
+    assert c["generated"]["scripts"] == []
+    assert c["generated"]["automations"] == []
+    assert c["generated"]["helper_id"] is None
+    assert c["generated"]["template_entry_id"] == "e2"

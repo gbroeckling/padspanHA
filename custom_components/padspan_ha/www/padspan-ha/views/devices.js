@@ -720,6 +720,7 @@ const _RELAY_KINDS = [
   { id: "momentary_opener", label: "Momentary opener (garage door, gate)" },
   { id: "two_direction_opener", label: "Two-direction opener (motorized window, blind, awning)" },
   { id: "momentary_lock", label: "Momentary-strike lock (electric door strike)" },
+  { id: "relay_light", label: "Plain light (a relay-switched light — e.g. a PoE port, a bare on/off fixture)" },
 ];
 const _COVER_DEVICE_CLASSES = ["window", "door", "garage", "gate", "blind", "shade", "shutter", "awning", "curtain", "damper"];
 
@@ -939,6 +940,35 @@ export function buildMomentaryLock({ slug, name, relayEid, pulseSeconds, relockS
   };
 }
 
+// Kind 4 — Garry, 2026-09-23: "I have a few places that a relay controlled
+// poe switch is used to control a light, so I need the same magic to open
+// that new card and setup the relay parameters so a light shows in HA that
+// I can use for things. That is the pakedge I'm now working on." The
+// simplest of the four: no pulse, no travel, no interlock, no helper — a
+// plain relay's on/off IS the light's on/off, wrapped only so it "shows in
+// HA" as a real light.* entity (grouping, areas, voice, dashboards) instead
+// of a bare switch.* — a passthrough, not a controller. Works for any
+// relay-backed light regardless of what put the relay in HA (a Pakedge
+// PoE-port toggle, a ProDino channel, anything switch./light.*).
+export function buildRelayLight({ slug, name, relayEid }) {
+  const dom = _relayDomain(relayEid);
+  return {
+    scripts: [],
+    automations: [],
+    helper: null,
+    templateFlow: {
+      step: "light",
+      fields: {
+        name,
+        state: `{{ is_state('${relayEid}','on') }}`,
+        turn_on: [{ action: `${dom}.turn_on`, target: { entity_id: relayEid } }],
+        turn_off: [{ action: `${dom}.turn_off`, target: { entity_id: relayEid } }],
+      },
+    },
+    openerEntityId: null,
+  };
+}
+
 // Runs a build plan (from one of the three builders above) against the real
 // HA config APIs, in dependency order — helper before the scripts/
 // automations that reference it, scripts before the template flow's
@@ -1044,9 +1074,9 @@ function _relaySelect(candidates, placeholder) {
 function _renderRelayWizard(ctx) {
   const { el } = ctx.helpers;
   const card = el("div", { class: "card" });
-  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:8px" }, "Build an Opener or Lock from Relays"));
+  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:8px" }, "Build an Opener, Lock, or Light from Relays"));
   card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-bottom:12px" },
-    "For a door or window with no ready-made opener/lock entity — just a bare relay. Builds the same kind of script, automation, and (for a two-direction motor or a strike lock) template entity Garry's own garage doors and Bedroom1 window already use, then offers the result the same way any other opener or lock is offered."));
+    "For a door, window, or light with no ready-made entity — just a bare relay (a ProDino channel, a Pakedge PoE port, anything switch./light.*). Builds the same kind of script, automation, and template entity Garry's own garage doors, Bedroom1 window, and PoE-switched lights already use, then offers the result the same way any other opener, lock, or light is offered."));
 
   const composites = (ctx.state.settings && ctx.state.settings.door_composites) || [];
   if (composites.length) {
@@ -1084,7 +1114,7 @@ function _renderRelayWizard(ctx) {
     card.appendChild(el("button", {
       class: "btn inline", style: "font-size:12px;margin-top:4px",
       onclick: () => { ctx.state._relayWizardOpen = true; ctx.actions.renderRooms(); },
-    }, "+ Build an opener or lock from relays"));
+    }, "+ Build an opener, lock, or light from relays"));
     return card;
   }
 
@@ -1135,14 +1165,18 @@ function _renderRelayWizard(ctx) {
     form.appendChild(classSel);
   }
 
-  const secondsInput = document.createElement("input");
-  secondsInput.type = "number"; secondsInput.min = "1";
-  secondsInput.value = kind === "two_direction_opener" ? "30" : kind === "momentary_lock" ? "3" : "1";
-  const secondsLabel = kind === "two_direction_opener" ? "Travel time, seconds (full open or close)"
-    : kind === "momentary_lock" ? "Unlock pulse, seconds" : "Pulse, seconds";
-  form.appendChild(el("div", { style: "font-size:10px;color:#64748b;margin-bottom:2px" }, secondsLabel));
-  secondsInput.style.cssText = "width:100%;background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;border-radius:8px;padding:7px;font-size:13px;margin-bottom:8px";
-  form.appendChild(secondsInput);
+  // relay_light is a plain passthrough — no pulse, no travel, nothing timed.
+  let secondsInput = null;
+  if (kind !== "relay_light") {
+    secondsInput = document.createElement("input");
+    secondsInput.type = "number"; secondsInput.min = "1";
+    secondsInput.value = kind === "two_direction_opener" ? "30" : kind === "momentary_lock" ? "3" : "1";
+    const secondsLabel = kind === "two_direction_opener" ? "Travel time, seconds (full open or close)"
+      : kind === "momentary_lock" ? "Unlock pulse, seconds" : "Pulse, seconds";
+    form.appendChild(el("div", { style: "font-size:10px;color:#64748b;margin-bottom:2px" }, secondsLabel));
+    secondsInput.style.cssText = "width:100%;background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;border-radius:8px;padding:7px;font-size:13px;margin-bottom:8px";
+    form.appendChild(secondsInput);
+  }
 
   let relockInput = null;
   if (kind === "momentary_lock") {
@@ -1177,7 +1211,7 @@ function _renderRelayWizard(ctx) {
       const name = nameInput.value.trim();
       const relay1 = relaySel1.value;
       const relay2 = relaySel2 ? relaySel2.value : null;
-      const seconds = parseInt(secondsInput.value, 10);
+      const seconds = secondsInput ? parseInt(secondsInput.value, 10) : null;
       if (!name) { errorMsg.textContent = "Name is required."; errorMsg.style.display = "block"; return; }
       if (!relay1 || (kind === "two_direction_opener" && !relay2)) {
         errorMsg.textContent = "Pick every relay this kind needs."; errorMsg.style.display = "block"; return;
@@ -1185,7 +1219,9 @@ function _renderRelayWizard(ctx) {
       if (kind === "two_direction_opener" && relay1 === relay2) {
         errorMsg.textContent = "The open and close relays must be different."; errorMsg.style.display = "block"; return;
       }
-      if (!Number.isFinite(seconds) || seconds < 1) { errorMsg.textContent = "Enter a valid number of seconds."; errorMsg.style.display = "block"; return; }
+      if (secondsInput && (!Number.isFinite(seconds) || seconds < 1)) {
+        errorMsg.textContent = "Enter a valid number of seconds."; errorMsg.style.display = "block"; return;
+      }
 
       const slug = relaySlug(name);
       let build, relays;
@@ -1198,10 +1234,13 @@ function _renderRelayWizard(ctx) {
           deviceClass: classSel.value, sensorEid: sensorSel.value || null, invert: !!invertCb.checked,
         });
         relays = [relay1, relay2];
-      } else {
+      } else if (kind === "momentary_lock") {
         const relock = parseInt(relockInput.value, 10);
         if (!Number.isFinite(relock) || relock < 1) { errorMsg.textContent = "Enter a valid re-lock time."; errorMsg.style.display = "block"; return; }
         build = buildMomentaryLock({ slug, name, relayEid: relay1, pulseSeconds: seconds, relockSeconds: relock });
+        relays = [relay1];
+      } else {
+        build = buildRelayLight({ slug, name, relayEid: relay1 });
         relays = [relay1];
       }
 
@@ -1212,7 +1251,7 @@ function _renderRelayWizard(ctx) {
         const composite = { id: slug, kind, name, entity_id: entityId, relays, generated };
         const nextComposites = [...composites, composite];
         const settingsPatch = { door_composites: nextComposites };
-        if (kind !== "momentary_lock") {
+        if (kind !== "momentary_lock" && kind !== "relay_light") {
           const nextOpeners = new Set((ctx.state.settings && ctx.state.settings.door_opener_ids) || []);
           nextOpeners.add(entityId);
           settingsPatch.door_opener_ids = [...nextOpeners];

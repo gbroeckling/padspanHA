@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.70 — A plain light from a relay too (Pakedge PoE ports and the like) (2026-09-23)
+
+### Devices
+- **Added:** a fourth kind in the "Build an opener, lock, or light from relays" wizard — a plain light, for a bare relay (a Pakedge PoE port, a ProDino channel, anything switch./light.*) that switches a light with no other logic needed. No pulse, no travel, no interlock, no helper: the relay's own on/off IS the light's on/off, wrapped only so it shows up as a real `light.*` entity — grouped into rooms, usable in automations and dashboards — instead of a bare switch.
+
+---
+
 ## 0.38.69 — The relay wizard's other entry point, under Atlas's own filter (2026-09-22)
 
 ### Atlas

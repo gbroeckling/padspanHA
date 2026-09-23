@@ -1757,7 +1757,7 @@ const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
 let jumped = false;
 const hostWith = { el, hiddenEids: new Set(), lightsLoading: false, model: {}, onBuildFromRelays: () => { jumped = true; } };
 const rootWith = LM.buildLightsTable(hostWith, lights);
-const btn = [...rootWith.querySelectorAll("button")].find(b => b.textContent.trim() === "+ Build an opener or lock from relays");
+const btn = [...rootWith.querySelectorAll("button")].find(b => b.textContent.trim() === "+ Build an opener, lock, or light from relays");
 const headRow = rootWith.querySelector(".lv-tbl-head");
 const beforeTable = headRow && headRow.nextSibling === btn.parentNode;
 btn.dispatchEvent({ type: "click", stopPropagation(){}, preventDefault(){} });

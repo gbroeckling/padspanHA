@@ -243,3 +243,40 @@ console.log(JSON.stringify(b));
     assert tf["fields"]["lock"] == [{"action": "input_boolean.turn_on", "target": {"entity_id": "input_boolean.padspanha_front_locked"}}]
     assert tf["fields"]["unlock"] == [{"action": "script.padspanha_front_unlock"}]
     assert out["openerEntityId"] is None
+
+
+# ── Kind 4: plain light from relay ───────────────────────────────────────
+
+def test_relay_light_is_a_plain_passthrough(tmp_path):
+    """Garry, 2026-09-23 (verbatim): "What you have just built for locks, I
+    have a few places that a relay controlled poe switch is used to control
+    a light, so I need the same magic to open that new card and setup the
+    relay parameters so a light shows in HA that I can use for things. That
+    is the pakedge I'm now working on." The simplest of the four kinds — no
+    pulse, no travel, no interlock, no helper: the relay's own on/off state
+    IS the light's on/off state, wrapped only so it appears as a real
+    light.* entity rather than a bare switch."""
+    out = _run_js(tmp_path, """
+import { buildRelayLight } from "./devices.mjs";
+const b = buildRelayLight({ slug: "padspanha_poe_hall", name: "Hall PoE Light", relayEid: "switch.pakedge_port_4" });
+console.log(JSON.stringify(b));
+""")
+    assert out["scripts"] == []
+    assert out["automations"] == []
+    assert out["helper"] is None
+    assert out["openerEntityId"] is None
+    tf = out["templateFlow"]
+    assert tf["step"] == "light"
+    assert tf["fields"]["state"] == "{{ is_state('switch.pakedge_port_4','on') }}"
+    assert tf["fields"]["turn_on"] == [{"action": "switch.turn_on", "target": {"entity_id": "switch.pakedge_port_4"}}]
+    assert tf["fields"]["turn_off"] == [{"action": "switch.turn_off", "target": {"entity_id": "switch.pakedge_port_4"}}]
+
+
+def test_relay_light_respects_relay_domain(tmp_path):
+    out = _run_js(tmp_path, """
+import { buildRelayLight } from "./devices.mjs";
+const b = buildRelayLight({ slug: "padspanha_x", name: "X", relayEid: "light.some_relay" });
+console.log(JSON.stringify(b.templateFlow.fields));
+""")
+    assert out["turn_on"] == [{"action": "light.turn_on", "target": {"entity_id": "light.some_relay"}}]
+    assert out["turn_off"] == [{"action": "light.turn_off", "target": {"entity_id": "light.some_relay"}}]

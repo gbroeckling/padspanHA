@@ -3314,7 +3314,7 @@ export function buildLightsTable(host, lights){
   if (host.onBuildFromRelays) {
     root.appendChild(el("div", { style: "padding:0 12px 10px;border-bottom:1px solid #1b3526" },
       el("button", { class: "lv-act", onclick: host.onBuildFromRelays },
-        "+ Build an opener or lock from relays")));
+        "+ Build an opener, lock, or light from relays")));
   }
 
   // Sortable headers, the standard three-state cycle: click an unsorted
