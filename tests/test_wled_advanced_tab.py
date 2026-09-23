@@ -348,3 +348,20 @@ out.patches = calls.filter(c => c.type === "padspan_ha/wled_cfg").map(c => c.pat
     gamma, timers = out["patches"]
     assert gamma == {"light": {"gc": {"bri": 2.2, "col": 2.2, "val": 2.2}}}      # whole gc, bri now on
     assert timers["timers"]["ins"][0]["hour"] == 254 and timers["timers"]["ins"][0]["dow"] == 127
+
+
+def test_the_leds_section_shows_the_matrix_with_its_wiring():
+    out = _run("""
+DEVICE["json/cfg"] = { hw: { led: { maxpwr: 850, fps: 42, ins: [{ start: 0, len: 128, pin: [16], order: 0, type: 22 }],
+  matrix: { mpc: 1, panels: [{ b: 0, r: 0, v: 0, s: 1, x: 0, y: 0, w: 16, h: 8 }] } } } };
+const hass = { states: {}, callWS: async (m) => m.type === "padspan_ha/wled_get" ? { data: m.path === "json/pins" ? [] : DEVICE[m.path], hash: "H" } : {} };
+const pane = document.createElement("div");
+await WA.mountWledAdvanced(pane, { hass, eid: "light.upper_north", api: { wled: { isAdmin: true }, toast: () => {} } });
+await settle();
+all(pane).find(n => n.textContent === "LEDs").click();
+await settle(); await settle();
+const t = texts(pane);
+out.card = t.includes("2D matrix") && t.includes("Save matrix");
+out.svg = all(pane).some(n => String(n.innerHTML || "").includes("<polyline") && String(n.innerHTML).includes("#22c55e"));
+""")
+    assert out == {"card": True, "svg": True}

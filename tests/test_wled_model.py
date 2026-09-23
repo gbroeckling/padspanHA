@@ -230,3 +230,14 @@ out.def = M.effectDefaults({ defaults: { sx: 64 } });
     assert out["v15"] == [0, 1, 255, 254]
     assert out["v16"] == [[0, "Default"], [200, "~ Custom 0 ~"], [255, "Audio"]]
     assert out["def"]["sx"] == 64 and out["def"]["ix"] == 128 and out["def"]["c3"] == 16
+
+
+def test_panel_wiring_paths():
+    out = _run("""
+out.rows = M.panelPath({ w: 3, h: 2 });
+out.serp = M.panelPath({ w: 3, h: 2, s: 1 });
+out.cols_br = M.panelPath({ w: 2, h: 2, v: 1, b: 1, r: 1 });
+""")
+    assert out["rows"] == [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]]
+    assert out["serp"] == [[0, 0], [1, 0], [2, 0], [2, 1], [1, 1], [0, 1]]
+    assert out["cols_br"][0] == [1, 1] and out["cols_br"][-1] == [0, 0]

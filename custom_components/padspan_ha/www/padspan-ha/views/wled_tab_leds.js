@@ -36,8 +36,91 @@ export function ledsView(ctx) {
     } catch (e) { status.textContent = "Couldn't read the settings: " + errText(e); status.style.color = C.red; return; }
     status.remove();
     root.appendChild(editor(ctx, cfg, hash, Array.isArray(pins) ? pins : null));
+    root.appendChild(matrixCard(ctx, cfg));
   })();
   return root;
+}
+
+// ── 2D matrix: panels, start corner, direction, serpentine — with a wiring
+// preview like WLED's own 2D page (first LED green, last red, the path). ──
+function matrixCard(ctx, cfg) {
+  const mx = (cfg.hw && cfg.hw.led && cfg.hw.led.matrix) || null;
+  const draft = { enabled: !!mx, panels: JSON.parse(JSON.stringify((mx && mx.panels) || [])) };
+  const ro = !ctx.isAdmin;
+  const card = h("div", { style: S.card + ";margin-top:10px" });
+  const body = h("div");
+  const paint = () => {
+    body.innerHTML = "";
+    body.appendChild(h("div", { style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px" }, [
+      h("b", {}, "2D matrix"),
+      ro ? h("span", { style: `font-size:12px;color:${C.dim}` }, draft.enabled ? `${draft.panels.length} panel(s)` : "not a matrix")
+        : check("This device drives a matrix", draft.enabled, v => { draft.enabled = v; if (v && !draft.panels.length) draft.panels.push({ b: 0, r: 0, v: 0, s: 1, x: 0, y: 0, w: 8, h: 8 }); paint(); }),
+    ]));
+    if (!draft.enabled) return;
+    draft.panels.forEach((p, i) => {
+      const row = h("div", { style: "display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;margin:4px 0" }, [
+        h("b", { style: "font-size:12px;width:56px" }, `Panel ${i + 1}`),
+        field("Width", ro ? h("span", {}, String(p.w)) : numberBox(p.w, v => { p.w = v; paint(); }, { min: 1, max: 256, width: 50 })),
+        field("Height", ro ? h("span", {}, String(p.h)) : numberBox(p.h, v => { p.h = v; paint(); }, { min: 1, max: 256, width: 50 })),
+        field("X", ro ? h("span", {}, String(p.x)) : numberBox(p.x || 0, v => { p.x = v; paint(); }, { max: 1024, width: 50 })),
+        field("Y", ro ? h("span", {}, String(p.y)) : numberBox(p.y || 0, v => { p.y = v; paint(); }, { max: 1024, width: 50 })),
+        field("First LED at", ro ? h("span", {}, `${p.b ? "bottom" : "top"}-${p.r ? "right" : "left"}`)
+          : select([["tl", "Top left"], ["tr", "Top right"], ["bl", "Bottom left"], ["br", "Bottom right"]],
+            `${p.b ? "b" : "t"}${p.r ? "r" : "l"}`, v => { p.b = v[0] === "b" ? 1 : 0; p.r = v[1] === "r" ? 1 : 0; paint(); })),
+        field("Runs", ro ? h("span", {}, p.v ? "in columns" : "in rows")
+          : select([[0, "In rows"], [1, "In columns"]], p.v ? 1 : 0, v => { p.v = Number(v); paint(); })),
+        ro ? null : check("Serpentine", p.s, v => { p.s = v ? 1 : 0; paint(); }, "Every other row runs back the other way"),
+        ro || draft.panels.length < 2 ? null : h("button", { style: S.btn + `;color:${C.red}`, onclick: () => { draft.panels.splice(i, 1); paint(); } }, "✕"),
+      ].filter(Boolean));
+      body.appendChild(row);
+    });
+    body.appendChild(matrixPreview(draft.panels));
+    if (ro) return;
+    const bar = h("div", { style: "display:flex;gap:6px;margin-top:8px;flex-wrap:wrap" });
+    if (draft.panels.length < 18) bar.appendChild(h("button", { style: S.btn, onclick: () => {
+      const last = draft.panels[draft.panels.length - 1] || { x: 0, y: 0, w: 8, h: 8 };
+      draft.panels.push({ ...last, x: (last.x || 0) + (last.w || 8) }); paint();
+    } }, "+ Panel to the right"));
+    body.appendChild(bar);
+  };
+  paint();
+  card.appendChild(body);
+  if (!ro) card.appendChild(h("button", { style: S.btnPrimary + ";margin-top:8px", onclick: async () => {
+    if (!confirm((draft.enabled ? `Save this ${draft.panels.length}-panel matrix?` : "Turn the matrix off (a plain strip)?")
+      + "\n\nWLED rebuilds every segment after this — your segment layout starts over. The device is backed up first.")) return;
+    try {
+      await ctx.call("padspan_ha/wled_matrix", { enabled: draft.enabled, panels: draft.panels });
+      ctx.toast("Matrix saved — segments were rebuilt (backup taken first)");
+      const si = await ctx.get("json/si");
+      ctx.info = si.info || ctx.info; ctx.state = si.state || ctx.state;
+      ctx.repaint();
+    } catch (e) { ctx.toast("Couldn't save the matrix: " + errText(e), true); }
+  } }, "Save matrix"));
+  return card;
+}
+
+function matrixPreview(panels) {
+  const W = Math.max(1, ...panels.map(p => (p.x || 0) + (p.w || 1)));
+  const H = Math.max(1, ...panels.map(p => (p.y || 0) + (p.h || 1)));
+  const cell = Math.max(3, Math.min(22, Math.floor(640 / Math.max(W, H))));
+  let svg = `<svg viewBox="0 0 ${W * cell} ${H * cell}" width="100%" style="max-height:320px;background:#071008;border-radius:8px">`;
+  panels.forEach((p, i) => {
+    const ox = (p.x || 0) * cell, oy = (p.y || 0) * cell;
+    svg += `<rect x="${ox}" y="${oy}" width="${p.w * cell}" height="${p.h * cell}" fill="none" stroke="#c084fc" stroke-width="1.5" opacity=".7"/>`;
+    const path = M.panelPath(p);
+    if (path.length <= 4096) {
+      svg += `<polyline fill="none" stroke="#8ee5b4" stroke-width="1" opacity=".55" points="${path.map(([x, y]) => `${ox + (x + 0.5) * cell},${oy + (y + 0.5) * cell}`).join(" ")}"/>`;
+    }
+    const [fx, fy] = path[0], [lx, ly] = path[path.length - 1];
+    svg += `<circle cx="${ox + (fx + 0.5) * cell}" cy="${oy + (fy + 0.5) * cell}" r="${Math.max(2, cell / 3)}" fill="#22c55e"/>`;
+    svg += `<circle cx="${ox + (lx + 0.5) * cell}" cy="${oy + (ly + 0.5) * cell}" r="${Math.max(2, cell / 3)}" fill="#ef4444"/>`;
+    svg += `<text x="${ox + 4}" y="${oy + 12}" font-size="11" fill="#c084fc">${i + 1}</text>`;
+  });
+  svg += "</svg>";
+  const d = h("div", { style: "margin-top:6px" });
+  d.innerHTML = svg;
+  d.appendChild(h("div", { style: `font-size:11px;color:${C.faint}` }, "Green: the first LED of each panel · red: its last · the line is the wiring."));
+  return d;
 }
 
 function editor(ctx, cfg, hash, pins) {

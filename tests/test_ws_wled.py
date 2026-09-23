@@ -386,3 +386,23 @@ def test_identify_lights_only_the_target_and_restores_in_device_sized_chunks():
     assert len(chunks) > 1 and all(len(json.dumps(c, separators=(",", ":"))) <= 1024 for c in chunks)
     assert sum(len(c["seg"]) for c in chunks) == 30
     assert all("len" not in s and "lc" not in s for c in chunks for s in c["seg"])
+
+
+def test_the_matrix_form_matches_wleds_settings_page_fields():
+    """set.cpp SUBPAGE_2D: SOMP, MPC, P<i>{B,R,V,S,X,Y,W,H}; S by presence."""
+    f = W.matrix_form(True, [{"w": 16, "h": 8, "x": 0, "y": 0, "b": 1, "r": 0, "v": 0, "s": 1},
+                             {"w": 16, "h": 8, "x": 16, "y": 0, "s": 0}])
+    assert f["SOMP"] == "1" and f["MPC"] == "2"
+    assert (f["P0B"], f["P0R"], f["P0V"], f["P0S"], f["P0W"], f["P0H"]) == ("1", "0", "0", "on", "16", "8")
+    assert "P1S" not in f and f["P1X"] == "16"
+    assert W.matrix_form(False, []) == {"SOMP": "0"}
+    assert isinstance(W.matrix_form(True, []), str)
+    assert isinstance(W.matrix_form(True, [{"w": 0, "h": 8}]), str)
+    assert isinstance(W.matrix_form(True, [{"w": 8, "h": 8}] * 19), str)
+
+
+def test_matrix_writes_are_admin_only():
+    src = inspect.getsource(W)
+    i = src.index("async def ws_wled_matrix")
+    head = src[src.rindex("@websocket_api.websocket_command", 0, i):i]
+    assert "@websocket_api.require_admin" in head

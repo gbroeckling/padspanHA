@@ -416,3 +416,24 @@ export function paletteList(info, builtIns) {
 export function effectDefaults(meta) {
   return { sx: 128, ix: 128, c1: 128, c2: 128, c3: 16, o1: false, o2: false, o3: false, ...(meta ? meta.defaults : {}) };
 }
+
+/**
+ * The LED order across one 2D panel, as [[x, y], ...] in panel cells — for
+ * the wiring preview. b/r: the first LED is at the bottom/right; v: rows run
+ * vertically; s: serpentine (every other row runs back).
+ */
+export function panelPath(p) {
+  const w = Math.max(1, Number(p.w) || 1), hgt = Math.max(1, Number(p.h) || 1);
+  const major = p.v ? w : hgt, minor = p.v ? hgt : w;
+  const out = [];
+  for (let m = 0; m < major; m++) {
+    for (let n = 0; n < minor; n++) {
+      const nn = p.s && (m % 2) ? minor - 1 - n : n;
+      let x = p.v ? m : nn, y = p.v ? nn : m;
+      if (p.r) x = w - 1 - x;
+      if (p.b) y = hgt - 1 - y;
+      out.push([x, y]);
+    }
+  }
+  return out;
+}

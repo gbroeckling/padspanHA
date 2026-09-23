@@ -685,6 +685,97 @@ async def ws_wled_backups(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"backups": await hass.async_add_executor_job(_list_backups_sync, folder)})
 
 
+# ── 2D matrix: only WLED's own settings form rebuilds it ─────────────────────
+# /json/cfg can't set the matrix up (cfg.cpp: setUpMatrix can't run there);
+# POST /settings/2D does (set.cpp SUBPAGE_2D) — and then WLED rebuilds every
+# segment (makeAutoSegments), which the card warns about. Backed up first.
+
+MAX_PANELS = 18
+
+
+def matrix_form(enabled: bool, panels: list[dict]) -> dict[str, str] | str:
+    """The /settings/2D form fields, or the reason the layout is refused."""
+    if not enabled:
+        return {"SOMP": "0"}
+    if not isinstance(panels, list) or not 1 <= len(panels) <= MAX_PANELS:
+        return f"a matrix needs 1-{MAX_PANELS} panels"
+    form = {"SOMP": "1", "MPC": str(len(panels))}
+    for i, p in enumerate(panels):
+        try:
+            w, hgt, x, y = int(p["w"]), int(p["h"]), int(p.get("x", 0)), int(p.get("y", 0))
+        except (KeyError, TypeError, ValueError):
+            return f"panel {i + 1} needs a width and a height"
+        if not (1 <= w <= 256 and 1 <= hgt <= 256 and 0 <= x <= 1024 and 0 <= y <= 1024):
+            return f"panel {i + 1}'s size or position is out of range"
+        form.update({f"P{i}B": "1" if p.get("b") else "0", f"P{i}R": "1" if p.get("r") else "0",
+                     f"P{i}V": "1" if p.get("v") else "0", f"P{i}X": str(x), f"P{i}Y": str(y),
+                     f"P{i}W": str(w), f"P{i}H": str(hgt)})
+        if p.get("s"):
+            form[f"P{i}S"] = "on"                 # presence means serpentine
+    return form
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/wled_matrix",
+    vol.Required("enabled"): bool,
+    vol.Optional("panels", default=[]): list,
+    vol.Optional("pin"): vol.All(str, vol.Length(max=4)),
+    **_TARGET,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_wled_matrix(hass: HomeAssistant, connection, msg) -> None:
+    tgt = await _gate(hass, connection, msg)
+    if tgt is None:
+        return
+    form = matrix_form(msg["enabled"], msg.get("panels") or [])
+    if isinstance(form, str):
+        connection.send_error(msg["id"], "refused", form)
+        return
+    host = tgt["host"]
+    try:
+        info = await _request(hass, host, "GET", "json/info")
+        files = {"cfg.json": await _request(hass, host, "GET", "json/cfg"),
+                 "presets.json": await _request(hass, host, "GET", "presets.json"), "info.json": info}
+    except WledError as e:
+        connection.send_error(msg["id"], e.code, str(e))
+        return
+    if tgt.get("mac") and _norm_mac(info.get("mac")) and _norm_mac(info.get("mac")) != tgt["mac"]:
+        connection.send_error(msg["id"], "mac_mismatch", "The device reports a different MAC than Home Assistant has for it — refused")
+        return
+    backup_id = await hass.async_add_executor_job(_write_backup_sync, _backup_dir(hass, tgt.get("mac") or str(info.get("mac", ""))), files)
+    try:
+        if msg.get("pin"):
+            await _request(hass, host, "POST", "json/state", {"pin": msg["pin"]}, POST_TIMEOUT_S)
+        await _post_form(hass, host, "settings/2D", form)
+        after = await _request(hass, host, "GET", "json/cfg")
+    except WledError as e:
+        connection.send_error(msg["id"], e.code, f"{e} (backup {backup_id} kept)")
+        return
+    connection.send_result(msg["id"], {"backup": backup_id, "matrix": ((after.get("hw") or {}).get("led") or {}).get("matrix")})
+
+
+async def _post_form(hass: HomeAssistant, host: str, path: str, form: dict[str, str]) -> None:
+    """A settings-page form POST (the device answers with an HTML page)."""
+    import aiohttp  # noqa: PLC0415
+    from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
+
+    session = async_get_clientsession(hass)
+    try:
+        async with session.post(_url(host, path), data=form, allow_redirects=False,
+                                timeout=aiohttp.ClientTimeout(total=POST_TIMEOUT_S)) as resp:
+            if resp.status == 401:
+                raise WledError("pin_required", "This WLED device has a settings PIN — enter it to continue")
+            if resp.status >= 300:
+                raise WledError("http_error", f"The device refused the settings (HTTP {resp.status})")
+    except WledError:
+        raise
+    except asyncio.TimeoutError as err:
+        raise WledError("timeout", f"No answer from {host}") from err
+    except aiohttp.ClientError as err:
+        raise WledError("unreachable", f"Can't reach {host}: {err}") from err
+
+
 # ── Identify: light one segment on the real strip, then put everything back ──
 # Server-side (review 2026-09-23): a browser timer died with a locked phone or
 # a closed card and left the strip stuck white. The backend keeps the saved
@@ -857,5 +948,5 @@ async def ws_wled_teams_set(hass: HomeAssistant, connection, msg) -> None:
 
 def async_register(hass: HomeAssistant) -> None:
     for cmd in (ws_wled_devices, ws_wled_get, ws_wled_state, ws_wled_cfg, ws_wled_backups,
-                ws_wled_identify, ws_wled_teams_get, ws_wled_teams_set):
+                ws_wled_identify, ws_wled_matrix, ws_wled_teams_get, ws_wled_teams_set):
         websocket_api.async_register_command(hass, cmd)
