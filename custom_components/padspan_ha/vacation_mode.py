@@ -32,6 +32,17 @@ the kind of watcher this feature exists to fool. It is also what makes
 the intensity slider double as an energy-saving mode: turning it down
 scales EVERY light's odds of being asked on, not a hard cutoff.
 
+NEVER LEARN FROM ITSELF (Garry, 2026-09-23). The recorder cannot tell a
+light Vacation Mode switched from one a person switched, so a pattern rebuilt
+while Vacation Mode runs slowly learns its own output: below 100% intensity
+every daily rebuild came out at roughly intensity x the day before, and a
+long trip went progressively darker. So the pattern is built ONCE per
+vacation, from history that ends when it was turned on
+(vacation_mode_enabled_at), and every earlier vacation's own span
+(vacation_mode_periods) is left out of the sample too. While it runs, what
+it switches is kept in its own small log (VacationLog) so Traceback's Full
+house activity can mark those events as Vacation Mode's, not a person's.
+
 Everything here that touches history/state/services is a thin, largely
 unverifiable (this repo's test suite has no real recorder or clock to
 check it against) wrapper around two PURE functions — build_pattern and
@@ -44,6 +55,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN, DATA_SETTINGS
 
@@ -64,9 +76,19 @@ HISTORY_DAYS = 30
 MIN_SAMPLES = 2
 
 CHECK_INTERVAL = timedelta(minutes=5)
-PATTERN_REFRESH = timedelta(days=1)
+
+# Past vacation spans kept for exclusion — anything older has left
+# HISTORY_DAYS' window anyway; the count cap is a backstop.
+PERIODS_MAX_AGE_S = 60 * 86400
+PERIODS_MAX = 50
+
+# Vacation Mode's own switching, for Traceback to mark (see VacationLog).
+LOG_STORE_KEY = "padspan_ha.vacation_log"
+LOG_MAX_AGE_S = 14 * 86400
+LOG_MAX = 5000
 
 _VM_UNSUB = "_vacation_mode_unsub"
+_VM_LOG = "_vacation_mode_log"
 
 
 # ── Pure logic — bucketing, sampling, deciding ───────────────────────────────
@@ -106,10 +128,40 @@ def state_at(changes: list[tuple[float, str]], at_ts: float) -> str | None:
     return result
 
 
+def in_periods(ts: float, periods: list) -> bool:
+    """True if ts falls inside any [start, end] span (end None = still open)."""
+    for p in periods or ():
+        if not isinstance(p, (list, tuple)) or len(p) != 2:
+            continue
+        start, end = p
+        if not isinstance(start, (int, float)) or (end is not None and not isinstance(end, (int, float))):
+            continue
+        if ts >= start and (end is None or ts < end):
+            return True
+    return False
+
+
+def closed_periods(periods: list, enabled_at: float, now_ts: float) -> list:
+    """The stored span list with [enabled_at, now_ts] appended — called when
+    Vacation Mode is turned off — pruned by age and count."""
+    out = [list(p) for p in (periods or []) if isinstance(p, (list, tuple)) and len(p) == 2]
+    if enabled_at and enabled_at > 0:
+        out.append([float(enabled_at), float(now_ts)])
+    out = [p for p in out if p[1] is not None and p[1] >= now_ts - PERIODS_MAX_AGE_S]
+    return out[-PERIODS_MAX:]
+
+
+def prune_log(entries: list, now_ts: float) -> list:
+    """Drop log entries older than LOG_MAX_AGE_S, then keep the newest LOG_MAX."""
+    kept = [e for e in entries if e and e[0] >= now_ts - LOG_MAX_AGE_S]
+    return kept[-LOG_MAX:]
+
+
 def build_pattern(
     history: dict[str, list[tuple[float, str]]],
     now: datetime,
     history_days: int = HISTORY_DAYS,
+    exclude: list | None = None,
 ) -> dict[str, dict[str, float]]:
     """`history`: {entity_id: [(epoch_s, "on"|"off"|other), ...]} — raw
     recorder transitions, already in whatever units state_at expects
@@ -118,9 +170,11 @@ def build_pattern(
     sample point) matter here). Returns {entity_id: {bucket_key: on_probability}},
     omitting any (entity, bucket) with fewer than MIN_SAMPLES real
     on/off observations — no data beats a confident-looking guess from one
-    fluke."""
+    fluke. `exclude` is a list of [start, end] epoch spans (earlier
+    vacations) whose sample points are skipped — they are Vacation Mode's
+    own output, not the house's routine."""
     start = now - timedelta(days=history_days)
-    points = sample_points(start, now)
+    points = [pt for pt in sample_points(start, now) if not in_periods(pt.timestamp(), exclude)]
     pattern: dict[str, dict[str, float]] = {}
     for entity_id, changes in history.items():
         if not changes:
@@ -166,7 +220,7 @@ def decide_states(
 
 
 async def _async_fetch_history(
-    hass: HomeAssistant, entity_ids: list[str], days: int
+    hass: HomeAssistant, entity_ids: list[str], days: int, end: datetime | None = None
 ) -> dict[str, list[tuple[float, str]]]:
     if not entity_ids:
         return {}
@@ -177,7 +231,7 @@ async def _async_fetch_history(
     except Exception as err:
         _LOGGER.debug("Vacation mode: recorder not available: %s", err)
         return {}
-    end = dt_util.utcnow()
+    end = end or dt_util.utcnow()
     start = end - timedelta(days=days)
     try:
         instance = get_instance(hass)
@@ -201,22 +255,64 @@ def _eligible_entity_ids(hass: HomeAssistant) -> list[str]:
 
 
 async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
+    """Build the pattern once per vacation, from history that ends when this
+    vacation began — never from anything Vacation Mode itself switched (see
+    the module docstring's NEVER LEARN FROM ITSELF)."""
     from homeassistant.util import dt as dt_util  # noqa: PLC0415
 
-    now = dt_util.utcnow()
+    now_ts = dt_util.utcnow().timestamp()
     built_at = st.data.get("vacation_mode_pattern_built_at") or 0
-    if isinstance(built_at, (int, float)) and not isinstance(built_at, bool) and built_at > 0:
-        if (now.timestamp() - built_at) < PATTERN_REFRESH.total_seconds():
-            return
+    enabled_at = st.data.get("vacation_mode_enabled_at") or 0
+    if not enabled_at:
+        # Turned on before this field existed: freeze the pattern it already
+        # has (built before today's code could tell), or start the span now.
+        enabled_at = built_at if (built_at and st.data.get("vacation_mode_pattern")) else now_ts
+        await st.async_set(vacation_mode_enabled_at=enabled_at)
+    # The history window a stored pattern covers ends at pattern_until; an
+    # older pattern without it covered up to when it was built.
+    until = st.data.get("vacation_mode_pattern_until") or built_at or 0
+    if st.data.get("vacation_mode_pattern") and until >= enabled_at:
+        return
     entity_ids = _eligible_entity_ids(hass)
-    history = await _async_fetch_history(hass, entity_ids, HISTORY_DAYS)
+    end = dt_util.utc_from_timestamp(enabled_at)
+    history = await _async_fetch_history(hass, entity_ids, HISTORY_DAYS, end=end)
     if not history:
         return
-    local_now = dt_util.as_local(now)
-    pattern = build_pattern(history, local_now)
+    pattern = build_pattern(history, dt_util.as_local(end),
+                            exclude=st.data.get("vacation_mode_periods") or [])
     if not pattern:
         return
-    await st.async_set(vacation_mode_pattern=pattern, vacation_mode_pattern_built_at=now.timestamp())
+    await st.async_set(vacation_mode_pattern=pattern, vacation_mode_pattern_built_at=now_ts,
+                       vacation_mode_pattern_until=enabled_at)
+
+
+class VacationLog:
+    """What Vacation Mode itself switched — [epoch_s, entity_id, 1|0] rows,
+    14 days, its own Store so a busy evening never rewrites the settings
+    file. Read by padspan_ha/vacation_log_get for Traceback's event list."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._store = Store(hass, 1, LOG_STORE_KEY)
+        self.entries: list[list] = []
+        self._loaded = False
+
+    async def async_load(self) -> None:
+        if self._loaded:
+            return
+        data = await self._store.async_load() or {}
+        self.entries = [e for e in (data.get("entries") or [])
+                        if isinstance(e, list) and len(e) == 3 and isinstance(e[0], (int, float))]
+        self._loaded = True
+
+    async def async_append(self, ts: float, entity_id: str, on: bool) -> None:
+        await self.async_load()
+        self.entries.append([ts, entity_id, 1 if on else 0])
+        self.entries = prune_log(self.entries, ts)
+        self._store.async_delay_save(lambda: {"entries": self.entries}, 60)
+
+    async def async_between(self, start_ts: float, end_ts: float) -> list[list]:
+        await self.async_load()
+        return [e for e in self.entries if start_ts <= e[0] <= end_ts]
 
 
 async def _async_tick(hass: HomeAssistant) -> None:
@@ -255,6 +351,10 @@ async def _async_tick(hass: HomeAssistant) -> None:
             await hass.services.async_call(domain, service, {"entity_id": entity_id})
         except Exception as err:
             _LOGGER.debug("Vacation mode: could not %s %s: %s", service, entity_id, err)
+            continue
+        log = dom.get(_VM_LOG)   # created by async_setup_vacation_mode
+        if log is not None:
+            await log.async_append(dt_util.utcnow().timestamp(), entity_id, want_on)
 
 
 def async_setup_vacation_mode(hass: HomeAssistant) -> None:
@@ -270,6 +370,7 @@ def async_setup_vacation_mode(hass: HomeAssistant) -> None:
     dom = hass.data.setdefault(DOMAIN, {})
     if dom.get(_VM_UNSUB):
         return
+    dom.setdefault(_VM_LOG, VacationLog(hass))
 
     async def _run(_now: Any = None) -> None:
         await _async_tick(hass)

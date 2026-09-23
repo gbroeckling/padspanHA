@@ -37,6 +37,9 @@ _BACKEND_ONLY = {
     "flood_latches",               # flood_latch.py's state-change listener + padspan_ha/flood_reset
     "vacation_mode_pattern",           # vacation_mode.py — built from HA's own recorder history
     "vacation_mode_pattern_built_at",  # ditto — stamped alongside the pattern
+    "vacation_mode_pattern_until",     # ditto — the pattern's history window end
+    "vacation_mode_enabled_at",        # stamped by settings_set on the off->on transition
+    "vacation_mode_periods",           # appended by settings_set on the on->off transition
 }
 
 

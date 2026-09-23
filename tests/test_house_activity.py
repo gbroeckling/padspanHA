@@ -127,6 +127,24 @@ out.scannerDropped = HA.beaconsForFrame(frames, 0, model, { keep: (o) => o.k !==
     assert out["scannerDropped"] == ["a"]
 
 
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_vacation_mode_switching_is_marked_and_a_persons_is_not():
+    out = _run("""
+const ev = [
+  { t: 1000_000, eid: "light.a", from: "off", to: "on" },   // VM asked on at 995 s
+  { t: 2000_000, eid: "light.a", from: "on", to: "off" },   // a person: no VM action near it
+  { t: 3000_000, eid: "light.b", from: "off", to: "on" },   // VM asked OFF, not on
+  { t: 4000_000, eid: "light.a", from: "off", to: "on" },   // VM action 5 min earlier: too old
+];
+const acts = [[995, "light.a", 1], [2999, "light.b", 0], [3700, "light.a", 1]];
+out.marked = HA.markVacationEvents(ev, acts).map(e => e.vacation);
+out.inVac = [HA.inVacation([[100, 200], [500, null]], 150_000), HA.inVacation([[100, 200]], 250_000),
+             HA.inVacation([[500, null]], 9e9)];
+""")
+    assert out["marked"] == [True, False, False, False]
+    assert out["inVac"] == [True, False, True]
+
+
 def test_full_house_activity_is_offered_to_pro_only():
     src = (_VIEWS / "traceback.js").read_text(encoding="utf-8")
     m = re.search(r"const _houseOK = ([^;]+);", src)

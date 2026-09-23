@@ -223,6 +223,8 @@ def _fake_as_local(value: datetime) -> datetime:
 
 _ha_mods["homeassistant.util.dt"].utcnow = _fake_utcnow  # type: ignore[attr-defined]
 _ha_mods["homeassistant.util.dt"].as_local = _fake_as_local  # type: ignore[attr-defined]
+_ha_mods["homeassistant.util.dt"].utc_from_timestamp = (  # type: ignore[attr-defined]
+    lambda ts: datetime.fromtimestamp(ts, tz=timezone.utc))
 
 # homeassistant.helpers.recorder / homeassistant.components.recorder(.history)
 # Default: a healthy recorder with no history for anything (tests override

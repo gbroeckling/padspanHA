@@ -26,10 +26,15 @@ from unittest.mock import AsyncMock, MagicMock
 from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
 from custom_components.padspan_ha.vacation_mode import (
     VM_DOMAINS,
+    _VM_LOG,
+    _async_refresh_pattern_if_stale,
     _async_tick,
     build_pattern,
     bucket_key,
+    closed_periods,
     decide_states,
+    in_periods,
+    prune_log,
     sample_points,
     state_at,
 )
@@ -305,3 +310,105 @@ async def test_tick_never_calls_a_non_light_fan_domain_even_from_a_hand_edited_p
 
 def test_vm_domains_is_light_and_fan_only():
     assert VM_DOMAINS == ("light.", "fan.")
+
+
+# ---------------------------------------------------------------------------
+# NEVER LEARN FROM ITSELF (Garry, 2026-09-23) — the pattern is built from
+# history before the vacation began, never from Vacation Mode's own output
+# ---------------------------------------------------------------------------
+
+
+def test_build_pattern_skips_earlier_vacation_spans():
+    now = datetime(2026, 1, 30, 0, 0, 0)
+    # On every day at noon for the whole window...
+    changes = []
+    for d in range(30):
+        day = now - timedelta(days=d + 1)
+        changes.append(((day.replace(hour=11, minute=45)).timestamp(), "off"))
+        changes.append(((day.replace(hour=12, minute=0)).timestamp(), "on"))
+        changes.append(((day.replace(hour=12, minute=15)).timestamp(), "off"))
+    # ...but the whole window was one earlier vacation: nothing is learned.
+    span = [[(now - timedelta(days=31)).timestamp(), now.timestamp()]]
+    assert build_pattern({"light.a": changes}, now, exclude=span) == {}
+    assert build_pattern({"light.a": changes}, now) != {}
+
+
+def test_in_periods_open_and_closed_spans():
+    assert in_periods(150, [[100, 200]])
+    assert not in_periods(200, [[100, 200]])      # end is exclusive
+    assert in_periods(10**9, [[100, None]])       # still-open span
+    assert not in_periods(50, [[100, None], "junk", [None, 5]])
+
+
+def test_closed_periods_appends_the_span_and_prunes_old_ones():
+    now = 100 * 86400.0
+    old = [[1.0, 2.0]]                       # ended ~100 days ago: pruned
+    keep = [[now - 10 * 86400, now - 9 * 86400]]
+    out = closed_periods(old + keep, now - 3600, now)
+    assert out == keep + [[now - 3600, now]]
+    assert closed_periods([], 0, now) == []  # never-stamped: nothing to add
+
+
+def test_prune_log_keeps_14_days_and_the_newest_rows():
+    now = 30 * 86400.0
+    rows = [[now - 20 * 86400, "light.a", 1], [now - 60, "light.a", 0]]
+    assert prune_log(rows, now) == [[now - 60, "light.a", 0]]
+
+
+async def test_refresh_builds_from_history_ending_when_the_vacation_began(monkeypatch):
+    import custom_components.padspan_ha.vacation_mode as vm
+    enabled_at = datetime(2026, 1, 14, 18, 0, 0).timestamp()
+    seen = {}
+
+    async def fake_fetch(hass, eids, days, end=None):
+        seen["end"] = end
+        t = (end - timedelta(days=15)).timestamp()   # every weekday slot seen twice
+        return {"light.a": [(t, "on")]}
+
+    monkeypatch.setattr(vm, "_async_fetch_history", fake_fetch)
+    monkeypatch.setattr(vm, "_eligible_entity_ids", lambda hass: ["light.a"])
+    st = _settings(vacation_mode_enabled=True, vacation_mode_enabled_at=enabled_at)
+    await _async_refresh_pattern_if_stale(_hass(st), st)
+    assert seen["end"].timestamp() == enabled_at
+    assert st.data["vacation_mode_pattern"]
+    assert st.data["vacation_mode_pattern_until"] == enabled_at
+
+
+async def test_refresh_never_rebuilds_during_the_vacation(monkeypatch):
+    import custom_components.padspan_ha.vacation_mode as vm
+    fetch = AsyncMock(return_value={"light.a": [(0.0, "on")]})
+    monkeypatch.setattr(vm, "_async_fetch_history", fetch)
+    enabled_at = datetime(2026, 1, 1).timestamp()   # two weeks into the trip
+    st = _settings(vacation_mode_enabled=True, vacation_mode_enabled_at=enabled_at,
+                   vacation_mode_pattern={"light.a": {"0:1200": 0.5}},
+                   vacation_mode_pattern_until=enabled_at, vacation_mode_pattern_built_at=enabled_at)
+    await _async_refresh_pattern_if_stale(_hass(st), st)
+    fetch.assert_not_called()
+
+
+async def test_refresh_freezes_a_pattern_built_before_enabled_at_existed(monkeypatch):
+    """Turned on under the old code (no enabled_at): keep the pattern it has."""
+    import custom_components.padspan_ha.vacation_mode as vm
+    fetch = AsyncMock(return_value={})
+    monkeypatch.setattr(vm, "_async_fetch_history", fetch)
+    built = datetime(2026, 1, 10).timestamp()
+    st = _settings(vacation_mode_enabled=True, vacation_mode_pattern={"light.a": {"0:1200": 0.5}},
+                   vacation_mode_pattern_built_at=built)
+    await _async_refresh_pattern_if_stale(_hass(st), st)
+    fetch.assert_not_called()
+    assert st.data["vacation_mode_enabled_at"] == built
+
+
+async def test_tick_logs_what_it_switched():
+    now = datetime(2026, 1, 15, 12, 0, 0)
+    key = bucket_key(now)
+    st = _settings(vacation_mode_enabled=True, vacation_mode_pattern={"light.a": {key: 1.0}},
+                   vacation_mode_pattern_built_at=now.timestamp(), vacation_mode_enabled_at=now.timestamp(),
+                   vacation_mode_pattern_until=now.timestamp())
+    hass = _hass(st, _states(**{"light.a": "off"}))
+    log = SimpleNamespace(async_append=AsyncMock())
+    hass.data[DOMAIN][_VM_LOG] = log
+    await _async_tick(hass)
+    log.async_append.assert_called_once()
+    _ts, eid, on = log.async_append.call_args.args
+    assert (eid, on) == ("light.a", True)

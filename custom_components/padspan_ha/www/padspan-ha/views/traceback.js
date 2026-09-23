@@ -894,7 +894,8 @@ export function render(ctx) {
     const ts = tb.frames[tb.frameIdx].ts;
     const status = hs.loading ? "Loading house history…"
       : hs.error ? `House history unavailable: ${_esc(hs.error.substring(0, 80))}`
-      : `${hs.events.filter(e => e.t <= ts * 1000).length} of ${hs.events.length} house events so far`;
+      : `${hs.events.filter(e => e.t <= ts * 1000).length} of ${hs.events.length} house events so far`
+        + (houseActivity.inVacation(hs.vacationPeriods, ts * 1000) ? " · 🌴 Vacation Mode on" : "");
     mapDiv.innerHTML =
       `<div style="display:flex;gap:10px;align-items:center;margin-bottom:6px;font-size:12px">` +
       `<span style="font-family:monospace;font-weight:700;color:#fbbf24;font-size:15px">${_esc(_fmtDate(ts))}</span>` +
@@ -933,7 +934,8 @@ export function render(ctx) {
       const row = document.createElement("div");
       row.style.cssText = `display:flex;gap:8px;padding:2px 4px;cursor:pointer;border-radius:4px;opacity:${e.t <= nowMs ? 1 : 0.4}`;
       row.innerHTML = `<span style="font-family:monospace;color:#94a3b8">${_esc(_fmtTime(e.t / 1000))}</span>` +
-        `<span style="flex:1">${_esc(e.name)}</span><span style="color:#fbbf24">${_esc(e.from)} → ${_esc(e.to)}</span>`;
+        `<span style="flex:1">${e.vacation ? '<span title="Switched by Vacation Mode">🌴 </span>' : ""}${_esc(e.name)}</span>` +
+        `<span style="color:#fbbf24">${_esc(e.from)} → ${_esc(e.to)}</span>`;
       row.addEventListener("click", () => {
         _stopPlayback();
         let i = 0;

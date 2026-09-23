@@ -322,6 +322,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_traceback_get)
     websocket_api.async_register_command(hass, ws_traceback_objects)
     websocket_api.async_register_command(hass, ws_insights_get)
+    websocket_api.async_register_command(hass, ws_vacation_log_get)
     websocket_api.async_register_command(hass, ws_flood_reset)
     websocket_api.async_register_command(hass, ws_notify_services_list)
     websocket_api.async_register_command(hass, ws_notify_test)
@@ -754,6 +755,32 @@ async def ws_insights_get(hass: HomeAssistant, connection, msg) -> None:
     tz_name = getattr(hass.config, "time_zone", None) or "UTC"
     stats = compute_dwell_stats(frames, tz_name=tz_name)
     connection.send_result(msg["id"], stats)
+
+
+# Vacation Mode's own switching — Traceback's Full house activity marks it
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/vacation_log_get",
+    vol.Required("start_ts"): vol.Coerce(float),
+    vol.Required("end_ts"): vol.Coerce(float),
+})
+@websocket_api.async_response
+async def ws_vacation_log_get(hass: HomeAssistant, connection, msg) -> None:
+    """What Vacation Mode switched in [start_ts, end_ts], and the spans it was
+    on — so the house history can tell its switching from a person's
+    (vacation_mode.py's VacationLog; the recorder itself cannot)."""
+    from .const import DATA_SETTINGS
+    from .vacation_mode import _VM_LOG
+    dom = hass.data.get(DOMAIN, {})
+    log = dom.get(_VM_LOG)
+    actions = await log.async_between(msg["start_ts"], msg["end_ts"]) if log else []
+    st = dom.get(DATA_SETTINGS)
+    data = st.data if st else {}
+    periods = [list(p) for p in (data.get("vacation_mode_periods") or [])]
+    if data.get("vacation_mode_enabled") and data.get("vacation_mode_enabled_at"):
+        periods.append([data["vacation_mode_enabled_at"], None])
+    connection.send_result(msg["id"], {"actions": actions, "periods": periods})
 
 
 # Flood/water-leak alarm latching (flood_latch.py) — the Atlas Reset button.

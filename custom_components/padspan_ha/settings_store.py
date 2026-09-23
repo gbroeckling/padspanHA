@@ -109,6 +109,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "vacation_mode_intensity": 100,       # 5-100 — scales every light's on-probability, doubling as an energy-saving mode at low settings
     "vacation_mode_pattern": {},          # backend-only: {entity_id: {"weekday:HHMM": on_probability}} built from HA's own recorder history
     "vacation_mode_pattern_built_at": 0,  # backend-only: epoch-s of the last pattern rebuild
+    "vacation_mode_pattern_until": 0,     # backend-only: epoch-s the pattern's history window ends at (the vacation's start)
+    "vacation_mode_enabled_at": 0,        # backend-only: epoch-s this vacation began; 0 while off — the pattern never learns past it
+    "vacation_mode_periods": [],          # backend-only: [[start, end], ...] earlier vacations, left out of every pattern build
     "overview_show_walls": False,   # Overview: draw RF barrier walls over the map
     "overview_show_outdoor": False, # Overview: draw outdoor areas (sheds, driveways) as an overlay
     "overview_show_trails": False,  # Overview/Pure Live: fading movement trail behind each tracked object

@@ -4,6 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.74 — Vacation Mode never learns from itself, and shows up in Traceback (2026-09-23)
+
+### Vacation Mode
+- **Fixed:** Vacation Mode rebuilt its pattern every day from the recorder while it ran — and the recorder can't tell a light Vacation Mode switched from one a person did, so it slowly learned its own output. Below 100% intensity each day came out dimmer than the last, and after about ten days (the recorder's default retention) there was nothing real left to learn from. It now builds its pattern once, from history up to the moment it was turned on, and leaves every earlier vacation out of later patterns too. A vacation already running keeps the pattern it has.
+- **Added:** Vacation Mode keeps a small log of what it switched (14 days).
+
+### Traceback
+- **Added:** in Full house activity, lights switched by Vacation Mode are marked 🌴 in the event list, and the status line says when Vacation Mode was on at that moment — so you can check what it did while you were away, and tell its switching from a person's.
+
+---
+
 ## 0.38.73 — Full house activity in Traceback; Insights, Busy Times and Locate move in (2026-09-23)
 
 ### Traceback

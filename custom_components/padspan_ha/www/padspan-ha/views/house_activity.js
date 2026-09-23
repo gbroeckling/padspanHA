@@ -102,6 +102,29 @@ export function activityEvents(timeline, nameOf, startMs, endMs) {
   return ev.sort((a, b) => a.t - b.t);
 }
 
+/**
+ * Mark the events Vacation Mode caused (Garry, 2026-09-23): the recorder can't
+ * tell its switching from a person's, so vacation_mode.py logs its own. An
+ * event is Vacation Mode's when a logged action for the same entity, to the
+ * same on/off, came at most `slackMs` before the state change landed.
+ * `actions` rows are [epoch_s, entity_id, 1|0]. Mutates and returns `events`.
+ */
+export function markVacationEvents(events, actions, slackMs = 60000) {
+  const byEid = {};
+  for (const [ts, eid, on] of actions || []) (byEid[eid] = byEid[eid] || []).push([ts * 1000, on ? "on" : "off"]);
+  for (const e of events) {
+    const acts = byEid[e.eid];
+    e.vacation = !!acts && acts.some(([t, to]) => to === e.to && t <= e.t + 1000 && e.t - t <= slackMs);
+  }
+  return events;
+}
+
+/** True when tMs falls inside a Vacation Mode span ([start_s, end_s|null]). */
+export function inVacation(periods, tMs) {
+  const t = tMs / 1000;
+  return (periods || []).some(([s, e]) => s != null && t >= s && (e == null || t < e));
+}
+
 /** Metre centroid of a room, from the fabric's own room geometry. */
 function _roomCentroidM(model, room) {
   const g = (model && model.room_geometry_m) || {};
@@ -169,6 +192,12 @@ export async function loadHouseHistory(ctx, hs, startS, endS) {
     hs.timeline = buildStateTimeline(res);
     const nameOf = (eid) => live[eid]?.attributes?.friendly_name || eid;
     hs.events = activityEvents(hs.timeline, nameOf, startS * 1000, endS * 1000);
+    // Vacation Mode's own switching and spans — a missing log (older
+    // backend) just means nothing is marked.
+    const vac = await ctx.actions.wsCall("padspan_ha/vacation_log_get", { start_ts: startS - 60, end_ts: endS })
+      .catch(() => ({ actions: [], periods: [] }));
+    markVacationEvents(hs.events, vac.actions);
+    hs.vacationPeriods = vac.periods || [];
     hs.window = [startS, endS];
   } catch (e) {
     hs.error = String((e && (e.message || e.code)) || e);
