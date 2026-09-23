@@ -69,10 +69,13 @@ export function isMotionSensor(l) {
 // A door or window sensor (door/window barrier project, step 1, Garry
 // 2026-09-08: "add that device type to the list of devices in mapping,
 // lighting"). Read-only, same reasoning as motion above — its job on the
-// map is a static "open or closed" glyph, not a toggle.
+// map is a static "open or closed" glyph, not a toggle. garage_door and
+// opening are the same open/closed contact under HA's other names (a door
+// sensor's "Show as" can switch to either): left out, a linked barrier had
+// no state on the Atlas and drew "no reading" forever (round 6).
 export function isDoorSensor(l) {
   return String(l.entity_id || "").startsWith("binary_sensor.")
-    && ["door", "window"].includes(l.device_class);
+    && ["door", "window", "garage_door", "opening"].includes(l.device_class);
 }
 
 // A water-leak/flood sensor (Garry, 2026-09-18: "add flood sensors to the

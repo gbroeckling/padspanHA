@@ -1087,3 +1087,24 @@ console.log(JSON.stringify({
     assert out["offlineDoor"] == "NO READING" and out["offlineLock"] == "NO READING"
     assert out["invClosed"] == "CLOSED" and out["invOpen"] == "OPEN" and out["plainOpen"] == "OPEN"
     assert out["map"] == {"binary_sensor.garage": True}
+
+
+def test_a_garage_door_or_opening_sensor_is_a_door_on_the_atlas(tmp_path):
+    """Round 6: HA's "Show as" can make a door contact garage_door or
+    opening; left out of isDoorSensor, a barrier linked to one had no state
+    on the Atlas and drew 'no reading' forever."""
+    out = _run(tmp_path, r"""
+const LC = await import('./light_codes.mjs');
+const states = {
+  "binary_sensor.car": { state: "on", attributes: { device_class: "garage_door" } },
+  "binary_sensor.hatch": { state: "off", attributes: { device_class: "opening" } },
+  "binary_sensor.pir": { state: "off", attributes: { device_class: "motion" } },
+};
+const lights = LM.gatherLights(states, {}, {}, "pro", {}, {}, {}, {}, Date.now(), true);
+console.log(JSON.stringify({
+  doors: lights.filter(l => l.isDoor).map(l => l.entity_id).sort(),
+  admitted: ["binary_sensor.car", "binary_sensor.hatch"].map(e => LC.isAtlasEntity(e, states[e].attributes)),
+}));
+""")
+    assert out["doors"] == ["binary_sensor.car", "binary_sensor.hatch"]
+    assert out["admitted"] == [True, True]
