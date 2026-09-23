@@ -83,3 +83,14 @@ def test_reveal_command_is_admin_only():
     # The decorator is stubbed in tests; assert the command exists and is
     # registered separately from the redacted settings payload.
     assert callable(ws.ws_forensics_license_reveal)
+
+
+def test_settings_payload_leaves_out_the_learned_vacation_patterns():
+    """Round 6: the patterns are backend-only and the biggest thing in the
+    store; they went out on every settings read and reply."""
+    h = _hass(vacation_mode_pattern={"light.a": {"*:1200": 1.0}}, vacation_mode_pattern_prev={"light.b": {}},
+              vacation_mode_enabled=True)
+    out = ws._get_settings(h)
+    assert "vacation_mode_pattern" not in out and "vacation_mode_pattern_prev" not in out
+    assert out["vacation_mode_enabled"] is True
+    assert "vacation_mode_pattern" in h.data[ws.DOMAIN][ws.DATA_SETTINGS].data, "the store itself keeps them"

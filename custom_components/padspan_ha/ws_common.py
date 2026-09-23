@@ -180,6 +180,11 @@ def _get_settings(hass: HomeAssistant) -> dict:
     from .licence import edition as _edition, effective_tier as _eff  # noqa: PLC0415
     from .build_info import TIER_FLOOR as _floor  # noqa: PLC0415
     out["forensics_license_key"] = ""          # never leaves the backend
+    # Vacation Mode's learned patterns are backend-only and the biggest
+    # thing in the store (hundreds of KiB): never sent on every settings
+    # read and reply (round 6).
+    out.pop("vacation_mode_pattern", None)
+    out.pop("vacation_mode_pattern_prev", None)
     out["pro_has_key"] = state["has_key"]
     out["pro_active"] = state["active"]        # a valid key of any tier
     out["pro_days_left"] = state["days_left"]
