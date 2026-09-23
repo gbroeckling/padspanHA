@@ -581,3 +581,44 @@ async def test_a_team_list_changed_in_another_window_is_refused(fake):
     conn = _Conn()
     await W.ws_wled_teams_set(fake.hass, conn, {"id": 2, "teams": [], "base_hash": W.cfg_hash(stored)})
     assert not conn.errors and conn.results[0]["hash"] == W.cfg_hash([])
+
+
+async def test_a_fired_identify_timer_doesnt_cut_a_newer_identify_short(fake, monkeypatch):
+    import asyncio
+    import sys
+    import types
+    posts, timers = [], []
+    gate = asyncio.Event()
+    gate.set()
+
+    async def _req(h, host, method, path, body=None, timeout=0, retries=0):
+        if method == "GET":
+            return {"state": {"on": True, "bri": 50, "seg": [{"id": 0, "start": 0, "stop": 10, "fx": 3},
+                                                             {"id": 1, "start": 10, "stop": 20, "fx": 4}]},
+                    "info": {"arch": "esp32"}}
+        await gate.wait()
+        posts.append("restore" if body.get("seg") and body["seg"][0].get("fx") == 3 else "identify")
+        return {}
+
+    monkeypatch.setattr(W, "_request", _req)
+
+    def later(hass, delay, fn):
+        timers.append((delay, fn))
+        return lambda: None          # like HA: cancelling a fired timer does nothing
+
+    ev = types.ModuleType("homeassistant.helpers.event")
+    ev.async_call_later = later
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.event", ev)
+    fake.hass.data = {}
+    await W.ws_wled_identify(fake.hass, _Conn(), {"id": 1, "entity_id": "light.upper_north", "seg_id": 0, "seconds": 10})
+    gate.clear()
+    t2 = asyncio.create_task(W.ws_wled_identify(fake.hass, _Conn(), {"id": 2, "entity_id": "light.upper_north", "seg_id": 1, "seconds": 10}))
+    await asyncio.sleep(0)
+    t1 = asyncio.create_task(timers[0][1]())      # timer 1 fires while identify 2 holds the lock
+    await asyncio.sleep(0)
+    gate.set()
+    await t2
+    await t1
+    assert posts == ["identify", "identify"], "the stale timer restored early"
+    await timers[1][1]()                          # identify 2's own timer
+    assert posts == ["identify", "identify", "restore"]

@@ -876,14 +876,16 @@ def _identify_lock(hass: HomeAssistant, host: str) -> asyncio.Lock:
     return locks.setdefault(host, asyncio.Lock())
 
 
-async def _identify_restore(hass: HomeAssistant, host: str, job: dict) -> None:
+async def _identify_restore(hass: HomeAssistant, host: str, job: dict, gen: int | None = None) -> None:
     """Put the saved state back — under the device's lock, so an identify
     arriving meanwhile waits and then starts from the restored state (round
     5: an identify during a restore, or two overlapping first calls, left
-    the strip white)."""
+    the strip white). `gen`: the aim this restore was scheduled for; a timer
+    that fired while a newer identify re-aimed the job does nothing (round
+    6: it cut the newer blink short)."""
     active: dict = hass.data.setdefault(DOMAIN, {}).setdefault(_IDENTIFY, {})
     async with _identify_lock(hass, host):
-        if active.get(host) is not job:
+        if active.get(host) is not job or (gen is not None and job.get("gen") != gen):
             return
         saved = job["state"]
         for attempt in range(4):
@@ -924,14 +926,15 @@ async def ws_wled_identify(hass: HomeAssistant, connection, msg) -> None:
             except WledError as e:          # nothing changed on the device yet
                 connection.send_error(msg["id"], e.code, str(e))
                 return
-            job = {"state": si.get("state") or {}, "max": max_body_for(si.get("info")), "cancel": None}
+            job = {"state": si.get("state") or {}, "max": max_body_for(si.get("info")), "cancel": None, "gen": 0}
             active[host] = job
         elif job.get("cancel"):
             job["cancel"]()                 # re-aim: one restore, from the ORIGINAL state
             job["cancel"] = None
+        job["gen"] = gen = job.get("gen", 0) + 1
 
         async def _fire(_now: Any = None) -> None:
-            await _identify_restore(hass, host, job)
+            await _identify_restore(hass, host, job, gen)
 
         try:
             await _request(hass, host, "POST", "json/state", identify_body(job["state"], msg["seg_id"]), POST_TIMEOUT_S)

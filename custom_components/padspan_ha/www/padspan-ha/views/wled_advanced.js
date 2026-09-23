@@ -408,14 +408,19 @@ function bootPresetBar(ctx, segs) {
         if (viaPsave) body.bootps = slot;
         ctx.presets = null;
         if (!(await ctx.write(body, "save the layout"))) return;
+        // The config route's own report (with anything that changed
+        // unasked) is the last word — not replaced by a plainer toast (round 6).
+        let reported = false;
         if (!viaPsave) {
           try {
             const cur = await ctx.call("padspan_ha/wled_get", { path: "json/cfg" });
-            reportCfg(ctx, await ctx.call("padspan_ha/wled_cfg", { patch: { def: { ps: slot } }, base_hash: cur.hash }), `Preset ${slot} is the boot preset`);
+            reportCfg(ctx, await ctx.call("padspan_ha/wled_cfg", { patch: { def: { ps: slot } }, base_hash: cur.hash }),
+              `Saved as preset ${slot} — the device starts with it now`);
+            reported = true;
           } catch (e) { ctx.toast(`Saved as preset ${slot}, but couldn't make it the boot preset: ${errText(e)}`, true); return; }
         }
         ctx.info.leds = { ...(ctx.info.leds || {}), bootps: slot };
-        ctx.toast(`Saved as preset ${slot} — the device starts with it now`);
+        if (!reported) ctx.toast(`Saved as preset ${slot} — the device starts with it now`);
         ctx.repaint();
       } }, "Keep after restart"));
     } catch (e) {

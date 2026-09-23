@@ -569,3 +569,25 @@ out.toasts = toasts.filter(t => t[1]);
 """)
     assert out["recorded"] and out["recorded"][0]["incomplete"] == ["dA"], out["recorded"]
     assert "couldn't be put back" in out["toasts"][-1][0]
+
+
+def test_the_boot_preset_save_keeps_its_unexpected_changes_warning():
+    """Through the config route (0.14), reportCfg's 'these changed too' was
+    immediately replaced by a plain 'Saved as preset' toast (round 6)."""
+    out = _run("""
+const toasts = [];
+DEVICE["json/si"].info = { ...DEVICE["json/si"].info, ver: "0.14.4", vid: 2405180 };
+DEVICE["json/cfg"] = { def: { ps: 0 } };
+globalThis.confirm = () => true;
+const hass = fakeHass([]);
+const inner = hass.callWS;
+hass.callWS = async (m) => m.type === "padspan_ha/wled_cfg" ? { backup: "b", unexpected: ["light.gc.bri"] }
+  : m.type === "padspan_ha/wled_get" ? { data: DEVICE[m.path], hash: "H" } : inner(m);
+const pane = document.createElement("div");
+await WA.mountWledAdvanced(pane, { hass, eid: "light.upper_north", api: { wled: { isAdmin: true }, toast: (m, bad) => toasts.push([m, !!bad]) } });
+await settle();
+all(pane).find(n => n.textContent === "Keep after restart").click();
+await settle(); await settle();
+out.last = toasts[toasts.length - 1];
+""")
+    assert "light.gc.bri" in out["last"][0] and out["last"][1] is True, out["last"]
