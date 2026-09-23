@@ -323,6 +323,9 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_traceback_objects)
     websocket_api.async_register_command(hass, ws_insights_get)
     websocket_api.async_register_command(hass, ws_vacation_log_get)
+    # The Atlas WLED card's Advanced tab — a safe proxy to the device (ws_wled.py).
+    from .ws_wled import async_register as _wled_register
+    _wled_register(hass)
     websocket_api.async_register_command(hass, ws_flood_reset)
     websocket_api.async_register_command(hass, ws_notify_services_list)
     websocket_api.async_register_command(hass, ws_notify_test)
