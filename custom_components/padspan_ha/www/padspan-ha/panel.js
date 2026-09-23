@@ -3112,8 +3112,10 @@ class PadSpanHaApp extends HTMLElement {
       // Detect suspend state change — force full rebuild so banner appears/disappears
       const _curSusp = !!(this.state.live?.snapshot?.suspended);
       if(this._lastSuspendState !== _curSusp) {
-        this._lastSuspendState = _curSusp;
-        // Fall through to full rebuild below
+        // Fall through to full rebuild below. Recorded only once that
+        // rebuild happens (after the swap): a rebuild the interaction guard
+        // skipped — the "Resume Normal" click itself — must not count as
+        // done, or the banner stays up for good (round 6).
       } else {
         // Update suspend countdown in-place (no full rebuild)
         if(_curSusp) {
@@ -3389,6 +3391,7 @@ class PadSpanHaApp extends HTMLElement {
       this.$content.appendChild(frag);
       this._lastGoodRender = performance.now();
       this._renderFailCount = 0;
+      if(v === "overview") this._lastSuspendState = !!(this.state.live?.snapshot?.suspended);
 
       // Restore scroll after DOM paint
       requestAnimationFrame(()=> {
