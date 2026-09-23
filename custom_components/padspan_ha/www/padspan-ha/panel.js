@@ -3146,12 +3146,17 @@ class PadSpanHaApp extends HTMLElement {
     // must always go through immediately.
     if(fromPoll){
       // A deliberate skip is a live view, not a stall: stamp it, or the
-      // watchdog rebuilds the view mid-typing (round 4).
+      // watchdog rebuilds the view mid-typing (round 4). Only while someone
+      // is using it — a field left focused on an idle screen would otherwise
+      // hold the view frozen for good (round 5).
       try {
         const active = (this.shadowRoot || this).querySelector(":focus");
         if(active){
           const tag = active.tagName;
-          if(tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA"){ this._lastGoodRender = performance.now(); return; }
+          if(tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA"){
+            if(this._lastUserInteraction && (performance.now() - this._lastUserInteraction) < 120_000) this._lastGoodRender = performance.now();
+            return;
+          }
         }
       } catch(e) { /* ignore */ }
       if(this._lastUserInteraction && (performance.now() - this._lastUserInteraction) < 3000){ this._lastGoodRender = performance.now(); return; }
