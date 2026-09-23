@@ -254,6 +254,9 @@ export function render(ctx) {
       tb.frames = res.frames || [];
       tb.range = res.range || { start: 0, end: 0, count: 0 };
       tb.frameIdx = 0;
+      // The window asked for — Full house activity fetches the house over it,
+      // not just over the span beacon frames happen to cover.
+      tb._loadedRange = [startTs, endTs];
       tb._staticKeys = null;  // recompute on next render
       tb._colorMap = null;
       tb._scannerSet = null;
@@ -272,6 +275,7 @@ export function render(ctx) {
       tb._scannerSet = null;
         if (tb.frames.length) {
           tb._autoExpanded = true;
+          tb._loadedRange = [tb.range.start, tb.range.end || now];
         }
       } else {
         tb._autoExpanded = false;
@@ -284,6 +288,27 @@ export function render(ctx) {
       console.error("Traceback load error:", e);
       tb.frames = [];
     }
+    tb.rawFrames = tb.frames;
+    _applyHouseFrames();
+  }
+
+  // With Full house activity on and its history in, every house event is a
+  // frame of its own (houseActivity.mergeHouseFrames); otherwise the beacon
+  // frames alone. Keeps the playhead on the same moment across the swap.
+  function _applyHouseFrames() {
+    const raw = tb.rawFrames || tb.frames || [];
+    const hs = tb.house;
+    const win = tb._loadedRange;
+    const ready = _houseActive() && hs.timeline && win && hs.window
+      && hs.window[0] === win[0] && hs.window[1] === win[1];
+    const next = ready ? houseActivity.mergeHouseFrames(raw, hs.events) : raw;
+    if (next === tb.frames) return;
+    const atTs = tb.frames[tb.frameIdx] ? tb.frames[tb.frameIdx].ts : null;
+    tb.frames = next;
+    let i = 0;
+    if (atTs != null) while (i + 1 < next.length && next[i + 1].ts <= atTs) i++;
+    tb.frameIdx = Math.min(i, Math.max(0, next.length - 1));
+    tb._staticKeys = null; tb._colorMap = null;
   }
 
   // ── SVG builder ────────────────────────────────────────────────────────
@@ -877,10 +902,33 @@ export function render(ctx) {
     return tb._colorMap[key] || "#fbbf24";
   }
 
+  // A fetch started by an earlier mount of this tab still repaints THIS one.
+  let _chainedPending = null;
+  function _houseLoaded() {
+    if (!_houseActive() || mapDiv.isConnected === false) return;   // a detached earlier mount
+    _applyHouseFrames();
+    _buildControls();
+    _renderHouseEvents(true);
+    _renderFrame();
+  }
+
   function _renderHouseFrame() {
     const hs = tb.house;
+    const win = tb._loadedRange;
+    const stale = win && (!hs.window || hs.window[0] !== win[0] || hs.window[1] !== win[1]);
+    if (hs.loading && hs.pending && _chainedPending !== hs.pending) {
+      _chainedPending = hs.pending;
+      hs.pending.then(_houseLoaded);
+    }
     if (!tb.frames.length) {
-      mapDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#64748b;font-size:14px">No traceback frames loaded. Select a time range and press Play.</div>`;
+      mapDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#64748b;font-size:14px">${
+        hs.loading ? "Loading house history…" : "No beacon or house activity in this time range. Try a longer range."}</div>`;
+      // The history still has to be fetched to know that: nobody home all
+      // window leaves no beacon frames, but the house may have been busy.
+      if (stale && !hs.loading) {
+        houseActivity.renderHouseFrame(ctx, hs, [], 0, {}, () => {});   // fills hs.eids
+        if (hs.eids.length) { houseActivity.loadHouseHistory(ctx, hs, win[0], win[1]); _chainedPending = hs.pending; hs.pending.then(_houseLoaded); }
+      }
       _renderHouseEvents();
       return;
     }
@@ -890,33 +938,58 @@ export function render(ctx) {
       keep: (o) => !scanners.has(String(o.k || "").toUpperCase()),
       colorOf: _houseFrameColor,
       labelOf: (o) => String(o.n || o.k || "?").replace(/^(entity:|ble:|sensor\.|device_tracker\.)/, "").replace(/_/g, " ").substring(0, 16),
-    }, () => { if (_houseActive()) _renderHouseFrame(); });
+    }, () => {});
     const ts = tb.frames[tb.frameIdx].ts;
+    let done = 0;
+    for (const e of hs.events) { if (e.t <= ts * 1000) done++; else break; }
     const status = hs.loading ? "Loading house history…"
-      : hs.error ? `House history unavailable: ${_esc(hs.error.substring(0, 80))}`
-      : `${hs.events.filter(e => e.t <= ts * 1000).length} of ${hs.events.length} house events so far`
-        + (houseActivity.inVacation(hs.vacationPeriods, ts * 1000) ? " · 🌴 Vacation Mode on" : "");
+      : hs.error ? `House history unavailable: ${_esc(hs.error.substring(0, 80))} <button class="btn tiny" data-house-retry>Retry</button>`
+      : `${done} of ${hs.events.length} house events so far`
+        + (houseActivity.inVacation(hs.vacationPeriods, ts * 1000) ? " · 🌴 Vacation Mode on" : "")
+        + (tb.frames[tb.frameIdx].house && !(tb.frames[tb.frameIdx].o || []).length ? " · no tracked beacon home" : "");
     mapDiv.innerHTML =
-      `<div style="display:flex;gap:10px;align-items:center;margin-bottom:6px;font-size:12px">` +
+      `<div style="display:flex;gap:10px;align-items:center;margin-bottom:6px;font-size:12px;flex-wrap:wrap">` +
       `<span style="font-family:monospace;font-weight:700;color:#fbbf24;font-size:15px">${_esc(_fmtDate(ts))}</span>` +
       `<span style="color:#94a3b8">${status}</span>` +
       `<span style="margin-left:auto;color:#64748b;font-family:monospace">${tb.frameIdx + 1} / ${tb.frames.length}</span></div>` + svg;
+    const retry = mapDiv.querySelector("[data-house-retry]");
+    if (retry) retry.addEventListener("click", () => { hs.window = null; hs.error = null; _renderHouseFrame(); });
     // One history fetch per loaded window; a new time range fetches again.
-    const win = [tb.frames[0].ts, tb.frames[tb.frames.length - 1].ts];
-    const stale = !hs.window || hs.window[0] !== win[0] || hs.window[1] !== win[1];
     if (stale && !hs.loading && hs.eids.length) {
-      hs.window = win;
-      houseActivity.loadHouseHistory(ctx, hs, win[0], win[1]).then(() => { if (_houseActive()) _renderHouseFrame(); });
+      houseActivity.loadHouseHistory(ctx, hs, win[0], win[1]);
+      _chainedPending = hs.pending;
+      hs.pending.then(_houseLoaded);
     }
+    // The entity registry (rooms for every light) may still be arriving:
+    // look again shortly rather than leave lights unplaced.
+    if (hs.regLoading && !tb.playing) setTimeout(() => { if (_houseActive() && mapDiv.isConnected !== false) _renderHouseFrame(); }, 1500);
     _renderHouseEvents();
   }
 
-  // Side list of every house state change in the window; tap one to jump there.
+  // Side list of the house's changes; tap one to jump there. Built once per
+  // history load around the playhead, then only re-shaded as playback moves
+  // (review 2026-09-23: rebuilding it every frame stole clicks and scroll).
   const houseEventsCard = document.createElement("div");
   houseEventsCard.className = "card";
   houseEventsCard.style.cssText = "margin-bottom:10px;max-height:260px;overflow:auto;font-size:12px";
-  function _renderHouseEvents() {
+  const EVENTS_SHOWN = 400;
+  let _evBuilt = null, _evRows = [], _evFrom = 0;
+  function _renderHouseEvents(force) {
     const hs = tb.house;
+    const nowMs = tb.frames[tb.frameIdx] ? tb.frames[tb.frameIdx].ts * 1000 : Infinity;
+    let at = 0;
+    while (at < hs.events.length && hs.events[at].t <= nowMs) at++;
+    const key = `${hs.version || 0}|${hs.loading}|${hs.events.length}`;
+    const inRange = at >= _evFrom + 50 && at <= _evFrom + EVENTS_SHOWN - 50;
+    if (!force && _evBuilt === key && (inRange || hs.events.length <= EVENTS_SHOWN)) {
+      for (const r of _evRows) {
+        const op = r.t <= nowMs ? "1" : "0.4";
+        if (r.el.style.opacity !== op) r.el.style.opacity = op;
+      }
+      return;
+    }
+    _evBuilt = key;
+    _evRows = [];
     houseEventsCard.innerHTML = "";
     const head = document.createElement("div");
     head.style.cssText = "font-weight:700;font-size:13px;margin-bottom:6px;color:#fbbf24";
@@ -929,23 +1002,32 @@ export function render(ctx) {
       houseEventsCard.appendChild(m);
       return;
     }
-    const nowMs = tb.frames[tb.frameIdx] ? tb.frames[tb.frameIdx].ts * 1000 : Infinity;
-    for (const e of hs.events.slice(-500)) {
+    _evFrom = Math.max(0, Math.min(at - EVENTS_SHOWN / 2, hs.events.length - EVENTS_SHOWN));
+    const shown = hs.events.slice(_evFrom, _evFrom + EVENTS_SHOWN);
+    if (shown.length < hs.events.length) {
+      const note = document.createElement("div");
+      note.className = "muted";
+      note.style.cssText = "font-size:11px;margin-bottom:4px";
+      note.textContent = `Showing ${shown.length} of ${hs.events.length} changes, around the playhead — scrub to see others.`;
+      houseEventsCard.appendChild(note);
+    }
+    for (const e of shown) {
       const row = document.createElement("div");
       row.style.cssText = `display:flex;gap:8px;padding:2px 4px;cursor:pointer;border-radius:4px;opacity:${e.t <= nowMs ? 1 : 0.4}`;
-      row.innerHTML = `<span style="font-family:monospace;color:#94a3b8">${_esc(_fmtTime(e.t / 1000))}</span>` +
+      row.innerHTML = `<span style="font-family:monospace;color:#94a3b8">${_esc(_fmtDate(e.t / 1000))}</span>` +
         `<span style="flex:1">${e.vacation ? '<span title="Switched by Vacation Mode">🌴 </span>' : ""}${_esc(e.name)}</span>` +
         `<span style="color:#fbbf24">${_esc(e.from)} → ${_esc(e.to)}</span>`;
       row.addEventListener("click", () => {
         _stopPlayback();
+        // The event has a frame of its own (mergeHouseFrames): land ON it.
         let i = 0;
-        while (i + 1 < tb.frames.length && tb.frames[i + 1].ts * 1000 <= e.t) i++;
+        while (i < tb.frames.length - 1 && tb.frames[i].ts * 1000 < e.t - 500) i++;
         tb.frameIdx = i;
         _renderFrame();
         _updateScrubber();
-        _buildControls();
       });
       houseEventsCard.appendChild(row);
+      _evRows.push({ t: e.t, el: row });
     }
   }
 
@@ -1099,7 +1181,7 @@ export function render(ctx) {
 
   function _exportTracebackCsv() {
     const lines = ["timestamp,key,name,room,floor,x_m,y_m,confidence,rssi,scanner,kind"];
-    for (const frame of tb.frames) {
+    for (const frame of (tb.rawFrames || tb.frames)) {
       const ts = new Date(frame.ts * 1000).toISOString();
       for (const o of frame.o || []) {
         lines.push([
@@ -1112,7 +1194,7 @@ export function render(ctx) {
   }
 
   function _exportTracebackJson() {
-    _downloadBlob(JSON.stringify(tb.frames, null, 2), "application/json", _tracebackFilename("json"));
+    _downloadBlob(JSON.stringify(tb.rawFrames || tb.frames, null, 2), "application/json", _tracebackFilename("json"));
   }
 
   // ── Controls card ──────────────────────────────────────────────────────
@@ -1475,6 +1557,12 @@ export function render(ctx) {
   focusSlider.style.cssText = "width:130px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
   focusSlider.value = String(ctx.state._overviewIsoFocusIdx);
   focusSlider.addEventListener("input", ()=>{
+    if (_houseActive()) {
+      tb.house.focusIdx = parseInt(focusSlider.value, 10);
+      _syncFocusSlider();
+      _renderFrame();
+      return;
+    }
     ctx.state._overviewIsoFocusIdx = parseInt(focusSlider.value, 10);
     focusZ = _isoPos[Math.max(0, Math.min(ctx.state._overviewIsoFocusIdx, _isoPos.length-1))];
     focusLbl.textContent = _getFocusLbl(ctx.state._overviewIsoFocusIdx);
@@ -1484,6 +1572,22 @@ export function render(ctx) {
   });
   isoCtrlRow.appendChild(focusSlider);
   isoCtrlRow.appendChild(focusLbl);
+  // In house mode the slider walks the Atlas's floors (fabric floors, the
+  // list the Atlas drawing uses), not the photo z_levels of the 3D stack.
+  function _syncFocusSlider() {
+    if (_houseActive()) {
+      const { positions, labelOf } = houseActivity.atlasFocusPositions(ctx.state.model, ctx.state._overviewFloorGap, ctx.state._overviewHorizGap);
+      if (tb.house.focusIdx == null) tb.house.focusIdx = ctx.state.settings?.overview_iso_focus ?? 0;
+      tb.house.focusIdx = Math.max(0, Math.min(tb.house.focusIdx, positions.length - 1));
+      focusSlider.max = String(positions.length - 1);
+      focusSlider.value = String(tb.house.focusIdx);
+      focusLbl.textContent = labelOf(tb.house.focusIdx);
+    } else {
+      focusSlider.max = String(_isoPos.length - 1);
+      focusSlider.value = String(ctx.state._overviewIsoFocusIdx);
+      focusLbl.textContent = _getFocusLbl(ctx.state._overviewIsoFocusIdx);
+    }
+  }
 
   // Spacing slider
   const ovSpacingLbl = document.createElement("span");
@@ -1565,6 +1669,7 @@ export function render(ctx) {
     ctx.state._overviewFloorGap = 150; _ovFG = 150;
     ctx.state._overviewHorizGap = 0;   _ovHG = 0;
     ctx.state._overviewIsoFocusIdx = 0;
+    tb.house.focusIdx = 0;
     focusZ = _isoPos[0];
     ovGapSlider.value   = "150"; ovGapLbl.textContent   = "150";
     ovHorizSlider.value = "0";   ovHorizLbl.textContent = "0";
@@ -1880,6 +1985,7 @@ export function render(ctx) {
   // its controls and the Distance card belong to the two map modes only.
   const analyticsPane = document.createElement("div");
   let _distCardRef = null;
+  let _mountedAnalytics = null;
   function _applyModeVisibility(mode) {
     const onMap = _isMapMode(mode);
     isoCtrlRow.style.display = onMap ? "" : "none";
@@ -1890,7 +1996,11 @@ export function render(ctx) {
     if (_distCardRef) _distCardRef.style.display = onMap ? "" : "none";
     houseBtn.style.display = mode === "playback" ? "" : "none";
     houseEventsCard.style.display = _houseActive() ? "" : "none";
-    // The iso sliders (floor focus, spacing) drive the Atlas drawing too.
+    _syncFocusSlider();
+    // Mount an analytics module only when its mode is newly chosen — a second
+    // tap on the active mode keeps what is on screen.
+    if (_mountedAnalytics === mode) return;
+    _mountedAnalytics = onMap ? null : mode;
     analyticsPane.innerHTML = "";
     if (mode === "insights") analyticsPane.appendChild(insightsView.render(ctx));
     else if (mode === "busytimes") analyticsPane.appendChild(busyTimesView.render(ctx));
@@ -1912,6 +2022,7 @@ export function render(ctx) {
       // Update mode button styles
       for (const c of modeRow.children) {
         const m = c.getAttribute("data-mode");
+        if (!m) continue;          // the Full house activity switch styles itself
         if (m === mode) {
           const mCol = MODE_COLOR[m];
           c.style.cssText = `font-size:12px;padding:4px 14px;font-weight:700;background:${mCol}22;color:${mCol};border-color:${mCol}`;
@@ -1919,9 +2030,13 @@ export function render(ctx) {
           c.style.cssText = "font-size:12px;padding:4px 14px;color:#94a3b8;border-color:#1b3526";
         }
       }
-      // Re-render map for current mode
+      // Re-render map for current mode. The map div was last drawn by
+      // another mode, so the 3D stack's cached base is gone.
+      _resetStaticBase();
       if (mode === "playback") {
-        _renderFrame();
+        // Traceback may have opened in another mode and never loaded.
+        if (!ctrlCard.children.length) _loadTracebackData().then(() => { _buildControls(); _renderFrame(); });
+        else _renderFrame();
       } else if (mode === "discovery") {
         _runDiscoverySearch();
         _buildDiscoControls();
@@ -1949,8 +2064,11 @@ export function render(ctx) {
   houseBtn.addEventListener("click", () => {
     tb.house.on = !tb.house.on;
     _paintHouseBtn();
+    _applyHouseFrames();    // back to beacon-only frames when it goes off
     _applyModeVisibility(tb.mode);
     _resetStaticBase();     // the 3D stack's cached base is gone from mapDiv either way
+    _buildControls();
+    _renderHouseEvents(true);
     _renderFrame();
   });
   _paintHouseBtn();
@@ -2309,5 +2427,7 @@ export function render(ctx) {
   }
 
   _applyModeVisibility(tb.mode);
+  _paintHouseBtn();
+  houseBtn.style.display = tb.mode === "playback" ? "" : "none";
   return outer;
 }

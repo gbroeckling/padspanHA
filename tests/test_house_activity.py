@@ -184,3 +184,108 @@ out.eids = hs.eids;
     assert out["isSvg"]
     assert out["beacon"]
     assert out["eids"] == ["light.hall"]
+
+
+# ── Review round, 2026-09-23 ─────────────────────────────────────────────────
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_the_start_of_window_row_is_not_a_change():
+    """HA's include_start_time_state row carries lu = the window start and no
+    lc. Taken at face value every quiet motion sensor read 'just triggered'
+    at the start of every playback."""
+    out = _run("""
+const start = 1_000_000;                       // window start, seconds
+const rows = { "binary_sensor.hall": [{ s: "off", lu: start }] , "binary_sensor.den": [{ s: "on", lu: start }],
+               "binary_sensor.bath": [{ s: "off", lu: start }, { s: "on", lu: start + 60 }] };
+const live = { "binary_sensor.hall": { state: "off", last_changed: new Date((start - 86400) * 1000).toISOString() },
+               "binary_sensor.bath": { state: "on", last_changed: new Date((start + 60) * 1000).toISOString() } };
+const tl = HA.buildStateTimeline(rows, { startMs: start * 1000, live });
+out.hall = tl["binary_sensor.hall"][0].lc / 1000;      // unchanged since: the live last_changed
+out.den = tl["binary_sensor.den"][0].lc / 1000;        // no live row: on at the start -> the start
+out.bath = tl["binary_sensor.bath"][0].lc;             // changed since: unknown -> 0
+out.bathChange = tl["binary_sensor.bath"][1].lc / 1000;
+""")
+    assert out == {"hall": 1_000_000 - 86400, "den": 1_000_000, "bath": 0, "bathChange": 1_000_060}
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_numeric_readings_and_unavailable_flaps_are_not_events():
+    out = _run("""
+const tl = HA.buildStateTimeline({
+  "sensor.kitchen_temp": [{ s: "20.1", lu: 1 }, { s: "20.2", lu: 2 }, { s: "20.3", lu: 3 }],
+  "light.a": [{ s: "off", lu: 1 }, { s: "unavailable", lu: 2 }, { s: "off", lu: 3 }, { s: "on", lu: 4 }],
+});
+out.ev = HA.activityEvents(tl, e => e, 0, 10_000).map(e => [e.eid, e.from, e.to]);
+""")
+    assert out["ev"] == [["light.a", "off", "on"]]
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_merge_house_frames_carries_beacons_briefly_then_draws_nobody():
+    out = _run("""
+const raw = [{ ts: 100, o: [{ k: "a" }] }, { ts: 110, o: [{ k: "a" }] }];
+const ev = [{ t: 120_000 }, { t: 500_000 }, { t: 110_000 }];     // +10 s, +390 s, and one on a beacon frame
+const m = HA.mergeHouseFrames(raw, ev);
+out.ts = m.map(f => f.ts);
+out.carried = m.find(f => f.ts === 120).o.map(o => o.k);
+out.empty = m.find(f => f.ts === 500).o.length;
+out.untouched = HA.mergeHouseFrames(raw, []) !== raw && HA.mergeHouseFrames(raw, []).length === 2;
+""")
+    assert out == {"ts": [100, 110, 120, 500], "carried": ["a"], "empty": 0, "untouched": True}
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_replaying_history_never_touches_a_lights_remembered_brightness():
+    """A replayed frame overwrote padspan_ha_last_bri, so the next tap turned
+    the light on at last week's level."""
+    out = _run("""
+const LM = await import(new URL("./lights_map.js", pathToFileURL(%s + "/")).href);
+const live = { "light.k": { entity_id: "light.k", state: "on", attributes: { friendly_name: "K", brightness: 40 } } };
+LM.gatherLights(live, {}, {}, "pro", {}, {}, {}, {});
+const old = { "light.k": { entity_id: "light.k", state: "on", attributes: { friendly_name: "K", brightness: 255 } } };
+LM.gatherLights(old, {}, {}, "pro", {}, {}, {}, {}, 0, true);
+out.bri = LM.lastBrightness("light.k");
+""" % json.dumps(str(_VIEWS)))
+    assert out["bri"] == 40
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_history_is_fetched_in_two_requests_and_lean_rows_take_live_attributes():
+    out = _run("""
+const calls = [];
+const live = { "light.a": { state: "on", attributes: { friendly_name: "A" } },
+               "binary_sensor.d": { state: "off", attributes: { friendly_name: "D", device_class: "door" } } };
+const ctx = { hass: { states: live, callWS: async (m) => { calls.push(m); return m.entity_ids.includes("light.a")
+    ? { "light.a": [{ s: "on", a: { brightness: 9 }, lu: 1 }] } : { "binary_sensor.d": [{ s: "on", lu: 1 }] }; } },
+  actions: { wsCall: async () => ({ actions: [], periods: [] }) } };
+const hs = { eids: ["light.a", "binary_sensor.d"] };
+await HA.loadHouseHistory(ctx, hs, 0, 10);
+out.calls = calls.map(c => [c.entity_ids, c.no_attributes, c.minimal_response]);
+out.doorAttrs = HA.statesAt(hs.timeline, live, ["binary_sensor.d"], 5000)["binary_sensor.d"].attributes.device_class;
+out.lightBri = HA.statesAt(hs.timeline, live, ["light.a"], 5000)["light.a"].attributes.brightness;
+""")
+    assert out["calls"] == [[["light.a"], False, False], [["binary_sensor.d"], True, True]]
+    assert out["doorAttrs"] == "door"
+    assert out["lightBri"] == 9
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_no_device_states_are_drawn_until_history_is_in():
+    """While loading or after a failure the map drew TODAY's states under a
+    past timestamp."""
+    out = _run("""
+const model = { floors: [{ id: "main", name: "Main", level: 0 }], areas: [{ id: "hall", name: "Hall", floor_id: "main" }],
+  room_geometry_m: { Hall: { type: "poly", floor_id: "main", points_m: [[0, 0], [5, 0], [5, 4], [0, 4]] } },
+  light_positions_m: { "light.hall": { x_m: 2, y_m: 2, floor_id: "main" } } };
+const reg = { ts: Date.now() + 1e9, areaMap: { "light.hall": "Hall" }, platformMap: {}, manufacturerMap: {}, ipMap: {}, pairMap: {}, doorLockMap: {} };
+const light = { entity_id: "light.hall", state: "on", attributes: { friendly_name: "Hall" } };
+const ctx = { state: { model, settings: { tier: "pro" }, _modelLoaded: true, _lightsRegStore: { reg } },
+  hass: { states: { "light.hall": light }, callWS: async () => ({}) } };
+const frames = [{ ts: 100, o: [] }];
+const loading = HA.renderHouseFrame(ctx, { timeline: null, events: [], eids: [] }, frames, 0, {}, () => {});
+const loaded = HA.renderHouseFrame(ctx, { timeline: HA.buildStateTimeline({ "light.hall": [{ s: "on", a: {}, lu: 50 }] }), events: [], eids: [] }, frames, 0, {}, () => {});
+out.whileLoading = loading.includes('"light.hall"');
+out.onceLoaded = loaded.includes('"light.hall"');
+""")
+    assert out == {"whileLoading": False, "onceLoaded": True}

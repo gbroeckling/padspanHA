@@ -84,8 +84,11 @@ PERIODS_MAX = 50
 
 # Vacation Mode's own switching, for Traceback to mark (see VacationLog).
 LOG_STORE_KEY = "padspan_ha.vacation_log"
-LOG_MAX_AGE_S = 14 * 86400
-LOG_MAX = 5000
+LOG_MAX_AGE_S = 8 * 86400     # Traceback keeps 7 days; one spare
+LOG_MAX = 20000               # ~1000 switches/day in a 40-light house fits
+LOG_SAVE_DELAY_S = 300        # one write per tick at most
+# A pattern build that found nothing usable is not retried every tick.
+RETRY_EMPTY_S = 3600
 
 _VM_UNSUB = "_vacation_mode_unsub"
 _VM_LOG = "_vacation_mode_log"
@@ -174,23 +177,57 @@ def build_pattern(
     vacations) whose sample points are skipped — they are Vacation Mode's
     own output, not the house's routine."""
     start = now - timedelta(days=history_days)
-    points = [pt for pt in sample_points(start, now) if not in_periods(pt.timestamp(), exclude)]
+    points = sample_points(start, now)
     pattern: dict[str, dict[str, float]] = {}
     for entity_id, changes in history.items():
         if not changes:
             continue
+        spans = entity_exclusions(changes, exclude or [], now.timestamp())
         counts: dict[str, list[int]] = {}
         for pt in points:
-            st = state_at(changes, pt.timestamp())
+            ts = pt.timestamp()
+            if in_periods(ts, spans):
+                continue
+            st = state_at(changes, ts)
             if st not in ("on", "off"):
                 continue
-            key = bucket_key(pt)
-            on, total = counts.get(key, [0, 0])
-            counts[key] = [on + (1 if st == "on" else 0), total + 1]
+            # Each sample counts toward its own weekday slot and toward the
+            # same slot on any day — the fallback when a weekday has too few
+            # (review 2026-09-23: with the recorder's default 10 days, a trip
+            # starting on a Friday had no Sat/Sun/Mon data at all, and the
+            # house went dark every weekend).
+            for key in (bucket_key(pt), any_day_key(pt)):
+                on, total = counts.get(key, [0, 0])
+                counts[key] = [on + (1 if st == "on" else 0), total + 1]
         buckets = {k: on / total for k, (on, total) in counts.items() if total >= MIN_SAMPLES}
         if buckets:
             pattern[entity_id] = buckets
     return pattern
+
+
+def any_day_key(dt: datetime) -> str:
+    """bucket_key's slot with the weekday replaced by "*" — every day."""
+    return "*:" + bucket_key(dt).split(":", 1)[1]
+
+
+def entity_exclusions(changes: list[tuple[float, str]], periods: list, now_ts: float) -> list:
+    """One entity's own excluded spans: each earlier vacation, extended to
+    that entity's first change after it ended. A light Vacation Mode left
+    on when it was switched off stays on in the recorder until someone
+    touches it — those hours are its doing, not the house's routine
+    (review 2026-09-23)."""
+    ordered = sorted(changes, key=lambda c: c[0])
+    out = []
+    for p in periods:
+        if not isinstance(p, (list, tuple)) or len(p) != 2 or not isinstance(p[0], (int, float)):
+            continue
+        start, end = p
+        if end is None:
+            out.append([start, None])
+            continue
+        nxt = next((ts for ts, _ in ordered if ts > end), None)
+        out.append([start, nxt if nxt is not None else now_ts])
+    return out
 
 
 def decide_states(
@@ -206,10 +243,13 @@ def decide_states(
     less likely to be asked on than at 100%, not a fixed top-N cutoff) —
     that is what lets the same slider double as an energy-saving mode."""
     key = bucket_key(at)
+    any_key = any_day_key(at)
     intensity = max(0.0, min(1.0, (intensity_pct or 0) / 100.0))
     out: dict[str, bool] = {}
     for entity_id, buckets in pattern.items():
         prob = buckets.get(key)
+        if prob is None:
+            prob = buckets.get(any_key)       # this weekday too thin: any day
         if prob is None:
             continue
         out[entity_id] = rand_fn() < (prob * intensity)
@@ -248,10 +288,59 @@ async def _async_fetch_history(
 
 
 def _eligible_entity_ids(hass: HomeAssistant) -> list[str]:
+    """Every light and fan except groups (attributes.entity_id is a list):
+    a group and its members would each be decided on their own and fight,
+    and a group switched on reads, bulb by bulb, as a person's doing
+    (review 2026-09-23)."""
     try:
-        return [eid for eid in hass.states.async_entity_ids() if eid.startswith(VM_DOMAINS)]
+        out = []
+        for eid in hass.states.async_entity_ids():
+            if not eid.startswith(VM_DOMAINS):
+                continue
+            st = hass.states.get(eid)
+            members = st.attributes.get("entity_id") if st is not None and st.attributes else None
+            if isinstance(members, (list, tuple)):
+                continue
+            out.append(eid)
+        return out
     except Exception:
         return []
+
+
+def switch_fields(data: dict, turn_on: bool, now_ts: float) -> dict:
+    """The fields that go with switching Vacation Mode on or off — the ONE
+    place its span bookkeeping lives, used by settings_set and by a settings
+    restore alike. Off→on stamps the start; on→off closes the span into
+    vacation_mode_periods. No change, no fields."""
+    was_on = bool(data.get("vacation_mode_enabled"))
+    if turn_on and not was_on:
+        return {"vacation_mode_enabled_at": now_ts}
+    if was_on and not turn_on:
+        return {
+            "vacation_mode_periods": closed_periods(data.get("vacation_mode_periods") or [],
+                                                    data.get("vacation_mode_enabled_at") or 0, now_ts),
+            "vacation_mode_enabled_at": 0,
+        }
+    return {}
+
+
+def restore_fields(live: dict, restored: dict, now_ts: float) -> dict:
+    """A settings restore replaces the whole store, but the live store's
+    vacation bookkeeping describes what is really in the recorder: keep its
+    spans, and apply the on/off change the restore makes as a switch. A
+    vacation restored ON starts now with a fresh pattern, never an old one."""
+    out = {"vacation_mode_periods": list(live.get("vacation_mode_periods") or [])}
+    turn_on = bool(restored.get("vacation_mode_enabled"))
+    out.update(switch_fields({**live, **out}, turn_on, now_ts))
+    if turn_on and live.get("vacation_mode_enabled"):
+        for k in ("vacation_mode_enabled_at", "vacation_mode_pattern",
+                  "vacation_mode_pattern_until", "vacation_mode_pattern_built_at"):
+            out[k] = live.get(k)
+    elif turn_on:
+        out.update(vacation_mode_pattern={}, vacation_mode_pattern_until=0, vacation_mode_pattern_built_at=0)
+    else:
+        out.setdefault("vacation_mode_enabled_at", 0)
+    return out
 
 
 async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
@@ -273,14 +362,20 @@ async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
     until = st.data.get("vacation_mode_pattern_until") or built_at or 0
     if st.data.get("vacation_mode_pattern") and until >= enabled_at:
         return
+    # Nothing usable last time for this same start: the window is fixed and
+    # the recorder only purges it, so try again hourly, not every tick.
+    attempt = st.data.get("vacation_mode_pattern_attempt") or [0, 0]
+    if attempt[0] == enabled_at and now_ts - attempt[1] < RETRY_EMPTY_S:
+        return
     entity_ids = _eligible_entity_ids(hass)
     end = dt_util.utc_from_timestamp(enabled_at)
     history = await _async_fetch_history(hass, entity_ids, HISTORY_DAYS, end=end)
-    if not history:
-        return
     pattern = build_pattern(history, dt_util.as_local(end),
-                            exclude=st.data.get("vacation_mode_periods") or [])
+                            exclude=st.data.get("vacation_mode_periods") or []) if history else {}
     if not pattern:
+        _LOGGER.warning("Vacation mode: no usable light history before it was switched on; "
+                        "it will not switch anything until there is (next try in an hour)")
+        await st.async_set(vacation_mode_pattern_attempt=[enabled_at, now_ts])
         return
     await st.async_set(vacation_mode_pattern=pattern, vacation_mode_pattern_built_at=now_ts,
                        vacation_mode_pattern_until=enabled_at)
@@ -308,7 +403,7 @@ class VacationLog:
         await self.async_load()
         self.entries.append([ts, entity_id, 1 if on else 0])
         self.entries = prune_log(self.entries, ts)
-        self._store.async_delay_save(lambda: {"entries": self.entries}, 60)
+        self._store.async_delay_save(lambda: {"entries": self.entries}, LOG_SAVE_DELAY_S)
 
     async def async_between(self, start_ts: float, end_ts: float) -> list[list]:
         await self.async_load()
@@ -325,6 +420,10 @@ async def _async_tick(hass: HomeAssistant) -> None:
     if not st or not st.data.get("vacation_mode_enabled"):
         return
     await _async_refresh_pattern_if_stale(hass, st)
+    # The refresh can wait seconds on the recorder: switched off meanwhile,
+    # nothing may be switched after its span closed (review 2026-09-23).
+    if not st.data.get("vacation_mode_enabled"):
+        return
     pattern = st.data.get("vacation_mode_pattern") or {}
     if not pattern:
         return

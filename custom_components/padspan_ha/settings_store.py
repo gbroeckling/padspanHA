@@ -112,6 +112,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "vacation_mode_pattern_until": 0,     # backend-only: epoch-s the pattern's history window ends at (the vacation's start)
     "vacation_mode_enabled_at": 0,        # backend-only: epoch-s this vacation began; 0 while off — the pattern never learns past it
     "vacation_mode_periods": [],          # backend-only: [[start, end], ...] earlier vacations, left out of every pattern build
+    "vacation_mode_pattern_attempt": [0, 0],  # backend-only: [enabled_at, epoch-s] of the last build that found nothing usable — retried hourly, not every tick
     "overview_show_walls": False,   # Overview: draw RF barrier walls over the map
     "overview_show_outdoor": False, # Overview: draw outdoor areas (sheds, driveways) as an overlay
     "overview_show_trails": False,  # Overview/Pure Live: fading movement trail behind each tracked object

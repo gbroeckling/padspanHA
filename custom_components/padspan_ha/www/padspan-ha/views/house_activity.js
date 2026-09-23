@@ -39,8 +39,16 @@ function _row(r) {
 /**
  * {entity_id: rows[]} → {entity_id: [{t, state, attributes, lc}]} sorted by t.
  * A row without attributes inherits the previous row's (HA omits unchanged ones).
+ *
+ * The start-of-window row is not a change. HA builds it with lu = the window
+ * start and no lc (recorder/history: the start state's timestamps are 0), so
+ * taking its lc at face value made every quiet motion sensor read "just
+ * triggered" at the start of every playback (review 2026-09-23). Its real
+ * last_changed is only known when the entity has not changed since: then the
+ * live last_changed is it. Otherwise an "on" row is dated to the window start
+ * (it was on then) and anything else to 0 — unknown, drawn as long ago.
  */
-export function buildStateTimeline(history) {
+export function buildStateTimeline(history, { startMs = null, live = {} } = {}) {
   const out = {};
   for (const [eid, rows] of Object.entries(history || {})) {
     const list = (rows || []).map(_row).filter(r => r && Number.isFinite(r.t)).sort((a, b) => a.t - b.t);
@@ -48,6 +56,14 @@ export function buildStateTimeline(history) {
     for (const r of list) {
       if (r.attributes && typeof r.attributes === "object") attrs = r.attributes;
       else r.attributes = attrs;
+    }
+    const first = list[0];
+    if (first && startMs != null && first.t <= startMs + 1) {
+      const lv = live[eid];
+      const liveLc = lv ? Date.parse(lv.last_changed) : NaN;
+      if (lv && lv.state === first.state && Number.isFinite(liveLc) && liveLc <= startMs) first.lc = liveLc;
+      else first.lc = first.state === "on" ? startMs : 0;
+      first.start = true;
     }
     if (list.length) out[eid] = list;
   }
@@ -74,10 +90,11 @@ export function statesAt(timeline, liveStates, eids, tMs) {
     const list = timeline[eid];
     const r = list ? _rowAt(list, tMs) : null;
     if (!r) { if (liveStates[eid]) out[eid] = liveStates[eid]; continue; }
+    const attrs = r.attributes && Object.keys(r.attributes).length ? r.attributes : (liveStates[eid]?.attributes || {});
     out[eid] = {
       entity_id: eid,
       state: r.state,
-      attributes: r.attributes || {},
+      attributes: attrs,
       last_changed: new Date(r.lc).toISOString(),
       last_updated: new Date(r.t).toISOString(),
     };
@@ -89,13 +106,21 @@ export function statesAt(timeline, liveStates, eids, tMs) {
  * Every real state change inside [startMs, endMs] — the side list's events.
  * The first row of each entity is its start-of-window state, not a change.
  */
+const _NOT_A_CHANGE = new Set(["unavailable", "unknown"]);
+export function isEventEntity(eid) {
+  // A numeric sensor's every reading is a "state change" — thousands a week
+  // that buried every door and light in the list (review 2026-09-23).
+  return !String(eid).startsWith("sensor.");
+}
 export function activityEvents(timeline, nameOf, startMs, endMs) {
   const ev = [];
   for (const [eid, list] of Object.entries(timeline)) {
+    if (!isEventEntity(eid)) continue;
     for (let i = 1; i < list.length; i++) {
       const r = list[i];
       if (r.t < startMs || r.t > endMs) continue;
       if (r.state === list[i - 1].state) continue;      // attribute-only update
+      if (_NOT_A_CHANGE.has(r.state) || _NOT_A_CHANGE.has(list[i - 1].state)) continue;
       ev.push({ t: r.t, eid, name: nameOf(eid), from: list[i - 1].state, to: r.state });
     }
   }
@@ -123,6 +148,57 @@ export function markVacationEvents(events, actions, slackMs = 60000) {
 export function inVacation(periods, tMs) {
   const t = tMs / 1000;
   return (periods || []).some(([s, e]) => s != null && t >= s && (e == null || t < e));
+}
+
+/**
+ * Traceback only records a frame while a tracked object is home, so playback
+ * over beacon frames alone could never show the house while it was empty —
+ * the very case the 🌴 marking exists for (review 2026-09-23). With house
+ * activity on, every house event gets a frame of its own at its own moment.
+ * A synthetic frame carries the beacons of the last real frame only if that
+ * frame is at most `carryS` old; after that nobody is drawn, as nobody was
+ * recorded.
+ */
+export function mergeHouseFrames(rawFrames, events, carryS = 30) {
+  const have = new Set(rawFrames.map(f => Math.round(f.ts)));
+  const extra = [];
+  for (const e of events || []) {
+    const ts = Math.round(e.t / 1000);
+    if (have.has(ts)) continue;
+    have.add(ts);
+    extra.push({ ts, o: null, house: true });
+  }
+  if (!extra.length) return rawFrames.slice();
+  const all = [...rawFrames, ...extra].sort((a, b) => a.ts - b.ts);
+  let last = null;
+  for (const f of all) {
+    if (!f.house) { last = f; continue; }
+    f.o = last && f.ts - last.ts <= carryS ? last.o : [];
+  }
+  return all;
+}
+
+/**
+ * The Atlas's own floor-focus positions (All, each floor, each adjacent
+ * pair) and labels — the same list lights_map.js builds. Traceback's slider
+ * indexes photo z_levels; the Atlas drawn in house mode has fabric floors,
+ * which can differ (review 2026-09-23: "Floor 1" focused the basement).
+ */
+export function atlasFocusPositions(model, floorGap = 150, horizGap = 0) {
+  const floors = (model && model.floors) || [];
+  const levels = fabricFrame(model || {}, floors, floorGap, horizGap).levels;
+  const positions = [null];
+  for (let i = 0; i < levels.length; i++) {
+    positions.push(levels[i]);
+    if (i < levels.length - 1) positions.push([levels[i], levels[i + 1]]);
+  }
+  const labelOf = (idx) => {
+    const pos = positions[Math.max(0, Math.min(idx, positions.length - 1))];
+    if (pos === null) return "All floors";
+    return (Array.isArray(pos) ? pos : [pos])
+      .map(z => { const f = floors.find(x => x.level === z); return f ? (f.name || `L${z}`) : `L${z}`; }).join(" + ");
+  };
+  return { positions, labelOf };
 }
 
 /** Metre centroid of a room, from the fabric's own room geometry. */
@@ -172,38 +248,53 @@ export function beaconsForFrame(frames, idx, model, { keep, colorOf, labelOf, tr
 
 /**
  * Fetch the recorder history for every Atlas entity over [startS, endS] and
- * store the timeline on `hs` (Traceback's per-tab state). Resolves when done.
+ * store the timeline on `hs` (Traceback's per-tab state). hs.pending is the
+ * in-flight promise, so a Traceback re-mounted mid-fetch can wait on it too.
+ *
+ * Two requests (review 2026-09-23: one full-attribute request over every
+ * Atlas entity for 7 days ran to tens of MB): lights and fans with their
+ * attributes (colour, brightness), everything else state-only — its
+ * attributes (device_class, unit) do not change and come from the live
+ * entity in statesAt.
  */
-export async function loadHouseHistory(ctx, hs, startS, endS) {
+export function loadHouseHistory(ctx, hs, startS, endS) {
   const live = ctx.hass?.states || {};
   const eids = hs.eids || [];
-  hs.loading = true; hs.error = null;
-  try {
-    const res = eids.length ? await ctx.hass.callWS({
-      type: "history/history_during_period",
-      start_time: new Date(startS * 1000).toISOString(),
-      end_time: new Date(endS * 1000).toISOString(),
-      entity_ids: eids,
-      include_start_time_state: true,
-      significant_changes_only: false,
-      minimal_response: false,
-      no_attributes: false,
-    }) : {};
-    hs.timeline = buildStateTimeline(res);
-    const nameOf = (eid) => live[eid]?.attributes?.friendly_name || eid;
-    hs.events = activityEvents(hs.timeline, nameOf, startS * 1000, endS * 1000);
-    // Vacation Mode's own switching and spans — a missing log (older
-    // backend) just means nothing is marked.
-    const vac = await ctx.actions.wsCall("padspan_ha/vacation_log_get", { start_ts: startS - 60, end_ts: endS })
-      .catch(() => ({ actions: [], periods: [] }));
-    markVacationEvents(hs.events, vac.actions);
-    hs.vacationPeriods = vac.periods || [];
-    hs.window = [startS, endS];
-  } catch (e) {
-    hs.error = String((e && (e.message || e.code)) || e);
-    hs.timeline = {}; hs.events = [];
-  }
-  hs.loading = false;
+  const rich = eids.filter(e => e.startsWith("light.") || e.startsWith("fan."));
+  const lean = eids.filter(e => !(e.startsWith("light.") || e.startsWith("fan.")));
+  const base = {
+    type: "history/history_during_period",
+    start_time: new Date(startS * 1000).toISOString(),
+    end_time: new Date(endS * 1000).toISOString(),
+    include_start_time_state: true,
+  };
+  const call = (ids, extra) => ids.length ? ctx.hass.callWS({ ...base, entity_ids: ids, ...extra }) : Promise.resolve({});
+  hs.loading = true; hs.error = null; hs.window = [startS, endS];
+  hs.pending = (async () => {
+    try {
+      const [a, b] = await Promise.all([
+        call(rich, { significant_changes_only: false, minimal_response: false, no_attributes: false }),
+        call(lean, { significant_changes_only: true, minimal_response: true, no_attributes: true }),
+      ]);
+      hs.timeline = buildStateTimeline({ ...a, ...b }, { startMs: startS * 1000, live });
+      const nameOf = (eid) => live[eid]?.attributes?.friendly_name || eid;
+      hs.events = activityEvents(hs.timeline, nameOf, startS * 1000, endS * 1000);
+      // Vacation Mode's own switching and spans — a missing log (older
+      // backend) just means nothing is marked.
+      const vac = await ctx.actions.wsCall("padspan_ha/vacation_log_get", { start_ts: startS - 60, end_ts: endS })
+        .catch(() => ({ actions: [], periods: [] }));
+      markVacationEvents(hs.events, vac.actions);
+      hs.vacationPeriods = vac.periods || [];
+    } catch (e) {
+      // No timeline: the map draws no device states rather than today's
+      // under a past timestamp. The status line offers a retry.
+      hs.error = String((e && (e.message || e.code)) || e);
+      hs.timeline = null; hs.events = [];
+    }
+    hs.loading = false;
+    hs.version = (hs.version || 0) + 1;
+  })();
+  return hs.pending;
 }
 
 /**
@@ -223,13 +314,17 @@ export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegist
   const live = ctx.hass?.states || {};
 
   // The Atlas entity set comes from the live house; history fills its states.
-  const liveLights = gatherLights(live, reg.areaMap, shapeOverrides, settings.tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap);
+  // Both gathers are side-effect free: this is a replay, not the house now.
+  const liveLights = gatherLights(live, reg.areaMap, shapeOverrides, settings.tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, true);
   hs.eids = liveLights.map(l => l.entity_id);
+  hs.regLoading = !!reg.loading;
 
   const frame = frames[frameIdx];
   const tMs = frame ? frame.ts * 1000 : Date.now();
-  const states = hs.timeline ? statesAt(hs.timeline, live, hs.eids, tMs) : live;
-  const lights = gatherLights(states, reg.areaMap, shapeOverrides, settings.tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap, tMs);
+  // Until history is in (or when it failed), no device states at all —
+  // never today's states under a past timestamp.
+  const states = hs.timeline ? statesAt(hs.timeline, live, hs.eids, tMs) : {};
+  const lights = gatherLights(states, reg.areaMap, shapeOverrides, settings.tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap, tMs, true);
   const lightsByEid = {};
   for (const l of lights) lightsByEid[l.entity_id] = l;
   const hidden = new Set(Array.isArray(settings.lights_hidden) ? settings.lights_hidden : []);
@@ -238,18 +333,16 @@ export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegist
 
   const floorGap = ctx.state._overviewFloorGap ?? settings.overview_iso_floor_gap ?? 150;
   const horizGap = ctx.state._overviewHorizGap ?? settings.overview_iso_horiz_gap ?? 0;
-  const levels = fabricFrame(model, floors, floorGap, horizGap).levels;
-  const isoPos = [null];
-  for (let i = 0; i < levels.length; i++) {
-    isoPos.push(levels[i]);
-    if (i < levels.length - 1) isoPos.push([levels[i], levels[i + 1]]);
-  }
-  const focusZ = isoPos[Math.max(0, Math.min(ctx.state._overviewIsoFocusIdx ?? 0, isoPos.length - 1))];
+  const { positions } = atlasFocusPositions(model, floorGap, horizGap);
+  const focusZ = positions[Math.max(0, Math.min(hs.focusIdx ?? 0, positions.length - 1))];
+  // The boot moment only explains a last_changed in frames after that boot;
+  // earlier frames get no boot gate (it would silence their real motion).
+  const startedMs = Date.parse(model.ha_started_at) || 0;
 
   return buildIsoSVG(model, byRoom, hidden, focusZ, floorGap, horizGap, lightsByEid, !!reg.loading, floors, {
     beacons: beaconsForFrame(frames, frameIdx, model, beaconOpts),
     nowMs: tMs,
-    haStartedMs: Date.parse(model.ha_started_at) || 0,
+    haStartedMs: tMs >= startedMs ? startedMs : 0,
     floodLatches: settings.flood_latches || {},
     hideCodes: !!settings.lights_hide_device_codes,
   });

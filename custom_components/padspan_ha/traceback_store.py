@@ -280,17 +280,12 @@ class TracebackStore:
                 result.append({"ts": ts, "o": filtered_objs})
             else:
                 result.append(f)
-            if len(result) >= max_frames:
-                break
 
         # Downsample evenly rather than truncate, so a replay spans the whole
-        # requested window instead of stopping partway through it. NOTE: as
-        # written this appears unreachable — the loop above already breaks as
-        # soon as len(result) >= max_frames, so result can never exceed
-        # max_frames by the time execution reaches here. Left in place rather
-        # than removed since a future change to the loop's break condition
-        # (e.g. collecting all matches before capping) would make it live
-        # again, and it costs nothing to keep.
+        # requested window instead of stopping partway through it. The loop
+        # above used to stop at max_frames, which left this unreachable: a
+        # 7-day range replayed only its oldest ~9 hours (review 2026-09-23,
+        # found through Traceback's Full house activity).
         if len(result) > max_frames:
             step = len(result) / max_frames
             result = [result[int(i * step)] for i in range(max_frames)]

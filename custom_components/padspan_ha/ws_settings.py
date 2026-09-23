@@ -653,15 +653,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             # it began, and it is left out of every later build once closed
             # (vacation_mode.py, NEVER LEARN FROM ITSELF).
             import time as _time
-            from .vacation_mode import closed_periods
-            _was_on = bool(st.data.get("vacation_mode_enabled"))
-            if payload["vacation_mode_enabled"] and not _was_on:
-                payload["vacation_mode_enabled_at"] = _time.time()
-            elif not payload["vacation_mode_enabled"] and _was_on:
-                payload["vacation_mode_periods"] = closed_periods(
-                    st.data.get("vacation_mode_periods") or [],
-                    st.data.get("vacation_mode_enabled_at") or 0, _time.time())
-                payload["vacation_mode_enabled_at"] = 0
+            from .vacation_mode import switch_fields
+            payload.update(switch_fields(st.data, payload["vacation_mode_enabled"], _time.time()))
         if "vacation_mode_intensity" in msg:
             payload["vacation_mode_intensity"] = max(5, min(100, int(msg["vacation_mode_intensity"])))
         if "lights_isolux" in msg:

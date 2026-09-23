@@ -40,6 +40,7 @@ _BACKEND_ONLY = {
     "vacation_mode_pattern_until",     # ditto — the pattern's history window end
     "vacation_mode_enabled_at",        # stamped by settings_set on the off->on transition
     "vacation_mode_periods",           # appended by settings_set on the on->off transition
+    "vacation_mode_pattern_attempt",   # vacation_mode.py — last empty build, for the hourly retry
 }
 
 

@@ -16,7 +16,7 @@
  * right after gap #1's animation work.
  */
 
-let _cache = null, _loading = false, _error = null, _days = 7;
+let _cache = null, _loading = null, _loadingDays = null, _error = null, _days = 7;
 
 export function render(ctx) {
   const { el, helpBtn } = ctx.helpers;
@@ -65,20 +65,31 @@ export function render(ctx) {
     body.appendChild(_buildOccupancyCard(ctx, _cache));
   };
 
+  // One request at a time, shared by every mounted copy of this view: a copy
+  // mounted while another's request is in flight waits for it and paints
+  // itself (inside Traceback there is no poll re-render to repair a copy
+  // that returned early — review 2026-09-23).
   const load = async (fresh) => {
-    if (_loading) return;
-    _loading = true; _error = null;
     status.textContent = fresh ? "Refreshing…" : "Loading…";
-    renderBody();
-    try {
-      _cache = await ctx.actions.wsCall("padspan_ha/insights_get", { days: _days });
-      const n = _cache.days.length;
-      status.textContent = `${n} day${n === 1 ? "" : "s"} of history`;
-    } catch (e) {
-      _error = (e && (e.message || e.code)) ? String(e.message || e.code) : "failed";
-      status.textContent = "";
+    // A request for a different day range finishes first, then this one runs.
+    while (_loading && _loadingDays !== _days) await _loading;
+    if (!_loading) {
+      _loadingDays = _days;
+      _loading = (async () => {
+        _error = null;
+        try {
+          const res = await ctx.actions.wsCall("padspan_ha/insights_get", { days: _days });
+          if (!res || !Array.isArray(res.days)) throw new Error("unexpected reply");
+          _cache = res;
+        } catch (e) { _cache = null; _error = (e && (e.message || e.code)) ? String(e.message || e.code) : "failed"; }
+      })();
+      _loading.finally(() => { _loading = null; });
+      if (fresh) _cache = null;
     }
-    _loading = false;
+    renderBody();
+    await _loading;
+    const n = _cache ? _cache.days.length : 0;
+    status.textContent = _error ? "" : `${n} day${n === 1 ? "" : "s"} of history`;
     renderBody();
   };
 

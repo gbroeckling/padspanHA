@@ -137,3 +137,15 @@ def test_history_records_metres_not_photo_fractions() -> None:
     assert 'entry["x_m"]' in src and 'entry["y_m"]' in src
     assert 'o.get("x_frac")' not in src
     assert 'entry["m"] = str(knn_map)' not in src
+
+
+def test_a_long_range_is_downsampled_across_the_whole_window_not_cut_short(tmp_path) -> None:
+    """get_frames stopped collecting at max_frames, so a 7-day range replayed
+    only its oldest ~9 hours (review 2026-09-23, found through Traceback's
+    Full house activity). It must sample the whole window evenly."""
+    tb = _make_store(tmp_path)
+    tb.frames = [{"ts": float(i), "o": [_obj()]} for i in range(10_000)]
+    got = tb.get_frames(start_ts=0, end_ts=10_000, max_frames=100)
+    assert len(got) == 100
+    assert got[0]["ts"] == 0.0
+    assert got[-1]["ts"] >= 9_800           # reaches the end of the window

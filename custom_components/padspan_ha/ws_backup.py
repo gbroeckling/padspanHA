@@ -19,6 +19,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from .const import (
     DOMAIN,
+    DATA_SETTINGS,
     DATA_FABRIC,
     DATA_MAPS,
     DATA_MODEL,
@@ -334,6 +335,13 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
             if data_key:
                 store_obj = hass.data.get(DOMAIN, {}).get(data_key)
                 if store_obj:
+                    if data_key == DATA_SETTINGS and isinstance(data, dict) and hasattr(store_obj, "data"):
+                        # Vacation Mode's spans describe what is in the recorder
+                        # now, not when the backup was taken (vacation_mode.py).
+                        import time as _time
+                        from .vacation_mode import restore_fields
+                        data = {**data, **restore_fields(store_obj.data or {}, data, _time.time())}
+                        await st.async_save(data)
                     if hasattr(store_obj, "data") and isinstance(data, dict):
                         store_obj.data = data
                     elif hasattr(store_obj, "_data") and isinstance(data, dict):

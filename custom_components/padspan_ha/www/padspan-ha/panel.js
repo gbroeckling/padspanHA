@@ -1329,6 +1329,10 @@ class PadSpanHaApp extends HTMLElement {
         const sinceLastRender = this._lastGoodRender ? (performance.now() - this._lastGoodRender) : _SLOW_INTERVAL;
         if(sinceLastRender >= _SLOW_INTERVAL){
           this._scheduleRender(true);
+        } else if(_view === "follow" && this.state._followLocateRefresh){
+          // Follow's 📍 Locate card follows every poll without the full
+          // rebuild — walking directions a room behind are no directions.
+          try { this.state._followLocateRefresh(); } catch(e){ console.warn("PadSpan: Locate refresh failed", e); }
         }
       }
     } catch(e){

@@ -43,7 +43,9 @@ def test_csv_export_walks_every_frame_and_every_object_in_it():
     s = _src()
     fn = s[s.index("function _exportTracebackCsv("):]
     fn = fn[:fn.index("\n  }\n")]
-    assert "for (const frame of tb.frames)" in fn
+    # The RECORDED frames — with Full house activity on, tb.frames also holds
+    # synthetic house-event frames that were never recorded (2026-09-23).
+    assert "for (const frame of (tb.rawFrames || tb.frames))" in fn
     assert "for (const o of frame.o" in fn
 
 
@@ -62,7 +64,7 @@ def test_json_export_dumps_the_currently_loaded_window_verbatim():
     s = _src()
     fn = s[s.index("function _exportTracebackJson("):]
     fn = fn[:fn.index("\n  }\n")]
-    assert "JSON.stringify(tb.frames" in fn
+    assert "JSON.stringify(tb.rawFrames || tb.frames" in fn
 
 
 def test_export_buttons_are_only_offered_when_frames_are_loaded():

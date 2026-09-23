@@ -89,12 +89,15 @@ export function render(ctx) {
   const selectorCard = _buildSelector(ctx, el, helpBtn, allObjects, addr, isBasic);
 
   if (!chosen) {
+    ctx.state._followLocateRefresh = null;
     return el("div", { id: "follow" }, [header, selectorCard,
       el("div", { class: "card" }, [
         isBasic
           ? el("div", { style: "font-size:16px;font-weight:700;margin-bottom:8px" }, "Choose a tag above to start tracking it")
           : el("div", { style: "font-weight:700" }, "No tag selected"),
-        el("div", { class: "muted", style: "margin-top:6px" }, "Use the selector above to choose a tag to follow."),
+        el("div", { class: "muted", style: "margin-top:6px" }, ctx.state._followLocateOn
+          ? "Use the selector above to choose a tag — 📍 Locate will then guide you to it."
+          : "Use the selector above to choose a tag to follow."),
       ]),
     ]);
   }
@@ -114,6 +117,9 @@ export function render(ctx) {
   const locateRow = el("div", { style: "margin:0 0 10px" }, [locateBtn]);
   const locateCard = ctx.state._followLocateOn && locateKey
     ? locateView.render(ctx, { targetKey: locateKey }) : null;
+  // panel.js calls this on every live poll (see locate.js's _refresh).
+  ctx.state._followLocateRefresh = locateCard
+    ? () => { if (locateCard.isConnected) locateCard._refresh(); } : null;
 
   // ── Mini-map (room grid with tag highlighted) ────────────────────────────────
   const mapCard = _buildMapCard(ctx, el, helpBtn, snap, chosen, haAreas, haFloors, radios);

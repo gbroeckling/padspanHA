@@ -136,10 +136,13 @@ def test_build_pattern_computes_on_probability_per_weekday_slot():
     assert pattern["light.a"]["0:1800"] == 1.0, pattern
     assert pattern["light.a"]["0:1830"] == 0.0, pattern
     assert not any(k.startswith("1:") for k in pattern["light.a"]), "only 1 Tuesday in-window — must not appear"
-    assert set(pattern["light.a"]) == {
+    assert {k for k in pattern["light.a"] if not k.startswith("*:")} == {
         "0:1800", "0:1830", "0:1900", "0:1930", "0:2000", "0:2030",
         "0:2100", "0:2130", "0:2200", "0:2230", "0:2300", "0:2330",
     }, pattern
+    # The any-day fallback (2026-09-23) pools every day's same slot: 18:00
+    # was sampled on the 8 days, on twice.
+    assert pattern["light.a"]["*:1800"] == 0.25, pattern
 
 
 def test_build_pattern_a_single_weekday_occurrence_never_clears_min_samples():
@@ -173,7 +176,11 @@ def test_build_pattern_only_counts_real_on_off_states_not_unavailable():
     mon2 = datetime(2026, 9, 21, 9, 0)
     history = {"light.a": [(_epoch(mon1), "unavailable"), (_epoch(mon2), "on")]}
     pattern = build_pattern(history, now, history_days=30)
-    assert "light.a" not in pattern, "only 1 real on/off sample — below MIN_SAMPLES"
+    # Monday 09:00 has one real on/off sample (the other is "unavailable"):
+    # below MIN_SAMPLES, no weekday slot. The any-day slot pools the real
+    # "on" days since mon2 — that fallback is the point of it.
+    assert "0:0900" not in pattern.get("light.a", {}), "only 1 real on/off sample — below MIN_SAMPLES"
+    assert pattern["light.a"]["*:0900"] == 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -412,3 +419,89 @@ async def test_tick_logs_what_it_switched():
     log.async_append.assert_called_once()
     _ts, eid, on = log.async_append.call_args.args
     assert (eid, on) == ("light.a", True)
+
+
+
+def test_decide_states_falls_back_to_the_any_day_slot():
+    """A weekday with too little history borrows the same slot on any day —
+    a Friday-evening start with 10 days of recorder must not leave the house
+    dark all weekend (review 2026-09-23)."""
+    sat = datetime(2026, 9, 26, 19, 0)            # a Saturday
+    pattern = {"light.a": {"*:1900": 1.0}}
+    assert decide_states(pattern, sat, 100, rand_fn=lambda: 0.5) == {"light.a": True}
+    # A real weekday slot wins over the fallback.
+    pattern = {"light.a": {"*:1900": 1.0, "5:1900": 0.0}}
+    assert decide_states(pattern, sat, 100, rand_fn=lambda: 0.5) == {"light.a": False}
+
+
+def test_a_light_left_on_after_vacation_mode_is_not_learned():
+    """Switched off with the porch light on: the hours until someone turns it
+    off are still Vacation Mode's doing (review 2026-09-23)."""
+    from custom_components.padspan_ha.vacation_mode import entity_exclusions
+    changes = [(100.0, "on"), (500.0, "off")]
+    assert entity_exclusions(changes, [[50.0, 200.0]], 1000.0) == [[50.0, 500.0]]
+    assert entity_exclusions([(100.0, "on")], [[50.0, 200.0]], 1000.0) == [[50.0, 1000.0]]
+    assert entity_exclusions(changes, [[50.0, None]], 1000.0) == [[50.0, None]]
+
+
+def test_switch_fields_and_restore_fields_keep_the_span_bookkeeping():
+    from custom_components.padspan_ha.vacation_mode import restore_fields, switch_fields
+    now = 10_000.0
+    assert switch_fields({"vacation_mode_enabled": False}, True, now) == {"vacation_mode_enabled_at": now}
+    off = switch_fields({"vacation_mode_enabled": True, "vacation_mode_enabled_at": 9000.0}, False, now)
+    assert off == {"vacation_mode_periods": [[9000.0, now]], "vacation_mode_enabled_at": 0}
+    assert switch_fields({"vacation_mode_enabled": True}, True, now) == {}
+    # Restoring an old backup taken on an earlier trip, while at home: the
+    # live spans are kept and the restored "on" starts a fresh vacation now,
+    # with a fresh pattern — never the backup's stale one.
+    live = {"vacation_mode_enabled": False, "vacation_mode_periods": [[1.0, 2.0]]}
+    backup = {"vacation_mode_enabled": True, "vacation_mode_enabled_at": 5.0,
+              "vacation_mode_pattern": {"light.a": {"0:1200": 1.0}}, "vacation_mode_periods": []}
+    r = restore_fields(live, backup, now)
+    assert r["vacation_mode_periods"] == [[1.0, 2.0]]
+    assert r["vacation_mode_enabled_at"] == now
+    assert r["vacation_mode_pattern"] == {}
+    # Restoring "off" mid-vacation closes the live span.
+    live = {"vacation_mode_enabled": True, "vacation_mode_enabled_at": 9000.0, "vacation_mode_periods": []}
+    r = restore_fields(live, {"vacation_mode_enabled": False}, now)
+    assert r["vacation_mode_periods"] == [[9000.0, now]] and r["vacation_mode_enabled_at"] == 0
+
+
+async def test_an_empty_build_is_retried_hourly_not_every_tick(monkeypatch):
+    import custom_components.padspan_ha.vacation_mode as vm
+    fetch = AsyncMock(return_value={})
+    monkeypatch.setattr(vm, "_async_fetch_history", fetch)
+    monkeypatch.setattr(vm, "_eligible_entity_ids", lambda hass: ["light.a"])
+    enabled_at = datetime(2026, 1, 15, 11, 0, 0).timestamp()
+    st = _settings(vacation_mode_enabled=True, vacation_mode_enabled_at=enabled_at)
+    await _async_refresh_pattern_if_stale(_hass(st), st)
+    await _async_refresh_pattern_if_stale(_hass(st), st)
+    assert fetch.await_count == 1
+    assert st.data["vacation_mode_pattern_attempt"][0] == enabled_at
+
+
+async def test_switched_off_during_the_recorder_query_switches_nothing(monkeypatch):
+    import custom_components.padspan_ha.vacation_mode as vm
+    now = datetime(2026, 1, 15, 12, 0, 0)
+    key = bucket_key(now)
+    st = _settings(vacation_mode_enabled=True, vacation_mode_pattern={"light.a": {key: 1.0}},
+                   vacation_mode_enabled_at=now.timestamp())
+
+    async def refresh(hass, st_):
+        st_.data["vacation_mode_enabled"] = False     # turned off meanwhile
+
+    monkeypatch.setattr(vm, "_async_refresh_pattern_if_stale", refresh)
+    hass = _hass(st, _states(**{"light.a": "off"}))
+    await _async_tick(hass)
+    hass.services.async_call.assert_not_called()
+
+
+def test_light_groups_are_left_to_their_members():
+    import custom_components.padspan_ha.vacation_mode as vm
+    states = {
+        "light.kitchen_group": SimpleNamespace(state="on", attributes={"entity_id": ["light.a", "light.b"]}),
+        "light.a": SimpleNamespace(state="on", attributes={}),
+        "switch.x": SimpleNamespace(state="on", attributes={}),
+    }
+    hass = SimpleNamespace(states=SimpleNamespace(async_entity_ids=lambda: list(states), get=states.get))
+    assert vm._eligible_entity_ids(hass) == ["light.a"]

@@ -1998,7 +1998,12 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
 // entity_id → the device registry's manufacturer string. Informational
 // only (identifying hardware, not a placement or styling control), so it
 // is ungated — free tier sees it same as everyone else.
-export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides, pairMap, manufacturerMap, nowMs){
+// `historical`: the states are a replay (Traceback's Full house activity), not
+// the house now — so no optimistic claim applies to them and nothing they
+// say is remembered as a light's last dimmed level (review 2026-09-23: a
+// replayed frame overwrote padspan_ha_last_bri, and the next tap turned a
+// light on at last week's brightness).
+export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides, pairMap, manufacturerMap, nowMs, historical = false){
   const paid = lightingUnlocked(tier);
   const pro = tierAtLeast(tier, "pro");
   // A verified motion+occupancy pair (see computeMotionOccupancyPairs) rides
@@ -2116,12 +2121,12 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
   assignLightCodes(lights);
   for (const l of lights) {
     // A pressed switch shows pressed until HA agrees or the claim times out.
-    const eff = effectiveState(l.entity_id, l.state);
+    const eff = historical ? { state: l.state, optimistic: false } : effectiveState(l.entity_id, l.state);
     l.state = eff.state; l.optimistic = eff.optimistic;
     l.shape = paid ? resolveLightShape(l, shapeOverrides) : "hex";
     // The last dimmed level is only visible while a light is on — remember
     // it here, on the pass both views already make, so off→on can restore it.
-    if (l.state === "on" && typeof l.bri === "number" && l.bri >= 1) _recordBrightness(l.entity_id, l.bri);
+    if (!historical && l.state === "on" && typeof l.bri === "number" && l.bri >= 1) _recordBrightness(l.entity_id, l.bri);
     // Computed fresh on every gather (states poll), not cached on the
     // object across polls — a device recovering or going stale needs the
     // dot to move without waiting for something else to invalidate it.

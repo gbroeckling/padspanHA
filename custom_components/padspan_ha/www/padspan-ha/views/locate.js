@@ -88,9 +88,13 @@ export function render(ctx, { targetKey } = {}) {
 
     pickerCard.innerHTML = "";
     const selfKey = ctx.state.settings?.locate_self_key || "";
-    if (_targetKey && !candidates.some(c => c.key === _targetKey)) _targetKey = "";
+    // Follow's tag stays the target even while it has no room — that is the
+    // lost tag someone most wants found (review 2026-09-23).
+    if (!targetKey && _targetKey && !candidates.some(c => c.key === _targetKey)) _targetKey = "";
 
-    pickerCard.appendChild(_buildPicker(ctx, "You are carrying:", selfKey, candidates.filter(c => c.key !== _targetKey), (val) => {
+    // With Follow choosing the target, "you" may be any device — including
+    // the one being followed, which is said below rather than hidden here.
+    pickerCard.appendChild(_buildPicker(ctx, "You are carrying:", selfKey, candidates.filter(c => targetKey || c.key !== _targetKey), (val) => {
       if (ctx.state.settings) ctx.state.settings.locate_self_key = val;
       ctx.actions.wsCall("padspan_ha/settings_set", { locate_self_key: val }).catch(() => {});
       renderBody();
@@ -118,6 +122,11 @@ export function render(ctx, { targetKey } = {}) {
       return;
     }
 
+    if (selfKey === _targetKey) {
+      body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" },
+        "You're following your own device. Follow another tag to locate it.")));
+      return;
+    }
     const self = candidates.find(c => c.key === selfKey);
     const target = candidates.find(c => c.key === _targetKey);
     if (!self) {
@@ -126,8 +135,11 @@ export function render(ctx, { targetKey } = {}) {
       return;
     }
     if (!target) {
+      const rawT = raw.find(o => (o.key || o.address || o.entity_id) === _targetKey);
+      const last = rawT && rawT.last_room;
       body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" },
-        "That target isn't currently reporting a room — it may be out of range.")));
+        "That tag isn't reporting a room right now — it may be out of range."
+        + (last ? ` It was last seen in ${last}.` : ""))));
       return;
     }
 
@@ -135,6 +147,14 @@ export function render(ctx, { targetKey } = {}) {
   };
 
   renderBody();
+  // Follow re-renders only every ~35 s (a full rebuild flickers), so it asks
+  // Locate to refresh just this card on every live poll — unless a picker is
+  // open, which a rebuild would snap shut.
+  root._refresh = () => {
+    const active = root.getRootNode && root.getRootNode().activeElement;
+    if (active && pickerCard.contains(active)) return;
+    renderBody();
+  };
   return root;
 }
 

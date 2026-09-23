@@ -113,14 +113,24 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
             k: (_live_settings.data if _live_settings else {}).get(k, "")
             for k in ("forensics_license_key", "forensics_license_expires", "license_is_trial")
         }
+        # Vacation Mode's spans describe what is in HA's recorder, which a
+        # PadSpan reset does not touch — a reset mid-vacation closes the span
+        # so the next vacation's pattern still leaves it out.
+        import time as _time
+        from .vacation_mode import switch_fields
+        _live = _live_settings.data if _live_settings else {}
+        _vac = {"vacation_mode_periods": _live.get("vacation_mode_periods") or [],
+                **switch_fields(_live, False, _time.time())}
+        _vac.pop("vacation_mode_enabled_at", None)
         st = _St(hass, 1, SETTINGS_STORE_KEY)
-        await st.async_save({**dict(DEFAULT_SETTINGS), **{
+        _reset = {**dict(DEFAULT_SETTINGS), **{
             k: v for k, v in _keep_licence.items() if v
-        }})
+        }, **_vac}
+        await st.async_save(_reset)
         cleared += 1
         store_obj = domain.get(DATA_SETTINGS)
         if store_obj and hasattr(store_obj, "data"):
-            store_obj.data = dict(DEFAULT_SETTINGS)
+            store_obj.data = dict(_reset)
     except Exception as e:
         _LOGGER.warning("Factory reset: settings — %s", e)
         errors.append(SETTINGS_STORE_KEY)
