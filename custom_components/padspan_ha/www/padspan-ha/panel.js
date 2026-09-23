@@ -89,8 +89,6 @@ const _VIEW_PATHS = {
   sandbox:      "./views/sandbox.js",
   occupancy:    "./views/occupancy.js",
   installbase:  "./views/installbase.js",
-  insights:     "./views/insights.js",
-  busytimes:    "./views/busy_times.js",
   locate:       "./views/locate.js",
 };
 
@@ -162,8 +160,6 @@ const MENU = [
   ["training","Training","mdi:school-outline"],
   ["calibration","Calibration","mdi:crosshairs"],
   ["traceback","Traceback","mdi:history"],
-  ["insights","Insights","mdi:chart-timeline-variant"],
-  ["busytimes","Busy Times","mdi:fire"],
   ["locate","Locate","mdi:compass-outline"],
   ["forensics","Forensics","mdi:magnify-scan"],
   ["occupancy","Occupancy","mdi:account-group-outline"],
@@ -179,7 +175,7 @@ const MENU = [
 //   Advanced  — default set plus user-chosen extras from Settings -> UI Structure
 //   Dev       — everything visible (includes QA, Sandbox, raw Debug, etc.)
 const BASIC_TABS = new Set(["follow", "overview", "maps", "settings", "training"]);
-const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","settings","training","manage","calibration","traceback","insights","busytimes","locate","occupancy","health"]);
+const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","settings","training","manage","calibration","traceback","locate","occupancy","health"]);
 const DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox","installbase"];
 
 // Accent color per tab — used for the sidebar dot, mobile nav, and active highlights
@@ -191,8 +187,6 @@ const MENU_COLORS = {
   bluetooth: "#43a047",
   presence: "#ba68c8",
   zones: "#81c784",
-  insights: "#ffd54f",
-  busytimes: "#f57c00",
   locate: "#818cf8",
   history: "#90a4ae",
   monitor: "#f06292",
@@ -755,7 +749,13 @@ class PadSpanHaApp extends HTMLElement {
     try {
       const q = new URLSearchParams(window.location.search);
       const reqView = q.get("view");
-      if (reqView && _VIEW_PATHS[reqView]) {
+      // Insights / Busy Times became Traceback modes (2026-09-23); an old
+      // ?view= link still lands on them.
+      if (reqView === "insights" || reqView === "busytimes") {
+        this.state._tracebackInitialMode = reqView;
+        this.state.view = "traceback";
+        this._urlPinnedView = "traceback";
+      } else if (reqView && _VIEW_PATHS[reqView]) {
         this.state.view = reqView;
         this._urlPinnedView = reqView;   // exempt from complexity-fallback
       }

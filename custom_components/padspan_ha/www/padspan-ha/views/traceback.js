@@ -16,6 +16,13 @@ const { mapXform, fabricWorldRooms, worldGauge, metresToWorld } =
 // of gliding, the same problem overview.js's iso map had.
 const { mergeObjectLayer } =
   await import(`./iso_motion.js${new URL(import.meta.url).search}`);
+// Insights and Busy Times read the same TracebackStore history this tab plays
+// back, so they live here as modes instead of as tabs of their own (Garry,
+// 2026-09-23). Each keeps its own module and cache; this tab only mounts it.
+const insightsView =
+  await import(`./insights.js${new URL(import.meta.url).search}`);
+const busyTimesView =
+  await import(`./busy_times.js${new URL(import.meta.url).search}`);
 
 export function render(ctx) {
   const { el, esc: _esc } = ctx.helpers;
@@ -175,7 +182,7 @@ export function render(ctx) {
 
   // ── Traceback state ────────────────────────────────────────────────────
   if (!ctx.state._traceback) ctx.state._traceback = {
-    mode: "playback",     // "playback" | "discovery"
+    mode: "playback",     // "playback" | "discovery" | "insights" | "busytimes"
     playing: false,
     playDurationS: 300,   // how long full playback takes (1 min to 1 hr slider)
     frameIdx: 0,
@@ -195,6 +202,10 @@ export function render(ctx) {
     discoSelected: null,  // selected object key for highlighting
   };
   if (!ctx.state._traceback.mode) ctx.state._traceback.mode = "playback";
+  if (ctx.state._tracebackInitialMode) {   // ?view=insights|busytimes deep link
+    ctx.state._traceback.mode = ctx.state._tracebackInitialMode;
+    delete ctx.state._tracebackInitialMode;
+  }
   const tb = ctx.state._traceback;
 
   // ── Clear stale timer from previous render ──────────────────────────
@@ -1766,9 +1777,30 @@ export function render(ctx) {
   const modeRow = document.createElement("div");
   modeRow.style.cssText = "display:flex;align-items:center;gap:4px;margin-bottom:8px";
 
-  const _makeModeBtn = (label, mode, color) => {
+  const MODE_COLOR = { playback: "#fbbf24", discovery: "#e879f9", insights: "#ffd54f", busytimes: "#f57c00" };
+  const _isMapMode = (mode) => mode === "playback" || mode === "discovery";
+
+  // Insights / Busy Times render their own module into this pane; the map,
+  // its controls and the Distance card belong to the two map modes only.
+  const analyticsPane = document.createElement("div");
+  let _distCardRef = null;
+  function _applyModeVisibility(mode) {
+    const onMap = _isMapMode(mode);
+    isoCtrlRow.style.display = onMap ? "" : "none";
+    mapDiv.style.display = onMap ? "" : "none";
+    ctrlCard.style.display = mode === "playback" ? "" : "none";
+    discoCard.style.display = mode === "discovery" ? "" : "none";
+    analyticsPane.style.display = onMap ? "none" : "";
+    if (_distCardRef) _distCardRef.style.display = onMap ? "" : "none";
+    analyticsPane.innerHTML = "";
+    if (mode === "insights") analyticsPane.appendChild(insightsView.render(ctx));
+    else if (mode === "busytimes") analyticsPane.appendChild(busyTimesView.render(ctx));
+  }
+
+  const _makeModeBtn = (label, mode) => {
     const btn = document.createElement("button");
     btn.className = "btn inline";
+    const color = MODE_COLOR[mode];
     const isActive = tb.mode === mode;
     btn.style.cssText = isActive
       ? `font-size:12px;padding:4px 14px;font-weight:700;background:${color}22;color:${color};border-color:${color}`
@@ -1777,14 +1809,12 @@ export function render(ctx) {
     btn.addEventListener("click", () => {
       tb.mode = mode;
       _stopPlayback();
-      // Show/hide the right controls card
-      ctrlCard.style.display = mode === "playback" ? "" : "none";
-      discoCard.style.display = mode === "discovery" ? "" : "none";
+      _applyModeVisibility(mode);
       // Update mode button styles
       for (const c of modeRow.children) {
         const m = c.getAttribute("data-mode");
         if (m === mode) {
-          const mCol = m === "playback" ? "#fbbf24" : "#e879f9";
+          const mCol = MODE_COLOR[m];
           c.style.cssText = `font-size:12px;padding:4px 14px;font-weight:700;background:${mCol}22;color:${mCol};border-color:${mCol}`;
         } else {
           c.style.cssText = "font-size:12px;padding:4px 14px;color:#94a3b8;border-color:#1b3526";
@@ -1793,7 +1823,7 @@ export function render(ctx) {
       // Re-render map for current mode
       if (mode === "playback") {
         _renderFrame();
-      } else {
+      } else if (mode === "discovery") {
         _runDiscoverySearch();
         _buildDiscoControls();
         _renderDiscoMap();
@@ -1803,19 +1833,20 @@ export function render(ctx) {
     return btn;
   };
 
-  modeRow.appendChild(_makeModeBtn("Playback", "playback", "#fbbf24"));
-  modeRow.appendChild(_makeModeBtn("New Objects", "discovery", "#e879f9"));
+  modeRow.appendChild(_makeModeBtn("Playback", "playback"));
+  modeRow.appendChild(_makeModeBtn("New Objects", "discovery"));
+  modeRow.appendChild(_makeModeBtn("Insights", "insights"));
+  modeRow.appendChild(_makeModeBtn("Busy Times", "busytimes"));
 
   // ── Assemble ───────────────────────────────────────────────────────────
   outer.appendChild(modeRow);
   outer.appendChild(isoCtrlRow);
   outer.appendChild(mapDiv);
 
-  // Both cards are appended but only the active mode's card is visible
-  ctrlCard.style.display = tb.mode === "playback" ? "" : "none";
-  discoCard.style.display = tb.mode === "discovery" ? "" : "none";
+  // Every mode's card is appended; only the active mode's is visible
   outer.appendChild(ctrlCard);
   outer.appendChild(discoCard);
+  outer.appendChild(analyticsPane);
 
   // Mark traceback as active to suppress poll re-renders (panel.js checks this)
   tb.active = true;
@@ -1835,7 +1866,7 @@ export function render(ctx) {
       console.error("Traceback load failed:", err);
       mapDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#f87171;font-size:14px">Failed to load traceback data: ${String(err).substring(0, 100)}</div>`;
     });
-  } else {
+  } else if (tb.mode === "discovery") {
     _runDiscoverySearch();
     _buildDiscoControls();
     _renderDiscoMap();
@@ -2155,7 +2186,9 @@ export function render(ctx) {
     setTimeout(_loadDist, 200);
 
     outer.appendChild(distCard);
+    _distCardRef = distCard;
   }
 
+  _applyModeVisibility(tb.mode);
   return outer;
 }

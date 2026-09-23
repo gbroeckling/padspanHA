@@ -2,7 +2,7 @@
 
 ### The most comprehensive BLE room-presence system for Home Assistant
 
-PadSpan™ HA goes far beyond "home or away." It tells you **which room** every Bluetooth device is in — updated every 5 seconds — with interactive floor plans, 3D multi-floor visualizations, a full calibration system, and 22 dedicated views. No other Home Assistant BLE integration comes close.
+PadSpan™ HA goes far beyond "home or away." It tells you **which room** every Bluetooth device is in — updated every 5 seconds — with interactive floor plans, 3D multi-floor visualizations, a full calibration system, and 20 dedicated views. No other Home Assistant BLE integration comes close.
 
 🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)**
 
@@ -127,8 +127,8 @@ For devices where you can't get an IRK, the experimental **MAC Rotation Bridging
 - Full WebSocket API for custom dashboards and automation
 
 ### Analytics
-- **Insights** — per-object time-in-room and entry-count tables, plus peak concurrent occupancy, with CSV/JSON export
-- **Busy Times** (PadSpan Pro) — which rooms are busiest overall and by hour of day, aggregated across every tracked object over a 1/3/7-day range
+- **Insights** (a Traceback mode) — per-object time-in-room and entry-count tables, plus peak concurrent occupancy, with CSV/JSON export
+- **Busy Times** (a Traceback mode, PadSpan Pro) — which rooms are busiest overall and by hour of day, aggregated across every tracked object over a 1/3/7-day range
 - **Locate** (PadSpan Pro) — room-by-room wayfinding to any tracked device or person, from wherever your own tracked phone currently is; a live metre-distance readout once you're in the same room. No compass, no camera — routed over your own room-adjacency map, refreshed on every live poll like Follow
 
 ### Atlas — The Device Map
@@ -146,7 +146,7 @@ See the [Atlas Guide](docs/ATLAS_GUIDE.md) for a full walkthrough. Placement, Au
 
 ### UI & Experience
 - **Pure Live mode** — immersive full-screen 3D dashboard with pan/zoom, floating glass overlays, and collapsible info panels
-- **22 dedicated views** with Basic and Advanced modes
+- **20 dedicated views** with Basic and Advanced modes
 - **5-step onboarding wizard** with auto-detection and progress tracking
 - Dark forest-green theme designed for always-on displays
 - Built-in **Training Hub** with 16 animated walkthroughs + full manual
@@ -190,7 +190,7 @@ See the [Atlas Guide](docs/ATLAS_GUIDE.md) for a full walkthrough. Placement, Au
 | Movement history playback | ✅ | — | — | — |
 | Sample/demo mode | ✅ | — | — | — |
 | Multi-language (11) | ✅ | — | — | — |
-| Dedicated UI views | 22 | Config flow | MQTT config | Web UI |
+| Dedicated UI views | 20 | Config flow | MQTT config | Web UI |
 | HA sensor entities | ✅ | ✅ | ✅ | ✅ |
 | Distance estimation | ✅ | ✅ | — | ✅ |
 | Kalman RSSI filtering | ✅ | — | — | — |

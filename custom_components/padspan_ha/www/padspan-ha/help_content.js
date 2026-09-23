@@ -178,16 +178,16 @@ export const HELP = {
   insights: {
     title: "Insights — Room-dwell analytics",
     body: [
-      "Insights aggregates your traceback history into two tables. Time in Room shows, per tracked object per day, how long it spent in each room and how many times it entered — pick a 1/3/7-day range with the buttons at the top.",
+      "Insights is a mode of Traceback (Traceback → Insights). It aggregates your traceback history into two tables. Time in Room shows, per tracked object per day, how long it spent in each room and how many times it entered — pick a 1/3/7-day range with the buttons at the top.",
       "Peak Concurrent Occupancy shows the most tracked objects seen in any one room at the same time, per day, with the hour it happened.",
       "Both tables can be exported as CSV or JSON from the buttons on the Time in Room card. Data comes from the same 7-day traceback history Traceback plays back — nothing older is available.",
-      "For a visual, room-by-room version of the same underlying data — which rooms are busiest overall and by hour of day — see the Busy Times tab.",
+      "For a visual, room-by-room version of the same underlying data — which rooms are busiest overall and by hour of day — see Traceback → Busy Times.",
     ],
   },
   busytimes: {
     title: "Busy Times — Which rooms are busiest, and when",
     body: [
-      "Busy Times aggregates every tracked object's dwell time into one room-by-room picture: how much total time each room was occupied over the last 1/3/7 days, and a 24-hour bar showing when in the day that room tends to get busy.",
+      "Busy Times is a mode of Traceback (Traceback → Busy Times). It aggregates every tracked object's dwell time into one room-by-room picture: how much total time each room was occupied over the last 1/3/7 days, and a 24-hour bar showing when in the day that room tends to get busy.",
       "Each room's box is tinted by its total occupied time relative to the busiest room in the selected range — darker means quieter, brighter orange/red means busier. The red bar in each room's 24-hour strip marks its single busiest hour.",
       "This is a different view of the same data Insights shows as tables: Insights is per-object, day-by-day detail; Busy Times is the room-level summary at a glance. Neither is the live RSSI signal-quality heatmap on the Overview map — that's about scanner coverage, not room activity.",
       "Busy Times is a PadSpan Pro feature.",
