@@ -1,5 +1,7 @@
 # WLED Advanced tab — research (2026-09-23)
 
+> One claim below was wrong and is corrected inline (search CORRECTION): partial `/json/cfg` writes are NOT safe for every key.
+
 Garry, 2026-09-23: "In the wled card that comes up in atlas, add an advanced tab that is absolute best in class gui for working on wled configuration. Really dig for the absolute best tool out there" — "should cover every facet of WLED operation and setup, as complete as the webpage, but more intuitive" — "and include teaming with other wled devices for proper light control in HA".
 
 Four research agents (tools survey, WLED API surface, PadSpan card today, synthesis). Raw outputs, unedited.
@@ -818,6 +820,7 @@ Boot preset: cfg def.ps. It must save segment bounds (KPS).
 Caveats that shape the whole design:
 - The C16 file header says: "The structure of the JSON is not to be considered an official API and may change without notice." Gate every section by version.
 - Scalars are merged: CJSON(a, b) keeps the current value when a key is missing, so partial objects are fine.
+  - **CORRECTION (review 2026-09-23, verified in cfg.cpp at 0.14.4/0.15.4/16.0.1): NOT all of them.** `hw.led.fps` (→42), `hw.led.rgbwm` (→off), `light.gc.bri`/`col` (→defaults) and `nw.linked_remote` (cleared) are RESET when a write leaves them out. ws_wled.py carries their current values on every write (`with_preserved`).
 - Arrays behave differently:
   - Posting hw.led.ins REPLACES all buses.
   - hw.btn.ins clears and rebuilds the buttons.
