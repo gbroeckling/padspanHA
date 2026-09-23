@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.71 — Atlas's column layout, actually working (2026-09-23)
+
+### Atlas
+- **Fixed:** the two/three-column Atlas layout (map, table, and — on an ultrawide monitor — the inspector, side by side instead of stacked) has thrown a JavaScript error on every window resize since it shipped two days ago, silently never engaging. Found live during a full review of every 2D map screen in the app. No visible symptom beyond the layout never switching to columns — the map, table and index still worked, just always stacked.
+
+---
+
 ## 0.38.70 — A plain light from a relay too (Pakedge PoE ports and the like) (2026-09-23)
 
 ### Devices
