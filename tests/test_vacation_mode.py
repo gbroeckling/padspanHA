@@ -449,9 +449,11 @@ def test_a_light_left_on_after_vacation_mode_is_not_learned():
 def test_switch_fields_and_restore_fields_keep_the_span_bookkeeping():
     from custom_components.padspan_ha.vacation_mode import restore_fields, switch_fields
     now = 10_000.0
-    # A new vacation starts with a fresh pattern — the last trip's isn't reused.
+    # A new vacation starts with a fresh pattern; the last one learned is
+    # kept aside as the stand-in (round 5).
     assert switch_fields({"vacation_mode_enabled": False}, True, now) == {
-        "vacation_mode_enabled_at": now, "vacation_mode_pattern": {}, "vacation_mode_pattern_until": 0}
+        "vacation_mode_enabled_at": now, "vacation_mode_pattern": {}, "vacation_mode_pattern_until": 0,
+        "vacation_mode_pattern_prev": {}}
     off = switch_fields({"vacation_mode_enabled": True, "vacation_mode_enabled_at": 9000.0}, False, now)
     assert off == {"vacation_mode_periods": [[9000.0, now]], "vacation_mode_enabled_at": 0}
     assert switch_fields({"vacation_mode_enabled": True}, True, now) == {}
@@ -645,3 +647,57 @@ async def test_a_previous_trips_pattern_is_not_reused(monkeypatch):
     hass = _hass(st, {"light.a": SimpleNamespace(state="off", attributes={})})
     await _async_tick(hass)
     hass.services.async_call.assert_not_called()
+
+
+
+# ── round 5 ──────────────────────────────────────────────────────────────────
+
+
+def test_the_last_learned_pattern_is_kept_aside_for_the_next_vacation():
+    from custom_components.padspan_ha.vacation_mode import learned_pattern, restore_fields, switch_fields
+    learned = {"light.a": {"*:1200": 1.0}}
+    home = {"vacation_mode_enabled": False, "vacation_mode_pattern": learned, "vacation_mode_pattern_until": 5000.0}
+    assert switch_fields(home, True, 10_000.0)["vacation_mode_pattern_prev"] == learned
+    # A second off/on keeps it, though the pattern itself was wiped.
+    again = {"vacation_mode_enabled": False, "vacation_mode_pattern": {}, "vacation_mode_pattern_prev": learned}
+    assert switch_fields(again, True, 20_000.0)["vacation_mode_pattern_prev"] == learned
+    # A pattern from before pattern_until existed may have learned from
+    # Vacation Mode's own switching: never carried.
+    legacy = {"vacation_mode_enabled": False, "vacation_mode_pattern": learned, "vacation_mode_pattern_built_at": 1.0}
+    assert learned_pattern(legacy) == {}
+    # A restore keeps the live one; the backup's is not trusted.
+    r = restore_fields(home, {"vacation_mode_enabled": True, "vacation_mode_pattern_prev": {"light.z": {}}}, 30_000.0)
+    assert r["vacation_mode_pattern_prev"] == learned and r["vacation_mode_pattern"] == {}
+
+
+async def test_an_empty_build_leaves_the_last_learned_pattern_switching(monkeypatch):
+    """Off/on mid-trip: the recorder has purged the days before the new start,
+    the fresh build finds nothing — the house must not go dark."""
+    import custom_components.padspan_ha.vacation_mode as vm
+    monkeypatch.setattr(vm, "_async_fetch_history", AsyncMock(return_value={}))
+    now = datetime(2026, 1, 15, 12, 0, 0)  # matches conftest.py's _fake_utcnow
+    st = _settings(vacation_mode_enabled=True, vacation_mode_enabled_at=now.timestamp(), vacation_mode_pattern_until=0,
+                   vacation_mode_pattern_prev={"light.a": {bucket_key(now): 1.0}})
+    hass = _hass(st, {"light.a": SimpleNamespace(state="off", attributes={})})
+    await _async_tick(hass)
+    hass.services.async_call.assert_called_once_with("light", "turn_on", {"entity_id": "light.a"})
+
+
+async def test_the_build_learns_every_light_even_one_offline_now(monkeypatch):
+    """A WLED main light offline when the pattern is built is still learned;
+    the tick picks main or segments by what works then."""
+    import custom_components.padspan_ha.vacation_mode as vm
+    asked = {}
+
+    async def fake_fetch(hass, eids, days, end=None):
+        asked["eids"] = sorted(eids)
+        return {}
+
+    monkeypatch.setattr(vm, "_async_fetch_history", fake_fetch)
+    st = _settings(vacation_mode_enabled=True, vacation_mode_enabled_at=datetime(2026, 1, 15).timestamp())
+    states = {"light.strip": SimpleNamespace(state="unavailable", attributes={"group_entities": ["light.strip_seg1"]}),
+              "light.strip_seg1": SimpleNamespace(state="off", attributes={}),
+              "fan.hall": SimpleNamespace(state="off", attributes={}),
+              "sensor.t": SimpleNamespace(state="20", attributes={})}
+    await _async_refresh_pattern_if_stale(_hass(st, states), st)
+    assert asked["eids"] == ["fan.hall", "light.strip", "light.strip_seg1"]

@@ -356,6 +356,16 @@ def _eligible_entity_ids(hass: HomeAssistant) -> list[str]:
     return [eid for eid in states if eid not in drop]
 
 
+def learned_pattern(data: dict) -> dict:
+    """The newest pattern learned under today's rules — from history that
+    ended when a vacation began (pattern_until set), so never from Vacation
+    Mode's own switching. One from before pattern_until existed may have
+    been, and is never carried."""
+    if data.get("vacation_mode_pattern") and data.get("vacation_mode_pattern_until"):
+        return data["vacation_mode_pattern"]
+    return data.get("vacation_mode_pattern_prev") or {}
+
+
 def switch_fields(data: dict, turn_on: bool, now_ts: float) -> dict:
     """The fields that go with switching Vacation Mode on or off — the ONE
     place its span bookkeeping lives, used by settings_set and by a settings
@@ -363,8 +373,12 @@ def switch_fields(data: dict, turn_on: bool, now_ts: float) -> dict:
     vacation_mode_periods. No change, no fields."""
     was_on = bool(data.get("vacation_mode_enabled"))
     if turn_on and not was_on:
-        # A new vacation gets a new pattern — the last trip's is not reused.
-        return {"vacation_mode_enabled_at": now_ts, "vacation_mode_pattern": {}, "vacation_mode_pattern_until": 0}
+        # A new vacation gets a new pattern. The last one learned is kept
+        # aside: the recorder may already have purged the days before this
+        # start (an off/on mid-trip, a trip right after another), and then
+        # it stands in rather than leaving the house dark (round 5).
+        return {"vacation_mode_enabled_at": now_ts, "vacation_mode_pattern": {}, "vacation_mode_pattern_until": 0,
+                "vacation_mode_pattern_prev": learned_pattern(data)}
     if was_on and not turn_on:
         return {
             "vacation_mode_periods": closed_periods(data.get("vacation_mode_periods") or [],
@@ -379,7 +393,8 @@ def restore_fields(live: dict, restored: dict, now_ts: float) -> dict:
     vacation bookkeeping describes what is really in the recorder: keep its
     spans, and apply the on/off change the restore makes as a switch. A
     vacation restored ON starts now with a fresh pattern, never an old one."""
-    out = {"vacation_mode_periods": list(live.get("vacation_mode_periods") or [])}
+    out = {"vacation_mode_periods": list(live.get("vacation_mode_periods") or []),
+           "vacation_mode_pattern_prev": learned_pattern(live)}
     turn_on = bool(restored.get("vacation_mode_enabled"))
     out.update(switch_fields({**live, **out}, turn_on, now_ts))
     if turn_on and live.get("vacation_mode_enabled"):
@@ -417,7 +432,10 @@ async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
     attempt = st.data.get("vacation_mode_pattern_attempt") or [0, 0]
     if attempt[0] == enabled_at and now_ts - attempt[1] < RETRY_EMPTY_S:
         return
-    entity_ids = _eligible_entity_ids(hass)
+    # Every light and fan is learned; which of them to switch is decided at
+    # each tick. A WLED strip offline right now still gets its main light
+    # learned, and switched once it's back (round 5).
+    entity_ids = [eid for eid in hass.states.async_entity_ids() if eid.startswith(VM_DOMAINS)]
     end = dt_util.utc_from_timestamp(enabled_at)
     history = await _async_fetch_history(hass, entity_ids, HISTORY_DAYS, end=end)
     if history is None:
@@ -428,8 +446,9 @@ async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
     pattern = build_pattern(history, dt_util.as_local(end),
                             exclude=st.data.get("vacation_mode_periods") or []) if history else {}
     if not pattern:
-        _LOGGER.warning("Vacation mode: no usable light history before it was switched on; "
-                        "it will not switch anything until there is (next try in an hour)")
+        _LOGGER.warning("Vacation mode: no usable light history before it was switched on; %s (next try in an hour)",
+                        "using the pattern learned before the last vacation" if st.data.get("vacation_mode_pattern_prev")
+                        else "it will not switch anything until there is")
         await st.async_set(vacation_mode_pattern_attempt=[enabled_at, now_ts])
         return
     await st.async_set(vacation_mode_pattern=pattern, vacation_mode_pattern_built_at=now_ts,
@@ -480,12 +499,14 @@ async def _async_tick(hass: HomeAssistant) -> None:
     if not st.data.get("vacation_mode_enabled"):
         return
     pattern = st.data.get("vacation_mode_pattern") or {}
-    # Only a pattern built for THIS vacation: while a new one's build is
-    # failing or empty, an earlier trip's pattern is not reused (round 4).
+    # A pattern built for THIS vacation — or, while its build is failing or
+    # finds nothing, the last one learned before a vacation (learned_pattern);
+    # never a stored pattern older rules may have learned from Vacation
+    # Mode's own switching (rounds 4-5).
     enabled_at = st.data.get("vacation_mode_enabled_at") or 0
     until = st.data.get("vacation_mode_pattern_until") or st.data.get("vacation_mode_pattern_built_at") or 0
     if enabled_at and until < enabled_at:        # same rule as the refresh's
-        return
+        pattern = st.data.get("vacation_mode_pattern_prev") or {}
     # A pattern built under older rules may name lights the current ones
     # leave out (group members, team followers): apply the rules now.
     eligible = set(_eligible_entity_ids(hass))
