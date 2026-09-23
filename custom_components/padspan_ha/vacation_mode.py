@@ -178,18 +178,25 @@ def build_pattern(
     vacations) whose sample points are skipped — they are Vacation Mode's
     own output, not the house's routine."""
     start = now - timedelta(days=history_days)
-    points = sample_points(start, now)
+    # The sample points and their slots are the same for every entity; each
+    # entity's changes are sorted once and walked alongside them (round 6:
+    # re-sorting per sample point took seconds on HA's event loop).
+    points = [(pt.timestamp(), bucket_key(pt), any_day_key(pt)) for pt in sample_points(start, now)]
     pattern: dict[str, dict[str, float]] = {}
     for entity_id, changes in history.items():
         if not changes:
             continue
         spans = entity_exclusions(changes, exclude or [], now.timestamp())
+        ordered = sorted(changes, key=lambda c: c[0])
+        idx, st = 0, None
         counts: dict[str, list[int]] = {}
-        for pt in points:
-            ts = pt.timestamp()
+        for ts, key_day, key_any in points:
+            # The state holding at ts: the latest change at or before it.
+            while idx < len(ordered) and ordered[idx][0] <= ts:
+                st = ordered[idx][1]
+                idx += 1
             if in_periods(ts, spans):
                 continue
-            st = state_at(changes, ts)
             if st not in ("on", "off"):
                 continue
             # Each sample counts toward its own weekday slot and toward the
@@ -197,7 +204,7 @@ def build_pattern(
             # (review 2026-09-23: with the recorder's default 10 days, a trip
             # starting on a Friday had no Sat/Sun/Mon data at all, and the
             # house went dark every weekend).
-            for key in (bucket_key(pt), any_day_key(pt)):
+            for key in (key_day, key_any):
                 on, total = counts.get(key, [0, 0])
                 counts[key] = [on + (1 if st == "on" else 0), total + 1]
         buckets = {k: on / total for k, (on, total) in counts.items() if total >= MIN_SAMPLES}
@@ -443,8 +450,10 @@ async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
         # the hour an empty answer waits.
         await st.async_set(vacation_mode_pattern_attempt=[enabled_at, now_ts - RETRY_EMPTY_S + RETRY_FAILED_S])
         return
-    pattern = build_pattern(history, dt_util.as_local(end),
-                            exclude=st.data.get("vacation_mode_periods") or []) if history else {}
+    # Pure and CPU-bound over up to 30 days of every light: off the event loop.
+    pattern = await hass.async_add_executor_job(
+        build_pattern, history, dt_util.as_local(end), HISTORY_DAYS,
+        st.data.get("vacation_mode_periods") or []) if history else {}
     if not pattern:
         _LOGGER.warning("Vacation mode: no usable light history before it was switched on; %s (next try in an hour)",
                         "using the pattern learned before the last vacation" if st.data.get("vacation_mode_pattern_prev")

@@ -245,6 +245,7 @@ def _hass(st, states=None):
         states=SimpleNamespace(get=lambda eid: (states or {}).get(eid),
                                async_entity_ids=lambda: list(states or {})),
         services=SimpleNamespace(async_call=AsyncMock()),
+        async_add_executor_job=AsyncMock(side_effect=lambda f, *a: f(*a)),
     )
 
 
@@ -701,3 +702,41 @@ async def test_the_build_learns_every_light_even_one_offline_now(monkeypatch):
               "sensor.t": SimpleNamespace(state="20", attributes={})}
     await _async_refresh_pattern_if_stale(_hass(st, states), st)
     assert asked["eids"] == ["fan.hall", "light.strip", "light.strip_seg1"]
+
+
+def test_the_single_pass_build_matches_state_at_everywhere():
+    """Round 6 replaced a per-sample-point re-sort (seconds on HA's event
+    loop) with one sorted walk: same answer as state_at at every point."""
+    import random
+    from custom_components.padspan_ha.vacation_mode import build_pattern, sample_points, any_day_key, MIN_SAMPLES, HISTORY_DAYS
+    rnd = random.Random(7)
+    now = datetime(2026, 1, 15, 12, 0, 0)
+    t0 = (now - timedelta(days=HISTORY_DAYS)).timestamp()
+    history = {}
+    for n in range(6):
+        ts = sorted(t0 + rnd.random() * (now.timestamp() - t0) for _ in range(rnd.randint(1, 400)))
+        rows = [(t, rnd.choice(["on", "off", "on", "unavailable"])) for t in ts]
+        rnd.shuffle(rows)                                   # any order in, like state_at accepts
+        history[f"light.l{n}"] = rows
+    periods = [[t0 + 86400 * 3, t0 + 86400 * 5]]
+    got = build_pattern(history, now, exclude=periods)
+    # Reference: the old per-point state_at walk.
+    from custom_components.padspan_ha.vacation_mode import entity_exclusions, in_periods
+    want = {}
+    for eid, changes in history.items():
+        spans = entity_exclusions(changes, periods, now.timestamp())
+        counts = {}
+        for pt in sample_points(now - timedelta(days=HISTORY_DAYS), now):
+            ts = pt.timestamp()
+            if in_periods(ts, spans):
+                continue
+            st = state_at(changes, ts)
+            if st not in ("on", "off"):
+                continue
+            for key in (bucket_key(pt), any_day_key(pt)):
+                on, total = counts.get(key, [0, 0])
+                counts[key] = [on + (st == "on"), total + 1]
+        b = {k: on / total for k, (on, total) in counts.items() if total >= MIN_SAMPLES}
+        if b:
+            want[eid] = b
+    assert got == want
