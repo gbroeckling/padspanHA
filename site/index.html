@@ -176,6 +176,19 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.71</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">23 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Fixed:</b> the two/three-column Atlas layout (map, table, and — on an ultrawide monitor — the inspector, side by side instead of stacked) has thrown a JavaScript error on every window resize since it shipped two days ago, silently never engaging. Found live during a full review of every 2D map screen in the app. No visible symptom beyond the layout never switching to columns — the map, table and index still worked, just always stacked.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.70</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">23 September 2026</span>
