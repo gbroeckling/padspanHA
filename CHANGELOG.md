@@ -4,6 +4,36 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.76 — A full WLED workbench in the Atlas card (2026-09-24)
+
+### Atlas — WLED
+- **Added (Bright and Pro):** tapping a WLED light on the Atlas now shows **Controls | Advanced**. Advanced covers what WLED's own web page does, in one card, through Home Assistant (no need to open the device's page, and it works over HTTPS):
+  - **Layout** — the strip drawn as it is, with segments you can drag to size, a live view of what the LEDs are showing right now, the 2D matrix view, and "Identify" to blink a segment so you know which LEDs are which. "Keep after restart" makes the current layout the one it boots with.
+  - **Effect** — every effect with its own speed, intensity and option controls (named the way the effect names them), palettes and colours, for one segment or several.
+  - **Presets & playlists** — save, rename and delete presets, build playlists, and pick what it starts with.
+  - **LEDs** — outputs (LED type, pins, count, colour order), power limits, a colour-order helper that asks what you see and sets it, and the 2D matrix setup.
+  - **Sync & team** — WLED sync, right now and saved, and **teams**: pick WLED devices to follow this one, and PadSpan gives the team its own sync group on each device. In Home Assistant you then control only the leader; the others follow over WLED. Vacation Mode switches only the leader. Breaking a team up puts each device's old sync settings back.
+  - **Settings** — the device's settings in sections, schedules, buttons, usermods and restart.
+  - **Backup** — a backup of the settings and presets is taken automatically before every settings change, and you can download or restore one.
+  - **Info** — version, uptime, Wi-Fi, memory and more.
+- Changing a device's configuration needs a Home Assistant administrator; anyone can change what the light is doing. PadSpan never updates WLED's firmware.
+- On an ESP32 WLED that uses I²C (for example a sensor or display usermod), configuration changes are refused, because WLED's own configuration upload wipes the I²C pins on those devices.
+
+### Vacation Mode
+- **Fixed:** switching Vacation Mode off and on again mid-trip (or a trip straight after another) could leave the house dark for the rest of the trip, because Home Assistant had already deleted the history from before the trip. It now keeps the last pattern it learned and uses it until a new one can be built.
+- **Fixed:** a WLED strip that was offline at the moment Vacation Mode was switched on was never switched for the whole trip.
+
+### Doors, windows and locks
+- **Fixed:** a door or lock that is offline showed as "no data" on the Atlas, but its card said "Open" or a red "Unlocked", and Overview's walls showed it open. All three now say there's no reading. In Traceback's Full house activity, doors no longer show open or closed while house history is still loading.
+
+### Traceback
+- **Fixed:** Reset in Full house activity now also forgets the saved floor.
+
+### Other
+- **Fixed:** a text box or list left selected on a wall screen with nobody touching it could stop the live view from ever updating again.
+
+---
+
 ## 0.38.75 — Full house activity, fixed properly (2026-09-23)
 
 An independent review of the last two releases found real problems behind a passing test suite. All fixed:
