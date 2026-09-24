@@ -284,8 +284,10 @@ class SettingsStore:
         # that ran Vacation Mode before has unrecorded ones in the recorder
         # until now (vacation_mode.py learned_pattern, round 6).
         if isinstance(loaded, dict) and "vacation_mode_tracked_since" not in loaded:
+            # Recorded spans count too: a 0.38.74-75 reset cleared the other
+            # three but kept them (round 7).
             ran = bool(loaded.get("vacation_mode_enabled") or loaded.get("vacation_mode_pattern")
-                       or loaded.get("vacation_mode_pattern_built_at"))
+                       or loaded.get("vacation_mode_pattern_built_at") or loaded.get("vacation_mode_periods"))
             self.data["vacation_mode_tracked_since"] = time.time() if ran else 0
         # Only re-save if new defaults were added (loaded was missing keys)
         if _normalized or not isinstance(loaded, dict) or set(self.data.keys()) != set(loaded.keys()):

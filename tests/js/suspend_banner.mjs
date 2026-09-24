@@ -39,8 +39,9 @@ function extractMethod(name) {
 const render = new Function(`const obj = { ${extractMethod("_renderCurrentView")} }; return obj._renderCurrentView;`)();
 let now = 1_000_000;
 globalThis.performance = { now: () => now };
+let dots = 0;                           // round 7: the dots keep moving while the rebuild waits
 const p = {
-  state: { view: "overview", live: { snapshot: { suspended: false } }, _isoUpdateObjects() {} },
+  state: { view: "overview", live: { snapshot: { suspended: false } }, _isoUpdateObjects() { dots++; } },
   _lastSuspendState: true,              // the banner is showing
   _lastGoodRender: now,
   _lastUserInteraction: now - 1000,     // "Resume Normal" tapped 1 s ago
@@ -53,7 +54,8 @@ const poll = () => {
   catch (e) { if (e.message === "rendered") return "rebuilt"; throw e; }
 };
 const first = poll();
+const dotsWhileWaiting = dots;
 now += 5000;
 const later = poll();
-console.log(JSON.stringify({ first, later }));
-process.exit(first === "skipped" && later === "rebuilt" ? 0 : 1);
+console.log(JSON.stringify({ first, later, dotsWhileWaiting }));
+process.exit(first === "skipped" && later === "rebuilt" && dotsWhileWaiting === 1 ? 0 : 1);

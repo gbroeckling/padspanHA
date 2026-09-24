@@ -1108,3 +1108,22 @@ console.log(JSON.stringify({
 """)
     assert out["doors"] == ["binary_sensor.car", "binary_sensor.hatch"]
     assert out["admitted"] == [True, True]
+
+
+def test_an_inverted_doors_health_reads_it_the_right_way_round(tmp_path):
+    """Round 7: the Upper Garage Car Door (Inverted), closed for 8 h, read
+    CLOSED but had a red 'Open for ~8h' health dot."""
+    out = _run(tmp_path, r"""
+const LC = await import('./light_codes.mjs');
+const now = Date.parse("2026-09-23T20:00:00Z");
+const eightH = new Date(now - 8 * 3600e3).toISOString();
+const door = (state) => ({ entity_id: "binary_sensor.garage", device_class: "door", isDoor: true, state, last_changed: eightH });
+console.log(JSON.stringify({
+  closedInv: LC.healthOf(door("on"), now, true),
+  openInv:   LC.healthOf(door("off"), now, true),
+  openPlain: LC.healthOf(door("on"), now),
+}));
+""")
+    assert out["closedInv"]["healthy"] is True
+    assert out["openInv"]["healthy"] is False and "Open for ~8h" in out["openInv"]["reason"]
+    assert out["openPlain"]["healthy"] is False

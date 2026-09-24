@@ -254,7 +254,10 @@ export function isLock(l) {
 const MOTION_STUCK_MS = 6 * 60 * 60 * 1000;
 const TEMP_FRESH_MS = 60 * 60 * 1000;
 
-export function healthOf(l, nowMs) {
+// `inverted`: the door's barrier reads backwards (invert_state) — "left open"
+// then means "off" held for hours, the same rule the State word and the
+// Atlas use (round 7).
+export function healthOf(l, nowMs, inverted = false) {
   if (l.state === "unavailable" || l.state === "unknown") {
     return { healthy: false, reason: `Entity is ${l.state}` };
   }
@@ -269,7 +272,8 @@ export function healthOf(l, nowMs) {
   // and "stuck on" are the same real-world event, only the wording differs.
   if (kind === "stuck_on" || kind === "left_open") {
     const changed = l.last_changed ? Date.parse(l.last_changed) : NaN;
-    if (l.state === "on" && Number.isFinite(changed) && (now - changed) > MOTION_STUCK_MS) {
+    const held = kind === "left_open" ? (l.state === "on") !== !!inverted : l.state === "on";
+    if (held && Number.isFinite(changed) && (now - changed) > MOTION_STUCK_MS) {
       const hrs = Math.round((now - changed) / 3600000);
       return { healthy: false, reason: kind === "left_open"
         ? `Open for ~${hrs}h`

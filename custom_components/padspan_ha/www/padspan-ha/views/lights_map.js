@@ -3331,6 +3331,13 @@ export function buildLightsTable(host, lights){
   // in the table instead, the standard meaning of "filter" for a list) so
   // picking a class here never has the side effect of changing what the
   // map shows, which nothing asked for.
+  // An inverted door's "left open" is its "off" held for hours: gatherLights
+  // can't know the barrier's invert, so its health is read again here,
+  // before the filter, the count and the sort (round 7).
+  const _inv = host.doorInvertByEid || {};
+  for (const l of lights) {
+    if (l.isDoor && _inv[l.entity_id]) { const hh = healthOf(l, Date.now(), true); l.healthy = hh.healthy; l.healthReason = hh.reason; }
+  }
   const tableFilter = host.tableClassFilter || "all";
   const healthFilter = !!host.tableHealthFilter;
   const byClass = tableFilter === "all" ? lights : lights.filter(l => lightClassOf(l) === tableFilter);

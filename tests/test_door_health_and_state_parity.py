@@ -122,3 +122,11 @@ def test_aggregate_sheet_gives_doors_a_readonly_badge_not_a_dead_toggle_button()
     agg_fn = agg_fn[:agg_fn.index("\n}\n")]
     assert "l.isDoor" not in agg_fn, "door's state word moved to stateWordOf — must not be re-special-cased here"
     assert "const sw = stateWordOf(l, api.floodLatches, api.doorInvertByEid);" in agg_fn
+
+
+def test_the_barrier_door_picker_admits_the_same_sensors_as_the_atlas():
+    """Round 7: after garage_door / opening joined isDoorSensor, the RF
+    Barriers door picker still listed only door and window."""
+    s = (_VIEWS / "maps.js").read_text(encoding="utf-8")
+    i = s.index("const candidates = Object.keys(states)")
+    assert "isDoorSensor({ entity_id: eid" in s[i:i + 200]

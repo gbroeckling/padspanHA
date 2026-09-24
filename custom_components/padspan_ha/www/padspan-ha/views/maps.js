@@ -31,7 +31,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         captureWholeHouse, applyWholeHouse, layoutTierFor } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
-const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasControlCard, hasFixedGlyph } =
+const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasControlCard, hasFixedGlyph, isDoorSensor } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 // "Is this map-setup step done?" — shared with the Overview onboarding
 // checklist (panel.js) so the two can never disagree about what's finished.
@@ -2144,14 +2144,13 @@ function _edit(ctx, map, allMaps){
             `Click ${dmPts.length===0?"two points":"one more point"} on this wall — the opening's own start and end. ${dmPts.length}/2 picked.`));
           panel.appendChild(el("button",{class:"btn inline",style:"margin-top:8px",onclick:_cancelDoorMark},"Cancel"));
         } else {
-          // Entity picker: every binary_sensor.* whose device_class is door
-          // or window — the exact admission gate step 1 gave these entities
-          // in Mapping → Lights, reused here so the two surfaces can never
-          // disagree about which entities qualify.
+          // Entity picker: light_codes.isDoorSensor itself — the admission
+          // gate Mapping → Lights uses — so the two surfaces can never
+          // disagree about which entities qualify (round 7: a garage_door /
+          // opening sensor was offered there, not here).
           const states = (ctx.hass && ctx.hass.states) || {};
           const candidates = Object.keys(states)
-            .filter(eid => eid.startsWith("binary_sensor.")
-              && ["door","window"].includes(states[eid].attributes?.device_class))
+            .filter(eid => isDoorSensor({ entity_id: eid, device_class: states[eid].attributes?.device_class }))
             .sort((a,b) => (states[a].attributes?.friendly_name||a).localeCompare(states[b].attributes?.friendly_name||b));
           const entSel = document.createElement("select");
           entSel.className = "select";

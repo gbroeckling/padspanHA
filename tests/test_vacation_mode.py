@@ -773,7 +773,8 @@ def test_restoring_an_old_backup_while_home_never_brings_its_pattern_back():
 
 async def test_the_upgrade_stamp_is_set_only_where_vacation_mode_ran(monkeypatch):
     from custom_components.padspan_ha import settings_store as ss
-    for loaded, stamped in (({"vacation_mode_pattern_built_at": 5.0}, True), ({"light_theme": True}, False), (None, False)):
+    for loaded, stamped in (({"vacation_mode_pattern_built_at": 5.0}, True), ({"vacation_mode_periods": [[1.0, 2.0]]}, True),
+                            ({"light_theme": True}, False), (None, False)):
         saved = {}
         store = ss.SettingsStore.__new__(ss.SettingsStore)
         store.store = SimpleNamespace(async_load=AsyncMock(return_value=loaded),

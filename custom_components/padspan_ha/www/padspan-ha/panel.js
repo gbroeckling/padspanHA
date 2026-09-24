@@ -3115,7 +3115,12 @@ class PadSpanHaApp extends HTMLElement {
         // Fall through to full rebuild below. Recorded only once that
         // rebuild happens (after the swap): a rebuild the interaction guard
         // skipped — the "Resume Normal" click itself — must not count as
-        // done, or the banner stays up for good (round 6).
+        // done, or the banner stays up for good (round 6). The dots keep
+        // moving meanwhile: a guard can hold the rebuild back for minutes
+        // (a focused slider), and they used to freeze with it (round 7).
+        if (typeof this.state._isoUpdateObjects === "function") {
+          try { this.state._isoUpdateObjects(); } catch(e) {}
+        }
       } else {
         // Update suspend countdown in-place (no full rebuild)
         if(_curSusp) {
