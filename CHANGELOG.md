@@ -9,7 +9,7 @@ All notable changes to PadSpan HA are documented here.
 ### Bluetooth
 - **Fixed:** right after Home Assistant or PadSpan restarted, devices heard minutes earlier could look freshly heard — Home Assistant hands over its recent history when PadSpan starts listening, and PadSpan stamped all of it "now". Each report now keeps the time it was really received — including history from before the last reboot.
 - **Fixed:** if the system clock stepped back (a time-sync correction), live readings froze until the clock caught up.
-- **Fixed:** a device heard only by the Home Assistant machine's own Bluetooth adapter could look older and older while it was still advertising (the adapter reports an unchanged advert once).
+- **Fixed:** when Home Assistant's Bluetooth runs in degraded mode, a device heard by the Home Assistant machine's own adapter could look older and older while it was still advertising (that adapter then reports an unchanged advert only once).
 
 ### Bluetooth — Apple Find My tags
 - **Fixed:** for the minute or so after a tag changed address, its new address showed up as a second, nameless device (and stayed in the list afterwards).
@@ -30,7 +30,10 @@ All notable changes to PadSpan HA are documented here.
 - **Fixed:** the floor slider, the floor buttons and the floor list in the drawing named floors "L0", "L1" or "Floor 1" when Home Assistant's floors have no level set (the usual case) — they show their names.
 - **Fixed:** tapping a floor's badge said "No floor record for this storey" for every floor but the lowest — or opened another floor, whose **All lights on** switched that floor's lights.
 - **Fixed:** floors now stack exactly the way PadSpan's signal model stacks them — names like "Ground floor", "First floor", "Second floor" and "Garden" are recognised, and a floor with a name PadSpan doesn't know sits above the named ones instead of sharing a storey with one (a garage with no rooms could take Upstairs' name).
-- **Fixed:** a door or window on an outdoor floor was found on the lowest floor's slab when you clicked it.
+- **Fixed:** a door or window on an outdoor floor was found on the lowest floor's slab when you clicked it, and a wall on a floor with nothing drawn could take a click meant for the floor on screen.
+- **Fixed:** with only some floors given a level (the 3D Stack's Save sets one), two floors could be drawn on one slab; and outdoor rooms could be drawn on the lowest floor when the floor list has no outdoor floor.
+- **Fixed:** a floor's badge and button count and switch everything on that storey — the garden beside the ground floor included.
+- **Fixed:** a large lot on a floor named "Garden" or "Yard" no longer shrinks the whole house drawing (only "Outside" was treated as outdoors).
 - **Fixed:** a motion sensor that is offline or unknown no longer flashes as motion or wears the recent-motion ring.
 - **Fixed:** after a restart, sensors that took up to 5 minutes to come back no longer all read as fresh motion (the grace was 2 minutes).
 
