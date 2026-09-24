@@ -4,6 +4,22 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.79 — Find My tags, hardened (2026-09-24)
+
+### Bluetooth
+- **Fixed:** right after Home Assistant or PadSpan restarted, devices heard minutes earlier could look freshly heard — Home Assistant hands over its recent history when PadSpan starts listening, and PadSpan stamped all of it "now". Each report now keeps the time it was really received.
+
+### Bluetooth — Apple Find My tags
+- **Fixed:** for the minute or so after a tag changed address, its new address showed up as a second, nameless device (and stayed in the list afterwards).
+- **Fixed:** a tag that goes back to an earlier address — a tag away from its owner keeps one key all day, so it returns to it after time near the owner — is followed there, instead of reading "away".
+- **Fixed:** if a link was ever wrong, the tag's real address being heard again now undoes it by itself; **Unlink** shows only on the tag's current address and undoes exactly that one, and it sticks.
+- **Fixed:** a restart could undo a correct link and lose the tag's name.
+
+### Traceback
+- **Fixed:** in Full house activity, devices with a room but no place on the map were folded into one "unplaced" chip, hiding what they did (an unlocked lock looked the same as locked); each shows now.
+
+---
+
 ## 0.38.78 — Find My tags keep their room; faster Traceback with Automorph (2026-09-24)
 
 ### Bluetooth — Apple Find My tags
