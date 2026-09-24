@@ -176,6 +176,32 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.76</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">24 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Added (Bright and Pro):</b> tapping a WLED light on the Atlas now shows <b>Controls | Advanced</b>. Advanced covers what WLED's own web page does, in one card, through Home Assistant (no need to open the device's page, and it works over HTTPS):</li>
+          <li>Changing a device's configuration needs a Home Assistant administrator; anyone can change what the light is doing. PadSpan never updates WLED's firmware.</li>
+          <li>On an ESP32 WLED that uses I²C (for example a sensor or display usermod), configuration changes are refused, because WLED's own configuration upload wipes the I²C pins on those devices.</li>
+          <li><b>Fixed:</b> switching Vacation Mode off and on again mid-trip (or a trip straight after another) could leave the house dark for the rest of the trip, because Home Assistant had already deleted the history from before the trip. It now keeps the last pattern it learned and uses it until a new one can be built.</li>
+          <li><b>Fixed:</b> a WLED strip that was offline at the moment Vacation Mode was switched on was never switched for the whole trip.</li>
+          <li><b>Fixed:</b> learning the pattern no longer pauses Home Assistant for a few seconds.</li>
+          <li><b>Fixed:</b> restoring an older settings backup no longer brings back that backup's old pattern.</li>
+          <li><b>Fixed:</b> a door or lock that is offline showed as "no data" on the Atlas, but its card said "Open" or a red "Unlocked", and Overview's walls showed it open. All three now say there's no reading. In Traceback's Full house activity, doors no longer show open or closed while house history is still loading.</li>
+          <li><b>Fixed:</b> the Atlas list and its room and floor sheets now agree with the map: an offline door or lock says "No reading", and a door marked Inverted (like the Upper Garage Car Door) reads the right way round.</li>
+          <li><b>Fixed:</b> a door sensor shown in Home Assistant as a garage door or an opening now appears on the Atlas like any other door.</li>
+          <li><b>Fixed:</b> Reset in Full house activity now also forgets the saved floor.</li>
+          <li><b>Fixed:</b> a text box or list left selected on a wall screen with nobody touching it could stop the live view from ever updating again.</li>
+          <li><b>Fixed:</b> Overview's "Raw radio only" banner could stay up after pressing Resume Normal.</li>
+          <li><b>Changed:</b> the settings PadSpan sends to the browser are about half the size.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.75</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">23 September 2026</span>
