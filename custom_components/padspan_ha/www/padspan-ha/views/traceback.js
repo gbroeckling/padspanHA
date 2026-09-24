@@ -255,7 +255,17 @@ export function render(ctx) {
   // mid-load can never be merged into a half-loaded list, nor a merged list
   // be mistaken for the raw one (re-review round 3). tb.frames is only ever
   // written by _applyHouseFrames. A newer load supersedes an older one.
-  async function _loadTracebackData() {
+  // The load in flight, whichever view started it: 💡 Devices waits for it
+  // before switching — tapped during a new view's own first load, the whole
+  // house's history was fetched for the old window too (review round 19).
+  function _loadTracebackData() {
+    const p = _loadTracebackDataNow();
+    tb._loadPromise = p;
+    const done = () => { if (tb._loadPromise === p) tb._loadPromise = null; };
+    p.then(done, done);
+    return p;
+  }
+  async function _loadTracebackDataNow() {
     const seq = (tb._loadSeq = (tb._loadSeq || 0) + 1);
     let frames = [], matched = 0, range = null, autoExpanded = false, objKeys = tb.objKeys || [];
     const now = Date.now() / 1000;
@@ -2205,6 +2215,11 @@ export function render(ctx) {
     // during the reload fetched the whole house's history for the old,
     // one-object window (review round 16).
     _stopPlayback();
+    if (on && tb._loadPromise) {
+      _devicesPending = true;
+      try { await tb._loadPromise; } finally { _devicesPending = false; }
+      if (mapDiv.isConnected === false) return;
+    }
     // All the house's activity is every tracked object's too: a chosen one
     // would keep the beacons to that one.
     if (on && tb.filterKey) {

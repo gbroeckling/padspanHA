@@ -526,3 +526,37 @@ await settle();
 out.devices = tb.house.devices === true;
 """)
     assert out == {"devices": True}, out
+
+
+
+def test_devices_tapped_during_a_new_views_first_load_fetches_the_house_once():
+    """Round 19: tapped while a new view's own first load was still running,
+    💡 Devices switched over the OLD window — the whole house's history was
+    fetched for it, then again for the new one."""
+    out = _run("""
+const frames = [{ ts: Math.floor(Date.now() / 1000) - 100, o: [{ k: "a", r: "Kitchen", x_m: 1, y_m: 1, f: "main" }] }];
+const states = { "light.kitchen": { entity_id: "light.kitchen", state: "on", attributes: { friendly_name: "Kitchen" } } };
+let gate = null;
+const { ctx, calls } = H.makeCtx({ states,
+  wsCall: async (t) => t === "padspan_ha/traceback_get" ? (gate && (await gate), { frames, range: {} })
+    : t === "padspan_ha/traceback_objects" ? { objects: [] } : t === "padspan_ha/vacation_log_get" ? { actions: [], periods: [] } : {},
+  callWS: (m) => m.type === "history/history_during_period" ? {} : (m.type.startsWith("config/") ? [] : {}) });
+ctx.state._traceback = undefined;
+let outer = H.TB.render(ctx);
+const tb = ctx.state._traceback;
+await settle();
+all(outer).find(n => String(n.textContent).startsWith("🏠 Full house activity")).click();
+await settle();
+tb.rangePreset = 600;                               // the next view's window differs
+let release; gate = new Promise(r => { release = r; });
+tb.active = false;
+outer = H.TB.render(ctx);                            // a new view, its first load held
+all(outer).find(n => String(n.textContent).startsWith("💡 Devices")).click();   // before that load lands
+out.early = calls.filter(c => c.type === "history/history_during_period").length;
+release(); gate = null;
+await settle();
+const hist = calls.filter(c => c.type === "history/history_during_period");
+out.fetches = hist.length;
+out.devices = tb.house.devices === true;
+""")
+    assert out == {"early": 0, "fetches": 1, "devices": True}, out

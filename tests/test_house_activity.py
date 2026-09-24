@@ -766,3 +766,18 @@ out.offline = ev([{ s: "20.4", lu: 0 }, { s: "20.6", lu: 60 }, { s: "unavailable
 out.ramp = ev([{ s: "20.4", lu: 0 }, { s: "20.6", lu: 300 }, { s: "20.9", lu: 480 }], 3600 * 1000);
 """)
     assert out == {"future": [], "offline": [], "ramp": [[300, "20°", "21°"]]}, out
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_a_blip_offline_does_not_restart_the_hold():
+    """Round 19: every unavailable row threw a waiting small step away — a
+    sensor that blips offline every few minutes (ESPHome reconnects, for
+    hours) showed 21° all along and it never counted."""
+    out = _run("""
+const rows = [{ s: "20.4", lu: 0 }, { s: "20.6", lu: 60 }];
+for (let i = 1; i <= 36; i++) rows.push({ s: "unavailable", lu: i * 300 }, { s: "20.6", lu: i * 300 + 10 });
+const a = { "sensor.t": { device_class: "temperature" } };
+out.ev = HA.activityEvents(HA.buildStateTimeline({ "sensor.t": rows }), (e) => e, 0, 11000 * 1000, (eid) => a[eid])
+  .map(e => [e.t / 1000, e.from, e.to]);
+""")
+    assert out["ev"] == [[60, "20°", "21°"]], out

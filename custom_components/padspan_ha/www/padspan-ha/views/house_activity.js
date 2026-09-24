@@ -254,13 +254,21 @@ export function activityEvents(timeline, nameOf, startMs, endMs, attrsOf = null)
     for (let i = 0; i < list.length; i++) {
       const r = list[i];
       if (_NOT_A_CHANGE.has(r.state)) {
-        // Offline: a small step waiting to hold was shown only until now
-        // (review round 18).
-        if (pend) { if (r.t - pend.t >= HOLD_MS) commit(pend); pend = null; }
+        // Offline: a small step waiting to hold is judged when the sensor
+        // is back (review rounds 18-19).
+        if (pend && pend.darkAt == null) pend.darkAt = r.t;
         continue;
       }
       const k = keyOf(r.state);
       if (k == null) continue;
+      if (pend && pend.darkAt != null) {
+        // Back within 10 minutes: a blip, the step still stands — ESPHome
+        // reconnects are hours of blips, and dropping it at each one never
+        // counted it (round 19). Offline longer: it counts only if it had
+        // held before it went (round 18).
+        if (r.t - pend.darkAt < HOLD_MS) pend.darkAt = null;
+        else { if (pend.darkAt - pend.t >= HOLD_MS) commit(pend); pend = null; }
+      }
       if (pend && r.t - pend.t >= HOLD_MS) { commit(pend); pend = null; }
       // Drawn the same: no change — but the word it goes by is the latest.
       if (k === prevKey) { pend = null; prevLabel = shown(r.state); continue; }
@@ -276,8 +284,9 @@ export function activityEvents(timeline, nameOf, startMs, endMs, attrsOf = null)
       pend = null;
     }
     // Held to the window's end — or to now, when the window runs past it
-    // (round 18: a step a minute old counted as held in a future window).
-    if (pend && Math.min(endMs, Date.now()) - pend.t >= HOLD_MS) commit(pend);
+    // (round 18: a step a minute old counted as held in a future window) —
+    // or to when it went offline for good.
+    if (pend && (pend.darkAt != null ? pend.darkAt : Math.min(endMs, Date.now())) - pend.t >= HOLD_MS) commit(pend);
   }
   return ev.sort((a, b) => a.t - b.t);
 }
