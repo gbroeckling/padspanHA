@@ -384,7 +384,84 @@ const ctx = { state: { model, settings: { tier: "pro" }, _modelLoaded: true, _li
 HA.renderHouseFrame(ctx, hs, [], 0, {}, () => {});
 const locked = HA.renderHouseFrame(ctx, hs, [{ ts: T - 50, o: [] }], 0, {}, () => {});
 const unlocked = HA.renderHouseFrame(ctx, hs, [{ ts: T, o: [] }], 0, {}, () => {});
-out.lockMarker = /data-eid="lock\.front"/.test(unlocked);
+out.lockMarker = /data-eid="lock\\.front"/.test(unlocked);
 out.differs = locked !== unlocked;
 """)
     assert out == {"lockMarker": True, "differs": True}, out
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_a_replayed_light_keeps_what_it_is_not_what_it_was_doing():
+    """Live check 2026-09-24: HA has not recorded a light's colour, brightness
+    or effect list since 2024.8, so a replayed WLED kept only its name — it
+    lost its strip class and every code after it shifted. What a device IS
+    comes from the live entity; what it was DOING never does."""
+    out = _run("""
+const live = {
+  "light.strip": { entity_id: "light.strip", state: "off", attributes: { friendly_name: "Strip",
+    effect_list: ["Solid", "Rainbow"], supported_color_modes: ["rgb"], brightness: 77, rgb_color: [1, 2, 3], effect: "Rainbow" } },
+  "light.bare": { entity_id: "light.bare", state: "on", attributes: { friendly_name: "Bare",
+    supported_color_modes: ["brightness"], brightness: 12 } } };
+const tl = HA.buildStateTimeline({ "light.strip": [{ s: "on", a: { friendly_name: "Strip", supported_features: 44 }, lu: 1000 }],
+                                   "light.bare": [{ s: "off", lu: 1000 }] });
+const at = HA.statesAt(tl, live, ["light.strip", "light.bare"], 1_000_500);
+out.strip = at["light.strip"].attributes;
+out.bare = at["light.bare"].attributes;
+""")
+    assert out["strip"] == {"friendly_name": "Strip", "effect_list": ["Solid", "Rainbow"],
+                            "supported_color_modes": ["rgb"], "supported_features": 44}, out
+    assert out["bare"] == {"friendly_name": "Bare", "supported_color_modes": ["brightness"]}, out
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_a_sensor_quiet_since_before_the_window_shows_its_last_report():
+    """Live check 2026-09-24: the start row is dated to the window start, so a
+    temperature that last reported an hour before the window read as fresh."""
+    out = _run("""
+const start = 1_000_000;
+const live = { "sensor.t": { state: "21.5", last_changed: new Date((start - 7200) * 1000).toISOString(),
+                             last_updated: new Date((start - 3600) * 1000).toISOString() } };
+const tl = HA.buildStateTimeline({ "sensor.t": [{ s: "21.5", lu: start }] }, { startMs: start * 1000, live });
+const at = HA.statesAt(tl, live, ["sensor.t"], (start + 60) * 1000)["sensor.t"];
+out.lu = Date.parse(at.last_updated) / 1000;
+out.lc = Date.parse(at.last_changed) / 1000;
+""")
+    assert out == {"lu": 1_000_000 - 3600, "lc": 1_000_000 - 7200}
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_a_reconnect_is_not_motion():
+    """Live check 2026-09-24: an ESPHome sensor that dropped off and came back
+    unchanged read as 'just triggered' for hours — HA dates the state after
+    the gap to the reconnect. Its last real change is the one before the gap;
+    a state that did change across the gap keeps the reconnect's time."""
+    out = _run("""
+const start = 1_000_000;
+const live = { "binary_sensor.m": { state: "off", last_changed: new Date((start - 86400) * 1000).toISOString() } };
+const tl = HA.buildStateTimeline({ "binary_sensor.m": [{ s: "off", lu: start }, { s: "unavailable", lu: start + 100 },
+  { s: "off", lu: start + 160 }, { s: "on", lu: start + 900 }, { s: "unavailable", lu: start + 950 },
+  { s: "off", lu: start + 990 }] }, { startMs: start * 1000, live });
+const lc = (t) => Date.parse(HA.statesAt(tl, live, ["binary_sensor.m"], t * 1000)["binary_sensor.m"].last_changed) / 1000;
+out.afterReconnect = lc(start + 200);
+out.realMotion = lc(start + 920);
+out.changedAcrossGap = lc(start + 1000);
+""")
+    assert out == {"afterReconnect": 1_000_000 - 86400, "realMotion": 1_000_900, "changedAcrossGap": 1_000_990}
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_house_mode_names_floors_whose_level_is_unset():
+    """Live check 2026-09-24: Home Assistant floors usually have no level, and
+    the slider matched x.level — "L0", "L1". The drawing's own level -> floor
+    mapping names them."""
+    out = _run("""
+const sq = [[0, 0], [4, 0], [4, 4], [0, 4]];
+const model = { floors: [{ id: "upper", name: "Upstairs", level: null }, { id: "main", name: "Main floor", level: null },
+                         { id: "basement", name: "Basement", level: null }],
+  room_geometry_m: { A: { type: "poly", floor_id: "basement", points_m: sq }, B: { type: "poly", floor_id: "main", points_m: sq },
+                     C: { type: "poly", floor_id: "upper", points_m: sq } } };
+const pos = HA.atlasFocusPositions(model);
+out.labels = [0, 1, 2, 3, 4, 5].map(i => pos.labelOf(i));
+""")
+    assert out["labels"] == ["All floors", "Basement", "Basement + Main floor", "Main floor",
+                             "Main floor + Upstairs", "Upstairs"], out

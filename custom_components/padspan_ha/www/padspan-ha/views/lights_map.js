@@ -11,7 +11,7 @@
 // Everything either view renders comes from here; the hosts differ only in
 // what an interaction does (sidebar: control the light — tab: place it).
 
-const { buildIsoSVG, shapeSvg, fabricFrame, sampleSceneField, pointInPolygon, offsetPolygonInward,
+const { buildIsoSVG, shapeSvg, fabricFrame, floorIdAtLevel, sampleSceneField, pointInPolygon, offsetPolygonInward,
         lightClassOf, SHOWCASE_THEMES, AUTOMORPH_STYLE_LABELS, floodLatchActive, barrierNoReading } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
@@ -2422,7 +2422,8 @@ export function buildLightsMapCard(hostIn){
   // Floors come from the FABRIC (which floors actually contain rooms/lights),
   // never from which photos happen to be uploaded. A floor with no plan image
   // is still a floor; a plan image is not a floor.
-  const sortedLevels = fabricFrame(host.model, floors, view.floorGap, view.horizGap).levels;
+  const _frame = fabricFrame(host.model, floors, view.floorGap, view.horizGap);
+  const sortedLevels = _frame.levels;
 
   // Focus positions: All, each floor, each adjacent pair
   const isoPos = [null];
@@ -2435,7 +2436,11 @@ export function buildLightsMapCard(hostIn){
     const pos = getFocusZ(idx);
     if (pos === null) return "All floors";
     const zArr = Array.isArray(pos) ? pos : [pos];
-    return zArr.map(z => { const f = floors.find(x => x.level === z); return f ? (f.name || `L${z}`) : `L${z}`; }).join(" + ");
+    // The drawing's own level -> floor mapping (floorIdAtLevel): HA floors
+    // usually have level null, and matching x.level named them "L0 / L1"
+    // (live check 2026-09-24).
+    return zArr.map(z => { const fid = floorIdAtLevel(_frame, host.model, floors, z); const f = floors.find(x => String(x.id) === fid);
+      return f ? (f.name || `L${z}`) : `L${z}`; }).join(" + ");
   };
   view.focusIdx = Math.max(0, Math.min(view.focusIdx, isoPos.length - 1));
 

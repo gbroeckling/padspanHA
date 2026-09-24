@@ -6154,3 +6154,40 @@ def test_an_offline_inverted_barrier_draws_no_data_not_open(tmp_path):
     lbe = {**_BARRIER_LBE, "binary_sensor.frontdoor": {**_BARRIER_LBE["binary_sensor.frontdoor"], "state": "unavailable"}}
     svg = _run_js(tmp_path, _barrier_harness(_INVERTED_BARRIER_MODEL, lbe))["svg"]
     assert 'stroke-dasharray="3,4"' in svg and 'stroke="#94a3b8"' not in svg
+
+
+def test_an_offline_motion_sensor_never_reads_as_motion(tmp_path):
+    """Live check 2026-09-24: an ESPHome motion sensor that dropped off the
+    network flashed "motion now" and wore the 6-hour ring while offline — its
+    last_changed is the moment it went unavailable. No reading is no motion.
+    The same house's restart brought sensors back up to 4 min 17 s after
+    boot, so the boot grace is 5 minutes, not 2."""
+    STARTED = 1_000_000_000_000
+    M = 60_000
+    NOW = STARTED + 20 * M
+    eids = {"gone": 1.0, "unknown": 3.0, "late": 5.0, "real": 7.0}
+    model = {
+        "room_geometry_m": {"Hall": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [10, 0], [10, 4], [0, 4]]}},
+        "light_positions_m": {f"binary_sensor.{k}": {"x_m": x, "y_m": 2.0, "floor_id": "main"} for k, x in eids.items()},
+    }
+    import datetime
+    iso = lambda ms: datetime.datetime.fromtimestamp(ms / 1000, tz=datetime.timezone.utc).isoformat()
+    stamp = {"gone": ("unavailable", NOW - 10_000), "unknown": ("unknown", NOW - 3 * M),
+             "late": ("off", STARTED + 257_000), "real": ("off", NOW - 2 * M)}
+    lbe = {f"binary_sensor.{k}": {"entity_id": f"binary_sensor.{k}", "state": s, "code": f"M0{i + 1}", "shape": "motion",
+                                  "isMotion": True, "last_changed": iso(t)}
+           for i, (k, (s, t)) in enumerate(stamp.items())}
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LBE={json.dumps(lbe)};\n"
+        "const FLOORS=[{id:'main',name:'Main',level:0}];\n"
+        f"const svg=M.buildIsoSVG(MODEL,{{}},new Set(),null,150,0,LBE,false,FLOORS,{{nowMs:{NOW}, haStartedMs:{STARTED}}});\n"
+        "const has=(cls,eid)=>new RegExp('class=\"'+cls+'\" data-eid=\"'+eid.replace(/\\./g,'\\\\.')+'\"').test(svg);\n"
+        "const out={};\n"
+        "for(const k of ['gone','unknown','late','real']) out[k]={pulse:has('lpulse','binary_sensor.'+k), ring:has('lrecent','binary_sensor.'+k)};\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+    for k in ("gone", "unknown", "late"):
+        assert not out[k]["pulse"] and not out[k]["ring"], (k, out)
+    assert out["real"]["pulse"], out

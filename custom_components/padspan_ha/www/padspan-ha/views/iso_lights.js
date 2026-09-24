@@ -2587,7 +2587,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // integration's own setup — is no event: nothing lit, no ring, until the
   // sensor actually changes. A sensor honestly reporting "on" is still on.
   const STARTED_MS=Number(opts.haStartedMs)||0;
-  const BOOT_GRACE_MS=2*60*1000;
+  // 5 minutes: a real house's restart took up to 4 min 17 s to bring its
+  // sensors back (live check 2026-09-24).
+  const BOOT_GRACE_MS=5*60*1000;
   const bootArtefact=(l)=>{
     if(!STARTED_MS) return false;
     const t=l.last_changed ? Date.parse(l.last_changed) : NaN;
@@ -5224,6 +5226,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // was still keyed to the raw 5-second hardware hold.
     const motionActive=(l)=>{
       if(l.state==="on") return true;
+      // Offline or unknown is no reading — never "motion now" (live check
+      // 2026-09-24: a dropped ESPHome sensor flashed motion while offline).
+      if(l.state==="unavailable" || l.state==="unknown") return false;
       if(bootArtefact(l)) return false;   // a restart's restored timestamp is not a trigger
       const lastMs=l.last_changed ? Date.parse(l.last_changed) : NaN;
       const e=NOW_MS-lastMs;
@@ -6048,6 +6053,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     }
     for(const [l2,hx,hy] of jobs){
       if(!l2.isMotion) continue;
+      // No reading, no pulse and no ring (live check 2026-09-24).
+      if(l2.state==="unavailable" || l2.state==="unknown") continue;
       // Quiet, and its only timestamp is the restart's — no pulse, no ring
       // (bootArtefact, above). Still "on" at boot keeps its active pulse.
       if(l2.state!=="on" && bootArtefact(l2)) continue;

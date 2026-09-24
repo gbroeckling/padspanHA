@@ -310,8 +310,12 @@ class BluetoothLive:
             # it; stamped "now", a minutes-old address looked live again and
             # a Find My tag's correct link was undone on every restart
             # (review round 11).
+            # A stamp from before this boot is NEGATIVE (habluetooth restores
+            # its stored history as unix - (time() - monotonic())), and those
+            # replay too — so any non-zero stamp counts (round 12).
             _t = getattr(service_info, "time", None)
-            if isinstance(_t, (int, float)) and _t > 0:
+            _age = 0.0
+            if isinstance(_t, (int, float)) and _t != 0:
                 _age = (time.time() if float(_t) > 1e9 else time.monotonic()) - float(_t)
                 if _age > 0:
                     seen = seen - dt.timedelta(seconds=_age)
@@ -319,9 +323,12 @@ class BluetoothLive:
             src = rec.get("source") or "_unknown"
             if addr not in self._seen_by_source:
                 self._seen_by_source[addr] = {}
+            # A REPLAYED (old) report never replaces a newer one. A live advert
+            # (age ~0) always lands: comparing wall-clock stamps alone froze
+            # live readings for as long as a backward clock step (round 12).
             _prev_adv = self._seen_by_source[addr].get(src)
-            if _prev_adv is not None and _prev_adv.seen > seen:
-                return          # an older (replayed) report never replaces a newer one
+            if _age > 2.0 and _prev_adv is not None and _prev_adv.seen > seen:
+                return
             self._seen_by_source[addr][src] = _Adv(record=rec, seen=seen)
             # Sample history for median-of-N (real callbacks only — the
             # reseed path replays cached readings and must not multiply them)

@@ -440,3 +440,96 @@ def test_a_replayed_advert_keeps_its_real_age(monkeypatch):
     assert 395 <= ages[KEYS_1] <= 410, ages
     assert ages[KEYS_2] < 5, ages
 
+
+# ── review round 12 ──────────────────────────────────────────────────────────
+
+
+def _heard(payload, place, built, heard):
+    """A record as the snapshot hands it over: last heard at `heard`, its age
+    measured when the snapshot was built (`built` — a cached snapshot is
+    older than the poll that reads it)."""
+    from datetime import datetime, timezone
+    r = _rec(payload, place, age=built - heard)
+    r["last_seen"] = datetime.fromtimestamp(T0 + heard, tz=timezone.utc).isoformat()
+    return r
+
+
+def test_one_unchanged_report_never_confirms_a_return():
+    """Round 12: the return rule took 'now - age' as when an address was
+    heard. A snapshot's ages are measured when it is built, a few seconds
+    before a later poll reads it, so ONE report (a replayed one) looked a
+    little newer on every poll and confirmed itself."""
+    b = F.FindMyBridge()
+    k = KEYS_1
+    _change(b, KEYS_1, KEYS_2, _separated(1), _separated(1, 0x22), KITCHEN, known={KEYS_1: k})
+    for now in (202.0, 204.5, 207.0):
+        r = _poll(b, now, {KEYS_1: _heard(_separated(1), KITCHEN, 202.0, 200.0),
+                           KEYS_2: _heard(_separated(1, 0x22), KITCHEN, 202.0, 201.0)})
+        assert r["unlinked"] == [], now
+    assert b.tags[k]["addr"] == KEYS_2
+
+
+def test_a_real_return_is_confirmed_at_a_passive_proxys_pace():
+    """Round 12: a passive proxy's repeats of a steady advert reach PadSpan
+    only at each 30-60 s reseed, and the rule dropped the first report once
+    it was 10 s old — a tag back on its day key was never followed there.
+    The second report, 35 s later, confirms it."""
+    b = F.FindMyBridge()
+    k = KEYS_1
+    _change(b, KEYS_1, KEYS_2, _separated(1), _separated(1, 0x22), KITCHEN, known={KEYS_1: k})
+    for now in range(301, 346, 5):
+        heard = 300.0 if now < 335 else 335.0
+        r = _poll(b, float(now), {KEYS_1: _heard(_separated(1), KITCHEN, now, heard),
+                                  KEYS_2: _heard(_separated(1, 0x22), KITCHEN, now, 290.0)})
+        if b.tags[k]["addr"] == KEYS_1:
+            break
+    assert b.tags[k]["addr"] == KEYS_1 and r["unlinked"] == [(k, KEYS_2, KEYS_1)], (now, b.tags[k])
+    assert now == 336, "confirmed by the second report, not before"
+
+
+def _bl(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    from custom_components.padspan_ha import bluetooth_live as BL
+    from custom_components.padspan_ha.const import DOMAIN
+    monkeypatch.setitem(sys.modules, "habluetooth",
+                        SimpleNamespace(get_manager=lambda: SimpleNamespace(async_current_scanners=lambda: [])))
+    return BL, BL.BluetoothLive(SimpleNamespace(data={DOMAIN: {}}))
+
+
+def _adv(addr, rssi, stamp):
+    from types import SimpleNamespace
+    return SimpleNamespace(address=addr, name=None, source="kit", rssi=rssi, time=stamp,
+                           manufacturer_data={76: bytes([0x12, 0x19, 0x10] + [0x11] * 22 + [1, 0])},
+                           service_data={}, service_uuids=[], tx_power=None, connectable=True)
+
+
+def test_a_report_from_before_this_boot_keeps_its_real_age(monkeypatch):
+    """Round 12: habluetooth restores its stored history with monotonic
+    stamps from before this boot — NEGATIVE ones when the report is older
+    than the host's uptime. Only positive stamps were aged, so those replayed
+    as heard just now."""
+    import time
+    BL, bl = _bl(monkeypatch)
+    monkeypatch.setattr(time, "monotonic", lambda: 100.0)       # up 100 s
+    bl._on_adv(_adv(KEYS_1, -50, -500.0))                       # heard 600 s ago
+    age = (BL._now() - bl._seen_by_source[KEYS_1]["kit"].seen).total_seconds()
+    assert 595 <= age <= 605, age
+
+
+def test_a_live_advert_lands_after_the_clock_steps_back(monkeypatch):
+    """Round 12: 'an older report never replaces a newer one' was judged by
+    the wall clock alone — after the clock stepped back (an NTP correction)
+    every live advert was 'older' than the last and was dropped, freezing
+    the readings for as long as the step. A replayed report still never
+    replaces a newer one."""
+    import datetime as dt
+    import time
+    BL, bl = _bl(monkeypatch)
+    bl._on_adv(_adv(KEYS_1, -50, time.monotonic()))
+    real_now = BL._now
+    monkeypatch.setattr(BL, "_now", lambda: real_now() - dt.timedelta(seconds=300))
+    bl._on_adv(_adv(KEYS_1, -70, time.monotonic()))
+    assert bl._seen_by_source[KEYS_1]["kit"].record["rssi"] == -70
+    bl._on_adv(_adv(KEYS_1, -90, time.monotonic() - 400.0))    # replayed history
+    assert bl._seen_by_source[KEYS_1]["kit"].record["rssi"] == -70

@@ -364,3 +364,22 @@ def test_help_content_has_a_complete_entry_for_every_control_in_the_row(tmp_path
     for label in ["ROOM %", "HARDNESS", "STYLE", "SUBTLETY", "FLOOR", "SPACING", "L / R", "ZOOM", "SAVE VIEW", "RESET VIEW",
                   "SHOWCASE", "UNTOUCHED", "CODES"]:
         assert label in entry, f"lights_build_controls never mentions {label!r}, but the row renders it"
+
+
+def test_the_floor_slider_names_floors_whose_level_is_unset(tmp_path):
+    """Live check 2026-09-24: Home Assistant floors usually have no level, and
+    the Atlas slider matched x.level — it read "L0" / "L1"."""
+    model = {"floors": [{"id": "upper", "name": "Upstairs", "level": None},
+                        {"id": "main", "name": "Main floor", "level": None}],
+             "room_geometry_m": _MODEL["room_geometry_m"]}
+    out = _run(_EL_JS + (
+        f"const MODEL={json.dumps(model)};\n"
+        "const host = { el, floors: MODEL.floors, model: MODEL, tier: 'pro', byRoom: {}, lightsByEid: {},\n"
+        "  lightsLoading: false, hiddenEids: new Set(), view: { floorGap: 150, horizGap: 0, focusIdx: 1, zoom: 1 },\n"
+        "  saveView: async () => {}, callWS: async () => ({}), toast: () => {},\n"
+        "  onHexesBuilt: () => {}, onRowClick: () => {}, onToggleHidden: () => {}, afterAssign: () => {} };\n"
+        "const card = LM.buildLightsMapCard(host);\n"
+        "out.vals = [...card.querySelectorAll('.lv-val')].map(n => n.textContent);\n"
+    ))
+    assert "Main floor" in out["vals"], out
+    assert not any(v in ("L0", "L1", "L0 + L1") for v in out["vals"]), out

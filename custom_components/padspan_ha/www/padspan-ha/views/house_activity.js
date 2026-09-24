@@ -22,7 +22,7 @@
  */
 
 const _q = new URL(import.meta.url).search;
-const { buildIsoSVG, fabricFrame } = await import(`./iso_lights.js${_q}`);
+const { buildIsoSVG, fabricFrame, floorIdAtLevel } = await import(`./iso_lights.js${_q}`);
 const { gatherLights, ensureLightsRegistry, lightIsTouched, atlasLookFromSettings, atlasIsoLookOpts,
         sunElevationDeg, ambientFromElevation, sunAmbient } = await import(`./lights_map.js${_q}`);
 
@@ -62,9 +62,25 @@ export function buildStateTimeline(history, { startMs = null, live = {} } = {}) 
     if (first && startMs != null && first.t <= startMs + 1) {
       const lv = live[eid];
       const liveLc = lv ? Date.parse(lv.last_changed) : NaN;
-      if (lv && lv.state === first.state && Number.isFinite(liveLc) && liveLc <= startMs) first.lc = liveLc;
-      else first.lc = first.state === "on" ? startMs : 0;
+      if (lv && lv.state === first.state && Number.isFinite(liveLc) && liveLc <= startMs) {
+        first.lc = liveLc;
+        // Its last REPORT too, when that was also before the window — the
+        // start row is dated to the window start, and a sensor that last
+        // reported an hour earlier read as fresh (live check 2026-09-24).
+        const liveLu = Date.parse(lv.last_updated);
+        if (Number.isFinite(liveLu) && liveLu <= startMs) first.lu = liveLu;
+      } else first.lc = first.state === "on" ? startMs : 0;
       first.start = true;
+    }
+    // Back from an offline gap unchanged: its last real change is still the
+    // one before the gap — a reconnect is not motion (live check 2026-09-24:
+    // ESPHome reconnects read as "just triggered" for hours).
+    let real = null, gap = false;
+    for (const r of list) {
+      if (r.state === "unavailable" || r.state === "unknown") { gap = real !== null; continue; }
+      if (gap && real && r.state === real.state) r.lc = real.lc;
+      gap = false;
+      real = r;
     }
     if (list.length) out[eid] = list;
   }
@@ -85,6 +101,16 @@ function _rowAt(list, tMs) {
  * hass.states-shaped map for the moment tMs. Entities with no recorder rows
  * (excluded from the recorder) keep their live state — nothing else to show.
  */
+// Attributes that describe what a device IS, not what it was doing: HA has
+// not recorded a light's colour, brightness or effect list since 2024.8, so
+// a replayed light kept only its name — every WLED lost its class, strips
+// their shape, and the codes shifted (live check 2026-09-24). These come from
+// the live entity; what it was DOING (colour, brightness) is never borrowed
+// from today.
+const _WHAT_IT_IS = ["friendly_name", "effect_list", "supported_color_modes", "supported_features",
+  "min_color_temp_kelvin", "max_color_temp_kelvin", "min_mireds", "max_mireds", "device_class",
+  "unit_of_measurement", "state_class", "icon", "entity_id", "group_entities"];
+
 export function statesAt(timeline, liveStates, eids, tMs) {
   const out = {};
   for (const eid of eids) {
@@ -99,13 +125,20 @@ export function statesAt(timeline, liveStates, eids, tMs) {
         last_changed: new Date(0).toISOString(), last_updated: new Date(0).toISOString() };
       continue;
     }
-    const attrs = r.attributes && Object.keys(r.attributes).length ? r.attributes : (liveStates[eid]?.attributes || {});
+    const liveA = liveStates[eid]?.attributes || {};
+    const recorded = r.attributes && Object.keys(r.attributes).length ? r.attributes : null;
+    let attrs;
+    if (recorded || eid.startsWith("light.") || eid.startsWith("fan.")) {
+      attrs = {};
+      for (const k of _WHAT_IT_IS) if (k in liveA) attrs[k] = liveA[k];
+      Object.assign(attrs, recorded || {});
+    } else attrs = liveA;          // recorded without attributes: they don't change
     out[eid] = {
       entity_id: eid,
       state: r.state,
       attributes: attrs,
       last_changed: new Date(r.lc).toISOString(),
-      last_updated: new Date(r.t).toISOString(),
+      last_updated: new Date(r.lu ?? r.t).toISOString(),
     };
   }
   return out;
@@ -216,7 +249,8 @@ export function mergeHouseFrames(rawFrames, events, thinFactor = 1) {
  */
 export function atlasFocusPositions(model, floorGap = 150, horizGap = 0) {
   const floors = (model && model.floors) || [];
-  const levels = fabricFrame(model || {}, floors, floorGap, horizGap).levels;
+  const frame = fabricFrame(model || {}, floors, floorGap, horizGap);
+  const levels = frame.levels;
   const positions = [null];
   for (let i = 0; i < levels.length; i++) {
     positions.push(levels[i]);
@@ -226,7 +260,8 @@ export function atlasFocusPositions(model, floorGap = 150, horizGap = 0) {
     const pos = positions[Math.max(0, Math.min(idx, positions.length - 1))];
     if (pos === null) return "All floors";
     return (Array.isArray(pos) ? pos : [pos])
-      .map(z => { const f = floors.find(x => x.level === z); return f ? (f.name || `L${z}`) : `L${z}`; }).join(" + ");
+      .map(z => { const fid = floorIdAtLevel(frame, model, floors, z); const f = floors.find(x => String(x.id) === fid);
+        return f ? (f.name || `L${z}`) : `L${z}`; }).join(" + ");
   };
   return { positions, labelOf };
 }

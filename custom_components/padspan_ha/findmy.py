@@ -64,6 +64,7 @@ each poll and persists its state.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 APPLE_COMPANY_ID = 76
@@ -275,7 +276,18 @@ class FindMyBridge:
                 continue
             age = rec.get("age_s")
             age = float(age) if isinstance(age, (int, float)) else 0.0
-            fm[addr] = {"adv": adv, "age": age, "rssi": rssi_vector(rec), "seen_ts": now_ts - age}
+            # When it was last heard: the record's own absolute stamp when it
+            # has one — now minus age is measured at a different moment each
+            # build, and that jitter made one unchanged report look like a
+            # newer one (round 12).
+            seen_ts = now_ts - age
+            ls = rec.get("last_seen")
+            if isinstance(ls, str) and ls:
+                try:
+                    seen_ts = datetime.fromisoformat(ls.replace("Z", "+00:00")).timestamp()
+                except ValueError:
+                    pass
+            fm[addr] = {"adv": adv, "age": age, "rssi": rssi_vector(rec), "seen_ts": seen_ts}
 
         if not self._primed:
             for addr in fm:
@@ -298,12 +310,20 @@ class FindMyBridge:
                 earlier.append(key)
             for x in earlier:
                 c, ck = fm.get(x), (key, x)
-                if c is None or c["age"] > RETURN_FRESH_S or c["seen_ts"] <= float(linked_ts) + RETURN_FRESH_S:
+                # Waiting for the confirming report while the address is still
+                # heard (up to LIVE_S — a passive proxy's repeats come only at
+                # each 30-60 s reseed); dropped once it has been quiet.
+                if c is None or c["age"] > LIVE_S or c["seen_ts"] <= float(linked_ts) + RETURN_FRESH_S:
                     self._returning.pop(ck, None)
                     continue
                 first = self._returning.get(ck)
-                if first is None or c["seen_ts"] <= first:
-                    self._returning.setdefault(ck, c["seen_ts"])
+                if first is None:
+                    if c["age"] <= RETURN_FRESH_S:
+                        self._returning[ck] = c["seen_ts"]
+                    continue
+                # Confirmed only by a fresh report heard at least a second
+                # after the first one.
+                if c["age"] > RETURN_FRESH_S or c["seen_ts"] < first + 1.0:
                     continue
                 for dropped in self._move_back(key, x, c["seen_ts"]):
                     unlinked.append((key, dropped, x))
