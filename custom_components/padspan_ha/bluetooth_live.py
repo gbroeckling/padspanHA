@@ -232,6 +232,9 @@ class BluetoothLive:
         # Used by the frontend to show a radio as "listening" even when its ads are old/filtered.
         self._radio_last_heard: Dict[str, dt.datetime] = {}  # source → datetime
         self._last_reseed: Optional[dt.datetime] = None  # periodic reseed for proxy scanners
+        # (scanner source, address) -> the advert object that scanner's cache
+        # held at the last reseed (see _seed_from_discovered, round 15).
+        self._reseed_advs: Dict[Any, Any] = {}
         # source → last observed scan mode, for counting transitions. Memory
         # only: it exists to answer "does the reported mode actually move?",
         # which cannot be answered from one reading.
@@ -369,6 +372,7 @@ class BluetoothLive:
                     _mono_now = time.monotonic()
                     scanners_list = list(manager.async_current_scanners())
                     _scanner_count = len(scanners_list)
+                    _advs_now: Dict[Any, Any] = {}
                     for scanner in scanners_list:
                         src = getattr(scanner, "source", None)
                         if not src:
@@ -387,6 +391,7 @@ class BluetoothLive:
                             if not addr:
                                 continue
                             rssi = getattr(adv_data, "rssi", None)
+                            _advs_now[(str(src), addr)] = adv_data
                             _stamp = _stamps.get(addr)
                             if _stamp is not None:
                                 # Stamps are monotonic; > 1e9 means a unix-epoch
@@ -422,12 +427,25 @@ class BluetoothLive:
                                     if _last is not None and str(getattr(_last, "source", "")) == str(src):
                                         _lt = getattr(_last, "time", None)
                                         break
+                                _prev = self._seen_by_source.get(addr, {}).get(str(src))
+                                _was = self._reseed_advs.get((str(src), addr))
                                 if isinstance(_lt, (int, float)) and _lt != 0:
                                     _age = max(0.0, (time.time() if float(_lt) > 1e9 else _mono_now) - float(_lt))
                                     dev_seen = seen - dt.timedelta(seconds=_age)
+                                elif _prev is None:
+                                    dev_seen = seen
+                                elif (_was is not None and adv_data is not _was
+                                      and self._last_reseed is not None):
+                                    # Another scanner holds both of the
+                                    # manager's records (round 15). bleak
+                                    # replaces a device's cached advert with a
+                                    # new object on every advert it receives:
+                                    # a different one than at the last reseed
+                                    # was heard since — dated there, never
+                                    # later than it really was.
+                                    dev_seen = max(_prev.seen, self._last_reseed)
                                 else:
-                                    _prev = self._seen_by_source.get(addr, {}).get(str(src))
-                                    dev_seen = _prev.seen if _prev else seen
+                                    dev_seen = _prev.seen
                             rec = _service_info_to_record_from_adv(
                                 addr, src, rssi, ble_device, adv_data, dev_seen
                             )
@@ -438,6 +456,7 @@ class BluetoothLive:
                                 self._radio_last_heard[str(src)] = seen
                             _total_ads += 1
                     _seeded_scanner = True
+                    self._reseed_advs = _advs_now
                     self.seed_method = "per_scanner"
                     self.seed_scanner_count = _scanner_count
                     self.seed_device_readings = _total_ads

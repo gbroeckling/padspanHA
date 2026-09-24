@@ -600,4 +600,43 @@ def test_a_steady_advert_heard_only_by_the_hosts_own_adapter_stays_fresh(monkeyp
     # connectable one that heard it.
     assert seeded("AA:BB:CC:DD:EE:01", connectable_source=HOST) < 5
     assert 295 <= seeded("AA:BB:CC:DD:EE:01") <= 305, "another scanner's advert is not this one's reading"
+    assert 295 <= seeded("AA:BB:CC:DD:EE:01", connectable_source="AA:BB:CC:DD:EE:02") <= 305
+
+
+def test_the_hosts_adapter_heard_since_the_last_reseed_when_another_scanner_holds_the_records(monkeypatch):
+    """Round 15: when another connectable scanner holds both of the manager's
+    records for a device, the host adapter (degraded mode: no timestamps)
+    kept hearing it while its reading aged to minutes. bleak replaces its
+    cached advert on every advert: a new object since the last reseed means
+    heard since then — dated at that reseed, never fresher than true."""
+    import datetime as dt
+    import sys
+    import time
+    from types import SimpleNamespace
+    from custom_components.padspan_ha import bluetooth_live as BL
+    from custom_components.padspan_ha.const import DOMAIN
+    HOST, PROXY = "00:1A:7D:DA:71:13", "AA:BB:CC:DD:EE:02"
+    clock = {"t": BL._now()}
+    monkeypatch.setattr(BL, "_now", lambda: clock["t"])
+
+    def adv():
+        return SimpleNamespace(rssi=-60, manufacturer_data={76: bytes([0x12, 0x19, 0x10] + [0x11] * 22 + [1, 0])},
+                               service_data={}, service_uuids=[], tx_power=None, local_name=None)
+    cache = {KEYS_1: (SimpleNamespace(address=KEYS_1, name=None), adv())}
+    host = SimpleNamespace(source=HOST, discovered_device_timestamps={}, discovered_devices_and_advertisement_data=cache)
+    theirs = SimpleNamespace(source=PROXY, time=time.monotonic() - 1.0)
+    mgr = SimpleNamespace(async_current_scanners=lambda: [host], async_last_service_info=lambda a, connectable: theirs)
+    monkeypatch.setitem(sys.modules, "habluetooth", SimpleNamespace(get_manager=lambda: mgr))
+    bl = BL.BluetoothLive(SimpleNamespace(data={DOMAIN: {}}))
+    bl._on_adv(_adv(KEYS_1, -60, time.monotonic() - 300.0, source=HOST))      # first heard 5 min ago
+    age = lambda: (clock["t"] - bl._seen_by_source[KEYS_1][HOST].seen).total_seconds()
+    bl._seed_from_discovered()
+    assert 295 <= age() <= 305                           # nothing to compare yet: unchanged
+    clock["t"] += dt.timedelta(seconds=30)
+    cache[KEYS_1] = (cache[KEYS_1][0], adv())            # heard again: bleak's new advert object
+    bl._seed_from_discovered()
+    assert 29 <= age() <= 31, age()                      # dated at the last reseed
+    clock["t"] += dt.timedelta(seconds=30)
+    bl._seed_from_discovered()                           # same object: not heard since
+    assert 59 <= age() <= 61, age()
 
