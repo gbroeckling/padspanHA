@@ -12,7 +12,8 @@
 // what an interaction does (sidebar: control the light — tab: place it).
 
 const { buildIsoSVG, shapeSvg, fabricFrame, floorIdAtLevel, sampleSceneField, pointInPolygon, offsetPolygonInward,
-        lightClassOf, SHOWCASE_THEMES, AUTOMORPH_STYLE_LABELS, floodLatchActive, barrierNoReading } =
+        lightClassOf, SHOWCASE_THEMES, AUTOMORPH_STYLE_LABELS, floodLatchActive, barrierNoReading,
+        isOutdoorFloorId } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         TEMP_BORDER, healthOf,
@@ -204,7 +205,7 @@ export const AUTOMORPH_STYLES = Object.entries(AUTOMORPH_STYLE_LABELS);
 // (iso_lights.js) rather than a hand-copied list, so a theme added there
 // shows up here for free and can never drift out of sync on the name/label.
 export const SHOWCASE_THEME_OPTIONS = Object.entries(SHOWCASE_THEMES).map(([key, t]) => [key, t.label]);
-export { lightClassOf };
+export { lightClassOf, isOutdoorFloorId };
 export function classMatches(l, cls){ return !cls || cls === "all" || lightClassOf(l) === cls; }
 
 // The index/room-sheet text for an air-quality reading: "1450 ppm · Poor".
@@ -254,14 +255,6 @@ function _aggregateCounts(here, floodLatches){
 export function roomAggregate(lights, roomName, floodLatches){
   const here = (lights || []).filter(l => l.area_name === roomName);
   return { room: roomName, ..._aggregateCounts(here, floodLatches), all: here };
-}
-// Mirrors const.OUTDOOR_FLOOR_NAMES / presence_rules.is_outdoor_floor: the
-// fabric's "__outside__" sentinel, the registry's "outside", and the plain
-// names people give a garden. An outdoor "floor" is not a storey.
-export function isOutdoorFloorId(fid){
-  const k = String(fid || "").trim().toLowerCase().replace(/\s+/g, "_");
-  return k === "__outside__" || k === "outside" || k === "outdoor" || k === "outdoors"
-      || k === "exterior" || k === "garden" || k === "yard";
 }
 // A device's floor: the room it is in (the fabric's room → floor), else the
 // floor it was placed on. A device with neither is on no floor.
@@ -1059,8 +1052,14 @@ export function openRoomSheet(api, lights, room, onlyEids){
 const _FLOOR_SHEET_ALWAYS = new Set(["door", "temp", "humidity", "lock"]);
 export function openFloorSheet(api, lights, model, z){
   const floors = (model && model.floors) || [];
-  const f = floors.find(x => Number(x.level) === Number(z));
-  const fid = f ? String(f.id) : null;
+  // The floor the drawing put at this storey (floorIdAtLevel). Matching
+  // x.level found nothing on a real install — HA floors usually have no
+  // level, Number(null) is 0 — so every badge but the lowest said "No floor
+  // record", and a floor listed first by name could open for another
+  // storey's badge, its "All lights on" switching the wrong floor (review
+  // round 13).
+  const fid = floorIdAtLevel(fabricFrame(model || {}, floors, 150, 0), model, floors, z);
+  const f = fid ? floors.find(x => String(x.id) === fid) : null;
   if (!fid) { api.toast("No floor record for this storey"); return; }
   const agg = floorAggregate(lights, model, fid, api.floodLatches);
   // The room sheet shows every class via agg.all; this hand-typed inclusion
@@ -1083,7 +1082,7 @@ export function openFloorSheet(api, lights, model, z){
     actions.push({ label: "All lights on", primary: true, run: () => api.setMany(agg.lightEids, true) });
   }
   if (agg.fanEids.length) actions.push({ label: "Fans off", run: () => api.setMany(agg.fanEids, false) });
-  openAggregateSheet(api, { title: f.name || `Floor ${z}`, sub: parts.join(" · "), items, actions });
+  openAggregateSheet(api, { title: (f && f.name) || `Floor ${z}`, sub: parts.join(" · "), items, actions });
 }
 
 // ── Weekly activity calendar (motion sensors) ────────────────────────────────
@@ -3236,8 +3235,10 @@ export function buildLightsMapCard(hostIn){
       };
       bar.appendChild(mk("All", 0, null));
       for (const z of sortedLevels) {
-        const f = floors.find(x => Number(x.level) === z);
-        const fid = f ? String(f.id) : null;
+        // The same floor the slider names (floorIdAtLevel) — matching x.level
+        // gave "L1 · 0 on" on a real install (review round 13).
+        const fid = floorIdAtLevel(_frame, host.model, floors, z);
+        const f = fid ? floors.find(x => String(x.id) === fid) : null;
         const agg = fid ? floorAggregate(allLights, host.model, fid) : { lightsOn: 0, fansOn: 0, motionActive: 0 };
         bar.appendChild(mk(f ? (f.name || `L${z}`) : `L${z}`, floorIdx(z),
           { on: agg.lightsOn + agg.fansOn, motion: agg.motionActive }));

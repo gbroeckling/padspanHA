@@ -6191,3 +6191,22 @@ def test_an_offline_motion_sensor_never_reads_as_motion(tmp_path):
     for k in ("gone", "unknown", "late"):
         assert not out[k]["pulse"] and not out[k]["ring"], (k, out)
     assert out["real"]["pulse"], out
+
+
+def test_the_floor_legend_names_floors_whose_level_is_unset(tmp_path):
+    """Review round 13, seen on the live Atlas: HA floors usually have no
+    level, and the legend matched it — "1 Basement · 2 Floor 1 · 3 Floor 2"."""
+    sq = [[0, 0], [4, 0], [4, 4], [0, 4]]
+    floors = [{"id": i, "name": i.title(), "level": None} for i in ("basement", "main", "outside", "upper")]
+    model = {"room_geometry_m": {f"R{n}": {"type": "poly", "floor_id": i, "points_m": sq}
+                                 for n, i in enumerate(("basement", "main", "outside", "upper"))}}
+    out = _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const MODEL={json.dumps(model)};\n"
+        f"const FLOORS={json.dumps(floors)};\n"
+        "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,{},false,FLOORS,{});\n"
+        "const i=svg.indexOf('>Motion<');\n"
+        "const texts=[...svg.slice(0,i).matchAll(/<text[^>]*>([^<]*)<\\/text>/g)].map(m=>m[1]);\n"
+        "console.log(JSON.stringify({legend: texts.slice(-6)}));\n"
+    ))
+    assert out["legend"] == ["1", "Basement", "2", "Main", "3", "Upper"], out

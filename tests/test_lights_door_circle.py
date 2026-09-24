@@ -386,3 +386,29 @@ def test_wire_lights_build_wires_the_circle_drag_handlers():
         "the circle's move/resize drag handlers must be wired on every rebuild, "
         "the same way _wireLightsPicker is"
     )
+
+
+def test_an_outdoor_barrier_is_found_on_the_ground_floors_slab():
+    """Review round 13: a barrier's slab came from inverting floorIdAtLevel,
+    which names a shared slab after ONE floor (the ground floor, not the
+    garden beside it) — the outdoor floor fell through to Number(level),
+    and null is 0: its gate was hit-tested on the basement's slab and a
+    click on it landed metres away. Floors as a real install sends them:
+    by name, no levels."""
+    out = _run("""
+const sq = [[0, 0], [10, 0], [10, 8], [0, 8]];
+const M2 = { floors: ["basement", "main", "outside", "upper"].map(id => ({ id, name: id, level: null })),
+  room_geometry_m: { Den: { type: "poly", floor_id: "basement", points_m: sq }, Kitchen: { type: "poly", floor_id: "main", points_m: sq },
+    Garden: { type: "poly", floor_id: "outside", points_m: [[12, 0], [20, 0], [20, 8], [12, 8]] },
+    Bed: { type: "poly", floor_id: "upper", points_m: sq } },
+  rf_barriers_m: [{ id: "gate", name: "Gate", floor_id: "outside", material: "wood", attenuation_dbm: 3,
+    points_m: [[14, 8], [18, 8]] }] };
+const fr = IL.fabricFrame(M2, M2.floors, 150, 0);
+const [vx, vy] = fr.iso(16, 8, fr.levelOf("outside"));
+const picked = M._doorCircleFloorForClick(makeCtx(M2), { model: M2 }, fr, { x: vx, y: vy });
+out.fid = picked.fid; out.cx = picked.cx; out.cy = picked.cy;
+out.sameSlab = fr.levelOf("outside") === fr.levelOf("main");
+""")
+    assert out["sameSlab"], out
+    assert out["fid"] == "outside", out
+    assert abs(out["cx"] - 16) < 0.05 and abs(out["cy"] - 8) < 0.05, out

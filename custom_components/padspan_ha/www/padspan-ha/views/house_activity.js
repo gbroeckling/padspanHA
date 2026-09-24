@@ -72,15 +72,27 @@ export function buildStateTimeline(history, { startMs = null, live = {} } = {}) 
       } else first.lc = first.state === "on" ? startMs : 0;
       first.start = true;
     }
-    // Back from an offline gap unchanged: its last real change is still the
-    // one before the gap — a reconnect is not motion (live check 2026-09-24:
-    // ESPHome reconnects read as "just triggered" for hours).
-    let real = null, gap = false;
+    // A row is a CHANGE only when its state differs from the last real state
+    // before it. HA also dates a state to every reconnect after an offline
+    // gap and to every restart (live check 2026-09-24: ESPHome reconnects
+    // read as "just triggered" for hours) — unchanged, it keeps the real
+    // change's time. Changed while offline, it changed after the gap began:
+    // dated there, not to the reconnect; with nothing known before an
+    // offline start, long ago. "on" is a reading of now and keeps its own
+    // time — an old one made a sensor back after hours read as stuck on
+    // (review round 13).
+    let real = null, gapAt = null;
     for (const r of list) {
-      if (r.state === "unavailable" || r.state === "unknown") { gap = real !== null; continue; }
-      if (gap && real && r.state === real.state) r.lc = real.lc;
-      gap = false;
+      if (r.state === "unavailable" || r.state === "unknown") {
+        if (gapAt === null) gapAt = r.t;
+        continue;
+      }
+      if (r.state !== "on") {
+        if (real && r.state === real.state) r.lc = real.lc;
+        else if (gapAt !== null) r.lc = real ? gapAt : 0;
+      }
       real = r;
+      gapAt = null;
     }
     if (list.length) out[eid] = list;
   }
@@ -110,6 +122,14 @@ function _rowAt(list, tMs) {
 const _WHAT_IT_IS = ["friendly_name", "effect_list", "supported_color_modes", "supported_features",
   "min_color_temp_kelvin", "max_color_temp_kelvin", "min_mireds", "max_mireds", "device_class",
   "unit_of_measurement", "state_class", "icon", "entity_id", "group_entities"];
+// Today's, overriding the recorded row's: the replay draws the device the
+// Atlas draws — a light renamed since keeps today's name, shape and code
+// (review round 13).
+function _whatItIs(liveA) {
+  const out = {};
+  for (const k of _WHAT_IT_IS) if (k in liveA) out[k] = liveA[k];
+  return out;
+}
 
 export function statesAt(timeline, liveStates, eids, tMs) {
   const out = {};
@@ -121,7 +141,9 @@ export function statesAt(timeline, liveStates, eids, tMs) {
       // what it was then is unknown — drawn as unknown, never as today's
       // state under a past timestamp, and never silently missing.
       const lv = liveStates[eid];
-      if (lv) out[eid] = { entity_id: eid, state: "unknown", attributes: lv.attributes || {},
+      const la = (lv && lv.attributes) || {};
+      if (lv) out[eid] = { entity_id: eid, state: "unknown",
+        attributes: eid.startsWith("light.") || eid.startsWith("fan.") ? _whatItIs(la) : la,
         last_changed: new Date(0).toISOString(), last_updated: new Date(0).toISOString() };
       continue;
     }
@@ -129,9 +151,7 @@ export function statesAt(timeline, liveStates, eids, tMs) {
     const recorded = r.attributes && Object.keys(r.attributes).length ? r.attributes : null;
     let attrs;
     if (recorded || eid.startsWith("light.") || eid.startsWith("fan.")) {
-      attrs = {};
-      for (const k of _WHAT_IT_IS) if (k in liveA) attrs[k] = liveA[k];
-      Object.assign(attrs, recorded || {});
+      attrs = { ...(recorded || {}), ..._whatItIs(liveA) };
     } else attrs = liveA;          // recorded without attributes: they don't change
     out[eid] = {
       entity_id: eid,
@@ -414,15 +434,15 @@ export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegist
   const horizGap = ctx.state._overviewHorizGap ?? settings.overview_iso_horiz_gap ?? 0;
   const { positions } = atlasFocusPositions(model, floorGap, horizGap);
   const focusZ = positions[Math.max(0, Math.min(hs.focusIdx ?? 0, positions.length - 1))];
-  // The boot moment only explains a last_changed in frames after that boot;
-  // earlier frames get no boot gate (it would silence their real motion).
-  const startedMs = Date.parse(model.ha_started_at) || 0;
 
   return buildIsoSVG(model, byRoom, hiddenOnMap, focusZ, floorGap, horizGap, lightsByEid, !!reg.loading, floors, {
     ...atlasIsoLookOpts(look, ambient),
     beacons: beaconsForFrame(frames, frameIdx, model, beaconOpts),
+    // No restart gate: the timeline already keeps a restart's or a
+    // reconnect's row at the real change's time (buildStateTimeline), and
+    // the gate silenced real motion in the minutes after a boot — and a
+    // change carried from before it (review round 13).
     nowMs: tMs,
-    haStartedMs: tMs >= startedMs ? startedMs : 0,
     floodLatches: settings.flood_latches || {},
   });
 }

@@ -7136,12 +7136,15 @@ function _lightsRedo(ctx, mapState) {
   ctx.actions.renderRooms();
 }
 
-// The level (iso z) a floor id is drawn at — the inverse of floorIdAtLevel,
-// through the same frame, so a queued drop lands on the storey its room is on.
+// The level (iso z) a floor id is drawn at — the renderer's own mapping
+// (frame.levelOf), so a queued drop lands on the storey its room is on.
+// Inverting floorIdAtLevel missed every floor that shares a slab (the garden
+// beside the ground floor) and fell back to Number(level): null is 0, the
+// lowest slab — an outdoor barrier was hit-tested on the basement's (review
+// round 13).
 function _levelForFloorId(frame, model, floors, fid) {
-  for (const z of frame.levels) if (floorIdAtLevel(frame, model, floors, z) === String(fid)) return z;
-  const f = floors.find(x => String(x.id) === String(fid));
-  return f && Number.isFinite(Number(f.level)) ? Number(f.level) : (frame.levels[0] || 0);
+  const z = Number(frame.levelOf(fid));
+  return Number.isFinite(z) ? z : (frame.levels[0] || 0);
 }
 
 // A draft entry for a light dropped at metres (x_m, y_m) on floor fid —

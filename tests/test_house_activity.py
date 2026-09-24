@@ -403,14 +403,17 @@ const live = {
   "light.bare": { entity_id: "light.bare", state: "on", attributes: { friendly_name: "Bare",
     supported_color_modes: ["brightness"], brightness: 12 } } };
 const tl = HA.buildStateTimeline({ "light.strip": [{ s: "on", a: { friendly_name: "Strip", supported_features: 44 }, lu: 1000 }],
-                                   "light.bare": [{ s: "off", lu: 1000 }] });
+                                   "light.bare": [{ s: "off", a: { friendly_name: "Kitchen Pots", brightness: 3 }, lu: 2000 }] });
 const at = HA.statesAt(tl, live, ["light.strip", "light.bare"], 1_000_500);
 out.strip = at["light.strip"].attributes;
-out.bare = at["light.bare"].attributes;
+out.notYet = at["light.bare"].attributes;           // no row yet at this moment
+out.renamed = HA.statesAt(tl, live, ["light.bare"], 2_000_500)["light.bare"].attributes;
 """)
     assert out["strip"] == {"friendly_name": "Strip", "effect_list": ["Solid", "Rainbow"],
                             "supported_color_modes": ["rgb"], "supported_features": 44}, out
-    assert out["bare"] == {"friendly_name": "Bare", "supported_color_modes": ["brightness"]}, out
+    assert out["notYet"] == {"friendly_name": "Bare", "supported_color_modes": ["brightness"]}, out
+    # Renamed since: today's name (and so today's shape and code), then's doing.
+    assert out["renamed"] == {"friendly_name": "Bare", "supported_color_modes": ["brightness"], "brightness": 3}, out
 
 
 @pytest.mark.skipif(_NODE is None, reason="node is not installed")
@@ -434,7 +437,8 @@ def test_a_reconnect_is_not_motion():
     """Live check 2026-09-24: an ESPHome sensor that dropped off and came back
     unchanged read as 'just triggered' for hours — HA dates the state after
     the gap to the reconnect. Its last real change is the one before the gap;
-    a state that did change across the gap keeps the reconnect's time."""
+    a state that changed while it was offline changed after the gap began,
+    and is dated there, not to the reconnect (review round 13)."""
     out = _run("""
 const start = 1_000_000;
 const live = { "binary_sensor.m": { state: "off", last_changed: new Date((start - 86400) * 1000).toISOString() } };
@@ -446,7 +450,7 @@ out.afterReconnect = lc(start + 200);
 out.realMotion = lc(start + 920);
 out.changedAcrossGap = lc(start + 1000);
 """)
-    assert out == {"afterReconnect": 1_000_000 - 86400, "realMotion": 1_000_900, "changedAcrossGap": 1_000_990}
+    assert out == {"afterReconnect": 1_000_000 - 86400, "realMotion": 1_000_900, "changedAcrossGap": 1_000_950}
 
 
 @pytest.mark.skipif(_NODE is None, reason="node is not installed")
@@ -456,12 +460,66 @@ def test_house_mode_names_floors_whose_level_is_unset():
     mapping names them."""
     out = _run("""
 const sq = [[0, 0], [4, 0], [4, 4], [0, 4]];
-const model = { floors: [{ id: "upper", name: "Upstairs", level: null }, { id: "main", name: "Main floor", level: null },
-                         { id: "basement", name: "Basement", level: null }],
+// As the backend sends them: by name, no levels; the garden shares the main
+// floor's slab, and a garage with no rooms sorts before both.
+const model = { floors: ["basement", "garage", "main", "outside", "upper"].map(id => ({ id, name: id[0].toUpperCase() + id.slice(1), level: null })),
   room_geometry_m: { A: { type: "poly", floor_id: "basement", points_m: sq }, B: { type: "poly", floor_id: "main", points_m: sq },
-                     C: { type: "poly", floor_id: "upper", points_m: sq } } };
+                     G: { type: "poly", floor_id: "outside", points_m: sq }, C: { type: "poly", floor_id: "upper", points_m: sq } } };
 const pos = HA.atlasFocusPositions(model);
-out.labels = [0, 1, 2, 3, 4, 5].map(i => pos.labelOf(i));
+out.labels = pos.positions.map((_, i) => pos.labelOf(i));
 """)
-    assert out["labels"] == ["All floors", "Basement", "Basement + Main floor", "Main floor",
-                             "Main floor + Upstairs", "Upstairs"], out
+    assert out["labels"] == ["All floors", "Basement", "Basement + Main", "Main", "Main + Upper", "Upper"], out
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_a_change_is_only_a_different_state():
+    """Review round 13: a restart's row keeps the real change's time like a
+    reconnect's; after an offline START nothing is known (long ago, not
+    'just now'); and 'on' after a long outage is a reading of now, not 'on
+    for 7 hours'."""
+    out = _run("""
+const start = 1_000_000;
+const live = { "binary_sensor.r": { state: "off", last_changed: new Date((start - 86400) * 1000).toISOString() } };
+const tl = HA.buildStateTimeline({
+  "binary_sensor.r": [{ s: "off", lu: start }, { s: "off", lu: start + 500 }],
+  "binary_sensor.lead": [{ s: "unavailable", lu: start }, { s: "off", lu: start + 50 }],
+  "binary_sensor.on": [{ s: "on", lu: start }, { s: "unavailable", lu: start + 100 }, { s: "on", lu: start + 100 + 7 * 3600 }],
+}, { startMs: start * 1000, live });
+const lc = (eid, t) => Date.parse(HA.statesAt(tl, live, [eid], t * 1000)[eid].last_changed) / 1000;
+out.restart = lc("binary_sensor.r", start + 600);
+out.lead = lc("binary_sensor.lead", start + 60);
+out.onAgain = lc("binary_sensor.on", start + 100 + 7 * 3600 + 60);
+""")
+    assert out == {"restart": 1_000_000 - 86400, "lead": 0, "onAgain": 1_000_000 + 100 + 7 * 3600}
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_the_replay_shows_real_motion_right_after_a_restart():
+    """Review round 13: the replay passed the live Atlas's 5-minute restart
+    grace, so a sensor that really tripped 3 minutes after a boot drew
+    nothing. The timeline keeps a restart's rows at the real change's time
+    by itself — no grace needed, none silencing real motion."""
+    out = _run("""
+const B = 1.8e9;                                     // the boot, seconds
+const model = { floors: [{ id: "main", name: "Main", level: 0 }], areas: [{ id: "hall", name: "Hall", floor_id: "main" }],
+  room_geometry_m: { Hall: { type: "poly", floor_id: "main", points_m: [[0, 0], [6, 0], [6, 5], [0, 5]] } },
+  light_positions_m: { "binary_sensor.hall_motion": { x_m: 2, y_m: 2, floor_id: "main" } },
+  ha_started_at: new Date(B * 1000).toISOString() };
+const areaMap = { "binary_sensor.hall_motion": "Hall" };
+const reg = { ts: Date.now() + 1e9, areaMap, platformMap: {}, manufacturerMap: {}, ipMap: {}, pairMap: {}, doorLockMap: {} };
+const live = { "binary_sensor.hall_motion": { entity_id: "binary_sensor.hall_motion", state: "off",
+  attributes: { friendly_name: "Hall motion", device_class: "motion" },
+  last_changed: new Date(B * 1000).toISOString(), last_updated: new Date(B * 1000).toISOString() } };
+const hs = { timeline: HA.buildStateTimeline({ "binary_sensor.hall_motion": [
+  { s: "off", lu: B - 3600 }, { s: "unavailable", lu: B }, { s: "off", lu: B + 60 }, { s: "on", lu: B + 180 }, { s: "off", lu: B + 190 }] }),
+  events: [], eids: [] };
+const ctx = { state: { model, settings: { tier: "pro" }, _modelLoaded: true, _lightsRegStore: { reg } },
+  hass: { states: live, callWS: async () => ({}), config: { latitude: 49.28, longitude: -123.12 } } };
+HA.renderHouseFrame(ctx, hs, [], 0, {}, () => {});
+const svg = HA.renderHouseFrame(ctx, hs, [{ ts: B + 200, o: [] }], 0, {}, () => {});
+const quiet = HA.renderHouseFrame(ctx, hs, [{ ts: B + 120, o: [] }], 0, {}, () => {});
+const pulse = (s) => /class="lpulse" data-eid="binary_sensor\\.hall_motion"/.test(s);
+out.afterTrip = pulse(svg);           // tripped 20 s ago, cleared 10 s ago
+out.afterReconnect = pulse(quiet);    // back online unchanged: not fresh motion
+""")
+    assert out == {"afterTrip": True, "afterReconnect": False}, out

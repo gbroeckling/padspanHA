@@ -2109,6 +2109,33 @@ function circleToPoly(cx, cy, r){
   });
 }
 
+// Mirrors const.OUTDOOR_FLOOR_NAMES / presence_rules.is_outdoor_floor: the
+// fabric's "__outside__" sentinel, the registry's "outside", and the plain
+// names people give a garden. An outdoor "floor" is not a storey.
+export function isOutdoorFloorId(fid){
+  const k = String(fid || "").trim().toLowerCase().replace(/\s+/g, "_");
+  return k === "__outside__" || k === "outside" || k === "outdoor" || k === "outdoors"
+      || k === "exterior" || k === "garden" || k === "yard";
+}
+
+// Conventional storeys, for a floor registry that never got filled in —
+// ModelStore._CONVENTIONAL_LEVEL key for key, outdoor names at ground level
+// (tests/test_floor_rules_parity.py pins it). The backend owns this rule for
+// the RF slab count; this copy had drifted (no ground_floor, first_floor,
+// second_floor, garden...), so the drawing and the physics stacked some
+// houses differently (review round 13).
+const CONVENTIONAL_LEVEL = {
+  subbasement:-2, sub_basement:-2, cellar:-1, basement:-1, lower:-1, downstairs:-1, lower_floor:-1,
+  ground:0, main:0, first:0, mainfloor:0, main_floor:0, ground_floor:0, first_floor:0,
+  upper:1, upstairs:1, second:1, middle:1, upper_floor:1, second_floor:1,
+  third:2, third_floor:2, loft:2, attic:3, roof:4,
+};
+export function conventionalLevel(id){
+  if (isOutdoorFloorId(id)) return 0;
+  const k = String(id || "").trim().toLowerCase().replace(/\s+/g, "_");
+  return Object.prototype.hasOwnProperty.call(CONVENTIONAL_LEVEL, k) ? CONVENTIONAL_LEVEL[k] : null;
+}
+
 // ── THE frame: metres → screen, derived from the fabric alone ────────────────
 // Exported so the Mapping tab's drag inverts through the SAME projection this
 // draws with. When those two were computed separately they could disagree,
@@ -2161,16 +2188,7 @@ export function fabricFrame(model, floors, floorGap, horizGap){
   // main floor, the garden between them, and the top floor floating three
   // slabs up. The stack was also one storey taller than the house, which
   // stretched the fitted frame vertically and left dead space at the sides.
-  const CONVENTIONAL = {
-    subbasement:-2, sub_basement:-2, cellar:-1, basement:-1, lower:-1, downstairs:-1,
-    ground:0, main:0, first:0, mainfloor:0, main_floor:0,
-    upper:1, upstairs:1, second:1, middle:1,
-    third:2, loft:2, attic:3, roof:4,
-  };
-  const conventional = (id) => {
-    const k = String(id || "").trim().toLowerCase().replace(/\s+/g, "_");
-    return Object.prototype.hasOwnProperty.call(CONVENTIONAL, k) ? CONVENTIONAL[k] : null;
-  };
+  // (The table is conventionalLevel's, above.)
   const ranked = (() => {
     const regIds = floorList.map(f => String(f.id));
     if (floorList.length && floorList.every(f => num(f.level) !== null)) return null;  // explicit levels win
@@ -2178,25 +2196,27 @@ export function fabricFrame(model, floors, floorGap, horizGap){
     const ids = [...regIds, ...extra];
     const elev = ids.map(id => num(elevations[id]));
     const useElev = elev.some(v => v !== null) && new Set(elev).size > 1;
-    // Priority: a measured elevation, then the storey a name denotes, then
-    // registry order — and outdoors sits at ground level, because it does.
+    // Priority: a measured elevation, then the storey a name denotes — and
+    // outdoors sits at ground level, because it does. A floor nothing places
+    // goes above the named storeys on a slab of its own, in registry order,
+    // as ModelStore._ordered_floors / floor_stack_index do: ranked by its
+    // position in the list, its index collided with a named storey's and a
+    // room-less "Garage" shared Upstairs' slab (review round 13).
     const keyOf = (id, i) => {
       if (useElev && elev[i] !== null) return elev[i];
       const f = floorList.find(x => String(x.id) === id);
       const lvl = f ? num(f.level) : null;
       if (lvl !== null) return lvl;
-      if (id === "__outside__" || id === "outside") return 0;
-      const conv = conventional(id);
-      return conv !== null ? conv : i;
+      return conventionalLevel(id);
     };
     const order = ids.map((id, i) => ({ id, key: keyOf(id, i), i }))
-      .sort((a, b) => (a.key - b.key) || (a.i - b.i));
+      .sort((a, b) => ((a.key === null) - (b.key === null)) || (a.key - b.key) || (a.i - b.i));
     const out = {};
     // Collapse to contiguous slab indices: two floors that share a storey
     // (the garden and the ground floor) must share a slab, not be pushed apart.
     let slab = -1, prevKey = null;
     for (const o of order) {
-      if (prevKey === null || o.key !== prevKey) slab++;
+      if (slab < 0 || o.key === null || o.key !== prevKey) slab++;
       prevKey = o.key;
       out[o.id] = slab;
     }
@@ -2388,19 +2408,36 @@ export function fabricFrame(model, floors, floorGap, horizGap){
 // default. A light dropped in an upstairs room was stored as main and vanished
 // from the room it had just been placed in.
 //
-// Registry floors are considered before fabric-only ids, so the id that comes
-// back is the one the floor registry knows.
+// Several floors can share a slab (the garden and the ground floor). The slab
+// is the floor with something drawn on it — a room or a placed light — indoor
+// before outdoor, then registry before fabric-only ids, so the id that comes
+// back is the one the floor registry knows. A floor with nothing on it names
+// the slab only when nothing else is there: taking the first in the list
+// named a storey after a room-less floor that happened to sort first
+// (review round 13).
 export function floorIdAtLevel(frame, model, floors, z){
   if(!frame || typeof frame.levelOf !== "function") return null;
   const ids = (floors || []).map(f => String(f.id));
+  // The fabric's "__outside__" is the registry's "outside" when it has one.
+  const canon = (fid) => (fid === "__outside__" && ids.includes("outside")) ? "outside" : fid;
+  const drawn = new Set();
   for(const g of Object.values((model && model.room_geometry_m) || {})){
-    const fid = String((g && g.floor_id) || "");
-    if(fid && !ids.includes(fid)) ids.push(fid);
+    const fid = canon(String((g && g.floor_id) || ""));
+    if(!fid) continue;
+    drawn.add(fid);
+    if(!ids.includes(fid)) ids.push(fid);
   }
+  for(const lp of Object.values((model && model.light_positions_m) || {})){
+    const fid = canon(String((lp && lp.floor_id) || ""));
+    if(fid) drawn.add(fid);
+  }
+  const rank = (id) => (drawn.has(id) ? 0 : 2) + (isOutdoorFloorId(id) ? 1 : 0);
+  let best = null;
   for(const id of ids){
-    if(Number(frame.levelOf(id)) === Number(z)) return id;
+    if(Number(frame.levelOf(id)) !== Number(z)) continue;
+    if(best === null || rank(id) < rank(best)) best = id;
   }
-  return null;
+  return best;
 }
 
 // ── Isometric 3-D SVG builder ────────────────────────────────────────────────
@@ -6202,7 +6239,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     let lx=18+R;
     levels.forEach((z,i)=>{
       const color=levelColor(z);
-      const fl=(floors||[]).find(f=>Number(f.level)===z);
+      // The floor the drawing put here (floorIdAtLevel): HA floors usually
+      // have no level, and matching it read "Basement, Floor 1, Floor 2"
+      // (review round 13).
+      const flId=floorIdAtLevel(frame, model, floors, z);
+      const fl=(floors||[]).find(f=>String(f.id)===flId);
       const label=fl?(fl.name||`Floor ${z}`):`Floor ${z}`;
       s+=`<circle cx="${lx}" cy="${ly}" r="${R}" fill="${color}" opacity="0.9"/>`;
       s+=`<text x="${lx}" y="${ly+3}" text-anchor="middle" fill="#071008" font-size="8" font-weight="700">${i+1}</text>`;
