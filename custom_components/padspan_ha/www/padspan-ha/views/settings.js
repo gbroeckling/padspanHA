@@ -1700,13 +1700,12 @@ function _settingsPresence(ctx, el){
     </div>
   </div>
 
-  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Apple AirTag</div>
+  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Apple AirTag and other Find My tags</div>
   <ul style="margin:0 0 8px;padding-left:20px">
-    <li>AirTags rotate their MAC address and use Apple's proprietary FindMy network.</li>
-    <li>The IRK is <b>not easily extractable</b> from AirTags without specialized tools.</li>
-    <li>However, AirTags broadcast an <b>Apple Continuity advertisement</b> that PadSpan's dedup engine groups automatically.</li>
-    <li>For direct tracking: use the <b>ESP32 OpenHaystack</b> project or similar to extract the AirTag's advertising key, then use an ESP32-based scanner.</li>
-    <li>Alternative: use the <b>Bermuda BLE Trilateration</b> integration which can track AirTags via the HA iBeacon integration.</li>
+    <li>AirTags and tags sold as "works with Apple Find My" change their Bluetooth address every 15 minutes near their owner's iPhone, and once a day (at about 4 am) when away from it. Nothing else in what they send stays the same, and they have <b>no IRK</b> — so neither an IRK nor iBeacon grouping can follow them.</li>
+    <li>PadSpan recognises them (the <b>Find My</b> badge) and, with <b>Settings → Features → MAC Rotation Bridging</b> on, carries a tag you've named or followed onto its next address when it's clear which one it is: the same kind of tag, the old address has stopped, and your scanners hear the new one in the same place. Its name, room and Follow carry on.</li>
+    <li>It won't guess. Two tags lying together that change at the same moment stay unlinked — give the new one its name again. A tag that was out of range when it changed is a new object too.</li>
+    <li>For a tag that never changes, use an iBeacon tag or the Home Assistant Companion app's iBeacon.</li>
   </ul>
 
   <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Samsung SmartTag / SmartTag2</div>
@@ -3016,7 +3015,7 @@ function _settingsFeatures(ctx, el){
     {
       key: "mac_rotation_bridging",
       label: "MAC Rotation Bridging",
-      desc: "When a device's Bluetooth address rotates, attempts to link the old and new addresses by matching advertisement characteristics (company ID, services, signal pattern). Probabilistic — may occasionally link wrong devices.",
+      desc: "When a device's Bluetooth address rotates, links the old and new addresses. Apple Find My tags (AirTags and \"works with Find My\" tags) you've named or followed are linked only when it's clear: the same kind of tag, the old address has stopped, and the scanners hear the new one in the same place. Other rotating devices are matched by what they advertise (company, services, Apple message type) — probabilistic, and may occasionally link the wrong device.",
     },
     {
       key: "apple_auto_classify",
