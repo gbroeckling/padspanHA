@@ -412,3 +412,31 @@ async def test_the_unlink_command_answers_for_the_objects_key():
     store.async_delay_save.assert_called_once()
     await WO.ws_findmy_unlink(hass, conn, {"id": 2, "key": "ble:" + KEYS_1})
     assert sent["error"] == "not_linked"
+
+
+def test_a_replayed_advert_keeps_its_real_age(monkeypatch):
+    """Round 11: registering a callback makes HA replay its cached history;
+    _on_adv stamped those 'now', so a 400 s-old address read as live."""
+    import sys
+    import time
+    from types import SimpleNamespace
+    from custom_components.padspan_ha import bluetooth_live as BL
+    from custom_components.padspan_ha.const import DOMAIN
+    mono = time.monotonic()
+    live = SimpleNamespace(rssi=-50, manufacturer_data={76: bytes([0x12, 0x19, 0x10] + [0x22] * 22 + [1, 0])},
+                           service_data={}, service_uuids=[], tx_power=None, local_name=None)
+    scanner = SimpleNamespace(source="kit",
+                              discovered_devices_and_advertisement_data={KEYS_2: (SimpleNamespace(address=KEYS_2, name=None), live)},
+                              discovered_device_timestamps={KEYS_2: mono - 1.0})
+    monkeypatch.setitem(sys.modules, "habluetooth",
+                        SimpleNamespace(get_manager=lambda: SimpleNamespace(async_current_scanners=lambda: [scanner])))
+    bl = BL.BluetoothLive(SimpleNamespace(data={DOMAIN: {}}))
+    replayed = SimpleNamespace(address=KEYS_1, name=None, source="kit", rssi=-50, time=mono - 400.0,
+                               manufacturer_data={76: bytes([0x12, 0x19, 0x10] + [0x11] * 22 + [1, 0])},
+                               service_data={}, service_uuids=[], tx_power=None, connectable=True)
+    bl._on_adv(replayed)
+    bl._seed_from_discovered()
+    ages = {a["address"]: a["age_s"] for a in bl.get_snapshot(max_ads=5000, max_age_s=14400)["advertisements"]}
+    assert 395 <= ages[KEYS_1] <= 410, ages
+    assert ages[KEYS_2] < 5, ages
+

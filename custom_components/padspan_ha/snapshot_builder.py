@@ -1482,13 +1482,21 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             _fm_obj = bool(canonical.get("findmy"))
             _fm_cur = None
             if _fm_obj:
+                from .findmy import LIVE_S as _FM_LIVE_S  # noqa: PLC0415
                 addr = cid
                 # Signal, age and sources from the address the bridge says is
-                # current — a lingering old one holds frozen readings, and
-                # another of the tag's addresses heard again is not it.
+                # current, while it is being heard — a lingering old one holds
+                # frozen readings. Not heard: the freshest of the tag's own
+                # addresses that is (a tag back on an earlier key before the
+                # bridge has confirmed it — round 11).
                 _fm_cur = canonical.get("current") or rec.get("address")
-                if _fm_cur in ble_by_addr:
-                    rec = ble_by_addr[_fm_cur]
+                _cur_rec = ble_by_addr.get(_fm_cur)
+                if not (_cur_rec and float(_cur_rec.get("age_s") or 0) <= _FM_LIVE_S):
+                    _fr = pg.get("freshest_rec")
+                    if _fr and float(_fr.get("age_s") if _fr.get("age_s") is not None else 1e9) <= _FM_LIVE_S:
+                        _cur_rec, _fm_cur = _fr, _fr.get("address") or _fm_cur
+                if _cur_rec:
+                    rec = _cur_rec
             parts = addr.split(":")
             prefix = ":".join(parts[:3]) if len(parts) >= 3 else ""
             obj_pb: dict[str, Any] = {
@@ -2315,7 +2323,15 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             # (an IRK phone, a bridged rotation, a Find My tag's next address
             # seen on its own before the link landed) is a ghost of it: it
             # would claim that live address in every view (round 10).
-            if cached_obj.get("kind") == "ble" and str(cached_obj.get("address") or "").upper() in canonical_by_addr:
+            # Only an authoritative claim (an IRK, a Find My tag's own
+            # bridge) — never the fingerprint bridge's per-poll guess — and a
+            # named device's history is never deleted, only held back while
+            # its address is claimed (round 11).
+            _claim = (canonical_by_addr.get(str(cached_obj.get("address") or "").upper())
+                      if cached_obj.get("kind") == "ble" else None)
+            if _claim and (_claim.get("findmy") or not _claim.get("bridge_match")):
+                if cached_obj.get("identified") or cached_obj.get("user_label"):
+                    continue
                 del _cache[key]
                 continue
             stale_s = _now_ts - (cached_obj.get("_last_seen_ts") or _now_ts)

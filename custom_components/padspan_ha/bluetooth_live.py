@@ -304,10 +304,24 @@ class BluetoothLive:
             if not addr:
                 return
             seen = _now()
+            # When the advertisement was actually received (service_info.time,
+            # monotonic — the same clock the reseed's scanner stamps use).
+            # Registering a callback makes HA replay its cached history into
+            # it; stamped "now", a minutes-old address looked live again and
+            # a Find My tag's correct link was undone on every restart
+            # (review round 11).
+            _t = getattr(service_info, "time", None)
+            if isinstance(_t, (int, float)) and _t > 0:
+                _age = (time.time() if float(_t) > 1e9 else time.monotonic()) - float(_t)
+                if _age > 0:
+                    seen = seen - dt.timedelta(seconds=_age)
             rec = _service_info_to_record(service_info, seen=seen)
             src = rec.get("source") or "_unknown"
             if addr not in self._seen_by_source:
                 self._seen_by_source[addr] = {}
+            _prev_adv = self._seen_by_source[addr].get(src)
+            if _prev_adv is not None and _prev_adv.seen > seen:
+                return          # an older (replayed) report never replaces a newer one
             self._seen_by_source[addr][src] = _Adv(record=rec, seen=seen)
             # Sample history for median-of-N (real callbacks only — the
             # reseed path replays cached readings and must not multiply them)
@@ -317,7 +331,7 @@ class BluetoothLive:
                     src, deque(maxlen=32)
                 ).append((seen, float(_rs)))
             # Track when each radio last sent us anything (independent of age filtering)
-            if src != "_unknown":
+            if src != "_unknown" and (src not in self._radio_last_heard or self._radio_last_heard[src] < seen):
                 self._radio_last_heard[src] = seen
         except Exception as e:
             _LOGGER.debug("BLE adv parse failed: %s", e)
