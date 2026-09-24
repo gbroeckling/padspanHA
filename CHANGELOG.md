@@ -4,19 +4,29 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.79 — Find My tags, hardened (2026-09-24)
+## 0.38.79 — Truer Traceback replay, Find My tags hardened (2026-09-24)
 
 ### Bluetooth
-- **Fixed:** right after Home Assistant or PadSpan restarted, devices heard minutes earlier could look freshly heard — Home Assistant hands over its recent history when PadSpan starts listening, and PadSpan stamped all of it "now". Each report now keeps the time it was really received.
+- **Fixed:** right after Home Assistant or PadSpan restarted, devices heard minutes earlier could look freshly heard — Home Assistant hands over its recent history when PadSpan starts listening, and PadSpan stamped all of it "now". Each report now keeps the time it was really received — including history from before the last reboot.
+- **Fixed:** if the system clock stepped back (a time-sync correction), live readings froze until the clock caught up.
 
 ### Bluetooth — Apple Find My tags
 - **Fixed:** for the minute or so after a tag changed address, its new address showed up as a second, nameless device (and stayed in the list afterwards).
 - **Fixed:** a tag that goes back to an earlier address — a tag away from its owner keeps one key all day, so it returns to it after time near the owner — is followed there, instead of reading "away".
 - **Fixed:** if a link was ever wrong, the tag's real address being heard again now undoes it by itself; **Unlink** shows only on the tag's current address and undoes exactly that one, and it sticks.
 - **Fixed:** a restart could undo a correct link and lose the tag's name.
+- **Fixed:** a tag back on an earlier address is confirmed by the next report, even through a passive Bluetooth proxy that repeats only every 30–60 seconds — and a single replayed report can no longer move it.
 
 ### Traceback
 - **Fixed:** in Full house activity, devices with a room but no place on the map were folded into one "unplaced" chip, hiding what they did (an unlocked lock looked the same as locked); each shows now.
+- **Fixed:** replayed lights lost what kind of light they are — Home Assistant no longer records a light's effect list or colour modes, so WLED strips lost their strip class and the codes of most devices shifted (104 of 183 in one house). They now keep their class, shape and code; what a light was doing then (colour, brightness) is never borrowed from today.
+- **Fixed:** a sensor that last reported before the replay window read as freshly reported at the window's start.
+- **Fixed:** a motion sensor that dropped offline and came back unchanged read as "just triggered" in the replay.
+
+### Atlas
+- **Fixed:** the floor slider named floors "L0", "L1" when Home Assistant's floors have no level set (the usual case) — it shows their names.
+- **Fixed:** a motion sensor that is offline or unknown no longer flashes as motion or wears the recent-motion ring.
+- **Fixed:** after a restart, sensors that took up to 5 minutes to come back no longer all read as fresh motion (the grace was 2 minutes).
 
 ---
 
