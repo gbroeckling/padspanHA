@@ -70,6 +70,79 @@ from .ws_common import (
 _LOGGER = logging.getLogger(__name__)
 
 
+_FINDMY = "findmy_bridge"
+_FINDMY_STORE = "findmy_bridge_store"
+
+
+async def _findmy_bridge(hass: HomeAssistant):
+    """The Find My bridge, its links loaded from their Store once."""
+    from .findmy import FindMyBridge  # noqa: PLC0415
+    dom = hass.data.setdefault(DOMAIN, {})
+    bridge = dom.get(_FINDMY)
+    if bridge is None:
+        from homeassistant.helpers.storage import Store  # noqa: PLC0415
+        from .const import FINDMY_STORE_KEY  # noqa: PLC0415
+        store = Store(hass, 1, FINDMY_STORE_KEY)
+        try:
+            state = await store.async_load()
+        except Exception:  # noqa: BLE001 — a bad file starts empty, never blocks the snapshot
+            state = None
+        bridge = dom[_FINDMY] = FindMyBridge(state if isinstance(state, dict) else None)
+        dom[_FINDMY_STORE] = store
+    return bridge
+
+
+async def _findmy_step(hass: HomeAssistant, ble_by_addr: dict, canonical_by_addr: dict,
+                       addr_to_device: dict, addr_to_entities: dict, now_ts: float | None = None) -> list:
+    """Carry each known Find My tag onto its next address (findmy.py).
+
+    A Find My address is static random (0xC0-0xFF), never a resolvable
+    private one, so the fingerprint bridge above never sees it. A tag the
+    person labelled, followed or linked starts an identity; each address
+    it moves to is mapped to that identity with the object key it was first
+    known by — so its name, room smoothing, Traceback key and Follow carry
+    on. Returns this poll's links as (identity, old address, new address)."""
+    import time as _t  # noqa: PLC0415
+    from .findmy import is_findmy_address, parse_findmy  # noqa: PLC0415
+    now_ts = _t.time() if now_ts is None else now_ts
+    bridge = await _findmy_bridge(hass)
+    dom = hass.data.get(DOMAIN, {})
+    st = dom.get(DATA_SETTINGS)
+    followed = {str(f).upper() for f in ((st.data if st else {}).get("followed_addrs") or [])}
+    dev_reg = dom.get(DATA_DEVICE_REGISTRY)
+    obj_store = dom.get(DATA_OBJECTS)
+    known: dict[str, str] = {}
+    for addr, rec in ble_by_addr.items():
+        if addr in canonical_by_addr or not is_findmy_address(addr) or bridge.identity_of(addr):
+            continue
+        if parse_findmy(rec.get("manufacturer_data")) is None:
+            continue
+        if (addr in followed or addr in addr_to_device or addr in addr_to_entities
+                or (obj_store and obj_store.get_label(addr))
+                or (dev_reg and dev_reg.get_label_by_key(addr))):
+            known[addr] = addr
+    res = bridge.step(now_ts, {a: r for a, r in ble_by_addr.items() if a not in canonical_by_addr}, known)
+    for addr, ident in res["map"].items():
+        if addr == ident or addr in canonical_by_addr:
+            continue            # still on the address it was first known by: an ordinary object
+        canonical_by_addr[addr] = {
+            "canonical_id": ident, "key": f"ble:{ident}", "name": ident,
+            "kind": "private_ble", "bridge_match": True, "findmy": True,
+        }
+    if res["linked"]:
+        store = dom.get(_FINDMY_STORE)
+        if store is not None:
+            store.async_delay_save(bridge.to_state, 5)
+        # Follow carries on: the followed address moves with the tag.
+        if st and followed:
+            current = list(st.data.get("followed_addrs") or [])
+            moved = {old.upper(): new.upper() for _i, old, new in res["linked"]}
+            updated = [moved.get(str(f).upper(), f) for f in current]
+            if updated != current:
+                await st.async_set(followed_addrs=updated)
+    return res["linked"]
+
+
 async def _live_snapshot(hass: HomeAssistant) -> dict:
     """Return the live snapshot, serving a shared cached build when fresh.
 
@@ -872,7 +945,13 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     connectable = rec.get("connectable")
                     if not company_ids and not svc_uuids:
                         return None  # not enough info to fingerprint
-                    return f"{','.join(company_ids)}|{','.join(svc_uuids)}|{connectable}"
+                    # Every Apple device shares company 76: its message type
+                    # (0x10 an iPhone's Nearby Info, 0x07 AirPods, ...) keeps
+                    # an iPhone from being chained onto AirPods.
+                    from .findmy import apple_payload  # noqa: PLC0415
+                    _ap = apple_payload(manuf)
+                    _atype = f"|apple:{_ap[0]:02x}" if _ap else ""
+                    return f"{','.join(company_ids)}|{','.join(svc_uuids)}|{connectable}{_atype}"
 
                 # Update cache with currently-resolved addresses (so when they disappear, we remember)
                 for addr, canonical in canonical_by_addr.items():
@@ -964,6 +1043,14 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     }
         except Exception as _bridge_err:
             _LOGGER.debug("MAC rotation bridging error: %s", _bridge_err)
+
+        # ── Find My tags across address changes (findmy.py) ──────────────
+        try:
+            _st_fm = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+            if _st_fm and _st_fm.get("mac_rotation_bridging"):
+                await _findmy_step(hass, ble_by_addr, canonical_by_addr, addr_to_device, addr_to_entities)
+        except Exception as _fm_err:
+            _LOGGER.debug("Find My bridging error: %s", _fm_err)
 
         # Parse iBeacon from every advertisement; group by stable UUID/major/minor key.
         # This is deliberately OUTSIDE the resolver try/except so iBeacon detection
@@ -1372,7 +1459,9 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             parts = addr.split(":")
             prefix = ":".join(parts[:3]) if len(parts) >= 3 else ""
             obj_pb: dict[str, Any] = {
-                "key": cid,  # STABLE key — survives address rotation
+                # STABLE key — survives address rotation. A Find My tag keeps
+                # the key it had on its first address (findmy.py).
+                "key": canonical.get("key") or cid,
                 "kind": "private_ble",
                 "address": addr,  # current best (strongest signal) rotating MAC
                 "canonical_id": cid,
@@ -1525,19 +1614,11 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     apple_data = manuf.get(_APPLE_COMPANY_ID) or manuf.get(76)
                     if not apple_data:
                         continue
-                    # apple_data may be a hex string or bytes-like; normalise to bytes
-                    try:
-                        if isinstance(apple_data, str):
-                            _raw = bytes.fromhex(apple_data)
-                        elif isinstance(apple_data, (list, tuple)):
-                            _raw = bytes(apple_data)
-                        elif isinstance(apple_data, bytes):
-                            _raw = apple_data
-                        else:
-                            continue
-                    except Exception:
-                        continue
-                    if len(_raw) < 1:
+                    # "0x12 0x19 ..." (bluetooth_live.py), plain hex or bytes
+                    # (bytes.fromhex refuses the 0x form: nothing was ever labelled).
+                    from .findmy import DEVICE_TYPES as _FM_TYPES, apple_payload, parse_findmy  # noqa: PLC0415
+                    _raw = apple_payload(manuf)
+                    if not _raw:
                         continue
                     subtype = _raw[0]
                     label = _APPLE_SUBTYPES.get(subtype)
@@ -1547,11 +1628,11 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     if subtype == 0x10 and len(_raw) >= 3:
                         model_bits = (_raw[2] >> 4) & 0x1F
                         label = _NEARBY_MODELS.get(model_bits, "Apple Device")
-                    # FindMy (0x12) could be AirTag or third-party accessory
-                    if subtype == 0x12 and len(_raw) >= 3:
-                        # Byte 2 bit 0: 0 = AirTag, 1 = third-party FindMy accessory
-                        if _raw[2] & 0x01:
-                            label = "Find My accessory"
+                    # Find My (0x12): the status byte's device type (findmy.py)
+                    if subtype == 0x12:
+                        _fm = parse_findmy(manuf)
+                        if _fm:
+                            label = _FM_TYPES.get(_fm["device_type"], label)
                     obj["auto_class"] = label
         except Exception as _apple_err:
             _LOGGER.debug("Apple auto-classify error: %s", _apple_err)

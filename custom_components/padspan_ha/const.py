@@ -76,6 +76,7 @@ MAPS_STORE_KEY = "padspan_ha.maps"
 MODEL_STORE_KEY = "padspan_ha.model"
 FABRIC_STORE_KEY = "padspan_ha.fabric"
 OBJECT_STORE_KEY = "padspan_ha.objects"
+FINDMY_STORE_KEY = "padspan_ha.findmy_bridge"   # findmy.py — which address each known Find My tag uses now
 CALIBRATION_STORE_KEY = "padspan_ha.calibration"
 ALERTS_STORE_KEY = "padspan_ha.follow_alerts"
 MOVEMENT_STORE_KEY = "padspan_ha.movement_history"

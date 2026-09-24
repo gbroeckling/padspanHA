@@ -193,3 +193,59 @@ def test_place_difference_counts_a_strong_scanner_the_other_never_heard():
     assert F.place_difference({"a": -50.0, "b": -60.0}, {"a": -50.0}) == F.UNSHARED_PENALTY_DB / 2
     assert F.place_difference({"a": -50.0, "b": -95.0}, {"a": -50.0}) == 0.0
     assert F.place_difference({"a": -50.0}, {"b": -50.0}) is None
+
+
+# ── wired into the snapshot (snapshot_builder._findmy_step) ──────────────────
+
+
+async def test_a_labelled_tag_keeps_its_key_name_and_follow_across_a_change():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, MagicMock
+    from custom_components.padspan_ha import snapshot_builder as SB
+    from custom_components.padspan_ha.const import DATA_OBJECTS, DATA_SETTINGS, DOMAIN
+
+    settings = SimpleNamespace(data={"followed_addrs": [KEYS_1, "AA:00:00:00:00:01"], "mac_rotation_bridging": True},
+                               async_set=AsyncMock(side_effect=lambda **kw: settings.data.update(kw)))
+    labels = {KEYS_1: "Keys"}
+    store = SimpleNamespace(async_delay_save=MagicMock())
+    hass = SimpleNamespace(data={DOMAIN: {
+        DATA_SETTINGS: settings,
+        DATA_OBJECTS: SimpleNamespace(get_label=lambda a: labels.get(a)),
+        "findmy_bridge": F.FindMyBridge(), "findmy_bridge_store": store}})
+    canon: dict = {}
+    await SB._findmy_step(hass, {KEYS_1: _rec(_separated(1), KITCHEN), PHONE_1: _rec(IPHONE, KITCHEN)}, canon, {}, {}, now_ts=0.0)
+    assert canon == {}, "on its first address a tag is an ordinary object"
+    canon = {}
+    linked = await SB._findmy_step(hass, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN), PHONE_2: _rec(IPHONE, KITCHEN)},
+                                   canon, {}, {}, now_ts=20.0)
+    assert linked == [(KEYS_1, KEYS_1, KEYS_2)]       # identity = the address it was first known by
+    assert canon[KEYS_2]["key"] == "ble:" + KEYS_1 and canon[KEYS_2]["canonical_id"] == KEYS_1
+    assert PHONE_2 not in canon
+    assert settings.data["followed_addrs"] == [KEYS_2, "AA:00:00:00:00:01"], "Follow moves with the tag"
+    store.async_delay_save.assert_called_once()
+    # Next poll: the mapping is re-applied (canonical_by_addr is rebuilt every snapshot).
+    canon = {}
+    await SB._findmy_step(hass, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN)}, canon, {}, {}, now_ts=40.0)
+    assert canon[KEYS_2]["key"] == "ble:" + KEYS_1
+
+
+async def test_an_unknown_tag_is_never_given_an_identity():
+    from types import SimpleNamespace
+    from custom_components.padspan_ha import snapshot_builder as SB
+    from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+
+    hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: SimpleNamespace(data={}),
+                                          "findmy_bridge": F.FindMyBridge(), "findmy_bridge_store": None}})
+    canon: dict = {}
+    await SB._findmy_step(hass, {KEYS_1: _rec(_separated(1), KITCHEN)}, canon, {}, {}, now_ts=0.0)
+    await SB._findmy_step(hass, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN)}, canon, {}, {}, now_ts=20.0)
+    assert canon == {} and hass.data[DOMAIN]["findmy_bridge"].tags == {}
+
+
+def test_the_merged_object_keeps_the_key_it_was_first_known_by():
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "snapshot_builder.py").read_text(encoding="utf-8")
+    assert '"key": canonical.get("key") or cid,' in src
+    # The Apple display classifier reads "0x.." payloads through findmy's parser.
+    i = src.index("_APPLE_SUBTYPES = {")
+    assert "bytes.fromhex(apple_data)" not in src[i:i + 4000] and "apple_payload(manuf)" in src[i:i + 4000]
