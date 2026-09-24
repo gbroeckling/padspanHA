@@ -2170,8 +2170,11 @@ export function fabricFrame(model, floors, floorGap, horizGap){
     return floorList.some(f => String(f.id) === "outside") ? "outside" : s;
   };
   const fabricFloorIds = new Set();
+  // Floors that carry ROOMS: the backend keeps a floor HA dropped only while
+  // rooms remain on it (round 18).
+  const roomFloorIds = new Set();
   for (const g of Object.values((model && model.room_geometry_m) || {})) {
-    if (g && typeof g === "object") fabricFloorIds.add(canon(g.floor_id));
+    if (g && typeof g === "object") { fabricFloorIds.add(canon(g.floor_id)); roomFloorIds.add(canon(g.floor_id)); }
   }
   for (const lp of Object.values((model && model.light_positions_m) || {})) {
     if (lp && typeof lp === "object") fabricFloorIds.add(canon(lp.floor_id));
@@ -2210,7 +2213,12 @@ export function fabricFrame(model, floors, floorGap, horizGap){
     // for others merged floors whose elevation had not synced yet (round 16);
     // ranking an unknown name by its list position collided with a named
     // storey (round 13).
-    const stackIds = [...regIds, ...extra.filter(id => !isOutdoorFloorId(id))];
+    // A fabric floor stacks when it carries rooms — an outdoor-named one only
+    // when the backend kept it (it sent its elevation). One known only from a
+    // light's placement joins a plate below: stacked, a light saved on "main"
+    // beside Downstairs/Upstairs made an empty plate of its own (round 18).
+    const stackIds = [...regIds, ...extra.filter(id => roomFloorIds.has(id)
+      && (!isOutdoorFloorId(id) || num(elevations[id]) !== null))];
     const elev = stackIds.map(id => num(elevations[id]));
     const useElev = stackIds.length > 1 && elev.every(v => v !== null) && new Set(elev).size > 1;
     const keyOf = (id, i) => useElev ? elev[i] : storeyOf(id);
@@ -2227,19 +2235,20 @@ export function fabricFrame(model, floors, floorGap, horizGap){
       prevKey = o.key;
       out[o.id] = slab;
     }
-    // An outdoor floor only the fabric uses (the "__outside__" sentinel when
-    // the registry has no outside floor) is no storey of the stack: it sits
-    // with the nearest floor at or below its storey (ground), else on the
-    // lowest slab — "on top" left the garden on a slab never drawn (round 15).
+    // Every other fabric floor — the "__outside__" sentinel when the registry
+    // has no outside floor, a floor only a light names — is no storey of the
+    // stack: it sits with the nearest floor at or below its storey, else on
+    // the lowest slab. Never a slab of its own: "on top" left the garden on
+    // a slab never drawn (round 15), and a new one drew an empty plate (18).
     for (const id of extra) {
-      if (!isOutdoorFloorId(id)) continue;
+      if (stackIds.includes(id)) continue;
       const s = storeyOf(id);
       let best = null, bestStorey = -Infinity;
       if (s !== null) for (const r of stackIds) {
         const so = storeyOf(r);
         if (so !== null && so <= s && so > bestStorey) { bestStorey = so; best = r; }
       }
-      out[id] = best !== null ? out[best] : s !== null ? 0 : ++slab;
+      out[id] = best !== null ? out[best] : 0;
     }
     return out;
   })();

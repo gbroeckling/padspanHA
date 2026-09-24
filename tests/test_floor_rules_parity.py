@@ -289,7 +289,8 @@ def test_the_drawing_stacks_like_the_backend_across_many_houses(tmp_path):
     rnd = random.Random(20260924)
     pool = ["basement", "cellar", "lower", "main", "ground", "ground_floor", "first_floor", "upper", "upstairs",
             "second_floor", "third", "loft", "attic", "garage", "home", "shop", "studio", "annex", "outside", "garden", "yard"]
-    indoor_extra = ["basement", "main", "upper", "attic", "garage", "loft", "studio"]
+    kept_pool = ["basement", "main", "upper", "attic", "garage", "loft", "studio", "yard", "garden"]
+    light_only = ["main", "shed", "upper", "basement"]
     sq = [[0, 0], [4, 0], [4, 4], [0, 4]]
     cases = []
     while len(cases) < 300:
@@ -304,7 +305,7 @@ def test_the_drawing_stacks_like_the_backend_across_many_houses(tmp_path):
             continue
         kept = []
         if rnd.random() < 0.35:
-            cand = [i for i in indoor_extra if i not in reg]
+            cand = [i for i in kept_pool if i not in reg]
             if cand:
                 kept = [rnd.choice(cand)]
                 stored.insert(rnd.randint(0, len(stored)), {"id": kept[0]})
@@ -313,14 +314,58 @@ def test_the_drawing_stacks_like_the_backend_across_many_houses(tmp_path):
                         key=lambda f: f["id"])
         model = {"floors": floors, "floor_elevations": elevations,
                  "room_geometry_m": {f"R{n}": {"type": "poly", "floor_id": f["id"], "points_m": sq} for n, f in enumerate(stored)}}
-        cases.append((model, [f["id"] for f in stored], backend))
+        # A light saved on a floor with no rooms (PadSpan's default "main") is
+        # on no floor the backend keeps — it lands on a floor's slab, never a
+        # slab of its own (round 18: an empty plate between two floors).
+        lid = None
+        if rnd.random() < 0.3:
+            lid = rnd.choice([i for i in light_only if i not in [f["id"] for f in stored]] or ["shed_x"])
+            model["light_positions_m"] = {"light.stray": {"x_m": 1, "y_m": 1, "floor_id": lid}}
+        cases.append((model, [f["id"] for f in stored], backend, lid))
     data = tmp_path / "houses.json"                 # too long for a command line
-    data.write_text(json.dumps([[m, ids] for m, ids, _ in cases]), encoding="utf-8")
+    data.write_text(json.dumps([[m, ids, lid] for m, ids, _, lid in cases]), encoding="utf-8")
     out = _run("const { readFileSync } = await import('node:fs');\n"
                f"const C = JSON.parse(readFileSync({json.dumps(str(data))}, 'utf8'));\n"
-               "out.slabs = C.map(([M, ids]) => { const fr = IL.fabricFrame(M, M.floors, 150, 0);"
-               " return Object.fromEntries(ids.map(i => [i, fr.levelOf(i)])); });\n")
-    bad = [(m["floors"], m["floor_elevations"], got, want) for (m, _ids, want), got in zip(cases, out["slabs"])
-           if _ranks(got) != _ranks(want)]
+               "out.slabs = C.map(([M, ids, lid]) => { const fr = IL.fabricFrame(M, M.floors, 150, 0);"
+               " return { slabs: Object.fromEntries(ids.map(i => [i, fr.levelOf(i)])), stray: lid ? fr.levelOf(lid) : null }; });\n")
+    bad = [(m["floors"], m["floor_elevations"], got, want) for (m, _ids, want, _lid), got in zip(cases, out["slabs"])
+           if _ranks(got["slabs"]) != _ranks(want)
+           or (got["stray"] is not None and got["stray"] not in got["slabs"].values())]
     assert not bad, f"{len(bad)} of {len(cases)} houses stack differently, e.g. {bad[:2]}"
+
+
+def test_a_light_on_a_floor_with_no_rooms_adds_no_plate():
+    """Round 18: a light saved on "main" (PadSpan's default floor) beside HA's
+    Downstairs/Upstairs was stacked as a floor of its own — an empty plate
+    between the two, "L1" on its chip, "No floor record" on its badge."""
+    sq = [[0, 0], [4, 0], [4, 4], [0, 4]]
+    two = {"floors": [{"id": "downstairs", "name": "Downstairs", "level": None}, {"id": "upstairs", "name": "Upstairs", "level": None}],
+           "floor_elevations": {"downstairs": 0.0, "upstairs": 2.8},
+           "room_geometry_m": {"D": {"type": "poly", "floor_id": "downstairs", "points_m": sq},
+                               "U": {"type": "poly", "floor_id": "upstairs", "points_m": sq}},
+           "light_positions_m": {"light.stray": {"x_m": 1, "y_m": 1, "floor_id": "main"}}}
+    home = {"floors": [{"id": "home", "name": "Home", "level": None}], "floor_elevations": {"home": 0.0},
+            "room_geometry_m": {"H": {"type": "poly", "floor_id": "home", "points_m": sq}},
+            "light_positions_m": {"light.stray": {"x_m": 1, "y_m": 1, "floor_id": "main"}}}
+    out = _run(f"const A={json.dumps(two)}, B={json.dumps(home)};\n"
+               "const fa = IL.fabricFrame(A, A.floors, 150, 0), fb = IL.fabricFrame(B, B.floors, 150, 0);\n"
+               "out.two = { levels: fa.levels, main: fa.levelOf('main'), down: fa.levelOf('downstairs') };\n"
+               "out.home = { levels: fb.levels, main: fb.levelOf('main'), home: fb.levelOf('home') };\n")
+    assert out["two"] == {"levels": [0, 1], "main": 0, "down": 0}, out
+    assert out["home"] == {"levels": [0], "main": 0, "home": 0}, out
+
+
+def test_a_kept_outdoor_floor_has_the_backends_plate():
+    """Round 18: a "yard" HA dropped while its patio stays is kept (and
+    stacked) by the backend; the drawing put the patio on Downstairs."""
+    sq = [[0, 0], [4, 0], [4, 4], [0, 4]]
+    stored = [{"id": "downstairs"}, {"id": "upstairs"}, {"id": "yard"}]
+    backend, elevations = _backend(stored)
+    model = {"floors": [{"id": "downstairs", "name": "Downstairs", "level": None}, {"id": "upstairs", "name": "Upstairs", "level": None}],
+             "floor_elevations": elevations,
+             "room_geometry_m": {f"R{n}": {"type": "poly", "floor_id": f["id"], "points_m": sq} for n, f in enumerate(stored)}}
+    out = _run(f"const M={json.dumps(model)};\n"
+               "const fr = IL.fabricFrame(M, M.floors, 150, 0);\n"
+               "out.slabs = Object.fromEntries(['downstairs','upstairs','yard'].map(i => [i, fr.levelOf(i)]));\n")
+    assert _ranks(out["slabs"]) == _ranks(backend), (out, backend)
 
