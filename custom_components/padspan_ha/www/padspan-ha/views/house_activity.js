@@ -25,7 +25,7 @@ const _q = new URL(import.meta.url).search;
 const { buildIsoSVG, fabricFrame, floorIdAtLevel } = await import(`./iso_lights.js${_q}`);
 const { gatherLights, ensureLightsRegistry, lightIsTouched, atlasLookFromSettings, atlasIsoLookOpts,
         sunElevationDeg, ambientFromElevation, sunAmbient } = await import(`./lights_map.js${_q}`);
-const { airQualityBadness, airQualityWord, AIR_QUALITY_CLASSES, isAirQualityEntity } =
+const { airQualityBadness, airQualityWord, AIR_QUALITY_CLASSES, isAirQualityEntity, readingNeedsPlacement } =
   await import(`./light_codes.js${_q}`);
 
 /** Normalise one HA history row (compressed WS or full REST shape) to ms times. */
@@ -255,7 +255,7 @@ export function atlasShownEids(model, settings, lights, shapeOverrides = {}) {
     const eid = String(l.entity_id);
     if (l.isDoor) { if (walls.has(eid)) out.add(eid); continue; }
     if (hidden.has(eid)) continue;
-    if (l.isTemp || l.isHumidity || l.isAir) { if (placed[eid]) out.add(eid); continue; }
+    if (readingNeedsPlacement(l)) { if (placed[eid]) out.add(eid); continue; }
     if (placed[eid] || (l.area_name && geo[l.area_name])) out.add(eid);
   }
   return out;
