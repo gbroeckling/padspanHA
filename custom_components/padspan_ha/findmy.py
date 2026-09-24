@@ -205,9 +205,10 @@ class FindMyBridge:
         # Until the first poll, every address in range counts as there all
         # along — after a restart nothing looks newly arrived (round 8).
         self._primed = False
-        # (tag, earlier address) -> when it was first heard again: a return
-        # is acted on only when a LATER report confirms it (round 11).
-        self._returning: dict[tuple[str, str], float] = {}
+        # (tag, earlier address) -> (when it was first heard again, the link
+        # it was heard after): a return is acted on only when a LATER report
+        # confirms it (round 11), and only for that same link (round 13).
+        self._returning: dict[tuple[str, str], tuple[float, float]] = {}
 
     def to_state(self) -> dict[str, Any]:
         return {"tags": {k: dict(v) for k, v in self.tags.items()}}
@@ -301,6 +302,11 @@ class FindMyBridge:
         # Only on a SECOND, newer report: HA replays cached history into a
         # new callback, and one fresh-looking report is not proof (round 11).
         unlinked: list[tuple[str, str, str]] = []
+        # A pending return belongs to the link it was heard after: once the
+        # tag is unlinked, moved back, re-linked or forgotten it is void — a
+        # stale one let ONE report confirm a return (review round 13).
+        self._returning = {ck: v for ck, v in self._returning.items()
+                           if (self.tags.get(ck[0]) or {}).get("linked_ts") == v[1]}
         for key, t in list(self.tags.items()):
             linked_ts = t.get("linked_ts")
             if not linked_ts:
@@ -316,11 +322,12 @@ class FindMyBridge:
                 if c is None or c["age"] > LIVE_S or c["seen_ts"] <= float(linked_ts) + RETURN_FRESH_S:
                     self._returning.pop(ck, None)
                     continue
-                first = self._returning.get(ck)
-                if first is None:
+                pending = self._returning.get(ck)
+                if pending is None:
                     if c["age"] <= RETURN_FRESH_S:
-                        self._returning[ck] = c["seen_ts"]
+                        self._returning[ck] = (c["seen_ts"], linked_ts)
                     continue
+                first = pending[0]
                 # Confirmed only by a fresh report heard at least a second
                 # after the first one.
                 if c["age"] > RETURN_FRESH_S or c["seen_ts"] < first + 1.0:

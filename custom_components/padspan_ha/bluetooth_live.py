@@ -397,11 +397,30 @@ class BluetoothLive:
                                     _age = max(0.0, _mono_now - float(_stamp))
                                 dev_seen = seen - dt.timedelta(seconds=_age)
                             else:
-                                # No real timestamp for this device: keep the
-                                # existing record's age rather than refreshing
-                                # it; only brand-new entries get stamped now.
-                                _prev = self._seen_by_source.get(addr, {}).get(str(src))
-                                dev_seen = _prev.seen if _prev else seen
+                                # No stamp from this scanner — HA's own adapter
+                                # scanner (bleak) keeps none, and HA passes an
+                                # unchanged advert to no callback, so a steady
+                                # device heard only there aged from its first
+                                # report while still advertising (review round
+                                # 13). The manager's last advert for the
+                                # address is updated on every one, unchanged
+                                # or not: its time, when THIS scanner is the
+                                # one it came from. Otherwise keep the existing
+                                # record's age rather than refreshing it; only
+                                # brand-new entries get stamped now.
+                                _last = None
+                                try:
+                                    _last = manager.async_last_service_info(addr, False)
+                                except Exception:  # noqa: BLE001
+                                    _last = None
+                                _lt = getattr(_last, "time", None)
+                                if (isinstance(_lt, (int, float)) and _lt != 0
+                                        and str(getattr(_last, "source", "")) == str(src)):
+                                    _age = max(0.0, (time.time() if float(_lt) > 1e9 else _mono_now) - float(_lt))
+                                    dev_seen = seen - dt.timedelta(seconds=_age)
+                                else:
+                                    _prev = self._seen_by_source.get(addr, {}).get(str(src))
+                                    dev_seen = _prev.seen if _prev else seen
                             rec = _service_info_to_record_from_adv(
                                 addr, src, rssi, ble_device, adv_data, dev_seen
                             )
