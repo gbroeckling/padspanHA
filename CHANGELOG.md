@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.80 — Floors that name and stack the same everywhere (2026-09-24)
+
+### Atlas
+- **Fixed:** right after an install or upgrade — or just after adding a floor in Home Assistant — floors whose height PadSpan had not synced yet could all be drawn on one plate.
+- **Fixed:** a storey two floors share (a garden beside the ground floor) had one name on the floor buttons and the floor sheet and another on the floor slider and the legend; it is "Main + Garden" everywhere.
+
+---
+
 ## 0.38.79 — Truer Traceback replay, Find My tags hardened (2026-09-24)
 
 ### Bluetooth

@@ -165,3 +165,36 @@ def test_a_garden_named_floor_is_still_drawn():
                "out.drawn = fr.rooms.map(r => r.room).sort(); out.overlay = fr.outdoor.map(r => r.room);\n")
     assert out == {"drawn": ["Kitchen", "Patio"], "overlay": []}
 
+
+def test_floors_whose_elevation_has_not_synced_keep_their_own_plates():
+    """Round 16: before the model's floor list catches up with HA's registry
+    (first sync, or a floor just added) only some floors have an elevation;
+    metres for those and a fallback for the rest drew basement, main and
+    upper on ONE plate. The stack ranks by metres only when every floor has
+    one — otherwise by storey, as the backend does."""
+    sq = [[0, 0], [4, 0], [4, 4], [0, 4]]
+    ids = ["basement", "main", "upper"]
+    lag = {"floors": [{"id": i, "name": i, "level": None} for i in ids], "floor_elevations": {"main": 0.0},
+           "room_geometry_m": {f"R{n}": {"type": "poly", "floor_id": i, "points_m": sq} for n, i in enumerate(ids)}}
+    bare = {"floors": [], "room_geometry_m": lag["room_geometry_m"]}
+    out = _run(f"const A={json.dumps(lag)}, B={json.dumps(bare)};\n"
+               "const fa = IL.fabricFrame(A, A.floors, 150, 0), fb = IL.fabricFrame(B, B.floors, 150, 0);\n"
+               "out.lag = ['basement','main','upper'].map(i => fa.levelOf(i));\n"
+               "out.noRegistry = ['basement','main','upper'].map(i => fb.levelOf(i));\n")
+    assert out == {"lag": [0, 1, 2], "noRegistry": [0, 1, 2]}, out
+
+
+def test_a_plate_has_one_name_everywhere():
+    """Round 16: two registry floors on one plate were "Garden + Main" on the
+    floor buttons and sheet but "Main" on the slider and the legend."""
+    sq = [[0, 0], [4, 0], [4, 4], [0, 4]]
+    model = {"floors": [{"id": "garden", "name": "Garden", "level": None}, {"id": "main", "name": "Main", "level": None}],
+             "room_geometry_m": {"Patio": {"type": "poly", "floor_id": "garden", "points_m": sq},
+                                 "Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[5, 0], [9, 0], [9, 4], [5, 4]]}}}
+    out = _run(f"const M={json.dumps(model)};\n"
+               "const fr = IL.fabricFrame(M, M.floors, 150, 0);\n"
+               "out.levels = fr.levels; out.name = IL.floorNameAtLevel(fr, M, M.floors, fr.levels[0]);\n"
+               "const svg = IL.buildIsoSVG(M, {}, new Set(), null, 150, 0, {}, false, M.floors, {});\n"
+               "const i = svg.indexOf('>Motion<');\n"
+               "out.legend = [...svg.slice(0, i).matchAll(/<text[^>]*>([^<]*)<\\/text>/g)].map(m => m[1]).slice(-1)[0];\n")
+    assert out == {"levels": [0], "name": "Main + Garden", "legend": "Main + Garden"}, out

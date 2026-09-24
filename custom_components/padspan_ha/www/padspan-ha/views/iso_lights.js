@@ -2193,43 +2193,25 @@ export function fabricFrame(model, floors, floorGap, horizGap){
     const regIds = floorList.map(f => String(f.id));
     if (floorList.length && floorList.every(f => num(f.level) !== null)) return null;  // explicit levels win
     const extra = [...fabricFloorIds].filter(id => !regIds.includes(id));
-    const ids = [...regIds, ...extra];
-    const elev = ids.map(id => num(elevations[id]));
-    const useElev = elev.some(v => v !== null) && new Set(elev).size > 1;
-    // Priority: a measured elevation, then the storey a name denotes — and
-    // outdoors sits at ground level, because it does. A floor nothing places
-    // goes above the named storeys on a slab of its own, in registry order,
-    // as ModelStore._ordered_floors / floor_stack_index do: ranked by its
-    // position in the list, its index collided with a named storey's and a
-    // room-less "Garage" shared Upstairs' slab (review round 13).
     const storeyOf = (id) => {
       const f = floorList.find(x => String(x.id) === id);
       const lvl = f ? num(f.level) : null;
       return lvl !== null ? lvl : conventionalLevel(id);
     };
-    const keyOf = (id, i) => {
-      if (!useElev) return storeyOf(id);
-      if (elev[i] !== null) return elev[i];
-      // The keys are metres here. A floor with no elevation but a storey
-      // (the fabric's "__outside__" when the registry has no outside floor)
-      // takes the elevation of the nearest floor at or below that storey,
-      // else the lowest floor's: its storey number read as metres put the
-      // garden on the basement's slab (round 14), and "on top" left it on a
-      // slab never drawn where no floor names the ground — "Home",
-      // "Downstairs"/"Upstairs" (round 15). Only a floor nothing places
-      // goes on top.
-      const s = storeyOf(id);
-      if (s === null) return null;
-      let best = null, bestStorey = -Infinity, lowest = null;
-      ids.forEach((o, k) => {
-        if (elev[k] === null) return;
-        if (lowest === null || elev[k] < lowest) lowest = elev[k];
-        const so = storeyOf(o);
-        if (so !== null && so <= s && so > bestStorey) { bestStorey = so; best = elev[k]; }
-      });
-      return best !== null ? best : lowest;
-    };
-    const order = ids.map((id, i) => ({ id, key: keyOf(id, i), i }))
+    // The floors that make the stack: the registry's (with no registry, the
+    // fabric's own). They rank as ModelStore.floor_stack_index does — by
+    // measured elevation when EVERY one has one (the backend computes them in
+    // its own order), else by the storey a level or name denotes; a floor
+    // nothing places goes above the named storeys on a slab of its own, in
+    // list order. Metres for some floors and storeys for others merged the
+    // floors whose elevation had not synced yet onto one plate (round 16);
+    // ranking an unknown name by its list position collided with a named
+    // storey (round 13).
+    const stackIds = regIds.length ? regIds : extra;
+    const elev = stackIds.map(id => num(elevations[id]));
+    const useElev = stackIds.length > 1 && elev.every(v => v !== null) && new Set(elev).size > 1;
+    const keyOf = (id, i) => useElev ? elev[i] : storeyOf(id);
+    const order = stackIds.map((id, i) => ({ id, key: keyOf(id, i), i }))
       .sort((a, b) => ((a.key === null) - (b.key === null)) || (a.key - b.key) || (a.i - b.i));
     const out = {};
     // Collapse to contiguous slab indices: two floors that share a storey
@@ -2239,6 +2221,20 @@ export function fabricFrame(model, floors, floorGap, horizGap){
       if (slab < 0 || o.key === null || o.key !== prevKey) slab++;
       prevKey = o.key;
       out[o.id] = slab;
+    }
+    // A floor only the fabric uses beside a registry (the "__outside__"
+    // sentinel when the registry has no outside floor, a stale id) is no
+    // storey of the stack: it sits with the nearest registry floor at or
+    // below its storey, else on the lowest slab — "on top" left the garden
+    // on a slab never drawn (round 15). An unknown storey goes on top.
+    if (regIds.length) for (const id of extra) {
+      const s = storeyOf(id);
+      let best = null, bestStorey = -Infinity;
+      if (s !== null) for (const r of regIds) {
+        const so = storeyOf(r);
+        if (so !== null && so <= s && so > bestStorey) { bestStorey = so; best = r; }
+      }
+      out[id] = best !== null ? out[best] : s !== null ? 0 : ++slab;
     }
     return out;
   })();
@@ -2462,6 +2458,27 @@ export function floorIdAtLevel(frame, model, floors, z){
     if(best === null || rank(id) < rank(best)) best = id;
   }
   return best;
+}
+
+// The name of the plate at storey z: every registry floor drawn on it,
+// floorIdAtLevel's first ("Main + Garden") — ONE name for the slider, the
+// legend, the floor buttons and the floor sheet, which had drifted apart
+// (review round 16). The outside floor is drawn on no plate. null when the
+// registry names nothing there.
+export function floorNameAtLevel(frame, model, floors, z){
+  const first = floorIdAtLevel(frame, model, floors, z);
+  const drawn = new Set();
+  for(const g of Object.values((model && model.room_geometry_m) || {})) if(g && g.floor_id) drawn.add(String(g.floor_id));
+  for(const lp of Object.values((model && model.light_positions_m) || {})) if(lp && lp.floor_id) drawn.add(String(lp.floor_id));
+  const names = [];
+  const add = (f) => { const n = f && (f.name || f.id); if(n && !names.includes(n)) names.push(n); };
+  add((floors || []).find(x => String(x.id) === String(first)));
+  for(const f of floors || []){
+    const id = String(f.id);
+    if(id === "outside" || !drawn.has(id) || Number(frame.levelOf(id)) !== Number(z)) continue;
+    add(f);
+  }
+  return names.length ? names.join(" + ") : null;
 }
 
 // ── Isometric 3-D SVG builder ────────────────────────────────────────────────
@@ -6280,9 +6297,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // The floor the drawing put here (floorIdAtLevel): HA floors usually
       // have no level, and matching it read "Basement, Floor 1, Floor 2"
       // (review round 13).
-      const flId=floorIdAtLevel(frame, model, floors, z);
-      const fl=(floors||[]).find(f=>String(f.id)===flId);
-      const label=fl?(fl.name||`Floor ${z}`):`Floor ${z}`;
+      const label=floorNameAtLevel(frame, model, floors, z) || `Floor ${z}`;
       s+=`<circle cx="${lx}" cy="${ly}" r="${R}" fill="${color}" opacity="0.9"/>`;
       s+=`<text x="${lx}" y="${ly+3}" text-anchor="middle" fill="#071008" font-size="8" font-weight="700">${i+1}</text>`;
       lx+=R+5;

@@ -11,7 +11,7 @@
 // Everything either view renders comes from here; the hosts differ only in
 // what an interaction does (sidebar: control the light — tab: place it).
 
-const { buildIsoSVG, shapeSvg, fabricFrame, floorIdAtLevel, sampleSceneField, pointInPolygon, offsetPolygonInward,
+const { buildIsoSVG, shapeSvg, fabricFrame, floorIdAtLevel, floorNameAtLevel, sampleSceneField, pointInPolygon, offsetPolygonInward,
         lightClassOf, SHOWCASE_THEMES, AUTOMORPH_STYLE_LABELS, floodLatchActive, barrierNoReading,
         isOutdoorFloorId } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
@@ -294,12 +294,6 @@ export function floorIdsOnSlab(frame, model, floors, z){
   for (const g of Object.values((model && model.room_geometry_m) || {})) if (g && g.floor_id) ids.add(String(g.floor_id));
   for (const p of Object.values((model && model.light_positions_m) || {})) if (p && p.floor_id) ids.add(String(p.floor_id));
   return new Set([...ids].filter(id => id !== "outside" && id !== "__outside__" && Number(frame.levelOf(id)) === Number(z)));
-}
-// The plate's name: every registry floor on it, joined — a sheet that
-// switches two floors names both (round 15).
-function _plateName(floors, onSlab){
-  return [...onSlab].map(id => (floors || []).find(x => String(x.id) === id)).filter(Boolean)
-    .map(f => f.name || f.id).join(" + ");
 }
 // The worst air-quality badness among these sensors, NaN when none reports.
 export function airWorstOf(airLights){
@@ -1106,7 +1100,7 @@ export function openFloorSheet(api, lights, model, z){
     actions.push({ label: "All lights on", primary: true, run: () => api.setMany(agg.lightEids, true) });
   }
   if (agg.fanEids.length) actions.push({ label: "Fans off", run: () => api.setMany(agg.fanEids, false) });
-  openAggregateSheet(api, { title: _plateName(floors, onSlab) || (f && f.name) || `Floor ${z}`, sub: parts.join(" · "), items, actions });
+  openAggregateSheet(api, { title: floorNameAtLevel(frame, model, floors, z) || (f && f.name) || `Floor ${z}`, sub: parts.join(" · "), items, actions });
 }
 
 // ── Weekly activity calendar (motion sensors) ────────────────────────────────
@@ -2462,8 +2456,7 @@ export function buildLightsMapCard(hostIn){
     // The drawing's own level -> floor mapping (floorIdAtLevel): HA floors
     // usually have level null, and matching x.level named them "L0 / L1"
     // (live check 2026-09-24).
-    return zArr.map(z => { const fid = floorIdAtLevel(_frame, host.model, floors, z); const f = floors.find(x => String(x.id) === fid);
-      return f ? (f.name || `L${z}`) : `L${z}`; }).join(" + ");
+    return zArr.map(z => floorNameAtLevel(_frame, host.model, floors, z) || `L${z}`).join(" + ");
   };
   view.focusIdx = Math.max(0, Math.min(view.focusIdx, isoPos.length - 1));
 
@@ -3266,7 +3259,7 @@ export function buildLightsMapCard(hostIn){
         const onSlab = floorIdsOnSlab(_frame, host.model, floors, z);
         const agg = fid ? floorAggregate(allLights, host.model, onSlab)
           : { lightsOn: 0, fansOn: 0, motionActive: 0 };
-        bar.appendChild(mk(_plateName(floors, onSlab) || (f ? (f.name || `L${z}`) : `L${z}`), floorIdx(z),
+        bar.appendChild(mk(floorNameAtLevel(_frame, host.model, floors, z) || (f ? (f.name || `L${z}`) : `L${z}`), floorIdx(z),
           { on: agg.lightsOn + agg.fansOn, motion: agg.motionActive }));
       }
       // Find active — scroll the drawing to the first device that is doing

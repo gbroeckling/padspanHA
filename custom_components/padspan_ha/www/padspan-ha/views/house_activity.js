@@ -22,7 +22,7 @@
  */
 
 const _q = new URL(import.meta.url).search;
-const { buildIsoSVG, fabricFrame, floorIdAtLevel } = await import(`./iso_lights.js${_q}`);
+const { buildIsoSVG, fabricFrame, floorNameAtLevel } = await import(`./iso_lights.js${_q}`);
 const { gatherLights, ensureLightsRegistry, lightIsTouched, atlasLookFromSettings, atlasIsoLookOpts,
         sunElevationDeg, ambientFromElevation, sunAmbient } = await import(`./lights_map.js${_q}`);
 const { airQualityBadness, airQualityWord, AIR_QUALITY_CLASSES, isAirQualityEntity, readingNeedsPlacement } =
@@ -390,8 +390,7 @@ export function atlasFocusPositions(model, floorGap = 150, horizGap = 0) {
     const pos = positions[Math.max(0, Math.min(idx, positions.length - 1))];
     if (pos === null) return "All floors";
     return (Array.isArray(pos) ? pos : [pos])
-      .map(z => { const fid = floorIdAtLevel(frame, model, floors, z); const f = floors.find(x => String(x.id) === fid);
-        return f ? (f.name || `L${z}`) : `L${z}`; }).join(" + ");
+      .map(z => floorNameAtLevel(frame, model, floors, z) || `L${z}`).join(" + ");
   };
   return { positions, labelOf };
 }
