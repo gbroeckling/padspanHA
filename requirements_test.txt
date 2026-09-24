@@ -11,3 +11,6 @@ voluptuous==0.16.0
 # failure, so without this the IRK and telemetry tests fail as "key does not
 # match" rather than as a missing library.
 cryptography==50.0.0
+# URL building in ws_wled.py (_url — IPv6 hosts, safe paths). Home Assistant
+# always ships it (aiohttp depends on it); the stubbed suite needs it pinned.
+yarl==1.23.0
