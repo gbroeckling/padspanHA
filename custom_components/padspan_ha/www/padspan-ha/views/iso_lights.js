@@ -2637,6 +2637,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // Traceback's 💡 Devices: the devices that changed at the replayed moment,
   // each ringed where it is drawn.
   const CHANGED = new Set((opts.changedEids || []).map(String));
+  // Traceback's Full house activity without devices: a door's wall is drawn
+  // closed — there is no reading to show, and "no reading" is not what it is.
+  const NEUTRAL_WALLS = !!opts.neutralWalls;
   // In-progress door/window circle (maps.js's on-map circle tool, triggered
   // from the Lights table's "Place"): the circle placed so far, if any —
   // {x_m, y_m, r_m, floorId} — and whether the tool is armed at all (armed
@@ -5743,7 +5746,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // dashed line — never the red "unlocked" alarm nor an open gap, which
         // is what "unknown" fell through to (review 2026-09-23; an offline
         // lock flashed red live too).
-        if(barrierNoReading(dl)){
+        if(NEUTRAL_WALLS){
+          s+=`<polyline points="${ppx}" fill="none" stroke="#94a3b8" stroke-width="2.6" `+
+            `stroke-linecap="round" opacity="${barDim.toFixed(2)}" pointer-events="none"/>`;
+        } else if(barrierNoReading(dl)){
           s+=`<polyline points="${ppx}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="3,4" `+
             `stroke-linecap="round" opacity="${(0.7*barDim).toFixed(2)}" pointer-events="none"/>`;
         } else if(dl && dl.isLock){

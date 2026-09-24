@@ -225,7 +225,8 @@ export function render(ctx) {
   // The changes a frame SHOWS (houseActivity.atlasShownEids): not an
   // unplaced reading, a hidden device or an unlinked door (review round 16).
   const _devEvents = () => houseActivity.shownHouseEvents(tb.house);
-  const _framesKeyOf = (hs) => `${hs.version}|${hs.shownKey || ""}`;
+  // "Not known yet" (null) is not "known and empty" ("") — round 17.
+  const _framesKeyOf = (hs) => `${hs.version}|${hs.shownKey == null ? "?" : "=" + hs.shownKey}`;
 
   // ── Clear stale timer from previous render ──────────────────────────
   // If we're re-rendering while a timer is running, kill it so it doesn't
@@ -323,6 +324,10 @@ export function render(ctx) {
   function _applyHouseFrames() {
     const raw = tb.rawFrames || tb.frames || [];
     const hs = tb.house;
+    // Which devices the map shows, BEFORE the frames are built from them —
+    // rebuilt later inside a render, playback ran twice and the scrubber
+    // kept the old count (review round 17).
+    if (_houseOK && hs.on && hs.devices) houseActivity.refreshHouseDevices(ctx, hs, _onHouseRegistry);
     const win = tb._loadedRange;
     const ready = _houseOK && hs.on && hs.devices && hs.timeline && win && hs.window
       && hs.window[0] === win[0] && hs.window[1] === win[1];
@@ -340,6 +345,21 @@ export function render(ctx) {
     tb.frameIdx = Math.min(i, Math.max(0, next.length - 1));
     tb._staticKeys = null; tb._colorMap = null;
     if (wasPlaying && next.length) _startPlayback();
+  }
+
+  // The entity registry landed (or the devices the map shows changed): the
+  // frames, their controls, the list and the map follow — outside any render
+  // or playback tick.
+  let _reapplyQueued = false;
+  function _onHouseRegistry() {
+    _reapplyQueued = false;
+    if (mapDiv.isConnected === false || !_houseDevices()) return;
+    const before = tb._framesFrom;
+    _applyHouseFrames();
+    if (tb._framesFrom === before) return;
+    _buildControls();
+    _renderHouseEvents(true);
+    _renderFrame();
   }
 
   // ── SVG builder ────────────────────────────────────────────────────────
@@ -972,7 +992,7 @@ export function render(ctx) {
     // Atlas and the beacons). The entity list comes from the live house
     // (filled by renderHouseFrame); start the fetch BEFORE the status is
     // written, so it says "Loading".
-    if (devices && !hs.eids.length) houseActivity.refreshHouseDevices(ctx, hs, () => {});
+    if (devices && !hs.eids.length) houseActivity.refreshHouseDevices(ctx, hs, _onHouseRegistry);
     if (devices && stale && !hs.loading && hs.eids.length) _startHouseLoad();
     const errLine = devices && hs.error ? `House history unavailable: ${_esc(hs.error.substring(0, 80))} ${_retryHtml}` : null;
 
@@ -996,12 +1016,13 @@ export function render(ctx) {
       keep: (o) => !scanners.has(String(o.k || "").toUpperCase()),
       colorOf: _houseFrameColor,
       labelOf: (o) => String(o.n || o.k || "?").replace(/^(entity:|ble:|sensor\.|device_tracker\.)/, "").replace(/_/g, " ").substring(0, 16),
-    }, () => {}, { changedEids: changed.map(e => e.eid), devices });
-    // Which devices the map shows may have just become known (the entity
-    // registry landed): the frames follow — once.
-    if (devices && hs.timeline && !hs.loading && tb._framesFrom !== _framesKeyOf(hs)) {
-      _applyHouseFrames();
-      if (tb._framesFrom === _framesKeyOf(hs)) { _renderHouseFrame(); return; }
+    }, _onHouseRegistry, { changedEids: changed.map(e => e.eid), devices });
+    // The devices the map shows changed since the frames were built (the
+    // registry landed, a device hidden on the Atlas): re-applied after this
+    // render, never inside it.
+    if (devices && typeof tb._framesFrom === "string" && tb._framesFrom !== _framesKeyOf(hs) && !_reapplyQueued) {
+      _reapplyQueued = true;
+      setTimeout(_onHouseRegistry, 0);
     }
     let done = 0;
     for (const e of events) { if (e.t <= ts * 1000) done++; else break; }
@@ -1042,7 +1063,7 @@ export function render(ctx) {
     const nowMs = tb.frames[tb.frameIdx] ? tb.frames[tb.frameIdx].ts * 1000 : Infinity;
     let at = 0;
     while (at < events.length && events[at].t <= nowMs) at++;
-    const key = `${hs.version || 0}|${hs.shownKey || ""}|${hs.loading}|${events.length}|${hs.error || ""}`;
+    const key = `${_framesKeyOf(hs)}|${hs.loading}|${events.length}|${hs.error || ""}`;
     // A window clamped to either end of the list stays put while the playhead
     // is inside it (re-review: rebuilt every frame near the start and end).
     const inRange = (at >= _evFrom + 50 || _evFrom === 0)
@@ -1188,6 +1209,8 @@ export function render(ctx) {
   function _startPlayback() {
     if (tb._animTimer) cancelAnimationFrame(tb._animTimer);
     tb.playing = true;
+    // One playback at a time: a tick of an earlier one ends itself.
+    const gen = (tb._playGen = (tb._playGen || 0) + 1);
     tb._playStartTs = performance.now();
     tb._playStartFrame = tb.frameIdx;
     const totalFrames = tb.frames.length;
@@ -1196,7 +1219,7 @@ export function render(ctx) {
     const msPerFrame = Math.max(1, (tb.playDurationS * 1000) / totalFrames);
 
     function _tick(now) {
-      if (!tb.playing) return;
+      if (!tb.playing || tb._playGen !== gen) return;
       const elapsed = now - tb._playStartTs;
       const targetFrame = tb._playStartFrame + Math.floor(elapsed / msPerFrame);
       if (targetFrame >= totalFrames - 1) {
@@ -1219,6 +1242,7 @@ export function render(ctx) {
 
   function _stopPlayback() {
     tb.playing = false;
+    tb._playGen = (tb._playGen || 0) + 1;
     if (tb._animTimer) { cancelAnimationFrame(tb._animTimer); tb._animTimer = null; }
   }
 
@@ -2170,6 +2194,9 @@ export function render(ctx) {
       : "color:#94a3b8;border-color:#1b3526");
   };
   devicesBtn.addEventListener("click", async () => {
+    // One at a time: a second tap during the reload read devices as still
+    // off and fetched the old window's history (review round 17).
+    if (tb.house._devicesPending) return;
     const on = !tb.house.devices;
     // Stopped, and switched only once the new window is in: a playback tick
     // during the reload fetched the whole house's history for the old,
@@ -2180,10 +2207,13 @@ export function render(ctx) {
     if (on && tb.filterKey) {
       tb.filterKey = null;
       tb.filterName = "All objects";
-      await _loadTracebackData();
+      tb.house._devicesPending = true;
+      try { await _loadTracebackData(); } finally { tb.house._devicesPending = false; }
+      // Left while it reloaded: the view on screen now keeps what its button
+      // says (round 17: it played devices under an "off" button).
+      if (mapDiv.isConnected === false) return;
     }
     tb.house.devices = on;
-    if (mapDiv.isConnected === false) return;
     _paintDevicesBtn();
     _applyHouseFrames();
     _applyModeVisibility(tb.mode);

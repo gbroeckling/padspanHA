@@ -446,3 +446,50 @@ out.devices = tb.house.devices === true && tb.filterKey === null;
 """)
     assert out["playing"] and out["stopped"] and out["devices"], out
     assert out["fetches"] == 1, out          # one load (this house has only a light: one request)
+
+
+
+def test_devices_the_map_draws_changing_mid_playback_rebuild_the_frames_once_and_their_controls():
+    """Round 17 (live in 0.38.79): when the devices the map draws changed
+    during playback (the entity registry landing after the history, or a
+    device hidden on the Atlas), the frames were rebuilt INSIDE the playback
+    tick — two playback loops ran, the scrubber kept the old count, and
+    scrubbing or playing past the new end threw."""
+    out = _run("""
+H.MODEL.light_positions_m["light.nowhere"] = { x_m: 2, y_m: -2, floor_id: "main" };
+const now = Math.floor(Date.now() / 1000), start = now - 300;
+const frames = []; for (let i = 0; i < 12; i++) frames.push({ ts: start + 10 + i * 20, o: [{ k: "a", r: "Kitchen", x_m: 1, y_m: 1, f: "main" }] });
+const states = { "light.kitchen": { entity_id: "light.kitchen", state: "on", attributes: { friendly_name: "Kitchen" } },
+                 "light.nowhere": { entity_id: "light.nowhere", state: "on", attributes: { friendly_name: "Nowhere" } } };
+const history = { "light.kitchen": [{ s: "off", a: { friendly_name: "Kitchen" }, lu: start }, { s: "on", lu: start + 101 }],
+                  "light.nowhere": [{ s: "off", a: { friendly_name: "Nowhere" }, lu: start }, { s: "on", lu: start + 157 }] };
+const { ctx } = H.makeCtx({ states,
+  wsCall: (t) => t === "padspan_ha/traceback_get" ? { frames, range: { start: start + 10, end: start + 230, count: 12 } }
+    : t === "padspan_ha/traceback_objects" ? { objects: [] } : t === "padspan_ha/vacation_log_get" ? { actions: [], periods: [] } : {},
+  callWS: async (m) => m.type === "history/history_during_period"
+      ? Object.fromEntries(m.entity_ids.filter(e => history[e]).map(e => [e, history[e]]))
+    : (m.type === "config/entity_registry/list" || m.type === "config/device_registry/list") ? [] : {} });
+ctx.state._traceback = undefined;
+const outer = H.TB.render(ctx);
+const tb = ctx.state._traceback;
+tb.house.on = true; tb.house.devices = true;
+modeBtn(outer, "playback").click();
+await settle();
+out.before = tb.frames.length;                              // both lights' changes
+all(outer).find(n => n.title === "Play").click();
+out.playing = tb.playing;
+ctx.state.settings = { ...ctx.state.settings, lights_hidden: ["light.nowhere"] };   // hidden on the Atlas
+for (const f of H.rafQueue.splice(0).filter(Boolean)) f(performance.now() + 25000);  // a playback tick
+await settle();
+const scrub = all(outer).find(n => n.id === "tb-scrubber");
+out.after = tb.frames.length;
+out.scrubMax = Number(scrub.max);
+out.loops = H.rafQueue.filter(Boolean).length;
+for (let i = 0; i < 6; i++) { for (const f of H.rafQueue.splice(0).filter(Boolean)) f(performance.now() + 60000 * (i + 1)); await settle(); }
+out.endedCleanly = tb.frameIdx <= tb.frames.length - 1;
+""")
+    assert out["before"] == 14 and out["playing"], out     # 12 beacon frames + both changes
+    assert out["after"] == 13, out                         # the hidden light's change is not drawn
+    assert out["scrubMax"] == out["after"] - 1, out
+    assert out["loops"] == 1, out
+    assert out["endedCleanly"], out

@@ -6,6 +6,13 @@ All notable changes to PadSpan HA are documented here.
 
 ## 0.38.80 — Floors that name and stack the same everywhere (2026-09-24)
 
+### Traceback — 💡 Devices
+- **Fixed:** playback with 💡 Devices could run twice as fast and stop with an error, and the timeline slider kept the wrong length, when the devices the map shows changed mid-playback (Home Assistant's device list arriving after the history, or a device hidden on the Atlas).
+- **Fixed:** a lock linked to a wall was left out; lights and sensors on the outside floor, readings of sensors outside every room, and walls on floors that aren't drawn were counted although the map shows no change of them.
+- **Fixed:** an air sensor switching between two words the map draws the same ("excellent", "good") counted as a change; a reading that settles a whole degree or percent away now counts once it has held for 10 minutes, at the moment it changed.
+- **Fixed:** without 💡 Devices, a door's wall disappeared; it is drawn closed.
+- **Fixed:** tapping 💡 Devices twice quickly, or leaving and coming back while it loaded, could leave it half on.
+
 ### Atlas
 - **Fixed:** right after an install or upgrade — or just after adding a floor in Home Assistant — floors whose height PadSpan had not synced yet could all be drawn on one plate.
 - **Fixed:** a storey two floors share (a garden beside the ground floor) had one name on the floor buttons and the floor sheet and another on the floor slider and the legend; it is "Main + Garden" everywhere.
