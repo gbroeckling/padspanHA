@@ -530,17 +530,19 @@ class PadSpanLightsApp extends HTMLElement {
         catch (e) { this._toast("Could not change the intensity: " + String(e), true); }
       },
       onApplyPreset: async (values) => {
-        this.state._showcase = !!values.lights_showcase;
-        this.state._showcaseTheme = values.lights_showcase_theme || "classic";
-        this.state._fitRooms = !!values.lights_fit_rooms;
-        this.state._isolux = !!values.lights_isolux;
-        this.state._hideDeviceCodes = !!values.lights_hide_device_codes;
-        this.state._hideUntouched = !!values.lights_hide_untouched;
-        this.state._automorph = !!values.lights_automorph_enabled;
-        this.state._automorphPct = Number(values.lights_automorph_room_pct) || 0;
-        this.state._automorphHardness = Number(values.lights_automorph_hardness) || 0;
-        this.state._automorphStyle = values.lights_automorph_style || "glow";
-        this.state._automorphSubtlety = Number(values.lights_automorph_subtlety) || 0;
+        // The same one reading of the look as _loadSettings (and Traceback).
+        const look = atlasLookFromSettings(values);
+        this.state._showcase = look.showcase;
+        this.state._showcaseTheme = look.showcaseTheme;
+        this.state._fitRooms = look.fitRooms;
+        this.state._isolux = look.isolux;
+        this.state._hideDeviceCodes = look.hideDeviceCodes;
+        this.state._hideUntouched = look.hideUntouched;
+        this.state._automorph = look.automorph;
+        this.state._automorphPct = look.automorphRoomPct;
+        this.state._automorphHardness = look.automorphHardness;
+        this.state._automorphStyle = look.automorphStyle;
+        this.state._automorphSubtlety = look.automorphSubtlety;
         // Layout & view, when the preset carries it — the same keys
         // _loadSettings seeds this._view from, so the sidebar's sliders land
         // on the preset's numbers too. Optional: an older look leaves the

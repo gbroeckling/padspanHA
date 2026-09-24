@@ -1811,15 +1811,17 @@ export function atlasLookFromSettings(s){
     automorphSubtlety: Number(s.lights_automorph_subtlety) || 0,
   };
 }
-// buildIsoSVG's options for that look, as the Atlas panel draws it for
-// viewing: codes as chips, a room's unplaced devices collapsed to one chip
-// (the same translation buildLightsMapCard's rebuildISO makes from its host).
+// buildIsoSVG's options for that look (the same translation
+// buildLightsMapCard's rebuildISO makes from its host), codes as chips like
+// the Atlas panel. Unplaced devices are NOT folded into one chip per room as
+// the panel does to stop mis-taps: a replay has no taps, and the fold hid
+// what an unplaced lock or sensor did (round 10).
 export function atlasIsoLookOpts(look, ambient){
   return {
     showcase: !!look.showcase, showcaseTheme: look.showcaseTheme || "classic",
     fitRooms: !!look.showcase && !!look.fitRooms, ambient,
     isolux: !!look.showcase && !!look.isolux,
-    codeChip: true, collapseUnplaced: true, hideCodes: !!look.hideDeviceCodes,
+    codeChip: true, hideCodes: !!look.hideDeviceCodes,
     automorph: !!look.automorph, automorphRoomPct: look.automorphRoomPct || 0,
     automorphHardness: look.automorphHardness || 0, automorphStyle: look.automorphStyle || "glow",
     automorphSubtlety: look.automorphSubtlety || 0,

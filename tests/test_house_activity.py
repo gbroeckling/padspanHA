@@ -329,7 +329,7 @@ const s = { lights_showcase: true, lights_showcase_theme: "neon", lights_fit_roo
 const look = LM.atlasLookFromSettings(s);
 const opts = LM.atlasIsoLookOpts(look, 0.5);
 out.look = [look.showcase, look.showcaseTheme, look.fitRooms, look.automorphRoomPct, look.automorphStyle, look.hideUntouched];
-out.opts = [opts.showcase, opts.fitRooms, opts.isolux, opts.hideCodes, opts.codeChip, opts.ambient];
+out.opts = [opts.showcase, opts.fitRooms, opts.isolux, opts.hideCodes, opts.codeChip, opts.ambient, !!opts.collapseUnplaced];
 // Vancouver: high sun at solar noon on the solstice, well below at night.
 const noon = LM.sunElevationDeg(49.28, -123.12, Date.parse("2026-06-21T20:10:00Z"));
 const night = LM.sunElevationDeg(49.28, -123.12, Date.parse("2026-06-21T08:10:00Z"));
@@ -337,7 +337,7 @@ out.sun = [Math.round(noon), Math.round(night)];
 out.amb = [LM.ambientFromElevation(noon), LM.ambientFromElevation(night), LM.ambientFromElevation(0)];
 """)
     assert out["look"] == [True, "neon", True, 40, "spline", True]
-    assert out["opts"] == [True, True, False, True, True, 0.5]
+    assert out["opts"] == [True, True, False, True, True, 0.5, False], "a replay never folds unplaced devices (round 10)"
     assert 62 <= out["sun"][0] <= 66 and -20 <= out["sun"][1] <= -14, out["sun"]
     assert out["amb"] == [1, 0, 0.5]
     # The Atlas panel reads the look through the same function.
@@ -360,3 +360,31 @@ out.equal = JSON.stringify([...a]) === JSON.stringify([...fresh]);
 out.moved = ISO.roomFixtureCellsCached(room, [{ ...fx[0], x: 2 }, fx[1]]) !== a;
 """)
     assert out == {"same": True, "equal": True, "moved": True}
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_an_unplaced_devices_change_shows_in_the_replay():
+    """Round 10: the replay folded every unplaced device into one 'N unplaced'
+    chip (the Atlas panel's mis-tap guard) — an unplaced lock unlocking drew
+    the same frame as locked. A replay has no taps: each device shows."""
+    out = _run("""
+const model = { floors: [{ id: "main", name: "Main", level: 0 }], areas: [{ id: "hall", name: "Hall", floor_id: "main" }],
+  room_geometry_m: { Hall: { type: "poly", floor_id: "main", points_m: [[0, 0], [6, 0], [6, 5], [0, 5]] } },
+  light_positions_m: { "light.hall": { x_m: 1, y_m: 1, floor_id: "main" } } };
+const areaMap = { "light.hall": "Hall", "lock.front": "Hall" };
+const reg = { ts: Date.now() + 1e9, areaMap, platformMap: {}, manufacturerMap: {}, ipMap: {}, pairMap: {}, doorLockMap: {} };
+const live = { "light.hall": { entity_id: "light.hall", state: "off", attributes: { friendly_name: "Hall" } },
+               "lock.front": { entity_id: "lock.front", state: "locked", attributes: { friendly_name: "Front lock" } } };
+for (const s of Object.values(live)) { s.last_changed = s.last_updated = new Date(0).toISOString(); }
+const T = 1.8e9;
+const hs = { timeline: HA.buildStateTimeline({ "light.hall": [{ s: "off", a: {}, lu: T - 100 }],
+  "lock.front": [{ s: "locked", lu: T - 100 }, { s: "unlocked", lu: T - 5 }] }), events: [], eids: [] };
+const ctx = { state: { model, settings: { tier: "pro" }, _modelLoaded: true, _lightsRegStore: { reg } },
+  hass: { states: live, callWS: async () => ({}), config: { latitude: 49.28, longitude: -123.12 } } };
+HA.renderHouseFrame(ctx, hs, [], 0, {}, () => {});
+const locked = HA.renderHouseFrame(ctx, hs, [{ ts: T - 50, o: [] }], 0, {}, () => {});
+const unlocked = HA.renderHouseFrame(ctx, hs, [{ ts: T, o: [] }], 0, {}, () => {});
+out.lockMarker = /data-eid="lock\.front"/.test(unlocked);
+out.differs = locked !== unlocked;
+""")
+    assert out == {"lockMarker": True, "differs": True}, out
