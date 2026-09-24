@@ -402,6 +402,7 @@ _HOUSE_LIGHTS = [
     {"entity_id": "light.kitchen", "area_name": "Kitchen", "state": "on", "isFan": False, "isMotion": False},
     {"entity_id": "light.bed", "area_name": "Bed", "state": "off", "isFan": False, "isMotion": False},
     {"entity_id": "light.patio", "area_name": "Garden", "state": "on", "isFan": False, "isMotion": False},
+    {"entity_id": "binary_sensor.bed_motion", "area_name": "Bed", "state": "on", "isFan": False, "isMotion": True},
 ]
 
 
@@ -438,7 +439,33 @@ def test_the_floor_chips_and_floor_sheet_name_the_floor_the_drawing_put_there(tm
     assert any(c.startswith("Upper") for c in out["chips"]), out
     assert not any(c.startswith(("L0", "L1", "L2", "Attic", "Outside")) for c in out["chips"]), out
     assert out["ground"]["toasts"] == [] and out["ground"]["text"].startswith("Main"), out
-    # The whole plate (round 14): the garden shares the main floor's slab.
-    assert out["ground"]["sent"] == [[["light.kitchen", "light.patio"], True]], out
-    assert "Main2" in out["chips"], out
+    # The outside floor is on no plate: its patio light is neither counted
+    # nor switched with Main's (round 15).
+    assert out["ground"]["sent"] == [[["light.kitchen"], True]], out
+    assert "Main1" in out["chips"], out
+    # Only this plate's motion: the bedroom sensor upstairs is not listed.
+    assert "bed_motion" not in out["lowest"]["text"] and "bed_motion" not in out["ground"]["text"], out
     assert out["lowest"]["text"].startswith("Basement"), out
+
+
+def test_a_plate_two_floors_share_is_named_and_switched_as_both(tmp_path):
+    """Round 15: two indoor floors on one storey (explicit levels both 0) —
+    the sheet switched both but was titled after one."""
+    model = {"floors": [{"id": "garage", "name": "Garage", "level": 0}, {"id": "main", "name": "Main", "level": 0}],
+             "room_geometry_m": {"Bay": {"type": "poly", "floor_id": "garage", "points_m": [[0, 0], [4, 0], [4, 4], [0, 4]]},
+                                 "Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[5, 0], [9, 0], [9, 4], [5, 4]]}}}
+    lights = [{"entity_id": "light.bay", "area_name": "Bay", "state": "off", "isFan": False, "isMotion": False},
+              {"entity_id": "light.kitchen", "area_name": "Kitchen", "state": "off", "isFan": False, "isMotion": False}]
+    out = _run(
+        f"const MODEL={json.dumps(model)};\n"
+        f"const LIGHTS={json.dumps(lights)};\n"
+        "const sent = [];\n"
+        "const before = document.body.children.length;\n"
+        "LM.openFloorSheet({ toast: () => {}, setMany: (e, on) => sent.push([e, on]), floodLatches: {}, controlsFor: () => null }, LIGHTS, MODEL, 0);\n"
+        "const o = document.body.children[before];\n"
+        "[...o.querySelectorAll('button')].find(b => b.textContent === 'All lights on').click();\n"
+        "out.text = o.textContent; out.sent = sent;\n"
+    )
+    assert out["text"].startswith("Garage + Main"), out
+    assert out["sent"] == [[["light.bay", "light.kitchen"], True]], out
+

@@ -284,15 +284,22 @@ export function floorAggregate(lights, model, floorId, floodLatches){
   const here = (lights || []).filter(l => ids.has(lightFloorId(l, model)));
   return { floorId: String(floorId instanceof Set ? [...floorId][0] ?? "" : floorId), ..._aggregateCounts(here, floodLatches) };
 }
-// Every floor id the drawing puts on storey z. Several can share a slab (the
-// garden beside the ground floor), and a floor badge or chip is the whole
-// plate: counting only the floor it is named after left the garden's lights
-// out of it, and out of its "All lights on" (review round 14).
+// Every floor id the drawing puts on the plate at storey z — a floor badge or
+// chip is the whole plate (two indoor floors can share one). Not the
+// outdoor floor: fabricFrame draws it on no plate (Overview's overlay only),
+// and a badge switching porch lights nobody can see on it was wrong (review
+// rounds 14-15).
 export function floorIdsOnSlab(frame, model, floors, z){
   const ids = new Set((floors || []).map(f => String(f.id)));
   for (const g of Object.values((model && model.room_geometry_m) || {})) if (g && g.floor_id) ids.add(String(g.floor_id));
   for (const p of Object.values((model && model.light_positions_m) || {})) if (p && p.floor_id) ids.add(String(p.floor_id));
-  return new Set([...ids].filter(id => Number(frame.levelOf(id)) === Number(z)));
+  return new Set([...ids].filter(id => id !== "outside" && id !== "__outside__" && Number(frame.levelOf(id)) === Number(z)));
+}
+// The plate's name: every registry floor on it, joined — a sheet that
+// switches two floors names both (round 15).
+function _plateName(floors, onSlab){
+  return [...onSlab].map(id => (floors || []).find(x => String(x.id) === id)).filter(Boolean)
+    .map(f => f.name || f.id).join(" + ");
 }
 // The worst air-quality badness among these sensors, NaN when none reports.
 export function airWorstOf(airLights){
@@ -1081,7 +1088,10 @@ export function openFloorSheet(api, lights, model, z){
   // door, temp, humidity or lock on this floor never appeared here at all —
   // found in the Phase 2a registry audit, 2026-09-19. By class KEY, not by
   // flag, so this stays one line however many classes end up in the set.
-  const items = lights.filter(l => agg.lightEids.includes(l.entity_id) || agg.fanEids.includes(l.entity_id) || (l.isMotion && l.state === "on")
+  // Motion on THIS plate — every active sensor in the house was listed on
+  // every floor's sheet under a header counting only this one's (round 15).
+  const items = lights.filter(l => agg.lightEids.includes(l.entity_id) || agg.fanEids.includes(l.entity_id)
+    || (l.isMotion && l.state === "on" && onSlab.has(lightFloorId(l, model)))
     || (l.isAir && onSlab.has(lightFloorId(l, model))) || (l.isFlood && floodIsAlarming(l, api.floodLatches) && onSlab.has(lightFloorId(l, model)))
     || (_FLOOR_SHEET_ALWAYS.has(lightClassOf(l)) && onSlab.has(lightFloorId(l, model))));
   const parts = [`Lights ${agg.lightsOn}/${agg.lightsTotal}`];
@@ -1096,7 +1106,7 @@ export function openFloorSheet(api, lights, model, z){
     actions.push({ label: "All lights on", primary: true, run: () => api.setMany(agg.lightEids, true) });
   }
   if (agg.fanEids.length) actions.push({ label: "Fans off", run: () => api.setMany(agg.fanEids, false) });
-  openAggregateSheet(api, { title: (f && f.name) || `Floor ${z}`, sub: parts.join(" · "), items, actions });
+  openAggregateSheet(api, { title: _plateName(floors, onSlab) || (f && f.name) || `Floor ${z}`, sub: parts.join(" · "), items, actions });
 }
 
 // ── Weekly activity calendar (motion sensors) ────────────────────────────────
@@ -3253,9 +3263,10 @@ export function buildLightsMapCard(hostIn){
         // gave "L1 · 0 on" on a real install (review round 13).
         const fid = floorIdAtLevel(_frame, host.model, floors, z);
         const f = fid ? floors.find(x => String(x.id) === fid) : null;
-        const agg = fid ? floorAggregate(allLights, host.model, floorIdsOnSlab(_frame, host.model, floors, z))
+        const onSlab = floorIdsOnSlab(_frame, host.model, floors, z);
+        const agg = fid ? floorAggregate(allLights, host.model, onSlab)
           : { lightsOn: 0, fansOn: 0, motionActive: 0 };
-        bar.appendChild(mk(f ? (f.name || `L${z}`) : `L${z}`, floorIdx(z),
+        bar.appendChild(mk(_plateName(floors, onSlab) || (f ? (f.name || `L${z}`) : `L${z}`), floorIdx(z),
           { on: agg.lightsOn + agg.fansOn, motion: agg.motionActive }));
       }
       // Find active — scroll the drawing to the first device that is doing

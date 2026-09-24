@@ -129,13 +129,39 @@ def test_the_fabrics_outdoor_sentinel_sits_on_the_ground_floor():
     assert out["garden"] == out["main"] and out["levels"] == [0, 1, 2], out
 
 
-def test_a_lot_on_a_garden_floor_does_not_size_the_house():
-    """Round 14: only "outside" counted as outdoors for the frame's scale —
-    a 30 m lot on a "garden" floor drew the house 3.6x smaller."""
-    house = {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [10, 0], [10, 8], [0, 8]]}
-    lot = [[-10, -10], [20, -10], [20, 20], [-10, 20]]
-    out = _run("const bbox = (fid) => IL.fabricFrame({ room_geometry_m: { House: " + json.dumps(house) + ",\n"
-               "  Lot: { type: 'poly', floor_id: fid, points_m: " + json.dumps(lot) + " } } },\n"
-               "  [{ id: 'main', name: 'Main', level: null }, { id: fid, name: fid, level: null }], 150, 0).bbox;\n"
-               "out.garden = bbox('garden'); out.outside = bbox('outside');\n")
-    assert out["garden"] == out["outside"], out
+@pytest.mark.parametrize("ids", [["home"], ["downstairs", "upstairs"], ["basement", "main", "upper"]],
+                         ids=lambda ids: "+".join(ids))
+def test_the_outdoor_sentinel_is_on_a_drawn_slab_whatever_the_floors_are_called(ids):
+    """Round 15: with no floor naming the ground ("Home", "Downstairs" /
+    "Upstairs"), the fabric's "__outside__" went on a slab above everything
+    that is never drawn — a gate on the outside fence could no longer be
+    found or linked. It sits with the nearest floor at or below the ground,
+    else the lowest."""
+    ms = ModelStore.__new__(ModelStore)
+    ms.data = {"floors": [{"id": i} for i in ids]}
+    sq = [[0, 0], [4, 0], [4, 4], [0, 4]]
+    model = {"floors": [{"id": i, "name": i, "level": None} for i in ids],
+             "floor_elevations": ms.floor_base_elevations_m(),
+             "room_geometry_m": {**{f"R{n}": {"type": "poly", "floor_id": i, "points_m": sq} for n, i in enumerate(ids)},
+                                 "Garden": {"type": "poly", "floor_id": "__outside__", "points_m": [[6, 0], [9, 0], [9, 4], [6, 4]]}}}
+    out = _run(f"const M={json.dumps(model)};\n"
+               "const fr = IL.fabricFrame(M, M.floors, 150, 0);\n"
+               "out.garden = fr.levelOf('__outside__'); out.levels = fr.levels;\n"
+               "out.ground = fr.levelOf(M.floors[ids_ground].id);\n".replace("ids_ground", str(1 if ids == ["basement", "main", "upper"] else 0)))
+    assert out["garden"] in out["levels"] and out["garden"] == out["ground"], out
+
+
+def test_a_garden_named_floor_is_still_drawn():
+    """Round 15: counting every outdoor NAME as outside (for the frame's
+    scale) dropped a "Garden" or "Yard" floor's rooms and lights from the
+    Atlas and the Overview altogether. Only the outside floor is kept off
+    the plates."""
+    sq = [[0, 0], [4, 0], [4, 4], [0, 4]]
+    model = {"floors": [{"id": "garden", "name": "Garden", "level": None}, {"id": "main", "name": "Main", "level": None}],
+             "room_geometry_m": {"Patio": {"type": "poly", "floor_id": "garden", "points_m": sq},
+                                 "Kitchen": {"type": "poly", "floor_id": "main", "points_m": sq}}}
+    out = _run(f"const M={json.dumps(model)};\n"
+               "const fr = IL.fabricFrame(M, M.floors, 150, 0);\n"
+               "out.drawn = fr.rooms.map(r => r.room).sort(); out.overlay = fr.outdoor.map(r => r.room);\n")
+    assert out == {"drawn": ["Kitchen", "Patio"], "overlay": []}
+

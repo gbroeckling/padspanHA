@@ -2210,13 +2210,24 @@ export function fabricFrame(model, floors, floorGap, horizGap){
     const keyOf = (id, i) => {
       if (!useElev) return storeyOf(id);
       if (elev[i] !== null) return elev[i];
-      // The keys are metres here. A floor with no elevation (the fabric's
-      // "__outside__" when the registry has no outside floor) takes the one
-      // of a floor on its storey, else goes on top: its storey number read
-      // as metres put the garden on the lowest floor (review round 14).
+      // The keys are metres here. A floor with no elevation but a storey
+      // (the fabric's "__outside__" when the registry has no outside floor)
+      // takes the elevation of the nearest floor at or below that storey,
+      // else the lowest floor's: its storey number read as metres put the
+      // garden on the basement's slab (round 14), and "on top" left it on a
+      // slab never drawn where no floor names the ground — "Home",
+      // "Downstairs"/"Upstairs" (round 15). Only a floor nothing places
+      // goes on top.
       const s = storeyOf(id);
-      const j = s === null ? -1 : ids.findIndex((o, k) => elev[k] !== null && storeyOf(o) === s);
-      return j >= 0 ? elev[j] : null;
+      if (s === null) return null;
+      let best = null, bestStorey = -Infinity, lowest = null;
+      ids.forEach((o, k) => {
+        if (elev[k] === null) return;
+        if (lowest === null || elev[k] < lowest) lowest = elev[k];
+        const so = storeyOf(o);
+        if (so !== null && so <= s && so > bestStorey) { bestStorey = so; best = elev[k]; }
+      });
+      return best !== null ? best : lowest;
     };
     const order = ids.map((id, i) => ({ id, key: keyOf(id, i), i }))
       .sort((a, b) => ((a.key === null) - (b.key === null)) || (a.key - b.key) || (a.i - b.i));
@@ -2271,10 +2282,7 @@ export function fabricFrame(model, floors, floorGap, horizGap){
   // the fabric, but letting it size the frame shrinks the whole house into a
   // corner — which is exactly how it rendered. Outdoor rooms still draw, they
   // just don't get a vote on how big everything else is.
-  // Every outdoor name (isOutdoorFloorId), not just "outside": a lot on a
-  // "garden" floor sized the frame and drew the house 3.6x smaller (review
-  // round 14).
-  const isOutside = (fid) => isOutdoorFloorId(canon(fid));
+  const isOutside = (fid) => canon(fid) === "outside" || String(fid) === "__outside__";
   const indoorRooms  = rooms.filter(r => !isOutside(r.floor_id));
   const indoorLights = lights.filter(l => !isOutside(l.floor_id));
   const scaleRooms  = indoorRooms.length  ? indoorRooms  : rooms;

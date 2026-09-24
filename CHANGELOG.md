@@ -32,8 +32,7 @@ All notable changes to PadSpan HA are documented here.
 - **Fixed:** floors now stack exactly the way PadSpan's signal model stacks them — names like "Ground floor", "First floor", "Second floor" and "Garden" are recognised, and a floor with a name PadSpan doesn't know sits above the named ones instead of sharing a storey with one (a garage with no rooms could take Upstairs' name).
 - **Fixed:** a door or window on an outdoor floor was found on the lowest floor's slab when you clicked it, and a wall on a floor with nothing drawn could take a click meant for the floor on screen.
 - **Fixed:** with only some floors given a level (the 3D Stack's Save sets one), two floors could be drawn on one slab; and outdoor rooms could be drawn on the lowest floor when the floor list has no outdoor floor.
-- **Fixed:** a floor's badge and button count and switch everything on that storey — the garden beside the ground floor included.
-- **Fixed:** a large lot on a floor named "Garden" or "Yard" no longer shrinks the whole house drawing (only "Outside" was treated as outdoors).
+- **Fixed:** a floor's badge only listed that floor's lights but every active motion sensor in the house; it now lists that storey's, and two floors that share a storey are named and switched together.
 - **Fixed:** a motion sensor that is offline or unknown no longer flashes as motion or wears the recent-motion ring.
 - **Fixed:** after a restart, sensors that took up to 5 minutes to come back no longer all read as fresh motion (the grace was 2 minutes).
 
