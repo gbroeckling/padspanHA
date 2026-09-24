@@ -1254,8 +1254,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         self._spatial_position.pop(key, None)
                         self._spatial_smooth_xy.pop(key, None)
                         if obj.get("kind") in ("ble", "private_ble"):
-                            # For private_ble, use canonical_id as Kalman key
-                            _raw_addr = str(obj.get("address") or "").upper()
+                            # For private_ble, use canonical_id as Kalman key.
+                            # A Find My tag's address is the one it was named
+                            # by; its live one is current_address (findmy.py).
+                            _raw_addr = str(obj.get("current_address") or obj.get("address") or "").upper()
                             addr_clear = _rpa_map.get(_raw_addr, _raw_addr)
                             self._ema_rssi.pop(addr_clear, None)
                             self._kalman_p.pop(addr_clear, None)
@@ -1277,7 +1279,11 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     # pre-smoothed from their own integration.
                     if obj.get("kind") in ("ble", "private_ble"):
                         obj = dict(obj)  # copy — don't mutate the snapshot list in place
-                        raw_addr = str(obj.get("address") or "").upper()
+                        # The address being heard now: a Find My tag's object
+                        # keeps the address it was named by, and its live one
+                        # in current_address — smoothing the named one froze
+                        # its room after the first change (round 9).
+                        raw_addr = str(obj.get("current_address") or obj.get("address") or "").upper()
                         # For private_ble, use canonical_id as Kalman state key so all
                         # rotating MACs share one continuous smoothing state.
                         smooth_addr = _rpa_map.get(raw_addr, raw_addr)

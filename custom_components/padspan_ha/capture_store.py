@@ -530,7 +530,7 @@ class CaptureStore:
                     if src not in vec or rssi > vec[src]:
                         vec[src] = rssi
         else:
-            raw = str(obj.get("address") or "").upper()
+            raw = str(obj.get("current_address") or obj.get("address") or "").upper()   # a Find My tag's live address
             addr = rpa_map.get(raw, raw)
             vec = dict(addr_src_rssi.get(addr) or {})
 
