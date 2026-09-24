@@ -7216,6 +7216,9 @@ export function _doorCircleFloorForClick(ctx, o, frame, v) {
     if (pts.length < 2) continue;
     const fid = String(bar.floor_id || "main");
     const z = _levelForFloorId(frame, model, floors, fid);
+    // A wall on a floor the drawing has no slab for (no rooms, no lights) is
+    // not on screen: it must not win the click (review round 14).
+    if (!frame.levels.includes(z)) continue;
     const screenPts = pts.map(([px, py]) => frame.iso(px, py, z));
     const hit = nearestPointOnPolyline(screenPts, v.x, v.y);
     if (hit && (!best || hit.distSq < best.distSq)) best = { fid, z, distSq: hit.distSq };

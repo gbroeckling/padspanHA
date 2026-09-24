@@ -2202,12 +2202,21 @@ export function fabricFrame(model, floors, floorGap, horizGap){
     // as ModelStore._ordered_floors / floor_stack_index do: ranked by its
     // position in the list, its index collided with a named storey's and a
     // room-less "Garage" shared Upstairs' slab (review round 13).
-    const keyOf = (id, i) => {
-      if (useElev && elev[i] !== null) return elev[i];
+    const storeyOf = (id) => {
       const f = floorList.find(x => String(x.id) === id);
       const lvl = f ? num(f.level) : null;
-      if (lvl !== null) return lvl;
-      return conventionalLevel(id);
+      return lvl !== null ? lvl : conventionalLevel(id);
+    };
+    const keyOf = (id, i) => {
+      if (!useElev) return storeyOf(id);
+      if (elev[i] !== null) return elev[i];
+      // The keys are metres here. A floor with no elevation (the fabric's
+      // "__outside__" when the registry has no outside floor) takes the one
+      // of a floor on its storey, else goes on top: its storey number read
+      // as metres put the garden on the lowest floor (review round 14).
+      const s = storeyOf(id);
+      const j = s === null ? -1 : ids.findIndex((o, k) => elev[k] !== null && storeyOf(o) === s);
+      return j >= 0 ? elev[j] : null;
     };
     const order = ids.map((id, i) => ({ id, key: keyOf(id, i), i }))
       .sort((a, b) => ((a.key === null) - (b.key === null)) || (a.key - b.key) || (a.i - b.i));
@@ -2224,11 +2233,15 @@ export function fabricFrame(model, floors, floorGap, horizGap){
   })();
   const levelOf = (fidRaw) => {
     const fid = canon(fidRaw);
+    // Ranked (some floor has no level): every floor's slab index, a floor
+    // with a level included. Its own level there put HA storey numbers
+    // (-1, 0, 1) and slab indices (0, 1, 2) in one number space — a
+    // registry with only some levels set (the 3D Stack's Save writes one)
+    // stacked two floors on one slab (review round 14).
+    if (ranked) return Object.prototype.hasOwnProperty.call(ranked, String(fid)) ? ranked[String(fid)] : 0;
     const f = floorList.find(x => String(x.id) === fid);
     const explicit = f ? num(f.level) : null;
-    if (explicit !== null) return explicit;
-    if (ranked && Object.prototype.hasOwnProperty.call(ranked, String(fid))) return ranked[String(fid)];
-    return 0;
+    return explicit !== null ? explicit : 0;
   };
 
   const rooms = [];
@@ -2258,7 +2271,10 @@ export function fabricFrame(model, floors, floorGap, horizGap){
   // the fabric, but letting it size the frame shrinks the whole house into a
   // corner — which is exactly how it rendered. Outdoor rooms still draw, they
   // just don't get a vote on how big everything else is.
-  const isOutside = (fid) => canon(fid) === "outside" || String(fid) === "__outside__";
+  // Every outdoor name (isOutdoorFloorId), not just "outside": a lot on a
+  // "garden" floor sized the frame and drew the house 3.6x smaller (review
+  // round 14).
+  const isOutside = (fid) => isOutdoorFloorId(canon(fid));
   const indoorRooms  = rooms.filter(r => !isOutside(r.floor_id));
   const indoorLights = lights.filter(l => !isOutside(l.floor_id));
   const scaleRooms  = indoorRooms.length  ? indoorRooms  : rooms;

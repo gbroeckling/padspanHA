@@ -412,3 +412,21 @@ out.sameSlab = fr.levelOf("outside") === fr.levelOf("main");
     assert out["sameSlab"], out
     assert out["fid"] == "outside", out
     assert abs(out["cx"] - 16) < 0.05 and abs(out["cy"] - 8) < 0.05, out
+
+
+def test_a_wall_on_a_floor_that_is_not_drawn_never_wins_the_click():
+    """Round 14: a basement with a traced wall but no rooms has no slab in the
+    drawing; its wall was still hit-tested at the basement's level and won a
+    click in the middle of the kitchen — the circle landed on a floor that
+    isn't on screen."""
+    out = _run("""
+const M2 = { floors: [{ id: "basement", name: "Basement", level: null }, { id: "main", name: "Main", level: null }],
+  room_geometry_m: { Kitchen: { type: "poly", floor_id: "main", points_m: [[0, 0], [10, 0], [10, 8], [0, 8]] } },
+  rf_barriers_m: [{ id: "bw", name: "Basement wall", floor_id: "basement", material: "concrete", attenuation_dbm: 8,
+    points_m: [[2, 0], [8, 0]] }] };
+const fr = IL.fabricFrame(M2, M2.floors, 150, 0);
+const [vx, vy] = fr.iso(5, 4, fr.levelOf("main"));
+const picked = M._doorCircleFloorForClick(makeCtx(M2), { model: M2 }, fr, { x: vx, y: vy });
+out.fid = picked.fid; out.levels = fr.levels;
+""")
+    assert out["fid"] == "main", out

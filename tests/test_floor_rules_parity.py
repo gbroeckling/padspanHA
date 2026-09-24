@@ -75,3 +75,67 @@ def test_the_drawing_stacks_each_floor_on_the_backends_slab(ids):
                "const fr = IL.fabricFrame(M, M.floors, 150, 0);\n"
                "out.slabs = Object.fromEntries(M.floors.map(f => [f.id, fr.levelOf(f.id)]));\n")
     assert out["slabs"] == backend
+
+
+# Registries in their stored (creation) order, as the backend ranks them;
+# some with only SOME levels set — HA allows it, and the 3D Stack's Save
+# writes one floor's level (review round 14).
+_REGISTRIES = [
+    [{"id": "basement"}, {"id": "main"}, {"id": "outside"}, {"id": "upper"}],
+    [{"id": "main"}, {"id": "upper"}, {"id": "basement"}, {"id": "garage"}],
+    [{"id": "basement", "level": -1}, {"id": "main", "level": 0}, {"id": "upper", "level": 1}, {"id": "outside"}],
+    [{"id": "basement"}, {"id": "main", "level": 0}, {"id": "upper"}],
+    [{"id": "ground_floor"}, {"id": "loft"}, {"id": "garden"}, {"id": "shed"}, {"id": "workshop"}],
+]
+
+
+@pytest.mark.parametrize("reg", _REGISTRIES, ids=lambda reg: "+".join(
+    f["id"] + (f"={f['level']}" if "level" in f else "") for f in reg))
+def test_with_the_elevations_home_assistant_sends_the_drawing_matches_the_backend(reg):
+    """model_get always sends floor_elevations, and on a multi-storey house the
+    drawing ranks by them — in metres. Round 14: a floor's own level was
+    returned in place of its slab (storey numbers and slab indices in one
+    number space), so with only some levels set two floors shared a slab;
+    and an id with no elevation compared its storey number with metres."""
+    ms = ModelStore.__new__(ModelStore)
+    ms.data = {"floors": [dict(f) for f in reg]}
+    backend, elevations = ms.floor_stack_index(), ms.floor_base_elevations_m()
+    sq = [[0, 0], [4, 0], [4, 4], [0, 4]]
+    floors = sorted(({"id": f["id"], "name": f["id"], "level": f.get("level")} for f in reg), key=lambda f: f["id"])
+    model = {"floors": floors, "floor_elevations": elevations,
+             "room_geometry_m": {f"R{n}": {"type": "poly", "floor_id": f["id"], "points_m": sq} for n, f in enumerate(reg)}}
+    out = _run(f"const M={json.dumps(model)};\n"
+               "const fr = IL.fabricFrame(M, M.floors, 150, 0);\n"
+               "out.slabs = Object.fromEntries(M.floors.map(f => [f.id, fr.levelOf(f.id)]));\n")
+    assert out["slabs"] == backend, (elevations, out)
+
+
+def test_the_fabrics_outdoor_sentinel_sits_on_the_ground_floor():
+    """Round 14: with no "outside" floor in the registry, the fabric's
+    "__outside__" had no elevation, and its storey (0) read as metres put the
+    garden on the basement's slab."""
+    ms = ModelStore.__new__(ModelStore)
+    ms.data = {"floors": [{"id": "basement"}, {"id": "main"}, {"id": "upper"}]}
+    sq = [[0, 0], [4, 0], [4, 4], [0, 4]]
+    model = {"floors": [{"id": i, "name": i, "level": None} for i in ("basement", "main", "upper")],
+             "floor_elevations": ms.floor_base_elevations_m(),
+             "room_geometry_m": {"Den": {"type": "poly", "floor_id": "basement", "points_m": sq},
+                                 "Kitchen": {"type": "poly", "floor_id": "main", "points_m": sq},
+                                 "Bed": {"type": "poly", "floor_id": "upper", "points_m": sq},
+                                 "Garden": {"type": "poly", "floor_id": "__outside__", "points_m": [[6, 0], [9, 0], [9, 4], [6, 4]]}}}
+    out = _run(f"const M={json.dumps(model)};\n"
+               "const fr = IL.fabricFrame(M, M.floors, 150, 0);\n"
+               "out.garden = fr.levelOf('__outside__'); out.main = fr.levelOf('main'); out.levels = fr.levels;\n")
+    assert out["garden"] == out["main"] and out["levels"] == [0, 1, 2], out
+
+
+def test_a_lot_on_a_garden_floor_does_not_size_the_house():
+    """Round 14: only "outside" counted as outdoors for the frame's scale —
+    a 30 m lot on a "garden" floor drew the house 3.6x smaller."""
+    house = {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [10, 0], [10, 8], [0, 8]]}
+    lot = [[-10, -10], [20, -10], [20, 20], [-10, 20]]
+    out = _run("const bbox = (fid) => IL.fabricFrame({ room_geometry_m: { House: " + json.dumps(house) + ",\n"
+               "  Lot: { type: 'poly', floor_id: fid, points_m: " + json.dumps(lot) + " } } },\n"
+               "  [{ id: 'main', name: 'Main', level: null }, { id: fid, name: fid, level: null }], 150, 0).bbox;\n"
+               "out.garden = bbox('garden'); out.outside = bbox('outside');\n")
+    assert out["garden"] == out["outside"], out

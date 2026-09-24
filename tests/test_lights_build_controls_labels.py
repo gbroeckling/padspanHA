@@ -401,6 +401,7 @@ _HOUSE_LIGHTS = [
     {"entity_id": "light.den", "area_name": "Den", "state": "on", "isFan": False, "isMotion": False},
     {"entity_id": "light.kitchen", "area_name": "Kitchen", "state": "on", "isFan": False, "isMotion": False},
     {"entity_id": "light.bed", "area_name": "Bed", "state": "off", "isFan": False, "isMotion": False},
+    {"entity_id": "light.patio", "area_name": "Garden", "state": "on", "isFan": False, "isMotion": False},
 ]
 
 
@@ -437,5 +438,7 @@ def test_the_floor_chips_and_floor_sheet_name_the_floor_the_drawing_put_there(tm
     assert any(c.startswith("Upper") for c in out["chips"]), out
     assert not any(c.startswith(("L0", "L1", "L2", "Attic", "Outside")) for c in out["chips"]), out
     assert out["ground"]["toasts"] == [] and out["ground"]["text"].startswith("Main"), out
-    assert out["ground"]["sent"] == [[["light.kitchen"], True]], out
+    # The whole plate (round 14): the garden shares the main floor's slab.
+    assert out["ground"]["sent"] == [[["light.kitchen", "light.patio"], True]], out
+    assert "Main2" in out["chips"], out
     assert out["lowest"]["text"].startswith("Basement"), out

@@ -279,8 +279,20 @@ export function lightFloorId(l, model){
   return roomFid;
 }
 export function floorAggregate(lights, model, floorId, floodLatches){
-  const here = (lights || []).filter(l => lightFloorId(l, model) === String(floorId));
-  return { floorId: String(floorId), ..._aggregateCounts(here, floodLatches) };
+  // One floor id, or a Set of them (a whole slab: floorIdsOnSlab).
+  const ids = floorId instanceof Set ? floorId : new Set([String(floorId)]);
+  const here = (lights || []).filter(l => ids.has(lightFloorId(l, model)));
+  return { floorId: String(floorId instanceof Set ? [...floorId][0] ?? "" : floorId), ..._aggregateCounts(here, floodLatches) };
+}
+// Every floor id the drawing puts on storey z. Several can share a slab (the
+// garden beside the ground floor), and a floor badge or chip is the whole
+// plate: counting only the floor it is named after left the garden's lights
+// out of it, and out of its "All lights on" (review round 14).
+export function floorIdsOnSlab(frame, model, floors, z){
+  const ids = new Set((floors || []).map(f => String(f.id)));
+  for (const g of Object.values((model && model.room_geometry_m) || {})) if (g && g.floor_id) ids.add(String(g.floor_id));
+  for (const p of Object.values((model && model.light_positions_m) || {})) if (p && p.floor_id) ids.add(String(p.floor_id));
+  return new Set([...ids].filter(id => Number(frame.levelOf(id)) === Number(z)));
 }
 // The worst air-quality badness among these sensors, NaN when none reports.
 export function airWorstOf(airLights){
@@ -1058,18 +1070,20 @@ export function openFloorSheet(api, lights, model, z){
   // record", and a floor listed first by name could open for another
   // storey's badge, its "All lights on" switching the wrong floor (review
   // round 13).
-  const fid = floorIdAtLevel(fabricFrame(model || {}, floors, 150, 0), model, floors, z);
+  const frame = fabricFrame(model || {}, floors, 150, 0);
+  const fid = floorIdAtLevel(frame, model, floors, z);
   const f = fid ? floors.find(x => String(x.id) === fid) : null;
   if (!fid) { api.toast("No floor record for this storey"); return; }
-  const agg = floorAggregate(lights, model, fid, api.floodLatches);
+  const onSlab = floorIdsOnSlab(frame, model, floors, z);
+  const agg = floorAggregate(lights, model, onSlab, api.floodLatches);
   // The room sheet shows every class via agg.all; this hand-typed inclusion
   // list only ever named lights/fans/active-motion/air/alarming-flood, so a
   // door, temp, humidity or lock on this floor never appeared here at all —
   // found in the Phase 2a registry audit, 2026-09-19. By class KEY, not by
   // flag, so this stays one line however many classes end up in the set.
   const items = lights.filter(l => agg.lightEids.includes(l.entity_id) || agg.fanEids.includes(l.entity_id) || (l.isMotion && l.state === "on")
-    || (l.isAir && lightFloorId(l, model) === String(fid)) || (l.isFlood && floodIsAlarming(l, api.floodLatches) && lightFloorId(l, model) === String(fid))
-    || (_FLOOR_SHEET_ALWAYS.has(lightClassOf(l)) && lightFloorId(l, model) === String(fid)));
+    || (l.isAir && onSlab.has(lightFloorId(l, model))) || (l.isFlood && floodIsAlarming(l, api.floodLatches) && onSlab.has(lightFloorId(l, model)))
+    || (_FLOOR_SHEET_ALWAYS.has(lightClassOf(l)) && onSlab.has(lightFloorId(l, model))));
   const parts = [`Lights ${agg.lightsOn}/${agg.lightsTotal}`];
   if (agg.fansTotal) parts.push(`Fans ${agg.fansOn}/${agg.fansTotal}`);
   if (agg.motionActive) parts.push(`Motion ×${agg.motionActive}`);
@@ -3239,7 +3253,8 @@ export function buildLightsMapCard(hostIn){
         // gave "L1 · 0 on" on a real install (review round 13).
         const fid = floorIdAtLevel(_frame, host.model, floors, z);
         const f = fid ? floors.find(x => String(x.id) === fid) : null;
-        const agg = fid ? floorAggregate(allLights, host.model, fid) : { lightsOn: 0, fansOn: 0, motionActive: 0 };
+        const agg = fid ? floorAggregate(allLights, host.model, floorIdsOnSlab(_frame, host.model, floors, z))
+          : { lightsOn: 0, fansOn: 0, motionActive: 0 };
         bar.appendChild(mk(f ? (f.name || `L${z}`) : `L${z}`, floorIdx(z),
           { on: agg.lightsOn + agg.fansOn, motion: agg.motionActive }));
       }

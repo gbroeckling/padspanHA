@@ -403,7 +403,7 @@ const live = {
   "light.bare": { entity_id: "light.bare", state: "on", attributes: { friendly_name: "Bare",
     supported_color_modes: ["brightness"], brightness: 12 } } };
 const tl = HA.buildStateTimeline({ "light.strip": [{ s: "on", a: { friendly_name: "Strip", supported_features: 44 }, lu: 1000 }],
-                                   "light.bare": [{ s: "off", a: { friendly_name: "Kitchen Pots", brightness: 3 }, lu: 2000 }] });
+                                   "light.bare": [{ s: "on", a: { friendly_name: "Kitchen Pots", supported_features: 40 }, lu: 2000 }] });
 const at = HA.statesAt(tl, live, ["light.strip", "light.bare"], 1_000_500);
 out.strip = at["light.strip"].attributes;
 out.notYet = at["light.bare"].attributes;           // no row yet at this moment
@@ -412,8 +412,9 @@ out.renamed = HA.statesAt(tl, live, ["light.bare"], 2_000_500)["light.bare"].att
     assert out["strip"] == {"friendly_name": "Strip", "effect_list": ["Solid", "Rainbow"],
                             "supported_color_modes": ["rgb"], "supported_features": 44}, out
     assert out["notYet"] == {"friendly_name": "Bare", "supported_color_modes": ["brightness"]}, out
-    # Renamed since: today's name (and so today's shape and code), then's doing.
-    assert out["renamed"] == {"friendly_name": "Bare", "supported_color_modes": ["brightness"], "brightness": 3}, out
+    # Renamed since: today's name (and so today's shape and code); nothing
+    # of what it is doing today (brightness 12) is borrowed.
+    assert out["renamed"] == {"friendly_name": "Bare", "supported_color_modes": ["brightness"], "supported_features": 40}, out
 
 
 @pytest.mark.skipif(_NODE is None, reason="node is not installed")
