@@ -563,33 +563,41 @@ def test_a_pending_return_does_not_outlive_its_link():
 
 
 def test_a_steady_advert_heard_only_by_the_hosts_own_adapter_stays_fresh(monkeypatch):
-    """Round 13: HA's own adapter scanner (bleak) keeps no per-device
-    timestamps, and HA passes an unchanged advert to no callback — so a
-    steady device heard only there (a Find My tag's constant payload) aged
-    from its first report while it was still advertising, and a tag back
-    on its day key was never followed there. The manager's last advert for
-    the address dates it — only when this scanner is the one it came from."""
+    """Rounds 13-14: when HA runs its own adapter through bleak (Bluetooth
+    "degraded mode"), that scanner keeps no per-device timestamps, and HA
+    passes an unchanged advert to no callback — so a steady device heard
+    there (a Find My tag's constant payload) aged from its first report
+    while it was still advertising, and a tag back on its day key was never
+    followed there. The manager's last advert for the address dates it —
+    overall, or among connectable scanners when a passive proxy holds the
+    overall record — only when this scanner is the one it came from."""
     import sys
     import time
     from types import SimpleNamespace
     from custom_components.padspan_ha import bluetooth_live as BL
     from custom_components.padspan_ha.const import DOMAIN
 
-    def seeded(last_source):
+    HOST = "00:1A:7D:DA:71:13"          # a real scanner's source is its adapter's MAC
+
+    def seeded(last_source, connectable_source=None):
         mono = time.monotonic()
         adv = SimpleNamespace(rssi=-60, manufacturer_data={76: bytes([0x12, 0x19, 0x10] + [0x11] * 22 + [1, 0])},
                               service_data={}, service_uuids=[], tx_power=None, local_name=None)
-        host = SimpleNamespace(source="hci0", discovered_device_timestamps={},     # as bleak's HaScanner
+        host = SimpleNamespace(source=HOST, discovered_device_timestamps={},       # as bleak's HaScanner
                                discovered_devices_and_advertisement_data={KEYS_1: (SimpleNamespace(address=KEYS_1, name=None), adv)})
-        last = SimpleNamespace(source=last_source, time=mono - 2.0)
+        last = {False: SimpleNamespace(source=last_source, time=mono - 2.0),
+                True: SimpleNamespace(source=connectable_source, time=mono - 3.0) if connectable_source else None}
         mgr = SimpleNamespace(async_current_scanners=lambda: [host],
-                              async_last_service_info=lambda a, connectable: last if a == KEYS_1 else None)
+                              async_last_service_info=lambda a, connectable: last[connectable] if a == KEYS_1 else None)
         monkeypatch.setitem(sys.modules, "habluetooth", SimpleNamespace(get_manager=lambda: mgr))
         bl = BL.BluetoothLive(SimpleNamespace(data={DOMAIN: {}}))
-        bl._on_adv(_adv(KEYS_1, -60, mono - 300.0, source="hci0"))              # first heard 5 min ago
+        bl._on_adv(_adv(KEYS_1, -60, mono - 300.0, source=HOST))                # first heard 5 min ago
         bl._seed_from_discovered()
-        return (BL._now() - bl._seen_by_source[KEYS_1]["hci0"].seen).total_seconds()
+        return (BL._now() - bl._seen_by_source[KEYS_1][HOST].seen).total_seconds()
 
-    assert seeded("hci0") < 5
-    assert 295 <= seeded("proxy_kitchen") <= 305, "another scanner's advert is not this one's reading"
+    assert seeded(HOST) < 5
+    # A passive proxy holds the overall record; the host adapter is the
+    # connectable one that heard it.
+    assert seeded("AA:BB:CC:DD:EE:01", connectable_source=HOST) < 5
+    assert 295 <= seeded("AA:BB:CC:DD:EE:01") <= 305, "another scanner's advert is not this one's reading"
 
