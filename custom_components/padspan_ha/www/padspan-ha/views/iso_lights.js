@@ -2214,10 +2214,13 @@ export function fabricFrame(model, floors, floorGap, horizGap){
     // ranking an unknown name by its list position collided with a named
     // storey (round 13).
     // A fabric floor stacks when it carries rooms — an outdoor-named one only
-    // when the backend kept it (it sent its elevation). One known only from a
-    // light's placement joins a plate below: stacked, a light saved on "main"
-    // beside Downstairs/Upstairs made an empty plate of its own (round 18).
-    const stackIds = [...regIds, ...extra.filter(id => roomFloorIds.has(id)
+    // when the backend kept it (it sent its elevation), and never the outside
+    // floor itself: its rooms are drawn on no plate, so a slab of its own was
+    // one no plate draws and its gates vanished (round 19). One known only
+    // from a light's placement joins a plate below: stacked, a light saved on
+    // "main" beside Downstairs/Upstairs made an empty plate (round 18).
+    const overlayOnly = (id) => id === "outside" || id === "__outside__";
+    const stackIds = [...regIds, ...extra.filter(id => roomFloorIds.has(id) && !overlayOnly(id)
       && (!isOutdoorFloorId(id) || num(elevations[id]) !== null))];
     const elev = stackIds.map(id => num(elevations[id]));
     const useElev = stackIds.length > 1 && elev.every(v => v !== null) && new Set(elev).size > 1;
@@ -2240,15 +2243,26 @@ export function fabricFrame(model, floors, floorGap, horizGap){
     // stack: it sits with the nearest floor at or below its storey, else on
     // the lowest slab. Never a slab of its own: "on top" left the garden on
     // a slab never drawn (round 15), and a new one drew an empty plate (18).
+    // It joins a plate that DRAWS rooms — never the outside floor's slab —
+    // else the lowest such plate (round 19: joined to Outside's undrawn slab,
+    // or to slab 0 under a room-less floor, a stray light still got a plate
+    // of its own).
+    const plated = stackIds.filter(r => !overlayOnly(r) && roomFloorIds.has(r));
+    const inside = stackIds.filter(r => !overlayOnly(r));
+    const lowest = plated.length ? Math.min(...plated.map(r => out[r])) : 0;
     for (const id of extra) {
       if (stackIds.includes(id)) continue;
       const s = storeyOf(id);
-      let best = null, bestStorey = -Infinity;
-      if (s !== null) for (const r of stackIds) {
-        const so = storeyOf(r);
-        if (so !== null && so <= s && so > bestStorey) { bestStorey = so; best = r; }
-      }
-      out[id] = best !== null ? out[best] : 0;
+      const pick = (cands) => {
+        let best = null, bestStorey = -Infinity;
+        if (s !== null) for (const r of cands) {
+          const so = storeyOf(r);
+          if (so !== null && so <= s && so > bestStorey) { bestStorey = so; best = r; }
+        }
+        return best;
+      };
+      const best = plated.length ? pick(plated) : pick(inside);
+      out[id] = best !== null ? out[best] : lowest;
     }
     return out;
   })();

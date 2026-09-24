@@ -327,10 +327,13 @@ def test_the_drawing_stacks_like_the_backend_across_many_houses(tmp_path):
     out = _run("const { readFileSync } = await import('node:fs');\n"
                f"const C = JSON.parse(readFileSync({json.dumps(str(data))}, 'utf8'));\n"
                "out.slabs = C.map(([M, ids, lid]) => { const fr = IL.fabricFrame(M, M.floors, 150, 0);"
-               " return { slabs: Object.fromEntries(ids.map(i => [i, fr.levelOf(i)])), stray: lid ? fr.levelOf(lid) : null }; });\n")
+               " const bare = IL.fabricFrame({ ...M, light_positions_m: {} }, M.floors, 150, 0);"
+               " return { slabs: Object.fromEntries(ids.map(i => [i, fr.levelOf(i)])), stray: lid ? fr.levelOf(lid) : null,"
+               " added: lid && bare.levels.length ? fr.levels.filter(z => !bare.levels.includes(z)).length : 0 }; });\n")
     bad = [(m["floors"], m["floor_elevations"], got, want) for (m, _ids, want, _lid), got in zip(cases, out["slabs"])
            if _ranks(got["slabs"]) != _ranks(want)
-           or (got["stray"] is not None and got["stray"] not in got["slabs"].values())]
+           or (got["stray"] is not None and got["stray"] not in got["slabs"].values())
+           or got["added"]]
     assert not bad, f"{len(bad)} of {len(cases)} houses stack differently, e.g. {bad[:2]}"
 
 
@@ -368,4 +371,48 @@ def test_a_kept_outdoor_floor_has_the_backends_plate():
                "const fr = IL.fabricFrame(M, M.floors, 150, 0);\n"
                "out.slabs = Object.fromEntries(['downstairs','upstairs','yard'].map(i => [i, fr.levelOf(i)]));\n")
     assert _ranks(out["slabs"]) == _ranks(backend), (out, backend)
+
+
+def test_a_kept_outside_floor_stays_an_overlay_and_its_gates_stay_drawn():
+    """Round 19: HA's "Outside" deleted while its patio stays — the backend
+    keeps it, and the drawing stacked it on a slab of its own that no plate
+    draws: the gate on its fence (and the fabric's "__outside__" fences)
+    vanished from the map and could not be linked."""
+    sq = [[0, 0], [4, 0], [4, 4], [0, 4]]
+    stored = [{"id": "downstairs"}, {"id": "upstairs"}, {"id": "outside"}]
+    _backend_slabs, elevations = _backend(stored)
+    model = {"floors": [{"id": "downstairs", "name": "Downstairs", "level": None}, {"id": "upstairs", "name": "Upstairs", "level": None}],
+             "floor_elevations": elevations,
+             "room_geometry_m": {"D": {"type": "poly", "floor_id": "downstairs", "points_m": sq},
+                                 "U": {"type": "poly", "floor_id": "upstairs", "points_m": sq},
+                                 "P": {"type": "poly", "floor_id": "outside", "points_m": [[6, 0], [9, 0], [9, 4], [6, 4]]},
+                                 "G": {"type": "poly", "floor_id": "__outside__", "points_m": [[10, 0], [12, 0], [12, 4], [10, 4]]}}}
+    out = _run(f"const M={json.dumps(model)};\n"
+               "const fr = IL.fabricFrame(M, M.floors, 150, 0);\n"
+               "out.levels = fr.levels; out.outside = fr.levelOf('outside'); out.sentinel = fr.levelOf('__outside__');\n"
+               "out.down = fr.levelOf('downstairs');\n")
+    assert out["levels"] == [0, 1] and out["outside"] == out["down"] and out["sentinel"] == out["down"], out
+
+
+def test_a_stray_light_joins_a_plate_that_draws_rooms():
+    """Round 19: a light on a floor with no rooms joined Outside's undrawn slab
+    (an HA Outside floor), or slab 0 under a room-less Basement — a plate of
+    its own either way."""
+    sq = [[0, 0], [4, 0], [4, 4], [0, 4]]
+    a = {"floors": [{"id": i, "name": i.title(), "level": None} for i in ("downstairs", "outside", "upstairs")],
+         "floor_elevations": {"downstairs": 0.0, "outside": 2.8, "upstairs": 5.6},
+         "room_geometry_m": {"D": {"type": "poly", "floor_id": "downstairs", "points_m": sq},
+                             "U": {"type": "poly", "floor_id": "upstairs", "points_m": sq}},
+         "light_positions_m": {"light.stray": {"x_m": 1, "y_m": 1, "floor_id": "main"}}}
+    b = {"floors": [{"id": i, "name": i.title(), "level": None} for i in ("basement", "main", "upper")],
+         "floor_elevations": {"basement": 0.0, "main": 2.8, "upper": 5.6},
+         "room_geometry_m": {"M": {"type": "poly", "floor_id": "main", "points_m": sq},
+                             "U": {"type": "poly", "floor_id": "upper", "points_m": sq}},
+         "light_positions_m": {"light.stray": {"x_m": 1, "y_m": 1, "floor_id": "shed"}}}
+    out = _run(f"const A={json.dumps(a)}, B={json.dumps(b)};\n"
+               "const fa = IL.fabricFrame(A, A.floors, 150, 0), fb = IL.fabricFrame(B, B.floors, 150, 0);\n"
+               "out.a = { levels: fa.levels, main: fa.levelOf('main'), down: fa.levelOf('downstairs') };\n"
+               "out.b = { levels: fb.levels, shed: fb.levelOf('shed'), main: fb.levelOf('main') };\n")
+    assert out["a"]["levels"] == [0, 2] and out["a"]["main"] == out["a"]["down"], out
+    assert out["b"]["levels"] == [1, 2] and out["b"]["shed"] == out["b"]["main"], out
 
