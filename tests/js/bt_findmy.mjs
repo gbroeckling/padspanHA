@@ -21,10 +21,12 @@ const A = "D1:11:11:11:11:11", B = "E2:22:22:22:22:22";
 const obj = { key: "ble:" + A, kind: "private_ble", address: A, canonical_id: A, all_addresses: [B, A], current_address: B,
   findmy: true, bridge_match: true, name: A, user_label: "Keys", identified: true, room: "Office", rssi: -52, age_s: 1 };
 const xref = { key: obj.key, kind: "private_ble", label: "Keys", identified: true, room: "Office", canonical_id: A, all_addresses: [B, A], findmy: true };
-const ads = ["kit", "off"].map((s, i) => ({ address: B, source: s, rssi: i ? -52 : -80, age_s: 1, name: B, _xref: xref, area_name: i ? "Office" : "Kitchen" }));
-function draw(btTab, quiet, followed) {
+const ads = ["kit", "off"].map((s, i) => ({ address: B, source: s, rssi: i ? -52 : -80, age_s: 1, name: B, _xref: xref, area_name: i ? "Office" : "Kitchen" }))
+  // The address it was named by, lingering in HA's list after the change.
+  .concat([{ address: A, source: "kit", rssi: -50, age_s: 400, name: A, _xref: xref, area_name: "Kitchen" }]);
+function draw(btTab, quiet, followed, selectedAddr) {
   const recorder = () => new Proxy(() => document.createElement("span"), { get: (t, k) => k === "then" ? undefined : recorder() });
-  const state = { btTab, dataMode: "live", settings: { quiet_mode: quiet },
+  const state = { btTab, dataMode: "live", settings: { quiet_mode: quiet }, btSelectedAddr: selectedAddr || null,
     live: { snapshot: { ble: { radios: [{ source: "kit", name: "kit", area_name: "Kitchen" }, { source: "off", name: "off", area_name: "Office" }], advertisements: ads, diag: { ok: true, errors: [] } },
       objects: { list: [obj] } } } };
   const helpers = new Proxy({ el, esc, helpBtn: () => el("button", {}, "?"), radioShortId: s => s, isScanner: () => false, roomColor: () => "#fff" }, { get: (t, k) => k in t ? t[k] : recorder() });
@@ -39,5 +41,9 @@ const followed = new Set([A]);
 const viz = draw("visualization", false, followed);
 const vizQ = draw("visualization", true, followed);
 const mon = draw("monitor", false, followed);
+// The Unlink button: on the live address's row only (round 10).
+const onLive = draw("monitor", false, followed, B);
+const onNamed = draw("monitor", false, followed, A);
 console.log(JSON.stringify({ named: /Keys/.test(viz), quietShown: vizQ.includes(B) || /Keys/.test(vizQ),
-  findMyBadge: /Find My/.test(mon), irk: /IRK-resolved/.test(mon) }));
+  findMyBadge: /Find My/.test(mon), irk: /IRK-resolved/.test(mon),
+  unlinkOnLive: /Unlink/.test(onLive), unlinkOnNamed: /Unlink/.test(onNamed) }));

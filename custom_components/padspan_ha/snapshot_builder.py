@@ -92,6 +92,16 @@ async def _findmy_bridge(hass: HomeAssistant):
     return bridge
 
 
+def _findmy_forget_in_history(dom: dict, ident: str, addr: str) -> None:
+    """An address unlinked from a Find My tag leaves the tag's cached object
+    too: the history cache replays that object (with its address list and
+    live address) every poll, and it went on claiming the address (round 10)."""
+    entry = (dom.get(DATA_OBJECT_HISTORY) or {}).get(f"ble:{ident}")
+    if isinstance(entry, dict):
+        entry["all_addresses"] = [a for a in (entry.get("all_addresses") or []) if str(a).upper() != addr.upper()]
+        entry.pop("current_address", None)
+
+
 async def _findmy_step(hass: HomeAssistant, ble_by_addr: dict, canonical_by_addr: dict,
                        addr_to_device: dict, addr_to_entities: dict, now_ts: float | None = None) -> list:
     """Carry each known Find My tag onto its next address (findmy.py).
@@ -132,12 +142,19 @@ async def _findmy_step(hass: HomeAssistant, ble_by_addr: dict, canonical_by_addr
     for ident in list(bridge.tags):
         if bridge.tags[ident].get("addr") == ident:
             continue            # still on the address it was first known by: an ordinary object
+        # "current": the address the bridge says the tag uses now — the
+        # object's live address comes from it, never from whichever of the
+        # tag's addresses was heard last (round 10: two live at once made it
+        # flip every poll and the room never settled).
         entry = {"canonical_id": ident, "key": f"ble:{ident}", "name": ident,
-                 "kind": "private_ble", "bridge_match": True, "findmy": True}
+                 "kind": "private_ble", "bridge_match": True, "findmy": True,
+                 "current": bridge.tags[ident].get("addr")}
         for addr in bridge.addresses_of(ident):
             if addr in ble_by_addr and addr not in canonical_by_addr:
                 canonical_by_addr[addr] = entry
-    if res["linked"]:
+    for ident, wrong, _back in res.get("unlinked") or []:
+        _findmy_forget_in_history(dom, ident, wrong)
+    if res["linked"] or res.get("unlinked"):
         store = dom.get(_FINDMY_STORE)
         if store is not None:
             store.async_delay_save(bridge.to_state, 5)
@@ -1463,8 +1480,15 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             # addresses hold frozen, often stronger, readings: signal comes
             # from the freshest record, never the strongest (round 8).
             _fm_obj = bool(canonical.get("findmy"))
+            _fm_cur = None
             if _fm_obj:
                 addr = cid
+                # Signal, age and sources from the address the bridge says is
+                # current — a lingering old one holds frozen readings, and
+                # another of the tag's addresses heard again is not it.
+                _fm_cur = canonical.get("current") or rec.get("address")
+                if _fm_cur in ble_by_addr:
+                    rec = ble_by_addr[_fm_cur]
             parts = addr.split(":")
             prefix = ":".join(parts[:3]) if len(parts) >= 3 else ""
             obj_pb: dict[str, Any] = {
@@ -1479,9 +1503,11 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 "name": canonical.get("name") or rec.get("name") or addr,
                 "rssi": rec.get("rssi") if _fm_obj else (pg["best_rssi"] if pg["best_rssi"] > -999 else rec.get("rssi")),
                 "last_seen": rec.get("last_seen"),
-                "age_s": pg["freshest_age"] if pg["freshest_age"] is not None else rec.get("age_s"),
+                "age_s": rec.get("age_s") if _fm_obj else (pg["freshest_age"] if pg["freshest_age"] is not None else rec.get("age_s")),
                 "sources": sorted(
-                    [{"source": k, "rssi": v.get("rssi"), "age_s": v.get("age_s")} for k, v in pg["all_sources"].items()],
+                    [{"source": k, "rssi": v.get("rssi"), "age_s": v.get("age_s")}
+                     for k, v in ((rec.get("sources") or {}) if _fm_obj else pg["all_sources"]).items()
+                     if isinstance(v, dict)],
                     key=lambda x: x["source"],
                 ),
                 "manufacturer_data": pg["manufacturer_data"],
@@ -1502,7 +1528,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 obj_pb["identified"] = False
             if _fm_obj:
                 obj_pb["findmy"] = True
-                obj_pb["current_address"] = rec.get("address") or pg["best_addr"]
+                obj_pb["current_address"] = _fm_cur
             # Attach iBeacon metadata if this private_ble device also broadcasts
             # as an iBeacon (e.g. HA Companion App "Track Phone").
             _ib_meta = _ibeacon_meta_for_private.get(cid)
@@ -2240,7 +2266,9 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 obj["_first_seen"] = prev.get("_first_seen") or _now_ts
                 # Merge all_addresses (accumulate over time).  Current-cycle
                 # addresses go first so the retained head is the freshest.
-                if prev.get("all_addresses") and obj.get("all_addresses"):
+                # Not a Find My tag's: its addresses are exactly the ones the
+                # bridge gives it (an unlinked one must not come back — round 10).
+                if prev.get("all_addresses") and obj.get("all_addresses") and not obj.get("findmy"):
                     obj["all_addresses"] = _capped_mac_history(
                         list(obj["all_addresses"]) + list(prev["all_addresses"])
                     )
@@ -2283,6 +2311,13 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                             continue
                     except Exception:
                         pass
+            # A plain object whose address now belongs to a merged identity
+            # (an IRK phone, a bridged rotation, a Find My tag's next address
+            # seen on its own before the link landed) is a ghost of it: it
+            # would claim that live address in every view (round 10).
+            if cached_obj.get("kind") == "ble" and str(cached_obj.get("address") or "").upper() in canonical_by_addr:
+                del _cache[key]
+                continue
             stale_s = _now_ts - (cached_obj.get("_last_seen_ts") or _now_ts)
             # A bridge is a per-poll INFERENCE ("this new address is probably
             # that phone"), not an identity. It must never be immortalised:
@@ -2326,6 +2361,10 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 cached_obj["all_addresses"] = _capped_mac_history(_aa)
             # Bring it back — compute age_s = original age + time since last seen
             obj_copy = dict(cached_obj)
+            # Not heard this cycle: it has no live address (a Find My tag's
+            # cached current_address would steer the room tracker onto an
+            # address that may be someone else's now — round 10).
+            obj_copy.pop("current_address", None)
             base_age = cached_obj.get("_cache_age_s") or 0
             obj_copy["age_s"] = base_age + stale_s
             # Update per-source age_s values too (they were frozen at cache time)

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from .const import (
@@ -363,22 +364,31 @@ async def ws_object_label_list(hass: HomeAssistant, connection, msg) -> None:
     })
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/findmy_unlink", "key": str})
+@websocket_api.websocket_command({"type": "padspan_ha/findmy_unlink", "key": str, vol.Optional("address"): str})
 @websocket_api.async_response
 async def ws_findmy_unlink(hass: HomeAssistant, connection, msg) -> None:
     """"Not this tag": undo a Find My tag's last address link (findmy.py
     FindMyBridge.unlink). `key` is the object's key (ble:<first address>) or
-    its canonical_id."""
+    its canonical_id. `address`: the address the person is looking at —
+    only that one is unlinked (round 10)."""
     import time as _time  # noqa: PLC0415
-    from .snapshot_builder import _FINDMY_STORE, _findmy_bridge  # noqa: PLC0415
+    from .snapshot_builder import _FINDMY_STORE, _findmy_bridge, _findmy_forget_in_history  # noqa: PLC0415
     key = str(msg.get("key") or "").strip()
     if key.lower().startswith("ble:"):
         key = key[4:]
+    key = key.upper()
+    address = str(msg["address"]).upper() if msg.get("address") else None
     bridge = await _findmy_bridge(hass)
-    res = bridge.unlink(key.upper(), _time.time())
+    tag = bridge.tags.get(key) or {}
+    if address and tag.get("past") and tag.get("addr") != address:
+        connection.send_error(msg["id"], "not_current",
+                              "That isn't the address PadSpan links to this tag now — nothing was changed")
+        return
+    res = bridge.unlink(key, _time.time(), address)
     if res is None:
         connection.send_error(msg["id"], "not_linked", "That tag hasn't been carried to another address")
         return
+    _findmy_forget_in_history(hass.data.get(DOMAIN, {}), key, res[0])
     store = hass.data.get(DOMAIN, {}).get(_FINDMY_STORE)
     if store is not None:
         store.async_delay_save(bridge.to_state, 1)

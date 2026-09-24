@@ -375,7 +375,8 @@ def test_the_bluetooth_tab_knows_a_moved_tag_by_its_live_address():
                        capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert r.returncode == 0, r.stderr[-2000:]
     out = json.loads(r.stdout.strip().splitlines()[-1])
-    assert out == {"named": True, "quietShown": True, "findMyBadge": True, "irk": False}, out
+    assert out == {"named": True, "quietShown": True, "findMyBadge": True, "irk": False,
+                   "unlinkOnLive": True, "unlinkOnNamed": False}, out
 
 
 def test_a_wrong_link_can_be_undone_and_never_comes_back():

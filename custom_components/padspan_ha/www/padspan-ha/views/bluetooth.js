@@ -1126,14 +1126,19 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     // A Find My tag carried onto this address by MAC Rotation Bridging: if
     // it's the wrong tag, undo that link here (round 9 — otherwise it lasted
     // days).
-    if (xr.findmy && xr.key && ctx.actions && ctx.actions.wsCall) {
+    // Only on the row of the address the tag uses NOW — that is the one
+    // an unlink refuses (round 10: shown on any of its rows, it refused the
+    // live address while the person looked at another).
+    if (obj && obj.findmy && obj.key && obj.current_address
+        && String(obj.current_address).toUpperCase() === String(selected).toUpperCase()
+        && ctx.actions && ctx.actions.wsCall) {
       card.appendChild(el("div", { style: "margin:6px 0 2px" }, [el("button", {
         class: "btn inline", style: "font-size:12px",
         title: "PadSpan linked this address to the tag when its last one stopped. If this is a different tag, undo it.",
         onclick: async () => {
           if (typeof confirm === "function" && !confirm(`Is this not ${hdrName}? PadSpan will stop treating this address as ${hdrName} and won't link it to it again.`)) return;
           try {
-            await ctx.actions.wsCall("padspan_ha/findmy_unlink", { key: xr.key });
+            await ctx.actions.wsCall("padspan_ha/findmy_unlink", { key: obj.key, address: selected });
             if (ctx.toast) ctx.toast(`Unlinked — this address is its own device again`);
           } catch (e) { if (ctx.toast) ctx.toast("Couldn't unlink: " + ((e && (e.message || e.code)) || e), true); }
         },
