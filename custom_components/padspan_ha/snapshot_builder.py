@@ -2549,6 +2549,8 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 }
                 if _xobj.get("canonical_id"):
                     _ad["_xref"]["canonical_id"] = _xobj["canonical_id"]
+                if _xobj.get("findmy"):
+                    _ad["_xref"]["findmy"] = True      # the Monitor list's Find My badge (round 9)
                 if _xobj.get("all_addresses"):
                     _ad["_xref"]["all_addresses"] = list(
                         _xobj["all_addresses"]

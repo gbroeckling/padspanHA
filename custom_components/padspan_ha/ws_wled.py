@@ -489,7 +489,7 @@ async def _gate(hass: HomeAssistant, connection, msg) -> dict[str, Any] | None:
     if tgt is None:
         host = unreachable_host(hass, entity_id=msg.get("entity_id"), device_id=msg.get("device_id"))
         if host:
-            connection.send_error(msg["id"], "unreachable",
+            connection.send_error(msg["id"], "wled_offline",
                                   f"Home Assistant can't reach this WLED at {host} — check it's powered on and on "
                                   "the network (if its address changed, Home Assistant's WLED integration needs the new one)")
         else:

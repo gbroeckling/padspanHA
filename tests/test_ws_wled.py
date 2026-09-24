@@ -657,5 +657,6 @@ async def test_an_offline_wled_says_unreachable_not_that_it_isnt_wled(fake):
     entry.state = SimpleNamespace(value="setup_retry")
     conn = _Conn()
     await W.ws_wled_get(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "path": "json/info"})
-    assert conn.errors[0][0] == "unreachable" and "192.168.2.122" in conn.errors[0][1]
+    # Its own code: "unreachable" already means "a write may have been applied" (wled_tab_sync.js).
+    assert conn.errors[0][0] == "wled_offline" and "192.168.2.122" in conn.errors[0][1]
     assert fake.calls == [], "an unloaded entry's host is named, never contacted"

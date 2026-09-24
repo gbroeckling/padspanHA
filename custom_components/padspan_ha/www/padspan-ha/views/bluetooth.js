@@ -127,6 +127,14 @@ export function render(ctx) {
     for (const o of objModel.list) {
       if (o && o.address) objIndex.set(String(o.address).toUpperCase(), o);
     }
+    // A merged object's other addresses too — a Find My tag's object keeps
+    // the address it was named by, and its live one is only here (round 9).
+    for (const o of objModel.list) {
+      for (const a of (o && o.all_addresses) || []) {
+        const k = String(a).toUpperCase();
+        if (!objIndex.has(k)) objIndex.set(k, o);
+      }
+    }
   }
 
   // ── Persistent view state ─────────────────────────────────────────────────
@@ -1061,7 +1069,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     const subParts = [];
     if (addr) subParts.push(addr);
     if (xr.room) subParts.push(xr.room);
-    if (xr.canonical_id) subParts.push("IRK-resolved");
+    if (xr.canonical_id) subParts.push(xr.findmy ? "Find My tag, carried across address changes" : "IRK-resolved");
     if (xr.ibeacon_uuid) subParts.push("iBeacon");
 
     // Use stable identifier for tagging — private BLE uses canonical_id (IRK-derived),

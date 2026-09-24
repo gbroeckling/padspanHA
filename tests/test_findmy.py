@@ -356,3 +356,23 @@ def test_a_moved_tags_room_follows_its_live_address():
              "current_address": KEYS_2, "findmy": True, "bridge_match": True, "name": "Keys", "room": "Office"}
         r = run_poll(coord, snap([o], ads(KEYS_1, kitchen, age=400) + ads(KEYS_2, office)))
     assert r[key].get("room") == "Office"
+
+
+def test_the_bluetooth_tab_knows_a_moved_tag_by_its_live_address():
+    """Round 9: the tab indexed objects by o.address only — the moved tag drew
+    as its raw live MAC, vanished in quiet mode, and the Monitor list called
+    it IRK-resolved with no Find My badge."""
+    import json
+    import shutil
+    import subprocess
+    from pathlib import Path
+    node = shutil.which("node")
+    if node is None:
+        import pytest
+        pytest.skip("node is not installed")
+    root = Path(__file__).resolve().parents[1]
+    r = subprocess.run([node, str(root / "tests" / "js" / "bt_findmy.mjs"), str(root).replace("\\", "/")],
+                       capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.returncode == 0, r.stderr[-2000:]
+    out = json.loads(r.stdout.strip().splitlines()[-1])
+    assert out == {"named": True, "quietShown": True, "findMyBadge": True, "irk": False}, out
