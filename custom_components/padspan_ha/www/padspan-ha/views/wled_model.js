@@ -400,16 +400,22 @@ export function retypedOutput(b, newType) {
   return out;
 }
 
-/** The state back, split so each request fits the device's buffer — the
- * same rule as ws_wled.py restore_bodies / max_body_for. */
+/** JSON length the way the backend measures it (Python's json.dumps:
+ * every non-ASCII character escaped as \uXXXX). */
+export const escapedLength = (s) => s.length + 5 * (s.match(/[^\x00-\x7f]/g) || []).length;
+
+/** The state back, split so each request fits padspan_ha/wled_state's limit
+ * — 10240 bytes on every chip, measured like the backend (round 7: split at
+ * the ESP32 buffer, a body the command refused left the strip on the test
+ * colour). */
 export function restoreBodies(state, info) {
-  const max = String((info && info.arch) || "").toLowerCase().includes("8266") ? 10240 : 24576;
+  const max = 10240;
   const head = { on: state.on ?? true, bri: state.bri ?? 128, tt: 0 };
   const bodies = [];
   let cur = [];
   for (const s of state.seg || []) {
     const seg = { ...s }; delete seg.len; delete seg.lc;
-    if (cur.length && JSON.stringify({ ...head, seg: [...cur, seg] }).length > max - 64) { bodies.push({ ...head, seg: cur }); cur = [seg]; }
+    if (cur.length && escapedLength(JSON.stringify({ ...head, seg: [...cur, seg] })) > max - 64) { bodies.push({ ...head, seg: cur }); cur = [seg]; }
     else cur.push(seg);
   }
   bodies.push({ ...head, seg: cur });

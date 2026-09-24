@@ -285,6 +285,11 @@ out.max = Math.max(...b8266.map(b => JSON.stringify(b).length));
 out.all = b8266.flatMap(b => b.seg.map(s => s.id)).length;
 out.noLen = b8266.every(b => b.seg.every(s => !("len" in s) && !("lc" in s)));
 out.n32 = M.restoreBodies(state, { arch: "esp32" }).length;
+// Non-ASCII names count as the backend counts them (json.dumps escapes each).
+const named = { on: true, bri: 9, seg: Array.from({ length: 40 }, (_, i) => ({ id: i, n: "Küche ☀ ".repeat(20) })) };
+out.namedMax = Math.max(...M.restoreBodies(named, { arch: "esp32" }).map(b => M.escapedLength(JSON.stringify(b))));
 """)
     assert out["n8266"] > 1 and out["max"] <= 10240 and out["all"] == 64 and out["noLen"]
-    assert out["n32"] < out["n8266"]
+    # padspan_ha/wled_state takes 10240 bytes on every chip (round 7).
+    assert out["n32"] == out["n8266"]
+    assert out["namedMax"] <= 10240

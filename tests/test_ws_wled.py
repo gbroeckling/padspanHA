@@ -525,7 +525,7 @@ class _Dev015:
         if path == "presets.json":
             return {"0": {}}
         if path == "json/cfg" and method == "GET":
-            return self.cfg
+            return json.loads(json.dumps(self.cfg))     # a fresh read, like HTTP
         if path == "json/cfg":
             send = ((body.get("if") or {}).get("sync") or {}).get("send") or {}
             if "en" in send:
@@ -622,3 +622,29 @@ async def test_a_fired_identify_timer_doesnt_cut_a_newer_identify_short(fake, mo
     assert posts == ["identify", "identify"], "the stale timer restored early"
     await timers[1][1]()                          # identify 2's own timer
     assert posts == ["identify", "identify", "restore"]
+
+
+
+async def test_a_sync_card_save_that_leaves_sending_alone_keeps_the_live_switch(fake, monkeypatch):
+    """Round 7: the Saved-sync card always sends the whole send block, so
+    'en present' skipped the re-apply on every save from it."""
+    dev = _Dev015(en=False, live=True)
+    monkeypatch.setattr(W, "_request", dev.req)
+    conn = _Conn()
+    patch = {"if": {"sync": {"send": {"en": False, "dir": True, "grp": 1}, "recv": {"grp": 3}}}}
+    await W.ws_wled_cfg(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "patch": patch,
+                                           "base_hash": W.cfg_hash(dev.cfg)})
+    assert not conn.errors and dev.live is True
+
+
+def test_vacation_mode_skips_only_followers_still_following(monkeypatch):
+    """Round 7: a team kept 'not finished' after a setup that couldn't be
+    rolled back everywhere named followers that were never touched."""
+    from homeassistant.helpers import entity_registry as er
+    ents = {"dA": ["light.a"], "dB": ["light.b"], "dC": ["light.c"]}
+    monkeypatch.setattr(er, "async_get", lambda h: None, raising=False)
+    monkeypatch.setattr(er, "async_entries_for_device",
+                        lambda reg, d: [SimpleNamespace(entity_id=e) for e in ents.get(d, [])], raising=False)
+    teams = [{"leader": "dL", "followers": ["dA", "dB"], "incomplete": ["dA"]},
+             {"leader": "dM", "followers": ["dC"], "incomplete": []}]
+    assert W.follower_light_entities(None, teams) == {"light.a", "light.c"}

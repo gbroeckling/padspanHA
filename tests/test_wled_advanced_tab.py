@@ -591,3 +591,129 @@ await settle(); await settle();
 out.last = toasts[toasts.length - 1];
 """)
     assert "light.gc.bri" in out["last"][0] and out["last"][1] is True, out["last"]
+
+
+# ── review round 7 ───────────────────────────────────────────────────────────
+
+
+def test_a_member_changed_while_the_confirm_was_open_is_refused_not_overwritten():
+    """The join write was built from the settings read before the confirm
+    dialog but sent with a fresh version, so a change made meanwhile was
+    silently overwritten and the recorded 'before' was stale."""
+    out = _run(r"""
+const deep = (x) => JSON.parse(JSON.stringify(x));
+const devices = [
+  { device_id: "dL", name: "Upper North", lights: ["light.upper_north"], sw_version: "0.15.3" },
+  { device_id: "dA", name: "A", lights: ["light.a"], sw_version: "0.15.3" },
+];
+const cfgs = {
+  dL: { if: { sync: { send: { en: false, dir: false, btn: false, grp: 1 }, recv: { grp: 1, bri: true } } } },
+  dA: { if: { sync: { send: { en: true, dir: false, btn: false, grp: 1 }, recv: { grp: 1, bri: false, col: false, fx: false, pal: false } } } },
+};
+let stored = [], refused = [];
+const hass = { states: {}, callWS: async (m) => {
+  if (m.type === "padspan_ha/wled_get" && m.device_id) return m.path === "json/cfg"
+    ? { data: deep(cfgs[m.device_id]), hash: JSON.stringify(cfgs[m.device_id]) } : { data: { ver: "0.15.3", vid: 2503090 } };
+  if (m.type === "padspan_ha/wled_get") return { data: DEVICE[m.path], hash: "hme" };
+  if (m.type === "padspan_ha/wled_teams_get") return { teams: deep(stored), hash: "h" };
+  if (m.type === "padspan_ha/wled_devices") return { devices };
+  if (m.type === "padspan_ha/wled_teams_set") { stored = deep(m.teams); return { teams: deep(stored), hash: "h" }; }
+  if (m.type === "padspan_ha/wled_cfg") {
+    if (m.base_hash !== JSON.stringify(cfgs[m.device_id])) { refused.push(m.device_id); const e = new Error("changed"); e.code = "changed"; throw e; }
+    Object.assign(cfgs[m.device_id].if.sync, deep(m.patch.if.sync));
+    return { backup: "b", unexpected: [] };
+  }
+  return { data: DEVICE["json/si"].state };
+} };
+// While the confirm dialog is open, someone turns on "send on button press" for A elsewhere.
+globalThis.confirm = () => { cfgs.dA.if.sync.send.btn = true; return true; };
+const pane = document.createElement("div");
+await WA.mountWledAdvanced(pane, { hass, eid: "light.upper_north", api: { wled: { isAdmin: true }, toast: () => {} } });
+await settle();
+all(pane).find(n => n.textContent === "Sync & team").click();
+for (let i = 0; i < 4; i++) await settle();
+const box = all(pane).find(n => n.tagName === "LABEL" && (n.textContent || "").startsWith("A "));
+const cb = box.children[0]; cb.checked = true; cb.dispatchEvent(new Event("change"));
+all(pane).find(n => n.textContent === "Set up the team").click();
+for (let i = 0; i < 20; i++) await settle();
+out.refused = refused;
+out.aSendBtnNow = cfgs.dA.if.sync.send.btn;
+out.recordedPriorBtn = stored[0] && stored[0].prior.dA.send.btn;
+""")
+    assert "dA" in out["refused"], out
+    assert out["aSendBtnNow"] is True, "the change made meanwhile survives"
+
+
+def test_a_repaint_during_setup_cant_start_a_second_team_change():
+    """Any header write repaints the tab and builds a new team card while
+    the first run is still changing devices: its buttons are held until the
+    run ends, and the card showing then is the one refreshed."""
+    out = _run(r"""
+const toasts = [];
+const deep = (x) => JSON.parse(JSON.stringify(x));
+const tick = () => new Promise(r => globalThis._realSetTimeout(r, 5));
+const devices = [
+  { device_id: "dL", name: "Upper North", lights: ["light.upper_north"], sw_version: "0.15.3" },
+  { device_id: "dA", name: "A", lights: ["light.a"], sw_version: "0.15.3" },
+  { device_id: "dB", name: "B", lights: ["light.b"], sw_version: "0.15.3" },
+];
+const cfgs = {
+  dL: { if: { sync: { send: { en: false, dir: false, grp: 1 }, recv: { grp: 1, bri: true } } } },
+  dA: { if: { sync: { send: { en: true, dir: false, grp: 1 }, recv: { grp: 1, bri: false, col: false, fx: false } } } },
+  dB: { if: { sync: { send: { en: true, dir: false, grp: 1 }, recv: { grp: 1, bri: false, col: false, fx: false } } } },
+};
+let stored = [], ver = 0, cfgCount = 0;
+const hashOf = () => "v" + ver;
+const log = [];
+const hass = { states: {}, callWS: async (m) => {
+  await tick(); await tick();
+  if (m.type === "padspan_ha/wled_get" && m.device_id) return m.path === "json/cfg"
+    ? { data: deep(cfgs[m.device_id]), hash: JSON.stringify(cfgs[m.device_id]) } : { data: { ver: "0.15.3", vid: 2503090 } };
+  if (m.type === "padspan_ha/wled_get") return { data: DEVICE[m.path], hash: "hme" };
+  if (m.type === "padspan_ha/wled_teams_get") return { teams: deep(stored), hash: hashOf() };
+  if (m.type === "padspan_ha/wled_devices") return { devices };
+  if (m.type === "padspan_ha/wled_teams_set") {
+    if (m.base_hash && m.base_hash !== hashOf()) { log.push("teams_set REFUSED (changed)"); const e = new Error("changed"); e.code = "changed"; throw e; }
+    stored = deep(m.teams); ver++; log.push("teams_set " + JSON.stringify(stored.map(t => [t.id, t.incomplete])));
+    return { teams: deep(stored), hash: hashOf() };
+  }
+  if (m.type === "padspan_ha/wled_cfg") {
+    if (m.base_hash !== JSON.stringify(cfgs[m.device_id])) { const e = new Error("changed"); e.code = "changed"; throw e; }
+    Object.assign(cfgs[m.device_id].if.sync, deep(m.patch.if.sync));
+    cfgCount++; log.push(`cfg ${m.device_id} recv.grp=${m.patch.if.sync.recv.grp} send.grp=${m.patch.if.sync.send.grp}`);
+    for (let k = 0; k < 25; k++) await tick();
+    return { backup: "b", unexpected: [] };
+  }
+  if (m.type === "padspan_ha/wled_state" && m.device_id) return { data: {} };
+  return { data: DEVICE["json/si"].state };
+} };
+globalThis.confirm = () => true;
+const pane = document.createElement("div");
+await WA.mountWledAdvanced(pane, { hass, eid: "light.upper_north", api: { wled: { isAdmin: true }, toast: (t, bad) => toasts.push([t, !!bad]) } });
+await settle();
+all(pane).find(n => n.textContent === "Sync & team").click();
+for (let i = 0; i < 4; i++) await settle();
+for (const nm of ["A", "B"]) {
+  const box = all(pane).find(n => n.tagName === "LABEL" && (n.textContent || "").startsWith(nm + " "));
+  const cb = box.children[0]; cb.checked = true; cb.dispatchEvent(new Event("change"));
+}
+all(pane).find(n => n.textContent === "Set up the team").click();
+while (cfgCount < 1) await settle();
+// The person nudges the light from the header bar while the team is being set up.
+all(pane).find(n => n.tagName === "BUTTON" && /^⏻/.test(n.textContent || "")).click();
+for (let i = 0; i < 3; i++) await settle();
+const br = all(pane).find(n => n.tagName === "BUTTON" && /^Break up/.test(n.textContent || ""));
+out.newCardButton = br ? [br.textContent, br.disabled] : null;
+out.newCardWarn = texts(pane).find(t => t.startsWith("⚠ Not finished")) || null;
+// no break-up press
+for (let i = 0; i < 40; i++) await settle();
+out.log = log; out.visibleAfter = texts(pane).filter(t => t.startsWith("⚠ Not finished") || t.startsWith("Break up"));
+out.stored = stored;
+out.cfgs = { dL: cfgs.dL.if.sync, dA: cfgs.dA.if.sync, dB: cfgs.dB.if.sync };
+out.toasts = toasts;
+""")
+    assert out["newCardButton"] is None or out["newCardButton"][1] is True, out["newCardButton"]
+    assert out["stored"] and out["stored"][0]["incomplete"] == [], out["log"]
+    # The card showing at the end is refreshed: the finished team, no
+    # "not finished" warning and no retry button.
+    assert not any(t.startswith("⚠ Not finished") or "(retry)" in t for t in out["visibleAfter"]), out["visibleAfter"]

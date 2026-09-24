@@ -628,10 +628,13 @@ async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
             after = None
         # A config write resets the live "send my changes" switch to the
         # saved one (0.15+): put the live one back (round 5) — unless this
-        # write sets the saved switch itself, which the admin meant to act
-        # now (round 6).
+        # write CHANGES the saved switch, which the admin meant to act now
+        # (round 6). The Sync card always sends the whole block, so being
+        # present isn't enough (round 7).
         send_patch = ((msg["patch"].get("if") or {}).get("sync") or {}).get("send") or {}
-        if isinstance(live_send, bool) and not ({"en", "dir"} & set(send_patch)):
+        send_before = ((before.get("if") or {}).get("sync") or {}).get("send") or {}
+        switch_changed = any(k in send_patch and send_patch[k] != send_before.get(k) for k in ("en", "dir"))
+        if isinstance(live_send, bool) and not switch_changed:
             try:
                 now_send = ((await _request(hass, host, "GET", "json/state")).get("udpn") or {}).get("send")
                 if isinstance(now_send, bool) and now_send != live_send:
@@ -1116,10 +1119,19 @@ def sanitize_teams(hass: HomeAssistant, teams: Any, stored: list | None = None) 
 
 def follower_light_entities(hass: HomeAssistant, teams: list | None) -> set[str]:
     """Every light entity of a team follower — the lights the rest of HA
-    should leave to their leader."""
+    should leave to their leader. A team not finished (`incomplete`: a
+    setup that couldn't be rolled back everywhere, a break-up that couldn't
+    reach everyone, a setup in progress) counts only its unfinished
+    followers: the others are back to themselves (round 7)."""
     from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
 
-    devs = {f for t in (teams or []) if isinstance(t, dict) for f in (t.get("followers") or [])}
+    devs = set()
+    for t in teams or []:
+        if not isinstance(t, dict):
+            continue
+        followers = set(t.get("followers") or [])
+        pending = set(t.get("incomplete") or [])
+        devs |= (followers & pending) if pending else followers
     if not devs:
         return set()
     reg = er.async_get(hass)
