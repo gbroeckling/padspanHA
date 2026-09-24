@@ -552,12 +552,13 @@ out.co2Band = [HA.shownReading("sensor.co2", "420", attrs["sensor.co2"]), HA.sho
 """)
     lo, hi = out["co2Band"]
     assert lo != hi
-    # 20.7 is not yet a clear step from 20 (round 16): the degree counts at 21.2.
+    # 20.7 is not yet a clear step from 20 (round 16); 21.2 makes it one — at
+    # 20.7, when the map's digits changed (round 18).
     assert out["ev"] == [
         [15, "light.a", "off", "on"],
+        [20, "sensor.t", "20°", "21°"],
         [20, "sensor.h", "45%", "47%"],
         [20, "sensor.co2", lo, hi],
-        [30, "sensor.t", "20°", "21°"],
     ], out
     # Without the devices' readings asked for, sensors are not events.
     assert out["plain"] == ["light.a"], out
@@ -611,7 +612,8 @@ const attrs = { "sensor.t": { device_class: "temperature" },
 out.ev = HA.activityEvents(tl, (e) => e, 0, 1e9, (eid) => attrs[eid]).map(e => [e.t / 1000, e.eid, e.from, e.to]);
 """)
     temp = [e for e in out["ev"] if e[1] == "sensor.t"]
-    assert temp == [[30, "sensor.t", "20°", "21°"], [50, "sensor.t", "21°", "20°"]], out
+    # The flapping never counts; 21.3 makes the last flip to 21° (at 19) stay.
+    assert temp == [[19, "sensor.t", "20°", "21°"], [50, "sensor.t", "21°", "20°"]], out
     aq = [e[2:] for e in out["ev"] if e[1] == "sensor.aq"]
     assert aq == [["Moderate", "Poor"], ["Poor", "Very poor"], ["Very poor", "Unhealthy"], ["Unhealthy", "Moderate"]], out
 
@@ -730,3 +732,37 @@ out.shown = h2.shown ? h2.shown.size : null;
 out.events = HA.shownHouseEvents(h2).length;
 """)
     assert out == {"shown": 0, "events": 0}, out
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_an_air_word_the_table_does_not_know_draws_like_good():
+    """Round 18: "very_unhealthy" isn't in the table — it draws no bars, like
+    "good" — and was skipped as no reading, losing the bars going and coming
+    back."""
+    out = _run("""
+const a = { "sensor.aq": { device_class: "enum", options: ["good", "moderate", "poor"], friendly_name: "Air quality" } };
+const ev = (words) => HA.activityEvents(HA.buildStateTimeline({ "sensor.aq": words.map((s, i) => ({ s, lu: i })) }),
+  (e) => e, 0, 1e9, (eid) => a[eid]).map(e => [e.from, e.to]);
+out.away = ev(["poor", "very_unhealthy", "poor"]);
+out.appear = ev(["very_good", "moderate"]);
+""")
+    assert out == {"away": [["Poor", "Very unhealthy"], ["Very unhealthy", "Poor"]],
+                   "appear": [["Very good", "Moderate"]]}, out
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_the_hold_is_what_was_shown_not_the_window_end():
+    """Round 18: a small step counted as 'held 10 minutes' when the window's
+    end lay in the future (a minute-old step) or the sensor had gone offline a
+    minute later; and a clear step to the value a small one already showed
+    was timed at the later report, not when the digits changed."""
+    out = _run("""
+const a = { "sensor.t": { device_class: "temperature" } };
+const ev = (rows, endMs) => HA.activityEvents(HA.buildStateTimeline({ "sensor.t": rows }), (e) => e, 0, endMs,
+  (eid) => a[eid]).map(e => [Math.round(e.t / 1000), e.from, e.to]);
+const now = Math.floor(Date.now() / 1000), s0 = now - 120;
+out.future = ev([{ s: "20.4", lu: s0 }, { s: "20.6", lu: s0 + 60 }], (now + 3600) * 1000);
+out.offline = ev([{ s: "20.4", lu: 0 }, { s: "20.6", lu: 60 }, { s: "unavailable", lu: 120 }], 3600 * 1000);
+out.ramp = ev([{ s: "20.4", lu: 0 }, { s: "20.6", lu: 300 }, { s: "20.9", lu: 480 }], 3600 * 1000);
+""")
+    assert out == {"future": [], "offline": [], "ramp": [[300, "20°", "21°"]]}, out

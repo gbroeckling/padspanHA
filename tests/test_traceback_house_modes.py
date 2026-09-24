@@ -493,3 +493,36 @@ out.endedCleanly = tb.frameIdx <= tb.frames.length - 1;
     assert out["scrubMax"] == out["after"] - 1, out
     assert out["loops"] == 1, out
     assert out["endedCleanly"], out
+
+
+
+def test_a_reload_left_behind_never_blocks_devices_in_the_next_view():
+    """Round 18: the "reload in progress" mark lived on the shared state — a
+    reload that never answered blocked 💡 Devices for the rest of the
+    session, in every later view."""
+    out = _run("""
+const frames = [{ ts: Math.floor(Date.now() / 1000) - 100, o: [{ k: "a", r: "Kitchen", x_m: 1, y_m: 1, f: "main" }] }];
+let hang = false;
+const { ctx } = H.makeCtx({
+  wsCall: (t, d) => t === "padspan_ha/traceback_get" ? (hang && d.obj_key === undefined ? new Promise(() => {}) : { frames, range: {} })
+    : t === "padspan_ha/traceback_objects" ? { objects: [] } : t === "padspan_ha/vacation_log_get" ? { actions: [], periods: [] } : {} });
+ctx.state._traceback = undefined;
+let outer = H.TB.render(ctx);
+const tb = ctx.state._traceback;
+await settle();
+all(outer).find(n => String(n.textContent).startsWith("🏠 Full house activity")).click();
+await settle();
+tb.filterKey = "a"; tb.filterName = "a";
+hang = true;
+all(outer).find(n => String(n.textContent).startsWith("💡 Devices")).click();   // its reload never answers
+await settle();
+hang = false;
+tb.active = false;
+outer = H.TB.render(ctx);                                                          // a new view
+await settle();
+tb.filterKey = null;
+all(outer).find(n => String(n.textContent).startsWith("💡 Devices")).click();
+await settle();
+out.devices = tb.house.devices === true;
+""")
+    assert out == {"devices": True}, out

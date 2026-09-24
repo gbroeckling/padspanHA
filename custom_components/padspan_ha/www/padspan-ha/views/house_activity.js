@@ -209,8 +209,13 @@ export function shownReading(eid, state, attrs) {
 export function readingKey(eid, state, attrs) {
   const dc = attrs && attrs.device_class;
   if (dc === "enum" && isAirQualityEntity(eid, attrs)) {
-    const b = airQualityBadness({ air_level: String(state).toLowerCase() });
-    return Number.isFinite(b) ? b : null;
+    const w = String(state).toLowerCase();
+    if (!w || /^(unknown|unavailable|none)$/.test(w)) return null;
+    const b = airQualityBadness({ air_level: w });
+    // A word the table doesn't know ("very_unhealthy") draws no bars — the
+    // same as "good"; skipping it as no reading lost the bars going and
+    // coming back (review round 18).
+    return Number.isFinite(b) ? b : 0;
   }
   return shownReading(eid, state, attrs);
 }
@@ -248,7 +253,12 @@ export function activityEvents(timeline, nameOf, startMs, endMs, attrsOf = null)
     };
     for (let i = 0; i < list.length; i++) {
       const r = list[i];
-      if (_NOT_A_CHANGE.has(r.state)) continue;
+      if (_NOT_A_CHANGE.has(r.state)) {
+        // Offline: a small step waiting to hold was shown only until now
+        // (review round 18).
+        if (pend) { if (r.t - pend.t >= HOLD_MS) commit(pend); pend = null; }
+        continue;
+      }
       const k = keyOf(r.state);
       if (k == null) continue;
       if (pend && r.t - pend.t >= HOLD_MS) { commit(pend); pend = null; }
@@ -260,10 +270,14 @@ export function activityEvents(timeline, nameOf, startMs, endMs, attrsOf = null)
         if (!pend || pend.k !== k) pend = c;                // held long enough, or a clear step later
         continue;
       }
+      // A clear step to the value a small one already showed: the map
+      // changed at the small one (round 18: timed one report late).
+      commit(pend && pend.k === k ? { ...c, t: pend.t } : c);
       pend = null;
-      commit(c);
     }
-    if (pend && endMs - pend.t >= HOLD_MS) commit(pend);
+    // Held to the window's end — or to now, when the window runs past it
+    // (round 18: a step a minute old counted as held in a future window).
+    if (pend && Math.min(endMs, Date.now()) - pend.t >= HOLD_MS) commit(pend);
   }
   return ev.sort((a, b) => a.t - b.t);
 }

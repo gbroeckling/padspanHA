@@ -2183,6 +2183,9 @@ export function render(ctx) {
   // 💡 Devices — shown only with Full house activity on: the playback then
   // follows every device the Atlas shows through its state over the chosen
   // period, with every tracked object, and rings what changed.
+  // This view's own: kept on the shared state it outlived the view, and a
+  // reload that never answered blocked the button for good (round 18).
+  let _devicesPending = false;
   const devicesBtn = document.createElement("button");
   devicesBtn.className = "btn inline";
   devicesBtn.title = "Play every device the Atlas shows back through its state over the chosen period — lights, doors, "
@@ -2196,7 +2199,7 @@ export function render(ctx) {
   devicesBtn.addEventListener("click", async () => {
     // One at a time: a second tap during the reload read devices as still
     // off and fetched the old window's history (review round 17).
-    if (tb.house._devicesPending) return;
+    if (_devicesPending) return;
     const on = !tb.house.devices;
     // Stopped, and switched only once the new window is in: a playback tick
     // during the reload fetched the whole house's history for the old,
@@ -2207,8 +2210,8 @@ export function render(ctx) {
     if (on && tb.filterKey) {
       tb.filterKey = null;
       tb.filterName = "All objects";
-      tb.house._devicesPending = true;
-      try { await _loadTracebackData(); } finally { tb.house._devicesPending = false; }
+      _devicesPending = true;
+      try { await _loadTracebackData(); } finally { _devicesPending = false; }
       // Left while it reloaded: the view on screen now keeps what its button
       // says (round 17: it played devices under an "off" button).
       if (mapDiv.isConnected === false) return;
