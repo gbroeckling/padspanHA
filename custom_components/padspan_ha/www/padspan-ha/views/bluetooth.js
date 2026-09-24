@@ -951,7 +951,9 @@ function renderScanners(ctx, radios, sources, adsAll) {
       const addr = (a.address || "").toUpperCase();
       const obj = objByAddr.get(addr);
       const displayName = obj ? (obj.user_label || obj.name || addr) : (a.name && a.name !== addr ? a.name : addr);
-      const kindLabel = obj ? (obj.kind === "private_ble" ? "Private BLE" : obj.kind === "ibeacon" ? "iBeacon" : obj.identified ? "BLE" : "BLE?") : "";
+      // A Find My tag carried across address changes (findmy.py) is not an
+      // IRK phone, whatever its merged kind says.
+      const kindLabel = obj ? (obj.findmy ? "Find My" : obj.kind === "private_ble" ? "Private BLE" : obj.kind === "ibeacon" ? "iBeacon" : obj.identified ? "BLE" : "BLE?") : "";
       const kindTone = obj ? (obj.kind === "private_ble" ? "info" : obj.kind === "ibeacon" ? "ok"
                             : obj.identified ? "violet" : "quiet") : "quiet";
 
@@ -1016,6 +1018,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
 
   // Object kind — one tone each, from the chip palette.
   const kindBadge = kind => {
+    if (kind === "findmy")      return chip(el, "Find My", "info");
     if (kind === "entity")      return chip(el, "entity", "good");
     if (kind === "private_ble") return chip(el, "private BLE", "info");
     if (kind === "ibeacon")     return chip(el, "iBeacon", "ok");
@@ -1039,7 +1042,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
 
     // Enrichment badges (inline, compact)
     const badges = [];
-    if (xr.kind)          badges.push(kindBadge(xr.kind));
+    if (xr.kind)          badges.push(kindBadge(xr.findmy ? "findmy" : xr.kind));
     if (a.company_name)   badges.push(chip(el, a.company_name, "info", "Manufacturer, from the advertisement"));
     if (a.device_type)    badges.push(chip(el, a.device_type, "violet"));
     if (a.connectable)    badges.push(chip(el, "connectable", "good", "This device accepts connections"));
@@ -1111,7 +1114,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
       el("div", { style: "font-size:15px;font-weight:800;letter-spacing:-.01em;flex:1;min-width:0;word-break:break-word" }, hdrName),
       sigEl(el, a.rssi),
     ]));
-    if (xr.kind) card.appendChild(el("div", { class: "bt-chips" }, [kindBadge(xr.kind)]));
+    if (xr.kind) card.appendChild(el("div", { class: "bt-chips" }, [kindBadge(xr.findmy ? "findmy" : xr.kind)]));
 
     // Section helper — a titled definition list, empty values skipped.
     // Addresses, UUIDs and hex get the mono treatment so they can be READ.

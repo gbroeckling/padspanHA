@@ -39,16 +39,25 @@ only when ALL of these hold:
 
   * both are Find My advertisements of the same device type — an iPhone, an
     AirPods case and a tag never match, whatever else they share;
-  * the old address has gone quiet (a device never advertises from two
-    addresses at once — beacon_identity.rotation_bridge_allowed) and went
-    quiet within HANDOVER_WINDOW_S;
-  * the new address first appeared around then, not long before (a
-    neighbour's tag that has been in range all along is not a hand-over);
+  * the old address has stopped: not heard for LIVE_S. That is long, on
+    purpose — a passive proxy's repeats of a live tag reach PadSpan only at
+    each reseed (30 s by default, up to 60 s), so a shorter silence is a
+    live tag reported late (review round 8). A link lands about a minute
+    after a real change;
+  * the new address first appeared around the old one's last report — not
+    long before (a neighbour's tag in range all along) and not long after
+    (a visitor's tag arriving at the door);
   * the scanners hear it where they last heard the old one: the mean
-    difference over the scanners that heard both is within MAX_DB;
+    difference over the scanners that heard both is within MAX_DB, and a
+    scanner that heard one strongly but not the other counts heavily;
   * the pairing is unambiguous — the best match for both sides, by at least
-    MARGIN_DB. Two tags lying together that change at 04:00 together can't
-    be told apart; then nothing is linked rather than a guess.
+    MARGIN_DB over every alternative, near or not. Two tags lying together
+    that change at 04:00 together can't be told apart; then nothing is
+    linked rather than a guess.
+
+An address a tag has used stays in Home Assistant's list for a while after
+the change, growing older: it is still that tag's (never a new identity, and
+never re-pointed), until the tag is forgotten.
 
 This module is pure (no Home Assistant imports): snapshot_builder.py feeds it
 each poll and persists its state.
@@ -64,23 +73,30 @@ SEPARATED_LEN = 0x19
 DEVICE_TYPES = {0: "Apple device", 1: "AirTag", 2: "Find My accessory", 3: "AirPods"}
 BATTERY = {0: "full", 1: "medium", 2: "low", 3: "very low"}
 
-# A Find My tag advertises every 2 s; allow for scanners that report late.
-ADV_FRESH_S = 10.0
-# Silence that makes an address "stopped" (beacon_identity.BRIDGE_MIN_SILENCE_S).
-SILENT_S = 5.0
+# An address heard within this is live; not heard for longer, it has stopped.
+# A Find My tag advertises every 2 s, but a passive proxy's repeats reach
+# PadSpan only at each reseed (bluetooth_live.py: 30 s default, 60 s max).
+LIVE_S = 75.0
 # How long after the old address stops the new one may still be linked.
-HANDOVER_WINDOW_S = 90.0
-# The new address may have appeared this long before the old one's last report
-# (scanners report the two addresses at different moments).
+HANDOVER_WINDOW_S = 300.0
+# The new address may have first appeared this long before the old one's last
+# report (the two are reported at different moments) ...
 APPEAR_SLACK_S = 15.0
+# ... or this long after it (the old one's last report lags its last advert
+# by up to a reseed; a later arrival is someone else's tag).
+APPEAR_AFTER_S = 45.0
 # Mean RSSI difference over shared scanners that still reads "same place".
 MAX_DB = 10.0
 # How much better the chosen pairing must be than any alternative.
 MARGIN_DB = 6.0
 # A scanner that heard one address this strongly but not the other at all
-# counts as this much difference.
+# counts as this much difference — more than MAX_DB, so a scanner only one
+# side hears can never make two places look alike (round 8).
 UNSHARED_STRONG_DBM = -80
-UNSHARED_PENALTY_DB = 8.0
+UNSHARED_PENALTY_DB = 20.0
+# The addresses a tag used before its current one, kept so a lingering one
+# is recognised as that tag's.
+PAST_MAX = 16
 # A tracked tag not heard for this long is dropped from the bridge state.
 FORGET_S = 3 * 86400.0
 
@@ -138,7 +154,7 @@ def is_findmy_address(address: str) -> bool:
         return False
 
 
-def rssi_vector(rec: dict[str, Any], max_age_s: float = 30.0) -> dict[str, float]:
+def rssi_vector(rec: dict[str, Any], max_age_s: float = LIVE_S) -> dict[str, float]:
     """{scanner: rssi} for the scanners that heard this address recently."""
     out: dict[str, float] = {}
     for src, info in (rec.get("sources") or {}).items():
@@ -174,25 +190,37 @@ class FindMyBridge:
 
     def __init__(self, state: dict[str, Any] | None = None) -> None:
         state = state or {}
-        self.tags: dict[str, dict[str, Any]] = {
-            str(k): dict(v) for k, v in (state.get("tags") or {}).items() if isinstance(v, dict) and v.get("addr")}
+        self.tags: dict[str, dict[str, Any]] = {}
+        for k, v in (state.get("tags") or {}).items():
+            if isinstance(v, dict) and v.get("addr"):
+                t = dict(v)
+                t["past"] = [str(a) for a in (t.get("past") or [])][-PAST_MAX:]
+                self.tags[str(k)] = t
         self.first_seen: dict[str, float] = {}
+        # Until the first poll, every address in range counts as there all
+        # along — after a restart nothing looks newly arrived (round 8).
+        self._primed = False
 
     def to_state(self) -> dict[str, Any]:
         return {"tags": {k: dict(v) for k, v in self.tags.items()}}
 
     def identity_of(self, addr: str) -> str | None:
+        """The tag an address is — its first, current or any earlier address."""
         for key, t in self.tags.items():
-            if t.get("addr") == addr:
+            if addr == key or t.get("addr") == addr or addr in (t.get("past") or ()):
                 return key
         return None
+
+    def addresses_of(self, key: str) -> list[str]:
+        t = self.tags.get(key) or {}
+        return list(dict.fromkeys([key, *(t.get("past") or []), t.get("addr")]))
 
     def step(self, now_ts: float, records: dict[str, dict[str, Any]], known: dict[str, str]) -> dict[str, Any]:
         """One poll. `records`: this snapshot's {addr: rec} (age_s, sources,
         manufacturer_data). `known`: {addr: identity key} for Find My addresses
-        the person has labelled or followed — each starts (or refreshes) a
-        tracked tag. Returns {"map": {addr: identity key} for every address
-        now carrying a known tag, "linked": [(identity key, old addr, new addr)]
+        the person has labelled or followed — each starts a tracked tag unless
+        it already is one's. Returns {"map": {addr: identity key} for each
+        tag's current address, "linked": [(identity key, old addr, new addr)]
         for links made this poll}."""
         linked: list[tuple[str, str, str]] = []
         fm: dict[str, dict[str, Any]] = {}
@@ -206,60 +234,72 @@ class FindMyBridge:
             age = float(age) if isinstance(age, (int, float)) else 0.0
             fm[addr] = {"adv": adv, "age": age, "rssi": rssi_vector(rec), "seen_ts": now_ts - age}
 
-        # A known address starts or refreshes its tag (a person's label wins
-        # over a link: a relabelled address is that tag from now on).
+        if not self._primed:
+            for addr in fm:
+                self.first_seen[addr] = float("-inf")
+            self._primed = True
+
+        # A known address starts a tag — never one that is already a tag's
+        # (a lingering old address would pull the identity back: round 8).
         for addr, key in known.items():
-            if addr in fm and (key not in self.tags or self.tags[key].get("addr") != addr):
-                if self.identity_of(addr) not in (None, key):
-                    self.tags.pop(self.identity_of(addr), None)
-                self.tags[key] = {"addr": addr, "type": fm[addr]["adv"]["device_type"],
-                                  "rssi": fm[addr]["rssi"], "last_ts": fm[addr]["seen_ts"]}
-        # Keep each tag's last picture while its address is advertising.
-        for key, t in self.tags.items():
+            c = fm.get(addr)
+            if c is None or c["age"] > LIVE_S or self.identity_of(addr) is not None:
+                continue
+            if key in self.tags:
+                # The same identity on a newer address the person named: only
+                # if heard more recently than the tag's own address.
+                if c["seen_ts"] <= float(self.tags[key].get("last_ts") or 0):
+                    continue
+                self.tags[key]["past"] = (self.tags[key].get("past", []) + [self.tags[key]["addr"]])[-PAST_MAX:]
+            self.tags[key] = {"addr": addr, "type": c["adv"]["device_type"], "rssi": c["rssi"],
+                              "last_ts": c["seen_ts"], "past": self.tags.get(key, {}).get("past", [])}
+        # Each tag's last report and picture, from its current address.
+        for t in self.tags.values():
             cur = fm.get(t["addr"])
-            if cur and cur["age"] <= ADV_FRESH_S:
+            if cur is None:
+                continue
+            t["last_ts"] = max(float(t.get("last_ts") or 0), cur["seen_ts"])
+            if cur["age"] <= LIVE_S:
                 t["type"] = cur["adv"]["device_type"]
                 if cur["rssi"]:
                     t["rssi"] = cur["rssi"]
-                t["last_ts"] = max(float(t.get("last_ts") or 0), cur["seen_ts"])
 
-        mapped = {t["addr"] for t in self.tags.values()}
+        owned = {a for k in self.tags for a in self.addresses_of(k)}
         for addr, cur in fm.items():
-            if addr not in mapped and addr not in known and cur["age"] <= ADV_FRESH_S:
+            if addr not in owned and addr not in known:
                 self.first_seen.setdefault(addr, cur["seen_ts"])
-        for addr in [a for a in self.first_seen if a not in fm or a in mapped]:
+        for addr in [a for a in self.first_seen if a not in fm or a in owned]:
             self.first_seen.pop(addr, None)
 
-        # Tags whose address has stopped, recently: waiting for their next address.
-        waiting = {}
-        for key, t in self.tags.items():
-            silent_for = now_ts - float(t.get("last_ts") or 0)
-            if SILENT_S < silent_for <= HANDOVER_WINDOW_S and not (
-                    t["addr"] in fm and fm[t["addr"]]["age"] <= SILENT_S):
-                waiting[key] = t
-        # New addresses that could be one of them.
-        fresh = {a: c for a, c in fm.items()
-                 if a not in mapped and a not in known and c["age"] <= ADV_FRESH_S}
+        # Tags whose address has stopped, recently: waiting for their next one.
+        waiting = {key: t for key, t in self.tags.items()
+                   if LIVE_S < now_ts - float(t.get("last_ts") or 0) <= HANDOVER_WINDOW_S}
+        # Live addresses no tag owns: could be one of them.
+        fresh = {a: c for a, c in fm.items() if a not in owned and a not in known and c["age"] <= LIVE_S}
         pairs: list[tuple[float, str, str]] = []
         for key, t in waiting.items():
+            last = float(t["last_ts"])
             for addr, c in fresh.items():
                 if c["adv"]["device_type"] != t.get("type"):
                     continue
-                if self.first_seen.get(addr, c["seen_ts"]) < float(t["last_ts"]) - APPEAR_SLACK_S:
-                    continue          # it was already here before this tag went quiet
+                appeared = self.first_seen.get(addr, c["seen_ts"])
+                if not (last - APPEAR_SLACK_S <= appeared <= last + APPEAR_AFTER_S):
+                    continue      # there all along, or arrived well after: not this hand-over
                 d = place_difference(t.get("rssi") or {}, c["rssi"])
-                if d is not None and d <= MAX_DB:
+                if d is not None:
                     pairs.append((d, key, addr))
-        # Unambiguous pairings only: the best for both sides, by a margin.
+        # Unambiguous pairings only: within MAX_DB, and better than every
+        # alternative for either side — near or not — by MARGIN_DB.
         for d, key, addr in sorted(pairs):
-            if key not in waiting or addr not in fresh:
+            if d > MAX_DB or key not in waiting or addr not in fresh:
                 continue
             rivals = [p[0] for p in pairs if (p[1] == key) != (p[2] == addr)]
             if rivals and min(rivals) - d < MARGIN_DB:
                 continue
             old = self.tags[key]["addr"]
             self.tags[key] = {"addr": addr, "type": fresh[addr]["adv"]["device_type"],
-                              "rssi": fresh[addr]["rssi"], "last_ts": fresh[addr]["seen_ts"]}
+                              "rssi": fresh[addr]["rssi"], "last_ts": fresh[addr]["seen_ts"],
+                              "past": (self.tags[key].get("past", []) + [old])[-PAST_MAX:]}
             linked.append((key, old, addr))
             waiting.pop(key)
             fresh.pop(addr)

@@ -70,47 +70,67 @@ def test_only_a_static_random_address_can_be_a_find_my_key():
 
 
 # ── the house: two tags and an iPhone ─────────────────────────────────────────
+#
+# Timing, as Home Assistant reports it: a tag last heard at `last`, its next
+# address first reported a few seconds later; the old address lingers in the
+# list with a growing age (it is never removed at once). A link can only be
+# made once the old address has been quiet for F.LIVE_S.
+
+T0 = 1_000_000.0
 
 
 def _poll(bridge, t, records, known=None):
-    return bridge.step(t, records, known or {})
+    return bridge.step(T0 + t, records, known or {})
+
+
+def _change(bridge, old, new, payload_old, payload_new, place_old, place_new=None, known=None, t0=0.0):
+    """old heard at t0; new first reported at t0+20; linked at t0+100."""
+    _poll(bridge, t0, {old: _rec(payload_old, place_old)}, known)
+    _poll(bridge, t0 + 20, {old: _rec(payload_old, place_old, age=21), new: _rec(payload_new, place_new or place_old)}, known)
+    return _poll(bridge, t0 + 100, {old: _rec(payload_old, place_old, age=101), new: _rec(payload_new, place_new or place_old)}, known)
 
 
 def test_two_tags_and_an_iphone_each_keep_their_own_identity():
     """Keys (an AirTag, kitchen) and Bag (a Find My accessory, office) are
-    labelled; an iPhone walks around. Keys changes address, then the iPhone
-    changes, then Bag — each tag carries on as itself, the iPhone never
-    becomes either."""
+    labelled; an iPhone walks around. Keys changes address, then Bag — each
+    carries on as itself; the iPhone never becomes either."""
     b = F.FindMyBridge()
     known = {KEYS_1: "ble:" + KEYS_1, BAG_1: "ble:" + BAG_1}
-    t = 1000.0
-    r = _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN), BAG_1: _rec(_separated(2), OFFICE),
-                     PHONE_1: _rec(IPHONE, KITCHEN)}, known)
-    assert r["map"] == {KEYS_1: "ble:" + KEYS_1, BAG_1: "ble:" + BAG_1}
-    # Keys goes quiet; its next address starts in the kitchen. The iPhone's
-    # new address starts in the kitchen too — but it isn't a Find My tag.
-    t += 20
-    recs = {KEYS_1: _rec(_separated(1), KITCHEN, age=12), KEYS_2: _rec(_separated(1, 0x22), KITCHEN),
-            BAG_1: _rec(_separated(2), OFFICE), PHONE_1: _rec(IPHONE, KITCHEN, age=12), PHONE_2: _rec(IPHONE, KITCHEN)}
-    r = _poll(b, t, recs, known)
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN), BAG_1: _rec(_separated(2), OFFICE), PHONE_1: _rec(IPHONE, KITCHEN)}, known)
+    _poll(b, 20, {KEYS_1: _rec(_separated(1), KITCHEN, age=21), KEYS_2: _rec(_separated(1, 0x22), KITCHEN),
+                  BAG_1: _rec(_separated(2), OFFICE), PHONE_2: _rec(IPHONE, KITCHEN)}, known)
+    r = _poll(b, 100, {KEYS_1: _rec(_separated(1), KITCHEN, age=101), KEYS_2: _rec(_separated(1, 0x22), KITCHEN),
+                       BAG_1: _rec(_separated(2), OFFICE), PHONE_2: _rec(IPHONE, KITCHEN)}, known)
     assert r["linked"] == [("ble:" + KEYS_1, KEYS_1, KEYS_2)]
     assert r["map"][KEYS_2] == "ble:" + KEYS_1 and PHONE_2 not in r["map"]
     # Bag changes: its new address in the office is Bag, never Keys.
-    t += 20
-    recs = {KEYS_2: _rec(_separated(1, 0x22), KITCHEN), BAG_1: _rec(_separated(2), OFFICE, age=15),
-            BAG_2: _rec(_separated(2, 0x33), OFFICE)}
-    r = _poll(b, t, recs, {BAG_1: "ble:" + BAG_1})
+    _poll(b, 120, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN), BAG_1: _rec(_separated(2), OFFICE, age=21),
+                   BAG_2: _rec(_separated(2, 0x33), OFFICE)}, known)
+    r = _poll(b, 200, {KEYS_1: _rec(_separated(1), KITCHEN, age=201), KEYS_2: _rec(_separated(1, 0x22), KITCHEN),
+                       BAG_1: _rec(_separated(2), OFFICE, age=101), BAG_2: _rec(_separated(2, 0x33), OFFICE)}, known)
     assert r["linked"] == [("ble:" + BAG_1, BAG_1, BAG_2)]
     assert r["map"] == {KEYS_2: "ble:" + KEYS_1, BAG_2: "ble:" + BAG_1}
 
 
 def test_a_tag_is_followed_through_change_after_change():
     b = F.FindMyBridge()
-    k = "ble:" + KEYS_1
-    _poll(b, 0.0, {KEYS_1: _rec(_nearby(1), KITCHEN)}, {KEYS_1: k})
-    _poll(b, 900.0, {KEYS_1: _rec(_nearby(1), KITCHEN, age=8), KEYS_2: _rec(_nearby(1), KITCHEN)})
-    r = _poll(b, 1800.0, {KEYS_2: _rec(_nearby(1), KITCHEN, age=9), KEYS_3: _rec(_separated(1), KITCHEN)})
+    k = KEYS_1          # as the snapshot keys it: the address it was first known by
+    _change(b, KEYS_1, KEYS_2, _nearby(1), _nearby(1), KITCHEN, known={KEYS_1: k})
+    r = _change(b, KEYS_2, KEYS_3, _nearby(1), _separated(1), KITCHEN, t0=1000.0)
     assert r["map"] == {KEYS_3: k}, "near-owner and separated advertisements are one tag"
+    assert b.addresses_of(k) == [KEYS_1, KEYS_2, KEYS_3]
+
+
+def test_a_lingering_labelled_old_address_never_pulls_the_identity_back():
+    """Round 8: the old address stays in HA's list (up to 4 h) with its label;
+    it used to re-seed and re-point the tag at the dead address."""
+    b = F.FindMyBridge()
+    known = {KEYS_1: "ble:" + KEYS_1}
+    _change(b, KEYS_1, KEYS_2, _separated(1), _separated(1, 0x22), KITCHEN, known=known)
+    for t in (120, 300, 3600):
+        r = _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN, age=t + 1), KEYS_2: _rec(_separated(1, 0x22), KITCHEN)}, known)
+        assert r["map"] == {KEYS_2: "ble:" + KEYS_1}, t
+    assert b.identity_of(KEYS_1) == "ble:" + KEYS_1
 
 
 def test_two_tags_lying_together_that_change_together_are_not_guessed():
@@ -118,72 +138,127 @@ def test_two_tags_lying_together_that_change_together_are_not_guessed():
     can't be told apart then — nothing is linked rather than a coin toss."""
     b = F.FindMyBridge()
     known = {KEYS_1: "ble:" + KEYS_1, BAG_1: "ble:" + BAG_1}
-    _poll(b, 0.0, {KEYS_1: _rec(_separated(1), KITCHEN), BAG_1: _rec(_separated(1), KITCHEN)}, known)
-    r = _poll(b, 20.0, {KEYS_1: _rec(_separated(1), KITCHEN, age=15), BAG_1: _rec(_separated(1), KITCHEN, age=15),
-                        KEYS_2: _rec(_separated(1, 0x22), {"kitchen": -56.0, "hall": -71.0, "office": -88.0}),
-                        BAG_2: _rec(_separated(1, 0x33), {"kitchen": -54.0, "hall": -73.0, "office": -87.0})})
+    near_k = {"kitchen": -56.0, "hall": -71.0, "office": -88.0}
+    near_b = {"kitchen": -54.0, "hall": -73.0, "office": -87.0}
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN), BAG_1: _rec(_separated(1), KITCHEN)}, known)
+    _poll(b, 20, {KEYS_2: _rec(_separated(1, 0x22), near_k), BAG_2: _rec(_separated(1, 0x33), near_b)}, known)
+    r = _poll(b, 100, {KEYS_2: _rec(_separated(1, 0x22), near_k), BAG_2: _rec(_separated(1, 0x33), near_b)}, known)
     assert r["linked"] == [] and KEYS_2 not in r["map"] and BAG_2 not in r["map"]
+
+
+def test_a_rival_just_past_the_limit_still_counts():
+    """Round 8: a rival at 10.4 dB was ignored because only pairs under
+    MAX_DB were compared — Keys took Bag's address at 9.8 dB."""
+    b = F.FindMyBridge()
+    here = {"kitchen": -55.0, "hall": -72.0}
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), here)}, {KEYS_1: "ble:" + KEYS_1})
+    a = {"kitchen": -45.2, "hall": -72.0}      # 9.8 dB away
+    c = {"kitchen": -44.6, "hall": -72.0}      # 10.4 dB away
+    _poll(b, 20, {KEYS_2: _rec(_separated(1, 0x22), a), BAG_2: _rec(_separated(1, 0x33), c)})
+    r = _poll(b, 100, {KEYS_2: _rec(_separated(1, 0x22), a), BAG_2: _rec(_separated(1, 0x33), c)})
+    assert r["linked"] == []
 
 
 def test_the_same_two_tags_apart_are_each_linked():
     b = F.FindMyBridge()
     known = {KEYS_1: "ble:" + KEYS_1, BAG_1: "ble:" + BAG_1}
-    _poll(b, 0.0, {KEYS_1: _rec(_separated(1), KITCHEN), BAG_1: _rec(_separated(1), OFFICE)}, known)
-    r = _poll(b, 20.0, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN), BAG_2: _rec(_separated(1, 0x33), OFFICE)})
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN), BAG_1: _rec(_separated(1), OFFICE)}, known)
+    _poll(b, 20, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN), BAG_2: _rec(_separated(1, 0x33), OFFICE)})
+    r = _poll(b, 100, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN), BAG_2: _rec(_separated(1, 0x33), OFFICE)})
     assert sorted(r["linked"]) == sorted([("ble:" + KEYS_1, KEYS_1, KEYS_2), ("ble:" + BAG_1, BAG_1, BAG_2)])
 
 
-def test_never_onto_an_address_while_the_old_one_is_still_advertising():
+def test_a_live_tag_reported_late_has_not_stopped():
+    """Round 8: a passive proxy's repeats reach PadSpan only at each reseed
+    (30-60 s). A tag reported 60 s ago is live — a same-type tag put down
+    next to it is not its next address."""
     b = F.FindMyBridge()
-    _poll(b, 0.0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: "ble:" + KEYS_1})
-    r = _poll(b, 20.0, {KEYS_1: _rec(_separated(1), KITCHEN, age=1), KEYS_2: _rec(_separated(1, 0x22), KITCHEN)})
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: "ble:" + KEYS_1})
+    for t in (20, 40, 60):
+        r = _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN, age=t + 1 if t < 60 else 60),
+                         KEYS_2: _rec(_separated(1, 0x22), KITCHEN)})
+        assert r["linked"] == [], t
+    r = _poll(b, 70, {KEYS_1: _rec(_separated(1), KITCHEN, age=2), KEYS_2: _rec(_separated(1, 0x22), KITCHEN)})
     assert r["linked"] == [] and r["map"] == {KEYS_1: "ble:" + KEYS_1}
+
+
+def test_a_visitors_tag_arriving_after_the_tag_left_is_not_it():
+    """Round 8: Keys goes out of range at the door; a visitor's AirTag
+    arrives at the door a minute later — not a hand-over."""
+    b = F.FindMyBridge()
+    door = {"hall": -60.0, "kitchen": -80.0}
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), door)}, {KEYS_1: "ble:" + KEYS_1})
+    _poll(b, 60, {KEYS_1: _rec(_separated(1), door, age=61), BAG_1: _rec(_separated(1), door)})
+    r = _poll(b, 120, {KEYS_1: _rec(_separated(1), door, age=121), BAG_1: _rec(_separated(1), door)})
+    assert r["linked"] == []
 
 
 def test_a_neighbours_tag_that_was_there_all_along_is_not_a_hand_over():
     b = F.FindMyBridge()
     k = "ble:" + KEYS_1
-    _poll(b, 0.0, {KEYS_1: _rec(_separated(1), KITCHEN), BAG_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: k})
-    _poll(b, 300.0, {KEYS_1: _rec(_separated(1), KITCHEN), BAG_1: _rec(_separated(1), KITCHEN)})
-    r = _poll(b, 320.0, {KEYS_1: _rec(_separated(1), KITCHEN, age=15), BAG_1: _rec(_separated(1), KITCHEN)})
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN), BAG_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: k})
+    _poll(b, 300, {KEYS_1: _rec(_separated(1), KITCHEN), BAG_1: _rec(_separated(1), KITCHEN)})
+    r = _poll(b, 400, {KEYS_1: _rec(_separated(1), KITCHEN, age=100), BAG_1: _rec(_separated(1), KITCHEN)})
     assert r["linked"] == [], "the neighbour's tag started long before Keys went quiet"
+
+
+def test_after_a_restart_nothing_already_in_range_looks_new():
+    """Round 8: first_seen is in memory only — after a restart every address
+    looked newly arrived for a moment."""
+    b = F.FindMyBridge()
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: "ble:" + KEYS_1})
+    again = F.FindMyBridge(b.to_state())
+    _poll(again, 5, {KEYS_1: _rec(_separated(1), KITCHEN, age=6), BAG_1: _rec(_separated(1), KITCHEN)})
+    r = _poll(again, 100, {KEYS_1: _rec(_separated(1), KITCHEN, age=101), BAG_1: _rec(_separated(1), KITCHEN)})
+    assert r["linked"] == []
 
 
 def test_a_different_kind_of_find_my_device_is_never_linked():
     """AirPods and Macs send Find My too (types 3 and 0)."""
     b = F.FindMyBridge()
-    _poll(b, 0.0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: "ble:" + KEYS_1})
-    r = _poll(b, 20.0, {KEYS_2: _rec(_separated(3), KITCHEN), KEYS_3: _rec(_separated(0), KITCHEN)})
+    r = _change(b, KEYS_1, KEYS_2, _separated(1), _separated(3), KITCHEN, known={KEYS_1: "ble:" + KEYS_1})
+    assert r["linked"] == []
+    b = F.FindMyBridge()
+    r = _change(b, KEYS_1, KEYS_2, _separated(1), _separated(0), KITCHEN, known={KEYS_1: "ble:" + KEYS_1})
     assert r["linked"] == []
 
 
 def test_a_new_address_somewhere_else_is_not_the_tag():
     b = F.FindMyBridge()
-    _poll(b, 0.0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: "ble:" + KEYS_1})
-    r = _poll(b, 20.0, {KEYS_2: _rec(_separated(1), OFFICE)})
+    r = _change(b, KEYS_1, KEYS_2, _separated(1), _separated(1, 0x22), KITCHEN, OFFICE, known={KEYS_1: "ble:" + KEYS_1})
     assert r["linked"] == []
+
+
+def test_a_scanner_only_one_side_hears_never_makes_two_places_alike():
+    """Round 8: a strong one-sided scanner added 8 dB, below MAX_DB, so it
+    lowered the average — a kitchen tag linked to an office address."""
+    kitchen = {"kitchen": -55.0, "hall": -70.0}
+    office = {"office": -50.0, "hall": -85.0}
+    assert F.place_difference(kitchen, office) > F.MAX_DB
 
 
 def test_too_long_a_gap_is_not_a_hand_over():
     b = F.FindMyBridge()
-    _poll(b, 0.0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: "ble:" + KEYS_1})
-    r = _poll(b, F.HANDOVER_WINDOW_S + 30, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN)})
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: "ble:" + KEYS_1})
+    t = F.HANDOVER_WINDOW_S + 30
+    _poll(b, t - 20, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN)})
+    r = _poll(b, t, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN)})
     assert r["linked"] == []
 
 
 def test_the_links_survive_a_restart_through_their_saved_state():
     b = F.FindMyBridge()
-    _poll(b, 0.0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: "ble:" + KEYS_1})
-    _poll(b, 20.0, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN)})
+    _change(b, KEYS_1, KEYS_2, _separated(1), _separated(1, 0x22), KITCHEN, known={KEYS_1: "ble:" + KEYS_1})
     again = F.FindMyBridge(b.to_state())
-    r = again.step(40.0, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN)}, {})
+    r = _poll(again, 200, {KEYS_1: _rec(_separated(1), KITCHEN, age=201), KEYS_2: _rec(_separated(1, 0x22), KITCHEN)},
+              {KEYS_1: "ble:" + KEYS_1})
     assert r["map"] == {KEYS_2: "ble:" + KEYS_1}
-    assert again.identity_of(KEYS_2) == "ble:" + KEYS_1
+    assert again.identity_of(KEYS_1) == again.identity_of(KEYS_2) == "ble:" + KEYS_1
 
 
 def test_a_tag_not_heard_for_days_is_forgotten():
     b = F.FindMyBridge()
-    _poll(b, 0.0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: "ble:" + KEYS_1})
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: "ble:" + KEYS_1})
     r = _poll(b, F.FORGET_S + 10, {})
     assert r["map"] == {} and b.tags == {}
 
@@ -195,50 +270,61 @@ def test_place_difference_counts_a_strong_scanner_the_other_never_heard():
     assert F.place_difference({"a": -50.0}, {"b": -50.0}) is None
 
 
-# ── wired into the snapshot (snapshot_builder._findmy_step) ──────────────────
+# ── wired into the snapshot ──────────────────────────────────────────────────
 
 
-async def test_a_labelled_tag_keeps_its_key_name_and_follow_across_a_change():
+def _hass_for(labels=None, followed=None):
     from types import SimpleNamespace
     from unittest.mock import AsyncMock, MagicMock
-    from custom_components.padspan_ha import snapshot_builder as SB
     from custom_components.padspan_ha.const import DATA_OBJECTS, DATA_SETTINGS, DOMAIN
-
-    settings = SimpleNamespace(data={"followed_addrs": [KEYS_1, "AA:00:00:00:00:01"], "mac_rotation_bridging": True},
-                               async_set=AsyncMock(side_effect=lambda **kw: settings.data.update(kw)))
-    labels = {KEYS_1: "Keys"}
+    labels = labels or {}
+    settings = SimpleNamespace(data={"followed_addrs": list(followed or []), "mac_rotation_bridging": True},
+                               async_set=AsyncMock())
     store = SimpleNamespace(async_delay_save=MagicMock())
-    hass = SimpleNamespace(data={DOMAIN: {
+    return SimpleNamespace(data={DOMAIN: {
         DATA_SETTINGS: settings,
         DATA_OBJECTS: SimpleNamespace(get_label=lambda a: labels.get(a)),
-        "findmy_bridge": F.FindMyBridge(), "findmy_bridge_store": store}})
-    canon: dict = {}
-    await SB._findmy_step(hass, {KEYS_1: _rec(_separated(1), KITCHEN), PHONE_1: _rec(IPHONE, KITCHEN)}, canon, {}, {}, now_ts=0.0)
+        "findmy_bridge": F.FindMyBridge(), "findmy_bridge_store": store}}), settings, store
+
+
+async def test_every_address_a_moved_tag_used_maps_to_one_identity_and_follow_is_left_alone():
+    from custom_components.padspan_ha import snapshot_builder as SB
+    hass, settings, store = _hass_for({KEYS_1: "Keys"}, followed=[KEYS_1])
+    canon = {}
+    await SB._findmy_step(hass, {KEYS_1: _rec(_separated(1), KITCHEN), PHONE_1: _rec(IPHONE, KITCHEN)}, canon, {}, {}, now_ts=T0)
     assert canon == {}, "on its first address a tag is an ordinary object"
     canon = {}
-    linked = await SB._findmy_step(hass, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN), PHONE_2: _rec(IPHONE, KITCHEN)},
-                                   canon, {}, {}, now_ts=20.0)
-    assert linked == [(KEYS_1, KEYS_1, KEYS_2)]       # identity = the address it was first known by
+    await SB._findmy_step(hass, {KEYS_1: _rec(_separated(1), KITCHEN, age=21), KEYS_2: _rec(_separated(1, 0x22), KITCHEN)},
+                          canon, {}, {}, now_ts=T0 + 20)
+    assert canon == {}
+    canon = {}
+    linked = await SB._findmy_step(hass, {KEYS_1: _rec(_separated(1), KITCHEN, age=101), KEYS_2: _rec(_separated(1, 0x22), KITCHEN),
+                                          PHONE_2: _rec(IPHONE, KITCHEN)}, canon, {}, {}, now_ts=T0 + 100)
+    assert linked == [(KEYS_1, KEYS_1, KEYS_2)]
+    # BOTH addresses — the lingering first one too — are the one tag.
+    assert canon[KEYS_1] is canon[KEYS_2]
     assert canon[KEYS_2]["key"] == "ble:" + KEYS_1 and canon[KEYS_2]["canonical_id"] == KEYS_1
     assert PHONE_2 not in canon
-    assert settings.data["followed_addrs"] == [KEYS_2, "AA:00:00:00:00:01"], "Follow moves with the tag"
+    assert settings.data["followed_addrs"] == [KEYS_1], "open panels hold their own copy: never rewritten"
+    settings.async_set.assert_not_called()
     store.async_delay_save.assert_called_once()
-    # Next poll: the mapping is re-applied (canonical_by_addr is rebuilt every snapshot).
-    canon = {}
-    await SB._findmy_step(hass, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN)}, canon, {}, {}, now_ts=40.0)
-    assert canon[KEYS_2]["key"] == "ble:" + KEYS_1
+    # Later polls: the mapping holds while the old address lingers, labelled.
+    for t in (120, 600):
+        canon = {}
+        await SB._findmy_step(hass, {KEYS_1: _rec(_separated(1), KITCHEN, age=t + 1), KEYS_2: _rec(_separated(1, 0x22), KITCHEN)},
+                              canon, {}, {}, now_ts=T0 + t)
+        assert canon[KEYS_2]["key"] == "ble:" + KEYS_1 and canon[KEYS_1] is canon[KEYS_2], t
 
 
 async def test_an_unknown_tag_is_never_given_an_identity():
-    from types import SimpleNamespace
     from custom_components.padspan_ha import snapshot_builder as SB
-    from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
-
-    hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: SimpleNamespace(data={}),
-                                          "findmy_bridge": F.FindMyBridge(), "findmy_bridge_store": None}})
+    hass, _s, _st = _hass_for()
     canon: dict = {}
-    await SB._findmy_step(hass, {KEYS_1: _rec(_separated(1), KITCHEN)}, canon, {}, {}, now_ts=0.0)
-    await SB._findmy_step(hass, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN)}, canon, {}, {}, now_ts=20.0)
+    for t, recs in ((0, {KEYS_1: _rec(_separated(1), KITCHEN)}),
+                    (20, {KEYS_1: _rec(_separated(1), KITCHEN, age=21), KEYS_2: _rec(_separated(1, 0x22), KITCHEN)}),
+                    (100, {KEYS_1: _rec(_separated(1), KITCHEN, age=101), KEYS_2: _rec(_separated(1, 0x22), KITCHEN)})):
+        await SB._findmy_step(hass, recs, canon, {}, {}, now_ts=T0 + t)
+    from custom_components.padspan_ha.const import DOMAIN
     assert canon == {} and hass.data[DOMAIN]["findmy_bridge"].tags == {}
 
 

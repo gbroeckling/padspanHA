@@ -98,12 +98,16 @@ async def _findmy_step(hass: HomeAssistant, ble_by_addr: dict, canonical_by_addr
 
     A Find My address is static random (0xC0-0xFF), never a resolvable
     private one, so the fingerprint bridge above never sees it. A tag the
-    person labelled, followed or linked starts an identity; each address
-    it moves to is mapped to that identity with the object key it was first
-    known by — so its name, room smoothing, Traceback key and Follow carry
-    on. Returns this poll's links as (identity, old address, new address)."""
+    person labelled, followed or linked starts an identity, keyed by the
+    address it was first known by. Once it has moved, EVERY address it has
+    used that is still in the snapshot — the old ones linger in HA's list for
+    up to ble_max_age_s — maps to that one identity: one object, keeping the
+    key, the address the person named and followed it by (B2 below), its
+    room and Traceback key. followed_addrs is never rewritten (open panels
+    hold their own copy and would undo it — round 8). Returns this poll's
+    links as (identity, old address, new address)."""
     import time as _t  # noqa: PLC0415
-    from .findmy import is_findmy_address, parse_findmy  # noqa: PLC0415
+    from .findmy import LIVE_S, is_findmy_address, parse_findmy  # noqa: PLC0415
     now_ts = _t.time() if now_ts is None else now_ts
     bridge = await _findmy_bridge(hass)
     dom = hass.data.get(DOMAIN, {})
@@ -114,7 +118,10 @@ async def _findmy_step(hass: HomeAssistant, ble_by_addr: dict, canonical_by_addr
     known: dict[str, str] = {}
     for addr, rec in ble_by_addr.items():
         if addr in canonical_by_addr or not is_findmy_address(addr) or bridge.identity_of(addr):
-            continue
+            continue          # an address a tag has used is that tag's, never a new one
+        age = rec.get("age_s")
+        if isinstance(age, (int, float)) and age > LIVE_S:
+            continue          # a lingering address nobody is using
         if parse_findmy(rec.get("manufacturer_data")) is None:
             continue
         if (addr in followed or addr in addr_to_device or addr in addr_to_entities
@@ -122,24 +129,18 @@ async def _findmy_step(hass: HomeAssistant, ble_by_addr: dict, canonical_by_addr
                 or (dev_reg and dev_reg.get_label_by_key(addr))):
             known[addr] = addr
     res = bridge.step(now_ts, {a: r for a, r in ble_by_addr.items() if a not in canonical_by_addr}, known)
-    for addr, ident in res["map"].items():
-        if addr == ident or addr in canonical_by_addr:
+    for ident in list(bridge.tags):
+        if bridge.tags[ident].get("addr") == ident:
             continue            # still on the address it was first known by: an ordinary object
-        canonical_by_addr[addr] = {
-            "canonical_id": ident, "key": f"ble:{ident}", "name": ident,
-            "kind": "private_ble", "bridge_match": True, "findmy": True,
-        }
+        entry = {"canonical_id": ident, "key": f"ble:{ident}", "name": ident,
+                 "kind": "private_ble", "bridge_match": True, "findmy": True}
+        for addr in bridge.addresses_of(ident):
+            if addr in ble_by_addr and addr not in canonical_by_addr:
+                canonical_by_addr[addr] = entry
     if res["linked"]:
         store = dom.get(_FINDMY_STORE)
         if store is not None:
             store.async_delay_save(bridge.to_state, 5)
-        # Follow carries on: the followed address moves with the tag.
-        if st and followed:
-            current = list(st.data.get("followed_addrs") or [])
-            moved = {old.upper(): new.upper() for _i, old, new in res["linked"]}
-            updated = [moved.get(str(f).upper(), f) for f in current]
-            if updated != current:
-                await st.async_set(followed_addrs=updated)
     return res["linked"]
 
 
@@ -1456,6 +1457,14 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             freshest = pg.get("freshest_rec")
             rec = freshest if freshest else pg["best_rec"]
             addr = pg["best_addr"]
+            # A Find My tag (findmy.py) is the address the person named and
+            # followed it by — every view keys Follow, alerts and pins on
+            # o.address — with its live address beside it. Its lingering old
+            # addresses hold frozen, often stronger, readings: signal comes
+            # from the freshest record, never the strongest (round 8).
+            _fm_obj = bool(canonical.get("findmy"))
+            if _fm_obj:
+                addr = cid
             parts = addr.split(":")
             prefix = ":".join(parts[:3]) if len(parts) >= 3 else ""
             obj_pb: dict[str, Any] = {
@@ -1468,7 +1477,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 "private_ble_name": canonical["name"],
                 "all_addresses": sorted(pg["addrs"]),  # all rotating MACs seen this cycle
                 "name": canonical.get("name") or rec.get("name") or addr,
-                "rssi": pg["best_rssi"] if pg["best_rssi"] > -999 else rec.get("rssi"),
+                "rssi": rec.get("rssi") if _fm_obj else (pg["best_rssi"] if pg["best_rssi"] > -999 else rec.get("rssi")),
                 "last_seen": rec.get("last_seen"),
                 "age_s": pg["freshest_age"] if pg["freshest_age"] is not None else rec.get("age_s"),
                 "sources": sorted(
@@ -1491,6 +1500,9 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             if canonical.get("bridge_match"):
                 obj_pb["bridge_match"] = True
                 obj_pb["identified"] = False
+            if _fm_obj:
+                obj_pb["findmy"] = True
+                obj_pb["current_address"] = rec.get("address") or pg["best_addr"]
             # Attach iBeacon metadata if this private_ble device also broadcasts
             # as an iBeacon (e.g. HA Companion App "Track Phone").
             _ib_meta = _ibeacon_meta_for_private.get(cid)
