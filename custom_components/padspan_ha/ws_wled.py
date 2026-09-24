@@ -312,6 +312,27 @@ def resolve_device(hass: HomeAssistant, entity_id: str | None = None,
     return None
 
 
+def unreachable_host(hass: HomeAssistant, entity_id: str | None = None, device_id: str | None = None) -> str | None:
+    """The address of a WLED entry this light/device has that Home Assistant
+    couldn't set up (the device didn't answer) — so the card can say it's
+    unreachable instead of "not a WLED device" (2026-09-23, live: four
+    offline strips read as not WLED at all). Never used to reach it."""
+    from homeassistant.helpers import device_registry as dr, entity_registry as er  # noqa: PLC0415
+
+    if entity_id and not device_id:
+        ent = er.async_get(hass).async_get(entity_id)
+        device_id = ent.device_id if ent is not None else None
+    dev = dr.async_get(hass).async_get(device_id) if device_id else None
+    if dev is None:
+        return None
+    entries = _wled_entries(hass)
+    for entry_id in getattr(dev, "config_entries", ()) or ():
+        entry = entries.get(entry_id)
+        if entry is not None and not getattr(entry, "disabled_by", None):
+            return str((entry.data or {}).get("host") or "its address")
+    return None
+
+
 def _norm_mac(mac: Any) -> str:
     return re.sub(r"[^0-9a-f]", "", str(mac or "").lower())
 
@@ -466,8 +487,14 @@ async def _gate(hass: HomeAssistant, connection, msg) -> dict[str, Any] | None:
         return None
     tgt = _target(hass, msg)
     if tgt is None:
-        connection.send_error(msg["id"], "not_wled",
-                              "That light isn't a WLED device in Home Assistant's WLED integration")
+        host = unreachable_host(hass, entity_id=msg.get("entity_id"), device_id=msg.get("device_id"))
+        if host:
+            connection.send_error(msg["id"], "unreachable",
+                                  f"Home Assistant can't reach this WLED at {host} — check it's powered on and on "
+                                  "the network (if its address changed, Home Assistant's WLED integration needs the new one)")
+        else:
+            connection.send_error(msg["id"], "not_wled",
+                                  "That light isn't a WLED device in Home Assistant's WLED integration")
         return None
     return tgt
 

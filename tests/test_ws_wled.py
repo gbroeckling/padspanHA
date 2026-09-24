@@ -648,3 +648,14 @@ def test_vacation_mode_skips_only_followers_still_following(monkeypatch):
     teams = [{"leader": "dL", "followers": ["dA", "dB"], "incomplete": ["dA"]},
              {"leader": "dM", "followers": ["dC"], "incomplete": []}]
     assert W.follower_light_entities(None, teams) == {"light.a", "light.c"}
+
+
+async def test_an_offline_wled_says_unreachable_not_that_it_isnt_wled(fake):
+    """2026-09-23, live: four WLED strips that were off the network showed
+    'That light isn't a WLED device in Home Assistant's WLED integration'."""
+    entry = fake.hass.config_entries.async_entries("wled")[0]
+    entry.state = SimpleNamespace(value="setup_retry")
+    conn = _Conn()
+    await W.ws_wled_get(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "path": "json/info"})
+    assert conn.errors[0][0] == "unreachable" and "192.168.2.122" in conn.errors[0][1]
+    assert fake.calls == [], "an unloaded entry's host is named, never contacted"
