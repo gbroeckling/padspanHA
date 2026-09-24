@@ -23,7 +23,8 @@
 
 const _q = new URL(import.meta.url).search;
 const { buildIsoSVG, fabricFrame } = await import(`./iso_lights.js${_q}`);
-const { gatherLights, ensureLightsRegistry } = await import(`./lights_map.js${_q}`);
+const { gatherLights, ensureLightsRegistry, lightIsTouched, atlasLookFromSettings, atlasIsoLookOpts,
+        sunElevationDeg, ambientFromElevation, sunAmbient } = await import(`./lights_map.js${_q}`);
 
 /** Normalise one HA history row (compressed WS or full REST shape) to ms times. */
 function _row(r) {
@@ -362,6 +363,17 @@ export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegist
   const hidden = new Set(Array.isArray(settings.lights_hidden) ? settings.lights_hidden : []);
   const byRoom = {};
   for (const l of lights) if (l.area_name && !hidden.has(l.entity_id)) (byRoom[l.area_name] = byRoom[l.area_name] || []).push(l);
+  // The Atlas tab's own look (Garry, 2026-09-23: "should match the atlas tab
+  // settings and look") — the same reading the Atlas panel makes. Its
+  // "hide untouched" filter hides on the drawing only, as there. Daylight is
+  // the replayed moment's sun, from the house's own location.
+  const look = atlasLookFromSettings(settings);
+  const hiddenOnMap = look.hideUntouched
+    ? new Set([...hidden, ...lights.filter(l => !lightIsTouched(l, shapeOverrides, model.light_positions_m || {})).map(l => l.entity_id)])
+    : hidden;
+  const lat = Number(ctx.hass?.config?.latitude), lon = Number(ctx.hass?.config?.longitude);
+  const ambient = Number.isFinite(lat) && Number.isFinite(lon) && ctx.hass?.config?.latitude != null
+    ? ambientFromElevation(sunElevationDeg(lat, lon, tMs)) : sunAmbient(ctx.hass);
 
   const floorGap = ctx.state._overviewFloorGap ?? settings.overview_iso_floor_gap ?? 150;
   const horizGap = ctx.state._overviewHorizGap ?? settings.overview_iso_horiz_gap ?? 0;
@@ -371,11 +383,11 @@ export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegist
   // earlier frames get no boot gate (it would silence their real motion).
   const startedMs = Date.parse(model.ha_started_at) || 0;
 
-  return buildIsoSVG(model, byRoom, hidden, focusZ, floorGap, horizGap, lightsByEid, !!reg.loading, floors, {
+  return buildIsoSVG(model, byRoom, hiddenOnMap, focusZ, floorGap, horizGap, lightsByEid, !!reg.loading, floors, {
+    ...atlasIsoLookOpts(look, ambient),
     beacons: beaconsForFrame(frames, frameIdx, model, beaconOpts),
     nowMs: tMs,
     haStartedMs: tMs >= startedMs ? startedMs : 0,
     floodLatches: settings.flood_latches || {},
-    hideCodes: !!settings.lights_hide_device_codes,
   });
 }

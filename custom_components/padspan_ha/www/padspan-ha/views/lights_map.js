@@ -1766,8 +1766,64 @@ export async function setManyStates(hass, eids, turnOn, { toast, rerender } = {}
 // civil-twilight end and below, 1 from +6° elevation up. Both hosts call
 // this so the builder and the sidebar agree on what time it is.
 export function sunAmbient(hass){
-  const e = Number(hass?.states?.["sun.sun"]?.attributes?.elevation);
-  return isFinite(e) ? Math.max(0, Math.min(1, (e + 6) / 12)) : 0;
+  return ambientFromElevation(Number(hass?.states?.["sun.sun"]?.attributes?.elevation));
+}
+// Daylight 0..1 from the sun's elevation: dark below -6° (civil dusk), full
+// from +6°.
+export const ambientFromElevation = (e) => isFinite(e) ? Math.max(0, Math.min(1, (e + 6) / 12)) : 0;
+
+// The sun's elevation in degrees at a moment and place — the standard
+// low-precision solar position (well under a degree). A replay's daylight is
+// the replayed moment's, not tonight's (Traceback's Full house activity).
+export function sunElevationDeg(latDeg, lonDeg, tMs){
+  const r = Math.PI / 180;
+  const d = tMs / 86400000 + 2440587.5 - 2451545.0;          // days since J2000
+  const g = (357.529 + 0.98560028 * d) * r;                     // mean anomaly
+  const q = 280.459 + 0.98564736 * d;                           // mean longitude
+  const L = (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * r;
+  const eps = (23.439 - 0.00000036 * d) * r;                    // obliquity
+  const ra = Math.atan2(Math.cos(eps) * Math.sin(L), Math.cos(L));
+  const dec = Math.asin(Math.sin(eps) * Math.sin(L));
+  const gmst = ((18.697374558 + 24.06570982441908 * d) % 24) * 15 * r;
+  const ha = gmst + lonDeg * r - ra;
+  const lat = latDeg * r;
+  return Math.asin(Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(ha)) / r;
+}
+
+// ── The Atlas look ───────────────────────────────────────────────────────────
+// Garry, 2026-09-23: "in traceback, full house activity should match the
+// atlas tab settings and look". The look is set in Mapping → Atlas and
+// saved in settings; every surface that draws the Atlas reads it through
+// here — the sidebar panel and Traceback alike — so they can't disagree.
+export function atlasLookFromSettings(s){
+  s = s || {};
+  return {
+    showcase: !!s.lights_showcase,
+    showcaseTheme: s.lights_showcase_theme || "classic",
+    fitRooms: !!s.lights_fit_rooms,
+    isolux: !!s.lights_isolux,
+    hideUntouched: !!s.lights_hide_untouched,
+    hideDeviceCodes: !!s.lights_hide_device_codes,
+    automorph: !!s.lights_automorph_enabled,
+    automorphRoomPct: Number(s.lights_automorph_room_pct) || 0,
+    automorphHardness: Number(s.lights_automorph_hardness) || 0,
+    automorphStyle: s.lights_automorph_style || "glow",
+    automorphSubtlety: Number(s.lights_automorph_subtlety) || 0,
+  };
+}
+// buildIsoSVG's options for that look, as the Atlas panel draws it for
+// viewing: codes as chips, a room's unplaced devices collapsed to one chip
+// (the same translation buildLightsMapCard's rebuildISO makes from its host).
+export function atlasIsoLookOpts(look, ambient){
+  return {
+    showcase: !!look.showcase, showcaseTheme: look.showcaseTheme || "classic",
+    fitRooms: !!look.showcase && !!look.fitRooms, ambient,
+    isolux: !!look.showcase && !!look.isolux,
+    codeChip: true, collapseUnplaced: true, hideCodes: !!look.hideDeviceCodes,
+    automorph: !!look.automorph, automorphRoomPct: look.automorphRoomPct || 0,
+    automorphHardness: look.automorphHardness || 0, automorphStyle: look.automorphStyle || "glow",
+    automorphSubtlety: look.automorphSubtlety || 0,
+  };
 }
 
 // Ripple: fire-order for a tap — each fixture's delay is its real screen

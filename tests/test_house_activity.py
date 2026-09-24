@@ -289,3 +289,57 @@ out.whileLoading = loading.includes('"light.hall"');
 out.onceLoaded = loaded.includes('"light.hall"');
 """)
     assert out == {"whileLoading": False, "onceLoaded": True}
+
+
+# ── Garry, 2026-09-23: "full house activity should match the atlas tab
+# settings and look" ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_the_replay_draws_with_the_atlas_tabs_look():
+    """Showcase, its theme, automorph and hidden codes — set in Mapping →
+    Atlas — used to be ignored by Traceback: it drew the plain map."""
+    out = _run("""
+const model = { floors: [{ id: "main", name: "Main", level: 0 }], areas: [{ id: "hall", name: "Hall", floor_id: "main" }],
+  room_geometry_m: { Hall: { type: "poly", floor_id: "main", points_m: [[0, 0], [5, 0], [5, 4], [0, 4]] } },
+  light_positions_m: { "light.hall": { x_m: 2, y_m: 2, floor_id: "main" } } };
+const reg = { ts: Date.now() + 1e9, areaMap: { "light.hall": "Hall" }, platformMap: {}, manufacturerMap: {}, ipMap: {}, pairMap: {}, doorLockMap: {} };
+const light = { entity_id: "light.hall", state: "on", attributes: { friendly_name: "Hall", brightness: 255 } };
+const hs = { timeline: HA.buildStateTimeline({ "light.hall": [{ s: "on", a: { brightness: 255 }, lu: 50 }] }), events: [], eids: [] };
+const frames = [{ ts: 100, o: [] }];
+const draw = (settings) => HA.renderHouseFrame({ state: { model, settings: { tier: "pro", ...settings }, _modelLoaded: true, _lightsRegStore: { reg } },
+  hass: { states: { "light.hall": light }, callWS: async () => ({}), config: { latitude: 49.28, longitude: -123.12 } } }, hs, frames, 0, {}, () => {});
+const plain = draw({});
+out.showcase = draw({ lights_showcase: true, lights_showcase_theme: "classic" }) !== plain;
+out.theme = draw({ lights_showcase: true, lights_showcase_theme: "aurora" }) !== draw({ lights_showcase: true, lights_showcase_theme: "classic" });
+out.automorph = draw({ lights_automorph_enabled: true, lights_automorph_room_pct: 60 }) !== plain;
+out.codesShown = />A01</.test(plain);
+out.codesHidden = !/>A01</.test(draw({ lights_hide_device_codes: true }));
+""")
+    assert out == {"showcase": True, "theme": True, "automorph": True, "codesShown": True, "codesHidden": True}, out
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_the_look_is_one_reading_for_the_atlas_panel_and_traceback():
+    out = _run("""
+const LM = await import("./lights_map.js");
+const s = { lights_showcase: true, lights_showcase_theme: "neon", lights_fit_rooms: true, lights_isolux: false,
+  lights_automorph_enabled: true, lights_automorph_room_pct: 40, lights_automorph_style: "spline",
+  lights_hide_device_codes: true, lights_hide_untouched: true };
+const look = LM.atlasLookFromSettings(s);
+const opts = LM.atlasIsoLookOpts(look, 0.5);
+out.look = [look.showcase, look.showcaseTheme, look.fitRooms, look.automorphRoomPct, look.automorphStyle, look.hideUntouched];
+out.opts = [opts.showcase, opts.fitRooms, opts.isolux, opts.hideCodes, opts.codeChip, opts.ambient];
+// Vancouver: high sun at solar noon on the solstice, well below at night.
+const noon = LM.sunElevationDeg(49.28, -123.12, Date.parse("2026-06-21T20:10:00Z"));
+const night = LM.sunElevationDeg(49.28, -123.12, Date.parse("2026-06-21T08:10:00Z"));
+out.sun = [Math.round(noon), Math.round(night)];
+out.amb = [LM.ambientFromElevation(noon), LM.ambientFromElevation(night), LM.ambientFromElevation(0)];
+""")
+    assert out["look"] == [True, "neon", True, 40, "spline", True]
+    assert out["opts"] == [True, True, False, True, True, 0.5]
+    assert 62 <= out["sun"][0] <= 66 and -20 <= out["sun"][1] <= -14, out["sun"]
+    assert out["amb"] == [1, 0, 0.5]
+    # The Atlas panel reads the look through the same function.
+    src = (_ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "lights_panel.js").read_text(encoding="utf-8")
+    assert "const look = atlasLookFromSettings(s);" in src
