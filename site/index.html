@@ -176,6 +176,27 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.77</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">24 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Added:</b> AirTags and tags sold as "works with Apple Find My" change their Bluetooth address every 15 minutes near their owner's iPhone, and once a day (about 4 am) when away from it — and until now each change made a new, nameless object. With <b>Settings → Features → MAC Rotation Bridging</b> on, a tag you've named or followed now carries on to its next address, keeping its name, room, Traceback history and Follow. PadSpan links them only when it's clear: the same kind of tag, the old address has stopped (about a minute after the change, since Home Assistant reports some tags only every 30–60 seconds), the new one appeared at that moment, and your scanners hear it in the same place. It never joins a tag to an iPhone, AirPods or a different kind of tag, a tag already in range, or a visitor's tag arriving later; two tags lying together that change at the same moment are left for you to name again rather than guessed. The Bluetooth tab shows these tags with a Find My badge.</li>
+          <li><b>Fixed:</b> with MAC Rotation Bridging on, an iPhone could be linked to a pair of AirPods (every Apple device looked the same to it).</li>
+          <li><b>Fixed:</b> the help said AirTags are iBeacons and can be tracked through Bermuda's iBeacon support; neither is true, and it now explains what does work.</li>
+          <li><b>Changed:</b> Full house activity now draws the Atlas exactly as your Atlas tab does — Showcase and its theme, fit rooms, isolux, automorph, hidden device codes and "hide untouched" — with the daylight of the moment being replayed.</li>
+          <li><b>Fixed:</b> an Inverted door's health dot read it backwards ("Open for ~8h" while closed).</li>
+          <li><b>Fixed:</b> a garage-door or opening sensor can be linked to a wall from Rooms → RF Barriers too.</li>
+          <li><b>Fixed:</b> a WLED strip Home Assistant can't reach said "That light isn't a WLED device"; it now says Home Assistant can't reach it and gives its address.</li>
+          <li><b>Fixed:</b> changes made on another screen while a team was being set up could be overwritten; the team card stays safe to use while the tab repaints; the colour-order helper can put a busy strip back; saving the Sync settings no longer switches off "Send my changes"; Vacation Mode switches a device that a failed team setup already put back.</li>
+          <li><b>Fixed:</b> live dots could freeze while a slider kept focus after Resume Normal.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.76</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">24 September 2026</span>
