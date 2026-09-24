@@ -404,3 +404,45 @@ out.ringed = /class="lchanged" data-eid="sensor\\.kitchen_temp"/.test(html);
     assert out["framesDevices"] == [10, 20, 200, 250], out
     assert out["events"] == [[200, "light.kitchen", "off", "on"], [250, "sensor.kitchen_temp", "20°", "21°"]], out
     assert out["named"] and out["ringed"], out
+
+
+
+def test_devices_turned_on_mid_playback_fetches_the_house_once():
+    """Round 16: Devices flipped on before the all-objects reload finished, so
+    a playback tick fetched the whole house's history for the old,
+    one-object window — then again for the new one."""
+    out = _run("""
+const now = Math.floor(Date.now() / 1000), start = now - 300;
+const frames = []; for (let i = 0; i < 20; i++) frames.push({ ts: start + 10 + i * 5, o: [{ k: "a", r: "Kitchen", x_m: 1, y_m: 1, f: "main" }] });
+const states = { "light.kitchen": { entity_id: "light.kitchen", state: "on", attributes: { friendly_name: "Kitchen" } } };
+let release;
+const gate = new Promise(r => { release = r; });
+const { ctx, calls } = H.makeCtx({ states,
+  wsCall: async (t, d) => t === "padspan_ha/traceback_get" ? (d.obj_key === undefined ? (await gate, { frames, range: {} }) : { frames, range: {} })
+    : t === "padspan_ha/traceback_objects" ? { objects: [] } : t === "padspan_ha/vacation_log_get" ? { actions: [], periods: [] } : {},
+  callWS: (m) => m.type === "history/history_during_period" ? {} : {} });
+ctx.state._traceback = undefined;
+const outer = H.TB.render(ctx);
+const tb = ctx.state._traceback;
+tb.filterKey = "a"; tb.filterName = "a";
+release();
+await settle();
+all(outer).find(n => String(n.textContent).startsWith("🏠 Full house activity")).click();
+await settle();
+const gate2 = new Promise(r => { release = r; });
+const origWs = ctx.actions.wsCall;
+ctx.actions.wsCall = async (t, d) => { if (t === "padspan_ha/traceback_get") await gate2; return origWs(t, d); };
+all(outer).find(n => n.title === "Play").click();                 // playing
+out.playing = tb.playing === true;
+all(outer).find(n => String(n.textContent).startsWith("💡 Devices")).click();
+out.stopped = tb.playing === false;
+// A playback tick while the all-objects reload is held.
+for (const f of H.rafQueue.splice(0).filter(Boolean)) f(performance.now() + 60000);
+await settle();
+release();
+await settle();
+out.fetches = calls.filter(c => c.type === "history/history_during_period").length;
+out.devices = tb.house.devices === true && tb.filterKey === null;
+""")
+    assert out["playing"] and out["stopped"] and out["devices"], out
+    assert out["fetches"] == 1, out          # one load (this house has only a light: one request)

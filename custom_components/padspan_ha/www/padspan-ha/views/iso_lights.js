@@ -5769,6 +5769,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           s+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="2.6" fill="#9333ea" `+
             `stroke="#1b0f24" stroke-width="0.8" opacity="${barDim.toFixed(2)}" pointer-events="none"/>`;
         }
+        // Traceback's 💡 Devices: a door or window is its wall — the change
+        // is marked along it (it has no marker to ring; review round 16).
+        if(CHANGED.has(String(bar.linked_entity_id))){
+          s+=`<polyline class="lchanged" data-eid="${escSVG(bar.linked_entity_id)}" points="${ppx}" fill="none" `+
+            `stroke="#fbbf24" stroke-width="8" stroke-opacity="0.45" stroke-linecap="round" pointer-events="none"/>`;
+        }
         if(BARRIER_HIT && dl){
           const a=bpts[0], b=bpts[bpts.length-1];
           const [mx,my]=iso((a[0]+b[0])/2,(a[1]+b[1])/2,z);

@@ -190,7 +190,12 @@ export function shownReading(eid, state, attrs) {
     return Number.isFinite(n) ? airQualityWord(airQualityBadness({ device_class: dc, air_value: n })) : null;
   }
   if (dc === "enum" && isAirQualityEntity(eid, attrs)) {
-    return airQualityWord(airQualityBadness({ air_level: String(state).toLowerCase() }));
+    // The sensor's own word, as the Atlas labels it (airQualityLabel) —
+    // banding it merged "very poor" with "unhealthy" (review round 16).
+    const w = String(state).toLowerCase();
+    if (!w || /^(unknown|unavailable|none)$/.test(w)) return null;
+    const t = w.replace(/_/g, " ");
+    return t.charAt(0).toUpperCase() + t.slice(1);
   }
   return null;
 }
@@ -206,24 +211,97 @@ export function activityEvents(timeline, nameOf, startMs, endMs, attrsOf = null)
   for (const [eid, list] of Object.entries(timeline)) {
     const reading = !isEventEntity(eid);
     if (reading && !attrsOf) continue;
-    const attrs = reading ? attrsOf(eid) : null;
+    const attrs = reading ? (attrsOf(eid) || {}) : null;
     const shown = reading ? (s) => shownReading(eid, s, attrs) : (s) => s;
+    // A whole degree or percent counts once the reading has moved a clear
+    // step (0.8) from the one last counted: a sensor on a rounding edge
+    // flipped 20°/21° on every report — hundreds a day that buried the
+    // doors and lights (review round 16).
+    const edge = reading && (attrs.device_class === "temperature" || attrs.device_class === "humidity");
     // Compare each real state with the last REAL state before it, so an
     // "off → unavailable → on" still reads as the off → on it was
     // (re-review 2026-09-23: skipping both sides of a gap lost the change).
-    let prev = null;
+    let prev = null, prevNum = null;
     for (let i = 0; i < list.length; i++) {
       const r = list[i];
       if (_NOT_A_CHANGE.has(r.state)) continue;
       const v = shown(r.state);
-      if (v == null) continue;
-      if (i > 0 && prev !== null && v !== prev && r.t >= startMs && r.t <= endMs) {
+      if (v == null || v === prev) continue;
+      if (edge && prev !== null && Math.abs(Number(r.state) - prevNum) < 0.8) continue;
+      if (i > 0 && prev !== null && r.t >= startMs && r.t <= endMs) {
         ev.push({ t: r.t, eid, name: nameOf(eid), from: prev, to: v });
       }
       prev = v;
+      prevNum = Math.round(Number(r.state));
     }
   }
   return ev.sort((a, b) => a.t - b.t);
+}
+
+/**
+ * The devices a replayed Atlas frame SHOWS a change of (💡 Devices): a marker
+ * drawn at its place or clustered in its room, not hidden — a reading only
+ * when placed (its digits, its air bars); a door or window only as its
+ * linked wall, which no filter hides. Review round 16: unplaced, hidden and
+ * unlinked ones were counted and named with nothing on the map changing.
+ */
+export function atlasShownEids(model, settings, lights, shapeOverrides = {}) {
+  const placed = (model && model.light_positions_m) || {};
+  const geo = (model && model.room_geometry_m) || {};
+  const walls = new Set(((model && model.rf_barriers_m) || []).map(b => b && b.linked_entity_id).filter(Boolean).map(String));
+  const hidden = _hiddenOnMap(settings, model, lights, shapeOverrides);
+  const out = new Set();
+  for (const l of lights || []) {
+    const eid = String(l.entity_id);
+    if (l.isDoor) { if (walls.has(eid)) out.add(eid); continue; }
+    if (hidden.has(eid)) continue;
+    if (l.isTemp || l.isHumidity || l.isAir) { if (placed[eid]) out.add(eid); continue; }
+    if (placed[eid] || (l.area_name && geo[l.area_name])) out.add(eid);
+  }
+  return out;
+}
+// The Atlas's own hiding: the hidden list, and its "hide untouched" look.
+function _hiddenOnMap(settings, model, lights, shapeOverrides) {
+  const hidden = new Set(Array.isArray(settings && settings.lights_hidden) ? settings.lights_hidden : []);
+  if (!atlasLookFromSettings(settings || {}).hideUntouched) return hidden;
+  for (const l of lights || []) if (!lightIsTouched(l, shapeOverrides, (model && model.light_positions_m) || {})) hidden.add(l.entity_id);
+  return hidden;
+}
+/** hs.events, only the ones a frame shows (hs.shown); all while not yet known. */
+export function shownHouseEvents(hs) {
+  if (hs._shownEvSrc !== hs.events || hs._shownEvKey !== hs.shownKey) {
+    hs._shownEvSrc = hs.events;
+    hs._shownEvKey = hs.shownKey;
+    hs._shownEv = hs.shown ? (hs.events || []).filter(e => hs.shown.has(e.eid)) : (hs.events || []);
+  }
+  return hs._shownEv;
+}
+/**
+ * The Atlas's device list for the replay (hs.eids) and which of them a frame
+ * shows a change of (hs.shown / hs.shownKey), from the live house. hs.shown
+ * stays null while the entity registry loads: rooms decide which unplaced
+ * devices are drawn. Returns the registry maps.
+ */
+export function refreshHouseDevices(ctx, hs, onRegistry) {
+  const model = ctx.state.model || {};
+  const settings = ctx.state.settings || {};
+  if (!ctx.state._lightsRegStore) ctx.state._lightsRegStore = {};
+  const reg = ctx.state._modelLoaded
+    ? ensureLightsRegistry(ctx.state._lightsRegStore, ctx.hass, model.areas || [], onRegistry)
+    : { areaMap: {}, platformMap: {}, loading: true };
+  const shapeOverrides = (settings.light_shapes && typeof settings.light_shapes === "object") ? settings.light_shapes : {};
+  const typeOverrides = (settings.light_type_overrides && typeof settings.light_type_overrides === "object") ? settings.light_type_overrides : {};
+  // The Atlas entity set comes from the live house; history fills its states.
+  // Side-effect free: this is a replay, not the house now.
+  const liveLights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, settings.tier, reg.platformMap,
+    typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, true);
+  hs.eids = liveLights.map(l => l.entity_id);
+  hs.regLoading = !!reg.loading;
+  if (reg.loading) { hs.shown = null; hs.shownKey = ""; return reg; }
+  const shown = atlasShownEids(model, settings, liveLights, shapeOverrides);
+  const key = [...shown].sort().join(",");
+  if (key !== hs.shownKey) { hs.shown = shown; hs.shownKey = key; }
+  return reg;
 }
 
 /**
@@ -428,22 +506,17 @@ export function loadHouseHistory(ctx, hs, startS, endS) {
  */
 export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegistry,
                                  { changedEids = null, devices = true } = {}) {
-  const model = ctx.state.model || {};
   const settings = ctx.state.settings || {};
+  // Without devices: no registry (a multi-MB fetch for nothing), no device
+  // list, and a door's wall is just a wall — not "no reading" dashes
+  // (review round 16).
+  const model = devices ? (ctx.state.model || {}) : { ...(ctx.state.model || {}),
+    rf_barriers_m: ((ctx.state.model || {}).rf_barriers_m || []).map(b => (b && b.linked_entity_id ? { ...b, linked_entity_id: null } : b)) };
   const floors = model.floors || [];
-  if (!ctx.state._lightsRegStore) ctx.state._lightsRegStore = {};
-  const reg = ctx.state._modelLoaded
-    ? ensureLightsRegistry(ctx.state._lightsRegStore, ctx.hass, model.areas || [], onRegistry)
-    : { areaMap: {}, platformMap: {}, loading: true };
+  const reg = devices ? refreshHouseDevices(ctx, hs, onRegistry) : { areaMap: {}, platformMap: {}, loading: false };
   const shapeOverrides = (settings.light_shapes && typeof settings.light_shapes === "object") ? settings.light_shapes : {};
   const typeOverrides = (settings.light_type_overrides && typeof settings.light_type_overrides === "object") ? settings.light_type_overrides : {};
   const live = ctx.hass?.states || {};
-
-  // The Atlas entity set comes from the live house; history fills its states.
-  // Both gathers are side-effect free: this is a replay, not the house now.
-  const liveLights = gatherLights(live, reg.areaMap, shapeOverrides, settings.tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, true);
-  hs.eids = liveLights.map(l => l.entity_id);
-  hs.regLoading = !!reg.loading;
 
   const frame = frames[frameIdx];
   const tMs = frame ? frame.ts * 1000 : Date.now();
@@ -461,9 +534,7 @@ export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegist
   // "hide untouched" filter hides on the drawing only, as there. Daylight is
   // the replayed moment's sun, from the house's own location.
   const look = atlasLookFromSettings(settings);
-  const hiddenOnMap = look.hideUntouched
-    ? new Set([...hidden, ...lights.filter(l => !lightIsTouched(l, shapeOverrides, model.light_positions_m || {})).map(l => l.entity_id)])
-    : hidden;
+  const hiddenOnMap = _hiddenOnMap(settings, model, lights, shapeOverrides);
   const lat = Number(ctx.hass?.config?.latitude), lon = Number(ctx.hass?.config?.longitude);
   const ambient = Number.isFinite(lat) && Number.isFinite(lon) && ctx.hass?.config?.latitude != null
     ? ambientFromElevation(sunElevationDeg(lat, lon, tMs)) : sunAmbient(ctx.hass);

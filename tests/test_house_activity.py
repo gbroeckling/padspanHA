@@ -552,11 +552,12 @@ out.co2Band = [HA.shownReading("sensor.co2", "420", attrs["sensor.co2"]), HA.sho
 """)
     lo, hi = out["co2Band"]
     assert lo != hi
+    # 20.7 is not yet a clear step from 20 (round 16): the degree counts at 21.2.
     assert out["ev"] == [
         [15, "light.a", "off", "on"],
-        [20, "sensor.t", "20°", "21°"],
         [20, "sensor.h", "45%", "47%"],
         [20, "sensor.co2", lo, hi],
+        [30, "sensor.t", "20°", "21°"],
     ], out
     # Without the devices' readings asked for, sensors are not events.
     assert out["plain"] == ["light.a"], out
@@ -591,3 +592,67 @@ out.allMarker = /class="lhex" data-eid="light\\.hall"/.test(all);
 out.ring = /class="lchanged" data-eid="light\\.hall"/.test(all);
 """)
     assert out == {"noneMarker": False, "noneRoom": True, "allMarker": True, "ring": True}, out
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_a_reading_on_a_rounding_edge_is_not_a_change_every_report():
+    """Round 16: a sensor hovering at x.5 flipped 20°/21° on every report —
+    hundreds of 'changes' a day burying the doors and lights. It counts once
+    it has moved a clear step (0.8) from the last one counted. And an air
+    sensor that grades itself in words keeps its own words."""
+    out = _run("""
+const rows = []; for (let i = 0; i < 20; i++) rows.push({ s: i % 2 ? "20.51" : "20.49", lu: i });
+rows.push({ s: "21.3", lu: 30 }, { s: "20.6", lu: 40 }, { s: "20.1", lu: 50 });
+const words = ["moderate", "poor", "very_poor", "unhealthy", "unknown", "moderate"].map((s, i) => ({ s, lu: i }));
+const tl = HA.buildStateTimeline({ "sensor.t": rows, "sensor.aq": words });
+const attrs = { "sensor.t": { device_class: "temperature" },
+                "sensor.aq": { device_class: "enum", options: ["good", "moderate", "poor", "very_poor", "unhealthy"],
+                               friendly_name: "Air quality" } };
+out.ev = HA.activityEvents(tl, (e) => e, 0, 1e9, (eid) => attrs[eid]).map(e => [e.t / 1000, e.eid, e.from, e.to]);
+""")
+    temp = [e for e in out["ev"] if e[1] == "sensor.t"]
+    assert temp == [[30, "sensor.t", "20°", "21°"], [50, "sensor.t", "21°", "20°"]], out
+    aq = [e[2:] for e in out["ev"] if e[1] == "sensor.aq"]
+    assert aq == [["Moderate", "Poor"], ["Poor", "Very poor"], ["Very poor", "Unhealthy"], ["Unhealthy", "Moderate"]], out
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_only_what_the_atlas_draws_counts_as_a_change():
+    """Round 16: an unplaced reading, a hidden device and a door not linked
+    to a wall were counted, framed and named with nothing on the map
+    changing. A door linked to a wall is drawn — as its wall."""
+    out = _run("""
+const model = { room_geometry_m: { Hall: { type: "poly", floor_id: "main", points_m: [[0, 0], [6, 0], [6, 5], [0, 5]] } },
+  light_positions_m: { "sensor.placed_t": { x_m: 1, y_m: 1, floor_id: "main" }, "light.placed": { x_m: 2, y_m: 2, floor_id: "main" } },
+  rf_barriers_m: [{ id: "d", floor_id: "main", points_m: [[0, 0], [1, 0]], linked_entity_id: "binary_sensor.linked_door" }] };
+const L = (entity_id, extra) => ({ entity_id, area_name: "Hall", ...extra });
+const lights = [L("sensor.placed_t", { isTemp: true }), L("sensor.room_t", { isTemp: true }), L("light.placed"),
+  L("light.in_room"), L("light.hidden"), L("light.no_room", { area_name: null }),
+  L("binary_sensor.linked_door", { isDoor: true }), L("binary_sensor.loose_door", { isDoor: true })];
+out.shown = [...HA.atlasShownEids(model, { lights_hidden: ["light.hidden", "binary_sensor.linked_door"] }, lights)].sort();
+""")
+    assert out["shown"] == ["binary_sensor.linked_door", "light.in_room", "light.placed", "sensor.placed_t"], out
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_a_changed_door_is_marked_along_its_wall_and_without_devices_its_wall_is_a_wall():
+    """Round 16: doors and windows are drawn as their walls, so the ring
+    never found them; and with no devices a linked wall drew as grey
+    'no reading' dashes, after a multi-MB registry fetch for nothing."""
+    out = _run(_FRAME_HOUSE + """
+model.rf_barriers_m = [{ id: "d", floor_id: "main", points_m: [[0, 0], [3, 0]], linked_entity_id: "binary_sensor.front_door" }];
+live["binary_sensor.front_door"] = { entity_id: "binary_sensor.front_door", state: "off",
+  attributes: { friendly_name: "Front door", device_class: "door" } };
+hs.timeline["binary_sensor.front_door"] = [{ t: (T - 100) * 1000, state: "off", attributes: {}, lc: (T - 100) * 1000 },
+  { t: (T - 5) * 1000, state: "on", attributes: {}, lc: (T - 5) * 1000 }];
+HA.renderHouseFrame(ctx, hs, [], 0, {}, () => {});
+const withDoor = HA.renderHouseFrame(ctx, hs, frames, 0, {}, () => {}, { changedEids: ["binary_sensor.front_door"] });
+out.wallMarked = /class="lchanged" data-eid="binary_sensor\\.front_door"/.test(withDoor);
+let calls = 0;
+const bare = { state: { model, settings: { tier: "pro" }, _modelLoaded: true },
+  hass: { states: live, callWS: async () => { calls++; return {}; }, config: { latitude: 49.28, longitude: -123.12 } } };
+const none = HA.renderHouseFrame(bare, { timeline: null, events: [], eids: [] }, frames, 0, {}, () => {}, { devices: false });
+out.dashed = none.includes('stroke-dasharray="3,4"');
+out.registryCalls = calls;
+""")
+    assert out == {"wallMarked": True, "dashed": False, "registryCalls": 0}, out
