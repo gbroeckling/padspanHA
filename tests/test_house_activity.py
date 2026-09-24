@@ -343,3 +343,20 @@ out.amb = [LM.ambientFromElevation(noon), LM.ambientFromElevation(night), LM.amb
     # The Atlas panel reads the look through the same function.
     src = (_ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "lights_panel.js").read_text(encoding="utf-8")
     assert "const look = atlasLookFromSettings(s);" in src
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_automorph_room_cells_are_computed_once_per_unchanged_room():
+    """Round 9: Traceback redraws every playback frame and Automorph's cell
+    partition (a flood fill per room) cost 60-490 ms a frame."""
+    out = _run("""
+const ISO = await import("./iso_lights.js");
+const room = [[0, 0], [5, 0], [5, 4], [0, 4]];
+const fx = [{ id: "a", x: 1, y: 1, weight: 1 }, { id: "b", x: 4, y: 3, weight: 1 }];
+const a = ISO.roomFixtureCellsCached(room, fx), b = ISO.roomFixtureCellsCached(room, fx);
+const fresh = ISO.buildRoomFixtureCells(room, fx);
+out.same = a === b;
+out.equal = JSON.stringify([...a]) === JSON.stringify([...fresh]);
+out.moved = ISO.roomFixtureCellsCached(room, [{ ...fx[0], x: 2 }, fx[1]]) !== a;
+""")
+    assert out == {"same": True, "equal": True, "moved": True}

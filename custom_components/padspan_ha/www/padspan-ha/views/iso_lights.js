@@ -1599,6 +1599,20 @@ export function containRingInside(ring, boundary, clearM){
 // fixture ABSENT from the result (a pathological room, or a cell squeezed to
 // nothing by its neighbours) is the caller's cue to fall back to today's
 // full-room shape for that one fixture rather than draw nothing.
+// buildRoomFixtureCells is pure and costly (a flood fill per room: 60-490 ms
+// a draw with Automorph on). Traceback redraws the same house every playback
+// frame, so the answer for an unchanged room and fixture set is kept — a
+// small LRU keyed on the geometry itself (round 9).
+const _fixtureCellsCache = new Map();
+export function roomFixtureCellsCached(roomPts, fixtures){
+  const key = JSON.stringify([roomPts, fixtures]);
+  let cells = _fixtureCellsCache.get(key);
+  if (cells) { _fixtureCellsCache.delete(key); _fixtureCellsCache.set(key, cells); return cells; }
+  cells = buildRoomFixtureCells(roomPts, fixtures);
+  _fixtureCellsCache.set(key, cells);
+  if (_fixtureCellsCache.size > 256) _fixtureCellsCache.delete(_fixtureCellsCache.keys().next().value);
+  return cells;
+}
 export function buildRoomFixtureCells(roomPts, fixtures){
   const cells=new Map();
   if(!roomPts || roomPts.length<3 || !fixtures || !fixtures.length) return cells;
@@ -3444,7 +3458,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         if(!byRoomFixtures.has(r)) byRoomFixtures.set(r, []);
         byRoomFixtures.get(r).push({id:pl.eid, x:pl.x, y:pl.y, weight});
       }
-      for(const [r,fixtures] of byRoomFixtures) roomFixtureCells.set(r, buildRoomFixtureCells(r.pts, fixtures));
+      for(const [r,fixtures] of byRoomFixtures) roomFixtureCells.set(r, roomFixtureCellsCached(r.pts, fixtures));
     }
 
     // Every slab is the SAME SIZE, centred on the floor it belongs to.
