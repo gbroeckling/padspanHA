@@ -14,8 +14,9 @@ All notable changes to PadSpan HA are documented here.
 - **Fixed:** tapping 💡 Devices twice quickly, or leaving and coming back while it loaded, could leave it half on.
 
 ### Atlas
-- **Fixed:** right after an install or upgrade — or just after adding a floor in Home Assistant — floors whose height PadSpan had not synced yet could all be drawn on one plate.
-- **Fixed:** a storey two floors share (a garden beside the ground floor) had one name on the floor buttons and the floor sheet and another on the floor slider and the legend; it is "Main + Garden" everywhere.
+- **Fixed:** right after an install or upgrade — or just after adding a floor in Home Assistant — floors whose height PadSpan had not synced yet could all be drawn on one plate, or swap places.
+- **Fixed:** a floor removed from Home Assistant that PadSpan still has rooms on is drawn on its own plate, where PadSpan's signal model has it.
+- **Fixed:** a storey two floors share (a garden beside the ground floor) had one name on the floor buttons and the floor sheet and another on the floor slider and the legend; it is "Main/Garden" on all of them, on the Atlas and in Traceback. The outside floor never names a storey.
 
 ---
 

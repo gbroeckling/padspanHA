@@ -466,6 +466,6 @@ def test_a_plate_two_floors_share_is_named_and_switched_as_both(tmp_path):
         "[...o.querySelectorAll('button')].find(b => b.textContent === 'All lights on').click();\n"
         "out.text = o.textContent; out.sent = sent;\n"
     )
-    assert out["text"].startswith("Garage + Main"), out
+    assert out["text"].startswith("Garage/Main"), out
     assert out["sent"] == [[["light.bay", "light.kitchen"], True]], out
 

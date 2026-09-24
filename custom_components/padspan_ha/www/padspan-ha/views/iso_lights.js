@@ -2198,21 +2198,26 @@ export function fabricFrame(model, floors, floorGap, horizGap){
       const lvl = f ? num(f.level) : null;
       return lvl !== null ? lvl : conventionalLevel(id);
     };
-    // The floors that make the stack: the registry's (with no registry, the
-    // fabric's own). They rank as ModelStore.floor_stack_index does — by
-    // measured elevation when EVERY one has one (the backend computes them in
-    // its own order), else by the storey a level or name denotes; a floor
-    // nothing places goes above the named storeys on a slab of its own, in
-    // list order. Metres for some floors and storeys for others merged the
-    // floors whose elevation had not synced yet onto one plate (round 16);
+    // The floors that make the stack: every indoor floor — the registry's,
+    // and the fabric's own (a floor HA dropped while PadSpan still has rooms
+    // on it is kept by the backend, with its elevation: round 17 drew it on
+    // another floor's plate). They take ModelStore.floor_stack_index's order:
+    // by the elevations the backend computed IN that order when every floor
+    // has one, else by the storey a level or name denotes, a floor nothing
+    // places above the named storeys on a slab of its own — among those, by
+    // elevation where one exists (the backend's creation order; this list is
+    // sorted by name), then list order. Metres for some floors and storeys
+    // for others merged floors whose elevation had not synced yet (round 16);
     // ranking an unknown name by its list position collided with a named
     // storey (round 13).
-    const stackIds = regIds.length ? regIds : extra;
+    const stackIds = [...regIds, ...extra.filter(id => !isOutdoorFloorId(id))];
     const elev = stackIds.map(id => num(elevations[id]));
     const useElev = stackIds.length > 1 && elev.every(v => v !== null) && new Set(elev).size > 1;
     const keyOf = (id, i) => useElev ? elev[i] : storeyOf(id);
-    const order = stackIds.map((id, i) => ({ id, key: keyOf(id, i), i }))
-      .sort((a, b) => ((a.key === null) - (b.key === null)) || (a.key - b.key) || (a.i - b.i));
+    const tie = (e) => (e === null ? Infinity : e);
+    const order = stackIds.map((id, i) => ({ id, key: keyOf(id, i), e: elev[i], i }))
+      .sort((a, b) => ((a.key === null) - (b.key === null)) || (a.key - b.key)
+        || ((tie(a.e) - tie(b.e)) || 0) || (a.i - b.i));
     const out = {};
     // Collapse to contiguous slab indices: two floors that share a storey
     // (the garden and the ground floor) must share a slab, not be pushed apart.
@@ -2222,15 +2227,15 @@ export function fabricFrame(model, floors, floorGap, horizGap){
       prevKey = o.key;
       out[o.id] = slab;
     }
-    // A floor only the fabric uses beside a registry (the "__outside__"
-    // sentinel when the registry has no outside floor, a stale id) is no
-    // storey of the stack: it sits with the nearest registry floor at or
-    // below its storey, else on the lowest slab — "on top" left the garden
-    // on a slab never drawn (round 15). An unknown storey goes on top.
-    if (regIds.length) for (const id of extra) {
+    // An outdoor floor only the fabric uses (the "__outside__" sentinel when
+    // the registry has no outside floor) is no storey of the stack: it sits
+    // with the nearest floor at or below its storey (ground), else on the
+    // lowest slab — "on top" left the garden on a slab never drawn (round 15).
+    for (const id of extra) {
+      if (!isOutdoorFloorId(id)) continue;
       const s = storeyOf(id);
       let best = null, bestStorey = -Infinity;
-      if (s !== null) for (const r of regIds) {
+      if (s !== null) for (const r of stackIds) {
         const so = storeyOf(r);
         if (so !== null && so <= s && so > bestStorey) { bestStorey = so; best = r; }
       }
@@ -2451,7 +2456,10 @@ export function floorIdAtLevel(frame, model, floors, z){
     const fid = canon(String((lp && lp.floor_id) || ""));
     if(fid) drawn.add(fid);
   }
-  const rank = (id) => (drawn.has(id) ? 0 : 2) + (isOutdoorFloorId(id) ? 1 : 0);
+  // The outside floor is drawn on no plate: it names one only when nothing
+  // else is there (review round 17 — a lone yard's plate read "Outside").
+  const rank = (id) => (drawn.has(id) ? 0 : 2) + (isOutdoorFloorId(id) ? 1 : 0)
+    + (id === "outside" || id === "__outside__" ? 4 : 0);
   let best = null;
   for(const id of ids){
     if(Number(frame.levelOf(id)) !== Number(z)) continue;
@@ -2461,10 +2469,11 @@ export function floorIdAtLevel(frame, model, floors, z){
 }
 
 // The name of the plate at storey z: every registry floor drawn on it,
-// floorIdAtLevel's first ("Main + Garden") — ONE name for the slider, the
-// legend, the floor buttons and the floor sheet, which had drifted apart
-// (review round 16). The outside floor is drawn on no plate. null when the
-// registry names nothing there.
+// floorIdAtLevel's first, joined by "/" ("Main/Garden") — " + " is between
+// plates on the sliders (round 17). ONE name for the slider, the legend,
+// the floor buttons and the floor sheet on the Atlas and in Traceback,
+// which had drifted apart (round 16). The outside floor is drawn on no
+// plate. null when the registry names nothing there.
 export function floorNameAtLevel(frame, model, floors, z){
   const first = floorIdAtLevel(frame, model, floors, z);
   const drawn = new Set();
@@ -2472,13 +2481,13 @@ export function floorNameAtLevel(frame, model, floors, z){
   for(const lp of Object.values((model && model.light_positions_m) || {})) if(lp && lp.floor_id) drawn.add(String(lp.floor_id));
   const names = [];
   const add = (f) => { const n = f && (f.name || f.id); if(n && !names.includes(n)) names.push(n); };
-  add((floors || []).find(x => String(x.id) === String(first)));
+  if(first !== "outside" && first !== "__outside__") add((floors || []).find(x => String(x.id) === String(first)));
   for(const f of floors || []){
     const id = String(f.id);
     if(id === "outside" || !drawn.has(id) || Number(frame.levelOf(id)) !== Number(z)) continue;
     add(f);
   }
-  return names.length ? names.join(" + ") : null;
+  return names.length ? names.join("/") : null;
 }
 
 // ── Isometric 3-D SVG builder ────────────────────────────────────────────────
