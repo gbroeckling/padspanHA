@@ -176,6 +176,22 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.78</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">24 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Fixed:</b> after a tag changed address, its room stopped updating — PadSpan kept listening to the old, silent address.</li>
+          <li><b>Fixed:</b> the Bluetooth tab showed a carried-over tag by its raw new address (and hid it in quiet mode) instead of by its name; the Monitor list now shows it with the Find My badge.</li>
+          <li><b>Added:</b> if PadSpan ever links the wrong tag (say, a visitor's AirTag arriving just as yours left), the tag's detail in the Bluetooth tab has <b>Not <name>? Unlink</b> — the address goes back to being its own device and is never linked to that tag again.</li>
+          <li><b>Fixed:</b> with Automorph on, Full house activity playback was slow (up to half a second a frame on a large house) — about ten times faster now.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.77</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">24 September 2026</span>
