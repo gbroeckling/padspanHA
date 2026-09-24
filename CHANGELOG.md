@@ -4,23 +4,26 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.77 — AirTags and Find My tags keep their name when they change address (2026-09-24)
+## 0.38.77 — AirTags and Find My tags keep their name; Traceback looks like your Atlas (2026-09-24)
 
 ### Bluetooth — Apple Find My tags
-- **Added:** AirTags and tags sold as "works with Apple Find My" change their Bluetooth address every 15 minutes near their owner's iPhone, and once a day (about 4 am) when away from it — and until now each change made a new, nameless object. With **Settings → Features → MAC Rotation Bridging** on, a tag you've named or followed now carries on to its next address, keeping its name, room, Traceback history and Follow. PadSpan links them only when it's clear: the same kind of tag, the old address has stopped, and your scanners hear the new one in the same place. It never joins a tag to an iPhone, AirPods or a different kind of tag, and two tags lying together that change at the same moment are left for you to name again rather than guessed.
+- **Added:** AirTags and tags sold as "works with Apple Find My" change their Bluetooth address every 15 minutes near their owner's iPhone, and once a day (about 4 am) when away from it — and until now each change made a new, nameless object. With **Settings → Features → MAC Rotation Bridging** on, a tag you've named or followed now carries on to its next address, keeping its name, room, Traceback history and Follow. PadSpan links them only when it's clear: the same kind of tag, the old address has stopped (about a minute after the change, since Home Assistant reports some tags only every 30–60 seconds), the new one appeared at that moment, and your scanners hear it in the same place. It never joins a tag to an iPhone, AirPods or a different kind of tag, a tag already in range, or a visitor's tag arriving later; two tags lying together that change at the same moment are left for you to name again rather than guessed. The Bluetooth tab shows these tags with a Find My badge.
 - **Fixed:** with MAC Rotation Bridging on, an iPhone could be linked to a pair of AirPods (every Apple device looked the same to it).
-- **Fixed:** Apple Device Classification never labelled anything; it now names iPhones, iPads, Macs, Apple Watches, AirPods and Find My tags (AirTag or accessory).
 - **Fixed:** the help said AirTags are iBeacons and can be tracked through Bermuda's iBeacon support; neither is true, and it now explains what does work.
+
+### Traceback
+- **Changed:** Full house activity now draws the Atlas exactly as your Atlas tab does — Showcase and its theme, fit rooms, isolux, automorph, hidden device codes and "hide untouched" — with the daylight of the moment being replayed.
 
 ### Atlas
 - **Fixed:** an Inverted door's health dot read it backwards ("Open for ~8h" while closed).
 - **Fixed:** a garage-door or opening sensor can be linked to a wall from Rooms → RF Barriers too.
 
+### Atlas — WLED
+- **Fixed:** a WLED strip Home Assistant can't reach said "That light isn't a WLED device"; it now says Home Assistant can't reach it and gives its address.
+- **Fixed:** changes made on another screen while a team was being set up could be overwritten; the team card stays safe to use while the tab repaints; the colour-order helper can put a busy strip back; saving the Sync settings no longer switches off "Send my changes"; Vacation Mode switches a device that a failed team setup already put back.
+
 ### Overview
 - **Fixed:** live dots could freeze while a slider kept focus after Resume Normal.
-
-### Atlas — WLED
-- **Fixed:** changes made on another screen while a team was being set up could be overwritten; the team card stays safe to use while the tab repaints; the colour-order helper can put a busy strip back; saving the Sync settings no longer switches off "Send my changes"; Vacation Mode switches a device that a failed team setup already put back.
 
 ---
 
