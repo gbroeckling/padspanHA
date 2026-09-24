@@ -2617,6 +2617,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // big house is unmissable for a moment. One-shot (the host clears
   // locateEid after the render that draws it), not a permanent decoration.
   const LOCATE_EID = opts.locateEid ? String(opts.locateEid) : null;
+  // Traceback's 💡 Devices: the devices that changed at the replayed moment,
+  // each ringed where it is drawn.
+  const CHANGED = new Set((opts.changedEids || []).map(String));
   // In-progress door/window circle (maps.js's on-map circle tool, triggered
   // from the Lights table's "Place"): the circle placed so far, if any —
   // {x_m, y_m, r_m, floorId} — and whether the tool is armed at all (armed
@@ -6111,6 +6114,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     if(LOCATE_EID){
       const found=jobs.find(j=>j[0].entity_id===LOCATE_EID);
       if(found) s+=locateSvg(found[1],found[2]);
+    }
+    if(CHANGED.size) for(const [l2,hx,hy] of jobs){
+      if(!CHANGED.has(String(l2.entity_id))) continue;
+      s+=`<circle class="lchanged" data-eid="${escSVG(l2.entity_id)}" pointer-events="none" cx="${hx.toFixed(1)}" `+
+         `cy="${hy.toFixed(1)}" r="${(HEX_R*1.9).toFixed(1)}" fill="none" stroke="#fbbf24" stroke-width="2.2" opacity="0.9"/>`;
     }
     for(const [l2,hx,hy] of jobs){
       if(!l2.isMotion) continue;

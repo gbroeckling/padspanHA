@@ -524,3 +524,70 @@ out.afterTrip = pulse(svg);           // tripped 20 s ago, cleared 10 s ago
 out.afterReconnect = pulse(quiet);    // back online unchanged: not fresh motion
 """)
     assert out == {"afterTrip": True, "afterReconnect": False}, out
+
+
+# ── 💡 Devices (Garry, 2026-09-24: "split it in two, devices, and no devices") ──
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_a_reading_counts_when_what_the_atlas_shows_changes():
+    """The devices replay follows every device the Atlas shows — its sensors
+    too, by the reading the map draws (whole degrees, whole percent, an air
+    band), not by every report."""
+    out = _run("""
+const tl = HA.buildStateTimeline({
+  "sensor.t": [{ s: "20.2", lu: 0 }, { s: "20.4", lu: 10 }, { s: "20.7", lu: 20 }, { s: "21.2", lu: 30 },
+               { s: "unavailable", lu: 40 }, { s: "21.4", lu: 50 }],
+  "sensor.h": [{ s: "45.2", lu: 0 }, { s: "45.4", lu: 10 }, { s: "46.6", lu: 20 }],
+  "sensor.co2": [{ s: "420", lu: 0 }, { s: "430", lu: 10 }, { s: "2600", lu: 20 }],
+  "sensor.power": [{ s: "100", lu: 0 }, { s: "250", lu: 10 }],
+  "light.a": [{ s: "off", lu: 0 }, { s: "on", lu: 15 }],
+});
+const attrs = { "sensor.t": { device_class: "temperature" }, "sensor.h": { device_class: "humidity" },
+                "sensor.co2": { device_class: "carbon_dioxide" }, "sensor.power": { device_class: "power" } };
+const ev = HA.activityEvents(tl, (e) => e, 0, 1e9, (eid) => attrs[eid] || {});
+out.ev = ev.map(e => [e.t / 1000, e.eid, e.from, e.to]);
+out.plain = HA.activityEvents(tl, (e) => e, 0, 1e9).map(e => e.eid);
+out.co2Band = [HA.shownReading("sensor.co2", "420", attrs["sensor.co2"]), HA.shownReading("sensor.co2", "2600", attrs["sensor.co2"])];
+""")
+    lo, hi = out["co2Band"]
+    assert lo != hi
+    assert out["ev"] == [
+        [15, "light.a", "off", "on"],
+        [20, "sensor.t", "20°", "21°"],
+        [20, "sensor.h", "45%", "47%"],
+        [20, "sensor.co2", lo, hi],
+    ], out
+    # Without the devices' readings asked for, sensors are not events.
+    assert out["plain"] == ["light.a"], out
+
+
+_FRAME_HOUSE = """
+const model = { floors: [{ id: "main", name: "Main", level: 0 }], areas: [{ id: "hall", name: "Hall", floor_id: "main" }],
+  room_geometry_m: { Hall: { type: "poly", floor_id: "main", points_m: [[0, 0], [6, 0], [6, 5], [0, 5]] } },
+  light_positions_m: { "light.hall": { x_m: 1, y_m: 1, floor_id: "main" } } };
+const areaMap = { "light.hall": "Hall" };
+const reg = { ts: Date.now() + 1e9, areaMap, platformMap: {}, manufacturerMap: {}, ipMap: {}, pairMap: {}, doorLockMap: {} };
+const live = { "light.hall": { entity_id: "light.hall", state: "off", attributes: { friendly_name: "Hall" },
+  last_changed: new Date(0).toISOString(), last_updated: new Date(0).toISOString() } };
+const T = 1.8e9;
+const hs = { timeline: HA.buildStateTimeline({ "light.hall": [{ s: "off", a: { friendly_name: "Hall" }, lu: T - 100 },
+  { s: "on", lu: T - 5 }] }), events: [], eids: [] };
+const ctx = { state: { model, settings: { tier: "pro" }, _modelLoaded: true, _lightsRegStore: { reg } },
+  hass: { states: live, callWS: async () => ({}), config: { latitude: 49.28, longitude: -123.12 } } };
+HA.renderHouseFrame(ctx, hs, [], 0, {}, () => {});
+const frames = [{ ts: T - 5, o: [] }];
+"""
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_without_devices_the_frame_is_the_atlas_and_nothing_else_and_with_them_what_changed_is_ringed():
+    out = _run(_FRAME_HOUSE + """
+const none = HA.renderHouseFrame(ctx, hs, frames, 0, {}, () => {}, { devices: false });
+const all = HA.renderHouseFrame(ctx, hs, frames, 0, {}, () => {}, { changedEids: ["light.hall"] });
+out.noneMarker = /data-eid="light\\.hall"/.test(none);
+out.noneRoom = /Hall|HALL/.test(none);
+out.allMarker = /class="lhex" data-eid="light\\.hall"/.test(all);
+out.ring = /class="lchanged" data-eid="light\\.hall"/.test(all);
+""")
+    assert out == {"noneMarker": False, "noneRoom": True, "allMarker": True, "ring": True}, out

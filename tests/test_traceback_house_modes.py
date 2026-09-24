@@ -102,6 +102,7 @@ const { ctx } = H.makeCtx({ states: { "binary_sensor.front_door": door },
 ctx.state._traceback = undefined;
 const outer = H.TB.render(ctx);
 ctx.state._traceback.house.on = true;
+ctx.state._traceback.house.devices = true;
 ctx.state._traceback.rangePreset = 300;
 modeBtn(outer, "playback").click();
 await settle();
@@ -181,6 +182,7 @@ const { ctx } = H.makeCtx({ states,
 ctx.state._traceback = undefined;
 H.TB.render(ctx);
 ctx.state._traceback.house.on = true;
+ctx.state._traceback.house.devices = true;
 await settle();
 ctx.state._traceback.active = false;
 const B = H.TB.render(ctx);
@@ -211,6 +213,7 @@ const { ctx } = H.makeCtx({ states: { "binary_sensor.d": door },
 ctx.state._traceback = undefined;
 const outer = H.TB.render(ctx);
 ctx.state._traceback.house.on = true;
+ctx.state._traceback.house.devices = true;
 modeBtn(outer, "playback").click();
 await settle();
 const tb = ctx.state._traceback;
@@ -338,3 +341,66 @@ await settle();
 out.sent = sent;
 """)
     assert out["sent"] and out["sent"][-1].get("traceback_house_focus") == 0, out
+
+
+
+# ── 💡 Devices (Garry, 2026-09-24: "split it in two, devices, and no devices") ──
+
+
+def test_full_house_is_the_atlas_and_the_beacons_and_devices_plays_every_device_back():
+    """Full house activity alone: the Atlas map with the tracked beacons — no
+    devices, no house history fetched. 💡 Devices (shown only then) plays
+    every device the Atlas shows through the period — a temperature reading
+    too — with every tracked object, ringing and naming what changed."""
+    out = _run("""
+H.MODEL.light_positions_m["sensor.kitchen_temp"] = { x_m: 2, y_m: -2, floor_id: "main" };
+const now = Math.floor(Date.now() / 1000), start = now - 300;
+const frames = [{ ts: start + 10, o: [{ k: "a", r: "Kitchen", x_m: 1, y_m: 1, f: "main" }] },
+                { ts: start + 20, o: [{ k: "a", r: "Kitchen", x_m: 1, y_m: 1, f: "main" }] }];
+const states = {
+  "light.kitchen": { entity_id: "light.kitchen", state: "on", attributes: { friendly_name: "Kitchen" } },
+  "sensor.kitchen_temp": { entity_id: "sensor.kitchen_temp", state: "21.3",
+    attributes: { friendly_name: "Kitchen temp", device_class: "temperature", unit_of_measurement: "°C" } } };
+const history = { "light.kitchen": [{ s: "off", a: { friendly_name: "Kitchen" }, lu: start }, { s: "on", lu: start + 200 }],
+  "sensor.kitchen_temp": [{ s: "20.2", lu: start }, { s: "20.4", lu: start + 100 }, { s: "21.3", lu: start + 250 }] };
+const objArgs = [];
+const { ctx, calls } = H.makeCtx({ states,
+  wsCall: (t, d) => t === "padspan_ha/traceback_get" ? (objArgs.push(d.obj_key), { frames, range: { start: start + 10, end: start + 20, count: 2 } })
+    : t === "padspan_ha/traceback_objects" ? { objects: [] } : t === "padspan_ha/vacation_log_get" ? { actions: [], periods: [] } : {},
+  callWS: (m) => m.type !== "history/history_during_period" ? {}
+    : Object.fromEntries(m.entity_ids.filter(e => history[e]).map(e => [e, history[e]])) });
+ctx.state._traceback = undefined;
+const outer = H.TB.render(ctx);
+await settle();
+const tb = ctx.state._traceback;
+tb.rangePreset = 300;
+const devBtn = () => all(outer).find(n => String(n.textContent).startsWith("💡 Devices"));
+out.devBtnBefore = devBtn().style.display;
+all(outer).find(n => String(n.textContent).startsWith("🏠 Full house activity")).click();
+await settle();
+out.devBtnShown = devBtn().style.display !== "none";
+out.listShown = outer.children[3].style.display !== "none";
+out.fetched = calls.some(c => c.type === "history/history_during_period");
+out.framesNoDevices = tb.frames.map(f => f.ts - start);
+out.kitchenDrawn = /data-eid="light\\.kitchen"/.test(String(outer.children[2].innerHTML));
+tb.filterKey = "a"; tb.filterName = "a";
+devBtn().click();
+await settle();
+out.filterCleared = tb.filterKey === null && objArgs[objArgs.length - 1] === undefined;
+out.listShownNow = outer.children[3].style.display !== "none";
+out.framesDevices = tb.frames.map(f => f.ts - start);
+out.events = tb.house.events.map(e => [e.t / 1000 - start, e.eid, e.from, e.to]);
+const rows = all(outer.children[3]).filter(n => String(n.style.cssText).includes("cursor:pointer"));
+rows[1].click();                                   // the temperature change
+const html = String(outer.children[2].innerHTML);
+out.named = html.includes("Kitchen temp → 21°");
+out.ringed = /class="lchanged" data-eid="sensor\\.kitchen_temp"/.test(html);
+""")
+    assert out["devBtnBefore"] == "none", out              # only with Full house on
+    assert out["devBtnShown"] and not out["listShown"], out
+    assert not out["fetched"] and out["framesNoDevices"] == [10, 20], out
+    assert not out["kitchenDrawn"], out
+    assert out["filterCleared"] and out["listShownNow"], out
+    assert out["framesDevices"] == [10, 20, 200, 250], out
+    assert out["events"] == [[200, "light.kitchen", "off", "on"], [250, "sensor.kitchen_temp", "20°", "21°"]], out
+    assert out["named"] and out["ringed"], out

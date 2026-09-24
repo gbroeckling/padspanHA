@@ -25,6 +25,8 @@ const _q = new URL(import.meta.url).search;
 const { buildIsoSVG, fabricFrame, floorIdAtLevel } = await import(`./iso_lights.js${_q}`);
 const { gatherLights, ensureLightsRegistry, lightIsTouched, atlasLookFromSettings, atlasIsoLookOpts,
         sunElevationDeg, ambientFromElevation, sunAmbient } = await import(`./lights_map.js${_q}`);
+const { airQualityBadness, airQualityWord, AIR_QUALITY_CLASSES, isAirQualityEntity } =
+  await import(`./light_codes.js${_q}`);
 
 /** Normalise one HA history row (compressed WS or full REST shape) to ms times. */
 function _row(r) {
@@ -174,10 +176,38 @@ export function isEventEntity(eid) {
   // that buried every door and light in the list (review 2026-09-23).
   return !String(eid).startsWith("sensor.");
 }
-export function activityEvents(timeline, nameOf, startMs, endMs) {
+/**
+ * A reading as the Atlas shows it (gatherLights): whole degrees, whole
+ * percent, an air sensor's band — or null for a sensor it shows no reading
+ * for. Every report is not a change anyone can see on the map.
+ */
+export function shownReading(eid, state, attrs) {
+  const dc = attrs && attrs.device_class;
+  const n = Number(state);
+  if (dc === "temperature") return Number.isFinite(n) ? `${Math.round(n)}°` : null;
+  if (dc === "humidity") return Number.isFinite(n) ? `${Math.round(n)}%` : null;
+  if (AIR_QUALITY_CLASSES.includes(dc)) {
+    return Number.isFinite(n) ? airQualityWord(airQualityBadness({ device_class: dc, air_value: n })) : null;
+  }
+  if (dc === "enum" && isAirQualityEntity(eid, attrs)) {
+    return airQualityWord(airQualityBadness({ air_level: String(state).toLowerCase() }));
+  }
+  return null;
+}
+
+/**
+ * With `attrsOf(eid)` the sensors count too (Traceback's 💡 Devices, Garry
+ * 2026-09-24: "follows all devices that atlas can see") — temperature,
+ * humidity and air quality, by the reading the Atlas shows (shownReading),
+ * not by every report.
+ */
+export function activityEvents(timeline, nameOf, startMs, endMs, attrsOf = null) {
   const ev = [];
   for (const [eid, list] of Object.entries(timeline)) {
-    if (!isEventEntity(eid)) continue;
+    const reading = !isEventEntity(eid);
+    if (reading && !attrsOf) continue;
+    const attrs = reading ? attrsOf(eid) : null;
+    const shown = reading ? (s) => shownReading(eid, s, attrs) : (s) => s;
     // Compare each real state with the last REAL state before it, so an
     // "off → unavailable → on" still reads as the off → on it was
     // (re-review 2026-09-23: skipping both sides of a gap lost the change).
@@ -185,10 +215,12 @@ export function activityEvents(timeline, nameOf, startMs, endMs) {
     for (let i = 0; i < list.length; i++) {
       const r = list[i];
       if (_NOT_A_CHANGE.has(r.state)) continue;
-      if (i > 0 && prev !== null && r.state !== prev && r.t >= startMs && r.t <= endMs) {
-        ev.push({ t: r.t, eid, name: nameOf(eid), from: prev, to: r.state });
+      const v = shown(r.state);
+      if (v == null) continue;
+      if (i > 0 && prev !== null && v !== prev && r.t >= startMs && r.t <= endMs) {
+        ev.push({ t: r.t, eid, name: nameOf(eid), from: prev, to: v });
       }
-      prev = r.state;
+      prev = v;
     }
   }
   return ev.sort((a, b) => a.t - b.t);
@@ -366,7 +398,9 @@ export function loadHouseHistory(ctx, hs, startS, endS) {
       ]);
       hs.timeline = buildStateTimeline({ ...a, ...b }, { startMs: startS * 1000, live });
       const nameOf = (eid) => live[eid]?.attributes?.friendly_name || eid;
-      hs.events = activityEvents(hs.timeline, nameOf, startS * 1000, endS * 1000);
+      // Every device the Atlas shows — its readings too (💡 Devices).
+      hs.events = activityEvents(hs.timeline, nameOf, startS * 1000, endS * 1000,
+        (eid) => live[eid]?.attributes || {});
       // Vacation Mode's own switching and spans — a missing log (older
       // backend) just means nothing is marked.
       const vac = await ctx.actions.wsCall("padspan_ha/vacation_log_get", { start_ts: startS - 60, end_ts: endS })
@@ -388,8 +422,12 @@ export function loadHouseHistory(ctx, hs, startS, endS) {
 /**
  * The Atlas SVG for one Traceback frame. `hs` carries the registry-derived
  * entity list (hs.eids, filled here on first call) and the loaded timeline.
+ * `devices: false` draws the Atlas and the beacons with no devices (Full
+ * house activity without 💡 Devices); `changedEids` rings the devices that
+ * changed at this frame's moment.
  */
-export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegistry) {
+export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegistry,
+                                 { changedEids = null, devices = true } = {}) {
   const model = ctx.state.model || {};
   const settings = ctx.state.settings || {};
   const floors = model.floors || [];
@@ -411,7 +449,7 @@ export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegist
   const tMs = frame ? frame.ts * 1000 : Date.now();
   // Until history is in (or when it failed), no device states at all —
   // never today's states under a past timestamp.
-  const states = hs.timeline ? statesAt(hs.timeline, live, hs.eids, tMs) : {};
+  const states = devices && hs.timeline ? statesAt(hs.timeline, live, hs.eids, tMs) : {};
   const lights = gatherLights(states, reg.areaMap, shapeOverrides, settings.tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap, tMs, true);
   const lightsByEid = {};
   for (const l of lights) lightsByEid[l.entity_id] = l;
@@ -444,5 +482,6 @@ export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegist
     // change carried from before it (review round 13).
     nowMs: tMs,
     floodLatches: settings.flood_latches || {},
+    changedEids: changedEids || [],
   });
 }
