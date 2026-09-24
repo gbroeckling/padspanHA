@@ -363,6 +363,29 @@ async def ws_object_label_list(hass: HomeAssistant, connection, msg) -> None:
     })
 
 
+@websocket_api.websocket_command({"type": "padspan_ha/findmy_unlink", "key": str})
+@websocket_api.async_response
+async def ws_findmy_unlink(hass: HomeAssistant, connection, msg) -> None:
+    """"Not this tag": undo a Find My tag's last address link (findmy.py
+    FindMyBridge.unlink). `key` is the object's key (ble:<first address>) or
+    its canonical_id."""
+    import time as _time  # noqa: PLC0415
+    from .snapshot_builder import _FINDMY_STORE, _findmy_bridge  # noqa: PLC0415
+    key = str(msg.get("key") or "").strip()
+    if key.lower().startswith("ble:"):
+        key = key[4:]
+    bridge = await _findmy_bridge(hass)
+    res = bridge.unlink(key.upper(), _time.time())
+    if res is None:
+        connection.send_error(msg["id"], "not_linked", "That tag hasn't been carried to another address")
+        return
+    store = hass.data.get(DOMAIN, {}).get(_FINDMY_STORE)
+    if store is not None:
+        store.async_delay_save(bridge.to_state, 1)
+    _invalidate_snapshot_cache(hass)
+    connection.send_result(msg["id"], {"unlinked": res[0], "back_to": res[1]})
+
+
 @websocket_api.websocket_command({"type": "padspan_ha/objects_clear_history"})
 @websocket_api.async_response
 async def ws_objects_clear_history(hass: HomeAssistant, connection, msg) -> None:

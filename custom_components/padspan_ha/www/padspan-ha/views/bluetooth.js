@@ -1123,6 +1123,22 @@ function renderMonitor(ctx, ads, radios, objIndex) {
       sigEl(el, a.rssi),
     ]));
     if (xr.kind) card.appendChild(el("div", { class: "bt-chips" }, [kindBadge(xr.findmy ? "findmy" : xr.kind)]));
+    // A Find My tag carried onto this address by MAC Rotation Bridging: if
+    // it's the wrong tag, undo that link here (round 9 — otherwise it lasted
+    // days).
+    if (xr.findmy && xr.key && ctx.actions && ctx.actions.wsCall) {
+      card.appendChild(el("div", { style: "margin:6px 0 2px" }, [el("button", {
+        class: "btn inline", style: "font-size:12px",
+        title: "PadSpan linked this address to the tag when its last one stopped. If this is a different tag, undo it.",
+        onclick: async () => {
+          if (typeof confirm === "function" && !confirm(`Is this not ${hdrName}? PadSpan will stop treating this address as ${hdrName} and won't link it to it again.`)) return;
+          try {
+            await ctx.actions.wsCall("padspan_ha/findmy_unlink", { key: xr.key });
+            if (ctx.toast) ctx.toast(`Unlinked — this address is its own device again`);
+          } catch (e) { if (ctx.toast) ctx.toast("Couldn't unlink: " + ((e && (e.message || e.code)) || e), true); }
+        },
+      }, `Not ${hdrName}? Unlink`)]));
+    }
 
     // Section helper — a titled definition list, empty values skipped.
     // Addresses, UUIDs and hex get the mono treatment so they can be READ.

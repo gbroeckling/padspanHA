@@ -376,3 +376,38 @@ def test_the_bluetooth_tab_knows_a_moved_tag_by_its_live_address():
     assert r.returncode == 0, r.stderr[-2000:]
     out = json.loads(r.stdout.strip().splitlines()[-1])
     assert out == {"named": True, "quietShown": True, "findMyBadge": True, "irk": False}, out
+
+
+def test_a_wrong_link_can_be_undone_and_never_comes_back():
+    """Round 9: a visitor's tag linked as Keys stayed Keys for days (FORGET_S)
+    and relabelling it renamed Keys itself. 'Not this tag' undoes the link."""
+    b = F.FindMyBridge()
+    k = KEYS_1
+    _change(b, KEYS_1, KEYS_2, _separated(1), _separated(1, 0x22), KITCHEN, known={KEYS_1: k})
+    assert b.tags[k]["addr"] == KEYS_2
+    assert b.unlink(k, T0 + 150) == (KEYS_2, KEYS_1)
+    assert b.unlink(k, T0 + 151) is None, "nothing left to undo"
+    for t in (160, 260, 400):
+        r = _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN, age=t + 1), KEYS_2: _rec(_separated(1, 0x22), KITCHEN)})
+        assert r["linked"] == [] and KEYS_2 not in r["map"], t
+    assert b.identity_of(KEYS_2) is None and b.identity_of(KEYS_1) == k
+    # Kept through a restart.
+    assert F.FindMyBridge(b.to_state()).tags[k]["refused"] == [KEYS_2]
+
+
+async def test_the_unlink_command_answers_for_the_objects_key():
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+    from custom_components.padspan_ha import ws_objects as WO
+    from custom_components.padspan_ha.const import DOMAIN
+    b = F.FindMyBridge()
+    _change(b, KEYS_1, KEYS_2, _separated(1), _separated(1, 0x22), KITCHEN, known={KEYS_1: KEYS_1})
+    store = SimpleNamespace(async_delay_save=MagicMock())
+    hass = SimpleNamespace(data={DOMAIN: {"findmy_bridge": b, "findmy_bridge_store": store}})
+    sent = {}
+    conn = SimpleNamespace(send_result=lambda i, r: sent.update(result=r), send_error=lambda i, c, m: sent.update(error=c))
+    await WO.ws_findmy_unlink(hass, conn, {"id": 1, "key": "ble:" + KEYS_1.lower()})
+    assert sent["result"] == {"unlinked": KEYS_2, "back_to": KEYS_1}
+    store.async_delay_save.assert_called_once()
+    await WO.ws_findmy_unlink(hass, conn, {"id": 2, "key": "ble:" + KEYS_1})
+    assert sent["error"] == "not_linked"

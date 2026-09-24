@@ -152,6 +152,7 @@ from .ws_floorplan_import import (  # noqa: F401  (re-exported: registration, te
     ws_floorplan_import_sh3d,
 )
 from .ws_objects import (  # noqa: F401  (re-exported: registration, tests, callers)
+    ws_findmy_unlink,
     ws_object_label_delete,
     ws_object_label_list,
     ws_object_label_set,
@@ -351,6 +352,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_private_ble_add_irk)
     websocket_api.async_register_command(hass, ws_private_ble_delete_irk)
     websocket_api.async_register_command(hass, ws_objects_clear_history)
+    websocket_api.async_register_command(hass, ws_findmy_unlink)
     websocket_api.async_register_command(hass, ws_companion_discover)
     websocket_api.async_register_command(hass, ws_companion_follow)
     websocket_api.async_register_command(hass, ws_companion_unfollow)

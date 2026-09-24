@@ -211,6 +211,21 @@ class FindMyBridge:
                 return key
         return None
 
+    def unlink(self, key: str, now_ts: float) -> tuple[str, str] | None:
+        """A person's "not this tag": undo the tag's last link. Its current
+        address goes back to being its own device and is never linked to this
+        tag again; the tag waits on its earlier address (not re-linked by
+        itself — it's named again, or heard again). None if it never moved
+        (round 9: a wrong link otherwise lasted until FORGET_S)."""
+        t = self.tags.get(key)
+        if not t or not t.get("past"):
+            return None
+        wrong = t["addr"]
+        t["refused"] = ([a for a in (t.get("refused") or []) if a != wrong] + [wrong])[-PAST_MAX:]
+        t["addr"] = t["past"].pop()
+        t["last_ts"] = now_ts - HANDOVER_WINDOW_S - 1      # not waiting for a hand-over, not forgotten
+        return wrong, t["addr"]
+
     def addresses_of(self, key: str) -> list[str]:
         t = self.tags.get(key) or {}
         return list(dict.fromkeys([key, *(t.get("past") or []), t.get("addr")]))
@@ -280,7 +295,7 @@ class FindMyBridge:
         for key, t in waiting.items():
             last = float(t["last_ts"])
             for addr, c in fresh.items():
-                if c["adv"]["device_type"] != t.get("type"):
+                if c["adv"]["device_type"] != t.get("type") or addr in (t.get("refused") or ()):
                     continue
                 appeared = self.first_seen.get(addr, c["seen_ts"])
                 if not (last - APPEAR_SLACK_S <= appeared <= last + APPEAR_AFTER_S):
@@ -299,7 +314,8 @@ class FindMyBridge:
             old = self.tags[key]["addr"]
             self.tags[key] = {"addr": addr, "type": fresh[addr]["adv"]["device_type"],
                               "rssi": fresh[addr]["rssi"], "last_ts": fresh[addr]["seen_ts"],
-                              "past": (self.tags[key].get("past", []) + [old])[-PAST_MAX:]}
+                              "past": (self.tags[key].get("past", []) + [old])[-PAST_MAX:],
+                              "refused": self.tags[key].get("refused", [])}
             linked.append((key, old, addr))
             waiting.pop(key)
             fresh.pop(addr)
