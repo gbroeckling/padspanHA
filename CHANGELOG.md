@@ -4,6 +4,18 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.78 — Find My tags keep their room; faster Traceback with Automorph (2026-09-24)
+
+### Bluetooth — Apple Find My tags
+- **Fixed:** after a tag changed address, its room stopped updating — PadSpan kept listening to the old, silent address.
+- **Fixed:** the Bluetooth tab showed a carried-over tag by its raw new address (and hid it in quiet mode) instead of by its name; the Monitor list now shows it with the Find My badge.
+- **Added:** if PadSpan ever links the wrong tag (say, a visitor's AirTag arriving just as yours left), the tag's detail in the Bluetooth tab has **Not <name>? Unlink** — the address goes back to being its own device and is never linked to that tag again.
+
+### Traceback
+- **Fixed:** with Automorph on, Full house activity playback was slow (up to half a second a frame on a large house) — about ten times faster now.
+
+---
+
 ## 0.38.77 — AirTags and Find My tags keep their name; Traceback looks like your Atlas (2026-09-24)
 
 ### Bluetooth — Apple Find My tags
