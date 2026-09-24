@@ -53,8 +53,7 @@ PHONE_1, PHONE_2 = "4A:AA:AA:AA:AA:AA", "5B:BB:BB:BB:BB:BB"   # resolvable priva
 
 def test_a_find_my_advertisement_is_read_in_every_shape_padspan_stores():
     sep = F.parse_findmy({"76": _separated(1, battery=2)})
-    assert sep == {"separated": True, "status": 0xA0 & 0xF0 | 0x10 | 0x80 & 0, "device_type": 1, "battery": 2} or \
-        (sep["separated"], sep["device_type"], sep["battery"]) == (True, 1, 2)
+    assert sep == {"separated": True, "status": 0x90, "device_type": 1, "battery": 2}
     near = F.parse_findmy({76: bytes([0x12, 0x02, _status(2), 0x01])})
     assert (near["separated"], near["device_type"]) == (False, 2)
     assert F.parse_findmy({"76": "1219" + f"{_status(3):02x}" + "00" * 24})["device_type"] == 3
