@@ -176,6 +176,27 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.80</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">24 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Fixed:</b> playback with 💡 Devices could run twice as fast and stop with an error, and the timeline slider kept the wrong length, when the devices the map shows changed mid-playback (Home Assistant's device list arriving after the history, or a device hidden on the Atlas).</li>
+          <li><b>Fixed:</b> a lock linked to a wall was left out; lights and sensors on the outside floor, readings of sensors outside every room, and walls on floors that aren't drawn were counted although the map shows no change of them.</li>
+          <li><b>Fixed:</b> an air sensor switching between two words the map draws the same ("excellent", "good") counted as a change; a reading that settles a whole degree or percent away now counts once it has held for 10 minutes, at the moment it changed — a sensor dropping offline for a moment no longer starts that over.</li>
+          <li><b>Fixed:</b> without 💡 Devices, a door's wall disappeared; it is drawn closed.</li>
+          <li><b>Fixed:</b> tapping 💡 Devices twice quickly, or leaving and coming back while it loaded, could leave it half on.</li>
+          <li><b>Fixed:</b> right after an install or upgrade — or just after adding a floor in Home Assistant — floors whose height PadSpan had not synced yet could all be drawn on one plate, or swap places.</li>
+          <li><b>Fixed:</b> a floor removed from Home Assistant that PadSpan still has rooms on is drawn on its own plate, where PadSpan's signal model has it (a removed Outside floor stays outdoors, its gates drawn).</li>
+          <li><b>Fixed:</b> a light saved on a floor with no rooms could get an empty floor of its own on the map; it is drawn on the floor it stands on.</li>
+          <li><b>Fixed:</b> a storey two floors share (a garden beside the ground floor) had one name on the floor buttons and the floor sheet and another on the floor slider and the legend; it is "Main/Garden" on all of them, on the Atlas and in Traceback. The outside floor never names a storey.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.79</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">24 September 2026</span>
