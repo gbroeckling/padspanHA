@@ -4,12 +4,41 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.81 — The opt-in report learns how well Find My tags are followed (2026-09-27)
+## 0.38.81 — Guided Calibration never shows demo radios, HA 2027 ready, and the opt-in report learns how well AirTags are followed (2026-09-27)
 
 ### Help improve PadSpan (opt-in report)
 - **New:** if you've opted in, the report now says how well **MAC Rotation Bridging** follows Apple Find My tags (AirTags and "works with Find My" tags) when they change address: how many changes were followed, and how many of those took over 2 minutes; how many weren't, and why — too close to call between two tags, or the new address came a little late; how many wrong links were undone by themselves or with **Unlink**. A tag that most likely just left range, or another device changing address somewhere else at the same moment, is counted on its own and never against it, and so is a tag going back to its day key, which is expected.
 - **New:** it also counts the Find My addresses on the air right now, by kind (AirTag, Find My accessory, AirPods, Apple device) and how many are away from their owner — with MAC Rotation Bridging off too, so it shows where following tags would matter — and, with it on, the tags PadSpan follows. Counts only, as always: never an address.
 - **Fixed:** a report too big for the 8 KB limit was refused whole, and on every day after it too until Home Assistant restarted. On a day that full, fewer of your saved Showcase presets go with it instead.
+
+### Guided Calibration (#88)
+- **Fixed:** on a live install, Guided Calibration could list PadSpan's demo radios (Living Room Hub, Bedroom Hub, Kitchen Hub) while the top bar read "Live", if Home Assistant was slow to answer — for example just after a restart. Demo data now appears only when you have chosen Sample mode; until Home Assistant answers, the top bar shows "…" and the page asks again by itself every few seconds.
+- **Fixed:** an empty radio list no longer tells you to "Switch to Live mode" while you are already in it: it says it is waiting for live data, or that Home Assistant isn't reporting any Bluetooth scanners yet.
+- **Fixed:** demo radios can no longer be placed or saved as scanners, and no calibration capture records them — calibration only records from Live data.
+
+### Atlas
+- **Fixed:** a motion sensor that dropped offline for a moment and came back showed "motion now" for 5 minutes and then a recent-motion ring for up to 6 hours. It now stays as it was — also on a screen left open across a Home Assistant restart.
+
+### 3D Stack and floors
+- **Fixed:** pressing Save on a map row in "Floor Assignment & Ceiling Heights" also changed which storey that floor is on. On houses whose Home Assistant floors have no Level set, one Save could merge two floors (for example Basement and Main) into one. Save now only saves the map's floor, stack level and ceiling height.
+- **Changed:** when every floor has a Level set in Home Assistant (Settings → Areas, labels & zones → Floors), PadSpan takes each floor's storey from there. Until then it keeps the storeys it already had. If an earlier Save put two of your floors on the same storey, set a Level on every floor in Home Assistant to separate them.
+
+### Health and backups
+- **Fixed:** **Reset Spatial Model** failed every time and cleared nothing. It now clears scanner positions, beacon positions and barriers, after saving a backup you can restore from Manage → Backup & Restore. If that backup can't be saved, nothing is cleared; with nothing left to clear, it does nothing. Floor-plan placements, rooms, lights and calibration points are kept.
+- **Changed:** PadSpan's own automatic backups (before a reset, an import or a conversion) are kept apart from yours — the last 3 of them — and never push out a backup you made. You still keep up to 3 of your own.
+- **Fixed:** taking or deleting a backup while PadSpan was saving an automatic one could make one of the two quietly disappear, though it had been reported saved. Backups are now saved one at a time.
+- **Note:** if you go back to 0.38.80 or earlier after this version, the first Create Backup there keeps only the newest 3 backups of either kind. Delete the automatic "Before Reset Spatial Model" backups first, or don't go back.
+
+### Settings — Experimental Features
+- **Fixed:** Apple Device Classification did nothing you could see, and promised labels it couldn't give. Switched on, a device's type now says what sent an Apple Find My signal — AirTag, Find My accessory (another brand's Find My tag), AirPods or Apple device — in Objects, Bluetooth → Advertisements and a device's details. It no longer claims iPhone, iPad or Apple Watch: nothing Apple sends over Bluetooth says which.
+
+### Home Assistant compatibility
+- **Fixed:** on Home Assistant 2026.9 and later the log filled with warnings that PadSpan reads Home Assistant's device list in a way that stops working in 2027.9. It now reads it the supported way.
+- **Fixed:** Home Assistant warned at every start that PadSpan's device trackers use something it drops in 2027.7. A tracker still shows the room it is in, or "not_home" when away, and keeps doing so after 2027.7.
+
+### Training and Overview
+- **Fixed:** the "Master Map & Alignment" walkthrough and manual pointed at a Set Master button and an Alignment tab that no longer exist. They now walk through lining floors up in Mapping → 3D Stack.
+- **Fixed:** Positioning Diagnostics showed an error instead of "No labelled devices found." on an install with no labelled devices.
 
 ---
 
