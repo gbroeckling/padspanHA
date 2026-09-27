@@ -156,6 +156,69 @@ async def test_floors_a_row_save_merged_come_apart_when_ha_sets_their_levels() -
     assert idx["erdgeschoss"] - idx["keller"] == 1, f"still one storey: {idx}"
 
 
+# A row Save stored the MAP's Stack Level: Basement=0, Ground=1, Level 1=2.
+# Home Assistant numbers ground 0 and basement -1.
+_ROW_SAVED = [{"id": "basement", "name": "Basement", "level": 0},
+              {"id": "ground_floor", "name": "Ground", "level": 1},
+              {"id": "first_floor", "name": "First", "level": 2},
+              {"id": "garden", "name": "Garden", "level": 1}]
+
+
+async def test_a_partly_levelled_registry_does_not_mix_numberings() -> None:
+    """HA Level set on the storeys, not on the garden. Taking HA's level floor
+    by floor put the garden (stored Ground=1) beside HA's first floor (1): one
+    slab and one storey height up. Until HA places every floor the stored
+    levels stand, so the house stacks as it did before the upgrade."""
+    ms = _store([dict(f) for f in _ROW_SAVED])
+    before = ms.floor_stack_index()
+
+    for _ in range(2):   # the coordinator syncs on every refresh
+        await ms.async_sync_floors([
+            {"id": "basement", "name": "Basement", "level": -1},
+            {"id": "ground_floor", "name": "Ground", "level": 0},
+            {"id": "first_floor", "name": "First", "level": 1},
+            {"id": "garden", "name": "Garden", "level": None}])
+
+    idx = ms.floor_stack_index()
+    assert idx == before, f"the stack moved: {before} -> {idx}"
+    assert idx["garden"] == idx["ground_floor"] < idx["first_floor"], idx
+
+
+async def test_a_kept_floor_with_a_stored_level_keeps_the_stored_numbering() -> None:
+    """A floor HA deleted but rooms still use keeps its stored (Stack) level,
+    and HA has none for it — so HA's levels for the rest are not adopted."""
+    ms = _store([{"id": "basement", "name": "Basement", "level": 0},
+                 {"id": "main", "name": "Main", "level": 1},
+                 {"id": "upper", "name": "Upper", "level": 2},
+                 {"id": "annex", "name": "Annex", "level": 1}],
+                rooms={"B": "basement", "M": "main", "U": "upper", "A": "annex"})
+    before = ms.floor_stack_index()
+
+    await ms.async_sync_floors([{"id": "basement", "name": "Basement", "level": -1},
+                                {"id": "main", "name": "Main", "level": 0},
+                                {"id": "upper", "name": "Upper", "level": 1}])
+
+    idx = ms.floor_stack_index()
+    assert idx == before, f"the stack moved: {before} -> {idx}"
+    assert idx["annex"] == idx["main"], idx
+
+
+async def test_a_fully_levelled_registry_replaces_every_stored_level() -> None:
+    """Level set on every floor in HA: one numbering, HA's, throughout."""
+    ms = _store([dict(f) for f in _ROW_SAVED])
+
+    await ms.async_sync_floors([
+        {"id": "basement", "name": "Basement", "level": -1},
+        {"id": "ground_floor", "name": "Ground", "level": 0},
+        {"id": "first_floor", "name": "First", "level": 1},
+        {"id": "garden", "name": "Garden", "level": 0}])
+
+    assert {f["id"]: f["level"] for f in ms.data["floors"]} == {
+        "basement": -1, "ground_floor": 0, "first_floor": 1, "garden": 0}
+    idx = ms.floor_stack_index()
+    assert idx["garden"] == idx["ground_floor"] < idx["first_floor"], idx
+
+
 async def test_a_floor_the_fabric_still_uses_is_never_dropped() -> None:
     """Deleting an HA floor must not strand the rooms drawn on it.
 
