@@ -13,17 +13,24 @@ came first: the reset stripped every calibration point's metres, "to be
 re-backfilled on migrate". Migrate to Metres was removed in v0.30.0, and since
 then a point's metres are where a person stood, the stored truth — while the
 button's own confirmation says calibration points are NOT touched.
+
+Fixing the TypeError turned a harmless no-op into a real wipe, so the reset
+now keeps map_transforms (each map's placement and measured scale: the only
+record since the derived-placement conversion, nothing rebuilds it) and takes
+an automatic fabric backup first; no backup, no reset.
 """
 
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
+from custom_components.padspan_ha import ws_fabric
 from custom_components.padspan_ha.const import (
     DATA_CALIBRATION,
     DATA_FABRIC,
     DATA_MODEL,
     DOMAIN,
+    FABRIC_STORE_KEY,
 )
 from custom_components.padspan_ha.fabric_store import FabricStore
 from custom_components.padspan_ha.model_store import ModelStore
@@ -64,8 +71,24 @@ def _setup():
     return hass, fab, mdl, cal
 
 
-async def test_the_reset_clears_what_it_says() -> None:
-    hass, fab, mdl, _cal = _setup()
+def _backup_ok(monkeypatch, fab):
+    """Stand in for ws_backup._auto_backup; record what the fabric held at
+    the moment the backup was taken."""
+    seen = {}
+
+    async def _fake(hass, note, keys):
+        seen["keys"] = list(keys)
+        seen["scanners"] = len(fab.data["scanner_positions_m"])
+        seen["barriers"] = len(fab.data["rf_barriers_m"])
+        return "bk_test"
+
+    monkeypatch.setattr(ws_fabric, "_auto_backup", _fake, raising=False)
+    return seen
+
+
+async def test_the_reset_clears_what_it_says(monkeypatch) -> None:
+    hass, fab, _mdl, _cal = _setup()
+    seen = _backup_ok(monkeypatch, fab)
     conn = MagicMock()
 
     await ws_fabric_reset_spatial(hass, conn, {"id": 1})
@@ -74,23 +97,48 @@ async def test_the_reset_clears_what_it_says() -> None:
     assert fab.data["scanner_positions_m"] == {}
     assert fab.data["beacon_positions_m"] == {}
     assert fab.data["rf_barriers_m"] == [], "a barrier survived the reset"
-    assert mdl.data["map_transforms"] == {}
     fab.store.async_save.assert_awaited()
     result = conn.send_result.call_args.args[1]
     # What the Health toast reads.
     assert result["removed"] == 5
-    assert result["transforms"] == 2
+    assert result["backup_id"] == "bk_test"
+    # The backup was taken of the fabric, BEFORE anything was cleared.
+    assert seen == {"keys": [FABRIC_STORE_KEY], "scanners": 1, "barriers": 3}
 
 
-async def test_rooms_lights_and_calibration_points_are_not_touched() -> None:
-    """The confirmation: "Room shapes (the fabric) and calibration points are
-    NOT touched." Calibration metres have nothing left to rebuild them."""
-    hass, fab, _mdl, cal = _setup()
+async def test_rooms_lights_placements_and_calibration_points_are_not_touched(
+        monkeypatch) -> None:
+    """The confirmation: "Room shapes, lights, map placements and calibration
+    points are NOT touched." Map placements and calibration metres have
+    nothing left to rebuild them."""
+    hass, fab, mdl, cal = _setup()
+    _backup_ok(monkeypatch, fab)
 
     await ws_fabric_reset_spatial(hass, MagicMock(), {"id": 1})
 
     assert fab.data["floors"]["main"]["rooms"]["Kitchen"] == _KITCHEN
     assert "light.hall" in fab.data["light_positions_m"]
+    assert mdl.data["map_transforms"] == {"m1": {"scale": 1}, "m2": {"scale": 2}},         "map placements were wiped"
+    mdl.store.async_save.assert_not_awaited()
     point = cal.data["points"][0]
     assert (point["x_m"], point["y_m"]) == (1.25, 2.5), "calibration metres were wiped"
     cal.store.async_save.assert_not_awaited()
+
+
+async def test_no_backup_no_reset(monkeypatch) -> None:
+    hass, fab, _mdl, _cal = _setup()
+
+    async def _fail(hass, note, keys):
+        return None
+
+    monkeypatch.setattr(ws_fabric, "_auto_backup", _fail, raising=False)
+    conn = MagicMock()
+
+    await ws_fabric_reset_spatial(hass, conn, {"id": 1})
+
+    conn.send_result.assert_not_called()
+    assert conn.send_error.call_args.args[1] == "backup_failed"
+    assert len(fab.data["scanner_positions_m"]) == 1
+    assert len(fab.data["beacon_positions_m"]) == 1
+    assert len(fab.data["rf_barriers_m"]) == 3
+    fab.store.async_save.assert_not_awaited()

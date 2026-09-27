@@ -403,11 +403,11 @@ function _renderFabric(ctx, container, data) {
     const resetBtn = el("button",{class:"btn",style:"width:auto;padding:4px 14px;font-size:11px;border-color:#f8717144;color:#fca5a5"},
       "Reset Spatial Model");
     resetBtn.addEventListener("click", async () => {
-      if (!confirm("Clear scanner positions, barriers, and map transforms? Room shapes (the fabric) and calibration points are NOT touched.")) return;
+      if (!confirm("Clear every scanner position, beacon position and barrier? A backup is taken first (Manage → Backup & Restore). Room shapes, lights, map placements and calibration points are NOT touched.")) return;
       resetBtn.disabled = true; resetBtn.textContent = "Resetting\u2026";
       try {
         const r = await ctx.actions.callWS({type:"padspan_ha/fabric_reset_spatial"});
-        ctx.toast(`Reset: ${r.removed} positions and barriers, ${r.transforms} map transforms cleared`);
+        ctx.toast(`Reset: ${r.removed} scanner/beacon positions and barriers cleared (backup taken first)`);
         _fabricCache = null; _fabricFetchTs = 0; _fetchAndRenderFabric(ctx, container);
       } catch(e) { ctx.toast(`Failed: ${e.message||e}`); resetBtn.disabled = false; resetBtn.textContent = "Reset Spatial Model"; }
     });
