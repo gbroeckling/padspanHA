@@ -2851,7 +2851,7 @@ export function render(ctx){
       try {
         const res = await ctx.actions.wsCall("padspan_ha/positioning_diag");
         const devices = res.devices || [];
-        if (!devices.length) { body.textContent = "No labelled devices found."; _loaded = true; return; }
+        if (!devices.length) { body.textContent = "No labelled devices found."; return; }
         body.textContent = "";
         const pre = el("pre",{style:"font-size:11px;color:#e2e8f0;background:#0f172a;padding:10px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto;user-select:all;cursor:text"});
         const lines = [];

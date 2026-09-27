@@ -26,6 +26,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
+      # The panel's one lint rule, no-undef — eslint.config.mjs says why.
+      # tests/test_frontend_lint.py runs the same command locally, but skips
+      # when eslint can't be fetched; this step fails instead.
+      - name: Lint panel JS for undeclared names
+        run: npx --yes -p eslint@9 -p globals@17 eslint "custom_components/padspan_ha/www/**/*.js"
       - name: Install test dependencies
         run: pip install -r requirements_test.txt
       - name: Run tests
