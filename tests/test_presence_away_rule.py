@@ -105,7 +105,7 @@ def test_the_tracker_names_the_away_state_instead_of_returning_none():
     a device being away.
     """
     src = (_ROOT / "device_tracker.py").read_text(encoding="utf-8")
-    body = src[src.index("def location_name"):]
+    body = src[src.index("def state"):]
     body = body[:body.index("\n    @property")]
     assert "STATE_NOT_HOME" in body, "the away state must be named explicitly"
     code = "\n".join(
@@ -113,7 +113,7 @@ def test_the_tracker_names_the_away_state_instead_of_returning_none():
         if not l.strip().startswith("#") and '"""' not in l
     )
     assert "return None" not in code, (
-        "location_name still returns None on the away path — that renders as "
+        "state still returns None on the away path — that renders as "
         f"'unknown', not 'not_home':\n{code}"
     )
 

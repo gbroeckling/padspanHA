@@ -168,8 +168,24 @@ class _FakeSourceType:
 
 
 class _FakeTrackerEntity:
-    """Stand-in for device_tracker.TrackerEntity (subclassed in device_tracker.py)."""
-    pass
+    """Stand-in for device_tracker.TrackerEntity (subclassed in device_tracker.py).
+
+    `state` resolves the way HA's does (2026.7.4 and 2026.9.3 alike):
+    location_name first, then the zone latitude/longitude fall in. The stub
+    has no zones, so any position reads as "home".
+    """
+
+    @property
+    def location_name(self) -> str | None:
+        return None
+
+    @property
+    def state(self) -> str | None:
+        if self.location_name is not None:
+            return self.location_name
+        if self.latitude is not None and self.longitude is not None:
+            return "home"
+        return None
 
 
 _dt.SourceType = _FakeSourceType      # type: ignore[attr-defined]

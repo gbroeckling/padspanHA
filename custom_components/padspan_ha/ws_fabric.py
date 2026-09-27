@@ -1385,11 +1385,14 @@ async def ws_fabric_resync(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_fabric_reset_spatial(hass: HomeAssistant, connection, msg) -> None:
-    """Reset the spatial model (Phase 2+3) and rebuild from maps.
+    """Reset the spatial model (Phase 2+3).
 
     Clears scanner_positions_m, rf_barriers_m, map_transforms, and beacon
     positions. The room fabric (FabricStore) is deliberately untouched — a
     built floor's room shapes are ground truth and no reset may wipe them.
+    Calibration points keep their metres for the same reason: since the
+    photo divorce they are where a person stood, and nothing rebuilds them
+    ("Migrate to Metres", which used to, is gone).
     """
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
@@ -1397,38 +1400,24 @@ async def ws_fabric_reset_spatial(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
         return
 
-    # Clear spatial data only — user must explicitly migrate after.
+    # Clear spatial data only.
     # Spatial ground truth lives in the fabric (pass 2); map_transforms
     # stay model-owned.  The legacy model copies are left untouched — they
     # are the rollback/import source, never live data.
     fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+    removed = 0
     if fab:
-        await fab.async_spatial_update(
+        removed = (await fab.async_spatial_update(
             remove_scanners=list(fab.scanner_positions_m()),
             remove_beacons=list(fab.beacon_positions_m()),
-            remove_barrier_names=[str(b.get("name", "")) for b in fab.rf_barriers_m()],
+            remove_barrier_ids=[str(b.get("id", "")) for b in fab.rf_barriers_m()],
             op="reset_spatial",
-        )
+        ))["removed"]
+    transforms = len(mdl.data.get("map_transforms") or {})
     mdl.data["map_transforms"] = {}
     await mdl.store.async_save(mdl.data)
 
-    # Clear metre coords from calibration points (they'll be re-backfilled on migrate)
-    cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
-    cal_cleared = 0
-    if cal:
-        try:
-            for p in cal.data.get("points", []):
-                if p.get("x_m") is not None:
-                    p.pop("x_m", None)
-                    p.pop("y_m", None)
-                    cal_cleared += 1
-            if cal_cleared:
-                await cal.store.async_save(cal.data)
-        except Exception:
-            pass
-
     connection.send_result(msg["id"], {
         "ok": True, "cleared": True,
-        "cal_points_cleared": cal_cleared,
-        "next_step": "Click 'Migrate to Metres' with your floor width to rebuild.",
+        "removed": removed, "transforms": transforms,
     })

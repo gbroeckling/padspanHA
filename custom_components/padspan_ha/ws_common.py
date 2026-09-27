@@ -43,6 +43,7 @@ from .const import (
     LIGHT_SHAPE_KINDS,
 )
 from .device_registry import DEVICE_REGISTRY_STORE_KEY
+from .util import ha_devices
 
 
 # ── In-memory ring buffer for PadSpan logs ────────────────────────────────────
@@ -474,7 +475,7 @@ class RadioDeviceIndex:
         self._by_mac: dict[str, list] = {}
         try:
             from homeassistant.helpers import device_registry  # noqa: PLC0415
-            devices = list(device_registry.async_get(hass).devices.values())
+            devices = ha_devices(device_registry.async_get(hass))
         except Exception:
             devices = []
         # Sorted by id so a run is reproducible. Ties are refused rather than
