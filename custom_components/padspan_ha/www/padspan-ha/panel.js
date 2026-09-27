@@ -707,11 +707,7 @@ class PadSpanHaApp extends HTMLElement {
     this._closeDrawer = _closeDrawer;
 
     // Mobile topbar pills mirror the desktop toggles
-    this.$("#mobileDataPill").addEventListener("click", async () => {
-      if(!this.state._dataModeKnown) return;   // "…": nothing to toggle from yet
-      const next = (this.state.dataMode === "sample") ? "live" : "sample";
-      await this._setDataMode(next);
-    });
+    this.$("#mobileDataPill").addEventListener("click", () => this._onDataModeClick());
     this.$("#mobileModePill").addEventListener("click", () => {
       // Re-use the same complexity toggle logic
       this.$("#complexityToggle").click();
@@ -743,11 +739,7 @@ class PadSpanHaApp extends HTMLElement {
     this.$content.addEventListener("focusin", _markInteraction, true);
     this.$content.addEventListener("scroll", _markInteraction, true);
 
-    this.$("#dataModeToggle").addEventListener("click", async ()=>{
-      if(!this.state._dataModeKnown) return;   // "…": nothing to toggle from yet
-      const next = (this.state.dataMode === "sample") ? "live" : "sample";
-      await this._setDataMode(next);
-    });
+    this.$("#dataModeToggle").addEventListener("click", () => this._onDataModeClick());
 
     // Restore persisted complexity preference (Basic/Advanced/Dev survives page reloads)
     try {
@@ -1359,6 +1351,17 @@ class PadSpanHaApp extends HTMLElement {
           // rebuild — walking directions a room behind are no directions.
           try { this.state._followLocateRefresh(); } catch(e){ console.warn("PadSpan: Locate refresh failed", e); }
         }
+      } else if(_view === "calibration" && typeof this.state._calibTuneRadiosChanged === "function"){
+        // Guided Calibration's step 1 / the Tune tab draws HA's radios once
+        // and is otherwise left alone by the poll. It kept saying "no
+        // scanners" after HA's Bluetooth came up a minute into a restart
+        // (#88): rebuild once when the radio set it drew has changed. The
+        // Tune tab's hook says no while a radio waits to be placed; the poll
+        // render's own guards hold it back mid-drag, mid-confirm, in a
+        // focused field, or just after a click.
+        let changed = false;
+        try { changed = this.state._calibTuneRadiosChanged(); } catch(e){}
+        if(changed) this._scheduleRender(true);
       }
     } catch(e){
       // Non-fatal — snapshot is preserved from last good fetch.
@@ -1531,7 +1534,38 @@ class PadSpanHaApp extends HTMLElement {
    *  the constructor's "sample" is a default, not an answer (#88). */
   _dataModeLabel(){
     if(!this.state._dataModeKnown) return "…";
+    if(this.state.dataMode === "live" && this._sampleConfirmT) return "Show demo data?";
     return (this.state.dataMode === "live") ? "Live" : "Sample";
+  }
+
+  /**
+   * The top-bar Data button and the mobile pill. Each shows the CURRENT mode
+   * and a click switches it, so a user who pressed "Live" to get live data
+   * was put into Sample — the demo house (#88). Live -> Sample therefore
+   * takes a second click within 3 s: the first only turns the label into
+   * what the second will do, and it goes back by itself. Sample -> Live
+   * stays one click; "…" (mode not known yet) does nothing.
+   */
+  async _onDataModeClick(){
+    if(!this.state._dataModeKnown) return;   // "…": nothing to toggle from yet
+    if(this.state.dataMode === "live" && !this._sampleConfirmT){
+      this._sampleConfirmT = setTimeout(() => { this._sampleConfirmT = null; this._paintDataModeLabel(); }, 3000);
+      this._paintDataModeLabel();
+      return;
+    }
+    clearTimeout(this._sampleConfirmT);
+    this._sampleConfirmT = null;
+    this._paintDataModeLabel();
+    await this._setDataMode(this.state.dataMode === "sample" ? "live" : "sample");
+    this._paintDataModeLabel();   // the mobile pill too, which _refreshAll does not repaint
+  }
+
+  /** Both data-mode buttons show the same label. */
+  _paintDataModeLabel(){
+    for(const id of ["#dataModeToggle", "#mobileDataPill"]){
+      const b = this.$(id);
+      if(b) b.textContent = this._dataModeLabel();
+    }
   }
 
   /**

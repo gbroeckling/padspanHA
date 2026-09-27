@@ -69,6 +69,15 @@ export function tuneLivePhase(state) {
   return (snap && snap.source === "live") ? "live" : "waiting";
 }
 
+// What the Tune tab's radio list and map were drawn from, cheaply (#88):
+// the phase (each shows its own empty-list line) and the sorted radio ids.
+// A poll that brings the same radios back gives the same string.
+export function tuneRadioSig(state) {
+  const s = state || {};
+  const radios = (s.live && s.live.snapshot && s.live.snapshot.ble && s.live.snapshot.ble.radios) || [];
+  return tuneLivePhase(s) + "|" + radios.map(r => (r && r.source) || "").sort().join(",");
+}
+
 // Tune writes the REAL model, but the radios it offers come from the
 // snapshot on screen. A demo radio placed and saved from here became a
 // phantom scanner (living_room_hub, ...) in the user's own setup (#88).

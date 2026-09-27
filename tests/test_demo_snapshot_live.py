@@ -24,6 +24,15 @@ Follow-up: while every settings_get so far had failed, the top bar still read
 on a page nobody touches, so a wall kiosk stayed there. The harness runs the
 real _updateBadges from the panel.js HTML's starting text, drives the
 watchdog's re-ask to recovery, and renders the real overview.js unknown.
+
+Second follow-up (reporter, 2026-09-27): Guided Calibration opened a minute
+into an HA restart kept saying "no scanners" after the radios arrived, since
+the poll never redrew it; and the top-bar Data button, which shows the
+CURRENT mode, put them into Sample when they pressed "Live". The harness runs
+the real _pollTick over the state the real calibration.js rendered (one
+redraw when the radio set changes, none otherwise, none while a radio waits
+to be placed) and the real _onDataModeClick (Live -> Sample asks first and
+needs a second click within 3 s; Sample -> Live is one click).
 """
 
 from __future__ import annotations
@@ -75,6 +84,19 @@ _CASES = [
     "overview (basic): a known Sample mode still says Sample data",
     "overview (advanced): a known Sample mode still says Sample data",
     "control: Guided Calibration in Live mode still records the real radios",
+    # second follow-up: the wizard redraws when HA's radios change
+    "calibration: radios arriving after the wizard opened redraw it once",
+    "calibration: the same radios on every poll are not redrawn",
+    "calibration: a radio waiting to be placed is not disturbed by radios arriving",
+    "calibration: a redraw a guard held back is asked for again on the next poll",
+    "calibration: the poll leaves the other Guided Calibration steps alone",
+    # second follow-up: Live -> Sample takes a second click
+    "data toggle: one click on Live does not switch to Sample; it asks first",
+    "data toggle: two clicks within 3 s switch Live to Sample",
+    "data toggle: after 3 s the label goes back and a click only asks again",
+    "data toggle: Sample to Live is still one click",
+    "data toggle: the '…' (mode not known) button does nothing",
+    "data toggle: the top bar and the mobile pill both go through the confirm",
 ]
 
 

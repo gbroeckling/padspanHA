@@ -75,7 +75,7 @@ const REQUIRED = ["_wsCount", "_logEvent", "_callWS", "_fetchSettings", "_loadSe
   "_updateBadges"];
 // The fixes' own methods: taken when they exist, so this same harness also
 // runs (and fails) against the pre-fix panel.js.
-const OPTIONAL = ["_applyDataMode", "_dataModeLabel", "_retryDataMode"];
+const OPTIONAL = ["_applyDataMode", "_dataModeLabel", "_retryDataMode", "_onDataModeClick", "_paintDataModeLabel"];
 const bodies = [];
 for (const n of REQUIRED) {
   const b = extractMethod(n);
@@ -584,6 +584,173 @@ for (const complexity of ["basic", "advanced"]) {
     expect(t.includes("Sample data"), "a real Sample mode lost its Sample line");
   });
 }
+
+// ── Part D: #88 follow-ups ───────────────────────────────────────────────────
+// (1) Guided Calibration opened a minute into an HA restart, before its
+// Bluetooth was up, kept saying "no scanners" after the radios arrived: the
+// poll never redrew the calibration view. The real _pollTick runs here on
+// the state the real calibration.js rendered; _scheduleRender re-renders it
+// (or, with `hold`, stands in for a poll render a guard held back).
+// (2) The top-bar Data button shows the CURRENT mode and a click switches
+// it: the reporter pressed "Live" to get Live and landed in Sample. The real
+// _onDataModeClick runs here; the shim's queued timers stand in for the 3 s.
+
+const radiosSnap = (...ids) => ({ source: "live", ble: { advertisements: [],
+  radios: ids.map((id, i) => ({ source: id, name: `proxy-${id}`, area_name: "Hall", rssi: -60 - i })) } });
+
+/** Guided Calibration step 1 on `first`, with a panel whose poll reads `server.snap`. */
+async function calibPoll(first) {
+  const server = { snap: first };
+  const r = await renderTune({ dataMode: "live", _dataModeKnown: true, live: { snapshot: structuredClone(first) } });
+  const p = new Panel(fakeHass({ "padspan_ha/live_snapshot": () => ({ snapshot: structuredClone(server.snap) }) }));
+  Object.assign(r.ctx.state, { timing: {}, wsCounts: {}, _sessionEvents: [], roomTagMap: {}, savedRoomTagMap: {} });
+  p.state = r.ctx.state;
+  const renders = [];
+  let text = r.radiosCard.textContent;
+  p.hold = false;
+  p._scheduleRender = (fromPoll) => {
+    renders.push(fromPoll);
+    if (!p.hold) text = calib.render(r.ctx).textContent;
+  };
+  return { r, p, server, renders, text: () => text };
+}
+
+await run("calibration: radios arriving after the wizard opened redraw it once", async () => {
+  const c = await calibPoll(radiosSnap());
+  expect(c.text().includes(NO_SCANNERS), `harness: expected the no-scanners line first, got: ${c.text()}`);
+  await tick(c.p);
+  expect(c.renders.length === 0, `an unchanged empty radio list was redrawn ${c.renders.length} time(s)`);
+  c.server.snap = radiosSnap("AA:01", "AA:05", "AA:06");     // HA's Bluetooth is up
+  await tick(c.p);
+  expect(c.renders.length === 1, `radios arrived: expected one redraw, got ${c.renders.length}`);
+  expect(c.renders[0] === true, "the redraw skipped the poll-render guards (drag, confirm, focused field)");
+  expect(c.text().includes("Live Radios (3)") && c.text().includes("proxy-AA:06"), `after the redraw: ${c.text()}`);
+  expect(!c.text().includes(NO_SCANNERS), "still says no scanners after the radios arrived");
+  await tick(c.p); await tick(c.p);
+  expect(c.renders.length === 1, `the same three radios were redrawn again (${c.renders.length} redraws)`);
+  c.server.snap = radiosSnap("AA:01", "AA:06");               // one went away
+  await tick(c.p);
+  expect(c.renders.length === 2 && c.text().includes("Live Radios (2)"), `a removed radio: ${c.renders.length} redraws, ${c.text()}`);
+});
+
+await run("calibration: the same radios on every poll are not redrawn", async () => {
+  const c = await calibPoll(radiosSnap("AA:01", "AA:05"));
+  for (let i = 0; i < 4; i++) {
+    const s = radiosSnap("AA:05", "AA:01");                    // other order, other RSSI: same radios
+    s.ble.radios.forEach(rd => { rd.rssi -= i; });
+    c.server.snap = s;
+    await tick(c.p);
+  }
+  expect(c.renders.length === 0, `redrawn ${c.renders.length} time(s) with nothing changed`);
+});
+
+await run("calibration: a radio waiting to be placed is not disturbed by radios arriving", async () => {
+  const c = await calibPoll(radiosSnap("AA:01", "AA:05"));
+  const row = c.r.rowFor("proxy-AA:05 (Hall)");
+  expect(row, "unplaced radio row not found");
+  row.click();
+  const ts = c.r.ts();
+  expect(ts.pendingPlace && ts.pendingPlace.source === "AA:05", `harness: not armed: ${JSON.stringify(ts.pendingPlace)}`);
+  c.server.snap = radiosSnap("AA:01", "AA:05", "AA:07");
+  await tick(c.p); await tick(c.p);
+  expect(c.renders.length === 0, `redrawn ${c.renders.length} time(s) while a radio was waiting to be placed`);
+  expect(ts.pendingPlace && ts.pendingPlace.source === "AA:05", `the pending placement was lost: ${JSON.stringify(ts.pendingPlace)}`);
+  ts.pendingPlace = null;                                     // placed / cancelled
+  await tick(c.p);
+  expect(c.renders.length === 1 && c.text().includes("proxy-AA:07"), `after the placement: ${c.renders.length} redraws, ${c.text()}`);
+});
+
+await run("calibration: a redraw a guard held back is asked for again on the next poll", async () => {
+  const c = await calibPoll(radiosSnap());
+  c.p.hold = true;                                            // a drag / focused field / recent click
+  c.server.snap = radiosSnap("AA:01", "AA:05");
+  await tick(c.p); await tick(c.p);
+  expect(c.renders.length === 2, `the held-back redraw was not asked for again (${c.renders.length} asks)`);
+  c.p.hold = false;
+  await tick(c.p);
+  expect(c.text().includes("Live Radios (2)"), `after the guard let go: ${c.text()}`);
+  await tick(c.p);
+  expect(c.renders.length === 3, `kept redrawing once drawn (${c.renders.length})`);
+});
+
+await run("calibration: the poll leaves the other Guided Calibration steps alone", async () => {
+  const c = await calibPoll(radiosSnap());
+  c.r.ctx.state._calibWizard.step = 2;                        // Choose your device
+  calib.render(c.r.ctx);
+  expect(c.r.ctx.state._calibTuneRadiosChanged === null, "the Tune tab's redraw hook outlived it");
+  c.server.snap = radiosSnap("AA:01", "AA:05");
+  await tick(c.p);
+  expect(c.renders.length === 0, `step 2 was rebuilt by the poll (${c.renders.length})`);
+});
+
+/** A panel whose mode the server already answered; records settings_set calls. */
+async function modePanel(mode) {
+  const sets = [];
+  const p = new Panel(fakeHass({
+    "padspan_ha/settings_set": (m) => { sets.push(m.data_mode); return { settings: { data_mode: m.data_mode } }; },
+    "padspan_ha/settings_get": () => ({ settings: { data_mode: sets.length ? sets[sets.length - 1] : mode } }) }));
+  p._els["#mobileDataPill"] = { textContent: PILL_HTML, style: {} };
+  await p._refreshAll(false);
+  await flush();
+  expect(p.state.dataMode === mode && p.state._dataModeKnown, `harness: expected ${mode}, got ${p.state.dataMode}`);
+  const pill = () => p._els["#mobileDataPill"].textContent;
+  return { p, sets, pill };
+}
+const CONFIRM = "Show demo data?";
+
+await run("data toggle: one click on Live does not switch to Sample; it asks first", async () => {
+  expect(typeof Panel.prototype._onDataModeClick === "function", "no _onDataModeClick()");
+  const { p, sets, pill } = await modePanel("live");
+  expect(p.badge === "Live", `harness: badge ${p.badge}`);
+  await p._onDataModeClick();
+  expect(!sets.length && p.state.dataMode === "live", `one click switched to ${sets.join(",")}`);
+  expect(p.badge === CONFIRM && pill() === CONFIRM, `first click reads "${p.badge}" / pill "${pill()}"`);
+  p._updateBadges();                                          // a poll lands inside the 3 s
+  expect(p.badge === CONFIRM, `a poll put back "${p.badge}" before the second click`);
+});
+
+await run("data toggle: two clicks within 3 s switch Live to Sample", async () => {
+  const { p, sets, pill } = await modePanel("live");
+  await p._onDataModeClick();
+  await p._onDataModeClick();
+  expect(sets.join(",") === "sample" && p.state.dataMode === "sample", `settings_set calls: ${JSON.stringify(sets)}`);
+  expect(p.state.live.snapshot === SAMPLE_SNAPSHOT && p.badge === "Sample" && pill() === "Sample",
+    `after the switch: badge "${p.badge}" / pill "${pill()}"`);
+  await flush();                                              // the 3 s timer, cleared by the switch
+  expect(p.badge === "Sample" && pill() === "Sample", `the stale timer rewrote the label: "${p.badge}" / pill "${pill()}"`);
+});
+
+await run("data toggle: after 3 s the label goes back and a click only asks again", async () => {
+  const { p, sets, pill } = await modePanel("live");
+  await p._onDataModeClick();
+  await flush();                                              // 3 s pass
+  expect(p.badge === "Live" && pill() === "Live", `after the timeout: "${p.badge}" / pill "${pill()}"`);
+  await p._onDataModeClick();
+  expect(!sets.length && p.badge === CONFIRM, `a click after the timeout switched (${JSON.stringify(sets)}) or did not ask`);
+});
+
+await run("data toggle: Sample to Live is still one click", async () => {
+  const { p, sets, pill } = await modePanel("sample");
+  await p._onDataModeClick();
+  expect(sets.join(",") === "live" && p.state.dataMode === "live" && p.badge === "Live" && pill() === "Live",
+    `settings_set calls: ${JSON.stringify(sets)}, badge "${p.badge}" / pill "${pill()}"`);
+});
+
+await run("data toggle: the '…' (mode not known) button does nothing", async () => {
+  // Nothing from the server yet: the constructor's state, the button reads "…".
+  const p = new Panel(fakeHass({}));
+  expect(!p.state._dataModeKnown, "harness: the mode should still be unknown");
+  let calls = 0; const orig = p._hass.callWS; p._hass.callWS = (m) => { calls++; return orig(m); };
+  await p._onDataModeClick(); await p._onDataModeClick();
+  expect(calls === 0 && p.badge !== CONFIRM, `the unknown-mode button acted: ${calls} call(s), "${p.badge}"`);
+});
+
+await run("data toggle: the top bar and the mobile pill both go through the confirm", async () => {
+  for (const id of ["dataModeToggle", "mobileDataPill"]) {
+    const re = new RegExp(`this\\.\\$\\("#${id}"\\)\\.addEventListener\\("click",[^\\n]*this\\._onDataModeClick\\(\\)`);
+    expect(re.test(src), `#${id} does not click through _onDataModeClick()`);
+  }
+});
 
 let failed = 0;
 for (const [label, c] of Object.entries(cases)) {

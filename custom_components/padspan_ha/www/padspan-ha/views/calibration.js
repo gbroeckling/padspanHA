@@ -52,7 +52,7 @@ const { mapXform, worldGauge, metresToWorld, mapFracToMetres,
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 const { tuneSavePlanInit, tuneDiffMapDraft, tuneMissingFabricPins, tuneConflictingSources,
         tuneReconcileDraft, tuneSyncTuneDrafts, tuneSnapBaseline,
-        tuneTryAcquire, tuneRelease, tuneLivePhase, tuneWriteBlock } =
+        tuneTryAcquire, tuneRelease, tuneLivePhase, tuneWriteBlock, tuneRadioSig } =
   await import(`./tune_save_plan.js${new URL(import.meta.url).search}`);
 tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 
@@ -100,6 +100,8 @@ export function render(ctx) {
     savedThisSession: 0,
   };
   const cs = ctx.state._calib;
+  // The poll's redraw hook (see _tuneTab): only the Tune tab sets it.
+  ctx.state._calibTuneRadiosChanged = null;
 
   // Load calibration DB once
   if (!ctx.state.calibration) {
@@ -2430,6 +2432,19 @@ function _tuneTab(ctx, el, cs, calData) {
     _mapsStamp: null,     // tracks when maps data last changed
   };
   const ts = ctx.state._calibTune;
+
+  // The radio list and map below are drawn once, from this snapshot, and
+  // the poll does not rebuild this view (a rebuild every 5 s would fight
+  // drags and placements). Guided Calibration opened while HA's Bluetooth
+  // was still coming up kept saying "no scanners" after the radios arrived
+  // (#88). panel.js's poll asks this after each live snapshot and rebuilds
+  // (through its drag / confirm / focus guards) only when the radio set
+  // changed — never while a radio waits to be placed or a save is writing.
+  // What was drawn is recorded here, at render, so a rebuild a guard held
+  // back is asked for again on the next poll.
+  const _radioSigDrawn = tuneRadioSig(ctx.state);
+  ctx.state._calibTuneRadiosChanged = () =>
+    !ts.pendingPlace && !ts._tuneBusy && tuneRadioSig(ctx.state) !== _radioSigDrawn;
 
   // Single authoritative draft-sync, shared by initial render and
   // Reset (see tuneSyncTuneDrafts): seeds empty drafts, reseeds CLEAN
