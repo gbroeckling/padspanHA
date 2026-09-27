@@ -52,6 +52,7 @@ from .beacon_identity import (
 _SETTLED_POLLS = 3
 from .ble_enrichment import enrich_object as _enrich_ble_object
 from .presence_rules import away_timeout_s, is_away
+from .util import ha_devices
 from .ws_common import (
     RadioDeviceIndex,
     _ALL_ADDR_CAP,
@@ -287,7 +288,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     try:
         dr = device_registry.async_get(hass)
         receivers: list[dict[str, Any]] = []
-        for dev in dr.devices.values():
+        for dev in ha_devices(dr):
             if bermuda_entry_ids and any(entry_id in bermuda_entry_ids for entry_id in dev.config_entries):
                 receivers.append(
                     {
@@ -729,10 +730,12 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     try:
         dr2 = device_registry.async_get(hass)
         er2 = entity_registry.async_get(hass)
+        # Main devices by id (see util.ha_devices for why not dr2.async_get).
+        dev_by_id = {dev.id: dev for dev in ha_devices(dr2)}
 
         # Build a quick map of Bluetooth address -> HA device (device_registry)
         addr_to_device: dict[str, dict[str, Any]] = {}
-        for dev in dr2.devices.values():
+        for dev in dev_by_id.values():
             try:
                 for (ctype, cid) in (dev.connections or set()):
                     if str(ctype) == "bluetooth" and isinstance(cid, str):
@@ -754,7 +757,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             ent = er2.async_get(eid)
             if not ent or not ent.device_id:
                 continue
-            dev = dr2.devices.get(ent.device_id)
+            dev = dev_by_id.get(ent.device_id)
             if not dev:
                 continue
             for (ctype, cid) in (dev.connections or set()):
@@ -1347,7 +1350,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             try:
                 ent = er2.async_get(eid)
                 if ent and ent.device_id:
-                    dev = dr2.devices.get(ent.device_id)
+                    dev = dev_by_id.get(ent.device_id)
                     if dev:
                         # 1) Check device connections for a static BLE MAC
                         for (ctype, cid) in (dev.connections or set()):

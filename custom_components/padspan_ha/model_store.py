@@ -51,6 +51,7 @@ from homeassistant.helpers.storage import Store
 from . import fabric_truth
 from .const import MODEL_STORE_KEY, DEFAULT_FLOOR_ID, MAX_HEIGHT_M, LIGHT_SHAPE_KINDS, OUTDOOR_FLOOR_NAMES
 from .safe_store import wrap_store
+from .util import ha_devices
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -675,7 +676,7 @@ class ModelStore:
         # Only sync devices whose identifiers are ESPHome BLE proxies.
         # Filter: device must have an esphome or bluetooth-related integration.
         _BLE_DOMAINS = {"esphome", "bluetooth", "bluetooth_le_tracker"}
-        for dev in dr.devices.values():
+        for dev in ha_devices(dr):
             if not dev.area_id:
                 continue
             # Check if this device is from a BLE-relevant integration
