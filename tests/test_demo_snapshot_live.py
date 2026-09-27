@@ -18,6 +18,12 @@ and the failing live_snapshot of conditions C and C2), then renders the real
 Guided Calibration step 1 from calibration.js and clicks it: the empty-list
 message per state, and a demo radio refused for placement and for Save. The
 normal Live path and a deliberate switch to Sample run as controls.
+
+Follow-up: while every settings_get so far had failed, the top bar still read
+"Sample" (the constructor default) over an empty screen, and nothing re-asked
+on a page nobody touches, so a wall kiosk stayed there. The harness runs the
+real _updateBadges from the panel.js HTML's starting text, drives the
+watchdog's re-ask to recovery, and renders the real overview.js unknown.
 """
 
 from __future__ import annotations
@@ -47,6 +53,13 @@ _CASES = [
     "wizard: condition C's panel state lists no demo radios under Live",
     "placing a demo radio is refused (no pending placement, no Delete)",
     "saving a placed demo radio is refused (no fabric write)",
+    # follow-up: an unknown mode is neither Live nor Sample, and is re-asked
+    "badge: before the server answers, neither the top bar nor the mobile pill claims Live or Sample",
+    "badge: unknown mode (settings_get failed twice) claims neither Live nor Sample",
+    "badge: the mobile pill uses the same label as the top bar",
+    "unknown mode is asked again: once HA answers, the watchdog's retry lands Live with the real radios",
+    "overview (basic): unknown mode shows the loading state, not the Sample layout",
+    "overview (advanced): unknown mode shows the loading state, not the Sample layout",
     # controls: what already worked must keep working
     "normal path: settings and live_snapshot succeed -> Live with the real radios",
     "deliberate switch to Sample still shows the demo; switching back evicts it",
@@ -54,6 +67,9 @@ _CASES = [
     "wizard: 'Switch to Live mode' still shows in a real Sample mode",
     "Sample mode still renders the demo radios in the list",
     "control: with live data, placing and saving a real radio still works",
+    "badge: a known mode still reads Live / Sample",
+    "overview (basic): a known Sample mode still says Sample data",
+    "overview (advanced): a known Sample mode still says Sample data",
 ]
 
 

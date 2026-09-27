@@ -68,8 +68,11 @@ export function render(ctx){
   const dataMode = ctx.state.dataMode || "sample";
   const liveSnap = ctx.state.live?.snapshot || null;
 
-  // When live mode is active but snapshot hasn't arrived yet, show placeholder
-  const liveLoading = dataMode === "live" && !liveSnap;
+  // When live mode is active but snapshot hasn't arrived yet, show placeholder.
+  // Same while the server has not said which mode (#88): the "sample"
+  // default is not an answer, so no Sample layout either.
+  const modeKnown = !!ctx.state._dataModeKnown;
+  const liveLoading = (dataMode === "live" || !modeKnown) && !liveSnap;
 
   // Fallback counts based on roomTagMap (works in sample mode too).
   const roomTagMap = liveLoading ? {} : (ctx.state.roomTagMap || {});
@@ -2971,7 +2974,9 @@ export function render(ctx){
         helpBtn("overview"),
       ]),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-        dataMode === "live" ? "Live view · updates every 5s" : "Sample data — switch to Live for your real home."),
+        dataMode === "live" ? "Live view · updates every 5s"
+          : !modeKnown ? "Connecting to Home Assistant…"
+          : "Sample data — switch to Live for your real home."),
     ]);
     if(mapEl) mapCard.appendChild(mapEl);
 
@@ -3314,7 +3319,7 @@ export function render(ctx){
       el("div",{class:"row"},[
         el("button",{class:"btn", onclick: openRadiosList}, "View radios list"),
       ]),
-      el("div",{style:"margin-top:8px;color:#94a3b8;font-size:12px"}, dataMode==="live" ? "Live snapshot" : "Sample data — switch to Live to see your real devices")
+      el("div",{style:"margin-top:8px;color:#94a3b8;font-size:12px"}, dataMode==="live" ? "Live snapshot" : !modeKnown ? "Connecting to Home Assistant…" : "Sample data — switch to Live to see your real devices")
     ]),
     // Calibration status card
     (() => {

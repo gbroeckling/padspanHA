@@ -17,7 +17,14 @@
 // Part A lifts the real data-mode / snapshot methods out of panel.js (same
 // text extraction as poll_settings_throttle.mjs) and drives them against a
 // fake websocket. Part B imports the real calibration.js under dom_shim.mjs,
-// renders Guided Calibration step 1 (the Tune tab) and clicks it.
+// renders Guided Calibration step 1 (the Tune tab) and clicks it. Part C
+// renders the real overview.js while the mode is still unknown.
+//
+// Follow-up: while the server has not said which mode (every settings_get so
+// far failed), the top bar read "Sample" over an empty screen, and nothing
+// re-asked on a page nobody touches (a wall kiosk). The real _updateBadges
+// runs here against the badge text the panel.js HTML starts with, and the
+// watchdog's re-ask (_retryDataMode) is driven to recovery.
 //
 // Run:  node tests/js/demo_snapshot_live.mjs <www/padspan-ha dir>
 // Prints "ok"/"FAIL" per case, then one JSON line {"cases": {...}}.
@@ -64,10 +71,11 @@ function extractMethod(name) {
 }
 
 const REQUIRED = ["_wsCount", "_logEvent", "_callWS", "_fetchSettings", "_loadSettings",
-  "_setDataMode", "_recomputeDerived", "_getRoomTags", "_getLiveSnapshot", "_refreshAll", "_pollTick"];
-// _applyDataMode is the fix's own setter: taken when it exists, so this same
-// harness also runs (and fails) against the pre-fix panel.js.
-const OPTIONAL = ["_applyDataMode"];
+  "_setDataMode", "_recomputeDerived", "_getRoomTags", "_getLiveSnapshot", "_refreshAll", "_pollTick",
+  "_updateBadges"];
+// The fixes' own methods: taken when they exist, so this same harness also
+// runs (and fails) against the pre-fix panel.js.
+const OPTIONAL = ["_applyDataMode", "_dataModeLabel", "_retryDataMode"];
 const bodies = [];
 for (const n of REQUIRED) {
   const b = extractMethod(n);
@@ -76,8 +84,17 @@ for (const n of REQUIRED) {
 }
 for (const n of OPTIONAL) { const b = extractMethod(n); if (b) bodies.push(b); }
 
+/** The text a panel.js HTML button starts with, by id. */
+function initialText(id) {
+  const m = new RegExp(`id="${id}"[^>]*>([^<]*)<`).exec(src);
+  if (!m) throw new Error(`#${id} not found in panel.js HTML — renamed? update this test`);
+  return m[1];
+}
+const BADGE_HTML = initialText("dataModeToggle");
+const PILL_HTML = initialText("mobileDataPill");
+
 // eslint-disable-next-line no-new-func
-const Panel = new Function("SAMPLE_SNAPSHOT", `return class Panel {
+const Panel = new Function("SAMPLE_SNAPSHOT", "BADGE_HTML", `return class Panel {
   constructor(hass){
     this._hass = hass;
     // The constructor's own default: dataMode "sample" before settings land.
@@ -87,18 +104,26 @@ const Panel = new Function("SAMPLE_SNAPSHOT", `return class Panel {
       maps: { list: [{ id: "ground" }] }, model: { floors: [{ id: "main" }] },
       timing: {}, wsCounts: {}, _sessionEvents: [], roomTagMap: {}, savedRoomTagMap: {},
     };
-    this.badge = "Sample";          // the HTML default of #dataModeToggle
+    this.state.complexity = "advanced";
+    // The top-bar elements the real _updateBadges writes; the data toggle
+    // starts with the panel.js HTML's own text.
+    this._els = {};
+    for (const id of ["#scanBadge", "#statusBadge", "#cloudBadge", "#dataModeToggle", "#complexityToggle"])
+      this._els[id] = { textContent: "", style: {} };
+    this._els["#dataModeToggle"].textContent = BADGE_HTML;
     this.toasts = [];
+    this.polls = 0;
   }
+  get badge(){ return this._els["#dataModeToggle"].textContent; }
+  $(sel){ return this._els[sel] || null; }
   _toast(m){ this.toasts.push(String(m)); }
-  // The one expression panel.js's _updateBadges uses for the data toggle.
-  _updateBadges(){ this.badge = (this.state.dataMode === "live") ? "Live" : "Sample"; }
+  _updateEmergencyBanner(){}
   _scheduleRender(){} _applyTheme(){} _applySkin(){} _renderNav(){} _telemetryFlush(){}
-  _startPolling(){} _stopPolling(){}
+  _startPolling(){} _stopPolling(){} _startDataPoll(){ this.polls++; this._pollTimer = 1; }
   async _getMapsList(){} async _getModel(){} async _getStatus(){} async _getVersionInfo(){}
   async _runAutoDiag(){} async _loadAlertConfigs(){}
 ${bodies.join("\n\n")}
-}`)(SAMPLE_SNAPSHOT);
+}`)(SAMPLE_SNAPSHOT, BADGE_HTML);
 
 // A live snapshot as snapshot_builder.py builds it (source:"live").
 const REAL = { source: "live", ble: { radios: [
@@ -189,6 +214,60 @@ await run("a Sample-mode install (server data_mode=sample) shows the demo", asyn
   await p._refreshAll(false);
   expect(p.badge === "Sample" && p.state.live.snapshot === SAMPLE_SNAPSHOT,
     `expected the demo snapshot under Sample, got badge=${p.badge}`);
+});
+
+const MODE_WORDS = ["Live", "Sample"];
+
+await run("badge: before the server answers, neither the top bar nor the mobile pill claims Live or Sample", async () => {
+  expect(!MODE_WORDS.includes(BADGE_HTML.trim()), `#dataModeToggle starts as "${BADGE_HTML}"`);
+  expect(!MODE_WORDS.includes(PILL_HTML.trim()), `#mobileDataPill starts as "${PILL_HTML}"`);
+});
+
+await run("badge: unknown mode (settings_get failed twice) claims neither Live nor Sample", async () => {
+  const p = new Panel(fakeHass({ "padspan_ha/settings_get": "fail", "padspan_ha/live_snapshot": "fail" }));
+  await p._refreshAll(false);
+  expect(!p.state._dataModeKnown, "harness: the mode should still be unknown");
+  expect(!MODE_WORDS.includes(p.badge), `the top bar reads "${p.badge}" while the mode is unknown`);
+});
+
+await run("badge: the mobile pill uses the same label as the top bar", async () => {
+  const nav = extractMethod("_renderNav");
+  expect(nav && /mobileDataPill\.textContent\s*=\s*this\._dataModeLabel\(\)/.test(nav),
+    "_renderNav writes its own Live/Sample guess into #mobileDataPill");
+});
+
+await run("unknown mode is asked again: once HA answers, the watchdog's retry lands Live with the real radios", async () => {
+  const keepAlive = extractMethod("_startKeepAlive");
+  expect(keepAlive && /this\._retryDataMode\(\)/.test(keepAlive), "the watchdog never re-asks for the data mode");
+  const beh = { "padspan_ha/settings_get": "fail", "padspan_ha/live_snapshot": "fail" };
+  const p = new Panel(fakeHass(beh));
+  await p._refreshAll(false);
+  expect(typeof p._retryDataMode === "function", "no _retryDataMode()");
+  // Still down: the retry fails quietly and can run again.
+  p._retryDataMode();
+  await new Promise(r => setTimeout(r, 1000));
+  expect(!p.state._dataModeKnown && !p._modeRetry, "a failed retry left the mode known or the retry stuck in flight");
+  beh["padspan_ha/settings_get"] = "ok"; beh["padspan_ha/live_snapshot"] = "ok";
+  p._retryDataMode();
+  p._retryDataMode();                          // a second tick while the first is in flight: no-op
+  await new Promise(r => setTimeout(r, 50));
+  noDemoUnderLive(p, "after the retry");
+  expect(p.state.live.snapshot === REAL, "the retry did not bring the live snapshot");
+  expect(p.polls === 1, `the live poll was started ${p.polls} times`);
+  // Known now: further ticks ask nothing.
+  let calls = 0; const orig = p._hass.callWS; p._hass.callWS = (m) => { calls++; return orig(m); };
+  p._retryDataMode();
+  await new Promise(r => setTimeout(r, 20));
+  expect(calls === 0, `the retry kept asking after the mode was known (${calls} calls)`);
+});
+
+await run("badge: a known mode still reads Live / Sample", async () => {
+  const pl = new Panel(fakeHass({}));
+  await pl._refreshAll(false);
+  expect(pl.badge === "Live", `Live install reads "${pl.badge}"`);
+  const ps = new Panel(fakeHass({}, { data_mode: "sample" }));
+  await ps._refreshAll(false);
+  expect(ps.badge === "Sample", `Sample install reads "${ps.badge}"`);
 });
 
 // ── Part B: calibration.js (Guided Calibration step 1 = the Tune tab) ────────
@@ -370,6 +449,41 @@ await run("control: with live data, placing and saving a real radio still works"
   const writes = r.calls.filter(c => c.type === "padspan_ha/fabric_scanner_position_set");
   expect(writes.some(w => w.source === "AA:03"), `the real radio was not saved: ${JSON.stringify(r.calls)} ${JSON.stringify(r.toasts)}`);
 });
+
+// ── Part C: overview.js while the mode is unknown ────────────────────────────
+
+const overview = await import(pathToFileURL(join(WWW, "views", "overview.js")).href);
+
+async function renderOverview(stateOver) {
+  const helpers = { el, esc: (s) => String(s ?? ""), pill: (t) => el("span", {}, String(t ?? "")), HELP: {},
+    helpBtn: () => el("button", {}, "?"), radioShortId: (s) => String(s || "").slice(-3),
+    awayTimeoutS: () => 120, isAway: () => false, roomColor: () => "#52b788",
+    scannerStatus: () => "ok", scannerAddrs: () => new Set(), isScanner: () => false };
+  const state = Object.assign({ view: "overview", complexity: "basic", dataMode: "sample",
+    live: { snapshot: null }, maps: { list: [] }, model: { floors: [] }, settings: {}, timing: {},
+    // Real rooms from the server's saved map (room_tags answers without the mode).
+    roomTagMap: { Kitchen: ["a"], Den: ["b"] }, savedRoomTagMap: {} }, stateOver);
+  const ctx = { hass: { states: {}, connection: { sendMessagePromise: async () => ({}) } }, state,
+    helpers: new Proxy(helpers, { get: (t, k) => (k in t ? t[k] : recorder()) }),
+    actions: new Proxy({ callWS: async () => ({}), wsCall: async () => ({}) },
+      { get: (t, k) => (k in t ? t[k] : recorder()) }),
+    toast: () => {} };
+  const out = overview.render(ctx);
+  await flush();
+  return out.textContent;
+}
+
+for (const complexity of ["basic", "advanced"]) {
+  await run(`overview (${complexity}): unknown mode shows the loading state, not the Sample layout`, async () => {
+    const t = await renderOverview({ complexity });
+    expect(!t.includes("Sample data"), `says "Sample data" while the mode is unknown`);
+    expect(t.includes("--"), "no loading placeholders while the mode is unknown");
+  });
+  await run(`overview (${complexity}): a known Sample mode still says Sample data`, async () => {
+    const t = await renderOverview({ complexity, _dataModeKnown: true });
+    expect(t.includes("Sample data"), "a real Sample mode lost its Sample line");
+  });
+}
 
 let failed = 0;
 for (const [label, c] of Object.entries(cases)) {

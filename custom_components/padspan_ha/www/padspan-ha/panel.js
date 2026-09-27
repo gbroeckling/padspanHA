@@ -615,7 +615,7 @@ class PadSpanHaApp extends HTMLElement {
             <button class="mobile-topbar-btn" id="mobileBackBtn" title="Back to Home Assistant" style="font-size:18px;padding:4px 6px">&#x2190;</button>
             <button class="mobile-topbar-btn" id="mobileMenuBtn">&#9776;</button>
             <span class="mobile-topbar-title" id="mobileTitle">Overview</span>
-            <button class="mobile-topbar-pill" id="mobileDataPill">Sample</button>
+            <button class="mobile-topbar-pill" id="mobileDataPill">…</button>
             <button class="mobile-topbar-pill" id="mobileModePill">Advanced</button>
             <button class="mobile-topbar-pill hidden" id="mobileEmergencyPill" style="background:#7f1d1d;border-color:#dc2626;color:#fecaca">🚨 0</button>
           </div>
@@ -626,7 +626,7 @@ class PadSpanHaApp extends HTMLElement {
 
             <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
               <span class="muted" style="font-size:12px">Data</span>
-              <button class="btn inline" id="dataModeToggle" title="Toggle sample vs live data">Sample</button>
+              <button class="btn inline" id="dataModeToggle" title="Toggle sample vs live data">…</button>
               <button class="btn inline" id="complexityToggle" title="Cycle between Basic, Advanced, and Development modes">Advanced</button>
             </span>
           </div>
@@ -703,6 +703,7 @@ class PadSpanHaApp extends HTMLElement {
 
     // Mobile topbar pills mirror the desktop toggles
     this.$("#mobileDataPill").addEventListener("click", async () => {
+      if(!this.state._dataModeKnown) return;   // "…": nothing to toggle from yet
       const next = (this.state.dataMode === "sample") ? "live" : "sample";
       await this._setDataMode(next);
     });
@@ -738,6 +739,7 @@ class PadSpanHaApp extends HTMLElement {
     this.$content.addEventListener("scroll", _markInteraction, true);
 
     this.$("#dataModeToggle").addEventListener("click", async ()=>{
+      if(!this.state._dataModeKnown) return;   // "…": nothing to toggle from yet
       const next = (this.state.dataMode === "sample") ? "live" : "sample";
       await this._setDataMode(next);
     });
@@ -1097,6 +1099,8 @@ class PadSpanHaApp extends HTMLElement {
           if(this.state.dataMode === "live" && !this._pollTimer){
             this._startDataPoll();
           }
+          // 5b. Data mode still unknown (every settings_get failed): ask again
+          this._retryDataMode();
 
           // 6. Escalation: no successful render in 20s → full rebuild
           // Skip for non-live views (calibration, maps, etc.) — they don't poll-render,
@@ -1518,6 +1522,36 @@ class PadSpanHaApp extends HTMLElement {
     }
   }
 
+  /** The top bar's data-mode label. "…" until the server has said which:
+   *  the constructor's "sample" is a default, not an answer (#88). */
+  _dataModeLabel(){
+    if(!this.state._dataModeKnown) return "…";
+    return (this.state.dataMode === "live") ? "Live" : "Sample";
+  }
+
+  /**
+   * The data mode is still unknown because every settings_get so far failed
+   * (#88): ask again. Nothing else re-asks on a page nobody touches. The
+   * poll runs only in Live mode, and the watchdog's own refresh only when
+   * #content is empty, so a wall kiosk that booted during an HA restart sat
+   * on an empty screen for good. Called from the 5 s watchdog; one attempt
+   * in flight at a time. Once the mode is known, a full refresh brings the
+   * data and, in Live mode, the poll starts.
+   */
+  _retryDataMode(){
+    if(this.state._dataModeKnown || this._modeRetry) return;
+    this._modeRetry = true;
+    this._fetchSettings()
+      .then(() => {
+        if(!this.state._dataModeKnown) return;
+        return this._refreshAll(false).then(() => {
+          if(this.state.dataMode === "live" && !this._pollTimer) this._startDataPoll();
+        });
+      })
+      .catch(() => {})
+      .finally(() => { this._modeRetry = false; });
+  }
+
   /**
    * The one place a data_mode reported by the server (settings_get,
    * settings_set, the factory reset's re-read) lands in state.
@@ -1795,7 +1829,7 @@ class PadSpanHaApp extends HTMLElement {
     this._updateEmergencyBanner();
 
     const b = this.$("#dataModeToggle");
-    if(b) b.textContent = (this.state.dataMode === "live") ? "Live" : "Sample";
+    if(b) b.textContent = this._dataModeLabel();
     const cb = this.$("#complexityToggle");
     if(cb){
       const mode = this.state.complexity;
@@ -2048,7 +2082,7 @@ class PadSpanHaApp extends HTMLElement {
     const mobileDataPill = this.shadowRoot.querySelector("#mobileDataPill");
     if (mobileDataPill) {
       const isLive = this.state.dataMode === "live";
-      mobileDataPill.textContent = isLive ? "Live" : "Sample";
+      mobileDataPill.textContent = this._dataModeLabel();
       mobileDataPill.className = "mobile-topbar-pill" + (isLive ? " live" : "");
     }
     const mobileModePill = this.shadowRoot.querySelector("#mobileModePill");
