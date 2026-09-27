@@ -328,6 +328,9 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     from .ws_wled import async_register as _wled_register
     _wled_register(hass)
     websocket_api.async_register_command(hass, ws_flood_reset)
+    # A motion sensor's last real change across an offline blip (motion_reconnects.py).
+    from .motion_reconnects import ws_motion_reconnects
+    websocket_api.async_register_command(hass, ws_motion_reconnects)
     websocket_api.async_register_command(hass, ws_notify_services_list)
     websocket_api.async_register_command(hass, ws_notify_test)
     websocket_api.async_register_command(hass, ws_adaptive_status_get)

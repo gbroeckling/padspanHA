@@ -351,6 +351,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # Stamped once per process (async_setup), not per entry reload.
     from homeassistant.util import dt as dt_util  # noqa: PLC0415
     hass.data[DOMAIN].setdefault("started_at", dt_util.utcnow().isoformat())
+    # The same gate for a mid-run offline blip: a sensor back in the state it
+    # had before keeps its last real change (motion_reconnects.py).
+    from .motion_reconnects import async_setup_motion_reconnects  # noqa: PLC0415
+    async_setup_motion_reconnects(hass)
 
     _LOGGER.info("PadSpan HA starting v%s (build %s)", BUILD_VERSION, BUILD_ID)
 
