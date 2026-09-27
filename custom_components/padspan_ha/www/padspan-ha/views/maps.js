@@ -4675,16 +4675,12 @@ function _stack(ctx, maps, helpBtn){
         ceiling_height_m: parseFloat(ceilInput.value) || 2.4,
       });
       await ctx.actions.mapsUpdateQuiet({ map_id: m.id, floor_id: floorSel2.value || m.floor_id||"", stack: newStk });
-      // The floor's stacking order still follows its map's level; its heights
-      // are owned by the Floor Heights table above.
-      const _fid = floorSel2.value || m.floor_id || "";
-      if(_fid && _fid !== OUTSIDE_FLOOR_ID){
-        try{
-          await ctx.actions.callWS({ type: "padspan_ha/fabric_floor_elevations_set", floors: [{
-            id: _fid, level: parseInt(zLevelInput.value, 10) || 0,
-          }]});
-        }catch(e){}
-      }
+      // Stack Level is this MAP's place in the picture stack and nothing
+      // more. It used to be written onto the floor as the floor's storey,
+      // which outranks the HA registry — so on floors whose registry level is
+      // null, one Save on the basement map's row (level 0) put Main on the
+      // basement slab. A floor's storey comes from Home Assistant; a picture
+      // never sets it. Its heights are owned by the Floor Heights table above.
       ctx.actions.mapsRefresh();
     }},"Save"));
     tr.appendChild(tdSave);
