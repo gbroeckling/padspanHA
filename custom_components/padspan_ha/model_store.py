@@ -476,7 +476,9 @@ class ModelStore:
 
         Stored heights win over the registry: the registry knows which floors
         exist and their level, the user's Floor Heights table knows how far
-        apart they are, and a sync must never overwrite the latter.
+        apart they are, and a sync must never overwrite the latter. The level
+        goes the other way: a floor's storey is Home Assistant's whenever the
+        registry has one.
 
         Returns True when something changed (and was saved).
         """
@@ -491,10 +493,15 @@ class ModelStore:
             fid = str(f["id"])
             prev = stored.get(fid, {})
             entry = {**prev, "id": fid, "name": f.get("name") or prev.get("name") or fid}
-            # A level the user typed into Floor Heights outranks the registry's,
-            # which is null on most installs anyway.
+            # The storey is Home Assistant's (Settings -> Areas -> Floors ->
+            # Level) whenever it has one. A stored level stands in only while
+            # the registry's is null: the ESPresense import's, or one an older
+            # 3D Stack row Save wrote from the MAP's Stack Level (it no longer
+            # does). The registry used to fill only an EMPTY stored level, so
+            # a floor a row Save had put on the wrong storey could never be
+            # moved back, not even by setting its Level in HA.
             reg_level = f.get("level")
-            if prev.get("level") is None and reg_level is not None:
+            if reg_level is not None:
                 entry["level"] = reg_level
             merged.append(_norm_floor(entry))
 
