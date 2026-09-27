@@ -1407,6 +1407,17 @@ async def ws_fabric_reset_spatial(hass: HomeAssistant, connection, msg) -> None:
     if not fab:
         connection.send_error(msg["id"], "no_fabric", "FabricStore not loaded")
         return
+    scanners = list(fab.scanner_positions_m())
+    beacons = list(fab.beacon_positions_m())
+    barrier_ids = [str(b.get("id", "")) for b in fab.rf_barriers_m()]
+    if not (scanners or beacons or barrier_ids):
+        # Nothing to clear, so no backup: an empty snapshot would only take a
+        # slot among the automatic backups from the one that holds the
+        # positions a previous press cleared.
+        connection.send_result(msg["id"], {
+            "ok": True, "cleared": True, "removed": 0, "backup_id": None,
+        })
+        return
     backup_id = await _auto_backup(
         hass, "Before Reset Spatial Model", [FABRIC_STORE_KEY])
     if backup_id is None:
@@ -1415,9 +1426,9 @@ async def ws_fabric_reset_spatial(hass: HomeAssistant, connection, msg) -> None:
             "Could not take a backup first, so nothing was reset.")
         return
     removed = (await fab.async_spatial_update(
-        remove_scanners=list(fab.scanner_positions_m()),
-        remove_beacons=list(fab.beacon_positions_m()),
-        remove_barrier_ids=[str(b.get("id", "")) for b in fab.rf_barriers_m()],
+        remove_scanners=scanners,
+        remove_beacons=beacons,
+        remove_barrier_ids=barrier_ids,
         op="reset_spatial",
     ))["removed"]
 

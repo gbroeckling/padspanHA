@@ -348,6 +348,9 @@ _DATA_KEY_MAP = {
 
 
 _MAX_BACKUPS = 3  # Oldest backup is dropped when a new one exceeds this limit
+# Automatic backups (ws_backup._auto_backup, marked "auto") have their own cap
+# and never push out a backup a person made, nor the other way round.
+_MAX_AUTO_BACKUPS = 3
 
 
 def _room_from_bounds(room_bounds: dict, x: float, y: float) -> str:

@@ -407,7 +407,9 @@ function _renderFabric(ctx, container, data) {
       resetBtn.disabled = true; resetBtn.textContent = "Resetting\u2026";
       try {
         const r = await ctx.actions.callWS({type:"padspan_ha/fabric_reset_spatial"});
-        ctx.toast(`Reset: ${r.removed} scanner/beacon positions and barriers cleared (backup taken first)`);
+        ctx.toast(r.backup_id
+          ? `Reset: ${r.removed} scanner/beacon positions and barriers cleared (backup taken first)`
+          : "Nothing to reset: no scanner/beacon positions or barriers");
         _fabricCache = null; _fabricFetchTs = 0; _fetchAndRenderFabric(ctx, container);
       } catch(e) { ctx.toast(`Failed: ${e.message||e}`); resetBtn.disabled = false; resetBtn.textContent = "Reset Spatial Model"; }
     });

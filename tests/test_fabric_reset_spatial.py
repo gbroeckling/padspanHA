@@ -143,3 +143,143 @@ async def test_no_backup_no_reset(monkeypatch) -> None:
     assert len(fab.data["beacon_positions_m"]) == 1
     assert len(fab.data["rf_barriers_m"]) == 3
     fab.store.async_save.assert_not_awaited()
+
+
+# ── The backup the reset takes, through the real _auto_backup ───────────────
+
+import json  # noqa: E402
+
+from custom_components.padspan_ha.const import BACKUPS_STORE_KEY  # noqa: E402
+from custom_components.padspan_ha.ws_backup import ws_store_backup_create  # noqa: E402
+
+
+class _DiskStore:
+    """HA's Store as far as backups need it: serialised at save, and a write
+    that fails is logged and swallowed (helpers/storage.py
+    _async_handle_write_data), never raised."""
+
+    files: dict[str, str] = {}
+    unwritable: set[str] = set()
+
+    def __init__(self, hass, version, key):
+        self._key = key
+
+    async def async_load(self):
+        raw = _DiskStore.files.get(self._key)
+        return json.loads(raw) if raw is not None else None
+
+    async def async_save(self, data):
+        if self._key in _DiskStore.unwritable:
+            return   # "Error writing config for ..." and carry on
+        _DiskStore.files[self._key] = json.dumps(data)
+
+
+def _manual(n: int) -> dict:
+    return {"id": f"bk_manual{n}", "created_at": f"2026-0{n}-01T00:00:00+00:00",
+            "version": "0.38.48", "note": f"mine {n}", "stores": {"padspan_ha.settings": {}},
+            "map_images": {"plan.png": "AAAA"}}
+
+
+def _real_backups(monkeypatch, existing: list[dict]) -> None:
+    import homeassistant.helpers.storage as _hs
+    _DiskStore.files = {BACKUPS_STORE_KEY: json.dumps({"backups": existing})}
+    _DiskStore.unwritable = set()
+    monkeypatch.setattr(_hs, "Store", _DiskStore, raising=False)
+
+
+def _on_disk() -> list[dict]:
+    return json.loads(_DiskStore.files[BACKUPS_STORE_KEY])["backups"]
+
+
+def _replace_positions(fab) -> None:
+    fab.data["scanner_positions_m"] = {"AA:02": {"x_m": 3, "y_m": 3, "z_m": 1, "floor_id": "main"}}
+
+
+async def test_nothing_to_clear_takes_no_backup(monkeypatch) -> None:
+    """Pressing Reset again after a reset found nothing and still took a
+    backup; each one pushed an older backup out of the list."""
+    hass, fab, _mdl, _cal = _setup()
+    fab.data["scanner_positions_m"] = {}
+    fab.data["beacon_positions_m"] = {}
+    fab.data["rf_barriers_m"] = []
+    seen = _backup_ok(monkeypatch, fab)
+    conn = MagicMock()
+
+    await ws_fabric_reset_spatial(hass, conn, {"id": 1})
+
+    conn.send_error.assert_not_called()
+    result = conn.send_result.call_args.args[1]
+    assert (result["removed"], result["backup_id"]) == (0, None)
+    assert seen == {}, "a backup was taken of a fabric with nothing to clear"
+
+
+async def test_repeated_resets_keep_every_backup_the_user_made(monkeypatch) -> None:
+    """Three backups of the user's own, then Reset pressed four times. The
+    list held 3 in total, so each automatic backup evicted the oldest entry,
+    manual or not — and finally the one holding the pre-reset positions."""
+    hass, fab, _mdl, _cal = _setup()
+    _real_backups(monkeypatch, [_manual(1), _manual(2), _manual(3)])
+    pre_scanners = json.loads(json.dumps(fab.data["scanner_positions_m"]))
+
+    for i in range(4):
+        conn = MagicMock()
+        await ws_fabric_reset_spatial(hass, conn, {"id": i})
+        conn.send_error.assert_not_called()
+
+    ids = [b["id"] for b in _on_disk()]
+    assert {"bk_manual1", "bk_manual2", "bk_manual3"} <= set(ids), (
+        f"an automatic backup pushed out one the user made: {ids}")
+    assert any((b["stores"].get("padspan_ha.fabric") or {}).get("scanner_positions_m")
+               == pre_scanners for b in _on_disk()), (
+        "the backup holding the positions the reset cleared is gone")
+
+
+async def test_automatic_backups_have_their_own_slots(monkeypatch) -> None:
+    """Five resets, each with something to clear: the last three automatic
+    backups are kept, and all three of the user's."""
+    hass, fab, _mdl, _cal = _setup()
+    _real_backups(monkeypatch, [_manual(1), _manual(2), _manual(3)])
+    taken = []
+    for i in range(5):
+        _replace_positions(fab)
+        conn = MagicMock()
+        await ws_fabric_reset_spatial(hass, conn, {"id": i})
+        taken.append(conn.send_result.call_args.args[1]["backup_id"])
+
+    ids = [b["id"] for b in _on_disk()]
+    assert ids == ["bk_manual1", "bk_manual2", "bk_manual3", *taken[-3:]], ids
+
+
+async def test_a_new_manual_backup_removes_only_the_oldest_manual_one(monkeypatch) -> None:
+    hass, fab, _mdl, _cal = _setup()
+    _real_backups(monkeypatch, [_manual(1), _manual(2), _manual(3)])
+    for i in range(3):
+        _replace_positions(fab)
+        await ws_fabric_reset_spatial(hass, MagicMock(), {"id": i})
+    autos = [b["id"] for b in _on_disk() if b.get("auto")]
+    assert len(autos) == 3
+
+    conn = MagicMock()
+    await ws_store_backup_create(hass, conn, {"id": 9, "note": "mine 4"})
+    new_id = conn.send_result.call_args.args[1]["backup_id"]
+
+    ids = [b["id"] for b in _on_disk()]
+    assert ids == ["bk_manual2", "bk_manual3", *autos, new_id], ids
+
+
+async def test_a_backup_that_was_not_written_stops_the_reset(monkeypatch) -> None:
+    """HA's Store logs a failed write (a full disk) and returns normally, so
+    the reset went ahead and the toast said a backup was taken."""
+    hass, fab, _mdl, _cal = _setup()
+    _real_backups(monkeypatch, [_manual(1), _manual(2)])
+    _DiskStore.unwritable = {BACKUPS_STORE_KEY}
+    conn = MagicMock()
+
+    await ws_fabric_reset_spatial(hass, conn, {"id": 1})
+
+    conn.send_result.assert_not_called()
+    assert conn.send_error.call_args.args[1] == "backup_failed"
+    assert len(fab.data["scanner_positions_m"]) == 1
+    assert len(fab.data["beacon_positions_m"]) == 1
+    assert len(fab.data["rf_barriers_m"]) == 3
+    fab.store.async_save.assert_not_awaited()

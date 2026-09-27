@@ -29,7 +29,7 @@ from .const import (
     FABRIC_STORE_KEY,
 )
 from .build_info import BUILD_VERSION
-from .ws_common import _DATA_KEY_MAP, _MAX_BACKUPS
+from .ws_common import _DATA_KEY_MAP, _MAX_AUTO_BACKUPS, _MAX_BACKUPS
 from .telemetry import bump as _bump
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,6 +48,22 @@ async def _save_backups(hass: HomeAssistant, data: dict[str, Any]) -> None:
     from homeassistant.helpers.storage import Store as _St
     st = _St(hass, 1, BACKUPS_STORE_KEY)
     await st.async_save(data)
+
+
+def _trim_backups(backups: list[dict[str, Any]], auto: bool) -> None:
+    """Drop the oldest backups of one kind over that kind's cap, in place.
+
+    Automatic backups (marked "auto") and the ones a person made are capped
+    separately, so a safety net taken before an operation can never push out
+    a backup the user made, and a new manual backup never removes more than
+    the oldest manual one. An entry without the mark counts as manual: that
+    includes automatic ones from before the mark existed, which is the side
+    that keeps them.
+    """
+    cap = _MAX_AUTO_BACKUPS if auto else _MAX_BACKUPS
+    same = [b for b in backups if bool(b.get("auto")) == auto]
+    drop = {id(b) for b in same[:max(0, len(same) - cap)]}
+    backups[:] = [b for b in backups if id(b) not in drop]
 
 
 async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str]) -> str | None:
@@ -85,11 +101,17 @@ async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str]) ->
             "note": note[:200],
             "stores": stores_data,
             "map_images": {},
+            "auto": True,
         })
-        while len(bk["backups"]) > _MAX_BACKUPS:
-            bk["backups"].pop(0)
+        _trim_backups(bk["backups"], auto=True)
         await _save_backups(hass, bk)
+        # HA's Store logs a failed write (a full disk, a read-only file) and
+        # returns normally, so "saved" is only known by reading it back.
+        written = await _load_backups(hass)
     except Exception:
+        return None
+    if not any(b.get("id") == backup_id for b in written.get("backups") or []):
+        _LOGGER.error("The automatic backup (%s) was not written to disk", note)
         return None
     return backup_id
 
@@ -179,9 +201,8 @@ async def ws_store_backup_create(hass: HomeAssistant, connection, msg) -> None:
 
     bk_data = await _load_backups(hass)
     bk_data.setdefault("backups", []).append(backup)
-    # Trim to max
-    while len(bk_data["backups"]) > _MAX_BACKUPS:
-        bk_data["backups"].pop(0)
+    # Trim to max (backups made by a person; automatic ones have their own cap)
+    _trim_backups(bk_data["backups"], auto=False)
     await _save_backups(hass, bk_data)
 
     _bump(hass, "backup_created")

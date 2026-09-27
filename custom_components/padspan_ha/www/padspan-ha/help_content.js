@@ -232,7 +232,7 @@ export const HELP = {
       "Data Consistency — detects orphaned objects, unmapped scanners, and rooms without scanner coverage. Click any item to see its detail.",
       "Propagation Health — grades your radio propagation model (A through F) based on room coverage, distance accuracy, fingerprint stability, and floor separation. Click 'More Detail' for per-room and per-scanner breakdowns with improvement recommendations. 'How It Works' shows the underlying math.",
       "Radio Analysis — grades each scanner's hardware, coverage and reliability, and explains why it received that grade.",
-      "Data Backup & Recovery — create snapshots of all PadSpan data before enabling experimental features. Restore to roll back if needed. Up to 3 backups are kept.",
+      "Data Backup & Recovery — create snapshots of all PadSpan data before enabling experimental features. Restore to roll back if needed. Up to 3 backups you create are kept, plus the last 3 automatic ones.",
       "Quick Actions — refresh the snapshot, export the full panel state as JSON for debugging, or jump to diagnostics.",
     ],
   },
@@ -254,7 +254,7 @@ export const HELP = {
     body: [
       "The backup system lets you create a full snapshot of all PadSpan configuration and learned data before making changes.",
       "Each backup captures: settings, calibration points, adaptive learning fingerprints, object tags, model data, map metadata, movement history, and follow alert configs.",
-      "Up to 3 backups are stored. Creating a 4th automatically removes the oldest. Each backup shows its timestamp, version, and optional note.",
+      "Up to 3 backups you create are stored. Creating a 4th automatically removes the oldest of them. The automatic backups PadSpan takes before a reset, an import or a conversion are kept apart (the last 3) and never remove one of yours. Each backup shows its timestamp, version, and optional note.",
       "Click 'Restore' to overwrite all current data with a backup. The page reloads automatically after restore. Click 'Delete' to remove a backup you no longer need.",
       "Recommended workflow: create a backup before enabling adaptive learning, before major calibration changes, or before upgrading PadSpan.",
     ],
