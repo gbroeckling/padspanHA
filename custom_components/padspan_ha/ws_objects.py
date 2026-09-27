@@ -22,6 +22,7 @@ from .const import (
     OBJECT_HISTORY_STORE_KEY,
     DATA_DEVICE_REGISTRY,
 )
+from .telemetry import bump as _bump
 from .ws_common import _DEFAULT_IBEACON_UUIDS, _invalidate_snapshot_cache
 
 _LOGGER = logging.getLogger(__name__)
@@ -389,6 +390,7 @@ async def ws_findmy_unlink(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "not_linked", "That tag hasn't been carried to another address")
         return
     _findmy_forget_in_history(hass.data.get(DOMAIN, {}), key, res[0])
+    _bump(hass, "findmy_not_this_tag")
     store = hass.data.get(DOMAIN, {}).get(_FINDMY_STORE)
     if store is not None:
         store.async_delay_save(bridge.to_state, 1)

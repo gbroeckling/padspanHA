@@ -154,6 +154,33 @@ async def _findmy_step(hass: HomeAssistant, ble_by_addr: dict, canonical_by_addr
                 canonical_by_addr[addr] = entry
     for ident, wrong, _back in res.get("unlinked") or []:
         _findmy_forget_in_history(dom, ident, wrong)
+    # How well it works, for the opt-in report (telemetry.py EVENTS). "Slow":
+    # a link that landed over 2 minutes after the old address's last report
+    # (by design one lands in about a minute).
+    from .telemetry import bump  # noqa: PLC0415
+    for after_s in res.get("linked_after_s") or []:
+        bump(hass, "findmy_linked")
+        if after_s > 120:
+            bump(hass, "findmy_linked_slow")
+    for _ident, reason in res.get("missed") or []:
+        if reason == "ambiguous":
+            bump(hass, "findmy_missed_ambiguous")
+        elif reason == "late":
+            bump(hass, "findmy_missed_late")
+        elif reason == "elsewhere":
+            bump(hass, "findmy_missed_elsewhere")
+        else:
+            bump(hass, "findmy_missed_no_candidate")
+    # A tag back on its day key is the schedule, its links right; any other
+    # move back undid wrong links (findmy.py step()).
+    day_key = set(res.get("back_on_day_key") or [])
+    for _ident in day_key:
+        bump(hass, "findmy_back_on_day_key")
+    for _ident in {u[0] for u in res.get("unlinked") or []} - day_key:
+        bump(hass, "findmy_moved_back")
+    for u in res.get("unlinked") or []:
+        if u[0] not in day_key:
+            bump(hass, "findmy_moved_back_addrs")
     if res["linked"] or res.get("unlinked"):
         store = dom.get(_FINDMY_STORE)
         if store is not None:

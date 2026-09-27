@@ -792,3 +792,206 @@ def test_stats_php_never_emits_an_ip_and_requires_the_dev_list():
     assert "hash_equals(" in php and "padspan-dev-keys" in php
     assert "traks.ca/license" not in php, "a valid Pro key is not the developer"
     assert "substr($id, 0, 8)" in php, "the table carries an id prefix, never the whole id"
+
+
+# ── Apple Find My: how well following a tag works ────────────────────────────
+# Garry, 2026-09-27: "make sure the opt-in records how well tools for this
+# feature actually work". Counts only: the bridge and the adverts it is
+# counted from are full of addresses, and none of them may travel.
+
+_FM_EVENTS = ("findmy_linked", "findmy_linked_slow", "findmy_missed_ambiguous", "findmy_missed_late",
+              "findmy_missed_elsewhere", "findmy_missed_no_candidate", "findmy_moved_back",
+              "findmy_moved_back_addrs", "findmy_back_on_day_key", "findmy_not_this_tag")
+_TAG_A, _TAG_A2, _TAG_OLD = "D1:11:11:11:11:11", "E2:22:22:22:22:22", "F3:33:33:33:33:33"
+_TAG_B, _PODS, _STALE = "C7:77:77:77:77:77", "C4:44:44:44:44:44", "D5:55:55:55:55:55"
+_FM_ADDRS = (_TAG_A, _TAG_A2, _TAG_OLD, _TAG_B, _PODS, _STALE)
+
+
+def _fm_adv(device_type, separated=True):
+    """A Find My payload in bluetooth_live.py's "0x.." form (findmy.py)."""
+    body = [0x12, 0x19 if separated else 0x02, device_type << 4] + ([0x11] * 22 + [0x01, 0x00] if separated else [0x01])
+    return " ".join(f"0x{b:02X}" for b in body)
+
+
+def _findmy_house(bridging=True):
+    """The fixture house with Find My on the air — an AirTag and a Find My
+    accessory away from their owners, AirPods near theirs, a stale address —
+    and a bridge following two tags, one of them carried onto a new address;
+    MAC Rotation Bridging on unless told otherwise (the bridge stays in
+    memory once it has run, whatever the switch says now)."""
+    import time as _t
+    from custom_components.padspan_ha.findmy import FindMyBridge
+    h = _hass()
+    h.data[DOMAIN][DATA_SETTINGS].data["mac_rotation_bridging"] = bridging
+    now = _t.time()
+    h.data[DOMAIN]["snapshot_cache"][1]["ble"]["advertisements"] = [
+        {"address": a, "source": s, "rssi": -60, "age_s": age, "manufacturer_data": {"76": p}}
+        for a, p, age in ((_TAG_A2, _fm_adv(1), 3), (_TAG_B, _fm_adv(2), 8), (_PODS, _fm_adv(3, False), 20),
+                          (_STALE, _fm_adv(1), 900))
+        for s in (_MAC1, "hci0")]
+    h.data[DOMAIN]["findmy_bridge"] = FindMyBridge({"tags": {
+        _TAG_A: {"addr": _TAG_A2, "type": 1, "rssi": {_MAC1: -60.0}, "last_ts": now - 3,
+                 "past": [_TAG_A], "refused": [_TAG_OLD], "linked_ts": now - 600},
+        _TAG_B: {"addr": _TAG_B, "type": 2, "rssi": {_MAC1: -70.0}, "last_ts": now - 3600,
+                 "past": [], "refused": []},
+    }})
+    return h
+
+
+def test_find_my_is_reported_as_counts_and_never_an_address():
+    h = _findmy_house()
+    for n in _FM_EVENTS:
+        T.bump(h, n)
+    p = T.build_payload(h)
+    T.assert_shareable(p)
+    text = json.dumps(p)
+    for a in _FM_ADDRS:
+        assert a not in text and a.replace(":", "") not in text, f"{a} leaked into the report"
+    assert p["env"]["findmy"] == {          # zeros left out (the cap refuses the whole report)
+        "on_air": {"airtag": 1, "accessory": 1, "airpods": 1},
+        "separated": {"airtag": 1, "accessory": 1},
+        "tracked": {"airtag": 1, "accessory": 1},
+        "tracked_live": 1, "tracked_carried": 1,
+    }
+    assert all(p["usage"][n] == 1 for n in _FM_EVENTS)
+    # The addresses in this house are ones the gate would refuse, had any got in.
+    for a in _FM_ADDRS:
+        q = json.loads(text)
+        q["env"]["findmy"]["note"] = a
+        with pytest.raises(ValueError, match="MAC"):
+            T.assert_shareable(q)
+
+
+def test_with_bridging_off_the_report_still_says_whether_find_my_is_here():
+    """Garry's own house: bridging off, a dozen Find My addresses on the air.
+    The environment half is what says whether the feature would matter. The
+    bridge stays in memory after the switch goes off ("Not this tag" loads it
+    too): review — its tags went out as followed until HA restarted, and then
+    as none, with nothing changed."""
+    p = T.build_payload(_findmy_house(bridging=False))
+    T.assert_shareable(p)
+    assert p["features"]["mac_rotation_bridging"] is False
+    assert p["env"]["findmy"] == {"on_air": {"airtag": 1, "accessory": 1, "airpods": 1},
+                                  "separated": {"airtag": 1, "accessory": 1}}
+    # Nothing Find My on the air: an empty block — counted, none here (a
+    # report with no `findmy` at all is from before it).
+    assert T.build_payload(_hass())["env"]["findmy"] == {}
+
+
+def test_find_my_outcomes_are_in_the_vocabulary_and_a_preview_keeps_them():
+    h = _hass()
+    for n in _FM_EVENTS:
+        assert n in T.EVENTS and T.bump(h, n), n
+    T.bump(h, "findmy_linked")
+    want = dict.fromkeys(_FM_EVENTS, 1)
+    want["findmy_linked"] = 2
+    assert T.build_payload(h)["usage"] == want
+    assert T.build_payload(h)["usage"] == want, "a preview reset the Find My counters"
+    assert T.build_payload(h, consume=True)["usage"] == want
+    assert T.build_payload(h)["usage"] == {}
+
+
+def test_a_full_day_fits_by_sending_fewer_presets_not_by_refusing(monkeypatch):
+    """Review: the 8 KB cap refuses the WHOLE report, and a refused one keeps
+    its counters, so every day after is refused too until HA restarts. With
+    ten presets, every tab and sub-tab opened, a few modules logging and every
+    Find My outcome counted, the report ran past the cap. The presets are the
+    courtesy sample: as many go as fit, and the counts all do."""
+    from custom_components.padspan_ha import ws_common
+    h = _findmy_house()
+    one = {"lights_showcase": True, "lights_showcase_theme": "classic", "lights_fit_rooms": False,
+           "lights_isolux": False, "lights_show_beacons": False, "lights_hide_device_codes": False,
+           "lights_hide_untouched": False, "lights_automorph_enabled": False,
+           "lights_automorph_room_pct": 100, "lights_automorph_hardness": -100,
+           "lights_automorph_style": "glow", "lights_automorph_subtlety": 100}
+    h.data[DOMAIN][DATA_SETTINGS].data["lights_showcase_presets"] = [{"name": f"Look {i}", "values": one} for i in range(10)]
+    monkeypatch.setattr(ws_common, "_log_handler", SimpleNamespace(counts={
+        "snapshot_builder": 12, "bluetooth_live": 3, "presence_coordinator": 41, "telemetry": 1}))
+    for n in sorted(T.TAB_EVENTS) + list(_FM_EVENTS):
+        T.bump(h, n, 250)
+    p = T.build_payload(h)
+    T.assert_shareable(p)
+    assert all(p["usage"][n] == 250 for n in list(T.TAB_EVENTS) + list(_FM_EVENTS))
+    assert p["env"]["findmy"]["tracked"] == {"airtag": 1, "accessory": 1} and len(p["errors"]) == 4
+    assert 0 < len(p["presets"]) < 10, "the fixture no longer overflows the cap with ten presets"
+    one_more = {**p, "presets": p["presets"] + p["presets"][:1]}
+    assert len(json.dumps(p)) <= T._MAX_BYTES < len(json.dumps(one_more)), "only as many dropped as needed"
+    # A day with room for them all sends all ten.
+    h2 = _findmy_house()
+    h2.data[DOMAIN][DATA_SETTINGS].data["lights_showcase_presets"] = h.data[DOMAIN][DATA_SETTINGS].data["lights_showcase_presets"]
+    for n in _FM_EVENTS:
+        T.bump(h2, n, 250)
+    assert len(T.build_payload(h2)["presets"]) == 10
+
+
+def test_the_summary_reads_find_my_with_and_without_the_new_fields(tmp_path):
+    """server/telemetry_summary.py on reports from before these fields and
+    after: no crash; "elsewhere" and "no candidate" are shown but kept out of
+    the follow rate, and links later undone are taken back out of it; a day
+    key return is its own line. Review: two reports from one install on one
+    day ("Send a report now") each carry their own counters — keeping only
+    the last lost the first's."""
+    import os
+    import subprocess
+    import sys
+    from datetime import date
+    from pathlib import Path
+    script = Path(__file__).resolve().parents[1] / "server" / "telemetry_summary.py"
+    if not script.exists():
+        pytest.skip("no server/ in this tree (the Bright derivation carries none)")
+    old = {"install_id": "11111111-1111-4111-8111-111111111111", "version": "0.38.80",
+           "env": {"scanners": 2}, "features": {"mac_rotation_bridging": False},
+           "usage": {"tab:maps": 3}, "health": {"crypto_ok": True}}
+    new = {"install_id": "22222222-2222-4222-8222-222222222222", "version": "0.38.81",
+           "env": {"scanners": 5, "findmy": {
+               "on_air": {"apple": 2, "airtag": 3, "accessory": 1, "airpods": 2},
+               "separated": {"airtag": 2, "accessory": 1},
+               "tracked": {"airtag": 1, "accessory": 1},
+               "tracked_live": 1, "tracked_carried": 1}},
+           "features": {"mac_rotation_bridging": True},
+           "usage": {"findmy_linked": 8, "findmy_linked_slow": 1, "findmy_missed_ambiguous": 1,
+                     "findmy_missed_late": 1, "findmy_missed_elsewhere": 4, "findmy_missed_no_candidate": 5,
+                     "findmy_moved_back": 1, "findmy_moved_back_addrs": 2, "findmy_back_on_day_key": 3,
+                     "findmy_not_this_tag": 1},
+           "errors": {"snapshot_builder": 2}}
+    quiet = {"install_id": "33333333-3333-4333-8333-333333333333", "version": "0.38.81",
+             "env": {"scanners": 1, "findmy": {}}, "features": {"mac_rotation_bridging": False}}
+    # The same install again that day, after "Send a report now".
+    again = {**new, "usage": {"findmy_linked": 2}, "errors": {"snapshot_builder": 5}}
+
+    def run(*reports):
+        d = tmp_path / f"r{len(list(tmp_path.iterdir()))}"
+        d.mkdir()
+        day = date.today().isoformat()
+        (d / f"{day}.jsonl").write_text("".join(json.dumps({"recv_day": day, "report": r}) + "\n" for r in reports),
+                                        encoding="utf-8")
+        out = subprocess.run([sys.executable, str(script), str(d)], capture_output=True, text=True, encoding="utf-8",
+                             env={**os.environ, "PYTHONIOENCODING": "utf-8"}, timeout=60)
+        assert out.returncode == 0, out.stderr
+        return out.stdout
+
+    def section(*reports):
+        out = run(*reports)
+        return out[out.index("Find My (AirTag) tools"):].split("\n\n")[0]
+
+    s = section(old)
+    assert re.search(r"installs with bridging on\s+0\s+/ 1", s) and re.search(r"follow rate\s+n/a", s), s
+    s = section(old, new, quiet)
+    assert re.search(r"installs with bridging on\s+1\s+/ 3", s), s
+    assert re.search(r"installs with Find My on the air\s+1\s+/ 2 that report it", s), s
+    assert "airtag 3 (2 away from owner)" in s and "apple 2 (0 away from owner)" in s, s
+    assert "1 on the air, 1 carried" in s, s
+    assert re.search(r"hand-overs followed \(links\)\s+8\s+\(1 took over 2 min\)", s), s
+    assert re.search(r"late, where it was\s+1\b", s), s
+    assert re.search(r"elsewhere\s+4\s+\(not in the rate", s), s
+    assert re.search(r"no candidate\s+5\s+\(left range", s), s
+    assert re.search(r"undone by themselves\s+1\s+\(2 links\)", s), s
+    assert re.search(r"undone by a person\s+1\b", s), s
+    assert re.search(r"back on the day key \(expected\)\s+3\b", s), s
+    assert re.search(r"follow rate\s+50%", s), "(8 - 2 - 1) / (8 + 1 + 1)\n" + s
+    out = run(old, new, again)
+    s = out[out.index("Find My (AirTag) tools"):].split("\n\n")[0]
+    assert re.search(r"hand-overs followed \(links\)\s+10\b", s), s
+    assert re.search(r"follow rate\s+58%", s), "(10 - 3) / (10 + 1 + 1): both reports of the day count\n" + s
+    assert re.search(r"snapshot_builder\s+7\s+1 installs", out), out
+    assert "2 installs, 2 install-days" in out, out

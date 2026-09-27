@@ -4,6 +4,15 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.81 — The opt-in report learns how well Find My tags are followed (2026-09-27)
+
+### Help improve PadSpan (opt-in report)
+- **New:** if you've opted in, the report now says how well **MAC Rotation Bridging** follows Apple Find My tags (AirTags and "works with Find My" tags) when they change address: how many changes were followed, and how many of those took over 2 minutes; how many weren't, and why — too close to call between two tags, or the new address came a little late; how many wrong links were undone by themselves or with **Unlink**. A tag that most likely just left range, or another device changing address somewhere else at the same moment, is counted on its own and never against it, and so is a tag going back to its day key, which is expected.
+- **New:** it also counts the Find My addresses on the air right now, by kind (AirTag, Find My accessory, AirPods, Apple device) and how many are away from their owner — with MAC Rotation Bridging off too, so it shows where following tags would matter — and, with it on, the tags PadSpan follows. Counts only, as always: never an address.
+- **Fixed:** a report too big for the 8 KB limit was refused whole, and on every day after it too until Home Assistant restarted. On a day that full, fewer of your saved Showcase presets go with it instead.
+
+---
+
 ## 0.38.80 — 💡 Devices playback fixed; floors stack like the signal model (2026-09-24)
 
 ### Traceback — 💡 Devices

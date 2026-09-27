@@ -601,3 +601,362 @@ def test_a_steady_advert_heard_only_by_the_hosts_own_adapter_stays_fresh(monkeyp
     assert seeded("AA:BB:CC:DD:EE:01", connectable_source=HOST) < 5
     assert 295 <= seeded("AA:BB:CC:DD:EE:01") <= 305, "another scanner's advert is not this one's reading"
 
+
+# ── how well it works: what the opt-in report counts ─────────────────────────
+# Garry, 2026-09-27: "make sure the opt-in records how well tools for this
+# feature actually work". step() says how each tag's hand-over window ended:
+# a link (and how long after the old address's last report), or — once, as
+# the window closes — the strongest reason no link was made.
+
+
+def test_a_link_says_how_long_it_took_and_is_never_also_a_miss():
+    b = F.FindMyBridge()
+    k = "ble:" + KEYS_1
+    r = _change(b, KEYS_1, KEYS_2, _separated(1), _separated(1, 0x22), KITCHEN, known={KEYS_1: k})
+    assert r["linked"] == [(k, KEYS_1, KEYS_2)] and r["linked_after_s"] == [101.0] and r["missed"] == []
+    for t in (200, 400, 700):
+        r = _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN, age=t + 1), KEYS_2: _rec(_separated(1, 0x22), KITCHEN)})
+        assert r["missed"] == [] and r["linked_after_s"] == [], t
+    # A link that lands a poll into the window (the new address first heard
+    # only by a scanner the old one never was) ends the window as a link.
+    b = F.FindMyBridge()
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: k})
+    _poll(b, 20, {KEYS_1: _rec(_separated(1), KITCHEN, age=21), KEYS_2: _rec(_separated(1, 0x22), {"garage": -60.0})})
+    r = _poll(b, 90, {KEYS_1: _rec(_separated(1), KITCHEN, age=91), KEYS_2: _rec(_separated(1, 0x22), {"garage": -60.0})})
+    assert r["linked"] == [] and k in b._waiting, "the fixture no longer opens the window before the link"
+    r = _poll(b, 130, {KEYS_1: _rec(_separated(1), KITCHEN, age=131), KEYS_2: _rec(_separated(1, 0x22), KITCHEN)})
+    assert r["linked"] == [(k, KEYS_1, KEYS_2)] and r["linked_after_s"] == [131.0] and r["missed"] == []
+
+
+def test_a_tag_heard_again_on_its_own_address_was_never_handed_over():
+    """Quiet for a while (out of range, a proxy's slow reseed), then back on
+    the same address: no change happened, so nothing was missed."""
+    b = F.FindMyBridge()
+    k = "ble:" + KEYS_1
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: k})
+    missed = _poll(b, 150, {KEYS_1: _rec(_separated(1), KITCHEN, age=151)})["missed"]
+    assert k in b._waiting, "the fixture no longer opens a window"
+    for t in (200, 400, 900):
+        missed += _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN)})["missed"]
+    assert missed == []
+
+
+def test_a_tag_that_left_range_is_no_candidate_once():
+    """Keys goes quiet and no new AirTag address appears: the tag most likely
+    left range — not a matcher failure. A neighbour's AirTag there all along
+    and a pair of AirPods arriving are no candidates (either would make it
+    "no_match" if it were)."""
+    b = F.FindMyBridge()
+    k = "ble:" + KEYS_1
+    nb = {BAG_1: _rec(_separated(1), KITCHEN)}
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN), **nb}, {KEYS_1: k})
+    missed = []
+    for t in (20, 100, 200, 290):
+        r = _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN, age=t + 1), KEYS_2: _rec(_separated(3, 0x22), KITCHEN), **nb})
+        missed += r["missed"]
+    assert missed == [], "still inside the window"
+    assert F.LIVE_S < 290 + 1 <= F.HANDOVER_WINDOW_S < 310 + 1, "the fixture no longer spans the window"
+    r = _poll(b, 310, {KEYS_1: _rec(_separated(1), KITCHEN, age=311), **nb})
+    assert r["missed"] == [(k, "no_candidate")]
+    for t in (320, 900):
+        assert _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN, age=t + 1), **nb})["missed"] == [], t
+
+
+def test_what_came_closest_to_a_link_is_the_reason_it_missed():
+    """Keys (last reported at -1) goes quiet; one new AirTag address appears.
+    At the hand-over moment but somewhere else: "elsewhere" — another
+    device's change, or Keys carried off as it changed, can't be told apart.
+    Where Keys was, a little after the timing rule allows: "late" — what a
+    real hand-over reported late looks like. Any later, or late somewhere
+    else: someone else's, and Keys most likely left range."""
+    k = "ble:" + KEYS_1
+    for name, place, at, want in (("somewhere else", OFFICE, 20, "elsewhere"),
+                                  ("no scanner heard both", {"garage": -60.0}, 20, "elsewhere"),
+                                  ("where it was, a minute late", KITCHEN, 60, "late"),
+                                  ("where it was, too late for a reseed", KITCHEN, 90, "no_candidate"),
+                                  ("somewhere else, a minute late", OFFICE, 60, "no_candidate")):
+        b = F.FindMyBridge()
+        _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: k})
+        missed = []
+        for t in (at, 100, 200, 290, 310, 400):
+            r = _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN, age=t + 1), KEYS_2: _rec(_separated(1, 0x22), place)})
+            assert r["linked"] == [], name
+            missed += r["missed"]
+        assert missed == [(k, want)], name
+    assert F.APPEAR_AFTER_S < 60 <= F.LIVE_S < 90, "the fixture no longer brackets the late case"
+
+
+def test_another_devices_routine_change_after_the_tag_left_is_not_a_miss():
+    """Review: a housemate's AirTag near its owner changes address every 15
+    minutes. Keys left range at 0; the housemate's changed 150 s later in
+    the office, or 200 s later in the kitchen — each was counted as a miss
+    against the matcher, so in a house of Find My devices nearly every tag
+    carried out the door lowered the follow rate."""
+    k = "ble:" + KEYS_1
+    mate_1, mate_2 = "C8:88:88:88:88:88", "E9:99:99:99:99:99"
+
+    def run(change_at, place):
+        b = F.FindMyBridge()
+        _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN), mate_1: _rec(_nearby(1), place)}, {KEYS_1: k})
+        missed = []
+        for t in range(10, 700, 10):
+            recs = {KEYS_1: _rec(_separated(1), KITCHEN, age=t + 1)}
+            if t < change_at:
+                recs[mate_1] = _rec(_nearby(1), place)
+            else:
+                recs[mate_1] = _rec(_nearby(1), place, age=t - change_at + 1)
+                recs[mate_2] = _rec(_nearby(1), place)
+            r = _poll(b, t, recs)
+            assert r["linked"] == []
+            missed += r["missed"]
+        return missed
+
+    assert run(10 ** 9, OFFICE) == [(k, "no_candidate")]
+    assert run(150, OFFICE) == [(k, "no_candidate")]
+    assert run(200, KITCHEN) == [(k, "no_candidate")]
+
+
+def test_a_pairing_too_close_to_call_is_ambiguous_even_after_the_candidates_go():
+    """Two tags in one drawer change together: refused rather than guessed.
+    Each window reports the strongest reason it came to — the candidates are
+    gone by the time it closes, and it is still "ambiguous", not "no_candidate"."""
+    b = F.FindMyBridge()
+    known = {KEYS_1: "ble:" + KEYS_1, BAG_1: "ble:" + BAG_1}
+    near_k = {"kitchen": -56.0, "hall": -71.0, "office": -88.0}
+    near_b = {"kitchen": -54.0, "hall": -73.0, "office": -87.0}
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN), BAG_1: _rec(_separated(1), KITCHEN)}, known)
+    missed = []
+    for t in (20, 100, 200, 290, 310, 400):
+        recs = {KEYS_2: _rec(_separated(1, 0x22), near_k), BAG_2: _rec(_separated(1, 0x33), near_b)} if t <= 100 else {}
+        r = _poll(b, t, recs)
+        assert r["linked"] == [], t
+        missed += r["missed"]
+    assert sorted(missed) == [("ble:" + BAG_1, "ambiguous"), ("ble:" + KEYS_1, "ambiguous")]
+
+
+def test_a_restart_neither_counts_a_window_twice_nor_trips_on_old_state():
+    k = KEYS_1
+    # A window open when the bridge restarts: the old instance never closed
+    # it, and the new one saw only part of it — reported by neither.
+    b1 = F.FindMyBridge()
+    _poll(b1, 0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: k})
+    assert _poll(b1, 100, {KEYS_1: _rec(_separated(1), KITCHEN, age=101)})["missed"] == []
+    assert k in b1._waiting, "the fixture no longer opens a window before the restart"
+    # The state file as 0.38.80 wrote it (tags only) loads and steps.
+    state = b1.to_state()
+    assert set(state) == {"tags"}
+    assert set(state["tags"][k]) <= {"addr", "type", "rssi", "last_ts", "past", "refused", "linked_ts"}
+    b2 = F.FindMyBridge(state)
+    missed = []
+    for t in (150, 200, 310, 350):
+        missed += _poll(b2, t, {KEYS_1: _rec(_separated(1), KITCHEN, age=t + 1)})["missed"]
+    assert missed == []
+    # A window it saw whole is reported as usual.
+    _poll(b2, 400, {KEYS_1: _rec(_separated(1), KITCHEN)})
+    for t in (500, 600, 710):
+        missed += _poll(b2, t, {KEYS_1: _rec(_separated(1), KITCHEN, age=t - 399)})["missed"]
+    assert missed == [(k, "no_candidate")]
+
+
+def test_an_undone_link_is_not_a_missed_hand_over():
+    """The tag's link undone — by itself (heard on its earlier address again)
+    or by a person — while it was waiting on its next address: its window
+    ends there, never as a miss."""
+    k = KEYS_1
+    for how in ("moved back", "not this tag"):
+        b = F.FindMyBridge()
+        _change(b, KEYS_1, KEYS_2, _separated(1), _separated(1, 0x22), KITCHEN, known={KEYS_1: k})
+        _poll(b, 200, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN, age=100), KEYS_1: _rec(_separated(1), KITCHEN)})
+        assert k in b._waiting, "the fixture no longer has the tag waiting when it is undone"
+        missed = []
+        if how == "moved back":
+            r = _poll(b, 210, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN, age=110), KEYS_1: _rec(_separated(1), KITCHEN)})
+            assert r["unlinked"] == [(k, KEYS_2, KEYS_1)], how
+            missed += r["missed"]
+        else:
+            assert b.unlink(k, T0 + 205, KEYS_2) == (KEYS_2, KEYS_1)
+        for t in (220, 520, 900):
+            missed += _poll(b, t, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN, age=t - 100)})["missed"]
+        assert missed == [], how
+
+
+def test_a_link_undone_by_a_person_is_one_hand_over_not_also_a_miss():
+    """Review: Keys' earlier address lingers in HA's list after "Not this
+    tag" (as every used address does, for hours), and the next poll put Keys
+    back in the window the wrong link had closed — one hand-over came out as
+    a link, the undo AND a miss. A window it opens later is still reported."""
+    b = F.FindMyBridge()
+    k, visitor = KEYS_1, BAG_1
+    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: k})
+    _poll(b, 20, {KEYS_1: _rec(_separated(1), KITCHEN, age=21), visitor: _rec(_separated(1, 0x22), KITCHEN)})
+    r = _poll(b, 100, {KEYS_1: _rec(_separated(1), KITCHEN, age=101), visitor: _rec(_separated(1, 0x22), KITCHEN)})
+    assert r["linked"] == [(k, KEYS_1, visitor)]
+    assert b.unlink(k, T0 + 120, visitor) == (visitor, KEYS_1)
+    missed = []
+    for t in (130, 200, 290, 310, 400, 700):
+        r = _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN, age=t + 1), visitor: _rec(_separated(1, 0x22), KITCHEN)})
+        assert r["linked"] == [], t
+        missed += r["missed"]
+        if t == 130:
+            assert k in b._waiting, "the fixture no longer puts Keys back in the window"
+    assert missed == []
+    # Keys heard again on its address, then quiet: a new window, reported.
+    _poll(b, 800, {KEYS_1: _rec(_separated(1), KITCHEN), visitor: _rec(_separated(1, 0x22), KITCHEN)})
+    for t in (900, 1000, 1110):
+        missed += _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN, age=t - 799),
+                               visitor: _rec(_separated(1, 0x22), KITCHEN)})["missed"]
+    assert missed == [(k, "no_candidate")]
+
+
+def _day_key_day(b, back_on, known=None):
+    """A separated tag on its day key D (KEYS_1) in the kitchen; its owner
+    comes home and it takes near-owner keys N1, N2 (KEYS_2, KEYS_3), each
+    followed; then it is heard on `back_on` again, twice, while N2 lingers."""
+    _change(b, KEYS_1, KEYS_2, _separated(1), _nearby(1), KITCHEN, known=known)
+    _change(b, KEYS_2, KEYS_3, _nearby(1), _nearby(1), KITCHEN, t0=1000.0)
+    payload = _separated(1) if back_on == KEYS_1 else _nearby(1)
+    out = []
+    for t in (2000, 2035):
+        out.append(_poll(b, t, {back_on: _rec(payload, KITCHEN), KEYS_3: _rec(_nearby(1), KITCHEN, age=t - 1100)}))
+    return out
+
+
+def test_a_tag_back_on_its_day_key_is_not_a_wrong_link():
+    """Review: a separated tag near its owner for a while, then separated
+    again the same day, goes back to its day key — every link in between was
+    right, and the report called them wrong links undone. Coming back to a
+    separated key from a near-owner one is the schedule; coming back to a
+    near-owner key (never used twice) is a wrong link undone."""
+    k = KEYS_1
+    b = F.FindMyBridge()
+    r1, r2 = _day_key_day(b, KEYS_1, known={KEYS_1: k})
+    assert r1["unlinked"] == [] and b.tags[k]["addr"] == KEYS_1
+    assert r2["unlinked"] == [(k, KEYS_2, KEYS_1), (k, KEYS_3, KEYS_1)]
+    assert r2["back_on_day_key"] == [k]
+    # The same return to a near-owner key: a wrong link undone.
+    b = F.FindMyBridge()
+    r1, r2 = _day_key_day(b, KEYS_2, known={KEYS_1: k})
+    assert r2["unlinked"] == [(k, KEYS_3, KEYS_2)] and r2["back_on_day_key"] == []
+    # And from one separated key back to another (a separated key changes
+    # only to the next day's): a wrong link undone.
+    b = F.FindMyBridge()
+    _change(b, KEYS_1, KEYS_2, _separated(1), _separated(1, 0x22), KITCHEN, known={KEYS_1: k})
+    r = {}
+    for t in (300, 335):
+        r = _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN), KEYS_2: _rec(_separated(1, 0x22), KITCHEN, age=t - 100)})
+    assert r["unlinked"] == [(k, KEYS_2, KEYS_1)] and r["back_on_day_key"] == []
+
+
+def test_what_the_report_counts_about_the_tags_themselves():
+    b = F.FindMyBridge()
+    _change(b, KEYS_1, KEYS_2, _separated(1), _separated(1, 0x22), KITCHEN, known={KEYS_1: KEYS_1, BAG_1: BAG_1})
+    _poll(b, 110, {KEYS_2: _rec(_separated(1, 0x22), KITCHEN), BAG_1: _rec(_separated(2), OFFICE)}, {BAG_1: BAG_1})
+    assert b.stats(T0 + 110) == {"tracked": {"apple": 0, "airtag": 1, "accessory": 1, "airpods": 0},
+                                 "tracked_live": 2, "tracked_carried": 1}
+    assert b.stats(T0 + 1000)["tracked_live"] == 0
+    ads = [{"address": a, "source": s, "age_s": age, "manufacturer_data": {"76": p}}
+           for a, p, age in ((KEYS_2, _separated(1, 0x22), 2), (BAG_1, _separated(2), 5), (BAG_2, _nearby(3), 30),
+                             (KEYS_3, _nearby(1), F.LIVE_S + 1), ("C0:12:34:56:78:9A", IPHONE, 1),
+                             (PHONE_1, _separated(1), 1))
+           for s in ("kitchen", "office")]
+    assert F.on_air(ads) == {"on_air": {"apple": 0, "airtag": 1, "accessory": 1, "airpods": 1},
+                             "separated": {"apple": 0, "airtag": 1, "accessory": 1, "airpods": 0}}
+    assert F.on_air(None) == F.on_air([]) == {"on_air": dict.fromkeys(F.TYPE_KEYS.values(), 0),
+                                              "separated": dict.fromkeys(F.TYPE_KEYS.values(), 0)}
+
+
+async def test_the_outcomes_are_counted_for_the_opt_in_report():
+    """Through the real wiring: A -> B (slow), B -> C, A heard again (both
+    links undone by themselves), then A goes quiet with no new address."""
+    from custom_components.padspan_ha import snapshot_builder as SB
+    from custom_components.padspan_ha import telemetry as T
+    from custom_components.padspan_ha.const import DOMAIN
+    hass, settings, _store = _hass_for({KEYS_1: "Keys"}, followed=[KEYS_1])
+    settings.data["telemetry_enabled"] = True
+    A, B, C = KEYS_1, KEYS_2, KEYS_3
+
+    async def step(t, recs):
+        await SB._findmy_step(hass, recs, {}, {}, {}, now_ts=T0 + t)
+
+    await step(0, {A: _rec(_separated(1), KITCHEN)})
+    await step(20, {A: _rec(_separated(1), KITCHEN, age=21), B: _rec(_separated(1, 0x22), KITCHEN)})
+    await step(130, {A: _rec(_separated(1), KITCHEN, age=131), B: _rec(_separated(1, 0x22), KITCHEN)})
+    await step(150, {B: _rec(_separated(1, 0x22), KITCHEN)})
+    await step(170, {B: _rec(_separated(1, 0x22), KITCHEN, age=21), C: _rec(_separated(1, 0x33), KITCHEN)})
+    await step(250, {B: _rec(_separated(1, 0x22), KITCHEN, age=101), C: _rec(_separated(1, 0x33), KITCHEN)})
+    assert hass.data[DOMAIN]["findmy_bridge"].tags[A]["addr"] == C
+    await step(300, {A: _rec(_separated(1), KITCHEN), C: _rec(_separated(1, 0x33), KITCHEN)})
+    await step(310, {A: _rec(_separated(1), KITCHEN), C: _rec(_separated(1, 0x33), KITCHEN)})
+    assert hass.data[DOMAIN]["findmy_bridge"].tags[A]["addr"] == A
+    for t in (400, 500, 620):
+        await step(t, {A: _rec(_separated(1), KITCHEN, age=t - 309), C: _rec(_separated(1, 0x33), KITCHEN)})
+    assert hass.data[DOMAIN][T._DATA_COUNTERS] == {
+        "findmy_linked": 2, "findmy_linked_slow": 1,
+        "findmy_moved_back": 1, "findmy_moved_back_addrs": 2,
+        "findmy_missed_no_candidate": 1,
+    }
+
+
+async def test_each_miss_reason_is_counted_under_its_own_name():
+    from types import SimpleNamespace
+    from custom_components.padspan_ha import snapshot_builder as SB
+    from custom_components.padspan_ha import telemetry as T
+    from custom_components.padspan_ha.const import DOMAIN
+    hass, settings, _store = _hass_for()
+    canned = {"map": {}, "linked": [], "linked_after_s": [], "unlinked": [],
+              "missed": [("x", "ambiguous"), ("y", "late"), ("z", "late"), ("v", "elsewhere"), ("w", "no_candidate")]}
+    hass.data[DOMAIN]["findmy_bridge"] = SimpleNamespace(step=lambda *a: canned, tags={}, identity_of=lambda a: None)
+    await SB._findmy_step(hass, {}, {}, {}, {}, now_ts=T0)
+    assert T._DATA_COUNTERS not in hass.data[DOMAIN], "nothing is counted while the report is off"
+    settings.data["telemetry_enabled"] = True
+    await SB._findmy_step(hass, {}, {}, {}, {}, now_ts=T0)
+    assert hass.data[DOMAIN][T._DATA_COUNTERS] == {
+        "findmy_missed_ambiguous": 1, "findmy_missed_late": 2, "findmy_missed_elsewhere": 1,
+        "findmy_missed_no_candidate": 1}
+
+
+async def test_a_day_key_return_is_counted_apart_from_wrong_links_undone():
+    from custom_components.padspan_ha import snapshot_builder as SB
+    from custom_components.padspan_ha import telemetry as T
+    from custom_components.padspan_ha.const import DOMAIN
+    D, N1, N2 = KEYS_1, KEYS_2, KEYS_3
+    for back_on, want in ((D, {"findmy_linked": 2, "findmy_back_on_day_key": 1}),
+                          (N1, {"findmy_linked": 2, "findmy_moved_back": 1, "findmy_moved_back_addrs": 1})):
+        hass, settings, _store = _hass_for({D: "Keys"}, followed=[D])
+        settings.data["telemetry_enabled"] = True
+
+        async def step(t, recs):
+            await SB._findmy_step(hass, recs, {}, {}, {}, now_ts=T0 + t)
+
+        for t0, old, new, p_old in ((0, D, N1, _separated(1)), (1000, N1, N2, _nearby(1))):
+            await step(t0, {old: _rec(p_old, KITCHEN)})
+            await step(t0 + 20, {old: _rec(p_old, KITCHEN, age=21), new: _rec(_nearby(1), KITCHEN)})
+            await step(t0 + 100, {old: _rec(p_old, KITCHEN, age=101), new: _rec(_nearby(1), KITCHEN)})
+        payload = _separated(1) if back_on == D else _nearby(1)
+        for t in (2000, 2035):
+            await step(t, {back_on: _rec(payload, KITCHEN), N2: _rec(_nearby(1), KITCHEN, age=t - 1100)})
+        assert hass.data[DOMAIN]["findmy_bridge"].tags[D]["addr"] == back_on
+        assert hass.data[DOMAIN][T._DATA_COUNTERS] == want, back_on
+
+
+async def test_not_this_tag_is_counted_only_when_it_undid_a_link():
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+    from custom_components.padspan_ha import telemetry as T
+    from custom_components.padspan_ha import ws_objects as WO
+    from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+    b = F.FindMyBridge()
+    _change(b, KEYS_1, KEYS_2, _separated(1), _separated(1, 0x22), KITCHEN, known={KEYS_1: KEYS_1})
+    hass = SimpleNamespace(data={DOMAIN: {"findmy_bridge": b,
+                                          "findmy_bridge_store": SimpleNamespace(async_delay_save=MagicMock()),
+                                          DATA_SETTINGS: SimpleNamespace(data={"telemetry_enabled": True})}})
+    sent = {}
+    conn = SimpleNamespace(send_result=lambda i, r: sent.update(result=r), send_error=lambda i, c, m: sent.update(error=c))
+    await WO.ws_findmy_unlink(hass, conn, {"id": 1, "key": "ble:" + KEYS_1, "address": KEYS_1})
+    assert sent.get("error") == "not_current" and T._DATA_COUNTERS not in hass.data[DOMAIN]
+    await WO.ws_findmy_unlink(hass, conn, {"id": 2, "key": "ble:" + KEYS_1, "address": KEYS_2})
+    assert sent["result"] == {"unlinked": KEYS_2, "back_to": KEYS_1}
+    await WO.ws_findmy_unlink(hass, conn, {"id": 3, "key": "ble:" + KEYS_1})
+    assert sent["error"] == "not_linked"
+    assert hass.data[DOMAIN][T._DATA_COUNTERS] == {"findmy_not_this_tag": 1}
+

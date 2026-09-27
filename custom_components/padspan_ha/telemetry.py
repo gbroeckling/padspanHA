@@ -20,6 +20,11 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
         points that never got a floor, whether any map is measured
     uncaught panel errors by view — the half of PadSpan the Python log
         cannot see (see UI_ERRORS)
+    Apple Find My: how many Find My addresses are on the air now by type
+        (and how many of those are away from their owner), how many tags
+        PadSpan follows, and how its hand-overs went — followed, missed by
+        reason, wrong links undone by themselves or by a person, tags back
+        on their day key (env.findmy, and the findmy_* EVENTS)
     up to 10 saved Showcase presets' VALUES (theme, Automorph settings, a
         few display toggles) — never the preset's own name — so popular
         combinations across installs can surface in every install's own
@@ -140,6 +145,44 @@ EVENTS: frozenset[str] = frozenset({
     # guided wizards above.
     "wizard_tiers_step_free", "wizard_tiers_step_ladder", "wizard_tiers_step_upgrade",
     "wizard_tiers_completed", "wizard_tiers_exited_early",
+    # Apple Find My tags (AirTags and "works with Find My" tags) followed
+    # across their address changes (findmy.py; runs with mac_rotation_bridging
+    # on). Garry, 2026-09-27: "make sure the opt-in records how well tools for
+    # this feature actually work" — the switch alone says it is on, not that
+    # it follows anything, and one house cannot show how it fares in others.
+    #
+    #   findmy_linked         a hand-over followed: a tag carried onto its
+    #                         next address. `_slow`: of those, the ones that
+    #                         landed over 2 minutes after the old address's
+    #                         last report (by design, about one minute).
+    #   findmy_missed_...     a tag's hand-over window (HANDOVER_WINDOW_S)
+    #                         closed with no link — once per tag per window,
+    #                         by the strongest reason it came to
+    #                         (findmy.MISS_REASONS):
+    #     _ambiguous          a candidate fitted, but another pairing was too
+    #                         close to call (MARGIN_DB): refused, not guessed;
+    #     _late               a new address where the tag was, a little after
+    #                         the timing rule allows (APPEAR_AFTER_S) — what a
+    #                         real hand-over reported late looks like;
+    #     _elsewhere          a new address at the hand-over moment, but not
+    #                         where the tag was: another device's own change,
+    #                         or the tag carried off as it changed;
+    #     _no_candidate       neither: the tag most likely LEFT RANGE.
+    #                         The last two are not matcher failures, and never
+    #                         to be read as ones — the follow rate is (linked
+    #                         − undone) / (linked + ambiguous + late), they
+    #                         beside it.
+    #   findmy_moved_back     a wrong link undone by itself (the tag heard on
+    #                         an earlier address again); `_addrs`: how many
+    #                         links those undid.
+    #   findmy_back_on_day_key  a separated tag back on its day key after
+    #                         time near its owner: the Find My schedule, its
+    #                         links right — kept apart from the above.
+    #   findmy_not_this_tag   a wrong link undone by a person (the Bluetooth
+    #                         tab's "Not <name>? Unlink").
+    "findmy_linked", "findmy_linked_slow",
+    "findmy_missed_ambiguous", "findmy_missed_late", "findmy_missed_elsewhere", "findmy_missed_no_candidate",
+    "findmy_moved_back", "findmy_moved_back_addrs", "findmy_back_on_day_key", "findmy_not_this_tag",
 })
 # The panel's views (panel.js _VIEW_PATHS — tests/test_telemetry.py asserts
 # equality) and the sub-tabs of the two views that have them.
@@ -575,6 +618,30 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             k = str(v)[:16] if v else "?"
             type_overrides_by_kind[k] = type_overrides_by_kind.get(k, 0) + 1
 
+    # Apple Find My tags (findmy.py). `on_air` / `separated`: Find My
+    # addresses heard in the last LIVE_S by type, and how many of them are
+    # away from their owner — read off the snapshot's own adverts, so it says
+    # whether following tags would matter here with bridging OFF too.
+    # `tracked`: the tags the bridge follows, by type; `tracked_live` on the
+    # air now; `tracked_carried` on an address other than the one they were
+    # first known by — only while bridging is ON: the bridge stays in memory
+    # after the switch goes off ("Not this tag" loads it too), holding tags
+    # nothing follows any more. Zeros are left out, as the cap refuses the
+    # whole report; an empty `findmy` is "counted, none here", no key at all
+    # a report from before it. Fixed type keys and counts; no address leaves
+    # findmy.py.
+    from . import findmy as _fm  # noqa: PLC0415
+    _fm_parts: dict[str, Any] = dict(_fm.on_air(ble.get("advertisements")))
+    _fm_bridge = dom.get("findmy_bridge")        # snapshot_builder._FINDMY: there once bridging has run
+    if settings.get("mac_rotation_bridging") and isinstance(_fm_bridge, _fm.FindMyBridge):
+        _fm_parts.update(_fm_bridge.stats(time.time()))
+    findmy: dict[str, Any] = {}
+    for _part, _v in _fm_parts.items():
+        if isinstance(_v, dict):
+            _v = {k: n for k, n in _v.items() if n}
+        if _v:
+            findmy[_part] = _v
+
     env = {
         "scanners": len(radios),
         "scanner_kinds": scanner_kinds,
@@ -597,6 +664,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "scanners_with_z": len(_z_vals),
         "irks": _len(settings.get("irk_devices") or []),
         "followed": _len(settings.get("followed_addrs") or []),
+        "findmy": findmy,
         "objects_total": _len(obj_list),
         "objects_identified": sum(1 for o in obj_list if isinstance(o, dict) and o.get("identified")),
         "objects_by_kind": by_kind,
@@ -728,6 +796,12 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "errors": errors,
         "presets": presets,
     }
+    # The cap refuses the WHOLE report, and a refused one keeps its counters,
+    # so the next is no smaller: one busy day silenced an install until HA
+    # restarted. The presets are a courtesy sample (popular_presets.py) — on
+    # a day too full for all ten, fewer go, and the counts still do.
+    while presets and len(json.dumps(payload)) > _MAX_BYTES:
+        presets.pop()
     return payload
 
 
