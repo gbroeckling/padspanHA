@@ -93,3 +93,28 @@ def test_no_copy_sends_users_to_deleted_mapping_ui() -> None:
     assert not offenders, (
         "user-facing copy points at mapping UI that no longer exists:\n" + "\n".join(offenders)
     )
+
+
+def test_x_stretch_copy_says_lock_ar_must_be_off() -> None:
+    """3D Stack's X − / X + start disabled: Lock AR is on by default (maps.js
+    sets _stackArLocked = true and _setXBtnState greys both out). Copy that
+    tells the user to press them without saying so sends them to a dead
+    button."""
+    maps = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
+    assert "ctx.state.maps._stackArLocked = true" in maps, \
+        "Lock AR no longer defaults on: revisit this test"
+    assert "xMinusBtn.disabled = locked" in maps, \
+        "X − no longer disabled by Lock AR: revisit this test"
+    files = sorted(_WWW.glob("*.js")) + sorted((_WWW / "views").glob("*.js"))
+    offenders = []
+    for path in files:
+        if path.name == "maps.js":
+            continue
+        for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if line.lstrip().startswith(("//", "*")):
+                continue
+            if re.search(r"X [−-] and X \+", line) and "Lock AR" not in line:
+                offenders.append(f"  {path.name}:{i}")
+    assert not offenders, (
+        "copy sends users to X − / X + without saying Lock AR must be off:\n" + "\n".join(offenders)
+    )
