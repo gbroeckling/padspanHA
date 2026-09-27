@@ -27,6 +27,8 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         wireUseSurface, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         wireHoverHud, captureWholeHouse, applyWholeHouse } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
+const { keepSubscribed } =
+  await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
 
 // ── DOM helpers ──────────────────────────────────────────────────────────────
 function el(tag, attrs={}, children=[]){
@@ -114,13 +116,15 @@ class PadSpanLightsApp extends HTMLElement {
     this._hass = hass;
     if(!this._booted){ this._booted=true; this._boot(); }
     // Motion sensors back from an offline blip (motion_reconnects.py), pushed
-    // on every change — one subscription per connection. A push once settings
-    // have landed redraws (a boot draws with whatever is here), so a blip
-    // never shows for even one poll.
+    // on every change — one subscription per connection, kept across HA
+    // restarts (push_subscription.js). A push once settings have landed
+    // redraws (a boot draws with whatever is here), so a blip never shows
+    // for even one poll.
     if(hass && hass.connection && this._reconnectsConn !== hass.connection){
+      if(this._reconnectsStop) this._reconnectsStop();
       this._reconnectsConn = hass.connection;
-      this._reconnectsUnsub = hass.connection.subscribeMessage(m => { this.state._motionReconnects = m || {}; if(this._settingsTs) this._poll(); },
-        { type:"padspan_ha/motion_reconnects" }).catch(() => null);
+      this._reconnectsStop = keepSubscribed(hass.connection, { type:"padspan_ha/motion_reconnects" },
+        m => { this.state._motionReconnects = m || {}; if(this._settingsTs) this._poll(); });
     }
   }
 
@@ -731,8 +735,8 @@ class PadSpanLightsApp extends HTMLElement {
 
   disconnectedCallback(){
     if(this._pollTimer){ clearInterval(this._pollTimer); this._pollTimer=null; }
-    if(this._reconnectsUnsub) this._reconnectsUnsub.then(u => u && u()).catch(() => {});
-    this._reconnectsUnsub = null; this._reconnectsConn = null;
+    if(this._reconnectsStop) this._reconnectsStop();
+    this._reconnectsStop = null; this._reconnectsConn = null;
   }
 }
 

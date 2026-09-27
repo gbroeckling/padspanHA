@@ -18,11 +18,12 @@
 // actually have produced the map and one index row per entity.
 //
 // usage: lights_panel_lifecycle.mjs <www/padspan-ha dir>
-// prints one JSON line: { scenarios: [...], failures: [...], blip: {...} }
+// prints one JSON line: { scenarios: [...], failures: [...], blip: {...}, restart: {...} }
 
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
 import { install, flush } from "./dom_shim.mjs";
+import { fakeConnection } from "./fake_ha_connection.mjs";
 
 const WWW = process.argv[2];
 if (!WWW) { console.error("usage: lights_panel_lifecycle.mjs <www/padspan-ha dir>"); process.exit(2); }
@@ -155,7 +156,8 @@ function makeHass({ settings, admin = true }) {
       }
     },
     callService: async (domain, service, data) => { calls.svc.push(`${domain}.${service}:${data && data.entity_id}`); },
-    connection: { subscribeEvents: async () => () => {}, subscribeMessage: async () => () => {} },
+    connection: { subscribeEvents: async () => () => {}, subscribeMessage: async () => () => {},
+      addEventListener() {}, removeEventListener() {} },
   };
 }
 
@@ -246,7 +248,7 @@ if (Cls) {
     const hass = makeHass({ settings: BASE });
     hass.states = { ...STATES, [eid]: ST(eid, "off", { device_class: "motion" }, 30_000) };
     let push = null;
-    hass.connection = { subscribeEvents: async () => () => {},
+    hass.connection = { subscribeEvents: async () => () => {}, addEventListener() {}, removeEventListener() {},
       subscribeMessage: async (cb, msg) => { push = cb; blip.subscribed = msg; return () => {}; } };
     const el = new Cls();
     el.connectedCallback();
@@ -263,5 +265,40 @@ if (Cls) {
   } catch (e) { fail("motion reconnect", "lifecycle", e); }
 }
 
-console.log(JSON.stringify({ scenarios, failures, blip }));
+// HA restarts under a page that stays open (the wall kiosk). The frontend
+// keeps the same Connection object; the reconnect lands before PadSpan has
+// registered its commands, so the first re-subscribe is refused. Once PadSpan
+// is up, the subscription must be live again — once — and pushes must land.
+const restart = { liveBefore: null, liveWhileLoading: null, liveAfter: null, delivered: null,
+  liveAfterDisconnect: null, readyListenersAfterDisconnect: null, wire: null };
+if (Cls) {
+  try {
+    const conn = fakeConnection();
+    conn.subscribeEvents = async () => () => {};
+    const hass = makeHass({ settings: BASE });
+    hass.connection = conn;
+    const el = new Cls();
+    el.connectedCallback();
+    el.hass = hass;
+    await el._boot(); await flush();
+    restart.liveBefore = conn.live;
+    conn.padspanLoaded = false;
+    await conn.restart(); await flush();
+    restart.liveWhileLoading = conn.live;
+    conn.padspanLoaded = true;
+    el.hass = { ...hass };                      // HA hands the panel a fresh hass, same connection
+    await flush(); await flush();
+    restart.liveAfter = conn.live;
+    el.state._motionReconnects = "untouched";
+    conn.push("padspan_ha/motion_reconnects", { "binary_sensor.hall_motion": { at: "a", last_changed: "b" } });
+    restart.delivered = el.state._motionReconnects !== "untouched";
+    el.disconnectedCallback();
+    await flush();
+    restart.liveAfterDisconnect = conn.live;
+    restart.readyListenersAfterDisconnect = conn.listenerCount("ready");
+    restart.wire = conn.wire;
+  } catch (e) { fail("HA restart", "lifecycle", e); }
+}
+
+console.log(JSON.stringify({ scenarios, failures, blip, restart }));
 process.exit(failures.length ? 1 : 0);

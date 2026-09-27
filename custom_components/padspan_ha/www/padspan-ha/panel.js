@@ -391,6 +391,9 @@ const { roomColor } =
 // best-in-class roadmap) — a pure string builder, see its own header.
 const { buildEvidenceSvg, roomScoreBars } =
   await import(`./views/evidence_diagram.js${new URL(import.meta.url).search}`);
+// A push subscription kept across HA restarts (motion_reconnects, below).
+const { keepSubscribed } =
+  await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
 
 function pill(text){ return el("span",{class:"pill"}, text); }
 
@@ -503,11 +506,13 @@ class PadSpanHaApp extends HTMLElement {
     this._hass = hass;
     // Motion sensors back from an offline blip (motion_reconnects.py), pushed
     // on every change — one subscription per connection (a new connection,
-    // or a re-entry after disconnectedCallback, subscribes afresh).
+    // or a re-entry after disconnectedCallback, subscribes afresh), kept
+    // across HA restarts on the same connection (push_subscription.js).
     if(hass && hass.connection && this._reconnectsConn !== hass.connection){
+      if(this._reconnectsStop) this._reconnectsStop();
       this._reconnectsConn = hass.connection;
-      this._reconnectsUnsub = hass.connection.subscribeMessage(m => { this.state._motionReconnects = m || {}; },
-        { type: "padspan_ha/motion_reconnects" }).catch(() => null);
+      this._reconnectsStop = keepSubscribed(hass.connection, { type: "padspan_ha/motion_reconnects" },
+        m => { this.state._motionReconnects = m || {}; });
     }
     if(!this._booted){
       this._booted = true;
@@ -963,8 +968,8 @@ class PadSpanHaApp extends HTMLElement {
   disconnectedCallback(){
     this._stopDataPoll();
     this._pollInFlight = false;
-    if(this._reconnectsUnsub) this._reconnectsUnsub.then(u => u && u()).catch(() => {});
-    this._reconnectsUnsub = null; this._reconnectsConn = null;
+    if(this._reconnectsStop) this._reconnectsStop();
+    this._reconnectsStop = null; this._reconnectsConn = null;
     if(this._activityTimer){ clearInterval(this._activityTimer); this._activityTimer = null; }
     if(this._watchdogTimer){ clearInterval(this._watchdogTimer); this._watchdogTimer = null; }
     if(this._visibilityHandler){
