@@ -67,6 +67,15 @@ function _noLiveDataText(ctx, sampleText, liveText) {
   return liveText;
 }
 
+// Every capture loop in this file records from the snapshot on screen, and in
+// Sample mode that is the demo house (#88): Guided Calibration recorded
+// living_room_hub / bedroom_hub and Save Point stored them as real readings.
+// A capture reads a snapshot only when the server built it in Live mode
+// (tuneLivePhase "live"); otherwise it records nothing.
+function _recordableSnap(ctx) {
+  return tuneLivePhase(ctx.state) === "live" ? ctx.state.live.snapshot : null;
+}
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 export function render(ctx) {
   const { el, radioShortId, scannerStatus } = ctx.helpers;
@@ -1164,6 +1173,15 @@ function _buildCollectionUI(ctx, el, cs) {
 
 // ── Start collection loop ─────────────────────────────────────────────────────
 function _startCollection(ctx, cs, _snap, _mapData) {
+  // Nothing to record from (see _recordableSnap): say why, instead of
+  // collecting for the full duration and reporting "not visible".
+  const _phase = tuneLivePhase(ctx.state);
+  if (_phase !== "live") {
+    ctx.toast(_phase === "sample"
+      ? "Sample mode shows demo radios — switch to Live mode to collect calibration points."
+      : "Waiting for live data from Home Assistant — try again in a moment.", true);
+    return;
+  }
   cs.collecting  = true;
   cs.stopFlag    = false;
   cs.readings    = {};
@@ -1185,7 +1203,7 @@ function _startCollection(ctx, cs, _snap, _mapData) {
     try { await ctx.actions.refreshSnapshot(); } catch (_) { /**/ }
     cs._pollCount = (cs._pollCount || 0) + 1;
 
-    const snap = ctx.state.live?.snapshot;
+    const snap = _recordableSnap(ctx);
 
     // ── Collect per-radio RSSI from BLE advertisements (primary source) ──────
     // snap.objects.list[].sources is a list of {source, rssi, age_s} objects.
@@ -4927,7 +4945,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const poll = async () => {
       if (!bs._liveTimers[bkId]) return;
       try { await ctx.actions.refreshSnapshotQuiet(); } catch (_) { /**/ }
-      const snap2 = (ctx.state.live && ctx.state.live.snapshot) || null;
+      const snap2 = _recordableSnap(ctx);
 
       // Try to update known addresses from refreshed snapshot (picks up rotated MACs)
       const freshObj = snap2 ? (snap2.objects?.list || []).find(o => o.key === entry.bk.key) : null;
@@ -6205,7 +6223,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       if (!bs._guideCapturing) return;
       try {
         await ctx.actions.refreshSnapshotQuiet();
-        const snap2 = ctx.state.live?.snapshot;
+        const snap2 = _recordableSnap(ctx);
         const ads = snap2?.ble?.advertisements || [];
         // Pick the freshest matching ad per radio (lowest age_s), then gate
         // through the age filter + stale-ad dedup before recording a sample.
@@ -6403,7 +6421,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       if (!rc.sampling) return;
       try {
         await ctx.actions.refreshSnapshotQuiet();
-        const ads = ctx.state.live?.snapshot?.ble?.advertisements || [];
+        const ads = _recordableSnap(ctx)?.ble?.advertisements || [];
         // Freshest matching ad from THIS receiver (lowest age_s), then gate
         // through the age filter + stale-ad dedup (same as guide capture).
         let best = null;

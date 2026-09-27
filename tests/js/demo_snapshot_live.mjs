@@ -450,6 +450,106 @@ await run("control: with live data, placing and saving a real radio still works"
   expect(writes.some(w => w.source === "AA:03"), `the real radio was not saved: ${JSON.stringify(r.calls)} ${JSON.stringify(r.toasts)}`);
 });
 
+// ── Guided Calibration's capture (Pin & Listen): demo radios never recorded ──
+// The same #88 class as Tune: the capture loop records from the snapshot on
+// screen, so Sample mode recorded the demo house's radios and Save Point
+// stored them as real calibration readings.
+
+// "Alice's iPhone" in sample_data.js: heard by living_room_hub and bedroom_hub.
+const DEMO_DEVICE = "irk:aabbccddeeff00112233445566778899";
+const DEMO_SOURCES = new Set(SAMPLE_SNAPSHOT.ble.radios.map(r => r.source));
+
+/** Render the Pin & Listen tab with a pin dropped; `onRefresh(state)` runs
+ *  on every refreshSnapshot the capture loop makes. */
+async function renderPin(stateOver, onRefresh) {
+  const calls = [], toasts = [], made = [];
+  const state = Object.assign({
+    view: "calibration",
+    _calib: { tab: "pin", deviceId: DEMO_DEVICE, deviceLabel: "Alice's iPhone", mapId: "ground",
+      duration: 1, pinX: 0.5, pinY: 0.5, pinRoom: "Kitchen", pinLabel: "", collecting: false,
+      stopFlag: false, readings: null, savedThisSession: 0 },
+    calibration: { points: [], model: {} },
+    // Pin & Listen needs a floor-plan image to pin on.
+    maps: { list: structuredClone(MAPS).map(m => ({ ...m, image: { ...m.image, filename: `${m.id}.png` } })) },
+    model: structuredClone(MODEL), settings: {},
+  }, stateOver);
+  const helpers = { el, esc: (s) => String(s ?? ""), roomColor: () => "#52b788",
+    scannerStatus: () => ({ label: "scanning", cls: "badge", title: "" }),
+    isScanner: () => false, scannerAddrs: () => new Set(), radioShortId: (s) => String(s || "").slice(-3),
+    helpBtn: () => el("button", {}, "?"), HELP: {} };
+  const actions = {
+    callWS: async (p) => { calls.push(p); return { ok: true }; },
+    wsCall: async (type, data) => { calls.push({ type, ...(data || {}) }); return { ok: true }; },
+    refreshSnapshot: async () => { if (onRefresh) onRefresh(state); },
+    refreshSnapshotQuiet: async () => { if (onRefresh) onRefresh(state); },
+    calibrationSavePoint: async (point) => { calls.push({ type: "padspan_ha/calibration_save_point", point }); return { ok: true }; },
+    calibrationGet: async () => ({ points: [], model: {} }),
+    renderRooms: () => {},
+  };
+  const ctx = {
+    state,
+    helpers: new Proxy(helpers, { get: (t, k) => (k in t ? t[k] : recorder()) }),
+    actions: new Proxy(actions, { get: (t, k) => (k in t ? t[k] : recorder()) }),
+    toast: (m) => { toasts.push(String(m)); },
+  };
+  const realCreate = document.createElement;
+  document.createElement = (t) => { const n = realCreate(t); made.push(n); return n; };
+  try { calib.render(ctx); await flush(); }
+  finally { document.createElement = realCreate; }
+  const startBtn = made.find(n => n.tagName === "BUTTON" && /Start Collecting/.test(n.textContent));
+  if (!startBtn) throw new Error("the Pin & Listen tab rendered no Start Collecting button");
+  // The capture loop polls on setTimeout(POLL_MS) and stops on Date.now():
+  // run the queued timers until it has finished (duration 1 s).
+  const finish = async () => {
+    const until = Date.now() + 3000;
+    while (state._calib.collecting && Date.now() < until) {
+      await flush();
+      await new Promise(r => globalThis._realSetTimeout(r, 50));
+    }
+  };
+  return { state, calls, toasts, startBtn, finish, cs: () => state._calib };
+}
+
+const recordedDemo = (cs) => Object.keys(cs.readings || {}).filter(s => DEMO_SOURCES.has(s));
+
+await run("Guided Calibration in Sample mode records no demo radios (Start refuses and says why)", async () => {
+  const r = await renderPin({ dataMode: "sample", _dataModeKnown: true, live: { snapshot: SAMPLE_SNAPSHOT } },
+    (st) => { st.live.snapshot = SAMPLE_SNAPSHOT; });
+  r.startBtn.click();
+  await r.finish();
+  expect(!recordedDemo(r.cs()).length, `demo radios recorded: ${JSON.stringify(Object.keys(r.cs().readings || {}))}`);
+  expect(r.toasts.some(t => t.includes("Live mode")), `no reason given: ${JSON.stringify(r.toasts)}`);
+});
+
+await run("Guided Calibration: a switch to Sample mid-capture records no demo radios", async () => {
+  // Starts in Live on the real radios; the first refresh lands the demo
+  // snapshot (the user flipped the top-bar toggle to Sample).
+  const LIVE_WITH_DEVICE = { source: "live", objects: { list: [] }, ble: {
+    radios: LIVE_SNAP.ble.radios, advertisements: [] } };
+  const r = await renderPin({ dataMode: "live", _dataModeKnown: true, live: { snapshot: LIVE_WITH_DEVICE } },
+    (st) => { st.dataMode = "sample"; st.live.snapshot = SAMPLE_SNAPSHOT; });
+  r.startBtn.click();
+  await r.finish();
+  expect(!recordedDemo(r.cs()).length, `demo radios recorded: ${JSON.stringify(Object.keys(r.cs().readings || {}))}`);
+});
+
+await run("control: Guided Calibration in Live mode still records the real radios", async () => {
+  const LIVE_HEARD = { source: "live",
+    objects: { list: [{ key: "ble:AA:BB:CC:DD:EE:01", address: "AA:BB:CC:DD:EE:01", kind: "ble" }] },
+    ble: { radios: LIVE_SNAP.ble.radios, advertisements: [
+      { address: "AA:BB:CC:DD:EE:01", source: "AA:01", rssi: -61, age_s: 1 },
+      { address: "AA:BB:CC:DD:EE:01", source: "AA:03", rssi: -74, age_s: 1 } ] } };
+  const r = await renderPin({ dataMode: "live", _dataModeKnown: true, live: { snapshot: LIVE_HEARD },
+    _calib: { tab: "pin", deviceId: "ble:AA:BB:CC:DD:EE:01", mapId: "ground", duration: 1,
+      pinX: 0.5, pinY: 0.5, pinRoom: "Kitchen", pinLabel: "", collecting: false, stopFlag: false,
+      readings: null, savedThisSession: 0 } },
+    (st) => { st.live.snapshot = structuredClone(LIVE_HEARD); });
+  r.startBtn.click();
+  await r.finish();
+  const got = Object.keys(r.cs().readings || {}).sort();
+  expect(got.join(",") === "AA:01,AA:03", `real radios not recorded: ${JSON.stringify(got)} ${JSON.stringify(r.toasts)}`);
+});
+
 // ── Part C: overview.js while the mode is unknown ────────────────────────────
 
 const overview = await import(pathToFileURL(join(WWW, "views", "overview.js")).href);

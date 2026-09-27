@@ -118,7 +118,8 @@ async def test_rooms_lights_placements_and_calibration_points_are_not_touched(
 
     assert fab.data["floors"]["main"]["rooms"]["Kitchen"] == _KITCHEN
     assert "light.hall" in fab.data["light_positions_m"]
-    assert mdl.data["map_transforms"] == {"m1": {"scale": 1}, "m2": {"scale": 2}},         "map placements were wiped"
+    assert mdl.data["map_transforms"] == {"m1": {"scale": 1}, "m2": {"scale": 2}}, (
+        "map placements were wiped")
     mdl.store.async_save.assert_not_awaited()
     point = cal.data["points"][0]
     assert (point["x_m"], point["y_m"]) == (1.25, 2.5), "calibration metres were wiped"
