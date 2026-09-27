@@ -383,7 +383,7 @@ export function render(ctx){
       "data-age": String(o.age_s != null ? Math.round(o.age_s) : 0),
       "data-search": [
         kind, displayName, addr, userLabel, o.entity_id, scanner,
-        o.ibeacon_uuid, o.company_name, o.device_type,
+        o.ibeacon_uuid, o.company_name, o.device_type, o.auto_class,
         (o.service_names||[]).join(" "),
         o.canonical_id, o.key, o.name, o.private_ble_name,
         (o.all_addresses||[]).join(" "),
@@ -432,10 +432,10 @@ export function render(ctx){
           return null;
         })()),
         // Enrichment: company + device type + services
-        ((o.company_name || o.device_type || (o.service_names && o.service_names.length))
+        ((o.company_name || o.auto_class || o.device_type || (o.service_names && o.service_names.length))
           ? el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"}, [
               o.company_name ? el("span",{class:"badge",style:"font-size:9px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, o.company_name) : null,
-              o.device_type  ? el("span",{class:"badge",style:"font-size:9px;padding:1px 5px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, o.device_type) : null,
+              (o.auto_class || o.device_type) ? el("span",{class:"badge",style:"font-size:9px;padding:1px 5px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, o.auto_class || o.device_type) : null,
               ...(o.service_names || []).slice(0,2).map(sn =>
                 el("span",{class:"badge",style:"font-size:9px;padding:1px 5px;background:#1a3a2a;color:#86efac;border-color:#166534"}, sn)
               ),
@@ -589,7 +589,7 @@ export function render(ctx){
             : (isObjAway
               ? (_lastKnownText(o.key || o.address || o.entity_id || "") || (o.last_room ? `Last: ${o.last_room}` : "—"))
               : room)),
-          el("div",{class:"basic-obj-sub"}, [kind, o.company_name, o.device_type, isObjAway ? null : rssi].filter(Boolean).join(" · ")),
+          el("div",{class:"basic-obj-sub"}, [kind, o.company_name, o.auto_class || o.device_type, isObjAway ? null : rssi].filter(Boolean).join(" · ")),
         ]),
         actions,
       ]);

@@ -158,7 +158,7 @@ See the [Atlas Guide](docs/ATLAS_GUIDE.md) for a full walkthrough. Placement, Au
 ### Experimental Features (Settings → Features)
 - **Phone Setup Wizard** — guided flow for tracking phones and watches. Auto-detects [irk-capture](https://github.com/DerekSeaman/irk-capture) ESP32 devices on your network and walks through IRK extraction step by step. Also shows the easy Android path (HA Companion App iBeacon) and Apple IRK options. Credit to [Derek Seaman](https://github.com/DerekSeaman) for the excellent irk-capture tool that makes IRK extraction practical for everyone.
 - **MAC Rotation Bridging** — when a phone's Bluetooth address rotates (every ~15 min), PadSpan matches advertisement characteristics (company ID, services, signal pattern) to tentatively link old and new addresses. Bridges the tracking gap without requiring an IRK. Probabilistic — may occasionally link wrong devices.
-- **Apple Device Classification** — automatically labels Apple devices as iPhone, iPad, Apple Watch, AirPods, or AirTag by decoding Bluetooth Continuity protocol messages. Display-only — does not affect tracking or identity.
+- **Apple Device Classification** — shows what sent an Apple Find My signal (AirTag, another brand's Find My tag, AirPods, or an Apple device such as an iPhone, iPad or Mac) instead of just "Find My", in Objects, Bluetooth → Advertisements and a device's details. It can't tell an iPhone from an iPad or a Watch: nothing Apple sends over Bluetooth says which. Display-only — does not affect tracking or identity.
 - **Radio Map** — RSSI heatmap overlay using inverse distance weighting
 - **Distortion Map** — k-NN prediction vs reality mismatch visualization
 - **Trackability Rating** — per-device Easy/Medium/Hard scoring
