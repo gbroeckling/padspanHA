@@ -422,6 +422,7 @@ class PadSpanHaApp extends HTMLElement {
       buildId: BUILD_ID,
       view: "overview",
       dataMode: "sample",          // sample | live
+      _dataModeKnown: false,       // true once the server has said which (see _applyDataMode)
       complexity: "advanced",      // basic | advanced | development
       status: {},
       roomTagMap: {},
@@ -1382,8 +1383,7 @@ class PadSpanHaApp extends HTMLElement {
         this.state.settings = res.settings;
         this._telemetryFlush();
         if ("cpu_pinning_supported" in res) this.state.cpuPinningSupported = !!res.cpu_pinning_supported;
-        const mode = (res.settings.data_mode || "sample").toLowerCase();
-        this.state.dataMode = (mode === "live") ? "live" : "sample";
+        this._applyDataMode(res.settings.data_mode);
         // Load followed addrs from server ONCE on boot (not on every poll,
         // which would race with local toggles and revert user clicks)
         if(!this._followedLoadedFromServer && Array.isArray(res.settings.followed_addrs)){
@@ -1395,9 +1395,9 @@ class PadSpanHaApp extends HTMLElement {
     try{
       await attempt();
     }catch(e){
-      // dataMode defaults to "sample" until this succeeds, so a swallowed
-      // failure here silently strands the user on demo data with no other
-      // symptom (issue #68). Most failures here are a transient WS hiccup on
+      // The data mode stays unknown until this succeeds, so a swallowed
+      // failure here strands the user with no data at all (it used to be the
+      // demo data — issues #68, #88). Most failures here are a transient WS hiccup on
       // a fresh/first setup, so retry once after a short delay before giving up.
       console.warn("PadSpan refresh: fetchSettings failed, retrying:", e);
       try{
@@ -1497,8 +1497,7 @@ class PadSpanHaApp extends HTMLElement {
       this._applyTheme();
       this._applySkin();
       if (res && "cpu_pinning_supported" in res) this.state.cpuPinningSupported = !!res.cpu_pinning_supported;
-      const mode = (res?.settings?.data_mode || "sample").toLowerCase();
-      this.state.dataMode = (mode === "live") ? "live" : "sample";
+      this._applyDataMode(res?.settings?.data_mode);
       this._updateBadges();
       this._renderNav();
       this._scheduleRender();
@@ -1506,6 +1505,28 @@ class PadSpanHaApp extends HTMLElement {
     } catch (e) {
       // Non-fatal
       this._toast("Settings load failed (will retry on refresh).", true);
+    }
+  }
+
+  /**
+   * The one place a data_mode reported by the server (settings_get,
+   * settings_set, the factory reset's re-read) lands in state.
+   *
+   * Rule (#88): the demo snapshot is shown ONLY when the server said
+   * data_mode=sample. dataMode starts as "sample" before settings arrive, and
+   * that default used to be read as a real answer: a failed first settings
+   * fetch put SAMPLE_SNAPSHOT on screen, a later successful fetch flipped the
+   * badge to Live without removing it, and every failed live_snapshot kept
+   * it — "Live" over the demo house's radios. So this records that the mode
+   * is now known, and a Live answer evicts the demo snapshot on the spot.
+   */
+  _applyDataMode(raw){
+    const mode = (String(raw || "sample").toLowerCase() === "live") ? "live" : "sample";
+    this.state.dataMode = mode;
+    this.state._dataModeKnown = true;
+    if(mode === "live" && this.state.live.snapshot === SAMPLE_SNAPSHOT){
+      this.state.live.snapshot = null;
+      this._recomputeDerived();
     }
   }
 
@@ -1520,17 +1541,14 @@ class PadSpanHaApp extends HTMLElement {
   async _setDataMode(mode){
     try {
       const res = await this._callWS({ type: "padspan_ha/settings_set", data_mode: mode });
-      const m = (res?.settings?.data_mode || "sample").toLowerCase();
-      this.state.dataMode = (m === "live") ? "live" : "sample";
+      // A Live answer clears the sample snapshot here (see _applyDataMode) so
+      // the first live fetch replaces it.
+      this._applyDataMode(res?.settings?.data_mode);
       this._toast(`Data mode: ${this.state.dataMode.toUpperCase()}`);
       // When switching to sample, explicitly assign sample snapshot.
-      // When switching to live, clear the sample snapshot so _getLiveSnapshot fetches fresh.
       if(this.state.dataMode !== "live"){
         this.state.live.snapshot = SAMPLE_SNAPSHOT;
         this._recomputeDerived();
-      } else {
-        // Clear sample snapshot so first live fetch replaces it
-        if(this.state.live.snapshot === SAMPLE_SNAPSHOT) this.state.live.snapshot = null;
       }
       await this._refreshAll(false);
       if(this.state.dataMode === "live") this._startPolling();
@@ -1606,6 +1624,9 @@ class PadSpanHaApp extends HTMLElement {
    */
   async _getLiveSnapshot(){
     if(this.state.dataMode !== "live") {
+      // "sample" before any settings answer is the constructor default, not
+      // the server's choice — no demo data until the mode is known (#88).
+      if(!this.state._dataModeKnown) return;
       // But only assign if we don't already have a live snapshot cached
       // (prevents race conditions during _refreshAll where settings haven't loaded yet).
       if(!this.state.live.snapshot || this.state.live.snapshot === SAMPLE_SNAPSHOT){
@@ -2274,6 +2295,8 @@ class PadSpanHaApp extends HTMLElement {
         },
         calibrationHealthCheck: async () => await this._callWS({ type: "padspan_ha/calibration_health_check" }),
         wsCall: async (type, data={}) => await this._callWS({ type, ...data }),
+        // Record a data_mode the server just reported (factory reset re-read).
+        applyDataMode: (mode) => this._applyDataMode(mode),
         // Opt-in usage report: count one allow-listed event. A no-op unless the
         // person turned the report on — no traffic leaves the browser otherwise.
         telemetryEvent: (name) => this._telemetryEvent(name),

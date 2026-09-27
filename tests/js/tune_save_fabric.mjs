@@ -318,7 +318,11 @@ const saveBtn = mkBtn();
 const statusLbl = { textContent: "", style: {} };
 
 const ctx = {
-  state: { model, maps: { list: maps_list } },
+  // Live mode with a server-built snapshot: the only state the Tune Save
+  // writes from (#88, tuneWriteBlock). demo_snapshot_live.mjs covers the
+  // refused ones.
+  state: { model, maps: { list: maps_list }, dataMode: "live", _dataModeKnown: true,
+           live: { snapshot: { source: "live", ble: { radios: [] } } } },
   actions: {
     callWS: async (p) => {
       calls.push(JSON.parse(JSON.stringify(p)));
@@ -391,7 +395,7 @@ function shimmed(src) {
 }
 const PLAN_NAMES = ["tuneDiffMapDraft", "tuneMissingFabricPins",
   "tuneConflictingSources", "tuneReconcileDraft", "tuneSyncTuneDrafts",
-  "tuneSnapBaseline", "tuneTryAcquire", "tuneRelease"];
+  "tuneSnapBaseline", "tuneTryAcquire", "tuneRelease", "tuneWriteBlock"];
 function compileHandler(body, extraParams, extraArgs) {
   const params = ["ts", "maps_list", "ctx", "saveBtn", "statusLbl",
     "calls", "toasts", "refreshCount",
@@ -400,7 +404,7 @@ function compileHandler(body, extraParams, extraArgs) {
   const args = [ts, maps_list, ctx, saveBtn, statusLbl, calls, toasts,
     refreshCount, P.tuneDiffMapDraft, P.tuneMissingFabricPins,
     P.tuneConflictingSources, P.tuneReconcileDraft, P.tuneSyncTuneDrafts,
-    P.tuneSnapBaseline, P.tuneTryAcquire, P.tuneRelease,
+    P.tuneSnapBaseline, P.tuneTryAcquire, P.tuneRelease, P.tuneWriteBlock,
     stackMod.mapFracToMetres, ...(extraArgs || [])];
   return new Function(...params, preamble + body)(...args);
 }
