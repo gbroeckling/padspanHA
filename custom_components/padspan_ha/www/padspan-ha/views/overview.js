@@ -68,8 +68,11 @@ export function render(ctx){
   const dataMode = ctx.state.dataMode || "sample";
   const liveSnap = ctx.state.live?.snapshot || null;
 
-  // When live mode is active but snapshot hasn't arrived yet, show placeholder
-  const liveLoading = dataMode === "live" && !liveSnap;
+  // When live mode is active but snapshot hasn't arrived yet, show placeholder.
+  // Same while the server has not said which mode (#88): the "sample"
+  // default is not an answer, so no Sample layout either.
+  const modeKnown = !!ctx.state._dataModeKnown;
+  const liveLoading = (dataMode === "live" || !modeKnown) && !liveSnap;
 
   // Fallback counts based on roomTagMap (works in sample mode too).
   const roomTagMap = liveLoading ? {} : (ctx.state.roomTagMap || {});
@@ -534,7 +537,7 @@ export function render(ctx){
         "data-age": String(o.age_s != null ? Math.round(o.age_s) : 0),
         "data-search": [
           kind, name, addr, room, userLabel, o.entity_id,
-          o.ibeacon_uuid, o.company_name, o.device_type,
+          o.ibeacon_uuid, o.company_name, o.device_type, o.auto_class,
           (o.service_names||[]).join(" "),
           o.canonical_id, o.key, o.name, o.private_ble_name,
           (o.all_addresses||[]).join(" "),
@@ -554,10 +557,10 @@ export function render(ctx){
           (o.entity_id ? el("div",{style:"color:#94a3b8"}, o.entity_id) : null),
           (Array.isArray(o.linked_entities) && o.linked_entities.length ? el("div",{style:"color:#94a3b8"}, `Linked: ${o.linked_entities.join(", ")}`) : null),
           (kind==="ble" && Array.isArray(o.sources) && o.sources.length ? el("div",{style:"color:#94a3b8"}, `Seen by: ${o.sources.map(s=>{const _src=typeof s==="object"?(s.source||""):String(s);const id=_sid(_src);const _fn=ctx.helpers.radioName(_src);return id?id+" "+(_fn||_src):(_fn||_src);}).join(", ")}`) : null),
-          ((o.company_name || o.device_type || (o.service_names && o.service_names.length))
+          ((o.company_name || o.auto_class || o.device_type || (o.service_names && o.service_names.length))
             ? el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"}, [
                 o.company_name ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a2a3a;color:#7dd3fc;border:1px solid #1e4976"}, o.company_name) : null,
-                o.device_type  ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#2a1a3a;color:#c4b5fd;border:1px solid #5b21b6"}, o.device_type) : null,
+                (o.auto_class || o.device_type) ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#2a1a3a;color:#c4b5fd;border:1px solid #5b21b6"}, o.auto_class || o.device_type) : null,
                 ...(o.service_names || []).slice(0,3).map(sn =>
                   el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a3a2a;color:#86efac;border:1px solid #166534"}, sn)
                 ),
@@ -2851,7 +2854,7 @@ export function render(ctx){
       try {
         const res = await ctx.actions.wsCall("padspan_ha/positioning_diag");
         const devices = res.devices || [];
-        if (!devices.length) { body.textContent = "No labelled devices found."; _loaded = true; return; }
+        if (!devices.length) { body.textContent = "No labelled devices found."; return; }
         body.textContent = "";
         const pre = el("pre",{style:"font-size:11px;color:#e2e8f0;background:#0f172a;padding:10px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto;user-select:all;cursor:text"});
         const lines = [];
@@ -2971,7 +2974,9 @@ export function render(ctx){
         helpBtn("overview"),
       ]),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-        dataMode === "live" ? "Live view · updates every 5s" : "Sample data — switch to Live for your real home."),
+        dataMode === "live" ? "Live view · updates every 5s"
+          : !modeKnown ? "Connecting to Home Assistant…"
+          : "Sample data — switch to Live for your real home."),
     ]);
     if(mapEl) mapCard.appendChild(mapEl);
 
@@ -3314,7 +3319,7 @@ export function render(ctx){
       el("div",{class:"row"},[
         el("button",{class:"btn", onclick: openRadiosList}, "View radios list"),
       ]),
-      el("div",{style:"margin-top:8px;color:#94a3b8;font-size:12px"}, dataMode==="live" ? "Live snapshot" : "Sample data — switch to Live to see your real devices")
+      el("div",{style:"margin-top:8px;color:#94a3b8;font-size:12px"}, dataMode==="live" ? "Live snapshot" : !modeKnown ? "Connecting to Home Assistant…" : "Sample data — switch to Live to see your real devices")
     ]),
     // Calibration status card
     (() => {

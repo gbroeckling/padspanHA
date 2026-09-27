@@ -6,10 +6,10 @@
 PadSpan HA — Device Trackers
 ==============================
 Creates device_tracker.{label} entities for every labelled BLE device.
-location_name = current room, so the tracker can be linked to a HA Person.
+state = current room, so the tracker can be linked to a HA Person.
 
 When not seen for longer than the configured away timeout (Settings → Presence →
-Away timeout; default 5 minutes), location_name returns "not_home" explicitly.
+Away timeout; default 5 minutes), the state is "not_home" explicitly.
 It must be named, not left as None: HA falls through None to latitude/longitude,
 which this tracker does not have, so the state came out "unknown" instead.
 
@@ -181,7 +181,7 @@ def _stable_uid_key(hass: HomeAssistant, key: str, obj: dict[str, Any]) -> str:
 
 
 class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEntity):  # type: ignore[misc]
-    """Device tracker whose location_name is the current room for a labelled BLE device."""
+    """Device tracker whose state is the current room for a labelled BLE device."""
 
     _attr_has_entity_name = True
 
@@ -257,8 +257,14 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
         return "bluetooth_le"
 
     @property
-    def location_name(self) -> str | None:
+    def state(self) -> str | None:
         """Room name when seen recently, "not_home" once the timeout passes.
+
+        This was `location_name`, which HA's TrackerEntity.state returns first.
+        HA warns about overriding it and stops honouring it in 2027.7; its
+        replacement (in_zones) takes only HA zones, and a room is not a zone.
+        So the room is the state itself, and with no room it is HA's own
+        answer, exactly what the location_name fallthrough gave.
 
         Returning None here does NOT mean not_home: HA falls through to
         latitude/longitude, and this tracker has neither, so the state came out
@@ -269,7 +275,7 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
         obj = self._obj
         if is_away(obj, away_timeout_s(self.coordinator.hass)):
             return STATE_NOT_HOME
-        return obj.get("room") or None
+        return obj.get("room") or super().state
 
     @property
     def latitude(self) -> float | None:
@@ -287,10 +293,6 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
         if not pos:
             return 0
         return round(accuracy_from_confidence(self._obj.get("knn_confidence") or self._obj.get("room_confidence")))
-
-    @property
-    def battery_level(self) -> int | None:
-        return None
 
     @property
     def available(self) -> bool:

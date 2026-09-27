@@ -52,3 +52,38 @@ def test_the_harness_actually_drew_the_house(result) -> None:
         assert s["svg"], f"{s['name']}: no isometric map was drawn"
         assert s["rows"] >= 19, f"{s['name']}: the index lost rows ({s['rows']})"
         assert s["svcCalls"] > 0, f"{s['name']}: no toggle ever reached hass.callService — the harness is not exercising the action path"
+
+
+def test_a_motion_sensor_back_from_a_blip_redraws_quiet(result) -> None:
+    """Live 2026-09-27: a sensor back "off" from a 29 s offline blip pulsed,
+    then wore the 6-hour ring. The sidebar subscribes to
+    padspan_ha/motion_reconnects itself, and the push redraws it quiet."""
+    b = result["blip"]
+    assert b["subscribed"] == {"type": "padspan_ha/motion_reconnects"}, b
+    assert b["pulseBefore"], f"the harness must first show the false pulse: {b}"
+    assert not b["pulseAfter"] and not b["ringAfter"], b
+
+
+def test_the_subscription_survives_an_ha_restart(result) -> None:
+    """The wall kiosk: HA restarts, the frontend reconnects on the SAME
+    Connection before PadSpan has registered padspan_ha/motion_reconnects, and
+    the library's own re-subscribe is refused (unknown_command) and dropped.
+    The panel must subscribe again once PadSpan is up, exactly once, and let
+    go of it (and its "ready" listener) on disconnect."""
+    r = result["restart"]
+    assert r["liveBefore"] == 1, r
+    assert r["liveWhileLoading"] == 0, f"the harness must refuse while PadSpan loads: {r}"
+    assert r["liveAfter"] == 1, f"not subscribed (or subscribed twice) after the restart: {r}"
+    assert r["delivered"], f"a push after the restart never reached the panel: {r}"
+    assert r["liveAfterDisconnect"] == 0 and r["readyListenersAfterDisconnect"] == 0, r
+
+
+def test_both_panels_subscribe_through_keep_subscribed() -> None:
+    """panel.js (Mapping) has the same subscription and is too heavy to boot
+    here; it must use the same restart-proof helper the test above runs, never
+    a bare subscribeMessage (whose library re-subscribe is lost to an early
+    unknown_command)."""
+    for name in ("panel.js", "lights_panel.js"):
+        src = (_WWW / name).read_text(encoding="utf-8")
+        assert "keepSubscribed(hass.connection," in src and "padspan_ha/motion_reconnects" in src, name
+        assert "subscribeMessage(" not in src, f"{name} subscribes without keepSubscribed"

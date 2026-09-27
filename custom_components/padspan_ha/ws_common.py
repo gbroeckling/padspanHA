@@ -43,6 +43,7 @@ from .const import (
     LIGHT_SHAPE_KINDS,
 )
 from .device_registry import DEVICE_REGISTRY_STORE_KEY
+from .util import ha_devices
 
 
 # ── In-memory ring buffer for PadSpan logs ────────────────────────────────────
@@ -347,6 +348,9 @@ _DATA_KEY_MAP = {
 
 
 _MAX_BACKUPS = 3  # Oldest backup is dropped when a new one exceeds this limit
+# Automatic backups (ws_backup._auto_backup, marked "auto") have their own cap
+# and never push out a backup a person made, nor the other way round.
+_MAX_AUTO_BACKUPS = 3
 
 
 def _room_from_bounds(room_bounds: dict, x: float, y: float) -> str:
@@ -474,7 +478,7 @@ class RadioDeviceIndex:
         self._by_mac: dict[str, list] = {}
         try:
             from homeassistant.helpers import device_registry  # noqa: PLC0415
-            devices = list(device_registry.async_get(hass).devices.values())
+            devices = ha_devices(device_registry.async_get(hass))
         except Exception:
             devices = []
         # Sorted by id so a run is reproducible. Ties are refused rather than

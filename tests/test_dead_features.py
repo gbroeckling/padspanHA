@@ -67,3 +67,23 @@ def test_the_three_retired_toggles_are_gone() -> None:
         assert f'key: "{k}"' not in js, f"{k} is offered as a toggle again"
         assert f'vol.Optional("{k}")' not in ws, f"{k} is back in the settings schema"
         assert f'"{k}":' not in store, f"{k} is back in the stored defaults"
+
+
+# Being READ is not enough. apple_auto_classify was read — by snapshot_builder,
+# which wrote auto_class on Apple devices — and no screen ever showed
+# auto_class, so the switch still did nothing a person could see (2026-09-27).
+# What it writes must reach every place a device's type is shown.
+_TYPE_SHOWN_IN = ("views/objects.js", "views/overview.js", "views/bluetooth.js", "panel.js")
+
+
+def test_apple_classification_is_shown_where_the_device_type_is() -> None:
+    www = _CC / "www" / "padspan-ha"
+    missing = [v for v in _TYPE_SHOWN_IN if "auto_class" not in (www / v).read_text(encoding="utf-8")]
+    assert not missing, f"Apple Device Classification's auto_class is not shown in: {missing}"
+
+
+def test_apple_classification_promises_no_model_bluetooth_does_not_send() -> None:
+    """It promised "iPhone, iPad, Apple Watch" from a table that read status
+    flags as a model; nothing Apple sends over Bluetooth names the model."""
+    for p in (_SETTINGS_JS, _ROOT / "README.md"):
+        assert "iPhone, iPad, Apple Watch" not in p.read_text(encoding="utf-8"), p.name

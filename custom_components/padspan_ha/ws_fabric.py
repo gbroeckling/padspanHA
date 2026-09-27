@@ -28,10 +28,12 @@ from .const import (
     DATA_MOVEMENT,
     DATA_TRACEBACK,
     DATA_DEVICE_REGISTRY,
+    FABRIC_STORE_KEY,
 )
 from .fabric_truth import cluster_count as _cluster_count, geom_bbox_m as _geom_bbox_m
 from .snapshot_builder import _live_snapshot
 from .ws_common import _invalidate_snapshot_cache, _tier_at_least
+from .ws_backup import _auto_backup
 from .telemetry import bump as _bump
 
 _LOGGER = logging.getLogger(__name__)
@@ -1385,50 +1387,52 @@ async def ws_fabric_resync(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_fabric_reset_spatial(hass: HomeAssistant, connection, msg) -> None:
-    """Reset the spatial model (Phase 2+3) and rebuild from maps.
+    """Reset the spatial model (Phase 2+3).
 
-    Clears scanner_positions_m, rf_barriers_m, map_transforms, and beacon
-    positions. The room fabric (FabricStore) is deliberately untouched — a
-    built floor's room shapes are ground truth and no reset may wipe them.
+    Clears scanner positions, beacon positions and barriers, after an
+    automatic backup of the fabric store (no backup, no reset). The room
+    fabric (FabricStore) is deliberately untouched — a built floor's room
+    shapes are ground truth and no reset may wipe them. Calibration points
+    keep their metres, and map_transforms (each map's placement and measured
+    scale) are kept, for the same reason: they are the only record and
+    nothing rebuilds them ("Migrate to Metres", which used to, is gone, and
+    since the derived-placement conversion maps[].stack holds no placement).
     """
-    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
-    if not mdl:
-        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
-        return
-
-    # Clear spatial data only — user must explicitly migrate after.
+    # Clear spatial data only.
     # Spatial ground truth lives in the fabric (pass 2); map_transforms
-    # stay model-owned.  The legacy model copies are left untouched — they
-    # are the rollback/import source, never live data.
+    # stay model-owned and are kept.  The legacy model copies are left
+    # untouched — they are the rollback/import source, never live data.
     fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
-    if fab:
-        await fab.async_spatial_update(
-            remove_scanners=list(fab.scanner_positions_m()),
-            remove_beacons=list(fab.beacon_positions_m()),
-            remove_barrier_names=[str(b.get("name", "")) for b in fab.rf_barriers_m()],
-            op="reset_spatial",
-        )
-    mdl.data["map_transforms"] = {}
-    await mdl.store.async_save(mdl.data)
-
-    # Clear metre coords from calibration points (they'll be re-backfilled on migrate)
-    cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
-    cal_cleared = 0
-    if cal:
-        try:
-            for p in cal.data.get("points", []):
-                if p.get("x_m") is not None:
-                    p.pop("x_m", None)
-                    p.pop("y_m", None)
-                    cal_cleared += 1
-            if cal_cleared:
-                await cal.store.async_save(cal.data)
-        except Exception:
-            pass
+    if not fab:
+        connection.send_error(msg["id"], "no_fabric", "FabricStore not loaded")
+        return
+    scanners = list(fab.scanner_positions_m())
+    beacons = list(fab.beacon_positions_m())
+    barrier_ids = [str(b.get("id", "")) for b in fab.rf_barriers_m()]
+    if not (scanners or beacons or barrier_ids):
+        # Nothing to clear, so no backup: an empty snapshot would only take a
+        # slot among the automatic backups from the one that holds the
+        # positions a previous press cleared.
+        connection.send_result(msg["id"], {
+            "ok": True, "cleared": True, "removed": 0, "backup_id": None,
+        })
+        return
+    backup_id = await _auto_backup(
+        hass, "Before Reset Spatial Model", [FABRIC_STORE_KEY])
+    if backup_id is None:
+        connection.send_error(
+            msg["id"], "backup_failed",
+            "Could not take a backup first, so nothing was reset.")
+        return
+    removed = (await fab.async_spatial_update(
+        remove_scanners=scanners,
+        remove_beacons=beacons,
+        remove_barrier_ids=barrier_ids,
+        op="reset_spatial",
+    ))["removed"]
 
     connection.send_result(msg["id"], {
         "ok": True, "cleared": True,
-        "cal_points_cleared": cal_cleared,
-        "next_step": "Click 'Migrate to Metres' with your floor width to rebuild.",
+        "removed": removed, "backup_id": backup_id,
     })

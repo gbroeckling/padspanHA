@@ -391,6 +391,9 @@ const { roomColor } =
 // best-in-class roadmap) — a pure string builder, see its own header.
 const { buildEvidenceSvg, roomScoreBars } =
   await import(`./views/evidence_diagram.js${new URL(import.meta.url).search}`);
+// A push subscription kept across HA restarts (motion_reconnects, below).
+const { keepSubscribed } =
+  await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
 
 function pill(text){ return el("span",{class:"pill"}, text); }
 
@@ -422,6 +425,7 @@ class PadSpanHaApp extends HTMLElement {
       buildId: BUILD_ID,
       view: "overview",
       dataMode: "sample",          // sample | live
+      _dataModeKnown: false,       // true once the server has said which (see _applyDataMode)
       complexity: "advanced",      // basic | advanced | development
       status: {},
       roomTagMap: {},
@@ -500,6 +504,16 @@ class PadSpanHaApp extends HTMLElement {
   set hass(hass){
     const prevHass = this._hass;
     this._hass = hass;
+    // Motion sensors back from an offline blip (motion_reconnects.py), pushed
+    // on every change — one subscription per connection (a new connection,
+    // or a re-entry after disconnectedCallback, subscribes afresh), kept
+    // across HA restarts on the same connection (push_subscription.js).
+    if(hass && hass.connection && this._reconnectsConn !== hass.connection){
+      if(this._reconnectsStop) this._reconnectsStop();
+      this._reconnectsConn = hass.connection;
+      this._reconnectsStop = keepSubscribed(hass.connection, { type: "padspan_ha/motion_reconnects" },
+        m => { this.state._motionReconnects = m || {}; });
+    }
     if(!this._booted){
       this._booted = true;
       // Wait for critical view modules (overview + follow), then render immediately.
@@ -606,7 +620,7 @@ class PadSpanHaApp extends HTMLElement {
             <button class="mobile-topbar-btn" id="mobileBackBtn" title="Back to Home Assistant" style="font-size:18px;padding:4px 6px">&#x2190;</button>
             <button class="mobile-topbar-btn" id="mobileMenuBtn">&#9776;</button>
             <span class="mobile-topbar-title" id="mobileTitle">Overview</span>
-            <button class="mobile-topbar-pill" id="mobileDataPill">Sample</button>
+            <button class="mobile-topbar-pill" id="mobileDataPill">…</button>
             <button class="mobile-topbar-pill" id="mobileModePill">Advanced</button>
             <button class="mobile-topbar-pill hidden" id="mobileEmergencyPill" style="background:#7f1d1d;border-color:#dc2626;color:#fecaca">🚨 0</button>
           </div>
@@ -617,7 +631,7 @@ class PadSpanHaApp extends HTMLElement {
 
             <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
               <span class="muted" style="font-size:12px">Data</span>
-              <button class="btn inline" id="dataModeToggle" title="Toggle sample vs live data">Sample</button>
+              <button class="btn inline" id="dataModeToggle" title="Toggle sample vs live data">…</button>
               <button class="btn inline" id="complexityToggle" title="Cycle between Basic, Advanced, and Development modes">Advanced</button>
             </span>
           </div>
@@ -694,6 +708,7 @@ class PadSpanHaApp extends HTMLElement {
 
     // Mobile topbar pills mirror the desktop toggles
     this.$("#mobileDataPill").addEventListener("click", async () => {
+      if(!this.state._dataModeKnown) return;   // "…": nothing to toggle from yet
       const next = (this.state.dataMode === "sample") ? "live" : "sample";
       await this._setDataMode(next);
     });
@@ -729,6 +744,7 @@ class PadSpanHaApp extends HTMLElement {
     this.$content.addEventListener("scroll", _markInteraction, true);
 
     this.$("#dataModeToggle").addEventListener("click", async ()=>{
+      if(!this.state._dataModeKnown) return;   // "…": nothing to toggle from yet
       const next = (this.state.dataMode === "sample") ? "live" : "sample";
       await this._setDataMode(next);
     });
@@ -952,6 +968,8 @@ class PadSpanHaApp extends HTMLElement {
   disconnectedCallback(){
     this._stopDataPoll();
     this._pollInFlight = false;
+    if(this._reconnectsStop) this._reconnectsStop();
+    this._reconnectsStop = null; this._reconnectsConn = null;
     if(this._activityTimer){ clearInterval(this._activityTimer); this._activityTimer = null; }
     if(this._watchdogTimer){ clearInterval(this._watchdogTimer); this._watchdogTimer = null; }
     if(this._visibilityHandler){
@@ -1086,6 +1104,8 @@ class PadSpanHaApp extends HTMLElement {
           if(this.state.dataMode === "live" && !this._pollTimer){
             this._startDataPoll();
           }
+          // 5b. Data mode still unknown (every settings_get failed): ask again
+          this._retryDataMode();
 
           // 6. Escalation: no successful render in 20s → full rebuild
           // Skip for non-live views (calibration, maps, etc.) — they don't poll-render,
@@ -1382,8 +1402,7 @@ class PadSpanHaApp extends HTMLElement {
         this.state.settings = res.settings;
         this._telemetryFlush();
         if ("cpu_pinning_supported" in res) this.state.cpuPinningSupported = !!res.cpu_pinning_supported;
-        const mode = (res.settings.data_mode || "sample").toLowerCase();
-        this.state.dataMode = (mode === "live") ? "live" : "sample";
+        this._applyDataMode(res.settings.data_mode);
         // Load followed addrs from server ONCE on boot (not on every poll,
         // which would race with local toggles and revert user clicks)
         if(!this._followedLoadedFromServer && Array.isArray(res.settings.followed_addrs)){
@@ -1395,9 +1414,9 @@ class PadSpanHaApp extends HTMLElement {
     try{
       await attempt();
     }catch(e){
-      // dataMode defaults to "sample" until this succeeds, so a swallowed
-      // failure here silently strands the user on demo data with no other
-      // symptom (issue #68). Most failures here are a transient WS hiccup on
+      // The data mode stays unknown until this succeeds, so a swallowed
+      // failure here strands the user with no data at all (it used to be the
+      // demo data — issues #68, #88). Most failures here are a transient WS hiccup on
       // a fresh/first setup, so retry once after a short delay before giving up.
       console.warn("PadSpan refresh: fetchSettings failed, retrying:", e);
       try{
@@ -1497,8 +1516,7 @@ class PadSpanHaApp extends HTMLElement {
       this._applyTheme();
       this._applySkin();
       if (res && "cpu_pinning_supported" in res) this.state.cpuPinningSupported = !!res.cpu_pinning_supported;
-      const mode = (res?.settings?.data_mode || "sample").toLowerCase();
-      this.state.dataMode = (mode === "live") ? "live" : "sample";
+      this._applyDataMode(res?.settings?.data_mode);
       this._updateBadges();
       this._renderNav();
       this._scheduleRender();
@@ -1506,6 +1524,58 @@ class PadSpanHaApp extends HTMLElement {
     } catch (e) {
       // Non-fatal
       this._toast("Settings load failed (will retry on refresh).", true);
+    }
+  }
+
+  /** The top bar's data-mode label. "…" until the server has said which:
+   *  the constructor's "sample" is a default, not an answer (#88). */
+  _dataModeLabel(){
+    if(!this.state._dataModeKnown) return "…";
+    return (this.state.dataMode === "live") ? "Live" : "Sample";
+  }
+
+  /**
+   * The data mode is still unknown because every settings_get so far failed
+   * (#88): ask again. Nothing else re-asks on a page nobody touches. The
+   * poll runs only in Live mode, and the watchdog's own refresh only when
+   * #content is empty, so a wall kiosk that booted during an HA restart sat
+   * on an empty screen for good. Called from the 5 s watchdog; one attempt
+   * in flight at a time. Once the mode is known, a full refresh brings the
+   * data and, in Live mode, the poll starts.
+   */
+  _retryDataMode(){
+    if(this.state._dataModeKnown || this._modeRetry) return;
+    this._modeRetry = true;
+    this._fetchSettings()
+      .then(() => {
+        if(!this.state._dataModeKnown) return;
+        return this._refreshAll(false).then(() => {
+          if(this.state.dataMode === "live" && !this._pollTimer) this._startDataPoll();
+        });
+      })
+      .catch(() => {})
+      .finally(() => { this._modeRetry = false; });
+  }
+
+  /**
+   * The one place a data_mode reported by the server (settings_get,
+   * settings_set, the factory reset's re-read) lands in state.
+   *
+   * Rule (#88): the demo snapshot is shown ONLY when the server said
+   * data_mode=sample. dataMode starts as "sample" before settings arrive, and
+   * that default used to be read as a real answer: a failed first settings
+   * fetch put SAMPLE_SNAPSHOT on screen, a later successful fetch flipped the
+   * badge to Live without removing it, and every failed live_snapshot kept
+   * it — "Live" over the demo house's radios. So this records that the mode
+   * is now known, and a Live answer evicts the demo snapshot on the spot.
+   */
+  _applyDataMode(raw){
+    const mode = (String(raw || "sample").toLowerCase() === "live") ? "live" : "sample";
+    this.state.dataMode = mode;
+    this.state._dataModeKnown = true;
+    if(mode === "live" && this.state.live.snapshot === SAMPLE_SNAPSHOT){
+      this.state.live.snapshot = null;
+      this._recomputeDerived();
     }
   }
 
@@ -1520,17 +1590,14 @@ class PadSpanHaApp extends HTMLElement {
   async _setDataMode(mode){
     try {
       const res = await this._callWS({ type: "padspan_ha/settings_set", data_mode: mode });
-      const m = (res?.settings?.data_mode || "sample").toLowerCase();
-      this.state.dataMode = (m === "live") ? "live" : "sample";
+      // A Live answer clears the sample snapshot here (see _applyDataMode) so
+      // the first live fetch replaces it.
+      this._applyDataMode(res?.settings?.data_mode);
       this._toast(`Data mode: ${this.state.dataMode.toUpperCase()}`);
       // When switching to sample, explicitly assign sample snapshot.
-      // When switching to live, clear the sample snapshot so _getLiveSnapshot fetches fresh.
       if(this.state.dataMode !== "live"){
         this.state.live.snapshot = SAMPLE_SNAPSHOT;
         this._recomputeDerived();
-      } else {
-        // Clear sample snapshot so first live fetch replaces it
-        if(this.state.live.snapshot === SAMPLE_SNAPSHOT) this.state.live.snapshot = null;
       }
       await this._refreshAll(false);
       if(this.state.dataMode === "live") this._startPolling();
@@ -1606,6 +1673,9 @@ class PadSpanHaApp extends HTMLElement {
    */
   async _getLiveSnapshot(){
     if(this.state.dataMode !== "live") {
+      // "sample" before any settings answer is the constructor default, not
+      // the server's choice — no demo data until the mode is known (#88).
+      if(!this.state._dataModeKnown) return;
       // But only assign if we don't already have a live snapshot cached
       // (prevents race conditions during _refreshAll where settings haven't loaded yet).
       if(!this.state.live.snapshot || this.state.live.snapshot === SAMPLE_SNAPSHOT){
@@ -1764,7 +1834,7 @@ class PadSpanHaApp extends HTMLElement {
     this._updateEmergencyBanner();
 
     const b = this.$("#dataModeToggle");
-    if(b) b.textContent = (this.state.dataMode === "live") ? "Live" : "Sample";
+    if(b) b.textContent = this._dataModeLabel();
     const cb = this.$("#complexityToggle");
     if(cb){
       const mode = this.state.complexity;
@@ -2017,7 +2087,7 @@ class PadSpanHaApp extends HTMLElement {
     const mobileDataPill = this.shadowRoot.querySelector("#mobileDataPill");
     if (mobileDataPill) {
       const isLive = this.state.dataMode === "live";
-      mobileDataPill.textContent = isLive ? "Live" : "Sample";
+      mobileDataPill.textContent = this._dataModeLabel();
       mobileDataPill.className = "mobile-topbar-pill" + (isLive ? " live" : "");
     }
     const mobileModePill = this.shadowRoot.querySelector("#mobileModePill");
@@ -2274,6 +2344,8 @@ class PadSpanHaApp extends HTMLElement {
         },
         calibrationHealthCheck: async () => await this._callWS({ type: "padspan_ha/calibration_health_check" }),
         wsCall: async (type, data={}) => await this._callWS({ type, ...data }),
+        // Record a data_mode the server just reported (factory reset re-read).
+        applyDataMode: (mode) => this._applyDataMode(mode),
         // Opt-in usage report: count one allow-listed event. A no-op unless the
         // person turned the report on — no traffic leaves the browser otherwise.
         telemetryEvent: (name) => this._telemetryEvent(name),
@@ -2471,10 +2543,10 @@ class PadSpanHaApp extends HTMLElement {
         ? el("div", {class:"muted", style:"font-size:11px;color:#60a5fa"}, `Linked entities: ${obj.linked_entities.join(", ")}`)
         : null,
       // Enrichment badges
-      (obj.company_name || obj.device_type || (obj.service_names && obj.service_names.length) || obj.connectable != null)
+      (obj.company_name || obj.auto_class || obj.device_type || (obj.service_names && obj.service_names.length) || obj.connectable != null)
         ? el("div", {style:"display:flex;flex-wrap:wrap;gap:5px;margin-top:6px"}, [
             obj.company_name ? el("span",{class:"badge",style:"background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, obj.company_name) : null,
-            obj.device_type  ? el("span",{class:"badge",style:"background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, obj.device_type) : null,
+            (obj.auto_class || obj.device_type) ? el("span",{class:"badge",style:"background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, obj.auto_class || obj.device_type) : null,
             ...(obj.service_names || []).map(sn =>
               el("span",{class:"badge",style:"background:#1a3a2a;color:#86efac;border-color:#166534"}, sn)
             ),

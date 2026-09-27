@@ -60,3 +60,61 @@ def test_every_training_helpkey_exists_in_help_content() -> None:
         f"views/training.js references helpKeys with no matching entry in "
         f"help_content.js — these render nothing in the manual, silently: {sorted(missing)}"
     )
+
+
+# ── Instructions for mapping UI that no longer exists ───────────────────────
+# v0.38.0 deleted the master map, and Set Master, Unset Master and the Change
+# Master wizard with it. Alignment lives under Mapping → 3D Stack (Alignment
+# Overlay, Point Align); there is no Alignment tab. training.js kept a
+# four-step walkthrough and a manual section built on both for a month
+# afterwards, telling users to click a button and open a tab that weren't
+# there. Full-line comments are skipped: prose may name what was deleted, and
+# maps.js's does.
+
+_GONE_UI = [
+    (re.compile(r"\b(?:Set|Unset|Change) Master\b|\bas Master\b|\bMaster Map\b"),
+     "the master map and its buttons were deleted in v0.38.0"),
+    (re.compile(r"\bAlignment tabs?\b|\bMap(?:s|ping) *(?:→|\u2192) *Alignment\b"),
+     "there is no Alignment tab — alignment is under Mapping → 3D Stack"),
+]
+
+
+def test_no_copy_sends_users_to_deleted_mapping_ui() -> None:
+    files = sorted(_WWW.glob("*.js")) + sorted((_WWW / "views").glob("*.js"))
+    offenders = []
+    for path in files:
+        for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if line.lstrip().startswith(("//", "*")):
+                continue
+            for rx, why in _GONE_UI:
+                m = rx.search(line)
+                if m:
+                    offenders.append(f"  {path.name}:{i}: {m.group(0)!r} — {why}")
+    assert not offenders, (
+        "user-facing copy points at mapping UI that no longer exists:\n" + "\n".join(offenders)
+    )
+
+
+def test_x_stretch_copy_says_lock_ar_must_be_off() -> None:
+    """3D Stack's X − / X + start disabled: Lock AR is on by default (maps.js
+    sets _stackArLocked = true and _setXBtnState greys both out). Copy that
+    tells the user to press them without saying so sends them to a dead
+    button."""
+    maps = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
+    assert "ctx.state.maps._stackArLocked = true" in maps, \
+        "Lock AR no longer defaults on: revisit this test"
+    assert "xMinusBtn.disabled = locked" in maps, \
+        "X − no longer disabled by Lock AR: revisit this test"
+    files = sorted(_WWW.glob("*.js")) + sorted((_WWW / "views").glob("*.js"))
+    offenders = []
+    for path in files:
+        if path.name == "maps.js":
+            continue
+        for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if line.lstrip().startswith(("//", "*")):
+                continue
+            if re.search(r"X [−-] and X \+", line) and "Lock AR" not in line:
+                offenders.append(f"  {path.name}:{i}")
+    assert not offenders, (
+        "copy sends users to X − / X + without saying Lock AR must be off:\n" + "\n".join(offenders)
+    )

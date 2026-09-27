@@ -333,8 +333,8 @@ def test_the_merged_object_keeps_the_key_it_was_first_known_by():
     src = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "snapshot_builder.py").read_text(encoding="utf-8")
     assert '"key": canonical.get("key") or cid,' in src
     # The Apple display classifier reads "0x.." payloads through findmy's parser.
-    i = src.index("_APPLE_SUBTYPES = {")
-    assert "bytes.fromhex(apple_data)" not in src[i:i + 4000] and "apple_payload(manuf)" in src[i:i + 4000]
+    i = src.index("# ── Apple Device Classification")
+    assert "bytes.fromhex" not in src[i:i + 2000] and 'parse_findmy(_o.get("manufacturer_data"))' in src[i:i + 2000]
 
 
 def test_a_moved_tags_room_follows_its_live_address():

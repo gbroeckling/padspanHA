@@ -52,6 +52,7 @@ from .beacon_identity import (
 _SETTLED_POLLS = 3
 from .ble_enrichment import enrich_object as _enrich_ble_object
 from .presence_rules import away_timeout_s, is_away
+from .util import ha_devices
 from .ws_common import (
     RadioDeviceIndex,
     _ALL_ADDR_CAP,
@@ -314,7 +315,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     try:
         dr = device_registry.async_get(hass)
         receivers: list[dict[str, Any]] = []
-        for dev in dr.devices.values():
+        for dev in ha_devices(dr):
             if bermuda_entry_ids and any(entry_id in bermuda_entry_ids for entry_id in dev.config_entries):
                 receivers.append(
                     {
@@ -756,10 +757,12 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     try:
         dr2 = device_registry.async_get(hass)
         er2 = entity_registry.async_get(hass)
+        # Main devices by id (see util.ha_devices for why not dr2.async_get).
+        dev_by_id = {dev.id: dev for dev in ha_devices(dr2)}
 
         # Build a quick map of Bluetooth address -> HA device (device_registry)
         addr_to_device: dict[str, dict[str, Any]] = {}
-        for dev in dr2.devices.values():
+        for dev in dev_by_id.values():
             try:
                 for (ctype, cid) in (dev.connections or set()):
                     if str(ctype) == "bluetooth" and isinstance(cid, str):
@@ -781,7 +784,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             ent = er2.async_get(eid)
             if not ent or not ent.device_id:
                 continue
-            dev = dr2.devices.get(ent.device_id)
+            dev = dev_by_id.get(ent.device_id)
             if not dev:
                 continue
             for (ctype, cid) in (dev.connections or set()):
@@ -1374,7 +1377,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             try:
                 ent = er2.async_get(eid)
                 if ent and ent.device_id:
-                    dev = dr2.devices.get(ent.device_id)
+                    dev = dev_by_id.get(ent.device_id)
                     if dev:
                         # 1) Check device connections for a static BLE MAC
                         for (ctype, cid) in (dev.connections or set()):
@@ -1647,68 +1650,6 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             if _ib_label:
                 obj_ib["user_label"] = _ib_label
             objects.append(obj_ib)
-
-        # ── Apple Auto-Classification ─────────────────────────────────────
-        # Decode Apple Continuity protocol messages to label devices as
-        # iPhone, iPad, Apple Watch, AirPods, etc.  Display-only — does
-        # not change identity or tracking.  Gated behind setting.
-        try:
-            _st_apple = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-            if _st_apple and _st_apple.get("apple_auto_classify"):
-                _APPLE_COMPANY_ID = "76"  # 0x004C in decimal string key
-                _APPLE_SUBTYPES = {
-                    0x07: "AirPods",
-                    0x10: "Apple Device",  # Nearby Info — refined below by model bits
-                    0x12: "AirTag",        # FindMy
-                }
-                _NEARBY_MODELS = {
-                    # Device model bits (upper nibble of status byte) in Nearby Info
-                    0x01: "iPhone",
-                    0x02: "iPhone",
-                    0x03: "iPad",
-                    0x04: "MacBook",
-                    0x05: "Apple Watch",
-                    0x06: "MacBook",
-                    0x07: "iPhone",
-                    0x09: "MacBook",
-                    0x0A: "iPad",
-                    0x0B: "Apple Watch",
-                    0x0C: "MacBook",
-                    0x0E: "iPhone",
-                    0x0F: "iPad",
-                    0x10: "iPhone",
-                    0x11: "MacBook",
-                    0x14: "iPhone",
-                }
-                for obj in objects:
-                    if obj.get("kind") not in ("ble", "private_ble", "ibeacon"):
-                        continue
-                    manuf = obj.get("manufacturer_data") or {}
-                    apple_data = manuf.get(_APPLE_COMPANY_ID) or manuf.get(76)
-                    if not apple_data:
-                        continue
-                    # "0x12 0x19 ..." (bluetooth_live.py), plain hex or bytes
-                    # (bytes.fromhex refuses the 0x form: nothing was ever labelled).
-                    from .findmy import DEVICE_TYPES as _FM_TYPES, apple_payload, parse_findmy  # noqa: PLC0415
-                    _raw = apple_payload(manuf)
-                    if not _raw:
-                        continue
-                    subtype = _raw[0]
-                    label = _APPLE_SUBTYPES.get(subtype)
-                    if not label:
-                        continue
-                    # Refine Nearby Info (0x10) by device model bits
-                    if subtype == 0x10 and len(_raw) >= 3:
-                        model_bits = (_raw[2] >> 4) & 0x1F
-                        label = _NEARBY_MODELS.get(model_bits, "Apple Device")
-                    # Find My (0x12): the status byte's device type (findmy.py)
-                    if subtype == 0x12:
-                        _fm = parse_findmy(manuf)
-                        if _fm:
-                            label = _FM_TYPES.get(_fm["device_type"], label)
-                    obj["auto_class"] = label
-        except Exception as _apple_err:
-            _LOGGER.debug("Apple auto-classify error: %s", _apple_err)
 
         # ── Cross-link MAC ↔ iBeacon ↔ entity for the same physical device ──
         # Build lookup maps so labels/tags propagate across all representations.
@@ -2607,6 +2548,29 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     _o["padspan_id"] = _pid
     except Exception as _dr_err:
         _LOGGER.debug("DeviceRegistry enrichment: %s", _dr_err)
+
+    # ── Apple Device Classification (setting: apple_auto_classify) ──
+    # A Find My advertisement's status byte says what sent it: an AirTag,
+    # another brand's Find My tag, AirPods or an Apple device (findmy.py).
+    # The panel shows that in place of the plain "Find My". Nothing else Apple
+    # sends names the model — the iPhone/iPad/Watch table this replaced read
+    # Nearby Info's status flags, and called one device in Garry's office an
+    # "iPad" all night and an "iPhone" at 08:09 (2026-09-27). Display-only.
+    # Runs over the FINAL lists: objects replayed from history carry whatever
+    # an older build stored, so off (or not Find My) clears it.
+    try:
+        from .findmy import DEVICE_TYPES as _FM_TYPES, parse_findmy  # noqa: PLC0415
+        _st_apple = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        _classify = bool(_st_apple and _st_apple.get("apple_auto_classify"))
+        for _o in (((snapshot.get("objects") or {}).get("list") or [])
+                   + ((snapshot.get("ble") or {}).get("advertisements") or [])):
+            _fm = parse_findmy(_o.get("manufacturer_data")) if _classify else None
+            if _fm:
+                _o["auto_class"] = _FM_TYPES[_fm["device_type"]]
+            else:
+                _o.pop("auto_class", None)
+    except Exception as _apple_err:
+        _LOGGER.debug("Apple auto-classify error: %s", _apple_err)
 
     # ── Enrich raw advertisements with decoded metadata + object cross-reference ──
     try:

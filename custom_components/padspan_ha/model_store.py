@@ -51,6 +51,7 @@ from homeassistant.helpers.storage import Store
 from . import fabric_truth
 from .const import MODEL_STORE_KEY, DEFAULT_FLOOR_ID, MAX_HEIGHT_M, LIGHT_SHAPE_KINDS, OUTDOOR_FLOOR_NAMES
 from .safe_store import wrap_store
+from .util import ha_devices
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -475,7 +476,9 @@ class ModelStore:
 
         Stored heights win over the registry: the registry knows which floors
         exist and their level, the user's Floor Heights table knows how far
-        apart they are, and a sync must never overwrite the latter.
+        apart they are, and a sync must never overwrite the latter. The level
+        goes the other way when Home Assistant gives every floor one: then a
+        floor's storey is Home Assistant's.
 
         Returns True when something changed (and was saved).
         """
@@ -485,17 +488,6 @@ class ModelStore:
 
         stored = {str(f.get("id")): f for f in (self.data.get("floors") or [])
                   if isinstance(f, dict) and f.get("id")}
-        merged: list[dict[str, Any]] = []
-        for f in incoming:
-            fid = str(f["id"])
-            prev = stored.get(fid, {})
-            entry = {**prev, "id": fid, "name": f.get("name") or prev.get("name") or fid}
-            # A level the user typed into Floor Heights outranks the registry's,
-            # which is null on most installs anyway.
-            reg_level = f.get("level")
-            if prev.get("level") is None and reg_level is not None:
-                entry["level"] = reg_level
-            merged.append(_norm_floor(entry))
 
         # Keep any floor the fabric still uses but the registry has dropped —
         # deleting it here would strand its rooms outside the stack entirely.
@@ -507,10 +499,29 @@ class ModelStore:
                         for g in (fab.room_geometry_m() or {}).values()}
             except Exception:
                 used = set()
-        have = {f["id"] for f in merged}
-        for fid, prev in stored.items():
-            if fid not in have and fid in used:
-                merged.append(prev)
+        reg_ids = {str(f["id"]) for f in incoming}
+        kept = [prev for fid, prev in stored.items() if fid not in reg_ids and fid in used]
+
+        # The storey is Home Assistant's (Settings -> Areas -> Floors -> Level)
+        # only when HA places EVERY floor. Stored levels are in another
+        # numbering: an older 3D Stack row Save wrote the MAP's Stack Level
+        # (Basement=0, Ground=1), HA counts ground as 0. Taking HA's level floor
+        # by floor put a stored Ground=1 garden next to HA's first floor 1 —
+        # one storey up. So it is all or nothing: every registry floor has a
+        # level and no kept floor carries a stored one, or the stored level
+        # wins and the registry only fills an empty one (the rule before).
+        ha_places_all = (all(f.get("level") is not None for f in incoming)
+                         and all(k.get("level") is None for k in kept))
+        merged: list[dict[str, Any]] = []
+        for f in incoming:
+            fid = str(f["id"])
+            prev = stored.get(fid, {})
+            entry = {**prev, "id": fid, "name": f.get("name") or prev.get("name") or fid}
+            reg_level = f.get("level")
+            if reg_level is not None and (ha_places_all or prev.get("level") is None):
+                entry["level"] = reg_level
+            merged.append(_norm_floor(entry))
+        merged.extend(kept)
 
         if merged == (self.data.get("floors") or []):
             return False
@@ -675,7 +686,7 @@ class ModelStore:
         # Only sync devices whose identifiers are ESPHome BLE proxies.
         # Filter: device must have an esphome or bluetooth-related integration.
         _BLE_DOMAINS = {"esphome", "bluetooth", "bluetooth_le_tracker"}
-        for dev in dr.devices.values():
+        for dev in ha_devices(dr):
             if not dev.area_id:
                 continue
             # Check if this device is from a BLE-relevant integration

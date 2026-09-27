@@ -2897,7 +2897,9 @@ function _factoryReset(ctx, el){
     _setProgress(30, "Restoring live data mode…");
     try {
       await ctx.actions.wsCall("padspan_ha/settings_set", { data_mode: "live" });
-      ctx.state.dataMode = "live";
+      // Through panel.js's one setter, so the demo snapshot can never sit
+      // under a Live badge (#88).
+      ctx.actions.applyDataMode("live");
       _logStep("Data mode restored to live");
     } catch(e){
       _logStep("Could not restore live mode: " + e.message, false);
@@ -2945,7 +2947,7 @@ function _factoryReset(ctx, el){
         const serverFollowed = sRes.settings.followed_addrs || [];
         ctx.state.followedAddrs = new Set(serverFollowed);
         const dm = (sRes.settings.data_mode || "sample").toLowerCase();
-        ctx.state.dataMode = dm === "live" ? "live" : "sample";
+        ctx.actions.applyDataMode(dm);
         _logStep(`Server: data_mode=${dm}, followed=${serverFollowed.length}`);
         if(serverFollowed.length > 0){
           _logStep("WARNING: server still has followed addresses", false);

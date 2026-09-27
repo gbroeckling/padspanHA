@@ -249,7 +249,7 @@ function Scanners({ radios, ctx }) {
 }
 
 // ── Ticker ───────────────────────────────────────────────────────────────────
-function Ticker({ dataMode, radios, objects, version, cal }) {
+function Ticker({ dataMode, known, radios, objects, version, cal }) {
   const knn = cal?.knn_active;
   const algo = cal?.positioning_algorithm === "rf" ? "RF" : "k-NN";
   return html`
@@ -258,8 +258,8 @@ function Ticker({ dataMode, radios, objects, version, cal }) {
         <div className="pl-poll"></div>
       </div>
       <div style="display:flex;align-items:center;gap:4px">
-        <span className="pl-ticker-dot" style="background:${dataMode === "live" ? "#52b788" : "#f59e0b"}"></span>
-        ${dataMode === "live" ? "Live" : "Sample"}
+        <span className="pl-ticker-dot" style="background:${!known ? "#64748b" : dataMode === "live" ? "#52b788" : "#f59e0b"}"></span>
+        ${!known ? "…" : dataMode === "live" ? "Live" : "Sample"}
       </div>
       <span>${radios} scanners</span>
       <span>${objects} tracked</span>
@@ -1046,7 +1046,9 @@ function MapControls({ ctx }) {
 function App({ ctx }) {
   const mode = ctx.state.dataMode || "sample";
   const snap = ctx.state.live?.snapshot || null;
-  const loading = mode === "live" && !snap;
+  // Unknown mode (#88) loads like Live: the "sample" default is not an answer.
+  const known = !!ctx.state._dataModeKnown;
+  const loading = (mode === "live" || !known) && !snap;
   const quiet = !!(ctx.state.settings?.quiet_mode);
   const [infoVisible, setInfoVisible] = useState(false);
 
@@ -1113,7 +1115,7 @@ function App({ ctx }) {
       ${infoVisible && html`
         <${FollowedTracker} ctx=${ctx} snap=${snap} />
         <${RadioStrip} radios=${radios} ctx=${ctx} />
-        <${Ticker} dataMode=${mode} radios=${radios.length} objects=${identified} version=${ctx.state.version} cal=${cal} />
+        <${Ticker} dataMode=${mode} known=${known} radios=${radios.length} objects=${identified} version=${ctx.state.version} cal=${cal} />
       `}
     </div>
   `;

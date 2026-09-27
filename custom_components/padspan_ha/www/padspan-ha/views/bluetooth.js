@@ -162,7 +162,7 @@ export function render(ctx) {
       if (!filter) return true;
       // Concatenate all searchable fields into one haystack string for substring match
       const xr = a._xref || {};
-      const hay = `${a.name || ""} ${a.address || ""} ${a.source || ""} ${a.company_name || ""} ${a.device_type || ""} ${(a.service_names||[]).join(" ")} ${xr.label || ""} ${xr.kind || ""} ${xr.room || ""} ${xr.canonical_id || ""} ${xr.ibeacon_uuid || ""}`.toLowerCase();
+      const hay = `${a.name || ""} ${a.address || ""} ${a.source || ""} ${a.company_name || ""} ${a.device_type || ""} ${a.auto_class || ""} ${(a.service_names||[]).join(" ")} ${xr.label || ""} ${xr.kind || ""} ${xr.room || ""} ${xr.canonical_id || ""} ${xr.ibeacon_uuid || ""}`.toLowerCase();
       return hay.includes(filter);
     })
     .slice(0, maxItems);
@@ -1052,7 +1052,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     const badges = [];
     if (xr.kind)          badges.push(kindBadge(xr.findmy ? "findmy" : xr.kind));
     if (a.company_name)   badges.push(chip(el, a.company_name, "info", "Manufacturer, from the advertisement"));
-    if (a.device_type)    badges.push(chip(el, a.device_type, "violet"));
+    if (a.auto_class || a.device_type) badges.push(chip(el, a.auto_class || a.device_type, "violet"));
     if (a.connectable)    badges.push(chip(el, "connectable", "good", "This device accepts connections"));
 
     // Service names (max 3, then a count)
@@ -1189,10 +1189,10 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     // Manufacturer
     const md = a.manufacturer_data || {};
     const mdKeys = Object.keys(md);
-    if (mdKeys.length || a.company_name || a.device_type) {
+    if (mdKeys.length || a.company_name || a.auto_class || a.device_type) {
       const mfRows = [
         ["Company", a.company_name || "\u2014"],
-        ["Device Type", a.device_type || "\u2014"],
+        ["Device Type", a.auto_class || a.device_type || "\u2014"],
       ];
       for (const cid of mdKeys) {
         mfRows.push(["Manuf ID " + cid, md[cid]]);

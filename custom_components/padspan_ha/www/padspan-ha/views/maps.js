@@ -51,7 +51,7 @@ const { whatIfDelta } =
 // the result.
 //
 // TABS:
-//   Library   — browse uploaded maps, set/change master, delete with migration
+//   Library   — browse uploaded maps by floor, compare them, delete with migration
 //   Upload    — client-side image resize → PNG, crop tool, send base64 to backend
 //   Edit      — place receivers (BLE scanners) + draw room boundary polygons
 //   3D Stack  — floor assignment table, alignment overlay editor (drag/scale/
@@ -62,8 +62,8 @@ const { whatIfDelta } =
 //
 // KEY DESIGN DECISIONS:
 //   • All coordinates are normalized 0–1 so they survive image resizing.
-//   • The "master" map is the fixed alignment anchor — all other maps are
-//     positioned relative to it via translate + rotate + scale transforms.
+//   • Every map owns its placement, in metres (origin, size, rotation,
+//     shear). There is no master map: an align moves the target map only.
 //   • Tie-ins are stored alignment snapshots that act as constraints; the
 //     conflict resolver averages or warns when new alignment diverges.
 //   • Point Align uses a 6-DOF affine least-squares solver to compute
@@ -297,10 +297,10 @@ function _compareAllMaps(ctx, maps, resultDiv) {
 }
 
 // ── Library Tab ──────────────────────────────────────────────────────────────
-// Lists all uploaded maps with thumbnails, master badges, and action buttons.
-// Masters sort to the top. Each row shows receiver count, dimensions, floor,
-// and whether a coverage gap was detected. Includes the undo-migration banner
-// and the Change Master wizard launcher.
+// Lists all uploaded maps, grouped by floor, with thumbnails and action
+// buttons. Each row shows receiver count, dimensions, floor, whether a
+// coverage gap was detected, and its placed size (or "not placed"). Includes
+// the undo-migration banner.
 function _library(ctx, maps, activeId, helpBtn, isBasic){
   const { el } = ctx.helpers;
   helpBtn = helpBtn || (()=>null);
@@ -764,8 +764,7 @@ function _upload(ctx, helpBtn, isBasic){
   if(!(ctx.state.maps?.list||[]).length){
     card.appendChild(el("div",{style:"margin:10px 0 4px;padding:10px 12px;border-radius:8px;background:#0a1a0a;border:1px solid #52b788;font-size:12px;color:#86efac;line-height:1.6"},
       "💡 First map tip — Upload your most precise, to-scale floor plan first. " +
-      "All other maps will be spatially anchored to it, so accuracy starts here. " +
-      "After upload you can designate it as Master in the Library to protect it from accidental modification."
+      "It makes the best Reference when you line up your other floors in 3D Stack, so accuracy starts here."
     ));
   }
   card.appendChild(el("div",{class:"muted",style:"margin-bottom:10px"}, isBasic
@@ -4380,8 +4379,8 @@ function _buildDemoSVG(fp){
 //    perspective. Floor spacing, L/R offset, and focus floor are adjustable
 //    via sliders. Outside maps are fitted inside the indoor bounding box.
 //
-// Also includes: Point Align (side-by-side affine solver), tie-in system,
-// dual-master conflict resolution, and emergency tie-in recovery.
+// Also includes: Point Align (side-by-side affine solver), tie-ins with
+// conflict resolution on Save, and emergency tie-in recovery.
 
 const _LEVEL_NAMES = ["Basement", "Ground", "Level 1", "Level 2", "Level 3"];
 
@@ -4675,16 +4674,12 @@ function _stack(ctx, maps, helpBtn){
         ceiling_height_m: parseFloat(ceilInput.value) || 2.4,
       });
       await ctx.actions.mapsUpdateQuiet({ map_id: m.id, floor_id: floorSel2.value || m.floor_id||"", stack: newStk });
-      // The floor's stacking order still follows its map's level; its heights
-      // are owned by the Floor Heights table above.
-      const _fid = floorSel2.value || m.floor_id || "";
-      if(_fid && _fid !== OUTSIDE_FLOOR_ID){
-        try{
-          await ctx.actions.callWS({ type: "padspan_ha/fabric_floor_elevations_set", floors: [{
-            id: _fid, level: parseInt(zLevelInput.value, 10) || 0,
-          }]});
-        }catch(e){}
-      }
+      // Stack Level is this MAP's place in the picture stack and nothing
+      // more. It used to be written onto the floor as the floor's storey,
+      // which outranks the HA registry — so on floors whose registry level is
+      // null, one Save on the basement map's row (level 0) put Main on the
+      // basement slab. A floor's storey comes from Home Assistant; a picture
+      // never sets it. Its heights are owned by the Floor Heights table above.
       ctx.actions.mapsRefresh();
     }},"Save"));
     tr.appendChild(tdSave);
@@ -4703,7 +4698,6 @@ function _stack(ctx, maps, helpBtn){
   const selRow = el("div",{style:"display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-top:10px"});
   const refSel = document.createElement("select"); refSel.className = "select";
   const tgtSel = document.createElement("select"); tgtSel.className = "select";
-  // Reference: masters sorted to top (they are the natural fixed reference); exclude Outside maps
   // Reference first = the maps that are actually PLACED, oldest first. It
   // sorted masters to the top; there is no master, and "has a placement" is
   // the property that actually matters — you cannot align onto a picture that
@@ -4719,7 +4713,7 @@ function _stack(ctx, maps, helpBtn){
     if(m.id === alignState.refId) oR.selected = true;
     refSel.appendChild(oR);
   }
-  // Target: show all except Outside maps, flag masters so user is aware
+  // Target: show all except Outside maps, flag unplaced ones with ⚠
   for(const m of _alignableMaps){
     const oT = document.createElement("option"); oT.value = m.id;
     oT.textContent = (_placedIds.has(m.id) ? "" : "⚠ ") + (m.name||m.id);
@@ -8549,7 +8543,8 @@ function _lightsTab(ctx, maps, active) {
   const proTier = String(tier || "").toLowerCase() === "pro";
   const typeOverrides = (ctx.state.settings?.light_type_overrides && typeof ctx.state.settings.light_type_overrides === "object")
     ? ctx.state.settings.light_type_overrides : {};
-  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap);
+  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap,
+    undefined, false, ctx.state._motionReconnects);
 
   // Preview-as-panel: the exact sidebar interaction model, in place, on the
   // same camera — so "what will the household see" is one toggle away

@@ -81,7 +81,7 @@ OLD_NAMES: tuple[str, ...] = tuple(old for old, _ in RENAMES)
 COPY: tuple[str, ...] = (
     "custom_components", "tests", ".github",
     "hacs.json", "LICENSE", "pyproject.toml", "requirements_test.txt",
-    "VERSION.txt", ".gitignore", "icon.png", "logo.png",
+    "eslint.config.mjs", "VERSION.txt", ".gitignore", "icon.png", "logo.png",
 )
 SKIP_DIRS = {"__pycache__", ".pytest_cache", ".git"}
 SKIP_SUFFIXES = {".pyc", ".pyo", ".zip"}

@@ -22,6 +22,7 @@ from .const import (
 )
 from .bluetooth_live import get_bluetooth_live
 from .private_ble_resolver import PrivateBLEResolver, get_resolver as _get_ble_resolver
+from .util import ha_devices
 from .ws_common import _get_settings, _is_rpa_addr
 
 _LOGGER = logging.getLogger(__name__)
@@ -379,7 +380,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
                     try:
                         from homeassistant.helpers import device_registry as dr
                         dev_reg = dr.async_get(hass)
-                        for device in dev_reg.devices.values():
+                        for device in ha_devices(dev_reg):
                             dn = (device.name or "").lower().replace(" ", "_")
                             if dn == dev_slug or (device.name_by_user or "").lower().replace(" ", "_") == dev_slug:
                                 dev_name = device.name or device.name_by_user or dev_name
@@ -550,7 +551,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
                 _phone_hints = {"phone", "mobile", "android", "iphone", "pixel",
                                 "samsung", "galaxy", "oneplus", "xiaomi", "huawei",
                                 "companion", "app"}
-                for device in dev_reg.devices.values():
+                for device in ha_devices(dev_reg):
                     name_lower = ((device.name or "") + " " + (device.name_by_user or "") +
                                   " " + (device.model or "") + " " + (device.manufacturer or "")).lower()
                     if any(h in name_lower for h in _phone_hints):

@@ -1051,93 +1051,99 @@ function _svgAntennaDetail() {
 </svg>`;
 }
 
-// ─── Master Map SVG helpers ──────────────────────────────────────────────────
+// ─── Floor Alignment SVG helpers ─────────────────────────────────────────────
 
-function _svgMasterWhy() {
+function _svgAlignWhy() {
   return `<svg viewBox="0 0 400 240" xmlns="http://www.w3.org/2000/svg" width="100%" style="max-height:220px;background:#071008;border-radius:8px;display:block">
-<text x="200" y="18" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700" font-family="system-ui">Why you need a Master Map</text>
+<text x="200" y="18" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700" font-family="system-ui">Why your floors need lining up</text>
 <rect x="20" y="30" width="170" height="130" rx="8" fill="#0a150e" stroke="#fbbf2444" stroke-width="1.5" stroke-dasharray="6,3"/>
-<text x="105" y="50" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="600" font-family="system-ui">Ground Floor (Master)</text>
+<text x="105" y="50" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="600" font-family="system-ui">Ground Floor (Reference)</text>
 <rect x="35" y="58" width="65" height="40" rx="4" fill="#52b78815" stroke="#52b788" stroke-width="0.8"/>
 <text x="67" y="82" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Kitchen</text>
 <rect x="110" y="58" width="65" height="40" rx="4" fill="#52b78815" stroke="#52b788" stroke-width="0.8"/>
 <text x="142" y="82" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Living</text>
 <rect x="35" y="105" width="140" height="40" rx="4" fill="#52b78815" stroke="#52b788" stroke-width="0.8"/>
 <text x="105" y="129" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Hallway</text>
-<text x="105" y="155" text-anchor="middle" fill="#fbbf24" font-size="22">⭐</text>
+<text x="105" y="155" text-anchor="middle" fill="#fbbf24" font-size="9" font-family="system-ui">stays put</text>
 <rect x="210" y="30" width="170" height="130" rx="8" fill="#0a150e" stroke="#1b3526" stroke-width="1"/>
-<text x="295" y="50" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600" font-family="system-ui">First Floor</text>
+<text x="295" y="50" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600" font-family="system-ui">First Floor (Target)</text>
 <rect x="225" y="58" width="65" height="40" rx="4" fill="#52b78815" stroke="#52b788" stroke-width="0.8"/>
 <text x="257" y="82" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Bedroom</text>
 <rect x="300" y="58" width="65" height="40" rx="4" fill="#52b78815" stroke="#52b788" stroke-width="0.8"/>
 <text x="332" y="82" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Bath</text>
+<text x="295" y="155" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">you move it</text>
 <line x1="190" y1="95" x2="210" y2="95" stroke="#78909c" stroke-width="1" stroke-dasharray="3,2"/>
 <text x="200" y="90" text-anchor="middle" fill="#78909c" font-size="8" font-family="system-ui">aligns to</text>
 <rect x="20" y="170" width="360" height="58" rx="6" fill="#0a150e" stroke="#1b3526" stroke-width="1"/>
-<text x="200" y="190" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">The master map is the fixed anchor. Every other map aligns</text>
-<text x="200" y="204" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">to it. When rooms overlap across floors, the master's room</text>
-<text x="200" y="218" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">boundaries take precedence for object placement.</text>
+<text x="200" y="190" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Each floor plan has its own place in metres. Line the floors</text>
+<text x="200" y="204" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">up against each other so stairwells and walls stack —</text>
+<text x="200" y="218" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">aligning a map moves that map and nothing else.</text>
 </svg>`;
 }
 
-function _svgMasterChoose() {
+function _svgAlignReference() {
   return `<svg viewBox="0 0 400 240" xmlns="http://www.w3.org/2000/svg" width="100%" style="max-height:220px;background:#071008;border-radius:8px;display:block">
-<text x="200" y="18" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700" font-family="system-ui">Choosing the right Master Map</text>
+<text x="200" y="18" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700" font-family="system-ui">Choosing the Reference map</text>
 <rect x="20" y="30" width="175" height="100" rx="8" fill="#0a150e" stroke="#52b788" stroke-width="1.5"/>
-<text x="107" y="50" text-anchor="middle" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">Good master</text>
-<text x="107" y="68" text-anchor="middle" fill="#52b788" font-size="9" font-family="system-ui">✓ Largest footprint</text>
-<text x="107" y="82" text-anchor="middle" fill="#52b788" font-size="9" font-family="system-ui">✓ Most rooms covered</text>
+<text x="107" y="50" text-anchor="middle" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">Good reference</text>
+<text x="107" y="68" text-anchor="middle" fill="#52b788" font-size="9" font-family="system-ui">✓ Measured (scale saved)</text>
+<text x="107" y="82" text-anchor="middle" fill="#52b788" font-size="9" font-family="system-ui">✓ Largest footprint</text>
 <text x="107" y="96" text-anchor="middle" fill="#52b788" font-size="9" font-family="system-ui">✓ Clear room boundaries</text>
-<text x="107" y="110" text-anchor="middle" fill="#52b788" font-size="9" font-family="system-ui">✓ Accurate scale / dimensions</text>
+<text x="107" y="110" text-anchor="middle" fill="#52b788" font-size="9" font-family="system-ui">✓ Accurate proportions</text>
 <text x="107" y="124" text-anchor="middle" fill="#52b788" font-size="9" font-family="system-ui">✓ Easy to read when overlaid</text>
 <rect x="205" y="30" width="175" height="100" rx="8" fill="#0a150e" stroke="#ef4444" stroke-width="1"/>
-<text x="292" y="50" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="600" font-family="system-ui">Poor master</text>
-<text x="292" y="68" text-anchor="middle" fill="#ef4444" font-size="9" font-family="system-ui">✗ Small partial floor plan</text>
-<text x="292" y="82" text-anchor="middle" fill="#ef4444" font-size="9" font-family="system-ui">✗ Few rooms</text>
-<text x="292" y="96" text-anchor="middle" fill="#ef4444" font-size="9" font-family="system-ui">✗ Wrong scale or rotated</text>
-<text x="292" y="110" text-anchor="middle" fill="#ef4444" font-size="9" font-family="system-ui">✗ Hard to see under overlays</text>
-<text x="292" y="124" text-anchor="middle" fill="#ef4444" font-size="9" font-family="system-ui">✗ Not on ground floor</text>
+<text x="292" y="50" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="600" font-family="system-ui">Poor reference</text>
+<text x="292" y="68" text-anchor="middle" fill="#ef4444" font-size="9" font-family="system-ui">✗ Not placed (no scale yet)</text>
+<text x="292" y="82" text-anchor="middle" fill="#ef4444" font-size="9" font-family="system-ui">✗ Small partial floor plan</text>
+<text x="292" y="96" text-anchor="middle" fill="#ef4444" font-size="9" font-family="system-ui">✗ Few rooms</text>
+<text x="292" y="110" text-anchor="middle" fill="#ef4444" font-size="9" font-family="system-ui">✗ Stretched or skewed photo</text>
+<text x="292" y="124" text-anchor="middle" fill="#ef4444" font-size="9" font-family="system-ui">✗ Hard to see under overlays</text>
 <rect x="20" y="140" width="360" height="86" rx="6" fill="#0a150e" stroke="#1b3526" stroke-width="1"/>
-<text x="200" y="160" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="600" font-family="system-ui">Pick the map that covers the most of your home</text>
-<text x="200" y="178" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">It should be the most accurate floor plan you have — the one</text>
-<text x="200" y="192" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">where room positions and proportions are closest to reality.</text>
-<text x="200" y="206" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">When other maps are stacked on top in the 3D view, you need</text>
-<text x="200" y="220" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">to still be able to see where things are on the master beneath.</text>
+<text x="200" y="160" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="600" font-family="system-ui">Pick your most accurate plan — usually the ground floor</text>
+<text x="200" y="178" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Measure it first: Edit → Measure → Save Scale. A map with</text>
+<text x="200" y="192" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">no scale is "not placed", and nothing can be aligned onto it.</text>
+<text x="200" y="206" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">The Target is drawn see-through on top of the Reference,</text>
+<text x="200" y="220" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">so the Reference must still be easy to read underneath.</text>
 </svg>`;
 }
 
-function _svgMasterSet() {
+function _svgAlignDrag() {
   return `<svg viewBox="0 0 400 240" xmlns="http://www.w3.org/2000/svg" width="100%" style="max-height:220px;background:#071008;border-radius:8px;display:block">
-<text x="200" y="18" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700" font-family="system-ui">Setting the Master in Maps → Library</text>
+<text x="200" y="18" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700" font-family="system-ui">Alignment Overlay in Mapping → 3D Stack</text>
 <rect x="30" y="32" width="340" height="36" rx="6" fill="#0a150e" stroke="#1b3526" stroke-width="1"/>
-<text x="46" y="55" fill="#94a3b8" font-size="10" font-family="system-ui">Ground Floor</text>
-<rect x="280" y="40" width="78" height="20" rx="4" fill="#0a2a1a" stroke="#52b788" stroke-width="0.8"/>
-<text x="319" y="54" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">Set Master</text>
-<rect x="30" y="74" width="340" height="36" rx="6" fill="#0a150e" stroke="#fbbf2444" stroke-width="1.5" stroke-dasharray="5,3"/>
-<rect x="46" y="80" width="26" height="14" rx="3" fill="#fbbf2422" stroke="#fbbf24" stroke-width="0.6"/>
-<text x="59" y="90" text-anchor="middle" fill="#fbbf24" font-size="7" font-weight="600" font-family="system-ui">⭐</text>
-<text x="82" y="97" fill="#fbbf24" font-size="10" font-weight="600" font-family="system-ui">First Floor  (master)</text>
-<rect x="280" y="82" width="78" height="20" rx="4" fill="#1a0a00" stroke="#d97706" stroke-width="0.8"/>
-<text x="319" y="96" text-anchor="middle" fill="#fbbf24" font-size="9" font-family="system-ui">Unset</text>
+<text x="46" y="55" fill="#94a3b8" font-size="10" font-family="system-ui">Reference (fixed)</text>
+<rect x="200" y="40" width="158" height="20" rx="4" fill="#0a150e" stroke="#fbbf24" stroke-width="0.8"/>
+<text x="279" y="54" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="600" font-family="system-ui">Ground Floor ▾</text>
+<rect x="30" y="74" width="340" height="36" rx="6" fill="#0a150e" stroke="#1b3526" stroke-width="1"/>
+<text x="46" y="97" fill="#94a3b8" font-size="10" font-family="system-ui">Target (draggable)</text>
+<rect x="200" y="82" width="158" height="20" rx="4" fill="#0a150e" stroke="#c084fc" stroke-width="0.8"/>
+<text x="279" y="96" text-anchor="middle" fill="#c084fc" font-size="9" font-weight="600" font-family="system-ui">First Floor ▾</text>
 <rect x="30" y="116" width="340" height="36" rx="6" fill="#0a150e" stroke="#1b3526" stroke-width="1"/>
-<text x="46" y="139" fill="#94a3b8" font-size="10" font-family="system-ui">Basement</text>
-<rect x="280" y="124" width="78" height="20" rx="4" fill="#0a2a1a" stroke="#52b788" stroke-width="0.8"/>
-<text x="319" y="138" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">Set Master</text>
+<rect x="40" y="124" width="58" height="20" rx="4" fill="#0a2a1a" stroke="#52b788" stroke-width="0.8"/>
+<text x="69" y="138" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">Scale +</text>
+<rect x="104" y="124" width="58" height="20" rx="4" fill="#0a2a1a" stroke="#52b788" stroke-width="0.8"/>
+<text x="133" y="138" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">Scale −</text>
+<rect x="168" y="124" width="58" height="20" rx="4" fill="#0a2a1a" stroke="#52b788" stroke-width="0.8"/>
+<text x="197" y="138" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">−15°</text>
+<rect x="232" y="124" width="58" height="20" rx="4" fill="#0a2a1a" stroke="#52b788" stroke-width="0.8"/>
+<text x="261" y="138" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">+15°</text>
+<rect x="296" y="124" width="58" height="20" rx="4" fill="#0a2a1a" stroke="#52b788" stroke-width="0.8"/>
+<text x="325" y="138" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">Reset</text>
 <rect x="30" y="162" width="340" height="66" rx="6" fill="#0a150e" stroke="#1b3526" stroke-width="1"/>
-<text x="200" y="182" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Open Maps → Library. Find the map you want as master and</text>
-<text x="200" y="196" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">click Set Master. Only ground-level maps (z_level 0) with no</text>
-<text x="200" y="210" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">offsets or rotation are eligible. A gold star badge appears</text>
-<text x="200" y="224" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="600" font-family="system-ui">and the map becomes protected from accidental changes.</text>
+<text x="200" y="182" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Pick the Reference and the Target. A Target that has never</text>
+<text x="200" y="196" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">been placed says Not placed — press Reset to start it on top.</text>
+<text x="200" y="210" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Drag it until stairwells and outside walls line up; use Scale</text>
+<text x="200" y="224" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">and Rotate if it's the wrong size or turned the wrong way.</text>
 </svg>`;
 }
 
-function _svgMasterAlign() {
+function _svgAlignSave() {
   return `<svg viewBox="0 0 400 240" xmlns="http://www.w3.org/2000/svg" width="100%" style="max-height:220px;background:#071008;border-radius:8px;display:block">
 <style>@keyframes ap{0%{opacity:0.3}50%{opacity:1}100%{opacity:0.3}}</style>
-<text x="200" y="18" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700" font-family="system-ui">Aligning other maps to the Master</text>
+<text x="200" y="18" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700" font-family="system-ui">Save Alignment — or use Point Align</text>
 <rect x="20" y="30" width="360" height="120" rx="8" fill="#0a150e" stroke="#1b3526" stroke-width="1"/>
 <rect x="40" y="50" width="140" height="80" rx="6" fill="#fbbf2408" stroke="#fbbf2444" stroke-width="1.5" stroke-dasharray="5,3"/>
-<text x="110" y="68" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="600" font-family="system-ui">⭐ Master (reference)</text>
+<text x="110" y="68" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="600" font-family="system-ui">Ground Floor (reference)</text>
 <rect x="55" y="78" width="50" height="22" rx="3" fill="#52b78815" stroke="#52b788" stroke-width="0.6"/>
 <text x="80" y="93" text-anchor="middle" fill="#52b788" font-size="7" font-family="system-ui">Kitchen</text>
 <rect x="115" y="78" width="50" height="22" rx="3" fill="#52b78815" stroke="#52b788" stroke-width="0.6"/>
@@ -1153,10 +1159,10 @@ function _svgMasterAlign() {
 <line x1="180" y1="90" x2="220" y2="90" stroke="#78909c" stroke-width="1.5" stroke-dasharray="4,2"/>
 <text x="200" y="85" text-anchor="middle" fill="#78909c" font-size="8" font-weight="600" font-family="system-ui" style="animation:ap 2s infinite">align</text>
 <rect x="20" y="158" width="360" height="72" rx="6" fill="#0a150e" stroke="#1b3526" stroke-width="1"/>
-<text x="200" y="178" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Go to Maps → Alignment. Set the master as the Reference map</text>
-<text x="200" y="192" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">and your second floor plan as the Target. Drag the target</text>
-<text x="200" y="206" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">until stairwells, walls, or exterior boundaries line up.</text>
-<text x="200" y="220" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">Click Save. The master never moves — only the target shifts.</text>
+<text x="200" y="178" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Click Save Alignment — nothing is saved while you drag.</text>
+<text x="200" y="192" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Or click Point Align: click the same real-world point on both</text>
+<text x="200" y="206" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">maps (3+ pairs), Compute, Apply, then Save Alignment.</text>
+<text x="200" y="220" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">Only the Target moves — every other map keeps its place.</text>
 </svg>`;
 }
 
@@ -1595,23 +1601,23 @@ const WALKTHROUGHS = [
     ],
   },
   {
-    id: "master_map",
-    title: "Master Map & Alignment",
-    icon: "⭐",
-    summary: "Why one map should be your master — the fixed anchor that every other floor plan aligns to.",
+    id: "floor_alignment",
+    title: "Lining Up Your Floors",
+    icon: "📐",
+    summary: "Align your floor plans in Mapping → 3D Stack so each floor sits exactly over the one below it.",
     steps: [
-      { title: "Why You Need a Master Map",
-        text: "When your home has multiple floor plans — ground floor, first floor, basement — PadSpan stacks them in a 3D isometric view. But the system needs ONE fixed reference point so everything lines up correctly. The master map is that anchor. It never moves, never scales, never rotates. Every other map positions itself relative to the master. Without one, alignment drifts as you adjust maps independently and rooms end up misaligned across floors.",
-        svg: _svgMasterWhy },
-      { title: "Choosing the Right Master",
-        text: "Pick the floor plan that covers the largest footprint of your home — usually the ground floor. It should be your most accurate map with the most rooms drawn. Critically, it needs to be easy to read when other maps are layered on top in the 3D stack view. If your master has thin lines or low contrast, it disappears under overlapping floors. A clear, high-contrast plan with well-defined room boundaries makes the best master because you can always see where things are even with two or three floors stacked above it.",
-        svg: _svgMasterChoose },
-      { title: "Setting the Master",
-        text: "Open Maps → Library. Find your chosen map and click Set Master. Only maps at z_level 0 (ground level) with no offsets, scaling, or rotation are eligible — this ensures the master is in a pristine, unmodified state. Once set, a gold star badge appears next to the name. The master is now protected: PadSpan warns before any changes that would affect its position. You can unset it later if you need to, but avoid changing masters once other maps are aligned to it.",
-        svg: _svgMasterSet },
-      { title: "Aligning Other Maps to the Master",
-        text: "Go to Maps → Alignment. Set your master as the Reference (it appears first with a star). Select the floor you want to align as the Target. Drag, scale, and rotate the target until structural features line up — stairwells, exterior walls, load-bearing walls that run through multiple floors. Click Save Alignment. The master stays fixed while the target records its offset. Repeat for each additional floor. If both maps are masters (shouldn't happen), PadSpan forces you to choose which one keeps the status before saving.",
-        svg: _svgMasterAlign },
+      { title: "Why Your Floors Need Lining Up",
+        text: "When your home has multiple floor plans — ground floor, first floor, basement — PadSpan stacks them in a 3D isometric view. Each plan carries its own placement in real metres: where it sits, how big it is and which way it faces. Until you line the floors up against each other, the stairwell upstairs won't sit over the stairwell below. There's no master map to set: every map keeps its own placement, and aligning one map moves that map and nothing else.",
+        svg: _svgAlignWhy },
+      { title: "Measure Your Reference First",
+        text: "You always align a Target map onto a Reference map, and the Reference must be measured — without a scale it has no size in metres to line anything up against. In the Edit tab, click Measure, take your two measurements and click Save Scale. The Library shows \"not placed\" for any map that hasn't been measured yet. Pick your most accurate plan as the Reference — usually the ground floor, since it covers the most of your home. It also needs to be easy to read with another floor on top: the Target is drawn see-through over it, and a plan with thin lines or low contrast disappears underneath.",
+        svg: _svgAlignReference },
+      { title: "Drag the Target Into Place",
+        text: "Open Mapping → 3D Stack and scroll to Alignment Overlay. Choose the Reference (fixed) and the Target (draggable) from the two dropdowns — a ⚠ marks a map that isn't placed yet. If the Target has never been placed, the readout under the dropdowns says Not placed: press Reset to start it on top of the Reference. Then drag the Target until shared features line up — stairwells, exterior walls, chimneys, load-bearing walls that run through every floor. Scale + and Scale − resize it, with Lock AR turned off, X − and X + stretch it left-right only, and −15°, +15° and 0° turn it. Zoom and Opacity change only your view.",
+        svg: _svgAlignDrag },
+      { title: "Save It — or Use Point Align",
+        text: "Nothing is saved while you drag. Click Save Alignment to keep the Target's new position. If that position would leave more than half of the map's calibration points off the map, PadSpan refuses, changes nothing and tells you why. For a precise fit, click Point Align instead: click the same real-world point on both maps — it alternates between them for you — until you have 3 or more pairs, click Compute, check the preview and click Apply. Apply moves the Target on screen; click Save Alignment to keep it. Repeat for each floor, then check the 3D preview further down the tab.",
+        svg: _svgAlignSave },
     ],
   },
   {
@@ -1848,19 +1854,18 @@ const MANUAL_SECTIONS = [
     helpKeys: ["maps", "maps_library", "maps_upload", "maps_stack"],
   },
   {
-    id: "master_map",
-    title: "Master Map & Alignment",
-    icon: "⭐",
+    id: "floor_alignment",
+    title: "Lining Up Floors (3D Stack)",
+    icon: "📐",
     paragraphs: [
-      "The master map is the fixed anchor that all other floor plans align to. When PadSpan stacks multiple maps in the 3D isometric view, it needs one reference point that never moves — that's the master.",
-      "Why it matters: Without a master, each map is positioned independently. If you adjust one map's offset to line up a stairwell, another map's alignment might break. The master gives you a stable coordinate system: it stays at position (0, 0) with scale 1.0 and rotation 0. Every other map stores its offset, scale, and rotation relative to the master.",
-      "Choosing the right master: Pick the floor plan that (1) covers the largest footprint of your home, (2) has the most rooms with drawn boundaries, (3) is the most dimensionally accurate, and (4) is easy to see when other maps are overlaid on top. The last point matters more than you'd expect — if the master has thin lines or low contrast, it disappears under overlapping floors and you can't verify alignment visually. A clear, bold floor plan makes the best master.",
-      "The master should almost always be the ground floor. It's the largest level in most homes, and other floors typically have smaller footprints that align within its boundaries. Setting a small partial floor plan as master forces larger maps to squeeze to fit — the opposite of what you want.",
-      "How to set it: Go to Maps → Library. Only maps at z_level 0 (ground level) with no offsets, scaling, or rotation are eligible for master status. Click Set Master on your chosen map. A gold star badge appears and the map becomes protected from accidental position changes.",
-      "Aligning other maps: Go to Maps → Alignment. Choose the master as the Reference map (it's sorted to the top with a star). Select another floor as the Target. Drag and scale the target until shared structural features line up — stairwells, exterior walls, chimneys, load-bearing walls that pass through multiple floors. Click Save Alignment. The master stays fixed; only the target records the new position.",
-      "Alignment protection: the master cannot be the Target of an align. Select it as the Target and PadSpan refuses — Point Align and Save Alignment are unavailable, and a notice tells you to make it the Reference and align the other map onto it instead. Moving the anchor is Change Master's job, below; an align used to revoke the master's star as a side effect, which left some installs with no master at all.",
-      "Tip: Once your master is set and other maps are aligned to it, avoid changing masters. Re-aligning everything is tedious. Get the master right the first time.",
-      "Changing masters: Maps \u2192 Library offers a Change Master wizard. It inverts the new master\u2019s alignment and moves every map \u2014 all of them, not only the ones aligned to the old master \u2014 into the new master\u2019s frame in one exact step, so maps keep their positions relative to each other, including maps placed by Point Align. The quality of the result is the quality of one input: the alignment between the old and new master. Align them as perfectly as possible in the Alignment tab first \u2014 the wizard refuses to run until that alignment exists, and whatever error it carries becomes the frame everything is measured in. Tie-in history is cleared on both masters. Afterward, verify the 3D Stack and Alignment tabs look right before recalibrating anything.",
+      "Each floor plan carries its own placement in real metres: where it sits in your home, how big it is, and which way it faces. When PadSpan stacks multiple maps in the 3D isometric view, it uses those placements — so floors only line up once you've aligned them against each other. With a single floor plan there's nothing to align.",
+      "There's no master map. Every map owns its placement, and aligning a map moves that map only — nothing else shifts with it. You align a Target onto a Reference, one pair at a time, under Alignment Overlay in Mapping → 3D Stack.",
+      "Measure first: the Reference needs a scale, or there are no metres to line anything up against. In the Edit tab, click Measure, take two measurements and click Save Scale. The Library shows \"not placed\" for a map with no scale yet, and a ⚠ marks it in the dropdowns. Until the Reference is measured, Reset and Point Align tell you to measure it first.",
+      "Choosing the Reference: pick the floor plan that (1) covers the largest footprint of your home, (2) is the most dimensionally accurate, and (3) is easy to see with another map laid over it. The last point matters more than you'd expect — the Target is drawn see-through on top, and a Reference with thin lines or low contrast disappears underneath, so you can't check the fit by eye. That's almost always the ground floor.",
+      "Aligning: choose the Reference (fixed) and the Target (draggable). If the Target has never been placed, the readout says Not placed — press Reset to start it on top of the Reference. Drag the Target until shared structural features line up: stairwells, exterior walls, chimneys, load-bearing walls that pass through multiple floors. Scale + and Scale − resize it, with Lock AR turned off, X − and X + stretch it left-right only, −15°, +15° and 0° turn it, and Zoom and Opacity change only your view. Outside plans aren't in the dropdowns — they aren't aligned here.",
+      "Saving: nothing is written while you drag. Click Save Alignment to keep the Target's position. If it would leave more than half of that map's calibration points off the map, PadSpan refuses, changes nothing, and says so.",
+      "Point Align: for a precise fit, click Point Align next to the Alignment Overlay heading. Click the same real-world point on both maps — a stairwell corner, the corner of an exterior wall — and it alternates between the two for you. With 3 or more pairs, click Compute and check the preview: Apply accepts it, Back returns you to placing points, Discard throws it away. Apply moves the Target on screen only — click Save Alignment to keep it.",
+      "Afterward, check the 3D preview further down the same tab. It shows the whole building stacked together, so a floor that's off is easy to spot.",
     ],
   },
   {

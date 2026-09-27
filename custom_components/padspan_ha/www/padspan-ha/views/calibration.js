@@ -52,9 +52,29 @@ const { mapXform, worldGauge, metresToWorld, mapFracToMetres,
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 const { tuneSavePlanInit, tuneDiffMapDraft, tuneMissingFabricPins, tuneConflictingSources,
         tuneReconcileDraft, tuneSyncTuneDrafts, tuneSnapBaseline,
-        tuneTryAcquire, tuneRelease } =
+        tuneTryAcquire, tuneRelease, tuneLivePhase, tuneWriteBlock } =
   await import(`./tune_save_plan.js${new URL(import.meta.url).search}`);
 tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
+
+// The line to show when the snapshot holds no radios or devices (#88).
+// "Switch to Live mode" only when the server really said Sample; Live (or a
+// mode not known yet) with nothing from the server is still waiting; an
+// empty snapshot the server built means Home Assistant has none to report.
+function _noLiveDataText(ctx, sampleText, liveText) {
+  const phase = tuneLivePhase(ctx.state);
+  if (phase === "sample") return sampleText;
+  if (phase === "waiting") return "Waiting for live data from Home Assistant…";
+  return liveText;
+}
+
+// Every capture loop in this file records from the snapshot on screen, and in
+// Sample mode that is the demo house (#88): Guided Calibration recorded
+// living_room_hub / bedroom_hub and Save Point stored them as real readings.
+// A capture reads a snapshot only when the server built it in Live mode
+// (tuneLivePhase "live"); otherwise it records nothing.
+function _recordableSnap(ctx) {
+  return tuneLivePhase(ctx.state) === "live" ? ctx.state.live.snapshot : null;
+}
 
 // ── Exports ──────────────────────────────────────────────────────────────────
 export function render(ctx) {
@@ -675,7 +695,9 @@ function _setup(ctx, el, cs, calData) {
     }));
   } else {
     deviceCard.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-bottom:10px" },
-      "No BLE devices visible in snapshot. Switch to Live mode and ensure Bluetooth is active on your phone."));
+      _noLiveDataText(ctx,
+        "No BLE devices visible in snapshot. Switch to Live mode and ensure Bluetooth is active on your phone.",
+        "Home Assistant isn't reporting any BLE devices yet. Make sure Bluetooth is active on your phone and your scanners are online.")));
   }
 
   // Manual MAC entry
@@ -864,7 +886,9 @@ function _setup(ctx, el, cs, calData) {
       }
     } else {
       radioCard.appendChild(el("div", { class: "muted", style: "font-size:12px" },
-        "No radios in snapshot. Switch to Live mode."));
+        _noLiveDataText(ctx,
+          "No radios in snapshot. Switch to Live mode.",
+          "Home Assistant isn't reporting any Bluetooth scanners yet.")));
     }
     // Total advertisement count
     const totalAds = (snap?.ble?.advertisements || []).length;
@@ -1149,6 +1173,15 @@ function _buildCollectionUI(ctx, el, cs) {
 
 // ── Start collection loop ─────────────────────────────────────────────────────
 function _startCollection(ctx, cs, _snap, _mapData) {
+  // Nothing to record from (see _recordableSnap): say why, instead of
+  // collecting for the full duration and reporting "not visible".
+  const _phase = tuneLivePhase(ctx.state);
+  if (_phase !== "live") {
+    ctx.toast(_phase === "sample"
+      ? "Sample mode shows demo radios — switch to Live mode to collect calibration points."
+      : "Waiting for live data from Home Assistant — try again in a moment.", true);
+    return;
+  }
   cs.collecting  = true;
   cs.stopFlag    = false;
   cs.readings    = {};
@@ -1170,7 +1203,7 @@ function _startCollection(ctx, cs, _snap, _mapData) {
     try { await ctx.actions.refreshSnapshot(); } catch (_) { /**/ }
     cs._pollCount = (cs._pollCount || 0) + 1;
 
-    const snap = ctx.state.live?.snapshot;
+    const snap = _recordableSnap(ctx);
 
     // ── Collect per-radio RSSI from BLE advertisements (primary source) ──────
     // snap.objects.list[].sources is a list of {source, rssi, age_s} objects.
@@ -2950,6 +2983,10 @@ function _tuneTab(ctx, el, cs, calData) {
   saveBtn.textContent = hasDirty ? "\ud83d\udcbe Save" : "Save";
   saveBtn.title = "Save updated receiver positions to all modified maps";
   saveBtn.addEventListener("click", async () => {
+    // Only live data from the server may be written (#88): Sample mode's
+    // demo radios must never become scanners in the real model.
+    const _blocked = tuneWriteBlock(ctx.state);
+    if (_blocked) { ctx.toast(_blocked, true); return; }
     // Mutual exclusion across same-session fabric writers (this save,
     // Height saves, removals): acquire BEFORE the first request, release
     // unconditionally. A busy session toasts and changes nothing — there
@@ -3395,7 +3432,9 @@ function _tuneTab(ctx, el, cs, calData) {
     if (!_liveRadios.length) {
       const msg = document.createElement("div");
       msg.style.cssText = "font-size:12px;color:#94a3b8";
-      msg.textContent = "No live radios detected. Switch to Live mode and ensure Bluetooth scanners are active.";
+      msg.textContent = _noLiveDataText(ctx,
+        "No live radios detected. Switch to Live mode and ensure Bluetooth scanners are active.",
+        "Home Assistant isn't reporting any Bluetooth scanners yet. Make sure your Bluetooth proxies are online — they can take a minute to reconnect after a restart.");
       radiosCard.appendChild(msg);
       return;
     }
@@ -3480,6 +3519,9 @@ function _tuneTab(ctx, el, cs, calData) {
 
         // Click row to enter pending-placement mode (select this radio, then dblclick map)
         row.addEventListener("click", () => {
+          // A demo radio can be looked at, never placed (#88).
+          const _blocked = tuneWriteBlock(ctx.state);
+          if (_blocked) { ctx.toast(_blocked, true); return; }
           ts.pendingPlace = { source: src, name: nm, area_name: rd.area_name || "" };
           _refreshRadiosList();
           _refreshPlaceBanner();
@@ -3573,7 +3615,9 @@ function _tuneTab(ctx, el, cs, calData) {
         });
         return db;
       };
-      actWrap.appendChild(makeDeleteBtn());
+      // Delete resets this source in the real model — nothing to offer for
+      // a demo radio (#88).
+      if (!tuneWriteBlock(ctx.state)) actWrap.appendChild(makeDeleteBtn());
       row.appendChild(actWrap);
 
       radiosCard.appendChild(row);
@@ -4901,7 +4945,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const poll = async () => {
       if (!bs._liveTimers[bkId]) return;
       try { await ctx.actions.refreshSnapshotQuiet(); } catch (_) { /**/ }
-      const snap2 = (ctx.state.live && ctx.state.live.snapshot) || null;
+      const snap2 = _recordableSnap(ctx);
 
       // Try to update known addresses from refreshed snapshot (picks up rotated MACs)
       const freshObj = snap2 ? (snap2.objects?.list || []).find(o => o.key === entry.bk.key) : null;
@@ -6179,7 +6223,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       if (!bs._guideCapturing) return;
       try {
         await ctx.actions.refreshSnapshotQuiet();
-        const snap2 = ctx.state.live?.snapshot;
+        const snap2 = _recordableSnap(ctx);
         const ads = snap2?.ble?.advertisements || [];
         // Pick the freshest matching ad per radio (lowest age_s), then gate
         // through the age filter + stale-ad dedup before recording a sample.
@@ -6377,7 +6421,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       if (!rc.sampling) return;
       try {
         await ctx.actions.refreshSnapshotQuiet();
-        const ads = ctx.state.live?.snapshot?.ble?.advertisements || [];
+        const ads = _recordableSnap(ctx)?.ble?.advertisements || [];
         // Freshest matching ad from THIS receiver (lowest age_s), then gate
         // through the age filter + stale-ad dedup (same as guide capture).
         let best = null;
