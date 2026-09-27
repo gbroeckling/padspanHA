@@ -52,9 +52,20 @@ const { mapXform, worldGauge, metresToWorld, mapFracToMetres,
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 const { tuneSavePlanInit, tuneDiffMapDraft, tuneMissingFabricPins, tuneConflictingSources,
         tuneReconcileDraft, tuneSyncTuneDrafts, tuneSnapBaseline,
-        tuneTryAcquire, tuneRelease } =
+        tuneTryAcquire, tuneRelease, tuneLivePhase, tuneWriteBlock } =
   await import(`./tune_save_plan.js${new URL(import.meta.url).search}`);
 tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
+
+// The line to show when the snapshot holds no radios or devices (#88).
+// "Switch to Live mode" only when the server really said Sample; Live (or a
+// mode not known yet) with nothing from the server is still waiting; an
+// empty snapshot the server built means Home Assistant has none to report.
+function _noLiveDataText(ctx, sampleText, liveText) {
+  const phase = tuneLivePhase(ctx.state);
+  if (phase === "sample") return sampleText;
+  if (phase === "waiting") return "Waiting for live data from Home Assistant…";
+  return liveText;
+}
 
 // ── Exports ──────────────────────────────────────────────────────────────────
 export function render(ctx) {
@@ -675,7 +686,9 @@ function _setup(ctx, el, cs, calData) {
     }));
   } else {
     deviceCard.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-bottom:10px" },
-      "No BLE devices visible in snapshot. Switch to Live mode and ensure Bluetooth is active on your phone."));
+      _noLiveDataText(ctx,
+        "No BLE devices visible in snapshot. Switch to Live mode and ensure Bluetooth is active on your phone.",
+        "Home Assistant isn't reporting any BLE devices yet. Make sure Bluetooth is active on your phone and your scanners are online.")));
   }
 
   // Manual MAC entry
@@ -864,7 +877,9 @@ function _setup(ctx, el, cs, calData) {
       }
     } else {
       radioCard.appendChild(el("div", { class: "muted", style: "font-size:12px" },
-        "No radios in snapshot. Switch to Live mode."));
+        _noLiveDataText(ctx,
+          "No radios in snapshot. Switch to Live mode.",
+          "Home Assistant isn't reporting any Bluetooth scanners yet.")));
     }
     // Total advertisement count
     const totalAds = (snap?.ble?.advertisements || []).length;
@@ -2950,6 +2965,10 @@ function _tuneTab(ctx, el, cs, calData) {
   saveBtn.textContent = hasDirty ? "\ud83d\udcbe Save" : "Save";
   saveBtn.title = "Save updated receiver positions to all modified maps";
   saveBtn.addEventListener("click", async () => {
+    // Only live data from the server may be written (#88): Sample mode's
+    // demo radios must never become scanners in the real model.
+    const _blocked = tuneWriteBlock(ctx.state);
+    if (_blocked) { ctx.toast(_blocked, true); return; }
     // Mutual exclusion across same-session fabric writers (this save,
     // Height saves, removals): acquire BEFORE the first request, release
     // unconditionally. A busy session toasts and changes nothing — there
@@ -3395,7 +3414,9 @@ function _tuneTab(ctx, el, cs, calData) {
     if (!_liveRadios.length) {
       const msg = document.createElement("div");
       msg.style.cssText = "font-size:12px;color:#94a3b8";
-      msg.textContent = "No live radios detected. Switch to Live mode and ensure Bluetooth scanners are active.";
+      msg.textContent = _noLiveDataText(ctx,
+        "No live radios detected. Switch to Live mode and ensure Bluetooth scanners are active.",
+        "Home Assistant isn't reporting any Bluetooth scanners yet. Make sure your Bluetooth proxies are online — they can take a minute to reconnect after a restart.");
       radiosCard.appendChild(msg);
       return;
     }
@@ -3480,6 +3501,9 @@ function _tuneTab(ctx, el, cs, calData) {
 
         // Click row to enter pending-placement mode (select this radio, then dblclick map)
         row.addEventListener("click", () => {
+          // A demo radio can be looked at, never placed (#88).
+          const _blocked = tuneWriteBlock(ctx.state);
+          if (_blocked) { ctx.toast(_blocked, true); return; }
           ts.pendingPlace = { source: src, name: nm, area_name: rd.area_name || "" };
           _refreshRadiosList();
           _refreshPlaceBanner();
@@ -3573,7 +3597,9 @@ function _tuneTab(ctx, el, cs, calData) {
         });
         return db;
       };
-      actWrap.appendChild(makeDeleteBtn());
+      // Delete resets this source in the real model — nothing to offer for
+      // a demo radio (#88).
+      if (!tuneWriteBlock(ctx.state)) actWrap.appendChild(makeDeleteBtn());
       row.appendChild(actWrap);
 
       radiosCard.appendChild(row);

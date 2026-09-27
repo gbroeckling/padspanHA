@@ -55,6 +55,31 @@ export function tuneRelease(ts) {
   if (ts) ts._tuneBusy = false;
 }
 
+// Whose radios are on screen (#88). Reads only state.dataMode,
+// state._dataModeKnown and state.live.snapshot:
+//   "sample"  - the server said data_mode=sample: the demo house is showing.
+//   "live"    - Live mode AND a snapshot the server built (snapshot_builder
+//               stamps source:"live"; the demo snapshot is source:"sample").
+//   "waiting" - anything else: Live with no snapshot yet, or a mode the
+//               server has not answered for yet.
+export function tuneLivePhase(state) {
+  const s = state || {};
+  if (s.dataMode !== "live") return s._dataModeKnown ? "sample" : "waiting";
+  const snap = s.live && s.live.snapshot;
+  return (snap && snap.source === "live") ? "live" : "waiting";
+}
+
+// Tune writes the REAL model, but the radios it offers come from the
+// snapshot on screen. A demo radio placed and saved from here became a
+// phantom scanner (living_room_hub, ...) in the user's own setup (#88).
+// null = placing/saving is allowed; otherwise the reason to toast.
+export function tuneWriteBlock(state) {
+  const phase = tuneLivePhase(state);
+  if (phase === "live") return null;
+  if (phase === "sample") return "Sample mode shows demo radios — switch to Live mode to place or save receivers.";
+  return "Waiting for live data from Home Assistant — try again in a moment.";
+}
+
 // A placement the backend can actually convert through: scales present
 // and POSITIVE (backend requires sx >= 1e-3 and sy*|cos σ| >= 1e-3 — a
 // negative scale is unreadable, not mirrored), forward probe finite and
