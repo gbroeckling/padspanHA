@@ -3020,7 +3020,10 @@ function _settingsFeatures(ctx, el){
     {
       key: "apple_auto_classify",
       label: "Apple Device Classification",
-      desc: "Automatically labels Apple devices as iPhone, iPad, Apple Watch, AirPods, etc. by decoding Bluetooth Continuity protocol messages. Display-only — does not affect tracking or identity.",
+      desc: "Shows what sent an Apple Find My signal — an AirTag, another brand's Find My tag (\"Find My accessory\"), AirPods, " +
+            "or an Apple device such as an iPhone, iPad or Mac — instead of just \"Find My\", in Objects, Bluetooth → Advertisements " +
+            "and a device's details. It can't tell an iPhone from an iPad or a Watch: nothing Apple sends over Bluetooth says " +
+            "which. Display-only — does not affect tracking or identity.",
     },
     {
       key: "rssi_capture_enabled",
