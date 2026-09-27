@@ -50,6 +50,17 @@ async def _save_backups(hass: HomeAssistant, data: dict[str, Any]) -> None:
     await st.async_save(data)
 
 
+def _backups_lock(hass: HomeAssistant) -> asyncio.Lock:
+    """The lock every load-change-save of the backup list holds.
+
+    Each writer uses its own Store object, and HA's write lock belongs to
+    the object, so two writers that overlap each save the list they loaded
+    and the second wipes out the first one's change: a backup that was
+    reported as taken, or a deleted one that comes back.
+    """
+    return hass.data.setdefault(f"{DOMAIN}_backups_lock", asyncio.Lock())
+
+
 def _trim_backups(backups: list[dict[str, Any]], auto: bool) -> None:
     """Drop the oldest backups of one kind over that kind's cap, in place.
 
@@ -93,21 +104,22 @@ async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str]) ->
             return None
     backup_id = f"bk_{_os.urandom(6).hex()}"
     try:
-        bk = await _load_backups(hass)
-        bk.setdefault("backups", []).append({
-            "id": backup_id,
-            "created_at": dt_util.utcnow().replace(microsecond=0).isoformat(),
-            "version": BUILD_VERSION,
-            "note": note[:200],
-            "stores": stores_data,
-            "map_images": {},
-            "auto": True,
-        })
-        _trim_backups(bk["backups"], auto=True)
-        await _save_backups(hass, bk)
-        # HA's Store logs a failed write (a full disk, a read-only file) and
-        # returns normally, so "saved" is only known by reading it back.
-        written = await _load_backups(hass)
+        async with _backups_lock(hass):
+            bk = await _load_backups(hass)
+            bk.setdefault("backups", []).append({
+                "id": backup_id,
+                "created_at": dt_util.utcnow().replace(microsecond=0).isoformat(),
+                "version": BUILD_VERSION,
+                "note": note[:200],
+                "stores": stores_data,
+                "map_images": {},
+                "auto": True,
+            })
+            _trim_backups(bk["backups"], auto=True)
+            await _save_backups(hass, bk)
+            # HA's Store logs a failed write (a full disk, a read-only file)
+            # and returns normally, so "saved" is only known by reading it back.
+            written = await _load_backups(hass)
     except Exception:
         return None
     if not any(b.get("id") == backup_id for b in written.get("backups") or []):
@@ -199,11 +211,12 @@ async def ws_store_backup_create(hass: HomeAssistant, connection, msg) -> None:
         "map_images": map_images,
     }
 
-    bk_data = await _load_backups(hass)
-    bk_data.setdefault("backups", []).append(backup)
-    # Trim to max (backups made by a person; automatic ones have their own cap)
-    _trim_backups(bk_data["backups"], auto=False)
-    await _save_backups(hass, bk_data)
+    async with _backups_lock(hass):
+        bk_data = await _load_backups(hass)
+        bk_data.setdefault("backups", []).append(backup)
+        # Trim to max (backups made by a person; automatic ones have their own cap)
+        _trim_backups(bk_data["backups"], auto=False)
+        await _save_backups(hass, bk_data)
 
     _bump(hass, "backup_created")
     connection.send_result(msg["id"], {
@@ -438,10 +451,11 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
 async def ws_store_backup_delete(hass: HomeAssistant, connection, msg) -> None:
     """Delete a specific backup."""
     backup_id = msg["backup_id"]
-    bk_data = await _load_backups(hass)
-    before = len(bk_data.get("backups", []))
-    bk_data["backups"] = [b for b in bk_data.get("backups", []) if b.get("id") != backup_id]
-    deleted = before - len(bk_data["backups"])
-    if deleted > 0:
-        await _save_backups(hass, bk_data)
+    async with _backups_lock(hass):
+        bk_data = await _load_backups(hass)
+        before = len(bk_data.get("backups", []))
+        bk_data["backups"] = [b for b in bk_data.get("backups", []) if b.get("id") != backup_id]
+        deleted = before - len(bk_data["backups"])
+        if deleted > 0:
+            await _save_backups(hass, bk_data)
     connection.send_result(msg["id"], {"deleted": deleted > 0})

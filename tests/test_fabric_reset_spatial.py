@@ -283,3 +283,77 @@ async def test_a_backup_that_was_not_written_stops_the_reset(monkeypatch) -> Non
     assert len(fab.data["beacon_positions_m"]) == 1
     assert len(fab.data["rf_barriers_m"]) == 3
     fab.store.async_save.assert_not_awaited()
+
+
+# ── Two writers of the backup list at once ───────────────────────────────────
+
+import asyncio  # noqa: E402
+
+import pytest  # noqa: E402
+
+from custom_components.padspan_ha.ws_backup import ws_store_backup_delete  # noqa: E402
+
+_IO = 20   # event-loop turns a read or write of the (17 MB) backups file takes
+
+
+class _SlowDiskStore(_DiskStore):
+    """_DiskStore with HA's timing: a load reads the file, then parses in
+    the executor; a save serialises, then the file is replaced at the end.
+    Each Store object is new, so HA's per-Store write lock orders nothing."""
+
+    async def async_load(self):
+        raw = _DiskStore.files.get(self._key)
+        for _ in range(_IO if self._key == BACKUPS_STORE_KEY else 1):
+            await asyncio.sleep(0)
+        return json.loads(raw) if raw is not None else None
+
+    async def async_save(self, data):
+        raw = json.dumps(data)
+        for _ in range(_IO if self._key == BACKUPS_STORE_KEY else 1):
+            await asyncio.sleep(0)
+        _DiskStore.files[self._key] = raw
+
+
+async def _later(turns: int, coro):
+    for _ in range(turns):
+        await asyncio.sleep(0)
+    return await coro
+
+
+@pytest.mark.parametrize("second", ["create", "delete"])
+@pytest.mark.parametrize("reset_first", [True, False])
+async def test_overlapping_writers_keep_every_backup_they_report(
+        monkeypatch, reset_first, second) -> None:
+    """Reset Spatial Model while a Create Backup (or a Delete) is under way.
+    Each loaded the list, changed it and saved it, so whichever saved second
+    wrote over the other: the reset's backup was gone after its read-back had
+    passed and the fabric was cleared (real HA 2026.7.4 and 2026.9.3, a
+    create 5-40 ms after the reset), or the create answered with an id that
+    was not on disk. Every offset in the sweep, both orders."""
+    import homeassistant.helpers.storage as _hs
+    lost = []
+    for offset in range(0, 4 * _IO, 3):
+        hass, fab, _mdl, _cal = _setup()
+        _real_backups(monkeypatch, [_manual(1), _manual(2)])
+        monkeypatch.setattr(_hs, "Store", _SlowDiskStore, raising=False)
+        reset_conn, other_conn = MagicMock(), MagicMock()
+        if second == "create":
+            other = ws_store_backup_create(hass, other_conn, {"id": 2, "note": "mine"})
+        else:
+            other = ws_store_backup_delete(hass, other_conn, {"id": 2, "backup_id": "bk_manual1"})
+        reset = ws_fabric_reset_spatial(hass, reset_conn, {"id": 1})
+        if reset_first:
+            await asyncio.gather(reset, _later(offset, other))
+        else:
+            await asyncio.gather(other, _later(offset, reset))
+
+        reset_conn.send_error.assert_not_called()
+        on_disk = {b["id"] for b in _on_disk()}
+        if reset_conn.send_result.call_args.args[1]["backup_id"] not in on_disk:
+            lost.append((offset, "the reset's backup"))
+        if second == "create":
+            if other_conn.send_result.call_args.args[1]["backup_id"] not in on_disk:
+                lost.append((offset, "the created backup"))
+        elif "bk_manual1" in on_disk:
+            lost.append((offset, "the deleted backup came back"))
+    assert not lost, lost
