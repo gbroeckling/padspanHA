@@ -18,7 +18,7 @@
 // actually have produced the map and one index row per entity.
 //
 // usage: lights_panel_lifecycle.mjs <www/padspan-ha dir>
-// prints one JSON line: { scenarios: [...], failures: [...] }
+// prints one JSON line: { scenarios: [...], failures: [...], blip: {...} }
 
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
@@ -236,5 +236,32 @@ if (!Cls) {
   }
 }
 
-console.log(JSON.stringify({ scenarios, failures }));
+// A motion sensor back from an offline blip 30 s ago, its real change 9 h
+// before (motion_reconnects.py): the panel subscribes on its own, and the
+// pushed entry redraws the marker quiet — no pulse, no ring.
+const blip = { subscribed: null, pulseBefore: null, pulseAfter: null, ringAfter: null };
+if (Cls) {
+  try {
+    const eid = "binary_sensor.hall_motion";
+    const hass = makeHass({ settings: BASE });
+    hass.states = { ...STATES, [eid]: ST(eid, "off", { device_class: "motion" }, 30_000) };
+    let push = null;
+    hass.connection = { subscribeEvents: async () => () => {},
+      subscribeMessage: async (cb, msg) => { push = cb; blip.subscribed = msg; return () => {}; } };
+    const el = new Cls();
+    el.connectedCallback();
+    el.hass = hass;
+    await el._boot(); await flush(); await flush();
+    await el._poll(); await flush();
+    const svg = () => el.shadowRoot.querySelector("#content")._all().map(n => n.innerHTML).find(h => typeof h === "string" && h.includes("<svg")) || "";
+    const has = (cls) => new RegExp(`class="${cls}" data-eid="${eid.replace(/\./g, "\\.")}"`).test(svg());
+    blip.pulseBefore = has("lpulse");
+    push({ [eid]: { at: hass.states[eid].last_changed, last_changed: iso(9 * 3600_000) } });
+    await flush(); await flush();
+    blip.pulseAfter = has("lpulse"); blip.ringAfter = has("lrecent");
+    el.disconnectedCallback();
+  } catch (e) { fail("motion reconnect", "lifecycle", e); }
+}
+
+console.log(JSON.stringify({ scenarios, failures, blip }));
 process.exit(failures.length ? 1 : 0);

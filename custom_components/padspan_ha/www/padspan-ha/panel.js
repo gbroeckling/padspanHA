@@ -501,6 +501,14 @@ class PadSpanHaApp extends HTMLElement {
   set hass(hass){
     const prevHass = this._hass;
     this._hass = hass;
+    // Motion sensors back from an offline blip (motion_reconnects.py), pushed
+    // on every change — one subscription per connection (a new connection,
+    // or a re-entry after disconnectedCallback, subscribes afresh).
+    if(hass && hass.connection && this._reconnectsConn !== hass.connection){
+      this._reconnectsConn = hass.connection;
+      this._reconnectsUnsub = hass.connection.subscribeMessage(m => { this.state._motionReconnects = m || {}; },
+        { type: "padspan_ha/motion_reconnects" }).catch(() => null);
+    }
     if(!this._booted){
       this._booted = true;
       // Wait for critical view modules (overview + follow), then render immediately.
@@ -953,6 +961,8 @@ class PadSpanHaApp extends HTMLElement {
   disconnectedCallback(){
     this._stopDataPoll();
     this._pollInFlight = false;
+    if(this._reconnectsUnsub) this._reconnectsUnsub.then(u => u && u()).catch(() => {});
+    this._reconnectsUnsub = null; this._reconnectsConn = null;
     if(this._activityTimer){ clearInterval(this._activityTimer); this._activityTimer = null; }
     if(this._watchdogTimer){ clearInterval(this._watchdogTimer); this._watchdogTimer = null; }
     if(this._visibilityHandler){

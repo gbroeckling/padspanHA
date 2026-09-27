@@ -2121,6 +2121,17 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
   };
 }
 
+// A motion sensor back from an offline blip in the state it had before keeps
+// its last REAL change — the live twin of Traceback's rule (house_activity.js
+// buildStateTimeline): HA dates the return like a change, and the Atlas read
+// it as motion that had just ended (live 2026-09-27: five markers pulsed, then
+// wore the ring for 6 hours). It holds while HA's last_changed is still the
+// return's own ("at", to the millisecond — the frontend rebuilds it from a
+// float); a real change since moves last_changed on.
+function _realLastChanged(lc, r){
+  return r && lc && Math.abs(Date.parse(lc) - Date.parse(r.at)) <= 1 ? r.last_changed : (lc || null);
+}
+
 // ── Light list: every light entity, canonical codes, display sort ────────────
 // shapeOverrides = settings.light_shapes ({entity_id: shape}); a light with no
 // override wears its derived shape, so the whole house is typed on first paint.
@@ -2142,7 +2153,10 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
 // say is remembered as a light's last dimmed level (review 2026-09-23: a
 // replayed frame overwrote padspan_ha_last_bri, and the next tap turned a
 // light on at last week's brightness).
-export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides, pairMap, manufacturerMap, nowMs, historical = false){
+// reconnects = the host's motion_reconnects subscription (motion_reconnects.py):
+// {entity_id: {at, last_changed}} for each motion sensor back from an offline
+// blip in the state it had before — see _realLastChanged.
+export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides, pairMap, manufacturerMap, nowMs, historical = false, reconnects = null){
   const paid = lightingUnlocked(tier);
   const pro = tierAtLeast(tier, "pro");
   // A verified motion+occupancy pair (see computeMotionOccupancyPairs) rides
@@ -2205,7 +2219,7 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       // comment above "state" for why the occupancy half is never
       // consulted, here or there.
       last_changed:  eid.startsWith("sensor.") ? (states[eid].last_updated || null)
-                     : eid.startsWith("binary_sensor.") ? (states[eid].last_changed || null)
+                     : eid.startsWith("binary_sensor.") ? _realLastChanged(states[eid].last_changed, reconnects && reconnects[eid])
                      : null,
       // The reading itself, rounded — "inside is simply the temperature, 3
       // digit, and larger". Only sensor.* entities carry one; everything

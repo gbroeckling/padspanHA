@@ -52,3 +52,13 @@ def test_the_harness_actually_drew_the_house(result) -> None:
         assert s["svg"], f"{s['name']}: no isometric map was drawn"
         assert s["rows"] >= 19, f"{s['name']}: the index lost rows ({s['rows']})"
         assert s["svcCalls"] > 0, f"{s['name']}: no toggle ever reached hass.callService — the harness is not exercising the action path"
+
+
+def test_a_motion_sensor_back_from_a_blip_redraws_quiet(result) -> None:
+    """Live 2026-09-27: a sensor back "off" from a 29 s offline blip pulsed,
+    then wore the 6-hour ring. The sidebar subscribes to
+    padspan_ha/motion_reconnects itself, and the push redraws it quiet."""
+    b = result["blip"]
+    assert b["subscribed"] == {"type": "padspan_ha/motion_reconnects"}, b
+    assert b["pulseBefore"], f"the harness must first show the false pulse: {b}"
+    assert not b["pulseAfter"] and not b["ringAfter"], b
