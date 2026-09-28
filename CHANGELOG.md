@@ -4,7 +4,32 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.82 — The opt-in report's AirTag numbers say what they mean (2026-09-27)
+## 0.38.82 — Stable: everything since 0.38.48 (2026-09-27)
+
+This stable release brings every pre-release since 0.38.48 — 0.38.49 to 0.38.81 — to everyone. The details of each are below.
+
+### Before and after you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating. A page left open keeps running the old panel until it is reloaded.
+- **Flood sensors:** every moisture sensor in Home Assistant now raises a red banner when it reports wet, and it stays for 2 days or until you press Reset — including a sensor that is already wet when Home Assistant starts. Nothing is sent anywhere.
+- **Admin only:** backups, Forensics, adding or removing IRKs, the Sweet Home 3D import, capture files, the ESPresense Companion link and Vacation Mode now need a Home Assistant administrator account.
+- **Moved:** Insights is now a mode of Traceback (next to the new Busy Times), and the new Locate is part of Follow. Old links open the new place.
+
+### New since 0.38.48
+- Flood sensors on the Atlas, with a latched alarm and an always-visible emergency banner.
+- Whole House Presets and Vacation Mode.
+- Busy Times and Locate (PadSpan Pro).
+- The new Atlas layout, and doors, windows, locks and openers — including ones built from bare relays.
+- Traceback's Full house activity, with 💡 Devices playback.
+- A full WLED workbench in the Atlas card.
+- AirTags and "works with Find My" tags keep their name across address changes (Settings → MAC Rotation Bridging).
+- Security hardening, and the fixes and Home Assistant 2027 readiness in 0.38.81.
+
+And the fixes that are new in this release:
+
+### Guided Calibration (#88)
+- **Fixed:** Guided Calibration's first two steps now update by themselves when Home Assistant's Bluetooth scanners and your devices show up — for example a minute after Home Assistant restarts — instead of saying there are none until you leave and come back.
+- **Changed:** switching from Live to Sample now takes a second click within 3 seconds: the first click changes the button to "Show demo data?". A double-click or holding Enter doesn't count as the second click. Switching from Sample to Live is still one click.
+- **Fixed:** on phones, the Data pill shows the right mode straight away and after every switch.
 
 ### Help improve PadSpan (opt-in report)
 - **Fixed:** an AirTag away from its owner could be reported as near it, because one scanner's reading from hours ago won over every fresh one. It now counts as away when any scanner heard it say so in the last minute or so. Because of the same mistake, a tag going back to its day key was counted as a wrong link; it is counted as expected again.
