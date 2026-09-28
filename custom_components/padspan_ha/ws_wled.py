@@ -569,44 +569,27 @@ async def ws_wled_state(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"data": data})
 
 
-@websocket_api.websocket_command({
-    "type": "padspan_ha/wled_cfg",
-    vol.Required("patch"): dict,
-    vol.Required("base_hash"): str,
-    vol.Optional("reboot", default=False): bool,
-    vol.Optional("pin"): vol.All(str, vol.Length(max=4)),
-    **_TARGET,
-})
-@websocket_api.require_admin
-@websocket_api.async_response
-async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
+async def safe_cfg_write(hass: HomeAssistant, tgt: dict[str, Any], patch: dict, base_hash: str, *,
+                         reboot: bool = False, pin: str | None = None) -> dict[str, Any]:
     """One /json/cfg write, done safely: back up, refuse over a changed
-    device, write, re-read, return before and after."""
-    tgt = await _gate(hass, connection, msg)
-    if tgt is None:
-        return
+    device, write, re-read; {backup, before, after, hash, unexpected}.
+    Raises WledError with the reason (refused, i2c_in_use, changed,
+    mac_mismatch, or the transport's code). Shared by the Advanced tab's
+    config writes and the exact look's sync switch (wled_exact.py)."""
     host = tgt["host"]
-    try:
-        info = await _request(hass, host, "GET", "json/info")
-        before = await _request(hass, host, "GET", "json/cfg")
-    except WledError as e:
-        connection.send_error(msg["id"], e.code, str(e))
-        return
-    err = check_cfg_patch(msg["patch"], max_body_for(info))
+    info = await _request(hass, host, "GET", "json/info")
+    before = await _request(hass, host, "GET", "json/cfg")
+    err = check_cfg_patch(patch, max_body_for(info))
     if err:
-        connection.send_error(msg["id"], "refused", err)
-        return
+        raise WledError("refused", err)
     i2c = i2c_at_risk(info, before)
     if i2c:
-        connection.send_error(msg["id"], "i2c_in_use", (
+        raise WledError("i2c_in_use", (
             f"This controller uses GPIO {i2c[0]} and {i2c[1]} for an I2C add-on (a sensor, display or clock). "
             "Saving settings through WLED's config API would switch I2C off at its next restart — a WLED "
             "firmware limitation. Change this on the device's own settings page instead."))
-        return
-    if cfg_hash(before) != msg["base_hash"]:
-        connection.send_error(msg["id"], "changed",
-                              "The device's settings changed since you opened them — reload and try again")
-        return
+    if cfg_hash(before) != base_hash:
+        raise WledError("changed", "The device's settings changed since you opened them — reload and try again")
     try:
         presets = await _request(hass, host, "GET", "presets.json")
     except WledError:
@@ -614,9 +597,7 @@ async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
     # Backups are keyed by the MAC HA verified for this device; a device
     # claiming a different one is refused (never another unit's presets).
     if tgt.get("mac") and _norm_mac(info.get("mac")) and _norm_mac(info.get("mac")) != tgt["mac"]:
-        connection.send_error(msg["id"], "mac_mismatch",
-                              "The device reports a different MAC than Home Assistant has for it — refused")
-        return
+        raise WledError("mac_mismatch", "The device reports a different MAC than Home Assistant has for it — refused")
     folder = _backup_dir(hass, tgt.get("mac") or str(info.get("mac", "")))
     files = {"cfg.json": before, "info.json": info}
     if presets is not None:
@@ -626,10 +607,10 @@ async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
         live_send = ((await _request(hass, host, "GET", "json/state")).get("udpn") or {}).get("send")
     except WledError:
         live_send = None
-    body = with_preserved(msg["patch"], before)
-    if msg.get("pin"):
-        body["pin"] = msg["pin"]
-    if msg.get("reboot"):
+    body = with_preserved(patch, before)
+    if pin:
+        body["pin"] = pin
+    if reboot:
         body["rb"] = True
     try:
         await _request(hass, host, "POST", "json/cfg", body, POST_TIMEOUT_S, retries=0)
@@ -643,12 +624,10 @@ async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
                 changed = None
             what = ("it WAS applied" if changed else "it was not applied" if changed is False
                     else "whether it was applied is unknown")
-            connection.send_error(msg["id"], e.code, f"{e} — {what}; backup {backup_id} kept")
-        else:
-            connection.send_error(msg["id"], e.code, f"{e} (nothing was changed; backup {backup_id} kept)")
-        return
+            raise WledError(e.code, f"{e} — {what}; backup {backup_id} kept") from e
+        raise WledError(e.code, f"{e} (nothing was changed; backup {backup_id} kept)") from e
     after = None
-    if not msg.get("reboot"):
+    if not reboot:
         try:
             after = await _request(hass, host, "GET", "json/cfg")
         except WledError:
@@ -658,7 +637,7 @@ async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
         # write CHANGES the saved switch, which the admin meant to act now
         # (round 6). The Sync card always sends the whole block, so being
         # present isn't enough (round 7).
-        send_patch = ((msg["patch"].get("if") or {}).get("sync") or {}).get("send") or {}
+        send_patch = ((patch.get("if") or {}).get("sync") or {}).get("send") or {}
         send_before = ((before.get("if") or {}).get("sync") or {}).get("send") or {}
         switch_changed = any(k in send_patch and send_patch[k] != send_before.get(k) for k in ("en", "dir"))
         if isinstance(live_send, bool) and not switch_changed:
@@ -668,12 +647,36 @@ async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
                     await _request(hass, host, "POST", "json/state", {"udpn": {"send": live_send}}, POST_TIMEOUT_S)
             except WledError:
                 pass
-    connection.send_result(msg["id"], {
+    return {
         "backup": backup_id, "before": before, "after": after,
         "hash": cfg_hash(after) if after is not None else None,
         # Anything that moved without being asked for — shown to the admin.
-        "unexpected": unexpected_changes(before, msg["patch"], after) if after is not None else [],
-    })
+        "unexpected": unexpected_changes(before, patch, after) if after is not None else [],
+    }
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/wled_cfg",
+    vol.Required("patch"): dict,
+    vol.Required("base_hash"): str,
+    vol.Optional("reboot", default=False): bool,
+    vol.Optional("pin"): vol.All(str, vol.Length(max=4)),
+    **_TARGET,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_wled_cfg(hass: HomeAssistant, connection, msg) -> None:
+    """One /json/cfg write, done safely (safe_cfg_write)."""
+    tgt = await _gate(hass, connection, msg)
+    if tgt is None:
+        return
+    try:
+        result = await safe_cfg_write(hass, tgt, msg["patch"], msg["base_hash"],
+                                      reboot=bool(msg.get("reboot")), pin=msg.get("pin"))
+    except WledError as e:
+        connection.send_error(msg["id"], e.code, str(e))
+        return
+    connection.send_result(msg["id"], result)
 
 
 @websocket_api.websocket_command({
@@ -901,7 +904,9 @@ def restore_bodies(state: dict, max_bytes: int) -> list[dict]:
     return bodies
 
 
-def _identify_lock(hass: HomeAssistant, host: str) -> asyncio.Lock:
+def device_lock(hass: HomeAssistant, host: str) -> asyncio.Lock:
+    """One conversation with a device at a time: Identify and the exact look
+    (wled_exact.py) hold it for every request, so they never overlap."""
     locks: dict = hass.data.setdefault(DOMAIN, {}).setdefault("_wled_identify_locks", {})
     return locks.setdefault(host, asyncio.Lock())
 
@@ -914,7 +919,7 @@ async def _identify_restore(hass: HomeAssistant, host: str, job: dict, gen: int 
     that fired while a newer identify re-aimed the job does nothing (round
     6: it cut the newer blink short)."""
     active: dict = hass.data.setdefault(DOMAIN, {}).setdefault(_IDENTIFY, {})
-    async with _identify_lock(hass, host):
+    async with device_lock(hass, host):
         if active.get(host) is not job or (gen is not None and job.get("gen") != gen):
             return
         saved = job["state"]
@@ -948,7 +953,7 @@ async def ws_wled_identify(hass: HomeAssistant, connection, msg) -> None:
 
     host = tgt["host"]
     active: dict = hass.data.setdefault(DOMAIN, {}).setdefault(_IDENTIFY, {})
-    async with _identify_lock(hass, host):
+    async with device_lock(hass, host):
         job = active.get(host)
         if job is None:
             try:
@@ -1089,7 +1094,9 @@ async def ws_wled_live(hass: HomeAssistant, connection, msg) -> None:
 # leader: Vacation Mode leaves followers alone (vacation_mode.py), instead of
 # switching them independently and fighting the leader's sync.
 
-TEAM_MODES = ("mirror",)
+# "padspan": no WLED sync at all — PadSpan sends every member its own
+# remembered look at the same moment (wled_exact.py).
+TEAM_MODES = ("mirror", "padspan")
 
 
 def _team_key(t: dict) -> tuple:
@@ -1193,6 +1200,14 @@ async def ws_wled_teams_set(hass: HomeAssistant, connection, msg) -> None:
     teams = sanitize_teams(hass, msg["teams"], stored)
     if isinstance(teams, str):
         connection.send_error(msg["id"], "invalid", teams)
+        return
+    # Run by PadSpan or not changes only through padspan_ha/wled_team_mode,
+    # which switches every member's sync with it (wled_exact.py): a list
+    # save flipping it would leave the members' sync and the team apart.
+    was = {t.get("id"): t.get("mode") for t in stored if isinstance(t, dict)}
+    if any((was.get(t["id"]) == "padspan") != (t["mode"] == "padspan") for t in teams):
+        connection.send_error(msg["id"], "invalid",
+                              "Change how a team is run with 'Run this team by' — it switches each member's sync too")
         return
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if not st:
