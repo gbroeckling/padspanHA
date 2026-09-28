@@ -4,6 +4,27 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.83 — WLED lights that look the same every time (2026-09-27)
+
+### Atlas — WLED: PadSpan runs the light, with its exact look
+- **Added (Bright and Pro):** a WLED light's Advanced → Sync & team has a new card, **Who gives this light its instructions**: WLED sync or PadSpan (exact look). With PadSpan, WLED's own sync is switched off on that device and every on and off comes from PadSpan. Its sync settings are saved first, and kept in PadSpan's backups. Switching back puts them back exactly, and is always allowed, with or without a licence. It needs a Home Assistant administrator.
+- **Added:** Advanced → **Exact look**. **Remember this look** reads everything each part of the strip is showing (colour, white and warmth, effect, palette, brightness) and shows it to you before saving. There is also **Remember team look**, **Try it**, the last 5 looks with **Use this one**, and a line saying how the last on or off went.
+- **Added:** turning on a light PadSpan runs brings back its remembered look exactly, on every part of a 5- or 6-channel string. PadSpan checks what the device reports and resends any part that didn't take, up to 3 tries. It checks again a second later in case a timer, a button or a wall panel changed it, and if something keeps changing it, the card says what.
+- **Added:** **Put the look back when something else turns it on**, on by default. When Home Assistant's dashboard, voice, an automation or the WLED app turns the light on, it gets its look back and keeps the brightness it was given.
+- **Added:** after a power cut, the light goes back to what PadSpan last told it: on with its look, or off. This works even when Home Assistant never showed the light as unavailable.
+- **Added:** a light that was offline gets its command when it comes back. One that didn't answer while Home Assistant could still reach it is tried again after 10 seconds and after 1 minute, then the card says it wasn't switched. If someone changes the light in the meantime, their change stands.
+- **Added:** a team can be run by PadSpan: Team card → **Run this team by: WLED sync | PadSpan**.
+  - Every member gets its look at the same moment and keeps its brightness balance with the others. Effects start together.
+  - A member switched from outside PadSpan takes the rest of the team with it, and a member that was offline catches up when it's back.
+  - If one member can't be switched over, the others are put back.
+  - A member of a WLED sync team can't be switched on its own: the team goes over as one.
+- **Changed:** these lights are now switched by PadSpan, with their look, from everywhere in PadSpan: the Atlas (a tap, drag to dim, the light card, a room's or floor's all on/off), Whole House Presets, Vacation Mode and presence rules. So are the new services `padspan_ha.wled_on` and `padspan_ha.wled_off`. Map-scene Apply leaves them their look.
+- **Added:** PadSpan rechecks each device's LED setup after a restart and once a day. If the outputs, LED types or firmware changed since the look was remembered, the card says what changed. PadSpan never changes the setup itself.
+- **Note:** PadSpan never touches firmware, presets or playlists here. The only settings it writes are the sync settings, with a backup first. On an ESP32 that uses I²C, sync is switched off live only, and switched off again after every restart.
+- **Note:** without a licence, Home Assistant switches every light as usual, and a team PadSpan ran is still switched together, members kept in balance. The light card offers to give each light back to WLED sync.
+
+---
+
 ## 0.38.82 — Stable: everything since 0.38.48 (2026-09-27)
 
 This stable release brings every pre-release since 0.38.48 — 0.38.49 to 0.38.81 — to everyone. The details of each are below.
