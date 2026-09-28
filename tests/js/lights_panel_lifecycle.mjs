@@ -303,7 +303,7 @@ if (Cls) {
 // The "Test emergency lighting" button (emergency_test.py): hidden without
 // lights, floats right after the stage, toggles through the backend, and
 // Force off shows only while a test runs.
-const emergency = { hiddenWithout: null, afterStage: null, idleForce: null, sent: [], activeForce: null,
+const emergency = { hiddenWithout: null, beforeStage: null, idleForce: null, sent: [], activeForce: null,
   activeLabel: null, endedForce: null };
 if (Cls) {
   try {
@@ -339,7 +339,7 @@ if (Cls) {
     await el._loadEmergency(); el._render();
     const anchor = find("lv-emerg-anchor")[0];
     const stage = find("lv-stage")[0];
-    emergency.afterStage = !!(anchor && stage && stage.nextSibling === anchor);
+    emergency.beforeStage = !!(anchor && stage && anchor.nextSibling === stage);
     emergency.idleForce = find("lv-emerg-force").length;
     find("lv-emerg-btn")[0].click();
     await flush(); await flush();

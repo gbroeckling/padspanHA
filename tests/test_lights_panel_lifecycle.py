@@ -96,7 +96,7 @@ def test_the_emergency_test_button(result) -> None:
     Force off beside it only while a test runs."""
     e = result["emergency"]
     assert e["hiddenWithout"], e
-    assert e["afterStage"], e
+    assert e["beforeStage"], e      # top-right of the map: the anchor sits right before the stage
     assert e["idleForce"] == 0 and e["activeForce"] == 1 and e["endedForce"] == 0, e
     assert e["activeLabel"] == "Test on — tap to end", e
     assert e["sent"] == ["test:true", "member:light.a:true", "force_off"], e

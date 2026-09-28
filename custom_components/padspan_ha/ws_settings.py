@@ -324,6 +324,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("overview_iso_focus"): vol.Any(int, None),
         vol.Optional("overview_iso_zoom"): vol.Coerce(float),
         vol.Optional("lights_hidden"): list,
+        vol.Optional("atlas_emergency_button"): bool,
         vol.Optional("emergency_entities"): list,             # emergency_test.py — [] = find them
         vol.Optional("lights_showcase"): bool,
         vol.Optional("lights_hide_untouched"): bool,
@@ -762,7 +763,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "ha_entity_distance_enabled", "ha_entity_scanner_distance_enabled",
                     "mqtt_publish_enabled", "espresense_mqtt_enabled", "aggressive_ble_reseed",
                     "ha_entity_occupancy_enabled",
-                    "lights_panel_enabled", "bermuda_ignore", "bright_reveal_presence",
+                    "lights_panel_enabled", "atlas_emergency_button", "bermuda_ignore", "bright_reveal_presence",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",
                     "tags_phone_autolink_enabled", "quiet_mode", "light_theme",
                     "beacon_auto_calibrate", "overview_persistent_pins", "overview_show_walls",

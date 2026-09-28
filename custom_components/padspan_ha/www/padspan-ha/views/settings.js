@@ -3290,10 +3290,19 @@ function _settingsUI(ctx, el){
   lightsRow.appendChild(lightsCb);
   lightsRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Enable Mapped Light Control in sidebar"));
   lightsCard.appendChild(lightsRow);
+  // The Atlas's red "Test emergency lighting" button — shown only when the
+  // house has emergency lights; this hides it even then. Takes effect on the
+  // Atlas's next refresh, no restart.
+  const emergRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px"});
+  const emergCb = el("input",{type:"checkbox"});
+  emergCb.checked = settings.atlas_emergency_button !== false;
+  emergRow.appendChild(emergCb);
+  emergRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show the Test emergency lighting button on the Atlas"));
+  lightsCard.appendChild(emergRow);
   const lightsSaveBtn = el("button",{class:"btn",style:"margin-top:10px"},"Save");
   const lightsStatus = el("span",{style:"margin-left:10px;color:#94a3b8;font-size:13px"});
   lightsSaveBtn.addEventListener("click", async ()=>{
-    await ctx.actions.settingsSet({ lights_panel_enabled: lightsCb.checked });
+    await ctx.actions.settingsSet({ lights_panel_enabled: lightsCb.checked, atlas_emergency_button: emergCb.checked });
     lightsStatus.textContent = lightsCb.checked
       ? "Saved \u2014 restart Home Assistant to see the Lights panel in the sidebar."
       : "Saved \u2014 restart Home Assistant to remove the Lights panel from the sidebar.";

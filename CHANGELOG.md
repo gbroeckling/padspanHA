@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.88 — Emergency lighting button at the top, and a switch to hide it (2026-09-28)
+
+### Atlas — Test emergency lighting
+- **Changed:** the red button now sits in the top-right corner of the house map, where it is on screen as soon as the Atlas opens. On a phone it is a quarter smaller.
+- **Added:** Settings → Mapped Light Control → **Show the Test emergency lighting button on the Atlas**. Untick it and the button, and its checks, are gone.
+
+---
+
 ## 0.38.87 — The free trial, where people will see it (2026-09-28)
 
 ### Trying the lighting map

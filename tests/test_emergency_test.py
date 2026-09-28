@@ -610,3 +610,20 @@ def test_the_listener_is_set_up_once_and_torn_down():
     assert ET._UNSUB not in hass.data[DOMAIN]
     src = (__import__("pathlib").Path(ET.__file__).parent / "__init__.py").read_text(encoding="utf-8")
     assert "async_setup_emergency_test(hass)" in src and "async_stop_emergency_test(hass)" in src
+
+
+def test_the_button_can_be_hidden_in_settings():
+    """Settings → Mapped Light Control → "Show the Test emergency lighting
+    button on the Atlas": on by default, a boolean the settings write accepts,
+    and the Atlas reads it (lights_panel.js _emergButtonHidden)."""
+    from pathlib import Path
+    from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
+    assert DEFAULT_SETTINGS["atlas_emergency_button"] is True
+    root = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+    ws = (root / "ws_settings.py").read_text(encoding="utf-8")
+    assert 'vol.Optional("atlas_emergency_button"): bool' in ws and '"atlas_emergency_button", "bermuda_ignore"' in ws
+    lp = (root / "www" / "padspan-ha" / "lights_panel.js").read_text(encoding="utf-8")
+    assert "this.state._emergButtonHidden = s.atlas_emergency_button === false;" in lp
+    assert "if(this.state._emergButtonHidden) return null;" in lp
+    st = (root / "www" / "padspan-ha" / "views" / "settings.js").read_text(encoding="utf-8")
+    assert "atlas_emergency_button: emergCb.checked" in st

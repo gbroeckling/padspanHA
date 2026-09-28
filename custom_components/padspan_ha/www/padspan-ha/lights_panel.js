@@ -190,7 +190,7 @@ class PadSpanLightsApp extends HTMLElement {
     // emergency lights; without any (or an older backend), every 5 minutes —
     // plus on load and on Refresh (_boot).
     const emergEvery = (this.state._emerg && this.state._emerg.available) ? 10000 : 300000;
-    if(Date.now() - (this._emergTs || 0) > emergEvery) await this._loadEmergency();
+    if(!this.state._emergButtonHidden && Date.now() - (this._emergTs || 0) > emergEvery) await this._loadEmergency();
     this._render();   // registry staleness handled inside _buildUI
   }
 
@@ -269,6 +269,8 @@ class PadSpanLightsApp extends HTMLElement {
       // Quick-apply only (see onApplyPreset in the host below) — presets are
       // authored in Mapping -> Lights, this panel just switches between them.
       this.state._showcasePresets = Array.isArray(s.lights_showcase_presets) ? s.lights_showcase_presets : [];
+      // Settings → Mapped Light Control → "Show the Test emergency lighting button".
+      this.state._emergButtonHidden = s.atlas_emergency_button === false;
       this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];
       // Layout v2 (Garry, 2026-09-21) is a house-wide trial toggle, set
       // from the builder only — this panel reflects it, same convention
@@ -415,6 +417,8 @@ class PadSpanLightsApp extends HTMLElement {
   _emergencyOverlay(){
     const s = this.state._emerg;
     if(!s || !s.available) return null;
+    // Settings → Mapped Light Control → "Show the Test emergency lighting button".
+    if(this.state._emergButtonHidden) return null;
     const active = !!(s.test && s.test.active);
     const busy = !!this._emergBusy;
     const name = {};
@@ -980,11 +984,12 @@ class PadSpanLightsApp extends HTMLElement {
 
     const mapCard=buildLightsMapCard(host);
     root.appendChild(mapCard);
-    // "Test emergency lighting" floats over the map's bottom-right corner:
-    // a zero-height anchor right after the stage, so nothing moves.
+    // "Test emergency lighting" floats over the map's TOP-right corner (the
+    // map's top is on screen when the Atlas opens; its bottom often is not):
+    // a zero-height anchor right before the stage, so nothing moves.
     const emerg=this._emergencyOverlay();
     const stage=emerg && mapCard.querySelector(".lv-stage");
-    if(stage) stage.parentNode.insertBefore(emerg, stage.nextSibling);
+    if(stage) stage.parentNode.insertBefore(emerg, stage);
 
     // ── The 90-day trial, under the free map it would unlock ──────────────────
     if(!paid){

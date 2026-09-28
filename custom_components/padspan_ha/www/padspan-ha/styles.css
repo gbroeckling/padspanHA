@@ -1192,9 +1192,9 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
    The label opens on hover and stays while a test runs, the ring pulsing,
    Force off beside it. Laid out right to left: dial, label, Force off. */
 .lv-emerg-anchor{position:relative;height:0;container-type:inline-size}
-/* Pinned to the corner of the SCREEN, not the map: the house map is often
-   taller than the window, and the button has to be there without scrolling. */
-.lv-emerg{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));z-index:3;display:flex;flex-direction:row-reverse;
+/* Top-right corner of the map: its top is on screen when the Atlas opens
+   (the bottom of a tall house map often is not). */
+.lv-emerg{position:absolute;right:14px;top:14px;z-index:3;display:flex;flex-direction:row-reverse;
   align-items:center;gap:6px;pointer-events:none}
 .lv-emerg button{pointer-events:auto}
 /* The ring band is 16 px (was 12): easy to hit on a phone, and the centre
@@ -1244,6 +1244,8 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   .lv-emerg-label.on{max-width:32px;width:32px;padding:0;justify-content:center}
   .lv-emerg-label.on .lv-emerg-label-tx{display:none}
   .lv-emerg-label.on .lv-emerg-label-ic{display:inline-flex}
+  /* A phone's map is small: a quarter smaller, so it covers less of the house. */
+  .lv-emerg{right:8px;top:8px;transform:scale(.75);transform-origin:top right}
 }
 
 /* The builder's own columns (Garry, 2026-09-21: "get it done" — the rest of
