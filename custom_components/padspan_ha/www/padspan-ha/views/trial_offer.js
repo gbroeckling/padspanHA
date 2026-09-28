@@ -7,7 +7,10 @@
  *
  * One card, used by every surface that offers the trial: the Overview's
  * Getting started card, the Atlas sidebar panel, Mapping → Atlas, a refused
- * light placement, Locate, Busy Times and Settings → PadSpan licence. It
+ * light placement, Locate, Busy Times and Settings → PadSpan licence — and,
+ * for free installs that never meet a wall, three quiet ones: a line in the
+ * "updated to vX" banner, a one-time milestone card on Overview and an entry
+ * under the PadSpan sidebar menu (panel.js). It
  * used to be a window.prompt() behind one button in Settings, and in the
  * first months it was started twice.
  *
@@ -32,8 +35,21 @@ const { BUY_URL, PRO_PRICE, PRO_LIFETIME_PRICE, proLifetimeOpen, tierAtLeast, cu
 export const TRIAL_DAYS = 90;
 // Where the card can be shown — the usage report counts offers, starts and
 // failures by these names only (telemetry.py TRIAL_SURFACES, same list).
-export const TRIAL_SURFACES = Object.freeze(["overview", "atlas", "placement", "maps", "locate", "busy_times", "settings"]);
+// update_banner: a line in the Overview's "updated to vX" banner. milestone:
+// the one-time Overview card (trialMilestoneDue). sidebar: the quiet entry
+// under the PadSpan sidebar menu — the one placement a Bright build has too.
+export const TRIAL_SURFACES = Object.freeze(["overview", "atlas", "placement", "maps", "locate", "busy_times", "settings",
+  "update_banner", "milestone", "sidebar"]);
 export const TRIAL_TITLE = "90-day free trial, no card";
+// Said wherever the trial is offered: the trial is the lighting half, and
+// nothing about the free presence product changes whatever anyone answers.
+export const TRIAL_HONESTY = "The presence tracking you're using stays free.";
+export const TRIAL_NEWS_LINE = "New: try the lighting map free for 90 days, no card.";
+export const TRIAL_MILESTONE_TITLE = "PadSpan's working in your house.";
+export const TRIAL_MILESTONE_BODY = "The lighting half puts every light on this same map — tap to switch, " +
+  "hold for controls. 90 days free, no card.";
+export const TRIAL_SIDEBAR_LABEL = "💡 Lighting · free trial";
+export const TRIAL_MILESTONE_DAYS = 7;
 export const TRIAL_BUTTON = "Start 90-day free trial";
 export const TRIAL_EMAIL_NOTE = "Your email is only used to send your key; one trial per home.";
 export const TRIAL_NOT_ADMIN = "An administrator of this Home Assistant has to start the trial.";
@@ -48,6 +64,22 @@ export function trialOfferable(settings) {
   const s = settings || {};
   if (s.pro_has_key !== false) return false;
   return !tierAtLeast(currentTier(s), "bright");
+}
+
+/** True when the Overview's one-time milestone card is due: the trial is
+ *  offerable, the install has never answered it (trial_nudge_done — a key
+ *  an older backend does not send reads as "not known", never as "due"),
+ *  and either someone real is on the map (`positioned`, panel.js's
+ *  Getting started rule, live data only) or PadSpan has been running here
+ *  for TRIAL_MILESTONE_DAYS (first_seen_ts, stamped by the backend). Sample
+ *  mode, kiosks and "one card at a time" are the panel's to decide. */
+export function trialMilestoneDue(settings, positioned, nowMs = Date.now()) {
+  const s = settings || {};
+  if (!trialOfferable(s)) return false;
+  if (!("trial_nudge_done" in s) || s.trial_nudge_done) return false;
+  if (positioned) return true;
+  const since = Number(s.first_seen_ts);
+  return Number.isFinite(since) && since > 0 && nowMs - since * 1000 >= TRIAL_MILESTONE_DAYS * 86400e3;
 }
 
 /** The pitch line for a surface. `feature` names a Pro feature (Locate,
@@ -72,6 +104,15 @@ const _state = {};
 const _shown = new Set();
 function _st(surface) {
   return _state[surface] || (_state[surface] = { email: "", busy: false, error: "", done: null });
+}
+
+/** Count a surface's offer as seen, once per page — for a placement that is
+ *  seen before its card is opened (the milestone card). The card itself then
+ *  does not count it again. */
+export function trialOfferSeen(surface, telemetry) {
+  if (_shown.has(surface)) return;
+  _shown.add(surface);
+  try { if (telemetry) telemetry("trial_offer_shown:" + surface); } catch (e) { /* never fatal */ }
 }
 
 /** Forget this page's card state (tests). */
@@ -109,6 +150,11 @@ export function trialOfferCard(host, surface, opts = {}) {
   card.appendChild(head);
   card.appendChild(el("div", { "data-trial": "pitch", style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin:4px 0 8px" },
     trialPitch(surface, opts.feature)));
+  // A host that already says it right above the card (the update banner,
+  // the milestone card) passes honesty: false rather than repeat it.
+  if (opts.honesty !== false) {
+    card.appendChild(el("div", { "data-trial": "honesty", style: "font-size:12px;color:#94a3b8;margin:-4px 0 8px" }, TRIAL_HONESTY));
+  }
 
   if (!host.isAdmin) {
     card.appendChild(el("div", { "data-trial": "not-admin", class: "muted", style: "font-size:12px" }, TRIAL_NOT_ADMIN));
@@ -183,7 +229,13 @@ function _startedCard(el, done) {
 
 /** The host for a panel view's ctx. */
 export function trialOfferFromCtx(ctx, surface, opts = {}) {
-  const host = {
+  return trialOfferCard(trialHostFromCtx(ctx), surface, opts);
+}
+
+/** The host object trialOfferFromCtx uses, for a caller that re-renders
+ *  something other than the view (the panel's sidebar entry). */
+export function trialHostFromCtx(ctx) {
+  return {
     el: ctx.helpers.el,
     settings: ctx.state.settings,
     isAdmin: !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin),
@@ -196,5 +248,4 @@ export function trialOfferFromCtx(ctx, surface, opts = {}) {
       if (ctx.actions.renderNav) ctx.actions.renderNav();
     },
   };
-  return trialOfferCard(host, surface, opts);
 }

@@ -1,6 +1,7 @@
 :host{--accent:#52b788;--accent2:#5eead4;--accent3:#f59e0b;display:block;color:#e2e8f0;--bg:#0a150e;--panel:#0f1a12;--line:#1b3526;--text:#e2e8f0;--pad:14px;font-family:Inter,system-ui,Arial,sans-serif}
 .app{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - var(--header-height,56px));background:var(--bg);overflow:hidden}
 .app.mini{grid-template-columns:92px 1fr}
+.app.mini #navTrial{display:none}
 .left{background:linear-gradient(180deg,#2d1a0a 0%,#1a0d05 100%);border-right:1px solid var(--line);padding:var(--pad);overflow-y:auto;overflow-x:hidden;height:100%;position:sticky;top:0}
 .left::before{content:"";display:block;height:4px;border-radius:999px;margin-bottom:12px;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3))}
 .brand{display:flex;gap:10px;align-items:center;font-weight:700;margin-bottom:10px;padding:10px;border-radius:14px;background:linear-gradient(90deg,rgba(82,183,136,.18),rgba(94,234,212,.10));border:1px solid #1a4228;}

@@ -99,6 +99,38 @@ await check("who is offered the trial", () => {
   }
 });
 
+await check("every card says the presence tracking stays free, unless its host already did", () => {
+  const { host } = makeHost();
+  const card = T.trialOfferCard(host, "atlas");
+  assert(find(card, "honesty") && find(card, "honesty").textContent === "The presence tracking you're using stays free.", "no honesty line");
+  assert(!find(T.trialOfferCard(host, "milestone", { honesty: false }), "honesty"), "honesty:false still says it");
+  const na = makeHost({ admin: false }).host;
+  assert(find(T.trialOfferCard(na, "sidebar"), "honesty"), "a non-admin's card lacks it");
+});
+
+await check("the milestone is due once someone is on the map, or after a week", () => {
+  const now = 1_800_000_000_000, day = 86400;
+  const s = (o) => ({ ...FREE, trial_nudge_done: false, first_seen_ts: now / 1000, ...o });
+  assert(T.trialMilestoneDue(s({}), true, now) === true, "positioned");
+  assert(T.trialMilestoneDue(s({}), false, now) === false, "day one, nobody");
+  assert(T.trialMilestoneDue(s({ first_seen_ts: now / 1000 - 6.9 * day }), false, now) === false, "6.9 days");
+  assert(T.trialMilestoneDue(s({ first_seen_ts: now / 1000 - 7 * day }), false, now) === true, "7 days");
+  assert(T.trialMilestoneDue(s({ first_seen_ts: 0 }), false, now) === false, "unstamped read as old");
+  assert(T.trialMilestoneDue(s({ trial_nudge_done: true }), true, now) === false, "answered");
+  const old = s({}); delete old.trial_nudge_done;
+  assert(T.trialMilestoneDue(old, true, now) === false, "an older backend read as due");
+  assert(T.trialMilestoneDue(s({ tier: "bright", pro_has_key: true }), true, now) === false, "keyed");
+  assert(T.trialMilestoneDue(null, true, now) === false, "no settings");
+});
+
+await check("a placement counted as seen is not counted again when its card opens", () => {
+  const { host, events } = makeHost();
+  T.trialOfferSeen("milestone", host.telemetry);
+  T.trialOfferSeen("milestone", host.telemetry);
+  T.trialOfferCard(host, "milestone");
+  assert(JSON.stringify(events) === '["trial_offer_shown:milestone"]', JSON.stringify(events));
+});
+
 await check("a licensed house gets no card at all", () => {
   const { host, events } = makeHost({ settings: { tier: "pro", pro_has_key: true } });
   assert(T.trialOfferCard(host, "atlas") === null, "card shown to a Pro house");

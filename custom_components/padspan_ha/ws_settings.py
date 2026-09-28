@@ -298,6 +298,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("update_check_enabled"): bool,           # daily version ping (README)
         vol.Optional("telemetry_enabled"): bool,              # opt-in usage report (telemetry.py)
         vol.Optional("telemetry_asked"): bool,                # the ask card was answered; never shown again
+        vol.Optional("trial_nudge_done"): bool,               # the Overview trial milestone card was answered; never again
         vol.Optional("whatsnew_seen_version"): str,           # version the what's-new card last reported
         vol.Optional("vendor_lookup_enabled"): bool,
         vol.Optional("room_change_delay_s"): vol.Coerce(float),
@@ -455,6 +456,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 reset_windows(hass)
         if "telemetry_asked" in msg:
             payload["telemetry_asked"] = bool(msg.get("telemetry_asked"))
+        if "trial_nudge_done" in msg:
+            payload["trial_nudge_done"] = bool(msg.get("trial_nudge_done"))
         if "whatsnew_seen_version" in msg:
             # A version string and nothing else. It is written by the panel from
             # its own build constant, so anything that is not shaped like one is

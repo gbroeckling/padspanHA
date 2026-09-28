@@ -54,4 +54,4 @@ def test_the_harness_actually_ran_its_cases(run) -> None:
     """A harness that silently stops finding the method would pass forever."""
     m = re.search(r"(\d+) passed, (\d+) failed", run.stdout)
     assert m, f"harness produced no summary:\n{run.stdout}\n{run.stderr[-2000:]}"
-    assert int(m.group(1)) >= 6, f"only {m.group(1)} case(s) ran:\n{run.stdout}"
+    assert int(m.group(1)) >= 17, f"only {m.group(1)} case(s) ran:\n{run.stdout}"

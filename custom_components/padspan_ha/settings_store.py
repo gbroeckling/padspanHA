@@ -40,6 +40,15 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # The version the what's-new card last reported. Seeded silently the first
     # time the panel sees it, so a FRESH install is never told it "updated".
     "whatsnew_seen_version": "",
+    # When this install first ran PadSpan (epoch seconds), stamped once by
+    # async_load. The Overview's one-time trial milestone card waits 7 days
+    # from it. An install from before the key existed is stamped on its first
+    # load of this version, so its 7 days count from the update, not from
+    # when it was really installed — nobody is told on update day.
+    "first_seen_ts": 0,
+    # The Overview's one-time trial milestone card was answered: "No thanks",
+    # its ✕, or a trial started from it. Per install; it never shows again.
+    "trial_nudge_done": False,
     "telemetry_install_id": "",
     "telemetry_last_day": "",       # UTC day of the last accepted report (one per day)
     # "Become a tester" (tester.py) — NOT part of the usage report. What the
@@ -300,6 +309,11 @@ class SettingsStore:
             ran = bool(loaded.get("vacation_mode_enabled") or loaded.get("vacation_mode_pattern")
                        or loaded.get("vacation_mode_pattern_built_at") or loaded.get("vacation_mode_periods"))
             self.data["vacation_mode_tracked_since"] = time.time() if ran else 0
+        # First sight of this install, once (see first_seen_ts above).
+        _fs = self.data.get("first_seen_ts")
+        if isinstance(_fs, bool) or not isinstance(_fs, (int, float)) or _fs <= 0:
+            self.data["first_seen_ts"] = time.time()
+            _normalized = True
         # Atlas on by default, once. Runs before panel.py reads the
         # setting — settings are a critical store, loaded before the panel is
         # registered — so the sidebar entry appears on the restart the update
