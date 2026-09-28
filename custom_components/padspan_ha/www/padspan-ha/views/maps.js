@@ -28,7 +28,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         sunAmbient, spreadInRoom, createUndoStack, toggleEntity,
         wireUseSurface, openControlCard, controlApiFor, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
-        captureWholeHouse, applyWholeHouse, layoutTierFor } =
+        captureWholeHouse, applyWholeHouse, layoutTierFor, ensureExactDevices, isExactEntity } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasControlCard, hasFixedGlyph, isDoorSensor } =
@@ -8528,6 +8528,8 @@ function _lightsTab(ctx, maps, active) {
   const reg = ctx.state._modelLoaded
     ? ensureLightsRegistry(ctx.state._lightsRegStore, ctx.hass, areas, () => ctx.actions.renderRooms())
     : { areaMap: {}, platformMap: {}, loading: true };
+  // Which WLED lights PadSpan runs (exact look): the toggles route them.
+  ensureExactDevices(ctx.hass, () => ctx.actions.renderRooms());
   const shapeOverrides = (ctx.state.settings?.light_shapes && typeof ctx.state.settings.light_shapes === "object")
     ? ctx.state.settings.light_shapes : {};
   const tier = ctx.state.settings?.tier;
@@ -9530,15 +9532,19 @@ function _lightsTab(ctx, maps, active) {
     onSceneApply: async (field) => {
       if (!ctx.hass || !field) return;
       const cols = sceneColours(ctx.state.model, floors, byRoom, lightsByEid, hiddenEids, field);
-      let ok = 0, fail = 0;
+      // A light PadSpan runs keeps its remembered look: a scene colour would
+      // only be put back by "put the look back" a moment later.
+      let ok = 0, fail = 0, kept = 0;
       for (const c of cols) {
+        if (isExactEntity(c.eid)) { kept++; continue; }
         try {
           await ctx.hass.callService("light", "turn_on",
             { entity_id: c.eid, rgb_color: c.rgb, transition: 1 });
           ok++;
         } catch (err) { fail++; }
       }
-      ctx.toast(fail ? `Scene sent to ${ok} lights, ${fail} failed` : `Scene sent to ${ok} lights`);
+      ctx.toast((fail ? `Scene sent to ${ok} lights, ${fail} failed` : `Scene sent to ${ok} lights`)
+        + (kept ? ` · ${kept} exact-look lights kept their look` : ""));
       setTimeout(() => ctx.actions.renderRooms(), 1400);
     },
     rippleArmed: !!mapState._rippleArmed,

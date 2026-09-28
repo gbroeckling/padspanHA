@@ -25,7 +25,7 @@ const { hasControlCard } =
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, toggleEntity, atlasLookFromSettings,
         wireUseSurface, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
-        wireHoverHud, captureWholeHouse, applyWholeHouse } =
+        wireHoverHud, captureWholeHouse, applyWholeHouse, ensureExactDevices } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
@@ -423,6 +423,9 @@ class PadSpanLightsApp extends HTMLElement {
       ? ensureLightsRegistry(this._regStore, this._hass, this.state.model.areas, ()=>this._render())
       : { areaMap:{}, platformMap:{}, loading:true };
     const lightsLoading = reg.loading;
+    // Which WLED lights PadSpan runs (exact look): taps, the room sheet and
+    // Whole House Presets route them through padspan_ha/wled_power.
+    ensureExactDevices(this._hass, ()=>this._render());
     const lights = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, false, this.state._motionReconnects);
 
     if(!lights.length){
