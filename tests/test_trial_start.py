@@ -72,12 +72,16 @@ def test_factory_reset_preserves_an_active_trial() -> None:
 
 
 def test_licence_card_offers_the_trial_with_no_card_language() -> None:
+    # The card is the shared one (views/trial_offer.js, tests/test_conversion.py
+    # runs it); the licence card shows it while there is no key.
     s = _read(_VIEWS / "settings.js")
     card = s[s.index("function _settingsLicence("):]
     card = card[:card.index("\nfunction ")] if "\nfunction " in card else card
-    assert "padspan_ha/trial_start" in card, "the licence card cannot start a trial"
-    assert "Start 3-month free trial" in card
-    assert "no card" in card.lower(), "the trial CTA must say no payment info is needed"
+    assert 'trialOfferFromCtx(ctx, "settings"' in card, "the licence card cannot start a trial"
+    offer = _read(_VIEWS / "trial_offer.js")
+    assert "padspan_ha/trial_start" in offer
+    assert '"Start 90-day free trial"' in offer
+    assert '"90-day free trial, no card"' in offer, "the trial CTA must say no payment info is needed"
 
 
 def test_the_free_forever_claim_still_holds_and_the_trial_is_disclosed() -> None:
@@ -89,4 +93,4 @@ def test_the_free_forever_claim_still_holds_and_the_trial_is_disclosed() -> None
     i = s.index("A key only ever unlocks two things beyond that")
     para = s[i:i + 700]
     assert "not a trial" in para or "stays free" in para, "the free-forever promise was dropped, not reworded"
-    assert "3-month" in para, "the tiers wizard does not disclose the trial that contradicts its old claim"
+    assert "90-day" in para, "the tiers wizard does not disclose the trial that contradicts its old claim"

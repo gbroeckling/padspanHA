@@ -29,6 +29,10 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
+// The 90-day trial card, shared with every other paid wall. Optional: a card
+// that fails to load must not blank the house map.
+const { trialOfferCard } = await import(`./views/trial_offer.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferCard: () => null }; });
 
 // ── DOM helpers ──────────────────────────────────────────────────────────────
 function el(tag, attrs={}, children=[]){
@@ -65,6 +69,9 @@ const LS_HIDDEN = "padspan_ha_lights_hidden";
 // per browser, because that is where the hands are.
 const LS_COACH = "padspan_ha_lights_coach_seen";
 const LS_CLASS = "padspan_ha_lights_class";
+// "Not now" on the trial card — per browser, like the coach mark: this panel
+// is often a wall screen, and an offer nobody there can act on stays hidden.
+const LS_TRIAL_HIDDEN = "padspan_ha_lights_trial_hidden";
 
 // ── Custom element ────────────────────────────────────────────────────────────
 class PadSpanLightsApp extends HTMLElement {
@@ -81,6 +88,7 @@ class PadSpanLightsApp extends HTMLElement {
       // Layer chips: which device class is in front. Remembered per browser.
       _classFilter: (()=>{ try{ return localStorage.getItem(LS_CLASS)||"all"; }catch(_){ return "all"; } })(),
       _coachSeen:   (()=>{ try{ return localStorage.getItem(LS_COACH)==="1"; }catch(_){ return false; } })(),
+      _trialHidden: (()=>{ try{ return localStorage.getItem(LS_TRIAL_HIDDEN)==="1"; }catch(_){ return false; } })(),
     };
     // Registry cache owned here, filled by the shared ensureLightsRegistry.
     this._regStore = {};
@@ -268,6 +276,14 @@ class PadSpanLightsApp extends HTMLElement {
       // fetch that failed keeps the tier it last knew rather than flickering
       // a Pro house down to the free drawing for one poll.
       if (s.tier !== undefined) this.state._tier = String(s.tier);
+      // What the trial card reads: whether any key exists, and the tier (a
+      // failed fetch keeps the last answer, same as the tier above); and
+      // whether the usage report is on, so its offer counts only leave the
+      // browser when it is (panel.js _telemetryEvent's rule).
+      if (s.pro_has_key !== undefined) {
+        this.state._trialSettings = { pro_has_key: s.pro_has_key, tier: s.tier };
+        this.state._telemetryOn = !!s.telemetry_enabled;
+      }
       // Hidden-map ids are read only to stay consistent with the Mapping tab
       const savedIds = s.hidden_map_ids;
       if(Array.isArray(savedIds)){
@@ -693,10 +709,43 @@ class PadSpanLightsApp extends HTMLElement {
 
     root.appendChild(buildLightsMapCard(host));
 
+    // ── The 90-day trial, under the free map it would unlock ──────────────────
+    if(!paid){
+      const trial=this._trialCard();
+      if(trial) root.appendChild(trial);
+    }
+
     // ── Unassigned notice + light index table (shared with the Mapping tab) ──
     root.appendChild(buildLightsTable(host, lights));
 
     return root;
+  }
+
+  // The trial card (views/trial_offer.js) with this panel as its host. Null
+  // when hidden on this browser, or when there is nothing to offer.
+  _trialCard(){
+    if(this.state._trialHidden) return null;
+    return trialOfferCard({
+      el,
+      settings: this.state._trialSettings,
+      isAdmin: this._isAdmin(),
+      callWS: (type, data)=>this._hass.callWS({ type, ...(data||{}) }),
+      telemetry: (name)=>{
+        if(!this.state._telemetryOn) return;
+        this._hass.callWS({ type:"padspan_ha/telemetry_event", event:String(name) }).catch(()=>{});
+      },
+      toast: (m,e)=>this._toast(m,e),
+      rerender: ()=>this._render(),
+      // The key is live the moment the command returns: re-read settings so
+      // the tier (and with it placement, shapes and the rest) follows.
+      onStarted: ()=>{ this._loadSettings(false).then(()=>this._render()); },
+    }, "atlas", {
+      onDismiss: ()=>{
+        this.state._trialHidden=true;
+        try{ localStorage.setItem(LS_TRIAL_HIDDEN,"1"); }catch(_){}
+        this._render();
+      },
+    });
   }
 
   _toast(msg, isError=false){

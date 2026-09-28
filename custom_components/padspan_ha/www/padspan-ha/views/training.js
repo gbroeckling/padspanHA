@@ -1276,7 +1276,7 @@ function _svgAtlasEditions() {
 <text x="297" y="102" text-anchor="middle" fill="#52b788" font-size="9" font-family="system-ui">Automorph + Showcase</text>
 <rect x="255" y="112" width="84" height="22" rx="11" fill="#1b3526" stroke="#52b788" stroke-width="1"/>
 <text x="297" y="127" text-anchor="middle" fill="#a7f3d0" font-size="9" font-family="system-ui">pro / bright key</text>
-<text x="297" y="168" text-anchor="middle" fill="#4a6052" font-size="8" font-family="system-ui">3-month free trial, no card</text>
+<text x="297" y="168" text-anchor="middle" fill="#4a6052" font-size="8" font-family="system-ui">90-day free trial, no card</text>
 </svg>`;
 }
 

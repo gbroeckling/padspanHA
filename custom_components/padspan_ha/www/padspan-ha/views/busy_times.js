@@ -35,6 +35,10 @@
 
 const { tierAtLeast, currentTier } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
+// The 90-day trial card (trial_offer.js). Optional: a card that fails to load
+// must not blank the view it sits in.
+const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferFromCtx: () => null }; });
 
 let _cache = null, _loading = null, _loadingDays = null, _error = null, _days = 7;
 
@@ -251,7 +255,11 @@ function _buildProGateCard(ctx, featureName) {
   card.appendChild(el("div", { style: "font-weight:700;font-size:16px;margin-bottom:6px" },
     `${featureName} is a PadSpan Pro feature`));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "Unlock it, and everything else gated, with a PadSpan Pro key — or start a one-time 3-month free trial, no card required."));
+    "Unlock it, and everything else gated, with a PadSpan Pro key."));
   card.appendChild(el("div", { class: "muted", style: "font-size:11px" }, "Settings → Features → PadSpan licence"));
+  // The trial is the lighting half (PadSpan Bright Pro): the card says so
+  // rather than promising Busy Times. Null once there is any key.
+  const trial = trialOfferFromCtx(ctx, "busy_times", { feature: featureName });
+  if (trial) card.appendChild(trial);
   return card;
 }
