@@ -255,12 +255,16 @@ UI_ERRORS: frozenset[str] = frozenset(
 # trial_offer.js's own list; GETTING_STARTED_STEPS is the card's step ids
 # (panel.js), plus "trial" for its last line (tests/test_conversion.py
 # holds both to the frontend's).
-TRIAL_SURFACES: tuple[str, ...] = ("overview", "atlas", "placement", "maps", "locate", "busy_times", "settings")
+# update_banner / milestone / sidebar: the "updated to vX" banner's trial
+# line, the one-time milestone card on Overview (trial_nudge_dismissed is its
+# "No thanks" / ✕), and the quiet entry under the PadSpan sidebar menu.
+TRIAL_SURFACES: tuple[str, ...] = ("overview", "atlas", "placement", "maps", "locate", "busy_times", "settings",
+                                   "update_banner", "milestone", "sidebar")
 GETTING_STARTED_STEPS: tuple[str, ...] = ("upload", "scale", "rooms", "scanners", "calibrate", "positioned", "trial")
 OFFER_EVENTS: frozenset[str] = frozenset(
     {f"{what}:{s}" for what in ("trial_offer_shown", "trial_started", "trial_failed") for s in TRIAL_SURFACES}
     | {f"getting_started_step:{s}" for s in GETTING_STARTED_STEPS}
-    | {"getting_started_shown", "getting_started_dismissed"}
+    | {"getting_started_shown", "getting_started_dismissed", "trial_nudge_dismissed"}
 )
 
 # The switches whose ON/OFF is reported (booleans only, by name). Every name
