@@ -22,6 +22,9 @@
 const _FRAME = /\/padspan_ha_static\/padspan-ha\/([A-Za-z0-9_./-]+?)\.m?js(?=[?#:)\s]|$)/g;
 const _NAME = /^[a-z0-9_]{1,40}$/;
 const THROTTLE_MS = 60000;
+// Counted as "other", never by name: the usage report's vocabulary is kept
+// clear of the tester sign-up entirely (tests/test_tester.py).
+const _AS_OTHER = new Set(["tester_signup"]);
 
 /** Map one PadSpan file path (relative to padspan-ha/, no extension) to a name. */
 export function moduleName(path) {
@@ -30,7 +33,7 @@ export function moduleName(path) {
   if (p === "lights_panel") return "atlas_panel";
   if (p.startsWith("lib/")) return "lib";
   const m = /^views\/([^/]+)$/.exec(p);
-  if (m && _NAME.test(m[1])) return m[1];
+  if (m && _NAME.test(m[1])) return _AS_OTHER.has(m[1]) ? "other" : m[1];
   return "other";
 }
 

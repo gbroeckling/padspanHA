@@ -745,7 +745,11 @@ def test_every_padspan_file_the_panel_can_name_is_an_allowed_ui_error():
     from pathlib import Path
     views = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
              / "www" / "padspan-ha" / "views")
-    names = {f.stem for f in views.glob("*.js")}
+    # ui_error.js counts these as "other" (the report never names the tester sign-up).
+    as_other = {"tester_signup"}
+    src = (views / "ui_error.js").read_text(encoding="utf-8")
+    assert all(f'"{n}"' in src for n in as_other)
+    names = {f.stem for f in views.glob("*.js")} - as_other
     assert names, "no views found"
     missing = {n for n in names if not T.event_allowed(f"ui_error:{n}")}
     assert not missing, f"add to telemetry.UI_ERROR_HELPERS: {sorted(missing)}"
