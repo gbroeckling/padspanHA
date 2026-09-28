@@ -106,6 +106,9 @@ const WLED_SYNC_TEXT = "Other WLED lights can change this one.";
 const PADSPAN_TEXT = "PadSpan sends every setting each time this light turns on, so it looks the same every time. "
   + "WLED's own sync is switched off on this device, and put back if you switch back.";
 const TEAM_PADSPAN_TEXT = "Every member gets its own remembered look at the same moment. WLED sync is switched off on the members.";
+// A member of a WLED sync team goes over with its team: on its own it would
+// leave the team's group, or (the leader) stop the others following.
+const IN_WLED_TEAM_TEXT = "It's in a WLED sync team — run the team by PadSpan on the Team card below.";
 
 const groupWords = (mask) => {
   const g = M.groupsOf(mask);
@@ -135,6 +138,7 @@ function joinCard(ctx, host, x) {
   }
   const padspan = x.join === "padspan";
   const teamRuns = x.team_mode === "padspan";
+  const inWledTeam = !!x.team_id && !teamRuns;
   const canSwitch = ctx.isAdmin && !teamRuns && !ctx.joinBusy;
   const choice = (selected, label, to, blocked) => h("button", {
     style: (selected ? S.btnOn : S.btn) + (!selected && (!canSwitch || blocked) ? ";opacity:.5;cursor:default" : ""),
@@ -143,13 +147,14 @@ function joinCard(ctx, host, x) {
   }, label);
   card.appendChild(h("div", { style: "display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px" }, [
     choice(!padspan, "WLED sync", "wled"),
-    choice(padspan, "PadSpan (exact look)", "padspan", x.look ? null : "Remember the look first"),
+    choice(padspan, "PadSpan (exact look)", "padspan", !x.look ? "Remember the look first" : inWledTeam ? IN_WLED_TEAM_TEXT : null),
   ]));
   card.appendChild(h("div", { style: `font-size:12px;color:${C.dim}` }, padspan ? PADSPAN_TEXT : WLED_SYNC_TEXT));
   if (x.sync_off_message) card.appendChild(h("div", { style: `font-size:12px;color:${C.amber};margin-top:4px` }, "⚠ " + x.sync_off_message));
   if (ctx.joinBusy) card.appendChild(h("div", { style: `font-size:12px;color:${C.amber};margin-top:4px` }, "Switching…"));
   if (teamRuns) card.appendChild(h("div", { style: `font-size:12px;color:${C.dim};margin-top:4px` },
     "Its team is run by PadSpan — change that on the Team card below."));
+  else if (inWledTeam && !padspan) card.appendChild(h("div", { style: `font-size:12px;color:${C.dim};margin-top:4px` }, IN_WLED_TEAM_TEXT));
   else if (!ctx.isAdmin) card.appendChild(h("div", { style: `font-size:11px;color:${C.faint};margin-top:4px` }, "An administrator chooses this."));
   if (!padspan && !x.look) {
     card.appendChild(h("div", { style: `font-size:12px;color:${C.dim};margin-top:6px` }, "PadSpan needs a remembered look first."));
@@ -318,7 +323,21 @@ async function teamCard(ctx, host) {
     const leading = mine.leader === me.device_id;
     const byPadspan = mine.mode === "padspan";
     const incomplete = (mine.incomplete || []).length > 0;
-    card.appendChild(h("div", { style: "font-size:13px;margin-bottom:6px" }, [
+    // A WLED sync team member PadSpan still runs (a team switch it couldn't
+    // finish or undo): a break-up would switch its sync back on under
+    // PadSpan. It goes back to WLED sync on its own tab first.
+    let stuck = [];
+    if (!byPadspan) {
+      try {
+        const ex = new Set((((await ctx.hass.callWS({ type: "padspan_ha/wled_exact_list" })) || {}).devices || []).map(d => d.device_id));
+        stuck = [mine.leader, ...mine.followers].filter(id => ex.has(id));
+      } catch (e) { /* no licence or an older backend: nothing is run by PadSpan */ }
+    }
+    // Run by PadSpan there is no sync group and no leading: every member
+    // gets its own look from PadSpan.
+    card.appendChild(h("div", { style: "font-size:13px;margin-bottom:6px" }, byPadspan ? [
+      h("b", {}, mine.name), ` — run by PadSpan: ${[mine.leader, ...mine.followers].map(nameOf).join(", ")}.`,
+    ] : [
       h("b", {}, mine.name), ` — sync group ${mine.group}. `,
       leading ? "This device leads: " : `This device follows ${nameOf(mine.leader)}. `,
       leading ? mine.followers.map(nameOf).join(", ") + " follow it." : "",
@@ -382,12 +401,16 @@ async function teamCard(ctx, host) {
     ]));
     card.appendChild(h("div", { style: `font-size:12px;color:${C.dim}` }, byPadspan ? TEAM_PADSPAN_TEXT
       : `In Home Assistant, control ${nameOf(mine.leader)}; the others follow it over WLED sync. Vacation Mode switches only the leader.`));
+    if (stuck.length) card.appendChild(h("div", { style: `font-size:12px;color:${C.amber};margin-top:6px` },
+      `⚠ PadSpan still gives ${stuck.map(nameOf).join(", ")} its instructions (a switch it couldn't finish). `
+      + "Give it back to WLED sync on its own Sync & team tab before breaking up the team."));
     if (incomplete) card.appendChild(h("div", { style: `font-size:12px;color:${C.amber};margin-top:6px` },
       `⚠ Not finished on ${mine.incomplete.map(nameOf).join(", ")} — they couldn't be reached or the setup was interrupted. `
       + "A break-up puts their old sync settings back."));
     if (ctx.isAdmin) {
       const row = h("div", { style: "display:flex;gap:6px;margin-top:8px;flex-wrap:wrap" });
       row.appendChild(btn(S.btn + `;color:${C.red}`, incomplete ? "Break up (retry)" : "Break up the team", async () => {
+        if (stuck.length) { ctx.toast(`Give ${stuck.map(nameOf).join(", ")} back to WLED sync first`, true); return; }
         if (!confirm(`Break up "${mine.name}"? Each device gets back the sync settings it had before the team.`)) return;
         // A team PadSpan runs goes back to WLED sync first (every member's
         // sync from before PadSpan), then breaks up as any team does.

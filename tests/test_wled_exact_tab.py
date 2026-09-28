@@ -145,7 +145,10 @@ out.history = t.some(x => x.startsWith("History ("));
 
 def test_the_remembered_look_in_words_and_swatches_with_its_result_drift_and_history():
     look = json.loads(json.dumps(_LOOK))
-    look["setup"]["colour"]["buses"][0]["rgbwm"] = 2       # Accurate on the 5-channel output
+    # Accurate on the 5-channel output — which WLED then reports without its
+    # white capability (seglc 5, not 7: FX_fcn.cpp keeps W only for None/Dual).
+    look["setup"]["colour"]["buses"][0]["rgbwm"] = 2
+    look["setup"]["geometry"]["seglc"] = [5, 1]
     out = _run("""
 const look = __LOOK__;
 const older = { ...look, at: look.at - 86400, by: "Nicole", state: { ...look.state, bri: 255 } };
@@ -174,12 +177,42 @@ const hold = all(pane).find(n => n.tagName === "LABEL" && n.textContent === "Put
 out.holdChecked = hold.firstChild.checked;
 out.holdDisabled = hold.firstChild.disabled;
 out.buttons = ["Remember this look", "Try it", "Remember team look"].map(l => btn(pane, l).length);
-""".replace("__LOOK__", json.dumps(look)).replace("__SUMMARY__", json.dumps(_SUMMARY)))
+""".replace("__LOOK__", json.dumps(look)).replace("__SUMMARY__", json.dumps(
+        "2 parts · Part 1: 5-channel output, orange, warmth 127 · Part 2: 30 LEDs, orange, Solid · Brightness 50% · Fade 0.7 s")))
     assert out.pop("result") is not None
-    assert out == {"summary": 1, "colourSwatches": 2, "whiteSwatch": 1, "autoWhite": 1, "driftTitle": True,
+    assert out == {"summary": 1, "colourSwatches": 2, "whiteSwatch": 0, "autoWhite": 1, "driftTitle": True,
                    "driftLines": True, "colourOnly": True, "rememberAgain": False, "differs": True, "historyTitle": True,
                    "useThis": 2, "olderSummary": 2, "remembered": True, "who": True, "holdChecked": True,
                    "holdDisabled": False, "buttons": [1, 1, 0]}
+
+
+def test_far_wests_real_outputs_name_the_auto_white_where_it_applies():
+    """Review finding 12: Far West as it reports itself (live .1.10, seglc
+    [5, 3]): output 1 is 5-channel PWM on Accurate, output 2 RGBW on None."""
+    look = json.loads(json.dumps(_LOOK))
+    look["state"]["seg"][1]["stop"] = 79
+    look["setup"]["geometry"].update(total=79, seglc=[5, 3], buses=[
+        {"type": 45, "start": 0, "len": 1, "skip": 0, "rev": False}, {"type": 30, "start": 1, "len": 78, "skip": 0, "rev": False}])
+    look["setup"]["colour"]["buses"][0]["rgbwm"] = 2
+    out = _run("""
+const M = await import(new URL("wled_model.js", pathToFileURL(%s + "/")).href);
+const s = M.lookSummary(%s, [{ id: 0, name: "Solid" }]);
+out.parts = s.parts.map(p => [p.text, p.autoWhite]);
+""" % (json.dumps(str(_VIEWS)), json.dumps(look)))
+    assert out["parts"] == [["Part 1: 5-channel output, orange, warmth 127", "Accurate"],
+                            ["Part 2: 78 LEDs, orange + white 0, Solid", None]]
+
+
+def test_put_the_look_back_is_only_offered_while_padspan_runs_the_light():
+    """Review finding 13: under WLED sync nothing is put back."""
+    out = _run("""
+let r = await open("Exact look", { x: { join: "wled", exact: false, look: LOOK, can_switch: true } });
+const label = "Put the look back when something else turns it on";
+out.wled = all(r.pane).some(n => n.tagName === "LABEL" && n.textContent === label);
+r = await open("Exact look", { x: { join: "padspan", exact: true, look: LOOK } });
+out.padspan = all(r.pane).some(n => n.tagName === "LABEL" && n.textContent === label);
+""")
+    assert out == {"wled": False, "padspan": True}
 
 
 def test_the_last_result_line_reads_as_designed():
@@ -384,6 +417,47 @@ out.saved = sent(r.calls, "padspan_ha/wled_teams_set").map(c => c.teams);
     assert out["order"] == ["padspan_ha/wled_team_mode", "padspan_ha/wled_cfg", "padspan_ha/wled_cfg", "padspan_ha/wled_teams_set"]
     assert out["cfg"][0] == ["dQ", {"send": {"en": True, "grp": 1, "dir": False}, "recv": {"grp": 1, "bri": True}}]
     assert out["saved"] == [[]]
+
+
+def test_a_wled_sync_team_member_goes_to_padspan_only_with_its_team():
+    """Review finding 8: on its own it would leave the team's group (or stop
+    the leader sending) while the Team card still lists it."""
+    out = _run("""
+let r = await open("Sync & team", { x: { join: "wled", look: LOOK, can_switch: true, team_id: "team-1", team_mode: "mirror" }, teams: [%s] });
+let t = texts(r.pane);
+const b = btn(r.pane, "PadSpan (exact look)")[0];
+out.title = b.getAttribute("title");
+out.says = t.includes("It's in a WLED sync team — run the team by PadSpan on the Team card below.");
+b.click();
+await settle();
+out.switched = sent(r.calls, "padspan_ha/wled_exact_set").length;
+out.teamRow = btn(r.pane, "PadSpan").length;
+// Run by PadSpan while in a WLED team (a switch PadSpan couldn't undo): it
+// can always go back, and the team isn't broken up over it meanwhile.
+r = await open("Sync & team", { x: { join: "padspan", exact: true, look: LOOK, team_id: "team-1", team_mode: "mirror" },
+  teams: [%s], exact: [{ device_id: "dQ" }] });
+out.stuck = texts(r.pane).includes("⚠ PadSpan still gives Quin Kitchen its instructions (a switch it couldn't finish). "
+  + "Give it back to WLED sync on its own Sync & team tab before breaking up the team.");
+btn(r.pane, "Break up the team")[0].click();
+await settle(); await settle();
+out.brokeUp = sent(r.calls, "padspan_ha/wled_cfg").length + sent(r.calls, "padspan_ha/wled_state").length;
+btn(r.pane, "WLED sync")[0].click();
+await settle();
+out.back = sent(r.calls, "padspan_ha/wled_exact_set");
+""" % (_TEAM % "mirror", _TEAM % "mirror"))
+    assert out == {"title": "It's in a WLED sync team — run the team by PadSpan on the Team card below.", "says": True,
+                   "switched": 0, "teamRow": 1, "stuck": True, "brokeUp": 0, "back": [{"exact": False}]}
+
+
+def test_a_team_padspan_runs_names_no_sync_group_or_leader():
+    """Review finding 14."""
+    out = _run("""
+const r = await open("Sync & team", { x: { join: "padspan", exact: true, look: LOOK, team_id: "team-1", team_mode: "padspan" }, teams: [%s] });
+const t = texts(r.pane);
+out.head = t.includes("Kitchen team — run by PadSpan: Quin Kitchen, Far West.");
+out.syncGroup = t.some(x => x.includes("sync group 2") || x.includes("This device leads"));
+""" % (_TEAM % "padspan"))
+    assert out == {"head": True, "syncGroup": False}
 
 
 def test_a_device_padspan_runs_is_never_put_in_a_wled_sync_team():

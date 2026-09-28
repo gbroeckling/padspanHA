@@ -99,7 +99,30 @@ def test_a_preset_turns_an_exact_device_on_from_its_main_light(out) -> None:
                           {"entity_id": "light.upper_north", "on": True, "source": "preset", "brightness": 200}]
     assert p["svc"] == [["scene", "apply", {"entities": {"light.kitchen": {"state": "on", "brightness": 40},
                                                          "light.hall": {"state": "off"}}}]]
-    assert p["result"] == {"applied": 6, "skipped": 0}
+    assert p["result"] == {"applied": 6, "skipped": 0, "failed": 0, "problems": []} and p["text"] == "Applied to 6 ✓"
+
+
+def test_a_preset_says_which_exact_lights_didnt_take(out) -> None:
+    """Review finding 11: a failed, waiting or unanswered exact command is
+    not counted as applied, and the bar says what happened."""
+    f = out["presetFails"]
+    assert (f["failed"]["applied"], f["failed"]["failed"]) == (2, 1)
+    assert f["failed"]["text"] == "Applied 2 of 3 — Far West: part 2: colour didn't take after 3 tries"
+    assert (f["waiting"]["applied"], f["waiting"]["failed"]) == (3, 0)
+    assert f["waiting"]["text"] == "Applied 3 of 3 — Upper South is offline — it gets its look when it reconnects"
+    assert (f["threw"]["applied"], f["threw"]["failed"]) == (2, 1)
+    assert f["threw"]["text"] == "Applied 2 of 3 — Far West: boom"
+
+
+def test_without_the_licence_a_light_padspan_ran_can_be_given_back(out) -> None:
+    """Review finding 16: no Advanced tab without the licence — the light
+    card still offers the way back (allowed without it, backend)."""
+    lp = out["lapsed"]
+    assert lp["shown"] and lp["advancedTabs"] == 0
+    assert lp["switched"] == [{"entity_id": "light.far_west", "exact": False}]
+    # A PadSpan team keeps being switched together; a plain WLED light, a
+    # non-admin and a licensed card (it has the Advanced tab) get nothing.
+    assert (lp["teamMember"], lp["plainWled"], lp["notAdmin"], lp["licensed"]) == (False, False, False, False)
 
 
 def test_a_map_scene_leaves_exact_lights_their_look(out) -> None:

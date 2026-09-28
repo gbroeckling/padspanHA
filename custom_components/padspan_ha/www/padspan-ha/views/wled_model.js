@@ -517,6 +517,11 @@ const PWM_OUTPUTS = { 40: "on/off output", 41: "1-channel output", 42: "2-channe
   44: "4-channel output", 45: "5-channel output", 46: "6-channel output" };
 // Auto-white (cfg hw.led rgbwm): 0 None uses the stored W; 255 = per output.
 const AUTO_WHITE = { 1: "Brighter", 2: "Accurate", 3: "Dual", 4: "Max" };
+// Outputs with a white channel, where auto-white applies (bus_manager.h
+// Bus::hasWhite, 0.14.4-16.0.1). Not the segment's W capability: WLED
+// clears that in Brighter, Accurate and Max (FX_fcn.cpp), the very modes
+// that work the white out from the colour.
+const WHITE_BUSES = new Set([18, 19, 20, 21, 28, 29, 30, 31, 32, 34, 41, 42, 44, 45, 88, 89]);
 
 /** A colour's everyday name: "orange", "white", "dark blue". */
 export function colourName(rgb) {
@@ -584,7 +589,7 @@ export function lookSummary(look, effects) {
     if (s.on === false) text += ", off";
     return { text, hex: colToHex(rgb), w, cct: hasCct ? s.cct : null,
       white: hasW ? whiteSwatch(hasCct ? s.cct : undefined) : null,
-      autoWhite: hasW && found ? autoWhiteOf(setup, found.i) : null };
+      autoWhite: found && WHITE_BUSES.has(Number(found.bus.type) & 0x7f) ? autoWhiteOf(setup, found.i) : null };
   });
   const n = parts.length;
   const fade = +((Number(st.tt ?? 7) || 0) / 10).toFixed(1);

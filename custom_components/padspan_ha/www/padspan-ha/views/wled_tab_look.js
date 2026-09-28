@@ -93,7 +93,8 @@ function paintLook(ctx, root, x) {
   if (x.team_mode === "padspan") head.appendChild(h("div", { style: `font-size:12px;color:${C.dim};margin-top:4px` },
     "Its team is run by PadSpan: every member comes on with its own look at the same moment."));
   if (x.sync_off_message) head.appendChild(h("div", { style: `font-size:12px;color:${C.amber};margin-top:4px` }, "⚠ " + x.sync_off_message));
-  if (look) {
+  // Only while PadSpan runs it: under WLED sync nothing is put back.
+  if (look && x.exact) {
     const hold = check("Put the look back when something else turns it on", x.hold !== false, async (v) => {
       try { await ctx.call("padspan_ha/wled_exact_set", { hold: v }); ctx.toast(v ? "The look goes back on when something else turns it on" : "Something else turning it on keeps what it asked for"); }
       catch (e) { ctx.toast("Couldn't change that: " + errText(e), true); }

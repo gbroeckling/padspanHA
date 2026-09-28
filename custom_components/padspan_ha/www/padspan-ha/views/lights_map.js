@@ -214,10 +214,14 @@ function _exactBrightness(states, d){
 
 // On (with the look) or off, through the one backend path. Returns what
 // went wrong, in plain words — the Atlas says nothing when it worked.
-export async function exactPower(hass, eid, on, { brightness, source = "atlas" } = {}){
+// `brightness` is as HA shows the light (the backend makes it the master's).
+function _powerMsg(eid, on, { brightness, source = "atlas" } = {}){
   const msg = { type: "padspan_ha/wled_power", entity_id: eid, on: !!on, source };
   if (on && typeof brightness === "number") msg.brightness = Math.max(1, Math.min(255, Math.round(brightness)));
-  return exactProblems(await hass.callWS(msg));
+  return msg;
+}
+export async function exactPower(hass, eid, on, opts = {}){
+  return exactProblems(await hass.callWS(_powerMsg(eid, on, opts)));
 }
 export function exactProblems(r){
   const out = [];
@@ -475,29 +479,47 @@ export function captureWholeHouse(lights, states){
 // An exact device is on if its main light (or its only segment light) is on
 // in the preset, at the preset's brightness, with its look — one command per
 // device or PadSpan team; scene.apply would write colours over the look.
+// An exact light counts as applied only when its device took the look;
+// `problems` says what didn't, in plain words (exactProblems).
 export async function applyWholeHouse(hass, preset){
   const entities = {}; let skipped = 0;
   const exactCmds = new Map();   // device/team -> [eid, stored state]
-  const exactKeys = [];          // one per exact light in the preset
+  const exactLights = [];        // [device/team, device] for each exact light in the preset
   for (const [eid, s] of Object.entries((preset && preset.entities) || {})) {
     if (!_WHP_DOMAIN.test(eid) || !s || (s.state !== "on" && s.state !== "off")) continue;
     const live = hass && hass.states && hass.states[eid];
     if (!live || live.state === "unavailable") { skipped++; continue; }
     const ex = exactDeviceOf(eid);
     if (ex) {
-      exactKeys.push(ex.key);
+      exactLights.push([ex.key, ex.device_id]);
       if (eid === ex.master && !exactCmds.has(ex.key)) exactCmds.set(ex.key, [eid, s]);
       continue;
     }
     entities[eid] = s;
   }
   const plain = Object.keys(entities).length;
-  const exactLights = exactKeys.filter(k => exactCmds.has(k)).length;
-  const jobs = [...exactCmds.values()].map(([eid, s]) => exactPower(hass, eid, s.state === "on",
-    { brightness: s.state === "on" ? s.brightness : undefined, source: "preset" }).catch(() => []));
+  const took = new Set(), problems = [];
+  const jobs = [...exactCmds.entries()].map(([key, [eid, s]]) => hass.callWS(_powerMsg(eid, s.state === "on",
+    { brightness: s.state === "on" ? s.brightness : undefined, source: "preset" }))
+    .then(r => {
+      if (r && r.handled === false) { took.add(key); return; }     // passed to HA as a plain call
+      for (const x of (r && r.results) || []) if (x.ok) took.add(x.device_id);
+      problems.push(...exactProblems(r));
+    })
+    .catch(e => { problems.push({ text: `${exactDeviceOf(eid).name}: ${(e && (e.message || e.code)) || "didn't answer"}`, error: true }); }));
   try { if (plain) await hass.callService("scene", "apply", { entities }); }
   finally { await Promise.all(jobs); }
-  return { applied: plain + exactLights, skipped };
+  const sent = exactLights.filter(([key]) => exactCmds.has(key));
+  const exactApplied = sent.filter(([key, did]) => took.has(key) || took.has(did)).length;
+  return { applied: plain + exactApplied, skipped, failed: sent.length - exactApplied, problems };
+}
+
+// What the preset bar says after applyWholeHouse.
+export function wholeHouseText(r){
+  const failed = r.failed || 0, probs = (r.problems || []).map(p => p.text);
+  if (!r.skipped && !failed && !probs.length) return `Applied to ${r.applied} ✓`;
+  return `Applied ${r.applied} of ${r.applied + r.skipped + failed}` + (r.skipped ? ` — ${r.skipped} unavailable` : "")
+    + (probs.length ? ` — ${probs.join(" · ")}` : "");
 }
 
 // ── Layout v2 (Garry, 2026-09-21) ──────────────────────────────────────────────
@@ -1653,6 +1675,32 @@ export function openControlCard(hass, eid, api){
     box.appendChild(el("div", { style: "display:flex;gap:6px;margin-bottom:12px" }, [tControls, tAdvanced]));
     box.appendChild(controls);
     box.appendChild(advanced);
+  } else if (api && api.wled && api.wled.isAdmin && domain === "light") {
+    // No licence, so no Advanced tab: a light PadSpan runs on its own still
+    // has its WLED sync switched off — it can always be given back
+    // (padspan_ha/wled_exact_set allows that without the licence). A team
+    // PadSpan runs is still switched together (wled_power).
+    const slot = el("div");
+    box.appendChild(slot);
+    (async () => {
+      let x = null;
+      try { x = await hass.callWS({ type: "padspan_ha/wled_look_get", entity_id: eid }); } catch (_) { return; }
+      if (!x || x.join !== "padspan" || x.team_mode === "padspan") return;
+      slot.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;margin-top:10px" },
+        "PadSpan gives this light its instructions, with WLED's own sync switched off. The licence for that has lapsed."));
+      slot.appendChild(el("button", {
+        style: "width:100%;margin-top:8px;padding:8px;font-size:12px;font-weight:700;border-radius:10px;cursor:pointer;"
+          + "background:rgba(255,255,255,.05);color:#e2e8f0;border:1px solid rgba(120,190,155,.35)",
+        onclick: async () => {
+          try {
+            await hass.callWS({ type: "padspan_ha/wled_exact_set", entity_id: eid, exact: false });
+            toast("WLED sync gives this light its instructions again — its sync settings are back");
+            ensureExactDevices(hass, rerender, { force: true });
+            close();
+          } catch (e) { toast("Couldn't switch: " + String((e && (e.message || e.code)) || e), true); }
+        },
+      }, "Give this light back to WLED sync"));
+    })();
   }
 
   overlay.appendChild(box);
@@ -3334,7 +3382,7 @@ export function buildLightsMapCard(hostIn){
       if (whArmed !== p.name) { whArmed = p.name; whApply.textContent = "Yes, change the whole house"; return; }
       whDisarm();
       const r = await host.onWholeHouseApply(p);
-      if (r) whFlash(r.skipped ? `Applied ${r.applied} of ${r.applied + r.skipped} — ${r.skipped} unavailable` : `Applied to ${r.applied} ✓`, 4000);
+      if (r) whFlash(wholeHouseText(r), (r.problems || []).length ? 8000 : 4000);
     });
     whSel.addEventListener("change", whDisarm);
     whBar.appendChild(whApply);

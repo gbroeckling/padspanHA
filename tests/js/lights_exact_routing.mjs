@@ -48,6 +48,13 @@ const STATES = {
   "light.kitchen": st("on", { brightness: 90 }), "light.hall": st("off"),
 };
 
+// wled_power's answer: one result per device the command reached — the
+// device, or every member of its PadSpan team.
+function powerResults(devices, eid) {
+  const d = devices.find(x => eid in x.lights);
+  const reached = d && d.team_id ? devices.filter(x => x.team_id === d.team_id) : [d];
+  return { handled: true, results: reached.map(x => ({ device_id: x.device_id, name: x.name, ok: true, tries: 1, diffs: [] })) };
+}
 function fakeHass(states = STATES, devices = DEVICES) {
   const ws = [], svc = [];
   return {
@@ -55,7 +62,7 @@ function fakeHass(states = STATES, devices = DEVICES) {
     callWS: async (m) => {
       ws.push(m);
       if (m.type === "padspan_ha/wled_exact_list") return { devices };
-      if (m.type === "padspan_ha/wled_power") return { handled: true, results: [{ device_id: "d", name: "Far West", ok: true, tries: 1, diffs: [] }] };
+      if (m.type === "padspan_ha/wled_power") return powerResults(devices, m.entity_id);
       return {};
     },
     callService: async (domain, service, data) => { svc.push([domain, service, data]); },
@@ -179,7 +186,28 @@ async function drag(hass, eid) {
     "light.kitchen": { state: "on", brightness: 40 },
     "light.hall": { state: "off" },
   } });
-  out.preset = { power: power(hass), svc: hass.svc, result: r };
+  out.preset = { power: power(hass), svc: hass.svc, result: r, text: LM.wholeHouseText(r) };
+}
+
+// ── A Whole House Preset whose exact command didn't take, waited, or threw ──
+{
+  const entities = { "light.far_west": { state: "on", brightness: 90 }, "light.upper_north": { state: "on", brightness: 200 },
+    "light.kitchen": { state: "on", brightness: 40 } };
+  const run = async (answer) => {
+    const hass = fakeHass();
+    hass.callWS = async (m) => (m.type === "padspan_ha/wled_power" ? answer(m) : {});
+    const r = await LM.applyWholeHouse(hass, { entities });
+    return { ...r, text: LM.wholeHouseText(r) };
+  };
+  out.presetFails = {
+    failed: await run((m) => m.entity_id === "light.far_west"
+      ? { handled: true, results: [{ device_id: "dFW", name: "Far West", ok: false, tries: 3, diffs: ["part 2: colour"], message: "part 2: colour didn't take after 3 tries" }] }
+      : powerResults(DEVICES, m.entity_id)),
+    waiting: await run((m) => m.entity_id === "light.upper_north"
+      ? { handled: true, results: [{ device_id: "dUN", name: "Upper North", ok: true, tries: 1 }, { device_id: "dUS", name: "Upper South", ok: false, waiting: true }] }
+      : powerResults(DEVICES, m.entity_id)),
+    threw: await run((m) => { if (m.entity_id === "light.far_west") throw { code: "failed", message: "boom" }; return powerResults(DEVICES, m.entity_id); }),
+  };
 }
 
 // ── A map scene (maps.js onSceneApply, run from its own source) ──
@@ -210,6 +238,40 @@ async function drag(hass, eid) {
   await LM.toggleEntity(hass, "light.far_west_seg1", { render: () => {}, toast: () => {} });
   await LM.setManyStates(hass, ["light.far_west", "light.kitchen"], true, {});
   out.unlicensed = { power: power(hass), svc: hass.svc, exact: LM.isExactEntity("light.far_west") };
+}
+
+// ── Without the licence: a light PadSpan ran on its own can be given back ──
+{
+  const all = (n, acc = []) => { for (const c of n.children || []) { acc.push(c); all(c, acc); } return acc; };
+  const sent = [];
+  const records = { "light.far_west": { lapsed: true, join: "padspan", exact: true, team_id: null, team_mode: null },
+    "light.upper_north": { lapsed: true, join: "padspan", exact: true, team_id: "t1", team_mode: "padspan" },
+    "light.kitchen": { lapsed: true, join: "wled", exact: false, team_id: null, team_mode: null } };
+  const hass = { states: STATES, callService: async () => {}, callWS: async (m) => {
+    sent.push(m);
+    if (m.type === "padspan_ha/wled_look_get") return records[m.entity_id];
+    if (m.type === "padspan_ha/wled_exact_list") return { devices: [] };
+    return { join: "wled", exact: false };
+  } };
+  const card = async (eid, wled) => {
+    LM.openControlCard(hass, eid, { toast: () => {}, rerender: () => {}, wled });
+    await flush(); await flush();
+    const overlay = document.body.children[document.body.children.length - 1];
+    const btn = all(overlay).find(n => n.tagName === "BUTTON" && n.textContent === "Give this light back to WLED sync");
+    const tabs = all(overlay).filter(n => n.tagName === "BUTTON" && (n.textContent === "Advanced")).length;
+    return { overlay, btn, tabs };
+  };
+  const solo = await card("light.far_west", { tier: "free", isAdmin: true });
+  const shown = !!solo.btn;
+  if (solo.btn) { solo.btn.click(); await flush(); await flush(); }
+  out.lapsed = {
+    shown, advancedTabs: solo.tabs,
+    switched: sent.filter(m => m.type === "padspan_ha/wled_exact_set").map(({ type, ...rest }) => rest),
+    teamMember: !!(await card("light.upper_north", { tier: "free", isAdmin: true })).btn,
+    plainWled: !!(await card("light.kitchen", { tier: "free", isAdmin: true })).btn,
+    notAdmin: !!(await card("light.far_west", { tier: "free", isAdmin: false })).btn,
+    licensed: !!(await card("light.far_west", { tier: "pro", isAdmin: true })).btn,
+  };
 }
 
 console.log(JSON.stringify(out));
