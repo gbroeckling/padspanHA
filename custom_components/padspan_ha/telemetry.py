@@ -18,8 +18,9 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
     whether the building is described at all: floors carrying a real
         storey height, scanners carrying a mounting height, calibration
         points that never got a floor, whether any map is measured
-    uncaught panel errors by view — the half of PadSpan the Python log
-        cannot see (see UI_ERRORS)
+    uncaught panel errors by the PadSpan module that threw, and the tab
+        that was open — the half of PadSpan the Python log cannot see
+        (see UI_ERRORS)
     Apple Find My: how many Find My addresses are on the air now by type
         (and how many of those are away from their owner), how many tags
         PadSpan follows, and how its hand-overs went — followed, missed by
@@ -207,13 +208,42 @@ SUBTABS: dict[str, frozenset[str]] = {
 TAB_EVENTS: frozenset[str] = frozenset(
     {f"tab:{v}" for v in VIEWS} | {f"tab:{v}/{s}" for v, subs in SUBTABS.items() for s in subs}
 )
-# Uncaught panel errors, counted by the view that was open when one landed.
-# The panel is the half of PadSpan the Python log cannot see: v0.35.0 shipped
-# a Mapping tab that threw before it re-rendered, so the previous tab stayed
-# on screen and it read as a hang. Nothing moved in `errors`, and it took a
-# user describing it in prose to find. A COUNT per view — never the message,
-# never a stack, never anything the page happened to be holding.
-UI_ERRORS: frozenset[str] = frozenset({f"ui_error:{v}" for v in VIEWS})
+# Uncaught panel errors, counted by the PadSpan MODULE that threw
+# (www/padspan-ha/views/ui_error.js). The panel is the half of PadSpan the
+# Python log cannot see: v0.35.0 shipped a Mapping tab that threw before it
+# re-rendered, so the previous tab stayed on screen and it read as a hang.
+# A COUNT per module — never the message, never a stack, never anything the
+# page happened to be holding.
+#
+# Before this, the name was the view that was OPEN, and every error on the
+# page counted — Home Assistant's own, other cards', browser extensions' — so
+# ui_error:overview meant "something threw while Overview was showing". Now
+# only a throw with PadSpan code on its stack counts, as
+#   ui_error:<view id>        a view module (views/<id>.js, id in VIEWS)
+#   ui_error:<helper>         a shared helper in views/ (UI_ERROR_HELPERS)
+#   ui_error:panel            panel.js, the shell around the views
+#   ui_error:atlas_panel      lights_panel.js, the Atlas sidebar panel
+#   ui_error:lib              the vendored Preact/htm, nothing of ours below it
+#   ui_error:other            any other PadSpan file (help_content, sample_data)
+# and, counted beside it, the tab that was on screen:
+#   ui_error_while:<view id> | ui_error_while:atlas
+# A report carrying ui_error:* WITHOUT any ui_error_while:* is from a build
+# before the change (server/telemetry_summary.py splits them on that).
+# tests/test_telemetry.py holds UI_ERROR_HELPERS to the files in views/.
+UI_ERROR_HELPERS: frozenset[str] = frozenset({
+    "busy_times", "calibration_matrix", "editions", "evidence_diagram", "house_activity",
+    "insights", "iso_lights", "iso_motion", "light_codes", "lights_map", "locate",
+    "pan_zoom", "path_loss", "plan_viewer", "push_subscription", "radio_map",
+    "room_color", "setup_status", "stack_transform", "tune_save_plan", "ui_error",
+    "wall_geom", "whatif_placement", "wled_advanced", "wled_model", "wled_tab_backup",
+    "wled_tab_leds", "wled_tab_look", "wled_tab_presets", "wled_tab_settings",
+    "wled_tab_sync", "wled_ui", "trial_offer",
+})
+UI_ERROR_SHELLS: frozenset[str] = frozenset({"panel", "atlas_panel", "lib", "other"})
+UI_ERRORS: frozenset[str] = frozenset(
+    {f"ui_error:{m}" for m in VIEWS | UI_ERROR_HELPERS | UI_ERROR_SHELLS}
+    | {f"ui_error_while:{v}" for v in VIEWS | {"atlas"}}
+)
 # The 90-day trial offer (views/trial_offer.js) and the Overview's Getting
 # started card — a funnel, like the wizards above: where the offer was SEEN
 # (once per surface per page), where it was STARTED, and where the licence

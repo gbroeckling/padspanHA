@@ -57,6 +57,13 @@ import(`./views/trial_offer.js?b=${BUILD_ID}`)
   .then(m => { TRIAL = m; })
   .catch(err => console.warn("PadSpan: trial_offer module failed to load", err));
 
+// Which PadSpan module an uncaught error came from (views/ui_error.js). Until
+// it lands, or if it never does, uncaught errors simply go uncounted.
+let UI_ERROR = null;
+import(`./views/ui_error.js?b=${BUILD_ID}`)
+  .then(m => { UI_ERROR = m; })
+  .catch(err => console.warn("PadSpan: ui_error module failed to load", err));
+
 // ── Dynamic view imports ─────────────────────────────────────────────────────
 // Two-phase loading for fast first paint:
 //   Phase 1 (critical): sample_data, help_content, overview, follow — enough to
@@ -1173,28 +1180,25 @@ class PadSpanHaApp extends HTMLElement {
     // Counted, never described. v0.35.0 shipped a Mapping tab that threw
     // before it re-rendered: the previous tab stayed on screen, the panel read
     // as a hang, and nothing anywhere recorded that anything had happened —
-    // the Python log cannot see a throw in the browser. What goes out is the
-    // name of the view that was open, from the closed list in telemetry.py.
-    // The message and the stack stay here, in the console, where they can name
-    // rooms and entities freely.
+    // the Python log cannot see a throw in the browser.
     //
-    // Throttled per view: a throw inside a render loop fires as fast as the
-    // loop does, and the signal worth having is "maps threw today", not how
-    // many times. Nothing is sent unless the report is switched on.
+    // A window listener hears every error on the page, Home Assistant's and
+    // other cards' included, so views/ui_error.js counts only a throw with
+    // PadSpan's own code on its stack, and names the module that threw
+    // (ui_error:<module>) plus, separately, the tab that was open
+    // (ui_error_while:<view>) — names from the closed lists in telemetry.py.
+    // The message and the stack stay here, in the console, where they can
+    // name rooms and entities freely. At most once a minute per module;
+    // nothing is sent unless the report is switched on.
     if(!this._uiErrorHandler){
-      this._uiErrorSeen = {};
-      const _report = ()=>{
+      const _report = (ev)=>{
         try{
-          const view = String(this.state.view || "");
-          if(!view) return;
-          const now = Date.now();
-          if(now - (this._uiErrorSeen[view] || 0) < 60000) return;
-          this._uiErrorSeen[view] = now;
-          this._telemetryEvent("ui_error:" + view);
+          if(!UI_ERROR) return;
+          UI_ERROR.reportUiError(ev, this.state.view, (name)=>this._telemetryEvent(name));
         }catch(_e){ /* the error reporter must never be the error */ }
       };
-      this._uiErrorHandler = ()=> _report();
-      this._uiRejectionHandler = ()=> _report();
+      this._uiErrorHandler = _report;
+      this._uiRejectionHandler = _report;
       window.addEventListener("error", this._uiErrorHandler);
       window.addEventListener("unhandledrejection", this._uiRejectionHandler);
     }

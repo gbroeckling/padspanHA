@@ -122,9 +122,47 @@ def main() -> int:
             usage[k] += int(v or 0)
             usage_installs[k].add(r.get("install_id"))
     print("Usage (events over the window; installs that used it at all)")
-    for k, v in usage.most_common(60):
+    for k, v in [kv for kv in usage.most_common() if not kv[0].startswith("ui_error")][:60]:
         print(f"  {k:<36} {v:>7}  {len(usage_installs[k]):>4} installs")
     print()
+
+    # Uncaught panel errors (telemetry.py UI_ERRORS). A build that names the
+    # module that threw always sends ui_error_while:<tab> beside it; a report
+    # with ui_error:* and no ui_error_while:* is from a build that counted ANY
+    # error on the page — Home Assistant's, other cards' — under the tab that
+    # was open. Those are kept apart: they say nothing about PadSpan's code.
+    by_mod: Counter = Counter()
+    by_tab: Counter = Counter()
+    by_old: Counter = Counter()
+    ins: dict[str, set] = defaultdict(set)
+    for r in reports:
+        u = r.get("usage") or {}
+        errs = {k: int(v or 0) for k, v in u.items() if k.startswith("ui_error")}
+        if not errs:
+            continue
+        new_style = any(k.startswith("ui_error_while:") for k in errs)
+        for k, v in errs.items():
+            if k.startswith("ui_error_while:"):
+                key, c = "while:" + k.split(":", 1)[1], by_tab
+            elif new_style:
+                key, c = "mod:" + k.split(":", 1)[1], by_mod
+            else:
+                key, c = "old:" + k.split(":", 1)[1], by_old
+            c[key] += v
+            ins[key].add(r.get("install_id"))
+    if by_mod or by_old:
+        print("Panel errors — PadSpan code on the stack, by the module that threw (installs)")
+        for k, v in by_mod.most_common():
+            print(f"  {k[4:]:<36} {v:>7}  {len(ins[k]):>4} installs")
+        if by_tab:
+            print("  ...the tab on screen when they did")
+            for k, v in by_tab.most_common():
+                print(f"    {k[6:]:<34} {v:>7}  {len(ins[k]):>4} installs")
+        if by_old:
+            print("  older builds: ANY error on the page, by the tab open (not necessarily PadSpan's)")
+            for k, v in by_old.most_common():
+                print(f"    {k[4:]:<34} {v:>7}  {len(ins[k]):>4} installs")
+        print()
 
     # Apple Find My tags (findmy.py): is following them on, would it matter,
     # and how well does it follow. The rate counts only the hand-overs the
