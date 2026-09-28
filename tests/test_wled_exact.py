@@ -840,3 +840,18 @@ async def test_the_runtime_guard_refuses_a_forbidden_key_before_it_is_sent(house
             await E._post_all(house.hass, worker, dev.host, [body])
         assert err.value.code == "refused"
     assert dev.posts() == []
+
+
+async def test_opening_the_card_rechecks_the_led_setup_once_a_day(house):
+    dev = simple_device()
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    dev.cfg["hw"]["led"]["ins"][0]["rgbwm"] = 2                 # output 1: white mode None -> Accurate
+    conn = _Conn()
+    await E.ws_wled_look_get(house.hass, conn, {"id": 1, "device_id": did, "compare": True})
+    assert conn.results[0]["drift"] is None, "checked within the day: not read again"
+    house.clock[0] += E.SETUP_RECHECK_S
+    conn = _Conn()
+    await E.ws_wled_look_get(house.hass, conn, {"id": 2, "device_id": did, "compare": True})
+    drift = conn.results[0]["drift"]
+    assert drift and drift["geometry"] is False and "Output 1 white mode None → Accurate" in drift["what"]

@@ -963,6 +963,10 @@ async def ws_wled_look_get(hass: HomeAssistant, connection, msg) -> None:
             try:
                 async with W.device_lock(hass, ident["tgt"]["host"]):
                     si = await W._request(hass, ident["tgt"]["host"], "GET", "json/si")
+                    if st.get(ident["mac"]) is rec:          # opening the card rechecks the LED setup too
+                        await _maybe_check_setup(hass, rec, ident["tgt"]["host"], si.get("info") or {}, _now())
+                        out["drift"] = rec.get("drift")
+                        st.schedule_save()
                 ctx = L.Ctx(si.get("info"), geometry_ok=not (rec.get("drift") or {}).get("geometry"))
                 out["differs"] = L.describe(L.compare(rec["look"]["state"], si.get("state") or {}, ctx,
                                                       exact=bool(rec.get("exact"))))
