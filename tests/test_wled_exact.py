@@ -1771,3 +1771,280 @@ async def test_a_change_seen_before_a_retry_starts_running_still_stops_it(house)
     s = dev.serialize_state()
     assert s["on"] is True and s["bri"] == 40
     assert house.store.get("28562f551738")["last_result"]["replaced"]
+
+
+# ── review round 4: what the round-3 repairs left ────────────────────────────
+
+
+def _hold_request(monkeypatch, house, method, path):
+    """The first matching request waits until released."""
+    held, release = asyncio.Event(), asyncio.Event()
+    orig = house.fleet.request_once
+    state = {"done": False}
+
+    async def _req(hass, host, m, p, body, timeout):
+        if m == method and p == path and not state["done"]:
+            state["done"] = True
+            held.set()
+            await release.wait()
+        return await orig(hass, host, m, p, body, timeout)
+    monkeypatch.setattr(W, "_request_once", _req)
+    return held, release
+
+
+async def _lit(house):
+    dev = simple_device()
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    await E.async_power(house.hass, "light.valance_main", True)
+    await house.settle()
+    return dev, did
+
+
+def _shown(bri=40):
+    return SimpleNamespace(state="on", attributes={"brightness": bri})
+
+
+async def _w(aw):
+    return await asyncio.wait_for(aw, 15)
+
+
+async def test_a_change_during_a_retrys_setup_recheck_stops_it(house, monkeypatch):
+    """Review r4 (P1): the retry checked for a change from outside before its
+    once-a-day LED setup read, the last wait before it writes: a dim made
+    during that read was counted, and the old off went anyway."""
+    dev, _did = await _lit(house)
+    _up(house, [dev], 86400 + 10)                     # the daily setup recheck is due
+    dev.busy = 3
+    res = await E.async_power(house.hass, "light.valance_main", False, source="vacation")
+    await house.settle()
+    assert res["results"][0]["waiting"] and res["results"][0]["retry_in"] == 10
+    fire = house.timers[-1][1]
+    _up(house, [dev], 10)
+    held, release = _hold_request(monkeypatch, house, "GET", "json/cfg")
+    t = asyncio.ensure_future(fire())                 # its json/si answered, its json/cfg read held
+    await _w(held.wait())
+    await dev.handle("POST", "json/state", {"bri": 40})   # the person dims it meanwhile
+    h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="on"), _shown()))
+    await _spin()
+    release.set()
+    await _w(t)
+    await _w(h)
+    await house.settle()
+    rec = house.store.get("28562f551738")
+    s = dev.serialize_state()
+    assert s["on"] is True and s["bri"] == 40
+    assert rec["last_result"]["replaced"] and not rec["last_result"]["ok"]
+
+
+async def test_a_change_while_the_first_try_is_answered_busy_is_not_undone_by_the_retry(house):
+    """Review r4 (P6): while the first try's read was answered busy (WLED's
+    JSON buffer in use by the panel, the app or HA), a change from outside
+    was taken for PadSpan's echo — nothing had been sent — and the retry
+    undid it 10 s later."""
+    dev, _did = await _lit(house)
+    _up(house, [dev], 3600)
+    dev.busy = 3
+    p = asyncio.ensure_future(E.async_power(house.hass, "light.valance_main", False, source="presence"))
+    for _ in range(200):                              # its first read answered busy
+        await asyncio.sleep(0.01)
+        if dev.busy == 2:
+            break
+    assert dev.busy == 2
+    b, dev.busy = dev.busy, 0
+    await dev.handle("POST", "json/state", {"bri": 40})   # someone dims it
+    dev.busy = b
+    h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="on"), _shown()))
+    res = await _w(p)
+    await _w(h)
+    await house.settle()
+    r0 = res["results"][0]
+    assert not r0["waiting"] and "changed outside PadSpan" in r0["message"]
+    for _delay, job in list(house.timers):            # whatever timers there are fire
+        await _w(job())
+        await house.settle()
+    s = dev.serialize_state()
+    assert s["on"] is True and s["bri"] == 40
+
+
+async def test_a_change_while_the_first_try_times_out_is_not_undone_by_the_retry(house, monkeypatch):
+    """Review r4 (P6b): the same for a first read that times out (8 s)."""
+    dev, _did = await _lit(house)
+    _up(house, [dev], 3600)
+    held, release = asyncio.Event(), asyncio.Event()
+    orig = house.fleet.request_once
+    state = {"n": 0}
+
+    async def _req(hass, host, m, p, body, timeout):
+        if m == "GET" and p == "json/si" and state["n"] == 0:
+            state["n"] = 1
+            held.set()
+            await release.wait()
+            raise W.WledError("timeout", "No answer within 8 s")
+        return await orig(hass, host, m, p, body, timeout)
+    monkeypatch.setattr(W, "_request_once", _req)
+    p = asyncio.ensure_future(E.async_power(house.hass, "light.valance_main", False, source="presence"))
+    await _w(held.wait())
+    _up(house, [dev], 4)                              # 4 s into the read, the wall button dims it
+    await dev.handle("POST", "json/state", {"bri": 40})
+    h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="on"), _shown()))
+    await _spin()
+    _up(house, [dev], 4)
+    release.set()
+    res = await _w(p)
+    await _w(h)
+    await house.settle()
+    assert not res["results"][0]["waiting"] and "changed outside PadSpan" in res["results"][0]["message"]
+    for _delay, job in list(house.timers):
+        await _w(job())
+        await house.settle()
+    s = dev.serialize_state()
+    assert s["on"] is True and s["bri"] == 40
+
+
+async def test_a_change_made_before_a_command_sends_anything_stands_and_is_held(house, monkeypatch):
+    """Review r4: with nothing sent there is nothing to come back, so a change
+    seen then is someone else's, as when nothing runs: it stands, the command
+    isn't sent, and an outside "on" gets the look back at its brightness."""
+    dev = simple_device()
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    look = house.store.get("28562f551738")["look"]
+    await E.async_power(house.hass, "light.valance_main", False)
+    await house.settle()
+    _up(house, [dev], 60)
+    held, release = _hold_request(monkeypatch, house, "GET", "json/si")
+    p = asyncio.ensure_future(E.async_power(house.hass, "light.valance_main", True, source="atlas"))
+    await _w(held.wait())
+    # The wall button: on at 60, with an old colour on part 2.
+    await dev.handle("POST", "json/state", {"on": True, "bri": 60, "seg": [{"id": 1, "col": [[0, 0, 255]]}]})
+    h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="off"),
+                                                _shown(60)))
+    await _spin()
+    release.set()
+    res = await _w(p)
+    await _w(h)
+    await house.settle()
+    assert "changed outside PadSpan" in res["results"][0]["message"]
+    st = dev.serialize_state()
+    assert st["on"] and st["bri"] == 60
+    assert L.compare(look["state"], st, L.Ctx(dev.serialize_info()), on=True, bri=60, exact=True) == []
+    assert house.store.get("28562f551738")["last_result"]["source"] == "hold"
+    # An off, and the person dims it while it is read: the dim stands.
+    _up(house, [dev], 60)
+    held, release = _hold_request(monkeypatch, house, "GET", "json/si")
+    p = asyncio.ensure_future(E.async_power(house.hass, "light.valance_main", False, source="presence"))
+    await _w(held.wait())
+    await dev.handle("POST", "json/state", {"bri": 40})
+    n = len(dev.posts())
+    h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="on"), _shown()))
+    await _spin()
+    release.set()
+    res = await _w(p)
+    await _w(h)
+    await house.settle()
+    assert "changed outside PadSpan" in res["results"][0]["message"]
+    assert dev.posts()[n:] == [] and dev.serialize_state()["on"] and dev.serialize_state()["bri"] == 40
+
+
+async def test_the_other_lights_reporting_the_same_change_never_stop_a_command(house, monkeypatch):
+    """Review r4: the lights of one device report one change together, one
+    after the other. The ones that come after a hold or a reconnect started
+    for it, or after a newer PadSpan command, are that same change: they
+    must not stop the command, nor its retry when the device was busy."""
+    lights = ("light.valance", "light.valance_segment_1")
+    # (a) The wall button turns it on; the hold's read is answered busy
+    # while the segment lights report the same "on": it still waits.
+    dev = simple_device()
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    look = house.store.get("28562f551738")["look"]
+    await E.async_power(house.hass, "light.valance_main", False)
+    await house.settle()
+    _up(house, [dev], 60)
+    arm = {"after_info": 0, "si": 0}
+    orig = house.fleet.request_once
+
+    async def _busy_after_info(hass, host, m, pth, body, timeout):
+        if m == "GET" and pth == "json/si" and arm["si"]:
+            arm["si"] -= 1
+            raise W.WledError("busy", "The device is busy — try again in a moment")
+        res = await orig(hass, host, m, pth, body, timeout)
+        if m == "GET" and pth == "json/info" and arm["after_info"]:
+            arm.update(after_info=0, si=3)            # the command's read that follows is answered busy
+        return res
+    monkeypatch.setattr(W, "_request_once", _busy_after_info)
+    await dev.handle("POST", "json/state", {"on": True, "bri": 60, "seg": [{"id": 1, "col": [[0, 0, 255]]}]})
+    arm["after_info"] = 1
+    await _w(E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="off"), _shown(60)))
+    await _spin()                                     # (HA starts it at once)
+    for eid in lights:                                # the hold is reading meanwhile
+        await _w(E.on_state_change(house.hass, eid, SimpleNamespace(state="off"), _shown(60)))
+    await house.settle()
+    rec = house.store.get("28562f551738")
+    assert rec["last_result"]["source"] == "hold" and rec["last_result"].get("waiting"), rec["last_result"]
+    await _w(house.timers[-1][1]())
+    await house.settle()
+    st = dev.serialize_state()
+    assert st["on"] and st["bri"] == 60 and rec["last_result"]["ok"]
+    assert L.compare(look["state"], st, L.Ctx(dev.serialize_info()), on=True, bri=60, exact=True) == []
+    # (b) A restart HA never showed as unavailable (it boots ON): the
+    # reconnect's read is answered busy while the other lights report the
+    # boot — the off still goes back.
+    await E.async_power(house.hass, "light.valance_main", False)
+    await house.settle()
+    _up(house, [dev], 3600)
+    dev.reboot()
+    dev.info["uptime"] = 2
+    arm["after_info"] = 1
+    await _w(E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="off"), _shown(128)))
+    await _spin()
+    for eid in lights:                                # the reconnect is reading meanwhile
+        await _w(E.on_state_change(house.hass, eid, SimpleNamespace(state="off"), _shown(128)))
+    await house.settle()
+    assert rec["last_result"]["source"] == "reconnect" and rec["last_result"].get("waiting"), rec["last_result"]
+    _up(house, [dev], 10)
+    await _w(house.timers[-1][1]())
+    await house.settle()
+    assert dev.serialize_state()["on"] is False and rec["last_result"]["ok"]
+    # (c) HA's area off, whose uptime read is slow; a PadSpan "on" lands
+    # meanwhile (the newer one) and its read is answered busy; the segment
+    # lights' off, reported with the main light's, comes after: it retries.
+    await E.async_power(house.hass, "light.valance_main", True)
+    await house.settle()
+    _up(house, [dev], 60)
+    await dev.handle("POST", "json/state", {"on": False})
+    held, release = asyncio.Event(), asyncio.Event()
+    orig = house.fleet.request_once
+    busy_si = {"n": 3}
+
+    async def _req(hass, host, m, pth, body, timeout):
+        if m == "GET" and pth == "json/info" and not release.is_set():
+            held.set()
+            await release.wait()                      # the uptime read takes a moment
+        if m == "GET" and pth == "json/si" and busy_si["n"]:
+            busy_si["n"] -= 1
+            raise W.WledError("busy", "The device is busy — try again in a moment")
+        return await orig(hass, host, m, pth, body, timeout)
+    monkeypatch.setattr(W, "_request_once", _req)
+    off = SimpleNamespace(state="off", attributes={})
+    handlers = [asyncio.ensure_future(E.on_state_change(house.hass, eid, SimpleNamespace(state="on"), off))
+                for eid in ("light.valance_main", *lights)]
+    await _w(held.wait())
+    await _spin()
+    _up(house, [dev], 0.5)
+    p = asyncio.ensure_future(E.async_power(house.hass, "light.valance_main", True, source="service"))
+    await _spin()
+    release.set()
+    await _w(asyncio.gather(*handlers))
+    res = await _w(p)
+    await house.settle()
+    assert res["results"][0]["waiting"], res
+    assert rec["last_result"]["source"] == "service" and not rec["last_result"].get("replaced")
+    _up(house, [dev], 10)
+    await _w(house.timers[-1][1]())
+    await house.settle()
+    assert dev.serialize_state()["on"] is True and rec["last_result"]["ok"]

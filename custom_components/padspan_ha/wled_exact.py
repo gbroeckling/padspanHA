@@ -329,22 +329,30 @@ class _Worker:
         self.boot_at: float | None = None   # when the device last started (now − its uptime)
         self.boot_checked = -1e9            # monotonic time boot_at was read
         self.outside = 0                    # changes made from outside PadSpan, counted
-        self.want_at = -1e9                 # monotonic time the newest want was submitted
+        self.run_at = -1e9                  # monotonic time it began the command it runs
         self._events: asyncio.Lock | None = None
 
     def busy(self) -> bool:
         return self.task is not None and not self.task.done()
 
-    def may_echo(self) -> bool:
-        """A change coming back through HA may be PadSpan's own: a write in
-        the last ECHO_WINDOW_S, or a command in progress, but not a retry
-        that hasn't written anything yet: it is older than what just changed."""
+    def ignores(self, at: float) -> bool:
+        """A change HA reported at `at` (monotonic) is not someone else's
+        newer one when it may be PadSpan's own coming back — a write in the
+        last ECHO_WINDOW_S, or one the running command has made — or when it
+        is older than PadSpan's newest command: reported before it was
+        issued, or, while a command answering a change seen on the light has
+        sent nothing yet, the device's other lights reporting that change.
+        With nothing sent, nothing comes back: otherwise it is outside."""
         if _mono() - self.last_write < ECHO_WINDOW_S:
+            return True
+        want = self.want or {}
+        if at < want.get("issued", -1e9):
             return True
         if not self.busy():
             return False
-        # A retry goes only to an idle worker; the newest want is still it.
-        return not ((self.want or {}).get("retry") and self.last_write < self.want_at)
+        if self.last_write >= self.run_at:
+            return True
+        return bool(want.get("answers")) and not want.get("retry")
 
     def cancel_timers(self) -> None:
         for name in ("late_cancel", "retry_cancel"):
@@ -361,18 +369,25 @@ class _Worker:
         return self._events
 
     def submit(self, want: dict) -> asyncio.Future:
+        # When it was issued, and the changes from outside counted by then:
+        # one counted since replaces it. A retry keeps both (it is as old as
+        # the command it repeats).
+        want.setdefault("issued", _mono())
+        want.setdefault("seen", self.outside)
         self.gen += 1
-        self.want, self.want_at = want, _mono()
+        self.want = want
         fut = asyncio.get_running_loop().create_future()
         self.waiters.append((self.gen, fut))
         self.cancel_timers()
         if not self.busy():
+            self.run_at = _mono()
             self.task = self.hass.async_create_background_task(self._run(), f"padspan_wled_exact_{self.mac}")
         return fut
 
     async def _run(self) -> None:
         while self.done < self.gen:
             gen, want = self.gen, dict(self.want or {})
+            self.run_at = _mono()
             try:
                 result = await _apply(self.hass, self, want, gen)
             except Exception as err:  # noqa: BLE001 — a worker must never die with waiters pending
@@ -517,9 +532,7 @@ async def _apply(hass: HomeAssistant, worker: _Worker, want: dict, gen: int) -> 
     if not _runs(hass, rec):
         result["error"] = NOT_RUN_MSG
         return result
-    # Changes made from outside when this command began: one made since
-    # replaces it (a retry of it is older than that change).
-    seen = want.setdefault("seen", worker.outside)
+    seen = want["seen"]                         # counted when it was issued (submit)
     tgt = W.resolve_device(hass, device_id=rec.get("device_id"))
     if tgt is None:
         result.update(waiting=True, error="Offline — the look goes on when it reconnects")
@@ -549,11 +562,6 @@ async def _apply(hass: HomeAssistant, worker: _Worker, want: dict, gen: int) -> 
             rec["last_result"] = result
             st.schedule_save()
             return result
-        if worker.outside != seen:
-            result.update(replaced=True, error=REPLACED_MSG)
-            rec["last_result"] = result
-            st.schedule_save()
-            return result
         info, live = si.get("info") or {}, si.get("state") or {}
         if tgt.get("mac") and W._norm_mac(info.get("mac")) and W._norm_mac(info.get("mac")) != tgt["mac"]:
             result["error"] = "The device reports a different MAC than Home Assistant has for it — refused"
@@ -561,6 +569,13 @@ async def _apply(hass: HomeAssistant, worker: _Worker, want: dict, gen: int) -> 
             return result
         _note_boot(worker, info)
         await _maybe_check_setup(hass, rec, host, info, now)
+        # After the last wait before it writes: a change from outside
+        # counted since it was issued replaces it.
+        if worker.outside != seen:
+            result.update(replaced=True, error=REPLACED_MSG)
+            rec["last_result"] = result
+            st.schedule_save()
+            return result
         ctx = L.Ctx(info, geometry_ok=not (rec.get("drift") or {}).get("geometry"))
         on = bool(live.get("on")) if want.get("on") is None else bool(want["on"])
         eff = _effective(look["state"], want, live)
@@ -720,6 +735,13 @@ def _submit(hass: HomeAssistant, rec: dict, want: dict) -> asyncio.Future:
     return _worker(hass, rec["mac"]).submit(want)
 
 
+def _answer(hass: HomeAssistant, rec: dict, want: dict) -> asyncio.Future:
+    """A command answering a change seen on a light (hold, a team following,
+    a reconnect): the device's other lights report that same change as it
+    starts, so they don't replace it (_Worker.ignores)."""
+    return _submit(hass, rec, {**want, "answers": True})
+
+
 def _team_wants(hass: HomeAssistant, rec: dict, team: dict | None, on: bool, brightness: int | None,
                 tt: int | None, source: str) -> list[tuple[dict, dict]]:
     """(record, want) for the device and, in a PadSpan team, every member —
@@ -828,6 +850,7 @@ async def async_power(hass: HomeAssistant, entity_id: str, on: bool, brightness:
 
 
 async def on_state_change(hass: HomeAssistant, entity_id: str, old: Any, new: Any) -> None:
+    at = _mono()                    # when HA reported it (it may wait below for the one before)
     if not _tier_at_least(hass, W.TIER):
         await _lapsed_team_follows(hass, entity_id, old, new)
         return
@@ -847,7 +870,7 @@ async def on_state_change(hass: HomeAssistant, entity_id: str, old: Any, new: An
         return                      # Identify is blinking a part; it puts the light back itself
     worker = _worker(hass, rec["mac"])
     async with worker.events():
-        await _outside_change(hass, st, rec, worker, entity_id, old_s, new_s, new)
+        await _outside_change(hass, st, rec, worker, entity_id, old_s, new_s, new, at)
 
 
 async def _lapsed_team_follows(hass: HomeAssistant, entity_id: str, old: Any, new: Any) -> None:
@@ -873,7 +896,7 @@ async def _lapsed_team_follows(hass: HomeAssistant, entity_id: str, old: Any, ne
 
 
 async def _outside_change(hass: HomeAssistant, st: WledLooksStore, rec: dict, worker: _Worker, entity_id: str,
-                          old_s: Any, new_s: str, new: Any) -> None:
+                          old_s: Any, new_s: str, new: Any, at: float) -> None:
     if old_s == "unavailable":
         if _mono() - worker.last_reconnect < RECONNECT_DEDUPE_S:
             return
@@ -882,12 +905,13 @@ async def _outside_change(hass: HomeAssistant, st: WledLooksStore, rec: dict, wo
         return
     if old_s not in ("on", "off"):
         return
-    if worker.may_echo():
-        return                      # PadSpan's own change coming back
+    if worker.ignores(at):
+        return                      # PadSpan's own change coming back, or older than its newest command
     # Changed from outside after a command that didn't go (or is still to
-    # be tried again, or is being tried again): the change stands — that
-    # command is not sent again, by a retry or on a reconnect. Counted and
-    # marked before anything waits, so a retry timer firing meanwhile finds it.
+    # be tried again, or is being tried again, or hasn't sent anything
+    # yet): the change stands — that command is not sent, by a retry or on
+    # a reconnect. Counted and marked before anything waits, so a retry
+    # timer firing meanwhile finds it.
     worker.outside += 1
     res = rec.get("last_result")
     if isinstance(res, dict) and not res.get("ok") and not res.get("replaced"):
@@ -914,7 +938,7 @@ async def _outside_change(hass: HomeAssistant, st: WledLooksStore, rec: dict, wo
             if team:
                 for m, want in _team_wants(hass, rec, team, False, None, None, "team"):
                     if m is not rec:
-                        _submit(hass, m, want)
+                        _answer(hass, m, want)
             return
         if team:
             attrs = getattr(new, "attributes", None) or {}
@@ -925,15 +949,15 @@ async def _outside_change(hass: HomeAssistant, st: WledLooksStore, rec: dict, wo
             for m, want in _team_wants(hass, rec, team, True, _clamp_bri(ref) if ref else None, None, "team"):
                 if m is rec:
                     want = {**want, "bri": None, "keep_bri": True, "source": "hold"}
-                _submit(hass, m, want)
+                _answer(hass, m, want)
             return
         if rec.get("hold", True):
-            _submit(hass, rec, {"on": True, "keep_bri": True, "source": "hold"})
+            _answer(hass, rec, {"on": True, "keep_bri": True, "source": "hold"})
         return
     if new_s == "on" and rec.get("hold", True):
         # A segment light when a main light exists: its opacity is what the
         # person set; the master stays as it is.
-        _submit(hass, rec, {"on": None, "keep_bri": True, "seg_bri": {role: True}, "source": "hold"})
+        _answer(hass, rec, {"on": None, "keep_bri": True, "seg_bri": {role: True}, "source": "hold"})
 
 
 def _note_boot(worker: _Worker, info: dict) -> float:
@@ -989,11 +1013,11 @@ async def _catch_up(hass: HomeAssistant, rec: dict, worker: _Worker, *, came_bac
         return False
     if last and (boot > float(last.get("at") or 0) or (came_back and _undelivered(rec, last))):
         team = padspan_team_of(hass, rec.get("device_id"))
-        _submit(hass, rec, {"on": bool(last.get("on")), "bri": last.get("bri"), "team": bool(team),
+        _answer(hass, rec, {"on": bool(last.get("on")), "bri": last.get("bri"), "team": bool(team),
                             "source": "reconnect"})
         return True
     if came_back:
-        _submit(hass, rec, {"on": None, "keep_bri": True, "source": "reconnect"})
+        _answer(hass, rec, {"on": None, "keep_bri": True, "source": "reconnect"})
         return True
     return False
 
