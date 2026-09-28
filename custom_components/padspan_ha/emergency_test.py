@@ -37,6 +37,7 @@ turns it off.
 """
 
 import asyncio
+import datetime as _dt
 import logging
 import time
 from typing import Any
@@ -236,6 +237,31 @@ def _bump(hass: HomeAssistant, event: str) -> None:
     bump(hass, event)
 
 
+def emergency_automations_since(hass: HomeAssistant, since: Any) -> list[str]:
+    """Names of HA automations with "emergenc" in their id or name that ran
+    after `since` (epoch seconds) - e.g. the power-failure automation."""
+    try:
+        since_ts = float(since)
+    except (TypeError, ValueError):
+        return []
+    out: list[str] = []
+    for st in hass.states.async_all("automation"):
+        name = str(st.attributes.get("friendly_name") or st.entity_id)
+        if "emergenc" not in (st.entity_id + " " + name).lower():
+            continue
+        last = st.attributes.get("last_triggered")
+        try:
+            if isinstance(last, _dt.datetime):
+                ts = last.timestamp()
+            else:
+                ts = _dt.datetime.fromisoformat(str(last).replace("Z", "+00:00")).timestamp()
+        except Exception:  # noqa: BLE001 - never triggered, or unreadable
+            continue
+        if ts > since_ts:
+            out.append(name)
+    return out
+
+
 async def async_test(hass: HomeAssistant, on: bool) -> list[dict[str, Any]]:
     """Start (tag what is on, turn every member on) or end (turn off all
     but the tagged). A second start while one runs keeps the first tags."""
@@ -256,6 +282,16 @@ async def async_test(hass: HomeAssistant, on: bool) -> list[dict[str, Any]]:
             return await _switch_all(hass, [e for e in ids if e not in kept and e not in manual], True)
         if not t.get("active"):
             return []
+        # A real emergency during a test outranks the test: if Home
+        # Assistant's own emergency automation (the power-failure one) ran
+        # since the test started, the lights it turned on are the real thing.
+        # Nothing is switched off; the test just ends. Force off still works.
+        ran = emergency_automations_since(hass, t.get("started_at"))
+        if ran:
+            await store.async_set(dict(_EMPTY))
+            _bump(hass, "emergency_test_off")
+            return [{"entity_id": e, "ok": True, "kept": "emergency", "by": ran}
+                    for e in t.get("members") or []]
         keep = {*(t.get("kept_on") or []), *(t.get("manual") or [])}
         ids = [e for e in t.get("members") or [] if e not in keep]
         await store.async_set(dict(_EMPTY))

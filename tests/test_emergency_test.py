@@ -62,7 +62,8 @@ class House:
         hass = MagicMock()
         hass.data = {DOMAIN: {DATA_SETTINGS: self.settings, "telemetry_counters": {}}}
         hass.states.get = lambda e: self.states.get(e)
-        hass.states.async_all = lambda: list(self.states.values())
+        hass.states.async_all = lambda domain=None: [s for s in self.states.values()
+                                                     if domain is None or s.entity_id.startswith(domain + ".")]
 
         async def _call(domain, service, data=None, blocking=False):
             eid = data["entity_id"]
@@ -372,3 +373,35 @@ def test_usage_events_count_once_per_action(monkeypatch):
     _run(ET.async_test(h.hass, True))
     _run(ET.async_force_off(h.hass))
     assert seen == ["emergency_test_on", "emergency_test_off", "emergency_test_on", "emergency_force_off"]
+
+
+def test_a_real_emergency_during_the_test_leaves_every_light_on(monkeypatch):
+    """The power-failure automation turned the lights on while a test ran:
+    ending the test must not switch the real emergency lighting off."""
+    import datetime as _dt
+    h = _live_house(monkeypatch)
+    _run(ET.async_test(h.hass, True))
+    started = _run(ET.async_status(h.hass))["test"]["started_at"]
+    h.state("automation.emergency_lights_power_failure", "on", "Emergency Lights - Power Failure")
+    h.states["automation.emergency_lights_power_failure"].attributes["last_triggered"] = (
+        _dt.datetime.fromtimestamp(started + 30, tz=_dt.timezone.utc).isoformat())
+    h.calls.clear()
+    results = _run(ET.async_test(h.hass, False))
+    assert h.calls == [], "nothing may be switched off during a real emergency"
+    assert all(r.get("kept") == "emergency" for r in results)
+    assert results[0]["by"] == ["Emergency Lights - Power Failure"]
+    assert _run(ET.async_status(h.hass))["test"]["active"] is False
+    # Force off is still the person's explicit choice.
+    _run(ET.async_force_off(h.hass))
+
+
+def test_an_emergency_automation_from_before_the_test_does_not_count(monkeypatch):
+    import datetime as _dt
+    h = _live_house(monkeypatch)
+    h.state("automation.emergency_lights_power_failure", "on", "Emergency Lights - Power Failure")
+    h.states["automation.emergency_lights_power_failure"].attributes["last_triggered"] = (
+        _dt.datetime(2026, 8, 9, tzinfo=_dt.timezone.utc).isoformat())
+    _run(ET.async_test(h.hass, True))
+    h.calls.clear()
+    _run(ET.async_test(h.hass, False))
+    assert ("light", "turn_off", "light.a1_slwf_09") in h.calls
