@@ -125,10 +125,14 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
                 "vacation_mode_tracked_since": _live.get("vacation_mode_tracked_since") or 0,
                 **switch_fields(_live, False, _time.time())}
         _vac.pop("vacation_mode_enabled_at", None)
+        # A tester sign-up survives too: its id is the only way to reach the
+        # server's copy, and "Stop being a tester" must keep working after a
+        # reset (tester.carried_over).
+        from .tester import carried_over as _tester_kept
         st = _St(hass, 1, SETTINGS_STORE_KEY)
         _reset = {**dict(DEFAULT_SETTINGS), **{
             k: v for k, v in _keep_licence.items() if v
-        }, **_vac}
+        }, **_vac, **_tester_kept(_live)}
         await st.async_save(_reset)
         cleared += 1
         store_obj = domain.get(DATA_SETTINGS)

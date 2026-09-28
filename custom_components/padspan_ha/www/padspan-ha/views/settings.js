@@ -18,6 +18,7 @@
  */
 const { BUY_URL, PRO_PRICE, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
+const { testerSection } = await import(`./tester_signup.js${new URL(import.meta.url).search}`);
 
 export function render(ctx){
   const { el, esc, roomColor, helpBtn } = ctx.helpers;
@@ -1053,6 +1054,10 @@ function _settingsPresence(ctx, el){
     ]),
     el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" }, [previewBtn, sendBtn, idBtn]),
     telOut,
+    // "Become a tester": its own section, consent and button, never part of
+    // the report above (tester_signup.js). Offered while the report is on;
+    // someone signed up can always see it and stop.
+    testerSection(ctx, telOn),
   ]));
 
   // ── BLE Reseed Interval ──────────────────────────────────────────────────

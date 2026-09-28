@@ -297,6 +297,17 @@ const ROOM_CONFUSION = {
 };
 
 const VARIANTS = {
+  // Settings opens on Appearance, so the Presence tab — the usage report's
+  // card and "Become a tester" inside it (tester_signup.js) — never rendered
+  // here. The section shows while the report is on, and to someone signed
+  // up with the report off; the harness's hass has no user, so this is the
+  // non-admin line (tests/js/tester_signup.mjs drives the admin form).
+  "settings.js": [
+    null,
+    { name: "presence-report-on", state: { _settingsTab: "presence", settings: { telemetry_enabled: true } } },
+    { name: "presence-signed-up-report-off", state: { _settingsTab: "presence",
+      settings: { telemetry_enabled: false, tester_signed_up: true } } },
+  ],
   "maps.js": [
     null,
     { name: "stack", state: { mapsTab: "stack", maps: { list: STACK_MAPS } } },

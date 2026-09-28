@@ -42,6 +42,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "whatsnew_seen_version": "",
     "telemetry_install_id": "",
     "telemetry_last_day": "",       # UTC day of the last accepted report (one per day)
+    # "Become a tester" (tester.py) — NOT part of the usage report. What the
+    # person typed, so they can update it; backend-only (padspan_ha/tester_*),
+    # never in settings_get (ws_common._get_settings takes it out). {} = none.
+    "tester_signup": {},
     "vendor_lookup_enabled": True,  # Sends MAC prefixes to vendor lookup APIs when requested from UI
     "ref_power":      -59.0,   # dBm RSSI at 1 m (distance formula)
     "path_loss_exp":   2.5,    # path-loss exponent n (distance formula)

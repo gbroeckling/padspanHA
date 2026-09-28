@@ -35,11 +35,14 @@ this is how features that only exist elsewhere (an iPhone with an IRK, a
 Bermuda install, twelve floors, a lighting-only house) get seen at all.
 
 Never: MAC addresses, IRKs or licence keys, device or room or floor NAMES,
-coordinates, entity ids, timestamps finer than the day. `assert_shareable`
-walks every value before a send and refuses the whole report if anything
-identifier-shaped is in it — belt on top of the design's braces — and
-tests/test_telemetry.py builds a payload from a house full of names and MACs
-and proves none of them are in it.
+coordinates, entity ids, email addresses, timestamps finer than the day.
+`assert_shareable` walks every value before a send and refuses the whole
+report if anything identifier-shaped is in it — belt on top of the design's
+braces — and tests/test_telemetry.py builds a payload from a house full of
+names and MACs and proves none of them are in it.
+
+"Become a tester" (tester.py) is a separate channel — its own consent,
+button, address, id and storage — and never part of this report.
 
 The install id is a random UUID minted the first time the switch goes on. It
 exists so installs can be counted rather than pings; "New anonymous ID" in
@@ -272,6 +275,8 @@ _KEY_RE = re.compile(r"\bPSPAN-[A-Z0-9-]{8,}\b", re.I)
 _IPV4_RE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
 _IPV6_RE = re.compile(r"\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{1,4}\b")
 _ENTITY_RE = re.compile(r"\b[a-z_]{2,}\.[a-z0-9_]{2,}\b")          # light.kitchen_valance, sensor.x
+# Contact details belong to "Become a tester" (tester.py), never to this report.
+_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+'-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
 
 
 # ── counting ─────────────────────────────────────────────────────────────────
@@ -887,7 +892,8 @@ def assert_shareable(payload: dict[str, Any]) -> None:
             # UUID's tail is also twelve hex digits).
             for name, rx in (("UUID", _UUID_RE), ("32-hex", _HEX32_RE), ("licence key", _KEY_RE),
                              ("MAC address", _MAC_RE), ("IP address", _IPV4_RE),
-                             ("IPv6 address", _IPV6_RE), ("entity id", _ENTITY_RE)):
+                             ("IPv6 address", _IPV6_RE), ("email address", _EMAIL_RE),
+                             ("entity id", _ENTITY_RE)):
                 if rx.search(node):
                     raise ValueError(f"{name} in {path}")
             if len(node) > 64:
