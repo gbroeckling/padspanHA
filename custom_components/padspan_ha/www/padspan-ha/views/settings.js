@@ -18,7 +18,9 @@
  */
 const { BUY_URL, PRO_PRICE, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
-const { testerSection } = await import(`./tester_signup.js${new URL(import.meta.url).search}`);
+// Optional too: the tester sign-up must not take the Settings tab with it.
+const { testerSection } = await import(`./tester_signup.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: tester_signup failed to load", err); return { testerSection: () => null }; });
 // Optional: a card that fails to load must not take the Settings tab with it.
 const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferFromCtx: () => null }; });

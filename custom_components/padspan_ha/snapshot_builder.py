@@ -2836,6 +2836,7 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
                             _key, _obj["room"],
                             label=_obj.get("user_label") or _obj.get("name"),
                             padspan_id=_obj.get("padspan_id"),
+                            seen_at=time.time() - float(_obj.get("age_s") or 0),
                         )
             _obj["room"] = ""
             _obj["away"] = True

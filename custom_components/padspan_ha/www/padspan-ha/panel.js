@@ -3409,7 +3409,11 @@ class PadSpanHaApp extends HTMLElement {
           hint: this.state.dataMode === "live" ? "Follow \u2192 pick your phone or a tag" : "Switch the top bar to Live first" },
       ];
       const _completedCount = _steps.filter(s => s.done).length;
-      const _allDone = _completedCount === _steps.length;
+      // Setup is the map-building steps. "See someone on the map" depends on
+      // who is home right now (and on sample mode), so it is shown as a step
+      // but never decides "done": a house set up long ago must not get the
+      // card back on the day nobody is in.
+      const _allDone = _steps.every(s => s.done || s.id === "positioned");
       // Persisted per install (settings.onboarding_completed), straight to
       // the wire: `this.actions` is never assigned on the element, so the
       // settingsSet these two used to optional-chain was never called and

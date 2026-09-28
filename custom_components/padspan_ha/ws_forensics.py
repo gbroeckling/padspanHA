@@ -216,6 +216,9 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             forensics_license_key=key,
             forensics_license_expires=str(data.get("expires_at") or ""),
             license_tier=normalize_tier(data.get("tier"), default="pro"),
+            # A key typed in is whatever the server says it is: a trialist who
+            # buys (or goes lifetime on the same key) is no longer on a trial.
+            license_is_trial=str(data.get("plan") or "") == "trial",
             forensics_enabled=True,
         )
         _invalidate_snapshot_cache(hass)

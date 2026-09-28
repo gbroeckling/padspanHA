@@ -381,6 +381,11 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                         from .tester import carried_over
                         data = {**data, **restore_fields(store_obj.data or {}, data, _time.time()),
                                 **carried_over(store_obj.data or {})}
+                        # The one-time "Atlas on" has already run here: an
+                        # older backup must not run it again over a choice
+                        # made since (settings_store.py).
+                        if (store_obj.data or {}).get("atlas_default_v1_applied"):
+                            data["atlas_default_v1_applied"] = True
                         await st.async_save(data)
                     if hasattr(store_obj, "data") and isinstance(data, dict):
                         store_obj.data = data

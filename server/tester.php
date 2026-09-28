@@ -106,10 +106,13 @@ function setup_value($v) {
 function with_store($dir, $mutate) {
     if (!is_dir($dir) && !@mkdir($dir, 0750, true)) { return null; }
     $file = $dir . '/testers.json';
-    $h = @fopen($file, 'c+');
+    // The lock is its own file, and the list is replaced by a rename: a write
+    // that fails partway leaves the old list whole instead of a truncated one
+    // that every later request would refuse.
+    $h = @fopen($dir . '/testers.lock', 'c');
     if (!$h) { return null; }
     if (!flock($h, LOCK_EX)) { fclose($h); return null; }
-    $cur = stream_get_contents($h);
+    $cur = is_file($file) ? @file_get_contents($file) : '';
     $db = json_decode(($cur === false || $cur === '') ? '{}' : $cur, true);
     if (!is_array($db)) { flock($h, LOCK_UN); fclose($h); return null; }
     if (!isset($db['testers']) || !is_array($db['testers'])) { $db['testers'] = array(); }
@@ -120,11 +123,11 @@ function with_store($dir, $mutate) {
         $out['schema'] = 1;
         if (!$out['testers']) { $out['testers'] = new stdClass(); }
         $json = json_encode($out, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-        if ($json === false) { flock($h, LOCK_UN); fclose($h); return null; }
-        ftruncate($h, 0);
-        rewind($h);
-        fwrite($h, $json);
-        fflush($h);
+        $tmp = $file . '.tmp';
+        if ($json === false || @file_put_contents($tmp, $json) !== strlen($json) || !@rename($tmp, $file)) {
+            @unlink($tmp);
+            flock($h, LOCK_UN); fclose($h); return null;
+        }
     }
     flock($h, LOCK_UN);
     fclose($h);

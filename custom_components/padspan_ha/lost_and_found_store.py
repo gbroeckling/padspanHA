@@ -30,6 +30,10 @@ from .const import LOST_AND_FOUND_STORE_KEY
 
 _LOGGER = logging.getLogger(__name__)
 
+# Two reports of one departure differ only by how age_s was rounded and when
+# the poll ran; a real second departure is at least an away-timeout apart.
+_SAME_DEPARTURE_S = 120.0
+
 
 class LostAndFoundStore:
     def __init__(self, hass: HomeAssistant) -> None:
@@ -43,7 +47,7 @@ class LostAndFoundStore:
         return self.records
 
     async def record(self, key: str, room: str, label: str | None = None,
-                     padspan_id: str | None = None) -> None:
+                     padspan_id: str | None = None, seen_at: float | None = None) -> None:
         """Overwrite this key's last-confirmed room.
 
         The caller (ws_live_snapshot) sees every away object on EVERY poll —
@@ -54,12 +58,18 @@ class LostAndFoundStore:
         (2026-09-28). Saves are coalesced, never awaited inline."""
         if not key or not room:
             return
+        # seen_at is when the object was last heard (now - age_s): the same
+        # departure reports the same moment every poll, give or take the
+        # rounding of age_s. A later departure from the same room is a new
+        # moment, and a new record — its time must not stay at the first one.
+        ts = float(seen_at) if isinstance(seen_at, (int, float)) and seen_at == seen_at else time.time()
         prev = self.records.get(key)
         if (isinstance(prev, dict) and prev.get("room") == room
                 and (not label or prev.get("label") == label)
-                and (not padspan_id or prev.get("padspan_id") == padspan_id)):
+                and (not padspan_id or prev.get("padspan_id") == padspan_id)
+                and abs(float(prev.get("ts") or 0) - ts) < _SAME_DEPARTURE_S):
             return
-        entry: dict[str, Any] = {"room": room, "ts": time.time()}
+        entry: dict[str, Any] = {"room": room, "ts": ts}
         if label:
             entry["label"] = label
         if padspan_id:

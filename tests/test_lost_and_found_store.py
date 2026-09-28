@@ -135,3 +135,19 @@ async def test_async_load_tolerates_corrupt_or_missing_data():
     result = await store.async_load()
     assert result == {}
     assert store.records == {}
+
+
+@pytest.mark.asyncio
+async def test_leaving_the_same_room_again_later_is_a_new_record_with_its_own_time():
+    """Monday it left the Kitchen; it came back and left the Kitchen again on
+    Wednesday. "Last seen in the Kitchen" must say Wednesday, not Monday."""
+    store = _make_store()
+    monday, wednesday = 1_790_000_000.0, 1_790_172_800.0
+    await store.record("ble:AA", "Kitchen", seen_at=monday)
+    for _ in range(5):                                   # the same departure, every poll
+        await store.record("ble:AA", "Kitchen", seen_at=monday + 3)
+    assert store.get_all()["ble:AA"]["ts"] == monday
+    store.store.async_delay_save.reset_mock()
+    await store.record("ble:AA", "Kitchen", seen_at=wednesday)
+    assert store.get_all()["ble:AA"]["ts"] == wednesday
+    store.store.async_delay_save.assert_called_once()

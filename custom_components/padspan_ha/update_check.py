@@ -137,6 +137,12 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
             tier = normalize_tier(data.get("tier"), default="pro")
             if tier != str(st.data.get("license_tier") or ""):
                 updates["license_tier"] = tier
+        # A trial key upgraded in place (bought, or the lifetime offer) stops
+        # reading as a trial the day the server says so.
+        if data.get("plan"):
+            is_trial = str(data.get("plan")) == "trial"
+            if is_trial != bool(st.data.get("license_is_trial")):
+                updates["license_is_trial"] = is_trial
         if updates:
             await st.async_set(**updates)
             _LOGGER.info("PadSpan licence revalidated — %s", ", ".join(f"{k}={v}" for k, v in updates.items()))

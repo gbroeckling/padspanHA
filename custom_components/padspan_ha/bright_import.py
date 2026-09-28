@@ -221,6 +221,12 @@ async def async_import(hass: HomeAssistant, backup: Any) -> dict[str, Any]:
                 for k in _LICENCE_KEYS:
                     if live_settings.get(k):
                         data[k] = live_settings[k]
+            # Not house configuration: a live tester sign-up (it is the only
+            # way to withdraw the server's copy) and the one-time Atlas-on.
+            from .tester import carried_over  # noqa: PLC0415
+            data.update(carried_over(live_settings))
+            if live_settings.get("atlas_default_v1_applied"):
+                data["atlas_default_v1_applied"] = True
             data[DONE_KEY] = dt_util.utcnow().replace(microsecond=0).isoformat()
         await Store(hass, 1, target_key).async_save(data)
         imported.append(suffix)
