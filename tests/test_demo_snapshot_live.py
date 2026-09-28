@@ -24,6 +24,23 @@ Follow-up: while every settings_get so far had failed, the top bar still read
 on a page nobody touches, so a wall kiosk stayed there. The harness runs the
 real _updateBadges from the panel.js HTML's starting text, drives the
 watchdog's re-ask to recovery, and renders the real overview.js unknown.
+
+Second follow-up (reporter, 2026-09-27): Guided Calibration opened a minute
+into an HA restart kept saying "no scanners" after the radios arrived, since
+the poll never redrew it; and the top-bar Data button, which shows the
+CURRENT mode, put them into Sample when they pressed "Live". The harness runs
+the real _pollTick over the state the real calibration.js rendered (one
+redraw when the radio set changes, none otherwise, none while a radio waits
+to be placed) and the real _onDataModeClick (Live -> Sample asks first and
+needs a second click within 3 s; Sample -> Live is one click).
+
+Its review: step 2 ("Choose your device", reached by "Skip — positions look
+fine") had no redraw and stayed on "no scanners / no devices"; a double-click
+or a held Enter on "Live" got past the question; and the mobile pill read
+"…" until a tab change, then "Sample" in Live's green. The harness polls the
+real step 2 (redrawn when its radios change or its device list fills or
+empties; not for each device coming and going, not for RSSI, not over a typed
+MAC), clicks on a controlled clock, and reads the pill's class.
 """
 
 from __future__ import annotations
@@ -75,6 +92,30 @@ _CASES = [
     "overview (basic): a known Sample mode still says Sample data",
     "overview (advanced): a known Sample mode still says Sample data",
     "control: Guided Calibration in Live mode still records the real radios",
+    # second follow-up: the wizard redraws when HA's radios change
+    "calibration: radios arriving after the wizard opened redraw it once",
+    "calibration: the same radios on every poll are not redrawn",
+    "calibration: a radio waiting to be placed is not disturbed by radios arriving",
+    "calibration: a redraw a guard held back is asked for again on the next poll",
+    "calibration: the poll leaves the other Guided Calibration steps alone",
+    # second follow-up: Live -> Sample takes a second click
+    "data toggle: one click on Live does not switch to Sample; it asks first",
+    "data toggle: two clicks within 3 s switch Live to Sample",
+    "data toggle: after 3 s the label goes back and a click only asks again",
+    "data toggle: Sample to Live is still one click",
+    "data toggle: the '…' (mode not known) button does nothing",
+    "data toggle: the top bar and the mobile pill both go through the confirm",
+    # review of the second follow-up: step 2 redraws too; one gesture is one
+    # answer; the mobile pill follows the mode
+    "calibration: step 2 (Choose your device) redraws once when HA's radios and devices arrive",
+    "calibration: step 2 is not redrawn when devices come and go in a list that already has some",
+    "calibration: step 2 is not redrawn when only signal strengths change",
+    "calibration: step 2 is not redrawn over a typed MAC waiting for 'Use'",
+    "data toggle: a double-click on Live only asks; its second click is not an answer",
+    "data toggle: clicks that keep coming ~30 ms apart (a held Enter) never switch Live to Sample",
+    "data toggle: a double-click on Sample switches to Live once and does not then ask",
+    "data toggle: the mobile pill's colour follows each switch",
+    "badge: the mobile pill shows the known mode, in its Live / Sample colour, without a tab change",
 ]
 
 

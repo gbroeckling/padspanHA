@@ -707,11 +707,8 @@ class PadSpanHaApp extends HTMLElement {
     this._closeDrawer = _closeDrawer;
 
     // Mobile topbar pills mirror the desktop toggles
-    this.$("#mobileDataPill").addEventListener("click", async () => {
-      if(!this.state._dataModeKnown) return;   // "…": nothing to toggle from yet
-      const next = (this.state.dataMode === "sample") ? "live" : "sample";
-      await this._setDataMode(next);
-    });
+    this.$("#mobileDataPill").addEventListener("click", () => this._onDataModeClick());
+    this.$("#mobileDataPill").addEventListener("keydown", (e) => { if(e.repeat && e.key === "Enter") e.preventDefault(); });
     this.$("#mobileModePill").addEventListener("click", () => {
       // Re-use the same complexity toggle logic
       this.$("#complexityToggle").click();
@@ -743,11 +740,10 @@ class PadSpanHaApp extends HTMLElement {
     this.$content.addEventListener("focusin", _markInteraction, true);
     this.$content.addEventListener("scroll", _markInteraction, true);
 
-    this.$("#dataModeToggle").addEventListener("click", async ()=>{
-      if(!this.state._dataModeKnown) return;   // "…": nothing to toggle from yet
-      const next = (this.state.dataMode === "sample") ? "live" : "sample";
-      await this._setDataMode(next);
-    });
+    this.$("#dataModeToggle").addEventListener("click", () => this._onDataModeClick());
+    // A held Enter clicks a button once per key repeat: one press, one click
+    // (see _onDataModeClick). Same on the mobile pill above.
+    this.$("#dataModeToggle").addEventListener("keydown", (e) => { if(e.repeat && e.key === "Enter") e.preventDefault(); });
 
     // Restore persisted complexity preference (Basic/Advanced/Dev survives page reloads)
     try {
@@ -1359,6 +1355,18 @@ class PadSpanHaApp extends HTMLElement {
           // rebuild — walking directions a room behind are no directions.
           try { this.state._followLocateRefresh(); } catch(e){ console.warn("PadSpan: Locate refresh failed", e); }
         }
+      } else if(_view === "calibration" && typeof this.state._calibLiveChanged === "function"){
+        // Guided Calibration's steps 1 and 2 (the Tune and Setup tabs) draw
+        // HA's radios and devices once and are otherwise left alone by the
+        // poll. They kept saying "no scanners" after HA's Bluetooth came up a
+        // minute into a restart (#88): rebuild once when what the view drew
+        // has changed. The view's hook says no while it holds something not
+        // yet saved (a radio waiting to be placed, a typed MAC); the poll
+        // render's own guards hold it back mid-drag, mid-confirm, in a
+        // focused field, or just after a click.
+        let changed = false;
+        try { changed = this.state._calibLiveChanged(); } catch(e){}
+        if(changed) this._scheduleRender(true);
       }
     } catch(e){
       // Non-fatal — snapshot is preserved from last good fetch.
@@ -1531,7 +1539,58 @@ class PadSpanHaApp extends HTMLElement {
    *  the constructor's "sample" is a default, not an answer (#88). */
   _dataModeLabel(){
     if(!this.state._dataModeKnown) return "…";
+    if(this.state.dataMode === "live" && this._sampleConfirmT) return "Show demo data?";
     return (this.state.dataMode === "live") ? "Live" : "Sample";
+  }
+
+  /**
+   * The top-bar Data button and the mobile pill. Each shows the CURRENT mode
+   * and a click switches it, so a user who pressed "Live" to get live data
+   * was put into Sample — the demo house (#88). Live -> Sample therefore
+   * takes a second click within 3 s: the first only turns the label into
+   * what the second will do, and it goes back by itself. Sample -> Live
+   * stays one click; "…" (mode not known yet) does nothing.
+   *
+   * A click less than 500 ms after the one before is the rest of the same
+   * gesture — a double-click, a double-tap — and not an answer: a
+   * double-click on "Live" landed in the demo house without "Show demo
+   * data?" ever being read. (A held Enter would be a click per key repeat;
+   * the buttons' keydown handlers stop those.)
+   */
+  async _onDataModeClick(){
+    if(!this.state._dataModeKnown) return;   // "…": nothing to toggle from yet
+    const now = performance.now();
+    const sinceLast = now - (this._dataModeClickAt ?? -Infinity);
+    this._dataModeClickAt = now;
+    if(sinceLast < 500) return;
+    if(this.state.dataMode === "live" && !this._sampleConfirmT){
+      this._sampleConfirmT = setTimeout(() => { this._sampleConfirmT = null; this._paintDataModeLabel(); }, 3000);
+      this._paintDataModeLabel();
+      return;
+    }
+    clearTimeout(this._sampleConfirmT);
+    this._sampleConfirmT = null;
+    this._paintDataModeLabel();
+    await this._setDataMode(this.state.dataMode === "sample" ? "live" : "sample");
+  }
+
+  /**
+   * Both data-mode buttons: the same label, and the mobile pill's Live
+   * colour. The one writer of either, called from _updateBadges (every
+   * refresh and poll, so after every mode change), _renderNav, and the
+   * confirm above. The pill used to be painted only by _renderNav: a phone
+   * on a Live install read "…" until the first tab change, and after a
+   * switch it read "Sample" in Live's green.
+   */
+  _paintDataModeLabel(){
+    const label = this._dataModeLabel();
+    const b = this.$("#dataModeToggle");
+    if(b) b.textContent = label;
+    const pill = this.$("#mobileDataPill");
+    if(pill){
+      pill.textContent = label;
+      pill.className = "mobile-topbar-pill" + (this.state.dataMode === "live" ? " live" : "");
+    }
   }
 
   /**
@@ -1833,8 +1892,7 @@ class PadSpanHaApp extends HTMLElement {
     this.$("#cloudBadge").textContent = "Cloud disabled";
     this._updateEmergencyBanner();
 
-    const b = this.$("#dataModeToggle");
-    if(b) b.textContent = this._dataModeLabel();
+    this._paintDataModeLabel();
     const cb = this.$("#complexityToggle");
     if(cb){
       const mode = this.state.complexity;
@@ -2084,12 +2142,7 @@ class PadSpanHaApp extends HTMLElement {
       const mi = MENU.find(x => x[0] === this.state.view);
       mobileTitle.textContent = mi ? mi[1] : this.state.view;
     }
-    const mobileDataPill = this.shadowRoot.querySelector("#mobileDataPill");
-    if (mobileDataPill) {
-      const isLive = this.state.dataMode === "live";
-      mobileDataPill.textContent = this._dataModeLabel();
-      mobileDataPill.className = "mobile-topbar-pill" + (isLive ? " live" : "");
-    }
+    this._paintDataModeLabel();
     const mobileModePill = this.shadowRoot.querySelector("#mobileModePill");
     if (mobileModePill) {
       mobileModePill.textContent = isBasic ? "Basic" : this.state.complexity === "development" ? "Dev" : "Adv";
