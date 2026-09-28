@@ -36,8 +36,14 @@ IPHONE = "0x10 0x05 0x01 0x18 0x12 0x34 0x56"     # Nearby Info — not Find My
 
 
 def _rec(payload: str, sources: dict[str, float], age: float = 1.0) -> dict:
-    return {"age_s": age, "manufacturer_data": {"76": payload},
-            "sources": {s: {"rssi": r, "age_s": age} for s, r in sources.items()}}
+    """One address's record as snapshot_builder merges it: `findmy_separated`
+    when a report heard within LIVE_S carries the separated payload."""
+    rec = {"age_s": age, "manufacturer_data": {"76": payload},
+           "sources": {s: {"rssi": r, "age_s": age} for s, r in sources.items()}}
+    adv = F.parse_findmy(rec["manufacturer_data"])
+    if adv is not None and adv["separated"] and age <= F.LIVE_S:
+        rec["findmy_separated"] = True
+    return rec
 
 
 KITCHEN = {"kitchen": -55.0, "hall": -72.0, "office": -88.0}
@@ -79,8 +85,8 @@ def test_only_a_static_random_address_can_be_a_find_my_key():
 T0 = 1_000_000.0
 
 
-def _poll(bridge, t, records, known=None):
-    return bridge.step(T0 + t, records, known or {})
+def _poll(bridge, t, records, known=None, **kw):
+    return bridge.step(T0 + t, records, known or {}, **kw)
 
 
 def _change(bridge, old, new, payload_old, payload_new, place_old, place_new=None, known=None, t0=0.0):
@@ -649,7 +655,8 @@ def test_a_tag_that_left_range_is_no_candidate_once():
     b = F.FindMyBridge()
     k = "ble:" + KEYS_1
     nb = {BAG_1: _rec(_separated(1), KITCHEN)}
-    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN), **nb}, {KEYS_1: k})
+    for t in (-20, 0):      # watching since before Keys stopped
+        _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN), **nb}, {KEYS_1: k})
     missed = []
     for t in (20, 100, 200, 290):
         r = _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN, age=t + 1), KEYS_2: _rec(_separated(3, 0x22), KITCHEN), **nb})
@@ -663,27 +670,42 @@ def test_a_tag_that_left_range_is_no_candidate_once():
 
 
 def test_what_came_closest_to_a_link_is_the_reason_it_missed():
-    """Keys (last reported at -1) goes quiet; one new AirTag address appears.
-    At the hand-over moment but somewhere else: "elsewhere" — another
-    device's change, or Keys carried off as it changed, can't be told apart.
-    Where Keys was, a little after the timing rule allows: "late" — what a
-    real hand-over reported late looks like. Any later, or late somewhere
-    else: someone else's, and Keys most likely left range."""
+    """Keys (last reported at -1) goes quiet; one new AirTag address appears
+    (first heard at the first poll from `at` on). At the hand-over moment
+    but somewhere else: "elsewhere" — another device's change, or Keys
+    carried off as it changed, can't be told apart. Where Keys was, after
+    the timing rule allows but no later than a real hand-over can be first
+    heard on this install (a reseed + the gap between polls + an advert):
+    "late" — the timing rule turned it down. Any later, or somewhere else:
+    someone else's, and Keys most likely left range.
+
+    Review: "late" used to be anything up to LIVE_S — at the defaults (30 s
+    reseed, polls every 5-10 s) a real hand-over is first heard within 42 s,
+    inside APPEAR_AFTER_S, so it caught only other tags ARRIVING where Keys
+    had been, counted against the matcher; and with polls 80 s apart a real
+    hand-over it turned down was "left range"."""
     k = "ble:" + KEYS_1
-    for name, place, at, want in (("somewhere else", OFFICE, 20, "elsewhere"),
-                                  ("no scanner heard both", {"garage": -60.0}, 20, "elsewhere"),
-                                  ("where it was, a minute late", KITCHEN, 60, "late"),
-                                  ("where it was, too late for a reseed", KITCHEN, 90, "no_candidate"),
-                                  ("somewhere else, a minute late", OFFICE, 60, "no_candidate")):
+    for name, place, at, reseed, every, want in (
+            ("somewhere else", OFFICE, 20, None, 10, "elsewhere"),
+            ("no scanner heard both", {"garage": -60.0}, 20, None, 10, "elsewhere"),
+            ("where it was, a minute late: someone else's arriving", KITCHEN, 60, None, 10, "no_candidate"),
+            ("where it was, a minute late, 60 s reseed", KITCHEN, 60, 60.0, 10, "late"),
+            ("where it was, later than a 60 s reseed reports", KITCHEN, 80, 60.0, 10, "no_candidate"),
+            ("somewhere else, a minute late, 60 s reseed", OFFICE, 60, 60.0, 10, "no_candidate"),
+            ("polled every 80 s: a real change first heard 80 s on", KITCHEN, 2, None, 80, "late")):
         b = F.FindMyBridge()
-        _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN)}, {KEYS_1: k})
+        kw = {} if reseed is None else {"reseed_s": reseed}
         missed = []
-        for t in (at, 100, 200, 290, 310, 400):
-            r = _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN, age=t + 1), KEYS_2: _rec(_separated(1, 0x22), place)})
+        for t in range(-2 * every, 401, every):
+            recs = {KEYS_1: _rec(_separated(1), KITCHEN, age=max(1, t + 1))}
+            if t >= at:
+                recs[KEYS_2] = _rec(_separated(1, 0x22), place)
+            r = _poll(b, t, recs, {KEYS_1: k}, **kw)
             assert r["linked"] == [], name
             missed += r["missed"]
         assert missed == [(k, want)], name
-    assert F.APPEAR_AFTER_S < 60 <= F.LIVE_S < 90, "the fixture no longer brackets the late case"
+    assert 30 + 10 + F.ADVERT_S < F.APPEAR_AFTER_S < 60 <= 60 + 10 + F.ADVERT_S < 80, \
+        "the fixture no longer brackets the late band"
 
 
 def test_another_devices_routine_change_after_the_tag_left_is_not_a_miss():
@@ -697,7 +719,8 @@ def test_another_devices_routine_change_after_the_tag_left_is_not_a_miss():
 
     def run(change_at, place):
         b = F.FindMyBridge()
-        _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN), mate_1: _rec(_nearby(1), place)}, {KEYS_1: k})
+        for t in (-20, -10, 0):
+            _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN), mate_1: _rec(_nearby(1), place)}, {KEYS_1: k})
         missed = []
         for t in range(10, 700, 10):
             recs = {KEYS_1: _rec(_separated(1), KITCHEN, age=t + 1)}
@@ -724,7 +747,8 @@ def test_a_pairing_too_close_to_call_is_ambiguous_even_after_the_candidates_go()
     known = {KEYS_1: "ble:" + KEYS_1, BAG_1: "ble:" + BAG_1}
     near_k = {"kitchen": -56.0, "hall": -71.0, "office": -88.0}
     near_b = {"kitchen": -54.0, "hall": -73.0, "office": -87.0}
-    _poll(b, 0, {KEYS_1: _rec(_separated(1), KITCHEN), BAG_1: _rec(_separated(1), KITCHEN)}, known)
+    for t in (-20, 0):
+        _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN), BAG_1: _rec(_separated(1), KITCHEN)}, known)
     missed = []
     for t in (20, 100, 200, 290, 310, 400):
         recs = {KEYS_2: _rec(_separated(1, 0x22), near_k), BAG_2: _rec(_separated(1, 0x33), near_b)} if t <= 100 else {}
@@ -732,6 +756,28 @@ def test_a_pairing_too_close_to_call_is_ambiguous_even_after_the_candidates_go()
         assert r["linked"] == [], t
         missed += r["missed"]
     assert sorted(missed) == [("ble:" + BAG_1, "ambiguous"), ("ble:" + KEYS_1, "ambiguous")]
+
+
+def test_a_candidate_rightly_linked_to_another_tag_is_not_a_rival():
+    """Review: Keys changes address at the moment Bag, a few metres away, is
+    carried out of range. Keys' new address is rightly Keys'; it was also
+    Bag's only candidate, and Bag's window was filed "ambiguous" — a miss
+    against the matcher — when Bag simply left."""
+    b = F.FindMyBridge()
+    known = {KEYS_1: KEYS_1, BAG_1: BAG_1}
+    near = {"kitchen": -63.0, "hall": -80.0, "office": -80.0}        # 8 dB from the kitchen
+    assert F.MARGIN_DB <= F.place_difference(near, KITCHEN) <= F.MAX_DB, "the fixture no longer makes Bag a near rival"
+    missed, linked = [], []
+    for t in range(-20, 401, 10):
+        recs = {KEYS_1: _rec(_separated(1), KITCHEN, age=max(1, t + 1)),
+                BAG_1: _rec(_separated(1), near, age=max(1, t + 1))}
+        if t > 0:
+            recs[KEYS_2] = _rec(_separated(1, 0x22), KITCHEN)
+        r = _poll(b, t, recs, known)
+        missed += r["missed"]
+        linked += r["linked"]
+    assert linked == [(KEYS_1, KEYS_1, KEYS_2)]
+    assert missed == [(BAG_1, "elsewhere")]
 
 
 def test_a_restart_neither_counts_a_window_twice_nor_trips_on_old_state():
@@ -755,6 +801,52 @@ def test_a_restart_neither_counts_a_window_twice_nor_trips_on_old_state():
     _poll(b2, 400, {KEYS_1: _rec(_separated(1), KITCHEN)})
     for t in (500, 600, 710):
         missed += _poll(b2, t, {KEYS_1: _rec(_separated(1), KITCHEN, age=t - 399)})["missed"]
+    assert missed == [(k, "no_candidate")]
+
+
+def test_a_hand_over_the_bridge_saw_only_part_of_is_never_reported():
+    """Review: HA restarts 10 s after Keys changes address. The new bridge
+    takes the next address, already on the air at its first poll, for a
+    neighbour's there all along — Keys is lost (as before: a link needs the
+    new address to appear around the old one's last report) — and the window
+    was filed "left range". Bridging switched off while Keys changed: the
+    next address is first seen when it comes back on, too late for the
+    timing rule, and the window was filed "late" — against the matcher."""
+    k = KEYS_1
+
+    def keys(t):
+        return {KEYS_1: _rec(_nearby(1), KITCHEN, age=max(1, t - 4)),
+                **({KEYS_2: _rec(_nearby(1), KITCHEN)} if t >= 10 else {})}
+
+    b1 = F.FindMyBridge()
+    for t in (-30, -20, -10, 0, 10):
+        _poll(b1, t, keys(t), {KEYS_1: k})
+    b2 = F.FindMyBridge(b1.to_state())                 # the restart, 10 s after the change
+    missed = []
+    for t in range(20, 501, 10):
+        r = _poll(b2, t, keys(t))
+        assert r["linked"] == [], t
+        missed += r["missed"]
+    assert missed == []
+
+    b = F.FindMyBridge()
+    missed = []
+    for t in range(-30, 501, 10):
+        if 10 <= t <= 50:
+            b.unwatched(T0 + t)                        # bridging off: a poll the bridge was not in
+            continue
+        r = _poll(b, t, keys(t), {KEYS_1: k})
+        assert r["linked"] == [], t
+        missed += r["missed"]
+    assert missed == []
+    # Watched throughout, the same arrival 55 s after Keys' last report —
+    # later than a real hand-over is first heard at the defaults — is
+    # someone else's.
+    b = F.FindMyBridge()
+    missed = []
+    for t in range(-30, 501, 10):
+        recs = keys(t) if t >= 60 else {KEYS_1: keys(t)[KEYS_1]}
+        missed += _poll(b, t, recs, {KEYS_1: k})["missed"]
     assert missed == [(k, "no_candidate")]
 
 
@@ -845,6 +937,78 @@ def test_a_tag_back_on_its_day_key_is_not_a_wrong_link():
     for t in (300, 335):
         r = _poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN), KEYS_2: _rec(_separated(1, 0x22), KITCHEN, age=t - 100)})
     assert r["unlinked"] == [(k, KEYS_2, KEYS_1)] and r["back_on_day_key"] == []
+
+
+def test_a_day_key_return_is_known_by_what_the_links_were_onto():
+    """Whether the tag was near its owner is read when each link is made —
+    at a return, the key it left has stopped, and a stopped address's record
+    says nothing: it may be gone from the list (a short ble_max_age_s, a
+    restart), and a separated one no longer reads separated (no report of it
+    is live). Review: the return was filed as a wrong link undone whenever
+    the near-owner key was no longer in the list."""
+    k = KEYS_1
+    b = F.FindMyBridge()
+    _change(b, KEYS_1, KEYS_2, _separated(1), _nearby(1), KITCHEN, known={KEYS_1: k})
+    _change(b, KEYS_2, KEYS_3, _nearby(1), _nearby(1), KITCHEN, t0=1000.0)
+    r = [_poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN)}) for t in (2000, 2035)][-1]
+    assert r["unlinked"] == [(k, KEYS_2, KEYS_1), (k, KEYS_3, KEYS_1)] and r["back_on_day_key"] == [k]
+    # Linked onto a visitor's SEPARATED key, which then left: Keys back on
+    # its own key is that link undone, whatever the visitor's record says now.
+    b = F.FindMyBridge()
+    _change(b, KEYS_1, KEYS_2, _separated(1), _separated(1, 0x22), KITCHEN, known={KEYS_1: k})
+    r = [_poll(b, t, {KEYS_1: _rec(_separated(1), KITCHEN), KEYS_2: _rec(_separated(1, 0x22), KITCHEN, age=t - 150)})
+         for t in (400, 435)][-1]
+    assert r["unlinked"] == [(k, KEYS_2, KEYS_1)] and r["back_on_day_key"] == []
+
+
+def test_a_wrong_link_onto_a_device_still_on_the_air_is_not_a_day_key_return():
+    """Review: Keys, separated on its day key D, is unheard in the garage for
+    a while; a housemate's AirTag near its owner there changes key (M1 ->
+    M2), and Keys is linked onto M2 — wrong. Keys is heard on D again while
+    M2 is still on the air: two addresses heard at once are two devices, so
+    that is a wrong link undone — it was filed as Keys back on its day key
+    after time near its owner (expected), and the follow rate stayed 100%."""
+    k, D, M1, M2 = KEYS_1, KEYS_1, BAG_1, KEYS_2
+    b = F.FindMyBridge()
+    out = []
+    for t in range(-20, 241, 10):
+        recs = {D: _rec(_separated(1), OFFICE, age=max(1, t + 1) if t < 200 else 1)}
+        recs[M1] = _rec(_nearby(1), OFFICE, age=max(1, t - 19))
+        if t >= 20:
+            recs[M2] = _rec(_nearby(1), OFFICE)
+        out.append(_poll(b, t, recs, {D: k}))
+    assert [x for r in out for x in r["linked"]] == [(k, D, M2)], "the fixture no longer makes the wrong link"
+    unlinked = [x for r in out for x in r["unlinked"]]
+    assert unlinked == [(k, M2, D)]
+    assert [x for r in out for x in r["back_on_day_key"]] == []
+    # The same return once M2 has stopped (its last report before D's
+    # first) reads as the schedule.
+    b = F.FindMyBridge()
+    out = []
+    for t in range(-20, 241, 10):
+        recs = {D: _rec(_separated(1), OFFICE, age=max(1, t + 1) if t < 200 else 1)}
+        recs[M1] = _rec(_nearby(1), OFFICE, age=max(1, t - 19))
+        if t >= 20:
+            recs[M2] = _rec(_nearby(1), OFFICE, age=1 if t < 190 else t - 189)
+        out.append(_poll(b, t, recs, {D: k}))
+    assert [x for r in out for x in r["unlinked"]] == [(k, M2, D)]
+    assert [x for r in out for x in r["back_on_day_key"]] == [k]
+
+
+def test_an_address_is_separated_when_any_live_report_says_so():
+    """Each scanner's row is the last advert THAT scanner caught: one can be
+    another moment's payload. Review: the report read the separated flag off
+    one row — whichever came first — and the bridge off another."""
+    def ads(*rows):
+        return [{"address": KEYS_1, "source": s, "age_s": age, "manufacturer_data": {"76": p}} for s, p, age in rows]
+
+    assert F.on_air(ads(("kit", _nearby(1), 1), ("off", _separated(1), 5)))["separated"]["airtag"] == 1
+    assert F.on_air(ads(("kit", _nearby(1), 1), ("edge", _separated(1), F.LIVE_S + 1)))["separated"]["airtag"] == 0
+    assert F.on_air(ads(("kit", _separated(1), 1), ("edge", _nearby(1), 9000)))["separated"]["airtag"] == 1
+    assert F.separated_report({"76": _separated(1)}, 5)
+    assert not F.separated_report({"76": _separated(1)}, F.LIVE_S + 1)
+    assert not F.separated_report({"76": _nearby(1)}, 1) and not F.separated_report({"76": IPHONE}, 1)
+    assert not F.separated_report({"76": _separated(1)}, None)
 
 
 def test_what_the_report_counts_about_the_tags_themselves():

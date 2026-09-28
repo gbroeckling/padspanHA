@@ -104,7 +104,8 @@ def _findmy_forget_in_history(dom: dict, ident: str, addr: str) -> None:
 
 
 async def _findmy_step(hass: HomeAssistant, ble_by_addr: dict, canonical_by_addr: dict,
-                       addr_to_device: dict, addr_to_entities: dict, now_ts: float | None = None) -> list:
+                       addr_to_device: dict, addr_to_entities: dict, now_ts: float | None = None,
+                       reseed_s: float | None = None) -> list:
     """Carry each known Find My tag onto its next address (findmy.py).
 
     A Find My address is static random (0xC0-0xFF), never a resolvable
@@ -116,9 +117,10 @@ async def _findmy_step(hass: HomeAssistant, ble_by_addr: dict, canonical_by_addr
     key, the address the person named and followed it by (B2 below), its
     room and Traceback key. followed_addrs is never rewritten (open panels
     hold their own copy and would undo it — round 8). Returns this poll's
-    links as (identity, old address, new address)."""
+    links as (identity, old address, new address). `reseed_s`: the reseed
+    interval bluetooth_live used (its diag), for the report's "late"."""
     import time as _t  # noqa: PLC0415
-    from .findmy import LIVE_S, is_findmy_address, parse_findmy  # noqa: PLC0415
+    from .findmy import LIVE_S, RESEED_S, is_findmy_address, parse_findmy  # noqa: PLC0415
     now_ts = _t.time() if now_ts is None else now_ts
     bridge = await _findmy_bridge(hass)
     dom = hass.data.get(DOMAIN, {})
@@ -139,7 +141,8 @@ async def _findmy_step(hass: HomeAssistant, ble_by_addr: dict, canonical_by_addr
                 or (obj_store and obj_store.get_label(addr))
                 or (dev_reg and dev_reg.get_label_by_key(addr))):
             known[addr] = addr
-    res = bridge.step(now_ts, {a: r for a, r in ble_by_addr.items() if a not in canonical_by_addr}, known)
+    res = bridge.step(now_ts, {a: r for a, r in ble_by_addr.items() if a not in canonical_by_addr}, known,
+                      float(reseed_s) if isinstance(reseed_s, (int, float)) else RESEED_S)
     for ident in list(bridge.tags):
         if bridge.tags[ident].get("addr") == ident:
             continue            # still on the address it was first known by: an ordinary object
@@ -794,6 +797,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         # Deduplicate advertisements by address (HA often reports same address via multiple scanners).
         ads = ((snapshot.get("ble") or {}).get("advertisements") or [])
         ble_by_addr: dict[str, dict[str, Any]] = {}
+        from .findmy import is_findmy_address as _fm_addr, separated_report as _fm_separated  # noqa: PLC0415
         for a in ads:
             addr = str(a.get("address") or "").upper()
             if not addr:
@@ -808,10 +812,15 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     "age_s": a.get("age_s"),
                     "sources": {},  # source_name → {"rssi": ..., "age_s": ...}
                     "connectable": a.get("connectable"),
-                    # Extra fields for identification hints (mirrors HA advertisement monitor)
-                    "manufacturer_data": a.get("manufacturer_data") or {},
-                    "service_data": a.get("service_data") or {},
-                    "service_uuids": a.get("service_uuids") or [],
+                    # Extra fields for identification hints (mirrors HA advertisement monitor).
+                    # Copies: the rows are bluetooth_live's cached records
+                    # (get_snapshot's rows share their dicts), and the merge
+                    # below wrote every older row's payload INTO the freshest
+                    # one — the report read an AirTag's hours-old payload as
+                    # its latest (Find My review, 2026-09-27).
+                    "manufacturer_data": dict(a.get("manufacturer_data") or {}),
+                    "service_data": dict(a.get("service_data") or {}),
+                    "service_uuids": list(a.get("service_uuids") or []),
                 }
                 ble_by_addr[addr] = rec
 
@@ -852,6 +861,11 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 ac = a.get("connectable")
                 if ac is True or rec.get("connectable") is None:
                     rec["connectable"] = ac
+                # A Find My device is away from its owner when ANY report
+                # heard within LIVE_S says so — not the merged payload, one
+                # arbitrary row's (findmy.separated_report()).
+                if _fm_addr(addr) and _fm_separated(md, a.get("age_s")):
+                    rec["findmy_separated"] = True
             except Exception:
                 pass
 
@@ -1096,7 +1110,12 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         try:
             _st_fm = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
             if _st_fm and _st_fm.get("mac_rotation_bridging"):
-                await _findmy_step(hass, ble_by_addr, canonical_by_addr, addr_to_device, addr_to_entities)
+                await _findmy_step(hass, ble_by_addr, canonical_by_addr, addr_to_device, addr_to_entities,
+                                   reseed_s=((snapshot.get("ble") or {}).get("diag") or {}).get("reseed_interval_s"))
+            elif hass.data.get(DOMAIN, {}).get(_FINDMY) is not None:
+                # Off: a hand-over now is one the bridge never sees — the
+                # report must not file it as a miss once it is back on.
+                hass.data[DOMAIN][_FINDMY].unwatched(time.time())
         except Exception as _fm_err:
             _LOGGER.debug("Find My bridging error: %s", _fm_err)
 

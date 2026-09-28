@@ -603,6 +603,9 @@ class BluetoothLive:
                         _RESEED_INTERVAL_S = 5
             except Exception:
                 pass
+            # How late a passive proxy's reports can arrive — the Find My
+            # report's "late" (findmy.py _report_lag) reads it here.
+            diag["reseed_interval_s"] = _RESEED_INTERVAL_S
             _needs_reseed = (
                 not self._seen_by_source
                 or self._last_reseed is None

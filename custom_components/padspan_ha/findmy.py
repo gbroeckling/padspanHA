@@ -66,9 +66,17 @@ hand-over window ended: a link, or — once, when the window closes with none �
 the strongest reason no link was made (MISS_REASONS). Only "ambiguous" and
 "late" are the matcher turning down what was most likely the tag; the others
 are a tag that left range, or another device's change the rules rightly
-ignored. It says which moves back were a tag back on its day key (the Find My
-schedule) rather than a link undone. on_air() and FindMyBridge.stats() count;
-neither ever hands back an address.
+ignored. A window the bridge did not watch whole — it was not running yet (a
+restart), or bridging was off (unwatched()) — is never reported. It says
+which moves back were a tag back on its day key (the Find My schedule)
+rather than a link undone. on_air() and FindMyBridge.stats() count; neither
+ever hands back an address.
+
+Separated or near its owner is read off EVERY report heard within LIVE_S
+(separated_report()): each scanner's row is the last advert THAT scanner
+caught, so one row can be another moment's payload, hours old — and merging
+rows into one record keeps an arbitrary one (review, 2026-09-27: the
+house's own separated AirTag read as near its owner).
 
 This module is pure (no Home Assistant imports): snapshot_builder.py feeds it
 each poll and persists its state.
@@ -95,9 +103,12 @@ BATTERY = {0: "full", 1: "medium", 2: "low", 3: "very low"}
 #                 or where no scanner heard both — another device's own
 #                 change, or the tag carried off as it changed: the two look
 #                 the same, so neither is counted against the matcher;
-#   late          one appeared where it was, after APPEAR_AFTER_S but within
-#                 LIVE_S — as late as a reseed can report a real hand-over:
-#                 the timing rule turned it down;
+#   late          one appeared where it was, after APPEAR_AFTER_S but no
+#                 later than a real hand-over can be first heard on this
+#                 install (a reseed + the longest gap between polls + an
+#                 advert): the timing rule turned it down. At the defaults
+#                 (30 s reseed, polls 5-10 s apart) that is inside
+#                 APPEAR_AFTER_S, so nothing is late;
 #   ambiguous     one fitted, but the pairing was too close to call (MARGIN_DB).
 MISS_REASONS = ("no_candidate", "elsewhere", "late", "ambiguous")
 
@@ -113,6 +124,11 @@ APPEAR_SLACK_S = 15.0
 # ... or this long after it (the old one's last report lags its last advert
 # by up to a reseed; a later arrival is someone else's tag).
 APPEAR_AFTER_S = 45.0
+# How far apart a Find My device's adverts are: its last on the old address
+# and its first on the new one.
+ADVERT_S = 2.0
+# bluetooth_live.py's reseed when the install sets none (ble_reseed_interval_s).
+RESEED_S = 30.0
 # Mean RSSI difference over shared scanners that still reads "same place".
 MAX_DB = 10.0
 # How much better the chosen pairing must be than any alternative.
@@ -178,6 +194,17 @@ def parse_findmy(manufacturer_data: Any) -> dict[str, Any] | None:
     }
 
 
+def separated_report(manufacturer_data: Any, age_s: Any) -> bool:
+    """One scanner's report says a Find My device is away from its owner:
+    heard within LIVE_S, with the separated payload. An address is separated
+    when ANY of its reports says so (on_air(); snapshot_builder marks the
+    merged record `findmy_separated` for step())."""
+    if not isinstance(age_s, (int, float)) or age_s > LIVE_S:
+        return False
+    adv = parse_findmy(manufacturer_data)
+    return adv is not None and adv["separated"]
+
+
 def is_findmy_address(address: str) -> bool:
     """A static random address — first byte 0xC0-0xFF — as every Find My key makes."""
     try:
@@ -215,18 +242,24 @@ def on_air(advertisements: Any) -> dict[str, dict[str, int]]:
     """How many Find My addresses are on the air now, by device type, and how
     many of those are separated from their owner — whether following tags
     would matter in this house at all, bridging on or off. Each address is
-    read only to count it once. Addresses, not devices: for up to LIVE_S
-    after a device near its owner changes address (every 15 minutes) its old
-    one still counts too, and neighbours' and passers-by's are on the air."""
+    read only to count it once — separated when any of its reports heard
+    within LIVE_S says so (separated_report()). Addresses, not devices: for
+    up to LIVE_S after a device near its owner changes address (every 15
+    minutes) its old one still counts too, and neighbours' and passers-by's
+    are on the air."""
     advs: dict[str, dict[str, Any]] = {}
     for a in advertisements or ():
         if not isinstance(a, dict):
             continue
         addr, age = str(a.get("address") or "").upper(), a.get("age_s")
-        if addr in advs or not is_findmy_address(addr) or not isinstance(age, (int, float)) or age > LIVE_S:
+        if not is_findmy_address(addr) or not isinstance(age, (int, float)) or age > LIVE_S:
             continue
         adv = parse_findmy(a.get("manufacturer_data"))
-        if adv is not None:
+        if adv is None:
+            continue
+        if addr in advs:
+            advs[addr]["separated"] = advs[addr]["separated"] or adv["separated"]
+        else:
             advs[addr] = adv
     out = {"on_air": dict.fromkeys(TYPE_KEYS.values(), 0), "separated": dict.fromkeys(TYPE_KEYS.values(), 0)}
     for adv in advs.values():
@@ -262,11 +295,14 @@ class FindMyBridge:
         # confirms it (round 11), and only for that same link (round 13).
         self._returning: dict[tuple[str, str], tuple[float, float]] = {}
         # Tag waiting for its next address -> the strongest MISS_REASONS index
-        # its window has come to; None for a window already open at the first
-        # poll (a restart hid part of it: never reported). In memory only, as
-        # the report's own counters are — never saved, so a restart can
-        # neither count a window twice nor trip on an older state file.
+        # its window has come to; None for a window the bridge did not watch
+        # whole (_report_lag): never reported. In memory only, as the
+        # report's own counters are — never saved, so a restart can neither
+        # count a window twice nor trip on an older state file.
         self._waiting: dict[str, int | None] = {}
+        # (now_ts, stepped) for this run's recent polls — False for a poll
+        # with bridging off (unwatched()): how closely each window was seen.
+        self._polls: list[tuple[float, bool]] = []
 
     def to_state(self) -> dict[str, Any]:
         return {"tags": {k: dict(v) for k, v in self.tags.items()}}
@@ -334,11 +370,50 @@ class FindMyBridge:
         t = self.tags.get(key) or {}
         return list(dict.fromkeys([key, *(t.get("past") or []), t.get("addr")]))
 
-    def step(self, now_ts: float, records: dict[str, dict[str, Any]], known: dict[str, str]) -> dict[str, Any]:
+    def _poll(self, now_ts: float, stepped: bool) -> None:
+        polls = self._polls
+        polls.append((now_ts, stepped))
+        # Kept back to the earliest window still open, and one poll before it.
+        horizon = now_ts - HANDOVER_WINDOW_S - APPEAR_SLACK_S
+        while len(polls) > 1 and polls[1][0] < horizon:
+            polls.pop(0)
+
+    def unwatched(self, now_ts: float) -> None:
+        """A poll with bridging off: nothing is followed, so a hand-over
+        window around it is one the bridge never saw — never reported once
+        bridging is back on (review, 2026-09-27: it was filed "late")."""
+        self._poll(now_ts, False)
+
+    def _report_lag(self, last: float, reseed_s: float) -> float | None:
+        """How long after `last` (a tag's last report) a real hand-over's new
+        address can be first heard here: a reseed (a passive proxy's reports
+        come only then), the longest gap between polls from APPEAR_SLACK_S
+        before `last` to LIVE_S after it (an address is stamped when a poll
+        first sees it), and an advert. None when the bridge did not watch
+        that stretch: it was not running yet — a restart's first poll takes
+        whatever is on the air for there all along, the new address too — or
+        bridging was off."""
+        start, end = last - APPEAR_SLACK_S, last + LIVE_S
+        polls = self._polls
+        if not polls or polls[0][0] > start:
+            return None
+        gap = 0.0
+        for (a, stepped_a), (b, stepped_b) in zip(polls, polls[1:]):
+            if b > start and a < end:
+                if not (stepped_a and stepped_b):
+                    return None
+                gap = max(gap, b - a)
+        return reseed_s + gap + ADVERT_S
+
+    def step(self, now_ts: float, records: dict[str, dict[str, Any]], known: dict[str, str],
+             reseed_s: float = RESEED_S) -> dict[str, Any]:
         """One poll. `records`: this snapshot's {addr: rec} (age_s, sources,
-        manufacturer_data). `known`: {addr: identity key} for Find My addresses
-        the person has labelled or followed — each starts a tracked tag unless
-        it already is one's. Returns {"map": {addr: identity key} for each
+        manufacturer_data, and `findmy_separated` when any report heard
+        within LIVE_S carries the separated payload). `known`: {addr:
+        identity key} for Find My addresses the person has labelled or
+        followed — each starts a tracked tag unless it already is one's.
+        `reseed_s`: bluetooth_live's reseed interval, for the report's
+        "late" (_report_lag). Returns {"map": {addr: identity key} for each
         tag's current address, "linked": [(identity key, old addr, new addr)]
         for links made this poll, "linked_after_s": for each link, seconds
         since the old address's last report, "unlinked": [(identity key,
@@ -346,6 +421,7 @@ class FindMyBridge:
         [identity key] for the moves back that were a tag back on its day
         key, "missed": [(identity key, MISS_REASONS entry)] for hand-over
         windows that closed this poll with no link}."""
+        self._poll(now_ts, True)
         linked: list[tuple[str, str, str]] = []
         linked_after: list[float] = []
         fm: dict[str, dict[str, Any]] = {}
@@ -368,9 +444,9 @@ class FindMyBridge:
                     seen_ts = datetime.fromisoformat(ls.replace("Z", "+00:00")).timestamp()
                 except ValueError:
                     pass
-            fm[addr] = {"adv": adv, "age": age, "rssi": rssi_vector(rec), "seen_ts": seen_ts}
+            fm[addr] = {"adv": adv, "age": age, "rssi": rssi_vector(rec), "seen_ts": seen_ts,
+                        "separated": bool(rec.get("findmy_separated"))}
 
-        restarting = not self._primed
         if not self._primed:
             for addr in fm:
                 self.first_seen[addr] = float("-inf")
@@ -418,12 +494,20 @@ class FindMyBridge:
                 # separated again the same day — the schedule, and the links
                 # since were right. Anything else coming back undoes a wrong
                 # link: a near-owner key is never used twice, and a separated
-                # one changes only to the next day's.
+                # one changes only to the next day's. Near its owner is what
+                # a key was when the tag was linked onto it (its record now
+                # has stopped, or is gone). And the key it is on must have
+                # stopped before this one came back: two addresses heard at
+                # once are two devices — a wrong link onto another device's
+                # key, that device still on the air (review, 2026-09-27).
                 left = fm.get(t["addr"])
-                if c["adv"]["separated"] and left is not None and not left["adv"]["separated"]:
+                near_owner = set(t.get("near_owner") or ())
+                dropped = self._move_back(key, x, c["seen_ts"])
+                if (c["separated"] and near_owner.intersection(dropped)
+                        and (left is None or left["seen_ts"] < first + 1.0)):
                     day_key.append(key)
-                for dropped in self._move_back(key, x, c["seen_ts"]):
-                    unlinked.append((key, dropped, x))
+                for gone in dropped:
+                    unlinked.append((key, gone, x))
                 self._returning = {k: v for k, v in self._returning.items() if k[0] != key}
                 break
 
@@ -466,9 +550,11 @@ class FindMyBridge:
         fresh = {a: c for a, c in fm.items() if a not in owned and a not in known and c["age"] <= LIVE_S}
         pairs: list[tuple[float, str, str]] = []
         # For the report (MISS_REASONS): waiting tags a new same-type address
-        # appeared for at the hand-over moment, and where the tag was but late.
+        # appeared for at the hand-over moment, and (tag, address) where the
+        # tag was but late; how closely each window was watched.
         in_time: set[str] = set()
-        late: set[str] = set()
+        late: set[tuple[str, str]] = set()
+        lag = {key: self._report_lag(float(t["last_ts"]), reseed_s) for key, t in waiting.items()}
         for key, t in waiting.items():
             last = float(t["last_ts"])
             for addr, c in fresh.items():
@@ -480,10 +566,11 @@ class FindMyBridge:
                 d = place_difference(t.get("rssi") or {}, c["rssi"])
                 if appeared > last + APPEAR_AFTER_S:
                     # Arrived well after: not this hand-over. Where the tag was,
-                    # no later than a reseed can report a real one, it is the
-                    # timing rule's miss; later or elsewhere, someone else's.
-                    if appeared <= last + LIVE_S and d is not None and d <= MAX_DB:
-                        late.add(key)
+                    # no later than a real one can be first heard on this
+                    # install, it is the timing rule's miss; later or
+                    # elsewhere, someone else's.
+                    if lag[key] is not None and appeared <= last + lag[key] and d is not None and d <= MAX_DB:
+                        late.add((key, addr))
                     continue
                 in_time.add(key)
                 if d is not None:
@@ -498,10 +585,17 @@ class FindMyBridge:
                 continue
             old = self.tags[key]["addr"]
             linked_after.append(now_ts - float(self.tags[key]["last_ts"]))
+            # The keys it was linked onto while near its owner — read now,
+            # while the key is live; at a return it has stopped (above).
+            near_owner = list(self.tags[key].get("near_owner") or [])
+            if not fresh[addr]["separated"]:
+                near_owner = (near_owner + [addr])[-(PAST_MAX + 1):]
             self.tags[key] = {"addr": addr, "type": fresh[addr]["adv"]["device_type"],
                               "rssi": fresh[addr]["rssi"], "last_ts": fresh[addr]["seen_ts"],
                               "past": (self.tags[key].get("past", []) + [old])[-PAST_MAX:],
                               "refused": self.tags[key].get("refused", []), "linked_ts": now_ts}
+            if near_owner:
+                self.tags[key]["near_owner"] = near_owner
             linked.append((key, old, addr))
             waiting.pop(key)
             fresh.pop(addr)
@@ -509,13 +603,16 @@ class FindMyBridge:
 
         # Each window keeps the strongest reason it came to; one that closes
         # with no link reports it, once. A tag heard again on its own address,
-        # moved back or linked closes its window without a miss.
-        near = {key for d, key, _a in pairs if d <= MAX_DB}
+        # moved back or linked closes its window without a miss. Only a
+        # candidate still free counts against it: one linked to another tag
+        # just now was that tag's, no rival of this one (review, 2026-09-27).
+        near = {key for d, key, a in pairs if d <= MAX_DB and a in fresh}
+        late_keys = {key for key, a in late if a in fresh}
         for key in waiting:
-            rank = MISS_REASONS.index("ambiguous" if key in near else "late" if key in late
+            rank = MISS_REASONS.index("ambiguous" if key in near else "late" if key in late_keys
                                       else "elsewhere" if key in in_time else "no_candidate")
             if key not in self._waiting:
-                self._waiting[key] = None if restarting else rank
+                self._waiting[key] = None if lag[key] is None else rank
             elif self._waiting[key] is not None:
                 self._waiting[key] = max(self._waiting[key], rank)
         missed: list[tuple[str, str]] = []

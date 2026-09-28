@@ -240,6 +240,68 @@ async def test_the_current_address_gone_and_an_earlier_one_live(house):
     assert k["current_address"] == A and k["age_s"] == 1
 
 
+# ── review, 2026-09-27: what the opt-in report reads ─────────────────────────
+
+N1, N2 = "C6:66:66:66:66:66", "C7:77:77:77:77:77"      # near-owner keys
+
+
+def _near_ads(addr, place, age=1.0):
+    near = " ".join(f"0x{b:02X}" for b in (0x12, 0x02, 1 << 4, 0x01))
+    return [dict(a, manufacturer_data={"76": near}) for a in _ads(addr, place, age=age)]
+
+
+def _edge(addr, age):
+    """One weak scanner's row: the last advert IT caught, hours ago, with the
+    short (near-owner) payload."""
+    return dict(_near_ads(addr, {"edge": -102.0}, age=age)[0])
+
+
+async def test_a_separated_tag_reads_separated_whatever_one_scanner_last_caught(house):
+    """The house's own AirTag, on one address for hours (its separated day
+    key): every scanner's row carries the separated payload but one weak
+    scanner's, its 0x02 from hours ago. Merging the rows into one record per
+    address wrote each older row's payload INTO the freshest row —
+    get_snapshot's rows share their dicts with bluetooth_live's cache — so the
+    oldest won everywhere: the report said the tag was near its owner, and
+    its day-key return was filed as a wrong link undone."""
+    from custom_components.padspan_ha import telemetry as T
+    house.hass.data[DOMAIN][DATA_SETTINGS].data["telemetry_enabled"] = True
+    ads = _ads(A, KITCHEN) + [_edge(A, 9000)]
+    await house.poll(0, ads)
+    assert F.parse_findmy(ads[0]["manufacturer_data"])["separated"], "the merge wrote into a scanner's own row"
+    assert F.on_air(ads)["separated"]["airtag"] == 1
+    # Near its owner (N1, N2 — each followed), then separated again: back on A.
+    for t, rows in ((20, _ads(A, KITCHEN, age=21) + _near_ads(N1, KITCHEN)),
+                    (100, _ads(A, KITCHEN, age=101) + _near_ads(N1, KITCHEN)),
+                    (1000, _near_ads(N1, KITCHEN)),
+                    (1020, _near_ads(N1, KITCHEN, age=21) + _near_ads(N2, KITCHEN)),
+                    (1100, _near_ads(N1, KITCHEN, age=101) + _near_ads(N2, KITCHEN)),
+                    (2000, _ads(A, KITCHEN) + _near_ads(N2, KITCHEN, age=900)),
+                    (2035, _ads(A, KITCHEN) + _near_ads(N2, KITCHEN, age=935))):
+        await house.poll(t, rows + [_edge(A, 9000 + t)])
+        if t == 1100:
+            assert house.bridge.tags[A]["addr"] == N2, "the fixture no longer follows the tag onto N2"
+    assert house.bridge.tags[A]["addr"] == A
+    counters = house.hass.data[DOMAIN][T._DATA_COUNTERS]
+    assert counters.get("findmy_back_on_day_key") == 1 and "findmy_moved_back" not in counters, counters
+
+
+async def test_bridging_off_during_a_hand_over_is_never_reported(house):
+    """Review: bridging switched off while Keys changed address. Back on, its
+    next address is first seen too late for the timing rule (Keys is lost, as
+    before), and the window was filed "late" — a miss counted against the
+    matcher, which never saw the hand-over."""
+    from custom_components.padspan_ha import telemetry as T
+    settings = house.hass.data[DOMAIN][DATA_SETTINGS].data
+    settings["telemetry_enabled"] = True
+    for t in range(-30, 401, 10):
+        settings["mac_rotation_bridging"] = not 10 <= t <= 50
+        await house.poll(t, _ads(A, KITCHEN, age=max(1, t + 1)) + (_ads(B, KITCHEN, key_byte=0x22) if t >= 10 else []))
+    assert house.bridge.tags[A]["addr"] == A
+    counters = house.hass.data[DOMAIN].get(T._DATA_COUNTERS) or {}
+    assert not [k for k in counters if k.startswith("findmy_")], counters
+
+
 L1, L2 = "4C:65:A8:00:00:01", "4C:65:A8:00:00:02"
 
 
