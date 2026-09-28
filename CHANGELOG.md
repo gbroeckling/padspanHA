@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.84 — WLED exact look: a change you make always stands (2026-09-27)
+
+### Atlas — WLED exact look
+- **Fixed:** if you changed a light PadSpan runs (from Home Assistant, the WLED app or a wall panel) while PadSpan was still reading the device before switching it — for example while the device was busy, or during PadSpan's daily check of its LED setup — PadSpan could still send its older command a few seconds later and undo your change. Your change now stands: PadSpan doesn't send the older command, and an "on" you gave gets the remembered look at your brightness.
+
+---
+
 ## 0.38.83 — WLED lights that look the same every time (2026-09-27)
 
 ### Atlas — WLED: PadSpan runs the light, with its exact look
