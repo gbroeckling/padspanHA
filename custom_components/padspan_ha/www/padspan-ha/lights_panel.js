@@ -29,6 +29,12 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
+// Which PadSpan module an uncaught error came from (see panel.js "Uncaught
+// panel errors"). Not awaited: the sidebar must come up without it.
+let UI_ERROR = null;
+import(`./views/ui_error.js${new URL(import.meta.url).search}`)
+  .then(m => { UI_ERROR = m; })
+  .catch(err => console.warn("PadSpan: ui_error module failed to load", err));
 
 // ── DOM helpers ──────────────────────────────────────────────────────────────
 function el(tag, attrs={}, children=[]){
@@ -723,6 +729,21 @@ class PadSpanLightsApp extends HTMLElement {
       window.addEventListener("pointerup", ()=>{ this._pointerDown = false; });
       window.addEventListener("pointercancel", ()=>{ this._pointerDown = false; });
     }
+    // Uncaught errors with PadSpan code on the stack, counted for the opt-in
+    // report as ui_error:<module> + ui_error_while:atlas. The backend drops
+    // the event unless the report is switched on.
+    if(!this._uiErrorHandler){
+      this._uiErrorHandler = (ev)=>{
+        try{
+          if(!UI_ERROR || !this._hass) return;
+          UI_ERROR.reportUiError(ev, "atlas", (name)=>{
+            Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:name })).catch(()=>{});
+          });
+        }catch(_e){ /* the error reporter must never be the error */ }
+      };
+      window.addEventListener("error", this._uiErrorHandler);
+      window.addEventListener("unhandledrejection", this._uiErrorHandler);
+    }
     this.style.display="block";
     this.shadowRoot.innerHTML=`
       <link rel="stylesheet" href="/padspan_ha_static/padspan-ha/styles.css?v=${APP_VERSION}&b=${BUILD_ID}">
@@ -738,6 +759,11 @@ class PadSpanLightsApp extends HTMLElement {
 
   disconnectedCallback(){
     if(this._pollTimer){ clearInterval(this._pollTimer); this._pollTimer=null; }
+    if(this._uiErrorHandler){
+      window.removeEventListener("error", this._uiErrorHandler);
+      window.removeEventListener("unhandledrejection", this._uiErrorHandler);
+      this._uiErrorHandler = null;
+    }
     if(this._reconnectsStop) this._reconnectsStop();
     this._reconnectsStop = null; this._reconnectsConn = null;
   }

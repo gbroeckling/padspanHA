@@ -715,35 +715,66 @@ def test_a_bungalow_is_not_reported_as_misconfigured():
 
 # ── uncaught panel errors ────────────────────────────────────────────────────
 
-def test_ui_errors_are_counted_by_view_and_only_by_view():
+def test_ui_errors_are_counted_by_module_and_only_by_closed_name():
     h = _hass()
     assert T.bump(h, "ui_error:maps") is True
     assert T.bump(h, "ui_error:maps") is True
     assert T.bump(h, "ui_error:overview") is True
-    # Not a view, so not a key. The vocabulary is closed for the same reason
+    assert T.bump(h, "ui_error:wled_tab_look") is True      # a helper module
+    assert T.bump(h, "ui_error:panel") is True
+    assert T.bump(h, "ui_error:atlas_panel") is True
+    assert T.bump(h, "ui_error_while:maps") is True
+    assert T.bump(h, "ui_error_while:atlas") is True
+    # Not a module, so not a key. The vocabulary is closed for the same reason
     # the tab list is: the report's KEYS leave the box too.
-    assert T.bump(h, "ui_error:Nicole's Office") is False
-    assert T.bump(h, "ui_error:") is False
+    for bad in ("ui_error:Nicole's Office", "ui_error:", "ui_error_while:",
+                "ui_error_while:Nicole's Office", "ui_error_while:panel",
+                "ui_error:frontend_latest/app", "ui_error:button-card"):
+        assert T.bump(h, bad) is False, bad
     p = T.build_payload(h)
     T.assert_shareable(p)
     assert p["usage"]["ui_error:maps"] == 2 and p["usage"]["ui_error:overview"] == 1
+    assert p["usage"]["ui_error_while:atlas"] == 1
     assert not any("Nicole" in k for k in p["usage"])
 
 
-def test_every_ui_error_name_maps_to_a_real_view():
-    assert T.UI_ERRORS == frozenset(f"ui_error:{v}" for v in T.VIEWS)
+def test_every_padspan_file_the_panel_can_name_is_an_allowed_ui_error():
+    """views/ui_error.js sends the base name of any views/*.js that threw; the
+    backend drops what is not on the list. A new helper file left off
+    UI_ERROR_HELPERS would have its errors thrown away without a word."""
+    from pathlib import Path
+    views = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+             / "www" / "padspan-ha" / "views")
+    names = {f.stem for f in views.glob("*.js")}
+    assert names, "no views found"
+    missing = {n for n in names if not T.event_allowed(f"ui_error:{n}")}
+    assert not missing, f"add to telemetry.UI_ERROR_HELPERS: {sorted(missing)}"
+    stale = (T.UI_ERROR_HELPERS | T.VIEWS) - names
+    assert not stale, f"no such file in views/: {sorted(stale)}"
+    assert not (T.UI_ERROR_HELPERS & T.VIEWS)
+    assert all(T.event_allowed(f"ui_error_while:{v}") for v in T.VIEWS | {"atlas"})
     assert all(T.event_allowed(e) for e in T.UI_ERRORS)
 
 
-def test_the_panel_installs_the_error_listeners_and_removes_them():
+def test_both_panels_install_the_error_listeners_and_remove_them():
     from pathlib import Path
-    panel = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
-             / "www" / "padspan-ha" / "panel.js").read_text(encoding="utf-8")
-    assert 'window.addEventListener("error", this._uiErrorHandler)' in panel
+    www = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+           / "www" / "padspan-ha")
+    for name in ("panel.js", "lights_panel.js"):
+        src = (www / name).read_text(encoding="utf-8")
+        assert 'window.addEventListener("error", this._uiErrorHandler)' in src, name
+        assert 'window.removeEventListener("error", this._uiErrorHandler)' in src, name
+        assert "UI_ERROR.reportUiError(ev," in src, name
+        # The attribution module is optional: its import failing must not
+        # take the panel down (a top-level await would).
+        assert "import(`./views/ui_error.js" in src and "await import(`./views/ui_error.js" not in src, name
+    panel = (www / "panel.js").read_text(encoding="utf-8")
     assert 'window.addEventListener("unhandledrejection", this._uiRejectionHandler)' in panel
-    assert 'window.removeEventListener("error", this._uiErrorHandler)' in panel
     assert 'window.removeEventListener("unhandledrejection", this._uiRejectionHandler)' in panel
-    assert '"ui_error:" + view' in panel
+    # The old attribution — whatever tab was open — must be gone.
+    assert '"ui_error:" + view' not in panel
+    atlas = (www / "lights_panel.js").read_text(encoding="utf-8")
+    assert 'window.removeEventListener("unhandledrejection", this._uiErrorHandler)' in atlas
 
 
 def test_the_settings_path_is_right_everywhere_it_is_stated():
