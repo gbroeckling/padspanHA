@@ -28,6 +28,12 @@ The members are switched one by one, never the group entities themselves.
 THE TAG: starting a test records the members already on (kept_on). Ending it
 turns off only the others; Force off turns off every member. The test state
 is a Store, so a restart mid-test keeps the tags.
+
+BY HAND: the card behind the button's ring switches (or opens the controls
+of) one member at a time (async_member). During a test such a member is
+tagged `manual` and the end of the test leaves it as the person set it — on
+or off — and a second start does not switch it back either. Force off still
+turns it off.
 """
 
 import asyncio
@@ -52,7 +58,7 @@ _GROUP_DOMAINS = ("group", "light", "switch")
 _SWITCHABLE = ("light", "switch")
 _DATA = "emergency_test"
 _LOCK = "emergency_test_lock"
-_EMPTY = {"active": False, "started_at": None, "kept_on": [], "members": []}
+_EMPTY = {"active": False, "started_at": None, "kept_on": [], "manual": [], "members": []}
 
 
 # ── Which lights ─────────────────────────────────────────────────────────────
@@ -222,7 +228,7 @@ async def async_status(hass: HomeAssistant) -> dict[str, Any]:
         members.append({"entity_id": eid, "name": _name(hass, eid), "state": st.state if st is not None else "missing"})
     return {"available": bool(members), "source": res["source"], "groups": res["groups"], "members": members,
             "test": {"active": bool(t.get("active")), "started_at": t.get("started_at"),
-                     "kept_on": list(t.get("kept_on") or [])}}
+                     "kept_on": list(t.get("kept_on") or []), "manual": list(t.get("manual") or [])}}
 
 
 def _bump(hass: HomeAssistant, event: str) -> None:
@@ -238,6 +244,7 @@ async def async_test(hass: HomeAssistant, on: bool) -> list[dict[str, Any]]:
         t = store.data
         if on:
             ids = resolve_members(hass)["members"]
+            manual = list(t.get("manual") or []) if t.get("active") else []
             if t.get("active"):
                 ids = list(dict.fromkeys([*t.get("members", []), *ids]))
                 kept = list(t.get("kept_on") or [])
@@ -245,12 +252,12 @@ async def async_test(hass: HomeAssistant, on: bool) -> list[dict[str, Any]]:
                 kept = [e for e in ids if getattr(hass.states.get(e), "state", None) == "on"]
                 _bump(hass, "emergency_test_on")
             await store.async_set({"active": True, "started_at": t.get("started_at") if t.get("active") else time.time(),
-                                   "kept_on": kept, "members": ids})
-            return await _switch_all(hass, [e for e in ids if e not in kept], True)
+                                   "kept_on": kept, "manual": manual, "members": ids})
+            return await _switch_all(hass, [e for e in ids if e not in kept and e not in manual], True)
         if not t.get("active"):
             return []
-        kept = set(t.get("kept_on") or [])
-        ids = [e for e in t.get("members") or [] if e not in kept]
+        keep = {*(t.get("kept_on") or []), *(t.get("manual") or [])}
+        ids = [e for e in t.get("members") or [] if e not in keep]
         await store.async_set(dict(_EMPTY))
         _bump(hass, "emergency_test_off")
         return await _switch_all(hass, ids, False)
@@ -264,6 +271,20 @@ async def async_force_off(hass: HomeAssistant) -> list[dict[str, Any]]:
         await store.async_set(dict(_EMPTY))
         _bump(hass, "emergency_force_off")
         return await _switch_all(hass, ids, False)
+
+
+async def async_member(hass: HomeAssistant, eid: str, on: bool | None) -> list[dict[str, Any]] | None:
+    """One member by hand: switched (on given) or only adjusted (its
+    controls opened — on None). None when `eid` is not a member. During a
+    test it is tagged manual, so the end of the test leaves it as set."""
+    store = await async_get_store(hass)
+    async with hass.data[DOMAIN][_LOCK]:
+        t = store.data
+        if eid not in {*resolve_members(hass)["members"], *(t.get("members") or [])}:
+            return None
+        if t.get("active") and eid not in (t.get("manual") or []):
+            await store.async_set({**t, "manual": [*(t.get("manual") or []), eid]})
+        return [] if on is None else [await _switch(hass, eid, on)]
 
 
 # ── Websocket (any logged-in user: HA lets them switch these lights anyway) ──
@@ -289,4 +310,15 @@ async def ws_emergency_force_off(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {**await async_status(hass), "results": results})
 
 
-WS_COMMANDS = (ws_emergency_status, ws_emergency_test, ws_emergency_force_off)
+@websocket_api.websocket_command({"type": "padspan_ha/emergency_member", vol.Required("entity_id"): str,
+                                  vol.Optional("on"): bool})
+@websocket_api.async_response
+async def ws_emergency_member(hass: HomeAssistant, connection, msg) -> None:
+    results = await async_member(hass, msg["entity_id"], msg.get("on"))
+    if results is None:
+        connection.send_error(msg["id"], "not_found", "Not one of the emergency lights")
+        return
+    connection.send_result(msg["id"], {**await async_status(hass), "results": results})
+
+
+WS_COMMANDS = (ws_emergency_status, ws_emergency_test, ws_emergency_force_off, ws_emergency_member)

@@ -99,4 +99,14 @@ def test_the_emergency_test_button(result) -> None:
     assert e["afterStage"], e
     assert e["idleForce"] == 0 and e["activeForce"] == 1 and e["endedForce"] == 0, e
     assert e["activeLabel"] == "Test on — tap to end", e
-    assert e["sent"] == ["test:true", "force_off"], e
+    assert e["sent"] == ["test:true", "member:light.a:true", "force_off"], e
+
+
+def test_the_emergency_ring_opens_the_card_of_every_light(result) -> None:
+    """Garry, 2026-09-28: "a breakout button as a ring around the emergency
+    button where a card appears of all the emergency lights, and individual
+    controls". The ring is its own button; the card lists every member with
+    its "was on" tag, switches one through padspan_ha/emergency_member, and
+    survives the poll's re-render."""
+    e = result["emergency"]
+    assert e["cardOpen"] and e["cardNames"] and e["cardTag"] and e["cardStillOpen"], e

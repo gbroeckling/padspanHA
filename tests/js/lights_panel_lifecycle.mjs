@@ -315,9 +315,15 @@ if (Cls) {
     const real = hass.callWS;
     hass.callWS = async (m) => {
       if (m.type === "padspan_ha/emergency_status") return { available, source: "group", groups: [], members, test };
+      if (m.type === "padspan_ha/emergency_member") {
+        emergency.sent.push(`member:${m.entity_id}:${m.on}`);
+        test = { ...test, manual: [m.entity_id] };
+        return { available, source: "group", groups: [], members, test, results: [{ entity_id: m.entity_id, ok: true }] };
+      }
       if (m.type === "padspan_ha/emergency_test" || m.type === "padspan_ha/emergency_force_off") {
         emergency.sent.push(m.type === "padspan_ha/emergency_test" ? `test:${m.on}` : "force_off");
-        test = m.on ? { active: true, started_at: 1, kept_on: ["switch.b"] } : { active: false, started_at: null, kept_on: [] };
+        test = m.on ? { active: true, started_at: 1, kept_on: ["switch.b"], manual: [] }
+                    : { active: false, started_at: null, kept_on: [], manual: [] };
         return { available, source: "group", groups: [], members, test,
                  results: [{ entity_id: "light.a", ok: true }, { entity_id: "switch.b", ok: false, skipped: "unavailable" }] };
       }
@@ -339,6 +345,18 @@ if (Cls) {
     await flush(); await flush();
     emergency.activeForce = find("lv-emerg-force").length;
     emergency.activeLabel = find("lv-emerg-label")[0]?.textContent || null;
+    // The ring: the card of every emergency light, a switch each.
+    find("lv-emerg-ring")[0].click();
+    await flush();
+    const cardText = () => (el._emergCard ? document.body._all().map(n => n._text || "").join("|") : "");
+    emergency.cardOpen = !!el._emergCard;
+    emergency.cardNames = ["Closet", "PoE 7"].every(n => cardText().includes(n));
+    emergency.cardTag = cardText().includes("was on");
+    const turn = document.body._all().find(n => n.localName === "button" && n.textContent === "Turn on");
+    if (turn) turn.click();
+    await flush(); await flush();
+    el._render();                                   // a poll refills the open card; it must not throw
+    emergency.cardStillOpen = !!el._emergCard;
     find("lv-emerg-force")[0].click();
     await flush(); await flush();
     emergency.endedForce = find("lv-emerg-force").length;

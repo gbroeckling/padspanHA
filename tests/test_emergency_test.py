@@ -201,7 +201,7 @@ def test_lights_already_on_stay_on_at_test_off(monkeypatch):
     assert h.states["light.upper_south_2"].state == "on"
     assert h.states["switch.pakedge_poe_port_7"].state == "on"
     assert {"entity_id": "light.emergencysparebed_slwf_09", "ok": False, "skipped": "unavailable"} in results
-    assert _run(ET.async_status(h.hass))["test"] == {"active": False, "started_at": None, "kept_on": []}
+    assert _run(ET.async_status(h.hass))["test"] == {"active": False, "started_at": None, "kept_on": [], "manual": []}
 
 
 def test_force_off_turns_every_member_off(monkeypatch):
@@ -294,6 +294,64 @@ def test_commands_are_registered_and_open_to_any_user():
     for cmd in ET.WS_COMMANDS:
         assert not getattr(cmd, "_ws_require_admin", False)
     assert "require_admin" not in (Path(ET.__file__).read_text(encoding="utf-8").split("# ── Websocket")[1])
+
+
+# ── One member by hand (the card behind the ring) ─────────────────────────────
+
+
+def test_a_member_switched_by_hand_during_a_test_is_left_as_set(monkeypatch):
+    h = _live_house(monkeypatch)
+    for p in (7, 8):
+        h.states[f"switch.pakedge_poe_port_{p}"].state = "off"
+    _run(ET.async_test(h.hass, True))
+    # By hand: the closet light off and on again (keep it), port 8 off.
+    _run(ET.async_member(h.hass, "light.a1_slwf_09", False))
+    _run(ET.async_member(h.hass, "light.a1_slwf_09", True))
+    _run(ET.async_member(h.hass, "switch.pakedge_poe_port_8", False))
+    assert sorted(_run(ET.async_status(h.hass))["test"]["manual"]) == ["light.a1_slwf_09", "switch.pakedge_poe_port_8"]
+    _run(ET.async_test(h.hass, True))                               # a second start: port 8 stays off
+    assert h.states["switch.pakedge_poe_port_8"].state == "off"
+    h.calls.clear()
+    _run(ET.async_test(h.hass, False))
+    assert h.states["light.a1_slwf_09"].state == "on"                # as the person set it
+    assert h.states["switch.pakedge_poe_port_8"].state == "off"
+    assert h.states["switch.pakedge_poe_port_7"].state == "off"      # the test's own: off
+    assert sorted(c[2] for c in h.calls) == ["light.upper_south_2", "switch.pakedge_poe_port_7"]
+
+
+def test_controls_opened_during_a_test_keep_the_member_on(monkeypatch):
+    h = _live_house(monkeypatch)
+    _run(ET.async_test(h.hass, True))
+    assert _run(ET.async_member(h.hass, "light.upper_south_2", None)) == []    # tagged, not switched
+    _run(ET.async_test(h.hass, False))
+    assert h.states["light.upper_south_2"].state == "on"
+    assert h.states["light.a1_slwf_09"].state == "off"
+
+
+def test_force_off_turns_off_hand_set_members_too(monkeypatch):
+    h = _live_house(monkeypatch)
+    _run(ET.async_test(h.hass, True))
+    _run(ET.async_member(h.hass, "light.a1_slwf_09", True))
+    _run(ET.async_force_off(h.hass))
+    assert h.states["light.a1_slwf_09"].state == "off"
+    assert _run(ET.async_status(h.hass))["test"]["manual"] == []
+
+
+def test_by_hand_outside_a_test_only_switches(monkeypatch):
+    h = _live_house(monkeypatch)
+    assert _run(ET.async_member(h.hass, "light.a1_slwf_09", True)) == [{"entity_id": "light.a1_slwf_09", "ok": True}]
+    assert h.states["light.a1_slwf_09"].state == "on"
+    assert _run(ET.async_status(h.hass))["test"]["manual"] == []
+
+
+def test_by_hand_refuses_what_is_not_a_member(monkeypatch):
+    h = _live_house(monkeypatch)
+    assert _run(ET.async_member(h.hass, "switch.pakedge_poe_port_1", False)) is None
+    assert h.states["switch.pakedge_poe_port_1"].state == "on"
+    errors = []
+    conn = SimpleNamespace(send_result=MagicMock(), send_error=lambda mid, code, m: errors.append(code))
+    _run(ET.ws_emergency_member(h.hass, conn, {"id": 1, "entity_id": "switch.pakedge_poe_port_1", "on": False}))
+    assert errors == ["not_found"]
 
 
 # ── Usage events ─────────────────────────────────────────────────────────────
