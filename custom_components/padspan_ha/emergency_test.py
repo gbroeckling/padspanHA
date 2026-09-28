@@ -14,15 +14,17 @@ A MANUAL test/override only. Home Assistant's own power-failure automations
 lights on a real outage; nothing here reads, disables or repeats them.
 
 WHICH LIGHTS (resolve_members), first that gives any:
-  1. "settings"  the emergency_entities setting, when set;
+  1. "settings"  the emergency_entities setting, when set — a group in it is
+                 expanded to its members, exactly as below;
   2. "group"     every HA group entity (group./light./switch. with a list
                  `entity_id` attribute) whose entity_id or name says
                  "emergenc", nested groups expanded, all of them unioned —
                  HA group helpers are single-domain, so the lights and the
                  PoE ports are two groups;
-  3. "default"   switch.pakedge_poe_port_7/_8 if they exist, plus each WLED
-                 device's light named "emergenc…" — one light per device: the
-                 master light when HA shows it, otherwise its first segment.
+  3. "default"   each WLED device's light named "emergenc…" — one light per
+                 device: the master light when HA shows it, otherwise its
+                 first segment. No switch is ever picked by id alone (a plain
+                 PoE port 7 on another install is not an emergency light).
 The members are switched one by one, never the group entities themselves.
 
 THE TAG: starting a test records the members already on (kept_on). Ending it
@@ -34,17 +36,26 @@ of) one member at a time (async_member). During a test such a member is
 tagged `manual` and the end of the test leaves it as the person set it — on
 or off — and a second start does not switch it back either. Force off still
 turns it off.
+
+UNREACHABLE AT THE END: a member that was unavailable when the test ended
+(or at Force off) is recorded in `pending_off` and switched off when it comes
+back — unless the state it comes back in was set by a person, or it was
+switched here by hand since. A new test or Force off replaces the record.
+
+Every service call is bounded (SERVICE_TIMEOUT_S) and made with the caller's
+context, so HA's permissions and logbook see the real user.
 """
 
 import asyncio
 import datetime as _dt
+import functools
 import logging
 import time
 from typing import Any
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant, callback
 
 from .const import DATA_SETTINGS, DOMAIN, EMERGENCY_TEST_STORE_KEY
 
@@ -52,14 +63,16 @@ _LOGGER = logging.getLogger(__name__)
 
 SETTING = "emergency_entities"
 MATCH = "emergenc"
-DEFAULT_SWITCHES = ("switch.pakedge_poe_port_7", "switch.pakedge_poe_port_8")
+SERVICE_TIMEOUT_S = 10.0
 _GROUP_DOMAINS = ("group", "light", "switch")
 # Only lights and switches are ever switched: the setting is writable by any
 # user (settings_set is not admin-only), and a group. can hold anything.
 _SWITCHABLE = ("light", "switch")
 _DATA = "emergency_test"
 _LOCK = "emergency_test_lock"
-_EMPTY = {"active": False, "started_at": None, "kept_on": [], "manual": [], "members": []}
+_UNSUB = "emergency_test_unsub"
+_EMPTY = {"active": False, "started_at": None, "kept_on": [], "manual": [], "members": [], "pending_off": []}
+_GONE = ("unavailable", "unknown")
 
 
 # ── Which lights ─────────────────────────────────────────────────────────────
@@ -120,7 +133,7 @@ def _from_default(hass: HomeAssistant) -> list[str]:
 
     ents = er.async_get(hass)
     devs = dr.async_get(hass)
-    out = [e for e in DEFAULT_SWITCHES if hass.states.get(e) is not None or ents.async_get(e) is not None]
+    out: list[str] = []
     wled = [e for e in ents.entities.values()
             if getattr(e, "platform", None) == "wled" and str(e.entity_id).startswith("light.")
             and not getattr(e, "disabled_by", None)]
@@ -156,7 +169,15 @@ def resolve_members(hass: HomeAssistant) -> dict[str, Any]:
     ids = [e for e in override if isinstance(e, str) and e.startswith(("light.", "switch."))] \
         if isinstance(override, list) else []
     if ids:
-        return {"source": "settings", "groups": [], "members": list(dict.fromkeys(ids))}
+        # The same expansion as HA's groups: a light/switch group named here
+        # is switched through its members, never as the group entity.
+        groups = [e for e in dict.fromkeys(ids) if _group_members(hass.states.get(e)) is not None]
+        out: list[str] = []
+        seen: set[str] = set()
+        for e in ids:
+            _expand(hass, e, seen, out)
+        return {"source": "settings", "groups": groups,
+                "members": [e for e in dict.fromkeys(out) if e not in groups]}
     groups, members = _from_groups(hass)
     if members:
         return {"source": "group", "groups": groups, "members": members}
@@ -197,7 +218,7 @@ async def async_get_store(hass: HomeAssistant) -> EmergencyTestStore:
 # ── Switching ────────────────────────────────────────────────────────────────
 
 
-async def _switch(hass: HomeAssistant, eid: str, on: bool) -> dict[str, Any]:
+async def _switch(hass: HomeAssistant, eid: str, on: bool, context: Context | None = None) -> dict[str, Any]:
     st = hass.states.get(eid)
     if st is None:
         return {"entity_id": eid, "ok": False, "skipped": "missing"}
@@ -207,29 +228,106 @@ async def _switch(hass: HomeAssistant, eid: str, on: bool) -> dict[str, Any]:
     if domain not in _SWITCHABLE:
         return {"entity_id": eid, "ok": False, "skipped": "not a light or switch"}
     try:
-        await hass.services.async_call(domain, "turn_on" if on else "turn_off",
-                                       {"entity_id": eid}, blocking=True)
+        # Bounded: a device that never answers must not hold the lock (and
+        # with it every other emergency action) indefinitely.
+        async with asyncio.timeout(SERVICE_TIMEOUT_S):
+            await hass.services.async_call(domain, "turn_on" if on else "turn_off",
+                                           {"entity_id": eid}, blocking=True, context=context)
+    except TimeoutError:
+        _LOGGER.warning("Emergency lighting test: %s %s timed out", "on" if on else "off", eid)
+        return {"entity_id": eid, "ok": False, "error": f"no answer within {SERVICE_TIMEOUT_S:g} s"}
     except Exception as err:  # noqa: BLE001 — one member failing must not stop the rest
         _LOGGER.warning("Emergency lighting test: %s %s failed: %s", "on" if on else "off", eid, err)
         return {"entity_id": eid, "ok": False, "error": str(err)[:200]}
     return {"entity_id": eid, "ok": True}
 
 
-async def _switch_all(hass: HomeAssistant, ids: list[str], on: bool) -> list[dict[str, Any]]:
-    return list(await asyncio.gather(*(_switch(hass, e, on) for e in ids)))
+async def _switch_all(hass: HomeAssistant, ids: list[str], on: bool,
+                      context: Context | None = None) -> list[dict[str, Any]]:
+    return list(await asyncio.gather(*(_switch(hass, e, on, context) for e in ids)))
 
 
-async def async_status(hass: HomeAssistant) -> dict[str, Any]:
+def _unreached(results: list[dict[str, Any]]) -> list[str]:
+    return [r["entity_id"] for r in results if r.get("skipped") in ("unavailable", "missing")]
+
+
+# ── Unreachable at the end: switched off when it is back ─────────────────────
+
+
+async def _async_pending_back(hass: HomeAssistant, eid: str, context: Context | None = None) -> None:
+    """`eid` (pending_off) is reachable again: off, unless a person set the
+    state it is in. Either way it leaves the record."""
+    store = await async_get_store(hass)
+    async with hass.data[DOMAIN][_LOCK]:
+        pending = list(store.data.get("pending_off") or [])
+        st = hass.states.get(eid)
+        if eid not in pending or st is None or st.state in _GONE:
+            return
+        by_hand = bool(getattr(getattr(st, "context", None), "user_id", None))
+        if st.state == "on" and not by_hand:
+            r = await _switch(hass, eid, False, context)
+            if r.get("skipped") in ("unavailable", "missing"):
+                return                                   # gone again: keep waiting
+        await store.async_set({**store.data, "pending_off": [e for e in pending if e != eid]})
+
+
+async def _async_check_pending(hass: HomeAssistant, context: Context | None = None) -> None:
+    """The status poll's fallback for a comeback the listener missed."""
+    store = await async_get_store(hass)
+    for eid in list(store.data.get("pending_off") or []):
+        st = hass.states.get(eid)
+        if st is not None and st.state not in _GONE:
+            await _async_pending_back(hass, eid, context)
+
+
+@callback
+def _on_state_changed(hass: HomeAssistant, event: Any) -> None:
+    store = (hass.data.get(DOMAIN) or {}).get(_DATA)
+    eid = event.data.get("entity_id")
+    if store is None or eid not in (store.data.get("pending_off") or []):
+        return
+    new = event.data.get("new_state")
+    if new is None or new.state in _GONE:
+        return
+    hass.async_create_task(_async_pending_back(hass, eid))
+
+
+def async_setup_emergency_test(hass: HomeAssistant) -> None:
+    """Idempotent across config-entry reloads: listen for pending_off
+    members coming back, and load the store so the listener knows them
+    right after a restart."""
+    dom = hass.data.setdefault(DOMAIN, {})
+    if dom.get(_UNSUB):
+        return
+    # functools.partial, not a lambda: HA unwraps it to find @callback and
+    # runs the listener on the loop (see flood_latch.py).
+    dom[_UNSUB] = hass.bus.async_listen("state_changed", functools.partial(_on_state_changed, hass))
+    hass.async_create_task(async_get_store(hass))
+
+
+def async_stop_emergency_test(hass: HomeAssistant) -> None:
+    unsub = (hass.data.get(DOMAIN) or {}).pop(_UNSUB, None)
+    if unsub:
+        unsub()
+
+
+async def async_status(hass: HomeAssistant, context: Context | None = None) -> dict[str, Any]:
     res = resolve_members(hass)
     store = await async_get_store(hass)
+    if store.data.get("pending_off"):
+        await _async_check_pending(hass, context)
     t = store.data
     members = []
     for eid in res["members"]:
         st = hass.states.get(eid)
         members.append({"entity_id": eid, "name": _name(hass, eid), "state": st.state if st is not None else "missing"})
+    active = bool(t.get("active"))
     return {"available": bool(members), "source": res["source"], "groups": res["groups"], "members": members,
-            "test": {"active": bool(t.get("active")), "started_at": t.get("started_at"),
-                     "kept_on": list(t.get("kept_on") or []), "manual": list(t.get("manual") or [])}}
+            "test": {"active": active, "started_at": t.get("started_at"),
+                     "kept_on": list(t.get("kept_on") or []), "manual": list(t.get("manual") or [])},
+            "pending_off": list(t.get("pending_off") or []),
+            # A real emergency since the test started: Force off asks twice.
+            "emergency_ran": emergency_automations_since(hass, t.get("started_at")) if active else []}
 
 
 def _bump(hass: HomeAssistant, event: str) -> None:
@@ -262,7 +360,7 @@ def emergency_automations_since(hass: HomeAssistant, since: Any) -> list[str]:
     return out
 
 
-async def async_test(hass: HomeAssistant, on: bool) -> list[dict[str, Any]]:
+async def async_test(hass: HomeAssistant, on: bool, context: Context | None = None) -> list[dict[str, Any]]:
     """Start (tag what is on, turn every member on) or end (turn off all
     but the tagged). A second start while one runs keeps the first tags."""
     store = await async_get_store(hass)
@@ -277,9 +375,10 @@ async def async_test(hass: HomeAssistant, on: bool) -> list[dict[str, Any]]:
             else:
                 kept = [e for e in ids if getattr(hass.states.get(e), "state", None) == "on"]
                 _bump(hass, "emergency_test_on")
-            await store.async_set({"active": True, "started_at": t.get("started_at") if t.get("active") else time.time(),
+            await store.async_set({**_EMPTY, "active": True,
+                                   "started_at": t.get("started_at") if t.get("active") else time.time(),
                                    "kept_on": kept, "manual": manual, "members": ids})
-            return await _switch_all(hass, [e for e in ids if e not in kept and e not in manual], True)
+            return await _switch_all(hass, [e for e in ids if e not in kept and e not in manual], True, context)
         if not t.get("active"):
             return []
         # A real emergency during a test outranks the test: if Home
@@ -294,22 +393,25 @@ async def async_test(hass: HomeAssistant, on: bool) -> list[dict[str, Any]]:
                     for e in t.get("members") or []]
         keep = {*(t.get("kept_on") or []), *(t.get("manual") or [])}
         ids = [e for e in t.get("members") or [] if e not in keep]
-        await store.async_set(dict(_EMPTY))
+        results = await _switch_all(hass, ids, False, context)
+        await store.async_set({**_EMPTY, "pending_off": _unreached(results)})
         _bump(hass, "emergency_test_off")
-        return await _switch_all(hass, ids, False)
+        return results
 
 
-async def async_force_off(hass: HomeAssistant) -> list[dict[str, Any]]:
+async def async_force_off(hass: HomeAssistant, context: Context | None = None) -> list[dict[str, Any]]:
     """Every member off — the tagged ones too — and the test ended."""
     store = await async_get_store(hass)
     async with hass.data[DOMAIN][_LOCK]:
         ids = list(dict.fromkeys([*(store.data.get("members") or []), *resolve_members(hass)["members"]]))
-        await store.async_set(dict(_EMPTY))
+        results = await _switch_all(hass, ids, False, context)
+        await store.async_set({**_EMPTY, "pending_off": _unreached(results)})
         _bump(hass, "emergency_force_off")
-        return await _switch_all(hass, ids, False)
+        return results
 
 
-async def async_member(hass: HomeAssistant, eid: str, on: bool | None) -> list[dict[str, Any]] | None:
+async def async_member(hass: HomeAssistant, eid: str, on: bool | None,
+                       context: Context | None = None) -> list[dict[str, Any]] | None:
     """One member by hand: switched (on given) or only adjusted (its
     controls opened — on None). None when `eid` is not a member. During a
     test it is tagged manual, so the end of the test leaves it as set."""
@@ -319,8 +421,11 @@ async def async_member(hass: HomeAssistant, eid: str, on: bool | None) -> list[d
         if eid not in {*resolve_members(hass)["members"], *(t.get("members") or [])}:
             return None
         if t.get("active") and eid not in (t.get("manual") or []):
-            await store.async_set({**t, "manual": [*(t.get("manual") or []), eid]})
-        return [] if on is None else [await _switch(hass, eid, on)]
+            t = {**t, "manual": [*(t.get("manual") or []), eid]}
+            await store.async_set(t)
+        if eid in (t.get("pending_off") or []):          # set by hand: no longer ours to switch off
+            await store.async_set({**t, "pending_off": [e for e in t["pending_off"] if e != eid]})
+        return [] if on is None else [await _switch(hass, eid, on, context)]
 
 
 # ── Websocket (any logged-in user: HA lets them switch these lights anyway) ──
@@ -329,32 +434,35 @@ async def async_member(hass: HomeAssistant, eid: str, on: bool | None) -> list[d
 @websocket_api.websocket_command({"type": "padspan_ha/emergency_status"})
 @websocket_api.async_response
 async def ws_emergency_status(hass: HomeAssistant, connection, msg) -> None:
-    connection.send_result(msg["id"], await async_status(hass))
+    connection.send_result(msg["id"], await async_status(hass, connection.context(msg)))
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/emergency_test", vol.Required("on"): bool})
 @websocket_api.async_response
 async def ws_emergency_test(hass: HomeAssistant, connection, msg) -> None:
-    results = await async_test(hass, msg["on"])
-    connection.send_result(msg["id"], {**await async_status(hass), "results": results})
+    ctx = connection.context(msg)
+    results = await async_test(hass, msg["on"], ctx)
+    connection.send_result(msg["id"], {**await async_status(hass, ctx), "results": results})
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/emergency_force_off"})
 @websocket_api.async_response
 async def ws_emergency_force_off(hass: HomeAssistant, connection, msg) -> None:
-    results = await async_force_off(hass)
-    connection.send_result(msg["id"], {**await async_status(hass), "results": results})
+    ctx = connection.context(msg)
+    results = await async_force_off(hass, ctx)
+    connection.send_result(msg["id"], {**await async_status(hass, ctx), "results": results})
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/emergency_member", vol.Required("entity_id"): str,
                                   vol.Optional("on"): bool})
 @websocket_api.async_response
 async def ws_emergency_member(hass: HomeAssistant, connection, msg) -> None:
-    results = await async_member(hass, msg["entity_id"], msg.get("on"))
+    ctx = connection.context(msg)
+    results = await async_member(hass, msg["entity_id"], msg.get("on"), ctx)
     if results is None:
         connection.send_error(msg["id"], "not_found", "Not one of the emergency lights")
         return
-    connection.send_result(msg["id"], {**await async_status(hass), "results": results})
+    connection.send_result(msg["id"], {**await async_status(hass, ctx), "results": results})
 
 
 WS_COMMANDS = (ws_emergency_status, ws_emergency_test, ws_emergency_force_off, ws_emergency_member)

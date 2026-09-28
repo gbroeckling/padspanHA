@@ -3,9 +3,10 @@
 # Licensed under the GNU General Public License v3.0
 """The Atlas emergency lighting test (emergency_test.py).
 
-What must hold: the lights come from the setting, else HA's "emergency"
-groups (all of them, nested expanded, members not groups), else the default
-rule (Pakedge ports 7/8 + one light per "emergency" WLED device); the lights
+What must hold: the lights come from the setting (groups in it expanded),
+else HA's "emergency" groups (all of them, nested expanded, members not
+groups), else the default rule (one light per "emergency" WLED device — never
+a switch by id alone); the lights
 already on when a test starts stay on when it ends, Force off turns off all;
 a second start keeps the first tags; the tags survive a restart; an
 unavailable light is skipped without failing the rest; the three usage
@@ -48,7 +49,7 @@ class House:
     def __init__(self, monkeypatch, settings=None):
         from homeassistant.helpers import device_registry as dr, entity_registry as er, storage
         self.states, self.entities, self.devices, self.calls = {}, {}, {}, []
-        self.fail = set()
+        self.fail, self.hang, self.contexts = set(), set(), []
         self.settings = SimpleNamespace(data=dict(settings or {}))
         _DiskStore.files = {}
         monkeypatch.setattr(storage, "Store", _DiskStore, raising=False)
@@ -65,10 +66,13 @@ class House:
         hass.states.async_all = lambda domain=None: [s for s in self.states.values()
                                                      if domain is None or s.entity_id.startswith(domain + ".")]
 
-        async def _call(domain, service, data=None, blocking=False):
+        async def _call(domain, service, data=None, blocking=False, context=None):
             eid = data["entity_id"]
+            self.contexts.append(context)
             if eid in self.fail:
                 raise RuntimeError("device said no")
+            if eid in self.hang:
+                await asyncio.sleep(3600)                 # a device that never answers
             self.calls.append((domain, service, eid))
             self.states[eid].state = "on" if service == "turn_on" else "off"
         hass.services.async_call = _call
@@ -98,7 +102,7 @@ class House:
             self.state(eid, st, fname)
 
 
-def _live_house(monkeypatch, **kw):
+def _live_house_before_groups(monkeypatch, **kw):
     """Garry's house on 2026-09-28, before the groups were made."""
     h = House(monkeypatch, **kw)
     for p in range(1, 9):
@@ -116,18 +120,49 @@ def _live_house(monkeypatch, **kw):
     return h
 
 
-LIVE_DEFAULT = ["switch.pakedge_poe_port_7", "switch.pakedge_poe_port_8",
-                "light.a1_slwf_09", "light.upper_south_2", "light.emergencysparebed_slwf_09"]
+def _live_house(monkeypatch, **kw):
+    """Garry's house as it is: its two HA groups (lights, PoE ports)."""
+    h = _live_house_before_groups(monkeypatch, **kw)
+    h.state("light.emergency_lighting", "off", "Emergency Lighting",
+            members=["light.a1_slwf_09", "light.upper_south_2", "light.emergencysparebed_slwf_09"])
+    h.state("switch.emergency_lighting_poe", "on", "Emergency Lighting PoE",
+            members=["switch.pakedge_poe_port_7", "switch.pakedge_poe_port_8"])
+    return h
+
+
+LIVE_WLED = ["light.a1_slwf_09", "light.upper_south_2", "light.emergencysparebed_slwf_09"]
+LIVE_MEMBERS = ["switch.pakedge_poe_port_7", "switch.pakedge_poe_port_8", *LIVE_WLED]
 
 
 # ── Which lights ─────────────────────────────────────────────────────────────
 
 
-def test_default_rule_on_the_live_house(monkeypatch):
+def test_the_live_house_resolves_to_its_five_lights_through_its_groups(monkeypatch):
     h = _live_house(monkeypatch)
     res = ET.resolve_members(h.hass)
+    assert res["source"] == "group"
+    assert res["groups"] == ["light.emergency_lighting", "switch.emergency_lighting_poe"]
+    assert sorted(res["members"]) == sorted(LIVE_MEMBERS)
+
+
+def test_default_rule_on_the_live_house_takes_no_switch(monkeypatch):
+    """Without the groups: the WLED lights named Emergency only. The PoE
+    ports are not picked by id (nor is the WLED "freeze" switch by name)."""
+    h = _live_house_before_groups(monkeypatch)
+    res = ET.resolve_members(h.hass)
     assert res["source"] == "default"
-    assert sorted(res["members"]) == sorted(LIVE_DEFAULT)
+    assert sorted(res["members"]) == sorted(LIVE_WLED)
+
+
+def test_plain_poe_ports_7_and_8_on_another_install_get_no_button(monkeypatch):
+    h = House(monkeypatch)
+    for p in (7, 8):
+        eid = f"switch.pakedge_poe_port_{p}"
+        h.state(eid, "on", f"Pakedge PoE Port {p}")
+        h.entities[eid] = SimpleNamespace(entity_id=eid, device_id="sw", unique_id=f"poe{p}", platform="pakedge",
+                                          name=None, original_name=None, disabled_by=None)
+    assert ET.resolve_members(h.hass) == {"source": None, "groups": [], "members": []}
+    assert _run(ET.async_status(h.hass))["available"] is False
 
 
 def test_default_rule_takes_the_master_light_when_ha_shows_it(monkeypatch):
@@ -156,7 +191,7 @@ def test_two_single_domain_groups_are_unioned(monkeypatch):
     res = ET.resolve_members(h.hass)
     assert res["source"] == "group"
     assert res["groups"] == ["light.emergency_lighting", "switch.emergency_lighting_poe"]
-    assert sorted(res["members"]) == sorted(LIVE_DEFAULT)      # the members, never the groups
+    assert sorted(res["members"]) == sorted(LIVE_MEMBERS)      # the members, never the groups
 
 
 def test_group_matched_by_name_and_nested_groups_expanded(monkeypatch):
@@ -176,8 +211,22 @@ def test_setting_overrides_groups_and_default(monkeypatch):
     assert res == {"source": "settings", "groups": [], "members": ["light.x", "switch.y"]}
 
 
+def test_a_group_in_the_setting_is_expanded_never_switched_itself(monkeypatch):
+    h = _live_house(monkeypatch, settings={"emergency_entities": ["light.emergency_lighting", "switch.pakedge_poe_port_7"]})
+    h.state("light.inner", "off", "Inner", members=["light.a1_slwf_09", "light.upper_south_2"])
+    h.states["light.emergency_lighting"].attributes["entity_id"] = ["light.inner", "light.emergencysparebed_slwf_09"]
+    res = ET.resolve_members(h.hass)
+    assert res == {"source": "settings", "groups": ["light.emergency_lighting"],
+                   "members": ["light.a1_slwf_09", "light.upper_south_2", "light.emergencysparebed_slwf_09",
+                               "switch.pakedge_poe_port_7"]}
+    _run(ET.async_test(h.hass, True))
+    switched = {c[2] for c in h.calls}
+    assert "light.emergency_lighting" not in switched and "light.inner" not in switched
+    assert "light.a1_slwf_09" in switched
+
+
 def test_group_beats_default(monkeypatch):
-    h = _live_house(monkeypatch)
+    h = _live_house_before_groups(monkeypatch)
     h.state("switch.emergency_lighting_poe", "on", "Emergency Lighting PoE", members=["switch.pakedge_poe_port_8"])
     assert ET.resolve_members(h.hass)["members"] == ["switch.pakedge_poe_port_8"]
 
@@ -270,22 +319,70 @@ def test_only_lights_and_switches_are_switched(monkeypatch):
 def test_status_payload(monkeypatch):
     h = _live_house(monkeypatch)
     st = _run(ET.async_status(h.hass))
-    assert st["available"] is True and st["source"] == "default"
+    assert st["available"] is True and st["source"] == "group"
     by = {m["entity_id"]: m for m in st["members"]}
     assert by["light.a1_slwf_09"] == {"entity_id": "light.a1_slwf_09", "name": "Emergency WLed closet", "state": "off"}
     assert by["light.emergencysparebed_slwf_09"]["state"] == "unavailable"
 
 
+def _conn(out, errors=None):
+    """A websocket connection whose context() names the message it came from."""
+    return SimpleNamespace(send_result=lambda mid, data=None: out.append(data),
+                           send_error=lambda mid, code, m: (errors if errors is not None else []).append(code),
+                           context=lambda msg: ("user-ctx", msg["id"]))
+
+
 def test_ws_commands_answer(monkeypatch):
     h = _live_house(monkeypatch)
     out = []
-    conn = SimpleNamespace(send_result=lambda mid, data=None: out.append(data), send_error=MagicMock())
+    conn = _conn(out)
     _run(ET.ws_emergency_test(h.hass, conn, {"id": 1, "type": "padspan_ha/emergency_test", "on": True}))
     assert out[-1]["test"]["active"] is True and out[-1]["results"]
     _run(ET.ws_emergency_force_off(h.hass, conn, {"id": 2, "type": "padspan_ha/emergency_force_off"}))
     assert out[-1]["test"]["active"] is False
     _run(ET.ws_emergency_status(h.hass, conn, {"id": 3, "type": "padspan_ha/emergency_status"}))
-    assert set(out[-1]) == {"available", "source", "groups", "members", "test"}
+    assert set(out[-1]) == {"available", "source", "groups", "members", "test", "pending_off", "emergency_ran"}
+
+
+def test_service_calls_carry_the_callers_context(monkeypatch):
+    """HA's permissions and logbook see the person who tapped, not the system."""
+    h = _live_house(monkeypatch)
+    conn = _conn([])
+    _run(ET.ws_emergency_test(h.hass, conn, {"id": 7, "type": "padspan_ha/emergency_test", "on": True}))
+    assert h.contexts and set(h.contexts) == {("user-ctx", 7)}
+    h.contexts.clear()
+    _run(ET.ws_emergency_member(h.hass, conn, {"id": 8, "entity_id": "light.a1_slwf_09", "on": False}))
+    assert h.contexts == [("user-ctx", 8)]
+    h.contexts.clear()
+    _run(ET.ws_emergency_force_off(h.hass, conn, {"id": 9, "type": "padspan_ha/emergency_force_off"}))
+    assert h.contexts and set(h.contexts) == {("user-ctx", 9)}
+
+
+def test_a_device_that_never_answers_times_out_and_frees_the_lock(monkeypatch):
+    monkeypatch.setattr(ET, "SERVICE_TIMEOUT_S", 0.05)
+    h = _live_house(monkeypatch)
+    h.hang.add("light.a1_slwf_09")
+
+    async def go():
+        results = {r["entity_id"]: r for r in await ET.async_test(h.hass, True)}
+        assert results["light.a1_slwf_09"]["ok"] is False and "no answer" in results["light.a1_slwf_09"]["error"]
+        assert results["light.upper_south_2"]["ok"] is True
+        assert not h.hass.data[DOMAIN][ET._LOCK].locked()
+        await asyncio.wait_for(ET.async_force_off(h.hass), 2)       # the next action is not stuck behind it
+    _run(go())
+
+
+def test_status_reports_a_real_emergency_while_a_test_runs(monkeypatch):
+    """What the Force off confirmation reads."""
+    import datetime as _dt
+    h = _live_house(monkeypatch)
+    _run(ET.async_test(h.hass, True))
+    assert _run(ET.async_status(h.hass))["emergency_ran"] == []
+    started = _run(ET.async_status(h.hass))["test"]["started_at"]
+    h.state("automation.emergency_lights_power_failure", "on", "Emergency Lights - Power Failure")
+    h.states["automation.emergency_lights_power_failure"].attributes["last_triggered"] = (
+        _dt.datetime.fromtimestamp(started + 5, tz=_dt.timezone.utc).isoformat())
+    assert _run(ET.async_status(h.hass))["emergency_ran"] == ["Emergency Lights - Power Failure"]
 
 
 def test_commands_are_registered_and_open_to_any_user():
@@ -350,7 +447,7 @@ def test_by_hand_refuses_what_is_not_a_member(monkeypatch):
     assert _run(ET.async_member(h.hass, "switch.pakedge_poe_port_1", False)) is None
     assert h.states["switch.pakedge_poe_port_1"].state == "on"
     errors = []
-    conn = SimpleNamespace(send_result=MagicMock(), send_error=lambda mid, code, m: errors.append(code))
+    conn = _conn([], errors)
     _run(ET.ws_emergency_member(h.hass, conn, {"id": 1, "entity_id": "switch.pakedge_poe_port_1", "on": False}))
     assert errors == ["not_found"]
 
@@ -405,3 +502,111 @@ def test_an_emergency_automation_from_before_the_test_does_not_count(monkeypatch
     h.calls.clear()
     _run(ET.async_test(h.hass, False))
     assert ("light", "turn_off", "light.a1_slwf_09") in h.calls
+
+
+# ── Unreachable at the end: switched off when it is back ─────────────────────
+
+SPARE = "light.emergencysparebed_slwf_09"          # unavailable in the live house
+
+
+def _comes_back(h, eid, state, user_id=None):
+    """HA's state_changed for `eid` coming back, through the real listener."""
+    h.states[eid].state = state
+    h.states[eid].context = SimpleNamespace(user_id=user_id)
+
+    async def go():
+        tasks = []
+        h.hass.async_create_task = lambda c: tasks.append(asyncio.ensure_future(c))
+        ET._on_state_changed(h.hass, SimpleNamespace(data={"entity_id": eid, "new_state": h.states[eid]}))
+        await asyncio.gather(*tasks)
+    _run(go())
+
+
+def _test_ran_with_spare_unreachable(monkeypatch):
+    h = _live_house(monkeypatch)
+    _run(ET.async_test(h.hass, True))
+    _run(ET.async_test(h.hass, False))
+    assert _run(ET.async_status(h.hass))["pending_off"] == [SPARE]
+    h.calls.clear()
+    return h
+
+
+def test_an_unreachable_member_is_switched_off_when_it_comes_back_on(monkeypatch):
+    h = _test_ran_with_spare_unreachable(monkeypatch)
+    _comes_back(h, SPARE, "unavailable")                             # still gone: nothing
+    assert h.calls == [] and _run(ET.async_status(h.hass))["pending_off"] == [SPARE]
+    _comes_back(h, SPARE, "on")                                      # back, in the test's state
+    assert h.calls == [("light", "turn_off", SPARE)]
+    assert _run(ET.async_status(h.hass))["pending_off"] == []
+    _comes_back(h, SPARE, "on")                                      # later changes: not ours
+    assert h.calls == [("light", "turn_off", SPARE)]
+
+
+def test_back_already_off_just_leaves_the_record(monkeypatch):
+    h = _test_ran_with_spare_unreachable(monkeypatch)
+    _comes_back(h, SPARE, "off")
+    assert h.calls == [] and _run(ET.async_status(h.hass))["pending_off"] == []
+
+
+def test_back_on_by_a_persons_hand_is_left_on(monkeypatch):
+    h = _test_ran_with_spare_unreachable(monkeypatch)
+    _comes_back(h, SPARE, "on", user_id="nicole")
+    assert h.calls == [] and h.states[SPARE].state == "on"
+    assert _run(ET.async_status(h.hass))["pending_off"] == []
+
+
+def test_switched_here_by_hand_since_drops_the_record(monkeypatch):
+    h = _test_ran_with_spare_unreachable(monkeypatch)
+    h.states[SPARE].state = "off"
+    _run(ET.async_member(h.hass, SPARE, True))
+    assert _run(ET.async_status(h.hass))["pending_off"] == []
+    _comes_back(h, SPARE, "on")
+    assert h.states[SPARE].state == "on"
+
+
+def test_the_status_poll_catches_a_comeback_the_listener_missed(monkeypatch):
+    h = _test_ran_with_spare_unreachable(monkeypatch)
+    h.restart()                                                      # e.g. HA restarted: no listener yet
+    h.states[SPARE].state = "on"
+    st = _run(ET.async_status(h.hass))
+    assert ("light", "turn_off", SPARE) in h.calls and st["pending_off"] == []
+
+
+def test_a_new_test_or_force_off_replaces_the_record(monkeypatch):
+    h = _test_ran_with_spare_unreachable(monkeypatch)
+    _run(ET.async_test(h.hass, True))
+    assert _run(ET.async_status(h.hass))["pending_off"] == []
+    _run(ET.async_force_off(h.hass))                                 # the spare still unreachable
+    assert _run(ET.async_status(h.hass))["pending_off"] == [SPARE]
+    h.states[SPARE].state = "off"
+    h.states["light.a1_slwf_09"].state = "unavailable"
+    _run(ET.async_force_off(h.hass))
+    assert _run(ET.async_status(h.hass))["pending_off"] == ["light.a1_slwf_09"]
+
+
+def test_a_real_emergency_records_nothing_to_switch_off(monkeypatch):
+    import datetime as _dt
+    h = _live_house(monkeypatch)
+    _run(ET.async_test(h.hass, True))
+    started = _run(ET.async_status(h.hass))["test"]["started_at"]
+    h.state("automation.emergency_lights_power_failure", "on", "Emergency Lights - Power Failure")
+    h.states["automation.emergency_lights_power_failure"].attributes["last_triggered"] = (
+        _dt.datetime.fromtimestamp(started + 30, tz=_dt.timezone.utc).isoformat())
+    _run(ET.async_test(h.hass, False))
+    assert _run(ET.async_status(h.hass))["pending_off"] == []
+    _comes_back(h, SPARE, "on")
+    assert h.calls == [c for c in h.calls if c[1] == "turn_on"]      # nothing was switched off
+
+
+def test_the_listener_is_set_up_once_and_torn_down():
+    hass = MagicMock()
+    hass.data = {DOMAIN: {}}
+    hass.async_create_task = lambda c: c.close()
+    ET.async_setup_emergency_test(hass)
+    ET.async_setup_emergency_test(hass)                              # a config-entry reload
+    assert hass.bus.async_listen.call_count == 1
+    assert hass.bus.async_listen.call_args[0][0] == "state_changed"
+    ET.async_stop_emergency_test(hass)
+    assert ET._UNSUB not in hass.data[DOMAIN]
+    src = (__import__("pathlib").Path(ET.__file__).parent / "__init__.py").read_text(encoding="utf-8")
+    assert "async_setup_emergency_test(hass)" in src and "async_stop_emergency_test(hass)" in src
