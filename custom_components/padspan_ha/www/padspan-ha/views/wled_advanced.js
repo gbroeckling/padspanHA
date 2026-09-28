@@ -29,12 +29,15 @@ const { backupView } = await import(`./wled_tab_backup.js${_q}`);
 const { syncView } = await import(`./wled_tab_sync.js${_q}`);
 const { ledsView } = await import(`./wled_tab_leds.js${_q}`);
 const { settingsView } = await import(`./wled_tab_settings.js${_q}`);
+const { lookView } = await import(`./wled_tab_look.js${_q}`);
 
 // ── Mount ────────────────────────────────────────────────────────────────────
 
 /**
  * mountWledAdvanced(pane, { hass, eid, api })
  * api.wled = { isAdmin, tier } from the host (controlApiFor in lights_map.js).
+ * api.onExactChanged: tells the Atlas which lights PadSpan now runs, after
+ * the Exact look or Sync & team tab changes that (lights_map.js).
  */
 export async function mountWledAdvanced(pane, { hass, eid, api }) {
   const isAdmin = !!(api && api.wled && api.wled.isAdmin);
@@ -44,7 +47,8 @@ export async function mountWledAdvanced(pane, { hass, eid, api }) {
   const post = (body) => call("padspan_ha/wled_state", { body }).then(r => r.data);
 
   const ctx = { hass, eid, isAdmin, toast, get, post, call, info: null, state: null, effects: [], pals: [],
-    presets: null, cfg: null, tab: "layout", selSeg: null, openSeg: null };
+    presets: null, cfg: null, tab: "layout", selSeg: null, openSeg: null,
+    onExactChanged: (api && api.onExactChanged) || (() => {}) };
 
   pane.innerHTML = "";
   const head = h("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px" });
@@ -72,7 +76,7 @@ export async function mountWledAdvanced(pane, { hass, eid, api }) {
     return;
   }
 
-  const TABS = [["layout", "Layout"], ["effect", "Effect"], ["presets", "Presets & playlists"], ["leds", "LEDs"], ["sync", "Sync & team"], ["settings", "Settings"], ["backup", "Backup"], ["info", "Info"]];
+  const TABS = [["layout", "Layout"], ["effect", "Effect"], ["presets", "Presets & playlists"], ["leds", "LEDs"], ["sync", "Sync & team"], ["look", "Exact look"], ["settings", "Settings"], ["backup", "Backup"], ["info", "Info"]];
   const paintHead = () => {
     head.innerHTML = "";
     const info = ctx.info;
@@ -125,6 +129,7 @@ export async function mountWledAdvanced(pane, { hass, eid, api }) {
     else if (ctx.tab === "presets") body.appendChild(presetsView(ctx));
     else if (ctx.tab === "backup") body.appendChild(backupView(ctx));
     else if (ctx.tab === "sync") body.appendChild(syncView(ctx));
+    else if (ctx.tab === "look") body.appendChild(lookView(ctx));
     else if (ctx.tab === "leds") body.appendChild(ledsView(ctx));
     else if (ctx.tab === "settings") body.appendChild(settingsView(ctx));
     else body.appendChild(infoView(ctx));
@@ -145,6 +150,9 @@ export async function mountWledAdvanced(pane, { hass, eid, api }) {
   };
   // Local view changes (selection, filters) repaint in place.
   ctx.repaint = () => paint();
+  // After a change made through the backend (the exact look's switch): the
+  // device read again, then the tab painted from it.
+  ctx.reload = () => refresh();
   ctx.onLive = (f) => {
     if (pane.isConnected === false) {             // the card was closed
       if (ctx.liveUnsub) { try { ctx.liveUnsub(); } catch (_) {} ctx.liveUnsub = null; }
