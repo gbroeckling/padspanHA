@@ -383,7 +383,7 @@ class PadSpanLightsApp extends HTMLElement {
     const left = [...(t.kept_on || []), ...(t.manual || [])];
     this._emergencyCall({ type:"padspan_ha/emergency_test", on: !t.active }, (r, names)=>{
       const real = ((r && r.results) || []).find(x => x && x.kept === "emergency");
-      if(t.active && real) return `Emergency lighting test ended. ${(real.by || []).join(", ")} ran during the test, so every emergency light was left on. Use Force off to turn them off.`;
+      if(t.active && real) return `Emergency lighting test ended. ${(real.by || []).join(", ")} ran during the test, so every emergency light was left on. Turn them off from the list (the ring) when you're ready.`;
       if(t.active) return "Emergency lighting test ended." + (left.length ? `\nLeft on or as set: ${names(left)}` : "");
       const k = (r && r.test && r.test.kept_on) || [];
       return "Emergency lighting test on." + (k.length ? `\nAlready on, will stay on: ${names(k)}` : "");

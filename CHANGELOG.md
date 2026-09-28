@@ -18,12 +18,12 @@ This stable release brings the 0.38.83 and 0.38.84 pre-releases (WLED lights tha
 - **Fixed:** "last seen in the Kitchen" now shows when the device was last heard there. A device that left the same room again later shows the later time.
 
 ### Atlas — Test emergency lighting
-- **Added:** a round red button in the Atlas's bottom-right corner, **Test emergency lighting**. It appears only when PadSpan finds emergency lights: any Home Assistant group with "emergency" in its name (every such group, nested groups included), or else PoE ports 7 and 8 on a Pakedge switch plus WLED lights named "emergency". It takes no space of its own.
+- **Added:** a round red button in the Atlas's bottom-right corner, **Test emergency lighting**. It appears only when PadSpan finds emergency lights: any Home Assistant group with "emergency" in its name (every such group, nested groups included), or else WLED lights named "emergency". Nothing else is ever picked up. It takes no space of its own.
   - **Start:** every emergency light turns on. Lights that were already on are marked, and they stay on when the test ends.
   - **End:** only the lights the test turned on go off.
-  - **Force off** appears beside the button during a test and turns every emergency light off.
+  - **Force off** appears beside the button during a test and turns every emergency light off. A light that can't be reached when the test ends is switched off when it comes back, unless someone set it by hand.
   - **The ring** around the button opens a card of every emergency light, with its state and its own on/off. A light you switch there during a test is left the way you set it.
-  - **A real emergency wins:** if a Home Assistant automation with "emergency" in its name runs during a test (for example a power-failure automation), ending the test switches nothing off, and says so.
+  - **A real emergency wins:** if a Home Assistant automation with "emergency" in its name runs during a test (for example a power-failure automation), ending the test switches nothing off, and says so. Force off then asks for a second tap.
   - Home Assistant's own emergency automations are never changed.
 
 ### Atlas — WLED exact look (from 0.38.83 and 0.38.84)
