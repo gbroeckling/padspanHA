@@ -176,6 +176,35 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.85</span>
+        <span class="pill stable">Stable</span>
+        <span class="reldate">28 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Refresh the PadSpan page</b> in every browser and on any wall screen after updating.</li>
+          <li><b>The Atlas is now on for everyone.</b> It shows in the sidebar after the update restart. If you don't want it, turn it off in Settings; it stays off after that.</li>
+          <li><b>The free trial is 90 days, no card</b>, and you can now start it right where a paid feature stops you.</li>
+          <li><b>Fixed:</b> on a house with many Bluetooth devices, the panel's live data could stop answering altogether, so the map and the top bar stayed empty. Every 5-second update rewrote PadSpan's whole "last seen in" file once for every device that had left, one after another. It now writes only when a device actually leaves a room, and saves are batched.</li>
+          <li><b>Fixed:</b> "last seen in the Kitchen" now shows when the device was last heard there. A device that left the same room again later shows the later time.</li>
+          <li><b>Added:</b> a round red button in the Atlas's bottom-right corner, <b>Test emergency lighting</b>. It appears only when PadSpan finds emergency lights: any Home Assistant group with "emergency" in its name (every such group, nested groups included), or else WLED lights named "emergency". Nothing else is ever picked up. It takes no space of its own.</li>
+          <li>A WLED light's <b>Advanced → Sync & team</b> has <b>Who gives this light its instructions</b>: WLED sync or PadSpan (exact look). With PadSpan, the light comes on with its remembered look every time, after a power cut too. See the 0.38.83 notes below for everything it does.</li>
+          <li><b>Fixed:</b> a command you give (Atlas, room, card, preset, service) is never undone by an older change Home Assistant reports a moment later, and a team is never split by one. Found in the first live test on a real valance.</li>
+          <li><b>Fixed:</b> on Home Assistant 2026.10, <code>padspan_ha.wled_on</code> / <code>wled_off</code> aimed at an area or device still reach every light in it.</li>
+          <li><b>Added:</b> a <b>90-day free trial, no card</b> card wherever a paid feature stops you: the Atlas, Mapping → Atlas, Locate, Busy Times and Settings → PadSpan licence. Enter an email and it starts; someone who isn't a Home Assistant administrator is told an administrator has to start it.</li>
+          <li><b>Added:</b> until October 31, 2026, <b>PadSpan Pro for life</b> is $89 CAD, once, on padspan.traks.ca. A lifetime key shows as "lifetime".</li>
+          <li><b>Fixed:</b> a trial key that is bought, or upgraded to lifetime on the same key, no longer reads as a trial.</li>
+          <li><b>Changed:</b> the setup card is now <b>Getting started</b>, with a step <b>See someone on the map</b>. It shows on houses that haven't finished building their map, and goes away by itself once they have, whoever is home.</li>
+          <li><b>Fixed:</b> <b>Skip setup</b> and finishing setup are remembered now. They weren't saved before, so the card could come back.</li>
+          <li><b>Added:</b> <b>Become a tester</b>, beside the report in Settings → Presence → Help improve PadSpan. It is separate from the anonymous report: its own consent, its own send button, and nothing from it ever goes in the report. You can withdraw any time.</li>
+          <li><b>Changed:</b> panel errors are counted only when PadSpan's own code threw, and by the part of PadSpan that threw. Before, any error on the page was counted, including Home Assistant's own and other cards', and credited to whichever tab was open.</li>
+          <li><b>Added:</b> counts of where the trial offer was seen and started, and of the emergency test. Never an email.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.84</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">27 September 2026</span>
