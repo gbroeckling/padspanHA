@@ -449,6 +449,48 @@ out.back = sent(r.calls, "padspan_ha/wled_exact_set");
                    "switched": 0, "teamRow": 1, "stuck": True, "brokeUp": 0, "back": [{"exact": False}]}
 
 
+def test_a_failed_team_switch_reads_the_team_again_and_break_up_checks_at_the_click():
+    """Review r2: "Run this team by: PadSpan" failed and left Far West
+    PadSpan's (the backend couldn't put it back). The card is read again, so
+    it says so, and Break up checks again at the click — it must never switch
+    WLED sync back on under PadSpan."""
+    out = _run("""
+let r = await open("Sync & team", { x: { join: "wled", look: LOOK, team_id: "team-1", team_mode: "mirror" }, teams: [%s], exact: [] });
+let exactNow = [];
+const origWS = r.hass.callWS;
+r.hass.callWS = async (m) => {
+  if (m.type === "padspan_ha/wled_team_mode") { r.calls.push(m); exactNow = [{ device_id: "dF" }];
+    throw { code: "failed", message: "Quin Kitchen: The device answered HTTP 500; couldn't switch back: Far West (Can't reach 192.168.2.119: offline)" }; }
+  if (m.type === "padspan_ha/wled_exact_list") { r.calls.push(m); return { devices: exactNow }; }
+  return origWS(m);
+};
+const warn = (p) => count(p, s => s.startsWith("⚠ PadSpan still gives Far West"));
+out.warnBefore = warn(r.pane);
+btn(r.pane, "PadSpan")[0].click();
+await settle(); await settle();
+out.atlasTold = r.toasts.some(t => t[0] === "<exact changed>");
+out.warnAfter = warn(r.pane);
+let n = r.calls.length;
+btn(r.pane, "Break up the team")[0].click();
+await settle(); await settle();
+const toDF = (calls) => calls.filter(c => (c.type === "padspan_ha/wled_cfg" || c.type === "padspan_ha/wled_state") && c.device_id === "dF").length;
+out.breakUp = toDF(r.calls.slice(n));
+out.told = r.toasts[r.toasts.length - 1];
+// Left PadSpan's after the card was drawn (another window): checked at the click too.
+r = await open("Sync & team", { x: { join: "wled", look: LOOK, team_id: "team-1", team_mode: "mirror" }, teams: [%s], exact: [] });
+const orig2 = r.hass.callWS;
+let later = [];
+r.hass.callWS = async (m) => (m.type === "padspan_ha/wled_exact_list" ? (r.calls.push(m), { devices: later }) : orig2(m));
+later = [{ device_id: "dF" }];
+n = r.calls.length;
+btn(r.pane, "Break up the team")[0].click();
+await settle(); await settle();
+out.breakUpLate = toDF(r.calls.slice(n)) + r.calls.slice(n).filter(c => c.type === "padspan_ha/wled_teams_set").length;
+""" % (_TEAM % "mirror", _TEAM % "mirror"))
+    assert out == {"warnBefore": 0, "atlasTold": True, "warnAfter": 1, "breakUp": 0,
+                   "told": ["Give Far West back to WLED sync first", True], "breakUpLate": 0}
+
+
 def test_a_team_padspan_runs_names_no_sync_group_or_leader():
     """Review finding 14."""
     out = _run("""

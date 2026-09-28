@@ -227,7 +227,10 @@ export function exactProblems(r){
   const out = [];
   for (const x of (r && r.results) || []) {
     if (x.ok) continue;
-    if (x.waiting) out.push({ text: `${x.name} is offline — it gets its look when it reconnects`, error: false });
+    // Waiting: offline in HA (sent when it reconnects), or it didn't answer
+    // while HA still has it (PadSpan tries again itself).
+    if (x.waiting) out.push({ text: x.retry_in ? `${x.name} didn't answer — PadSpan tries again in ${x.retry_in} s`
+      : `${x.name} is offline — it gets its look when it reconnects`, error: false });
     else out.push({ text: `${x.name}: ${x.message || (x.diffs || []).join("; ") || "didn't take"}`, error: true });
   }
   return out;

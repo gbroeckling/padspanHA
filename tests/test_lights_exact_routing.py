@@ -67,6 +67,13 @@ def test_only_a_failure_is_said(out) -> None:
                                  "Upper South is offline — it gets its look when it reconnects", True]]
 
 
+def test_a_device_that_didnt_answer_isnt_called_offline(out) -> None:
+    """Review r2: HA still has it, so no reconnect will come — PadSpan tries
+    again itself (wled_exact._schedule_retry), and the Atlas says so."""
+    assert out["waitWords"] == [{"text": "Porch didn't answer — PadSpan tries again in 10 s", "error": False},
+                                {"text": "Upper South is offline — it gets its look when it reconnects", "error": False}]
+
+
 def test_the_drag_dim_goes_through_the_one_path_from_the_looks_brightness(out) -> None:
     d = out["drag"]
     # Off, so it starts from the look's 128 (not the remembered 20): +40 px = 192.

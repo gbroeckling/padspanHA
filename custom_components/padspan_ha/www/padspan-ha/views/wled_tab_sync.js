@@ -325,14 +325,16 @@ async function teamCard(ctx, host) {
     const incomplete = (mine.incomplete || []).length > 0;
     // A WLED sync team member PadSpan still runs (a team switch it couldn't
     // finish or undo): a break-up would switch its sync back on under
-    // PadSpan. It goes back to WLED sync on its own tab first.
-    let stuck = [];
-    if (!byPadspan) {
+    // PadSpan. It goes back to WLED sync on its own tab first. Read again
+    // at the break-up itself: a failed switch can leave one since this card.
+    const stuckNow = async () => {
+      if (byPadspan) return [];
       try {
         const ex = new Set((((await ctx.hass.callWS({ type: "padspan_ha/wled_exact_list" })) || {}).devices || []).map(d => d.device_id));
-        stuck = [mine.leader, ...mine.followers].filter(id => ex.has(id));
-      } catch (e) { /* no licence or an older backend: nothing is run by PadSpan */ }
-    }
+        return [mine.leader, ...mine.followers].filter(id => ex.has(id));
+      } catch (e) { return []; /* no licence or an older backend: nothing is run by PadSpan */ }
+    };
+    const stuck = await stuckNow();
     // Run by PadSpan there is no sync group and no leading: every member
     // gets its own look from PadSpan.
     card.appendChild(h("div", { style: "font-size:13px;margin-bottom:6px" }, byPadspan ? [
@@ -350,13 +352,19 @@ async function teamCard(ctx, host) {
       if (blocked) return h("button", { style: S.btn + ";opacity:.5;cursor:default", title: blocked }, label);
       return btn(S.btn, label, run);
     };
+    // A team switch that failed can leave members PadSpan's (it couldn't
+    // put them back): the Atlas and this card are read again.
+    const failedSwitch = async () => {
+      ctx.onExactChanged();
+      await ctx.reload();
+    };
     // Back to WLED sync: every member gets its sync from before PadSpan
     // (the backend), then the team's group is set on each, as for a new team.
     const runByWled = async () => {
       if (!confirm(`Run "${mine.name}" by WLED sync again?\n\nEvery member gets back the sync settings it had before PadSpan, `
         + `then the team's sync group ${mine.group} is set up on each device again.`)) return;
       const r = await teamMode(ctx, mine, "mirror");
-      if (!r) return;
+      if (!r) { await failedSwitch(); return; }
       listHash = r.hash;
       const team = r.team || { ...mine, mode: "mirror" };
       teams = teams.map(t => t === mine ? team : t);
@@ -387,7 +395,7 @@ async function teamCard(ctx, host) {
       if (!confirm(`Run "${mine.name}" by PadSpan?\n\n${TEAM_PADSPAN_TEXT} Each is backed up first, and its sync settings `
         + "are put back if the team goes back to WLED sync.")) return;
       const r = await teamMode(ctx, mine, "padspan");
-      if (!r) return;
+      if (!r) { await failedSwitch(); return; }
       const liveOnly = (r.members || []).filter(m => m.sync_off === "live");
       ctx.toast(`"${mine.name}" is run by PadSpan now`
         + (liveOnly.length ? ` — ${liveOnly.map(m => m.name).join(", ")}: ${liveOnly[0].message}` : ""), liveOnly.length > 0);
@@ -410,7 +418,8 @@ async function teamCard(ctx, host) {
     if (ctx.isAdmin) {
       const row = h("div", { style: "display:flex;gap:6px;margin-top:8px;flex-wrap:wrap" });
       row.appendChild(btn(S.btn + `;color:${C.red}`, incomplete ? "Break up (retry)" : "Break up the team", async () => {
-        if (stuck.length) { ctx.toast(`Give ${stuck.map(nameOf).join(", ")} back to WLED sync first`, true); return; }
+        const held = await stuckNow();
+        if (held.length) { ctx.toast(`Give ${held.map(nameOf).join(", ")} back to WLED sync first`, true); return; }
         if (!confirm(`Break up "${mine.name}"? Each device gets back the sync settings it had before the team.`)) return;
         // A team PadSpan runs goes back to WLED sync first (every member's
         // sync from before PadSpan), then breaks up as any team does.

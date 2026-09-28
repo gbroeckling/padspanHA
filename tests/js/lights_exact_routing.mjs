@@ -102,6 +102,11 @@ const out = {};
   for (const e of Object.keys(STATES)) LM.clearOptimistic(e);
 }
 
+// ── Waiting: offline in HA, or it didn't answer and PadSpan tries again ──
+out.waitWords = LM.exactProblems({ handled: true, results: [
+  { name: "Porch", ok: false, waiting: true, retry_in: 10, message: "The device was busy — PadSpan tries again in 10 s" },
+  { name: "Upper South", ok: false, waiting: true, retry_in: null, message: "Offline — the look goes on when it reconnects" }] });
+
 // ── A failed exact command is said out loud (and only then) ──
 {
   const hass = fakeHass();
