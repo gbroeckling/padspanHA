@@ -10,6 +10,9 @@
 # Pull-based (not push) because the colo box cannot reach home behind NAT.
 # The spool dir is www-data-owned -> rsync through "sudo rsync" (administrator
 # has sudo there). Same shape as backup_traks_db_offsite.sh.
+#
+# It also brings home the "Become a tester" sign-ups (server/tester.php) — a
+# separate file WITH contact details, kept in its own folder; see that block.
 set -euo pipefail
 
 SRC_HOST="administrator@75.157.233.12"
@@ -73,6 +76,84 @@ echo "$(ts) OK files=$files lines=$lines installs=$installs corrupt=$bad" >>"$LO
 # "what do other people's installs look like" is a file, not a command. ---
 if [ -x "$SUMMARISER" ] || [ -f "$SUMMARISER" ]; then
     python3 "$SUMMARISER" "$DEST" --days 30 >"$SUMMARY" 2>>"$LOG" || true
+fi
+
+# --- "Become a tester" sign-ups (server/tester.php). NOT usage reports: the
+# one file with contact details in it, so it lives apart from the reports, in
+# its own folder that only administrator can read. A read-only pull of that
+# one file — nothing on the colo is changed or trimmed — and the copy here is
+# REPLACED each night, never accumulated, so a sign-up withdrawn there is gone
+# from here by the next pull. When the new copy holds tester_ids the previous
+# one did not: ONE Telegram message to Garry (the tg() above, CHAT only) —
+# how many, and for each the email, interests and PadSpan version. Nothing
+# else from the record goes into the message. ---
+T_SRC="/var/www/clients/client1/web10/private/padspan-testers/testers.json"
+T_DEST="/mnt/storage/knowledge/padspan-testers"
+(umask 077; mkdir -p "$T_DEST")
+chmod 700 "$T_DEST"
+t_there=0
+ssh -o BatchMode=yes -o ConnectTimeout=20 "$SRC_HOST" "sudo test -f '$T_SRC'" 2>>"$LOG" || t_there=$?
+if [ "$t_there" -eq 1 ]; then
+    echo "$(ts) testers: no sign-ups on the colo yet" >>"$LOG"
+elif [ "$t_there" -ne 0 ]; then
+    echo "$(ts) ERROR: could not check the colo for testers.json (ssh exit $t_there)" >>"$LOG"
+    tg "[WARN] PadSpan testers $(ts): could not check the colo for tester sign-ups - see $LOG" || true
+else
+    if rsync -a --rsync-path="sudo rsync" \
+            -e "ssh -o BatchMode=yes -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new" \
+            "$SRC_HOST:$T_SRC" "$T_DEST/.testers.json.new" >>"$LOG" 2>&1; then
+        chmod 600 "$T_DEST/.testers.json.new"
+        if new_msg=$(python3 - "$T_DEST/testers.json" "$T_DEST/.testers.json.new" 2>>"$LOG" <<'TESTERS_PY'
+import json, sys
+prev_path, new_path = sys.argv[1], sys.argv[2]
+with open(new_path, encoding="utf-8") as fh:
+    new = json.load(fh)                 # a torn or corrupt copy raises: it is not kept
+testers = new.get("testers") if isinstance(new, dict) else None
+if not isinstance(testers, dict):
+    raise SystemExit("testers.json has no testers object")
+try:
+    with open(prev_path, encoding="utf-8") as fh:
+        old = json.load(fh)
+    prev = old["testers"] if isinstance(old, dict) and isinstance(old.get("testers"), dict) else {}
+except (OSError, ValueError):             # first pull, or an unreadable old copy
+    prev = {}
+fresh = [t for t in testers if t not in prev]
+if fresh:
+    head = f"PadSpan: {len(fresh)} new tester sign-up{'' if len(fresh) == 1 else 's'}"
+    lines = []
+    for tid in fresh:
+        rec = testers.get(tid) if isinstance(testers.get(tid), dict) else {}
+        contact = rec.get("contact") if isinstance(rec.get("contact"), dict) else {}
+        email = str(contact.get("email") or "?")[:254]
+        interests = ", ".join(str(i) for i in (rec.get("interests") or [])) or "none ticked"
+        lines.append(f"- {email} | {interests} | PadSpan {str(rec.get('version') or '?')[:32]}")
+    # One Telegram message holds 4096 characters.
+    body, shown = head, 0
+    for line in lines:
+        if len(body) + len(line) + 60 > 3800:
+            break
+        body += "\n" + line
+        shown += 1
+    if shown < len(lines):
+        body += f"\n(+{len(lines) - shown} more in testers.json)"
+    print(body)
+TESTERS_PY
+        ); then
+            mv -f "$T_DEST/.testers.json.new" "$T_DEST/testers.json"
+            echo "$(ts) testers: pulled OK" >>"$LOG"
+            if [ -n "$new_msg" ]; then
+                tg "$new_msg" || echo "$(ts) WARN: Telegram notice of new tester sign-ups failed" >>"$LOG"
+            fi
+        else
+            rm -f "$T_DEST/.testers.json.new"
+            echo "$(ts) ERROR: testers.json from the colo is not readable JSON - previous copy kept" >>"$LOG"
+            tg "[WARN] PadSpan testers $(ts): testers.json on the colo is not readable JSON - see $LOG" || true
+        fi
+    else
+        rm -f "$T_DEST/.testers.json.new"
+        echo "$(ts) ERROR: rsync pull of testers.json failed" >>"$LOG"
+        tg "[WARN] PadSpan testers $(ts): pull of tester sign-ups from colo FAILED - see $LOG" || true
+    fi
 fi
 
 if [ "$bad" -ne 0 ]; then

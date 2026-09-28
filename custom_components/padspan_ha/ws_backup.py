@@ -374,7 +374,13 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                         # now, not when the backup was taken (vacation_mode.py).
                         import time as _time
                         from .vacation_mode import restore_fields
-                        data = {**data, **restore_fields(store_obj.data or {}, data, _time.time())}
+                        # A tester sign-up is not house configuration: the
+                        # live one stays, so an older backup can neither lose
+                        # one nobody could then withdraw, nor bring back one
+                        # that was withdrawn (tester.carried_over).
+                        from .tester import carried_over
+                        data = {**data, **restore_fields(store_obj.data or {}, data, _time.time()),
+                                **carried_over(store_obj.data or {})}
                         await st.async_save(data)
                     if hasattr(store_obj, "data") and isinstance(data, dict):
                         store_obj.data = data

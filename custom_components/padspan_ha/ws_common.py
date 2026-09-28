@@ -45,6 +45,7 @@ from .const import (
     LIGHT_SHAPE_KINDS,
 )
 from .device_registry import DEVICE_REGISTRY_STORE_KEY
+from .tester import SETTINGS_KEY as _TESTER_KEY
 from .util import ha_devices
 
 
@@ -188,6 +189,12 @@ def _get_settings(hass: HomeAssistant) -> dict:
     # read and reply (round 6).
     out.pop("vacation_mode_pattern", None)
     out.pop("vacation_mode_pattern_prev", None)
+    # "Become a tester" holds contact details a person typed (tester.py):
+    # never for every user of this Home Assistant. Whether there is one is
+    # all the panel needs here; an administrator reads the rest through
+    # padspan_ha/tester_status.
+    _signup = out.pop(_TESTER_KEY, None)
+    out["tester_signed_up"] = bool(isinstance(_signup, dict) and _signup.get("signed_up_at"))
     out["pro_has_key"] = state["has_key"]
     out["pro_active"] = state["active"]        # a valid key of any tier
     out["pro_days_left"] = state["days_left"]
