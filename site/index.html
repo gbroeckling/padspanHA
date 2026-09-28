@@ -176,6 +176,40 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.82</span>
+        <span class="pill stable">Stable</span>
+        <span class="reldate">27 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Refresh the PadSpan page</b> in every browser and on any wall screen after updating. A page left open keeps running the old panel until it is reloaded.</li>
+          <li><b>Flood sensors:</b> every moisture sensor in Home Assistant now raises a red banner when it reports wet, and it stays for 2 days or until you press Reset — including a sensor that is already wet when Home Assistant starts. Nothing is sent anywhere.</li>
+          <li><b>Admin only:</b> backups, Forensics, adding or removing IRKs, the Sweet Home 3D import, capture files, the ESPresense Companion link and Vacation Mode now need a Home Assistant administrator account.</li>
+          <li><b>Moved:</b> Insights is now a mode of Traceback (next to the new Busy Times), and the new Locate is part of Follow. Old links open the new place.</li>
+          <li>Flood sensors on the Atlas, with a latched alarm and an always-visible emergency banner.</li>
+          <li>Whole House Presets and Vacation Mode.</li>
+          <li>Busy Times and Locate (PadSpan Pro).</li>
+          <li>The new Atlas layout, and doors, windows, locks and openers — including ones built from bare relays.</li>
+          <li>Traceback's Full house activity, with 💡 Devices playback.</li>
+          <li>A full WLED workbench in the Atlas card.</li>
+          <li>AirTags and "works with Find My" tags keep their name across address changes (Settings → MAC Rotation Bridging).</li>
+          <li>Security hardening, and the fixes and Home Assistant 2027 readiness in 0.38.81.</li>
+          <li><b>Fixed:</b> Guided Calibration's first two steps now update by themselves when Home Assistant's Bluetooth scanners and your devices show up — for example a minute after Home Assistant restarts — instead of saying there are none until you leave and come back.</li>
+          <li><b>Changed:</b> switching from Live to Sample now takes a second click within 3 seconds: the first click changes the button to "Show demo data?". A double-click or holding Enter doesn't count as the second click. Switching from Sample to Live is still one click.</li>
+          <li><b>Fixed:</b> on phones, the Data pill shows the right mode straight away and after every switch.</li>
+          <li><b>Fixed:</b> an AirTag away from its owner could be reported as near it, because one scanner's reading from hours ago won over every fresh one. It now counts as away when any scanner heard it say so in the last minute or so. Because of the same mistake, a tag going back to its day key was counted as a wrong link; it is counted as expected again.</li>
+          <li><b>Fixed:</b> a wrong link onto another tag that is still nearby was counted as a tag back on its day key. It now counts as a wrong link.</li>
+          <li><b>Fixed:</b> an address change PadSpan only saw part of (Home Assistant restarting right after it, or MAC Rotation Bridging switched off during it) was counted as "left range" or "came late". It is no longer counted at all.</li>
+          <li><b>Fixed:</b> "came a little late" counted other tags arriving where yours had just been. It now counts only what a real change could look like with your scanner settings. At the defaults, no real change comes that late, so nothing is counted there.</li>
+          <li><b>Fixed:</b> a tag leaving range just as a nearby tag changed address was counted as "too close to call".</li>
+          <li><b>Fixed:</b> anything counted while a report was being sent (up to 15 seconds) was lost. It now goes with the next report.</li>
+          <li><b>Changed:</b> the README's list of what the report carries now includes your saved Showcase preset values and the Automorph style, and gives the real size: a few KB.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.81</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">27 September 2026</span>
