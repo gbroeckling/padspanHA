@@ -307,7 +307,15 @@ const VARIANTS = {
     { name: "presence-report-on", state: { _settingsTab: "presence", settings: { telemetry_enabled: true } } },
     { name: "presence-signed-up-report-off", state: { _settingsTab: "presence",
       settings: { telemetry_enabled: false, tester_signed_up: true } } },
+    // The licence card with no key: the 90-day trial card (trial_offer.js)
+    // inside it, and a lapsed key, which is offered no trial.
+    { name: "features-no-key-trial", state: { _settingsTab: "features", settings: { tier: "free", pro_has_key: false } } },
+    { name: "features-lapsed", state: { _settingsTab: "features",
+      settings: { tier: "free", pro_has_key: true, pro_active: false, license_is_trial: true } } },
   ],
+  // The Pro gates, with the trial card under them (no key at all).
+  "locate.js": [null, { name: "free-trial", state: { settings: { tier: "free", pro_has_key: false } } }],
+  "busy_times.js": [null, { name: "free-trial", state: { settings: { tier: "free", pro_has_key: false } } }],
   "maps.js": [
     null,
     { name: "stack", state: { mapsTab: "stack", maps: { list: STACK_MAPS } } },
@@ -365,6 +373,8 @@ const VARIANTS = {
     // Lights builder + its guided tour, both tiers (free draws the locked
     // banner and a different tour step 5; paid draws the full toolkit).
     { name: "lights-free", state: { mapsTab: "lights", settings: { tier: "free" } } },
+    // Free with no key: the trial card in the free banner.
+    { name: "lights-free-trial", state: { mapsTab: "lights", settings: { tier: "free", pro_has_key: false } } },
     { name: "lights-paid", state: { mapsTab: "lights", settings: { tier: "pro" } } },
     { name: "lights-tour-free", state: { mapsTab: "lights", settings: { tier: "free" }, _lightsTour: { step: 1 } } },
     { name: "lights-tour-paid-step5", state: { mapsTab: "lights", settings: { tier: "pro" }, _lightsTour: { step: 5 } } },
@@ -505,6 +515,13 @@ for (const file of files) {
       const out = fn(ctx, arg2);
       if (out && typeof out.then === "function") await out;
       await flush();
+      // The trial variants: the 90-day card (trial_offer.js) must really be
+      // drawn where there is no key, and never under a lapsed one.
+      if (variant && /trial|lapsed/.test(variant.name)) {
+        const drew = made.some(n => n.getAttribute && n.getAttribute("data-trial") === "card");
+        if (/trial/.test(variant.name) && !drew) throw new Error("no trial card drawn with no key");
+        if (/lapsed/.test(variant.name) && drew) throw new Error("a lapsed key was offered a new trial");
+      }
       // The one output assertion. The overview's iso map composes its
       // annotation scale by placeholder substitution at the very end; a
       // placeholder that survived would be an invalid transform on every

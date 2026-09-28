@@ -42,6 +42,10 @@ const { hasScale: _wizHasScale, hasRooms: _wizHasRooms, hasReceivers: _wizHasRec
 // see its own header for why this isn't a duplicate of anything else here.
 const { whatIfDelta } =
   await import(`./whatif_placement.js${new URL(import.meta.url).search}`);
+// The 90-day trial card, shared by every paid wall (trial_offer.js).
+// Optional: a card that fails to load must not blank the Mapping tab.
+const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferFromCtx: () => null }; });
 
 // ── Maps View ────────────────────────────────────────────────────────────────
 //
@@ -8612,10 +8616,14 @@ function _lightsTab(ctx, maps, active) {
       el("span", { style: "font-weight:700;color:#fbbf24" }, "Free lighting map. "),
       el("span", { class: "muted" },
         "Placing each light where it really is, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room "
-        + "need PadSpan Bright Pro or PadSpan Pro. Already have a key? Enter it in " + _LIC_PATH + ". "
-        + "Want to see it on your own house first? A one-time 3-month free trial (no card) is in " + _LIC_PATH + " too. "),
+        + "need PadSpan Bright Pro or PadSpan Pro. Already have a key? Enter it in " + _LIC_PATH + ". "),
       el("a", { href: _LIC_BUY_URL, target: "_blank", rel: "noopener", style: "color:#fbbf24;font-weight:700" },
         "Get PadSpan Pro \u2014 " + _LIC_PRICE),
+      // Want to see it on your own house first? The trial, right here. The
+      // banner keeps its own Buy link above, so the card's is off. Counted
+      // as "placement" when a save was just refused for want of a key (see
+      // the Save placements handler), "maps" otherwise.
+      trialOfferFromCtx(ctx, mapState._lightsRefused ? "placement" : "maps", { buy: false }),
     ]));
   }
 
@@ -8881,6 +8889,17 @@ function _lightsTab(ctx, maps, active) {
           _undoStack(mapState).clear();   // what is committed is not undoable from here
           ctx.toast("Light placements saved ✔");
         } catch(err) {
+          // Refused for want of a key (ws_fabric _PRO_REQUIRED_MSG): the tier
+          // this tab drew with is stale — a key that lapsed or was removed while it was
+          // open. Re-read it, so the free view (and the trial offer, as the
+          // "placement" surface) replaces tools that can no longer save.
+          if (err && err.code === "pro_required") {
+            mapState._lightsRefused = true;
+            try {
+              const r = await ctx.actions.wsCall("padspan_ha/settings_get");
+              if (r && r.settings) ctx.state.settings = r.settings;
+            } catch(e) { /* the toast below still says why */ }
+          }
           await ctx.actions.mapsRefreshQuiet();
           ctx.toast(saved
             ? `Saved ${saved} of ${dirtyEids.length} — the rest failed: ${err.message || err}`

@@ -19,6 +19,9 @@
 const { BUY_URL, PRO_PRICE, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 const { testerSection } = await import(`./tester_signup.js${new URL(import.meta.url).search}`);
+// Optional: a card that fails to load must not take the Settings tab with it.
+const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferFromCtx: () => null }; });
 
 export function render(ctx){
   const { el, esc, roomColor, helpBtn } = ctx.helpers;
@@ -2734,7 +2737,7 @@ function _tiersWizardFree(ctx, w, isBright){
       ? "This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Every light shown room-by-room on a map and switched on or off from here is free, no key, forever. Placing each one exactly where it hangs needs a key — see below."
       : "This install is PadSpan HA. Presence tracking, Overview, Follow, Pure Live, Occupancy, Calibration, mapping and everything else here is free, no key, forever."));
   wrap.appendChild(el("div",{style:"padding:10px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px;font-size:12.5px;color:#94a3b8;line-height:1.6"},
-    "A key only ever unlocks two things beyond that: Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), and light placement (fixture shapes and sizes, WLED, Showcase, Fit room). The free tier above is not a trial of anything — it stays free whether or not you ever add a key. If you want to see light placement on your own house first, a one-time 3-month PadSpan Bright Pro trial is available below — no card, and nothing is taken away when it ends, editing just returns to the free view."));
+    "A key only ever unlocks two things beyond that: Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), and light placement (fixture shapes and sizes, WLED, Showcase, Fit room). The free tier above is not a trial of anything — it stays free whether or not you ever add a key. If you want to see light placement on your own house first, a one-time 90-day free trial of PadSpan Bright Pro is available below — no card, and nothing is taken away when it ends, editing just returns to the free view."));
   wrap.appendChild(_tiersWizardFooter(ctx, w));
   return wrap;
 }
@@ -2876,7 +2879,7 @@ function _settingsLicence(ctx, el){
            "Everything else is free and stays free.";
     colour = "#94a3b8";
   } else if (lapsed) {
-    line = "\u26A0 " + (isTrial ? "Your 3-month trial" : keyProd + " licence") + " expired" + (exp ? " on " + exp : "") +
+    line = "\u26A0 " + (isTrial ? "Your 90-day trial" : keyProd + " licence") + " expired" + (exp ? " on " + exp : "") +
            " \u2014 paid editing is off. Everything you already built is still here, still readable and still exportable.";
     colour = "#fbbf24";
   } else if (isTrial) {
@@ -2916,29 +2919,6 @@ function _settingsLicence(ctx, el){
     } }, hasKey ? "Replace licence key" : "Enter licence key");
   row.appendChild(enterBtn);
 
-  if (!hasKey) {
-    const trialBtn = el("button", { class: "btn inline", style: "font-size:12px;border-color:#52b788;color:#a7f3d0",
-      onclick: async () => {
-        const email = prompt("Start your 3-month PadSpan Bright Pro trial — no card needed.\nEnter your email (one trial per household):");
-        if (!email || !email.trim()) return;
-        trialBtn.disabled = true;
-        try {
-          const r = await ctx.actions.wsCall("padspan_ha/trial_start", { email: email.trim() });
-          if (r && r.ok) {
-            if (r.settings) ctx.state.settings = r.settings;
-            ctx.toast("Trial started — " + (r.days_left != null ? r.days_left + " days" : "3 months") + " of full lighting placement");
-            ctx.actions.renderNav && ctx.actions.renderNav();
-            ctx.actions.renderRooms();
-          } else {
-            ctx.toast((r && r.message) || "Could not start a trial for this install", true);
-          }
-        } catch (e) {
-          ctx.toast("Trial request failed: " + String(e), true);
-        } finally { trialBtn.disabled = false; }
-      } }, "Start 3-month free trial");
-    row.appendChild(trialBtn);
-  }
-
   if (!hasKey || lapsed || isTrial) {
     row.appendChild(el("a", { class: "btn inline", href: BUY_URL, target: "_blank", rel: "noopener",
       style: "font-size:12px;border-color:#52b788;color:#a7f3d0;text-decoration:none" },
@@ -2960,6 +2940,13 @@ function _settingsLicence(ctx, el){
     "What does each tier unlock?");
   row.appendChild(tourBtn);
   card.appendChild(row);
+  // The 90-day trial (views/trial_offer.js): the same card every paid wall
+  // offers, shown here while there is no key at all. Its own Buy link is off —
+  // this card already has one in the row above.
+  if (!hasKey) {
+    const trial = trialOfferFromCtx(ctx, "settings", { buy: false });
+    if (trial) card.appendChild(trial);
+  }
 
   card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:10px;line-height:1.5" },
     "One key unlocks both paid features: Forensics, and placing lights exactly where they hang " +

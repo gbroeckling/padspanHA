@@ -181,7 +181,7 @@ def test_the_report_gate_refuses_contact_details():
 
 
 def test_the_report_vocabularies_stay_closed_to_it():
-    everything = set(T.EVENTS) | set(T.TAB_EVENTS) | set(T.UI_ERRORS) | set(T._TOP_KEYS)
+    everything = set(T.EVENTS) | set(T.TAB_EVENTS) | set(T.UI_ERRORS) | set(T.OFFER_EVENTS) | set(T._TOP_KEYS)
     everything |= set(T._FEATURE_FLAGS) | set(T._FEATURE_ENUMS) | set(T._PRESET_VALUE_KEYS)
     assert not [k for k in everything if "tester" in k or "signup" in k or "email" in k]
     assert tester.SETTINGS_KEY not in T._FEATURE_FLAGS

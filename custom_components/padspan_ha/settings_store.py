@@ -179,8 +179,14 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # cost payload size and poll time: 7 days measured 16.4k objects / 19.5MB
     # / 2-7s per poll, 1 day 2.8k / 3.8MB / sub-second.  Allowed: 1, 2, 7, 14.
     "object_history_days": 1,
-    # Lights sidebar panel (off by default — requires HA restart to take effect)
-    "lights_panel_enabled": False,
+    # The Atlas sidebar panel (panel.py registers it at setup, so a change
+    # takes a Home Assistant restart). On by default (Garry, 2026-09-28): off, it
+    # was the one place the lighting product lives and almost nobody found it.
+    "lights_panel_enabled": True,
+    # One-time: installs from before that default had it off only because it
+    # WAS the default — nobody chose it. async_load turns it on once for them,
+    # records that here, and never touches it again (off stays off after).
+    "atlas_default_v1_applied": False,
     "ha_entity_occupancy_enabled": False,  # expose occupancy estimate sensors to HA
     "bermuda_ignore": False,  # experimental: ignore all Bermuda integration data
     # HA Tags integration
@@ -293,6 +299,14 @@ class SettingsStore:
             ran = bool(loaded.get("vacation_mode_enabled") or loaded.get("vacation_mode_pattern")
                        or loaded.get("vacation_mode_pattern_built_at") or loaded.get("vacation_mode_periods"))
             self.data["vacation_mode_tracked_since"] = time.time() if ran else 0
+        # Atlas on by default, once. Runs before panel.py reads the
+        # setting — settings are a critical store, loaded before the panel is
+        # registered — so the sidebar entry appears on the restart the update
+        # itself needs. A fresh install lands here too and just records it.
+        if not self.data.get("atlas_default_v1_applied"):
+            self.data["lights_panel_enabled"] = True
+            self.data["atlas_default_v1_applied"] = True
+            _normalized = True
         # Only re-save if new defaults were added (loaded was missing keys)
         if _normalized or not isinstance(loaded, dict) or set(self.data.keys()) != set(loaded.keys()):
             await self.store.async_save(self.data)

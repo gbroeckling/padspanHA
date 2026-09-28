@@ -214,6 +214,21 @@ TAB_EVENTS: frozenset[str] = frozenset(
 # user describing it in prose to find. A COUNT per view — never the message,
 # never a stack, never anything the page happened to be holding.
 UI_ERRORS: frozenset[str] = frozenset({f"ui_error:{v}" for v in VIEWS})
+# The 90-day trial offer (views/trial_offer.js) and the Overview's Getting
+# started card — a funnel, like the wizards above: where the offer was SEEN
+# (once per surface per page), where it was STARTED, and where the licence
+# server said no. The email never comes near this: an event is a surface's
+# name, from this closed list, and nothing else. TRIAL_SURFACES is
+# trial_offer.js's own list; GETTING_STARTED_STEPS is the card's step ids
+# (panel.js), plus "trial" for its last line (tests/test_conversion.py
+# holds both to the frontend's).
+TRIAL_SURFACES: tuple[str, ...] = ("overview", "atlas", "placement", "maps", "locate", "busy_times", "settings")
+GETTING_STARTED_STEPS: tuple[str, ...] = ("upload", "scale", "rooms", "scanners", "calibrate", "positioned", "trial")
+OFFER_EVENTS: frozenset[str] = frozenset(
+    {f"{what}:{s}" for what in ("trial_offer_shown", "trial_started", "trial_failed") for s in TRIAL_SURFACES}
+    | {f"getting_started_step:{s}" for s in GETTING_STARTED_STEPS}
+    | {"getting_started_shown", "getting_started_dismissed"}
+)
 
 # The switches whose ON/OFF is reported (booleans only, by name). Every name
 # here must be READ by something outside the settings plumbing — a switch
@@ -287,7 +302,7 @@ def enabled(hass: HomeAssistant) -> bool:
 
 
 def event_allowed(name: str) -> bool:
-    return name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS
+    return name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or name in OFFER_EVENTS
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
