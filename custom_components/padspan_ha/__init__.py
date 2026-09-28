@@ -646,6 +646,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _LOGGER.debug("Flood latch setup failed: %s", err)
 
+    # Emergency lighting test: a member unreachable when a test ended is
+    # switched off when it comes back (emergency_test.py pending_off).
+    try:
+        from .emergency_test import async_setup_emergency_test
+        async_setup_emergency_test(hass)
+    except Exception as err:
+        _LOGGER.debug("Emergency test listener setup failed: %s", err)
+
     # Vacation Mode's 5-minute check — a per-tick no-op unless
     # vacation_mode_enabled is on (see vacation_mode.py).
     try:
@@ -708,6 +716,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_stop_flood_latch(hass)
     except Exception as err:
         _LOGGER.debug("Flood latch teardown error: %s", err)
+    try:
+        from .emergency_test import async_stop_emergency_test
+        async_stop_emergency_test(hass)
+    except Exception as err:
+        _LOGGER.debug("Emergency test listener teardown error: %s", err)
 
     # Stop Vacation Mode's check timer
     try:
