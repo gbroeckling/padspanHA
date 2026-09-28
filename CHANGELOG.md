@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.86 — The emergency lighting button is always on screen (2026-09-28)
+
+### Atlas — Test emergency lighting
+- **Fixed:** the red button sat at the bottom-right of the house map, which on most screens is below the bottom of the window, so you had to scroll to find it. It is now pinned to the bottom-right corner of the screen.
+
+---
+
 ## 0.38.85 — Stable: WLED exact look, a 90-day trial where you need it, emergency lighting test (2026-09-28)
 
 This stable release brings the 0.38.83 and 0.38.84 pre-releases (WLED lights that look the same every time) to everyone, with everything below.

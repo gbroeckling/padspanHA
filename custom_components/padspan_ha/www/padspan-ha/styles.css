@@ -1191,7 +1191,9 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
    The label opens on hover and stays while a test runs, the ring pulsing,
    Force off beside it. Laid out right to left: dial, label, Force off. */
 .lv-emerg-anchor{position:relative;height:0;container-type:inline-size}
-.lv-emerg{position:absolute;right:14px;bottom:14px;z-index:3;display:flex;flex-direction:row-reverse;
+/* Pinned to the corner of the SCREEN, not the map: the house map is often
+   taller than the window, and the button has to be there without scrolling. */
+.lv-emerg{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));z-index:3;display:flex;flex-direction:row-reverse;
   align-items:center;gap:6px;pointer-events:none}
 .lv-emerg button{pointer-events:auto}
 /* The ring band is 16 px (was 12): easy to hit on a phone, and the centre
