@@ -1903,22 +1903,43 @@ async def test_a_change_while_the_first_try_times_out_is_not_undone_by_the_retry
     assert s["on"] is True and s["bri"] == 40
 
 
-async def test_a_change_made_before_a_command_sends_anything_stands_and_is_held(house, monkeypatch):
-    """Review r4: with nothing sent there is nothing to come back, so a change
-    seen then is someone else's, as when nothing runs: it stands, the command
-    isn't sent, and an outside "on" gets the look back at its brightness."""
+async def test_a_fresh_command_goes_even_when_a_change_is_reported_while_it_is_read(house, monkeypatch):
+    """Live test 2026-09-28 (Quin Kitchen, cycle 12): a colour changed on
+    WLED's own page, then an Atlas "off" 1.5 s later — HA reported the change
+    after the off was issued, and the off was dropped as "changed outside
+    PadSpan first". A fresh command is the newest word: it goes. (Only
+    PadSpan's own repeats and answers step aside for a change from outside.)"""
     dev = simple_device()
     did = house.add("valance", dev)
     await _remember(house, did)
     await _to_padspan(house, did)
     look = house.store.get("28562f551738")["look"]
-    await E.async_power(house.hass, "light.valance_main", False)
+    await E.async_power(house.hass, "light.valance_main", True)
     await house.settle()
+    _up(house, [dev], 60)
+    # (1) The live-test sequence: changed on WLED's page while lit ...
+    await dev.handle("POST", "json/state", {"seg": [{"id": 1, "col": [[255, 0, 0]], "fx": 9}, {"id": 0, "col": [[255, 0, 255]]}]})
+    _up(house, [dev], 1.5)
+    # ... then the Atlas "off"; HA reports the WLED-page change while the off is read.
+    held, release = _hold_request(monkeypatch, house, "GET", "json/si")
+    p = asyncio.ensure_future(E.async_power(house.hass, "light.valance_main", False, source="atlas"))
+    await _w(held.wait())
+    h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_segment_1", SimpleNamespace(state="on"),
+                                                _shown(128)))
+    await _spin()
+    release.set()
+    res = await _w(p)
+    await _w(h)
+    await house.settle()
+    r0 = res["results"][0]
+    assert r0["ok"] and not r0["message"], r0
+    assert dev.serialize_state()["on"] is False
+    # (2) An "on" from the Atlas while the wall button turns it on at 60 with an
+    # old colour: the Atlas "on" goes — the look, at the look's brightness.
     _up(house, [dev], 60)
     held, release = _hold_request(monkeypatch, house, "GET", "json/si")
     p = asyncio.ensure_future(E.async_power(house.hass, "light.valance_main", True, source="atlas"))
     await _w(held.wait())
-    # The wall button: on at 60, with an old colour on part 2.
     await dev.handle("POST", "json/state", {"on": True, "bri": 60, "seg": [{"id": 1, "col": [[0, 0, 255]]}]})
     h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="off"),
                                                 _shown(60)))
@@ -1927,26 +1948,24 @@ async def test_a_change_made_before_a_command_sends_anything_stands_and_is_held(
     res = await _w(p)
     await _w(h)
     await house.settle()
-    assert "changed outside PadSpan" in res["results"][0]["message"]
+    assert res["results"][0]["ok"], res
     st = dev.serialize_state()
-    assert st["on"] and st["bri"] == 60
-    assert L.compare(look["state"], st, L.Ctx(dev.serialize_info()), on=True, bri=60, exact=True) == []
-    assert house.store.get("28562f551738")["last_result"]["source"] == "hold"
-    # An off, and the person dims it while it is read: the dim stands.
+    assert st["on"] and st["bri"] == look["state"]["bri"]
+    assert L.compare(look["state"], st, L.Ctx(dev.serialize_info()), on=True, bri=look["state"]["bri"], exact=True) == []
+    # (3) A presence "off" while someone dims it at the wall: the off goes too.
     _up(house, [dev], 60)
     held, release = _hold_request(monkeypatch, house, "GET", "json/si")
     p = asyncio.ensure_future(E.async_power(house.hass, "light.valance_main", False, source="presence"))
     await _w(held.wait())
     await dev.handle("POST", "json/state", {"bri": 40})
-    n = len(dev.posts())
     h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="on"), _shown()))
     await _spin()
     release.set()
     res = await _w(p)
     await _w(h)
     await house.settle()
-    assert "changed outside PadSpan" in res["results"][0]["message"]
-    assert dev.posts()[n:] == [] and dev.serialize_state()["on"] and dev.serialize_state()["bri"] == 40
+    assert res["results"][0]["ok"], res
+    assert dev.serialize_state()["on"] is False
 
 
 async def test_the_other_lights_reporting_the_same_change_never_stop_a_command(house, monkeypatch):

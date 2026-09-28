@@ -32,7 +32,9 @@ durable on/off that reproduces complex 5-6 channel strings 100% every time").
   device's uptime — HA doesn't always show one as "unavailable") or a
   command that never reached the device, the last command goes back — a
   device that didn't answer while HA still has it is tried again, and
-  a change made from outside since replaces it.
+  a change made from outside since replaces that retry (and PadSpan's own
+  answers: a hold, a reconnect, a team following) — never a fresh command,
+  which is the newest word and always goes.
 
 Never used: firmware, OTA, reboot, presets or playlists (wled_look.FORBIDDEN_KEYS
 is checked on every request). Tier: Bright Pro / Pro, like the Advanced tab;
@@ -570,8 +572,14 @@ async def _apply(hass: HomeAssistant, worker: _Worker, want: dict, gen: int) -> 
         _note_boot(worker, info)
         await _maybe_check_setup(hass, rec, host, info, now)
         # After the last wait before it writes: a change from outside
-        # counted since it was issued replaces it.
-        if worker.outside != seen:
+        # counted since it was issued replaces PadSpan's own repeats and
+        # answers (a retry, a hold, a reconnect, a team following) — never a
+        # fresh command. HA can report a change made just before one after
+        # it was issued (live test 2026-09-28: a colour changed on WLED's own
+        # page, then an Atlas "off" 1.5 s later was dropped), so the newest
+        # command given — the Atlas, a room, a preset, Vacation Mode, a
+        # presence rule, a service — goes.
+        if worker.outside != seen and (want.get("retry") or want.get("answers")):
             result.update(replaced=True, error=REPLACED_MSG)
             rec["last_result"] = result
             st.schedule_save()
@@ -912,6 +920,8 @@ async def _outside_change(hass: HomeAssistant, st: WledLooksStore, rec: dict, wo
     # yet): the change stands — that command is not sent, by a retry or on
     # a reconnect. Counted and marked before anything waits, so a retry
     # timer firing meanwhile finds it.
+    w = worker.want or {}
+    fresh = worker.gen if worker.busy() and not w.get("retry") and not w.get("answers") else None
     worker.outside += 1
     res = rec.get("last_result")
     if isinstance(res, dict) and not res.get("ok") and not res.get("replaced"):
@@ -919,6 +929,13 @@ async def _outside_change(hass: HomeAssistant, st: WledLooksStore, rec: dict, wo
         if res.get("waiting"):
             res.update(waiting=False, error=REPLACED_MSG)
         st.schedule_save()
+    if fresh is not None:
+        # A fresh command on its way is the newest word: when it goes it decides;
+        # only one that stepped aside (its read failed) leaves this change to stand.
+        done = asyncio.get_running_loop().create_future()
+        worker.waiters.append((fresh, done))
+        if not (await done).get("replaced"):
+            return
     # A restart HA never showed as "unavailable" (2026.7.4 re-polls at once
     # when WLED's socket closes: PillTaker 09-27, Quin Kitchen 09-23), even
     # as on → on: the last command goes back — before "hold" could take the
