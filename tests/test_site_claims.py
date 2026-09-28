@@ -124,7 +124,21 @@ _SKUS = {
     "padspan-bright-annual":        (35.00, ("bright",),               ("upgrade",)),
     "padspan-pro-annual":           (45.00, ("padspan",),              ("upgrade", "bright")),
     "padspan-bright-to-pro-upgrade": (12.00, ("upgrade", "padspan"),   ()),
+    # The launch offer (until Oct 31, 2026). The server decides a SKU with
+    # BOTH 'padspan' and 'lifetime' before every other tier.
+    "padspan-pro-lifetime":         (89.00, ("padspan", "lifetime"),   ("upgrade", "bright")),
 }
+
+
+def test_the_lifetime_offer_matches_the_panel_and_ends_on_the_same_date(html: str) -> None:
+    import re
+    from pathlib import Path
+    ed = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www"
+          / "padspan-ha" / "views" / "editions.js").read_text(encoding="utf-8")
+    until = re.search(r'PRO_LIFETIME_UNTIL = "([^"]+)"', ed).group(1)
+    price = re.search(r'PRO_LIFETIME_PRICE = "\$(\d+) CAD"', ed).group(1)
+    assert f'data-offer-until="{until}"' in html, "the site hides the offer at a different moment than the panel"
+    assert float(price) == _SKUS["padspan-pro-lifetime"][0]
 
 
 def test_every_sku_routes_to_the_tier_it_claims(html: str) -> None:

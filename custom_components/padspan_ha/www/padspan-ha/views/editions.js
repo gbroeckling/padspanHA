@@ -35,6 +35,12 @@ export const PRO_PRICE = "$45 CAD/year";
 // wizard) has one source too, the same discipline PRO_PRICE already gives Pro.
 export const BRIGHT_PRICE = "$35 CAD/year";
 export const BRIGHT_UPGRADE_PRICE = "$12 CAD";
+// PadSpan Pro for life: a launch offer, gone after October 31, 2026 (the
+// site hides its PayPal form at the same moment; the licence server gives a
+// week's grace for late payment notices). Pinned to the site like the rest.
+export const PRO_LIFETIME_PRICE = "$89 CAD";
+export const PRO_LIFETIME_UNTIL = "2026-11-01T07:00:00Z";
+export function proLifetimeOpen(now = Date.now()) { return now < Date.parse(PRO_LIFETIME_UNTIL); }
 export const EDITIONS_URL = "https://padspan.traks.ca/#editions";
 // Where "what changed" lives. The same page the update-check manifest
 // points at (release.py sets notes_url to it), so the notification and the

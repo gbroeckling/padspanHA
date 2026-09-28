@@ -1539,6 +1539,24 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
         <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy PadSpan Pro with PayPal</button>
       </form>
+      <div id="pro-lifetime" data-offer-until="2026-11-01T07:00:00Z" style="margin-top:16px;padding:14px;border:1px solid var(--acc2);border-radius:12px">
+        <div style="font-size:13px;color:var(--acc2);font-weight:800;letter-spacing:.04em;text-transform:uppercase">Launch offer · until October 31, 2026</div>
+        <div style="font-size:30px;font-weight:900;margin:4px 0">$89 <small style="font-size:14px;font-weight:600">CAD, once</small></div>
+        <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 12px">PadSpan Pro for life. No renewals, ever. Already have a PadSpan key? It becomes lifetime, same key.</p>
+        <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+          <input type="hidden" name="cmd" value="_xclick">
+          <input type="hidden" name="business" value="garry@bcmail.net">
+          <input type="hidden" name="item_name" value="PadSpan Pro — lifetime (launch offer)">
+          <input type="hidden" name="item_number" value="padspan-pro-lifetime">
+          <input type="hidden" name="amount" value="89.00">
+          <input type="hidden" name="currency_code" value="CAD">
+          <input type="hidden" name="no_shipping" value="1">
+          <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+          <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+          <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy PadSpan Pro for life with PayPal</button>
+        </form>
+      </div>
+      <script>(function(){var e=document.getElementById("pro-lifetime");if(e&&Date.now()>=Date.parse(e.getAttribute("data-offer-until")))e.remove();})();</script>
       <p style="font-size:12px;color:var(--mut,#94a3b8);margin-top:12px">Requires PadSpan HA v0.22.0 or newer. The current stable release is <span data-latest-version>v0.37.0</span>. Enter your key under Settings → Features → PadSpan licence.</p>
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
         <div style="font-size:13px;color:var(--acc2);font-weight:700;margin-bottom:2px">Already have PadSpan Bright Pro?</div>

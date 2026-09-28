@@ -2891,7 +2891,8 @@ function _settingsLicence(ctx, el){
            " day" + (daysLeft === 1 ? "" : "s") + (exp ? " (" + exp + ")" : "");
     colour = "#fbbf24";
   } else {
-    line = "\u2713 " + keyProd + " licensed" + (exp ? " \u00B7 valid until " + exp : "");
+    // A lifetime key (the launch offer) is stored as expiring 2099-12-31.
+    line = "\u2713 " + keyProd + " licensed" + (exp >= "2090" ? " \u00B7 lifetime" : exp ? " \u00B7 valid until " + exp : "");
     colour = "#a7f3d0";
   }
   card.appendChild(el("div", { style: "font-size:12px;margin:8px 0 10px;line-height:1.5;color:" + colour }, line));
@@ -3160,7 +3161,7 @@ function _settingsFeatures(ctx, el){
           ? `⚠ ${_prod} licence expired${licExp ? ` on ${licExp}` : ""} — paid editing is off. Everything you already recorded is still here and still exportable.`
           : expiringSoon
           ? `✓ ${_prod} licensed · renews in ${daysLeft} day${daysLeft === 1 ? "" : "s"}${licExp ? ` (${licExp})` : ""}`
-          : `✓ ${_prod} licensed` + (licExp ? ` · valid until ${licExp}` : "");
+          : `✓ ${_prod} licensed` + (licExp >= "2090" ? " · lifetime" : licExp ? ` · valid until ${licExp}` : "");
         card.appendChild(el("div",{class:"muted",
           style:`font-size:11px;margin-bottom:6px;color:${lapsed ? "#fbbf24" : expiringSoon ? "#fbbf24" : "#a7f3d0"}`}, line));
         const revealBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:2px 8px;margin-bottom:10px",

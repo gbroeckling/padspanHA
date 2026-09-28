@@ -26,7 +26,7 @@
  * card takes a small host object: trialOfferFromCtx builds one from a panel
  * ctx. tests/js/trial_offer.mjs drives it.
  */
-const { BUY_URL, PRO_PRICE, tierAtLeast, currentTier } =
+const { BUY_URL, PRO_PRICE, PRO_LIFETIME_PRICE, proLifetimeOpen, tierAtLeast, currentTier } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 
 export const TRIAL_DAYS = 90;
@@ -166,7 +166,8 @@ export function trialOfferCard(host, surface, opts = {}) {
   if (opts.buy !== false) {
     card.appendChild(el("div", { style: "font-size:11px;margin-top:6px" }, [
       el("a", { href: BUY_URL, target: "_blank", rel: "noopener", "data-trial": "buy",
-        style: "color:#fbbf24;font-weight:600;text-decoration:none" }, "Or buy PadSpan Pro — " + PRO_PRICE),
+        style: "color:#fbbf24;font-weight:600;text-decoration:none" }, "Or buy PadSpan Pro — " + PRO_PRICE
+          + (proLifetimeOpen() ? ", or " + PRO_LIFETIME_PRICE + " for life until October 31" : "")),
     ]));
   }
   return card;

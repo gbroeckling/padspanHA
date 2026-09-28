@@ -42,7 +42,7 @@ pick from 19 Showcase visual themes for the map itself, saved and reloaded
 from a presets bar.
 
 No key yet? **Settings → Features → PadSpan licence** has a one-time
-3-month free trial — no card required, no reinstall.
+90-day free trial — no card required, no reinstall.
 
 Every motion sensor's flash and fade run through the same normalizer no
 matter the hardware underneath — an alarm-panel PIR that self-clears in 5

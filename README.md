@@ -211,7 +211,7 @@ nothing to reconfigure.
 | [**PadSpan Bright**](https://github.com/gbroeckling/padspanBright) | none | A separate, lighter HACS listing generated from this same source — just the Atlas device map, for anyone who wants light control without the BLE presence tracking. |
 | **PadSpan Bright Pro** | `bright` | Bright's full Atlas toolset (placement, shapes, WLED, Automorph, Showcase), priced separately from PadSpan Pro. |
 
-No key yet? **Settings → Features → PadSpan licence** has a one-time 3-month free trial — no card required, no reinstall. A PadSpan Pro key also unlocks Bright's tools if you install Bright instead — one key, either download. Pricing and purchase: [padspan.traks.ca](https://padspan.traks.ca).
+No key yet? **Settings → Features → PadSpan licence** has a one-time 90-day free trial — no card required, no reinstall. A PadSpan Pro key also unlocks Bright's tools if you install Bright instead — one key, either download. Pricing and purchase: [padspan.traks.ca](https://padspan.traks.ca).
 
 ---
 
