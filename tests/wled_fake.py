@@ -14,7 +14,11 @@ It follows the firmware where the exact look depends on it (WLED 0.14.4 /
   deleting at least half of more than 3 segments purges and renumbers;
 - udpn.recv is ignored from 0.15 on (it only exists on 0.14); a config save
   writes the live receive/sync groups to flash and resets the live "send"
-  switch to the saved one; keys WLED resets when a write leaves them out do;
+  switch to the saved one (0.15+); on 0.14.4 a saved "dir" changes the live
+  switch only when it differs from the one it booted with (cfg.cpp:399-401)
+  and the save writes the LIVE switch back as "dir" (cfg.cpp:868), with no
+  "en" or "pal" (0.14 has neither); keys WLED resets when a write leaves
+  them out do;
 - the v:true reply as WLED serializes it: only active segments, W dropped
   without a white channel, opacity 0 reported as 255, briLast as "bri";
 - faults: 503 busy, a lost reply (applied, then a timeout), offline, a
@@ -66,6 +70,8 @@ class FakeWled:
         self.rebooted = 0
         self.presets_applied: list = []
         self._load_state(state)
+        # 0.14.4's notifyDirectDefault: the saved "dir" it last read.
+        self.dir_default = bool(((((self.cfg.get("if") or {}).get("sync") or {}).get("send")) or {}).get("dir", False))
 
     # ── building ───────────────────────────────────────────────────────────
 
@@ -394,13 +400,19 @@ class FakeWled:
         if not self.v14:
             self.send_rt = bool(saved_send.get("en", False))       # sendNotificationsRT = sendNotifications
         elif "dir" in send:
-            self.send_rt = bool(send["dir"])
+            # cfg.cpp:399-401 (0.14.4): prev = notifyDirectDefault; read dir;
+            # only a CHANGED saved value reaches the live notifyDirect.
+            if bool(send["dir"]) != self.dir_default:
+                self.send_rt = bool(send["dir"])
+            self.dir_default = bool(send["dir"])
         # serializeConfig: the live groups are what gets saved.
         msync = merged["if"]["sync"]
         msync.setdefault("recv", {})["grp"] = self.rgrp
         msync["send"]["grp"] = self.sgrp
         if self.v14:
-            msync["send"]["dir"] = self.send_rt
+            msync["send"]["dir"] = self.send_rt                    # cfg.cpp:868 — the LIVE switch
+            msync["send"].pop("en", None)                          # 0.14 has no such settings
+            msync["recv"].pop("pal", None)
         self.cfg = merged
         if "rb" in body:
             self.reboot()
@@ -411,6 +423,7 @@ class FakeWled:
         self.rebooted += 1
         sync = ((self.cfg.get("if") or {}).get("sync")) or {}
         self.send_rt = bool((sync.get("send") or {}).get("dir" if self.v14 else "en", False))
+        self.dir_default = bool((sync.get("send") or {}).get("dir", False))
         self.sgrp = int((sync.get("send") or {}).get("grp", 1))
         self.rgrp = int((sync.get("recv") or {}).get("grp", 1))
         self.recv_flag = True

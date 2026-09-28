@@ -350,9 +350,15 @@ def _is_admin(connection) -> bool:
 
 
 class WledError(Exception):
-    def __init__(self, code: str, message: str) -> None:
+    """`sent`: a config write that reached the device before it failed;
+    `applied`: whether it took (None: can't tell); `backup`: the backup
+    taken first (safe_cfg_write)."""
+
+    def __init__(self, code: str, message: str, *, sent: bool = False, applied: bool | None = None,
+                 backup: str | None = None) -> None:
         super().__init__(message)
         self.code = code
+        self.sent, self.applied, self.backup = sent, applied, backup
 
 
 def _url(host: str, path: str):
@@ -624,8 +630,10 @@ async def safe_cfg_write(hass: HomeAssistant, tgt: dict[str, Any], patch: dict, 
                 changed = None
             what = ("it WAS applied" if changed else "it was not applied" if changed is False
                     else "whether it was applied is unknown")
-            raise WledError(e.code, f"{e} — {what}; backup {backup_id} kept") from e
-        raise WledError(e.code, f"{e} (nothing was changed; backup {backup_id} kept)") from e
+            raise WledError(e.code, f"{e} — {what}; backup {backup_id} kept", sent=True, applied=changed,
+                            backup=backup_id) from e
+        raise WledError(e.code, f"{e} (nothing was changed; backup {backup_id} kept)", sent=True, applied=False,
+                        backup=backup_id) from e
     after = None
     if not reboot:
         try:

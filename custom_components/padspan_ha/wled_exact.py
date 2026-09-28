@@ -28,12 +28,15 @@ durable on/off that reproduces complex 5-6 channel strings 100% every time").
   refuses (the I2C guard) it is live-only, re-applied on every command.
 - HOLD: when something outside PadSpan turns an exact light on, the look is
   put back keeping the brightness it was given; a PadSpan team follows a
-  member switched from outside; after a power cut the last command goes back.
+  member switched from outside; after a power cut (a restart, told by the
+  device's uptime — HA doesn't always show one as "unavailable") or a
+  command that never reached the device, the last command goes back.
 
 Never used: firmware, OTA, reboot, presets or playlists (wled_look.FORBIDDEN_KEYS
 is checked on every request). Tier: Bright Pro / Pro, like the Advanced tab;
-without it every path is a plain HA light call, so no light goes dark over
-licensing — and switching back to WLED sync is always allowed.
+without it every path is a plain HA light call — every member's, for a team
+PadSpan runs (their WLED sync is off) — so no light goes dark over licensing,
+and switching back to WLED sync is always allowed.
 """
 
 import asyncio
@@ -60,6 +63,7 @@ RETRY_DELAYS = (0.4, 1.2)
 ECHO_WINDOW_S = 3.0          # PadSpan's own change coming back through HA
 LATE_EXTRA_S = 1.0
 RECONNECT_DEDUPE_S = 10.0
+RESTART_CHECK_S = 10.0       # a device's uptime is read at most this often for outside changes
 SETUP_RECHECK_S = 86400
 SAVE_DELAY_S = 2.0
 
@@ -246,12 +250,49 @@ def _exact_record(hass: HomeAssistant, entity_id: str) -> dict | None:
     return rec if rec and rec.get("exact") and rec.get("look") else None
 
 
+def _team_of_entity(hass: HomeAssistant, entity_id: str) -> tuple[dict | None, dict | None]:
+    """(identity, PadSpan team) of a light's device, licence or not."""
+    ident = _identify(hass, entity_id=entity_id)
+    return ident, (padspan_team_of(hass, ident["device_id"]) if ident else None)
+
+
 def is_exact_entity(hass: HomeAssistant, entity_id: str) -> bool:
-    """Is this light a device PadSpan runs (and is the licence there)?"""
+    """Does this light go through async_power: a device PadSpan runs (with
+    the licence), or a member of a team PadSpan runs (licence or not — its
+    members' WLED sync is off, so they are switched together)."""
     try:
-        return _exact_record(hass, entity_id) is not None
+        return _exact_record(hass, entity_id) is not None or _team_of_entity(hass, entity_id)[1] is not None
     except Exception:  # noqa: BLE001 — a registry hiccup means "plain light"
         return False
+
+
+def _master_light(hass: HomeAssistant, device_id: str, mac: str) -> str | None:
+    """The light that IS the device's on/off: its main light, or (one
+    segment, no main) its segment light."""
+    lights = device_lights(hass, device_id, mac)
+    if _has_main(hass, lights):
+        return next(e for e, r in lights.items() if r == "main")
+    segs = sorted((r, e) for e, r in lights.items() if isinstance(r, int))
+    return segs[0][1] if segs else None
+
+
+def _look_opacity(rec: dict, role: Any) -> int:
+    seg = next((s for s in rec["look"]["state"].get("seg") or [] if s.get("id") == role), None)         if isinstance(role, int) else None
+    return max(1, int((seg or {}).get("bri") or 255))
+
+
+def _master_bri(hass: HomeAssistant, rec: dict, entity_id: str, brightness: int | None) -> int | None:
+    """A brightness as HA shows it on the light it was aimed at, as the
+    master brightness. With one segment (no main light) HA shows segment
+    opacity × master / 255 and sets opacity 255 (light.py 2026.7.4); the
+    look keeps its opacity, so the master is scaled up to match — never
+    past 255, the most that part's look has."""
+    if brightness is None:
+        return None
+    lights = device_lights(hass, rec["device_id"], rec["mac"])
+    if _has_main(hass, lights) or not isinstance(lights.get(entity_id), int):
+        return brightness
+    return _clamp_bri(round(int(brightness) * 255 / _look_opacity(rec, lights[entity_id])))
 
 
 # ── One device's worker ──────────────────────────────────────────────────────
@@ -273,9 +314,19 @@ class _Worker:
         self.late_cancel: Any = None
         self.plan: dict | None = None   # what the last command checked against (for the late check)
         self.applies = 0
+        self.boot_at: float | None = None   # when the device last started (now − its uptime)
+        self.boot_checked = -1e9            # monotonic time boot_at was read
+        self._events: asyncio.Lock | None = None
 
     def busy(self) -> bool:
         return self.task is not None and not self.task.done()
+
+    def events(self) -> asyncio.Lock:
+        """One outside change at a time: the lights of one device change
+        together, and the first decides (put the last command back, or hold)."""
+        if self._events is None:
+            self._events = asyncio.Lock()
+        return self._events
 
     def submit(self, want: dict) -> asyncio.Future:
         self.gen += 1
@@ -451,6 +502,7 @@ async def _apply(hass: HomeAssistant, worker: _Worker, want: dict, gen: int) -> 
             result["error"] = "The device reports a different MAC than Home Assistant has for it — refused"
             rec["last_result"] = result
             return result
+        _note_boot(worker, info)
         await _maybe_check_setup(hass, rec, host, info, now)
         ctx = L.Ctx(info, geometry_ok=not (rec.get("drift") or {}).get("geometry"))
         on = bool(live.get("on")) if want.get("on") is None else bool(want["on"])
@@ -614,15 +666,42 @@ def _public_result(rec: dict, result: dict) -> dict:
             "message": result.get("message") or result.get("error"), "on": result.get("on"), "bri": result.get("bri")}
 
 
+def _plain_targets(hass: HomeAssistant, entity_id: str, brightness: int | None) -> list[tuple[str, int | None]]:
+    """What a plain HA call switches: the light itself — and, for a member
+    of a team PadSpan runs (without the licence), every other member's
+    master light too, brightness kept to each member's tuning: their WLED
+    sync is switched off, so nothing else would bring them along."""
+    out: list[tuple[str, int | None]] = [(entity_id, brightness)]
+    try:
+        ident, team = _team_of_entity(hass, entity_id)
+    except Exception:  # noqa: BLE001 — a registry hiccup: just the light
+        return out
+    st = _store(hass)
+    if not team or not st:
+        return out
+    ref = ((((st.get(ident["mac"]) or {}).get("look") or {}).get("state")) or {}).get("bri")
+    for did in _members(team):
+        mi = _identify(hass, device_id=did) if did != ident["device_id"] else None
+        light = _master_light(hass, did, mi["mac"]) if mi else None
+        if light is None:
+            continue
+        mb = ((((st.get(mi["mac"]) or {}).get("look") or {}).get("state")) or {}).get("bri")
+        out.append((light, None if brightness is None else L.team_bri(mb, int(brightness), ref)))
+    return out
+
+
 async def async_power(hass: HomeAssistant, entity_id: str, on: bool, brightness: int | None = None, *,
                       source: str = "padspan", transition: float | None = None) -> dict[str, Any]:
     """Turn an exact WLED light on (with its look) or off — with its PadSpan
     team if it has one. Anything else, or without the licence, is a plain
-    HA light call: {"handled": False}."""
+    HA light call (every member's, for a PadSpan team): {"handled": False}.
+    `brightness` is as HA shows it on `entity_id` (_master_bri)."""
     rec = _exact_record(hass, entity_id)
     if rec is None:
-        await _plain_call(hass, entity_id, on, brightness, transition)
+        for eid, bri in _plain_targets(hass, entity_id, brightness):
+            await _plain_call(hass, eid, on, bri, transition)
         return {"handled": False, "results": []}
+    brightness = _master_bri(hass, rec, entity_id, brightness)
     tt = round(float(transition) * 10) if transition is not None else None
     team = padspan_team_of(hass, rec.get("device_id"))
     pairs = _team_wants(hass, rec, team, bool(on), brightness, tt, source)
@@ -646,17 +725,36 @@ async def on_state_change(hass: HomeAssistant, entity_id: str, old: Any, new: An
     if not rec or not rec.get("exact") or not rec.get("look"):
         return
     old_s, new_s = getattr(old, "state", None), getattr(new, "state", None)
+    if new_s not in ("on", "off"):
+        return
+    tgt = W.resolve_device(hass, device_id=rec.get("device_id"))
+    if tgt is not None and tgt["host"] in ((hass.data.get(DOMAIN) or {}).get(W._IDENTIFY) or {}):
+        return                      # Identify is blinking a part; it puts the light back itself
     worker = _worker(hass, rec["mac"])
-    if old_s == "unavailable" and new_s in ("on", "off"):
+    async with worker.events():
+        await _outside_change(hass, st, rec, worker, entity_id, old_s, new_s, new)
+
+
+async def _outside_change(hass: HomeAssistant, st: WledLooksStore, rec: dict, worker: _Worker, entity_id: str,
+                          old_s: Any, new_s: str, new: Any) -> None:
+    if old_s == "unavailable":
         if _mono() - worker.last_reconnect < RECONNECT_DEDUPE_S:
             return
         worker.last_reconnect = _mono()
-        await _reconnect(hass, rec)
+        await _catch_up(hass, rec, worker, came_back=True)
         return
-    if old_s not in ("on", "off") or new_s not in ("on", "off") or old_s == new_s:
+    if old_s not in ("on", "off"):
         return
     if _mono() - worker.last_write < ECHO_WINDOW_S or worker.busy():
         return                      # PadSpan's own change coming back
+    # A restart HA never showed as "unavailable" (2026.7.4 re-polls at once
+    # when WLED's socket closes: PillTaker 09-27, Quin Kitchen 09-23), even
+    # as on → on: the last command goes back — before "hold" could take the
+    # boot's own "on" for someone's.
+    if await _catch_up(hass, rec, worker, came_back=False):
+        return
+    if old_s == new_s:
+        return
     lights = device_lights(hass, rec["device_id"], rec["mac"])
     role = lights.get(entity_id)
     master = role == "main" or not _has_main(hass, lights)
@@ -690,26 +788,61 @@ async def on_state_change(hass: HomeAssistant, entity_id: str, old: Any, new: An
         _submit(hass, rec, {"on": None, "keep_bri": True, "seg_bri": {role: True}, "source": "hold"})
 
 
-async def _reconnect(hass: HomeAssistant, rec: dict) -> None:
-    """Back after a power cut (restarted since the last command): the last
-    command goes back — on with its look, or off. Only reconnected: the look
-    is held if it is on (Q2, 2026-09-27; nothing written to presets)."""
+def _note_boot(worker: _Worker, info: dict) -> float:
+    """When the device started, from its uptime (-inf if it didn't say)."""
+    up = info.get("uptime")
+    worker.boot_at = _now() - float(up) if isinstance(up, (int, float)) else float("-inf")
+    worker.boot_checked = _mono()
+    return worker.boot_at
+
+
+async def _boot_time(hass: HomeAssistant, rec: dict, worker: _Worker, *, fresh: bool) -> float | None:
+    """When the device last started; None if it can't be read. Read at most
+    every RESTART_CHECK_S for outside changes (the lights of one device
+    change together), always on a reconnect."""
+    if not fresh and worker.boot_at is not None and _mono() - worker.boot_checked < RESTART_CHECK_S:
+        return worker.boot_at
     tgt = W.resolve_device(hass, device_id=rec.get("device_id"))
     if tgt is None:
-        return
+        return None
     try:
         async with W.device_lock(hass, tgt["host"]):
             info = await W._request(hass, tgt["host"], "GET", "json/info")
     except W.WledError:
-        return
+        return None
+    return _note_boot(worker, info)
+
+
+def _undelivered(rec: dict, last: dict, came_back: bool) -> bool:
+    """The last command never got to the device: it was waiting (offline,
+    or unanswered). Back from "unavailable", also one that went wrong, or
+    one with no result at all (an outside "off", HA restarted mid-command)."""
+    res = rec.get("last_result") if isinstance(rec.get("last_result"), dict) else {}
+    if float(res.get("at") or 0) < float(last.get("at") or 0):
+        return came_back
+    return bool(res.get("waiting")) or (came_back and not res.get("ok"))
+
+
+async def _catch_up(hass: HomeAssistant, rec: dict, worker: _Worker, *, came_back: bool) -> bool:
+    """The last command goes back — on with its look, or off — when the
+    device restarted since it (a power cut: every unit boots ON) or it never
+    got there. Otherwise, back from "unavailable", the look is held if it is
+    on (Q2, 2026-09-27; nothing written to presets). True if a command went."""
     last = rec.get("last_cmd") if isinstance(rec.get("last_cmd"), dict) else None
-    up = info.get("uptime")
-    team = padspan_team_of(hass, rec.get("device_id"))
-    if last and isinstance(up, (int, float)) and up < _now() - float(last.get("at") or 0):
+    if not last and not came_back:
+        return False
+    boot = await _boot_time(hass, rec, worker, fresh=came_back)
+    if boot is None:
+        return False
+    if last and (boot > float(last.get("at") or 0) or _undelivered(rec, last, came_back)):
+        team = padspan_team_of(hass, rec.get("device_id"))
         _submit(hass, rec, {"on": bool(last.get("on")), "bri": last.get("bri"), "team": bool(team),
                             "source": "reconnect"})
-    else:
+        return True
+    if came_back:
         _submit(hass, rec, {"on": None, "keep_bri": True, "source": "reconnect"})
+        return True
+    return False
 
 
 def _refresh_listener(hass: HomeAssistant) -> None:
@@ -774,9 +907,19 @@ def async_stop_wled_exact(hass: HomeAssistant) -> None:
 # ── The switch: WLED sync ↔ PadSpan ──────────────────────────────────────────
 
 
+_LIVE_KEYS = ("send", "recv", "sgrp", "rgrp")
+# What a switch changes in a device's record — and puts back if it fails.
+_SWITCH_KEYS = ("join", "exact", "sync_off", "prior_sync")
+
+
 def _sync_blocks(cfg: dict) -> dict:
     sync = (((cfg or {}).get("if") or {}).get("sync")) or {}
     return {"send": copy.deepcopy(sync.get("send") or {}), "recv": copy.deepcopy(sync.get("recv") or {})}
+
+
+def _live_sync(state: dict | None) -> dict:
+    udpn = (state or {}).get("udpn") or {}
+    return {k: udpn[k] for k in _LIVE_KEYS if k in udpn}
 
 
 async def _cfg_write(hass: HomeAssistant, tgt: dict, patch: dict, base_hash: str) -> dict:
@@ -793,44 +936,82 @@ def _check_mac(tgt: dict, info: dict) -> None:
         raise W.WledError("mac_mismatch", "The device reports a different MAC than Home Assistant has for it — refused")
 
 
-async def _restore_saved(hass: HomeAssistant, tgt: dict, prior: dict) -> dict | None:
-    blocks = {k: v for k, v in ((prior or {}).get("cfg") or {}).items() if v}
-    if not blocks:
-        return None
-    cfg = await W._request(hass, tgt["host"], "GET", "json/cfg")
-    return await _cfg_write(hass, tgt, {"if": {"sync": blocks}}, W.cfg_hash(cfg))
+async def _put_sync_back(hass: HomeAssistant, tgt: dict, blocks: dict, live: dict, cfg: dict) -> tuple[Any, Any]:
+    """A device's sync as it was: the saved send/recv blocks (through the
+    same safe write, only if they differ from `cfg`, the device's config
+    now) with the live switches on both sides of it — 0.14.4 saves the LIVE
+    send switch as "dir" and takes a saved "dir" only when it differs from
+    the one it booted with (cfg.cpp:399-401, 868); 0.15+ reset the live
+    switch and groups to the saved ones on a save. (backup, last reply)."""
+    host = tgt["host"]
+    body = {"udpn": {**{k: v for k, v in (live or {}).items() if k in _LIVE_KEYS and v is not None}, "nn": True},
+            "v": True}
+    now = _sync_blocks(cfg)
+    blocks = {k: v for k, v in (blocks or {}).items() if v and any(now[k].get(x) != y for x, y in v.items())}
+    backup = None
+    if blocks:
+        await W._request(hass, host, "POST", "json/state", body, W.POST_TIMEOUT_S)
+        backup = (await _cfg_write(hass, tgt, {"if": {"sync": blocks}}, W.cfg_hash(cfg))).get("backup")
+    return backup, await W._request(hass, host, "POST", "json/state", body, W.POST_TIMEOUT_S)
+
+
+def _keep_padspan(rec: dict, sync_off: str, prior: dict) -> None:
+    """PadSpan keeps a device whose saved sync may be off: its commands keep
+    the live sync off too, and switching back puts `prior` back."""
+    rec.update(join="padspan", exact=True, sync_off=sync_off, prior_sync=prior)
 
 
 async def switch_to_padspan(hass: HomeAssistant, rec: dict, tgt: dict, team_prior: dict | None = None) -> dict:
-    """Save the sync settings, write the one sync-off patch safely, switch
-    live sync off; roll the saved change back if the live one fails. The
-    caller holds the device lock."""
+    """Save the sync settings (in the Store, before anything is written),
+    write the one sync-off patch safely, switch live sync off. If that
+    fails the device goes back to what it had at the switch; whatever
+    can't be told or put back stays PadSpan's, with its original settings,
+    so switching back works. The caller holds the device lock. The result's
+    `undo` puts the device back as it was (a team's rollback: undo_switch)."""
     host = tgt["host"]
     info = await W._request(hass, host, "GET", "json/info")
     _check_mac(tgt, info)
     cfg = await W._request(hass, host, "GET", "json/cfg")
     state = await W._request(hass, host, "GET", "json/state")
-    udpn = state.get("udpn") or {}
-    if rec.get("join") == "padspan" and rec.get("prior_sync"):
-        prior = rec["prior_sync"]                  # already switched: keep the ORIGINAL settings
+    live_now = _live_sync(state)
+    # What it has now: shown to the admin, and what a failed switch goes back to.
+    before = {**_sync_blocks(cfg), "live": {k: live_now.get(k) for k in _LIVE_KEYS}}
+    kept = {k: copy.deepcopy(rec.get(k)) for k in _SWITCH_KEYS}
+    # Kept by PadSpan after a failure it can't undo, switching back must put
+    # the device where this switch found it (a WLED team's own group).
+    fail_prior = kept["prior_sync"] or {"cfg": _sync_blocks(cfg), "live": live_now, "at": _now()}
+    if rec.get("prior_sync"):
+        prior = rec["prior_sync"]                  # PadSpan already keeps the ORIGINAL settings
     elif team_prior and (team_prior.get("send") or team_prior.get("recv")):
-        # Already in a WLED team: its settings from before the team.
+        # Run by PadSpan as a WLED team's member: its settings from before the team.
         send, recv = copy.deepcopy(team_prior.get("send") or {}), copy.deepcopy(team_prior.get("recv") or {})
         prior = {"cfg": {"send": send, "recv": recv},
                  "live": {"send": bool(send.get("en", False)), "recv": bool(recv.get("grp", 0)),
                           "sgrp": send.get("grp", 0), "rgrp": recv.get("grp", 0)}, "at": _now()}
     else:
-        prior = {"cfg": _sync_blocks(cfg),
-                 "live": {k: udpn[k] for k in ("send", "recv", "sgrp", "rgrp") if k in udpn}, "at": _now()}
-    before = {**_sync_blocks(cfg), "live": {k: udpn.get(k) for k in ("send", "recv", "sgrp", "rgrp")}}
+        prior = {"cfg": _sync_blocks(cfg), "live": live_now, "at": _now()}
+    # Saved before the write: a reply lost, or HA stopping, after the write
+    # took must never leave the original settings forgotten.
+    rec["prior_sync"] = prior
+    st = _store(hass)
+    if st is not None:
+        await st.async_save()
     backup, sync_off, message = None, "saved", None
     try:
         res = await _cfg_write(hass, tgt, L.sync_off_patch(), W.cfg_hash(cfg))
         backup = res.get("backup")
     except W.WledError as e:
-        if e.code != "i2c_in_use":
+        if e.code == "i2c_in_use":
+            sync_off, message = "live", LIVE_ONLY_MSG
+        elif e.sent and e.applied is None:         # it may be off: PadSpan keeps it
+            _keep_padspan(rec, "saved", fail_prior)
+            raise W.WledError(e.code, f"{e}. PadSpan keeps this light and its sync settings: switching back "
+                                      "to WLED sync puts them back") from e
+        elif not (e.sent and e.applied):           # nothing changed
+            rec.update(kept)
             raise
-        sync_off, message = "live", LIVE_ONLY_MSG
+        else:                                      # it took; only the reply was lost
+            backup = e.backup
     try:
         reply = await W._request(hass, host, "POST", "json/state", {"udpn": dict(L.UDPN_OFF), "v": True},
                                  W.POST_TIMEOUT_S)
@@ -839,23 +1020,39 @@ async def switch_to_padspan(hass: HomeAssistant, rec: dict, tgt: dict, team_prio
         if not L.udpn_ok(reply):
             raise W.WledError("not_applied", "The device didn't switch its sync off")
     except W.WledError:
-        if sync_off == "saved":
-            try:
-                await _restore_saved(hass, tgt, prior)
-            except W.WledError as err:
-                _LOGGER.warning("WLED exact look: rolling %s back failed: %s", rec.get("name"), err)
+        try:
+            now_cfg = await W._request(hass, host, "GET", "json/cfg")
+            await _put_sync_back(hass, tgt, _sync_blocks({"if": {"sync": before}}) if sync_off == "saved" else {},
+                                 before["live"], now_cfg)
+        except W.WledError as err:
+            _LOGGER.warning("WLED exact look: putting %s back failed: %s", rec.get("name"), err)
+            _keep_padspan(rec, sync_off, fail_prior)
+            raise
+        rec.update(kept)
         raise
     try:
         after_cfg = await W._request(hass, host, "GET", "json/cfg")
-        after = {**_sync_blocks(after_cfg), "live": {k: (reply.get("udpn") or {}).get(k) for k in ("send", "recv", "sgrp", "rgrp")}}
+        after = {**_sync_blocks(after_cfg), "live": {k: (reply.get("udpn") or {}).get(k) for k in _LIVE_KEYS}}
     except W.WledError:
         after = None
-    rec.update(join="padspan", exact=True, sync_off=sync_off, prior_sync=prior)
-    return {"backup": backup, "sync_off": sync_off, "message": message, "before": before, "after": after}
+    _keep_padspan(rec, sync_off, prior)
+    return {"backup": backup, "sync_off": sync_off, "message": message, "before": before, "after": after,
+            "undo": {"rec": kept, "before": before}}
+
+
+async def undo_switch(hass: HomeAssistant, rec: dict, tgt: dict, undo: dict) -> None:
+    """A switch to PadSpan taken back: the device's sync as it was at the
+    switch (a WLED team's own group, not its settings from before the team),
+    and its record as it was. The caller holds the device lock."""
+    before = undo["before"]
+    cfg = await W._request(hass, tgt["host"], "GET", "json/cfg")
+    await _put_sync_back(hass, tgt, _sync_blocks({"if": {"sync": before}}) if rec.get("sync_off") == "saved" else {},
+                         before["live"], cfg)
+    rec.update(copy.deepcopy(undo["rec"]))
 
 
 async def switch_to_wled(hass: HomeAssistant, rec: dict, tgt: dict) -> dict:
-    """Put the saved send/recv blocks back (same safe write), then the saved
+    """Put the saved send/recv blocks back (same safe write) and the saved
     live sync. The caller holds the device lock."""
     host = tgt["host"]
     info = await W._request(hass, host, "GET", "json/info")
@@ -863,20 +1060,12 @@ async def switch_to_wled(hass: HomeAssistant, rec: dict, tgt: dict) -> dict:
     prior = rec.get("prior_sync") or {}
     cfg = await W._request(hass, host, "GET", "json/cfg")
     state = await W._request(hass, host, "GET", "json/state")
-    before = {**_sync_blocks(cfg), "live": {k: (state.get("udpn") or {}).get(k) for k in ("send", "recv", "sgrp", "rgrp")}}
-    backup = None
-    if rec.get("sync_off") == "saved":
-        blocks = {k: v for k, v in (prior.get("cfg") or {}).items() if v}
-        if blocks:
-            res = await _cfg_write(hass, tgt, {"if": {"sync": blocks}}, W.cfg_hash(cfg))
-            backup = res.get("backup")
-    live = {k: v for k, v in (prior.get("live") or {}).items() if k in ("send", "recv", "sgrp", "rgrp")}
-    reply = await W._request(hass, host, "POST", "json/state", {"udpn": {**live, "nn": True}, "v": True},
-                             W.POST_TIMEOUT_S)
+    before = {**_sync_blocks(cfg), "live": {k: _live_sync(state).get(k) for k in _LIVE_KEYS}}
+    blocks = (prior.get("cfg") or {}) if rec.get("sync_off") == "saved" else {}
+    backup, reply = await _put_sync_back(hass, tgt, blocks, prior.get("live") or {}, cfg)
     try:
         after_cfg = await W._request(hass, host, "GET", "json/cfg")
-        after = {**_sync_blocks(after_cfg), "live": {k: ((reply or {}).get("udpn") or {}).get(k)
-                                                     for k in ("send", "recv", "sgrp", "rgrp")}}
+        after = {**_sync_blocks(after_cfg), "live": {k: _live_sync(reply).get(k) for k in _LIVE_KEYS}}
     except W.WledError:
         after = None
     rec.update(join="wled", exact=False, sync_off=None, prior_sync=None)
@@ -925,23 +1114,30 @@ def _offline(connection: Any, msg: dict, ident: dict) -> None:
 @websocket_api.websocket_command({"type": "padspan_ha/wled_exact_list"})
 @websocket_api.async_response
 async def ws_wled_exact_list(hass: HomeAssistant, connection, msg) -> None:
-    """Which WLED lights PadSpan runs — for the Atlas's routing. Empty without
-    the licence, so every surface falls back to plain HA light calls."""
-    if not _tier_at_least(hass, W.TIER):
-        connection.send_result(msg["id"], {"devices": []})
-        return
+    """Which WLED lights PadSpan runs — for the Atlas's routing. Without the
+    licence only the members of a team PadSpan runs (padspan_ha/wled_power
+    switches them all with plain HA calls); every other light falls back to
+    a plain HA light call. look_bri is as HA shows the device's master light."""
+    licensed = _tier_at_least(hass, W.TIER)
     st = await async_get_store(hass)
     out = []
     for rec in st.records().values():
         if not isinstance(rec, dict) or not rec.get("exact") or not rec.get("look"):
             continue
-        lights = device_lights(hass, rec["device_id"], rec["mac"])
         team = padspan_team_of(hass, rec["device_id"])
+        if not licensed and not team:
+            continue
+        lights = device_lights(hass, rec["device_id"], rec["mac"])
         main = next((e for e, r in lights.items() if r == "main"), None)
+        has_main = bool(main) and _has_main(hass, lights)
+        look_bri = rec["look"]["state"].get("bri")
+        segs = sorted(r for r in lights.values() if isinstance(r, int))
+        if not has_main and segs and isinstance(look_bri, (int, float)):
+            look_bri = max(1, round(look_bri * _look_opacity(rec, segs[0]) / 255))     # _master_bri's inverse
         out.append({"device_id": rec["device_id"], "mac": rec["mac"], "name": rec.get("name"),
-                    "main": main if main and _has_main(hass, lights) else None, "lights": lights,
+                    "main": main if has_main else None, "lights": lights,
                     "team_id": team.get("id") if team else None, "hold": bool(rec.get("hold", True)),
-                    "look_bri": rec["look"]["state"].get("bri")})
+                    "look_bri": look_bri})
     connection.send_result(msg["id"], {"devices": out})
 
 
@@ -949,12 +1145,18 @@ async def ws_wled_exact_list(hass: HomeAssistant, connection, msg) -> None:
                                   **W._TARGET})
 @websocket_api.async_response
 async def ws_wled_look_get(hass: HomeAssistant, connection, msg) -> None:
-    ident = await _gate(hass, connection, msg)
+    """The device's record. Without the licence only who runs it (lapsed:
+    true) — so a light left with its sync off can be given back."""
+    ident = await _gate(hass, connection, msg, tier=False)
     if ident is None:
         return
     st = await async_get_store(hass)
     rec = st.get(ident["mac"]) or new_record(ident["mac"], ident["device_id"], ident["name"])
     out = _public(hass, rec, W._is_admin(connection))
+    if not _tier_at_least(hass, W.TIER):
+        connection.send_result(msg["id"], {"lapsed": True, **{k: out[k] for k in (
+            "device_id", "name", "join", "exact", "sync_off", "sync_off_message", "team_id", "team_mode")}})
+        return
     out["differs"], out["compare_error"] = None, None
     if msg.get("compare") and rec.get("look"):
         if ident["tgt"] is None:
@@ -1072,10 +1274,16 @@ async def ws_wled_exact_set(hass: HomeAssistant, connection, msg) -> None:
     rec = st.ensure(ident["mac"], ident["device_id"], ident["name"])
     out: dict[str, Any] = {"before": None, "after": None, "backup": None, "message": None}
     if "exact" in msg and bool(msg["exact"]) != bool(rec.get("exact")):
-        team = padspan_team_of(hass, ident["device_id"])
-        if team:
+        team = team_of(hass, ident["device_id"])
+        if team and team.get("mode") == "padspan":
             connection.send_error(msg["id"], "in_team",
                                   f"{ident['name']} is in a team run by PadSpan — switch the team back to WLED sync first")
+            return
+        if team and msg["exact"]:
+            # On its own it would leave the team's group (or stop its leader
+            # sending) with the team unchanged: a team goes over as one.
+            connection.send_error(msg["id"], "in_team",
+                                  f"{ident['name']} is in a WLED sync team — run the team by PadSpan on the Team card instead")
             return
         if msg["exact"] and not rec.get("look"):
             connection.send_error(msg["id"], "no_look", "Remember the look first — PadSpan needs it to turn this light on")
@@ -1086,9 +1294,7 @@ async def ws_wled_exact_set(hass: HomeAssistant, connection, msg) -> None:
         try:
             async with W.device_lock(hass, ident["tgt"]["host"]):
                 if msg["exact"]:
-                    wteam = team_of(hass, ident["device_id"])
-                    prior = ((wteam or {}).get("prior") or {}).get(ident["device_id"])
-                    res = await switch_to_padspan(hass, rec, ident["tgt"], team_prior=prior)
+                    res = await switch_to_padspan(hass, rec, ident["tgt"])
                 else:
                     res = await switch_to_wled(hass, rec, ident["tgt"])
         except W.WledError as e:
@@ -1111,8 +1317,9 @@ async def ws_wled_exact_set(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_wled_team_mode(hass: HomeAssistant, connection, msg) -> None:
     """Run this team by WLED sync or by PadSpan. PadSpan: every member is
-    switched one at a time, and all are rolled back if one fails. WLED sync:
-    every member's sync goes back to before the team (the card then sets the
+    switched one at a time, and if one fails every member goes back to the
+    sync it had at the switch (the team's own group). WLED sync: every
+    member's sync goes back to before the team (the card then sets the
     team's groups up again, as for a new team)."""
     if msg["mode"] == "padspan" and not _tier_at_least(hass, W.TIER):
         connection.send_error(msg["id"], "bright_required", W.TIER_MSG)
@@ -1138,21 +1345,21 @@ async def ws_wled_team_mode(hass: HomeAssistant, connection, msg) -> None:
         if offline:
             connection.send_error(msg["id"], "wled_offline", f"{', '.join(offline)} can't be reached — nothing was changed")
             return
-        done: list[tuple[dict, dict]] = []
+        done: list[tuple[dict, dict, dict]] = []
         for i in idents:
             rec = st.ensure(i["mac"], i["device_id"], i["name"])
             try:
                 async with W.device_lock(hass, i["tgt"]["host"]):
                     res = await switch_to_padspan(hass, rec, i["tgt"], team_prior=(team.get("prior") or {}).get(i["device_id"]))
-                done.append((i, rec))
+                done.append((i, rec, res["undo"]))
                 members.append({"device_id": i["device_id"], "name": i["name"], "ok": True,
                                 "sync_off": res["sync_off"], "message": res["message"]})
             except W.WledError as e:
                 back = []
-                for bi, brec in reversed(done):
+                for bi, brec, undo in reversed(done):
                     try:
                         async with W.device_lock(hass, bi["tgt"]["host"]):
-                            await switch_to_wled(hass, brec, bi["tgt"])
+                            await undo_switch(hass, brec, bi["tgt"], undo)
                     except W.WledError as err:
                         back.append(f"{bi['name']} ({err})")
                 await st.async_save()

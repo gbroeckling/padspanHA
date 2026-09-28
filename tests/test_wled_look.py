@@ -211,6 +211,18 @@ def test_only_the_sync_blocks_may_be_written_through_json_cfg():
         assert L.check_exact_cfg_patch(bad), bad
 
 
+# Every key each supported firmware saves in if.sync.send / if.sync.recv
+# (cfg.cpp serializeConfig), as the 12 units returned them on 2026-09-27.
+@pytest.mark.parametrize("send, recv", [
+    ({"dir", "btn", "va", "hue", "macro", "grp", "ret"}, {"bri", "col", "fx", "grp", "seg", "sb"}),        # 0.14.4 (.2.116)
+    ({"en", "dir", "btn", "va", "hue", "grp", "ret"}, {"bri", "col", "fx", "pal", "grp", "seg", "sb"}),    # 0.15.x, 16.0.1
+], ids=["0.14.4", "0.15-16"])
+def test_every_firmwares_own_sync_blocks_can_be_put_back(send, recv):
+    """Review finding 1: a device's own saved blocks refused on the way back
+    strand it with its sync off."""
+    assert L.check_exact_cfg_patch({"if": {"sync": {"send": dict.fromkeys(send, 0), "recv": dict.fromkeys(recv, 0)}}}) is None
+
+
 # ── compare ──────────────────────────────────────────────────────────────────
 
 

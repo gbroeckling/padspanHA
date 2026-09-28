@@ -60,8 +60,11 @@ UDPN_OFF = {"send": False, "recv": False, "sgrp": 0, "rgrp": 0, "nn": True}
 SYNC_OFF_PATCH = {"if": {"sync": {"send": {"en": False, "grp": 0}, "recv": {"grp": 0}}}}
 
 # What the exact code may write through /json/cfg: the sync-off patch, or
-# a device's own saved send/recv blocks put back. Nothing else, ever.
-_CFG_SEND_KEYS = frozenset({"en", "dir", "btn", "va", "hue", "grp", "ret"})
+# a device's own saved send/recv blocks put back. Nothing else, ever. The
+# keys are every one a supported firmware saves in those blocks (cfg.cpp
+# serializeConfig): 0.14.4's send block has "macro" and no "en", its recv
+# block no "pal"; 0.15.x and 16.0.1 have "en" and "pal" and no "macro".
+_CFG_SEND_KEYS = frozenset({"en", "dir", "btn", "va", "hue", "macro", "grp", "ret"})
 _CFG_RECV_KEYS = frozenset({"bri", "col", "fx", "pal", "grp", "seg", "sb"})
 
 # Palette 1 is "* Random Cycle"; these effects pick random colours

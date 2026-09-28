@@ -496,10 +496,11 @@ async def test_hold_off_leaves_an_outside_on_alone(house):
     await E.async_power(house.hass, "light.valance_main", False)
     house.clock[0] += 10
     await dev.handle("POST", "json/state", {"on": True, "seg": [{"id": 1, "col": [[0, 0, 255]]}]})
-    n = len(dev.log)
+    n = len(dev.posts())
     await E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="off"), SimpleNamespace(state="on"))
     await house.settle()
-    assert len(dev.log) == n
+    # Only its uptime is read (a restart would put the last command back).
+    assert len(dev.posts()) == n
 
 
 async def test_a_reconnect_after_a_power_cut_puts_the_last_command_back(house):
@@ -855,3 +856,370 @@ async def test_opening_the_card_rechecks_the_led_setup_once_a_day(house):
     await E.ws_wled_look_get(house.hass, conn, {"id": 2, "device_id": did, "compare": True})
     drift = conn.results[0]["drift"]
     assert drift and drift["geometry"] is False and "Output 1 white mode None → Accurate" in drift["what"]
+
+
+
+# ── review 2026-09-27: each finding reproduced, then held ────────────────────
+
+# Old white kitchen east (.2.116), the one WLED 0.14.4 unit — captured
+# 2026-09-27 (GET only). Its saved send block carries "macro" (0.14.4
+# cfg.cpp:868) and no "en"; its receive block has no "pal".
+_OLD_WHITE_SEG = {"id": 0, "start": 0, "stop": 1, "len": 1, "grp": 1, "spc": 0, "of": 0, "on": True, "frz": False,
+                  "bri": 255, "cct": 127, "set": 0, "col": [[255, 160, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], "fx": 0,
+                  "sx": 128, "ix": 128, "pal": 0, "c1": 128, "c2": 128, "c3": 16, "sel": True, "rev": False,
+                  "mi": False, "o1": False, "o2": False, "o3": False, "si": 0, "m12": 0}
+_OLD_WHITE_INFO = {"ver": "0.14.4", "vid": 2405180, "arch": "esp32", "mac": "f4650bc22c00", "fxcount": 187,
+                   "uptime": 347892, "i2c": [-1, -1], "name": "Old white kitchen east",
+                   "leds": {"count": 1, "pwr": 100, "fps": 5, "maxpwr": 850, "maxseg": 32, "seglc": [7], "lc": 7,
+                            "rgbw": True, "wv": 2, "cct": 4}}
+_OLD_WHITE_STATE = {"on": True, "bri": 128, "transition": 7, "ps": -1, "pl": -1, "AudioReactive": {"on": True},
+                    "nl": {"on": False, "dur": 60, "mode": 1, "tbri": 0, "rem": -1},
+                    "udpn": {"send": False, "recv": True, "sgrp": 1, "rgrp": 1}, "lor": 0, "mainseg": 0,
+                    "seg": [_OLD_WHITE_SEG]}
+_OLD_WHITE_CFG = {
+    "hw": {"led": {"total": 1, "maxpwr": 850, "ledma": 55, "cct": False, "cr": False, "cb": 0, "fps": 42, "rgbwm": 255,
+                   "ld": True, "ins": [{"start": 0, "len": 1, "pin": [19, 18, 17, 16, 4], "order": 1, "rev": False,
+                                        "skip": 0, "type": 45, "ref": False, "rgbwm": 0, "freq": 19531}]},
+           "if": {"i2c-pin": [-1, -1], "spi-pin": [-1, -1, -1]}},
+    "light": {"scale-bri": 100, "pal-mode": 0, "aseg": False, "gc": {"bri": 1, "col": 1, "val": 2.8},
+              "tr": {"mode": True, "fx": True, "dur": 7, "pal": 0, "rpc": 5}},
+    "def": {"ps": 0, "on": True, "bri": 128},
+    "if": {"sync": {"port0": 21324, "port1": 65506,
+                    "recv": {"bri": True, "col": True, "fx": True, "grp": 1, "seg": False, "sb": False},
+                    "send": {"dir": False, "btn": False, "va": False, "hue": True, "macro": False, "grp": 1, "ret": 0}}}}
+
+
+@pytest.mark.parametrize("sends", [False, True], ids=["as captured", "sending on"])
+async def test_the_0144_unit_goes_to_padspan_and_back_byte_for_byte(house, sends):
+    """Review finding 1: the restore carried "macro" and was refused, so
+    .2.116 could never leave PadSpan. And 0.14.4 saves the LIVE send switch
+    as "dir", so a unit that sends must get its live switch back before
+    its saved blocks, or the saved "dir" comes back off."""
+    from tests.wled_fake import FakeWled
+    cfg, state = copy.deepcopy(_OLD_WHITE_CFG), copy.deepcopy(_OLD_WHITE_STATE)
+    cfg["if"]["sync"]["send"]["dir"] = sends
+    state["udpn"]["send"] = sends
+    dev = FakeWled(host="192.168.2.116", info=_OLD_WHITE_INFO, state=state, cfg=cfg)
+    did = house.add("oldwhite", dev, segs=1, main=False)
+    before_sync = copy.deepcopy(dev.cfg["if"]["sync"])
+    await _remember(house, did)
+    res = await _to_padspan(house, did)
+    assert res["exact"] is True and res["sync_off"] == "saved"
+    assert dev.cfg["if"]["sync"]["send"]["grp"] == 0 and dev.cfg["if"]["sync"]["recv"]["grp"] == 0
+    assert L.udpn_ok(dev.serialize_state())
+    conn = _Conn()
+    await E.ws_wled_exact_set(house.hass, conn, {"id": 3, "device_id": did, "exact": False})
+    assert not conn.errors, conn.errors
+    assert json.dumps(dev.cfg["if"]["sync"], sort_keys=True) == json.dumps(before_sync, sort_keys=True)
+    live = dev.serialize_state()["udpn"]
+    assert (live["send"], live["sgrp"], live["rgrp"]) == (sends, 1, 1)
+    rec = house.store.get("f4650bc22c00")
+    assert (rec["join"], rec["exact"], rec["prior_sync"]) == ("wled", False, None)
+    dev.reboot()                                        # and it lasts: the saved settings are the originals
+    assert dev.serialize_state()["udpn"]["send"] is sends
+
+
+async def test_a_restart_ha_never_showed_as_unavailable_puts_the_last_command_back(house):
+    """Review finding 2: HA 2026.7.4 re-polls at once after WLED's socket
+    closes, so a quick restart can come through as on→on (PillTaker 09-27,
+    Quin Kitchen 09-23). Every unit boots ON (def.on true)."""
+    dev = simple_device()
+    await dev.handle("POST", "json/state", {"seg": [{"id": 0, "col": [[10, 20, 30, 40]], "fx": 9}], "v": True})
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    look = house.store.get("28562f551738")["look"]
+    await E.async_power(house.hass, "light.valance_main", True, 90)
+    await house.settle()
+    house.clock[0] += 3600
+    dev.reboot()                                      # boot defaults: factory orange, ON at 128
+    await E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="on"),
+                            SimpleNamespace(state="on", attributes={"brightness": 128}))
+    await house.settle()
+    st = dev.serialize_state()
+    assert st["on"] and st["bri"] == 90
+    assert L.compare(look["state"], st, L.Ctx(dev.serialize_info()), on=True, bri=90, exact=True) == []
+    # Left OFF by PadSpan: it boots ON, HA shows off→on — it goes back off,
+    # and "off" stays the last command (hold never turns it on).
+    await E.async_power(house.hass, "light.valance_main", False)
+    await house.settle()
+    house.clock[0] += 3600
+    dev.reboot()
+    await E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="off"),
+                            SimpleNamespace(state="on", attributes={"brightness": 128}))
+    await house.settle()
+    rec = house.store.get("28562f551738")
+    assert dev.serialize_state()["on"] is False
+    assert rec["last_cmd"]["on"] is False and rec["last_result"]["source"] == "reconnect"
+    # Negative control: no restart since (up 25 s, booted before that
+    # command), the same off→on is an outside "on" — held, not undone.
+    house.clock[0] += 20
+    dev.info["uptime"] = 25
+    await dev.handle("POST", "json/state", {"on": True, "bri": 60})
+    await E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="off"),
+                            SimpleNamespace(state="on", attributes={"brightness": 60}))
+    await house.settle()
+    assert dev.serialize_state()["on"] is True and rec["last_result"]["source"] == "hold"
+
+
+async def test_a_lost_reply_to_the_sync_off_write_never_loses_the_original_sync(house, monkeypatch):
+    """Review finding 3: the write was applied, its reply lost. The switch
+    goes on (the saved change is in); and where it can't be told, PadSpan
+    keeps the device with its ORIGINAL settings so switching back works."""
+    dev = simple_device()
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    original = copy.deepcopy(dev.cfg["if"]["sync"])
+    dev.lose = 1                                      # the cfg POST applies; its reply is lost
+    res = await _to_padspan(house, did)
+    rec = house.store.get("28562f551738")
+    assert res["exact"] is True and rec["prior_sync"]["cfg"]["recv"]["grp"] == 1
+    assert L.udpn_ok(dev.serialize_state())
+    conn = _Conn()
+    await E.ws_wled_exact_set(house.hass, conn, {"id": 3, "device_id": did, "exact": False})
+    assert not conn.errors and json.dumps(dev.cfg["if"]["sync"], sort_keys=True) == json.dumps(original, sort_keys=True)
+    # Can't tell: the write applied, the reply lost, then the device gone.
+    real = dev.handle
+
+    async def _then_gone(method, path, body):
+        out = await real(method, path, body)
+        if method == "POST" and path == "json/cfg":
+            dev.offline = True
+            raise W.WledError("timeout", "No answer from 192.168.2.118 within 12 s")
+        return out
+    dev.handle = _then_gone
+    conn = _Conn()
+    await E.ws_wled_exact_set(house.hass, conn, {"id": 4, "device_id": did, "exact": True})
+    assert conn.errors and conn.errors[0][0] == "timeout"
+    assert (rec["join"], rec["exact"], rec["sync_off"]) == ("padspan", True, "saved")
+    assert rec["prior_sync"]["cfg"] == {"send": original["send"], "recv": original["recv"]}
+    dev.handle, dev.offline = real, False
+    conn = _Conn()
+    await E.ws_wled_exact_set(house.hass, conn, {"id": 5, "device_id": did, "exact": False})
+    assert not conn.errors and json.dumps(dev.cfg["if"]["sync"], sort_keys=True) == json.dumps(original, sort_keys=True)
+    # Refused before anything was sent: nothing is kept.
+    monkeypatch.setattr(W, "check_cfg_patch", lambda patch, mx: "too big")
+    conn = _Conn()
+    await E.ws_wled_exact_set(house.hass, conn, {"id": 6, "device_id": did, "exact": True})
+    assert conn.errors[0][0] == "refused" and (rec["join"], rec["exact"], rec["prior_sync"]) == ("wled", False, None)
+
+
+async def test_the_original_sync_is_saved_before_the_sync_off_write(house, monkeypatch):
+    """Review finding 3: a restart of HA between the write and the record
+    must not lose the original settings either."""
+    dev = simple_device()
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    seen = []
+    real = W.safe_cfg_write
+
+    async def _spy(hass, tgt, patch, base_hash, **kw):
+        seen.append(copy.deepcopy(house.store.store.saved["devices"]["28562f551738"]["prior_sync"]))
+        return await real(hass, tgt, patch, base_hash, **kw)
+    monkeypatch.setattr(W, "safe_cfg_write", _spy)
+    await _to_padspan(house, did)
+    assert seen and seen[0]["cfg"]["recv"]["grp"] == 1
+
+
+async def test_a_command_that_never_reached_the_device_goes_on_when_it_is_back(house):
+    """Review findings 4 and 9: offline (a WiFi drop, no restart) while it
+    was switched: "the look goes on when it reconnects" — and it does."""
+    devs, dids, _ = await _padspan_team(house)
+    for d in devs:
+        await d.handle("POST", "json/state", {"on": False})
+    house.offline("m2", devs[2])
+    out = await E.async_power(house.hass, "light.m0_main", True)
+    assert {r["device_id"]: r for r in out["results"]}[dids[2]]["waiting"]
+    house.offline("m2", devs[2], False)
+    devs[2].info["uptime"] = 10_000_000               # never restarted
+    house.clock[0] += 600
+    await E.on_state_change(house.hass, "light.m2_main", SimpleNamespace(state="unavailable"), SimpleNamespace(state="off"))
+    await house.settle()
+    assert [d.serialize_state()["on"] for d in devs] == [True, True, True]
+    # A single device: tapped on while offline, back without a restart.
+    dev = simple_device(host="192.168.2.140", mac="aabbccddee40")
+    did = house.add("porch", dev)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    await E.async_power(house.hass, "light.porch_main", False)
+    await house.settle()
+    house.offline("porch", dev)
+    res = await E.async_power(house.hass, "light.porch_main", True, source="atlas")
+    assert res["results"][0]["waiting"]
+    house.offline("porch", dev, False)
+    dev.info["uptime"] = 100_000
+    house.clock[0] += 30
+    await E.on_state_change(house.hass, "light.porch_main", SimpleNamespace(state="unavailable"), SimpleNamespace(state="off"))
+    await house.settle()
+    assert dev.serialize_state()["on"] is True
+    # Negative control: a command that landed isn't sent again on a reconnect.
+    house.clock[0] += 30
+    n = len(dev.posts())
+    E._worker(house.hass, "aabbccddee40").last_reconnect = -1e9
+    await E.on_state_change(house.hass, "light.porch_main", SimpleNamespace(state="unavailable"), SimpleNamespace(state="on"))
+    await house.settle()
+    assert len(dev.posts()) == n
+
+
+async def test_a_failed_padspan_switch_leaves_a_wled_team_on_its_own_group(house):
+    """Review finding 5: the rollback put every member on its settings from
+    BEFORE the team; it goes back to what each had at the switch."""
+    devs = [simple_device(host=f"192.168.2.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(3)]
+    dids = [house.add(f"m{i}", d) for i, d in enumerate(devs)]
+    prior = {}
+    for i, (d, did) in enumerate(zip(devs, dids)):
+        prior[did] = {"send": copy.deepcopy(d.cfg["if"]["sync"]["send"]), "recv": copy.deepcopy(d.cfg["if"]["sync"]["recv"])}
+        d.cfg["if"]["sync"]["send"].update(grp=3, en=(i == 0))          # what applyTeam(join) left
+        d.cfg["if"]["sync"]["recv"]["grp"] = 3 if i else 0
+        d.sgrp, d.rgrp, d.send_rt = 3, (3 if i else 0), i == 0
+    team_sync = [copy.deepcopy(d.cfg["if"]["sync"]) for d in devs]
+    house.settings.data["wled_teams"] = [{"id": "t1", "name": "Valances", "mode": "mirror", "group": 3, "leader": dids[0],
+                                          "followers": dids[1:], "prior": prior, "incomplete": []}]
+    await _remember(house, dids[0], team=True)
+    real = devs[2].handle
+
+    async def _fail(method, path, body):
+        if method == "POST" and (body or {}).get("udpn", {}).get("rgrp") == 0:
+            raise W.WledError("http_error", "The device answered HTTP 500")
+        return await real(method, path, body)
+    devs[2].handle = _fail
+    conn = _Conn()
+    await E.ws_wled_team_mode(house.hass, conn, {"id": 5, "team_id": "t1", "mode": "padspan"})
+    assert conn.errors and "switched back" in conn.errors[0][1]
+    assert house.settings.data["wled_teams"][0]["mode"] == "mirror"
+    for i, d in enumerate(devs):
+        assert json.dumps(d.cfg["if"]["sync"], sort_keys=True) == json.dumps(team_sync[i], sort_keys=True), i
+        u = d.serialize_state()["udpn"]
+        assert (u["send"], u["sgrp"], u["rgrp"]) == (i == 0, 3, 3 if i else 0), i
+        assert not house.store.get(d.info["mac"])["exact"]
+
+
+async def test_a_team_member_padspan_cant_put_back_keeps_the_teams_group_to_go_back_to(house):
+    """Review finding 5, its edge: a member whose sync-off write took, reply
+    lost, then gone, stays PadSpan's — switching it back puts it on the
+    team's group (where the switch found it), not its settings from before
+    the team."""
+    devs = [simple_device(host=f"192.168.2.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(2)]
+    dids = [house.add(f"m{i}", d) for i, d in enumerate(devs)]
+    prior = {did: {"send": copy.deepcopy(d.cfg["if"]["sync"]["send"]), "recv": copy.deepcopy(d.cfg["if"]["sync"]["recv"])}
+             for d, did in zip(devs, dids)}
+    for i, d in enumerate(devs):
+        d.cfg["if"]["sync"]["send"].update(grp=3, en=(i == 0))
+        d.cfg["if"]["sync"]["recv"]["grp"] = 3 if i else 0
+        d.sgrp, d.rgrp, d.send_rt = 3, (3 if i else 0), i == 0
+    team_sync = copy.deepcopy(devs[1].cfg["if"]["sync"])
+    house.settings.data["wled_teams"] = [{"id": "t1", "name": "Valances", "mode": "mirror", "group": 3, "leader": dids[0],
+                                          "followers": dids[1:], "prior": prior, "incomplete": []}]
+    await _remember(house, dids[0], team=True)
+    real = devs[1].handle
+
+    async def _then_gone(method, path, body):
+        out = await real(method, path, body)
+        if method == "POST" and path == "json/cfg":
+            devs[1].offline = True
+            raise W.WledError("timeout", "No answer within 12 s")
+        return out
+    devs[1].handle = _then_gone
+    conn = _Conn()
+    await E.ws_wled_team_mode(house.hass, conn, {"id": 5, "team_id": "t1", "mode": "padspan"})
+    assert conn.errors and house.settings.data["wled_teams"][0]["mode"] == "mirror"
+    rec = house.store.get(devs[1].info["mac"])
+    assert rec["exact"] and rec["prior_sync"]["cfg"]["recv"]["grp"] == 3
+    assert not house.store.get(devs[0].info["mac"])["exact"]
+    devs[1].handle, devs[1].offline = real, False
+    conn = _Conn()
+    await E.ws_wled_exact_set(house.hass, conn, {"id": 6, "device_id": dids[1], "exact": False})
+    assert not conn.errors, conn.errors
+    assert json.dumps(devs[1].cfg["if"]["sync"], sort_keys=True) == json.dumps(team_sync, sort_keys=True)
+
+
+async def test_without_the_licence_a_padspan_team_is_still_switched_together(house):
+    """Review finding 6: the members' sync stays off after a lapse, so every
+    surface switches every member (plain HA calls) — Vacation Mode still
+    switching only the leader is then right."""
+    devs, dids, _ = await _padspan_team(house)
+    house.tier[0] = False
+    house.service_calls.clear()
+    assert E.is_exact_entity(house.hass, "light.m0_main") and E.is_exact_entity(house.hass, "light.m1")
+    out = await E.async_power(house.hass, "light.m1", True, 100, source="vacation")
+    assert out["handled"] is False
+    assert sorted(c[2]["entity_id"] for c in house.service_calls) == ["light.m0_main", "light.m1", "light.m2_main"]
+    assert all(c[:2] == ("light", "turn_on") for c in house.service_calls)
+    conn = _Conn()
+    await E.ws_wled_exact_list(house.hass, conn, {"id": 1})
+    assert sorted(d["device_id"] for d in conn.results[0]["devices"]) == sorted(dids)
+    assert all(d["team_id"] == "t1" for d in conn.results[0]["devices"])
+    # Negative control: a device PadSpan runs on its own is HA's own light again.
+    solo = simple_device(host="192.168.2.140", mac="aabbccddee40")
+    sdid = house.add("solo", solo)
+    house.tier[0] = True
+    await _remember(house, sdid)
+    await _to_padspan(house, sdid)
+    house.tier[0] = False
+    house.service_calls.clear()
+    assert not E.is_exact_entity(house.hass, "light.solo_main")
+    await E.async_power(house.hass, "light.solo_main", False)
+    assert house.service_calls == [("light", "turn_off", {"entity_id": "light.solo_main"})]
+    conn = _Conn()
+    await E.ws_wled_exact_list(house.hass, conn, {"id": 2})
+    assert sdid not in [d["device_id"] for d in conn.results[0]["devices"]]
+
+
+async def test_identify_is_not_undone_by_put_the_look_back(house):
+    """Review finding 7: Identify turns an OFF exact light on to blink a part;
+    HA's off→on must not be taken as an outside "on" while it runs."""
+    fired = []
+    sys.modules["homeassistant.helpers.event"].async_call_later = lambda h, d, job: (fired.append(job), lambda: None)[1]
+    dev = simple_device()
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    await E.async_power(house.hass, "light.valance_main", False)
+    await house.settle()
+    house.clock[0] += 30
+    conn = _Conn()
+    await W.ws_wled_identify(house.hass, conn, {"id": 9, "device_id": did, "seg_id": 1, "seconds": 10})
+    assert not conn.errors
+    blink = dev.serialize_state()
+    assert blink["on"] and blink["seg"][1]["col"][0] == [255, 255, 255, 0]
+    n = len(dev.posts())
+    await E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="off"),
+                            SimpleNamespace(state="on", attributes={"brightness": blink["bri"]}))
+    await house.settle()
+    assert len(dev.posts()) == n and dev.serialize_state()["seg"][1]["col"][0] == [255, 255, 255, 0]
+    await fired[-1]()                                   # the blink ends: the light is put back off
+    assert dev.serialize_state()["on"] is False
+
+
+async def test_a_member_of_a_wled_sync_team_is_never_switched_to_padspan_alone(house):
+    """Review finding 8: its switch would leave the team (or stop the leader
+    sending) with the team record unchanged — it goes through the team."""
+    lead, fol = simple_device("192.168.2.118", mac="aa0000000001"), simple_device("192.168.2.116", mac="aa0000000002")
+    dl, df = house.add("lead", lead), house.add("fol", fol)
+    _team(house, dl, [df])
+    for did, dev in ((df, fol), (dl, lead)):
+        await _remember(house, did)
+        conn = _Conn()
+        await E.ws_wled_exact_set(house.hass, conn, {"id": 3, "device_id": did, "exact": True})
+        assert conn.errors and conn.errors[0][0] == "in_team" and "WLED sync team" in conn.errors[0][1]
+        assert dev.posts("json/cfg") == [] and not house.store.get(dev.info["mac"])["exact"]
+
+
+async def test_one_segment_brightness_is_the_one_home_assistant_shows(house):
+    """Review finding 10: with one segment HA shows seg × master / 255 (light.py
+    2026.7.4). What the Atlas reads back must set the same light again."""
+    dev = simple_device(segs=1)
+    await dev.handle("POST", "json/state", {"bri": 200, "seg": [{"id": 0, "bri": 64}]})
+    did = house.add("porch", dev, segs=1, main=False)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    conn = _Conn()
+    await E.ws_wled_exact_list(house.hass, conn, {"id": 1})
+    d = conn.results[0]["devices"][0]
+    assert d["main"] is None and d["look_bri"] == round(200 * 64 / 255)       # 50, as HA shows it
+    await E.async_power(house.hass, "light.porch", True, 50)
+    await house.settle()
+    assert dev.serialize_state()["bri"] == round(50 * 255 / 64)               # 199, not 50
+    await E.async_power(house.hass, "light.porch", True, 200)                 # past the part's own 64: the most it has
+    await house.settle()
+    assert dev.serialize_state()["bri"] == 255
