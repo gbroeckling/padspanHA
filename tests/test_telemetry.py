@@ -363,6 +363,66 @@ def test_one_report_per_day_and_the_windows_close_only_on_acceptance(monkeypatch
     assert h.data[DOMAIN][DATA_SETTINGS].data["telemetry_last_day"] == T._today()
 
 
+def test_what_is_counted_while_a_report_is_in_flight_goes_with_the_next(monkeypatch):
+    """Review: send_now took the windows only once the POST came back (up to
+    15 s later) and threw away whatever had been counted meanwhile — a Find
+    My link, a log line, a key resolving went with neither report. A send
+    that fails still keeps everything for the next."""
+    import sys
+    import types
+    from custom_components.padspan_ha import private_ble_resolver as pbr
+    from custom_components.padspan_ha import ws_common
+    h = _hass()
+    T.bump(h, "findmy_linked", 5)
+    handler = ws_common._RingLogHandler()
+    handler.counts = {"WARNING:telemetry": 2}
+    monkeypatch.setattr(ws_common, "_log_handler", handler)
+    r = pbr.PrivateBLEResolver(h)
+    r._resolved_ids_window = {"irk:before"}
+    pbr._resolvers[id(h)] = r
+    sent = {}
+
+    class _Resp:
+        def __init__(self, status):
+            self.status = status
+
+        async def __aenter__(self):          # the POST in flight: the house carries on
+            T.bump(h, "findmy_linked")
+            T.bump(h, "findmy_missed_ambiguous")
+            handler.counts["ERROR:findmy"] = handler.counts.get("ERROR:findmy", 0) + 1
+            r._resolved_ids_window.add("irk:during")
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+    class _Session:
+        def __init__(self, status):
+            self._s = status
+
+        def post(self, url, data=None, **k):
+            sent["body"] = json.loads(data)
+            return _Resp(self._s)
+
+    fake = types.ModuleType("homeassistant.helpers.aiohttp_client")
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.aiohttp_client", fake)
+    try:
+        fake.async_get_clientsession = lambda hass: _Session(500)
+        assert _run(T.send_now(h, force=True))["sent"] is False
+        assert h.data[DOMAIN][T._DATA_COUNTERS] == {"findmy_linked": 6, "findmy_missed_ambiguous": 1}
+        assert handler.counts == {"WARNING:telemetry": 2, "ERROR:findmy": 1}
+        assert r._resolved_ids_window == {"irk:before", "irk:during"}
+        fake.async_get_clientsession = lambda hass: _Session(200)
+        assert _run(T.send_now(h, force=True))["sent"] is True
+        assert sent["body"]["usage"] == {"findmy_linked": 6, "findmy_missed_ambiguous": 1}
+        assert sent["body"]["errors"] == {"WARNING:telemetry": 2, "ERROR:findmy": 1}
+        assert h.data[DOMAIN][T._DATA_COUNTERS] == {"findmy_linked": 1, "findmy_missed_ambiguous": 1}
+        assert handler.counts == {"ERROR:findmy": 1}
+        assert r._resolved_ids_window == {"irk:during"}
+    finally:
+        pbr._resolvers.pop(id(h), None)
+
+
 def test_every_event_name_has_a_real_call_site():
     """The vocabulary must not carry dead names: a name nothing ever bumps
     would sit in the docs as something measured and never be. Each EVENTS
@@ -584,6 +644,22 @@ def test_default_is_off_and_the_wire_is_registered():
     assert "telemetry_enabled" in panel, "the panel must not send events unless opted in"
     readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
     assert "Help improve PadSpan" in readme, "the opt-in report must be disclosed in the README"
+
+
+def test_the_readme_lists_everything_a_report_carries():
+    """Review: the README calls its list of what is sent complete, but it had
+    no `presets` (up to ten saved Showcase presets' values) and no
+    `lights_automorph_style`; and it put a report at ~2 KB (so did this
+    module's docstring) when real ones run 2-5 KB."""
+    from pathlib import Path
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+    for text in (readme, T.__doc__):
+        assert "2 KB" not in text
+    if "the complete list:" not in readme:
+        pytest.skip("this README only summarises the report (the Bright derivation's)")
+    listed = readme[readme.index("the complete list:"):readme.index("**Never**")]
+    for key in sorted(T._TOP_KEYS) + list(T._FEATURE_ENUMS):
+        assert f"`{key}`" in listed, key
 
 
 # ── is the building described at all ─────────────────────────────────────────
@@ -927,10 +1003,17 @@ def test_a_full_day_fits_by_sending_fewer_presets_not_by_refusing(monkeypatch):
 def test_the_summary_reads_find_my_with_and_without_the_new_fields(tmp_path):
     """server/telemetry_summary.py on reports from before these fields and
     after: no crash; "elsewhere" and "no candidate" are shown but kept out of
-    the follow rate, and links later undone are taken back out of it; a day
-    key return is its own line. Review: two reports from one install on one
-    day ("Send a report now") each carry their own counters — keeping only
-    the last lost the first's."""
+    the follow rate, and links later undone are taken out of it altogether —
+    a wrong link, caught, is not a hand-over that was due (review: it counted
+    as one the matcher failed, so noticing a wrong link lowered the rate,
+    and the same link unnoticed raised it); their share is its own line. A
+    day key return is its own line. Two reports from one install on one day
+    ("Send a report now") each carry their own counters — keeping only the
+    last lost the first's — and an install that used something in either is
+    an install that used it (review: the column read only the last report).
+    Bridging is counted among the installs that can report Find My at all
+    (review: seven installs on 0.38.22-0.38.29 read as "bridging on, follows
+    nothing")."""
     import os
     import subprocess
     import sys
@@ -953,7 +1036,7 @@ def test_the_summary_reads_find_my_with_and_without_the_new_fields(tmp_path):
                      "findmy_missed_late": 1, "findmy_missed_elsewhere": 4, "findmy_missed_no_candidate": 5,
                      "findmy_moved_back": 1, "findmy_moved_back_addrs": 2, "findmy_back_on_day_key": 3,
                      "findmy_not_this_tag": 1},
-           "errors": {"snapshot_builder": 2}}
+           "errors": {"snapshot_builder": 2, "telemetry": 1}}
     quiet = {"install_id": "33333333-3333-4333-8333-333333333333", "version": "0.38.81",
              "env": {"scanners": 1, "findmy": {}}, "features": {"mac_rotation_bridging": False}}
     # The same install again that day, after "Send a report now".
@@ -974,10 +1057,13 @@ def test_the_summary_reads_find_my_with_and_without_the_new_fields(tmp_path):
         out = run(*reports)
         return out[out.index("Find My (AirTag) tools"):].split("\n\n")[0]
 
-    s = section(old)
-    assert re.search(r"installs with bridging on\s+0\s+/ 1", s) and re.search(r"follow rate\s+n/a", s), s
+    s = section({**old, "features": {"mac_rotation_bridging": True}})
+    assert re.search(r"installs with bridging on\s+0\s+/ 0 that report Find My", s), s
+    assert re.search(r"installs from before Find My reports\s+1\s+\(1 with bridging on\)", s), s
+    assert re.search(r"follow rate\s+n/a", s), s
     s = section(old, new, quiet)
-    assert re.search(r"installs with bridging on\s+1\s+/ 3", s), s
+    assert re.search(r"installs with bridging on\s+1\s+/ 2 that report Find My", s), s
+    assert re.search(r"installs from before Find My reports\s+1\s+\(0 with bridging on\)", s), s
     assert re.search(r"installs with Find My on the air\s+1\s+/ 2 that report it", s), s
     assert "airtag 3 (2 away from owner)" in s and "apple 2 (0 away from owner)" in s, s
     assert "1 on the air, 1 carried" in s, s
@@ -988,10 +1074,13 @@ def test_the_summary_reads_find_my_with_and_without_the_new_fields(tmp_path):
     assert re.search(r"undone by themselves\s+1\s+\(2 links\)", s), s
     assert re.search(r"undone by a person\s+1\b", s), s
     assert re.search(r"back on the day key \(expected\)\s+3\b", s), s
-    assert re.search(r"follow rate\s+50%", s), "(8 - 2 - 1) / (8 + 1 + 1)\n" + s
+    assert re.search(r"follow rate\s+71%", s), "(8 - 3) / (8 - 3 + 1 + 1)\n" + s
+    assert re.search(r"wrong links \(undone\) per link\s+37%", s), "3 / 8\n" + s
     out = run(old, new, again)
     s = out[out.index("Find My (AirTag) tools"):].split("\n\n")[0]
     assert re.search(r"hand-overs followed \(links\)\s+10\b", s), s
-    assert re.search(r"follow rate\s+58%", s), "(10 - 3) / (10 + 1 + 1): both reports of the day count\n" + s
+    assert re.search(r"follow rate\s+77%", s), "(10 - 3) / (10 - 3 + 1 + 1): both reports of the day count\n" + s
     assert re.search(r"snapshot_builder\s+7\s+1 installs", out), out
+    assert re.search(r"telemetry\s+1\s+1 installs", out), "an error only the day's first report carried\n" + out
+    assert re.search(r"findmy_missed_ambiguous\s+1\s+1 installs", out), "used only in the day's first report\n" + out
     assert "2 installs, 2 install-days" in out, out

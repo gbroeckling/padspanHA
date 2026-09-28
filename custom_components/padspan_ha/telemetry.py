@@ -47,9 +47,9 @@ the same card replaces it. It is the only thing that persists across
 reports, and it means nothing outside this file.
 
 Endpoint: TELEMETRY_URL. At most one POST per UTC day (the last sent day is
-persisted, so restarts do not repeat it), about 2 KB, hard cap 8 KB. Failure
-is silent and non-fatal; nothing is retried, nothing is queued; the counters
-survive a failed send and go with the next one.
+persisted, so restarts do not repeat it), about 2-5 KB, hard cap 8 KB.
+Failure is silent and non-fatal; nothing is retried, nothing is queued; the
+counters survive a failed send and go with the next one.
 """
 
 from __future__ import annotations
@@ -161,17 +161,22 @@ EVENTS: frozenset[str] = frozenset({
     #                         (findmy.MISS_REASONS):
     #     _ambiguous          a candidate fitted, but another pairing was too
     #                         close to call (MARGIN_DB): refused, not guessed;
-    #     _late               a new address where the tag was, a little after
-    #                         the timing rule allows (APPEAR_AFTER_S) — what a
-    #                         real hand-over reported late looks like;
+    #     _late               a new address where the tag was, after the timing
+    #                         rule allows (APPEAR_AFTER_S) but no later than a
+    #                         real hand-over can be first heard on that
+    #                         install (its reseed + poll gap) — a real one the
+    #                         timing rule turned down. None at the defaults;
     #     _elsewhere          a new address at the hand-over moment, but not
     #                         where the tag was: another device's own change,
     #                         or the tag carried off as it changed;
     #     _no_candidate       neither: the tag most likely LEFT RANGE.
     #                         The last two are not matcher failures, and never
     #                         to be read as ones — the follow rate is (linked
-    #                         − undone) / (linked + ambiguous + late), they
-    #                         beside it.
+    #                         − undone) / (linked − undone + ambiguous +
+    #                         late), they beside it: a wrong link undone was
+    #                         no hand-over due, and undone / linked is its own
+    #                         number. A window the bridge did not watch whole
+    #                         (a restart, bridging off) is never counted.
     #   findmy_moved_back     a wrong link undone by itself (the tag heard on
     #                         an earlier address again); `_addrs`: how many
     #                         links those undid.
@@ -300,6 +305,51 @@ def _take_counters(hass: HomeAssistant) -> dict[str, int]:
     out = dict(dom.get(_DATA_COUNTERS) or {})
     dom[_DATA_COUNTERS] = {}
     return out
+
+
+def _take_windows(hass: HomeAssistant) -> tuple[dict[str, int], dict[str, int], set[str]]:
+    """The usage counters, WARNING+ log counts and keys that resolved since
+    the last report — and reset them."""
+    usage = _take_counters(hass)
+    errors: dict[str, int] = {}
+    ids: set[str] = set()
+    try:
+        from .ws_common import _log_handler  # noqa: PLC0415
+        if _log_handler is not None:
+            errors = _log_handler.take_counts()
+    except Exception:
+        pass
+    try:
+        from .private_ble_resolver import _resolvers  # noqa: PLC0415
+        _r = _resolvers.get(id(hass))
+        if _r is not None:
+            ids = _r.take_resolved_ids()
+    except Exception:
+        pass
+    return usage, errors, ids
+
+
+def _give_back_windows(hass: HomeAssistant, taken: tuple[dict[str, int], dict[str, int], set[str]]) -> None:
+    """A send that failed: what it took goes with the next report, on top of
+    whatever was counted meanwhile."""
+    usage, errors, ids = taken
+    counters = hass.data.setdefault(DOMAIN, {}).setdefault(_DATA_COUNTERS, {})
+    for k, v in usage.items():
+        counters[k] = int(counters.get(k, 0)) + int(v)
+    try:
+        from .ws_common import _log_handler  # noqa: PLC0415
+        if _log_handler is not None:
+            for k, v in errors.items():
+                _log_handler.counts[k] = _log_handler.counts.get(k, 0) + v
+    except Exception:
+        pass
+    try:
+        from .private_ble_resolver import _resolvers  # noqa: PLC0415
+        _r = _resolvers.get(id(hass))
+        if _r is not None:
+            _r._resolved_ids_window |= ids
+    except Exception:
+        pass
 
 
 # ── the report ───────────────────────────────────────────────────────────────
@@ -894,9 +944,12 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
     At most one report per UTC day: the day of the last successful send is
     persisted (`telemetry_last_day`), so a restart or reload does not send
     again — the scheduler fires 10 minutes after every start. `force` is the
-    "Send a report now" button. Counters are consumed only after the report
-    passed the gate and the POST was accepted, so a refused or failed send
-    keeps the day's counts for the next attempt.
+    "Send a report now" button. The windows (counters, log counts, resolved
+    keys) are taken once the report has passed the gate, before the POST is
+    awaited — what is counted while it is in flight belongs to the next
+    report (review, 2026-09-27: taken after the await, it went with neither)
+    — and a failed send gives them back, so a refused or failed send keeps
+    the day's counts for the next attempt.
     """
     if not enabled(hass):
         return {"sent": False, "reason": "disabled", "bytes": 0}
@@ -912,6 +965,8 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
         _LOGGER.error("Telemetry report refused before sending: %s", err)
         return {"sent": False, "reason": f"refused: {err}", "bytes": 0}
     body = json.dumps(payload).encode()
+    # Nothing awaited since build_payload: these are what the report holds.
+    taken = _take_windows(hass)
     try:
         from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
         session = async_get_clientsession(hass)
@@ -920,25 +975,12 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
             ok = 200 <= resp.status < 300
             if not ok:
                 _LOGGER.debug("Telemetry HTTP %s", resp.status)
+                _give_back_windows(hass, taken)
                 return {"sent": False, "reason": f"http {resp.status}", "bytes": len(body)}
     except Exception as err:  # network errors are expected and non-fatal
         _LOGGER.debug("Telemetry send failed: %s", err)
+        _give_back_windows(hass, taken)
         return {"sent": False, "reason": "network", "bytes": len(body)}
-    # Accepted: now the window closes.
-    _take_counters(hass)
-    try:
-        from .private_ble_resolver import _resolvers  # noqa: PLC0415
-        _r = _resolvers.get(id(hass))
-        if _r is not None:
-            _r.take_resolved_ids()
-    except Exception:
-        pass
-    try:
-        from .ws_common import _log_handler  # noqa: PLC0415
-        if _log_handler is not None:
-            _log_handler.take_counts()
-    except Exception:
-        pass
     if st:
         try:
             await st.async_set(telemetry_last_day=_today())

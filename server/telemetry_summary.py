@@ -15,7 +15,8 @@ The environment, switches and health are each install's last report (one
 row per install per day, the last of the day winning). Usage and WARNING/ERROR
 counts are summed over EVERY report: each accepted send takes the counters
 with it, so a second send the same day ("Send a report now") carries only what
-came after the first, and keeping one of the two lost the other's counts.
+came after the first, and keeping one of the two lost the other's counts. The
+installs beside them are the installs whose reports carried them, any report.
 """
 from __future__ import annotations
 
@@ -115,45 +116,52 @@ def main() -> int:
     print()
 
     usage: Counter = Counter()
-    usage_installs: Counter = Counter()
+    usage_installs: dict[str, set] = defaultdict(set)
     for r in reports:
         for k, v in (r.get("usage") or {}).items():
             usage[k] += int(v or 0)
-    for r in latest.values():
-        for k in (r.get("usage") or {}):
-            usage_installs[k] += 1
+            usage_installs[k].add(r.get("install_id"))
     print("Usage (events over the window; installs that used it at all)")
     for k, v in usage.most_common(60):
-        print(f"  {k:<36} {v:>7}  {usage_installs[k]:>4} installs")
+        print(f"  {k:<36} {v:>7}  {len(usage_installs[k]):>4} installs")
     print()
 
     # Apple Find My tags (findmy.py): is following them on, would it matter,
-    # and how well does it follow. The rate counts only the windows the
-    # matcher had a real chance at — a link, one too close to call, one
-    # reported late where the tag was — and takes back the links later
-    # undone (a tag back on its day key undoes none). "Elsewhere" (another
-    # device's change at that moment, or the tag carried off as it changed)
-    # and "no candidate" (left range) are shown beside it. A report leaves
-    # zeros out; with no `findmy` at all it is from before 0.38.81.
+    # and how well does it follow. The rate counts only the hand-overs the
+    # matcher had a real chance at — a right link, one too close to call,
+    # one turned down by the timing rule where the tag was — so a link later
+    # undone is taken out altogether (a wrong link, caught, was no hand-over
+    # due; a tag back on its day key undoes none), and the share of links
+    # undone is its own line. "Elsewhere" (another device's change at that
+    # moment, or the tag carried off as it changed) and "no candidate" (left
+    # range) are shown beside it. A report leaves zeros out; with no
+    # `findmy` at all it is from before 0.38.81 — kept out of every line but
+    # its own, so "none" and "0" are read against installs that could say.
     fm: dict[str, Counter] = defaultdict(Counter)
-    fm_live = fm_carried = fm_reporting = on_air = 0
+    fm_live = fm_carried = fm_reporting = on_air = bridging = 0
+    older = older_bridging = 0
     for r in latest.values():
         v = (r.get("env") or {}).get("findmy")
+        on = (r.get("features") or {}).get("mac_rotation_bridging") is True
         if not isinstance(v, dict):
+            older += 1
+            older_bridging += int(on)
             continue
         fm_reporting += 1
+        bridging += int(on)
         for part in ("on_air", "separated", "tracked"):
             for k, c in (v.get(part) or {}).items():
                 fm[part][k] += int(c or 0)
         fm_live += int(v.get("tracked_live") or 0)
         fm_carried += int(v.get("tracked_carried") or 0)
         on_air += 1 if any(int(c or 0) for c in (v.get("on_air") or {}).values()) else 0
-    bridging = sum(1 for r in latest.values() if (r.get("features") or {}).get("mac_rotation_bridging") is True)
     links, amb, late = usage["findmy_linked"], usage["findmy_missed_ambiguous"], usage["findmy_missed_late"]
     undone = usage["findmy_moved_back_addrs"] + usage["findmy_not_this_tag"]
-    tried = links + amb + late
+    right = max(0, links - undone)
+    tried = right + amb + late
     print("Find My (AirTag) tools")
-    print(f"  {'installs with bridging on':<36} {bridging:>7}  / {n}")
+    print(f"  {'installs with bridging on':<36} {bridging:>7}  / {fm_reporting} that report Find My")
+    print(f"  {'installs from before Find My reports':<36} {older:>7}  ({older_bridging} with bridging on)")
     print(f"  {'installs with Find My on the air':<36} {on_air:>7}  / {fm_reporting} that report it")
     print("  addresses on the air now: " + (", ".join(f"{k} {v} ({fm['separated'][k]} away from owner)"
                                                     for k, v in sorted(fm["on_air"].items()) if v) or "-"))
@@ -168,8 +176,10 @@ def main() -> int:
           f"  ({usage['findmy_moved_back_addrs']} links)")
     print(f"  {'wrong links undone by a person':<36} {usage['findmy_not_this_tag']:>7}")
     print(f"  {'back on the day key (expected)':<36} {usage['findmy_back_on_day_key']:>7}")
-    rate = f"{100 * max(0, links - undone) // tried}%" if tried else "n/a"
-    print(f"  {'follow rate':<36} {rate:>7}  (links - undone) / (links + ambiguous + late)")
+    rate = f"{100 * right // tried}%" if tried else "n/a"
+    print(f"  {'follow rate':<36} {rate:>7}  (links - undone) / (links - undone + ambiguous + late)")
+    wrong = f"{100 * undone // links}%" if links else "n/a"
+    print(f"  {'wrong links (undone) per link':<36} {wrong:>7}  undone / links")
     print()
 
     h: dict[str, int] = defaultdict(int)
@@ -185,16 +195,14 @@ def main() -> int:
     print()
 
     err: Counter = Counter()
-    err_installs: Counter = Counter()
+    err_installs: dict[str, set] = defaultdict(set)
     for r in reports:
         for k, v in (r.get("errors") or {}).items():
             err[k] += int(v or 0)
-    for r in latest.values():
-        for k in (r.get("errors") or {}):
-            err_installs[k] += 1
+            err_installs[k].add(r.get("install_id"))
     print("WARNING/ERROR by module (lines over the window; installs affected) — the fix list")
-    for k, v in sorted(err.items(), key=lambda kv: (-err_installs[kv[0]], -kv[1])):
-        print(f"  {k:<40} {v:>7}  {err_installs[k]:>4} installs")
+    for k, v in sorted(err.items(), key=lambda kv: (-len(err_installs[kv[0]]), -kv[1])):
+        print(f"  {k:<40} {v:>7}  {len(err_installs[k]):>4} installs")
     return 0
 
 

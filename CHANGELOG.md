@@ -4,6 +4,19 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.82 — The opt-in report's AirTag numbers say what they mean (2026-09-27)
+
+### Help improve PadSpan (opt-in report)
+- **Fixed:** an AirTag away from its owner could be reported as near it, because one scanner's reading from hours ago won over every fresh one. It now counts as away when any scanner heard it say so in the last minute or so. Because of the same mistake, a tag going back to its day key was counted as a wrong link; it is counted as expected again.
+- **Fixed:** a wrong link onto another tag that is still nearby was counted as a tag back on its day key. It now counts as a wrong link.
+- **Fixed:** an address change PadSpan only saw part of (Home Assistant restarting right after it, or MAC Rotation Bridging switched off during it) was counted as "left range" or "came late". It is no longer counted at all.
+- **Fixed:** "came a little late" counted other tags arriving where yours had just been. It now counts only what a real change could look like with your scanner settings. At the defaults, no real change comes that late, so nothing is counted there.
+- **Fixed:** a tag leaving range just as a nearby tag changed address was counted as "too close to call".
+- **Fixed:** anything counted while a report was being sent (up to 15 seconds) was lost. It now goes with the next report.
+- **Changed:** the README's list of what the report carries now includes your saved Showcase preset values and the Automorph style, and gives the real size: a few KB.
+
+---
+
 ## 0.38.81 — Guided Calibration never shows demo radios, HA 2027 ready, and the opt-in report learns how well AirTags are followed (2026-09-27)
 
 ### Help improve PadSpan (opt-in report)
