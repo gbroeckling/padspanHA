@@ -323,6 +323,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("overview_iso_focus"): vol.Any(int, None),
         vol.Optional("overview_iso_zoom"): vol.Coerce(float),
         vol.Optional("lights_hidden"): list,
+        vol.Optional("emergency_entities"): list,             # emergency_test.py — [] = find them
         vol.Optional("lights_showcase"): bool,
         vol.Optional("lights_hide_untouched"): bool,
         vol.Optional("lights_hide_device_codes"): bool,
@@ -578,6 +579,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "lights_hidden" in msg:
             ids = msg["lights_hidden"]
             payload["lights_hidden"] = [str(x) for x in ids if isinstance(x, str)] if isinstance(ids, list) else []
+        if "emergency_entities" in msg:
+            ids = msg["emergency_entities"]
+            payload["emergency_entities"] = list(dict.fromkeys(
+                x.strip() for x in ids if isinstance(x, str)
+                and x.strip().startswith(("light.", "switch.")))) if isinstance(ids, list) else []
         if "ble_max_age_s" in msg:
             payload["ble_max_age_s"] = max(30, min(14400, int(msg["ble_max_age_s"])))
         # ── Radio map / heatmap visualization controls (v0.15.x) ──────────

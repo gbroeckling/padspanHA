@@ -192,6 +192,9 @@ EVENTS: frozenset[str] = frozenset({
     "findmy_linked", "findmy_linked_slow",
     "findmy_missed_ambiguous", "findmy_missed_late", "findmy_missed_elsewhere", "findmy_missed_no_candidate",
     "findmy_moved_back", "findmy_moved_back_addrs", "findmy_back_on_day_key", "findmy_not_this_tag",
+    # The Atlas emergency lighting test (emergency_test.py): a test started,
+    # ended (the lights already on left on), or ended with Force off.
+    "emergency_test_on", "emergency_test_off", "emergency_force_off",
 })
 # The panel's views (panel.js _VIEW_PATHS — tests/test_telemetry.py asserts
 # equality) and the sub-tabs of the two views that have them.

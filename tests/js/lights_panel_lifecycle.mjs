@@ -300,5 +300,69 @@ if (Cls) {
   } catch (e) { fail("HA restart", "lifecycle", e); }
 }
 
-console.log(JSON.stringify({ scenarios, failures, blip, restart }));
+// The "Test emergency lighting" button (emergency_test.py): hidden without
+// lights, floats right after the stage, toggles through the backend, and
+// Force off shows only while a test runs.
+const emergency = { hiddenWithout: null, afterStage: null, idleForce: null, sent: [], activeForce: null,
+  activeLabel: null, endedForce: null };
+if (Cls) {
+  try {
+    const members = [{ entity_id: "light.a", name: "Closet", state: "off" },
+                     { entity_id: "switch.b", name: "PoE 7", state: "on" }];
+    let test = { active: false, started_at: null, kept_on: [] };
+    let available = false;
+    const hass = makeHass({ settings: BASE });
+    const real = hass.callWS;
+    hass.callWS = async (m) => {
+      if (m.type === "padspan_ha/emergency_status") return { available, source: "group", groups: [], members, test };
+      if (m.type === "padspan_ha/emergency_member") {
+        emergency.sent.push(`member:${m.entity_id}:${m.on}`);
+        test = { ...test, manual: [m.entity_id] };
+        return { available, source: "group", groups: [], members, test, results: [{ entity_id: m.entity_id, ok: true }] };
+      }
+      if (m.type === "padspan_ha/emergency_test" || m.type === "padspan_ha/emergency_force_off") {
+        emergency.sent.push(m.type === "padspan_ha/emergency_test" ? `test:${m.on}` : "force_off");
+        test = m.on ? { active: true, started_at: 1, kept_on: ["switch.b"], manual: [] }
+                    : { active: false, started_at: null, kept_on: [], manual: [] };
+        return { available, source: "group", groups: [], members, test,
+                 results: [{ entity_id: "light.a", ok: true }, { entity_id: "switch.b", ok: false, skipped: "unavailable" }] };
+      }
+      return real(m);
+    };
+    const el = new Cls();
+    el.connectedCallback();
+    el.hass = hass;
+    await el._boot(); await flush(); await flush();
+    const find = (cls) => el.shadowRoot.querySelector("#content")._all().filter(n => (n.className || "").split(" ").includes(cls));
+    emergency.hiddenWithout = find("lv-emerg-btn").length === 0;
+    available = true;
+    await el._loadEmergency(); el._render();
+    const anchor = find("lv-emerg-anchor")[0];
+    const stage = find("lv-stage")[0];
+    emergency.afterStage = !!(anchor && stage && stage.nextSibling === anchor);
+    emergency.idleForce = find("lv-emerg-force").length;
+    find("lv-emerg-btn")[0].click();
+    await flush(); await flush();
+    emergency.activeForce = find("lv-emerg-force").length;
+    emergency.activeLabel = find("lv-emerg-label")[0]?.textContent || null;
+    // The ring: the card of every emergency light, a switch each.
+    find("lv-emerg-ring")[0].click();
+    await flush();
+    const cardText = () => (el._emergCard ? document.body._all().map(n => n._text || "").join("|") : "");
+    emergency.cardOpen = !!el._emergCard;
+    emergency.cardNames = ["Closet", "PoE 7"].every(n => cardText().includes(n));
+    emergency.cardTag = cardText().includes("was on");
+    const turn = document.body._all().find(n => n.localName === "button" && n.textContent === "Turn on");
+    if (turn) turn.click();
+    await flush(); await flush();
+    el._render();                                   // a poll refills the open card; it must not throw
+    emergency.cardStillOpen = !!el._emergCard;
+    find("lv-emerg-force")[0].click();
+    await flush(); await flush();
+    emergency.endedForce = find("lv-emerg-force").length;
+    el.disconnectedCallback();
+  } catch (e) { fail("emergency test button", "lifecycle", e); }
+}
+
+console.log(JSON.stringify({ scenarios, failures, blip, restart, emergency }));
 process.exit(failures.length ? 1 : 0);

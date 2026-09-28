@@ -1180,6 +1180,50 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-drawer.open{max-height:220px;overflow-y:auto;border-bottom:1px solid rgba(120,190,155,.16)}
 .lv-drawer .lv-toolbar,.lv-drawer .lv-presetbar{margin:0;border:none;background:none;border-radius:0}
 
+/* ── Emergency lighting test (the Atlas sidebar; lights_panel.js) ─────────
+   Garry, 2026-09-28: "out of the way, takes up no new real estate, and looks
+   like an emergency type button". Floats over the map's bottom-right corner
+   from a zero-height anchor after the stage (no row, nothing moves), clear
+   of the stage's scrollbars and under the drawers. A red round centre
+   (start/end the test) inside a ring that is its own button (the card of
+   every emergency light — Garry: "a breakout button as a ring around the
+   emergency button"), a list notch on the ring so the two never read as one.
+   The label opens on hover and stays while a test runs, the ring pulsing,
+   Force off beside it. Laid out right to left: dial, label, Force off. */
+.lv-emerg-anchor{position:relative;height:0}
+.lv-emerg{position:absolute;right:14px;bottom:14px;z-index:3;display:flex;flex-direction:row-reverse;
+  align-items:center;gap:6px;pointer-events:none}
+.lv-emerg button{pointer-events:auto}
+.lv-emerg-dial{position:relative;width:64px;height:64px;flex:none}
+.lv-emerg-ring{all:unset;box-sizing:border-box;position:absolute;inset:0;border-radius:50%;cursor:pointer;
+  background:repeating-conic-gradient(rgba(254,202,202,.16) 0 12deg,rgba(40,8,8,.94) 12deg 30deg);
+  border:2px solid rgba(254,202,202,.6);box-shadow:0 4px 14px rgba(0,0,0,.5)}
+.lv-emerg-ring:hover{border-color:#fff}
+.lv-emerg-notch{position:absolute;left:-3px;top:-3px;width:20px;height:20px;border-radius:50%;box-sizing:border-box;
+  display:flex;align-items:center;justify-content:center;color:#fff;background:#140b0b;border:2px solid rgba(254,202,202,.8)}
+.lv-emerg-btn{all:unset;box-sizing:border-box;position:absolute;inset:12px;border-radius:50%;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;color:#fff;
+  background:radial-gradient(circle at 40% 35%,#ef4444,#b91c1c 60%,#7f1d1d);border:2px solid #fecaca;
+  box-shadow:0 0 0 2px rgba(127,29,29,.7)}
+.lv-emerg-btn:hover{filter:brightness(1.15)}
+.lv-emerg-icon{display:inline-flex}
+.lv-emerg-label{all:unset;box-sizing:border-box;height:32px;display:inline-flex;align-items:center;white-space:nowrap;
+  max-width:0;padding:0;opacity:0;overflow:hidden;pointer-events:none !important;border-radius:999px;
+  font-size:12px;font-weight:700;color:#fff;background:rgba(127,29,29,.95);border:1px solid #dc2626;
+  box-shadow:0 4px 14px rgba(0,0,0,.5);transition:max-width .18s ease,opacity .18s ease,padding .18s ease}
+.lv-emerg-dial:hover + .lv-emerg-label,.lv-emerg-label.on{max-width:220px;padding:0 12px;opacity:1}
+.lv-emerg-label.on{pointer-events:auto !important;cursor:pointer}
+.lv-emerg-dial.on .lv-emerg-ring{animation:lv-emerg-pulse 1.6s ease-in-out infinite;border-color:#fecaca}
+@keyframes lv-emerg-pulse{
+  0%,100%{box-shadow:0 0 0 2px rgba(127,29,29,.6),0 0 10px rgba(239,68,68,.5)}
+  50%{box-shadow:0 0 0 2px rgba(127,29,29,.6),0 0 28px 8px rgba(239,68,68,.85)}}
+@media (prefers-reduced-motion:reduce){
+  .lv-emerg-dial.on .lv-emerg-ring{animation:none;box-shadow:0 0 0 2px rgba(127,29,29,.6),0 0 22px 4px rgba(239,68,68,.8)}}
+.lv-emerg-force{all:unset;box-sizing:border-box;height:32px;padding:0 12px;border-radius:999px;cursor:pointer;
+  font-size:11.5px;font-weight:700;color:#fecaca;background:rgba(40,8,8,.92);border:1px solid #dc2626;
+  box-shadow:0 4px 14px rgba(0,0,0,.5)}
+.lv-emerg-force:hover{background:rgba(127,29,29,.95);color:#fff}
+
 /* The builder's own columns (Garry, 2026-09-21: "get it done" — the rest of
    the layout plan). Below "wide" this is just a column of stacked cards,
    identical to the classic layout it replaces (.lv-atlascols only exists at
