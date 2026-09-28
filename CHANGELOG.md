@@ -4,6 +4,49 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.85 — Stable: WLED exact look, a 90-day trial where you need it, emergency lighting test (2026-09-28)
+
+This stable release brings the 0.38.83 and 0.38.84 pre-releases (WLED lights that look the same every time) to everyone, with everything below.
+
+### Before and after you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+- **The Atlas is now on for everyone.** It shows in the sidebar after the update restart. If you don't want it, turn it off in Settings; it stays off after that.
+- **The free trial is 90 days, no card**, and you can now start it right where a paid feature stops you.
+
+### Live data
+- **Fixed:** on a house with many Bluetooth devices, the panel's live data could stop answering altogether, so the map and the top bar stayed empty. Every 5-second update rewrote PadSpan's whole "last seen in" file once for every device that had left, one after another. It now writes only when a device actually leaves a room, and saves are batched.
+- **Fixed:** "last seen in the Kitchen" now shows when the device was last heard there. A device that left the same room again later shows the later time.
+
+### Atlas — Test emergency lighting
+- **Added:** a round red button in the Atlas's bottom-right corner, **Test emergency lighting**. It appears only when PadSpan finds emergency lights: any Home Assistant group with "emergency" in its name (every such group, nested groups included), or else PoE ports 7 and 8 on a Pakedge switch plus WLED lights named "emergency". It takes no space of its own.
+  - **Start:** every emergency light turns on. Lights that were already on are marked, and they stay on when the test ends.
+  - **End:** only the lights the test turned on go off.
+  - **Force off** appears beside the button during a test and turns every emergency light off.
+  - **The ring** around the button opens a card of every emergency light, with its state and its own on/off. A light you switch there during a test is left the way you set it.
+  - **A real emergency wins:** if a Home Assistant automation with "emergency" in its name runs during a test (for example a power-failure automation), ending the test switches nothing off, and says so.
+  - Home Assistant's own emergency automations are never changed.
+
+### Atlas — WLED exact look (from 0.38.83 and 0.38.84)
+- A WLED light's **Advanced → Sync & team** has **Who gives this light its instructions**: WLED sync or PadSpan (exact look). With PadSpan, the light comes on with its remembered look every time, after a power cut too. See the 0.38.83 notes below for everything it does.
+- **Fixed:** a command you give (Atlas, room, card, preset, service) is never undone by an older change Home Assistant reports a moment later, and a team is never split by one. Found in the first live test on a real valance.
+- **Fixed:** on Home Assistant 2026.10, `padspan_ha.wled_on` / `wled_off` aimed at an area or device still reach every light in it.
+
+### Trial and buying
+- **Added:** a **90-day free trial, no card** card wherever a paid feature stops you: the Atlas, Mapping → Atlas, Locate, Busy Times and Settings → PadSpan licence. Enter an email and it starts; someone who isn't a Home Assistant administrator is told an administrator has to start it.
+- **Added:** until October 31, 2026, **PadSpan Pro for life** is $89 CAD, once, on padspan.traks.ca. A lifetime key shows as "lifetime".
+- **Fixed:** a trial key that is bought, or upgraded to lifetime on the same key, no longer reads as a trial.
+
+### Overview — Getting started
+- **Changed:** the setup card is now **Getting started**, with a step **See someone on the map**. It shows on houses that haven't finished building their map, and goes away by itself once they have, whoever is home.
+- **Fixed:** **Skip setup** and finishing setup are remembered now. They weren't saved before, so the card could come back.
+
+### Help improve PadSpan (opt-in report)
+- **Added:** **Become a tester**, beside the report in Settings → Presence → Help improve PadSpan. It is separate from the anonymous report: its own consent, its own send button, and nothing from it ever goes in the report. You can withdraw any time.
+- **Changed:** panel errors are counted only when PadSpan's own code threw, and by the part of PadSpan that threw. Before, any error on the page was counted, including Home Assistant's own and other cards', and credited to whichever tab was open.
+- **Added:** counts of where the trial offer was seen and started, and of the emergency test. Never an email.
+
+---
+
 ## 0.38.84 — WLED exact look: a change you make always stands (2026-09-27)
 
 ### Atlas — WLED exact look
