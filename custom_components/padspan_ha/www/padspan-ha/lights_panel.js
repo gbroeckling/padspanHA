@@ -186,8 +186,11 @@ class PadSpanLightsApp extends HTMLElement {
       await this._loadSettings(false);
     }
     // The emergency lighting test's state — another browser (the wall
-    // kiosk, a phone) can start or end it.
-    if(Date.now() - (this._emergTs || 0) > 10000) await this._loadEmergency();
+    // kiosk, a phone) can start or end it. Every 10 s while the house has
+    // emergency lights; without any (or an older backend), every 5 minutes —
+    // plus on load and on Refresh (_boot).
+    const emergEvery = (this.state._emerg && this.state._emerg.available) ? 10000 : 300000;
+    if(Date.now() - (this._emergTs || 0) > emergEvery) await this._loadEmergency();
     this._render();   // registry staleness handled inside _buildUI
   }
 
@@ -319,16 +322,40 @@ class PadSpanLightsApp extends HTMLElement {
   // No command (an older backend) or no lights found: no button.
   async _loadEmergency(){
     this._emergTs = Date.now();
-    try{ this.state._emerg = await this._hass.callWS({ type:"padspan_ha/emergency_status" }); }
-    catch(_){ this.state._emerg = null; }
+    // Sequence guard: every status request and every action takes a number;
+    // an answer is kept only if nothing newer was sent since, and never while
+    // an action runs — a poll that left before a tap must not paint the
+    // pre-tap state over what the action returned.
+    const seq = this._emergSeq = (this._emergSeq || 0) + 1;
+    let r = null;
+    try{ r = await this._hass.callWS({ type:"padspan_ha/emergency_status" }); }
+    catch(_){ r = null; }
+    if(seq !== this._emergSeq || this._emergBusy) return;
+    this.state._emerg = r;
   }
 
-  async _emergencyCall(msg, done){
-    if(this._emergBusy) return;
+  // An action's answer: always the newest state (and it outdates any status
+  // request still on its way).
+  _emergApply(r){
+    this._emergSeq = (this._emergSeq || 0) + 1;
+    this.state._emerg = r; this._emergTs = Date.now();
+  }
+
+  // queue: Force off. A tap while an action runs is never dropped silently:
+  // it is told "Still switching…", and Force off runs right after the
+  // running action (repeated taps collapse into one).
+  async _emergencyCall(msg, done, queue=false){
+    if(this._emergBusy){
+      if(queue) this._emergQueued = { msg, done };
+      this._toast(queue ? "Still switching… Force off runs next." : "Still switching…");
+      return;
+    }
     this._emergBusy = true;
+    this._emergSeq = (this._emergSeq || 0) + 1;
+    this._render();                                  // the busy state on the button
     try{
       const r = await this._hass.callWS(msg);
-      this.state._emerg = r; this._emergTs = Date.now();
+      this._emergApply(r);
       const name = {};
       for(const m of (r && r.members) || []) name[m.entity_id] = m.name || m.entity_id;
       const names = (ids)=>ids.map(e=>name[e]||e).join(", ");
@@ -343,7 +370,10 @@ class PadSpanLightsApp extends HTMLElement {
       this._toast("Emergency lighting: " + String((e && e.message) || e), true);
     }finally{
       this._emergBusy = false;
+      const next = this._emergQueued;
+      this._emergQueued = null;
       this._render();
+      if(next) this._emergencyCall(next.msg, next.done, true);
     }
   }
 
@@ -360,9 +390,24 @@ class PadSpanLightsApp extends HTMLElement {
     });
   }
 
+  // One tap, except after a real emergency ran during the test (HA's own
+  // power-failure automation): then a second tap within 3 s confirms.
   _emergencyForceOff(){
-    this._emergencyCall({ type:"padspan_ha/emergency_force_off" }, ()=>"Emergency lights off.");
+    const ran = (this.state._emerg && this.state._emerg.emergency_ran) || [];
+    if(ran.length && !this._emergArmed()){
+      this._emergArmUntil = Date.now() + 3000;
+      this._toast(`${ran.join(", ")} ran during the test.\nTap again to turn off every emergency light`, true);
+      clearTimeout(this._emergArmTimer);
+      this._emergArmTimer = setTimeout(()=>{ this._emergArmUntil = 0; this._render(); }, 3000);
+      this._render();
+      return;
+    }
+    this._emergArmUntil = 0;
+    clearTimeout(this._emergArmTimer);
+    this._emergencyCall({ type:"padspan_ha/emergency_force_off" }, ()=>"Emergency lights off.", true);
   }
+
+  _emergArmed(){ return (this._emergArmUntil || 0) > Date.now(); }
 
   // The floating button: a red centre (start/end the test) inside a ring of
   // its own (the card of every emergency light), the notch on the ring
@@ -371,10 +416,11 @@ class PadSpanLightsApp extends HTMLElement {
     const s = this.state._emerg;
     if(!s || !s.available) return null;
     const active = !!(s.test && s.test.active);
+    const busy = !!this._emergBusy;
     const name = {};
     for(const m of s.members || []) name[m.entity_id] = m.name || m.entity_id;
     const kept = ((s.test && s.test.kept_on) || []).map(e=>name[e]||e).join(", ");
-    const title = active
+    const title = busy ? "Switching the emergency lights…" : active
       ? "Emergency lighting test on — tap to end" + (kept ? `\nAlready on, will stay on: ${kept}` : "")
       : "Test emergency lighting";
     const icon = el("span",{class:"lv-emerg-icon"});
@@ -392,25 +438,40 @@ class PadSpanLightsApp extends HTMLElement {
     },[notch]);
     const centre = el("button",{
       class: "lv-emerg-btn", title, "aria-label": title, "aria-pressed": active ? "true" : "false",
+      "aria-busy": busy ? "true" : null,
       onclick: ()=>this._emergencyToggle(),
     },[icon]);
+    // The label: an icon alone on a narrow map (styles.css), so Force off
+    // never slides under the rail.
+    const labelText = busy ? "Switching…" : active ? "Test on — tap to end" : "Test emergency lighting";
+    const labelIcon = el("span",{class:"lv-emerg-label-ic", "aria-hidden":"true"});
+    if(busy) labelIcon.textContent = "…";
+    else labelIcon.innerHTML = '<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">'
+      + '<rect x="2" y="2" width="8" height="8" rx="1.5" fill="currentColor"/></svg>';
+    const shown = active || busy;
     const kids = [
       el("div",{class:"lv-emerg-dial" + (active ? " on" : "")},[ring, centre]),
-      el("button",{class:"lv-emerg-label" + (active ? " on" : ""), tabindex: active ? null : "-1",
-        "aria-hidden": active ? null : "true", onclick: ()=>this._emergencyToggle()},
-        active ? "Test on — tap to end" : "Test emergency lighting"),
+      el("button",{class:"lv-emerg-label" + (shown ? " on" : ""), tabindex: shown ? null : "-1",
+        "aria-hidden": shown ? null : "true", "aria-label": labelText, title: labelText,
+        onclick: ()=>this._emergencyToggle()},
+        [labelIcon, el("span",{class:"lv-emerg-label-tx"}, labelText)]),
     ];
+    const armed = this._emergArmed();
     if(active) kids.push(el("button",{
-      class: "lv-emerg-force",
-      title: "Turn off every emergency light, including the ones that were already on",
+      class: "lv-emerg-force" + (armed ? " armed" : ""),
+      title: armed ? "Tap again to turn off every emergency light"
+        : "Turn off every emergency light, including the ones that were already on",
       onclick: ()=>this._emergencyForceOff(),
-    },"Force off"));
-    return el("div",{class:"lv-emerg-anchor"},[el("div",{class:"lv-emerg"},kids)]);
+    }, armed ? "Tap again" : "Force off"));
+    return el("div",{class:"lv-emerg-anchor"},[el("div",{class:"lv-emerg" + (busy ? " busy" : ""),
+      "aria-busy": busy ? "true" : null},kids)]);
   }
 
   // The card behind the ring: every emergency light, its state and tags, a
   // switch each, and a light's own Atlas controls. On document.body like the
-  // Atlas sheets (so styled inline); refilled on every render while open.
+  // Atlas sheets (so styled inline). Refilled on a render only when what it
+  // shows changed, and never while a finger is down on it — a rebuild under
+  // a tap loses the tap.
   _openEmergencyCard(){
     if(this._emergCard) return;
     // A bottom sheet on a phone, a centred card on a desktop — as the Atlas sheets.
@@ -426,6 +487,18 @@ class PadSpanLightsApp extends HTMLElement {
     overlay.appendChild(sheet);
     const close = ()=>{ try{ document.body.removeChild(overlay); }catch(_){} this._emergCard = null; };
     overlay.addEventListener("click", e=>{ if(e.target === overlay) close(); });
+    let down = false, shown = null;
+    overlay.addEventListener("pointerdown", ()=>{ down = true; });
+    for(const t of ["pointerup", "pointercancel", "pointerleave"]) overlay.addEventListener(t, ()=>{ down = false; });
+    // What the card shows: the status (not the last action's results), each
+    // member's live state, the busy and "tap again" states.
+    const shows = ()=>{
+      const s = this.state._emerg;
+      const states = (this._hass && this._hass.states) || {};
+      return JSON.stringify([s ? { ...s, results: undefined } : null,
+        ((s && s.members) || []).map(m => states[m.entity_id] ? states[m.entity_id].state : m.state),
+        !!this._emergBusy, this._emergArmed()]);
+    };
     const act = "font-size:12px;font-weight:600;padding:6px 14px;border-radius:8px;cursor:pointer;min-height:34px;"
       + "background:rgba(255,255,255,.03);border:1px solid rgba(252,165,165,.3);color:rgba(254,226,226,.85)";
     const chip = (text, style)=>el("span",{style:"display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;"
@@ -433,13 +506,16 @@ class PadSpanLightsApp extends HTMLElement {
     const fill = ()=>{
       const s = this.state._emerg;
       if(!s || !s.available){ close(); return; }
+      shown = shows();
       const t = s.test || {};
       const active = !!t.active;
+      const busy = !!this._emergBusy;
+      const armed = this._emergArmed();
       const states = (this._hass && this._hass.states) || {};
       const groupNames = (s.groups || []).map(g=>(states[g] && states[g].attributes && states[g].attributes.friendly_name) || g);
       const from = s.source === "group" ? `From ${groupNames.join(" and ")}`
         : s.source === "settings" ? "From the emergency lights setting"
-        : "Pakedge PoE ports 7 and 8, and WLED lights named Emergency";
+        : "WLED lights named Emergency";
       while(sheet.firstChild) sheet.removeChild(sheet.firstChild);
       sheet.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px"},[
         el("div",{},[
@@ -448,11 +524,16 @@ class PadSpanLightsApp extends HTMLElement {
         ]),
         el("button",{style:act, title:"Close", onclick:close},"✕"),
       ]));
-      sheet.appendChild(el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"},[
-        el("button",{style: act + (active ? ";background:#7f1d1d;border-color:#dc2626;color:#fff" : ""),
+      const dim = busy ? ";opacity:.55;cursor:progress" : "";
+      sheet.appendChild(el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px",
+        "aria-busy": busy ? "true" : null},[
+        el("button",{style: act + (active ? ";background:#7f1d1d;border-color:#dc2626;color:#fff" : "") + dim,
           onclick:()=>this._emergencyToggle()}, active ? "End test" : "Start test"),
-        ...(active ? [el("button",{style:act, title:"Turn off every emergency light, including the ones that were already on",
-          onclick:()=>this._emergencyForceOff()},"Force off")] : []),
+        ...(active ? [el("button",{style: act + (armed ? ";background:#dc2626;border-color:#fecaca;color:#fff" : "") + dim,
+          title: armed ? "Tap again to turn off every emergency light"
+            : "Turn off every emergency light, including the ones that were already on",
+          onclick:()=>this._emergencyForceOff()}, armed ? "Tap again" : "Force off")] : []),
+        ...(busy ? [el("span",{style:"font-size:11.5px;color:rgba(254,226,226,.75)"},"Switching…")] : []),
       ]));
       for(const m of s.members || []){
         const st = states[m.entity_id] ? states[m.entity_id].state : m.state;
@@ -468,7 +549,7 @@ class PadSpanLightsApp extends HTMLElement {
             dead ? "color:rgba(226,240,232,.4);border:1px dashed rgba(226,240,232,.25)"
               : on ? "color:#111827;background:#fbbf24;border:1px solid #fbbf24"
               : "color:rgba(226,240,232,.55);border:1px solid rgba(226,240,232,.2)"),
-          el("button",{style: act + ";min-width:62px" + (dead ? ";opacity:.4;cursor:default" : ""),
+          el("button",{style: act + ";min-width:62px" + (dead ? ";opacity:.4;cursor:default" : dim),
             disabled: dead ? "" : null,
             onclick:()=>this._emergencyCall({ type:"padspan_ha/emergency_member", entity_id:m.entity_id, on:!on }, ()=>null)},
             on ? "Turn off" : "Turn on"),
@@ -476,7 +557,7 @@ class PadSpanLightsApp extends HTMLElement {
             onclick:()=>{
               // Adjusting a light during a test counts as setting it by hand.
               if(active) this._hass.callWS({ type:"padspan_ha/emergency_member", entity_id:m.entity_id })
-                .then(r=>{ this.state._emerg = r; }).catch(()=>{});
+                .then(r=>{ this._emergApply(r); }).catch(()=>{});
               close();
               this._openWledDetail(m.entity_id);
             }},"⋯")] : []),
@@ -487,7 +568,8 @@ class PadSpanLightsApp extends HTMLElement {
         active ? "When the test ends, lights marked “was on” stay on and lights marked “set here” stay as you set them. Force off turns every one off."
           : "The red button starts a test. Lights already on stay on when it ends."));
     };
-    this._emergCard = { fill, close };
+    const refresh = ()=>{ if(!down && shows() !== shown) fill(); };
+    this._emergCard = { fill, close, refresh, sheet, overlay };
     fill();
     document.body.appendChild(overlay);
   }
@@ -588,7 +670,7 @@ class PadSpanLightsApp extends HTMLElement {
     if(!$c) return;
     while($c.firstChild) $c.removeChild($c.firstChild);
     $c.appendChild(this._buildUI());
-    if(this._emergCard) this._emergCard.fill();
+    if(this._emergCard) this._emergCard.refresh();
   }
 
   _buildUI(){
@@ -947,7 +1029,9 @@ class PadSpanLightsApp extends HTMLElement {
     const t=document.createElement("div");
     t.textContent=msg;
     t.style.cssText=`position:fixed;bottom:24px;left:50%;transform:translateX(-50%);`+
-      `padding:10px 18px;border-radius:12px;font-size:13px;color:#e2e8f0;z-index:9999;`+
+      // Above the emergency card's overlay (10000) — phone sheet and desktop
+      // card alike — and click-through, so it never covers a button.
+      `padding:10px 18px;border-radius:12px;font-size:13px;color:#e2e8f0;z-index:10001;pointer-events:none;`+
       `background:${isError?"rgba(127,29,29,.92)":"rgba(16,40,26,.92)"};`+
       `border:1px solid ${isError?"#dc2626":"rgba(82,183,136,.6)"};`+
       `backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);`+
@@ -1005,6 +1089,7 @@ class PadSpanLightsApp extends HTMLElement {
     if(this._reconnectsStop) this._reconnectsStop();
     this._reconnectsStop = null; this._reconnectsConn = null;
     if(this._emergCard) this._emergCard.close();
+    clearTimeout(this._emergArmTimer);
   }
 }
 

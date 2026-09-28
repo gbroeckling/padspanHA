@@ -1190,18 +1190,20 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
    emergency button"), a list notch on the ring so the two never read as one.
    The label opens on hover and stays while a test runs, the ring pulsing,
    Force off beside it. Laid out right to left: dial, label, Force off. */
-.lv-emerg-anchor{position:relative;height:0}
+.lv-emerg-anchor{position:relative;height:0;container-type:inline-size}
 .lv-emerg{position:absolute;right:14px;bottom:14px;z-index:3;display:flex;flex-direction:row-reverse;
   align-items:center;gap:6px;pointer-events:none}
 .lv-emerg button{pointer-events:auto}
-.lv-emerg-dial{position:relative;width:64px;height:64px;flex:none}
+/* The ring band is 16 px (was 12): easy to hit on a phone, and the centre
+   keeps its 40 px. */
+.lv-emerg-dial{position:relative;width:72px;height:72px;flex:none}
 .lv-emerg-ring{all:unset;box-sizing:border-box;position:absolute;inset:0;border-radius:50%;cursor:pointer;
   background:repeating-conic-gradient(rgba(254,202,202,.16) 0 12deg,rgba(40,8,8,.94) 12deg 30deg);
   border:2px solid rgba(254,202,202,.6);box-shadow:0 4px 14px rgba(0,0,0,.5)}
 .lv-emerg-ring:hover{border-color:#fff}
 .lv-emerg-notch{position:absolute;left:-3px;top:-3px;width:20px;height:20px;border-radius:50%;box-sizing:border-box;
   display:flex;align-items:center;justify-content:center;color:#fff;background:#140b0b;border:2px solid rgba(254,202,202,.8)}
-.lv-emerg-btn{all:unset;box-sizing:border-box;position:absolute;inset:12px;border-radius:50%;cursor:pointer;
+.lv-emerg-btn{all:unset;box-sizing:border-box;position:absolute;inset:16px;border-radius:50%;cursor:pointer;
   display:flex;align-items:center;justify-content:center;color:#fff;
   background:radial-gradient(circle at 40% 35%,#ef4444,#b91c1c 60%,#7f1d1d);border:2px solid #fecaca;
   box-shadow:0 0 0 2px rgba(127,29,29,.7)}
@@ -1223,6 +1225,23 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   font-size:11.5px;font-weight:700;color:#fecaca;background:rgba(40,8,8,.92);border:1px solid #dc2626;
   box-shadow:0 4px 14px rgba(0,0,0,.5)}
 .lv-emerg-force:hover{background:rgba(127,29,29,.95);color:#fff}
+/* "Tap again": a real emergency ran during the test, Force off confirms. */
+.lv-emerg-force.armed{background:#dc2626;border-color:#fecaca;color:#fff}
+/* Busy: an action is on its way — a spinning arc on the centre. Taps are
+   still taken (and answered "Still switching…"), never silently dropped. */
+.lv-emerg.busy .lv-emerg-btn,.lv-emerg.busy .lv-emerg-label{cursor:progress}
+.lv-emerg.busy .lv-emerg-btn::after{content:"";position:absolute;inset:-5px;border-radius:50%;
+  border:2px solid transparent;border-top-color:#fff;border-right-color:#fff;animation:lv-emerg-spin .8s linear infinite}
+@keyframes lv-emerg-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.lv-emerg.busy .lv-emerg-btn::after{animation:none;border-color:#fff}}
+.lv-emerg-label-ic{display:none}
+/* A narrow map (a phone): the running label shrinks to a stop icon, so the
+   row (dial, label, Force off) stays clear of the 44 px rail. */
+@container (max-width:440px){
+  .lv-emerg-label.on{max-width:32px;width:32px;padding:0;justify-content:center}
+  .lv-emerg-label.on .lv-emerg-label-tx{display:none}
+  .lv-emerg-label.on .lv-emerg-label-ic{display:inline-flex}
+}
 
 /* The builder's own columns (Garry, 2026-09-21: "get it done" — the rest of
    the layout plan). Below "wide" this is just a column of stacked cards,

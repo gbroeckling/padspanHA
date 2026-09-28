@@ -110,3 +110,48 @@ def test_the_emergency_ring_opens_the_card_of_every_light(result) -> None:
     survives the poll's re-render."""
     e = result["emergency"]
     assert e["cardOpen"] and e["cardNames"] and e["cardTag"] and e["cardStillOpen"], e
+
+
+def test_a_tap_while_switching_is_answered_and_force_off_queued(result) -> None:
+    """Review 2026-09-28: a tap while an action runs was dropped silently
+    (Force off included). The button shows it is busy, a tap is told "Still
+    switching…", and Force off runs right after — once however often tapped."""
+    e = result["emerg2"]
+    assert e["busyShown"] and e["stillToast"], e
+    assert e["queuedRan"], e
+
+
+def test_force_off_asks_twice_after_a_real_emergency(result) -> None:
+    e = result["emerg2"]
+    assert e["armSent"] == 0 and e["armToast"] and e["armedLabel"] == "Tap again", e
+    assert e["confirmSent"] == "force_off", e
+    assert e["rearmSent"] == 0, f"a tap after the 3 s window must ask again: {e}"
+
+
+def test_a_stale_status_never_overwrites_an_action(result) -> None:
+    assert result["emerg2"]["staleIgnored"], result["emerg2"]
+
+
+def test_the_card_is_not_rebuilt_under_a_finger_or_for_nothing(result) -> None:
+    e = result["emerg2"]
+    assert e["cardKept"] and e["cardHeld"] and e["cardRefilled"], e
+
+
+def test_emergency_polling_slows_without_lights(result) -> None:
+    e = result["emerg2"]
+    assert e["pollIdle"] == 0 and e["pollIdleLate"] == 1 and e["pollLive"] == 1, e
+
+
+def test_the_emergency_toast_shows_above_the_card() -> None:
+    src = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
+    toast = src.split("_toast(msg, isError=false){", 1)[1].split("\n  }\n", 1)[0]
+    assert "z-index:10001" in toast and "z-index:10000" in src.split("_openEmergencyCard(){", 1)[1]
+
+
+def test_the_emergency_ring_and_narrow_row_css() -> None:
+    css = (_WWW / "styles.css").read_text(encoding="utf-8")
+    assert ".lv-emerg-dial{position:relative;width:72px;height:72px" in css
+    assert ".lv-emerg-btn{all:unset;box-sizing:border-box;position:absolute;inset:16px" in css
+    assert "container-type:inline-size" in css.split(".lv-emerg-anchor{", 1)[1].split("}", 1)[0]
+    narrow = css.split("@container (max-width:440px){", 1)[1].split("\n}", 1)[0]
+    assert ".lv-emerg-label-tx{display:none}" in narrow
