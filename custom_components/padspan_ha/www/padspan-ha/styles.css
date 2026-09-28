@@ -1180,6 +1180,36 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-drawer.open{max-height:220px;overflow-y:auto;border-bottom:1px solid rgba(120,190,155,.16)}
 .lv-drawer .lv-toolbar,.lv-drawer .lv-presetbar{margin:0;border:none;background:none;border-radius:0}
 
+/* ── Emergency lighting test (the Atlas sidebar; lights_panel.js) ─────────
+   Garry, 2026-09-28: "out of the way, takes up no new real estate, and looks
+   like an emergency type button". Floats over the map's bottom-right corner
+   from a zero-height anchor after the stage (no row, nothing moves), clear
+   of the stage's scrollbars and under the drawers. A red round button; its
+   label opens on hover, and stays while a test runs, pulsing, with Force off
+   beside it. */
+.lv-emerg-anchor{position:relative;height:0}
+.lv-emerg{position:absolute;right:16px;bottom:16px;z-index:3;display:flex;align-items:center;gap:6px;
+  pointer-events:none}
+.lv-emerg > button{pointer-events:auto}
+.lv-emerg-btn{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;height:40px;min-width:40px;
+  padding:0 8px;border-radius:999px;cursor:pointer;color:#fff;font-size:12px;font-weight:700;white-space:nowrap;
+  background:radial-gradient(circle at 40% 35%,#ef4444,#b91c1c 60%,#7f1d1d);border:2px solid #fecaca;
+  box-shadow:0 0 0 2px rgba(127,29,29,.6),0 4px 14px rgba(0,0,0,.5)}
+.lv-emerg-icon{display:inline-flex}
+.lv-emerg-label{max-width:0;overflow:hidden;transition:max-width .18s ease,margin .18s ease}
+.lv-emerg-btn:hover .lv-emerg-label,.lv-emerg-btn:focus-visible .lv-emerg-label,
+.lv-emerg-btn.on .lv-emerg-label{max-width:200px;margin:0 4px 0 7px}
+.lv-emerg-btn.on{animation:lv-emerg-pulse 1.6s ease-in-out infinite}
+@keyframes lv-emerg-pulse{
+  0%,100%{box-shadow:0 0 0 2px rgba(127,29,29,.6),0 0 10px rgba(239,68,68,.5)}
+  50%{box-shadow:0 0 0 2px rgba(127,29,29,.6),0 0 26px 6px rgba(239,68,68,.85)}}
+@media (prefers-reduced-motion:reduce){
+  .lv-emerg-btn.on{animation:none;box-shadow:0 0 0 2px rgba(127,29,29,.6),0 0 22px 4px rgba(239,68,68,.8)}}
+.lv-emerg-force{all:unset;box-sizing:border-box;height:32px;padding:0 12px;border-radius:999px;cursor:pointer;
+  font-size:11.5px;font-weight:700;color:#fecaca;background:rgba(40,8,8,.92);border:1px solid #dc2626;
+  box-shadow:0 4px 14px rgba(0,0,0,.5)}
+.lv-emerg-force:hover{background:rgba(127,29,29,.95);color:#fff}
+
 /* The builder's own columns (Garry, 2026-09-21: "get it done" — the rest of
    the layout plan). Below "wide" this is just a column of stacked cards,
    identical to the classic layout it replaces (.lv-atlascols only exists at

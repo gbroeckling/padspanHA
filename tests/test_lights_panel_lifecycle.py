@@ -87,3 +87,16 @@ def test_both_panels_subscribe_through_keep_subscribed() -> None:
         src = (_WWW / name).read_text(encoding="utf-8")
         assert "keepSubscribed(hass.connection," in src and "padspan_ha/motion_reconnects" in src, name
         assert "subscribeMessage(" not in src, f"{name} subscribes without keepSubscribed"
+
+
+def test_the_emergency_test_button(result) -> None:
+    """Garry, 2026-09-28: a "Test emergency lighting" button at the map's
+    bottom-right, out of the way — shown only when the backend finds lights,
+    placed right after the stage (a zero-height anchor: nothing moves), with
+    Force off beside it only while a test runs."""
+    e = result["emergency"]
+    assert e["hiddenWithout"], e
+    assert e["afterStage"], e
+    assert e["idleForce"] == 0 and e["activeForce"] == 1 and e["endedForce"] == 0, e
+    assert e["activeLabel"] == "Test on — tap to end", e
+    assert e["sent"] == ["test:true", "force_off"], e

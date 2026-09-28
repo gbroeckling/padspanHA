@@ -158,6 +158,7 @@ class PadSpanLightsApp extends HTMLElement {
     await Promise.allSettled([ this._loadSettings() ]);
     this._settingsTs = Date.now();
     this._render();
+    this._loadEmergency().then(()=>this._render());
     this._loadModel().then(()=>this._render());
     // Clear again AFTER the awaits: two overlapping boots (a second Refresh
     // click while the first is still loading) both pass the clear above before
@@ -184,6 +185,9 @@ class PadSpanLightsApp extends HTMLElement {
       this._settingsTs = Date.now();
       await this._loadSettings(false);
     }
+    // The emergency lighting test's state — another browser (the wall
+    // kiosk, a phone) can start or end it.
+    if(Date.now() - (this._emergTs || 0) > 10000) await this._loadEmergency();
     this._render();   // registry staleness handled inside _buildUI
   }
 
@@ -308,6 +312,73 @@ class PadSpanLightsApp extends HTMLElement {
         try{ localStorage.setItem(LS_HIDDEN, JSON.stringify(s.lights_hidden)); }catch(_){}
       }
     }catch(e){}
+  }
+
+  // ── Emergency lighting test (emergency_test.py) ────────────────────────────
+  // A manual test only: HA's own power-failure automations are untouched.
+  // No command (an older backend) or no lights found: no button.
+  async _loadEmergency(){
+    this._emergTs = Date.now();
+    try{ this.state._emerg = await this._hass.callWS({ type:"padspan_ha/emergency_status" }); }
+    catch(_){ this.state._emerg = null; }
+  }
+
+  async _emergencyCall(msg, done){
+    if(this._emergBusy) return;
+    this._emergBusy = true;
+    try{
+      const r = await this._hass.callWS(msg);
+      this.state._emerg = r; this._emergTs = Date.now();
+      const name = {};
+      for(const m of (r && r.members) || []) name[m.entity_id] = m.name || m.entity_id;
+      const names = (ids)=>ids.map(e=>name[e]||e).join(", ");
+      const res = (r && r.results) || [];
+      const unreachable = res.filter(x=>x.skipped==="unavailable" || x.skipped==="missing").map(x=>x.entity_id);
+      const failed = res.filter(x=>!x.ok && !x.skipped).map(x=>x.entity_id);
+      const lines = [done(r, names)];
+      if(unreachable.length) lines.push(`Not reachable: ${names(unreachable)}`);
+      if(failed.length) lines.push(`Could not switch: ${names(failed)}`);
+      this._toast(lines.join("\n"), failed.length > 0);
+    }catch(e){
+      this._toast("Emergency lighting: " + String((e && e.message) || e), true);
+    }finally{
+      this._emergBusy = false;
+      this._render();
+    }
+  }
+
+  _emergencyOverlay(){
+    const s = this.state._emerg;
+    if(!s || !s.available) return null;
+    const active = !!(s.test && s.test.active);
+    const keptIds = (s.test && s.test.kept_on) || [];
+    const name = {};
+    for(const m of s.members || []) name[m.entity_id] = m.name || m.entity_id;
+    const kept = keptIds.map(e=>name[e]||e).join(", ");
+    const title = active
+      ? "Emergency lighting test on — tap to end" + (kept ? `\nAlready on, will stay on: ${kept}` : "")
+      : "Test emergency lighting";
+    const icon = el("span",{class:"lv-emerg-icon"});
+    icon.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" '
+      + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18v-5a5 5 0 0 1 10 0v5"/>'
+      + '<path d="M5 18h14v3H5z"/><path d="M12 2v2M4.9 5.4l1.4 1.4M19.1 5.4l-1.4 1.4M2 12h2M20 12h2"/></svg>';
+    const main = el("button",{
+      class: "lv-emerg-btn" + (active ? " on" : ""), title, "aria-label": title, "aria-pressed": active ? "true" : "false",
+      // The card is rebuilt every poll: keep the pulse's phase continuous.
+      style: active ? `animation-delay:-${(Date.now() % 1600) / 1000}s` : null,
+      onclick: ()=>this._emergencyCall({ type:"padspan_ha/emergency_test", on: !active }, (r, names)=>{
+        if(active) return "Emergency lighting test ended." + (keptIds.length ? `\nLeft on: ${names(keptIds)}` : "");
+        const k = (r && r.test && r.test.kept_on) || [];
+        return "Emergency lighting test on." + (k.length ? `\nAlready on, will stay on: ${names(k)}` : "");
+      }),
+    },[icon, el("span",{class:"lv-emerg-label"}, active ? "Test on — tap to end" : "Test emergency lighting")]);
+    const kids = [main];
+    if(active) kids.unshift(el("button",{
+      class: "lv-emerg-force",
+      title: "Turn off every emergency light, including the ones that were already on",
+      onclick: ()=>this._emergencyCall({ type:"padspan_ha/emergency_force_off" }, ()=>"Emergency lights off."),
+    },"Force off"));
+    return el("div",{class:"lv-emerg-anchor"},[el("div",{class:"lv-emerg"},kids)]);
   }
 
   async _saveSettings(){
@@ -713,7 +784,13 @@ class PadSpanLightsApp extends HTMLElement {
       },
     };
 
-    root.appendChild(buildLightsMapCard(host));
+    const mapCard=buildLightsMapCard(host);
+    root.appendChild(mapCard);
+    // "Test emergency lighting" floats over the map's bottom-right corner:
+    // a zero-height anchor right after the stage, so nothing moves.
+    const emerg=this._emergencyOverlay();
+    const stage=emerg && mapCard.querySelector(".lv-stage");
+    if(stage) stage.parentNode.insertBefore(emerg, stage.nextSibling);
 
     // ── The 90-day trial, under the free map it would unlock ──────────────────
     if(!paid){

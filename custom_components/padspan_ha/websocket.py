@@ -334,6 +334,10 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     # The Atlas WLED card's Advanced tab — a safe proxy to the device (ws_wled.py).
     from .ws_wled import async_register as _wled_register
     _wled_register(hass)
+    # The Atlas "Test emergency lighting" button (emergency_test.py).
+    from .emergency_test import WS_COMMANDS as _emergency_commands
+    for _cmd in _emergency_commands:
+        websocket_api.async_register_command(hass, _cmd)
     websocket_api.async_register_command(hass, ws_flood_reset)
     # A motion sensor's last real change across an offline blip (motion_reconnects.py).
     from .motion_reconnects import ws_motion_reconnects
