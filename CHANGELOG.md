@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.87 — The free trial, where people will see it (2026-09-28)
+
+### Trying the lighting map
+- **Added:** when PadSpan updates, the "PadSpan HA updated" note on Overview now says **New: try the lighting map free for 90 days, no card**, with **Try it**. It goes away with the note.
+- **Added:** once PadSpan is working in your house (someone is on the map, or a week has gone by), Overview shows one small card about the lighting half. **No thanks** or ✕ and it never comes back.
+- **Added:** a quiet **💡 Lighting · free trial** line at the bottom of PadSpan's menu, until you have a key.
+- Every one of them says so plainly: the presence tracking you're using stays free. None of them shows for an install with a licence key, and nothing here is a Home Assistant notification.
+
+---
+
 ## 0.38.86 — The emergency lighting button is always on screen (2026-09-28)
 
 ### Atlas — Test emergency lighting

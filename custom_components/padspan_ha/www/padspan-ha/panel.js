@@ -904,8 +904,13 @@ class PadSpanHaApp extends HTMLElement {
     // The import above is deliberately allowed to fail, and this call site has
     // to honour that same contract: editions.js is optional, so neither its
     // absence NOR a throw inside it may cost the reader the Overview tab.
+    // One offer per banner: when the trial line below will show, it is the
+    // offer, and the older Pro pitch steps aside (two sales lines in a "what
+    // changed" note reads as nagging).
+    let trialLine = false;
+    try { trialLine = !!(TRIAL && (this.state._bannerTrialOpen || TRIAL.trialOfferable(st))); } catch (_) { trialLine = false; }
     let pitch = null;
-    try { if (EDITIONS && EDITIONS.proPitch) pitch = EDITIONS.proPitch(st); }
+    try { if (!trialLine && EDITIONS && EDITIONS.proPitch) pitch = EDITIONS.proPitch(st); }
     catch (e) { console.warn("PadSpan: proPitch failed", e); }
     if (pitch) {
       const line = el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.55;margin-bottom:8px" });
