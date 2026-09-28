@@ -981,18 +981,21 @@ def test_a_wrong_link_onto_a_device_still_on_the_air_is_not_a_day_key_return():
     unlinked = [x for r in out for x in r["unlinked"]]
     assert unlinked == [(k, M2, D)]
     assert [x for r in out for x in r["back_on_day_key"]] == []
-    # The same return once M2 has stopped (its last report before D's
-    # first) reads as the schedule.
-    b = F.FindMyBridge()
-    out = []
-    for t in range(-20, 241, 10):
-        recs = {D: _rec(_separated(1), OFFICE, age=max(1, t + 1) if t < 200 else 1)}
-        recs[M1] = _rec(_nearby(1), OFFICE, age=max(1, t - 19))
-        if t >= 20:
-            recs[M2] = _rec(_nearby(1), OFFICE, age=1 if t < 190 else t - 189)
-        out.append(_poll(b, t, recs, {D: k}))
-    assert [x for r in out for x in r["unlinked"]] == [(k, M2, D)]
-    assert [x for r in out for x in r["back_on_day_key"]] == [k]
+    # M2's last report stamped the same moment as D's first (a passive
+    # proxy's reseed stamps both at once): heard together, two devices. Once
+    # M2 has stopped before D's first report, the return reads as the
+    # schedule — a real one is two adverts (ADVERT_S) apart.
+    for m2_last, want in ((199, []), (189, [k])):
+        b = F.FindMyBridge()
+        out = []
+        for t in range(-20, 241, 10):
+            recs = {D: _rec(_separated(1), OFFICE, age=max(1, t + 1) if t < 200 else 1)}
+            recs[M1] = _rec(_nearby(1), OFFICE, age=max(1, t - 19))
+            if t >= 20:
+                recs[M2] = _rec(_nearby(1), OFFICE, age=1 if t <= m2_last else t - m2_last)
+            out.append(_poll(b, t, recs, {D: k}))
+        assert [x for r in out for x in r["unlinked"]] == [(k, M2, D)], m2_last
+        assert [x for r in out for x in r["back_on_day_key"]] == want, m2_last
 
 
 def test_an_address_is_separated_when_any_live_report_says_so():

@@ -498,13 +498,16 @@ class FindMyBridge:
                 # a key was when the tag was linked onto it (its record now
                 # has stopped, or is gone). And the key it is on must have
                 # stopped before this one came back: two addresses heard at
-                # once are two devices — a wrong link onto another device's
-                # key, that device still on the air (review, 2026-09-27).
+                # once — even stamped the same moment, as one reseed stamps
+                # both — are two devices: a wrong link onto another device's
+                # key, that device still on the air (review, 2026-09-27). A
+                # real return is an advert (ADVERT_S) after the last on the
+                # key it leaves.
                 left = fm.get(t["addr"])
                 near_owner = set(t.get("near_owner") or ())
                 dropped = self._move_back(key, x, c["seen_ts"])
                 if (c["separated"] and near_owner.intersection(dropped)
-                        and (left is None or left["seen_ts"] < first + 1.0)):
+                        and (left is None or left["seen_ts"] < first)):
                     day_key.append(key)
                 for gone in dropped:
                     unlinked.append((key, gone, x))
