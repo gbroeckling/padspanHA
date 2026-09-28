@@ -11,8 +11,11 @@
 // assert_shareable refuses anything identifier-shaped before sending) and this
 // receiver applies the same shape checks again: a report is dropped if it is
 // not JSON, is over 8 KB, has unexpected top-level keys, or contains a MAC,
-// a UUID other than install_id, a 32-hex string, a licence key or an IP
-// anywhere in it. Summarise with server/telemetry_summary.py.
+// a UUID other than install_id, a 32-hex string, a licence key, an IP or an
+// email address anywhere in it. Summarise with server/telemetry_summary.py.
+//
+// "Become a tester" sign-ups are NOT reports and never come here: they go to
+// tester.php, which keeps them in its own file. Nothing here reads that file.
 
 // ISPConfig layout on padspan.traks.ca: this file lives at web/padspan/api/,
 // so three levels up is the site root, whose private/ is outside the web
@@ -46,6 +49,7 @@ $shapes = array(
     '/\b[0-9A-Fa-f]{32}\b/',
     '/\bPSPAN-[A-Z0-9-]{8,}\b/i',
     '/\b\d{1,3}(?:\.\d{1,3}){3}\b/',
+    '/[A-Za-z0-9._%+\'-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/',
 );
 foreach ($shapes as $rx) {
     if (preg_match($rx, $flat)) { http_response_code(400); echo '{"ok":false,"why":"shape"}'; exit; }
