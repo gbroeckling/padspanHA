@@ -960,6 +960,16 @@ async def test_a_restart_ha_never_showed_as_unavailable_puts_the_last_command_ba
                             SimpleNamespace(state="on", attributes={"brightness": 60}))
     await house.settle()
     assert dev.serialize_state()["on"] is True and rec["last_result"]["source"] == "hold"
+    # A power cut seconds after a command: the uptime read with the command
+    # is not taken for the device's now.
+    await E.async_power(house.hass, "light.valance_main", False)
+    await house.settle()
+    house.clock[0] += 5
+    dev.reboot()
+    await E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="off"),
+                            SimpleNamespace(state="on", attributes={"brightness": 128}))
+    await house.settle()
+    assert dev.serialize_state()["on"] is False and rec["last_result"]["source"] == "reconnect"
 
 
 async def test_a_lost_reply_to_the_sync_off_write_never_loses_the_original_sync(house, monkeypatch):
@@ -1052,13 +1062,25 @@ async def test_a_command_that_never_reached_the_device_goes_on_when_it_is_back(h
     await E.on_state_change(house.hass, "light.porch_main", SimpleNamespace(state="unavailable"), SimpleNamespace(state="off"))
     await house.settle()
     assert dev.serialize_state()["on"] is True
-    # Negative control: a command that landed isn't sent again on a reconnect.
+    # Negative controls: a command that landed isn't sent again on a
+    # reconnect; nor is an outside "off" the device made itself (turned on
+    # again while HA couldn't see it, it keeps its look, as before).
     house.clock[0] += 30
     n = len(dev.posts())
     E._worker(house.hass, "aabbccddee40").last_reconnect = -1e9
     await E.on_state_change(house.hass, "light.porch_main", SimpleNamespace(state="unavailable"), SimpleNamespace(state="on"))
     await house.settle()
     assert len(dev.posts()) == n
+    house.clock[0] += 30
+    await dev.handle("POST", "json/state", {"on": False})
+    await E.on_state_change(house.hass, "light.porch_main", SimpleNamespace(state="on"), SimpleNamespace(state="off"))
+    assert house.store.get("aabbccddee40")["last_cmd"]["source"] == "outside"
+    house.clock[0] += 30
+    await dev.handle("POST", "json/state", {"on": True})
+    E._worker(house.hass, "aabbccddee40").last_reconnect = -1e9
+    await E.on_state_change(house.hass, "light.porch_main", SimpleNamespace(state="unavailable"), SimpleNamespace(state="on"))
+    await house.settle()
+    assert dev.serialize_state()["on"] is True
 
 
 async def test_a_failed_padspan_switch_leaves_a_wled_team_on_its_own_group(house):
@@ -1143,7 +1165,8 @@ async def test_without_the_licence_a_padspan_team_is_still_switched_together(hou
     assert E.is_exact_entity(house.hass, "light.m0_main") and E.is_exact_entity(house.hass, "light.m1")
     out = await E.async_power(house.hass, "light.m1", True, 100, source="vacation")
     assert out["handled"] is False
-    assert sorted(c[2]["entity_id"] for c in house.service_calls) == ["light.m0_main", "light.m1", "light.m2_main"]
+    # Any light of a member is the member (as with the licence): every member's main light.
+    assert sorted(c[2]["entity_id"] for c in house.service_calls) == ["light.m0_main", "light.m1_main", "light.m2_main"]
     assert all(c[:2] == ("light", "turn_on") for c in house.service_calls)
     conn = _Conn()
     await E.ws_wled_exact_list(house.hass, conn, {"id": 1})

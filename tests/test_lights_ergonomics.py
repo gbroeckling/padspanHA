@@ -998,7 +998,7 @@ const r = await LM.applyWholeHouse(hass, preset);
 console.log(JSON.stringify({ calls, r }));
 """)
     assert out["calls"] == [["scene", "apply", {"entities": {"light.a": {"state": "on", "brightness": 5}, "fan.b": {"state": "off"}}}]]
-    assert out["r"] == {"applied": 2, "skipped": 0}
+    assert out["r"] == {"applied": 2, "skipped": 0, "failed": 0, "problems": []}
 
 
 def test_apply_whole_house_skips_a_device_thats_unavailable_or_gone_now(tmp_path):
@@ -1012,7 +1012,7 @@ const r = await LM.applyWholeHouse(hass, preset);
 console.log(JSON.stringify({ calls, r }));
 """)
     assert out["calls"] == [["scene", "apply", {"entities": {"light.here": {"state": "on"}}}]]
-    assert out["r"] == {"applied": 1, "skipped": 2}
+    assert out["r"] == {"applied": 1, "skipped": 2, "failed": 0, "problems": []}
 
 
 def test_apply_whole_house_refuses_a_non_light_fan_domain_even_from_hand_edited_storage(tmp_path):
@@ -1039,7 +1039,7 @@ const r = await LM.applyWholeHouse(hass, { entities: { "light.gone": { state: "o
 console.log(JSON.stringify({ calls, r }));
 """)
     assert out["calls"] == []
-    assert out["r"] == {"applied": 0, "skipped": 1}
+    assert out["r"] == {"applied": 0, "skipped": 1, "failed": 0, "problems": []}
 
 
 def test_open_barrier_card_says_no_reading_for_an_offline_sensor_or_lock(tmp_path):

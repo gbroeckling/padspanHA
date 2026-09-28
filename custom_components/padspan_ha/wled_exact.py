@@ -63,7 +63,7 @@ RETRY_DELAYS = (0.4, 1.2)
 ECHO_WINDOW_S = 3.0          # PadSpan's own change coming back through HA
 LATE_EXTRA_S = 1.0
 RECONNECT_DEDUPE_S = 10.0
-RESTART_CHECK_S = 10.0       # a device's uptime is read at most this often for outside changes
+RESTART_CHECK_S = 2.0        # one uptime read for the lights of a device changing together
 SETUP_RECHECK_S = 86400
 SAVE_DELAY_S = 2.0
 
@@ -667,26 +667,28 @@ def _public_result(rec: dict, result: dict) -> dict:
 
 
 def _plain_targets(hass: HomeAssistant, entity_id: str, brightness: int | None) -> list[tuple[str, int | None]]:
-    """What a plain HA call switches: the light itself — and, for a member
-    of a team PadSpan runs (without the licence), every other member's
-    master light too, brightness kept to each member's tuning: their WLED
-    sync is switched off, so nothing else would bring them along."""
-    out: list[tuple[str, int | None]] = [(entity_id, brightness)]
+    """What a plain HA call switches: the light itself — or, for a member of
+    a team PadSpan runs (without the licence), every member's master light
+    (any light of a member is the member, as with the licence), brightness
+    kept to each member's tuning: their WLED sync is switched off, so
+    nothing else would bring them along."""
     try:
         ident, team = _team_of_entity(hass, entity_id)
     except Exception:  # noqa: BLE001 — a registry hiccup: just the light
-        return out
+        return [(entity_id, brightness)]
     st = _store(hass)
     if not team or not st:
-        return out
-    ref = ((((st.get(ident["mac"]) or {}).get("look") or {}).get("state")) or {}).get("bri")
+        return [(entity_id, brightness)]
+    def look_bri(mac: str) -> Any:
+        return ((((st.get(mac) or {}).get("look") or {}).get("state")) or {}).get("bri")
+
+    ref = look_bri(ident["mac"])
+    out: list[tuple[str, int | None]] = [(_master_light(hass, ident["device_id"], ident["mac"]) or entity_id, brightness)]
     for did in _members(team):
         mi = _identify(hass, device_id=did) if did != ident["device_id"] else None
         light = _master_light(hass, did, mi["mac"]) if mi else None
-        if light is None:
-            continue
-        mb = ((((st.get(mi["mac"]) or {}).get("look") or {}).get("state")) or {}).get("bri")
-        out.append((light, None if brightness is None else L.team_bri(mb, int(brightness), ref)))
+        if light is not None:
+            out.append((light, None if brightness is None else L.team_bri(look_bri(mi["mac"]), int(brightness), ref)))
     return out
 
 
@@ -815,11 +817,12 @@ async def _boot_time(hass: HomeAssistant, rec: dict, worker: _Worker, *, fresh: 
 
 def _undelivered(rec: dict, last: dict, came_back: bool) -> bool:
     """The last command never got to the device: it was waiting (offline,
-    or unanswered). Back from "unavailable", also one that went wrong, or
-    one with no result at all (an outside "off", HA restarted mid-command)."""
+    or unanswered) — or, back from "unavailable", it went wrong. A last
+    command with no result of its own is an outside change the device made
+    itself: nothing to deliver."""
     res = rec.get("last_result") if isinstance(rec.get("last_result"), dict) else {}
     if float(res.get("at") or 0) < float(last.get("at") or 0):
-        return came_back
+        return False
     return bool(res.get("waiting")) or (came_back and not res.get("ok"))
 
 
