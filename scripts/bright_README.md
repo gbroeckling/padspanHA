@@ -81,7 +81,8 @@ Then:
 1. Install **PadSpan Bright** and restart Home Assistant.
 2. Open Settings → Devices & services → **Add integration** → PadSpan Bright.
 3. Open **PadSpan Bright** in the sidebar: draw your floors and rooms under
-   Mapping, then turn on the **Atlas** sidebar panel in Settings.
+   Mapping. The **Atlas** sidebar panel shows the result (it is on by default;
+   Settings turns it off).
 
 Home Assistant 2024.1 or newer. No hardware needed — it reads your `light.*`
 entities and their room assignments from Home Assistant.

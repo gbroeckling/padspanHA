@@ -13,7 +13,7 @@ Either free tier gets floors, rooms and one marker per light — tap the marker 
 
 ## Getting there
 
-Open **Mapping → Atlas**, or turn on the standalone **Atlas** sidebar panel in Settings for a lighter view without the rest of Mapping.
+Open **Mapping → Atlas**, or the standalone **Atlas** sidebar panel (on by default; Settings turns it off) for a lighter view without the rest of Mapping.
 
 ## Placing fixtures
 

@@ -44,6 +44,7 @@ _BACKEND_ONLY = {
     "vacation_mode_pattern_attempt",   # vacation_mode.py — last empty build, for the hourly retry
     "vacation_mode_pattern_prev",      # vacation_mode.py — the last learned pattern, kept across vacations
     "vacation_mode_tracked_since",     # settings_store.py — stamped once on upgrade
+    "atlas_default_v1_applied",        # settings_store.py — the one-time Atlas-on switch, stamped on load
     "wled_teams",                      # padspan_ha/wled_teams_set (ws_wled.py), validated there
 }
 
