@@ -1,0 +1,2 @@
+# Shell scripts run on Linux (5810 cron): never check them out with CRLF.
+*.sh text eol=lf
