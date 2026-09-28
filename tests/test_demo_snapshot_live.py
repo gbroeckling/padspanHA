@@ -38,8 +38,9 @@ Its review: step 2 ("Choose your device", reached by "Skip — positions look
 fine") had no redraw and stayed on "no scanners / no devices"; a double-click
 or a held Enter on "Live" got past the question; and the mobile pill read
 "…" until a tab change, then "Sample" in Live's green. The harness polls the
-real step 2 (redrawn when its radios or devices change, not for RSSI, not over
-a typed MAC), clicks on a controlled clock, and reads the pill's class.
+real step 2 (redrawn when its radios change or its device list fills or
+empties; not for each device coming and going, not for RSSI, not over a typed
+MAC), clicks on a controlled clock, and reads the pill's class.
 """
 
 from __future__ import annotations
@@ -107,6 +108,7 @@ _CASES = [
     # review of the second follow-up: step 2 redraws too; one gesture is one
     # answer; the mobile pill follows the mode
     "calibration: step 2 (Choose your device) redraws once when HA's radios and devices arrive",
+    "calibration: step 2 is not redrawn when devices come and go in a list that already has some",
     "calibration: step 2 is not redrawn when only signal strengths change",
     "calibration: step 2 is not redrawn over a typed MAC waiting for 'Use'",
     "data toggle: a double-click on Live only asks; its second click is not an answer",

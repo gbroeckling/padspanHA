@@ -649,11 +649,11 @@ function _setupDevices(ctx, snap) {
 }
 
 // What the Setup tab's lists were drawn from (#88): the radios (tuneRadioSig)
-// and the ids of the devices offered. Signal strengths are left out: they
-// change on every poll.
+// and whether any device was offered (the list, or "isn't reporting any BLE
+// devices yet"). Not which devices: in a real house addresses come and go on
+// most polls, and each redraw drops keyboard focus and a text selection.
 function _setupSig(state, bleObjs, adOnlyDevices) {
-  const ids = bleObjs.map(_setupStableId).concat(adOnlyDevices.map(d => d.address)).sort();
-  return tuneRadioSig(state) + "|" + ids.join(",");
+  return tuneRadioSig(state) + "|" + (bleObjs.length + adOnlyDevices.length > 0);
 }
 
 function _setup(ctx, el, cs, calData) {
@@ -743,8 +743,8 @@ function _setup(ctx, el, cs, calData) {
   // Drawn once from this snapshot, like the Tune tab (see there): wizard
   // step 2 kept saying "isn't reporting any Bluetooth scanners / BLE devices
   // yet", Next hidden, after both had arrived (#88). The poll asks this and
-  // redraws when the radios or the devices offered have changed — never while
-  // a typed MAC waits for "Use".
+  // redraws when the radios change or the device list fills or empties —
+  // never while a typed MAC waits for "Use".
   const _setupSigDrawn = _setupSig(ctx.state, bleObjs, adOnlyDevices);
   ctx.state._calibLiveChanged = () => {
     if (macInput.value !== (cs.deviceId || "")) return false;

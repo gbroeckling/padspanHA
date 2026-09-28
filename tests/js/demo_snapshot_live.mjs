@@ -727,9 +727,37 @@ await run("calibration: step 2 (Choose your device) redraws once when HA's radio
   expect(!c.text().includes(NO_SCANNERS) && !c.text().includes(NO_DEVICES), `still says no scanners / no devices: ${c.text()}`);
   await tick(c.p); await tick(c.p);
   expect(c.renders.length === 1, `the same radios and device were redrawn again (${c.renders.length} redraws)`);
-  c.server.snap = heardSnap(["AA:01", "AA:05", "AA:06"], [["11:22:33:44:55:77", -70], ["11:22:33:44:55:66", -48]]);
+});
+
+// Its review: in a real house addresses come and go on most polls (rotating
+// MACs appear, old ones age out of the 4 h ad window). Redrawing for each one
+// rebuilt step 2 and the Setup tab every ~26 s, dropping keyboard focus and
+// any text selection. Only the empty list and the radios are #88's.
+await run("calibration: step 2 is not redrawn when devices come and go in a list that already has some", async () => {
+  const c = await setupStepPoll(heardSnap(["AA:01", "AA:05"], [["11:22:33:44:55:66", -55]]));
+  expect(!c.text().includes(NO_DEVICES), `harness: expected a device list first, got: ${c.text()}`);
+  const polls = [
+    [["11:22:33:44:55:66", -55], ["11:22:33:44:55:77", -70]],   // a new address
+    [["11:22:33:44:55:77", -70]],                               // the first aged out
+    [["11:22:33:44:55:77", -70], ["0A:76:26:92:CE:D2", -88]],   // a rotating MAC
+  ];
+  for (const devs of polls) {
+    c.server.snap = heardSnap(["AA:01", "AA:05"], devs);
+    await tick(c.p);
+  }
+  c.server.snap = heardSnap(["AA:01", "AA:05"], [["11:22:33:44:55:77", -70]]);
+  c.server.snap.objects = { list: [{ kind: "ble", address: "59:53:59:19:D5:E2", name: "tag", rssi: -80 }] };  // a tracked one
   await tick(c.p);
-  expect(c.renders.length === 2, `a second device arrived: expected a second redraw, got ${c.renders.length}`);
+  expect(c.renders.length === 0, `redrawn ${c.renders.length} time(s) for devices coming and going`);
+  c.server.snap = heardSnap(["AA:01", "AA:05"], []);          // every device gone
+  await tick(c.p);
+  expect(c.renders.length === 1 && c.text().includes(NO_DEVICES), `the list emptied: ${c.renders.length} redraws, ${c.text()}`);
+  c.server.snap = heardSnap(["AA:01", "AA:05"], [["11:22:33:44:55:88", -60]]);  // same radios, a device again
+  await tick(c.p);
+  expect(c.renders.length === 2 && !c.text().includes(NO_DEVICES), `a device after an empty list: ${c.renders.length} redraws, ${c.text()}`);
+  c.server.snap = heardSnap(["AA:01", "AA:05", "AA:06"], [["11:22:33:44:55:88", -60]]);  // a radio came up
+  await tick(c.p);
+  expect(c.renders.length === 3 && c.text().includes("proxy-AA:06"), `a new radio: ${c.renders.length} redraws, ${c.text()}`);
 });
 
 await run("calibration: step 2 is not redrawn when only signal strengths change", async () => {
