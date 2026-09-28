@@ -44,10 +44,20 @@ class LostAndFoundStore:
 
     async def record(self, key: str, room: str, label: str | None = None,
                      padspan_id: str | None = None) -> None:
-        """Overwrite this key's last-confirmed room. Called once per
-        room-departure transition (snapshot_builder.py), never every poll —
-        an object's record is stable between transitions, not a stream."""
+        """Overwrite this key's last-confirmed room.
+
+        The caller (ws_live_snapshot) sees every away object on EVERY poll —
+        it works on a fresh copy of the shared snapshot each time — so this
+        is where "once per departure" is enforced: an unchanged room is not a
+        new record, and writes nothing. It once rewrote the whole (~1 MB) file
+        per away object per poll, which kept live_snapshot from ever answering
+        (2026-09-28). Saves are coalesced, never awaited inline."""
         if not key or not room:
+            return
+        prev = self.records.get(key)
+        if (isinstance(prev, dict) and prev.get("room") == room
+                and (not label or prev.get("label") == label)
+                and (not padspan_id or prev.get("padspan_id") == padspan_id)):
             return
         entry: dict[str, Any] = {"room": room, "ts": time.time()}
         if label:
@@ -55,7 +65,7 @@ class LostAndFoundStore:
         if padspan_id:
             entry["padspan_id"] = padspan_id
         self.records[key] = entry
-        await self.store.async_save(self.records)
+        self.store.async_delay_save(lambda: self.records, 10)
 
     def get_all(self) -> dict[str, dict[str, Any]]:
         return self.records
