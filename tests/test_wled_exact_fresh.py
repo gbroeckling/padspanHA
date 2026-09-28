@@ -164,3 +164,31 @@ async def test_nowrite_fresh_on_matching_other_lights_report_after(house):
     assert [d.serialize_state()["on"] for d in devs] == [True, True, True]
     assert len({d.serialize_state()["bri"] for d in devs}) == 1
 
+
+
+# ── padspan_ha.wled_on/off target resolution across HA versions ──
+
+import sys  # noqa: E402
+import types  # noqa: E402
+
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize("style", ["new", "old"])
+async def test_service_targets_resolve_on_new_and_old_ha(monkeypatch, style):
+    """HA 2026.10 drops async_extract_entity_ids' hass argument (warns from
+    2026.9); older HA needs it. Both must give the area's lights, not just
+    the entity_id field."""
+    got = {"light.a_main", "light.b_main", "switch.x"}
+    if style == "new":
+        def extract(call, expand_group=True):
+            assert not isinstance(call, str)
+            return got
+    else:
+        async def extract(hass, call, expand_group=True):
+            return got
+    mod = types.ModuleType("homeassistant.helpers.service")
+    mod.async_extract_entity_ids = extract
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.service", mod)
+    call = SimpleNamespace(data={"area_id": "kitchen"})
+    assert await E._service_entities(object(), call) == ["light.a_main", "light.b_main"]

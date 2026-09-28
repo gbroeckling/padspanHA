@@ -1643,7 +1643,12 @@ def _brightness_from(call_data: dict) -> int | None:
 async def _service_entities(hass: HomeAssistant, call: Any) -> list[str]:
     try:
         from homeassistant.helpers.service import async_extract_entity_ids  # noqa: PLC0415
-        found = async_extract_entity_ids(hass, call)
+        # HA 2026.10 drops the hass argument (it warns from 2026.9); an older
+        # HA still needs it, and rejects the one-argument form.
+        try:
+            found = async_extract_entity_ids(call)
+        except TypeError:
+            found = async_extract_entity_ids(hass, call)
         if inspect.isawaitable(found):
             found = await found
         ids = set(found or ())
