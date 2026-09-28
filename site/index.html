@@ -176,6 +176,19 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.84</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">27 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Fixed:</b> if you changed a light PadSpan runs (from Home Assistant, the WLED app or a wall panel) while PadSpan was still reading the device before switching it — for example while the device was busy, or during PadSpan's daily check of its LED setup — PadSpan could still send its older command a few seconds later and undo your change. Your change now stands: PadSpan doesn't send the older command, and an "on" you gave gets the remembered look at your brightness.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.83</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">27 September 2026</span>
