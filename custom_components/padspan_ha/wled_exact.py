@@ -255,6 +255,12 @@ def _exact_record(hass: HomeAssistant, entity_id: str) -> dict | None:
     return rec if rec and rec.get("exact") and rec.get("look") else None
 
 
+def _runs(hass: HomeAssistant, rec: dict | None) -> bool:
+    """PadSpan runs this light now. Nothing on the exact path is sent to a
+    device otherwise: every exact request switches its live WLED sync off."""
+    return bool(rec and rec.get("exact") and rec.get("look")) and _tier_at_least(hass, W.TIER)
+
+
 def _team_of_entity(hass: HomeAssistant, entity_id: str) -> tuple[dict | None, dict | None]:
     """(identity, PadSpan team) of a light's device, licence or not."""
     ident = _identify(hass, entity_id=entity_id)
@@ -322,10 +328,30 @@ class _Worker:
         self.applies = 0
         self.boot_at: float | None = None   # when the device last started (now − its uptime)
         self.boot_checked = -1e9            # monotonic time boot_at was read
+        self.outside = 0                    # changes made from outside PadSpan, counted
+        self.want_at = -1e9                 # monotonic time the newest want was submitted
         self._events: asyncio.Lock | None = None
 
     def busy(self) -> bool:
         return self.task is not None and not self.task.done()
+
+    def may_echo(self) -> bool:
+        """A change coming back through HA may be PadSpan's own: a write in
+        the last ECHO_WINDOW_S, or a command in progress, but not a retry
+        that hasn't written anything yet: it is older than what just changed."""
+        if _mono() - self.last_write < ECHO_WINDOW_S:
+            return True
+        if not self.busy():
+            return False
+        # A retry goes only to an idle worker; the newest want is still it.
+        return not ((self.want or {}).get("retry") and self.last_write < self.want_at)
+
+    def cancel_timers(self) -> None:
+        for name in ("late_cancel", "retry_cancel"):
+            cancel = getattr(self, name)
+            if cancel:
+                cancel()
+                setattr(self, name, None)
 
     def events(self) -> asyncio.Lock:
         """One outside change at a time: the lights of one device change
@@ -336,14 +362,10 @@ class _Worker:
 
     def submit(self, want: dict) -> asyncio.Future:
         self.gen += 1
-        self.want = want
+        self.want, self.want_at = want, _mono()
         fut = asyncio.get_running_loop().create_future()
         self.waiters.append((self.gen, fut))
-        for name in ("late_cancel", "retry_cancel"):
-            cancel = getattr(self, name)
-            if cancel:
-                cancel()
-                setattr(self, name, None)
+        self.cancel_timers()
         if not self.busy():
             self.task = self.hass.async_create_background_task(self._run(), f"padspan_wled_exact_{self.mac}")
         return fut
@@ -427,6 +449,8 @@ async def _post_all(hass: HomeAssistant, worker: _Worker, host: str, bodies: lis
         bad = L.forbidden_in(body)
         if bad:                     # the exact path never sends these
             raise W.WledError("refused", f"refused to send {bad}")
+        # From the moment it goes: WLED can push the change to HA before it replies.
+        worker.last_write = _mono()
         try:
             reply = await W._request(hass, host, "POST", "json/state", body, W.POST_TIMEOUT_S)
             worker.last_write = _mono()
@@ -490,6 +514,12 @@ async def _apply(hass: HomeAssistant, worker: _Worker, want: dict, gen: int) -> 
     if not rec or not look:
         result["error"] = "No remembered look"
         return result
+    if not _runs(hass, rec):
+        result["error"] = NOT_RUN_MSG
+        return result
+    # Changes made from outside when this command began: one made since
+    # replaces it (a retry of it is older than that change).
+    seen = want.setdefault("seen", worker.outside)
     tgt = W.resolve_device(hass, device_id=rec.get("device_id"))
     if tgt is None:
         result.update(waiting=True, error="Offline — the look goes on when it reconnects")
@@ -498,6 +528,9 @@ async def _apply(hass: HomeAssistant, worker: _Worker, want: dict, gen: int) -> 
         return result
     host = tgt["host"]
     async with W.device_lock(hass, host):
+        if not _runs(hass, rec):                # given back to WLED sync while this waited
+            result["error"] = NOT_RUN_MSG
+            return result
         try:
             si = await W._request(hass, host, "GET", "json/si")
         except W.WledError as e:
@@ -505,12 +538,19 @@ async def _apply(hass: HomeAssistant, worker: _Worker, want: dict, gen: int) -> 
             # command: it is tried again, then said not to have gone.
             words = _NO_ANSWER.get(e.code) or str(e)
             n = int(want.get("retry") or 0)
-            if n < len(WAIT_RETRY_S):
+            if worker.outside != seen:
+                result.update(replaced=True, error=REPLACED_MSG)
+            elif n < len(WAIT_RETRY_S):
                 result.update(waiting=True, retry_in=WAIT_RETRY_S[n],
                               error=f"{words} — PadSpan tries again in {WAIT_RETRY_S[n]:g} s")
                 _schedule_retry(hass, worker, gen, want, result)
             else:
                 result["error"] = f"{words}, so it wasn't switched"
+            rec["last_result"] = result
+            st.schedule_save()
+            return result
+        if worker.outside != seen:
+            result.update(replaced=True, error=REPLACED_MSG)
             rec["last_result"] = result
             st.schedule_save()
             return result
@@ -585,6 +625,8 @@ def _schedule_late(hass: HomeAssistant, worker: _Worker, gen: int, tt: int, stag
 
 _NO_ANSWER = {"busy": "The device was busy", "timeout": "The device didn't answer",
               "unreachable": "The device couldn't be reached"}
+REPLACED_MSG = "Not sent — the light was changed outside PadSpan first"
+NOT_RUN_MSG = "Not sent — PadSpan doesn't run this light any more"
 
 
 def _schedule_retry(hass: HomeAssistant, worker: _Worker, gen: int, want: dict, result: dict) -> None:
@@ -595,7 +637,7 @@ def _schedule_retry(hass: HomeAssistant, worker: _Worker, gen: int, want: dict, 
         worker.retry_cancel = None
         st = _store(hass)
         rec = st.get(worker.mac) if st else None
-        if (rec is None or worker.gen != gen or worker.busy() or rec.get("last_result") is not result
+        if (not _runs(hass, rec) or worker.gen != gen or worker.busy() or rec.get("last_result") is not result
                 or not result.get("waiting")):
             return
         worker.submit({**want, "retry": int(want.get("retry") or 0) + 1})
@@ -618,7 +660,7 @@ async def _late_check(hass: HomeAssistant, worker: _Worker, gen: int, stage: int
     if tgt is None:
         return
     async with W.device_lock(hass, tgt["host"]):
-        if worker.gen != gen:
+        if worker.gen != gen or not _runs(hass, rec):
             return
         try:
             live = await W._request(hass, tgt["host"], "GET", "json/state")
@@ -840,23 +882,25 @@ async def _outside_change(hass: HomeAssistant, st: WledLooksStore, rec: dict, wo
         return
     if old_s not in ("on", "off"):
         return
-    if _mono() - worker.last_write < ECHO_WINDOW_S or worker.busy():
+    if worker.may_echo():
         return                      # PadSpan's own change coming back
+    # Changed from outside after a command that didn't go (or is still to
+    # be tried again, or is being tried again): the change stands — that
+    # command is not sent again, by a retry or on a reconnect. Counted and
+    # marked before anything waits, so a retry timer firing meanwhile finds it.
+    worker.outside += 1
+    res = rec.get("last_result")
+    if isinstance(res, dict) and not res.get("ok") and not res.get("replaced"):
+        res["replaced"] = True
+        if res.get("waiting"):
+            res.update(waiting=False, error=REPLACED_MSG)
+        st.schedule_save()
     # A restart HA never showed as "unavailable" (2026.7.4 re-polls at once
     # when WLED's socket closes: PillTaker 09-27, Quin Kitchen 09-23), even
     # as on → on: the last command goes back — before "hold" could take the
     # boot's own "on" for someone's.
     if await _catch_up(hass, rec, worker, came_back=False):
         return
-    # Changed from outside after a command that didn't go (or is still to
-    # be tried again): the change stands — that command is not sent again,
-    # by the retry or on a reconnect.
-    res = rec.get("last_result")
-    if isinstance(res, dict) and not res.get("ok") and not res.get("replaced"):
-        res["replaced"] = True
-        if res.get("waiting"):
-            res.update(waiting=False, error="Not sent — the light was changed outside PadSpan first")
-        st.schedule_save()
     if old_s == new_s:
         return
     lights = device_lights(hass, rec["device_id"], rec["mac"])
@@ -1008,11 +1052,7 @@ def async_stop_wled_exact(hass: HomeAssistant) -> None:
             except Exception:  # noqa: BLE001
                 pass
     for w in (dom.get(_WORKERS) or {}).values():
-        for name in ("late_cancel", "retry_cancel"):
-            cancel = getattr(w, name)
-            if cancel:
-                cancel()
-                setattr(w, name, None)
+        w.cancel_timers()
 
 
 # ── The switch: WLED sync ↔ PadSpan ──────────────────────────────────────────
@@ -1180,6 +1220,13 @@ async def switch_to_wled(hass: HomeAssistant, rec: dict, tgt: dict) -> dict:
     except W.WledError:
         after = None
     rec.update(join="wled", exact=False, sync_off=None, prior_sync=None)
+    # Nothing PadSpan had waiting goes to it now: its requests switch sync off.
+    w = ((hass.data.get(DOMAIN) or {}).get(_WORKERS) or {}).get(rec.get("mac"))
+    if w is not None:
+        w.cancel_timers()
+    res = rec.get("last_result")
+    if isinstance(res, dict) and res.get("waiting"):
+        res.update(waiting=False, replaced=True, error="Not sent — the light was given back to WLED sync")
     return {"backup": backup, "before": before, "after": after}
 
 

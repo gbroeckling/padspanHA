@@ -1551,3 +1551,223 @@ async def test_without_the_licence_a_team_keeps_its_tuning_on_one_segment_lights
     await E.async_power(house.hass, "light.us", True, 5)
     plain = {c[2]["entity_id"]: c[2]["brightness"] for c in house.service_calls}
     assert plain["light.us"] == 5 and plain["light.un"] == L.team_bri(15, round(5 * 255 / 13), 128)
+
+
+# ── review round 3: what the round-2 repairs broke ───────────────────────────
+
+
+def _up(house, devs, s):
+    """s seconds pass; the devices stay up all along (no false restart)."""
+    house.clock[0] += s
+    for d in devs:
+        d.info["uptime"] = house.clock[0]
+
+
+async def test_a_retry_never_reaches_a_light_given_back_to_wled_sync(house):
+    """Review r3: a command waiting to be tried again kept its timer after
+    the light (or its team) went back to WLED sync, and every exact body
+    switches the live sync off — so the retry cut it out of its team."""
+    dev = simple_device()
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    await E.async_power(house.hass, "light.valance_main", True)
+    await house.settle()
+    _up(house, [dev], 60)
+    dev.busy = 3
+    res = await E.async_power(house.hass, "light.valance_main", False, source="presence")
+    await house.settle()
+    assert res["results"][0]["waiting"]
+    fire = house.timers[-1][1]
+    _up(house, [dev], 4)
+    conn = _Conn()
+    await E.ws_wled_exact_set(house.hass, conn, {"id": 9, "device_id": did, "exact": False})
+    assert not conn.errors, conn.errors
+    synced = dict(dev.serialize_state()["udpn"])
+    rec = house.store.get("28562f551738")
+    assert not rec["last_result"]["waiting"] and "WLED sync" in rec["last_result"]["error"]
+    n = len(dev.posts())
+    _up(house, [dev], 6)
+    await fire()
+    await house.settle()
+    assert dev.posts()[n:] == [] and dev.serialize_state()["udpn"] == synced
+    # A team given back to WLED sync: a member's retry sends nothing either.
+    devs, dids, _ = await _padspan_team(house)
+    await E.async_power(house.hass, "light.m0_main", True)
+    await house.settle()
+    _up(house, devs, 60)
+    devs[1].busy = 3
+    res = await E.async_power(house.hass, "light.m0_main", False, source="vacation")
+    await house.settle()
+    assert [r["waiting"] for r in res["results"]] == [False, True, False]
+    fire = house.timers[-1][1]
+    _up(house, devs, 3)
+    conn = _Conn()
+    await E.ws_wled_team_mode(house.hass, conn, {"id": 7, "team_id": "t1", "mode": "mirror"})
+    assert not conn.errors, conn.errors
+    synced = dict(devs[1].serialize_state()["udpn"])
+    n = len(devs[1].posts())
+    _up(house, devs, 7)
+    await fire()
+    await house.settle()
+    assert devs[1].posts()[n:] == [] and devs[1].serialize_state()["udpn"] == synced
+
+
+async def test_a_retry_after_the_licence_lapsed_sends_nothing(house):
+    dev = simple_device()
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    await E.async_power(house.hass, "light.valance_main", False)
+    await house.settle()
+    _up(house, [dev], 60)
+    dev.busy = 3
+    await E.async_power(house.hass, "light.valance_main", True, source="presence")
+    await house.settle()
+    fire = house.timers[-1][1]
+    house.tier[0] = False
+    n = len(dev.posts())
+    await fire()
+    await house.settle()
+    assert len(dev.posts()) == n
+
+
+async def _waiting_off(house):
+    """Vacation Mode's off, unanswered (busy) while HA still has the light."""
+    dev = simple_device()
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    await E.async_power(house.hass, "light.valance_main", True)
+    await house.settle()
+    _up(house, [dev], 3600)
+    dev.busy = 3
+    res = await E.async_power(house.hass, "light.valance_main", False, source="vacation")
+    await house.settle()
+    assert res["results"][0]["waiting"] and res["results"][0]["retry_in"] == 10
+    assert dev.serialize_state()["on"] is True
+    return dev, house.timers[-1][1]
+
+
+async def test_a_retry_firing_while_an_outside_change_is_read_never_undoes_it(house):
+    """Review r3 (a): the 10 s timer fired during the outside change's uptime
+    read; the handler took the retry for a newer command and left, and the
+    old off won over the person's dim."""
+    dev, fire = await _waiting_off(house)
+    _up(house, [dev], 9.8)                            # someone dims it in HA
+    await dev.handle("POST", "json/state", {"bri": 40})
+    dev.gate = asyncio.Event()                        # the uptime read takes a moment
+    h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="on"),
+                                                SimpleNamespace(state="on", attributes={"brightness": 40})))
+    await _spin()
+    _up(house, [dev], 0.2)
+    t = asyncio.ensure_future(fire())                 # the timer fires meanwhile
+    await _spin()
+    dev.gate.set()
+    await h
+    await t
+    await house.settle()
+    dev.gate = None
+    rec = house.store.get("28562f551738")
+    s = dev.serialize_state()
+    assert s["on"] is True and s["bri"] == 40
+    assert rec["last_result"]["replaced"] and not rec["last_result"]["waiting"]
+
+
+async def test_a_change_made_while_a_retry_is_being_read_stops_the_retries(house):
+    """Review r3 (b): an outside change while a retry was reading the device
+    was dropped as PadSpan's own echo (nothing had been written); the next
+    retry undid it a minute later."""
+    dev, fire = await _waiting_off(house)
+    _up(house, [dev], 10)
+    gate = dev.gate = asyncio.Event()
+    t = asyncio.ensure_future(fire())                 # the retry's read is in flight
+    await _spin()
+    dev.gate = None
+    await dev.handle("POST", "json/state", {"bri": 40})   # the person dims it
+    dev.busy = 3                                      # the retry's read is answered busy
+    h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="on"),
+                                                SimpleNamespace(state="on", attributes={"brightness": 40})))
+    await _spin()
+    gate.set()
+    await t
+    await h
+    await house.settle()
+    rec = house.store.get("28562f551738")
+    assert not rec["last_result"].get("waiting") and rec["last_result"].get("replaced")
+    for _delay, job in list(house.timers):            # whatever timers there are fire
+        await job()
+        await house.settle()
+    s = dev.serialize_state()
+    assert s["on"] is True and s["bri"] == 40
+    # Its read answered instead: nothing is written over the person's change.
+    dev2 = simple_device(host="192.168.2.141", mac="aabbccddee41")
+    did2 = house.add("desk", dev2)
+    await _remember(house, did2)
+    await _to_padspan(house, did2)
+    await E.async_power(house.hass, "light.desk_main", True)
+    await house.settle()
+    _up(house, [dev2], 3600)
+    dev2.busy = 3
+    await E.async_power(house.hass, "light.desk_main", False, source="vacation")
+    await house.settle()
+    fire2 = house.timers[-1][1]
+    _up(house, [dev2], 10)
+    gate = dev2.gate = asyncio.Event()
+    t = asyncio.ensure_future(fire2())
+    await _spin()
+    dev2.gate = None
+    await dev2.handle("POST", "json/state", {"bri": 40})
+    h = asyncio.ensure_future(E.on_state_change(house.hass, "light.desk_main", SimpleNamespace(state="on"),
+                                                SimpleNamespace(state="on", attributes={"brightness": 40})))
+    await _spin()
+    n = len(dev2.posts())
+    gate.set()
+    await t
+    await h
+    await house.settle()
+    assert dev2.posts()[n:] == [] and dev2.serialize_state()["on"] is True
+
+
+async def test_a_retrys_own_write_coming_back_before_its_reply_is_not_an_outside_change(house, monkeypatch):
+    """The retry's own off reaches HA (WLED pushes it) before the reply to
+    its POST: that is PadSpan's echo, not someone switching it off."""
+    dev, fire = await _waiting_off(house)
+    _up(house, [dev], 10)
+    held = asyncio.Event()
+    replied = asyncio.Event()
+    orig = house.fleet.request_once
+
+    async def _slow_reply(hass, host, method, path, body, timeout):
+        res = await orig(hass, host, method, path, body, timeout)
+        if method == "POST" and path == "json/state":
+            held.set()
+            await replied.wait()
+        return res
+    monkeypatch.setattr(W, "_request_once", _slow_reply)
+    t = asyncio.ensure_future(fire())
+    await held.wait()
+    await E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="on"),
+                            SimpleNamespace(state="off", attributes={}))
+    replied.set()
+    await t
+    await house.settle()
+    rec = house.store.get("28562f551738")
+    assert rec["last_cmd"]["source"] == "vacation"
+    assert rec["last_result"]["ok"] and rec["last_result"]["source"] == "vacation"
+    assert dev.serialize_state()["on"] is False
+
+
+async def test_a_change_seen_before_a_retry_starts_running_still_stops_it(house):
+    """The retry is submitted, its task not yet running, when HA reports the
+    person's dim: it is not PadSpan's echo (nothing has been sent)."""
+    dev, fire = await _waiting_off(house)
+    _up(house, [dev], 10)
+    await dev.handle("POST", "json/state", {"bri": 40})
+    await fire()                                      # submitted; the task hasn't run yet
+    await E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="on"),
+                            SimpleNamespace(state="on", attributes={"brightness": 40}))
+    await house.settle()
+    s = dev.serialize_state()
+    assert s["on"] is True and s["bri"] == 40
+    assert house.store.get("28562f551738")["last_result"]["replaced"]
