@@ -1226,6 +1226,8 @@ def async_register(hass: HomeAssistant) -> None:
     dom = hass.data.setdefault(DOMAIN, {})
     if not dom.get("_wled_stop_listener"):
         dom["_wled_stop_listener"] = hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _on_stop)
+    from .wled_exact import WS_COMMANDS as _exact_commands  # noqa: PLC0415 — it imports this module
     for cmd in (ws_wled_devices, ws_wled_get, ws_wled_state, ws_wled_cfg, ws_wled_backups,
-                ws_wled_identify, ws_wled_matrix, ws_wled_live, ws_wled_teams_get, ws_wled_teams_set):
+                ws_wled_identify, ws_wled_matrix, ws_wled_live, ws_wled_teams_get, ws_wled_teams_set,
+                *_exact_commands):
         websocket_api.async_register_command(hass, cmd)

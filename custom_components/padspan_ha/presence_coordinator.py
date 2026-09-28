@@ -3371,9 +3371,14 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 ):
                     svc_domain, _ = parts
                     try:
-                        await self.hass.services.async_call(
-                            svc_domain, action, {"entity_id": entity_id}
-                        )
+                        # A WLED light PadSpan runs: its remembered look (wled_exact.py).
+                        from .wled_exact import async_power, is_exact_entity  # noqa: PLC0415
+                        if svc_domain == "light" and is_exact_entity(self.hass, entity_id):
+                            await async_power(self.hass, entity_id, action == "turn_on", source="presence")
+                        else:
+                            await self.hass.services.async_call(
+                                svc_domain, action, {"entity_id": entity_id}
+                            )
                         _LOGGER.info(
                             "PadSpan automation: %s %s → %s.%s(%s)",
                             trigger, device_label or device_key,

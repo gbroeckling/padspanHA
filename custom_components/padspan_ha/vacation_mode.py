@@ -552,7 +552,13 @@ async def _async_tick(hass: HomeAssistant) -> None:
         domain = entity_id.split(".", 1)[0]
         service = "turn_on" if want_on else "turn_off"
         try:
-            await hass.services.async_call(domain, service, {"entity_id": entity_id})
+            # A WLED light PadSpan runs goes on with its remembered look —
+            # and its PadSpan team with it (wled_exact.py).
+            from .wled_exact import async_power, is_exact_entity  # noqa: PLC0415
+            if is_exact_entity(hass, entity_id):
+                await async_power(hass, entity_id, want_on, source="vacation")
+            else:
+                await hass.services.async_call(domain, service, {"entity_id": entity_id})
         except Exception as err:
             _LOGGER.debug("Vacation mode: could not %s %s: %s", service, entity_id, err)
             continue

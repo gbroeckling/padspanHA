@@ -54,6 +54,7 @@ from .const import (
     DATA_DEVICE_REGISTRY,
     DATA_FORENSICS,
     DATA_CAPTURE,
+    DATA_WLED_LOOKS,
 )
 from .adaptive_store import AdaptiveStore
 from .device_registry import DeviceRegistry
@@ -197,6 +198,11 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
         await tb_store.async_load()
         return (DATA_TRACEBACK, tb_store, f"TracebackStore ready ({len(tb_store.frames)} frames)")
 
+    async def _init_wled_looks():
+        from .wled_exact import async_get_store
+        looks = await async_get_store(hass)
+        return (DATA_WLED_LOOKS, looks, f"WLED looks ready ({len(looks.records())} devices)")
+
     async def _init_device_registry():
         dev_reg = DeviceRegistry(hass)
         await dev_reg.async_load()
@@ -259,6 +265,8 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
         deferred.append(_init_traceback())
     if DATA_TAG_INTEGRATION not in hass.data[DOMAIN]:
         deferred.append(_init_tag())
+    if DATA_WLED_LOOKS not in hass.data[DOMAIN]:
+        deferred.append(_init_wled_looks())
 
     if deferred:
         results = await asyncio.gather(*deferred)
@@ -455,6 +463,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     hass.services.async_register(DOMAIN, SERVICE_SET_MAP, _set_map, schema=SERVICE_SCHEMA)
 
+    # padspan_ha.wled_on / wled_off — a WLED light's remembered look, no flash
+    # (wled_exact.py); a light PadSpan doesn't run is switched by HA as usual.
+    try:
+        from .wled_exact import async_register_services as _wled_services
+        _wled_services(hass)
+    except Exception as err:
+        _LOGGER.exception("WLED service registration failed: %s", err)
+
     async def _dump_devices(call: ServiceCall) -> dict | None:
         """Return all tracked BLE devices — equivalent to Bermuda's dump_devices."""
         presence_coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
@@ -638,6 +654,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _LOGGER.debug("Vacation mode setup failed: %s", err)
 
+    # WLED exact looks: hold the look when something else turns a light on,
+    # a PadSpan team follows, a power cut puts the last command back
+    # (wled_exact.py) — a no-op until a device is switched to PadSpan.
+    try:
+        from .wled_exact import async_setup_wled_exact
+        hass.async_create_task(async_setup_wled_exact(hass))
+    except Exception as err:
+        _LOGGER.debug("WLED exact look setup failed: %s", err)
+
     return True
 
 
@@ -690,6 +715,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_stop_vacation_mode(hass)
     except Exception as err:
         _LOGGER.debug("Vacation mode teardown error: %s", err)
+
+    # Stop the WLED exact-look listener and late checks
+    try:
+        from .wled_exact import async_stop_wled_exact
+        async_stop_wled_exact(hass)
+    except Exception as err:
+        _LOGGER.debug("WLED exact look teardown error: %s", err)
 
     # Stop presence coordinator (and its CPU-mode compute executor)
     try:

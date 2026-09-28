@@ -20,3 +20,49 @@ dump_devices:
       default: true
       selector:
         boolean:
+
+wled_on:
+  name: "WLED on with its look"
+  description: >
+    Turns WLED lights on with the look PadSpan remembered for them (every part, colour, white,
+    effect and brightness), exactly and with no flash. A light PadSpan doesn't run is turned on
+    by Home Assistant as usual.
+  target:
+    entity:
+      integration: wled
+      domain: light
+  fields:
+    brightness_pct:
+      description: "Brightness in percent. Leave empty for the remembered brightness."
+      selector:
+        number:
+          min: 1
+          max: 100
+          unit_of_measurement: "%"
+    transition:
+      description: "Fade time in seconds. Leave empty for the remembered fade."
+      selector:
+        number:
+          min: 0
+          max: 300
+          step: 0.1
+          unit_of_measurement: "s"
+
+wled_off:
+  name: "WLED off"
+  description: >
+    Turns WLED lights off the way PadSpan does: only the light as a whole goes off, so its
+    remembered look is there the next time it comes on.
+  target:
+    entity:
+      integration: wled
+      domain: light
+  fields:
+    transition:
+      description: "Fade time in seconds. Leave empty for the remembered fade."
+      selector:
+        number:
+          min: 0
+          max: 300
+          step: 0.1
+          unit_of_measurement: "s"

@@ -32,5 +32,31 @@
         }
       }
     }
+  },
+  "services": {
+    "wled_on": {
+      "name": "WLED on with its look",
+      "description": "Turns WLED lights on with the look PadSpan remembered for them, exactly, with no flash. A light PadSpan doesn't run is turned on by Home Assistant as usual.",
+      "fields": {
+        "brightness_pct": {
+          "name": "Brightness",
+          "description": "Brightness in percent. Leave empty for the remembered brightness."
+        },
+        "transition": {
+          "name": "Fade",
+          "description": "Fade time in seconds. Leave empty for the remembered fade."
+        }
+      }
+    },
+    "wled_off": {
+      "name": "WLED off",
+      "description": "Turns WLED lights off the way PadSpan does, keeping their remembered look for the next time they come on.",
+      "fields": {
+        "transition": {
+          "name": "Fade",
+          "description": "Fade time in seconds. Leave empty for the remembered fade."
+        }
+      }
+    }
   }
 }

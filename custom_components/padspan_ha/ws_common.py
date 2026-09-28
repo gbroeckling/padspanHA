@@ -40,6 +40,8 @@ from .const import (
     DATA_FORENSICS,
     FORENSICS_STORE_KEY,
     DATA_DEVICE_REGISTRY,
+    DATA_WLED_LOOKS,
+    WLED_LOOKS_STORE_KEY,
     LIGHT_SHAPE_KINDS,
 )
 from .device_registry import DEVICE_REGISTRY_STORE_KEY
@@ -320,6 +322,7 @@ _ALL_STORE_KEYS = [
     MOVEMENT_STORE_KEY,
     TRACEBACK_STORE_KEY,
     OBJECT_HISTORY_STORE_KEY,
+    WLED_LOOKS_STORE_KEY,
 ]
 
 
@@ -344,6 +347,9 @@ _DATA_KEY_MAP = {
     # back with correct data attached to unrecognisable devices.
     FORENSICS_STORE_KEY: DATA_FORENSICS,
     DEVICE_REGISTRY_STORE_KEY: DATA_DEVICE_REGISTRY,
+    # Each WLED device's remembered look and the sync settings PadSpan
+    # switched off (wled_exact.py) — what puts a strip back after a rebuild.
+    WLED_LOOKS_STORE_KEY: DATA_WLED_LOOKS,
 }
 
 
