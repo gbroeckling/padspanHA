@@ -100,8 +100,9 @@ export function render(ctx) {
     savedThisSession: 0,
   };
   const cs = ctx.state._calib;
-  // The poll's redraw hook (see _tuneTab): only the Tune tab sets it.
-  ctx.state._calibTuneRadiosChanged = null;
+  // The poll's redraw hook (see _tuneTab): only the views drawn once from the
+  // live snapshot set it — the Tune tab (wizard step 1) and Setup (step 2).
+  ctx.state._calibLiveChanged = null;
 
   // Load calibration DB once
   if (!ctx.state.calibration) {
@@ -600,26 +601,17 @@ function _calibSearchSelect(opts) {
 }
 
 // ── Setup tab ─────────────────────────────────────────────────────────────────
-function _setup(ctx, el, cs, calData) {
-  const { radioShortId, scannerStatus } = ctx.helpers;
-  const _sid = (source) => radioShortId ? radioShortId(source || "") : "";
-  const wrap = el("div", { style: "display:flex;flex-direction:column;gap:14px" });
-  const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
+// A device's id in the Setup list: private_ble → canonical_id (irk:...),
+// ibeacon → key, else → address/entity_id.
+function _setupStableId(o) {
+  return o.kind === "private_ble" ? (o.canonical_id || o.address || "")
+       : o.kind === "ibeacon"     ? (o.key || o.address || "")
+       : (o.address || o.entity_id || "");
+}
 
-  // How-it-works explainer
-  wrap.appendChild(el("div", { class: "card", style: "border-color:#52b788" }, [
-    el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px;color:#52b788" },
-      "Phone-Based Calibration (Setup)"),
-    el("div", { style: "font-size:13px;line-height:1.7;color:#b0c4b1" }, [
-      el("div", {}, "This tab configures phone-based calibration (Pin & Listen / Roam)."),
-      el("div", { style: "margin-top:4px" }, "1. Your phone broadcasts BLE. The house scanners hear it."),
-      el("div", { style: "margin-top:4px" }, "2. You stand at a known spot on the map and tap it."),
-      el("div", { style: "margin-top:4px" }, "3. PadSpan records the RSSI fingerprint — which scanners saw you and how strongly."),
-      el("div", { style: "margin-top:4px" }, "4. Repeat at 10–20 locations spread across each floor."),
-      el("div", { style: "margin-top:4px" }, "All calibration methods (Tune, Beacon Tune, Pin & Listen, Roam) feed the same model."),
-    ]),
-  ]));
-
+// The devices the Setup tab offers from a snapshot: tracked BLE objects, then
+// raw advertisements from addresses those do not cover, strongest first.
+function _setupDevices(ctx, snap) {
   // Device selector — merge objects.list + raw advertisements so the user can pick ANY BLE device
   const _quietMode = !!(ctx.state.settings && ctx.state.settings.quiet_mode);
   const _setupIsScanner = ctx.helpers.isScanner;
@@ -653,7 +645,38 @@ function _setup(ctx, el, cs, calData) {
   }
   const adOnlyDevices = Object.values(adAddrMap).filter(d => !knownAddrs.has(d.address));
   adOnlyDevices.sort((a, b) => (b.rssi || -200) - (a.rssi || -200));
+  return { bleObjs, adOnlyDevices, _quietMode };
+}
 
+// What the Setup tab's lists were drawn from (#88): the radios (tuneRadioSig)
+// and the ids of the devices offered. Signal strengths are left out: they
+// change on every poll.
+function _setupSig(state, bleObjs, adOnlyDevices) {
+  const ids = bleObjs.map(_setupStableId).concat(adOnlyDevices.map(d => d.address)).sort();
+  return tuneRadioSig(state) + "|" + ids.join(",");
+}
+
+function _setup(ctx, el, cs, calData) {
+  const { radioShortId, scannerStatus } = ctx.helpers;
+  const _sid = (source) => radioShortId ? radioShortId(source || "") : "";
+  const wrap = el("div", { style: "display:flex;flex-direction:column;gap:14px" });
+  const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
+
+  // How-it-works explainer
+  wrap.appendChild(el("div", { class: "card", style: "border-color:#52b788" }, [
+    el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px;color:#52b788" },
+      "Phone-Based Calibration (Setup)"),
+    el("div", { style: "font-size:13px;line-height:1.7;color:#b0c4b1" }, [
+      el("div", {}, "This tab configures phone-based calibration (Pin & Listen / Roam)."),
+      el("div", { style: "margin-top:4px" }, "1. Your phone broadcasts BLE. The house scanners hear it."),
+      el("div", { style: "margin-top:4px" }, "2. You stand at a known spot on the map and tap it."),
+      el("div", { style: "margin-top:4px" }, "3. PadSpan records the RSSI fingerprint — which scanners saw you and how strongly."),
+      el("div", { style: "margin-top:4px" }, "4. Repeat at 10–20 locations spread across each floor."),
+      el("div", { style: "margin-top:4px" }, "All calibration methods (Tune, Beacon Tune, Pin & Listen, Roam) feed the same model."),
+    ]),
+  ]));
+
+  const { bleObjs, adOnlyDevices, _quietMode } = _setupDevices(ctx, snap);
   const allDevices = bleObjs.length + adOnlyDevices.length;
 
   const deviceCard = el("div", { class: "card" });
@@ -662,14 +685,10 @@ function _setup(ctx, el, cs, calData) {
     "Select the phone or tag that will act as your calibration beacon. It must be visible to your scanners (Bluetooth on, HA companion app running)."));
 
   if (allDevices) {
-    const stableIdOf = (o) => o.kind === "private_ble" ? (o.canonical_id || o.address || "")
-                      : o.kind === "ibeacon"     ? (o.key || o.address || "")
-                      : (o.address || o.entity_id || "");
     const deviceItems = [];
     // Tracked objects — use stable identifiers for rotating-MAC devices
     for (const o of bleObjs) {
-      // private_ble → canonical_id (irk:...), ibeacon → key, else → address/entity_id
-      const stableId = stableIdOf(o);
+      const stableId = _setupStableId(o);
       const label = (o.user_label || o.name || stableId) + (o.rssi ? ` (${o.rssi} dBm)` : "") + (o.kind === "private_ble" ? " [Private BLE]" : o.kind === "ibeacon" ? " [iBeacon]" : "");
       deviceItems.push({ id: stableId, label, search: `${label} ${stableId}`.toLowerCase(), group: "tracked" });
     }
@@ -682,7 +701,7 @@ function _setup(ctx, el, cs, calData) {
     }
     const pickDevice = (value) => {
       cs.deviceId = value;
-      const obj = bleObjs.find(o => stableIdOf(o) === value);
+      const obj = bleObjs.find(o => _setupStableId(o) === value);
       cs.deviceLabel = obj ? (obj.user_label || obj.name || value) : value;
       ctx.actions.renderRooms();
     };
@@ -720,6 +739,18 @@ function _setup(ctx, el, cs, calData) {
   manualRow.appendChild(macInput);
   manualRow.appendChild(applyBtn);
   deviceCard.appendChild(manualRow);
+
+  // Drawn once from this snapshot, like the Tune tab (see there): wizard
+  // step 2 kept saying "isn't reporting any Bluetooth scanners / BLE devices
+  // yet", Next hidden, after both had arrived (#88). The poll asks this and
+  // redraws when the radios or the devices offered have changed — never while
+  // a typed MAC waits for "Use".
+  const _setupSigDrawn = _setupSig(ctx.state, bleObjs, adOnlyDevices);
+  ctx.state._calibLiveChanged = () => {
+    if (macInput.value !== (cs.deviceId || "")) return false;
+    const d = _setupDevices(ctx, ctx.state.live && ctx.state.live.snapshot);
+    return _setupSig(ctx.state, d.bleObjs, d.adOnlyDevices) !== _setupSigDrawn;
+  };
 
   // Resolve selected device's advertisements (used by both status box and radio status)
   const _beaconResult = (cs.deviceId && snap) ? _findBeaconAds(snap, cs.deviceId) : { myAds: [], perRadio: {}, targetAddr: "" };
@@ -2443,7 +2474,7 @@ function _tuneTab(ctx, el, cs, calData) {
   // What was drawn is recorded here, at render, so a rebuild a guard held
   // back is asked for again on the next poll.
   const _radioSigDrawn = tuneRadioSig(ctx.state);
-  ctx.state._calibTuneRadiosChanged = () =>
+  ctx.state._calibLiveChanged = () =>
     !ts.pendingPlace && !ts._tuneBusy && tuneRadioSig(ctx.state) !== _radioSigDrawn;
 
   // Single authoritative draft-sync, shared by initial render and

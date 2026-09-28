@@ -231,9 +231,26 @@ await run("badge: unknown mode (settings_get failed twice) claims neither Live n
 });
 
 await run("badge: the mobile pill uses the same label as the top bar", async () => {
-  const nav = extractMethod("_renderNav");
-  expect(nav && /mobileDataPill\.textContent\s*=\s*this\._dataModeLabel\(\)/.test(nav),
-    "_renderNav writes its own Live/Sample guess into #mobileDataPill");
+  // One painter for both buttons (_paintDataModeLabel), called wherever the
+  // top bar is repainted and on a tab change; nothing else writes the pill.
+  for (const m of ["_updateBadges", "_renderNav"]) {
+    const body = extractMethod(m);
+    expect(body && /this\._paintDataModeLabel\(\)/.test(body), `${m} does not paint the labels through _paintDataModeLabel()`);
+  }
+  expect(!/mobileDataPill\.(textContent|className)\s*=/.test(src), "#mobileDataPill has a second writer");
+});
+
+await run("badge: the mobile pill shows the known mode, in its Live / Sample colour, without a tab change", async () => {
+  // A phone on a Live install read "…" until the first tab change: only
+  // _renderNav painted the pill, and nothing calls it when the mode lands.
+  for (const [mode, cls] of [["live", "mobile-topbar-pill live"], ["sample", "mobile-topbar-pill"]]) {
+    const p = new Panel(fakeHass({}, { data_mode: mode }));
+    p._els["#mobileDataPill"] = { textContent: PILL_HTML, className: "mobile-topbar-pill", style: {} };
+    await p._refreshAll(false);
+    const pill = p._els["#mobileDataPill"];
+    expect(pill.textContent === p.badge && pill.className === cls,
+      `${mode} install: pill {"${pill.textContent}", "${pill.className}"}, top bar "${p.badge}"`);
+  }
 });
 
 await run("unknown mode is asked again: once HA answers, the watchdog's retry lands Live with the real radios", async () => {
@@ -594,6 +611,9 @@ for (const complexity of ["basic", "advanced"]) {
 // (2) The top-bar Data button shows the CURRENT mode and a click switches
 // it: the reporter pressed "Live" to get Live and landed in Sample. The real
 // _onDataModeClick runs here; the shim's queued timers stand in for the 3 s.
+// (3) Their review: step 2 had no redraw of its own; a double-click or a
+// held Enter answered the question; the mobile pill kept "…" until a tab
+// change, and Live's green after a switch to Sample.
 
 const radiosSnap = (...ids) => ({ source: "live", ble: { advertisements: [],
   radios: ids.map((id, i) => ({ source: id, name: `proxy-${id}`, area_name: "Hall", rssi: -60 - i })) } });
@@ -606,13 +626,13 @@ async function calibPoll(first) {
   Object.assign(r.ctx.state, { timing: {}, wsCounts: {}, _sessionEvents: [], roomTagMap: {}, savedRoomTagMap: {} });
   p.state = r.ctx.state;
   const renders = [];
-  let text = r.radiosCard.textContent;
+  let text = r.radiosCard.textContent, root = null;
   p.hold = false;
   p._scheduleRender = (fromPoll) => {
     renders.push(fromPoll);
-    if (!p.hold) text = calib.render(r.ctx).textContent;
+    if (!p.hold) { root = calib.render(r.ctx); text = root.textContent; }
   };
-  return { r, p, server, renders, text: () => text };
+  return { r, p, server, renders, text: () => text, root: () => root };
 }
 
 await run("calibration: radios arriving after the wizard opened redraw it once", async () => {
@@ -673,15 +693,86 @@ await run("calibration: a redraw a guard held back is asked for again on the nex
   expect(c.renders.length === 3, `kept redrawing once drawn (${c.renders.length})`);
 });
 
+// Step 2 said "isn't reporting any Bluetooth scanners yet" and "... any BLE
+// devices yet" and stayed that way, Next hidden, after both arrived: only the
+// Tune tab had a redraw hook. The reporter's way there: "Skip — positions
+// look fine" on step 1.
+const NO_DEVICES = "Home Assistant isn't reporting any BLE devices yet";
+const heardSnap = (radioIds, devices) => {
+  const s = radiosSnap(...radioIds);
+  s.ble.advertisements = devices.map(([address, rssi]) => ({ address, name: `phone-${address.slice(-2)}`,
+    source: radioIds[0], rssi, age_s: 1 }));
+  return s;
+};
+
+/** Guided Calibration step 2 (Choose your device), reached from step 1. */
+async function setupStepPoll(first) {
+  const c = await calibPoll(first);
+  c.r.ctx.state._calibWizard.step = 2;                        // "Skip — positions look fine"
+  c.p._scheduleRender(false);                                 // that click's own render
+  c.renders.length = 0;
+  return c;
+}
+
+await run("calibration: step 2 (Choose your device) redraws once when HA's radios and devices arrive", async () => {
+  const c = await setupStepPoll(radiosSnap());
+  expect(c.text().includes(NO_SCANNERS) && c.text().includes(NO_DEVICES), `harness: expected both no-data lines first, got: ${c.text()}`);
+  await tick(c.p);
+  expect(c.renders.length === 0, `an unchanged empty step 2 was redrawn ${c.renders.length} time(s)`);
+  c.server.snap = heardSnap(["AA:01", "AA:05", "AA:06"], [["11:22:33:44:55:66", -55]]);
+  await tick(c.p);
+  expect(c.renders.length === 1, `radios and a device arrived: expected one redraw, got ${c.renders.length}`);
+  expect(c.renders[0] === true, "the redraw skipped the poll-render guards (focused search box, recent click)");
+  expect(c.text().includes("proxy-AA:06"), `the arrived radios are not listed: ${c.text()}`);
+  expect(!c.text().includes(NO_SCANNERS) && !c.text().includes(NO_DEVICES), `still says no scanners / no devices: ${c.text()}`);
+  await tick(c.p); await tick(c.p);
+  expect(c.renders.length === 1, `the same radios and device were redrawn again (${c.renders.length} redraws)`);
+  c.server.snap = heardSnap(["AA:01", "AA:05", "AA:06"], [["11:22:33:44:55:77", -70], ["11:22:33:44:55:66", -48]]);
+  await tick(c.p);
+  expect(c.renders.length === 2, `a second device arrived: expected a second redraw, got ${c.renders.length}`);
+});
+
+await run("calibration: step 2 is not redrawn when only signal strengths change", async () => {
+  const c = await setupStepPoll(heardSnap(["AA:01", "AA:05"], [["11:22:33:44:55:66", -55]]));
+  for (let i = 0; i < 4; i++) {
+    c.server.snap = heardSnap(["AA:05", "AA:01"], [["11:22:33:44:55:66", -55 - i]]);
+    await tick(c.p);
+  }
+  expect(c.renders.length === 0, `redrawn ${c.renders.length} time(s) with nothing listed changed`);
+});
+
+await run("calibration: step 2 is not redrawn over a typed MAC waiting for 'Use'", async () => {
+  const c = await setupStepPoll(radiosSnap());
+  const mac = c.root()._all().find(n => n.localName === "input" && /enter MAC/.test(n.placeholder || ""));
+  expect(mac, "harness: the manual MAC field was not found");
+  mac.value = "AA:BB:CC:DD:EE:FF";                            // typed, "Use" not pressed yet
+  c.server.snap = heardSnap(["AA:01"], [["11:22:33:44:55:66", -55]]);
+  await tick(c.p); await tick(c.p);
+  expect(c.renders.length === 0, `redrawn ${c.renders.length} time(s) over a typed MAC`);
+  mac.value = "";                                             // cleared again
+  await tick(c.p);
+  expect(c.renders.length === 1, `the held-back redraw never came (${c.renders.length} redraws)`);
+});
+
 await run("calibration: the poll leaves the other Guided Calibration steps alone", async () => {
   const c = await calibPoll(radiosSnap());
-  c.r.ctx.state._calibWizard.step = 2;                        // Choose your device
+  const cs = c.r.ctx.state._calib;
+  cs.deviceId = "11:22:33:44:55:66"; cs.mapId = "ground";      // chosen: step 3 is reachable
+  c.r.ctx.state._calibWizard.step = 3;                        // Walk your home
   calib.render(c.r.ctx);
-  expect(c.r.ctx.state._calibTuneRadiosChanged === null, "the Tune tab's redraw hook outlived it");
+  expect(c.r.ctx.state._calibWizard.step === 3, `harness: expected step 3, got ${c.r.ctx.state._calibWizard.step}`);
+  expect(c.r.ctx.state._calibLiveChanged === null, "an earlier step's redraw hook outlived it");
   c.server.snap = radiosSnap("AA:01", "AA:05");
   await tick(c.p);
-  expect(c.renders.length === 0, `step 2 was rebuilt by the poll (${c.renders.length})`);
+  expect(c.renders.length === 0, `step 3 was rebuilt by the poll (${c.renders.length})`);
 });
+
+// The click handler tells a second answer from the rest of one gesture by
+// performance.now(); from here on it reads this clock, which each click
+// below moves on by hand (the data toggle cases are the last in this file).
+const clock = { t: 1e6 };
+performance.now = () => clock.t;
+const later = (ms) => { clock.t += ms; };
 
 /** A panel whose mode the server already answered; records settings_set calls. */
 async function modePanel(mode) {
@@ -689,12 +780,14 @@ async function modePanel(mode) {
   const p = new Panel(fakeHass({
     "padspan_ha/settings_set": (m) => { sets.push(m.data_mode); return { settings: { data_mode: m.data_mode } }; },
     "padspan_ha/settings_get": () => ({ settings: { data_mode: sets.length ? sets[sets.length - 1] : mode } }) }));
-  p._els["#mobileDataPill"] = { textContent: PILL_HTML, style: {} };
+  p._els["#mobileDataPill"] = { textContent: PILL_HTML, className: "mobile-topbar-pill", style: {} };
   await p._refreshAll(false);
   await flush();
+  later(5000);                                                // the page has been up a while
   expect(p.state.dataMode === mode && p.state._dataModeKnown, `harness: expected ${mode}, got ${p.state.dataMode}`);
   const pill = () => p._els["#mobileDataPill"].textContent;
-  return { p, sets, pill };
+  const pillCls = () => p._els["#mobileDataPill"].className;
+  return { p, sets, pill, pillCls };
 }
 const CONFIRM = "Show demo data?";
 
@@ -712,6 +805,7 @@ await run("data toggle: one click on Live does not switch to Sample; it asks fir
 await run("data toggle: two clicks within 3 s switch Live to Sample", async () => {
   const { p, sets, pill } = await modePanel("live");
   await p._onDataModeClick();
+  later(1200);                                                // read "Show demo data?", clicked again
   await p._onDataModeClick();
   expect(sets.join(",") === "sample" && p.state.dataMode === "sample", `settings_set calls: ${JSON.stringify(sets)}`);
   expect(p.state.live.snapshot === SAMPLE_SNAPSHOT && p.badge === "Sample" && pill() === "Sample",
@@ -723,7 +817,7 @@ await run("data toggle: two clicks within 3 s switch Live to Sample", async () =
 await run("data toggle: after 3 s the label goes back and a click only asks again", async () => {
   const { p, sets, pill } = await modePanel("live");
   await p._onDataModeClick();
-  await flush();                                              // 3 s pass
+  await flush(); later(3000);                                 // 3 s pass
   expect(p.badge === "Live" && pill() === "Live", `after the timeout: "${p.badge}" / pill "${pill()}"`);
   await p._onDataModeClick();
   expect(!sets.length && p.badge === CONFIRM, `a click after the timeout switched (${JSON.stringify(sets)}) or did not ask`);
@@ -750,6 +844,51 @@ await run("data toggle: the top bar and the mobile pill both go through the conf
     const re = new RegExp(`this\\.\\$\\("#${id}"\\)\\.addEventListener\\("click",[^\\n]*this\\._onDataModeClick\\(\\)`);
     expect(re.test(src), `#${id} does not click through _onDataModeClick()`);
   }
+});
+
+// A double-click (or double-tap) on "Live", meant as "give me Live", landed in
+// the demo house without "Show demo data?" ever being read: the second click
+// only had to come within 3 s. A held Enter is a click per key repeat.
+await run("data toggle: a double-click on Live only asks; its second click is not an answer", async () => {
+  const { p, sets } = await modePanel("live");
+  await p._onDataModeClick();
+  later(120);                                                 // the second click of a double-click
+  await p._onDataModeClick();
+  expect(!sets.length && p.state.dataMode === "live", `a double-click switched to ${sets.join(",")}`);
+  expect(p.badge === CONFIRM, `after a double-click the top bar reads "${p.badge}", not the question`);
+  later(1200);                                                // then a real answer
+  await p._onDataModeClick();
+  expect(sets.join(",") === "sample", `the deliberate second click did not switch: ${JSON.stringify(sets)}`);
+});
+
+await run("data toggle: clicks that keep coming ~30 ms apart (a held Enter) never switch Live to Sample", async () => {
+  const { p, sets } = await modePanel("live");
+  for (let i = 0; i < 60; i++) { await p._onDataModeClick(); later(33); }   // 2 s of key repeats
+  expect(!sets.length && p.state.dataMode === "live", `a held key switched to ${sets.join(",")}`);
+  // And the key's repeats are not clicks in the first place (the first one
+  // can land after a long repeat delay).
+  for (const id of ["dataModeToggle", "mobileDataPill"]) {
+    const re = new RegExp(`this\\.\\$\\("#${id}"\\)\\.addEventListener\\("keydown",[^\\n]*\\.repeat\\b[^\\n]*preventDefault\\(\\)`);
+    expect(re.test(src), `#${id} still turns each key repeat into a click`);
+  }
+});
+
+await run("data toggle: a double-click on Sample switches to Live once and does not then ask", async () => {
+  const { p, sets } = await modePanel("sample");
+  await p._onDataModeClick();
+  later(120);
+  await p._onDataModeClick();
+  expect(sets.join(",") === "live" && p.badge === "Live", `settings_set calls ${JSON.stringify(sets)}, top bar "${p.badge}"`);
+});
+
+await run("data toggle: the mobile pill's colour follows each switch", async () => {
+  const { p, pill, pillCls } = await modePanel("live");
+  p._els["#mobileDataPill"].className = "mobile-topbar-pill live";   // as a tab change on Live left it
+  await p._onDataModeClick(); later(1200); await p._onDataModeClick();
+  expect(pill() === "Sample" && pillCls() === "mobile-topbar-pill", `after Live -> Sample: "${pill()}" in "${pillCls()}"`);
+  later(1200);
+  await p._onDataModeClick();
+  expect(pill() === "Live" && pillCls() === "mobile-topbar-pill live", `after Sample -> Live: "${pill()}" in "${pillCls()}"`);
 });
 
 let failed = 0;
