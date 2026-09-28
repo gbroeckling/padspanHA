@@ -140,6 +140,112 @@ export function effectiveState(eid, reported, now = Date.now()){
   return { state: o.state, optimistic: true };
 }
 
+// ── Exact look: WLED devices PadSpan runs ────────────────────────────────────
+// Garry, 2026-09-27: "an exact, durable on/off that reproduces complex 5-6
+// channel strings 100% every time". A WLED device switched to PadSpan
+// (wled_exact.py) is turned on and off through padspan_ha/wled_power — its
+// whole remembered look, one command per device, or per team PadSpan runs —
+// never through HA's light services, whose partial writes are why the same
+// "on" came up different. The list is padspan_ha/wled_exact_list: empty
+// without the licence (and kept as it was on an error), so every path below
+// then makes the plain HA call it always made. Module-level like the
+// optimistic claims, so both hosts route alike.
+const EXACT_TTL_MS = 60000;
+const _exact = { byEid: new Map(), sig: "[]", at: -Infinity, loading: null, again: false };
+
+// devices: wled_exact_list's [{device_id, name, main, lights: {eid: "main"|seg}, team_id, look_bri}].
+// True when what PadSpan runs changed.
+export function setExactDevices(devices){
+  const list = Array.isArray(devices) ? devices.filter(d => d && d.device_id && d.lights && typeof d.lights === "object") : [];
+  const sig = JSON.stringify(list);
+  if (sig === _exact.sig) return false;
+  _exact.sig = sig;
+  _exact.byEid = new Map();
+  const groups = new Map();
+  for (const d of list) {
+    const eids = Object.keys(d.lights).filter(e => e.startsWith("light."));
+    const segs = eids.filter(e => d.lights[e] !== "main");
+    // What the device IS on/off: its main light, or its only segment light.
+    const master = (d.main && eids.includes(d.main)) ? d.main : (segs.length === 1 ? segs[0] : null);
+    const key = d.team_id ? `team:${d.team_id}` : `device:${d.device_id}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(...eids);
+    const entry = { device_id: d.device_id, name: d.name || d.device_id, eids, master, key,
+                    lookBri: Number(d.look_bri) || null, group: groups.get(key) };
+    for (const e of eids) _exact.byEid.set(e, entry);
+  }
+  return true;
+}
+export function exactDeviceOf(eid){ return _exact.byEid.get(eid) || null; }
+export function isExactEntity(eid){ return _exact.byEid.has(eid); }
+
+// Both hosts call this on render: at most one fetch a minute, or at once
+// with force (the Advanced tab switched a device). onChange: re-render.
+export function ensureExactDevices(hass, onChange, { force = false } = {}){
+  if (!hass || typeof hass.callWS !== "function") return null;
+  if (_exact.loading) { if (force) _exact.again = true; return _exact.loading; }
+  if (!force && Date.now() - _exact.at < EXACT_TTL_MS) return null;
+  _exact.at = Date.now();
+  _exact.loading = (async () => {
+    let changed = false;
+    try { const r = await hass.callWS({ type: "padspan_ha/wled_exact_list" }); changed = setExactDevices(r && r.devices); }
+    catch (_) { /* kept as it was; asked again after the TTL */ }
+    _exact.loading = null;
+    if (changed && onChange) onChange();
+    if (_exact.again) { _exact.again = false; await ensureExactDevices(hass, onChange, { force: true }); }
+  })();
+  return _exact.loading;
+}
+
+// The state a light of an exact device is drawn and toggled from. HA's WLED
+// segment light reads "on" from its segment flag alone while a main light
+// exists — a lit marker on a dark strip (Far West) — so every light of the
+// device follows the device's own on/off.
+function _exactReported(states, eid){
+  const d = _exact.byEid.get(eid);
+  const m = d && d.master && states ? states[d.master] : null;
+  if (m && (m.state === "on" || m.state === "off")) return m.state;
+  return states && states[eid] ? states[eid].state : undefined;
+}
+function _exactBrightness(states, d){
+  const m = d.master && states ? states[d.master] : null;
+  return m && m.state === "on" && typeof m.attributes?.brightness === "number" ? m.attributes.brightness : null;
+}
+
+// On (with the look) or off, through the one backend path. Returns what
+// went wrong, in plain words — the Atlas says nothing when it worked.
+// `brightness` is as HA shows the light (the backend makes it the master's).
+function _powerMsg(eid, on, { brightness, source = "atlas" } = {}){
+  const msg = { type: "padspan_ha/wled_power", entity_id: eid, on: !!on, source };
+  if (on && typeof brightness === "number") msg.brightness = Math.max(1, Math.min(255, Math.round(brightness)));
+  return msg;
+}
+export async function exactPower(hass, eid, on, opts = {}){
+  return exactProblems(await hass.callWS(_powerMsg(eid, on, opts)));
+}
+export function exactProblems(r){
+  const out = [];
+  for (const x of (r && r.results) || []) {
+    if (x.ok) continue;
+    // Waiting: offline in HA (sent when it reconnects), or it didn't answer
+    // while HA still has it (PadSpan tries again itself).
+    if (x.waiting) out.push({ text: x.retry_in ? `${x.name} didn't answer — PadSpan tries again in ${x.retry_in} s`
+      : `${x.name} is offline — it gets its look when it reconnects`, error: false });
+    else out.push({ text: `${x.name}: ${x.message || (x.diffs || []).join("; ") || "didn't take"}`, error: true });
+  }
+  return out;
+}
+function _tellProblems(toast, problems){
+  if (toast && problems && problems.length) toast(problems.map(p => p.text).join(" · "), problems.some(p => p.error));
+}
+// A brightness from the Atlas (drag-dim, the card's slider): an exact device
+// comes on with its look at this brightness; anything else is HA's turn_on.
+export async function setLightBrightness(hass, eid, bri){
+  if (exactDeviceOf(eid)) return exactPower(hass, eid, true, { brightness: bri, source: "atlas" });
+  await hass.callService("light", "turn_on", { entity_id: eid, brightness: bri });
+  return [];
+}
+
 // The primary tap action — flip a light/fan/strip on or off, lock/unlock a
 // lock, refuse a read-only sensor — shared by both hosts (the sidebar's own
 // _toggle and the builder's Preview-as-sidebar/marker-tap toggle used to be
@@ -162,8 +268,26 @@ export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
   // reversing it) — prefers the standing optimistic claim over a reported
   // state that hasn't reconciled, so each tap toggles relative to what the
   // marker is ACTUALLY showing.
-  const eff = effectiveState(eid, hass.states[eid]?.state).state;
+  const ex = domain === "light" ? exactDeviceOf(eid) : null;
+  const eff = effectiveState(eid, ex ? _exactReported(hass.states, eid) : hass.states[eid]?.state).state;
   const on = isLockDomain ? eff === "locked" : eff === "on";
+  // An exact device: its whole look (or off) through the one path — every
+  // light of the device, or of its PadSpan team, flips with it. Never a
+  // remembered per-browser brightness: the look's own, the same everywhere.
+  if (ex) {
+    for (const e of ex.group) setOptimistic(e, on ? "off" : "on");
+    if (render) render();
+    try {
+      _tellProblems(toast, await exactPower(hass, eid, !on, { source: "atlas" }));
+      setTimeout(() => { if (render) render(); }, 600);
+    } catch (e) {
+      for (const e2 of ex.group) clearOptimistic(e2);
+      if (render) render();
+      if (shake) shake(eid);
+      if (toast) toast("Could not toggle " + eid, true);
+    }
+    return;
+  }
   // Optimistic: the marker flips NOW (this claim is read by both views, so
   // the index row flips with it), and HA's next state reconciles it.
   setOptimistic(eid, isLockDomain ? (on ? "unlocked" : "locked") : (on ? "off" : "on"));
@@ -355,17 +479,50 @@ export function captureWholeHouse(lights, states){
 // the backend sanitizer's allowlist — a preset can never drive any other
 // domain even from hand-edited storage. A device that is gone or unavailable
 // right now is skipped and counted rather than failing the whole call.
+// An exact device is on if its main light (or its only segment light) is on
+// in the preset, at the preset's brightness, with its look — one command per
+// device or PadSpan team; scene.apply would write colours over the look.
+// An exact light counts as applied only when its device took the look;
+// `problems` says what didn't, in plain words (exactProblems).
 export async function applyWholeHouse(hass, preset){
   const entities = {}; let skipped = 0;
+  const exactCmds = new Map();   // device/team -> [eid, stored state]
+  const exactLights = [];        // [device/team, device] for each exact light in the preset
   for (const [eid, s] of Object.entries((preset && preset.entities) || {})) {
     if (!_WHP_DOMAIN.test(eid) || !s || (s.state !== "on" && s.state !== "off")) continue;
     const live = hass && hass.states && hass.states[eid];
     if (!live || live.state === "unavailable") { skipped++; continue; }
+    const ex = exactDeviceOf(eid);
+    if (ex) {
+      exactLights.push([ex.key, ex.device_id]);
+      if (eid === ex.master && !exactCmds.has(ex.key)) exactCmds.set(ex.key, [eid, s]);
+      continue;
+    }
     entities[eid] = s;
   }
-  const applied = Object.keys(entities).length;
-  if (applied) await hass.callService("scene", "apply", { entities });
-  return { applied, skipped };
+  const plain = Object.keys(entities).length;
+  const took = new Set(), problems = [];
+  const jobs = [...exactCmds.entries()].map(([key, [eid, s]]) => hass.callWS(_powerMsg(eid, s.state === "on",
+    { brightness: s.state === "on" ? s.brightness : undefined, source: "preset" }))
+    .then(r => {
+      if (r && r.handled === false) { took.add(key); return; }     // passed to HA as a plain call
+      for (const x of (r && r.results) || []) if (x.ok) took.add(x.device_id);
+      problems.push(...exactProblems(r));
+    })
+    .catch(e => { problems.push({ text: `${exactDeviceOf(eid).name}: ${(e && (e.message || e.code)) || "didn't answer"}`, error: true }); }));
+  try { if (plain) await hass.callService("scene", "apply", { entities }); }
+  finally { await Promise.all(jobs); }
+  const sent = exactLights.filter(([key]) => exactCmds.has(key));
+  const exactApplied = sent.filter(([key, did]) => took.has(key) || took.has(did)).length;
+  return { applied: plain + exactApplied, skipped, failed: sent.length - exactApplied, problems };
+}
+
+// What the preset bar says after applyWholeHouse.
+export function wholeHouseText(r){
+  const failed = r.failed || 0, probs = (r.problems || []).map(p => p.text);
+  if (!r.skipped && !failed && !probs.length) return `Applied to ${r.applied} ✓`;
+  return `Applied ${r.applied} of ${r.applied + r.skipped + failed}` + (r.skipped ? ` — ${r.skipped} unavailable` : "")
+    + (probs.length ? ` — ${probs.join(" · ")}` : "");
 }
 
 // ── Layout v2 (Garry, 2026-09-21) ──────────────────────────────────────────────
@@ -844,7 +1001,10 @@ export function wireUseSurface(isoDiv, api){
         e.preventDefault();
         if (dragBri === null) {
           const st = api.hass && api.hass.states ? api.hass.states[eid] : null;
-          dragBri = typeof st?.attributes?.brightness === "number" ? st.attributes.brightness : (lastBrightness(eid) || 128);
+          const ex = exactDeviceOf(eid);
+          // An exact device starts from its own brightness, or its look's.
+          dragBri = ex ? (_exactBrightness(api.hass && api.hass.states, ex) ?? ex.lookBri ?? 128)
+            : typeof st?.attributes?.brightness === "number" ? st.attributes.brightness : (lastBrightness(eid) || 128);
           if (ring) { ring.remove(); ring = null; }
           readout = document.createElement("div");
           readout.style.cssText = "position:fixed;z-index:10001;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:800;"
@@ -859,7 +1019,7 @@ export function wireUseSurface(isoDiv, api){
         const now = Date.now();
         if (now - lastSend > 180 && api.hass) {
           lastSend = now;
-          api.hass.callService("light", "turn_on", { entity_id: eid, brightness: b }).catch(() => {});
+          setLightBrightness(api.hass, eid, b).catch(() => {});
         }
       }
     });
@@ -876,7 +1036,7 @@ export function wireUseSurface(isoDiv, api){
       if (r === "open") { if (holdable) api.openControls(eid); else api.toggle(eid); return; }
       if (r === "drag-end") {
         const b = g._dragTarget;
-        if (typeof b === "number" && api.hass) api.hass.callService("light", "turn_on", { entity_id: eid, brightness: b }).catch(() => api.toast("Could not set brightness", true));
+        if (typeof b === "number" && api.hass) setLightBrightness(api.hass, eid, b).then(p => _tellProblems(api.toast, p)).catch(() => api.toast("Could not set brightness", true));
         setTimeout(() => api.rerender(), 500);
       }
     };
@@ -1310,13 +1470,24 @@ export function openControlCard(hass, eid, api){
   // it reads as "not locked" (offers Lock as the recovery action) with its
   // own warning line below rather than a misleading Turn On/Off button.
   const isLockDomain = domain === "lock";
-  const on = isLockDomain ? st.state === "locked" : st.state === "on";
+  // An exact device: on/off and brightness go through its one path, and
+  // "on" is the device's own (not a segment's flag).
+  const ex = domain === "light" ? exactDeviceOf(eid) : null;
+  const on = isLockDomain ? st.state === "locked" : (ex ? _exactReported(hass.states, eid) : st.state) === "on";
   const onBtn = el("button", {
     style: "width:100%;margin-bottom:14px;padding:10px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;"
       + "letter-spacing:.02em;transition:filter .15s ease;"
       + (on ? "background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#111827;border:1px solid rgba(255,255,255,.25);box-shadow:0 0 18px rgba(251,191,36,.35);"
             : "background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35);"),
     onclick: async () => {
+      if (ex) {
+        for (const e of ex.group) setOptimistic(e, on ? "off" : "on");
+        close();
+        try { _tellProblems(toast, await exactPower(hass, eid, !on, { source: "atlas" })); }
+        catch (e) { for (const e2 of ex.group) clearOptimistic(e2); toast(on ? "Could not turn it off" : "Could not turn it on", true); }
+        setTimeout(rerender, 400);
+        return;
+      }
       const data = { entity_id: eid };
       if (!on && domain === "light") {
         const bri = lastBrightness(eid);
@@ -1401,7 +1572,8 @@ export function openControlCard(hass, eid, api){
   const capLbl = "font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em";
   if (dimmable) {
     const pct = (v) => Math.round((v / 255) * 100);
-    const cur = typeof attrs.brightness === "number" ? attrs.brightness : 255;
+    const cur = ex ? (_exactBrightness(hass.states, ex) ?? ex.lookBri ?? 255)
+      : typeof attrs.brightness === "number" ? attrs.brightness : 255;
     const briText = (v) => `Brightness: ${pct(v)}%` + (on ? "" : " · turns the light on");
     const briLbl = el("div", { style: capLbl }, briText(cur));
     const bri = document.createElement("input");
@@ -1409,7 +1581,7 @@ export function openControlCard(hass, eid, api){
     bri.style.cssText = "width:100%;accent-color:#fbbf24;height:20px;cursor:pointer";
     bri.addEventListener("input", () => { briLbl.textContent = briText(bri.value); });
     bri.addEventListener("change", async () => {
-      try { await hass.callService("light", "turn_on", { entity_id: eid, brightness: parseInt(bri.value, 10) }); }
+      try { _tellProblems(toast, await setLightBrightness(hass, eid, parseInt(bri.value, 10))); }
       catch (e) { toast("Could not set brightness", true); }
       setTimeout(rerender, 400);
     });
@@ -1493,7 +1665,9 @@ export function openControlCard(hass, eid, api){
         mounted = true;
         try {
           const mod = await import(`./wled_advanced.js${new URL(import.meta.url).search}`);
-          await mod.mountWledAdvanced(advanced, { hass, eid, api });
+          // A switch made in there changes how the Atlas turns lights on.
+          await mod.mountWledAdvanced(advanced, { hass, eid,
+            api: { ...api, onExactChanged: () => ensureExactDevices(hass, rerender, { force: true }) } });
         } catch (e) {
           advanced.textContent = "Couldn't open the WLED workbench: " + String((e && e.message) || e);
         }
@@ -1504,6 +1678,32 @@ export function openControlCard(hass, eid, api){
     box.appendChild(el("div", { style: "display:flex;gap:6px;margin-bottom:12px" }, [tControls, tAdvanced]));
     box.appendChild(controls);
     box.appendChild(advanced);
+  } else if (api && api.wled && api.wled.isAdmin && domain === "light") {
+    // No licence, so no Advanced tab: a light PadSpan runs on its own still
+    // has its WLED sync switched off — it can always be given back
+    // (padspan_ha/wled_exact_set allows that without the licence). A team
+    // PadSpan runs is still switched together (wled_power).
+    const slot = el("div");
+    box.appendChild(slot);
+    (async () => {
+      let x = null;
+      try { x = await hass.callWS({ type: "padspan_ha/wled_look_get", entity_id: eid }); } catch (_) { return; }
+      if (!x || x.join !== "padspan" || x.team_mode === "padspan") return;
+      slot.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;margin-top:10px" },
+        "PadSpan gives this light its instructions, with WLED's own sync switched off. The licence for that has lapsed."));
+      slot.appendChild(el("button", {
+        style: "width:100%;margin-top:8px;padding:8px;font-size:12px;font-weight:700;border-radius:10px;cursor:pointer;"
+          + "background:rgba(255,255,255,.05);color:#e2e8f0;border:1px solid rgba(120,190,155,.35)",
+        onclick: async () => {
+          try {
+            await hass.callWS({ type: "padspan_ha/wled_exact_set", entity_id: eid, exact: false });
+            toast("WLED sync gives this light its instructions again — its sync settings are back");
+            ensureExactDevices(hass, rerender, { force: true });
+            close();
+          } catch (e) { toast("Couldn't switch: " + String((e && (e.message || e.code)) || e), true); }
+        },
+      }, "Give this light back to WLED sync"));
+    })();
   }
 
   overlay.appendChild(box);
@@ -1764,18 +1964,33 @@ export function openBarrierCard(hass, bar, api){
 // Aggregate action: every light (and, separately, every fan) in a room or
 // on a floor — optimistic per device, one service call per domain. Fans are
 // never swept up by "all lights off": the sheet gives them their own button.
+// Exact devices get one command each — one per team PadSpan runs.
 export async function setManyStates(hass, eids, turnOn, { toast, rerender } = {}){
   if (!hass || !eids.length) return;
-  for (const eid of eids) setOptimistic(eid, turnOn ? "on" : "off");
+  const exactCmds = new Map();   // device/team -> the first of its lights asked for
+  const plain = [];
+  for (const eid of eids) {
+    const ex = eid.startsWith("light.") ? exactDeviceOf(eid) : null;
+    if (!ex) { plain.push(eid); continue; }
+    if (!exactCmds.has(ex.key)) exactCmds.set(ex.key, { eid, group: ex.group });
+    for (const e of ex.group) setOptimistic(e, turnOn ? "on" : "off");
+  }
+  for (const eid of plain) setOptimistic(eid, turnOn ? "on" : "off");
   if (rerender) rerender();
-  const byDomain = {};
-  for (const eid of eids) (byDomain[eid.split(".")[0]] = byDomain[eid.split(".")[0]] || []).push(eid);
   let fail = 0;
+  const problems = [];
+  const jobs = [...exactCmds.values()].map(({ eid, group }) => exactPower(hass, eid, turnOn, { source: "room" })
+    .then(p => { problems.push(...p); })
+    .catch(() => { fail += eids.filter(e => group.includes(e)).length; for (const e of group) clearOptimistic(e); }));
+  const byDomain = {};
+  for (const eid of plain) (byDomain[eid.split(".")[0]] = byDomain[eid.split(".")[0]] || []).push(eid);
   for (const [domain, ids] of Object.entries(byDomain)) {
     try { await hass.callService(domain, turnOn ? "turn_on" : "turn_off", { entity_id: ids }); }
     catch (e) { fail += ids.length; for (const eid of ids) clearOptimistic(eid); }
   }
+  await Promise.all(jobs);
   if (fail && toast) toast(`${fail} did not respond`, true);
+  _tellProblems(toast, problems);
   if (rerender) setTimeout(rerender, 700);
 }
 
@@ -2273,13 +2488,17 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       a.friendly_name.localeCompare(b.friendly_name));
   assignLightCodes(lights);
   for (const l of lights) {
+    // An exact device's lights are drawn as the device is (see _exactReported).
+    if (_exact.byEid.has(l.entity_id)) l.state = _exactReported(states, l.entity_id) ?? l.state;
     // A pressed switch shows pressed until HA agrees or the claim times out.
     const eff = historical ? { state: l.state, optimistic: false } : effectiveState(l.entity_id, l.state);
     l.state = eff.state; l.optimistic = eff.optimistic;
     l.shape = paid ? resolveLightShape(l, shapeOverrides) : "hex";
     // The last dimmed level is only visible while a light is on — remember
     // it here, on the pass both views already make, so off→on can restore it.
-    if (!historical && l.state === "on" && typeof l.bri === "number" && l.bri >= 1) _recordBrightness(l.entity_id, l.bri);
+    // Not for an exact device: it comes on at its look's brightness, on every
+    // phone, kiosk and desktop alike.
+    if (!historical && l.state === "on" && typeof l.bri === "number" && l.bri >= 1 && !_exact.byEid.has(l.entity_id)) _recordBrightness(l.entity_id, l.bri);
     // Computed fresh on every gather (states poll), not cached on the
     // object across polls — a device recovering or going stale needs the
     // dot to move without waiting for something else to invalidate it.
@@ -3166,7 +3385,7 @@ export function buildLightsMapCard(hostIn){
       if (whArmed !== p.name) { whArmed = p.name; whApply.textContent = "Yes, change the whole house"; return; }
       whDisarm();
       const r = await host.onWholeHouseApply(p);
-      if (r) whFlash(r.skipped ? `Applied ${r.applied} of ${r.applied + r.skipped} — ${r.skipped} unavailable` : `Applied to ${r.applied} ✓`, 4000);
+      if (r) whFlash(wholeHouseText(r), (r.problems || []).length ? 8000 : 4000);
     });
     whSel.addEventListener("change", whDisarm);
     whBar.appendChild(whApply);

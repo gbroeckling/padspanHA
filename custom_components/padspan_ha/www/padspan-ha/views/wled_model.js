@@ -505,3 +505,124 @@ export function panelPath(p) {
   }
   return out;
 }
+
+// ── Exact look (wled_exact.py) ───────────────────────────────────────────────
+// Garry, 2026-09-27: "an exact, durable on/off that reproduces complex 5-6
+// channel strings 100% every time". The look itself is WLED's own numbers
+// (wled_look.py); these only put it, a command's result and a setup change
+// into the words the Exact look tab shows.
+
+// A PWM output drives one fixture: named by its channels, not an LED count.
+const PWM_OUTPUTS = { 40: "on/off output", 41: "1-channel output", 42: "2-channel output", 43: "3-channel output",
+  44: "4-channel output", 45: "5-channel output", 46: "6-channel output" };
+// Auto-white (cfg hw.led rgbwm): 0 None uses the stored W; 255 = per output.
+const AUTO_WHITE = { 1: "Brighter", 2: "Accurate", 3: "Dual", 4: "Max" };
+// Outputs with a white channel, where auto-white applies (bus_manager.h
+// Bus::hasWhite, 0.14.4-16.0.1). Not the segment's W capability: WLED
+// clears that in Brighter, Accurate and Max (FX_fcn.cpp), the very modes
+// that work the white out from the colour.
+const WHITE_BUSES = new Set([18, 19, 20, 21, 28, 29, 30, 31, 32, 34, 41, 42, 44, 45, 88, 89]);
+
+/** A colour's everyday name: "orange", "white", "dark blue". */
+export function colourName(rgb) {
+  const [r, g, b] = [0, 1, 2].map(i => Math.max(0, Math.min(255, Number((rgb || [])[i]) || 0)));
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  if (mx === 0) return "black";
+  if ((mx - mn) / mx < 0.15) return mx >= 160 ? "white" : "grey";
+  const d = mx - mn;
+  let hue = mx === r ? ((g - b) / d) * 60 : mx === g ? (2 + (b - r) / d) * 60 : (4 + (r - g) / d) * 60;
+  if (hue < 0) hue += 360;
+  const name = hue < 15 ? "red" : hue < 45 ? "orange" : hue < 70 ? "yellow" : hue < 160 ? "green" : hue < 200 ? "cyan"
+    : hue < 255 ? "blue" : hue < 290 ? "purple" : hue < 345 ? "pink" : "red";
+  return mx < 90 ? `dark ${name}` : name;
+}
+
+/** The white channel as a swatch colour: warm at cct 0, cool at 255 (WLED's own scale). */
+export function whiteSwatch(cct) {
+  if (typeof cct !== "number") return "#fff4e0";
+  const t = Math.max(0, Math.min(255, cct)) / 255;
+  const warm = [255, 180, 107], cool = [201, 218, 255];
+  return colToHex(warm.map((w, i) => Math.round(w + (cool[i] - w) * t)));
+}
+
+function busOfSeg(setup, seg) {
+  const buses = (setup && setup.geometry && setup.geometry.buses) || [];
+  const i = buses.findIndex(b => b && seg.start >= b.start && seg.start < b.start + Math.max(1, Number(b.len) || 0));
+  return i < 0 ? null : { i, bus: buses[i] };
+}
+
+/** "Accurate" when WLED works an output's white out from the colour (the stored W is then unused). */
+function autoWhiteOf(setup, busIndex) {
+  const col = (setup && setup.colour) || {};
+  const all = col.rgbwm;
+  const m = all !== undefined && all !== null && all !== 255 ? all : ((col.buses || [])[busIndex] || {}).rgbwm;
+  return AUTO_WHITE[m] || null;
+}
+
+/**
+ * The remembered look in words, part by part — "2 parts · Part 1: 5-channel
+ * output, orange + white 0, warmth 127 · Part 2: 30 LEDs, orange, Solid ·
+ * Brightness 50% · Fade 0.7 s" — and each part's colour, white and warmth
+ * for its swatches. effects: effectCatalog() of the device.
+ */
+export function lookSummary(look, effects) {
+  const st = (look && look.state) || {};
+  const setup = (look && look.setup) || {};
+  const geo = setup.geometry || {};
+  const seglc = geo.seglc || [];
+  const fxName = (id) => ((effects || []).find(e => e.id === id) || {}).name || `effect ${id}`;
+  const parts = (st.seg || []).map((s, i) => {
+    const c0 = Array.isArray((s.col || [])[0]) ? s.col[0] : [0, 0, 0];
+    const lc = seglc[i];
+    const hasW = typeof lc === "number" ? !!(lc & 2) : c0.length > 3;
+    const hasCct = typeof lc === "number" && !!(lc & 4) && typeof s.cct === "number";
+    const found = geo.matrix ? null : busOfSeg(setup, s);
+    const pwm = found ? PWM_OUTPUTS[Number(found.bus.type) & 0x7f] : null;
+    const leds = segLen(s) * (geo.matrix ? Math.max(1, (Number(s.stopY) || 1) - (Number(s.startY) || 0)) : 1);
+    const rgb = c0.slice(0, 3).map(v => Number(v) || 0);
+    const w = hasW ? Number(c0[3]) || 0 : null;
+    let text = `Part ${i + 1}: ${pwm || `${leds} LEDs`}, `;
+    text += rgb.every(v => !v) && hasW ? `white ${w}` : colourName(rgb) + (hasW ? ` + white ${w}` : "");
+    if (hasCct) text += `, warmth ${s.cct}`;
+    // One PWM fixture runs Solid; its effect is only worth naming when it isn't.
+    if (!pwm || Number(s.fx)) text += `, ${fxName(Number(s.fx) || 0)}`;
+    if (s.on === false) text += ", off";
+    return { text, hex: colToHex(rgb), w, cct: hasCct ? s.cct : null,
+      white: hasW ? whiteSwatch(hasCct ? s.cct : undefined) : null,
+      autoWhite: found && WHITE_BUSES.has(Number(found.bus.type) & 0x7f) ? autoWhiteOf(setup, found.i) : null };
+  });
+  const n = parts.length;
+  const fade = +((Number(st.tt ?? 7) || 0) / 10).toFixed(1);
+  return { parts, text: [`${n} ${n === 1 ? "part" : "parts"}`, ...parts.map(p => p.text),
+    `Brightness ${Math.round((Number(st.bri) || 0) / 2.55)}%`, `Fade ${fade} s`].join(" · ") };
+}
+
+const RESULT_SOURCES = { atlas: "Atlas", room: "a room switch", preset: "a Whole House Preset", service: "an automation",
+  vacation: "Vacation Mode", presence: "a presence rule", hold: "something else (the look was put back)",
+  team: "its team", reconnect: "a reconnect", try: "Try it" };
+
+/** Epoch seconds as the local "21:04". */
+export function clockTime(at) {
+  const d = new Date(Number(at) * 1000);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** wled_look.describe's "part 2: colour, effect" lines as "part 2 colour, effect; brightness". */
+export const diffWords = (lines) => (lines || []).map(l => String(l).replace(/^part (\S+): /, "part $1 ")).join("; ");
+
+/** A command's result in one line: "On at 21:04 from Atlas: matched exactly (1 try)". */
+export function lookResultLine(r) {
+  if (!r || typeof r !== "object") return null;
+  const tries = Number(r.tries) || 0;
+  const times = `${tries} ${tries === 1 ? "try" : "tries"}`;
+  const head = `${r.on === false ? "Off" : r.on === true ? "On" : "Checked"} at ${clockTime(r.at)} from `
+    + (RESULT_SOURCES[r.source] || r.source || "PadSpan");
+  let detail;
+  if (r.ok) detail = tries ? `matched exactly (${times})` : "matched exactly (nothing needed changing)";
+  else if (/^Something else/.test(String(r.message || ""))) detail = r.message;
+  else if ((r.diffs || []).length) {
+    const what = diffWords(r.diffs);
+    detail = `${what[0].toUpperCase()}${what.slice(1)} didn't take after ${times}`;
+  } else detail = r.error || r.message || "it didn't work";
+  return { ok: !!r.ok, waiting: !!r.waiting, text: `${head}: ${detail}`, late: r.late || null };
+}

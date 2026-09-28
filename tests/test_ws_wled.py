@@ -660,3 +660,55 @@ async def test_an_offline_wled_says_unreachable_not_that_it_isnt_wled(fake):
     # Its own code: "unreachable" already means "a write may have been applied" (wled_tab_sync.js).
     assert conn.errors[0][0] == "wled_offline" and "192.168.2.122" in conn.errors[0][1]
     assert fake.calls == [], "an unloaded entry's host is named, never contacted"
+
+
+# ── PadSpan join (wled_exact.py) ─────────────────────────────────────────────
+
+
+def test_a_team_can_be_run_by_padspan(fake, monkeypatch):
+    monkeypatch.setattr(W, "resolve_device", lambda h, entity_id=None, device_id=None: {"host": "x"})
+    t = W.sanitize_teams(fake.hass, [{"id": "t", "group": 3, "leader": "dL", "followers": ["dF"], "mode": "padspan"}])
+    assert not isinstance(t, str) and t[0]["mode"] == "padspan"
+
+
+async def test_a_list_save_cannot_flip_a_team_to_or_from_padspan(fake, monkeypatch):
+    """Only padspan_ha/wled_team_mode may: it switches each member's sync too."""
+    from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+    monkeypatch.setattr(W, "resolve_device", lambda h, entity_id=None, device_id=None: {"host": "x"})
+    base = {"id": "t", "name": "T", "group": 3, "leader": "dL", "followers": ["dF"], "prior": {}, "incomplete": []}
+    for stored_mode, new_mode in (("mirror", "padspan"), ("padspan", "mirror")):
+        stored = [{**base, "mode": stored_mode}]
+        st = SimpleNamespace(data={"wled_teams": stored}, async_set=AsyncMock())
+        fake.hass.data = {DOMAIN: {DATA_SETTINGS: st}}
+        conn = _Conn()
+        await W.ws_wled_teams_set(fake.hass, conn, {"id": 1, "teams": [{**base, "mode": new_mode}]})
+        assert conn.errors and conn.errors[0][0] == "invalid", (stored_mode, new_mode)
+        st.async_set.assert_not_called()
+        # Unchanged mode (a rename) still saves.
+        conn = _Conn()
+        await W.ws_wled_teams_set(fake.hass, conn, {"id": 2, "teams": [{**base, "mode": stored_mode, "name": "U"}]})
+        assert not conn.errors, conn.errors
+    # A brand-new team can't start out run by PadSpan either.
+    st = SimpleNamespace(data={"wled_teams": []}, async_set=AsyncMock())
+    fake.hass.data = {DOMAIN: {DATA_SETTINGS: st}}
+    conn = _Conn()
+    await W.ws_wled_teams_set(fake.hass, conn, {"id": 3, "teams": [{**base, "mode": "padspan"}]})
+    assert conn.errors and conn.errors[0][0] == "invalid"
+
+
+async def test_safe_cfg_write_is_the_one_the_advanced_tab_uses(fake, monkeypatch):
+    """Taken out of ws_wled_cfg for the exact look's sync switch: the tab's
+    write must still go through it (one set of protections)."""
+    seen = []
+    real = W.safe_cfg_write
+
+    async def spy(hass, tgt, patch, base_hash, **kw):
+        seen.append(patch)
+        return await real(hass, tgt, patch, base_hash, **kw)
+
+    monkeypatch.setattr(W, "safe_cfg_write", spy)
+    conn = _Conn()
+    await W.ws_wled_cfg(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "patch": {"def": {"ps": 2}},
+                                           "base_hash": W.cfg_hash(fake.state["cfg"])})
+    assert not conn.errors and seen == [{"def": {"ps": 2}}]
+    assert conn.results[0]["backup"]
