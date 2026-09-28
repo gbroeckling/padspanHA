@@ -1246,3 +1246,308 @@ async def test_one_segment_brightness_is_the_one_home_assistant_shows(house):
     await E.async_power(house.hass, "light.porch", True, 200)                 # past the part's own 64: the most it has
     await house.settle()
     assert dev.serialize_state()["bri"] == 255
+
+
+# ── review round 2: what the repairs broke ───────────────────────────────────
+
+
+async def _spin(n=10):
+    for _ in range(n):
+        await asyncio.sleep(0)
+
+
+async def test_a_padspan_command_during_an_outside_changes_uptime_read_wins(house):
+    """Review r2: an outside change waits for an uptime read (under the device
+    lock). A PadSpan command that lands meanwhile — an automation's
+    light.turn_off on the area, then padspan_ha.wled_on — is the newer one."""
+    devs, dids, _ = await _padspan_team(house)
+    await E.async_power(house.hass, "light.m0_main", True)
+    await house.settle()
+    house.clock[0] += 60
+    for d in devs:                                   # HA's light.turn_off on the area
+        await d.handle("POST", "json/state", {"on": False})
+    for d in devs:                                   # a real request takes a moment
+        d.gate = asyncio.Event()
+    handlers = [asyncio.ensure_future(E.on_state_change(
+        house.hass, f"light.m{i}_main", SimpleNamespace(state="on"), SimpleNamespace(state="off", attributes={})))
+        for i in range(3)]
+    await _spin()
+    power = asyncio.ensure_future(E.async_power(house.hass, "light.m0_main", True, source="service"))
+    await _spin()
+    for d in devs:
+        d.gate.set()
+    await asyncio.gather(*handlers)
+    res = await power
+    await house.settle()
+    assert all(r["ok"] for r in res["results"])
+    assert [d.serialize_state()["on"] for d in devs] == [True, True, True]
+    assert all(house.store.get(d.info["mac"])["last_cmd"]["on"] is True for d in devs)
+    # A solo light: HA's turn_on, then padspan_ha.wled_off.
+    dev = simple_device(host="192.168.2.140", mac="aabbccddee40")
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    await E.async_power(house.hass, "light.valance_main", False)
+    await house.settle()
+    house.clock[0] += 60
+    await dev.handle("POST", "json/state", {"on": True, "bri": 60})
+    dev.gate = asyncio.Event()
+    h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="off"),
+                                                SimpleNamespace(state="on", attributes={"brightness": 60})))
+    await _spin()
+    p = asyncio.ensure_future(E.async_power(house.hass, "light.valance_main", False, source="service"))
+    await _spin()
+    dev.gate.set()
+    await h
+    res = await p
+    await house.settle()
+    assert res["results"][0]["on"] is False and dev.serialize_state()["on"] is False
+    assert house.store.get("aabbccddee40")["last_result"]["source"] == "service"
+    # Negative control: with nothing newer, the outside "on" is still held.
+    dev.gate = None
+    house.clock[0] += 60
+    await dev.handle("POST", "json/state", {"on": True, "bri": 60})
+    await E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="off"),
+                            SimpleNamespace(state="on", attributes={"brightness": 60}))
+    await house.settle()
+    assert dev.serialize_state()["on"] is True and house.store.get("aabbccddee40")["last_result"]["source"] == "hold"
+
+
+async def test_a_command_the_device_didnt_answer_is_tried_again(house):
+    """Review r2: a request error while HA still has the device brings no
+    reconnect, so nothing would ever send it: PadSpan tries again after
+    10 s and 60 s, then says it wasn't switched."""
+    dev = simple_device()
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    await E.async_power(house.hass, "light.valance_main", False)
+    await house.settle()
+    house.clock[0] += 60
+    dev.busy = 3                                      # every try of the json/si read
+    n = len(house.timers)
+    res = await E.async_power(house.hass, "light.valance_main", True, source="atlas")
+    r = res["results"][0]
+    assert r["waiting"] and r["retry_in"] == 10 and "tries again in 10 s" in r["message"]
+    assert [t[0] for t in house.timers[n:]] == [10]
+    await house.timers[-1][1]()                       # 10 s later it answers
+    await house.settle()
+    rec = house.store.get("28562f551738")
+    assert dev.serialize_state()["on"] is True
+    assert rec["last_result"]["ok"] and rec["last_result"]["source"] == "atlas"
+    # Still busy at both tries: it says so, and stops.
+    await E.async_power(house.hass, "light.valance_main", False)
+    await house.settle()
+    dev.busy = 9
+    await E.async_power(house.hass, "light.valance_main", True)
+    await house.timers[-1][1]()
+    await house.settle()
+    assert house.timers[-1][0] == 60 and rec["last_result"]["waiting"]
+    await house.timers[-1][1]()
+    await house.settle()
+    assert not rec["last_result"].get("waiting") and "wasn't switched" in rec["last_result"]["error"]
+    assert dev.serialize_state()["on"] is False
+    # A newer command before the timer: the timer sends nothing.
+    dev.busy = 3
+    await E.async_power(house.hass, "light.valance_main", True)
+    fire = house.timers[-1][1]
+    await E.async_power(house.hass, "light.valance_main", False)
+    await house.settle()
+    n = len(dev.posts())
+    await fire()
+    await house.settle()
+    assert len(dev.posts()) == n and dev.serialize_state()["on"] is False
+
+
+async def test_an_outside_change_replaces_a_command_that_never_went(house):
+    """Review r2: a command that didn't answer (HA never showed the device
+    unavailable) was re-sent on the next outside change, however old —
+    undoing what the person just did. Their change stands; neither the
+    retry nor a later reconnect sends the old command."""
+    dev = simple_device()
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    await E.async_power(house.hass, "light.valance_main", True)
+    await house.settle()
+    house.clock[0] += 3600
+    dev.busy = 3
+    res = await E.async_power(house.hass, "light.valance_main", False, source="vacation")
+    await house.settle()
+    fire = house.timers[-1][1]
+    assert res["results"][0]["waiting"] and dev.serialize_state()["on"] is True
+    house.clock[0] += 5                                # someone dims it in HA
+    await dev.handle("POST", "json/state", {"bri": 40})
+    await E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="on"),
+                            SimpleNamespace(state="on", attributes={"brightness": 40}))
+    await house.settle()
+    rec = house.store.get("28562f551738")
+    assert dev.serialize_state()["on"] is True and dev.serialize_state()["bri"] == 40
+    assert not rec["last_result"]["waiting"] and "changed outside PadSpan" in rec["last_result"]["error"]
+    await fire()
+    await house.settle()
+    assert dev.serialize_state()["on"] is True
+    house.clock[0] += 8 * 3600                         # and not on a reconnect hours later
+    dev.info["uptime"] = house.clock[0]                # up all along (booted at 0)
+    await E.on_state_change(house.hass, "light.valance_main", SimpleNamespace(state="unavailable"),
+                            SimpleNamespace(state="on", attributes={"brightness": 40}))
+    await house.settle()
+    assert dev.serialize_state()["on"] is True and dev.serialize_state()["bri"] == 40
+
+
+async def test_a_switched_member_padspan_cant_put_back_goes_back_to_the_teams_group(house):
+    """Review r2: a member already switched whose rollback fails stays
+    PadSpan's; given back on its own tab it must go back to the team's
+    group (where the switch found it), not its settings from before the team."""
+    devs = [simple_device(host=f"192.168.2.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(3)]
+    dids = [house.add(f"m{i}", d) for i, d in enumerate(devs)]
+    prior = {}
+    for i, (d, did) in enumerate(zip(devs, dids)):
+        prior[did] = {"send": copy.deepcopy(d.cfg["if"]["sync"]["send"]), "recv": copy.deepcopy(d.cfg["if"]["sync"]["recv"])}
+        d.cfg["if"]["sync"]["send"].update(grp=3, en=(i == 0))
+        d.cfg["if"]["sync"]["recv"]["grp"] = 3 if i else 0
+        d.sgrp, d.rgrp, d.send_rt = 3, (3 if i else 0), i == 0
+    team_sync = copy.deepcopy(devs[0].cfg["if"]["sync"])
+    house.settings.data["wled_teams"] = [{"id": "t1", "name": "Valances", "mode": "mirror", "group": 3, "leader": dids[0],
+                                          "followers": dids[1:], "prior": prior, "incomplete": []}]
+    await _remember(house, dids[0], team=True)
+    real2 = devs[2].handle
+
+    async def _fail(method, path, body):
+        if method == "POST" and (body or {}).get("udpn", {}).get("rgrp") == 0:
+            devs[0].offline = True                   # the leader drops off as the rollback starts
+            raise W.WledError("http_error", "The device answered HTTP 500")
+        return await real2(method, path, body)
+    devs[2].handle = _fail
+    conn = _Conn()
+    await E.ws_wled_team_mode(house.hass, conn, {"id": 5, "team_id": "t1", "mode": "padspan"})
+    assert conn.errors and "couldn't switch back: m0" in conn.errors[0][1]
+    rec0 = house.store.get(devs[0].info["mac"])
+    assert (rec0["join"], rec0["exact"]) == ("padspan", True)
+    assert rec0["prior_sync"]["cfg"]["send"]["grp"] == 3 and rec0["prior_sync"]["cfg"]["send"]["en"] is True
+    assert house.store.store.saved["devices"][devs[0].info["mac"]]["prior_sync"]["cfg"]["send"]["grp"] == 3
+    devs[0].offline = False
+    conn = _Conn()
+    await E.ws_wled_exact_set(house.hass, conn, {"id": 6, "device_id": dids[0], "exact": False})
+    assert not conn.errors, conn.errors
+    assert json.dumps(devs[0].cfg["if"]["sync"], sort_keys=True) == json.dumps(team_sync, sort_keys=True)
+    u = devs[0].serialize_state()["udpn"]
+    assert (u["send"], u["sgrp"], u["rgrp"]) == (True, 3, 0)
+
+
+async def test_a_light_padspan_keeps_after_a_failed_switch_is_listened_to(house):
+    """Review r2: a failed switch can leave the device PadSpan's (exact); its
+    lights must reach on_state_change (power-cut catch-up, hold) at once."""
+    dev = simple_device()
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    E._refresh_listener(house.hass)
+    real = dev.handle
+
+    async def _then_gone(method, path, body):
+        out = await real(method, path, body)
+        if method == "POST" and path == "json/cfg":
+            dev.offline = True
+            raise W.WledError("timeout", "No answer within 12 s")
+        return out
+    dev.handle = _then_gone
+    conn = _Conn()
+    await E.ws_wled_exact_set(house.hass, conn, {"id": 4, "device_id": did, "exact": True})
+    assert conn.errors and house.store.get("28562f551738")["exact"] is True
+    assert house.tracked and "light.valance_main" in house.tracked[-1]
+    # The same through a team switch that fails.
+    house.tracked.clear()
+    devs = [simple_device(host=f"192.168.2.{130 + i}", mac=f"aabbccddee{i:02x}") for i in range(2)]
+    dids = [house.add(f"m{i}", d) for i, d in enumerate(devs)]
+    _team(house, dids[0], dids[1:])
+    await _remember(house, dids[0], team=True)
+    real1 = devs[1].handle
+
+    async def _gone1(method, path, body):
+        out = await real1(method, path, body)
+        if method == "POST" and path == "json/cfg":
+            devs[1].offline = True
+            raise W.WledError("timeout", "No answer within 12 s")
+        return out
+    devs[1].handle = _gone1
+    conn = _Conn()
+    await E.ws_wled_team_mode(house.hass, conn, {"id": 5, "team_id": "t1", "mode": "padspan"})
+    assert conn.errors and house.store.get(devs[1].info["mac"])["exact"] is True
+    assert house.tracked and "light.m1_main" in house.tracked[-1]
+
+
+async def test_without_the_licence_a_team_follows_a_member_switched_from_outside(house):
+    """Review r2: after a lapse a member switched from HA's own dashboard,
+    voice or an HA automation takes the others with it (plain HA calls, as
+    every PadSpan surface does) — their WLED sync is off. PadSpan's own
+    plain calls coming back through HA never cascade."""
+    devs, dids, _ = await _padspan_team(house)
+    await E.async_power(house.hass, "light.m0_main", False)
+    await house.settle()
+    house.clock[0] += 60
+    house.tier[0] = False
+    house.service_calls.clear()
+    n = [len(d.posts()) for d in devs]
+    await devs[0].handle("POST", "json/state", {"on": True})
+    await E.on_state_change(house.hass, "light.m0_main", SimpleNamespace(state="off"),
+                            SimpleNamespace(state="on", attributes={"brightness": 64}))
+    assert house.service_calls == [("light", "turn_on", {"entity_id": "light.m1_main", "brightness": 64}),
+                                   ("light", "turn_on", {"entity_id": "light.m2_main", "brightness": 64})]
+    assert [len(d.posts()) - k for d, k in zip(devs, n)] == [1, 0, 0], "no exact command without the licence"
+    # Those calls coming back through HA: nothing more.
+    await E.on_state_change(house.hass, "light.m1_main", SimpleNamespace(state="off"),
+                            SimpleNamespace(state="on", attributes={"brightness": 64}))
+    assert len(house.service_calls) == 2
+    # Off from outside: the others go off. A segment light, or no change of on/off, takes nobody.
+    house.clock[0] += 10
+    await E.on_state_change(house.hass, "light.m2_main", SimpleNamespace(state="on"), SimpleNamespace(state="off"))
+    assert house.service_calls[2:] == [("light", "turn_off", {"entity_id": "light.m0_main"}),
+                                       ("light", "turn_off", {"entity_id": "light.m1_main"})]
+    house.clock[0] += 10
+    await E.on_state_change(house.hass, "light.m1_segment_1", SimpleNamespace(state="off"), SimpleNamespace(state="on"))
+    await E.on_state_change(house.hass, "light.m1_main", SimpleNamespace(state="on"),
+                            SimpleNamespace(state="on", attributes={"brightness": 9}))
+    assert len(house.service_calls) == 4
+    # A device PadSpan ran on its own: HA's own light again, nothing follows.
+    solo = simple_device(host="192.168.2.140", mac="aabbccddee40")
+    sdid = house.add("solo", solo)
+    house.tier[0] = True
+    await _remember(house, sdid)
+    await _to_padspan(house, sdid)
+    house.tier[0] = False
+    await E.on_state_change(house.hass, "light.solo_main", SimpleNamespace(state="off"), SimpleNamespace(state="on"))
+    assert len(house.service_calls) == 4
+
+
+async def test_without_the_licence_a_team_keeps_its_tuning_on_one_segment_lights(house):
+    """Review r2: the plain calls took the brightness HA shows on a
+    one-segment light as the master, and HA's call sets that part's opacity
+    to 255. Upper North (.2.122: opacity 255, master 15) and Upper South
+    (.2.123: opacity 13, master 128) end as they would with the licence."""
+    un, us = simple_device("192.168.2.122", mac="aa0000000122", segs=1), simple_device("192.168.2.123", mac="aa0000000123", segs=1)
+    await un.handle("POST", "json/state", {"on": True, "bri": 15, "seg": [{"id": 0, "bri": 255}]})
+    await us.handle("POST", "json/state", {"on": True, "bri": 128, "seg": [{"id": 0, "bri": 13}]})
+    dun, dus = house.add("un", un, segs=1, main=False), house.add("us", us, segs=1, main=False)
+    _team(house, dus, [dun])
+    await _remember(house, dus, team=True)
+    conn = _Conn()
+    await E.ws_wled_team_mode(house.hass, conn, {"id": 5, "team_id": "t1", "mode": "padspan"})
+    assert not conn.errors, conn.errors
+    await house.settle()
+
+    def output(dev):
+        st = dev.serialize_state()
+        return round(st["bri"] * st["seg"][0]["bri"] / 255) if st["on"] else 0
+    await E.async_power(house.hass, "light.us", True, 50)
+    await house.settle()
+    licensed = (output(us), output(un))
+    house.tier[0] = False
+    house.service_calls.clear()
+    await E.async_power(house.hass, "light.us", True, 50)
+    # HA's own turn_on on a one-segment light: master = brightness, opacity 255.
+    plain = {c[2]["entity_id"]: c[2]["brightness"] for c in house.service_calls}
+    assert (plain["light.us"], plain["light.un"]) == licensed == (13, 30)
+    house.service_calls.clear()
+    await E.async_power(house.hass, "light.us", True, 5)
+    plain = {c[2]["entity_id"]: c[2]["brightness"] for c in house.service_calls}
+    assert plain["light.us"] == 5 and plain["light.un"] == L.team_bri(15, round(5 * 255 / 13), 128)

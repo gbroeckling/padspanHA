@@ -30,12 +30,15 @@ durable on/off that reproduces complex 5-6 channel strings 100% every time").
   put back keeping the brightness it was given; a PadSpan team follows a
   member switched from outside; after a power cut (a restart, told by the
   device's uptime — HA doesn't always show one as "unavailable") or a
-  command that never reached the device, the last command goes back.
+  command that never reached the device, the last command goes back — a
+  device that didn't answer while HA still has it is tried again, and
+  a change made from outside since replaces it.
 
 Never used: firmware, OTA, reboot, presets or playlists (wled_look.FORBIDDEN_KEYS
 is checked on every request). Tier: Bright Pro / Pro, like the Advanced tab;
 without it every path is a plain HA light call — every member's, for a team
-PadSpan runs (their WLED sync is off) — so no light goes dark over licensing,
+PadSpan runs (their WLED sync is off), and a member switched from outside
+takes the others along the same way — so no light goes dark over licensing,
 and switching back to WLED sync is always allowed.
 """
 
@@ -64,6 +67,7 @@ ECHO_WINDOW_S = 3.0          # PadSpan's own change coming back through HA
 LATE_EXTRA_S = 1.0
 RECONNECT_DEDUPE_S = 10.0
 RESTART_CHECK_S = 2.0        # one uptime read for the lights of a device changing together
+WAIT_RETRY_S = (10.0, 60.0)  # a device that didn't answer while HA still has it: tried again
 SETUP_RECHECK_S = 86400
 SAVE_DELAY_S = 2.0
 
@@ -74,6 +78,7 @@ _WORKERS = "_wled_exact_workers"
 _UNSUB = "_wled_exact_unsub"
 _REG_UNSUB = "_wled_exact_reg_unsub"
 _STORE_LOCK = "_wled_looks_lock"
+_PLAIN_SENT = "_wled_plain_sent"
 
 # Indirections the tests replace.
 _now = time.time
@@ -312,6 +317,7 @@ class _Worker:
         self.last_write = -1e9       # monotonic time of PadSpan's last POST
         self.last_reconnect = -1e9
         self.late_cancel: Any = None
+        self.retry_cancel: Any = None    # a command the device didn't answer, tried again
         self.plan: dict | None = None   # what the last command checked against (for the late check)
         self.applies = 0
         self.boot_at: float | None = None   # when the device last started (now − its uptime)
@@ -333,9 +339,11 @@ class _Worker:
         self.want = want
         fut = asyncio.get_running_loop().create_future()
         self.waiters.append((self.gen, fut))
-        if self.late_cancel:
-            self.late_cancel()
-            self.late_cancel = None
+        for name in ("late_cancel", "retry_cancel"):
+            cancel = getattr(self, name)
+            if cancel:
+                cancel()
+                setattr(self, name, None)
         if not self.busy():
             self.task = self.hass.async_create_background_task(self._run(), f"padspan_wled_exact_{self.mac}")
         return fut
@@ -493,7 +501,16 @@ async def _apply(hass: HomeAssistant, worker: _Worker, want: dict, gen: int) -> 
         try:
             si = await W._request(hass, host, "GET", "json/si")
         except W.WledError as e:
-            result.update(waiting=True, error=str(e))
+            # HA still has the device, so no reconnect will bring this
+            # command: it is tried again, then said not to have gone.
+            words = _NO_ANSWER.get(e.code) or str(e)
+            n = int(want.get("retry") or 0)
+            if n < len(WAIT_RETRY_S):
+                result.update(waiting=True, retry_in=WAIT_RETRY_S[n],
+                              error=f"{words} — PadSpan tries again in {WAIT_RETRY_S[n]:g} s")
+                _schedule_retry(hass, worker, gen, want, result)
+            else:
+                result["error"] = f"{words}, so it wasn't switched"
             rec["last_result"] = result
             st.schedule_save()
             return result
@@ -564,6 +581,29 @@ def _schedule_late(hass: HomeAssistant, worker: _Worker, gen: int, tt: int, stag
         worker.late_cancel = _later(hass, tt / 10 + LATE_EXTRA_S, _fire)
     except Exception as err:  # noqa: BLE001 — a missing timer loses only the late check
         _LOGGER.debug("WLED exact look: late check not scheduled: %s", err)
+
+
+_NO_ANSWER = {"busy": "The device was busy", "timeout": "The device didn't answer",
+              "unreachable": "The device couldn't be reached"}
+
+
+def _schedule_retry(hass: HomeAssistant, worker: _Worker, gen: int, want: dict, result: dict) -> None:
+    """The same command again after WAIT_RETRY_S — only while it is still
+    the newest and still waiting (a newer command, or a change made from
+    outside, replaces it)."""
+    async def _fire(_now_arg: Any = None) -> None:
+        worker.retry_cancel = None
+        st = _store(hass)
+        rec = st.get(worker.mac) if st else None
+        if (rec is None or worker.gen != gen or worker.busy() or rec.get("last_result") is not result
+                or not result.get("waiting")):
+            return
+        worker.submit({**want, "retry": int(want.get("retry") or 0) + 1})
+
+    try:
+        worker.retry_cancel = _later(hass, result["retry_in"], _fire)
+    except Exception as err:  # noqa: BLE001 — a missing timer leaves it to a reconnect
+        _LOGGER.debug("WLED exact look: retry not scheduled: %s", err)
 
 
 async def _late_check(hass: HomeAssistant, worker: _Worker, gen: int, stage: int) -> None:
@@ -663,15 +703,16 @@ def _team_wants(hass: HomeAssistant, rec: dict, team: dict | None, on: bool, bri
 def _public_result(rec: dict, result: dict) -> dict:
     return {"device_id": rec.get("device_id"), "name": rec.get("name"), "ok": bool(result.get("ok")),
             "waiting": bool(result.get("waiting")), "tries": result.get("tries", 0), "diffs": result.get("diffs") or [],
-            "message": result.get("message") or result.get("error"), "on": result.get("on"), "bri": result.get("bri")}
+            "message": result.get("message") or result.get("error"), "on": result.get("on"), "bri": result.get("bri"),
+            "retry_in": result.get("retry_in")}
 
 
 def _plain_targets(hass: HomeAssistant, entity_id: str, brightness: int | None) -> list[tuple[str, int | None]]:
     """What a plain HA call switches: the light itself — or, for a member of
     a team PadSpan runs (without the licence), every member's master light
     (any light of a member is the member, as with the licence), brightness
-    kept to each member's tuning: their WLED sync is switched off, so
-    nothing else would bring them along."""
+    kept to each member's tuning as the licensed path keeps it: their WLED
+    sync is switched off, so nothing else would bring them along."""
     try:
         ident, team = _team_of_entity(hass, entity_id)
     except Exception:  # noqa: BLE001 — a registry hiccup: just the light
@@ -679,17 +720,47 @@ def _plain_targets(hass: HomeAssistant, entity_id: str, brightness: int | None) 
     st = _store(hass)
     if not team or not st:
         return [(entity_id, brightness)]
-    def look_bri(mac: str) -> Any:
-        return ((((st.get(mac) or {}).get("look") or {}).get("state")) or {}).get("bri")
 
-    ref = look_bri(ident["mac"])
-    out: list[tuple[str, int | None]] = [(_master_light(hass, ident["device_id"], ident["mac"]) or entity_id, brightness)]
-    for did in _members(team):
-        mi = _identify(hass, device_id=did) if did != ident["device_id"] else None
+    def look_bri(r: dict | None) -> Any:
+        return ((((r or {}).get("look") or {}).get("state")) or {}).get("bri")
+
+    rec = st.get(ident["mac"])
+    if brightness is not None and rec and rec.get("look"):
+        brightness = _master_bri(hass, rec, entity_id, brightness)          # as async_power does
+    ref = look_bri(rec)
+    out: list[tuple[str, int | None]] = []
+    for did in [ident["device_id"]] + [d for d in _members(team) if d != ident["device_id"]]:
+        mi = ident if did == ident["device_id"] else _identify(hass, device_id=did)
         light = _master_light(hass, did, mi["mac"]) if mi else None
-        if light is not None:
-            out.append((light, None if brightness is None else L.team_bri(look_bri(mi["mac"]), int(brightness), ref)))
+        if light is None:
+            if did != ident["device_id"]:
+                continue
+            light = entity_id
+        b = None
+        if brightness is not None:
+            mrec = st.get(mi["mac"])
+            b = L.team_bri(look_bri(mrec), int(brightness), ref)
+            role = device_lights(hass, did, mi["mac"]).get(light) if mrec and mrec.get("look") else None
+            if isinstance(role, int):
+                # One segment, no main light: HA's own call sets that part's
+                # opacity to 255 and the master to the brightness (light.py
+                # 2026.7.4), so the look's opacity goes into the number.
+                b = max(1, round(b * _look_opacity(mrec, role) / 255))
+        out.append((light, b))
     return out
+
+
+async def _plain_calls(hass: HomeAssistant, targets: list[tuple[str, int | None]], on: bool,
+                       transition: float | None) -> None:
+    """Plain HA light calls, noted so their own state changes coming back
+    through HA are never taken for a member switched from outside."""
+    sent = hass.data.setdefault(DOMAIN, {}).setdefault(_PLAIN_SENT, {})
+    for eid, bri in targets:
+        sent[eid] = _mono()
+        try:
+            await _plain_call(hass, eid, on, bri, transition)
+        finally:
+            sent[eid] = _mono()
 
 
 async def async_power(hass: HomeAssistant, entity_id: str, on: bool, brightness: int | None = None, *,
@@ -700,8 +771,7 @@ async def async_power(hass: HomeAssistant, entity_id: str, on: bool, brightness:
     `brightness` is as HA shows it on `entity_id` (_master_bri)."""
     rec = _exact_record(hass, entity_id)
     if rec is None:
-        for eid, bri in _plain_targets(hass, entity_id, brightness):
-            await _plain_call(hass, eid, on, bri, transition)
+        await _plain_calls(hass, _plain_targets(hass, entity_id, brightness), on, transition)
         return {"handled": False, "results": []}
     brightness = _master_bri(hass, rec, entity_id, brightness)
     tt = round(float(transition) * 10) if transition is not None else None
@@ -717,6 +787,7 @@ async def async_power(hass: HomeAssistant, entity_id: str, on: bool, brightness:
 
 async def on_state_change(hass: HomeAssistant, entity_id: str, old: Any, new: Any) -> None:
     if not _tier_at_least(hass, W.TIER):
+        await _lapsed_team_follows(hass, entity_id, old, new)
         return
     st = _store(hass)
     if st is None:
@@ -737,6 +808,28 @@ async def on_state_change(hass: HomeAssistant, entity_id: str, old: Any, new: An
         await _outside_change(hass, st, rec, worker, entity_id, old_s, new_s, new)
 
 
+async def _lapsed_team_follows(hass: HomeAssistant, entity_id: str, old: Any, new: Any) -> None:
+    """Without the licence: a member of a team PadSpan runs switched on or
+    off from outside PadSpan (HA's own dashboard, voice, an automation)
+    takes the others with it through plain HA calls, as every PadSpan
+    surface does (_plain_targets) — their WLED sync is off, so nothing
+    else would. PadSpan's own plain calls coming back are not followed."""
+    old_s, new_s = getattr(old, "state", None), getattr(new, "state", None)
+    if old_s not in ("on", "off") or new_s not in ("on", "off") or old_s == new_s:
+        return
+    if _mono() - ((hass.data.get(DOMAIN) or {}).get(_PLAIN_SENT) or {}).get(entity_id, -1e9) < ECHO_WINDOW_S:
+        return
+    try:
+        ident, team = _team_of_entity(hass, entity_id)
+        if not team or _master_light(hass, ident["device_id"], ident["mac"]) != entity_id:
+            return
+        bri = (getattr(new, "attributes", None) or {}).get("brightness") if new_s == "on" else None
+        targets = _plain_targets(hass, entity_id, int(bri) if isinstance(bri, (int, float)) else None)
+    except Exception:  # noqa: BLE001 — a registry hiccup: the light alone, as HA switched it
+        return
+    await _plain_calls(hass, [t for t in targets if t[0] != entity_id], new_s == "on", None)
+
+
 async def _outside_change(hass: HomeAssistant, st: WledLooksStore, rec: dict, worker: _Worker, entity_id: str,
                           old_s: Any, new_s: str, new: Any) -> None:
     if old_s == "unavailable":
@@ -755,6 +848,15 @@ async def _outside_change(hass: HomeAssistant, st: WledLooksStore, rec: dict, wo
     # boot's own "on" for someone's.
     if await _catch_up(hass, rec, worker, came_back=False):
         return
+    # Changed from outside after a command that didn't go (or is still to
+    # be tried again): the change stands — that command is not sent again,
+    # by the retry or on a reconnect.
+    res = rec.get("last_result")
+    if isinstance(res, dict) and not res.get("ok") and not res.get("replaced"):
+        res["replaced"] = True
+        if res.get("waiting"):
+            res.update(waiting=False, error="Not sent — the light was changed outside PadSpan first")
+        st.schedule_save()
     if old_s == new_s:
         return
     lights = device_lights(hass, rec["device_id"], rec["mac"])
@@ -815,29 +917,33 @@ async def _boot_time(hass: HomeAssistant, rec: dict, worker: _Worker, *, fresh: 
     return _note_boot(worker, info)
 
 
-def _undelivered(rec: dict, last: dict, came_back: bool) -> bool:
-    """The last command never got to the device: it was waiting (offline,
-    or unanswered) — or, back from "unavailable", it went wrong. A last
-    command with no result of its own is an outside change the device made
-    itself: nothing to deliver."""
+def _undelivered(rec: dict, last: dict) -> bool:
+    """Back from "unavailable": the last command never got to the device
+    (it was waiting, or went wrong) and nothing changed the light from
+    outside since. A last command with no result of its own is an outside
+    change the device made itself: nothing to deliver."""
     res = rec.get("last_result") if isinstance(rec.get("last_result"), dict) else {}
-    if float(res.get("at") or 0) < float(last.get("at") or 0):
+    if float(res.get("at") or 0) < float(last.get("at") or 0) or res.get("replaced"):
         return False
-    return bool(res.get("waiting")) or (came_back and not res.get("ok"))
+    return bool(res.get("waiting")) or not res.get("ok")
 
 
 async def _catch_up(hass: HomeAssistant, rec: dict, worker: _Worker, *, came_back: bool) -> bool:
     """The last command goes back — on with its look, or off — when the
     device restarted since it (a power cut: every unit boots ON) or it never
     got there. Otherwise, back from "unavailable", the look is held if it is
-    on (Q2, 2026-09-27; nothing written to presets). True if a command went."""
+    on (Q2, 2026-09-27; nothing written to presets). True if a command went
+    — or a newer one did while the uptime was read: it decides."""
     last = rec.get("last_cmd") if isinstance(rec.get("last_cmd"), dict) else None
     if not last and not came_back:
         return False
+    gen = worker.gen
     boot = await _boot_time(hass, rec, worker, fresh=came_back)
+    if worker.gen != gen:
+        return True
     if boot is None:
         return False
-    if last and (boot > float(last.get("at") or 0) or _undelivered(rec, last, came_back)):
+    if last and (boot > float(last.get("at") or 0) or (came_back and _undelivered(rec, last))):
         team = padspan_team_of(hass, rec.get("device_id"))
         _submit(hass, rec, {"on": bool(last.get("on")), "bri": last.get("bri"), "team": bool(team),
                             "source": "reconnect"})
@@ -902,9 +1008,11 @@ def async_stop_wled_exact(hass: HomeAssistant) -> None:
             except Exception:  # noqa: BLE001
                 pass
     for w in (dom.get(_WORKERS) or {}).values():
-        if w.late_cancel:
-            w.late_cancel()
-            w.late_cancel = None
+        for name in ("late_cancel", "retry_cancel"):
+            cancel = getattr(w, name)
+            if cancel:
+                cancel()
+                setattr(w, name, None)
 
 
 # ── The switch: WLED sync ↔ PadSpan ──────────────────────────────────────────
@@ -1040,7 +1148,7 @@ async def switch_to_padspan(hass: HomeAssistant, rec: dict, tgt: dict, team_prio
         after = None
     _keep_padspan(rec, sync_off, prior)
     return {"backup": backup, "sync_off": sync_off, "message": message, "before": before, "after": after,
-            "undo": {"rec": kept, "before": before}}
+            "undo": {"rec": kept, "before": before, "prior": fail_prior}}
 
 
 async def undo_switch(hass: HomeAssistant, rec: dict, tgt: dict, undo: dict) -> None:
@@ -1302,6 +1410,7 @@ async def ws_wled_exact_set(hass: HomeAssistant, connection, msg) -> None:
                     res = await switch_to_wled(hass, rec, ident["tgt"])
         except W.WledError as e:
             await st.async_save()
+            _refresh_listener(hass)                 # a switch that failed can leave it PadSpan's
             connection.send_error(msg["id"], e.code, str(e))
             return
         out.update({k: res.get(k) for k in ("before", "after", "backup", "message")})
@@ -1365,7 +1474,11 @@ async def ws_wled_team_mode(hass: HomeAssistant, connection, msg) -> None:
                             await undo_switch(hass, brec, bi["tgt"], undo)
                     except W.WledError as err:
                         back.append(f"{bi['name']} ({err})")
+                        # It stays PadSpan's: switching it back puts it where
+                        # this switch found it (the team's own group).
+                        brec["prior_sync"] = undo["prior"]
                 await st.async_save()
+                _refresh_listener(hass)             # a member PadSpan kept is listened to
                 tail = f"; couldn't switch back: {', '.join(back)}" if back else "; the others were switched back"
                 connection.send_error(msg["id"], "failed", f"{i['name']}: {e}{tail}")
                 return
@@ -1386,6 +1499,7 @@ async def ws_wled_team_mode(hass: HomeAssistant, connection, msg) -> None:
                 failed.append(f"{i['name']} ({e})")
         if failed:
             await st.async_save()
+            _refresh_listener(hass)
             connection.send_error(msg["id"], "failed", f"Couldn't switch back: {', '.join(failed)} — the team is still run by PadSpan")
             return
     for i in idents:
