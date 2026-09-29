@@ -1312,11 +1312,14 @@ def test_the_readme_and_the_panel_say_the_load_sections_go():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     readme = (root / "README.md").read_text(encoding="utf-8")
-    listed = readme[readme.index("the complete list:"):readme.index("**Never**")]
-    assert "`hw`" in listed and "`perf`" in listed
-    for word in ("Raspberry Pi", "load per CPU", "event-loop lag", "memory available", "95th percentile",
-                 "never a model string, hostname or serial"):
-        assert word in listed, word
+    if "the complete list:" in readme:
+        listed = readme[readme.index("the complete list:"):readme.index("**Never**")]
+        assert "`hw`" in listed and "`perf`" in listed
+        for word in ("Raspberry Pi", "load per CPU", "event-loop lag", "memory available", "95th percentile",
+                     "never a model string, hostname or serial"):
+            assert word in listed, word
+    else:                                   # the Bright derivation's README only summarises the report
+        assert "how hard the machine works" in readme and "what class of machine it is" in readme
     settings = (root / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "views" / "settings.js").read_text(encoding="utf-8")
     assert "how hard the machine" in settings and "what class of machine it is" in settings
     panel = (root / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "panel.js").read_text(encoding="utf-8")
