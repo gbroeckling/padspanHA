@@ -176,6 +176,38 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.89</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">28 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Changed:</b> the "New: try the lighting map free for 90 days" line is in one "PadSpan HA updated" note only — the update that brought the trial. Later notes go back to the short line about what a licence adds. It never shows on a wall kiosk (<code>?kiosk=1</code>), or once the one-time card about the lighting half has been shown.</li>
+          <li><b>Changed:</b> the one-time "PadSpan's working in your house" card waits for your next visit if another card (the update note, the usage report question, Getting started) was on Overview this time, so two offers never show one after the other.</li>
+          <li><b>Changed:</b> the <b>💡 Lighting · free trial</b> line in PadSpan's menu shows to administrators only (the only people who can start the trial), and goes away once the one-time card about the lighting half has been shown.</li>
+          <li><b>Fixed:</b> closing the card with ✕ after starting a trial from it no longer counts as saying no.</li>
+          <li><b>Fixed:</b> restoring a backup, a factory reset, or importing a PadSpan Bright house keeps your answer to the trial card and when PadSpan first ran here, so the card doesn't come back.</li>
+          <li><b>Changed:</b> on Locate and Busy Times the trial card now says plainly that the trial doesn't unlock them, instead of repeating that they need Pro.</li>
+          <li>PadSpan Bright: the trial card no longer mentions presence tracking you can't see.</li>
+          <li><b>Fixed:</b> with the button switched off in Settings, a test started from another screen still shows the button, so it can be seen and ended. The Atlas still checks every 5 minutes while it is off.</li>
+          <li><b>Fixed:</b> on a phone the button is full size again; the smaller one was hard to hit.</li>
+          <li><b>Fixed:</b> an open menu from the Atlas's left rail no longer covers the button.</li>
+          <li><b>Fixed:</b> in the list of emergency lights, the On/Off states and buttons now line up.</li>
+          <li><b>Fixed:</b> the longer messages (for example after a real emergency during a test) stay up long enough to read, and a new message replaces the old one instead of landing on it.</li>
+          <li><b>Changed:</b> the Mapped Light Control card is now <b>Atlas — Mapped Light Control</b> (Settings → UI Structure, Advanced mode). It says the Atlas is on by default. <b>Show the Test emergency lighting button on the Atlas</b> saves as soon as you tick it, with no restart; only the sidebar switch needs <b>Save</b> and a Home Assistant restart.</li>
+          <li><b>Fixed:</b> "Become a tester" reads properly: "Scanners: 19", not "19 — 19 other", and "2 Apple devices, 3 Find My accessories".</li>
+          <li><b>Fixed:</b> a red "🚨 0" alarm pill showed in PadSpan's top bar on every phone even with no water alarm latched.</li>
+          <li><b>Fixed:</b> "Upgrade to PadSpan Pro — $12" and "Buy PadSpan Bright Pro" were grey boxes (the first unreadable); they now look like the buttons beside them.</li>
+          <li><b>Fixed:</b> "What Pro unlocks today" had two markers on every line.</li>
+          <li><b>Fixed:</b> a Buy link from the app landed a screen below the Pro section while the page's pictures loaded.</li>
+          <li><b>Fixed:</b> ticking or unticking the emergency button's switch in Settings no longer throws away other changes on that page that you haven't saved yet.</li>
+          <li><b>Fixed:</b> restoring a backup no longer brings back an update note you had already seen.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.88</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">28 September 2026</span>
