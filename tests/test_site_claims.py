@@ -338,3 +338,25 @@ def test_hero_images_reserve_their_height(html: str) -> None:
     for img in re.findall(r'<img class="heroimg"[^>]*>', html):
         assert re.search(r'width="\d+" height="\d+"', img), img
     assert re.search(r"\.heroimg\{[^}]*height:auto", html)
+
+
+def test_nothing_makes_the_page_wider_than_a_phone(html: str) -> None:
+    """Design pass leftover, 2026-09-28: on a 390px phone the page was 438px
+    wide — `script.garage_door_truck` in the release notes could not break —
+    so it scrolled sideways, and a jump to #pro landed 104px off. A code name
+    breaks anywhere; every table scrolls inside its own box."""
+    css = html[:html.index("</style>")]
+    assert re.search(r"(?:^|\n)code\{[^}]*overflow-wrap:anywhere", css), "a long code name widens the page"
+    assert re.search(r"\.tablewrap\{[^}]*overflow-x:auto", css)
+    body = html[html.index("<body"):]
+    assert body.count("<table") == body.count('<div class="tablewrap">\n  <table>'), \
+        "a table outside a .tablewrap box widens the page on a phone"
+
+
+def test_anchors_land_below_the_sticky_nav(html: str) -> None:
+    """Every Buy link in the app lands on #pro. The nav is sticky — one row,
+    two on a phone — and sat over the section's first lines."""
+    css = html[:html.index("</style>")]
+    assert re.search(r"(?:^|\n)section\[id\]\{scroll-margin-top:\d+px\}", css), "desktop"
+    phone = re.search(r"@media\(max-width:640px\)\{[^\n]*section\[id\]\{scroll-margin-top:(\d+)px\}", css)
+    assert phone and int(phone.group(1)) >= 80, "a phone's two-row nav covers the section heading"

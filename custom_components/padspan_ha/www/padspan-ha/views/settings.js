@@ -16,7 +16,7 @@
  *
  * Uses a "draft" copy of the model so edits don't take effect until Save.
  */
-const { BUY_URL, PRO_PRICE, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL } =
+const { BUY_URL, PRO_PRICE, PRO_LIFETIME_PRICE, proLifetimeOpen, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Optional too: the tester sign-up must not take the Settings tab with it.
 const { testerSection } = await import(`./tester_signup.js${new URL(import.meta.url).search}`)
@@ -2922,7 +2922,8 @@ function _settingsLicence(ctx, el){
     } }, hasKey ? "Replace licence key" : "Enter licence key");
   row.appendChild(enterBtn);
 
-  if (!hasKey || lapsed || isTrial) {
+  const canBuy = !hasKey || lapsed || isTrial;
+  if (canBuy) {
     row.appendChild(el("a", { class: "btn inline", href: BUY_URL, target: "_blank", rel: "noopener",
       style: "font-size:12px;border-color:#52b788;color:#a7f3d0;text-decoration:none" },
       (lapsed ? "Renew" : "Buy") + " PadSpan Pro \u2014 " + PRO_PRICE));
@@ -2943,6 +2944,14 @@ function _settingsLicence(ctx, el){
     "What does each tier unlock?");
   row.appendChild(tourBtn);
   card.appendChild(row);
+  // The launch offer, under the buy button while it lasts (editions.js; the
+  // site takes its form away at the same moment). A lifetime key never has
+  // the buy button, so never this either.
+  if (canBuy && proLifetimeOpen()) {
+    card.appendChild(el("div", { style: "font-size:12px;margin-top:8px" },
+      el("a", { href: BUY_URL, target: "_blank", rel: "noopener", style: "color:#a7f3d0;text-decoration:underline" },
+        "Or PadSpan Pro for life — " + PRO_LIFETIME_PRICE + ", once, until October 31.")));
+  }
   // The 90-day trial (views/trial_offer.js): the same card every paid wall
   // offers, shown here while there is no key at all. Its own Buy link is off —
   // this card already has one in the row above.

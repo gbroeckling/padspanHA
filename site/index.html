@@ -46,6 +46,9 @@ header.hero{padding:70px 0 40px;text-align:center}
 .btn.ghost{border:1px solid var(--line);color:var(--fg);background:transparent}
 .btn.ghost:hover{border-color:var(--acc);text-decoration:none;transform:translateY(-2px)}
 section{padding:54px 0}
+/* A jump to #pro (every Buy link in the app) lands below the sticky nav:
+   one row here, two on a phone. */
+section[id]{scroll-margin-top:56px}
 h2{font-size:clamp(26px,3.6vw,38px);font-weight:900;letter-spacing:-.01em;margin-bottom:8px}
 .kick{color:var(--acc);font-weight:800;letter-spacing:.16em;text-transform:uppercase;font-size:12px;margin-bottom:8px}
 .lede{color:var(--mut);max-width:760px;margin-bottom:28px;font-size:16px}
@@ -74,7 +77,7 @@ tr:hover td{background:rgba(52,211,153,.04)}
 .steps li{counter-increment:st;position:relative;padding:10px 0 10px 52px;font-size:15.5px;color:#cfe0d4}
 .steps li::before{content:counter(st);position:absolute;left:0;top:8px;width:34px;height:34px;border-radius:50%;
   background:rgba(52,211,153,.12);border:1px solid var(--line);color:var(--acc);font-weight:900;display:flex;align-items:center;justify-content:center}
-code{background:rgba(52,211,153,.1);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:13px;color:var(--acc2)}
+code{background:rgba(52,211,153,.1);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:13px;color:var(--acc2);overflow-wrap:anywhere}
 .docgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
 .doc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;display:block;color:var(--fg);transition:.2s}
 .doc:hover{border-color:var(--acc);transform:translateY(-2px);text-decoration:none}
@@ -116,7 +119,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 .ed li.x::before{content:"—";color:#4a5c50}
 .note{background:rgba(255,193,71,.06);border:1px solid rgba(255,193,71,.3);border-radius:12px;padding:16px 18px;font-size:14.5px;color:#e4d9c0;margin-top:18px}
 .note b{color:var(--gold)}
-@media(max-width:640px){.hero{padding:46px 0 30px}section{padding:40px 0}nav.top .inner{gap:12px}nav.top a{font-size:12.5px}}
+@media(max-width:640px){.hero{padding:46px 0 30px}section{padding:40px 0}section[id]{scroll-margin-top:88px}nav.top .inner{gap:12px}nav.top a{font-size:12.5px}}
 </style>
 </head>
 <body>

@@ -3631,7 +3631,7 @@ export function buildLightsTable(host, lights){
   const hidden = host.hiddenEids;
   // The card wrapper lives HERE, not in the hosts — same objects AND same
   // layout in both views.
-  const root = el("div", { class: "card lv-tablecard" });
+  const root = el("div", { class: "card lv-tablecard lv-index" });
 
   const unassigned = lights.filter(l => !l.area_name && !hidden.has(l.entity_id));
   if (host.lightsLoading) {
@@ -3730,11 +3730,14 @@ export function buildLightsTable(host, lights){
     // this exact sort key until fixed by hand, separately, the same day).
     ["state", "State", (l) => { const sw = stateWordOf(l, host.floodLatches, host.doorInvertByEid); return sw ? sw.sortValue : (l.state === "on" ? 1 : 0); }],
   ];
-  const th = (key, label, extraStyle) => {
-    if (!key || !host.onTableSort) return el("th", { style: extraStyle || "" }, label);
+  // cls: lv-narrow / lv-phone, a column that steps aside when the index is
+  // narrower than 480px / 400px (styles.css .lv-index).
+  const th = (key, label, extraStyle, cls) => {
+    if (!key || !host.onTableSort) return el("th", { class: cls || "", style: extraStyle || "" }, label);
     const active = sortState && sortState.column === key;
     const arrow = active ? (sortState.dir === "asc" ? " ▲" : " ▼") : "";
     return el("th", {
+      class: cls || "",
       style: `cursor:pointer;user-select:none;${extraStyle || ""}`,
       title: "Sort by " + label,
       onclick: () => {
@@ -3745,15 +3748,19 @@ export function buildLightsTable(host, lights){
       },
     }, label + arrow);
   };
+  // An empty Type column (no override control: below Pro) steps aside with
+  // Health and Brand; the Pro pulldown only on a phone, so it stays in the
+  // desktop builder's 440px column.
+  const typeNarrow = host.onTypeOverride ? "lv-phone" : "lv-narrow";
   const tbl = el("table", { class: "table lv-table", style: "width:100%" });
   tbl.appendChild(el("thead", {}, el("tr", {}, [
     th("code", "Code"),
     th("name", "Light"),
     th("room", "Room"),
-    th("health", "Health", "text-align:center"),
-    th("brand", "Brand"),
+    th("health", "Health", "text-align:center", "lv-narrow"),
+    th("brand", "Brand", "", "lv-narrow"),
     th("state", "State"),
-    th(null, "Type", "text-align:center"),
+    th(null, "Type", "text-align:center", typeNarrow),
     th(null, "Map", "width:60px;text-align:center"),
   ])));
   const tbody = el("tbody");
@@ -3813,8 +3820,8 @@ export function buildLightsTable(host, lights){
         codeSwatchSvg = svg;
         return [svg, el("span", { style: `font-family:monospace;font-weight:700;color:${swatch};font-size:12px` }, l.code)];
       })()),
-      el("td", {}, l.friendly_name),
-      el("td", { class: "muted" }, l.area_name
+      el("td", { class: "lv-name" }, l.friendly_name),
+      el("td", { class: "muted lv-room" }, l.area_name
         ? el("span", {}, l.area_name)
         : host.lightsLoading
         ? el("span", {}, "…")
@@ -3843,13 +3850,13 @@ export function buildLightsTable(host, lights){
             return sel;
           })()
       ),
-      el("td", { style: "text-align:center" }, el("span", {
+      el("td", { class: "lv-narrow", style: "text-align:center" }, el("span", {
         title: l.healthy ? "Healthy" : (l.healthReason || "Unhealthy"),
         style: `display:inline-block;width:9px;height:9px;border-radius:50%;` +
                `background:${l.healthy ? "#52b788" : "#f87171"};` +
                (l.healthy ? "" : "box-shadow:0 0 4px #f87171bb"),
       })),
-      el("td", { class: "muted", style: "font-size:11px" }, l.brand || "—"),
+      el("td", { class: "muted lv-narrow", style: "font-size:11px" }, l.brand || "—"),
       el("td", {}, (() => {
         // stateWordOf (Phase 2a follow-up, 2026-09-19) — was four
         // independent hand-written chains across this file (this one, the
@@ -3891,7 +3898,7 @@ export function buildLightsTable(host, lights){
       // (Garry, 2026-09-07: "some light switches are fan switches") now
       // reads l.isFan===true too — gating on the derived flag would hide
       // the only way to revert it.
-      el("td", { style: "text-align:center" },
+      el("td", { class: typeNarrow, style: "text-align:center" },
         (host.onTypeOverride && l.entity_id.startsWith("light.")) ? (() => {
           const sel = document.createElement("select");
           sel.className = "lv-select";
@@ -3907,7 +3914,7 @@ export function buildLightsTable(host, lights){
           return sel;
         })() : el("span", { class: "muted" }, "—")
       ),
-      el("td", { style: "text-align:center;white-space:nowrap" }, [
+      el("td", { class: "lv-map", style: "text-align:center" }, [
         // The visible way to the controls (sidebar): a "⋯" that opens the
         // card — the same card the hold opens, offered in plain sight.
         ...(host.onRowMore && isControllable(l) ? [el("button", {
@@ -4147,7 +4154,9 @@ export function buildLightsTable(host, lights){
     tbody.appendChild(row);
   }
   tbl.appendChild(tbody);
-  root.appendChild(tbl);
+  // A row still too wide for a narrow card (the builder's buttons) scrolls
+  // here, inside the card, never the page (styles.css .lv-index).
+  root.appendChild(el("div", { class: "lv-tblwrap" }, tbl));
   // Map → index: selecting a marker brings its row into view (the builder
   // sets focusRowEid for the render right after a map selection, only).
   if (host.focusRowEid) {

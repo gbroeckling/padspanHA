@@ -77,6 +77,35 @@ def test_the_licence_card_exists_and_is_rendered() -> None:
     assert "BUY_URL" in card, "the card does not link to the purchase page"
 
 
+def test_the_licence_card_names_the_lifetime_offer_while_it_lasts() -> None:
+    """Design pass leftover, 2026-09-28: the licence card's buy button said
+    nothing about the $89 CAD lifetime launch offer the site sells until
+    October 31. One line under the buy button says it, wherever that button
+    shows (no key, a trial, a lapsed key) and only until the offer ends. A
+    licensed key, lifetime or yearly, has no buy button and no line. Run
+    under node with the clock set, never read, so this passes after the date
+    as well as before it (tests/js/licence_card.mjs)."""
+    import json, shutil, subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is not installed")
+    res = subprocess.run([node, str(pathlib.Path(__file__).parent / "js" / "licence_card.mjs"), str(_VIEWS)],
+                         capture_output=True, text=True, encoding="utf-8", timeout=120)
+    lines = [ln for ln in res.stdout.splitlines() if ln.startswith("{")]
+    assert lines, res.stdout[-2000:] + res.stderr[-2000:]
+    out = json.loads(lines[-1])
+    assert not out["failures"] and res.returncode == 0, out["failures"]
+    cases = out["cases"]
+    line = "Or PadSpan Pro for life — $89 CAD, once, until October 31."
+    for kind in ("nokey", "trial", "lapsed"):
+        assert cases[f"{kind}_during"]["buy"], kind
+        assert cases[f"{kind}_during"]["lifetime"] == {"text": line, "href": BUY_URL}, (kind, cases[f"{kind}_during"])
+        assert cases[f"{kind}_after"]["buy"] and cases[f"{kind}_after"]["lifetime"] is None, (kind, "after the offer")
+    for kind in ("annual", "lifetime"):
+        for day in ("during", "after"):
+            assert cases[f"{kind}_{day}"] == {"buy": False, "lifetime": None}, (kind, day, cases[f"{kind}_{day}"])
+
+
 def test_the_lights_gate_offers_a_way_forward() -> None:
     s = _read(_VIEWS / "maps.js")
     i = s.find("Free lighting map. ")
