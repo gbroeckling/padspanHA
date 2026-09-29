@@ -30,6 +30,33 @@ from datetime import date, timedelta
 from pathlib import Path
 
 
+# env fields shown as a distribution, with their bucket edges.
+_ENV_BUCKETS = (("scanners", [1, 2, 4, 8, 16, 32]), ("floors", [1, 2, 3, 5]), ("rooms", [3, 6, 12, 24, 48]),
+                ("placed_lights", [0, 5, 20, 60]), ("walls", [0, 5, 20]), ("irks", [0, 1, 3]),
+                ("calibration_points", [0, 20, 100, 500]), ("objects_total", [10, 50, 200, 1000, 5000]))
+
+
+def _well_formed(r) -> bool:
+    """The shapes this summary reads. The receiver checks top-level keys, not
+    types, so a stored report is untrusted input: one that is not what
+    PadSpan sends is skipped rather than taking the whole summary down."""
+    if not isinstance(r, dict):
+        return False
+    if not all(isinstance(r.get(k) or {}, dict) for k in ("env", "features", "usage", "health", "errors")):
+        return False
+    env, health = r.get("env") or {}, r.get("health") or {}
+    num = (int, float)
+    findmy = env.get("findmy") or {}
+    return (all(isinstance(v, num) for k in ("usage", "errors") for v in (r.get(k) or {}).values())
+            and all(isinstance(env.get(k) or 0, num) for k, _ in _ENV_BUCKETS)
+            and all(isinstance(env.get(k) or {}, dict) for k in ("integrations", "hw", "findmy"))
+            and all(isinstance(findmy.get(k) or {}, dict)
+                    and all(isinstance(c, num) for c in (findmy.get(k) or {}).values())
+                    for k in ("on_air", "separated", "tracked"))
+            and all(isinstance(findmy.get(k) or 0, num) for k in ("tracked_live", "tracked_carried"))
+            and isinstance(health.get("perf") or {}, dict))
+
+
 def load(dirpath: Path, days: int) -> tuple[dict[tuple[str, str], dict], list[dict]]:
     """(the last report per (install, day), every report)."""
     cutoff = date.today() - timedelta(days=days)
@@ -47,7 +74,9 @@ def load(dirpath: Path, days: int) -> tuple[dict[tuple[str, str], dict], list[di
                 rec = json.loads(line)
             except ValueError:
                 continue
-            r = rec.get("report") or {}
+            r = rec.get("report") if isinstance(rec, dict) else None
+            if not _well_formed(r):
+                continue
             iid = r.get("install_id")
             if iid:
                 rows[(iid, rec.get("recv_day", f.stem))] = r
@@ -184,9 +213,7 @@ def main() -> int:
     dist("Versions", lambda r: r.get("version"))
     dist("Edition / tier", lambda r: f"{r.get('edition')}/{r.get('tier')}")
     dist("Home Assistant", lambda r: r.get("ha_version"))
-    for k, edges in [("scanners", [1, 2, 4, 8, 16, 32]), ("floors", [1, 2, 3, 5]), ("rooms", [3, 6, 12, 24, 48]),
-                     ("placed_lights", [0, 5, 20, 60]), ("walls", [0, 5, 20]), ("irks", [0, 1, 3]),
-                     ("calibration_points", [0, 20, 100, 500]), ("objects_total", [10, 50, 200, 1000, 5000])]:
+    for k, edges in _ENV_BUCKETS:
         dist(f"env.{k}", lambda r, k=k, edges=edges: _bucket(int((r.get("env") or {}).get(k) or 0), edges))
 
     integ: Counter = Counter()

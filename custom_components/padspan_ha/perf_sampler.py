@@ -71,6 +71,7 @@ INTERVAL_S = 60.0
 _DATA_SAMPLER = "_perf_sampler"     # the running timer (one per hass)
 _DATA_WINDOW = "_perf_window"       # stats since the last report — survives a reload
 _DATA_HW = "_perf_hw"               # the hardware class, detected once
+_DATA_SETTLE = "_perf_settle"       # start-up grace (see _settling) — survives a reload
 
 # The max-out limits: a sample over one is counted (PerfWindow.over).
 OVER_LOAD_PER_CPU = 1.0      # 1-minute load above one runnable task per CPU
@@ -206,14 +207,36 @@ def reset_window(hass: HomeAssistant) -> None:
         s._last_cpu = None      # nor a CPU delta that began before it
 
 
+def _settling(hass: HomeAssistant) -> bool:
+    """Home Assistant is still starting, or has run for under STARTUP_GRACE_S.
+
+    Set by the sampler that started with Home Assistant (math.inf until it is
+    running, then the grace's end) and kept in hass.data, so a reload in the
+    first minutes does not start sampling mid start-up.
+    """
+    dom = hass.data.get(DOMAIN, {})
+    until = dom.get(_DATA_SETTLE)
+    if until is None:
+        return False
+    if until == math.inf:
+        if not getattr(hass, "is_running", True):
+            return True
+        until = dom[_DATA_SETTLE] = hass.loop.time() + STARTUP_GRACE_S
+    if hass.loop.time() < until:
+        return True
+    dom.pop(_DATA_SETTLE, None)
+    return False
+
+
 def record_duration(hass: HomeAssistant, metric: str, ms: float) -> None:
     """One snapshot build ("snap") or presence poll ("cycle") took `ms`.
 
     Called on the event loop from the code being timed: a dict lookup when
-    the report is off, one bin increment when it is on. Never raises.
+    the report is off, one bin increment when it is on. Not during the
+    start-up grace. Never raises.
     """
     try:
-        if enabled(hass):
+        if enabled(hass) and not _settling(hass):
             window(hass).add(metric, ms)
     except Exception:
         pass
@@ -439,7 +462,8 @@ async def async_ensure_hw(hass: HomeAssistant) -> bool:
         # is_hassio() is gone from this module since HA 2026.1).
         if "hassio" in hass.config.components:
             from homeassistant.components import hassio as _hassio  # noqa: PLC0415
-            hassio = _hassio
+            if callable(getattr(_hassio, "get_info", None)):
+                hassio = _hassio
     except Exception:
         hassio = None
     try:
@@ -499,9 +523,6 @@ class PerfSampler:
         self._last_cpu: tuple[float, float] | None = None
         self._hw_tries = 0
         self._hw_busy = False
-        # Set when Home Assistant was still starting: math.inf until it is
-        # running, then the end of STARTUP_GRACE_S. None: sample.
-        self._settle_until: float | None = None
 
     @property
     def running(self) -> bool:
@@ -510,7 +531,7 @@ class PerfSampler:
     def start(self) -> None:
         loop = self.hass.loop
         if not getattr(self.hass, "is_running", True):
-            self._settle_until = math.inf
+            self.hass.data.setdefault(DOMAIN, {})[_DATA_SETTLE] = math.inf
         self._due = loop.time() + INTERVAL_S
         self._handle = loop.call_at(self._due, self._on_timer)
 
@@ -541,10 +562,11 @@ class PerfSampler:
         except Exception as err:
             _LOGGER.debug("Load sampler could not reschedule: %s", err)
         try:
+            settling = _settling(self.hass)     # its clock runs with the report off too
             if not enabled(self.hass):
                 self._last_cpu = None   # a CPU delta must never span time off
                 return
-            if self._settling():
+            if settling:
                 self._last_cpu = None   # nor span the start-up
                 return
             self._maybe_detect_hw()
@@ -556,20 +578,6 @@ class PerfSampler:
         except Exception as err:
             self._busy = False
             _LOGGER.debug("Load sample skipped: %s", err)
-
-    def _settling(self) -> bool:
-        """Home Assistant is still starting, or ran for under STARTUP_GRACE_S."""
-        if self._settle_until is None:
-            return False
-        now = self.hass.loop.time()
-        if self._settle_until == math.inf:
-            if not getattr(self.hass, "is_running", True):
-                return True
-            self._settle_until = now + STARTUP_GRACE_S
-        if now < self._settle_until:
-            return True
-        self._settle_until = None
-        return False
 
     def _maybe_detect_hw(self) -> None:
         if self._hw_busy or self._hw_tries >= _HW_TRIES:

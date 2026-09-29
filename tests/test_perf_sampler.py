@@ -264,6 +264,49 @@ def test_a_reload_while_running_samples_at_once():
     ps.async_stop(h)
 
 
+def test_a_reload_during_the_grace_keeps_it():
+    h = _hass()
+    h.is_running = False
+    ps.async_start(h)
+    h.is_running = True
+    h.loop.run_until(1060.0)                     # running from here: grace until 1360
+    ps.async_stop(h)
+    ps.async_start(h)                            # a reload a minute in
+    h.loop.run_until(1120.0)
+    h.loop.run_until(1300.0)
+    assert h.jobs == [] and ps.window(h).samples == 0, "still the start-up"
+    h.loop.run_until(1360.0)
+    assert ps.window(h).samples == 1
+    ps.async_stop(h)
+
+
+def test_the_grace_runs_from_the_start_up_not_from_opting_in():
+    h = _hass(enabled=False)
+    h.is_running = False
+    ps.async_start(h)
+    h.is_running = True
+    for t in (1060.0, 1120.0, 1180.0, 1240.0, 1300.0, 1360.0, 1420.0):
+        h.loop.run_until(t)                      # the report is off; the grace ends at 1360
+    _set_enabled(h, True)                        # opting in days later samples at once
+    h.loop.run_until(1480.0)
+    assert ps.window(h).samples == 1
+    ps.async_stop(h)
+
+
+def test_snapshot_and_poll_timings_skip_the_grace_too():
+    h = _hass()
+    h.is_running = False
+    ps.async_start(h)
+    ps.record_duration(h, "cycle", 9000.0)
+    h.is_running = True
+    ps.record_duration(h, "snap", 8000.0)       # grace starts now (1000): until 1300
+    assert ps.window(h).hists["cycle"].n == 0 and ps.window(h).hists["snap"].n == 0
+    h.loop.t = 1300.0
+    ps.record_duration(h, "snap", 800.0)
+    assert ps.window(h).hists["snap"].n == 1 and ps.window(h).hists["snap"].hi == pytest.approx(800.0)
+    ps.async_stop(h)
+
+
 def test_opting_in_again_drops_the_cpu_reading_from_before():
     h = _hass()
     ps.async_start(h)
@@ -393,7 +436,7 @@ def test_no_proc_and_no_getloadavg_still_samples(monkeypatch):
     w = ps.window(h)
     assert w.samples == 1 and w.hists["load"].n == 0 and w.hists["mem"].n == 0
     p = T._perf_payload(w, 4)
-    assert set(p) == {"samples", "lag_ms", "over"}, p
+    assert set(p) == {"samples", "lag_ms"}, p   # 1 sample: rounds to 0, so no "over"
 
 
 def test_getloadavg_that_fails_is_skipped(monkeypatch):
@@ -490,7 +533,10 @@ def test_nothing_on_the_event_loop_reads_a_file_or_asks_the_os(monkeypatch):
 def test_samples_go_to_the_nearest_hour_so_a_restart_minute_does_not(n, want):
     w = ps.PerfWindow()
     w.samples = n
-    assert T._perf_payload(w, 4)["samples"] == want
+    w.over["lag"] = min(n, 20)
+    perf = T._perf_payload(w, 4)
+    assert perf["samples"] == want
+    assert ("over" in perf) == bool(want), "no exact max-out counts beside a sample count rounded to 0"
 
 
 # ── the hardware class ──────────────────────────────────────────────────────
@@ -611,6 +657,24 @@ def test_a_pi_without_a_supervisor_is_found_by_its_device_tree(monkeypatch):
     assert model not in json.dumps(h.data[DOMAIN][ps._DATA_HW])
 
 
+def test_a_supervisor_module_without_get_info_falls_back_to_the_device_tree(monkeypatch):
+    hassio = types.ModuleType("fake_hassio")    # renamed in some later HA, as is_hassio was
+    monkeypatch.setattr(sys.modules["homeassistant.components"], "hassio", hassio, raising=False)
+    si = types.ModuleType("homeassistant.helpers.system_info")
+
+    async def _si(hass):
+        return {"installation_type": "Home Assistant OS"}
+
+    si.async_get_system_info = _si
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.system_info", si)
+    monkeypatch.setattr(ps, "_read_static", lambda want: {"cpus": 4, "ram_bytes": 4 * 1024 ** 3 - 1,
+                                                          "machine": "aarch64",
+                                                          "model": "Raspberry Pi 4 Model B Rev 1.4" if want else ""})
+    h = _detect_hass()
+    assert asyncio.run(ps.async_ensure_hw(h)) is True
+    assert ps.hw_class(h) == {"cpus": 4, "ram": "4g", "arch": "aarch64", "install": "os", "board": "rpi4"}
+
+
 def test_detection_that_fails_everywhere_is_unknown_not_an_error(monkeypatch):
     hassio = types.ModuleType("fake_hassio")
 
@@ -717,6 +781,21 @@ def test_a_crafted_hardware_block_does_not_crash_the_summary(tmp_path):
            "health": {"perf": {"samples": [1], "over": {"load": "x"}}}}
     s = _summary(tmp_path, bad)
     assert "1  / 1" in s, s
+
+
+@pytest.mark.parametrize("junk", [
+    {"health": ["x"]}, {"health": "x"}, {"env": ["x"]}, {"usage": {"tab:atlas": "x"}}, {"errors": {"a": [1]}},
+    {"features": "x"}, {"env": {"scanners": "4"}}, {"env": {"integrations": ["x"]}}, {"health": {"perf": [1]}},
+    {"env": {"findmy": {"on_air": {"airtag": "x"}}}}, {"env": {"findmy": {"tracked_live": "x"}}},
+])
+def test_a_malformed_report_is_skipped_not_fatal(tmp_path, junk):
+    good = {"install_id": "ffffffff-1111-4111-8111-111111111111", "version": "0.38.91",
+            "day": date.today().isoformat(), "env": {"hw": {"cpus": 4, "ram": "4g", "arch": "aarch64",
+                                                              "install": "os", "board": "rpi4"}}}
+    bad = {"install_id": "eeeeeeee-1111-4111-8111-111111111111", "version": "0.38.91",
+           "day": date.today().isoformat(), **junk}
+    s = _summary(tmp_path, good, bad)
+    assert "1  / 1" in s, "the malformed report is left out, the good one counted\n" + s
 
 
 def test_the_summary_says_not_reported_for_older_builds(tmp_path):
