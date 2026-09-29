@@ -278,8 +278,10 @@ OFFER_EVENTS: frozenset[str] = frozenset(
 # held equal by tests/test_atlas_weather.py). Each counted once per page load
 # per name, so a count is "pages that saw it", not "renders":
 #   weather_error:<kind>     the overlay caught its own failure and drew no
-#                            weather (the map itself is never affected);
-#                            `source` = a chosen entity missing/unavailable
+#                            weather (the map itself is never affected)
+#                            — except `source`: a chosen entity that no
+#                            longer exists (deleted or renamed); a fallback,
+#                            where there is one, still draws
 #   weather_shown:<state>    what was drawn; `still` = drawn without motion
 #                            (the free map, or reduced motion)
 #   weather_source:<source>  what made it wet (rain_sensor | condition), none

@@ -256,6 +256,9 @@ def test_the_settings_card_offers_each_setting_saved_on_its_own() -> None:
     assert 'ctx.actions.wsCall("padspan_ha/settings_set"' in sec and "settingsSet(" not in sec
     assert 'eid.startsWith("weather.")' in sec and "/^(binary_sensor|sensor)\\./" in sec
     assert "lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));" in src
+    # "Above 0 = wet" needs a sensor that means raining NOW: no running totals.
+    assert "!accumulates(eid)" in sec and '["moisture", "precipitation_intensity"]' in sec
+    assert 'dc(eid) === "precipitation"' in sec and "/^total/" in sec
 
 
 # ── the Atlas can never be blanked by it ─────────────────────────────────────

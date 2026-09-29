@@ -230,6 +230,35 @@ tryCase("warnings: quiet sources and the wrong sensors are ignored", () => {
   check("warnings: quiet sources and the wrong sensors are ignored",
     [a, b, c, d, e, f, g].every(x => is(x, "rain", false)), { a, b, c, d, e, f, g });
 });
+tryCase("warnings: Météo-France's forecast sensors are no warning", () => {
+  // Next rain: a timestamp whenever rain is due, "Pluie faible" in its
+  // one-hour forecast. Rain / snow chance: percentages. Only the alert counts.
+  const MF = { "sensor.paris_next_rain": { platform: "meteo_france" }, "sensor.paris_rain_chance": { platform: "meteo_france" },
+    "sensor.paris_snow_chance": { platform: "meteo_france" }, "sensor.75_weather_alert": { platform: "meteo_france" },
+    "sensor.renamed_by_me": { platform: "meteo_france" } };
+  const forecast = {
+    "sensor.paris_next_rain": S("2026-09-29T14:05:00+00:00", { forecast_time_ref: "2026-09-29T14:00:00+00:00",
+      "1_hour_forecast": { "0 min": "Pluie faible", "5 min": "Pluie modérée", "10 min": "Neige" } }),
+    "sensor.paris_rain_chance": S(80, { unit_of_measurement: "%" }), "sensor.paris_snow_chance": S(10, { unit_of_measurement: "%" }),
+  };
+  const a = decide({}, { ...wx("rainy", 12), ...forecast, "sensor.75_weather_alert": S("Vert", { "Pluie-inondation": "Vert" }) }, MF);
+  const b = decide({}, { ...wx("rainy", 12), ...forecast, "sensor.75_weather_alert": S("Jaune", { "Pluie-inondation": "Jaune" }) }, MF);
+  const c = decide({}, { ...wx("rainy", 12), ...forecast, "sensor.renamed_by_me": S("Orange", { "Neige-verglas": "Orange" }) }, MF);
+  const found = WX.warningEntities({}, { ...forecast, "sensor.75_weather_alert": S("Vert", {}) }, MF);
+  check("warnings: Météo-France's forecast sensors are no warning",
+    is(a, "rain", false) && a.warning === null && is(b, "rain", true) && b.warning === "warning:meteo_france"
+    && is(c, "snow", true) && c.warning === "warning:meteo_france" && JSON.stringify(found) === JSON.stringify(["sensor.75_weather_alert"]),
+    { a, b, c, found });
+});
+tryCase("warnings: a dry day reads no warning source at all", () => {
+  let touched = 0;
+  const ents = new Proxy({ ...EC_ENT }, { get(t, k) { touched++; return t[k]; } });
+  const d = decide({}, { ...wx("sunny"), ...ecRain, "sensor.vancouver_watches": S(1, {}) }, ents);
+  const dry = touched;
+  const w = decide({}, { ...wx("rainy"), ...ecRain, "sensor.vancouver_watches": S(1, {}) }, ents);
+  check("warnings: a dry day reads no warning source at all", d.kind === "off" && d.why === "dry" && dry === 0
+    && is(w, "rain", true) && touched > 0, { d, w, dry, touched });
+});
 tryCase("warnings: a chosen warning entity is the only one read", () => {
   const st = { ...wx("rainy"), ...ecRain, "sensor.mine": S("on", { title: "Heavy Rainfall Statement" }) };
   const a = decide({ atlas_weather_warning_entity: "sensor.mine" }, st, EC_ENT);
@@ -401,6 +430,23 @@ tryCase("overlay: the animation phase is anchored to the clock", () => {
   check("overlay: the animation phase is anchored to the clock", Math.abs(step - 0.5) < 0.002
     && /lv-wx-in 3s ease -?0\.00s both/.test(a1) && /lv-wx-in 3s ease -0\.50s both/.test(a2) && !/lv-wx-in/.test(a3), { a1, a2, a3, step });
 });
+tryCase("overlay: the ripples keep their phase across polls too", () => {
+  WX._resetWeatherSlotsForTests();
+  const slot = WX.atlasWeatherSlot("ripples");
+  const stage = document.createElement("div");
+  const p = (nowMs) => ({ settings: cfg({}), states: wx("pouring"), svg: svgStr, animate: true, colour: "#fff", zoom: 1, nowMs, telemetry });
+  const T0 = 1_700_000_000_000;
+  const rings = () => slot.element._all().filter(n => n.className === "lv-wx-rp");
+  const timing = (n) => { const m = /^lv-wx-ripple ([\d.]+)s ease-out (-?[\d.]+)s infinite$/.exec(n.style.animation || ""); return m ? [Number(m[1]), Number(m[2])] : null; };
+  const circ = (x, y, m) => { const d = (((x - y) % m) + m) % m; return Math.min(d, m - d); };
+  slot.attach(stage, p(T0));
+  const a = rings().map(timing);
+  slot.attach(stage, p(T0 + 5000));                           // the next poll: the overlay re-inserted
+  const b = rings().map(timing);
+  const off = a.map((x, i) => (x && b[i] && x[0] === b[i][0] ? circ(x[1] - b[i][1], 5, x[0]) : null));
+  check("overlay: the ripples keep their phase across polls too", a.length === 20
+    && off.every(d => d !== null && d < 0.003) && new Set(a.map(x => x[1])).size > 1, { a: a.slice(0, 3), b: b.slice(0, 3), off });
+});
 tryCase("overlay: heavier = more layers fading in, off = a fade then nothing", () => {
   WX._resetWeatherSlotsForTests();
   const slot = WX.atlasWeatherSlot("fade");
@@ -536,6 +582,18 @@ tryCase("errors: each failure drew no weather and was counted once", () => {
   check("errors: each failure drew no weather and was counted once", Object.values(out).every(Boolean)
     && JSON.stringify(errs) === JSON.stringify(["weather_error:decision", "weather_error:mask_build", "weather_error:mask_unsupported", "weather_error:mount", "weather_error:source"]),
     { out, errs });
+});
+tryCase("errors: a chosen entity that is only unavailable is no error", () => {
+  WX._resetWeatherSlotsForTests(); WX._resetWeatherCountsForTests(); sent.length = 0;
+  const slot = WX.atlasWeatherSlot("unavail");
+  const stage = document.createElement("div");
+  const base = { svg: svgStr, animate: true, colour: "#fff", zoom: 1, telemetry };
+  const drew = slot.attach(stage, { ...base, settings: cfg({ atlas_weather_rain_entity: RAIN, atlas_weather_warning_entity: "sensor.alert" }),
+    states: { ...wx("rainy"), [RAIN]: S("unavailable"), "sensor.alert": S("unknown") } });   // a restart, the network
+  const quiet = !sent.some(n => n.startsWith("weather_error:"));
+  const drewGone = slot.attach(stage, { ...base, settings: cfg({ atlas_weather_rain_entity: "binary_sensor.renamed" }), states: wx("rainy") });
+  check("errors: a chosen entity that is only unavailable is no error", drew && quiet && drewGone
+    && JSON.stringify(sent.filter(n => n.startsWith("weather_error:"))) === JSON.stringify(["weather_error:source"]), { drew, quiet, drewGone, sent });
 });
 tryCase("errors: the card still draws when weather cannot", () => {
   WX._resetWeatherSlotsForTests();

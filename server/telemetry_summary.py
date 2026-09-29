@@ -255,11 +255,12 @@ def main() -> int:
     # Atlas outdoor weather (views/atlas_weather.js, telemetry.py
     # WEATHER_EVENTS). Every name is counted once per page load, so the
     # numbers are page loads; the installs are those whose reports carried
-    # it. Errors mean that page drew no weather (the map was unaffected);
+    # it. Errors mean that page drew no weather (the map was unaffected) —
+    # except source: a chosen entity no longer exists (a fallback may draw);
     # the sources say whether the fallbacks work outside Canada.
     print("Atlas weather (page loads; installs)")
     any_wx = False
-    for prefix, title in (("weather_error:", "errors, per kind (no weather drawn)"),
+    for prefix, title in (("weather_error:", "errors, per kind (no weather drawn; source: a chosen entity is gone)"),
                           ("weather_shown:", "shown, per state"),
                           ("weather_source:", "decided by, per source")):
         rows = sorted(((k, v) for k, v in usage.items() if k.startswith(prefix)),

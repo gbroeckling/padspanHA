@@ -3300,9 +3300,16 @@ function _atlasWeatherSection(ctx, el, settings){
       el("span",{style:"color:#cbd5e1;font-size:13px;min-width:130px"}, label), sel,
     ]));
   };
-  const dc = (eid) => String((states[eid] && states[eid].attributes && states[eid].attributes.device_class) || "");
-  const rainIds = ids.filter(eid => /^(binary_sensor|sensor)\./.test(eid)
-    && (["moisture", "precipitation", "precipitation_intensity"].includes(dc(eid)) || /rain|precip|regen|pluie|lluvia|pioggia/i.test(nameOf(eid))));
+  const attr = (eid, k) => String((states[eid] && states[eid].attributes && states[eid].attributes[k]) || "");
+  const dc = (eid) => attr(eid, "device_class");
+  // "Above 0 = wet" needs a sensor that says it is raining NOW: a rain
+  // rate, a rain/moisture switch. A running total — device class
+  // precipitation (Home Assistant's accumulated rain), or any total /
+  // total_increasing sensor ("Daily rain", "Rain this year") — stays above
+  // 0 long after the rain stopped, so it is not offered.
+  const accumulates = (eid) => dc(eid) === "precipitation" || /^total/.test(attr(eid, "state_class"));
+  const rainIds = ids.filter(eid => /^(binary_sensor|sensor)\./.test(eid) && !accumulates(eid)
+    && (["moisture", "precipitation_intensity"].includes(dc(eid)) || /rain|precip|regen|pluie|lluvia|pioggia/i.test(nameOf(eid))));
   const firstWx = WX ? WX.firstWeatherEntity(states) : "";
   const warnIds = WX ? WX.warningEntities({}, states, entities) : [];
   // The detected ones first, then anything else that calls itself a warning

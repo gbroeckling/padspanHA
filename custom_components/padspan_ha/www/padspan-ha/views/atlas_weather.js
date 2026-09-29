@@ -135,10 +135,18 @@ export function platformOf(eid, states, entities){
 
 // Environment Canada makes warnings/watches/advisories/statements/endings
 // sensors (only the first is warnings); DWD a current and an advance level.
-function isWarningSensor(eid, platform, entities){
+// Météo-France makes forecast sensors beside its one alert sensor — "Next
+// rain" carries "Pluie faible" whenever rain is due, which is no warning —
+// so only "<dept> Weather alert" counts: its id, or its state, which is
+// always a vigilance colour (Vert / Jaune / Orange / Rouge).
+function isWarningSensor(eid, platform, entities, states){
   const tk = String((entities && entities[eid] && entities[eid].translation_key) || "");
   if (platform === "env_canada") return tk === "warnings" || /_warnings$/.test(eid);
   if (platform === "dwd_weather_warnings") return tk === "current_warning_level" || /current_warning_level/.test(eid);
+  if (platform === "meteo_france") {
+    const v = reading(states && states[eid]);
+    return /_weather_alert$/.test(eid) || (v !== null && /^(vert|jaune|orange|rouge)$/i.test(v));
+  }
   return eid.startsWith("sensor.") || eid.startsWith("binary_sensor.");
 }
 
@@ -146,12 +154,12 @@ function isWarningSensor(eid, platform, entities){
 export function warningEntities(cfg, states, entities){
   if (cfg && cfg.warningEntity) return [cfg.warningEntity];
   const out = [];
-  for (const eid of Object.keys(states || {}).sort()) {
+  for (const eid of Object.keys(states || {})) {
     if (!eid.startsWith("sensor.") && !eid.startsWith("binary_sensor.")) continue;
     const p = platformOf(eid, states, entities);
-    if (WARNING_PLATFORMS.includes(p) && isWarningSensor(eid, p, entities)) out.push(eid);
+    if (WARNING_PLATFORMS.includes(p) && isWarningSensor(eid, p, entities, states)) out.push(eid);
   }
-  return out;
+  return out.sort();
 }
 
 // An alert sensor is quiet at 0 / off / Vert (Météo-France's green).
@@ -219,7 +227,8 @@ export function activeWarning(cfg, states, entities){
 //   source   what made it wet (rain_sensor | condition), or none
 //   warning  "warning:<platform>" when a warning made it heavy, else null
 //   why      disabled | dry | no_source | wet
-//   missing  configured entities that are missing or unavailable
+//   missing  configured entities that are missing or unavailable (the
+//            warning one only while wet: warnings are read only then)
 export function decideAtlasWeather(cfg, states, entities){
   const s = cfg || {};
   const st = states || {};
@@ -238,10 +247,12 @@ export function decideAtlasWeather(cfg, states, entities){
   const cond = condRaw === null ? null : condRaw.toLowerCase();
   if (s.conditionEntity && cond === null) missing.push("condition");
   if (wet === null && cond !== null) { wet = WET_CONDITIONS.includes(cond); source = "condition"; }
-  const warn = activeWarning(s, st, entities);
-  if (warn.missing) missing.push("warning");
   if (wet === null) return off("no_source", "none");
   if (!wet) return off("dry", source);
+  // A warning only ever makes it heavier, so warnings are read only while it
+  // is wet — not a scan of every sensor on every dry poll.
+  const warn = activeWarning(s, st, entities);
+  if (warn.missing) missing.push("warning");
   const tC = cond === null ? null : temperatureC(condSt);
   // A snowfall warning forces snow; HA has no heavy-snow condition.
   const kind = (warn.snow || SNOW_CONDITIONS.has(cond) || (tC !== null && tC <= SNOW_AT_OR_BELOW_C)) ? "snow" : "rain";
@@ -471,12 +482,14 @@ function createSlot(slotKey){
       };
       e.style.left = `${(rnd() * 100).toFixed(2)}%`;
       e.style.top = `${(8 + rnd() * 90).toFixed(2)}%`;
-      e.style.animation = `lv-wx-ripple ${(1.1 + rnd() * 0.4).toFixed(2)}s ease-out ${(-rnd() * 1.25).toFixed(2)}s infinite`;
+      // Rounded once: the CSS duration and the clock's phase (paintLayers)
+      // must use the very same period.
+      const dur = Math.round((1.1 + rnd() * 0.4) * 100) / 100, off = rnd() * 1.25;
       // A new place each time the ring finishes; the mask drops any that
       // land on a plate. The listener lives and dies with this element.
       e.addEventListener("animationiteration", place);
       ripples.appendChild(e);
-      rp.push(e);
+      rp.push({ e, dur, off });
     }
     const rim = d("lv-wx-rim");
     root.appendChild(haze); root.appendChild(tilt); root.appendChild(ripples); root.appendChild(rim);
@@ -539,7 +552,13 @@ function createSlot(slotKey){
     parts.ripples.style.opacity = rpOn ? "1" : "0";
     parts.ripples.style.animation = rpOn !== rpWas && elapsed < FADE_IN_S ? fadeAnim(rpOn ? "in" : "out", elapsed, rpOn ? FADE_IN_S : FADE_OUT_S) : "none";
     const n = shown.heavy || (!rpOn && prev.heavy) ? RIPPLES_HEAVY : RIPPLES_LIGHT;
-    parts.rp.forEach((e, i) => { e.style.display = i < n ? "block" : "none"; });
+    // Each ring's phase is the clock's too: the overlay is re-inserted on
+    // every poll, and a fixed delay would cut every ring back to the same
+    // moment every few seconds.
+    parts.rp.forEach(({ e, dur, off }, i) => {
+      e.style.display = i < n ? "block" : "none";
+      e.style.animation = `lv-wx-ripple ${dur}s ease-out ${(-((t + off) % dur)).toFixed(3)}s infinite`;
+    });
     // The snow rim builds over ~8 s along the outside of the plates.
     const rimOn = !!shown.rim, rimWas = !!prev.rim;
     parts.rim.style.display = rimOn || (rimWas && elapsed < FADE_OUT_S) ? "block" : "none";
@@ -591,7 +610,14 @@ function createSlot(slotKey){
         let d;
         try { d = decideAtlasWeather(cfg, p.states || {}, p.entities); }
         catch (_) { err("decision"); detach(); return false; }
-        if (d.missing.length) err("source");
+        // A chosen entity that no longer exists: deleted or renamed, so the
+        // setting points at nothing. Unavailable is a sensor dropping off
+        // for a while (a restart, the network) and is no error. A fallback,
+        // where there is one, still draws: the one kind that need not mean
+        // "no weather".
+        const known = p.states || {};
+        if ([cfg.rainEntity, cfg.conditionEntity, cfg.warningEntity]
+          .some(e => e && !Object.prototype.hasOwnProperty.call(known, e))) err("source");
         countWeatherOnce(`weather_source:${d.source}`, send);
         if (d.warning) countWeatherOnce(`weather_source:${d.warning}`, send);
         if (d.why !== "no_source") lastLive = now;
