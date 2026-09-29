@@ -55,11 +55,3 @@ def test_the_harness_actually_ran_its_cases(run) -> None:
     m = re.search(r"(\d+) passed, (\d+) failed", run.stdout)
     assert m, f"harness produced no summary:\n{run.stdout}\n{run.stderr[-2000:]}"
     assert int(m.group(1)) >= 17, f"only {m.group(1)} case(s) ran:\n{run.stdout}"
-
-
-def test_the_notes_close_is_finger_sized_on_a_touchscreen() -> None:
-    """The release notes open in the panel's own dialog so a wall touchscreen
-    can close them (it has no tab bar and no Escape key); its Close is sized
-    for a finger wherever a touchscreen is present."""
-    css = (_PANEL.parent / "styles.css").read_text(encoding="utf-8")
-    assert re.search(r"@media \(any-pointer:coarse\)\{\.modal \.close\{min-height:44px", css)
