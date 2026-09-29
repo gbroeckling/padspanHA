@@ -259,6 +259,26 @@ def test_the_setup_lines_are_the_reports_own_numbers():
         assert tester._setup_value(ln["value"]) == ln["value"], ln
 
 
+@pytest.mark.parametrize("kinds,text", [
+    ({"ip_known": 0, "espresense": 0, "other": 19}, "19"),
+    ({"ip_known": 5, "espresense": 0, "other": 0}, "5, all with diagnostics (ESPHome)"),
+    ({"ip_known": 2, "espresense": 0, "other": 1}, "3 — 2 with diagnostics (ESPHome), 1 other"),
+])
+def test_the_scanner_line_says_each_number_once(kinds, text):
+    """Design pass 2026-09-28: the form read "Scanners: 19 — 19 other"."""
+    lines = {ln["key"]: ln for ln in tester.lines_from_report(_house(), {"env": {"scanner_kinds": kinds}})}
+    assert lines["scanners"]["text"] == text
+    assert lines["scanners"]["value"] == kinds, "the value that goes is unchanged"
+
+
+def test_find_my_counts_read_as_plurals():
+    """ "2 Apple device, 3 Find My accessory" → devices, accessories."""
+    on_air = {"apple": 2, "airtag": 1, "accessory": 3, "airpods": 2}
+    lines = {ln["key"]: ln for ln in tester.lines_from_report(_house(), {"env": {"findmy": {"on_air": on_air}}})}
+    assert lines["findmy_on_air"]["text"] == "2 Apple devices, 1 AirTag, 3 Find My accessories, 2 AirPods"
+    assert lines["findmy_on_air"]["value"] == on_air
+
+
 def test_wled_outputs_are_counted_by_bus_type_from_the_remembered_looks():
     from custom_components.padspan_ha.const import DATA_WLED_LOOKS
     h = _house()

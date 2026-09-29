@@ -183,8 +183,17 @@ def _setup_value(v: Any) -> Any:
     return None
 
 
-def _counted(d: dict[str, int], labels: dict[str, str]) -> str:
-    parts = [f"{n} {labels.get(k, k)}" for k, n in d.items() if n]
+def _plural(n: int, word: str) -> str:
+    """A count's noun: AirTag → AirTags, Find My accessory → Find My accessories."""
+    if n == 1 or word.endswith("s"):
+        return word
+    if word.endswith("y") and word[-2:-1].lower() not in "aeiou":
+        return word[:-1] + "ies"
+    return word + "s"
+
+
+def _counted(d: dict[str, int], labels: dict[str, str], plural: bool = False) -> str:
+    parts = [f"{n} {_plural(n, labels.get(k, k)) if plural else labels.get(k, k)}" for k, n in d.items() if n]
     return ", ".join(parts) if parts else "none"
 
 
@@ -236,10 +245,16 @@ def lines_from_report(hass: HomeAssistant, report: dict[str, Any]) -> list[dict[
     add("tier", "Tier", report.get("tier"),
         {"free": "free", "bright": "Bright Pro", "pro": "Pro"}.get(str(report.get("tier")), str(report.get("tier"))))
     kinds = env.get("scanner_kinds") if isinstance(env.get("scanner_kinds"), dict) else {}
-    add("scanners", "Scanners", kinds,
-        f"{sum(v for v in kinds.values() if isinstance(v, int))} — "
-        + _counted(kinds, {"ip_known": "with diagnostics (ESPHome)", "espresense": "ESPresense",
-                           "other": "other"}))
+    kind_words = {"ip_known": "with diagnostics (ESPHome)", "espresense": "ESPresense", "other": "other"}
+    n_scanners = sum(v for v in kinds.values() if isinstance(v, int))
+    present = [k for k, v in kinds.items() if isinstance(v, int) and v]
+    if len(present) == 1:
+        # One kind: say it once ("19", "19, all ESPresense"), never "19 — 19 other".
+        scanners_text = (str(n_scanners) if present[0] == "other"
+                         else f"{n_scanners}, all {kind_words.get(present[0], present[0])}")
+    else:
+        scanners_text = f"{n_scanners} — " + _counted(kinds, kind_words)
+    add("scanners", "Scanners", kinds, scanners_text)
     for key, label in (("floors", "Floors"), ("rooms", "Rooms"), ("placed_lights", "Placed lights")):
         add(key, label, env.get(key), str(env.get(key)))
     n_wled = _wled_devices(hass)
@@ -250,7 +265,7 @@ def lines_from_report(hass: HomeAssistant, report: dict[str, Any]) -> list[dict[
             ", ".join(f"{n} × {_bus_type(int(k[5:]))}" for k, n in outputs.items()))
     on_air = ((env.get("findmy") or {}).get("on_air") or {}) if isinstance(env.get("findmy"), dict) else {}
     add("findmy_on_air", "Find My on the air now", on_air,
-        _counted(on_air, {TYPE_KEYS[i]: DEVICE_TYPES[i] for i in TYPE_KEYS}))
+        _counted(on_air, {TYPE_KEYS[i]: DEVICE_TYPES[i] for i in TYPE_KEYS}, plural=True))
     integ = env.get("integrations") if isinstance(env.get("integrations"), dict) else {}
     wanted = {"bermuda": "Bermuda", "private_ble_device": "Private BLE Device", "esphome": "ESPHome"}
     picked = {k: integ.get(k, 0) for k in wanted}

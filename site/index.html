@@ -40,16 +40,16 @@ header.hero{padding:70px 0 40px;text-align:center}
 .badge{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--acc2);
   border:1px solid var(--line);background:rgba(52,211,153,.08);border-radius:999px;padding:6px 14px}
 .cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:28px}
-.btn{display:inline-block;padding:13px 26px;border-radius:12px;font-weight:800;font-size:15px;transition:.2s}
+.btn{display:inline-block;padding:13px 26px;border-radius:12px;font-weight:800;font-size:15px;font-family:inherit;transition:.2s}
 .btn.primary{background:var(--acc);color:#04160c}
 .btn.primary:hover{background:var(--acc2);text-decoration:none;transform:translateY(-2px)}
-.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn.ghost{border:1px solid var(--line);color:var(--fg);background:transparent}
 .btn.ghost:hover{border-color:var(--acc);text-decoration:none;transform:translateY(-2px)}
 section{padding:54px 0}
 h2{font-size:clamp(26px,3.6vw,38px);font-weight:900;letter-spacing:-.01em;margin-bottom:8px}
 .kick{color:var(--acc);font-weight:800;letter-spacing:.16em;text-transform:uppercase;font-size:12px;margin-bottom:8px}
 .lede{color:var(--mut);max-width:760px;margin-bottom:28px;font-size:16px}
-.heroimg{width:100%;border-radius:16px;border:1px solid var(--line);box-shadow:0 30px 80px rgba(0,0,0,.55);display:block}
+.heroimg{width:100%;height:auto;border-radius:16px;border:1px solid var(--line);box-shadow:0 30px 80px rgba(0,0,0,.55);display:block}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
 .shot{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:block;color:var(--fg);transition:.2s}
 .shot:hover{transform:translateY(-3px);border-color:rgba(52,211,153,.45);text-decoration:none}
@@ -156,7 +156,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 </header>
 
 <div class="wrap">
-  <img class="heroimg" src="images/overview-3d-multifloor.jpg" alt="3D multi-floor tracking with live RSSI heatmap overlay">
+  <img class="heroimg" src="images/overview-3d-multifloor.jpg" width="2422" height="1372" alt="3D multi-floor tracking with live RSSI heatmap overlay">
 </div>
 
 <section class="wrap" id="whatsnew">
@@ -183,7 +183,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <div class="relbody">
         <ul>
           <li><b>Changed:</b> the red button now sits in the top-right corner of the house map, where it is on screen as soon as the Atlas opens. On a phone it is a quarter smaller.</li>
-          <li><b>Added:</b> Settings → Mapped Light Control → <b>Show the Test emergency lighting button on the Atlas</b>. Untick it and the button, and its checks, are gone.</li>
+          <li><b>Added:</b> Settings → UI Structure (Advanced mode) → Mapped Light Control → <b>Show the Test emergency lighting button on the Atlas</b>. Untick it and the button, and its checks, are gone.</li>
         </ul>
       </div>
     </div>
@@ -1220,7 +1220,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   <div class="kick">In use</div>
   <h2>Not a mockup</h2>
   <p class="lede">PadSpan on a wall-mounted panel in daily use, next to the thermostat and the light switches.</p>
-  <img class="heroimg" src="images/wall-panel-in-situ.jpg" alt="PadSpan running on a wall-mounted panel in the great room, showing the multi-floor map with tracked devices" loading="lazy">
+  <img class="heroimg" src="images/wall-panel-in-situ.jpg" width="1400" height="1054" alt="PadSpan running on a wall-mounted panel in the great room, showing the multi-floor map with tracked devices" loading="lazy">
 </section>
 
 <div class="divider"></div>
@@ -1438,7 +1438,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <input type="hidden" name="no_shipping" value="1">
         <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
         <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-        <button class="btn " type="submit" style="cursor:pointer;border:0;width:100%">Buy PadSpan Bright Pro</button>
+        <button class="btn ghost" type="submit" style="cursor:pointer;width:100%;text-align:left">Buy PadSpan Bright Pro</button>
       </form>
     </div>
   </div>
@@ -1587,7 +1587,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
     <div class="feat">
       <h3>What Pro unlocks today</h3>
-      <ul class="steps" style="list-style:disc;padding-left:20px">
+      <ul class="steps">
         <li><b>Forensics</b> — search which BLE devices were near your scanners in any time window. Recorded presence sessions (dwell time, peak signal, per-scanner detail) plus lower-confidence "possible" matches, with CSV export.</li>
         <li>Opt-in and privacy-guarded: off by default, explicit enable confirmation, configurable retention (7–90 days), recordings never leave your instance.</li>
         <li><b>Light placement</b> — place each light exactly where it hangs, with fixture shapes and sizes, WLED support, Showcase and Fit room. See <a href="#lights">Lighting</a>.</li>
@@ -1643,7 +1643,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <input type="hidden" name="no_shipping" value="1">
         <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
         <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-        <button class="btn ghost" type="submit" style="cursor:pointer;border:0;width:100%">Upgrade to PadSpan Pro — $12</button>
+        <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Upgrade to PadSpan Pro — $12</button>
       </form>
       </div>
     </div>
