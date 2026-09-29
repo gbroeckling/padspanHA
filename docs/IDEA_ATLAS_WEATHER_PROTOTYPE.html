@@ -1,0 +1,230 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- Atlas outdoor weather prototype (2026-09-29, Claude mobile session). A mock, NOT Atlas code:
+     its overlay, alpha-mask generator and seeded tile code are meant to be ported into views/.
+     Live copy: https://claude.ai/artifact/DvwoRU4KTKYoJYGBqR5um4  Spec: docs/IDEA_ATLAS_WEATHER.md -->
+<title>Atlas Outdoor Weather</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#071008; --panel:#0c1a12; --line:#1c2e24; --mint:#7dd3a0; --ink:#d7e6dc; --muted:#8aa596; --amber:#f5b54a; --warn:#e8a33d;
+  --f-body:"Figtree",system-ui,sans-serif; --f-mono:"JetBrains Mono",ui-monospace,monospace;
+  color-scheme:dark;
+}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:20px;padding-block:28px 48px;display:grid;gap:22px}
+header{display:grid;gap:4px}
+h1{font-size:22px;font-weight:600;margin:0;letter-spacing:.01em;text-wrap:balance}
+header p{margin:0;color:var(--muted);max-width:68ch}
+.eyebrow{font:500 11px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mint);opacity:.75}
+
+/* stage */
+.stage{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--ground)}
+.stage svg.map{display:block;width:100%;height:auto}
+.wx{position:absolute;inset:0;pointer-events:none;overflow:hidden;
+  -webkit-mask-size:100% 100%;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  opacity:1;transition:opacity 2.5s ease}
+.wx.off{opacity:0}
+.tilt{position:absolute;inset:-35%;transform:rotate(var(--angle,7deg));transition:transform 6s ease-in-out}
+.field{position:absolute;inset:0;transition:opacity 3s ease}
+.layer{position:absolute;left:0;right:0;top:calc(-1 * var(--th));bottom:0;background-repeat:repeat;
+  background-size:var(--tw) var(--th);will-change:transform;animation:fall var(--dur) linear infinite;
+  opacity:0;transition:opacity 3s ease}
+.layer.on{opacity:1}
+@keyframes fall{to{transform:translateY(var(--th))}}
+.sway{position:absolute;inset:0;animation:sway var(--sd) ease-in-out infinite alternate}
+@keyframes sway{from{transform:translateX(calc(-1 * var(--sa)))}to{transform:translateX(var(--sa))}}
+.ripples{position:absolute;inset:0;transition:opacity 3s ease}
+.rp{position:absolute;width:16px;height:8px;margin:-4px 0 0 -8px;border-radius:50%;
+  border:1px solid rgba(220,238,228,.55);opacity:0;animation:ripple 1.25s ease-out infinite}
+.rp.x{display:none}.warnR .rp.x{display:block}
+@keyframes ripple{0%{transform:scale(.15);opacity:0}12%{opacity:.5}100%{transform:scale(1);opacity:0}}
+.haze{position:absolute;inset:0;opacity:0;transition:opacity 4s ease;
+  background:radial-gradient(120% 90% at 50% 40%,rgba(190,215,225,0) 35%,rgba(190,215,225,.05) 100%)}
+.rim{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 8s ease}
+.still .layer,.still .sway,.still .rp{animation:none}
+.still .ripples{opacity:0!important}
+
+/* controls */
+.sim{display:flex;flex-wrap:wrap;gap:14px 26px;align-items:end}
+.grp{display:grid;gap:6px;min-width:0}
+.grp>span{font:500 11px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--panel)}
+.seg button{all:unset;cursor:pointer;padding:7px 12px;font-size:13px;color:var(--muted);border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:#16301f;color:var(--ink)}
+.seg button:focus-visible{outline:2px solid var(--mint);outline-offset:-2px}
+.state{margin-left:auto;display:flex;gap:8px;align-items:center;font:500 12px/1 var(--f-mono)}
+.chip{padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted)}
+.chip.live{color:var(--ink);border-color:#2c5a3f}
+.chip.heavy{color:var(--warn);border-color:#5a4520}
+@media (max-width:560px){.state{margin-left:0}}
+</style></head><body>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">PadSpan · Atlas · prototype</span>
+    <h1>Atlas outdoor weather</h1>
+    <p>Rain and snow fall everywhere outside the floor plates and never over rooms. It runs while the rain sensor reads wet, or while the weather entity reports precipitation when there is no rain sensor. The rain sensor alone only ever shows light rain. It turns heavy only when an outside source confirms it: a rainfall or snowfall warning, or the weather entity reporting "pouring". It can be switched off in Atlas settings. Free users see it as a still texture; Pro animates it. Everything here is sample data.</p>
+  </header>
+
+  <div class="stage" id="stage">
+    <svg class="map" id="map" viewBox="0 0 1000 560" aria-label="Sample Atlas map, Classic theme"></svg>
+    <div class="wx off" id="wx">
+      <div class="haze" id="haze"></div>
+      <div class="tilt" id="tilt">
+        <div class="field" id="rain"></div>
+        <div class="field" id="snow"></div>
+      </div>
+      <div class="ripples" id="ripples"></div>
+      <svg class="rim" id="rim" viewBox="0 0 1000 560" preserveAspectRatio="none" aria-hidden="true"></svg>
+    </div>
+  </div>
+
+  <div class="sim" role="group" aria-label="Simulated Home Assistant states">
+    <div class="grp"><span>Atlas setting</span>
+      <div class="seg" data-k="enabled"><button data-v="1" aria-pressed="true">Weather on</button><button data-v="0">Off</button></div></div>
+    <div class="grp"><span>Rain sensor</span>
+      <div class="seg" data-k="wet"><button data-v="none">None</button><button data-v="0">Dry</button><button data-v="1" aria-pressed="true">Wet</button></div></div>
+    <div class="grp"><span>weather.* condition</span>
+      <div class="seg" data-k="cond"><button data-v="cloudy">cloudy</button><button data-v="rainy" aria-pressed="true">rainy</button><button data-v="pouring">pouring</button><button data-v="snowy">snowy</button></div></div>
+    <div class="grp"><span>Warning source</span>
+      <div class="seg" data-k="warn"><button data-v="nosrc">None set up</button><button data-v="none" aria-pressed="true">Quiet</button><button data-v="rainfall">Rainfall</button><button data-v="snowfall">Snowfall</button></div></div>
+    <div class="grp"><span>Edition</span>
+      <div class="seg" data-k="pro"><button data-v="1" aria-pressed="true">Pro</button><button data-v="0">Free</button></div></div>
+    <div class="grp"><span>Motion</span>
+      <div class="seg" data-k="still"><button data-v="0" aria-pressed="true">Animate</button><button data-v="1">Reduced</button></div></div>
+    <div class="state" aria-live="polite"><span class="chip" id="chip">Off</span></div>
+  </div>
+</div>
+
+<script>
+(()=>{
+// ---------- sample geometry (metres) ----------
+const S=26,C=.866,N=.5,T=9,OX=470,OY=196;
+const floors=[
+  {z:0,lift:0,outline:[[0,0],[14,0],[14,6],[9,6],[9,11],[0,11]],
+   rooms:[{n:"Kitchen",p:[[0,0],[5,0],[5,5],[0,5]]},{n:"Living",p:[[5,0],[14,0],[14,6],[5,6],[5,5]]},
+          {n:"Hall",p:[[0,5],[5,5],[5,6],[9,6],[9,7],[0,7]]},{n:"Office",p:[[0,7],[4.5,7],[4.5,11],[0,11]]},{n:"Mud room",p:[[4.5,7],[9,7],[9,11],[4.5,11]]}],
+   fx:[[2.5,2.5],[9.5,3],[2.2,9],[6.8,9],[3,6]]},
+  {z:1,lift:118,outline:[[0,0],[9,0],[9,7],[0,7]],
+   rooms:[{n:"Primary",p:[[0,0],[5,0],[5,4],[0,4]]},{n:"Bath",p:[[5,0],[9,0],[9,4],[5,4]]},{n:"Loft",p:[[0,4],[9,4],[9,7],[0,7]]}],
+   fx:[[2.5,2],[7,2],[4.5,5.5]]}
+];
+const iso=(x,y,l)=>[OX+(x-y)*C*S, OY+(x+y)*N*S-l];
+const P=(pts,l,dy=0)=>pts.map(([x,y])=>{const [a,b]=iso(x,y,l);return a.toFixed(1)+","+(b+dy).toFixed(1)}).join(" ");
+function slabParts(f){ // polygons covering top + visible sides
+  const o=f.outline,out=[P(o,f.lift),P(o,f.lift,T)];
+  for(let i=0;i<o.length;i++){const a=o[i],b=o[(i+1)%o.length];out.push(P([a,b],f.lift)+" "+P([b,a],f.lift,T));}
+  return out;
+}
+
+// ---------- draw the map (Classic theme approximation) ----------
+const map=document.getElementById("map");
+let s=`<defs>
+<radialGradient id="vig" cx="50%" cy="48%" r="70%"><stop offset="0" stop-color="#1a3a26" stop-opacity=".55"/><stop offset=".6" stop-color="#0d2016" stop-opacity=".22"/><stop offset="1" stop-color="#040a07" stop-opacity="0"/></radialGradient>
+<linearGradient id="slab" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3a0" stop-opacity=".07"/><stop offset="1" stop-color="#0b1c13" stop-opacity=".3"/></linearGradient>
+<radialGradient id="bulb"><stop offset="0" stop-color="#f5b54a" stop-opacity=".55"/><stop offset=".35" stop-color="#f5b54a" stop-opacity=".16"/><stop offset="1" stop-color="#f5b54a" stop-opacity="0"/></radialGradient>
+</defs><rect width="1000" height="560" fill="#071008"/><rect width="1000" height="560" fill="url(#vig)"/>`;
+for(const f of floors){
+  const o=f.outline;
+  for(let i=0;i<o.length;i++){const a=o[i],b=o[(i+1)%o.length];
+    s+=`<polygon points="${P([a,b],f.lift)} ${P([b,a],f.lift,T)}" fill="#0a1a12" fill-opacity=".85" stroke="#1c2e24" stroke-width=".8"/>`;}
+  s+=`<polygon points="${P(o,f.lift)}" fill="#0b1810"/><polygon points="${P(o,f.lift)}" fill="url(#slab)" stroke="#2a4a37" stroke-width="1"/>`;
+  for(const r of f.rooms){
+    s+=`<polygon points="${P(r.p,f.lift)}" fill="#7dd3a0" fill-opacity=".07" stroke="#04100a" stroke-width="1.3" stroke-opacity=".8"/>`;
+    const cx=r.p.reduce((a,p)=>a+p[0],0)/r.p.length, cy=r.p.reduce((a,p)=>a+p[1],0)/r.p.length, [lx,ly]=iso(cx,cy,f.lift);
+    s+=`<text x="${lx.toFixed(1)}" y="${(ly+4).toFixed(1)}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" letter-spacing="1.4" fill="#7dd3a0" fill-opacity=".55">${r.n.toUpperCase()}</text>`;
+  }
+  for(const [x,y] of f.fx){const [a,b]=iso(x,y,f.lift);
+    s+=`<ellipse cx="${a.toFixed(1)}" cy="${b.toFixed(1)}" rx="46" ry="23" fill="url(#bulb)"/><circle cx="${a.toFixed(1)}" cy="${(b-10).toFixed(1)}" r="3.2" fill="#f5b54a" fill-opacity=".8" stroke="#f8fafc" stroke-opacity=".5" stroke-width=".8"/>`;}
+}
+map.innerHTML=s;
+
+// ---------- mask: white = weather allowed, black = floor plates ----------
+// ALPHA mask (inner SVG <mask>): a plain black-and-white image does NOT clip, both colours are opaque.
+const plates=floors.flatMap(slabParts).map(p=>`<polygon points="${p}"/>`).join("");
+const maskSvg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" preserveAspectRatio="none"><defs><filter id="f" x="-5%" y="-5%" width="110%" height="110%"><feMorphology operator="dilate" radius="2"/><feGaussianBlur stdDeviation="2"/></filter><mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="560"><rect width="1000" height="560" fill="#fff"/><g fill="#000" filter="url(#f)">${plates}</g></mask></defs><rect width="1000" height="560" fill="#fff" mask="url(#m)"/></svg>`;
+const wx=document.getElementById("wx"), murl=`url("data:image/svg+xml;utf8,${encodeURIComponent(maskSvg)}")`;
+wx.style.webkitMaskImage=murl; wx.style.maskImage=murl;
+
+// snow rim: blurred plate outlines; the mask cuts the inner half, so it hugs the outside
+document.getElementById("rim").innerHTML=`<defs><filter id="rb" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="3.5"/></filter></defs><g filter="url(#rb)" fill="none" stroke="#eef6f1" stroke-opacity=".38" stroke-width="12" stroke-linejoin="round">${floors.map(f=>`<polygon points="${P(f.outline,f.lift,T)}"/>`).join("")}</g>`;
+
+// ---------- seeded tiles ----------
+let seed=7; const rnd=()=>((seed=(seed*16807)%2147483647)-1)/2147483646;
+const uri=svg=>`url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`;
+function rainTile(w,h,n,len,op,width){
+  let r="";
+  for(let i=0;i<n;i++){const x=(rnd()*w).toFixed(1),y=rnd()*h,l=len*(.7+rnd()*.6),o=(op*(.55+rnd()*.45)).toFixed(3);
+    for(const yy of [y,y-h]) if(yy+l>0&&yy<h) r+=`<rect x="${x}" y="${yy.toFixed(1)}" width="${width}" height="${l.toFixed(1)}" fill="url(#g)" opacity="${o}"/>`;}
+  return uri(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#eaf5ef"/></linearGradient></defs>${r}</svg>`);
+}
+function snowTile(w,h,n,rad,op,blur){
+  let r="";
+  for(let i=0;i<n;i++){const x=rnd()*w,y=rnd()*h,rr=rad*(.6+rnd()*.7),o=(op*(.5+rnd()*.5)).toFixed(3);
+    for(const dx of [0,-w,w])for(const dy of [0,-h,h]){const X=x+dx,Y=y+dy; if(X>-8&&X<w+8&&Y>-8&&Y<h+8) r+=`<circle cx="${X.toFixed(1)}" cy="${Y.toFixed(1)}" r="${rr.toFixed(2)}" opacity="${o}"/>`;}}
+  return uri(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs><filter id="b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${blur}"/></filter></defs><g fill="#f4faf6" filter="url(#b)">${r}</g></svg>`);
+}
+function addLayer(parent,img,tw,th,dur,cls,sway){
+  let host=parent;
+  if(sway){host=document.createElement("div");host.className="sway";host.style.setProperty("--sd",sway[0]+"s");host.style.setProperty("--sa",sway[1]+"px");parent.appendChild(host);}
+  const d=document.createElement("div");d.className="layer "+cls;
+  d.style.backgroundImage=img;d.style.setProperty("--tw",tw+"px");d.style.setProperty("--th",th+"px");d.style.setProperty("--dur",dur+"s");
+  d.style.animationDelay=(-rnd()*dur).toFixed(2)+"s"; host.appendChild(d); return d;
+}
+const rain=document.getElementById("rain"), snow=document.getElementById("snow");
+// light: one sparse, short, slow, faint layer (drizzle)
+addLayer(rain,rainTile(240,280,12,16,.11,1),240,280,1.25,"base");
+// heavy: dense far sheet + mid + long near streaks, all faster
+addLayer(rain,rainTile(200,240,44,26,.12,1),200,240,.8,"heavy");
+addLayer(rain,rainTile(260,300,26,40,.18,1),260,300,.6,"heavy");
+addLayer(rain,rainTile(320,360,12,64,.24,1.3),320,360,.42,"heavy");
+// snow: far, mid; heavy adds near (bigger, blurrier) + extra far
+addLayer(snow,snowTile(240,240,34,1.0,.42,.35),240,240,26,"base",[7,10]);
+addLayer(snow,snowTile(300,300,20,1.7,.5,.6),300,300,17,"base",[5.5,16]);
+addLayer(snow,snowTile(260,260,40,1.1,.4,.4),260,260,21,"heavy",[6.3,12]);
+addLayer(snow,snowTile(380,380,9,2.8,.5,1.3),380,380,10,"heavy",[4.2,24]);
+
+// ripples: iso ellipses scattered anywhere; the mask removes those that land on a plate
+const rp=document.getElementById("ripples");
+for(let i=0;i<22;i++){const e=document.createElement("div");e.className="rp"+(i>=4?" x":"");
+  const place=()=>{e.style.left=(rnd()*100).toFixed(2)+"%";e.style.top=(8+rnd()*90).toFixed(2)+"%";};
+  place();e.style.animationDelay=(-rnd()*1.25).toFixed(2)+"s";e.style.animationDuration=(1.1+rnd()*.4).toFixed(2)+"s";
+  e.addEventListener("animationiteration",place);rp.appendChild(e);}
+
+// ---------- state ----------
+const st={pro:"1",enabled:"1",wet:"1",cond:"rainy",warn:"none",still:(matchMedia("(prefers-reduced-motion: reduce)").matches?"1":"0")};
+const $=id=>document.getElementById(id);
+function resolve(){
+  if(st.enabled!=="1") return {kind:"off",why:"Off in settings"};
+  const precip=["rainy","pouring","snowy"].includes(st.cond);
+  // trigger: rain sensor if one is set, else fall back to the weather entity's condition
+  const wet = st.wet==="none" ? precip : st.wet==="1";
+  if(!wet) return {kind:"off",why:st.wet==="none"?"Off: no precip in forecast":"Off: sensor dry"};
+  const kind=(st.warn==="snowfall"||st.cond==="snowy")?"snow":"rain";
+  // The rain sensor only ever says "wet" = light. Heavy needs outside confirmation:
+  // a matching warning, or the weather entity reporting "pouring".
+  const heavy=(kind==="snow"&&st.warn==="snowfall")||(kind==="rain"&&(st.warn==="rainfall"||st.cond==="pouring"));
+  return {kind,heavy,src:st.wet==="none"?"weather.*":"sensor"};
+}
+function render(){
+  document.querySelectorAll(".seg").forEach(g=>g.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===st[g.dataset.k]))));
+  const r=resolve(), chip=$("chip");
+  wx.classList.toggle("off",r.kind==="off");
+  wx.classList.toggle("still",st.still==="1"||st.pro!=="1");
+  $("rain").style.opacity=r.kind==="rain"?1:0; $("snow").style.opacity=r.kind==="snow"?1:0;
+  $("rain").querySelectorAll(".base").forEach(l=>l.classList.add("on"));
+  $("snow").querySelectorAll(".sway>.base").forEach(l=>l.classList.add("on"));
+  document.querySelectorAll(".layer.heavy").forEach(l=>l.classList.toggle("on",!!r.heavy));
+  $("ripples").style.opacity=r.kind==="rain"?1:0; rp.classList.toggle("warnR",r.kind==="rain"&&!!r.heavy);
+  $("haze").style.opacity=r.heavy?1:0;
+  $("rim").style.opacity=(r.kind==="snow"&&r.heavy)?1:0;
+  $("tilt").style.setProperty("--angle",(r.kind==="snow"?(r.heavy?9:3):(r.heavy?17:3))+"deg");
+  chip.className="chip"+(r.kind==="off"?"":r.heavy?" heavy":" live");
+  chip.textContent=r.kind==="off"?r.why:(r.heavy?"Heavy ":"")+r.kind+" · via "+r.src+(st.pro!=="1"?" · still":"");
+}
+document.querySelectorAll(".seg").forEach(g=>g.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;st[g.dataset.k]=b.dataset.v;render();}));
+render();
+})();
+</script>
+</body></html>
