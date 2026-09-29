@@ -1063,8 +1063,10 @@ class PadSpanHaApp extends HTMLElement {
       const st = this.state.settings;
       const admin = !!(this._hass && this._hass.user && this._hass.user.is_admin);
       if (!open && (!admin || (st && st.trial_nudge_done === true) || !TRIAL.trialOfferable(st))) return;
+      // #8391a7: still quieter than the menu above it, but readable — at
+      // least 5:1 on either skin's sidebar (#64748b was 3.9:1).
       const link = el("div", { "data-trial-sidebar": "entry", role: "button", tabindex: "0",
-        style: "cursor:pointer;font-size:11px;color:#64748b;padding:4px 8px" }, TRIAL.TRIAL_SIDEBAR_LABEL);
+        style: "cursor:pointer;font-size:11px;color:#8391a7;padding:4px 8px" }, TRIAL.TRIAL_SIDEBAR_LABEL);
       const toggle = () => { this._sidebarTrialOpen = !open; this._renderSidebarTrial(); };
       link.addEventListener("click", toggle);
       link.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });

@@ -360,6 +360,24 @@ t("sidebar: nothing with a key, before settings, or without the module", () => {
   obj._renderSidebarTrial.call(c);
   assert(!box.children.length, "shown without the module");
 });
+t("sidebar: the entry reads at 4.5:1 or better on either skin's sidebar", () => {
+  // Design pass 2026-09-28: #64748b measured 3.9:1 on the 2025 skin's rail.
+  const lum = (hex) => {
+    const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map(v => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+  const { c, obj, box } = sidebar(FREE);
+  obj._renderSidebarTrial.call(c);
+  const fg = /(?:^|;)\s*color:\s*(#[0-9a-f]{6})/i.exec(q(box, "[data-trial-sidebar]").getAttribute("style"))[1];
+  const rail = /--ps-s1:\s*(#[0-9a-f]{6})/i.exec(readFileSync(join(dirname(PANEL), "styles-2025.css"), "utf8"))[1];
+  const classic = /\.left\{background:linear-gradient\(180deg,(#[0-9a-f]{6}) 0%,(#[0-9a-f]{6}) 100%\)/i
+    .exec(readFileSync(join(dirname(PANEL), "styles.css"), "utf8"));
+  for (const bg of [rail, classic[1], classic[2]]) {
+    assert(ratio(fg, bg) >= 4.5, `${fg} on ${bg} is ${ratio(fg, bg).toFixed(2)}:1`);
+  }
+});
 t("sidebar: administrators only, and gone once the milestone was answered", () => {
   const na = sidebar(FREE, { admin: false });
   na.obj._renderSidebarTrial.call(na.c);
