@@ -250,6 +250,24 @@ tryCase("warnings: Météo-France's forecast sensors are no warning", () => {
     && is(c, "snow", true) && c.warning === "warning:meteo_france" && JSON.stringify(found) === JSON.stringify(["sensor.75_weather_alert"]),
     { a, b, c, found });
 });
+tryCase("fallback: the rain-sensor list is sensors that say it is raining now", () => {
+  const st = {
+    "binary_sensor.rain": S("off", { device_class: "moisture" }),
+    "sensor.netatmo_rain": S(0, { device_class: "precipitation", state_class: "measurement", unit_of_measurement: "mm" }),
+    "sensor.gw2000_rain_rate": S(0, { device_class: "precipitation_intensity", state_class: "measurement", unit_of_measurement: "mm/h" }),
+    "sensor.tempest_precipitation_intensity": S(0, { device_class: "precipitation_intensity", unit_of_measurement: "mm/h" }),
+    "sensor.gw2000_daily_rain": S(4.2, { device_class: "precipitation", state_class: "total_increasing", unit_of_measurement: "mm" }),
+    "sensor.netatmo_rain_today": S(4.2, { device_class: "precipitation", state_class: "total", unit_of_measurement: "mm" }),
+    "sensor.paris_rain_chance": S(80, { unit_of_measurement: "%", friendly_name: "Paris Rain chance" }),
+    "sensor.pirate_precip_probability": S(35, { unit_of_measurement: " % " }),
+    "sensor.outside_temperature": S(12, { device_class: "temperature" }),
+    "switch.rain_barrel": S("on", {}),
+  };
+  const got = WX.rainSensorIds(st);
+  const want = ["binary_sensor.rain", "sensor.gw2000_rain_rate", "sensor.netatmo_rain", "sensor.tempest_precipitation_intensity"];
+  check("fallback: the rain-sensor list is sensors that say it is raining now", JSON.stringify(got) === JSON.stringify(want)
+    && JSON.stringify(WX.rainSensorIds(null)) === "[]", got);
+});
 tryCase("warnings: a dry day reads no warning source at all", () => {
   let touched = 0;
   const ents = new Proxy({ ...EC_ENT }, { get(t, k) { touched++; return t[k]; } });
@@ -590,10 +608,15 @@ tryCase("errors: a chosen entity that is only unavailable is no error", () => {
   const base = { svg: svgStr, animate: true, colour: "#fff", zoom: 1, telemetry };
   const drew = slot.attach(stage, { ...base, settings: cfg({ atlas_weather_rain_entity: RAIN, atlas_weather_warning_entity: "sensor.alert" }),
     states: { ...wx("rainy"), [RAIN]: S("unavailable"), "sensor.alert": S("unknown") } });   // a restart, the network
+  // Home Assistant starting: not in hass.states yet, but in the entity registry.
+  const drewLoading = slot.attach(stage, { ...base, settings: cfg({ atlas_weather_rain_entity: "binary_sensor.late" }),
+    states: wx("rainy"), entities: { "binary_sensor.late": { platform: "ecowitt" } } });
   const quiet = !sent.some(n => n.startsWith("weather_error:"));
-  const drewGone = slot.attach(stage, { ...base, settings: cfg({ atlas_weather_rain_entity: "binary_sensor.renamed" }), states: wx("rainy") });
-  check("errors: a chosen entity that is only unavailable is no error", drew && quiet && drewGone
-    && JSON.stringify(sent.filter(n => n.startsWith("weather_error:"))) === JSON.stringify(["weather_error:source"]), { drew, quiet, drewGone, sent });
+  const drewGone = slot.attach(stage, { ...base, settings: cfg({ atlas_weather_rain_entity: "binary_sensor.renamed" }), states: wx("rainy"),
+    entities: { "binary_sensor.late": { platform: "ecowitt" } } });
+  check("errors: a chosen entity that is only unavailable is no error", drew && drewLoading && quiet && drewGone
+    && JSON.stringify(sent.filter(n => n.startsWith("weather_error:"))) === JSON.stringify(["weather_error:source"]),
+    { drew, drewLoading, quiet, drewGone, sent });
 });
 tryCase("errors: the card still draws when weather cannot", () => {
   WX._resetWeatherSlotsForTests();

@@ -100,6 +100,21 @@ export function rainReading(st){
   return Number.isFinite(n) ? n > 0 : null;
 }
 
+/** What the rain-sensor setting offers: sensors that say it is raining NOW,
+ *  since any reading above 0 is wet — a rain rate, a rain or moisture
+ *  switch, a gauge's latest reading (Netatmo's: device class precipitation,
+ *  state class measurement). Not a running total (state class total /
+ *  total_increasing: "Daily rain" stays above 0 long after it stopped), and
+ *  not a chance of rain (%: above 0 nearly all the time). */
+export function rainSensorIds(states){
+  const st = states || {};
+  const a = (eid, k) => String((st[eid] && st[eid].attributes && st[eid].attributes[k]) || "").trim();
+  return Object.keys(st).filter(eid => /^(binary_sensor|sensor)\./.test(eid)
+    && !/^total/.test(a(eid, "state_class")) && a(eid, "unit_of_measurement") !== "%"
+    && (["moisture", "precipitation", "precipitation_intensity"].includes(a(eid, "device_class"))
+      || /rain|precip|regen|pluie|lluvia|pioggia/i.test(`${a(eid, "friendly_name")} ${eid}`))).sort();
+}
+
 /** The weather entity used when none is chosen: the first weather.* (by id)
  *  with a reading, else the first at all. Onboarding makes Met.no's
  *  weather.forecast_home, so nearly every install has one. */
@@ -612,12 +627,13 @@ function createSlot(slotKey){
         catch (_) { err("decision"); detach(); return false; }
         // A chosen entity that no longer exists: deleted or renamed, so the
         // setting points at nothing. Unavailable is a sensor dropping off
-        // for a while (a restart, the network) and is no error. A fallback,
-        // where there is one, still draws: the one kind that need not mean
-        // "no weather".
-        const known = p.states || {};
+        // for a while (a restart, the network), and one still in the entity
+        // registry has only not loaded yet (Home Assistant starting): no
+        // error. A fallback, where there is one, still draws: the one kind
+        // that need not mean "no weather".
+        const has = (o, e) => !!o && Object.prototype.hasOwnProperty.call(o, e);
         if ([cfg.rainEntity, cfg.conditionEntity, cfg.warningEntity]
-          .some(e => e && !Object.prototype.hasOwnProperty.call(known, e))) err("source");
+          .some(e => e && !has(p.states, e) && !has(p.entities, e))) err("source");
         countWeatherOnce(`weather_source:${d.source}`, send);
         if (d.warning) countWeatherOnce(`weather_source:${d.warning}`, send);
         if (d.why !== "no_source") lastLive = now;

@@ -1175,7 +1175,8 @@ def test_a_full_load_section_is_small_and_every_word_is_on_the_list():
                 assert type(v) is int, (name, s, v)               # whole percents
             else:
                 assert v == T._sig2(v), (name, s, v)              # already two significant figures
-    assert perf["samples"] == 1440 and perf["over"] == {"load": 200, "cpu": 40, "mem": 12, "lag": 5}
+    # 30 or more to the nearest 60 (200 -> 180, 40 -> 60), fewer exact
+    assert perf["samples"] == 1440 and perf["over"] == {"load": 180, "cpu": 60, "mem": 12, "lag": 5}
     assert perf["snap_ms"]["per_h"] == 360 and perf["cycle_ms"]["per_h"] == 360
     assert perf["cpu_all_pc"]["max"] == round(perf["cpu_pc"]["max"] / 4) or \
         abs(perf["cpu_all_pc"]["max"] - perf["cpu_pc"]["max"] / 4) <= 1

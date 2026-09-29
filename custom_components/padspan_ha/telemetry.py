@@ -536,12 +536,21 @@ def _hw_payload(hass: HomeAssistant) -> dict[str, Any]:
     return hw
 
 
+def _to_hour(n: int) -> int:
+    """To the nearest 60 once-a-minute samples (an hour), halves up."""
+    return (int(n) + 30) // 60 * 60
+
+
 def _perf_payload(w: Any, cpus: int, now: float | None = None) -> dict[str, Any]:
     """health.perf from a perf_sampler.PerfWindow, shaped by PERF_METRICS.
 
     `samples` is to the nearest hour (60 samples): to the minute, a window
-    shorter than a day would say when Home Assistant last restarted."""
-    out: dict[str, Any] = {"samples": int(round(w.samples / 60.0)) * 60}
+    shorter than a day would say when Home Assistant last restarted. So is
+    each `over` count of 30 or more — a machine over a limit the whole time
+    counts every sample — while a smaller one says nothing of the uptime
+    and stays exact; with no sample count to stand beside (under half an
+    hour) there are none."""
+    out: dict[str, Any] = {"samples": _to_hour(w.samples)}
     hours = w.hours(now)
     for name, (metric, stats) in PERF_METRICS.items():
         h = w.hists.get(metric)
@@ -564,8 +573,9 @@ def _perf_payload(w: Any, cpus: int, now: float | None = None) -> dict[str, Any]
             v *= scale
             d[s] = int(round(v)) if name.endswith("_pc") else _sig2(v)
         out[name] = d
-    if out["samples"]:       # the rounded count: exact `over` counts would give the minutes away
-        out["over"] = {k: int(w.over.get(k, 0)) for k in PERF_OVER}
+    if out["samples"]:
+        over = {k: int(w.over.get(k, 0)) for k in PERF_OVER}
+        out["over"] = {k: c if c < 30 else _to_hour(c) for k, c in over.items()}
     return out
 
 

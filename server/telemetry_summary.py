@@ -42,6 +42,8 @@ def _well_formed(r) -> bool:
     PadSpan sends is skipped rather than taking the whole summary down."""
     if not isinstance(r, dict):
         return False
+    if not all(isinstance(r.get(k) or "", str) for k in ("install_id", "day", "version", "edition", "tier", "ha_version")):
+        return False
     if not all(isinstance(r.get(k) or {}, dict) for k in ("env", "features", "usage", "health", "errors")):
         return False
     env, health = r.get("env") or {}, r.get("health") or {}

@@ -529,7 +529,16 @@ def test_nothing_on_the_event_loop_reads_a_file_or_asks_the_os(monkeypatch):
     assert perf["samples"] == 0 and perf["snap_ms"]["max"] == 4100, "2 samples is under the half hour"
 
 
-@pytest.mark.parametrize("n,want", [(0, 0), (29, 0), (31, 60), (1439, 1440), (1440, 1440), (757, 780)])
+def test_a_machine_over_a_limit_all_the_time_does_not_count_its_minutes():
+    w = ps.PerfWindow()
+    w.samples = 100                              # 100 minutes since a restart, every one over
+    w.over.update({"load": 100, "cpu": 100, "mem": 29, "lag": 30})
+    perf = T._perf_payload(w, 4)
+    assert perf["samples"] == 120 and perf["over"] == {"load": 120, "cpu": 120, "mem": 29, "lag": 60}
+
+
+@pytest.mark.parametrize("n,want", [(0, 0), (29, 0), (30, 60), (31, 60), (89, 60), (90, 120), (1439, 1440),
+                                    (1440, 1440), (757, 780)])
 def test_samples_go_to_the_nearest_hour_so_a_restart_minute_does_not(n, want):
     w = ps.PerfWindow()
     w.samples = n
@@ -787,6 +796,7 @@ def test_a_crafted_hardware_block_does_not_crash_the_summary(tmp_path):
     {"health": ["x"]}, {"health": "x"}, {"env": ["x"]}, {"usage": {"tab:atlas": "x"}}, {"errors": {"a": [1]}},
     {"features": "x"}, {"env": {"scanners": "4"}}, {"env": {"integrations": ["x"]}}, {"health": {"perf": [1]}},
     {"env": {"findmy": {"on_air": {"airtag": "x"}}}}, {"env": {"findmy": {"tracked_live": "x"}}},
+    {"version": ["x"]}, {"ha_version": {"a": 1}}, {"edition": ["full"]}, {"tier": 3}, {"day": ["2026-09-29"]},
 ])
 def test_a_malformed_report_is_skipped_not_fatal(tmp_path, junk):
     good = {"install_id": "ffffffff-1111-4111-8111-111111111111", "version": "0.38.91",
