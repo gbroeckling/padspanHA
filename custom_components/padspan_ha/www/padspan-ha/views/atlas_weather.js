@@ -102,17 +102,23 @@ export function rainReading(st){
 
 /** What the rain-sensor setting offers: sensors that say it is raining NOW,
  *  since any reading above 0 is wet — a rain rate, a rain or moisture
- *  switch, a gauge's latest reading (Netatmo's: device class precipitation,
- *  state class measurement). Not a running total (state class total /
- *  total_increasing: "Daily rain" stays above 0 long after it stopped), and
- *  not a chance of rain (%: above 0 nearly all the time). */
+ *  switch, a gauge's latest reading. Not a running total (state class
+ *  total / total_increasing: "Daily rain" stays above 0 long after it
+ *  stopped), and not a chance of rain (%: above 0 nearly all the time).
+ *  Device class precipitation is ACCUMULATED rain in Home Assistant, so it
+ *  counts only when the sensor says it is a live measurement (Netatmo's
+ *  gauge does; Buienradar's "rain last 24h" says nothing and is a total). */
 export function rainSensorIds(states){
   const st = states || {};
   const a = (eid, k) => String((st[eid] && st[eid].attributes && st[eid].attributes[k]) || "").trim();
-  return Object.keys(st).filter(eid => /^(binary_sensor|sensor)\./.test(eid)
-    && !/^total/.test(a(eid, "state_class")) && a(eid, "unit_of_measurement") !== "%"
-    && (["moisture", "precipitation", "precipitation_intensity"].includes(a(eid, "device_class"))
-      || /rain|precip|regen|pluie|lluvia|pioggia/i.test(`${a(eid, "friendly_name")} ${eid}`))).sort();
+  return Object.keys(st).filter(eid => {
+    if (!/^(binary_sensor|sensor)\./.test(eid)) return false;
+    const dc = a(eid, "device_class"), sc = a(eid, "state_class");
+    if (/^total/.test(sc) || a(eid, "unit_of_measurement") === "%") return false;
+    if (dc === "precipitation" && sc !== "measurement") return false;
+    return ["moisture", "precipitation", "precipitation_intensity"].includes(dc)
+      || /rain|precip|regen|pluie|lluvia|pioggia/i.test(`${a(eid, "friendly_name")} ${eid}`);
+  }).sort();
 }
 
 /** The weather entity used when none is chosen: the first weather.* (by id)

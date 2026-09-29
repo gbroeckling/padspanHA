@@ -258,6 +258,7 @@ tryCase("fallback: the rain-sensor list is sensors that say it is raining now", 
     "sensor.tempest_precipitation_intensity": S(0, { device_class: "precipitation_intensity", unit_of_measurement: "mm/h" }),
     "sensor.gw2000_daily_rain": S(4.2, { device_class: "precipitation", state_class: "total_increasing", unit_of_measurement: "mm" }),
     "sensor.netatmo_rain_today": S(4.2, { device_class: "precipitation", state_class: "total", unit_of_measurement: "mm" }),
+    "sensor.buienradar_rain_last_24h": S(3.1, { device_class: "precipitation", unit_of_measurement: "mm" }),   // a total, says no class
     "sensor.paris_rain_chance": S(80, { unit_of_measurement: "%", friendly_name: "Paris Rain chance" }),
     "sensor.pirate_precip_probability": S(35, { unit_of_measurement: " % " }),
     "sensor.outside_temperature": S(12, { device_class: "temperature" }),
