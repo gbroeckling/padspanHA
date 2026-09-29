@@ -1129,7 +1129,7 @@ class PadSpanHaApp extends HTMLElement {
     card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
       "PadSpan is bleeding edge. Metre-level BLE positioning in an ordinary house is not a solved problem, and this one is developed against exactly one house. " +
       "It needs all the help it can find, and the biggest help is being able to see what other houses look like. " +
-      "Opt in and once a day it sends counts only: scanners, floors, rooms, calibration points, which features are on, whether positioning and identity resolution are actually working, and how many warnings each part logged. " +
+      "Opt in and once a day it sends counts only: scanners, floors, rooms, calibration points, which features are on, whether positioning and identity resolution are actually working, how hard the machine works and what class of machine it is, and how many warnings each part logged. " +
       "Never addresses, keys, names, coordinates or timestamps. Off until you say yes, and Settings → Presence turns it off again any time."));
     const out = el("pre", { class: "pre", style: "display:none;margin:0 0 8px;max-height:260px;overflow:auto;font-size:11px" });
     const yes = el("button", { class: "btn inline", style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700" }, "Share usage report");

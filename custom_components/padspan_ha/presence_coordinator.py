@@ -112,6 +112,7 @@ from .const import (
 )
 from . import fabric_truth as _fabric_truth
 from .beacon_drift import compute_drift_m, drift_severity
+from .perf_sampler import record_duration
 from .presence_rules import (
     indoor_coverage_floor, is_outdoor_floor, modelled_coverage_floor,
     coverage_evidence, coverage_window_polls, outdoor_attribution,
@@ -889,6 +890,15 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return self._excluded_cache
 
     async def _async_update_data(self) -> dict[str, Any]:
+        """One poll, timed for the opt-in report (perf_sampler.py: a no-op
+        while the report is off, never raises) — the poll itself unchanged."""
+        _t0 = time.perf_counter()
+        try:
+            return await self._async_poll()
+        finally:
+            record_duration(self.hass, "cycle", (time.perf_counter() - _t0) * 1000.0)
+
+    async def _async_poll(self) -> dict[str, Any]:
         """Main poll loop — called every _SCAN_INTERVAL (10s) by HA's coordinator.
 
         High-level flow:

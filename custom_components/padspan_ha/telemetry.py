@@ -30,6 +30,12 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
         few display toggles) — never the preset's own name — so popular
         combinations across installs can surface in every install's own
         "Popular presets" pulldown (see popular_presets.py)
+    how hard the machine works and what class of machine it is: load per
+        CPU, Home Assistant's own CPU and memory, memory available, swap,
+        event-loop lag, how long PadSpan's own snapshot builds and polls
+        take, and how often any of them hit a limit (health.perf); CPU
+        count, RAM size, architecture, installation type and board family
+        from fixed lists (env.hw) — see perf_sampler.py and PERF_METRICS
 
 The reason, in one sentence: the developer has one house to test on, and
 this is how features that only exist elsewhere (an iPhone with an IRK, a
@@ -60,6 +66,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import time
 import uuid
@@ -313,6 +320,42 @@ _PRESET_VALUE_KEYS: tuple[str, ...] = (
 # shared — plenty for popularity counting, nowhere near the whole list.
 _PRESET_SHARE_CAP = 10
 
+# Load and hardware — Garry, 2026-09-29: "Add load numbers and CPU info to
+# opt-in for this type of decision in future", "need to watch the pi installs
+# for max outs". perf_sampler.py measures; this is what of it may leave, and
+# assert_shareable holds env.hw and health.perf to exactly these keys and
+# words (_check_load_sections) — a closed list, like EVENTS, and nested under
+# keys the receiver already allows (server/telemetry.php refuses any new
+# top-level key, and a receiver not redeployed would drop every report).
+HW_VALUES: dict[str, tuple[str, ...]] = {
+    "ram": ("1g", "2g", "4g", "8g", "16g", "16g+", "unknown"),      # up to N GB
+    "arch": ("x86_64", "x86", "aarch64", "armv7", "armv6", "other", "unknown"),
+    "install": ("os", "supervised", "container", "core", "other", "unknown"),
+    "board": ("rpi2", "rpi3", "rpi4", "rpi5", "rpi_other", "green", "yellow", "odroid", "tinker",
+              "khadas", "vm", "generic_x86_64", "generic_aarch64", "other", "unknown"),
+}
+HW_MAX_CPUS = 64                     # "64" reads "64 or more"
+# Report name → (perf_sampler metric, statistics). `_pc` values are whole
+# percents, everything else two significant figures; `per_h` is how many per
+# hour over the window. Memory available reports its LOW end — that is where
+# a machine runs out. A metric with nothing measured is left out (a machine
+# without /proc has no memory figures); `samples` says how much of the window
+# the once-a-minute sampler covered, and `over` how many of those samples hit
+# each limit (perf_sampler.OVER_*: load above 1 per CPU, HA above 90% of one
+# core, under 10% memory available, loop lag over 1 s).
+PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "load_pc": ("load", ("p50", "p95", "max")),        # 1-min load per CPU
+    "cpu_pc": ("cpu", ("p50", "p95", "max")),          # HA's process, of one core
+    "cpu_all_pc": ("cpu", ("p50", "p95", "max")),      # ... of all cores
+    "rss_mb": ("rss", ("p50", "max")),                 # HA's process
+    "mem_avail_pc": ("mem", ("p50", "p05", "min")),    # host
+    "swap_mb": ("swap", ("p50", "max")),               # host, used
+    "lag_ms": ("lag", ("p50", "p95", "max")),          # event loop
+    "snap_ms": ("snap", ("p50", "p95", "max", "per_h")),    # live snapshot build
+    "cycle_ms": ("cycle", ("p50", "p95", "max", "per_h")),  # presence poll
+}
+PERF_OVER: tuple[str, ...] = ("load", "cpu", "mem", "lag")
+
 # What a report may contain at the top level — anything else is a bug.
 _TOP_KEYS: frozenset[str] = frozenset({
     "schema", "install_id", "day", "version", "edition", "tier", "ha_version",
@@ -364,12 +407,13 @@ def _take_counters(hass: HomeAssistant) -> dict[str, int]:
     return out
 
 
-def _take_windows(hass: HomeAssistant) -> tuple[dict[str, int], dict[str, int], set[str]]:
-    """The usage counters, WARNING+ log counts and keys that resolved since
-    the last report — and reset them."""
+def _take_windows(hass: HomeAssistant) -> tuple[dict[str, int], dict[str, int], set[str], Any]:
+    """The usage counters, WARNING+ log counts, keys that resolved and the
+    load window since the last report — and reset them."""
     usage = _take_counters(hass)
     errors: dict[str, int] = {}
     ids: set[str] = set()
+    perf = None
     try:
         from .ws_common import _log_handler  # noqa: PLC0415
         if _log_handler is not None:
@@ -383,13 +427,23 @@ def _take_windows(hass: HomeAssistant) -> tuple[dict[str, int], dict[str, int], 
             ids = _r.take_resolved_ids()
     except Exception:
         pass
-    return usage, errors, ids
+    try:
+        from . import perf_sampler  # noqa: PLC0415
+        perf = perf_sampler.take_window(hass)
+    except Exception:
+        pass
+    return usage, errors, ids, perf
 
 
-def _give_back_windows(hass: HomeAssistant, taken: tuple[dict[str, int], dict[str, int], set[str]]) -> None:
+def _give_back_windows(hass: HomeAssistant, taken: tuple[dict[str, int], dict[str, int], set[str], Any]) -> None:
     """A send that failed: what it took goes with the next report, on top of
     whatever was counted meanwhile."""
-    usage, errors, ids = taken
+    usage, errors, ids, perf = taken
+    try:
+        from . import perf_sampler  # noqa: PLC0415
+        perf_sampler.give_back_window(hass, perf)
+    except Exception:
+        pass
     counters = hass.data.setdefault(DOMAIN, {}).setdefault(_DATA_COUNTERS, {})
     for k, v in usage.items():
         counters[k] = int(counters.get(k, 0)) + int(v)
@@ -426,6 +480,62 @@ def _len(x: Any) -> int:
         return len(x)
     except Exception:
         return 0
+
+
+def _sig2(v: Any) -> int | float | None:
+    """Two significant figures: 4123 → 4100, 3.456 → 3.5, 0.0123 → 0.012."""
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(v):
+        return None
+    if v <= 0:
+        return 0
+    r = round(v, 1 - math.floor(math.log10(v)))
+    return int(r) if r >= 10 else r
+
+
+def _hw_payload(hass: HomeAssistant) -> dict[str, Any]:
+    """env.hw: the hardware class, each word from HW_VALUES."""
+    from . import perf_sampler  # noqa: PLC0415
+    raw = perf_sampler.hw_class(hass)
+    cpus = raw.get("cpus")
+    hw: dict[str, Any] = {"cpus": min(cpus, HW_MAX_CPUS) if isinstance(cpus, int) and cpus > 0 else 0}
+    for k, allowed in HW_VALUES.items():
+        v = raw.get(k)
+        hw[k] = v if v in allowed else "unknown"
+    return hw
+
+
+def _perf_payload(w: Any, cpus: int, now: float | None = None) -> dict[str, Any]:
+    """health.perf from a perf_sampler.PerfWindow, shaped by PERF_METRICS."""
+    out: dict[str, Any] = {"samples": int(w.samples)}
+    hours = w.hours(now)
+    for name, (metric, stats) in PERF_METRICS.items():
+        h = w.hists.get(metric)
+        if h is None or not h.n:
+            continue
+        scale = 1.0
+        if name == "cpu_all_pc":
+            if not cpus:
+                continue
+            scale = 1.0 / cpus
+        d: dict[str, Any] = {}
+        for s in stats:
+            if s == "per_h":
+                if hours > 0:
+                    d[s] = _sig2(h.n / hours)
+                continue
+            v = h.hi if s == "max" else h.lo if s == "min" else h.quantile(int(s[1:]) / 100)
+            if v is None:
+                continue
+            v *= scale
+            d[s] = int(round(v)) if name.endswith("_pc") else _sig2(v)
+        out[name] = d
+    if w.samples:
+        out["over"] = {k: int(w.over.get(k, 0)) for k in PERF_OVER}
+    return out
 
 
 def _positioning_now(coord) -> dict[str, int]:
@@ -777,6 +887,13 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "objects_by_kind": by_kind,
         "integrations": integrations,
     }
+    # The hardware class and the load it runs at (perf_sampler.py) — so a
+    # question like "does this feature max out a Pi" is answered per class
+    # of machine rather than from the developer's one VM.
+    try:
+        env["hw"] = _hw_payload(hass)
+    except Exception:
+        pass
     features = {k: bool(settings.get(k)) for k in _FEATURE_FLAGS}
     for k in _FEATURE_ENUMS:
         v = settings.get(k)
@@ -875,6 +992,12 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "radios_unresolved": sum(1 for r in radios if r.get("device_match") == "none"),
         "radios_matched_partial": sum(1 for r in radios if r.get("device_match") == "partial"),
     }
+    try:
+        from . import perf_sampler as _ps  # noqa: PLC0415
+        _pw = _ps.take_window(hass) if consume else _ps.window(hass)
+        health["perf"] = _perf_payload(_pw, _ps.cached_cpus(hass) or 0)
+    except Exception:
+        pass
     usage = _take_counters(hass) if consume else dict(dom.get(_DATA_COUNTERS) or {})
     # WARNING+ log lines by module since the last report — the "what broke"
     # signal for the parts of the code the developer cannot exercise.
@@ -956,8 +1079,61 @@ def assert_shareable(payload: dict[str, Any]) -> None:
             raise ValueError(f"unexpected value type {type(node).__name__} in {path}")
 
     walk(payload, "")
+    _check_load_sections(payload)
     if len(json.dumps(payload)) > _MAX_BYTES:
         raise ValueError("payload too large")
+
+
+def _check_load_sections(payload: dict[str, Any]) -> None:
+    """env.hw and health.perf carry only the keys and words listed in
+    HW_VALUES / PERF_METRICS / PERF_OVER, and only finite, non-negative
+    numbers — the generic walk refuses identifier SHAPES; this refuses
+    anything that is not on the list at all (a board's model string, a
+    hostname, a NaN the receiver could not parse)."""
+    def _num(v: Any, path: str, *, allow_none: bool = False) -> None:
+        if v is None and allow_none:
+            return
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0:
+            raise ValueError(f"not a count in {path}")
+
+    env = payload.get("env")
+    hw = env.get("hw") if isinstance(env, dict) else None
+    if hw is not None:
+        if not isinstance(hw, dict):
+            raise ValueError("env.hw is not a dict")
+        for k, v in hw.items():
+            if k == "cpus":
+                if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= HW_MAX_CPUS:
+                    raise ValueError("env.hw.cpus out of range")
+            elif k in HW_VALUES:
+                if v not in HW_VALUES[k]:
+                    raise ValueError(f"env.hw.{k} not in the vocabulary")
+            else:
+                raise ValueError(f"unexpected key in env.hw: {str(k)[:32]}")
+    health = payload.get("health")
+    perf = health.get("perf") if isinstance(health, dict) else None
+    if perf is not None:
+        if not isinstance(perf, dict):
+            raise ValueError("health.perf is not a dict")
+        for k, v in perf.items():
+            if k == "samples":
+                _num(v, "health.perf.samples")
+            elif k == "over":
+                if not isinstance(v, dict):
+                    raise ValueError("health.perf.over is not a dict")
+                for ok, ov in v.items():
+                    if ok not in PERF_OVER:
+                        raise ValueError(f"unexpected key in health.perf.over: {str(ok)[:32]}")
+                    _num(ov, f"health.perf.over.{ok}")
+            elif k in PERF_METRICS:
+                if not isinstance(v, dict):
+                    raise ValueError(f"health.perf.{k} is not a dict")
+                for sk, sv in v.items():
+                    if sk not in PERF_METRICS[k][1]:
+                        raise ValueError(f"unexpected key in health.perf.{k}: {str(sk)[:32]}")
+                    _num(sv, f"health.perf.{k}.{sk}", allow_none=True)
+            else:
+                raise ValueError(f"unexpected key in health.perf: {str(k)[:32]}")
 
 
 # ── the schedule ─────────────────────────────────────────────────────────────
@@ -996,6 +1172,17 @@ async def ensure_snapshot(hass: HomeAssistant) -> None:
         _LOGGER.debug("Telemetry could not build a snapshot: %s", err)
 
 
+async def ensure_hw(hass: HomeAssistant) -> None:
+    """Make sure env.hw names the installation type and board, not
+    "unknown" because the sampler's first tick has not come yet. Detected
+    once; a no-op after that."""
+    try:
+        from . import perf_sampler  # noqa: PLC0415
+        await perf_sampler.async_ensure_hw(hass)
+    except Exception as err:
+        _LOGGER.debug("Telemetry could not read the hardware class: %s", err)
+
+
 async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any]:
     """Build, check, POST. Returns {"sent": bool, "reason": str, "bytes": n}.
 
@@ -1016,6 +1203,7 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
         return {"sent": False, "reason": "already sent today", "bytes": 0}
     await ensure_install_id(hass)
     await ensure_snapshot(hass)
+    await ensure_hw(hass)
     payload = build_payload(hass, consume=False)
     try:
         assert_shareable(payload)
@@ -1064,14 +1252,27 @@ def reset_windows(hass: HomeAssistant) -> None:
             _r.take_resolved_ids()
     except Exception:
         pass
+    try:
+        from . import perf_sampler  # noqa: PLC0415
+        perf_sampler.reset_window(hass)
+    except Exception:
+        pass
 
 
 def async_setup_telemetry(hass: HomeAssistant) -> None:
-    """Schedule the daily report (idempotent across reloads). Runs only when on."""
+    """Schedule the daily report (idempotent across reloads). Runs only when on.
+
+    Also starts the load sampler (perf_sampler.py): one 60 s timer, itself
+    idempotent, that measures only while the report is on."""
     from homeassistant.helpers.event import async_call_later, async_track_time_interval  # noqa: PLC0415
 
     dom = hass.data.setdefault(DOMAIN, {})
     dom.setdefault(_DATA_STARTED, time.monotonic())
+    try:
+        from . import perf_sampler  # noqa: PLC0415
+        perf_sampler.async_start(hass)
+    except Exception as err:
+        _LOGGER.debug("Load sampler not started: %s", err)
     if dom.get(_DATA_UNSUBS):
         return
 
@@ -1091,3 +1292,8 @@ def async_stop_telemetry(hass: HomeAssistant) -> None:
             unsub()
         except Exception:
             pass
+    try:
+        from . import perf_sampler  # noqa: PLC0415
+        perf_sampler.async_stop(hass)
+    except Exception:
+        pass

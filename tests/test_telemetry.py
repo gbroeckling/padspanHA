@@ -213,7 +213,12 @@ def test_nothing_from_the_house_is_in_the_report():
     # door/flood sensor was silently counted as "motion_sensor" and a
     # humidity/air-quality sensor as "temp_sensor" — found in the Phase 2a
     # registry audit, 2026-09-19. Now one bucket per real device_class.
-    assert len(text) < 3800
+    # Raised 3800 → 3950 for `env.hw` (~95 bytes) and `health.perf` with no
+    # samples yet (~20) — Garry, 2026-09-29: "Add load numbers and CPU info
+    # to opt-in", "need to watch the pi installs for max outs". A full day's
+    # `health.perf` is ~550 bytes more; that is bounded on its own in
+    # test_a_full_load_section_is_small_and_every_word_is_on_the_list.
+    assert len(text) < 3950
 
 
 def test_presets_are_capped_at_ten_per_report():
@@ -1120,3 +1125,199 @@ def test_the_summary_reads_find_my_with_and_without_the_new_fields(tmp_path):
     assert re.search(r"telemetry\s+1\s+1 installs", out), "an error only the day's first report carried\n" + out
     assert re.search(r"findmy_missed_ambiguous\s+1\s+1 installs", out), "used only in the day's first report\n" + out
     assert "2 installs, 2 install-days" in out, out
+
+
+# ── load and hardware (perf_sampler.py) ──────────────────────────────────────
+# Garry, 2026-09-29: "Add load numbers and CPU info to opt-in for this type of
+# decision in future", "need to watch the pi installs for max outs". Numbers
+# about the MACHINE — which makes them the easiest place for something about
+# the machine's owner (a hostname, a model string with a serial in it) to slip
+# in. So both sections are a closed list, like the event vocabulary.
+
+_PI4 = {"cpus": 4, "ram": "4g", "arch": "aarch64", "install": "os", "board": "rpi4", "ready": True}
+
+
+def _busy_day(h, hours: float = 24.0):
+    """A day on a Pi that is struggling, as the sampler would have measured it."""
+    import time as _t
+    from custom_components.padspan_ha import perf_sampler as ps
+    h.data[DOMAIN][ps._DATA_HW] = dict(_PI4)
+    w = ps.PerfWindow(started=_t.monotonic() - hours * 3600)
+    rnd = __import__("random").Random(3)
+    for i in range(1440):
+        w.samples += 1
+        w.add("load", rnd.uniform(10, 160))
+        w.add("cpu", rnd.uniform(1, 99.4))
+        w.add("rss", rnd.uniform(600, 900))
+        w.add("mem", rnd.uniform(4, 60))
+        w.add("swap", rnd.uniform(0, 300))
+        w.add("lag", rnd.uniform(0.05, 1800))
+    for i in range(8640):
+        w.add("snap", rnd.uniform(900, 8200))
+        w.add("cycle", rnd.uniform(40, 2400))
+    w.over.update({"load": 200, "cpu": 40, "mem": 12, "lag": 5})
+    h.data[DOMAIN][ps._DATA_WINDOW] = w
+    return w
+
+
+def test_a_full_load_section_is_small_and_every_word_is_on_the_list():
+    h = _hass()
+    _busy_day(h)
+    p = T.build_payload(h)
+    T.assert_shareable(p)
+    assert p["env"]["hw"] == {"cpus": 4, "ram": "4g", "arch": "aarch64", "install": "os", "board": "rpi4"}
+    perf = p["health"]["perf"]
+    assert set(perf) == {"samples", "over"} | set(T.PERF_METRICS), set(perf) ^ ({"samples", "over"} | set(T.PERF_METRICS))
+    for name, (_m, stats) in T.PERF_METRICS.items():
+        assert set(perf[name]) == set(stats), name
+        for s, v in perf[name].items():
+            if name.endswith("_pc"):
+                assert type(v) is int, (name, s, v)               # whole percents
+            else:
+                assert v == T._sig2(v), (name, s, v)              # already two significant figures
+    assert perf["samples"] == 1440 and perf["over"] == {"load": 200, "cpu": 40, "mem": 12, "lag": 5}
+    assert perf["snap_ms"]["per_h"] == 360 and perf["cycle_ms"]["per_h"] == 360
+    assert perf["cpu_all_pc"]["max"] == round(perf["cpu_pc"]["max"] / 4) or \
+        abs(perf["cpu_all_pc"]["max"] - perf["cpu_pc"]["max"] / 4) <= 1
+    assert perf["mem_avail_pc"]["min"] <= perf["mem_avail_pc"]["p05"] <= perf["mem_avail_pc"]["p50"]
+    assert perf["lag_ms"]["p50"] <= perf["lag_ms"]["p95"] <= perf["lag_ms"]["max"]
+    section = len(json.dumps(perf)) + len(json.dumps(p["env"]["hw"]))
+    assert section < 700, section
+    assert len(json.dumps(p)) <= T._MAX_BYTES
+
+
+def test_nothing_identifying_can_ride_in_the_load_sections():
+    """A board, installation type or architecture that is not a listed word
+    goes as "unknown" — and if one ever reached the gate anyway, the gate
+    refuses the whole report."""
+    from custom_components.padspan_ha import perf_sampler as ps
+    h = _hass()
+    h.data[DOMAIN][ps._DATA_HW] = {"cpus": 512, "ram": "3.7 GiB", "arch": "aarch64 on garrys-pi",
+                                   "install": "Home Assistant OS 16.2", "ready": True,
+                                   "board": "Raspberry Pi 4 Model B Rev 1.4 serial 10000000abcdef12"}
+    p = T.build_payload(h)
+    T.assert_shareable(p)
+    assert p["env"]["hw"] == {"cpus": 64, "ram": "unknown", "arch": "unknown", "install": "unknown",
+                              "board": "unknown"}
+    assert "garrys" not in json.dumps(p) and "serial" not in json.dumps(p)
+
+    base = T.build_payload(_hass())
+    T.assert_shareable(base)
+
+    def refused(mutate, match):
+        q = json.loads(json.dumps(base))
+        mutate(q)
+        with pytest.raises(ValueError, match=match):
+            T.assert_shareable(q)
+
+    refused(lambda q: q["env"]["hw"].update(board="rpi4 in the garage"), "board")
+    refused(lambda q: q["env"]["hw"].update(hostname="homeassistant"), "unexpected key in env.hw")
+    refused(lambda q: q["env"]["hw"].update(cpus=65), "cpus")
+    refused(lambda q: q["env"]["hw"].update(cpus=True), "cpus")
+    refused(lambda q: q["env"].update(hw="rpi4"), "env.hw")
+    refused(lambda q: q["health"]["perf"].update(host="garrys-pi"), "unexpected key in health.perf")
+    refused(lambda q: q["health"]["perf"].update(lag_ms={"p99": 3}), "unexpected key in health.perf.lag_ms")
+    refused(lambda q: q["health"]["perf"].update(lag_ms={"max": "slow"}), "not a count")
+    refused(lambda q: q["health"]["perf"].update(lag_ms={"max": -1}), "not a count")
+    refused(lambda q: q["health"]["perf"].update(lag_ms={"max": float("nan")}), "not a count")
+    refused(lambda q: q["health"]["perf"].update(over={"swap": 1}), "unexpected key in health.perf.over")
+    refused(lambda q: q["health"]["perf"].update(samples=None), "not a count")
+    refused(lambda q: q["health"].update(perf=[1, 2]), "health.perf")
+
+
+def test_a_failed_send_keeps_the_load_window_and_an_accepted_one_takes_it(monkeypatch):
+    import sys
+    import types
+    from custom_components.padspan_ha import perf_sampler as ps
+    h = _hass()
+    w = _busy_day(h)
+    sent = {}
+
+    class _Resp:
+        def __init__(self, status):
+            self.status = status
+
+        async def __aenter__(self):
+            ps.window(h).add("snap", 100.0)          # the house carries on while the POST is out
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+    class _Session:
+        def __init__(self, status):
+            self._s = status
+
+        def post(self, url, data=None, **k):
+            sent["body"] = json.loads(data)
+            return _Resp(self._s)
+
+    async def _no_build(hass):                        # a real build would be timed too: keep the count exact
+        return None
+
+    monkeypatch.setattr(T, "ensure_snapshot", _no_build)
+    fake = types.ModuleType("homeassistant.helpers.aiohttp_client")
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.aiohttp_client", fake)
+    fake.async_get_clientsession = lambda hass: _Session(500)
+    assert _run(T.send_now(h, force=True))["sent"] is False
+    back = ps.window(h)
+    assert back.samples == 1440 and back.hists["snap"].n == 8641 and back.over["load"] == 200
+    assert T.build_payload(h)["health"]["perf"]["samples"] == 1440, "a preview reads, never takes"
+    assert ps.window(h) is back
+    fake.async_get_clientsession = lambda hass: _Session(200)
+    assert _run(T.send_now(h, force=True))["sent"] is True
+    assert sent["body"]["health"]["perf"]["samples"] == 1440
+    assert ps.window(h).samples == 0 and ps.window(h).hists["snap"].n == 1, "what came in flight goes next"
+    assert ps.window(h) is not w
+
+
+def test_the_receiver_accepts_the_load_sections_unchanged():
+    """server/telemetry.php refuses any top-level key it does not list, and
+    any identifier shape anywhere in the flattened report — and a receiver
+    that is not redeployed drops every report without a word (September: a
+    new top-level key cost 16 days of reports). env.hw and health.perf nest
+    under keys it already allows; this holds a full day's report to the
+    PHP's OWN lists, read from the file, so a change that would need a
+    redeploy fails here first."""
+    from pathlib import Path
+    php_path = Path(__file__).resolve().parents[1] / "server" / "telemetry.php"
+    if not php_path.exists():
+        pytest.skip("no server/ in this tree (the Bright derivation carries none)")
+    php = php_path.read_text(encoding="utf-8")
+    allowed = set(re.findall(r"'([a-z_]+)'", php[php.index("$allowed = array("):].split(");")[0]))
+    shapes_src = php[php.index("$shapes = array("):].split(");\n")[0]
+    patterns = [m.group(1).replace("\\'", "'") for m in re.finditer(r"'((?:[^'\\]|\\.)*)'", shapes_src)]
+    assert len(patterns) == 6 and "$MAX = 8192;" in php and "(int)$r['schema'] !== 1" in php
+    h = _hass()
+    _busy_day(h)
+    p = T.build_payload(h)
+    assert set(p) <= allowed, set(p) - allowed
+    assert p["schema"] == 1
+    flat = json.dumps({k: v for k, v in p.items() if k != "install_id"}, separators=(",", ":"))
+    for pat in patterns:
+        body, flags = pat[1:pat.rindex("/")], pat[pat.rindex("/") + 1:]
+        assert not re.search(body, flat, re.I if "i" in flags else 0), f"telemetry.php would refuse: {pat}"
+    assert len(json.dumps(p)) <= 8192
+
+
+def test_opting_in_starts_the_load_window_fresh():
+    from custom_components.padspan_ha import perf_sampler as ps
+    h = _hass()
+    _busy_day(h)
+    T.reset_windows(h)
+    assert ps.window(h).samples == 0 and T.build_payload(h)["health"]["perf"] == {"samples": 0}
+
+
+def test_the_readme_and_the_panel_say_the_load_sections_go():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    listed = readme[readme.index("the complete list:"):readme.index("**Never**")]
+    assert "`hw`" in listed and "`perf`" in listed
+    for word in ("Raspberry Pi", "load per CPU", "event-loop lag", "memory available", "95th percentile",
+                 "never a model string, hostname or serial"):
+        assert word in listed, word
+    settings = (root / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "views" / "settings.js").read_text(encoding="utf-8")
+    assert "how hard the machine" in settings and "what class of machine it is" in settings
+    panel = (root / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "panel.js").read_text(encoding="utf-8")
+    assert "how hard the machine works and what class of machine it is" in panel
