@@ -536,7 +536,7 @@ def _perf_payload(w: Any, cpus: int, now: float | None = None) -> dict[str, Any]
             v *= scale
             d[s] = int(round(v)) if name.endswith("_pc") else _sig2(v)
         out[name] = d
-    if w.samples:
+    if out["samples"]:       # the rounded count: exact `over` counts would give the minutes away
         out["over"] = {k: int(w.over.get(k, 0)) for k in PERF_OVER}
     return out
 
