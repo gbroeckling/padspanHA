@@ -118,9 +118,11 @@ export function render(ctx){
 
   const tabs = el("div",{class:"tabs"}, tabDefs.map(([id,label])=>_tabBtn(id,label,activeTab,setTab)));
 
+  // The text takes what is left and wraps by word; Refresh keeps its width
+  // (on a phone it squeezed to one letter per line).
   const header = el("div",{class:"card"},[
     el("div",{style:"display:flex;align-items:center;gap:10px;justify-content:space-between"},[
-      el("div",{},[
+      el("div",{style:"flex:1 1 auto;min-width:0"},[
         el("div",{class:"card-head"},[
           el("div",{style:"font-weight:700;font-size:16px"},"Mapping"),
           helpBtn("maps"),
@@ -129,8 +131,8 @@ export function render(ctx){
           ? "Upload a photo of your floor plan to visualise where your Bluetooth scanners are placed."
           : "Upload floorplans (any image type), auto-size to PNG, then place BLE receivers. Export maps + receiver layout."),
       ]),
-      el("div",{style:"display:flex;gap:8px;align-items:center"},[
-        el("button",{class:"btn inline", onclick:()=>ctx.actions.mapsRefresh()}, "Refresh"),
+      el("div",{style:"display:flex;gap:8px;align-items:center;flex:none"},[
+        el("button",{class:"btn inline", style:"white-space:nowrap", onclick:()=>ctx.actions.mapsRefresh()}, "Refresh"),
       ])
     ]),
     tabs,
