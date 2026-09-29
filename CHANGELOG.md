@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.93 — One colour key for motion and air on the Atlas (2026-09-29)
+
+### Atlas
+- **Changed:** the colour key under the Atlas is one strip for motion and air quality, labelled "Motion · Air". Both use the same colours in the same order, from blue (motion just now, good air) to magenta (motion long ago, hazardous air), so they were two identical-looking strips side by side.
+- **Changed:** the key's label is smaller than the floor names, so it no longer reads as another floor.
+
+---
+
 ## 0.38.92 — Only real rain sensors in the rain-sensor list (2026-09-29)
 
 ### Atlas — outdoor weather

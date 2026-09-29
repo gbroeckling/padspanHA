@@ -2679,12 +2679,14 @@ def test_poor_air_draws_faded_bars_rising_through_the_room(tmp_path):
     assert out["markerGlyph"], "the sensor's own marker is still drawn"
 
 
-def test_the_legend_line_carries_an_air_quality_colour_index_beside_motion(tmp_path):
+def test_motion_and_air_share_one_legend_key_in_smaller_type(tmp_path):
     """Garry, 2026-09-14: "the index for motion at the bottom with the colors,
-    should also add air quality to that". Same line as the floor index and
-    the motion strip; the SAME seven hues, but as hard equal bands (by how
-    bad, not how long ago), from the motion blue at moderate to magenta at
-    hazardous."""
+    should also add air quality to that"; 2026-09-29: "why are motion and air
+    two seperate ledgens? merge them into one", "make the font size smaller
+    so they don't blend with the floor names". The same hues in the same
+    order (how long ago / how bad), so ONE strip, the motion strip, keyed
+    "Motion · Air" when the house has an air-quality sensor and "Motion"
+    when it has none, in smaller type than the floor names."""
     model = {
         "room_geometry_m": {"Hall": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [8, 0], [8, 4], [0, 4]]}},
         "light_positions_m": {},
@@ -2693,28 +2695,19 @@ def test_the_legend_line_carries_an_air_quality_colour_index_beside_motion(tmp_p
         "import * as M from './iso_lights.mjs';\n"
         f"const MODEL={json.dumps(model)};\n"
         "const FLOORS=[{id:'main',name:'Main',level:0}];\n"
-        # The strip is drawn only for a house that HAS an air-quality sensor.
         "const LBE={'sensor.q':{entity_id:'sensor.q',state:'good',code:'Q01',shape:'airquality',isAir:true,device_class:'enum',air_level:'good'}};\n"
         "const svg=M.buildIsoSVG(MODEL,{'Hall':[LBE['sensor.q']]},new Set(),null,150,0,LBE,false,FLOORS,{});\n"
         "const bare=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,{},false,FLOORS,{});\n"
-        "const grad=/<linearGradient id=\"psairlegend\"[^>]*>([^]*?)<\\/linearGradient>/.exec(svg);\n"
-        "const hues=grad ? [...grad[1].matchAll(/hsl\\((\\d+),/g)].map(m=>parseInt(m[1],10)) : [];\n"
-        "const distinct=[...new Set(hues)];\n"
-        "const motionAt=svg.indexOf('>Motion</text>'), airAt=svg.indexOf('>Air</text>');\n"
-        "const offs=grad ? [...grad[1].matchAll(/offset=\"([\\d.]+)%\"/g)].map(m=>parseFloat(m[1])) : [];\n"
-        "console.log(JSON.stringify({hasGrad:!!grad, distinct, stopCount:hues.length, airAfterMotion: motionAt>=0 && airAt>motionAt,\n"
-        "  strip:/<rect x=\"[\\d.]+\" y=\"[\\d.]+\" width=\"120\" height=\"1.5\" rx=\"0.75\" fill=\"url\\(#psairlegend\\)\"\\/>/.test(svg),\n"
-        "  bareHasStrip:/>Air<\\/text>/.test(bare), magentaStart: offs[12]}));\n"
+        "const key=(s)=>{const m=/<text [^>]*font-size=\"([0-9.]+)\"[^>]*>(Motion[^<]*)<\\/text>/.exec(s); return m?{size:Number(m[1]),text:m[2]}:null;};\n"
+        "const floor=/<text [^>]*font-size=\"([0-9.]+)\" font-weight=\"500\">Main<\\/text>/.exec(svg);\n"
+        "console.log(JSON.stringify({key:key(svg), bareKey:key(bare), floorSize: floor?Number(floor[1]):null,\n"
+        "  strips:(svg.match(/fill=\"url\\(#psmotionlegend\\)\"/g)||[]).length, airGrad: svg.includes('psairlegend'),\n"
+        "  airText: />Air<\\/text>/.test(svg)}));\n"
     ))
-    assert out["hasGrad"], "the air legend gradient is missing from the defs"
-    assert out["distinct"] == [240, 180, 120, 60, 30, 0, 300], f"the motion hues, in the motion order: {out}"
-    assert out["stopCount"] == 14, f"seven HARD bands = two stops each: {out}"
-    assert out["airAfterMotion"] and out["strip"], f"'Air' and its strip must follow Motion on the legend line: {out}"
-    # Laid out as the map steps it: six equal bands across most of the strip,
-    # magenta only as the terminal sliver (the map paints magenta only AT
-    # hazardous) — the strip never promises a colour the map does not paint.
-    assert out["magentaStart"] == 92.0, f"magenta must be the terminal sliver, not a seventh equal band: {out}"
-    assert not out["bareHasStrip"], "a house with no air-quality sensor gets no Air strip"
+    assert out["key"] == {"size": 8, "text": "Motion · Air"}, out
+    assert out["bareKey"] == {"size": 8, "text": "Motion"}, "no air-quality sensor: the key is Motion alone"
+    assert out["floorSize"] == 10 and out["key"]["size"] < out["floorSize"], f"smaller than the floor names: {out}"
+    assert out["strips"] == 1 and not out["airGrad"] and not out["airText"], f"one strip, no second Air key: {out}"
 
 
 def test_floor_slabs_never_take_a_click_but_stay_findable_by_geometry(tmp_path):
