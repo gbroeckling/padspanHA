@@ -613,7 +613,8 @@ function createSlot(slotKey){
         if (!root) {
           try { build(); } catch (_) { err("mount"); root = null; parts = null; return false; }
         }
-        const colour = String(p.colour || "#fff");
+        // A hex colour or white: it is written into SVG markup below.
+        const colour = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(p.colour || "")) ? String(p.colour) : "#fff";
         const mk = `${geo.viewBox.join(",")}|${gap}|${polys.map(polyPts).join(";")}`;
         if (mk !== maskKey) {
           let url = null;
