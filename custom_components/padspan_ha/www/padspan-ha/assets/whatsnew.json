@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.93",
+  "title": "One colour key for motion and air on the Atlas",
+  "date": "2026-09-29",
+  "body_markdown": "### Atlas\n- **Changed:** the colour key under the Atlas is one strip for motion and air quality, labelled \"Motion · Air\". Both use the same colours in the same order, from blue (motion just now, good air) to magenta (motion long ago, hazardous air), so they were two identical-looking strips side by side.\n- **Changed:** the key's label is smaller than the floor names, so it no longer reads as another floor."
+ },
+ {
   "version": "0.38.92",
   "title": "Only real rain sensors in the rain-sensor list",
   "date": "2026-09-29",
@@ -28,11 +34,5 @@
   "title": "Emergency lighting button at the top, and a switch to hide it",
   "date": "2026-09-28",
   "body_markdown": "### Atlas — Test emergency lighting\n- **Changed:** the red button now sits in the top-right corner of the house map, where it is on screen as soon as the Atlas opens. On a phone it is a quarter smaller.\n- **Added:** Settings → UI Structure (Advanced mode) → Mapped Light Control → **Show the Test emergency lighting button on the Atlas**. Untick it and the button, and its checks, are gone."
- },
- {
-  "version": "0.38.87",
-  "title": "The free trial, where people will see it",
-  "date": "2026-09-28",
-  "body_markdown": "### Trying the lighting map\n- **Added:** when PadSpan updates, the \"PadSpan HA updated\" note on Overview now says **New: try the lighting map free for 90 days, no card**, with **Try it**. It goes away with the note.\n- **Added:** once PadSpan is working in your house (someone is on the map, or a week has gone by), Overview shows one small card about the lighting half. **No thanks** or ✕ and it never comes back.\n- **Added:** a quiet **💡 Lighting · free trial** line at the bottom of PadSpan's menu, until you have a key.\n- Every one of them says so plainly: the presence tracking you're using stays free. None of them shows for an install with a licence key, and nothing here is a Home Assistant notification."
  }
 ]
