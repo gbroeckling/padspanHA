@@ -240,7 +240,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "room_color", "setup_status", "stack_transform", "tune_save_plan", "ui_error",
     "wall_geom", "whatif_placement", "wled_advanced", "wled_model", "wled_tab_backup",
     "wled_tab_leds", "wled_tab_look", "wled_tab_presets", "wled_tab_settings",
-    "wled_tab_sync", "wled_ui", "trial_offer",
+    "wled_tab_sync", "wled_ui", "trial_offer", "release_notes",
 })
 UI_ERROR_SHELLS: frozenset[str] = frozenset({"panel", "atlas_panel", "lib", "other"})
 UI_ERRORS: frozenset[str] = frozenset(

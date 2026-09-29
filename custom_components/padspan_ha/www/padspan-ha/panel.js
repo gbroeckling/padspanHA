@@ -951,18 +951,37 @@ class PadSpanHaApp extends HTMLElement {
       }
     } catch (e) { console.warn("PadSpan: trial line failed", e); }
 
-    // Read at render time, not import time: a top-level await here would turn
-    // the survivable "editions failed to load" case above into a blank panel.
-    // The literal is the same URL release.py writes into the update manifest.
-    const notesUrl = (EDITIONS && EDITIONS.WHATSNEW_URL) || "https://padspan.traks.ca/#whatsnew";
-    const notes = el("a", { class: "btn inline", href: notesUrl, target: "_blank", rel: "noopener",
-      style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700;text-decoration:none" },
+    // The notes open over the panel (_openReleaseNotes). This was a link to
+    // padspan.traks.ca in a new tab, and a wall screen (Chrome --kiosk, touch
+    // only) has no way to close one: the screen was stuck on the website.
+    const notes = el("button", { class: "btn inline", "data-whatsnew-notes": "open",
+      style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700" },
       "See what changed");
-    notes.addEventListener("click", () => remember(null));
+    notes.addEventListener("click", () => { remember(null); this._openReleaseNotes(); });
     const dismiss = el("button", { class: "btn inline", style: "color:#94a3b8" }, "Dismiss");
     dismiss.addEventListener("click", () => remember(`Hidden until the next update.`));
     card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [notes, dismiss]));
     return card;
+  }
+
+  // ── Release notes, over the panel ───────────────────────────────────────
+  // views/release_notes.js shows assets/whatsnew.json (written from
+  // CHANGELOG.md by release.py, shipped with the integration) in #modal, so
+  // the notes work offline and close with ✕, Close, a tap outside or Escape.
+  // Loaded on first use; if it can't load, a toast says so.
+  _openReleaseNotes(){
+    // Read at call time, not import time: editions.js is allowed to fail.
+    // The literal is the same URL release.py writes into the update manifest.
+    const historyUrl = (EDITIONS && EDITIONS.WHATSNEW_URL) || "https://padspan.traks.ca/#whatsnew";
+    import(`./views/release_notes.js?b=${BUILD_ID}`)
+      .then(m => m.openReleaseNotes(this.$modal, {
+        url: `/padspan_ha_static/padspan-ha/assets/whatsnew.json?v=${APP_VERSION}&b=${BUILD_ID}`,
+        history: m.notesHistoryLink(historyUrl, this.state.kioskMode),
+      }))
+      .catch(err => {
+        console.warn("PadSpan: release notes failed to open", err);
+        this._toast("The release notes couldn't be opened. Refresh the page and try again.", true);
+      });
   }
 
   // ── The trial's milestone card, once per install ─────────────────────────
