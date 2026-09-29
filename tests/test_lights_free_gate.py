@@ -21,6 +21,7 @@ failed, without node.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -1772,3 +1773,59 @@ console.log(JSON.stringify({ found: !!btn, beforeTable, jumped, absent }));
     assert out["beforeTable"], "it must sit directly under the table head (the filter pulldown row), not buried lower"
     assert out["jumped"], "clicking it must call host.onBuildFromRelays"
     assert out["absent"], "a host with no onBuildFromRelays (the sidebar Atlas panel) must show nothing here"
+
+
+def test_the_light_index_fits_a_phone(tmp_path):
+    """Design pass leftover, 2026-09-28: on a 390px phone every header and
+    cell of the light index broke letter by letter ("Ligh t Index", "COD E")
+    and the table ran 340px off the page, in the Atlas sidebar and in
+    Mapping -> Atlas alike (one table, both hosts). The panel-wide
+    `.card{word-break:break-word}` let each column shrink to one letter.
+
+    The index card now sizes by its own width (it also sits in a 440px
+    column in the desktop builder): words break at spaces; under 480px
+    Health, Brand, and Type where it is empty (lv-narrow) step aside; the Pro
+    Type pulldown (lv-phone) only under 400px, so the desktop builder keeps
+    it. Code, Light, Room, State and Map always stay. The table sits in its
+    own box, which scrolls inside the card when a row is still too wide."""
+    out = _run_pipeline_script(tmp_path, _TABLE_EL + """
+const AREA = {"light.lamp": "Kitchen", "sensor.hall_temp": "Hall"};
+const STATES = {
+  "light.lamp": {state: "on", attributes: {friendly_name: "Kitchen Island Pendant Lamp"}},
+  "sensor.hall_temp": {state: "68", last_updated: new Date().toISOString(), attributes: {friendly_name: "Hall Temp", device_class: "temperature"}},
+};
+const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
+const cls = (n) => String(n.className || "").split(/\\s+/).filter(c => c === "lv-narrow" || c === "lv-phone").join(" ");
+const run = (extra) => {
+  const root = LM.buildLightsTable({ el, hiddenEids: new Set(), lightsLoading: false, model: {}, tableClassFilter: "all",
+    onTableSort: () => {}, ...extra }, lights);
+  const heads = [...root.querySelectorAll("th")].map(th => [th.textContent.replace(/[\\u25b2\\u25bc]/g, "").trim(), cls(th)]);
+  const row = [...root.querySelectorAll("tr")].find(r => r.getAttribute("data-eid") === "light.lamp");
+  const table = root.querySelector("table");
+  return { cardClass: root.className, heads, cells: row.children.map(cls), wrapClass: table.parentNode.className,
+    wrapInCard: table.parentNode.parentNode === root };
+};
+console.log(JSON.stringify({ free: run({}), pro: run({ onTypeOverride: () => {}, typeOverrides: {} }) }));
+""")
+    for host, want in (("free", {"Health": "lv-narrow", "Brand": "lv-narrow", "Type": "lv-narrow"}),
+                       ("pro", {"Health": "lv-narrow", "Brand": "lv-narrow", "Type": "lv-phone"})):
+        o = out[host]
+        heads = dict(o["heads"])
+        assert {h: c for h, c in heads.items() if c} == want, (host, o["heads"])
+        assert set(heads) == {"Code", "Light", "Room", "Health", "Brand", "State", "Type", "Map"}, o["heads"]
+        # The cells step aside with their headers, column for column.
+        assert o["cells"] == [c for _, c in o["heads"]], (host, o)
+        assert "lv-index" in o["cardClass"].split(), o["cardClass"]
+        assert o["wrapClass"] == "lv-tblwrap" and o["wrapInCard"], o
+
+    css = (_WWW / "styles.css").read_text(encoding="utf-8").replace("\r\n", "\n")
+
+    def rule(query: str) -> str:
+        r = css[css.index(f"@container lv-index ({query})"):]
+        return r[:r.index("\n}")]
+
+    assert re.search(r"\.lv-index\{[^}]*container:lv-index/inline-size", css), "the card no longer sizes by its own width"
+    assert re.search(r"\.lv-index\{[^}]*word-break:normal", css), "cells still break letter by letter"
+    assert ".lv-table .lv-narrow{display:none}" in rule("max-width:480px")
+    assert "@container lv-index (max-width:400px){.lv-table .lv-phone{display:none}}" in css
+    assert re.search(r"\.lv-tblwrap\{overflow-x:auto", rule("max-width:900px")), "a too-wide row pushes the page sideways"
