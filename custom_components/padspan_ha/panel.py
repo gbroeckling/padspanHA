@@ -117,7 +117,8 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
         },
     )
 
-    # Lights panel — only register if enabled in settings (default off)
+    # Atlas panel — only register if enabled in settings (on by default since
+    # 0.38.85; Settings → UI Structure turns it off)
     _lights_on = False
     try:
         _st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
