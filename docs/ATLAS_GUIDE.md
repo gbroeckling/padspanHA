@@ -74,7 +74,7 @@ What it shows:
 
 Weather warnings are found by themselves from Environment Canada, MeteoAlarm (most of Europe), DWD and NINA (Germany) and Météo-France. In the USA, Home Assistant's own weather service has no warnings; the **weatheralerts** or **nws_alerts** custom integrations add them. The UK and Australia have nothing standard, so there, *pouring* is the only heavy-rain signal. If a sensor stops reporting for a moment (Home Assistant restarting, say), the weather on the map stays as it was for up to 2 minutes instead of blinking off.
 
-Set it up in **Settings → UI Structure** (Advanced mode) **→ Atlas — Mapped Light Control → Outdoor weather**: the on/off switch (on by default), the rain sensor (optional), the weather entity (automatic picks your first one), the warnings sensor (automatic finds them) and **Strength** (0.5× to 1.5×). Each saves as soon as you change it, and Atlas picks it up at its next refresh.
+Set it up in **Settings → UI Structure** (Advanced mode) **→ Atlas — Mapped Light Control → Outdoor weather**: the on/off switch (on by default), the rain sensor (optional; the list offers sensors that say it's raining now, like a rain rate or a rain switch, not running totals like daily rain), the weather entity (automatic picks your first one), the warnings sensor (automatic finds them) and **Strength** (0.5× to 1.5×). Each saves as soon as you change it, and Atlas picks it up at its next refresh.
 
 ## On a touchscreen or phone
 
