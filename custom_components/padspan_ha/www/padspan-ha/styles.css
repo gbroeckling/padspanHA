@@ -256,6 +256,9 @@
 .modal .close {
   margin-left:auto;
 }
+/* Finger-sized wherever there is a touchscreen: a wall panel has no Escape
+   key, so Close (or a tap outside) is the only way out. */
+@media (any-pointer:coarse){.modal .close{min-height:44px;min-width:64px}}
 
 /* Release notes over the panel (views/release_notes.js), from the Overview's
    "PadSpan HA updated" card. Wall screens are touch only: ✕ and Close are
@@ -1328,7 +1331,10 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   border:1px solid rgba(120,190,155,.16);border-radius:16px;padding:12px;
   box-shadow:0 1px 0 rgba(255,255,255,.03) inset}
 .lv-tbl-head{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px}
-.lv-tbl-title{font-weight:700;font-size:13px;letter-spacing:.01em;color:#e8f0ea;white-space:nowrap}
+.lv-tbl-title{font-weight:700;font-size:13px;letter-spacing:.01em;color:#e8f0ea}
+/* The index header stays on one line; the builder's light inspector reuses
+   .lv-tbl-title for "code · name", which must still wrap. */
+.lv-index .lv-tbl-title{white-space:nowrap}
 .lv-count{font-size:10px;font-weight:700;padding:1px 8px;border-radius:999px;
   border:1px solid rgba(120,190,155,.25);background:rgba(82,183,136,.1);
   color:#8ee5b4;font-variant-numeric:tabular-nums}
@@ -1345,11 +1351,12 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
    on a desktop too. Words break at spaces and headers stay on one line.
    Under 900px a row that is still too wide scrolls inside the card, never the
    page (wider, the page's sticky header row is kept). Under 480px the
-   lv-narrow columns step aside (Health, Brand, and Type where it is empty),
+   lv-narrow columns step aside (Brand, and Type where it is empty),
    a light or room name breaks inside a word only past 76/60px, the Assign
-   room list takes the column's width and a row's buttons stack; under 400px
-   (a phone, not the builder's column) the Pro Type pulldown steps aside too:
-   the Atlas sidebar's index fits a 390px phone. The ≤900px
+   room list takes the column's width and a row's buttons stack; under 360px
+   (a phone: the builder's desktop side column is ~394-414px and keeps them)
+   Health and the Pro Type pulldown step aside too: the Atlas sidebar's index
+   fits a 390px phone. The ≤900px
    `svg{max-width:100%}` let the code column forget its shape icon, which
    then overlapped the name. */
 .lv-index{container:lv-index/inline-size;word-break:normal;overflow-wrap:break-word}
@@ -1369,7 +1376,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   .lv-table td.lv-room .lv-select{width:100%;min-width:0}
   .lv-table td.lv-map{white-space:normal}
 }
-@container lv-index (max-width:400px){.lv-table .lv-phone{display:none}}
+@container lv-index (max-width:360px){.lv-table .lv-phone,.lv-table .lv-slim{display:none}}
 .lv-state{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;
   font-size:10px;font-weight:700;letter-spacing:.06em}
 .lv-state::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}

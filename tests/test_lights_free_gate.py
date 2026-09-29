@@ -1784,9 +1784,9 @@ def test_the_light_index_fits_a_phone(tmp_path):
 
     The index card now sizes by its own width (it also sits in a 440px
     column in the desktop builder): words break at spaces; under 480px
-    Health, Brand, and Type where it is empty (lv-narrow) step aside; the Pro
-    Type pulldown (lv-phone) only under 400px, so the desktop builder keeps
-    it. Code, Light, Room, State and Map always stay. The table sits in its
+    Brand, and Type where it is empty (lv-narrow) step aside; Health (lv-slim)
+    and the Pro Type pulldown (lv-phone) only under 360px, so the desktop
+    builder's ~394-414px side column keeps them (re-review 2026-09-28). Code, Light, Room, State and Map always stay. The table sits in its
     own box, which scrolls inside the card when a row is still too wide."""
     out = _run_pipeline_script(tmp_path, _TABLE_EL + """
 const AREA = {"light.lamp": "Kitchen", "sensor.hall_temp": "Hall"};
@@ -1795,7 +1795,7 @@ const STATES = {
   "sensor.hall_temp": {state: "68", last_updated: new Date().toISOString(), attributes: {friendly_name: "Hall Temp", device_class: "temperature"}},
 };
 const lights = LM.gatherLights(STATES, AREA, {}, "pro", {}, {});
-const cls = (n) => String(n.className || "").split(/\\s+/).filter(c => c === "lv-narrow" || c === "lv-phone").join(" ");
+const cls = (n) => String(n.className || "").split(/\\s+/).filter(c => c === "lv-narrow" || c === "lv-phone" || c === "lv-slim").join(" ");
 const run = (extra) => {
   const root = LM.buildLightsTable({ el, hiddenEids: new Set(), lightsLoading: false, model: {}, tableClassFilter: "all",
     onTableSort: () => {}, ...extra }, lights);
@@ -1807,8 +1807,8 @@ const run = (extra) => {
 };
 console.log(JSON.stringify({ free: run({}), pro: run({ onTypeOverride: () => {}, typeOverrides: {} }) }));
 """)
-    for host, want in (("free", {"Health": "lv-narrow", "Brand": "lv-narrow", "Type": "lv-narrow"}),
-                       ("pro", {"Health": "lv-narrow", "Brand": "lv-narrow", "Type": "lv-phone"})):
+    for host, want in (("free", {"Health": "lv-slim", "Brand": "lv-narrow", "Type": "lv-narrow"}),
+                       ("pro", {"Health": "lv-slim", "Brand": "lv-narrow", "Type": "lv-phone"})):
         o = out[host]
         heads = dict(o["heads"])
         assert {h: c for h, c in heads.items() if c} == want, (host, o["heads"])
@@ -1827,5 +1827,8 @@ console.log(JSON.stringify({ free: run({}), pro: run({ onTypeOverride: () => {},
     assert re.search(r"\.lv-index\{[^}]*container:lv-index/inline-size", css), "the card no longer sizes by its own width"
     assert re.search(r"\.lv-index\{[^}]*word-break:normal", css), "cells still break letter by letter"
     assert ".lv-table .lv-narrow{display:none}" in rule("max-width:480px")
-    assert "@container lv-index (max-width:400px){.lv-table .lv-phone{display:none}}" in css
+    assert "@container lv-index (max-width:360px){.lv-table .lv-phone,.lv-table .lv-slim{display:none}}" in css
+    # The builder's light inspector reuses .lv-tbl-title and must still wrap.
+    assert ".lv-index .lv-tbl-title{white-space:nowrap}" in css
+    assert not re.search(r"(?m)^\.lv-tbl-title\{[^}]*nowrap", css)
     assert re.search(r"\.lv-tblwrap\{overflow-x:auto", rule("max-width:900px")), "a too-wide row pushes the page sideways"

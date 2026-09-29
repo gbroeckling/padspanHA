@@ -4,6 +4,24 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.90 — Release notes you can close on a wall screen, and phone layouts (2026-09-28)
+
+### Release notes
+- **Fixed:** **See what changed** on the "PadSpan HA updated" note opened the website in a new tab, which a wall touch screen (full-screen browser, no tab bar, no keyboard) could not close. The notes now open inside PadSpan, with a large ✕, a **Close** button and a tap outside to close. They come with PadSpan, so they work without the internet.
+- **Fixed:** on a wall screen, the note's other links (the Pro line, **Or buy**) name the website instead of opening a tab you couldn't close.
+
+### Phones
+- **Fixed:** the Atlas light list no longer breaks words one letter per line; on a phone it hides the columns that don't fit. The desktop Mapping editor keeps them.
+- **Fixed:** the Mapping header's **Refresh** button keeps its width on a phone.
+- **Fixed:** padspan.traks.ca is never wider than a phone screen, so links to a section land on it.
+
+### Trial and licence
+- **Changed:** where nobody hit a paid feature (the update note, the one-time card, the menu line), **Or buy** is a small grey link under the trial button.
+- **Added:** Settings → PadSpan licence mentions the $89 lifetime offer until October 31.
+- **Fixed:** the menu's **💡 Lighting · free trial** line is easier to read.
+
+---
+
 ## 0.38.89 — Design pass: the trial asks once, the emergency button stays usable (2026-09-28)
 
 ### Trying the lighting map

@@ -256,11 +256,15 @@ export function trialOfferCard(host, surface, opts = {}) {
     // is the offer and buying is a small grey link under it; the paywalls
     // keep the amber line.
     const quiet = _QUIET_SURFACES.includes(surface);
+    const buyText = "Or buy PadSpan Pro — " + PRO_PRICE
+      + (proLifetimeOpen() ? ", or " + PRO_LIFETIME_PRICE + " for life until October 31" : "");
+    const buyStyle = quiet ? "color:#94a3b8;text-decoration:underline" : "color:#fbbf24;font-weight:600;text-decoration:none";
     card.appendChild(el("div", { style: "font-size:11px;margin-top:6px" }, [
-      el("a", { href: BUY_URL, target: "_blank", rel: "noopener", "data-trial": "buy",
-        style: quiet ? "color:#94a3b8;text-decoration:underline" : "color:#fbbf24;font-weight:600;text-decoration:none" },
-        "Or buy PadSpan Pro — " + PRO_PRICE
-          + (proLifetimeOpen() ? ", or " + PRO_LIFETIME_PRICE + " for life until October 31" : "")),
+      // A wall screen can't close the tab a link opens: say where instead.
+      newTabOk(host.kiosk)
+        ? el("a", { href: BUY_URL, target: "_blank", rel: "noopener", "data-trial": "buy", style: buyStyle }, buyText)
+        : el("span", { "data-trial": "buy-text", style: buyStyle.replace("text-decoration:underline", "text-decoration:none") },
+          buyText + " at padspan.traks.ca"),
     ]));
   }
   return card;
@@ -272,6 +276,21 @@ function _startedCard(el, done) {
     style: "padding:10px 12px;border:1px solid #2d5a3d;border-radius:8px;background:#0a1f14;margin:8px 0;font-size:12px;color:#a7f3d0;line-height:1.55" },
     "✓ Your 90-day free trial has started" + (Number.isFinite(days) && days > 0 ? ` (${days} days left)` : "") +
     ". Place your lights in Mapping → Atlas — drag each one to where it really hangs.");
+}
+
+/**
+ * Can a link open a new tab here that someone can close again? Not on a
+ * ?kiosk=1 panel, and not on a page that fills the whole screen (Chrome
+ * --kiosk on a wall touch screen: no tab bar, no keyboard, so a new tab
+ * strands the screen). Same rule as views/release_notes.js notesHistoryLink.
+ */
+export function newTabOk(kiosk, win = globalThis) {
+  if (kiosk) return false;
+  try {
+    const s = win.screen;
+    if (s && win.innerWidth >= s.width - 1 && win.innerHeight >= s.height - 1) return false;
+  } catch (_) { /* nothing to measure: a normal browser */ }
+  return true;
 }
 
 /** The host for a panel view's ctx. */
@@ -286,6 +305,7 @@ export function trialHostFromCtx(ctx) {
     el: ctx.helpers.el,
     settings: ctx.state.settings,
     isAdmin: !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin),
+    kiosk: !!(ctx.state && ctx.state.kioskMode),
     callWS: (type, data) => ctx.actions.wsCall(type, data),
     telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
     toast: (m, isErr) => { if (ctx.toast) ctx.toast(m, isErr); },

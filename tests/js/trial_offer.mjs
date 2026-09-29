@@ -84,6 +84,20 @@ function type(card, value) {
   i.dispatchEvent({ type: "input" });
 }
 
+await check("a wall screen gets the buy option as text, never a new tab it can't close", () => {
+  const W = (iw, ih, sw, sh) => ({ innerWidth: iw, innerHeight: ih, screen: { width: sw, height: sh } });
+  assert(T.newTabOk(false, W(1400, 900, 1920, 1080)) === true, "a desktop browser window opens tabs");
+  assert(T.newTabOk(true, W(1400, 900, 1920, 1080)) === false, "?kiosk=1 never opens tabs");
+  assert(T.newTabOk(false, W(1080, 1920, 1080, 1920)) === false, "Chrome --kiosk fills the screen: no tabs");
+  assert(T.newTabOk(false, W(1919, 1080, 1920, 1080)) === false, "a pixel of display-scaling slack");
+  assert(T.newTabOk(false, {}) === true, "nothing to measure: a normal browser");
+  const kiosk = makeHost();
+  kiosk.host.kiosk = true;
+  const card = T.trialOfferCard(kiosk.host, "update_banner");
+  assert(!find(card, "buy"), "no link on a kiosk");
+  assert(find(card, "buy-text") && /padspan\.traks\.ca/.test(find(card, "buy-text").textContent), "names the site instead");
+});
+
 await check("who is offered the trial", () => {
   const cases = [
     [FREE, true],

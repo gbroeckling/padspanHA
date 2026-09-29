@@ -919,8 +919,14 @@ class PadSpanHaApp extends HTMLElement {
     if (pitch) {
       const line = el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.55;margin-bottom:8px" });
       line.appendChild(document.createTextNode(pitch.text));
-      line.appendChild(el("a", { href: pitch.url, target: "_blank", rel: "noopener",
-        style: "color:#52b788;font-weight:600;text-decoration:none" }, pitch.cta));
+      // A wall screen (kiosk / full screen) can't close the tab a link
+      // opens, so there it names the site instead of linking to it.
+      let tabOk = true;
+      try { tabOk = !TRIAL || !TRIAL.newTabOk || TRIAL.newTabOk(this.state.kioskMode); } catch (_) { tabOk = true; }
+      line.appendChild(tabOk
+        ? el("a", { href: pitch.url, target: "_blank", rel: "noopener",
+            style: "color:#52b788;font-weight:600;text-decoration:none" }, pitch.cta)
+        : el("span", { style: "color:#52b788;font-weight:600" }, `${pitch.cta} (padspan.traks.ca)`));
       card.appendChild(line);
     }
 

@@ -3730,8 +3730,8 @@ export function buildLightsTable(host, lights){
     // this exact sort key until fixed by hand, separately, the same day).
     ["state", "State", (l) => { const sw = stateWordOf(l, host.floodLatches, host.doorInvertByEid); return sw ? sw.sortValue : (l.state === "on" ? 1 : 0); }],
   ];
-  // cls: lv-narrow / lv-phone, a column that steps aside when the index is
-  // narrower than 480px / 400px (styles.css .lv-index).
+  // cls: lv-narrow / lv-slim / lv-phone, a column that steps aside when the index is
+  // narrower than 480px (lv-narrow) / 360px (lv-slim, lv-phone) (styles.css .lv-index).
   const th = (key, label, extraStyle, cls) => {
     if (!key || !host.onTableSort) return el("th", { class: cls || "", style: extraStyle || "" }, label);
     const active = sortState && sortState.column === key;
@@ -3757,7 +3757,7 @@ export function buildLightsTable(host, lights){
     th("code", "Code"),
     th("name", "Light"),
     th("room", "Room"),
-    th("health", "Health", "text-align:center", "lv-narrow"),
+    th("health", "Health", "text-align:center", "lv-slim"),
     th("brand", "Brand", "", "lv-narrow"),
     th("state", "State"),
     th(null, "Type", "text-align:center", typeNarrow),
@@ -3850,7 +3850,7 @@ export function buildLightsTable(host, lights){
             return sel;
           })()
       ),
-      el("td", { class: "lv-narrow", style: "text-align:center" }, el("span", {
+      el("td", { class: "lv-slim", style: "text-align:center" }, el("span", {
         title: l.healthy ? "Healthy" : (l.healthReason || "Unhealthy"),
         style: `display:inline-block;width:9px;height:9px;border-radius:50%;` +
                `background:${l.healthy ? "#52b788" : "#f87171"};` +
