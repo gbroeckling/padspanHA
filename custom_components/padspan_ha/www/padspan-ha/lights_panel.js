@@ -276,6 +276,17 @@ class PadSpanLightsApp extends HTMLElement {
       // Settings → UI Structure → "Show the Test emergency lighting button".
       // A failed settings fetch keeps the last answer.
       if (s.atlas_emergency_button !== undefined) this.state._emergButtonHidden = s.atlas_emergency_button === false;
+      // Outdoor weather (Settings → UI Structure → Atlas), field by field. A
+      // failed fetch keeps the last answer; before any answer, no weather.
+      if (s.atlas_weather_enabled !== undefined) {
+        this.state._weather = {
+          atlas_weather_enabled: s.atlas_weather_enabled,
+          atlas_weather_rain_entity: s.atlas_weather_rain_entity,
+          atlas_weather_condition_entity: s.atlas_weather_condition_entity,
+          atlas_weather_warning_entity: s.atlas_weather_warning_entity,
+          atlas_weather_strength: s.atlas_weather_strength,
+        };
+      }
       this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];
       // Layout v2 (Garry, 2026-09-21) is a house-wide trial toggle, set
       // from the builder only — this panel reflects it, same convention
@@ -876,6 +887,18 @@ class PadSpanLightsApp extends HTMLElement {
       // this panel never edits it, only displays what Mapping -> Lights set.
       hideDeviceCodes: !!this.state._hideDeviceCodes,
       ambient: sunAmbient(this._hass),
+      // Rain or snow outside the floor plates, from the states this panel
+      // already holds — nothing extra is asked of Home Assistant.
+      weather: this.state._weather ? {
+        slot: "atlas", settings: this.state._weather,
+        states: this._hass?.states || {}, entities: this._hass?.entities,
+        // The opt-in report's closed words, once per page load, and only
+        // while the report is on (the trial card's rule).
+        telemetry: (name)=>{
+          if(!this.state._telemetryOn || !this._hass) return;
+          Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:String(name) })).catch(()=>{});
+        },
+      } : null,
       // Same filter as the builder, from the same rule, over the same
       // placements — the map hides them, the index table below still lists
       // every light.

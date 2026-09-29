@@ -24,6 +24,10 @@ const { testerSection } = await import(`./tester_signup.js${new URL(import.meta.
 // Optional: a card that fails to load must not take the Settings tab with it.
 const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferFromCtx: () => null }; });
+// Optional as well: only the Atlas weather section's "Automatic — …" labels
+// and warning list need it.
+const WX = await import(`./atlas_weather.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: atlas_weather failed to load", err); return null; });
 
 export function render(ctx){
   const { el, esc, roomColor, helpBtn } = ctx.helpers;
@@ -3246,6 +3250,80 @@ function _settingsFeatures(ctx, el){
   return wrap;
 }
 
+// ── The Atlas's outdoor weather (views/atlas_weather.js) ─────────────────────
+// Rain or snow around the house on the Atlas. Every control saves on its own
+// the moment it changes, straight to the wire like the emergency button
+// (settingsSet would re-render the page and drop unsaved edits elsewhere);
+// the Atlas picks it up at its next settings refresh.
+function _atlasWeatherSection(ctx, el, settings){
+  const box = el("div",{style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
+  box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🌧️ Outdoor weather"));
+  box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px"},
+    "Rain or snow drawn around the house on the Atlas, never over a room, only while it is actually raining or snowing. " +
+    "A rain sensor alone shows light rain; heavy rain needs a rainfall warning or the weather entity saying “pouring”, heavy snow a snowfall warning. " +
+    "PadSpan Pro animates it; the free map shows it still."));
+  const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:6px 0 0"}, "Saves as soon as you change it. No restart needed.");
+  const save = async (key, value, undo) => {
+    try {
+      const r = await ctx.actions.wsCall("padspan_ha/settings_set", { [key]: value });
+      if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
+      note.textContent = "Saved — the Atlas shows it at its next refresh.";
+    } catch (e) {
+      if (undo) undo();
+      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+    }
+  };
+
+  const onRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer"});
+  const onCb = el("input",{type:"checkbox"});
+  onCb.checked = settings.atlas_weather_enabled !== false;
+  onRow.appendChild(onCb);
+  onRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show rain and snow on the Atlas"));
+  onCb.addEventListener("change", ()=>{ const want = onCb.checked; save("atlas_weather_enabled", want, ()=>{ onCb.checked = !want; }); });
+  box.appendChild(onRow);
+
+  const states = (ctx.hass && ctx.hass.states) || {};
+  const entities = ctx.hass && ctx.hass.entities;
+  const nameOf = (eid) => { const n = states[eid] && states[eid].attributes && states[eid].attributes.friendly_name; return n ? `${n} (${eid})` : eid; };
+  const ids = Object.keys(states).sort();
+  const picker = (label, key, blank, list) => {
+    const cur = String(settings[key] || "");
+    const sel = document.createElement("select");
+    sel.className = "select";
+    sel.style.maxWidth = "100%";
+    sel.appendChild(el("option",{value:""}, blank));
+    for (const eid of (cur && !list.includes(cur) ? [cur, ...list] : list)) sel.appendChild(el("option",{value:eid}, nameOf(eid)));
+    sel.value = cur;
+    sel.addEventListener("change", ()=>{ const want = sel.value; save(key, want, ()=>{ sel.value = cur; }); });
+    box.appendChild(el("div",{style:"display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px"},[
+      el("span",{style:"color:#cbd5e1;font-size:13px;min-width:130px"}, label), sel,
+    ]));
+  };
+  const dc = (eid) => String((states[eid] && states[eid].attributes && states[eid].attributes.device_class) || "");
+  const rainIds = ids.filter(eid => /^(binary_sensor|sensor)\./.test(eid)
+    && (["moisture", "precipitation", "precipitation_intensity"].includes(dc(eid)) || /rain|precip/i.test(nameOf(eid))));
+  const firstWx = WX ? WX.firstWeatherEntity(states) : "";
+  const warnIds = WX ? WX.warningEntities({}, states, entities) : [];
+  picker("Rain sensor", "atlas_weather_rain_entity", "None — use the weather entity", rainIds);
+  picker("Weather entity", "atlas_weather_condition_entity",
+    firstWx ? `Automatic — ${nameOf(firstWx)}` : "Automatic — none found (no weather shows)", ids.filter(eid => eid.startsWith("weather.")));
+  picker("Weather warnings", "atlas_weather_warning_entity",
+    warnIds.length ? `Automatic — ${warnIds.length} found` : "Automatic — none found", warnIds);
+
+  const k = Number(settings.atlas_weather_strength);
+  const start = Number.isFinite(k) ? Math.max(0.5, Math.min(1.5, k)) : 1;
+  const range = el("input",{type:"range", min:"0.5", max:"1.5", step:"0.1"});
+  range.value = String(start);
+  const val = el("span",{style:"color:#e2e8f0;font-size:13px;font-variant-numeric:tabular-nums"}, `${start.toFixed(1)}×`);
+  range.addEventListener("input", ()=>{ val.textContent = `${Number(range.value).toFixed(1)}×`; });
+  range.addEventListener("change", ()=>{ save("atlas_weather_strength", Number(range.value), ()=>{ range.value = String(start); val.textContent = `${start.toFixed(1)}×`; }); });
+  box.appendChild(el("div",{style:"display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px"},[
+    el("span",{style:"color:#cbd5e1;font-size:13px;min-width:130px"}, "Strength"), range, val,
+  ]));
+  box.appendChild(note);
+  return box;
+}
+
 // ── UI Structure tab ──────────────────────────────────────────────────────────
 const _DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox"];
 const _TAB_LABELS = {devices:"Devices",bluetooth:"Bluetooth",presence:"Presence",monitor:"Monitor",qa:"QA",sandbox:"Sandbox"};
@@ -3342,6 +3420,7 @@ function _settingsUI(ctx, el){
       ctx.toast("Could not save: " + String((e && e.message) || e), true);
     }
   });
+  lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));
   wrap.appendChild(lightsCard);
 
   // ── Edition & tier ──

@@ -234,6 +234,7 @@ TAB_EVENTS: frozenset[str] = frozenset(
 # before the change (server/telemetry_summary.py splits them on that).
 # tests/test_telemetry.py holds UI_ERROR_HELPERS to the files in views/.
 UI_ERROR_HELPERS: frozenset[str] = frozenset({
+    "atlas_weather",
     "busy_times", "calibration_matrix", "editions", "evidence_diagram", "house_activity",
     "insights", "iso_lights", "iso_motion", "light_codes", "lights_map", "locate",
     "pan_zoom", "path_loss", "plan_viewer", "push_subscription", "radio_map",
@@ -265,6 +266,30 @@ OFFER_EVENTS: frozenset[str] = frozenset(
     {f"{what}:{s}" for what in ("trial_offer_shown", "trial_started", "trial_failed") for s in TRIAL_SURFACES}
     | {f"getting_started_step:{s}" for s in GETTING_STARTED_STEPS}
     | {"getting_started_shown", "getting_started_dismissed", "trial_nudge_dismissed"}
+)
+# Atlas outdoor weather (views/atlas_weather.js — the same three lists there,
+# held equal by tests/test_atlas_weather.py). Each counted once per page load
+# per name, so a count is "pages that saw it", not "renders":
+#   weather_error:<kind>     the overlay caught its own failure and drew no
+#                            weather (the map itself is never affected);
+#                            `source` = a chosen entity missing/unavailable
+#   weather_shown:<state>    what was drawn; `still` = drawn without motion
+#                            (the free map, or reduced motion)
+#   weather_source:<source>  what made it wet (rain_sensor | condition), none
+#                            (no sensor and no weather entity), and which
+#                            warning integration made it heavy — whether the
+#                            fallbacks work outside Canada.
+# Words only: never an entity id, never alert text.
+WEATHER_WARNING_PLATFORMS: tuple[str, ...] = ("env_canada", "meteoalarm", "dwd_weather_warnings", "nina",
+                                              "meteo_france", "weatheralerts", "nws_alerts")
+WEATHER_ERROR_KINDS: tuple[str, ...] = ("mask_build", "mask_unsupported", "tiles", "decision", "mount", "source")
+WEATHER_SHOWN_STATES: tuple[str, ...] = ("light_rain", "heavy_rain", "light_snow", "heavy_snow", "still")
+WEATHER_SOURCES: tuple[str, ...] = ("rain_sensor", "condition", "none",
+                                    *(f"warning:{p}" for p in WEATHER_WARNING_PLATFORMS), "warning:other")
+WEATHER_EVENTS: frozenset[str] = frozenset(
+    {f"weather_error:{k}" for k in WEATHER_ERROR_KINDS}
+    | {f"weather_shown:{k}" for k in WEATHER_SHOWN_STATES}
+    | {f"weather_source:{k}" for k in WEATHER_SOURCES}
 )
 
 # The switches whose ON/OFF is reported (booleans only, by name). Every name
@@ -339,7 +364,8 @@ def enabled(hass: HomeAssistant) -> bool:
 
 
 def event_allowed(name: str) -> bool:
-    return name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or name in OFFER_EVENTS
+    return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or name in OFFER_EVENTS
+            or name in WEATHER_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

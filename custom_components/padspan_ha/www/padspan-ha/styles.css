@@ -1173,6 +1173,50 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-stage::-webkit-scrollbar{height:9px;width:9px}
 .lv-stage::-webkit-scrollbar-thumb{background:rgba(120,190,155,.25);border-radius:999px;border:2px solid #040a05}
 
+/* ── Atlas outdoor weather (views/atlas_weather.js) ─────────────────────────
+   Rain or snow everywhere outside the floor plates, never over a room. An
+   overlay right after the SVG in the stage: the same width and centring
+   (atlas_weather.js fit()), its height from padding-top and pulled back up
+   over the drawing by the same negative margin, so it pans with the map and
+   adds nothing to the scroll area. Clipped by an ALPHA mask of the plates.
+   Below every drawer, rail, dial and card; never takes a tap. Motion is
+   transform-only and nothing but the falling layers asks for a layer of
+   its own. .still (the free map, and reduced motion): no motion at all. */
+.lv-wx{display:block;position:relative;z-index:0;height:0;box-sizing:content-box;overflow:hidden;
+  pointer-events:none;-webkit-mask-size:100% 100%;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;
+  mask-repeat:no-repeat;-webkit-mask-position:0 0;mask-position:0 0;
+  --wxcap:100000%;width:min(var(--wxz,100%),var(--wxcap));
+  padding-top:calc(min(var(--wxz,100%),var(--wxcap)) * var(--wxa,0));
+  margin-top:calc(-1 * min(var(--wxz,100%),var(--wxcap)) * var(--wxa,0))}
+/* The phone rule above ("SVG maps: prevent overflow", max-width:900px) holds
+   the map's SVG to the stage width whatever the zoom; the overlay follows. */
+@media(max-width:900px){.lv-wx{--wxcap:100%}}
+.lv-wx *{pointer-events:none}
+.lv-wx-tilt{position:absolute;inset:-35%;transform:rotate(var(--a1,3deg))}
+.lv-wx-sway{position:absolute;inset:0}
+.lv-wx-layer{position:absolute;left:0;right:0;top:calc(-1 * var(--th));bottom:0;background-repeat:repeat;
+  background-size:var(--tw) var(--th);will-change:transform}
+/* Haze and ripple alphas are 1.5x the look (.05, .55): the overlay's opacity
+   (strength / 1.5) brings them back, as it does the baked tiles. */
+.lv-wx-haze{position:absolute;inset:0;
+  background:radial-gradient(120% 90% at 50% 40%,rgba(190,215,225,0) 35%,rgba(190,215,225,.075) 100%)}
+.lv-wx-ripples{position:absolute;inset:0}
+.lv-wx-rp{position:absolute;width:16px;height:8px;margin:-4px 0 0 -8px;border-radius:50%;
+  border:1px solid var(--rp,rgba(220,238,228,.825));opacity:0}
+.lv-wx-rim{position:absolute;inset:0}
+.lv-wx-rim svg{display:block;width:100%;height:100%}
+@keyframes lv-wx-fall{to{transform:translateY(var(--th))}}
+@keyframes lv-wx-sway{from{transform:translateX(calc(-1 * var(--sa)))}to{transform:translateX(var(--sa))}}
+@keyframes lv-wx-ripple{0%{transform:scale(.15);opacity:0}12%{opacity:.5}100%{transform:scale(1);opacity:0}}
+@keyframes lv-wx-in{from{opacity:0}}
+@keyframes lv-wx-out{from{opacity:1}}
+@keyframes lv-wx-wind{from{transform:rotate(var(--a0,3deg))}}
+.lv-wx.still,.lv-wx.still *{animation:none !important}
+.lv-wx.still .lv-wx-ripples{display:none !important}
+@media (prefers-reduced-motion:reduce){
+  .lv-wx,.lv-wx *{animation:none !important}
+  .lv-wx-ripples{display:none !important}}
+
 /* ── Layout v2 (Garry, 2026-09-21) ──────────────────────────────────────────
    Reversible trial, gated entirely by .lv-v2 on .lv-mapcard (host.layoutV2 —
    see layoutTierFor in views/lights_map.js). Nothing here ever applies to

@@ -9349,6 +9349,13 @@ function _lightsTab(ctx, maps, active) {
     },
     // Day lifts the ground and mutes the pools; from the sun HA tracks.
     ambient: sunAmbient(ctx.hass),
+    // Outdoor weather, the same overlay the Atlas sidebar draws (its own
+    // slot, so the two surfaces never share an element).
+    weather: ctx.state.settings ? {
+      slot: "builder", settings: ctx.state.settings,
+      states: ctx.hass?.states || {}, entities: ctx.hass?.entities,
+      telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
+    } : null,
     isolux: mapState._lightsIsolux === undefined
       ? !!ctx.state.settings?.lights_isolux
       : !!mapState._lightsIsolux,

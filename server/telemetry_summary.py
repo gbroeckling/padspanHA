@@ -122,8 +122,30 @@ def main() -> int:
             usage[k] += int(v or 0)
             usage_installs[k].add(r.get("install_id"))
     print("Usage (events over the window; installs that used it at all)")
-    for k, v in [kv for kv in usage.most_common() if not kv[0].startswith("ui_error")][:60]:
+    for k, v in [kv for kv in usage.most_common() if not kv[0].startswith(("ui_error", "weather_"))][:60]:
         print(f"  {k:<36} {v:>7}  {len(usage_installs[k]):>4} installs")
+    print()
+
+    # Atlas outdoor weather (views/atlas_weather.js, telemetry.py
+    # WEATHER_EVENTS). Every name is counted once per page load, so the
+    # numbers are page loads; the installs are those whose reports carried
+    # it. Errors mean that page drew no weather (the map was unaffected);
+    # the sources say whether the fallbacks work outside Canada.
+    print("Atlas weather (page loads; installs)")
+    any_wx = False
+    for prefix, title in (("weather_error:", "errors, per kind (no weather drawn)"),
+                          ("weather_shown:", "shown, per state"),
+                          ("weather_source:", "decided by, per source")):
+        rows = sorted(((k, v) for k, v in usage.items() if k.startswith(prefix)),
+                      key=lambda kv: (-len(usage_installs[kv[0]]), -kv[1], kv[0]))
+        if not rows:
+            continue
+        any_wx = True
+        print(f"  {title}")
+        for k, v in rows:
+            print(f"    {k[len(prefix):]:<34} {v:>7}  {len(usage_installs[k]):>4} installs")
+    if not any_wx:
+        print("  none reported")
     print()
 
     # Uncaught panel errors (telemetry.py UI_ERRORS). A build that names the

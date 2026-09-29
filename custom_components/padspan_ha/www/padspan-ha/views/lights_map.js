@@ -22,6 +22,10 @@ const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 const { tierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
+// Atlas outdoor weather (atlas_weather.js). Optional: a module that fails to
+// load must not take the house map with it — the map just has no weather.
+const WX = await import(`./atlas_weather.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: atlas_weather failed to load", err); return null; });
 
 // ── What a tier is shown ─────────────────────────────────────────────────────
 // Below `bright` — PadSpan HA with no key, PadSpan Bright with no key — the
@@ -2715,6 +2719,29 @@ export function buildLightsMapCard(hostIn){
     view.scrollTop = isoDiv.scrollTop;
   });
 
+  // Outdoor weather (docs/IDEA_ATLAS_WEATHER.md): rain or snow outside the
+  // floor plates, as an overlay laid over the SVG — never inside it, so the
+  // drawing is byte-for-byte what it was. host.weather is the host's
+  // {slot, settings (the settings payload), states, entities, telemetry}; no
+  // host.weather (settings not in yet), no overlay. Both editions get it; a
+  // paid tier animates it, the free map shows it still — the same licence
+  // line as placement.
+  const wxSlot = WX && host.weather && host.weather.settings ? WX.atlasWeatherSlot(host.weather.slot) : null;
+  let wxOutdoorZ = null;
+  if (wxSlot) {
+    try { wxOutdoorZ = WX.outdoorPlateLevels(_frame, isOutdoorFloorId); } catch (_) { wxOutdoorZ = null; }
+  }
+  const mountWeather = (svgStr) => {
+    if (!wxSlot) return;
+    try {
+      const w = host.weather;
+      const theme = host.showcase ? (SHOWCASE_THEMES[host.showcaseTheme] || SHOWCASE_THEMES.classic) : SHOWCASE_THEMES.classic;
+      wxSlot.attach(isoDiv, { settings: WX.weatherSettingsFrom(w.settings), states: w.states, entities: w.entities, svg: svgStr,
+        animate: lightingUnlocked(host.tier), colour: WX.weatherColourOf(theme), outdoorZ: wxOutdoorZ,
+        zoom: view.zoom || 1, centred: V2, telemetry: w.telemetry });
+    } catch (_) { /* attach counts its own failures; the map never sees one */ }
+  };
+
   // Semantic zoom (use surface): the codes leave the drawing below 100% and
   // come back above it, so a zoom change across that line is a rebuild, not
   // just a CSS width. The builder always shows codes (host.codeChip unset).
@@ -2760,6 +2787,8 @@ export function buildLightsMapCard(hostIn){
       svg.style.display = "block";
       svg.style.margin = "0 auto";
     }
+    // The weather overlay takes the same width and centring as the SVG.
+    if (wxSlot) wxSlot.fit(view.zoom, V2);
     if (host.codeChip && codesShown !== null && codesShown !== codesVisibleAtZoom(view.zoom)) rebuildISO();
   };
   // Zoom about a point (pinch midpoint / wheel): keep what is under the
@@ -2778,7 +2807,7 @@ export function buildLightsMapCard(hostIn){
     // filter on the drawing, not the persisted hidden set, so the table still
     // lists every light and stays the way to reach one that is filtered out.
     codesShown = host.codeChip ? codesVisibleAtZoom(view.zoom) : true;
-    isoDiv.innerHTML = buildIsoSVG(host.model, host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
+    const svgStr = buildIsoSVG(host.model, host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
       view.floorGap, view.horizGap, host.lightsByEid, host.lightsLoading, floors,
       { showcase: !!host.showcase, showcaseTheme: host.showcaseTheme || "classic",
         fitRooms: !!host.showcase && !!host.fitRooms,
@@ -2816,6 +2845,8 @@ export function buildLightsMapCard(hostIn){
         automorphHardness: view.automorphLiveHardness !== undefined ? view.automorphLiveHardness : (host.automorphHardness || 0),
         automorphStyle: host.automorphStyle || "glow",
         automorphSubtlety: view.automorphLiveSubtlety !== undefined ? view.automorphLiveSubtlety : (host.automorphSubtlety || 0) });
+    isoDiv.innerHTML = svgStr;
+    mountWeather(svgStr);
     applyZoom();
     host.onHexesBuilt(isoDiv, rebuildISO);
   };

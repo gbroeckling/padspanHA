@@ -111,6 +111,31 @@ def _normalize_showcase_theme(value: Any) -> str:
     return v if v in _SHOWCASE_THEMES else "classic"
 
 
+# Atlas outdoor weather (views/atlas_weather.js): which domains each entity
+# setting can hold. "" means none (the rain sensor) or automatic (the first
+# weather.*, the detected warning sensors).
+_WEATHER_ENTITY_DOMAINS: dict[str, tuple[str, ...]] = {
+    "atlas_weather_rain_entity": ("binary_sensor.", "sensor."),
+    "atlas_weather_condition_entity": ("weather.",),
+    "atlas_weather_warning_entity": ("binary_sensor.", "sensor."),
+}
+_WEATHER_ENTITY_ID = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
+
+
+def _weather_entity(value: Any, domains: tuple[str, ...]) -> str:
+    v = str(value or "").strip()
+    return v if _WEATHER_ENTITY_ID.match(v) and v.startswith(domains) else ""
+
+
+def _weather_strength(value: Any) -> float:
+    """0.5x-1.5x opacity; anything unreadable is the default 1x."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return 1.0
+    return round(max(0.5, min(1.5, v)), 2) if v == v else 1.0
+
+
 def _sanitize_showcase_presets(presets_in: Any) -> list[dict[str, Any]]:
     """Named snapshots of the whole Showcase "look" bundle — Garry: "we now
     have thousands of combinations in the mapping, lights setup, we need to
@@ -326,6 +351,11 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lights_hidden"): list,
         vol.Optional("atlas_emergency_button"): bool,
         vol.Optional("emergency_entities"): list,             # emergency_test.py — [] = find them
+        vol.Optional("atlas_weather_enabled"): bool,
+        vol.Optional("atlas_weather_rain_entity"): vol.Any(str, None),
+        vol.Optional("atlas_weather_condition_entity"): vol.Any(str, None),
+        vol.Optional("atlas_weather_warning_entity"): vol.Any(str, None),
+        vol.Optional("atlas_weather_strength"): vol.Coerce(float),
         vol.Optional("lights_showcase"): bool,
         vol.Optional("lights_hide_untouched"): bool,
         vol.Optional("lights_hide_device_codes"): bool,
@@ -588,6 +618,14 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["emergency_entities"] = list(dict.fromkeys(
                 x.strip() for x in ids if isinstance(x, str)
                 and x.strip().startswith(("light.", "switch.")))) if isinstance(ids, list) else []
+        # Atlas outdoor weather: each entity setting holds an id of the one
+        # domain(s) it can use, or "" (none / automatic). Anything else is
+        # stored as "" — a bad value turns into the fallback, never an error.
+        for _wkey, _wdoms in _WEATHER_ENTITY_DOMAINS.items():
+            if _wkey in msg:
+                payload[_wkey] = _weather_entity(msg[_wkey], _wdoms)
+        if "atlas_weather_strength" in msg:
+            payload["atlas_weather_strength"] = _weather_strength(msg["atlas_weather_strength"])
         if "ble_max_age_s" in msg:
             payload["ble_max_age_s"] = max(30, min(14400, int(msg["ble_max_age_s"])))
         # ── Radio map / heatmap visualization controls (v0.15.x) ──────────
@@ -764,6 +802,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "mqtt_publish_enabled", "espresense_mqtt_enabled", "aggressive_ble_reseed",
                     "ha_entity_occupancy_enabled",
                     "lights_panel_enabled", "atlas_emergency_button", "bermuda_ignore", "bright_reveal_presence",
+                    "atlas_weather_enabled",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",
                     "tags_phone_autolink_enabled", "quiet_mode", "light_theme",
                     "beacon_auto_calibrate", "overview_persistent_pins", "overview_show_walls",
