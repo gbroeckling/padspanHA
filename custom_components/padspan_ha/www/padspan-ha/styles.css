@@ -256,6 +256,9 @@
 .modal .close {
   margin-left:auto;
 }
+/* Finger-sized wherever there is a touchscreen: a wall panel has no Escape
+   key, so Close (or a tap outside) is the only way out. */
+@media (any-pointer:coarse){.modal .close{min-height:44px;min-width:64px}}
 .table {
   width: 100%;
   border-collapse: collapse;

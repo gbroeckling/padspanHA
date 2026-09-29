@@ -240,6 +240,27 @@ t("update banner: no trial line after No thanks, or on a kiosk", () => {
   kiosk.c.state.kioskMode = true;
   assert(!q(kiosk.obj._whatsNewCard.call(kiosk.c), "[data-trial-line]"), "shown on a kiosk");
 });
+t("update banner: See what changed opens the notes over the panel, with Close — never a new window", () => {
+  // Garry, 2026-09-28: "release notes screen has no way to close on touch
+  // monitor". The link opened the site in a new tab; the wall's kiosk
+  // browser has no tab bar and no keyboard, so nothing could close it.
+  const { c, obj } = setup({ ...FREE, whatsnew_seen_version: "0.38.88" });
+  const opened = [];
+  c._openModal = (title, body) => opened.push({ title, body });
+  const out = obj._whatsNewCard.call(c);
+  const link = out.querySelectorAll("a").find(a => a.textContent === "See what changed");
+  assert(link && link.getAttribute("href") === EDITIONS_REAL.WHATSNEW_URL, "the link lost its address (middle-click, copy link)");
+  let prevented = false;
+  link.dispatchEvent({ type: "click", stopPropagation() {}, preventDefault() { prevented = true; } });
+  assert(prevented, "the browser still opens the notes in a new tab");
+  assert(opened.length === 1, "the notes did not open in the panel");
+  const frame = opened[0].body;
+  assert(frame && frame.localName === "iframe" && frame.getAttribute("src") === EDITIONS_REAL.WHATSNEW_URL, "not the notes page");
+  const sandbox = String(frame.getAttribute("sandbox") || "").split(/\s+/);
+  assert(frame.getAttribute("sandbox") !== null && !sandbox.includes("allow-popups") && !sandbox.includes("allow-top-navigation"),
+    "the notes can open a window or move the panel away: " + frame.getAttribute("sandbox"));
+  assert(c._saved.some(m => m.whatsnew_seen_version === APP_VERSION), "opening the notes no longer counts as seen");
+});
 t("update banner: a non-admin opening it is told an administrator starts it", () => {
   const { c, obj } = setup(FREE, { admin: false });
   c.state._bannerTrialOpen = true;

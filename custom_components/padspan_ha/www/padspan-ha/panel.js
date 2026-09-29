@@ -958,7 +958,16 @@ class PadSpanHaApp extends HTMLElement {
     const notes = el("a", { class: "btn inline", href: notesUrl, target: "_blank", rel: "noopener",
       style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700;text-decoration:none" },
       "See what changed");
-    notes.addEventListener("click", () => remember(null));
+    // The notes open here, over the panel, with Close. In a new tab they
+    // could not be left on a wall touchscreen: a kiosk browser has no tab
+    // bar and no keyboard. The frame can't open windows or move this page.
+    notes.addEventListener("click", (e) => {
+      e.preventDefault();
+      remember(null);
+      this._openModal("What's new", el("iframe", { src: notesUrl, title: "PadSpan HA release notes",
+        sandbox: "allow-scripts allow-same-origin",
+        style: "display:block;width:100%;height:78vh;border:0;border-radius:8px;background:#071009" }));
+    });
     const dismiss = el("button", { class: "btn inline", style: "color:#94a3b8" }, "Dismiss");
     dismiss.addEventListener("click", () => remember(`Hidden until the next update.`));
     card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [notes, dismiss]));
