@@ -334,3 +334,17 @@ def test_ignores_an_event_with_no_entity_id() -> None:
     hass = _hass(_settings())
     _on_entity_registry_updated(hass, SimpleNamespace(data={"action": "remove"}))
     assert hass.tasks == []
+
+
+def test_the_phone_alarm_pill_hides_with_nothing_latched() -> None:
+    """Design pass 2026-09-28: every phone showed a red "🚨 0" pill in the
+    PadSpan top bar with nothing latched. panel.js toggles .hidden on it, but
+    .mobile-topbar-pill's `all:unset` (same weight, later in the file) undid
+    .hidden. The pill's own hidden rule must come after its base rule."""
+    from pathlib import Path
+    css = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
+           / "styles.css").read_text(encoding="utf-8")
+    base = css.index(".mobile-topbar-pill{")
+    assert "all:unset" in css[base:css.index("}", base)]
+    hidden = css.find(".mobile-topbar-pill.hidden{display:none}")
+    assert hidden > base, "the pill's .hidden rule is missing or before the rule that undoes it"

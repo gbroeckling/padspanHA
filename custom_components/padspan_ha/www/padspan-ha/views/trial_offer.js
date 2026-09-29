@@ -29,7 +29,7 @@
  * card takes a small host object: trialOfferFromCtx builds one from a panel
  * ctx. tests/js/trial_offer.mjs drives it.
  */
-const { BUY_URL, PRO_PRICE, PRO_LIFETIME_PRICE, proLifetimeOpen, tierAtLeast, currentTier } =
+const { BUY_URL, PRO_PRICE, PRO_LIFETIME_PRICE, proLifetimeOpen, tierAtLeast, currentTier, currentEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 
 export const TRIAL_DAYS = 90;
@@ -45,6 +45,10 @@ export const TRIAL_TITLE = "90-day free trial, no card";
 // nothing about the free presence product changes whatever anyone answers.
 export const TRIAL_HONESTY = "The presence tracking you're using stays free.";
 export const TRIAL_NEWS_LINE = "New: try the lighting map free for 90 days, no card.";
+// The update banner says it once: in the banner for the update that brought
+// the trial (an install that was on a version before this one). Every later
+// "updated to vX" banner goes back to the older Pro pitch (trialNewsDue).
+export const TRIAL_NEWS_BEFORE = "0.38.87";
 export const TRIAL_MILESTONE_TITLE = "PadSpan's working in your house.";
 export const TRIAL_MILESTONE_BODY = "The lighting half puts every light on this same map — tap to switch, " +
   "hold for controls. 90 days free, no card.";
@@ -66,6 +70,40 @@ export function trialOfferable(settings) {
   return !tierAtLeast(currentTier(s), "bright");
 }
 
+/** a < b, for x.y.z versions ("" and anything unreadable count as 0). */
+function _versionBefore(a, b) {
+  const p = (v) => String(v || "").split(".").map(n => parseInt(n, 10) || 0);
+  const x = p(a), y = p(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0);
+  }
+  return false;
+}
+
+/** True when the "updated to vX" banner carries the trial line: the trial
+ *  is offerable, the install has not answered the milestone card
+ *  (trial_nudge_done), it is not a kiosk (?kiosk=1), and the version the
+ *  banner is updating FROM is older than the trial — so the line is news in
+ *  one banner only, never in every update after it. */
+export function trialNewsDue(settings, seenVersion, kiosk) {
+  const s = settings || {};
+  if (kiosk || s.trial_nudge_done === true) return false;
+  if (!trialOfferable(s)) return false;
+  return !!seenVersion && _versionBefore(seenVersion, TRIAL_NEWS_BEFORE);
+}
+
+/** The presence line ("stays free") only where presence is in view: a Bright
+ *  build shows no presence unless its reveal switch is on. */
+export function trialHonestyShown(settings) {
+  const s = settings || {};
+  return currentEdition(s) !== "bright" || !!s.bright_reveal_presence;
+}
+
+/** True when the trial was started from this surface on this page. */
+export function trialStartedHere(surface) {
+  return !!(_state[surface] && _state[surface].done);
+}
+
 /** True when the Overview's one-time milestone card is due: the trial is
  *  offerable, the install has never answered it (trial_nudge_done — a key
  *  an older backend does not send reads as "not known", never as "due"),
@@ -84,10 +122,11 @@ export function trialMilestoneDue(settings, positioned, nowMs = Date.now()) {
 
 /** The pitch line for a surface. `feature` names a Pro feature (Locate,
  *  Busy Times) whose gate the card sits in — the trial does not unlock
- *  those, and the card says so rather than letting someone find out after. */
+ *  those, and the card says so rather than letting someone find out after.
+ *  (The gate right above already says the feature needs Pro.) */
 export function trialPitch(surface, feature) {
   if (feature) {
-    return `${feature} needs a PadSpan Pro key. The free trial covers the lighting side: ` +
+    return `The trial doesn't unlock ${feature}. It covers the lighting side: ` +
       "every light placed exactly where it hangs on your floor plan, with shapes, sizes and WLED strips.";
   }
   if (surface === "settings") {
@@ -151,8 +190,9 @@ export function trialOfferCard(host, surface, opts = {}) {
   card.appendChild(el("div", { "data-trial": "pitch", style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin:4px 0 8px" },
     trialPitch(surface, opts.feature)));
   // A host that already says it right above the card (the update banner,
-  // the milestone card) passes honesty: false rather than repeat it.
-  if (opts.honesty !== false) {
+  // the milestone card) passes honesty: false rather than repeat it. A
+  // Bright build shows no presence, so there it is not said at all.
+  if (opts.honesty !== false && trialHonestyShown(host.settings)) {
     card.appendChild(el("div", { "data-trial": "honesty", style: "font-size:12px;color:#94a3b8;margin:-4px 0 8px" }, TRIAL_HONESTY));
   }
 

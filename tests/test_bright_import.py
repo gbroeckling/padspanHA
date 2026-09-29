@@ -243,6 +243,23 @@ def test_a_key_already_entered_here_survives_when_bright_brings_none(tmp_path):
     assert s["light_shapes"] == {"light.k": "circle"}
 
 
+@pytest.mark.parametrize("live,bright,done,first", [
+    ({"trial_nudge_done": True, "first_seen_ts": 2_000.0}, {"first_seen_ts": 1_000.0}, True, 1_000.0),
+    ({"first_seen_ts": 1_000.0}, {"trial_nudge_done": True, "first_seen_ts": 2_000.0}, True, 1_000.0),
+    ({"trial_nudge_done": False, "first_seen_ts": 0}, {"first_seen_ts": 3_000.0}, False, 3_000.0),
+])
+def test_the_trial_answer_and_first_sighting_come_across_from_either_side(tmp_path, live, bright, done, first):
+    """The trial milestone's per-install facts (settings_store.trial_state_kept):
+    answered on either install stays answered, and the house is as old as its
+    earliest sighting — an import never brings the card back or restarts its week."""
+    _write_bright(tmp_path, "settings", {**_HOUSE_SETTINGS, **bright})
+    h = _hass(tmp_path, settings=dict(live))
+    res = _import(h, _backup_ok)
+    assert res["ok"], res
+    s = _read_target(tmp_path, SETTINGS_STORE_KEY)
+    assert s["trial_nudge_done"] is done and s["first_seen_ts"] == first, s
+
+
 def test_brights_own_key_wins_when_it_has_one(tmp_path):
     _write_bright(tmp_path, "settings", {**_HOUSE_SETTINGS, "forensics_license_key": "BRIGHT-KEY",
                                          "license_tier": "bright"})

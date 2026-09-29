@@ -906,9 +906,13 @@ class PadSpanHaApp extends HTMLElement {
     // absence NOR a throw inside it may cost the reader the Overview tab.
     // One offer per banner: when the trial line below will show, it is the
     // offer, and the older Pro pitch steps aside (two sales lines in a "what
-    // changed" note reads as nagging).
+    // changed" note reads as nagging). The trial line is news once — only in
+    // the banner for the update that brought it (trialNewsDue) — so every
+    // later banner has the Pro pitch exactly as before.
     let trialLine = false;
-    try { trialLine = !!(TRIAL && (this.state._bannerTrialOpen || TRIAL.trialOfferable(st))); } catch (_) { trialLine = false; }
+    try {
+      trialLine = !!(TRIAL && (this.state._bannerTrialOpen || TRIAL.trialNewsDue(st, seen, this.state.kioskMode)));
+    } catch (_) { trialLine = false; }
     let pitch = null;
     try { if (!trialLine && EDITIONS && EDITIONS.proPitch) pitch = EDITIONS.proPitch(st); }
     catch (e) { console.warn("PadSpan: proPitch failed", e); }
@@ -920,16 +924,16 @@ class PadSpanHaApp extends HTMLElement {
       card.appendChild(line);
     }
 
-    // The 90-day trial (views/trial_offer.js): one line, only while the
-    // install could be offered it (trialOfferable — no key, below bright, the
-    // rule every surface shares). It is part of this banner: shown once per
-    // update, and dismissing the banner dismisses it. "Try it" opens the
-    // shared card inline; after a start it stays open to say it worked.
-    // Optional like editions: a missing or throwing trial module costs this
-    // line, never the banner.
+    // The 90-day trial (views/trial_offer.js): one line, in the one banner
+    // trialNewsDue picks (the update from before the trial, no key, below
+    // bright, not answered, not a kiosk). It is part of this banner, and
+    // dismissing the banner dismisses it. "Try it" opens the shared card
+    // inline; after a start it stays open to say it worked. Optional like
+    // editions: a missing or throwing trial module costs this line, never
+    // the banner.
     try {
       const open = !!this.state._bannerTrialOpen;
-      if (TRIAL && (open || TRIAL.trialOfferable(st))) {
+      if (trialLine) {
         const row = el("div", { "data-trial-line": "update_banner",
           style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:#8ee5b4;line-height:1.55;margin-bottom:8px" });
         row.appendChild(el("span", {}, TRIAL.TRIAL_NEWS_LINE + " "));
@@ -983,6 +987,10 @@ class PadSpanHaApp extends HTMLElement {
     const m = this._trialMilestone || (this._trialMilestone = { visible: false, hidden: false, open: false, saved: false });
     if (m.hidden) return null;
     if (!m.visible) {
+      // One offer per page load: after the update banner, the usage-report
+      // ask or Getting started showed on this load, the card waits for the
+      // next one rather than following them onto the screen (_overviewCardShown).
+      if (this._overviewCardShown) return null;
       if (!TRIAL.trialMilestoneDue(st, positioned)) return null;
       m.visible = true;
     }
@@ -998,8 +1006,12 @@ class PadSpanHaApp extends HTMLElement {
     TRIAL.trialOfferSeen("milestone", (n) => this._telemetryEvent(n));
     const hide = () => {
       m.hidden = true;
-      this._telemetryEvent("trial_nudge_dismissed");
-      markDone();
+      // ✕ after a trial was started here closes a "started" note: nothing
+      // was dismissed, and the flag was saved when the card first showed.
+      if (!TRIAL.trialStartedHere("milestone")) {
+        this._telemetryEvent("trial_nudge_dismissed");
+        markDone();
+      }
       this._scheduleRender();
     };
 
@@ -1030,8 +1042,10 @@ class PadSpanHaApp extends HTMLElement {
   // Muted text under the PadSpan menu while the install could be offered the
   // trial (no key, below bright); a tap opens the shared card right there.
   // No badge, no count, no animation. It is the one placement a Bright build
-  // keeps (its Overview does not exist). Built by _renderNav; the trial
-  // module may land after the first nav, so that waits for it once.
+  // keeps (its Overview does not exist). Administrators only (the one person
+  // who can start it), and gone once the milestone card was answered
+  // (trial_nudge_done): a "No thanks" means no. Built by _renderNav; the
+  // trial module may land after the first nav, so that waits for it once.
   _renderSidebarTrial(){
     const box = this.$ && this.$("#navTrial");
     if (!box) return;
@@ -1045,7 +1059,9 @@ class PadSpanHaApp extends HTMLElement {
     }
     try {
       const open = !!this._sidebarTrialOpen;
-      if (!open && !TRIAL.trialOfferable(this.state.settings)) return;
+      const st = this.state.settings;
+      const admin = !!(this._hass && this._hass.user && this._hass.user.is_admin);
+      if (!open && (!admin || (st && st.trial_nudge_done === true) || !TRIAL.trialOfferable(st))) return;
       const link = el("div", { "data-trial-sidebar": "entry", role: "button", tabindex: "0",
         style: "cursor:pointer;font-size:11px;color:#64748b;padding:4px 8px" }, TRIAL.TRIAL_SIDEBAR_LABEL);
       const toggle = () => { this._sidebarTrialOpen = !open; this._renderSidebarTrial(); };
@@ -1063,7 +1079,9 @@ class PadSpanHaApp extends HTMLElement {
 
   _telemetryAskCard(compact){
     const st = this.state.settings;
-    if (!st || st.telemetry_enabled || st.telemetry_asked) return null;
+    // Settings not loaded yet ({} at start) is not "never asked": no flash of
+    // the question before the answer arrives.
+    if (!st || !("telemetry_enabled" in st) || st.telemetry_enabled || st.telemetry_asked) return null;
     const decide = async (on) => {
       try {
         // Straight to the wire: `this.actions` is never assigned on the
@@ -3576,6 +3594,7 @@ class PadSpanHaApp extends HTMLElement {
       if (_setupKnown && !_onboardingDone && !_allDone && _posKnown && !this.state._onboardingDismissed && this.state.view === "overview") {
         // Opt-in usage report: the card was seen, once per page.
         if (!this._gettingStartedCounted) { this._gettingStartedCounted = true; this._telemetryEvent("getting_started_shown"); }
+        this._overviewCardShown = true;   // the trial milestone waits for another page load
         const bar = el("div",{"data-getting-started":"card",style:"background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px"});
         // Header
         const hdr = el("div",{style:"display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"});
@@ -3686,9 +3705,12 @@ class PadSpanHaApp extends HTMLElement {
         if (_new) frag.appendChild(_new);
         const _ask = this._telemetryAskCard(false);
         if (_ask) frag.appendChild(_ask);
+        if (_new || _ask) this._overviewCardShown = true;
         // The trial's one-time milestone card — one card at a time, so never
         // beside the two above (the update banner carries its own trial line),
-        // and never before the stores and the live answer are in (no flash).
+        // nor right after them on the same page load (_overviewCardShown, read
+        // in _trialMilestoneCard), and never before the stores and the live
+        // answer are in (no flash).
         if (!_new && !_ask && _setupKnown && _posKnown) {
           try {
             const _ms = this._trialMilestoneCard(_hasPositioned);

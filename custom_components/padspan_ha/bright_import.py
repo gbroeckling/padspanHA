@@ -227,6 +227,10 @@ async def async_import(hass: HomeAssistant, backup: Any) -> dict[str, Any]:
             data.update(carried_over(live_settings))
             if live_settings.get("atlas_default_v1_applied"):
                 data["atlas_default_v1_applied"] = True
+            # The trial milestone's answer and first sighting, from either
+            # side (settings_store.trial_state_kept).
+            from .settings_store import trial_state_kept  # noqa: PLC0415
+            data.update(trial_state_kept(live_settings, data))
             data[DONE_KEY] = dt_util.utcnow().replace(microsecond=0).isoformat()
         await Store(hass, 1, target_key).async_save(data)
         imported.append(suffix)
