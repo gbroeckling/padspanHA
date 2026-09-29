@@ -137,6 +137,7 @@ def test_the_frontend_sends_only_while_the_report_is_on() -> None:
     assert 'type:"padspan_ha/telemetry_event"' in block
     maps = (_VIEWS / "maps.js").read_text(encoding="utf-8")
     assert 'slot: "builder"' in maps and "ctx.actions.telemetryEvent(name)" in maps
+    assert "weather: ctx.state.settings && ctx.state.settings.atlas_weather_enabled !== undefined ?" in maps
 
 
 def test_an_uncaught_weather_throw_is_attributed_to_its_module() -> None:
@@ -297,7 +298,9 @@ def test_the_overlay_is_quiet_by_css() -> None:
     for n, body in frames:
         props = set(re.findall(r"([a-z-]+):", body))
         assert props <= {"transform", "opacity"}, (n, props)
-    assert block.count("will-change") == 1 and ".lv-wx-layer{" in block[:block.index("will-change")]
+    assert block.count("will-change:transform") == 1 and ".lv-wx-layer{" in block[:block.index("will-change:transform")]
+    assert ".lv-wx.still .lv-wx-layer{will-change:auto}" in block, "a still texture asks for no layers"
+    assert "inset:" not in block, "older WebViews have no inset shorthand"
     # Below the emergency dial (z 6), the drawers (4) and the rail (5).
     assert int(re.search(r"\.lv-wx\{[^}]*z-index:(\d+)", block).group(1)) < 4
     wx = (_VIEWS / "atlas_weather.js").read_text(encoding="utf-8")

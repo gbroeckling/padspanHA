@@ -1192,18 +1192,19 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
    the map's SVG to the stage width whatever the zoom; the overlay follows. */
 @media(max-width:900px){.lv-wx{--wxcap:100%}}
 .lv-wx *{pointer-events:none}
-.lv-wx-tilt{position:absolute;inset:-35%;transform:rotate(var(--a1,3deg))}
-.lv-wx-sway{position:absolute;inset:0}
+/* Four sides, not `inset`: older wall-tablet WebViews lack the shorthand. The
+   tilted field reaches past the drawing by what the steepest wind needs for
+   this drawing's shape (--wxlr / --wxtb, from fit()). */
+.lv-wx-tilt{position:absolute;left:calc(-1 * var(--wxlr,35%));right:calc(-1 * var(--wxlr,35%));
+  top:calc(-1 * var(--wxtb,35%));bottom:calc(-1 * var(--wxtb,35%));transform:rotate(var(--a1,3deg))}
+.lv-wx-sway,.lv-wx-haze,.lv-wx-ripples,.lv-wx-rim{position:absolute;left:0;top:0;right:0;bottom:0}
 .lv-wx-layer{position:absolute;left:0;right:0;top:calc(-1 * var(--th));bottom:0;background-repeat:repeat;
   background-size:var(--tw) var(--th);will-change:transform}
 /* Haze and ripple alphas are 1.5x the look (.05, .55): the overlay's opacity
    (strength / 1.5) brings them back, as it does the baked tiles. */
-.lv-wx-haze{position:absolute;inset:0;
-  background:radial-gradient(120% 90% at 50% 40%,rgba(190,215,225,0) 35%,rgba(190,215,225,.075) 100%)}
-.lv-wx-ripples{position:absolute;inset:0}
+.lv-wx-haze{background:radial-gradient(120% 90% at 50% 40%,rgba(190,215,225,0) 35%,rgba(190,215,225,.075) 100%)}
 .lv-wx-rp{position:absolute;width:16px;height:8px;margin:-4px 0 0 -8px;border-radius:50%;
   border:1px solid var(--rp,rgba(220,238,228,.825));opacity:0}
-.lv-wx-rim{position:absolute;inset:0}
 .lv-wx-rim svg{display:block;width:100%;height:100%}
 @keyframes lv-wx-fall{to{transform:translateY(var(--th))}}
 @keyframes lv-wx-sway{from{transform:translateX(calc(-1 * var(--sa)))}to{transform:translateX(var(--sa))}}
@@ -1213,9 +1214,11 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 @keyframes lv-wx-wind{from{transform:rotate(var(--a0,3deg))}}
 .lv-wx.still,.lv-wx.still *{animation:none !important}
 .lv-wx.still .lv-wx-ripples{display:none !important}
+.lv-wx.still .lv-wx-layer{will-change:auto}
 @media (prefers-reduced-motion:reduce){
   .lv-wx,.lv-wx *{animation:none !important}
-  .lv-wx-ripples{display:none !important}}
+  .lv-wx-ripples{display:none !important}
+  .lv-wx-layer{will-change:auto}}
 
 /* ── Layout v2 (Garry, 2026-09-21) ──────────────────────────────────────────
    Reversible trial, gated entirely by .lv-v2 on .lv-mapcard (host.layoutV2 —

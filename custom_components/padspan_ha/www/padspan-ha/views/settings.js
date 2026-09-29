@@ -3301,14 +3301,18 @@ function _atlasWeatherSection(ctx, el, settings){
   };
   const dc = (eid) => String((states[eid] && states[eid].attributes && states[eid].attributes.device_class) || "");
   const rainIds = ids.filter(eid => /^(binary_sensor|sensor)\./.test(eid)
-    && (["moisture", "precipitation", "precipitation_intensity"].includes(dc(eid)) || /rain|precip/i.test(nameOf(eid))));
+    && (["moisture", "precipitation", "precipitation_intensity"].includes(dc(eid)) || /rain|precip|regen|pluie|lluvia|pioggia/i.test(nameOf(eid))));
   const firstWx = WX ? WX.firstWeatherEntity(states) : "";
   const warnIds = WX ? WX.warningEntities({}, states, entities) : [];
+  // The detected ones first, then anything else that calls itself a warning
+  // or an alert (a template sensor of your own, say).
+  const warnList = [...warnIds, ...ids.filter(eid => /^(binary_sensor|sensor)\./.test(eid) && !warnIds.includes(eid)
+    && /warn|alert|avertissement|vigilance/i.test(nameOf(eid)))];
   picker("Rain sensor", "atlas_weather_rain_entity", "None — use the weather entity", rainIds);
   picker("Weather entity", "atlas_weather_condition_entity",
     firstWx ? `Automatic — ${nameOf(firstWx)}` : "Automatic — none found (no weather shows)", ids.filter(eid => eid.startsWith("weather.")));
   picker("Weather warnings", "atlas_weather_warning_entity",
-    warnIds.length ? `Automatic — ${warnIds.length} found` : "Automatic — none found", warnIds);
+    warnIds.length ? `Automatic — ${warnIds.length} found` : "Automatic — none found", warnList);
 
   const k = Number(settings.atlas_weather_strength);
   const start = Number.isFinite(k) ? Math.max(0.5, Math.min(1.5, k)) : 1;

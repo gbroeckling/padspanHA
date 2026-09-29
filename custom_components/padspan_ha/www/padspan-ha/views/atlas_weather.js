@@ -35,6 +35,10 @@ export const SNOW_AT_OR_BELOW_C = 1;
 // the custom weatheralerts / nws_alerts. UK and Australia: nothing standard.
 export const WARNING_PLATFORMS = ["env_canada", "meteoalarm", "dwd_weather_warnings", "nina",
   "meteo_france", "weatheralerts", "nws_alerts"];
+// The registry names an entity's integration by its DOMAIN: Environment
+// Canada's is environment_canada (env_canada is its library, and this
+// feature's word for it).
+const PLATFORM_ALIASES = { environment_canada: "env_canada" };
 export const STRENGTH_MIN = 0.5, STRENGTH_MAX = 1.5;
 
 // The opt-in usage report's words for this feature (telemetry.py
@@ -116,7 +120,7 @@ export function temperatureC(st){
 // (hass.entities), else what its id says.
 export function platformOf(eid, states, entities){
   const reg = entities && entities[eid];
-  if (reg && reg.platform) return String(reg.platform);
+  if (reg && reg.platform) { const p = String(reg.platform); return PLATFORM_ALIASES[p] || p; }
   const e = String(eid || "");
   if (/^binary_sensor\.meteoalarm/.test(e)) return "meteoalarm";
   if (/^sensor\..*_(current|advance)_warning_level$/.test(e)) return "dwd_weather_warnings";
@@ -477,6 +481,23 @@ function createSlot(slotKey){
     const rim = d("lv-wx-rim");
     root.appendChild(haze); root.appendChild(tilt); root.appendChild(ripples); root.appendChild(rim);
     parts = { haze, tilt, layers, ripples, rp, rim };
+    // A fade-out that has run its course takes its layer out of the
+    // compositor (and the whole overlay out of the page once the weather
+    // stopped), rather than leaving invisible layers falling until the next
+    // re-render — which, in the builder, may be a long way off. One listener
+    // on this one persistent element, never re-added.
+    root.addEventListener("animationend", (e) => {
+      try {
+        if (!e || e.animationName !== "lv-wx-out") return;
+        if (shown.kind === "off") { detach(); return; }
+        const t = e.target;
+        if (!t || !t.style || t.style.opacity !== "0") return;
+        if (t.classList && t.classList.contains("lv-wx-layer")) {
+          const host = t.parentNode && t.parentNode.classList && t.parentNode.classList.contains("lv-wx-sway") ? t.parentNode : t;
+          host.style.display = "none";
+        } else if (t === parts.ripples || t === parts.rim) t.style.display = "none";
+      } catch (_) { /* tidy-up only */ }
+    });
   }
 
   // `fade`: in | out | null — as a one-shot animation anchored to when the
@@ -541,6 +562,14 @@ function createSlot(slotKey){
     root.style.setProperty("--wxa", aspect.toFixed(6));
     root.style.marginLeft = centred ? "auto" : "0";
     root.style.marginRight = centred ? "auto" : "0";
+    // The tilted field must still cover the whole drawing at the steepest
+    // wind (17°; sized for 20°), whatever its shape — a four-storey stack
+    // is three times taller than wide, a bungalow wider than tall.
+    const s = Math.sin(20 * Math.PI / 180), c = Math.cos(20 * Math.PI / 180), a = aspect;
+    const lr = Math.max(10, Math.ceil(((s * a + c - 1) / 2) * 100) + 5);
+    const tb = Math.max(10, Math.ceil(((s + c * a - a) / (2 * a)) * 100) + 5);
+    root.style.setProperty("--wxlr", `${lr}%`);
+    root.style.setProperty("--wxtb", `${tb}%`);
   }
 
   return {

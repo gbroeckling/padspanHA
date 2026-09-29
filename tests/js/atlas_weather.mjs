@@ -46,8 +46,9 @@ const is = (d, kind, heavy) => d.kind === kind && !!d.heavy === !!heavy;
 const RAIN = "binary_sensor.rain", WEA = "weather.forecast_home";
 const wx = (cond, temp = 10, unit = "°C") => ({ [WEA]: S(cond, { temperature: temp, temperature_unit: unit }) });
 const ECW = "sensor.vancouver_warnings";
-const EC_ENT = { [ECW]: { platform: "env_canada", translation_key: "warnings" },
-  "sensor.vancouver_watches": { platform: "env_canada", translation_key: "watches" } };
+// The registry names Environment Canada by its domain, environment_canada.
+const EC_ENT = { [ECW]: { platform: "environment_canada", translation_key: "warnings" },
+  "sensor.vancouver_watches": { platform: "environment_canada", translation_key: "watches" } };
 const ecRain = { [ECW]: S(1, { alert_1: "Rainfall Warning", alert_time_1: "4:00 AM" }) };
 const ecSnow = { [ECW]: S(1, { alert_1: "Snowfall warning in effect", alert_time_1: "4:00 AM" }) };
 
@@ -184,7 +185,7 @@ tryCase("no signal: a vanished reading holds what was showing, for a while", () 
 tryCase("warnings: auto-detect across the listed integrations", () => {
   const H = (eid, st, platform, tk) => ({ st: { [eid]: st }, ent: { [eid]: { platform, translation_key: tk } } });
   const cases2 = {
-    env_canada: H("sensor.x_warnings", S(1, { alert_1: "Rainfall Warning" }), "env_canada", "warnings"),
+    env_canada: H("sensor.x_warnings", S(1, { alert_1: "Rainfall Warning" }), "environment_canada", "warnings"),
     meteoalarm: H("binary_sensor.meteoalarm", S("on", { event: "Moderate rain warning", awareness_type: "10; Rain", senderName: "KNMI" }), "meteoalarm"),
     dwd_weather_warnings: H("sensor.koeln_current_warning_level", S(2, { warning_1_name: "DAUERREGEN", warning_1_headline: "Amtliche WARNUNG vor DAUERREGEN", region_name: "Stadt Köln" }), "dwd_weather_warnings", "current_warning_level"),
     nina: H("binary_sensor.warning_berlin_1", S("on", { headline: "Amtliche WARNUNG vor STARKREGEN", sender: "DWD" }), "nina"),
@@ -466,6 +467,47 @@ tryCase("overlay: off and disabled mean no element at all", () => {
   const d = card({ weather: W({}, {}) }).stage;
   check("overlay: off and disabled mean no element at all", !overlayIn(a) && !overlayIn(b) && !overlayIn(c) && !overlayIn(d)
     && a.children.length === 0 && b.children.length === 0, null);
+});
+
+tryCase("overlay: the tilted field covers any shape of drawing at 20 degrees", () => {
+  // Corners of a drawing w=1, h=a must sit inside the field rotated 20°.
+  const covered = (a, lr, tb) => {
+    const W = 1 + 2 * lr, H = a * (1 + 2 * tb), t = 20 * Math.PI / 180;
+    return [[-0.5, -a / 2], [0.5, -a / 2], [0.5, a / 2], [-0.5, a / 2]].every(([x, y]) =>
+      Math.abs(x * Math.cos(t) + y * Math.sin(t)) <= W / 2 && Math.abs(-x * Math.sin(t) + y * Math.cos(t)) <= H / 2);
+  };
+  const got = {};
+  for (const [w, h] of [[800, 250], [800, 800], [760, 2400], [760, 4200]]) {
+    WX._resetWeatherSlotsForTests();
+    const slot = WX.atlasWeatherSlot("tilt");
+    slot.attach(document.createElement("div"), { settings: cfg({}), states: RAINING, svg: `<svg viewBox="0 0 ${w} ${h}"></svg>`,
+      animate: true, colour: "#fff", zoom: 1, telemetry });
+    const o = slot.element;
+    const lr = parseFloat(o.style["--wxlr"]) / 100, tb = parseFloat(o.style["--wxtb"]) / 100;
+    got[`${w}x${h}`] = covered(h / w, lr, tb) ? "ok" : `uncovered lr=${lr} tb=${tb}`;
+  }
+  check("overlay: the tilted field covers any shape of drawing at 20 degrees", Object.values(got).every(v => v === "ok"), got);
+});
+tryCase("overlay: a finished fade-out leaves the compositor, and the page when it stopped", () => {
+  WX._resetWeatherSlotsForTests();
+  const slot = WX.atlasWeatherSlot("end");
+  const stage = document.createElement("div");
+  const T0 = 1_700_000_000_000;
+  const p = (nowMs, states) => ({ settings: cfg({}), states, svg: svgStr, animate: true, colour: "#fff", zoom: 1, nowMs, telemetry });
+  slot.attach(stage, p(T0, wx("pouring")));
+  slot.attach(stage, p(T0 + 10000, wx("rainy")));             // heavy -> light: three layers fade out
+  const out = slot.element._all().filter(n => n.className === "lv-wx-layer" && /lv-wx-out/.test(n.style.animation));
+  out.forEach(t => slot.element.dispatchEvent({ type: "animationend", animationName: "lv-wx-out", target: t }));
+  const hidden = out.every(t => t.style.display === "none");
+  const base = slot.element._all().find(n => n.className === "lv-wx-layer" && n.style.display === "block");
+  slot.element.dispatchEvent({ type: "animationend", animationName: "lv-wx-in", target: base });   // not a fade-out: nothing
+  const kept = base && base.style.display === "block";
+  slot.attach(stage, p(T0 + 20000, wx("sunny")));             // stopped: everything fades out
+  const was = overlayIn(stage) === slot.element;
+  const last = slot.element._all().find(n => n.className === "lv-wx-layer" && /lv-wx-out/.test(n.style.animation));
+  slot.element.dispatchEvent({ type: "animationend", animationName: "lv-wx-out", target: last });
+  check("overlay: a finished fade-out leaves the compositor, and the page when it stopped",
+    out.length === 3 && hidden && kept && was && overlayIn(stage) === null, { n: out.length, hidden, kept, was });
 });
 
 // ── failures are counted, and never reach the Atlas ─────────────────────────
