@@ -4,6 +4,7 @@
   "after_dependencies": [
     "bluetooth",
     "frontend",
+    "hassio",
     "http",
     "mqtt",
     "panel_custom",
