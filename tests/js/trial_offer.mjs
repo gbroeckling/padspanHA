@@ -250,7 +250,45 @@ await check("Not now is offered only where the host asks for it", () => {
 
 await check("a Pro gate's pitch does not promise the Pro feature", () => {
   const p = T.trialPitch("locate", "Locate");
-  assert(/Locate needs a PadSpan Pro key/.test(p) && /lighting/.test(p), p);
+  assert(/The trial doesn't unlock Locate/.test(p) && /lighting/.test(p), p);
+  // The gate right above already says Locate needs Pro; the card must not
+  // say it a second time.
+  assert(!/needs a PadSpan Pro key/.test(p), "the gate's own line, repeated: " + p);
+});
+
+await check("the update banner's trial line is news once, never on a kiosk or after an answer", () => {
+  const s = { ...FREE, trial_nudge_done: false };
+  assert(T.trialNewsDue(s, "0.38.86", false) === true, "the update that brought the trial");
+  assert(T.trialNewsDue(s, "0.9.3", false) === true, "an older install updating straight past it");
+  for (const seen of ["0.38.87", "0.38.88", "0.39.0", "1.0.0"]) {
+    assert(T.trialNewsDue(s, seen, false) === false, "said again in the banner from " + seen);
+  }
+  assert(T.trialNewsDue(s, "", false) === false, "no previous version: no banner, no line");
+  assert(T.trialNewsDue(s, "0.38.86", true) === false, "on a kiosk");
+  assert(T.trialNewsDue({ ...s, trial_nudge_done: true }, "0.38.86", false) === false, "after No thanks");
+  assert(T.trialNewsDue({ tier: "pro", pro_has_key: true }, "0.38.86", false) === false, "with a key");
+  const old = { ...FREE }; delete old.trial_nudge_done;
+  assert(T.trialNewsDue(old, "0.38.86", false) === true, "an older backend (no flag) reads as not answered");
+});
+
+await check("a Bright build's card leaves out the presence line unless presence is shown", () => {
+  const bright = { ...FREE, edition: "bright" };
+  assert(T.trialHonestyShown(FREE) && !T.trialHonestyShown(bright), "edition rule");
+  assert(T.trialHonestyShown({ ...bright, bright_reveal_presence: true }), "revealed presence");
+  const card = T.trialOfferCard(makeHost({ settings: bright }).host, "sidebar");
+  assert(card && !find(card, "honesty"), "a Bright card says the presence tracking stays free");
+  const shown = T.trialOfferCard(makeHost({ settings: { ...bright, bright_reveal_presence: true } }).host, "settings");
+  assert(find(shown, "honesty"), "the presence line is missing with presence revealed");
+});
+
+await check("trialStartedHere says whether this surface started the trial", async () => {
+  const h = makeHost({ answer: { ok: true, days_left: 90 } });
+  assert(T.trialStartedHere("milestone") === false, "before");
+  const card = T.trialOfferCard(h.host, "milestone");
+  type(card, "someone@example.com");
+  find(card, "start").click();
+  await settle();
+  assert(T.trialStartedHere("milestone") === true && T.trialStartedHere("atlas") === false, "after");
 });
 
 // ── the real views: the gate cards carry the trial, and only without a key ──
@@ -273,7 +311,7 @@ await check("Locate and Busy Times gates carry the trial card with their own sur
     const root = mod.render(ctx, {});
     const card = root.querySelector("[data-trial=card]");
     assert(card && card.getAttribute("data-surface") === surface, `${surface}: no trial card`);
-    assert(new RegExp(word + " needs a PadSpan Pro key").test(card.textContent), `${surface}: pitch`);
+    assert(new RegExp("The trial doesn't unlock " + word).test(card.textContent), `${surface}: pitch`);
     assert(!/3-month/.test(root.textContent), `${surface}: old 3-month wording`);
     const keyed = mod.render(viewCtx({ tier: "bright", pro_has_key: true }).ctx, {});
     assert(!keyed.querySelector("[data-trial=card]"), `${surface}: offered with a key`);

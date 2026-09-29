@@ -386,6 +386,10 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                         # made since (settings_store.py).
                         if (store_obj.data or {}).get("atlas_default_v1_applied"):
                             data["atlas_default_v1_applied"] = True
+                        # Nor bring back the trial milestone card, or restart
+                        # its week (settings_store.trial_state_kept).
+                        from .settings_store import trial_state_kept
+                        data.update(trial_state_kept(store_obj.data or {}, data))
                         await st.async_save(data)
                     if hasattr(store_obj, "data") and isinstance(data, dict):
                         store_obj.data = data

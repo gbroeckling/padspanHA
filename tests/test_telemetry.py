@@ -817,8 +817,9 @@ def test_the_panel_asks_in_both_places_and_only_until_answered():
              / "www" / "padspan-ha" / "panel.js").read_text(encoding="utf-8")
     # one card, built once
     assert panel.count("_telemetryAskCard(compact){") == 1
-    # gone after any answer, and never shown to someone already opted in
-    assert "if (!st || st.telemetry_enabled || st.telemetry_asked) return null;" in panel
+    # gone after any answer, never shown to someone already opted in, and not
+    # before settings have loaded (tests/js/whats_new_card.mjs runs it)
+    assert 'if (!st || !("telemetry_enabled" in st) || st.telemetry_enabled || st.telemetry_asked) return null;' in panel
     # inside the setup checklist …
     assert "const _ask = this._telemetryAskCard(true);\n        if (_ask) bar.appendChild(_ask);" in panel
     # … and on Overview once the checklist is gone

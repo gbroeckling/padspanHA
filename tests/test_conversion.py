@@ -294,3 +294,90 @@ def test_the_panel_placements_are_wired() -> None:
     assert '<div id="navTrial"' in panel
     css = (_WWW / "styles.css").read_text(encoding="utf-8")
     assert ".app.mini #navTrial{display:none}" in css
+
+
+# ═══ 5. Kept through a restore, a factory reset and a Bright import ═══════════
+# Review 2026-09-28: none of the three carried trial_nudge_done or
+# first_seen_ts, so a restore of an older backup (or a reset) brought the
+# milestone card back to a house that had said "No thanks", or restarted its
+# week. Like the licence, neither is house configuration.
+
+def test_trial_state_kept_takes_an_answer_from_either_side_and_the_earliest_sighting() -> None:
+    k = ss.trial_state_kept
+    assert k({"trial_nudge_done": True}, {"trial_nudge_done": False})["trial_nudge_done"] is True
+    assert k({}, {"trial_nudge_done": True})["trial_nudge_done"] is True
+    assert k({}, {}) == {"trial_nudge_done": False}, "no sighting on either side: nothing invented"
+    assert k({"first_seen_ts": 2_000.0}, {"first_seen_ts": 1_000.0})["first_seen_ts"] == 1_000.0
+    assert k({"first_seen_ts": 0}, {"first_seen_ts": 1_000.0})["first_seen_ts"] == 1_000.0
+    for bad in (0, -5, None, "yesterday", True):
+        assert k({"first_seen_ts": bad}, None) == {"trial_nudge_done": False}, bad
+
+
+class _FakeStore:
+    saved: dict = {}
+
+    def __init__(self, hass, version, key):
+        self._key = key
+
+    async def async_load(self):
+        return None
+
+    async def async_save(self, data):
+        _FakeStore.saved[self._key] = data
+
+    async def async_remove(self):
+        _FakeStore.saved.pop(self._key, None)
+
+
+def _run(coro):
+    import asyncio
+    return asyncio.new_event_loop().run_until_complete(coro)
+
+
+def test_a_factory_reset_keeps_the_trial_answer_and_first_sighting(monkeypatch) -> None:
+    import homeassistant.helpers.storage as _hs
+    from custom_components.padspan_ha.const import SETTINGS_STORE_KEY
+    from custom_components.padspan_ha.ws_factory_reset import ws_factory_reset
+    from tests.test_telemetry import _hass
+    _FakeStore.saved = {}
+    monkeypatch.setattr(_hs, "Store", _FakeStore)
+    h = _hass()
+    h.data[DOMAIN][DATA_SETTINGS].data.update({"trial_nudge_done": True, "first_seen_ts": 1_700_000_000.0,
+                                               "quiet_mode": True})
+    _run(ws_factory_reset(h, MagicMock(), {"id": 1, "confirm": "FACTORY RESET"}))
+    after = h.data[DOMAIN][DATA_SETTINGS].data
+    assert after["quiet_mode"] is False, "the reset did not run"
+    assert after["trial_nudge_done"] is True and after["first_seen_ts"] == 1_700_000_000.0, after
+    saved = _FakeStore.saved[SETTINGS_STORE_KEY]
+    assert saved["trial_nudge_done"] is True and saved["first_seen_ts"] == 1_700_000_000.0
+
+
+@pytest.mark.parametrize("live,in_backup,done,first", [
+    ({"trial_nudge_done": True, "first_seen_ts": 2_000.0}, {"trial_nudge_done": False, "first_seen_ts": 1_000.0},
+     True, 1_000.0),
+    ({"trial_nudge_done": False, "first_seen_ts": 5_000.0}, {"trial_nudge_done": True, "first_seen_ts": 0},
+     True, 5_000.0),
+])
+def test_a_restore_keeps_the_trial_answer_and_the_earliest_sighting(monkeypatch, live, in_backup, done, first) -> None:
+    import homeassistant.helpers.storage as _hs
+    from custom_components.padspan_ha import ws_backup
+    from custom_components.padspan_ha.const import SETTINGS_STORE_KEY
+    from tests.test_telemetry import _hass
+    _FakeStore.saved = {}
+    monkeypatch.setattr(_hs, "Store", _FakeStore)
+    bk = {"backups": [{"id": "bk1", "created_at": "2026-01-01T00:00:00+00:00", "version": "0.38.80",
+                       "note": "", "map_images": {},
+                       "stores": {SETTINGS_STORE_KEY: {"quiet_mode": True, **in_backup}}}]}
+
+    async def _load_backups(_hass_):
+        return bk
+
+    monkeypatch.setattr(ws_backup, "_load_backups", _load_backups)
+    h = _hass()
+    h.data[DOMAIN][DATA_SETTINGS].data.update(live)
+    _run(ws_backup.ws_store_backup_restore(h, MagicMock(), {"id": 1, "backup_id": "bk1",
+                                                              "store_keys": [SETTINGS_STORE_KEY]}))
+    after = h.data[DOMAIN][DATA_SETTINGS].data
+    assert after["quiet_mode"] is True, "the restore did not run"
+    assert after["trial_nudge_done"] is done and after["first_seen_ts"] == first, after
+    assert _FakeStore.saved[SETTINGS_STORE_KEY]["trial_nudge_done"] is done

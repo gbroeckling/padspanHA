@@ -128,7 +128,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "vacation_mode_periods": [],          # backend-only: [[start, end], ...] earlier vacations, left out of every pattern build
     "traceback_house_focus": 0,          # Traceback's Full house activity: the Atlas floor index it opens on (its own key — overview_iso_focus indexes photo floors)
     "wled_teams": [],                     # backend-only (padspan_ha/wled_teams_set): WLED devices that act as one light — see ws_wled.py
-    "atlas_emergency_button": True,       # show the Atlas "Test emergency lighting" button (Settings → Mapped Light Control)
+    "atlas_emergency_button": True,       # show the Atlas "Test emergency lighting" button (Settings → UI Structure → Atlas)
     "emergency_entities": [],             # the Atlas emergency lighting test's lights, when set; [] = HA's "emergency" groups, else the default rule — see emergency_test.py
     "vacation_mode_tracked_since": 0,     # backend-only: epoch-s from which every vacation span is in vacation_mode_periods (stamped once on upgrade if Vacation Mode ran before spans were recorded; 0 = always) — vacation_mode.py learned_pattern
     "vacation_mode_pattern_prev": {},     # backend-only: the last pattern learned before a vacation — stands in while a new vacation's build finds nothing (vacation_mode.py learned_pattern)
@@ -246,6 +246,23 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "rssi_capture_enabled": False,
     "rssi_capture_retention_days": 14,      # allowed: 1, 3, 7, 14, 30
 }
+
+
+def trial_state_kept(live: dict[str, Any] | None, other: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The trial milestone's two per-install facts, kept through a settings
+    restore, a factory reset and a Bright import (`other` is the settings
+    coming in; none for a reset). Like the licence, neither is house
+    configuration: an answer given anywhere stays given (trial_nudge_done),
+    and the install is as old as its earliest real sighting (first_seen_ts,
+    the smaller positive value) — so an older backup can neither bring the
+    card back nor restart its week."""
+    a, b = live or {}, other or {}
+    out: dict[str, Any] = {"trial_nudge_done": bool(a.get("trial_nudge_done") or b.get("trial_nudge_done"))}
+    seen = [v for v in (a.get("first_seen_ts"), b.get("first_seen_ts"))
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0]
+    if seen:
+        out["first_seen_ts"] = min(seen)
+    return out
 
 
 @dataclass

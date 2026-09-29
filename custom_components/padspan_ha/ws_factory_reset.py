@@ -129,10 +129,14 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         # server's copy, and "Stop being a tester" must keep working after a
         # reset (tester.carried_over).
         from .tester import carried_over as _tester_kept
+        # And the trial milestone's answer and first sighting: a reset is not
+        # a new install, so the card never comes back and its week never
+        # restarts (settings_store.trial_state_kept).
+        from .settings_store import trial_state_kept as _trial_kept
         st = _St(hass, 1, SETTINGS_STORE_KEY)
         _reset = {**dict(DEFAULT_SETTINGS), **{
             k: v for k, v in _keep_licence.items() if v
-        }, **_vac, **_tester_kept(_live)}
+        }, **_vac, **_tester_kept(_live), **_trial_kept(_live)}
         await st.async_save(_reset)
         cleared += 1
         store_obj = domain.get(DATA_SETTINGS)

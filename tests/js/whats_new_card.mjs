@@ -74,13 +74,14 @@ const cardSrc = extract("_whatsNewCard", "method");
 // module, or null) and _trialPromise, and nothing else module-level.
 const milestoneSrc = extract("_trialMilestoneCard", "method");
 const sidebarSrc = extract("_renderSidebarTrial", "method");
+const askSrc = extract("_telemetryAskCard", "method");
 const TRIAL_REAL = await import(pathToFileURL(join(dirname(PANEL), "views", "trial_offer.js")).href);
 
 function buildAll(EDITIONS, TRIAL = null) {
   // eslint-disable-next-line no-new-func
   return new Function("APP_VERSION", "EDITIONS", "TRIAL", "_trialPromise", `
     ${elSrc}
-    return { _el: el, ${cardSrc}, ${milestoneSrc}, ${sidebarSrc} };
+    return { _el: el, ${cardSrc}, ${milestoneSrc}, ${sidebarSrc}, ${askSrc} };
   `)(APP_VERSION, EDITIONS, TRIAL, Promise.resolve());
 }
 function build(EDITIONS, TRIAL = null) { return buildAll(EDITIONS, TRIAL)._whatsNewCard; }
@@ -223,6 +224,22 @@ t("update banner: a missing or throwing trial module costs only the line", () =>
     assert(out && out.textContent.includes("See what changed") && !q(out, "[data-trial-line]"), "banner lost");
   }
 });
+t("update banner: the trial line is news once — later banners have the Pro pitch as before", () => {
+  for (const seen of ["0.38.87", "0.38.88", "1.0.0"]) {
+    const { c, obj } = setup({ ...FREE, whatsnew_seen_version: seen });
+    const out = obj._whatsNewCard.call(c);
+    assert(out && !q(out, "[data-trial-line]"), "the trial line again in the banner from " + seen);
+    assert(out.textContent.includes("t c"), "the Pro pitch did not come back from " + seen + ": " + out.textContent);
+    assert(!c._events.length, "counted an offer that was not shown: " + JSON.stringify(c._events));
+  }
+});
+t("update banner: no trial line after No thanks, or on a kiosk", () => {
+  const answered = setup({ ...FREE, trial_nudge_done: true });
+  assert(!q(answered.obj._whatsNewCard.call(answered.c), "[data-trial-line]"), "shown after No thanks");
+  const kiosk = setup(FREE);
+  kiosk.c.state.kioskMode = true;
+  assert(!q(kiosk.obj._whatsNewCard.call(kiosk.c), "[data-trial-line]"), "shown on a kiosk");
+});
 t("update banner: a non-admin opening it is told an administrator starts it", () => {
   const { c, obj } = setup(FREE, { admin: false });
   c.state._bannerTrialOpen = true;
@@ -291,6 +308,26 @@ t("milestone: Try it opens the shared card, which stays after a key arrives", ()
   assert(shut.obj._trialMilestoneCard.call(shut.c, true) === null, "an unopened card outlived a key");
 });
 
+t("milestone: waits for another page load after another Overview card showed on this one", () => {
+  const { c, obj } = setup(FREE);
+  c._overviewCardShown = true;          // the update banner, the usage ask or Getting started
+  assert(obj._trialMilestoneCard.call(c, true) === null, "shown right after another card");
+  assert(!c._saved.length && !c._events.length, "saved or counted while waiting");
+  const shown = setup(FREE);
+  assert(shown.obj._trialMilestoneCard.call(shown.c, true), "not shown on a clean load");
+  shown.c._overviewCardShown = true;    // already on screen: it stays
+  assert(shown.obj._trialMilestoneCard.call(shown.c, true), "an open card vanished");
+});
+
+t("usage ask: nothing until settings have loaded (it latched the milestone off on every load)", () => {
+  const cases = [[{}, false], [{ telemetry_enabled: false, telemetry_asked: false }, true],
+                 [{ telemetry_enabled: false, telemetry_asked: true }, false], [{ telemetry_enabled: true }, false]];
+  for (const [s, want] of cases) {
+    const { c, obj } = setup(s);
+    assert(!!obj._telemetryAskCard.call(c, false) === want, JSON.stringify(s) + " -> " + !want);
+  }
+});
+
 // 9. The sidebar entry.
 function sidebar(settings, opts) {
   const s = setup(settings, opts);
@@ -323,6 +360,40 @@ t("sidebar: nothing with a key, before settings, or without the module", () => {
   obj._renderSidebarTrial.call(c);
   assert(!box.children.length, "shown without the module");
 });
+t("sidebar: administrators only, and gone once the milestone was answered", () => {
+  const na = sidebar(FREE, { admin: false });
+  na.obj._renderSidebarTrial.call(na.c);
+  assert(!na.box.children.length, "shown to a non-admin");
+  const done = sidebar({ ...FREE, trial_nudge_done: true });
+  done.obj._renderSidebarTrial.call(done.c);
+  assert(!done.box.children.length, "shown after No thanks");
+});
+
+// 10. ✕ on the milestone after a trial was started from it: a "started"
+//     note closing, not a dismissal (async: the start is a request).
+{
+  T._resetTrialOffer();
+  const label = "milestone: ✕ after a trial started here is not counted as a dismissal";
+  try {
+    const { c, obj } = setup(FREE);
+    const inner = c._ctx;
+    c._ctx = () => { const x = inner(); x.actions.wsCall = async () => ({ ok: true, days_left: 90 }); return x; };
+    q(obj._trialMilestoneCard.call(c, true), '[data-trial-milestone="try"]').click();
+    const card = obj._trialMilestoneCard.call(c, true);
+    const input = q(card, '[data-trial="email"]');
+    input.value = "someone@example.com";
+    input.dispatchEvent({ type: "input" });
+    q(card, '[data-trial="start"]').click();
+    for (let i = 0; i < 5; i++) await new Promise(r => globalThis._realSetTimeout(r, 0));
+    assert(T.trialStartedHere("milestone"), "the trial did not start in the harness");
+    const saves = c._saved.filter(m => m.trial_nudge_done === true).length;
+    q(obj._trialMilestoneCard.call(c, true), '[data-trial-milestone="close"]').click();
+    assert(!c._events.includes("trial_nudge_dismissed"), "counted as dismissed: " + JSON.stringify(c._events));
+    assert(c._saved.filter(m => m.trial_nudge_done === true).length === saves, "saved again on ✕");
+    assert(obj._trialMilestoneCard.call(c, true) === null, "still shown after ✕");
+    ok.push(label);
+  } catch (e) { fail.push(`${label}: ${e && e.message ? e.message : e}`); }
+}
 
 for (const o of ok) console.log(`  ok   ${o}`);
 for (const f of fail) console.log(`  FAIL ${f}`);
