@@ -6,9 +6,11 @@
 Prints: installs by version / edition / tier / HA; environment distributions
 (scanners, floors, rooms, lights, IRKs, integrations); which features are on
 in how many installs; which tabs and tools are used and how much; how well
-the Apple Find My (AirTag) tools follow tags, where they run; health
-signals (crypto ok, callback alive, IRKs resolving anywhere, outside
-attribution firing); and WARNING/ERROR counts by module across the fleet —
+the Apple Find My (AirTag) tools follow tags, where they run; load and
+hardware (installs by board / CPUs / RAM, and per class how hard Home
+Assistant works and how many installs max out — Raspberry Pi classes
+first); health signals (crypto ok, callback alive, IRKs resolving anywhere,
+outside attribution firing); and WARNING/ERROR counts by module across the fleet —
 the "what is broken in houses I cannot see" list, sorted by installs affected.
 
 The environment, switches and health are each install's last report (one
@@ -58,6 +60,103 @@ def _bucket(v: int, edges: list[int]) -> str:
         if v <= e:
             return f"<= {e}"
     return f"> {edges[-1]}"
+
+
+# env.hw.board values that are a Raspberry Pi (Yellow carries a Compute
+# Module) — the class the load section exists to watch for max-outs.
+_PI_BOARDS = frozenset({"rpi2", "rpi3", "rpi4", "rpi5", "rpi_other", "yellow"})
+# health.perf.over keys, as the section prints them (telemetry.PERF_OVER).
+_OVER_LABELS = (("load", "load > 1/CPU"), ("cpu", "HA > 90% core"), ("mem", "mem < 10% free"),
+                ("lag", "loop lag > 1 s"))
+
+
+def _perf_stat(r: dict, metric: str, stat: str) -> float | None:
+    perf = (r.get("health") or {}).get("perf")
+    m = perf.get(metric) if isinstance(perf, dict) else None
+    v = m.get(stat) if isinstance(m, dict) else None
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def _perf_samples(r: dict) -> int:
+    perf = (r.get("health") or {}).get("perf")
+    try:
+        return int(perf.get("samples") or 0) if isinstance(perf, dict) else -1
+    except (TypeError, ValueError):
+        return 0
+
+
+def _spread(vals: list[float]) -> str:
+    """Across install-days: median, 90th percentile, max."""
+    if not vals:
+        return "not reported"
+    s = sorted(vals)
+    med = s[(len(s) - 1) // 2]
+    p90 = s[max(0, -(-9 * len(s) // 10) - 1)]
+    return f"median {med:<6g} p90 {p90:<6g} max {s[-1]:<6g} ({len(s)} install-days)"
+
+
+def load_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
+    """Load and hardware (env.hw / health.perf): which machines PadSpan runs
+    on, and how hard each class of them works — Raspberry Pi classes first,
+    marked [Pi], because a feature that costs nothing on a VM can max a
+    board out. Per class: the spread over install-days of each day's p95,
+    and how many installs hit each max-out limit at all in the window.
+    An install whose last report has no env.hw is from before these fields
+    and counted as "not reported", never as an idle machine."""
+    out = ["Load and hardware (env.hw / health.perf)"]
+    cls_of: dict[str, str] = {}
+    pi: set[str] = set()
+    by: dict[str, Counter] = {k: Counter() for k in ("board", "install", "arch", "cpus", "ram")}
+    for iid, r in latest.items():
+        hw = (r.get("env") or {}).get("hw")
+        if not isinstance(hw, dict):
+            continue
+        for k in by:
+            by[k][str(hw.get(k, "unknown"))] += 1
+        # str(): a report is untrusted input — a list here must not crash the summary.
+        cls = f"{str(hw.get('board', 'unknown'))} / {str(hw.get('cpus', '?'))} cpu / {str(hw.get('ram', 'unknown'))} RAM"
+        cls_of[iid] = cls
+        if str(hw.get("board")) in _PI_BOARDS:
+            pi.add(cls)
+    n = len(latest)
+    out.append(f"  {'installs reporting hardware':<36} {len(cls_of):>7}  / {n}"
+               f"  ({n - len(cls_of)} not reported: older builds)")
+    if not cls_of:
+        return out
+    for k, title in (("board", "board"), ("install", "installation"), ("arch", "arch"), ("cpus", "CPUs"),
+                     ("ram", "RAM (up to)")):
+        out.append(f"  by {title}: " + ", ".join(
+            f"{'[Pi] ' if k == 'board' and v in _PI_BOARDS else ''}{v} {c}" for v, c in by[k].most_common()))
+    # One report per install-day — the one that covered most of the day (a
+    # second "Send a report now" the same day carries only minutes) — and,
+    # over every report, which installs hit a limit at all.
+    best: dict[tuple[str, str], dict] = {}
+    hit: dict[str, dict[str, set]] = defaultdict(lambda: defaultdict(set))
+    for r in reports:
+        iid = r.get("install_id")
+        if iid not in cls_of or _perf_samples(r) < 0:
+            continue
+        key = (iid, str(r.get("day") or ""))
+        if key not in best or _perf_samples(r) > _perf_samples(best[key]):
+            best[key] = r
+        over = ((r.get("health") or {}).get("perf") or {}).get("over")
+        for k, c in (over.items() if isinstance(over, dict) else ()):
+            if isinstance(c, (int, float)) and c > 0:
+                hit[cls_of[iid]][k].add(iid)
+    days: dict[str, list[dict]] = defaultdict(list)
+    for (iid, _day), r in best.items():
+        days[cls_of[iid]].append(r)
+    installs = Counter(cls_of.values())
+    for cls in sorted(installs, key=lambda c: (c not in pi, -installs[c], c)):
+        out.append(f"  {'[Pi] ' if cls in pi else ''}{cls}: {installs[cls]} installs")
+        rs = days.get(cls) or []
+        for metric, label in (("cpu_pc", "HA CPU p95 (% of one core)"), ("load_pc", "load per CPU p95 (%)"),
+                              ("lag_ms", "loop lag p95 (ms)"), ("snap_ms", "snapshot build p95 (ms)")):
+            vals = [v for v in (_perf_stat(r, metric, "p95") for r in rs) if v is not None]
+            out.append(f"      {label:<30} {_spread(vals)}")
+        out.append("      max-outs (installs that hit it): " + ", ".join(
+            f"{lbl} {len(hit[cls].get(k, ()))}/{installs[cls]}" for k, lbl in _OVER_LABELS))
+    return out
 
 
 def main() -> int:
@@ -240,6 +339,10 @@ def main() -> int:
     print(f"  {'follow rate':<36} {rate:>7}  (links - undone) / (links - undone + ambiguous + late)")
     wrong = f"{100 * undone // links}%" if links else "n/a"
     print(f"  {'wrong links (undone) per link':<36} {wrong:>7}  undone / links")
+    print()
+
+    for line in load_section(latest, reports):
+        print(line)
     print()
 
     h: dict[str, int] = defaultdict(int)

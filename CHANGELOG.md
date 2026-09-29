@@ -14,6 +14,11 @@ All notable changes to PadSpan HA are documented here.
 - **Added:** if the report is on, the opt-in usage report counts what the weather did, once per page: whether it failed and drew nothing (and why), whether it showed light or heavy rain or snow, or still, and what decided it (rain sensor, weather entity, which warning service). Words only, never an entity or a warning's text.
 - Two choices made for now, easy to change: a rain-rate sensor never scales the rain up (any reading above 0 is light rain), and rain falls on outdoor areas (a garden or yard floor with its own plate), never on the house's floors.
 
+### Opt-in usage report — how hard the machine works
+- **Added:** if the report is on, it says what kind of machine PadSpan runs on: CPU count, RAM (the size it's sold as), architecture, installation type and board family (a Raspberry Pi 4, a virtual machine, …). Each is a word from a fixed list, never a model name, host name or serial.
+- **Added:** and how hard that machine works, measured once a minute: load per CPU, Home Assistant's own CPU and memory, memory available, swap, how late Home Assistant's event loop runs, and how long PadSpan's live snapshot and presence poll take. Each is sent as median, 95th percentile and maximum, with how many times a limit was hit (load above 1 per CPU, Home Assistant above 90% of one core, under 10% memory free, a second's lag). Nothing is measured in the first five minutes after Home Assistant starts, so a restart doesn't count as a max-out.
+- This is to see, per kind of machine, whether a feature is too heavy for a Raspberry Pi before it reaches everyone. Measuring costs one timer a minute; its file reads run off Home Assistant's event loop.
+
 ---
 
 ## 0.38.90 — Release notes you can close on a wall screen, and phone layouts (2026-09-28)

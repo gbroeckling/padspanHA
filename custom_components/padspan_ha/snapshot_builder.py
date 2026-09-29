@@ -51,6 +51,7 @@ from .beacon_identity import (
 # minting objects for long.
 _SETTLED_POLLS = 3
 from .ble_enrichment import enrich_object as _enrich_ble_object
+from .perf_sampler import record_duration
 from .presence_rules import away_timeout_s, is_away
 from .util import ha_devices
 from .ws_common import (
@@ -215,7 +216,11 @@ async def _live_snapshot(hass: HomeAssistant) -> dict:
         cached = dom.get(_DATA_SNAPSHOT_CACHE)
         if cached and (time.monotonic() - cached[0]) < _SNAPSHOT_CACHE_TTL_S:
             return cached[1]
+        _t0 = time.perf_counter()
         snap = await _build_live_snapshot(hass)
+        # What a build costs on this machine, for the opt-in report
+        # (perf_sampler.py; a no-op while the report is off, never raises).
+        record_duration(hass, "snap", (time.perf_counter() - _t0) * 1000.0)
         dom[_DATA_SNAPSHOT_CACHE] = (time.monotonic(), snap)
         return snap
 
