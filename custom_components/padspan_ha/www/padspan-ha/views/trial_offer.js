@@ -40,6 +40,8 @@ export const TRIAL_DAYS = 90;
 // under the PadSpan sidebar menu — the one placement a Bright build has too.
 export const TRIAL_SURFACES = Object.freeze(["overview", "atlas", "placement", "maps", "locate", "busy_times", "settings",
   "update_banner", "milestone", "sidebar"]);
+// The placements that are not a paid wall.
+const _QUIET_SURFACES = ["update_banner", "milestone", "sidebar"];
 export const TRIAL_TITLE = "90-day free trial, no card";
 // Said wherever the trial is offered: the trial is the lighting half, and
 // nothing about the free presence product changes whatever anyone answers.
@@ -250,9 +252,14 @@ export function trialOfferCard(host, surface, opts = {}) {
     card.appendChild(el("div", { "data-trial": "error", style: "font-size:12px;color:#f87171;margin-top:6px;line-height:1.5" }, st.error));
   }
   if (opts.buy !== false) {
+    // On the three quiet placements nobody hit a wall, so the trial button
+    // is the offer and buying is a small grey link under it; the paywalls
+    // keep the amber line.
+    const quiet = _QUIET_SURFACES.includes(surface);
     card.appendChild(el("div", { style: "font-size:11px;margin-top:6px" }, [
       el("a", { href: BUY_URL, target: "_blank", rel: "noopener", "data-trial": "buy",
-        style: "color:#fbbf24;font-weight:600;text-decoration:none" }, "Or buy PadSpan Pro — " + PRO_PRICE
+        style: quiet ? "color:#94a3b8;text-decoration:underline" : "color:#fbbf24;font-weight:600;text-decoration:none" },
+        "Or buy PadSpan Pro — " + PRO_PRICE
           + (proLifetimeOpen() ? ", or " + PRO_LIFETIME_PRICE + " for life until October 31" : "")),
     ]));
   }

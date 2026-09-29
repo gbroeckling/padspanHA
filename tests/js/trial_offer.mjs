@@ -147,6 +147,18 @@ await check("the card says what it is, in the agreed words", () => {
   assert(!find(T.trialOfferCard(host, "maps", { buy: false }), "buy"), "buy link shown with buy:false");
 });
 
+await check("the buy line is a small grey link where nobody hit a wall, amber on the paywalls", () => {
+  const { host } = makeHost();
+  const style = (surface) => find(T.trialOfferCard(host, surface), "buy").getAttribute("style");
+  for (const quiet of ["update_banner", "milestone", "sidebar"]) {
+    assert(/color:#94a3b8/.test(style(quiet)) && !/#fbbf24|font-weight/.test(style(quiet)), `${quiet}: ${style(quiet)}`);
+  }
+  for (const wall of ["atlas", "maps", "placement", "locate", "busy_times", "settings", "overview"]) {
+    assert(/color:#fbbf24/.test(style(wall)), `${wall} lost the amber line: ${style(wall)}`);
+  }
+  assert(/PadSpan Pro/.test(find(T.trialOfferCard(host, "sidebar"), "buy").textContent), "the quiet link lost its words");
+});
+
 await check("a non-admin sees one line and never reaches trial_start", () => {
   const { host, calls } = makeHost({ admin: false });
   const card = T.trialOfferCard(host, "atlas");
