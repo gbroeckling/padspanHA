@@ -256,6 +256,43 @@
 .modal .close {
   margin-left:auto;
 }
+
+/* Release notes over the panel (views/release_notes.js), from the Overview's
+   "PadSpan HA updated" card. Wall screens are touch only: ✕ and Close are
+   48px targets, and the list scrolls between a fixed header and footer. */
+.modal .panel.notes-panel{width:min(860px,96vw);max-height:92vh;max-height:92dvh}
+.notes-title{flex:1;min-width:0;font-size:17px}
+.notes-x{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;
+  margin:0;padding:0;border-radius:12px;border:1px solid #2d6a4f;background:#152a1a;color:#e2e8f0;
+  font-size:22px;line-height:1;cursor:pointer}
+.notes-x:active,.btn.notes-close:active{filter:brightness(1.5)}
+.modal .body.notes-body{flex:1 1 auto;min-height:0;overscroll-behavior:contain;padding:14px 20px;
+  font-size:15px;line-height:1.6;color:#dbe4ee;overflow-wrap:anywhere}
+.notes-status{padding:28px 0;color:#94a3b8;text-align:center}
+.notes-rel + .notes-rel{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+.notes-relhead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.notes-ver{font-size:17px;font-weight:800;color:#52b788}
+.notes-date{font-size:13px;color:#94a3b8}
+.notes-reltitle{margin:2px 0 6px;font-weight:700;color:#e2e8f0}
+.notes-h{margin:14px 0 4px;font-weight:700;color:#8ee5b4}
+.notes-ul{margin:4px 0;padding-left:22px}
+.notes-ul li{margin:5px 0}
+.notes-p{margin:8px 0}
+.notes-md strong{color:#f1f5f9}
+.notes-md code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.9em;padding:0 4px;
+  border-radius:5px;border:1px solid var(--line);background:#0c1a0e;box-decoration-break:clone;
+  -webkit-box-decoration-break:clone}
+.notes-foot{flex:0 0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 20px;
+  border-top:1px solid var(--line)}
+.notes-history{font-size:13px;color:#52b788;text-decoration:none}
+.btn.notes-close{width:auto;min-width:160px;min-height:48px;margin:0 0 0 auto;text-align:center;
+  font-size:16px;font-weight:700;border-color:#52b788;color:#e2e8f0}
+@media(max-width:900px){
+  .modal .panel.notes-panel{width:100%}
+  .modal .body.notes-body{padding:12px 14px;font-size:14px}
+  .notes-foot{padding:10px 14px calc(10px + env(safe-area-inset-bottom, 0px))}
+  .btn.notes-close{flex:1 1 100%;margin:0}
+}
 .table {
   width: 100%;
   border-collapse: collapse;

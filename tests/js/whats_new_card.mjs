@@ -97,6 +97,8 @@ function ctx(settings, { admin = true } = {}) {
     _toast: () => {},
     _scheduleRender: () => {},
     _telemetryEvent: (n) => events.push(n),
+    _notesOpened: 0,
+    _openReleaseNotes() { c._notesOpened++; },
   };
   // The panel ctx trialOfferFromCtx reads.
   c._ctx = () => ({
@@ -153,18 +155,33 @@ run("same version shows nothing", { whatsnew_seen_version: APP_VERSION }, EDITIO
   (out) => { if (out !== null) throw new Error("expected null"); });
 
 // 5. editions.js failed to load. panel.js loads it with .catch(console.warn)
-//    precisely so the panel survives; the card must survive it too, which
-//    means the notes URL cannot come from an import that may not have landed.
+//    precisely so the panel survives; the card must survive it too, and
+//    "See what changed" still opens the notes (they come with the panel,
+//    not from editions.js).
 run("editions module missing still renders", { whatsnew_seen_version: "0.0.1" }, null,
-  (out) => {
+  (out, c) => {
     if (!out) throw new Error("card vanished when editions.js was unavailable");
-    // dom_shim's querySelectorAll handles #id, .class and tag only — no
-    // attribute selectors — so match the tag and read the attribute.
-    const a = out.querySelector("a");
-    const href = a && a.getAttribute ? a.getAttribute("href") : "";
-    if (!href || !/^https?:\/\//.test(href)) {
-      throw new Error(`notes link has no usable href without editions.js (got ${JSON.stringify(href)})`);
+    const btn = out.querySelector("[data-whatsnew-notes]");
+    if (!btn || btn.textContent !== "See what changed") throw new Error("no See what changed");
+    btn.click();
+    if (c._notesOpened !== 1) throw new Error("the notes did not open without editions.js");
+  });
+
+// 5b. Garry, 2026-09-28: "release notes screen has no way to close on touch
+//     monitor". See what changed was a link to padspan.traks.ca in a new tab,
+//     which a wall screen in Chrome --kiosk can't close. It opens the notes
+//     over the panel now (views/release_notes.js, tests/js/release_notes.mjs),
+//     and still records the version as seen.
+run("See what changed opens the notes in the panel, not a new tab", { whatsnew_seen_version: "0.0.1" }, EDITIONS_REAL,
+  (out, c) => {
+    const btn = out.querySelector("[data-whatsnew-notes]");
+    if (!btn || btn.localName !== "button") throw new Error("See what changed is not a button");
+    for (const a of out.querySelectorAll("a")) {
+      if (String(a.getAttribute("href") || "").includes("#whatsnew")) throw new Error("the card still links to the website's notes");
     }
+    btn.click();
+    if (c._notesOpened !== 1) throw new Error("the notes did not open");
+    if (!c._saved.find(m => m && m.whatsnew_seen_version === APP_VERSION)) throw new Error("the version was not recorded as seen");
   });
 
 // 6. A pitch that throws must not take the card — and so the tab — down.
