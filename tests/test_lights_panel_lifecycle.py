@@ -54,6 +54,16 @@ def test_the_harness_actually_drew_the_house(result) -> None:
         assert s["svcCalls"] > 0, f"{s['name']}: no toggle ever reached hass.callService — the harness is not exercising the action path"
 
 
+def test_the_panel_draws_the_outdoor_weather_only_when_it_should(result) -> None:
+    """Atlas outdoor weather through the panel's own settings read and host:
+    pouring outside draws the overlay (animated on Pro, still on the free
+    map); before the weather settings exist, nothing."""
+    got = {s["name"]: s.get("weather") for s in result["scenarios"]}
+    assert got["pro, pouring outside"] == "animated", got
+    assert got["free tier, snowing outside"] == "still", got
+    assert all(v is None for k, v in got.items() if "outside" not in k), got
+
+
 def test_a_motion_sensor_back_from_a_blip_redraws_quiet(result) -> None:
     """Live 2026-09-27: a sensor back "off" from a 29 s offline blip pulsed,
     then wore the 6-hour ring. The sidebar subscribes to

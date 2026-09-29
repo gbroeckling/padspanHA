@@ -134,11 +134,12 @@ const MODEL = {
   ha_started_at: iso(24 * 3600_000),
 };
 
-function makeHass({ settings, admin = true }) {
+function makeHass({ settings, admin = true, extraStates = null }) {
   const calls = { ws: [], svc: [] };
   return {
     calls,
-    states: STATES,
+    // extraStates: entities the Atlas reads but never lists (a weather.*).
+    states: extraStates ? { ...STATES, ...extraStates } : STATES,
     user: { is_admin: admin, name: "smoke" },
     language: "en",
     config: { unit_system: { temperature: "°C" } },
@@ -171,6 +172,12 @@ const SCENARIOS = [
   ["pro, hide untouched + hide codes, a latched flood alarm", { ...BASE, lights_hide_untouched: true, lights_hide_device_codes: true,
       flood_latches: { "binary_sensor.kitchen_sink_leak": { triggered_at: NOW / 1000 - 3600, expires_at: NOW / 1000 + 86400 } } }, {}],
   ["settings that never arrive", null, {}],
+  // Outdoor weather (views/atlas_weather.js): pouring outside, the overlay
+  // drawn over the map — and, free, still.
+  ["pro, pouring outside", { ...BASE, atlas_weather_enabled: true, atlas_weather_strength: 1.2 },
+    { extraStates: { "weather.forecast_home": ST("weather.forecast_home", "pouring", { temperature: 9, temperature_unit: "°C" }) } }],
+  ["free tier, snowing outside", { ...BASE, tier: "free", atlas_weather_enabled: true },
+    { extraStates: { "weather.forecast_home": ST("weather.forecast_home", "snowy", { temperature: -3, temperature_unit: "°C" }) } }],
 ];
 
 const { } = await import(pathToFileURL(join(WWW, "lights_panel.js")).href);
@@ -203,6 +210,8 @@ if (!Cls) {
       if (!content || !content.children.length) throw new Error("rendered nothing into #content");
       const all = content._all();
       rec.svg = all.some(n => typeof n.innerHTML === "string" && n.innerHTML.includes("<svg"));
+      const wx = all.find(n => n.classList && n.classList.contains("lv-wx"));
+      rec.weather = wx ? (wx.classList.contains("still") ? "still" : "animated") : null;
       const rows = all.filter(n => n.localName === "tr" && n.getAttribute("data-eid"));
       rec.rows = rows.length;
       if (!rec.svg) throw new Error("no isometric <svg> was drawn");
