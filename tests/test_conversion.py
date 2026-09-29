@@ -313,6 +313,17 @@ def test_trial_state_kept_takes_an_answer_from_either_side_and_the_earliest_sigh
         assert k({"first_seen_ts": bad}, None) == {"trial_nudge_done": False}, bad
 
 
+def test_a_restore_keeps_the_later_whats_new_version() -> None:
+    """Re-review 2026-09-28: a restore took whatsnew_seen_version from the
+    backup, so the update banner (and its one-time trial line) showed again
+    although nothing new had been installed."""
+    k = ss.trial_state_kept
+    assert k({"whatsnew_seen_version": "0.38.89"}, {"whatsnew_seen_version": "0.38.80"})["whatsnew_seen_version"] == "0.38.89"
+    assert k({"whatsnew_seen_version": "0.38.9"}, {"whatsnew_seen_version": "0.38.100"})["whatsnew_seen_version"] == "0.38.100"
+    assert k({"whatsnew_seen_version": "0.38.89"}, {})["whatsnew_seen_version"] == "0.38.89"
+    assert "whatsnew_seen_version" not in k({"whatsnew_seen_version": "garbage"}, {"whatsnew_seen_version": None})
+
+
 class _FakeStore:
     saved: dict = {}
 

@@ -7,9 +7,9 @@ All notable changes to PadSpan HA are documented here.
 ## 0.38.89 — Design pass: the trial asks once, the emergency button stays usable (2026-09-28)
 
 ### Trying the lighting map
-- **Changed:** the "New: try the lighting map free for 90 days" line is in one "PadSpan HA updated" note only — the update that brought the trial. Later notes go back to the short line about what a licence adds. It never shows on a wall kiosk (`?kiosk=1`) or after **No thanks**.
+- **Changed:** the "New: try the lighting map free for 90 days" line is in one "PadSpan HA updated" note only — the update that brought the trial. Later notes go back to the short line about what a licence adds. It never shows on a wall kiosk (`?kiosk=1`), or once the one-time card about the lighting half has been shown.
 - **Changed:** the one-time "PadSpan's working in your house" card waits for your next visit if another card (the update note, the usage report question, Getting started) was on Overview this time, so two offers never show one after the other.
-- **Changed:** the **💡 Lighting · free trial** line in PadSpan's menu shows to administrators only (the only people who can start the trial), and goes away after **No thanks**.
+- **Changed:** the **💡 Lighting · free trial** line in PadSpan's menu shows to administrators only (the only people who can start the trial), and goes away once the one-time card about the lighting half has been shown.
 - **Fixed:** closing the card with ✕ after starting a trial from it no longer counts as saying no.
 - **Fixed:** restoring a backup, a factory reset, or importing a PadSpan Bright house keeps your answer to the trial card and when PadSpan first ran here, so the card doesn't come back.
 - **Changed:** on Locate and Busy Times the trial card now says plainly that the trial doesn't unlock them, instead of repeating that they need Pro.
@@ -33,6 +33,10 @@ All notable changes to PadSpan HA are documented here.
 - **Fixed:** "Upgrade to PadSpan Pro — $12" and "Buy PadSpan Bright Pro" were grey boxes (the first unreadable); they now look like the buttons beside them.
 - **Fixed:** "What Pro unlocks today" had two markers on every line.
 - **Fixed:** a Buy link from the app landed a screen below the Pro section while the page's pictures loaded.
+
+### Settings and backups
+- **Fixed:** ticking or unticking the emergency button's switch in Settings no longer throws away other changes on that page that you haven't saved yet.
+- **Fixed:** restoring a backup no longer brings back an update note you had already seen.
 
 ---
 

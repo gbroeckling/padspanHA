@@ -1043,8 +1043,9 @@ class PadSpanHaApp extends HTMLElement {
   // trial (no key, below bright); a tap opens the shared card right there.
   // No badge, no count, no animation. It is the one placement a Bright build
   // keeps (its Overview does not exist). Administrators only (the one person
-  // who can start it), and gone once the milestone card was answered
-  // (trial_nudge_done): a "No thanks" means no. Built by _renderNav; the
+  // who can start it), and gone once the milestone card has been SHOWN
+  // (trial_nudge_done is saved when it first appears, answered or not): the
+  // offer has been made once, and that is enough. Built by _renderNav; the
   // trial module may land after the first nav, so that waits for it once.
   _renderSidebarTrial(){
     const box = this.$ && this.$("#navTrial");

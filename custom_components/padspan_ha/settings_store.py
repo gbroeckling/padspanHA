@@ -262,6 +262,18 @@ def trial_state_kept(live: dict[str, Any] | None, other: dict[str, Any] | None =
             if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0]
     if seen:
         out["first_seen_ts"] = min(seen)
+    # The code running here did not change with a restore, so there is no new
+    # update to announce: the later "what's new" version stands, or the update
+    # banner (and its one-time trial line) would show again.
+    def _ver(v: Any) -> tuple[int, ...] | None:
+        try:
+            parts = tuple(int(p) for p in str(v).split("."))
+        except (TypeError, ValueError):
+            return None
+        return parts if len(parts) == 3 else None
+    versions = [v for v in (a.get("whatsnew_seen_version"), b.get("whatsnew_seen_version")) if _ver(v)]
+    if versions:
+        out["whatsnew_seen_version"] = max(versions, key=_ver)
     return out
 
 

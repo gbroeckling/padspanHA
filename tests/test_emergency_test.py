@@ -650,6 +650,9 @@ def test_the_settings_card_saves_each_switch_by_its_own_rule():
     out = json.loads(lines[-1])
     assert not out["failures"] and res.returncode == 0, out["failures"]
     assert out["emergencySaves"] == [{"atlas_emergency_button": False}], out
+    # Re-review 2026-09-28: through settingsSet it re-rendered the whole
+    # Settings view and threw away other unsaved changes on the page.
+    assert out["emergencyRerenders"] == 0, out
     assert out["saveSends"] == [{"lights_panel_enabled": False}], out
     assert "Goodie" not in out["title"] and "Atlas" in out["title"], out["title"]
     assert "On by default" in out["blurb"] and "Lights panel" not in out["blurb"], out["blurb"]

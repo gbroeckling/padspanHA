@@ -404,7 +404,7 @@ class PadSpanLightsApp extends HTMLElement {
     const ran = (this.state._emerg && this.state._emerg.emergency_ran) || [];
     if(ran.length && !this._emergArmed()){
       this._emergArmUntil = Date.now() + 3000;
-      this._toast(`${ran.join(", ")} ran during the test.\nTap again to turn off every emergency light`, true);
+      this._toast(`${ran.join(", ")} ran during the test.\nTap again to turn off every emergency light`, true, 3000);
       clearTimeout(this._emergArmTimer);
       this._emergArmTimer = setTimeout(()=>{ this._emergArmUntil = 0; this._render(); }, 3000);
       this._render();
@@ -1040,7 +1040,7 @@ class PadSpanLightsApp extends HTMLElement {
     });
   }
 
-  _toast(msg, isError=false){
+  _toast(msg, isError=false, durationMs=null){
     const t=document.createElement("div");
     t.textContent=msg;
     t.style.cssText=`position:fixed;bottom:24px;left:50%;transform:translateX(-50%);`+
@@ -1057,7 +1057,8 @@ class PadSpanLightsApp extends HTMLElement {
     this._toastEl = t;
     document.body.appendChild(t);
     // Long enough to read: the emergency messages run to a few sentences.
-    const ms = Math.min(10000, Math.max(3500, String(msg).length * 60));
+    // A message tied to a window (Force off's "tap again") passes its own.
+    const ms = durationMs || Math.min(10000, Math.max(3500, String(msg).length * 60));
     setTimeout(()=>{ try{document.body.removeChild(t);}catch(_){} if(this._toastEl === t) this._toastEl = null; }, ms);
   }
 

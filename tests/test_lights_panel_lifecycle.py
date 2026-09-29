@@ -164,7 +164,7 @@ def test_a_failed_settings_fetch_keeps_the_hidden_button_hidden(result) -> None:
 
 def test_the_emergency_toast_shows_above_the_card() -> None:
     src = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
-    toast = src.split("_toast(msg, isError=false){", 1)[1].split("\n  }\n", 1)[0]
+    toast = src.split("_toast(msg, isError=false, durationMs=null){", 1)[1].split("\n  }\n", 1)[0]
     assert "z-index:10001" in toast and "z-index:10000" in src.split("_openEmergencyCard(){", 1)[1]
 
 
@@ -198,8 +198,12 @@ def test_emergency_toasts_stay_long_enough_to_read() -> None:
     was on screen 3.5 s like a one-word toast, and a second toast landed on
     top of the first."""
     src = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
-    toast = src.split("_toast(msg, isError=false){", 1)[1].split("\n  }\n", 1)[0]
+    toast = src.split("_toast(msg, isError=false, durationMs=null){", 1)[1].split("\n  }\n", 1)[0]
     assert "String(msg).length * 60" in toast and "Math.min(10000" in toast
+    # Re-review: the armed Force-off message is tied to its 3 s window, so it
+    # passes that as its own duration instead of outlasting the window.
+    assert "durationMs ||" in toast
+    assert "Tap again to turn off every emergency light`, true, 3000);" in src
 
 
 def test_a_new_toast_replaces_the_last(result) -> None:

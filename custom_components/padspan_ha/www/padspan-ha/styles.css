@@ -1204,6 +1204,11 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 /* While a drawer is open, the running test's label and Force off stack
    under the dial, in that same clear strip, rather than over the chips. */
 .lv-mapcard:has(.lv-drawer.open) .lv-emerg{flex-direction:column;align-items:flex-end}
+/* ...and the running label is its 32px icon at every width, so the stacked
+   column stays inside the drawer's clear strip on the right (re-review). */
+.lv-mapcard:has(.lv-drawer.open) .lv-emerg-label.on{max-width:32px;width:32px;padding:0;justify-content:center}
+.lv-mapcard:has(.lv-drawer.open) .lv-emerg-label.on .lv-emerg-label-tx{display:none}
+.lv-mapcard:has(.lv-drawer.open) .lv-emerg-label.on .lv-emerg-label-ic{display:inline-flex}
 .lv-emerg button{pointer-events:auto}
 /* The ring band is 16 px (was 12): easy to hit on a phone, and the centre
    keeps its 40 px. */

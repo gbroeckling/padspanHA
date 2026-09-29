@@ -3296,7 +3296,7 @@ function _settingsUI(ctx, el){
   lightsCard.appendChild(lightsRow);
   lightsCard.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
     "Save, then restart Home Assistant for this one to take effect."));
-  const lightsSaveBtn = el("button",{class:"btn",style:"margin-top:10px"},"Save");
+  const lightsSaveBtn = el("button",{class:"btn inline",style:"margin-top:10px"},"Save");
   const lightsStatus = el("span",{style:"margin-left:10px;color:#94a3b8;font-size:13px"});
   lightsSaveBtn.addEventListener("click", async ()=>{
     await ctx.actions.settingsSet({ lights_panel_enabled: lightsCb.checked });
@@ -3321,7 +3321,11 @@ function _settingsUI(ctx, el){
   emergCb.addEventListener("change", async ()=>{
     const want = emergCb.checked;
     try {
-      await ctx.actions.settingsSet({ atlas_emergency_button: want });
+      // Straight to the wire, NOT settingsSet: that re-renders the whole
+      // Settings view at once, which would throw away any other change on
+      // this page that hasn't been saved yet (and this note with it).
+      const r = await ctx.actions.wsCall("padspan_ha/settings_set", { atlas_emergency_button: want });
+      if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
       emergNote.textContent = want ? "Saved \u2014 the button comes back on the Atlas at its next refresh."
         : "Saved \u2014 the button leaves the Atlas at its next refresh.";
     } catch (e) {

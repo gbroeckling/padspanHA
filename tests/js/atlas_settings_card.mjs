@@ -42,6 +42,7 @@ function el(tag, attrs = {}, children = []) {
 const noop = () => el("span");
 const failures = [];
 const sent = [];
+let rerenders = 0;   // settingsSet re-renders the whole Settings view in panel.js
 const S = await import(pathToFileURL(join(VIEWS, "settings.js")).href);
 const ctx = {
   hass: { user: { is_admin: true }, states: {} },
@@ -49,12 +50,15 @@ const ctx = {
     settings: { lights_panel_enabled: true, atlas_emergency_button: true, advanced_extra_tabs: [] } },
   helpers: new Proxy({ el, esc: (s) => String(s), roomColor: () => "#52b788", helpBtn: noop },
     { get: (t, k) => (k in t ? t[k] : noop) }),
-  actions: new Proxy({ settingsSet: async (p) => { sent.push(p); return {}; }, renderRooms() {}, renderNav() {} },
+  actions: new Proxy({ settingsSet: async (p) => { sent.push(p); rerenders++; return {}; },
+    wsCall: async (type, data = {}) => { if (type === "padspan_ha/settings_set") sent.push(data);
+      return { settings: { ...ctx.state.settings, ...data } }; },
+    renderRooms() {}, renderNav() {} },
     { get: (t, k) => (k in t ? t[k] : () => {}) }),
   toast() {},
 };
 
-const out = { title: null, blurb: null, emergencySaves: null, saveSends: null, restartNotes: null, failures };
+const out = { title: null, blurb: null, emergencySaves: null, emergencyRerenders: null, saveSends: null, restartNotes: null, failures };
 try {
   const root = S.render(ctx);
   const all = root._all();
@@ -70,6 +74,7 @@ try {
   emergBox.dispatchEvent({ type: "change" });
   await flush();
   out.emergencySaves = sent.splice(0);
+  out.emergencyRerenders = rerenders;
   // Untick the sidebar box and press Save: only that setting goes.
   atlasBox.checked = false;
   kids.find(n => n.localName === "button" && n.textContent === "Save" && card.contains(n)).click();
