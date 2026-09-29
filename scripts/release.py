@@ -12,7 +12,8 @@ Examples:
 
 What it does:
     1. Validates hacs.json + repo structure (catches HACS-breaking mistakes)
-    2. Updates version in all source files
+    2. Updates version in all source files, and writes the panel's release
+       notes (www/padspan-ha/assets/whatsnew.json) from CHANGELOG.md
     3. Builds dist/padspan_ha.zip
     4. Validates the zip (manifest.json present + readable)
     5. Commits, tags, and pushes
@@ -594,6 +595,52 @@ def _changelog_section(version):
     return title, date, body
 
 
+# ── Release notes inside the panel ───────────────────────────────────────────
+# The Overview's "PadSpan HA updated" card opened padspan.traks.ca in a new tab,
+# and on a wall screen (Chrome --kiosk, touch only) a new tab can't be closed:
+# the screen was stuck on the website. The card now shows the notes in the
+# panel itself, from this file, shipped with the integration so it works with
+# no internet. Written here, from CHANGELOG.md, before the zip is built; it
+# lives under custom_components/, so the zip and the release commit both
+# carry it with no list to add it to.
+PANEL_NOTES = INTEGRATION / "www" / "padspan-ha" / "assets" / "whatsnew.json"
+PANEL_NOTES_COUNT = 6
+_SECTION_HEAD = re.compile(r"^## (\d+\.\d+\.\d+)\s*[—-]\s*(.+?)\s*\((\d{4}-\d{2}-\d{2})\)\s*$")
+
+
+def changelog_sections(changelog):
+    """Every "## X.Y.Z — title (date)" section of CHANGELOG.md text, newest
+    first, as {version, title, date, body_markdown}. Headers of any other
+    shape ("## 0.38.11 / 0.38.12 — ...", "## 0.4.x — ...") are skipped."""
+    heads = list(re.finditer(r"^## .*$", changelog, re.MULTILINE))
+    out = []
+    for i, h in enumerate(heads):
+        m = _SECTION_HEAD.match(h.group(0))
+        if not m:
+            continue
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(changelog)
+        body = changelog[h.end():end].strip()
+        body = re.sub(r"\n-{3,}$", "", body).strip()   # the --- between sections
+        out.append({"version": m.group(1), "title": m.group(2), "date": m.group(3),
+                    "body_markdown": body})
+    out.sort(key=lambda s: tuple(int(n) for n in s["version"].split(".")), reverse=True)
+    return out
+
+
+def write_panel_notes(count=PANEL_NOTES_COUNT):
+    """Write the newest `count` CHANGELOG.md sections to PANEL_NOTES.
+    Returns the sections written."""
+    notes = changelog_sections((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))[:count]
+    if not notes:
+        print("  ERROR: CHANGELOG.md has no '## X.Y.Z — title (date)' sections for the panel's notes")
+        sys.exit(1)
+    PANEL_NOTES.parent.mkdir(parents=True, exist_ok=True)
+    PANEL_NOTES.write_text(json.dumps(notes, ensure_ascii=False, indent=1) + "\n",
+                           encoding="utf-8", newline="\n")
+    print(f"  {PANEL_NOTES.relative_to(ROOT).as_posix()} -> {', '.join(n['version'] for n in notes)}")
+    return notes
+
+
 def _md_inline_to_html(text):
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
     text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
@@ -760,6 +807,9 @@ def main():
         print("  !! site/index.html's #whatsnew section does not mention this "
               "release. Fix it (by hand or by re-running) before or after — "
               "it will not block the rest of this release.")
+
+    print("\nWriting the panel's release notes...")
+    write_panel_notes()
 
     print("\nBuilding zip...")
     build_zip()
