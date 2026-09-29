@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.92",
+  "title": "Only real rain sensors in the rain-sensor list",
+  "date": "2026-09-29",
+  "body_markdown": "### Atlas — outdoor weather\n- **Fixed:** Settings → Outdoor weather → **Rain sensor** listed every entity of a rain device (its cleaning reminder, light level, last seen), water-leak detectors, and anything else with \"rain\" in its name. It now lists only actual rain sensors: an on/off sensor named for rain (by its own name, not its device's), a rain rate, or a rain gauge's latest reading.\n- **Fixed:** a solar rain sensor's \"Rain intensity\" is no longer offered. It's a voltage that reads above 0 even when dry, so picking it would have drawn rain all the time."
+ },
+ {
   "version": "0.38.91",
   "title": "Rain and snow on the Atlas",
   "date": "2026-09-29",
@@ -28,11 +34,5 @@
   "title": "The free trial, where people will see it",
   "date": "2026-09-28",
   "body_markdown": "### Trying the lighting map\n- **Added:** when PadSpan updates, the \"PadSpan HA updated\" note on Overview now says **New: try the lighting map free for 90 days, no card**, with **Try it**. It goes away with the note.\n- **Added:** once PadSpan is working in your house (someone is on the map, or a week has gone by), Overview shows one small card about the lighting half. **No thanks** or ✕ and it never comes back.\n- **Added:** a quiet **💡 Lighting · free trial** line at the bottom of PadSpan's menu, until you have a key.\n- Every one of them says so plainly: the presence tracking you're using stays free. None of them shows for an install with a licence key, and nothing here is a Home Assistant notification."
- },
- {
-  "version": "0.38.86",
-  "title": "The emergency lighting button is always on screen",
-  "date": "2026-09-28",
-  "body_markdown": "### Atlas — Test emergency lighting\n- **Fixed:** the red button sat at the bottom-right of the house map, which on most screens is below the bottom of the window, so you had to scroll to find it. It is now pinned to the bottom-right corner of the screen."
  }
 ]

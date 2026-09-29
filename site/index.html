@@ -179,6 +179,20 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.92</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">29 September 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Fixed:</b> Settings → Outdoor weather → <b>Rain sensor</b> listed every entity of a rain device (its cleaning reminder, light level, last seen), water-leak detectors, and anything else with "rain" in its name. It now lists only actual rain sensors: an on/off sensor named for rain (by its own name, not its device's), a rain rate, or a rain gauge's latest reading.</li>
+          <li><b>Fixed:</b> a solar rain sensor's "Rain intensity" is no longer offered. It's a voltage that reads above 0 even when dry, so picking it would have drawn rain all the time.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.91</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">29 September 2026</span>
