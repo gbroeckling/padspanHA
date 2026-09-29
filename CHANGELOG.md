@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.92 — Only real rain sensors in the rain-sensor list (2026-09-29)
+
+### Atlas — outdoor weather
+- **Fixed:** Settings → Outdoor weather → **Rain sensor** listed every entity of a rain device (its cleaning reminder, light level, last seen), water-leak detectors, and anything else with "rain" in its name. It now lists only actual rain sensors: an on/off sensor named for rain (by its own name, not its device's), a rain rate, or a rain gauge's latest reading.
+- **Fixed:** a solar rain sensor's "Rain intensity" is no longer offered. It's a voltage that reads above 0 even when dry, so picking it would have drawn rain all the time.
+
+---
+
 ## 0.38.91 — Rain and snow on the Atlas (2026-09-29)
 
 ### Atlas — outdoor weather

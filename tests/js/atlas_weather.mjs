@@ -250,23 +250,56 @@ tryCase("warnings: Météo-France's forecast sensors are no warning", () => {
     && is(c, "snow", true) && c.warning === "warning:meteo_france" && JSON.stringify(found) === JSON.stringify(["sensor.75_weather_alert"]),
     { a, b, c, found });
 });
-tryCase("fallback: the rain-sensor list is sensors that say it is raining now", () => {
+tryCase("fallback: the rain-sensor list is only actual rain sensors", () => {
+  // The owner's house (09-29, from hass.states + hass.entities): a solar rain
+  // sensor called "Rain-" whose every entity's friendly name says "Rain", a
+  // rainwater sensor, an old ZHA rain sensor, four water-leak detectors and
+  // an irrigation controller's rain delay — plus the other integrations.
   const st = {
-    "binary_sensor.rain": S("off", { device_class: "moisture" }),
+    "binary_sensor.0xa4_rain": S("off", { friendly_name: "Rain- Rain" }),
+    "binary_sensor.0xa4_cleaning_reminder": S("off", { friendly_name: "Rain- Cleaning reminder" }),
+    "sensor.0xa4_rain_intensity": S(3, { unit_of_measurement: "mV", friendly_name: "Rain- Rain intensity" }),   // 3 mV when dry
+    "sensor.0xa4_illuminance_raw": S(5216, { state_class: "measurement", unit_of_measurement: "mV", friendly_name: "Rain- Illuminance raw" }),
+    "sensor.0xa4_last_seen": S("2026-09-15T20:51:49+00:00", { device_class: "timestamp", friendly_name: "Rain- Last seen" }),
+    "sensor.0xa4_battery": S(97, { device_class: "battery", unit_of_measurement: "%", friendly_name: "Rain- Battery" }),
+    "sensor.rain_0xa4b_rainwater": S("unknown", { friendly_name: "RainwaterBadic Rainwater" }),
+    "sensor.rain_0xa4b_illuminance": S("unknown", { device_class: "illuminance", unit_of_measurement: "lx", friendly_name: "Brightness outdoors" }),
+    "binary_sensor.tze200_ts0601": S("unavailable", { device_class: "moisture", friendly_name: "Rain" }),
+    "binary_sensor.0xf04_water_leak": S("off", { device_class: "moisture", friendly_name: "WaterBunker Moisture" }),
+    "binary_sensor.flood_utility_water_leak": S("off", { device_class: "moisture", friendly_name: "Utility Room" }),
+    "binary_sensor.hobeian_zg_222z": S("unavailable", { device_class: "moisture", friendly_name: "HOBEIAN ZG-222Z" }),
+    "binary_sensor.basement_drain_leak": S("off", { device_class: "moisture", friendly_name: "Basement drain leak" }),
+    "sensor.0xa4c_rain_delay_end_datetime": S("", { friendly_name: "0xa4c Rain delay end datetime" }),
+    "binary_sensor.rain_sensor": S("off", { device_class: "moisture", friendly_name: "Rain sensor" }),          // a device's main entity, no name of its own
     "sensor.netatmo_rain": S(0, { device_class: "precipitation", state_class: "measurement", unit_of_measurement: "mm" }),
     "sensor.gw2000_rain_rate": S(0, { device_class: "precipitation_intensity", state_class: "measurement", unit_of_measurement: "mm/h" }),
-    "sensor.tempest_precipitation_intensity": S(0, { device_class: "precipitation_intensity", unit_of_measurement: "mm/h" }),
     "sensor.gw2000_daily_rain": S(4.2, { device_class: "precipitation", state_class: "total_increasing", unit_of_measurement: "mm" }),
     "sensor.netatmo_rain_today": S(4.2, { device_class: "precipitation", state_class: "total", unit_of_measurement: "mm" }),
-    "sensor.buienradar_rain_last_24h": S(3.1, { device_class: "precipitation", unit_of_measurement: "mm" }),   // a total, says no class
+    "sensor.buienradar_rain_last_24h": S(3.1, { device_class: "precipitation", unit_of_measurement: "mm" }),
     "sensor.paris_rain_chance": S(80, { unit_of_measurement: "%", friendly_name: "Paris Rain chance" }),
-    "sensor.pirate_precip_probability": S(35, { unit_of_measurement: " % " }),
-    "sensor.outside_temperature": S(12, { device_class: "temperature" }),
     "switch.rain_barrel": S("on", {}),
   };
-  const got = WX.rainSensorIds(st);
-  const want = ["binary_sensor.rain", "sensor.gw2000_rain_rate", "sensor.netatmo_rain", "sensor.tempest_precipitation_intensity"];
-  check("fallback: the rain-sensor list is sensors that say it is raining now", JSON.stringify(got) === JSON.stringify(want)
+  const reg = {
+    "binary_sensor.0xa4_rain": { name: "Rain", platform: "mqtt" },
+    "binary_sensor.0xa4_cleaning_reminder": { name: "Cleaning reminder", platform: "mqtt" },
+    "sensor.0xa4_rain_intensity": { name: "Rain intensity", platform: "mqtt" },
+    "sensor.0xa4_illuminance_raw": { name: "Illuminance raw", platform: "mqtt" },
+    "sensor.0xa4_last_seen": { name: "Last seen", entity_category: "diagnostic", platform: "mqtt" },
+    "sensor.0xa4_battery": { name: "Battery", entity_category: "diagnostic", platform: "mqtt" },
+    "sensor.rain_0xa4b_rainwater": { name: "Rainwater", platform: "mqtt" },
+    "sensor.rain_0xa4b_illuminance": { name: "Brightness outdoors", platform: "mqtt" },
+    "binary_sensor.tze200_ts0601": { name: "Rain", platform: "zha" },
+    "binary_sensor.0xf04_water_leak": { name: "Moisture", platform: "mqtt" },
+    "binary_sensor.flood_utility_water_leak": { name: "Utility Room", platform: "mqtt" },
+    "binary_sensor.hobeian_zg_222z": { name: null, platform: "zha" },
+    "binary_sensor.basement_drain_leak": { name: "Basement drain leak", platform: "mqtt" },
+    "sensor.0xa4c_rain_delay_end_datetime": { name: "Rain delay end datetime", platform: "mqtt" },
+    "binary_sensor.rain_sensor": { name: null, platform: "zha" },
+  };
+  const got = WX.rainSensorIds(st, reg);
+  const want = ["binary_sensor.0xa4_rain", "binary_sensor.rain_sensor", "binary_sensor.tze200_ts0601",
+    "sensor.gw2000_rain_rate", "sensor.netatmo_rain"];
+  check("fallback: the rain-sensor list is only actual rain sensors", JSON.stringify(got) === JSON.stringify(want)
     && JSON.stringify(WX.rainSensorIds(null)) === "[]", got);
 });
 tryCase("warnings: a dry day reads no warning source at all", () => {

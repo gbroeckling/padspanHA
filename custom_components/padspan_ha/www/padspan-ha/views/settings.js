@@ -3300,8 +3300,8 @@ function _atlasWeatherSection(ctx, el, settings){
       el("span",{style:"color:#cbd5e1;font-size:13px;min-width:130px"}, label), sel,
     ]));
   };
-  // Sensors that say it is raining NOW — no running totals, no chances.
-  const rainIds = WX ? WX.rainSensorIds(states) : [];
+  // Only actual rain sensors (atlas_weather.js rainSensorIds).
+  const rainIds = WX ? WX.rainSensorIds(states, entities) : [];
   const firstWx = WX ? WX.firstWeatherEntity(states) : "";
   const warnIds = WX ? WX.warningEntities({}, states, entities) : [];
   // The detected ones first, then anything else that calls itself a warning

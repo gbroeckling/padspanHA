@@ -100,24 +100,36 @@ export function rainReading(st){
   return Number.isFinite(n) ? n > 0 : null;
 }
 
-/** What the rain-sensor setting offers: sensors that say it is raining NOW,
- *  since any reading above 0 is wet — a rain rate, a rain or moisture
- *  switch, a gauge's latest reading. Not a running total (state class
- *  total / total_increasing: "Daily rain" stays above 0 long after it
- *  stopped), and not a chance of rain (%: above 0 nearly all the time).
- *  Device class precipitation is ACCUMULATED rain in Home Assistant, so it
- *  counts only when the sensor says it is a live measurement (Netatmo's
- *  gauge does; Buienradar's "rain last 24h" says nothing and is a total). */
-export function rainSensorIds(states){
-  const st = states || {};
+/** The rain-sensor setting's list: only entities that say whether it is
+ *  raining NOW (any reading above 0 is wet), never a rain device's other
+ *  readings and never a water-leak detector.
+ *   - a binary sensor whose OWN name is about rain ("Rain", "Raining",
+ *     "Regen"): the entity registry's name for it, not its device's — on a
+ *     device called "Rain-" every entity's friendly name says "Rain" (its
+ *     cleaning reminder, its light level). An entity with no name of its
+ *     own is the device's main one and goes by the device's name. A leak
+ *     detector is device class moisture, named "Moisture" or after a room.
+ *   - a rain rate: device class precipitation_intensity.
+ *   - a gauge's latest reading: device class precipitation (Home
+ *     Assistant's ACCUMULATED rain) only as state class measurement —
+ *     Netatmo's gauge; Buienradar's "rain last 24h" says nothing, a total.
+ *  Never a diagnostic or config entity, a running total (state class
+ *  total*) or a chance (%). A raw rain voltage (a solar sensor's "Rain
+ *  intensity" in mV) reads above 0 when dry, so a name alone never lists a
+ *  numeric sensor. */
+const RAIN_NAME = /\b(rain|regen|pluie|lluvi|piogg)/i;
+export function rainSensorIds(states, entities){
+  const st = states || {}, reg = entities || {};
   const a = (eid, k) => String((st[eid] && st[eid].attributes && st[eid].attributes[k]) || "").trim();
+  const ownName = (eid) => { const r = reg[eid]; return String((r && r.name) || a(eid, "friendly_name") || eid); };
   return Object.keys(st).filter(eid => {
-    if (!/^(binary_sensor|sensor)\./.test(eid)) return false;
+    const r = reg[eid];
+    if (r && r.entity_category) return false;
     const dc = a(eid, "device_class"), sc = a(eid, "state_class");
     if (/^total/.test(sc) || a(eid, "unit_of_measurement") === "%") return false;
-    if (dc === "precipitation" && sc !== "measurement") return false;
-    return ["moisture", "precipitation", "precipitation_intensity"].includes(dc)
-      || /rain|precip|regen|pluie|lluvia|pioggia/i.test(`${a(eid, "friendly_name")} ${eid}`);
+    if (eid.startsWith("binary_sensor.")) return RAIN_NAME.test(ownName(eid));
+    if (!eid.startsWith("sensor.")) return false;
+    return dc === "precipitation_intensity" || (dc === "precipitation" && sc === "measurement");
   }).sort();
 }
 

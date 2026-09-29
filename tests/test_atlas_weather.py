@@ -257,7 +257,7 @@ def test_the_settings_card_offers_each_setting_saved_on_its_own() -> None:
     assert 'eid.startsWith("weather.")' in sec and "/^(binary_sensor|sensor)\\./" in sec
     assert "lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));" in src
     # "Above 0 = wet" needs a sensor that means raining NOW (the harness runs the rule).
-    assert "WX.rainSensorIds(states)" in sec
+    assert "WX.rainSensorIds(states, entities)" in sec
 
 
 # ── the Atlas can never be blanked by it ─────────────────────────────────────
