@@ -61,6 +61,21 @@ The **presets bar** saves a whole look — Showcase theme, Automorph style, and 
 
 **🌴 Vacation Mode** is the one permanent entry at the top of that same list — it isn't a saved snapshot. Instead it learns your house's own real day-to-day pattern from Home Assistant's own history (per light, per day of the week) and keeps turning lights on and off to match it — randomly, not on a fixed schedule, so it doesn't look mechanical — until you disable it. Turning it on shows a banner at the top of every tab with an **Energy saving** slider: 100% replays the full pattern, lower settings scale down how much comes on at once, so it can double as a lighter-footprint mode as well as an away-from-home one. Requires an administrator account to turn on.
 
+## Outdoor weather
+
+When it's raining or snowing, Atlas shows it: faint rain or snow falls everywhere around the house, never over a room or a floor. It's off while it's dry, so most of the time you won't see it. It's in both the Atlas sidebar and Mapping → Atlas. PadSpan Pro and Bright Pro animate it; the free map shows the same weather as a still texture. With the phone or tablet set to reduce motion, it's still there too.
+
+What it shows:
+
+- **Light rain** whenever it's wet. With a rain sensor chosen, that sensor decides. Without one, the weather entity decides (rainy, pouring, snowy, snowy-rainy, hail or lightning-rainy count as wet).
+- **Heavy rain** only when something outside confirms it: a rainfall warning, or the weather entity saying *pouring*. A rain sensor alone only ever shows light rain, and a rain-rate sensor never makes it heavier.
+- **Snow** when the weather entity says *snowy* or *snowy-rainy*, or it's 1 °C (34 °F) or colder.
+- **Heavy snow** only on a snowfall warning, with a pale rim that builds up around the floors.
+
+Weather warnings are found by themselves from Environment Canada, MeteoAlarm (most of Europe), DWD and NINA (Germany) and Météo-France. In the USA, Home Assistant's own weather service has no warnings; the **weatheralerts** or **nws_alerts** custom integrations add them. The UK and Australia have nothing standard, so there, *pouring* is the only heavy-rain signal. If a sensor stops reporting for a moment (Home Assistant restarting, say), the weather on the map stays as it was for up to 2 minutes instead of blinking off.
+
+Set it up in **Settings → UI Structure** (Advanced mode) **→ Atlas — Mapped Light Control → Outdoor weather**: the on/off switch (on by default), the rain sensor (optional), the weather entity (automatic picks your first one), the warnings sensor (automatic finds them) and **Strength** (0.5× to 1.5×). Each saves as soon as you change it, and Atlas picks it up at its next refresh.
+
 ## On a touchscreen or phone
 
 Atlas is tuned for touch, not just a mouse: pinch-zoom is the map's own gesture (it no longer fights the browser's page-zoom for the same pinch), panning survives the map's periodic background refresh instead of resetting to the top-left, and tap targets line up with what's actually drawn on screen — including Automorph's aura, so the tappable area matches the visible glow rather than a small fixed circle at the fixture's anchor.
