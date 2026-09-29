@@ -3279,36 +3279,56 @@ function _settingsUI(ctx, el){
   });
   wrap.appendChild(el("div",{style:"display:flex;align-items:center"}, [saveBtn, status]));
 
-  // ── Mapped Light Control Goodie ──
+  // ── The Atlas (was "Mapped Light Control Goodie") ──
+  // The Atlas is on by default now (settings_store.py). Two switches that
+  // behave differently, so each says how: the sidebar entry is registered at
+  // setup (panel.py) and takes a restart after Save; the emergency button is
+  // read by the Atlas on its next refresh, so it saves the moment it changes.
   const lightsCard = el("div",{class:"card",style:"padding:16px;margin-top:20px"});
-  lightsCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#fbbf24;margin-bottom:6px"},"\uD83D\uDCA1 Mapped Light Control Goodie"));
+  lightsCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#fbbf24;margin-bottom:6px"},"\uD83D\uDCA1 Atlas \u2014 Mapped Light Control"));
   lightsCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
-    "Adds a separate Lights panel to the HA sidebar for map-based light control. Requires a Home Assistant restart after changing this setting."));
+    "The house map for everyday light control, as its own entry in the Home Assistant sidebar. On by default."));
   const lightsRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer"});
   const lightsCb = el("input",{type:"checkbox"});
   lightsCb.checked = !!(settings.lights_panel_enabled);
   lightsRow.appendChild(lightsCb);
-  lightsRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Enable Mapped Light Control in sidebar"));
+  lightsRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show the Atlas in the Home Assistant sidebar"));
   lightsCard.appendChild(lightsRow);
+  lightsCard.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
+    "Save, then restart Home Assistant for this one to take effect."));
+  const lightsSaveBtn = el("button",{class:"btn",style:"margin-top:10px"},"Save");
+  const lightsStatus = el("span",{style:"margin-left:10px;color:#94a3b8;font-size:13px"});
+  lightsSaveBtn.addEventListener("click", async ()=>{
+    await ctx.actions.settingsSet({ lights_panel_enabled: lightsCb.checked });
+    lightsStatus.textContent = lightsCb.checked
+      ? "Saved \u2014 restart Home Assistant to see the Atlas in the sidebar."
+      : "Saved \u2014 restart Home Assistant to remove the Atlas from the sidebar.";
+    lightsStatus.style.color = "#fbbf24";
+  });
+  lightsCard.appendChild(el("div",{style:"display:flex;align-items:center;flex-wrap:wrap"}, [lightsSaveBtn, lightsStatus]));
   // The Atlas's red "Test emergency lighting" button — shown only when the
-  // house has emergency lights; this hides it even then. Takes effect on the
-  // Atlas's next refresh, no restart.
-  const emergRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px"});
+  // house has emergency lights; this hides it even then (never while a test
+  // runs). Saved on its own the moment it changes.
+  const emergRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   const emergCb = el("input",{type:"checkbox"});
   emergCb.checked = settings.atlas_emergency_button !== false;
   emergRow.appendChild(emergCb);
   emergRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show the Test emergency lighting button on the Atlas"));
   lightsCard.appendChild(emergRow);
-  const lightsSaveBtn = el("button",{class:"btn",style:"margin-top:10px"},"Save");
-  const lightsStatus = el("span",{style:"margin-left:10px;color:#94a3b8;font-size:13px"});
-  lightsSaveBtn.addEventListener("click", async ()=>{
-    await ctx.actions.settingsSet({ lights_panel_enabled: lightsCb.checked, atlas_emergency_button: emergCb.checked });
-    lightsStatus.textContent = lightsCb.checked
-      ? "Saved \u2014 restart Home Assistant to see the Lights panel in the sidebar."
-      : "Saved \u2014 restart Home Assistant to remove the Lights panel from the sidebar.";
-    lightsStatus.style.color = "#fbbf24";
+  const emergNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
+    "Saves as soon as you tick or untick it. No restart needed.");
+  lightsCard.appendChild(emergNote);
+  emergCb.addEventListener("change", async ()=>{
+    const want = emergCb.checked;
+    try {
+      await ctx.actions.settingsSet({ atlas_emergency_button: want });
+      emergNote.textContent = want ? "Saved \u2014 the button comes back on the Atlas at its next refresh."
+        : "Saved \u2014 the button leaves the Atlas at its next refresh.";
+    } catch (e) {
+      emergCb.checked = !want;
+      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+    }
   });
-  lightsCard.appendChild(el("div",{style:"display:flex;align-items:center;flex-wrap:wrap"}, [lightsSaveBtn, lightsStatus]));
   wrap.appendChild(lightsCard);
 
   // ── Edition & tier ──

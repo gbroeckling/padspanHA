@@ -301,8 +301,9 @@ if (Cls) {
 }
 
 // The "Test emergency lighting" button (emergency_test.py): hidden without
-// lights, floats right after the stage, toggles through the backend, and
-// Force off shows only while a test runs.
+// lights, floats over the map's top-right from an anchor right before the
+// stage, toggles through the backend, and Force off shows only while a test
+// runs.
 const emergency = { hiddenWithout: null, beforeStage: null, idleForce: null, sent: [], activeForce: null,
   activeLabel: null, endedForce: null };
 if (Cls) {
@@ -352,6 +353,11 @@ if (Cls) {
     emergency.cardOpen = !!el._emergCard;
     emergency.cardNames = ["Closet", "PoE 7"].every(n => cardText().includes(n));
     emergency.cardTag = cardText().includes("was on");
+    // Every row ends in a 38 px slot — the "⋯" or a blank — so the state
+    // chips and switches line up down the list (a switch has no "⋯").
+    const rowsOf = el._emergCard.sheet.children.filter(r => /border-bottom/.test(r.getAttribute("style") || ""));
+    emergency.cardRows = rowsOf.length;
+    emergency.cardAligned = rowsOf.length > 0 && rowsOf.every(r => /width:38px/.test(r.children[r.children.length - 1].getAttribute("style") || ""));
     const turn = document.body._all().find(n => n.localName === "button" && n.textContent === "Turn on");
     if (turn) turn.click();
     await flush(); await flush();
@@ -491,5 +497,70 @@ if (Cls) {
   } catch (e) { fail("emergency review fixes", "lifecycle", e); }
 }
 
-console.log(JSON.stringify({ scenarios, failures, blip, restart, emergency, emerg2 }));
+// Settings → UI Structure → "Show the Test emergency lighting button" off:
+// no button while idle, still asked every 5 minutes (not every 10 s), back
+// the moment a test runs (started elsewhere), back when switched on again,
+// and a failed settings fetch keeps the last answer.
+const emerg3 = { hiddenAnchor: null, hiddenPollFast: null, hiddenPollSlow: null, activeWhileHidden: null,
+  activePollFast: null, keptOnFailedFetch: null, backWhenReEnabled: null };
+if (Cls) {
+  try {
+    const members = [{ entity_id: "light.a", name: "Closet", state: "off" }];
+    let test = { active: false, started_at: null, kept_on: [], manual: [] };
+    let statusCalls = 0, settingsDown = false;
+    const settings = { ...BASE, atlas_emergency_button: false };
+    const hass = makeHass({ settings });
+    const real = hass.callWS;
+    hass.callWS = async (m) => {
+      if (m.type === "padspan_ha/emergency_status") {
+        statusCalls++;
+        return { available: true, source: "group", groups: [], members, test, emergency_ran: [], pending_off: [] };
+      }
+      if (m.type === "padspan_ha/settings_get" && settingsDown) throw new Error("ws down");
+      return real(m);
+    };
+    const el = new Cls();
+    el.connectedCallback();
+    el.hass = hass;
+    await el._boot(); await flush(); await flush();
+    const find = (cls) => el.shadowRoot.querySelector("#content")._all().filter(n => (n.className || "").split(" ").includes(cls));
+    const poll = async (emergAgo, settingsAgo = 0) => {
+      el._emergTs = Date.now() - emergAgo;
+      el._settingsTs = Date.now() - settingsAgo;
+      await el._poll(); await flush();
+    };
+    el._render();
+    emerg3.hiddenAnchor = find("lv-emerg-anchor").length;
+    statusCalls = 0;
+    await poll(11_000);
+    emerg3.hiddenPollFast = statusCalls;
+    await poll(301_000);
+    emerg3.hiddenPollSlow = statusCalls;
+    // A test started from another screen while the button is hidden.
+    test = { active: true, started_at: 1, kept_on: [], manual: [] };
+    await poll(301_000);
+    emerg3.activeWhileHidden = find("lv-emerg-btn").length;
+    statusCalls = 0;
+    await poll(11_000);
+    emerg3.activePollFast = statusCalls;
+    test = { active: false, started_at: null, kept_on: [], manual: [] };
+    await poll(11_000);
+    // A settings fetch that fails keeps "hidden".
+    settingsDown = true;
+    await poll(0, 31_000);
+    emerg3.keptOnFailedFetch = el.state._emergButtonHidden === true && find("lv-emerg-anchor").length === 0;
+    settingsDown = false;
+    // Switched back on in Settings: the next settings read brings it back.
+    settings.atlas_emergency_button = true;
+    await poll(0, 31_000);
+    emerg3.backWhenReEnabled = find("lv-emerg-anchor").length;
+    // Toasts: a new one replaces the last rather than landing on top of it.
+    el._toast("first toast"); el._toast("second toast");
+    const texts = document.body._all().map(n => n._text || "");
+    emerg3.toastsOnScreen = texts.filter(t => t === "first toast" || t === "second toast").length;
+    el.disconnectedCallback();
+  } catch (e) { fail("emergency button hidden in settings", "lifecycle", e); }
+}
+
+console.log(JSON.stringify({ scenarios, failures, blip, restart, emergency, emerg2, emerg3 }));
 process.exit(failures.length ? 1 : 0);

@@ -3772,7 +3772,7 @@ function _export(ctx, active, maps_list){
 const BRIGHT_PRO_MANUAL = [
   {
     "heading": "Getting started: your licence and turning on the Atlas panel",
-    "intro": "Bright Pro adds the tools for placing and styling fixtures on your map. Enter the licence key in Settings → Features. The separate Atlas panel is turned on from the same page and does not require a Pro key.",
+    "intro": "Bright Pro adds the tools for placing and styling fixtures on your map. Enter the licence key in Settings → Features. The separate Atlas panel is on by default and does not require a Pro key.",
     "subsections": [
       {
         "heading": "What your licence unlocks",
@@ -3794,14 +3794,14 @@ const BRIGHT_PRO_MANUAL = [
         ]
       },
       {
-        "heading": "Turn on the everyday Atlas panel",
+        "heading": "The everyday Atlas panel",
         "body": "",
         "steps": [
-          "In Settings → Features, scroll down to the Mapped Light Control Goodie card, check Enable Mapped Light Control in sidebar, and click Save.",
-          "Restart Home Assistant. A separate Atlas entry appears in your sidebar afterward — that's the one to use day to day, not the PadSpan Mapping tab."
+          "The Atlas is its own entry in your sidebar, on by default — that's the one to use day to day, not the PadSpan Mapping tab.",
+          "To turn it off or back on: Settings → UI Structure (Advanced mode), the Atlas card. Tick or untick Show the Atlas in the Home Assistant sidebar, click Save, and restart Home Assistant."
         ],
         "notes": [
-          "Unchecking the box, saving, and restarting again removes the Atlas entry the same way."
+          "It stays the way you leave it after updates."
         ]
       }
     ]

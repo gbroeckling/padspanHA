@@ -446,6 +446,9 @@
 }
 .mobile-topbar-pill.live{border-color:rgba(82,183,136,.6);background:rgba(82,183,136,.18);color:#52b788}
 .mobile-topbar-pill.basic{border-color:rgba(94,234,212,.5);background:rgba(94,234,212,.12);color:#5eead4}
+/* The `all:unset` above undoes .hidden (same weight, later), which left the
+   flood-alarm pill showing "🚨 0" on every phone with nothing latched. */
+.mobile-topbar-pill.hidden{display:none}
 
 /* ── Sidebar close button (mobile-only, inside drawer) ───────────── */
 .sidebar-mobile-header{
@@ -1183,19 +1186,24 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 
 /* ── Emergency lighting test (the Atlas sidebar; lights_panel.js) ─────────
    Garry, 2026-09-28: "out of the way, takes up no new real estate, and looks
-   like an emergency type button". Floats over the map's bottom-right corner
-   from a zero-height anchor after the stage (no row, nothing moves), clear
-   of the stage's scrollbars and under the drawers. A red round centre
-   (start/end the test) inside a ring that is its own button (the card of
-   every emergency light — Garry: "a breakout button as a ring around the
-   emergency button"), a list notch on the ring so the two never read as one.
-   The label opens on hover and stays while a test runs, the ring pulsing,
-   Force off beside it. Laid out right to left: dial, label, Force off. */
+   like an emergency type button". Floats over the map's top-right corner
+   from a zero-height anchor right before the stage (no row, nothing moves),
+   above the rail's drawers. A red round centre (start/end the test) inside
+   a ring that is its own button (the card of every emergency light — Garry:
+   "a breakout button as a ring around the emergency button"), a list notch
+   on the ring so the two never read as one. The label opens on hover and
+   stays while a test runs, the ring pulsing, Force off beside it. Laid out
+   right to left: dial, label, Force off. */
 .lv-emerg-anchor{position:relative;height:0;container-type:inline-size}
 /* Top-right corner of the map: its top is on screen when the Atlas opens
-   (the bottom of a tall house map often is not). */
-.lv-emerg{position:absolute;right:14px;top:14px;z-index:3;display:flex;flex-direction:row-reverse;
+   (the bottom of a tall house map often is not). Above an open drawer
+   (z 4), and the drawers keep their controls out from under the dial. */
+.lv-emerg{position:absolute;right:14px;top:14px;z-index:6;display:flex;flex-direction:row-reverse;
   align-items:center;gap:6px;pointer-events:none}
+.lv-mapcard:has(.lv-emerg) .lv-drawer{padding-right:96px}
+/* While a drawer is open, the running test's label and Force off stack
+   under the dial, in that same clear strip, rather than over the chips. */
+.lv-mapcard:has(.lv-drawer.open) .lv-emerg{flex-direction:column;align-items:flex-end}
 .lv-emerg button{pointer-events:auto}
 /* The ring band is 16 px (was 12): easy to hit on a phone, and the centre
    keeps its 40 px. */
@@ -1239,13 +1247,14 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 @media (prefers-reduced-motion:reduce){.lv-emerg.busy .lv-emerg-btn::after{animation:none;border-color:#fff}}
 .lv-emerg-label-ic{display:none}
 /* A narrow map (a phone): the running label shrinks to a stop icon, so the
-   row (dial, label, Force off) stays clear of the 44 px rail. */
+   row (dial, label, Force off) stays clear of the 44 px rail. Closer to the
+   corner, but full size: the ring band, the centre and Force off keep the
+   touch sizes above. */
 @container (max-width:440px){
   .lv-emerg-label.on{max-width:32px;width:32px;padding:0;justify-content:center}
   .lv-emerg-label.on .lv-emerg-label-tx{display:none}
   .lv-emerg-label.on .lv-emerg-label-ic{display:inline-flex}
-  /* A phone's map is small: a quarter smaller, so it covers less of the house. */
-  .lv-emerg{right:8px;top:8px;transform:scale(.75);transform-origin:top right}
+  .lv-emerg{right:8px;top:8px}
 }
 
 /* The builder's own columns (Garry, 2026-09-21: "get it done" — the rest of
