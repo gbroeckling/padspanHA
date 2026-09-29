@@ -77,6 +77,10 @@ OVER_LOAD_PER_CPU = 1.0      # 1-minute load above one runnable task per CPU
 OVER_HA_CPU_PCT = 90.0       # Home Assistant's process above 90% of one core
 UNDER_MEM_AVAIL_PCT = 10.0   # host memory available below 10%
 OVER_LAG_MS = 1000.0         # the event loop a second or more late
+# Started with Home Assistant: nothing is sampled until this long after it is
+# running. A start-up (every integration loading, the recorder catching up)
+# pegs a Pi for minutes; sampled, every restart would read as a max-out.
+STARTUP_GRACE_S = 300.0
 
 METRICS: tuple[str, ...] = ("load", "cpu", "rss", "mem", "swap", "lag", "snap", "cycle")
 OVER: tuple[str, ...] = ("load", "cpu", "mem", "lag")
@@ -195,7 +199,11 @@ def give_back_window(hass: HomeAssistant, w: PerfWindow | None) -> None:
 
 def reset_window(hass: HomeAssistant) -> None:
     """Opt-in: nothing measured before the person said yes goes."""
-    hass.data.setdefault(DOMAIN, {})[_DATA_WINDOW] = PerfWindow()
+    dom = hass.data.setdefault(DOMAIN, {})
+    dom[_DATA_WINDOW] = PerfWindow()
+    s = dom.get(_DATA_SAMPLER)
+    if isinstance(s, PerfSampler):
+        s._last_cpu = None      # nor a CPU delta that began before it
 
 
 def record_duration(hass: HomeAssistant, metric: str, ms: float) -> None:
@@ -426,11 +434,12 @@ async def async_ensure_hw(hass: HomeAssistant) -> bool:
     try:
         # Only where the Supervisor integration is loaded — so its module is
         # already imported, and a Container / Core install never imports it
-        # (on the event loop) just to be told no.
+        # (on the event loop) just to be told no. Loaded IS the answer: the
+        # Supervisor integration only sets up under a Supervisor (its old
+        # is_hassio() is gone from this module since HA 2026.1).
         if "hassio" in hass.config.components:
             from homeassistant.components import hassio as _hassio  # noqa: PLC0415
-            if _hassio.is_hassio(hass) is True:
-                hassio = _hassio
+            hassio = _hassio
     except Exception:
         hassio = None
     try:
@@ -490,6 +499,9 @@ class PerfSampler:
         self._last_cpu: tuple[float, float] | None = None
         self._hw_tries = 0
         self._hw_busy = False
+        # Set when Home Assistant was still starting: math.inf until it is
+        # running, then the end of STARTUP_GRACE_S. None: sample.
+        self._settle_until: float | None = None
 
     @property
     def running(self) -> bool:
@@ -497,6 +509,8 @@ class PerfSampler:
 
     def start(self) -> None:
         loop = self.hass.loop
+        if not getattr(self.hass, "is_running", True):
+            self._settle_until = math.inf
         self._due = loop.time() + INTERVAL_S
         self._handle = loop.call_at(self._due, self._on_timer)
 
@@ -530,6 +544,9 @@ class PerfSampler:
             if not enabled(self.hass):
                 self._last_cpu = None   # a CPU delta must never span time off
                 return
+            if self._settling():
+                self._last_cpu = None   # nor span the start-up
+                return
             self._maybe_detect_hw()
             if self._busy:
                 return
@@ -539,6 +556,20 @@ class PerfSampler:
         except Exception as err:
             self._busy = False
             _LOGGER.debug("Load sample skipped: %s", err)
+
+    def _settling(self) -> bool:
+        """Home Assistant is still starting, or ran for under STARTUP_GRACE_S."""
+        if self._settle_until is None:
+            return False
+        now = self.hass.loop.time()
+        if self._settle_until == math.inf:
+            if not getattr(self.hass, "is_running", True):
+                return True
+            self._settle_until = now + STARTUP_GRACE_S
+        if now < self._settle_until:
+            return True
+        self._settle_until = None
+        return False
 
     def _maybe_detect_hw(self) -> None:
         if self._hw_busy or self._hw_tries >= _HW_TRIES:

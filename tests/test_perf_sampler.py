@@ -236,6 +236,44 @@ def test_off_means_no_reading_and_no_cpu_delta_across_the_gap():
     ps.async_stop(h)
 
 
+def test_nothing_is_sampled_until_five_minutes_after_a_start_up():
+    """A restart pegs a Pi while every integration loads; that is not the
+    machine's load, and must not count as a max-out."""
+    h = _hass()
+    h.is_running = False                         # set up during Home Assistant's own start-up
+    ps.async_start(h)
+    h.loop.run_until(1060.0)
+    h.loop.run_until(1120.0)
+    assert h.jobs == [] and ps.window(h).samples == 0, "still starting"
+    h.is_running = True
+    h.loop.run_until(1180.0)                     # running from here: grace until 1480
+    h.loop.run_until(1420.0)
+    assert h.jobs == [] and ps.window(h).samples == 0
+    h.loop.run_until(1480.0)
+    h.loop.run_until(1540.0)
+    assert ps.window(h).samples == 2 and ps.window(h).hists["cpu"].n == 1, "the first delta starts after the grace"
+    ps.async_stop(h)
+
+
+def test_a_reload_while_running_samples_at_once():
+    h = _hass()
+    h.is_running = True
+    ps.async_start(h)
+    h.loop.run_until(1060.0)
+    assert ps.window(h).samples == 1
+    ps.async_stop(h)
+
+
+def test_opting_in_again_drops_the_cpu_reading_from_before():
+    h = _hass()
+    ps.async_start(h)
+    h.loop.run_until(1060.0)
+    assert h.data[DOMAIN][ps._DATA_SAMPLER]._last_cpu is not None
+    ps.reset_window(h)
+    assert h.data[DOMAIN][ps._DATA_SAMPLER]._last_cpu is None and ps.window(h).samples == 0
+    ps.async_stop(h)
+
+
 def test_a_disabled_reading_that_was_in_flight_is_dropped():
     h = _hass()
     s = ps.PerfSampler(h)
@@ -445,7 +483,14 @@ def test_nothing_on_the_event_loop_reads_a_file_or_asks_the_os(monkeypatch):
     assert calls == [], calls
     assert h.jobs == [ps.read_host]
     assert hw == {"cpus": 4, "ram": "4g", "arch": "aarch64", "install": "os", "board": "rpi4"}
-    assert perf["samples"] == 2 and perf["snap_ms"]["max"] == 4100
+    assert perf["samples"] == 0 and perf["snap_ms"]["max"] == 4100, "2 samples is under the half hour"
+
+
+@pytest.mark.parametrize("n,want", [(0, 0), (29, 0), (31, 60), (1439, 1440), (1440, 1440), (757, 780)])
+def test_samples_go_to_the_nearest_hour_so_a_restart_minute_does_not(n, want):
+    w = ps.PerfWindow()
+    w.samples = n
+    assert T._perf_payload(w, 4)["samples"] == want
 
 
 # ── the hardware class ──────────────────────────────────────────────────────
@@ -512,8 +557,7 @@ def _detect_hass(components=("hassio",)):
 def test_the_supervisor_board_is_used_once_its_info_has_loaded(monkeypatch):
     info: dict = {"v": None}
     asked = {"system_info": 0, "static": []}
-    hassio = types.ModuleType("fake_hassio")
-    hassio.is_hassio = lambda hass: True
+    hassio = types.ModuleType("fake_hassio")     # HA 2026.1+: no is_hassio in this module
     hassio.get_info = lambda hass: info["v"]
     hassio.get_os_info = lambda hass: {"board": "rpi4-64", "version": "16.2"}
     monkeypatch.setattr(sys.modules["homeassistant.components"], "hassio", hassio, raising=False)
@@ -549,7 +593,7 @@ def test_a_pi_without_a_supervisor_is_found_by_its_device_tree(monkeypatch):
     def _never(hass):
         raise AssertionError("the Supervisor integration is not loaded: do not import or ask it")
 
-    hassio.is_hassio = _never
+    hassio.get_info = hassio.get_os_info = _never
     monkeypatch.setattr(sys.modules["homeassistant.components"], "hassio", hassio, raising=False)
     si = types.ModuleType("homeassistant.helpers.system_info")
 
@@ -573,12 +617,12 @@ def test_detection_that_fails_everywhere_is_unknown_not_an_error(monkeypatch):
     def _boom(hass):
         raise RuntimeError("no hassio")
 
-    hassio.is_hassio = _boom
+    hassio.get_info = hassio.get_os_info = _boom
     monkeypatch.setattr(sys.modules["homeassistant.components"], "hassio", hassio, raising=False)
     monkeypatch.delitem(sys.modules, "homeassistant.helpers.system_info", raising=False)
     h = SimpleNamespace(data={DOMAIN: {}}, config=SimpleNamespace(components={"hassio"}),
                         async_add_executor_job=MagicMock(side_effect=RuntimeError("no executor")))
-    assert asyncio.run(ps.async_ensure_hw(h)) is True
+    assert asyncio.run(ps.async_ensure_hw(h)) is False, "not ready: the sampler asks again, _HW_TRIES times"
     assert ps.hw_class(h) == {"cpus": 0, "ram": "unknown", "arch": "unknown", "install": "unknown", "board": "unknown"}
     T.assert_shareable({"schema": 1, "install_id": "", "env": {"hw": T._hw_payload(h)}})
 
@@ -665,6 +709,14 @@ def _perf(cpu95, load95, lag95, snap95, samples=1440, **over):
             "load_pc": {"p50": 20, "p95": load95, "max": 180}, "lag_ms": {"p50": 1.2, "p95": lag95, "max": 900},
             "snap_ms": {"p50": 1200, "p95": snap95, "max": 8200, "per_h": 360},
             "over": {"load": 0, "cpu": 0, "mem": 0, "lag": 0, **over}}
+
+
+def test_a_crafted_hardware_block_does_not_crash_the_summary(tmp_path):
+    bad = {"install_id": "eeeeeeee-1111-4111-8111-111111111111", "version": "0.38.91", "day": "2026-09-29",
+           "env": {"hw": {"board": ["rpi4"], "cpus": {"n": 4}, "ram": ["4g"]}},
+           "health": {"perf": {"samples": [1], "over": {"load": "x"}}}}
+    s = _summary(tmp_path, bad)
+    assert "1  / 1" in s, s
 
 
 def test_the_summary_says_not_reported_for_older_builds(tmp_path):

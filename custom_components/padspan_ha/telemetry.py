@@ -352,7 +352,7 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     "swap_mb": ("swap", ("p50", "max")),               # host, used
     "lag_ms": ("lag", ("p50", "p95", "max")),          # event loop
     "snap_ms": ("snap", ("p50", "p95", "max", "per_h")),    # live snapshot build
-    "cycle_ms": ("cycle", ("p50", "p95", "max", "per_h")),  # presence poll
+    "cycle_ms": ("cycle", ("p50", "p95", "max", "per_h")),  # presence poll (incl. its snapshot fetch)
 }
 PERF_OVER: tuple[str, ...] = ("load", "cpu", "mem", "lag")
 
@@ -509,8 +509,11 @@ def _hw_payload(hass: HomeAssistant) -> dict[str, Any]:
 
 
 def _perf_payload(w: Any, cpus: int, now: float | None = None) -> dict[str, Any]:
-    """health.perf from a perf_sampler.PerfWindow, shaped by PERF_METRICS."""
-    out: dict[str, Any] = {"samples": int(w.samples)}
+    """health.perf from a perf_sampler.PerfWindow, shaped by PERF_METRICS.
+
+    `samples` is to the nearest hour (60 samples): to the minute, a window
+    shorter than a day would say when Home Assistant last restarted."""
+    out: dict[str, Any] = {"samples": int(round(w.samples / 60.0)) * 60}
     hours = w.hours(now)
     for name, (metric, stats) in PERF_METRICS.items():
         h = w.hists.get(metric)

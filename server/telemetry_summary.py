@@ -113,9 +113,10 @@ def load_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
             continue
         for k in by:
             by[k][str(hw.get(k, "unknown"))] += 1
-        cls = f"{hw.get('board', 'unknown')} / {hw.get('cpus', '?')} cpu / {hw.get('ram', 'unknown')} RAM"
+        # str(): a report is untrusted input — a list here must not crash the summary.
+        cls = f"{str(hw.get('board', 'unknown'))} / {str(hw.get('cpus', '?'))} cpu / {str(hw.get('ram', 'unknown'))} RAM"
         cls_of[iid] = cls
-        if hw.get("board") in _PI_BOARDS:
+        if str(hw.get("board")) in _PI_BOARDS:
             pi.add(cls)
     n = len(latest)
     out.append(f"  {'installs reporting hardware':<36} {len(cls_of):>7}  / {n}"
