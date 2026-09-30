@@ -1,11 +1,11 @@
-# Idea: Sims Soup — the 3D house and furniture (possible future add-on)
+# Idea: Live Aboard — the 3D house and furniture (possible future add-on)
 
-**Sims Soup** is the working name (Garry, 2026-09-30) for this possible future add-on: the
-Sims-style 3D Atlas, furniture, beacons and people from photos, and the shared library. "Sims" is
-Electronic Arts' trademark, so check the name before it appears in anything public or paid.
+**Live Aboard** is the working name (Garry, 2026-09-30; it replaced "Live Aboard", which used
+Electronic Arts' trademark) for this possible future add-on: the Sims-style 3D Atlas, furniture,
+beacons and people from photos, and the shared library. Check the name before anything public or paid.
 
 Planned 2026-09-30. Revised the same day: **clean-room, photo-to-furniture, and a shared library.**
-Status: **plan only — nothing built yet; normally off when built.** The choices are at the end.
+Status: **plan only — nothing built yet; normally off when built.** The thirteen choices, decided, are at the end.
 
 Where the idea came from: a r/homeassistant post (1wtyklm, 2026-09-30) showing a hand-built
 three.js model of one house, walls cutting away like The Sims. That was an idea, not code, and
@@ -329,8 +329,9 @@ plain words and asks them to accept its terms before they make furniture:
   the like, plus an optional title, brand and model) are shared. Never your photo, your floor
   plan, where the piece sits, what device it's linked to, or anything that identifies you or
   your home. Don't put personal information in the title.
-- By sharing, you dedicate each piece and its details to the public domain (CC0), so anyone,
-  including PadSpan's paid editions, can use them without asking.
+- By sharing, you give PadSpan (every edition, free and paid) a permanent licence to use, show,
+  copy and change each piece and its details, and to let other PadSpan users place it in their
+  houses. You keep your own rights. The library gives nobody a licence outside PadSpan.
 - You can withdraw your pieces at any time from Settings (below).
 
 Acceptance is stored in settings with the terms version and date. A later terms version asks
@@ -341,8 +342,8 @@ outside Canada).
 
 **Withdrawal.** Each install keeps its own submission ids locally. Settings → "Withdraw my shared
 furniture" sends those ids; the server deletes them and logs only `{submission_id, withdrawn_at}`,
-as `tester.php` does. Pieces already copied into other people's houses stay there (they are their
-recipes now), which the terms say plainly.
+as `tester.php` does. Pieces already copied into other people's houses stay there (placed copies stay
+usable inside PadSpan), which the terms say plainly.
 
 **Browsing.** Pieces show as 3D thumbnails rendered in the browser from the recipe, with the
 search, filters, sorting and grouping described under the details sheet. Placing a library
@@ -510,10 +511,10 @@ targeted re-check rather than a full re-review unless the fix touched shared cod
 | **P2 Furniture by hand** | The store, its commands and full registration; the Furnish tab; the 8 starter builders and procedural materials; Build with sliders; drag and turn with snapping; fit checks; Undo, Save and Discard; Remove all with a backup. | about 3× | The registration tests pass (backup, restore without furniture, factory reset, Bright import, unknown keys, store version 1). Editing furniture changes no other file. Each builder has a still-picture test across its parameter range. |
 | **P3 From a photo** | The AI Task call, prompt and `structure`; answer checking and clamping; the one-measurement step; the no-AI-Task path; the photo never stored (tested). | about 1× | Ten real photos of Garry's furniture each give a sensible recipe on a local and a cloud AI Task. A garbage answer gives a box, never an error. |
 | **P4 Shared library** | Terms screen and acceptance; the details sheet (AI-filled in the photo call, required fields enforced, free-text checks on both ends); `furniture_library.php` with shape checks, signatures, limits, withdrawal, reports and owner edits; search, filters, "Fits here" and sorting; thumbnails; queue when offline; the starter recipe set with full details. | about 2× | A share contains only `recipe` keys (tested on both ends). A piece missing a required detail can't be shared. A title with an email, phone, address or URL is refused on both ends. Every filter and sort returns the right pieces on a seeded test library. Withdrawal deletes. Library down means Furnish still works. Terms reviewed. |
-| **P4b Beacons, scanners and people** | Device recipes for beacons and scanners at their live and stored positions; the flat-Atlas beacon icons (inside the existing overlay); Sims-style figures with the person link, the consent screen, and the local-AI recommendation; figures kept out of every share (tested). | about 1–2× | A photographed tag moves with its beacon in 3D. A figure walks with its person. A library share and a telemetry report contain no figure data. With the beacon overlay off, the flat Atlas is byte-identical. |
 | **P5 Devices as furniture** | Binding, with rename re-resolve and unlinked badges; lamps, TV, fan; washer and dryer running; vacuum and mower docks, animated while running (they rarely report where they are); radiators; car and charger; per-light heights; emergency lights outlined during a test. | 1–2×, one device type at a time | Each device type has a live-state test and a still picture. |
-| **P6 Import** | Sweet Home 3D doors and windows, and its furniture as kind and size mapped to PadSpan builders, as candidates you preview and commit into the new file only. | about 1× | A real `.sh3d` imports. Declining the preview writes nothing. |
-| **P7 Atmosphere** | Rain and snow in 3D; day and night from `sun.sun`; Showcase themes as 3D presets; the optional people layer. | 1–2× | Each item can be switched off on its own. |
+| **P6 Beacons, scanners and people** | Device recipes for beacons and scanners at their live and stored positions; the flat-Atlas beacon icons (inside the existing overlay); Sims-style figures with the person link, the consent screen, and the local-AI recommendation; figures kept out of every share (tested). | about 1–2× | A photographed tag moves with its beacon in 3D. A figure walks with its person. A library share and a telemetry report contain no figure data. With the beacon overlay off, the flat Atlas is byte-identical. |
+| **P7 Import** | Sweet Home 3D doors and windows, and its furniture as kind and size mapped to PadSpan builders, as candidates you preview and commit into the new file only. | about 1× | A real `.sh3d` imports. Declining the preview writes nothing. |
+| **P8 Atmosphere** | Rain and snow in 3D; day and night from `sun.sun`; Showcase themes as 3D presets; the optional people layer. | 1–2× | Each item can be switched off on its own. |
 
 ## Build plan: how the work runs
 
@@ -539,8 +540,8 @@ and says so if asked.
 3. **P1 the 3D view**, behind the switch. Garry turns it on in his own Settings; nobody else sees it.
 4. **P2 furniture by hand.** The builders are written from the parameter lists in "Furniture",
    nothing else, each with a still-picture test across its parameter range.
-5. **P3 photos**, then **P4 library** (terms reviewed first), **P4b beacons and people**,
-   **P5 devices**, **P6 import**, **P7 atmosphere**, in that order, each behind its sub-switch.
+5. **P3 photos**, then **P4 library** (terms reviewed first), **P5 devices**, **P6 beacons and
+   people**, **P7 import**, **P8 atmosphere**, in that order, each behind its sub-switch.
 
 **Per phase.** One pre-release, installed on the home HA, an independent read-only review of the
 diff, fixes, then a targeted re-check of the fixes (a full re-review only when a fix touched
@@ -596,44 +597,34 @@ be flipped back the same way.
 - Beacons, scanners and people can be photographed too and shown on the map; people figures are
   never shared.
 
-## The choices
+## The thirteen choices, decided (Garry, 2026-09-30, by question rounds)
 
-Thirteen real decisions, one line each, defaults marked. Answer with the letters (`1A 2B 3A`),
-or `defaults` to take them all. Answers get recorded under "Decided" with the date.
+1. **3D view:** Bright + Pro; Free sees a still picture of their own house beside the trial offer.
+2. **Making furniture:** Bright, the same gate as light placement.
+3. **Browsing the library:** anyone, including Free.
+4. **Name:** **Live Aboard** replaces "Live Aboard". Still a working name; check it before anything public.
+5. **Library licence:** a licence grant to PadSpan only, not CC0. Sharers keep their rights;
+   PadSpan, every edition, may use, show, copy and change shared pieces and let other PadSpan
+   users place them; nobody gets a licence outside PadSpan. The terms above say so; the lawyer
+   review covers it.
+6. **Terms:** required to make furniture, not to view 3D or browse.
+7. **Free text:** title, brand and model as written, and the details sheet must carry the
+   structured, filterable fields Garry named: type (the kind), use (the rooms it suits),
+   modular/sectional and the other features. They are in the sheet already; this makes them a
+   requirement.
+8. **Cloud AI for furniture photos:** allowed, with the note saying which AI Task reads the photo.
+9. **Size from a photo:** a real measurement is the normal path. The AI's own size is accepted
+   only when it reports high confidence, which means a known-size object was in the shot (a door
+   frame, a tape measure); otherwise the person types one number or drags an edge before saving.
+10. **People figures:** stylised only, never a likeness.
+11. **Phase order:** devices before people: P4 library → P5 devices → P6 beacons, scanners and
+    people → P7 import → P8 atmosphere.
+12. **Default flips on:** after P1 and P2 have shipped and the load report shows Pi and tablet
+    installs cope, on Garry's word.
+13. **Starter builders:** sofa, bed, table, chair, desk, dresser/cabinet, TV + media unit, lamp.
 
-**Access**
-
-1. Who sees the 3D view — **A)** Bright + Pro; Free sees a still picture *(default)* / B) Pro only / C) everyone
-2. Who can make furniture — **A)** Bright, same as light placement *(default)* / B) Pro only
-3. Who can browse the library — **A)** anyone, including Free *(default)* / B) paid tiers only
-
-**Name**
-
-4. "Sims Soup" — **A)** rename before it ships *(default)* / B) keep it and trademark-check / C) decide later
-
-**Library**
-
-5. Licence on shared pieces — **A)** CC0 *(default)* / B) grant to PadSpan only
-6. Terms — **A)** required to make furniture, not to view or browse *(default)* / B) sharing is a separate opt-in
-7. Free text — **A)** title, brand, model, checked and reportable *(default)* / B) closed lists only
-
-**Photos**
-
-8. Cloud AI for furniture photos — **A)** allowed, with a note *(default)* / B) local models only
-9. Size from a photo — **A)** one real measurement required *(default)* / B) accept the AI's guess with a warning
-
-**People**
-
-10. Figures — **A)** stylised only *(default)* / B) attempt a likeness
-
-**Build**
-
-11. Phase order — **A)** as listed *(default)* / B) devices before people / C) another order
-12. When the default flips on — **A)** after P1 + P2 and a clean load report, on Garry's word *(default)* / B) stays off until Garry says, no conditions
-13. Starter builders — **A)** sofa, bed, table, chair, desk, dresser, TV unit, lamp *(default)* / B) a different set
-
-**Assumed unless Garry says otherwise:** off by default with all sub-switches off; ships dark;
-its own storage file that never touches the map; clean-room code; people figures never shared;
-a lawyer reviews the terms before the library ships.
+Assumed, not asked: off by default with all sub-switches off; ships dark; its own storage file
+that never touches the map; clean-room code; people figures never shared; a lawyer reviews the
+terms before the library ships.
 
 Then P0: a prototype of Garry's house, to try on the wall PC before any PadSpan code changes.
