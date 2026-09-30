@@ -58,8 +58,57 @@ that is `light.lounge_lamp` glows when that light is on, and tapping it switches
 |---|---|
 | **Atlas** (sidebar, and Mapping → Atlas) | A **Map / 3D** switch beside the zoom buttons (`lights_map.js:3259-3290`), and in the rail for the edge-to-edge layout (`lights_map.js:3601`). Each screen remembers its choice, so the wall PC can open in 3D. |
 | **Mapping → Furnish** (new tab after Atlas, `maps.js:109-111`) | The furniture editor: the 3D house and a plan view side by side; **From a photo**, **Library** and **Build** buttons; drag and turn; fit checks; colours; "This is a device…"; then Save, Discard and Undo. |
-| **Settings → UI Structure → Atlas → 3D house** | On/off (off by default), Quality (Auto / Low / High), Show people, the AI Task to use for photos, Shared library on/off, and Remove all furniture (admin only; takes a backup first). |
+| **Settings → UI Structure → Atlas → 3D house** | The master switch (off by default). Once on: Quality (Auto / Low / High), Show people (off), the AI Task for photos (none), Shared library (off), and Remove all furniture (admin only; takes a backup first). See "Normally off". |
 | Overview, Traceback | Unchanged. |
+
+## Normally off: the switch (Garry, 2026-09-30)
+
+One master switch, **`atlas_3d_enabled`, default off**, in Settings → UI Structure → Atlas →
+3D house. It copies two existing patterns: Automorph (`lights_automorph_enabled: False`,
+`settings_store.py:113`, "off = today's rendering exactly") and the Atlas sidebar itself
+(`lights_panel_enabled`, `panel.py:126`). Off is the state every install is in until Garry flips
+the default, which is one line in `DEFAULT_SETTINGS` plus a release note, and not before the
+phases have shipped and the load report shows tablets cope.
+
+What "off" means, layer by layer:
+
+| Layer | Off (the default) | On |
+|---|---|---|
+| Atlas, both hosts | No Map / 3D switch is drawn; the stage is the SVG exactly as today. The 3D module is not even imported. | The switch appears; each screen remembers its choice. |
+| Mapping | No Furnish tab, hidden the way Basic mode hides tabs (`maps.js:109-116`). | Furnish after Atlas. |
+| Settings | The master switch and one line saying what it adds. | The sub-switches appear below it. |
+| The store | Registered (so backup, restore and factory reset know it) but never written. A file that exists (a downgrade, or switched off later) is read and kept, never shown. | Read and written. |
+| Websocket | Every `house3d_*` command answers "the 3D house is off" and touches nothing, except `house3d_get`, which still returns the data so backups can be labelled. | Normal. |
+| Network | No AI Task call and no library call, ever. | Only with the matching sub-switch on. |
+| Telemetry | No house3d, furnish, photo or library events, and no `env.house3d`. The report is the same as today's. | The events listed below. |
+| Home Assistant load | Nothing: no timer, no snapshot read, no import. | Only the people layer (itself off) reads the snapshot. |
+
+**Sub-switches**, each off by default and only visible once the master is on:
+
+| Key | Default | What it turns on |
+|---|---|---|
+| `atlas_3d_people` | off | the people layer |
+| `atlas_3d_ai_task_entity` | none | the photo step (none selected = the button explains what is needed) |
+| `atlas_3d_library` | off | the shared library (on still needs the terms accepted before the first share) |
+| `atlas_3d_quality` | auto | Low / High |
+
+**Ship dark.** Because everything sits behind the master switch, each phase can go out in an
+ordinary pre-release and be installed on the home HA with no customer seeing it. Garry turns it
+on in his own Settings; nobody else's Atlas changes.
+
+**Enforced by tests:**
+
+- `test_atlas_3d_off_is_byte_identical` copies
+  `test_perimeter_automorph_off_is_byte_identical_to_the_legacy_trace`
+  (`tests/test_lights_renderer.py:1995`): the flat drawing is identical with the feature absent,
+  off, and on but not selected.
+- Off means no import: with the flag off, the map card never loads the 3D module (the harness
+  records module loads).
+- Off means no writes: every `house3d_*` command with the flag off leaves the store's bytes unchanged.
+- Off means no network: with the switches off, no `ai_task` service call and no request to the
+  library URL, under mocks.
+- Off means no telemetry: with the flag off the frontend fires none of the events, and
+  `build_payload` carries no `house3d` keys.
 
 ## What the 3D view shows: ties to what's already there
 
@@ -393,7 +442,7 @@ changes go through its own `schema` field. The only other additions are its sett
   | `house3d_clear` | admin | takes `_auto_backup(…, [HOUSE3D_STORE_KEY])` first |
 
 - **Settings:** `atlas_3d_enabled` (off), `atlas_3d_quality` (`auto`), `atlas_3d_people` (off),
-  `atlas_3d_ai_task_entity` (none), `atlas_3d_library` (on). Unknown settings keys survive a
+  `atlas_3d_ai_task_entity` (none), `atlas_3d_library` (off). Unknown settings keys survive a
   downgrade.
 
 **Everywhere it must be registered** (the checklist, so nothing is half-wired):
@@ -466,6 +515,55 @@ targeted re-check rather than a full re-review unless the fix touched shared cod
 | **P6 Import** | Sweet Home 3D doors and windows, and its furniture as kind and size mapped to PadSpan builders, as candidates you preview and commit into the new file only. | about 1× | A real `.sh3d` imports. Declining the preview writes nothing. |
 | **P7 Atmosphere** | Rain and snow in 3D; day and night from `sun.sun`; Showcase themes as 3D presets; the optional people layer. | 1–2× | Each item can be switched off on its own. |
 
+## Build plan: how the work runs
+
+**Who builds it.** A fresh session, working from this doc and the PadSpan repo only. The session
+that wrote the first draft of this doc, and one of its research agents, read the
+room-from-photos engine on 2026-09-30 (the local copy was deleted the same day). Under the
+clean-room rule that session does not write the builders, the fit checks, the cut-away or the
+camera. Any session building this refuses to open another furniture or room-planner repository,
+and says so if asked.
+
+**Order of work.** The switch and the registration come first, so every later phase ships dark.
+
+1. **The switch and the empty store (start of P1).** `atlas_3d_enabled` and its sub-keys in
+   `settings_store.py` and `ws_settings.py`; the `padspan_ha.house3d` store with its full
+   registration (the ten-point checklist under "Data"); `ws_house3d.py` with `house3d_get` and
+   `house3d_clear` only; the five "off" tests. Released as a pre-release that changes nothing
+   visible. This is the smallest possible first release and it proves the reversibility story
+   before any 3D code exists.
+2. **P0 prototype**, in parallel with step 1: a standalone page in the scratchpad, never shipped,
+   fed by a read-only `model_get` export of Garry's house. It answers the two questions no amount
+   of planning can: how the whole-house cut-away should behave with shared interior walls, and
+   what the wall PC and a phone can render. Garry looks at it on both before P1 goes further.
+3. **P1 the 3D view**, behind the switch. Garry turns it on in his own Settings; nobody else sees it.
+4. **P2 furniture by hand.** The builders are written from the parameter lists in "Furniture",
+   nothing else, each with a still-picture test across its parameter range.
+5. **P3 photos**, then **P4 library** (terms reviewed first), **P4b beacons and people**,
+   **P5 devices**, **P6 import**, **P7 atmosphere**, in that order, each behind its sub-switch.
+
+**Per phase.** One pre-release, installed on the home HA, an independent read-only review of the
+diff, fixes, then a targeted re-check of the fixes (a full re-review only when a fix touched
+shared code). One phase per week or two. A phase that isn't green stays behind the switch; it
+never blocks a stable release of the rest of PadSpan.
+
+**Flipping the default.** Only after P1 and P2 have shipped, the load report shows Raspberry Pi
+and tablet installs are not hurt, and Garry says so. It is one line and a release note, and can
+be flipped back the same way.
+
+**The first three tasks, concretely:**
+
+1. `settings_store.py`: add the five keys to `DEFAULT_SETTINGS` next to the `atlas_weather_*`
+   block (line ~134) with `atlas_3d_enabled: False`; `ws_settings.py`: schema entries beside
+   line 354 and the bool loop at line ~805; `tests/test_websocket_settings_schema.py` keeps them
+   in sync.
+2. `const.py`: `HOUSE3D_STORE_KEY` and `DATA_HOUSE3D`; a `House3dStore` wrapped with
+   `wrap_store`; `_ensure_stores` in `__init__.py`; `_ALL_STORE_KEYS` and `_DATA_KEY_MAP` in
+   `ws_common.py`; the factory-reset block; `HOUSE_STORES` in `bright_import.py` (with the reload
+   test first); `manage.js` `_storeLabel`.
+3. `tests/test_house3d_store.py`: the registration tests and the five "off" tests, red before the
+   code, green after.
+
 ## Risks
 
 - **GPU cost on wall tablets.** This is the top risk. Hence the Low profile, the automatic
@@ -498,23 +596,105 @@ targeted re-check rather than a full re-review unless the fix touched shared cod
 - Beacons, scanners and people can be photographed too and shown on the map; people figures are
   never shared.
 
-## Decisions for Garry
+## Checklist of choices
 
-1. **Who gets it:** recommendation is anyone with the Atlas (Bright and Pro), with Free seeing a
-   still picture of their own house in 3D beside the 90-day trial offer. The alternative is Pro
-   only. Separately: can Free users browse the library?
-2. **Off by default:** recommended.
-3. **The storage file and its shape.** This locks in `padspan_ha.house3d` and the schema above.
-   Still want to proceed?
-4. **People in 3D:** now Sims-style figures from photos or sliders, off by default. Confirm the
-   figure stays stylised (recommended) rather than trying for a likeness.
-5. **The library licence:** CC0 (recommended: simplest, no attribution to track) or a licence
-   grant to PadSpan only, which would stop others reusing the library outside PadSpan.
-6. **Terms as a condition:** as written, accepting is required to *make* furniture, not to use
-   the 3D view or browse. Confirm, or make sharing a separate opt-in.
+Tick each one. **Rec** marks my recommendation; **locks in** says what becomes hard to change
+later. Nothing is built until the first group is ticked.
 
-7. **Free text in the library:** as written, an optional title, brand and model, checked and
-   reportable. The alternative is closed lists only (nothing to moderate, but no "IKEA Kivik"
-   search).
+### 1. Go / no-go and the switch
+
+- [ ] **Build it at all, as an add-on to PadSpan** — or park the doc. *Locks in:* nothing yet.
+- [ ] **Normally off.** Master switch `atlas_3d_enabled` off by default; every sub-switch off;
+      only Garry turns it on until the default flips. **Rec: yes.** *Locks in:* nothing; the flip
+      is one line either way.
+- [ ] **Ship dark.** Phases go out in ordinary pre-releases behind the switch, installed on the
+      home HA, invisible to customers. **Rec: yes.**
+- [ ] **Start with the switch and the empty store** (build plan step 1), before any 3D code.
+      **Rec: yes.**
+
+### 2. Who gets it
+
+- [ ] **The 3D view:** (a) anyone with the Atlas, Bright and Pro, with Free seeing a still
+      picture of their own house beside the trial offer **(rec)**; (b) Pro only. *Locks in:* the
+      gate in `lightsHostForTier` and the marketing line.
+- [ ] **Furnish (making furniture):** (a) same tier as light placement, Bright **(rec)**;
+      (b) Pro only.
+- [ ] **Browsing the library:** (a) anyone, including Free **(rec)**: it costs nothing and shows
+      what the paid map does; (b) paid tiers only.
+
+### 3. The name
+
+- [ ] **"Sims Soup"** stays a working name only. Before anything public or paid, either a
+      trademark check clears it or it gets a new name. **Rec: pick a new name before P1 ships,
+      since "Sims" is EA's mark.** *Locks in:* strings in the UI, the store label, the release notes.
+
+### 4. Data and reversibility
+
+- [ ] **One new store, `padspan_ha.house3d`**, never writing fabric, model, maps or light
+      positions. **Rec: yes.** *Locks in:* the file name and the registration; the strongest
+      lock in this list.
+- [ ] **The schema** as written: metres, a floor per piece, no room names, `recipe` as the only
+      shareable part, HA store version 1 forever. **Rec: yes.** *Locks in:* the piece shape once
+      anyone has saved furniture.
+- [ ] **Mount heights and door hinge/swing live in the new file**, never in the map. **Rec: yes.**
+- [ ] **Factory reset on an older version leaves the file** (known gap, harmless). **Rec: accept.**
+
+### 5. Photos and AI
+
+- [ ] **The customer's own AI Task reads photos**, none of Garry's services in the loop.
+      **Rec: yes** (decided). *Locks in:* HA 2025.8 as the floor for the photo step.
+- [ ] **A cloud AI Task is allowed for furniture photos** (the photo leaves the house once, then
+      is discarded), with the screen saying which AI Task will read it. **Rec: allowed, with the
+      note.** Alternative: local models only.
+- [ ] **People photos recommend a local AI Task**, and children use the slider builder.
+      **Rec: yes.**
+- [ ] **The one real measurement is required** before a photo piece can be saved (the photo
+      cannot give true size). **Rec: required.** Alternative: accept the AI's guess with a warning.
+
+### 6. The shared library
+
+- [ ] **Library off by default for now** (`atlas_3d_library`). **Rec: off until P4 ships and the
+      terms are reviewed.**
+- [ ] **Licence for shared pieces:** (a) CC0 **(rec)**: simplest, nothing to track; (b) a grant to
+      PadSpan only, which stops reuse outside PadSpan. *Locks in:* the terms text; changing it
+      later means a new terms version and re-asking everyone.
+- [ ] **Terms as a condition of making furniture** (not of viewing 3D or browsing) **(rec)**,
+      or sharing as a separate opt-in with furniture-making free of terms.
+- [ ] **Free text in the library:** (a) optional title, brand and model, checked on both ends and
+      reportable **(rec)**; (b) closed lists only, nothing to moderate, no "IKEA Kivik" search.
+- [ ] **A lawyer reviews the terms before P4 ships**, with EU users in mind. **Rec: yes.**
+- [ ] **Withdrawal deletes the server copy but not copies already placed in other houses.**
+      **Rec: yes, and the terms say so.**
+
+### 7. People and devices in 3D
+
+- [ ] **People figures stay stylised** (Sims-style: height, build, hair, colours), never a
+      likeness. **Rec: yes.**
+- [ ] **People figures are never shared, never in telemetry beyond a count.** **Rec: yes** (decided).
+- [ ] **Consent screen** for a photographed person, with the slider builder as the alternative.
+      **Rec: yes.**
+- [ ] **Beacons and scanners from photos** can also replace the flat Atlas's beacon marker, inside
+      the existing off-by-default overlay. **Rec: yes.**
+
+### 8. Look and engine
+
+- [ ] **Clean-room**: no ported application code; three.js as a library only, bundled, pinned.
+      **Rec: yes** (decided).
+- [ ] **Simple Sims-like look** (boxes, rounded boxes, cylinders, procedural finishes), no
+      texture files. **Rec: yes.**
+- [ ] **Two quality profiles with Auto**, and any failure falls back to the flat Atlas.
+      **Rec: yes.**
+- [ ] **The eight starter builders:** sofa, bed, table, chair, desk, dresser/cabinet, TV + media
+      unit, lamp. **Rec: these eight**; add or swap any now, since each is its own small build.
+
+### 9. Order and pace
+
+- [ ] **Phase order** P0 prototype → P1 view → P2 furniture → P3 photos → P4 library →
+      P4b people → P5 devices → P6 import → P7 atmosphere. **Rec: as listed**; P4b can move
+      after P5 if devices matter more.
+- [ ] **One phase per week or two**, each a pre-release on the home HA with a read-only review.
+      **Rec: yes.**
+- [ ] **When the default flips on:** after P1 and P2 have shipped and the load report shows
+      Pi and tablet installs are fine, on Garry's word. **Rec: yes.**
 
 Then P0: a prototype of **your** house, to try on the wall PC before any PadSpan code changes.
