@@ -1,6 +1,6 @@
 # Idea: Live Aboard — the 3D house and furniture (possible future add-on)
 
-**Live Aboard** is the working name (Garry, 2026-09-30; it replaced "Live Aboard", which used
+**Live Aboard** is the working name (Garry, 2026-09-30; it replaced "Sims Soup", which used
 Electronic Arts' trademark) for this possible future add-on: the Sims-style 3D Atlas, furniture,
 beacons and people from photos, and the shared library. Check the name before anything public or paid.
 
@@ -257,7 +257,7 @@ receipt and drops unknown keys, as `telemetry.php` does.
 
 Every piece that goes into the library carries a filled-out details sheet, so other people can
 **find, sort and filter** it. The AI Task fills it in from the photo in the same call that
-reads the recipe (it is part of the JSON schema), so for most pieces the person only checks it
+reads the recipe (it is part of the `structure`), so for most pieces the person only checks it
 and taps Save. For pieces made with Build, the builder's own settings fill most of it.
 
 **Required before a piece can be shared** (closed lists; the screen won't save a library piece
@@ -602,7 +602,7 @@ be flipped back the same way.
 1. **3D view:** Bright + Pro; Free sees a still picture of their own house beside the trial offer.
 2. **Making furniture:** Bright, the same gate as light placement.
 3. **Browsing the library:** anyone, including Free.
-4. **Name:** **Live Aboard** replaces "Live Aboard". Still a working name; check it before anything public.
+4. **Name:** **Live Aboard** replaces "Sims Soup". Still a working name; check it before anything public.
 5. **Library licence:** a licence grant to PadSpan only, not CC0. Sharers keep their rights;
    PadSpan, every edition, may use, show, copy and change shared pieces and let other PadSpan
    users place them; nobody gets a licence outside PadSpan. The terms above say so; the lawyer
