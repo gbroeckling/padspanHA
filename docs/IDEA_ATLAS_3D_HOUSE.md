@@ -126,7 +126,8 @@ data, and PadSpan's own builder draws it. The photo fills in settings. It never 
 2. **Home Assistant's AI Task reads it.** PadSpan calls `ai_task.generate_data` with the image
    as an attachment, a fixed prompt, and a **JSON schema** for the answer: the kind (from the
    builder list, or "other"), that builder's parameters, two or three colours, and rough
-   width / depth / height with a confidence. The customer chooses which AI Task entity to use
+   width / depth / height with a confidence, plus the library details sheet (category,
+   rooms, style, material, features and a suggested title). The customer chooses which AI Task entity to use
    in Settings; it can be a local model. PadSpan ships the prompt and schema, nothing else.
 3. **PadSpan checks the answer** against the schema and clamps every number to the builder's
    range. A bad or empty answer falls back to "Build" with the kind pre-picked, or a box.
@@ -185,29 +186,99 @@ Every piece people make goes into a **common library** any PadSpan install can b
 It follows the existing `popular_presets` pattern (`server/popular_presets.php`, `telemetry.py`),
 at `padspan.traks.ca/api/furniture_library.php`.
 
-**What is shared: the recipe, and only the recipe.**
+**What is shared: the recipe and its details sheet, and nothing else.**
 
 | Shared | Never shared |
 |---|---|
 | kind, builder parameters, colours, width / depth / height, the PadSpan version | the photo |
-| a random **submission id** made by that install (for withdrawal, below) | where it sits: floor, x/y, rotation, room |
-| | the device binding (entity ids) |
-| | any name or label typed by the person |
+| the **details sheet** (below): category, rooms, style, materials, colour family, size class, features, and the optional library title, brand and model | where it sits: floor, x/y, rotation, room |
+| a random **submission id** made by that install (for withdrawal, below) | the device binding (entity ids) |
+| | the name or label the piece has **in the house** (separate from its library title) |
 | | **any people figure**, ever |
 | | the install id, IP address, user agent, or any other request header |
 
-A recipe is a few numbers from a closed list. It says nothing about who made it or what their
-home looks like, and the server checks its shape again on receipt and drops unknown keys, as
-`telemetry.php` does.
+The recipe is a few numbers from a closed list, and the details sheet is mostly closed lists too.
+Neither says who made the piece or what their home looks like. The server checks both again on
+receipt and drops unknown keys, as `telemetry.php` does.
+
+### The details sheet (Garry, 2026-09-30)
+
+Every piece that goes into the library carries a filled-out details sheet, so other people can
+**find, sort and filter** it. The AI Task fills it in from the photo in the same call that
+reads the recipe (it is part of the JSON schema), so for most pieces the person only checks it
+and taps Save. For pieces made with Build, the builder's own settings fill most of it.
+
+**Required before a piece can be shared** (closed lists; the screen won't save a library piece
+with one missing):
+
+| Field | Values (closed list, extended by PadSpan releases only) | Filled from |
+|---|---|---|
+| Category | seating, sleeping, tables, storage, lighting, media, decor, outdoor, appliance, kids, pets, office, bath, kitchen, device (beacon / scanner), other | builder |
+| Kind | the builder's kind (sofa, sectional, armchair, bed, bunk bed, crib…), or "other" | builder |
+| Rooms it suits | one or more of: living, bedroom, kids' room, kitchen, dining, office, bathroom, hallway, garage, patio, any | AI, editable |
+| Style | modern, mid-century, traditional, rustic, industrial, Scandinavian, farmhouse, minimalist, boho, coastal, glam, retro, other | AI, editable |
+| Main material | wood, fabric, leather, metal, glass, plastic, stone, rattan/wicker, mixed | AI, editable |
+| Colour family | from the recipe's main colour, mapped to one of 14 names (white, cream, beige, brown, black, grey, red, orange, yellow, green, teal, blue, purple, pink) | computed |
+| Size class | small / medium / large / extra large, **per kind** (a large lamp isn't a large sofa) | computed from dimensions |
+| Dimensions | width, depth, height in metres (shown in the viewer's units) | recipe |
+
+**Filled in when they apply** (still closed lists, mostly booleans and counts):
+
+- **Seats / sleeps** (seating, beds): 1–8, and bed size (twin, double, queen, king, crib, bunk).
+- **Features:** has arms, reclines, sectional/modular, sofa bed, storage inside, drawers (count),
+  doors (count), shelves (count), on wheels, foldable, adjustable height, wall-mounted.
+- **Light pieces:** fixture type (floor, table, desk, pendant, wall, strip), number of shades.
+- **Device pieces (beacons and scanners):** form (puck, card, fob, phone, box, board), antenna
+  yes/no.
+- **Outdoor-rated:** yes/no.
+
+**Optional short text** (the only free text in the library):
+
+| Field | Limits |
+|---|---|
+| **Library title** | 3–60 characters. Suggested by the AI ("Three-seat grey sofa, slim arms"), editable. This is **not** the piece's name in the house, which is never shared. |
+| **Brand** | 2–40 characters, optional. Useful for "anyone got the IKEA one?" searches. |
+| **Model** | 1–60 characters, optional. |
+
+Free text is checked on the install **before** sending and again on the server: refused if it
+looks like a secret (the same patterns as `tester.php`: a licence key, a long hex string, a JWT,
+a token), an email address, a phone number, a street address or a URL, and run through a
+word list. A title that fails is replaced with the AI's suggestion rather than blocking the share.
+
+**How people find pieces** (the library screen):
+
+- **Search** across library title, brand, model, kind, style and material.
+- **Filter** by category, kind, room, style, material, colour family, size class, seats/sleeps,
+  features and outdoor-rated.
+- **"Fits here"**: when opened from a spot in the house, the library filters to pieces whose
+  footprint fits the free space there (width and depth, with a small margin), using the same
+  fit checks as placing.
+- **Sort** by most placed, newest, best fit (with "Fits here"), size, or name.
+- **Grouping:** near-identical recipes (binned signature, as `popular_presets.php`) show as one
+  entry, the medoid, with a count ("placed in 214 houses"). Details for a group are the most
+  common value for each field among its members, so one badly labelled copy can't mislabel it.
+- **Report:** each entry has "Report this piece" (wrong details, bad title). Reports are counted
+  only; three reports from different submission-id prefixes hide the free text until Garry
+  checks it. The recipe stays usable.
+
+**Quality flag.** An entry shows a small "details checked" mark once a real person has changed or
+confirmed at least one AI-filled field, so AI-only sheets sort below confirmed ones with
+everything else equal.
+
+**Editing later.** The person who shared a piece can fix its details from their own house
+(matched by their submission id); the server keeps only the latest sheet. Copies already placed
+in other houses keep whatever details they had.
 
 **Terms of use.** The first time someone opens Furnish, one screen explains the library in
 plain words and asks them to accept its terms before they make furniture:
 
 - Pieces you make are added to the shared PadSpan furniture library for everyone to use.
-- Only the piece's shape, sizes and colours are shared. Never your photo, your floor plan, where
-  the piece sits, what device it's linked to, or anything that identifies you or your home.
-- By sharing, you dedicate each piece to the public domain (CC0), so anyone, including PadSpan's
-  paid editions, can use it without asking.
+- Only the piece's shape, sizes, colours and its details sheet (category, style, materials and
+  the like, plus an optional title, brand and model) are shared. Never your photo, your floor
+  plan, where the piece sits, what device it's linked to, or anything that identifies you or
+  your home. Don't put personal information in the title.
+- By sharing, you dedicate each piece and its details to the public domain (CC0), so anyone,
+  including PadSpan's paid editions, can use them without asking.
 - You can withdraw your pieces at any time from Settings (below).
 
 Acceptance is stored in settings with the terms version and date. A later terms version asks
@@ -221,18 +292,17 @@ furniture" sends those ids; the server deletes them and logs only `{submission_i
 as `tester.php` does. Pieces already copied into other people's houses stay there (they are their
 recipes now), which the terms say plainly.
 
-**Browsing.** The library screen shows pieces as 3D thumbnails rendered in the browser from the
-recipe, grouped by kind, most-placed first. Near-identical recipes are grouped by a binned
-signature and shown once, with the medoid as the entry, exactly as `popular_presets.php` does
-for presets. Placing a library piece copies its recipe into the house; after that it is theirs
-to change.
+**Browsing.** Pieces show as 3D thumbnails rendered in the browser from the recipe, with the
+search, filters, sorting and grouping described under the details sheet. Placing a library
+piece copies its recipe and details into the house; after that it is theirs to change.
 
 **Offline and outages.** The built-in builders and a starter set of recipes ship with PadSpan.
 The library is extra: if the server is unreachable, Furnish says so and everything else works.
 Pieces made offline queue their share until the next successful fetch.
 
-**Abuse guard.** Recipes are numbers from a closed schema, so there is no text or image to
-moderate. Limits per UTC day on new submissions (overall and per submission-id prefix), and
+**Abuse guard.** Recipes and most details are values from closed lists, so the only thing to
+moderate is the short free text (title, brand, model), handled by the checks and the report
+button above. Limits per UTC day on new submissions (overall and per submission-id prefix), and
 out-of-range values rejected, as `tester.php` does.
 
 ## Engine
@@ -277,8 +347,14 @@ changes go through its own `schema` field. The only other additions are its sett
               "recipe": {"kind": "sofa", "params": {"seats": 3, "arms": "slim", "back_h_m": 0.8,
                          "legs": "tapered", "cushions": 3},
                          "colors": ["#5b6b7a", "#c8b89a"],
-                         "width_m": 2.2, "depth_m": 0.9, "height_m": 0.8},
+                         "width_m": 2.2, "depth_m": 0.9, "height_m": 0.8,
+                         "details": {"category": "seating", "rooms": ["living"], "style": "mid-century",
+                           "material": "fabric", "color_family": "grey", "size_class": "large",
+                           "seats": 3, "features": ["has_arms"], "outdoor": false,
+                           "title": "Three-seat grey sofa, slim arms", "brand": "", "model": "",
+                           "checked": true}},
               "origin": "photo",                                       # photo | library | build | import
+              "label": "Mum's old couch",                              # name in the house, never shared
               "library_id": null, "submission_id": "sub_…",            # shared-library links
               "floor_id": "main", "x_m": 3.412, "y_m": 1.25, "z_m": 0.0, "rotation": 90.0,
               "entity_id": null, "entity_reg_id": null, "updated_at": "…"}},
@@ -381,7 +457,7 @@ targeted re-check rather than a full re-review unless the fix touched shared cod
 | **P1 The 3D view** | The Map / 3D switch; floors, rooms, walls, doors and windows; lights with live glow; Motion · Air tints; readouts; tap, hold and dim; floor chips; touch camera; quality profiles and fallback; settings; telemetry. | about 3× | The house draws from existing data with no setup. Every Atlas action works in 3D. The flat Atlas is byte-identical. A forced WebGL failure shows the flat Atlas. |
 | **P2 Furniture by hand** | The store, its commands and full registration; the Furnish tab; the 8 starter builders and procedural materials; Build with sliders; drag and turn with snapping; fit checks; Undo, Save and Discard; Remove all with a backup. | about 3× | The registration tests pass (backup, restore without furniture, factory reset, Bright import, unknown keys, store version 1). Editing furniture changes no other file. Each builder has a still-picture test across its parameter range. |
 | **P3 From a photo** | The AI Task call, prompt and JSON schema; answer checking and clamping; the one-measurement step; the no-AI-Task path; the photo never stored (tested). | about 1× | Ten real photos of Garry's furniture each give a sensible recipe on a local and a cloud AI Task. A garbage answer gives a box, never an error. |
-| **P4 Shared library** | Terms screen and acceptance; `furniture_library.php` with shape checks, signatures, limits and withdrawal; browsing with thumbnails; queue when offline; the starter recipe set. | about 1–2× | A share contains only `recipe` keys (tested on both ends). Withdrawal deletes. Library down means Furnish still works. Terms reviewed. |
+| **P4 Shared library** | Terms screen and acceptance; the details sheet (AI-filled in the photo call, required fields enforced, free-text checks on both ends); `furniture_library.php` with shape checks, signatures, limits, withdrawal, reports and owner edits; search, filters, "Fits here" and sorting; thumbnails; queue when offline; the starter recipe set with full details. | about 2× | A share contains only `recipe` keys (tested on both ends). A piece missing a required detail can't be shared. A title with an email, phone, address or URL is refused on both ends. Every filter and sort returns the right pieces on a seeded test library. Withdrawal deletes. Library down means Furnish still works. Terms reviewed. |
 | **P4b Beacons, scanners and people** | Device recipes for beacons and scanners at their live and stored positions; the flat-Atlas beacon icons (inside the existing overlay); Sims-style figures with the person link, the consent screen, and the local-AI recommendation; figures kept out of every share (tested). | about 1–2× | A photographed tag moves with its beacon in 3D. A figure walks with its person. A library share and a telemetry report contain no figure data. With the beacon overlay off, the flat Atlas is byte-identical. |
 | **P5 Devices as furniture** | Binding, with rename re-resolve and unlinked badges; lamps, TV, fan; washer and dryer running; vacuum and mower docks, animated while running (they rarely report where they are); radiators; car and charger; per-light heights; emergency lights outlined during a test. | 1–2×, one device type at a time | Each device type has a live-state test and a still picture. |
 | **P6 Import** | Sweet Home 3D doors and windows, and its furniture as kind and size mapped to PadSpan builders, as candidates you preview and commit into the new file only. | about 1× | A real `.sh3d` imports. Declining the preview writes nothing. |
@@ -414,6 +490,8 @@ targeted re-check rather than a full re-review unless the fix touched shared cod
 - Furniture comes from photos read by the customer's own Home Assistant AI Task, into PadSpan's
   own parametric builders. No OpenClaw or other Garry-run service in the loop.
 - Pieces people make go into a shared library, under terms users accept.
+- Every library piece carries a filled-out details sheet (mostly closed lists, AI-prefilled,
+  required fields enforced) so others can search, sort and filter it.
 - Beacons, scanners and people can be photographed too and shown on the map; people figures are
   never shared.
 
@@ -431,5 +509,9 @@ targeted re-check rather than a full re-review unless the fix touched shared cod
    grant to PadSpan only, which would stop others reusing the library outside PadSpan.
 6. **Terms as a condition:** as written, accepting is required to *make* furniture, not to use
    the 3D view or browse. Confirm, or make sharing a separate opt-in.
+
+7. **Free text in the library:** as written, an optional title, brand and model, checked and
+   reportable. The alternative is closed lists only (nothing to moderate, but no "IKEA Kivik"
+   search).
 
 Then P0: a prototype of **your** house, to try on the wall PC before any PadSpan code changes.
