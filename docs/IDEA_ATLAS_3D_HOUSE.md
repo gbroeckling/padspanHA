@@ -5,7 +5,7 @@ Sims-style 3D Atlas, furniture, beacons and people from photos, and the shared l
 Electronic Arts' trademark, so check the name before it appears in anything public or paid.
 
 Planned 2026-09-30. Revised the same day: **clean-room, photo-to-furniture, and a shared library.**
-Status: **plan only — nothing built yet.** Decisions for Garry are at the end.
+Status: **plan only — nothing built yet; normally off when built.** The checklist of choices is at the end.
 
 Where the idea came from: a r/homeassistant post (1wtyklm, 2026-09-30) showing a hand-built
 three.js model of one house, walls cutting away like The Sims. That was an idea, not code, and
