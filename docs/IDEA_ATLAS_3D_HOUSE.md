@@ -1,12 +1,24 @@
 # Idea: the 3D house (a Sims-style Atlas) and furniture
 
-Planned 2026-09-30. Status: **plan only — nothing built yet.** Four decisions for Garry are at the end.
+Planned 2026-09-30. Revised the same day: **clean-room, photo-to-furniture, and a shared library.**
+Status: **plan only — nothing built yet.** Decisions for Garry are at the end.
 
-Inspiration: u/spongebob_za's "I built a 3D Sims style dashboard of my whole house"
-(r/homeassistant, 1wtyklm, 2026-09-30): a hand-built three.js model of one house, walls
-cutting away like The Sims, lights you tap, appliances that move. That build was made by hand
-for one house. The idea here is to make it for **every** PadSpan house, from the map people
-already drew, with no modelling.
+Where the idea came from: a r/homeassistant post (1wtyklm, 2026-09-30) showing a hand-built
+three.js model of one house, walls cutting away like The Sims. That was an idea, not code, and
+nothing from it is used. The point here is different: a 3D house for **every** PadSpan install,
+built from the map people already drew, with no modelling.
+
+## Ground rules for this feature (Garry, 2026-09-30)
+
+1. **All PadSpan code, written here.** No other project's application code is ported, copied or
+   adapted, for furniture or anything else. Sessions building this do not open other furniture
+   or room-planner repos for reference. Libraries used as dependencies are allowed (three.js,
+   below), the same way PadSpan depends on Home Assistant.
+2. **It stands on its own.** It runs on any customer's Home Assistant with nothing of Garry's in
+   the loop: no OpenClaw, no PadSpan-hosted AI, no homelab service. The only PadSpan server it
+   ever talks to is the optional shared library (below), and it works fully without it.
+3. **Customers never pay for Garry's AI, and Garry never pays for theirs.** The photo step runs
+   on whatever AI the customer has already set up in Home Assistant.
 
 ## What it is
 
@@ -15,10 +27,10 @@ their real heights. The walls stand up, and the ones facing you cut away so you 
 light glows in its real colour, and doors swing open with their sensors. You tap and hold things
 exactly as you do on the Atlas.
 
-**Furniture is optional.** A new **Furnish** tab in Mapping lets people drop in beds, sofas,
-lamps and a TV from a catalogue, drag and turn them, and check they fit. Any piece can **be a
-device**: a floor lamp that is `light.lounge_lamp` glows when that light is on, and tapping it
-switches it.
+**Furniture is optional.** A new **Furnish** tab in Mapping lets people add a bed, sofa, lamp or TV
+three ways: **from a photo** of their own furniture, **from the shared library** of pieces other
+PadSpan users made, or **by hand** with a few sliders. Any piece can **be a device**: a floor lamp
+that is `light.lounge_lamp` glows when that light is on, and tapping it switches it.
 
 ## Principles
 
@@ -30,8 +42,9 @@ switches it.
    `BEST_IN_CLASS_ROADMAP.md:395-407`.)
 3. **Everything is reversible.** The feature is off by default and sits in its own storage file.
    It never writes to the map, the rooms, the walls or the light positions. See "Undoing it".
-4. **Nothing extra on Home Assistant.** It all runs in the browser. The one exception, the
-   optional people layer, reads the same live snapshot Overview already uses, no more often.
+4. **Nothing extra on Home Assistant.** It all runs in the browser. The exceptions: the photo step
+   (one AI Task call per photo, only when the person presses the button) and the optional people
+   layer, which reads the same live snapshot Overview already uses, no more often.
 5. **Wall tablets fall back quietly.** No WebGL, a slow GPU, or any error means the flat Atlas,
    never a blank panel.
 
@@ -40,8 +53,8 @@ switches it.
 | Place | What's there |
 |---|---|
 | **Atlas** (sidebar, and Mapping → Atlas) | A **Map / 3D** switch beside the zoom buttons (`lights_map.js:3259-3290`), and in the rail for the edge-to-edge layout (`lights_map.js:3601`). Each screen remembers its choice, so the wall PC can open in 3D. |
-| **Mapping → Furnish** (new tab after Atlas, `maps.js:109-111`) | The furniture editor: the 3D house and a plan view side by side, the catalogue, drag and turn, fit checks, colours, "This is a device…", then Save, Discard and Undo. |
-| **Settings → UI Structure → Atlas → 3D house** | On/off (off by default), Quality (Auto / Low / High), Show people, and Remove all furniture (admin only; takes a backup first). |
+| **Mapping → Furnish** (new tab after Atlas, `maps.js:109-111`) | The furniture editor: the 3D house and a plan view side by side; **From a photo**, **Library** and **Build** buttons; drag and turn; fit checks; colours; "This is a device…"; then Save, Discard and Undo. |
+| **Settings → UI Structure → Atlas → 3D house** | On/off (off by default), Quality (Auto / Low / High), Show people, the AI Task to use for photos, Shared library on/off, and Remove all furniture (admin only; takes a backup first). |
 | Overview, Traceback | Unchanged. |
 
 ## What the 3D view shows: ties to what's already there
@@ -55,11 +68,11 @@ switches it.
 | Lights: `light_positions_m` (x, y, floor, shape, colour, size, rotation) | The fixture drawn by its shape (ceiling puck, pendant, strip, tube, fan, spot, LED), glowing in its live colour and brightness. |
 | Motion and air tiles, the Motion · Air colours | A room-floor pulse in the same colours, with the same timing (`MOTION_COLOR_STOPS`). |
 | Temperature, humidity, air readouts | Floating readouts, read-only as on the Atlas. |
-| Emergency lighting button | Unchanged: it is HTML above the stage. Phase 3 also outlines the emergency lights in 3D while a test runs. |
+| Emergency lighting button | Unchanged: it is HTML above the stage. The devices phase also outlines the emergency lights in 3D while a test runs. |
 | Outdoor weather (`atlas_weather.js`) | The same decision (`decideAtlasWeather`, the same settings), drawn as rain or snow falling outside the walls. A snowfall warning puts snow on decks and roofs. |
-| Showcase styles (19 themes) | Phase 5: each theme's colours become 3D lighting and material presets. Automorph stays 2D-only. |
+| Showcase styles (19 themes) | Atmosphere phase: each theme's colours become 3D lighting and material presets. Automorph stays 2D-only. |
 | Tracked people, phones and tags (Overview's live snapshot) | Optional **people layer**, off by default: soft markers at their positions. |
-| Sweet Home 3D import (`sh3d_import.py`, rooms only today) | Phase 4: also imports its furniture, doors and windows as candidates you preview and then commit. |
+| Sweet Home 3D import (`sh3d_import.py`, rooms only today) | Import phase: also reads its doors and windows, and its furniture as **size and kind only**, mapped onto PadSpan's own builders (never its models). |
 
 **Taps and holds are identical.** A 3D pick resolves to an entity id and calls the same actions
 the Atlas uses (`_useApi` at `lights_panel.js:666-690`, `previewApi` at `maps.js:8686-8703`,
@@ -67,17 +80,28 @@ the Atlas uses (`_useApi` at `lights_panel.js:666-690`, `previewApi` at `maps.js
 room sheet, a floor badge the floor sheet, a door the barrier card, and a motion sensor its
 activity calendar. The hover HUD and press ring are SVG-only and get 3D equivalents.
 
-## Furniture
+## Furniture: PadSpan's own builders
 
-- **Catalogue:** the 22 builders from room-from-photos (bed, crib, sofa, armchair, lounge chair,
-  chair, table in its variants, desk, dresser, nightstand, wardrobe, bookshelf, media console + TV,
-  rug, ottoman, box, pet bed, plant stands, floor lamps, plants, art, fireplace), in real sizes
-  with their variants. PadSpan adds device pieces in Phase 3: washer, dryer, robot vacuum dock,
-  mower dock, car and charger, radiator or heater, fan, speaker.
-- **Placing:** drag and turn in 15° steps, in 3D or on the plan. It snaps to walls at any angle,
-  where the source snaps only to square walls. The fit checks are ported: into a wall,
-  overlapping, in a door's swing, blocking a front or a bed side, tall in front of a window.
-  They run against PadSpan's own walls and doors.
+Every piece is a **recipe**, plain data, drawn by a **builder**, PadSpan code. The look is
+deliberately simple and Sims-like: boxes, rounded boxes, cylinders and bevels, not scanned meshes.
+That keeps wall tablets fast and makes every piece describable by a handful of numbers.
+
+- **Starter builders (8):** sofa, bed, table, chair, desk, dresser/cabinet, TV + media unit,
+  lamp (floor and table). Then rug, shelf, wardrobe, plant, and the device pieces (washer, dryer,
+  robot vacuum dock, mower dock, car and charger, radiator, fan, speaker) one at a time.
+- **Each builder takes parameters, never a model.** For a sofa: seats (1–4), arms (none / slim /
+  wide / rolled), back height, seat depth, leg style (none / block / tapered / metal), cushion
+  count, and two colours. A bed: size, headboard style and height, footboard yes/no, frame or
+  platform. And so on, each list short enough to fit one screen of sliders.
+- **Anything unrecognised is a box.** If no builder fits, the piece is a coloured box of the
+  right size, still movable, still bindable to a device. Nothing is ever refused.
+- **Units:** builders work in metres, like the rest of PadSpan. No conversion layer.
+- **Placing:** drag and turn in 15° steps, in 3D or on the plan. Snaps to walls at any angle.
+- **Fit checks,** PadSpan's own, against PadSpan's walls and doors: into a wall, overlapping
+  another piece, in a door's swing, blocking a wardrobe front or a bed side, tall in front of a
+  window. Warnings, never blocks.
+- **Materials:** simple procedural finishes (wood grain, fabric weave, metal, gloss) generated in
+  code. No texture files, so nothing third-party and nothing extra to download.
 - **As a device:** "This is a device…" binds a piece to an entity. A lamp glows with its light,
   a TV lights with its media player, a fan spins. A piece bound to a light that is also placed
   on the map replaces that light's marker **in 3D only**; the light's stored position is not
@@ -88,57 +112,141 @@ activity calendar. The hover HUD and press ring are SVG-only and get 3D equivale
 - **Rooms:** a piece stores its floor and x/y, never a room name. Rooms are keyed by name and can
   be renamed or deleted, so a piece's room is worked out when it's read.
 
-## Engine, and credit
+## From a photo
 
-- **three.js**, MIT, bundled with PadSpan (`www/padspan-ha/vendor/three/`), never from a CDN.
-  Home Assistant can run offline, and the wall kiosk shouldn't depend on the internet.
-- **Ported from room-from-photos** (github.com/SkylarKitchen/skills, `skills/design/room-from-photos`;
-  MIT, "Copyright (c) 2026 Skylar Kitchen"):
-  - **Nearly as-is:**
-    - the 22 builders and their helpers (`part`, `cyl`, `boxUV`, `edgesOf`, `arcLamp`, `topOf`);
-    - the 2D geometry and overlap maths;
-    - the finishes and materials;
-    - `paintGroup` and `lampGlow` (without the mirror);
-    - the contact shadows;
-    - the catalogue data;
-    - its audit, kept as a developer test.
-  - **Adapted:**
-    - the fit checks, to take a room context;
-    - openings, taken from PadSpan;
-    - the camera: touch orbit, pinching about the midpoint, and a two-finger pan, none of which
-      the source has;
-    - the render loop, so it stops while the panel is hidden;
-    - state kept in Home Assistant instead of the browser;
-    - thumbnails rendered ahead of time;
-    - the colour pickers in PadSpan's own UI.
-  - **Rewritten:**
-    - walls and cut-aways for a whole house (the source is one room): shared walls built once,
-      no fake "next room" passage, a rule for interior walls, and grouping by floor;
-    - wall snapping at any angle.
-  - **Dropped:** photo matching and grading, its plan canvas (the Atlas covers that), its CONFIG
-    and options, "Copy for Claude", its debug tools, and the mirror.
-- **Units:** the builders stay in inches internally, as tuned. A thin wrapper converts the metre
-  spec on the way in and scales each group by 0.0254 on the way out. Light intensity needs the
-  matching factor, about 1/1550.
-- **Credit, in five places:**
-  1. a header on every ported file: "Adapted from room-from-photos by Skylar Kitchen, MIT,
-     github.com/SkylarKitchen/skills — see THIRD_PARTY_NOTICES.md";
-  2. `THIRD_PARTY_NOTICES.md`, with the full MIT text for three.js and room-from-photos;
-  3. a README credits section;
-  4. Settings → About;
-  5. the release notes.
+The same pattern as quey: the photo identifies the thing, a vision model reads it into plain
+data, and PadSpan's own builder draws it. The photo fills in settings. It never becomes the model.
 
-  The textures are ambientCG CC0 scans. No attribution is required, but they're credited anyway,
-  and so is the Reddit post that inspired this. MIT code can go into PadSpan's GPL-3.0 as long
-  as the notice travels with it.
+1. **Take or pick a photo** in Furnish → From a photo. The screen suggests getting a tape
+   measure, a door frame or a standard chair in the shot for scale.
+2. **Home Assistant's AI Task reads it.** PadSpan calls `ai_task.generate_data` with the image
+   as an attachment, a fixed prompt, and a **JSON schema** for the answer: the kind (from the
+   builder list, or "other"), that builder's parameters, two or three colours, and rough
+   width / depth / height with a confidence. The customer chooses which AI Task entity to use
+   in Settings; it can be a local model. PadSpan ships the prompt and schema, nothing else.
+3. **PadSpan checks the answer** against the schema and clamps every number to the builder's
+   range. A bad or empty answer falls back to "Build" with the kind pre-picked, or a box.
+4. **One real measurement.** One photo can't give true size (quey hit the same wall with key cut
+   depths), so the person types one number (usually the width) or drags the piece's edge on the
+   plan. The other sizes scale from the photo's proportions.
+5. **Preview, adjust, place.** The piece appears in the room with its sliders open. Nothing is
+   stored until Save.
+
+**What happens to the photo:** it goes from the browser to Home Assistant, from Home Assistant to
+the AI Task the customer chose, and is then discarded. PadSpan never stores it and never sends it
+to a PadSpan server. Only the recipe is kept.
+
+**Without AI Task** (older Home Assistant, or none set up): the button explains what's needed and
+offers Library and Build instead. `hacs.json` stays at `2024.1.0`; the photo button is simply
+unavailable below the version that has AI Task image attachments (check the exact version before
+building this step).
+
+## Beacons, scanners and people from photos (Garry, 2026-09-30)
+
+The same photo step works for the things PadSpan already tracks, so the 3D house (and, if wanted,
+the flat Atlas) shows what they actually look like instead of a generic dot.
+
+**Beacons and scanners.** Photograph a tag, keyring beacon, phone, Pixel Tag or AirTag, or a
+scanner node (ESP32 proxy box). The AI Task reads it into a small **device recipe**: form
+(puck, card, fob, phone, box, board), colours, rough size, and whether it has an antenna. A
+**beacon** is drawn at its live tracked position and moves with it. A **scanner** is drawn at
+its stored position (`scanner_positions_m`, with its `z_m`). The binding is by the same ids
+PadSpan already tracks them by, re-resolved the way light and WLED bindings are.
+
+- On the **flat Atlas**, the existing beacon overlay (`lights_show_beacons`, off by default) can
+  use a small icon rendered from the recipe instead of the plain marker. With that overlay off,
+  the flat Atlas stays byte-identical.
+- Device recipes are ordinary library pieces: a "white puck tag" or "black ESP32 box" is useful to
+  everyone, and says nothing about where it lives or who carries it.
+
+**People.** Photograph a person and PadSpan makes a **Sims-style figure**, not a likeness:
+height, build, hair style and colour, top and bottom colours, glasses or hat. The figure is
+linked to a Home Assistant `person` and walks with their tracked beacon or phone in the people
+layer.
+
+- **People are never shared.** Figure recipes are kept out of the library, out of telemetry
+  (counts only) and out of any server call. They live only in this install's file and backups.
+- **The photo is handled like furniture photos:** used for one AI Task call, then discarded.
+  Because a cloud AI Task means the photo leaves the house, the people screen says which AI Task
+  will read it and recommends a local one.
+- **Consent of the person in the photo.** The screen asks the person taking it to confirm the
+  person photographed agrees, and the figure can always be built by hand with sliders instead of
+  a photo. Deleting the `person` or the figure deletes the recipe.
+- **Children:** the people screen suggests the slider builder for children rather than a photo.
+- People figures appear only when the people layer is on (off by default).
+
+## The shared furniture library
+
+Every piece people make goes into a **common library** any PadSpan install can browse and place.
+It follows the existing `popular_presets` pattern (`server/popular_presets.php`, `telemetry.py`),
+at `padspan.traks.ca/api/furniture_library.php`.
+
+**What is shared: the recipe, and only the recipe.**
+
+| Shared | Never shared |
+|---|---|
+| kind, builder parameters, colours, width / depth / height, the PadSpan version | the photo |
+| a random **submission id** made by that install (for withdrawal, below) | where it sits: floor, x/y, rotation, room |
+| | the device binding (entity ids) |
+| | any name or label typed by the person |
+| | **any people figure**, ever |
+| | the install id, IP address, user agent, or any other request header |
+
+A recipe is a few numbers from a closed list. It says nothing about who made it or what their
+home looks like, and the server checks its shape again on receipt and drops unknown keys, as
+`telemetry.php` does.
+
+**Terms of use.** The first time someone opens Furnish, one screen explains the library in
+plain words and asks them to accept its terms before they make furniture:
+
+- Pieces you make are added to the shared PadSpan furniture library for everyone to use.
+- Only the piece's shape, sizes and colours are shared. Never your photo, your floor plan, where
+  the piece sits, what device it's linked to, or anything that identifies you or your home.
+- By sharing, you dedicate each piece to the public domain (CC0), so anyone, including PadSpan's
+  paid editions, can use it without asking.
+- You can withdraw your pieces at any time from Settings (below).
+
+Acceptance is stored in settings with the terms version and date. A later terms version asks
+again before the next share. **Accepting is a condition of making furniture**, as Garry asked;
+browsing the library, the 3D view and "Build" of built-ins stay available without it. The
+wording goes past a lawyer before release, especially for EU users (most PadSpan clients are
+outside Canada).
+
+**Withdrawal.** Each install keeps its own submission ids locally. Settings → "Withdraw my shared
+furniture" sends those ids; the server deletes them and logs only `{submission_id, withdrawn_at}`,
+as `tester.php` does. Pieces already copied into other people's houses stay there (they are their
+recipes now), which the terms say plainly.
+
+**Browsing.** The library screen shows pieces as 3D thumbnails rendered in the browser from the
+recipe, grouped by kind, most-placed first. Near-identical recipes are grouped by a binned
+signature and shown once, with the medoid as the entry, exactly as `popular_presets.php` does
+for presets. Placing a library piece copies its recipe into the house; after that it is theirs
+to change.
+
+**Offline and outages.** The built-in builders and a starter set of recipes ship with PadSpan.
+The library is extra: if the server is unreachable, Furnish says so and everything else works.
+Pieces made offline queue their share until the next successful fetch.
+
+**Abuse guard.** Recipes are numbers from a closed schema, so there is no text or image to
+moderate. Limits per UTC day on new submissions (overall and per submission-id prefix), and
+out-of-range values rejected, as `tester.php` does.
+
+## Engine
+
+- **three.js**, MIT, used as a library and bundled with PadSpan (`www/padspan-ha/vendor/three/`),
+  never from a CDN. Home Assistant can run offline, and the wall kiosk shouldn't depend on the
+  internet. Its licence text goes in `THIRD_PARTY_NOTICES.md`. It is the only third-party code in
+  this feature.
+- Everything else is PadSpan's: the builders, materials, fit checks, whole-house walls and
+  cut-aways, camera (touch orbit, pinch about the midpoint, two-finger pan), picking, the photo
+  prompt and schema, and the library.
 - **Two quality profiles.** Auto picks one from WebGL support and a short frame-time check.
 
   | | Tablet (Low) | Desktop (High) |
   |---|---|---|
-  | Post-processing | none | ambient occlusion, as the source |
-  | Shadows | contact shadows only | one 2048 soft sun shadow |
-  | Materials | standard | the source's physical ones |
-  | Window lights | none | area lights |
+  | Post-processing | none | ambient occlusion |
+  | Shadows | a soft blob under each piece | one 2048 soft sun shadow |
+  | Materials | flat colours | procedural finishes |
   | Real lamp lights | glow only; up to 4 nearest real lights | up to 8 |
   | Pixel ratio | 1 | device |
   | Geometry | merged per room | merged per room |
@@ -161,32 +269,49 @@ changes go through its own `schema` field. The only other additions are its sett
 
 ```
 {"schema": 1,
- "pieces":  {"fur_1a2b3c4d": {"id": "fur_1a2b3c4d", "kind": "sofa", "variant": "", "label": "",
+ "pieces":  {"fur_1a2b3c4d": {"id": "fur_1a2b3c4d",
+              "recipe": {"kind": "sofa", "params": {"seats": 3, "arms": "slim", "back_h_m": 0.8,
+                         "legs": "tapered", "cushions": 3},
+                         "colors": ["#5b6b7a", "#c8b89a"],
+                         "width_m": 2.2, "depth_m": 0.9, "height_m": 0.8},
+              "origin": "photo",                                       # photo | library | build | import
+              "library_id": null, "submission_id": "sub_…",            # shared-library links
               "floor_id": "main", "x_m": 3.412, "y_m": 1.25, "z_m": 0.0, "rotation": 90.0,
-              "width_m": 2.2, "depth_m": 0.9, "height_m": 0.8, "colors": {},
-              "entity_id": null, "entity_reg_id": null, "source": "user", "updated_at": "…"}},
+              "entity_id": null, "entity_reg_id": null, "updated_at": "…"}},
  "lights":   {"light.lounge": {"z_m": 1.55}},                         # 3D-only mount heights
- "openings": {"<barrier id>": {"hinge": "left", "swing": "in", "sill_m": 0.9, "head_m": 2.1}}}
+ "openings": {"<barrier id>": {"hinge": "left", "swing": "in", "sill_m": 0.9, "head_m": 2.1}},
+ "devices":  {"<beacon or scanner id>": {"recipe": {"kind": "tag", "params": {"form": "puck"},
+              "colors": ["#ffffff"], "width_m": 0.04, "depth_m": 0.04, "height_m": 0.01},
+              "library_id": null, "submission_id": null}},              # drawn at its live/stored position
+ "figures":  {"person.garry": {"params": {"height_m": 1.8, "build": "medium", "hair": "short",
+              "colors": {"hair": "#3a2a1a", "top": "#224466", "bottom": "#333333"}},
+              "origin": "photo"}},                                     # never shared, never sent
+ "library":  {"terms_version": 1, "accepted_at": "…", "pending_shares": []}}
 ```
 
+- The `recipe` object is exactly what the library shares; everything outside it stays home.
 - The conventions match PadSpan's: fabric metres, a floor per piece, `z_m` above its own floor
   (as scanners have), `rotation` in degrees (as light pins have).
 - `lights` and `openings` hold what the 3D view needs but the map doesn't have: a light's mount
   height (the default comes from its shape) and a door's hinge and swing (default left and in).
   Keeping them here means **the map data is never modified.**
-- Reading is tolerant. Unknown keys and kinds are kept. A floor that no longer exists is accepted.
+- Reading is tolerant. Unknown keys, kinds and parameters are kept. A floor that no longer exists
+  is accepted.
 - **Websocket commands** (`ws_house3d.py`):
 
   | Command | Who | Notes |
   |---|---|---|
   | `house3d_get` | any user | |
-  | `house3d_piece_set` | same gate as light placement | |
-  | `house3d_piece_remove` | same gate as light placement | |
+  | `house3d_piece_set` / `house3d_piece_remove` | same gate as light placement | |
   | `house3d_light_set` / `house3d_opening_set` | same gate as light placement | |
+  | `house3d_from_photo` | same gate as light placement | runs the AI Task call; returns a recipe, stores nothing |
+  | `house3d_terms_accept` | same gate as light placement | |
+  | `house3d_library_withdraw` | admin | |
   | `house3d_clear` | admin | takes `_auto_backup(…, [HOUSE3D_STORE_KEY])` first |
 
-- **Settings:** `atlas_3d_enabled` (off), `atlas_3d_quality` (`auto`), `atlas_3d_people` (off).
-  Unknown settings keys survive a downgrade.
+- **Settings:** `atlas_3d_enabled` (off), `atlas_3d_quality` (`auto`), `atlas_3d_people` (off),
+  `atlas_3d_ai_task_entity` (none), `atlas_3d_library` (on). Unknown settings keys survive a
+  downgrade.
 
 **Everywhere it must be registered** (the checklist, so nothing is half-wired):
 
@@ -194,7 +319,7 @@ changes go through its own `schema` field. The only other additions are its sett
 2. The store: wrapped with `wrap_store`, with a public `.data`.
 3. `__init__.py`: `_ensure_stores`.
 4. `ws_common.py`: `_ALL_STORE_KEYS` and `_DATA_KEY_MAP`, which gives backup and restore.
-5. `ws_factory_reset.py`: an explicit block that empties it.
+5. `ws_factory_reset.py`: an explicit block that empties it (terms acceptance included).
 6. `bright_import.py`: `HOUSE_STORES`, plus a count in `target_contents`. First add a test for
    the suspected existing bug: the "reload re-reads the stores" step appears not to re-read, as
    `async_unload_entry` keeps the stores in memory.
@@ -208,14 +333,18 @@ changes go through its own `schema` field. The only other additions are its sett
 - **Events:**
   - `house3d_opened`
   - `house3d_fallback:{no_webgl, slow_gpu, context_lost, error}`
-  - `furnish_opened`
-  - `furniture_placed`, `furniture_removed`, `furniture_bound`
-  - `sh3d_furniture_imported`
+  - `furnish_opened`, `furnish_terms_accepted`
+  - `furniture_placed:{photo, library, build, import}`, `furniture_removed`, `furniture_bound`
+  - `photo_read:{ok, no_ai_task, bad_answer, error}`
+  - `library_shared`, `library_withdrawn`, `library_unreachable`
 - **Under `env.house3d`:** the number of pieces and of bound pieces, as buckets.
 - **Errors:** every new view file goes in `UI_ERROR_HELPERS`, so a crash is credited to the right
   module.
 - **Load:** the load report shipped in 0.38.91 shows whether the people layer costs Home
   Assistant anything.
+
+The library itself is not telemetry and doesn't depend on the report being on: it has its own
+consent (the terms) and its own endpoint, as the tester sign-up does.
 
 ## Undoing it
 
@@ -224,6 +353,7 @@ changes go through its own `schema` field. The only other additions are its sett
 | Turn it off | Settings → 3D house off. The Atlas is exactly as today, and a test proves the flat drawing is byte-identical. |
 | One edit | The Furnish tab works in a draft with Undo/Redo and Discard, like light placement. Nothing is stored until Save. |
 | All furniture | "Remove all furniture" (admin) takes a backup first, then empties the file. Restoring that backup brings it all back. |
+| Shared pieces | "Withdraw my shared furniture" deletes this install's submissions from the library. Copies already placed in other houses stay. |
 | A downgrade | Older PadSpan versions ignore the file and the settings keys (restore tolerates unknown stores; settings keep unknown keys). Upgrading again brings the furniture back. |
 | A backup restore | Backups include the file. Restoring an older backup that has no furniture leaves the current furniture alone (tested). |
 | Factory reset | Empties it. Known gap: a factory reset on an older version won't know the file, so the furniture reappears after upgrading. Tolerant floor handling keeps that harmless. |
@@ -231,47 +361,71 @@ changes go through its own `schema` field. The only other additions are its sett
 | The code | Each phase is its own release. New files, plus a short list of hooks in existing files (the switch, the tab, the settings rows, the registration lines above), each named in its release notes. Reverting a phase's commits restores the previous release exactly. |
 
 **The invariant, enforced by tests:** the feature never writes fabric, model, maps or light
-positions, and neither the flat Atlas nor the presence engine reads the new file.
+positions; neither the flat Atlas nor the presence engine reads the new file; and nothing outside
+a piece's `recipe` ever leaves the house.
 
 ## Phases
 
-Each phase is a pre-release installed on the home HA and reviewed, with a re-review of every fix
-round, before the next one starts. Sizes compare with the Atlas weather feature (one module plus
-settings and telemetry, released as 0.38.91).
+Each phase is a pre-release installed on the home HA and reviewed before the next one starts.
+Sizes compare with the Atlas weather feature (one module plus settings and telemetry, released
+as 0.38.91). To keep within weekly usage limits, one phase per week or two, and fix rounds get a
+targeted re-check rather than a full re-review unless the fix touched shared code.
 
 | Phase | What | Size | Done when |
 |---|---|---|---|
-| **P0 Prototype** | A standalone page, not shipped, built from a read-only export of Garry's real house (`model_get`), the ported builders, the whole-house shell with cut-away, and a few pieces. Tried on the wall PC and a phone. | about 1× | Garry says go, or changes the direction. |
+| **P0 Prototype** | A standalone page, not shipped, built from a read-only export of Garry's real house (`model_get`): the whole-house shell with cut-away, live-looking lights, and two builders (sofa, bed) with their sliders. Tried on the wall PC and a phone. | about 1× | Garry says go, or changes the direction. |
 | **P1 The 3D view** | The Map / 3D switch; floors, rooms, walls, doors and windows; lights with live glow; Motion · Air tints; readouts; tap, hold and dim; floor chips; touch camera; quality profiles and fallback; settings; telemetry. | about 3× | The house draws from existing data with no setup. Every Atlas action works in 3D. The flat Atlas is byte-identical. A forced WebGL failure shows the flat Atlas. |
-| **P2 Furniture** | The store, its commands and full registration; the Furnish tab; the 22-piece catalogue; drag and turn with snapping; fit checks against PadSpan walls and doors; colours; Undo, Save and Discard; Remove all with a backup. | about 2× | The registration tests pass (backup, restore without furniture, factory reset, Bright import, unknown keys, store version 1). Editing furniture changes no other file. |
-| **P3 Devices as furniture** | Binding, with rename re-resolve and unlinked badges; lamps, TV, fan; washer and dryer running; vacuum and mower docks, animated while running (they rarely report where they are); radiators; car and charger; per-light heights; emergency lights outlined during a test. | 1–2×, one device type at a time | Each device type has a live-state test and a still picture. |
-| **P4 Import and share** | Sweet Home 3D furniture, doors and windows (`<pieceOfFurniture>`, `<doorOrWindow>`) as candidates you preview and commit into the new file only; furniture JSON export and import. | about 1× | A real `.sh3d` imports. Declining the preview writes nothing. |
-| **P5 Atmosphere** | Rain and snow in 3D; day and night from `sun.sun`; Showcase themes as 3D presets; the CC0 textures on High (about 0.9 MB); the optional people layer. | 1–2× | Each item can be switched off on its own. |
+| **P2 Furniture by hand** | The store, its commands and full registration; the Furnish tab; the 8 starter builders and procedural materials; Build with sliders; drag and turn with snapping; fit checks; Undo, Save and Discard; Remove all with a backup. | about 3× | The registration tests pass (backup, restore without furniture, factory reset, Bright import, unknown keys, store version 1). Editing furniture changes no other file. Each builder has a still-picture test across its parameter range. |
+| **P3 From a photo** | The AI Task call, prompt and JSON schema; answer checking and clamping; the one-measurement step; the no-AI-Task path; the photo never stored (tested). | about 1× | Ten real photos of Garry's furniture each give a sensible recipe on a local and a cloud AI Task. A garbage answer gives a box, never an error. |
+| **P4 Shared library** | Terms screen and acceptance; `furniture_library.php` with shape checks, signatures, limits and withdrawal; browsing with thumbnails; queue when offline; the starter recipe set. | about 1–2× | A share contains only `recipe` keys (tested on both ends). Withdrawal deletes. Library down means Furnish still works. Terms reviewed. |
+| **P4b Beacons, scanners and people** | Device recipes for beacons and scanners at their live and stored positions; the flat-Atlas beacon icons (inside the existing overlay); Sims-style figures with the person link, the consent screen, and the local-AI recommendation; figures kept out of every share (tested). | about 1–2× | A photographed tag moves with its beacon in 3D. A figure walks with its person. A library share and a telemetry report contain no figure data. With the beacon overlay off, the flat Atlas is byte-identical. |
+| **P5 Devices as furniture** | Binding, with rename re-resolve and unlinked badges; lamps, TV, fan; washer and dryer running; vacuum and mower docks, animated while running (they rarely report where they are); radiators; car and charger; per-light heights; emergency lights outlined during a test. | 1–2×, one device type at a time | Each device type has a live-state test and a still picture. |
+| **P6 Import** | Sweet Home 3D doors and windows, and its furniture as kind and size mapped to PadSpan builders, as candidates you preview and commit into the new file only. | about 1× | A real `.sh3d` imports. Declining the preview writes nothing. |
+| **P7 Atmosphere** | Rain and snow in 3D; day and night from `sun.sun`; Showcase themes as 3D presets; the optional people layer. | 1–2× | Each item can be switched off on its own. |
 
 ## Risks
 
 - **GPU cost on wall tablets.** This is the top risk. Hence the Low profile, the automatic
   fallback and the frame-time check. P0 is tried on the wall PC and a phone before anything ships.
-- **Whole-house walls are new code**, not a port: shared walls, interior cut rules, floors.
+- **Whole-house walls are new code:** shared walls, interior cut rules, floors.
+- **Photo reading varies by model.** A small local model may misjudge kind or proportions. The
+  schema, clamping, the one real measurement and the sliders afterwards keep a bad read cheap to
+  fix. P3 tests on at least one local and one cloud model.
+- **The terms are a legal document.** Draft wording is above; it needs review before P4 ships,
+  and a terms version bump re-asks everyone.
+- **Library quality.** With few users, the library is small and uneven. The starter recipe set
+  (made by Garry from his own furniture in P3) covers day one.
 - **Data the map doesn't have.** Lights have no mount height, walls no thickness, doors no hinge
   or swing. They come from defaults by shape, overridable in the new file, never in the map.
-- **Bundle size.** three.js adds roughly 180 KB compressed (to a 1.97 MB release zip); the
-  textures add about 0.9 MB, only in P5.
-- **three.js version.** The ported gizmo code expects r162, and later releases may change
-  TransformControls. Pin the bundled version and test before bumping it.
-- **Scope creep.** Every appliance type is its own small feature. P3 goes one type at a time.
+- **Bundle size.** three.js adds roughly 180 KB compressed (to a 1.97 MB release zip). No textures.
+- **three.js version.** Pin the bundled version and test before bumping it.
+- **Scope creep.** Every appliance type is its own small feature. P5 goes one type at a time.
 - **The people layer** reads the live snapshot, the most expensive thing PadSpan builds (4–8 s on
   a 2,700-object house). It's off by default and never faster than Overview. The load report
   will show if it hurts.
 
+## Decided (Garry, 2026-09-30)
+
+- Clean-room: no ported application code; three.js as a library only.
+- Furniture comes from photos read by the customer's own Home Assistant AI Task, into PadSpan's
+  own parametric builders. No OpenClaw or other Garry-run service in the loop.
+- Pieces people make go into a shared library, under terms users accept.
+- Beacons, scanners and people can be photographed too and shown on the map; people figures are
+  never shared.
+
 ## Decisions for Garry
 
-1. **Who gets it:** my recommendation is anyone with the Atlas (Bright and Pro), with Free seeing
-   a still picture of their own house in 3D beside the 90-day trial offer. The alternative is Pro
-   only.
+1. **Who gets it:** recommendation is anyone with the Atlas (Bright and Pro), with Free seeing a
+   still picture of their own house in 3D beside the 90-day trial offer. The alternative is Pro
+   only. Separately: can Free users browse the library?
 2. **Off by default:** recommended.
-3. **The storage file and its shape.** This locks in `padspan_ha.house3d` and the schema above:
-   metres, pieces keyed by id, a floor per piece, no room names. Still want to proceed?
-4. **People in 3D:** soft markers (recommended) or little figures, and off by default.
+3. **The storage file and its shape.** This locks in `padspan_ha.house3d` and the schema above.
+   Still want to proceed?
+4. **People in 3D:** now Sims-style figures from photos or sliders, off by default. Confirm the
+   figure stays stylised (recommended) rather than trying for a likeness.
+5. **The library licence:** CC0 (recommended: simplest, no attribution to track) or a licence
+   grant to PadSpan only, which would stop others reusing the library outside PadSpan.
+6. **Terms as a condition:** as written, accepting is required to *make* furniture, not to use
+   the 3D view or browse. Confirm, or make sharing a separate opt-in.
 
 Then P0: a prototype of **your** house, to try on the wall PC before any PadSpan code changes.
