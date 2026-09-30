@@ -124,7 +124,10 @@ data, and PadSpan's own builder draws it. The photo fills in settings. It never 
 1. **Take or pick a photo** in Furnish → From a photo. The screen suggests getting a tape
    measure, a door frame or a standard chair in the shot for scale.
 2. **Home Assistant's AI Task reads it.** PadSpan calls `ai_task.generate_data` with the image
-   as an attachment, a fixed prompt, and a **JSON schema** for the answer: the kind (from the
+   as an attachment, a fixed prompt, and a **`structure`** for the answer. That is Home
+   Assistant's own field list, not a JSON Schema: each field has a selector (text, number with
+   min/max, select with fixed options, boolean), so the answer is flat fields and every closed
+   list below is a select. It holds the kind (from the
    builder list, or "other"), that builder's parameters, two or three colours, and rough
    width / depth / height with a confidence, plus the library details sheet (category,
    rooms, style, material, features and a suggested title). The customer chooses which AI Task entity to use
@@ -143,8 +146,8 @@ to a PadSpan server. Only the recipe is kept.
 
 **Without AI Task** (older Home Assistant, or none set up): the button explains what's needed and
 offers Library and Build instead. `hacs.json` stays at `2024.1.0`; the photo button is simply
-unavailable below the version that has AI Task image attachments (check the exact version before
-building this step).
+unavailable below Home Assistant 2025.8, the release that added `structure` and `attachments` to
+`ai_task.generate_data` (checked against Home Assistant's source: 2025.7.0 has neither).
 
 ## Beacons, scanners and people from photos (Garry, 2026-09-30)
 
@@ -456,7 +459,7 @@ targeted re-check rather than a full re-review unless the fix touched shared cod
 | **P0 Prototype** | A standalone page, not shipped, built from a read-only export of Garry's real house (`model_get`): the whole-house shell with cut-away, live-looking lights, and two builders (sofa, bed) with their sliders. Tried on the wall PC and a phone. | about 1× | Garry says go, or changes the direction. |
 | **P1 The 3D view** | The Map / 3D switch; floors, rooms, walls, doors and windows; lights with live glow; Motion · Air tints; readouts; tap, hold and dim; floor chips; touch camera; quality profiles and fallback; settings; telemetry. | about 3× | The house draws from existing data with no setup. Every Atlas action works in 3D. The flat Atlas is byte-identical. A forced WebGL failure shows the flat Atlas. |
 | **P2 Furniture by hand** | The store, its commands and full registration; the Furnish tab; the 8 starter builders and procedural materials; Build with sliders; drag and turn with snapping; fit checks; Undo, Save and Discard; Remove all with a backup. | about 3× | The registration tests pass (backup, restore without furniture, factory reset, Bright import, unknown keys, store version 1). Editing furniture changes no other file. Each builder has a still-picture test across its parameter range. |
-| **P3 From a photo** | The AI Task call, prompt and JSON schema; answer checking and clamping; the one-measurement step; the no-AI-Task path; the photo never stored (tested). | about 1× | Ten real photos of Garry's furniture each give a sensible recipe on a local and a cloud AI Task. A garbage answer gives a box, never an error. |
+| **P3 From a photo** | The AI Task call, prompt and `structure`; answer checking and clamping; the one-measurement step; the no-AI-Task path; the photo never stored (tested). | about 1× | Ten real photos of Garry's furniture each give a sensible recipe on a local and a cloud AI Task. A garbage answer gives a box, never an error. |
 | **P4 Shared library** | Terms screen and acceptance; the details sheet (AI-filled in the photo call, required fields enforced, free-text checks on both ends); `furniture_library.php` with shape checks, signatures, limits, withdrawal, reports and owner edits; search, filters, "Fits here" and sorting; thumbnails; queue when offline; the starter recipe set with full details. | about 2× | A share contains only `recipe` keys (tested on both ends). A piece missing a required detail can't be shared. A title with an email, phone, address or URL is refused on both ends. Every filter and sort returns the right pieces on a seeded test library. Withdrawal deletes. Library down means Furnish still works. Terms reviewed. |
 | **P4b Beacons, scanners and people** | Device recipes for beacons and scanners at their live and stored positions; the flat-Atlas beacon icons (inside the existing overlay); Sims-style figures with the person link, the consent screen, and the local-AI recommendation; figures kept out of every share (tested). | about 1–2× | A photographed tag moves with its beacon in 3D. A figure walks with its person. A library share and a telemetry report contain no figure data. With the beacon overlay off, the flat Atlas is byte-identical. |
 | **P5 Devices as furniture** | Binding, with rename re-resolve and unlinked badges; lamps, TV, fan; washer and dryer running; vacuum and mower docks, animated while running (they rarely report where they are); radiators; car and charger; per-light heights; emergency lights outlined during a test. | 1–2×, one device type at a time | Each device type has a live-state test and a still picture. |
