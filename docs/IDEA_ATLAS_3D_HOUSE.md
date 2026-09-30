@@ -5,7 +5,7 @@ Sims-style 3D Atlas, furniture, beacons and people from photos, and the shared l
 Electronic Arts' trademark, so check the name before it appears in anything public or paid.
 
 Planned 2026-09-30. Revised the same day: **clean-room, photo-to-furniture, and a shared library.**
-Status: **plan only — nothing built yet; normally off when built.** The checklist of choices is at the end.
+Status: **plan only — nothing built yet; normally off when built.** The choices are at the end.
 
 Where the idea came from: a r/homeassistant post (1wtyklm, 2026-09-30) showing a hand-built
 three.js model of one house, walls cutting away like The Sims. That was an idea, not code, and
@@ -596,105 +596,44 @@ be flipped back the same way.
 - Beacons, scanners and people can be photographed too and shown on the map; people figures are
   never shared.
 
-## Checklist of choices
+## The choices
 
-Tick each one. **Rec** marks my recommendation; **locks in** says what becomes hard to change
-later. Nothing is built until the first group is ticked.
+Thirteen real decisions, one line each, defaults marked. Answer with the letters (`1A 2B 3A`),
+or `defaults` to take them all. Answers get recorded under "Decided" with the date.
 
-### 1. Go / no-go and the switch
+**Access**
 
-- [ ] **Build it at all, as an add-on to PadSpan** — or park the doc. *Locks in:* nothing yet.
-- [ ] **Normally off.** Master switch `atlas_3d_enabled` off by default; every sub-switch off;
-      only Garry turns it on until the default flips. **Rec: yes.** *Locks in:* nothing; the flip
-      is one line either way.
-- [ ] **Ship dark.** Phases go out in ordinary pre-releases behind the switch, installed on the
-      home HA, invisible to customers. **Rec: yes.**
-- [ ] **Start with the switch and the empty store** (build plan step 1), before any 3D code.
-      **Rec: yes.**
+1. Who sees the 3D view — **A)** Bright + Pro; Free sees a still picture *(default)* / B) Pro only / C) everyone
+2. Who can make furniture — **A)** Bright, same as light placement *(default)* / B) Pro only
+3. Who can browse the library — **A)** anyone, including Free *(default)* / B) paid tiers only
 
-### 2. Who gets it
+**Name**
 
-- [ ] **The 3D view:** (a) anyone with the Atlas, Bright and Pro, with Free seeing a still
-      picture of their own house beside the trial offer **(rec)**; (b) Pro only. *Locks in:* the
-      gate in `lightsHostForTier` and the marketing line.
-- [ ] **Furnish (making furniture):** (a) same tier as light placement, Bright **(rec)**;
-      (b) Pro only.
-- [ ] **Browsing the library:** (a) anyone, including Free **(rec)**: it costs nothing and shows
-      what the paid map does; (b) paid tiers only.
+4. "Sims Soup" — **A)** rename before it ships *(default)* / B) keep it and trademark-check / C) decide later
 
-### 3. The name
+**Library**
 
-- [ ] **"Sims Soup"** stays a working name only. Before anything public or paid, either a
-      trademark check clears it or it gets a new name. **Rec: pick a new name before P1 ships,
-      since "Sims" is EA's mark.** *Locks in:* strings in the UI, the store label, the release notes.
+5. Licence on shared pieces — **A)** CC0 *(default)* / B) grant to PadSpan only
+6. Terms — **A)** required to make furniture, not to view or browse *(default)* / B) sharing is a separate opt-in
+7. Free text — **A)** title, brand, model, checked and reportable *(default)* / B) closed lists only
 
-### 4. Data and reversibility
+**Photos**
 
-- [ ] **One new store, `padspan_ha.house3d`**, never writing fabric, model, maps or light
-      positions. **Rec: yes.** *Locks in:* the file name and the registration; the strongest
-      lock in this list.
-- [ ] **The schema** as written: metres, a floor per piece, no room names, `recipe` as the only
-      shareable part, HA store version 1 forever. **Rec: yes.** *Locks in:* the piece shape once
-      anyone has saved furniture.
-- [ ] **Mount heights and door hinge/swing live in the new file**, never in the map. **Rec: yes.**
-- [ ] **Factory reset on an older version leaves the file** (known gap, harmless). **Rec: accept.**
+8. Cloud AI for furniture photos — **A)** allowed, with a note *(default)* / B) local models only
+9. Size from a photo — **A)** one real measurement required *(default)* / B) accept the AI's guess with a warning
 
-### 5. Photos and AI
+**People**
 
-- [ ] **The customer's own AI Task reads photos**, none of Garry's services in the loop.
-      **Rec: yes** (decided). *Locks in:* HA 2025.8 as the floor for the photo step.
-- [ ] **A cloud AI Task is allowed for furniture photos** (the photo leaves the house once, then
-      is discarded), with the screen saying which AI Task will read it. **Rec: allowed, with the
-      note.** Alternative: local models only.
-- [ ] **People photos recommend a local AI Task**, and children use the slider builder.
-      **Rec: yes.**
-- [ ] **The one real measurement is required** before a photo piece can be saved (the photo
-      cannot give true size). **Rec: required.** Alternative: accept the AI's guess with a warning.
+10. Figures — **A)** stylised only *(default)* / B) attempt a likeness
 
-### 6. The shared library
+**Build**
 
-- [ ] **Library off by default for now** (`atlas_3d_library`). **Rec: off until P4 ships and the
-      terms are reviewed.**
-- [ ] **Licence for shared pieces:** (a) CC0 **(rec)**: simplest, nothing to track; (b) a grant to
-      PadSpan only, which stops reuse outside PadSpan. *Locks in:* the terms text; changing it
-      later means a new terms version and re-asking everyone.
-- [ ] **Terms as a condition of making furniture** (not of viewing 3D or browsing) **(rec)**,
-      or sharing as a separate opt-in with furniture-making free of terms.
-- [ ] **Free text in the library:** (a) optional title, brand and model, checked on both ends and
-      reportable **(rec)**; (b) closed lists only, nothing to moderate, no "IKEA Kivik" search.
-- [ ] **A lawyer reviews the terms before P4 ships**, with EU users in mind. **Rec: yes.**
-- [ ] **Withdrawal deletes the server copy but not copies already placed in other houses.**
-      **Rec: yes, and the terms say so.**
+11. Phase order — **A)** as listed *(default)* / B) devices before people / C) another order
+12. When the default flips on — **A)** after P1 + P2 and a clean load report, on Garry's word *(default)* / B) stays off until Garry says, no conditions
+13. Starter builders — **A)** sofa, bed, table, chair, desk, dresser, TV unit, lamp *(default)* / B) a different set
 
-### 7. People and devices in 3D
+**Assumed unless Garry says otherwise:** off by default with all sub-switches off; ships dark;
+its own storage file that never touches the map; clean-room code; people figures never shared;
+a lawyer reviews the terms before the library ships.
 
-- [ ] **People figures stay stylised** (Sims-style: height, build, hair, colours), never a
-      likeness. **Rec: yes.**
-- [ ] **People figures are never shared, never in telemetry beyond a count.** **Rec: yes** (decided).
-- [ ] **Consent screen** for a photographed person, with the slider builder as the alternative.
-      **Rec: yes.**
-- [ ] **Beacons and scanners from photos** can also replace the flat Atlas's beacon marker, inside
-      the existing off-by-default overlay. **Rec: yes.**
-
-### 8. Look and engine
-
-- [ ] **Clean-room**: no ported application code; three.js as a library only, bundled, pinned.
-      **Rec: yes** (decided).
-- [ ] **Simple Sims-like look** (boxes, rounded boxes, cylinders, procedural finishes), no
-      texture files. **Rec: yes.**
-- [ ] **Two quality profiles with Auto**, and any failure falls back to the flat Atlas.
-      **Rec: yes.**
-- [ ] **The eight starter builders:** sofa, bed, table, chair, desk, dresser/cabinet, TV + media
-      unit, lamp. **Rec: these eight**; add or swap any now, since each is its own small build.
-
-### 9. Order and pace
-
-- [ ] **Phase order** P0 prototype → P1 view → P2 furniture → P3 photos → P4 library →
-      P4b people → P5 devices → P6 import → P7 atmosphere. **Rec: as listed**; P4b can move
-      after P5 if devices matter more.
-- [ ] **One phase per week or two**, each a pre-release on the home HA with a read-only review.
-      **Rec: yes.**
-- [ ] **When the default flips on:** after P1 and P2 have shipped and the load report shows
-      Pi and tablet installs are fine, on Garry's word. **Rec: yes.**
-
-Then P0: a prototype of **your** house, to try on the wall PC before any PadSpan code changes.
+Then P0: a prototype of Garry's house, to try on the wall PC before any PadSpan code changes.
