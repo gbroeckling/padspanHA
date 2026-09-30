@@ -1,4 +1,8 @@
-# Idea: the 3D house (a Sims-style Atlas) and furniture
+# Idea: Sims Soup — the 3D house and furniture (possible future add-on)
+
+**Sims Soup** is the working name (Garry, 2026-09-30) for this possible future add-on: the
+Sims-style 3D Atlas, furniture, beacons and people from photos, and the shared library. "Sims" is
+Electronic Arts' trademark, so check the name before it appears in anything public or paid.
 
 Planned 2026-09-30. Revised the same day: **clean-room, photo-to-furniture, and a shared library.**
 Status: **plan only — nothing built yet.** Decisions for Garry are at the end.
