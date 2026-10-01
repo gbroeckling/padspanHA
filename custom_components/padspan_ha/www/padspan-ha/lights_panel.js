@@ -287,6 +287,12 @@ class PadSpanLightsApp extends HTMLElement {
           atlas_weather_strength: s.atlas_weather_strength,
         };
       }
+      // The 3D house (Settings → UI Structure → Atlas → 3D house), normally
+      // off. A failed fetch keeps the last answer; before any, no switch.
+      if (s.atlas_3d_enabled !== undefined) {
+        this.state._house3d = { atlas_3d_enabled: s.atlas_3d_enabled, atlas_3d_quality: s.atlas_3d_quality,
+          fabric_bearing_deg: s.fabric_bearing_deg };
+      }
       this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];
       // Layout v2 (Garry, 2026-09-21) is a house-wide trial toggle, set
       // from the builder only — this panel reflects it, same convention
@@ -894,6 +900,17 @@ class PadSpanLightsApp extends HTMLElement {
         states: this._hass?.states || {}, entities: this._hass?.entities,
         // The opt-in report's closed words, once per page load, and only
         // while the report is on (the trial card's rule).
+        telemetry: (name)=>{
+          if(!this.state._telemetryOn || !this._hass) return;
+          Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:String(name) })).catch(()=>{});
+        },
+      } : null,
+      // The 3D house: the shared card draws its Map / 3D switch only while
+      // the setting is on and the tier is Pro, and reads the rest from here.
+      house3d: this.state._house3d ? {
+        slot: "atlas", settings: this.state._house3d,
+        // The sun's position (sun.sun) and the place (hass.config): no new calls.
+        states: this._hass?.states || {}, config: this._hass?.config || null,
         telemetry: (name)=>{
           if(!this.state._telemetryOn || !this._hass) return;
           Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:String(name) })).catch(()=>{});

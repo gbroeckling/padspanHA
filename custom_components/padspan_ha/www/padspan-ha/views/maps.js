@@ -9357,6 +9357,14 @@ function _lightsTab(ctx, maps, active) {
       states: ctx.hass?.states || {}, entities: ctx.hass?.entities,
       telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
     } : null,
+    // The 3D house: the same Map / 3D switch the Atlas sidebar draws (its own
+    // slot and its own remembered choice), only while the setting is on and
+    // the tier is Pro.
+    house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ? {
+      slot: "builder", settings: ctx.state.settings,
+      states: ctx.hass?.states || {}, config: ctx.hass?.config || null,
+      telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
+    } : null,
     isolux: mapState._lightsIsolux === undefined
       ? !!ctx.state.settings?.lights_isolux
       : !!mapState._lightsIsolux,
