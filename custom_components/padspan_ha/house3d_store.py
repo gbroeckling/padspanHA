@@ -53,16 +53,12 @@ def normalise(raw: Any) -> dict[str, Any]:
     return out
 
 
-def file_path(hass: HomeAssistant) -> str:
-    """Where Home Assistant keeps the file (.storage/<key>)."""
-    return hass.config.path(".storage", HOUSE3D_STORE_KEY)
-
-
 async def async_file_exists(hass: HomeAssistant) -> bool:
     """Has anything ever written the file? An install that never used the
-    feature has none, and backups, restores and resets keep it that way."""
-    import os  # noqa: PLC0415
-    return bool(await hass.async_add_executor_job(os.path.isfile, file_path(hass)))
+    feature has none, and backups, restores and resets keep it that way.
+    (ws_common._store_file_written: an unanswerable check counts as yes.)"""
+    from .ws_common import _store_file_written  # noqa: PLC0415
+    return await _store_file_written(hass, HOUSE3D_STORE_KEY)
 
 
 def enabled(hass: HomeAssistant) -> bool:

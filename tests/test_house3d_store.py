@@ -271,6 +271,18 @@ def test_a_backup_carries_the_file_once_it_exists(store, tmp_path, monkeypatch):
     assert box["backups"][-1]["stores"][HOUSE3D_STORE_KEY]["pieces"]["fur_1"]["label"] == "Mum's old couch"
 
 
+def test_when_the_file_check_itself_fails_the_backup_keeps_the_data(store, tmp_path, monkeypatch):
+    """An unanswerable "does the file exist" counts as yes: an empty entry is
+    the old behaviour, silently dropping a real file would lose data."""
+    from custom_components.padspan_ha import ws_backup
+    box = _capture_backups(monkeypatch)
+    store.saved[HOUSE3D_STORE_KEY] = {**H.empty(), "pieces": {"fur_1": dict(_PIECE)}}
+    h = _house(tmp_path)
+    h.async_add_executor_job = MagicMock(side_effect=OSError("no executor"))
+    _run(ws_backup.ws_store_backup_create(h, MagicMock(), {"id": 1}))
+    assert box["backups"][-1]["stores"][HOUSE3D_STORE_KEY]["pieces"]["fur_1"]["label"] == "Mum's old couch"
+
+
 def _restore(h, monkeypatch, stores: dict, keys: list | None = None):
     from custom_components.padspan_ha import ws_backup
     bk = {"backups": [{"id": "bk1", "created_at": "2026-01-01T00:00:00+00:00", "version": "0.38.80",

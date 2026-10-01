@@ -374,8 +374,16 @@ _BACKUP_ONLY_ONCE_WRITTEN = frozenset({HOUSE3D_STORE_KEY})
 
 
 async def _store_file_written(hass, store_key: str) -> bool:
+    """Does Home Assistant hold this store's file (.storage/<key>)? If the
+    check itself fails, the answer is yes: a backup that carries an empty
+    entry is the old behaviour, one that silently drops a real file loses
+    data."""
     import os  # noqa: PLC0415
-    return bool(await hass.async_add_executor_job(os.path.isfile, hass.config.path(".storage", store_key)))
+    try:
+        path = hass.config.path(".storage", store_key)
+        return bool(await hass.async_add_executor_job(os.path.isfile, path))
+    except Exception:  # noqa: BLE001
+        return True
 
 
 _MAX_BACKUPS = 3  # Oldest backup is dropped when a new one exceeds this limit
