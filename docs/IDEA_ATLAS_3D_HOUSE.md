@@ -92,9 +92,11 @@ What "off" means, layer by layer:
 | `atlas_3d_library` | off | the shared library (on still needs the terms accepted before the first share) |
 | `atlas_3d_quality` | auto | Low / High |
 
-**Ship dark.** Because everything sits behind the master switch, each phase can go out in an
-ordinary pre-release and be installed on the home HA with no customer seeing it. Garry turns it
-on in his own Settings; nobody else's Atlas changes.
+**Ship dark, on its own branch.** All Live Aboard work lives on the `live-aboard` branch (Garry,
+2026-09-30: "keep this a separate branch for now"); main and every public release stay free of it
+until Garry says it ships. A phase is installed on the home HA straight from the branch, behind
+the master switch, which Garry turns on in his own Settings. The branch merges main regularly so
+it never drifts.
 
 **Enforced by tests:**
 
@@ -499,7 +501,7 @@ a piece's `recipe` ever leaves the house.
 
 ## Phases
 
-Each phase is a pre-release installed on the home HA and reviewed before the next one starts.
+Each phase is built on the `live-aboard` branch, installed on the home HA and reviewed before the next one starts.
 Sizes compare with the Atlas weather feature (one module plus settings and telemetry, released
 as 0.38.91). To keep within weekly usage limits, one phase per week or two, and fix rounds get a
 targeted re-check rather than a full re-review unless the fix touched shared code.
@@ -527,12 +529,14 @@ and says so if asked.
 
 **Order of work.** The switch and the registration come first, so every later phase ships dark.
 
-1. **The switch and the empty store (start of P1).** `atlas_3d_enabled` and its sub-keys in
-   `settings_store.py` and `ws_settings.py`; the `padspan_ha.house3d` store with its full
-   registration (the ten-point checklist under "Data"); `ws_house3d.py` with `house3d_get` and
-   `house3d_clear` only; the five "off" tests. Released as a pre-release that changes nothing
-   visible. This is the smallest possible first release and it proves the reversibility story
-   before any 3D code exists.
+1. **The switch and the empty store (start of P1). Built 2026-09-30.** `atlas_3d_enabled` and its
+   sub-keys in `settings_store.py` and `ws_settings.py`; `house3d_store.py` (`padspan_ha.house3d`,
+   loaded only on first use, never written while off) registered for backup, restore, factory reset
+   (which empties it but never creates it) and the Bright import; `ws_house3d.py` with
+   `house3d_get` and `house3d_clear` (refused while off; backup first); the backup label;
+   `tests/test_house3d_store.py`. Changes nothing visible. Left for later phases, with the code
+   they guard: the Bright import's furniture count in `target_contents` (P2), the frontend "off"
+   tests (P1), the network and telemetry-event "off" tests (P3, P4).
 2. **P0 prototype**, in parallel with step 1: a standalone page in the scratchpad, never shipped,
    fed by a read-only `model_get` export of Garry's house. It answers the two questions no amount
    of planning can: how the whole-house cut-away should behave with shared interior walls, and
@@ -543,9 +547,9 @@ and says so if asked.
 5. **P3 photos**, then **P4 library** (terms reviewed first), **P5 devices**, **P6 beacons and
    people**, **P7 import**, **P8 atmosphere**, in that order, each behind its sub-switch.
 
-**Per phase.** One pre-release, installed on the home HA, an independent read-only review of the
-diff, fixes, then a targeted re-check of the fixes (a full re-review only when a fix touched
-shared code). One phase per week or two. A phase that isn't green stays behind the switch; it
+**Per phase.** One build from the branch, installed on the home HA, an independent read-only
+review of the diff, fixes, then a targeted re-check of the fixes (a full re-review only when a fix
+touched shared code). One phase per week or two. A phase that isn't green stays behind the switch; it
 never blocks a stable release of the rest of PadSpan.
 
 **Flipping the default.** Only after P1 and P2 have shipped, the load report shows Raspberry Pi

@@ -18,7 +18,7 @@ import pytest
 from custom_components.padspan_ha import bright_import as bi
 from custom_components.padspan_ha.const import (
     DATA_FABRIC, DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DOMAIN,
-    FABRIC_STORE_KEY, MAPS_STORE_KEY, MODEL_STORE_KEY, SETTINGS_STORE_KEY,
+    FABRIC_STORE_KEY, HOUSE3D_STORE_KEY, MAPS_STORE_KEY, MODEL_STORE_KEY, SETTINGS_STORE_KEY,
 )
 
 
@@ -180,7 +180,8 @@ def test_refuses_a_non_empty_target_and_says_what_it_found(tmp_path):
     assert res["target_has"] == ["1 floor", "1 room"]
     assert "never merges" in res["message"]
     # Backed up FIRST (the plan's order), then refused; nothing written.
-    assert _backup_ok.calls and _backup_ok.calls[0][1] == [FABRIC_STORE_KEY, MODEL_STORE_KEY, MAPS_STORE_KEY, SETTINGS_STORE_KEY]
+    assert _backup_ok.calls and _backup_ok.calls[0][1] == [FABRIC_STORE_KEY, MODEL_STORE_KEY, MAPS_STORE_KEY, SETTINGS_STORE_KEY,
+                                                         HOUSE3D_STORE_KEY]   # Live Aboard's file is a house store too
     assert _read_target(tmp_path, FABRIC_STORE_KEY) is None
     assert _read_target(tmp_path, SETTINGS_STORE_KEY) is None
     assert h.tasks == []

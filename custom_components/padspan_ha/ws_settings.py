@@ -127,6 +127,20 @@ def _weather_entity(value: Any, domains: tuple[str, ...]) -> str:
     return v if _WEATHER_ENTITY_ID.match(v) and v.startswith(domains) else ""
 
 
+# Live Aboard (house3d_store.py): the photo step's AI Task and the quality profile.
+_ATLAS_3D_QUALITY = ("auto", "low", "high")
+
+
+def _atlas_3d_quality(value: Any) -> str:
+    v = str(value or "").strip().lower()
+    return v if v in _ATLAS_3D_QUALITY else "auto"
+
+
+def _atlas_3d_ai_task(value: Any) -> str:
+    """An ai_task.* entity id, or "" (none chosen)."""
+    return _weather_entity(value, ("ai_task.",))
+
+
 def _weather_strength(value: Any) -> float:
     """0.5x-1.5x opacity; anything unreadable is the default 1x."""
     try:
@@ -356,6 +370,11 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("atlas_weather_condition_entity"): vol.Any(str, None),
         vol.Optional("atlas_weather_warning_entity"): vol.Any(str, None),
         vol.Optional("atlas_weather_strength"): vol.Coerce(float),
+        vol.Optional("atlas_3d_enabled"): bool,
+        vol.Optional("atlas_3d_quality"): vol.Any(str, None),
+        vol.Optional("atlas_3d_people"): bool,
+        vol.Optional("atlas_3d_ai_task_entity"): vol.Any(str, None),
+        vol.Optional("atlas_3d_library"): bool,
         vol.Optional("lights_showcase"): bool,
         vol.Optional("lights_hide_untouched"): bool,
         vol.Optional("lights_hide_device_codes"): bool,
@@ -626,6 +645,10 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 payload[_wkey] = _weather_entity(msg[_wkey], _wdoms)
         if "atlas_weather_strength" in msg:
             payload["atlas_weather_strength"] = _weather_strength(msg["atlas_weather_strength"])
+        if "atlas_3d_quality" in msg:
+            payload["atlas_3d_quality"] = _atlas_3d_quality(msg["atlas_3d_quality"])
+        if "atlas_3d_ai_task_entity" in msg:
+            payload["atlas_3d_ai_task_entity"] = _atlas_3d_ai_task(msg["atlas_3d_ai_task_entity"])
         if "ble_max_age_s" in msg:
             payload["ble_max_age_s"] = max(30, min(14400, int(msg["ble_max_age_s"])))
         # ── Radio map / heatmap visualization controls (v0.15.x) ──────────
@@ -803,6 +826,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "ha_entity_occupancy_enabled",
                     "lights_panel_enabled", "atlas_emergency_button", "bermuda_ignore", "bright_reveal_presence",
                     "atlas_weather_enabled",
+                    "atlas_3d_enabled", "atlas_3d_people", "atlas_3d_library",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",
                     "tags_phone_autolink_enabled", "quiet_mode", "light_theme",
                     "beacon_auto_calibrate", "overview_persistent_pins", "overview_show_walls",

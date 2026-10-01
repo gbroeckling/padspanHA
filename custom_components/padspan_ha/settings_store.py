@@ -136,6 +136,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "atlas_weather_condition_entity": "", # weather.* for the fallback trigger and rain vs snow; "" = the first weather.*
     "atlas_weather_warning_entity": "",   # a weather-warning sensor; "" = detect (env_canada, meteoalarm, dwd, nina, meteo_france, weatheralerts, nws_alerts)
     "atlas_weather_strength": 1.0,        # 0.5-1.5 x opacity
+    # Live Aboard, the 3D house (docs/IDEA_ATLAS_3D_HOUSE.md on the live-aboard branch). NORMALLY OFF:
+    # off = no 3D switch, no Furnish tab, no store writes, no AI or library calls, no telemetry.
+    "atlas_3d_enabled": False,            # the master switch
+    "atlas_3d_quality": "auto",           # auto | low | high
+    "atlas_3d_people": False,             # the people layer
+    "atlas_3d_ai_task_entity": "",        # ai_task.* that reads photos; "" = none (the photo button explains)
+    "atlas_3d_library": False,            # the shared furniture library
     "emergency_entities": [],             # the Atlas emergency lighting test's lights, when set; [] = HA's "emergency" groups, else the default rule — see emergency_test.py
     "vacation_mode_tracked_since": 0,     # backend-only: epoch-s from which every vacation span is in vacation_mode_periods (stamped once on upgrade if Vacation Mode ran before spans were recorded; 0 = always) — vacation_mode.py learned_pattern
     "vacation_mode_pattern_prev": {},     # backend-only: the last pattern learned before a vacation — stands in while a new vacation's build finds nothing (vacation_mode.py learned_pattern)

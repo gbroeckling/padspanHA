@@ -338,6 +338,10 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     from .emergency_test import WS_COMMANDS as _emergency_commands
     for _cmd in _emergency_commands:
         websocket_api.async_register_command(hass, _cmd)
+    # Live Aboard, the 3D house (ws_house3d.py) — normally off; get works, the rest refuse while off.
+    from .ws_house3d import WS_COMMANDS as _house3d_commands
+    for _cmd in _house3d_commands:
+        websocket_api.async_register_command(hass, _cmd)
     websocket_api.async_register_command(hass, ws_flood_reset)
     # A motion sensor's last real change across an offline blip (motion_reconnects.py).
     from .motion_reconnects import ws_motion_reconnects

@@ -70,6 +70,7 @@ from .const import (
     DATA_SETTINGS,
     DOMAIN,
     FABRIC_STORE_KEY,
+    HOUSE3D_STORE_KEY,
     MAPS_DIR,
     MAPS_STORE_KEY,
     MODEL_STORE_KEY,
@@ -88,6 +89,7 @@ HOUSE_STORES: tuple[tuple[str, str], ...] = (
     ("model", MODEL_STORE_KEY),
     ("maps", MAPS_STORE_KEY),
     ("settings", SETTINGS_STORE_KEY),
+    ("house3d", HOUSE3D_STORE_KEY),   # Live Aboard (house3d_store.py); skipped when Bright has none
 )
 _LICENCE_KEYS = ("forensics_license_key", "forensics_license_expires", "license_tier")
 DONE_KEY = "bright_import_done"
