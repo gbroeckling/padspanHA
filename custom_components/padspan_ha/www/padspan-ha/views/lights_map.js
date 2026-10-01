@@ -2603,26 +2603,36 @@ const _LA_PICK = "padspan_lv_3d_";
 const _la3dPicked = (slot) => { try { return localStorage.getItem(_LA_PICK + slot) === "1"; } catch (_) { return false; } };
 const _la3dPick = (slot, on) => { try { localStorage.setItem(_LA_PICK + slot, on ? "1" : "0"); } catch (_) {} };
 let _LA = null;                       // views/live_aboard.js, once loaded
-let _laLoading = null, _laLoadFailed = false, _laNoGl = false;
+let _laLoading = null, _laLoadFailed = false, _laNoGl = false, _laNoGlSent = false;
 const _laWaiting = new Map();         // slot -> the newest card's mount, while it loads
 const _la3dPickers = new Map();       // slot -> the newest card's Map / 3D switch (pick3d)
-// A screen that cannot draw 3D (no WebGL2, or too slow) is remembered per
-// browser and per PadSpan build (the cache-busting query this file was
-// loaded with): a reload neither downloads three.js nor runs the frame
-// check again; a new build tries once more.
+// A screen that cannot draw 3D is remembered per PadSpan build (the
+// cache-busting query this file was loaded with; a new build tries once
+// more). No WebGL2 is kept for the browser: a reload neither downloads
+// three.js nor looks again. Too slow is kept for this browser session only
+// (one frame-time check: a tablet busy at boot, or a GPU process that crashed
+// once, is not slow for good). A tap on the greyed 3D button, or on the
+// reason beside it, forgets either and tries once more (la3dRetry).
 const _LA_FAILED = "padspan_la3d_failed", _LA_KEEP = ["no_webgl", "slow_gpu"];
 const _LA_BUILD = new URL(import.meta.url).search;
+const _laKeptIn = (why) => (why === "slow_gpu" ? sessionStorage : localStorage);   // may throw: used in try
 function _laStored(){
-  try {
-    const r = JSON.parse(localStorage.getItem(_LA_FAILED) || "null");
-    if (r && r.build === _LA_BUILD && _LA_KEEP.includes(r.why)) return r.why;
-  } catch (_) {}
+  for (const why of _LA_KEEP) {
+    try {
+      const r = JSON.parse(_laKeptIn(why).getItem(_LA_FAILED) || "null");
+      if (r && r.build === _LA_BUILD && r.why === why) return why;
+    } catch (_) {}
+  }
   return null;
 }
 const _laCannotHere = () => _laStored() || (_laNoGl ? "no_webgl" : null);
 function _laRemember(why){
   if (!_LA_KEEP.includes(why) || _laStored() === why) return;
-  try { localStorage.setItem(_LA_FAILED, JSON.stringify({ build: _LA_BUILD, why })); } catch (_) {}
+  try { _laKeptIn(why).setItem(_LA_FAILED, JSON.stringify({ build: _LA_BUILD, why })); } catch (_) {}
+}
+function _laForget(){
+  for (const why of _LA_KEEP) { try { _laKeptIn(why).removeItem(_LA_FAILED); } catch (_) {} }
+  _laNoGl = false;
 }
 // WebGL2, tried on a canvas of its own before three.js is downloaded.
 function _laHasGl(){
@@ -2637,7 +2647,7 @@ function _laLoad(slot, mount, telemetry){
   if (_laLoadFailed) return;
   if (!_laLoading && !_laHasGl()) {
     // No WebGL2 here: nothing to download. Counted once, as the view would.
-    if (!_laNoGl) { try { if (typeof telemetry === "function") telemetry("house3d_fallback:no_webgl"); } catch (_) {} }
+    if (!_laNoGlSent) { _laNoGlSent = true; try { if (typeof telemetry === "function") telemetry("house3d_fallback:no_webgl"); } catch (_) {} }
     _laNoGl = true;
     _laRemember("no_webgl");
     return;
@@ -2662,8 +2672,8 @@ function _laLoad(slot, mount, telemetry){
     });
 }
 const _LA_WHY = {
-  no_webgl: "This screen can't draw 3D (no WebGL)",
-  slow_gpu: "This screen is too slow to draw the house in 3D",
+  no_webgl: "This screen can't draw 3D (no WebGL). Tap to try again",
+  slow_gpu: "This screen is too slow to draw the house in 3D. Tap to try again",
   context_lost: "The 3D view stopped (the graphics were reset). Reload to try again",
   error: "The 3D view stopped with an error. Reload to try again",
 };
@@ -2839,13 +2849,14 @@ export function buildLightsMapCard(hostIn){
   const la3dPaints = [];
   let la3dCloseDrawer = null;
   const la3dSlot = () => (_LA && h3 ? _LA.liveAboardSlot(h3.slot) : null);
-  // Why this screen cannot show 3D right now ("" when it can).
-  const la3dWhyNot = () => {
+  // Why this screen cannot show 3D right now: the fallback kind, or null.
+  const la3dWhy = () => {
     const s = la3dSlot(), failed = s && s.failed;
-    if (failed) _laRemember(failed);                  // no WebGL, too slow: not tried again on this build
-    const why = _laLoadFailed ? "error" : _laCannotHere() || failed;
-    return why ? (_LA_WHY[why] || _LA_WHY.error) : "";
+    if (failed) _laRemember(failed);                  // no WebGL, too slow: kept (see _LA_FAILED)
+    return (_laLoadFailed ? "error" : _laCannotHere() || failed) || null;
   };
+  // The same, said plainly ("" when it can).
+  const la3dWhyNot = () => { const why = la3dWhy(); return why ? (_LA_WHY[why] || _LA_WHY.error) : ""; };
   const la3dOn = () => !!h3 && _la3dPicked(h3.slot) && !la3dWhyNot();
   const mount3d = () => {
     if (!h3) return;
@@ -2893,6 +2904,16 @@ export function buildLightsMapCard(hostIn){
       if (view.scrollTop !== undefined) isoDiv.scrollTop = view.scrollTop;
     }
     mount3d();
+  };
+  // Greyed for no WebGL or too slow: a tap tries once more. What was kept is
+  // forgotten, and a screen's view that failed is made afresh (its failure
+  // is kept for the page load); failing again, the reason is back. An error
+  // or a lost context still says to reload.
+  const la3dRetry = () => {
+    if (!_LA_KEEP.includes(la3dWhy())) return;
+    _laForget();
+    if (_LA) for (const k of _la3dPickers.keys()) if (_LA.liveAboardSlot(k).failed) _LA.releaseLiveAboardSlot(k);
+    pick3d(true);
   };
   if (h3) _la3dPickers.set(h3.slot, pick3d);
 
@@ -3431,11 +3452,12 @@ export function buildLightsMapCard(hostIn){
   if (h3) {
     // Why 3D cannot show, said in the page beside the greyed button (a
     // tooltip never shows on touch, and a disabled button takes no focus).
+    // A tap on either tries once more (la3dRetry).
     const whyId = `la3d-why-${h3.slot}`;
-    const whyEl = el("span", { id: whyId, "data-la3d-why": "", role: "note",
-      style: "display:none;align-self:center;padding:0 8px;font-size:11px;line-height:1.25;opacity:.85;max-width:240px;white-space:normal" });
+    const whyEl = el("span", { id: whyId, "data-la3d-why": "", role: "note", onclick: () => la3dRetry(),
+      style: "display:none;align-self:center;padding:0 8px;font-size:11px;line-height:1.25;opacity:.85;max-width:240px;white-space:normal;cursor:pointer" });
     const mapB = el("button", { onclick: () => pick3d(false) }, "Map");
-    const d3B = el("button", { onclick: () => { if (!la3dWhyNot()) pick3d(true); } }, "3D");
+    const d3B = el("button", { onclick: () => { if (!la3dWhyNot()) pick3d(true); else la3dRetry(); } }, "3D");
     ctrlRow.appendChild(el("span", { class: "lv-zoomseg", "data-la3d-switch": "" }, [mapB, d3B, whyEl]));
     la3dPaints.push(() => {
       const on = la3dOn(), why = la3dWhyNot(), lit = "background:rgba(82,183,136,.24);color:#e8f0ea";
@@ -3779,10 +3801,11 @@ export function buildLightsMapCard(hostIn){
     // The Map / 3D switch in the rail (the 3D house only): lit while 3D shows.
     if (h3) {
       // Greyed when 3D cannot show: a tap opens the view drawer, where the
-      // switch says why in the page.
+      // switch says why in the page; tapped again, it tries once more.
       const b3 = railBtn("3D", "", () => {
         if (!la3dWhyNot()) pick3d(!la3dOn());
         else if (drawers.view && view.drawer !== "view") setDrawer("view");
+        else la3dRetry();
       });
       b3.setAttribute("data-la3d-switch", "");
       b3.style.cssText = "font-size:12px;font-weight:700;padding:0;white-space:nowrap";

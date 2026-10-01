@@ -108,11 +108,19 @@ def test_each_screen_remembers_its_choice(card) -> None:
 
 def test_any_failure_shows_the_flat_atlas_and_is_counted(card) -> None:
     """No WebGL2 is found on a canvas of its own before three.js is
-    downloaded; it, or a screen too slow, is remembered per browser and per
-    build (a reload neither downloads nor measures again; a new build tries
-    again); the greyed 3D button says why in the page, not only in a
-    tooltip."""
+    downloaded; it is remembered per browser and per build (a reload neither
+    downloads nor looks again; a new build tries again). A screen too slow is
+    remembered for the browser session only, never for the browser. The
+    greyed 3D button says why in the page, not only in a tooltip."""
     _case(card, "fallback:")
+
+
+def test_a_greyed_3d_button_tries_once_more(card) -> None:
+    """A tap on the greyed 3D button, or on the reason beside it (on the
+    edge-to-edge layout, the rail button once its drawer shows why), forgets
+    no WebGL or too slow and tries once more: failing again, the reason is
+    back and nothing is counted twice; able now, the 3D view shows."""
+    _case(card, "retry:")
 
 
 def test_a_view_still_loading_never_mounts_on_an_old_card(card) -> None:

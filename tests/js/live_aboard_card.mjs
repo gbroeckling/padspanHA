@@ -23,9 +23,15 @@
 //   fallback  on and 3D with no WebGL2: three.js is never downloaded, the
 //             flat Atlas stays, house3d_fallback:no_webgl is sent once and
 //             remembered for this build, and the greyed 3D button says why in
-//             the page; a screen remembered too slow on this build stays flat
-//             with nothing loaded or sent, and a new build tries again; a GL
-//             that throws is house3d_fallback:error
+//             the page; a screen remembered too slow in this session stays
+//             flat with nothing loaded or sent, one remembered too slow for
+//             the browser (as an older build kept it) is tried again, and a
+//             new build tries again; a GL that throws is
+//             house3d_fallback:error
+//   retry     a tap on the greyed 3D button, or on the reason beside it,
+//             forgets no WebGL or too slow and tries once more: failing
+//             again, the reason is back (counted once all the same); able
+//             now, the 3D view shows
 //   pending   a 3D view still loading never mounts on a card from before the
 //             feature was switched off
 //
@@ -36,6 +42,7 @@ import * as nodeModule from "node:module";
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
 import { install } from "./dom_shim.mjs";
+import { installStubGL } from "./stub_gl.mjs";
 
 const WWW = process.argv[2];
 if (!WWW) { console.error("usage: live_aboard_card.mjs <www/padspan-ha dir>"); process.exit(2); }
@@ -48,6 +55,11 @@ if (typeof nodeModule.registerHooks !== "function") {
 }
 nodeModule.registerHooks({ load(url, context, nextLoad) { loaded.push(url); return nextLoad(url, context); } });
 install(globalThis);
+// The session's storage, as a browser has it (the shim has localStorage only).
+globalThis.sessionStorage = {
+  _d: {}, getItem(k) { return this._d[k] ?? null; }, setItem(k, v) { this._d[k] = String(v); },
+  removeItem(k) { delete this._d[k]; }, clear() { this._d = {}; },
+};
 // Every listener, timer, frame and observer anything asks for, counted as it
 // is asked for: absent, off and below Pro must build the card with exactly
 // the same ones (a listener or a timer leaves nothing in the markup).
@@ -288,11 +300,11 @@ await tryCase("fallback: no WebGL keeps the flat Atlas, downloads nothing, is co
     && kept && kept.build === "?page=nogl" && kept.why === "no_webgl",
     { stored, counted, flat, loads: loadsOf("?page=nogl"), sent: [...sent], why: why3d(two.c), kept });
 });
-await tryCase("fallback: a screen too slow on this build stays flat on a reload: nothing loaded or sent, and it says why", async () => {
+await tryCase("fallback: a screen too slow in this session stays flat on a reload: nothing loaded or sent, and it says why", async () => {
   NodeCls.prototype.getContext = glThrows;               // WebGL there: only the memory keeps it flat
   sent.length = 0;
   localStorage.setItem(PICK("atlas"), "1");
-  localStorage.setItem(FAILED, JSON.stringify({ build: "?page=slow", why: "slow_gpu" }));
+  sessionStorage.setItem(FAILED, JSON.stringify({ build: "?page=slow", why: "slow_gpu" }));
   const M = await reload("?page=slow");
   const a = card({ house3d: H3(true, "atlas"), M }), d = card({ house3d: H3(true, "atlas"), M, layoutV2: true, display: true });
   await sleep(60);
@@ -301,7 +313,7 @@ await tryCase("fallback: a screen too slow on this build stays flat on a reload:
   const rail = d.c._all().find(n => isSwitch(n) && n.classList.contains("lv-railbtn"));
   rail.click();
   const drawer = d.c._all().find(n => n.classList && n.classList.contains("lv-drawer") && n.classList.contains("open"));
-  check("fallback: a screen too slow on this build stays flat on a reload: nothing loaded or sent, and it says why",
+  check("fallback: a screen too slow in this session stays flat on a reload: nothing loaded or sent, and it says why",
     loadsOf("?page=slow").length === 0 && sent.length === 0 && /too slow/.test(why3d(a.c)) && seg3d(a.c).getAttribute("aria-disabled") === "true"
     && a.stage.style.display !== "none" && rail.getAttribute("aria-disabled") === "true" && !rail.disabled && !!drawer && /too slow/.test(why3d(drawer)),
     { loads: loadsOf("?page=slow"), sent: [...sent], why: why3d(a.c), drawer: !!drawer });
@@ -310,12 +322,90 @@ await tryCase("fallback: a new build tries again", async () => {
   NodeCls.prototype.getContext = glThrows;
   sent.length = 0;
   localStorage.setItem(PICK("atlas"), "1");
-  localStorage.setItem(FAILED, JSON.stringify({ build: "?page=slow", why: "slow_gpu" }));
+  sessionStorage.setItem(FAILED, JSON.stringify({ build: "?page=slow", why: "slow_gpu" }));
   const M = await reload("?page=newer");
   card({ house3d: H3(true, "atlas"), M });
   const tried = await waitFor(() => loadsOf("?page=newer").length === 2);
   const counted = await waitFor(() => sent.includes("house3d_fallback:error"));
   check("fallback: a new build tries again", tried && counted, { loads: loadsOf("?page=newer"), sent: [...sent] });
+});
+await tryCase("fallback: too slow is for the session only: one kept for the browser, as an older build kept it, is tried again", async () => {
+  NodeCls.prototype.getContext = glThrows;
+  sent.length = 0;
+  sessionStorage.removeItem(FAILED);
+  localStorage.setItem(PICK("atlas"), "1");
+  localStorage.setItem(FAILED, JSON.stringify({ build: "?page=kept", why: "slow_gpu" }));
+  const M = await reload("?page=kept");
+  card({ house3d: H3(true, "atlas"), M });
+  const tried = await waitFor(() => loadsOf("?page=kept").length === 2);
+  const counted = await waitFor(() => sent.includes("house3d_fallback:error"));
+  check("fallback: too slow is for the session only: one kept for the browser, as an older build kept it, is tried again",
+    tried && counted, { loads: loadsOf("?page=kept"), sent: [...sent] });
+  localStorage.removeItem(FAILED);
+});
+
+// ── retry: a tap on the greyed 3D button, or on the reason, tries once more ──
+// A GL that works (stub_gl.mjs: it answers three.js and draws nothing), kept
+// aside until a case wants it.
+const glWorks = (() => {
+  const keep = NodeCls.prototype.getContext;
+  installStubGL();
+  const g = NodeCls.prototype.getContext;
+  NodeCls.prototype.getContext = keep;
+  return g;
+})();
+const whyOf = (c) => c._all().find(n => n.attributes && "data-la3d-why" in n.attributes);
+await tryCase("retry: a tap on the greyed 3D button tries once more; no WebGL still, the reason is back, counted once", async () => {
+  let looks = 0;                                         // each time WebGL2 is asked for
+  NodeCls.prototype.getContext = function (kind, ...a) {
+    if (/webgl/i.test(String(kind))) { looks++; return null; }
+    return realGetContext.call(this, kind, ...a);
+  };
+  sent.length = 0;
+  localStorage.setItem(PICK("atlas"), "1"); localStorage.removeItem(FAILED); sessionStorage.removeItem(FAILED);
+  const M = await reload("?page=retry1");
+  card({ house3d: H3(true, "atlas"), M });               // no WebGL: remembered
+  const two = card({ house3d: H3(true, "atlas"), M });   // the next poll: greyed, and why
+  const before = { looks, why: why3d(two.c) };
+  seg3d(two.c).click();
+  const after = { looks, why: why3d(two.c), off: seg3d(two.c).getAttribute("aria-disabled"), kept: JSON.parse(localStorage.getItem(FAILED) || "null") };
+  // Edge to edge: a tap on the greyed rail button opens the drawer where the
+  // switch says why; tapped again, it tries once more.
+  const d = card({ house3d: H3(true, "atlas"), M, layoutV2: true, display: true });
+  const rail = d.c._all().find(n => isSwitch(n) && n.classList.contains("lv-railbtn"));
+  rail.click();
+  const opened = { looks, drawer: !!d.c._all().find(n => n.classList && n.classList.contains("lv-drawer") && n.classList.contains("open")) };
+  rail.click();
+  const again = { looks, off: rail.getAttribute("aria-disabled") };
+  await sleep(30);
+  check("retry: a tap on the greyed 3D button tries once more; no WebGL still, the reason is back, counted once",
+    /WebGL/.test(before.why) && after.looks === before.looks + 1 && /WebGL/.test(after.why) && after.off === "true"
+    && after.kept && after.kept.why === "no_webgl" && opened.drawer && opened.looks === after.looks
+    && again.looks === after.looks + 1 && again.off === "true"
+    && JSON.stringify(sent) === JSON.stringify(["house3d_fallback:no_webgl"]) && loadsOf("?page=retry1").length === 0,
+    { before, after, opened, again, sent: [...sent], loads: loadsOf("?page=retry1") });
+  NodeCls.prototype.getContext = realGetContext;
+  localStorage.removeItem(PICK("atlas")); localStorage.removeItem(FAILED);
+});
+await tryCase("retry: a tap on the reason tries once more; able now, the 3D view shows", async () => {
+  NodeCls.prototype.getContext = glWorks;
+  sent.length = 0;
+  localStorage.setItem(PICK("atlas"), "1"); localStorage.removeItem(FAILED);
+  sessionStorage.setItem(FAILED, JSON.stringify({ build: "?page=retry2", why: "slow_gpu" }));
+  const M = await reload("?page=retry2");
+  const one = card({ house3d: H3(true, "atlas"), M });   // too slow in this session: flat, and why
+  await sleep(30);
+  const before = { why: why3d(one.c), loads: loadsOf("?page=retry2").length };
+  whyOf(one.c).click();
+  const shown = await waitFor(() => loadsOf("?page=retry2").length === 2 && one.stage.style.display === "none"
+    && one.c._all().some(n => n.classList && n.classList.contains("la3d")));
+  const after = { why: why3d(one.c), lit: seg3d(one.c).getAttribute("aria-pressed"), session: sessionStorage.getItem(FAILED) };
+  check("retry: a tap on the reason tries once more; able now, the 3D view shows",
+    /too slow/.test(before.why) && before.loads === 0 && shown && after.why === "" && after.lit === "true" && after.session === null
+    && !sent.some(n => n.startsWith("house3d_fallback")), { before, shown, after, sent: [...sent] });
+  one.c._all().find(n => isSwitch(n) && n.classList.contains("lv-zoomseg")).children.find(b => b.textContent === "Map").click();
+  NodeCls.prototype.getContext = realGetContext;
+  localStorage.removeItem(PICK("atlas"));
 });
 await tryCase("pending: a 3D view still loading never mounts on a card from before the feature went off", async () => {
   // Its GL throws, so a mount anywhere would be counted as an error.
