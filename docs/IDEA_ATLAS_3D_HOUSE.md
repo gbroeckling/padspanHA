@@ -59,7 +59,7 @@ that is `light.lounge_lamp` glows when that light is on, and tapping it switches
 |---|---|
 | **Atlas** (sidebar, and Mapping → Atlas) | A **Map / 3D** switch beside the zoom buttons (`lights_map.js:3259-3290`), and in the rail for the edge-to-edge layout (`lights_map.js:3601`). Each screen remembers its choice, so the wall PC can open in 3D. |
 | **Mapping → Furnish** (new tab after Atlas, `maps.js:109-111`) | The furniture editor: the 3D house and a plan view side by side; **From a photo**, **Library** and **Build** buttons; drag and turn; fit checks; colours; "This is a device…"; then Save, Discard and Undo. |
-| **Settings → UI Structure → Atlas → 3D house** | The master switch (off by default). Once on: Quality (Auto / Low / High), Show people (off), the AI Task for photos (none), Shared library (off), and Remove all furniture (admin only; takes a backup first). See "Normally off". |
+| **Settings → UI Structure → Atlas → 3D house** | Shown only in Pro and Bright Pro. The master switch (off by default). Once on: Quality (Auto / Low / High), Show people (off), the AI Task for photos (none), Shared library (off), and Remove all furniture (admin only; takes a backup first). See "Normally off". |
 | Overview, Traceback | Unchanged. |
 
 ## Normally off: the switch (Garry, 2026-09-30)
@@ -83,6 +83,10 @@ What "off" means, layer by layer:
 | Network | No AI Task call and no library call, ever. | Only with the matching sub-switch on. |
 | Telemetry | No house3d, furnish, photo or library events, and no `env.house3d`. The report is the same as today's. | The events listed below. |
 | Home Assistant load | Nothing: no timer, no snapshot read, no import. | Only the people layer (itself off) reads the snapshot. |
+
+**Pro and Bright Pro only** (Garry, 2026-09-30). Below the Pro tier (`tierAtLeast(tier, "pro")` in
+`views/editions.js`), every layer above is as if off, whatever the switch says. The setting is kept,
+so a lapsed licence hides Live Aboard and a renewed one brings it back as it was.
 
 **Sub-switches**, each off by default and only visible once the master is on:
 
@@ -583,9 +587,10 @@ and says so if asked.
 3. **P1 the 3D view**, behind the switch. Garry turns it on in his own Settings; nobody else sees it.
    **Started 2026-09-30** with three.js r170 bundled (`vendor/three/`, `THIRD_PARTY_NOTICES.md`).
    Built in three parts: A, the view itself (the switch, the house, lights, camera, quality and
-   fallback, settings, telemetry, the off tests, the sun and the compass); B, the Atlas's actions
-   and live parts (doors and sensors, Motion · Air, readouts, tap, hold and dim, the edition gate);
-   C, the 3D editor (windows and device heights, saved to the 3D file).
+   fallback, settings, telemetry, the off tests, the sun and the compass, visible only in Pro and
+   Bright Pro); B, the Atlas's actions and live parts (doors and sensors, Motion · Air, readouts,
+   tap, hold and dim); C, the 3D editor (the door and window line tool, device heights, saved to
+   the 3D file).
 4. **P2 furniture by hand.** The builders are written from the parameter lists in "Furniture",
    nothing else, each with a still-picture test across its parameter range.
 5. **P3 photos**, then **P4 library** (terms reviewed first), **P5 devices**, **P6 beacons and
@@ -647,9 +652,12 @@ be flipped back the same way.
 
 ## The thirteen choices, decided (Garry, 2026-09-30, by question rounds)
 
-1. **3D view:** Bright + Pro; Free sees a still picture of their own house beside the trial offer.
-2. **Making furniture:** Bright, the same gate as light placement.
-3. **Browsing the library:** anyone, including Free.
+1. **3D view: Pro and Bright Pro only** (Garry, 2026-09-30: "This goes only in pro and bright pro
+   as far as visibility goes"; it replaces "Bright + Pro, Free sees a still picture"). Below the
+   Pro tier nothing of Live Aboard is visible, exactly as if it were off. The Free still-picture
+   teaser is dropped.
+2. **Making furniture:** the same gate as light placement, inside the Pro-only feature.
+3. **Browsing the library:** anyone who can see Live Aboard (Pro and Bright Pro).
 4. **Name:** **Live Aboard** replaces "Sims Soup". Still a working name; check it before anything public.
 5. **Library licence:** a licence grant to PadSpan only, not CC0. Sharers keep their rights;
    PadSpan, every edition, may use, show, copy and change shared pieces and let other PadSpan
