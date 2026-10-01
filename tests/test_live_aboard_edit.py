@@ -52,6 +52,8 @@ def editor() -> dict:
     ("newer:", 2),
     # Edit pressed before the file was read: what the read finds decides.
     ("begin:", 1),
+    # A door or window split over two wall pieces moves whole while a slider drags it.
+    ("split:", 1),
 ])
 def test_the_editor_harness_covers_each_part(editor, prefix, least) -> None:
     got = [k for k in editor["cases"] if k.startswith(prefix)]

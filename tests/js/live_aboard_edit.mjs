@@ -688,6 +688,37 @@ await tryCase("drag: a light's and a readout's Height move them in place; let go
       && o.moving.every(n => n === 0) && o.moves >= 4 && o.letGo[0] === 0 && o.letGo[1] === 0 && o.same)
     && L.letGo[2] === 1 && L.letGo[3] === 0 && S.letGo[2] === 0 && S.letGo[3] === 1, out);
 });
+// A window across the gap between Living's and the Den's back walls is drawn
+// in two wall pieces: a slider moves both, together, as it is dragged.
+await tryCase("split: a window split over two walls moves whole as its Sill is dragged; let go, the walls are built once", async () => {
+  const id = "win_0000c001";
+  server.file.openings[id] = win("main", [3.9, 0], [5.3, 0]);
+  slot.detach(); poll(); await settle(40);               // the file read again, with it
+  await openEdit();
+  if (ed().tool) await pickTool(ed().tool);
+  slot._look(0, 0, [5, 2.8, 4], 30);
+  await settle();
+  const parts = slot._pieces(id).length;
+  tap(where("main", 4.2, 0, 1.5));
+  await settle();
+  const sel = ed().sel && ed().sel.opening && ed().sel.opening.id;
+  const glassOf = () => slot._pieces(id).map(p => { const g = p.els.find(e => e[2]); return g ? +g[0].toFixed(3) : null; });
+  const w0 = st().work, drawn = [];
+  for (const v of [0.52, 0.61, 0.73, 0.84]) { slide("Sill", v); await settle(2); drawn.push(glassOf()); }
+  const w1 = st().work;
+  letGo("Sill");
+  await settle();
+  const w2 = st().work, after = glassOf();
+  click("×", "la3d-sheet");
+  await closeEdit();
+  delete server.file.openings[id];
+  slot.detach(); poll(); await settle(40);
+  check("split: a window split over two walls moves whole as its Sill is dragged; let go, the walls are built once",
+    parts === 2 && sel === id && JSON.stringify(drawn) === "[[0.52,0.52],[0.61,0.61],[0.73,0.73],[0.84,0.84]]"
+    && JSON.stringify(after) === "[0.84,0.84]" && w1.reads === w0.reads && w1.shells === w0.shells && w1.moves - w0.moves >= 4
+    && w2.reads === w1.reads && w2.shells === w1.shells + 1 && !slot._pieces(id).length,
+    { parts, sel, drawn, after, moving: [w1.reads - w0.reads, w1.shells - w0.shells, w1.moves - w0.moves], letGo: [w2.reads - w1.reads, w2.shells - w1.shells] });
+});
 
 // ── pointer ─────────────────────────────────────────────────────────────────
 // A poll moving the view into a new card takes the canvas's pointer capture

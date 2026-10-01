@@ -1918,7 +1918,9 @@ function createSlot(slotKey){
     return ok;
   }
   function moveOpening(id, vd){
-    const o = vd.openings[id] || null;
+    const o = vd.openings[id] || null, moves = [];
+    // Every wall piece it is drawn in (one split over two walls or more moves
+    // whole), each checked before any moves.
     for (const F of floorsUi) for (const P of F.pieces) {
       const pc = P.pc;
       if ((pc.kind !== "door" && pc.kind !== "window") || (pc.added ? pc.added !== id : !(pc.barrier && pc.barrier.id === id))) continue;
@@ -1928,12 +1930,14 @@ function createSlot(slotKey){
       if (!next) return false;
       const els = HOUSE.wallElements(next, F.fl.h);
       if (els.length !== P.els.length || els.some((e, i) => e.glass !== P.els[i].glass)) return false;
-      els.forEach((e, i) => { P.els[i].z0 = e.z0; P.els[i].z1 = e.z1; });
-      pc.sill_m = next.sill_m; pc.head_m = next.head_m;
-      placePiece(F, P, !!P.cut);
-      return true;
+      moves.push({ F, P, next, els });
     }
-    return false;
+    for (const { F, P, next, els } of moves) {
+      els.forEach((e, i) => { P.els[i].z0 = e.z0; P.els[i].z1 = e.z1; });
+      P.pc.sill_m = next.sill_m; P.pc.head_m = next.head_m;
+      placePiece(F, P, !!P.cut);
+    }
+    return moves.length > 0;
   }
   function moveDevice(eid, vd){
     const L = lights.find(x => x.eid === eid);
@@ -2101,6 +2105,11 @@ function createSlot(slotKey){
         }
       }
       return null;
+    },
+    /** The same, for every wall piece it is drawn in (split over two walls: two). */
+    _pieces(id){
+      return floorsUi.flatMap(F => F.pieces.filter(P => P.pc.added === id || (!P.pc.added && P.pc.barrier && P.pc.barrier.id === id))
+        .map(P => ({ kind: P.pc.kind, els: P.els.map(e => [e.z0, e.z1, !!e.glass]) })));
     },
     /** A plan point on floor `fid`, z metres up, in client px (the harness draws there). */
     _whereOf(fid, x, y, z = 1){ return editor ? editor.whereOf(fid, x, y, z) : null; },
