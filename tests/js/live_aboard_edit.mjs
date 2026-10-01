@@ -381,6 +381,23 @@ await tryCase("errors: a Save refused because the file can't be read or written 
     && out.save_failed.kept && /^Not saved: the 3D file couldn't be written, so nothing was changed\. Your changes are still here/.test(out.save_failed.hint)
     && Object.values(out).every(o => o.bad && o.canRetry), out);
 });
+// Edit pressed before the file was read reads it first: what that read finds
+// decides, as it would have before the press.
+await tryCase("begin: Edit pressed before the file was read: a newer file found then opens no draft, and says why", async () => {
+  let reads = 0;
+  const newer = { ...clone(FILE0), schema: 2 };
+  const v = await otherView("begin-newer", async () => { if (reads++ === 0) throw new Error("timed out"); return { data: clone(newer) }; });
+  const e0 = v.s._state().edit;                            // the first read failed (not refused): Edit offered
+  v.editBtn().click();
+  await settle(30);
+  const s1 = v.s._state(), e1 = s1.edit;
+  check("begin: Edit pressed before the file was read: a newer file found then opens no draft, and says why",
+    e0.editAvailable && reads === 2 && !!s1.file && !e1.editing && !e1.draft && !e1.editAvailable && /newer PadSpan/.test(e1.editWhy),
+    { e0: e0.editAvailable, reads, file: s1.file, e1: { editing: e1.editing, draft: !!e1.draft, avail: e1.editAvailable, why: e1.editWhy } });
+  LA.releaseLiveAboardSlot("begin-newer");
+  poll();
+  await settle();
+});
 /** A save held in flight until release() (the server answers late). */
 function holdSaves(){
   let release = null;

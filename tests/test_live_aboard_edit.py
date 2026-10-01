@@ -50,6 +50,8 @@ def editor() -> dict:
     # A Save refused as a newer PadSpan's file is the view's file error: the
     # next good read brings Edit and Save back.
     ("newer:", 2),
+    # Edit pressed before the file was read: what the read finds decides.
+    ("begin:", 1),
 ])
 def test_the_editor_harness_covers_each_part(editor, prefix, least) -> None:
     got = [k for k in editor["cases"] if k.startswith(prefix)]

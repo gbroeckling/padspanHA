@@ -452,8 +452,11 @@ export function createEditor(ctx){
   }
 
   // ── Edit, the tools, leaving ──────────────────────────────────────────────
+  // Edit may open: offered, not open already, no save in flight, and nothing
+  // about the file against it.
+  const mayBegin = () => !!editFn && !editing && !saving && !cantEdit();
   async function begin(){
-    if (!editFn || editing || saving || cantEdit()) return;
+    if (!mayBegin()) return;
     let f = ctx.file();
     if (!f) {
       hint("Reading the 3D file…");
@@ -461,6 +464,9 @@ export function createEditor(ctx){
       try { ok = await ctx.reload(); } catch (_) { ok = false; }
       f = ctx.file();
       if (!ok || !f) { flash("Couldn't read the 3D file. Try again."); return; }
+      // Asked again of what the read found (a newer PadSpan's file: Edit
+      // says why), and of anything that changed while it was read.
+      if (!mayBegin()) return;
     }
     draft = DRAFT.createDraft(f);
     editing = true; tool = null; sel = null; gesture = null; pending = null;
