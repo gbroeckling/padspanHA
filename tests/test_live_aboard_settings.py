@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import shutil
 import subprocess
 from pathlib import Path
@@ -103,6 +104,21 @@ def test_the_settings_round_trip() -> None:
     _run(WS.ws_settings_set(h, conn, {"id": 3, "atlas_3d_quality": "ultra", "atlas_3d_enabled": False}))
     assert data["atlas_3d_quality"] == "auto", "anything else is Auto"
     assert data["atlas_3d_enabled"] is False and data["fabric_bearing_deg"] == 10.0
+
+
+@pytest.mark.parametrize("bad", [math.nan, math.inf, -math.inf])
+def test_north_is_never_nan_or_infinite(bad) -> None:
+    """The 3D compass writes fabric_bearing_deg; the GPS Bridge and the 3D sun
+    read it. NaN or an infinity (NaN after % 360) is refused, and nothing else
+    in the message is saved."""
+    from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+    from tests.test_telemetry import _hass as _house_hass
+    h, conn = _house_hass(), MagicMock()
+    data = h.data[DOMAIN][DATA_SETTINGS].data
+    data["fabric_bearing_deg"] = 10.0
+    _run(WS.ws_settings_set(h, conn, {"id": 1, "fabric_bearing_deg": bad, "atlas_3d_quality": "low"}))
+    assert conn.send_error.call_args[0][1] == "invalid"
+    assert data["fabric_bearing_deg"] == 10.0 and "atlas_3d_quality" not in data
 
 
 def test_the_box_saves_each_control_on_its_own() -> None:
