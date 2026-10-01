@@ -179,6 +179,33 @@ tryCase("runs: a near-upright wall's pieces leaning either way are one run", () 
   check("runs: a near-upright wall's pieces leaning either way are one run",
     runs.length === 1 && near(runs[0].t1 - runs[0].t0, 5.2, 0.02), runs.map(r => ({ u: [r.ux, r.uy], t0: r.t0, t1: r.t1 })));
 });
+tryCase("runs: a big floor's pieces, in any order, are joined in one pass", () => {
+  // A 40 x 40 grid of 3 m rooms' walls, every wall in 3 m pieces, shuffled
+  // (the order a hand-drawn map gives): 82 straight walls, each one run end
+  // to end, worked out in milliseconds (it was cubic: over a second).
+  const pcs = [];
+  for (let i = 0; i <= 40; i++) for (let j = 0; j < 40; j++) {
+    pcs.push({ x0: j * 3, y0: i * 3, x1: j * 3 + 3, y1: i * 3, kind: "wall", thick: 0.12 });
+    pcs.push({ x0: i * 3, y0: j * 3 + 3, x1: i * 3, y1: j * 3, kind: "wall", thick: 0.14 });
+  }
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = pcs.length - 1; i > 0; i--) { const k = Math.floor(rnd() * (i + 1)); [pcs[i], pcs[k]] = [pcs[k], pcs[i]]; }
+  const t0 = performance.now(), runs = D.wallRuns(pcs), ms = performance.now() - t0;
+  check("runs: a big floor's pieces, in any order, are joined in one pass",
+    pcs.length === 3280 && runs.length === 82 && runs.every(r => r.pcs.length === 40 && near(r.t0, 0, 1e-9) && near(r.t1, 120, 1e-9))
+    && ms < 300, { pieces: pcs.length, runs: runs.length, ms: Math.round(ms) });
+});
+tryCase("walls: the map as read is never changed by what the 3D file cuts into a copy of it", () => {
+  // The 3D view keeps the map's reading and cuts the draft's doors and
+  // windows into a copy of its walls on every draw (readingCopy).
+  const h = H.readHouse(MODEL, MODEL.floors, {}, null), before = JSON.stringify([...h.perFloor.values()].map(p => p.pieces));
+  const ops = { win_00000001: D.newOpening("window", "main", [0.5, 0], [1.5, 0], ceil), bar_win: { sill_m: 1.2, head_m: 2 } };
+  const cut = D.applyOpenings(H.readingCopy(h), ops), pcs = piecesOf(cut);
+  check("walls: the map as read is never changed by what the 3D file cuts into a copy of it",
+    JSON.stringify([...h.perFloor.values()].map(p => p.pieces)) === before && pcs.some(p => p.added === "win_00000001")
+    && pcs.some(p => p.barrier && p.barrier.id === "bar_win" && p.sill_m === 1.2) && cut.lights === h.lights, { n: pcs.length });
+});
 tryCase("snap: a point goes onto its run, never past an end", () => {
   const runs = D.wallRuns(piecesOf(house())), back = runAtY(runs, 0, 2);
   const t = D.tOn(back, 2.5, 0.3), p = D.pointOf(back, t), past = D.tOn(back, -3, 0.2);

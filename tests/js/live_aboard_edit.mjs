@@ -540,6 +540,65 @@ await tryCase("limits: a readout's and a light's Height sliders reach exactly as
   await closeEdit();
 });
 
+// ── drag ────────────────────────────────────────────────────────────────────
+// A slider being dragged moves only what it moves, in place: the house is
+// never read again and nothing is rebuilt while it moves; let go, what it
+// changed is built once, from the reading kept (the map has not changed).
+const letGo = (label) => { const r = sliderOf(label); if (r) r.dispatchEvent({ type: "change" }); return !!r; };
+const hitAt = (p, eid) => { const r = p && slot._pick(p[0], p[1]); return !!(r && String(r.hit).includes(eid)); };
+const glassAt = (id) => { const p = slot._piece(id), g = p && p.els.find(e => e[2]); return g ? +g[0].toFixed(3) : null; };
+await tryCase("drag: a window's Sill moves it in place, never reading or rebuilding; let go, the walls are built once", async () => {
+  await openEdit();
+  if (ed().tool) await pickTool(ed().tool);
+  slot._look(0, 0, [5, 2.8, 4], 30);
+  await settle();
+  const out = {};
+  for (const [id, x, y] of [["bar_k", 1.7, 8], ["win_0000a001", 0, 3.75]]) {
+    tap(where("main", x, y, 1.5));
+    const w0 = st().work, sel = ed().sel && ed().sel.opening && ed().sel.opening.id, drawn = [];
+    for (const v of [0.52, 0.61, 0.73, 0.84]) { slide("Sill", v); await settle(2); drawn.push(glassAt(id)); }
+    const w1 = st().work;
+    letGo("Sill");
+    await settle();
+    const w2 = st().work;
+    out[id] = { sel, drawn, after: glassAt(id), moving: [w1.reads - w0.reads, w1.shells - w0.shells, w1.lights - w0.lights, w1.sensors - w0.sensors],
+                moves: w1.moves - w0.moves, letGo: [w2.reads - w1.reads, w2.shells - w1.shells] };
+    click("×", "la3d-sheet");
+  }
+  await closeEdit();
+  check("drag: a window's Sill moves it in place, never reading or rebuilding; let go, the walls are built once",
+    Object.entries(out).every(([id, o]) => o.sel === id && JSON.stringify(o.drawn) === "[0.52,0.61,0.73,0.84]" && o.after === 0.84
+      && o.moving.every(n => n === 0) && o.moves >= 4 && o.letGo[0] === 0 && o.letGo[1] === 1), out);
+});
+await tryCase("drag: a light's and a readout's Height move them in place; let go, each is built once", async () => {
+  await openEdit();
+  await pickTool("heights");
+  slot._look(0.6, 0.7, [5, 2.8, 4], 26);
+  await settle();
+  const out = {};
+  for (const eid of ["light.den", "sensor.den_temp"]) {
+    const sec = eid.startsWith("light.") ? "lights" : "devices";
+    tap(slot._where({ eid }));
+    const w0 = st().work, sel = ed().sel && ed().sel.eid, zs = [];
+    for (const v of [1.37, 1.53, 1.71, 1.89]) { slide("Height", v); await settle(2); zs.push((st().heights[sec].find(x => x.eid === eid) || {}).z); }
+    const w1 = st().work, at = slot._where({ eid }), hitMoved = hitAt(at, eid);
+    letGo("Height");
+    await settle();
+    const w2 = st().work, hitBuilt = hitAt(at, eid), zBuilt = (st().heights[sec].find(x => x.eid === eid) || {}).z;
+    out[eid] = { sel, zs, moving: [w1.reads - w0.reads, w1.shells - w0.shells, w1.lights - w0.lights, w1.sensors - w0.sensors],
+                 moves: w1.moves - w0.moves, letGo: [w2.reads - w1.reads, w2.shells - w1.shells, w2.lights - w1.lights, w2.sensors - w1.sensors],
+                 // a press where it was moved to finds it, moved in place and built again
+                 same: hitMoved && hitBuilt && zBuilt === 1.89 };
+    click("×", "la3d-sheet");
+  }
+  await closeEdit();
+  const L = out["light.den"], S = out["sensor.den_temp"];
+  check("drag: a light's and a readout's Height move them in place; let go, each is built once",
+    L.sel === "light.den" && S.sel === "sensor.den_temp" && [L, S].every(o => JSON.stringify(o.zs) === "[1.37,1.53,1.71,1.89]"
+      && o.moving.every(n => n === 0) && o.moves >= 4 && o.letGo[0] === 0 && o.letGo[1] === 0 && o.same)
+    && L.letGo[2] === 1 && L.letGo[3] === 0 && S.letGo[2] === 0 && S.letGo[3] === 1, out);
+});
+
 // ── pointer ─────────────────────────────────────────────────────────────────
 // A poll moving the view into a new card takes the canvas's pointer capture
 // with it: a lift off the canvas then reaches the window alone (sent here as

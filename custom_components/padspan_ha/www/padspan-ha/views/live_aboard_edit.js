@@ -93,6 +93,8 @@ const CSS = `
  *   reload()                   → Promise<boolean>: read the file again
  *   saved(data)                the file as the server now holds it
  *   redraw()                   draw the house again, from the draft while editing
+ *   preview(t)                 a slider being dragged: move only what it moves, {opening: id} or
+ *                              {eid}, in place from the draft (false: not drawn, redraw instead)
  *   render()                   ask for a frame
  *   topDown(F)                 the camera straight down on floor F
  *   clearUse()                 the Atlas's hover box and rings off
@@ -103,6 +105,7 @@ export function createEditor(ctx){
   const { THREE, HOUSE, DRAFT, root, canvas, bar, guard } = ctx;
   let editFn = null, editing = false, draft = null, tool = null, sel = null, gesture = null, pending = null;
   let saving = false, afterSave = null, askGo = null, hintMsg = "", hintBad = false, redrawDue = false, sliderGen = 0, sheetRefresh = null;
+  let moveDue = null, sliding = null;        // a slider being dragged: what it moves, drawn in place once a frame
   let runsGen = null, arcsGen = null;
   const runsByFloor = new Map();
   const active = () => editing && !!editFn && !!draft;
@@ -236,13 +239,17 @@ export function createEditor(ctx){
   const ceilOf = (F) => F.fl.h - HOUSE.SLAB_T;
   const kindOfPtr = (e) => (e.pointerType === "touch" || e.pointerType === "pen" ? "touch" : "mouse");
   // The runs of a floor's walls (and where a line on each must stop), as
-  // drawn now: worked out again whenever the walls are rebuilt.
+  // drawn now: worked out again whenever the walls are rebuilt, a run's
+  // stops only once something is drawn on it.
   function runsOf(F){
     if (runsGen !== ctx.shellGen()) { runsByFloor.clear(); runsGen = ctx.shellGen(); }
     let R = runsByFloor.get(F.fl.id);
     if (!R) {
       const pcs = F.pieces.map(P => P.pc);
-      R = DRAFT.wallRuns(pcs).map(run => ({ run, stops: DRAFT.runStops(run, pcs), ops: DRAFT.runOpenings(run) }));
+      R = DRAFT.wallRuns(pcs).map(run => {
+        let stops = null;
+        return { run, get stops(){ return stops || (stops = DRAFT.runStops(run, pcs)); }, ops: DRAFT.runOpenings(run) };
+      });
       runsByFloor.set(F.fl.id, R);
     }
     return R;
@@ -337,7 +344,7 @@ export function createEditor(ctx){
   // draft starts again from once it is in (rebase).
   function change(fn, group = null){
     if (!draft || saving || !draft.change(fn, group)) return false;
-    redrawSoon();
+    if (sliding) moveSoon(sliding); else redrawSoon();
     paint();                                     // Save, Undo and the line now; the walls on the next frame
     if (sheetRefresh) sheetRefresh();            // the open sheet's Reset, without rebuilding its sliders
     return true;
@@ -350,6 +357,21 @@ export function createEditor(ctx){
       redrawDue = false;
       ctx.redraw();
       paint();
+    }));
+  }
+  // A slider being dragged: only what it moves, in place, once a frame
+  // (nothing read again, nothing rebuilt); let go, the house is drawn whole.
+  function moveSoon(target){
+    if (redrawDue) return;                       // the whole house is coming anyway
+    const queued = moveDue !== null;
+    moveDue = target;
+    if (queued) return;
+    requestAnimationFrame(guard(() => {
+      const t = moveDue;
+      moveDue = null;
+      if (redrawDue || !t) return;
+      if (!ctx.preview || !ctx.preview(t)) redrawSoon();
+      else paint();
     }));
   }
   function afterHistory(msg){
@@ -520,7 +542,7 @@ export function createEditor(ctx){
     sheet.appendChild(h);
     if (sub) sheet.appendChild(d("p", "la3d-sub", sub));
   }
-  function slider(label, min, max, value, onInput){
+  function slider(label, min, max, value, onInput, moves = null){
     const row = d("label", "la3d-row");
     const val = d("b", null, DRAFT.metres(value));
     const r = d("input");
@@ -528,11 +550,12 @@ export function createEditor(ctx){
     r.setAttribute("aria-label", label);
     let group = null;
     r.addEventListener("pointerdown", () => { group = `slider:${++sliderGen}`; });
-    r.addEventListener("change", () => { group = null; });
+    r.addEventListener("change", () => { group = null; if (moves) redrawSoon(); });   // let go: drawn whole again
     r.addEventListener("input", guard(() => {
       const v = Number(r.value);
       val.textContent = DRAFT.metres(v);
-      onInput(v, group || `slider:${++sliderGen}`);
+      sliding = moves;
+      try { onInput(v, group || `slider:${++sliderGen}`); } finally { sliding = null; }
     }));
     row.append(d("span", null, label), r, val);
     sheet.appendChild(row);
@@ -571,10 +594,10 @@ export function createEditor(ctx){
       if (cur) Object.assign(cur, DRAFT.openingHeights({ ...cur, ...patch }, ceil));
     }, group);
     if (rec.kind === "window") {
-      slider("Sill", 0, DRAFT.mm(lim.sill), rec.sill_m, (v, g) => set({ sill_m: v }, g));
-      slider("Head", DRAFT.GAP_MIN_M, DRAFT.mm(lim.head), rec.head_m, (v, g) => set({ head_m: v }, g));
+      slider("Sill", 0, DRAFT.mm(lim.sill), rec.sill_m, (v, g) => set({ sill_m: v }, g), { opening: o.id });
+      slider("Head", DRAFT.GAP_MIN_M, DRAFT.mm(lim.head), rec.head_m, (v, g) => set({ head_m: v }, g), { opening: o.id });
     } else {
-      slider("Height", DRAFT.mm(lim.doorLow), DRAFT.mm(lim.doorHigh), rec.head_m, (v, g) => set({ head_m: v }, g));
+      slider("Height", DRAFT.mm(lim.doorLow), DRAFT.mm(lim.doorHigh), rec.head_m, (v, g) => set({ head_m: v }, g), { opening: o.id });
       const pick = (k, v) => { change((c) => { if (c.openings[o.id]) c.openings[o.id][k] = v; }); sheetFor(); };
       choice("Hinge", [["left", "Left"], ["right", "Right"]], rec.hinge, (v) => pick("hinge", v));
       choice("Swing", [["in", "In"], ["out", "Out"]], rec.swing, (v) => pick("swing", v));
@@ -596,11 +619,11 @@ export function createEditor(ctx){
       slider("Sill", 0, DRAFT.mm(lim.sill), now.sill_m, (v, g) => {
         const c0 = draft.cur.openings[o.id] || {};
         set(DRAFT.openingHeights({ kind: "window", sill_m: v, head_m: c0.head_m ?? HOUSE.HEAD_H }, ceil), g);
-      });
+      }, { opening: o.id });
       slider("Head", DRAFT.GAP_MIN_M, DRAFT.mm(lim.head), now.head_m, (v, g) => {
         const c0 = draft.cur.openings[o.id] || {};
         set(DRAFT.openingHeights({ kind: "window", sill_m: c0.sill_m ?? HOUSE.SILL_H, head_m: v }, ceil), g);
-      });
+      }, { opening: o.id });
     } else {
       choice("Hinge", [["left", "Left"], ["right", "Right"]], cur.hinge || "left", (v) => { set({ hinge: v }); sheetFor(); });
       choice("Swing", [["in", "In"], ["out", "Out"]], cur.swing || "in", (v) => { set({ swing: v }); sheetFor(); });
@@ -619,7 +642,7 @@ export function createEditor(ctx){
     head(info.label, `Height above its floor, 0 to ${DRAFT.metres(top)}. Default ${DRAFT.metres(info.zDefault)}.`);
     slider("Height", 0, top, cur ? cur.z_m : info.z, (v, g) => {
       change((c) => { c[info.section][eid] = { z_m: DRAFT.clampHeight(v, ceil, info.section) }; }, g);
-    });
+    }, { eid });
     const acts = d("div", "la3d-acts");
     const reset = btn("Reset to default", "Back to the height its type gives it", () => {
       change((c) => { delete c[info.section][eid]; });

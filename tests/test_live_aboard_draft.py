@@ -112,7 +112,8 @@ def test_the_view_reads_the_file_only_through_its_host() -> None:
     la = _js(_VIEWS / "live_aboard.js")
     assert "if (fileLoad || typeof p.load !== \"function\") return;" in la
     assert "detach(){ try { fileLoad = null;" in la, "read again when the screen comes back to 3D"
-    assert "DRAFT.applyOpenings(HOUSE.readHouse(" in la and "HOUSE.openingSwing(P.pc, rooms, P.pc.override || null)" in la
+    assert "DRAFT.applyOpenings(HOUSE.readingCopy(reading), vd.openings)" in la and "HOUSE.openingSwing(P.pc, rooms, P.pc.override || null)" in la
+    assert "reading = HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden)" in la, "the map is read again only when it changed"
     assert "DRAFT.liftParts(HOUSE.fixtureParts(L0, ctx)" in la and "HOUSE.deviceZ(S0.kind, ceil, zs[S0.eid] || null)" in la
     lm = _js(_VIEWS / "lights_map.js")
     assert 'load: typeof h3.load === "function" ? h3.load : null,' in lm

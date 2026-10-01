@@ -210,6 +210,10 @@ function createSlot(slotKey){
   let frames = 0, pending = false, dirty = true, visible = true, drawnW = 0, drawnH = 0;
   // The house, as drawn: shell (floors, rooms, walls) and fixtures.
   let shellSig = null, lightsSig = null, house = null, floorsUi = [], lights = [];
+  // The map's house as last read (readHouse) and what it was read from: a
+  // change in the 3D file alone (the editor's draft) draws from it again.
+  let reading = null, readSig = null;
+  const work = { reads: 0, shells: 0, lights: 0, sensors: 0, moves: 0 };   // how often each was done (the harness)
   let shellRes = [], lightRes = [];       // geometries, materials and textures a rebuild disposes
   let topElev = null, wallMode = "cut";
   const quality = { setting: "auto", profile: null, measuring: null, measured: {}, intervals: [], t0: 0, last: 0 };
@@ -421,7 +425,7 @@ function createSlot(slotKey){
       camera: () => camera, scene: () => scene, floors: () => floorsUi, shellGen: () => shellGen,
       pick: (x, y) => pickAt(x, y), blocked: (v, own) => blocked(v, own), device: (eid) => deviceInfo(eid),
       file: () => file, reload: () => reloadFile(), saved: (data) => { file = DRAFT.ownedOf(data); },
-      redraw: () => redraw(), render: () => requestRender(), topDown: (F) => topDownOn(F),
+      redraw: () => redraw(), preview: (t) => preview(t), render: () => requestRender(), topDown: (F) => topDownOn(F),
       clearUse: () => { if (use) use.clear(); },
     });
     wirePointer();
@@ -517,7 +521,7 @@ function createSlot(slotKey){
   }
   function buildShell(h){
     clearShell();
-    shellGen++;
+    shellGen++; work.shells++;
     house = h;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
     for (const r of h.rooms) {
@@ -925,6 +929,7 @@ function createSlot(slotKey){
   }
   function buildLights(h){
     clearLights();
+    work.lights++;
     for (const F of floorsUi) {
       // By id: a lights-only rebuild reads the floors afresh (same ids).
       const mine = h.lights.filter(L => L.floor.id === F.fl.id);
@@ -938,7 +943,7 @@ function createSlot(slotKey){
       for (const L0 of mine) {
         // Moved whole to its height in the 3D file, if it has one (part C).
         const lift = DRAFT.liftParts(HOUSE.fixtureParts(L0, ctx), zs[L0.eid], F.fl.h - HOUSE.SLAB_T), parts = lift.parts;
-        const L = { ...L0, F, kf: parts.kf, wall: null, refs: { bulbs: [], halos: [], pool: null }, key: null, look: null,
+        const L = { ...L0, F, kf: parts.kf, wall: null, refs: { bulbs: [], houses: [], halos: [], pool: null }, key: null, look: null,
                     z: lift.z, zDefault: lift.zDefault };
         if (parts.wall) { const P = F.pieces.find(q => q.pc === parts.wall); if (P) { L.wall = P; P.lights.push(L); } }
         let sx = 0, sy = 0, sh = 0;
@@ -948,7 +953,7 @@ function createSlot(slotKey){
           bulbs[b.prim].push({ m, off: b.off });
           sx += b.x; sy += b.y; sh += b.h;
         }
-        for (const hh of parts.housings) houses.push(hh);
+        for (const hh of parts.housings) { L.refs.houses.push({ i: houses.length, hh }); houses.push(hh); }
         for (const hl of parts.halos) { L.refs.halos.push({ cls: hl.cls, i: halos[hl.cls].length }); halos[hl.cls].push(hl); }
         // Where a press finds it: every bulb and every glow (a strip anywhere along it).
         L.pick = [...parts.bulbs, ...parts.halos].map(q => new THREE.Vector3(q.x, F.fl.elev + q.h, q.y));
@@ -972,7 +977,7 @@ function createSlot(slotKey){
         im.userData.spec = spec; im.castShadow = true;
         houses.forEach((b, i) => { im.setMatrixAt(i, compose(b.x, F.fl.elev + b.h, b.y, b.yaw, b.sx, b.sy, b.sz)); im.setColorAt(i, _c.set(b.col)); });
         lightRes.push({ dispose: () => im.dispose() });
-        lg.add(im);
+        lg.add(F.houses = im);
       }
       F.halos = {};
       for (const [cls, list] of Object.entries(halos)) {
@@ -1071,6 +1076,7 @@ function createSlot(slotKey){
   }
   function buildSensors(h){
     clearSensors();
+    work.sensors++;
     for (const F of floorsUi) {
       const mine = (h.sensors || []).filter(S => S.floor.id === F.fl.id);
       if (!mine.length) continue;
@@ -1869,6 +1875,68 @@ function createSlot(slotKey){
     cam.moved = true; cam.needsFit = false;
     fit(0, MIN_PHI, pts.length ? pts : undefined);
   }
+  // ── a slider being dragged (the editor's Height, Sill, Head) ──────────────
+  /** Only what the slider moves, moved in place from the draft: a door's or
+   *  window's heights, or a light or sensor up or down. Nothing is read
+   *  again or rebuilt; false when it is not drawn (the editor then draws the
+   *  house again). Let go, the editor draws the house whole (update). */
+  function preview(t){
+    if (!renderer || failed || !t) return false;
+    const vd = viewData();
+    const ok = t.opening ? moveOpening(String(t.opening), vd) : t.eid ? moveDevice(String(t.eid), vd) : false;
+    if (ok) { work.moves++; requestRender(); }
+    return ok;
+  }
+  function moveOpening(id, vd){
+    const o = vd.openings[id] || null;
+    for (const F of floorsUi) for (const P of F.pieces) {
+      const pc = P.pc;
+      if ((pc.kind !== "door" && pc.kind !== "window") || (pc.added ? pc.added !== id : !(pc.barrier && pc.barrier.id === id))) continue;
+      // Its heights as the draft gives them (spliceOpening, applyOpenings).
+      const bare = { ...pc, sill_m: undefined, head_m: undefined };
+      const next = pc.added ? (o ? { ...pc, sill_m: o.sill_m, head_m: o.head_m } : null) : o ? DRAFT.overrideOpening(bare, o) : bare;
+      if (!next) return false;
+      const els = HOUSE.wallElements(next, F.fl.h);
+      if (els.length !== P.els.length || els.some((e, i) => e.glass !== P.els[i].glass)) return false;
+      els.forEach((e, i) => { P.els[i].z0 = e.z0; P.els[i].z1 = e.z1; });
+      pc.sill_m = next.sill_m; pc.head_m = next.head_m;
+      placePiece(F, P, !!P.cut);
+      return true;
+    }
+    return false;
+  }
+  function moveDevice(eid, vd){
+    const L = lights.find(x => x.eid === eid);
+    if (L) {
+      // Moved whole, as liftParts moves it: bulbs, housings, glows, where a
+      // press finds it and where its lamp hangs.
+      if (typeof L.z !== "number" || !L.look) return false;
+      const F = L.F, st = vd.lights[eid], want = st && typeof st.z_m === "number" && Number.isFinite(st.z_m) ? st.z_m : null;
+      const z = want === null ? L.zDefault : DRAFT.clampHeight(want, F.fl.h - HOUSE.SLAB_T), d = z - L.z;
+      for (const r of L.refs.bulbs) r.m.elements[13] += d;
+      for (const r of L.refs.houses) {
+        r.hh.h += d;
+        F.houses.setMatrixAt(r.i, compose(r.hh.x, F.fl.elev + r.hh.h, r.hh.y, r.hh.yaw, r.hh.sx, r.hh.sy, r.hh.sz));
+        F.houses.instanceMatrix.needsUpdate = true;
+      }
+      for (const r of L.refs.halos) {
+        const a = F.halos[r.cls].geometry.attributes.position;
+        a.setY(r.i, a.getY(r.i) + d);
+        a.needsUpdate = true;
+      }
+      for (const v of L.pick) v.y += d;
+      L.lamp.y += d; L.z = z; lampsDirty = true;
+      paintLight(L);
+      return true;
+    }
+    const S = sensorsUi.find(x => x.eid === eid);
+    if (!S) return false;
+    S.z = HOUSE.deviceZ(S.kind, S.F.fl.h - HOUSE.SLAB_T, vd.devices[eid] || null);
+    S.pos.y = S.F.fl.elev + S.z;
+    if (S.mesh) { S.mesh.setMatrixAt(S.i, compose(S.x, S.pos.y, S.y, 0, 0.055, 0.04, 0.055)); S.mesh.instanceMatrix.needsUpdate = true; }
+    if (S.sprite) S.sprite.position.copy(S.pos);
+    return true;
+  }
 
   // ── the slot ──────────────────────────────────────────────────────────────
   function update(p){
@@ -1882,20 +1950,25 @@ function createSlot(slotKey){
     // The map, and what the 3D file adds to it (its doors and windows, its
     // heights): either changing redraws what it touches.
     const vd = viewData();
-    const sSig = HOUSE.shellSignature(p.model, p.floors, p.lightsByEid) + DRAFT.openingsSignature(vd);
-    const lSig = HOUSE.lightsSignature(p.model, p.lightsByEid, p.hidden) + DRAFT.heightsSignature(vd, "lights");
-    const xSig = HOUSE.sensorsSignature(p.model, p.lightsByEid, p.hidden) + DRAFT.heightsSignature(vd, "devices");
+    const mSig = HOUSE.shellSignature(p.model, p.floors, p.lightsByEid);
+    const mlSig = HOUSE.lightsSignature(p.model, p.lightsByEid, p.hidden), mxSig = HOUSE.sensorsSignature(p.model, p.lightsByEid, p.hidden);
+    const sSig = mSig + DRAFT.openingsSignature(vd);
+    const lSig = mlSig + DRAFT.heightsSignature(vd, "lights");
+    const xSig = mxSig + DRAFT.heightsSignature(vd, "devices");
     if (sSig !== shellSig || lSig !== lightsSig || xSig !== sensorsSig) {
-      const h = DRAFT.applyOpenings(HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden), vd.openings);
+      // The map is read again only when it changed; the 3D file's doors and
+      // windows are cut into a copy of its walls.
+      const rSig = [mSig, mlSig, mxSig].join("|");
+      if (rSig !== readSig) { reading = HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden); readSig = rSig; work.reads++; }
       const shell = sSig !== shellSig;
-      if (shell) { buildShell(h); buildBadges(p); shellSig = sSig; }
-      else house = { ...house, lights: h.lights, sensors: h.sensors };
+      if (shell) { buildShell(DRAFT.applyOpenings(HOUSE.readingCopy(reading), vd.openings)); buildBadges(p); shellSig = sSig; }
+      else house = { ...house, lights: reading.lights, sensors: reading.sensors };
       if (shell || lSig !== lightsSig) {
-        buildLights(h);
+        buildLights(house);
         lightsSig = lSig;
         for (const L of lights) L.key = null;
       }
-      if (shell || xSig !== sensorsSig) { buildSensors(h); sensorsSig = xSig; }
+      if (shell || xSig !== sensorsSig) { buildSensors(house); sensorsSig = xSig; }
       requestRender();
     }
     paintLights(p.lightsByEid);
@@ -1979,7 +2052,7 @@ function createSlot(slotKey){
                motion: sensorsUi.filter(S => S.kind === "motion").map(S => ({ eid: S.eid, look: S.look || null, col: S.col })),
                badges: badges.map(B => ({ z: B.z, n: B.n, name: B.name, shown: B.F.group.visible })),
                flash: shared ? { color: "#" + shared.flashMat.color.getHexString(), opacity: shared.flashMat.opacity } : null,
-               animating: liveMs > 0, liveMs, use: use ? use.state() : null,
+               animating: liveMs > 0, liveMs, use: use ? use.state() : null, work: { ...work },
                // What of the host's it still holds (nothing, once switched off).
                held: { card: !!lastP, api: !!(apiOf || apiNow), stage: !!stage, send: !!send, touch: !!touchCb, north: !!saveNorthCb },
                // Part C: the 3D file as drawn.
@@ -1989,6 +2062,15 @@ function createSlot(slotKey){
                heights: { lights: lights.filter(L => L.z !== L.zDefault).map(L => ({ eid: L.eid, z: L.z, zDefault: L.zDefault })),
                           devices: sensorsUi.filter(S => S.z !== S.zDefault).map(S => ({ eid: S.eid, z: S.z, zDefault: S.zDefault })) },
                edit: editor ? editor.state() : null };
+    },
+    /** A door or window as drawn (its barrier's id, or a 3D one's): its parts, bottom to top. */
+    _piece(id){
+      for (const F of floorsUi) for (const P of F.pieces) {
+        if (P.pc.added === id || (!P.pc.added && P.pc.barrier && P.pc.barrier.id === id)) {
+          return { kind: P.pc.kind, els: P.els.map(e => [e.z0, e.z1, !!e.glass]) };
+        }
+      }
+      return null;
     },
     /** A plan point on floor `fid`, z metres up, in client px (the harness draws there). */
     _whereOf(fid, x, y, z = 1){ return editor ? editor.whereOf(fid, x, y, z) : null; },

@@ -1141,6 +1141,15 @@ export function readHouse(model, floorList, lightsByEid, hidden){
            lights: readLights(model, F, lightsByEid, hidden), sensors: readSensors(model, F, lightsByEid, hidden) };
 }
 
+/** A reading's walls to cut into: each floor's pieces copied, so what is
+ *  cut in (live_aboard_draft.js applyOpenings) never changes the reading
+ *  the 3D view keeps for its next draw. */
+export function readingCopy(h){
+  const perFloor = new Map();
+  for (const [fl, per] of h.perFloor) perFloor.set(fl, { rooms: per.rooms, pieces: per.pieces.map(pc => ({ ...pc })) });
+  return { ...h, perFloor };
+}
+
 /** What the house shell is drawn from — floors, rooms and their colours,
  *  barriers, and what each linked barrier's sensor is (it decides door or
  *  window) — as one string: the same string, nothing to rebuild. */

@@ -169,9 +169,12 @@ export const pointOf = (run, t) => [run.ux * t + run.nx * run.c, run.uy * t + ru
 const along = (run, x, y) => x * run.ux + y * run.uy;
 /** The runs of one floor's wall pieces (the 3D view's, as drawn): every
  *  piece but deck rails. {ux, uy, nx, ny, c, t0, t1, thick, pcs}: the line
- *  n·p = c, from t0 to t1 along u. */
+ *  n·p = c, from t0 to t1 along u. Two pieces this parallel (either way
+ *  along), this close to one line and end to end are one wall, on the
+ *  longer one's line. One pass: the pieces sorted by direction, then along
+ *  it, each joined to a run still open beside it. */
 export function wallRuns(pieces){
-  const runs = [];
+  const items = [], own = new Map();         // each piece as a run of its own
   for (const pc of pieces || []) {
     if (!pc || pc.kind === "rail") continue;
     const dx = pc.x1 - pc.x0, dy = pc.y1 - pc.y0, L = Math.hypot(dx, dy);
@@ -179,34 +182,59 @@ export function wallRuns(pieces){
     let ux = dx / L, uy = dy / L;
     if (ux < -EPS || (Math.abs(ux) <= EPS && uy < 0)) { ux = -ux; uy = -uy; }
     const nx = -uy, ny = ux, ta = pc.x0 * ux + pc.y0 * uy, tb = pc.x1 * ux + pc.y1 * uy;
-    runs.push({ ux, uy, nx, ny, c: ((pc.x0 + pc.x1) * nx + (pc.y0 + pc.y1) * ny) / 2,
-                t0: Math.min(ta, tb), t1: Math.max(ta, tb), thick: num(pc.thick) || 0.12, pcs: [pc] });
+    const deg = (Math.atan2(uy, ux) * 180 / Math.PI + 180) % 180;          // its direction, either way along: 0 to 180
+    const run = { ux, uy, nx, ny, c: ((pc.x0 + pc.x1) * nx + (pc.y0 + pc.y1) * ny) / 2,
+                  t0: Math.min(ta, tb), t1: Math.max(ta, tb), thick: num(pc.thick) || 0.12, pcs: [pc] };
+    own.set(pc, run);
+    items.push({ deg, run });
   }
-  for (let joined = true; joined;) {
-    joined = false;
-    scan: for (let i = 0; i < runs.length; i++) {
-      for (let j = i + 1; j < runs.length; j++) {
-        const A = runs[i], B = runs[j];
-        // Either way along: a near-upright wall's pieces may point opposite ways.
-        if (Math.abs(A.ux * B.ux + A.uy * B.uy) < RUN_COS) continue;
-        const m = pointOf(B, (B.t0 + B.t1) / 2);
-        if (Math.abs(m[0] * A.nx + m[1] * A.ny - A.c) > RUN_OFF) continue;
-        const b0 = along(A, ...pointOf(B, B.t0)), b1 = along(A, ...pointOf(B, B.t1));
-        if (Math.min(b0, b1) > A.t1 + RUN_GAP || Math.max(b0, b1) < A.t0 - RUN_GAP) continue;
-        // One wall, on the longer one's line.
-        const [K, O] = A.t1 - A.t0 >= B.t1 - B.t0 ? [A, B] : [B, A];
-        const o0 = along(K, ...pointOf(O, O.t0)), o1 = along(K, ...pointOf(O, O.t1));
-        K.t0 = Math.min(K.t0, o0, o1); K.t1 = Math.max(K.t1, o0, o1);
-        K.thick = Math.max(K.thick, O.thick);
-        K.pcs.push(...O.pcs);
-        runs[i] = K;
-        runs.splice(j, 1);
-        joined = true;
-        break scan;
-      }
+  if (!items.length) return [];
+  // Directions a few degrees apart go together (round past 180 too).
+  items.sort((a, b) => a.deg - b.deg);
+  const STEP = Math.acos(RUN_COS) * 180 / Math.PI + 1e-9, groups = [[items[0]]];
+  for (let i = 1; i < items.length; i++) {
+    if (items[i].deg - items[i - 1].deg <= STEP) groups[groups.length - 1].push(items[i]);
+    else groups.push([items[i]]);
+  }
+  if (groups.length > 1 && items[0].deg + 180 - items[items.length - 1].deg <= STEP) groups[0].push(...groups.pop());
+  const runs = [];
+  for (const g of groups) {
+    // Along one direction for the group, start to end; a run is open until
+    // the pieces still to come start past its end.
+    const rx = g[0].run.ux, ry = g[0].run.uy, sOf = (pc) => [pc.x0 * rx + pc.y0 * ry, pc.x1 * rx + pc.y1 * ry];
+    for (const it of g) { const [a, b] = sOf(it.run.pcs[0]); it.s0 = Math.min(a, b); it.s1 = Math.max(a, b); }
+    g.sort((a, b) => a.s0 - b.s0);
+    let open = [];
+    for (const it of g) {
+      open = open.filter(R => R.s1 + RUN_GAP + 0.5 >= it.s0);
+      const B = it.run, R = open.find(A => joins(A, B) || joins(B, A));
+      if (!R) { const A = { ...B, pcs: [...B.pcs], s1: it.s1 }; open.push(A); runs.push(A); continue; }
+      // One wall, on the longer one's line.
+      const thick = Math.max(R.thick, B.thick), s1 = Math.max(R.s1, it.s1);
+      if (B.t1 - B.t0 > R.t1 - R.t0) {
+        const pcs = R.pcs;
+        Object.assign(R, B, { pcs: [...B.pcs] });
+        for (const pc of pcs) grow(R, own.get(pc));
+      } else grow(R, B);
+      R.thick = thick; R.s1 = s1;
     }
   }
+  for (const R of runs) delete R.s1;
   return runs;
+}
+// Is B one wall with A: as parallel, its middle near A's line, end to end.
+function joins(A, B){
+  if (Math.abs(A.ux * B.ux + A.uy * B.uy) < RUN_COS) return false;
+  const m = pointOf(B, (B.t0 + B.t1) / 2);
+  if (Math.abs(m[0] * A.nx + m[1] * A.ny - A.c) > RUN_OFF) return false;
+  const b0 = along(A, ...pointOf(B, B.t0)), b1 = along(A, ...pointOf(B, B.t1));
+  return !(Math.min(b0, b1) > A.t1 + RUN_GAP || Math.max(b0, b1) < A.t0 - RUN_GAP);
+}
+// A piece (as a run of its own, O) joins run R: R's stretch covers its ends.
+function grow(R, O){
+  const a = along(R, ...pointOf(O, O.t0)), b = along(R, ...pointOf(O, O.t1));
+  R.t0 = Math.min(R.t0, a, b); R.t1 = Math.max(R.t1, a, b);
+  for (const pc of O.pcs) if (!R.pcs.includes(pc)) R.pcs.push(pc);
 }
 /** Where a line on the run must stop: its two ends, and every wall that
  *  meets or crosses it (a T or a cross; `pieces` are the floor's). */
@@ -405,6 +433,16 @@ export function spliceOpening(pieces, id, o){
                           free: true, ...mine });
   return pieces;
 }
+/** A map door or window as the 3D file has it (o: its openings[<barrier
+ *  id>]): hinge and swing (pc.override), and a window's sill and head. */
+export function overrideOpening(pc, o){
+  pc.override = o;
+  if (pc.kind === "window") {
+    if (num(o.sill_m) !== null) pc.sill_m = o.sill_m;
+    if (num(o.head_m) !== null) pc.head_m = o.head_m;
+  }
+  return pc;
+}
 /** The 3D file's openings into a house as the view reads it
  *  (live_aboard_house.js readHouse): a barrier's door or window takes its sill, head, hinge and
  *  swing (pc.override; sill_m and head_m on a window); each door or window
@@ -415,12 +453,7 @@ export function applyOpenings(h, openings){
   for (const per of h.perFloor.values()) {
     for (const pc of per.pieces) {
       const o = pc.barrier && pc.barrier.id ? ops[pc.barrier.id] : null;
-      if (!o || OPENING_ID.test(String(pc.barrier.id)) || (pc.kind !== "door" && pc.kind !== "window")) continue;
-      pc.override = o;
-      if (pc.kind === "window") {
-        if (num(o.sill_m) !== null) pc.sill_m = o.sill_m;
-        if (num(o.head_m) !== null) pc.head_m = o.head_m;
-      }
+      if (o && !OPENING_ID.test(String(pc.barrier.id)) && (pc.kind === "door" || pc.kind === "window")) overrideOpening(pc, o);
     }
   }
   for (const id of Object.keys(ops).sort()) {

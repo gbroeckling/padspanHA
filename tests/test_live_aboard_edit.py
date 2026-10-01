@@ -46,7 +46,7 @@ def editor() -> dict:
 
 
 @pytest.mark.parametrize("prefix,least", [
-    ("pick:", 4), ("save:", 5), ("leave:", 2), ("widths:", 1), ("limits:", 3), ("pointer:", 6),
+    ("pick:", 4), ("save:", 5), ("leave:", 2), ("widths:", 1), ("limits:", 3), ("pointer:", 6), ("drag:", 2),
 ])
 def test_the_editor_harness_covers_each_part(editor, prefix, least) -> None:
     got = [k for k in editor["cases"] if k.startswith(prefix)]
@@ -163,3 +163,15 @@ def test_three_comes_in_through_the_view_and_the_files_are_credited() -> None:
     importers = sorted(p.name for p in _WWW.rglob("*.js") if "vendor" not in p.parts and want in _js(p))
     assert importers == ["live_aboard.js"], importers
     assert "live_aboard_edit" in T.UI_ERROR_HELPERS and T.event_allowed("ui_error:live_aboard_edit")
+
+def test_a_slider_being_dragged_moves_only_what_it_moves() -> None:
+    """Dragged, a slider moves its one door, window, light or sensor in place
+    (the view's preview: nothing read again, nothing rebuilt); let go, the
+    house is drawn whole once. The map is read again only when it changed."""
+    ed = _code(_VIEWS / "live_aboard_edit.js")
+    assert "if (sliding) moveSoon(sliding); else redrawSoon();" in ed
+    assert 'r.addEventListener("change", () => { group = null; if (moves) redrawSoon(); });' in ed
+    assert ed.count("{ opening: o.id }") == 5 and "}, { eid });" in ed
+    assert "if (!ctx.preview || !ctx.preview(t)) redrawSoon();" in ed
+    la = _code(_VIEWS / "live_aboard.js")
+    assert "preview: (t) => preview(t)" in la and "if (rSig !== readSig) { reading = HOUSE.readHouse(" in la
