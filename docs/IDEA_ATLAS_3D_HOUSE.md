@@ -415,10 +415,14 @@ changes go through its own `schema` field. The only other additions are its sett
               "floor_id": "main", "x_m": 3.412, "y_m": 1.25, "z_m": 0.0, "rotation": 90.0,
               "entity_id": null, "entity_reg_id": null, "updated_at": "…"}},
  "lights":   {"light.lounge": {"z_m": 1.55}},                         # 3D-only mount heights
- "openings": {"<barrier id>": {"hinge": "left", "swing": "in", "sill_m": 0.9, "head_m": 2.1}},
+ "openings": {"<barrier id>": {"hinge": "left", "swing": "in", "sill_m": 0.9, "head_m": 2.1},
+              "win_5e6f7a8b": {"kind": "window", "floor_id": "main",   # a window added in 3D,
+              "a_m": [2.10, -9.23], "b_m": [3.30, -9.23],               # no sensor: a stretch of
+              "sill_m": 0.9, "head_m": 2.1}},                           # wall in fabric metres
  "devices":  {"<beacon or scanner id>": {"recipe": {"kind": "tag", "params": {"form": "puck"},
               "colors": ["#ffffff"], "width_m": 0.04, "depth_m": 0.04, "height_m": 0.01},
-              "library_id": null, "submission_id": null}},              # drawn at its live/stored position
+              "library_id": null, "submission_id": null},               # drawn at its live/stored position
+              "sensor.lounge_temperature": {"z_m": 1.5}},              # a 3D-only height
  "figures":  {"person.garry": {"params": {"height_m": 1.8, "build": "medium", "hair": "short",
               "colors": {"hair": "#3a2a1a", "top": "#224466", "bottom": "#333333"}},
               "origin": "photo"}},                                     # never shared, never sent
@@ -428,9 +432,11 @@ changes go through its own `schema` field. The only other additions are its sett
 - The `recipe` object is exactly what the library shares; everything outside it stays home.
 - The conventions match PadSpan's: fabric metres, a floor per piece, `z_m` above its own floor
   (as scanners have), `rotation` in degrees (as light pins have).
-- `lights` and `openings` hold what the 3D view needs but the map doesn't have: a light's mount
-  height (the default comes from its shape) and a door's hinge and swing (default left and in).
-  Keeping them here means **the map data is never modified.**
+- `lights`, `openings` and `devices` hold what the 3D view needs but the map doesn't have: a
+  light's mount height (the default comes from its shape), a door's hinge and swing (default left
+  and in), windows added in 3D (Garry, 2026-09-30), and the height of any other device drawn in 3D.
+  Keeping them here means **the map data is never modified.** Scanner heights are the exception:
+  the map already has them and presence uses them, so 3D reads them and never overrides them.
 - Reading is tolerant. Unknown keys, kinds and parameters are kept. A floor that no longer exists
   is accepted.
 - **Websocket commands** (`ws_house3d.py`):
@@ -439,7 +445,7 @@ changes go through its own `schema` field. The only other additions are its sett
   |---|---|---|
   | `house3d_get` | any user | |
   | `house3d_piece_set` / `house3d_piece_remove` | same gate as light placement | |
-  | `house3d_light_set` / `house3d_opening_set` | same gate as light placement | |
+  | `house3d_light_set` / `house3d_opening_set` / `house3d_device_set` | same gate as light placement | heights, windows; the 3D editor saves through these |
   | `house3d_from_photo` | same gate as light placement | runs the AI Task call; returns a recipe, stores nothing |
   | `house3d_terms_accept` | same gate as light placement | |
   | `house3d_library_withdraw` | admin | |
@@ -513,14 +519,30 @@ targeted re-check rather than a full re-review unless the fix touched shared cod
 | Phase | What | Size | Done when |
 |---|---|---|---|
 | **P0 Prototype** | A standalone page, not shipped, built from a read-only export of Garry's real house (`model_get`): the whole-house shell with cut-away, live-looking lights, and two builders (sofa, bed) with their sliders. Tried on the wall PC and a phone. | about 1× | Garry says go, or changes the direction. |
-| **P1 The 3D view** | The Map / 3D switch; floors, rooms, walls, doors and windows; lights with live glow; Motion · Air tints; readouts; tap, hold and dim; floor chips; touch camera; quality profiles and fallback; settings; telemetry. | about 3× | The house draws from existing data with no setup. Every Atlas action works in 3D. The flat Atlas is byte-identical. A forced WebGL failure shows the flat Atlas. |
+| **P1 The 3D view** | The Map / 3D switch; floors, rooms, walls, doors and windows (from sensors, or added in 3D); lights with live glow; Motion · Air tints; readouts; tap, hold and dim; floor chips; touch camera; a compass; sunlight and shadows from the real sun; device heights, adjustable in the 3D editor; quality profiles and fallback; settings; telemetry. | about 3× | The house draws from existing data with no setup. Every Atlas action works in 3D. The flat Atlas is byte-identical. A forced WebGL failure shows the flat Atlas. |
 | **P2 Furniture by hand** | The store, its commands and full registration; the Furnish tab; the 8 starter builders and procedural materials; Build with sliders; drag and turn with snapping; fit checks; Undo, Save and Discard; Remove all with a backup. | about 3× | The registration tests pass (backup, restore without furniture, factory reset, Bright import, unknown keys, store version 1). Editing furniture changes no other file. Each builder has a still-picture test across its parameter range. |
 | **P3 From a photo** | The AI Task call, prompt and `structure`; answer checking and clamping; the one-measurement step; the no-AI-Task path; the photo never stored (tested). | about 1× | Ten real photos of Garry's furniture each give a sensible recipe on a local and a cloud AI Task. A garbage answer gives a box, never an error. |
 | **P4 Shared library** | Terms screen and acceptance; the details sheet (AI-filled in the photo call, required fields enforced, free-text checks on both ends); `furniture_library.php` with shape checks, signatures, limits, withdrawal, reports and owner edits; search, filters, "Fits here" and sorting; thumbnails; queue when offline; the starter recipe set with full details. | about 2× | A share contains only `recipe` keys (tested on both ends). A piece missing a required detail can't be shared. A title with an email, phone, address or URL is refused on both ends. Every filter and sort returns the right pieces on a seeded test library. Withdrawal deletes. Library down means Furnish still works. Terms reviewed. |
-| **P5 Devices as furniture** | Binding, with rename re-resolve and unlinked badges; lamps, TV, fan; washer and dryer running; vacuum and mower docks, animated while running (they rarely report where they are); radiators; car and charger; per-light heights; emergency lights outlined during a test. | 1–2×, one device type at a time | Each device type has a live-state test and a still picture. |
+| **P5 Devices as furniture** | Binding, with rename re-resolve and unlinked badges; lamps, TV, fan; washer and dryer running; vacuum and mower docks, animated while running (they rarely report where they are); radiators; car and charger; emergency lights outlined during a test. | 1–2×, one device type at a time | Each device type has a live-state test and a still picture. |
 | **P6 Beacons, scanners and people** | Device recipes for beacons and scanners at their live and stored positions; the flat-Atlas beacon icons (inside the existing overlay); Sims-style figures with the person link, the consent screen, and the local-AI recommendation; figures kept out of every share (tested). | about 1–2× | A photographed tag moves with its beacon in 3D. A figure walks with its person. A library share and a telemetry report contain no figure data. With the beacon overlay off, the flat Atlas is byte-identical. |
 | **P7 Import** | Sweet Home 3D doors and windows, and its furniture as kind and size mapped to PadSpan builders, as candidates you preview and commit into the new file only. | about 1× | A real `.sh3d` imports. Declining the preview writes nothing. |
-| **P8 Atmosphere** | Rain and snow in 3D; day and night from `sun.sun`; Showcase themes as 3D presets; the optional people layer. | 1–2× | Each item can be switched off on its own. |
+| **P8 Atmosphere** | Rain and snow in 3D; Showcase themes as 3D presets; the optional people layer. | 1–2× | Each item can be switched off on its own. |
+
+### Added by Garry, 2026-09-30: windows, a compass, the sun and device heights, all in P1
+
+- **Windows.** Today a window can only be marked on a wall that has a sensor. P1 adds windows
+  without sensors: placed on any wall in the 3D view, with sill and head heights, and kept in the
+  3D file (`openings`), so the map is untouched. Windows with sensors still show open or closed.
+- **Compass.** A compass in the 3D view. North is the bearing the GPS Bridge already stores
+  (`fabric_bearing_deg`, the convention in `geo_bridge.py`), and it can also be set in the 3D
+  house settings.
+- **Sun.** Sunlight from `sun.sun`'s azimuth and elevation (worked out from the home's location if
+  `sun.sun` is missing), with shadows on High, night when the sun is down, and light through the
+  windows. Moved here from P8.
+- **Device heights.** Every device drawn in 3D (lights now, sensor readouts as they arrive) gets a
+  height above its floor: a default by its type, adjustable in the 3D editor, with a reset. Kept in
+  the 3D file (`lights`, `devices`). Scanner heights stay where PadSpan already keeps them, because
+  presence uses them; 3D only reads them. Moved here from P5.
 
 ## Build plan: how the work runs
 
@@ -549,9 +571,10 @@ and says so if asked.
    `prototypes/live_aboard_p0/`; the house export stays out of the repo.
 3. **P1 the 3D view**, behind the switch. Garry turns it on in his own Settings; nobody else sees it.
    **Started 2026-09-30** with three.js r170 bundled (`vendor/three/`, `THIRD_PARTY_NOTICES.md`).
-   Built in two parts: A, the view itself (the switch, the house, lights, camera, quality and
-   fallback, settings, telemetry, the off tests); B, the Atlas's actions and live parts (doors and
-   sensors, Motion · Air, readouts, tap, hold and dim, the edition gate).
+   Built in three parts: A, the view itself (the switch, the house, lights, camera, quality and
+   fallback, settings, telemetry, the off tests, the sun and the compass); B, the Atlas's actions
+   and live parts (doors and sensors, Motion · Air, readouts, tap, hold and dim, the edition gate);
+   C, the 3D editor (windows and device heights, saved to the 3D file).
 4. **P2 furniture by hand.** The builders are written from the parameter lists in "Furniture",
    nothing else, each with a still-picture test across its parameter range.
 5. **P3 photos**, then **P4 library** (terms reviewed first), **P5 devices**, **P6 beacons and
