@@ -401,7 +401,7 @@ function createSlot(slotKey){
     editor = EDIT.createEditor({
       THREE, HOUSE, DRAFT, root, canvas, bar, guard,
       camera: () => camera, scene: () => scene, floors: () => floorsUi, shellGen: () => shellGen,
-      pick: (x, y) => pickAt(x, y), device: (eid) => deviceInfo(eid),
+      pick: (x, y) => pickAt(x, y), blocked: (v, own) => blocked(v, own), device: (eid) => deviceInfo(eid),
       file: () => file, reload: () => reloadFile(), saved: (data) => { file = DRAFT.ownedOf(data); },
       redraw: () => redraw(), render: () => requestRender(), topDown: (F) => topDownOn(F),
       clearUse: () => { if (use) use.clear(); },

@@ -86,6 +86,7 @@ const CSS = `
  *   floors()                   the floors as drawn: {fl, group, rooms, pieces: [{pc, els, cut}]}
  *   shellGen()                 a number that moves whenever the walls are rebuilt
  *   pick(x, y)                 the view's own picking ({hit: {kind, eid, …}} | null)
+ *   blocked(v, own)            is world point v hidden (under a floor, behind a wall)? own: its "meshId:i" keys
  *   device(eid)                {section, label, F, z, zDefault, at} | null: a drawn device
  *   file()                     the 3D file as the editor owns it (DRAFT.ownedOf), or null unread
  *   reload()                   → Promise<boolean>: read the file again
@@ -263,35 +264,39 @@ export function createEditor(ctx){
     if (!hit) { plane.set(Y, -(w.F.fl.elev + w.h)); hit = rr.intersectPlane(plane, new THREE.Vector3()); }
     return hit ? DRAFT.tOn(w.run, hit.x, hit.z) : null;
   }
-  /** The wall under the pointer: the nearest drawn wall on screen within
-   *  reach, the higher floor first when two are as near. */
+  /** The wall under the pointer while drawing: the nearest of the floor
+   *  being drawn on (currentFloor, the one the tool looks down on) within
+   *  reach on screen. Never a floor below: from above its walls show
+   *  through the floor being traced, a little inside that floor's own. */
   function wallAt(x, y, reach){
+    const F = currentFloor();
+    if (!F) return null;
     let best = null;
-    for (const F of visibleFloors()) {
-      for (const P of F.pieces) {
-        const pc = P.pc;
-        if (pc.kind === "rail") continue;
-        const h = P.cut ? HOUSE.CUT_H * 0.6 : Math.min(1.2, ceilOf(F) * 0.45);
-        const a = screenAt(F, pc.x0, pc.y0, h), b = screenAt(F, pc.x1, pc.y1, h);
-        if (!a || !b) continue;
-        const dd = segPx(x, y, a, b);
-        if (dd > reach) continue;
-        if (!best || dd < best.d - 1 || (Math.abs(dd - best.d) <= 1 && F.fl.elev > best.F.fl.elev)) best = { d: dd, F, P, h };
-      }
+    for (const P of F.pieces) {
+      const pc = P.pc;
+      if (pc.kind === "rail") continue;
+      const h = P.cut ? HOUSE.CUT_H * 0.6 : Math.min(1.2, ceilOf(F) * 0.45);
+      const a = screenAt(F, pc.x0, pc.y0, h), b = screenAt(F, pc.x1, pc.y1, h);
+      if (!a || !b) continue;
+      const dd = segPx(x, y, a, b);
+      if (dd <= reach && (!best || dd < best.d)) best = { d: dd, P, h };
     }
     if (!best) return null;
-    const entry = runsOf(best.F).find(r => r.run.pcs.includes(best.P.pc));
+    const entry = runsOf(F).find(r => r.run.pcs.includes(best.P.pc));
     if (!entry) return null;
-    const w = { F: best.F, run: entry.run, stops: entry.stops, ops: entry.ops, h: best.h };
+    const w = { F, run: entry.run, stops: entry.stops, ops: entry.ops, h: best.h };
     w.t = tAlong(w, x, y);
     return w.t === null ? null : w;
   }
   /** A door or window under the pointer (one drawn in 3D, or a barrier's
-   *  from the map), by its outline on screen; the nearest wins. */
+   *  from the map), by its outline on screen; the nearest wins. While
+   *  drawing, only the floor drawn on; else one on another floor only where
+   *  nothing hides it (the view's own test: under the floor above, or
+   *  behind a wall, it is not there to tap). */
   function openingAt(x, y){
-    const cam = ctx.camera();
+    const cam = ctx.camera(), cur = currentFloor(), drawing = tool === "door" || tool === "window";
     let best = null;
-    for (const F of visibleFloors()) {
+    for (const F of drawing ? (cur ? [cur] : []) : visibleFloors()) {
       for (const P of F.pieces) {
         const pc = P.pc, id = pc.added || (pc.barrier && pc.barrier.id) || null;
         if (!id || (pc.kind !== "door" && pc.kind !== "window")) continue;
@@ -302,7 +307,10 @@ export function createEditor(ctx){
         if (!q.every(Boolean)) continue;
         const inside = HOUSE.inPoly(x, y, q) || q.some((a, i) => segPx(x, y, a, q[(i + 1) % 4]) <= PICK_OPENING);
         if (!inside) continue;
-        const depth = cam.position.distanceTo(_v.set((pc.x0 + pc.x1) / 2, F.fl.elev + (z0 + z1) / 2, (pc.y0 + pc.y1) / 2));
+        const mid = new THREE.Vector3((pc.x0 + pc.x1) / 2, F.fl.elev + (z0 + z1) / 2, (pc.y0 + pc.y1) / 2);
+        // Its own leaf, lintel and sill wall never hide it.
+        if (F !== cur && ctx.blocked(mid, new Set(P.els.filter(e => e.mesh).map(e => `${e.mesh.id}:${e.i}`)))) continue;
+        const depth = cam.position.distanceTo(mid);
         if (!best || depth < best.depth) best = { depth, F, P, id, added: !!pc.added, kind: pc.kind };
       }
     }

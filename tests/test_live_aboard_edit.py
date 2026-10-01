@@ -3,8 +3,9 @@
 # Licensed under the GNU General Public License v3.0
 """Live Aboard P1, part C: the 3D editor in the 3D view (views/live_aboard_edit.js).
 
-Its rules are run for real in tests/js/live_aboard_draft.mjs; the editor is
-driven in a real browser on Garry's house by the part C harness (scratch).
+Its rules are run for real in tests/js/live_aboard_draft.mjs, and the editor
+itself in tests/js/live_aboard_edit.mjs: inside the real 3D view under node
+(only the GL is a stub), on a two-floor house, its picking, Save and rebase.
 Held here, from the source: the light-placement gate on both ends, Save
 through the host only, leaving with unsaved changes asking in the page, one
 finger drawing while two still pinch, the draft living in the long-lived
@@ -13,8 +14,13 @@ slot, nothing of it while off, and no new call, timer or outside code.
 
 from __future__ import annotations
 
+import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 from custom_components.padspan_ha import telemetry as T
 from custom_components.padspan_ha import ws_house3d as W
@@ -22,6 +28,30 @@ from custom_components.padspan_ha import ws_house3d as W
 _ROOT = Path(__file__).resolve().parents[1]
 _WWW = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
 _VIEWS = _WWW / "views"
+_NODE = shutil.which("node")
+
+
+@pytest.fixture(scope="module")
+def editor() -> dict:
+    if _NODE is None:
+        pytest.skip("node is not installed")
+    res = subprocess.run([_NODE, str(Path(__file__).parent / "js" / "live_aboard_edit.mjs"), str(_WWW)],
+                         capture_output=True, text=True, encoding="utf-8", timeout=300)
+    lines = [ln for ln in res.stdout.strip().splitlines() if ln.startswith("{")]
+    assert lines, f"the harness itself failed:\n{res.stderr[-3000:]}"
+    return json.loads(lines[-1])
+
+
+@pytest.mark.parametrize("prefix,least", [("pick:", 4), ("save:", 2)])
+def test_the_editor_harness_covers_each_part(editor, prefix, least) -> None:
+    got = [k for k in editor["cases"] if k.startswith(prefix)]
+    assert len(got) >= least, (prefix, got)
+    bad = [f for f in editor["failures"] if f["name"].startswith(prefix)]
+    assert all(editor["cases"][k] for k in got) and not bad, json.dumps(bad[:4], indent=2, ensure_ascii=False)
+
+
+def test_every_editor_case_passes(editor) -> None:
+    assert editor["cases"] and all(editor["cases"].values()), json.dumps(editor["failures"][:6], indent=2, ensure_ascii=False)
 
 
 def _js(p: Path) -> str:
