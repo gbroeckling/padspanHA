@@ -36,6 +36,10 @@
 const THREE = await import(`../vendor/three/three.module.min.js${new URL(import.meta.url).search}`);
 const HOUSE = await import(`./live_aboard_house.js${new URL(import.meta.url).search}`);
 const USE = await import(`./live_aboard_use.js${new URL(import.meta.url).search}`);
+// Part C: the 3D file's rules (doors and windows drawn in 3D, a barrier's
+// hinge, swing, sill and head, device heights), read through the host.
+const DRAFT = await import(`./live_aboard_draft.js${new URL(import.meta.url).search}`);
+const NO_FILE = DRAFT.ownedOf(null);
 
 export const HOUSE3D_EVENTS = HOUSE.HOUSE3D_EVENTS;
 export const HOUSE3D_FALLBACK_KINDS = HOUSE.HOUSE3D_FALLBACK_KINDS;
@@ -226,6 +230,11 @@ function createSlot(slotKey){
   let sensorRes = [], badgeRes = [], sensorsSig = null;
   let liveAnim = false, lastAmbient = 0, rehoverDue = false;
   let northDismissed = null;               // the pointerdown that only put north back
+  // The 3D file (part C), as the editor owns it (live_aboard_draft.js
+  // ownedOf): read once through the host's load (house3d_get) when the view
+  // first shows, and again after the screen went back to Map; null until
+  // read. lastP: the card's newest data, to draw again from.
+  let file = null, fileLoad = null, lastP = null;
 
   // ── failing back to the flat Atlas ────────────────────────────────────────
   function showFlat(){
@@ -810,7 +819,7 @@ function createSlot(slotKey){
   function setupOpening(F, P, rooms){
     const b = P.pc.barrier, leaf = P.els.find(e => e.leaf);
     if (!b || !b.linked_entity_id || !leaf || (P.pc.kind !== "door" && P.pc.kind !== "window")) return;
-    const sw = HOUSE.openingSwing(P.pc, rooms, null);
+    const sw = HOUSE.openingSwing(P.pc, rooms, P.pc.override || null);
     const len = Math.hypot(P.pc.x1 - P.pc.x0, P.pc.y1 - P.pc.y0);
     P.open = { bar: b, eid: String(b.linked_entity_id), kind: P.pc.kind, leaf, len, hinge: sw.hinge, side: sw.side,
                garage: P.pc.kind === "door" && len > 1.8, state: null, at: 0, to: 0, from: 0, t0: 0, flash: null };
@@ -886,9 +895,12 @@ function createSlot(slotKey){
       F.group.add(lg);
       const bulbs = { puck: [], dome: [], box: [], sphere: [] }, houses = [], halos = { s: [], m: [], l: [] }, pools = [];
       const ctx = { rooms: F.rooms, pieces: F.pieces.map(P => P.pc), ground: h.ground };
+      const zs = viewData().lights;
       for (const L0 of mine) {
-        const parts = HOUSE.fixtureParts(L0, ctx);
-        const L = { ...L0, F, kf: parts.kf, wall: null, refs: { bulbs: [], halos: [], pool: null }, key: null, look: null };
+        // Moved whole to its height in the 3D file, if it has one (part C).
+        const lift = DRAFT.liftParts(HOUSE.fixtureParts(L0, ctx), zs[L0.eid], F.fl.h - HOUSE.SLAB_T), parts = lift.parts;
+        const L = { ...L0, F, kf: parts.kf, wall: null, refs: { bulbs: [], halos: [], pool: null }, key: null, look: null,
+                    z: lift.z, zDefault: lift.zDefault };
         if (parts.wall) { const P = F.pieces.find(q => q.pc === parts.wall); if (P) { L.wall = P; P.lights.push(L); } }
         let sx = 0, sy = 0, sh = 0;
         for (const b of parts.bulbs) {
@@ -1026,10 +1038,11 @@ function createSlot(slotKey){
       const g = new THREE.Group();
       F.sensorGroup = g;
       F.group.add(g);
-      const ceil = F.fl.h - HOUSE.SLAB_T, motion = [], here = [];
+      const ceil = F.fl.h - HOUSE.SLAB_T, motion = [], here = [], zs = viewData().devices;
       for (const S0 of mine) {
-        const z = HOUSE.deviceZ(S0.kind, ceil, null);
-        const S = { ...S0, F, z, pos: new THREE.Vector3(S0.x, F.fl.elev + z, S0.y), room: HOUSE.roomAt(F.rooms, S0.x, S0.y), shown: null };
+        const z = HOUSE.deviceZ(S0.kind, ceil, zs[S0.eid] || null);
+        const S = { ...S0, F, z, zDefault: HOUSE.deviceZ(S0.kind, ceil, null), pos: new THREE.Vector3(S0.x, F.fl.elev + z, S0.y),
+                    room: HOUSE.roomAt(F.rooms, S0.x, S0.y), shown: null };
         sensorsUi.push(S); here.push(S);
         if (S.kind === "motion") motion.push(S); else readouts.push(makeReadout(S, g));
       }
@@ -1731,19 +1744,40 @@ function createSlot(slotKey){
     }
   }
 
+  // ── the 3D file (part C) ──────────────────────────────────────────────────
+  /** What is drawn on top of the map: the 3D file as read. */
+  const viewData = () => file || NO_FILE;
+  // Read through the host (the view calls nothing itself), once per showing:
+  // a failed read leaves the house as the map draws it, with no retry until
+  // the screen comes back to 3D. Drawn as soon as it arrives.
+  function loadFile(p){
+    if (fileLoad || typeof p.load !== "function") return;
+    const mine = fileLoad = Promise.resolve().then(() => p.load()).then((r) => {
+      if (fileLoad !== mine) return false;
+      file = DRAFT.ownedOf(r && r.data);
+      redraw();
+      return true;
+    }, () => false);
+  }
+  const redraw = guard(() => { if (lastP && renderer && !failed) update(lastP); });
+
   // ── the slot ──────────────────────────────────────────────────────────────
   function update(p){
+    lastP = p;
     const setting = HOUSE.qualitySetting(p.quality);
     // This card's records and api: a press acts through the newest.
     lbe = p.lightsByEid || {};
     apiOf = typeof p.useApi === "function" ? p.useApi : null;
     apiNow = null;
     haStarted = Number(p.haStartedMs) || 0;
-    const sSig = HOUSE.shellSignature(p.model, p.floors, p.lightsByEid);
-    const lSig = HOUSE.lightsSignature(p.model, p.lightsByEid, p.hidden);
-    const xSig = HOUSE.sensorsSignature(p.model, p.lightsByEid, p.hidden);
+    // The map, and what the 3D file adds to it (its doors and windows, its
+    // heights): either changing redraws what it touches.
+    const vd = viewData();
+    const sSig = HOUSE.shellSignature(p.model, p.floors, p.lightsByEid) + DRAFT.openingsSignature(vd);
+    const lSig = HOUSE.lightsSignature(p.model, p.lightsByEid, p.hidden) + DRAFT.heightsSignature(vd, "lights");
+    const xSig = HOUSE.sensorsSignature(p.model, p.lightsByEid, p.hidden) + DRAFT.heightsSignature(vd, "devices");
     if (sSig !== shellSig || lSig !== lightsSig || xSig !== sensorsSig) {
-      const h = HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden);
+      const h = DRAFT.applyOpenings(HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden), vd.openings);
       const shell = sSig !== shellSig;
       if (shell) { buildShell(h); buildBadges(p); shellSig = sSig; }
       else house = { ...house, lights: h.lights, sensors: h.sensors };
@@ -1794,6 +1828,7 @@ function createSlot(slotKey){
         if (failed) { showFlat(); return false; }
         if (!s || !s.parentNode || !p) return false;
         if (!renderer && !start(HOUSE.qualitySetting(p.quality))) return false;
+        loadFile(p);
         update(p);
         if (failed) return false;
         place(s);
@@ -1805,7 +1840,7 @@ function createSlot(slotKey){
     },
     /** Back to the flat Atlas (Map picked, or the feature switched off).
      *  The camera and the GL context stay for a quick return. */
-    detach(){ try { cancelNorth(); if (use) use.clear(); showFlat(); } catch (_) { /* nothing to undo */ } },
+    detach(){ try { fileLoad = null; cancelNorth(); if (use) use.clear(); showFlat(); } catch (_) { /* nothing to undo */ } },
     /** The feature is off: the flat Atlas back and the GL context given up. */
     release(){ try { cancelNorth(); showFlat(); teardown(); } catch (_) { /* best effort */ } },
     // A window on it, for the harness and for poking at it from the console.
@@ -1826,7 +1861,13 @@ function createSlot(slotKey){
                motion: sensorsUi.filter(S => S.kind === "motion").map(S => ({ eid: S.eid, look: S.look || null, col: S.col })),
                badges: badges.map(B => ({ z: B.z, n: B.n, name: B.name, shown: B.F.group.visible })),
                flash: shared ? { color: "#" + shared.flashMat.color.getHexString(), opacity: shared.flashMat.opacity } : null,
-               animating: liveAnim, use: use ? use.state() : null };
+               animating: liveAnim, use: use ? use.state() : null,
+               // Part C: the 3D file as drawn.
+               file: file ? { openings: Object.keys(file.openings).length, lights: Object.keys(file.lights).length,
+                              devices: Object.keys(file.devices).length } : null,
+               added: floorsUi.reduce((a, F) => a + F.pieces.filter(P => P.pc.added).length, 0),
+               heights: { lights: lights.filter(L => L.z !== L.zDefault).map(L => ({ eid: L.eid, z: L.z, zDefault: L.zDefault })),
+                          devices: sensorsUi.filter(S => S.z !== S.zDefault).map(S => ({ eid: S.eid, z: S.z, zDefault: S.zDefault })) } };
     },
     /** Where something is on screen, in client px (the harness presses it):
      *  {eid} a device's nearest point, {room}, {door: eid}, {floor: z}. */

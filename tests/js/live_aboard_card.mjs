@@ -14,6 +14,8 @@
 //             picked
 //   noImport  absent, off, or on but showing Map: live_aboard.js and three.js
 //             are never loaded (every module load is recorded)
+//   file      nothing reads or writes the 3D file (house3d_get / _edit) while
+//             the feature is off, below Pro, or on but showing Map
 //   silent    nothing is sent to the usage report while the feature is off
 //   switch    on: the switch beside the zoom buttons, and in the rail on the
 //             edge-to-edge layout
@@ -51,8 +53,8 @@ const check = (name, ok, detail) => { cases[name] = !!ok; if (!ok) failures.push
 const tryCase = async (name, fn) => { try { await fn(); } catch (e) { failures.push({ name, detail: String(e && e.stack || e).slice(0, 900) }); cases[name] = false; } };
 const sleep = (ms) => new Promise(r => globalThis._realSetTimeout(r, ms));
 // Everything the 3D house brings: its modules (the view, the house, its
-// use surface), the compass, three.js.
-const threeLoads = () => loaded.filter(u => /\/views\/(live_aboard(_house|_use)?|fabric_compass)\.js|\/vendor\/three\//.test(u));
+// use surface, the editor and its rules), the compass, three.js.
+const threeLoads = () => loaded.filter(u => /\/views\/(live_aboard(_house|_use|_draft|_edit)?|fabric_compass)\.js|\/vendor\/three\//.test(u));
 
 // ── a small two-storey house with lights ───────────────────────────────────
 const rect = (floor_id, x0, y0, x1, y1) => ({ type: "poly", floor_id, points_m: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] });
@@ -91,8 +93,12 @@ function el(tag, attrs = {}, children = []) {
   return n;
 }
 const sent = [];
+// Every read and write of the 3D file the hosts hand over (house3d_get, house3d_edit).
+const fileCalls = [];
 const H3 = (enabled, slot = "atlas", extra = {}) => ({ slot, settings: { atlas_3d_enabled: enabled, atlas_3d_quality: "auto", ...extra },
-  telemetry: (n) => sent.push(n) });
+  telemetry: (n) => sent.push(n),
+  load: () => { fileCalls.push(`load:${slot}`); return Promise.resolve({ data: {} }); },
+  edit: (c) => { fileCalls.push(`edit:${slot}`); return Promise.resolve({ data: c }); } });
 function card({ house3d, layoutV2 = false, display = false, tier = "pro" } = {}) {
   const view = { floorGap: 150, horizGap: 0, focusIdx: 0, zoom: 1 };
   const host = { el, view, floors: FLOORS, model: MODEL, byRoom: {}, hiddenEids: new Set(), lightsByEid: LBE, lightsLoading: false,
@@ -155,7 +161,8 @@ await tryCase("gate: on but below Pro (free, bright) is exactly off, even with 3
   await sleep(30);
   localStorage.removeItem(PICK("atlas")); localStorage.removeItem(PICK("builder"));
   check("gate: on but below Pro (free, bright) is exactly off, even with 3D picked",
-    Object.values(out).every(o => Object.values(o).every(Boolean)) && threeLoads().length === 0 && sent.length === 0, { out, loaded: threeLoads(), sent });
+    Object.values(out).every(o => Object.values(o).every(Boolean)) && threeLoads().length === 0 && sent.length === 0
+    && fileCalls.length === 0, { out, loaded: threeLoads(), sent, fileCalls });
 });
 await tryCase("gate: on at Pro shows the switch, on both screens", async () => {
   localStorage.removeItem(PICK("atlas")); localStorage.removeItem(PICK("builder"));
@@ -168,6 +175,10 @@ await tryCase("noImport: off never loads the 3D module or three.js", async () =>
   await sleep(50);
   check("noImport: off never loads the 3D module or three.js", threeLoads().length === 0
     && loaded.some(u => /\/views\/lights_map\.js/.test(u)), threeLoads());
+});
+await tryCase("file: off, below Pro, or on but Map: the 3D file is never read or written", async () => {
+  await sleep(30);
+  check("file: off, below Pro, or on but Map: the 3D file is never read or written", fileCalls.length === 0, fileCalls);
 });
 await tryCase("silent: nothing is sent while the feature is off, or on but showing Map", async () => {
   await sleep(20);

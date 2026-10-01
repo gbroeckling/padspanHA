@@ -921,6 +921,9 @@ class PadSpanLightsApp extends HTMLElement {
         },
         // Taps and holds in 3D: this map's own use api, asked for on the press.
         useApi: ()=>this._useApi(lightsByEid, lights),
+        // The 3D file (doors and windows drawn in 3D, heights): read when
+        // the 3D view shows, never on the poll.
+        load: ()=>this._hass.callWS({ type:"padspan_ha/house3d_get" }),
         telemetry: (name)=>{
           if(!this.state._telemetryOn || !this._hass) return;
           Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:String(name) })).catch(()=>{});

@@ -9372,6 +9372,9 @@ function _lightsTab(ctx, maps, active) {
       },
       // Taps and holds in 3D: the sidebar's exact api (Preview as sidebar's).
       useApi: () => previewApi,
+      // The 3D file (doors and windows drawn in 3D, heights): read when the
+      // 3D view shows, never on the poll.
+      load: () => ctx.actions.wsCall("padspan_ha/house3d_get"),
       telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
     } : null,
     isolux: mapState._lightsIsolux === undefined

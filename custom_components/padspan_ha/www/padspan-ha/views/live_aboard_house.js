@@ -357,7 +357,9 @@ export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKi
  *  wall, glass, wall; a door is the slab edge, the door, a lintel; an open
  *  barrier is a gap with only the slab edge under it. `cuttable`: the part
  *  the cut-away lowers. `leaf`: the part that opens (a door's leaf, a
- *  window's pane) when a sensor says so. */
+ *  window's pane) when a sensor says so. A door's height and a window's sill
+ *  and head are the defaults unless the 3D file sets them (pc.head_m,
+ *  pc.sill_m: live_aboard_draft.js applyOpenings, part C). */
 export function wallElements(pc, floorH){
   const top = floorH - SLAB_T;
   const len = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0);
@@ -371,7 +373,7 @@ export function wallElements(pc, floorH){
       E.push({ z0: 0, z1: RAIL_H - 0.05, col: RAIL_GLASS, thick: 0.02, glass: true, cuttable: false });
       break;
     case "door": {
-      const dh = Math.min(DOOR_H, top - 0.1);
+      const dh = Math.min(num(pc.head_m) ?? DOOR_H, top - 0.1);
       solid(-SLAB_T, 0, base);
       solid(0, dh, len > 1.8 ? GARAGE_DOOR_COL : DOOR_COL, Math.min(pc.thick, 0.07));
       E[E.length - 1].leaf = true;
@@ -379,9 +381,10 @@ export function wallElements(pc, floorH){
       break;
     }
     case "window": {
-      const head = Math.min(HEAD_H, top - 0.1);
-      solid(-SLAB_T, SILL_H, base);
-      E.push({ z0: SILL_H, z1: head, col: WINDOW_GLASS, thick: 0.03, glass: true, cuttable: true, leaf: true });
+      const sill = clamp(num(pc.sill_m) ?? SILL_H, 0, top - 0.2);
+      const head = Math.max(sill + 0.05, Math.min(num(pc.head_m) ?? HEAD_H, top - 0.1));
+      solid(-SLAB_T, sill, base);
+      E.push({ z0: sill, z1: head, col: WINDOW_GLASS, thick: 0.03, glass: true, cuttable: true, leaf: true });
       solid(head, top, base);
       break;
     }

@@ -2827,6 +2827,8 @@ export function buildLightsMapCard(hostIn){
           // map's), and motion reads quiet after a restart as it does here.
           useApi: typeof h3.useApi === "function" ? h3.useApi : null,
           haStartedMs: Date.parse(host.model && host.model.ha_started_at) || 0,
+          // The 3D file (house3d_get), read through the host.
+          load: typeof h3.load === "function" ? h3.load : null,
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }
     }

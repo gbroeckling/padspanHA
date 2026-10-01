@@ -85,6 +85,12 @@ def test_off_means_no_import(card) -> None:
             "vendor/three/three.module.min.js"} <= set(card["loaded"]), card["loaded"]
 
 
+def test_off_means_the_3d_file_is_never_read_or_written(card) -> None:
+    """Off, below Pro, or on but showing Map: the hosts' load (house3d_get)
+    and edit (house3d_edit) are never called."""
+    _case(card, "file:")
+
+
 def test_off_means_no_telemetry(card) -> None:
     _case(card, "silent:")
 
@@ -139,7 +145,7 @@ def test_the_3d_module_is_imported_once_behind_the_switch_and_cache_busted() -> 
     assert lm.count("_laLoad(") == 2, "one definition, one call (in mount3d)"
     # No other code in the panel names the 3D modules (prose in a comment may).
     for p in _WWW.rglob("*.js"):
-        if "vendor" in p.parts or p.name in ("lights_map.js", "live_aboard.js", "live_aboard_house.js"):
+        if "vendor" in p.parts or p.name in ("lights_map.js", "live_aboard.js", "live_aboard_house.js", "live_aboard_draft.js"):
             continue
         code = "\n".join(ln for ln in _js(p).splitlines() if not ln.lstrip().startswith(("//", "*")))
         assert "live_aboard" not in code, p.name
@@ -201,12 +207,14 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     block = block[:block.index("} : null,")]
     assert 'saveNorth: async (b)=>{' in block
     assert 'this._hass.callWS({ type:"padspan_ha/settings_set", fabric_bearing_deg: b })' in block
-    assert block.count("callWS(") == 2, "the report's and the Save's, nothing else"
+    assert block.count("callWS(") == 3, "the report's, the Save's and the 3D file's read, nothing else"
+    assert 'load: ()=>this._hass.callWS({ type:"padspan_ha/house3d_get" }),' in block
     maps = _js(_VIEWS / "maps.js")
     mblock = maps[maps.index("house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ?"):]
     mblock = mblock[:mblock.index("} : null,")]
     assert 'ctx.actions.wsCall("padspan_ha/settings_set", { fabric_bearing_deg: b })' in mblock
-    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 1
+    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 2
+    assert 'load: () => ctx.actions.wsCall("padspan_ha/house3d_get"),' in mblock
     lm = _js(_VIEWS / "lights_map.js")
     assert 'saveNorth: typeof h3.saveNorth === "function" ? h3.saveNorth : null,' in lm
     la = _js(_VIEWS / "live_aboard.js")
