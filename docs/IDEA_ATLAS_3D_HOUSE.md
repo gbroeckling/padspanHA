@@ -531,16 +531,19 @@ targeted re-check rather than a full re-review unless the fix touched shared cod
 ### Added by Garry, 2026-09-30: windows, a compass, the sun and device heights, all in P1
 
 - **Windows.** Today a window can only be marked on a wall that has a sensor. P1 adds windows
-  without sensors: placed on any wall in the 3D view, with sill and head heights, and kept in the
+  without sensors: drawn on any wall in the 3D view, with sill and head heights, and kept in the
   3D file (`openings`), so the map is untouched. Windows with sensors still show open or closed.
-- **The window tool: a line drawn on a wall** (Garry, 2026-09-30). In the 3D editor, pick Windows,
-  then press on a wall and drag along it (or tap its two ends). The line snaps onto that one wall
-  (it stops at a corner), shows its length live, and becomes a window on release, 0.3 m or more,
-  never overlapping another opening. Then drag either end to adjust; sill and head sliders;
-  Delete; Undo/Redo; nothing is stored until Save. It works on every wall, room outlines
-  included, not only the walls drawn in Mapping. Picking the tool turns the camera to the top-down
-  view of the current floor, so drawing is tracing the plan; it works in the 3D view too. One
-  finger draws while the tool is on; two fingers still pan and zoom.
+- **The door and window tool: a line drawn on a wall** (Garry, 2026-09-30). In the 3D editor, pick
+  Door or Window, then press on a wall and drag along it (or tap its two ends). The line snaps onto
+  that one wall (it stops at a corner), shows its length live, and becomes the opening on release,
+  never overlapping another. A window is 0.3 m or wider, sill 0.9 m and head 2.1 m by default; a
+  door is 0.6 m or wider, from the floor to 2.03 m, with its hinge side and swing. Then drag either
+  end to adjust; height sliders; Door/Window switch; Delete; Undo/Redo; nothing is stored until
+  Save. It works on every wall, room outlines included, not only the walls drawn in Mapping.
+  Picking the tool turns the camera to the top-down view of the current floor, so drawing is
+  tracing the plan; it works in the 3D view too. One finger draws while the tool is on; two
+  fingers still pan and zoom. Doors and windows with sensors keep coming from the map's own door
+  marking and show open or closed; this tool adds the ones without sensors.
 - **Compass.** A compass in the 3D view. North is the bearing the GPS Bridge already stores
   (`fabric_bearing_deg`, the convention in `geo_bridge.py`), and it can also be set in the 3D
   house settings.
