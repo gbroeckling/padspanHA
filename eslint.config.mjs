@@ -20,7 +20,9 @@ import { createRequire } from "node:module";
 
 const globals = createRequire(process.argv[1])("globals");
 
-export default [{
+// vendor/ holds third-party builds, unmodified (three.js; see
+// THIRD_PARTY_NOTICES.md). They are not ours to lint.
+export default [{ ignores: ["**/vendor/**"] }, {
   files: ["custom_components/padspan_ha/www/**/*.js"],
   languageOptions: { ecmaVersion: "latest", sourceType: "module", globals: globals.browser },
   rules: { "no-undef": "error" },
