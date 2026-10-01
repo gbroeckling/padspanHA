@@ -16,7 +16,8 @@
  *
  * Uses a "draft" copy of the model so edits don't take effect until Save.
  */
-const { BUY_URL, PRO_PRICE, PRO_LIFETIME_PRICE, proLifetimeOpen, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL } =
+const { BUY_URL, PRO_PRICE, PRO_LIFETIME_PRICE, proLifetimeOpen, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
+        tierAtLeast, currentTier } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Optional too: the tester sign-up must not take the Settings tab with it.
 const { testerSection } = await import(`./tester_signup.js${new URL(import.meta.url).search}`)
@@ -3328,6 +3329,139 @@ function _atlasWeatherSection(ctx, el, settings){
   return box;
 }
 
+// ── The Atlas's 3D house (views/live_aboard.js) ──────────────────────────────
+// Live Aboard (docs/IDEA_ATLAS_3D_HOUSE.md), normally off: the master switch
+// and one line on what it adds, and once it is on, Quality and North. Each
+// saves on its own the moment it changes, like the weather box above; the
+// Atlas picks it up at its next settings refresh.
+const _ATLAS_3D_QUALITY = [["auto", "Auto — picked for this screen"], ["low", "Low — for wall tablets and phones"],
+                           ["high", "High — sun shadows and more lamps"]];
+function _atlas3dSection(ctx, el, settings){
+  const box = el("div",{style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
+  box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🏠 3D house"));
+  box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px"},
+    "Adds a Map / 3D switch to the Atlas: your floors, rooms, walls and lights in 3D, from the map you already drew. Off by default."));
+  const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:6px 0 0"}, "Saves as soon as you change it. No restart needed.");
+  const save = async (key, value, undo) => {
+    try {
+      const r = await ctx.actions.wsCall("padspan_ha/settings_set", { [key]: value });
+      if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
+      note.textContent = "Saved — the Atlas shows it at its next refresh.";
+      return true;
+    } catch (e) {
+      if (undo) undo();
+      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+      return false;
+    }
+  };
+
+  const onRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer"});
+  const onCb = el("input",{type:"checkbox"});
+  onCb.checked = settings.atlas_3d_enabled === true;
+  onRow.appendChild(onCb);
+  onRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show the 3D house on the Atlas"));
+  box.appendChild(onRow);
+  // What shows once the switch is on.
+  const more = el("div",{"data-la3d-more":""});
+  more.style.display = onCb.checked ? "block" : "none";
+  const row = (label, kids) => el("div",{style:"display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px"},[
+    el("span",{style:"color:#cbd5e1;font-size:13px;min-width:130px"}, label), ...kids,
+  ]);
+
+  // Quality.
+  const cur = ["auto", "low", "high"].includes(settings.atlas_3d_quality) ? settings.atlas_3d_quality : "auto";
+  const sel = document.createElement("select");
+  sel.className = "select";
+  sel.style.width = "auto";
+  sel.style.maxWidth = "100%";
+  for (const [v, label] of _ATLAS_3D_QUALITY) sel.appendChild(el("option",{value:v}, label));
+  sel.value = cur;
+  let last = cur;
+  sel.addEventListener("change", ()=>{ const want = sel.value; save("atlas_3d_quality", want, ()=>{ sel.value = last; }).then(ok=>{ if (ok) last = want; }); });
+  more.appendChild(row("Quality", [sel]));
+
+  // North: the GPS Bridge's own bearing (settings.fabric_bearing_deg), kept
+  // to 0–359 the same way; a blank is refused rather than saved as 0, since
+  // the GPS Bridge reads it too. What it means is shown, not stated: your
+  // plan's outline as the Atlas draws it, with an N arrow where the bearing
+  // puts north. The arrow's angle comes from fabric_compass.js, the one place
+  // the bearing becomes a direction, loaded only once the 3D house is on.
+  const norm = (v) => { const n = parseFloat(v); return isFinite(n) ? ((n % 360) + 360) % 360 : null; };
+  let bearing = norm(settings.fabric_bearing_deg) ?? 0;
+  const nInp = el("input",{type:"number", step:"1", min:"0", max:"359", value:String(bearing),
+    style:"width:84px;padding:6px 8px;border-radius:8px;border:1px solid #2d4a37;background:#0a150e;color:#e2e8f0"});
+  nInp.value = String(bearing);
+  const NS = "http://www.w3.org/2000/svg", W = 132, H = 88, PAD = 7;
+  const svgEl = (tag, attrs) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    return n;
+  };
+  const plan = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: String(W), height: String(H), "aria-hidden": "true" });
+  plan.appendChild(svgEl("rect", { x: "0.5", y: "0.5", width: String(W - 1), height: String(H - 1), rx: "8", fill: "#0a150e", stroke: "#2d4a37" }));
+  // Every indoor room, x right and y down — the plan as drawn.
+  const rooms = Object.values((ctx.state.model && ctx.state.model.room_geometry_m) || {})
+    .filter(g => g && Array.isArray(g.points_m) && g.points_m.length >= 3 && !/^(__outside__|outside|outdoors?|garden|yard)$/i.test(String(g.floor_id || "")))
+    .map(g => g.points_m.map(q => [Number(q[0]), Number(q[1])]).filter(q => isFinite(q[0]) && isFinite(q[1])))
+    .filter(r => r.length >= 3);
+  const xs = rooms.flat().map(q => q[0]), ys = rooms.flat().map(q => q[1]);
+  if (xs.length) {
+    const x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(...xs) - x0 || 1, h = Math.max(...ys) - y0 || 1;
+    const k = Math.min((W - 2 * PAD) / w, (H - 2 * PAD) / h), ox = (W - w * k) / 2, oy = (H - h * k) / 2;
+    const g = svgEl("g", { fill: "rgba(82,183,136,.10)", stroke: "rgba(167,243,208,.55)", "stroke-width": "0.8", "stroke-linejoin": "round" });
+    for (const r of rooms) g.appendChild(svgEl("polygon", { points: r.map(q => `${(ox + (q[0] - x0) * k).toFixed(1)},${(oy + (q[1] - y0) * k).toFixed(1)}`).join(" ") }));
+    plan.appendChild(g);
+  } else {
+    plan.appendChild(svgEl("rect", { x: String(PAD + 14), y: String(PAD + 8), width: String(W - 2 * PAD - 28), height: String(H - 2 * PAD - 16),
+      fill: "rgba(82,183,136,.10)", stroke: "rgba(167,243,208,.55)", "stroke-width": "0.8" }));
+  }
+  const cx = W / 2, cy = H / 2;
+  const needle = svgEl("g", { "data-la3d-north": "", visibility: "hidden" });
+  needle.appendChild(svgEl("circle", { cx: String(cx), cy: String(cy), r: "3", fill: "#ef5350" }));
+  needle.appendChild(svgEl("path", { d: `M${cx},${cy - 30} L${cx + 6},${cy - 17} L${cx - 6},${cy - 17} Z`, fill: "#ef5350" }));
+  needle.appendChild(svgEl("line", { x1: String(cx), y1: String(cy), x2: String(cx), y2: String(cy - 18), stroke: "#ef5350", "stroke-width": "2" }));
+  plan.appendChild(needle);
+  // The N stays upright at the arrow's tip.
+  const nLabel = svgEl("text", { x: String(cx), y: String(cy - 33), "text-anchor": "middle", "dominant-baseline": "central",
+    "font-size": "10", "font-weight": "700", fill: "#f3f6f4", "font-family": "system-ui,sans-serif", visibility: "hidden" });
+  nLabel.textContent = "N";
+  plan.appendChild(nLabel);
+  const preview = el("span",{title:"North on your plan", style:`display:inline-flex;width:${W}px;height:${H}px`}, [plan]);
+  let arrowDeg = null, compassP = null;
+  const turn = (b) => {
+    if (!arrowDeg || b === null) return;
+    const a = arrowDeg(b);
+    needle.setAttribute("transform", `rotate(${a.toFixed(1)} ${cx} ${cy})`);
+    nLabel.setAttribute("x", (cx + 36 * Math.sin(a * Math.PI / 180)).toFixed(1));
+    nLabel.setAttribute("y", (cy - 36 * Math.cos(a * Math.PI / 180)).toFixed(1));
+    needle.setAttribute("visibility", "visible");
+    nLabel.setAttribute("visibility", "visible");
+  };
+  const loadCompass = () => (compassP = compassP || import(`./fabric_compass.js${new URL(import.meta.url).search}`)
+    .then(m => { arrowDeg = m.northArrowDeg; turn(bearing); })
+    .catch(err => { console.warn("PadSpan: fabric_compass failed to load", err); }));
+  nInp.addEventListener("input", ()=> turn(norm(nInp.value)));
+  nInp.addEventListener("change", ()=>{
+    const b = norm(nInp.value), was = bearing;
+    if (b === null) { nInp.value = String(was); turn(was); ctx.toast("Enter a bearing from 0 to 359", true); return; }
+    nInp.value = String(b); turn(b); bearing = b;
+    save("fabric_bearing_deg", b, ()=>{ bearing = was; nInp.value = String(was); turn(was); });
+  });
+  more.appendChild(row("North", [nInp, el("span",{style:"color:#94a3b8;font-size:12px"},"°"), preview]));
+  more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
+    "The same bearing the GPS Bridge uses. The arrow shows where it puts north on your plan."));
+  if (onCb.checked) loadCompass();
+  box.appendChild(more);
+  onCb.addEventListener("change", ()=>{
+    const want = onCb.checked;
+    more.style.display = want ? "block" : "none";
+    if (want) loadCompass();
+    save("atlas_3d_enabled", want, ()=>{ onCb.checked = !want; more.style.display = !want ? "block" : "none"; });
+  });
+  box.appendChild(note);
+  return box;
+}
+
 // ── UI Structure tab ──────────────────────────────────────────────────────────
 const _DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox"];
 const _TAB_LABELS = {devices:"Devices",bluetooth:"Bluetooth",presence:"Presence",monitor:"Monitor",qa:"QA",sandbox:"Sandbox"};
@@ -3425,6 +3559,9 @@ function _settingsUI(ctx, el){
     }
   });
   lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));
+  // The 3D house is Pro's (PadSpan Pro and Bright Pro): below Pro, no box at
+  // all, and whatever is stored is kept for when a key comes back.
+  if (tierAtLeast(currentTier(settings), "pro")) lightsCard.appendChild(_atlas3dSection(ctx, el, settings));
   wrap.appendChild(lightsCard);
 
   // ── Edition & tier ──
