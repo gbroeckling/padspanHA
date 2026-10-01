@@ -1,0 +1,854 @@
+// PadSpan HA — BLE Room-Presence Tracking for Home Assistant
+// Copyright (C) 2026 Garry Broeckling
+// Licensed under the GNU General Public License v3.0
+// See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
+//
+// Live Aboard, the 3D house (docs/IDEA_ATLAS_3D_HOUSE.md): the 3D editor, in
+// the 3D view (P1 part C). Only for the people who may place lights: the
+// host hands the view its `edit` only then (maps.js, the same gate as light
+// placement), and the server holds the same gate (ws_house3d.house3d_edit).
+//
+// Edit opens three tools — Door, Window and Heights — with Undo, Redo, Save
+// and Discard. Nothing is stored until Save, which sends the draft's
+// changes in one command; leaving with unsaved changes asks first, here in
+// the view (never a browser dialog).
+//
+//   Door, Window  a line drawn on a wall (live_aboard_draft.js has the
+//                 rules): press on a wall and drag along it, or tap its two
+//                 ends. It stays on that wall, stops at a corner and at any
+//                 door or window already there, and shows its length as it
+//                 goes; on release it is the opening. Picking the tool turns
+//                 the camera straight down on the top floor showing, so
+//                 drawing is tracing the plan (it works in 3D as well). Then
+//                 drag either end, set the heights, switch door ↔ window,
+//                 hinge and swing, or Delete.
+//   Heights       tap a light, a sensor or a readout: a height from its floor
+//                 to the ceiling, or back to its default. (Scanners keep the
+//                 height the map gives them: presence uses it.)
+//   a door or window from the map (a barrier): tap it to set its hinge and
+//                 swing, or its sill and head, in 3D only.
+//
+// One finger (or the left button) draws while a tool is on; two fingers
+// still pan and zoom. The draft, the tool and what is picked live in the
+// view's long-lived slot, so the Atlas's 5 s rebuild never touches them.
+// Everything three.js is handed in (ctx.THREE): this file imports nothing.
+
+const SLOP = 6;                                   // px a press may move and still be a tap
+const REACH = { mouse: 22, touch: 30 };           // how near a wall a press must land (px)
+const GRAB = { mouse: 16, touch: 26 };            // how near an end a press must land to drag it (px)
+const PICK_OPENING = 8;                           // px round an opening's own outline
+const COL = { window: "#60a5fa", door: "#f59e0b", stop: "#ef4444", map: "#a3e635", arc: "#fbbf24" };
+const FEW = (n) => `${n} change${n === 1 ? "" : "s"}`;
+
+const CSS = `
+.la3d-editseg button[aria-pressed="true"]{background:rgba(245,176,65,.28)!important;color:#fff7e6!important}
+.la3d-tools{position:absolute;left:72px;right:10px;top:10px;z-index:4;display:none;flex-wrap:wrap;gap:6px;align-items:center;pointer-events:none}
+.la3d-tools.on{display:flex}
+.la3d-tools > *{pointer-events:auto}
+.la3d .la3d-tools button:disabled{opacity:.38;cursor:default}
+.la3d-tools .la3d-save{color:#06210f!important;background:#52b788!important;font-weight:700}
+.la3d-tools .la3d-save:disabled{background:rgba(82,183,136,.25)!important;color:#cfe9da!important}
+.la3d-hint{flex-basis:100%;font-size:12px;line-height:1.35;color:#d6e6dc;text-shadow:0 1px 3px #000;pointer-events:none}
+.la3d-hint.bad{color:#fca5a5}
+.la3d-sheet{position:absolute;right:10px;z-index:4;display:none;box-sizing:border-box;width:min(300px,calc(100% - 20px));
+  padding:10px 12px 12px;border-radius:12px;background:rgba(6,14,9,.95);border:1px solid rgba(120,190,155,.26);
+  color:#e8f0ea;font-size:12.5px;box-shadow:0 8px 22px rgba(0,0,0,.5)}
+.la3d-sheet.on{display:block}
+.la3d-sheet h4{margin:0 0 2px;font-size:13.5px;font-weight:700;color:#f3f6f4;display:flex;gap:8px;align-items:center}
+.la3d-sheet h4 span{flex:1}
+.la3d-sheet .la3d-sub{margin:0 0 8px;color:rgba(226,240,232,.6);font-size:11.5px}
+.la3d-sheet .la3d-row{display:grid;grid-template-columns:52px 1fr 54px;gap:8px;align-items:center;margin:6px 0}
+.la3d-sheet .la3d-row b{text-align:right;font-variant-numeric:tabular-nums}
+.la3d-sheet input[type=range]{width:100%;margin:0;accent-color:#52b788}
+.la3d-sheet .la3d-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.la3d-sheet .lv-zoomseg{box-shadow:none}
+.la3d-sheet button.la3d-x{all:unset;cursor:pointer;padding:0 4px;font-size:16px;color:rgba(226,240,232,.6)}
+.la3d-sheet .la3d-del{color:#fca5a5!important}
+.la3d-ask{position:absolute;inset:0;z-index:7;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.46)}
+.la3d-ask.on{display:flex}
+.la3d-ask > div{max-width:calc(100% - 40px);padding:14px 16px;border-radius:14px;background:#0b1410;border:1px solid rgba(120,190,155,.3);
+  color:#e8f0ea;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+.la3d-ask p{margin:0 0 10px}
+.la3d-len{position:absolute;z-index:3;display:none;transform:translate(-50%,-50%);padding:3px 9px;border-radius:999px;
+  background:rgba(6,14,9,.92);border:1px solid rgba(255,255,255,.3);color:#fff;font:700 12px system-ui,sans-serif;
+  white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}
+.la3d-len.bad{border-color:#ef4444;color:#fecaca}
+.la3d-dot{position:absolute;z-index:3;display:none;box-sizing:border-box;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;
+  border:2px solid #fff;background:#3b82f6;box-shadow:0 0 0 3px rgba(0,0,0,.35);pointer-events:none}
+.la3d-dot.stop{background:#ef4444}
+.la3d-dot.ring{background:transparent;border:3px solid #fbbf24;width:34px;height:34px;margin:-17px 0 0 -17px}`;
+
+/**
+ * ctx = {
+ *   THREE, HOUSE (live_aboard_house.js), DRAFT (live_aboard_draft.js)
+ *   root, canvas, bar          the view's element, its canvas, its bottom bar
+ *   camera(), scene()          the view's own
+ *   floors()                   the floors as drawn: {fl, group, rooms, pieces: [{pc, els, cut}]}
+ *   shellGen()                 a number that moves whenever the walls are rebuilt
+ *   pick(x, y)                 the view's own picking ({hit: {kind, eid, …}} | null)
+ *   device(eid)                {section, label, F, z, zDefault, at} | null: a drawn device
+ *   file()                     the 3D file as the editor owns it (DRAFT.ownedOf), or null unread
+ *   reload()                   → Promise<boolean>: read the file again
+ *   saved(data)                the file as the server now holds it
+ *   redraw()                   draw the house again, from the draft while editing
+ *   render()                   ask for a frame
+ *   topDown(F)                 the camera straight down on floor F
+ *   clearUse()                 the Atlas's hover box and rings off
+ *   guard(fn)                  fn, any throw puts the flat Atlas back
+ * }
+ */
+export function createEditor(ctx){
+  const { THREE, HOUSE, DRAFT, root, canvas, bar, guard } = ctx;
+  let editFn = null, editing = false, draft = null, tool = null, sel = null, gesture = null, pending = null;
+  let saving = false, askGo = null, hintMsg = "", hintBad = false, redrawDue = false, sliderGen = 0, sheetRefresh = null;
+  let runsGen = null, arcsGen = null;
+  const runsByFloor = new Map();
+  const active = () => editing && !!editFn && !!draft;
+
+  // ── the page ──────────────────────────────────────────────────────────────
+  const d = (tag, cls, text) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  };
+  const btn = (text, title, act, cls) => {
+    const b = d("button", cls, text);
+    b.type = "button"; b.title = title;
+    b.addEventListener("click", guard((e) => { e.stopPropagation(); act(); }));
+    return b;
+  };
+  const seg = (...items) => { const s = d("span", "lv-zoomseg"); for (const b of items) s.appendChild(b); return s; };
+  const style = d("style");
+  style.textContent = CSS;
+  root.appendChild(style);
+  const bEdit = btn("Edit", "Draw doors and windows, set heights", () => (editing ? finish() : begin()));
+  const editSeg = seg(bEdit);
+  editSeg.classList.add("la3d-editseg");
+  editSeg.style.cssText = "display:none;margin-left:auto";      // beside the view buttons, on the right
+  bar.insertBefore(editSeg, bar.querySelector("[data-la3d-views]"));
+  const bDoor = btn("Door", "Draw a door along a wall", () => pickTool("door"));
+  const bWin = btn("Window", "Draw a window along a wall", () => pickTool("window"));
+  const bHts = btn("Heights", "Tap a light, a sensor or a readout to set its height", () => pickTool("heights"));
+  const bUndo = btn("Undo", "Undo", () => { if (draft && draft.undo()) afterHistory("Undone."); });
+  const bRedo = btn("Redo", "Redo", () => { if (draft && draft.redo()) afterHistory("Redone."); });
+  const bSave = btn("Save", "Save the changes", () => save(null), "la3d-save");
+  const bDiscard = btn("Discard", "Back to what is saved (Undo brings it back)", () => discard());
+  const tools = d("div", "la3d-tools");
+  tools.setAttribute("role", "toolbar");
+  tools.setAttribute("aria-label", "3D editor");
+  const hintEl = d("div", "la3d-hint");
+  hintEl.setAttribute("aria-live", "polite");
+  tools.append(seg(bDoor, bWin, bHts), seg(bUndo, bRedo), seg(bSave, bDiscard), hintEl);
+  root.appendChild(tools);
+  const sheet = d("div", "la3d-sheet");
+  root.appendChild(sheet);
+  const askEl = d("div", "la3d-ask");
+  root.appendChild(askEl);
+  const lenEl = d("div", "la3d-len");
+  const ends = [d("div", "la3d-dot"), d("div", "la3d-dot")];
+  const ring = d("div", "la3d-dot ring");
+  root.append(lenEl, ends[0], ends[1], ring);
+
+  // ── 3D marks: the line, the doors' swings ─────────────────────────────────
+  const box = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+  const lineMat = new THREE.MeshBasicMaterial({ color: COL.window, transparent: true, opacity: 0.62, depthTest: false, depthWrite: false });
+  const line = new THREE.Mesh(box, lineMat);
+  line.matrixAutoUpdate = false; line.renderOrder = 30; line.visible = false; line.frustumCulled = false;
+  const arcMat = new THREE.MeshBasicMaterial({ color: COL.arc, transparent: true, opacity: 0.9, side: THREE.DoubleSide,
+    depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 });
+  const fillMat = new THREE.MeshBasicMaterial({ color: COL.arc, transparent: true, opacity: 0.22, side: THREE.DoubleSide,
+    depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 });
+  let arcs = [];
+  const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
+  const _v = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), plane = new THREE.Plane();
+  function place(mesh, F, a, b, z0, z1, thick){
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    _q.setFromAxisAngle(Y, HOUSE.yawOf([dx, dy]));
+    _p.set((a[0] + b[0]) / 2, F.fl.elev + z0, (a[1] + b[1]) / 2);
+    _s.set(Math.max(0.02, Math.hypot(dx, dy)), Math.max(0.02, z1 - z0), thick);
+    mesh.matrix.compose(_p, _q, _s);
+    mesh.matrixWorldNeedsUpdate = true;
+  }
+  function ensureLine(){ const sc = ctx.scene(); if (sc && line.parent !== sc) sc.add(line); }
+  function clearArcs(){
+    for (const a of arcs) { if (a.parent) a.parent.remove(a); a.geometry.dispose(); }
+    arcs = [];
+  }
+  // Every door on the floors showing, hinge and swing drawn on its floor as
+  // a quarter circle: what a tap on it changes.
+  function syncArcs(){
+    arcsGen = ctx.shellGen();
+    clearArcs();
+    if (!active()) return;
+    for (const F of ctx.floors()) {
+      for (const P of F.pieces) {
+        const pc = P.pc, len = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0);
+        if (pc.kind !== "door" || len > 1.8 || len < 0.3) continue;
+        const sw = HOUSE.openingSwing(pc, F.rooms, pc.override || null);
+        const hb = sw.hinge === "b", hx = hb ? pc.x1 : pc.x0, hy = hb ? pc.y1 : pc.y0;
+        const ux = ((hb ? pc.x0 : pc.x1) - hx) / len, uy = ((hb ? pc.y0 : pc.y1) - hy) / len;
+        const a0 = HOUSE.yawOf([ux, uy]), a1 = HOUSE.yawOf([pc.nx * sw.side, pc.ny * sw.side]);
+        let dA = a1 - a0;
+        while (dA > Math.PI) dA -= 2 * Math.PI;
+        while (dA <= -Math.PI) dA += 2 * Math.PI;
+        const from = dA >= 0 ? a0 : a1, sweep = Math.abs(dA);
+        const fill = new THREE.RingGeometry(0, len, 28, 1, from, sweep).rotateX(-Math.PI / 2);
+        const rim = new THREE.RingGeometry(len - 0.06, len, 28, 1, from, sweep).rotateX(-Math.PI / 2);
+        const leaf = new THREE.PlaneGeometry(len, 0.06).rotateX(-Math.PI / 2).translate(len / 2, 0, 0)
+          .rotateY(a1);
+        for (const [geo, mt] of [[fill, fillMat], [rim, arcMat], [leaf, arcMat]]) {
+          const m = new THREE.Mesh(geo, mt);
+          m.position.set(hx, F.fl.elev + 0.015, hy);
+          m.renderOrder = 6;
+          F.group.add(m);
+          arcs.push(m);
+        }
+      }
+    }
+  }
+
+  // ── where things are ──────────────────────────────────────────────────────
+  function rayAt(x, y){
+    const r = canvas.getBoundingClientRect(), cam = ctx.camera();
+    if (!r.width || !r.height || !cam) return null;
+    ndc.set((x - r.left) / r.width * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
+    cam.updateMatrixWorld();
+    ray.setFromCamera(ndc, cam);
+    return ray.ray;
+  }
+  /** A plan point at height z above floor F, in client px (or null). */
+  function screenAt(F, x, y, z){
+    const r = canvas.getBoundingClientRect(), cam = ctx.camera();
+    if (!cam || !r.width) return null;
+    _v.set(x, F.fl.elev + z, y).project(cam);
+    if (!(_v.z > -1 && _v.z < 1)) return null;
+    return [r.left + (_v.x + 1) / 2 * r.width, r.top + (1 - _v.y) / 2 * r.height];
+  }
+  function segPx(px, py, a, b){
+    const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
+    const t = L2 ? Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / L2)) : 0;
+    return Math.hypot(px - a[0] - dx * t, py - a[1] - dy * t);
+  }
+  const ceilOf = (F) => F.fl.h - HOUSE.SLAB_T;
+  const kindOfPtr = (e) => (e.pointerType === "touch" || e.pointerType === "pen" ? "touch" : "mouse");
+  // The runs of a floor's walls (and where a line on each must stop), as
+  // drawn now: worked out again whenever the walls are rebuilt.
+  function runsOf(F){
+    if (runsGen !== ctx.shellGen()) { runsByFloor.clear(); runsGen = ctx.shellGen(); }
+    let R = runsByFloor.get(F.fl.id);
+    if (!R) {
+      const pcs = F.pieces.map(P => P.pc);
+      R = DRAFT.wallRuns(pcs).map(run => ({ run, stops: DRAFT.runStops(run, pcs), ops: DRAFT.runOpenings(run) }));
+      runsByFloor.set(F.fl.id, R);
+    }
+    return R;
+  }
+  const visibleFloors = () => ctx.floors().filter(F => F.group.visible);
+  /** A floor as drawn, by its id (a door or window's own floor). */
+  const floorOf = (fid) => ctx.floors().find(F => F.fl.id === fid) || null;
+  /** The top floor showing: the one the line tool looks down on. */
+  function currentFloor(){
+    return visibleFloors().filter(F => !F.fl.outdoor && F.rooms.length).sort((a, b) => b.fl.elev - a.fl.elev)[0] || null;
+  }
+  /** t along a run under the pointer: on the wall's own upright plane when
+   *  it is seen from the side, else on the level plane it was pressed at. */
+  function tAlong(w, x, y){
+    const rr = rayAt(x, y);
+    if (!rr) return null;
+    _v.set(w.run.nx, 0, w.run.ny);
+    let hit = null;
+    if (Math.abs(rr.direction.dot(_v)) > 0.3) { plane.set(_v.clone(), -w.run.c); hit = rr.intersectPlane(plane, new THREE.Vector3()); }
+    if (!hit) { plane.set(Y, -(w.F.fl.elev + w.h)); hit = rr.intersectPlane(plane, new THREE.Vector3()); }
+    return hit ? DRAFT.tOn(w.run, hit.x, hit.z) : null;
+  }
+  /** The wall under the pointer: the nearest drawn wall on screen within
+   *  reach, the higher floor first when two are as near. */
+  function wallAt(x, y, reach){
+    let best = null;
+    for (const F of visibleFloors()) {
+      for (const P of F.pieces) {
+        const pc = P.pc;
+        if (pc.kind === "rail") continue;
+        const h = P.cut ? HOUSE.CUT_H * 0.6 : Math.min(1.2, ceilOf(F) * 0.45);
+        const a = screenAt(F, pc.x0, pc.y0, h), b = screenAt(F, pc.x1, pc.y1, h);
+        if (!a || !b) continue;
+        const dd = segPx(x, y, a, b);
+        if (dd > reach) continue;
+        if (!best || dd < best.d - 1 || (Math.abs(dd - best.d) <= 1 && F.fl.elev > best.F.fl.elev)) best = { d: dd, F, P, h };
+      }
+    }
+    if (!best) return null;
+    const entry = runsOf(best.F).find(r => r.run.pcs.includes(best.P.pc));
+    if (!entry) return null;
+    const w = { F: best.F, run: entry.run, stops: entry.stops, ops: entry.ops, h: best.h };
+    w.t = tAlong(w, x, y);
+    return w.t === null ? null : w;
+  }
+  /** A door or window under the pointer (one drawn in 3D, or a barrier's
+   *  from the map), by its outline on screen; the nearest wins. */
+  function openingAt(x, y){
+    const cam = ctx.camera();
+    let best = null;
+    for (const F of visibleFloors()) {
+      for (const P of F.pieces) {
+        const pc = P.pc, id = pc.added || (pc.barrier && pc.barrier.id) || null;
+        if (!id || (pc.kind !== "door" && pc.kind !== "window")) continue;
+        const leaf = P.els.find(e => e.leaf);
+        if (!leaf) continue;
+        const z0 = Math.max(0, leaf.z0), z1 = P.cut ? Math.min(leaf.z1, HOUSE.CUT_H) : leaf.z1;
+        const q = [[pc.x0, pc.y0, z0], [pc.x1, pc.y1, z0], [pc.x1, pc.y1, z1], [pc.x0, pc.y0, z1]].map(([px, py, z]) => screenAt(F, px, py, z));
+        if (!q.every(Boolean)) continue;
+        const inside = HOUSE.inPoly(x, y, q) || q.some((a, i) => segPx(x, y, a, q[(i + 1) % 4]) <= PICK_OPENING);
+        if (!inside) continue;
+        const depth = cam.position.distanceTo(_v.set((pc.x0 + pc.x1) / 2, F.fl.elev + (z0 + z1) / 2, (pc.y0 + pc.y1) / 2));
+        if (!best || depth < best.depth) best = { depth, F, P, id, added: !!pc.added, kind: pc.kind };
+      }
+    }
+    return best && { id: best.id, added: best.added, kind: best.kind, F: best.F, name: (best.P.pc.barrier && best.P.pc.barrier.name) || null };
+  }
+  /** Where a 3D opening is drawn now: its floor, piece and run. */
+  function addedNow(id){
+    for (const F of ctx.floors()) {
+      const P = F.pieces.find(q => q.pc.added === id);
+      if (!P) continue;
+      const entry = runsOf(F).find(r => r.run.pcs.includes(P.pc));
+      return { F, P, entry };
+    }
+    return null;
+  }
+  function endsOf(id){
+    const rec = draft && draft.cur.openings[id];
+    return rec ? { a: rec.a_m, b: rec.b_m } : null;
+  }
+
+  // ── the draft ─────────────────────────────────────────────────────────────
+  function change(fn, group = null){
+    if (!draft || !draft.change(fn, group)) return false;
+    redrawSoon();
+    paint();                                     // Save, Undo and the line now; the walls on the next frame
+    if (sheetRefresh) sheetRefresh();            // the open sheet's Reset, without rebuilding its sliders
+    return true;
+  }
+  // One redraw per frame however fast a slider moves.
+  function redrawSoon(){
+    if (redrawDue) return;
+    redrawDue = true;
+    requestAnimationFrame(guard(() => {
+      redrawDue = false;
+      ctx.redraw();
+      paint();
+    }));
+  }
+  function afterHistory(msg){
+    if (sel && sel.opening && sel.opening.added && !draft.cur.openings[sel.opening.id]) sel = null;
+    gesture = null; pending = null;
+    redrawSoon();
+    hint(msg);
+    sheetFor();
+    paint();                                     // Undo and Redo as they are now, not a frame later
+  }
+  function discard(){
+    if (!draft || !draft.dirty) return;
+    const n = Object.values(draft.changes() || {}).reduce((a, s) => a + Object.keys(s).length, 0);
+    draft.discard();
+    sel = null;
+    afterHistory(`Discarded ${FEW(n)}. Undo brings ${n === 1 ? "it" : "them"} back.`);
+  }
+  async function save(then){
+    if (!draft || saving || !editFn) return;
+    const ch = draft.changes();
+    if (!ch) { if (then) then(); return; }
+    saving = true; paint();
+    try {
+      const r = await editFn(ch);
+      if (!r || typeof r !== "object" || !r.data) throw new Error("no answer");
+      ctx.saved(r.data);
+      draft.rebase(ctx.file() || DRAFT.ownedOf(r.data));
+      hint("Saved.");
+      saving = false;
+      redrawSoon();
+      sheetFor();
+      if (then) then();
+    } catch (err) {
+      saving = false;
+      hint(`Not saved: ${String((err && (err.message || err.code)) || err)}`, true);
+    }
+    paint();
+  }
+
+  // ── Edit, the tools, leaving ──────────────────────────────────────────────
+  async function begin(){
+    if (!editFn || editing) return;
+    let f = ctx.file();
+    if (!f) {
+      hint("Reading the 3D file…");
+      let ok = false;
+      try { ok = await ctx.reload(); } catch (_) { ok = false; }
+      f = ctx.file();
+      if (!ok || !f) { flash("Couldn't read the 3D file. Try again."); return; }
+    }
+    draft = DRAFT.createDraft(f);
+    editing = true; tool = null; sel = null; gesture = null; pending = null;
+    ctx.clearUse();
+    hint("Door or Window: draw along a wall. Heights: tap a device. Tap a door or window to change it.");
+    syncArcs();
+    paint();
+    sheetFor();
+    ctx.render();
+  }
+  function stop(){
+    editing = false; draft = null; tool = null; sel = null; gesture = null; pending = null; askGo = null;
+    clearArcs();
+    line.visible = false;
+    canvas.style.cursor = "";
+    askEl.classList.remove("on");
+    paint();
+    sheetFor();
+    ctx.redraw();
+    ctx.render();
+  }
+  /** Done: straight out when everything is saved, else ask first. */
+  function finish(){ if (!holdLeave(() => {})) paint(); }
+  /** Something wants to leave Edit (Done, or the screen going to Map): with
+   *  unsaved changes it asks first and holds (true); `go` runs once the
+   *  person has saved or discarded. Without, Edit simply ends (false). */
+  function holdLeave(go){
+    if (!editing) return false;
+    if (!draft || !draft.dirty) { stop(); return false; }
+    ask(go);
+    return true;
+  }
+  function ask(go){
+    askGo = go;
+    askEl.innerHTML = "";
+    const card = d("div");
+    const n = Object.values(draft.changes() || {}).reduce((a, s) => a + Object.keys(s).length, 0);
+    card.appendChild(d("p", null, `${FEW(n)} in 3D ${n === 1 ? "is" : "are"} not saved yet.`));
+    const acts = d("div", "la3d-acts");
+    acts.append(seg(
+      btn("Save", "Save them, then go on", () => { askEl.classList.remove("on"); save(() => { const g = askGo; stop(); if (g) g(); }); }, "la3d-save"),
+      btn("Discard", "Throw them away, then go on", () => { const g = askGo; stop(); if (g) g(); }),
+      btn("Keep editing", "Stay here", () => { askGo = null; askEl.classList.remove("on"); }),
+    ));
+    card.appendChild(acts);
+    askEl.appendChild(card);
+    askEl.classList.add("on");
+  }
+  function pickTool(t){
+    const was = tool;
+    tool = tool === t ? null : t;
+    pending = null; gesture = null; line.visible = false;
+    const drawing = (x) => x === "door" || x === "window";
+    if (drawing(tool) && !drawing(was)) { const F = currentFloor(); if (F) ctx.topDown(F); }
+    if (tool === "heights" && sel && sel.opening) sel = null;
+    hint(drawing(tool) ? "Press on a wall and drag along it, or tap its two ends."
+      : tool === "heights" ? "Tap a light, a sensor or a readout."
+      : "Door or Window: draw along a wall. Heights: tap a device. Tap a door or window to change it.");
+    paint();
+    sheetFor();
+    ctx.render();
+  }
+  function hint(text, bad = false){ hintMsg = text; hintBad = bad; paintHint(); }
+  function flash(text){ hint(text, true); }
+  function paintHint(){
+    hintEl.textContent = hintMsg;
+    hintEl.classList.toggle("bad", hintBad);
+  }
+  function paint(){
+    const on = active();
+    editSeg.style.display = editFn ? "" : "none";
+    bEdit.textContent = editing ? "Done" : "Edit";
+    bEdit.setAttribute("aria-pressed", String(editing));
+    tools.classList.toggle("on", on);
+    for (const [b, t] of [[bDoor, "door"], [bWin, "window"], [bHts, "heights"]]) b.setAttribute("aria-pressed", String(tool === t));
+    bUndo.disabled = !on || !draft.canUndo;
+    bRedo.disabled = !on || !draft.canRedo;
+    const dirty = on && draft.dirty;
+    bSave.disabled = !dirty || saving;
+    bSave.textContent = saving ? "Saving…" : "Save";
+    bDiscard.disabled = !dirty || saving;
+    paintHint();
+    paint3d();
+    if (!on) { sheet.classList.remove("on"); askEl.classList.remove("on"); }
+  }
+
+  // ── the sheet: what is picked ─────────────────────────────────────────────
+  function select(s){ sel = s; pending = null; sheetFor(); paint(); }
+  function sheetFor(){
+    sheet.innerHTML = "";
+    sheetRefresh = null;
+    if (!active() || !sel) { sheet.classList.remove("on"); return; }
+    if (sel.opening) (sel.opening.added ? sheetAdded : sheetMapOpening)(sel.opening);
+    else if (sel.eid) sheetDevice(sel.eid);
+    sheet.classList.toggle("on", sheet.childNodes.length > 0);
+    placeSheet();
+  }
+  // Under the toolbar, however many rows that wraps to: placed as it opens,
+  // so it never jumps under a finger.
+  function placeSheet(){
+    if (sheet.classList.contains("on")) sheet.style.top = `${tools.offsetTop + tools.offsetHeight + 8}px`;
+  }
+  function head(title, sub){
+    const h = d("h4");
+    h.appendChild(d("span", null, title));
+    h.appendChild(btn("×", "Close", () => select(null), "la3d-x"));
+    sheet.appendChild(h);
+    if (sub) sheet.appendChild(d("p", "la3d-sub", sub));
+  }
+  function slider(label, min, max, value, onInput){
+    const row = d("label", "la3d-row");
+    const val = d("b", null, DRAFT.metres(value));
+    const r = d("input");
+    r.type = "range"; r.min = String(min); r.max = String(max); r.step = "0.01"; r.value = String(value);
+    r.setAttribute("aria-label", label);
+    let group = null;
+    r.addEventListener("pointerdown", () => { group = `slider:${++sliderGen}`; });
+    r.addEventListener("change", () => { group = null; });
+    r.addEventListener("input", guard(() => {
+      const v = Number(r.value);
+      val.textContent = DRAFT.metres(v);
+      onInput(v, group || `slider:${++sliderGen}`);
+    }));
+    row.append(d("span", null, label), r, val);
+    sheet.appendChild(row);
+    return r;
+  }
+  function choice(label, options, cur, act){
+    const row = d("div", "la3d-row");
+    const s = d("span", "lv-zoomseg");
+    for (const [v, text] of options) {
+      const b = btn(text, `${label}: ${text}`, () => act(v));
+      b.setAttribute("aria-pressed", String(cur === v));
+      s.appendChild(b);
+    }
+    row.append(d("span", null, label), s);
+    sheet.appendChild(row);
+  }
+  function sheetAdded(o){
+    // From the draft itself: a door or window just drawn is not drawn in
+    // the walls until the next frame.
+    const rec = draft.cur.openings[o.id];
+    if (!rec) { sel = null; return; }
+    const F = floorOf(rec.floor_id), ceil = F ? ceilOf(F) : 2.65, w = Math.hypot(rec.b_m[0] - rec.a_m[0], rec.b_m[1] - rec.a_m[1]);
+    head(`${rec.kind === "door" ? "Door" : "Window"} · ${DRAFT.metres(w)}`, "Drawn in 3D. Drag either end to change its width.");
+    choice("Is a", [["door", "Door"], ["window", "Window"]], rec.kind, (k) => {
+      if (k === rec.kind) return;
+      const sw = DRAFT.switchKind(o.id, rec, ceil);
+      if (sw.error) { flash(sw.error + "."); return; }
+      change((c) => { delete c.openings[o.id]; c.openings[sw.id] = sw.rec; });
+      sel = { opening: { ...o, id: sw.id, kind: sw.rec.kind } };
+      hint(`Now a ${sw.rec.kind}.`);
+      sheetFor();
+    });
+    const set = (patch, group) => change((c) => {
+      const cur = c.openings[o.id];
+      if (cur) Object.assign(cur, DRAFT.openingHeights({ ...cur, ...patch }, ceil));
+    }, group);
+    if (rec.kind === "window") {
+      slider("Sill", 0, DRAFT.mm(ceil - DRAFT.GAP_MIN_M), rec.sill_m, (v, g) => set({ sill_m: v }, g));
+      slider("Head", DRAFT.GAP_MIN_M, DRAFT.mm(ceil), rec.head_m, (v, g) => set({ head_m: v }, g));
+    } else {
+      slider("Height", DRAFT.DOOR_LOW_M, DRAFT.mm(ceil), rec.head_m, (v, g) => set({ head_m: v }, g));
+      const pick = (k, v) => { change((c) => { if (c.openings[o.id]) c.openings[o.id][k] = v; }); sheetFor(); };
+      choice("Hinge", [["left", "Left"], ["right", "Right"]], rec.hinge, (v) => pick("hinge", v));
+      choice("Swing", [["in", "In"], ["out", "Out"]], rec.swing, (v) => pick("swing", v));
+    }
+    const acts = d("div", "la3d-acts");
+    acts.appendChild(seg(btn("Delete", `Delete this ${rec.kind}`, () => {
+      change((c) => { delete c.openings[o.id]; });
+      select(null);
+      hint(`${rec.kind === "door" ? "Door" : "Window"} deleted. Undo brings it back.`);
+    }, "la3d-del")));
+    sheet.appendChild(acts);
+  }
+  function sheetMapOpening(o){
+    const cur = draft.cur.openings[o.id] || {}, F = o.F, ceil = ceilOf(F);
+    head(o.name || (o.kind === "door" ? "Door" : "Window"), "From the map. These change the 3D view only.");
+    const set = (patch, group) => change((c) => { c.openings[o.id] = { ...(c.openings[o.id] || {}), ...patch }; }, group);
+    if (o.kind === "window") {
+      const now = DRAFT.openingHeights({ kind: "window", sill_m: cur.sill_m ?? HOUSE.SILL_H, head_m: cur.head_m ?? HOUSE.HEAD_H }, ceil);
+      slider("Sill", 0, DRAFT.mm(ceil - DRAFT.GAP_MIN_M), now.sill_m, (v, g) => {
+        const c0 = draft.cur.openings[o.id] || {};
+        set(DRAFT.openingHeights({ kind: "window", sill_m: v, head_m: c0.head_m ?? HOUSE.HEAD_H }, ceil), g);
+      });
+      slider("Head", DRAFT.GAP_MIN_M, DRAFT.mm(ceil), now.head_m, (v, g) => {
+        const c0 = draft.cur.openings[o.id] || {};
+        set(DRAFT.openingHeights({ kind: "window", sill_m: c0.sill_m ?? HOUSE.SILL_H, head_m: v }, ceil), g);
+      });
+    } else {
+      choice("Hinge", [["left", "Left"], ["right", "Right"]], cur.hinge || "left", (v) => { set({ hinge: v }); sheetFor(); });
+      choice("Swing", [["in", "In"], ["out", "Out"]], cur.swing || "in", (v) => { set({ swing: v }); sheetFor(); });
+    }
+    const acts = d("div", "la3d-acts");
+    const reset = btn("Reset", "Back to how the map has it", () => { change((c) => { delete c.openings[o.id]; }); sheetFor(); });
+    sheetRefresh = () => { reset.disabled = !draft.cur.openings[o.id]; };
+    sheetRefresh();
+    acts.appendChild(seg(reset));
+    sheet.appendChild(acts);
+  }
+  function sheetDevice(eid){
+    const info = ctx.device(eid);
+    if (!info || info.z === null) { sel = null; return; }
+    const ceil = ceilOf(info.F), cur = draft.cur[info.section][eid];
+    head(info.label, `Height above its floor, 0 to ${DRAFT.metres(ceil)}. Default ${DRAFT.metres(info.zDefault)}.`);
+    slider("Height", 0, DRAFT.mm(ceil), cur ? cur.z_m : info.z, (v, g) => {
+      change((c) => { c[info.section][eid] = { z_m: DRAFT.clampHeight(v, ceil) }; }, g);
+    });
+    const acts = d("div", "la3d-acts");
+    const reset = btn("Reset to default", "Back to the height its type gives it", () => {
+      change((c) => { delete c[info.section][eid]; });
+      sheetFor();
+    });
+    sheetRefresh = () => { reset.disabled = !draft.cur[info.section][eid]; };
+    sheetRefresh();
+    acts.appendChild(seg(reset));
+    sheet.appendChild(acts);
+  }
+
+  // ── the line, the ends, the length ────────────────────────────────────────
+  // What the 3D line shows: the line being drawn, the end being dragged, or
+  // the opening that is picked.
+  function shown(){
+    if (gesture && gesture.span && (gesture.kind === "line" || gesture.kind === "drag")) {
+      const g = gesture, run = g.w.run, kind = g.kindOf;
+      const z = kind === "door" ? [0, Math.min(DRAFT.DOOR_HEAD_M, ceilOf(g.w.F))] : [g.sill ?? DRAFT.WINDOW_SILL_M, g.head ?? DRAFT.WINDOW_HEAD_M];
+      return { F: g.w.F, a: DRAFT.pointOf(run, g.span.t0), b: DRAFT.pointOf(run, g.span.t1), z, kind, thick: g.w.run.thick,
+               len: g.span.len, stop: g.span.stop, short: g.span.len < DRAFT.minWidth(kind) - 1e-6, fixed: g.fixed };
+    }
+    if (sel && sel.opening && sel.opening.added) {
+      const rec = draft.cur.openings[sel.opening.id], F = rec ? floorOf(rec.floor_id) : null;
+      if (!rec || !F) return null;
+      const at = addedNow(sel.opening.id);
+      return { F, a: rec.a_m, b: rec.b_m, z: rec.kind === "door" ? [0, rec.head_m] : [rec.sill_m, rec.head_m], kind: rec.kind,
+               thick: at ? at.P.pc.thick : 0.14, len: Math.hypot(rec.b_m[0] - rec.a_m[0], rec.b_m[1] - rec.a_m[1]),
+               stop: null, short: false, handles: true };
+    }
+    if (sel && sel.opening) {
+      for (const F of ctx.floors()) {
+        const P = F.pieces.find(q => q.pc.barrier && q.pc.barrier.id === sel.opening.id && (q.pc.kind === "door" || q.pc.kind === "window"));
+        const leaf = P && P.els.find(e => e.leaf);
+        if (leaf) return { F, a: [P.pc.x0, P.pc.y0], b: [P.pc.x1, P.pc.y1], z: [Math.max(0, leaf.z0), leaf.z1], kind: "map",
+                           thick: P.pc.thick, len: Math.hypot(P.pc.x1 - P.pc.x0, P.pc.y1 - P.pc.y0), stop: null, short: false };
+      }
+    }
+    return null;
+  }
+  function paint3d(){
+    ensureLine();
+    const s = active() ? shown() : null;
+    line.visible = !!s;
+    if (s) {
+      lineMat.color.set(s.stop === "opening" || s.short ? COL.stop : COL[s.kind] || COL.window);
+      // Wider than the wall, so it shows from straight above too.
+      place(line, s.F, s.a, s.b, s.z[0], s.z[1], Math.max((s.thick || 0.12) + 0.12, 0.34));
+    }
+    ctx.render();
+  }
+  /** Every frame: the ends, the length and the picked device's ring, where
+   *  they are on screen now. */
+  function layout(){
+    const on = active();
+    if (on && arcsGen !== ctx.shellGen()) { syncArcs(); ctx.render(); }
+    const r0 = root.getBoundingClientRect(), off = (p) => [p[0] - r0.left - (root.clientLeft || 0), p[1] - r0.top - (root.clientTop || 0)];
+    const put = (el, p, cls) => {
+      if (!p) { el.style.display = "none"; return; }
+      const q = off(p);
+      el.style.display = "block"; el.style.left = `${q[0]}px`; el.style.top = `${q[1]}px`;
+      if (cls !== undefined) el.classList.toggle("stop", cls);
+    };
+    const s = on ? shown() : null;
+    const mid = s ? (s.z[0] + s.z[1]) / 2 : 0;
+    const showEnds = s && (s.handles || (gesture && (gesture.kind === "line" || gesture.kind === "drag")));
+    put(ends[0], showEnds ? screenAt(s.F, s.a[0], s.a[1], mid) : null, false);
+    put(ends[1], showEnds ? screenAt(s.F, s.b[0], s.b[1], mid) : null, !!(s && (s.stop === "opening" || s.short)));
+    if (!showEnds && on && pending) {
+      const p = DRAFT.pointOf(pending.run, pending.t);
+      put(ends[0], screenAt(pending.F, p[0], p[1], pending.h), false);
+    }
+    if (s) {
+      // Beside the line, never on it: off its middle, square to it on screen
+      // (above it, or to its left when it runs up the screen).
+      lenEl.textContent = DRAFT.metres(s.len) + (s.stop === "opening" ? " · stops at the opening" : s.stop === "corner" ? " · corner" : "");
+      lenEl.classList.toggle("bad", s.stop === "opening" || s.short);
+      const pa = screenAt(s.F, s.a[0], s.a[1], mid), pb = screenAt(s.F, s.b[0], s.b[1], mid);
+      if (pa && pb) {
+        const dx = pb[0] - pa[0], dy = pb[1] - pa[1], L = Math.hypot(dx, dy) || 1;
+        let nx = -dy / L, ny = dx / L;
+        if (ny > 0.3 || (Math.abs(ny) <= 0.3 && nx > 0)) { nx = -nx; ny = -ny; }
+        lenEl.style.display = "block";
+        const off = 16 + Math.abs(nx) * lenEl.offsetWidth / 2 + Math.abs(ny) * lenEl.offsetHeight / 2;
+        put(lenEl, [(pa[0] + pb[0]) / 2 + nx * off, (pa[1] + pb[1]) / 2 + ny * off]);
+      } else put(lenEl, null);
+    } else put(lenEl, null);
+    const dev = on && sel && sel.eid ? ctx.device(sel.eid) : null;
+    put(ring, dev && dev.at ? screenAt(dev.F, dev.at.x, dev.at.z, dev.at.y - dev.F.fl.elev) : null);
+    placeSheet();
+  }
+
+  // ── a finger, a pen or the mouse (live_aboard.js hands them over) ─────────
+  /** A press on the view while editing: "line" (drawing), "drag" (an end),
+   *  "tap" (picks on release; a move turns the house instead), "swallow"
+   *  (a finger that missed every wall while drawing: nothing), or null
+   *  (the house turns, as ever). */
+  function down(e){
+    if (!active() || askEl.classList.contains("on") || saving) return null;
+    const x = e.clientX, y = e.clientY, k = kindOfPtr(e);
+    const s = shown();
+    if (s && s.handles && sel) {
+      const mid = (s.z[0] + s.z[1]) / 2;
+      const pa = screenAt(s.F, s.a[0], s.a[1], mid), pb = screenAt(s.F, s.b[0], s.b[1], mid);
+      const da = pa ? Math.hypot(pa[0] - x, pa[1] - y) : Infinity, db = pb ? Math.hypot(pb[0] - x, pb[1] - y) : Infinity;
+      if (Math.min(da, db) <= GRAB[k]) {
+        const at = addedNow(sel.opening.id), rec = draft.cur.openings[sel.opening.id];
+        if (at && at.entry && rec) {
+          const moving = da <= db ? "a" : "b", run = at.entry.run;
+          const fixedT = DRAFT.tOn(run, ...(moving === "a" ? rec.b_m : rec.a_m)), startT = DRAFT.tOn(run, ...(moving === "a" ? rec.a_m : rec.b_m));
+          const w = { F: at.F, run, stops: at.entry.stops, ops: at.entry.ops, h: mid };
+          gesture = { kind: "drag", id: sel.opening.id, moving, w, fixedT, startT, kindOf: rec.kind, x0: x, y0: y,
+                      sill: rec.sill_m, head: rec.head_m, span: DRAFT.spanOf(run, w.stops, w.ops, fixedT, startT, sel.opening.id) };
+          paint3d();
+          return "drag";
+        }
+      }
+    }
+    const op = openingAt(x, y);
+    if (op) { gesture = { kind: "tap", target: { opening: op }, x0: x, y0: y }; return "tap"; }
+    if (tool === "door" || tool === "window") {
+      const w = wallAt(x, y, REACH[k]);
+      if (!w) {
+        if (k !== "touch") return null;
+        hint("Press on a wall.", true);
+        return "swallow";
+      }
+      if (DRAFT.insideOpening(w.ops, w.t)) { hint("That is already a door or window.", true); return "swallow"; }
+      gesture = { kind: "line", w, from: w.t, to: w.t, x0: x, y0: y, moved: false, kindOf: tool,
+                  span: DRAFT.spanOf(w.run, w.stops, w.ops, w.t, w.t) };
+      paint3d();
+      return "line";
+    }
+    const hit = ctx.pick(x, y);
+    if (hit && hit.hit && hit.hit.kind === "device" && ctx.device(hit.hit.eid)) {
+      gesture = { kind: "tap", target: { eid: hit.hit.eid }, x0: x, y0: y };
+      return "tap";
+    }
+    return null;
+  }
+  function move(e){
+    const g = gesture;
+    if (!g || (g.kind !== "line" && g.kind !== "drag")) return;
+    if (!g.moved && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) > SLOP) g.moved = true;
+    const t = tAlong(g.w, e.clientX, e.clientY);
+    if (t === null) return;
+    if (g.kind === "line") {
+      g.to = t;
+      g.span = DRAFT.spanOf(g.w.run, g.w.stops, g.w.ops, g.from, t);
+    } else {
+      // An end never passes its other end: back past it is no width at all.
+      const dir = Math.sign(g.startT - g.fixedT) || 1;
+      const to = (t - g.fixedT) * dir < 0 ? g.fixedT : t;
+      g.span = DRAFT.spanOf(g.w.run, g.w.stops, g.w.ops, g.fixedT, to, g.id);
+    }
+    paint3d();
+  }
+  function up(e){
+    const g = gesture;
+    gesture = null;
+    if (!g) { paint3d(); return; }
+    if (g.kind === "line") {
+      if (g.moved) { pending = null; addOpening(g.w, g.span); }
+      else tapEnd(g.w);
+    } else if (g.kind === "drag") {
+      if (g.moved) moveEnd(g);
+    } else if (g.kind === "tap") tap(e, g);
+    paint3d();
+    paint();
+  }
+  function tap(e, g = gesture){
+    gesture = null;
+    if (!g || !g.target) return;
+    if (g.target.opening) { select({ opening: g.target.opening }); hint(g.target.opening.added ? "Drag either end to change its width." : "From the map: set it for the 3D view."); }
+    else if (g.target.eid) select({ eid: g.target.eid });
+  }
+  // Two taps: the first marks an end, the second (on the same wall) the other.
+  function tapEnd(w){
+    const same = pending && pending.F.fl.id === w.F.fl.id && Math.abs(pending.run.ux * w.run.ux + pending.run.uy * w.run.uy) > 0.999
+      && Math.abs(pending.run.c - w.run.c) < 0.02;
+    if (same) {
+      const sp = DRAFT.spanOf(w.run, w.stops, w.ops, DRAFT.tOn(w.run, ...DRAFT.pointOf(pending.run, pending.t)), w.t);
+      pending = null;
+      addOpening(w, sp);
+      return;
+    }
+    pending = { F: w.F, run: w.run, t: w.t, h: w.h };
+    hint("Now tap the other end, on the same wall.");
+  }
+  function addOpening(w, sp){
+    const kind = tool === "door" ? "door" : "window", min = DRAFT.minWidth(kind);
+    if (!sp || sp.len < min - 1e-6) {
+      flash(`Too short: a ${kind} is at least ${min.toFixed(2)} m wide${sp && sp.stop === "opening" ? ", and openings never overlap" : ""}.`);
+      return;
+    }
+    const id = DRAFT.newOpeningId(kind);
+    const rec = DRAFT.newOpening(kind, w.F.fl.id, DRAFT.pointOf(w.run, sp.t0), DRAFT.pointOf(w.run, sp.t1), ceilOf(w.F));
+    change((c) => { c.openings[id] = rec; });
+    select({ opening: { id, added: true, kind } });
+    if (sp.stop === "opening") flash(`${kind === "door" ? "Door" : "Window"} ${DRAFT.metres(sp.len)}: it stops at the opening next to it (openings never overlap).`);
+    else hint(`${kind === "door" ? "Door" : "Window"} ${DRAFT.metres(sp.len)} added. Drag either end to change it.`);
+  }
+  function moveEnd(g){
+    const min = DRAFT.minWidth(g.kindOf);
+    if (g.span.len < min - 1e-6) { flash(`Too short: a ${g.kindOf} is at least ${min.toFixed(2)} m wide.`); return; }
+    const fixedP = DRAFT.pointOf(g.w.run, g.fixedT);
+    const movedP = DRAFT.pointOf(g.w.run, g.span.t0 === g.fixedT ? g.span.t1 : g.span.t0);
+    change((c) => {
+      const cur = c.openings[g.id];
+      if (!cur) return;
+      const r = (p) => [DRAFT.mm(p[0]), DRAFT.mm(p[1])];
+      if (g.moving === "a") { cur.a_m = r(movedP); cur.b_m = r(fixedP); } else { cur.a_m = r(fixedP); cur.b_m = r(movedP); }
+    });
+    sheetFor();
+    if (g.span.stop === "opening") flash("Stopped at the opening next to it: openings never overlap.");
+    else hint(`${g.kindOf === "door" ? "Door" : "Window"} now ${DRAFT.metres(g.span.len)}.`);
+  }
+  function cancel(){ gesture = null; paint3d(); }
+  function hover(e){
+    if (!active()) return false;
+    let cur = "";
+    if (openingAt(e.clientX, e.clientY)) cur = "pointer";
+    else if ((tool === "door" || tool === "window") && wallAt(e.clientX, e.clientY, REACH.mouse)) cur = "crosshair";
+    canvas.style.cursor = cur;
+    return true;
+  }
+
+  return {
+    /** The host's edit (the light-placement gate), or null: no Edit. */
+    setEdit(fn){
+      const had = !!editFn;
+      editFn = typeof fn === "function" ? fn : null;
+      if (had !== !!editFn) { paint(); sheetFor(); if (editing) { syncArcs(); ctx.redraw(); } }
+    },
+    get active(){ return active(); },
+    /** The draft while editing (what the view draws instead of the file). */
+    view(){ return active() ? draft.cur : null; },
+    down, move, up, tap: (e) => tap(e), cancel, hover, layout, holdLeave,
+    /** The screen went to Map: out of Edit (unsaved work was asked about first). */
+    leave(){ if (editing) stop(); },
+    state(){
+      return { editing, active: active(), tool, dirty: !!(draft && draft.dirty), canUndo: !!(draft && draft.canUndo),
+               canRedo: !!(draft && draft.canRedo), saving, asking: askEl.classList.contains("on"), hint: hintMsg, hintBad,
+               sel: sel ? (sel.opening ? { opening: { id: sel.opening.id, added: sel.opening.added, kind: sel.opening.kind } } : { eid: sel.eid }) : null,
+               draft: draft ? JSON.parse(JSON.stringify(draft.cur)) : null, changes: draft ? draft.changes() : null,
+               gesture: gesture ? { kind: gesture.kind, span: gesture.span || null } : null, pending: !!pending,
+               line: line.visible, arcs: arcs.length / 3 };
+    },
+    /** A plan point on floor fid at height z, in client px (the harness presses it). */
+    whereOf(fid, x, y, z = 1){ const F = ctx.floors().find(q => q.fl.id === fid); return F ? screenAt(F, x, y, z) : null; },
+    dispose(){
+      clearArcs();
+      if (line.parent) line.parent.remove(line);
+      box.dispose(); lineMat.dispose(); arcMat.dispose(); fillMat.dispose();
+    },
+  };
+}

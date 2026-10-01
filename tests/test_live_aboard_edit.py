@@ -1,0 +1,116 @@
+# PadSpan HA — BLE Room-Presence Tracking for Home Assistant
+# Copyright (C) 2026 Garry Broeckling
+# Licensed under the GNU General Public License v3.0
+"""Live Aboard P1, part C: the 3D editor in the 3D view (views/live_aboard_edit.js).
+
+Its rules are run for real in tests/js/live_aboard_draft.mjs; the editor is
+driven in a real browser on Garry's house by the part C harness (scratch).
+Held here, from the source: the light-placement gate on both ends, Save
+through the host only, leaving with unsaved changes asking in the page, one
+finger drawing while two still pinch, the draft living in the long-lived
+slot, nothing of it while off, and no new call, timer or outside code.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+from custom_components.padspan_ha import telemetry as T
+from custom_components.padspan_ha import ws_house3d as W
+
+_ROOT = Path(__file__).resolve().parents[1]
+_WWW = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
+_VIEWS = _WWW / "views"
+
+
+def _js(p: Path) -> str:
+    return p.read_text(encoding="utf-8").replace("\r\n", "\n")
+
+
+def _code(p: Path) -> str:
+    return "\n".join(ln for ln in _js(p).splitlines() if not ln.lstrip().startswith(("//", "*", "/*")))
+
+
+def _block(src: str, start: str, end: str = "} : null,") -> str:
+    b = src[src.index(start):]
+    return b[:b.index(end)]
+
+
+def test_edit_is_handed_over_only_where_lights_are_placed() -> None:
+    """Mapping -> Atlas hands `edit` over exactly when it lets lights be
+    placed (paid, not Preview: onDropPlace's gate); the Atlas sidebar, where
+    no light is placed, never does. The server holds the same gate."""
+    maps = _js(_VIEWS / "maps.js")
+    assert "const onDropPlace = (paid && !preview && mapState._selLight) ?" in maps
+    mblock = _block(maps, "house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ?")
+    assert 'edit: paid && !preview ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes) : null,' in mblock
+    lp = _block(_js(_WWW / "lights_panel.js"), "house3d: this.state._house3d ?")
+    assert "edit:" not in lp and "house3d_edit" not in _js(_WWW / "lights_panel.js")
+    lm = _js(_VIEWS / "lights_map.js")
+    assert 'edit: typeof h3.edit === "function" ? h3.edit : null,' in lm
+    la = _js(_VIEWS / "live_aboard.js")
+    assert 'editor.setEdit(typeof p.edit === "function" ? p.edit : null)' in la
+    assert W.ws_house3d_edit.ws_schema["type"] == "padspan_ha/house3d_edit"
+
+
+def test_nothing_is_stored_until_save_and_save_goes_through_the_host() -> None:
+    ed = _code(_VIEWS / "live_aboard_edit.js")
+    assert "const r = await editFn(ch);" in ed and "ctx.saved(r.data);" in ed
+    assert ed.count("editFn(") == 1, "Save is the one place the editor writes"
+    for name in ("live_aboard.js", "live_aboard_edit.js", "live_aboard_draft.js"):
+        code = _code(_VIEWS / name)
+        for bad in ("callWS", "wsCall", "callService", "callApi", "fetch(", "setTimeout", "setInterval", "localStorage",
+                    "house3d_edit", "telemetry_event"):
+            assert bad not in code, (name, bad)
+
+
+def test_leaving_with_unsaved_changes_asks_in_the_page() -> None:
+    ed = _code(_VIEWS / "live_aboard_edit.js")
+    for bad in ("confirm(", "alert(", "prompt(", "beforeunload"):
+        assert bad not in ed, bad
+    assert "function holdLeave(go)" in ed and '"Keep editing"' in ed and "la3d-ask" in ed
+    lm = _js(_VIEWS / "lights_map.js")
+    pick = lm[lm.index("const pick3d = (on) => {"):]
+    pick = pick[:pick.index("mount3d();")]
+    assert pick.index("s.holdLeave(") < pick.index("_la3dPick(h3.slot, on);"), "asked before the switch moves"
+    la = _js(_VIEWS / "live_aboard.js")
+    assert "holdLeave(go){" in la
+
+
+def test_one_finger_draws_two_still_pinch() -> None:
+    la = _js(_VIEWS / "live_aboard.js")
+    wire = la[la.index("function wirePointer(){"):la.index("/** The corners of every room on a showing indoor floor")]
+    assert 'if (mode === "edit" || mode === "editTap") editor.cancel();' in wire, "a second finger ends the line: a pinch"
+    assert "editor.active && mode === \"orbit\" && pts.size === 1" in wire, "one pointer, never a pan button"
+    assert 'if (mode === "edit") { editor.move(e); return; }' in wire
+    assert "use.down(e)" in wire and wire.index("editor.down(e)") < wire.index("use.down(e)"), "in Edit a press never switches a light"
+
+
+def test_the_draft_lives_in_the_long_lived_slot() -> None:
+    la = _js(_VIEWS / "live_aboard.js")
+    assert "editor = EDIT.createEditor({" in la and la.index("editor = EDIT.createEditor({") > la.index("function start(setting){")
+    assert "const viewData = () => (editor && editor.view()) || file || NO_FILE;" in la
+    assert "if (editor) editor.layout();" in la
+    ed = _code(_VIEWS / "live_aboard_edit.js")
+    assert "root.appendChild(" in ed and "document.body" not in ed, "its page lives in the slot's element"
+
+
+def test_the_tool_looks_down_on_the_floor_and_heights_skip_scanners() -> None:
+    la = _js(_VIEWS / "live_aboard.js")
+    assert "fit(0, MIN_PHI, pts.length ? pts : undefined);" in la
+    ed = _js(_VIEWS / "live_aboard_edit.js")
+    assert "if (drawing(tool) && !drawing(was)) { const F = currentFloor(); if (F) ctx.topDown(F); }" in ed
+    dev = la[la.index("function deviceInfo(eid){"):]
+    dev = dev[:dev.index("\n  }\n")]
+    assert "lights.find(" in dev and "sensorsUi.find(" in dev and "scanner" not in dev, "drawn lights and sensors only"
+
+
+def test_three_comes_in_through_the_view_and_the_files_are_credited() -> None:
+    ed = _code(_VIEWS / "live_aboard_edit.js")
+    assert "import(" not in ed and not re.search(r"^\s*import\s", ed, re.M) and "three.module" not in ed
+    assert "const { THREE, HOUSE, DRAFT, root, canvas, bar, guard } = ctx;" in ed
+    want = "import(`./live_aboard_edit.js${new URL(import.meta.url).search}`)"
+    importers = sorted(p.name for p in _WWW.rglob("*.js") if "vendor" not in p.parts and want in _js(p))
+    assert importers == ["live_aboard.js"], importers
+    assert "live_aboard_edit" in T.UI_ERROR_HELPERS and T.event_allowed("ui_error:live_aboard_edit")

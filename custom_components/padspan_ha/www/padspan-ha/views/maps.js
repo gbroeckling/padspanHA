@@ -9375,6 +9375,9 @@ function _lightsTab(ctx, maps, active) {
       // The 3D file (doors and windows drawn in 3D, heights): read when the
       // 3D view shows, never on the poll.
       load: () => ctx.actions.wsCall("padspan_ha/house3d_get"),
+      // The 3D editor's Save, on the same gate as placing a light here
+      // (paid, not Preview): without it the 3D view offers no Edit.
+      edit: paid && !preview ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes) : null,
       telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
     } : null,
     isolux: mapState._lightsIsolux === undefined

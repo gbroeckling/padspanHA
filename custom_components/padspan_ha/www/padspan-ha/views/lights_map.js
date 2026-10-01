@@ -2605,6 +2605,7 @@ const _la3dPick = (slot, on) => { try { localStorage.setItem(_LA_PICK + slot, on
 let _LA = null;                       // views/live_aboard.js, once loaded
 let _laLoading = null, _laLoadFailed = false;
 const _laWaiting = new Map();         // slot -> the newest card's mount, while it loads
+const _la3dPickers = new Map();       // slot -> the newest card's Map / 3D switch (pick3d)
 function _laLoad(slot, mount, telemetry){
   if (_laLoadFailed) return;
   _laWaiting.set(slot, mount);
@@ -2827,14 +2828,22 @@ export function buildLightsMapCard(hostIn){
           // map's), and motion reads quiet after a restart as it does here.
           useApi: typeof h3.useApi === "function" ? h3.useApi : null,
           haStartedMs: Date.parse(host.model && host.model.ha_started_at) || 0,
-          // The 3D file (house3d_get), read through the host.
+          // The 3D file (house3d_get), read through the host; edit (its
+          // Save, house3d_edit) only where the host lets lights be placed.
           load: typeof h3.load === "function" ? h3.load : null,
+          edit: typeof h3.edit === "function" ? h3.edit : null,
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }
     }
     for (const paint of la3dPaints) paint();
   };
   const pick3d = (on) => {
+    // Unsaved 3D edits: the view asks first, in the view, and carries on
+    // through the newest card's switch once they are saved or discarded.
+    if (!on) {
+      const s = la3dSlot();
+      if (s && s.holdLeave && s.holdLeave(() => (_la3dPickers.get(h3.slot) || pick3d)(false))) return;
+    }
     _la3dPick(h3.slot, on);
     if (!on) {
       const s = la3dSlot();
@@ -2845,6 +2854,7 @@ export function buildLightsMapCard(hostIn){
     }
     mount3d();
   };
+  if (h3) _la3dPickers.set(h3.slot, pick3d);
 
   // Semantic zoom (use surface): the codes leave the drawing below 100% and
   // come back above it, so a zoom change across that line is a rebuild, not

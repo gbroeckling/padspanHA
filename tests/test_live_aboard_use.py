@@ -125,7 +125,7 @@ def test_the_3d_view_calls_nothing_on_home_assistant_itself() -> None:
     """Every action goes through the host's api or the Atlas's own helper;
     no websocket call, service call, history read, fetch or timer of its own
     (the hold is timed on the 3D view's frames)."""
-    for name in ("live_aboard.js", "live_aboard_use.js", "live_aboard_house.js", "live_aboard_draft.js"):
+    for name in ("live_aboard.js", "live_aboard_use.js", "live_aboard_house.js", "live_aboard_draft.js", "live_aboard_edit.js"):
         code = _code(_VIEWS / name)
         for bad in ("callWS", "callService", "callApi", "fetch(", "setTimeout", "setInterval", "telemetry_event"):
             assert bad not in code, (name, bad)

@@ -160,6 +160,15 @@ tryCase("runs: two rooms' back walls in line are one run, stopped where the shar
   check("runs: two rooms' back walls in line are one run, stopped where the shared wall meets",
     back && back.t1 - back.t0 > 8.5 && meet !== undefined, back && { t0: back.t0, t1: back.t1, stops });
 });
+tryCase("runs: a near-upright wall's pieces leaning either way are one run", () => {
+  // Hand-drawn: x drifts by millimetres, so one piece's x grows and the
+  // next one's shrinks; they are still one wall.
+  const pcs = [{ x0: 0.51, y0: 5.3, x1: 0.5, y1: 7.5, kind: "wall", thick: 0.14 },
+               { x0: 0.5, y0: 7.5, x1: 0.52, y1: 10.5, kind: "wall", thick: 0.14 }];
+  const runs = D.wallRuns(pcs);
+  check("runs: a near-upright wall's pieces leaning either way are one run",
+    runs.length === 1 && near(runs[0].t1 - runs[0].t0, 5.2, 0.02), runs.map(r => ({ u: [r.ux, r.uy], t0: r.t0, t1: r.t1 })));
+});
 tryCase("snap: a point goes onto its run, never past an end", () => {
   const runs = D.wallRuns(piecesOf(house())), back = runAtY(runs, 0, 2);
   const t = D.tOn(back, 2.5, 0.3), p = D.pointOf(back, t), past = D.tOn(back, -3, 0.2);

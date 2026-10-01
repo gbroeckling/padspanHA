@@ -186,7 +186,8 @@ export function wallRuns(pieces){
     scan: for (let i = 0; i < runs.length; i++) {
       for (let j = i + 1; j < runs.length; j++) {
         const A = runs[i], B = runs[j];
-        if (A.ux * B.ux + A.uy * B.uy < RUN_COS) continue;
+        // Either way along: a near-upright wall's pieces may point opposite ways.
+        if (Math.abs(A.ux * B.ux + A.uy * B.uy) < RUN_COS) continue;
         const m = pointOf(B, (B.t0 + B.t1) / 2);
         if (Math.abs(m[0] * A.nx + m[1] * A.ny - A.c) > RUN_OFF) continue;
         const b0 = along(A, ...pointOf(B, B.t0)), b1 = along(A, ...pointOf(B, B.t1));

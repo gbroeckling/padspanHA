@@ -39,6 +39,8 @@ const USE = await import(`./live_aboard_use.js${new URL(import.meta.url).search}
 // Part C: the 3D file's rules (doors and windows drawn in 3D, a barrier's
 // hinge, swing, sill and head, device heights), read through the host.
 const DRAFT = await import(`./live_aboard_draft.js${new URL(import.meta.url).search}`);
+// The 3D editor (Door, Window, Heights), for those who may place lights.
+const EDIT = await import(`./live_aboard_edit.js${new URL(import.meta.url).search}`);
 const NO_FILE = DRAFT.ownedOf(null);
 
 export const HOUSE3D_EVENTS = HOUSE.HOUSE3D_EVENTS;
@@ -235,6 +237,10 @@ function createSlot(slotKey){
   // first shows, and again after the screen went back to Map; null until
   // read. lastP: the card's newest data, to draw again from.
   let file = null, fileLoad = null, lastP = null;
+  // The 3D editor (live_aboard_edit.js), made with the view; its draft, tool
+  // and what is picked live here, so no rebuild touches them. shellGen moves
+  // on every wall rebuild (the editor works out its walls again).
+  let editor = null, shellGen = 0;
 
   // ── failing back to the flat Atlas ────────────────────────────────────────
   function showFlat(){
@@ -246,6 +252,8 @@ function createSlot(slotKey){
     try { endSpin(false); hidePill(); } catch (_) { /* nothing to undo */ }
     try { if (use) use.dispose(); } catch (_) { /* gone with the view */ }
     use = null;
+    try { if (editor) editor.dispose(); } catch (_) { /* gone with the view */ }
+    editor = null;
     for (const o of observers) { try { o(); } catch (_) { /* gone */ } }
     observers = [];
     disposeList(shellRes); disposeList(lightRes); disposeList(sensorRes); disposeList(badgeRes);
@@ -388,6 +396,16 @@ function createSlot(slotKey){
       frame: () => { if (!pending && !failed && renderer) { pending = true; requestAnimationFrame(frame); } },
       cursor: (on) => { canvas.style.cursor = on ? "pointer" : ""; },
     });
+    // The 3D editor: its page in this element, its marks in this scene, its
+    // presses handed over by wirePointer while it is open.
+    editor = EDIT.createEditor({
+      THREE, HOUSE, DRAFT, root, canvas, bar, guard,
+      camera: () => camera, scene: () => scene, floors: () => floorsUi, shellGen: () => shellGen,
+      pick: (x, y) => pickAt(x, y), device: (eid) => deviceInfo(eid),
+      file: () => file, reload: () => reloadFile(), saved: (data) => { file = DRAFT.ownedOf(data); },
+      redraw: () => redraw(), render: () => requestRender(), topDown: (F) => topDownOn(F),
+      clearUse: () => { if (use) use.clear(); },
+    });
     wirePointer();
     wireObservers();
     return true;
@@ -481,6 +499,7 @@ function createSlot(slotKey){
   }
   function buildShell(h){
     clearShell();
+    shellGen++;
     house = h;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
     for (const r of h.rooms) {
@@ -1448,20 +1467,36 @@ function createSlot(slotKey){
       try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* fine */ }
       if (pts.size === 2) {
         if (press) { endPress(); use.cancel(); }               // a second finger: a pinch, never a press
+        if (mode === "edit" || mode === "editTap") editor.cancel();   // ...and never a line
         mode = "pinch"; pinch = mid(); return;
       }
       mode = e.pointerType === "mouse" && (e.button === 2 || e.button === 1 || e.shiftKey || e.ctrlKey || e.metaKey) ? "pan" : "orbit";
       last = { x: e.clientX, y: e.clientY };
+      // In Edit, one finger or the left button draws a line, drags an end
+      // or picks what to change (the editor says which); a press never
+      // switches a light there. Anything else turns the house as ever.
+      if (editor && editor.active && mode === "orbit" && pts.size === 1 && !onlyNorth) {
+        const g = editor.down(e);
+        if (g === "line" || g === "drag" || g === "swallow") mode = "edit";
+        else if (g === "tap") mode = "editTap";
+        return;
+      }
       if (mode === "orbit" && pts.size === 1 && !onlyNorth && use && use.down(e)) startPress(e);
     }));
     canvas.addEventListener("pointermove", guard((e) => {
       if (!pts.has(e.pointerId)) {
         // No button down: a mouse or pen over the house — what a click would land on.
-        if (e.pointerType !== "touch" && !pts.size && use) use.hover(e);
+        if (e.pointerType !== "touch" && !pts.size && editor && editor.active) editor.hover(e);
+        else if (e.pointerType !== "touch" && !pts.size && use) use.hover(e);
         return;
       }
       if (mode === "press") return;                          // the press's own listener has it
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (mode === "edit") { editor.move(e); return; }
+      if (mode === "editTap") {
+        if (Math.hypot(e.clientX - last.x, e.clientY - last.y) <= 6) return;
+        editor.cancel(); mode = "orbit";                     // moved: no pick, the drag turns the house from where it began
+      }
       if (mode === "pinch" && pts.size === 2) {
         const now = mid();
         if (pinch.d > 0 && now.d > 0) zoomAt(now.x, now.y, pinch.d / now.d);
@@ -1476,6 +1511,11 @@ function createSlot(slotKey){
       last = { x: e.clientX, y: e.clientY };
     }));
     const lift = guard((e) => {
+      if ((mode === "edit" || mode === "editTap") && pts.has(e.pointerId) && editor) {
+        if (e.type === "pointercancel") editor.cancel();
+        else if (mode === "edit") editor.up(e);
+        else editor.tap(e);
+      }
       pts.delete(e.pointerId);
       try { canvas.releasePointerCapture(e.pointerId); } catch (_) { /* fine */ }
       if (pts.size === 1) {                                  // one finger left of a pinch: carry on turning from it
@@ -1491,7 +1531,7 @@ function createSlot(slotKey){
       e.preventDefault();
       const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
       zoomAt(e.clientX, e.clientY, Math.exp(Math.max(-200, Math.min(200, dy)) * 0.0015));
-      if (use && !pts.size) use.hover(e);                    // what is under the cursor now
+      if (use && !pts.size && !(editor && editor.active)) use.hover(e);   // what is under the cursor now
     }), { passive: false });
   }
   /** The corners of every room on a showing indoor floor, at floor and wall-top height. */
@@ -1509,9 +1549,9 @@ function createSlot(slotKey){
     return pts;
   }
   /** Frame the showing floors from the camera's direction (or `dir`). */
-  function fit(theta = cam.theta, phi = cam.phi){
+  function fit(theta = cam.theta, phi = cam.phi, pts = visiblePoints()){
     const dir = new THREE.Vector3(Math.sin(phi) * Math.sin(theta), Math.cos(phi), Math.sin(phi) * Math.cos(theta));
-    const pts = visiblePoints(), box = new THREE.Box3().setFromPoints(pts), c = box.getCenter(new THREE.Vector3());
+    const box = new THREE.Box3().setFromPoints(pts), c = box.getCenter(new THREE.Vector3());
     camera.position.copy(c).addScaledVector(dir, 50);
     camera.lookAt(c);
     camera.updateMatrixWorld();
@@ -1698,6 +1738,7 @@ function createSlot(slotKey){
       renderer.render(scene, camera);
       paintCompass();
       if (use) { if (rehoverDue) { rehoverDue = false; use.rehover(); } use.layout(); }
+      if (editor) editor.layout();
       frames++;
       dirty = false;
       if (quality.measuring) {
@@ -1745,8 +1786,9 @@ function createSlot(slotKey){
   }
 
   // ── the 3D file (part C) ──────────────────────────────────────────────────
-  /** What is drawn on top of the map: the 3D file as read. */
-  const viewData = () => file || NO_FILE;
+  /** What is drawn on top of the map: the editor's draft while editing,
+   *  else the 3D file as read. */
+  const viewData = () => (editor && editor.view()) || file || NO_FILE;
   // Read through the host (the view calls nothing itself), once per showing:
   // a failed read leaves the house as the map draws it, with no retry until
   // the screen comes back to 3D. Drawn as soon as it arrives.
@@ -1760,6 +1802,30 @@ function createSlot(slotKey){
     }, () => false);
   }
   const redraw = guard(() => { if (lastP && renderer && !failed) update(lastP); });
+  /** Read the file again (the editor opening before the first read came). */
+  function reloadFile(){
+    fileLoad = null;
+    if (lastP) loadFile(lastP);
+    return fileLoad || Promise.resolve(false);
+  }
+  /** A drawn light or sensor, for the editor's Heights: its height now and
+   *  by default, its floor, where it is. Scanners are never drawn here: the
+   *  map keeps their heights (presence uses them). */
+  function deviceInfo(eid){
+    const L = lights.find(x => x.eid === eid), S = L ? null : sensorsUi.find(x => x.eid === eid), X = L || S;
+    if (!X || typeof X.z !== "number") return null;
+    const l = lbe[eid];
+    return { section: L ? "lights" : "devices", eid, F: X.F, z: X.z, zDefault: X.zDefault,
+             label: l ? `${l.code ? l.code + " · " : ""}${l.friendly_name || eid}` : eid,
+             at: new THREE.Vector3(X.x, X.F.fl.elev + X.z, X.y) };
+  }
+  // The line tool traces the plan: straight down on the floor it draws on.
+  function topDownOn(F){
+    const pts = [];
+    for (const r of F.rooms) for (const p of r.pts) pts.push(new THREE.Vector3(p[0], F.fl.elev, p[1]), new THREE.Vector3(p[0], F.fl.elev + F.fl.h - HOUSE.SLAB_T, p[1]));
+    cam.moved = true; cam.needsFit = false;
+    fit(0, MIN_PHI, pts.length ? pts : undefined);
+  }
 
   // ── the slot ──────────────────────────────────────────────────────────────
   function update(p){
@@ -1819,7 +1885,10 @@ function createSlot(slotKey){
      *  (settings.fabric_bearing_deg), saveNorth(b) → Promise (the compass's
      *  Save: the host writes fabric_bearing_deg alone), useApi() → the
      *  host's use api (what a press acts through), haStartedMs (when Home
-     *  Assistant came up: a restart's motion timestamps are no motion)}. */
+     *  Assistant came up: a restart's motion timestamps are no motion),
+     *  load() → Promise (house3d_get: the 3D file, part C), edit(changes) →
+     *  Promise (house3d_edit: the editor's Save; given only where lights may
+     *  be placed, else null and there is no Edit)}. */
     attach(s, p){
       send = p && p.telemetry;
       touchCb = p && p.onTouch;
@@ -1829,6 +1898,7 @@ function createSlot(slotKey){
         if (!s || !s.parentNode || !p) return false;
         if (!renderer && !start(HOUSE.qualitySetting(p.quality))) return false;
         loadFile(p);
+        if (editor) editor.setEdit(typeof p.edit === "function" ? p.edit : null);
         update(p);
         if (failed) return false;
         place(s);
@@ -1840,7 +1910,11 @@ function createSlot(slotKey){
     },
     /** Back to the flat Atlas (Map picked, or the feature switched off).
      *  The camera and the GL context stay for a quick return. */
-    detach(){ try { fileLoad = null; cancelNorth(); if (use) use.clear(); showFlat(); } catch (_) { /* nothing to undo */ } },
+    detach(){ try { fileLoad = null; cancelNorth(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); } catch (_) { /* nothing to undo */ } },
+    /** Something wants this screen to leave 3D (Map picked): with unsaved
+     *  3D edits the editor asks first, in the view, and holds (true); `go`
+     *  runs once they are saved or discarded. */
+    holdLeave(go){ try { return !!(editor && !failed && editor.holdLeave(go)); } catch (_) { return false; } },
     /** The feature is off: the flat Atlas back and the GL context given up. */
     release(){ try { cancelNorth(); showFlat(); teardown(); } catch (_) { /* best effort */ } },
     // A window on it, for the harness and for poking at it from the console.
@@ -1867,7 +1941,16 @@ function createSlot(slotKey){
                               devices: Object.keys(file.devices).length } : null,
                added: floorsUi.reduce((a, F) => a + F.pieces.filter(P => P.pc.added).length, 0),
                heights: { lights: lights.filter(L => L.z !== L.zDefault).map(L => ({ eid: L.eid, z: L.z, zDefault: L.zDefault })),
-                          devices: sensorsUi.filter(S => S.z !== S.zDefault).map(S => ({ eid: S.eid, z: S.z, zDefault: S.zDefault })) } };
+                          devices: sensorsUi.filter(S => S.z !== S.zDefault).map(S => ({ eid: S.eid, z: S.z, zDefault: S.zDefault })) },
+               edit: editor ? editor.state() : null };
+    },
+    /** A plan point on floor `fid`, z metres up, in client px (the harness draws there). */
+    _whereOf(fid, x, y, z = 1){ return editor ? editor.whereOf(fid, x, y, z) : null; },
+    /** Put the camera somewhere (the harness frames a shot). */
+    _look(theta, phi, target, radius){
+      cam.moved = true; cam.needsFit = false;
+      cam.theta = theta; cam.phi = Math.max(MIN_PHI, Math.min(MAX_PHI, phi)); cam.target.fromArray(target); cam.radius = radius;
+      applyCam();
     },
     /** Where something is on screen, in client px (the harness presses it):
      *  {eid} a device's nearest point, {room}, {door: eid}, {floor: z}. */
