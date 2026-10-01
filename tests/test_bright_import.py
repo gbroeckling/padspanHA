@@ -292,3 +292,20 @@ def test_the_wire_and_the_card():
     health = (root / "www" / "padspan-ha" / "views" / "health.js").read_text(encoding="utf-8")
     assert "padspan_ha/bright_import_status" in health and "padspan_ha/bright_import\"" in health
     assert "never merges" in health
+
+
+def test_an_import_drops_the_stale_3d_house_store(tmp_path):
+    """Live Aboard's store is loaded on first use and a reload keeps it, so an
+    import that brings a 3D-house file must drop the cached one; the next use
+    reads the imported file (house3d_store.async_get_store)."""
+    from custom_components.padspan_ha.const import DATA_HOUSE3D
+    imported = {"schema": 1, "pieces": {"fur_9": {"id": "fur_9", "recipe": {"kind": "bed"}}}}
+    _write_bright(tmp_path, "house3d", imported)
+    h = _hass(tmp_path)
+    h.data[DOMAIN][DATA_HOUSE3D] = SimpleNamespace(data={"schema": 1, "pieces": {}})   # stale
+    _backup_ok.calls.clear()
+    res = _run(bi.async_import(h, _backup_ok))
+    assert res["ok"] is True and "house3d" in res["imported"], res
+    assert DATA_HOUSE3D not in h.data[DOMAIN], "the stale copy is gone"
+    assert _read_target(tmp_path, HOUSE3D_STORE_KEY) == imported
+

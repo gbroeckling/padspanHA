@@ -29,7 +29,7 @@ from .const import (
     FABRIC_STORE_KEY,
 )
 from .build_info import BUILD_VERSION
-from .ws_common import _DATA_KEY_MAP, _MAX_AUTO_BACKUPS, _MAX_BACKUPS
+from .ws_common import _BACKUP_ONLY_ONCE_WRITTEN, _DATA_KEY_MAP, _MAX_AUTO_BACKUPS, _MAX_BACKUPS, _store_file_written
 from .telemetry import bump as _bump
 
 _LOGGER = logging.getLogger(__name__)
@@ -93,6 +93,8 @@ async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str]) ->
 
     stores_data: dict[str, Any] = {}
     for store_key in store_keys:
+        if store_key in _BACKUP_ONLY_ONCE_WRITTEN and not await _store_file_written(hass, store_key):
+            continue   # never written: no entry, so a restore never creates or empties it
         data_key = _DATA_KEY_MAP.get(store_key)
         store_obj = hass.data.get(DOMAIN, {}).get(data_key) if data_key else None
         try:
@@ -152,6 +154,8 @@ async def ws_store_backup_create(hass: HomeAssistant, connection, msg) -> None:
 
     # Snapshot each store, probing for the correct data attribute
     for store_key, data_key in _DATA_KEY_MAP.items():
+        if store_key in _BACKUP_ONLY_ONCE_WRITTEN and not await _store_file_written(hass, store_key):
+            continue   # never written: no entry, so a restore never creates or empties it
         store_obj = domain.get(data_key)
         if not store_obj:
             # Store not loaded in memory — read from HA's JSON storage files

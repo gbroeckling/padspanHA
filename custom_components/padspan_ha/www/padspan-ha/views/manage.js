@@ -619,7 +619,7 @@ export function render(ctx){
         "padspan_ha.movement_history": "Movement",
         "padspan_ha.traceback": "Traceback",
         "padspan_ha.object_history": "Object History",
-        "padspan_ha.house3d": "3D house (Live Aboard)",
+        "padspan_ha.house3d": "3D house",
       };
       return map[k] || k.replace("padspan_ha.", "");
     };

@@ -291,21 +291,20 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         errors.append(TRACEBACK_STORE_KEY)
 
     # ── 9a. Live Aboard, the 3D house (house3d_store.py) ──────────────────
-    # Emptied like the rest, terms acceptance included. Only when the file
-    # exists or the store is loaded: an install that never turned the
-    # feature on gets no new file out of a reset.
+    # Emptied like the rest, terms acceptance included, but only a file that
+    # exists: an install that never turned the feature on gets no new file
+    # out of a reset (a store merely loaded by a read is not a file).
     try:
-        import os as _os  # noqa: PLC0415
         from .const import DATA_HOUSE3D, HOUSE3D_STORE_KEY  # noqa: PLC0415
+        from .house3d_store import async_file_exists as _house3d_written  # noqa: PLC0415
         from .house3d_store import empty as _house3d_empty  # noqa: PLC0415
-        h3_obj = domain.get(DATA_HOUSE3D)
-        h3_path = hass.config.path(".storage", HOUSE3D_STORE_KEY)
-        if h3_obj is not None or await hass.async_add_executor_job(_os.path.isfile, h3_path):
+        if await _house3d_written(hass):
             st = _St(hass, 1, HOUSE3D_STORE_KEY)
             await st.async_save(_house3d_empty())
             cleared += 1
-            if h3_obj is not None and hasattr(h3_obj, "data"):
-                h3_obj.data = _house3d_empty()
+        h3_obj = domain.get(DATA_HOUSE3D)
+        if h3_obj is not None and hasattr(h3_obj, "data"):
+            h3_obj.data = _house3d_empty()
     except Exception as e:
         _LOGGER.warning("Factory reset: house3d — %s", e)
         errors.append("padspan_ha.house3d")

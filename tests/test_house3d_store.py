@@ -198,48 +198,124 @@ def test_registered_for_backup_restore_bright_import_and_the_labels():
     assert ws_common._DATA_KEY_MAP[HOUSE3D_STORE_KEY] == DATA_HOUSE3D
     assert ("house3d", HOUSE3D_STORE_KEY) in bright_import.HOUSE_STORES
     manage = (_CC / "www" / "padspan-ha" / "views" / "manage.js").read_text(encoding="utf-8")
-    assert '"padspan_ha.house3d": "3D house (Live Aboard)"' in manage
+    assert '"padspan_ha.house3d": "3D house"' in manage, "no unreleased name in the backup list"
     ws = (_CC / "websocket.py").read_text(encoding="utf-8")
     assert "from .ws_house3d import WS_COMMANDS" in ws
 
 
-def test_a_factory_reset_empties_it(store, tmp_path):
+def _disk_file(tmp_path: Path) -> Path:
+    """Make the file exist where Home Assistant keeps it (.storage/<key>)."""
+    f = tmp_path / ".storage" / HOUSE3D_STORE_KEY
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text("{}", encoding="utf-8")
+    return f
+
+
+def test_a_factory_reset_empties_a_file_that_exists(store, tmp_path):
     from custom_components.padspan_ha.ws_factory_reset import ws_factory_reset
+    _disk_file(tmp_path)
+    store.saved[HOUSE3D_STORE_KEY] = {**H.empty(), "pieces": {"fur_1": dict(_PIECE)}}
     h = _house(tmp_path)
-    loaded = _run(H.async_get_store(h))
-    loaded.data["pieces"]["fur_1"] = dict(_PIECE)
     conn = MagicMock()
     _run(ws_factory_reset(h, conn, {"id": 1, "confirm": "FACTORY RESET"}))
     assert store.saved[HOUSE3D_STORE_KEY] == H.empty()
-    assert h.data[DOMAIN][DATA_HOUSE3D].data == H.empty()
     assert "padspan_ha.house3d" not in conn.send_result.call_args[0][1]["errors"]
 
 
-def test_a_factory_reset_never_creates_it(store, tmp_path):
+def test_a_factory_reset_never_creates_it_even_after_a_read(store, tmp_path):
     from custom_components.padspan_ha.ws_factory_reset import ws_factory_reset
     h = _house(tmp_path)
+    _run(W.ws_house3d_get(h, MagicMock(), {"id": 1}))       # loaded by a read: still no file
+    h.data[DOMAIN][DATA_HOUSE3D].data["pieces"]["fur_1"] = dict(_PIECE)
     conn = MagicMock()
     _run(ws_factory_reset(h, conn, {"id": 1, "confirm": "FACTORY RESET"}))
-    assert HOUSE3D_STORE_KEY not in store.saved, "an install that never used it gets no new file"
+    assert HOUSE3D_STORE_KEY not in store.saved, "an install that never wrote it gets no new file"
+    assert h.data[DOMAIN][DATA_HOUSE3D].data == H.empty(), "the copy in memory is reset all the same"
     assert "padspan_ha.house3d" not in conn.send_result.call_args[0][1]["errors"]
 
 
-def test_restoring_a_backup_without_it_leaves_it_alone(store, monkeypatch):
+def _capture_backups(monkeypatch):
     from custom_components.padspan_ha import ws_backup
-    from custom_components.padspan_ha.const import SETTINGS_STORE_KEY
+    box = {"backups": []}
+
+    async def _load(_hass):
+        return copy.deepcopy(box)
+
+    async def _save(_hass, data):
+        box.clear()
+        box.update(copy.deepcopy(data))
+
+    monkeypatch.setattr(ws_backup, "_load_backups", _load)
+    monkeypatch.setattr(ws_backup, "_save_backups", _save)
+    return box
+
+
+def test_a_backup_never_carries_a_file_that_was_never_written(store, tmp_path, monkeypatch):
+    from custom_components.padspan_ha import ws_backup
+    box = _capture_backups(monkeypatch)
+    h = _house(tmp_path)
+    _run(W.ws_house3d_get(h, MagicMock(), {"id": 1}))       # even with the store loaded by a read
+    _run(ws_backup.ws_store_backup_create(h, MagicMock(), {"id": 2}))
+    assert box["backups"] and HOUSE3D_STORE_KEY not in box["backups"][-1]["stores"]
+    assert _run(ws_backup._auto_backup(h, "test", [HOUSE3D_STORE_KEY]))
+    assert HOUSE3D_STORE_KEY not in box["backups"][-1]["stores"]
+
+
+def test_a_backup_carries_the_file_once_it_exists(store, tmp_path, monkeypatch):
+    from custom_components.padspan_ha import ws_backup
+    box = _capture_backups(monkeypatch)
+    _disk_file(tmp_path)
     store.saved[HOUSE3D_STORE_KEY] = {**H.empty(), "pieces": {"fur_1": dict(_PIECE)}}
+    h = _house(tmp_path)
+    _run(ws_backup.ws_store_backup_create(h, MagicMock(), {"id": 1}))
+    assert box["backups"][-1]["stores"][HOUSE3D_STORE_KEY]["pieces"]["fur_1"]["label"] == "Mum's old couch"
+
+
+def _restore(h, monkeypatch, stores: dict, keys: list | None = None):
+    from custom_components.padspan_ha import ws_backup
     bk = {"backups": [{"id": "bk1", "created_at": "2026-01-01T00:00:00+00:00", "version": "0.38.80",
-                       "note": "", "map_images": {}, "stores": {SETTINGS_STORE_KEY: {"quiet_mode": True}}}]}
+                       "note": "", "map_images": {}, "stores": stores}]}
 
     async def _load(_hass):
         return bk
 
     monkeypatch.setattr(ws_backup, "_load_backups", _load)
+    msg = {"id": 1, "backup_id": "bk1"}
+    if keys is not None:
+        msg["store_keys"] = keys
+    _run(ws_backup.ws_store_backup_restore(h, MagicMock(), msg))
+
+
+def test_restoring_everything_from_a_backup_without_it_leaves_it_alone(store, monkeypatch):
+    from custom_components.padspan_ha.const import SETTINGS_STORE_KEY
+    store.saved[HOUSE3D_STORE_KEY] = {**H.empty(), "pieces": {"fur_1": dict(_PIECE)}}
     h = _house()
-    _run(ws_backup.ws_store_backup_restore(h, MagicMock(), {"id": 1, "backup_id": "bk1",
-                                                              "store_keys": [SETTINGS_STORE_KEY]}))
+    _restore(h, monkeypatch, {SETTINGS_STORE_KEY: {"quiet_mode": True}})     # every store in the backup
     assert h.data[DOMAIN][DATA_SETTINGS].data["quiet_mode"] is True, "the restore did not run"
     assert store.saved[HOUSE3D_STORE_KEY]["pieces"]["fur_1"]["label"] == "Mum's old couch"
+
+
+def test_a_restore_puts_the_tolerant_shape_in_memory(store, monkeypatch):
+    h = _house()
+    loaded = _run(H.async_get_store(h))
+    _restore(h, monkeypatch, {HOUSE3D_STORE_KEY: {"pieces": {"fur_1": dict(_PIECE)}, "future": 1}})
+    assert loaded.data["pieces"]["fur_1"]["label"] == "Mum's old couch"
+    assert loaded.data["lights"] == {} and loaded.data["openings"] == {} and loaded.data["future"] == 1
+
+
+@pytest.mark.parametrize("key,value,allowed", [
+    ("atlas_3d_library", True, False), ("atlas_3d_ai_task_entity", "ai_task.cloud", False),
+    ("atlas_3d_enabled", True, True), ("atlas_3d_quality", "low", True),
+])
+def test_only_an_admin_lets_data_leave_the_house(key, value, allowed):
+    h, conn = _house(), MagicMock()
+    conn.user = MagicMock(is_admin=False)
+    _run(WS.ws_settings_set(h, conn, {"id": 1, key: value}))
+    data = h.data[DOMAIN][DATA_SETTINGS].data
+    if allowed:
+        assert not conn.send_error.called and data.get(key) == value
+    else:
+        assert conn.send_error.call_args[0][1] == "unauthorized" and key not in data
 
 
 # ═══ the usage report ═════════════════════════════════════════════════════════

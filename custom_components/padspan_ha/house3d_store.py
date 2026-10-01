@@ -53,6 +53,18 @@ def normalise(raw: Any) -> dict[str, Any]:
     return out
 
 
+def file_path(hass: HomeAssistant) -> str:
+    """Where Home Assistant keeps the file (.storage/<key>)."""
+    return hass.config.path(".storage", HOUSE3D_STORE_KEY)
+
+
+async def async_file_exists(hass: HomeAssistant) -> bool:
+    """Has anything ever written the file? An install that never used the
+    feature has none, and backups, restores and resets keep it that way."""
+    import os  # noqa: PLC0415
+    return bool(await hass.async_add_executor_job(os.path.isfile, file_path(hass)))
+
+
 def enabled(hass: HomeAssistant) -> bool:
     """The master switch, settings.atlas_3d_enabled (default off)."""
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
@@ -68,7 +80,18 @@ class House3dStore:
         self.hass = hass
         self._raw_store = Store(hass, 1, HOUSE3D_STORE_KEY)
         self.store = wrap_store(self._raw_store, hass, "house3d")
-        self.data: dict[str, Any] = empty()
+        self._data: dict[str, Any] = empty()
+
+    @property
+    def data(self) -> dict[str, Any]:
+        return self._data
+
+    @data.setter
+    def data(self, value: Any) -> None:
+        # A restore (ws_backup) and a factory reset assign .data directly:
+        # whatever comes in is read the tolerant way, so the sections are
+        # always there for the code that reads them.
+        self._data = normalise(value)
 
     async def async_load(self) -> dict[str, Any]:
         self.data = normalise(await self.store.async_load())

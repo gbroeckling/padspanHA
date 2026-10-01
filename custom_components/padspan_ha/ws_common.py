@@ -366,6 +366,18 @@ _DATA_KEY_MAP = {
 }
 
 
+# Stores a backup takes only once their file exists. Live Aboard is normally
+# off: an install that never used it has no file, and its backups must carry
+# no entry for it, or a later restore would create the file, or empty one that
+# has furniture in it by then (house3d_store.py).
+_BACKUP_ONLY_ONCE_WRITTEN = frozenset({HOUSE3D_STORE_KEY})
+
+
+async def _store_file_written(hass, store_key: str) -> bool:
+    import os  # noqa: PLC0415
+    return bool(await hass.async_add_executor_job(os.path.isfile, hass.config.path(".storage", store_key)))
+
+
 _MAX_BACKUPS = 3  # Oldest backup is dropped when a new one exceeds this limit
 # Automatic backups (ws_backup._auto_backup, marked "auto") have their own cap
 # and never push out a backup a person made, nor the other way round.

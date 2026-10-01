@@ -237,6 +237,13 @@ async def async_import(hass: HomeAssistant, backup: Any) -> dict[str, Any]:
         await Store(hass, 1, target_key).async_save(data)
         imported.append(suffix)
 
+    # Live Aboard's store is loaded on first use and kept in memory; a reload
+    # keeps it (async_unload_entry leaves the stores), so drop it here and the
+    # next use reads the imported file (house3d_store.async_get_store).
+    if "house3d" in imported:
+        from .const import DATA_HOUSE3D  # noqa: PLC0415
+        hass.data.get(DOMAIN, {}).pop(DATA_HOUSE3D, None)
+
     # The map images live beside the records, under www/<domain>/maps.
     images = 0
     src_dir = Path(hass.config.path("www")) / BRIGHT_DOMAIN / "maps"
