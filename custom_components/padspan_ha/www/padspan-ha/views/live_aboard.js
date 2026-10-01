@@ -65,6 +65,7 @@ const SKY_DAY = "#e6edf6", SKY_NIGHT = "#4a5d8a", GROUND_DAY = "#3a342c", GROUND
 const SUN_STEP = 0.5;                      // degrees the sun must move before the house is drawn again
 // The live parts (part B).
 const NO_READING = "#64748b";              // the Atlas's "no reading" grey (its dashed line)
+const SHUT_LINE = "#94a3b8";               // the Atlas's line across a linked barrier that reads closed
 const SENSOR_ON = "#3b82f6", SENSOR_QUIET = "#cfd8d3";   // a motion sensor lit while active (the Atlas's MOTION_PULSE)
 const DOOR_OPEN = 85 * D2R, WINDOW_OPEN = 50 * D2R, SWING_MS = 650;
 // Drawn at full rate only while something has just started moving: about
@@ -859,12 +860,25 @@ function createSlot(slotKey){
   // file says otherwise (part C hands its openings[<barrier id>] to
   // openingSwing; nothing here ever writes it).
   function setupOpening(F, P, rooms){
-    const b = P.pc.barrier, leaf = P.els.find(e => e.leaf);
-    if (!b || !b.linked_entity_id || !leaf || (P.pc.kind !== "door" && P.pc.kind !== "window")) return;
-    const sw = HOUSE.openingSwing(P.pc, rooms, P.pc.override || null);
-    const len = Math.hypot(P.pc.x1 - P.pc.x0, P.pc.y1 - P.pc.y0);
-    P.open = { bar: b, eid: String(b.linked_entity_id), kind: P.pc.kind, leaf, len, hinge: sw.hinge, side: sw.side,
-               garage: P.pc.kind === "door" && len > 1.8, state: null, at: 0, to: 0, from: 0, t0: 0, flash: null };
+    const b = P.pc.barrier, k = P.pc.kind, len = Math.hypot(P.pc.x1 - P.pc.x0, P.pc.y1 - P.pc.y0);
+    if (!b || !b.linked_entity_id) return;
+    const o = { bar: b, eid: String(b.linked_entity_id), kind: k, leaf: null, len, hinge: null, side: null,
+                garage: false, state: null, at: 0, to: 0, from: 0, t0: 0, flash: null };
+    if (k === "open") {
+      // A gap (material "open") has no leaf: it keeps its reading and its
+      // tap target all the same, a doorway's height of it, and its
+      // threshold reads as the Atlas's line does (closed grey, open
+      // nothing, no reading the dashed grey).
+      const sill = P.els[0];
+      if (!sill) return;
+      Object.assign(o, { sill, span: { z0: 0, z1: Math.min(HOUSE.DOOR_H, F.fl.h - HOUSE.SLAB_T), thick: P.pc.thick } });
+    } else {
+      const leaf = P.els.find(e => e.leaf);
+      if (!leaf || (k !== "door" && k !== "window")) return;
+      const sw = HOUSE.openingSwing(P.pc, rooms, P.pc.override || null);
+      Object.assign(o, { leaf, hinge: sw.hinge, side: sw.side, garage: k === "door" && len > 1.8 });
+    }
+    P.open = o;
     openings.push({ F, P });
   }
   // The leaf at o.at (0 shut, 1 open), eased: about its hinge, or up into
@@ -884,7 +898,7 @@ function createSlot(slotKey){
   // An unlocked lock: a glow over its shut leaf, its colour and strength
   // set on the frame (animateLive); nothing while locked.
   function placeFlash(F, P, cut){
-    const o = P.open, e = o.leaf, m = o.flash;
+    const o = P.open, e = o.leaf || o.span, m = o.flash;
     if (o.state !== "unlocked") m.matrix.copy(ZERO);
     else {
       const z1 = cut ? Math.min(e.z1, HOUSE.CUT_H) : e.z1;
@@ -904,10 +918,10 @@ function createSlot(slotKey){
       if (st === "unlocked") o.liveUntil = performance.now() + LIVE_MS;   // a flash just started
       o.state = st;
       o.to = st === "open" ? 1 : 0;
-      if (first) o.at = o.to;                              // the first look is how it is, not a swing
+      if (first || !o.leaf) o.at = o.to;                   // the first look is how it is, not a swing (a gap never swings)
       else { o.from = o.at; o.t0 = performance.now(); }    // a swing, timed on the clock (animateLive)
-      const e = o.leaf;
-      e.mesh.setColorAt(e.i, _c.set(st === "none" ? NO_READING : e.col));
+      const e = o.leaf || o.sill;
+      e.mesh.setColorAt(e.i, _c.set(st === "none" ? NO_READING : !o.leaf && st !== "open" ? SHUT_LINE : e.col));
       e.mesh.instanceColor.needsUpdate = true;
       if (st === "unlocked" && !o.flash) {
         o.flash = new THREE.Mesh(shared.glassBox, shared.flashMat);
@@ -1664,7 +1678,7 @@ function createSlot(slotKey){
     return [[-w, -h], [w, -h], [w, h], [-w, h]].map(([x, y]) => new THREE.Vector3(x, y, 0).applyMatrix4(lbl.matrixWorld));
   }
   function openingQuad(F, P){
-    const e = P.open.leaf, pc = P.pc, z0 = F.fl.elev + Math.max(0, e.z0);
+    const e = P.open.leaf || P.open.span, pc = P.pc, z0 = F.fl.elev + Math.max(0, e.z0);
     const z1 = F.fl.elev + (P.cut ? Math.min(e.z1, HOUSE.CUT_H) : e.z1);
     return [[pc.x0, z0, pc.y0], [pc.x1, z0, pc.y1], [pc.x1, z1, pc.y1], [pc.x0, z1, pc.y0]].map(a => new THREE.Vector3(...a));
   }

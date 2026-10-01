@@ -40,7 +40,7 @@ def view() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("release:", 2), ("frames:", 4)])
+@pytest.mark.parametrize("prefix,least", [("release:", 2), ("frames:", 4), ("gap:", 1)])
 def test_the_view_harness_covers_each_part(view, prefix, least) -> None:
     got = [k for k in view["cases"] if k.startswith(prefix)]
     assert len(got) >= least, (prefix, got)

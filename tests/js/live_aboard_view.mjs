@@ -16,6 +16,8 @@
 //             started plays at full rate, then shows still; a door swings at
 //             full rate and stops; a lock just unlocked flashes, then glows
 //             still while it stays unlocked
+//   gap       a gap (material "open") with a sensor keeps its reading and
+//             its tap target, as the Atlas keeps its line and hit-line
 //
 // usage: live_aboard_view.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...] }
@@ -211,6 +213,33 @@ await tryCase("frames: a lock just unlocked flashes, then glows still", async ()
     && Math.abs(glow.opacity - 0.775) < 1e-9 && slot._state().frames === f1 && pendingFrames() === 0 && pendingTimers().length === 0,
     { fresh, drawn, looks, liveMs: s.liveMs, glow, after: slot._state().frames - f1 });
   LA.releaseLiveAboardSlot("view-lock");
+  await settle();
+});
+
+// ── gap ─────────────────────────────────────────────────────────────────────
+await tryCase("gap: a gap with a sensor keeps its reading and its tap target, as the Atlas does", async () => {
+  // A barrier of material "open" linked to a sensor: a doorway with no leaf.
+  const model = { ...LIVE_MODEL, rf_barriers_m: [...LIVE_MODEL.rf_barriers_m,
+    { id: "bar_arch", name: "Arch", material: "open", floor_id: "main", points_m: [[0, 1.5], [0, 2.7]], linked_entity_id: "binary_sensor.arch" }] };
+  const arch = (state) => ({ ...LIVE(), "binary_sensor.arch": { entity_id: "binary_sensor.arch", friendly_name: "Arch beam", device_class: "opening", state } });
+  const slot = LA.liveAboardSlot("view-gap");
+  const { stage } = card(slot, { model, floors: model.floors, lightsByEid: arch("off") });
+  await later(10000, 60);
+  slot._look(-Math.PI / 2, 1.1, [0, 3, 2.1], 12);          // looking at the gap from inside the Living room
+  await settle();
+  const seen = () => slot._state().openings.find(o => o.eid === "binary_sensor.arch") || null;
+  const shut = seen(), at = slot._where({ door: "binary_sensor.arch" }), hit = at && slot._pick(at[0], at[1]);
+  slot.attach(stage, P({ model, floors: model.floors, lightsByEid: arch("on") }));
+  await settle(4);
+  const open = seen(), liveMs = slot._state().liveMs;
+  slot.attach(stage, P({ model, floors: model.floors, lightsByEid: arch("unavailable") }));
+  await settle(4);
+  const none = seen();
+  check("gap: a gap with a sensor keeps its reading and its tap target, as the Atlas does",
+    shut && shut.kind === "open" && shut.state === "closed" && !!at && hit && /^door:binary_sensor\.arch@/.test(hit.hit)
+    && open && open.state === "open" && open.at === open.to && liveMs === 0 && none && none.state === "none",
+    { shut, at, hit, open, liveMs, none });
+  LA.releaseLiveAboardSlot("view-gap");
   await settle();
 });
 
