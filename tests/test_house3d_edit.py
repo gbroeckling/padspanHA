@@ -19,6 +19,7 @@ all; nothing is stored until then. Held here:
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import inspect
 import json
@@ -45,9 +46,14 @@ _DOOR = {"kind": "door", "floor_id": "main", "a_m": [5.0, 0.0], "b_m": [5.0, 0.9
 
 class _DiskStore:
     """Home Assistant's Store, on disk under <root>/.storage/<key>; every
-    write recorded by key, in order."""
+    write recorded by key, in order. `fail` is consumed one entry per write:
+    "raised" (the write raises) or "swallowed" (as Home Assistant's Store
+    does with a failed write: logged, and it returns normally). `slow` makes
+    every load and save yield to the loop, so commands can interleave."""
     root: Path = Path(".")
     writes: list = []
+    fail: list = []
+    slow: bool = False
 
     def __init__(self, hass, version, key):
         self.key = key
@@ -56,10 +62,19 @@ class _DiskStore:
         return _DiskStore.root / ".storage" / self.key
 
     async def async_load(self):
+        if _DiskStore.slow:
+            await asyncio.sleep(0)
         p = self._path()
         return json.loads(p.read_text(encoding="utf-8"))["data"] if p.is_file() else None
 
     async def async_save(self, data):
+        if _DiskStore.slow:
+            await asyncio.sleep(0)
+        how = _DiskStore.fail.pop(0) if _DiskStore.fail else None
+        if how == "raised":
+            raise OSError(28, "No space left on device")
+        if how == "swallowed":
+            return
         p = self._path()
         p.parent.mkdir(parents=True, exist_ok=True)
         _DiskStore.writes.append(self.key)
@@ -69,7 +84,7 @@ class _DiskStore:
 @pytest.fixture
 def disk(monkeypatch, tmp_path):
     import homeassistant.helpers.storage as _hs
-    _DiskStore.root, _DiskStore.writes = tmp_path, []
+    _DiskStore.root, _DiskStore.writes, _DiskStore.fail, _DiskStore.slow = tmp_path, [], [], False
     monkeypatch.setattr(_hs, "Store", _DiskStore)
     return _DiskStore
 
@@ -193,6 +208,10 @@ _BAD = {
     "an entry that is a list": {"lights": {"light.kitchen": [1.0]}},
     "a section that is a list": {"lights": [["light.kitchen", 1.0]]},
     "nothing at all": {},
+    "an added id with a newline after it": {"openings": {"win_5e6f7a8b\n": dict(_WIN)}},
+    "a barrier id with a newline after it": {"openings": {"bar_a71a3324\n": {"hinge": "right"}}},
+    "a light id with a newline after it": {"lights": {"light.kitchen\n": {"z_m": 1.0}}},
+    "a number too big for a float": {"lights": {"light.kitchen": {"z_m": 10 ** 400}}},
 }
 
 
@@ -246,18 +265,89 @@ def test_one_bad_entry_and_nothing_of_the_edit_is_written(disk, tmp_path):
     assert h.data[DOMAIN][DATA_HOUSE3D].data == H.normalise(before), "memory unchanged too"
 
 
-def test_a_failed_write_changes_nothing_in_memory(disk, tmp_path, monkeypatch):
-    _seed(tmp_path, {**H.empty(), "lights": {"light.kitchen": {"z_m": 1.2}}})
+@pytest.mark.parametrize("how", ["raised", "swallowed"])
+def test_a_failed_write_changes_nothing(disk, tmp_path, how):
+    """A write that raises (SafeStore catches it), and one Home Assistant's
+    Store swallows (it logs the error and returns normally, so a read-back
+    finds the old file): save_failed, and the file and the memory are as
+    they were."""
+    before = {**H.empty(), "lights": {"light.kitchen": {"z_m": 1.2}}}
+    _seed(tmp_path, before)
+    raw = _file(tmp_path).read_bytes()
     h, conn = _on(tmp_path)
     store = _run(H.async_get_store(h))
-
-    async def _fail():
-        return False
-
-    monkeypatch.setattr(store, "async_save", _fail)
+    disk.fail = [how]
     out = _edit(h, conn, lights={"light.kitchen": {"z_m": 2.0}}, openings={"win_5e6f7a8b": dict(_WIN)})
     assert out["error"] == "save_failed"
-    assert store.data["lights"] == {"light.kitchen": {"z_m": 1.2}} and store.data["openings"] == {}
+    assert _file(tmp_path).read_bytes() == raw
+    assert store.data == before
+
+
+def test_saves_take_turns(disk, tmp_path):
+    """Two Saves at once, the first of which fails: the second neither
+    carries the first's change nor is rolled back by it, and the memory and
+    the file agree."""
+    _seed(tmp_path, H.empty())
+    h, c1 = _on(tmp_path)
+    c2 = MagicMock()
+    c2.user = c1.user
+    store = _run(H.async_get_store(h))
+    disk.slow, disk.fail = True, ["swallowed"]
+
+    async def both():
+        await asyncio.gather(W.ws_house3d_edit(h, c1, {"id": 1, "lights": {"light.a": {"z_m": 1.1}}}),
+                             W.ws_house3d_edit(h, c2, {"id": 2, "lights": {"light.b": {"z_m": 2.2}}}))
+
+    _run(both())
+    assert c1.send_error.called and c1.send_error.call_args[0][1] == "save_failed"
+    assert c2.send_result.call_args[0][1]["data"]["lights"] == {"light.b": {"z_m": 2.2}}
+    on_disk = json.loads(_file(tmp_path).read_text(encoding="utf-8"))["data"]
+    assert store.data == on_disk and on_disk["lights"] == {"light.b": {"z_m": 2.2}}
+
+
+def test_two_first_uses_at_once_load_one_store(disk, tmp_path):
+    """A Save and a read that both find nothing loaded: one store, so the
+    Save is in the memory every later Save starts from."""
+    _seed(tmp_path, H.empty())
+    h, conn = _on(tmp_path)
+    disk.slow = True
+
+    async def race():
+        await asyncio.gather(W.ws_house3d_edit(h, conn, {"id": 1, "lights": {"light.a": {"z_m": 1.5}}}),
+                             W.ws_house3d_get(h, MagicMock(), {"id": 2}))
+
+    _run(race())
+    out = _edit(h, MagicMock(), lights={"light.b": {"z_m": 2.0}})
+    assert set(out["data"]["lights"]) == {"light.a", "light.b"}
+    assert set(json.loads(_file(tmp_path).read_text(encoding="utf-8"))["data"]["lights"]) == {"light.a", "light.b"}
+
+
+@pytest.mark.parametrize("schema", [2, 99, "1", 1.5, True, None, -1])
+def test_a_newer_padspans_file_is_kept_whole_and_never_written(disk, tmp_path, schema):
+    """After a downgrade the file can be a newer PadSpan's: read and kept
+    whole in memory (backups carry it as it is), and never written. An edit
+    reshaped its sections to this version's and wrote them back."""
+    newer = {"schema": schema, "lights": [{"entity_id": "light.a", "z_m": 1.4}], "devices": 5,
+             "openings": {"win_00000001": {**_WIN, "tint": "blue"}}, "rooms3d": {"k": 1}}
+    _seed(tmp_path, newer)
+    raw = _file(tmp_path).read_bytes()
+    h, conn = _on(tmp_path)
+    out = _edit(h, conn, openings={"door_0a1b2c3d": dict(_DOOR)})
+    assert out == {"error": "house3d_newer", "message": H.NEWER_MESSAGE}
+    assert disk.writes == [] and _file(tmp_path).read_bytes() == raw
+    assert h.data[DOMAIN][DATA_HOUSE3D].data == newer, "every section kept as it is"
+    get = MagicMock()
+    _run(W.ws_house3d_get(h, get, {"id": 8}))
+    assert get.send_result.call_args[0][1]["counts"] == {"pieces": 0, "lights": 0, "openings": 1, "devices": 0,
+                                                         "figures": 0}
+    with pytest.raises(H.EditError):
+        H.apply_edit(newer, {"openings": {"door_0a1b2c3d": dict(_DOOR)}})
+
+
+def test_a_schema_this_version_writes():
+    for data in ({"schema": 1}, {"schema": 0}, {}, None):
+        assert H.writable(H.normalise(data)), data
+    assert H.apply_edit({"schema": 1}, {"lights": {"light.a": {"z_m": 1.0}}})["schema"] == 1
 
 
 def test_the_whole_draft_is_one_write(disk, tmp_path):
