@@ -16,11 +16,19 @@
 // world (x, ·, y), so plan x runs right and plan y down, as on the flat plan.
 // Nothing here writes anything: the map, the rooms, the walls and the light
 // positions are read, never changed.
+//
+// The live parts (part B) read the house's states the way the flat Atlas
+// does, with the Atlas's own functions wherever it has one: a linked door,
+// window or lock (barrierNoReading and the barrier pass), motion and air
+// (the Motion · Air colours and timing), and the readouts (stateWordOf).
 
-const { isOutdoorFloorId, offsetPolygonInward } =
+const { isOutdoorFloorId, offsetPolygonInward, barrierNoReading, fabricFrame, floorIdAtLevel, floorNameAtLevel } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
-const { castsLight, deviceClassOf } =
+const { castsLight, deviceClassOf, airQualityBadness, HUMIDITY_BORDER, AIR_BORDER, MOTION_PULSE: MOTION_BLUE } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
+// The shared Atlas card's readings: the state words and which floors share a plate.
+const { stateWordOf, floorIdsOnSlab } =
+  await import(`./lights_map.js${new URL(import.meta.url).search}`);
 const { roomColor } =
   await import(`./room_color.js${new URL(import.meta.url).search}`);
 // Which way north is (settings.fabric_bearing_deg, y-down): the one source.
@@ -305,10 +313,10 @@ export function barrierKind(b){
   if (/\b(door|gate)\b/i.test(n) || /door/i.test(String((b && b.linked_entity_id) || ""))) return "door";
   return "wall";
 }
-export function applyBarriers(floor, pieces, barriers, canon){
+export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKind){
   for (const b of barriers || []) {
     if (!b || typeof b !== "object" || canon(b.floor_id) !== floor.id) continue;
-    const kind = barrierKind(b), mat = String(b.material || "").toLowerCase();
+    const kind = kindOf(b), mat = String(b.material || "").toLowerCase();
     const pts = (b.points_m || []).filter(p => Array.isArray(p) && num(p[0]) !== null && num(p[1]) !== null).map(p => [Number(p[0]), Number(p[1])]);
     for (let i = 0; i + 1 < pts.length; i++) {
       const a = pts[i], c = pts[i + 1], L = dist(a, c);
@@ -348,7 +356,8 @@ export function applyBarriers(floor, pieces, barriers, canon){
  *  (from under the slab to under the slab of the floor above). A window is
  *  wall, glass, wall; a door is the slab edge, the door, a lintel; an open
  *  barrier is a gap with only the slab edge under it. `cuttable`: the part
- *  the cut-away lowers. */
+ *  the cut-away lowers. `leaf`: the part that opens (a door's leaf, a
+ *  window's pane) when a sensor says so. */
 export function wallElements(pc, floorH){
   const top = floorH - SLAB_T;
   const len = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0);
@@ -365,13 +374,14 @@ export function wallElements(pc, floorH){
       const dh = Math.min(DOOR_H, top - 0.1);
       solid(-SLAB_T, 0, base);
       solid(0, dh, len > 1.8 ? GARAGE_DOOR_COL : DOOR_COL, Math.min(pc.thick, 0.07));
+      E[E.length - 1].leaf = true;
       solid(dh, top, base);
       break;
     }
     case "window": {
       const head = Math.min(HEAD_H, top - 0.1);
       solid(-SLAB_T, SILL_H, base);
-      E.push({ z0: SILL_H, z1: head, col: WINDOW_GLASS, thick: 0.03, glass: true, cuttable: true });
+      E.push({ z0: SILL_H, z1: head, col: WINDOW_GLASS, thick: 0.03, glass: true, cuttable: true, leaf: true });
       solid(head, top, base);
       break;
     }
@@ -858,31 +868,277 @@ export function sunLight(elevationDeg){
            sun: (1 - night) * (0.3 + 0.7 * high), warm: 1 - clamp(e / 25, 0, 1) };
 }
 
+// ── The live parts: doors, windows and locks (part B) ───────────────────────
+// A barrier linked to a sensor (docs/IDEA_DOOR_WINDOW_BARRIERS.md) is an
+// opening: what it is comes from the sensor's own class (a window sensor, a
+// door, garage door or opening sensor, a lock), else from its name and
+// material as for any barrier; a linked one never stays a plain wall.
+export function openingKind(b, dl){
+  const k = barrierKind(b);
+  if (!b || !b.linked_entity_id || k === "open") return k;
+  const dc = dl && dl.device_class;
+  if ((dl && dl.isLock) || /^lock\./.test(String(b.linked_entity_id))) return "door";
+  if (dc === "window") return "window";
+  if (dc === "door" || dc === "garage_door" || dc === "opening") return "door";
+  return k === "wall" ? "door" : k;
+}
+// What the Atlas draws for it, read the way its barrier pass reads it
+// (iso_lights.js buildIsoSVG, the door/window/lock barriers): no reading
+// (barrierNoReading — offline, unknown, or no device record) is neither open
+// nor closed; a lock is locked, or anything else (unlocked, jammed) — the
+// one that flashes; a door or window sensor is open when "on", flipped for
+// this one barrier by its invert_state. The 3D house and the flat Atlas
+// can never disagree: it is the same reading of the same record. One of
+// "none", "open", "closed", "locked", "unlocked".
+/** The Atlas's one "no reading" rule (offline, unknown, or no record). */
+export const noReading = (dl) => barrierNoReading(dl);
+export function openingState(bar, dl){
+  if (barrierNoReading(dl)) return "none";
+  if (dl.isLock) return dl.state === "locked" ? "locked" : "unlocked";
+  const rawOn = dl.state === "on";
+  return (bar && bar.invert_state ? !rawOn : rawOn) ? "open" : "closed";
+}
+/** Can it be pressed? Only a link to a device the Atlas knows: the Atlas
+ *  draws no line to press for any other (its barrier pass's hit-line). */
+export const openingPressable = (dl) => !!dl;
+/** The barrier as the Atlas's own click hands it to its card
+ *  (lights_map.js openBarrierCard, from the hit-line's data-* fields). */
+export function barrierCardOf(b){
+  return { linked_entity_id: b.linked_entity_id, invert_state: !!b.invert_state, name: b.name || null,
+           linked_opener_entity_id: b.linked_opener_entity_id || null, linked_lock_entity_id: b.linked_lock_entity_id || null };
+}
+/** Which end of an opening hinges and which way it swings. Hinged on the
+ *  left and swinging in, until the 3D file says otherwise (stored: its
+ *  openings[<barrier id>] — {hinge: "left" | "right", swing: "in" | "out"},
+ *  part C). "In" is the indoor side: the side an indoor room is on, and for
+ *  a wall between two rooms (or a barrier standing on its own) the side its
+ *  wall's normal points away from. "Left" is as you stand outside, facing
+ *  in. side: +1 / -1, the leaf opens toward (nx, ny) × side. */
+export function openingSwing(pc, rooms, stored){
+  const dx = pc.x1 - pc.x0, dy = pc.y1 - pc.y0;
+  const mx = (pc.x0 + pc.x1) / 2, my = (pc.y0 + pc.y1) / 2;
+  const indoor = (s) => (rooms || []).some(r => !r.outdoor && inPoly(mx + pc.nx * s * 0.45, my + pc.ny * s * 0.45, r.pts));
+  const inS = indoor(1) && !indoor(-1) ? 1 : -1;
+  // Facing in, in the y-down plan: left of (fx, fy) is (fy, -fx).
+  const fx = pc.nx * inS, fy = pc.ny * inS;
+  let hingeB = dx * fy + dy * -fx > 0;                       // walking a → b goes left: b is the left end
+  if (stored && stored.hinge === "right") hingeB = !hingeB;
+  return { hinge: hingeB ? "b" : "a", side: stored && stored.swing === "out" ? -inS : inS };
+}
+
+// ── The live parts: motion and air (part B) ─────────────────────────────────
+// The Motion · Air colours and timing are the flat Atlas's (iso_lights.js
+// buildIsoSVG keeps them inside the function, so they are copied here, the
+// way light_codes.js copies MOTION_STUCK_MS; tests/test_live_aboard_use.py
+// holds every copy equal to the original). Motion: active (on, or within the
+// hold of its last change) pulses the active blue on a 1.6 s clock; gone
+// quiet, it breathes in the colour of how long ago on a 3 s clock, stepping
+// round the wheel; past six hours, nothing. Air rides the same colours by
+// how bad, in bars that rise through the room.
+export const MOTION_HOLD_MS = 5 * 60 * 1000;
+export const MOTION_RECENT_MS = 6 * 60 * 60 * 1000;
+export const MOTION_BOOT_GRACE_MS = 5 * 60 * 1000;
+export const MOTION_COLOR_STOPS = [
+  [0, 240], [MOTION_HOLD_MS, 180], [20 * 60 * 1000, 120], [40 * 60 * 1000, 60],
+  [65 * 60 * 1000, 30], [90 * 60 * 1000, 0], [120 * 60 * 1000, 300],
+];
+// The SVG's own clocks and values (linear, as SMIL animates a values list).
+export const MOTION_PULSE = { ms: 1600, fill: [0.55, 0.2, 0.55], ringR: [0.7, 2.4], ringA: [0.8, 0] };
+export const MOTION_RECENT = { ms: 3000, op: [0.5, 0.16, 0.5] };
+// degSweep, as iso_lights.js names it: a step round the colour wheel by time
+// or by how bad, never a room's own colour (room_color.js is the only one).
+export const motionColor = (degSweep) => `hsl(${Number(degSweep).toFixed(0)},75%,58%)`;
+export const airColor = (degSweep) => `hsl(${degSweep},80%,60%)`;
+/** A room's floor while its motion shows: the active pulse's own blue (the
+ *  Atlas's MOTION_PULSE disc), else the ring's colour of how long ago. */
+export const motionFill = (look) => (look.active ? MOTION_BLUE : motionColor(look.hue));
+/** Is it active now — the Atlas's one answer (buildIsoSVG motionActive),
+ *  which lights the sensor's own marker: "on", or within the hold of its
+ *  last change; never offline, never a restart's restored timestamp. */
+export function motionActive(l, nowMs, haStartedMs){
+  if (!l || !l.isMotion) return false;
+  if (l.state === "on") return true;
+  if (l.state === "unavailable" || l.state === "unknown") return false;
+  const lastMs = l.last_changed ? Date.parse(l.last_changed) : NaN;
+  if (haStartedMs && lastMs <= haStartedMs + MOTION_BOOT_GRACE_MS) return false;
+  const e = nowMs - lastMs;
+  return e >= 0 && e < MOTION_HOLD_MS;
+}
+/** What a motion sensor's room shows (the flat Atlas's motion pass): null —
+ *  nothing (no reading, a restart's restored timestamp while quiet, past six
+ *  hours, on or off) — or {active, hue, elapsed}. haStartedMs:
+ *  model.ha_started_at. */
+export function motionLook(l, nowMs, haStartedMs){
+  if (!l || !l.isMotion || l.state === "unavailable" || l.state === "unknown") return null;
+  const lastMs = l.last_changed ? Date.parse(l.last_changed) : NaN;
+  const boot = !!haStartedMs && lastMs <= haStartedMs + MOTION_BOOT_GRACE_MS;
+  if (l.state !== "on" && boot) return null;
+  const raw = nowMs - lastMs;
+  const elapsed = l.state === "on" && !(raw >= 0) ? 0 : raw;
+  if (!(elapsed >= 0) || elapsed >= MOTION_RECENT_MS) return null;
+  const active = motionActive(l, nowMs, haStartedMs);
+  let hue = MOTION_COLOR_STOPS[0][1];
+  if (!active) for (const [atMs, h] of MOTION_COLOR_STOPS) { if (elapsed >= atMs) hue = h; else break; }
+  return { active, hue, elapsed };
+}
+/** Air quality by the same colour steps, by how bad (airQualityBadness). */
+export function airHue(badness){
+  const hues = MOTION_COLOR_STOPS.map(s => s[1]);
+  return hues[Math.min(hues.length - 1, Math.max(0, Math.floor(badness * (hues.length - 1) + 1e-9)))];
+}
+/** What an air-quality sensor shows: null (good, or no reading) or the
+ *  rising bars — their hue, cycle (s) and opacity, as the flat Atlas draws. */
+export function airLook(l){
+  if (!l || !l.isAir) return null;
+  const b = airQualityBadness(l);
+  if (!(b > 0)) return null;
+  const k = Math.min(1, b);
+  return { badness: b, hue: airHue(b), dur: Number((4.5 - 2 * k).toFixed(2)), op: Number((0.14 + 0.10 * k).toFixed(2)) };
+}
+/** A values list played linearly over one cycle, at t ms. */
+export function cycleAt(values, ms, t){
+  const n = values.length - 1, p = ((Number(t) % ms) + ms) % ms / ms * n, i = Math.min(n - 1, Math.floor(p));
+  return values[i] + (values[i + 1] - values[i]) * (p - i);
+}
+// An unlocked lock flashes (styles.css .lv-lockflash: 1 s, ease-in-out,
+// #f87171 at .55 to #dc2626 at 1 and back): k 0..1, 1 at the flash's peak.
+export const LOCK_FLASH = { ms: 1000, from: "#f87171", to: "#dc2626", op: [0.55, 1] };
+export function lockFlashAt(t){
+  const p = ((Number(t) % LOCK_FLASH.ms) + LOCK_FLASH.ms) % LOCK_FLASH.ms / LOCK_FLASH.ms, s = p < 0.5 ? p * 2 : (1 - p) * 2;
+  return s * s * (3 - 2 * s);
+}
+
+// ── The live parts: sensors and readouts (part B) ───────────────────────────
+// The placed sensors the 3D house draws: motion (a small sensor whose room
+// pulses) and the readouts — the registry's placedReading classes, a reading
+// the map draws only where the device is placed (temperature, humidity,
+// air) — each at a height above its floor. Placed only, as on the Atlas
+// ("only if placed like all others"); hidden ones draw nothing. The kind is
+// the registry's own key (light_codes.js DEVICE_CLASSES).
+export function sensorKindOf(l){
+  if (!l) return null;
+  const c = deviceClassOf(l);
+  return c.key === "motion" || c.placedReading ? c.key : null;
+}
+export function readSensors(model, F, lightsByEid, hidden){
+  const out = [];
+  const pos = (model && model.light_positions_m) || {};
+  for (const eid of Object.keys(pos).sort()) {
+    const lp = pos[eid], l = lightsByEid && lightsByEid[eid], kind = sensorKindOf(l);
+    if (!kind || !lp || typeof lp !== "object") continue;
+    if (hidden && typeof hidden.has === "function" && hidden.has(eid)) continue;
+    const fl = F.byId.get(F.canon(lp.floor_id)), x = num(lp.x_m), y = num(lp.y_m);
+    if (!fl || x === null || y === null) continue;
+    out.push({ eid, l, kind, floor: fl, x, y });
+  }
+  return out;
+}
+/** What the sensors are drawn from — which, where, what kind — not their state. */
+export function sensorsSignature(model, lightsByEid, hidden){
+  const pos = (model && model.light_positions_m) || {};
+  const rows = [];
+  for (const eid of Object.keys(pos).sort()) {
+    const kind = sensorKindOf(lightsByEid && lightsByEid[eid]);
+    if (!kind || (hidden && typeof hidden.has === "function" && hidden.has(eid))) continue;
+    const p = pos[eid] || {};
+    rows.push([eid, p.x_m, p.y_m, p.floor_id, kind]);
+  }
+  return JSON.stringify(rows);
+}
+// Each device's height above its floor: a default by its type. Part C keeps
+// a per-device height in the 3D file (devices[<entity id>].z_m); `stored` is
+// that record, and is the one place it replaces the default.
+export const DEVICE_Z = { motion: 2.2, temp: 1.5, humidity: 1.5, air: 1.2 };
+export function deviceZ(kind, ceil, stored){
+  const z = num(stored && stored.z_m);
+  return clamp(z !== null ? z : (DEVICE_Z[kind] ?? 1.5), 0, Math.max(0.1, ceil - 0.08));
+}
+// The temperature's tint (iso_lights.js TEMP_TINT, the digits' ink): over 34
+// bright orange, from 20 a slight red, under 20 a slight blue. A reading
+// counts while it is fresh — reported in the last hour (TEMP_FRESH_MS).
+export const TEMP_WARM_AT = 20, TEMP_HOT_OVER = 34, TEMP_FRESH_MS = 60 * 60 * 1000;
+export const TEMP_TINT = { hot: { wash: "#f97316", ink: "#fb923c" }, warm: { wash: "#ef4444", ink: "#fca5a5" },
+                           cool: { wash: "#3b82f6", ink: "#93c5fd" } };
+export const tempBand = (t) => (t > TEMP_HOT_OVER ? "hot" : t >= TEMP_WARM_AT ? "warm" : "cool");
+export const STALE_INK = "#94a3b8";
+/** A readout's words and colour: the Atlas's own state word (stateWordOf —
+ *  "21°", "57%", "Fair", "409 ppm · Good") while it is live, in the Atlas's
+ *  colours; stale or no reading, the device's code, quiet. */
+export function readoutOf(l, nowMs){
+  const kind = sensorKindOf(l);
+  if (!kind || kind === "motion") return null;
+  let live, color;
+  if (kind === "air") {
+    const b = airQualityBadness(l);
+    live = Number.isFinite(b);
+    color = !live ? STALE_INK : b > 0 ? airColor(airHue(b)) : AIR_BORDER;
+  } else {
+    const v = kind === "temp" ? l.temperature : l.humidity;
+    const fresh = l.last_changed ? nowMs - Date.parse(l.last_changed) : NaN;
+    live = Number.isFinite(v) && fresh >= 0 && fresh < TEMP_FRESH_MS;
+    color = !live ? STALE_INK : kind === "temp" ? TEMP_TINT[tempBand(Number(v))].ink : HUMIDITY_BORDER;
+  }
+  const w = live ? stateWordOf(l) : null;
+  return { kind, live, color, text: w ? w.text : String(l.code || "—") };
+}
+
+// ── The floor badges (part B) ───────────────────────────────────────────────
+// The flat Atlas numbers each plate of its stack with a badge in the plate's
+// colour (iso_lights.js LAYER_PAL); a tap opens that plate's floor sheet,
+// handed the plate's storey as the badge's data-z. Here: one per plate, at
+// the corner of its rooms the flat badge marks (least x, most y).
+export const LAYER_PAL = ["#52b788", "#f59e0b", "#60a5fa", "#e879f9", "#fb923c", "#34d399", "#f87171", "#a78bfa"];
+export function floorBadges(model, floorList, house){
+  const floors = (floorList && floorList.length ? floorList : (model && model.floors)) || [];
+  const frame = fabricFrame(model || {}, floors, 150, 0);
+  const out = [];
+  frame.levels.forEach((z, i) => {
+    const ids = floorIdsOnSlab(frame, model, floors, z);
+    const mine = (house.floors || []).filter(f => ids.has(f.id) && !f.outdoor);
+    if (!mine.length) return;
+    let x0 = Infinity, y1 = -Infinity;
+    for (const r of house.rooms) if (mine.includes(r.floor)) for (const p of r.pts) { x0 = Math.min(x0, p[0]); y1 = Math.max(y1, p[1]); }
+    if (!Number.isFinite(x0)) return;
+    const fid = floorIdAtLevel(frame, model, floors, z);
+    const fl = mine.find(f => f.id === fid) || mine[0];
+    out.push({ z: String(z), n: i + 1, color: LAYER_PAL[i % LAYER_PAL.length], floor: fl, x: x0 - 0.6, y: y1 + 0.6,
+               name: floorNameAtLevel(frame, model, floors, z) || fl.name });
+  });
+  return out;
+}
+
 // ── Reading it all ───────────────────────────────────────────────────────────
 /** The whole house from the card's own data. floors: the registry the card
  *  holds (else model.floors); lightsByEid: the Atlas's device records (live
  *  state); hidden: the Atlas's hidden lights (a Set). Per floor: its rooms
- *  and its wall pieces, barriers spliced in. */
+ *  and its wall pieces, barriers spliced in (a linked one as an opening of
+ *  its sensor's kind). */
 export function readHouse(model, floorList, lightsByEid, hidden){
   const F = readFloors(model, floorList);
   const rooms = readRooms(model, F);
   const barriers = Array.isArray(model && model.rf_barriers_m) ? model.rf_barriers_m : [];
+  const kindOf = (b) => openingKind(b, lightsByEid && b && lightsByEid[b.linked_entity_id]);
   const perFloor = new Map();
   for (const fl of F.floors) {
     const mine = rooms.filter(r => r.floor === fl);
-    const pieces = applyBarriers(fl, deriveWalls(fl, mine, F.ground), barriers, F.canon);
+    const pieces = applyBarriers(fl, deriveWalls(fl, mine, F.ground), barriers, F.canon, kindOf);
     perFloor.set(fl, { rooms: mine, pieces });
   }
   return { floors: F.floors, byId: F.byId, canon: F.canon, ground: F.ground, rooms, perFloor,
-           lights: readLights(model, F, lightsByEid, hidden) };
+           lights: readLights(model, F, lightsByEid, hidden), sensors: readSensors(model, F, lightsByEid, hidden) };
 }
 
 /** What the house shell is drawn from — floors, rooms and their colours,
- *  barriers — as one string: the same string, nothing to rebuild. */
-export function shellSignature(model, floorList){
+ *  barriers, and what each linked barrier's sensor is (it decides door or
+ *  window) — as one string: the same string, nothing to rebuild. */
+export function shellSignature(model, floorList, lightsByEid){
   const m = model || {};
+  const linked = (Array.isArray(m.rf_barriers_m) ? m.rf_barriers_m : []).filter(b => b && b.linked_entity_id).map(b => {
+    const dl = lightsByEid && lightsByEid[b.linked_entity_id];
+    return dl ? (dl.isLock ? "lock" : String(dl.device_class || "")) : null;
+  });
   return JSON.stringify([floorList || m.floors || [], m.floor_elevations || {}, m.room_geometry_m || {},
-    m.room_meta || {}, m.rf_barriers_m || []]);
+    m.room_meta || {}, m.rf_barriers_m || [], linked]);
 }
 /** What the fixtures are drawn from — which lights, where, how big, their
  *  shapes — but not their state, which is painted on every poll instead. */
