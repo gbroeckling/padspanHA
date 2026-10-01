@@ -42,6 +42,14 @@ async def ws_house3d_clear(hass: HomeAssistant, connection, msg) -> None:
     if not enabled(hass):
         connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
         return
+    from .house3d_store import async_file_exists  # noqa: PLC0415
+    if not await async_file_exists(hass):
+        # Never written: nothing to remove. No backup (an empty one would push
+        # a real safety backup out of the three kept) and no new file.
+        store = await async_get_store(hass)
+        store.data = {}
+        connection.send_result(msg["id"], {"cleared": True, "backup_id": None})
+        return
     from .ws_backup import _auto_backup  # noqa: PLC0415
     backup_id = await _auto_backup(hass, "Before removing everything in the 3D house", [HOUSE3D_STORE_KEY])
     if not backup_id:

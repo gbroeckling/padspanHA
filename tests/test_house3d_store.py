@@ -88,6 +88,14 @@ def _saves(key: str = HOUSE3D_STORE_KEY) -> int:
     return sum(1 for ev, k in _FakeStore.events if ev == "save" and k == key)
 
 
+def _disk_file(tmp_path: Path) -> Path:
+    """Make the file exist where Home Assistant keeps it (.storage/<key>)."""
+    f = tmp_path / ".storage" / HOUSE3D_STORE_KEY
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text("{}", encoding="utf-8")
+    return f
+
+
 # ═══ the switch ═══════════════════════════════════════════════════════════════
 
 def test_off_by_default_with_every_sub_switch_off():
@@ -159,7 +167,7 @@ def test_clear_is_refused_while_off_and_touches_nothing(store, monkeypatch):
     assert store.saved[HOUSE3D_STORE_KEY]["pieces"]["fur_1"]["label"] == "Mum's old couch"
 
 
-def test_clear_when_on_backs_up_first_then_empties(store, monkeypatch):
+def test_clear_when_on_backs_up_first_then_empties(store, monkeypatch, tmp_path):
     from custom_components.padspan_ha import ws_backup
 
     async def _bk(hass, note, keys):
@@ -167,8 +175,9 @@ def test_clear_when_on_backs_up_first_then_empties(store, monkeypatch):
         return "bk_1"
 
     monkeypatch.setattr(ws_backup, "_auto_backup", _bk)
+    _disk_file(tmp_path)
     store.saved[HOUSE3D_STORE_KEY] = {**H.empty(), "pieces": {"fur_1": dict(_PIECE)}}
-    h, conn = _house(on=True), MagicMock()
+    h, conn = _house(tmp_path, on=True), MagicMock()
     _run(W.ws_house3d_clear(h, conn, {"id": 1}))
     assert conn.send_result.call_args[0][1] == {"cleared": True, "backup_id": "bk_1"}
     assert store.saved[HOUSE3D_STORE_KEY] == H.empty()
@@ -176,15 +185,16 @@ def test_clear_when_on_backs_up_first_then_empties(store, monkeypatch):
     assert order[0] == ("backup", (HOUSE3D_STORE_KEY,)), "the backup is taken before anything is emptied"
 
 
-def test_no_backup_no_clear(store, monkeypatch):
+def test_no_backup_no_clear(store, monkeypatch, tmp_path):
     from custom_components.padspan_ha import ws_backup
 
     async def _bk(*a):
         return None
 
     monkeypatch.setattr(ws_backup, "_auto_backup", _bk)
+    _disk_file(tmp_path)
     store.saved[HOUSE3D_STORE_KEY] = {**H.empty(), "pieces": {"fur_1": dict(_PIECE)}}
-    h, conn = _house(on=True), MagicMock()
+    h, conn = _house(tmp_path, on=True), MagicMock()
     _run(W.ws_house3d_clear(h, conn, {"id": 1}))
     assert conn.send_error.call_args[0][1] == "backup_failed"
     assert _saves() == 0 and store.saved[HOUSE3D_STORE_KEY]["pieces"]
@@ -201,14 +211,6 @@ def test_registered_for_backup_restore_bright_import_and_the_labels():
     assert '"padspan_ha.house3d": "3D house"' in manage, "no unreleased name in the backup list"
     ws = (_CC / "websocket.py").read_text(encoding="utf-8")
     assert "from .ws_house3d import WS_COMMANDS" in ws
-
-
-def _disk_file(tmp_path: Path) -> Path:
-    """Make the file exist where Home Assistant keeps it (.storage/<key>)."""
-    f = tmp_path / ".storage" / HOUSE3D_STORE_KEY
-    f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text("{}", encoding="utf-8")
-    return f
 
 
 def test_a_factory_reset_empties_a_file_that_exists(store, tmp_path):
@@ -328,6 +330,49 @@ def test_only_an_admin_lets_data_leave_the_house(key, value, allowed):
         assert not conn.send_error.called and data.get(key) == value
     else:
         assert conn.send_error.call_args[0][1] == "unauthorized" and key not in data
+
+
+def test_clear_with_no_file_takes_no_backup_and_writes_nothing(store, monkeypatch, tmp_path):
+    from custom_components.padspan_ha import ws_backup
+    calls = []
+
+    async def _bk(*a):
+        calls.append(a)
+        return "bk_x"
+
+    monkeypatch.setattr(ws_backup, "_auto_backup", _bk)
+    h, conn = _house(tmp_path, on=True), MagicMock()
+    _run(W.ws_house3d_clear(h, conn, {"id": 1}))
+    assert conn.send_result.call_args[0][1] == {"cleared": True, "backup_id": None}
+    assert calls == [] and _saves() == 0, "no empty safety backup, no new file"
+
+
+def test_an_admin_can_save_the_library_and_photo_settings():
+    h, conn = _house(), MagicMock()
+    conn.user = MagicMock(is_admin=True)
+    _run(WS.ws_settings_set(h, conn, {"id": 1, "atlas_3d_library": True, "atlas_3d_ai_task_entity": "ai_task.local"}))
+    data = h.data[DOMAIN][DATA_SETTINGS].data
+    assert not conn.send_error.called
+    assert data["atlas_3d_library"] is True and data["atlas_3d_ai_task_entity"] == "ai_task.local"
+
+
+def test_opting_into_the_usage_report_still_mints_the_id_and_starts_clean(monkeypatch):
+    """The 3D admin check sits beside the usage report's own; the opt-in that
+    mints the install id and starts the windows must still run (it was nested
+    inside the 3D check once, by mistake)."""
+    calls = []
+
+    async def _mint(hass):
+        calls.append("ensure_install_id")
+
+    monkeypatch.setattr(T, "ensure_install_id", _mint)
+    monkeypatch.setattr(T, "reset_windows", lambda hass: calls.append("reset_windows"))
+    h, conn = _house(), MagicMock()
+    conn.user = MagicMock(is_admin=True)
+    h.data[DOMAIN][DATA_SETTINGS].data["telemetry_enabled"] = False
+    _run(WS.ws_settings_set(h, conn, {"id": 1, "telemetry_enabled": True, "telemetry_asked": True}))
+    assert calls == ["ensure_install_id", "reset_windows"]
+    assert h.data[DOMAIN][DATA_SETTINGS].data["telemetry_enabled"] is True
 
 
 # ═══ the usage report ═════════════════════════════════════════════════════════

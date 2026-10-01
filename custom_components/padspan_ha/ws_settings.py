@@ -497,6 +497,13 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 connection.send_error(msg["id"], "unauthorized", "Only an administrator can change the usage report")
                 return
             payload["telemetry_enabled"] = bool(msg.get("telemetry_enabled"))
+            if payload["telemetry_enabled"]:
+                # Mint the anonymous id at opt-in, so the Preview shows the
+                # real report from that moment on — and start the usage and
+                # error windows here, so nothing from before the yes goes.
+                from .telemetry import ensure_install_id, reset_windows  # noqa: PLC0415
+                await ensure_install_id(hass)
+                reset_windows(hass)
         if "atlas_3d_library" in msg or "atlas_3d_ai_task_entity" in msg:
             # Live Aboard's shared library and a cloud AI Task reading photos
             # both let data leave the house: an administrator's call, like the
@@ -506,13 +513,6 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 connection.send_error(msg["id"], "unauthorized",
                                       "Only an administrator can change the 3D house's library or photo settings")
                 return
-            if payload["telemetry_enabled"]:
-                # Mint the anonymous id at opt-in, so the Preview shows the
-                # real report from that moment on — and start the usage and
-                # error windows here, so nothing from before the yes goes.
-                from .telemetry import ensure_install_id, reset_windows  # noqa: PLC0415
-                await ensure_install_id(hass)
-                reset_windows(hass)
         if "telemetry_asked" in msg:
             payload["telemetry_asked"] = bool(msg.get("telemetry_asked"))
         if "trial_nudge_done" in msg:
