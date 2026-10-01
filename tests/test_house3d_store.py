@@ -345,6 +345,7 @@ def test_clear_with_no_file_takes_no_backup_and_writes_nothing(store, monkeypatc
     _run(W.ws_house3d_clear(h, conn, {"id": 1}))
     assert conn.send_result.call_args[0][1] == {"cleared": True, "backup_id": None}
     assert calls == [] and _saves() == 0, "no empty safety backup, no new file"
+    assert h.data[DOMAIN][DATA_HOUSE3D].data == H.empty(), "the copy in memory is the empty house"
 
 
 def test_an_admin_can_save_the_library_and_photo_settings():

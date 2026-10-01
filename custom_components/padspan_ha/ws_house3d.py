@@ -12,7 +12,8 @@ library commands, each refused while the feature is off.
 - house3d_get: any user, and it works while the feature is off (backups
   label the file from it). It reads; it never writes.
 - house3d_clear: admin only, refused while the feature is off, and takes an
-  automatic backup of the file first. No backup, no clear.
+  automatic backup of the file first. No backup, no clear. A file that was
+  never written has nothing to clear: no backup, no write.
 """
 
 from __future__ import annotations
