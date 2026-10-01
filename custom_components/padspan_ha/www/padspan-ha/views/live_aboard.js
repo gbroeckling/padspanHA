@@ -24,9 +24,18 @@
 // while the panel is hidden. Any failure — no WebGL, a slow GPU by the
 // frame-time check, a lost GL context, any error — puts the flat Atlas back
 // and is counted once (the report's closed words, live_aboard_house.js).
+//
+// What the flat Atlas does, it does here too (part B). Doors, windows and
+// locks linked to sensors open, shut and flash as the Atlas reads them;
+// rooms take the Motion · Air colours on the Atlas's clocks; temperature,
+// humidity and air float as readouts; and a press is the Atlas's own press
+// (live_aboard_use.js): the picking is this file's, the actions the host's.
+// Something moving by itself (a pulse, a flash, a door swinging) draws on
+// a steady clock, slower on Low; nothing moving, nothing is drawn.
 
 const THREE = await import(`../vendor/three/three.module.min.js${new URL(import.meta.url).search}`);
 const HOUSE = await import(`./live_aboard_house.js${new URL(import.meta.url).search}`);
+const USE = await import(`./live_aboard_use.js${new URL(import.meta.url).search}`);
 
 export const HOUSE3D_EVENTS = HOUSE.HOUSE3D_EVENTS;
 export const HOUSE3D_FALLBACK_KINDS = HOUSE.HOUSE3D_FALLBACK_KINDS;
@@ -48,6 +57,16 @@ const SUN_I = 2.0, SKY_I_DAY = 1.6, SKY_I_NIGHT = 0.3;
 const SUN_HIGH = "#fff0dc", SUN_LOW = "#ff9f5a";
 const SKY_DAY = "#e6edf6", SKY_NIGHT = "#4a5d8a", GROUND_DAY = "#3a342c", GROUND_NIGHT = "#101318";
 const SUN_STEP = 0.5;                      // degrees the sun must move before the house is drawn again
+// The live parts (part B).
+const NO_READING = "#64748b";              // the Atlas's "no reading" grey (its dashed line)
+const SENSOR_ON = "#3b82f6", SENSOR_QUIET = "#cfd8d3";   // a motion sensor lit while active (the Atlas's MOTION_PULSE)
+const DOOR_OPEN = 85 * D2R, WINDOW_OPEN = 50 * D2R, SWING_MS = 650;
+const AMBIENT_MS = { high: 33, low: 66 };  // pulses and flashes: about 30 frames a second, 15 on Low
+const PICK_R = 22, BADGE_PX = 28;          // a device's reach for a tap (the Atlas's 44 px target); a floor badge
+const READ_H = 0.3, READ_PX = [14, 24];    // a readout's height (m), and never under / over this on screen (px)
+const READ_W = 400, READ_C = 72;           // its canvas: the pill is drawn inside, as wide as its words
+const RING_R0 = 0.6;                       // the motion ring's radius (m) at 1 (the Atlas's 0.7 → 2.4)
+const FILL_K = 0.6, RECENT_K = 0.45, AIR_K = 1.6;   // how strongly a floor takes the Motion · Air colour
 
 // The view's own look: everything is scoped under .la3d, and the sheet travels
 // inside the long-lived element, so nothing is added to styles.css and the
@@ -81,7 +100,10 @@ const CSS = `
   color:#e8f0ea;font-size:12.5px;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.45);animation:la3d-toast 6s ease forwards}
 .la3d-toast button{all:unset;box-sizing:border-box;cursor:pointer;padding:5px 11px;border-radius:8px;font-weight:700;
   color:#f5b041;background:rgba(245,176,65,.12)}
-@keyframes la3d-toast{0%{opacity:0;visibility:visible}5%{opacity:1}85%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden}}`;
+@keyframes la3d-toast{0%{opacity:0;visibility:visible}5%{opacity:1}85%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden}}
+.la3d-ov{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}
+.la3d-hud{position:absolute;left:72px;top:10px;z-index:3;max-width:calc(100% - 84px)}
+.la3d-hud .lv-hoverhud{position:static}`;
 
 const _slots = new Map();
 /** One 3D view per screen ("atlas" — the sidebar; "builder" — Mapping). */
@@ -129,6 +151,19 @@ function rampTexture(){
   grd.addColorStop(0, `rgba(0,0,0,${AO_A})`); grd.addColorStop(0.45, `rgba(0,0,0,${(AO_A * 0.35).toFixed(3)})`); grd.addColorStop(1, "rgba(0,0,0,0)");
   g.fillStyle = grd; g.fillRect(0, 0, 4, 64);
   return new THREE.CanvasTexture(c);
+}
+/** One air bar per repeat: a soft white band across a clear tile (the
+ *  Atlas's bars are a fifth of the room apart, each a little under a fifth
+ *  of that thick). Tinted and faded by its material. */
+function barsTexture(){
+  const c = document.createElement("canvas"); c.width = 4; c.height = 64;
+  const g = c.getContext("2d"), grd = g.createLinearGradient(0, 0, 0, 64);
+  grd.addColorStop(0, "rgba(255,255,255,0)"); grd.addColorStop(0.03, "rgba(255,255,255,1)");
+  grd.addColorStop(0.15, "rgba(255,255,255,1)"); grd.addColorStop(0.19, "rgba(255,255,255,0)"); grd.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = grd; g.fillRect(0, 0, 4, 64);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
 }
 /** PadSpan's own merge: the non-indexed attributes every part shares, one
  *  after the other — one draw for a floor's tiles. */
@@ -183,6 +218,14 @@ function createSlot(slotKey){
   let shared = null;
   let hemi = null, sun = null, lampPool = [], lampsDirty = true, ground = null, gridLines = null;
   const lampTarget = new THREE.Vector3(Infinity, 0, 0);
+  // The live parts and the taps (part B). use: the press, the hover box and
+  // the rings (live_aboard_use.js); apiOf: the host's use api, as the poll
+  // last handed it; lbe: the Atlas's device records, live.
+  let use = null, apiOf = null, apiNow = null, lbe = {}, haStarted = 0;
+  let openings = [], sensorsUi = [], tints = [], readouts = [], badges = [];
+  let sensorRes = [], badgeRes = [], sensorsSig = null;
+  let liveAnim = false, lastAmbient = 0, rehoverDue = false;
+  let northDismissed = null;               // the pointerdown that only put north back
 
   // ── failing back to the flat Atlas ────────────────────────────────────────
   function showFlat(){
@@ -192,13 +235,16 @@ function createSlot(slotKey){
   }
   function teardown(){
     try { endSpin(false); hidePill(); } catch (_) { /* nothing to undo */ }
+    try { if (use) use.dispose(); } catch (_) { /* gone with the view */ }
+    use = null;
     for (const o of observers) { try { o(); } catch (_) { /* gone */ } }
     observers = [];
-    disposeList(shellRes); disposeList(lightRes);
-    shellRes = []; lightRes = [];
+    disposeList(shellRes); disposeList(lightRes); disposeList(sensorRes); disposeList(badgeRes);
+    shellRes = []; lightRes = []; sensorRes = []; badgeRes = [];
     // Give the GPU its context back: the flat Atlas needs none.
     try { if (renderer) { renderer.dispose(); if (failed !== "context_lost") renderer.forceContextLoss(); } } catch (_) { /* best effort */ }
     renderer = null; scene = null; house = null; floorsUi = []; lights = [];
+    openings = []; sensorsUi = []; tints = []; readouts = []; badges = []; liveAnim = false;
   }
   function fail(kind){
     if (failed) return;
@@ -325,6 +371,14 @@ function createSlot(slotKey){
     // A fixed pool of real lamps: only their intensities ever change (Low
     // lights four of them, High all eight — a profile change, never a bulb).
     for (let i = 0; i < 8; i++) { const pl = new THREE.PointLight(0xffffff, 0, 7.5, 2); lampPool.push(pl); scene.add(pl); }
+    // The press, the hover box and the rings: the Atlas's, over the house.
+    use = USE.createUseSurface({
+      root, pick: (x, y) => pickAt(x, y), screenOf,
+      // Built once per poll, on first need: the host's api for this card.
+      api: () => apiNow || (apiNow = apiOf ? apiOf() : null),
+      frame: () => { if (!pending && !failed && renderer) { pending = true; requestAnimationFrame(frame); } },
+      cursor: (on) => { canvas.style.cursor = on ? "pointer" : ""; },
+    });
     wirePointer();
     wireObservers();
     return true;
@@ -346,6 +400,11 @@ function createSlot(slotKey){
       },
       glowTex, aoTex: rampTexture(),
       bulbMat: new THREE.MeshBasicMaterial({ color: 0xffffff }),
+      // Part B: an unlocked lock's flash (every one in step, as on the
+      // Atlas), the motion ring, and the air bars' stripe.
+      flashMat: new THREE.MeshBasicMaterial({ color: HOUSE.LOCK_FLASH.to, transparent: true, opacity: 0.55, depthWrite: false }),
+      ringGeo: new THREE.RingGeometry(0.93, 1, 48).rotateX(-Math.PI / 2),
+      barsTex: barsTexture(),
       poolGeo: new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2),
       poolMat: new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
         side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }),
@@ -374,6 +433,9 @@ function createSlot(slotKey){
 
   // ── the house ─────────────────────────────────────────────────────────────
   function clearShell(){
+    clearSensors(); clearBadges();
+    openings = [];
+    if (use && !use.pressing) use.clear();            // what it marked is gone
     for (const F of floorsUi) scene.remove(F.group);
     if (ground) { scene.remove(ground); scene.remove(gridLines); ground = null; gridLines = null; }
     disposeList(shellRes); shellRes = [];
@@ -475,6 +537,8 @@ function createSlot(slotKey){
       };
       F.solid = inst(solids, shared.wallBox, { vc: true, r: 0.92 }, true);
       F.glass = inst(glasses, shared.glassBox, { tr: true, op: 0.32, r: 0.08 }, false);
+      // A door, window or lock linked to a sensor opens with it (part B).
+      for (const P of F.pieces) setupOpening(F, P, per.rooms);
       for (const P of F.pieces) placePiece(F, P, false);
       F.ao = aoMesh(F);
       if (F.ao) group.add(F.ao);
@@ -623,7 +687,8 @@ function createSlot(slotKey){
     const onKey = guard((e) => { if (e.key === "Escape") cancelNorth(); });
     const onDown = guard((e) => {
       const path = typeof e.composedPath === "function" ? e.composedPath() : [];
-      if (!path.includes(pill) && !path.includes(compassEl)) cancelNorth();
+      // That touch only puts north back: on the house it presses nothing.
+      if (!path.includes(pill) && !path.includes(compassEl)) { northDismissed = e; cancelNorth(); }
     });
     document.addEventListener("keydown", onKey, true);
     document.addEventListener("pointerdown", onDown, true);
@@ -721,13 +786,87 @@ function createSlot(slotKey){
     mesh.visible = !!profileOf().ao;
     return mesh;
   }
-  // A wall piece's instances at full height, or cut down to CUT_H.
+  // A wall piece's instances at full height, or cut down to CUT_H; a linked
+  // leaf as open as its sensor has it.
   function placePiece(F, P, cut){
     for (const e of P.els) {
       const z1 = cut && e.cuttable ? Math.min(e.z1, HOUSE.CUT_H) : e.z1, hgt = z1 - e.z0;
-      e.mesh.setMatrixAt(e.i, hgt < 0.005 ? ZERO : compose(P.mx, F.fl.elev + e.z0, P.my, P.yaw, P.len, hgt, e.thick));
+      e.mesh.setMatrixAt(e.i, hgt < 0.005 ? ZERO : P.open && e === P.open.leaf ? leafMatrix(F, P, e.z0, hgt, e.thick)
+        : compose(P.mx, F.fl.elev + e.z0, P.my, P.yaw, P.len, hgt, e.thick));
       e.mesh.instanceMatrix.needsUpdate = true;
     }
+    if (P.open && P.open.flash) placeFlash(F, P, cut);
+  }
+
+  // ── doors, windows and locks with sensors (part B) ────────────────────────
+  // A barrier linked to a sensor is an opening (live_aboard_house.js
+  // openingKind): its leaf — a door's, or a window's pane — opens and shuts
+  // with the sensor as the Atlas reads it (openingState), a door swinging
+  // in about a hinge on the left, a window opening a little way, a garage
+  // door rolling up into its head; no reading is the Atlas's grey, shut; an
+  // unlocked lock flashes red. Hinge and swing are the defaults until the 3D
+  // file says otherwise (part C hands its openings[<barrier id>] to
+  // openingSwing; nothing here ever writes it).
+  function setupOpening(F, P, rooms){
+    const b = P.pc.barrier, leaf = P.els.find(e => e.leaf);
+    if (!b || !b.linked_entity_id || !leaf || (P.pc.kind !== "door" && P.pc.kind !== "window")) return;
+    const sw = HOUSE.openingSwing(P.pc, rooms, null);
+    const len = Math.hypot(P.pc.x1 - P.pc.x0, P.pc.y1 - P.pc.y0);
+    P.open = { bar: b, eid: String(b.linked_entity_id), kind: P.pc.kind, leaf, len, hinge: sw.hinge, side: sw.side,
+               garage: P.pc.kind === "door" && len > 1.8, state: null, at: 0, to: 0, from: 0, t0: 0, flash: null };
+    openings.push({ F, P });
+  }
+  // The leaf at o.at (0 shut, 1 open), eased: about its hinge, or up into
+  // its head for a garage door. Shut, it is exactly the piece's own place.
+  function leafMatrix(F, P, z0, hgt, thick){
+    const o = P.open, pc = P.pc, a = o.at * o.at * (3 - 2 * o.at);
+    if (o.garage) {
+      const up = a * Math.max(0, hgt - 0.2);
+      return compose(P.mx, F.fl.elev + z0 + up, P.my, P.yaw, P.len, hgt - up, thick);
+    }
+    const hb = o.hinge === "b", hx = hb ? pc.x1 : pc.x0, hy = hb ? pc.y1 : pc.y0;
+    const ux = ((hb ? pc.x0 : pc.x1) - hx) / o.len, uy = ((hb ? pc.y0 : pc.y1) - hy) / o.len;
+    const ang = a * (o.kind === "window" ? WINDOW_OPEN : DOOR_OPEN), c = Math.cos(ang), s = Math.sin(ang);
+    const dx = c * ux + s * pc.nx * o.side, dy = c * uy + s * pc.ny * o.side;
+    return compose(hx + dx * o.len / 2, F.fl.elev + z0, hy + dy * o.len / 2, HOUSE.yawOf([dx, dy]), o.len, hgt, thick);
+  }
+  // An unlocked lock: a glow over its shut leaf, its colour and strength
+  // set on the frame (animateLive); nothing while locked.
+  function placeFlash(F, P, cut){
+    const o = P.open, e = o.leaf, m = o.flash;
+    if (o.state !== "unlocked") m.matrix.copy(ZERO);
+    else {
+      const z1 = cut ? Math.min(e.z1, HOUSE.CUT_H) : e.z1;
+      m.matrix.copy(compose(P.mx, F.fl.elev + e.z0 - 0.01, P.my, P.yaw, P.len + 0.04, z1 - e.z0 + 0.03, e.thick + 0.05));
+    }
+    m.matrixWorldNeedsUpdate = true;
+  }
+  const OPEN_WORD = { open: "Open", closed: "Closed", locked: "Locked", unlocked: "Unlocked", none: "No reading" };
+  function paintOpenings(){
+    let changed = false;
+    for (const { F, P } of openings) {
+      const o = P.open, dl = lbe[o.eid];
+      if (o.kind === "door" && dl && dl.device_class === "garage_door") o.garage = true;
+      const st = HOUSE.openingState(o.bar, dl);
+      if (st === o.state) continue;
+      const first = o.state === null;
+      o.state = st;
+      o.to = st === "open" ? 1 : 0;
+      if (first) o.at = o.to;                              // the first look is how it is, not a swing
+      else { o.from = o.at; o.t0 = performance.now(); }    // a swing, timed on the clock (animateLive)
+      const e = o.leaf;
+      e.mesh.setColorAt(e.i, _c.set(st === "none" ? NO_READING : e.col));
+      e.mesh.instanceColor.needsUpdate = true;
+      if (st === "unlocked" && !o.flash) {
+        o.flash = new THREE.Mesh(shared.glassBox, shared.flashMat);
+        o.flash.matrixAutoUpdate = false;
+        o.flash.renderOrder = 4;
+        F.group.add(o.flash);
+      }
+      placePiece(F, P, !!P.cut);
+      changed = true;
+    }
+    return changed;
   }
 
   // ── the lights ────────────────────────────────────────────────────────────
@@ -760,6 +899,8 @@ function createSlot(slotKey){
         }
         for (const hh of parts.housings) houses.push(hh);
         for (const hl of parts.halos) { L.refs.halos.push({ cls: hl.cls, i: halos[hl.cls].length }); halos[hl.cls].push(hl); }
+        // Where a press finds it: every bulb and every glow (a strip anywhere along it).
+        L.pick = [...parts.bulbs, ...parts.halos].map(q => new THREE.Vector3(q.x, F.fl.elev + q.h, q.y));
         if (parts.pool && parts.poolH !== null) { L.refs.pool = pools.length; pools.push({ at: parts.poolAt, h: parts.poolH, ...parts.pool }); }
         const n = Math.max(1, parts.bulbs.length), mh = sh / n;
         L.lamp = new THREE.Vector3(sx / n, F.fl.elev + (mh > 1.5 ? mh - 0.3 : mh + 0.35), sy / n);
@@ -864,10 +1005,278 @@ function createSlot(slotKey){
     });
   }
 
+  // ── sensors: motion, Motion · Air, the readouts (part B) ──────────────────
+  // Placed sensors only, as on the Atlas. A motion sensor is a small sensor
+  // near the ceiling, lit while active; the floor of its room pulses in the
+  // Atlas's motion colours on its clocks (live_aboard_house.js motionLook),
+  // with the ring sweeping out from under it. Poor air rises in bars across
+  // its room's floor (airLook). Temperature, humidity and air float as
+  // readouts, read-only. Each sits at its height above its floor: a default
+  // by its type (deviceZ — part C's 3D file replaces it per device).
+  function clearSensors(){
+    for (const F of floorsUi) { if (F.sensorGroup) F.group.remove(F.sensorGroup); F.sensorGroup = null; }
+    disposeList(sensorRes); sensorRes = [];
+    sensorsUi = []; tints = []; readouts = [];
+  }
+  function buildSensors(h){
+    clearSensors();
+    for (const F of floorsUi) {
+      const mine = (h.sensors || []).filter(S => S.floor.id === F.fl.id);
+      if (!mine.length) continue;
+      const g = new THREE.Group();
+      F.sensorGroup = g;
+      F.group.add(g);
+      const ceil = F.fl.h - HOUSE.SLAB_T, motion = [], here = [];
+      for (const S0 of mine) {
+        const z = HOUSE.deviceZ(S0.kind, ceil, null);
+        const S = { ...S0, F, z, pos: new THREE.Vector3(S0.x, F.fl.elev + z, S0.y), room: HOUSE.roomAt(F.rooms, S0.x, S0.y), shown: null };
+        sensorsUi.push(S); here.push(S);
+        if (S.kind === "motion") motion.push(S); else readouts.push(makeReadout(S, g));
+      }
+      if (motion.length) {
+        const im = new THREE.InstancedMesh(shared.prim.sphere, shared.bulbMat, motion.length);
+        motion.forEach((S, i) => {
+          im.setMatrixAt(i, compose(S.x, S.pos.y, S.y, 0, 0.055, 0.04, 0.055));
+          im.setColorAt(i, _c.set(SENSOR_QUIET));
+          S.mesh = im; S.i = i;
+        });
+        im.frustumCulled = false;
+        sensorRes.push({ dispose: () => im.dispose() });
+        g.add(im);
+      }
+      // One tint per room with motion or air in it; a motion sensor outside
+      // every room pulses its own patch of floor. Air needs a room (as on
+      // the Atlas: its bars fill the room the sensor is in).
+      const byRoom = new Map();
+      for (const S of here) {
+        if (S.kind !== "motion" && S.kind !== "air") continue;
+        if (S.kind === "air" && !S.room) continue;
+        const key = S.room || S;
+        if (!byRoom.has(key)) byRoom.set(key, { room: S.room, F, at: S, motion: [], air: [] });
+        byRoom.get(key)[S.kind].push(S);
+      }
+      for (const T of byRoom.values()) tints.push(makeTint(T, g));
+    }
+  }
+  function makeTint(T, g){
+    const y = T.F.fl.elev + 0.008;
+    const geo = T.room ? new THREE.ShapeGeometry(new THREE.Shape(T.room.pts.map(p => new THREE.Vector2(p[0], p[1]))))
+      : new THREE.CircleGeometry(1.2, 32).translate(T.at.x, T.at.y, 0);
+    // The air bars run across the plan as they run up the Atlas's screen:
+    // v along (x + y), a fifth of the room per bar.
+    const pos = geo.attributes.position, uv = new Float32Array(pos.count * 2);
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < pos.count; i++) { const s = (pos.getX(i) + pos.getY(i)) / Math.SQRT2; lo = Math.min(lo, s); hi = Math.max(hi, s); }
+    const gap = Math.max(0.3, (hi - lo) / 5);
+    for (let i = 0; i < pos.count; i++) uv[i * 2 + 1] = (pos.getX(i) + pos.getY(i)) / Math.SQRT2 / gap;
+    geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+    geo.rotateX(Math.PI / 2).translate(0, y, 0);                       // plan (x, y) -> world (x, ·, y)
+    sensorRes.push(geo);
+    const flat = { transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true,
+                   polygonOffsetFactor: -1, polygonOffsetUnits: -3 };
+    T.fillMat = new THREE.MeshBasicMaterial({ ...flat, color: SENSOR_ON });
+    const fill = new THREE.Mesh(geo, T.fillMat);
+    fill.renderOrder = 1;
+    g.add(fill);
+    sensorRes.push(T.fillMat);
+    T.rings = T.motion.map(S => {
+      // The sweep is the active pulse's ring: its colour never changes.
+      const mat = new THREE.MeshBasicMaterial({ ...flat, color: HOUSE.motionColor(HOUSE.MOTION_COLOR_STOPS[0][1]) });
+      const mesh = new THREE.Mesh(shared.ringGeo, mat);
+      mesh.position.set(S.x, y + 0.004, S.y);
+      mesh.scale.setScalar(0);
+      mesh.renderOrder = 1;
+      g.add(mesh);
+      sensorRes.push(mat);
+      return { S, mesh, mat, on: false };
+    });
+    if (T.air.length) {
+      T.barsTex = shared.barsTex.clone();
+      T.barsTex.needsUpdate = true;
+      T.barsMat = new THREE.MeshBasicMaterial({ ...flat, map: T.barsTex, color: 0xffffff });
+      const bars = new THREE.Mesh(geo, T.barsMat);
+      bars.renderOrder = 1;
+      g.add(bars);
+      sensorRes.push(T.barsTex, T.barsMat);
+    }
+    T.mLook = null; T.aLook = null; T.mKey = ""; T.aKey = "";
+    return T;
+  }
+  // A readout: a sprite whose canvas is redrawn only when its words change.
+  function makeReadout(S, g){
+    const c = document.createElement("canvas");
+    c.width = READ_W; c.height = READ_C;
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+    const sp = new THREE.Sprite(mat);
+    sp.position.copy(S.pos);
+    sp.renderOrder = 6;
+    g.add(sp);
+    sensorRes.push(tex, mat);
+    Object.assign(S, { sprite: sp, tex, canvas: c, key: null, pillW: 0.5 });
+    return S;
+  }
+  function drawReadout(S, r){
+    const c = S.canvas, g = c.getContext("2d");
+    let px = 40;
+    const font = () => `800 ${px}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+    g.font = font();
+    while (px > 24 && g.measureText(r.text).width > READ_W - 44) { px -= 2; g.font = font(); }
+    const w = Math.min(READ_W - 4, Math.ceil(g.measureText(r.text).width) + 40), h = READ_C - 8, x0 = (READ_W - w) / 2, y0 = 4;
+    g.clearRect(0, 0, READ_W, READ_C);
+    g.beginPath();
+    if (g.roundRect) g.roundRect(x0, y0, w, h, h / 2); else g.rect(x0, y0, w, h);
+    g.fillStyle = "rgba(6,14,9,0.84)"; g.fill();
+    g.lineWidth = 2; g.strokeStyle = "rgba(226,240,232,0.18)"; g.stroke();
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.globalAlpha = r.live ? 1 : 0.7;
+    g.fillStyle = r.color;
+    g.fillText(r.text, READ_W / 2, READ_C / 2 + 2);
+    g.globalAlpha = 1;
+    S.pillW = w / READ_W;
+    S.tex.needsUpdate = true;
+  }
+  // The floor badges: one per plate of the Atlas's stack, its number in its
+  // colour, always on top, the same size on screen at any distance.
+  function clearBadges(){
+    for (const B of badges) if (B.sprite.parent) B.sprite.parent.remove(B.sprite);
+    disposeList(badgeRes); badgeRes = [];
+    badges = [];
+  }
+  function buildBadges(p){
+    clearBadges();
+    for (const B of HOUSE.floorBadges(p.model, p.floors, house)) {
+      const F = floorsUi.find(x => x.fl === B.floor);
+      if (!F) continue;
+      const c = document.createElement("canvas");
+      c.width = c.height = 64;
+      const g = c.getContext("2d");
+      g.beginPath(); g.arc(32, 32, 28, 0, Math.PI * 2);
+      g.fillStyle = B.color; g.fill();
+      g.lineWidth = 3; g.strokeStyle = "rgba(7,16,8,0.55)"; g.stroke();
+      g.fillStyle = "#071008"; g.font = "700 30px system-ui, \"Segoe UI\", Roboto, sans-serif";
+      g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(String(B.n), 32, 34);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false });
+      const sp = new THREE.Sprite(mat);
+      sp.position.set(B.x, B.floor.elev + 0.12, B.y);
+      sp.renderOrder = 20;
+      F.group.add(sp);
+      badgeRes.push(tex, mat);
+      badges.push({ ...B, F, sprite: sp, pos: sp.position });
+    }
+  }
+  /** The poll: what each sensor and opening shows now. */
+  function paintLive(){
+    let changed = paintOpenings();
+    const now = Date.now();
+    for (const S of sensorsUi) {
+      const l = lbe[S.eid] || S.l;
+      if (S.kind === "motion") {
+        const look = HOUSE.motionLook(l, now, haStarted);
+        S.look = look;
+        // The sensor itself is lit as the Atlas lights its marker (motionActive).
+        const col = HOUSE.motionActive(l, now, haStarted) ? SENSOR_ON : HOUSE.noReading(l) ? NO_READING : SENSOR_QUIET;
+        if (col !== S.col) { S.col = col; S.mesh.setColorAt(S.i, _c.set(col)); S.mesh.instanceColor.needsUpdate = true; changed = true; }
+      } else {
+        const r = HOUSE.readoutOf(l, now);
+        const key = r ? `${r.text}|${r.color}|${r.live}` : "";
+        if (r && key !== S.key) { S.key = key; S.shown = r; drawReadout(S, r); changed = true; }
+      }
+      if (S.kind === "air") S.air = HOUSE.airLook(l);
+    }
+    for (const T of tints) {
+      // The room shows its most telling sensor: active before quiet, the
+      // latest quiet one; the worst air.
+      let m = null;
+      for (const S of T.motion) {
+        const k = S.look;
+        if (k && (!m || (k.active && !m.active) || (k.active === m.active && k.elapsed < m.elapsed))) m = k;
+      }
+      let a = null;
+      for (const S of T.air) if (S.air && (!a || S.air.badness > a.badness)) a = S.air;
+      const mKey = m ? `${m.active ? 1 : 0}|${m.hue}` : "", aKey = a ? `${a.hue}|${a.dur}|${a.op}` : "";
+      if (mKey !== T.mKey) {
+        T.mKey = mKey;
+        if (m) T.fillMat.color.set(HOUSE.motionFill(m));
+        changed = true;
+      }
+      for (const R of T.rings) {
+        const on = !!(R.S.look && R.S.look.active);
+        if (on !== R.on) { R.on = on; changed = true; }
+      }
+      if (aKey !== T.aKey) { T.aKey = aKey; if (a && T.barsMat) T.barsMat.color.set(HOUSE.airColor(a.hue)); changed = true; }
+      T.mLook = m; T.aLook = a;
+    }
+    liveAnim = liveMoving();
+    // The box over the house says what is there now (a door just opened):
+    // on the next frame, once the new card is on the page.
+    if (changed) rehoverDue = true;
+    if (changed || liveAnim) requestRender();
+    // The motion pulses and the rings are set on the frame (animateLive);
+    // with nothing moving, a stopped pulse must still be cleared once.
+    if (changed && !liveAnim) animateLive(performance.now());
+  }
+  /** Anything moving by itself on a floor that shows: a pulse, the air's
+   *  bars, a flash, a swing. A floor the chips hide costs no frames. */
+  function liveMoving(){
+    if (tints.some(T => (T.mLook || T.aLook) && T.F.group.visible)) return true;
+    return openings.some(({ F, P }) => F.group.visible && (P.open.state === "unlocked" || P.open.at !== P.open.to));
+  }
+  /** The frame: the Atlas's clocks, played (t: performance.now()). */
+  function animateLive(t){
+    let flashing = false;
+    for (const { F, P } of openings) {
+      const o = P.open;
+      if (o.state === "unlocked") flashing = true;
+      if (o.at === o.to) continue;
+      // On the clock, not by frames: a slow screen swings it as fast.
+      const k = Math.min(1, Math.max(0, (t - o.t0) / SWING_MS));
+      o.at = k >= 1 ? o.to : o.from + (o.to - o.from) * k;
+      placePiece(F, P, !!P.cut);
+    }
+    if (flashing) {
+      const k = HOUSE.lockFlashAt(t);
+      shared.flashMat.color.set(HOUSE.LOCK_FLASH.from).lerp(_c.set(HOUSE.LOCK_FLASH.to), k);
+      shared.flashMat.opacity = HOUSE.LOCK_FLASH.op[0] + (HOUSE.LOCK_FLASH.op[1] - HOUSE.LOCK_FLASH.op[0]) * k;
+    }
+    const P0 = HOUSE.MOTION_PULSE, R0 = HOUSE.MOTION_RECENT;
+    for (const T of tints) {
+      const m = T.mLook;
+      T.fillMat.opacity = !m ? 0 : m.active ? HOUSE.cycleAt(P0.fill, P0.ms, t) * FILL_K : HOUSE.cycleAt(R0.op, R0.ms, t) * RECENT_K;
+      for (const R of T.rings) {
+        if (!R.on) { R.mesh.scale.setScalar(0); R.mat.opacity = 0; continue; }
+        const r = HOUSE.cycleAt(P0.ringR, P0.ms, t) * RING_R0;
+        R.mesh.scale.set(r, 1, r);
+        R.mat.opacity = HOUSE.cycleAt(P0.ringA, P0.ms, t);
+      }
+      if (T.barsMat) {
+        const a = T.aLook;
+        T.barsMat.opacity = a ? Math.min(1, a.op * AIR_K) : 0;
+        if (a) T.barsTex.offset.y = (t / (a.dur * 1000)) % 1;
+      }
+    }
+    liveAnim = liveMoving();
+  }
+  // Readouts keep to a size you can read; badges keep one size on screen.
+  function sizeSprites(){
+    const H = canvas.clientHeight || 600, k = 2 * Math.tan(FOV / 2 * D2R) / H;     // metres per pixel, a metre away
+    for (const R of readouts) {
+      if (!R.F.group.visible) continue;
+      const mpp = camera.position.distanceTo(R.pos) * k;
+      const h = Math.max(READ_PX[0] * mpp, Math.min(READ_PX[1] * mpp, READ_H)) * READ_C / (READ_C - 8);
+      R.sprite.scale.set(h * READ_W / READ_C, h, 1);
+    }
+    for (const B of badges) B.sprite.scale.set(BADGE_PX * k, BADGE_PX * k, 1);
+  }
+
   // ── floors, walls, quality ────────────────────────────────────────────────
   function applyTop(){
     for (const F of floorsUi) F.group.visible = HOUSE.floorShown(F.fl, topElev);
     lampsDirty = true;
+    liveAnim = liveMoving();                                 // a floor shown again may be pulsing
   }
   function setWalls(m){
     if (!HOUSE.WALL_MODES.includes(m)) return;
@@ -981,19 +1390,64 @@ function createSlot(slotKey){
   }
   function wirePointer(){
     const pts = camPts;
-    let mode = null, last = null, pinch = null;
+    let mode = null, last = null, pinch = null, press = null;
     const mid = () => { const [a, b] = [...pts.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) }; };
+    // A press on something in the house (live_aboard_use.js), followed on
+    // the window like a spin, so it outlives a poll moving the view. Moved
+    // before it is held, it is no press: the drag turns the house, from
+    // where it began.
+    const endPress = () => { const p = press; press = null; if (p) p.unhook(); };
+    const startPress = (e) => {
+      mode = "press";
+      press = { id: e.pointerId, x0: e.clientX, y0: e.clientY, unhook: null };
+      const mine = (ev) => !!press && ev.pointerId === press.id;
+      const move = guard((ev) => {
+        if (!mine(ev)) return;
+        pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+        if (use.move(ev) !== "cancel") return;
+        const p0 = press;
+        endPress();
+        mode = "orbit";
+        orbitBy(ev.clientX - p0.x0, ev.clientY - p0.y0);
+        last = { x: ev.clientX, y: ev.clientY };
+      });
+      const lift = guard((ev) => {
+        if (!mine(ev)) return;
+        endPress();
+        pts.delete(ev.pointerId);
+        mode = null; last = null;
+        if (ev.type === "pointercancel") use.cancel(); else use.up(ev);
+      });
+      window.addEventListener("pointermove", move, true);
+      window.addEventListener("pointerup", lift, true);
+      window.addEventListener("pointercancel", lift, true);
+      press.unhook = () => {
+        window.removeEventListener("pointermove", move, true);
+        window.removeEventListener("pointerup", lift, true);
+        window.removeEventListener("pointercancel", lift, true);
+      };
+    };
     canvas.addEventListener("pointerdown", guard((e) => {
       if (spin) endSpin(true);                               // a finger on the house: no spin
       if (typeof touchCb === "function") { try { touchCb(); } catch (_) { /* the card's, not ours */ } }
+      const onlyNorth = e === northDismissed;                // this tap put north back, nothing more
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* fine */ }
-      if (pts.size === 2) { mode = "pinch"; pinch = mid(); return; }
+      if (pts.size === 2) {
+        if (press) { endPress(); use.cancel(); }               // a second finger: a pinch, never a press
+        mode = "pinch"; pinch = mid(); return;
+      }
       mode = e.pointerType === "mouse" && (e.button === 2 || e.button === 1 || e.shiftKey || e.ctrlKey || e.metaKey) ? "pan" : "orbit";
       last = { x: e.clientX, y: e.clientY };
+      if (mode === "orbit" && pts.size === 1 && !onlyNorth && use && use.down(e)) startPress(e);
     }));
     canvas.addEventListener("pointermove", guard((e) => {
-      if (!pts.has(e.pointerId)) return;
+      if (!pts.has(e.pointerId)) {
+        // No button down: a mouse or pen over the house — what a click would land on.
+        if (e.pointerType !== "touch" && !pts.size && use) use.hover(e);
+        return;
+      }
+      if (mode === "press") return;                          // the press's own listener has it
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (mode === "pinch" && pts.size === 2) {
         const now = mid();
@@ -1018,11 +1472,13 @@ function createSlot(slotKey){
     });
     canvas.addEventListener("pointerup", lift);
     canvas.addEventListener("pointercancel", lift);
+    canvas.addEventListener("pointerleave", guard((e) => { if (use && !pts.size) use.leave(e); }));
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     canvas.addEventListener("wheel", guard((e) => {
       e.preventDefault();
       const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
       zoomAt(e.clientX, e.clientY, Math.exp(Math.max(-200, Math.min(200, dy)) * 0.0015));
+      if (use && !pts.size) use.hover(e);                    // what is under the cursor now
     }), { passive: false });
   }
   /** The corners of every room on a showing indoor floor, at floor and wall-top height. */
@@ -1072,6 +1528,128 @@ function createSlot(slotKey){
     else fit();
   }
 
+  // ── picking: what a press lands on (PadSpan's own) ────────────────────────
+  // Small things by how near they are on screen: a light within PICK_R of
+  // any point it is drawn at (its bulbs and its glow, so a strip is pressed
+  // anywhere along it), a sensor or a readout by its spot or its label —
+  // the Atlas's 44 px target round every marker; the nearest wins, and the
+  // others there are "under" it. Surfaces by the shape they cover on screen:
+  // a room's name on its floor, a door's or window's opening; the nearest
+  // along the ray wins. A floor badge is on top of everything, as on the
+  // Atlas. Nothing hidden is pressed: a floor above the top one, a wall light
+  // on a cut-away wall, or anything a ray from the eye meets a wall or a
+  // floor before (the merged floor tiles included).
+  const _hit = new THREE.Raycaster(), _sp = new THREE.Vector3();
+  function screenPt(v, rect){
+    _sp.copy(v).project(camera);
+    if (!(_sp.z > -1 && _sp.z < 1)) return null;
+    return [rect.left + (_sp.x + 1) / 2 * rect.width, rect.top + (1 - _sp.y) / 2 * rect.height];
+  }
+  /** Is v behind a wall or under a floor? own: "meshId:instance" keys of the
+   *  thing itself (a door's own leaf and lintel never hide its opening). */
+  function blocked(v, own){
+    const occ = [];
+    for (const F of floorsUi) if (F.group.visible) { if (F.tiles) occ.push(F.tiles); if (F.solid) occ.push(F.solid); }
+    _v.copy(v).sub(camera.position);
+    const d = _v.length();
+    if (d < 0.2) return false;
+    _hit.set(camera.position, _v.normalize());
+    _hit.near = 0; _hit.far = d - 0.15;
+    for (const h of _hit.intersectObjects(occ, false)) if (!(own && own.has(`${h.object.id}:${h.instanceId}`))) return true;
+    return false;
+  }
+  function labelQuad(lbl){
+    const p = lbl.geometry.parameters, w = p.width / 2, h = p.height / 2;
+    lbl.updateMatrixWorld();
+    return [[-w, -h], [w, -h], [w, h], [-w, h]].map(([x, y]) => new THREE.Vector3(x, y, 0).applyMatrix4(lbl.matrixWorld));
+  }
+  function openingQuad(F, P){
+    const e = P.open.leaf, pc = P.pc, z0 = F.fl.elev + Math.max(0, e.z0);
+    const z1 = F.fl.elev + (P.cut ? Math.min(e.z1, HOUSE.CUT_H) : e.z1);
+    return [[pc.x0, z0, pc.y0], [pc.x1, z0, pc.y1], [pc.x1, z1, pc.y1], [pc.x0, z1, pc.y0]].map(a => new THREE.Vector3(...a));
+  }
+  const nearPoly = (x, y, poly, slop) => HOUSE.inPoly(x, y, poly)
+    || poly.some((a, i) => { const b = poly[(i + 1) % poly.length]; return HOUSE.segDist(x, y, a[0], a[1], b[0], b[1])[0] <= slop; });
+  function deviceTarget(c){
+    const l = lbe[c.eid];
+    return { kind: "device", key: "device:" + c.eid, eid: c.eid, anchor: c.v,
+             label: l ? `${l.code ? l.code + " · " : ""}${l.friendly_name || c.eid}` : c.eid };
+  }
+  function pickAt(clientX, clientY){
+    if (!renderer || failed || !house) return null;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    camera.updateMatrixWorld();
+    const dist = (v) => { const s = screenPt(v, rect); return s ? Math.hypot(s[0] - clientX, s[1] - clientY) : Infinity; };
+    for (const B of badges) {
+      if (B.F.group.visible && dist(B.pos) <= BADGE_PX / 2 + 4) {
+        return { hit: { kind: "floor", key: "floor:" + B.z, z: B.z, anchor: B.pos, label: `${B.name} — the whole floor` }, under: [] };
+      }
+    }
+    const devs = [];
+    for (const L of lights) {
+      if (!L.F.group.visible || (L.wall && L.wall.cut) || !L.pick) continue;
+      let best = null;
+      for (const v of L.pick) { const d = dist(v); if (d <= PICK_R && (!best || d < best.d)) best = { d, v }; }
+      if (best) devs.push({ eid: L.eid, ...best });
+    }
+    const mpp = 2 * Math.tan(FOV / 2 * D2R) / (canvas.clientHeight || 600);
+    for (const S of sensorsUi) {
+      if (!S.F.group.visible) continue;
+      const d = dist(S.pos);
+      // A readout is pressed anywhere on its label.
+      const r = S.sprite ? Math.max(PICK_R, S.sprite.scale.x * S.pillW / 2 / (camera.position.distanceTo(S.pos) * mpp)) : PICK_R;
+      if (d <= r) devs.push({ eid: S.eid, d, v: S.pos });
+    }
+    devs.sort((a, b) => a.d - b.d);
+    const ok = [];
+    for (const c of devs.slice(0, 8)) if (!ok.some(x => x.eid === c.eid) && !blocked(c.v)) ok.push(c);
+    if (ok.length) return { hit: deviceTarget(ok[0]), under: ok.slice(1).map(deviceTarget) };
+    const surf = [];
+    for (const F of floorsUi) {
+      if (!F.group.visible) continue;
+      F.labels.forEach((lbl, i) => {
+        const q = labelQuad(lbl), poly = q.map(v => screenPt(v, rect));
+        if (poly.every(Boolean) && HOUSE.inPoly(clientX, clientY, poly)) {
+          surf.push({ kind: "room", room: F.rooms[i].name, quad: q, at: lbl.position, depth: camera.position.distanceTo(lbl.position) });
+        }
+      });
+    }
+    openings.forEach(({ F, P }, i) => {
+      if (!F.group.visible || !HOUSE.openingPressable(lbe[P.open.eid])) return;
+      const q = openingQuad(F, P), poly = q.map(v => screenPt(v, rect));
+      if (!poly.every(Boolean) || !nearPoly(clientX, clientY, poly, 6)) return;
+      const at = q[0].clone().add(q[2]).multiplyScalar(0.5);
+      surf.push({ kind: "door", F, P, i, quad: q, at, depth: camera.position.distanceTo(at) });
+    });
+    surf.sort((a, b) => a.depth - b.depth);
+    for (const s of surf) {
+      const own = s.kind === "door" ? new Set(s.P.els.map(e => `${e.mesh.id}:${e.i}`)) : null;
+      if (blocked(s.at, own)) continue;
+      if (s.kind === "room") {
+        const n = Object.values(lbe).filter(l => l && l.area_name === s.room).length;
+        return { hit: { kind: "room", key: "room:" + s.room, room: s.room, quad: s.quad,
+                        label: `${s.room} — opens its ${n} device${n === 1 ? "" : "s"}` }, under: [] };
+      }
+      const o = s.P.open, b = o.bar, l = lbe[o.eid];
+      return { hit: { kind: "door", key: `door:${o.eid}@${b.id || s.i}`, eid: o.eid, bar: HOUSE.barrierCardOf(b), quad: s.quad,
+                      label: `${b.name || (l && l.friendly_name) || o.eid} · ${OPEN_WORD[o.state] || OPEN_WORD.none}` }, under: [] };
+    }
+    return null;
+  }
+  /** Where a target is, in px from the view's own corner (for its marks). */
+  function screenOf(t){
+    if (!renderer || !root) return null;
+    const rect = canvas.getBoundingClientRect(), r0 = root.getBoundingClientRect();
+    const ox = r0.left + (root.clientLeft || 0), oy = r0.top + (root.clientTop || 0);
+    if (t.anchor) { const s = screenPt(t.anchor, rect); return s ? { x: s[0] - ox, y: s[1] - oy } : null; }
+    if (t.quad) {
+      const ps = t.quad.map(v => screenPt(v, rect));
+      return ps.every(Boolean) ? { poly: ps.map(p => [p[0] - ox, p[1] - oy]) } : null;
+    }
+    return null;
+  }
+
   // ── drawing, on demand ────────────────────────────────────────────────────
   function shouldDraw(){
     return !!(renderer && root && root.isConnected !== false && visible
@@ -1089,26 +1667,38 @@ function createSlot(slotKey){
     if (!shouldDraw()) {                                     // drawn again when it shows
       // A check cut short by hiding starts again: the gap is not a frame.
       quality.last = 0; quality.t0 = 0; quality.intervals = [];
+      if (liveAnim) dirty = true;                            // the pulses carry on when it shows
       return;
     }
-    if (cam.needsFit && (canvas.clientWidth || 0) > 0) preset("iso");
-    updateCutaway();
-    for (const F of floorsUi) if (F.group.visible) for (const l of F.labels) l.rotation.set(-Math.PI / 2, cam.theta, 0, "YXZ");
-    if (lampsDirty || lampTarget.distanceToSquared(cam.target) > 1) assignLamps();
-    renderer.render(scene, camera);
-    paintCompass();
-    frames++;
-    dirty = false;
-    if (quality.measuring) {
-      if (quality.last) quality.intervals.push(t - quality.last);
-      quality.last = t;
-      if (!quality.t0) quality.t0 = t;
-      const n = quality.intervals.length, el = t - quality.t0;
-      if (n >= MEASURE_FRAMES || (el > MEASURE_MS && n >= MEASURE_MIN) || el > MEASURE_GIVE_UP_MS) {
-        quality.measured[quality.measuring] = HOUSE.frameMs(quality.intervals);
-        decideQuality();
-      } else requestRender();
+    // A press's ring and hold, the hover box's grace: timed on frames.
+    const more = use ? use.tick(performance.now()) : false;
+    // Something moving by itself draws on a steady clock, slower on Low.
+    const due = dirty || !!quality.measuring
+      || (liveAnim && t - lastAmbient >= AMBIENT_MS[quality.profile || quality.measuring || "low"]);
+    if (due) {
+      if (cam.needsFit && (canvas.clientWidth || 0) > 0) preset("iso");
+      updateCutaway();
+      for (const F of floorsUi) if (F.group.visible) for (const l of F.labels) l.rotation.set(-Math.PI / 2, cam.theta, 0, "YXZ");
+      if (liveAnim) { animateLive(performance.now()); lastAmbient = t; }
+      sizeSprites();
+      if (lampsDirty || lampTarget.distanceToSquared(cam.target) > 1) assignLamps();
+      renderer.render(scene, camera);
+      paintCompass();
+      if (use) { if (rehoverDue) { rehoverDue = false; use.rehover(); } use.layout(); }
+      frames++;
+      dirty = false;
+      if (quality.measuring) {
+        if (quality.last) quality.intervals.push(t - quality.last);
+        quality.last = t;
+        if (!quality.t0) quality.t0 = t;
+        const n = quality.intervals.length, el = t - quality.t0;
+        if (n >= MEASURE_FRAMES || (el > MEASURE_MS && n >= MEASURE_MIN) || el > MEASURE_GIVE_UP_MS) {
+          quality.measured[quality.measuring] = HOUSE.frameMs(quality.intervals);
+          decideQuality();
+        } else requestRender();
+      }
     }
+    if ((liveAnim || more) && !pending) { pending = true; requestAnimationFrame(frame); }
   });
   function resize(){
     if (!renderer || !root) return;
@@ -1144,18 +1734,29 @@ function createSlot(slotKey){
   // ── the slot ──────────────────────────────────────────────────────────────
   function update(p){
     const setting = HOUSE.qualitySetting(p.quality);
-    const sSig = HOUSE.shellSignature(p.model, p.floors);
+    // This card's records and api: a press acts through the newest.
+    lbe = p.lightsByEid || {};
+    apiOf = typeof p.useApi === "function" ? p.useApi : null;
+    apiNow = null;
+    haStarted = Number(p.haStartedMs) || 0;
+    const sSig = HOUSE.shellSignature(p.model, p.floors, p.lightsByEid);
     const lSig = HOUSE.lightsSignature(p.model, p.lightsByEid, p.hidden);
-    if (sSig !== shellSig || lSig !== lightsSig) {
+    const xSig = HOUSE.sensorsSignature(p.model, p.lightsByEid, p.hidden);
+    if (sSig !== shellSig || lSig !== lightsSig || xSig !== sensorsSig) {
       const h = HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden);
-      if (sSig !== shellSig) { buildShell(h); shellSig = sSig; }
-      else house = { ...house, lights: h.lights };
-      buildLights(h);
-      lightsSig = lSig;
-      for (const L of lights) L.key = null;
+      const shell = sSig !== shellSig;
+      if (shell) { buildShell(h); buildBadges(p); shellSig = sSig; }
+      else house = { ...house, lights: h.lights, sensors: h.sensors };
+      if (shell || lSig !== lightsSig) {
+        buildLights(h);
+        lightsSig = lSig;
+        for (const L of lights) L.key = null;
+      }
+      if (shell || xSig !== sensorsSig) { buildSensors(h); sensorsSig = xSig; }
       requestRender();
     }
     paintLights(p.lightsByEid);
+    paintLive();
     const t = HOUSE.topFloorElev(house.floors, p.topFloorIds || null);
     if (t !== topElev) { topElev = t; applyTop(); requestRender(); }
     applySun(p);
@@ -1182,7 +1783,9 @@ function createSlot(slotKey){
      *  lightsByEid, hidden, topFloorIds, quality, telemetry, onTouch,
      *  states (hass.states, for sun.sun), config (hass.config), bearing
      *  (settings.fabric_bearing_deg), saveNorth(b) → Promise (the compass's
-     *  Save: the host writes fabric_bearing_deg alone)}. */
+     *  Save: the host writes fabric_bearing_deg alone), useApi() → the
+     *  host's use api (what a press acts through), haStartedMs (when Home
+     *  Assistant came up: a restart's motion timestamps are no motion)}. */
     attach(s, p){
       send = p && p.telemetry;
       touchCb = p && p.onTouch;
@@ -1202,7 +1805,7 @@ function createSlot(slotKey){
     },
     /** Back to the flat Atlas (Map picked, or the feature switched off).
      *  The camera and the GL context stay for a quick return. */
-    detach(){ try { cancelNorth(); showFlat(); } catch (_) { /* nothing to undo */ } },
+    detach(){ try { cancelNorth(); if (use) use.clear(); showFlat(); } catch (_) { /* nothing to undo */ } },
     /** The feature is off: the flat Atlas back and the GL context given up. */
     release(){ try { cancelNorth(); showFlat(); teardown(); } catch (_) { /* best effort */ } },
     // A window on it, for the harness and for poking at it from the console.
@@ -1213,7 +1816,49 @@ function createSlot(slotKey){
                north: { stored: storedBearing, preview: northPreview, hold: northHold ? northHold.b : null,
                         pill: !!(pill && pill.classList.contains("on")), spinning: !!spin },
                canvas, gl: renderer ? renderer.getContext() : null, lights: lights.length, floors: floorsUi.length,
-               walls: floorsUi.reduce((a, F) => a + F.pieces.length, 0) };
+               walls: floorsUi.reduce((a, F) => a + F.pieces.length, 0),
+               // Part B: the live parts and the taps.
+               openings: openings.map(({ P }) => ({ eid: P.open.eid, kind: P.open.kind, state: P.open.state, at: P.open.at, to: P.open.to,
+                                                     garage: P.open.garage, hinge: P.open.hinge, side: P.open.side, cut: !!P.cut })),
+               tints: tints.map(T => ({ room: T.room ? T.room.name : null, motion: T.mLook, air: T.aLook,
+                                        fill: T.fillMat.opacity, bars: T.barsMat ? T.barsMat.opacity : null, rings: T.rings.filter(R => R.on).length })),
+               readouts: readouts.map(R => ({ eid: R.eid, kind: R.kind, ...(R.shown || {}) })),
+               motion: sensorsUi.filter(S => S.kind === "motion").map(S => ({ eid: S.eid, look: S.look || null, col: S.col })),
+               badges: badges.map(B => ({ z: B.z, n: B.n, name: B.name, shown: B.F.group.visible })),
+               flash: shared ? { color: "#" + shared.flashMat.color.getHexString(), opacity: shared.flashMat.opacity } : null,
+               animating: liveAnim, use: use ? use.state() : null };
+    },
+    /** Where something is on screen, in client px (the harness presses it):
+     *  {eid} a device's nearest point, {room}, {door: eid}, {floor: z}. */
+    _where(q){
+      if (!renderer || !camera) return null;
+      const rect = canvas.getBoundingClientRect(), at = (v) => screenPt(v, rect);
+      camera.updateMatrixWorld();
+      if (q.floor !== undefined) { const B = badges.find(x => x.z === String(q.floor)); return B ? at(B.pos) : null; }
+      if (q.room) {
+        for (const F of floorsUi) {
+          const i = F.rooms.findIndex(r => r.name === q.room);
+          if (i >= 0) return at(F.labels[i].position);
+        }
+        return null;
+      }
+      if (q.door) {
+        const o = openings.find(x => x.P.open.eid === q.door);
+        if (!o) return null;
+        const v = openingQuad(o.F, o.P);
+        return at(v[0].clone().add(v[2]).multiplyScalar(0.5));
+      }
+      const L = lights.find(x => x.eid === q.eid);
+      if (L && L.pick && L.pick.length) {
+        const c = L.pick.reduce((a, v) => a.add(v), new THREE.Vector3()).multiplyScalar(1 / L.pick.length);
+        return at(L.pick.reduce((b, v) => (v.distanceTo(c) < b.distanceTo(c) ? v : b)));
+      }
+      const S = sensorsUi.find(x => x.eid === q.eid);
+      return S ? at(S.pos) : null;
+    },
+    _pick(x, y){
+      const r = pickAt(x, y);
+      return r && { hit: r.hit.key, under: r.under.map(u => u.key) };
     },
   };
 }

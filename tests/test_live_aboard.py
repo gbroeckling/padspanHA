@@ -77,11 +77,11 @@ def test_below_pro_is_exactly_off(card) -> None:
 
 def test_off_means_no_import(card) -> None:
     """With the flag off (or on but showing Map, or below Pro) the card never
-    loads the 3D module, its house module, the compass or three.js — every
-    module load is recorded. The positive control (on and 3D) loads all four,
-    so the recorder is known to see them."""
+    loads the 3D module, its house module, its use surface, the compass or
+    three.js — every module load is recorded. The positive control (on and
+    3D) loads all five, so the recorder is known to see them."""
     _case(card, "noImport:")
-    assert {"views/live_aboard.js", "views/live_aboard_house.js", "views/fabric_compass.js",
+    assert {"views/live_aboard.js", "views/live_aboard_house.js", "views/live_aboard_use.js", "views/fabric_compass.js",
             "vendor/three/three.module.min.js"} <= set(card["loaded"]), card["loaded"]
 
 

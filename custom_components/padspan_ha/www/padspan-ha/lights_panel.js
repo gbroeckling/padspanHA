@@ -919,6 +919,8 @@ class PadSpanLightsApp extends HTMLElement {
           this.state._house3d = { ...(this.state._house3d || {}), fabric_bearing_deg: Number.isFinite(v) ? v : b };
           return true;
         },
+        // Taps and holds in 3D: this map's own use api, asked for on the press.
+        useApi: ()=>this._useApi(lightsByEid, lights),
         telemetry: (name)=>{
           if(!this.state._telemetryOn || !this._hass) return;
           Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:String(name) })).catch(()=>{});

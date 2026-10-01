@@ -2632,6 +2632,8 @@ const _LA_WHY = {
   context_lost: "The 3D view stopped (the graphics were reset). Reload to try again",
   error: "The 3D view stopped with an error. Reload to try again",
 };
+// A hold then a drag in 3D dims exactly as wirePress does, with its two helpers.
+export { _exactBrightness, _tellProblems };
 
 // ── The map card: control row + iso map ──────────────────────────────────────
 // host = {
@@ -2821,6 +2823,10 @@ export function buildLightsMapCard(hostIn){
           // Bridge's bearing), from what the host already holds.
           states: h3.states, config: h3.config, bearing: h3.settings.fabric_bearing_deg,
           saveNorth: typeof h3.saveNorth === "function" ? h3.saveNorth : null,
+          // Taps and holds act through the host's own use api (the flat
+          // map's), and motion reads quiet after a restart as it does here.
+          useApi: typeof h3.useApi === "function" ? h3.useApi : null,
+          haStartedMs: Date.parse(host.model && host.model.ha_started_at) || 0,
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }
     }

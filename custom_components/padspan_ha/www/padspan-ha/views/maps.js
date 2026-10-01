@@ -9370,6 +9370,8 @@ function _lightsTab(ctx, maps, active) {
         if (r && r.settings) ctx.state.settings = r.settings;
         return true;
       },
+      // Taps and holds in 3D: the sidebar's exact api (Preview as sidebar's).
+      useApi: () => previewApi,
       telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
     } : null,
     isolux: mapState._lightsIsolux === undefined

@@ -50,8 +50,9 @@ const cases = {};
 const check = (name, ok, detail) => { cases[name] = !!ok; if (!ok) failures.push({ name, detail: detail === undefined ? null : detail }); };
 const tryCase = async (name, fn) => { try { await fn(); } catch (e) { failures.push({ name, detail: String(e && e.stack || e).slice(0, 900) }); cases[name] = false; } };
 const sleep = (ms) => new Promise(r => globalThis._realSetTimeout(r, ms));
-// Everything the 3D house brings: its two modules, the compass, three.js.
-const threeLoads = () => loaded.filter(u => /\/views\/(live_aboard(_house)?|fabric_compass)\.js|\/vendor\/three\//.test(u));
+// Everything the 3D house brings: its modules (the view, the house, its
+// use surface), the compass, three.js.
+const threeLoads = () => loaded.filter(u => /\/views\/(live_aboard(_house|_use)?|fabric_compass)\.js|\/vendor\/three\//.test(u));
 
 // ── a small two-storey house with lights ───────────────────────────────────
 const rect = (floor_id, x0, y0, x1, y1) => ({ type: "poly", floor_id, points_m: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] });
