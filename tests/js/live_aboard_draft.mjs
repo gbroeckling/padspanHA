@@ -18,14 +18,23 @@
 //             included); a start inside one is refused; dragging an end
 //             skips its own opening
 //   widths    a window 0.3 m or wider, a door 0.6 m; a switch to door that
-//             is too narrow is refused
+//             is too narrow is refused; ends kept to the millimetre never
+//             take one drawn at least that wide under it (the server
+//             measures between the rounded ends), however the wall slopes
 //   heights   0 up to the floor's ceiling; a fixture moves whole; a window's
-//             head stays above its sill
+//             head stays above its sill; a door never under the server's
+//             0.5 m, however low the ceiling
+//   limits    what the editor offers is what the view draws (heightLimits,
+//             the one place): a window's sill and head, a door's head and a
+//             device's height at their tops, and anything over them drawn
+//             at them; a door is 2.03 m by default, from the map or new
 //   walls     a 3D window is a real gap in the wall, its glass between sill
 //             and head; a barrier's override reaches the drawing and the swing
 //
 // usage: live_aboard_draft.mjs <www/padspan-ha dir>
-// prints one JSON line: { cases: {name: result}, failures: [...] }
+// prints one JSON line: { cases: {name: result}, failures: [...], payloads: [...] }
+// payloads: what Save would send for records these rules build at their
+// edges, which the server's own apply_edit must take (test_live_aboard_draft.py).
 
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
@@ -37,6 +46,7 @@ const H = await import(pathToFileURL(join(WWW, "views", "live_aboard_house.js"))
 
 const failures = [];
 const cases = {};
+const payloads = [];
 const check = (name, ok, detail) => { cases[name] = !!ok; if (!ok) failures.push({ name, detail: detail === undefined ? null : detail }); };
 const tryCase = (name, fn) => { try { fn(); } catch (e) { failures.push({ name, detail: String(e && e.stack || e).slice(0, 900) }); cases[name] = false; } };
 const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
@@ -220,6 +230,35 @@ tryCase("widths: a window 0.3 m or wider, a door 0.6 m; a too-narrow switch is r
     && back.id === "win_0000000a" && back.rec.sill_m === 0.9 && back.rec.head_m === 2.1, { sw, ok, back });
 });
 
+tryCase("widths: ends kept to the millimetre never take a door or window drawn at its least width under it", () => {
+  // A seeded sweep of lines drawn up to 2 mm over the least width at every
+  // slope, as Save sends them (newOpening), and the same with one end
+  // dragged (endsMm, the other end held): the server measures the width
+  // between the rounded ends. No end moves more than rounding needs.
+  let seed = 20261001;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+  let n = 0, bad = null, far = 0;
+  const ops = {};
+  for (let i = 0; i < 20000; i++) {
+    const kind = i % 2 ? "window" : "door", least = D.minWidth(kind);
+    const th = rnd() * 2 * Math.PI, len = least + rnd() * 0.002, x0 = rnd() * 20 - 10, y0 = rnd() * 20 - 10;
+    const a = [x0, y0], b = [x0 + len * Math.cos(th), y0 + len * Math.sin(th)];
+    const rec = D.newOpening(kind, "main", a, b, ceil);
+    const [held, moved] = D.endsMm(b, a, least);
+    for (const [p, q] of [[rec.a_m, rec.b_m], [held, moved]]) {
+      n++;
+      const w = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (!(w >= least - 1e-6) && !bad) bad = { kind, len, deg: +(th * 180 / Math.PI).toFixed(2), p, q, w };
+    }
+    far = Math.max(far, Math.hypot(rec.a_m[0] - a[0], rec.a_m[1] - a[1]), Math.hypot(rec.b_m[0] - b[0], rec.b_m[1] - b[1]),
+                   Math.hypot(held[0] - b[0], held[1] - b[1]), Math.hypot(moved[0] - a[0], moved[1] - a[1]));
+    if (i % 50 === 0) ops[D.newOpeningId(kind, rnd)] = rec;
+  }
+  payloads.push({ openings: ops });
+  check("widths: ends kept to the millimetre never take a door or window drawn at its least width under it",
+    n === 40000 && !bad && far <= 0.0016 + 0.00071, { n, bad, far });
+});
+
 // ── heights ─────────────────────────────────────────────────────────────────
 tryCase("heights: 0 up to the floor's ceiling", () => {
   const r = D.heightRange(ceil);
@@ -241,7 +280,56 @@ tryCase("heights: a window's head stays above its sill; a door from its floor", 
   const t = D.openingHeights({ kind: "window", sill_m: 0.2, head_m: 9 }, ceil);
   const d = D.openingHeights({ kind: "door", head_m: 0.2 }, ceil);
   check("heights: a window's head stays above its sill; a door from its floor",
-    near(w.sill_m, 2.5) && near(w.head_m, 2.6) && w.head_m - w.sill_m >= 0.1 - 1e-9 && near(t.head_m, 2.65) && near(d.head_m, 1.0), { w, t, d });
+    near(w.sill_m, 2.45) && near(w.head_m, 2.55) && w.head_m - w.sill_m >= 0.1 - 1e-9 && near(t.head_m, 2.55) && near(d.head_m, 1.0), { w, t, d });
+});
+tryCase("heights: a door is never under the server's 0.5 m, however low the ceiling", () => {
+  const got = [0.36, 0.45, 0.6, 1.0, 1.4].map(c => {
+    const win = D.newOpening("window", "main", [0, 0], [1, 0], c);
+    return { c, slid: D.openingHeights({ kind: "door", head_m: 0.1 }, c).head_m, made: D.newOpening("door", "main", [0, 0], [1, 0], c).head_m,
+             switched: D.switchKind("win_0000000c", win, c).rec.head_m, low: D.heightLimits(c).doorLow, win };
+  });
+  for (const g of got) payloads.push({ openings: { door_0000000d: D.newOpening("door", "main", [0, 0], [1, 0], g.c), win_0000000e: g.win,
+                                                   door_0000000f: { ...D.newOpening("door", "main", [0, 0], [1, 0], g.c), head_m: g.slid } } });
+  check("heights: a door is never under the server's 0.5 m, however low the ceiling",
+    D.DOOR_MIN_HEAD_M === 0.5 && got.every(g => g.slid >= 0.5 && g.made >= 0.5 && g.switched >= 0.5 && g.low >= 0.5), { got });
+});
+
+// ── limits ──────────────────────────────────────────────────────────────────
+tryCase("limits: what the editor offers is what the view draws, and nothing over it", () => {
+  const pc = (kind, o) => ({ kind, x0: 0, y0: 0, x1: 1, y1: 0, nx: 0, ny: -1, cls: "int", thick: 0.12, ...o });
+  const out = [];
+  for (const c of [2.65, 2.2, 1.6, 0.9]) {
+    const L = D.heightLimits(c), floorH = c + H.SLAB_T, top = (v) => D.mm(v);
+    const glass = (o) => H.wallElements(pc("window", o), floorH).find(e => e.glass);
+    const leaf = (o) => H.wallElements(pc("door", o), floorH).find(e => e.leaf);
+    const at = glass({ sill_m: top(L.sill), head_m: top(L.head) }), over = glass({ sill_m: 9, head_m: 9 });
+    const door = leaf({ head_m: top(L.doorHigh) }), doorOver = leaf({ head_m: 9 });
+    const devTop = D.heightRange(c, "devices").max, lightTop = D.heightRange(c).max;
+    const slidW = D.openingHeights({ kind: "window", sill_m: 9, head_m: 9 }, c), slidD = D.openingHeights({ kind: "door", head_m: 9 }, c);
+    const r = {
+      c, window: [at.z0, at.z1, top(L.sill), top(L.head)], over: [over.z0, over.z1], door: [door.z1, top(L.doorHigh), doorOver.z1],
+      device: [H.deviceZ("temp", c, { z_m: devTop }), devTop, H.deviceZ("temp", c, { z_m: 9 })],
+      light: [D.liftParts({ bulbs: [{ h: 1 }] }, { z_m: 9 }, c).z, lightTop], slid: [slidW.sill_m, slidW.head_m, slidD.head_m],
+    };
+    r.ok = near(at.z0, top(L.sill), 1e-9) && near(at.z1, top(L.head), 1e-9) && near(over.z0, L.sill, 1e-9) && near(over.z1, L.head, 1e-9)
+      && near(door.z1, top(L.doorHigh), 1e-9) && near(doorOver.z1, L.head, 1e-9)
+      && near(r.device[0], devTop, 1e-9) && near(r.device[2], devTop, 1e-6) && near(r.light[0], lightTop, 1e-9)
+      && near(slidW.sill_m, top(L.sill), 1e-9) && near(slidW.head_m, top(L.head), 1e-9) && near(slidD.head_m, top(L.doorHigh), 1e-9)
+      && devTop < c && lightTop === D.mm(c);
+    out.push(r);
+    payloads.push({ openings: { win_00000010: { ...D.newOpening("window", "main", [0, 0], [1, 0], c), ...slidW },
+                                door_00000011: { ...D.newOpening("door", "main", [0, 0], [1, 0], c), ...slidD },
+                                bar_win: slidW },
+                    devices: { "sensor.den_temp": { z_m: devTop } }, lights: { "light.den": { z_m: lightTop } } });
+  }
+  check("limits: what the editor offers is what the view draws, and nothing over it", out.every(r => r.ok), out.filter(r => !r.ok));
+});
+tryCase("limits: a door is 2.03 m by default, drawn from the map or drawn new", () => {
+  const leaf = H.wallElements({ kind: "door", x0: 0, y0: 0, x1: 1, y1: 0, nx: 0, ny: -1, cls: "int", thick: 0.12 }, 2.8).find(e => e.leaf);
+  const made = D.newOpening("door", "main", [0, 0], [1, 0], ceil);
+  check("limits: a door is 2.03 m by default, drawn from the map or drawn new",
+    D.DOOR_HEAD_M === 2.03 && H.DOOR_H === 2.03 && near(leaf.z1, 2.03) && made.head_m === 2.03
+    && H.SILL_H === D.WINDOW_SILL_M && H.HEAD_H === D.WINDOW_HEAD_M, { DOOR_H: H.DOOR_H, leaf: leaf.z1, made: made.head_m });
 });
 
 // ── walls ───────────────────────────────────────────────────────────────────
@@ -278,4 +366,4 @@ tryCase("walls: with nothing in the file the house is as part B drew it", () => 
   check("walls: with nothing in the file the house is as part B drew it", a === b);
 });
 
-console.log(JSON.stringify({ cases, failures }));
+console.log(JSON.stringify({ cases, failures, payloads }));

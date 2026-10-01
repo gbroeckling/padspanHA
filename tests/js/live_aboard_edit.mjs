@@ -21,6 +21,11 @@
 //   save      Save sends exactly the draft's changes in one call, the file
 //             is then the saved one and the history starts again; a
 //             refused save keeps the draft and says why
+//   widths    drawn or dragged to just over its least width on a 45° wall,
+//             what Save sends has ends the server keeps
+//   limits    each Height, Sill and Head slider reaches exactly as high as
+//             the view draws (a window, a map window, a door, a readout and
+//             a light), and a door is 2.03 m when new
 //   pointer   a poll moving the view mid-gesture (its pointer capture goes
 //             with the move), then a lift off the view: the gesture ends,
 //             and the next tap, click, line or compass tap still works, for
@@ -28,7 +33,10 @@
 //             pointer that is gone ends; leaving 3D lets go of what is down
 //
 // usage: live_aboard_edit.mjs <www/padspan-ha dir>
-// prints one JSON line: { cases: {name: result}, failures: [...], payloads: [...] }
+// prints one JSON line: { cases: {name: result}, failures: [...], payloads: [...], start: {...} }
+// payloads: every Save the editor sent, made over `start` (the file as the
+// harness began): test_live_aboard_edit.py feeds each through the server's
+// own apply_edit.
 
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
@@ -91,15 +99,23 @@ const rect = (floor_id, x0, y0, x1, y1) => ({ type: "poly", floor_id, points_m: 
 // Main: Living and Den, their wall at x = 4.55. Under it the basement's Rec
 // and Gym share a wall at x = 4.55 too (from above it shows some 10 px
 // inside Main's), the Gym and the Store one at x = 7.55 (under Main's
-// floor), and the Shop reaches out past Main.
+// floor), and the Shop reaches out past Main, as does the Bay, whose walls
+// run at 45°. On Main: a glass barrier (a window from the map) in Living's
+// far wall, and in the Den a pendant light and a temperature readout.
 const MODEL = {
   floors: [{ id: "basement", name: "Basement" }, { id: "main", name: "Main" }],
   room_geometry_m: {
     Rec: rect("basement", 0, 0, 4.5, 8), Gym: rect("basement", 4.6, 0, 7.5, 8), Store: rect("basement", 7.6, 0, 10, 8),
-    Shop: rect("basement", 10.1, 0, 14, 8),
+    Shop: rect("basement", 10.1, 0, 14, 8), Bay: { type: "poly", floor_id: "basement", points_m: [[12, -5], [14, -3], [12, -1], [10, -3]] },
     Living: rect("main", 0, 0, 4.5, 8), Den: rect("main", 4.6, 0, 10, 8),
   },
-  rf_barriers_m: [],
+  rf_barriers_m: [{ id: "bar_k", name: "Living window", material: "glass", floor_id: "main", points_m: [[1, 8], [2.4, 8]] }],
+  light_positions_m: { "light.den": { x_m: 9.2, y_m: 0.9, floor_id: "main" }, "sensor.den_temp": { x_m: 9.2, y_m: 7.1, floor_id: "main" } },
+};
+const LBE = {
+  "light.den": { entity_id: "light.den", friendly_name: "Den light", state: "on", brightness: 200, shape: "pendant" },
+  "sensor.den_temp": { entity_id: "sensor.den_temp", friendly_name: "Den temperature", isTemp: true, state: "21.5",
+                       device_class: "temperature", unit_of_measurement: "°C" },
 };
 const win = (floor_id, a, b) => ({ kind: "window", floor_id, a_m: a, b_m: b, sill_m: 0.9, head_m: 2.1 });
 const FILE0 = { schema: 1, openings: {
@@ -125,8 +141,8 @@ const api = { calls: [], toast(){}, toggle(...a){ api.calls.push(["toggle", ...a
 
 // ── the view ────────────────────────────────────────────────────────────────
 const slot = LA.liveAboardSlot("edit-harness");
-let card = null;
-const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: {}, hidden: new Set(), topFloorIds: null, quality: "low",
+let card = null, topIds = null;                  // topIds: the floor chips (null: every floor)
+const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: LBE, hidden: new Set(), topFloorIds: topIds, quality: "low",
   telemetry: () => {}, states: {}, config: {}, bearing: 0, saveNorth: null, useApi: () => api, haStartedMs: 0,
   load: async () => ({ data: clone(server.file) }), edit: editFn });
 /** A fresh card, as the Atlas builds one every 5 s: the view moves into it. */
@@ -166,6 +182,15 @@ function drag(a, b, o = {}, steps = 8){
   fire("pointerup", b[0], b[1], o);
 }
 const tap = (p, o = {}) => { fire("pointerdown", p[0], p[1], o); fire("pointerup", p[0], p[1], o); };
+const sliderOf = (label) => root().querySelectorAll(".la3d-sheet")[0].querySelectorAll("input").find(r => r.getAttribute("aria-label") === label) || null;
+/** Set a slider in the open sheet as a hand does (its input event). */
+function slide(label, v){
+  const r = sliderOf(label);
+  if (!r) return false;
+  r.value = String(v);
+  r.dispatchEvent({ type: "input" });
+  return true;
+}
 function segPx(p, a, b){
   const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
   const t = L2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2)) : 0;
@@ -304,6 +329,148 @@ await tryCase("save: a refused save keeps the draft and says why", async () => {
   await closeEdit();
 });
 
+// ── widths ──────────────────────────────────────────────────────────────────
+// Drawn on the basement's Bay (its walls at 45°), with the floor chips on
+// Basement so it is the floor the tool looks down on: lines drawn and ends
+// dragged to just over the least width, found by watching the live length.
+/** Move the pressed pointer from a toward b until the live length is
+ *  within 2 µm over `want` (it grows from a to b). */
+function reach(a, b, want, o){
+  let lo = 0, hi = 1, got = null;
+  for (let i = 0; i < 60; i++) {
+    const s = (lo + hi) / 2;
+    fire("pointermove", a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s, o);
+    const g = ed().gesture, len = g && g.span ? g.span.len : 0;
+    got = len;
+    if (len < want) lo = s; else if (len > want + 2e-6) hi = s; else return len;
+  }
+  return got;
+}
+const width = (rec) => Math.hypot(rec.b_m[0] - rec.a_m[0], rec.b_m[1] - rec.a_m[1]);
+await tryCase("widths: drawn or dragged to just over its least width on a sloped wall, Save sends ends the server keeps", async () => {
+  topIds = ["basement"];
+  poll();
+  await settle();
+  await openEdit();
+  await pickTool("window");
+  slot._look(0, 0, [12, 0, -3], 9);               // close over the Bay
+  await settle();
+  const n0 = payloads.length, made = [], dragged = [];
+  // The Bay's two walls facing north-east and north-west, from their
+  // southern corner: a window every 0.43 m along each, the first three
+  // then dragged by an end.
+  for (const [c0, c1] of [[[12, -1], [14, -3]], [[12, -1], [10, -3]]]) {
+    const L = Math.hypot(c1[0] - c0[0], c1[1] - c0[1]), ux = (c1[0] - c0[0]) / L, uy = (c1[1] - c0[1]) / L;
+    for (let k = 0; k < 6; k++) {
+      const s0 = 0.2 + k * 0.43, want = 0.3 + k * 0.0002;
+      const p = (s) => where("basement", c0[0] + ux * s, c0[1] + uy * s, WALL_Z);
+      const a = p(s0), b = p(s0 + 0.34), before = Object.keys(ed().draft.openings);
+      fire("pointerdown", a[0], a[1]);
+      const len = reach(a, b, want, {});
+      fire("pointerup", a[0], a[1]);              // the release adds what the line was at its last move
+      const id = Object.keys(ed().draft.openings).find(k2 => !before.includes(k2));
+      if (id) made.push({ id, len });
+      await settle();                             // the walls drawn again, with it
+      if (id && k < 3) {
+        // Still picked: its far end dragged to just over 0.3 m.
+        const r1 = ed().draft.openings[id], mid = (r1.sill_m + r1.head_m) / 2;
+        const end = where("basement", r1.b_m[0], r1.b_m[1], mid), fixed = where("basement", r1.a_m[0], r1.a_m[1], mid);
+        fire("pointerdown", end[0], end[1]);
+        const g = ed().gesture;
+        const out = [end[0] + (end[0] - fixed[0]) * 0.2, end[1] + (end[1] - fixed[1]) * 0.2];
+        const len2 = g && g.kind === "drag" ? reach(fixed, out, 0.3 + dragged.length * 0.0003 + 0.00005, {}) : null;
+        fire("pointerup", end[0], end[1]);
+        dragged.push({ id, kind: g && g.kind, len: len2 });
+        await settle();
+      }
+      click("×", "la3d-sheet");                   // its ends no longer grab the next press
+    }
+  }
+  const mine = made.map(m => ed().draft.openings[m.id]).filter(Boolean);
+  click("Save", "la3d-tools");
+  await settle();
+  const narrow = mine.filter(r => !(width(r) >= 0.3 - 1e-6)).map(width);
+  check("widths: drawn or dragged to just over its least width on a sloped wall, Save sends ends the server keeps",
+    made.length === 12 && dragged.filter(d => d.kind === "drag" && d.len >= 0.3 - 1e-6 && d.len < 0.302).length === 6 && !narrow.length
+    && made.every(m => m.len >= 0.3 - 1e-6 && m.len < 0.302) && payloads.length === n0 + 1 && !ed().dirty,
+    { made: made.length, dragged, narrow, lens: made.map(m => m.len), saved: payloads.length - n0, hint: ed().hint });
+  await closeEdit();
+  topIds = null;
+  poll();
+  await settle();
+});
+
+// ── limits ──────────────────────────────────────────────────────────────────
+// Each slider's range is what the view draws: set to its top, the window,
+// the door and the device are drawn there (heightLimits, the one place).
+const range = (label) => { const r = sliderOf(label); return r ? [Number(r.min), Number(r.max)] : null; };
+const glassOf = (o) => H.wallElements({ kind: "window", x0: 0, y0: 0, x1: 1, y1: 0, nx: 0, ny: -1, cls: "int", thick: 0.12, ...o }, 2.8).find(e => e.glass);
+const leafOf = (o) => H.wallElements({ kind: "door", x0: 0, y0: 0, x1: 1, y1: 0, nx: 0, ny: -1, cls: "int", thick: 0.12, ...o }, 2.8).find(e => e.leaf);
+await tryCase("limits: a window's Sill and Head sliders reach exactly as high as the view draws them", async () => {
+  await openEdit();
+  if (ed().tool) await pickTool(ed().tool);
+  slot._look(0, 0, [5, 2.8, 4], 30);
+  await settle();
+  const out = {};
+  for (const [key, fid, x, y] of [["drawn", "main", 0, 3.75], ["map", "main", 1.7, 8]]) {
+    tap(where(fid, x, y, 1.5));
+    const s = ed().sel, sill = range("Sill"), head = range("Head");
+    const top = glassOf({ sill_m: 9, head_m: 9 });
+    slide("Sill", sill ? sill[1] : 0);
+    slide("Head", head ? head[1] : 0);
+    const rec = ed().draft.openings[s && s.opening ? s.opening.id : ""] || {};
+    const drawn = glassOf({ sill_m: rec.sill_m, head_m: rec.head_m });
+    out[key] = { id: s && s.opening && s.opening.id, sill, head, top: [top.z0, top.z1], rec: [rec.sill_m, rec.head_m], drawn: [drawn.z0, drawn.z1],
+                 ok: !!(sill && head) && Math.abs(sill[1] - top.z0) < 1e-9 && Math.abs(head[1] - top.z1) < 1e-9
+                     && Math.abs(drawn.z0 - rec.sill_m) < 1e-9 && Math.abs(drawn.z1 - rec.head_m) < 1e-9 };
+    click("×", "la3d-sheet");
+  }
+  click("Save", "la3d-tools");
+  await settle();
+  check("limits: a window's Sill and Head sliders reach exactly as high as the view draws them",
+    out.drawn.ok && out.map.ok && out.drawn.id === "win_0000a001" && out.map.id === "bar_k" && !ed().dirty, out);
+  await closeEdit();
+});
+await tryCase("limits: a door's Height slider reaches exactly as high as the view draws it; 2.03 m when new", async () => {
+  await openEdit();
+  await pickTool("door");
+  drag(where("main", 10, 6.6, WALL_Z), where("main", 10, 7.7, WALL_Z));
+  const s = ed().sel, id = s && s.opening ? s.opening.id : null, made = id ? ed().draft.openings[id].head_m : null;
+  const h = range("Height"), top = leafOf({ head_m: 9 });
+  slide("Height", h ? h[1] : 0);
+  const rec = id ? ed().draft.openings[id] : {}, drawn = leafOf({ head_m: rec.head_m });
+  click("Save", "la3d-tools");
+  await settle();
+  check("limits: a door's Height slider reaches exactly as high as the view draws it; 2.03 m when new",
+    id && made === 2.03 && h && h[0] === 1 && Math.abs(h[1] - top.z1) < 1e-9 && Math.abs(drawn.z1 - rec.head_m) < 1e-9 && !ed().dirty,
+    { id, made, h, top: top.z1, rec: rec.head_m, drawn: drawn.z1 });
+  await closeEdit();
+});
+await tryCase("limits: a readout's and a light's Height sliders reach exactly as high as the view draws them", async () => {
+  await openEdit();
+  await pickTool("heights");
+  slot._look(0.6, 0.7, [5, 2.8, 4], 26);
+  await settle();
+  const out = {};
+  for (const eid of ["sensor.den_temp", "light.den"]) {
+    tap(slot._where({ eid }));
+    const s = ed().sel, h = range("Height");
+    slide("Height", h ? h[1] : 0);
+    await settle();
+    const z = (st().heights[eid.startsWith("light.") ? "lights" : "devices"].find(x => x.eid === eid) || {}).z;
+    out[eid] = { sel: s && s.eid, h, z };
+    click("×", "la3d-sheet");
+  }
+  const ceilM = 2.8 - H.SLAB_T;
+  click("Save", "la3d-tools");
+  await settle();
+  const t = out["sensor.den_temp"], l = out["light.den"];
+  check("limits: a readout's and a light's Height sliders reach exactly as high as the view draws them",
+    t.sel === "sensor.den_temp" && t.h && Math.abs(t.h[1] - H.deviceZ("temp", ceilM, { z_m: 99 })) < 1e-9 && Math.abs(t.z - t.h[1]) < 1e-9
+    && l.sel === "light.den" && l.h && Math.abs(l.h[1] - ceilM) < 1e-9 && Math.abs(l.z - l.h[1]) < 1e-9 && !ed().dirty, out);
+  await closeEdit();
+});
+
 // ── pointer ─────────────────────────────────────────────────────────────────
 // A poll moving the view into a new card takes the canvas's pointer capture
 // with it: a lift off the canvas then reaches the window alone (sent here as
@@ -413,4 +580,4 @@ await tryCase("pointer: leaving 3D lets go of whatever is down", async () => {
 });
 
 check("the view never failed", !st().failed, { failed: st().failed });
-console.log(JSON.stringify({ cases, failures, payloads }));
+console.log(JSON.stringify({ cases, failures, payloads, start: FILE0 }));

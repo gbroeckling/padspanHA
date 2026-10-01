@@ -33,6 +33,9 @@ const { roomColor } =
   await import(`./room_color.js${new URL(import.meta.url).search}`);
 // Which way north is (settings.fabric_bearing_deg, y-down): the one source.
 const COMPASS = await import(`./fabric_compass.js${new URL(import.meta.url).search}`);
+// The 3D editor's rules: the defaults and the limits a door, a window and a
+// device are drawn within are theirs (the editor's sliders offer the same).
+const DRAFT = await import(`./live_aboard_draft.js${new URL(import.meta.url).search}`);
 export const { normBearing, fabricCompass, bearingOfNorth, compassDir, northArrowDeg } = COMPASS;
 
 // ── The usage report's words (telemetry.py HOUSE3D_EVENTS holds the same) ────
@@ -63,7 +66,7 @@ export const EXT_T = 0.14;                // outside wall thickness
 const MIN_T = 0.10;                       // the thinnest shared wall
 export const CUT_H = 0.42;                // what is left of a wall that is cut away
 const BAR_TOL = 0.40, BAR_COS = Math.cos(8 * Math.PI / 180);   // a barrier this close to a wall's line replaces that stretch
-export const DOOR_H = 2.05, SILL_H = 0.9, HEAD_H = 2.1, RAIL_H = 1.0;
+export const DOOR_H = DRAFT.DOOR_HEAD_M, SILL_H = DRAFT.WINDOW_SILL_M, HEAD_H = DRAFT.WINDOW_HEAD_M, RAIL_H = 1.0;
 // A room on an indoor floor that is really outdoors (no walls, a rail if raised).
 const OUTDOOR_ROOM = /\b(deck|patio|porch|balcony|terrace|veranda|yard|garden|lawn|driveway|outside|outdoor)\b/i;
 const WALL_EXT = "#d6cfc2", WALL_INT = "#ebe6dd", DOOR_COL = "#8b6a4f", GARAGE_DOOR_COL = "#c3c9d0";
@@ -361,7 +364,7 @@ export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKi
  *  and head are the defaults unless the 3D file sets them (pc.head_m,
  *  pc.sill_m: live_aboard_draft.js applyOpenings, part C). */
 export function wallElements(pc, floorH){
-  const top = floorH - SLAB_T;
+  const top = floorH - SLAB_T, lim = DRAFT.heightLimits(top);
   const len = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0);
   const base = pc.cls === "ext" ? WALL_EXT : WALL_INT;
   const tint = (pc.kind === "wall" && MAT_TINT[pc.mat]) || base;
@@ -373,7 +376,7 @@ export function wallElements(pc, floorH){
       E.push({ z0: 0, z1: RAIL_H - 0.05, col: RAIL_GLASS, thick: 0.02, glass: true, cuttable: false });
       break;
     case "door": {
-      const dh = Math.min(num(pc.head_m) ?? DOOR_H, top - 0.1);
+      const dh = Math.min(num(pc.head_m) ?? DOOR_H, lim.head);
       solid(-SLAB_T, 0, base);
       solid(0, dh, len > 1.8 ? GARAGE_DOOR_COL : DOOR_COL, Math.min(pc.thick, 0.07));
       E[E.length - 1].leaf = true;
@@ -381,8 +384,8 @@ export function wallElements(pc, floorH){
       break;
     }
     case "window": {
-      const sill = clamp(num(pc.sill_m) ?? SILL_H, 0, top - 0.2);
-      const head = Math.max(sill + 0.05, Math.min(num(pc.head_m) ?? HEAD_H, top - 0.1));
+      const sill = clamp(num(pc.sill_m) ?? SILL_H, 0, lim.sill);
+      const head = Math.max(sill + 0.05, Math.min(num(pc.head_m) ?? HEAD_H, lim.head));
       solid(-SLAB_T, sill, base);
       E.push({ z0: sill, z1: head, col: WINDOW_GLASS, thick: 0.03, glass: true, cuttable: true, leaf: true });
       solid(head, top, base);
@@ -1054,7 +1057,7 @@ export function sensorsSignature(model, lightsByEid, hidden){
 export const DEVICE_Z = { motion: 2.2, temp: 1.5, humidity: 1.5, air: 1.2 };
 export function deviceZ(kind, ceil, stored){
   const z = num(stored && stored.z_m);
-  return clamp(z !== null ? z : (DEVICE_Z[kind] ?? 1.5), 0, Math.max(0.1, ceil - 0.08));
+  return clamp(z !== null ? z : (DEVICE_Z[kind] ?? 1.5), 0, DRAFT.heightLimits(ceil).device);
 }
 // The temperature's tint (iso_lights.js TEMP_TINT, the digits' ink): over 34
 // bright orange, from 20 a slight red, under 20 a slight blue. A reading

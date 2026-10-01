@@ -31,6 +31,7 @@ export const WINDOW_MIN_M = 0.3, DOOR_MIN_M = 0.6;
 export const WINDOW_SILL_M = 0.9, WINDOW_HEAD_M = 2.1, DOOR_HEAD_M = 2.03;
 export const GAP_MIN_M = 0.1;              // a window's least height, head over sill (the server's too)
 export const DOOR_LOW_M = 1.0;             // the lowest door the slider offers
+export const DOOR_MIN_HEAD_M = 0.5;        // the lowest door the server keeps, however low the ceiling
 export const OPENING_ID = /^(win|door)_[0-9a-f]{8}$/;
 export const SECTIONS = ["openings", "lights", "devices"];
 const UNDO_MAX = 100;
@@ -265,19 +266,52 @@ export function spanOf(run, stops, openings, from, to, skip = null){
   return { t0: Math.min(f, end), t1: Math.max(f, end), len: Math.abs(end - f), stop };
 }
 
+// ── How high, under a ceiling ───────────────────────────────────────────────
+// The one place for it: the 3D view draws within these (live_aboard_house.js
+// wallElements and deviceZ) and the editor's sliders offer exactly these, so
+// what a slider says is what is drawn.
+export const LINTEL_M = 0.1;               // a door's or window's head stays this far under the ceiling
+export const DEVICE_GAP_M = 0.08;          // a sensor or a readout, this far under it
+/** Heights above the floor under a ceiling `ceil` metres up: head, the
+ *  highest a door's or window's head goes; sill, a window's highest sill
+ *  (its least height under that); doorLow to doorHigh, a door's head
+ *  (never under the server's least, however low the ceiling); device, a
+ *  sensor's or a readout's highest; light, a light's (the ceiling). */
+export function heightLimits(ceil){
+  const c = num(ceil) ?? 2.65;
+  const head = Math.max(GAP_MIN_M, c - LINTEL_M);
+  const doorLow = Math.max(DOOR_MIN_HEAD_M, Math.min(DOOR_LOW_M, head));
+  return { head, sill: head - GAP_MIN_M, doorLow, doorHigh: Math.max(doorLow, head),
+           device: Math.max(0.1, c - DEVICE_GAP_M), light: Math.max(0.1, c) };
+}
+
 // ── New, switched, and their heights ────────────────────────────────────────
+/** A door or window's two ends as the file keeps them, to the millimetre.
+ *  The server checks the width between the rounded ends, and rounding each
+ *  end can take up to 1.4 mm off it on a sloped wall: so when that would
+ *  take one drawn `least` wide or wider under `least`, `b` is first pushed
+ *  1.6 mm on along the line (more than rounding can take). */
+export function endsMm(a, b, least){
+  const p = (q) => [mm(q[0]), mm(q[1])];
+  const ra = p(a), L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  let rb = p(b);
+  if (L >= least - EPS && Math.hypot(rb[0] - ra[0], rb[1] - ra[1]) < least - EPS) {
+    const k = 0.0016 / L;
+    rb = p([b[0] + (b[0] - a[0]) * k, b[1] + (b[1] - a[1]) * k]);
+  }
+  return [ra, rb];
+}
 /** A new door or window between plan points a and b on floor `floorId`,
  *  under a ceiling `ceil` metres up: the defaults (a window's sill 0.9 m and
- *  head 2.1 m, a door to 2.03 m, hinged left, swinging in), kept under it. */
+ *  head 2.1 m, a door to 2.03 m, hinged left, swinging in), kept within
+ *  heightLimits; its ends to the millimetre (endsMm). */
 export function newOpening(kind, floorId, a, b, ceil){
-  const top = num(ceil) ?? 2.65;
-  const p = (q) => [mm(q[0]), mm(q[1])];
+  const [pa, pb] = endsMm(a, b, minWidth(kind));
   if (kind === "door") {
-    return { kind: "door", floor_id: floorId, a_m: p(a), b_m: p(b), head_m: mm(clamp(DOOR_HEAD_M, DOOR_LOW_M, Math.max(DOOR_LOW_M, top - 0.05))),
+    return { kind: "door", floor_id: floorId, a_m: pa, b_m: pb, ...openingHeights({ kind, head_m: DOOR_HEAD_M }, ceil),
              hinge: "left", swing: "in" };
   }
-  const head = mm(clamp(WINDOW_HEAD_M, GAP_MIN_M, Math.max(GAP_MIN_M, top - 0.1)));
-  return { kind: "window", floor_id: floorId, a_m: p(a), b_m: p(b), sill_m: mm(clamp(WINDOW_SILL_M, 0, head - GAP_MIN_M)), head_m: head };
+  return { kind: "window", floor_id: floorId, a_m: pa, b_m: pb, ...openingHeights({ kind, sill_m: WINDOW_SILL_M, head_m: WINDOW_HEAD_M }, ceil) };
 }
 /** Door ↔ window: the same stretch of wall under a new id of the other kind
  *  (the id says the kind), with that kind's defaults; {error} when it is
@@ -288,19 +322,23 @@ export function switchKind(id, rec, ceil){
   if (w < minWidth(to) - EPS) return { error: `A ${to} is at least ${minWidth(to).toFixed(1)} m wide` };
   return { id: `${to === "door" ? "door" : "win"}_${String(id).split("_")[1]}`, rec: newOpening(to, rec.floor_id, rec.a_m, rec.b_m, ceil) };
 }
-/** A window's sill and head, or a door's head, kept in order under the
- *  ceiling: what a slider may set. */
+/** A window's sill and head, or a door's head, kept in order within
+ *  heightLimits: what a slider may set. */
 export function openingHeights(rec, ceil){
-  const top = Math.max(GAP_MIN_M * 2, num(ceil) ?? 2.65);
-  if (rec.kind === "door") return { head_m: mm(clamp(num(rec.head_m) ?? DOOR_HEAD_M, Math.min(DOOR_LOW_M, top), top)) };
-  const sill = mm(clamp(num(rec.sill_m) ?? WINDOW_SILL_M, 0, top - GAP_MIN_M));
-  const head = mm(clamp(num(rec.head_m) ?? WINDOW_HEAD_M, sill + GAP_MIN_M, top));
+  const lim = heightLimits(ceil);
+  if (rec.kind === "door") return { head_m: mm(clamp(num(rec.head_m) ?? DOOR_HEAD_M, lim.doorLow, lim.doorHigh)) };
+  const sill = mm(clamp(num(rec.sill_m) ?? WINDOW_SILL_M, 0, lim.sill));
+  const head = mm(clamp(num(rec.head_m) ?? WINDOW_HEAD_M, sill + GAP_MIN_M, lim.head));
   return { sill_m: sill, head_m: head };
 }
-/** A device's height range: from its floor up to the floor's ceiling. */
-export const heightRange = (ceil) => ({ min: 0, max: mm(Math.max(0.1, num(ceil) ?? 2.65)) });
-export function clampHeight(z, ceil){
-  const r = heightRange(ceil);
+/** A device's height range, from its floor: up to the ceiling for a light,
+ *  just under it for anything else (section "devices": heightLimits). */
+export const heightRange = (ceil, section = "lights") => {
+  const lim = heightLimits(ceil);
+  return { min: 0, max: mm(section === "devices" ? lim.device : lim.light) };
+};
+export function clampHeight(z, ceil, section = "lights"){
+  const r = heightRange(ceil, section);
   return mm(clamp(num(z) ?? 0, r.min, r.max));
 }
 /** A fixture's height: its bulbs' mean height above its floor (where the

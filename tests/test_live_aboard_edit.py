@@ -23,6 +23,7 @@ from pathlib import Path
 
 import pytest
 
+from custom_components.padspan_ha import house3d_store as HS
 from custom_components.padspan_ha import telemetry as T
 from custom_components.padspan_ha import ws_house3d as W
 
@@ -43,7 +44,7 @@ def editor() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("pick:", 4), ("save:", 2), ("pointer:", 6)])
+@pytest.mark.parametrize("prefix,least", [("pick:", 4), ("save:", 2), ("widths:", 1), ("limits:", 3), ("pointer:", 6)])
 def test_the_editor_harness_covers_each_part(editor, prefix, least) -> None:
     got = [k for k in editor["cases"] if k.startswith(prefix)]
     assert len(got) >= least, (prefix, got)
@@ -53,6 +54,20 @@ def test_the_editor_harness_covers_each_part(editor, prefix, least) -> None:
 
 def test_every_editor_case_passes(editor) -> None:
     assert editor["cases"] and all(editor["cases"].values()), json.dumps(editor["failures"][:6], indent=2, ensure_ascii=False)
+
+
+def test_every_save_the_editor_sent_is_one_the_server_keeps(editor) -> None:
+    """Every Save the editor sent in the harness (drawn, dragged to just over
+    the least width on a 45° wall, slid to each slider's top, a map window,
+    a readout, a light) goes through the server's own apply_edit on the file
+    it was made over: none is refused, so the editor's rules and the
+    server's can't drift apart."""
+    sent = editor["payloads"]
+    assert len(sent) >= 6 and sum(len(p.get("openings", {})) for p in sent) >= 15
+    for changes in sent:
+        out = HS.apply_edit(editor["start"], changes)
+        for sec, entries in changes.items():
+            assert all((k in out[sec]) == (v is not None) for k, v in entries.items()), sec
 
 
 def _js(p: Path) -> str:

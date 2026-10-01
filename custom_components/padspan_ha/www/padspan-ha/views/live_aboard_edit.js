@@ -539,7 +539,8 @@ export function createEditor(ctx){
     // the walls until the next frame.
     const rec = draft.cur.openings[o.id];
     if (!rec) { sel = null; return; }
-    const F = floorOf(rec.floor_id), ceil = F ? ceilOf(F) : 2.65, w = Math.hypot(rec.b_m[0] - rec.a_m[0], rec.b_m[1] - rec.a_m[1]);
+    const F = floorOf(rec.floor_id), ceil = F ? ceilOf(F) : 2.65, lim = DRAFT.heightLimits(ceil);
+    const w = Math.hypot(rec.b_m[0] - rec.a_m[0], rec.b_m[1] - rec.a_m[1]);
     head(`${rec.kind === "door" ? "Door" : "Window"} · ${DRAFT.metres(w)}`, "Drawn in 3D. Drag either end to change its width.");
     choice("Is a", [["door", "Door"], ["window", "Window"]], rec.kind, (k) => {
       if (k === rec.kind) return;
@@ -555,10 +556,10 @@ export function createEditor(ctx){
       if (cur) Object.assign(cur, DRAFT.openingHeights({ ...cur, ...patch }, ceil));
     }, group);
     if (rec.kind === "window") {
-      slider("Sill", 0, DRAFT.mm(ceil - DRAFT.GAP_MIN_M), rec.sill_m, (v, g) => set({ sill_m: v }, g));
-      slider("Head", DRAFT.GAP_MIN_M, DRAFT.mm(ceil), rec.head_m, (v, g) => set({ head_m: v }, g));
+      slider("Sill", 0, DRAFT.mm(lim.sill), rec.sill_m, (v, g) => set({ sill_m: v }, g));
+      slider("Head", DRAFT.GAP_MIN_M, DRAFT.mm(lim.head), rec.head_m, (v, g) => set({ head_m: v }, g));
     } else {
-      slider("Height", DRAFT.DOOR_LOW_M, DRAFT.mm(ceil), rec.head_m, (v, g) => set({ head_m: v }, g));
+      slider("Height", DRAFT.mm(lim.doorLow), DRAFT.mm(lim.doorHigh), rec.head_m, (v, g) => set({ head_m: v }, g));
       const pick = (k, v) => { change((c) => { if (c.openings[o.id]) c.openings[o.id][k] = v; }); sheetFor(); };
       choice("Hinge", [["left", "Left"], ["right", "Right"]], rec.hinge, (v) => pick("hinge", v));
       choice("Swing", [["in", "In"], ["out", "Out"]], rec.swing, (v) => pick("swing", v));
@@ -572,16 +573,16 @@ export function createEditor(ctx){
     sheet.appendChild(acts);
   }
   function sheetMapOpening(o){
-    const cur = draft.cur.openings[o.id] || {}, F = o.F, ceil = ceilOf(F);
+    const cur = draft.cur.openings[o.id] || {}, F = o.F, ceil = ceilOf(F), lim = DRAFT.heightLimits(ceil);
     head(o.name || (o.kind === "door" ? "Door" : "Window"), "From the map. These change the 3D view only.");
     const set = (patch, group) => change((c) => { c.openings[o.id] = { ...(c.openings[o.id] || {}), ...patch }; }, group);
     if (o.kind === "window") {
       const now = DRAFT.openingHeights({ kind: "window", sill_m: cur.sill_m ?? HOUSE.SILL_H, head_m: cur.head_m ?? HOUSE.HEAD_H }, ceil);
-      slider("Sill", 0, DRAFT.mm(ceil - DRAFT.GAP_MIN_M), now.sill_m, (v, g) => {
+      slider("Sill", 0, DRAFT.mm(lim.sill), now.sill_m, (v, g) => {
         const c0 = draft.cur.openings[o.id] || {};
         set(DRAFT.openingHeights({ kind: "window", sill_m: v, head_m: c0.head_m ?? HOUSE.HEAD_H }, ceil), g);
       });
-      slider("Head", DRAFT.GAP_MIN_M, DRAFT.mm(ceil), now.head_m, (v, g) => {
+      slider("Head", DRAFT.GAP_MIN_M, DRAFT.mm(lim.head), now.head_m, (v, g) => {
         const c0 = draft.cur.openings[o.id] || {};
         set(DRAFT.openingHeights({ kind: "window", sill_m: c0.sill_m ?? HOUSE.SILL_H, head_m: v }, ceil), g);
       });
@@ -599,10 +600,10 @@ export function createEditor(ctx){
   function sheetDevice(eid){
     const info = ctx.device(eid);
     if (!info || info.z === null) { sel = null; return; }
-    const ceil = ceilOf(info.F), cur = draft.cur[info.section][eid];
-    head(info.label, `Height above its floor, 0 to ${DRAFT.metres(ceil)}. Default ${DRAFT.metres(info.zDefault)}.`);
-    slider("Height", 0, DRAFT.mm(ceil), cur ? cur.z_m : info.z, (v, g) => {
-      change((c) => { c[info.section][eid] = { z_m: DRAFT.clampHeight(v, ceil) }; }, g);
+    const ceil = ceilOf(info.F), cur = draft.cur[info.section][eid], top = DRAFT.heightRange(ceil, info.section).max;
+    head(info.label, `Height above its floor, 0 to ${DRAFT.metres(top)}. Default ${DRAFT.metres(info.zDefault)}.`);
+    slider("Height", 0, top, cur ? cur.z_m : info.z, (v, g) => {
+      change((c) => { c[info.section][eid] = { z_m: DRAFT.clampHeight(v, ceil, info.section) }; }, g);
     });
     const acts = d("div", "la3d-acts");
     const reset = btn("Reset to default", "Back to the height its type gives it", () => {
@@ -621,7 +622,8 @@ export function createEditor(ctx){
   function shown(){
     if (gesture && gesture.span && (gesture.kind === "line" || gesture.kind === "drag")) {
       const g = gesture, run = g.w.run, kind = g.kindOf;
-      const z = kind === "door" ? [0, Math.min(DRAFT.DOOR_HEAD_M, ceilOf(g.w.F))] : [g.sill ?? DRAFT.WINDOW_SILL_M, g.head ?? DRAFT.WINDOW_HEAD_M];
+      const hts = DRAFT.openingHeights({ kind, sill_m: g.sill, head_m: g.head }, ceilOf(g.w.F));
+      const z = kind === "door" ? [0, hts.head_m] : [hts.sill_m, hts.head_m];
       return { F: g.w.F, a: DRAFT.pointOf(run, g.span.t0), b: DRAFT.pointOf(run, g.span.t1), z, kind, thick: g.w.run.thick,
                len: g.span.len, stop: g.span.stop, short: g.span.len < DRAFT.minWidth(kind) - 1e-6, fixed: g.fixed };
     }
@@ -808,13 +810,14 @@ export function createEditor(ctx){
   function moveEnd(g){
     const min = DRAFT.minWidth(g.kindOf);
     if (g.span.len < min - 1e-6) { flash(`Too short: a ${g.kindOf} is at least ${min.toFixed(2)} m wide.`); return; }
-    const fixedP = DRAFT.pointOf(g.w.run, g.fixedT);
-    const movedP = DRAFT.pointOf(g.w.run, g.span.t0 === g.fixedT ? g.span.t1 : g.span.t0);
+    // To the millimetre, the moved end pushed on when rounding would take
+    // it under the least width (the server checks the rounded ends).
+    const [fixedP, movedP] = DRAFT.endsMm(DRAFT.pointOf(g.w.run, g.fixedT),
+      DRAFT.pointOf(g.w.run, g.span.t0 === g.fixedT ? g.span.t1 : g.span.t0), min);
     change((c) => {
       const cur = c.openings[g.id];
       if (!cur) return;
-      const r = (p) => [DRAFT.mm(p[0]), DRAFT.mm(p[1])];
-      if (g.moving === "a") { cur.a_m = r(movedP); cur.b_m = r(fixedP); } else { cur.a_m = r(fixedP); cur.b_m = r(movedP); }
+      if (g.moving === "a") { cur.a_m = movedP; cur.b_m = fixedP; } else { cur.a_m = fixedP; cur.b_m = movedP; }
     });
     sheetFor();
     if (g.span.stop === "opening") flash("Stopped at the opening next to it: openings never overlap.");

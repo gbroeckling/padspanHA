@@ -6,10 +6,12 @@
 tests/js/live_aboard_draft.mjs runs views/live_aboard_draft.js for real on
 houses read by views/live_aboard_house.js: the draft with Undo, Redo and
 Discard, Save's changes, the line tool's walls (runs), snapping, corner
-stops, refused overlaps, minimum widths, height clamps, and the 3D file's
-doors and windows cut into the walls the view draws. The rest is held here:
-the limits equal the server's, the new files are credited in the report, and
-the view reads the 3D file only through its host.
+stops, refused overlaps, minimum widths, height clamps, the height limits
+the view draws within, and the 3D file's doors and windows cut into the
+walls the view draws. What it builds at the edges goes through the server's
+own apply_edit here. The rest is held here: the limits equal the server's,
+the new files are credited in the report, and the view reads the 3D file
+only through its host.
 """
 
 from __future__ import annotations
@@ -51,8 +53,8 @@ def _code(p: Path) -> str:
 
 
 @pytest.mark.parametrize("prefix,least", [
-    ("draft:", 4), ("file:", 1), ("runs:", 2), ("snap:", 1), ("stops:", 1), ("overlap:", 2), ("widths:", 1),
-    ("heights:", 3), ("walls:", 4),
+    ("draft:", 4), ("file:", 1), ("runs:", 2), ("snap:", 1), ("stops:", 1), ("overlap:", 2), ("widths:", 2),
+    ("heights:", 4), ("limits:", 2), ("walls:", 4),
 ])
 def test_the_rules_harness_covers_each_part(draft, prefix, least) -> None:
     got = [k for k in draft["cases"] if k.startswith(prefix)]
@@ -67,14 +69,28 @@ def test_every_rules_case_passes(draft) -> None:
 
 def test_the_limits_are_the_servers() -> None:
     """What the editor lets you draw, the server accepts: the same widths,
-    defaults, gap and id shape."""
+    defaults, gap, lowest door and id shape."""
     d = _js(_VIEWS / "live_aboard_draft.js")
     m = re.search(r"export const WINDOW_MIN_M = ([\d.]+), DOOR_MIN_M = ([\d.]+);", d)
     assert m and (float(m[1]), float(m[2])) == (HS.WINDOW_MIN_M, HS.DOOR_MIN_M)
     assert re.search(r"export const GAP_MIN_M = ([\d.]+);", d)[1] == str(HS.GAP_MIN_M)
+    assert float(re.search(r"export const DOOR_MIN_HEAD_M = ([\d.]+);", d)[1]) == HS.DOOR_MIN_HEAD_M
     assert "export const OPENING_ID = /^(win|door)_[0-9a-f]{8}$/;" in d and HS.OPENING_ID.pattern == r"^(win|door)_[0-9a-f]{8}$"
     assert "WINDOW_SILL_M = 0.9, WINDOW_HEAD_M = 2.1, DOOR_HEAD_M = 2.03;" in d
     assert re.search(r"DOOR_LOW_M = ([\d.]+);", d) and float(re.search(r"DOOR_LOW_M = ([\d.]+);", d)[1]) >= HS.DOOR_MIN_HEAD_M
+
+
+def test_what_the_rules_build_at_the_edges_the_server_keeps(draft) -> None:
+    """Each payload the rules built at their edges (least widths at every
+    slope, doors under very low ceilings, heights at the limits) goes
+    through the server's own apply_edit: none is refused, so the editor's
+    rules and the server's can't drift apart."""
+    sent = draft["payloads"]
+    assert len(sent) >= 8 and sum(len(p.get("openings", {})) for p in sent) >= 400
+    for changes in sent:
+        out = HS.apply_edit(HS.empty(), changes)
+        for sec, entries in changes.items():
+            assert all((k in out[sec]) == (v is not None) for k, v in entries.items()), sec
 
 
 def test_the_rules_touch_nothing_but_numbers() -> None:
@@ -86,12 +102,13 @@ def test_the_rules_touch_nothing_but_numbers() -> None:
 
 
 def test_the_view_reads_the_file_only_through_its_host() -> None:
-    """The rules are loaded by the 3D view alone; the view reads the 3D file
-    through the host's load (house3d_get), once per showing, never on the
-    poll; both hosts hand it over."""
+    """The rules are loaded by the 3D view alone (the view, and the house it
+    draws, for the height limits); the view reads the 3D file through the
+    host's load (house3d_get), once per showing, never on the poll; both
+    hosts hand it over."""
     want = "import(`./live_aboard_draft.js${new URL(import.meta.url).search}`)"
     importers = sorted(p.name for p in _WWW.rglob("*.js") if "vendor" not in p.parts and want in _js(p))
-    assert importers == ["live_aboard.js"], importers
+    assert importers == ["live_aboard.js", "live_aboard_house.js"], importers   # the house: the limits it draws within
     la = _js(_VIEWS / "live_aboard.js")
     assert "if (fileLoad || typeof p.load !== \"function\") return;" in la
     assert "detach(){ try { fileLoad = null;" in la, "read again when the screen comes back to 3D"
