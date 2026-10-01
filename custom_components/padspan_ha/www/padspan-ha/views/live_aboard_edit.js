@@ -54,6 +54,7 @@ const CSS = `
   padding:10px 12px 12px;border-radius:12px;background:rgba(6,14,9,.95);border:1px solid rgba(120,190,155,.26);
   color:#e8f0ea;font-size:12.5px;box-shadow:0 8px 22px rgba(0,0,0,.5)}
 .la3d-sheet.on{display:block}
+.la3d-sheet.busy{opacity:.55}
 .la3d-sheet h4{margin:0 0 2px;font-size:13.5px;font-weight:700;color:#f3f6f4;display:flex;gap:8px;align-items:center}
 .la3d-sheet h4 span{flex:1}
 .la3d-sheet .la3d-sub{margin:0 0 8px;color:rgba(226,240,232,.6);font-size:11.5px}
@@ -101,7 +102,7 @@ const CSS = `
 export function createEditor(ctx){
   const { THREE, HOUSE, DRAFT, root, canvas, bar, guard } = ctx;
   let editFn = null, editing = false, draft = null, tool = null, sel = null, gesture = null, pending = null;
-  let saving = false, askGo = null, hintMsg = "", hintBad = false, redrawDue = false, sliderGen = 0, sheetRefresh = null;
+  let saving = false, afterSave = null, askGo = null, hintMsg = "", hintBad = false, redrawDue = false, sliderGen = 0, sheetRefresh = null;
   let runsGen = null, arcsGen = null;
   const runsByFloor = new Map();
   const active = () => editing && !!editFn && !!draft;
@@ -131,8 +132,8 @@ export function createEditor(ctx){
   const bDoor = btn("Door", "Draw a door along a wall", () => pickTool("door"));
   const bWin = btn("Window", "Draw a window along a wall", () => pickTool("window"));
   const bHts = btn("Heights", "Tap a light, a sensor or a readout to set its height", () => pickTool("heights"));
-  const bUndo = btn("Undo", "Undo", () => { if (draft && draft.undo()) afterHistory("Undone."); });
-  const bRedo = btn("Redo", "Redo", () => { if (draft && draft.redo()) afterHistory("Redone."); });
+  const bUndo = btn("Undo", "Undo", () => { if (draft && !saving && draft.undo()) afterHistory("Undone."); });
+  const bRedo = btn("Redo", "Redo", () => { if (draft && !saving && draft.redo()) afterHistory("Redone."); });
   const bSave = btn("Save", "Save the changes", () => save(null), "la3d-save");
   const bDiscard = btn("Discard", "Back to what is saved (Undo brings it back)", () => discard());
   const tools = d("div", "la3d-tools");
@@ -332,8 +333,10 @@ export function createEditor(ctx){
   }
 
   // ── the draft ─────────────────────────────────────────────────────────────
+  // Nothing changes it while a save is in flight: what was sent is what the
+  // draft starts again from once it is in (rebase).
   function change(fn, group = null){
-    if (!draft || !draft.change(fn, group)) return false;
+    if (!draft || saving || !draft.change(fn, group)) return false;
     redrawSoon();
     paint();                                     // Save, Undo and the line now; the walls on the next frame
     if (sheetRefresh) sheetRefresh();            // the open sheet's Reset, without rebuilding its sliders
@@ -364,31 +367,41 @@ export function createEditor(ctx){
     sel = null;
     afterHistory(`Discarded ${FEW(n)}. Undo brings ${n === 1 ? "it" : "them"} back.`);
   }
+  /** Save; then `then` (Save, then go on). One save at a time: asked again
+   *  while one is in flight, `then` waits for it and goes on once it is in. */
   async function save(then){
-    if (!draft || saving || !editFn) return;
+    if (!draft || !editFn) return;
+    if (saving) { if (then) afterSave = then; return; }
     const ch = draft.changes();
     if (!ch) { if (then) then(); return; }
+    const sent = draft;
     saving = true; paint();
     try {
       const r = await editFn(ch);
       if (!r || typeof r !== "object" || !r.data) throw new Error("no answer");
+      saving = false;
       ctx.saved(r.data);
-      draft.rebase(ctx.file() || DRAFT.ownedOf(r.data));
+      // Left meanwhile (Edit closed), there is no draft to start again: what
+      // was sent is saved all the same.
+      if (draft === sent) draft.rebase(ctx.file() || DRAFT.ownedOf(r.data));
       hint("Saved.");
-      saving = false;
-      redrawSoon();
-      sheetFor();
-      if (then) then();
     } catch (err) {
-      saving = false;
+      saving = false; afterSave = null;
       hint(`Not saved: ${String((err && (err.message || err.code)) || err)}`, true);
+      paint();
+      return;
     }
+    redrawSoon();
+    sheetFor();
     paint();
+    const next = then || afterSave;
+    afterSave = null;
+    if (next) save(next);                        // nothing left to send: it goes on at once
   }
 
   // ── Edit, the tools, leaving ──────────────────────────────────────────────
   async function begin(){
-    if (!editFn || editing) return;
+    if (!editFn || editing || saving) return;
     let f = ctx.file();
     if (!f) {
       hint("Reading the 3D file…");
@@ -407,7 +420,7 @@ export function createEditor(ctx){
     ctx.render();
   }
   function stop(){
-    editing = false; draft = null; tool = null; sel = null; gesture = null; pending = null; askGo = null;
+    editing = false; draft = null; tool = null; sel = null; gesture = null; pending = null; askGo = null; afterSave = null;
     clearArcs();
     line.visible = false;
     canvas.style.cursor = "";
@@ -471,12 +484,14 @@ export function createEditor(ctx){
     bEdit.setAttribute("aria-pressed", String(editing));
     tools.classList.toggle("on", on);
     for (const [b, t] of [[bDoor, "door"], [bWin, "window"], [bHts, "heights"]]) b.setAttribute("aria-pressed", String(tool === t));
-    bUndo.disabled = !on || !draft.canUndo;
-    bRedo.disabled = !on || !draft.canRedo;
+    bUndo.disabled = !on || saving || !draft.canUndo;
+    bRedo.disabled = !on || saving || !draft.canRedo;
     const dirty = on && draft.dirty;
     bSave.disabled = !dirty || saving;
     bSave.textContent = saving ? "Saving…" : "Save";
     bDiscard.disabled = !dirty || saving;
+    sheet.classList.toggle("busy", saving);
+    sheet.inert = saving;                          // a slider or Delete waits for the save in flight
     paintHint();
     paint3d();
     if (!on) { sheet.classList.remove("on"); askEl.classList.remove("on"); }
@@ -844,8 +859,17 @@ export function createEditor(ctx){
     /** The draft while editing (what the view draws instead of the file). */
     view(){ return active() ? draft.cur : null; },
     down, move, up, tap: (e) => tap(e), cancel, hover, layout, holdLeave,
-    /** The screen went to Map: out of Edit (unsaved work was asked about first). */
-    leave(){ if (editing) stop(); },
+    /** The screen went to Map. Picked here, unsaved work was asked about
+     *  first (holdLeave); picked in another tab of this browser it arrives
+     *  as a poll with no one to ask: unsaved work then stays, Edit open with
+     *  it, for when the screen is back in 3D. Nothing unsaved: Edit ends. */
+    leave(){
+      if (!editing) return;
+      if (!draft || !draft.dirty) { stop(); return; }
+      gesture = null; pending = null; askGo = null;
+      askEl.classList.remove("on");
+      paint();
+    },
     state(){
       return { editing, active: active(), tool, dirty: !!(draft && draft.dirty), canUndo: !!(draft && draft.canUndo),
                canRedo: !!(draft && draft.canRedo), saving, asking: askEl.classList.contains("on"), hint: hintMsg, hintBad,

@@ -20,7 +20,12 @@
 //             floor below in plain view still is
 //   save      Save sends exactly the draft's changes in one call, the file
 //             is then the saved one and the history starts again; a
-//             refused save keeps the draft and says why
+//             refused save keeps the draft and says why; while a save is in
+//             flight nothing changes the draft (nothing is dropped when it
+//             is in), Save then go on waits for it, and leaving Edit then is
+//             no failure
+//   leave     Map picked in another tab (a poll that detaches the view)
+//             keeps unsaved work, Edit open with it, for the return to 3D
 //   widths    drawn or dragged to just over its least width on a 45° wall,
 //             what Save sends has ends the server keeps
 //   limits    each Height, Sill and Head slider reaches exactly as high as
@@ -327,6 +332,96 @@ await tryCase("save: a refused save keeps the draft and says why", async () => {
   check("save: a refused save keeps the draft and says why",
     e.dirty && e.canUndo && JSON.stringify(e.draft) === before && /^Not saved: nope/.test(e.hint) && e.hintBad, { hint: e.hint, dirty: e.dirty });
   await closeEdit();
+});
+
+/** A save held in flight until release() (the server answers late). */
+function holdSaves(){
+  let release = null;
+  server.hold = new Promise(r => { release = r; });
+  return async () => { server.hold = null; release(); await settle(); };
+}
+/** A window drawn on Main's back wall (Edit open, the Window tool on). */
+async function drawOne(x0, x1){
+  await openEdit();
+  await pickTool("window");
+  drag(where("main", x0, 0, WALL_Z), where("main", x1, 0, WALL_Z));
+  await settle();
+  return Object.keys(ed().draft.openings).find(k => !(k in server.file.openings)) || null;
+}
+await tryCase("save: nothing changes the draft while a save is in flight, so nothing is dropped when it is in", async () => {
+  const id = await drawOne(1, 2.2);
+  const release = holdSaves(), n0 = payloads.length;
+  click("Save", "la3d-tools");
+  await settle();
+  const sent = JSON.stringify(ed().draft), during = { saving: ed().saving };
+  // Mid-save: a slider, Undo, and a press that would draw.
+  during.slid = slide("Head", 1.5);
+  during.sameAfterSlider = JSON.stringify(ed().draft) === sent;
+  during.undo = click("Undo", "la3d-tools");
+  drag(where("main", 6, 0, WALL_Z), where("main", 7.5, 0, WALL_Z));
+  during.same = during.sameAfterSlider && JSON.stringify(ed().draft) === sent;
+  during.inert = root().querySelectorAll(".la3d-sheet")[0].inert === true;
+  await release();
+  const e = ed();
+  check("save: nothing changes the draft while a save is in flight, so nothing is dropped when it is in",
+    id && during.saving && during.same && during.inert && !during.undo && payloads.length === n0 + 1 && !e.saving && !e.dirty
+    && JSON.stringify(e.draft) === sent && e.hint === "Saved.", { during, hint: e.hint, dirty: e.dirty });
+  await closeEdit();
+});
+await tryCase("save: Save, then go on, asked while a save is in flight, goes on once it is in", async () => {
+  const id = await drawOne(2.6, 3.8);
+  const release = holdSaves(), n0 = payloads.length;
+  let went = 0;
+  click("Save", "la3d-tools");
+  await settle();
+  const held = slot.holdLeave(() => { went++; });
+  const asking = ed().asking;
+  click("Save", "la3d-ask");
+  await settle();
+  const before = went;
+  await release();
+  const e = ed();
+  check("save: Save, then go on, asked while a save is in flight, goes on once it is in",
+    id && held && asking && before === 0 && went === 1 && !e.editing && payloads.length === n0 + 1 && id in server.file.openings,
+    { held, asking, before, went, editing: e.editing, calls: payloads.length - n0 });
+});
+await tryCase("save: leaving Edit while a save is in flight: the save still counts, never 'Not saved'", async () => {
+  const id = await drawOne(5, 6.2);
+  const release = holdSaves(), n0 = payloads.length;
+  let went = 0;
+  click("Save", "la3d-tools");
+  await settle();
+  slot.holdLeave(() => { went++; });
+  click("Discard", "la3d-ask");                 // Edit ends while the save is still out
+  await release();
+  const e = ed();
+  check("save: leaving Edit while a save is in flight: the save still counts, never 'Not saved'",
+    id && went === 1 && !e.editing && !e.hintBad && e.hint === "Saved." && payloads.length === n0 + 1 && id in server.file.openings
+    && st().file.openings === Object.keys(server.file.openings).length && !st().failed,
+    { hint: e.hint, hintBad: e.hintBad, went, file: st().file, failed: st().failed });
+});
+
+// ── leave ───────────────────────────────────────────────────────────────────
+await tryCase("leave: Map picked in another tab (a poll that detaches the view) keeps the unsaved draft for the return to 3D", async () => {
+  const id = await drawOne(6.6, 7.8);
+  const before = JSON.stringify(ed().draft);
+  slot.detach();                                 // what mount3d does once this browser's pick says Map
+  poll();
+  await settle();
+  const e = ed();
+  let asked = false;
+  if (e.editing) asked = slot.holdLeave(() => {}) && ed().asking;   // Map picked here now: the question
+  check("leave: Map picked in another tab (a poll that detaches the view) keeps the unsaved draft for the return to 3D",
+    id && e.editing && e.dirty && JSON.stringify(e.draft) === before && asked, { editing: e.editing, dirty: e.dirty, asked });
+  click("Keep editing", "la3d-ask");
+  await closeEdit();
+});
+await tryCase("leave: with nothing unsaved, leaving ends Edit", async () => {
+  await openEdit();
+  slot.detach();
+  poll();
+  await settle();
+  check("leave: with nothing unsaved, leaving ends Edit", !ed().editing && !ed().draft, { editing: ed().editing });
 });
 
 // ── widths ──────────────────────────────────────────────────────────────────
