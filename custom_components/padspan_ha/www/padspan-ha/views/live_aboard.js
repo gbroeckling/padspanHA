@@ -259,10 +259,19 @@ function createSlot(slotKey){
     observers = [];
     disposeList(shellRes); disposeList(lightRes); disposeList(sensorRes); disposeList(badgeRes);
     shellRes = []; lightRes = []; sensorRes = []; badgeRes = [];
+    // three.js gives every sprite (a readout, a floor badge) one geometry for
+    // the whole page, and each renderer that drew one hangs a listener on it
+    // that renderer.dispose() never takes off: that listener would keep this
+    // whole view alive (the renderer, the canvas, this element, the scene and
+    // the host's data) after every switch-off. Disposing it takes every such
+    // listener off; another view still drawing sprites only uploads it again.
+    try { if (scene) scene.traverse((o) => { if (o.isSprite && o.geometry) o.geometry.dispose(); }); } catch (_) { /* best effort */ }
     // Give the GPU its context back: the flat Atlas needs none.
     try { if (renderer) { renderer.dispose(); if (failed !== "context_lost") renderer.forceContextLoss(); } } catch (_) { /* best effort */ }
     renderer = null; scene = null; house = null; floorsUi = []; lights = [];
     openings = []; sensorsUi = []; tints = []; readouts = []; badges = []; liveAnim = false;
+    // Nothing of the host's is kept: its card, its data, its callbacks.
+    lastP = null; apiOf = null; apiNow = null; lbe = {}; stage = null; send = null; touchCb = null; saveNorthCb = null;
   }
   function fail(kind){
     if (failed) return;
@@ -1953,6 +1962,8 @@ function createSlot(slotKey){
                badges: badges.map(B => ({ z: B.z, n: B.n, name: B.name, shown: B.F.group.visible })),
                flash: shared ? { color: "#" + shared.flashMat.color.getHexString(), opacity: shared.flashMat.opacity } : null,
                animating: liveAnim, use: use ? use.state() : null,
+               // What of the host's it still holds (nothing, once switched off).
+               held: { card: !!lastP, api: !!(apiOf || apiNow), stage: !!stage, send: !!send, touch: !!touchCb, north: !!saveNorthCb },
                // Part C: the 3D file as drawn.
                file: file ? { openings: Object.keys(file.openings).length, lights: Object.keys(file.lights).length,
                               devices: Object.keys(file.devices).length } : null,
