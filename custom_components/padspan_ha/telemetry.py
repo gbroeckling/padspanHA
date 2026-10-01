@@ -241,7 +241,7 @@ TAB_EVENTS: frozenset[str] = frozenset(
 # before the change (server/telemetry_summary.py splits them on that).
 # tests/test_telemetry.py holds UI_ERROR_HELPERS to the files in views/.
 UI_ERROR_HELPERS: frozenset[str] = frozenset({
-    "atlas_weather",
+    "atlas_weather", "fabric_compass", "live_aboard_house",
     "busy_times", "calibration_matrix", "editions", "evidence_diagram", "house_activity",
     "insights", "iso_lights", "iso_motion", "light_codes", "lights_map", "locate",
     "pan_zoom", "path_loss", "plan_viewer", "push_subscription", "radio_map",
@@ -299,6 +299,19 @@ WEATHER_EVENTS: frozenset[str] = frozenset(
     {f"weather_error:{k}" for k in WEATHER_ERROR_KINDS}
     | {f"weather_shown:{k}" for k in WEATHER_SHOWN_STATES}
     | {f"weather_source:{k}" for k in WEATHER_SOURCES}
+)
+# Live Aboard, the 3D house (views/live_aboard_house.js — the same lists
+# there, held equal by tests/test_live_aboard_house.py). Each counted once per
+# page load per name:
+#   house3d_opened            the 3D view showed on a screen
+#   house3d_fallback:<kind>   it could not, and the flat Atlas showed instead:
+#                             no_webgl, slow_gpu (the frame-time check),
+#                             context_lost, error
+# Nothing is sent while the feature is off (settings.atlas_3d_enabled) or the
+# tier is below Pro: the shared card draws no 3D at all then.
+HOUSE3D_FALLBACK_KINDS: tuple[str, ...] = ("no_webgl", "slow_gpu", "context_lost", "error")
+HOUSE3D_EVENTS: frozenset[str] = frozenset(
+    {"house3d_opened"} | {f"house3d_fallback:{k}" for k in HOUSE3D_FALLBACK_KINDS}
 )
 
 # The switches whose ON/OFF is reported (booleans only, by name). Every name
@@ -410,7 +423,7 @@ def enabled(hass: HomeAssistant) -> bool:
 
 def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or name in OFFER_EVENTS
-            or name in WEATHER_EVENTS)
+            or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
