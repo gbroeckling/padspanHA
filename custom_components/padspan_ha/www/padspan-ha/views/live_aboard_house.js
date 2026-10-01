@@ -316,6 +316,17 @@ export function barrierKind(b){
   if (/\b(door|gate)\b/i.test(n) || /door/i.test(String((b && b.linked_entity_id) || ""))) return "door";
   return "wall";
 }
+/** A wall piece as the 3D view draws it: its middle and length. A wall or
+ *  rail is lengthened by half its thickness at each end that is a corner
+ *  of its wall, so corners close; an end cut beside a door, window or gap
+ *  stays where it was cut. */
+export function drawnSpan(pc){
+  const L = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0);
+  const ext = pc.kind === "wall" || pc.kind === "rail" ? pc.thick / 2 : 0;
+  const e0 = pc.corner0 === false ? 0 : ext, e1 = pc.corner1 === false ? 0 : ext;
+  const k = L > 0 ? (e1 - e0) / 2 / L : 0;              // the middle moves toward the longer end
+  return { mx: (pc.x0 + pc.x1) / 2 + (pc.x1 - pc.x0) * k, my: (pc.y0 + pc.y1) / 2 + (pc.y1 - pc.y0) * k, len: L + e0 + e1 };
+}
 export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKind){
   for (const b of barriers || []) {
     if (!b || typeof b !== "object" || canon(b.floor_id) !== floor.id) continue;
@@ -339,11 +350,7 @@ export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKi
         const ta = (a[0] - W.x0) * wx + (a[1] - W.y0) * wy, tc = (c[0] - W.x0) * wx + (c[1] - W.y0) * wy;
         const t0 = Math.max(0, Math.min(ta, tc)), t1 = Math.min(WL, Math.max(ta, tc));
         if (t1 - t0 < 0.05) continue;
-        const at = (t) => [W.x0 + wx * t, W.y0 + wy * t];
-        const parts = [];
-        if (t0 > 0.03) { const e = at(t0); parts.push({ ...W, x1: e[0], y1: e[1] }); }
-        { const s = at(t0), e = at(t1); parts.push({ ...W, x0: s[0], y0: s[1], x1: e[0], y1: e[1], kind, mat, barrier: b }); }
-        if (WL - t1 > 0.03) { const s = at(t1); parts.push({ ...W, x0: s[0], y0: s[1] }); }
+        const parts = DRAFT.splitPiece(W, WL, wx, wy, t0, t1, { kind, mat, barrier: b });
         pieces.splice(k, 1, ...parts);
         k += parts.length - 1;
         hit = true;

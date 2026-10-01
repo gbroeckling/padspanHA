@@ -546,13 +546,14 @@ function createSlot(slotKey){
       // Walls: the derived pieces, each drawn bottom to top (wallElements).
       const solids = [], glasses = [];
       for (const pc of per.pieces) {
-        const L = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0);
-        if (L < 0.02) continue;
-        const ext = pc.kind === "wall" || pc.kind === "rail" ? pc.thick / 2 : 0;   // overlap at corners so joints close
+        if (Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0) < 0.02) continue;
+        // Lengthened only at its wall's own corners, so joints close and a
+        // door, window or gap keeps its width (drawnSpan).
+        const span = HOUSE.drawnSpan(pc);
         const els = HOUSE.wallElements(pc, fl.h).map(e => ({ ...e, list: e.glass ? glasses : solids }));
         for (const e of els) { e.i = e.list.length; e.list.push(e); }
-        F.pieces.push({ pc, mx: (pc.x0 + pc.x1) / 2, my: (pc.y0 + pc.y1) / 2, yaw: HOUSE.yawOf([pc.x1 - pc.x0, pc.y1 - pc.y0]),
-                        len: L + 2 * ext, els, cut: null, lights: [] });
+        F.pieces.push({ pc, mx: span.mx, my: span.my, yaw: HOUSE.yawOf([pc.x1 - pc.x0, pc.y1 - pc.y0]),
+                        len: span.len, els, cut: null, lights: [] });
       }
       const inst = (list, geo, spec, cast) => {
         if (!list.length) return null;

@@ -150,3 +150,15 @@ def test_the_house_is_plain_numbers() -> None:
         code = re.sub(r"//.*", "", (_VIEWS / name).read_text(encoding="utf-8"))
         assert "three" not in code.lower(), name
     assert "import" not in re.sub(r"//.*", "", (_VIEWS / "fabric_compass.js").read_text(encoding="utf-8"))
+
+
+def test_the_view_draws_each_wall_by_the_one_corner_rule() -> None:
+    """A wall is lengthened only at its own corners (drawnSpan): the view
+    draws every piece by that rule and has no other, so a door, window or
+    gap cut into a wall keeps the width it was drawn (the walls case)."""
+    la = (_VIEWS / "live_aboard.js").read_text(encoding="utf-8")
+    assert la.count("HOUSE.drawnSpan(pc)") == 1 and "len: span.len" in la
+    assert "2 * ext" not in la and "len: L + " not in la
+    draft = (_VIEWS / "live_aboard_draft.js").read_text(encoding="utf-8")
+    assert "splitPiece(W, WL, wx, wy, t0, t1, mine)" in draft
+    assert "DRAFT.splitPiece(W, WL, wx, wy, t0, t1, { kind, mat, barrier: b })" in (_VIEWS / "live_aboard_house.js").read_text(encoding="utf-8")

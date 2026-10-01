@@ -26,6 +26,7 @@ const WWW = process.argv[2];
 if (!WWW) { console.error("usage: live_aboard_house.mjs <www/padspan-ha dir>"); process.exit(2); }
 const H = await import(pathToFileURL(join(WWW, "views", "live_aboard_house.js")).href);
 const LC = await import(pathToFileURL(join(WWW, "views", "light_codes.js")).href);
+const DR = await import(pathToFileURL(join(WWW, "views", "live_aboard_draft.js")).href);
 
 const failures = [];
 const cases = {};
@@ -153,6 +154,39 @@ tryCase("walls: a plain wall runs from under the slab to under the floor above",
 });
 
 // ── the cut-away ────────────────────────────────────────────────────────────
+// The clear width of an opening piece O as drawn: its length less whatever
+// of the wall pieces in line with it, as drawn (drawnSpan), reaches into it.
+const clearOf = (O, pieces) => {
+  const L = len(O), ux = (O.x1 - O.x0) / L, uy = (O.y1 - O.y0) / L;
+  let lost = 0;
+  for (const W of pieces) {
+    if (W === O || W.kind !== "wall" || Math.abs((W.x1 - W.x0) * ux + (W.y1 - W.y0) * uy) < 0.99 * len(W)) continue;
+    const s = H.drawnSpan(W), c = (s.mx - O.x0) * ux + (s.my - O.y0) * uy;
+    if (Math.abs((s.mx - O.x0) * -uy + (s.my - O.y0) * ux) > 0.3) continue;      // another wall, not this one
+    lost += Math.max(0, Math.min(L, c + s.len / 2) - Math.max(0, c - s.len / 2));
+  }
+  return L - lost;
+};
+tryCase("walls: a door, window or gap keeps its drawn width; only a wall's own corners are lengthened", () => {
+  // An outside wall (0.14 m) with a 0.9 m door and a 1 m gap; a 0.5 m
+  // shared wall with a 0.3 m window (thinner than the wall is thick); and a
+  // 0.9 m door drawn in 3D into that thick wall.
+  const model = { floors: [{ id: "main" }], room_geometry_m: { Kitchen: rect("main", 0, 0, 6, 4), Hall: rect("main", 6.5, 0, 10, 4) },
+    rf_barriers_m: [{ id: "bar_door", name: "Front door", material: "wood", floor_id: "main", points_m: [[2, 0], [2.9, 0]] },
+                    { id: "bar_gap", name: "Arch", material: "open", floor_id: "main", points_m: [[1, 4], [2, 4]] },
+                    { id: "bar_win", name: "Pass", material: "glass", floor_id: "main", points_m: [[6.25, 1], [6.25, 1.3]] }] };
+  const h = H.readHouse(model, model.floors, {}, null), pcs = h.perFloor.get(h.byId.get("main")).pieces;
+  DR.spliceOpening(pcs, "door_00000001", { kind: "door", a_m: [6.25, 2.2], b_m: [6.25, 3.1], head_m: 2.03, hinge: "left", swing: "in" });
+  const ops = pcs.filter(p => p.kind === "door" || p.kind === "window" || p.kind === "open");
+  const got = ops.map(O => ({ id: O.added || O.barrier.id, drawn: +len(O).toFixed(3), clear: +clearOf(O, pcs).toFixed(3) }));
+  // The Kitchen's corner at (0, 0): both walls still reach past it by half
+  // their thickness, so the corner closes.
+  const corner = pcs.filter(p => p.kind === "wall" && p.cls === "ext" && (near(p.x0, 0, 0.08) && near(p.y0, -0.07, 0.08) || near(p.x1, 0, 0.08) && near(p.y1, -0.07, 0.08)
+    || near(p.x0, -0.07, 0.08) && near(p.y0, 0, 0.08) || near(p.x1, -0.07, 0.08) && near(p.y1, 0, 0.08)));
+  const closes = corner.length === 2 && corner.every(p => near(H.drawnSpan(p).len, len(p) + (p.corner0 === false || p.corner1 === false ? 0.07 : 0.14), 1e-9));
+  check("walls: a door, window or gap keeps its drawn width; only a wall's own corners are lengthened",
+    ops.length === 4 && got.every(o => near(o.clear, o.drawn, 1e-6)) && closes, { got, corner: corner.map(p => [p.corner0, p.corner1, len(p)]) });
+});
 tryCase("cutaway: Cut drops what is between you and the rooms; Up none; Down all", () => {
   // A room 0..4 x 0..3. Its bottom wall's outward normal is (0, -1).
   const ext = { kind: "wall", cls: "ext", x0: 0, y0: 0, x1: 4, y1: 0, nx: 0, ny: -1 };

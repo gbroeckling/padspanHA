@@ -358,6 +358,21 @@ export function liftParts(parts, stored, ceil){
 }
 
 // ── Into the walls the 3D view draws ────────────────────────────────────────
+/** Wall piece W split round [t0, t1] (metres along it) into what is before,
+ *  `mid` (a door, window, gap or tint), and what is after. An end made by
+ *  the split is no corner (corner0 / corner1 false): the 3D view lengthens
+ *  only a wall's own ends to close its corners (drawnSpan), so the opening
+ *  keeps the width it was drawn. */
+export function splitPiece(W, WL, wx, wy, t0, t1, mid){
+  const at = (t) => [W.x0 + wx * t, W.y0 + wy * t];
+  const before = t0 > 0.03, after = WL - t1 > 0.03, s = at(t0), e = at(t1);
+  const parts = [];
+  if (before) parts.push({ ...W, x1: s[0], y1: s[1], corner1: false });
+  parts.push({ ...W, x0: s[0], y0: s[1], x1: e[0], y1: e[1], ...mid,
+               corner0: before ? false : W.corner0, corner1: after ? false : W.corner1 });
+  if (after) parts.push({ ...W, x0: e[0], y0: e[1], corner0: false });
+  return parts;
+}
 /** One door or window drawn in 3D, cut into the floor's wall pieces: each
  *  wall piece it lies along is split round it, as a barrier is spliced in
  *  (any wall, the map's own walls included); along none, it stands on its
@@ -381,11 +396,7 @@ export function spliceOpening(pieces, id, o){
     const ta = (a[0] - W.x0) * wx + (a[1] - W.y0) * wy, tb = (b[0] - W.x0) * wx + (b[1] - W.y0) * wy;
     const t0 = Math.max(0, Math.min(ta, tb)), t1 = Math.min(WL, Math.max(ta, tb));
     if (t1 - t0 < 0.05) continue;
-    const at = (t) => [W.x0 + wx * t, W.y0 + wy * t];
-    const parts = [];
-    if (t0 > 0.03) { const e = at(t0); parts.push({ ...W, x1: e[0], y1: e[1] }); }
-    { const s = at(t0), e = at(t1); parts.push({ ...W, x0: s[0], y0: s[1], x1: e[0], y1: e[1], ...mine }); }
-    if (WL - t1 > 0.03) { const s = at(t1); parts.push({ ...W, x0: s[0], y0: s[1] }); }
+    const parts = splitPiece(W, WL, wx, wy, t0, t1, mine);
     pieces.splice(k, 1, ...parts);
     k += parts.length - 1;
     hit = true;
