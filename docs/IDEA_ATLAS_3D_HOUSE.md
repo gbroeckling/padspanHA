@@ -6,7 +6,8 @@ beacons and people from photos, and the shared library. Check the name before an
 
 Planned 2026-09-30. Revised the same day: **clean-room, photo-to-furniture, and a shared library.**
 Status: **being built on the `live-aboard` branch, normally off.** Step 1 (the switch and the empty
-store) and the P0 prototype are done; P1 has started. The thirteen choices, decided, are at the end.
+store), the P0 prototype and P1 (the 3D view) are done; P1 was reviewed and is installed on Garry's HA,
+switch off. The thirteen choices, decided, are at the end.
 
 Where the idea came from: a r/homeassistant post (1wtyklm, 2026-09-30) showing a hand-built
 three.js model of one house, walls cutting away like The Sims. That was an idea, not code, and
@@ -596,6 +597,10 @@ and says so if asked.
    Bright Pro); B, the Atlas's actions and live parts (doors and sensors, Motion · Air, readouts,
    tap, hold and dim); C, the 3D editor (the door and window line tool, device heights, saved to
    the 3D file).
+   **Built, reviewed and installed 2026-10-01.** Three read-only reviewers found 27 defects (2 high:
+   the editor could pick a hidden lower floor's wall; a lost pointer capture could strand touch);
+   all fixed, and a re-check's 4 regressions fixed too. At rest the view draws nothing. Installed on
+   the home HA from the branch at 85b22e6e, behind the switch (off).
 4. **P2 furniture by hand.** The builders are written from the parameter lists in "Furniture",
    nothing else, each with a still-picture test across its parameter range.
 5. **P3 photos**, then **P4 library** (terms reviewed first), **P5 devices**, **P6 beacons and
@@ -688,4 +693,5 @@ Assumed, not asked: off by default with all sub-switches off; ships dark; its ow
 that never touches the map; clean-room code; people figures never shared; a lawyer reviews the
 terms before the library ships.
 
-P0, the prototype of Garry's house, was built and approved on 2026-09-30; P1 is under way.
+P0, the prototype of Garry's house, was built and approved on 2026-09-30. P1 was built, reviewed and
+installed on Garry's HA on 2026-10-01, behind the switch.
