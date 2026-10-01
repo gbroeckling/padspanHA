@@ -17,12 +17,17 @@ The Home Assistant store version stays 1 forever: a different major version
 makes HA refuse the file, SafeStore turns that into None, and the next save
 would overwrite what was there. Shape changes go through the data's own
 "schema" field. Reading is tolerant: every key is kept, known or not, so an
-older and a newer PadSpan never lose what the other wrote.
+older and a newer PadSpan never lose what the other wrote. A newer PadSpan's
+file (after a downgrade) is read and kept whole, and never written here
+(writable). A file that is there but cannot be read is never taken for an
+empty one (ReadFailed), so no Save writes an empty house over it.
 """
 
 from __future__ import annotations
 
+import asyncio
 import copy
+import logging
 import math
 import re
 from typing import Any
@@ -32,10 +37,15 @@ from homeassistant.core import HomeAssistant
 from .const import DATA_HOUSE3D, DATA_SETTINGS, DOMAIN, HOUSE3D_STORE_KEY
 from .safe_store import wrap_store
 
+_LOGGER = logging.getLogger(__name__)
+
 SCHEMA = 1
 # The keyed sections (docs: pieces, 3D-only light heights, door hinge and swing,
 # beacon/scanner recipes, people figures). "library" holds the terms acceptance.
 SECTIONS: tuple[str, ...] = ("pieces", "lights", "openings", "devices", "figures")
+_LOAD_LOCK = "house3d_load_lock"   # hass.data[DOMAIN]: one first load at a time
+NEWER_MESSAGE = ("This 3D house was saved by a newer PadSpan. This version shows it but does not "
+                 "change it: update PadSpan to edit it.")
 
 
 def empty() -> dict[str, Any]:
@@ -43,16 +53,28 @@ def empty() -> dict[str, Any]:
     return {"schema": SCHEMA, **{k: {} for k in SECTIONS}, "library": {}}
 
 
+def writable(data: Any) -> bool:
+    """May this version write the file? Only when its schema is a whole number
+    up to SCHEMA (no schema is this version's). A newer PadSpan's file is read
+    and kept as it is: writing it back would reshape or drop what only the
+    newer version knows."""
+    s = data.get("schema", SCHEMA) if isinstance(data, dict) else SCHEMA
+    return isinstance(s, int) and not isinstance(s, bool) and 0 <= s <= SCHEMA
+
+
 def normalise(raw: Any) -> dict[str, Any]:
-    """Tolerant read: every key in `raw` is kept; a missing or broken section
-    becomes empty; anything that is not a dict is an empty house."""
+    """Tolerant read: every key in `raw` is kept; anything that is not a dict
+    is an empty house. In a file this version writes, a missing or broken
+    section becomes empty; a newer PadSpan's file is kept exactly as it is,
+    sections and all (nothing here writes it)."""
     if not isinstance(raw, dict):
         return empty()
     out = dict(raw)
     out.setdefault("schema", SCHEMA)
-    for k in (*SECTIONS, "library"):
-        if not isinstance(out.get(k), dict):
-            out[k] = {}
+    if writable(out):
+        for k in (*SECTIONS, "library"):
+            if not isinstance(out.get(k), dict):
+                out[k] = {}
     return out
 
 
@@ -70,6 +92,11 @@ def enabled(hass: HomeAssistant) -> bool:
     return bool(((st.data if st else {}) or {}).get("atlas_3d_enabled", False))
 
 
+class ReadFailed(Exception):
+    """The file is there but could not be read. Nothing is kept in memory and
+    nothing writes the file until a read succeeds."""
+
+
 class House3dStore:
     """padspan_ha.house3d. `.data` is what a PadSpan backup saves and a
     restore replaces (ws_common._DATA_KEY_MAP)."""
@@ -80,6 +107,10 @@ class House3dStore:
         self._raw_store = Store(hass, 1, HOUSE3D_STORE_KEY)
         self.store = wrap_store(self._raw_store, hass, "house3d")
         self._data: dict[str, Any] = empty()
+        # Held by every write (an edit's apply-and-save, a clear and its
+        # backup): one Save never rolls back another, and none lands between
+        # a clear's backup and the clear.
+        self.lock = asyncio.Lock()
 
     @property
     def data(self) -> dict[str, Any]:
@@ -93,18 +124,40 @@ class House3dStore:
         self._data = normalise(value)
 
     async def async_load(self) -> dict[str, Any]:
-        self.data = normalise(await self.store.async_load())
+        """Read the file. SafeStore would turn a read error into None, the
+        empty house; a read that fails while the file is there raises
+        ReadFailed instead."""
+        try:
+            raw = await self._raw_store.async_load()
+        except Exception as exc:  # noqa: BLE001
+            if await async_file_exists(self.hass):
+                _LOGGER.error("PadSpan load FAILED for house3d: %s", exc)
+                raise ReadFailed(str(exc)) from exc
+            raw = None
+        self.data = normalise(raw)
         return self.data
 
-    async def async_save(self) -> bool:
-        return bool(await self.store.async_save(self.data))
-
-    async def async_clear(self) -> bool:
-        self.data = empty()
-        return await self.async_save()
+    async def async_write(self, new: dict[str, Any]) -> bool:
+        """Write `new` as the whole file and read it back: written only if the
+        file then holds exactly `new`. Home Assistant's Store logs a failed
+        write and returns normally, and SafeStore's read-back then finds the
+        old file, so only the comparison tells (as ws_backup._auto_backup
+        does). Memory becomes `new` only then; on a failure it is unchanged."""
+        if not await self.store.async_save(new):
+            return False
+        try:
+            back = await self._raw_store.async_load()
+        except Exception:  # noqa: BLE001
+            back = None
+        if back != new:
+            _LOGGER.error("PadSpan save VERIFICATION FAILED for house3d: the file does not hold what was written")
+            return False
+        self.data = new
+        return True
 
     def counts(self) -> dict[str, int]:
-        return {k: len(self.data.get(k) or {}) for k in SECTIONS}
+        # A newer PadSpan's section can be other than a dict (normalise).
+        return {k: len(self.data[k]) if isinstance(self.data.get(k), dict) else 0 for k in SECTIONS}
 
 
 # ── The 3D editor's Save (ws_house3d.house3d_edit) ───────────────────────────
@@ -136,8 +189,16 @@ class EditError(ValueError):
     """An edit that cannot be saved; nothing of it is written."""
 
 
+class NewerFile(EditError):
+    """The file is a newer PadSpan's (writable is False): nothing is written."""
+
+
 def _num(v: Any, lo: float, hi: float, what: str) -> float:
-    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not lo <= v <= hi:
+    try:
+        ok = not isinstance(v, bool) and isinstance(v, (int, float)) and math.isfinite(v) and lo <= v <= hi
+    except OverflowError:   # an int too big for a float
+        ok = False
+    if not ok:
         raise EditError(f"{what} must be a number from {lo:g} to {hi:g}")
     return round(float(v), 3)
 
@@ -205,15 +266,16 @@ def _entry(section: str, key: Any, e: Any) -> tuple[frozenset, dict | None, bool
     remove it, whether removing takes the whole entry)."""
     if not isinstance(key, str):
         raise EditError(f"{section}: every key must be text")
+    # fullmatch: with match, "$" also matches before a trailing newline.
     if section == "openings":
-        if OPENING_ID.match(key):
+        if OPENING_ID.fullmatch(key):
             owned, whole, check = _ADDED_OWNED, True, _added_opening
-        elif key.startswith(("win_", "door_")) or not BARRIER_ID.match(key):
+        elif key.startswith(("win_", "door_")) or not BARRIER_ID.fullmatch(key):
             raise EditError(f"openings: {key[:48]!r} is neither win_/door_ + 8 hex digits nor a barrier's id")
         else:
             owned, whole, check = _BARRIER_OWNED, False, _barrier_override
     else:
-        if len(key) > 255 or not ENTITY_ID.match(key):
+        if len(key) > 255 or not ENTITY_ID.fullmatch(key):
             raise EditError(f"{section}: {key[:48]!r} is not an entity id")
         owned, whole = _HEIGHT_OWNED, False
 
@@ -231,10 +293,14 @@ def _entry(section: str, key: Any, e: Any) -> tuple[frozenset, dict | None, bool
 def apply_edit(data: Any, changes: Any) -> dict[str, Any]:
     """The file as it is after `changes` ({section: {key: entry | None}}),
     or EditError and nothing changed. `data` itself is never modified, so a
-    refused or failed save leaves the file and the memory as they were."""
+    refused or failed save leaves the file and the memory as they were. A
+    newer PadSpan's file is never changed (NewerFile)."""
+    base = normalise(data)
+    if not writable(base):
+        raise NewerFile(NEWER_MESSAGE)
     if not isinstance(changes, dict) or set(changes) - set(EDIT_SECTIONS):
         raise EditError(f"an edit has only {', '.join(EDIT_SECTIONS)}")
-    out = copy.deepcopy(normalise(data))
+    out = copy.deepcopy(base)
     n = 0
     for section in EDIT_SECTIONS:
         entries = changes.get(section)
@@ -267,11 +333,17 @@ def apply_edit(data: Any, changes: Any) -> dict[str, Any]:
 
 async def async_get_store(hass: HomeAssistant) -> House3dStore:
     """The store, loaded on first use and kept in hass.data. Loading reads the
-    file; it never writes it."""
+    file; it never writes it. One first load at a time: two at once made two
+    stores, and a Save through the one replaced was lost to the next. A read
+    that fails (ReadFailed) keeps nothing, so the next use reads again."""
     dom = hass.data.setdefault(DOMAIN, {})
     store = dom.get(DATA_HOUSE3D)
-    if not isinstance(store, House3dStore):
-        store = House3dStore(hass)
-        await store.async_load()
-        dom[DATA_HOUSE3D] = store
+    if isinstance(store, House3dStore):
+        return store
+    async with dom.setdefault(_LOAD_LOCK, asyncio.Lock()):
+        store = dom.get(DATA_HOUSE3D)
+        if not isinstance(store, House3dStore):
+            store = House3dStore(hass)
+            await store.async_load()
+            dom[DATA_HOUSE3D] = store
     return store

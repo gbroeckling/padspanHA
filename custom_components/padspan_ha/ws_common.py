@@ -361,7 +361,10 @@ _DATA_KEY_MAP = {
     # switched off (wled_exact.py) — what puts a strip back after a rebuild.
     WLED_LOOKS_STORE_KEY: DATA_WLED_LOOKS,
     # Live Aboard's own file (house3d_store.py): furniture, 3D-only light
-    # heights and door swings. A file that was never written backs up as {}.
+    # heights and door swings. A file that was never written is left out of
+    # backups (_BACKUP_ONLY_ONCE_WRITTEN below). A backup carrying
+    # "padspan_ha.house3d": {} comes only from commit e8a10ada, which was
+    # never installed anywhere.
     HOUSE3D_STORE_KEY: DATA_HOUSE3D,
 }
 

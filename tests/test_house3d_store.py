@@ -127,13 +127,79 @@ def test_its_own_file_at_store_version_one(store):
 
 
 def test_reading_is_tolerant_and_keeps_every_key():
-    raw = {"schema": 7, "pieces": {"fur_1": {"x_m": 1, "from_the_future": True}},
+    raw = {"schema": 1, "pieces": {"fur_1": {"x_m": 1, "from_the_future": True}},
            "lights": [1, 2], "a_newer_section": {"k": 1}}
     got = H.normalise(raw)
-    assert got["schema"] == 7 and got["pieces"]["fur_1"]["from_the_future"] is True
+    assert got["schema"] == 1 and got["pieces"]["fur_1"]["from_the_future"] is True
     assert got["a_newer_section"] == {"k": 1}, "a newer PadSpan's data survives an older one"
-    assert got["lights"] == {} and got["openings"] == {} and got["library"] == {}
+    assert got["lights"] == {} and got["openings"] == {} and got["library"] == {}, \
+        "in this version's file, a broken or missing section reads as empty"
+    newer = {**raw, "schema": 7}
+    assert H.normalise(newer) == newer, "a newer PadSpan's file is kept as it is, sections and all"
     assert H.normalise(None) == H.empty() == H.normalise([1, 2]) == H.normalise("x")
+
+
+def _unreadable(monkeypatch, times: int) -> None:
+    """The next `times` reads fail as Home Assistant's Store fails them (it
+    raises; SafeStore turned that into None, the empty house)."""
+    real = _FakeStore.async_load
+    left = {"n": times}
+
+    async def _load(self):
+        if left["n"] > 0:
+            left["n"] -= 1
+            raise OSError(5, "Input/output error")
+        return await real(self)
+
+    monkeypatch.setattr(_FakeStore, "async_load", _load)
+
+
+def test_a_failed_read_is_never_taken_for_an_empty_house(store, monkeypatch, tmp_path):
+    """It was cached as the empty house: the next Save wrote that over the
+    real file, and backups took the empty copy. Now nothing is kept, the
+    answer says the read failed, and the next use reads again."""
+    from custom_components.padspan_ha import ws_backup
+    box = _capture_backups(monkeypatch)
+    _disk_file(tmp_path)
+    store.saved[HOUSE3D_STORE_KEY] = {**H.empty(), "pieces": {"fur_1": dict(_PIECE)}}
+    _unreadable(monkeypatch, 1)
+    h, conn = _house(tmp_path, on=True), MagicMock()
+    _run(W.ws_house3d_get(h, conn, {"id": 1}))
+    assert conn.send_error.call_args[0][1] == "read_failed"
+    assert DATA_HOUSE3D not in h.data[DOMAIN], "nothing kept"
+    _run(ws_backup.ws_store_backup_create(h, MagicMock(), {"id": 2}))
+    assert box["backups"][-1]["stores"][HOUSE3D_STORE_KEY]["pieces"]["fur_1"]["label"] == "Mum's old couch"
+    conn = MagicMock()
+    _run(W.ws_house3d_get(h, conn, {"id": 3}))
+    assert conn.send_result.call_args[0][1]["data"]["pieces"]["fur_1"]["label"] == "Mum's old couch"
+
+
+def test_a_read_that_fails_with_no_file_is_the_empty_house(store, monkeypatch, tmp_path):
+    _unreadable(monkeypatch, 1)
+    h, conn = _house(tmp_path, on=True), MagicMock()
+    _run(W.ws_house3d_get(h, conn, {"id": 1}))
+    assert conn.send_result.call_args[0][1]["data"] == H.empty()
+
+
+def test_while_the_file_cannot_be_read_nothing_writes_it(store, monkeypatch, tmp_path):
+    from custom_components.padspan_ha import ws_backup
+    calls = []
+
+    async def _bk(*a):
+        calls.append(a)
+        return "bk_x"
+
+    monkeypatch.setattr(ws_backup, "_auto_backup", _bk)
+    _disk_file(tmp_path)
+    before = {**H.empty(), "pieces": {"fur_1": dict(_PIECE)}}
+    store.saved[HOUSE3D_STORE_KEY] = copy.deepcopy(before)
+    _unreadable(monkeypatch, 99)
+    h = _house(tmp_path, on=True)
+    edit, clear = MagicMock(), MagicMock()
+    _run(W.ws_house3d_edit(h, edit, {"id": 1, "lights": {"light.kitchen": {"z_m": 1.5}}}))
+    _run(W.ws_house3d_clear(h, clear, {"id": 2}))
+    assert edit.send_error.call_args[0][1] == "read_failed" and clear.send_error.call_args[0][1] == "read_failed"
+    assert calls == [] and _saves() == 0 and store.saved[HOUSE3D_STORE_KEY] == before
 
 
 # ═══ normally off: nothing loads, nothing writes ══════════════════════════════
@@ -198,6 +264,102 @@ def test_no_backup_no_clear(store, monkeypatch, tmp_path):
     _run(W.ws_house3d_clear(h, conn, {"id": 1}))
     assert conn.send_error.call_args[0][1] == "backup_failed"
     assert _saves() == 0 and store.saved[HOUSE3D_STORE_KEY]["pieces"]
+
+
+def _no_backups(monkeypatch) -> list:
+    from custom_components.padspan_ha import ws_backup
+    calls = []
+
+    async def _bk(*a):
+        calls.append(a)
+        return "bk_1"
+
+    monkeypatch.setattr(ws_backup, "_auto_backup", _bk)
+    return calls
+
+
+@pytest.mark.parametrize("tier", ["free", "bright"])
+def test_below_pro_clear_is_as_if_off(store, monkeypatch, tmp_path, tier):
+    calls = _no_backups(monkeypatch)
+    _disk_file(tmp_path)
+    before = {**H.empty(), "pieces": {"fur_1": dict(_PIECE)}}
+    store.saved[HOUSE3D_STORE_KEY] = copy.deepcopy(before)
+    h, conn = _house(tmp_path, on=True), MagicMock()
+    st = h.data[DOMAIN][DATA_SETTINGS]
+    if tier == "free":
+        st.data["forensics_license_key"] = ""
+    else:
+        st.data["license_tier"] = "bright"
+    _run(W.ws_house3d_clear(h, conn, {"id": 1}))
+    assert conn.send_error.call_args[0][1] == W.OFF_CODE and conn.send_error.call_args[0][2] == W.PRO_MESSAGE
+    assert calls == [] and _saves() == 0 and store.saved[HOUSE3D_STORE_KEY] == before
+
+
+def test_clear_leaves_a_newer_padspans_file_alone(store, monkeypatch, tmp_path):
+    """After a downgrade: no backup and no write, so the newer version finds
+    its file as it left it."""
+    calls = _no_backups(monkeypatch)
+    _disk_file(tmp_path)
+    newer = {"schema": 2, "pieces": [{"id": "fur_1"}], "rooms3d": {"k": 1}}
+    store.saved[HOUSE3D_STORE_KEY] = copy.deepcopy(newer)
+    h, conn = _house(tmp_path, on=True), MagicMock()
+    _run(W.ws_house3d_clear(h, conn, {"id": 1}))
+    assert conn.send_error.call_args[0][1] == "house3d_newer"
+    assert calls == [] and _saves() == 0 and store.saved[HOUSE3D_STORE_KEY] == newer
+    assert h.data[DOMAIN][DATA_HOUSE3D].data == newer
+
+
+@pytest.mark.parametrize("how", ["raised", "swallowed"])
+def test_a_clear_whose_write_fails_removes_nothing(store, monkeypatch, tmp_path, how):
+    """A write that raises (SafeStore catches it), or one Home Assistant's
+    Store swallows (it logs the error and returns normally; the old file
+    stays): the answer is save_failed, and the file and the memory keep it all."""
+    _no_backups(monkeypatch)
+    _disk_file(tmp_path)
+    before = {**H.empty(), "pieces": {"fur_1": dict(_PIECE)}}
+    store.saved[HOUSE3D_STORE_KEY] = copy.deepcopy(before)
+
+    async def _save(self, data):
+        store.events.append(("save", self.key))
+        if how == "raised":
+            raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(_FakeStore, "async_save", _save)
+    h, conn = _house(tmp_path, on=True), MagicMock()
+    _run(W.ws_house3d_clear(h, conn, {"id": 1}))
+    assert conn.send_error.call_args[0][1] == "save_failed"
+    assert store.saved[HOUSE3D_STORE_KEY] == before
+    assert h.data[DOMAIN][DATA_HOUSE3D].data == before, "memory keeps it all too"
+
+
+def test_an_edit_never_lands_between_a_clears_backup_and_the_clear(store, monkeypatch, tmp_path):
+    """The edit waits for the clear: it is in the clear's backup, or saved
+    after the clear, and never lost between the two."""
+    from custom_components.padspan_ha import ws_backup
+    taken = []
+
+    async def _bk(hass, note, keys):
+        taken.append(copy.deepcopy(hass.data[DOMAIN][DATA_HOUSE3D].data))
+        await asyncio.sleep(0)       # a backup takes a while
+        await asyncio.sleep(0)
+        return "bk_1"
+
+    monkeypatch.setattr(ws_backup, "_auto_backup", _bk)
+    _disk_file(tmp_path)
+    store.saved[HOUSE3D_STORE_KEY] = {**H.empty(), "lights": {"light.a": {"z_m": 1.0}}}
+    h, clear, edit = _house(tmp_path, on=True), MagicMock(), MagicMock()
+    _run(H.async_get_store(h))
+
+    async def both():
+        await asyncio.gather(W.ws_house3d_clear(h, clear, {"id": 1}),
+                             W.ws_house3d_edit(h, edit, {"id": 2, "lights": {"light.b": {"z_m": 2.0}}}))
+
+    _run(both())
+    assert clear.send_result.call_args[0][1]["cleared"] is True and edit.send_result.called
+    on_disk = store.saved[HOUSE3D_STORE_KEY]
+    assert "light.b" in on_disk["lights"] or any("light.b" in t["lights"] for t in taken), \
+        "the edit is on disk or in the clear's backup"
+    assert h.data[DOMAIN][DATA_HOUSE3D].data == on_disk
 
 
 # ═══ registered everywhere a store must be ════════════════════════════════════

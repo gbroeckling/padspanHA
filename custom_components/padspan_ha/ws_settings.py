@@ -473,6 +473,12 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
     """
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if st:
+        # North: the 3D compass writes it, the GPS Bridge and the 3D sun read
+        # it, and % 360 keeps NaN as NaN (an infinity becomes NaN). Refused
+        # before anything else in the message is acted on.
+        if "fabric_bearing_deg" in msg and not math.isfinite(msg["fabric_bearing_deg"]):
+            connection.send_error(msg["id"], "invalid", "North must be a finite number of degrees")
+            return
         payload: dict[str, Any] = {}
         # Only touch data_mode when the message actually carries it.  Callers
         # that omit it (e.g. the lights panel hiding a light) must not flip
