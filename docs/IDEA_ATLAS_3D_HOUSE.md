@@ -548,9 +548,14 @@ targeted re-check rather than a full re-review unless the fix touched shared cod
   tracing the plan; it works in the 3D view too. One finger draws while the tool is on; two
   fingers still pan and zoom. Doors and windows with sensors keep coming from the map's own door
   marking and show open or closed; this tool adds the ones without sensors.
-- **Compass.** A compass in the 3D view. North is the bearing the GPS Bridge already stores
-  (`fabric_bearing_deg`, the convention in `geo_bridge.py`), and it can also be set in the 3D
-  house settings.
+- **Compass.** A compass at the top left of the 3D view that you **spin to line north up with what
+  you see** (Garry: "a compass at the top left that I can spin"). Drag its needle; the sun,
+  shadows and day/night follow live; then Save north or Cancel, so a stray touch on the wall PC
+  can't move it. A tap turns the view north-up. It stores the bearing the GPS Bridge already uses
+  (`fabric_bearing_deg`), also shown in the 3D house settings. The fabric is y-down (+Y runs down
+  the plan), so the 3D view has its own corrected maths in one place (`fabric_compass.js`).
+  `geo_bridge.py` assumes y-up and so mirrors positions; that is a main-branch bug, left alone for
+  now (Garry's GPS Bridge is off).
 - **Sun.** Sunlight from `sun.sun`'s azimuth and elevation (worked out from the home's location if
   `sun.sun` is missing), with shadows on High, night when the sun is down, and light through the
   windows. Moved here from P8.
