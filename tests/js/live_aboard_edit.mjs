@@ -361,6 +361,21 @@ await tryCase("errors: a newer PadSpan's 3D file is drawn, and Edit is unavailab
   poll();
   await settle();
 });
+// A schema of 1.0 reads here as 1; the server never writes it, and its read
+// says so (writable: false): that decides.
+await tryCase("schema: a file the server says this version never writes (1.0, read here as 1) is drawn, and Edit is unavailable and says why", async () => {
+  const data = JSON.parse(JSON.stringify(FILE0).replace('"schema":1', '"schema":1.0'));
+  const v = await otherView("schema-float", async () => ({ data: clone(data), writable: false }));
+  const s = v.s._state(), e = s.edit;
+  v.editBtn().click();
+  await settle();
+  check("schema: a file the server says this version never writes (1.0, read here as 1) is drawn, and Edit is unavailable and says why",
+    data.schema === 1 && !s.failed && s.file && s.file.openings === 3 && !e.editAvailable && /newer PadSpan/.test(e.editWhy)
+    && !v.s._state().edit.editing, { schema: data.schema, file: s.file, avail: e.editAvailable, why: e.editWhy });
+  LA.releaseLiveAboardSlot("schema-float");
+  poll();
+  await settle();
+});
 await tryCase("errors: a Save refused because the file can't be read or written keeps the draft and says so", async () => {
   const out = {};
   for (const [code, msg] of [["read_failed", "Could not read the 3D house file. Nothing was changed; try again."],

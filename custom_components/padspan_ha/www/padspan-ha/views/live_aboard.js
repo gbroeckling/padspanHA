@@ -1865,7 +1865,7 @@ function createSlot(slotKey){
     const mine = fileLoad = Promise.resolve().then(() => p.load()).then((r) => {
       if (fileLoad !== mine) return false;
       file = DRAFT.ownedOf(r && r.data);
-      setFileErr(DRAFT.writable(r && r.data) ? null : "house3d_newer");
+      setFileErr(DRAFT.writable(r && r.data, r && r.writable) ? null : "house3d_newer");
       redraw();
       return true;
     }, (err) => {

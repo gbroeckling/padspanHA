@@ -344,6 +344,26 @@ def test_a_newer_padspans_file_is_kept_whole_and_never_written(disk, tmp_path, s
         H.apply_edit(newer, {"openings": {"door_0a1b2c3d": dict(_DOOR)}})
 
 
+@pytest.mark.parametrize("schema,want", [(1, True), (0, True), ("absent", True), (1.0, False), (0.0, False), (2, False),
+                                         (True, False)])
+def test_the_read_says_whether_this_version_writes_the_file(disk, tmp_path, schema, want):
+    """The browser can't tell a schema of 1.0 from 1 (JSON reads both as the
+    number 1), and this version never writes the first: house3d_get says
+    itself whether the file is writable, by the same rule as every write."""
+    data = {**H.empty(), "lights": {"light.a": {"z_m": 1.0}}}
+    if schema == "absent":
+        data.pop("schema")
+    else:
+        data["schema"] = schema
+    _seed(tmp_path, data)
+    h, _conn = _on(tmp_path)
+    get = MagicMock()
+    _run(W.ws_house3d_get(h, get, {"id": 9}))
+    res = get.send_result.call_args[0][1]
+    assert res["writable"] is want and res["writable"] == H.writable(res["data"])
+    assert ("error" in _edit(h, MagicMock(), lights={"light.b": {"z_m": 2.0}})) is not want, "the read says what the write does"
+
+
 def test_a_schema_this_version_writes():
     for data in ({"schema": 1}, {"schema": 0}, {}, None):
         assert H.writable(H.normalise(data)), data

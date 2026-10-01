@@ -10,7 +10,9 @@ house3d_clear. Later phases add the piece, light, opening, photo, terms and
 library commands, each refused while the feature is off.
 
 - house3d_get: any user, and it works while the feature is off (backups
-  label the file from it). It reads; it never writes.
+  label the file from it). It reads; it never writes. It says whether this
+  version writes the file (writable): the browser can't tell a schema of 1.0
+  from 1 once JSON has read it.
 - house3d_clear: admin only, refused while the feature is off and below Pro
   (as if off), and takes an automatic backup of the file first. No backup, no
   clear. A file that was never written has nothing to clear: no backup, no
@@ -68,7 +70,7 @@ async def ws_house3d_get(hass: HomeAssistant, connection, msg) -> None:
     if store is None:
         return
     connection.send_result(msg["id"], {"enabled": enabled(hass), "data": store.data,
-                                       "counts": store.counts()})
+                                       "writable": writable(store.data), "counts": store.counts()})
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/house3d_clear"})

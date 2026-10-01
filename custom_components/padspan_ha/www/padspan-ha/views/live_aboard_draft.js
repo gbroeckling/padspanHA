@@ -80,8 +80,12 @@ export function addedOf(id, v){
 }
 /** May this version write the file (house3d_store.py writable)? Only a
  *  schema that is a whole number up to FILE_SCHEMA, or none: a newer
- *  PadSpan's file is drawn as far as this version reads it, never written. */
-export function writable(data){
+ *  PadSpan's file is drawn as far as this version reads it, never written.
+ *  `said`: the server's own answer (house3d_get's "writable"), which decides
+ *  when given: JSON reads a schema of 1.0, which the server never writes, as
+ *  the number 1. */
+export function writable(data, said){
+  if (typeof said === "boolean") return said;
   const s = data && typeof data === "object" && "schema" in data ? data.schema : FILE_SCHEMA;
   return Number.isInteger(s) && s >= 0 && s <= FILE_SCHEMA;
 }

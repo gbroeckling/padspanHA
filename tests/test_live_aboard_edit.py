@@ -54,6 +54,8 @@ def editor() -> dict:
     ("begin:", 1),
     # A door or window split over two wall pieces moves whole while a slider drags it.
     ("split:", 1),
+    # The server's read says whether this version writes the file (a schema of 1.0 reads here as 1).
+    ("schema:", 1),
 ])
 def test_the_editor_harness_covers_each_part(editor, prefix, least) -> None:
     got = [k for k in editor["cases"] if k.startswith(prefix)]

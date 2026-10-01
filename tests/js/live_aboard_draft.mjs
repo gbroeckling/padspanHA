@@ -144,6 +144,15 @@ tryCase("file: this version writes only a file whose schema it knows, as the ser
   const got = WRITABLE_CASES.map(([d, want]) => D.writable(d) === want);
   check("file: this version writes only a file whose schema it knows, as the server says", got.every(Boolean) && D.FILE_SCHEMA === 1, got);
 });
+// JSON reads a schema of 1.0 (never written by this version) as the number
+// 1: no rule here can see it, so the server's answer (house3d_get's
+// "writable") decides when it is given.
+tryCase("file: the server's own answer decides when it is given, as JSON reads 1.0 as 1", () => {
+  const float = JSON.parse('{"schema": 1.0}');
+  const got = [float.schema === 1, D.writable(float) === true, D.writable(float, false) === false,
+               D.writable({ schema: 1 }, true) === true, D.writable({ schema: 1 }, undefined) === true, D.writable({ schema: 2 }, null) === false];
+  check("file: the server's own answer decides when it is given, as JSON reads 1.0 as 1", got.every(Boolean), got);
+});
 tryCase("file: read tolerantly, only what the editor owns", () => {
   const v = D.ownedOf({ future: 1, openings: { win_00000001: { kind: "window", floor_id: "main", a_m: [0, 0] },
                                                win_00000002: { floor_id: "up", a_m: [0, 0], b_m: [1, 0] },
