@@ -1,0 +1,4 @@
+# A real home's layout and device names
+house_export.json
+# verify_p0.py output (pictures of that home)
+shot_*.png
