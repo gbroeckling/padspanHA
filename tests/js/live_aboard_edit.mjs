@@ -21,6 +21,11 @@
 //   save      Save sends exactly the draft's changes in one call, the file
 //             is then the saved one and the history starts again; a
 //             refused save keeps the draft and says why
+//   pointer   a poll moving the view mid-gesture (its pointer capture goes
+//             with the move), then a lift off the view: the gesture ends,
+//             and the next tap, click, line or compass tap still works, for
+//             touch and for the mouse; a lost capture is taken back, a
+//             pointer that is gone ends; leaving 3D lets go of what is down
 //
 // usage: live_aboard_edit.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...], payloads: [...] }
@@ -144,14 +149,15 @@ const click = (label, cls) => { const b = button(label, cls); if (!b || b.disabl
 
 let seq = 0;
 /** A pointer event sent as a browser does: the window's capture listeners,
- *  then the target's own (the canvas, or something else on the page). */
+ *  then the target's own (the canvas, the compass, or anything else on the
+ *  page: the one under the pointer, once the canvas has lost its capture). */
 function fire(type, x, y, o = {}){
   const ev = { type, pointerId: o.id ?? 1, pointerType: o.kind ?? "mouse", clientX: x, clientY: y, button: o.button ?? 0,
                buttons: o.buttons ?? (type === "pointerup" || type === "pointercancel" ? 0 : 1), isPrimary: true,
                shiftKey: false, ctrlKey: false, metaKey: false, timeStamp: ++seq, target: o.target || canvas(),
                preventDefault(){}, stopPropagation(){} };
   for (const fn of [...(winL[type] || [])]) fn(ev);
-  if (ev.target === canvas()) canvas().dispatchEvent(ev);
+  ev.target.dispatchEvent(ev);
   return ev;
 }
 function drag(a, b, o = {}, steps = 8){
@@ -296,6 +302,114 @@ await tryCase("save: a refused save keeps the draft and says why", async () => {
   check("save: a refused save keeps the draft and says why",
     e.dirty && e.canUndo && JSON.stringify(e.draft) === before && /^Not saved: nope/.test(e.hint) && e.hintBad, { hint: e.hint, dirty: e.dirty });
   await closeEdit();
+});
+
+// ── pointer ─────────────────────────────────────────────────────────────────
+// A poll moving the view into a new card takes the canvas's pointer capture
+// with it: a lift off the canvas then reaches the window alone (sent here as
+// a browser sends it, to the page under the finger).
+const roomAt = (name) => slot._where({ room: name });
+function roomOpens(name, o){
+  const n0 = api.calls.length;
+  tap(roomAt(name), o);
+  return api.calls.slice(n0).some(c => c[0] === "room" && c[1] === name);
+}
+/** Down on the house, a poll mid-drag, and the lift off the view. */
+function strand(o){
+  fire("pointerdown", 400, 300, o);
+  fire("pointermove", 420, 300, o);
+  poll();
+  fire("pointermove", 440, 640, { ...o, target: document.body });
+  fire("pointerup", 440, 640, { ...o, target: document.body });
+}
+await tryCase("pointer: a touch let go off the view after a poll ends there; taps and the compass still work", async () => {
+  await closeEdit();
+  slot._look(0.9, 0.9, [5, 2.8, 4], 30);
+  await settle();
+  strand({ kind: "touch", id: 11 });
+  await settle();
+  const room = roomOpens("Den", { kind: "touch", id: 12 });
+  slot._look(0.9, 0.9, [5, 2.8, 4], 30);
+  const comp = root().querySelectorAll(".la3d-compass")[0], o = { kind: "touch", id: 13, target: comp };
+  fire("pointerdown", 30, 30, o);
+  fire("pointerup", 30, 30, o);
+  const north = Math.abs(st().cam.theta - H.northUpTheta(0)) < 1e-9;
+  check("pointer: a touch let go off the view after a poll ends there; taps and the compass still work", room && north,
+    { room, theta: st().cam.theta, north: H.northUpTheta(0) });
+});
+await tryCase("pointer: a mouse let go off the view after a poll ends there; no turning with no button held; clicks still work", async () => {
+  slot._look(0.9, 0.9, [5, 2.8, 4], 30);
+  await settle();
+  strand({ kind: "mouse", id: 1 });
+  await settle();
+  const th0 = st().cam.theta;
+  fire("pointermove", 300, 300, { kind: "mouse", id: 1, buttons: 0 });
+  fire("pointermove", 360, 330, { kind: "mouse", id: 1, buttons: 0 });
+  const still = st().cam.theta === th0;
+  const room = roomOpens("Den", { kind: "mouse", id: 1 });
+  check("pointer: a mouse let go off the view after a poll ends there; no turning with no button held; clicks still work",
+    still && room, { th0, th: st().cam.theta, room });
+});
+await tryCase("pointer: in Edit, a line drawn across a poll and let go off the view is drawn; the next tap still marks an end", async () => {
+  await openEdit();
+  await pickTool("window");
+  const n0 = Object.keys(ed().draft.openings).length, o = { kind: "touch", id: 21 };
+  const a = where("main", 10, 4.4, WALL_Z), b = where("main", 10, 6, WALL_Z);
+  fire("pointerdown", a[0], a[1], o);
+  for (let i = 1; i <= 4; i++) fire("pointermove", a[0] + (b[0] - a[0]) * i / 8, a[1] + (b[1] - a[1]) * i / 8, o);
+  poll();
+  await settle();
+  for (let i = 5; i <= 8; i++) fire("pointermove", a[0] + (b[0] - a[0]) * i / 8, a[1] + (b[1] - a[1]) * i / 8, { ...o, target: document.body });
+  fire("pointerup", b[0], b[1], { ...o, target: document.body });
+  const drawn = Object.keys(ed().draft.openings).length === n0 + 1 && !ed().gesture;
+  tap(where("main", 0, 6.5, WALL_Z), { kind: "touch", id: 22 });
+  const marked = ed().pending;
+  check("pointer: in Edit, a line drawn across a poll and let go off the view is drawn; the next tap still marks an end",
+    drawn && marked, { drawn, marked, gesture: ed().gesture, n: [n0, Object.keys(ed().draft.openings).length] });
+  await closeEdit();
+});
+await tryCase("pointer: a capture lost to a poll is taken back; a pointer the browser says is gone ends there", async () => {
+  const c = canvas(), held = new Set(), gone = new Set();
+  c.setPointerCapture = (id) => { if (gone.has(id)) throw new DOMException("No active pointer", "NotFoundError"); held.add(id); };
+  c.releasePointerCapture = (id) => { held.delete(id); };
+  const lose = (id) => { held.delete(id); c.dispatchEvent({ type: "lostpointercapture", pointerId: id }); };
+  try {
+    fire("pointerdown", 400, 300, { kind: "touch", id: 31 });
+    lose(31);
+    const retaken = held.has(31);
+    fire("pointerup", 400, 300, { kind: "touch", id: 31 });
+    fire("pointerdown", 400, 300, { kind: "touch", id: 32 });
+    gone.add(32);
+    lose(32);                                              // no lift ever comes for it
+    const room = roomOpens("Den", { kind: "touch", id: 33 });
+    check("pointer: a capture lost to a poll is taken back; a pointer the browser says is gone ends there", retaken && room, { retaken, room });
+  } finally {
+    delete c.setPointerCapture; delete c.releasePointerCapture;
+  }
+});
+await tryCase("pointer: a drag the canvas alone hears turns the house as one through the window does", async () => {
+  // As a browser sends it (window, then the canvas), and sent to the canvas
+  // alone (an event that never leaves its shadow root, as a page's own
+  // synthetic ones): the same drag turns the house just as far.
+  const turn = (send) => {
+    slot._look(0.9, 0.9, [5, 2.8, 4], 30);
+    const th0 = st().cam.theta;
+    send("pointerdown", 300, 300); for (let i = 1; i <= 4; i++) send("pointermove", 300 + i * 10, 300); send("pointerup", 340, 300);
+    return st().cam.theta - th0;
+  };
+  const both = turn((type, x, y) => fire(type, x, y, { kind: "touch", id: 51 }));
+  const alone = turn((type, x, y) => canvas().dispatchEvent({ type, pointerId: 52, pointerType: "touch", clientX: x, clientY: y, button: 0,
+    buttons: type === "pointerup" ? 0 : 1, isPrimary: true, timeStamp: ++seq, target: canvas(), preventDefault(){}, stopPropagation(){} }));
+  check("pointer: a drag the canvas alone hears turns the house as one through the window does", Math.abs(both) > 0.01 && Math.abs(both - alone) < 1e-9,
+    { both, alone });
+});
+await tryCase("pointer: leaving 3D lets go of whatever is down", async () => {
+  fire("pointerdown", 400, 300, { kind: "touch", id: 41 });
+  slot.detach();
+  poll();
+  await settle();
+  const room = roomOpens("Den", { kind: "touch", id: 42 });
+  check("pointer: leaving 3D lets go of whatever is down", room, { room });
 });
 
 check("the view never failed", !st().failed, { failed: st().failed });

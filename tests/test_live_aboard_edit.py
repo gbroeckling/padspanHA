@@ -5,7 +5,8 @@
 
 Its rules are run for real in tests/js/live_aboard_draft.mjs, and the editor
 itself in tests/js/live_aboard_edit.mjs: inside the real 3D view under node
-(only the GL is a stub), on a two-floor house, its picking, Save and rebase.
+(only the GL is a stub), on a two-floor house, its picking, Save and rebase,
+and the view's pointers across a poll that moves it mid-gesture.
 Held here, from the source: the light-placement gate on both ends, Save
 through the host only, leaving with unsaved changes asking in the page, one
 finger drawing while two still pinch, the draft living in the long-lived
@@ -42,7 +43,7 @@ def editor() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("pick:", 4), ("save:", 2)])
+@pytest.mark.parametrize("prefix,least", [("pick:", 4), ("save:", 2), ("pointer:", 6)])
 def test_the_editor_harness_covers_each_part(editor, prefix, least) -> None:
     got = [k for k in editor["cases"] if k.startswith(prefix)]
     assert len(got) >= least, (prefix, got)

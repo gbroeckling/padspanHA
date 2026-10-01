@@ -220,6 +220,7 @@ function createSlot(slotKey){
   let northHold = null;                    // {b, until}: just saved, until the host catches up
   let spin = null, compassEl = null, pill = null, pillBtns = [], unhookNorth = null, saveNorthCb = null;
   const camPts = new Map();                // fingers and buttons down on the house itself
+  let dropPointers = () => {};             // ends every one of them, as a cancel (wirePointer)
   // Shared, made once per slot.
   let shared = null;
   let hemi = null, sun = null, lampPool = [], lampsDirty = true, ground = null, gridLines = null;
@@ -249,7 +250,7 @@ function createSlot(slotKey){
     try { if (root && root.parentNode) root.parentNode.removeChild(root); } catch (_) { /* already out */ }
   }
   function teardown(){
-    try { endSpin(false); hidePill(); } catch (_) { /* nothing to undo */ }
+    try { endSpin(false); hidePill(); dropPointers(); } catch (_) { /* nothing to undo */ }
     try { if (use) use.dispose(); } catch (_) { /* gone with the view */ }
     use = null;
     try { if (editor) editor.dispose(); } catch (_) { /* gone with the view */ }
@@ -1422,41 +1423,28 @@ function createSlot(slotKey){
   }
   function wirePointer(){
     const pts = camPts;
-    let mode = null, last = null, pinch = null, press = null;
+    let mode = null, last = null, pinch = null, press = null, unfollow = null;
     const mid = () => { const [a, b] = [...pts.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) }; };
-    // A press on something in the house (live_aboard_use.js), followed on
-    // the window like a spin, so it outlives a poll moving the view. Moved
-    // before it is held, it is no press: the drag turns the house, from
-    // where it began.
-    const endPress = () => { const p = press; press = null; if (p) p.unhook(); };
-    const startPress = (e) => {
-      mode = "press";
-      press = { id: e.pointerId, x0: e.clientX, y0: e.clientY, unhook: null };
-      const mine = (ev) => !!press && ev.pointerId === press.id;
-      const move = guard((ev) => {
-        if (!mine(ev)) return;
-        pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
-        if (use.move(ev) !== "cancel") return;
-        const p0 = press;
-        endPress();
-        mode = "orbit";
-        orbitBy(ev.clientX - p0.x0, ev.clientY - p0.y0);
-        last = { x: ev.clientX, y: ev.clientY };
-      });
-      const lift = guard((ev) => {
-        if (!mine(ev)) return;
-        endPress();
-        pts.delete(ev.pointerId);
-        mode = null; last = null;
-        if (ev.type === "pointercancel") use.cancel(); else use.up(ev);
-      });
-      window.addEventListener("pointermove", move, true);
+    // Every finger and button down on the house is followed on the window
+    // (capture) until it lifts, as a spin is. A poll moving the view into a
+    // new card takes the canvas's pointer capture with it, and a lift off
+    // the canvas then never reaches the canvas: the pointer would stay down
+    // here, every later press a pinch, and a mouse would turn the house with
+    // no button held. Each event counts once, heard first on the window or
+    // on the canvas itself (one sent to the canvas alone, never composed out
+    // of its shadow root, reaches no window).
+    const heard = new WeakSet();
+    const once = (fn) => guard((e) => { if (heard.has(e)) return; heard.add(e); fn(e); });
+    const follow = () => {
+      if (unfollow) return;
+      window.addEventListener("pointermove", moved, true);
       window.addEventListener("pointerup", lift, true);
       window.addEventListener("pointercancel", lift, true);
-      press.unhook = () => {
-        window.removeEventListener("pointermove", move, true);
+      unfollow = () => {
+        window.removeEventListener("pointermove", moved, true);
         window.removeEventListener("pointerup", lift, true);
         window.removeEventListener("pointercancel", lift, true);
+        unfollow = null;
       };
     };
     canvas.addEventListener("pointerdown", guard((e) => {
@@ -1464,9 +1452,10 @@ function createSlot(slotKey){
       if (typeof touchCb === "function") { try { touchCb(); } catch (_) { /* the card's, not ours */ } }
       const onlyNorth = e === northDismissed;                // this tap put north back, nothing more
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* fine */ }
+      follow();
+      try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* followed on the window anyway */ }
       if (pts.size === 2) {
-        if (press) { endPress(); use.cancel(); }               // a second finger: a pinch, never a press
+        if (press) { press = null; use.cancel(); }           // a second finger: a pinch, never a press
         if (mode === "edit" || mode === "editTap") editor.cancel();   // ...and never a line
         mode = "pinch"; pinch = mid(); return;
       }
@@ -1481,17 +1470,33 @@ function createSlot(slotKey){
         else if (g === "tap") mode = "editTap";
         return;
       }
-      if (mode === "orbit" && pts.size === 1 && !onlyNorth && use && use.down(e)) startPress(e);
+      // A press on something in the house (live_aboard_use.js). Moved
+      // before it is held, it is no press: the drag turns the house, from
+      // where it began.
+      if (mode === "orbit" && pts.size === 1 && !onlyNorth && use && use.down(e)) {
+        mode = "press";
+        press = { id: e.pointerId, x0: e.clientX, y0: e.clientY };
+      }
     }));
     canvas.addEventListener("pointermove", guard((e) => {
-      if (!pts.has(e.pointerId)) {
-        // No button down: a mouse or pen over the house — what a click would land on.
-        if (e.pointerType !== "touch" && !pts.size && editor && editor.active) editor.hover(e);
-        else if (e.pointerType !== "touch" && !pts.size && use) use.hover(e);
+      if (pts.has(e.pointerId)) { moved(e); return; }
+      // No button down: a mouse or pen over the house — what a click would land on.
+      if (pts.size || e.pointerType === "touch") return;
+      if (editor && editor.active) editor.hover(e);
+      else if (use) use.hover(e);
+    }));
+    const moved = once((e) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (mode === "press") {
+        if (use.move(e) !== "cancel") return;
+        const p0 = press;
+        press = null;
+        mode = "orbit";
+        orbitBy(e.clientX - p0.x0, e.clientY - p0.y0);
+        last = { x: e.clientX, y: e.clientY };
         return;
       }
-      if (mode === "press") return;                          // the press's own listener has it
-      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (mode === "edit") { editor.move(e); return; }
       if (mode === "editTap") {
         if (Math.hypot(e.clientX - last.x, e.clientY - last.y) <= 6) return;
@@ -1509,10 +1514,13 @@ function createSlot(slotKey){
       if (mode === "orbit") orbitBy(e.clientX - last.x, e.clientY - last.y);
       else if (mode === "pan") panBy(last.x, last.y, e.clientX, e.clientY);
       last = { x: e.clientX, y: e.clientY };
-    }));
-    const lift = guard((e) => {
-      if ((mode === "edit" || mode === "editTap") && pts.has(e.pointerId) && editor) {
-        if (e.type === "pointercancel") editor.cancel();
+    });
+    const lift = once((e) => {
+      if (!pts.has(e.pointerId)) return;
+      const cancelled = e.type === "pointercancel";
+      if (mode === "press") { press = null; if (cancelled) use.cancel(); else use.up(e); }
+      else if ((mode === "edit" || mode === "editTap") && editor) {
+        if (cancelled) editor.cancel();
         else if (mode === "edit") editor.up(e);
         else editor.tap(e);
       }
@@ -1521,10 +1529,18 @@ function createSlot(slotKey){
       if (pts.size === 1) {                                  // one finger left of a pinch: carry on turning from it
         const [p] = [...pts.values()];
         mode = "orbit"; last = { x: p.x, y: p.y }; pinch = null;
-      } else if (!pts.size) { mode = null; last = null; pinch = null; }
+      } else if (!pts.size) { mode = null; last = null; pinch = null; if (unfollow) unfollow(); }
     });
     canvas.addEventListener("pointerup", lift);
     canvas.addEventListener("pointercancel", lift);
+    // The capture went (a poll moved the view): taken back while the
+    // pointer is down. One the browser says is gone ends here, as a cancel.
+    canvas.addEventListener("lostpointercapture", guard((e) => {
+      if (!pts.has(e.pointerId)) return;
+      try { canvas.setPointerCapture(e.pointerId); } catch (_) { lift({ type: "pointercancel", pointerId: e.pointerId }); }
+    }));
+    // The view leaves (Map, or switched off): whatever is down ends, as a cancel.
+    dropPointers = () => { for (const id of [...pts.keys()]) lift({ type: "pointercancel", pointerId: id }); };
     canvas.addEventListener("pointerleave", guard((e) => { if (use && !pts.size) use.leave(e); }));
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     canvas.addEventListener("wheel", guard((e) => {
@@ -1910,7 +1926,7 @@ function createSlot(slotKey){
     },
     /** Back to the flat Atlas (Map picked, or the feature switched off).
      *  The camera and the GL context stay for a quick return. */
-    detach(){ try { fileLoad = null; cancelNorth(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); } catch (_) { /* nothing to undo */ } },
+    detach(){ try { fileLoad = null; dropPointers(); cancelNorth(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); } catch (_) { /* nothing to undo */ } },
     /** Something wants this screen to leave 3D (Map picked): with unsaved
      *  3D edits the editor asks first, in the view, and holds (true); `go`
      *  runs once they are saved or discarded. */
