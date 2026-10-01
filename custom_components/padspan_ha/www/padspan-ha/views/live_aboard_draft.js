@@ -33,6 +33,7 @@ export const GAP_MIN_M = 0.1;              // a window's least height, head over
 export const DOOR_LOW_M = 1.0;             // the lowest door the slider offers
 export const DOOR_MIN_HEAD_M = 0.5;        // the lowest door the server keeps, however low the ceiling
 export const OPENING_ID = /^(win|door)_[0-9a-f]{8}$/;
+export const FILE_SCHEMA = 1;              // the 3D file this version writes (house3d_store.py SCHEMA)
 export const SECTIONS = ["openings", "lights", "devices"];
 const UNDO_MAX = 100;
 const RUN_COS = Math.cos(3 * Math.PI / 180);    // pieces this parallel,
@@ -76,6 +77,13 @@ export function addedOf(id, v){
   }
   return { kind: "door", floor_id: fl, a_m: a, b_m: b, head_m: num(v.head_m) ?? DOOR_HEAD_M,
            hinge: v.hinge === "right" ? "right" : "left", swing: v.swing === "out" ? "out" : "in" };
+}
+/** May this version write the file (house3d_store.py writable)? Only a
+ *  schema that is a whole number up to FILE_SCHEMA, or none: a newer
+ *  PadSpan's file is drawn as far as this version reads it, never written. */
+export function writable(data){
+  const s = data && typeof data === "object" && "schema" in data ? data.schema : FILE_SCHEMA;
+  return Number.isInteger(s) && s >= 0 && s <= FILE_SCHEMA;
 }
 /** The file's data (house3d_get's "data"), cut down to what the editor owns:
  *  {openings, lights, devices}. Reading is tolerant: anything it cannot read

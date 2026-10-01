@@ -46,7 +46,7 @@ def editor() -> dict:
 
 
 @pytest.mark.parametrize("prefix,least", [
-    ("pick:", 4), ("save:", 5), ("leave:", 2), ("widths:", 1), ("limits:", 3), ("pointer:", 6), ("drag:", 2),
+    ("pick:", 4), ("save:", 5), ("leave:", 2), ("widths:", 1), ("limits:", 3), ("pointer:", 6), ("drag:", 2), ("errors:", 4),
 ])
 def test_the_editor_harness_covers_each_part(editor, prefix, least) -> None:
     got = [k for k in editor["cases"] if k.startswith(prefix)]

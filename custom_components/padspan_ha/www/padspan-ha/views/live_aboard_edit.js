@@ -39,6 +39,17 @@ const GRAB = { mouse: 16, touch: 26 };            // how near an end a press mus
 const PICK_OPENING = 8;                           // px round an opening's own outline
 const COL = { window: "#60a5fa", door: "#f59e0b", stop: "#ef4444", map: "#a3e635", arc: "#fbbf24" };
 const FEW = (n) => `${n} change${n === 1 ? "" : "s"}`;
+// The server's refusals (ws_house3d.py), said plainly. The house still draws
+// from the map, and a refused Save keeps the draft, to be saved again.
+const CANT_EDIT = {
+  read_failed: "Can't edit: the 3D file couldn't be read (nothing in it was changed). Show Map, then 3D, to try again.",
+  house3d_newer: "Can't edit: a newer PadSpan saved this 3D house, and this version never changes it. Update PadSpan to edit it.",
+};
+const NOT_SAVED = {
+  read_failed: "Not saved: the 3D file couldn't be read, so nothing was changed. Your changes are still here: Save to try again.",
+  save_failed: "Not saved: the 3D file couldn't be written, so nothing was changed. Your changes are still here: Save to try again.",
+  house3d_newer: "Not saved: a newer PadSpan saved this 3D house, and this version never changes it. Update PadSpan to save these changes.",
+};
 
 const CSS = `
 .la3d-editseg button[aria-pressed="true"]{background:rgba(245,176,65,.28)!important;color:#fff7e6!important}
@@ -50,6 +61,7 @@ const CSS = `
 .la3d-tools .la3d-save:disabled{background:rgba(82,183,136,.25)!important;color:#cfe9da!important}
 .la3d-hint{flex-basis:100%;font-size:12px;line-height:1.35;color:#d6e6dc;text-shadow:0 1px 3px #000;pointer-events:none}
 .la3d-hint.bad{color:#fca5a5}
+.la3d-editwhy{align-self:center;padding:0 8px;font-size:11px;line-height:1.3;color:#fde2e2;max-width:300px;white-space:normal}
 .la3d-sheet{position:absolute;right:10px;z-index:4;display:none;box-sizing:border-box;width:min(300px,calc(100% - 20px));
   padding:10px 12px 12px;border-radius:12px;background:rgba(6,14,9,.95);border:1px solid rgba(120,190,155,.26);
   color:#e8f0ea;font-size:12.5px;box-shadow:0 8px 22px rgba(0,0,0,.5)}
@@ -92,6 +104,7 @@ const CSS = `
  *   file()                     the 3D file as the editor owns it (DRAFT.ownedOf), or null unread
  *   reload()                   → Promise<boolean>: read the file again
  *   saved(data)                the file as the server now holds it
+ *   problem()                  why the file cannot be edited ({code: "read_failed" | "house3d_newer"}), or null
  *   redraw()                   draw the house again, from the draft while editing
  *   preview(t)                 a slider being dragged: move only what it moves, {opening: id} or
  *                              {eid}, in place from the draft (false: not drawn, redraw instead)
@@ -106,6 +119,7 @@ export function createEditor(ctx){
   let editFn = null, editing = false, draft = null, tool = null, sel = null, gesture = null, pending = null;
   let saving = false, afterSave = null, askGo = null, hintMsg = "", hintBad = false, redrawDue = false, sliderGen = 0, sheetRefresh = null;
   let moveDue = null, sliding = null;        // a slider being dragged: what it moves, drawn in place once a frame
+  let newerSeen = false;                     // a Save refused: a newer PadSpan's file (never written by this one)
   let runsGen = null, arcsGen = null;
   const runsByFloor = new Map();
   const active = () => editing && !!editFn && !!draft;
@@ -128,7 +142,9 @@ export function createEditor(ctx){
   style.textContent = CSS;
   root.appendChild(style);
   const bEdit = btn("Edit", "Draw doors and windows, set heights", () => (editing ? finish() : begin()));
-  const editSeg = seg(bEdit);
+  const editWhy = d("span", "la3d-editwhy");                   // why Edit is unavailable, said in the page
+  editWhy.id = `la3d-editwhy-${Math.random().toString(36).slice(2, 8)}`;
+  const editSeg = seg(bEdit, editWhy);
   editSeg.classList.add("la3d-editseg");
   editSeg.style.cssText = "display:none;margin-left:auto";      // beside the view buttons, on the right
   bar.insertBefore(editSeg, bar.querySelector("[data-la3d-views]"));
@@ -339,6 +355,15 @@ export function createEditor(ctx){
     return rec ? { a: rec.a_m, b: rec.b_m } : null;
   }
 
+  // Why the 3D file cannot be edited, plainly ("" when it can): read but
+  // refused (the file is there but unreadable), or a newer PadSpan's file,
+  // which this version never writes (ws_house3d.py). The house still draws
+  // from the map either way.
+  function cantEdit(){
+    const p = ctx.problem ? ctx.problem() : null, code = newerSeen ? "house3d_newer" : p && p.code;
+    return code ? CANT_EDIT[code] || CANT_EDIT.read_failed : "";
+  }
+
   // ── the draft ─────────────────────────────────────────────────────────────
   // Nothing changes it while a save is in flight: what was sent is what the
   // draft starts again from once it is in (rebase).
@@ -408,8 +433,11 @@ export function createEditor(ctx){
       if (draft === sent) draft.rebase(ctx.file() || DRAFT.ownedOf(r.data));
       hint("Saved.");
     } catch (err) {
+      // Refused: the draft stays, to be saved again; what went wrong said plainly.
       saving = false; afterSave = null;
-      hint(`Not saved: ${String((err && (err.message || err.code)) || err)}`, true);
+      const code = err && err.code;
+      if (code === "house3d_newer") newerSeen = true;
+      hint(NOT_SAVED[code] || `Not saved: ${String((err && (err.message || err.code)) || err)}`, true);
       paint();
       return;
     }
@@ -423,7 +451,7 @@ export function createEditor(ctx){
 
   // ── Edit, the tools, leaving ──────────────────────────────────────────────
   async function begin(){
-    if (!editFn || editing || saving) return;
+    if (!editFn || editing || saving || cantEdit()) return;
     let f = ctx.file();
     if (!f) {
       hint("Reading the 3D file…");
@@ -504,12 +532,18 @@ export function createEditor(ctx){
     editSeg.style.display = editFn ? "" : "none";
     bEdit.textContent = editing ? "Done" : "Edit";
     bEdit.setAttribute("aria-pressed", String(editing));
+    // Edit unavailable: greyed (it still takes focus) with the reason beside it.
+    const why = editing ? "" : cantEdit();
+    editWhy.textContent = why;
+    editWhy.style.display = why ? "" : "none";
+    if (why) { bEdit.setAttribute("aria-disabled", "true"); bEdit.setAttribute("aria-describedby", editWhy.id); bEdit.style.opacity = "0.5"; }
+    else { bEdit.removeAttribute("aria-disabled"); bEdit.removeAttribute("aria-describedby"); bEdit.style.opacity = ""; }
     tools.classList.toggle("on", on);
     for (const [b, t] of [[bDoor, "door"], [bWin, "window"], [bHts, "heights"]]) b.setAttribute("aria-pressed", String(tool === t));
     bUndo.disabled = !on || saving || !draft.canUndo;
     bRedo.disabled = !on || saving || !draft.canRedo;
     const dirty = on && draft.dirty;
-    bSave.disabled = !dirty || saving;
+    bSave.disabled = !dirty || saving || newerSeen;
     bSave.textContent = saving ? "Saving…" : "Save";
     bDiscard.disabled = !dirty || saving;
     sheet.classList.toggle("busy", saving);
@@ -879,6 +913,8 @@ export function createEditor(ctx){
       if (had !== !!editFn) { paint(); sheetFor(); if (editing) { syncArcs(); ctx.redraw(); } }
     },
     get active(){ return active(); },
+    /** The file was read again, or could not be: Edit says so. */
+    refresh(){ paint(); },
     /** The draft while editing (what the view draws instead of the file). */
     view(){ return active() ? draft.cur : null; },
     down, move, up, tap: (e) => tap(e), cancel, hover, layout, holdLeave,
@@ -899,7 +935,8 @@ export function createEditor(ctx){
                sel: sel ? (sel.opening ? { opening: { id: sel.opening.id, added: sel.opening.added, kind: sel.opening.kind } } : { eid: sel.eid }) : null,
                draft: draft ? JSON.parse(JSON.stringify(draft.cur)) : null, changes: draft ? draft.changes() : null,
                gesture: gesture ? { kind: gesture.kind, span: gesture.span || null } : null, pending: !!pending,
-               line: line.visible, arcs: arcs.length / 3 };
+               line: line.visible, arcs: arcs.length / 3, cantEdit: cantEdit(), editWhy: editWhy.style.display === "none" ? "" : editWhy.textContent,
+               editAvailable: bEdit.getAttribute("aria-disabled") !== "true" };
     },
     /** A plan point on floor fid at height z, in client px (the harness presses it). */
     whereOf(fid, x, y, z = 1){ const F = ctx.floors().find(q => q.fl.id === fid); return F ? screenAt(F, x, y, z) : null; },

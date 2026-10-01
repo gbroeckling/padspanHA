@@ -308,6 +308,79 @@ await tryCase("save: a refused save keeps the draft and says why", async () => {
   await closeEdit();
 });
 
+// ── errors ──────────────────────────────────────────────────────────────────
+// The server's refusals (ws_house3d.py), each said plainly: a file that is
+// there but unreadable (read_failed) or a newer PadSpan's (house3d_newer) is
+// never treated as an empty house: the house draws from the map, Edit is
+// unavailable with one line saying why; a refused Save keeps the draft.
+/** Another screen's view on this page, with its own load. */
+async function otherView(key, load){
+  const s = LA.liveAboardSlot(key), c = document.createElement("div"), stage = document.createElement("div");
+  c.appendChild(stage);
+  document.body.replaceChildren(c);
+  s.attach(stage, { ...P(), load });
+  await settle(30);
+  const editBtn = () => s.element.querySelectorAll("button").find(b => b.textContent === "Edit" || b.textContent === "Done");
+  return { s, stage, editBtn };
+}
+await tryCase("errors: a 3D file that can't be read: drawn from the map, Edit unavailable and says why", async () => {
+  let unreadable = true;
+  const load = async () => {
+    if (unreadable) throw { code: "read_failed", message: "Could not read the 3D house file. Nothing was changed; try again." };
+    return { data: clone(FILE0) };
+  };
+  const v = await otherView("errors-unreadable", load);
+  const s0 = v.s._state(), e0 = s0.edit;
+  v.editBtn().click();
+  await settle();
+  const pressed = v.s._state().edit.editing;
+  // The next showing reads it again: readable now, Edit is back.
+  unreadable = false;
+  v.s.detach();
+  v.s.attach(v.stage, { ...P(), load });
+  await settle(30);
+  const e1 = v.s._state().edit;
+  check("errors: a 3D file that can't be read: drawn from the map, Edit unavailable and says why",
+    !s0.failed && s0.floors === 2 && s0.walls > 10 && s0.file === null && !e0.editAvailable && /couldn't be read/.test(e0.editWhy)
+    && !pressed && e1.editAvailable && e1.editWhy === "" && v.s._state().file && v.s._state().file.openings === 3,
+    { failed: s0.failed, file: s0.file, e0: { avail: e0.editAvailable, why: e0.editWhy }, pressed, e1: { avail: e1.editAvailable, why: e1.editWhy } });
+  LA.releaseLiveAboardSlot("errors-unreadable");
+  poll();
+  await settle();
+});
+await tryCase("errors: a newer PadSpan's 3D file is drawn, and Edit is unavailable and says why", async () => {
+  const newer = { ...clone(FILE0), schema: 2, pieces: { future: { what: "a newer thing" } } };
+  const v = await otherView("errors-newer", async () => ({ data: newer }));
+  const st2 = v.s._state(), e = st2.edit;
+  v.editBtn().click();
+  await settle();
+  check("errors: a newer PadSpan's 3D file is drawn, and Edit is unavailable and says why",
+    !st2.failed && st2.file && st2.file.openings === 3 && st2.added === 3 && !e.editAvailable && /newer PadSpan/.test(e.editWhy)
+    && !v.s._state().edit.editing, { file: st2.file, added: st2.added, avail: e.editAvailable, why: e.editWhy });
+  LA.releaseLiveAboardSlot("errors-newer");
+  poll();
+  await settle();
+});
+await tryCase("errors: a Save refused because the file can't be read or written keeps the draft and says so", async () => {
+  const out = {};
+  for (const [code, msg] of [["read_failed", "Could not read the 3D house file. Nothing was changed; try again."],
+                             ["save_failed", "Could not save the 3D house. Nothing was changed."]]) {
+    await openEdit();
+    await pickTool("window");
+    drag(where("main", 10, 5, WALL_Z), where("main", 10, 6.4, WALL_Z));
+    const before = JSON.stringify(ed().draft);
+    server.fail = { code, message: msg };
+    click("Save", "la3d-tools");
+    await settle();
+    const e = ed(), saveBtn = button("Save", "la3d-tools");
+    out[code] = { kept: e.dirty && JSON.stringify(e.draft) === before, hint: e.hint, bad: e.hintBad, canRetry: !!saveBtn && !saveBtn.disabled };
+    await closeEdit();
+  }
+  check("errors: a Save refused because the file can't be read or written keeps the draft and says so",
+    out.read_failed.kept && /^Not saved: the 3D file couldn't be read, so nothing was changed\. Your changes are still here/.test(out.read_failed.hint)
+    && out.save_failed.kept && /^Not saved: the 3D file couldn't be written, so nothing was changed\. Your changes are still here/.test(out.save_failed.hint)
+    && Object.values(out).every(o => o.bad && o.canRetry), out);
+});
 /** A save held in flight until release() (the server answers late). */
 function holdSaves(){
   let release = null;
@@ -705,6 +778,27 @@ await tryCase("pointer: leaving 3D lets go of whatever is down", async () => {
   await settle();
   const room = roomOpens("Den", { kind: "touch", id: 42 });
   check("pointer: leaving 3D lets go of whatever is down", room, { room });
+});
+
+// Last of all (from here this screen holds a newer PadSpan's file): a Save
+// refused as house3d_newer keeps the draft, says why, and Save then waits.
+await tryCase("errors: a Save refused for a newer PadSpan's file keeps the draft and says why", async () => {
+  await openEdit();
+  await pickTool("window");
+  drag(where("main", 10, 5, WALL_Z), where("main", 10, 6.4, WALL_Z));
+  const before = JSON.stringify(ed().draft);
+  server.fail = { code: "house3d_newer", message: "This 3D house was saved by a newer PadSpan." };
+  click("Save", "la3d-tools");
+  await settle();
+  const e = ed(), saveBtn = button("Save", "la3d-tools");
+  const out = { kept: e.dirty && JSON.stringify(e.draft) === before, hint: e.hint, bad: e.hintBad, saveOff: !!saveBtn && saveBtn.disabled };
+  click("Discard", "la3d-tools");
+  click("Done");
+  await settle();
+  const after = ed();
+  check("errors: a Save refused for a newer PadSpan's file keeps the draft and says why",
+    out.kept && out.bad && /^Not saved: a newer PadSpan saved this 3D house/.test(out.hint) && out.saveOff
+    && !after.editing && !after.editAvailable && /newer PadSpan/.test(after.editWhy), { ...out, after: { avail: after.editAvailable, why: after.editWhy } });
 });
 
 check("the view never failed", !st().failed, { failed: st().failed });

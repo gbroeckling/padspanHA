@@ -123,3 +123,15 @@ def test_the_view_reads_the_file_only_through_its_host() -> None:
 
 def test_the_new_file_is_credited_in_the_report() -> None:
     assert "live_aboard_draft" in T.UI_ERROR_HELPERS and T.event_allowed("ui_error:live_aboard_draft")
+
+
+def test_the_editor_knows_which_files_this_version_writes() -> None:
+    """A newer PadSpan's 3D file is drawn but never edited: the frontend's
+    rule (live_aboard_draft.js writable, FILE_SCHEMA) is the server's
+    (house3d_store.py writable, SCHEMA), over the same table the JS
+    harness holds it to."""
+    js = (_VIEWS / "live_aboard_draft.js").read_text(encoding="utf-8")
+    assert f"export const FILE_SCHEMA = {HS.SCHEMA};" in js
+    harness = (Path(__file__).parent / "js" / "live_aboard_draft.mjs").read_text(encoding="utf-8")
+    table = json.loads(re.search(r"export const WRITABLE_CASES = (\[.*\]);", harness).group(1))
+    assert table and all(HS.writable(d) == want for d, want in table), table

@@ -137,6 +137,13 @@ tryCase("draft: new ids are win_ or door_ and 8 hex digits", () => {
 });
 
 // ── file ────────────────────────────────────────────────────────────────────
+// The server's own rule (house3d_store.py writable), case by case: the same
+// table is held against it in test_live_aboard_draft.py.
+export const WRITABLE_CASES = [[null, true], [{}, true], [{"schema": 0}, true], [{"schema": 1}, true], [{"schema": 2}, false], [{"schema": 1.5}, false], [{"schema": "1"}, false], [{"schema": true}, false], [{"schema": -1}, false]];
+tryCase("file: this version writes only a file whose schema it knows, as the server says", () => {
+  const got = WRITABLE_CASES.map(([d, want]) => D.writable(d) === want);
+  check("file: this version writes only a file whose schema it knows, as the server says", got.every(Boolean) && D.FILE_SCHEMA === 1, got);
+});
 tryCase("file: read tolerantly, only what the editor owns", () => {
   const v = D.ownedOf({ future: 1, openings: { win_00000001: { kind: "window", floor_id: "main", a_m: [0, 0] },
                                                win_00000002: { floor_id: "up", a_m: [0, 0], b_m: [1, 0] },

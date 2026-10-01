@@ -251,6 +251,9 @@ function createSlot(slotKey){
   // first shows, and again after the screen went back to Map; null until
   // read. lastP: the card's newest data, to draw again from.
   let file = null, fileLoad = null, lastP = null;
+  // Why the file cannot be edited: read but refused ({code: "read_failed"}),
+  // or a newer PadSpan's ({code: "house3d_newer"}); null when it can.
+  let fileErr = null;
   // The 3D editor (live_aboard_edit.js), made with the view; its draft, tool
   // and what is picked live here, so no rebuild touches them. shellGen moves
   // on every wall rebuild (the editor works out its walls again).
@@ -425,7 +428,8 @@ function createSlot(slotKey){
       THREE, HOUSE, DRAFT, root, canvas, bar, guard,
       camera: () => camera, scene: () => scene, floors: () => floorsUi, shellGen: () => shellGen,
       pick: (x, y) => pickAt(x, y), blocked: (v, own) => blocked(v, own), device: (eid) => deviceInfo(eid),
-      file: () => file, reload: () => reloadFile(), saved: (data) => { file = DRAFT.ownedOf(data); },
+      file: () => file, reload: () => reloadFile(), problem: () => fileErr,
+      saved: (data) => { file = DRAFT.ownedOf(data); fileErr = DRAFT.writable(data) ? null : { code: "house3d_newer" }; },
       redraw: () => redraw(), preview: (t) => preview(t), render: () => requestRender(), topDown: (F) => topDownOn(F),
       clearUse: () => { if (use) use.clear(); },
     });
@@ -1860,9 +1864,15 @@ function createSlot(slotKey){
     const mine = fileLoad = Promise.resolve().then(() => p.load()).then((r) => {
       if (fileLoad !== mine) return false;
       file = DRAFT.ownedOf(r && r.data);
+      fileErr = DRAFT.writable(r && r.data) ? null : { code: "house3d_newer" };
       redraw();
+      if (editor) editor.refresh();
       return true;
-    }, () => false);
+    }, (err) => {
+      // There but unreadable: the house draws from the map, and Edit says why.
+      if (fileLoad === mine && err && err.code === "read_failed") { fileErr = { code: "read_failed" }; if (editor) editor.refresh(); }
+      return false;
+    });
   }
   const redraw = guard(() => { if (lastP && renderer && !failed) update(lastP); });
   /** Read the file again (the editor opening before the first read came). */
