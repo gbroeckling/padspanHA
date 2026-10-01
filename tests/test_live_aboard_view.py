@@ -6,7 +6,11 @@
 tests/js/live_aboard_view.mjs runs views/live_aboard.js for real with a stub
 GL (tests/js/stub_gl.mjs): three.js's own renderer, the view's own frames and
 teardown. Switched off, nothing of the view is kept, over any number of
-off/on cycles. The browser checks (a real GPU, forced garbage collection, the
+off/on cycles. At rest it asks for no frame at all: full rate only while
+something has just started moving (a pulse's first seconds, a door
+swinging), a lock left unlocked on a timer about twice a second, and the rest
+(a pulse after its start, a room breathing after motion, the air's bars)
+drawn still. The browser checks (a real GPU, forced garbage collection, the
 heap and DOM counters) run outside the suite, in headless Chromium.
 """
 
@@ -36,7 +40,7 @@ def view() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("release:", 2)])
+@pytest.mark.parametrize("prefix,least", [("release:", 2), ("frames:", 4)])
 def test_the_view_harness_covers_each_part(view, prefix, least) -> None:
     got = [k for k in view["cases"] if k.startswith(prefix)]
     assert len(got) >= least, (prefix, got)

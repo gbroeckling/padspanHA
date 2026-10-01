@@ -67,7 +67,15 @@ const SUN_STEP = 0.5;                      // degrees the sun must move before t
 const NO_READING = "#64748b";              // the Atlas's "no reading" grey (its dashed line)
 const SENSOR_ON = "#3b82f6", SENSOR_QUIET = "#cfd8d3";   // a motion sensor lit while active (the Atlas's MOTION_PULSE)
 const DOOR_OPEN = 85 * D2R, WINDOW_OPEN = 50 * D2R, SWING_MS = 650;
-const AMBIENT_MS = { high: 33, low: 66 };  // pulses and flashes: about 30 frames a second, 15 on Low
+// Drawn at full rate only while something has just started moving: about
+// 30 frames a second, 15 on Low. A door or window swings; a pulse or a
+// lock's flash plays for its first LIVE_MS; whatever carries on after (a
+// pulse, a lock left unlocked, a room breathing after motion, the air's
+// bars) is drawn still, so a house at rest draws nothing at all.
+const AMBIENT_MS = { high: 33, low: 66 };
+const LIVE_MS = 5000;
+const meanOf = (v) => v.slice(1).reduce((a, x, i) => a + (x + v[i]) / 2, 0) / (v.length - 1);
+const STILL = { active: meanOf(HOUSE.MOTION_PULSE.fill), recent: meanOf(HOUSE.MOTION_RECENT.op) };   // a pulse's, a breath's mean
 const PICK_R = 22, BADGE_PX = 28;          // a device's reach for a tap (the Atlas's 44 px target); a floor badge
 const READ_H = 0.3, READ_PX = [14, 24];    // a readout's height (m), and never under / over this on screen (px)
 const READ_W = 400, READ_C = 72;           // its canvas: the pill is drawn inside, as wide as its words
@@ -199,7 +207,7 @@ function createSlot(slotKey){
   let send = null;                         // the host's report sender (closed words only)
   let touchCb = null;                      // the card's "the map was touched" (closes an open drawer)
   let observers = [];
-  let frames = 0, pending = false, dirty = true, visible = true;
+  let frames = 0, pending = false, dirty = true, visible = true, drawnW = 0, drawnH = 0;
   // The house, as drawn: shell (floors, rooms, walls) and fixtures.
   let shellSig = null, lightsSig = null, house = null, floorsUi = [], lights = [];
   let shellRes = [], lightRes = [];       // geometries, materials and textures a rebuild disposes
@@ -231,7 +239,7 @@ function createSlot(slotKey){
   let use = null, apiOf = null, apiNow = null, lbe = {}, haStarted = 0;
   let openings = [], sensorsUi = [], tints = [], readouts = [], badges = [];
   let sensorRes = [], badgeRes = [], sensorsSig = null;
-  let liveAnim = false, lastAmbient = 0, rehoverDue = false;
+  let liveMs = 0, lastAmbient = 0, rehoverDue = false;   // liveMs: how often something moving by itself is drawn (0: still)
   let northDismissed = null;               // the pointerdown that only put north back
   // The 3D file (part C), as the editor owns it (live_aboard_draft.js
   // ownedOf): read once through the host's load (house3d_get) when the view
@@ -269,7 +277,7 @@ function createSlot(slotKey){
     // Give the GPU its context back: the flat Atlas needs none.
     try { if (renderer) { renderer.dispose(); if (failed !== "context_lost") renderer.forceContextLoss(); } } catch (_) { /* best effort */ }
     renderer = null; scene = null; house = null; floorsUi = []; lights = [];
-    openings = []; sensorsUi = []; tints = []; readouts = []; badges = []; liveAnim = false;
+    openings = []; sensorsUi = []; tints = []; readouts = []; badges = []; liveMs = 0;
     // Nothing of the host's is kept: its card, its data, its callbacks.
     lastP = null; apiOf = null; apiNow = null; lbe = {}; stage = null; send = null; touchCb = null; saveNorthCb = null;
   }
@@ -889,6 +897,7 @@ function createSlot(slotKey){
       const st = HOUSE.openingState(o.bar, dl);
       if (st === o.state) continue;
       const first = o.state === null;
+      if (st === "unlocked") o.liveUntil = performance.now() + LIVE_MS;   // a flash just started
       o.state = st;
       o.to = st === "open" ? 1 : 0;
       if (first) o.at = o.to;                              // the first look is how it is, not a swing
@@ -1241,6 +1250,9 @@ function createSlot(slotKey){
       let a = null;
       for (const S of T.air) if (S.air && (!a || S.air.badness > a.badness)) a = S.air;
       const mKey = m ? `${m.active ? 1 : 0}|${m.hue}` : "", aKey = a ? `${a.hue}|${a.dur}|${a.op}` : "";
+      const act = !!(m && m.active);
+      if (act && !T.act) T.liveUntil = performance.now() + LIVE_MS;  // a pulse just started
+      T.act = act;
       if (mKey !== T.mKey) {
         T.mKey = mKey;
         if (m) T.fillMat.color.set(HOUSE.motionFill(m));
@@ -1253,27 +1265,30 @@ function createSlot(slotKey){
       if (aKey !== T.aKey) { T.aKey = aKey; if (a && T.barsMat) T.barsMat.color.set(HOUSE.airColor(a.hue)); changed = true; }
       T.mLook = m; T.aLook = a;
     }
-    liveAnim = liveMoving();
     // The box over the house says what is there now (a door just opened):
-    // on the next frame, once the new card is on the page.
-    if (changed) rehoverDue = true;
-    if (changed || liveAnim) requestRender();
-    // The motion pulses and the rings are set on the frame (animateLive);
-    // with nothing moving, a stopped pulse must still be cleared once.
-    if (changed && !liveAnim) animateLive(performance.now());
+    // on the next frame, once the new card is on the page. What changed is
+    // set at once, still or at the start of its pulse (animateLive).
+    if (changed) { rehoverDue = true; animateLive(performance.now()); requestRender(); }
   }
-  /** Anything moving by itself on a floor that shows: a pulse, the air's
-   *  bars, a flash, a swing. A floor the chips hide costs no frames. */
-  function liveMoving(){
-    if (tints.some(T => (T.mLook || T.aLook) && T.F.group.visible)) return true;
-    return openings.some(({ F, P }) => F.group.visible && (P.open.state === "unlocked" || P.open.at !== P.open.to));
+  /** How often something moving by itself, on a floor that shows, is drawn
+   *  (ms; 0: nothing, the view rests). Only while a door or window swings,
+   *  and for a pulse's or a lock's flash's first LIVE_MS. A floor the chips
+   *  hide costs no frames. */
+  function liveRate(now){
+    const fast = AMBIENT_MS[quality.profile || quality.measuring || "low"];
+    for (const { F, P } of openings) {
+      const o = P.open;
+      if (F.group.visible && (o.at !== o.to || (o.state === "unlocked" && now < o.liveUntil))) return fast;
+    }
+    for (const T of tints) if (T.act && T.F.group.visible && now < T.liveUntil) return fast;
+    return 0;
   }
   /** The frame: the Atlas's clocks, played (t: performance.now()). */
   function animateLive(t){
-    let flashing = false;
+    let flashing = false, flashLive = false;
     for (const { F, P } of openings) {
       const o = P.open;
-      if (o.state === "unlocked") flashing = true;
+      if (o.state === "unlocked") { flashing = true; if (t < o.liveUntil) flashLive = true; }
       if (o.at === o.to) continue;
       // On the clock, not by frames: a slow screen swings it as fast.
       const k = Math.min(1, Math.max(0, (t - o.t0) / SWING_MS));
@@ -1281,27 +1296,27 @@ function createSlot(slotKey){
       placePiece(F, P, !!P.cut);
     }
     if (flashing) {
-      const k = HOUSE.lockFlashAt(t);
+      // After its start, a still glow halfway between the flash's dim and its peak.
+      const k = flashLive ? HOUSE.lockFlashAt(t) : 0.5;
       shared.flashMat.color.set(HOUSE.LOCK_FLASH.from).lerp(_c.set(HOUSE.LOCK_FLASH.to), k);
       shared.flashMat.opacity = HOUSE.LOCK_FLASH.op[0] + (HOUSE.LOCK_FLASH.op[1] - HOUSE.LOCK_FLASH.op[0]) * k;
     }
-    const P0 = HOUSE.MOTION_PULSE, R0 = HOUSE.MOTION_RECENT;
+    const P0 = HOUSE.MOTION_PULSE;
     for (const T of tints) {
-      const m = T.mLook;
-      T.fillMat.opacity = !m ? 0 : m.active ? HOUSE.cycleAt(P0.fill, P0.ms, t) * FILL_K : HOUSE.cycleAt(R0.op, R0.ms, t) * RECENT_K;
+      // A pulse plays for its first LIVE_MS, then shows still, as a room
+      // breathing after motion does; the air's bars stand still.
+      const m = T.mLook, play = !!(T.act && t < T.liveUntil);
+      T.fillMat.opacity = !m ? 0 : play ? HOUSE.cycleAt(P0.fill, P0.ms, t) * FILL_K
+        : m.active ? STILL.active * FILL_K : STILL.recent * RECENT_K;
       for (const R of T.rings) {
-        if (!R.on) { R.mesh.scale.setScalar(0); R.mat.opacity = 0; continue; }
+        if (!R.on || !play) { R.mesh.scale.setScalar(0); R.mat.opacity = 0; continue; }
         const r = HOUSE.cycleAt(P0.ringR, P0.ms, t) * RING_R0;
         R.mesh.scale.set(r, 1, r);
         R.mat.opacity = HOUSE.cycleAt(P0.ringA, P0.ms, t);
       }
-      if (T.barsMat) {
-        const a = T.aLook;
-        T.barsMat.opacity = a ? Math.min(1, a.op * AIR_K) : 0;
-        if (a) T.barsTex.offset.y = (t / (a.dur * 1000)) % 1;
-      }
+      if (T.barsMat) T.barsMat.opacity = T.aLook ? Math.min(1, T.aLook.op * AIR_K) : 0;
     }
-    liveAnim = liveMoving();
+    liveMs = liveRate(t);
   }
   // Readouts keep to a size you can read; badges keep one size on screen.
   function sizeSprites(){
@@ -1319,7 +1334,7 @@ function createSlot(slotKey){
   function applyTop(){
     for (const F of floorsUi) F.group.visible = HOUSE.floorShown(F.fl, topElev);
     lampsDirty = true;
-    liveAnim = liveMoving();                                 // a floor shown again may be pulsing
+    liveMs = liveRate(performance.now());                    // a floor shown again may be swinging or flashing
   }
   function setWalls(m){
     if (!HOUSE.WALL_MODES.includes(m)) return;
@@ -1746,19 +1761,19 @@ function createSlot(slotKey){
     if (!shouldDraw()) {                                     // drawn again when it shows
       // A check cut short by hiding starts again: the gap is not a frame.
       quality.last = 0; quality.t0 = 0; quality.intervals = [];
-      if (liveAnim) dirty = true;                            // the pulses carry on when it shows
+      if (liveMs) dirty = true;                              // what moves carries on when it shows
       return;
     }
     // A press's ring and hold, the hover box's grace: timed on frames.
     const more = use ? use.tick(performance.now()) : false;
-    // Something moving by itself draws on a steady clock, slower on Low.
-    const due = dirty || !!quality.measuring
-      || (liveAnim && t - lastAmbient >= AMBIENT_MS[quality.profile || quality.measuring || "low"]);
+    // Something moving by itself draws on its own clock (liveRate).
+    const due = dirty || !!quality.measuring || (liveMs > 0 && t - lastAmbient >= liveMs - 4);
     if (due) {
       if (cam.needsFit && (canvas.clientWidth || 0) > 0) preset("iso");
       updateCutaway();
       for (const F of floorsUi) if (F.group.visible) for (const l of F.labels) l.rotation.set(-Math.PI / 2, cam.theta, 0, "YXZ");
-      if (liveAnim) { animateLive(performance.now()); lastAmbient = t; }
+      animateLive(performance.now());                        // and how often it moves now (liveMs)
+      lastAmbient = t;
       sizeSprites();
       if (lampsDirty || lampTarget.distanceToSquared(cam.target) > 1) assignLamps();
       renderer.render(scene, camera);
@@ -1778,12 +1793,14 @@ function createSlot(slotKey){
         } else requestRender();
       }
     }
-    if ((liveAnim || more) && !pending) { pending = true; requestAnimationFrame(frame); }
+    if ((liveMs || more) && !pending) { pending = true; requestAnimationFrame(frame); }
   });
   function resize(){
     if (!renderer || !root) return;
     const w = root.clientWidth, h = root.clientHeight;
     if (!w || !h) return;                                    // detached for a moment between two cards
+    if (w === drawnW && h === drawnH) return;                // moved into a new card at the same size: nothing to draw
+    drawnW = w; drawnH = h;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
@@ -1956,12 +1973,13 @@ function createSlot(slotKey){
                openings: openings.map(({ P }) => ({ eid: P.open.eid, kind: P.open.kind, state: P.open.state, at: P.open.at, to: P.open.to,
                                                      garage: P.open.garage, hinge: P.open.hinge, side: P.open.side, cut: !!P.cut })),
                tints: tints.map(T => ({ room: T.room ? T.room.name : null, motion: T.mLook, air: T.aLook,
-                                        fill: T.fillMat.opacity, bars: T.barsMat ? T.barsMat.opacity : null, rings: T.rings.filter(R => R.on).length })),
+                                        fill: T.fillMat.opacity, bars: T.barsMat ? T.barsMat.opacity : null, rings: T.rings.filter(R => R.on).length,
+                                        ringsShown: T.rings.filter(R => R.mesh.scale.x > 0).length })),
                readouts: readouts.map(R => ({ eid: R.eid, kind: R.kind, ...(R.shown || {}) })),
                motion: sensorsUi.filter(S => S.kind === "motion").map(S => ({ eid: S.eid, look: S.look || null, col: S.col })),
                badges: badges.map(B => ({ z: B.z, n: B.n, name: B.name, shown: B.F.group.visible })),
                flash: shared ? { color: "#" + shared.flashMat.color.getHexString(), opacity: shared.flashMat.opacity } : null,
-               animating: liveAnim, use: use ? use.state() : null,
+               animating: liveMs > 0, liveMs, use: use ? use.state() : null,
                // What of the host's it still holds (nothing, once switched off).
                held: { card: !!lastP, api: !!(apiOf || apiNow), stage: !!stage, send: !!send, touch: !!touchCb, north: !!saveNorthCb },
                // Part C: the 3D file as drawn.

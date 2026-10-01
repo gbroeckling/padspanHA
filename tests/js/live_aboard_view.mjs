@@ -11,6 +11,11 @@
 //             sprites' one shared geometry (three.js hangs one there for
 //             every renderer that draws a sprite), none of the host's data;
 //             over several off/on cycles the counts stay flat
+//   frames    at rest the view asks for no frame at all: a room breathing
+//             after motion and the air's bars are drawn still; a pulse just
+//             started plays at full rate, then shows still; a door swings at
+//             full rate and stops; a lock just unlocked flashes, then glows
+//             still while it stays unlocked
 //
 // usage: live_aboard_view.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...] }
@@ -101,6 +106,112 @@ await tryCase("release: over several off/on cycles the counts stay flat", async 
   }
   check("release: over several off/on cycles the counts stay flat",
     counts.every(c => JSON.stringify(c) === JSON.stringify(counts[0])), counts);
+});
+
+// ── frames ──────────────────────────────────────────────────────────────────
+// The browser hands each frame its time; the shim's queue is driven here, on
+// a clock the cases can move on.
+let clockOff = 0;
+const realNow = performance.now.bind(performance);
+performance.now = () => realNow() + clockOff;
+const shimRaf = globalThis.requestAnimationFrame;
+globalThis.requestAnimationFrame = (fn) => shimRaf(() => fn(performance.now()));
+const pendingFrames = () => shim.rafQueue.filter(Boolean).length;
+const pendingTimers = () => shim.timerQueue.filter(Boolean).map(t => t.ms);
+const ago = (ms) => new Date(Date.now() - ms).toISOString();
+const LIVE = (over = {}) => ({
+  ...LBE,
+  "binary_sensor.den_motion": { entity_id: "binary_sensor.den_motion", friendly_name: "Den motion", isMotion: true, device_class: "motion",
+                                state: "off", last_changed: ago(30 * 60e3) },
+  "sensor.den_co2": { entity_id: "sensor.den_co2", friendly_name: "Den CO2", isAir: true, device_class: "carbon_dioxide", state: "900",
+                      air_value: 900, unit_of_measurement: "ppm" },
+  "lock.front": { entity_id: "lock.front", friendly_name: "Front lock", isLock: true, state: "locked" },
+  "binary_sensor.back_door": { entity_id: "binary_sensor.back_door", friendly_name: "Back door", device_class: "door", state: "off" },
+  ...over,
+});
+const LIVE_MODEL = { ...MODEL,
+  rf_barriers_m: [...MODEL.rf_barriers_m,
+    { id: "bar_front", name: "Front door", material: "wood", floor_id: "main", points_m: [[5.5, 5], [6.4, 5]], linked_entity_id: "lock.front" },
+    { id: "bar_back", name: "Back door", material: "wood", floor_id: "main", points_m: [[1, 0], [1.9, 0]], linked_entity_id: "binary_sensor.back_door" }],
+  light_positions_m: { ...MODEL.light_positions_m, "binary_sensor.den_motion": { x_m: 7, y_m: 2, floor_id: "main" },
+                       "sensor.den_co2": { x_m: 7, y_m: 3, floor_id: "main" } } };
+const liveP = (lbe) => ({ model: LIVE_MODEL, floors: LIVE_MODEL.floors, lightsByEid: lbe });
+const den = (s) => s.tints.find(T => T.room === "Den") || null;
+/** Run what is queued, with the clock moved on `ms` first. */
+async function later(ms, rounds = 6){ clockOff += ms; await settle(rounds); }
+const withLive = (eid, patch) => LIVE({ [eid]: { ...LIVE()[eid], ...patch } });
+
+await tryCase("frames: at rest the view asks for no frame at all", async () => {
+  const slot = LA.liveAboardSlot("view-frames");
+  const { stage } = card(slot, liveP(LIVE()));
+  await later(10000, 60);                                  // the quality check, then rest
+  const s = slot._state(), d = den(s), queued = { frames: pendingFrames(), timers: pendingTimers() };
+  const f0 = s.frames;
+  await later(60000);
+  const rest = slot._state().frames - f0;
+  slot.attach(stage, P(liveP(LIVE())));                    // a poll: nothing changed
+  await later(5000);
+  check("frames: at rest the view asks for no frame at all",
+    s.profile && d && d.motion && !d.motion.active && d.air && s.liveMs === 0 && !s.animating
+    && queued.frames === 0 && queued.timers.length === 0 && rest === 0 && slot._state().frames === f0
+    && Math.abs(d.fill - 0.33 * 0.45) < 1e-9 && d.bars > 0, { liveMs: s.liveMs, den: d, queued, rest, after: slot._state().frames - f0 });
+  LA.releaseLiveAboardSlot("view-frames");
+  await settle();
+});
+await tryCase("frames: a pulse just started plays at full rate, then shows still", async () => {
+  const slot = LA.liveAboardSlot("view-pulse");
+  const { stage } = card(slot, liveP(LIVE()));
+  await later(10000, 60);
+  slot.attach(stage, P(liveP(withLive("binary_sensor.den_motion", { state: "on", last_changed: ago(0) }))));
+  await settle(2);
+  const playing = { liveMs: slot._state().liveMs, queued: pendingFrames() + pendingTimers().length, rings: den(slot._state()).rings };
+  const f0 = slot._state().frames;
+  for (let i = 0; i < 20; i++) await later(100, 3);         // two seconds of it
+  const drawn = slot._state().frames - f0;
+  await later(6000, 12);                                   // past its start
+  const s = slot._state(), d = den(s), f1 = s.frames;
+  await later(30000);
+  check("frames: a pulse just started plays at full rate, then shows still",
+    playing.liveMs === 66 && playing.queued > 0 && playing.rings === 1 && drawn >= 12 && s.liveMs === 0 && d.motion.active && d.ringsShown === 0
+    && Math.abs(d.fill - 0.375 * 0.6) < 1e-9 && slot._state().frames === f1 && pendingFrames() === 0 && pendingTimers().length === 0,
+    { playing, drawn, liveMs: s.liveMs, den: d, after: slot._state().frames - f1, frames: pendingFrames(), timers: pendingTimers() });
+  LA.releaseLiveAboardSlot("view-pulse");
+  await settle();
+});
+await tryCase("frames: a door swings at full rate and stops when it is open", async () => {
+  const slot = LA.liveAboardSlot("view-swing");
+  const { stage } = card(slot, liveP(LIVE()));
+  await later(10000, 60);
+  slot.attach(stage, P(liveP(withLive("binary_sensor.back_door", { state: "on" }))));
+  await settle(2);
+  const swinging = slot._state().liveMs;
+  for (let i = 0; i < 10; i++) await later(100, 3);
+  const s = slot._state(), door = s.openings.find(o => o.eid === "binary_sensor.back_door"), f1 = s.frames;
+  await later(30000);
+  check("frames: a door swings at full rate and stops when it is open",
+    swinging === 66 && door && door.state === "open" && door.at === 1 && s.liveMs === 0 && slot._state().frames === f1
+    && pendingFrames() === 0 && pendingTimers().length === 0, { swinging, door, liveMs: s.liveMs, after: slot._state().frames - f1 });
+  LA.releaseLiveAboardSlot("view-swing");
+  await settle();
+});
+await tryCase("frames: a lock just unlocked flashes, then glows still", async () => {
+  const slot = LA.liveAboardSlot("view-lock");
+  const { stage } = card(slot, liveP(LIVE()));
+  await later(10000, 60);
+  slot.attach(stage, P(liveP(withLive("lock.front", { state: "unlocked" }))));
+  await settle(2);
+  const fresh = slot._state().liveMs, looks = [], f0 = slot._state().frames;
+  for (let i = 0; i < 10; i++) { await later(130, 3); looks.push(slot._state().flash.opacity); }
+  const drawn = slot._state().frames - f0;
+  await later(6000, 12);
+  const s = slot._state(), f1 = s.frames, glow = s.flash;
+  await later(60000);
+  check("frames: a lock just unlocked flashes, then glows still",
+    fresh === 66 && drawn >= 8 && new Set(looks.map(v => v.toFixed(2))).size >= 4 && s.liveMs === 0
+    && Math.abs(glow.opacity - 0.775) < 1e-9 && slot._state().frames === f1 && pendingFrames() === 0 && pendingTimers().length === 0,
+    { fresh, drawn, looks, liveMs: s.liveMs, glow, after: slot._state().frames - f1 });
+  LA.releaseLiveAboardSlot("view-lock");
+  await settle();
 });
 
 console.log(JSON.stringify({ cases, failures }));
