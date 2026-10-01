@@ -252,7 +252,8 @@ function createSlot(slotKey){
   // read. lastP: the card's newest data, to draw again from.
   let file = null, fileLoad = null, lastP = null;
   // Why the file cannot be edited: read but refused ({code: "read_failed"}),
-  // or a newer PadSpan's ({code: "house3d_newer"}); null when it can.
+  // or a newer PadSpan's ({code: "house3d_newer"}: read so, or a Save refused
+  // so); null when it can. The next read that works says again.
   let fileErr = null;
   // The 3D editor (live_aboard_edit.js), made with the view; its draft, tool
   // and what is picked live here, so no rebuild touches them. shellGen moves
@@ -428,7 +429,7 @@ function createSlot(slotKey){
       THREE, HOUSE, DRAFT, root, canvas, bar, guard,
       camera: () => camera, scene: () => scene, floors: () => floorsUi, shellGen: () => shellGen,
       pick: (x, y) => pickAt(x, y), blocked: (v, own) => blocked(v, own), device: (eid) => deviceInfo(eid),
-      file: () => file, reload: () => reloadFile(), problem: () => fileErr,
+      file: () => file, reload: () => reloadFile(), problem: () => fileErr, newer: () => setFileErr("house3d_newer"),
       saved: (data) => { file = DRAFT.ownedOf(data); setFileErr(DRAFT.writable(data) ? null : "house3d_newer"); },
       redraw: () => redraw(), preview: (t) => preview(t), render: () => requestRender(), topDown: (F) => topDownOn(F),
       clearUse: () => { if (use) use.clear(); },

@@ -105,6 +105,8 @@ const CSS = `
  *   reload()                   → Promise<boolean>: read the file again
  *   saved(data)                the file as the server now holds it
  *   problem()                  why the file cannot be edited ({code: "read_failed" | "house3d_newer"}), or null
+ *   newer()                    a Save was refused as a newer PadSpan's file: problem() says so until
+ *                              a read finds the file this version's
  *   redraw()                   draw the house again, from the draft while editing
  *   preview(t)                 a slider being dragged: move only what it moves, {opening: id} or
  *                              {eid}, in place from the draft (false: not drawn, redraw instead)
@@ -119,7 +121,6 @@ export function createEditor(ctx){
   let editFn = null, editing = false, draft = null, tool = null, sel = null, gesture = null, pending = null;
   let saving = false, afterSave = null, askGo = null, hintMsg = "", hintBad = false, redrawDue = false, sliderGen = 0, sheetRefresh = null;
   let moveDue = null, sliding = null;        // a slider being dragged: what it moves, drawn in place once a frame
-  let newerSeen = false;                     // a Save refused: a newer PadSpan's file (never written by this one)
   let runsGen = null, arcsGen = null;
   const runsByFloor = new Map();
   const active = () => editing && !!editFn && !!draft;
@@ -357,10 +358,11 @@ export function createEditor(ctx){
 
   // Why the 3D file cannot be edited, plainly ("" when it can): read but
   // refused (the file is there but unreadable), or a newer PadSpan's file,
-  // which this version never writes (ws_house3d.py). The house still draws
-  // from the map either way.
+  // which this version never writes (ws_house3d.py), read so or found so by a
+  // refused Save (ctx.newer). The house still draws from the map either way.
+  const problemCode = () => { const p = ctx.problem ? ctx.problem() : null; return (p && p.code) || null; };
   function cantEdit(){
-    const p = ctx.problem ? ctx.problem() : null, code = newerSeen ? "house3d_newer" : p && p.code;
+    const code = problemCode();
     return code ? CANT_EDIT[code] || CANT_EDIT.read_failed : "";
   }
 
@@ -436,7 +438,7 @@ export function createEditor(ctx){
       // Refused: the draft stays, to be saved again; what went wrong said plainly.
       saving = false; afterSave = null;
       const code = err && err.code;
-      if (code === "house3d_newer") newerSeen = true;
+      if (code === "house3d_newer" && ctx.newer) ctx.newer();   // the file's own error, until a read finds otherwise
       hint(NOT_SAVED[code] || `Not saved: ${String((err && (err.message || err.code)) || err)}`, true);
       paint();
       return;
@@ -543,7 +545,7 @@ export function createEditor(ctx){
     bUndo.disabled = !on || saving || !draft.canUndo;
     bRedo.disabled = !on || saving || !draft.canRedo;
     const dirty = on && draft.dirty;
-    bSave.disabled = !dirty || saving || newerSeen;
+    bSave.disabled = !dirty || saving || problemCode() === "house3d_newer";
     bSave.textContent = saving ? "Saving…" : "Save";
     bDiscard.disabled = !dirty || saving;
     sheet.classList.toggle("busy", saving);

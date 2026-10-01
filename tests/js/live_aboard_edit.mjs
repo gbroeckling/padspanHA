@@ -780,8 +780,9 @@ await tryCase("pointer: leaving 3D lets go of whatever is down", async () => {
   check("pointer: leaving 3D lets go of whatever is down", room, { room });
 });
 
-// Last of all (from here this screen holds a newer PadSpan's file): a Save
-// refused as house3d_newer keeps the draft, says why, and Save then waits.
+// Near the end (from here until a read, this screen holds a newer PadSpan's
+// file): a Save refused as house3d_newer keeps the draft, says why, and Save
+// then waits.
 await tryCase("errors: a Save refused for a newer PadSpan's file keeps the draft and says why", async () => {
   await openEdit();
   await pickTool("window");
@@ -799,6 +800,39 @@ await tryCase("errors: a Save refused for a newer PadSpan's file keeps the draft
   check("errors: a Save refused for a newer PadSpan's file keeps the draft and says why",
     out.kept && out.bad && /^Not saved: a newer PadSpan saved this 3D house/.test(out.hint) && out.saveOff
     && !after.editing && !after.editAvailable && /newer PadSpan/.test(after.editWhy), { ...out, after: { avail: after.editAvailable, why: after.editWhy } });
+});
+// That refusal is the file's own error, as a read of a newer file gives: the
+// next read that finds the file this version's (Map, then 3D) clears it.
+await tryCase("newer: after a Save refused for a newer PadSpan's file, the next good read brings Edit back", async () => {
+  const e0 = ed();
+  slot.detach(); poll(); await settle(40);               // Map, then 3D: the file read again
+  const e1 = ed();
+  click("Edit"); await settle();
+  const editing = ed().editing;
+  await closeEdit();
+  check("newer: after a Save refused for a newer PadSpan's file, the next good read brings Edit back",
+    !e0.editAvailable && /newer PadSpan/.test(e0.editWhy) && e1.editAvailable && e1.editWhy === "" && editing,
+    { e0: { avail: e0.editAvailable, why: e0.editWhy }, e1: { avail: e1.editAvailable, why: e1.editWhy }, editing });
+});
+await tryCase("newer: a draft kept through that refusal saves once a read finds the file this version's", async () => {
+  await openEdit();
+  await pickTool("window");
+  drag(where("main", 10, 5, WALL_Z), where("main", 10, 6.4, WALL_Z));
+  await settle();
+  server.fail = { code: "house3d_newer", message: "This 3D house was saved by a newer PadSpan." };
+  click("Save", "la3d-tools");
+  await settle();
+  const refused = { dirty: ed().dirty, saveOff: button("Save", "la3d-tools").disabled };
+  slot.detach(); poll(); await settle(40);               // Map in another tab, then 3D: the draft kept, the file read again
+  const back = { editing: ed().editing, dirty: ed().dirty, saveOn: !button("Save", "la3d-tools").disabled };
+  const n0 = server.calls;
+  click("Save", "la3d-tools");
+  await settle();
+  const saved = { calls: server.calls - n0, dirty: ed().dirty, hint: ed().hint };
+  await closeEdit();
+  check("newer: a draft kept through that refusal saves once a read finds the file this version's",
+    refused.dirty && refused.saveOff && back.editing && back.dirty && back.saveOn && saved.calls === 1 && !saved.dirty && saved.hint === "Saved.",
+    { refused, back, saved });
 });
 
 check("the view never failed", !st().failed, { failed: st().failed });
