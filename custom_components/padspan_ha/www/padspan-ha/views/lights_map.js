@@ -2603,11 +2603,45 @@ const _LA_PICK = "padspan_lv_3d_";
 const _la3dPicked = (slot) => { try { return localStorage.getItem(_LA_PICK + slot) === "1"; } catch (_) { return false; } };
 const _la3dPick = (slot, on) => { try { localStorage.setItem(_LA_PICK + slot, on ? "1" : "0"); } catch (_) {} };
 let _LA = null;                       // views/live_aboard.js, once loaded
-let _laLoading = null, _laLoadFailed = false;
+let _laLoading = null, _laLoadFailed = false, _laNoGl = false;
 const _laWaiting = new Map();         // slot -> the newest card's mount, while it loads
 const _la3dPickers = new Map();       // slot -> the newest card's Map / 3D switch (pick3d)
+// A screen that cannot draw 3D (no WebGL2, or too slow) is remembered per
+// browser and per PadSpan build (the cache-busting query this file was
+// loaded with): a reload neither downloads three.js nor runs the frame
+// check again; a new build tries once more.
+const _LA_FAILED = "padspan_la3d_failed", _LA_KEEP = ["no_webgl", "slow_gpu"];
+const _LA_BUILD = new URL(import.meta.url).search;
+function _laStored(){
+  try {
+    const r = JSON.parse(localStorage.getItem(_LA_FAILED) || "null");
+    if (r && r.build === _LA_BUILD && _LA_KEEP.includes(r.why)) return r.why;
+  } catch (_) {}
+  return null;
+}
+const _laCannotHere = () => _laStored() || (_laNoGl ? "no_webgl" : null);
+function _laRemember(why){
+  if (!_LA_KEEP.includes(why) || _laStored() === why) return;
+  try { localStorage.setItem(_LA_FAILED, JSON.stringify({ build: _LA_BUILD, why })); } catch (_) {}
+}
+// WebGL2, tried on a canvas of its own before three.js is downloaded.
+function _laHasGl(){
+  try {
+    const gl = document.createElement("canvas").getContext("webgl2");
+    if (!gl) return false;
+    try { const x = gl.getExtension("WEBGL_lose_context"); if (x) x.loseContext(); } catch (_) {}
+    return true;
+  } catch (_) { return false; }
+}
 function _laLoad(slot, mount, telemetry){
   if (_laLoadFailed) return;
+  if (!_laLoading && !_laHasGl()) {
+    // No WebGL2 here: nothing to download. Counted once, as the view would.
+    if (!_laNoGl) { try { if (typeof telemetry === "function") telemetry("house3d_fallback:no_webgl"); } catch (_) {} }
+    _laNoGl = true;
+    _laRemember("no_webgl");
+    return;
+  }
   _laWaiting.set(slot, mount);
   if (_laLoading) return;
   _laLoading = import(`./live_aboard.js${new URL(import.meta.url).search}`)
@@ -2796,20 +2830,26 @@ export function buildLightsMapCard(hostIn){
   // brings it back as it was.
   const h3 = host.house3d && host.house3d.settings && host.house3d.settings.atlas_3d_enabled === true
     && tierAtLeast(host.tier, "pro") ? host.house3d : null;
-  // Switched off since it was on (this page load): its GL context goes back.
-  if (!h3 && _LA && host.house3d && host.house3d.slot) _LA.releaseLiveAboardSlot(host.house3d.slot);
+  // Switched off since it was on (this page load): its GL context goes back,
+  // and a 3D view still loading never mounts on a card from before.
+  if (!h3 && host.house3d && host.house3d.slot) {
+    _laWaiting.delete(host.house3d.slot); _la3dPickers.delete(host.house3d.slot);
+    if (_LA) _LA.releaseLiveAboardSlot(host.house3d.slot);
+  }
   const la3dPaints = [];
   let la3dCloseDrawer = null;
   const la3dSlot = () => (_LA && h3 ? _LA.liveAboardSlot(h3.slot) : null);
   // Why this screen cannot show 3D right now ("" when it can).
   const la3dWhyNot = () => {
-    const s = la3dSlot(), why = _laLoadFailed ? "error" : s && s.failed;
+    const s = la3dSlot(), failed = s && s.failed;
+    if (failed) _laRemember(failed);                  // no WebGL, too slow: not tried again on this build
+    const why = _laLoadFailed ? "error" : _laCannotHere() || failed;
     return why ? (_LA_WHY[why] || _LA_WHY.error) : "";
   };
   const la3dOn = () => !!h3 && _la3dPicked(h3.slot) && !la3dWhyNot();
   const mount3d = () => {
     if (!h3) return;
-    if (!_la3dPicked(h3.slot)) { const s = la3dSlot(); if (s) s.detach(); }
+    if (!_la3dPicked(h3.slot) || _laCannotHere()) { const s = la3dSlot(); if (s) s.detach(); }
     else if (!_LA) _laLoad(h3.slot, mount3d, h3.telemetry);
     else {
       try {
@@ -3389,16 +3429,24 @@ export function buildLightsMapCard(hostIn){
   ]));
   // The Map / 3D switch, right beside the zoom (only while the 3D house is on).
   if (h3) {
+    // Why 3D cannot show, said in the page beside the greyed button (a
+    // tooltip never shows on touch, and a disabled button takes no focus).
+    const whyId = `la3d-why-${h3.slot}`;
+    const whyEl = el("span", { id: whyId, "data-la3d-why": "", role: "note",
+      style: "display:none;align-self:center;padding:0 8px;font-size:11px;line-height:1.25;opacity:.85;max-width:240px;white-space:normal" });
     const mapB = el("button", { onclick: () => pick3d(false) }, "Map");
-    const d3B = el("button", { onclick: () => pick3d(true) }, "3D");
-    ctrlRow.appendChild(el("span", { class: "lv-zoomseg", "data-la3d-switch": "" }, [mapB, d3B]));
+    const d3B = el("button", { onclick: () => { if (!la3dWhyNot()) pick3d(true); } }, "3D");
+    ctrlRow.appendChild(el("span", { class: "lv-zoomseg", "data-la3d-switch": "" }, [mapB, d3B, whyEl]));
     la3dPaints.push(() => {
       const on = la3dOn(), why = la3dWhyNot(), lit = "background:rgba(82,183,136,.24);color:#e8f0ea";
       mapB.setAttribute("aria-pressed", String(!on)); mapB.style.cssText = on ? "" : lit;
       mapB.setAttribute("title", "The flat map");
       d3B.setAttribute("aria-pressed", String(on)); d3B.style.cssText = on ? lit : "";
-      d3B.disabled = !!why; d3B.setAttribute("title", why || "The house in 3D");
-      if (why) d3B.style.opacity = "0.45";
+      d3B.setAttribute("title", why || "The house in 3D");
+      if (why) { d3B.setAttribute("aria-disabled", "true"); d3B.setAttribute("aria-describedby", whyId); d3B.style.opacity = "0.45"; }
+      else { d3B.removeAttribute("aria-disabled"); d3B.removeAttribute("aria-describedby"); }
+      whyEl.textContent = why;
+      whyEl.style.display = why ? "inline-block" : "none";
     });
   }
 
@@ -3730,13 +3778,19 @@ export function buildLightsMapCard(hostIn){
     for (const a of host.railActions || []) rail.appendChild(railBtn(a.icon, a.title, a.onclick));
     // The Map / 3D switch in the rail (the 3D house only): lit while 3D shows.
     if (h3) {
-      const b3 = railBtn("3D", "", () => pick3d(!la3dOn()));
+      // Greyed when 3D cannot show: a tap opens the view drawer, where the
+      // switch says why in the page.
+      const b3 = railBtn("3D", "", () => {
+        if (!la3dWhyNot()) pick3d(!la3dOn());
+        else if (drawers.view && view.drawer !== "view") setDrawer("view");
+      });
       b3.setAttribute("data-la3d-switch", "");
       b3.style.cssText = "font-size:12px;font-weight:700;padding:0;white-space:nowrap";
       rail.appendChild(b3);
       la3dPaints.push(() => {
         const on = la3dOn(), why = la3dWhyNot();
-        b3.classList.toggle("on", on); b3.disabled = !!why; b3.style.opacity = why ? "0.45" : "";
+        b3.classList.toggle("on", on); b3.style.opacity = why ? "0.45" : "";
+        if (why) b3.setAttribute("aria-disabled", "true"); else b3.removeAttribute("aria-disabled");
         b3.setAttribute("title", why || (on ? "Back to the flat map" : "Show the house in 3D"));
       });
       la3dCloseDrawer = () => { if (view.drawer) setDrawer(view.drawer); };

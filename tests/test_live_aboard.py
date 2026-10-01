@@ -63,13 +63,16 @@ def test_atlas_3d_off_is_byte_identical(card) -> None:
     """The flat drawing is identical with the feature absent, off, and on
     but not selected — in the classic, v2 and edge-to-edge layouts, on both
     screens. Absent and off are the whole card, byte for byte; on but showing
-    Map differs only by the switch itself."""
+    Map differs only by the switch itself. Building absent, off or unset also
+    asks for exactly the same listeners, timers, frames and observers (none of
+    which the markup shows)."""
     _case(card, "off:")
 
 
 def test_below_pro_is_exactly_off(card) -> None:
     """On, but at tier free or bright: byte-identical to absent, no switch,
-    nothing loaded and nothing sent, even with 3D picked on that screen. At
+    nothing loaded and nothing sent, even with 3D picked on that screen, and
+    the same listeners, timers, frames and observers asked for. At
     Pro (PadSpan Pro and Bright Pro alike: the effective tier is "pro" in
     either edition) the switch shows on both screens."""
     _case(card, "gate:")
@@ -104,7 +107,18 @@ def test_each_screen_remembers_its_choice(card) -> None:
 
 
 def test_any_failure_shows_the_flat_atlas_and_is_counted(card) -> None:
+    """No WebGL2 is found on a canvas of its own before three.js is
+    downloaded; it, or a screen too slow, is remembered per browser and per
+    build (a reload neither downloads nor measures again; a new build tries
+    again); the greyed 3D button says why in the page, not only in a
+    tooltip."""
     _case(card, "fallback:")
+
+
+def test_a_view_still_loading_never_mounts_on_an_old_card(card) -> None:
+    """Switched off (or the licence lapsing) while the 3D view still loads:
+    no card from before gets it when it arrives."""
+    _case(card, "pending:")
 
 
 def test_every_card_case_passes(card) -> None:
