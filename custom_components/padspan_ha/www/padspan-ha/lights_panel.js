@@ -911,6 +911,14 @@ class PadSpanLightsApp extends HTMLElement {
         slot: "atlas", settings: this.state._house3d,
         // The sun's position (sun.sun) and the place (hass.config): no new calls.
         states: this._hass?.states || {}, config: this._hass?.config || null,
+        // The 3D compass's Save: the GPS Bridge's own bearing,
+        // fabric_bearing_deg, written alone and kept here at once.
+        saveNorth: async (b)=>{
+          const r = await this._hass.callWS({ type:"padspan_ha/settings_set", fabric_bearing_deg: b });
+          const v = Number(r && r.settings && r.settings.fabric_bearing_deg);
+          this.state._house3d = { ...(this.state._house3d || {}), fabric_bearing_deg: Number.isFinite(v) ? v : b };
+          return true;
+        },
         telemetry: (name)=>{
           if(!this.state._telemetryOn || !this._hass) return;
           Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:String(name) })).catch(()=>{});

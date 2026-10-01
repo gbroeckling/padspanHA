@@ -191,6 +191,32 @@ def test_the_hosts_hand_over_the_switch_only_from_settings() -> None:
     assert "states: ctx.hass?.states" in mblock and "config: ctx.hass?.config" in mblock
 
 
+def test_the_compass_save_writes_the_bearing_alone() -> None:
+    """The 3D compass's Save goes through the host, by the existing settings
+    path, with fabric_bearing_deg and nothing else; the view writes nothing
+    itself. (The browser run proves the payload, Cancel writing nothing and a
+    tap still turning north-up.)"""
+    lp = _js(_WWW / "lights_panel.js")
+    block = lp[lp.index("house3d: this.state._house3d ?"):]
+    block = block[:block.index("} : null,")]
+    assert 'saveNorth: async (b)=>{' in block
+    assert 'this._hass.callWS({ type:"padspan_ha/settings_set", fabric_bearing_deg: b })' in block
+    assert block.count("callWS(") == 2, "the report's and the Save's, nothing else"
+    maps = _js(_VIEWS / "maps.js")
+    mblock = maps[maps.index("house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ?"):]
+    mblock = mblock[:mblock.index("} : null,")]
+    assert 'ctx.actions.wsCall("padspan_ha/settings_set", { fabric_bearing_deg: b })' in mblock
+    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 1
+    lm = _js(_VIEWS / "lights_map.js")
+    assert 'saveNorth: typeof h3.saveNorth === "function" ? h3.saveNorth : null,' in lm
+    la = _js(_VIEWS / "live_aboard.js")
+    assert "callWS" not in la and "wsCall" not in la and "settings_set" not in la
+    # Save, Cancel, Escape, a tap elsewhere; the preview drives the sun only.
+    for bit in ('"Save north"', '"Cancel"', 'e.key === "Escape"', "composedPath", "SPIN_SLOP", "bearingFromNeedle(",
+                "northUpTheta(bearingNow())"):
+        assert bit in la, bit
+
+
 def test_the_view_survives_the_rebuild_by_design() -> None:
     """One long-lived element per screen, moved into each new card; the poll
     repaints lights and the sun, never shaders; renders on demand only."""

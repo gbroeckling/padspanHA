@@ -12,10 +12,14 @@
 // plan, and east is (1, 0), the right. (geo_bridge.py's formula assumes y-up
 // and mirrors east and west; nothing here copies it.)
 //
-// The one place the frontend turns the bearing into directions — the 3D
-// house's sun and compass, and the Settings preview, all ask here. If the
-// setting is ever redefined (say, as the bearing the TOP of the plan faces),
-// the change is the one marked line in fabricCompass.
+// The one place the frontend turns the bearing into directions and back —
+// the 3D house's sun and compass, and the Settings preview, all ask here. If
+// the setting is ever redefined (say, as the bearing the TOP of the plan
+// faces, which is fabric -Y), the change is the one marked constant below:
+// both directions read it.
+
+// What the setting is the bearing OF, as a turn from fabric +Y (degrees).
+const OF_FABRIC_Y = 0;                                    // the setting's meaning: 0 = the bearing of fabric +Y
 
 /** A bearing in degrees, 0 to under 360; anything unreadable is 0. */
 export function normBearing(v){
@@ -26,8 +30,15 @@ export function normBearing(v){
 /** North and east as unit vectors in fabric (plan) coordinates, x right
  *  and y down the plan. */
 export function fabricCompass(bearingDeg){
-  const b = normBearing(bearingDeg) * Math.PI / 180;      // the setting's meaning: the bearing of fabric +Y
+  const b = (normBearing(bearingDeg) + OF_FABRIC_Y) * Math.PI / 180;
   return { north: [Math.sin(b), Math.cos(b)], east: [-Math.cos(b), Math.sin(b)] };
+}
+
+/** The inverse: the bearing that puts north along a plan direction. */
+export function bearingOfNorth(dir){
+  const x = Number(dir && dir[0]), y = Number(dir && dir[1]);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || (x === 0 && y === 0)) return 0;
+  return normBearing(Math.atan2(x, y) * 180 / Math.PI - OF_FABRIC_Y);
 }
 
 /** A compass direction (degrees clockwise from true north) in fabric coordinates. */

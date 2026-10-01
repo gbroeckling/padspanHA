@@ -25,7 +25,7 @@ const { roomColor } =
   await import(`./room_color.js${new URL(import.meta.url).search}`);
 // Which way north is (settings.fabric_bearing_deg, y-down): the one source.
 const COMPASS = await import(`./fabric_compass.js${new URL(import.meta.url).search}`);
-export const { normBearing, fabricCompass, compassDir, northArrowDeg } = COMPASS;
+export const { normBearing, fabricCompass, bearingOfNorth, compassDir, northArrowDeg } = COMPASS;
 
 // ── The usage report's words (telemetry.py HOUSE3D_EVENTS holds the same) ────
 // house3d_opened: the 3D view showed on a screen. house3d_fallback:<kind>: it
@@ -779,6 +779,38 @@ export function sunDirection(azimuthDeg, elevationDeg, bearingDeg){
 export function northUpTheta(bearingDeg){
   const [x, y] = fabricCompass(bearingDeg).north;
   return Math.atan2(-x, -y);
+}
+
+// ── The compass on screen ────────────────────────────────────────────────────
+// The 3D view's camera looks at its target from a yaw theta (0 = from plan +y)
+// and a tilt phi (0 = straight down). At the middle of the view a level plan
+// direction (x, y) shows on screen at the angle below, clockwise from
+// straight up: the projection's own slope there, so the compass rose, a spun
+// needle and the drawing agree in any view, not only Top.
+export function screenAngleOfPlanDir(dir, theta, phi){
+  const x = dir[0], y = dir[1], c = Math.cos(phi);
+  const right = x * Math.cos(theta) - y * Math.sin(theta);
+  const up = -c * (x * Math.sin(theta) + y * Math.cos(theta));
+  return ((Math.atan2(right, up) * 180 / Math.PI) % 360 + 360) % 360;
+}
+/** Its inverse: the level plan direction (a unit vector) that shows on
+ *  screen at alphaDeg, clockwise from straight up. */
+export function planDirOfScreenAngle(alphaDeg, theta, phi){
+  const a = Number(alphaDeg) * Math.PI / 180, c = Math.max(1e-6, Math.cos(phi));
+  const right = Math.sin(a), along = -Math.cos(a) / c;
+  const x = right * Math.cos(theta) + along * Math.sin(theta), y = -right * Math.sin(theta) + along * Math.cos(theta);
+  const l = Math.hypot(x, y) || 1;
+  return [x / l, y / l];
+}
+/** Where the compass needle points on screen for a bearing (degrees,
+ *  clockwise from up)... */
+export function needleAngle(bearingDeg, theta, phi){
+  return screenAngleOfPlanDir(fabricCompass(bearingDeg).north, theta, phi);
+}
+/** ...and the bearing a needle turned to that angle means: north is the plan
+ *  direction it points along (fabric_compass.js's inverse). */
+export function bearingFromNeedle(alphaDeg, theta, phi){
+  return bearingOfNorth(planDirOfScreenAngle(alphaDeg, theta, phi));
 }
 
 // Where the sun is, when Home Assistant has no sun.sun: the standard

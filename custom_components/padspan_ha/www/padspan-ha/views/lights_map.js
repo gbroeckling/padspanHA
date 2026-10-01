@@ -2820,6 +2820,7 @@ export function buildLightsMapCard(hostIn){
           // The sun (sun.sun, else hass.config) and true north (the GPS
           // Bridge's bearing), from what the host already holds.
           states: h3.states, config: h3.config, bearing: h3.settings.fabric_bearing_deg,
+          saveNorth: typeof h3.saveNorth === "function" ? h3.saveNorth : null,
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }
     }

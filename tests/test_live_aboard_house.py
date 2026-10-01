@@ -54,7 +54,7 @@ def _case(h: dict, prefix: str) -> None:
 
 @pytest.mark.parametrize("prefix,least", [
     ("floors:", 3), ("floorsTop:", 1), ("walls:", 6), ("cutaway:", 1), ("quality:", 3), ("lights:", 5),
-    ("sun:", 5), ("compass:", 1), ("north:", 1), ("telemetry:", 1),
+    ("sun:", 5), ("compass:", 1), ("north:", 1), ("spin:", 4), ("telemetry:", 1),
 ])
 def test_the_house_harness_covers_each_part(house, prefix, least) -> None:
     got = [k for k in house["cases"] if k.startswith(prefix)]
@@ -67,12 +67,16 @@ def test_every_house_case_passes(house) -> None:
 
 
 def test_north_is_one_line_in_one_place() -> None:
-    """fabric_compass.js is the only place the bearing becomes a direction:
-    a redefined setting (say, the bearing the TOP of the plan faces) is its
-    one marked line. Nothing copies geo_bridge.py's y-up formula."""
+    """fabric_compass.js is the only place the bearing becomes a direction and
+    back: a redefined setting (say, the bearing the TOP of the plan faces) is
+    its one marked constant, read by both directions. Nothing copies
+    geo_bridge.py's y-up formula."""
     src = (_VIEWS / "fabric_compass.js").read_text(encoding="utf-8")
     marked = [ln for ln in src.splitlines() if "// the setting's meaning" in ln]
-    assert len(marked) == 1 and "normBearing(bearingDeg)" in marked[0], marked
+    assert len(marked) == 1 and marked[0].startswith("const OF_FABRIC_Y = 0;"), marked
+    fwd = src[src.index("export function fabricCompass("):src.index("export function bearingOfNorth(")]
+    inv = src[src.index("export function bearingOfNorth("):src.index("export function compassDir(")]
+    assert "OF_FABRIC_Y" in fwd and "OF_FABRIC_Y" in inv
     for name in ("live_aboard_house.js", "live_aboard.js", "settings.js"):
         p = _VIEWS / name
         if not p.exists():

@@ -9363,6 +9363,13 @@ function _lightsTab(ctx, maps, active) {
     house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ? {
       slot: "builder", settings: ctx.state.settings,
       states: ctx.hass?.states || {}, config: ctx.hass?.config || null,
+      // The 3D compass's Save: fabric_bearing_deg alone, straight to the wire
+      // like the Settings box (settingsSet would re-render everything).
+      saveNorth: async (b) => {
+        const r = await ctx.actions.wsCall("padspan_ha/settings_set", { fabric_bearing_deg: b });
+        if (r && r.settings) ctx.state.settings = r.settings;
+        return true;
+      },
       telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
     } : null,
     isolux: mapState._lightsIsolux === undefined

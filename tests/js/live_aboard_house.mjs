@@ -401,6 +401,57 @@ tryCase("north: north up, the Settings arrow, and the bearing kept to 0-359", ()
     { up, top, arrow: [0, 90, 180, 270, 45].map(b => [b, H.northArrowDeg(b)]), norm });
 });
 
+// ── the spun compass: needle angle <-> bearing, in any view ─────────────────
+const angDiff = (a, b) => Math.abs((((a - b) % 360) + 540) % 360 - 180);
+const YAWS = [0, 0.7, 2.0, -2.5, Math.PI, 5.5], TILTS = [0.0015, 0.5, 0.98, 1.4], NEEDLES = [0, 30, 90, 137, 200, 270, 350];
+tryCase("spin: bearingOfNorth is fabricCompass's inverse", () => {
+  const bad = [0, 0.5, 45, 90, 137.25, 180, 270, 359.5].filter(b => angDiff(H.bearingOfNorth(H.fabricCompass(b).north), b) > 1e-9);
+  check("spin: bearingOfNorth is fabricCompass's inverse", !bad.length && H.bearingOfNorth([0, 0]) === 0 && H.bearingOfNorth(null) === 0, bad);
+});
+tryCase("spin: a needle angle and its bearing round-trip across yaws, tilts and angles", () => {
+  const bad = [];
+  for (const th of YAWS) for (const ph of TILTS) {
+    for (const a of NEEDLES) {
+      const b = H.bearingFromNeedle(a, th, ph), back = H.needleAngle(b, th, ph);
+      if (angDiff(back, a) > 1e-6) bad.push({ th, ph, a, b, back });
+    }
+    for (const b of [0, 33, 90, 180, 251.5]) {
+      const a = H.needleAngle(b, th, ph), back = H.bearingFromNeedle(a, th, ph);
+      if (angDiff(back, b) > 1e-6) bad.push({ th, ph, b, a, back });
+    }
+  }
+  check("spin: a needle angle and its bearing round-trip across yaws, tilts and angles", !bad.length, bad.slice(0, 5));
+});
+tryCase("spin: north up puts the needle straight up", () => {
+  const bad = [];
+  for (const b of [0, 33, 90, 180, 270]) for (const ph of TILTS) {
+    const a = H.needleAngle(b, H.northUpTheta(b), ph);
+    if (angDiff(a, 0) > 1e-6) bad.push({ b, ph, a });
+  }
+  check("spin: north up puts the needle straight up", !bad.length, bad);
+});
+const THREE = await import(pathToFileURL(join(WWW, "vendor", "three", "three.module.min.js")).href);
+tryCase("spin: the needle angle is what a real camera draws at the middle of the view", () => {
+  // The 3D view's camera: on a sphere round the target, looking at it.
+  const W = 1600, Hh = 1000, bad = [];
+  const cam = new THREE.PerspectiveCamera(40, W / Hh, 0.1, 700);
+  const T = new THREE.Vector3(4, 3, -2), a = new THREE.Vector3(), b2 = new THREE.Vector3();
+  for (const th of YAWS) for (const ph of TILTS) {
+    cam.position.set(T.x + 30 * Math.sin(ph) * Math.sin(th), T.y + 30 * Math.cos(ph), T.z + 30 * Math.sin(ph) * Math.cos(th));
+    cam.lookAt(T); cam.updateMatrixWorld();
+    for (const deg of [0, 40, 95, 180, 260, 333]) {
+      const d = [Math.sin(deg * Math.PI / 180), Math.cos(deg * Math.PI / 180)];
+      a.copy(T).project(cam);
+      b2.set(T.x + d[0] * 1e-3, T.y, T.z + d[1] * 1e-3).project(cam);
+      const px = (b2.x - a.x) * W / 2, pyUp = (b2.y - a.y) * Hh / 2;
+      const drawn = ((Math.atan2(px, pyUp) * 180 / Math.PI) % 360 + 360) % 360;
+      const ours = H.screenAngleOfPlanDir(d, th, ph);
+      if (angDiff(drawn, ours) > 0.01) bad.push({ th, ph, deg, drawn, ours });
+    }
+  }
+  check("spin: the needle angle is what a real camera draws at the middle of the view", !bad.length, bad.slice(0, 5));
+});
+
 // ── telemetry ───────────────────────────────────────────────────────────────
 tryCase("telemetry: closed words, once per page load", () => {
   H._resetHouse3dCountsForTests();

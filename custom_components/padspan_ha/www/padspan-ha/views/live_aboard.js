@@ -71,8 +71,17 @@ const CSS = `
 .la3d-lbl{align-self:center;padding:0 6px 0 10px;font-size:10.5px;font-weight:600;letter-spacing:.06em;
   text-transform:uppercase;color:rgba(226,240,232,.45)}
 .la3d-compass{position:absolute;left:10px;top:10px;z-index:2;width:52px;height:52px;padding:0;border-radius:50%;
-  border:1px solid rgba(120,190,155,.22);background:rgba(6,14,9,.8);box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer}
-.la3d-compass svg{display:block;width:100%;height:100%}`;
+  border:1px solid rgba(120,190,155,.22);background:rgba(6,14,9,.8);box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer;
+  touch-action:none}
+.la3d-compass svg{display:block;width:100%;height:100%;pointer-events:none}
+.la3d .la3d-north{position:absolute;left:10px;top:70px;z-index:3;display:none}
+.la3d .la3d-north.on{display:inline-flex}
+.la3d-toast{position:absolute;left:50%;bottom:64px;z-index:3;transform:translateX(-50%);display:flex;align-items:center;gap:10px;
+  padding:6px 7px 6px 14px;border-radius:12px;background:rgba(6,14,9,.94);border:1px solid rgba(120,190,155,.24);
+  color:#e8f0ea;font-size:12.5px;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.45);animation:la3d-toast 6s ease forwards}
+.la3d-toast button{all:unset;box-sizing:border-box;cursor:pointer;padding:5px 11px;border-radius:8px;font-weight:700;
+  color:#f5b041;background:rgba(245,176,65,.12)}
+@keyframes la3d-toast{0%{opacity:0;visibility:visible}5%{opacity:1}85%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden}}`;
 
 const _slots = new Map();
 /** One 3D view per screen ("atlas" — the sidebar; "builder" — Mapping). */
@@ -159,9 +168,17 @@ function createSlot(slotKey){
   // drawn before the map has arrived).
   const cam = { target: new THREE.Vector3(), theta: Math.PI / 4, phi: 0.98, radius: 30, needsFit: true, moved: false };
   let houseBox = { x0: -5, y0: -5, x1: 5, y1: 5, z0: 0, z1: 3 };
-  // The sun as last drawn, and true north (settings.fabric_bearing_deg).
-  let sunNow = null, bearing = 0;
+  // The sun as last read and as last drawn, and true north as drawn
+  // (settings.fabric_bearing_deg, or the compass being spun).
+  let sunRead = null, sunNow = null, bearing = 0;
   const sunDir = new THREE.Vector3(0, 1, 0);
+  // North on the compass you spin (see "north: the compass you spin").
+  const SPIN_SLOP = 6, NORTH_HOLD_MS = 60000;
+  let storedBearing = 0;                   // the saved bearing, as the host last said
+  let northPreview = null;                 // the bearing being tried, not saved
+  let northHold = null;                    // {b, until}: just saved, until the host catches up
+  let spin = null, compassEl = null, pill = null, pillBtns = [], unhookNorth = null, saveNorthCb = null;
+  const camPts = new Map();                // fingers and buttons down on the house itself
   // Shared, made once per slot.
   let shared = null;
   let hemi = null, sun = null, lampPool = [], lampsDirty = true, ground = null, gridLines = null;
@@ -174,6 +191,7 @@ function createSlot(slotKey){
     try { if (root && root.parentNode) root.parentNode.removeChild(root); } catch (_) { /* already out */ }
   }
   function teardown(){
+    try { endSpin(false); hidePill(); } catch (_) { /* nothing to undo */ }
     for (const o of observers) { try { o(); } catch (_) { /* gone */ } }
     observers = [];
     disposeList(shellRes); disposeList(lightRes);
@@ -240,14 +258,33 @@ function createSlot(slotKey){
       + '<g class="la3d-rose"><path d="M0,-15 L4.6,0 L-4.6,0 Z" fill="#ef5350"/><path d="M0,15 L4.6,0 L-4.6,0 Z" fill="#cfd8d3"/>'
       + '<text x="0" y="-16.5" text-anchor="middle" font-size="8.5" font-weight="700" fill="#f3f6f4" '
       + 'font-family="system-ui,sans-serif">N</text></g></svg>';
+    compass.addEventListener("pointerdown", guard((e) => spinDown(e)));
+    compass.addEventListener("contextmenu", (e) => e.preventDefault());
+    // Enter or Space on the focused compass (a click with no pointer behind
+    // it): north up, like a tap. A pointer's own click is the spin's to decide.
     compass.addEventListener("click", guard((e) => {
       e.stopPropagation();
+      if (e.detail !== 0) return;
       cam.moved = true; cam.needsFit = false;
-      cam.theta = HOUSE.northUpTheta(bearing);
+      cam.theta = HOUSE.northUpTheta(bearingNow());
       applyCam();
     }));
     root.appendChild(compass);
+    compassEl = compass;
     rose = compass.querySelector(".la3d-rose");
+    // Shown on release of a spin: nothing is saved until Save.
+    pill = d("span", "lv-zoomseg la3d-north");
+    pill.setAttribute("role", "group");
+    pill.setAttribute("aria-label", "North");
+    pillBtns = [["Save north", "Keep north where the needle points", () => saveNorth()],
+                ["Cancel", "Put north back", () => cancelNorth()]].map(([text, title, act]) => {
+      const b = d("button");
+      b.type = "button"; b.textContent = text; b.title = title;
+      b.addEventListener("click", guard((e) => { e.stopPropagation(); act(); }));
+      pill.appendChild(b);
+      return b;
+    });
+    root.appendChild(pill);
     paintWallButtons();
   }
   function paintWallButtons(){
@@ -473,13 +510,18 @@ function createSlot(slotKey){
   // hass.config, else due south): its direction in the house's own frame by
   // the bearing, its strength and colour by its height; off at night, with a
   // dim cool sky. Drawn again only when it has moved more than SUN_STEP, the
-  // phase of the day changed, or north was moved. The light's intensity
-  // changes, never whether it is there (no shader rebuilds).
+  // phase of the day changed, or north moved. The light's intensity changes,
+  // never whether it is there (no shader rebuilds).
   function applySun(p){
-    const s = HOUSE.readSun(p.states, p.config, Date.now());
-    const b = HOUSE.normBearing(p.bearing), look = HOUSE.sunLight(s.elevation);
+    sunRead = HOUSE.readSun(p.states, p.config, Date.now());
+    storedBearing = HOUSE.normBearing(p.bearing);
+    if (northHold && (storedBearing === northHold.b || Date.now() > northHold.until)) northHold = null;
+    return drawSun(bearingNow(), false);
+  }
+  function drawSun(b, force){
+    const s = sunRead || { ...HOUSE.SUN_DEFAULT, source: "default" }, look = HOUSE.sunLight(s.elevation);
     const gap = sunNow ? Math.abs(((s.azimuth - sunNow.azimuth) % 360 + 540) % 360 - 180) : Infinity;
-    if (sunNow && b === sunNow.bearing && look.phase === sunNow.phase
+    if (!force && sunNow && b === sunNow.bearing && look.phase === sunNow.phase
         && gap <= SUN_STEP && Math.abs(s.elevation - sunNow.elevation) <= SUN_STEP) return false;
     sunNow = { azimuth: s.azimuth, elevation: s.elevation, source: s.source, bearing: b, phase: look.phase, night: look.night };
     bearing = b;
@@ -497,18 +539,152 @@ function createSlot(slotKey){
     requestRender();
     return true;
   }
-  // The compass rose: where true north points on the screen, from the camera.
+  // The compass rose: where north shows on screen in this view (degrees,
+  // clockwise from up, -180..180), the same arithmetic a spun needle is read
+  // back through (live_aboard_house.js needleAngle / bearingFromNeedle).
   function paintCompass(){
-    if (!rose || !camera) return;
-    const [nx, ny] = HOUSE.fabricCompass(bearing).north;
-    _v.copy(cam.target).project(camera);
-    _v2.set(cam.target.x + nx, cam.target.y, cam.target.z + ny).project(camera);
-    const dx = (_v2.x - _v.x) * (canvas.clientWidth || 1), dy = -(_v2.y - _v.y) * (canvas.clientHeight || 1);
-    if (Math.hypot(dx, dy) < 1e-6) return;
-    const deg = Math.atan2(dx, -dy) * 180 / Math.PI;     // clockwise from the top of the screen
-    if (roseDeg !== null && Math.abs(deg - roseDeg) < 0.5) return;
+    if (!rose) return;
+    const a = HOUSE.needleAngle(bearing, cam.theta, cam.phi), deg = a > 180 ? a - 360 : a;
+    if (roseDeg !== null && Math.abs(((deg - roseDeg) % 360 + 540) % 360 - 180) < 0.5) return;
     roseDeg = deg;
     rose.setAttribute("transform", `rotate(${deg.toFixed(1)})`);
+  }
+
+  // ── north: the compass you spin ───────────────────────────────────────────
+  // Press the compass and drag round it, with a mouse or one finger: the
+  // needle follows, and wherever it points on screen is where north is in this
+  // view, in any view (the needle's angle and the camera give the bearing
+  // through fabric_compass.js's inverse). The sun and its shadows follow as it
+  // turns, so north can be lined up with the real shadows; nothing is saved.
+  // On release a "Save north · Cancel" pill: Save writes the bearing alone
+  // through the host (settings.fabric_bearing_deg, the GPS Bridge's own), then
+  // "North saved · Undo"; Cancel, Escape or a tap anywhere else puts it all
+  // back. A stray touch on the wall PC cannot move north. A tap, under
+  // SPIN_SLOP of movement, turns the view north-up as before; a press while a
+  // finger is on the house is that gesture's, never a spin.
+  const bearingNow = () => (northPreview !== null ? northPreview : northHold ? northHold.b : storedBearing);
+  function spinDown(e){
+    e.stopPropagation();
+    e.preventDefault();
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (spin) { endSpin(true); return; }                     // a second finger on the compass: no spin
+    if (camPts.size) return;                                  // a finger on the house: its gesture
+    const r = compassEl.getBoundingClientRect();
+    spin = { id: e.pointerId, x0: e.clientX, y0: e.clientY, cx: r.left + r.width / 2, cy: r.top + r.height / 2,
+             moved: false, before: northPreview, unhook: null };
+    try { compassEl.setPointerCapture(e.pointerId); } catch (_) { /* the window listeners carry it anyway */ }
+    // On the window, so a spin outlives a poll moving the view into a new card.
+    const move = guard((ev) => spinMove(ev)), up = guard((ev) => spinUp(ev));
+    const cancel = guard((ev) => { if (spin && ev.pointerId === spin.id) endSpin(true); });
+    window.addEventListener("pointermove", move, true);
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", cancel, true);
+    spin.unhook = () => {
+      window.removeEventListener("pointermove", move, true);
+      window.removeEventListener("pointerup", up, true);
+      window.removeEventListener("pointercancel", cancel, true);
+    };
+  }
+  function spinMove(ev){
+    if (!spin || ev.pointerId !== spin.id) return;
+    if (!spin.moved && Math.hypot(ev.clientX - spin.x0, ev.clientY - spin.y0) < SPIN_SLOP) return;
+    if (!spin.moved && root) for (const t of root.querySelectorAll(".la3d-toast")) t.remove();   // an old Undo goes
+    spin.moved = true;
+    const a = Math.atan2(ev.clientX - spin.cx, -(ev.clientY - spin.cy)) * 180 / Math.PI;
+    northPreview = HOUSE.normBearing(HOUSE.bearingFromNeedle(a, cam.theta, cam.phi));
+    drawSun(northPreview, false);
+  }
+  function spinUp(ev){
+    if (!spin || ev.pointerId !== spin.id) return;
+    const moved = spin.moved;
+    endSpin(false);
+    if (moved) showPill();
+    else {                                                     // a tap: north up
+      cam.moved = true; cam.needsFit = false;
+      cam.theta = HOUSE.northUpTheta(bearingNow());
+      applyCam();
+    }
+  }
+  /** The press is over; abort puts the needle back where this press found it. */
+  function endSpin(abort){
+    const s0 = spin;
+    spin = null;
+    if (!s0) return;
+    if (s0.unhook) s0.unhook();
+    try { if (compassEl && compassEl.hasPointerCapture && compassEl.hasPointerCapture(s0.id)) compassEl.releasePointerCapture(s0.id); }
+    catch (_) { /* released already */ }
+    if (abort && s0.moved) { northPreview = s0.before; drawSun(bearingNow(), true); }
+  }
+  function showPill(){
+    if (!pill) return;
+    pill.classList.add("on");
+    for (const b of pillBtns) b.disabled = false;
+    if (unhookNorth) return;
+    const onKey = guard((e) => { if (e.key === "Escape") cancelNorth(); });
+    const onDown = guard((e) => {
+      const path = typeof e.composedPath === "function" ? e.composedPath() : [];
+      if (!path.includes(pill) && !path.includes(compassEl)) cancelNorth();
+    });
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("pointerdown", onDown, true);
+    unhookNorth = () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("pointerdown", onDown, true);
+      unhookNorth = null;
+    };
+  }
+  function hidePill(){
+    if (pill) pill.classList.remove("on");
+    if (unhookNorth) unhookNorth();
+  }
+  function cancelNorth(){
+    endSpin(false);
+    hidePill();
+    if (northPreview === null) return;
+    northPreview = null;
+    drawSun(bearingNow(), true);
+  }
+  function saveNorth(){
+    if (northPreview === null) { hidePill(); return; }
+    const b = northPreview, was = northHold ? northHold.b : storedBearing, save = saveNorthCb;
+    if (typeof save !== "function") { cancelNorth(); toast("North can't be saved from here", null); return; }
+    for (const x of pillBtns) x.disabled = true;
+    Promise.resolve().then(() => save(b)).then(guard(() => {
+      northHold = { b, until: Date.now() + NORTH_HOLD_MS };
+      northPreview = null;
+      hidePill();
+      drawSun(bearingNow(), true);
+      toast("North saved", () => undoNorth(was, save));
+    }), guard(() => {
+      for (const x of pillBtns) x.disabled = false;
+      toast("Could not save north", null);
+    }));
+  }
+  function undoNorth(was, save){
+    Promise.resolve().then(() => save(was)).then(guard(() => {
+      northHold = { b: was, until: Date.now() + NORTH_HOLD_MS };
+      drawSun(bearingNow(), true);
+      toast("North put back", null);
+    }), guard(() => toast("Could not put north back", null)));
+  }
+  // A note over the view that fades out by itself (CSS), with an action.
+  function toast(text, act){
+    if (!root) return;
+    for (const old of root.querySelectorAll(".la3d-toast")) old.remove();
+    const t = document.createElement("div");
+    t.className = "la3d-toast";
+    t.setAttribute("role", "status");
+    const span = document.createElement("span");
+    span.textContent = text;
+    t.appendChild(span);
+    if (act) {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = "Undo";
+      b.addEventListener("click", guard((e) => { e.stopPropagation(); t.remove(); act(); }));
+      t.appendChild(b);
+    }
+    t.addEventListener("animationend", () => t.remove());
+    root.appendChild(t);
   }
   // High's ambient occlusion, baked rather than a post-process pass: a soft
   // shade on the floor along the foot of every wall (both sides of an inside
@@ -804,10 +980,11 @@ function createSlot(slotKey){
     applyCam();
   }
   function wirePointer(){
-    const pts = new Map();
+    const pts = camPts;
     let mode = null, last = null, pinch = null;
     const mid = () => { const [a, b] = [...pts.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) }; };
     canvas.addEventListener("pointerdown", guard((e) => {
+      if (spin) endSpin(true);                               // a finger on the house: no spin
       if (typeof touchCb === "function") { try { touchCb(); } catch (_) { /* the card's, not ours */ } }
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* fine */ }
@@ -1004,10 +1181,12 @@ function createSlot(slotKey){
      *  Atlas is showing (and why is in .failed). p = {model, floors,
      *  lightsByEid, hidden, topFloorIds, quality, telemetry, onTouch,
      *  states (hass.states, for sun.sun), config (hass.config), bearing
-     *  (settings.fabric_bearing_deg)}. */
+     *  (settings.fabric_bearing_deg), saveNorth(b) → Promise (the compass's
+     *  Save: the host writes fabric_bearing_deg alone)}. */
     attach(s, p){
       send = p && p.telemetry;
       touchCb = p && p.onTouch;
+      saveNorthCb = p && typeof p.saveNorth === "function" ? p.saveNorth : null;
       try {
         if (failed) { showFlat(); return false; }
         if (!s || !s.parentNode || !p) return false;
@@ -1023,14 +1202,16 @@ function createSlot(slotKey){
     },
     /** Back to the flat Atlas (Map picked, or the feature switched off).
      *  The camera and the GL context stay for a quick return. */
-    detach(){ try { showFlat(); } catch (_) { /* nothing to undo */ } },
+    detach(){ try { cancelNorth(); showFlat(); } catch (_) { /* nothing to undo */ } },
     /** The feature is off: the flat Atlas back and the GL context given up. */
-    release(){ try { showFlat(); teardown(); } catch (_) { /* best effort */ } },
+    release(){ try { cancelNorth(); showFlat(); teardown(); } catch (_) { /* best effort */ } },
     // A window on it, for the harness and for poking at it from the console.
     _state(){
       return { failed, profile: quality.profile, measuring: quality.measuring, measured: { ...quality.measured }, frames, wallMode, topElev,
                cam: { theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.toArray(), moved: cam.moved },
                sun: sunNow ? { ...sunNow, intensity: sun.intensity, sky: hemi.intensity, dir: sunDir.toArray() } : null, bearing, rose: roseDeg,
+               north: { stored: storedBearing, preview: northPreview, hold: northHold ? northHold.b : null,
+                        pill: !!(pill && pill.classList.contains("on")), spinning: !!spin },
                canvas, gl: renderer ? renderer.getContext() : null, lights: lights.length, floors: floorsUi.length,
                walls: floorsUi.reduce((a, F) => a + F.pieces.length, 0) };
     },
