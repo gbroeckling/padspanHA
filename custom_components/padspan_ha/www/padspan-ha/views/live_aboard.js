@@ -429,7 +429,7 @@ function createSlot(slotKey){
       camera: () => camera, scene: () => scene, floors: () => floorsUi, shellGen: () => shellGen,
       pick: (x, y) => pickAt(x, y), blocked: (v, own) => blocked(v, own), device: (eid) => deviceInfo(eid),
       file: () => file, reload: () => reloadFile(), problem: () => fileErr,
-      saved: (data) => { file = DRAFT.ownedOf(data); fileErr = DRAFT.writable(data) ? null : { code: "house3d_newer" }; },
+      saved: (data) => { file = DRAFT.ownedOf(data); setFileErr(DRAFT.writable(data) ? null : "house3d_newer"); },
       redraw: () => redraw(), preview: (t) => preview(t), render: () => requestRender(), topDown: (F) => topDownOn(F),
       clearUse: () => { if (use) use.clear(); },
     });
@@ -1864,17 +1864,22 @@ function createSlot(slotKey){
     const mine = fileLoad = Promise.resolve().then(() => p.load()).then((r) => {
       if (fileLoad !== mine) return false;
       file = DRAFT.ownedOf(r && r.data);
-      fileErr = DRAFT.writable(r && r.data) ? null : { code: "house3d_newer" };
+      setFileErr(DRAFT.writable(r && r.data) ? null : "house3d_newer");
       redraw();
-      if (editor) editor.refresh();
       return true;
     }, (err) => {
       // There but unreadable: the house draws from the map, and Edit says why.
-      if (fileLoad === mine && err && err.code === "read_failed") { fileErr = { code: "read_failed" }; if (editor) editor.refresh(); }
+      if (fileLoad === mine && err && err.code === "read_failed") setFileErr("read_failed");
       return false;
     });
   }
   const redraw = guard(() => { if (lastP && renderer && !failed) update(lastP); });
+  // Why the file cannot be edited, changed: Edit says so.
+  function setFileErr(code){
+    if (((fileErr && fileErr.code) || null) === (code || null)) return;
+    fileErr = code ? { code } : null;
+    if (editor) editor.refresh();
+  }
   /** Read the file again (the editor opening before the first read came). */
   function reloadFile(){
     fileLoad = null;
@@ -2050,7 +2055,7 @@ function createSlot(slotKey){
     },
     /** Back to the flat Atlas (Map picked, or the feature switched off).
      *  The camera and the GL context stay for a quick return. */
-    detach(){ try { fileLoad = null; dropPointers(); cancelNorth(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); } catch (_) { /* nothing to undo */ } },
+    detach(){ try { fileLoad = null; dirty = true; dropPointers(); cancelNorth(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); } catch (_) { /* nothing to undo */ } },
     /** Something wants this screen to leave 3D (Map picked): with unsaved
      *  3D edits the editor asks first, in the view, and holds (true); `go`
      *  runs once they are saved or discarded. */

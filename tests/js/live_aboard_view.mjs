@@ -216,6 +216,25 @@ await tryCase("frames: a lock just unlocked flashes, then glows still", async ()
   await settle();
 });
 
+await tryCase("frames: a poll draws nothing; back from Map, the view draws once", async () => {
+  const slot = LA.liveAboardSlot("view-return");
+  const { stage } = card(slot, liveP(LIVE()));
+  await later(10000, 60);
+  const f0 = slot._state().frames;
+  slot.attach(stage, P(liveP(LIVE())));                    // a poll: the same card size, nothing changed
+  await later(1000);
+  const poll = slot._state().frames - f0;
+  slot.detach();                                           // Map
+  await later(30000);
+  const map = slot._state().frames - f0 - poll;
+  const again = card(slot, liveP(LIVE()));                 // 3D again, in the next card
+  await later(1000);
+  const back = slot._state().frames - f0 - poll - map;
+  check("frames: a poll draws nothing; back from Map, the view draws once",
+    poll === 0 && map === 0 && back === 1 && again.ok, { poll, map, back });
+  LA.releaseLiveAboardSlot("view-return");
+  await settle();
+});
 // ── gap ─────────────────────────────────────────────────────────────────────
 await tryCase("gap: a gap with a sensor keeps its reading and its tap target, as the Atlas does", async () => {
   // A barrier of material "open" linked to a sensor: a doorway with no leaf.
