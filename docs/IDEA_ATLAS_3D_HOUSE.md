@@ -5,7 +5,8 @@ Electronic Arts' trademark) for this possible future add-on: the Sims-style 3D A
 beacons and people from photos, and the shared library. Check the name before anything public or paid.
 
 Planned 2026-09-30. Revised the same day: **clean-room, photo-to-furniture, and a shared library.**
-Status: **plan only — nothing built yet; normally off when built.** The thirteen choices, decided, are at the end.
+Status: **being built on the `live-aboard` branch, normally off.** Step 1 (the switch and the empty
+store) and the P0 prototype are done; P1 has started. The thirteen choices, decided, are at the end.
 
 Where the idea came from: a r/homeassistant post (1wtyklm, 2026-09-30) showing a hand-built
 three.js model of one house, walls cutting away like The Sims. That was an idea, not code, and
@@ -540,11 +541,17 @@ and says so if asked.
    `tests/test_house3d_store.py`. Changes nothing visible. Left for later phases, with the code
    they guard: the Bright import's furniture count in `target_contents` (P2), the frontend "off"
    tests (P1), the network and telemetry-event "off" tests (P3, P4).
-2. **P0 prototype**, in parallel with step 1: a standalone page in the scratchpad, never shipped,
+2. **P0 prototype**, in parallel with step 1: a standalone page, never shipped,
    fed by a read-only `model_get` export of Garry's house. It answers the two questions no amount
    of planning can: how the whole-house cut-away should behave with shared interior walls, and
    what the wall PC and a phone can render. Garry looks at it on both before P1 goes further.
+   **Built and approved 2026-09-30** (Garry: "Looks nice, keep going"). The page is in
+   `prototypes/live_aboard_p0/`; the house export stays out of the repo.
 3. **P1 the 3D view**, behind the switch. Garry turns it on in his own Settings; nobody else sees it.
+   **Started 2026-09-30** with three.js r170 bundled (`vendor/three/`, `THIRD_PARTY_NOTICES.md`).
+   Built in two parts: A, the view itself (the switch, the house, lights, camera, quality and
+   fallback, settings, telemetry, the off tests); B, the Atlas's actions and live parts (doors and
+   sensors, Motion · Air, readouts, tap, hold and dim, the edition gate).
 4. **P2 furniture by hand.** The builders are written from the parameter lists in "Furniture",
    nothing else, each with a still-picture test across its parameter range.
 5. **P3 photos**, then **P4 library** (terms reviewed first), **P5 devices**, **P6 beacons and
@@ -634,4 +641,4 @@ Assumed, not asked: off by default with all sub-switches off; ships dark; its ow
 that never touches the map; clean-room code; people figures never shared; a lawyer reviews the
 terms before the library ships.
 
-Then P0: a prototype of Garry's house, to try on the wall PC before any PadSpan code changes.
+P0, the prototype of Garry's house, was built and approved on 2026-09-30; P1 is under way.
