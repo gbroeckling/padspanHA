@@ -48,8 +48,9 @@ def editor() -> dict:
 @pytest.mark.parametrize("prefix,least", [
     ("pick:", 4), ("save:", 5), ("leave:", 2), ("widths:", 1), ("limits:", 3), ("pointer:", 6), ("drag:", 2), ("errors:", 4),
     # A Save refused as a newer PadSpan's file is the view's file error: the
-    # next good read brings Edit and Save back.
-    ("newer:", 2),
+    # next good read brings Edit and Save back; while Edit is open the hint
+    # says whether Save can go ahead.
+    ("newer:", 3),
     # Edit pressed before the file was read: what the read finds decides.
     ("begin:", 1),
     # A door or window split over two wall pieces moves whole while a slider drags it.

@@ -921,8 +921,15 @@ export function createEditor(ctx){
       if (had !== !!editFn) { paint(); sheetFor(); if (editing) { syncArcs(); ctx.redraw(); } }
     },
     get active(){ return active(); },
-    /** The file was read again, or could not be: Edit says so. */
-    refresh(){ paint(); },
+    /** The file was read again, or could not be, or a Save found it a newer
+     *  PadSpan's: Edit says so, and while it is open the hint says whether
+     *  Save can go ahead. */
+    refresh(){
+      const code = problemCode();
+      if (editing && code === "house3d_newer") hint(NOT_SAVED.house3d_newer, true);
+      else if (editing && !code && hintMsg === NOT_SAVED.house3d_newer) hint("The 3D file can be saved again.");
+      paint();
+    },
     /** The draft while editing (what the view draws instead of the file). */
     view(){ return active() ? draft.cur : null; },
     down, move, up, tap: (e) => tap(e), cancel, hover, layout, holdLeave,

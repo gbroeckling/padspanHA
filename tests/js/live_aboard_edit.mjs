@@ -897,6 +897,22 @@ await tryCase("newer: a draft kept through that refusal saves once a read finds 
     refused.dirty && refused.saveOff && back.editing && back.dirty && back.saveOn && saved.calls === 1 && !saved.dirty && saved.hint === "Saved.",
     { refused, back, saved });
 });
+await tryCase("newer: under an open draft, a read that finds a newer PadSpan's file holds Save and says why; this version's again, Save can go ahead", async () => {
+  await openEdit();
+  await pickTool("window");
+  drag(where("main", 6, 8, WALL_Z), where("main", 7.4, 8, WALL_Z));   // the Den's far wall: nothing there yet
+  await settle();
+  server.file.schema = 2;
+  slot.detach(); poll(); await settle(40);               // Map in another tab, then 3D: the draft kept, a newer file read
+  const held = { editing: ed().editing, dirty: ed().dirty, saveOff: button("Save", "la3d-tools").disabled, hint: ed().hint, bad: ed().hintBad };
+  server.file.schema = 1;
+  slot.detach(); poll(); await settle(40);               // and again: this version's
+  const back = { dirty: ed().dirty, saveOn: !button("Save", "la3d-tools").disabled, hint: ed().hint, bad: ed().hintBad };
+  await closeEdit();
+  check("newer: under an open draft, a read that finds a newer PadSpan's file holds Save and says why; this version's again, Save can go ahead",
+    held.editing && held.dirty && held.saveOff && /^Not saved: a newer PadSpan saved this 3D house/.test(held.hint) && held.bad
+    && back.dirty && back.saveOn && back.hint === "The 3D file can be saved again." && !back.bad, { held, back });
+});
 
 check("the view never failed", !st().failed, { failed: st().failed });
 console.log(JSON.stringify({ cases, failures, payloads, start: FILE0 }));
