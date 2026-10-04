@@ -121,10 +121,11 @@ async def ws_house3d_clear(hass: HomeAssistant, connection, msg) -> None:
     vol.Optional("lights"): dict,
     vol.Optional("devices"): dict,
     vol.Optional("pieces"): dict,
+    vol.Optional("figures"): dict,
 })
 @websocket_api.async_response
 async def ws_house3d_edit(hass: HomeAssistant, connection, msg) -> None:
-    """Save the 3D editor's draft: {openings, lights, devices, pieces}, each
+    """Save the 3D editor's draft: {openings, lights, devices, pieces, figures}, each
     {key: entry to set | None to remove}. Returns the whole file."""
     if not enabled(hass):
         connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
@@ -135,6 +136,9 @@ async def ws_house3d_edit(hass: HomeAssistant, connection, msg) -> None:
     store = await _loaded(hass, connection, msg)
     if store is None:
         return
+    if "figures" in msg:                 # FIGURE's lists (house3d_builders), read off the loop
+        from .house3d_builders import async_data  # noqa: PLC0415
+        await async_data(hass)
     async with store.lock:
         try:
             new = apply_edit(store.data, {k: msg[k] for k in EDIT_SECTIONS if k in msg})

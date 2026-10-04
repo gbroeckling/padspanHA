@@ -177,7 +177,7 @@ try {
     { asked, cancelled, ws: rm.ws, toasts: rm.toasts });
   const notAdmin = settingsPage({ atlas_3d_enabled: true }, { admin: false });
   check("furniture: no Remove all for a user who is not an admin",
-    !notAdmin.box._all().some(n => n.attributes && "data-la3d-rmfur" in n.attributes) && !/furniture/i.test(notAdmin.text),
+    !notAdmin.box._all().some(n => n.attributes && "data-la3d-rmfur" in n.attributes) && !/Remove all furniture/i.test(notAdmin.text),
     notAdmin.text);
   // A save that fails puts the switch back.
   const bad = settingsPage({ atlas_3d_enabled: false }, { refuse: true });

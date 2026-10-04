@@ -132,8 +132,11 @@ def test_the_box_saves_each_control_on_its_own() -> None:
     for v in ('["auto", ', '["low", ', '["high", '):
         assert v in src[src.index("const _ATLAS_3D_QUALITY"):src.index("function _atlas3dSection(")], v
     # P2's Remove all furniture (admins; the server backs up first). P4's
-    # library rows are here too (tests/test_live_aboard_library.py); the
-    # later phases' rows are not here yet.
+    # library rows and P3's AI Task row are here too (their own tests); the
+    # people layer's row is not here yet.
     assert '"Remove all furniture…"' in sec and 'wsCall("padspan_ha/house3d_clear", { only: "pieces" })' in sec
-    for later in ("atlas_3d_people", "atlas_3d_ai_task_entity"):
+    for later in ("atlas_3d_people",):
         assert later not in sec, later
+    # P3: the AI Task that reads photos, saved alone, from Home Assistant's ai_task.* entities, once on.
+    assert 'save("atlas_3d_ai_task_entity", want,' in sec and 'e.startsWith("ai_task.")' in sec
+    assert 'more.appendChild(row("AI Task for photos", [aiSel]));' in sec

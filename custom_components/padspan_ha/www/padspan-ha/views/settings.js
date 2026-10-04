@@ -3380,6 +3380,28 @@ function _atlas3dSection(ctx, el, settings){
   sel.addEventListener("change", ()=>{ const want = sel.value; save("atlas_3d_quality", want, ()=>{ sel.value = last; }).then(ok=>{ if (ok) last = want; }); });
   more.appendChild(row("Quality", [sel]));
 
+  // The AI Task that reads photos in Furnish (ws_house3d_photo.py): an
+  // administrator's choice, since a cloud one sends each photo out of the house.
+  const aiStates = (ctx.hass && ctx.hass.states) || {};
+  const aiCur = String(settings.atlas_3d_ai_task_entity || "");
+  const aiIds = Object.keys(aiStates).filter(e => e.startsWith("ai_task.")).sort();
+  const aiSel = document.createElement("select");
+  aiSel.className = "select";
+  aiSel.style.width = "auto";
+  aiSel.style.maxWidth = "100%";
+  aiSel.appendChild(el("option",{value:""}, "None"));
+  for (const eid of (aiCur && !aiIds.includes(aiCur) ? [aiCur, ...aiIds] : aiIds)) {
+    const n = aiStates[eid] && aiStates[eid].attributes && aiStates[eid].attributes.friendly_name;
+    aiSel.appendChild(el("option",{value:eid}, n ? `${n} (${eid})` : eid));
+  }
+  aiSel.value = aiCur;
+  let aiLast = aiCur;
+  aiSel.addEventListener("change", ()=>{ const want = aiSel.value; save("atlas_3d_ai_task_entity", want, ()=>{ aiSel.value = aiLast; }).then(ok=>{ if (ok) aiLast = want; }); });
+  more.appendChild(row("AI Task for photos", [aiSel]));
+  more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:4px"}, aiIds.length
+    ? "Reads the photos you take in Furnish. Pick one with a vision model. A cloud one sends each photo out of the house; a local one (like Ollama) keeps it home. Needs Home Assistant 2025.8 or newer."
+    : "No AI Task in Home Assistant yet. Add an AI integration with a vision model (like Ollama), then pick its AI Task here. Needs Home Assistant 2025.8 or newer."));
+
   // North: the GPS Bridge's own bearing (settings.fabric_bearing_deg), kept
   // to 0–359 the same way; a blank is refused rather than saved as 0, since
   // the GPS Bridge reads it too. What it means is shown, not stated: your
