@@ -340,18 +340,17 @@ export function createFurnish(ctx){
     menu.innerHTML = "";
     const B = FURN(), kinds = B && Array.isArray(B.FURNITURE_KINDS) ? B.FURNITURE_KINDS : [];
     const groups = [["furniture", "Furniture"], ["device", "Devices"]];
+    // The builders' box ("other") goes last, on its own; with no builders
+    // here (the module missing or broken) a box is still something to place.
+    const boxKind = kinds.includes("other") ? "other" : "box";
     for (const [g, title] of groups) {
-      const ks = kinds.filter(k => B.FURNITURE[k] && (B.FURNITURE[k].group || "furniture") === g);
+      const ks = kinds.filter(k => k !== boxKind && B.FURNITURE[k] && (B.FURNITURE[k].group || "furniture") === g);
       if (!ks.length) continue;
       menu.appendChild(d("h5", null, title));
       for (const k of ks) menu.appendChild(btn(B.FURNITURE[k].name || k, `Add a ${B.FURNITURE[k].name || k}`, () => { closeMenu(); add([{ recipe: recipeFor(k) }]); }));
     }
-    // No builders here (the module missing or broken): a box of any size is
-    // still something to place. The builders bring their own Box.
-    if (!kinds.length) {
-      menu.appendChild(d("h5", null, "Other"));
-      menu.appendChild(btn("Box", "A plain box of any size: anything with no builder of its own", () => { closeMenu(); add([{ recipe: recipeFor("box") }]); }));
-    }
+    menu.appendChild(d("h5", null, "Other"));
+    menu.appendChild(btn("Box", "A plain box of any size: anything with no builder of its own", () => { closeMenu(); add([{ recipe: recipeFor(boxKind) }]); }));
   }
   function toggleMenu(){ if (menuOpen) closeMenu(); else { buildMenu(); menuOpen = true; placeMenu(); menu.classList.add("on"); } }
   function closeMenu(){ menuOpen = false; menu.classList.remove("on"); }

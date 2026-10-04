@@ -57,6 +57,14 @@ tryCase("api: the exports are there", () => {
   const got = Object.fromEntries(Object.keys(want).map((k) => [k, typeof F[k]]));
   check("api: the exports are there", JSON.stringify(got) === JSON.stringify(want), got);
 });
+tryCase("api: tags and scanners", () => {
+  const T = F.FURNITURE.tag, Sc = F.FURNITURE.scanner;
+  const forms = (d) => d && JSON.stringify(d.params.find((s) => s.key === "form").choices);
+  check("api: tags and scanners", T && T.group === "tag" && forms(T) === JSON.stringify(["puck", "card", "fob", "phone"])
+    && Sc && Sc.group === "scanner" && forms(Sc) === JSON.stringify(["box", "board"])
+    && Sc.params.some((s) => s.key === "antenna" && s.type === "bool") && T.live === null && Sc.live === null
+    && !F.FURNITURE_KINDS.includes("tag") && !F.FURNITURE_KINDS.includes("scanner"), { T, Sc });
+});
 tryCase("api: the Build menu", () => {
   const k = F.FURNITURE_KINDS;
   const bad = k.filter((x) => !F.FURNITURE[x] || !["furniture", "device"].includes(F.FURNITURE[x].group));
@@ -98,7 +106,8 @@ for (const [kind, def] of Object.entries(F.FURNITURE)) {
       check(name, !DIMS.includes(s.key), `${s.key} restates a size`);
       if (s.sizes) {
         for (const [v, hint] of Object.entries(s.sizes)) {
-          const okV = s.type === "choice" ? s.choices.includes(v) : Number.isInteger(+v) && +v >= s.min && +v <= s.max;
+          const okV = s.type === "choice" ? s.choices.includes(v) : s.type === "bool" ? v === "true" || v === "false"
+            : Number.isInteger(+v) && +v >= s.min && +v <= s.max;
           check(name, okV, { key: s.key, v });
           for (const [dk, dv] of Object.entries(hint)) {
             check(name, DIMS.includes(dk) && dv >= def.size[dk][0] && dv <= def.size[dk][1], { key: s.key, v, dk, dv });
@@ -262,7 +271,12 @@ for (const kind of Object.keys(F.FURNITURE)) {
         const inside = bb.min.x >= -s.w / 2 - EPS && bb.max.x <= s.w / 2 + EPS && bb.min.z >= -s.d / 2 - EPS && bb.max.z <= s.d / 2 + EPS
           && bb.min.y >= -EPS && bb.max.y <= s.h + EPS;
         check(`build: ${kind}`, inside, { where, s, min: bb.min, max: bb.max });
-        const fills = bb.max.x - bb.min.x >= s.w * 0.5 && bb.max.z - bb.min.z >= s.d * 0.5 && bb.max.y - bb.min.y >= s.h * 0.5;
+        const free = kind === "tv" && F.clampRecipe(recipe).params.unit === "none";   // a TV alone keeps its screen size
+        // A round thing in a long, thin box fills its narrow side only; a
+        // fan's blades sweep a circle, so a fan is held to its narrow side.
+        const narrow = Math.min(s.w, s.d), long = Math.max(s.w, s.d) > 3 * narrow;
+        const reach = kind === "fan" ? [narrow, narrow] : [s.w, s.d];
+        const fills = free || ((long || (bb.max.x - bb.min.x >= reach[0] * 0.5 && bb.max.z - bb.min.z >= reach[1] * 0.5)) && bb.max.y - bb.min.y >= s.h * 0.5);
         check(`build: ${kind}`, fills, { where, s, min: bb.min, max: bb.max });
         const tris = trianglesOf(g);
         st[quality] = Math.max(st[quality], tris);
@@ -271,6 +285,18 @@ for (const kind of Object.keys(F.FURNITURE)) {
         check(`build: ${kind}`, inw.bad === 0 && inw.total > 0, { where, inw });
         check(`build: ${kind}`, partsOk(def, g.userData.parts), { where, parts: Object.keys(g.userData.parts) });
         check(`build: ${kind}`, meshesOf(g).length <= 14, { where, meshes: meshesOf(g).length });
+        // The live parts the view moves are parts of their own: the blades
+        // turn about their own z and stay inside the box a quarter turn on;
+        // the machine that shakes and the robot that leaves are children.
+        const P = g.userData.parts;
+        if (P.spin) {
+          P.spin.rotation.z += Math.PI / 2;
+          const b2 = boundsOf(g);
+          check(`build: ${kind}`, b2.min.x >= -s.w / 2 - EPS && b2.max.x <= s.w / 2 + EPS && b2.min.z >= -s.d / 2 - EPS && b2.max.z <= s.d / 2 + EPS
+            && b2.min.y >= -EPS && b2.max.y <= s.h + EPS, { where, spin: true, min: b2.min, max: b2.max });
+        }
+        if (P.run) check(`build: ${kind}`, P.run.parent && meshesOf(P.run).length >= 1, { where, run: true });
+        if (P.dock) check(`build: ${kind}`, P.dock.parent === g && P.dock !== g && meshesOf(P.dock).length >= 1, { where, dock: true });
         F.disposePiece(g);
       }
     }
@@ -291,6 +317,28 @@ const sameColour = (m, hex) => {
   const want = new THREE.Color(hex), c = m.material.color;
   return Math.abs(c.r - want.r) < 2e-3 && Math.abs(c.g - want.g) < 2e-3 && Math.abs(c.b - want.b) < 2e-3;
 };
+// The colour of the first thing a ray along z meets at (x, y): dir 1 comes from +z.
+function colourFrom(g, x, y, dir){
+  const h = hitFrom(g, new THREE.Vector3(x, y, dir * 20), new THREE.Vector3(0, 0, -dir));
+  return h ? h.object.material.color.getHexString() : null;
+}
+// The share of rays along z over a grid of (x, y) whose first colour passes test.
+function shows(g, xs, ys, dir, test){
+  let n = 0, ok = 0;
+  for (const x of xs) for (const y of ys) { const c = colourFrom(g, x, y, dir); if (c === null) continue; n++; if (test(c)) ok++; }
+  return n ? ok / n : 0;
+}
+// How much deeper rays reach from +z than from −z, on average (metres).
+function depthBias(g, s, xs, ys){
+  let n = 0, sum = 0;
+  for (const x of xs) for (const y of ys) {
+    const f = hitFrom(g, new THREE.Vector3(x, y, 20), new THREE.Vector3(0, 0, -1)), b = hitFrom(g, new THREE.Vector3(x, y, -20), new THREE.Vector3(0, 0, 1));
+    if (!f || !b) continue;
+    n++; sum += (s.d / 2 - f.point.z) - (b.point.z + s.d / 2);
+  }
+  return n ? sum / n : 0;
+}
+const frontHitZ = (g, x, y) => { const h = hitFrom(g, new THREE.Vector3(x, y, 20), new THREE.Vector3(0, 0, -1)); return h ? h.point.z : Infinity; };
 function centreOfColour(g, hex){
   g.updateMatrixWorld(true);
   const box = new THREE.Box3();
@@ -309,6 +357,71 @@ const FRONT = {
     const c = centreOfColour(g, "#8c8c8c"), duvet = centreOfColour(g, "#000000");
     return c !== null && duvet !== null && c.z < 0 && c.z < duvet.z - 0.1;
   },
+  table: null,
+  // A chair's back is at −z, as a sofa's; a stool has none and no front.
+  chair: (g, s, r) => r.params.style === "stool" ? true
+    : Math.max(...[-0.2, 0, 0.2].map((f) => topAt(g, f * s.w, -s.d / 2 + 0.02)))
+      > Math.max(...[-0.2, 0, 0.2].map((f) => topAt(g, f * s.w, s.d / 2 - 0.04))) + 0.08,
+  // Drawers face +z, where you sit: the pedestal shows its fronts from +z and
+  // its body from −z. With no drawers, the back panel is at −z.
+  desk: (g, s, r) => {
+    if (r.params.drawers === "none") return !r.params.back || frontHitZ(g, 0, s.h * 0.75) < 0;
+    const sx = r.params.drawers === "left" ? -1 : 1, pw = Math.min(0.42, s.w * 0.32);
+    const xs = [0.2, 0.4, 0.6, 0.8].map((f) => sx * (s.w / 2 - 0.005 - pw * f)), ys = [0.1, 0.2, 0.3, 0.4].map((f) => s.h * f);
+    return shows(g, xs, ys, 1, (c) => c !== "ff0000") > 0.6 && shows(g, xs, ys, -1, (c) => c === "ff0000") > 0.6;
+  },
+  // Fronts (drawers or doors) and handles face +z; the body is all that shows from −z.
+  dresser: (g, s) => {
+    const xs = [-0.37, -0.23, -0.11, 0.07, 0.19, 0.33].map((f) => f * s.w), ys = [0.33, 0.47, 0.61, 0.73, 0.87].map((f) => s.h * f);
+    return shows(g, xs, ys, 1, (c) => c !== "ff0000") > 0.5 && shows(g, xs, ys, -1, (c) => c === "ff0000") > 0.9;
+  },
+  // The screen (its own part) is what you see of the TV from +z, and faces +z.
+  tv: (g, s, r) => {
+    const sc = g.userData.parts.screen, bb = new THREE.Box3().setFromObject(sc), c = bb.getCenter(new THREE.Vector3());
+    const h = hitFrom(g, new THREE.Vector3(c.x, c.y, 20), new THREE.Vector3(0, 0, -1));
+    const n = sc.geometry.attributes.normal, front = [...Array(n.count).keys()].some((i) => n.getZ(i) > 0.99);
+    return h && h.object === sc && front;
+  },
+  lamp: null,
+  rug: null,
+  // Open toward +z: rays from the front travel in to the books or the back
+  // panel; from behind they stop at once. With neither, it has no front.
+  shelf: (g, s, r) => {
+    const books = centreOfColour(g, "#000000");                   // the first books' colour
+    if (books && books.z >= 0) return false;
+    if (!r.params.back || r.params.style === "wall") return true;
+    const xs = [-0.37, -0.21, -0.06, 0.09, 0.23, 0.38].map((f) => f * s.w), ys = [0.13, 0.27, 0.41, 0.56, 0.69, 0.83].map((f) => s.h * f);
+    return depthBias(g, s, xs, ys) > 0.003;
+  },
+  // Doors (and any drawers) face +z; only the body shows from −z.
+  wardrobe: (g, s) => {
+    const xs = [-0.37, -0.23, -0.11, 0.07, 0.19, 0.33].map((f) => f * s.w), ys = [0.33, 0.47, 0.61, 0.73, 0.87].map((f) => s.h * f);
+    return shows(g, xs, ys, 1, (c) => c !== "ff0000") > 0.5 && shows(g, xs, ys, -1, (c) => c === "ff0000") > 0.9;
+  },
+  plant: null,
+  // A front-loader's door (its trim) faces +z; a top-loader's controls stand at the back.
+  washer: (g, s, r) => r.params.loading === "top" ? topAt(g, 0, -s.d / 2 + 0.03) > topAt(g, 0, s.d / 2 - 0.05) + 0.02
+    : centreOfColour(g, "#000000").z > s.d / 4,
+  dryer: (g, s) => centreOfColour(g, "#000000").z > s.d / 4,
+  // The dock is at the back; the robot (or mower) waits in front of it.
+  vacuum_dock: (g, s) => boundsOf(g.userData.parts.dock).getCenter(new THREE.Vector3()).z > 0 && centreOfColour(g, "#ff0000").z < 0,
+  mower_dock: (g, s, r) => boundsOf(g.userData.parts.dock).min.z > -s.d / 2 + 0.05
+    && (r.params.roof || topAt(g, 0, -s.d / 2 + 0.02) > topAt(g, 0, s.d / 2 - 0.02) + 0.1),
+  // Headlights at the nose, +z.
+  car: (g) => centreOfColour(g, "#f4f1e6").z > 0,
+  // The light ring faces +z: it is the first thing a ray from the front meets there.
+  charger: (g) => {
+    const ring = g.userData.parts.glow[0], c = boundsOf(ring).getCenter(new THREE.Vector3());
+    const h = hitFrom(g, new THREE.Vector3(c.x + 0.001, c.y + 0.001, 20), new THREE.Vector3(0, 0, -1));
+    return h && h.object === ring;
+  },
+  radiator: null,
+  // The blades are in front of the motor; a ceiling fan has no front.
+  fan: (g, s, r) => r.params.style === "ceiling" || boundsOf(g.userData.parts.spin).getCenter(new THREE.Vector3()).z > 0,
+  // The drivers face +z; a smart speaker is round.
+  speaker: (g, s, r) => r.params.style === "smart" || boundsOf(g.userData.parts.run).getCenter(new THREE.Vector3()).z > 0,
+  tag: null,
+  scanner: null,
   other: null,
 };
 for (const kind of Object.keys(F.FURNITURE)) {
@@ -373,7 +486,7 @@ tryCase("dispose: a piece frees what it made, never what another uses", () => {
 tryCase("dispose: a live part's own material goes with its piece", () => {
   let tried = 0;
   for (const [kind, def] of Object.entries(F.FURNITURE)) {
-    if (!def.live) continue;
+    if (!["glow", "screen", "warm", "charge"].includes(def.live)) continue;     // parts that only move share their looks
     tried++;
     const g = F.buildPiece(THREE, F.defaultRecipe(kind), { quality: "high" });
     const own = resOf(g).mats.filter((m) => m.userData.ownPart);

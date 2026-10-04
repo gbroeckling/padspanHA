@@ -146,7 +146,9 @@ await tryCase("open: Furnish opens at the furniture tool; Build lists the builde
   await settle(20);
   click("Build ▾", "la3d-tools");
   const menu = root().querySelectorAll(".la3d-furmenu")[0].querySelectorAll("button").map(b => b.textContent);
-  const want = FURN ? FURN.FURNITURE_KINDS.filter(k => ["furniture", "device"].includes(FURN.FURNITURE[k].group)).map(k => FURN.FURNITURE[k].name) : ["Box"];
+  // Grouped, furniture then devices, in the builders' order; the Box last on its own.
+  const of = (g) => (FURN ? FURN.FURNITURE_KINDS.filter(k => k !== "other" && FURN.FURNITURE[k].group === g).map(k => FURN.FURNITURE[k].name) : []);
+  const want = [...of("furniture"), ...of("device"), "Box"];
   check("open: Furnish opens at the furniture tool; Build lists the builders' kinds; a missing flow has no button",
     !st().failed && ed().editing && ed().tool === "furnish" && ed().furnishOn && !shown(button("Door", "la3d-tools"))
     && JSON.stringify(menu) === JSON.stringify(want) && !shown(button("From a photo", "la3d-tools")) && !shown(button("Library", "la3d-tools"))
