@@ -262,7 +262,8 @@ for (const kind of Object.keys(F.FURNITURE)) {
         const inside = bb.min.x >= -s.w / 2 - EPS && bb.max.x <= s.w / 2 + EPS && bb.min.z >= -s.d / 2 - EPS && bb.max.z <= s.d / 2 + EPS
           && bb.min.y >= -EPS && bb.max.y <= s.h + EPS;
         check(`build: ${kind}`, inside, { where, s, min: bb.min, max: bb.max });
-        const fills = bb.max.x - bb.min.x >= s.w * 0.5 && bb.max.z - bb.min.z >= s.d * 0.5 && bb.max.y - bb.min.y >= s.h * 0.5;
+        const free = kind === "tv" && F.clampRecipe(recipe).params.unit === "none";   // a TV alone keeps its screen size
+        const fills = free || (bb.max.x - bb.min.x >= s.w * 0.5 && bb.max.z - bb.min.z >= s.d * 0.5 && bb.max.y - bb.min.y >= s.h * 0.5);
         check(`build: ${kind}`, fills, { where, s, min: bb.min, max: bb.max });
         const tris = trianglesOf(g);
         st[quality] = Math.max(st[quality], tris);
@@ -291,6 +292,18 @@ const sameColour = (m, hex) => {
   const want = new THREE.Color(hex), c = m.material.color;
   return Math.abs(c.r - want.r) < 2e-3 && Math.abs(c.g - want.g) < 2e-3 && Math.abs(c.b - want.b) < 2e-3;
 };
+// The colour of the first thing a ray along z meets at (x, y): dir 1 comes from +z.
+function colourFrom(g, x, y, dir){
+  const h = hitFrom(g, new THREE.Vector3(x, y, dir * 20), new THREE.Vector3(0, 0, -dir));
+  return h ? h.object.material.color.getHexString() : null;
+}
+// The share of rays along z over a grid of (x, y) whose first colour passes test.
+function shows(g, xs, ys, dir, test){
+  let n = 0, ok = 0;
+  for (const x of xs) for (const y of ys) { const c = colourFrom(g, x, y, dir); if (c === null) continue; n++; if (test(c)) ok++; }
+  return n ? ok / n : 0;
+}
+const frontHitZ = (g, x, y) => { const h = hitFrom(g, new THREE.Vector3(x, y, 20), new THREE.Vector3(0, 0, -1)); return h ? h.point.z : Infinity; };
 function centreOfColour(g, hex){
   g.updateMatrixWorld(true);
   const box = new THREE.Box3();
@@ -309,6 +322,32 @@ const FRONT = {
     const c = centreOfColour(g, "#8c8c8c"), duvet = centreOfColour(g, "#000000");
     return c !== null && duvet !== null && c.z < 0 && c.z < duvet.z - 0.1;
   },
+  table: null,
+  // A chair's back is at −z, as a sofa's; a stool has none and no front.
+  chair: (g, s, r) => r.params.style === "stool" ? true
+    : Math.max(...[-0.2, 0, 0.2].map((f) => topAt(g, f * s.w, -s.d / 2 + 0.02)))
+      > Math.max(...[-0.2, 0, 0.2].map((f) => topAt(g, f * s.w, s.d / 2 - 0.04))) + 0.08,
+  // Drawers face +z, where you sit: the pedestal shows its fronts from +z and
+  // its body from −z. With no drawers, the back panel is at −z.
+  desk: (g, s, r) => {
+    if (r.params.drawers === "none") return !r.params.back || frontHitZ(g, 0, s.h * 0.75) < 0;
+    const sx = r.params.drawers === "left" ? -1 : 1, pw = Math.min(0.42, s.w * 0.32);
+    const xs = [0.2, 0.4, 0.6, 0.8].map((f) => sx * (s.w / 2 - 0.005 - pw * f)), ys = [0.1, 0.2, 0.3, 0.4].map((f) => s.h * f);
+    return shows(g, xs, ys, 1, (c) => c !== "ff0000") > 0.6 && shows(g, xs, ys, -1, (c) => c === "ff0000") > 0.6;
+  },
+  // Fronts (drawers or doors) and handles face +z; the body is all that shows from −z.
+  dresser: (g, s) => {
+    const xs = [-0.37, -0.23, -0.11, 0.07, 0.19, 0.33].map((f) => f * s.w), ys = [0.33, 0.47, 0.61, 0.73, 0.87].map((f) => s.h * f);
+    return shows(g, xs, ys, 1, (c) => c !== "ff0000") > 0.5 && shows(g, xs, ys, -1, (c) => c === "ff0000") > 0.9;
+  },
+  // The screen (its own part) is what you see of the TV from +z, and faces +z.
+  tv: (g, s, r) => {
+    const sc = g.userData.parts.screen, bb = new THREE.Box3().setFromObject(sc), c = bb.getCenter(new THREE.Vector3());
+    const h = hitFrom(g, new THREE.Vector3(c.x, c.y, 20), new THREE.Vector3(0, 0, -1));
+    const n = sc.geometry.attributes.normal, front = [...Array(n.count).keys()].some((i) => n.getZ(i) > 0.99);
+    return h && h.object === sc && front;
+  },
+  lamp: null,
   other: null,
 };
 for (const kind of Object.keys(F.FURNITURE)) {
