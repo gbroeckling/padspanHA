@@ -195,6 +195,20 @@ export function warningEntities(cfg, states, entities){
   return out.sort();
 }
 
+/** The warnings setting's list: the detected warning sensors first, then
+ *  anything else that calls itself a warning or an alert (a template sensor
+ *  of your own, say) — but never a water-leak or flood detector (device class
+ *  moisture), which a house often names "… Flood Warning" and which never
+ *  says anything about rain or snow. */
+export function warningPickerIds(states, entities){
+  const st = states || {};
+  const found = warningEntities({}, st, entities);
+  const name = (eid) => String((st[eid] && st[eid].attributes && st[eid].attributes.friendly_name) || eid);
+  const dc = (eid) => String((st[eid] && st[eid].attributes && st[eid].attributes.device_class) || "");
+  return [...found, ...Object.keys(st).sort().filter(eid => /^(binary_sensor|sensor)\./.test(eid) && !found.includes(eid)
+    && dc(eid) !== "moisture" && /warn|alert|avertissement|vigilance/i.test(`${name(eid)} ${eid}`))];
+}
+
 // An alert sensor is quiet at 0 / off / Vert (Météo-France's green).
 function alertActive(st){
   const v = reading(st);
@@ -391,15 +405,18 @@ function rgba(hex, a){
 // back down, so the strength setting never regenerates a tile. The rim, the
 // ripples and the haze (styles.css) are baked the same way.
 const BAKE = STRENGTH_MAX;
+// Light rain and light snow must read from across the room on the wall
+// panel: at the first spec's 11% drizzle Garry took a working overlay for
+// a broken one (2026-10-04). Still one calm layer; heavy stays well above it.
 export const RAIN_LAYERS = [
-  { id: "r0", tier: "base",  w: 240, h: 280, n: 12, len: 16, op: 0.11, width: 1,   dur: 1.25 },   // drizzle, ~3°
-  { id: "r1", tier: "heavy", w: 200, h: 240, n: 44, len: 26, op: 0.12, width: 1,   dur: 0.8 },    // far sheet
-  { id: "r2", tier: "heavy", w: 260, h: 300, n: 26, len: 40, op: 0.18, width: 1,   dur: 0.6 },    // mid
-  { id: "r3", tier: "heavy", w: 320, h: 360, n: 12, len: 64, op: 0.24, width: 1.3, dur: 0.42 },   // near streaks
+  { id: "r0", tier: "base",  w: 240, h: 280, n: 30, len: 24, op: 0.24, width: 1.4, dur: 1.25 },   // drizzle, ~3°
+  { id: "r1", tier: "heavy", w: 200, h: 240, n: 44, len: 26, op: 0.16, width: 1,   dur: 0.8 },    // far sheet
+  { id: "r2", tier: "heavy", w: 260, h: 300, n: 26, len: 40, op: 0.24, width: 1.2, dur: 0.6 },    // mid
+  { id: "r3", tier: "heavy", w: 320, h: 360, n: 12, len: 64, op: 0.32, width: 1.6, dur: 0.42 },   // near streaks
 ];
 export const SNOW_LAYERS = [
-  { id: "s0", tier: "base",  w: 240, h: 240, n: 34, rad: 1.0, op: 0.42, blur: 0.35, dur: 26, sway: [7, 10] },
-  { id: "s1", tier: "base",  w: 300, h: 300, n: 20, rad: 1.7, op: 0.5,  blur: 0.6,  dur: 17, sway: [5.5, 16] },
+  { id: "s0", tier: "base",  w: 240, h: 240, n: 34, rad: 1.3, op: 0.5,  blur: 0.35, dur: 26, sway: [7, 10] },
+  { id: "s1", tier: "base",  w: 300, h: 300, n: 20, rad: 2.1, op: 0.6,  blur: 0.6,  dur: 17, sway: [5.5, 16] },
   { id: "s2", tier: "heavy", w: 260, h: 260, n: 40, rad: 1.1, op: 0.4,  blur: 0.4,  dur: 21, sway: [6.3, 12] },
   { id: "s3", tier: "heavy", w: 380, h: 380, n: 9,  rad: 2.8, op: 0.5,  blur: 1.3,  dur: 10, sway: [4.2, 24] },
 ];

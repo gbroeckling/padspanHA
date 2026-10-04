@@ -254,7 +254,9 @@ def test_the_settings_card_offers_each_setting_saved_on_its_own() -> None:
               "atlas_weather_warning_entity", "atlas_weather_strength"):
         assert f'"{k}"' in sec, k
     assert 'ctx.actions.wsCall("padspan_ha/settings_set"' in sec and "settingsSet(" not in sec
-    assert 'eid.startsWith("weather.")' in sec and "/^(binary_sensor|sensor)\\./" in sec
+    assert 'eid.startsWith("weather.")' in sec
+    # The warnings list, leak detectors left out (the harness runs the rule).
+    assert "WX.warningPickerIds(states, entities)" in sec
     assert "lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));" in src
     # "Above 0 = wet" needs a sensor that means raining NOW (the harness runs the rule).
     assert "WX.rainSensorIds(states, entities)" in sec

@@ -3306,9 +3306,8 @@ function _atlasWeatherSection(ctx, el, settings){
   const firstWx = WX ? WX.firstWeatherEntity(states) : "";
   const warnIds = WX ? WX.warningEntities({}, states, entities) : [];
   // The detected ones first, then anything else that calls itself a warning
-  // or an alert (a template sensor of your own, say).
-  const warnList = [...warnIds, ...ids.filter(eid => /^(binary_sensor|sensor)\./.test(eid) && !warnIds.includes(eid)
-    && /warn|alert|avertissement|vigilance/i.test(nameOf(eid)))];
+  // or an alert — never a water-leak detector (atlas_weather.js warningPickerIds).
+  const warnList = WX ? WX.warningPickerIds(states, entities) : [];
   picker("Rain sensor", "atlas_weather_rain_entity", "None — use the weather entity", rainIds);
   picker("Weather entity", "atlas_weather_condition_entity",
     firstWx ? `Automatic — ${nameOf(firstWx)}` : "Automatic — none found (no weather shows)", ids.filter(eid => eid.startsWith("weather.")));

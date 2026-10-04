@@ -302,6 +302,20 @@ tryCase("fallback: the rain-sensor list is only actual rain sensors", () => {
   check("fallback: the rain-sensor list is only actual rain sensors", JSON.stringify(got) === JSON.stringify(want)
     && JSON.stringify(WX.rainSensorIds(null)) === "[]", got);
 });
+tryCase("fallback: the warnings list never offers a leak detector", () => {
+  // Garry's house, 2026-10-04: a Sinopé leak detector named "Emergency Flood
+  // Warning ⚠️" had been picked as the weather warnings source.
+  const st = {
+    "binary_sensor.sinope_technologies_wl4210": S("unavailable", { device_class: "moisture", friendly_name: "Emergency Flood Warning ⚠️" }),
+    "sensor.vancouver_warnings": S(0, { attribution: "Data provided by Environment Canada", friendly_name: "Vancouver Warnings" }),
+    "sensor.my_storm_alert": S("off", { friendly_name: "My storm alert" }),
+    "binary_sensor.front_door": S("off", { device_class: "door", friendly_name: "Front door" }),
+  };
+  const got = WX.warningPickerIds(st, {});
+  check("fallback: the warnings list never offers a leak detector",
+    JSON.stringify(got) === JSON.stringify(["sensor.vancouver_warnings", "sensor.my_storm_alert"])
+    && JSON.stringify(WX.warningPickerIds(null)) === "[]", got);
+});
 tryCase("warnings: a dry day reads no warning source at all", () => {
   let touched = 0;
   const ents = new Proxy({ ...EC_ENT }, { get(t, k) { touched++; return t[k]; } });

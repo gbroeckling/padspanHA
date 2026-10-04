@@ -4,6 +4,15 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.94 — Rain and snow you can see from across the room (2026-10-04)
+
+### Atlas — outdoor weather
+- **Changed:** light rain was so faint that from across the room, on a wall panel, the Atlas looked dry while it rained. Light rain now has more streaks, longer and brighter, so it reads at a glance. It is still a calm drizzle, and heavy rain is still clearly heavier. Light snow has slightly bigger, brighter flakes for the same reason.
+- If it's now too strong for your screen, turn it down with Settings → UI Structure → Atlas — Mapped Light Control → Outdoor weather → **Strength**.
+- **Fixed:** the **Weather warnings** list offered water-leak detectors whose name says "warning" (say, an "Emergency Flood Warning"). A leak detector never says anything about rain or snow, so picking one meant warnings could never make the rain heavy. They're no longer offered. If you picked one, choose Automatic or a real weather-warning sensor.
+
+---
+
 ## 0.38.93 — One colour key for motion and air on the Atlas (2026-09-29)
 
 ### Atlas
