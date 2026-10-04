@@ -14,7 +14,11 @@
 //             is a barrier's id, and holds that barrier's hinge, swing,
 //             sill and head in 3D only (the map is never written)
 //   lights    {z_m}: a light's height above its floor, in 3D only
-//   devices   {z_m}: any other device's height (readouts, sensors)
+//   devices   {z_m}: any other device's height (readouts, sensors); a
+//             beacon's or scanner's recipe (P6) is passed through whole
+//   pieces    furniture (P2 Furnish, "fur_" + 8 hex digits): each piece
+//             whole, every key kept (live_aboard_pieces.js has its rules)
+//   figures   people figures (P6), passed through whole
 // The editor works on a draft of exactly these fields; nothing is stored
 // until Save, which sends only what changed (an entry, or null to remove
 // it) in one websocket command. Keys the editor does not own stay in the
@@ -34,7 +38,7 @@ export const DOOR_LOW_M = 1.0;             // the lowest door the slider offers
 export const DOOR_MIN_HEAD_M = 0.5;        // the lowest door the server keeps, however low the ceiling
 export const OPENING_ID = /^(win|door)_[0-9a-f]{8}$/;
 export const FILE_SCHEMA = 1;              // the 3D file this version writes (house3d_store.py SCHEMA)
-export const SECTIONS = ["openings", "lights", "devices"];
+export const SECTIONS = ["openings", "lights", "devices", "pieces", "figures"];
 const UNDO_MAX = 100;
 const RUN_COS = Math.cos(3 * Math.PI / 180);    // pieces this parallel,
 const RUN_OFF = 0.12;                            // this close to one line,
@@ -90,11 +94,12 @@ export function writable(data, said){
   return Number.isInteger(s) && s >= 0 && s <= FILE_SCHEMA;
 }
 /** The file's data (house3d_get's "data"), cut down to what the editor owns:
- *  {openings, lights, devices}. Reading is tolerant: anything it cannot read
- *  is left out of the view, and stays in the file. */
+ *  {openings, lights, devices, pieces, figures}. Reading is tolerant:
+ *  anything it cannot read is left out of the view, and stays in the file. */
 export function ownedOf(data){
   const d = data && typeof data === "object" ? data : {};
-  const out = { openings: {}, lights: {}, devices: {} };
+  const out = { openings: {}, lights: {}, devices: {}, pieces: {}, figures: {} };
+  const obj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
   const ops = d.openings && typeof d.openings === "object" ? d.openings : {};
   for (const k of Object.keys(ops)) {
     const v = ops[k];
@@ -110,6 +115,18 @@ export function ownedOf(data){
     const m = d[s] && typeof d[s] === "object" ? d[s] : {};
     for (const k of Object.keys(m)) { const z = num(m[k] && m[k].z_m); if (z !== null) out[s][k] = { z_m: z }; }
   }
+  // A beacon's or scanner's recipe (P6), whole, so a flow can change or remove it.
+  const dv = obj(d.devices) ? d.devices : {};
+  for (const k of Object.keys(dv)) if (!out.devices[k] && obj(dv[k]) && obj(dv[k].recipe)) out.devices[k] = copy(dv[k]);
+  // Furniture: each piece whole, every key kept (the server keeps what this
+  // version does not know); the id is live_aboard_pieces.js PIECE_ID.
+  const ps = obj(d.pieces) ? d.pieces : {};
+  for (const k of Object.keys(ps)) {
+    const v = ps[k];
+    if (/^fur_[0-9a-f]{8}$/.test(k) && obj(v) && obj(v.recipe) && typeof v.floor_id === "string") out.pieces[k] = copy(v);
+  }
+  const fg = obj(d.figures) ? d.figures : {};
+  for (const k of Object.keys(fg)) if (obj(fg[k])) out.figures[k] = copy(fg[k]);
   return out;
 }
 /** What Save sends: per section, each key whose owned fields changed (the
@@ -479,4 +496,4 @@ export function applyOpenings(h, openings){
 /** What the walls are drawn from, of the file: its openings. */
 export const openingsSignature = (vd) => JSON.stringify(Object.keys((vd && vd.openings) || {}).sort().map(k => [k, vd.openings[k]]));
 /** What the heights of one section are drawn from. */
-export const heightsSignature = (vd, section) => JSON.stringify(Object.keys((vd && vd[section]) || {}).sort().map(k => [k, vd[section][k].z_m]));
+export const heightsSignature = (vd, section) => JSON.stringify(Object.keys((vd && vd[section]) || {}).sort().map(k => [k, (vd[section][k] || {}).z_m]));

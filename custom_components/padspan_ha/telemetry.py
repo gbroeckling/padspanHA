@@ -242,6 +242,7 @@ TAB_EVENTS: frozenset[str] = frozenset(
 # tests/test_telemetry.py holds UI_ERROR_HELPERS to the files in views/.
 UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "atlas_weather", "fabric_compass", "live_aboard", "live_aboard_draft", "live_aboard_edit", "live_aboard_house", "live_aboard_use",
+    "live_aboard_pieces",   # Live Aboard P2 Furnish
     "busy_times", "calibration_matrix", "editions", "evidence_diagram", "house_activity",
     "insights", "iso_lights", "iso_motion", "light_codes", "lights_map", "locate",
     "pan_zoom", "path_loss", "plan_viewer", "push_subscription", "radio_map",
