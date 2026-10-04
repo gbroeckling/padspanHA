@@ -151,12 +151,40 @@ export const FURNITURE = {
       choice("shade", "Shade", ["drum", "cone", "globe"], "drum"),
       choice("base", "Base", ["round", "square", "tripod"], "round"),
     ]),
+  rug: kind("Rug", "furniture", "decor", null, ["Main", "Border"], ["#a85d4a", "#e8dcc6"],
+    sz([0.4, 5.0, 2.0], [0.4, 5.0, 1.4], [0.004, 0.05, 0.012]), [
+      choice("shape", "Shape", ["rectangle", "round"], "rectangle", { sizes: { round: { width_m: 1.6, depth_m: 1.6 } } }),
+      choice("pattern", "Pattern", ["plain", "border", "stripes"], "border"),
+      bool("fringe", "Fringe", false),
+    ]),
+  shelf: kind("Shelf", "furniture", "storage", null, ["Wood", "Books"], ["#c9b79c", "#8a4f3c"],
+    sz([0.3, 3.0, 0.9], [0.15, 0.6, 0.32], [0.2, 2.5, 1.8]), [
+      choice("style", "Style", ["bookcase", "open", "wall"], "bookcase"),
+      int("shelves", "Shelves", 1, 8, 5),
+      choice("books", "Books", ["none", "some", "full"], "some"),
+      bool("back", "Back panel", true),
+    ]),
+  wardrobe: kind("Wardrobe", "furniture", "storage", null, ["Body", "Doors"], ["#e8e2d6", "#d8d0c0"],
+    sz([0.4, 3.6, 1.2], [0.4, 0.8, 0.6], [1.0, 2.6, 2.0]), [
+      choice("style", "Doors", ["hinged", "sliding"], "hinged"),
+      int("doors", "Number of doors", 1, 4, 2),
+      int("drawers", "Drawers below", 0, 3, 0),
+      choice("handles", "Handles", ["bar", "knob", "none"], "bar"),
+      bool("mirror", "Mirror", false),
+    ]),
+  plant: kind("Plant", "furniture", "decor", null, ["Leaves", "Pot"], ["#4f7a3a", "#b5653d"],
+    sz([0.12, 2.0, 0.5], [0.12, 2.0, 0.5], [0.15, 3.0, 0.9]), [
+      choice("style", "Plant", ["bush", "tree", "palm", "cactus"], "bush", { sizes: {
+        bush: { height_m: 0.8 }, tree: { height_m: 1.6 }, palm: { height_m: 1.5 }, cactus: { height_m: 0.7 } } }),
+      choice("pot", "Pot", ["round", "square", "none"], "round"),
+    ]),
   other: kind("Box", "furniture", "other", null, ["Colour"], [BOX_COLOR], BOX_SIZE, []),
 };
 
 // The Build menu, in order. Tags and scanners (groups "tag" and "scanner")
 // are in FURNITURE for the beacon screen, not here.
-export const FURNITURE_KINDS = ["sofa", "bed", "table", "chair", "desk", "dresser", "tv", "lamp", "other"];
+export const FURNITURE_KINDS = ["sofa", "bed", "table", "chair", "desk", "dresser", "tv", "lamp", "rug", "shelf", "wardrobe", "plant",
+                                "other"];
 
 const defOf = (k) => (typeof k === "string" && Object.prototype.hasOwnProperty.call(FURNITURE, k) ? FURNITURE[k] : null);
 
@@ -958,8 +986,166 @@ function buildLamp(K0, S, p, C, parts){
   parts.glow = [shadeMesh, bulb];
 }
 
+// Rug: a thin mat on the floor, plain, bordered or striped (a round one in
+// rings), fringed at its short ends.
+function buildRug(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const main = L(C[0], "fabric"), edge = L(C[1], "fabric"), round = p.shape === "round", form = round ? "ellipse" : "rect";
+  const fr = p.fringe && !round ? Math.min(0.06, W * 0.08) : 0, bw = W - 2 * fr;
+  if (p.pattern === "plain") K.slab(form, bw, H, D, 0, 0, 0, main, 0.02, 0.002);
+  else if (p.pattern === "border" || round) {
+    // Rings, each a little higher than the one around it.
+    const looks = p.pattern === "border" ? [edge, main] : [edge, main, edge, main];
+    const b = Math.min(0.12, Math.min(bw, D) * 0.1);
+    looks.forEach((look, i) => K.slab(form, bw - 2 * b * i, H * (0.55 + 0.45 * i / (looks.length - 1)), D - 2 * b * i, 0, 0, 0, look, 0.02, 0.002));
+  } else {
+    const lo = H * 0.7, n = clamp(Math.round(bw / 0.4), 2, 8), band = bw / (2 * n + 1);
+    K.slab(form, bw, lo, D, 0, 0, 0, main, 0.02, 0.002);
+    for (let i = 0; i < n; i++) K.box(band, H - lo + 0.0005, D - 0.06, -bw / 2 + band * (2 * i + 1.5), (lo - 0.0005 + H) / 2, 0, edge);
+  }
+  if (fr) for (const s of [-1, 1]) K.box(fr, H * 0.4, D * 0.94, s * (W / 2 - fr / 2), H * 0.2, 0, L(lighten(C[1], 0.3), "fabric"));
+}
+
+// Shelf: a bookcase, an open frame or boards on the wall; the back at −z and
+// any books standing toward it.
+const BOOKS = ["#2f4f6f", "#7a2e2e", "#c9a227", "#3d5a3d", "#e8e0d0"];
+function buildShelf(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const frame = L(C[0], "wood"), n = p.shelves, t = Math.min(0.02, H / (n + 1) / 3), style = p.style;
+  const back = p.back && style !== "wall" ? 0.008 : 0, side = style === "bookcase" ? t : style === "open" ? 0.025 : 0;
+  const base = style === "bookcase" ? Math.min(0.06, H * 0.1) : style === "wall" ? Math.min(0.05, H * 0.12) : 0;
+  const ys = [];
+  for (let i = 0; i <= n; i++) ys.push(base + t / 2 + (H - base - t) * i / n);
+  const bw = W - 2 * side;
+  for (const y of ys) K.box(bw, t, D - back, 0, y, back / 2, frame, 0.004);
+  if (style === "bookcase") {
+    for (const s of [-1, 1]) K.box(t, H, D, s * (W / 2 - t / 2), H / 2, 0, frame, 0.004);
+    K.box(bw, base, D - back - 0.03, 0, base / 2, back / 2 - 0.015, L(darken(C[0], 0.2), "wood"));
+  } else if (style === "open") {
+    for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) K.box(0.025, H, 0.025, sx * (W / 2 - 0.0125), H / 2, sz2 * (D / 2 - 0.0125), L(METAL, "metal"));
+  } else {
+    // Brackets under each board, against the wall.
+    const bh = Math.min(0.05, base), bd = Math.min(0.06, D * 0.5);
+    for (const y of ys) for (const s of [-1, 1]) K.box(0.02, bh, bd, s * bw * 0.35, y - t / 2 - bh / 2, -D / 2 + bd / 2, L(METAL, "metal"));
+  }
+  if (back) K.box(W - side, H - base, back, 0, base + (H - base) / 2, -D / 2 + back / 2, frame);
+  if (p.books === "none") return;
+  // Books stand at the back of each shelf in a few colours: one by one on
+  // High (unless there would be too many), in runs on Low.
+  const R = (seed) => { const v = Math.sin(seed * 12.9898 + 78.233) * 43758.5453; return v - Math.floor(v); };
+  const fill = p.books === "full" ? 0.86 : 0.45, bd = Math.min(D - back - 0.02, 0.22);
+  const single = K.hi && n * (bw * fill) / 0.0425 <= 240;
+  for (let i = 0; i < n; i++) {
+    const gap = ys[i + 1] - ys[i] - t;
+    if (gap < 0.08 || bd < 0.03) continue;
+    const end = -bw / 2 + 0.01 + (bw - 0.02) * fill;
+    for (let x = -bw / 2 + 0.01, k = 0; x < end - 0.02; k++) {
+      const r1 = R(i * 97 + k * 13 + n), r2 = R(i * 31 + k * 7 + 5);
+      const bwid = Math.min(end - x, single ? 0.025 + r1 * 0.035 : 0.15 + r1 * 0.2), bh = Math.min(gap - 0.01, 0.16 + r2 * 0.14);
+      K.box(bwid - 0.002, bh, bd, x + bwid / 2, ys[i] + t / 2 + bh / 2, -D / 2 + back + 0.005 + bd / 2,
+            L(k % 3 === 0 ? C[1] : BOOKS[(i + k) % BOOKS.length]));
+      x += bwid + (p.books === "some" && r2 > 0.8 ? 0.06 : 0);
+    }
+  }
+}
+
+// Wardrobe: hinged or sliding doors toward +z, any drawers below them, a mirror.
+function buildWardrobe(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const body = L(C[0], "wood"), front = L(C[1], "wood"), hl = L(METAL, "metal"), glass = L("#c9d3d8", "gloss");
+  const sliding = p.style === "sliding", hd = p.handles === "none" ? 0 : HANDLE_D, ft = sliding ? 0.05 : 0.024;
+  const cD = D - ft - hd, cz = -D / 2 + cD / 2, zf = -D / 2 + cD;
+  const plinth = Math.min(0.08, H * 0.06), y0 = plinth + 0.01, y1 = H - 0.02;
+  K.box(W, H - plinth, cD - GAP_T, 0, plinth + (H - plinth) / 2, cz - GAP_T / 2, body, 0.008);
+  K.box(W - 0.02, plinth, cD - 0.02, 0, plinth / 2, cz, L(darken(C[0], 0.25), "wood"));
+  const drH = p.drawers ? Math.min(0.2 * p.drawers, (y1 - y0) * 0.35) : 0;
+  if (p.drawers) {
+    // Under sliding doors the drawers come forward to the front track.
+    const zd = sliding ? zf + ft - 0.025 : zf;
+    if (sliding) K.box(W - 0.02, drH, zd - GAP_T - zf, 0, y0 + drH / 2, (zf + zd - GAP_T) / 2, body);
+    drawers(K, 0, W - 0.02, y0, y0 + drH, p.drawers, zd, front, p.handles, hl);
+  }
+  const dy0 = y0 + drH, dh = y1 - dy0;
+  if (sliding) {
+    const n = Math.max(2, p.doors), dw = (W - 0.02) / n;
+    for (let i = 0; i < n; i++) {
+      const x = -W / 2 + 0.01 + dw * (i + 0.5), z = zf + (i % 2 ? 0.035 : 0.01), face = z + 0.01;
+      K.box(dw, dh, 0.02, x, dy0 + dh / 2, z, front, 0.004);
+      K.box(0.012, Math.min(0.3, dh * 0.3), 0.003, x + (i % 2 ? -1 : 1) * (dw / 2 - 0.03), dy0 + dh * 0.5, face + 0.0015, L(darken(C[1], 0.45)));
+      if (p.mirror && i === 0) K.box(dw * 0.7, dh * 0.8, 0.003, x, dy0 + dh / 2, face + 0.0015, glass);
+    }
+  } else {
+    const n = p.doors, dw = (W - 0.02) / n;
+    for (let i = 0; i < n; i++) {
+      const x = -W / 2 + 0.01 + dw * (i + 0.5), hinge = n === 1 || i % 2 === 0 ? -1 : 1;
+      door(K, x, dw, dy0, y1, zf, front, p.handles, hl, hinge);
+      if (p.mirror && i === 0) K.box(dw * 0.55, dh * 0.75, 0.003, x + hinge * dw * 0.1, dy0 + dh / 2, zf + 0.0215, glass);
+    }
+  }
+}
+
+// Plant: a pot and a bush, a tree, a palm or a cactus. It is drawn round,
+// in metres, then stretched along the longer side, so a long planter is a row.
+function buildPlant(K0, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const R = Math.min(W, D) / 2, K = K0.child(null, [W / 2 / R, 1, D / 2 / R]);
+  const leaf = L(C[0], "soft"), pot = L(C[1], "gloss"), soil = L("#3b2a1e");
+  const potH = p.pot === "none" ? 0 : clamp(H * 0.3, 0.04, 0.45), potR = R * (p.style === "tree" || p.style === "palm" ? 0.6 : 0.75);
+  if (p.pot === "round") {
+    K.cyl(potR, potR * 0.78, potH, 0, potH / 2, 0, pot, 20);
+    K.cyl(potR * 0.9, potR * 0.9, 0.008, 0, potH - 0.003, 0, soil, 20);
+  } else if (p.pot === "square") {
+    K.box(potR * 1.75, potH, potR * 1.75, 0, potH / 2, 0, pot, 0.02);
+    K.box(potR * 1.6, 0.008, potR * 1.6, 0, potH - 0.003, 0, soil);
+  }
+  const fh = H - potH, y0 = potH, ball = (x, y, z, r) => K.ball(r, x, y, z, leaf, null, null, 12);
+  if (p.style === "bush") {
+    // A ring of leaves on the pot, a crown at the top, and leaves between.
+    const r1 = Math.min(R * 0.42, fh * 0.32), r0 = Math.min(R * 0.6, fh * 0.42), rm = Math.min(R * 0.55, fh * 0.4);
+    for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; ball(Math.cos(a) * (R - r1), y0 + r1, Math.sin(a) * (R - r1), r1); }
+    ball(0, H - r0, 0, r0);
+    for (let y = y0 + r1 * 1.7 + rm * 0.6, i = 0; y < H - r0 * 1.7 - rm * 0.2; y += rm * 1.2, i++) {
+      const a = i * 2.4;
+      ball(Math.cos(a) * R * 0.15, y, Math.sin(a) * R * 0.15, rm);
+    }
+  } else if (p.style === "tree") {
+    const tr = clamp(R * 0.08, 0.008, 0.05), rt = Math.min(R * 0.55, fh * 0.22), rr = Math.min(R * 0.45, fh * 0.2);
+    K.cyl(tr * 0.8, tr, fh * 0.6, 0, y0 + fh * 0.3, 0, L("#6b4a32", "wood"), 8);
+    ball(0, H - rt, 0, rt);
+    for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3; ball(Math.cos(a) * (R - rr), H - rt * 2.1, Math.sin(a) * (R - rr), rr); }
+  } else if (p.style === "palm") {
+    // Arching fronds: each rises from the top of the trunk, then droops.
+    const l1 = R * 0.5, l2 = R * 0.46, up = 0.6, down = -0.35, wid = Math.min(0.14, R * 0.3);
+    const top = Math.max(y0 + fh * 0.3, H - 0.02 - l1 * Math.sin(up)), tr = clamp(R * 0.08, 0.008, 0.05);
+    K.cyl(tr * 0.8, tr, top - y0, 0, (y0 + top) / 2, 0, L("#7a6044", "wood"), 8);
+    const rise = Math.asin(clamp((H - top - 0.02) / l1, 0, Math.sin(up))), droop = Math.max(down, -Math.asin(clamp((top + l1 * Math.sin(rise) - y0) / l2, 0, 1)));
+    const reach = l1 * Math.cos(rise), peak = top + l1 * Math.sin(rise);
+    for (let i = 0; i < 9; i++) {
+      const a = i * Math.PI * 2 / 9, ca = Math.cos(a), sa = Math.sin(a);
+      K.box(l1, 0.012, wid, ca * reach / 2, top + (peak - top) / 2, -sa * reach / 2, leaf, 0, [0, a, rise]);
+      const c2 = reach + l2 * Math.cos(droop) / 2;
+      K.box(l2, 0.012, wid * 0.8, ca * c2, peak + l2 * Math.sin(droop) / 2, -sa * c2, leaf, 0, [0, a, droop]);
+    }
+  } else {
+    const rc = Math.max(0.006, Math.min(R * 0.24, fh * 0.3)), colTop = H - rc, ra = rc * 0.62;
+    K.cyl(rc, rc, colTop - y0, 0, (y0 + colTop) / 2, 0, leaf, 12);
+    ball(0, colTop, 0, rc);
+    // Three arms around the column, each out and then up.
+    const out = Math.min(R - ra, rc + ra * 2.2);
+    [[0, 0.32], [2.3, 0.48], [4.2, 0.4]].forEach(([a, f]) => {
+      const ay = y0 + fh * f, armTop = Math.min(colTop - 0.01, ay + fh * 0.28), ex = Math.cos(a) * out, ez = Math.sin(a) * out;
+      if (out - rc * 0.5 <= ra || armTop - ay < 0.01) return;
+      K.rod([Math.cos(a) * rc * 0.5, ay, Math.sin(a) * rc * 0.5], [ex, ay, ez], ra, leaf, 10);
+      ball(ex, ay, ez, ra);
+      K.cyl(ra, ra, armTop - ay, ex, (ay + armTop) / 2, ez, leaf, 10);
+      ball(ex, armTop, ez, ra);
+    });
+  }
+}
+
 const BUILDERS = { sofa: buildSofa, bed: buildBed, table: buildTable, chair: buildChair, desk: buildDesk, dresser: buildDresser,
-                   tv: buildTv, lamp: buildLamp, other: buildBox };
+                   tv: buildTv, lamp: buildLamp, rug: buildRug, shelf: buildShelf, wardrobe: buildWardrobe, plant: buildPlant,
+                   other: buildBox };
 
 // ── building and freeing ─────────────────────────────────────────────────────
 function build(THREE, quality, fn, S, p, C, meta){

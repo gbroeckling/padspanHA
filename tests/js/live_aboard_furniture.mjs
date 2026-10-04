@@ -303,6 +303,16 @@ function shows(g, xs, ys, dir, test){
   for (const x of xs) for (const y of ys) { const c = colourFrom(g, x, y, dir); if (c === null) continue; n++; if (test(c)) ok++; }
   return n ? ok / n : 0;
 }
+// How much deeper rays reach from +z than from −z, on average (metres).
+function depthBias(g, s, xs, ys){
+  let n = 0, sum = 0;
+  for (const x of xs) for (const y of ys) {
+    const f = hitFrom(g, new THREE.Vector3(x, y, 20), new THREE.Vector3(0, 0, -1)), b = hitFrom(g, new THREE.Vector3(x, y, -20), new THREE.Vector3(0, 0, 1));
+    if (!f || !b) continue;
+    n++; sum += (s.d / 2 - f.point.z) - (b.point.z + s.d / 2);
+  }
+  return n ? sum / n : 0;
+}
 const frontHitZ = (g, x, y) => { const h = hitFrom(g, new THREE.Vector3(x, y, 20), new THREE.Vector3(0, 0, -1)); return h ? h.point.z : Infinity; };
 function centreOfColour(g, hex){
   g.updateMatrixWorld(true);
@@ -348,6 +358,22 @@ const FRONT = {
     return h && h.object === sc && front;
   },
   lamp: null,
+  rug: null,
+  // Open toward +z: rays from the front travel in to the books or the back
+  // panel; from behind they stop at once. With neither, it has no front.
+  shelf: (g, s, r) => {
+    const books = centreOfColour(g, "#000000");                   // the first books' colour
+    if (books && books.z >= 0) return false;
+    if (!r.params.back || r.params.style === "wall") return true;
+    const xs = [-0.37, -0.21, -0.06, 0.09, 0.23, 0.38].map((f) => f * s.w), ys = [0.13, 0.27, 0.41, 0.56, 0.69, 0.83].map((f) => s.h * f);
+    return depthBias(g, s, xs, ys) > 0.003;
+  },
+  // Doors (and any drawers) face +z; only the body shows from −z.
+  wardrobe: (g, s) => {
+    const xs = [-0.37, -0.23, -0.11, 0.07, 0.19, 0.33].map((f) => f * s.w), ys = [0.33, 0.47, 0.61, 0.73, 0.87].map((f) => s.h * f);
+    return shows(g, xs, ys, 1, (c) => c !== "ff0000") > 0.5 && shows(g, xs, ys, -1, (c) => c === "ff0000") > 0.9;
+  },
+  plant: null,
   other: null,
 };
 for (const kind of Object.keys(F.FURNITURE)) {
