@@ -248,6 +248,7 @@ export function createPieceLayer(ctx){
 export function createFurnish(ctx){
   const { THREE, PIECES, root, guard } = ctx;
   let sel = null, gesture = null, menuOpen = false, picker = null, flowEl = null, flowGen = 0, shownNow = false, lastDrag = null;
+  let fitHint = null;                                // a fit warning the hint shows, until it no longer applies
   let mods = null;                                   // the flows: {photo, library, import, people} → their function
   let share = null;                                  // the library's shareFlow (P4), when it has one
   const FURN = () => (ctx.FURN ? ctx.FURN() : null);
@@ -425,6 +426,7 @@ export function createFurnish(ctx){
 
   // ── selecting, and the panel ──────────────────────────────────────────────
   function select(id){
+    if (fitHint && id !== sel) { fitHint = null; ctx.hint(""); }   // that warning was another piece's
     sel = id && pieceOf(id) ? id : null;
     picker = null;
     sheet();
@@ -465,7 +467,10 @@ export function createFurnish(ctx){
     if (p.entity_id) title.appendChild(d("span", "la3d-badge", "linked"));
     h.append(title, btn("×", "Close", () => select(null), "la3d-x"));
     el.appendChild(h);
-    el.appendChild(d("p", "la3d-sub", `${spec ? spec.name : pieceName({ recipe: { kind } }, null)}${p.origin && p.origin !== "build" ? ` · from ${p.origin === "photo" ? "a photo" : p.origin === "library" ? "the library" : "an import"}` : ""}`));
+    // Under its name: what it is (once it has a name of its own) and where it came from.
+    const what = [p.label ? (spec ? spec.name : pieceName({ recipe: { kind } }, null)) : null,
+                  { photo: "From a photo", library: "From the library", import: "Imported" }[p.origin] || null].filter(Boolean).join(" · ");
+    if (what) el.appendChild(d("p", "la3d-sub", what));
     const lab = d("input", "la3d-fin");
     lab.type = "text"; lab.maxLength = 60; lab.placeholder = "Its name in the house (optional)"; lab.value = p.label || "";
     lab.addEventListener("change", guard(() => { edit((q) => { q.label = [...lab.value].filter(ch => ch >= " " && ch !== "\u007f").join("").trim().slice(0, 60); }); sheet(); }));
@@ -543,6 +548,7 @@ export function createFurnish(ctx){
     el.appendChild(deviceRow(p));
     // The fit checks: warnings, never blocks.
     const warns = checksOf(p);
+    if (fitHint && !warns.length) { fitHint = null; ctx.hint("It fits here now."); }   // raised onto the table, say
     if (warns.length) {
       const w = d("div", "la3d-warn");
       w.setAttribute("role", "status");
@@ -745,7 +751,8 @@ export function createFurnish(ctx){
     if (g.moved) {
       ctx.redraw();
       const p = pieceOf(g.id), warns = p ? checksOf(p) : [];
-      ctx.hint(warns.length ? fitText(warns[0], nameOf) : g.snapped ? "Its back is against the wall." : "Moved.", warns.length > 0);
+      fitHint = warns.length ? fitText(warns[0], nameOf) : null;
+      ctx.hint(fitHint || (g.snapped ? "Its back is against the wall." : "Moved."), !!fitHint);
     }
     sheet();
     paint3d();

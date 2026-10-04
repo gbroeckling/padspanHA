@@ -282,9 +282,13 @@ await tryCase("fit: a piece in another is a warning on its panel and an amber ou
   drag(a, b);
   await settle();
   const warn = root().querySelectorAll(".la3d-warn")[0];
-  check("fit: a piece in another is a warning on its panel and an amber outline, never a block",
-    !!p && fur().checks.includes("overlap") && warn && /overlaps the/i.test(warn.textContent) && fur().outline === "#f59e0b"
-    && draftPieces()[id].x_m !== p.x_m, { checks: fur().checks, outline: fur().outline, warn: warn && warn.textContent });
+  const hintThen = ed().hint;
+  // Raised clear of it (onto it, as a lamp onto a table): the warning goes, and the hint says so.
+  slide("Height in room", Math.round((P_.sizeOf(s.recipe).h + 0.01) * 100) / 100); await settle();
+  const after = { checks: fur().checks, hint: ed().hint, warn: root().querySelectorAll(".la3d-warn").length };
+  check("fit: a piece in another is a warning on its panel and an amber outline, never a block; raised clear, it goes",
+    !!p && after.checks.length === 0 && /overlaps the/i.test(hintThen) && warn && /overlaps the/i.test(warn.textContent)
+    && after.hint === "It fits here now." && after.warn === 0 && draftPieces()[id].x_m !== p.x_m, { hintThen, after, warn: warn && warn.textContent });
   click("Delete", "la3d-sheet"); await settle();
   slot._furnish().select(sofa); await settle();
 });
