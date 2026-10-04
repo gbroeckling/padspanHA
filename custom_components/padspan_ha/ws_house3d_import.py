@@ -47,7 +47,7 @@ from .ws_common import _tier_at_least
 from .ws_floorplan_import import MAX_SH3D_BYTES
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE
 
-BOX = "box"
+BOX = "other"                  # the builders' own box, "Box" in the Build menu (contracts §3)
 # Words → PadSpan kinds. A pair first (two words that mean something the
 # words alone don't), then the LAST word that names a kind: in a name the
 # thing itself comes last ("coffee table", "table lamp", "desk chair";

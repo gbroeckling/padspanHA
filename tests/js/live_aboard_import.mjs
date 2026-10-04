@@ -74,10 +74,12 @@ const FAKE_F = {
            size: sz([0.35, 1, 0.45], [0.35, 1, 0.5], [0.4, 1.3, 0.9]), live: null },
   lamp: { name: "Lamp", group: "furniture", category: "lighting", params: [{ key: "style", label: "Style", type: "choice", choices: ["floor", "table"], def: "floor" }],
           colors: ["#333333", "#f5e6c8"], colorNames: ["Stand", "Shade"], size: sz([0.1, 0.8, 0.4], [0.1, 0.8, 0.4], [0.1, 2.2, 1.6]), live: "glow" },
+  other: { name: "Box", group: "furniture", category: "other", params: [], colors: ["#9aa3ab"], colorNames: ["Colour"],
+           size: sz([0.05, 6, 0.6], [0.05, 6, 0.6], [0.02, 4, 0.6]), live: null },
   tag: { name: "Tag", group: "tag", category: "device", params: [], colors: ["#ffffff"], colorNames: ["Body"], size: sz([0.02, 0.2, 0.04], [0.02, 0.2, 0.04], [0.005, 0.05, 0.01]), live: null },
 };
 const FAKE = {
-  FURNITURE_KINDS: ["sofa", "bed", "table", "chair", "lamp", "tag"],
+  FURNITURE_KINDS: ["sofa", "bed", "table", "chair", "lamp", "other", "tag"],
   FURNITURE: FAKE_F,
   defaultRecipe(kind){
     const d = FAKE_F[kind];
@@ -321,11 +323,11 @@ await tryCase("kinds", async () => {
   const lightId = idsBy(P.house, "pieces", "Ceiling light")[0], washId = idsBy(P.house, "pieces", "Washing machine")[0];
   const kindSel = (id) => inRow(rowOf(f.el, id), "select")[0];
   check("kinds: each piece starts as the kind its words matched; no builder or no match is a box",
-    kindSel(sofaId).value === "sofa" && kindSel(oddId).value === "box" && kindSel(washId).value === "box"
+    kindSel(sofaId).value === "sofa" && kindSel(oddId).value === IM.BOX && kindSel(washId).value === IM.BOX
       && textOf(rowOf(f.el, washId)).includes("no builder for a washer yet") && textOf(rowOf(f.el, oddId)).includes("no match"),
     [kindSel(sofaId).value, kindSel(oddId).value, kindSel(washId).value, textOf(rowOf(f.el, washId))]);
   const opts = walk(kindSel(sofaId)).filter(n => n.localName === "option").map(o => o.value);
-  check("kinds: the choices are the builders' furniture and devices, then Box", opts.join() === "sofa,bed,table,chair,lamp,box", opts);
+  check("kinds: the choices are the builders' furniture and devices, then Box", opts.join() === "sofa,bed,table,chair,lamp,other", opts);
   check("kinds: a ceiling light starts unticked, and says why", inRow(rowOf(f.el, lightId), "input")[0].checked === false
     && textOf(rowOf(f.el, lightId)).includes("ceiling or wall light"), textOf(rowOf(f.el, lightId)));
   // Re-map the sofa (2.2 m in the file) to a bed: the bed's own recipe, kept to its range.
@@ -339,8 +341,9 @@ await tryCase("kinds", async () => {
   check("kinds: re-mapped, it is the builder's recipe at the file's size, kept to the range", bed && bed.recipe.kind === "bed"
     && bed.recipe.params.size === "queen" && bed.recipe.colors.length === 2 && bed.recipe.width_m === 2.2 && bed.recipe.depth_m === 1.2
     && bed.recipe.height_m === 0.8 && bed.label === "Corner sofa", bed);
-  check("kinds: a box keeps the file's size and is a plain box", odd && odd.recipe.kind === "box" && odd.recipe.width_m === 0.4
-    && odd.recipe.depth_m === 0.3 && odd.recipe.height_m === 0.2 && JSON.stringify(odd.recipe.colors) === JSON.stringify([IM.BOX_COLOR]) && wash.recipe.kind === "box", odd);
+  check("kinds: a box keeps the file's size and is the builders' own box", odd && odd.recipe.kind === IM.BOX && odd.recipe.width_m === 0.4
+    && odd.recipe.depth_m === 0.3 && odd.recipe.height_m === 0.2 && JSON.stringify(odd.recipe.colors) === JSON.stringify(FAKE_F.other.colors)
+    && wash.recipe.kind === IM.BOX, odd);
   check("kinds: the unticked ceiling light is not handed over", !(lightId in r.pieces));
   const sofaAt = P.house.pieces[sofaId];
   check("kinds: the file's place, height and turn come through", bed.x_m === sofaAt.x_m && bed.y_m === sofaAt.y_m && bed.z_m === 0
@@ -348,18 +351,25 @@ await tryCase("kinds", async () => {
     && r.pieces[oddId].floor_id === "up", [bed, r.pieces[oddId]]);
   piecesOut.push(...Object.values(r.pieces));
   // A recipe outside every range: kept to what the 3D file keeps.
-  const big = IM.recipeFor("box", { w: 12, d: 0.001, h: 3 }, FAKE);
+  const big = IM.recipeFor(IM.BOX, { w: 12, d: 0.001, h: 3 }, null);
   check("kinds: sizes stay within what the 3D file keeps", big.width_m === IM.SIZE_MAX_M && big.depth_m === IM.SIZE_MIN_M && big.height_m === 3, big);
   const bad = IM.recipeFor("sofa", { w: 2, d: 0.9, h: 0.8 }, { ...FAKE, clampRecipe(){ throw new Error("builder bug"); } });
-  check("kinds: a builder that throws gives a box, never an error", bad.kind === "box" && bad.width_m === 2, bad);
+  check("kinds: a builder that throws gives a box, never an error", bad.kind === IM.BOX && bad.width_m === 2
+    && JSON.stringify(bad.colors) === JSON.stringify([IM.BOX_COLOR]), bad);
+  const builtBox = IM.recipeFor(IM.BOX, { w: 7, d: 0.5, h: 5 }, FAKE);
+  check("kinds: with builders the box is theirs, kept to its range", builtBox.kind === IM.BOX && builtBox.width_m === 6
+    && builtBox.height_m === 4 && JSON.stringify(builtBox.colors) === JSON.stringify(FAKE_F.other.colors), builtBox);
   const noTools = IM.kindChoices(null);
-  check("kinds: with no builders module every piece can still come in as a box", noTools.length === 1 && noTools[0].kind === "box", noTools);
+  check("kinds: with no builders module every piece can still come in as a box", noTools.length === 1 && noTools[0].kind === IM.BOX
+    && noTools[0].name === "Box", noTools);
+  check("kinds: the builders' box is offered once, by its own name", IM.kindChoices(FAKE).filter(c => c.kind === IM.BOX).length === 1, IM.kindChoices(FAKE));
 });
 if (REAL_TOOLS) {
   await tryCase("kinds: the real builders", async () => {
     const choices = IM.kindChoices(REAL_TOOLS);
     const furn = REAL_TOOLS.FURNITURE;
-    check("kinds: the real builders' furniture and devices are offered, then Box", choices.length >= 2 && choices.at(-1).kind === "box"
+    check("kinds: the real builders' furniture and devices are offered, then Box", choices.length >= 2 && choices.at(-1).kind === IM.BOX
+      && choices.filter(c => c.kind === IM.BOX).length === 1
       && choices.slice(0, -1).every(c => furn[c.kind] && ["furniture", "device"].includes(furn[c.kind].group)), choices.map(c => c.kind));
     const bad = [];
     for (const c of choices) {

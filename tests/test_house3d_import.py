@@ -181,7 +181,7 @@ def test_the_answer_is_plain_json(disk, tmp_path):
     ("Sofa 3 seats", "", "sofa"), ("Sofa bed", "", "sofa"), ("Canapé d'angle", "", "sofa"),
     ("Bed", "", "bed"), ("Double bed 140x190", "", "bed"), ("Bunk bed", "", "bed"), ("Crib", "", "bed"),
     ("Lit double", "", "bed"), ("Bett", "", "bed"),
-    ("Table", "", "table"), ("Coffee table", "", "table"), ("Dining tables", "", "table"), ("Esstisch", "", "box"),
+    ("Table", "", "table"), ("Coffee table", "", "table"), ("Dining tables", "", "table"), ("Esstisch", "", "other"),
     ("Chair", "", "chair"), ("Office chair", "", "chair"), ("Stool", "", "chair"), ("Bar stools", "", "chair"),
     ("Armchair", "", "chair"),
     ("Desk", "", "desk"), ("Writing desk", "", "desk"), ("Schreibtisch", "", "desk"),
@@ -198,14 +198,14 @@ def test_the_answer_is_plain_json(disk, tmp_path):
     ("Washing machine", "", "washer"), ("Washer", "", "washer"), ("Dryer", "", "dryer"),
     ("Tumble dryer", "", "dryer"), ("Radiator", "", "radiator"), ("Ceiling fan", "", "fan"),
     ("Speaker", "", "speaker"),
-    ("Fridge", "", "box"), ("Chest freezer", "", "box"), ("Dishwasher", "", "box"), ("Thingamajig", "", "box"),
-    ("", "", "box"), ("Stuff", "eTeks#doubleBed", "bed"), ("", "Scopia#sofa_corner", "sofa"),
+    ("Fridge", "", "other"), ("Chest freezer", "", "other"), ("Dishwasher", "", "other"), ("Thingamajig", "", "other"),
+    ("", "", "other"), ("Stuff", "eTeks#doubleBed", "bed"), ("", "Scopia#sofa_corner", "sofa"),
     ("Bed", "eTeks#chair", "bed"),
 ])
 def test_words_map_onto_padspans_own_kinds(name, catalog, kind):
     got, word = WI.kind_of({"tag": "pieceOfFurniture", "name": name, "catalog": catalog, "category": ""})
     assert got == kind, (name, catalog, got, word)
-    assert (word is None) == (kind == "box" and name not in ("Fridge", "Chest freezer", "Dishwasher"))
+    assert (word is None) == (kind == WI.BOX and name not in ("Fridge", "Chest freezer", "Dishwasher"))
 
 
 def test_a_light_with_no_telling_words_is_a_lamp_and_its_words_still_win():
@@ -223,7 +223,7 @@ def test_the_table_is_small_and_lowercase_and_every_kind_is_a_padspan_name():
         for w in words:
             assert re.fullmatch(r"[a-z]+", w) and w not in seen, w
             seen.add(w)
-    assert WI.BOX == "box" and len(seen) < 250
+    assert WI.BOX == "other" and len(seen) < 250
 
 
 @pytest.mark.parametrize("name,elev,height,kind,word", [
@@ -260,7 +260,7 @@ def test_pieces_are_the_3d_files_own_shape_kind_and_size_only():
     assert (sofa["x_m"], sofa["y_m"], sofa["z_m"], sofa["rotation"]) == (2.0, 1.5, 0.0, 180.0)
     assert by["Ceiling light"]["recipe"]["kind"] == "lamp" and by["Ceiling light"]["z_m"] == 2.4
     odd = by["Thingamajig"]
-    assert odd["recipe"]["kind"] == "box" and odd["recipe"]["width_m"] == 0.4 and odd["rotation"] == 270.0
+    assert odd["recipe"]["kind"] == "other" and odd["recipe"]["width_m"] == 0.4 and odd["rotation"] == 270.0
     assert (by["Table"]["recipe"]["kind"], by["Chair"]["recipe"]["kind"]) == ("table", "chair")
 
 
@@ -306,7 +306,7 @@ def test_the_report_says_what_mapped_to_what_and_what_was_left_out():
     assert set(rep["pieces"]) == set(out["pieces"]) and set(rep["openings"]) == set(out["openings"])
     by = {r["name"]: r for r in rep["pieces"].values()}
     assert by["Corner sofa"] == {"name": "Corner sofa", "level_id": "lvl0", "word": "sofa", "kind": "sofa"}
-    assert by["Thingamajig"] == {"name": "Thingamajig", "level_id": "lvl1", "word": None, "kind": "box"}
+    assert by["Thingamajig"] == {"name": "Thingamajig", "level_id": "lvl1", "word": None, "kind": "other"}
     assert by["Table"]["level_id"] == "lvl1" and by["Chair"]["level_id"] == "lvl0"
     door = next(r for r in rep["openings"].values() if r["kind"] == "door")
     assert door == {"name": "Front door", "level_id": "lvl0", "word": "door", "kind": "door", "width_m": 0.915}

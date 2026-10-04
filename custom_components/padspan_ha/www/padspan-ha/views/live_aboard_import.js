@@ -29,7 +29,7 @@ export const PREVIEW_TYPE = "padspan_ha/house3d_import_preview";
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;     // the room import's limit (ws_floorplan_import.py)
 export const SNAP_M = 1.0;                           // a door or window this near a wall goes on it,
 const SNAP_COS = Math.cos(25 * Math.PI / 180);       // when it runs about the same way
-export const BOX = "box";
+export const BOX = "other";                          // the builders' own box ("Box" in the Build menu)
 export const BOX_COLOR = "#a8a29e";
 export const SIZE_MIN_M = 0.05, SIZE_MAX_M = 8;      // a piece's sizes as the 3D file keeps them
 export const Z_MAX_M = 20;
@@ -155,16 +155,16 @@ export function kindChoices(tools){
     const d = F[k];
     if (k !== BOX && d && GROUPS.has(d.group)) out.push({ kind: k, name: String(d.name || k) });
   }
-  out.push({ kind: BOX, name: "Box" });
+  out.push({ kind: BOX, name: String((F[BOX] && F[BOX].name) || "Box") });
   return out;
 }
 /** A recipe of `kind` at the file's size: the builder's defaults kept to
- *  its range (clampRecipe), else a box of that size; every size within what
- *  the 3D file keeps. */
+ *  its range (clampRecipe; the builders' own box too), else a plain box of
+ *  that size; every size within what the 3D file keeps. */
 export function recipeFor(kind, size, tools){
   let r = null;
   const d = tools && tools.FURNITURE && tools.FURNITURE[kind];
-  if (kind !== BOX && d && typeof tools.defaultRecipe === "function") {
+  if (d && typeof tools.defaultRecipe === "function") {
     try {
       r = { ...tools.defaultRecipe(kind), width_m: size.w, depth_m: size.d, height_m: size.h };
       if (typeof tools.clampRecipe === "function") r = tools.clampRecipe(r);

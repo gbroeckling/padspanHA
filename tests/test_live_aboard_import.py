@@ -170,7 +170,7 @@ def test_the_limits_are_the_servers() -> None:
     assert re.search(r"export const MAX_FILE_BYTES = 10 \* 1024 \* 1024;", js) and WI.MAX_SH3D_BYTES == 10 * 1024 * 1024
     assert f'export const PREVIEW_TYPE = "{WI.ws_house3d_import_preview.ws_schema["type"]}";' in js
     assert "export const SIZE_MIN_M = 0.05, SIZE_MAX_M = 8;" in js and f"export const Z_MAX_M = {int(WI.Z_MAX_M)};" in js
-    assert 'export const BOX = "box";' in js and WI.BOX == "box"
+    assert 'export const BOX = "other";' in js and WI.BOX == "other"
 
 
 def test_the_new_file_is_credited_in_the_report() -> None:
