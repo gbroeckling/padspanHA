@@ -126,6 +126,11 @@ for (const [r, want] of [[sofa(2.1, 0.9, 0.82), "medium"], [sofa(0.95, 0.85, 0.8
     && d.title === "Three-seat grey sofa" && JSON.stringify(d.rooms) === "[]" && d.style === "" && d.material === "", d);
   const bed = L.prefillDetails({ kind: "bed", params: { size: "king" }, colors: ["#6b4f3a"], width_m: 2.07, depth_m: 2.2, height_m: 1.15 }, T);
   check("prefill", bed.category === "sleeping" && bed.bed_size === "king" && bed.seats === 2 && bed.color_family === "brown", bed);
+  const tag = L.prefillDetails(T.defaultRecipe("tag"), T);
+  const scanner = L.prefillDetails({ ...T.defaultRecipe("scanner"), params: { form: "board", antenna: true } }, T);
+  check("prefill", tag.category === "device" && tag.form === "puck" && tag.antenna === undefined
+    && scanner.form === "board" && scanner.antenna === true && L.checkDetails({ ...scanner, rooms: ["any"], style: "other",
+    material: "plastic" }, "scanner").details !== null, { tag, scanner });
   const box = L.prefillDetails({ kind: "chaise_longue", colors: ["#336699"], width_m: 1.7, depth_m: 0.7, height_m: 0.8 }, T);
   check("prefill", box.kind === "other" && box.category === "other" && box.color_family === "blue", box);
   // An AI's sheet, tidied: close spellings become the library's values; what isn't the sheet's is left out.

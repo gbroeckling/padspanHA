@@ -339,6 +339,10 @@ export function prefillDetails(recipe, tools){
     if (d.fixture === undefined && FIXTURES.includes(p.style)) d.fixture = p.style;
     if (d.shades === undefined && typeof p.shade === "string") d.shades = 1;
   }
+  if (d.category === "device") {   // a tag or a scanner: its form, and whether it has an antenna
+    if (d.form === undefined && FORMS.includes(p.form)) d.form = p.form;
+    if (d.antenna === undefined && typeof p.antenna === "boolean") d.antenna = p.antenna;
+  }
   if (kind === "dresser" && Number.isInteger(p.columns)) {   // its fronts, counted
     if (d.drawers === undefined && p.fronts === "drawers" && Number.isInteger(p.rows)) d.drawers = Math.min(50, p.columns * p.rows);
     if (d.doors === undefined && p.fronts === "doors") d.doors = Math.min(50, p.columns);
