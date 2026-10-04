@@ -91,7 +91,8 @@ const tryCase = async (name, fn) => { try { await fn(); } catch (e) { failures.p
 const sleep = (ms) => new Promise(r => globalThis._realSetTimeout(r, ms));
 // Everything the 3D house brings: its modules (the view, the house, its
 // use surface, the editor and its rules), the compass, three.js.
-const threeLoads = () => loaded.filter(u => /\/views\/(live_aboard(_house|_use|_draft|_edit)?|fabric_compass)\.js|\/vendor\/three\//.test(u));
+// Every Live Aboard module (P2 adds Furnish, its rules and the builders) and three.js.
+const threeLoads = () => loaded.filter(u => /\/views\/(live_aboard(_[a-z]+)?|fabric_compass)\.js|\/vendor\/three\//.test(u));
 
 // ── a small two-storey house with lights ───────────────────────────────────
 const rect = (floor_id, x0, y0, x1, y1) => ({ type: "poly", floor_id, points_m: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] });
@@ -136,6 +137,8 @@ const H3 = (enabled, slot = "atlas", extra = {}) => ({ slot, settings: { atlas_3
   telemetry: (n) => sent.push(n),
   load: () => { fileCalls.push(`load:${slot}`); return Promise.resolve({ data: {} }); },
   edit: (c) => { fileCalls.push(`edit:${slot}`); return Promise.resolve({ data: c }); } });
+// Mapping → Furnish's host (P2): the 3D view forced, the Furnish tool's own bits.
+const H3F = (enabled) => ({ ...H3(enabled, "builder"), furnish: true, callWS: async () => ({}), toast: () => {}, entities: {} });
 function card({ house3d, layoutV2 = false, display = false, tier = "pro", M = LM } = {}) {
   const view = { floorGap: 150, horizGap: 0, focusIdx: 0, zoom: 1 };
   const host = { el, view, floors: FLOORS, model: MODEL, byRoom: {}, hiddenEids: new Set(), lightsByEid: LBE, lightsLoading: false,
@@ -168,15 +171,16 @@ await tryCase("off: absent and off are byte-identical; on but Map changes only t
     const A = askedBy(() => card(layout)), O = askedBy(() => card({ ...layout, house3d: H3(false) }));
     const U = askedBy(() => card({ ...layout, house3d: { slot: "atlas", settings: {}, telemetry: (n) => sent.push(n) } }));
     const N = askedBy(() => card({ ...layout, house3d: null }));
+    const FO = askedBy(() => card({ ...layout, house3d: H3F(false) }));      // Mapping → Furnish's host, the switch off
     const absent = A.r, off = O.r, unset = U.r, nul = N.r;
     const onMap = card({ ...layout, house3d: H3(true) });
     localStorage.setItem(PICK("builder"), "0");
     const onMapBuilder = card({ ...layout, house3d: H3(true, "builder") });
     const a = ser(absent.c);
     out[name] = {
-      absentIsOff: a === ser(off.c) && a === ser(unset.c) && a === ser(nul.c),
+      absentIsOff: a === ser(off.c) && a === ser(unset.c) && a === ser(nul.c) && a === ser(FO.r.c),
       // ...and asks for the same listeners, timers, frames and observers.
-      sameAsks: A.d.length > 2 && O.d === A.d && U.d === A.d && N.d === A.d,
+      sameAsks: A.d.length > 2 && O.d === A.d && U.d === A.d && N.d === A.d && FO.d === A.d,
       svgSame: absent.svg.length > 1000 && [off, unset, nul, onMap, onMapBuilder].every(x => x.svg === absent.svg),
       onlySwitch: ser(onMap.c, isSwitch) === a && ser(onMapBuilder.c, isSwitch) === a,
       switchShown: switchesIn(onMap.c).length >= 1 && switchesIn(off.c).length === 0,
@@ -193,11 +197,12 @@ await tryCase("gate: on but below Pro (free, bright) is exactly off, even with 3
     for (const [name, layout] of Object.entries({ classic: {}, v2: { layoutV2: true }, display: { layoutV2: true, display: true } })) {
       const A = askedBy(() => card({ ...layout, tier })), On = askedBy(() => card({ ...layout, tier, house3d: H3(true) }));
       const OnB = askedBy(() => card({ ...layout, tier, house3d: H3(true, "builder") })), Off = askedBy(() => card({ ...layout, tier, house3d: H3(false) }));
+      const OnF = askedBy(() => card({ ...layout, tier, house3d: H3F(true) }));
       const absent = A.r, on = On.r, onB = OnB.r, off = Off.r;
       const a = ser(absent.c);
-      out[`${tier}/${name}`] = { same: a === ser(on.c) && a === ser(onB.c) && a === ser(off.c),
-        sameAsks: A.d.length > 2 && On.d === A.d && OnB.d === A.d && Off.d === A.d,
-        noSwitch: switchesIn(on.c).length === 0 && switchesIn(onB.c).length === 0,
+      out[`${tier}/${name}`] = { same: a === ser(on.c) && a === ser(onB.c) && a === ser(off.c) && a === ser(OnF.r.c),
+        sameAsks: A.d.length > 2 && On.d === A.d && OnB.d === A.d && Off.d === A.d && OnF.d === A.d,
+        noSwitch: switchesIn(on.c).length === 0 && switchesIn(onB.c).length === 0 && switchesIn(OnF.r.c).length === 0,
         flat: on.stage.style.display !== "none" && !on.c._all().some(n => n.classList && n.classList.contains("la3d")) };
     }
   }

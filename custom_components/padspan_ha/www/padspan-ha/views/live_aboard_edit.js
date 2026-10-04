@@ -121,6 +121,7 @@ export function createEditor(ctx){
   let editFn = null, editing = false, draft = null, tool = null, sel = null, gesture = null, pending = null;
   let saving = false, afterSave = null, askGo = null, hintMsg = "", hintBad = false, redrawDue = false, sliderGen = 0, sheetRefresh = null;
   let moveDue = null, sliding = null;        // a slider being dragged: what it moves, drawn in place once a frame
+  let furnishOn = false;                     // Mapping → Furnish: Edit opens at the furniture tool (P2)
   let runsGen = null, arcsGen = null;
   const runsByFloor = new Map();
   const active = () => editing && !!editFn && !!draft;
@@ -142,7 +143,7 @@ export function createEditor(ctx){
   const style = d("style");
   style.textContent = CSS;
   root.appendChild(style);
-  const bEdit = btn("Edit", "Draw doors and windows, set heights", () => (editing ? finish() : begin()));
+  const bEdit = btn("Edit", "Draw doors and windows, set heights", () => (editing ? finish() : begin(furnishOn ? "furnish" : null)));
   const editWhy = d("span", "la3d-editwhy");                   // why Edit is unavailable, said in the page
   editWhy.id = `la3d-editwhy-${Math.random().toString(36).slice(2, 8)}`;
   const editSeg = seg(bEdit, editWhy);
@@ -161,7 +162,8 @@ export function createEditor(ctx){
   tools.setAttribute("aria-label", "3D editor");
   const hintEl = d("div", "la3d-hint");
   hintEl.setAttribute("aria-live", "polite");
-  tools.append(seg(bDoor, bWin, bHts), seg(bUndo, bRedo), seg(bSave, bDiscard), hintEl);
+  const toolSeg = seg(bDoor, bWin, bHts);
+  tools.append(toolSeg, seg(bUndo, bRedo), seg(bSave, bDiscard), hintEl);
   root.appendChild(tools);
   const sheet = d("div", "la3d-sheet");
   root.appendChild(sheet);
@@ -171,6 +173,18 @@ export function createEditor(ctx){
   const ends = [d("div", "la3d-dot"), d("div", "la3d-dot")];
   const ring = d("div", "la3d-dot ring");
   root.append(lenEl, ends[0], ends[1], ring);
+  // Furniture (P2 Furnish, live_aboard_furnish.js): a tool of its own on this
+  // same draft, so one Save writes doors, windows, heights and furniture.
+  const FUR_HINT = "Build adds a piece. Drag a piece to move it; tap it to change it.";
+  const fur = ctx.FURNISH ? ctx.FURNISH.createFurnish({
+    THREE, HOUSE, PIECES: ctx.PIECES, FURN: ctx.FURN, root, guard, tools, sheet, layer: ctx.layer,
+    draft: () => draft, active: () => active() && tool === "furnish",
+    change: (fn, group, moves) => change(fn, group, moves), redraw: () => redrawSoon(), render: () => ctx.render(),
+    hint: (text, bad) => hint(text, bad), floors: () => ctx.floors(), topFloor: () => currentFloor(),
+    setTopFloor: (fid) => ctx.setTopFloor(fid), viewAt: (x, y) => ctx.viewAt(x, y), centre: () => ctx.centre(),
+    host: () => ctx.host(), base: ctx.base || "", paintEditor: () => paint(),
+  }) : null;
+  const furnishing = () => !!fur && active() && tool === "furnish";
 
   // ── 3D marks: the line, the doors' swings ─────────────────────────────────
   const box = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
@@ -232,8 +246,10 @@ export function createEditor(ctx){
   }
 
   // ── where things are ──────────────────────────────────────────────────────
+  // The 3D view's part of the canvas (all of it, but beside Furnish's plan).
+  const viewRect = () => (ctx.rect ? ctx.rect() : canvas.getBoundingClientRect());
   function rayAt(x, y){
-    const r = canvas.getBoundingClientRect(), cam = ctx.camera();
+    const r = viewRect(), cam = ctx.camera();
     if (!r.width || !r.height || !cam) return null;
     ndc.set((x - r.left) / r.width * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
     cam.updateMatrixWorld();
@@ -242,7 +258,7 @@ export function createEditor(ctx){
   }
   /** A plan point at height z above floor F, in client px (or null). */
   function screenAt(F, x, y, z){
-    const r = canvas.getBoundingClientRect(), cam = ctx.camera();
+    const r = viewRect(), cam = ctx.camera();
     if (!cam || !r.width) return null;
     _v.set(x, F.fl.elev + z, y).project(cam);
     if (!(_v.z > -1 && _v.z < 1)) return null;
@@ -369,9 +385,9 @@ export function createEditor(ctx){
   // ── the draft ─────────────────────────────────────────────────────────────
   // Nothing changes it while a save is in flight: what was sent is what the
   // draft starts again from once it is in (rebase).
-  function change(fn, group = null){
+  function change(fn, group = null, moves = null){
     if (!draft || saving || !draft.change(fn, group)) return false;
-    if (sliding) moveSoon(sliding); else redrawSoon();
+    if (moves || sliding) moveSoon(moves || sliding); else redrawSoon();   // moves: a piece dragged or raised (Furnish)
     paint();                                     // Save, Undo and the line now; the walls on the next frame
     if (sheetRefresh) sheetRefresh();            // the open sheet's Reset, without rebuilding its sliders
     return true;
@@ -383,6 +399,7 @@ export function createEditor(ctx){
     requestAnimationFrame(guard(() => {
       redrawDue = false;
       ctx.redraw();
+      if (fur) fur.paint3d(false);               // the picked piece's outline, where it is drawn now
       paint();
     }));
   }
@@ -403,6 +420,7 @@ export function createEditor(ctx){
   }
   function afterHistory(msg){
     if (sel && sel.opening && sel.opening.added && !draft.cur.openings[sel.opening.id]) sel = null;
+    if (fur) fur.refresh();                      // a piece undone away is no longer picked
     gesture = null; pending = null;
     redrawSoon();
     hint(msg);
@@ -433,6 +451,7 @@ export function createEditor(ctx){
       // Left meanwhile (Edit closed), there is no draft to start again: what
       // was sent is saved all the same.
       if (draft === sent) draft.rebase(ctx.file() || DRAFT.ownedOf(r.data));
+      if (fur) fur.refresh();
       hint("Saved.");
     } catch (err) {
       // Refused: the draft stays, to be saved again; what went wrong said plainly.
@@ -455,7 +474,7 @@ export function createEditor(ctx){
   // Edit may open: offered, not open already, no save in flight, and nothing
   // about the file against it.
   const mayBegin = () => !!editFn && !editing && !saving && !cantEdit();
-  async function begin(){
+  async function begin(t = null){
     if (!mayBegin()) return;
     let f = ctx.file();
     if (!f) {
@@ -469,9 +488,9 @@ export function createEditor(ctx){
       if (!mayBegin()) return;
     }
     draft = DRAFT.createDraft(f);
-    editing = true; tool = null; sel = null; gesture = null; pending = null;
+    editing = true; tool = t === "furnish" && fur ? "furnish" : null; sel = null; gesture = null; pending = null;
     ctx.clearUse();
-    hint("Door or Window: draw along a wall. Heights: tap a device. Tap a door or window to change it.");
+    hint(tool === "furnish" ? FUR_HINT : "Door or Window: draw along a wall. Heights: tap a device. Tap a door or window to change it.");
     syncArcs();
     paint();
     sheetFor();
@@ -537,7 +556,7 @@ export function createEditor(ctx){
   }
   function paint(){
     const on = active();
-    editSeg.style.display = editFn ? "" : "none";
+    editSeg.style.display = editFn && !(furnishOn && editing) ? "" : "none";   // Furnish is always editing
     bEdit.textContent = editing ? "Done" : "Edit";
     bEdit.setAttribute("aria-pressed", String(editing));
     // Edit unavailable: greyed (it still takes focus) with the reason beside it.
@@ -547,6 +566,8 @@ export function createEditor(ctx){
     if (why) { bEdit.setAttribute("aria-disabled", "true"); bEdit.setAttribute("aria-describedby", editWhy.id); bEdit.style.opacity = "0.5"; }
     else { bEdit.removeAttribute("aria-disabled"); bEdit.removeAttribute("aria-describedby"); bEdit.style.opacity = ""; }
     tools.classList.toggle("on", on);
+    toolSeg.style.display = furnishOn ? "none" : "";        // Furnish: furniture only
+    if (fur) fur.show(on && tool === "furnish");
     for (const [b, t] of [[bDoor, "door"], [bWin, "window"], [bHts, "heights"]]) b.setAttribute("aria-pressed", String(tool === t));
     bUndo.disabled = !on || saving || !draft.canUndo;
     bRedo.disabled = !on || saving || !draft.canRedo;
@@ -566,6 +587,8 @@ export function createEditor(ctx){
   function sheetFor(){
     sheet.innerHTML = "";
     sheetRefresh = null;
+    sheet.classList.remove("fur");
+    if (furnishing()) { sheet.classList.toggle("on", fur.sheet()); placeSheet(); return; }   // the picked piece's panel
     if (!active() || !sel) { sheet.classList.remove("on"); return; }
     if (sel.opening) (sel.opening.added ? sheetAdded : sheetMapOpening)(sel.opening);
     else if (sel.eid) sheetDevice(sel.eid);
@@ -740,6 +763,7 @@ export function createEditor(ctx){
    *  they are on screen now. */
   function layout(){
     const on = active();
+    if (fur && furnishing()) fur.layout();
     if (on && arcsGen !== ctx.shellGen()) { syncArcs(); ctx.render(); }
     const r0 = root.getBoundingClientRect(), off = (p) => [p[0] - r0.left - (root.clientLeft || 0), p[1] - r0.top - (root.clientTop || 0)];
     const put = (el, p, cls) => {
@@ -784,6 +808,7 @@ export function createEditor(ctx){
    *  (the house turns, as ever). */
   function down(e){
     if (!active() || askEl.classList.contains("on") || saving) return null;
+    if (furnishing()) return fur.down(e);                // a piece: "drag"; anything else: "tap"
     const x = e.clientX, y = e.clientY, k = kindOfPtr(e);
     const s = shown();
     if (s && s.handles && sel) {
@@ -826,6 +851,7 @@ export function createEditor(ctx){
     return null;
   }
   function move(e){
+    if (furnishing()) { fur.move(e); return; }
     const g = gesture;
     if (!g || (g.kind !== "line" && g.kind !== "drag")) return;
     if (!g.moved && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) > SLOP) g.moved = true;
@@ -843,6 +869,7 @@ export function createEditor(ctx){
     paint3d();
   }
   function up(e){
+    if (furnishing()) { fur.up(e); paint(); return; }
     const g = gesture;
     gesture = null;
     if (!g) { paint3d(); return; }
@@ -856,6 +883,7 @@ export function createEditor(ctx){
     paint();
   }
   function tap(e, g = gesture){
+    if (furnishing()) { fur.tap(e); return; }
     gesture = null;
     if (!g || !g.target) return;
     if (g.target.opening) { select({ opening: g.target.opening }); hint(g.target.opening.added ? "Drag either end to change its width." : "From the map: set it for the 3D view."); }
@@ -903,9 +931,10 @@ export function createEditor(ctx){
     if (g.span.stop === "opening") flash("Stopped at the opening next to it: openings never overlap.");
     else hint(`${g.kindOf === "door" ? "Door" : "Window"} now ${DRAFT.metres(g.span.len)}.`);
   }
-  function cancel(){ gesture = null; paint3d(); }
+  function cancel(){ gesture = null; if (fur) fur.cancel(); paint3d(); }
   function hover(e){
     if (!active()) return false;
+    if (furnishing()) { canvas.style.cursor = fur.hover(e); return true; }
     let cur = "";
     if (openingAt(e.clientX, e.clientY)) cur = "pointer";
     else if ((tool === "door" || tool === "window") && wallAt(e.clientX, e.clientY, REACH.mouse)) cur = "crosshair";
@@ -919,7 +948,26 @@ export function createEditor(ctx){
       const had = !!editFn;
       editFn = typeof fn === "function" ? fn : null;
       if (had !== !!editFn) { paint(); sheetFor(); if (editing) { syncArcs(); ctx.redraw(); } }
+      if (!had && editFn && furnishOn && !editing) begin("furnish");   // Save just became possible here
     },
+    /** Mapping → Furnish (on): Edit opens at the furniture tool. Any other
+     *  screen (off): the furniture tool closes and Edit is as it was; the
+     *  draft, unsaved furniture and all, stays for Save. */
+    setFurnish(on){
+      const want = !!on && !!fur;
+      if (want === furnishOn) return;
+      furnishOn = want;
+      if (furnishOn) {
+        if (editing) { tool = "furnish"; sel = null; gesture = null; pending = null; line.visible = false; hint(FUR_HINT); }
+        else if (editFn) begin("furnish");
+      } else if (tool === "furnish") {
+        tool = null;
+        hint("Door or Window: draw along a wall. Heights: tap a device. Tap a door or window to change it.");
+      }
+      paint(); sheetFor(); ctx.render();
+    },
+    /** The Furnish tool (the harness reaches it here). */
+    get furnish(){ return fur; },
     get active(){ return active(); },
     /** The file was read again, or could not be, or a Save found it a newer
      *  PadSpan's: Edit says so, and while it is open the hint says whether
@@ -951,11 +999,13 @@ export function createEditor(ctx){
                draft: draft ? JSON.parse(JSON.stringify(draft.cur)) : null, changes: draft ? draft.changes() : null,
                gesture: gesture ? { kind: gesture.kind, span: gesture.span || null } : null, pending: !!pending,
                line: line.visible, arcs: arcs.length / 3, cantEdit: cantEdit(), editWhy: editWhy.style.display === "none" ? "" : editWhy.textContent,
-               editAvailable: bEdit.getAttribute("aria-disabled") !== "true" };
+               editAvailable: bEdit.getAttribute("aria-disabled") !== "true",
+               furnishOn, furnish: fur ? fur.state() : null };
     },
     /** A plan point on floor fid at height z, in client px (the harness presses it). */
     whereOf(fid, x, y, z = 1){ const F = ctx.floors().find(q => q.fl.id === fid); return F ? screenAt(F, x, y, z) : null; },
     dispose(){
+      if (fur) fur.dispose();
       clearArcs();
       if (line.parent) line.parent.remove(line);
       box.dispose(); lineMat.dispose(); arcMat.dispose(); fillMat.dispose();

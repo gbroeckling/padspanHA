@@ -2857,10 +2857,12 @@ export function buildLightsMapCard(hostIn){
   };
   // The same, said plainly ("" when it can).
   const la3dWhyNot = () => { const why = la3dWhy(); return why ? (_LA_WHY[why] || _LA_WHY.error) : ""; };
-  const la3dOn = () => !!h3 && _la3dPicked(h3.slot) && !la3dWhyNot();
+  // Mapping → Furnish (P2) is the 3D view, whatever this screen last picked.
+  const la3dWant = () => !!h3 && (h3.furnish === true || _la3dPicked(h3.slot));
+  const la3dOn = () => la3dWant() && !la3dWhyNot();
   const mount3d = () => {
     if (!h3) return;
-    if (!_la3dPicked(h3.slot) || _laCannotHere()) { const s = la3dSlot(); if (s) s.detach(); }
+    if (!la3dWant() || _laCannotHere()) { const s = la3dSlot(); if (s) s.detach(); }
     else if (!_LA) _laLoad(h3.slot, mount3d, h3.telemetry);
     else {
       try {
@@ -2883,10 +2885,26 @@ export function buildLightsMapCard(hostIn){
           // Save, house3d_edit) only where the host lets lights be placed.
           load: typeof h3.load === "function" ? h3.load : null,
           edit: typeof h3.edit === "function" ? h3.edit : null,
+          // Mapping → Furnish (P2): the Furnish tool open, what its flows and
+          // "This is a device…" need of the host, and the floor chips a piece
+          // moved up or down a floor takes along.
+          furnish: h3.furnish === true ? { callWS: typeof h3.callWS === "function" ? h3.callWS : null,
+            toast: typeof h3.toast === "function" ? h3.toast : null, settings: h3.settings, entities: h3.entities || null } : null,
+          setTopFloor: (fid) => la3dTopFloor(fid),
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }
     }
     for (const paint of la3dPaints) paint();
+  };
+  // A piece moved up or down a floor (Furnish): its floor becomes the top one
+  // showing, as its floor chip would make it, so you see where it went.
+  const la3dTopFloor = (fid) => {
+    const idx = isoPos.findIndex(p => p === _frame.levelOf(String(fid)));
+    if (idx < 0 || idx === view.focusIdx) return;
+    view.focusIdx = idx;
+    resetFocusCtl(idx);
+    for (const b of mapCard.querySelectorAll("button.lv-chipbtn.floor")) if (b._floorIdx !== undefined) b.classList.toggle("on", b._floorIdx === idx);
+    rebuildISO();
   };
   const pick3d = (on) => {
     // Unsaved 3D edits: the view asks first, in the view, and carries on
@@ -3461,7 +3479,7 @@ export function buildLightsMapCard(hostIn){
     ctrlRow.appendChild(el("span", { class: "lv-zoomseg", "data-la3d-switch": "" }, [mapB, d3B, whyEl]));
     la3dPaints.push(() => {
       const on = la3dOn(), why = la3dWhyNot(), lit = "background:rgba(82,183,136,.24);color:#e8f0ea";
-      mapB.setAttribute("aria-pressed", String(!on)); mapB.style.cssText = on ? "" : lit;
+      mapB.setAttribute("aria-pressed", String(!on)); mapB.style.cssText = h3.furnish === true ? "display:none" : on ? "" : lit;
       mapB.setAttribute("title", "The flat map");
       d3B.setAttribute("aria-pressed", String(on)); d3B.style.cssText = on ? lit : "";
       d3B.setAttribute("title", why || "The house in 3D");

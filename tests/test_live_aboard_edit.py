@@ -179,7 +179,7 @@ def test_a_slider_being_dragged_moves_only_what_it_moves() -> None:
     (the view's preview: nothing read again, nothing rebuilt); let go, the
     house is drawn whole once. The map is read again only when it changed."""
     ed = _code(_VIEWS / "live_aboard_edit.js")
-    assert "if (sliding) moveSoon(sliding); else redrawSoon();" in ed
+    assert "if (moves || sliding) moveSoon(moves || sliding); else redrawSoon();" in ed   # moves: a piece (P2 Furnish)
     assert 'r.addEventListener("change", () => { group = null; if (moves) redrawSoon(); });' in ed
     assert ed.count("{ opening: o.id }") == 5 and "}, { eid });" in ed
     assert "if (!ctx.preview || !ctx.preview(t)) redrawSoon();" in ed

@@ -168,7 +168,7 @@ def test_the_3d_module_is_imported_once_behind_the_switch_and_cache_busted() -> 
     # No other code in the panel names the 3D modules (prose in a comment may).
     for p in _WWW.rglob("*.js"):
         if "vendor" in p.parts or p.name in ("lights_map.js", "live_aboard.js", "live_aboard_house.js", "live_aboard_draft.js",
-                                                  "live_aboard_edit.js"):
+                                                  "live_aboard_edit.js", "live_aboard_furnish.js"):   # P2: Furnish names its flows
             continue
         code = "\n".join(ln for ln in _js(p).splitlines() if not ln.lstrip().startswith(("//", "*")))
         assert "live_aboard" not in code, p.name
@@ -236,7 +236,10 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     mblock = maps[maps.index("house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ?"):]
     mblock = mblock[:mblock.index("} : null,")]
     assert 'ctx.actions.wsCall("padspan_ha/settings_set", { fabric_bearing_deg: b })' in mblock
-    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 3
+    # The fourth is P2 Furnish's: the host's connection handed to its flows
+    # (contracts §4) and "This is a device…", only on Mapping → Furnish.
+    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 4
+    assert "callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); }," in mblock
     assert 'load: () => ctx.actions.wsCall("padspan_ha/house3d_get"),' in mblock
     lm = _js(_VIEWS / "lights_map.js")
     assert 'saveNorth: typeof h3.saveNorth === "function" ? h3.saveNorth : null,' in lm
