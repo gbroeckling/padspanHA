@@ -57,6 +57,14 @@ tryCase("api: the exports are there", () => {
   const got = Object.fromEntries(Object.keys(want).map((k) => [k, typeof F[k]]));
   check("api: the exports are there", JSON.stringify(got) === JSON.stringify(want), got);
 });
+tryCase("api: tags and scanners", () => {
+  const T = F.FURNITURE.tag, Sc = F.FURNITURE.scanner;
+  const forms = (d) => d && JSON.stringify(d.params.find((s) => s.key === "form").choices);
+  check("api: tags and scanners", T && T.group === "tag" && forms(T) === JSON.stringify(["puck", "card", "fob", "phone"])
+    && Sc && Sc.group === "scanner" && forms(Sc) === JSON.stringify(["box", "board"])
+    && Sc.params.some((s) => s.key === "antenna" && s.type === "bool") && T.live === null && Sc.live === null
+    && !F.FURNITURE_KINDS.includes("tag") && !F.FURNITURE_KINDS.includes("scanner"), { T, Sc });
+});
 tryCase("api: the Build menu", () => {
   const k = F.FURNITURE_KINDS;
   const bad = k.filter((x) => !F.FURNITURE[x] || !["furniture", "device"].includes(F.FURNITURE[x].group));
@@ -412,6 +420,8 @@ const FRONT = {
   fan: (g, s, r) => r.params.style === "ceiling" || boundsOf(g.userData.parts.spin).getCenter(new THREE.Vector3()).z > 0,
   // The drivers face +z; a smart speaker is round.
   speaker: (g, s, r) => r.params.style === "smart" || boundsOf(g.userData.parts.run).getCenter(new THREE.Vector3()).z > 0,
+  tag: null,
+  scanner: null,
   other: null,
 };
 for (const kind of Object.keys(F.FURNITURE)) {
@@ -497,6 +507,17 @@ tryCase("figure: FIGURE is well-formed", () => {
     && JSON.stringify(P.params.find((s) => s.key === "hair").choices) === JSON.stringify(["none", "short", "long", "bun"])
     && ["hair", "skin", "top", "bottom"].every((k) => /^#[0-9a-f]{6}$/.test(P.colors[k]) && typeof P.colorNames[k] === "string"), P);
 });
+// A child is not a shrunk adult: the head is a bigger share of the height.
+tryCase("figure: a child's head is bigger for its height", () => {
+  const headOf = (h) => {
+    const g = F.buildFigure(THREE, { height_m: h, hair: "none" }, { quality: "low" });
+    g.updateMatrixWorld(true);
+    const eyes = centreOfColour(g, "#1d1d1f"), top = boundsOf(g).max.y;
+    F.disposePiece(g);
+    return (top - eyes.y) / h;
+  };
+  check("figure: a child's head is bigger for its height", headOf(1.0) > headOf(1.75) * 1.15, { kid: headOf(1.0), adult: headOf(1.75) });
+});
 tryCase("figure: across its range", () => {
   const P = F.FIGURE, base = {};
   for (const s of P.params) base[s.key] = s.def;
@@ -516,6 +537,7 @@ tryCase("figure: across its range", () => {
         && Math.abs(bb.max.x + bb.min.x) < 0.01 && bb.max.x - bb.min.x <= g.userData.size.w + EPS && bb.max.z - bb.min.z <= g.userData.size.d + EPS
         && eyes && eyes.z > 0 && eyes.y > H * 0.85, { label, quality, min: bb.min, max: bb.max, H });
       check("figure: across its range", tris <= BUDGET[quality] && inw.bad === 0, { label, quality, tris, inw });
+      check("figure: across its range", g.userData.kind === "figure" && Object.keys(g.userData.parts).length === 0, label);
       stats.figure = { low: Math.max(stats.figure?.low || 0, quality === "low" ? tris : 0), high: Math.max(stats.figure?.high || 0, quality === "high" ? tris : 0) };
       F.disposePiece(g);
     }
