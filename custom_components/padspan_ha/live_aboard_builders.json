@@ -1475,6 +1475,139 @@
    },
    "live": "run"
   },
+  "tag": {
+   "name": "Tag",
+   "group": "tag",
+   "category": "device",
+   "params": [
+    {
+     "key": "form",
+     "label": "Form",
+     "type": "choice",
+     "choices": [
+      "puck",
+      "card",
+      "fob",
+      "phone"
+     ],
+     "def": "puck",
+     "sizes": {
+      "puck": {
+       "width_m": 0.032,
+       "depth_m": 0.032,
+       "height_m": 0.008
+      },
+      "card": {
+       "width_m": 0.054,
+       "depth_m": 0.086,
+       "height_m": 0.003
+      },
+      "fob": {
+       "width_m": 0.035,
+       "depth_m": 0.05,
+       "height_m": 0.01
+      },
+      "phone": {
+       "width_m": 0.075,
+       "depth_m": 0.155,
+       "height_m": 0.009
+      }
+     }
+    }
+   ],
+   "colorNames": [
+    "Body",
+    "Accent"
+   ],
+   "colors": [
+    "#f4f4f2",
+    "#9aa3ab"
+   ],
+   "size": {
+    "width_m": [
+     0.015,
+     0.2,
+     0.032
+    ],
+    "depth_m": [
+     0.015,
+     0.2,
+     0.032
+    ],
+    "height_m": [
+     0.002,
+     0.04,
+     0.008
+    ]
+   },
+   "live": null
+  },
+  "scanner": {
+   "name": "Scanner",
+   "group": "scanner",
+   "category": "device",
+   "params": [
+    {
+     "key": "form",
+     "label": "Form",
+     "type": "choice",
+     "choices": [
+      "box",
+      "board"
+     ],
+     "def": "box",
+     "sizes": {
+      "box": {
+       "width_m": 0.07,
+       "depth_m": 0.05,
+       "height_m": 0.03
+      },
+      "board": {
+       "width_m": 0.055,
+       "depth_m": 0.028,
+       "height_m": 0.01
+      }
+     }
+    },
+    {
+     "key": "antenna",
+     "label": "Antenna",
+     "type": "bool",
+     "def": false,
+     "sizes": {
+      "true": {
+       "height_m": 0.11
+      }
+     }
+    }
+   ],
+   "colorNames": [
+    "Case",
+    "Light"
+   ],
+   "colors": [
+    "#1f2225",
+    "#3a7bd5"
+   ],
+   "size": {
+    "width_m": [
+     0.02,
+     0.3,
+     0.07
+    ],
+    "depth_m": [
+     0.01,
+     0.3,
+     0.05
+    ],
+    "height_m": [
+     0.004,
+     0.25,
+     0.03
+    ]
+   },
+   "live": null
+  },
   "other": {
    "name": "Box",
    "group": "furniture",

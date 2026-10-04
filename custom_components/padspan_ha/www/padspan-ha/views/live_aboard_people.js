@@ -263,7 +263,7 @@ const CSS = `
 .la3d-people .ctl{display:grid;grid-template-columns:110px minmax(0,1fr) 54px;gap:6px 8px;align-items:center}
 .la3d-people .ctl input[type=range]{width:100%}
 .la3d-people .ctl input[type=color]{width:46px;height:30px;padding:0;border:none;background:none}
-.la3d-people .prev{width:220px;height:260px;border-radius:10px;background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center}
+.la3d-people .prev{width:220px;height:260px;border-radius:10px;background:linear-gradient(#69727c,#3b4148);display:flex;align-items:center;justify-content:center}
 .la3d-people .prev canvas{width:220px;height:260px}
 @media (max-width:520px){.la3d-people .edit{grid-template-columns:1fr}.la3d-people .prev{justify-self:center}}
 `;
@@ -278,12 +278,17 @@ function makePreview(F){
     try { model = want(THREE); } catch { model = null; }
     if (model) {
       scene.add(model);
-      const box = new THREE.Box3().setFromObject(model), c = box.getCenter(new THREE.Vector3());
-      const s = box.getSize(new THREE.Vector3()), r = Math.max(s.x, s.y, s.z, 0.01);
-      camera.position.set(c.x + r * 0.9, c.y + r * 0.35, c.z + r * 2.1);
-      camera.near = r / 100; camera.far = r * 40;
+      // Framed by its bounding sphere in the narrower of the two view angles,
+      // from in front, a little to the side and above: a wide flat scanner
+      // fits as well as a tall figure.
+      const sphere = new THREE.Box3().setFromObject(model).getBoundingSphere(new THREE.Sphere());
+      const half = Math.min(THREE.MathUtils.degToRad(camera.fov / 2),
+                            Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect));
+      const dist = Math.max(sphere.radius, 0.005) / Math.sin(half) * 1.08;
+      camera.position.copy(sphere.center).addScaledVector(new THREE.Vector3(0.45, 0.35, 1).normalize(), dist);
+      camera.near = dist / 100; camera.far = dist * 10;
       camera.updateProjectionMatrix();
-      camera.lookAt(c);
+      camera.lookAt(sphere.center);
     }
     R.render(scene, camera);
   };
@@ -481,7 +486,7 @@ export async function peopleFlow(ctx){
         (v) => { m.setLook(`colors.${i}`, v); show(); })));
       for (const [d, label] of PH.DIMS) {
         const range = def && def.size && def.size[d];
-        grid.append(...control({ key: d, label: `${label} (m)`, type: "num", min: range ? range[0] : 0.005, max: range ? range[1] : 1, step: 0.005 },
+        grid.append(...control({ key: d, label, type: "num", min: range ? range[0] : 0.005, max: range ? range[1] : 1, step: 0.005 },
           r[d], (v) => { m.setLook(d, v); show(); }));
       }
       show();
