@@ -57,6 +57,14 @@ tryCase("api: the exports are there", () => {
   const got = Object.fromEntries(Object.keys(want).map((k) => [k, typeof F[k]]));
   check("api: the exports are there", JSON.stringify(got) === JSON.stringify(want), got);
 });
+tryCase("api: tags and scanners", () => {
+  const T = F.FURNITURE.tag, Sc = F.FURNITURE.scanner;
+  const forms = (d) => d && JSON.stringify(d.params.find((s) => s.key === "form").choices);
+  check("api: tags and scanners", T && T.group === "tag" && forms(T) === JSON.stringify(["puck", "card", "fob", "phone"])
+    && Sc && Sc.group === "scanner" && forms(Sc) === JSON.stringify(["box", "board"])
+    && Sc.params.some((s) => s.key === "antenna" && s.type === "bool") && T.live === null && Sc.live === null
+    && !F.FURNITURE_KINDS.includes("tag") && !F.FURNITURE_KINDS.includes("scanner"), { T, Sc });
+});
 tryCase("api: the Build menu", () => {
   const k = F.FURNITURE_KINDS;
   const bad = k.filter((x) => !F.FURNITURE[x] || !["furniture", "device"].includes(F.FURNITURE[x].group));
@@ -412,6 +420,8 @@ const FRONT = {
   fan: (g, s, r) => r.params.style === "ceiling" || boundsOf(g.userData.parts.spin).getCenter(new THREE.Vector3()).z > 0,
   // The drivers face +z; a smart speaker is round.
   speaker: (g, s, r) => r.params.style === "smart" || boundsOf(g.userData.parts.run).getCenter(new THREE.Vector3()).z > 0,
+  tag: null,
+  scanner: null,
   other: null,
 };
 for (const kind of Object.keys(F.FURNITURE)) {

@@ -223,6 +223,21 @@ export const FURNITURE = {
         bookshelf: { width_m: 0.2, depth_m: 0.25, height_m: 0.32 }, floor: { width_m: 0.25, depth_m: 0.32, height_m: 1.05 },
         smart: { width_m: 0.12, depth_m: 0.12, height_m: 0.18 }, soundbar: { width_m: 0.95, depth_m: 0.1, height_m: 0.07 } } }),
     ]),
+  // Tags and scanners: drawn true to size, lying as they sit (a tag flat,
+  // its face up). At house scale they are small; the view may draw the
+  // group larger, and their shapes stay readable when it does.
+  tag: kind("Tag", "tag", "device", null, ["Body", "Accent"], ["#f4f4f2", "#9aa3ab"],
+    sz([0.015, 0.2, 0.032], [0.015, 0.2, 0.032], [0.002, 0.04, 0.008]), [
+      choice("form", "Form", ["puck", "card", "fob", "phone"], "puck", { sizes: {
+        puck: { width_m: 0.032, depth_m: 0.032, height_m: 0.008 }, card: { width_m: 0.054, depth_m: 0.086, height_m: 0.003 },
+        fob: { width_m: 0.035, depth_m: 0.05, height_m: 0.01 }, phone: { width_m: 0.075, depth_m: 0.155, height_m: 0.009 } } }),
+    ]),
+  scanner: kind("Scanner", "scanner", "device", null, ["Case", "Light"], ["#1f2225", "#3a7bd5"],
+    sz([0.02, 0.3, 0.07], [0.01, 0.3, 0.05], [0.004, 0.25, 0.03]), [
+      choice("form", "Form", ["box", "board"], "box", { sizes: {
+        box: { width_m: 0.07, depth_m: 0.05, height_m: 0.03 }, board: { width_m: 0.055, depth_m: 0.028, height_m: 0.01 } } }),
+      bool("antenna", "Antenna", false, { sizes: { true: { height_m: 0.11 } } }),
+    ]),
   other: kind("Box", "furniture", "other", null, ["Colour"], [BOX_COLOR], BOX_SIZE, []),
 };
 
@@ -370,14 +385,24 @@ function place(THREE, g, x, y, z, rot, scl){
   g.applyMatrix4(m);
   return g;
 }
-// A plan shape's outline: a rectangle with rounded corners, counter-clockwise.
-function roundRect(shape, w, d, r){
-  const x0 = -w / 2, x1 = w / 2, y0 = -d / 2, y1 = d / 2;
-  if (r < 1e-4) { shape.moveTo(x0, y0); shape.lineTo(x1, y0); shape.lineTo(x1, y1); shape.lineTo(x0, y1); shape.lineTo(x0, y0); return; }
-  shape.moveTo(x0 + r, y0); shape.lineTo(x1 - r, y0); shape.absarc(x1 - r, y0 + r, r, -Math.PI / 2, 0, false);
-  shape.lineTo(x1, y1 - r); shape.absarc(x1 - r, y1 - r, r, 0, Math.PI / 2, false);
-  shape.lineTo(x0 + r, y1); shape.absarc(x0 + r, y1 - r, r, Math.PI / 2, Math.PI, false);
-  shape.lineTo(x0, y0 + r); shape.absarc(x0 + r, y0 + r, r, Math.PI, Math.PI * 1.5, false);
+// A plan shape's outline as points, counter-clockwise, never repeating a
+// point (a near-repeat where an outline closes makes a crumpled bevel): an
+// ellipse in n points, or a rectangle with corners rounded in m steps.
+function outline(THREE, form, w, d, r, n, m){
+  const pts = [];
+  if (form === "ellipse") {
+    for (let i = 0; i < n; i++) pts.push(new THREE.Vector2(Math.cos(i * 2 * Math.PI / n) * w / 2, Math.sin(i * 2 * Math.PI / n) * d / 2));
+    return pts;
+  }
+  const cx = w / 2 - r, cy = d / 2 - r;
+  for (const [sx, sy, a0] of [[1, -1, -Math.PI / 2], [1, 1, 0], [-1, 1, Math.PI / 2], [-1, -1, Math.PI]]) {
+    if (r < 1e-4) { pts.push(new THREE.Vector2(sx * w / 2, sy * d / 2)); continue; }
+    for (let k = 0; k <= m; k++) {
+      const a = a0 + k * Math.PI / 2 / m;
+      pts.push(new THREE.Vector2(sx * cx + Math.cos(a) * r, sy * cy + Math.sin(a) * r));
+    }
+  }
+  return pts;
 }
 // Scaled and moved so its bounds are exactly w × h × d about the origin.
 function fitBox(g, w, h, d){
@@ -542,12 +567,11 @@ function makeKit(THREE, quality, root){
     // A flat plan shape (a "rect" with rounded corners, or an "ellipse") w × d,
     // t thick, its bottom at y, its edges softened by a small bevel.
     slab(form, w, t, d, x, y, z, look, corner = 0.01, bevel = 0.006){
-      const shape = new THREE.Shape();
-      if (form === "ellipse") shape.absellipse(0, 0, w / 2, d / 2, 0, Math.PI * 2, false, 0);
-      else roundRect(shape, w, d, Math.min(corner, w / 2 - 1e-3, d / 2 - 1e-3));
+      const r = Math.max(0, Math.min(corner, w / 2 - 1e-3, d / 2 - 1e-3));
+      const shape = new THREE.Shape(outline(THREE, form, w, d, r, hi ? 32 : 16, hi ? 6 : 3));
       const bt = Math.min(bevel, t / 3, w / 4, d / 4);
       const g = new THREE.ExtrudeGeometry(shape, { depth: Math.max(t - 2 * bt, 1e-4), bevelEnabled: bt > 1e-4, bevelThickness: bt,
-        bevelSize: bt, bevelSegments: 1, curveSegments: form === "ellipse" ? (hi ? 16 : 8) : (hi ? 4 : 2) });
+        bevelSize: bt, bevelSegments: 1 });
       g.rotateX(-Math.PI / 2);
       g.clearGroups();
       add(look, place(THREE, scaleUv(fitBox(g, w, t, d), 1 / TILE, 1 / TILE), x, y + t / 2, z));
@@ -1409,12 +1433,57 @@ function buildSpeaker(K, S, p, C, parts){
   }
 }
 
+// ── tags and scanners: small, lying as they sit ─────────────────────────────
+// Tag: a puck, a card, a key fob or a phone, lying flat, its accent on top.
+function buildTag(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const body = L(C[0], "gloss"), accent = L(C[1], "gloss");
+  if (p.form === "puck") {
+    K.slab("ellipse", W, H * 0.8, D, 0, 0, 0, body, 0, H * 0.25);
+    K.slab("ellipse", W * 0.62, H, D * 0.62, 0, 0, 0, accent, 0, H * 0.15);
+  } else if (p.form === "card") {
+    K.slab("rect", W, H * 0.85, D, 0, 0, 0, body, Math.min(W, D) * 0.08, H * 0.2);
+    K.box(W * 0.9, H * 0.3, D * 0.14, 0, H * 0.85, -D * 0.25, accent);
+  } else if (p.form === "fob") {
+    K.slab("rect", W, H, D * 0.78, 0, 0, D * 0.11, body, Math.min(W, D) * 0.3, H * 0.25);
+    const m = Math.min(W, D * 0.22), tube = Math.min(m * 0.12, H * 0.45);
+    K.torus(m * 0.44 - tube, tube, 0, H / 2, -D / 2 + m * 0.44, accent, [Math.PI / 2, 0, 0]);
+  } else {
+    K.slab("rect", W, H * 0.92, D, 0, 0, 0, body, Math.min(W, D) * 0.14, H * 0.2);
+    K.slab("rect", W * 0.9, H, D * 0.93, 0, 0, 0, L("#10151b", "gloss"), Math.min(W, D) * 0.1, H * 0.1);
+  }
+}
+
+// Scanner: a small box or a bare board, with or without an antenna standing up.
+function buildScanner(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const caseL = L(C[0], "gloss"), led = L(C[1], "gloss"), dark = L("#141517", "gloss");
+  const antH = p.antenna ? H * 0.7 : 0, bodyH = H - antH;
+  if (p.form === "box") {
+    K.box(W, bodyH, D - 0.002, 0, bodyH / 2, -0.001, caseL, Math.min(0.006, W / 6, D / 6, bodyH / 4));
+    K.box(Math.min(0.006, W * 0.12), Math.min(0.004, bodyH * 0.25), 0.002, W * 0.3, bodyH * 0.7, D / 2 - 0.001, led);
+  } else {
+    const pcb = Math.min(0.0016, bodyH * 0.25);
+    K.box(W, pcb, D, 0, pcb / 2, 0, caseL);
+    const can = bodyH - pcb;
+    K.box(W * 0.4, can, D * 0.55, -W * 0.18, pcb + can / 2, 0, L(METAL, "metal"));
+    K.box(W * 0.16, can * 0.5, D * 0.3, W * 0.22, pcb + can * 0.25, -D * 0.15, dark);
+    K.box(Math.min(0.004, W * 0.1), can * 0.4, Math.min(0.004, D * 0.15), W * 0.38, pcb + can * 0.2, D * 0.3, led);
+  }
+  if (antH) {
+    const ar = Math.min(0.005, W * 0.08, D * 0.08);
+    K.box(ar * 3, Math.min(0.012, antH * 0.15), ar * 3, W / 2 - ar * 1.5, bodyH + Math.min(0.012, antH * 0.15) / 2, -D / 2 + ar * 1.5, dark);
+    K.cyl(ar, ar * 0.8, antH, W / 2 - ar * 1.5, bodyH + antH / 2, -D / 2 + ar * 1.5, dark, 10);
+  }
+}
+
 const BUILDERS = { sofa: buildSofa, bed: buildBed, table: buildTable, chair: buildChair, desk: buildDesk, dresser: buildDresser,
                    tv: buildTv, lamp: buildLamp, rug: buildRug, shelf: buildShelf, wardrobe: buildWardrobe, plant: buildPlant,
                    washer: (K, S, p, C, parts) => buildLaundry(K, S, p, C, parts, false),
                    dryer: (K, S, p, C, parts) => buildLaundry(K, S, p, C, parts, true),
                    vacuum_dock: buildVacuumDock, mower_dock: buildMowerDock, car: buildCar, charger: buildCharger,
-                   radiator: buildRadiator, fan: buildFan, speaker: buildSpeaker, other: buildBox };
+                   radiator: buildRadiator, fan: buildFan, speaker: buildSpeaker, tag: buildTag, scanner: buildScanner,
+                   other: buildBox };
 
 // ── building and freeing ─────────────────────────────────────────────────────
 function build(THREE, quality, fn, S, p, C, meta){
