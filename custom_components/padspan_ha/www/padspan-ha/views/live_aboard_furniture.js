@@ -83,7 +83,7 @@ const darken = (c, t) => mix(c, "#000000", t);
 const int = (key, label, min, max, def, more) => ({ key, label, type: "int", min, max, step: 1, def, ...more });
 const num = (key, label, min, max, step, def, more) => ({ key, label, type: "num", min, max, step, def, ...more });
 const choice = (key, label, choices, def, more) => ({ key, label, type: "choice", choices, def, ...more });
-const bool = (key, label, def) => ({ key, label, type: "bool", def });
+const bool = (key, label, def, more) => ({ key, label, type: "bool", def, ...more });
 const kind = (name, group, category, live, colorNames, colors, size, params) =>
   ({ name, group, category, params, colorNames, colors, size, live });
 const sz = (w, d, h) => ({ width_m: w, depth_m: d, height_m: h });
@@ -178,13 +178,58 @@ export const FURNITURE = {
         bush: { height_m: 0.8 }, tree: { height_m: 1.6 }, palm: { height_m: 1.5 }, cactus: { height_m: 0.7 } } }),
       choice("pot", "Pot", ["round", "square", "none"], "round"),
     ]),
+  washer: kind("Washer", "device", "appliance", "run", ["Body", "Trim"], ["#f2f2f0", "#9aa5ad"],
+    sz([0.45, 0.8, 0.6], [0.4, 0.85, 0.62], [0.6, 1.1, 0.85]), [
+      choice("loading", "Loading", ["front", "top"], "front"),
+    ]),
+  dryer: kind("Dryer", "device", "appliance", "run", ["Body", "Trim"], ["#f2f2f0", "#9aa5ad"],
+    sz([0.45, 0.8, 0.6], [0.4, 0.85, 0.62], [0.6, 1.1, 0.85]), [
+      choice("door", "Door", ["glass", "solid"], "glass"),
+    ]),
+  vacuum_dock: kind("Robot vacuum dock", "device", "appliance", "dock", ["Dock", "Robot"], ["#2b2d31", "#e9e9e6"],
+    sz([0.2, 0.6, 0.38], [0.3, 0.9, 0.55], [0.06, 0.6, 0.12]), [
+      choice("dock", "Dock", ["small", "tower"], "small", { sizes: { small: { height_m: 0.12 }, tower: { height_m: 0.45 } } }),
+      choice("robot", "Robot", ["round", "d-shape"], "round"),
+    ]),
+  mower_dock: kind("Mower dock", "device", "outdoor", "dock", ["Dock", "Mower"], ["#3a3d40", "#e2611a"],
+    sz([0.4, 1.2, 0.65], [0.6, 1.6, 1.0], [0.2, 1.0, 0.35]), [
+      bool("roof", "Roof", false, { sizes: { true: { height_m: 0.6 }, false: { height_m: 0.35 } } }),
+    ]),
+  car: kind("Car", "device", "outdoor", "charge", ["Body", "Windows"], ["#8a1f1f", "#2a3540"],
+    sz([1.5, 2.2, 1.85], [3.2, 6.2, 4.7], [1.2, 2.1, 1.45]), [
+      choice("body", "Body", ["sedan", "hatch", "suv", "pickup"], "sedan", { sizes: {
+        sedan: { width_m: 1.85, depth_m: 4.7, height_m: 1.45 }, hatch: { width_m: 1.78, depth_m: 4.1, height_m: 1.48 },
+        suv: { width_m: 1.92, depth_m: 4.75, height_m: 1.72 }, pickup: { width_m: 2.0, depth_m: 5.6, height_m: 1.9 } } }),
+    ]),
+  charger: kind("Car charger", "device", "outdoor", "charge", ["Body", "Cable"], ["#e8eaec", "#222426"],
+    sz([0.15, 0.5, 0.25], [0.08, 0.5, 0.15], [0.2, 1.6, 0.4]), [
+      choice("mount", "Mount", ["wall", "post"], "wall", { sizes: { wall: { depth_m: 0.15, height_m: 0.4 }, post: { depth_m: 0.3, height_m: 1.3 } } }),
+      bool("cable", "Cable", true),
+    ]),
+  radiator: kind("Radiator", "device", "appliance", "warm", ["Colour"], ["#f0f0ee"],
+    sz([0.3, 2.4, 0.8], [0.04, 0.3, 0.1], [0.15, 1.8, 0.6]), [
+      choice("style", "Style", ["panel", "column"], "panel"),
+    ]),
+  fan: kind("Fan", "device", "appliance", "spin", ["Body", "Blades"], ["#e8e8e6", "#cfd6dc"],
+    sz([0.2, 1.6, 0.45], [0.15, 1.6, 0.35], [0.2, 1.6, 1.25]), [
+      choice("style", "Style", ["pedestal", "desk", "ceiling"], "pedestal", { sizes: {
+        pedestal: { width_m: 0.45, depth_m: 0.35, height_m: 1.25 }, desk: { width_m: 0.3, depth_m: 0.22, height_m: 0.4 },
+        ceiling: { width_m: 1.3, depth_m: 1.3, height_m: 0.45 } } }),
+      int("blades", "Blades", 3, 6, 5),
+    ]),
+  speaker: kind("Speaker", "device", "media", "run", ["Body", "Grille"], ["#2a2a2c", "#3a3a3d"],
+    sz([0.08, 1.4, 0.2], [0.08, 0.5, 0.25], [0.05, 1.3, 0.32]), [
+      choice("style", "Style", ["bookshelf", "floor", "smart", "soundbar"], "bookshelf", { sizes: {
+        bookshelf: { width_m: 0.2, depth_m: 0.25, height_m: 0.32 }, floor: { width_m: 0.25, depth_m: 0.32, height_m: 1.05 },
+        smart: { width_m: 0.12, depth_m: 0.12, height_m: 0.18 }, soundbar: { width_m: 0.95, depth_m: 0.1, height_m: 0.07 } } }),
+    ]),
   other: kind("Box", "furniture", "other", null, ["Colour"], [BOX_COLOR], BOX_SIZE, []),
 };
 
 // The Build menu, in order. Tags and scanners (groups "tag" and "scanner")
 // are in FURNITURE for the beacon screen, not here.
 export const FURNITURE_KINDS = ["sofa", "bed", "table", "chair", "desk", "dresser", "tv", "lamp", "rug", "shelf", "wardrobe", "plant",
-                                "other"];
+                                "washer", "dryer", "vacuum_dock", "mower_dock", "car", "charger", "radiator", "fan", "speaker", "other"];
 
 const defOf = (k) => (typeof k === "string" && Object.prototype.hasOwnProperty.call(FURNITURE, k) ? FURNITURE[k] : null);
 
@@ -1143,9 +1188,233 @@ function buildPlant(K0, S, p, C){
   }
 }
 
+// ── device pieces: each one's live part is its own child or material ────────
+// Washer or dryer: the whole machine is parts.run (running = a gentle shake);
+// a front-loader's door toward +z, a top-loader's lid on top and its controls
+// raised at the back.
+function buildLaundry(K, S, p, C, parts, dryer){
+  const { w: W, d: D, h: H } = S;
+  const body = L(C[0], "gloss"), trim = L(C[1], "metal"), dark = L("#24272b", "gloss");
+  const run = K.child();
+  parts.run = run.obj;
+  const feet = Math.min(0.02, H * 0.03);
+  for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) run.box(0.04, feet, 0.04, sx * (W / 2 - 0.05), feet / 2, sz2 * (D / 2 - 0.08), dark);
+  if (dryer || p.loading === "front") {
+    const bodyD = D - 0.035, face = D / 2 - 0.035, panelH = Math.min(0.12, H * 0.14);
+    run.box(W, H - feet, bodyD, 0, feet + (H - feet) / 2, -D / 2 + bodyD / 2, body, 0.02);
+    run.box(W * 0.9, panelH * 0.7, 0.004, 0, H - panelH / 2, face + 0.002, L(lighten(C[0], 0.05), "gloss"));
+    run.cyl(panelH * 0.25, panelH * 0.25, 0.016, W * 0.3, H - panelH / 2, face + 0.008, trim, 16, [Math.PI / 2, 0, 0]);
+    run.box(W * 0.3, panelH * 0.35, 0.003, -W * 0.15, H - panelH / 2, face + 0.0055, dark);
+    const r = Math.min(W * 0.36, (H - feet - panelH) * 0.4), dy = feet + (H - feet - panelH) * 0.48;
+    run.cyl(r, r, 0.03, 0, dy, face + 0.015, trim, 28, [Math.PI / 2, 0, 0]);
+    run.cyl(r * 0.74, r * 0.74, 0.034, 0, dy, face + 0.017,
+            dryer && p.door === "solid" ? L(lighten(C[0], 0.06), "gloss") : L("#36424c", "gloss"), 24, [Math.PI / 2, 0, 0]);
+  } else {
+    const back = Math.min(0.14, H * 0.16), top = H - back * 0.6, sd = Math.min(0.12, D * 0.2);
+    run.box(W, top - feet, D, 0, feet + (top - feet) / 2, 0, body, 0.02);
+    run.box(W, H - top + 0.02, sd, 0, top - 0.02 + (H - top + 0.02) / 2, -D / 2 + sd / 2, body, 0.015);
+    run.box(W * 0.5, (H - top) * 0.5, 0.003, 0, top + (H - top) * 0.5, -D / 2 + sd + 0.0015, dark);
+    run.box(W * 0.84, 0.01, D * 0.6, 0, top + 0.005, D * 0.1, L(lighten(C[0], 0.05), "gloss"), 0.004);
+  }
+}
+
+// Robot vacuum dock: the dock at −z, the robot (parts.dock) parked in front of it.
+function buildVacuumDock(K, S, p, C, parts){
+  const { w: W, d: D, h: H } = S;
+  const dockL = L(C[0], "gloss"), robotL = L(C[1], "gloss"), dark = L("#1d1f22", "gloss");
+  const dd = clamp(D * 0.32, 0.06, 0.3), rr = Math.max(0.03, Math.min(W / 2, (D - dd) / 2) - 0.004);
+  const tower = p.dock === "tower", dockH = H, bd = tower ? dd : dd * 0.55;
+  K.box(tower ? W : W * 0.8, dockH, bd, 0, dockH / 2, -D / 2 + bd / 2, dockL, Math.min(0.02, bd / 3));
+  if (tower) K.box(W * 0.9, 0.006, dd * 0.8, 0, dockH - 0.004, -D / 2 + dd / 2, L(darken(C[0], 0.35), "gloss"));
+  K.box(W * 0.9, 0.008, D - dd, 0, 0.004, dd / 2, dark);
+  K.box(W * 0.3, Math.min(0.02, dockH * 0.2), 0.004, 0, Math.min(dockH * 0.6, 0.08), -D / 2 + bd + 0.002, L("#3b82c4", "gloss"));
+  const robot = K.child([0, 0.008, D / 2 - rr - 0.002]);
+  parts.dock = robot.obj;
+  const rh = Math.max(0.02, Math.min(0.095, H - 0.03)), turret = Math.min(0.02, H - 0.008 - rh);
+  if (p.robot === "d-shape") {
+    robot.box(rr * 2, rh - 0.002, rr, 0, (rh - 0.002) / 2, rr / 2, robotL, Math.min(0.03, rh / 3));   // under the round top, not level with it
+    robot.cyl(rr, rr, rh, 0, rh / 2, 0, robotL, 28);
+  } else robot.cyl(rr, rr, rh, 0, rh / 2, 0, robotL, 28);
+  robot.cyl(rr * 0.96, rr * 0.96, 0.004, 0, rh + 0.002, 0, L(darken(C[1], 0.3), "gloss"), 28);
+  if (turret > 0.004) robot.cyl(rr * 0.24, rr * 0.24, turret, 0, rh + turret / 2, -rr * 0.3, dark, 16);
+}
+
+// Mower dock: a plate with the charging post at −z, the mower (parts.dock) on it, a roof if asked.
+function buildMowerDock(K, S, p, C, parts){
+  const { w: W, d: D, h: H } = S;
+  const dockL = L(C[0], "gloss"), mowerL = L(C[1], "gloss"), dark = L("#1d1f22");
+  const postD = Math.min(0.14, D * 0.18), postH = p.roof ? Math.min(H, 0.32) : H;
+  K.box(W, 0.025, D, 0, 0.0125, 0, dockL, 0.01);
+  K.box(Math.min(W, 0.36), postH, postD, 0, postH / 2, -D / 2 + postD / 2, dockL, 0.02);
+  const roofH = p.roof ? Math.min(0.04, H * 0.1) : 0;
+  if (p.roof) {
+    for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) K.box(0.03, H - roofH, 0.03, sx * (W / 2 - 0.015), (H - roofH) / 2, sz2 * (D / 2 - 0.015), dockL);
+    K.box(W, roofH, D, 0, H - roofH / 2, 0, dockL, 0.01);
+  }
+  const mw = W * 0.82, ml = (D - postD) * 0.86, mh = Math.max(0.05, Math.min(0.3, H - roofH - 0.04)), wr = Math.min(0.1, mh * 0.4);
+  const mower = K.child([0, 0.025, -D / 2 + postD + ml / 2 + 0.01]);
+  parts.dock = mower.obj;
+  mower.box(mw - 0.04, mh - wr * 0.6, ml, 0, wr * 0.6 + (mh - wr * 0.6) / 2, 0, mowerL, Math.min(0.05, mh / 4));
+  for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) mower.cyl(wr, wr, 0.04, sx * (mw / 2 - 0.02), wr, sz2 * (ml / 2 - wr), dark, 16, [0, 0, Math.PI / 2]);
+  mower.box(mw * 0.4, 0.01, ml * 0.3, 0, mh + 0.005, -ml * 0.1, dark);
+}
+
+// Car: the nose toward +z, a cabin by body style, its charge-port light (parts.glow).
+function buildCar(K, S, p, C, parts){
+  const { w: W, d: D, h: H } = S;
+  const body = L(C[0], "gloss"), glass = L(C[1], "gloss"), tyre = L("#1c1c1e"), rim = L("#9ba3ab", "metal");
+  const wr = clamp(Math.min(H * 0.22, D * 0.075), 0.2, 0.4), ww = Math.min(0.24, W * 0.13);
+  const clear = wr * 0.45, belt = Math.min(H * 0.55, clear + wr * 1.9);
+  K.box(W - 0.04, belt - clear, D - 0.024, 0, clear + (belt - clear) / 2, 0, body, 0.09);
+  const cab = { sedan: [-0.24, 0.18], hatch: [-0.42, 0.14], suv: [-0.42, 0.2], pickup: [-0.06, 0.22] }[p.body];
+  const z0 = cab[0] * D, z1 = cab[1] * D, roofT = Math.min(0.06, (H - belt) * 0.15);
+  K.box(W * 0.84, H - belt - roofT + 0.02, z1 - z0, 0, belt + (H - belt - roofT) / 2 - 0.01, (z0 + z1) / 2, glass, 0.08);
+  K.box(W * 0.84, roofT, (z1 - z0) * 0.9, 0, H - roofT / 2, (z0 + z1) / 2, body, Math.min(0.03, roofT / 2));
+  if (p.body === "pickup") {
+    const bz0 = -D / 2 + 0.05, bz1 = z0 - 0.06, wallH = Math.min(0.32, (H - belt) * 0.5);
+    for (const s of [-1, 1]) K.box(0.05, wallH, bz1 - bz0, s * (W / 2 - 0.045), belt + wallH / 2, (bz0 + bz1) / 2, body, 0.01);
+    K.box(W - 0.09, wallH, 0.05, 0, belt + wallH / 2, bz0 + 0.025, body, 0.01);
+  }
+  const wz = D / 2 - Math.max(wr * 1.6, D * 0.17);
+  for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) {
+    const x = sx * (W / 2 - ww / 2 - 0.003);
+    K.cyl(wr, wr, ww, x, wr, sz2 * wz, tyre, 22, [0, 0, Math.PI / 2]);
+    K.cyl(wr * 0.55, wr * 0.55, ww + 0.004, x, wr, sz2 * wz, rim, 16, [0, 0, Math.PI / 2]);
+  }
+  const ly = belt - Math.min(0.12, (belt - clear) * 0.35);
+  for (const s of [-1, 1]) {
+    K.box(W * 0.2, 0.07, 0.02, s * W * 0.32, ly, D / 2 - 0.012, L("#f4f1e6", "gloss"), 0.01);
+    K.box(W * 0.2, 0.06, 0.02, s * W * 0.32, ly, -D / 2 + 0.012, L("#9b1c1c", "gloss"), 0.01);
+  }
+  parts.glow = [K.own(L("#2f3a33", "gloss"), (k) => k.box(0.006, 0.05, 0.08, -W / 2 + 0.023, belt - 0.08, D * 0.3, L("#2f3a33")))];
+}
+
+// Car charger: a wall box (or one on a post), its light ring toward +z (parts.glow).
+function buildCharger(K, S, p, C, parts){
+  const { w: W, d: D, h: H } = S;
+  const body = L(C[0], "gloss"), cable = L(C[1], "soft"), dark = L("#202326", "gloss");
+  const post = p.mount === "post";
+  const uh = post ? Math.min(0.45, H * 0.4) : H, uy = H - uh / 2, ud = (post ? Math.min(D, 0.16) : D) * 0.72;
+  const room = D - ud, uz = -D / 2 + ud / 2, face = -D / 2 + ud;
+  if (post) {
+    const pw = Math.min(0.12, W * 0.5), pd = Math.min(pw, ud);
+    K.box(pw, H - uh + 0.02, pd, 0, (H - uh + 0.02) / 2, -D / 2 + pd / 2, dark, 0.01);
+    K.box(Math.min(W, 0.3), 0.03, Math.min(D, 0.3), 0, 0.015, -D / 2 + Math.min(D, 0.3) / 2, dark);
+  }
+  K.box(W, uh, ud, 0, uy, uz, body, Math.min(0.03, W / 6, ud / 3, uh / 6));
+  const ringR = Math.min(W, uh) * 0.18, rd = Math.min(0.008, room * 0.5);
+  parts.glow = [K.own(L("#4a5560", "gloss"), (k) => k.cyl(ringR, ringR, rd + 0.002, 0, uy + uh * 0.18, face + rd / 2 - 0.001, L("#4a5560"), 24, [Math.PI / 2, 0, 0]))];
+  const hd = Math.min(0.04, room * 0.9);
+  if (hd > 0.008) K.box(W * 0.28, uh * 0.22, hd, W * 0.24, uy - uh * 0.2, face + hd / 2, dark, Math.min(0.01, hd / 3));
+  if (p.cable && room > 0.04) {
+    const cr = Math.min(W * 0.22, uh * 0.2), ct = Math.min(0.03, room * 0.4);
+    K.torus(cr, ct / 2, -W * 0.12, uy - uh * 0.22, face + ct / 2 + 0.002, cable);
+  }
+}
+
+// Radiator: panels or columns that warm (parts.warm), on brackets at the back.
+function buildRadiator(K, S, p, C, parts){
+  const { w: W, d: D, h: H } = S;
+  const look = L(C[0], "gloss"), feet = Math.min(0.06, H * 0.1), y0 = feet, rh = H - feet;
+  const warm = K.own(look, (k) => {
+    if (p.style === "column") {
+      const n = Math.max(2, Math.floor(W / 0.06)), cw = W / n;
+      for (let i = 0; i < n; i++) k.box(cw * 0.7, rh - 0.04, D * 0.9, -W / 2 + cw * (i + 0.5), y0 + rh / 2, 0, look, k.hi ? Math.min(0.012, cw * 0.3) : 0);
+      for (const y of [y0 + 0.025, H - 0.025]) k.box(W, 0.05, D * 0.6, 0, y, 0, look, 0.01);
+    } else {
+      const panels = D >= 0.09 ? 2 : 1, pd = Math.min(0.03, D / (panels * 1.6)), gap = (D - panels * pd) / Math.max(1, panels);
+      for (let i = 0; i < panels; i++) {
+        const z = panels === 1 ? 0 : (i ? 1 : -1) * (gap / 2 + pd / 2);
+        k.box(W, rh, pd, 0, y0 + rh / 2, z, look, 0.006);
+        const n = Math.max(3, Math.floor(W / 0.05));
+        for (let j = 0; j < n; j++) k.box(0.012, rh * 0.86, 0.004, -W / 2 + W * (j + 0.5) / n, y0 + rh / 2, z + (i || panels === 1 ? 1 : -1) * (pd / 2 + 0.002), look);
+      }
+      k.box(W, 0.012, D * 0.9, 0, H - 0.006, 0, look);
+    }
+  });
+  parts.warm = [warm];
+  for (const s of [-1, 1]) K.box(0.03, feet, Math.min(D, 0.05), s * (W / 2 - Math.min(0.12, W * 0.2)), feet / 2, 0, L(darken(C[0], 0.2), "gloss"));
+  K.cyl(0.015, 0.015, Math.min(0.06, H * 0.2), W / 2 - 0.02, feet + 0.03, 0, L(METAL, "metal"), 10);
+}
+
+// Fan: the blades (parts.spin) turn about their own z axis: facing +z on a
+// desk or a pedestal, flat under a ceiling fan.
+function buildFan(K, S, p, C, parts, THREE){
+  const pitch = (a) => new THREE.Quaternion().setFromEuler(new THREE.Euler(0.35, 0, a, "ZYX"));
+  const { w: W, d: D, h: H } = S;
+  const body = L(C[0], "gloss"), blade = L(C[1], "gloss");
+  const nb = p.blades;
+  if (p.style === "ceiling") {
+    const R = Math.min(W, D) / 2, motorH = Math.min(0.12, H * 0.3), rod = Math.max(0.01, H - motorH - 0.05);
+    K.cyl(Math.min(0.08, R * 0.8), Math.min(0.06, R * 0.6), 0.04, 0, H - 0.02, 0, body, 18);
+    K.cyl(0.013, 0.013, rod, 0, H - 0.04 - rod / 2, 0, body, 10);
+    K.cyl(Math.min(0.14, R * 0.3), Math.min(0.11, R * 0.25), motorH, 0, motorH / 2 + 0.008, 0, body, 22);
+    const spin = K.child([0, Math.min(motorH * 0.4, 0.05), 0], null, [-Math.PI / 2, 0, 0]);
+    parts.spin = spin.obj;
+    for (let i = 0; i < nb; i++) {
+      const a = i * Math.PI * 2 / nb, hub = Math.min(0.12, R * 0.28), len = R - hub - 0.01;
+      spin.box(len, Math.min(0.14, R * 0.22), 0.01, Math.cos(a) * (hub + len / 2), Math.sin(a) * (hub + len / 2), 0, blade, 0.004, pitch(a));
+    }
+    return;
+  }
+  const desk = p.style === "desk";
+  const R = Math.min(W / 2, (desk ? H * 0.42 : H * 0.22)), headY = H - R, headZ = Math.min(0.05, D * 0.15);
+  K.slab("ellipse", W * (desk ? 0.7 : 0.85), 0.03, D * (desk ? 0.7 : 0.85), 0, 0, 0, body, 0, 0.008);
+  K.cyl(0.016, 0.02, headY - 0.03, 0, 0.03 + (headY - 0.03) / 2, -headZ * 0.6, body, 10);
+  const motorD = Math.min(0.12, D * 0.35);
+  K.cyl(R * 0.3, R * 0.36, motorD, 0, headY, -headZ * 0.6, body, 18, [Math.PI / 2, 0, 0]);
+  const rimT = Math.min(0.012, R * 0.08);
+  K.torus(R - rimT, rimT, 0, headY, headZ, L(lighten(C[0], 0.1), "metal"), [0, 0, 0]);
+  const spin = K.child([0, headY, headZ]);
+  parts.spin = spin.obj;
+  const len = R - rimT * 2 - R * 0.18 - 0.005;
+  for (let i = 0; i < nb; i++) {
+    const a = i * Math.PI * 2 / nb;
+    spin.box(len, Math.min(0.12, R * 0.5), 0.006, Math.cos(a) * (R * 0.18 + len / 2), Math.sin(a) * (R * 0.18 + len / 2), 0, blade, 0.003, pitch(a));
+  }
+  spin.cyl(R * 0.18, R * 0.18, 0.03, 0, 0, 0, body, 16, [Math.PI / 2, 0, 0]);
+}
+
+// Speaker: a box (on a shelf or the floor), a smart speaker or a soundbar;
+// its drivers (parts.run) toward +z, which pulse while it plays.
+function buildSpeaker(K, S, p, C, parts){
+  const { w: W, d: D, h: H } = S;
+  const body = L(C[0], "wood"), grille = L(C[1], "fabric"), dark = L("#141517", "gloss");
+  if (p.style === "smart") {
+    const R = Math.min(W, D) / 2, O = K.child(null, [W / 2 / R, 1, D / 2 / R]);
+    O.cyl(R * 0.97, R, H * 0.94, 0, H * 0.47, 0, grille, 28);
+    O.cyl(R * 0.9, R * 0.97, H * 0.06, 0, H * 0.97, 0, body, 28);
+    const ring = O.child([0, H - 0.002, 0]);
+    parts.run = ring.obj;
+    ring.cyl(R * 0.5, R * 0.5, 0.004, 0, 0, 0, L("#2c2f33", "gloss"), 24);
+    return;
+  }
+  const fd = Math.min(0.02, D * 0.12), bodyD = D - fd, face = -D / 2 + bodyD;
+  K.box(W, H, bodyD, 0, H / 2, -D / 2 + bodyD / 2, body, Math.min(0.015, W / 8, H / 8));
+  const run = K.child([0, 0, face]);
+  parts.run = run.obj;
+  const driver = (x, y, r) => {
+    run.cyl(r, r, fd * 0.5, x, y, fd * 0.25, dark, 20, [Math.PI / 2, 0, 0]);
+    run.cyl(r * 0.8, r * 0.55, fd * 0.7, x, y, fd * 0.35, grille, 20, [Math.PI / 2, 0, 0]);
+    run.ball(r * 0.22, x, y, fd * 0.55, dark, [1, 1, Math.min(0.6, fd * 0.4 / (r * 0.22))], null, 10);
+  };
+  if (p.style === "soundbar") {
+    const r = Math.min(H * 0.32, W * 0.06), n = clamp(Math.round(W / 0.22), 2, 6);
+    for (let i = 0; i < n; i++) driver(-W / 2 + W * (i + 0.5) / n, H / 2, r);
+  } else {
+    const r = Math.min(W * 0.36, H * 0.18), floor = p.style === "floor";
+    driver(0, H * (floor ? 0.3 : 0.38), r);
+    if (floor) driver(0, H * 0.55, r);
+    driver(0, H * (floor ? 0.8 : 0.78), r * 0.42);
+  }
+}
+
 const BUILDERS = { sofa: buildSofa, bed: buildBed, table: buildTable, chair: buildChair, desk: buildDesk, dresser: buildDresser,
                    tv: buildTv, lamp: buildLamp, rug: buildRug, shelf: buildShelf, wardrobe: buildWardrobe, plant: buildPlant,
-                   other: buildBox };
+                   washer: (K, S, p, C, parts) => buildLaundry(K, S, p, C, parts, false),
+                   dryer: (K, S, p, C, parts) => buildLaundry(K, S, p, C, parts, true),
+                   vacuum_dock: buildVacuumDock, mower_dock: buildMowerDock, car: buildCar, charger: buildCharger,
+                   radiator: buildRadiator, fan: buildFan, speaker: buildSpeaker, other: buildBox };
 
 // ── building and freeing ─────────────────────────────────────────────────────
 function build(THREE, quality, fn, S, p, C, meta){
