@@ -599,10 +599,16 @@ async def ask(hass: HomeAssistant, eid: str, instructions: str, structure: dict,
     return resp.get("data") if isinstance(resp, dict) else None
 
 
+_BLOB = re.compile(r"[A-Za-z0-9+/=_-]{64,}")
+
+
 def _why(err: BaseException) -> str:
+    """The AI Task's failure in a few words, for the log and the screen. A
+    long run of base64-like text is cut out, so an integration that echoes
+    its request can't put the photo into either."""
     if isinstance(err, TimeoutError):
         return f"no answer in {PHOTO_TIMEOUT_S // 60} minutes"
-    text = " ".join(str(err).split())[:160]
+    text = " ".join(_BLOB.sub("…", str(err)).split())[:160]
     return text or type(err).__name__
 
 

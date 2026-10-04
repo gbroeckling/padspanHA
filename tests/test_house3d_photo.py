@@ -345,7 +345,9 @@ def test_a_photo_is_read_and_its_file_is_gone_after(monkeypatch, tmp_path, disk)
 
 
 @pytest.mark.parametrize("fail", [RuntimeError("Ollama: connection refused"), ValueError("bad structure"),
-                                  TimeoutError(), asyncio.CancelledError()])
+                                  TimeoutError(), asyncio.CancelledError(),
+                                  RuntimeError(f"400 bad request: {{'images': ['{_B64}']}}")],
+                         ids=["refused", "invalid", "timeout", "cancelled", "echoes the photo"])
 def test_the_file_is_gone_when_the_call_fails(monkeypatch, tmp_path, disk, caplog, fail):
     h, conn, ai, media = _ready(monkeypatch, tmp_path, answer=fail)
     with caplog.at_level(logging.DEBUG):
@@ -355,6 +357,7 @@ def test_the_file_is_gone_when_the_call_fails(monkeypatch, tmp_path, disk, caplo
         else:
             out = _photo(h, conn)
             assert out["ok"] is False and out["reason"] == "error" and out["message"].startswith("Couldn't read it")
+            assert _B64[:40] not in out["message"], "never shown back"
     assert ai.seen[0][1] == _JPEG
     assert _leftovers(media) == [] and disk.writes == []
     assert _B64[:40] not in caplog.text and "JFIF" not in caplog.text, "never logged"

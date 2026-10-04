@@ -2,6 +2,12 @@
  "kinds": [
   "sofa",
   "bed",
+  "table",
+  "chair",
+  "desk",
+  "dresser",
+  "tv",
+  "lamp",
   "other"
  ],
  "furniture": {
@@ -164,7 +170,21 @@
       "slatted",
       "padded"
      ],
-     "def": "padded"
+     "def": "padded",
+     "sizes": {
+      "none": {
+       "height_m": 0.65
+      },
+      "panel": {
+       "height_m": 1.1
+      },
+      "slatted": {
+       "height_m": 1.1
+      },
+      "padded": {
+       "height_m": 1.15
+      }
+     }
     },
     {
      "key": "footboard",
@@ -209,6 +229,456 @@
     ]
    },
    "live": null
+  },
+  "table": {
+   "name": "Table",
+   "group": "furniture",
+   "category": "tables",
+   "params": [
+    {
+     "key": "shape",
+     "label": "Shape",
+     "type": "choice",
+     "choices": [
+      "rectangle",
+      "rounded",
+      "round"
+     ],
+     "def": "rectangle",
+     "sizes": {
+      "round": {
+       "width_m": 1.1,
+       "depth_m": 1.1
+      }
+     }
+    },
+    {
+     "key": "legs",
+     "label": "Legs",
+     "type": "choice",
+     "choices": [
+      "four",
+      "pedestal",
+      "trestle"
+     ],
+     "def": "four"
+    },
+    {
+     "key": "top_t_m",
+     "label": "Top thickness",
+     "type": "num",
+     "min": 0.015,
+     "max": 0.08,
+     "step": 0.005,
+     "def": 0.035
+    },
+    {
+     "key": "apron",
+     "label": "Rail under the top",
+     "type": "bool",
+     "def": true
+    }
+   ],
+   "colorNames": [
+    "Top",
+    "Legs"
+   ],
+   "colors": [
+    "#9b7653",
+    "#7a5a40"
+   ],
+   "size": {
+    "width_m": [
+     0.4,
+     3,
+     1.6
+    ],
+    "depth_m": [
+     0.4,
+     1.4,
+     0.9
+    ],
+    "height_m": [
+     0.35,
+     1.1,
+     0.75
+    ]
+   },
+   "live": null
+  },
+  "chair": {
+   "name": "Chair",
+   "group": "furniture",
+   "category": "seating",
+   "params": [
+    {
+     "key": "style",
+     "label": "Style",
+     "type": "choice",
+     "choices": [
+      "dining",
+      "armchair",
+      "office",
+      "stool"
+     ],
+     "def": "dining",
+     "sizes": {
+      "dining": {
+       "width_m": 0.48,
+       "depth_m": 0.52,
+       "height_m": 0.9
+      },
+      "armchair": {
+       "width_m": 0.85,
+       "depth_m": 0.85,
+       "height_m": 0.85
+      },
+      "office": {
+       "width_m": 0.66,
+       "depth_m": 0.66,
+       "height_m": 1.05
+      },
+      "stool": {
+       "width_m": 0.4,
+       "depth_m": 0.4,
+       "height_m": 0.65
+      }
+     }
+    },
+    {
+     "key": "seat_h_m",
+     "label": "Seat height",
+     "type": "num",
+     "min": 0.3,
+     "max": 0.8,
+     "step": 0.01,
+     "def": 0.46
+    },
+    {
+     "key": "cushion",
+     "label": "Cushioned seat",
+     "type": "bool",
+     "def": false
+    },
+    {
+     "key": "arms",
+     "label": "Arms",
+     "type": "bool",
+     "def": false
+    }
+   ],
+   "colorNames": [
+    "Frame",
+    "Seat"
+   ],
+   "colors": [
+    "#7a5a40",
+    "#b5a48a"
+   ],
+   "size": {
+    "width_m": [
+     0.35,
+     1.1,
+     0.48
+    ],
+    "depth_m": [
+     0.35,
+     1,
+     0.52
+    ],
+    "height_m": [
+     0.4,
+     1.3,
+     0.9
+    ]
+   },
+   "live": null
+  },
+  "desk": {
+   "name": "Desk",
+   "group": "furniture",
+   "category": "office",
+   "params": [
+    {
+     "key": "legs",
+     "label": "Legs",
+     "type": "choice",
+     "choices": [
+      "four",
+      "panel",
+      "metal"
+     ],
+     "def": "four"
+    },
+    {
+     "key": "drawers",
+     "label": "Drawers",
+     "type": "choice",
+     "choices": [
+      "none",
+      "left",
+      "right",
+      "both"
+     ],
+     "def": "right"
+    },
+    {
+     "key": "back",
+     "label": "Back panel",
+     "type": "bool",
+     "def": true
+    }
+   ],
+   "colorNames": [
+    "Top",
+    "Frame"
+   ],
+   "colors": [
+    "#b08a63",
+    "#3c3f44"
+   ],
+   "size": {
+    "width_m": [
+     0.6,
+     2.4,
+     1.4
+    ],
+    "depth_m": [
+     0.4,
+     1,
+     0.7
+    ],
+    "height_m": [
+     0.5,
+     1.2,
+     0.75
+    ]
+   },
+   "live": null
+  },
+  "dresser": {
+   "name": "Dresser / cabinet",
+   "group": "furniture",
+   "category": "storage",
+   "params": [
+    {
+     "key": "fronts",
+     "label": "Fronts",
+     "type": "choice",
+     "choices": [
+      "drawers",
+      "doors",
+      "both"
+     ],
+     "def": "drawers"
+    },
+    {
+     "key": "columns",
+     "label": "Columns",
+     "type": "int",
+     "min": 1,
+     "max": 4,
+     "step": 1,
+     "def": 2
+    },
+    {
+     "key": "rows",
+     "label": "Drawers in a column",
+     "type": "int",
+     "min": 1,
+     "max": 6,
+     "step": 1,
+     "def": 3
+    },
+    {
+     "key": "base",
+     "label": "Base",
+     "type": "choice",
+     "choices": [
+      "plinth",
+      "feet",
+      "legs"
+     ],
+     "def": "plinth"
+    },
+    {
+     "key": "handles",
+     "label": "Handles",
+     "type": "choice",
+     "choices": [
+      "bar",
+      "knob",
+      "none"
+     ],
+     "def": "bar"
+    }
+   ],
+   "colorNames": [
+    "Body",
+    "Fronts"
+   ],
+   "colors": [
+    "#7a5a40",
+    "#8e6c4f"
+   ],
+   "size": {
+    "width_m": [
+     0.3,
+     2.4,
+     1.2
+    ],
+    "depth_m": [
+     0.25,
+     0.8,
+     0.5
+    ],
+    "height_m": [
+     0.3,
+     2.2,
+     0.85
+    ]
+   },
+   "live": null
+  },
+  "tv": {
+   "name": "TV + media unit",
+   "group": "furniture",
+   "category": "media",
+   "params": [
+    {
+     "key": "screen_in",
+     "label": "Screen size (inches)",
+     "type": "int",
+     "min": 24,
+     "max": 98,
+     "step": 1,
+     "def": 55
+    },
+    {
+     "key": "unit",
+     "label": "Unit",
+     "type": "choice",
+     "choices": [
+      "low",
+      "cabinet",
+      "none"
+     ],
+     "def": "low"
+    },
+    {
+     "key": "mount",
+     "label": "TV on",
+     "type": "choice",
+     "choices": [
+      "stand",
+      "wall"
+     ],
+     "def": "stand"
+    }
+   ],
+   "colorNames": [
+    "Unit",
+    "TV"
+   ],
+   "colors": [
+    "#6e5039",
+    "#1f2124"
+   ],
+   "size": {
+    "width_m": [
+     0.5,
+     3,
+     1.6
+    ],
+    "depth_m": [
+     0.2,
+     0.7,
+     0.42
+    ],
+    "height_m": [
+     0.35,
+     2.4,
+     1.27
+    ]
+   },
+   "live": "screen"
+  },
+  "lamp": {
+   "name": "Lamp",
+   "group": "furniture",
+   "category": "lighting",
+   "params": [
+    {
+     "key": "style",
+     "label": "Style",
+     "type": "choice",
+     "choices": [
+      "floor",
+      "table"
+     ],
+     "def": "floor",
+     "sizes": {
+      "floor": {
+       "width_m": 0.45,
+       "depth_m": 0.45,
+       "height_m": 1.6
+      },
+      "table": {
+       "width_m": 0.32,
+       "depth_m": 0.32,
+       "height_m": 0.55
+      }
+     }
+    },
+    {
+     "key": "shade",
+     "label": "Shade",
+     "type": "choice",
+     "choices": [
+      "drum",
+      "cone",
+      "globe"
+     ],
+     "def": "drum"
+    },
+    {
+     "key": "base",
+     "label": "Base",
+     "type": "choice",
+     "choices": [
+      "round",
+      "square",
+      "tripod"
+     ],
+     "def": "round"
+    }
+   ],
+   "colorNames": [
+    "Shade",
+    "Base"
+   ],
+   "colors": [
+    "#efe6d2",
+    "#4a4f55"
+   ],
+   "size": {
+    "width_m": [
+     0.12,
+     1,
+     0.45
+    ],
+    "depth_m": [
+     0.12,
+     1,
+     0.45
+    ],
+    "height_m": [
+     0.2,
+     2.2,
+     1.6
+    ]
+   },
+   "live": "glow"
   },
   "other": {
    "name": "Box",
