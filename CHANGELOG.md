@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.95 — Open a floor plan from Basic mode (2026-10-04)
+
+### Mapping
+- **Fixed:** in Basic mode, Mapping → Library → **Open** did nothing at all, with no sign why (editing a floor plan is in Advanced mode, and Basic quietly sent you back to the Library). Open now switches to Advanced, says so, and opens the plan. The Basic / Advanced button at the top switches back. Thanks, Jay.
+- **Fixed:** in Advanced mode, the calibration wizard's "See detailed quality report" and the Atlas's "Build from relays" opened their screen and then bounced you back to the first menu screen a moment later. They now stay open.
+
+---
+
 ## 0.38.94 — Rain and snow you can see from across the room (2026-10-04)
 
 ### Atlas — outdoor weather
