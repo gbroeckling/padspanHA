@@ -307,6 +307,20 @@ function _compareAllMaps(ctx, maps, resultDiv) {
 // buttons. Each row shows receiver count, dimensions, floor, whether a
 // coverage gap was detected, and its placed size (or "not placed"). Includes
 // the undo-migration banner.
+// Opening a floor plan to edit it lives in Advanced mode: Basic has only
+// Library and Upload, and render() puts any other tab straight back to
+// Library. So in Basic, Open did nothing at all, with no sign why (Jay,
+// 2026-10-04, placing a BLE proxy he had missed). It switches to Advanced,
+// says so, and opens the plan.
+function _openForEdit(ctx, mapId){
+  ctx.actions.mapsSetActive(mapId);
+  if (ctx.state.complexity === "basic") {
+    ctx.actions.setComplexity("advanced");
+    ctx.toast("Editing a floor plan is in Advanced mode, so PadSpan switched to Advanced. The Basic / Advanced button at the top switches back.");
+  }
+  ctx.actions.setMapsTab("edit");
+}
+
 function _library(ctx, maps, activeId, helpBtn, isBasic){
   const { el } = ctx.helpers;
   helpBtn = helpBtn || (()=>null);
@@ -365,10 +379,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
           el("div",{style:"font-weight:600;color:#fbbf24;font-size:13px"}, `Data migrated from "${_mig.srcMapName}" to "${_mig.targetMapName}"`),
           el("div",{class:"muted",style:"font-size:11px"}, "Review the target map. If things look wrong, revert the migrated data."),
         ]),
-        el("button",{class:"btn inline", style:"color:#52b788;border-color:#52b788", onclick:()=>{
-          ctx.actions.mapsSetActive(_mig.targetMapId);
-          ctx.actions.setMapsTab('edit');
-        }}, "Review map"),
+        el("button",{class:"btn inline", style:"color:#52b788;border-color:#52b788", onclick:()=>_openForEdit(ctx, _mig.targetMapId)}, "Review map"),
         el("button",{class:"btn danger", style:"font-size:12px", onclick:async ()=>{
           if(!confirm("Remove all migrated receivers, beacons, and room outlines from the target map?")) return;
           // Remove migrated items from target map — computed from a FRESH
@@ -474,7 +485,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     ]);
 
     const actions = el("div",{style:"display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap"});
-    actions.appendChild(el("button",{class:"btn inline", onclick:()=>{ ctx.actions.mapsSetActive(m.id); ctx.actions.setMapsTab('edit'); }}, "Open"));
+    actions.appendChild(el("button",{class:"btn inline", onclick:()=>_openForEdit(ctx, m.id)}, "Open"));
     actions.appendChild(el("button",{class:"btn inline danger", onclick:()=>{ _deleteMapModal(ctx, m, maps); }}, "Delete"));
 
     row.appendChild(thumb);
@@ -1250,7 +1261,7 @@ function _wizardFinish(ctx, map, isBasic){
   const calBtn = el("button",{class:"btn primary"}, "Go to Calibration →");
   calBtn.addEventListener("click", ()=>{
     ctx.state._mapsWizard = null;
-    if (isBasic) { ctx.state.complexity = "advanced"; try{ localStorage.setItem("padspan_complexity","advanced"); }catch(e){} }
+    if (isBasic) ctx.actions.setComplexity("advanced");
     ctx.state.view = "calibration";
     if (ctx.state._calib) ctx.state._calib.tab = "beacon";
     ctx.actions.renderRooms();
@@ -3884,7 +3895,7 @@ const BRIGHT_PRO_MANUAL = [
       },
       {
         "heading": "Find your plans in the Library",
-        "body": "Every plan you upload shows up in the Library tab, grouped by floor. Each one shows a thumbnail, its pixel size, and whether it's been scaled yet — \"not placed\" means the real-world size still isn't set. Tap Open to jump back into editing it, or Delete to remove it.",
+        "body": "Every plan you upload shows up in the Library tab, grouped by floor. Each one shows a thumbnail, its pixel size, and whether it's been scaled yet — \"not placed\" means the real-world size still isn't set. Tap Open to jump back into editing it (editing is in Advanced mode, so in Basic mode Open switches to Advanced for you), or Delete to remove it.",
         "steps": [],
         "notes": []
       },

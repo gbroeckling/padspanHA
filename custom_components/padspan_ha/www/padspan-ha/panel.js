@@ -108,7 +108,12 @@ const _VIEW_PATHS = {
 
 // Views reachable by internal navigation but never listed in MENU. Being
 // current while not in the visible menu set is legitimate for these.
-const _VIEW_PATHS_HIDDEN_OK = new Set(["objects", "history", "events", "debug", "diagnostics"]);
+// qa and devices are Development-mode menu tabs that Advanced mode reaches by
+// link (the calibration wizard's "See detailed quality report →", the Atlas's
+// "Build from relays"): without them here the next nav rebuild bounced the
+// user back to the first menu view, the same silent no-op as Mapping's Open
+// in Basic mode.
+const _VIEW_PATHS_HIDDEN_OK = new Set(["objects", "history", "events", "debug", "diagnostics", "qa", "devices"]);
 
 // Track in-flight imports to avoid duplicate fetches
 const _viewLoading = {};
@@ -803,17 +808,7 @@ class PadSpanHaApp extends HTMLElement {
 
     this.$("#complexityToggle").addEventListener("click", ()=>{
       const cur = this.state.complexity;
-      this.state.complexity = cur === "basic" ? "advanced" : cur === "advanced" ? "development" : "basic";
-      try { localStorage.setItem("padspan_complexity", this.state.complexity); } catch(e) {}
-      // If switching to basic/advanced and current view isn't visible, go to
-      // follow — unless the URL explicitly pinned the view (kiosk deep-link).
-      if (this.state.complexity !== "development") {
-        const visible = this._getVisibleTabs();
-        if (!visible.has(this.state.view) && this.state.view !== this._urlPinnedView) this.state.view = "follow";
-      }
-      this._updateBadges();
-      this._renderNav();
-      this._scheduleRender();
+      this._setComplexity(cur === "basic" ? "advanced" : cur === "advanced" ? "development" : "basic");
     });
 
     this._renderNav();
@@ -2075,6 +2070,23 @@ class PadSpanHaApp extends HTMLElement {
   }
 
   /** Update the desktop topbar status pills and mobile topbar pills to reflect current state. */
+  /** Basic / Advanced / Development: the toggle at the top, and a view that
+   *  needs Advanced for what was just asked of it (Mapping's Open in Basic,
+   *  Jay 2026-10-04: the button did nothing at all). */
+  _setComplexity(mode){
+    this.state.complexity = mode;
+    try { localStorage.setItem("padspan_complexity", mode); } catch(e) {}
+    // If switching to basic/advanced and current view isn't visible, go to
+    // follow — unless the URL explicitly pinned the view (kiosk deep-link).
+    if (mode !== "development") {
+      const visible = this._getVisibleTabs();
+      if (!visible.has(this.state.view) && this.state.view !== this._urlPinnedView) this.state.view = "follow";
+    }
+    this._updateBadges();
+    this._renderNav();
+    this._scheduleRender();
+  }
+
   _updateBadges(){
     const scan = this.state.status?.scan_interval ?? "—";
     const st = this.state.status?.status ?? "—";
@@ -2544,6 +2556,7 @@ class PadSpanHaApp extends HTMLElement {
         },
         mapsRefresh: async ()=>{ await this._getMapsList(); this._scheduleRender(); },
         mapsSetActive: (id)=>{ this.state.activeMapId=id; this._scheduleRender(); },
+        setComplexity: (mode)=>this._setComplexity(mode),
         mapsDelete: async (id)=>{ await this._callWS({ type:"padspan_ha/maps_delete", map_id:id }); await this._getMapsList(); if(this.state.activeMapId===id) this.state.activeMapId=null; this._scheduleRender(); },
         mapsDeleteMigrate: async (mapId, targetMapId, extendCanvas=false)=>{ const r = await this._callWS({ type:"padspan_ha/maps_delete_migrate", map_id:mapId, target_map_id:targetMapId, extend_canvas:!!extendCanvas }); await this._getMapsList(); if(this.state.activeMapId===mapId) this.state.activeMapId=null; this._scheduleRender(); return r; },
         mapsUpload: async (payload)=>{ const r = await this._callWS(Object.assign({type:"padspan_ha/maps_upload"}, payload)); await this._getMapsList(); return r; },
