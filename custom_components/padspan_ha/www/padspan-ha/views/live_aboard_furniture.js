@@ -103,16 +103,60 @@ export const FURNITURE = {
         twin: { width_m: 1.13, depth_m: 2.1, height_m: 1.0 }, double: { width_m: 1.51, depth_m: 2.1, height_m: 1.05 },
         queen: { width_m: 1.66, depth_m: 2.2, height_m: 1.1 }, king: { width_m: 2.07, depth_m: 2.2, height_m: 1.15 },
         crib: { width_m: 0.8, depth_m: 1.42, height_m: 0.95 }, bunk: { width_m: 1.13, depth_m: 2.1, height_m: 1.7 } } }),
-      choice("headboard", "Headboard", ["none", "panel", "slatted", "padded"], "padded"),
+      choice("headboard", "Headboard", ["none", "panel", "slatted", "padded"], "padded", { sizes: {
+        none: { height_m: 0.65 }, panel: { height_m: 1.1 }, slatted: { height_m: 1.1 }, padded: { height_m: 1.15 } } }),
       bool("footboard", "Footboard", false),
       choice("base", "Base", ["frame", "platform"], "frame"),
+    ]),
+  table: kind("Table", "furniture", "tables", null, ["Top", "Legs"], ["#9b7653", "#7a5a40"],
+    sz([0.4, 3.0, 1.6], [0.4, 1.4, 0.9], [0.35, 1.1, 0.75]), [
+      choice("shape", "Shape", ["rectangle", "rounded", "round"], "rectangle", { sizes: { round: { width_m: 1.1, depth_m: 1.1 } } }),
+      choice("legs", "Legs", ["four", "pedestal", "trestle"], "four"),
+      num("top_t_m", "Top thickness", 0.015, 0.08, 0.005, 0.035),
+      bool("apron", "Rail under the top", true),
+    ]),
+  chair: kind("Chair", "furniture", "seating", null, ["Frame", "Seat"], ["#7a5a40", "#b5a48a"],
+    sz([0.35, 1.1, 0.48], [0.35, 1.0, 0.52], [0.4, 1.3, 0.9]), [
+      choice("style", "Style", ["dining", "armchair", "office", "stool"], "dining", { sizes: {
+        dining: { width_m: 0.48, depth_m: 0.52, height_m: 0.9 }, armchair: { width_m: 0.85, depth_m: 0.85, height_m: 0.85 },
+        office: { width_m: 0.66, depth_m: 0.66, height_m: 1.05 }, stool: { width_m: 0.4, depth_m: 0.4, height_m: 0.65 } } }),
+      num("seat_h_m", "Seat height", 0.3, 0.8, 0.01, 0.46),
+      bool("cushion", "Cushioned seat", false),
+      bool("arms", "Arms", false),
+    ]),
+  desk: kind("Desk", "furniture", "office", null, ["Top", "Frame"], ["#b08a63", "#3c3f44"],
+    sz([0.6, 2.4, 1.4], [0.4, 1.0, 0.7], [0.5, 1.2, 0.75]), [
+      choice("legs", "Legs", ["four", "panel", "metal"], "four"),
+      choice("drawers", "Drawers", ["none", "left", "right", "both"], "right"),
+      bool("back", "Back panel", true),
+    ]),
+  dresser: kind("Dresser / cabinet", "furniture", "storage", null, ["Body", "Fronts"], ["#7a5a40", "#8e6c4f"],
+    sz([0.3, 2.4, 1.2], [0.25, 0.8, 0.5], [0.3, 2.2, 0.85]), [
+      choice("fronts", "Fronts", ["drawers", "doors", "both"], "drawers"),
+      int("columns", "Columns", 1, 4, 2),
+      int("rows", "Drawers in a column", 1, 6, 3),
+      choice("base", "Base", ["plinth", "feet", "legs"], "plinth"),
+      choice("handles", "Handles", ["bar", "knob", "none"], "bar"),
+    ]),
+  tv: kind("TV + media unit", "furniture", "media", "screen", ["Unit", "TV"], ["#6e5039", "#1f2124"],
+    sz([0.5, 3.0, 1.6], [0.2, 0.7, 0.42], [0.35, 2.4, 1.27]), [
+      int("screen_in", "Screen size (inches)", 24, 98, 55),
+      choice("unit", "Unit", ["low", "cabinet", "none"], "low"),
+      choice("mount", "TV on", ["stand", "wall"], "stand"),
+    ]),
+  lamp: kind("Lamp", "furniture", "lighting", "glow", ["Shade", "Base"], ["#efe6d2", "#4a4f55"],
+    sz([0.12, 1.0, 0.45], [0.12, 1.0, 0.45], [0.2, 2.2, 1.6]), [
+      choice("style", "Style", ["floor", "table"], "floor", { sizes: {
+        floor: { width_m: 0.45, depth_m: 0.45, height_m: 1.6 }, table: { width_m: 0.32, depth_m: 0.32, height_m: 0.55 } } }),
+      choice("shade", "Shade", ["drum", "cone", "globe"], "drum"),
+      choice("base", "Base", ["round", "square", "tripod"], "round"),
     ]),
   other: kind("Box", "furniture", "other", null, ["Colour"], [BOX_COLOR], BOX_SIZE, []),
 };
 
 // The Build menu, in order. Tags and scanners (groups "tag" and "scanner")
 // are in FURNITURE for the beacon screen, not here.
-export const FURNITURE_KINDS = ["sofa", "bed", "other"];
+export const FURNITURE_KINDS = ["sofa", "bed", "table", "chair", "desk", "dresser", "tv", "lamp", "other"];
 
 const defOf = (k) => (typeof k === "string" && Object.prototype.hasOwnProperty.call(FURNITURE, k) ? FURNITURE[k] : null);
 
@@ -247,9 +291,27 @@ function scaleUv(g, su, sv){
 function place(THREE, g, x, y, z, rot, scl){
   const m = new THREE.Matrix4();
   const quat = new THREE.Quaternion();
-  if (rot) quat.setFromEuler(new THREE.Euler(rot[0] || 0, rot[1] || 0, rot[2] || 0));
+  if (rot && rot.isQuaternion) quat.copy(rot);
+  else if (rot) quat.setFromEuler(new THREE.Euler(rot[0] || 0, rot[1] || 0, rot[2] || 0));
   m.compose(new THREE.Vector3(x, y, z), quat, scl ? new THREE.Vector3(scl[0], scl[1], scl[2]) : new THREE.Vector3(1, 1, 1));
   g.applyMatrix4(m);
+  return g;
+}
+// A plan shape's outline: a rectangle with rounded corners, counter-clockwise.
+function roundRect(shape, w, d, r){
+  const x0 = -w / 2, x1 = w / 2, y0 = -d / 2, y1 = d / 2;
+  if (r < 1e-4) { shape.moveTo(x0, y0); shape.lineTo(x1, y0); shape.lineTo(x1, y1); shape.lineTo(x0, y1); shape.lineTo(x0, y0); return; }
+  shape.moveTo(x0 + r, y0); shape.lineTo(x1 - r, y0); shape.absarc(x1 - r, y0 + r, r, -Math.PI / 2, 0, false);
+  shape.lineTo(x1, y1 - r); shape.absarc(x1 - r, y1 - r, r, 0, Math.PI / 2, false);
+  shape.lineTo(x0 + r, y1); shape.absarc(x0 + r, y1 - r, r, Math.PI / 2, Math.PI, false);
+  shape.lineTo(x0, y0 + r); shape.absarc(x0 + r, y0 + r, r, Math.PI, Math.PI * 1.5, false);
+}
+// Scaled and moved so its bounds are exactly w × h × d about the origin.
+function fitBox(g, w, h, d){
+  g.computeBoundingBox();
+  const b = g.boundingBox, sx = b.max.x - b.min.x, sy = b.max.y - b.min.y, sz = b.max.z - b.min.z;
+  g.translate(-(b.min.x + b.max.x) / 2, -(b.min.y + b.max.y) / 2, -(b.min.z + b.max.z) / 2);
+  g.scale(w / (sx || 1), h / (sy || 1), d / (sz || 1));
   return g;
 }
 // One geometry from many, each already placed (position, normal, uv).
@@ -404,6 +466,44 @@ function makeKit(THREE, quality, root){
       const g = scaleUv(new THREE.SphereGeometry(rad, ws, hs, 0, Math.PI * 2, 0, cap), 2 * Math.PI * rad / TILE, Math.PI * rad / TILE);
       add(look, place(THREE, g, x, y, z, rot, scl));
     },
+    // A flat plan shape (a "rect" with rounded corners, or an "ellipse") w × d,
+    // t thick, its bottom at y, its edges softened by a small bevel.
+    slab(form, w, t, d, x, y, z, look, corner = 0.01, bevel = 0.006){
+      const shape = new THREE.Shape();
+      if (form === "ellipse") shape.absellipse(0, 0, w / 2, d / 2, 0, Math.PI * 2, false, 0);
+      else roundRect(shape, w, d, Math.min(corner, w / 2 - 1e-3, d / 2 - 1e-3));
+      const bt = Math.min(bevel, t / 3, w / 4, d / 4);
+      const g = new THREE.ExtrudeGeometry(shape, { depth: Math.max(t - 2 * bt, 1e-4), bevelEnabled: bt > 1e-4, bevelThickness: bt,
+        bevelSize: bt, bevelSegments: 1, curveSegments: form === "ellipse" ? (hi ? 16 : 8) : (hi ? 4 : 2) });
+      g.rotateX(-Math.PI / 2);
+      g.clearGroups();
+      add(look, place(THREE, scaleUv(fitBox(g, w, t, d), 1 / TILE, 1 / TILE), x, y + t / 2, z));
+    },
+    // A round bar of radius r from point a to point b.
+    rod(a, b, r, look, seg = 8){
+      const v = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), len = v.length();
+      const n = Math.max(5, Math.round(hi ? seg : seg * 0.6));
+      const g = scaleUv(new THREE.CylinderGeometry(r, r, len, n, 1, false), 2 * Math.PI * r / TILE, len / TILE);
+      g.clearGroups();
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.normalize());
+      add(look, place(THREE, g, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, q));
+    },
+    // A ring of radius rad around its own z axis, its tube tube thick.
+    torus(rad, tube, x, y, z, look, rot = null){
+      const g = scaleUv(new THREE.TorusGeometry(rad, tube, hi ? 10 : 6, hi ? 32 : 16), 2 * Math.PI * tube / TILE, 2 * Math.PI * rad / TILE);
+      add(look, place(THREE, g, x, y, z, rot));
+    },
+    // A part of its own (one that moves, or a stretch): a group under this one.
+    child(pos = null, scl = null, rot = null){
+      const obj = new THREE.Group();
+      if (pos) obj.position.set(pos[0], pos[1], pos[2]);
+      if (scl) obj.scale.set(scl[0], scl[1], scl[2]);
+      if (rot) obj.rotation.set(rot[0], rot[1], rot[2]);
+      target.add(obj);
+      const k = api(obj, (look, g) => push(obj, look, g));
+      k.obj = obj;
+      return k;
+    },
     at(obj){ return api(obj, (look, g) => push(obj, look, g)); },
     own(look, fn, parent = target){
       const list = [];
@@ -526,7 +626,9 @@ function buildBed(K, S, p, C){
   const zh = -D / 2 + hbD / 2;
   if (p.headboard === "panel") K.box(W, H, hbD, 0, H / 2, zh, frame, 0.015);
   else if (p.headboard === "padded") {
-    K.box(W, H - 0.06, hbD, 0, 0.06 + (H - 0.06) / 2, zh, L(C[0], "fabric"), 0.045);
+    // Upholstered in channels, on two short feet.
+    const n = clamp(Math.round(W / 0.4), 2, 6), cw = W / n, padded = L(lighten(C[0], 0.12), "fabric");
+    for (let i = 0; i < n; i++) K.box(cw - 0.006, H - 0.06, hbD, -W / 2 + cw * (i + 0.5), 0.06 + (H - 0.06) / 2, zh, padded, 0.04);
     for (const s of [-1, 1]) K.box(0.05, 0.06, hbD * 0.6, s * (W / 2 - 0.08), 0.03, zh, L(LEG_DARK, "wood"));
   } else if (p.headboard === "slatted") {
     for (const s of [-1, 1]) K.box(0.06, H, hbD, s * (W / 2 - 0.03), H / 2, zh, frame, 0.01);
@@ -584,7 +686,280 @@ function buildBunk(K, S, p, C){
   for (let i = 1; i <= rungs; i++) K.cyl(0.014, 0.014, ladW - 0.03, lx, i * (upTop / (rungs + 1)), z0 + ladW / 2, L(METAL, "metal"), 8, [Math.PI / 2, 0, 0]);
 }
 
-const BUILDERS = { sofa: buildSofa, bed: buildBed, other: buildBox };
+// ── fronts, doors and handles (dressers, desks, wardrobes, units) ───────────
+// A handle on a front whose face is at zFace, reaching at most 28 mm out:
+// a bar on two posts or a knob (one small block each on Low).
+const HANDLE_D = 0.028;
+function handle(K, kind, x, y, zFace, along, look, len){
+  if (kind === "none") return;
+  const up = along === "y";
+  if (!K.hi) {
+    if (kind === "knob") K.box(0.026, 0.026, HANDLE_D, x, y, zFace + HANDLE_D / 2, look);
+    else K.box(up ? 0.016 : len, up ? len : 0.016, HANDLE_D, x, y, zFace + HANDLE_D / 2, look);
+    return;
+  }
+  if (kind === "knob") { K.cyl(0.011, 0.015, HANDLE_D, x, y, zFace + HANDLE_D / 2, look, 10, [Math.PI / 2, 0, 0]); return; }
+  K.cyl(0.006, 0.006, len, x, y, zFace + HANDLE_D - 0.006, look, 8, up ? null : [0, 0, Math.PI / 2]);
+  for (const s of [-1, 1]) {
+    K.cyl(0.004, 0.004, HANDLE_D - 0.006, up ? x : x + s * (len / 2 - 0.012), up ? y + s * (len / 2 - 0.012) : y,
+          zFace + (HANDLE_D - 0.006) / 2, look, 6, [Math.PI / 2, 0, 0]);
+  }
+}
+// Fronts stand on a dark backing, so the gaps between them read as lines;
+// the carcass behind stops GAP_T short of zFace to make room for it.
+const GAP_T = 0.003, GAP = "#1f1b18";
+// n drawer fronts stacked from y0 to y1 on a carcass whose face is at zFace.
+function drawers(K, x, w, y0, y1, n, zFace, look, kind, hl){
+  const rowH = (y1 - y0) / n;
+  K.box(w, y1 - y0, GAP_T, x, (y0 + y1) / 2, zFace - GAP_T / 2, L(GAP));
+  for (let i = 0; i < n; i++) {
+    const cy = y0 + rowH * (i + 0.5);
+    K.box(w - 0.006, rowH - 0.006, 0.02, x, cy, zFace + 0.01, look, 0.004);
+    handle(K, kind, x, cy, zFace + 0.02, "x", hl, Math.min(0.14, w * 0.45));
+  }
+}
+// A door from y0 to y1, hinged on the left (hinge −1) or the right (+1).
+function door(K, x, w, y0, y1, zFace, look, kind, hl, hinge){
+  K.box(w, y1 - y0, GAP_T, x, (y0 + y1) / 2, zFace - GAP_T / 2, L(GAP));
+  K.box(w - 0.006, y1 - y0 - 0.006, 0.02, x, (y0 + y1) / 2, zFace + 0.01, look, 0.004);
+  const hy = Math.min(y0 + (y1 - y0) * 0.55, y0 + 1.05);
+  handle(K, kind, x - hinge * (w / 2 - Math.min(0.05, w * 0.2)), hy, zFace + 0.02, "y", hl, Math.min(0.16, (y1 - y0) * 0.3));
+}
+
+// Table: a top (rectangle, rounded or round) on four legs, a pedestal or trestles.
+function buildTable(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const top = L(C[0], "wood"), leg = L(C[1], "wood");
+  const t = Math.min(p.top_t_m, H * 0.25), under = H - t, round = p.shape === "round";
+  K.slab(round ? "ellipse" : "rect", W, t, D, 0, under, 0, top, p.shape === "rounded" ? Math.min(W, D) * 0.25 : 0.01);
+  if (p.legs === "pedestal") {
+    const two = W > D * 1.8, xs = two ? [-W / 4, W / 4] : [0];
+    const footR = Math.min(D * 0.32, (two ? W / 4 : W / 2) * 0.9, 0.35);
+    const colR = clamp(Math.min(W, D) * 0.06, 0.03, 0.08);
+    for (const x of xs) {
+      K.cyl(colR * 0.75, colR, under - 0.035, x, 0.035 + (under - 0.035) / 2, 0, leg, 16);
+      K.slab("ellipse", footR * 2, 0.035, footR * 2, x, 0, 0, leg, 0, 0.01);
+    }
+  } else if (p.legs === "trestle") {
+    const tx = W / 2 - Math.min(0.15, W * 0.12);
+    for (const s of [-1, 1]) {
+      K.box(0.06, under - 0.05, D * 0.5, s * tx, 0.05 + (under - 0.05) / 2, 0, leg, 0.008);
+      K.box(0.08, 0.05, D * 0.8, s * tx, 0.025, 0, leg, 0.01);
+      K.box(0.07, 0.04, D * 0.7, s * tx, under - 0.02, 0, leg, 0.008);
+    }
+    K.box(2 * tx, 0.05, 0.05, 0, Math.max(0.08, under * 0.35), 0, leg, 0.008);
+  } else {
+    const lw = clamp(Math.min(W, D) * 0.05, 0.035, 0.07);
+    const fx = round ? W * 0.3 : W / 2 - lw / 2 - 0.03, fz = round ? D * 0.3 : D / 2 - lw / 2 - 0.03;
+    for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) K.box(lw, under, lw, sx * fx, under / 2, sz2 * fz, leg, 0.006);
+    if (p.apron && under > 0.2) {
+      const ah = Math.min(0.08, under * 0.2), ay = under - ah / 2;
+      for (const s of [-1, 1]) {
+        K.box(2 * fx - lw, ah, 0.02, 0, ay, s * fz, leg);
+        K.box(0.02, ah, 2 * fz - lw, s * fx, ay, 0, leg);
+      }
+    }
+  }
+}
+
+// Chair: a dining chair, an armchair, an office chair or a stool; the back at −z.
+function buildChair(K, S, p, C){
+  if (p.style === "armchair") {
+    return buildSofa(K, S, { seats: 1, arms: p.arms ? "wide" : "none", seat_h_m: p.seat_h_m, legs: "tapered", cushions: 1 },
+                     [C[1], lighten(C[1], 0.15)]);
+  }
+  const { w: W, d: D, h: H } = S;
+  const frame = L(C[0], "wood"), seat = L(C[1], p.cushion ? "fabric" : "wood");
+  if (p.style === "office") return buildOfficeChair(K, S, p, C);
+  const stool = p.style === "stool";
+  const seatTop = stool ? H : Math.min(p.seat_h_m, H - 0.12);
+  const seatT = p.cushion ? 0.06 : 0.035, legTop = seatTop - seatT;
+  const lw = clamp(Math.min(W, D) * 0.08, 0.03, 0.05);
+  if (stool) {
+    K.slab("ellipse", W, seatT, D, 0, legTop, 0, seat, 0, p.cushion ? 0.02 : 0.008);
+    const fx = W * 0.3, fz = D * 0.3, ry = Math.max(0.05, legTop * 0.35);
+    for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) K.box(lw, legTop, lw, sx * fx, legTop / 2, sz2 * fz, frame, 0.005);
+    for (const s of [-1, 1]) {
+      K.box(2 * fx, 0.022, 0.022, 0, ry, s * fz, frame);
+      K.box(0.022, 0.022, 2 * fz, s * fx, ry, 0, frame);
+    }
+    return;
+  }
+  const lx = W / 2 - lw / 2, lz = D / 2 - lw / 2;
+  for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) {
+    const top = sz2 < 0 ? H : legTop;
+    K.box(lw, top, lw, sx * lx, top / 2, sz2 * lz, frame, 0.005);
+  }
+  K.box(W, seatT, D, 0, legTop + seatT / 2, 0, seat, p.cushion ? 0.025 : 0.006);
+  const backH = H - seatTop;
+  if (backH > 0.08) {
+    const railH = Math.min(0.1, backH * 0.35), sh = backH - railH;
+    K.box(W - 2 * lw, railH, 0.025, 0, H - railH / 2, -lz, frame, 0.006);
+    if (sh > 0.04) {
+      for (let i = 0; i < 3; i++) K.box(0.03, sh, 0.018, -(W / 2 - lw) + (W - 2 * lw) * (i + 0.5) / 3, seatTop + sh / 2, -lz, frame);
+    }
+  }
+  if (p.arms) {
+    const ay = Math.min(seatTop + 0.22, H - 0.03);
+    for (const s of [-1, 1]) {
+      K.box(lw, 0.03, D, s * lx, ay, 0, frame, 0.008);
+      K.box(lw * 0.8, ay - seatTop, lw * 0.8, s * lx, seatTop + (ay - seatTop) / 2, lz, frame);
+    }
+  }
+}
+// An office chair: five spokes on casters, a column, the seat, the backrest at −z.
+function buildOfficeChair(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const dark = L("#2b2d31", "metal"), seat = L(C[1], "fabric"), frame = L(C[0], "metal");
+  const caster = 0.025, R = Math.min(W, D) / 2 - caster, baseY = 0.07;
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI / 2 + i * Math.PI * 2 / 5, ca = Math.cos(a), sa = Math.sin(a);
+    K.box(R, 0.03, 0.045, ca * R / 2, baseY, sa * R / 2, dark, 0.008, [0, -a, 0]);
+    K.ball(caster, ca * (R - 0.012), caster, sa * (R - 0.012), L("#1d1d1f", "gloss"), null, null, 10);
+  }
+  const seatTop = Math.min(p.seat_h_m, H * 0.58), seatT = Math.min(0.08, seatTop * 0.3);
+  K.cyl(0.025, 0.03, seatTop - seatT - baseY, 0, baseY + (seatTop - seatT - baseY) / 2, 0, frame, 12);
+  K.box(W * 0.82, seatT, D * 0.8, 0, seatTop - seatT / 2, D * 0.05, seat, 0.035);
+  const bh = H - seatTop - 0.06, bz = -D / 2 + 0.04;
+  if (bh > 0.03) {
+    K.box(W * 0.72, bh, 0.06, 0, seatTop + 0.06 + bh / 2, bz, seat, 0.03);
+    K.box(0.05, 0.12, 0.03, 0, seatTop + 0.02, bz + 0.02, frame);
+  }
+  if (p.arms) {
+    const ay = Math.min(seatTop + 0.2, H - 0.02);
+    for (const s of [-1, 1]) {
+      K.box(0.025, ay - seatTop + 0.04, 0.04, s * (W / 2 - 0.03), seatTop - 0.04 + (ay - seatTop + 0.04) / 2, 0, frame);
+      K.box(0.05, 0.025, Math.min(0.26, D * 0.45), s * (W / 2 - 0.03), ay, 0, L("#1d1d1f", "soft"), 0.01);
+    }
+  }
+}
+
+// Desk: a top over drawer pedestals (fronts toward +z, where you sit), legs or
+// panels on the other sides, and a back panel at −z.
+function buildDesk(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const top = L(C[0], "wood"), frame = L(C[1], p.legs === "metal" ? "metal" : "wood");
+  const t = Math.min(0.03, H * 0.1), under = H - t;
+  K.slab("rect", W, t, D, 0, under, 0, top, 0.01);
+  const pedW = Math.min(0.42, W * 0.32), pedD = D - 0.04;
+  const peds = { none: [], left: [-1], right: [1], both: [-1, 1] }[p.drawers];
+  for (const s of peds) {
+    const x = s * (W / 2 - pedW / 2 - 0.005), cD = pedD - 0.02 - HANDLE_D;
+    K.box(pedW, under, cD - GAP_T, x, under / 2, -pedD / 2 + (cD - GAP_T) / 2, top, 0.006);
+    drawers(K, x, pedW - 0.02, 0.03, under - 0.01, 3, -pedD / 2 + cD, L(lighten(C[0], 0.08), "wood"), "bar", L(METAL, "metal"));
+  }
+  for (const s of [-1, 1]) {
+    if (peds.includes(s)) continue;
+    if (p.legs === "panel") K.box(0.03, under, D - 0.02, s * (W / 2 - 0.015), under / 2, 0, frame, 0.004);
+    else if (p.legs === "metal") {
+      const x = s * (W / 2 - 0.04);
+      for (const sz2 of [-1, 1]) K.box(0.04, under, 0.04, x, under / 2, sz2 * (D / 2 - 0.06), frame, 0.004);
+      K.box(0.04, 0.03, D - 0.08, x, 0.015, 0, frame);
+      K.box(0.04, 0.04, D - 0.08, x, under - 0.02, 0, frame);
+    } else for (const sz2 of [-1, 1]) K.box(0.05, under, 0.05, s * (W / 2 - 0.035), under / 2, sz2 * (D / 2 - 0.035), frame, 0.006);
+  }
+  if (p.back) { const bh = under * 0.5; K.box(W - 0.08, bh, 0.018, 0, under - bh / 2, -D / 2 + 0.06, frame); }
+}
+
+// Dresser or cabinet: drawers, doors or both on the front (+z), on a plinth, feet or legs.
+function buildDresser(K, S, p, C){
+  const { w: W, d: D, h: H } = S;
+  const body = L(C[0], "wood"), front = L(C[1], "wood"), hl = L(METAL, "metal");
+  const hd = p.handles === "none" ? 0 : HANDLE_D;
+  const cD = D - 0.02 - hd, cz = -D / 2 + cD / 2, zf = -D / 2 + cD;
+  const footH = Math.min({ plinth: 0.07, feet: 0.09, legs: 0.2 }[p.base], H * 0.25);
+  K.box(W, H - footH, cD - GAP_T, 0, footH + (H - footH) / 2, cz - GAP_T / 2, body, 0.008);
+  if (p.base === "plinth") K.box(W - 0.03, footH, cD - 0.03, 0, footH / 2, cz, L(darken(C[0], 0.25), "wood"));
+  else {
+    for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) {
+      const x = sx * (W / 2 - 0.05), z = cz + sz2 * (cD / 2 - 0.05);
+      if (p.base === "feet") K.cyl(0.032, 0.026, footH, x, footH / 2, z, body, 10);
+      else K.cyl(0.022, 0.013, footH, x, footH / 2, z, L(LEG_WOOD, "wood"), 10);
+    }
+  }
+  const y0 = footH + 0.015, y1 = H - 0.02, colW = (W - 0.03) / p.columns;
+  for (let c = 0; c < p.columns; c++) {
+    const x = -W / 2 + 0.015 + colW * (c + 0.5), hinge = c % 2 ? 1 : -1;
+    if (p.fronts === "drawers") drawers(K, x, colW, y0, y1, p.rows, zf, front, p.handles, hl);
+    else if (p.fronts === "doors") door(K, x, colW, y0, y1, zf, front, p.handles, hl, hinge);
+    else {
+      const ym = y0 + (y1 - y0) * 0.55;
+      door(K, x, colW, y0, ym, zf, front, p.handles, hl, hinge);
+      drawers(K, x, colW, ym, y1, Math.min(p.rows, 3), zf, front, p.handles, hl);
+    }
+  }
+}
+
+// TV + media unit: the TV at the top of the box, its screen toward +z (a part
+// of its own, for a media player), on a stand on the unit or on the wall.
+function buildTv(K, S, p, C, parts){
+  const { w: W, d: D, h: H } = S;
+  const unit = L(C[0], "wood"), tv = L(C[1], "gloss");
+  const diag = p.screen_in * 0.0254, bez = 0.012, tvD = 0.045, wall = p.mount === "wall", gap = wall ? 0.05 : 0.07;
+  // The screen keeps its size unless the box is too small for it; the unit
+  // keeps at least a low shelf's height under it.
+  const minUnit = p.unit === "none" ? 0 : Math.min(0.15, H * 0.35);
+  const fit = Math.min(1, (W - 2 * bez) / (diag * 16 / Math.hypot(16, 9)), (H - minUnit - gap - 2 * bez) / (diag * 9 / Math.hypot(16, 9)));
+  const sw = diag * 16 / Math.hypot(16, 9) * fit, sh = diag * 9 / Math.hypot(16, 9) * fit;
+  const tvW = sw + 2 * bez, tvH = sh + 2 * bez, tvY = H - tvH / 2, tvZ = wall ? -D / 2 + tvD / 2 : -D * 0.1;
+  const room = H - tvH - gap;
+  const unitH = p.unit === "none" ? 0 : wall ? clamp(p.unit === "cabinet" ? 0.6 : 0.42, minUnit, room) : room;
+  if (unitH > 0.02) mediaUnit(K, W, D, unitH, p.unit, unit, C[0]);
+  K.box(tvW, tvH, tvD, 0, tvY, tvZ, tv, 0.008);
+  parts.screen = K.own(L("#0b0d10", "gloss"), (k) => k.box(sw, sh, 0.004, 0, tvY, tvZ + tvD / 2 + 0.002));
+  if (!wall) {
+    const footY = unitH > 0.02 ? unitH : 0, neckH = tvY - tvH / 2 - footY + 0.04;
+    K.box(Math.min(0.08, tvW * 0.2), neckH, 0.03, 0, footY + neckH / 2, tvZ - tvD / 2 + 0.015, tv);
+    K.box(Math.min(tvW * 0.45, W), 0.015, Math.min(0.24, D * 0.8), 0, footY + 0.0075, tvZ, tv, 0.004);
+  }
+}
+// The media unit under a TV: open shelves (low) or doors (cabinet), on short legs.
+function mediaUnit(K, W, D, H, kind, look, c){
+  const legs = Math.min(0.06, H * 0.2), body = H - legs, face = D / 2 - 0.008;
+  K.box(W, body, D - 0.008, 0, legs + body / 2, -0.004, look, 0.008);
+  for (const sx of [-1, 1]) for (const sz2 of [-1, 1]) K.box(0.04, legs, 0.04, sx * (W / 2 - 0.05), legs / 2, sz2 * (D / 2 - 0.05), L(LEG_DARK, "wood"));
+  if (kind === "cabinet") {
+    const n = W > 1.4 ? 3 : 2, dw = (W - 0.03) / n;
+    for (let i = 0; i < n; i++) K.box(dw - 0.006, body - 0.03, 0.008, -W / 2 + 0.015 + dw * (i + 0.5), legs + body / 2, face + 0.004, L(lighten(c, 0.08), "wood"), 0.002);
+  } else {
+    K.box(W - 0.06, body * 0.5, 0.008, 0, legs + body * 0.5, face + 0.004, L(darken(c, 0.55)));
+  }
+}
+
+// Lamp: a floor or table lamp; the shade and the bulb glow (parts of their own, for a light).
+function buildLamp(K0, S, p, C, parts){
+  const { w: W, d: D, h: H } = S;
+  const R = Math.min(W, D) / 2, shade = L(C[0], "fabric"), base = L(C[1], "metal");
+  const K = K0.child(null, [W / 2 / R, 1, D / 2 / R]);
+  const table = p.style === "table", globe = p.shade === "globe";
+  const shH = globe ? Math.min(2 * R, H * 0.45) : clamp(H * (table ? 0.42 : 0.26), 0.06, 0.55);
+  const shBot = H - shH, baseT = Math.min(0.03, shBot * 0.12);
+  if (p.base === "tripod") {
+    const hubY = shBot * (table ? 0.55 : 0.4);
+    for (let i = 0; i < 3; i++) {
+      const a = Math.PI / 2 + i * Math.PI * 2 / 3;
+      K.rod([Math.cos(a) * (R * 0.9 - 0.012), 0.012, Math.sin(a) * (R * 0.9 - 0.012)], [0, hubY, 0], 0.012, base, 8);
+    }
+    K.cyl(0.012, 0.012, shBot - hubY + 0.02, 0, hubY + (shBot - hubY + 0.02) / 2, 0, base, 8);
+  } else {
+    const bR = R * (table ? 0.55 : 0.7);
+    if (p.base === "round") K.cyl(bR, bR, baseT, 0, baseT / 2, 0, base, 24);
+    else K.box(bR * 1.8, baseT, bR * 1.8, 0, baseT / 2, 0, base, 0.004);
+    if (table) {
+      const bodyH = (shBot - baseT) * 0.7;
+      K.cyl(R * 0.3, R * 0.42, bodyH, 0, baseT + bodyH / 2, 0, L(C[1], "gloss"), 20);
+      K.cyl(0.01, 0.01, shBot - baseT - bodyH + 0.02, 0, baseT + bodyH + (shBot - baseT - bodyH) / 2, 0, base, 8);
+    } else K.cyl(0.013, 0.013, shBot - baseT + 0.02, 0, baseT + (shBot - baseT) / 2, 0, base, 10);
+  }
+  const shadeMesh = K.own(shade, (k) => (globe ? k.ball(shH / 2, 0, shBot + shH / 2, 0, shade, null, null, 20)
+    : k.cyl(p.shade === "cone" ? R * 0.5 : R * 0.96, R, shH, 0, shBot + shH / 2, 0, shade, 24)));
+  const br = Math.min(0.03, shH * 0.2, R * 0.3);
+  const bulb = K.own(L("#fff4dc", "gloss"), (k) => k.ball(br, 0, globe ? shBot + shH / 2 : shBot + br * 0.4, 0, L("#fff4dc"), null, null, 10));
+  parts.glow = [shadeMesh, bulb];
+}
+
+const BUILDERS = { sofa: buildSofa, bed: buildBed, table: buildTable, chair: buildChair, desk: buildDesk, dresser: buildDresser,
+                   tv: buildTv, lamp: buildLamp, other: buildBox };
 
 // ── building and freeing ─────────────────────────────────────────────────────
 function build(THREE, quality, fn, S, p, C, meta){
