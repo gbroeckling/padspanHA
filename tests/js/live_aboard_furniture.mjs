@@ -507,6 +507,17 @@ tryCase("figure: FIGURE is well-formed", () => {
     && JSON.stringify(P.params.find((s) => s.key === "hair").choices) === JSON.stringify(["none", "short", "long", "bun"])
     && ["hair", "skin", "top", "bottom"].every((k) => /^#[0-9a-f]{6}$/.test(P.colors[k]) && typeof P.colorNames[k] === "string"), P);
 });
+// A child is not a shrunk adult: the head is a bigger share of the height.
+tryCase("figure: a child's head is bigger for its height", () => {
+  const headOf = (h) => {
+    const g = F.buildFigure(THREE, { height_m: h, hair: "none" }, { quality: "low" });
+    g.updateMatrixWorld(true);
+    const eyes = centreOfColour(g, "#1d1d1f"), top = boundsOf(g).max.y;
+    F.disposePiece(g);
+    return (top - eyes.y) / h;
+  };
+  check("figure: a child's head is bigger for its height", headOf(1.0) > headOf(1.75) * 1.15, { kid: headOf(1.0), adult: headOf(1.75) });
+});
 tryCase("figure: across its range", () => {
   const P = F.FIGURE, base = {};
   for (const s of P.params) base[s.key] = s.def;
@@ -526,6 +537,7 @@ tryCase("figure: across its range", () => {
         && Math.abs(bb.max.x + bb.min.x) < 0.01 && bb.max.x - bb.min.x <= g.userData.size.w + EPS && bb.max.z - bb.min.z <= g.userData.size.d + EPS
         && eyes && eyes.z > 0 && eyes.y > H * 0.85, { label, quality, min: bb.min, max: bb.max, H });
       check("figure: across its range", tris <= BUDGET[quality] && inw.bad === 0, { label, quality, tris, inw });
+      check("figure: across its range", g.userData.kind === "figure" && Object.keys(g.userData.parts).length === 0, label);
       stats.figure = { low: Math.max(stats.figure?.low || 0, quality === "low" ? tris : 0), high: Math.max(stats.figure?.high || 0, quality === "high" ? tris : 0) };
       F.disposePiece(g);
     }
