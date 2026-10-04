@@ -188,7 +188,8 @@ def test_three_is_the_bundled_core_build_only() -> None:
         for bad in ("examples/jsm", "three/addons", "OrbitControls", "BufferGeometryUtils", "RoundedBoxGeometry",
                     "cdn.jsdelivr", "unpkg.com"):
             assert bad not in s, (p.name, bad)
-        if p.name != "live_aboard.js":
+        # The library's thumbnails load the same build the same way (tests/test_live_aboard_library.py).
+        if p.name not in ("live_aboard.js", "live_aboard_library.js"):
             assert "three.module" not in s, p.name
     assert (_WWW / "vendor" / "three" / "three.module.min.js").read_text(encoding="utf-8").startswith(
         "/**\n * @license\n * Copyright 2010-2024 Three.js Authors"), "the bundled build is unmodified"

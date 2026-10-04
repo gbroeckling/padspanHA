@@ -3495,15 +3495,65 @@ function _atlas3dSection(ctx, el, settings){
     more.appendChild(row("Furniture", [rmWrap]));
   }
   if (onCb.checked) loadCompass();
+  // The shared library's rows, built once the switch is on (below).
+  let libraryRows = false;
+  const addLibraryRows = () => { if (!libraryRows) { libraryRows = true; _atlas3dLibraryRows(ctx, el, settings, more, row, save); } };
+  if (onCb.checked) addLibraryRows();
   box.appendChild(more);
   onCb.addEventListener("change", ()=>{
     const want = onCb.checked;
     more.style.display = want ? "block" : "none";
-    if (want) loadCompass();
+    if (want) { loadCompass(); addLibraryRows(); }
     save("atlas_3d_enabled", want, ()=>{ onCb.checked = !want; more.style.display = !want ? "block" : "none"; });
   });
   box.appendChild(note);
   return box;
+}
+
+// Live Aboard's shared furniture library (views/live_aboard_library.js,
+// ws_house3d_library.py): its switch, which only an administrator can change
+// (ws_settings: the library lets data leave the house), and "Withdraw my
+// shared furniture", which takes every piece this house shared out of the
+// library (admin) after an ask in the page. Built only once the 3D house is
+// on, so the box says nothing of them while it is off.
+function _atlas3dLibraryRows(ctx, el, settings, more, row, save){
+  const cb = el("input",{type:"checkbox"});
+  cb.checked = settings.atlas_3d_library === true;
+  more.appendChild(row("Shared library", [el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer"},
+    [cb, el("span",{style:"color:#e2e8f0;font-size:13px"},"Use the shared furniture library")])]));
+  more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
+    "Find furniture other PadSpan houses made, and share yours once you accept the library's terms. Only a piece's shape, sizes, colours and details are shared. Off: Live Aboard never contacts the library."));
+  const wd = el("button",{class:"btn", type:"button", "data-la3d-withdraw":""},"Withdraw my shared furniture");
+  const yes = el("button",{class:"btn", type:"button", "data-la3d-withdraw-yes":""},"Withdraw them");
+  const no = el("button",{class:"btn", type:"button"},"Cancel");
+  const ask = el("div",{style:"margin-top:6px;padding:8px 10px;border-radius:8px;background:#1f1a0a;border:1px solid #5c4a14;color:#fde68a;font-size:12px;line-height:1.5"},[
+    el("div",{},"Take every piece this house shared out of the library? Copies already placed in other houses stay there."),
+    el("div",{style:"display:flex;gap:8px;margin-top:6px"},[yes, no])]);
+  ask.style.display = "none";
+  const wdRow = row("", [wd]);
+  wdRow.appendChild(ask);
+  wdRow.style.display = cb.checked ? "flex" : "none";
+  more.appendChild(wdRow);
+  cb.addEventListener("change", ()=>{
+    const want = cb.checked;
+    wdRow.style.display = want ? "flex" : "none";
+    save("atlas_3d_library", want, ()=>{ cb.checked = !want; wdRow.style.display = !want ? "flex" : "none"; });
+  });
+  wd.addEventListener("click", ()=>{ ask.style.display = "block"; wd.disabled = true; });
+  no.addEventListener("click", ()=>{ ask.style.display = "none"; wd.disabled = false; });
+  yes.addEventListener("click", async ()=>{
+    yes.disabled = true;
+    try {
+      const r = await ctx.actions.wsCall("padspan_ha/house3d_library_withdraw", {});
+      const n = Number(r && r.withdrawn) || 0, left = Number(r && r.left) || 0;
+      ctx.toast(`${n === 1 ? "1 piece" : `${n} pieces`} taken out of the library.${left ? ` ${left} could not be reached yet: try again later.` : ""}`);
+    } catch (e) {
+      ctx.toast("Could not withdraw: " + String((e && e.message) || e), true);
+    }
+    yes.disabled = false;
+    ask.style.display = "none";
+    wd.disabled = false;
+  });
 }
 
 // ── UI Structure tab ──────────────────────────────────────────────────────────
