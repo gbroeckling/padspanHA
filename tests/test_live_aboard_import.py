@@ -153,7 +153,10 @@ def test_it_loads_only_the_house_and_its_rules_and_only_live_aboard_loads_it() -
         if "live_aboard_import" in code:
             assert p.name.startswith("live_aboard"), p.name
             at = code.index("live_aboard_import")
-            assert ".catch(" in code[at:at + 300], f"{p.name}: the import must carry its own .catch"
+            # Named inline with its own .catch, or (the Furnish tab) in a table of
+            # flows that one loader imports, that loader carrying the .catch.
+            shared = re.search(r"await import\(`\./\$\{file\}\$\{base\}`\)\.catch\(", code)
+            assert ".catch(" in code[at:at + 300] or shared, f"{p.name}: the import must carry its own .catch"
 
 
 def test_new_words_never_call_the_view_3d() -> None:

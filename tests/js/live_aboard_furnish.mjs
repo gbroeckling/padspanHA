@@ -35,6 +35,7 @@
 
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
+import { existsSync } from "node:fs";
 import * as shim from "./dom_shim.mjs";
 import { installStubGL } from "./stub_gl.mjs";
 
@@ -142,6 +143,8 @@ poll();
 await settle(40);
 
 // ── open ────────────────────────────────────────────────────────────────────
+const FLOW_FILES = [["photo", "From a photo", "live_aboard_photo.js"], ["library", "Library", "live_aboard_library.js"],
+                    ["import", "Import", "live_aboard_import.js"], ["people", "People & devices", "live_aboard_people.js"]];
 await tryCase("open: Furnish opens at the furniture tool; Build lists the builders' kinds; a missing flow has no button", async () => {
   await settle(20);
   click("Build ▾", "la3d-tools");
@@ -151,8 +154,11 @@ await tryCase("open: Furnish opens at the furniture tool; Build lists the builde
   const want = [...of("furniture"), ...of("device"), "Box"];
   check("open: Furnish opens at the furniture tool; Build lists the builders' kinds; a missing flow has no button",
     !st().failed && ed().editing && ed().tool === "furnish" && ed().furnishOn && !shown(button("Door", "la3d-tools"))
-    && JSON.stringify(menu) === JSON.stringify(want) && !shown(button("From a photo", "la3d-tools")) && !shown(button("Library", "la3d-tools"))
-    && fur().flows && fur().flows.length === 0 && st().furnish === true && st().split === "3d",
+    && JSON.stringify(menu) === JSON.stringify(want)
+    // A flow shows only when its module is there (each lands from its own phase).
+    && FLOW_FILES.every(([id, label, file]) => shown(button(label, "la3d-tools")) === existsSync(join(WWW, "views", file)))
+    && fur().flows && JSON.stringify(fur().flows) === JSON.stringify(FLOW_FILES.filter(f => existsSync(join(WWW, "views", f[2]))).map(f => f[0]))
+    && st().furnish === true && st().split === "3d",
     { edit: { editing: ed().editing, tool: ed().tool }, menu, want, flows: fur().flows, split: st().split });
 });
 
