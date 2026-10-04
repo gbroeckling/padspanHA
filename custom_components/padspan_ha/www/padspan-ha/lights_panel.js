@@ -921,6 +921,12 @@ class PadSpanLightsApp extends HTMLElement {
         },
         // Taps and holds in 3D: this map's own use api, asked for on the press.
         useApi: ()=>this._useApi(lightsByEid, lights),
+        // Furniture that is a device (P5): renames followed through the
+        // registry already read above, and the emergency lights while a
+        // test runs (the status this panel already keeps).
+        entities: this._hass?.entities || null, regIds: this._regStore?.reg?.regIds || null,
+        emergency: this.state._emerg && this.state._emerg.test && this.state._emerg.test.active
+          ? (this.state._emerg.members || []).map(m => m && m.entity_id).filter(Boolean) : null,
         // The 3D file (doors and windows drawn in 3D, heights): read when
         // the 3D view shows, never on the poll.
         load: ()=>this._hass.callWS({ type:"padspan_ha/house3d_get" }),

@@ -91,7 +91,8 @@ const tryCase = async (name, fn) => { try { await fn(); } catch (e) { failures.p
 const sleep = (ms) => new Promise(r => globalThis._realSetTimeout(r, ms));
 // Everything the 3D house brings: its modules (every views/live_aboard*.js:
 // the view, the house, its use surface, the editor and its rules, rain and
-// snow, the Showcase look, Furnish, its rules and the builders), the compass, three.js.
+// snow, the Showcase look, Furnish, its rules and the builders, furniture
+// that is a device), the compass, three.js.
 const threeLoads = () => loaded.filter(u => /\/views\/(live_aboard(_[a-z0-9]+)?|fabric_compass)\.js|\/vendor\/three\//.test(u));
 
 // ── a small two-storey house with lights ───────────────────────────────────

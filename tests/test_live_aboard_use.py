@@ -73,6 +73,12 @@ def test_the_hover_box_is_the_atlas_own(use) -> None:
     _case(use, "hud:")
 
 
+def test_a_piece_that_is_a_device_acts_as_it(use) -> None:
+    """P5: a piece linked to a light the Atlas knows is that light's own
+    target; one linked to anything else opens Home Assistant's controls."""
+    _case(use, "piece:")
+
+
 def test_nothing_is_pressed_without_the_host_api(use) -> None:
     _case(use, "quiet:")
 

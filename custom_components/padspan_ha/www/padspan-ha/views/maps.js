@@ -9387,6 +9387,8 @@ function _lightsTab(ctx, maps, active) {
       // Mapping → Furnish (P2): the Furnish tool open, and what its flows and
       // "This is a device…" need: the connection, a toast, the entity registry.
       furnish, entities: ctx.hass?.entities || null, toast: (t, bad) => ctx.toast(t, bad),
+      // A piece linked to a device follows it through a rename (P5): the registry already read.
+      regIds: ctx.state._lightsRegStore?.reg?.regIds || null,
       callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); },
       // The 3D compass's Save: fabric_bearing_deg alone, straight to the wire
       // like the Settings box (settingsSet would re-render everything).

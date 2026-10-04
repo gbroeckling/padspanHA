@@ -17,6 +17,9 @@
 //   hud       the Atlas's hover box: what a click lands on, what is under it,
 //             an "Under" pick doing what the sidebar's does; it lingers over
 //             nothing, then goes
+//   piece     a piece of furniture linked to a light acts as the light
+//             does; one linked to anything else opens Home Assistant's own
+//             controls for it (P5)
 //   quiet     no api, no press; a device the Atlas doesn't know, no press
 //
 // usage: live_aboard_use.mjs <www/padspan-ha dir>
@@ -300,6 +303,36 @@ await tryCase("hud: what a click lands on and what is under it; Under does what 
     && JSON.stringify(picks) === JSON.stringify([["openActivity", "binary_sensor.hall_motion"], ["openControls", "fan.ceiling"], ["toggle", "light.plain"]])
     && lingers && still && gone && unders[0].title === "Act on this one instead — it's under the marker on top",
     { text, picks, lingers, still, gone });
+});
+
+// ── a piece of furniture that is a device (P5) ──────────────────────────────
+// A piece linked to a light the Atlas knows is that light's own target (the
+// view picks it as it picks the marker): every gesture makes the Atlas's
+// calls. One linked to a device the Atlas has no marker for (a TV, a washer)
+// opens Home Assistant's own controls for it, tap or hold, and switches
+// nothing; "Under" does the same.
+await tryCase("piece: a lamp linked to a light makes the Atlas's calls; any other device opens Home Assistant's controls", async () => {
+  const runs = [];
+  for (const [g, opts] of Object.entries({ tap: {}, hold: { held: 700 }, dim: { held: 700, moves: [[0, 40], [0, 80]] } })) {
+    runs.push(await both(`piece light.dim ${g}`, marks["light.dim"], { ...device("light.dim"), anchor: { x: 1, y: 2, z: 3 } }, opts));
+  }
+  const seen = [];
+  const prev = root.dispatchEvent;
+  root.dispatchEvent = (e) => { if (e && e.type === "hass-more-info") seen.push([e.detail.entityId, !!e.bubbles, !!e.composed]); return true; };
+  const tv = { kind: "entity", key: "entity:media_player.tv", eid: "media_player.tv", label: "Lounge TV" };
+  d3.log.length = 0;
+  const pressed = await d3Gesture(tv);
+  await d3Gesture(tv, { held: 700 });
+  aim = { hit: device("light.dim"), under: [tv] };
+  use.hover(ev("pointermove", 100, 100, now(), { pointerType: "mouse" }));
+  const hud = root.children.find(n => n.className === "la3d-hud").children[0];
+  for (const b of hud.children.filter(n => n.className === "lv-hoverhud-under")) b.dispatchEvent({ type: "click", stopPropagation() {}, preventDefault() {} });
+  aim = null;
+  root.dispatchEvent = prev;
+  check("piece: a lamp linked to a light makes the Atlas's calls; any other device opens Home Assistant's controls",
+    runs.every(r => r.same && r.d3.length) && pressed === true && d3.log.length === 0
+    && JSON.stringify(seen) === JSON.stringify([["media_player.tv", true, true], ["media_player.tv", true, true], ["media_player.tv", true, true]]),
+    { bad: runs.filter(r => !r.same), seen, log: d3.log });
 });
 
 // ── quiet ───────────────────────────────────────────────────────────────────
