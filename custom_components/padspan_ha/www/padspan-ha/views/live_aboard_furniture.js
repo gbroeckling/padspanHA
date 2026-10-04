@@ -1549,41 +1549,49 @@ function drawFigure(K, S, p){
   const H = p.height_m, c = p.colors;
   const skin = L(c.skin, "soft"), top = L(c.top, "fabric"), bottom = L(c.bottom, "fabric"), hair = L(c.hair, "soft");
   const shoe = L("#2a2624", "soft"), dark = L("#1d1d1f", "gloss");
-  const tw = { slim: 0.2, medium: 0.23, broad: 0.27 }[p.build] * H, td = { slim: 0.12, medium: 0.13, broad: 0.15 }[p.build] * H;
-  const legR = tw * 0.17, hip = 0.48 * H, ankle = 0.035 * H;
+  // A child's head is bigger for its height, as in the Sims; everything
+  // else hangs from it: chin, shoulders, hips, knees.
+  const kid = clamp((1.6 - H) / 0.6, 0, 1);
+  const hr = (0.075 + 0.022 * kid) * H, hy = H * 0.988 - hr;
+  const shoulder = hy - hr * 0.85 - 0.03 * H, hip = shoulder * (0.6 - 0.05 * kid), ankle = 0.035 * H;
+  const wide = 1 + 0.1 * kid;
+  const tw = { slim: 0.2, medium: 0.23, broad: 0.27 }[p.build] * H * wide, td = { slim: 0.12, medium: 0.13, broad: 0.15 }[p.build] * H * wide;
+  // Legs and shoes.
+  const legR = tw * 0.17;
   for (const s of [-1, 1]) {
     K.cyl(legR, legR * 0.85, hip - ankle, s * tw * 0.24, ankle + (hip - ankle) / 2, 0, bottom, 12);
     K.box(legR * 2.1, ankle, legR * 2 + ankle, s * tw * 0.24, ankle / 2, ankle / 2, shoe, 0.012 * H);
   }
-  K.box(tw, 0.08 * H, td, 0, 0.46 * H + 0.04 * H, 0, bottom, 0.03 * H);
-  K.box(tw, 0.3 * H, td, 0, 0.5 * H + 0.15 * H, 0, top, 0.035 * H);
-  const armR = 0.03 * H, ax = tw / 2 + armR + 0.004 * H;
+  // Hips in the bottom colour, the body in the top colour.
+  K.box(tw, 0.08 * H, td, 0, hip, 0, bottom, 0.03 * H);
+  K.box(tw, shoulder - hip, td, 0, hip + (shoulder - hip) / 2 + 0.01 * H, 0, top, 0.035 * H);
+  // Arms: sleeve, forearm, hand.
+  const armR = 0.03 * H, ax = tw / 2 + armR + 0.004 * H, elbow = shoulder - (shoulder - hip) * 0.55, wrist = hip - 0.02 * H;
   for (const s of [-1, 1]) {
-    K.cyl(armR, armR * 0.9, 0.18 * H, s * ax, 0.69 * H, 0, top, 10);
-    K.cyl(armR * 0.85, armR * 0.75, 0.15 * H, s * ax, 0.525 * H, 0, skin, 10);
-    K.ball(0.03 * H, s * ax, 0.445 * H, 0, skin, null, null, 10);
+    K.ball(armR * 1.05, s * ax, shoulder, 0, top, null, null, 10);
+    K.cyl(armR, armR * 0.9, shoulder - elbow, s * ax, (shoulder + elbow) / 2, 0, top, 10);
+    K.cyl(armR * 0.85, armR * 0.75, elbow - wrist, s * ax, (elbow + wrist) / 2, 0, skin, 10);
+    K.ball(armR * 1.0, s * ax, wrist - armR * 0.6, 0, skin, null, null, 10);
   }
-  K.cyl(0.035 * H, 0.04 * H, 0.05 * H, 0, 0.82 * H, 0, skin, 12);
-  const hr = 0.075 * H, hy = 0.9 * H;
+  K.cyl(0.035 * H, 0.04 * H, hy - shoulder - hr * 0.5, 0, shoulder + (hy - shoulder - hr * 0.5) / 2, 0, skin, 12);
+  // The head: two dots for eyes, which show which way it faces; no face beyond that.
   K.ball(hr, 0, hy, 0, skin, null, null, 18);
-  for (const s of [-1, 1]) K.ball(0.009 * H, s * 0.027 * H, hy + 0.008 * H, hr * 0.93, dark, null, null, 8);
+  for (const s of [-1, 1]) K.ball(hr * 0.12, s * hr * 0.36, hy + hr * 0.1, hr * 0.93, dark, null, null, 8);
   if (p.hair !== "none") {
-    K.ball(hr * 1.07, 0, hy + 0.004 * H, -0.004 * H, hair, null, [-0.45, 0, 0], 18, Math.PI * 0.55);
-    if (p.hair === "long") K.box(hr * 1.9, 0.15 * H, 0.035 * H, 0, hy - 0.06 * H, -hr * 0.78, hair, 0.015 * H);
-    if (p.hair === "bun") K.ball(0.035 * H, 0, hy + hr * 0.75, -hr * 0.75, hair, null, null, 12);
+    K.ball(hr * 1.07, 0, hy + hr * 0.05, -hr * 0.05, hair, null, [-0.45, 0, 0], 18, Math.PI * 0.55);
+    if (p.hair === "long") K.box(hr * 1.9, hr * 2.0, hr * 0.45, 0, hy - hr * 0.8, -hr * 0.78, hair, hr * 0.2);
+    if (p.hair === "bun") K.ball(hr * 0.45, 0, hy + hr * 0.65, -hr * 0.8, hair, null, null, 12);
   }
-  if (p.glasses) {
-    K.box(hr * 1.5, 0.022 * H, 0.006 * H, 0, hy + 0.008 * H, hr * 0.98, dark);
-  }
+  if (p.glasses) K.box(hr * 1.5, hr * 0.28, hr * 0.08, 0, hy + hr * 0.1, hr * 0.98, dark);
   if (p.hat) {
-    K.ball(hr * 1.1, 0, hy + 0.006 * H, 0, L(c.top, "fabric"), [1, 0.92, 1], [-0.25, 0, 0], 18, Math.PI * 0.48);
-    K.box(hr * 1.3, 0.008 * H, hr * 0.8, 0, hy + hr * 0.42, hr * 1.1, L(c.top, "fabric"));
+    K.ball(hr * 1.1, 0, hy + hr * 0.08, 0, L(c.top, "fabric"), [1, 0.92, 1], [-0.25, 0, 0], 18, Math.PI * 0.48);
+    K.box(hr * 1.3, hr * 0.1, hr * 0.8, 0, hy + hr * 0.42, hr * 1.1, L(c.top, "fabric"));
   }
 }
 
 export function buildFigure(THREE, params, opts){
   const p = clampFigure(params);
   const quality = opts && opts.quality === "high" ? "high" : "low";
-  const H = p.height_m, S = { w: 0.42 * H, d: 0.24 * H, h: H };
+  const H = p.height_m, S = { w: 0.44 * H, d: 0.32 * H, h: H };
   return build(THREE, quality, (K) => drawFigure(K, S, p), S, p, [], { kind: "figure", recipe: p, fallback: false });
 }
