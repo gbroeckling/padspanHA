@@ -89,9 +89,10 @@ const cases = {};
 const check = (name, ok, detail) => { cases[name] = !!ok; if (!ok) failures.push({ name, detail: detail === undefined ? null : detail }); };
 const tryCase = async (name, fn) => { try { await fn(); } catch (e) { failures.push({ name, detail: String(e && e.stack || e).slice(0, 900) }); cases[name] = false; } };
 const sleep = (ms) => new Promise(r => globalThis._realSetTimeout(r, ms));
-// Everything the 3D house brings: its modules (the view, the house, its
-// use surface, the editor and its rules), the compass, three.js.
-const threeLoads = () => loaded.filter(u => /\/views\/(live_aboard(_house|_use|_draft|_edit)?|fabric_compass)\.js|\/vendor\/three\//.test(u));
+// Everything the 3D house brings: its modules (every views/live_aboard*.js:
+// the view, the house, its use surface, the editor and its rules, rain and
+// snow, the Showcase look), the compass, three.js.
+const threeLoads = () => loaded.filter(u => /\/views\/(live_aboard(_[a-z0-9]+)?|fabric_compass)\.js|\/vendor\/three\//.test(u));
 
 // ── a small two-storey house with lights ───────────────────────────────────
 const rect = (floor_id, x0, y0, x1, y1) => ({ type: "poly", floor_id, points_m: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] });
@@ -136,10 +137,10 @@ const H3 = (enabled, slot = "atlas", extra = {}) => ({ slot, settings: { atlas_3
   telemetry: (n) => sent.push(n),
   load: () => { fileCalls.push(`load:${slot}`); return Promise.resolve({ data: {} }); },
   edit: (c) => { fileCalls.push(`edit:${slot}`); return Promise.resolve({ data: c }); } });
-function card({ house3d, layoutV2 = false, display = false, tier = "pro", M = LM } = {}) {
+function card({ house3d, layoutV2 = false, display = false, tier = "pro", M = LM, more = {} } = {}) {
   const view = { floorGap: 150, horizGap: 0, focusIdx: 0, zoom: 1 };
   const host = { el, view, floors: FLOORS, model: MODEL, byRoom: {}, hiddenEids: new Set(), lightsByEid: LBE, lightsLoading: false,
-    tier, layoutV2, displayMode: display, saveView: async () => {}, onHexesBuilt() {} };
+    tier, layoutV2, displayMode: display, saveView: async () => {}, onHexesBuilt() {}, ...more };
   if (house3d !== undefined) host.house3d = house3d;
   const c = M.buildLightsMapCard(host);
   const stage = c._all().find(n => n.classList && n.classList.contains("lv-stage"));
@@ -185,6 +186,28 @@ await tryCase("off: absent and off are byte-identical; on but Map changes only t
   }
   check("off: absent and off are byte-identical; on but Map changes only the switch",
     Object.values(out).every(o => Object.values(o).every(Boolean)), out);
+});
+// P8: Rain and snow and the Showcase look switched on, with the flat map
+// raining (its own overlay) and in a Showcase theme: off, or on but showing
+// Map, the card is still exactly what it was, and nothing of Live Aboard loads.
+await tryCase("off: Rain and snow and the Showcase look change nothing while off or showing Map", async () => {
+  localStorage.removeItem(PICK("atlas"));
+  const more = { showcase: true, showcaseTheme: "neo_hud",
+    weather: { slot: "atlas", settings: { atlas_weather_enabled: true }, entities: {}, telemetry: () => {},
+               states: { "weather.home": { entity_id: "weather.home", state: "pouring", attributes: { temperature: 9 } } } } };
+  const extra = { atlas_3d_weather: true, atlas_3d_showcase: true };
+  // The flat map's weather overlay is one element moved into the newest card,
+  // its animations anchored to the clock: each card is checked for it as it
+  // is built, and compared without it.
+  const isWx = (n) => !!(n.classList && n.classList.contains("lv-wx"));
+  const hasWx = (c) => c._all().some(isWx);
+  const absent = card({ more }), wxA = hasWx(absent.c), a = ser(absent.c, isWx);
+  const off = card({ more, house3d: H3(false, "atlas", extra) }), wxO = hasWx(off.c), o = ser(off.c, isWx);
+  const onMap = card({ more, house3d: H3(true, "atlas", extra) }), wxM = hasWx(onMap.c), m = ser(onMap.c, (n) => isSwitch(n) || isWx(n));
+  check("off: Rain and snow and the Showcase look change nothing while off or showing Map",
+    wxA && wxO && wxM && a === o && m === a && absent.svg.length > 1000 && off.svg === absent.svg && onMap.svg === absent.svg
+    && onMap.stage.style.display !== "none" && threeLoads().length === 0 && sent.length === 0 && fileCalls.length === 0,
+    { overlay: [wxA, wxO, wxM], same: [a === o, m === a], loaded: threeLoads().length, sent: sent.length, files: fileCalls.length });
 });
 await tryCase("gate: on but below Pro (free, bright) is exactly off, even with 3D picked", async () => {
   localStorage.setItem(PICK("atlas"), "1"); localStorage.setItem(PICK("builder"), "1");

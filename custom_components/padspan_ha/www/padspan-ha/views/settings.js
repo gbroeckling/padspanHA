@@ -3330,9 +3330,10 @@ function _atlasWeatherSection(ctx, el, settings){
 
 // ── The Atlas's 3D house (views/live_aboard.js) ──────────────────────────────
 // Live Aboard (docs/IDEA_ATLAS_3D_HOUSE.md), normally off: the master switch
-// and one line on what it adds, and once it is on, Quality and North. Each
-// saves on its own the moment it changes, like the weather box above; the
-// Atlas picks it up at its next settings refresh.
+// and one line on what it adds, and once it is on, Quality, North, Rain and
+// snow (on by default; it follows Outdoor weather) and the Showcase look (off
+// by default). Each saves on its own the moment it changes, like the weather
+// box above; the Atlas picks it up at its next settings refresh.
 const _ATLAS_3D_QUALITY = [["auto", "Auto — picked for this screen"], ["low", "Low — for wall tablets and phones"],
                            ["high", "High — sun shadows and more lamps"]];
 function _atlas3dSection(ctx, el, settings){
@@ -3449,6 +3450,22 @@ function _atlas3dSection(ctx, el, settings){
   more.appendChild(row("North", [nInp, el("span",{style:"color:#94a3b8;font-size:12px"},"°"), preview]));
   more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
     "The same bearing the GPS Bridge uses. The arrow shows where it puts north on your plan."));
+  // Rain and snow, and the Showcase look: each its own switch, saved alone.
+  const tick = (key, label, checked, hint) => {
+    const r = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px"});
+    const cb = el("input",{type:"checkbox"});
+    cb.checked = checked;
+    cb.setAttribute("data-la3d-key", key);
+    cb.addEventListener("change", ()=>{ const want = cb.checked; save(key, want, ()=>{ cb.checked = !want; }); });
+    r.appendChild(cb);
+    r.appendChild(el("span",{style:"color:#e2e8f0;font-size:13px"}, label));
+    more.appendChild(r);
+    more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 26px;line-height:1.5"}, hint));
+  };
+  tick("atlas_3d_weather", "Rain and snow", settings.atlas_3d_weather !== false,
+    "Follows Outdoor weather above, and shows only while that is on too.");
+  tick("atlas_3d_showcase", "Use the Atlas's Showcase look", settings.atlas_3d_showcase === true,
+    "The colours of the Showcase theme the Atlas is showing.");
   if (onCb.checked) loadCompass();
   box.appendChild(more);
   onCb.addEventListener("change", ()=>{

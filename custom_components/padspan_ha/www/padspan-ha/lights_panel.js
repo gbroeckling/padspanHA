@@ -291,7 +291,7 @@ class PadSpanLightsApp extends HTMLElement {
       // off. A failed fetch keeps the last answer; before any, no switch.
       if (s.atlas_3d_enabled !== undefined) {
         this.state._house3d = { atlas_3d_enabled: s.atlas_3d_enabled, atlas_3d_quality: s.atlas_3d_quality,
-          fabric_bearing_deg: s.fabric_bearing_deg };
+          fabric_bearing_deg: s.fabric_bearing_deg, atlas_3d_weather: s.atlas_3d_weather, atlas_3d_showcase: s.atlas_3d_showcase };
       }
       this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];
       // Layout v2 (Garry, 2026-09-21) is a house-wide trial toggle, set
