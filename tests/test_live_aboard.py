@@ -168,7 +168,7 @@ def test_the_3d_module_is_imported_once_behind_the_switch_and_cache_busted() -> 
     # No other code in the panel names the 3D modules (prose in a comment may).
     for p in _WWW.rglob("*.js"):
         if "vendor" in p.parts or p.name in ("lights_map.js", "live_aboard.js", "live_aboard_house.js", "live_aboard_draft.js",
-                                                  "live_aboard_edit.js"):
+                                                  "live_aboard_edit.js", "live_aboard_import.js"):
             continue
         code = "\n".join(ln for ln in _js(p).splitlines() if not ln.lstrip().startswith(("//", "*")))
         assert "live_aboard" not in code, p.name
