@@ -95,6 +95,16 @@ def test_the_settings_rows(page) -> None:
     _case(page, "settings_")
 
 
+def test_the_starter_set(page) -> None:
+    """assets/furniture_starters.json: 20 to 30 made-up pieces covering Garry's
+    eight starter builders (sofa, bed, table, chair, desk, dresser, TV, lamp),
+    each a recipe its builder keeps as it is, with a full details sheet that
+    passes the library's rules, its colour family and size class worked out
+    the page's own way; shown, searched and placed even with the library off
+    or unreachable (test_browsing_the_library), as nobody's library piece."""
+    _case(page, "starters")
+
+
 def test_the_page_holds_the_servers_and_the_installs_lists_and_patterns(page) -> None:
     for name, values in page["data"]["lists"].items():
         assert values == list(getattr(HL, name)), name

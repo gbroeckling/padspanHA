@@ -236,8 +236,8 @@ export function colorFamily(hex){
   if (l >= 0.95) return "white";
   if (l <= 0.1) return "black";
   if (h < 20 || h >= 340) return l >= 0.75 ? "pink" : (h >= 10 && h < 20 && l < 0.45) ? "brown" : "red";
-  if (h < 50) return l < 0.5 ? "brown" : (s < 0.55 && l >= 0.6) ? "beige" : "orange";
-  if (h < 70) return l < 0.35 ? "green" : (s < 0.55 && l >= 0.55) ? "beige" : "yellow";
+  if (h < 45) return l < 0.5 || (s < 0.45 && l < 0.6) ? "brown" : (s < 0.6 && l >= 0.6) ? "beige" : "orange";
+  if (h < 70) return l < 0.3 ? "green" : (s < 0.55 && l >= 0.55) ? "beige" : "yellow";
   if (h < 160) return "green";
   if (h < 195) return "teal";
   if (h < 255) return "blue";
@@ -335,13 +335,22 @@ export function prefillDetails(recipe, tools){
   const sleeps = { twin: 1, double: 2, queen: 2, king: 2, crib: 1, bunk: 2 };
   if (d.seats === undefined && d.category === "sleeping" && sleeps[d.bed_size]) d.seats = sleeps[d.bed_size];
   for (const k of ["drawers", "doors", "shelves", "shades"]) if (d[k] === undefined) d[k] = int(p[k], k);
-  if (d.fixture === undefined && FIXTURES.includes(p.style) && d.category === "lighting") d.fixture = p.style;
+  if (d.category === "lighting") {
+    if (d.fixture === undefined && FIXTURES.includes(p.style)) d.fixture = p.style;
+    if (d.shades === undefined && typeof p.shade === "string") d.shades = 1;
+  }
+  if (kind === "dresser" && Number.isInteger(p.columns)) {   // its fronts, counted
+    if (d.drawers === undefined && p.fronts === "drawers" && Number.isInteger(p.rows)) d.drawers = Math.min(50, p.columns * p.rows);
+    if (d.doors === undefined && p.fronts === "doors") d.doors = Math.min(50, p.columns);
+  }
   if (!given.features) {
-    const f = [];
-    if (p.arms === true || (typeof p.arms === "string" && p.arms !== "none")) f.push("has_arms");
-    if (p.reclines === true) f.push("reclines");
-    if (Number(p.drawers) > 0 || Number(p.doors) > 0) f.push("storage");
-    d.features = f;
+    const f = new Set();
+    if (p.arms === true || (typeof p.arms === "string" && p.arms !== "none") || p.style === "armchair") f.add("has_arms");
+    if (p.style === "office") { f.add("on_wheels"); f.add("adjustable_height"); }
+    if (p.reclines === true) f.add("reclines");
+    if (p.mount === "wall" || p.style === "wall") f.add("wall_mounted");
+    if (d.category !== "storage" && typeof p.drawers === "string" && p.drawers !== "none") f.add("storage");
+    d.features = FEATURES.filter(x => f.has(x));
   }
   if (d.outdoor === undefined) d.outdoor = d.category === "outdoor";
   for (const k of Object.keys(d)) if (d[k] === undefined) delete d[k];
@@ -407,8 +416,9 @@ export function searchEntries(entries, q = {}){
 let startersP = null;
 export function starterEntries(json){
   const pieces = json && Array.isArray(json.pieces) ? json.pieces : [];
-  return pieces.filter(p => p && isObj(p.recipe) && typeof p.id === "string").map(p => ({
-    library_id: null, key: `starter:${p.id}`, starter: true, recipe: p.recipe, houses: 0, copies: 0,
+  // Keyed by place in the file, so pieces that tie keep the set's own order.
+  return pieces.filter(p => p && isObj(p.recipe) && typeof p.id === "string").map((p, i) => ({
+    library_id: null, key: `starter:${String(i).padStart(3, "0")}:${p.id}`, starter: true, recipe: p.recipe, houses: 0, copies: 0,
     checked: true, created: "",
   }));
 }
@@ -628,7 +638,8 @@ const errText = (e) => String((e && (e.message || e.code)) || e || "error");
 const metres = (v) => (finite(v) ? v.toFixed(2) : "?");
 const kindName = (tools, kind) => {
   const spec = tools && tools.FURNITURE && own(tools.FURNITURE, kind) ? tools.FURNITURE[kind] : null;
-  return (spec && spec.name) || String(kind || "piece").replace(/_/g, " ");
+  const word = String(kind || "piece").replace(/_/g, " ");
+  return (spec && spec.name) || (word.length <= 2 ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1));
 };
 function select(label, values, labels, value, anyLabel){
   const s = h("select", { "aria-label": label });
@@ -743,7 +754,7 @@ export function libraryFlow(ctx){
     const libGrid = h("div", { class: "lal-grid" });
     const moreBtn = h("button", { type: "button", style: "display:none;margin-top:8px", "data-lal": "more" }, "More");
     libSec.append(libGrid, moreBtn);
-    const stSec = h("div", { class: "lal-sec", "data-lal": "starters" });
+    const stSec = h("div", { class: "lal-sec", "data-lal": "starters", style: "display:none" });
     const stHead = h("h4", {}, "Starter set");
     const stGrid = h("div", { class: "lal-grid" });
     stSec.append(stHead, stGrid);
@@ -859,6 +870,7 @@ export function libraryFlow(ctx){
       const found = searchEntries(starters, { ...q, offset: 0, limit: 1000 });
       stGrid.replaceChildren(...found.entries.map(card));
       stHead.textContent = found.total ? `Starter set (${found.total})` : "Starter set: nothing matches";
+      stSec.style.display = starters.length ? "" : "none";
     }
     function setStatus(){
       const n = lib.total;

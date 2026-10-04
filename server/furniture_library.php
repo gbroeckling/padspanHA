@@ -73,6 +73,9 @@ $MAX_PARAMS = 40;
 $MAX_COLORS = 6;
 $MAX_TEXT = 60;
 $FIT_MARGIN_M = 0.05;
+// A piece's width, depth and height: a rug can be a few millimetres thin.
+$DIM_MIN_M = 0.001;
+$DIM_MAX_M = 8.0;
 
 // The details sheet's closed lists (extended by PadSpan releases only).
 $CATEGORIES = array('seating', 'sleeping', 'tables', 'storage', 'lighting', 'media', 'decor', 'outdoor',
@@ -267,7 +270,7 @@ function check_details($d, $kind) {
 
 // A shared recipe: array(recipe, details, '', '') or array(null, null, field, problem).
 function check_recipe($r) {
-    global $RECIPE_KEYS, $KIND_RX, $PARAM_KEY_RX, $PARAM_STR_RX, $COLOR_RX, $MAX_PARAMS, $MAX_COLORS;
+    global $RECIPE_KEYS, $KIND_RX, $PARAM_KEY_RX, $PARAM_STR_RX, $COLOR_RX, $MAX_PARAMS, $MAX_COLORS, $DIM_MIN_M, $DIM_MAX_M;
     if (!is_object_of($r) || !$r) { return array(null, null, 'recipe', 'value'); }
     foreach (array_keys($r) as $k) {
         if (!in_array($k, $RECIPE_KEYS, true)) { return array(null, null, (string)$k, 'key'); }
@@ -291,7 +294,7 @@ function check_recipe($r) {
     $out = array('kind' => $kind, 'params' => $p, 'colors' => $colors);
     foreach (array('width_m', 'depth_m', 'height_m') as $k) {
         $v = isset($r[$k]) ? $r[$k] : null;
-        if (!num($v) || $v < 0.05 || $v > 8) { return array(null, null, $k, 'value'); }
+        if (!num($v) || $v < $DIM_MIN_M || $v > $DIM_MAX_M) { return array(null, null, $k, 'value'); }
         $out[$k] = $v;
     }
     if (!array_key_exists('details', $r)) { return array(null, null, 'details', 'missing'); }

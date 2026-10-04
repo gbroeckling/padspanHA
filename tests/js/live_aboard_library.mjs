@@ -93,7 +93,8 @@ const COLOURS = { "#ffffff": "white", "#f5f5f5": "white", "#fafafa": "white", "#
   "#ff0000": "red", "#b22222": "red", "#8b0000": "red", "#ffc0cb": "pink", "#ff69b4": "pink", "#ffa500": "orange",
   "#ff8c00": "orange", "#ffd700": "yellow", "#ffff00": "yellow", "#ffff99": "yellow", "#808000": "green",
   "#4f7942": "green", "#228b22": "green", "#008080": "teal", "#40e0d0": "teal", "#87ceeb": "blue", "#0000ff": "blue",
-  "#4682b4": "blue", "#800080": "purple", "#4b0082": "purple", "#5B6B7A": "grey", "not a colour": "grey" };
+  "#4682b4": "blue", "#800080": "purple", "#4b0082": "purple", "#5B6B7A": "grey", "not a colour": "grey",
+  "#c9a227": "yellow", "#b08a63": "brown", "#c9b48f": "beige" };
 for (const [hex, want] of Object.entries(COLOURS)) {
   const got = L.colorFamily(hex);
   check("colour", got === want, { hex, got, want });
@@ -378,6 +379,34 @@ const houseGet = (accepted) => ({ data: { library: accepted ? { terms_version: L
   }
   check("share_ai", results[0].checked === false && results[1].checked === true && results[0].sid === "sub_a1b2c30000000002"
     && results.every(r => r.toasts.some(([t]) => /as soon as the library can be reached/.test(t))), results);
+}
+
+// ── 7. the starter set (assets/furniture_starters.json) ──────────────────────
+const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+{
+  const json = JSON.parse(readFileSync(join(VIEWS, "..", "assets", "furniture_starters.json"), "utf-8"));
+  const pieces = json.pieces || [];
+  const ids = pieces.map(p => p.id);
+  check("starters", json.schema === 1 && pieces.length >= 20 && pieces.length <= 30 && new Set(ids).size === ids.length, ids.length);
+  const kinds = new Set(pieces.map(p => p.recipe.kind));
+  const starterKinds = ["sofa", "bed", "table", "chair", "desk", "dresser", "tv", "lamp"];   // Garry's choice 13
+  check("starters", starterKinds.every(k => kinds.has(k)), { missing: starterKinds.filter(k => !kinds.has(k)) });
+  for (const p of pieces) {
+    const r = p.recipe, d = r.details || {};
+    const c = T.clampRecipe(r);
+    const same = JSON.stringify(c.params) === JSON.stringify(r.params) && ["width_m", "depth_m", "height_m"].every(k => c[k] === r[k])
+      && JSON.stringify(c.colors) === JSON.stringify(r.colors);
+    check("starters", own(T.FURNITURE, r.kind) && same, { id: p.id, clamped: c });
+    const got = L.checkDetails(d, r.kind);
+    check("starters", got.details && L.REQUIRED.every(k => d[k] !== undefined) && d.title && d.checked === true
+      && JSON.stringify(got.details) === JSON.stringify(d), { id: p.id, got });
+    check("starters", d.color_family === L.colorFamily(r.colors[0]) && d.size_class === L.sizeClass(r, T) && d.kind === r.kind,
+      { id: p.id, family: [d.color_family, L.colorFamily(r.colors[0])], size: [d.size_class, L.sizeClass(r, T)] });
+  }
+  const entries = L.starterEntries(json);
+  const lamps = L.searchEntries(entries, { filters: { category: "lighting" }, limit: 100 });
+  check("starters", lamps.total === pieces.filter(p => p.recipe.details.category === "lighting").length && lamps.total >= 2, lamps.total);
+  check("starters", entries.every(e => e.library_id === null && e.starter === true), "starters are no library's pieces");
 }
 
 // ── 6. Settings → UI Structure → Atlas → 3D house: the library's rows ───────

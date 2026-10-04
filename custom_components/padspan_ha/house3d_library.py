@@ -92,6 +92,7 @@ FILTER_KEYS = ("category", "kind", "room", "style", "material", "color_family", 
 COUNTS = {"seats": (1, 8), "drawers": (0, 50), "doors": (0, 50), "shelves": (0, 50), "shades": (0, 12)}
 TEXT = {"title": (3, 60), "brand": (2, 40), "model": (1, 60)}
 MAX_PARAMS, MAX_COLORS, MAX_TEXT, PAGE_MAX, PAGE_DEFAULT, MAX_OFFSET = 40, 6, 60, 60, 30, 5000
+DIM_MIN_M, DIM_MAX_M = 0.001, 8.0      # a rug can be a few millimetres thin
 
 KIND_RX = re.compile(r"[a-z][a-z0-9_]{0,31}", re.ASCII)
 PARAM_KEY_RX = re.compile(r"[a-z][a-z0-9_]{0,31}", re.ASCII)
@@ -281,7 +282,7 @@ def shared_recipe(recipe: Any) -> dict[str, Any]:
     out: dict[str, Any] = {"kind": kind, "params": params, "colors": colors[:MAX_COLORS]}
     for k in ("width_m", "depth_m", "height_m"):
         v = recipe.get(k)
-        if not _num(v) or not 0.05 <= v <= 8:
+        if not _num(v) or not DIM_MIN_M <= v <= DIM_MAX_M:
             raise bad(k, "value")
         out[k] = round(float(v), 3)
     sheet = recipe.get("details")

@@ -37,6 +37,8 @@
     {"name": "a bad owner token", "set": {"owner_token": "nope"}, "status": 400, "why": "token"},
     {"name": "a version with a space", "set": {"version": "1.0 beta"}, "status": 400, "why": "version"},
     {"name": "nine metres wide", "set": {"recipe.width_m": 9}, "status": 400, "why": "details", "field": "width_m", "problem": "value"},
+    {"name": "a rug four millimetres thin", "set": {"recipe.height_m": 0.004}, "status": 200},
+    {"name": "no height at all", "set": {"recipe.height_m": 0}, "status": 400, "why": "details", "field": "height_m", "problem": "value"},
     {"name": "a width as text", "set": {"recipe.width_m": "2.2"}, "status": 400, "why": "details", "field": "width_m", "problem": "value"},
     {"name": "no depth", "drop": ["recipe.depth_m"], "status": 400, "why": "details", "field": "depth_m", "problem": "value"},
     {"name": "seven colours", "set": {"recipe.colors": ["#000000", "#111111", "#222222", "#333333", "#444444", "#555555", "#666666"]}, "status": 400, "why": "details", "field": "colors", "problem": "value"},

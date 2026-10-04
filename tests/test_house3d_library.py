@@ -151,6 +151,7 @@ def test_the_lists_and_patterns_are_the_servers() -> None:
     php = [(w, p) for w, p in _php_patterns(src, "PERSONAL")]
     assert [(w, f"/{p}/" + ("i" if i else "")) for w, p, i in L.PERSONAL] == php
     assert _php_pairs(src, "COUNTS") == L.COUNTS and _php_pairs(src, "TEXT") == L.TEXT
+    assert f"$DIM_MIN_M = {L.DIM_MIN_M};" in src and f"$DIM_MAX_M = {L.DIM_MAX_M};" in src
 
 
 @pytest.mark.parametrize("case", _fixture("freetext.json")["cases"], ids=lambda c: c["text"][:40])

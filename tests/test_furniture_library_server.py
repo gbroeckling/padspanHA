@@ -199,7 +199,8 @@ class _Library:
                   "MAX_PLACED_PER_DAY", "HIDE_AT", "MAX_REPORTERS", "PAGE_MAX", "PAGE_DEFAULT", "MAX_WITHDRAW",
                   "MAX_PARAMS", "MAX_COLORS", "MAX_TEXT"):
             setattr(self, n.lower(), _php_int(src, n))
-        self.fit_margin = float(re.search(r"^\$FIT_MARGIN_M = ([\d.]+);", src, re.M).group(1))
+        flt = lambda n: float(re.search(rf"^\${n} = ([\d.]+);", src, re.M).group(1))   # noqa: E731
+        self.fit_margin, self.dim_min, self.dim_max = flt("FIT_MARGIN_M"), flt("DIM_MIN_M"), flt("DIM_MAX_M")
         full = lambda n: _full_rx(_php_string(src, n))   # noqa: E731
         self.kind_rx, self.param_key_rx, self.param_str_rx = full("KIND_RX"), full("PARAM_KEY_RX"), full("PARAM_STR_RX")
         self.color_rx, self.sub_rx, self.token_rx = full("COLOR_RX"), full("SUB_RX"), full("TOKEN_RX")
@@ -324,7 +325,7 @@ class _Library:
         out = {"kind": kind, "params": p, "colors": colors}
         for k in ("width_m", "depth_m", "height_m"):
             v = r.get(k)
-            if not _num(v) or v < 0.05 or v > 8:
+            if not _num(v) or v < self.dim_min or v > self.dim_max:
                 return None, None, k, "value"
             out[k] = v
         if "details" not in r:
@@ -810,7 +811,7 @@ def test_the_port_reads_the_plans_closed_lists_out_of_the_php(server) -> None:
     assert server.required == ["category", "kind", "rooms", "style", "material", "color_family", "size_class"]
     assert set(server.required) <= set(server.detail_keys)
     assert server.text == {"title": (3, 60), "brand": (2, 40), "model": (1, 60)}
-    assert server.counts["seats"] == (1, 8)
+    assert server.counts["seats"] == (1, 8) and (server.dim_min, server.dim_max) == (0.001, 8.0)
     assert [w for w, _ in server.personal] == ["email", "url", "phone", "address"]
     assert len(server.secrets) == 4 and server.words
     assert set(server.action_keys) == {"search", "get", "share", "withdraw", "report", "admin"}
