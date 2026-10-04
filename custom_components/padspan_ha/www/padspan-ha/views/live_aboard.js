@@ -42,6 +42,10 @@ const DRAFT = await import(`./live_aboard_draft.js${new URL(import.meta.url).sea
 // The 3D editor (Door, Window, Heights), for those who may place lights.
 const EDIT = await import(`./live_aboard_edit.js${new URL(import.meta.url).search}`);
 const NO_FILE = DRAFT.ownedOf(null);
+// P8 atmosphere: rain and snow (the flat Atlas's own weather, drawn here).
+// Optional: a module that fails to load leaves the house as it was.
+const WEATHER = await import(`./live_aboard_weather.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: live_aboard_weather failed to load", err); return null; });
 
 export const HOUSE3D_EVENTS = HOUSE.HOUSE3D_EVENTS;
 export const HOUSE3D_FALLBACK_KINDS = HOUSE.HOUSE3D_FALLBACK_KINDS;
@@ -259,6 +263,9 @@ function createSlot(slotKey){
   // and what is picked live here, so no rebuild touches them. shellGen moves
   // on every wall rebuild (the editor works out its walls again).
   let editor = null, shellGen = 0;
+  // P8 atmosphere: the weather (live_aboard_weather.js), made only while Rain
+  // and snow is on.
+  let wx = null;
 
   // ── failing back to the flat Atlas ────────────────────────────────────────
   function showFlat(){
@@ -283,6 +290,8 @@ function createSlot(slotKey){
     // the host's data) after every switch-off. Disposing it takes every such
     // listener off; another view still drawing sprites only uploads it again.
     try { if (scene) scene.traverse((o) => { if (o.isSprite && o.geometry) o.geometry.dispose(); }); } catch (_) { /* best effort */ }
+    try { if (wx) wx.dispose(); } catch (_) { /* gone with the scene */ }
+    wx = null;
     // Give the GPU its context back: the flat Atlas needs none.
     try { if (renderer) { renderer.dispose(); if (failed !== "context_lost") renderer.forceContextLoss(); } } catch (_) { /* best effort */ }
     renderer = null; scene = null; house = null; floorsUi = []; lights = [];
@@ -387,7 +396,8 @@ function createSlot(slotKey){
     canvas = document.createElement("canvas");
     let gl = null;
     try {
-      gl = canvas.getContext("webgl2", { antialias: setting !== "low", alpha: false, depth: true, stencil: false,
+      // A stencil: rain and snow are never drawn over a room (live_aboard_weather.js).
+      gl = canvas.getContext("webgl2", { antialias: setting !== "low", alpha: false, depth: true, stencil: true,
                                          powerPreference: "default", preserveDrawingBuffer: false });
     } catch (_) { gl = null; }
     if (!gl) { fail("no_webgl"); return false; }
@@ -1300,13 +1310,15 @@ function createSlot(slotKey){
    *  and for a pulse's or a lock's flash's first LIVE_MS. A floor the chips
    *  hide costs no frames. */
   function liveRate(now){
-    const fast = AMBIENT_MS[quality.profile || quality.measuring || "low"];
+    // Rain and snow draw on their own capped clock (live_aboard_weather.js frameMs).
+    const wxMs = wx ? wx.frameMs() : 0, own = AMBIENT_MS[quality.profile || quality.measuring || "low"];
+    const fast = wxMs ? Math.min(own, wxMs) : own;
     for (const { F, P } of openings) {
       const o = P.open;
       if (F.group.visible && (o.at !== o.to || (o.state === "unlocked" && now < o.liveUntil))) return fast;
     }
     for (const T of tints) if (T.act && T.F.group.visible && now < T.liveUntil) return fast;
-    return 0;
+    return wxMs;
   }
   /** The frame: the Atlas's clocks, played (t: performance.now()). */
   function animateLive(t){
@@ -1341,6 +1353,7 @@ function createSlot(slotKey){
       }
       if (T.barsMat) T.barsMat.opacity = T.aLook ? Math.min(1, T.aLook.op * AIR_K) : 0;
     }
+    if (wx) wx.tick(t);                                       // rain and snow: the clock, to the GPU
     liveMs = liveRate(t);
   }
   // Readouts keep to a size you can read; badges keep one size on screen.
@@ -1972,6 +1985,29 @@ function createSlot(slotKey){
     return true;
   }
 
+  // ── P8 atmosphere: rain and snow ──────────────────────────────────────────
+  /** Rain and snow (live_aboard_weather.js): the flat Atlas's own decision,
+   *  from the host's own weather inputs, only while Rain and snow is on
+   *  (settings.atlas_3d_weather: on unless false). Off, none of it is made,
+   *  and what was showing is let go of. Never the view's failure: weather
+   *  that cannot be drawn is simply not drawn. */
+  function applyWeather(p){
+    const w = WEATHER && p.weather3d !== false && p.weather && p.weather.settings ? p.weather : null;
+    if (!w) { if (wx) { wx.dispose(); wx = null; requestRender(); } return; }
+    try {
+      if (!wx) wx = WEATHER.createWeather(THREE, { scene, renderer, camera });
+      const changed = wx.update({ settings: w.settings, states: w.states, entities: w.entities, telemetry: w.telemetry,
+        colour: "#ffffff", profile: quality.profile || quality.measuring || "low", nowMs: Date.now(),
+        house: { key: `${shellGen}|${topElev}`, rooms: house.rooms, ground: house.ground - HOUSE.SLAB_T - 0.02,
+                 shown: (fl) => HOUSE.floorShown(fl, topElev),
+                 walls: () => floorsUi.filter(F => F.group.visible).flatMap(F => F.pieces.map(P => ({ P, F }))) } });
+      if (changed) requestRender();
+    } catch (_) {
+      try { if (wx) wx.dispose(); } catch (__) { /* best effort */ }
+      wx = null;
+    }
+  }
+
   // ── the slot ──────────────────────────────────────────────────────────────
   function update(p){
     lastP = p;
@@ -2014,6 +2050,7 @@ function createSlot(slotKey){
       quality.setting = setting; quality.measured = {}; quality.profile = null;
       decideQuality();
     }
+    applyWeather(p);
   }
   function place(s){
     if (stage && stage !== s) { try { stage.style.display = ""; } catch (_) { /* the old card is gone */ } }
@@ -2038,7 +2075,10 @@ function createSlot(slotKey){
      *  Assistant came up: a restart's motion timestamps are no motion),
      *  load() → Promise (house3d_get: the 3D file, part C), edit(changes) →
      *  Promise (house3d_edit: the editor's Save; given only where lights may
-     *  be placed, else null and there is no Edit)}. */
+     *  be placed, else null and there is no Edit), weather (the host's
+     *  {settings, states, entities, telemetry}: the flat Atlas's own weather
+     *  inputs), weather3d (settings.atlas_3d_weather: rain and snow unless
+     *  false)}. */
     attach(s, p){
       send = p && p.telemetry;
       touchCb = p && p.onTouch;
@@ -2095,8 +2135,11 @@ function createSlot(slotKey){
                added: floorsUi.reduce((a, F) => a + F.pieces.filter(P => P.pc.added).length, 0),
                heights: { lights: lights.filter(L => L.z !== L.zDefault).map(L => ({ eid: L.eid, z: L.z, zDefault: L.zDefault })),
                           devices: sensorsUi.filter(S => S.z !== S.zDefault).map(S => ({ eid: S.eid, z: S.z, zDefault: S.zDefault })) },
-               edit: editor ? editor.state() : null };
+               edit: editor ? editor.state() : null,
+               weather: wx ? wx._state() : null };            // P8: rain and snow
     },
+    /** The weather (the harness reads its drops). */
+    _weather(){ return wx; },
     /** A door or window as drawn (its barrier's id, or a 3D one's): its parts, bottom to top. */
     _piece(id){
       for (const F of floorsUi) for (const P of F.pieces) {
