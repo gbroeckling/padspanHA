@@ -64,7 +64,9 @@ Follow the `overview_show_outdoor` pattern (settings_store.py, overview.js).
 ## The look
 
 - **Light rain:** one sparse, short, slow, faint layer (max ~11% white), near-vertical (3°),
-  ~4 ripples at a time. Reads as drizzle.
+  ~4 ripples at a time. Reads as drizzle. *2026-10-04 (0.38.94): too faint on the wall panel:
+  Garry took the working overlay for a broken one. Raised to 30 streaks per tile, 1.4 px, up to
+  ~24% white; heavy rain's layers and light snow's flakes raised to match.*
 - **Heavy rain:** dense far sheet + mid layer + long near streaks (up to ~24%), all faster,
   17° wind, ~20 ripples, faint cool haze at the edges.
 - **Streaks:** 1 px, gradient from 0 up to the max, no drop heads.
