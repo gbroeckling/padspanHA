@@ -132,5 +132,8 @@ def test_the_box_saves_each_control_on_its_own() -> None:
     for v in ('["auto", ', '["low", ', '["high", '):
         assert v in src[src.index("const _ATLAS_3D_QUALITY"):src.index("function _atlas3dSection(")], v
     # The later phases' rows are not here yet.
-    for later in ("atlas_3d_people", "atlas_3d_ai_task_entity", "atlas_3d_library", "Remove all furniture"):
+    for later in ("atlas_3d_people", "atlas_3d_library", "Remove all furniture"):
         assert later not in sec, later
+    # P3: the AI Task that reads photos, saved alone, from Home Assistant's ai_task.* entities, once on.
+    assert 'save("atlas_3d_ai_task_entity", want,' in sec and 'e.startsWith("ai_task.")' in sec
+    assert 'more.appendChild(row("AI Task for photos", [aiSel]));' in sec

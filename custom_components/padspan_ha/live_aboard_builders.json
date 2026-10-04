@@ -1,0 +1,305 @@
+{
+ "kinds": [
+  "sofa",
+  "bed",
+  "other"
+ ],
+ "furniture": {
+  "sofa": {
+   "name": "Sofa",
+   "group": "furniture",
+   "category": "seating",
+   "params": [
+    {
+     "key": "seats",
+     "label": "Seats",
+     "type": "int",
+     "min": 1,
+     "max": 4,
+     "step": 1,
+     "def": 3,
+     "sizes": {
+      "1": {
+       "width_m": 0.95
+      },
+      "2": {
+       "width_m": 1.55
+      },
+      "3": {
+       "width_m": 2.1
+      },
+      "4": {
+       "width_m": 2.7
+      }
+     }
+    },
+    {
+     "key": "arms",
+     "label": "Arms",
+     "type": "choice",
+     "choices": [
+      "none",
+      "slim",
+      "wide",
+      "rolled"
+     ],
+     "def": "slim"
+    },
+    {
+     "key": "seat_h_m",
+     "label": "Seat height",
+     "type": "num",
+     "min": 0.3,
+     "max": 0.55,
+     "step": 0.01,
+     "def": 0.44
+    },
+    {
+     "key": "legs",
+     "label": "Legs",
+     "type": "choice",
+     "choices": [
+      "none",
+      "block",
+      "tapered",
+      "metal"
+     ],
+     "def": "tapered"
+    },
+    {
+     "key": "cushions",
+     "label": "Back cushions",
+     "type": "int",
+     "min": 0,
+     "max": 4,
+     "step": 1,
+     "def": 3
+    }
+   ],
+   "colorNames": [
+    "Body",
+    "Cushions"
+   ],
+   "colors": [
+    "#5b6b7a",
+    "#c8b89a"
+   ],
+   "size": {
+    "width_m": [
+     0.6,
+     3.6,
+     2.1
+    ],
+    "depth_m": [
+     0.6,
+     1.2,
+     0.9
+    ],
+    "height_m": [
+     0.55,
+     1.1,
+     0.82
+    ]
+   },
+   "live": null
+  },
+  "bed": {
+   "name": "Bed",
+   "group": "furniture",
+   "category": "sleeping",
+   "params": [
+    {
+     "key": "size",
+     "label": "Size",
+     "type": "choice",
+     "choices": [
+      "twin",
+      "double",
+      "queen",
+      "king",
+      "crib",
+      "bunk"
+     ],
+     "def": "queen",
+     "sizes": {
+      "twin": {
+       "width_m": 1.13,
+       "depth_m": 2.1,
+       "height_m": 1
+      },
+      "double": {
+       "width_m": 1.51,
+       "depth_m": 2.1,
+       "height_m": 1.05
+      },
+      "queen": {
+       "width_m": 1.66,
+       "depth_m": 2.2,
+       "height_m": 1.1
+      },
+      "king": {
+       "width_m": 2.07,
+       "depth_m": 2.2,
+       "height_m": 1.15
+      },
+      "crib": {
+       "width_m": 0.8,
+       "depth_m": 1.42,
+       "height_m": 0.95
+      },
+      "bunk": {
+       "width_m": 1.13,
+       "depth_m": 2.1,
+       "height_m": 1.7
+      }
+     }
+    },
+    {
+     "key": "headboard",
+     "label": "Headboard",
+     "type": "choice",
+     "choices": [
+      "none",
+      "panel",
+      "slatted",
+      "padded"
+     ],
+     "def": "padded"
+    },
+    {
+     "key": "footboard",
+     "label": "Footboard",
+     "type": "bool",
+     "def": false
+    },
+    {
+     "key": "base",
+     "label": "Base",
+     "type": "choice",
+     "choices": [
+      "frame",
+      "platform"
+     ],
+     "def": "frame"
+    }
+   ],
+   "colorNames": [
+    "Frame",
+    "Bedding"
+   ],
+   "colors": [
+    "#6b4f3a",
+    "#7f97ad"
+   ],
+   "size": {
+    "width_m": [
+     0.6,
+     2.3,
+     1.66
+    ],
+    "depth_m": [
+     1,
+     2.4,
+     2.2
+    ],
+    "height_m": [
+     0.35,
+     2,
+     1.1
+    ]
+   },
+   "live": null
+  },
+  "other": {
+   "name": "Box",
+   "group": "furniture",
+   "category": "other",
+   "params": [],
+   "colorNames": [
+    "Colour"
+   ],
+   "colors": [
+    "#9aa3ab"
+   ],
+   "size": {
+    "width_m": [
+     0.05,
+     6,
+     0.6
+    ],
+    "depth_m": [
+     0.05,
+     6,
+     0.6
+    ],
+    "height_m": [
+     0.02,
+     4,
+     0.6
+    ]
+   },
+   "live": null
+  }
+ },
+ "figure": {
+  "name": "Person",
+  "params": [
+   {
+    "key": "height_m",
+    "label": "Height",
+    "type": "num",
+    "min": 1,
+    "max": 2.1,
+    "step": 0.01,
+    "def": 1.75
+   },
+   {
+    "key": "build",
+    "label": "Build",
+    "type": "choice",
+    "choices": [
+     "slim",
+     "medium",
+     "broad"
+    ],
+    "def": "medium"
+   },
+   {
+    "key": "hair",
+    "label": "Hair",
+    "type": "choice",
+    "choices": [
+     "none",
+     "short",
+     "long",
+     "bun"
+    ],
+    "def": "short"
+   },
+   {
+    "key": "glasses",
+    "label": "Glasses",
+    "type": "bool",
+    "def": false
+   },
+   {
+    "key": "hat",
+    "label": "Cap",
+    "type": "bool",
+    "def": false
+   }
+  ],
+  "colorNames": {
+   "hair": "Hair",
+   "skin": "Skin",
+   "top": "Top",
+   "bottom": "Bottom"
+  },
+  "colors": {
+   "hair": "#3a2a1a",
+   "skin": "#c8956d",
+   "top": "#224466",
+   "bottom": "#333333"
+  }
+ }
+}

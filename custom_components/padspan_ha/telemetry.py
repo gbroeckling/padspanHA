@@ -243,6 +243,7 @@ TAB_EVENTS: frozenset[str] = frozenset(
 UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "atlas_weather", "fabric_compass", "live_aboard", "live_aboard_draft", "live_aboard_edit", "live_aboard_furniture",
     "live_aboard_house", "live_aboard_use",
+    "live_aboard_people", "live_aboard_photo",
     "busy_times", "calibration_matrix", "editions", "evidence_diagram", "house_activity",
     "insights", "iso_lights", "iso_motion", "light_codes", "lights_map", "locate",
     "pan_zoom", "path_loss", "plan_viewer", "push_subscription", "radio_map",
@@ -314,6 +315,13 @@ HOUSE3D_FALLBACK_KINDS: tuple[str, ...] = ("no_webgl", "slow_gpu", "context_lost
 HOUSE3D_EVENTS: frozenset[str] = frozenset(
     {"house3d_opened"} | {f"house3d_fallback:{k}" for k in HOUSE3D_FALLBACK_KINDS}
 )
+# Its photo step (ws_house3d_photo.py), counted by the server once per photo
+# sent: photo_read:ok, :no_ai_task (none chosen, gone, can't read pictures, or
+# Home Assistant older than 2025.8), :bad_answer (nothing usable in the
+# answer) or :error (the AI Task failed). Never the photo, the AI Task or the
+# answer; and nothing while the 3D house is off (the command refuses first).
+PHOTO_READ_OUTCOMES: tuple[str, ...] = ("ok", "no_ai_task", "bad_answer", "error")
+PHOTO_EVENTS: frozenset[str] = frozenset(f"photo_read:{k}" for k in PHOTO_READ_OUTCOMES)
 
 # The switches whose ON/OFF is reported (booleans only, by name). Every name
 # here must be READ by something outside the settings plumbing — a switch
@@ -424,7 +432,7 @@ def enabled(hass: HomeAssistant) -> bool:
 
 def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or name in OFFER_EVENTS
-            or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS)
+            or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

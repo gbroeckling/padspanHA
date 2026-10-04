@@ -88,7 +88,7 @@ try {
     off.cb && off.cb.checked === false && off.more && off.more.style.display === "none"
     && off.sel && off.more.contains(off.sel) && off.north && off.more.contains(off.north)
     && /Adds a Map \/ 3D switch to the Atlas/.test(off.text) && /Off by default\./.test(off.text)
-    && /Show the 3D house on the Atlas/.test(off.text) && !/people|AI Task|library|furniture/i.test(off.text), { text: off.text });
+    && /Show the 3D house on the Atlas/.test(off.text) && !/people|library|furniture/i.test(off.text), { text: off.text });
   await settle();
   const offNeedle = off.needle && off.needle.getAttribute("visibility");
   check("box: Quality is Auto / Low / High",
