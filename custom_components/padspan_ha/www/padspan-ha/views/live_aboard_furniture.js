@@ -1459,11 +1459,13 @@ function buildScanner(K, S, p, C){
   const { w: W, d: D, h: H } = S;
   const caseL = L(C[0], "gloss"), led = L(C[1], "gloss"), dark = L("#141517", "gloss");
   const antH = p.antenna ? H * 0.7 : 0, bodyH = H - antH;
+  let foot = bodyH;                                 // where an antenna stands: on the box, or on the board itself
   if (p.form === "box") {
     K.box(W, bodyH, D - 0.002, 0, bodyH / 2, -0.001, caseL, Math.min(0.006, W / 6, D / 6, bodyH / 4));
     K.box(Math.min(0.006, W * 0.12), Math.min(0.004, bodyH * 0.25), 0.002, W * 0.3, bodyH * 0.7, D / 2 - 0.001, led);
   } else {
     const pcb = Math.min(0.0016, bodyH * 0.25);
+    foot = pcb;
     K.box(W, pcb, D, 0, pcb / 2, 0, caseL);
     const can = bodyH - pcb;
     K.box(W * 0.4, can, D * 0.55, -W * 0.18, pcb + can / 2, 0, L(METAL, "metal"));
@@ -1471,9 +1473,9 @@ function buildScanner(K, S, p, C){
     K.box(Math.min(0.004, W * 0.1), can * 0.4, Math.min(0.004, D * 0.15), W * 0.38, pcb + can * 0.2, D * 0.3, led);
   }
   if (antH) {
-    const ar = Math.min(0.005, W * 0.08, D * 0.08);
-    K.box(ar * 3, Math.min(0.012, antH * 0.15), ar * 3, W / 2 - ar * 1.5, bodyH + Math.min(0.012, antH * 0.15) / 2, -D / 2 + ar * 1.5, dark);
-    K.cyl(ar, ar * 0.8, antH, W / 2 - ar * 1.5, bodyH + antH / 2, -D / 2 + ar * 1.5, dark, 10);
+    const ar = Math.min(0.005, W * 0.08, D * 0.08), stick = H - foot, bh = Math.min(0.012, stick * 0.15);
+    K.box(ar * 3, bh, ar * 3, W / 2 - ar * 1.5, foot + bh / 2, -D / 2 + ar * 1.5, dark);
+    K.cyl(ar, ar * 0.8, stick, W / 2 - ar * 1.5, foot + stick / 2, -D / 2 + ar * 1.5, dark, 10);
   }
 }
 
