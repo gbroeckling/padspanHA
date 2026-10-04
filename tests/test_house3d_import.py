@@ -197,7 +197,9 @@ def test_the_answer_is_plain_json(disk, tmp_path):
     ("Plant", "", "plant"), ("Potted plants", "", "plant"), ("Ficus tree", "", "plant"),
     ("Washing machine", "", "washer"), ("Washer", "", "washer"), ("Dryer", "", "dryer"),
     ("Tumble dryer", "", "dryer"), ("Radiator", "", "radiator"), ("Ceiling fan", "", "fan"),
-    ("Speaker", "", "speaker"),
+    ("Speaker", "", "speaker"), ("Robot vacuum", "", "vacuum_dock"), ("Roomba dock", "", "vacuum_dock"),
+    ("Robot mower", "", "mower_dock"), ("Car", "", "car"), ("Wallbox charger", "", "charger"),
+    ("EV charging station", "", "charger"),
     ("Fridge", "", "other"), ("Chest freezer", "", "other"), ("Dishwasher", "", "other"), ("Thingamajig", "", "other"),
     ("", "", "other"), ("Stuff", "eTeks#doubleBed", "bed"), ("", "Scopia#sofa_corner", "sofa"),
     ("Bed", "eTeks#chair", "bed"),
@@ -219,7 +221,7 @@ def test_the_table_is_small_and_lowercase_and_every_kind_is_a_padspan_name():
         assert phrase == phrase.lower() and kind in WI.KIND_WORDS, phrase
     seen: set[str] = set()
     for kind, words in WI.KIND_WORDS.items():
-        assert re.fullmatch(r"[a-z]+", kind) and words, kind
+        assert re.fullmatch(r"[a-z_]+", kind) and words, kind
         for w in words:
             assert re.fullmatch(r"[a-z]+", w) and w not in seen, w
             seen.add(w)

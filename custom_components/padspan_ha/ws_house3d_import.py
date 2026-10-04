@@ -64,6 +64,7 @@ KIND_PHRASES: tuple[tuple[str, str], ...] = (
     ("night stand", "dresser"), ("chest of drawers", "dresser"),
     ("washing machine", "washer"), ("lave linge", "washer"), ("tumble dryer", "dryer"), ("seche linge", "dryer"),
     ("book case", "shelf"), ("book shelf", "shelf"),
+    ("robot vacuum", "vacuum_dock"), ("charging station", "charger"),
 )
 KIND_WORDS: dict[str, tuple[str, ...]] = {
     "sofa": ("sofa", "couch", "settee", "loveseat", "sectional", "futon", "divan", "chesterfield", "canape", "divano"),
@@ -88,6 +89,10 @@ KIND_WORDS: dict[str, tuple[str, ...]] = {
     "radiator": ("radiator", "heater", "radiateur", "heizkorper", "radiador", "termosifone"),
     "fan": ("fan", "ventilator", "ventilateur", "ventilador", "ventilatore"),
     "speaker": ("speaker", "loudspeaker", "subwoofer", "soundbar", "lautsprecher", "enceinte", "altavoz"),
+    "vacuum_dock": ("vacuum", "roomba"),
+    "mower_dock": ("mower", "lawnmower", "automower"),
+    "car": ("car", "vehicle", "suv", "voiture", "coche"),
+    "charger": ("charger", "wallbox", "chargepoint"),
     BOX: ("fridge", "refrigerator", "freezer", "oven", "stove", "cooker", "hob", "dishwasher", "microwave", "sink",
           "basin", "washbasin", "toilet", "bidet", "bathtub", "bath", "tub", "shower", "boiler", "piano"),
 }
