@@ -329,13 +329,13 @@ export function createWeather(THREE, host){
   const OFF = Object.freeze({ kind: "off", heavy: false, rim: false });
   const t0 = performance.now();
   let shown = OFF, lastLive = -Infinity, broken = false;
-  let colour = "#ffffff", strength = 1, still = false, profile = "low";
+  let colour = "#ffffff", snowColour = "#ffffff", strength = 1, still = false, profile = "low";
   let house = null, area = null, areaKey = null, built = 0;
   const L = {};                       // name -> {from, to, t0, dur, obj, n, res: [], mats: [], caps}
   for (const n of NAMES) L[n] = { from: 0, to: 0, t0: 0, dur: 0, obj: null, n: 0, drawn: 0, res: [], mats: [], caps: null };
   const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
   const Y = new THREE.Vector3(0, 1, 0), ZERO = new THREE.Matrix4().makeScale(0, 0, 0), _view = new THREE.Vector2();
-  const col = new THREE.Color(colour);
+  const col = new THREE.Color(colour), snowCol = new THREE.Color(snowColour);
 
   const opAt = (l, t) => (l.dur <= 0 ? l.to : l.from + (l.to - l.from) * clamp((t - l.t0) / l.dur, 0, 1));
   function target(name, to, t){
@@ -414,7 +414,7 @@ export function createWeather(THREE, host){
     grp.name = "weather:settle";
     const res = [], mats = [];
     const lam = (extra) => {
-      const m = new THREE.MeshLambertMaterial({ color: col.clone().multiplyScalar(SNOW_SHADE), transparent: true, opacity: 0, depthWrite: false, ...extra });
+      const m = new THREE.MeshLambertMaterial({ color: snowCol.clone().multiplyScalar(SNOW_SHADE), transparent: true, opacity: 0, depthWrite: false, ...extra });
       res.push(m); mats.push(m);
       return m;
     };
@@ -566,7 +566,8 @@ export function createWeather(THREE, host){
 
   return {
     /** At each poll. p = {settings (the settings payload), states, entities,
-     *  colour ("#rrggbb"), profile ("low" | "high"), house: {key, rooms,
+     *  colour ("#rrggbb": what falls), snowColour (what settles; else
+     *  colour), profile ("low" | "high"), house: {key, rooms,
      *  ground, shown(floor), walls() → [{P, F}]}, nowMs, telemetry}. True
      *  when what is drawn changed (the view draws again). */
     update(p){
@@ -584,10 +585,11 @@ export function createWeather(THREE, host){
         still = reducedMotion();
         if (still !== wasStill) changed = true;
         if (!same(v, shown)) { shown = v; changed = true; }
-        const c = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(p.colour || "")) ? String(p.colour) : "#ffffff";
-        if (c !== colour) {
-          colour = c; col.set(c);
-          for (const n of NAMES) for (const m of L[n].mats) { if (m.uniforms) m.uniforms.uColor.value.copy(col); else m.color.copy(col).multiplyScalar(SNOW_SHADE); }
+        const hex = (v) => (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(v || "")) ? String(v) : "#ffffff");
+        const c = hex(p.colour), sc = hex(p.snowColour || p.colour);
+        if (c !== colour || sc !== snowColour) {
+          colour = c; col.set(c); snowColour = sc; snowCol.set(sc);
+          for (const n of NAMES) for (const m of L[n].mats) { if (m.uniforms) m.uniforms.uColor.value.copy(col); else m.color.copy(snowCol).multiplyScalar(SNOW_SHADE); }
           changed = true;
         }
         if (cfg.strength !== strength) { strength = cfg.strength; changed = true; }
@@ -633,7 +635,7 @@ export function createWeather(THREE, host){
       const t = performance.now();
       const layers = {};
       for (const n of NAMES) if (L[n].obj || L[n].to) layers[n] = { n: L[n].n, drawn: L[n].drawn, op: opAt(L[n], t), to: L[n].to };
-      return { shown, built, broken, still, profile, colour, strength, frameMs: this.frameMs(), layers, mask: !!mask,
+      return { shown, built, broken, still, profile, colour, snowColour, strength, frameMs: this.frameMs(), layers, mask: !!mask,
                area: area ? { cx: area.cx, cy: area.cy, r: area.r, top: area.top, patches: area.patches.length, decks: area.decks.length } : null };
     },
     /** For the harness: a layer's particles as built ([x, y, landing, phase] each). */

@@ -209,3 +209,57 @@ def test_both_hosts_hand_over_their_weather_inputs() -> None:
     maps = (_VIEWS / "maps.js").read_text(encoding="utf-8")
     block = maps[maps.index("house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ?"):]
     assert 'slot: "builder", settings: ctx.state.settings,' in block[:200], "Mapping hands over the whole settings payload"
+
+
+# ── the Showcase look (views/live_aboard_showcase.js) ────────────────────────
+
+@pytest.fixture(scope="module")
+def look() -> dict:
+    return _harness("live_aboard_showcase.mjs", _WWW)
+
+
+@pytest.mark.parametrize("prefix", ["table:", "classic:", "theme:"])
+def test_the_showcase_harness_covers_each_part(look, prefix) -> None:
+    """table: a row for every Showcase theme, every field, Classic today's
+    numbers; classic: off, or on in Classic, is today's look exactly; theme:
+    another theme changes the background, sky, tiles and glow, the rain
+    takes its colour, and switched off it is Classic again."""
+    _case(look, prefix)
+
+
+def test_every_showcase_case_passes(look) -> None:
+    assert not look["failures"], json.dumps(look["failures"][:6], indent=2, ensure_ascii=False)
+
+
+def test_the_table_covers_every_theme_by_its_own_key() -> None:
+    """Held without node too: every key of SHOWCASE_THEMES (iso_lights.js)
+    has a row in the table, and nothing else does."""
+    import re
+    iso = (_VIEWS / "iso_lights.js").read_text(encoding="utf-8")
+    block = iso[iso.index("export const SHOWCASE_THEMES = {"):iso.index("export const SHOWCASE_THEME_NAMES")]
+    themes = set(re.findall(r"^  ([a-z_]+): \{", block, re.M))
+    sc = (_VIEWS / "live_aboard_showcase.js").read_text(encoding="utf-8")
+    rows = set(re.findall(r"^  ([a-z_]+):\s+row\(", sc, re.M))
+    assert len(themes) >= 19 and themes == rows, (sorted(themes - rows), sorted(rows - themes))
+
+
+def test_the_look_is_read_only_and_switches_off_on_its_own() -> None:
+    """The host hands over the theme the flat Atlas shows (its own
+    SHOWCASE_THEMES entry, never changed); the view applies it only with
+    "Use the Atlas's Showcase look" on, and Classic, today's look, otherwise.
+    The table module is pure data and only the 3D view imports it."""
+    lm = (_VIEWS / "lights_map.js").read_text(encoding="utf-8")
+    assert "showcase3d: h3.settings.atlas_3d_showcase," in lm
+    assert ('showcase: { key: host.showcase ? (host.showcaseTheme || "classic") : "classic",\n'
+            '                      theme: (host.showcase && SHOWCASE_THEMES[host.showcaseTheme]) || SHOWCASE_THEMES.classic },') in lm.replace("\r\n", "\n")
+    la = (_VIEWS / "live_aboard.js").read_text(encoding="utf-8")
+    assert 'p.showcase3d === true && p.showcase && p.showcase.key ? String(p.showcase.key) : "classic"' in la
+    sc = _code(_VIEWS / "live_aboard_showcase.js")
+    for bad in ("import", "document", "THREE", "SHOWCASE_THEMES["):
+        assert bad not in sc, bad
+    want = "import(`./live_aboard_showcase.js${new URL(import.meta.url).search}`)"
+    importers = sorted(p.name for p in _WWW.rglob("*.js") if "vendor" not in p.parts and want in p.read_text(encoding="utf-8"))
+    assert importers == ["live_aboard.js"], importers
+    from custom_components.padspan_ha import telemetry as T
+    for name in ("live_aboard_weather", "live_aboard_showcase"):
+        assert name in T.UI_ERROR_HELPERS and T.event_allowed(f"ui_error:{name}"), name

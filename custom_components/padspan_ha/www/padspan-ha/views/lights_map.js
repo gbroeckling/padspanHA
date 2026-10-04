@@ -2883,9 +2883,14 @@ export function buildLightsMapCard(hostIn){
           // Save, house3d_edit) only where the host lets lights be placed.
           load: typeof h3.load === "function" ? h3.load : null,
           edit: typeof h3.edit === "function" ? h3.edit : null,
-          // Rain and snow (P8): the flat map's own weather inputs, with Live
-          // Aboard's Rain and snow switch. The view decides what they draw.
+          // Rain and snow, and the Showcase look (P8): the flat map's own
+          // weather inputs with Live Aboard's Rain and snow switch, and the
+          // Showcase theme this map shows with "Use the Atlas's Showcase
+          // look". The view decides what they draw.
           weather: host.weather && host.weather.settings ? host.weather : null, weather3d: h3.settings.atlas_3d_weather,
+          showcase3d: h3.settings.atlas_3d_showcase,
+          showcase: { key: host.showcase ? (host.showcaseTheme || "classic") : "classic",
+                      theme: (host.showcase && SHOWCASE_THEMES[host.showcaseTheme]) || SHOWCASE_THEMES.classic },
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }
     }

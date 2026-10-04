@@ -46,6 +46,9 @@ const NO_FILE = DRAFT.ownedOf(null);
 // Optional: a module that fails to load leaves the house as it was.
 const WEATHER = await import(`./live_aboard_weather.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_weather failed to load", err); return null; });
+// And the Atlas's Showcase look as this view's lighting (optional too).
+const LOOKS = await import(`./live_aboard_showcase.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: live_aboard_showcase failed to load", err); return null; });
 
 export const HOUSE3D_EVENTS = HOUSE.HOUSE3D_EVENTS;
 export const HOUSE3D_FALLBACK_KINDS = HOUSE.HOUSE3D_FALLBACK_KINDS;
@@ -266,6 +269,9 @@ function createSlot(slotKey){
   // P8 atmosphere: the weather (live_aboard_weather.js), made only while Rain
   // and snow is on.
   let wx = null;
+  // The Showcase look as drawn (live_aboard_showcase.js): Classic, today's
+  // look, unless "Use the Atlas's Showcase look" is on.
+  let lookKey = "classic", theme3d = LOOKS ? LOOKS.lookOf("classic") : null;
 
   // ── failing back to the flat Atlas ────────────────────────────────────────
   function showFlat(){
@@ -560,7 +566,8 @@ function createSlot(slotKey){
         const g = new THREE.ExtrudeGeometry(new THREE.Shape(r.pts.map(p => new THREE.Vector2(p[0], p[1]))), { depth: HOUSE.SLAB_T, bevelEnabled: false });
         g.rotateX(Math.PI / 2);                              // plan (x, y) -> world (x, ·, y); the extrusion goes down
         g.translate(0, (i % 8) * 0.0005, 0);                 // overlapping hand-drawn rooms must not z-fight
-        const top = colorOf(r.color).lerp(new THREE.Color(TILE_MIX), r.outdoor ? 0.5 : 0.38);
+        const tm = theme3d ? theme3d.tile : 0.38;            // the Showcase look's mix (Classic: 0.38, a deck 0.5)
+        const top = colorOf(r.color).lerp(new THREE.Color(TILE_MIX), r.outdoor ? tm + 0.12 : tm);
         const side = new THREE.Color(fl.outdoor ? EARTH_SIDE : SLAB_SIDE);
         const n = g.attributes.position.count, caps = g.groups.length ? g.groups[0].count : n, col = new Float32Array(n * 3);
         for (let v = 0; v < n; v++) { const cc = v < caps ? top : side; col[v * 3] = cc.r; col[v * 3 + 1] = cc.g; col[v * 3 + 2] = cc.b; }
@@ -615,10 +622,14 @@ function createSlot(slotKey){
     const sx = houseBox.x1 - houseBox.x0, sy = houseBox.y1 - houseBox.y0;
     const groundY = h.ground - HOUSE.SLAB_T - 0.02;
     const gGeo = new THREE.CircleGeometry(420, 72).rotateX(-Math.PI / 2);
-    ground = lit(gGeo, { c: "#18201c", r: 1 }, false, true);
+    // What the house stands on, and its grid: the Showcase look's (Classic: today's).
+    const gc = theme3d ? theme3d.ground : "#18201c", today = !LOOKS || theme3d === LOOKS.SHOWCASE_LOOKS.classic;
+    ground = lit(gGeo, { c: gc, r: 1 }, false, true);
     ground.position.set(cx, groundY, cy);
     const span = Math.ceil(Math.max(sx, sy) / 2 + 30) * 2;
-    gridLines = new THREE.GridHelper(span, span / 2, 0x2b3730, 0x202a25);
+    const toward = new THREE.Color(gc).getHSL({}).l > 0.5 ? 0x000000 : 0xffffff;
+    gridLines = today ? new THREE.GridHelper(span, span / 2, 0x2b3730, 0x202a25)
+      : new THREE.GridHelper(span, span / 2, new THREE.Color(gc).lerp(_c.set(toward), 0.09), new THREE.Color(gc).lerp(_c.set(toward), 0.04));
     gridLines.position.set(Math.round(cx), groundY + 0.004, Math.round(cy));
     shellRes.push(gGeo, gridLines.geometry, gridLines.material);
     scene.add(ground, gridLines);
@@ -665,6 +676,8 @@ function createSlot(slotKey){
     hemi.intensity = SKY_I_DAY + (SKY_I_NIGHT - SKY_I_DAY) * look.night;
     hemi.color.set(SKY_DAY).lerp(_c.set(SKY_NIGHT), look.night);
     hemi.groundColor.set(GROUND_DAY).lerp(_c.set(GROUND_NIGHT), look.night);
+    // The Showcase look's sky (Classic: none, and today's brightness).
+    if (theme3d) { if (theme3d.skyMix) hemi.color.lerp(_c.set(theme3d.sky), theme3d.skyMix); hemi.intensity *= theme3d.ambient; }
     placeSun();
     roseDeg = null;
     requestRender();
@@ -1039,7 +1052,7 @@ function createSlot(slotKey){
   // switch changes these values only — what is drawn never changes.
   const _white = new THREE.Color(1, 1, 1);
   function paintLight(L){
-    const F = L.F, k = L.look, on = k.on, hidden = !!(L.wall && L.wall.cut);
+    const F = L.F, k = L.look, on = k.on, hidden = !!(L.wall && L.wall.cut), glow = theme3d ? theme3d.glow : 1;
     const c = new THREE.Color().setRGB(k.rgb[0], k.rgb[1], k.rgb[2], THREE.SRGBColorSpace);
     L.color = c; L.f = k.f;
     const core = on ? c.clone().lerp(_white, 0.35).multiplyScalar(0.55 + 0.45 * k.f) : null;
@@ -1051,12 +1064,12 @@ function createSlot(slotKey){
       im.instanceMatrix.needsUpdate = true;
     }
     for (const r of L.refs.halos) {
-      const attr = F.halos[r.cls].geometry.attributes.color, g = on && !hidden ? k.f * 0.95 : 0;
+      const attr = F.halos[r.cls].geometry.attributes.color, g = on && !hidden ? k.f * 0.95 * glow : 0;
       attr.setXYZ(r.i, c.r * g, c.g * g, c.b * g);
       attr.needsUpdate = true;
     }
     if (L.refs.pool !== null && F.pool) {
-      const g = on ? k.f * 0.34 : 0;
+      const g = on ? k.f * 0.34 * glow : 0;
       F.pool.setColorAt(L.refs.pool, _c.setRGB(c.r * g, c.g * g, c.b * g));
       F.pool.instanceColor.needsUpdate = true;
     }
@@ -1985,7 +1998,24 @@ function createSlot(slotKey){
     return true;
   }
 
-  // ── P8 atmosphere: rain and snow ──────────────────────────────────────────
+  // ── P8 atmosphere: the Showcase look, rain and snow ───────────────────────
+  /** The Atlas's Showcase look as this view's lighting: the background and
+   *  its haze, the sky, the tiles' colour and the lights' glow
+   *  (live_aboard_showcase.js; Classic is today's look). A change draws the
+   *  tiles, the sky and the glow again. */
+  function applyLook(p){
+    const key = LOOKS && p.showcase3d === true && p.showcase && p.showcase.key ? String(p.showcase.key) : "classic";
+    if (key === lookKey) return;
+    lookKey = key;
+    theme3d = LOOKS ? LOOKS.lookOf(key) : null;
+    const bg = theme3d ? theme3d.bg : BG;
+    renderer.setClearColor(bg, 1);
+    scene.background.set(bg);
+    scene.fog.color.set(bg);
+    shellSig = null;                                         // the tiles and the lights, built again with it
+    if (sunNow) drawSun(bearingNow(), true);
+    requestRender();
+  }
   /** Rain and snow (live_aboard_weather.js): the flat Atlas's own decision,
    *  from the host's own weather inputs, only while Rain and snow is on
    *  (settings.atlas_3d_weather: on unless false). Off, none of it is made,
@@ -1997,7 +2027,12 @@ function createSlot(slotKey){
     try {
       if (!wx) wx = WEATHER.createWeather(THREE, { scene, renderer, camera });
       const changed = wx.update({ settings: w.settings, states: w.states, entities: w.entities, telemetry: w.telemetry,
-        colour: "#ffffff", profile: quality.profile || quality.measuring || "low", nowMs: Date.now(),
+        // What falls: the flat Atlas's colour for the Showcase theme this view
+        // wears (Classic: white), or the look's own where that would not show
+        // on its ground (a light theme); what settles: the flat Atlas's.
+        colour: lookKey === "classic" ? "#ffffff" : (theme3d && theme3d.weather) || WEATHER.colourOf(p.showcase && p.showcase.theme),
+        snowColour: lookKey === "classic" ? "#ffffff" : WEATHER.colourOf(p.showcase && p.showcase.theme),
+        profile: quality.profile || quality.measuring || "low", nowMs: Date.now(),
         house: { key: `${shellGen}|${topElev}`, rooms: house.rooms, ground: house.ground - HOUSE.SLAB_T - 0.02,
                  shown: (fl) => HOUSE.floorShown(fl, topElev),
                  walls: () => floorsUi.filter(F => F.group.visible).flatMap(F => F.pieces.map(P => ({ P, F }))) } });
@@ -2011,6 +2046,7 @@ function createSlot(slotKey){
   // ── the slot ──────────────────────────────────────────────────────────────
   function update(p){
     lastP = p;
+    applyLook(p);
     const setting = HOUSE.qualitySetting(p.quality);
     // This card's records and api: a press acts through the newest.
     lbe = p.lightsByEid || {};
@@ -2078,7 +2114,9 @@ function createSlot(slotKey){
      *  be placed, else null and there is no Edit), weather (the host's
      *  {settings, states, entities, telemetry}: the flat Atlas's own weather
      *  inputs), weather3d (settings.atlas_3d_weather: rain and snow unless
-     *  false)}. */
+     *  false), showcase3d (settings.atlas_3d_showcase: the Showcase look when
+     *  true), showcase ({key, theme}: the Showcase theme the flat Atlas
+     *  shows, SHOWCASE_THEMES' own entry, only ever read)}. */
     attach(s, p){
       send = p && p.telemetry;
       touchCb = p && p.onTouch;
@@ -2136,7 +2174,15 @@ function createSlot(slotKey){
                heights: { lights: lights.filter(L => L.z !== L.zDefault).map(L => ({ eid: L.eid, z: L.z, zDefault: L.zDefault })),
                           devices: sensorsUi.filter(S => S.z !== S.zDefault).map(S => ({ eid: S.eid, z: S.z, zDefault: S.zDefault })) },
                edit: editor ? editor.state() : null,
-               weather: wx ? wx._state() : null };            // P8: rain and snow
+               // P8: the look as drawn, and rain and snow.
+               look: scene ? { key: lookKey, bg: "#" + scene.background.getHexString(), fog: "#" + scene.fog.color.getHexString(),
+                               sky: "#" + hemi.color.getHexString(), skyI: hemi.intensity, glow: theme3d ? theme3d.glow : 1,
+                               ground: ground ? "#" + ground.material.color.getHexString() : null,
+                               // Sums the harness compares: every tile's colour, every glow's.
+                               tiles: floorsUi.reduce((a, F) => a + (F.tiles ? F.tiles.geometry.attributes.color.array.reduce((s, v) => s + v, 0) : 0), 0),
+                               halos: floorsUi.reduce((a, F) => a + Object.values(F.halos || {})
+                                 .reduce((s, h) => s + h.geometry.attributes.color.array.reduce((u, v) => u + v, 0), 0), 0) } : null,
+               weather: wx ? wx._state() : null };
     },
     /** The weather (the harness reads its drops). */
     _weather(){ return wx; },
