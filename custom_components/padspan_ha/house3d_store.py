@@ -27,12 +27,15 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
 import logging
 import math
 import re
+import unicodedata
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 
 from .const import DATA_HOUSE3D, DATA_SETTINGS, DOMAIN, HOUSE3D_STORE_KEY
 from .safe_store import wrap_store
@@ -164,11 +167,11 @@ class House3dStore:
 # One draft, written at once: doors and windows drawn on a wall in 3D
 # ("win_" / "door_" + 8 hex digits, a stretch of wall in fabric metres), the
 # hinge, swing, sill and head of a barrier's own door or window (keyed by the
-# barrier's id; the map is never written), and the 3D-only height of a light
-# or another device. Each entry is set, or removed with None. What the editor
-# owns is checked strictly; every other key already in the file (a newer
-# PadSpan's) is kept.
-EDIT_SECTIONS: tuple[str, ...] = ("openings", "lights", "devices")
+# barrier's id; the map is never written), the 3D-only height of a light or
+# another device, and the furniture (P2 Furnish: "fur_" + 8 hex digits). Each
+# entry is set, or removed with None. What the editor owns is checked
+# strictly; every other key already in the file (a newer PadSpan's) is kept.
+EDIT_SECTIONS: tuple[str, ...] = ("openings", "lights", "devices", "pieces")
 OPENING_ID = re.compile(r"^(win|door)_[0-9a-f]{8}$")
 BARRIER_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,40}$")
 # Home Assistant's own entity id shape (core.valid_entity_id).
@@ -182,7 +185,18 @@ _ADDED_KEYS = {"window": ("kind", "floor_id", "a_m", "b_m", "sill_m", "head_m"),
 _ADDED_OWNED = frozenset(_ADDED_KEYS["window"] + _ADDED_KEYS["door"])
 _BARRIER_OWNED = frozenset(("hinge", "swing", "sill_m", "head_m"))
 _HEIGHT_OWNED = frozenset(("z_m",))
-_CAPS = {"openings": MAX_OPENINGS, "lights": MAX_HEIGHTS, "devices": MAX_HEIGHTS}
+# A piece of furniture (docs "Data"): where it stands is fabric metres on its
+# floor, z_m its bottom above that floor, rotation degrees. Its recipe is plain
+# data the builders draw; an unknown kind or param is kept (drawn as a box).
+PIECE_ID = re.compile(r"^fur_[0-9a-f]{8}$")
+ORIGINS = ("build", "photo", "library", "import")
+MAX_PIECES, PIECE_Z_MAX_M, SIZE_MIN_M, SIZE_MAX_M = 1000, 20.0, 0.05, 8.0
+MAX_PARAMS, MAX_COLORS, NAME_MAX, TEXT_MAX, LABEL_MAX, PIECE_JSON_MAX = 40, 6, 40, 60, 60, 8000
+COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+REF_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+_PIECE_OWNED = frozenset(("id", "recipe", "origin", "label", "library_id", "submission_id", "floor_id",
+                          "x_m", "y_m", "z_m", "rotation", "entity_id", "entity_reg_id", "updated_at"))
+_CAPS = {"openings": MAX_OPENINGS, "lights": MAX_HEIGHTS, "devices": MAX_HEIGHTS, "pieces": MAX_PIECES}
 
 
 class EditError(ValueError):
@@ -261,7 +275,83 @@ def _barrier_override(bid: str, e: dict) -> dict:
     return out
 
 
-def _entry(section: str, key: Any, e: Any) -> tuple[frozenset, dict | None, bool]:
+def _plain(v: Any, most: int, *, blank: bool = False) -> bool:
+    """Text of at most `most` characters, none of them a control character,
+    and not blank unless `blank`."""
+    return (isinstance(v, str) and len(v) <= most and (blank or bool(v.strip()))
+            and not any(unicodedata.category(c) == "Cc" for c in v))
+
+
+def _finite(v: Any) -> bool:
+    try:
+        return not isinstance(v, bool) and isinstance(v, (int, float)) and math.isfinite(v)
+    except OverflowError:   # an int too big for a float
+        return False
+
+
+def _recipe(pid: str, r: Any) -> dict:
+    """A recipe (contracts §1): a short kind (unknown kinds kept), a flat dict
+    of params, up to six colours, and a size in range. Other keys (the
+    library's details sheet, a newer PadSpan's) are kept."""
+    if not isinstance(r, dict):
+        raise EditError(f"{pid}: recipe must be an object")
+    if not _plain(r.get("kind"), NAME_MAX):
+        raise EditError(f"{pid}: recipe.kind must be text of 1 to {NAME_MAX} characters")
+    params, colors = r.get("params", {}), r.get("colors", [])
+    if not isinstance(params, dict) or len(params) > MAX_PARAMS:
+        raise EditError(f"{pid}: recipe.params must be an object of at most {MAX_PARAMS} settings")
+    for k, v in params.items():
+        if not _plain(k, NAME_MAX) or not (isinstance(v, bool) or _finite(v) or _plain(v, TEXT_MAX, blank=True)):
+            raise EditError(f"{pid}: recipe.params holds short names with numbers, short text or true/false")
+    if not isinstance(colors, list) or len(colors) > MAX_COLORS or not all(isinstance(c, str) and COLOR.fullmatch(c) for c in colors):
+        raise EditError(f"{pid}: recipe.colors must be at most {MAX_COLORS} colours like #5b6b7a")
+    if "details" in r and not isinstance(r["details"], dict):
+        raise EditError(f"{pid}: recipe.details must be an object")
+    out = {**r, "kind": r["kind"].strip(), "params": dict(params), "colors": [c.lower() for c in colors]}
+    for k in ("width_m", "depth_m", "height_m"):
+        out[k] = _num(r.get(k), SIZE_MIN_M, SIZE_MAX_M, f"{pid} recipe.{k}")
+    return out
+
+
+def _piece(pid: str, e: dict, stamp: str) -> dict:
+    """A piece of furniture (contracts §2), complete: what it is, where it
+    stands, which device it is. Its floor may be one since deleted (the plan:
+    a floor that no longer exists is accepted). Keys it does not know are kept."""
+    if e.get("id", pid) != pid:
+        raise EditError(f"{pid}: its id must be its key")
+    fl, label = e.get("floor_id"), e.get("label") or ""
+    if not isinstance(fl, str) or not fl.strip() or len(fl) > 64:
+        raise EditError(f"{pid}: floor_id must be a floor's id")
+    if not isinstance(label, str):
+        raise EditError(f"{pid}: label must be text")
+    label = "".join(c for c in label if unicodedata.category(c) != "Cc").strip()
+    if len(label) > LABEL_MAX:
+        raise EditError(f"{pid}: a label is at most {LABEL_MAX} characters")
+    out = {**e, "id": pid, "recipe": _recipe(pid, e.get("recipe")), "label": label, "floor_id": fl.strip(),
+           "origin": _pick(e.get("origin", "build"), ORIGINS, f"{pid} origin"),
+           "x_m": _num(e.get("x_m"), -COORD_MAX_M, COORD_MAX_M, f"{pid} x_m"),
+           "y_m": _num(e.get("y_m"), -COORD_MAX_M, COORD_MAX_M, f"{pid} y_m"),
+           "z_m": _num(e.get("z_m", 0.0), 0.0, PIECE_Z_MAX_M, f"{pid} z_m"),
+           "updated_at": stamp}
+    rot = round(_num(e.get("rotation", 0.0), -COORD_MAX_M, COORD_MAX_M, f"{pid} rotation") % 360.0, 3)
+    out["rotation"] = 0.0 if rot >= 360.0 else rot + 0.0          # [0, 360), never -0.0
+    for k in ("library_id", "submission_id", "entity_reg_id"):
+        v = out[k] = e.get(k)
+        if v is not None and not (isinstance(v, str) and REF_ID.fullmatch(v)):
+            raise EditError(f"{pid}: {k} must be a short id or null")
+    ent = out["entity_id"] = e.get("entity_id")
+    if ent is not None and not (isinstance(ent, str) and len(ent) <= 255 and ENTITY_ID.fullmatch(ent)):
+        raise EditError(f"{pid}: entity_id must be an entity id or null")
+    try:
+        size = len(json.dumps(out, allow_nan=False))
+    except (TypeError, ValueError) as err:
+        raise EditError(f"{pid}: holds something that is not plain data") from err
+    if size > PIECE_JSON_MAX:
+        raise EditError(f"{pid}: a piece is at most {PIECE_JSON_MAX} characters of data")
+    return out
+
+
+def _entry(section: str, key: Any, e: Any, stamp: str = "") -> tuple[frozenset, dict | None, bool]:
     """(the keys the editor owns in this entry, the checked entry or None to
     remove it, whether removing takes the whole entry)."""
     if not isinstance(key, str):
@@ -274,6 +364,13 @@ def _entry(section: str, key: Any, e: Any) -> tuple[frozenset, dict | None, bool
             raise EditError(f"openings: {key[:48]!r} is neither win_/door_ + 8 hex digits nor a barrier's id")
         else:
             owned, whole, check = _BARRIER_OWNED, False, _barrier_override
+    elif section == "pieces":
+        if not PIECE_ID.fullmatch(key):
+            raise EditError(f"pieces: {key[:48]!r} is not fur_ + 8 hex digits")
+        owned, whole = _PIECE_OWNED, True
+
+        def check(k: str, v: dict) -> dict:
+            return _piece(k, v, stamp)
     else:
         if len(key) > 255 or not ENTITY_ID.fullmatch(key):
             raise EditError(f"{section}: {key[:48]!r} is not an entity id")
@@ -301,7 +398,7 @@ def apply_edit(data: Any, changes: Any) -> dict[str, Any]:
     if not isinstance(changes, dict) or set(changes) - set(EDIT_SECTIONS):
         raise EditError(f"an edit has only {', '.join(EDIT_SECTIONS)}")
     out = copy.deepcopy(base)
-    n = 0
+    n, stamp = 0, dt_util.utcnow().replace(microsecond=0).isoformat()
     for section in EDIT_SECTIONS:
         entries = changes.get(section)
         if entries is None:
@@ -313,7 +410,7 @@ def apply_edit(data: Any, changes: Any) -> dict[str, Any]:
             raise EditError(f"at most {MAX_CHANGES} changes in one save")
         target, before = out[section], len(out[section])
         for key, e in entries.items():
-            owned, clean, whole = _entry(section, key, e)
+            owned, clean, whole = _entry(section, key, e, stamp)
             old = target.get(key)
             # Keys this editor does not own stay (a newer PadSpan's), except
             # when a door or window drawn in 3D is removed: the entry is it.
@@ -329,6 +426,25 @@ def apply_edit(data: Any, changes: Any) -> dict[str, Any]:
     if not n:
         raise EditError("nothing to save")
     return out
+
+
+async def async_restore_data(hass: HomeAssistant, incoming: Any) -> Any:
+    """What a backup restore writes for this file (ws_backup): the backup's,
+    except that a backup with no furniture in it (one from before the
+    furniture) keeps the furniture this install has now. The plan, "Undoing
+    it": restoring an older backup that has no furniture leaves the current
+    furniture alone. A file that cannot be read now, or either side a newer
+    PadSpan's, is restored as the backup has it."""
+    pieces = incoming.get("pieces") if isinstance(incoming, dict) else None
+    if not isinstance(incoming, dict) or not writable(incoming) or (isinstance(pieces, dict) and pieces):
+        return incoming
+    try:
+        current = (await async_get_store(hass)).data
+    except ReadFailed:
+        return incoming
+    if not writable(current) or not current.get("pieces"):
+        return incoming
+    return {**incoming, "pieces": copy.deepcopy(current["pieces"])}
 
 
 async def async_get_store(hass: HomeAssistant) -> House3dStore:

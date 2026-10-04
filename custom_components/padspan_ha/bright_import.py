@@ -65,6 +65,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     DATA_FABRIC,
+    DATA_HOUSE3D,
     DATA_MAPS,
     DATA_MODEL,
     DATA_SETTINGS,
@@ -121,10 +122,12 @@ def _read_store_file(path: Path) -> Any:
     return raw.get("data") if isinstance(raw, dict) else None
 
 
-def target_contents(fabric: dict | None, model: dict | None, maps: dict | None) -> list[str]:
+def target_contents(fabric: dict | None, model: dict | None, maps: dict | None,
+                    house3d: dict | None = None) -> list[str]:
     """What this install already holds that an import would collide with —
     empty means the target is empty. Human strings, because the answer is
-    shown to the person who has to decide what to do about it."""
+    shown to the person who has to decide what to do about it. `house3d` is
+    Live Aboard's file: its furniture counts too."""
     found: list[str] = []
     fab = fabric or {}
     floors = fab.get("floors") if isinstance(fab.get("floors"), dict) else {}
@@ -149,6 +152,9 @@ def target_contents(fabric: dict | None, model: dict | None, maps: dict | None) 
     mp = (maps or {}).get("maps") if isinstance((maps or {}).get("maps"), list) else []
     if mp:
         found.append(f"{len(mp)} map{'s' if len(mp) != 1 else ''}")
+    pieces = (house3d or {}).get("pieces")
+    if isinstance(pieces, (dict, list)) and pieces:      # a list: a newer PadSpan's file
+        found.append(f"{len(pieces)} piece{'s' if len(pieces) != 1 else ''} of furniture")
     return found
 
 
@@ -156,6 +162,17 @@ def _live(hass: HomeAssistant, data_key: str) -> dict | None:
     obj = hass.data.get(DOMAIN, {}).get(data_key)
     d = getattr(obj, "data", None)
     return d if isinstance(d, dict) else None
+
+
+async def _live_house3d(hass: HomeAssistant) -> dict | None:
+    """Live Aboard's file as this install holds it: the store in memory once
+    something loaded it, else the file itself. Read here, never loaded, so an
+    install with the feature off still loads nothing (house3d_store.py)."""
+    live = _live(hass, DATA_HOUSE3D)
+    if live is not None:
+        return live
+    data = await asyncio.to_thread(_read_store_file, _storage_dir(hass) / HOUSE3D_STORE_KEY)
+    return data if isinstance(data, dict) else None
 
 
 async def async_status(hass: HomeAssistant) -> dict[str, Any]:
@@ -167,14 +184,17 @@ async def async_status(hass: HomeAssistant) -> dict[str, Any]:
         "available": bool(files),
         "files": sorted(files.keys()),
         "done_at": settings.get(DONE_KEY) or None,
-        "target_has": target_contents(_live(hass, DATA_FABRIC), _live(hass, DATA_MODEL), _live(hass, DATA_MAPS)),
+        "target_has": target_contents(_live(hass, DATA_FABRIC), _live(hass, DATA_MODEL), _live(hass, DATA_MAPS),
+                                      await _live_house3d(hass)),
         "source": {},
     }
     if files:
         src_fab = await asyncio.to_thread(_read_store_file, files["fabric"]) if "fabric" in files else None
         src_mdl = await asyncio.to_thread(_read_store_file, files["model"]) if "model" in files else None
         src_maps = await asyncio.to_thread(_read_store_file, files["maps"]) if "maps" in files else None
-        out["source"] = {"has": target_contents(src_fab, src_mdl, src_maps)}
+        src_h3 = await asyncio.to_thread(_read_store_file, files["house3d"]) if "house3d" in files else None
+        out["source"] = {"has": target_contents(src_fab, src_mdl, src_maps,
+                                                src_h3 if isinstance(src_h3, dict) else None)}
     return out
 
 
@@ -200,7 +220,8 @@ async def async_import(hass: HomeAssistant, backup: Any) -> dict[str, Any]:
 
     # 3. Refuse a non-empty target. From the LIVE stores — the truth this
     #    install is running on, not a file that may lag it.
-    has = target_contents(_live(hass, DATA_FABRIC), _live(hass, DATA_MODEL), _live(hass, DATA_MAPS))
+    has = target_contents(_live(hass, DATA_FABRIC), _live(hass, DATA_MODEL), _live(hass, DATA_MAPS),
+                          await _live_house3d(hass))
     if has:
         return {"ok": False, "error": "target_not_empty", "target_has": has,
                 "message": "This install already holds " + ", ".join(has)

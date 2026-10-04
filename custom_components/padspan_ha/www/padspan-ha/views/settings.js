@@ -3450,6 +3450,34 @@ function _atlas3dSection(ctx, el, settings){
   more.appendChild(row("North", [nInp, el("span",{style:"color:#94a3b8;font-size:12px"},"°"), preview]));
   more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
     "The same bearing the GPS Bridge uses. The arrow shows where it puts north on your plan."));
+  // Remove all furniture (admins; ws_house3d.house3d_clear only="pieces"): the
+  // server takes a backup first and removes nothing without one. Asked here
+  // in the page, the way Clear calibration asks above.
+  if (ctx.hass && ctx.hass.user && ctx.hass.user.is_admin) {
+    const rmWrap = el("span",{"data-la3d-rmfur":"", style:"display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center"});
+    const rmBtn = () => {
+      rmWrap.innerHTML = "";
+      rmWrap.appendChild(el("button",{class:"btn inline", style:"color:#f87171;border-color:#f8717140", onclick: ()=>{
+        rmWrap.innerHTML = "";
+        rmWrap.appendChild(el("span",{style:"font-size:12px;color:#fca5a5"}, "Remove every piece of furniture? A backup is taken first."));
+        rmWrap.appendChild(el("button",{class:"btn inline", style:"background:#7f1d1d;border-color:#dc2626;color:#fca5a5", onclick: async ()=>{
+          rmWrap.innerHTML = "";
+          rmWrap.appendChild(el("span",{style:"font-size:12px;color:#94a3b8"}, "Removing…"));
+          try {
+            const r = await ctx.actions.wsCall("padspan_ha/house3d_clear", { only: "pieces" });
+            ctx.toast(r && r.backup_id ? "All furniture removed. To bring it back, restore the backup taken just now (Backup & Restore)."
+              : "There was no furniture to remove.");
+          } catch (e) {
+            ctx.toast("Could not remove the furniture: " + String((e && e.message) || e), true);
+          }
+          rmBtn();
+        }}, "Remove all"));
+        rmWrap.appendChild(el("button",{class:"btn inline", style:"color:#94a3b8;border-color:#94a3b840", onclick: rmBtn}, "Cancel"));
+      }}, "Remove all furniture…"));
+    };
+    rmBtn();
+    more.appendChild(row("Furniture", [rmWrap]));
+  }
   if (onCb.checked) loadCompass();
   box.appendChild(more);
   onCb.addEventListener("change", ()=>{
