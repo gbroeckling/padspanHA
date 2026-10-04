@@ -108,7 +108,8 @@ def test_the_view_reads_the_file_only_through_its_host() -> None:
     hosts hand it over."""
     want = "import(`./live_aboard_draft.js${new URL(import.meta.url).search}`)"
     importers = sorted(p.name for p in _WWW.rglob("*.js") if "vendor" not in p.parts and want in _js(p))
-    assert importers == ["live_aboard.js", "live_aboard_house.js"], importers   # the house: the limits it draws within
+    # the house: the limits it draws within; Import (P7): doors and windows on the walls by the line tool's rules
+    assert importers == ["live_aboard.js", "live_aboard_house.js", "live_aboard_import.js"], importers
     la = _js(_VIEWS / "live_aboard.js")
     assert "if (fileLoad || typeof p.load !== \"function\") return;" in la
     assert "detach(){ try { fileLoad = null;" in la, "read again when the screen comes back to 3D"
