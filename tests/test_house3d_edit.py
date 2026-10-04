@@ -225,7 +225,7 @@ def test_a_bad_edit_is_refused_and_nothing_written(disk, tmp_path, name):
 
 def test_unknown_sections_and_too_many_changes_are_refused():
     with pytest.raises(H.EditError):
-        H.apply_edit(H.empty(), {"pieces": {"fur_1": {}}})
+        H.apply_edit(H.empty(), {"rooms3d": {"k": {}}})
     many = {f"light.l{i}": {"z_m": 1.0} for i in range(H.MAX_CHANGES + 1)}
     with pytest.raises(H.EditError, match="at most"):
         H.apply_edit(H.empty(), {"lights": many})

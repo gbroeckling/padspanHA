@@ -131,6 +131,8 @@ def test_the_box_saves_each_control_on_its_own() -> None:
     assert "import(`./fabric_compass.js${new URL(import.meta.url).search}`)" in sec
     for v in ('["auto", ', '["low", ', '["high", '):
         assert v in src[src.index("const _ATLAS_3D_QUALITY"):src.index("function _atlas3dSection(")], v
-    # The later phases' rows are not here yet.
-    for later in ("atlas_3d_people", "atlas_3d_ai_task_entity", "atlas_3d_library", "Remove all furniture"):
+    # P2's Remove all furniture (admins; the server backs up first); the
+    # later phases' rows are not here yet.
+    assert '"Remove all furniture…"' in sec and 'wsCall("padspan_ha/house3d_clear", { only: "pieces" })' in sec
+    for later in ("atlas_3d_people", "atlas_3d_ai_task_entity", "atlas_3d_library"):
         assert later not in sec, later

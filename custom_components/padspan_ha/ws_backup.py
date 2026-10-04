@@ -27,6 +27,7 @@ from .const import (
     MAPS_STORE_KEY,
     MODEL_STORE_KEY,
     FABRIC_STORE_KEY,
+    HOUSE3D_STORE_KEY,
 )
 from .build_info import BUILD_VERSION
 from .ws_common import _BACKUP_ONLY_ONCE_WRITTEN, _DATA_KEY_MAP, _MAX_AUTO_BACKUPS, _MAX_BACKUPS, _store_file_written
@@ -365,6 +366,11 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
         if selected_keys is not None and store_key not in selected_keys:
             continue
         try:
+            if store_key == HOUSE3D_STORE_KEY:
+                # Live Aboard's file: a backup with no furniture in it keeps
+                # the furniture placed since (house3d_store.async_restore_data).
+                from .house3d_store import async_restore_data
+                data = await async_restore_data(hass, data)
             st = _St(hass, 1, store_key)
             await st.async_save(data)
             restored += 1

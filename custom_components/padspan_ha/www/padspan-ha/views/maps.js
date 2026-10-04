@@ -5,7 +5,7 @@
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { BUY_URL: _LIC_BUY_URL, PRO_PRICE: _LIC_PRICE, LICENCE_PATH: _LIC_PATH } =
+const { BUY_URL: _LIC_BUY_URL, PRO_PRICE: _LIC_PRICE, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Shared pan/zoom viewport (gap #11, best-in-class roadmap) — extracted
 // from this file's own former _attachPanZoom, see pan_zoom.js's header.
@@ -110,6 +110,13 @@ export function render(ctx){
     ? [["library","Library"],["upload","Upload"]]
     : [["library","Library"],["upload","Upload"],["edit","Edit"],["stack","3D Stack"],["rooms","Rooms"],["lights","Atlas"],["export","Export"],["help","Help"]];
 
+  // Live Aboard's Furnish (P2), after Atlas: only while Live Aboard shows (the
+  // switch on, at Pro or Bright Pro). Otherwise there is no such tab, the way
+  // Basic leaves tabs out, and nothing of it is loaded.
+  const furnishTab = !isBasic && ctx.state.settings?.atlas_3d_enabled === true && _tierAtLeast(ctx.state.settings?.tier, "pro");
+  if (furnishTab) tabDefs.splice(tabDefs.findIndex(([id]) => id === "lights") + 1, 0, ["furnish", "Furnish"]);
+  else if (tab === "furnish") ctx.state.mapsTab = "lights";
+
   // If current tab is not in basic tab list, reset to library
   if(isBasic && tab !== "library" && tab !== "upload"){
     ctx.state.mapsTab = "library";
@@ -145,6 +152,7 @@ export function render(ctx){
     activeTab==="stack" ? _stack(ctx, maps, helpBtn) :
     activeTab==="rooms" ? _roomsTab(ctx, maps) :
     activeTab==="lights" ? _lightsTab(ctx, maps, active) :
+    activeTab==="furnish" ? _lightsTab(ctx, maps, active) :
     activeTab==="export" ? _export(ctx, active, maps) :
     _help(ctx),
   ]);
@@ -8506,6 +8514,8 @@ function _lightsTourCard(ctx, wrap, paid){
 // itself is entity-registry-wide, not per-map.
 function _lightsTab(ctx, maps, active) {
   const { el } = ctx.helpers;
+  // Mapping → Furnish (P2) is this tab's card with its 3D house in the Furnish tool.
+  const furnish = ctx.state.mapsTab === "furnish";
   const mapState = ctx.state.maps;
   const wrap = el("div", {});
   if (!mapState._lightsDraftM) mapState._lightsDraftM = {};
@@ -9363,6 +9373,10 @@ function _lightsTab(ctx, maps, active) {
     house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ? {
       slot: "builder", settings: ctx.state.settings,
       states: ctx.hass?.states || {}, config: ctx.hass?.config || null,
+      // Mapping → Furnish (P2): the Furnish tool open, and what its flows and
+      // "This is a device…" need: the connection, a toast, the entity registry.
+      furnish, entities: ctx.hass?.entities || null, toast: (t, bad) => ctx.toast(t, bad),
+      callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); },
       // The 3D compass's Save: fabric_bearing_deg alone, straight to the wire
       // like the Settings box (settingsSet would re-render everything).
       saveNorth: async (b) => {
@@ -9712,6 +9726,14 @@ function _lightsTab(ctx, maps, active) {
     },
   };
   const mapCardEl = buildLightsMapCard(host);
+  // Mapping → Furnish (P2): the same card, its 3D house in the Furnish tool;
+  // the light-placement tools are this tab's, not Furnish's.
+  if (furnish) {
+    return el("div", {}, [
+      el("div", { class: "card", style: "padding:10px 12px;margin-bottom:12px;font-size:12.5px;line-height:1.5" },
+        "Furnish Live Aboard: Build adds a piece; drag it into place. Floor ▲ / ▼ moves it to another floor, and Height in room raises it onto a table, a shelf or a wall. Nothing is kept until Save."),
+      mapCardEl]);
+  }
   // The drafting grid on the stage says "editing" without a word.
   if (paid && !preview) { const stage = mapCardEl.querySelector(".lv-stage"); if (stage) stage.classList.add("editing"); }
   // Layout v2 (Garry, 2026-09-21, "get it done"): on a wide enough monitor

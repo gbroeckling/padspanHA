@@ -41,6 +41,11 @@ const USE = await import(`./live_aboard_use.js${new URL(import.meta.url).search}
 const DRAFT = await import(`./live_aboard_draft.js${new URL(import.meta.url).search}`);
 // The 3D editor (Door, Window, Heights), for those who may place lights.
 const EDIT = await import(`./live_aboard_edit.js${new URL(import.meta.url).search}`);
+// P2 Furnish: furniture's rules, the pieces drawn and the Furnish tool, and
+// the builders that draw each piece (missing or broken: every piece a box).
+const PIECES = await import(`./live_aboard_pieces.js${new URL(import.meta.url).search}`);
+const FURNISH = await import(`./live_aboard_furnish.js${new URL(import.meta.url).search}`);
+const FURN = await import(`./live_aboard_furniture.js${new URL(import.meta.url).search}`).catch(() => null);
 const NO_FILE = DRAFT.ownedOf(null);
 // P8 atmosphere: rain and snow (the flat Atlas's own weather, drawn here).
 // Optional: a module that fails to load leaves the house as it was.
@@ -272,6 +277,16 @@ function createSlot(slotKey){
   // The Showcase look as drawn (live_aboard_showcase.js): Classic, today's
   // look, unless "Use the Atlas's Showcase look" is on.
   let lookKey = "classic", theme3d = LOOKS ? LOOKS.lookOf("classic") : null;
+  // Furniture (P2 Furnish, live_aboard_furnish.js): every piece drawn on its
+  // floor (layer). furnishP: what the Furnish tool needs of the host (its
+  // connection, toast, settings, states), from the newest card; topCb: the
+  // host's floor chips, which a piece moved up or down a floor follows.
+  let layer = null, furnishP = null, topCb = null;
+  // Furnish shows a plan beside the 3D view on a wide screen, drawn by the
+  // same renderer in its own viewport; on a phone, Plan or 3D. The plan looks
+  // straight down at the top floor showing.
+  let furnishOn = false, planOnly = false, planCam = null, planSeg = null;
+  const plan = { cx: 0, cy: 0, half: 6, fit: true };
 
   // ── failing back to the flat Atlas ────────────────────────────────────────
   function showFlat(){
@@ -285,6 +300,8 @@ function createSlot(slotKey){
     use = null;
     try { if (editor) editor.dispose(); } catch (_) { /* gone with the view */ }
     editor = null;
+    try { if (layer) layer.dispose(); } catch (_) { /* gone with the view */ }
+    layer = null; furnishP = null; topCb = null;
     for (const o of observers) { try { o(); } catch (_) { /* gone */ } }
     observers = [];
     disposeList(shellRes); disposeList(lightRes); disposeList(sensorRes); disposeList(badgeRes);
@@ -351,6 +368,11 @@ function createSlot(slotKey){
     ]);
     views.setAttribute("data-la3d-views", "");
     bar.appendChild(walls); bar.appendChild(views);
+    // Furnish on a narrow screen: the plan or the 3D view (a wide one shows both).
+    planSeg = seg(null, [["3D", "The house in 3D", () => setPlanOnly(false)], ["Plan", "Straight down on the floor showing", () => setPlanOnly(true)]]);
+    planSeg.setAttribute("data-la3d-plan", "");
+    planSeg.style.display = "none";
+    bar.appendChild(planSeg);
     root.appendChild(bar);
     // The compass: N is true north (settings.fabric_bearing_deg), and it
     // turns with the camera. A tap turns the house to north up.
@@ -439,6 +461,11 @@ function createSlot(slotKey){
       frame: () => { if (!pending && !failed && renderer) { pending = true; requestAnimationFrame(frame); } },
       cursor: (on) => { canvas.style.cursor = on ? "pointer" : ""; },
     });
+    // Furniture (P2): every piece drawn on its floor, in every view.
+    layer = FURNISH.createPieceLayer({ THREE, PIECES, FURN: () => FURN, floors: () => floorsUi, blobTex: shared.blobTex,
+      canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)), quality: () => (profileOf().pbr ? "high" : "low") });
+    planCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
+    planCam.up.set(0, 0, -1);                                // the plan as drawn: its top up
     // The 3D editor: its page in this element, its marks in this scene, its
     // presses handed over by wirePointer while it is open.
     editor = EDIT.createEditor({
@@ -449,6 +476,10 @@ function createSlot(slotKey){
       saved: (data) => { file = DRAFT.ownedOf(data); setFileErr(DRAFT.writable(data) ? null : "house3d_newer"); },
       redraw: () => redraw(), preview: (t) => preview(t), render: () => requestRender(), topDown: (F) => topDownOn(F),
       clearUse: () => { if (use) use.clear(); },
+      // P2 Furnish: its tool, the furniture drawn, and where on screen each view is.
+      FURNISH, PIECES, FURN: () => FURN, layer, rect: () => view3Rect(), viewAt: (x, y) => viewAt(x, y),
+      centre: () => [cam.target.x, cam.target.z], setTopFloor: (fid) => { if (topCb) topCb(fid); }, host: () => furnishP,
+      base: new URL(import.meta.url).search,
     });
     wirePointer();
     wireObservers();
@@ -470,6 +501,8 @@ function createSlot(slotKey){
         sphere: new THREE.SphereGeometry(1, 14, 10),
       },
       glowTex, aoTex: rampTexture(),
+      // A soft round shadow under furniture on Low (live_aboard_furnish.js).
+      blobTex: radialTexture([[0, "rgba(255,255,255,1)"], [0.55, "rgba(255,255,255,0.55)"], [1, "rgba(255,255,255,0)"]]),
       bulbMat: new THREE.MeshBasicMaterial({ color: 0xffffff }),
       // Part B: an unlocked lock's flash (every one in step, as on the
       // Atlas), the motion ring, and the air bars' stripe.
@@ -1417,6 +1450,7 @@ function createSlot(slotKey){
       if (o.userData && o.userData.spec) o.material = mat(o.userData.spec);
     });
     for (const F of floorsUi) if (F.ao) F.ao.visible = !!Q.ao;
+    if (layer) layer.sync(viewData().pieces);              // furniture's finishes and shadows go with the profile
     lampsDirty = true;
     resize();
   }
@@ -1456,7 +1490,7 @@ function createSlot(slotKey){
   const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2(), _plane = new THREE.Plane();
   /** The world point on the plane y = h under a screen point, or null. */
   function groundAt(clientX, clientY, h){
-    const r = canvas.getBoundingClientRect();
+    const r = view3Rect();
     if (!r.width || !r.height) return null;
     _ndc.set((clientX - r.left) / r.width * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
     camera.updateMatrixWorld();
@@ -1533,7 +1567,7 @@ function createSlot(slotKey){
       if (pts.size === 2) {
         if (press) { press = null; use.cancel(); }           // a second finger: a pinch, never a press
         if (mode === "edit" || mode === "editTap") editor.cancel();   // ...and never a line
-        mode = "pinch"; pinch = mid(); return;
+        mode = "pinch"; pinch = mid(); pinch.plan = planHere(pinch.x, pinch.y); return;
       }
       mode = e.pointerType === "mouse" && (e.button === 2 || e.button === 1 || e.shiftKey || e.ctrlKey || e.metaKey) ? "pan" : "orbit";
       last = { x: e.clientX, y: e.clientY };
@@ -1546,6 +1580,8 @@ function createSlot(slotKey){
         else if (g === "tap") mode = "editTap";
         return;
       }
+      // Furnish's plan: one finger or the mouse moves the plan (it never turns).
+      if ((mode === "orbit" || mode === "pan") && planHere(e.clientX, e.clientY)) { mode = "planPan"; return; }
       // A press on something in the house (live_aboard_use.js). Moved
       // before it is held, it is no press: the drag turns the house, from
       // where it began.
@@ -1576,12 +1612,19 @@ function createSlot(slotKey){
       if (mode === "edit") { editor.move(e); return; }
       if (mode === "editTap") {
         if (Math.hypot(e.clientX - last.x, e.clientY - last.y) <= 6) return;
-        editor.cancel(); mode = "orbit";                     // moved: no pick, the drag turns the house from where it began
+        editor.cancel();                                     // moved: no pick, the drag turns the house from where it began
+        mode = planHere(last.x, last.y) ? "planPan" : "orbit";   // (or moves Furnish's plan)
+      }
+      if (mode === "planPan") {
+        planPanBy(e.clientX - last.x, e.clientY - last.y);
+        last = { x: e.clientX, y: e.clientY };
+        return;
       }
       if (mode === "pinch" && pts.size === 2) {
         const now = mid();
-        if (pinch.d > 0 && now.d > 0) zoomAt(now.x, now.y, pinch.d / now.d);
-        panBy(pinch.x, pinch.y, now.x, now.y);
+        now.plan = pinch.plan;
+        if (now.plan) { if (pinch.d > 0 && now.d > 0) planZoomAt(now.x, now.y, pinch.d / now.d); planPanBy(now.x - pinch.x, now.y - pinch.y); }
+        else { if (pinch.d > 0 && now.d > 0) zoomAt(now.x, now.y, pinch.d / now.d); panBy(pinch.x, pinch.y, now.x, now.y); }
         pinch = now;
         e.preventDefault();
         return;
@@ -1604,7 +1647,7 @@ function createSlot(slotKey){
       try { canvas.releasePointerCapture(e.pointerId); } catch (_) { /* fine */ }
       if (pts.size === 1) {                                  // one finger left of a pinch: carry on turning from it
         const [p] = [...pts.values()];
-        mode = "orbit"; last = { x: p.x, y: p.y }; pinch = null;
+        mode = planHere(p.x, p.y) ? "planPan" : "orbit"; last = { x: p.x, y: p.y }; pinch = null;
       } else if (!pts.size) { mode = null; last = null; pinch = null; if (unfollow) unfollow(); }
     });
     canvas.addEventListener("pointerup", lift);
@@ -1622,7 +1665,8 @@ function createSlot(slotKey){
     canvas.addEventListener("wheel", guard((e) => {
       e.preventDefault();
       const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
-      zoomAt(e.clientX, e.clientY, Math.exp(Math.max(-200, Math.min(200, dy)) * 0.0015));
+      const f = Math.exp(Math.max(-200, Math.min(200, dy)) * 0.0015);
+      if (planHere(e.clientX, e.clientY)) planZoomAt(e.clientX, e.clientY, f); else zoomAt(e.clientX, e.clientY, f);
       if (use && !pts.size && !(editor && editor.active)) use.hover(e);   // what is under the cursor now
     }), { passive: false });
   }
@@ -1722,7 +1766,7 @@ function createSlot(slotKey){
   }
   function pickAt(clientX, clientY){
     if (!renderer || failed || !house) return null;
-    const rect = canvas.getBoundingClientRect();
+    const rect = view3Rect();
     if (!rect.width || !rect.height) return null;
     camera.updateMatrixWorld();
     const dist = (v) => { const s = screenPt(v, rect); return s ? Math.hypot(s[0] - clientX, s[1] - clientY) : Infinity; };
@@ -1785,7 +1829,7 @@ function createSlot(slotKey){
   /** Where a target is, in px from the view's own corner (for its marks). */
   function screenOf(t){
     if (!renderer || !root) return null;
-    const rect = canvas.getBoundingClientRect(), r0 = root.getBoundingClientRect();
+    const rect = view3Rect(), r0 = root.getBoundingClientRect();
     const ox = r0.left + (root.clientLeft || 0), oy = r0.top + (root.clientTop || 0);
     if (t.anchor) { const s = screenPt(t.anchor, rect); return s ? { x: s[0] - ox, y: s[1] - oy } : null; }
     if (t.quad) {
@@ -1827,7 +1871,21 @@ function createSlot(slotKey){
       lastAmbient = t;
       sizeSprites();
       if (lampsDirty || lampTarget.distanceToSquared(cam.target) > 1) assignLamps();
-      renderer.render(scene, camera);
+      const vp = viewports();
+      if (!vp.plan) renderer.render(scene, camera);
+      else {
+        // Furnish: the 3D view and the plan, each in its own part of the one canvas.
+        fitPlan();
+        renderer.setScissorTest(true);
+        for (const [r, c] of [[vp.d3, camera], [vp.plan, planCam]]) {
+          if (!r) continue;
+          renderer.setViewport(r[0], drawnH - r[1] - r[3], r[2], r[3]);
+          renderer.setScissor(r[0], drawnH - r[1] - r[3], r[2], r[3]);
+          renderer.render(scene, c);
+        }
+        renderer.setScissorTest(false);
+        renderer.setViewport(0, 0, drawnW, drawnH);
+      }
       paintCompass();
       if (use) { if (rehoverDue) { rehoverDue = false; use.rehover(); } use.layout(); }
       if (editor) editor.layout();
@@ -1846,15 +1904,102 @@ function createSlot(slotKey){
     }
     if ((liveMs || more) && !pending) { pending = true; requestAnimationFrame(frame); }
   });
-  function resize(){
+  // ── Furnish: the plan beside the 3D view (P2) ─────────────────────────────
+  // Wide enough, the canvas is two views from the one renderer: the house in
+  // 3D on the left, the plan of the top floor showing on the right. Narrower,
+  // one of them, picked with Plan / 3D. Everything else draws, picks and
+  // turns the 3D view in its own part (view3Rect).
+  const SPLIT_MIN_W = 820, SPLIT_K = 0.58;
+  /** Each view's part of the canvas, in CSS px from its top left [x, y, w, h], or null. */
+  function viewports(){
+    const w = drawnW, h = drawnH;
+    if (!furnishOn || !w) return { d3: [0, 0, w, h], plan: null };
+    if (w >= SPLIT_MIN_W) { const w3 = Math.round(w * SPLIT_K); return { d3: [0, 0, w3, h], plan: [w3, 0, w - w3, h] }; }
+    return planOnly ? { d3: null, plan: [0, 0, w, h] } : { d3: [0, 0, w, h], plan: null };
+  }
+  function rectOf(vp){
+    const r = canvas.getBoundingClientRect(), v = vp || [0, 0, 0, 0];
+    return { left: r.left + v[0], top: r.top + v[1], width: v[2], height: v[3], right: r.left + v[0] + v[2], bottom: r.top + v[1] + v[3] };
+  }
+  /** The 3D view's own part of the canvas: all of it, except beside Furnish's plan. */
+  const view3Rect = () => (furnishOn ? rectOf(viewports().d3) : canvas.getBoundingClientRect());
+  /** The view under a screen point, with its camera (the editor's Furnish tool picks through it). */
+  function viewAt(x, y){
+    const vp = viewports(), inR = (r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    if (vp.plan) { const r = rectOf(vp.plan); if (inR(r)) { fitPlan(); return { camera: planCam, rect: r, plan: true }; } }
+    if (vp.d3) { const r = rectOf(vp.d3); if (inR(r)) return { camera, rect: r, plan: false }; }
+    return null;
+  }
+  const planHere = (x, y) => { const v = viewAt(x, y); return !!(v && v.plan); };
+  /** The top floor showing, indoors (the editor's currentFloor). */
+  const topFloorUi = () => floorsUi.filter(F => F.group.visible && !F.fl.outdoor && F.rooms.length).sort((a, b) => b.fl.elev - a.fl.elev)[0] || null;
+  /** The plan's camera: straight down on the top floor showing, fitted to
+   *  its rooms until someone pans or zooms it. */
+  function fitPlan(){
+    const vp = viewports().plan;
+    if (!vp || !planCam || !vp[3]) return;
+    const F = topFloorUi(), a = vp[2] / vp[3];
+    if (plan.fit && F) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const r of F.rooms) for (const p of r.pts) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
+      if (Number.isFinite(x0)) { plan.cx = (x0 + x1) / 2; plan.cy = (y0 + y1) / 2; plan.half = Math.max(1.5, (y1 - y0) / 2, (x1 - x0) / 2 / a) * 1.1; }
+    }
+    const top = (F ? F.fl.elev + F.fl.h : houseBox.z1) + 30;
+    planCam.left = -plan.half * a; planCam.right = plan.half * a; planCam.top = plan.half; planCam.bottom = -plan.half;
+    planCam.near = 1; planCam.far = top - houseBox.z0 + 10;
+    planCam.position.set(plan.cx, top, plan.cy);
+    planCam.lookAt(plan.cx, top - 10, plan.cy);
+    planCam.updateProjectionMatrix();
+    planCam.updateMatrixWorld();
+  }
+  function planPanBy(dx, dy){
+    const vp = viewports().plan;
+    if (!vp || !vp[3]) return;
+    const k = 2 * plan.half / vp[3];
+    plan.fit = false; plan.cx -= dx * k; plan.cy -= dy * k;
+    requestRender();
+  }
+  function planZoomAt(x, y, f){
+    const vp = viewports().plan;
+    if (!vp || !vp[3]) return;
+    const r = rectOf(vp), k = 2 * plan.half / vp[3];
+    const px = plan.cx + (x - (r.left + r.width / 2)) * k, py = plan.cy + (y - (r.top + r.height / 2)) * k;
+    const h = Math.max(1, Math.min(200, plan.half * f)), s = h / plan.half;
+    plan.fit = false; plan.cx = px + (plan.cx - px) * s; plan.cy = py + (plan.cy - py) * s; plan.half = h;
+    requestRender();
+  }
+  /** Mapping → Furnish on or off (attach): the plan comes or goes. */
+  function setFurnishView(on){
+    if (furnishOn === on) return;
+    furnishOn = on; planOnly = false; plan.fit = true;
+    resize(true);
+  }
+  function setPlanOnly(on){
+    if (planOnly === !!on) return;
+    planOnly = !!on; plan.fit = true;
+    resize(true);
+  }
+  function paintPlan(){
+    if (!planSeg) return;
+    const narrow = furnishOn && drawnW > 0 && drawnW < SPLIT_MIN_W, vp = viewports();
+    // Furnish's panel keeps to the 3D side, clear of the plan (live_aboard_furnish.js).
+    root.style.setProperty("--la3d-plan-w", `${vp.plan && vp.d3 ? vp.plan[2] : 0}px`);
+    planSeg.style.display = narrow ? "" : "none";
+    const bs = planSeg.querySelectorAll("button");
+    if (bs[0]) bs[0].setAttribute("aria-pressed", String(!planOnly));
+    if (bs[1]) bs[1].setAttribute("aria-pressed", String(planOnly));
+  }
+  function resize(force = false){
     if (!renderer || !root) return;
     const w = root.clientWidth, h = root.clientHeight;
     if (!w || !h) return;                                    // detached for a moment between two cards
-    if (w === drawnW && h === drawnH) return;                // moved into a new card at the same size: nothing to draw
+    if (!force && w === drawnW && h === drawnH) return;      // moved into a new card at the same size: nothing to draw
     drawnW = w; drawnH = h;
     renderer.setSize(w, h, false);
-    camera.aspect = w / h;
+    const d3 = viewports().d3;                               // Furnish's plan may take part of it
+    camera.aspect = (d3 ? d3[2] : w) / h;
     camera.updateProjectionMatrix();
+    paintPlan();
     requestRender();
   }
   function wireObservers(){
@@ -1939,7 +2084,8 @@ function createSlot(slotKey){
   function preview(t){
     if (!renderer || failed || !t) return false;
     const vd = viewData();
-    const ok = t.opening ? moveOpening(String(t.opening), vd) : t.eid ? moveDevice(String(t.eid), vd) : false;
+    const ok = t.opening ? moveOpening(String(t.opening), vd) : t.eid ? moveDevice(String(t.eid), vd)
+      : t.piece && layer ? layer.move(String(t.piece), (vd.pieces || {})[String(t.piece)]) : false;
     if (ok) { work.moves++; requestRender(); }
     return ok;
   }
@@ -2061,12 +2207,14 @@ function createSlot(slotKey){
     const sSig = mSig + DRAFT.openingsSignature(vd);
     const lSig = mlSig + DRAFT.heightsSignature(vd, "lights");
     const xSig = mxSig + DRAFT.heightsSignature(vd, "devices");
+    let rebuilt = false;
     if (sSig !== shellSig || lSig !== lightsSig || xSig !== sensorsSig) {
       // The map is read again only when it changed; the 3D file's doors and
       // windows are cut into a copy of its walls.
       const rSig = [mSig, mlSig, mxSig].join("|");
       if (rSig !== readSig) { reading = HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden); readSig = rSig; work.reads++; }
       const shell = sSig !== shellSig;
+      rebuilt = shell;
       if (shell) { buildShell(DRAFT.applyOpenings(HOUSE.readingCopy(reading), vd.openings)); buildBadges(p); shellSig = sSig; }
       else house = { ...house, lights: reading.lights, sensors: reading.sensors };
       if (shell || lSig !== lightsSig) {
@@ -2077,10 +2225,12 @@ function createSlot(slotKey){
       if (shell || xSig !== sensorsSig) { buildSensors(house); sensorsSig = xSig; }
       requestRender();
     }
+    // Furniture (P2): each piece on its floor, from the draft while editing.
+    if (layer && layer.sync(vd.pieces, rebuilt)) requestRender();
     paintLights(p.lightsByEid);
     paintLive();
     const t = HOUSE.topFloorElev(house.floors, p.topFloorIds || null);
-    if (t !== topElev) { topElev = t; applyTop(); requestRender(); }
+    if (t !== topElev) { topElev = t; plan.fit = true; applyTop(); requestRender(); }
     applySun(p);
     if (setting !== quality.setting || (!quality.profile && !quality.measuring)) {
       quality.setting = setting; quality.measured = {}; quality.profile = null;
@@ -2127,7 +2277,14 @@ function createSlot(slotKey){
         if (!renderer && !start(HOUSE.qualitySetting(p.quality))) return false;
         loadFile(p);
         if (editor) editor.setEdit(typeof p.edit === "function" ? p.edit : null);
+        // Mapping → Furnish (P2): the plan beside the 3D view and the Furnish
+        // tool open. p.furnish is the host's own for the tool (its flows and
+        // "This is a device…"), handed through: the view calls nothing itself.
+        furnishP = p.furnish && typeof p.furnish === "object" ? { ...p.furnish, states: p.states || null } : null;
+        topCb = typeof p.setTopFloor === "function" ? p.setTopFloor : null;
+        setFurnishView(!!furnishP);
         update(p);
+        if (editor) editor.setFurnish(!!furnishP);           // after update: a file read needs the card's data
         if (failed) return false;
         place(s);
         return !failed;
@@ -2182,7 +2339,23 @@ function createSlot(slotKey){
                                tiles: floorsUi.reduce((a, F) => a + (F.tiles ? F.tiles.geometry.attributes.color.array.reduce((s, v) => s + v, 0) : 0), 0),
                                halos: floorsUi.reduce((a, F) => a + Object.values(F.halos || {})
                                  .reduce((s, h) => s + h.geometry.attributes.color.array.reduce((u, v) => u + v, 0), 0), 0) } : null,
-               weather: wx ? wx._state() : null };
+               weather: wx ? wx._state() : null,
+               // P2 Furnish: the furniture as drawn, and the views.
+               pieces: layer ? layer.state() : [], furnish: furnishOn,
+               split: furnishOn ? (viewports().plan ? (viewports().d3 ? "both" : "plan") : "3d") : null, plan: { ...plan } };
+    },
+    /** The Furnish tool (the harness builds a piece of any kind through it). */
+    _furnish(){ return editor ? editor.furnish : null; },
+    /** A piece's middle (dz metres above its bottom) on screen, in the 3D view or the plan. */
+    _wherePiece(id, dz = 0.3, inPlan = false){
+      const r = layer && layer.rootOf(id), vp = inPlan ? viewports().plan : viewports().d3;
+      if (!r || !vp) return null;
+      if (inPlan) fitPlan();
+      const c = inPlan ? planCam : camera, rect = rectOf(vp), v = r.position.clone();
+      v.y += dz;
+      c.updateMatrixWorld();
+      v.project(c);
+      return [rect.left + (v.x + 1) / 2 * rect.width, rect.top + (1 - v.y) / 2 * rect.height];
     },
     /** The weather (the harness reads its drops). */
     _weather(){ return wx; },
@@ -2201,7 +2374,14 @@ function createSlot(slotKey){
         .map(P => ({ kind: P.pc.kind, els: P.els.map(e => [e.z0, e.z1, !!e.glass]) })));
     },
     /** A plan point on floor `fid`, z metres up, in client px (the harness draws there). */
-    _whereOf(fid, x, y, z = 1){ return editor ? editor.whereOf(fid, x, y, z) : null; },
+    _whereOf(fid, x, y, z = 1, inPlan = false){
+      if (!inPlan) return editor ? editor.whereOf(fid, x, y, z) : null;
+      const F = floorsUi.find(q => q.fl.id === fid), vp = viewports().plan;
+      if (!F || !vp) return null;
+      fitPlan();
+      const rect = rectOf(vp), v = new THREE.Vector3(x, F.fl.elev + z, y).project(planCam);
+      return [rect.left + (v.x + 1) / 2 * rect.width, rect.top + (1 - v.y) / 2 * rect.height];
+    },
     /** Put the camera somewhere (the harness frames a shot). */
     _look(theta, phi, target, radius){
       cam.moved = true; cam.needsFit = false;
@@ -2212,7 +2392,7 @@ function createSlot(slotKey){
      *  {eid} a device's nearest point, {room}, {door: eid}, {floor: z}. */
     _where(q){
       if (!renderer || !camera) return null;
-      const rect = canvas.getBoundingClientRect(), at = (v) => screenPt(v, rect);
+      const rect = view3Rect(), at = (v) => screenPt(v, rect);
       camera.updateMatrixWorld();
       if (q.floor !== undefined) { const B = badges.find(x => x.z === String(q.floor)); return B ? at(B.pos) : null; }
       if (q.room) {

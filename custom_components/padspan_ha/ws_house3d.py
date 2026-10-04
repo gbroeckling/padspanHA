@@ -16,10 +16,12 @@ library commands, each refused while the feature is off.
 - house3d_clear: admin only, refused while the feature is off and below Pro
   (as if off), and takes an automatic backup of the file first. No backup, no
   clear. A file that was never written has nothing to clear: no backup, no
-  write.
-- house3d_edit: the 3D editor's Save (P1 part C): its whole draft — doors
-  and windows drawn on walls, a barrier's hinge, swing, sill and head, and
-  3D-only heights of lights and other devices — checked, then written in one
+  write. With only="pieces" it is "Remove all furniture" (P2): every piece
+  goes and every other section stays; no furniture, nothing to remove.
+- house3d_edit: the 3D editor's Save (P1 part C, P2 Furnish): its whole
+  draft — doors and windows drawn on walls, a barrier's hinge, swing, sill
+  and head, 3D-only heights of lights and other devices, and furniture —
+  checked, then written in one
   store write, or not at all. The light-placement gate (ws_fabric: any user,
   no admin, at the paid tier), inside the Pro-only feature: refused while off
   and below Pro, as if off. The first Save creates the file; from then on
@@ -73,10 +75,11 @@ async def ws_house3d_get(hass: HomeAssistant, connection, msg) -> None:
                                        "writable": writable(store.data), "counts": store.counts()})
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/house3d_clear"})
+@websocket_api.websocket_command({"type": "padspan_ha/house3d_clear", vol.Optional("only"): vol.In(("pieces",))})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_house3d_clear(hass: HomeAssistant, connection, msg) -> None:
+    furniture = msg.get("only") == "pieces"      # "Remove all furniture": the other sections stay
     if not enabled(hass):
         connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
         return
@@ -91,19 +94,21 @@ async def ws_house3d_clear(hass: HomeAssistant, connection, msg) -> None:
             connection.send_error(msg["id"], NEWER_CODE, NEWER_MESSAGE)
             return
         from .house3d_store import async_file_exists  # noqa: PLC0415
-        if not await async_file_exists(hass):
-            # Never written: nothing to remove. No backup (an empty one would push
-            # a real safety backup out of the three kept) and no new file.
-            store.data = {}
+        if (furniture and not store.data["pieces"]) or not await async_file_exists(hass):
+            # Never written, or no furniture to remove: nothing to remove. No
+            # backup (an empty one would push a real safety backup out of the
+            # three kept) and no new file.
+            store.data = {**store.data, "pieces": {}} if furniture else {}
             connection.send_result(msg["id"], {"cleared": True, "backup_id": None})
             return
         from .ws_backup import _auto_backup  # noqa: PLC0415
-        backup_id = await _auto_backup(hass, "Before removing everything in the 3D house", [HOUSE3D_STORE_KEY])
+        backup_id = await _auto_backup(hass, "Before removing all furniture in the 3D house" if furniture
+                                       else "Before removing everything in the 3D house", [HOUSE3D_STORE_KEY])
         if not backup_id:
             connection.send_error(msg["id"], "backup_failed",
                                   "Could not take the safety backup — nothing was removed.")
             return
-        if not await store.async_write(empty()):
+        if not await store.async_write({**store.data, "pieces": {}} if furniture else empty()):
             connection.send_error(msg["id"], "save_failed",
                                   "Could not empty the 3D house file. Nothing was removed; the safety backup is kept.")
             return
@@ -115,10 +120,11 @@ async def ws_house3d_clear(hass: HomeAssistant, connection, msg) -> None:
     vol.Optional("openings"): dict,
     vol.Optional("lights"): dict,
     vol.Optional("devices"): dict,
+    vol.Optional("pieces"): dict,
 })
 @websocket_api.async_response
 async def ws_house3d_edit(hass: HomeAssistant, connection, msg) -> None:
-    """Save the 3D editor's draft: {openings, lights, devices}, each
+    """Save the 3D editor's draft: {openings, lights, devices, pieces}, each
     {key: entry to set | None to remove}. Returns the whole file."""
     if not enabled(hass):
         connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)

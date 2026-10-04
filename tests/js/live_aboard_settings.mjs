@@ -45,11 +45,11 @@ const S = await import(pathToFileURL(join(VIEWS, "settings.js")).href);
 // A save's promise chain, run to the end.
 const settle = async () => { await flush(); await new Promise(r => globalThis._realSetTimeout(r, 5)); };
 
-function settingsPage(settings, { refuse = false } = {}) {
-  const sent = [];
+function settingsPage(settings, { refuse = false, admin = true } = {}) {
+  const sent = [], ws = [], toasts = [];
   let rerenders = 0;
   const ctx = {
-    hass: { user: { is_admin: true }, states: {} },
+    hass: { user: { is_admin: admin }, states: {} },
     state: { view: "settings", complexity: "advanced", _settingsTab: "ui", model: { floors: [], areas: [], room_geometry_m: {
       Kitchen: { type: "poly", floor_id: "main", points_m: [[0, 0], [6, 0], [6, 2], [0, 2]] },
       Garage: { type: "poly", floor_id: "main", points_m: [[0, 4], [6, 4], [6, 6], [0, 6]] },
@@ -59,13 +59,13 @@ function settingsPage(settings, { refuse = false } = {}) {
       { get: (t, k) => (k in t ? t[k] : noop) }),
     actions: new Proxy({ settingsSet: async () => { rerenders++; return {}; },
       wsCall: async (type, data = {}) => {
-        if (type !== "padspan_ha/settings_set") return {};
+        if (type !== "padspan_ha/settings_set") { ws.push([type, data]); return { cleared: true, backup_id: "bk_1" }; }
         sent.push(data);
         if (refuse) throw new Error("refused");
         return { settings: { ...ctx.state.settings, ...data } };
       }, renderRooms() {}, renderNav() {} },
       { get: (t, k) => (k in t ? t[k] : () => {}) }),
-    toast() {},
+    toast(text, isError) { toasts.push([text, !!isError]); },
   };
   const root = S.render(ctx);
   const box = root._all().find(n => n.children && n.children.some(c => c.textContent === "🏠 3D house"));
@@ -77,7 +77,7 @@ function settingsPage(settings, { refuse = false } = {}) {
   const north = all.find(n => n.localName === "input" && n.getAttribute("type") === "number");
   const needle = all.find(n => n.attributes && "data-la3d-north" in n.attributes);
   const polys = all.filter(n => n.localName === "polygon").map(n => n.getAttribute("points"));
-  return { ctx, sent, box, cb, sel, more, north, needle, polys, rerenders: () => rerenders,
+  return { ctx, sent, ws, toasts, box, cb, sel, more, north, needle, polys, rerenders: () => rerenders,
            text: box.textContent, options: sel ? sel.children.map(o => [o.getAttribute("value"), o.textContent]) : [] };
 }
 
@@ -88,7 +88,8 @@ try {
     off.cb && off.cb.checked === false && off.more && off.more.style.display === "none"
     && off.sel && off.more.contains(off.sel) && off.north && off.more.contains(off.north)
     && /Adds a Map \/ 3D switch to the Atlas/.test(off.text) && /Off by default\./.test(off.text)
-    && /Show the 3D house on the Atlas/.test(off.text) && !/people|AI Task|library|furniture/i.test(off.text), { text: off.text });
+    && /Show the 3D house on the Atlas/.test(off.text) && !/people|AI Task|library|furniture/i.test(off.text.replace(off.more.textContent, "")),
+    { text: off.text });
   await settle();
   const offNeedle = off.needle && off.needle.getAttribute("visibility");
   check("box: Quality is Auto / Low / High",
@@ -153,6 +154,31 @@ try {
   }
   check("gate: the box shows at Pro in either edition, never below", JSON.stringify(gate) === JSON.stringify({
     "full/pro": true, "bright/pro": true, "full/bright": false, "bright/bright": false, "full/free": false, "bright/free": false, "full/undefined": false }), gate);
+  // Remove all furniture: admins only, once on; asked in the page; the
+  // server takes the backup (ws_house3d.house3d_clear only="pieces").
+  const btns = (pg) => pg.box._all().filter(b => b.localName === "button");
+  const btn = (pg, text) => btns(pg).find(b => b.textContent === text);
+  const rm = settingsPage({ atlas_3d_enabled: true });
+  const rmRow = rm.box._all().find(n => n.attributes && "data-la3d-rmfur" in n.attributes);
+  const firstBtn = btn(rm, "Remove all furniture…");
+  firstBtn.dispatchEvent({ type: "click" });
+  const asked = { text: rmRow.textContent, sentBefore: rm.ws.length };
+  btn(rm, "Cancel").dispatchEvent({ type: "click" });
+  const cancelled = { back: !!btn(rm, "Remove all furniture…"), sent: rm.ws.length };
+  btn(rm, "Remove all furniture…").dispatchEvent({ type: "click" });
+  btn(rm, "Remove all").dispatchEvent({ type: "click" });
+  await settle();
+  check("furniture: Remove all asks in the page, then sends only pieces, once",
+    rmRow && rm.more.contains(rmRow) && /Remove every piece of furniture\? A backup is taken first\./.test(asked.text)
+    && asked.sentBefore === 0 && cancelled.back && cancelled.sent === 0
+    && JSON.stringify(rm.ws) === JSON.stringify([["padspan_ha/house3d_clear", { only: "pieces" }]])
+    && rm.sent.length === 0 && !!btn(rm, "Remove all furniture…")
+    && rm.toasts.length === 1 && /restore the backup taken just now/.test(rm.toasts[0][0]) && !rm.toasts[0][1],
+    { asked, cancelled, ws: rm.ws, toasts: rm.toasts });
+  const notAdmin = settingsPage({ atlas_3d_enabled: true }, { admin: false });
+  check("furniture: no Remove all for a user who is not an admin",
+    !notAdmin.box._all().some(n => n.attributes && "data-la3d-rmfur" in n.attributes) && !/furniture/i.test(notAdmin.text),
+    notAdmin.text);
   // A save that fails puts the switch back.
   const bad = settingsPage({ atlas_3d_enabled: false }, { refuse: true });
   bad.cb.checked = true;
