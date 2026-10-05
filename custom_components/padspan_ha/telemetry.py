@@ -251,6 +251,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_people", "live_aboard_photo",
     "live_aboard_runs", "live_aboard_strip",        # Live Aboard's Strip tool: strips and string lights
     "atlas_screen", "atlas_aboard",                 # the flat Atlas: the map alone, full screen; Live Aboard's on the map
+    "live_aboard_marks",                            # Live Aboard: the Atlas's leak sensors, locks, codes and class chips
     "busy_times", "calibration_matrix", "editions", "evidence_diagram", "house_activity",
     "insights", "iso_lights", "iso_motion", "light_codes", "lights_map", "locate",
     "pan_zoom", "path_loss", "plan_viewer", "push_subscription", "radio_map",

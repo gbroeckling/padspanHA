@@ -405,13 +405,44 @@ await tryCase("floors: each floor keeps its own camera, through the 5 s rebuild;
   const backAll = camOf(slot);
   check("floors: each floor keeps its own camera, through the 5 s rebuild; back on a floor, its camera is back",
     stayed && kept && backBasement === basement && backMain === main && backAll === all && main !== basement
-    && JSON.stringify(S(slot).screen.floorCams.sort()) === JSON.stringify(["all", "floor:0", "floor:1"]),
+    && JSON.stringify(S(slot).screen.floorCams.sort()) === JSON.stringify(["all", "floor:Basement", "floor:Main"]),
     { all, basement, main, backBasement, backMain, backAll, cams: S(slot).screen.floorCams, calls });
   LA.releaseLiveAboardSlot("scr-cams");
   const again = await newSlot("scr-cams", { floorSteps: hostSteps(null, 1, true) });
   check("floors: a camera kept per floor is this screen's for this page load only (switched off, it is gone)",
     S(again.slot).screen.floorCams.length === 0, S(again.slot).screen.floorCams);
   LA.releaseLiveAboardSlot("scr-cams");
+});
+await tryCase("floors: back on a floor kept zoomed out, with the map alone, the bars come back", async () => {
+  calls.length = 0;
+  const { slot } = await newSlot("scr-camsbare", { floorSteps: hostSteps(null, 1, true) });
+  card(slot, { floorSteps: hostSteps(slot, 1, true) });
+  keyOn(slot, "PageDown");                                // All → the Basement, kept as the whole house
+  keyOn(slot, "PageUp");                                  // → Main
+  await wheel(slot, 3);                                   // zoomed in on Main: the map alone
+  const bareOnMain = S(slot).screen.bare;
+  keyOn(slot, "PageDown");                                // the Basement's camera (the whole house) back
+  const st = S(slot).screen;
+  check("floors: back on a floor kept zoomed out, with the map alone, the bars come back",
+    bareOnMain && !st.bare && S(slot).cam.radius >= st.fitR * 0.97, { bareOnMain, st, r: S(slot).cam.radius });
+  LA.releaseLiveAboardSlot("scr-camsbare");
+});
+await tryCase("floors: a camera is kept by the floor's name, so a floor deleted elsewhere never hands it to another", async () => {
+  calls.length = 0;
+  const three = { names: ["Basement", "Main", "Upper"], zs: ["0", "1", "2"], counts: null };
+  const { slot } = await newSlot("scr-camsname", { floorSteps: hostSteps(null, 2, false, three) });
+  card(slot, { floorSteps: hostSteps(slot, 2, false, three) });   // Upper
+  slot._look(2.0, 0.9, [5, 3, 2], 25);
+  const upper = camOf(slot);
+  keyOn(slot, "PageDown");                                // Main
+  slot._look(1.1, 0.5, [1, 0, 1], 12);
+  // The Basement deleted: Main and Upper are now levels 0 and 1.
+  const two = { names: ["Main", "Upper"], zs: ["0", "1"], counts: null };
+  card(slot, { floorSteps: hostSteps(slot, 0, false, two) });
+  keyOn(slot, "PageUp");                                  // Upper: its own camera, not Main's
+  check("floors: a camera is kept by the floor's name, so a floor deleted elsewhere never hands it to another",
+    camOf(slot) === upper, { now: camOf(slot), upper, cams: S(slot).screen.floorCams });
+  LA.releaseLiveAboardSlot("scr-camsname");
 });
 await tryCase("floors: PgUp and PgDn step a floor and Home is All, while the view has the keyboard", async () => {
   calls.length = 0;

@@ -2622,6 +2622,9 @@ function beaconLookSVG(bx, by, look){
   return `<g opacity="0.95" pointer-events="none">${g}</g>`;
 }
 
+// Each plate's colour in the stack, bottom up: its number badge and its
+// outline. Live Aboard colours and numbers its floors from this same list.
+export const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
 export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[], opts={}){
   const SHOW = !!opts.showcase;
   // Which palette Showcase paints with — see SHOWCASE_THEMES above. Falls
@@ -2773,7 +2776,6 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   };
   const {CX, CY, W, BASE_H} = ISO;
   const FG=floorGap;
-  const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
 
   const frame = fabricFrame(model, floors, floorGap, horizGap);
   const { iso, rooms, lights: rawLights, levels, rankOf } = frame;

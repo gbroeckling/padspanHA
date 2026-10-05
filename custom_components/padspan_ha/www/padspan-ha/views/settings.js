@@ -3336,6 +3336,9 @@ function _atlasWeatherSection(ctx, el, settings){
 // box above; the Atlas picks it up at its next settings refresh.
 const _ATLAS_3D_QUALITY = [["auto", "Auto — picked for this screen"], ["low", "Low — for wall tablets and phones"],
                            ["high", "High — sun shadows and more lamps"]];
+// Live Aboard's look (atlas_3d_look): the Atlas's colours, rooms and floor
+// numbers (its Showcase theme, or the plain Atlas), or its own dark look.
+const _ATLAS_3D_LOOK = [["atlas", "Same as the Atlas"], ["own", "Live Aboard's own"]];
 function _atlas3dSection(ctx, el, settings){
   const box = el("div",{style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🏠 Live Aboard"));
@@ -3379,6 +3382,19 @@ function _atlas3dSection(ctx, el, settings){
   let last = cur;
   sel.addEventListener("change", ()=>{ const want = sel.value; save("atlas_3d_quality", want, ()=>{ sel.value = last; }).then(ok=>{ if (ok) last = want; }); });
   more.appendChild(row("Quality", [sel]));
+
+  // Look: the same as the Atlas unless Live Aboard's own is chosen.
+  const lookCur = settings.atlas_3d_look === "own" ? "own" : "atlas";
+  const lookSel = document.createElement("select");
+  lookSel.className = "select";
+  lookSel.style.width = "auto";
+  lookSel.style.maxWidth = "100%";
+  lookSel.setAttribute("data-la3d-key", "atlas_3d_look");
+  for (const [v, label] of _ATLAS_3D_LOOK) lookSel.appendChild(el("option",{value:v}, label));
+  lookSel.value = lookCur;
+  let lookLast = lookCur;
+  lookSel.addEventListener("change", ()=>{ const want = lookSel.value; save("atlas_3d_look", want, ()=>{ lookSel.value = lookLast; }).then(ok=>{ if (ok) lookLast = want; }); });
+  more.appendChild(row("Look", [lookSel]));
 
   // The AI Task that reads photos in Furnish (ws_house3d_photo.py): an
   // administrator's choice, since a cloud one sends each photo out of the house.
@@ -3472,7 +3488,7 @@ function _atlas3dSection(ctx, el, settings){
   more.appendChild(row("North", [nInp, el("span",{style:"color:#94a3b8;font-size:12px"},"°"), preview]));
   more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
     "The same bearing the GPS Bridge uses. The arrow shows where it puts north on your plan."));
-  // Rain and snow, and the Showcase look: each its own switch, saved alone.
+  // Rain and snow, people, tags: each its own switch, saved alone.
   const tick = (key, label, checked, hint, into = more) => {
     const r = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px"});
     const cb = el("input",{type:"checkbox"});
@@ -3490,8 +3506,6 @@ function _atlas3dSection(ctx, el, settings){
   both.appendChild(el("div",{style:"font-size:12px;color:#cbd5e1;font-weight:600"}, "On the Atlas's map and in Live Aboard"));
   tick("atlas_3d_weather", "Rain and snow", settings.atlas_3d_weather !== false,
     "Follows Outdoor weather above, and shows only while that is on too.");
-  tick("atlas_3d_showcase", "Use the Atlas's Showcase look", settings.atlas_3d_showcase === true,
-    "The colours of the Showcase theme the Atlas is showing.");
   tick("atlas_3d_people", "Show people", settings.atlas_3d_people === true,
     "Each person where their phone or tag is now: on the map, a round marker with their initial; in Live Aboard, their figure (or a soft marker), walking there. Tap one for where they are and since when. Uses the same live positions as Overview.", both);
   tick("atlas_3d_tags", "Show tags & scanners", settings.atlas_3d_tags === true,

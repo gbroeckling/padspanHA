@@ -2891,6 +2891,10 @@ export function buildLightsMapCard(hostIn){
   }
   const la3dPaints = [];
   let la3dCloseDrawer = null;
+  // The drawers' Find active, Zoom and Save / Reset view act on Live Aboard
+  // while it shows (fn gets its slot); false while the flat map shows.
+  const la3dDo = (fn) => { if (!la3dOn()) return false; const s = la3dSlot(); if (s) fn(s); return true; };
+  let la3dZoomLbl = null;
   const la3dSlot = () => (_LA && h3 ? _LA.liveAboardSlot(h3.slot) : null);
   // Why this screen cannot show 3D right now: the fallback kind, or null.
   const la3dWhy = () => {
@@ -2932,12 +2936,16 @@ export function buildLightsMapCard(hostIn){
           edit: typeof h3.edit === "function" ? h3.edit : null,
           // Rain and snow, and the Showcase look (P8): the flat map's own
           // weather inputs with Live Aboard's Rain and snow switch, and the
-          // Showcase theme this map shows with "Use the Atlas's Showcase
-          // look". The view decides what they draw.
+          // Showcase theme this map shows. The view decides what they draw.
           weather: host.weather && host.weather.settings ? host.weather : null, weather3d: h3.settings.atlas_3d_weather,
-          showcase3d: h3.settings.atlas_3d_showcase,
           showcase: { key: host.showcase ? (host.showcaseTheme || "classic") : "classic",
                       theme: (host.showcase && SHOWCASE_THEMES[host.showcaseTheme]) || SHOWCASE_THEMES.classic },
+          // Live Aboard's look (atlas_3d_look): the same as this map unless
+          // "own" is chosen, and what this map wears: Showcase on or off, and
+          // the theme it reads its colours from (buildIsoSVG's own THEME).
+          look3d: h3.settings.atlas_3d_look === "own" ? "own" : "atlas",
+          atlasLook: { on: !!host.showcase, key: host.showcaseTheme || "classic",
+                       theme: SHOWCASE_THEMES[host.showcaseTheme] || SHOWCASE_THEMES.classic },
           // Mapping → Furnish (P2): the Furnish tool open, what its flows and
           // "This is a device…" need of the host, and the floor chips a piece
           // moved up or down a floor takes along.
@@ -2971,6 +2979,11 @@ export function buildLightsMapCard(hostIn){
           people: h3.settings.atlas_3d_people === true && h3.people ? abReader(h3.people) : null,
           // Show tags & scanners: the same snapshot, the same reader (read once for both).
           tags: h3.settings.atlas_3d_tags === true && h3.people ? abReader(h3.people) : null,
+          // ☰'s class chips, the leak sensors' 2-day latch, the codes (none
+          // while "Hide device codes" is on), and ⚙'s zoom label to keep up.
+          classFilter: host.classFilter || null, floodLatches: host.floodLatches || {},
+          codes: host.hideDeviceCodes ? null : { showcase: !!host.showcase },
+          onZoom: (pct) => { if (la3dZoomLbl && la3dOn()) la3dZoomLbl.textContent = `${pct}%`; },
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }
     }
@@ -3558,7 +3571,8 @@ export function buildLightsMapCard(hostIn){
     gapLbl.textContent = String(view.floorGap);
     rebuildISO();
   });
-  layoutGroup.appendChild(el("span", { class: "lv-lbl" }, "Spacing"));
+  const gapName = el("span", { class: "lv-lbl" }, "Spacing");
+  layoutGroup.appendChild(gapName);
   layoutGroup.appendChild(gapSlider);
   layoutGroup.appendChild(gapLbl);
 
@@ -3574,7 +3588,8 @@ export function buildLightsMapCard(hostIn){
     horizLbl.textContent = String(view.horizGap);
     rebuildISO();
   });
-  layoutGroup.appendChild(el("span", { class: "lv-lbl" }, "L / R"));
+  const horizName = el("span", { class: "lv-lbl" }, "L / R");
+  layoutGroup.appendChild(horizName);
   layoutGroup.appendChild(horizSlider);
   layoutGroup.appendChild(horizLbl);
   // v2: set once when the floors are first stacked, so folded — and not on
@@ -3589,6 +3604,8 @@ export function buildLightsMapCard(hostIn){
   const saveLbl = el("span", { class: "lv-status" }, "");
   const saveBtn = el("button", { class: "lv-act", style: "margin-left:4px",
     onclick: async () => {
+      // Live Aboard showing: its camera, kept in its Views.
+      if (la3dDo(s => s.saveView())) return;
       saveBtn.disabled = true;
       try {
         await host.saveView();
@@ -3600,6 +3617,8 @@ export function buildLightsMapCard(hostIn){
   }, "Save view");
   const resetBtn = el("button", { class: "lv-act",
     onclick: async () => {
+      // Live Aboard showing: the whole house.
+      if (la3dDo(s => s.wholeHouse())) return;
       view.floorGap = 150; view.horizGap = 0; view.focusIdx = 0; view.zoom = 1.0;
       gapSlider.value = "150"; gapLbl.textContent = "150";
       horizSlider.value = "0"; horizLbl.textContent = "0";
@@ -3619,23 +3638,53 @@ export function buildLightsMapCard(hostIn){
     layoutTarget.appendChild(saveLbl);
   }
   if (layoutFold) ctrlRow.appendChild(layoutFold.d);
+  // Spacing and L / R only stack the flat map's floors: while Live Aboard
+  // shows they step aside, and Save / Reset view say what they do there.
+  if (h3) {
+    let la = false;
+    la3dPaints.push(() => {
+      const on = la3dOn();
+      if (on === la) return;
+      la = on;
+      for (const n of [gapName, gapSlider, gapLbl, horizName, horizSlider, horizLbl]) n.style.display = on ? "none" : "";
+      saveBtn.title = on ? "Keep this view in Live Aboard's Views" : "";
+      resetBtn.title = on ? "Back to the whole house" : "";
+    });
+  }
 
   // Zoom controls — one segmented cluster rather than three loose buttons
   ctrlRow.appendChild(SEP());
   ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Zoom"));
+  // While Live Aboard shows they drive its camera: 100% is its whole-house
+  // fit, and the middle says its zoom against that fit.
+  const zoomMid = el("button", { title: "Reset zoom", onclick: () => {
+    if (la3dDo(s => s.zoom("fit"))) return;
+    view.zoom = 1.0; applyZoom();
+  } }, "100%");
   ctrlRow.appendChild(el("span", { class: "lv-zoomseg" }, [
     el("button", { title: "Zoom out", onclick: () => {
+      if (la3dDo(s => s.zoom("out"))) return;
       view.zoom = Math.max(0.4, Math.round((view.zoom - 0.1) * 10) / 10);
       applyZoom();
     } }, "−"),
-    el("button", { title: "Reset zoom", onclick: () => {
-      view.zoom = 1.0; applyZoom();
-    } }, "100%"),
+    zoomMid,
     el("button", { title: "Zoom in", onclick: () => {
+      if (la3dDo(s => s.zoom("in"))) return;
       view.zoom = Math.min(2.5, Math.round((view.zoom + 0.1) * 10) / 10);
       applyZoom();
     } }, "+"),
   ]));
+  if (h3) {
+    la3dZoomLbl = zoomMid;
+    let la = false;
+    la3dPaints.push(() => {
+      const s = la3dOn() ? la3dSlot() : null;
+      if (!s && !la) return;
+      la = !!s;
+      zoomMid.textContent = s ? `${s.zoomPct()}%` : "100%";
+      zoomMid.title = s ? "The whole house" : "Reset zoom";
+    });
+  }
   // The Map / 3D switch, right beside the zoom (only while the 3D house is on).
   if (h3) {
     // Why 3D cannot show, said in the page beside the greyed button (a
@@ -3929,6 +3978,7 @@ export function buildLightsMapCard(hostIn){
         onclick: () => {
           const pick = allLights.find(l => l.isMotion && l.state === "on") || allLights.find(l => l.state === "on");
           if (!pick) { if (host.toast) host.toast("Nothing is on"); return; }
+          if (la3dDo(s => s.findDevice(pick.entity_id))) return;
           const g = isoDiv.querySelector(`.lhex[data-eid="${String(pick.entity_id).replace(/"/g, '\\"')}"]`);
           const svg = isoDiv.querySelector("svg");
           if (!g || !svg || !g.getBoundingClientRect) return;

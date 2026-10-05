@@ -324,7 +324,7 @@ def _report(hass: HomeAssistant, rec: dict, entity_id: str, old: Any, new: Any) 
         return {"on": new_s == "on", "bri": 0}
     a, b = ((getattr(s, "attributes", None) or {}).get("brightness") for s in (old, new))
     lit = new_s == "on" and isinstance(a, (int, float)) and isinstance(b, (int, float))
-    return {"on": None, "bri": (b > a) - (b < a) if lit else 0}
+    return {"on": None, "bri": (b > a) - (b < a) if lit else 0, "shown": b if lit else None}
 
 
 def _agrees(change: dict | None, aim: dict | None) -> bool:
@@ -335,13 +335,32 @@ def _agrees(change: dict | None, aim: dict | None) -> bool:
         return True
     if change["on"] is not None:
         return change["on"] == aim["on"]
+    # With one segment HA shows opacity × master / 255, so PadSpan's own
+    # write can show a move the master never made (the look's opacity put
+    # back): landing on exactly what that write shows is its echo.
+    if aim.get("shown") is not None and change.get("shown") is not None and abs(change["shown"] - aim["shown"]) <= 1:
+        return True
     return not change["bri"] or aim["bri"] is None or change["bri"] == aim["bri"]
 
 
-def _aim(on: bool, bri: int, live: dict) -> dict:
-    """The way a write of `on` at `bri` takes the light from `live`."""
+def _aim(on: bool, bri: int, live: dict, hass: HomeAssistant | None = None, rec: dict | None = None) -> dict:
+    """The way a write of `on` at `bri` takes the light from `live`, and
+    (one segment, no main light) the brightness HA will show for it."""
     lb = live.get("bri")
-    return {"on": on, "bri": (bri > lb) - (bri < lb) if on and isinstance(lb, int) else None}
+    return {"on": on, "bri": (bri > lb) - (bri < lb) if on and isinstance(lb, int) else None,
+            "shown": _shown_bri(hass, rec, bri) if on and hass is not None and rec is not None else None}
+
+
+def _shown_bri(hass: HomeAssistant, rec: dict, bri: int) -> int | None:
+    """What HA shows on the device's on/off light for a master `bri`: the
+    same number with a main light; with one segment, its look's opacity ×
+    `bri` / 255 (light.py 2026.7.4; _master_bri is the other way round)."""
+    lights = device_lights(hass, rec["device_id"], rec["mac"])
+    if _has_main(hass, lights):
+        return None
+    master = _master_light(hass, rec["device_id"], rec["mac"])
+    role = lights.get(master) if master else None
+    return _clamp_bri(round(int(bri) * _look_opacity(rec, role) / 255)) if isinstance(role, int) else None
 
 
 class _Worker:
@@ -654,7 +673,7 @@ async def _apply(hass: HomeAssistant, worker: _Worker, want: dict, gen: int) -> 
             bodies = _plan(eff, live, ctx, on=on, bri=bri, tt=tt, team=bool(want.get("team")))
             if bodies:
                 tries = 1
-                worker.sent = _aim(on, bri, live)
+                worker.sent = _aim(on, bri, live, hass, rec)
                 reply = await _post_all(hass, worker, host, bodies)
             diffs = L.compare(eff, reply, ctx, on=on, bri=bri, exact=True) if reply is not None else \
                 [{"seg": None, "key": "reply", "what": "no answer"}]
@@ -775,7 +794,7 @@ async def _late_check(hass: HomeAssistant, worker: _Worker, gen: int, stage: int
         if extra:
             bodies.append(L.tail_body(extra))
         try:
-            worker.sent = _aim(plan["on"], plan["bri"], live)
+            worker.sent = _aim(plan["on"], plan["bri"], live, hass, rec)
             await _post_all(hass, worker, tgt["host"], bodies)
         except W.WledError:
             return

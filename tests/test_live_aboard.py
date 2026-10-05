@@ -173,6 +173,7 @@ def test_the_3d_module_is_imported_once_behind_the_switch_and_cache_busted() -> 
                                                   "live_aboard_edit.js", "live_aboard_furnish.js",   # P2: Furnish names its flows
                                                   "live_aboard_import.js",
                                                   "live_aboard_devices.js",     # P5: reads a light as the view does
+                                                  "live_aboard_marks.js",       # the Atlas's leak sensors, locks and codes: reads the house as the view does
                                                   "live_aboard_people.js",    # the Furnish tab's people screen (P6)
                                                   "atlas_aboard.js"):         # the flat Atlas's people, tags, kinds and furniture (2026-10-05)
             continue

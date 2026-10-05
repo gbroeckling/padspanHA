@@ -412,7 +412,10 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                         restored += 1
                         if held is not None:
                             # A Save waiting on this lock has the store just
-                            # dropped: it goes on from the file as it is now.
+                            # dropped: it stays THE store (one store, one lock;
+                            # put back before any await, so no request builds a
+                            # second) and goes on from the file as it is now.
+                            hass.data.setdefault(DOMAIN, {})[DATA_HOUSE3D] = held
                             await held.async_load()
                     except Exception as err:  # noqa: BLE001 — reported, like every store below
                         _LOGGER.error("Restore of %s failed: %s", store_key, err)
