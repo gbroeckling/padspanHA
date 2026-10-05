@@ -96,13 +96,23 @@ const AMBIENT_MS = { high: 33, low: 66 };
 const LIVE_MS = 5000;
 const meanOf = (v) => v.slice(1).reduce((a, x, i) => a + (x + v[i]) / 2, 0) / (v.length - 1);
 const STILL = { active: meanOf(HOUSE.MOTION_PULSE.fill), recent: meanOf(HOUSE.MOTION_RECENT.op) };   // a pulse's, a breath's mean
-const PICK_R = 22, BADGE_PX = 28;          // a device's reach for a tap (the Atlas's 44 px target); a floor badge
+const PICK_R = 22;                         // a device's reach for a tap (the Atlas's 44 px target)
 const PIECE_D = PICK_R / 2;                // a press on a linked piece: a marker nearer than this wins
 const PEOPLE_MS = 5000;                    // the people layer reads the live snapshot at most this often
 const READ_H = 0.3, READ_PX = [14, 24];    // a readout's height (m), and never under / over this on screen (px)
-const READ_W = 400, READ_C = 72;           // its canvas: the pill is drawn inside, as wide as its words
+const READ_W = 520, READ_C = 72;           // its canvas: the pill is drawn inside, as wide as its words
 const RING_R0 = 0.6;                       // the motion ring's radius (m) at 1 (the Atlas's 0.7 → 2.4)
 const FILL_K = 0.6, RECENT_K = 0.45, AIR_K = 1.6;   // how strongly a floor takes the Motion · Air colour
+// The screen (the sidebar): zoomed in past SOLO_IN of the whole-house fit, the
+// bars step aside for the map alone; back out to SOLO_OUT of it, they return.
+const SOLO_IN = 0.8, SOLO_OUT = 0.97, COVER_Z = 45;
+const NARROW_W = 560;                      // under this the bar is one compact row
+const TAP_MS = 320, TAP2_MS = 420, TAP_PX = 10, TAP2_PX = 44, FLY_MS = 650;
+const PREF_VIEWS = "views_", PREF_HINT = "hint_seen", VIEWS_MAX = 8;
+// Readable night: a floor keeps this much of its day colour, its outline and
+// the wall tops show, and a fixture that is off darkens with the house.
+const NIGHT_FLOOR = 0.3, NIGHT_EDGE = 0.85, NIGHT_TOP = 0.42, NIGHT_OFF = 0.72;
+const NAME_PX = [12, 17];                  // a room's name on screen (px), never under / over
 
 // The view's own look: everything is scoped under .la3d, and the sheet travels
 // inside the long-lived element, so nothing is added to styles.css and the
@@ -139,7 +149,58 @@ const CSS = `
 @keyframes la3d-toast{0%{opacity:0;visibility:visible}5%{opacity:1}85%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden}}
 .la3d-ov{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}
 .la3d-hud{position:absolute;left:72px;top:10px;z-index:3;max-width:calc(100% - 84px)}
-.la3d-hud .lv-hoverhud{position:static}`;
+.la3d-hud .lv-hoverhud{position:static}
+.la3d-side{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.la3d-side:last-child{justify-content:flex-end;margin-left:auto}
+.la3d .la3d-floor .la3d-fname{min-width:64px;text-align:center;color:#f0fdf4}
+.la3d .lv-zoomseg button[disabled]{opacity:.35;cursor:default}
+.la3d .lv-zoomseg svg{display:block;width:14px;height:14px}
+.la3d.la3d-narrow .la3d-w,.la3d:not(.la3d-narrow) .la3d-n{display:none}
+.la3d.la3d-narrow .la3d-bar{left:8px;right:8px;bottom:8px;gap:6px;flex-wrap:nowrap}
+.la3d.la3d-narrow .la3d-side{flex-wrap:nowrap;gap:6px}
+.la3d .lv-zoomseg button{white-space:nowrap}
+.la3d.la3d-narrow .lv-zoomseg button{padding:7px 8px}
+.la3d.la3d-narrow .la3d-floor .la3d-fname{min-width:40px;max-width:76px;overflow:hidden;text-overflow:ellipsis}
+.la3d-menu{position:absolute;z-index:5;min-width:170px;max-width:min(280px,calc(100% - 20px));padding:5px;border-radius:12px;
+  background:rgba(6,14,9,.96);border:1px solid rgba(120,190,155,.24);box-shadow:0 10px 26px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:2px}
+.la3d-menu .la3d-mrow{display:flex;align-items:center;gap:2px}
+.la3d-menu button{all:unset;box-sizing:border-box;cursor:pointer;flex:1;padding:8px 11px;border-radius:8px;font-size:13px;color:#e8f0ea;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.la3d-menu button:hover,.la3d-menu button:focus-visible{background:rgba(82,183,136,.18)}
+.la3d-menu button[aria-checked="true"]{color:#86efac;font-weight:700}
+.la3d-menu button.la3d-mx{flex:none;padding:8px 10px;color:rgba(226,240,232,.6)}
+.la3d-menu hr{border:none;border-top:1px solid rgba(120,190,155,.16);margin:3px 4px}
+.la3d-tip{position:absolute;left:50%;top:12px;z-index:2;transform:translateX(-50%);max-width:calc(100% - 340px);padding:4px 12px;
+  border-radius:999px;background:rgba(6,14,9,.55);color:rgba(226,240,232,.62);font-size:11.5px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;pointer-events:none}
+.la3d.la3d-narrow .la3d-tip{display:none}
+.la3d-bar,.la3d-compass,.la3d-tip{transition:opacity .25s ease,visibility .25s}
+.la3d.la3d-bare .la3d-bar,.la3d.la3d-bare .la3d-compass,.la3d.la3d-bare .la3d-tip,.la3d.la3d-bare .la3d-north,
+.la3d.la3d-bare .la3d-menu{opacity:0;visibility:hidden;pointer-events:none}
+.la3d-solo{all:unset;box-sizing:border-box;position:absolute;right:12px;top:12px;z-index:4;width:40px;height:40px;border-radius:50%;
+  display:none;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:#e8f0ea;background:rgba(6,14,9,.62);
+  border:1px solid rgba(120,190,155,.24);box-shadow:0 4px 14px rgba(0,0,0,.35);opacity:.72}
+.la3d-solo:hover,.la3d-solo:focus-visible{opacity:1}
+.la3d.la3d-bare .la3d-solo{display:flex}
+.la3d.la3d-cover{transition:left .25s ease,top .25s ease,width .25s ease,height .25s ease}
+.la3d:fullscreen{border-radius:0;border:none}
+.la3d-card{position:absolute;left:50%;top:50%;z-index:6;transform:translate(-50%,-50%);width:min(360px,calc(100% - 32px));box-sizing:border-box;
+  padding:16px 18px 14px;border-radius:14px;background:rgba(6,14,9,.95);border:1px solid rgba(120,190,155,.3);
+  box-shadow:0 14px 36px rgba(0,0,0,.55);color:#e8f0ea;font-size:13px;line-height:1.45}
+.la3d-card b{display:block;font-size:15px;margin-bottom:8px}
+.la3d-card ul{margin:0 0 12px;padding-left:18px}
+.la3d-card li{margin:3px 0}
+.la3d-card button{all:unset;box-sizing:border-box;cursor:pointer;padding:7px 16px;border-radius:9px;font-weight:700;
+  background:rgba(82,183,136,.3);color:#f0fdf4;float:right}
+@media (prefers-reduced-motion:reduce){.la3d.la3d-cover,.la3d-bar,.la3d-compass,.la3d-tip{transition:none}}`;
+// While Live Aboard shows (its sheet travels with it): the flat Atlas's
+// symbol legend matches nothing in 3D; on the sidebar the header's flat hint
+// gives way to the view's own, and on a narrow screen the emergency pill
+// folds to its icon, clear of the house.
+const CSS_SHOWING = `.lv-legend{display:none}`;
+const CSS_PANEL = `.lv-hero > .lv-hint{display:none}
+@media (max-width:600px){.lv-emerg-label.on{max-width:32px;width:32px;padding:0;justify-content:center}
+  .lv-emerg-label.on .lv-emerg-label-tx{display:none}.lv-emerg-label.on .lv-emerg-label-ic{display:inline-flex}}`;
 
 const _slots = new Map();
 /** One 3D view per screen ("atlas" — the sidebar; "builder" — Mapping). */
@@ -166,7 +227,7 @@ export function releaseLiveAboardSlot(key){
 
 // ── Small three helpers ──────────────────────────────────────────────────────
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _c = new THREE.Color();
-const _v = new THREE.Vector3(), _v2 = new THREE.Vector3();
+const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _white = new THREE.Color(1, 1, 1);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 function compose(x, y, z, yaw, sx, sy, sz){
@@ -270,8 +331,10 @@ function createSlot(slotKey){
   // the rings (live_aboard_use.js); apiOf: the host's use api, as the poll
   // last handed it; lbe: the Atlas's device records, live.
   let use = null, apiOf = null, apiNow = null, lbe = {}, haStarted = 0;
-  let openings = [], sensorsUi = [], tints = [], readouts = [], badges = [];
-  let sensorRes = [], badgeRes = [], sensorsSig = null;
+  // readouts: the sensors that read out; chips: one pill per room (or per
+  // sensor outside every room) saying what they read.
+  let openings = [], sensorsUi = [], tints = [], readouts = [], chips = [];
+  let sensorRes = [], sensorsSig = null;
   let liveMs = 0, lastAmbient = 0, rehoverDue = false;   // liveMs: how often something moving by itself is drawn (0: still)
   let northDismissed = null;               // the pointerdown that only put north back
   // The 3D file (part C), as the editor owns it (live_aboard_draft.js
@@ -311,6 +374,25 @@ function createSlot(slotKey){
   // straight down at the top floor showing.
   let furnishOn = false, planOnly = false, planCam = null, planSeg = null;
   const plan = { cx: 0, cy: 0, half: 6, fit: true };
+  // The screen (the sidebar's host says mapOnly): bare, the bars stepped
+  // aside (zoomed in); cover, the view over the whole panel (bare in the
+  // panel, or full screen); fsOn, the panel full screen. fitR: the camera's
+  // distance at the last whole-house fit (the "fit level"); soloHold: where
+  // ☰ brought the bars back (zooming further in hides them again).
+  let mapOnly = false, bare = false, cover = false, fsOn = false, fsTarget = null, fitR = null, soloHold = null;
+  let coverOff = null, panelCss = null, showCss = null, soloBtn = null, fullBtns = [], menuEl = null, menuOff = null;
+  let floorSteps = null, floorEls = [], hintCard = null, tipEl = null, narrow = false;
+  // What this browser keeps for the view (its saved views, the first-time
+  // card seen): the host's {get(k), set(k, v)}; without one, this page load's.
+  let prefs = null;
+  const prefsHere = new Map();
+  const prefGet = (k) => { try { return prefs ? prefs.get(k) : prefsHere.get(k) ?? null; } catch (_) { return null; } };
+  const prefSet = (k, v) => { try { if (prefs) prefs.set(k, v); else prefsHere.set(k, v); } catch (_) { /* kept for this page load only */ } };
+  // A tap on nothing (for double-tap: fly to the room); a camera flight.
+  let tapAt = null;
+  // Readable night: how dark it is now (0 day, 1 night), and the wall tops' glow.
+  let nightK = 0;
+  const topGlow = { value: 0 };
 
   // ── failing back to the flat Atlas ────────────────────────────────────────
   function showFlat(){
@@ -319,7 +401,7 @@ function createSlot(slotKey){
     try { if (root && root.parentNode) root.parentNode.removeChild(root); } catch (_) { /* already out */ }
   }
   function teardown(){
-    try { endSpin(false); hidePill(); dropPointers(); } catch (_) { /* nothing to undo */ }
+    try { endSpin(false); hidePill(); dropPointers(); endScreen(); } catch (_) { /* nothing to undo */ }
     try { if (use) use.dispose(); } catch (_) { /* gone with the view */ }
     use = null;
     try { if (editor) editor.dispose(); } catch (_) { /* gone with the view */ }
@@ -332,9 +414,9 @@ function createSlot(slotKey){
     layer = null; furnishP = null; topCb = null;
     for (const o of observers) { try { o(); } catch (_) { /* gone */ } }
     observers = [];
-    disposeList(shellRes); disposeList(lightRes); disposeList(sensorRes); disposeList(badgeRes);
-    shellRes = []; lightRes = []; sensorRes = []; badgeRes = [];
-    // three.js gives every sprite (a readout, a floor badge) one geometry for
+    disposeList(shellRes); disposeList(lightRes); disposeList(sensorRes);
+    shellRes = []; lightRes = []; sensorRes = [];
+    // three.js gives every sprite (a readout, a room's name) one geometry for
     // the whole page, and each renderer that drew one hangs a listener on it
     // that renderer.dispose() never takes off: that listener would keep this
     // whole view alive (the renderer, the canvas, this element, the scene and
@@ -346,7 +428,7 @@ function createSlot(slotKey){
     // Give the GPU its context back: the flat Atlas needs none.
     try { if (renderer) { renderer.dispose(); if (failed !== "context_lost") renderer.forceContextLoss(); } } catch (_) { /* best effort */ }
     renderer = null; scene = null; house = null; floorsUi = []; lights = [];
-    openings = []; sensorsUi = []; tints = []; readouts = []; badges = []; liveMs = 0;
+    openings = []; sensorsUi = []; tints = []; readouts = []; chips = []; liveMs = 0;
     // Nothing of the host's is kept: its card, its data, its callbacks.
     lastP = null; apiOf = null; apiNow = null; lbe = {}; stage = null; send = null; touchCb = null; saveNorthCb = null;
   }
@@ -382,26 +464,67 @@ function createSlot(slotKey){
       }
       return s;
     };
-    const walls = seg("Walls", [
-      ["Cut", "Cut away the walls between you and the rooms", () => setWalls("cut")],
-      ["Up", "All walls up", () => setWalls("up")],
-      ["Down", "All walls down", () => setWalls("down")],
-    ]);
+    const WALLS = [["Cut", "Cut away the walls between you and the rooms", "cut"], ["Up", "All walls up", "up"], ["Down", "All walls down", "down"]];
+    const ANGLES = [["Iso", "The Atlas's angle", "iso"], ["Top", "Straight down", "top"], ["⟳ 90°", "Turn the house a quarter", "turn"],
+                    ["Fit", "Fit the floors that are showing", "fit"]];
+    const walls = seg("Walls", WALLS.map(([t, title, m]) => [t, title, () => setWalls(m)]));
     walls.setAttribute("data-la3d-walls", "");
-    const views = seg(null, [
-      ["Iso", "The Atlas's angle", () => preset("iso", true)],
-      ["Top", "Straight down", () => preset("top", true)],
-      ["⟳ 90°", "Turn the house a quarter", () => preset("turn", true)],
-      ["Fit", "Fit the floors that are showing", () => preset("fit", true)],
-    ]);
+    walls.classList.add("la3d-w");
+    const views = seg(null, ANGLES.map(([t, title, n]) => [t, title, () => preset(n, true)]));
     views.setAttribute("data-la3d-views", "");
-    bar.appendChild(walls); bar.appendChild(views);
+    views.classList.add("la3d-w");
+    // The floor stepper: ▲ the floor above, its name (a tap: the floor's
+    // sheet), ▼ the floor below, All. It drives the floor chips' choice.
+    const floor = seg(null, [["▲", "The floor above", () => stepFloor(1)], ["", "", () => openFloorSheet()],
+                             ["▼", "The floor below", () => stepFloor(-1)], ["All", "Every floor", () => stepFloor(0)]]);
+    floor.classList.add("la3d-floor");
+    floor.setAttribute("data-la3d-floor", "");
+    floor.setAttribute("aria-label", "Floor");
+    floorEls = [...floor.querySelectorAll("button")];
+    if (floorEls[1]) floorEls[1].classList.add("la3d-fname");
+    if (floorEls[3]) floorEls[3].classList.add("la3d-w");           // narrow: All is in View ▾
+    floor.style.display = "none";
+    // Views: the whole house, and views saved from the camera on this browser.
+    const vbtn = seg(null, [["Views ▾", "The whole house, or a view you saved", () => openMenu(vbtn, viewItems(false))]]);
+    vbtn.classList.add("la3d-w");
+    vbtn.setAttribute("data-la3d-saved", "");
+    // A narrow screen: one row — Walls ▾, View ▾, the floor stepper, full screen.
+    const wbtn = seg(null, [["Walls ▾", "Cut, Up or Down", () => openMenu(wbtn, WALLS.map(([t, , m]) => ({ text: t, on: wallMode === m, act: () => setWalls(m) })))]]);
+    wbtn.classList.add("la3d-n");
+    const abtn = seg(null, [["View ▾", "Angles, the whole house and your views", () => openMenu(abtn, [
+      ...ANGLES.map(([t, , n]) => ({ text: t, act: () => preset(n, true) })),
+      ...(floorSteps ? [null, { text: "All floors", on: floorSteps.all, act: () => stepFloor(0) }] : []), null, ...viewItems()])]]);
+    abtn.classList.add("la3d-n");
+    const full = seg(null, [["", "", () => toggleFull()]]);
+    full.setAttribute("data-la3d-full", "");
+    fullBtns = [...full.querySelectorAll("button")];
+    full.style.display = "none";
+    const left = d("span", "la3d-side"), right = d("span", "la3d-side");
+    left.append(walls, wbtn, abtn, floor);
+    right.append(views, vbtn, full);
+    bar.append(left, right);
     // Furnish on a narrow screen: the plan or the 3D view (a wide one shows both).
     planSeg = seg(null, [["3D", "The house in 3D", () => setPlanOnly(false)], ["Plan", "Straight down on the floor showing", () => setPlanOnly(true)]]);
     planSeg.setAttribute("data-la3d-plan", "");
     planSeg.style.display = "none";
-    bar.appendChild(planSeg);
+    left.appendChild(planSeg);
     root.appendChild(bar);
+    // The map alone: one small button brings the bars back.
+    soloBtn = d("button", "la3d-solo");
+    soloBtn.type = "button"; soloBtn.textContent = "☰";
+    soloBtn.title = "Show the controls";
+    soloBtn.setAttribute("aria-label", "Show the controls");
+    soloBtn.setAttribute("data-la3d-solo", "");
+    soloBtn.addEventListener("click", guard((e) => { e.stopPropagation(); setBare(false, true); }));
+    root.appendChild(soloBtn);
+    tipEl = d("div", "la3d-tip");
+    tipEl.textContent = "Drag to turn · pinch or wheel to zoom · tap a light · hold for controls · double-tap a room to go there";
+    root.appendChild(tipEl);
+    showCss = d("style");
+    showCss.textContent = CSS_SHOWING;
+    root.appendChild(showCss);
+    panelCss = d("style");
+    root.appendChild(panelCss);
     // The compass: N is true north (settings.fabric_bearing_deg), and it
     // turns with the camera. A tap turns the house to north up.
     const compass = d("button", "la3d-compass");
@@ -446,6 +569,298 @@ function createSlot(slotKey){
     if (!bar) return;
     const btns = bar.querySelectorAll("[data-la3d-walls] button");
     ["cut", "up", "down"].forEach((m, i) => { if (btns[i]) btns[i].setAttribute("aria-pressed", String(wallMode === m)); });
+  }
+
+  // ── the screen: the map alone, full screen (the sidebar) ──────────────────
+  // Zoomed in past the whole-house fit, every bar steps aside — the view's
+  // own and the panel's (header, rail, legend, chips, the light index) —
+  // and the view covers the panel; ☰, Escape or zooming back out to the fit
+  // brings them back. Full screen takes the panel's own element (it outlives
+  // every card the poll builds), so Home Assistant's sidebar goes too, and
+  // Escape leaves it; a screen that may not go full screen gets the map alone
+  // in the panel instead. Only where the host says so (mapOnly: the sidebar).
+  /** The panel's element: the host of the shadow root the view is in. */
+  function hostEl(){
+    try { const rn = root && root.getRootNode ? root.getRootNode() : null; return rn && rn.host ? rn.host : null; } catch (_) { return null; }
+  }
+  /** The panel's box, to the window's right and bottom (the whole screen while full screen). */
+  function coverRect(){
+    const W = window.innerWidth || 0, H = window.innerHeight || 0;
+    if (fsOn) return { left: 0, top: 0, width: W, height: H };
+    const h = hostEl(), r = h && h.getBoundingClientRect ? h.getBoundingClientRect() : null;
+    const left = r ? Math.max(0, Math.min(r.left, W - 160)) : 0, top = r ? Math.max(0, Math.min(r.top, H - 160)) : 0;
+    const right = r && r.right > left + 160 ? Math.min(r.right, W) : W;
+    return { left, top, width: right - left, height: H - top };
+  }
+  function layCover(){
+    if (!cover) return;
+    const c = coverRect();
+    Object.assign(root.style, { left: `${c.left}px`, top: `${c.top}px`, width: `${c.width}px`, height: `${c.height}px` });
+  }
+  const COVER_KEYS = ["position", "margin", "borderRadius", "border", "zIndex", "maxWidth", "left", "top", "width", "height"];
+  function paintCover(){
+    const want = !!(root && mapOnly && (bare || fsOn));
+    if (want === cover) { layCover(); return; }
+    cover = want;
+    if (want) {
+      // Out of the card, to the top of the panel's own tree: the poll's new
+      // cards never move it, and nothing of the card stacks over it.
+      const r0 = root.getBoundingClientRect(), rn = root.getRootNode ? root.getRootNode() : null;
+      const home = rn && rn.host ? rn : document.body;
+      if (home && root.parentNode !== home) home.appendChild(root);
+      root.classList.remove("la3d-cover");
+      Object.assign(root.style, { position: "fixed", margin: "0", borderRadius: "0", border: "none", zIndex: String(COVER_Z), maxWidth: "none",
+                                  left: `${r0.left}px`, top: `${r0.top}px`, width: `${r0.width}px`, height: `${r0.height}px` });
+      void root.offsetWidth;                                 // grown from where it was
+      root.classList.add("la3d-cover");
+      layCover();
+      const onResize = guard(() => layCover());
+      const onKey = guard((e) => { if (e.key === "Escape" && bare && !fsOn) setBare(false, true); });
+      window.addEventListener("resize", onResize);
+      window.addEventListener("keydown", onKey);
+      const h = hostEl();
+      let ro = null;
+      if (h && typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(onResize); ro.observe(h); }
+      coverOff = () => { window.removeEventListener("resize", onResize); window.removeEventListener("keydown", onKey); if (ro) ro.disconnect(); };
+    } else {
+      if (coverOff) coverOff();
+      coverOff = null;
+      root.classList.remove("la3d-cover");
+      for (const k of COVER_KEYS) root.style[k] = "";
+      if (stage && stage.parentNode) stage.parentNode.insertBefore(root, stage.nextSibling);   // back beside the newest card's stage
+    }
+    resize();
+  }
+  /** The bars away (the map alone) or back. byHand: ☰ or Escape, so the
+   *  same zoom does not hide them again at once. */
+  function setBare(on, byHand){
+    const want = !!(on && mapOnly && root);
+    if (want === bare) return;
+    bare = want;
+    if (!want && byHand) soloHold = cam.radius;
+    closeMenu();
+    root.classList.toggle("la3d-bare", want);
+    paintCover();
+  }
+  /** After a zoom by hand (the wheel, a pinch, a double-tap): in past the
+   *  fit level, the map alone; back out to it, the bars. */
+  function afterZoom(inward){
+    if (!mapOnly || !fitR || furnishOn || (editor && editor.active)) return;
+    if (cam.radius >= fitR * SOLO_OUT) { soloHold = null; if (bare) setBare(false, false); return; }
+    if (inward && !bare && cam.radius < fitR * SOLO_IN && (soloHold === null || cam.radius < soloHold * SOLO_IN)) setBare(true, false);
+  }
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+  function canFull(){
+    const h = hostEl();
+    if (!h || !(h.requestFullscreen || h.webkitRequestFullscreen)) return false;
+    return document.fullscreenEnabled !== false || !!document.webkitFullscreenEnabled;
+  }
+  function toggleFull(){
+    closeMenu();
+    if (fsOn) { leaveFull(); return; }
+    if (!canFull()) { setBare(true, false); return; }        // not allowed here (a kiosk): the map alone in the panel
+    const h = hostEl();
+    fsTarget = h;
+    const refused = guard(() => { fsTarget = null; if (!fsOn) setBare(true, false); });
+    try {
+      const pr = (h.requestFullscreen || h.webkitRequestFullscreen).call(h, { navigationUI: "hide" });
+      if (pr && typeof pr.then === "function") pr.then(null, refused);
+    } catch (_) { refused(); }
+  }
+  function leaveFull(){
+    if (!fsOn) return;
+    try {
+      const x = document.exitFullscreen || document.webkitExitFullscreen;
+      const pr = x ? x.call(document) : null;
+      if (pr && typeof pr.catch === "function") pr.catch(() => { /* already out */ });
+    } catch (_) { /* already out */ }
+  }
+  function onFullChange(){
+    let rn = null;
+    try { rn = fsTarget && fsTarget.getRootNode ? fsTarget.getRootNode() : null; } catch (_) { rn = null; }
+    const now = !!(fsTarget && (fsEl() === fsTarget || (rn && rn.fullscreenElement === fsTarget)));
+    if (now === fsOn) return;
+    fsOn = now;
+    // Left (Escape, or the browser's own way out): everything back.
+    if (!now) { fsTarget = null; if (bare) { bare = false; root.classList.remove("la3d-bare"); } }
+    paintCover();
+    paintFull();
+  }
+  const FULL_ICON = { on: "M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4", off: "M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4" };
+  function paintFull(){
+    const seg = fullBtns[0] && fullBtns[0].parentNode;
+    if (seg) seg.style.display = mapOnly ? "" : "none";
+    const b = fullBtns[0];
+    if (!b) return;
+    const t = fsOn ? "Leave full screen" : canFull() ? "Full screen" : "Only the map";
+    b.title = t;
+    b.setAttribute("aria-label", t);
+    b.setAttribute("aria-pressed", String(fsOn));
+    b.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="${fsOn ? FULL_ICON.off : FULL_ICON.on}"/></svg>`;
+  }
+  /** Out of the screen's ways (the view leaves, or is switched off). */
+  function endScreen(){
+    closeMenu();
+    if (bare) { bare = false; if (root) root.classList.remove("la3d-bare"); }
+    leaveFull();
+    fsOn = false; fsTarget = null; soloHold = null;
+    paintCover();
+  }
+
+  // ── the floor stepper: ▲ Main ▼ · All ─────────────────────────────────────
+  // The host's floor chips, from the view: {names (lowest first), zs (each
+  // one's storey, for its sheet), at (the top floor showing), all (every
+  // floor), go(i) (i < 0: All)}.
+  function stepsOf(fs){
+    if (!fs || !Array.isArray(fs.names) || fs.names.length < 2 || typeof fs.go !== "function") return null;
+    const n = fs.names.length, at = Math.max(0, Math.min(n - 1, Math.round(Number(fs.at)) || 0));
+    return { names: fs.names.map(String), zs: Array.isArray(fs.zs) ? fs.zs : null, at, all: fs.all === true, go: fs.go };
+  }
+  function paintFloors(){
+    const s = floorSteps, seg = floorEls[0] && floorEls[0].parentNode;
+    if (seg) seg.style.display = s ? "" : "none";
+    if (!s) return;
+    const [up, name, down, all] = floorEls, n = s.names.length;
+    up.disabled = s.at >= n - 1;
+    down.disabled = s.at <= 0;
+    name.textContent = s.names[s.at] || "";
+    name.title = `${s.names[s.at] || ""}: everything on this floor`;
+    all.setAttribute("aria-pressed", String(!!s.all));
+    name.setAttribute("aria-pressed", String(!s.all));
+  }
+  function stepFloor(d){
+    const s = floorSteps;
+    if (!s) return;
+    if (!d) { if (!s.all) s.go(-1); return; }
+    const i = s.at + d;
+    if (i >= 0 && i < s.names.length && (i !== s.at || s.all)) s.go(i);
+  }
+  /** A tap on the floor's name: its sheet, as the Atlas's floor badge opens it. */
+  function openFloorSheet(){
+    const s = floorSteps, a = apiNow || (apiOf ? (apiNow = apiOf()) : null);
+    if (s && a && typeof a.openFloor === "function" && s.zs && s.zs[s.at] !== undefined) a.openFloor(s.zs[s.at]);
+  }
+
+  // ── Views: the whole house, and views saved on this browser ───────────────
+  function readViews(){
+    try {
+      const v = JSON.parse(prefGet(PREF_VIEWS + slotKey) || "[]");
+      return Array.isArray(v) ? v.filter(x => x && typeof x.name === "string" && Array.isArray(x.target) && x.target.length === 3
+        && [x.theta, x.phi, x.radius, ...x.target].every(Number.isFinite)).slice(-VIEWS_MAX) : [];
+    } catch (_) { return []; }
+  }
+  function writeViews(v){ prefSet(PREF_VIEWS + slotKey, JSON.stringify(v.slice(-VIEWS_MAX))); }
+  function viewItems(){
+    const saved = readViews();
+    return [{ text: "Whole house", act: () => wholeHouse() },
+            ...saved.map((v, i) => ({ text: v.name, act: () => goView(v), del: () => { saved.splice(i, 1); writeViews(saved); } })),
+            { text: "Save this view", act: () => saveView() }];
+  }
+  /** The room the camera looks at, on the top floor showing it. */
+  function roomNear(x, y){
+    const hit = floorsUi.filter(F => F.group.visible).sort((a, b) => b.fl.elev - a.fl.elev)
+      .map(F => F.rooms.find(r => HOUSE.inPoly(x, y, r.pts))).find(Boolean);
+    return hit ? String(hit.name) : null;
+  }
+  function saveView(){
+    const v = readViews(), base = roomNear(cam.target.x, cam.target.z) || "My view";
+    let name = base;
+    for (let n = 2; v.some(x => x.name === name); n++) name = `${base} ${n}`;
+    v.push({ name, theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.toArray(),
+             floor: floorSteps ? (floorSteps.all ? -1 : floorSteps.at) : null });
+    writeViews(v);
+    toast(`Saved "${name}" in Views, on this browser`);
+  }
+  function goView(v){
+    const s = floorSteps;
+    if (s && Number.isInteger(v.floor) && v.floor < s.names.length && (v.floor < 0 ? !s.all : (s.all || v.floor !== s.at))) s.go(v.floor);
+    flyTo({ target: new THREE.Vector3().fromArray(v.target), radius: v.radius, theta: v.theta, phi: v.phi }, false);
+  }
+  /** Every floor, from the Atlas's angle, framed whole. */
+  function wholeHouse(){
+    if (floorSteps && !floorSteps.all) floorSteps.go(-1);
+    const a = isoAngle();
+    const g = frameFor(a.theta, a.phi, visiblePoints());
+    flyTo(g, false);
+    fitR = g.radius;
+  }
+
+  // ── a menu over the bar (Views, and the narrow screen's Walls and View) ───
+  function closeMenu(){
+    if (menuOff) menuOff();
+    menuOff = null;
+    if (menuEl && menuEl.parentNode) menuEl.parentNode.removeChild(menuEl);
+    menuEl = null;
+  }
+  /** items: {text, act, on?, del?} or null (a line between). A second tap on its button closes it. */
+  function openMenu(anchor, items){
+    const again = !!(menuEl && menuEl._from === anchor);
+    closeMenu();
+    if (again || !root) return;
+    const d = (tag, cls) => { const n = document.createElement(tag); if (cls) n.className = cls; return n; };
+    const m = d("div", "la3d-menu");
+    m.setAttribute("role", "menu");
+    m._from = anchor;
+    for (const it of items) {
+      if (!it) { m.appendChild(d("hr")); continue; }
+      const row = d("div", "la3d-mrow"), b = d("button");
+      b.type = "button"; b.textContent = it.text;
+      b.setAttribute("role", it.on === undefined ? "menuitem" : "menuitemradio");
+      if (it.on !== undefined) b.setAttribute("aria-checked", String(!!it.on));
+      b.addEventListener("click", guard((e) => { e.stopPropagation(); closeMenu(); it.act(); }));
+      row.appendChild(b);
+      if (it.del) {
+        const x = d("button", "la3d-mx");
+        x.type = "button"; x.textContent = "×"; x.title = `Forget "${it.text}"`;
+        x.setAttribute("aria-label", x.title);
+        x.addEventListener("click", guard((e) => { e.stopPropagation(); closeMenu(); it.del(); }));
+        row.appendChild(x);
+      }
+      m.appendChild(row);
+    }
+    root.appendChild(m);
+    const rr = root.getBoundingClientRect(), ar = anchor.getBoundingClientRect();
+    m.style.left = `${Math.max(8, Math.min(ar.left - rr.left, rr.width - 8 - (m.offsetWidth || 180)))}px`;
+    m.style.bottom = `${Math.max(8, rr.bottom - ar.top + 6)}px`;
+    menuEl = m;
+    const away = guard((e) => { const path = e.composedPath ? e.composedPath() : []; if (!path.includes(m) && !path.includes(anchor)) closeMenu(); });
+    const esc = guard((e) => { if (e.key === "Escape") closeMenu(); });
+    window.addEventListener("pointerdown", away, true);
+    window.addEventListener("keydown", esc);
+    menuOff = () => { window.removeEventListener("pointerdown", away, true); window.removeEventListener("keydown", esc); };
+  }
+
+  // ── the first time: a card with the ways round ────────────────────────────
+  let hintShown = false;
+  function showHint(){
+    if (hintShown || hintCard || furnishOn || !root) return;
+    const seen = prefGet(PREF_HINT) === "1";
+    hintShown = true;
+    if (seen) return;
+    const d = (tag, text) => { const n = document.createElement(tag); if (text) n.textContent = text; return n; };
+    const card = document.createElement("div");
+    card.className = "la3d-card";
+    card.setAttribute("role", "dialog");
+    card.setAttribute("aria-label", "How Live Aboard works");
+    const ul = d("ul");
+    for (const t of ["Tap a light to switch it. Hold it for brightness and colour.",
+                     "Drag to turn the house. Two fingers (or the right mouse button) move it; pinch or the wheel zooms.",
+                     "Double-tap a room to go there.",
+                     "Walls: Cut, Up or Down. ▲ and ▼ change the floor you see.",
+                     ...(mapOnly ? ["Zoom in and the bars step aside for the map alone; ☰ brings them back. The corners button fills the screen."] : [])]) {
+      ul.appendChild(d("li", t));
+    }
+    const ok = d("button", "Got it");
+    ok.type = "button";
+    ok.addEventListener("click", guard((e) => {
+      e.stopPropagation();
+      prefSet(PREF_HINT, "1");
+      if (card.parentNode) card.parentNode.removeChild(card);
+      hintCard = null;
+    }));
+    card.append(d("b", "Live Aboard"), ul, ok);
+    root.appendChild(card);
+    hintCard = card;
   }
 
   function start(setting){
@@ -524,6 +939,11 @@ function createSlot(slotKey){
     // A dark wall top, as in the Sims.
     for (let i = 0; i < n.count; i++) { const v = n.getY(i) > 0.5 ? 0.24 : 1; col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = v; }
     wallBox.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    // Which faces are wall tops: at night they glow light (topGlow), so the
+    // rooms read from above as they do on the flat Atlas.
+    const tops = new Float32Array(n.count);
+    for (let i = 0; i < n.count; i++) tops[i] = n.getY(i) > 0.5 ? 1 : 0;
+    wallBox.setAttribute("aTop", new THREE.BufferAttribute(tops, 1));
     const glowTex = radialTexture([[0, "rgba(255,255,255,1)"], [0.22, "rgba(255,255,255,0.6)"], [0.55, "rgba(255,255,255,0.16)"], [1, "rgba(255,255,255,0)"]]);
     shared = {
       wallBox, glassBox: new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0),
@@ -562,6 +982,17 @@ function createSlot(slotKey){
                   depthWrite: !spec.tr, side: spec.ds ? THREE.DoubleSide : THREE.FrontSide };
       m = profileOf().pbr ? new THREE.MeshStandardMaterial({ ...o, roughness: spec.r ?? 0.85, metalness: spec.m ?? 0 })
         : new THREE.MeshLambertMaterial(o);
+      if (spec.top) {
+        // The wall tops' night glow: one uniform, so dusk to night never rebuilds a shader.
+        m.onBeforeCompile = (sh) => {
+          sh.uniforms.uTopGlow = topGlow;
+          sh.vertexShader = "attribute float aTop;\nvarying float vTop;\n"
+            + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n  vTop = aTop;");
+          sh.fragmentShader = "uniform float uTopGlow;\nvarying float vTop;\n"
+            + sh.fragmentShader.replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n  totalEmissiveRadiance += vec3(vTop * uTopGlow);");
+        };
+        m.customProgramCacheKey = () => "la3d-walltop";
+      }
       shared.mats.set(key, m);
     }
     return m;
@@ -570,7 +1001,7 @@ function createSlot(slotKey){
 
   // ── the house ─────────────────────────────────────────────────────────────
   function clearShell(){
-    clearSensors(); clearBadges();
+    clearSensors();
     openings = [];
     if (use && !use.pressing) use.clear();            // what it marked is gone
     for (const F of floorsUi) scene.remove(F.group);
@@ -579,28 +1010,27 @@ function createSlot(slotKey){
     clearLights();
     floorsUi = [];
   }
-  function labelMesh(text, maxW){
-    const px = 56, c = document.createElement("canvas"), g = c.getContext("2d");
-    const font = `700 ${px}px system-ui, "Segoe UI", Roboto, sans-serif`;
-    const setup = () => { g.font = font; if ("letterSpacing" in g) g.letterSpacing = "4px"; };
-    setup();
-    c.width = Math.ceil(g.measureText(text).width) + 48; c.height = px + 40;
-    setup();
+  // A room's name: upright on screen whatever the angle (a sprite), drawn
+  // over everything on its floor (fixtures included), in its own words. Sized
+  // per frame (sizeNames): never under or over NAME_PX, and hidden when its
+  // room is too small on screen to hold it, or under a floor showing above.
+  function labelSprite(text, ext){
+    const px = 44, c = document.createElement("canvas"), g = c.getContext("2d");
+    const font = `650 ${px}px system-ui, "Segoe UI", Roboto, sans-serif`;
+    g.font = font;
+    c.width = Math.ceil(g.measureText(text).width) + 28; c.height = px + 24;
+    g.font = font;
     g.textAlign = "center"; g.textBaseline = "middle"; g.lineJoin = "round";
-    g.lineWidth = 12; g.strokeStyle = "rgba(12,16,14,0.8)"; g.strokeText(text, c.width / 2, c.height / 2 + 2);
+    g.lineWidth = 10; g.strokeStyle = "rgba(8,12,10,0.86)"; g.strokeText(text, c.width / 2, c.height / 2 + 2);
     g.fillStyle = "#ffffff"; g.fillText(text, c.width / 2, c.height / 2 + 2);
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    let k = 0.5 / px;                                        // ~0.5 m letters, smaller in small rooms
-    if (c.width * k > maxW) k = Math.max(0.2 / px, maxW / c.width);
-    const geo = new THREE.PlaneGeometry(c.width * k, c.height * k);
-    const m = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true,
-                                            polygonOffsetFactor: -2, polygonOffsetUnits: -8 });
-    shellRes.push(tex, geo, m);
-    const mesh = new THREE.Mesh(geo, m);
-    mesh.renderOrder = 3;
-    return mesh;
+    const m = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false });
+    shellRes.push(tex, m);
+    const sp = new THREE.Sprite(m);
+    sp.renderOrder = 30;
+    sp.userData = { aspect: c.width / c.height, letters: px / c.height, ext, covered: false, px: 0 };
+    return sp;
   }
   function lit(geo, spec, cast = true, recv = true){
     const o = new THREE.Mesh(geo, mat(spec));
@@ -640,8 +1070,10 @@ function createSlot(slotKey){
         g.setAttribute("color", new THREE.BufferAttribute(col, 3));
         g.clearGroups();
         geos.push(g);
-        const lbl = labelMesh(String(r.name).toUpperCase(), Math.max(0.6, r.spot.r * 1.9));
-        lbl.position.set(r.spot.x, fl.elev + 0.02, r.spot.y);
+        let bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
+        for (const q of r.pts) { bx0 = Math.min(bx0, q[0]); bx1 = Math.max(bx1, q[0]); by0 = Math.min(by0, q[1]); by1 = Math.max(by1, q[1]); }
+        const lbl = labelSprite(String(r.name), Math.max(r.spot.r * 2, 0.75 * Math.max(bx1 - bx0, by1 - by0)));
+        lbl.position.set(r.spot.x, fl.elev + 0.05, r.spot.y);
         group.add(lbl);
         F.labels.push(lbl);
       });
@@ -652,6 +1084,24 @@ function createSlot(slotKey){
         shellRes.push(merged);
         F.tiles = lit(merged, { vc: true, r: 0.9 }, true, true);
         group.add(F.tiles);
+        // Readable night: an unlit copy of the tiles over them, as clear as
+        // the dark is deep (paintNight), so each room keeps its colour.
+        const liftMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false,
+                                                      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+        shellRes.push(liftMat);
+        F.lift = new THREE.Mesh(merged, liftMat);
+        F.lift.visible = false;
+        group.add(F.lift);
+        // ...and each room's outline in its own colour, as the flat Atlas draws it.
+        const eg = edgeRibbons(per.rooms, fl.elev + 0.012);
+        if (eg) {
+          const edgeMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false,
+                                                        side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 });
+          shellRes.push(eg, edgeMat);
+          F.edges = new THREE.Mesh(eg, edgeMat);
+          F.edges.visible = false;
+          group.add(F.edges);
+        }
       }
       // Walls: the derived pieces, each drawn bottom to top (wallElements).
       const solids = [], glasses = [];
@@ -675,7 +1125,7 @@ function createSlot(slotKey){
         group.add(im);
         return im;
       };
-      F.solid = inst(solids, shared.wallBox, { vc: true, r: 0.92 }, true);
+      F.solid = inst(solids, shared.wallBox, { vc: true, r: 0.92, top: 1 }, true);
       F.glass = inst(glasses, shared.glassBox, { tr: true, op: 0.32, r: 0.08 }, false);
       // A door, window or lock linked to a sensor opens with it (part B).
       for (const P of F.pieces) setupOpening(F, P, per.rooms);
@@ -701,7 +1151,46 @@ function createSlot(slotKey){
     scene.add(ground, gridLines);
     placeSun();
     applyTop();
+    paintNight();
     if (!cam.moved) cam.needsFit = true;
+  }
+  /** A band just inside each room's outline (EDGE_IN to EDGE_IN + EDGE_W in
+   *  from it), in the room's colour: one geometry for the floor. */
+  const EDGE_IN = 0.07, EDGE_W = 0.09;
+  function edgeRibbons(rooms, y){
+    const pos = [], col = [];
+    for (const r of rooms) {
+      const P = r.pts, n = P.length;
+      if (n < 3) continue;
+      let area = 0;
+      for (let i = 0; i < n; i++) { const a = P[i], b = P[(i + 1) % n]; area += a[0] * b[1] - b[0] * a[1]; }
+      const side = area > 0 ? 1 : -1, c = colorOf(r.color).lerp(_white, 0.3);
+      for (let i = 0; i < n; i++) {
+        const a = P[i], b = P[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
+        if (len < 0.05) continue;
+        const nx = -dy / len * side, ny = dx / len * side;                 // into the room
+        const q = (p, d) => [p[0] + nx * d, y, p[1] + ny * d];
+        const a0 = q(a, EDGE_IN), b0 = q(b, EDGE_IN), a1 = q(a, EDGE_IN + EDGE_W), b1 = q(b, EDGE_IN + EDGE_W);
+        for (const v of [a0, b0, b1, a0, b1, a1]) { pos.push(...v); col.push(c.r, c.g, c.b); }
+      }
+    }
+    if (!pos.length) return null;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
+    g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(col), 3));
+    return g;
+  }
+  /** How dark it is (nightK), drawn: the floors' colour kept, the outlines,
+   *  the wall tops' glow, and fixtures that are off darkened with the house. */
+  function paintNight(){
+    const k = nightK;
+    for (const F of floorsUi) {
+      if (F.lift) { F.lift.material.opacity = NIGHT_FLOOR * k; F.lift.visible = k > 0.01; }
+      if (F.edges) { F.edges.material.opacity = NIGHT_EDGE * k; F.edges.visible = k > 0.01; }
+    }
+    topGlow.value = NIGHT_TOP * k;
+    for (const L of lights) if (L.look) paintLight(L);
+    requestRender();
   }
   // The sun's light sits out along the sun's direction from the middle of the
   // house, its shadow box (High) fitted round the house's bounds.
@@ -733,6 +1222,7 @@ function createSlot(slotKey){
         && gap <= SUN_STEP && Math.abs(s.elevation - sunNow.elevation) <= SUN_STEP) return false;
     sunNow = { azimuth: s.azimuth, elevation: s.elevation, source: s.source, bearing: b, phase: look.phase, night: look.night };
     bearing = b;
+    if (Math.abs(look.night - nightK) > 1e-3) { nightK = look.night; paintNight(); }
     // A setting sun still lights from just above the horizon as it fades,
     // never from under the slabs.
     const d = HOUSE.sunDirection(s.azimuth, Math.max(s.elevation, 2), b);
@@ -1116,15 +1606,16 @@ function createSlot(slotKey){
   }
   // One light's look, painted: the bulb's colour, the glow, the pool. A
   // switch changes these values only — what is drawn never changes.
-  const _white = new THREE.Color(1, 1, 1);
   function paintLight(L){
     const F = L.F, k = L.look, on = k.on, hidden = !!(L.wall && L.wall.cut) || !!L.swap, glow = theme3d ? theme3d.glow : 1;
     const c = new THREE.Color().setRGB(k.rgb[0], k.rgb[1], k.rgb[2], THREE.SRGBColorSpace);
     L.color = c; L.f = k.f;
     const core = on ? c.clone().lerp(_white, 0.35).multiplyScalar(0.55 + 0.45 * k.f) : null;
+    // Off, a fixture is shaded like the rest of the house: at night it all but goes.
+    const shade = 1 - NIGHT_OFF * nightK;
     for (const r of L.refs.bulbs) {
       const im = F.bulbs[r.prim];
-      im.setColorAt(r.i, on ? core : (k.unavailable ? _c.copy(r.off).multiplyScalar(0.55) : r.off));
+      im.setColorAt(r.i, on ? core : _c.copy(r.off).multiplyScalar((k.unavailable ? 0.55 : 1) * shade));
       im.setMatrixAt(r.i, hidden ? ZERO : r.m);
       im.instanceColor.needsUpdate = true;
       im.instanceMatrix.needsUpdate = true;
@@ -1236,7 +1727,7 @@ function createSlot(slotKey){
   function clearSensors(){
     for (const F of floorsUi) { if (F.sensorGroup) F.group.remove(F.sensorGroup); F.sensorGroup = null; }
     disposeList(sensorRes); sensorRes = [];
-    sensorsUi = []; tints = []; readouts = [];
+    sensorsUi = []; tints = []; readouts = []; chips = [];
   }
   function buildSensors(h){
     clearSensors();
@@ -1253,7 +1744,7 @@ function createSlot(slotKey){
         const S = { ...S0, F, z, zDefault: HOUSE.deviceZ(S0.kind, ceil, null), pos: new THREE.Vector3(S0.x, F.fl.elev + z, S0.y),
                     room: HOUSE.roomAt(F.rooms, S0.x, S0.y), shown: null };
         sensorsUi.push(S); here.push(S);
-        if (S.kind === "motion") motion.push(S); else readouts.push(makeReadout(S, g));
+        if (S.kind === "motion") motion.push(S); else readouts.push(S);
       }
       if (motion.length) {
         const im = new THREE.InstancedMesh(shared.prim.sphere, shared.bulbMat, motion.length);
@@ -1278,6 +1769,15 @@ function createSlot(slotKey){
         byRoom.get(key)[S.kind].push(S);
       }
       for (const T of byRoom.values()) tints.push(makeTint(T, g));
+      // One chip per room for what its sensors read; one each outside.
+      const groups = new Map();
+      for (const S of here) {
+        if (S.kind === "motion") continue;
+        const key = S.room || S;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(S);
+      }
+      for (const [key, list] of groups) chips.push(makeChip(F, key === list[0] ? null : key, list, g));
     }
   }
   function makeTint(T, g){
@@ -1324,71 +1824,85 @@ function createSlot(slotKey){
     T.mLook = null; T.aLook = null; T.mKey = ""; T.aKey = "";
     return T;
   }
-  // A readout: a sprite whose canvas is redrawn only when its words change.
-  function makeReadout(S, g){
+  // The readouts: one chip per room under the room's name ("22° · 45% ·
+  // Air: Good"); a sensor outside every room has its own chip where it is,
+  // with its name ("Deck 15°"). Stale or no reading shows a dash, never a
+  // code. Drawn over everything, a size you can read; redrawn only when its
+  // words change.
+  function makeChip(F, room, sensors, g){
     const c = document.createElement("canvas");
     c.width = READ_W; c.height = READ_C;
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false });
     const sp = new THREE.Sprite(mat);
-    sp.position.copy(S.pos);
-    sp.renderOrder = 6;
+    sp.renderOrder = 31;
     g.add(sp);
     sensorRes.push(tex, mat);
-    Object.assign(S, { sprite: sp, tex, canvas: c, key: null, pillW: 0.5 });
-    return S;
+    const C = { F, room, sensors, outdoor: !room, sprite: sp, tex, canvas: c, key: null, text: "", pillW: 0.5, px: 0,
+                name: room ? null : sensors.map(S => chipName(S)).find(Boolean) || "Outside" };
+    for (const S of sensors) S.chip = C;
+    placeChip(C);
+    return C;
   }
-  function drawReadout(S, r){
-    const c = S.canvas, g = c.getContext("2d");
-    let px = 40;
-    const font = () => `800 ${px}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+  /** Where a chip sits: under its room's name; outside, amid its sensors. */
+  function placeChip(C){
+    const i = C.room ? C.F.rooms.indexOf(C.room) : -1;
+    if (i >= 0 && C.F.labels[i]) { C.sprite.position.copy(C.F.labels[i].position); C.label = C.F.labels[i]; return; }
+    C.label = null;
+    const v = new THREE.Vector3();
+    for (const S of C.sensors) v.add(S.pos);
+    C.sprite.position.copy(v.multiplyScalar(1 / Math.max(1, C.sensors.length)));
+  }
+  /** A sensor outside every room says where it is: its own name, without the "temperature". */
+  function chipName(S){
+    const l = lbe[S.eid] || S.l || {};
+    const n = String(l.friendly_name || "").replace(/\b(temperature|temp|humidity|air quality|sensor)\b/gi, " ").replace(/\s+/g, " ").trim();
+    return n && n.length <= 18 ? n : null;
+  }
+  const CHIP_ORDER = { temp: 0, humidity: 1, air: 2 };
+  function chipParts(C){
+    const parts = [];
+    for (const S of [...C.sensors].sort((a, b) => (CHIP_ORDER[a.kind] ?? 3) - (CHIP_ORDER[b.kind] ?? 3))) {
+      const r = S.shown;
+      if (!r) continue;
+      const dash = r.kind === "temp" ? "–°" : r.kind === "humidity" ? "–%" : "–";
+      const text = r.live ? r.text : dash;
+      parts.push({ text: r.kind === "air" ? `Air: ${text}` : text, color: r.live ? r.color : HOUSE.STALE_INK, live: !!r.live });
+    }
+    return parts;
+  }
+  function drawChip(C){
+    const parts = chipParts(C), sep = " · ";
+    const words = [...(C.name ? [{ text: `${C.name} `, color: "#e2e8f0", live: true }] : [])];
+    parts.forEach((q, i) => { if (i) words.push({ text: sep, color: "rgba(226,240,232,0.45)", live: true }); words.push(q); });
+    const text = words.map(w => w.text).join("");
+    C.text = text.trim();
+    const c = C.canvas, g = c.getContext("2d");
+    let px = 38;
+    const font = () => `700 ${px}px system-ui, "Segoe UI", Roboto, sans-serif`;
+    const width = () => words.reduce((a, w) => a + g.measureText(w.text).width, 0);
     g.font = font();
-    while (px > 24 && g.measureText(r.text).width > READ_W - 44) { px -= 2; g.font = font(); }
-    const w = Math.min(READ_W - 4, Math.ceil(g.measureText(r.text).width) + 40), h = READ_C - 8, x0 = (READ_W - w) / 2, y0 = 4;
+    while (px > 22 && width() > READ_W - 40) { px -= 2; g.font = font(); }
+    const tw = width(), w = Math.min(READ_W - 4, Math.ceil(tw) + 36), h = READ_C - 8, x0 = (READ_W - w) / 2, y0 = 4;
     g.clearRect(0, 0, READ_W, READ_C);
+    if (!words.length) { C.pillW = 0; C.parts = 0; C.tex.needsUpdate = true; return; }
     g.beginPath();
     if (g.roundRect) g.roundRect(x0, y0, w, h, h / 2); else g.rect(x0, y0, w, h);
-    g.fillStyle = "rgba(6,14,9,0.84)"; g.fill();
-    g.lineWidth = 2; g.strokeStyle = "rgba(226,240,232,0.18)"; g.stroke();
-    g.textAlign = "center"; g.textBaseline = "middle";
-    g.globalAlpha = r.live ? 1 : 0.7;
-    g.fillStyle = r.color;
-    g.fillText(r.text, READ_W / 2, READ_C / 2 + 2);
-    g.globalAlpha = 1;
-    S.pillW = w / READ_W;
-    S.tex.needsUpdate = true;
-  }
-  // The floor badges: one per plate of the Atlas's stack, its number in its
-  // colour, always on top, the same size on screen at any distance.
-  function clearBadges(){
-    for (const B of badges) if (B.sprite.parent) B.sprite.parent.remove(B.sprite);
-    disposeList(badgeRes); badgeRes = [];
-    badges = [];
-  }
-  function buildBadges(p){
-    clearBadges();
-    for (const B of HOUSE.floorBadges(p.model, p.floors, house)) {
-      const F = floorsUi.find(x => x.fl === B.floor);
-      if (!F) continue;
-      const c = document.createElement("canvas");
-      c.width = c.height = 64;
-      const g = c.getContext("2d");
-      g.beginPath(); g.arc(32, 32, 28, 0, Math.PI * 2);
-      g.fillStyle = B.color; g.fill();
-      g.lineWidth = 3; g.strokeStyle = "rgba(7,16,8,0.55)"; g.stroke();
-      g.fillStyle = "#071008"; g.font = "700 30px system-ui, \"Segoe UI\", Roboto, sans-serif";
-      g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(String(B.n), 32, 34);
-      const tex = new THREE.CanvasTexture(c);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false });
-      const sp = new THREE.Sprite(mat);
-      sp.position.set(B.x, B.floor.elev + 0.12, B.y);
-      sp.renderOrder = 20;
-      F.group.add(sp);
-      badgeRes.push(tex, mat);
-      badges.push({ ...B, F, sprite: sp, pos: sp.position });
+    g.fillStyle = "rgba(6,14,9,0.86)"; g.fill();
+    g.lineWidth = 2; g.strokeStyle = "rgba(226,240,232,0.2)"; g.stroke();
+    g.textAlign = "left"; g.textBaseline = "middle";
+    let x = (READ_W - tw) / 2;
+    for (const q of words) {
+      g.globalAlpha = q.live ? 1 : 0.8;
+      g.fillStyle = q.color;
+      g.fillText(q.text, x, READ_C / 2 + 2);
+      x += g.measureText(q.text).width;
     }
+    g.globalAlpha = 1;
+    C.pillW = w / READ_W;
+    C.parts = parts.length;
+    C.tex.needsUpdate = true;
   }
   /** The poll: what each sensor and opening shows now. */
   function paintLive(){
@@ -1405,10 +1919,11 @@ function createSlot(slotKey){
       } else {
         const r = HOUSE.readoutOf(l, now);
         const key = r ? `${r.text}|${r.color}|${r.live}` : "";
-        if (r && key !== S.key) { S.key = key; S.shown = r; drawReadout(S, r); changed = true; }
+        if (r && key !== S.key) { S.key = key; S.shown = r; if (S.chip) S.chip.key = null; changed = true; }
       }
       if (S.kind === "air") S.air = HOUSE.airLook(l);
     }
+    for (const C of chips) if (C.key === null) { C.key = "drawn"; drawChip(C); }
     for (const T of tints) {
       // The room shows its most telling sensor: active before quiet, the
       // latest quiet one; the worst air.
@@ -1497,21 +2012,52 @@ function createSlot(slotKey){
     if (tracked) tracked.tick(t);                             // people walking
     liveMs = liveRate(t);
   }
-  // Readouts keep to a size you can read; badges keep one size on screen.
+  // Readouts keep to a size you can read, and so do the rooms' names, whatever the zoom.
   function sizeSprites(){
-    const H = canvas.clientHeight || 600, k = 2 * Math.tan(FOV / 2 * D2R) / H;     // metres per pixel, a metre away
-    for (const R of readouts) {
-      if (!R.F.group.visible) continue;
-      const mpp = camera.position.distanceTo(R.pos) * k;
-      const h = Math.max(READ_PX[0] * mpp, Math.min(READ_PX[1] * mpp, READ_H)) * READ_C / (READ_C - 8);
-      R.sprite.scale.set(h * READ_W / READ_C, h, 1);
+    sizeNames(camera, canvas.clientHeight || 600);
+  }
+  /** The names (and each room's chip under its name) for camera `c` over a view `H` px high. */
+  function sizeNames(c, H){
+    const persp = !!c.isPerspectiveCamera, k = persp ? 2 * Math.tan(FOV / 2 * D2R) / H : (c.top - c.bottom) / H;
+    const mppAt = (v) => (persp ? c.position.distanceTo(v) * k : k);           // metres per px there
+    for (const F of floorsUi) {
+      if (!F.group.visible) continue;
+      for (const lbl of F.labels) {
+        const u = lbl.userData, mpp = mppAt(lbl.position), roomPx = u.ext / mpp;
+        const letters = Math.max(NAME_PX[0], Math.min(NAME_PX[1], roomPx / 9)), hPx = letters / u.letters, wPx = hPx * u.aspect;
+        lbl.visible = !u.covered && wPx - 28 * hPx / 68 <= roomPx * 1.15;
+        u.px = lbl.visible ? hPx : 0;
+        lbl.scale.set(wPx * k, hPx * k, 1);
+      }
     }
-    for (const B of badges) B.sprite.scale.set(BADGE_PX * k, BADGE_PX * k, 1);
+    for (const C of chips) {
+      if (!C.F.group.visible) continue;
+      const mpp = mppAt(C.sprite.position);
+      const hPx = Math.max(READ_PX[0], Math.min(READ_PX[1], READ_H / mpp)) * READ_C / (READ_C - 8);
+      C.sprite.scale.set(hPx * READ_W / READ_C * k, hPx * k, 1);
+      C.px = hPx;
+      // Under the room's name (or where the name would be), clear of it.
+      const above = C.label ? Math.max(C.label.userData.px, 18) : 0;
+      C.sprite.center.set(0.5, C.label ? 0.5 + (above / 2 + 2 + hPx / 2) / hPx : 0.5);
+      C.sprite.visible = !!C.parts && !(C.label && C.label.userData.covered);
+    }
+  }
+  /** A name (and its room's chip) under a floor showing above it is hidden. */
+  function coverNames(){
+    const shown = floorsUi.filter(F => F.group.visible);
+    for (const F of shown) {
+      F.labels.forEach((lbl, i) => {
+        const at = F.rooms[i].spot;
+        lbl.userData.covered = shown.some(G => G !== F && !G.fl.outdoor && G.fl.elev > F.fl.elev + 0.5
+          && G.rooms.some(r => HOUSE.inPoly(at.x, at.y, r.pts)));
+      });
+    }
   }
 
   // ── floors, walls, quality ────────────────────────────────────────────────
   function applyTop(){
     for (const F of floorsUi) F.group.visible = HOUSE.floorShown(F.fl, topElev);
+    coverNames();
     lampsDirty = true;
     liveMs = liveRate(performance.now());                    // a floor shown again may be swinging or flashing
   }
@@ -1630,6 +2176,9 @@ function createSlot(slotKey){
   function wirePointer(){
     const pts = camPts;
     let mode = null, last = null, pinch = null, press = null, unfollow = null;
+    // A pinch's distance at its start (zoomed in or out, once the fingers
+    // lift); a press on nothing (a tap there, twice: fly to that room).
+    let pinchR0 = null, tap = null;
     const mid = () => { const [a, b] = [...pts.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) }; };
     // Every finger and button down on the house is followed on the window
     // (capture) until it lifts, as a spin is. A poll moving the view into a
@@ -1657,13 +2206,16 @@ function createSlot(slotKey){
       if (spin) endSpin(true);                               // a finger on the house: no spin
       if (typeof touchCb === "function") { try { touchCb(); } catch (_) { /* the card's, not ours */ } }
       const onlyNorth = e === northDismissed;                // this tap put north back, nothing more
+      cam.fly = null;                                        // a hand on the house stops a flight
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       follow();
       try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* followed on the window anyway */ }
       if (pts.size === 2) {
         if (press) { press = null; use.cancel(); }           // a second finger: a pinch, never a press
         if (mode === "edit" || mode === "editTap") editor.cancel();   // ...and never a line
-        mode = "pinch"; pinch = mid(); pinch.plan = planHere(pinch.x, pinch.y); return;
+        mode = "pinch"; pinch = mid(); pinch.plan = planHere(pinch.x, pinch.y); tap = null;
+        if (pinchR0 === null) pinchR0 = cam.radius;
+        return;
       }
       mode = e.pointerType === "mouse" && (e.button === 2 || e.button === 1 || e.shiftKey || e.ctrlKey || e.metaKey) ? "pan" : "orbit";
       last = { x: e.clientX, y: e.clientY };
@@ -1685,6 +2237,8 @@ function createSlot(slotKey){
         mode = "press";
         press = { id: e.pointerId, x0: e.clientX, y0: e.clientY };
       }
+      tap = mode === "orbit" && pts.size === 1 && !onlyNorth && (e.pointerType !== "mouse" || e.button === 0)
+        ? { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() } : null;
     }));
     canvas.addEventListener("pointermove", guard((e) => {
       if (pts.has(e.pointerId)) { moved(e); return; }
@@ -1696,6 +2250,7 @@ function createSlot(slotKey){
     const moved = once((e) => {
       if (!pts.has(e.pointerId)) return;
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) > TAP_PX) tap = null;
       if (mode === "press") {
         if (use.move(e) !== "cancel") return;
         const p0 = press;
@@ -1739,12 +2294,25 @@ function createSlot(slotKey){
         else if (mode === "edit") editor.up(e);
         else editor.tap(e);
       }
+      // A short press on nothing: a tap; two close together, the room flies in.
+      if (tap && tap.id === e.pointerId && !cancelled && mode === "orbit" && pts.size === 1
+          && performance.now() - tap.t <= TAP_MS && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) <= TAP_PX) {
+        const t = performance.now(), prev = tapAt;
+        tapAt = { x: e.clientX, y: e.clientY, t };
+        if (prev && t - prev.t <= TAP2_MS && Math.hypot(e.clientX - prev.x, e.clientY - prev.y) <= TAP2_PX && flyToRoomAt(e.clientX, e.clientY)) tapAt = null;
+      }
+      tap = null;
       pts.delete(e.pointerId);
       try { canvas.releasePointerCapture(e.pointerId); } catch (_) { /* fine */ }
       if (pts.size === 1) {                                  // one finger left of a pinch: carry on turning from it
         const [p] = [...pts.values()];
         mode = planHere(p.x, p.y) ? "planPan" : "orbit"; last = { x: p.x, y: p.y }; pinch = null;
-      } else if (!pts.size) { mode = null; last = null; pinch = null; if (unfollow) unfollow(); }
+      } else if (!pts.size) {
+        mode = null; last = null; pinch = null;
+        if (unfollow) unfollow();
+        // A pinch ended: zoomed in past the fit, the map alone; out to it, the bars.
+        if (pinchR0 !== null) { const r0 = pinchR0; pinchR0 = null; if (!cancelled) afterZoom(cam.radius < r0 - 1e-3); }
+      }
     });
     canvas.addEventListener("pointerup", lift);
     canvas.addEventListener("pointercancel", lift);
@@ -1762,7 +2330,7 @@ function createSlot(slotKey){
       e.preventDefault();
       const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
       const f = Math.exp(Math.max(-200, Math.min(200, dy)) * 0.0015);
-      if (planHere(e.clientX, e.clientY)) planZoomAt(e.clientX, e.clientY, f); else zoomAt(e.clientX, e.clientY, f);
+      if (planHere(e.clientX, e.clientY)) planZoomAt(e.clientX, e.clientY, f); else { cam.fly = null; zoomAt(e.clientX, e.clientY, f); afterZoom(f < 1); }
       if (use && !pts.size && !(editor && editor.active)) use.hover(e);   // what is under the cursor now
     }), { passive: false });
   }
@@ -1780,8 +2348,18 @@ function createSlot(slotKey){
     }
     return pts;
   }
-  /** Frame the showing floors from the camera's direction (or `dir`). */
-  function fit(theta = cam.theta, phi = cam.phi, pts = visiblePoints()){
+  /** Frame the showing floors from the camera's direction (or `dir`); with
+   *  no points of its own, the whole house — the fit level the map-alone
+   *  screen measures zooming against. */
+  function fit(theta = cam.theta, phi = cam.phi, pts = null){
+    const g = frameFor(theta, phi, pts || visiblePoints());
+    cam.target.copy(g.target); cam.theta = g.theta; cam.phi = g.phi; cam.radius = g.radius;
+    if (!pts) fitR = g.radius;
+    applyCam();
+  }
+  /** Where the camera frames `pts` from (theta, phi): {target, radius, theta, phi}. */
+  function frameFor(theta, phi, pts){
+    const keep = { p: camera.position.clone(), q: camera.quaternion.clone() };
     const dir = new THREE.Vector3(Math.sin(phi) * Math.sin(theta), Math.cos(phi), Math.sin(phi) * Math.cos(theta));
     const box = new THREE.Box3().setFromPoints(pts), c = box.getCenter(new THREE.Vector3());
     camera.position.copy(c).addScaledVector(dir, 50);
@@ -1798,19 +2376,82 @@ function createSlot(slotKey){
       const o = q.clone().sub(c), z = o.dot(dir);
       need = Math.max(need, z + Math.abs(o.dot(right)) / th * 1.08, z + Math.abs(o.dot(up)) / tv * 1.22);
     }
-    cam.target.copy(c); cam.theta = theta; cam.phi = Math.max(MIN_PHI, Math.min(MAX_PHI, phi));
-    cam.radius = Math.max(MIN_R, Math.min(MAX_R, need));
-    applyCam();
+    camera.position.copy(keep.p); camera.quaternion.copy(keep.q);
+    camera.updateMatrixWorld();
+    return { target: c, theta, phi: Math.max(MIN_PHI, Math.min(MAX_PHI, phi)), radius: Math.max(MIN_R, Math.min(MAX_R, need)) };
+  }
+  /** The Atlas's angle (plan x down-right, plan y down-left). A portrait
+   *  screen turns it so the long side of the house runs up the screen. */
+  function isoAngle(){
+    if (camera.aspect >= 0.8) return { theta: Math.PI / 4, phi: 0.98 };
+    let n = 0, mx = 0, my = 0, xx = 0, yy = 0, xy = 0;
+    for (const v of visiblePoints()) { n++; mx += v.x; my += v.z; xx += v.x * v.x; yy += v.z * v.z; xy += v.x * v.z; }
+    if (!n) return { theta: 0.35, phi: 0.85 };
+    mx /= n; my /= n;
+    const a = 0.5 * Math.atan2(2 * (xy / n - mx * my), (xx / n - mx * mx) - (yy / n - my * my));   // the long axis
+    // Looking along the long axis puts it up the screen; of its two ends, the one nearer the old turn.
+    const near = (t) => Math.abs(((t - 0.35) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI);
+    const t1 = Math.PI / 2 - a, t2 = t1 + Math.PI;
+    return { theta: near(t1) <= near(t2) ? t1 : t2, phi: 0.85 };
   }
   function preset(name, byHand = false){
     if (byHand) cam.moved = true;
     cam.needsFit = false;
-    // The Atlas's angle (plan x down-right, plan y down-left); a portrait
-    // screen turns it so a long house runs up the screen.
-    if (name === "iso") fit(camera.aspect < 0.8 ? 0.35 : Math.PI / 4, camera.aspect < 0.8 ? 0.85 : 0.98);
+    cam.fly = null;
+    if (name === "iso") { const a = isoAngle(); fit(a.theta, a.phi); }
     else if (name === "top") fit(0, MIN_PHI);
     else if (name === "turn") { cam.theta += Math.PI / 2; applyCam(); }
     else fit();
+    if (byHand && bare) setBare(false, false);
+  }
+  /** The first view: the Atlas's angle, the whole house; on a phone held
+   *  upright, room scale (about ROOM_SPAN across) at the middle of the house. */
+  const ROOM_SPAN = 9;
+  function openView(){
+    preset("iso");
+    if (camera.aspect >= 0.8) return;
+    const r = ROOM_SPAN / (2 * Math.tan(FOV / 2 * D2R) * camera.aspect);
+    if (r < cam.radius) { cam.radius = Math.max(MIN_R, r); applyCam(); }
+  }
+  // ── flying the camera (a double-tap on a room, a saved view) ──────────────
+  function flyTo(goal, inward){
+    const from = { target: cam.target.clone(), radius: cam.radius, theta: cam.theta, phi: cam.phi };
+    const dTh = ((goal.theta - from.theta) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
+    cam.moved = true; cam.needsFit = false;
+    cam.fly = { t0: performance.now(), from, to: goal, dTh, inward: !!inward };
+    requestRender();
+  }
+  function stepFly(now){
+    const f = cam.fly;
+    if (!f) return;
+    const u = Math.min(1, Math.max(0, (now - f.t0) / FLY_MS)), k = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+    cam.target.lerpVectors(f.from.target, f.to.target, k);
+    cam.radius = f.from.radius + (f.to.radius - f.from.radius) * k;
+    cam.theta = f.from.theta + f.dTh * k;
+    cam.phi = f.from.phi + (f.to.phi - f.from.phi) * k;
+    if (u >= 1) cam.fly = null;
+    applyCam();
+    if (u >= 1 && f.inward) afterZoom(true);
+  }
+  /** A double-tap on a room's floor: fly in to frame it, from the same side. */
+  function flyToRoomAt(x, y){
+    const rect = view3Rect();
+    if (!rect.width || !rect.height) return false;
+    _ndc.set((x - rect.left) / rect.width * 2 - 1, 1 - (y - rect.top) / rect.height * 2);
+    camera.updateMatrixWorld();
+    _hit.setFromCamera(_ndc, camera);
+    _hit.near = 0; _hit.far = Infinity;
+    const tiles = floorsUi.filter(F => F.group.visible && F.tiles).map(F => F.tiles);
+    const h = _hit.intersectObjects(tiles, false)[0];
+    const F = h && floorsUi.find(q => q.tiles === h.object);
+    const r = F && HOUSE.roomAt(F.rooms, h.point.x, h.point.z);
+    if (!r) return false;
+    const pts = [];
+    for (const p of r.pts) pts.push(new THREE.Vector3(p[0], F.fl.elev, p[1]), new THREE.Vector3(p[0], F.fl.elev + Math.min(1.2, F.fl.h), p[1]));
+    const g = frameFor(cam.theta, Math.max(0.35, Math.min(cam.phi, 1.05)), pts);
+    g.radius = Math.max(MIN_R, g.radius * 1.12);
+    flyTo(g, true);
+    return true;
   }
 
   // ── picking: what a press lands on (PadSpan's own) ────────────────────────
@@ -1843,10 +2484,14 @@ function createSlot(slotKey){
     for (const h of _hit.intersectObjects(occ, false)) if (!(own && own.has(`${h.object.id}:${h.instanceId}`))) return true;
     return false;
   }
-  function labelQuad(lbl){
-    const p = lbl.geometry.parameters, w = p.width / 2, h = p.height / 2;
-    lbl.updateMatrixWorld();
-    return [[-w, -h], [w, -h], [w, h], [-w, h]].map(([x, y]) => new THREE.Vector3(x, y, 0).applyMatrix4(lbl.matrixWorld));
+  /** A sprite's corners in the world as it shows now (a name, a chip):
+   *  its size on screen at its depth, its centre where sprite.center puts it. */
+  function labelQuad(sp){
+    const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0), up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+    const depth = Math.max(0.01, -sp.position.clone().applyMatrix4(camera.matrixWorldInverse).z);
+    const w = sp.scale.x * depth, h = sp.scale.y * depth, cx = sp.center.x, cy = sp.center.y;
+    return [[-cx, -cy], [1 - cx, -cy], [1 - cx, 1 - cy], [-cx, 1 - cy]]
+      .map(([x, y]) => sp.position.clone().addScaledVector(right, x * w).addScaledVector(up, y * h));
   }
   function openingQuad(F, P){
     const e = P.open.leaf || P.open.span, pc = P.pc, z0 = F.fl.elev + Math.max(0, e.z0);
@@ -1873,11 +2518,6 @@ function createSlot(slotKey){
     if (!rect.width || !rect.height) return null;
     camera.updateMatrixWorld();
     const dist = (v) => { const s = screenPt(v, rect); return s ? Math.hypot(s[0] - clientX, s[1] - clientY) : Infinity; };
-    for (const B of badges) {
-      if (B.F.group.visible && dist(B.pos) <= BADGE_PX / 2 + 4) {
-        return { hit: { kind: "floor", key: "floor:" + B.z, z: B.z, anchor: B.pos, label: `${B.name} — the whole floor` }, under: [] };
-      }
-    }
     const devs = [];
     for (const L of lights) {
       if (!L.F.group.visible || (L.wall && L.wall.cut) || !L.pick || L.swap) continue;
@@ -1885,13 +2525,23 @@ function createSlot(slotKey){
       for (const v of L.pick) { const d = dist(v); if (d <= PICK_R && (!best || d < best.d)) best = { d, v }; }
       if (best) devs.push({ eid: L.eid, ...best });
     }
-    const mpp = 2 * Math.tan(FOV / 2 * D2R) / (canvas.clientHeight || 600);
     for (const S of sensorsUi) {
-      if (!S.F.group.visible) continue;
+      if (!S.F.group.visible || S.chip) continue;
       const d = dist(S.pos);
-      // A readout is pressed anywhere on its label.
-      const r = S.sprite ? Math.max(PICK_R, S.sprite.scale.x * S.pillW / 2 / (camera.position.distanceTo(S.pos) * mpp)) : PICK_R;
-      if (d <= r) devs.push({ eid: S.eid, d, v: S.pos });
+      if (d <= PICK_R) devs.push({ eid: S.eid, d, v: S.pos });
+    }
+    // A chip is pressed anywhere on its pill: its sensors, the first on top
+    // (the rest "under" it). It is drawn over everything, so nothing hides it.
+    for (const C of chips) {
+      if (!C.F.group.visible || !C.sprite.visible) continue;
+      const q = labelQuad(C.sprite).map(v => screenPt(v, rect));
+      if (!q.every(Boolean)) continue;
+      const cx = (q[0][0] + q[1][0]) / 2, half = Math.abs(q[1][0] - q[0][0]) * C.pillW / 2 + 4;
+      const y0 = Math.min(q[0][1], q[2][1]) - 4, y1 = Math.max(q[0][1], q[2][1]) + 4;
+      if (Math.abs(clientX - cx) <= half && clientY >= y0 && clientY <= y1) {
+        [...C.sensors].sort((a, b) => (CHIP_ORDER[a.kind] ?? 3) - (CHIP_ORDER[b.kind] ?? 3))
+          .forEach((S, i) => devs.push({ eid: S.eid, d: i * 1e-3, v: C.sprite.position, top: true }));
+      }
     }
     // A piece that is a device (P5): anywhere on it, its device. A marker
     // nearer the press than PIECE_D still wins.
@@ -1907,15 +2557,17 @@ function createSlot(slotKey){
     }
     devs.sort((a, b) => a.d - b.d);
     const ok = [];
-    for (const c of devs.slice(0, 8)) if (!ok.some(x => x.eid === c.eid) && !blocked(c.v)) ok.push(c);
+    for (const c of devs.slice(0, 8)) if (!ok.some(x => x.eid === c.eid) && (c.top || !blocked(c.v))) ok.push(c);
     if (ok.length) return { hit: deviceTarget(ok[0]), under: ok.slice(1).map(deviceTarget) };
     const surf = [];
     for (const F of floorsUi) {
       if (!F.group.visible) continue;
       F.labels.forEach((lbl, i) => {
+        if (!lbl.visible) return;
         const q = labelQuad(lbl), poly = q.map(v => screenPt(v, rect));
+        // A name is drawn over everything: pressed where it shows, first.
         if (poly.every(Boolean) && HOUSE.inPoly(clientX, clientY, poly)) {
-          surf.push({ kind: "room", room: F.rooms[i].name, quad: q, at: lbl.position, depth: camera.position.distanceTo(lbl.position) });
+          surf.push({ kind: "room", room: F.rooms[i].name, quad: q, at: lbl.position, depth: -1 });
         }
       });
     }
@@ -1929,7 +2581,7 @@ function createSlot(slotKey){
     surf.sort((a, b) => a.depth - b.depth);
     for (const s of surf) {
       const own = s.kind === "door" ? new Set(s.P.els.map(e => `${e.mesh.id}:${e.i}`)) : null;
-      if (blocked(s.at, own)) continue;
+      if (s.kind !== "room" && blocked(s.at, own)) continue;
       if (s.kind === "room") {
         const n = Object.values(lbe).filter(l => l && l.area_name === s.room).length;
         return { hit: { kind: "room", key: "room:" + s.room, room: s.room, quad: s.quad,
@@ -1974,14 +2626,15 @@ function createSlot(slotKey){
       if (liveMs) dirty = true;                              // what moves carries on when it shows
       return;
     }
+    // A camera flight moves on every frame until it lands.
+    if (cam.fly) { stepFly(performance.now()); dirty = true; }
     // A press's ring and hold, the hover box's grace: timed on frames.
     const more = use ? use.tick(performance.now()) : false;
     // Something moving by itself draws on its own clock (liveRate).
     const due = dirty || !!quality.measuring || (liveMs > 0 && t - lastAmbient >= liveMs - 4);
     if (due) {
-      if (cam.needsFit && (canvas.clientWidth || 0) > 0) preset("iso");
+      if (cam.needsFit && (canvas.clientWidth || 0) > 0) openView();
       updateCutaway();
-      for (const F of floorsUi) if (F.group.visible) for (const l of F.labels) l.rotation.set(-Math.PI / 2, cam.theta, 0, "YXZ");
       animateLive(performance.now());                        // and how often it moves now (liveMs)
       lastAmbient = t;
       sizeSprites();
@@ -1996,6 +2649,7 @@ function createSlot(slotKey){
           if (!r) continue;
           renderer.setViewport(r[0], drawnH - r[1] - r[3], r[2], r[3]);
           renderer.setScissor(r[0], drawnH - r[1] - r[3], r[2], r[3]);
+          if (c === planCam) sizeNames(planCam, r[3]);         // the names, upright and sized for the plan
           renderer.render(scene, c);
         }
         renderer.setScissorTest(false);
@@ -2110,6 +2764,8 @@ function createSlot(slotKey){
     if (!w || !h) return;                                    // detached for a moment between two cards
     if (!force && w === drawnW && h === drawnH) return;      // moved into a new card at the same size: nothing to draw
     drawnW = w; drawnH = h;
+    narrow = w < NARROW_W;
+    root.classList.toggle("la3d-narrow", narrow);
     renderer.setSize(w, h, false);
     const d3 = viewports().d3;                               // Furnish's plan may take part of it
     camera.aspect = (d3 ? d3[2] : w) / h;
@@ -2136,6 +2792,11 @@ function createSlot(slotKey){
       const onVis = guard(() => { if (document.visibilityState !== "hidden" && dirty) requestRender(); });
       document.addEventListener("visibilitychange", onVis);
       observers.push(() => document.removeEventListener("visibilitychange", onVis));
+      // Full screen came or went (Escape, or the browser's own way out).
+      const onFull = guard(() => onFullChange());
+      document.addEventListener("fullscreenchange", onFull);
+      document.addEventListener("webkitfullscreenchange", onFull);
+      observers.push(() => { document.removeEventListener("fullscreenchange", onFull); document.removeEventListener("webkitfullscreenchange", onFull); });
     }
   }
 
@@ -2256,7 +2917,7 @@ function createSlot(slotKey){
     S.z = HOUSE.deviceZ(S.kind, S.F.fl.h - HOUSE.SLAB_T, vd.devices[eid] || null);
     S.pos.y = S.F.fl.elev + S.z;
     if (S.mesh) { S.mesh.setMatrixAt(S.i, compose(S.x, S.pos.y, S.y, 0, 0.055, 0.04, 0.055)); S.mesh.instanceMatrix.needsUpdate = true; }
-    if (S.sprite) S.sprite.position.copy(S.pos);
+    if (S.chip && S.chip.outdoor) placeChip(S.chip);
     return true;
   }
 
@@ -2331,7 +2992,7 @@ function createSlot(slotKey){
       if (rSig !== readSig) { reading = HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden); readSig = rSig; work.reads++; }
       const shell = sSig !== shellSig;
       rebuilt = shell;
-      if (shell) { buildShell(DRAFT.applyOpenings(HOUSE.readingCopy(reading), vd.openings)); buildBadges(p); shellSig = sSig; }
+      if (shell) { buildShell(DRAFT.applyOpenings(HOUSE.readingCopy(reading), vd.openings)); shellSig = sSig; }
       else house = { ...house, lights: reading.lights, sensors: reading.sensors };
       if (shell || lSig !== lightsSig) {
         buildLights(house);
@@ -2360,7 +3021,8 @@ function createSlot(slotKey){
     if (stage && stage !== s) { try { stage.style.display = ""; } catch (_) { /* the old card is gone */ } }
     stage = s;
     s.style.display = "none";
-    if (root.parentNode !== s.parentNode || root.previousSibling !== s) s.parentNode.insertBefore(root, s.nextSibling);
+    // Covering the panel (the map alone, full screen), it stays where it is.
+    if (!cover && (root.parentNode !== s.parentNode || root.previousSibling !== s)) s.parentNode.insertBefore(root, s.nextSibling);
     resize();
     if (dirty) requestRender();
   }
@@ -2406,10 +3068,17 @@ function createSlot(slotKey){
         furnishP = p.furnish && typeof p.furnish === "object" ? { ...p.furnish, states: p.states || null } : null;
         topCb = typeof p.setTopFloor === "function" ? p.setTopFloor : null;
         setFurnishView(!!furnishP);
+        // The sidebar: the map alone when zoomed in, and full screen.
+        mapOnly = p.mapOnly === true;
+        if (panelCss) panelCss.textContent = mapOnly ? CSS_PANEL : "";
+        if (!mapOnly) endScreen();
+        floorSteps = stepsOf(p.floorSteps);
+        prefs = p.prefs && typeof p.prefs.get === "function" && typeof p.prefs.set === "function" ? p.prefs : null;
         update(p);
         if (editor) editor.setFurnish(!!furnishP);           // after update: a file read needs the card's data
         if (failed) return false;
         place(s);
+        paintFloors(); paintFull(); showHint();
         return !failed;
       } catch (_) {
         fail("error");
@@ -2421,13 +3090,13 @@ function createSlot(slotKey){
     /** The 3D file changed elsewhere (Settings → Remove all furniture): read
      *  again now while showing, else when the screen is next shown. */
     reload(){ try { fileLoad = null; if (stage && lastP && !failed) loadFile(lastP); } catch (_) { /* read when next shown */ } },
-    detach(){ try { fileLoad = null; dirty = true; dropPointers(); cancelNorth(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); } catch (_) { /* nothing to undo */ } },
+    detach(){ try { fileLoad = null; dirty = true; cam.fly = null; dropPointers(); cancelNorth(); endScreen(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); } catch (_) { /* nothing to undo */ } },
     /** Something wants this screen to leave 3D (Map picked): with unsaved
      *  3D edits the editor asks first, in the view, and holds (true); `go`
      *  runs once they are saved or discarded. */
     holdLeave(go){ try { return !!(editor && !failed && editor.holdLeave(go)); } catch (_) { return false; } },
     /** The feature is off: the flat Atlas back and the GL context given up. */
-    release(){ try { cancelNorth(); showFlat(); teardown(); } catch (_) { /* best effort */ } },
+    release(){ try { cancelNorth(); endScreen(); showFlat(); teardown(); } catch (_) { /* best effort */ } },
     // A window on it, for the harness and for poking at it from the console.
     _state(){
       return { failed, profile: quality.profile, measuring: quality.measuring, measured: { ...quality.measured }, frames, wallMode, topElev,
@@ -2445,7 +3114,14 @@ function createSlot(slotKey){
                                         ringsShown: T.rings.filter(R => R.mesh.scale.x > 0).length })),
                readouts: readouts.map(R => ({ eid: R.eid, kind: R.kind, ...(R.shown || {}) })),
                motion: sensorsUi.filter(S => S.kind === "motion").map(S => ({ eid: S.eid, look: S.look || null, col: S.col })),
-               badges: badges.map(B => ({ z: B.z, n: B.n, name: B.name, shown: B.F.group.visible })),
+               names: floorsUi.flatMap(F => F.labels.map((l, i) => ({ room: F.rooms[i].name, shown: F.group.visible && l.visible,
+                                                                       covered: !!l.userData.covered, px: Math.round(l.userData.px) }))),
+               chips: chips.map(C => ({ room: C.room ? C.room.name : null, text: C.text, eids: C.sensors.map(S => S.eid),
+                                        shown: C.F.group.visible && C.sprite.visible })),
+               screen: { mapOnly, bare, cover, full: fsOn, fitR, narrow, floors: floorSteps ? { names: floorSteps.names, at: floorSteps.at, all: floorSteps.all } : null,
+                         flying: !!cam.fly, menu: !!menuEl, hint: !!hintCard },
+               night: { k: nightK, top: topGlow.value, floor: floorsUi.map(F => (F.lift ? F.lift.material.opacity : 0)),
+                        edges: floorsUi.map(F => (F.edges ? F.edges.material.opacity : 0)) },
                flash: shared ? { color: "#" + shared.flashMat.color.getHexString(), opacity: shared.flashMat.opacity } : null,
                animating: liveMs > 0, liveMs, use: use ? use.state() : null, work: { ...work },
                // What of the host's it still holds (nothing, once switched off).
@@ -2526,7 +3202,6 @@ function createSlot(slotKey){
       if (!renderer || !camera) return null;
       const rect = view3Rect(), at = (v) => screenPt(v, rect);
       camera.updateMatrixWorld();
-      if (q.floor !== undefined) { const B = badges.find(x => x.z === String(q.floor)); return B ? at(B.pos) : null; }
       if (q.room) {
         for (const F of floorsUi) {
           const i = F.rooms.findIndex(r => r.name === q.room);
@@ -2546,6 +3221,7 @@ function createSlot(slotKey){
         return at(L.pick.reduce((b, v) => (v.distanceTo(c) < b.distanceTo(c) ? v : b)));
       }
       const S = sensorsUi.find(x => x.eid === q.eid);
+      if (S && S.chip) { const p = labelQuad(S.chip.sprite).map(at); return p.every(Boolean) ? [(p[0][0] + p[1][0]) / 2, (p[0][1] + p[2][1]) / 2] : null; }
       return S ? at(S.pos) : null;
     },
     _pick(x, y){

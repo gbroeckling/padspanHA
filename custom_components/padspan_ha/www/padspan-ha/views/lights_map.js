@@ -2606,6 +2606,12 @@ function buildShapeLegend(el, lights){
 const _LA_PICK = "padspan_lv_3d_";
 const _la3dPicked = (slot) => { try { return localStorage.getItem(_LA_PICK + slot) === "1"; } catch (_) { return false; } };
 const _la3dPick = (slot, on) => { try { localStorage.setItem(_LA_PICK + slot, on ? "1" : "0"); } catch (_) {} };
+// Live Aboard's own small things kept per browser (its saved views, the
+// first-time card seen): the view keeps nothing itself; the card keeps them.
+const _laPrefs = {
+  get: (k) => { try { return localStorage.getItem("padspan_la3d_" + k); } catch (_) { return null; } },
+  set: (k, v) => { try { localStorage.setItem("padspan_la3d_" + k, String(v)); } catch (_) {} },
+};
 let _LA = null;                       // views/live_aboard.js, once loaded
 let _laLoading = null, _laLoadFailed = false, _laNoGl = false, _laNoGlSent = false;
 const _laWaiting = new Map();         // slot -> the newest card's mount, while it loads
@@ -2903,6 +2909,17 @@ export function buildLightsMapCard(hostIn){
           furnish: h3.furnish === true ? { callWS: typeof h3.callWS === "function" ? h3.callWS : null,
             toast: typeof h3.toast === "function" ? h3.toast : null, settings: h3.settings, entities: h3.entities || null } : null,
           setTopFloor: (fid) => la3dTopFloor(fid),
+          // The view's floor stepper (▲ Main ▼ · All): the floor chips'
+          // choice, a floor at a time, lowest first; and, on the sidebar,
+          // the map alone when zoomed in and full screen (h3.mapOnly).
+          floorSteps: sortedLevels.length > 1 ? {
+            names: sortedLevels.map(lv => floorNameAtLevel(_frame, host.model, floors, lv) || `L${lv}`),
+            zs: sortedLevels.map(lv => String(lv)),
+            at: z === null || z === undefined ? sortedLevels.length - 1 : Math.max(0, sortedLevels.indexOf(z)),
+            all: z === null || z === undefined,
+            go: (i) => la3dFocus(i < 0 ? 0 : isoPos.findIndex(q => q === sortedLevels[i])) } : null,
+          mapOnly: h3.mapOnly === true,
+          prefs: _laPrefs,
           // P5: furniture that is a device follows a renamed entity (the
           // registry the Atlas already reads), and the emergency lights are
           // outlined while the Atlas's test runs.
@@ -2917,8 +2934,9 @@ export function buildLightsMapCard(hostIn){
   };
   // A piece moved up or down a floor (Furnish): its floor becomes the top one
   // showing, as its floor chip would make it, so you see where it went.
-  const la3dTopFloor = (fid) => {
-    const idx = isoPos.findIndex(p => p === _frame.levelOf(String(fid)));
+  const la3dTopFloor = (fid) => la3dFocus(isoPos.findIndex(p => p === _frame.levelOf(String(fid))));
+  // The floor chips' choice, from the 3D view (its floor stepper, or a piece moved a floor).
+  const la3dFocus = (idx) => {
     if (idx < 0 || idx === view.focusIdx) return;
     view.focusIdx = idx;
     resetFocusCtl(idx);
