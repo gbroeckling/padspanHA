@@ -4,6 +4,22 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.96 — Live Aboard: walk around your house, and furnish it (2026-10-04)
+
+### Live Aboard (new, PadSpan Pro and Bright Pro, off until you turn it on)
+- **Added:** Live Aboard, a house you can walk around, built from the map you already drew: your floors stacked at their real heights, walls that cut away so you can see in, every light glowing in its real colour, doors and windows that open and close with their sensors, and the sun and shadows of the real sky. Turn it on in Settings → UI Structure → Atlas — Mapped Light Control → **🏠 Live Aboard** → "Show Live Aboard on the Atlas". Then the Atlas has a **🏠** button in its rail (and "Map / Live Aboard" beside the zoom) that switches between the flat map and Live Aboard. Each screen remembers which you picked.
+- **Added:** taps and holds work as on the Atlas: tap a light to switch it, hold for its controls, hold and slide to dim. A spinnable compass (top left) lines north up with what you see.
+- **Added:** **Mapping → Furnish**: build furniture with a few sliders (sofa, bed, table, chair, desk, dresser, TV and media unit, lamp, rug, shelf, wardrobe, plant, and device pieces like a washer, dryer, robot or mower dock, car, charger, radiator, fan and speaker). Drag a piece across its floor (it snaps flat to walls), turn it in 15° steps, move it to the floor above or below (**Floor ▲ / ▼**), and raise it in the room (**Height in room**) to stand a lamp on a table or hang a TV on a wall. Fit warnings say when a piece is in a wall, in a door's swing or in front of a window; they never stop you. Nothing is stored until Save, with Undo, Redo and Discard.
+- **Added:** "This is a device…" links a piece to a Home Assistant device: a lamp glows with its light, a TV lights up while it plays, a fan turns, a washer shakes while it runs, a robot vacuum or mower leaves its dock while it works, a heater glows while it heats, a car glows while it charges. Tapping a linked piece does what tapping that device on the Atlas does.
+- **Added:** **From a photo**: take a photo of a piece of furniture and your own Home Assistant AI Task (2025.8 or newer, with a model that can read images) fills in the sliders. You type one real measurement. The photo goes from your browser to Home Assistant to the AI Task you chose, and is then thrown away. PadSpan never keeps it. A cloud AI Task means the photo leaves your house; the screen says which one will read it.
+- **Added:** **People & devices**: give each person in Home Assistant a simple figure (by hand, or from a photo with their agreement; never a likeness), and give tags and scanners a look. With Show people on, figures walk to where their phone or tag is. Figures stay in your house: they are never shared or sent anywhere.
+- **Added:** **Library**: a starter set of furniture to browse, filter and place. (Sharing your own pieces with other PadSpan users comes later.)
+- **Added:** **Import** a Sweet Home 3D file's doors, windows and furniture (as kind and size, drawn by PadSpan's own pieces). You pick what comes in; nothing is written until Save.
+- **Added:** rain and snow fall around the house in Live Aboard, from the same Outdoor weather settings as the Atlas; a snowfall warning settles snow on decks and roofs. "Use the Atlas's Showcase look" lights Live Aboard in your Showcase theme's colours.
+- Everything Live Aboard keeps is in its own file. It never changes your map, rooms, walls or light positions. Settings → 🏠 Live Aboard → **Remove all furniture** takes a backup first. A screen too slow for it shows the flat Atlas with a note; at rest Live Aboard draws nothing.
+
+---
+
 ## 0.38.95 — Open a floor plan from Basic mode (2026-10-04)
 
 ### Mapping
