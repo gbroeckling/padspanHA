@@ -2226,3 +2226,32 @@ async def test_a_wall_switch_while_the_hold_writes_stands(house, monkeypatch):
     await _fire_timers(house)
     assert dev.serialize_state()["on"] is False, "the hold's repeat undid the wall switch"
     assert rec["last_result"]["replaced"] and rec["last_cmd"]["on"] is False
+
+
+async def test_a_one_segment_holds_own_echo_is_not_someone_elses_change(house):
+    """Review of the backlog fix: with one segment (no main light) HA shows
+    opacity × master / 255. Switched on from HA's dashboard at 128, HA sets
+    the opacity to 255 and shows 128; the hold keeps the master at 128 but
+    puts the look's opacity 64 back, so HA then shows 32 — a "down" the
+    master never made. That is the hold's own echo, never an outside change."""
+    dev = simple_device(segs=1)
+    await dev.handle("POST", "json/state", {"bri": 200, "seg": [{"id": 0, "bri": 64}]})
+    did = house.add("porch", dev, segs=1, main=False)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    await E.async_power(house.hass, "light.porch", False)
+    await house.settle()
+    rec = house.store.get(dev.info["mac"])
+    _up(house, [dev], 60)
+    await dev.handle("POST", "json/state", {"on": True, "bri": 128, "seg": [{"id": 0, "bri": 255}]})   # HA's dashboard
+    await E.on_state_change(house.hass, "light.porch", _OFF, _shown(128))
+    await house.settle()
+    assert rec["last_result"]["source"] == "hold" and rec["last_result"]["ok"]
+    assert dev.serialize_state()["seg"][0]["bri"] == 64                       # the look's opacity is back
+    worker = E._worker(house.hass, dev.info["mac"])
+    seen = worker.outside
+    shown = round(dev.serialize_state()["bri"] * 64 / 255)
+    await E.on_state_change(house.hass, "light.porch", _shown(128), _shown(shown))   # the hold's own echo
+    await house.settle()
+    assert worker.outside == seen, "the hold's own echo was taken for someone else's change"
+    assert rec["last_cmd"]["source"] == "hold"
