@@ -951,8 +951,9 @@ export function createEditor(ctx){
       if (!had && editFn && furnishOn && !editing) begin("furnish");   // Save just became possible here
     },
     /** Mapping → Furnish (on): Edit opens at the furniture tool. Any other
-     *  screen (off): the furniture tool closes and Edit is as it was; the
-     *  draft, unsaved furniture and all, stays for Save. */
+     *  screen (off): the furniture tool closes; with nothing unsaved Edit
+     *  closes with it (a tap is a tap again there), else the draft, unsaved
+     *  furniture and all, stays for Save. */
     setFurnish(on){
       const want = !!on && !!fur;
       if (want === furnishOn) return;
@@ -961,8 +962,11 @@ export function createEditor(ctx){
         if (editing) { tool = "furnish"; sel = null; gesture = null; pending = null; line.visible = false; hint(FUR_HINT); }
         else if (editFn) begin("furnish");
       } else if (tool === "furnish") {
-        tool = null;
-        hint("Door or Window: draw along a wall. Heights: tap a device. Tap a door or window to change it.");
+        if (!draft || !draft.dirty) stop();
+        else {
+          tool = null;
+          hint("Door or Window: draw along a wall. Heights: tap a device. Tap a door or window to change it.");
+        }
       }
       paint(); sheetFor(); ctx.render();
     },
@@ -978,16 +982,28 @@ export function createEditor(ctx){
       else if (editing && !code && hintMsg === NOT_SAVED.house3d_newer) hint("Live Aboard's file can be saved again.");
       paint();
     },
+    /** The file was read again (changed elsewhere: Settings → Remove all
+     *  furniture, say). A draft with nothing unsaved follows it; one with
+     *  unsaved work loses only the pieces the file no longer has, from its
+     *  Undo and Redo too, so no Save brings one back. */
+    fileChanged(){
+      const f = ctx.file();
+      if (!editing || !draft || !f || JSON.stringify(draft.base) === JSON.stringify(f)) return;
+      if (!draft.dirty) draft.rebase(f);
+      else draft.forget("pieces", Object.keys(draft.base.pieces || {}).filter(id => !(f.pieces && f.pieces[id])));
+      if (fur) fur.refresh();
+      paint(); sheetFor();
+    },
     /** The draft while editing (what the view draws instead of the file). */
     view(){ return active() ? draft.cur : null; },
     down, move, up, tap: (e) => tap(e), cancel, hover, layout, holdLeave,
     /** The screen went to Map. Picked here, unsaved work was asked about
      *  first (holdLeave); picked in another tab of this browser it arrives
      *  as a poll with no one to ask: unsaved work then stays, Edit open with
-     *  it, for when the screen is back in 3D. Nothing unsaved: Edit ends. */
+     *  it, for when the screen is back in 3D. Nothing unsaved: Edit ends,
+     *  and Furnish opens afresh when the screen is back. */
     leave(){
-      if (!editing) return;
-      if (!draft || !draft.dirty) { stop(); return; }
+      if (!editing || !draft || !draft.dirty) { furnishOn = false; if (editing) stop(); return; }
       gesture = null; pending = null; askGo = null;
       askEl.classList.remove("on");
       paint();

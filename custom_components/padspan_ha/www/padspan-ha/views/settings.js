@@ -3507,6 +3507,8 @@ function _atlas3dSection(ctx, el, settings){
             const r = await ctx.actions.wsCall("padspan_ha/house3d_clear", { only: "pieces" });
             ctx.toast(r && r.backup_id ? "All furniture removed. To bring it back, restore the backup taken just now (Backup & Restore)."
               : "There was no furniture to remove.");
+            // Every Live Aboard open in this page reads its file again.
+            try { window.dispatchEvent(new Event("padspan-ha-house3d-changed")); } catch (_) { /* none open */ }
           } catch (e) {
             ctx.toast("Could not remove the furniture: " + String((e && e.message) || e), true);
           }
@@ -3539,8 +3541,17 @@ function _atlas3dSection(ctx, el, settings){
 // (ws_settings: the library lets data leave the house), and "Withdraw my
 // shared furniture", which takes every piece this house shared out of the
 // library (admin) after an ask in the page. Built only once the 3D house is
-// on, so the box says nothing of them while it is off.
+// on, so the box says nothing of them while it is off, and only once the
+// library's server is live (LIBRARY_SERVER_LIVE in the library's own module,
+// loaded here only then): before that, nothing of the library shows.
 function _atlas3dLibraryRows(ctx, el, settings, more, row, save){
+  const spot = el("div",{});
+  more.appendChild(spot);
+  import(`./live_aboard_library.js${new URL(import.meta.url).search}`)
+    .then(m => { if (m.LIBRARY_SERVER_LIVE !== false) _atlas3dLibraryRowsShown(ctx, el, settings, spot, row, save); })
+    .catch(err => { console.warn("PadSpan: the furniture library failed to load", err); });
+}
+function _atlas3dLibraryRowsShown(ctx, el, settings, more, row, save){
   const cb = el("input",{type:"checkbox"});
   cb.checked = settings.atlas_3d_library === true;
   more.appendChild(row("Shared library", [el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer"},

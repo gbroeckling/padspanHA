@@ -174,6 +174,12 @@ def test_the_3d_module_is_imported_once_behind_the_switch_and_cache_busted() -> 
                                                   "live_aboard_people.js"):   # the Furnish tab's people screen (P6)
             continue
         code = "\n".join(ln for ln in _js(p).splitlines() if not ln.lstrip().startswith(("//", "*")))
+        if p.name == "settings.js":
+            # The library's Settings rows ask its module whether the library's
+            # server is live (LIBRARY_SERVER_LIVE), only once Live Aboard is on.
+            ask = "import(`./live_aboard_library.js${new URL(import.meta.url).search}`)"
+            assert code.count(ask) == 1, p.name
+            code = code.replace(ask, "")
         assert "live_aboard" not in code, p.name
 
 

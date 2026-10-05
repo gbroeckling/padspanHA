@@ -113,7 +113,7 @@ const FILE3D = { schema: 1, pieces: { fur_aaaaaaaa: { id: "fur_aaaaaaaa", recipe
     win_00000002: { kind: "window", floor_id: "main", a_m: [-EXT, 0.5], b_m: [-EXT, 3.8], sill_m: 0.9, head_m: 2.1 },
   } };
 
-function fakeHA(previewOf){
+function fakeHA(previewOf, file3d = FILE3D){
   const calls = [];
   const callWS = (msg) => {
     calls.push(clone(msg));
@@ -122,7 +122,7 @@ function fakeHA(previewOf){
       return ans && ans.error ? Promise.reject(ans.error) : Promise.resolve(clone(ans));
     }
     if (msg.type === "padspan_ha/model_get") return Promise.resolve(clone(MODEL));
-    if (msg.type === "padspan_ha/house3d_get") return Promise.resolve({ enabled: true, data: clone(FILE3D), writable: true, counts: {} });
+    if (msg.type === "padspan_ha/house3d_get") return Promise.resolve({ enabled: true, data: clone(file3d), writable: true, counts: {} });
     return Promise.reject({ code: "unexpected", message: `unexpected ${msg.type}` });
   };
   return { calls, callWS };
@@ -144,10 +144,11 @@ function choose(sel, value){
 /** Open the flow, pick a file, and come back with the page showing the preview. */
 async function opened(previewKey, opts = {}){
   const el = document.createElement("div");
-  const ha = fakeHA(() => (opts.error ? { error: opts.error } : P[previewKey]));
+  const ha = fakeHA(() => (opts.error ? { error: opts.error } : P[previewKey]), opts.file3d);
   const toasts = [];
   const ctx = { el, callWS: ha.callWS, wsCall: ha.callWS, toast: (t, bad) => toasts.push({ t, bad }), settings: {},
                 floor: opts.floor || { id: "main", name: "Main" }, room: null, recipeTools: opts.tools === undefined ? FAKE : opts.tools };
+  if (opts.draft) ctx.draft = opts.draft;
   let result;
   const p = IM.importFlow(ctx).then(v => { result = v; return v; });
   const input = walk(el).find(n => n.localName === "input");
@@ -312,6 +313,21 @@ await tryCase("walls: a floor change places them again", async () => {
   await settle();
   const winRow = rowOf(f.el, idsBy(P.house, "openings", "Window")[0]);
   check("walls: a floor change places them again", textOf(winRow).includes("already there"), textOf(winRow));
+  button(f.el, "Cancel").click();
+  await settle();
+});
+
+await tryCase("walls: opened from Furnish, its draft counts (a window drawn and not saved yet), and the saved file is not read", async () => {
+  // Saved: only the front wall's window. The draft: the left wall's one too, not saved yet.
+  const saved = { ...clone(FILE3D), openings: { win_00000001: clone(FILE3D.openings.win_00000001) } };
+  const f = await opened("house", { file3d: saved, draft: D.ownedOf(FILE3D) });
+  const sels = walk(f.el).filter(n => n.localName === "select" && n.getAttribute("aria-label")?.startsWith("Floor for"));
+  choose(sels[1], "main");
+  await settle();
+  const winRow = rowOf(f.el, idsBy(P.house, "openings", "Window")[0]);
+  check("walls: opened from Furnish, its draft counts (a window drawn and not saved yet), and the saved file is not read",
+    textOf(winRow).includes("already there") && !f.ha.calls.some(c => c.type === "padspan_ha/house3d_get"),
+    { row: textOf(winRow), calls: f.ha.calls.map(c => c.type) });
   button(f.el, "Cancel").click();
   await settle();
 });

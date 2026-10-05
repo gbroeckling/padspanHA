@@ -165,9 +165,16 @@ try {
   const asked = { text: rmRow.textContent, sentBefore: rm.ws.length };
   btn(rm, "Cancel").dispatchEvent({ type: "click" });
   const cancelled = { back: !!btn(rm, "Remove all furniture…"), sent: rm.ws.length };
+  // Once removed, every Live Aboard open in this page reads the 3D file again
+  // (views/live_aboard.js listens for this).
+  const events = [];
+  globalThis.dispatchEvent = (e) => { events.push(e && e.type); return true; };
+  const firedBefore = events.length;
   btn(rm, "Remove all furniture…").dispatchEvent({ type: "click" });
   btn(rm, "Remove all").dispatchEvent({ type: "click" });
   await settle();
+  check("furniture: once removed, every Live Aboard open here reads the file again",
+    firedBefore === 0 && JSON.stringify(events) === JSON.stringify(["padspan-ha-house3d-changed"]), events);
   check("furniture: Remove all asks in the page, then sends only pieces, once",
     rmRow && rm.more.contains(rmRow) && /Remove every piece of furniture\? A backup is taken first\./.test(asked.text)
     && asked.sentBefore === 0 && cancelled.back && cancelled.sent === 0

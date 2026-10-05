@@ -100,7 +100,7 @@ export function clampFigureParams(F, p){
 
 const GROUP_OF = { beacon: "tag", scanner: "scanner" };
 
-export function peopleMachine({ F, callWS, hass }){
+export function peopleMachine({ F, callWS, hass, draft = null }){
   const m = {
     step: "list", loading: true, devicesLoading: true, error: null, warn: null,
     people: [], beacons: [], scanners: [], info: null,
@@ -117,7 +117,8 @@ export function peopleMachine({ F, callWS, hass }){
         callWS({ type: CMD, target: "person" }).catch(e => ({ ready: false, message: errText(e) })),
       ]);
       m.people = peopleOf(st);
-      const data = got && got.data ? got.data : {};
+      // Furnish's draft (a figure made and not saved yet is there), else the saved file.
+      const data = draft || (got && got.data ? got.data : {});
       m.file = { figures: { ...(data.figures || {}) }, devices: { ...(data.devices || {}) } };
       if (got && got.error) m.warn = got.error;
       else if (got && got.writable === false) m.warn = "A newer PadSpan saved Live Aboard's file: changes here can't be saved until PadSpan is updated.";
@@ -351,13 +352,11 @@ function colourControl(key, label, value, onInput){
 export async function peopleFlow(ctx){
   const F = ctx.recipeTools;
   const call = ctx.callWS || ctx.wsCall;
-  const m = peopleMachine({ F, callWS: call, hass: ctx.hass });
-  addCss();
-  if (!document.getElementById("la3d-people-css")) {
-    document.head.appendChild(Object.assign(document.createElement("style"), { id: "la3d-people-css", textContent: CSS }));
-  }
-  const root = el("div", { class: "la3d-flow la3d-people" });
+  const m = peopleMachine({ F, callWS: call, hass: ctx.hass, draft: ctx.draft || null });
+  const root = el("div", { class: "la3d-pflow la3d-people" });
   ctx.el.replaceChildren(root);
+  addCss(ctx.el);
+  addCss(ctx.el, CSS);
   let preview = null, shot = null;
 
   return new Promise((resolve) => {
@@ -370,6 +369,7 @@ export async function peopleFlow(ctx){
       ctx.el.replaceChildren();
       resolve(v);
     };
+    if (ctx.signal) ctx.signal.addEventListener("abort", () => finish(null), { once: true });   // closed by Furnish
     const closePreview = () => { if (preview) { preview.dispose(); preview = null; } };
 
     const row = (who, sub, changed, ...buttons) => el("div", { class: "item" },

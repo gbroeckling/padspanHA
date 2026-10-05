@@ -155,37 +155,37 @@ export function photoMachine({ F, callWS }){
 // ── the page ─────────────────────────────────────────────────────────────────
 
 export const CSS = `
-.la3d-flow{display:flex;flex-direction:column;gap:12px;padding:14px;max-width:560px;box-sizing:border-box;
+.la3d-pflow{display:flex;flex-direction:column;gap:12px;padding:14px;max-width:560px;box-sizing:border-box;
   color:var(--primary-text-color,#e8eaed);background:var(--card-background-color,#1f2327);border-radius:12px;
   font-size:14px;line-height:1.45}
-.la3d-flow h3{margin:0;font-size:17px;font-weight:600}
-.la3d-flow p{margin:0}
-.la3d-flow .muted{color:var(--secondary-text-color,#9aa3ab);font-size:13px}
-.la3d-flow .note{padding:8px 10px;border-radius:8px;background:rgba(127,151,173,.14);font-size:13px}
-.la3d-flow .warn{padding:8px 10px;border-radius:8px;background:rgba(245,176,65,.16);font-size:13px}
-.la3d-flow .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.la3d-flow button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.18);
+.la3d-pflow h3{margin:0;font-size:17px;font-weight:600}
+.la3d-pflow p{margin:0}
+.la3d-pflow .muted{color:var(--secondary-text-color,#9aa3ab);font-size:13px}
+.la3d-pflow .note{padding:8px 10px;border-radius:8px;background:rgba(127,151,173,.14);font-size:13px}
+.la3d-pflow .warn{padding:8px 10px;border-radius:8px;background:rgba(245,176,65,.16);font-size:13px}
+.la3d-pflow .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.la3d-pflow button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.18);
   background:rgba(255,255,255,.06);color:inherit;cursor:pointer;min-height:38px}
-.la3d-flow button.go{background:var(--primary-color,#03a9f4);border-color:transparent;color:#fff;font-weight:600}
-.la3d-flow button:disabled{opacity:.4;cursor:default}
-.la3d-flow select,.la3d-flow input[type=text],.la3d-flow input[type=number]{box-sizing:border-box;font:inherit;padding:7px 9px;border-radius:8px;
+.la3d-pflow button.go{background:var(--primary-color,#03a9f4);border-color:transparent;color:#fff;font-weight:600}
+.la3d-pflow button:disabled{opacity:.4;cursor:default}
+.la3d-pflow select,.la3d-pflow input[type=text],.la3d-pflow input[type=number]{box-sizing:border-box;font:inherit;padding:7px 9px;border-radius:8px;
   border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.18);color:inherit;min-height:36px;max-width:100%}
-.la3d-flow label{display:flex;gap:8px;align-items:center}
-.la3d-flow .shot{max-width:100%;max-height:240px;border-radius:8px;align-self:flex-start;object-fit:contain}
-.la3d-flow .swatch{display:inline-block;width:22px;height:22px;border-radius:6px;border:1px solid rgba(255,255,255,.3)}
-.la3d-flow .file{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.la3d-flow .busy{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid currentColor;
+.la3d-pflow label{display:flex;gap:8px;align-items:center}
+.la3d-pflow .shot{max-width:100%;max-height:240px;border-radius:8px;align-self:flex-start;object-fit:contain}
+.la3d-pflow .swatch{display:inline-block;width:22px;height:22px;border-radius:6px;border:1px solid rgba(255,255,255,.3)}
+.la3d-pflow .file{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.la3d-pflow .busy{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid currentColor;
   border-right-color:transparent;animation:la3dspin .9s linear infinite;vertical-align:-2px;margin-right:6px}
 @keyframes la3dspin{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion: reduce){.la3d-flow .busy{animation:none}}
+@media (prefers-reduced-motion: reduce){.la3d-pflow .busy{animation:none}}
 `;
 
-export function addCss(){
-  if (typeof document === "undefined" || document.getElementById("la3d-flow-css")) return;
+/** The flow's styles, in the flow's own container: the panel draws inside a
+ *  shadow root, where styles in the page's head never reach. */
+export function addCss(target, css = CSS){
   const s = document.createElement("style");
-  s.id = "la3d-flow-css";
-  s.textContent = CSS;
-  document.head.appendChild(s);
+  s.textContent = css;
+  target.appendChild(s);
 }
 
 /** A small element: el("button", {class: "go", onclick}, "Read it"). */
@@ -250,9 +250,9 @@ export async function photoFlow(ctx){
   const call = ctx.callWS || ctx.wsCall;
   const m = photoMachine({ F, callWS: call });
   const kinds = photoKinds(F);
-  addCss();
-  const root = el("div", { class: "la3d-flow la3d-photo" });
+  const root = el("div", { class: "la3d-pflow la3d-photo" });
   ctx.el.replaceChildren(root);
+  addCss(ctx.el);
   let shot = null;          // the shrunk photo's data URL, for the preview only
   let fileErr = "";
 
