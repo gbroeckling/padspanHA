@@ -4,6 +4,39 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.100 — Lay out strips and string lights where they really are (2026-10-05)
+
+### Live Aboard
+- **Added:** **Strip** in Live Aboard's Edit (in Mapping) puts LED strips and string lights where they really are:
+  - Pick a light, tap one or choose it from "Lights to lay out", then press on a wall and drag along it. The run carries round corners onto the next wall. You can also tap its points one at a time.
+  - One tap does a whole run: **Round this room** (with gaps at the doors), **Under**, **Behind** or along the **Top edge** of a piece of furniture, **Along a rail** of a deck, or **Continue from** where another light's run ends (each WLED segment is its own light, so each shows its own colour).
+  - Set the height with chips (toe-kick, counter, under the cabinets, valance, cove, ceiling edge), type it in cm, or drag the handles: the middle moves the whole run, an end tilts it for stairs or a rail.
+  - Choose which way it shines: up the wall, down onto the counter, into the room, or onto the wall behind a TV or a bed.
+  - **String lights** are a new kind: bulbs on a wire that hangs in swags between its points, with the spacing and the sag you set.
+  - A run on a piece of furniture moves with it.
+  - Only Live Aboard's own file changes; the map is never touched.
+- **Added:** floors work like the Atlas's floor chips.
+  - The floor stepper shows each floor's lights on and its motion.
+  - **Views ▾** (or **View ▾** on a phone) lists every floor to jump to.
+  - Each floor keeps its own camera while you move between floors.
+  - With the map alone (zoomed in), PgUp and PgDn change floors and Home shows them all; the floor's name shows in the corner for 2 seconds, and a tap on it lists the floors.
+- **Changed:** in Mapping, Show people and Show tags & scanners now move live, as on the sidebar.
+- **Changed:** deleting a person in Home Assistant deletes their Live Aboard figure; renaming them keeps it.
+- **Fixed:** the door and window tool draws on the floor you picked, not only the top one showing.
+
+### WLED
+- **Fixed:** a wall switch flipped while PadSpan was putting a WLED light's look back is no longer undone.
+- **Fixed:** on a one-segment strip, the brightness Home Assistant reports after that is no longer taken for someone else's change.
+
+### Backups
+- **Fixed:** a restore or a factory reset can no longer land halfway through a Live Aboard save.
+- **Fixed:** a manual backup that can't read one of its parts now says so and saves nothing. It used to save that part empty.
+
+### GPS Bridge
+- **Fixed:** positions on Home Assistant's map were mirrored east to west; they now plot the right way round. The bearing still means the compass direction of down-the-plan, so a plan drawn with north at the top is 180. If you set the bearing by trial and error, check it again.
+
+---
+
 ## 0.38.99 — Live Aboard: real-looking lights, the map alone, and your tags (2026-10-05)
 
 ### Live Aboard
