@@ -264,6 +264,7 @@ await tryCase("view: the TV lights, the radiator warms and the charger glows wit
   check("view: the TV lights, the radiator warms and the charger glows with their devices",
     before.tv.screen.every(isBlack) && before.rad.warm.every(isBlack) && before.ch.glow.every(isBlack)
     && after.tv.screen.length === 1 && !after.tv.screen.some(isBlack) && !after.rad.warm.some(isBlack) && !after.ch.glow.some(isBlack)
+    && before.ch.halo && before.ch.halo.every(v => v === 0) && after.ch.halo[1] > after.ch.halo[0] && after.ch.halo[1] > 0
     && H.slot._state().liveMs === 0, { before, after, liveMs: H.slot._state().liveMs });
 });
 await tryCase("view: a renamed entity is followed; a gone one is unlinked, with its badge, and stays", async () => {

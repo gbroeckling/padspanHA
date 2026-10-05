@@ -212,6 +212,27 @@ export function createDeviceLayer(ctx){
     R.root.updateWorldMatrix(true, true);
     return R.root.worldToLocal(b.localToWorld(_v.copy(b.geometry.boundingSphere.center))).clone();
   }
+  /** A glow round the bulb (or the charge light), as the fixtures have:
+   *  off, its colour is black, never hidden. */
+  function halo(R, g, col, k){
+    if (!R.halo && R.eid && g.length && ctx.halo) {
+      const at = bulbAt(R);
+      if (at) {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array([at.x, at.y, at.z]), 3));
+        geo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(3), 3));
+        R.halo = new THREE.Points(geo, ctx.halo);
+        R.halo.renderOrder = 5; R.halo.frustumCulled = false;
+        R.bulb = at;
+        R.root.add(R.halo);
+      }
+    }
+    if (R.halo) {
+      const attr = R.halo.geometry.attributes.color;
+      attr.setXYZ(0, col.r * k, col.g * k, col.b * k);
+      attr.needsUpdate = true;
+    }
+  }
   /** Draw what R shows now. */
   function apply(R){
     const k = R.look, live = R.live, high = quality === "high", P = R.parts, S = sizeOf(R);
@@ -241,25 +262,12 @@ export function createDeviceLayer(ctx){
           const last2 = i === g.length - 1;                  // the bulb, brighter and whiter than the shade
           m.material.emissive.copy(_c).lerp(new THREE.Color(1, 1, 1), last2 ? 0.5 : 0.15).multiplyScalar(last2 ? 0.7 + 0.3 * k.f : 0.2 + 0.45 * k.f);
         });
-        // A glow round the bulb, as the fixtures have (off: none, never hidden).
-        if (!R.halo && R.eid && g.length && ctx.halo) {
-          const at = bulbAt(R);
-          if (at) {
-            const geo = new THREE.BufferGeometry();
-            geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array([at.x, at.y, at.z]), 3));
-            geo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(3), 3));
-            R.halo = new THREE.Points(geo, ctx.halo);
-            R.halo.renderOrder = 5; R.halo.frustumCulled = false;
-            R.bulb = at;
-            R.root.add(R.halo);
-          }
-        }
-        if (R.halo) {
-          const h = on ? k.f * 0.8 : 0, attr = R.halo.geometry.attributes.color;
-          attr.setXYZ(0, R.color.r * h, R.color.g * h, R.color.b * h);
-          attr.needsUpdate = true;
-        }
-      } else setEmissive(g, CHARGE, on ? 0.9 : 0);
+        halo(R, g, R.color, on ? k.f * 0.8 : 0);
+      } else {
+        // A charge port or ring is a few centimetres: its glow carries a halo too.
+        setEmissive(g, CHARGE, on ? 0.9 : 0);
+        halo(R, g, _c.set(CHARGE), on ? 0.7 : 0);
+      }
     } else if (live === "screen") setEmissive(P.screen, k && k.playing ? SCREEN_ON : SCREEN_IDLE, on ? (k.playing ? 0.85 : 0.7) : 0);
     else if (live === "warm") setEmissive(P.warm, WARM, on ? 0.55 : 0);
     else if (live === "spin") R.rps = k ? k.rps * (high ? 1 : 0.5) : 0;
