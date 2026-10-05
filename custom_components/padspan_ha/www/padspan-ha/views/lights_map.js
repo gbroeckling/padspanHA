@@ -3095,6 +3095,8 @@ export function buildLightsMapCard(hostIn){
   // just a CSS width. The builder always shows codes (host.codeChip unset).
   let codesShown = null;
   const applyZoom = () => {
+    // By hand past the whole house: the map alone; back out: the bars.
+    if (scr) scr.zoomed(view.zoom);
     const svg = isoDiv.querySelector("svg");
     if (!svg) return;
     // Width, V2 or classic alike: a plain CSS percentage of the stage,
@@ -3137,8 +3139,6 @@ export function buildLightsMapCard(hostIn){
     }
     // The weather overlay takes the same width and centring as the SVG.
     if (wxSlot) wxSlot.fit(view.zoom, V2);
-    // By hand past the whole house: the map alone; back out: the bars.
-    if (scr) scr.zoomed(view.zoom);
     if (host.codeChip && codesShown !== null && codesShown !== codesVisibleAtZoom(view.zoom)) rebuildISO();
   };
   // Zoom about a point (pinch midpoint / wheel): keep what is under the

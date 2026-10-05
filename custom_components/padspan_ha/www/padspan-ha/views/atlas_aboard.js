@@ -81,7 +81,7 @@ export function underlayOf(file){
   for (const p of Object.values(f.pieces && typeof f.pieces === "object" ? f.pieces : {})) {
     if (!p || typeof p !== "object" || !Number.isFinite(Number(p.x_m)) || !Number.isFinite(Number(p.y_m))) continue;
     const pts = PIECES.cornersOf(PIECES.boxOf(p));
-    out.push({ floor_id: String(p.floor_id || "main"), pts, closed: true, color: "#e2e8f0", width: 0.9, fill: 0.16, opacity: 0.5 });
+    out.push({ floor_id: String(p.floor_id || "main"), pts, closed: true, color: "#94a3b8", width: 1, fill: 0.18, opacity: 0.75 });
   }
   for (const o of Object.values(f.openings && typeof f.openings === "object" ? f.openings : {})) {
     if (!o || !Array.isArray(o.a_m) || !Array.isArray(o.b_m) || (o.kind !== "window" && o.kind !== "door")) continue;
