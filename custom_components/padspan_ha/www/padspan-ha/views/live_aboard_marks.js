@@ -46,8 +46,9 @@ export const MARK_Z = { flood: 0.02, lock: 1.0 };
 export const MARK_MS = { high: 40, low: 100 };
 /** How strongly a device of another class shows while a class is picked (the Atlas's 0.22). */
 export const DIM_K = 0.22;
-/** Codes show once the view is about this wide or narrower (m): room scale. */
-export const CODE_SPAN_M = 12;
+/** Codes show once the view is about this wide or narrower (m): room scale,
+ *  and zoomed in past the whole-house fit (a small flat's fit is a room). */
+export const CODE_SPAN_M = 12, CODE_IN = 0.8;
 /** The Atlas's flood ripple (floodRingSvg): ripples, period (ms) and turn (ms), wet and latched. */
 export const FLOOD_RIPPLE = { wet: { n: 3, ms: 2600, spinMs: 9000 }, latched: { n: 1, ms: 4200, spinMs: 18000 },
                               lobes: 7, amp: 0.16, from: 0.03, op: 0.85 };
@@ -119,10 +120,11 @@ export function lockLook(l, color){
 }
 /** Is l faded by the class chips (cls: a class key, "all" or null)? */
 export function dimmed(l, cls){ return !!(l && cls && cls !== "all" && !classMatches(l, cls)); }
-/** Do codes show at this camera distance (m), screen aspect and field of view (°)? */
-export function codesAt(radius, aspect, fovDeg){
+/** Do codes show at this camera distance (m), screen aspect, field of view
+ *  (°) and whole-house fit distance (m, or null)? */
+export function codesAt(radius, aspect, fovDeg, fitR = null){
   const span = 2 * Math.tan((Number(fovDeg) || 40) / 2 * Math.PI / 180) * Number(radius) * Math.min(1, Number(aspect) || 1);
-  return Number.isFinite(span) && span <= CODE_SPAN_M;
+  return Number.isFinite(span) && span <= CODE_SPAN_M && !(Number(fitR) > 0 && Number(radius) > fitR * CODE_IN);
 }
 /** A device's code chip as the Atlas draws it (codeChipSvg): its code, the
  *  theme's chip, ink #e2e8f0 (Showcase: the light's colour while on, the
@@ -435,8 +437,8 @@ export function createCodeLayer(ctx){
     sync(list){
       const want = new Map();
       for (const d of list || []) if (d && d.look && d.F) want.set(d.eid, d);
-      for (const eid of [...chips.keys()]) if (!want.has(eid) || chips.get(eid).F !== want.get(eid).F) drop(eid);
       let changed = false;
+      for (const eid of [...chips.keys()]) if (!want.has(eid) || chips.get(eid).F !== want.get(eid).F) { drop(eid); changed = true; }
       for (const [eid, d] of want) {
         let C = chips.get(eid);
         if (!C) { C = make(eid); chips.set(eid, C); changed = true; }

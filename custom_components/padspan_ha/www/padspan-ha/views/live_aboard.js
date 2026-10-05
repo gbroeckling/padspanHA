@@ -3335,7 +3335,7 @@ function createSlot(slotKey){
   /** Codes at room scale; the leak alarms' words a size you can read. */
   function sizeMarks(){
     const H = canvas.clientHeight || 600;
-    if (codes) codes.size(camera, H, !!(lastP && lastP.codes && typeof lastP.codes === "object") && MARKS.codesAt(cam.radius, camera.aspect, FOV));
+    if (codes) codes.size(camera, H, !!(lastP && lastP.codes && typeof lastP.codes === "object") && MARKS.codesAt(cam.radius, camera.aspect, FOV, fitR));
     if (marks) marks.size(camera, H);
   }
   /** A leak sensor or a lock, for the editor's Heights (as deviceInfo). */
@@ -3665,6 +3665,7 @@ function createSlot(slotKey){
                tracked: tracked ? tracked.state() : [], peopleReads,
                // The Atlas's drawers and its other devices (live_aboard_marks.js).
                marks: marks ? marks.state() : [], codes: codes ? codes.state() : null, classF, zoomPct: zoomPctNow(),
+               chipsFaded: chips.filter(C => C.sprite.material.opacity < 1).map(C => (C.room ? C.room.name : null)),
                dimmed: lights.filter(L => dimOf(L.eid)).map(L => L.eid),
                split: furnishOn ? (viewports().plan ? (viewports().d3 ? "both" : "plan") : "3d") : null, plan: { ...plan } };
     },
@@ -3742,7 +3743,9 @@ function createSlot(slotKey){
       if (q.tracked) { const T = (tracked ? tracked.pickable() : []).find(x => x.key === q.tracked); return T ? at(T.at) : null; }
       const S = sensorsUi.find(x => x.eid === q.eid);
       if (S && S.chip) { const p = labelQuad(S.chip.sprite).map(at); return p.every(Boolean) ? [(p[0][0] + p[1][0]) / 2, (p[0][1] + p[2][1]) / 2] : null; }
-      return S ? at(S.pos) : null;
+      if (S) return at(S.pos);
+      const M = marks ? marks.places().find(x => x.eid === q.eid) : null;
+      return M ? at(M.v) : null;
     },
     _pick(x, y){
       const r = pickAt(x, y);
