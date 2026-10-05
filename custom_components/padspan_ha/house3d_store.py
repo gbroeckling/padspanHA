@@ -456,6 +456,28 @@ async def async_restore_data(hass: HomeAssistant, incoming: Any) -> Any:
     return {**out, "pieces": copy.deepcopy(current["pieces"])}
 
 
+async def async_restore_absent(hass: HomeAssistant) -> None:
+    """Restore a safety backup taken when this file did not exist (the Bright
+    import's: ws_common.ABSENT_MARKER): the file goes again, and the cached
+    store with it, so the next use reads none. What this house shared to the
+    library stays (house3d_library.carried_over): its owner tokens are the only
+    way to withdraw those pieces, so with any, the file is kept, empty but for
+    them."""
+    from homeassistant.helpers.storage import Store  # noqa: PLC0415
+    from .house3d_library import carried_over  # noqa: PLC0415
+    try:
+        current = (await async_get_store(hass)).data
+    except ReadFailed:
+        current = None
+    kept = carried_over(current, empty()) if isinstance(current, dict) else empty()
+    st = Store(hass, 1, HOUSE3D_STORE_KEY)
+    if ((kept.get("library") or {}).get("submissions")):
+        await st.async_save(kept)
+    else:
+        await st.async_remove()
+    hass.data.get(DOMAIN, {}).pop(DATA_HOUSE3D, None)
+
+
 # ── People figures and beacon and scanner looks (P6) ──────────────────────────
 # figures: {"person.<name>": {"params": FIGURE's settings, "origin": photo |
 # build}}, kept only in this file and its backups: never shared, never sent,

@@ -33,7 +33,11 @@ async def ws_bright_import_status(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_bright_import(hass: HomeAssistant, connection, msg) -> None:
     """Back up, refuse a non-empty target, copy the house, reload."""
-    res = await async_import(hass, _auto_backup)
+    # Its safety backup records Live Aboard's file as "there was none" when
+    # there was none, so restoring it takes away the one the import made.
+    async def _backup(h, note, keys):
+        return await _auto_backup(h, note, keys, mark_absent=True)
+    res = await async_import(hass, _backup)
     if res.get("ok"):
         connection.send_result(msg["id"], res)
     else:
