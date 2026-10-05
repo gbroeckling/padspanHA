@@ -47,7 +47,7 @@ const { deviceClassOf, healthOf } = await import(`./light_codes.js${new URL(impo
 
 /** The onset ring: how long (ms), how often at most per sensor (ms), its
  *  width at the start and the end (m), its strength at the start. */
-export const RING = { ms: 1200, everyMs: 10000, w0: 0.16, w1: 0.42, a: 0.95, r0: 0.25, rMax: 9 };
+export const RING = { ms: 1200, everyMs: 10000, w0: 0.16, w1: 0.42, a: 0.95, r0: 0.25, rMax: 9, freshMs: 60000 };
 /** A trigger shows the sensor's coverage this long (ms), at this strength. */
 export const FLASH = { ms: 1500, a: 0.55 };
 /** Coverage while hovered, pressed or under the motion lens. */
@@ -66,7 +66,7 @@ export const STEP_K = [1, 0.8, 0.66, 0.55, 0.46, 0.38, 0.32];
 /** The floor's glow, by day and by night: its fill, its soft edge band; a
  *  presence hold's flat fill and solid line; a stuck sensor's hatch. */
 export const GLOW = { fill: [0.66, 0.55], band: [1, 1], steadyFill: 0.72, steadyBand: 0.3, line: 0.95, stuck: 0.75,
-                      bandW: [0.15, 0.6], bandOf: 0.3, groundR: 2.2 };
+                      bandW: [0.15, 0.6], bandOf: 0.3, groundR: 2.2, near: 0.6 };
 /** The marker's size on screen (px): lit, quiet. Its tap target is the
  *  view's own (PICK_R, 44 px across). */
 export const MARK_PX = { lit: 34, quiet: 22 };
@@ -159,15 +159,17 @@ export function halfRecord(eid, st){
            friendly_name: (st.attributes && st.attributes.friendly_name) || eid };
 }
 /** Does this reading ring? A rising edge (off → on) or a re-trigger the
- *  state shows (still on, changed since); never coming back from no reading,
- *  never a restart's restored state, never within RING.everyMs (t, lastT:
- *  the view's clock) of its last ring. prev: what was seen last, or null. */
-export function ringDue(prev, l, haStartedMs, lastT, t){
+ *  state shows (still on, changed since), that happened just now (within
+ *  RING.freshMs of nowMs); never coming back from no reading, never a
+ *  restart's restored state, never within RING.everyMs (t, lastT: the view's
+ *  clock) of its last ring. prev: what was seen last, or null. */
+export function ringDue(prev, l, haStartedMs, lastT, t, nowMs = Date.now()){
   if (!prev || !l || l.state !== "on") return false;
   if (prev.state === "unavailable" || prev.state === "unknown") return false;
   if (prev.state === "on" && (!l.last_changed || l.last_changed === prev.last_changed)) return false;
   const at = Date.parse(l.last_changed);
   if (haStartedMs && at <= haStartedMs + HOUSE.MOTION_BOOT_GRACE_MS) return false;
+  if (Number.isFinite(at) && nowMs - at > RING.freshMs) return false;
   return !(lastT !== null && lastT !== undefined && t - lastT < RING.everyMs);
 }
 /** The ring at p (0..1 of its time): radius (m), width (m) and strength,
@@ -272,7 +274,7 @@ const FLOOR_VS = `varying vec2 vP;
 void main(){ vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const FLOOR_FS = `uniform vec3 uColor, uRingColor; uniform float uFill, uHatch, uRadial; uniform vec2 uCentre;
 uniform vec4 uRing[${MAX_S}]; uniform float uRingW[${MAX_S}];
-uniform vec4 uFan[${MAX_S}]; uniform vec4 uFanDir[${MAX_S}]; uniform vec3 uFanColor[${MAX_S}];
+uniform vec4 uFan[${MAX_S}]; uniform vec4 uFanDir[${MAX_S}];
 varying vec2 vP;
 vec4 over(vec4 top, vec4 base){
   float a = top.a + base.a * (1.0 - top.a);
@@ -297,9 +299,13 @@ void main(){
       side = abs(side);
     }
     if (inside <= 0.0) continue;
-    float edge = 1.0 - smoothstep(0.03, 0.07, min(reach - r, side));
-    float fill = fa * (0.32 + 0.38 * (1.0 - r / reach));
-    c = over(vec4(uFanColor[i], max(fill, edge * min(1.0, fa * 2.4))), c);
+    // A pale fan, outlined dark with a light halo: it reads on a glowing
+    // floor and on a bright one.
+    float e = min(reach - r, side);
+    float fill = fa * (0.3 + 0.35 * (1.0 - r / reach));
+    c = over(vec4(1.0, 1.0, 1.0, fill), c);
+    c = over(vec4(1.0, 1.0, 1.0, (1.0 - smoothstep(0.05, 0.09, e)) * min(1.0, fa * 2.6)), c);
+    c = over(vec4(0.06, 0.09, 0.16, (1.0 - smoothstep(0.018, 0.04, e)) * min(0.9, fa * 2.4)), c);
   }
   for (int i = 0; i < ${MAX_S}; i++) {
     float ra = uRing[i].w;
@@ -362,7 +368,8 @@ export function createMotionLayer(ctx){
   const { THREE } = ctx;
   const DIM = Number(ctx.dimK) > 0 ? Number(ctx.dimK) : 0.22;
   let sensors = [], patches = [], res = [], want = null, pairKey = null, halves = {}, lens = false, focusEid = null;
-  let camKey = null, last = null, night = 0;
+  // near: the fill's strength at room scale (the band and the marker carry it there).
+  let camKey = null, last = null, night = 0, near = 1;
   const seen = new Map();                    // eid -> {state, last_changed} last seen, and the half's
   const _p = new THREE.Vector3(), _d = new THREE.Vector3(), _ray = new THREE.Raycaster();
   /** Is world point v under a floor that shows, from camera c? A lit marker
@@ -481,8 +488,7 @@ export function createMotionLayer(ctx){
                 uHatch: { value: 0 }, uRadial: { value: radial }, uCentre: { value: new THREE.Vector2(centre[0], centre[1]) },
                 uRing: { value: Array.from({ length: MAX_S }, () => new THREE.Vector4(0, 0, 0, 0)) }, uRingW: { value: new Array(MAX_S).fill(0.2) },
                 uFan: { value: Array.from({ length: MAX_S }, () => new THREE.Vector4(0, 0, 0, 0)) },
-                uFanDir: { value: Array.from({ length: MAX_S }, () => new THREE.Vector4(0, 0, 0, 0)) },
-                uFanColor: { value: Array.from({ length: MAX_S }, () => new THREE.Color(QUIET_INK)) } };
+                uFanDir: { value: Array.from({ length: MAX_S }, () => new THREE.Vector4(0, 0, 0, 0)) } };
     const mat = new THREE.ShaderMaterial({ uniforms: u, vertexShader: FLOOR_VS, fragmentShader: FLOOR_FS, transparent: true,
       depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
     const mesh = new THREE.Mesh(geo, mat);
@@ -583,7 +589,8 @@ export function createMotionLayer(ctx){
     const give = roomGlow([own, hg && !hg.none ? hg : null]) || (own && own.none ? own : null);
     // A new trigger: either half rising.
     const p0 = seen.get(S.eid), p1 = hr ? seen.get(S.half) : null;
-    const rang = (l && ringDue(p0 || null, l, h.haStarted, S.lastRing, h.t)) || (hr && ringDue(p1 || null, hr, h.haStarted, S.lastRing, h.t));
+    const rang = (l && ringDue(p0 || null, l, h.haStarted, S.lastRing, h.t, h.now))
+      || (hr && ringDue(p1 || null, hr, h.haStarted, S.lastRing, h.t, h.now));
     seen.set(S.eid, l ? { state: l.state, last_changed: l.last_changed } : null);
     if (hr) seen.set(S.half, { state: hr.state, last_changed: hr.last_changed });
     return { l, own, give, rang: !!rang };
@@ -603,7 +610,8 @@ export function createMotionLayer(ctx){
     if (key === P.key) return false;
     P.key = key;
     if (g) { P.u.uColor.value.set(g.color); if (P.band) P.band.u.uColor.value.set(g.color); }
-    P.u.uFill.value = P.ground ? (g ? Math.min(1, fill * 1.4) : 0) : fill;
+    P.fill = P.ground ? (g ? Math.min(1, fill * 1.4) : 0) : fill;
+    P.u.uFill.value = P.fill * (P.ground ? 1 : near);
     P.u.uHatch.value = g && g.stuck ? 1 : 0;
     if (P.band) { P.band.u.uBand.value = band; P.band.u.uLine.value = line; P.band.u.uHatch.value = g && g.stuck ? 1 : 0; }
     return true;
@@ -625,7 +633,6 @@ export function createMotionLayer(ctx){
       if (fa > 0 && S.cover) {
         Fv.set(S.mx, S.my, S.cover.m, fa);
         D.set(S.aim[0], S.aim[1], Math.cos(S.cover.deg / 2 * Math.PI / 180), S.cover.circle ? 1 : 0);
-        P.u.uFanColor.value[i].set(S.own && !S.own.none ? S.own.color : QUIET_INK);
       } else Fv.set(0, 0, 0, 0);
       if (R.w > 0 || Fv.w > 0) any = true;
     });
@@ -686,6 +693,8 @@ export function createMotionLayer(ctx){
      *  about room scale (quiet ones show only then). */
     size(c, H, room){
       const k = 2 * Math.tan((c.fov || 40) / 2 * Math.PI / 180) / Math.max(1, H);
+      const nearNow = room ? GLOW.near : 1;
+      if (nearNow !== near) { near = nearNow; for (const P of patches) if (!P.ground) { P.u.uFill.value = (P.fill || 0) * near; P.mesh.visible = P.mesh.visible || P.u.uFill.value > 0; } }
       const key = c.matrixWorld.elements.map(v => v.toFixed(3)).join(",") + H + "|" + sensors.map(S => (shown(S) ? 1 : 0)).join("");
       const again = key !== camKey;
       camKey = key;
