@@ -141,6 +141,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "atlas_3d_enabled": False,            # the master switch
     "atlas_3d_quality": "auto",           # auto | low | high
     "atlas_3d_people": False,             # the people layer
+    "atlas_3d_tags": False,               # tags and scanners: every placed tag with its name, every scanner at its height
     "atlas_3d_ai_task_entity": "",        # ai_task.* that reads photos; "" = none (the photo button explains)
     "atlas_3d_library": False,            # the shared furniture library
     "atlas_3d_weather": True,             # rain and snow in Live Aboard: follows Outdoor weather (atlas_weather_*), which must be on too

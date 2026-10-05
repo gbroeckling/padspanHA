@@ -73,6 +73,12 @@ def test_the_hover_box_is_the_atlas_own(use) -> None:
     _case(use, "hud:")
 
 
+def test_a_tag_or_scanner_says_what_it_is(use) -> None:
+    """P6: a tapped tag (or scanner) shows its card beside it, from what the
+    view already holds: nothing is called, and the next press closes it."""
+    _case(use, "card:")
+
+
 def test_a_piece_that_is_a_device_acts_as_it(use) -> None:
     """P5: a piece linked to a light the Atlas knows is that light's own
     target; one linked to anything else opens Home Assistant's controls."""

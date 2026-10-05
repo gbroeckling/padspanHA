@@ -1,32 +1,39 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Live Aboard P6, the live layer: beacons, scanners and people in the house.
+"""Live Aboard P6, the live layer: tags, scanners and people in the house.
 
 tests/js/live_aboard_tracked.mjs finds each person through the phone or tag
-they carry, then runs the real 3D view under the DOM shim: with Show people
-off the snapshot is never read and no one is drawn; on, a scanner with a look
-stands at its height, a beacon with a look where it is tracked, a person as
-their figure (or a soft marker), walking to where they are now on the capped
-clock and still at rest; the snapshot is read through the host no more often
-than it says.
+they carry, then runs the real 3D view under the DOM shim: with both layers
+off the snapshot is never read and no tag and no one is drawn (a scanner with
+a look still stands); Show people draws each person as their figure (or a
+soft marker), walking to where they are now on the capped clock and still at
+rest; Show tags & scanners draws every tag the flat Atlas shows with no look
+needed (named, a ring as wide as its spot is unsure, its look when it has
+one) and every scanner at its own height, and a tapped tag says its room,
+when it was seen and which scanners hear it; the snapshot is read through
+the host no more often than it says, once for both layers.
 
-The rest is held here: the people layer is off by default and its switch is
-in the 3D house box; the shared card hands the snapshot over only while it is
-on; Mapping hands over the snapshot it already polls, the sidebar a read of
-Overview's; the flat Atlas's beacons wear a look only inside Show beacons.
+The rest is held here: both layers are off by default, each its own switch
+in the Live Aboard box, saved as a bool; the shared card hands the snapshot
+over only while one is on; Mapping hands over the snapshot it already polls,
+the sidebar a read of Overview's; the flat Atlas's beacons wear a look only
+inside Show beacons.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import shutil
 import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from custom_components.padspan_ha import telemetry as T
+from custom_components.padspan_ha import ws_settings as WS
 from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -61,7 +68,7 @@ def _code(p: Path) -> str:
     return "\n".join(ln for ln in _js(p).splitlines() if not ln.lstrip().startswith(("//", "*")))
 
 
-@pytest.mark.parametrize("prefix", ["people:", "off:", "on:", "walk:", "reads:"])
+@pytest.mark.parametrize("prefix", ["people:", "off:", "on:", "walk:", "reads:", "tags:", "both:"])
 def test_the_tracked_harness_covers_each_part(tr, prefix) -> None:
     _case(tr, prefix)
 
@@ -75,12 +82,58 @@ def test_the_people_layer_is_off_by_default_with_its_row() -> None:
     sec = _js(_VIEWS / "settings.js")
     sec = sec[sec.index("function _atlas3dSection("):]
     assert 'tick("atlas_3d_people", "Show people", settings.atlas_3d_people === true,' in sec
+    # It says exactly what shows: people, not the tags (their own switch).
+    row = sec[sec.index('tick("atlas_3d_people"'):]
+    row = row[:row.index(");")]
+    assert "figure" in row and "tags and phones PadSpan tracks" not in row
+
+
+def _run(coro):
+    return asyncio.new_event_loop().run_until_complete(coro)
+
+
+def test_the_tags_layer_is_its_own_switch_off_by_default() -> None:
+    """Show tags & scanners (atlas_3d_tags): off by default, in the schema,
+    stored as a bool, with its row saying exactly what shows."""
+    assert DEFAULT_SETTINGS["atlas_3d_tags"] is False
+    keys = {str(getattr(k, "schema", k)) for k in WS.ws_settings_set.ws_schema}
+    assert "atlas_3d_tags" in keys
+    src = (_ROOT / "custom_components" / "padspan_ha" / "ws_settings.py").read_text(encoding="utf-8")
+    loop = src[src.index('for key in ("ha_entity_tracker_enabled"'):]
+    loop = loop[:loop.index("):")]
+    assert '"atlas_3d_tags"' in loop, "stored as a bool"
+    sec = _js(_VIEWS / "settings.js")
+    sec = sec[sec.index("function _atlas3dSection("):]
+    assert 'tick("atlas_3d_tags", "Show tags & scanners", settings.atlas_3d_tags === true,' in sec
+    row = sec[sec.index('tick("atlas_3d_tags"'):]
+    row = row[:row.index(");")]
+    for words in ("Every tag", "its name", "every scanner at its height", "Tap a tag"):
+        assert words in row, words
+
+
+def test_the_tags_setting_round_trips_on_its_own() -> None:
+    from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+    from tests.test_telemetry import _hass as _house_hass
+    h, conn = _house_hass(), MagicMock()
+    conn.user = MagicMock(is_admin=False)
+    _run(WS.ws_settings_set(h, conn, {"id": 1, "atlas_3d_tags": 1}))
+    assert not conn.send_error.called
+    data = h.data[DOMAIN][DATA_SETTINGS].data
+    assert data["atlas_3d_tags"] is True and not data.get("atlas_3d_people"), "each switches on its own"
+    assert conn.send_result.call_args[0][1]["settings"]["atlas_3d_tags"] is True
+    get = MagicMock()
+    _run(WS.ws_settings_get(h, get, {"id": 2}))
+    assert get.send_result.call_args[0][1]["settings"]["atlas_3d_tags"] is True
+    _run(WS.ws_settings_set(h, conn, {"id": 3, "atlas_3d_tags": False}))
+    assert data["atlas_3d_tags"] is False
 
 
 def test_the_snapshot_is_handed_over_only_while_show_people_is_on() -> None:
     lm = _js(_VIEWS / "lights_map.js")
     mount = lm[lm.index("const mount3d = () => {"):lm.index("const pick3d = (on) => {")]
     assert "people: h3.settings.atlas_3d_people === true && h3.people ? h3.people : null," in mount
+    # Show tags & scanners: the same reader, only while it is on.
+    assert "tags: h3.settings.atlas_3d_tags === true && h3.people ? h3.people : null," in mount
     maps = _js(_VIEWS / "maps.js")
     mblock = maps[maps.index("house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ?"):]
     mblock = mblock[:mblock.index("} : null,")]
@@ -97,9 +150,12 @@ def test_the_snapshot_is_handed_over_only_while_show_people_is_on() -> None:
     block = block[:block.index("} : null,")]
     assert 'people: { read: ()=>this._hass.callWS({ type:"padspan_ha/live_snapshot" })' in block
     assert "atlas_3d_people: s.atlas_3d_people, presence_poll_interval_s: s.presence_poll_interval_s" in lp
+    assert "atlas_3d_tags: s.atlas_3d_tags" in lp
     # The view reads it through the host, never under 5 s apart, with no timer.
     la = _code(_VIEWS / "live_aboard.js")
     assert "const PEOPLE_MS = 5000;" in la and "Math.max(PEOPLE_MS, Number(pp.everyMs) || 0)" in la
+    # One reader for both layers: either one on reads it, neither reads nothing.
+    assert "const pp = on(p.people) ? p.people : on(p.tags) ? p.tags : null;" in la
 
 
 def test_the_layer_calls_nothing_and_keeps_no_timer() -> None:
