@@ -446,6 +446,7 @@ function createSlot(slotKey){
   // panel, or full screen); fsOn, the panel full screen. fitR: the camera's
   // distance at the last whole-house fit (the "fit level"); soloHold: where
   // ☰ brought the bars back (zooming further in hides them again).
+  let keepOff = null;                                       // full screen: the page's cards kept in sight
   let mapOnly = false, bare = false, cover = false, fsOn = false, fsTarget = null, fitR = null, soloHold = null;
   let coverOff = null, coverStyle = null, panelCss = null, showCss = null, soloBtn = null, fullBtns = [], menuEl = null, menuOff = null;
   let floorSteps = null, floorEls = [], hintCard = null, tipEl = null, narrow = false;
@@ -755,6 +756,9 @@ function createSlot(slotKey){
     const now = SCREEN.isFullOf(fsTarget);
     if (now === fsOn) return;
     fsOn = now;
+    // In, cards and sheets the page opens stay in sight (SCREEN.keepOverlaysIn).
+    if (now) keepOff = SCREEN.keepOverlaysIn(fsTarget);
+    else if (keepOff) { keepOff(); keepOff = null; }
     // Left (Escape, or the browser's own way out): everything back.
     if (!now) { fsTarget = null; if (bare) { bare = false; root.classList.remove("la3d-bare"); } }
     paintCover();

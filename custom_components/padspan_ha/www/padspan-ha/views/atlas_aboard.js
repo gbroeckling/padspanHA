@@ -114,10 +114,12 @@ export function fileOf(slot, load, shownAt, arrived){
       f.p = null;
       f.data = r && r.data && typeof r.data === "object" ? r.data : {};
       if (typeof arrived === "function") arrived();
-    }, () => { if (f.p === mine) f.p = null; });
+    }, () => { if (f.p === mine) { f.p = null; f.stale = true; } });   // failed: the next card asks again
   }
   return f.data;
 }
+/** What was last read for this screen, without asking again (null before the first answer). */
+export const fileData = (slot) => ((_files.get(String(slot || "atlas")) || {}).data || null);
 /** For the tests: forget what was read. */
 export function dropFiles(){ _files.clear(); _changed = false; }
 export const fileChanged = () => _changed;

@@ -85,6 +85,24 @@ export function isFullOf(target){
   const fs = document.fullscreenElement || document.webkitFullscreenElement || null;
   return fs === target || !!(rn && rn.fullscreenElement === target);
 }
+/** While `host` (the panel) is full screen, a card, sheet or toast the page
+ *  puts on document.body would sit outside it, unseen (a hold's controls,
+ *  a room's sheet, the activity calendar, a toast): each is moved into the
+ *  panel's own tree while full screen lasts, and put back after. → stop(). */
+export function keepOverlaysIn(host){
+  const tree = host && host.shadowRoot;
+  if (!tree || typeof MutationObserver === "undefined" || !document.body) return () => {};
+  const moved = new Set();
+  const take = (n) => {
+    if (!n || !n.localName || n.localName === "script" || n.localName === "a" || !isFullOf(host)) return;   // elements only
+    tree.appendChild(n);
+    moved.add(n);
+  };
+  for (const n of [...document.body.children]) if (n.style && n.style.position === "fixed") take(n);   // already open
+  const mo = new MutationObserver((recs) => { for (const r of recs) for (const n of r.addedNodes) take(n); });
+  mo.observe(document.body, { childList: true });
+  return () => { mo.disconnect(); for (const n of moved) if (n.parentNode === tree) document.body.appendChild(n); moved.clear(); };
+}
 export const FULL_ICON = { on: "M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4", off: "M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4" };
 /** The ⛶ button's face: what it says and its icon, full screen or not. */
 export const fullLabel = (on, can) => (on ? "Leave full screen" : can ? "Full screen" : "Only the map");
@@ -110,7 +128,7 @@ const FLAT_CSS = `
 .lv-alone-anchor > button:hover,.lv-alone-anchor > button:focus-visible{opacity:1;border-color:rgba(120,190,155,.5)}
 .lv-mapcard.lv-alone > .lv-alone-anchor{position:fixed;left:var(--lv-al-l);top:var(--lv-al-t);width:var(--lv-al-w);height:var(--lv-al-h);z-index:${COVER_Z + 1}}
 .lv-mapcard.lv-alone > .lv-alone-anchor > .lv-alone-solo{display:flex}
-.lv-mapcard.lv-alone:has(.lv-emerg) > .lv-alone-anchor > .lv-alone-solo{right:96px}
+.lv-mapcard.lv-alone:has(.lv-emerg) > .lv-alone-anchor > .lv-alone-solo{top:98px}
 .lv-mapcard.lv-alone > .lv-emerg-anchor{position:fixed;left:var(--lv-al-l);top:var(--lv-al-t);width:var(--lv-al-w);z-index:${COVER_Z + 2}}
 .lv-mapcard.lv-alone > .lv-vacation{z-index:${COVER_Z + 3}}
 .lv-mapcard.lv-alone > .lv-stage > svg{max-width:none}`;
@@ -202,8 +220,12 @@ function fullChanged(st){
   if (now === st.fsOn) return;
   st.fsOn = now;
   // In: the map alone, full screen. Out (⛶, Escape, the browser's own way): everything back.
-  if (now) st.bare = shownOf(st);
-  else { st.fsTarget = null; st.bare = false; if (st.fsOff) { st.fsOff(); st.fsOff = null; } }
+  if (now) { st.bare = shownOf(st); st.keepOff = keepOverlaysIn(st.fsTarget); }
+  else {
+    st.fsTarget = null; st.bare = false;
+    if (st.fsOff) { st.fsOff(); st.fsOff = null; }
+    if (st.keepOff) { st.keepOff(); st.keepOff = null; }
+  }
   paint(st);
 }
 

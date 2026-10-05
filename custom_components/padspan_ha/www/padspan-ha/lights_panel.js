@@ -518,7 +518,7 @@ class PadSpanLightsApp extends HTMLElement {
       + `border-radius:${desktop ? "16px" : "18px 18px 0 0"};color:#e2e8f0;font-family:Inter,system-ui,sans-serif;`
       + "box-shadow:0 -12px 50px rgba(0,0,0,.6)"});
     overlay.appendChild(sheet);
-    const close = ()=>{ try{ document.body.removeChild(overlay); }catch(_){} this._emergCard = null; };
+    const close = ()=>{ overlay.remove(); this._emergCard = null; };
     overlay.addEventListener("click", e=>{ if(e.target === overlay) close(); });
     let down = false, shown = null;
     overlay.addEventListener("pointerdown", ()=>{ down = true; });
@@ -1131,13 +1131,13 @@ class PadSpanLightsApp extends HTMLElement {
       `box-shadow:0 8px 30px rgba(0,0,0,.5),0 0 20px ${isError?"rgba(220,38,38,.2)":"rgba(82,183,136,.15)"};`+
       `white-space:pre-wrap;max-width:320px;text-align:center`;
     // One at a time: a new message replaces the last rather than landing on it.
-    if(this._toastEl){ try{ document.body.removeChild(this._toastEl); }catch(_){} }
+    if(this._toastEl) this._toastEl.remove();
     this._toastEl = t;
     document.body.appendChild(t);
     // Long enough to read: the emergency messages run to a few sentences.
     // A message tied to a window (Force off's "tap again") passes its own.
     const ms = durationMs || Math.min(10000, Math.max(3500, String(msg).length * 60));
-    setTimeout(()=>{ try{document.body.removeChild(t);}catch(_){} if(this._toastEl === t) this._toastEl = null; }, ms);
+    setTimeout(()=>{ t.remove(); if(this._toastEl === t) this._toastEl = null; }, ms);
   }
 
   connectedCallback(){

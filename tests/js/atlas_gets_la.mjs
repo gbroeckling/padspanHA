@@ -285,6 +285,56 @@ await tryCase("alone: ⛶ takes the panel full screen, the map alone; Escape let
     && on.label === "Leave full screen" && barsBack.full && !barsBack.bare && !left.full && !left.bare && left.label === "Full screen" && !left.watching
     && label2 === "Only the map" && only.bare && !only.full, { label0, asked, on, barsBack, left, label2, only });
 });
+await tryCase("alone: full screen, a card or sheet the page opens stays in sight and closes; after, it is back on the page", async () => {
+  const MO = globalThis.MutationObserver, seen = [];
+  globalThis.MutationObserver = class { constructor(cb){ this.cb = cb; seen.push(this); } observe(){} disconnect(){ this.cb = null; } takeRecords(){ return []; } };
+  const panel = el("div"), tree = el("div");
+  panel.shadowRoot = tree;
+  panel.getBoundingClientRect = () => ({ left: 256, top: 56, right: 1280, bottom: 900, width: 1024, height: 844 });
+  panel.requestFullscreen = function(){ document.fullscreenElement = this; fireDoc("fullscreenchange"); return Promise.resolve(); };
+  document.exitFullscreen = () => { document.fullscreenElement = null; fireDoc("fullscreenchange"); return Promise.resolve(); };
+  document.fullscreenEnabled = true;
+  const c = el("div", { class: "card lv-mapcard" }), s = el("div", { class: "lv-stage" });
+  s.getRootNode = () => ({ host: panel });
+  c.appendChild(s);
+  const sc = SCREEN.flatScreen({ slot: "t-keep", card: c, stage: s, zoom: 1, shown: () => true });
+  const full = sc.anchor.children.find(n => n.className === "lv-alone-full");
+  full.click();
+  const opened = (name) => { const o = el("div", { class: name }); o.style.position = "fixed"; document.body.appendChild(o);
+    for (const m of seen) if (m.cb) m.cb([{ addedNodes: [o] }]); return o; };
+  const sheet = opened("lv-sheet-test"), card2 = opened("lv-card-test");
+  const inTree = { sheet: sheet.parentNode === tree, card: card2.parentNode === tree };
+  sheet.remove();                                               // its own close: wherever it is
+  const closed = !tree.children.includes(sheet);                   // (the shim does not re-parent; a browser does)
+  full.click();                                                 // leave full screen
+  const after = { card: card2.parentNode === document.body, watching: seen.some(m => m.cb) };
+  card2.remove();
+  delete panel.requestFullscreen; delete document.exitFullscreen; document.fullscreenElement = null;
+  SCREEN.dropFlatScreen("t-keep");
+  globalThis.MutationObserver = MO;
+  const lm = await (await import("node:fs/promises")).readFile(new URL("../../custom_components/padspan_ha/www/padspan-ha/views/lights_map.js", import.meta.url), "utf8");
+  check("alone: full screen, a card or sheet the page opens stays in sight and closes; after, it is back on the page",
+    inTree.sheet && inTree.card && closed && after.card && !after.watching && !/document\.body\.removeChild\(overlay\)/.test(lm),
+    { inTree, closed, after });
+});
+await tryCase("file: a read of Live Aboard's file that fails is asked again on the next card, not left empty for the panel's life", async () => {
+  const ABm = await import(pathToFileURL(join(WWW, "views", "atlas_aboard.js")).href);
+  ABm.dropFiles();
+  let calls = 0, fail = true;
+  const load = () => { calls++; return fail ? Promise.reject(new Error("socket")) : Promise.resolve({ data: { pieces: { a: 1 } } }); };
+  ABm.fileOf("t-file", load, 7, () => {});
+  await settle();
+  const afterFail = ABm.fileData("t-file");
+  fail = false;
+  ABm.fileOf("t-file", load, 7, () => {});                 // the next card, same panel opening
+  await settle();
+  const got = ABm.fileData("t-file");
+  ABm.fileOf("t-file", load, 7, () => {});                 // read once it has the file: not again
+  await settle();
+  ABm.dropFiles();
+  check("file: a read of Live Aboard's file that fails is asked again on the next card, not left empty for the panel's life",
+    afterFail === null && calls === 2 && got && got.pieces && got.pieces.a === 1, { afterFail, calls, got });
+});
 await tryCase("alone: the emergency dial, the Vacation banner, ☰ and ⛶ stay above the covering map", async () => {
   const c = el("div", { class: "card lv-mapcard" }), s = el("div", { class: "lv-stage" });
   c.appendChild(s);

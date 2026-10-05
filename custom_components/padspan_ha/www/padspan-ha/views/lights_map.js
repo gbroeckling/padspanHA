@@ -1140,7 +1140,7 @@ export function openAggregateSheet(api, { title, sub, items, actions }){
   const overlay = mk("div", _S.overlay);
   const desktop = typeof window !== "undefined" && window.innerWidth > 768;
   if (desktop) overlay.style.alignItems = "center";
-  const close = () => { try { document.body.removeChild(overlay); } catch (_) {} };
+  const close = () => { overlay.remove(); };
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
   const sheet = mk("div", _S.sheet + (desktop ? ";border-radius:16px" : ""));
   const head = mk("div", _S.head);
@@ -1368,7 +1368,7 @@ export async function openActivityCalendar(hass, eid) {
   const overlay = mk("div", _S.overlay);
   const desktop = typeof window !== "undefined" && window.innerWidth > 768;
   if (desktop) overlay.style.alignItems = "center";
-  const close = () => { try { document.body.removeChild(overlay); } catch (_) {} };
+  const close = () => { overlay.remove(); };
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
   const sheet = mk("div", _S.sheet + (desktop ? ";border-radius:16px" : ""));
   const head = mk("div", _S.head);
@@ -1466,7 +1466,7 @@ export function openControlCard(hass, eid, api){
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10000;"
     + "display:flex;align-items:center;justify-content:center;"
     + "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)";
-  const close = () => { try { document.body.removeChild(overlay); } catch (_) {} };
+  const close = () => { overlay.remove(); };
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
 
   const box = el("div", { style:
@@ -1770,7 +1770,7 @@ function _pickEntityOverlay(title, candidates, onPick){
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10000;"
     + "display:flex;align-items:center;justify-content:center;"
     + "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)";
-  const close = () => { try { document.body.removeChild(overlay); } catch (_) {} };
+  const close = () => { overlay.remove(); };
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
   const box = el("div", { style:
     "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.28);"
@@ -1880,7 +1880,7 @@ export function openBarrierCard(hass, bar, api){
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10000;"
     + "display:flex;align-items:center;justify-content:center;"
     + "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)";
-  const close = () => { try { document.body.removeChild(overlay); } catch (_) {} };
+  const close = () => { overlay.remove(); };
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
 
   const box = el("div", { style:
@@ -4077,7 +4077,11 @@ export function buildLightsMapCard(hostIn){
   }
   mapCard.appendChild(isoDiv);
   if (scr) mapCard.appendChild(scr.anchor);
-  const legend = buildShapeLegend(el, Object.values(host.lightsByEid));
+  // The shapes as drawn: with Live Aboard's kinds once its file has been read.
+  const abLegend = _AB && abFile ? _AB.fileData(abSlot) : null;
+  const legend = buildShapeLegend(el, Object.values(abLegend
+    ? _AB.drawnWith(host.lightsByEid, host.byRoom, _AB.kindShapes(abLegend, host.lightsByEid, h3.settings.light_shapes)).lightsByEid
+    : host.lightsByEid));
   if (legend) mapCard.appendChild(legend);
   rebuildISO();
   // Restore the pan position a previous rebuild of this same card saved
