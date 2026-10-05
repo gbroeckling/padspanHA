@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.100",
+  "title": "Lay out strips and string lights where they really are",
+  "date": "2026-10-05",
+  "body_markdown": "### Live Aboard\n- **Added:** **Strip** in Live Aboard's Edit (in Mapping) puts LED strips and string lights where they really are:\n  - Pick a light, tap one or choose it from \"Lights to lay out\", then press on a wall and drag along it. The run carries round corners onto the next wall. You can also tap its points one at a time.\n  - One tap does a whole run: **Round this room** (with gaps at the doors), **Under**, **Behind** or along the **Top edge** of a piece of furniture, **Along a rail** of a deck, or **Continue from** where another light's run ends (each WLED segment is its own light, so each shows its own colour).\n  - Set the height with chips (toe-kick, counter, under the cabinets, valance, cove, ceiling edge), type it in cm, or drag the handles: the middle moves the whole run, an end tilts it for stairs or a rail.\n  - Choose which way it shines: up the wall, down onto the counter, into the room, or onto the wall behind a TV or a bed.\n  - **String lights** are a new kind: bulbs on a wire that hangs in swags between its points, with the spacing and the sag you set.\n  - A run on a piece of furniture moves with it.\n  - Only Live Aboard's own file changes; the map is never touched.\n- **Added:** floors work like the Atlas's floor chips.\n  - The floor stepper shows each floor's lights on and its motion.\n  - **Views ▾** (or **View ▾** on a phone) lists every floor to jump to.\n  - Each floor keeps its own camera while you move between floors.\n  - With the map alone (zoomed in), PgUp and PgDn change floors and Home shows them all; the floor's name shows in the corner for 2 seconds, and a tap on it lists the floors.\n- **Changed:** in Mapping, Show people and Show tags & scanners now move live, as on the sidebar.\n- **Changed:** deleting a person in Home Assistant deletes their Live Aboard figure; renaming them keeps it.\n- **Fixed:** the door and window tool draws on the floor you picked, not only the top one showing.\n\n### WLED\n- **Fixed:** a wall switch flipped while PadSpan was putting a WLED light's look back is no longer undone.\n- **Fixed:** on a one-segment strip, the brightness Home Assistant reports after that is no longer taken for someone else's change.\n\n### Backups\n- **Fixed:** a restore or a factory reset can no longer land halfway through a Live Aboard save.\n- **Fixed:** a manual backup that can't read one of its parts now says so and saves nothing. It used to save that part empty.\n\n### GPS Bridge\n- **Fixed:** positions on Home Assistant's map were mirrored east to west; they now plot the right way round. The bearing still means the compass direction of down-the-plan, so a plan drawn with north at the top is 180. If you set the bearing by trial and error, check it again."
+ },
+ {
   "version": "0.38.99",
   "title": "Live Aboard: real-looking lights, the map alone, and your tags",
   "date": "2026-10-05",
@@ -28,11 +34,5 @@
   "title": "Open a floor plan from Basic mode",
   "date": "2026-10-04",
   "body_markdown": "### Mapping\n- **Fixed:** in Basic mode, Mapping → Library → **Open** did nothing at all, with no sign why (editing a floor plan is in Advanced mode, and Basic quietly sent you back to the Library). Open now switches to Advanced, says so, and opens the plan. The Basic / Advanced button at the top switches back. Thanks, Jay.\n- **Fixed:** in Advanced mode, the calibration wizard's \"See detailed quality report\" and the Atlas's \"Build from relays\" opened their screen and then bounced you back to the first menu screen a moment later. They now stay open."
- },
- {
-  "version": "0.38.94",
-  "title": "Rain and snow you can see from across the room",
-  "date": "2026-10-04",
-  "body_markdown": "### Atlas — outdoor weather\n- **Changed:** light rain was so faint that from across the room, on a wall panel, the Atlas looked dry while it rained. Light rain now has more streaks, longer and brighter, so it reads at a glance. It is still a calm drizzle, and heavy rain is still clearly heavier. Light snow has slightly bigger, brighter flakes for the same reason.\n- If it's now too strong for your screen, turn it down with Settings → UI Structure → Atlas — Mapped Light Control → Outdoor weather → **Strength**.\n- **Fixed:** the **Weather warnings** list offered water-leak detectors whose name says \"warning\" (say, an \"Emergency Flood Warning\"). A leak detector never says anything about rain or snow, so picking one meant warnings could never make the rain heavy. They're no longer offered. If you picked one, choose Automatic or a real weather-warning sensor."
  }
 ]
