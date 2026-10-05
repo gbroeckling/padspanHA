@@ -47,7 +47,7 @@ def screen() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("maponly:", 8), ("full:", 2), ("floors:", 1), ("fly:", 2), ("views:", 1),
+@pytest.mark.parametrize("prefix,least", [("maponly:", 8), ("full:", 2), ("floors:", 7), ("fly:", 2), ("views:", 1),
                                           ("night:", 1), ("names:", 3), ("phone:", 1), ("hint:", 1)])
 def test_the_screen_harness_covers_each_part(screen, prefix, least) -> None:
     got = [k for k in screen["cases"] if k.startswith(prefix)]
@@ -78,10 +78,12 @@ def test_only_the_sidebar_asks_for_the_map_alone() -> None:
 
 def test_the_view_keeps_nothing_in_the_browser_itself() -> None:
     """Saved views and the first-time card go through the card's store,
-    under Live Aboard's own prefix; the view has no timers of its own."""
+    under Live Aboard's own prefix; the view's one timer is the live read's
+    (test_live_aboard_tracked), and the corner's 2 s is a CSS fade."""
     la = _code(_VIEWS / "live_aboard.js")
-    for bad in ("localStorage", "sessionStorage", "setTimeout", "setInterval", "indexedDB"):
+    for bad in ("localStorage", "sessionStorage", "setInterval", "indexedDB"):
         assert bad not in la, bad
+    assert la.count("setTimeout(") == 1 and "peopleTimer = setTimeout(" in la
     lm = _js(_VIEWS / "lights_map.js")
     prefs = lm[lm.index("const _laPrefs = {"):lm.index("let _LA = null;")]
     assert prefs.count('"padspan_la3d_" + k') == 2 and prefs.count("try {") == 2
@@ -115,3 +117,26 @@ def test_the_flat_atlas_is_untouched_while_live_aboard_is_away() -> None:
     assert 'panelCss.textContent = mapOnly ? CSS_PANEL : "";' in la
     css = (_WWW / "styles.css").read_text(encoding="utf-8")
     assert "la3d" not in css
+
+
+def test_the_floors_work_as_the_atlas_floor_chips_do() -> None:
+    """Each floor's numbers are the floor chips' own (floorAggregate over the
+    whole slab: lights and fans on, motion); a piece moved a floor in Furnish
+    keeps today's camera; the camera kept per floor lives in the slot (one per
+    screen), never in the browser; the first-time card says how floors change
+    with the map alone; the line tool draws on the floor picked."""
+    lm = _js(_VIEWS / "lights_map.js")
+    mount = lm[lm.index("const mount3d = () => {"):lm.index("const pick3d = (on) => {")]
+    assert "counts: sortedLevels.map(lv => {" in mount
+    assert "floorAggregate(Object.values(host.lightsByEid || {}), host.model, floorIdsOnSlab(_frame, host.model, floors, lv))" in mount
+    assert "return { on: a ? a.lightsOn + a.fansOn : 0, motion: a ? a.motionActive : 0 };" in mount
+    chips = lm[lm.index("const switchTo = (idx) => {"):lm.index("// Find active")]
+    assert "{ on: agg.lightsOn + agg.fansOn, motion: agg.motionActive }" in chips, "the same numbers as the chips"
+    la = _js(_VIEWS / "live_aboard.js")
+    assert ("topCb = typeof p.setTopFloor === \"function\" ? (fid) => { keepCam = true; try { p.setTopFloor(fid); } "
+            "finally { keepCam = false; } } : null;") in la
+    assert "const c = keepCam ? null : floorCams.get(key);" in la
+    assert "const floorCams = new Map();" in la and "floorCams" not in la[:la.index("export function liveAboardSlot(")]
+    assert "PgUp and PgDn change the floor and Home shows them all" in la
+    ed = _js(_VIEWS / "live_aboard_edit.js")
+    assert "const sel = ctx.selected ? ctx.selected() : null;" in ed and "selected: () => selIds," in la

@@ -12,7 +12,9 @@ rest; Show tags & scanners draws every tag the flat Atlas shows with no look
 needed (named, a ring as wide as its spot is unsure, its look when it has
 one) and every scanner at its own height, and a tapped tag says its room,
 when it was seen and which scanners hear it; the snapshot is read through
-the host no more often than it says, once for both layers.
+the host no more often than it says, once for both layers; and while the view
+shows, it reads by itself at that interval (Mapping has no poll), stopping
+when hidden, switched off or its card is gone.
 
 The rest is held here: both layers are off by default, each its own switch
 in the Live Aboard box, saved as a bool; the shared card hands the snapshot
@@ -68,7 +70,7 @@ def _code(p: Path) -> str:
     return "\n".join(ln for ln in _js(p).splitlines() if not ln.lstrip().startswith(("//", "*")))
 
 
-@pytest.mark.parametrize("prefix", ["people:", "off:", "on:", "walk:", "reads:", "tags:", "both:"])
+@pytest.mark.parametrize("prefix", ["people:", "off:", "on:", "walk:", "reads:", "tags:", "both:", "live:"])
 def test_the_tracked_harness_covers_each_part(tr, prefix) -> None:
     _case(tr, prefix)
 
@@ -151,7 +153,8 @@ def test_the_snapshot_is_handed_over_only_while_show_people_is_on() -> None:
     assert 'people: { read: ()=>this._hass.callWS({ type:"padspan_ha/live_snapshot" })' in block
     assert "atlas_3d_people: s.atlas_3d_people, presence_poll_interval_s: s.presence_poll_interval_s" in lp
     assert "atlas_3d_tags: s.atlas_3d_tags" in lp
-    # The view reads it through the host, never under 5 s apart, with no timer.
+    # The view reads it through the host, never under 5 s apart: on each card,
+    # and by its own clock while it shows (so people move in Mapping too).
     la = _code(_VIEWS / "live_aboard.js")
     assert "const PEOPLE_MS = 5000;" in la and "Math.max(PEOPLE_MS, Number(pp.everyMs) || 0)" in la
     # One reader for both layers: either one on reads it, neither reads nothing.
@@ -193,3 +196,22 @@ def test_a_tag_name_is_drawn_over_room_names_and_chips_as_presses_take_it() -> N
     others = [int(n) for n in re.findall(r"sp\.renderOrder = (\d+);", view)]
     assert tag and others, (tag, others)
     assert int(tag.group(1)) > max(others), (int(tag.group(1)), others)
+
+
+def test_the_view_reads_by_its_own_clock_only_while_it_shows() -> None:
+    """Mapping rebuilds no card every 5 s, so the view keeps its own clock for
+    the live read: one timer, only for a host's read() with Show people or
+    Show tags & scanners on, while the view shows; it stops by itself (hidden,
+    off, the card gone) and goes with the view."""
+    la = _code(_VIEWS / "live_aboard.js")
+    assert la.count("setTimeout(") == 1 and la.count("clearTimeout(") == 2
+    clock = la[la.index("  function peopleClock(){"):la.index("  function clearSensors(){")]
+    assert "setTimeout(" in clock
+    assert "if (!pp || !stage || !tracked || failed || !shouldDraw()) return;" in clock
+    assert "const pp = liveReader();" in clock and "Math.max(PEOPLE_MS, Number(pp.everyMs) || 0)" in clock
+    reader = la[la.index("  function liveReader(){"):la.index("  function peopleClock(){")]
+    assert 'typeof pp.snapshot !== "function" && typeof pp.read === "function"' in reader
+    td = la[la.index("  function teardown(){"):la.index("  function fail(kind){")]
+    assert "clearTimeout(peopleTimer); peopleTimer = null;" in td
+    det = la[la.index("    detach(){"):]
+    assert "peopleClock();" in det[:det.index(chr(10))], "Map picked: the clock stops"

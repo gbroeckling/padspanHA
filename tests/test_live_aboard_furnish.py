@@ -154,7 +154,8 @@ def test_the_plan_and_the_3d_view_share_one_renderer() -> None:
     assert "renderer.setScissorTest(true);" in la and "renderer.setViewport(r[0], drawnH - r[1] - r[3], r[2], r[3]);" in la
     assert la.count("new THREE.WebGLRenderer(") == 1 and "new THREE.OrthographicCamera(" in la
     assert "const SPLIT_MIN_W = 820, SPLIT_K = 0.58;" in la
-    assert "setInterval" not in _code(_VIEWS / "live_aboard.js") and "setTimeout" not in _code(_VIEWS / "live_aboard.js")
+    la_code = _code(_VIEWS / "live_aboard.js")
+    assert "setInterval" not in la_code and la_code.count("setTimeout(") == 1 and "peopleTimer = setTimeout(" in la_code,         "no timer but the live read's clock"
 
 
 def test_each_piece_carries_its_id_and_device_for_taps_later() -> None:

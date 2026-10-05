@@ -16,7 +16,12 @@
 //             that may not, or a refusal, gets the map alone in the panel
 //   floors    the floor stepper (▲ Main ▼ · All) drives the host's floor
 //             chips a floor at a time; a tap on the name opens the floor's
-//             sheet as the Atlas's badge did; the floating badges are gone
+//             sheet as the Atlas's badge did; the floating badges are gone;
+//             each floor's activity (on, motion) beside its name; every
+//             floor and All in Views ▾ (wide) and View ▾ (narrow); a camera
+//             kept per floor through the 5 s rebuild; PgUp, PgDn and Home;
+//             with the map alone, the floor's name in a corner for 2 s on a
+//             change or a touch, a tap on it the floor list
 //   fly       a double-tap on a room's floor flies the camera in to frame it
 //             (and, zoomed in, the map alone); a tap on a light never does
 //   views     Whole house, and views saved from the camera through the
@@ -316,6 +321,152 @@ await tryCase("floors: the stepper drives the floor chips; its name opens the fl
     && low.down && !low.up && low.name === "Basement" && low.all === "false" && none === "none"
     && st.badges === undefined && !slot.element.querySelectorAll("canvas").some(c => c !== canvasOf(slot)), { shown, low, calls, none });
   LA.releaseLiveAboardSlot("scr-floors");
+});
+
+// A host's floor chips that answer as the Atlas's do: the choice made, the
+// card is built again with it (at once, the way la3dFocus does).
+const COUNTS = [{ on: 2, motion: 0 }, { on: 3, motion: 1 }];
+function hostSteps(slot, at, all, over = {}){
+  return steps({ at, all, counts: COUNTS, ...over,
+    go: (i) => { calls.push(["go", i]); card(slot, { floorSteps: hostSteps(slot, i < 0 ? 1 : i, i < 0, over) }); } });
+}
+const keyOn = (slot, key) => canvasOf(slot).dispatchEvent({ type: "keydown", key, altKey: false, ctrlKey: false, metaKey: false,
+  defaultPrevented: false, preventDefault(){ this.defaultPrevented = true; }, stopPropagation() {} });
+const menuItems = (slot) => { const m = slot.element.querySelector(".la3d-menu"); return m ? m.querySelectorAll("button").map(b => b.textContent) : []; };
+const camOf = (slot) => { const c = S(slot).cam; return [c.theta, c.phi, c.radius, ...c.target].map(v => Math.round(v * 1e4) / 1e4).join(","); };
+
+await tryCase("floors: the stepper shows each floor's activity as the floor chips do: lights and fans on, and motion", async () => {
+  calls.length = 0;
+  const { slot } = await newSlot("scr-counts", { floorSteps: steps({ at: 1, all: false, counts: COUNTS }) });
+  const name = slot.element.querySelector(".la3d-floor").querySelectorAll("button")[1];
+  const parts = () => ({ text: (name.querySelector(".la3d-fn") || {}).textContent, dot: name.querySelector(".lv-dot"), title: name.title });
+  const main = parts();
+  card(slot, { floorSteps: steps({ at: 0, all: false, counts: COUNTS }) });
+  const base = parts();
+  card(slot, { floorSteps: steps({ at: 0, all: false, counts: [{ on: 0, motion: 0 }, { on: 0, motion: 0 }] }) });
+  const quiet = parts();
+  check("floors: the stepper shows each floor's activity as the floor chips do: lights and fans on, and motion",
+    main.text === "Main" && main.dot && main.dot.textContent === "3" && main.dot.classList.contains("motion") && /3 on · 1 motion/.test(main.title)
+    && base.text === "Basement" && base.dot && base.dot.textContent === "2" && !base.dot.classList.contains("motion")
+    && quiet.text === "Basement" && !quiet.dot && /nothing on/.test(quiet.title)
+    && JSON.stringify(S(slot).screen.floors.counts) === JSON.stringify([{ on: 0, motion: 0 }, { on: 0, motion: 0 }]),
+    { main: { ...main, dot: main.dot && main.dot.textContent }, base: base.text, quiet: quiet.text });
+  LA.releaseLiveAboardSlot("scr-counts");
+});
+await tryCase("floors: every floor and All, with their activity, in Views ▾ (wide) and View ▾ (narrow); a tap goes there", async () => {
+  calls.length = 0;
+  const { slot } = await newSlot("scr-flist", { floorSteps: hostSteps(null, 1, true) });
+  card(slot, { floorSteps: hostSteps(slot, 1, true) });
+  click(btnByText(slot, "Views ▾"));
+  const wide = menuItems(slot), m = slot.element.querySelector(".la3d-menu");
+  const dots = m.querySelectorAll(".lv-dot").map(d => [d.textContent, d.classList.contains("motion")]);
+  const checked = m.querySelectorAll("button").filter(b => b.getAttribute("aria-checked") === "true").map(b => b.textContent);
+  click(btnByText(slot, "Basement"));
+  const went = { calls: [...calls], at: S(slot).screen.floors.at, all: S(slot).screen.floors.all };
+  // A narrow screen: View ▾ has them, after the angles.
+  const el = slot.element, cv = canvasOf(slot);
+  for (const n of [el, cv]) { n.clientWidth = 390; n.clientHeight = 700; n.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 390, bottom: 700, width: 390, height: 700 }); }
+  card(slot, { floorSteps: hostSteps(slot, 0, false) });
+  await settle(10);
+  click(btnByText(slot, "View ▾"));
+  const narrowItems = menuItems(slot);
+  click(btnByText(slot, "All floors"));
+  check("floors: every floor and All, with their activity, in Views ▾ (wide) and View ▾ (narrow); a tap goes there",
+    JSON.stringify(wide.slice(0, 3)) === JSON.stringify(["All floors", "Basement", "Main"]) && wide.includes("Whole house")
+    && JSON.stringify(dots) === JSON.stringify([["2", false], ["3", true]]) && JSON.stringify(checked) === JSON.stringify(["All floors"])
+    && went.calls.length === 1 && went.calls[0][1] === 0 && went.at === 0 && !went.all && S(slot).screen.narrow
+    && JSON.stringify(narrowItems.slice(0, 7)) === JSON.stringify(["Iso", "Top", "⟳ 90°", "Fit", "All floors", "Basement", "Main"])
+    && calls.length === 2 && calls[1][1] === -1 && S(slot).screen.floors.all,
+    { wide, dots, checked, went, narrowItems, calls });
+  LA.releaseLiveAboardSlot("scr-flist");
+});
+await tryCase("floors: each floor keeps its own camera, through the 5 s rebuild; back on a floor, its camera is back", async () => {
+  calls.length = 0;
+  const { slot } = await newSlot("scr-cams", { floorSteps: hostSteps(null, 1, true) });
+  card(slot, { floorSteps: hostSteps(slot, 1, true) });
+  slot._look(0.3, 0.7, [2, 3, 1], 20);
+  const all = camOf(slot);
+  keyOn(slot, "PageDown");                                // All → the Basement (none kept yet: it stays)
+  const stayed = camOf(slot) === all;
+  slot._look(1.1, 0.5, [1, 0, 1], 12);
+  const basement = camOf(slot);
+  card(slot, { floorSteps: hostSteps(slot, 0, false) });  // the 5 s rebuild
+  card(slot, { floorSteps: hostSteps(slot, 0, false) });
+  const kept = camOf(slot) === basement;
+  click(slot.element.querySelector(".la3d-floor").querySelectorAll("button")[0]);   // ▲ Main
+  slot._look(2.0, 0.9, [5, 3, 2], 25);
+  const main = camOf(slot);
+  click(btnByText(slot, "Views ▾"));
+  click(btnByText(slot, "Basement"));                     // the menu: the Basement's camera is back
+  const backBasement = camOf(slot);
+  keyOn(slot, "PageUp");                                  // the key: Main's is back
+  const backMain = camOf(slot);
+  keyOn(slot, "Home");                                    // Home: every floor, All's camera back
+  const backAll = camOf(slot);
+  check("floors: each floor keeps its own camera, through the 5 s rebuild; back on a floor, its camera is back",
+    stayed && kept && backBasement === basement && backMain === main && backAll === all && main !== basement
+    && JSON.stringify(S(slot).screen.floorCams.sort()) === JSON.stringify(["all", "floor:0", "floor:1"]),
+    { all, basement, main, backBasement, backMain, backAll, cams: S(slot).screen.floorCams, calls });
+  LA.releaseLiveAboardSlot("scr-cams");
+  const again = await newSlot("scr-cams", { floorSteps: hostSteps(null, 1, true) });
+  check("floors: a camera kept per floor is this screen's for this page load only (switched off, it is gone)",
+    S(again.slot).screen.floorCams.length === 0, S(again.slot).screen.floorCams);
+  LA.releaseLiveAboardSlot("scr-cams");
+});
+await tryCase("floors: PgUp and PgDn step a floor and Home is All, while the view has the keyboard", async () => {
+  calls.length = 0;
+  const { slot } = await newSlot("scr-keys", { floorSteps: hostSteps(null, 1, true) });
+  card(slot, { floorSteps: hostSteps(slot, 1, true) });
+  const cv = canvasOf(slot);
+  keyOn(slot, "PageDown"); const a = { ...S(slot).screen.floors };
+  keyOn(slot, "PageDown"); const b = { ...S(slot).screen.floors };       // the bottom floor: nowhere lower
+  keyOn(slot, "PageUp"); const c = { ...S(slot).screen.floors };
+  keyOn(slot, "Home"); const d = { ...S(slot).screen.floors };
+  const n = calls.length;
+  keyOn(slot, "ArrowUp"); keyOn(slot, "a");
+  check("floors: PgUp and PgDn step a floor and Home is All, while the view has the keyboard",
+    cv.tabIndex === 0 && a.at === 0 && !a.all && b.at === 0 && c.at === 1 && !c.all && d.all
+    && JSON.stringify(calls.map(x => x[1])) === JSON.stringify([0, 1, -1]) && calls.length === n,
+    { a, b, c, d, calls, tab: cv.tabIndex });
+  LA.releaseLiveAboardSlot("scr-keys");
+});
+await tryCase("floors: the map alone shows the floor's name faintly in a corner for 2 s on a change or a touch; a tap on it lists the floors", async () => {
+  calls.length = 0;
+  const { slot } = await newSlot("scr-corner", { floorSteps: hostSteps(null, 1, false) });
+  card(slot, { floorSteps: hostSteps(slot, 1, false) });
+  const corner = slot.element.querySelector(".la3d-corner"), cv = canvasOf(slot);
+  const st = () => ({ ...S(slot).screen.corner, cls: corner.classList.contains("on") });
+  cv.dispatchEvent(ev("pointerdown", 300, 300)); cv.dispatchEvent(ev("pointerup", 300, 300));
+  const barsShown = st();                                  // the bars show the stepper: nothing in the corner
+  clockOff += 1000;                                        // no double-tap with the touch below
+  await wheel(slot, 3);                                    // zoomed in: the map alone
+  const bare0 = { bare: S(slot).screen.bare, ...st() };
+  cv.dispatchEvent(ev("pointerdown", 300, 300, { pointerType: "touch", pointerId: 9 }));
+  cv.dispatchEvent(ev("pointerup", 300, 300, { pointerType: "touch", pointerId: 9 }));
+  const touched = st(), dot = corner.querySelector(".lv-dot");
+  corner.dispatchEvent({ type: "animationend" });          // its 2 s fade ends
+  const faded = st();
+  click(corner);                                           // gone: a tap there is nothing
+  const tapGone = S(slot).screen.menu;
+  keyOn(slot, "PageDown");                                 // a floor change: the new floor's name
+  const changed = st();
+  click(corner);
+  const m = slot.element.querySelector(".la3d-menu");
+  const listed = { items: menuItems(slot), keep: !!(m && m.classList.contains("la3d-keep")) };
+  click(btnByText(slot, "All floors"));
+  const all = st();
+  click(slot.element.querySelector(".la3d-solo"));         // ☰: the bars back, the corner empty
+  const back = st();
+  const css = slot.element.querySelectorAll("style").map(s => s.textContent).join("\n");
+  check("floors: the map alone shows the floor's name faintly in a corner for 2 s on a change or a touch; a tap on it lists the floors",
+    !barsShown.on && bare0.bare && !bare0.on && touched.on && touched.cls && touched.text === "Main3" && dot && dot.classList.contains("motion")
+    && !faded.on && !faded.cls && !tapGone && changed.on && changed.text === "Basement2"
+    && JSON.stringify(listed.items) === JSON.stringify(["All floors", "Basement", "Main"]) && listed.keep
+    && all.on && all.text === "All floors" && !back.on && !back.cls
+    && /\.la3d\.la3d-bare \.la3d-corner\.on\{[^}]*animation:la3d-corner 2s/.test(css)
+    && /\.la3d\.la3d-bare \.la3d-menu\.la3d-keep\{opacity:1;visibility:visible/.test(css),
+    { barsShown, bare0, touched, faded, tapGone, changed, listed, all, back });
+  LA.releaseLiveAboardSlot("scr-corner");
 });
 
 // ── fly ─────────────────────────────────────────────────────────────────────

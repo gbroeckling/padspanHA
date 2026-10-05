@@ -275,7 +275,9 @@ def test_the_view_survives_the_rebuild_by_design() -> None:
     repaints lights and the sun, never shaders; renders on demand only."""
     la = _js(_VIEWS / "live_aboard.js")
     assert "export function liveAboardSlot(key)" in la and "export function releaseLiveAboardSlot(key)" in la
-    assert "setInterval" not in la and "setTimeout" not in la, "no timers of its own: it draws when something changes"
+    assert "setInterval" not in la, "no timers of its own: it draws when something changes"
+    # ...but for the live read's clock (Show people / tags while it shows), which draws nothing by itself.
+    assert la.count("setTimeout(") == 1 and "peopleTimer = setTimeout(" in la
     assert "requestAnimationFrame(frame)" in la
     assert 'document.visibilityState === "hidden"' in la and "IntersectionObserver" in la
     # A bulb switching never changes visibility: the lamp pool's .visible is

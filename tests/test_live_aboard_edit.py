@@ -123,6 +123,9 @@ def test_nothing_is_stored_until_save_and_save_goes_through_the_host() -> None:
         code = _code(_VIEWS / name)
         for bad in ("callWS", "wsCall", "callService", "callApi", "fetch(", "setTimeout", "setInterval", "localStorage",
                     "house3d_edit", "telemetry_event"):
+            if bad == "setTimeout" and name == "live_aboard.js":     # its one timer: the live read's clock
+                assert code.count("setTimeout(") == 1 and "peopleTimer = setTimeout(" in code
+                continue
             assert bad not in code, (name, bad)
 
 
