@@ -47,7 +47,7 @@ SCHEMA = 1
 # beacon/scanner recipes, people figures). "library" holds the terms acceptance.
 SECTIONS: tuple[str, ...] = ("pieces", "lights", "openings", "devices", "figures")
 _LOAD_LOCK = "house3d_load_lock"   # hass.data[DOMAIN]: one first load at a time
-NEWER_MESSAGE = ("This 3D house was saved by a newer PadSpan. This version shows it but does not "
+NEWER_MESSAGE = ("Live Aboard's file was saved by a newer PadSpan. This version shows it but does not "
                  "change it: update PadSpan to edit it.")
 
 

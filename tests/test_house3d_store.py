@@ -370,7 +370,7 @@ def test_registered_for_backup_restore_bright_import_and_the_labels():
     assert ws_common._DATA_KEY_MAP[HOUSE3D_STORE_KEY] == DATA_HOUSE3D
     assert ("house3d", HOUSE3D_STORE_KEY) in bright_import.HOUSE_STORES
     manage = (_CC / "www" / "padspan-ha" / "views" / "manage.js").read_text(encoding="utf-8")
-    assert '"padspan_ha.house3d": "3D house"' in manage, "no unreleased name in the backup list"
+    assert '"padspan_ha.house3d": "Live Aboard"' in manage, "no unreleased name in the backup list"
     ws = (_CC / "websocket.py").read_text(encoding="utf-8")
     assert "from .ws_house3d import WS_COMMANDS" in ws
 

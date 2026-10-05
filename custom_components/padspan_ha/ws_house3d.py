@@ -46,13 +46,13 @@ from .house3d_store import (EDIT_SECTIONS, NEWER_MESSAGE, EditError, House3dStor
 from .ws_common import _tier_at_least
 
 OFF_CODE = "house3d_off"
-OFF_MESSAGE = "The 3D house is off. Turn it on in Settings → UI Structure → Atlas → 3D house."
+OFF_MESSAGE = "Live Aboard is off. Turn it on in Settings → UI Structure → Atlas → Live Aboard."
 # Below Pro the 3D house is as if off, whatever the switch says; the message
 # says what would bring it back (editions.js: a gate is never a dead end).
-PRO_MESSAGE = ("The 3D house needs PadSpan Pro or Bright Pro. Enter a key in Settings → Features "
+PRO_MESSAGE = ("Live Aboard needs PadSpan Pro or Bright Pro. Enter a key in Settings → Features "
                "→ PadSpan licence, or get one at https://padspan.traks.ca/#pro")
 READ_CODE = "read_failed"
-READ_MESSAGE = "Could not read the 3D house file. Nothing was changed; try again."
+READ_MESSAGE = "Could not read Live Aboard's file. Nothing was changed; try again."
 NEWER_CODE = "house3d_newer"
 
 
@@ -102,15 +102,15 @@ async def ws_house3d_clear(hass: HomeAssistant, connection, msg) -> None:
             connection.send_result(msg["id"], {"cleared": True, "backup_id": None})
             return
         from .ws_backup import _auto_backup  # noqa: PLC0415
-        backup_id = await _auto_backup(hass, "Before removing all furniture in the 3D house" if furniture
-                                       else "Before removing everything in the 3D house", [HOUSE3D_STORE_KEY])
+        backup_id = await _auto_backup(hass, "Before removing all furniture in Live Aboard" if furniture
+                                       else "Before removing everything in Live Aboard", [HOUSE3D_STORE_KEY])
         if not backup_id:
             connection.send_error(msg["id"], "backup_failed",
                                   "Could not take the safety backup — nothing was removed.")
             return
         if not await store.async_write({**store.data, "pieces": {}} if furniture else empty()):
             connection.send_error(msg["id"], "save_failed",
-                                  "Could not empty the 3D house file. Nothing was removed; the safety backup is kept.")
+                                  "Could not empty Live Aboard's file. Nothing was removed; the safety backup is kept.")
             return
         connection.send_result(msg["id"], {"cleared": True, "backup_id": backup_id})
 
@@ -149,7 +149,7 @@ async def ws_house3d_edit(hass: HomeAssistant, connection, msg) -> None:
             connection.send_error(msg["id"], "invalid", str(err))
             return
         if not await store.async_write(new):
-            connection.send_error(msg["id"], "save_failed", "Could not save the 3D house. Nothing was changed.")
+            connection.send_error(msg["id"], "save_failed", "Could not save Live Aboard. Nothing was changed.")
             return
         connection.send_result(msg["id"], {"data": store.data, "counts": store.counts()})
 

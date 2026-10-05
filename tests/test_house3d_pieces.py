@@ -264,7 +264,7 @@ def test_remove_all_furniture_backs_up_first_then_removes_every_piece_and_keeps_
     h, _conn = _on(tmp_path, admin=True)
     out = _clear(h, only="pieces")
     assert out == {"cleared": True, "backup_id": "bk_9"}
-    assert order[0][1] == "Before removing all furniture in the 3D house" and order[0][2] == (HOUSE3D_STORE_KEY,)
+    assert order[0][1] == "Before removing all furniture in Live Aboard" and order[0][2] == (HOUSE3D_STORE_KEY,)
     assert set(order[0][3]) == {"fur_1a2b3c4d", "fur_00000001"}, "the backup has the furniture"
     on_disk = json.loads(_file(tmp_path).read_text(encoding="utf-8"))["data"]
     assert on_disk == {**before, "pieces": {}}, "every piece gone, everything else kept"

@@ -326,7 +326,7 @@ async function otherView(key, load){
 await tryCase("errors: a 3D file that can't be read: drawn from the map, Edit unavailable and says why", async () => {
   let unreadable = true;
   const load = async () => {
-    if (unreadable) throw { code: "read_failed", message: "Could not read the 3D house file. Nothing was changed; try again." };
+    if (unreadable) throw { code: "read_failed", message: "Could not read Live Aboard's file. Nothing was changed; try again." };
     return { data: clone(FILE0) };
   };
   const v = await otherView("errors-unreadable", load);
@@ -378,8 +378,8 @@ await tryCase("schema: a file the server says this version never writes (1.0, re
 });
 await tryCase("errors: a Save refused because the file can't be read or written keeps the draft and says so", async () => {
   const out = {};
-  for (const [code, msg] of [["read_failed", "Could not read the 3D house file. Nothing was changed; try again."],
-                             ["save_failed", "Could not save the 3D house. Nothing was changed."]]) {
+  for (const [code, msg] of [["read_failed", "Could not read Live Aboard's file. Nothing was changed; try again."],
+                             ["save_failed", "Could not save Live Aboard. Nothing was changed."]]) {
     await openEdit();
     await pickTool("window");
     drag(where("main", 10, 5, WALL_Z), where("main", 10, 6.4, WALL_Z));
@@ -392,8 +392,8 @@ await tryCase("errors: a Save refused because the file can't be read or written 
     await closeEdit();
   }
   check("errors: a Save refused because the file can't be read or written keeps the draft and says so",
-    out.read_failed.kept && /^Not saved: the 3D file couldn't be read, so nothing was changed\. Your changes are still here/.test(out.read_failed.hint)
-    && out.save_failed.kept && /^Not saved: the 3D file couldn't be written, so nothing was changed\. Your changes are still here/.test(out.save_failed.hint)
+    out.read_failed.kept && /^Not saved: Live Aboard's file couldn't be read, so nothing was changed\. Your changes are still here/.test(out.read_failed.hint)
+    && out.save_failed.kept && /^Not saved: Live Aboard's file couldn't be written, so nothing was changed\. Your changes are still here/.test(out.save_failed.hint)
     && Object.values(out).every(o => o.bad && o.canRetry), out);
 });
 // Edit pressed before the file was read reads it first: what that read finds
@@ -851,7 +851,7 @@ await tryCase("errors: a Save refused for a newer PadSpan's file keeps the draft
   await pickTool("window");
   drag(where("main", 10, 5, WALL_Z), where("main", 10, 6.4, WALL_Z));
   const before = JSON.stringify(ed().draft);
-  server.fail = { code: "house3d_newer", message: "This 3D house was saved by a newer PadSpan." };
+  server.fail = { code: "house3d_newer", message: "Live Aboard's file was saved by a newer PadSpan." };
   click("Save", "la3d-tools");
   await settle();
   const e = ed(), saveBtn = button("Save", "la3d-tools");
@@ -861,7 +861,7 @@ await tryCase("errors: a Save refused for a newer PadSpan's file keeps the draft
   await settle();
   const after = ed();
   check("errors: a Save refused for a newer PadSpan's file keeps the draft and says why",
-    out.kept && out.bad && /^Not saved: a newer PadSpan saved this 3D house/.test(out.hint) && out.saveOff
+    out.kept && out.bad && /^Not saved: a newer PadSpan saved Live Aboard's file/.test(out.hint) && out.saveOff
     && !after.editing && !after.editAvailable && /newer PadSpan/.test(after.editWhy), { ...out, after: { avail: after.editAvailable, why: after.editWhy } });
 });
 // That refusal is the file's own error, as a read of a newer file gives: the
@@ -882,7 +882,7 @@ await tryCase("newer: a draft kept through that refusal saves once a read finds 
   await pickTool("window");
   drag(where("main", 10, 5, WALL_Z), where("main", 10, 6.4, WALL_Z));
   await settle();
-  server.fail = { code: "house3d_newer", message: "This 3D house was saved by a newer PadSpan." };
+  server.fail = { code: "house3d_newer", message: "Live Aboard's file was saved by a newer PadSpan." };
   click("Save", "la3d-tools");
   await settle();
   const refused = { dirty: ed().dirty, saveOff: button("Save", "la3d-tools").disabled };
@@ -910,7 +910,7 @@ await tryCase("newer: under an open draft, a read that finds a newer PadSpan's f
   const back = { dirty: ed().dirty, saveOn: !button("Save", "la3d-tools").disabled, hint: ed().hint, bad: ed().hintBad };
   await closeEdit();
   check("newer: under an open draft, a read that finds a newer PadSpan's file holds Save and says why; this version's again, Save can go ahead",
-    held.editing && held.dirty && held.saveOff && /^Not saved: a newer PadSpan saved this 3D house/.test(held.hint) && held.bad
+    held.editing && held.dirty && held.saveOff && /^Not saved: a newer PadSpan saved Live Aboard's file/.test(held.hint) && held.bad
     && back.dirty && back.saveOn && back.hint === "The 3D file can be saved again." && !back.bad, { held, back });
 });
 

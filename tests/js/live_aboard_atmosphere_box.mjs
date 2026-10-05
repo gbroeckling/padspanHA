@@ -62,8 +62,8 @@ function settingsPage(settings, { refuse = false } = {}) {
     toast() {},
   };
   const root = S.render(ctx);
-  const box = root._all().find(n => n.children && n.children.some(c => c.textContent === "🏠 3D house"));
-  if (!box) throw new Error("no 3D house box on Settings → UI Structure");
+  const box = root._all().find(n => n.children && n.children.some(c => c.textContent === "🏠 Live Aboard"));
+  if (!box) throw new Error("no Live Aboard box on Settings → UI Structure");
   const all = box._all();
   const more = all.find(n => n.attributes && "data-la3d-more" in n.attributes);
   const tick = (key) => all.find(n => n.localName === "input" && n.getAttribute("data-la3d-key") === key) || null;

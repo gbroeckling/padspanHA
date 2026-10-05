@@ -268,7 +268,7 @@ await tryCase("switch: beside the zoom buttons, and in the rail on the edge-to-e
   const railBtn = rail && rail.children.find(isSwitch);
   const hideBtn = rail && rail.children[rail.children.length - 1];
   check("switch: beside the zoom buttons, and in the rail on the edge-to-edge layout",
-    nextToZoom && JSON.stringify(buttons) === JSON.stringify([["Map", "true"], ["3D", "false"]])
+    nextToZoom && JSON.stringify(buttons) === JSON.stringify([["Map", "true"], ["Live Aboard", "false"]])
     && railBtn && railBtn.classList.contains("lv-railbtn") && !railBtn.classList.contains("on") && railBtn !== hideBtn
     && !!seg(display.c), { nextToZoom, buttons, rail: !!railBtn });
 });
@@ -278,7 +278,7 @@ await tryCase("pick: each screen remembers Map or 3D, per browser", async () => 
   // until a 3D view is wanted — so the click is checked by what it stores.
   const a = card({ house3d: H3(true, "atlas") });
   const seg = a.c._all().find(n => isSwitch(n) && n.classList.contains("lv-zoomseg"));
-  const btn3d = seg.children.find(b => b.textContent === "3D"), btnMap = seg.children.find(b => b.textContent === "Map");
+  const btn3d = seg.children.find(b => b.textContent === "Live Aboard"), btnMap = seg.children.find(b => b.textContent === "Map");
   btnMap.click();
   const afterMap = localStorage.getItem(PICK("atlas"));
   const b = card({ house3d: H3(true, "builder") });
@@ -306,7 +306,7 @@ const glThrows = function (kind, ...a) {
   return /webgl/i.test(String(kind)) ? new Proxy({}, { get: () => () => undefined }) : realGetContext.call(this, kind, ...a);
 };
 const why3d = (c) => { const w = c._all().find(n => n.attributes && "data-la3d-why" in n.attributes); return w && w.style.display !== "none" ? w.textContent : ""; };
-const seg3d = (c) => c._all().find(n => isSwitch(n) && n.classList.contains("lv-zoomseg")).children.find(b => b.textContent === "3D");
+const seg3d = (c) => c._all().find(n => isSwitch(n) && n.classList.contains("lv-zoomseg")).children.find(b => b.textContent === "Live Aboard");
 await tryCase("fallback: no WebGL keeps the flat Atlas, downloads nothing, is counted once and says why", async () => {
   NodeCls.prototype.getContext = glNone;
   sent.length = 0;

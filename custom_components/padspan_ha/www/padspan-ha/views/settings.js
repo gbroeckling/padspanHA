@@ -3338,9 +3338,9 @@ const _ATLAS_3D_QUALITY = [["auto", "Auto — picked for this screen"], ["low", 
                            ["high", "High — sun shadows and more lamps"]];
 function _atlas3dSection(ctx, el, settings){
   const box = el("div",{style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
-  box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🏠 3D house"));
+  box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🏠 Live Aboard"));
   box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px"},
-    "Adds a Map / 3D switch to the Atlas: your floors, rooms, walls and lights in 3D, from the map you already drew. Off by default."));
+    "Adds a Map / Live Aboard switch to the Atlas: walk around your floors, rooms, walls, lights and furniture, built from the map you already drew. Off by default."));
   const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:6px 0 0"}, "Saves as soon as you change it. No restart needed.");
   const save = async (key, value, undo) => {
     try {
@@ -3359,7 +3359,7 @@ function _atlas3dSection(ctx, el, settings){
   const onCb = el("input",{type:"checkbox"});
   onCb.checked = settings.atlas_3d_enabled === true;
   onRow.appendChild(onCb);
-  onRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show the 3D house on the Atlas"));
+  onRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show Live Aboard on the Atlas"));
   box.appendChild(onRow);
   // What shows once the switch is on.
   const more = el("div",{"data-la3d-more":""});

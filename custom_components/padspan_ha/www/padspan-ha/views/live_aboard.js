@@ -437,7 +437,7 @@ function createSlot(slotKey){
     observers.push(() => canvas.removeEventListener("webglcontextlost", onLost));
     buildRoot();
     canvas.setAttribute("role", "img");
-    canvas.setAttribute("aria-label", "The house in 3D");
+    canvas.setAttribute("aria-label", "Live Aboard");
     root.insertBefore(canvas, bar);
     scene = new THREE.Scene();
     scene.background = new THREE.Color(BG);

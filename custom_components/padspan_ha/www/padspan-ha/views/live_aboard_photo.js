@@ -36,7 +36,7 @@ const GROUPS = ["furniture", "device"];
 const BOX = "other";
 export const DIMS = [["width_m", "Width"], ["depth_m", "Depth"], ["height_m", "Height"]];
 export const PHOTO_MAX_PX = 1280;
-const SETTINGS_WHERE = "Settings → UI Structure → Atlas → 3D house";
+const SETTINGS_WHERE = "Settings → UI Structure → Atlas → Live Aboard";
 const NEEDS = "Reading photos needs Home Assistant 2025.8 or newer, with an AI Task that can read pictures "
   + `(one with a vision model), chosen in ${SETTINGS_WHERE}.`;
 

@@ -75,9 +75,9 @@ await tryCase("photo: the check picks the screen", async () => {
   check("photo: ready goes to the photo screen", (await m.check()) === "pick" && m.info.name === "Vision");
   const n = PH.photoMachine({ F, callWS: fakeWS({ "padspan_ha/house3d_from_photo": { ready: false, message: "No AI Task" } }) });
   check("photo: none set up goes to the explanation", (await n.check()) === "noai" && n.info.message === "No AI Task");
-  const e = Object.assign(new Error("The 3D house is off."), { code: "house3d_off" });
+  const e = Object.assign(new Error("Live Aboard is off."), { code: "house3d_off" });
   const o = PH.photoMachine({ F, callWS: fakeWS({ "padspan_ha/house3d_from_photo": e }) });
-  check("photo: a refusal goes to the explanation, said plainly", (await o.check()) === "noai" && o.info.message === "The 3D house is off.");
+  check("photo: a refusal goes to the explanation, said plainly", (await o.check()) === "noai" && o.info.message === "Live Aboard is off.");
 });
 
 await tryCase("photo: sent only by Read it, once a press", async () => {

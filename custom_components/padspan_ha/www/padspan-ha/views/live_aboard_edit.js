@@ -42,13 +42,13 @@ const FEW = (n) => `${n} change${n === 1 ? "" : "s"}`;
 // The server's refusals (ws_house3d.py), said plainly. The house still draws
 // from the map, and a refused Save keeps the draft, to be saved again.
 const CANT_EDIT = {
-  read_failed: "Can't edit: the 3D file couldn't be read (nothing in it was changed). Show Map, then 3D, to try again.",
-  house3d_newer: "Can't edit: a newer PadSpan saved this 3D house, and this version never changes it. Update PadSpan to edit it.",
+  read_failed: "Can't edit: Live Aboard's file couldn't be read (nothing in it was changed). Show Map, then Live Aboard, to try again.",
+  house3d_newer: "Can't edit: a newer PadSpan saved Live Aboard's file, and this version never changes it. Update PadSpan to edit it.",
 };
 const NOT_SAVED = {
-  read_failed: "Not saved: the 3D file couldn't be read, so nothing was changed. Your changes are still here: Save to try again.",
-  save_failed: "Not saved: the 3D file couldn't be written, so nothing was changed. Your changes are still here: Save to try again.",
-  house3d_newer: "Not saved: a newer PadSpan saved this 3D house, and this version never changes it. Update PadSpan to save these changes.",
+  read_failed: "Not saved: Live Aboard's file couldn't be read, so nothing was changed. Your changes are still here: Save to try again.",
+  save_failed: "Not saved: Live Aboard's file couldn't be written, so nothing was changed. Your changes are still here: Save to try again.",
+  house3d_newer: "Not saved: a newer PadSpan saved Live Aboard's file, and this version never changes it. Update PadSpan to save these changes.",
 };
 
 const CSS = `
@@ -159,7 +159,7 @@ export function createEditor(ctx){
   const bDiscard = btn("Discard", "Back to what is saved (Undo brings it back)", () => discard());
   const tools = d("div", "la3d-tools");
   tools.setAttribute("role", "toolbar");
-  tools.setAttribute("aria-label", "3D editor");
+  tools.setAttribute("aria-label", "Live Aboard editor");
   const hintEl = d("div", "la3d-hint");
   hintEl.setAttribute("aria-live", "polite");
   const toolSeg = seg(bDoor, bWin, bHts);
@@ -478,11 +478,11 @@ export function createEditor(ctx){
     if (!mayBegin()) return;
     let f = ctx.file();
     if (!f) {
-      hint("Reading the 3D file…");
+      hint("Reading Live Aboard's file…");
       let ok = false;
       try { ok = await ctx.reload(); } catch (_) { ok = false; }
       f = ctx.file();
-      if (!ok || !f) { flash("Couldn't read the 3D file. Try again."); return; }
+      if (!ok || !f) { flash("Couldn't read Live Aboard's file. Try again."); return; }
       // Asked again of what the read found (a newer PadSpan's file: Edit
       // says why), and of anything that changed while it was read.
       if (!mayBegin()) return;
@@ -523,7 +523,7 @@ export function createEditor(ctx){
     askEl.innerHTML = "";
     const card = d("div");
     const n = Object.values(draft.changes() || {}).reduce((a, s) => a + Object.keys(s).length, 0);
-    card.appendChild(d("p", null, `${FEW(n)} in 3D ${n === 1 ? "is" : "are"} not saved yet.`));
+    card.appendChild(d("p", null, `${FEW(n)} in Live Aboard ${n === 1 ? "is" : "are"} not saved yet.`));
     const acts = d("div", "la3d-acts");
     acts.append(seg(
       btn("Save", "Save them, then go on", () => { askEl.classList.remove("on"); save(() => { const g = askGo; stop(); if (g) g(); }); }, "la3d-save"),
@@ -644,7 +644,7 @@ export function createEditor(ctx){
     if (!rec) { sel = null; return; }
     const F = floorOf(rec.floor_id), ceil = F ? ceilOf(F) : 2.65, lim = DRAFT.heightLimits(ceil);
     const w = Math.hypot(rec.b_m[0] - rec.a_m[0], rec.b_m[1] - rec.a_m[1]);
-    head(`${rec.kind === "door" ? "Door" : "Window"} · ${DRAFT.metres(w)}`, "Drawn in 3D. Drag either end to change its width.");
+    head(`${rec.kind === "door" ? "Door" : "Window"} · ${DRAFT.metres(w)}`, "Drawn in Live Aboard. Drag either end to change its width.");
     choice("Is a", [["door", "Door"], ["window", "Window"]], rec.kind, (k) => {
       if (k === rec.kind) return;
       const sw = DRAFT.switchKind(o.id, rec, ceil);
@@ -677,7 +677,7 @@ export function createEditor(ctx){
   }
   function sheetMapOpening(o){
     const cur = draft.cur.openings[o.id] || {}, F = o.F, ceil = ceilOf(F), lim = DRAFT.heightLimits(ceil);
-    head(o.name || (o.kind === "door" ? "Door" : "Window"), "From the map. These change the 3D view only.");
+    head(o.name || (o.kind === "door" ? "Door" : "Window"), "From the map. These change Live Aboard only.");
     const set = (patch, group) => change((c) => { c.openings[o.id] = { ...(c.openings[o.id] || {}), ...patch }; }, group);
     if (o.kind === "window") {
       const now = DRAFT.openingHeights({ kind: "window", sill_m: cur.sill_m ?? HOUSE.SILL_H, head_m: cur.head_m ?? HOUSE.HEAD_H }, ceil);
@@ -886,7 +886,7 @@ export function createEditor(ctx){
     if (furnishing()) { fur.tap(e); return; }
     gesture = null;
     if (!g || !g.target) return;
-    if (g.target.opening) { select({ opening: g.target.opening }); hint(g.target.opening.added ? "Drag either end to change its width." : "From the map: set it for the 3D view."); }
+    if (g.target.opening) { select({ opening: g.target.opening }); hint(g.target.opening.added ? "Drag either end to change its width." : "From the map: set it for Live Aboard."); }
     else if (g.target.eid) select({ eid: g.target.eid });
   }
   // Two taps: the first marks an end, the second (on the same wall) the other.
@@ -975,7 +975,7 @@ export function createEditor(ctx){
     refresh(){
       const code = problemCode();
       if (editing && code === "house3d_newer") hint(NOT_SAVED.house3d_newer, true);
-      else if (editing && !code && hintMsg === NOT_SAVED.house3d_newer) hint("The 3D file can be saved again.");
+      else if (editing && !code && hintMsg === NOT_SAVED.house3d_newer) hint("Live Aboard's file can be saved again.");
       paint();
     },
     /** The draft while editing (what the view draws instead of the file). */

@@ -2672,10 +2672,10 @@ function _laLoad(slot, mount, telemetry){
     });
 }
 const _LA_WHY = {
-  no_webgl: "This screen can't draw 3D (no WebGL). Tap to try again",
-  slow_gpu: "This screen is too slow to draw the house in 3D. Tap to try again",
-  context_lost: "The 3D view stopped (the graphics were reset). Reload to try again",
-  error: "The 3D view stopped with an error. Reload to try again",
+  no_webgl: "This screen can't draw Live Aboard (no WebGL). Tap to try again",
+  slow_gpu: "This screen is too slow for Live Aboard. Tap to try again",
+  context_lost: "Live Aboard stopped (the graphics were reset). Reload to try again",
+  error: "Live Aboard stopped with an error. Reload to try again",
 };
 // A hold then a drag in 3D dims exactly as wirePress does, with its two helpers.
 export { _exactBrightness, _tellProblems };
@@ -3483,14 +3483,14 @@ export function buildLightsMapCard(hostIn){
     const whyEl = el("span", { id: whyId, "data-la3d-why": "", role: "note", onclick: () => la3dRetry(),
       style: "display:none;align-self:center;padding:0 8px;font-size:11px;line-height:1.25;opacity:.85;max-width:240px;white-space:normal;cursor:pointer" });
     const mapB = el("button", { onclick: () => pick3d(false) }, "Map");
-    const d3B = el("button", { onclick: () => { if (!la3dWhyNot()) pick3d(true); else la3dRetry(); } }, "3D");
+    const d3B = el("button", { onclick: () => { if (!la3dWhyNot()) pick3d(true); else la3dRetry(); } }, "Live Aboard");
     ctrlRow.appendChild(el("span", { class: "lv-zoomseg", "data-la3d-switch": "" }, [mapB, d3B, whyEl]));
     la3dPaints.push(() => {
       const on = la3dOn(), why = la3dWhyNot(), lit = "background:rgba(82,183,136,.24);color:#e8f0ea";
       mapB.setAttribute("aria-pressed", String(!on)); mapB.style.cssText = h3.furnish === true ? "display:none" : on ? "" : lit;
       mapB.setAttribute("title", "The flat map");
       d3B.setAttribute("aria-pressed", String(on)); d3B.style.cssText = on ? lit : "";
-      d3B.setAttribute("title", why || "The house in 3D");
+      d3B.setAttribute("title", why || "Live Aboard: the house you can walk around");
       if (why) { d3B.setAttribute("aria-disabled", "true"); d3B.setAttribute("aria-describedby", whyId); d3B.style.opacity = "0.45"; }
       else { d3B.removeAttribute("aria-disabled"); d3B.removeAttribute("aria-describedby"); }
       whyEl.textContent = why;
@@ -3828,7 +3828,7 @@ export function buildLightsMapCard(hostIn){
     if (h3) {
       // Greyed when 3D cannot show: a tap opens the view drawer, where the
       // switch says why in the page; tapped again, it tries once more.
-      const b3 = railBtn("3D", "", () => {
+      const b3 = railBtn("🏠", "", () => {
         if (!la3dWhyNot()) pick3d(!la3dOn());
         else if (drawers.view && view.drawer !== "view") setDrawer("view");
         else la3dRetry();
@@ -3840,7 +3840,7 @@ export function buildLightsMapCard(hostIn){
         const on = la3dOn(), why = la3dWhyNot();
         b3.classList.toggle("on", on); b3.style.opacity = why ? "0.45" : "";
         if (why) b3.setAttribute("aria-disabled", "true"); else b3.removeAttribute("aria-disabled");
-        b3.setAttribute("title", why || (on ? "Back to the flat map" : "Show the house in 3D"));
+        b3.setAttribute("title", why || (on ? "Back to the flat map" : "Live Aboard"));
       });
       la3dCloseDrawer = () => { if (view.drawer) setDrawer(view.drawer); };
     }

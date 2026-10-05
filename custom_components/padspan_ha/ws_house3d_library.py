@@ -5,7 +5,7 @@
 """Websocket commands for Live Aboard's shared furniture library (house3d_library.py).
 
 Plan: docs/IDEA_ATLAS_3D_HOUSE.md, "The shared furniture library". Every
-command is refused while the 3D house is off and below Pro (as if off), the
+command is refused while Live Aboard is off and below Pro (as if off), the
 way ws_house3d.py refuses; and each one that would reach the library is
 refused, before anything is sent, while the "Shared library" switch is off
 (settings.atlas_3d_library, off by default): off means no network.
@@ -34,7 +34,7 @@ from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE, READ_CODE, READ_MESS
 
 LIBRARY_OFF_CODE = "library_off"
 LIBRARY_OFF_MESSAGE = ("The shared library is off. An administrator can turn it on in Settings → UI Structure "
-                       "→ Atlas → 3D house → Shared library.")
+                       "→ Atlas → Live Aboard → Shared library.")
 
 
 def library_on(hass: HomeAssistant) -> bool:

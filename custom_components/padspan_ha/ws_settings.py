@@ -519,7 +519,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             _user = getattr(connection, "user", None)
             if _user is not None and getattr(_user, "is_admin", True) is False:
                 connection.send_error(msg["id"], "unauthorized",
-                                      "Only an administrator can change the 3D house's library or photo settings")
+                                      "Only an administrator can change Live Aboard's library or photo settings")
                 return
         if "telemetry_asked" in msg:
             payload["telemetry_asked"] = bool(msg.get("telemetry_asked"))

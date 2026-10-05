@@ -447,7 +447,7 @@ function settingsBox(settings){
     toast: (t, e) => toasts.push([t, !!e]),
   };
   const root = S.render(ctx);
-  const box = root._all().find(n => n.children && n.children.some(c => c.textContent === "🏠 3D house"));
+  const box = root._all().find(n => n.children && n.children.some(c => c.textContent === "🏠 Live Aboard"));
   const all = () => box._all();
   const libCb = () => { const lab = all().find(n => n.localName === "span" && n.textContent === "Use the shared furniture library"); return lab && lab.parentNode.children.find(c => c.localName === "input"); };
   const attr = (a) => all().find(n => n.attributes && a in n.attributes);

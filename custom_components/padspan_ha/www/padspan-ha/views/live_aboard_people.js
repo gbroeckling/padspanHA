@@ -120,7 +120,7 @@ export function peopleMachine({ F, callWS, hass }){
       const data = got && got.data ? got.data : {};
       m.file = { figures: { ...(data.figures || {}) }, devices: { ...(data.devices || {}) } };
       if (got && got.error) m.warn = got.error;
-      else if (got && got.writable === false) m.warn = "A newer PadSpan saved this 3D house: changes here can't be saved until PadSpan is updated.";
+      else if (got && got.writable === false) m.warn = "A newer PadSpan saved Live Aboard's file: changes here can't be saved until PadSpan is updated.";
       m.info = info;
       m.loading = false;
       return m;
@@ -385,7 +385,7 @@ export async function peopleFlow(ctx){
       const out = [el("h3", {}, "People, beacons and scanners"),
         el("p", { class: "muted" }, `${LIKENESS} People's figures stay in this house: they are never shared.`)];
       if (ctx.settings && ctx.settings.atlas_3d_people === false) {
-        out.push(el("p", { class: "note" }, "Figures show in Live Aboard when Show people is on (Settings → UI Structure → Atlas → 3D house)."));
+        out.push(el("p", { class: "note" }, "Figures show in Live Aboard when Show people is on (Settings → UI Structure → Atlas → Live Aboard)."));
       }
       if (m.warn) out.push(el("p", { class: "warn" }, m.warn));
       out.push(el("h3", {}, "People"));

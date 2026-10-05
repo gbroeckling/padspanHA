@@ -431,14 +431,14 @@ async def _write_library(store: House3dStore, change) -> bool:
     change. Never a newer PadSpan's file."""
     async with store.lock:
         if not writable(store.data):
-            raise LibraryError("house3d_newer", "This 3D house was saved by a newer PadSpan. Update PadSpan to share.")
+            raise LibraryError("house3d_newer", "Live Aboard's file was saved by a newer PadSpan. Update PadSpan to share.")
         new = copy.deepcopy(store.data)
         lib = section(new)
         if change(lib) is False:
             return True
         new["library"] = lib
         if not await store.async_write(new):
-            raise LibraryError("save_failed", "Could not save the 3D house file. Nothing was sent.")
+            raise LibraryError("save_failed", "Could not save Live Aboard's file. Nothing was sent.")
         return True
 
 
