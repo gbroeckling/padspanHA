@@ -368,4 +368,29 @@ await tryCase("drag: a piece hidden under the floor above is not picked; a press
     { seen, hidden, a, b, before: [before.x_m, before.y_m], after: [after.x_m, after.y_m] });
 });
 
+// Main and Garage on one storey share a height: Build puts a piece on the
+// one under the view's centre, and Floor ▲/▼ reach both.
+await tryCase("add: with two floors at the same height, on the one under the view's centre; ▲/▼ reach both", async () => {
+  MODEL.floors.splice(2, 0, { id: "garage", name: "Garage", base_elevation_m: 2.8 });
+  MODEL.room_geometry_m.Garage = rect("garage", 10.2, 0, 15, 8);
+  topIds = new Set(["main"]); poll(); await settle(20);
+  slot._look(0.8, 0.9, [12.6, 0, 4], 18);             // looking at the garage
+  click("Build ▾", "la3d-tools");
+  click(FURN ? "Sofa" : "Box", "la3d-furmenu");
+  await settle();
+  const id = fur().sel, p = clone(draftPieces()[id] || {});
+  const steps = [];
+  for (const b of ["Floor ▲", "Floor ▼", "Floor ▲"]) { click(b, "la3d-sheet"); await settle(20); steps.push(draftPieces()[id].floor_id); }
+  const text = sheetText(), hint = ed().hint;
+  for (let i = 0; i < 4; i++) { click("Undo", "la3d-tools"); await settle(); }
+  const gone = !draftPieces()[id];
+  MODEL.floors.splice(2, 1);
+  delete MODEL.room_geometry_m.Garage;
+  topIds = new Set(["main"]); poll(); await settle(20);
+  slot._furnish().select(sofa); await settle();
+  check("add: with two floors at the same height, on the one under the view's centre; ▲/▼ reach both",
+    p.floor_id === "garage" && near(p.x_m, 12.6, 1e-3) && near(p.y_m, 4, 1e-3) && JSON.stringify(steps) === '["upper","main","garage"]'
+    && /On Garage/.test(text) && hint === "Moved to Garage." && gone, { p: { floor_id: p.floor_id, x_m: p.x_m, y_m: p.y_m }, steps, text, hint, gone });
+});
+
 console.log(JSON.stringify({ cases, failures, payloads }));

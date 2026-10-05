@@ -290,6 +290,8 @@ export function createFurnish(ctx){
 
   // ── the current floor, its walls, doors and pieces ────────────────────────
   const floorById = (fid) => ctx.floors().find(F => F.fl.id === String(fid)) || null;
+  /** "up to" / "down to" a floor, or just "to" one on the same storey. */
+  const towards = (from, to, dir) => (from && to && Math.abs(from.fl.elev - to.fl.elev) <= 1e-3 ? "to" : dir > 0 ? "up to" : "down to");
   const ceilOf = (F) => F.fl.h - ctx.HOUSE.SLAB_T;
   const wallsOf = (F) => (F ? F.pieces.map(P => ({ ...P.pc, els: P.els })) : []);
   function sceneOf(p){
@@ -302,6 +304,17 @@ export function createFurnish(ctx){
   const nameOf = (id) => { const p = pieceOf(id); return p ? pieceName(p, FURN()).toLowerCase() : "piece"; };
 
   // ── adding ────────────────────────────────────────────────────────────────
+  /** The floor a new piece goes on: the top floor showing, or another
+   *  indoor floor on the same storey (Main and Garage) whose rooms are
+   *  under the view's centre. */
+  function addFloor(){
+    const F = ctx.topFloor();
+    if (!F) return null;
+    const [cx, cy] = ctx.centre() || [0, 0];
+    const under = (G) => G.rooms.some(r => !r.outdoor && Array.isArray(r.pts) && r.pts.length >= 3 && ctx.HOUSE.inPoly(cx, cy, r.pts));
+    if (under(F)) return F;
+    return ctx.floors().find(G => G !== F && G.group.visible && !G.fl.outdoor && Math.abs(G.fl.elev - F.fl.elev) <= 1e-3 && under(G)) || F;
+  }
   function spotHere(F){
     const [cx, cy] = ctx.centre() || [0, 0];
     return PIECES.spotFor(F ? F.rooms : [], cx, cy);
@@ -315,7 +328,7 @@ export function createFurnish(ctx){
    *  room under the view's centre unless it says where it goes; the last
    *  one selected. */
   function add(list, extra = null, what = "Added"){
-    const F = ctx.topFloor();
+    const F = addFloor();
     if (!F) { ctx.hint("Show a floor first: there is nowhere to put it.", true); return; }
     const spot = spotHere(F);
     let last = null;
@@ -383,7 +396,7 @@ export function createFurnish(ctx){
     const fn = k === "share" ? share : mods && mods[k];
     if (!fn) return;
     closeFlow();
-    const gen = flowGen, host = ctx.host() || {}, F = ctx.topFloor();
+    const gen = flowGen, host = ctx.host() || {}, F = addFloor();
     const spot = F ? spotHere(F) : null;
     flowEl = d("div", "la3d-flow");
     const card = d("div"), h = d("h4"), body = d("div");
@@ -524,8 +537,8 @@ export function createFurnish(ctx){
     el.appendChild(turnRow);
     const F = floorById(p.floor_id), floors = ctx.floors().map(G => ({ id: G.fl.id, elev: G.fl.elev, outdoor: G.fl.outdoor }));
     const upId = PIECES.floorStep(floors, p.floor_id, 1), downId = PIECES.floorStep(floors, p.floor_id, -1);
-    const bUp = btn("Floor ▲", upId ? `Move it up to ${floorById(upId).fl.name}` : "It is on the top floor", () => toFloor(1));
-    const bDown = btn("Floor ▼", downId ? `Move it down to ${floorById(downId).fl.name}` : "It is on the bottom floor", () => toFloor(-1));
+    const bUp = btn("Floor ▲", upId ? `Move it ${towards(F, floorById(upId), 1)} ${floorById(upId).fl.name}` : "It is on the top floor", () => toFloor(1));
+    const bDown = btn("Floor ▼", downId ? `Move it ${towards(F, floorById(downId), -1)} ${floorById(downId).fl.name}` : "It is on the bottom floor", () => toFloor(-1));
     bUp.disabled = !upId; bDown.disabled = !downId;
     const floorRow = d("div", "la3d-acts");
     floorRow.append(seg(bUp, bDown), d("span", "la3d-sub", F ? `On ${F.fl.name}` : "Its floor is gone"));
@@ -665,13 +678,14 @@ export function createFurnish(ctx){
   function toFloor(dir){
     const p = sel && pieceOf(sel);
     if (!p) return;
+    const from = floorById(p.floor_id);
     const floors = ctx.floors().map(G => ({ id: G.fl.id, elev: G.fl.elev, outdoor: G.fl.outdoor }));
     const to = PIECES.floorStep(floors, p.floor_id, dir), F = to && floorById(to);
     if (!F) return;
     if (!edit((q) => { q.floor_id = to; q.z_m = PIECES.clampZ(q.z_m, ceilOf(F), PIECES.sizeOf(q.recipe).h); })) return;
     ctx.setTopFloor(to);                              // the view follows it, so you see where it went
     ctx.redraw();
-    ctx.hint(`Moved ${dir > 0 ? "up" : "down"} to ${F.fl.name}.`);
+    ctx.hint(`Moved ${towards(from, F, dir)} ${F.fl.name}.`);
     sheet();
   }
   function duplicate(){

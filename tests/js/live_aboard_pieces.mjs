@@ -115,6 +115,15 @@ tryCase("floors: ▲ the nearest floor higher, ▼ lower; none past the top or t
   check("floors: ▲ the nearest floor higher, ▼ lower; none past the top or the bottom",
     JSON.stringify(got) === JSON.stringify(["up", "down", "attic", null, null, "up", null, "up"]), got);
 });
+// Two indoor floors on one storey (Main and Garage share a base): ▲/▼ step
+// through them in list order, so every floor can be reached.
+tryCase("floors: two indoor floors at the same height are both reached, in list order", () => {
+  const fl = [{ id: "main", elev: 0 }, { id: "garage", elev: 0 }, { id: "yard", elev: 0, outdoor: true }, { id: "up", elev: 2.8 }];
+  const got = [P.floorStep(fl, "main", 1), P.floorStep(fl, "garage", 1), P.floorStep(fl, "up", -1), P.floorStep(fl, "garage", -1),
+               P.floorStep(fl, "main", -1), P.floorStep(fl, "yard", 1)];
+  check("floors: two indoor floors at the same height are both reached, in list order",
+    JSON.stringify(got) === JSON.stringify(["garage", "up", "main", "main", null, "up"]), got);
+});
 
 // ── place ───────────────────────────────────────────────────────────────────
 tryCase("place: in the room under the view's centre, facing away from its nearest wall", () => {
