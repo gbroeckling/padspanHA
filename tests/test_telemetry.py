@@ -1125,6 +1125,22 @@ def test_the_summary_reads_find_my_with_and_without_the_new_fields(tmp_path):
     assert re.search(r"telemetry\s+1\s+1 installs", out), "an error only the day's first report carried\n" + out
     assert re.search(r"findmy_missed_ambiguous\s+1\s+1 installs", out), "used only in the day's first report\n" + out
     assert "2 installs, 2 install-days" in out, out
+    # As server/telemetry.php stores them: json_decode(..., true) then
+    # json_encode turns every empty object into [], the quiet install's
+    # "findmy": {} too. That install has Find My and found nothing; it is
+    # not from before Find My (backlog 2026-10-05).
+
+    def stored(x):
+        if isinstance(x, dict):
+            return {k: stored(v) for k, v in x.items()} if x else []
+        return [stored(v) for v in x] if isinstance(x, list) else x
+
+    assert stored(quiet)["env"]["findmy"] == []
+    s = section(*(stored(r) for r in (old, new, quiet)))
+    assert re.search(r"installs with bridging on\s+1\s+/ 2 that report Find My", s), s
+    assert re.search(r"installs from before Find My reports\s+1\s+\(0 with bridging on\)", s), s
+    assert re.search(r"installs with Find My on the air\s+1\s+/ 2 that report it", s), s
+    assert re.search(r"follow rate\s+71%", s), s
 
 
 # ── load and hardware (perf_sampler.py) ──────────────────────────────────────

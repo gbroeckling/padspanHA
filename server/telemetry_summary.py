@@ -326,16 +326,19 @@ def main() -> int:
     # range) are shown beside it. A report leaves zeros out; with no
     # `findmy` at all it is from before 0.38.81 — kept out of every line but
     # its own, so "none" and "0" are read against installs that could say.
+    # An empty one is an install with nothing found, stored as [] (the
+    # receiver's json_decode(..., true) and json_encode turn {} into []).
     fm: dict[str, Counter] = defaultdict(Counter)
     fm_live = fm_carried = fm_reporting = on_air = bridging = 0
     older = older_bridging = 0
     for r in latest.values():
-        v = (r.get("env") or {}).get("findmy")
+        env = r.get("env") or {}
         on = (r.get("features") or {}).get("mac_rotation_bridging") is True
-        if not isinstance(v, dict):
+        if "findmy" not in env:
             older += 1
             older_bridging += int(on)
             continue
+        v = env["findmy"] or {}
         fm_reporting += 1
         bridging += int(on)
         for part in ("on_air", "separated", "tracked"):
