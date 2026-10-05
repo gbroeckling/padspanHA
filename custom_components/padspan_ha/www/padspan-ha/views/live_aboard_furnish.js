@@ -328,6 +328,8 @@ export function createFurnish(ctx){
         if (item.library_id) p.library_id = item.library_id;
         p.z_m = num(p.z_m) ?? 0;
         inRange(p.recipe);
+        const PF = floorById(p.floor_id);              // under its floor's ceiling, as every other way in keeps it
+        if (PF) p.z_m = PIECES.clampZ(p.z_m, ceilOf(PF), PIECES.sizeOf(p.recipe).h);
         c.pieces[p.id] = p;
         last = p;
       }

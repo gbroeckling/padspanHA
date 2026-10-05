@@ -503,7 +503,8 @@ function createSlot(slotKey){
       clearUse: () => { if (use) use.clear(); },
       // P2 Furnish: its tool, the furniture drawn, and where on screen each view is.
       FURNISH, PIECES, FURN: () => FURN, layer, rect: () => view3Rect(), viewAt: (x, y) => viewAt(x, y),
-      centre: () => [cam.target.x, cam.target.z], setTopFloor: (fid) => { if (topCb) topCb(fid); }, host: () => furnishP,
+      // The plan alone (a narrow screen): its middle as it shows, not where the hidden 3D view looks.
+      centre: () => { if (viewports().d3) return [cam.target.x, cam.target.z]; fitPlan(); return [plan.cx, plan.cy]; }, setTopFloor: (fid) => { if (topCb) topCb(fid); }, host: () => furnishP,
       base: new URL(import.meta.url).search,
     });
     wirePointer();
