@@ -54,6 +54,8 @@ const WEATHER = await import(`./live_aboard_weather.js${new URL(import.meta.url)
 // And the Atlas's Showcase look as this view's lighting (optional too).
 const LOOKS = await import(`./live_aboard_showcase.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_showcase failed to load", err); return null; });
+// The Atlas's own word for the air (its room sheet's "Air Good").
+const { airQualityWord, airQualityBadness } = await import(`./light_codes.js${new URL(import.meta.url).search}`);
 // P5: furniture that is a device behaves like it (optional too: missing, the
 // pieces are only furniture and the fixtures stay where they are).
 const DEVICES = await import(`./live_aboard_devices.js${new URL(import.meta.url).search}`)
@@ -166,6 +168,9 @@ const CSS = `
 .la3d .la3d-fn{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .la3d .lv-dot{display:inline-block;flex:none;box-sizing:border-box}
 .la3d-menu .lv-dot{margin-left:7px;vertical-align:1px}
+.la3d .la3d-fb,.la3d-menu .la3d-fb{display:inline-flex;align-items:center;justify-content:center;flex:none;box-sizing:border-box;
+  min-width:18px;height:18px;padding:0 4px;border-radius:9px;font:700 11px/1 system-ui,"Segoe UI",Roboto,sans-serif;color:#071008}
+.la3d-menu .la3d-fb{margin-right:7px;vertical-align:1px}
 .la3d-corner{all:unset;box-sizing:border-box;position:absolute;left:12px;bottom:12px;z-index:4;display:inline-flex;align-items:center;gap:6px;
   padding:5px 12px;border-radius:999px;background:rgba(6,14,9,.5);color:#f0fdf4;font-size:12.5px;font-weight:600;cursor:pointer;
   opacity:0;visibility:hidden;pointer-events:none}
@@ -209,6 +214,11 @@ const CSS = `
 // gives way to the view's own, and on a narrow screen the emergency pill
 // folds to its icon, clear of the house.
 const CSS_SHOWING = `.lv-legend{display:none}`;
+// Covering the panel (the map alone, full screen): the Vacation banner and
+// the emergency lighting dial stay on top, the dial in the cover's corner.
+const COVER_TOP_Z = COVER_Z + 1;
+const coverCss = (c) => `.lv-vacation{z-index:${COVER_TOP_Z}}
+.lv-emerg{position:fixed;z-index:${COVER_TOP_Z};top:${Math.round(c.top + 14)}px;right:${Math.round(Math.max(0, (window.innerWidth || 0) - c.left - c.width) + 14)}px}`;
 const CSS_PANEL = `.lv-hero > .lv-hint{display:none}
 @media (max-width:600px){.lv-emerg-label.on{max-width:32px;width:32px;padding:0;justify-content:center}
   .lv-emerg-label.on .lv-emerg-label-tx{display:none}.lv-emerg-label.on .lv-emerg-label-ic{display:inline-flex}}`;
@@ -389,6 +399,9 @@ function createSlot(slotKey){
   // The Showcase look as drawn (live_aboard_showcase.js): Classic, today's
   // look, unless "Use the Atlas's Showcase look" is on.
   let lookKey = "classic", theme3d = LOOKS ? LOOKS.lookOf("classic") : null;
+  // The same look as the Atlas (atlas_3d_look "atlas"; LOOKS.atlasLook):
+  // its page, rooms, floor numbers and readouts. null: Live Aboard's own.
+  let atlas = null;
   // Furniture (P2 Furnish, live_aboard_furnish.js): every piece drawn on its
   // floor (layer). furnishP: what the Furnish tool needs of the host (its
   // connection, toast, settings, states), from the newest card; topCb: the
@@ -414,7 +427,7 @@ function createSlot(slotKey){
   // distance at the last whole-house fit (the "fit level"); soloHold: where
   // ☰ brought the bars back (zooming further in hides them again).
   let mapOnly = false, bare = false, cover = false, fsOn = false, fsTarget = null, fitR = null, soloHold = null;
-  let coverOff = null, panelCss = null, showCss = null, soloBtn = null, fullBtns = [], menuEl = null, menuOff = null;
+  let coverOff = null, coverStyle = null, panelCss = null, showCss = null, soloBtn = null, fullBtns = [], menuEl = null, menuOff = null;
   let floorSteps = null, floorEls = [], hintCard = null, tipEl = null, narrow = false;
   // A camera kept per floor on this screen (and one for All), as the Atlas
   // keeps each floor's zoom and scroll: left on a floor, it is there again on
@@ -582,6 +595,8 @@ function createSlot(slotKey){
     root.appendChild(showCss);
     panelCss = d("style");
     root.appendChild(panelCss);
+    coverStyle = d("style");
+    root.appendChild(coverStyle);
     // The compass: N is true north (settings.fabric_bearing_deg), and it
     // turns with the camera. A tap turns the house to north up.
     const compass = d("button", "la3d-compass");
@@ -653,6 +668,7 @@ function createSlot(slotKey){
     if (!cover) return;
     const c = coverRect();
     Object.assign(root.style, { left: `${c.left}px`, top: `${c.top}px`, width: `${c.width}px`, height: `${c.height}px` });
+    if (coverStyle) coverStyle.textContent = coverCss(c);
   }
   const COVER_KEYS = ["position", "margin", "borderRadius", "border", "zIndex", "maxWidth", "left", "top", "width", "height"];
   function paintCover(){
@@ -682,6 +698,7 @@ function createSlot(slotKey){
     } else {
       if (coverOff) coverOff();
       coverOff = null;
+      if (coverStyle) coverStyle.textContent = "";
       root.classList.remove("la3d-cover");
       for (const k of COVER_KEYS) root.style[k] = "";
       if (stage && stage.parentNode) stage.parentNode.insertBefore(root, stage.nextSibling);   // back beside the newest card's stage
@@ -793,7 +810,19 @@ function createSlot(slotKey){
     t.className = "la3d-fn";
     t.textContent = s.all && i === null ? "All floors" : s.names[i] || "";
     const dot = i === null ? null : dotOf(s.counts && s.counts[i]);
-    el.replaceChildren(...(dot ? [t, dot] : [t]));
+    const fb = i === null ? null : badgeOf(i);
+    el.replaceChildren(...(fb ? [fb] : []), ...(dot ? [t, dot] : [t]));
+  }
+  /** The Atlas's number for a floor (its plate's badge: 1 at the bottom, in
+   *  the plate's colour), with the Atlas's look. */
+  function badgeOf(i){
+    if (!atlas || !Number.isInteger(i) || i < 0) return null;
+    const b = document.createElement("span");
+    b.className = "la3d-fb";
+    b.textContent = String(i + 1);
+    b.style.background = HOUSE.LAYER_PAL[i % HOUSE.LAYER_PAL.length];
+    b.setAttribute("aria-hidden", "true");
+    return b;
   }
   function paintFloors(){
     const s = floorSteps, seg = floorEls[0] && floorEls[0].parentNode;
@@ -814,7 +843,7 @@ function createSlot(slotKey){
     const s = floorSteps;
     if (!s) return [];
     return [{ text: "All floors", on: s.all, act: () => stepFloor(0) },
-            ...s.names.map((name, i) => ({ text: name, on: !s.all && s.at === i, dot: s.counts ? s.counts[i] : null,
+            ...s.names.map((name, i) => ({ text: name, on: !s.all && s.at === i, dot: s.counts ? s.counts[i] : null, badge: i,
                                            title: s.counts ? `${name}: ${activityText(s.counts[i])}` : name,
                                            act: () => { const q = floorSteps; if (q && i < q.names.length && (q.all || i !== q.at)) q.go(i); } }))];
   }
@@ -931,6 +960,8 @@ function createSlot(slotKey){
       if (!it) { m.appendChild(d("hr")); continue; }
       const row = d("div", "la3d-mrow"), b = d("button");
       b.type = "button"; b.textContent = it.text;
+      const fb = Number.isInteger(it.badge) ? badgeOf(it.badge) : null;
+      if (fb) b.prepend(fb);
       const dot = it.dot ? dotOf(it.dot) : null;
       if (dot) b.appendChild(dot);
       if (it.title) b.title = it.title;
@@ -1167,7 +1198,8 @@ function createSlot(slotKey){
   // over everything on its floor (fixtures included), in its own words. Sized
   // per frame (sizeNames): never under or over NAME_PX, and hidden when its
   // room is too small on screen to hold it, or under a floor showing above.
-  function labelSprite(text, ext){
+  function labelSprite(text, ext, col){
+    if (atlas) return atlasLabel(text, ext, col);
     const px = 44, c = document.createElement("canvas"), g = c.getContext("2d");
     const font = `650 ${px}px system-ui, "Segoe UI", Roboto, sans-serif`;
     g.font = font;
@@ -1176,9 +1208,37 @@ function createSlot(slotKey){
     g.textAlign = "center"; g.textBaseline = "middle"; g.lineJoin = "round";
     g.lineWidth = 10; g.strokeStyle = "rgba(8,12,10,0.86)"; g.strokeText(text, c.width / 2, c.height / 2 + 2);
     g.fillStyle = "#ffffff"; g.fillText(text, c.width / 2, c.height / 2 + 2);
+    return labelOf(c, px, ext, 1);
+  }
+  /** A room's name as the Atlas writes it: in the room's colour with the
+   *  Atlas's dark edge, UPPERCASE and spaced where the theme says. */
+  function atlasLabel(text, ext, col){
+    const A = atlas, px = 44, c = document.createElement("canvas"), g = c.getContext("2d");
+    const word = A.upper ? String(text).toUpperCase() : String(text), sp = A.spacing * px, chars = [...word];
+    const font = `650 ${px}px system-ui, "Segoe UI", Roboto, sans-serif`;
+    g.font = font;
+    const ws = chars.map(ch => g.measureText(ch).width), tw = sp ? ws.reduce((a, w) => a + w, 0) + sp * (chars.length - 1) : g.measureText(word).width;
+    c.width = Math.ceil(tw) + 28; c.height = px + 24;
+    g.font = font;
+    g.textBaseline = "middle"; g.lineJoin = "round";
+    g.lineWidth = 10; g.strokeStyle = A.nameEdge; g.fillStyle = "#" + colorOf(col).getHexString();
+    const y = c.height / 2 + 2;
+    if (!sp) { g.textAlign = "center"; g.strokeText(word, c.width / 2, y); g.fillText(word, c.width / 2, y); }
+    else {
+      g.textAlign = "left";
+      for (const pass of ["stroke", "fill"]) {
+        let x = (c.width - tw) / 2;
+        chars.forEach((ch, i) => { if (pass === "stroke") g.strokeText(ch, x, y); else g.fillText(ch, x, y); x += ws[i] + sp; });
+      }
+    }
+    const sprite = labelOf(c, px, ext, A.nameOp);
+    sprite.userData.text = word; sprite.userData.color = g.fillStyle;
+    return sprite;
+  }
+  function labelOf(c, px, ext, op){
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
-    const m = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false });
+    const m = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false, opacity: op });
     shellRes.push(tex, m);
     const sp = new THREE.Sprite(m);
     sp.renderOrder = 31;                                     // over the chips too (an outdoor one may sit near a name)
@@ -1216,8 +1276,10 @@ function createSlot(slotKey){
         g.rotateX(Math.PI / 2);                              // plan (x, y) -> world (x, ·, y); the extrusion goes down
         g.translate(0, (i % 8) * 0.0005, 0);                 // overlapping hand-drawn rooms must not z-fight
         const tm = theme3d ? theme3d.tile : 0.38;            // the Showcase look's mix (Classic: 0.38, a deck 0.5)
-        const top = colorOf(r.color).lerp(new THREE.Color(TILE_MIX), r.outdoor ? tm + 0.12 : tm);
-        const side = new THREE.Color(fl.outdoor ? EARTH_SIDE : SLAB_SIDE);
+        // The Atlas's look: the floor's own colour with the room's mixed in, faintly.
+        const top = atlas ? new THREE.Color(atlas.floor).lerp(colorOf(r.color), r.outdoor ? atlas.floorMix * 0.7 : atlas.floorMix)
+          : colorOf(r.color).lerp(new THREE.Color(TILE_MIX), r.outdoor ? tm + 0.12 : tm);
+        const side = new THREE.Color(fl.outdoor ? EARTH_SIDE : atlas ? atlas.side : SLAB_SIDE);
         const n = g.attributes.position.count, caps = g.groups.length ? g.groups[0].count : n, col = new Float32Array(n * 3);
         for (let v = 0; v < n; v++) { const cc = v < caps ? top : side; col[v * 3] = cc.r; col[v * 3 + 1] = cc.g; col[v * 3 + 2] = cc.b; }
         g.setAttribute("color", new THREE.BufferAttribute(col, 3));
@@ -1226,7 +1288,7 @@ function createSlot(slotKey){
         let bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
         for (const q of r.pts) { bx0 = Math.min(bx0, q[0]); bx1 = Math.max(bx1, q[0]); by0 = Math.min(by0, q[1]); by1 = Math.max(by1, q[1]); }
         const span = Math.max(bx1 - bx0, by1 - by0);              // how wide the room is, near enough
-        const lbl = labelSprite(String(r.name), Math.max(Math.min(r.spot.r * 2, span), 0.75 * span));
+        const lbl = labelSprite(String(r.name), Math.max(Math.min(r.spot.r * 2, span), 0.75 * span), r.color);
         lbl.position.set(r.spot.x, fl.elev + 0.5, r.spot.y);          // just over what is left of a cut wall
         group.add(lbl);
         F.labels.push(lbl);
@@ -1246,8 +1308,9 @@ function createSlot(slotKey){
         F.lift = new THREE.Mesh(merged, liftMat);
         F.lift.visible = false;
         group.add(F.lift);
-        // ...and each room's outline in its own colour, as the flat Atlas draws it.
-        const eg = edgeRibbons(per.rooms, fl.elev + 0.012);
+        // ...and each room's outline in its own colour, as the flat Atlas draws it
+        // (at night; with the Atlas's look, always).
+        const eg = edgeRibbons(per.rooms, fl.elev + 0.012, atlas);
         if (eg) {
           const edgeMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false,
                                                         side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 });
@@ -1287,6 +1350,7 @@ function createSlot(slotKey){
       F.ao = aoMesh(F);
       if (F.ao) group.add(F.ao);
     }
+    if (atlas) platesOf(h);
     // The ground and the sun, sized to the house.
     const cx = (houseBox.x0 + houseBox.x1) / 2, cy = (houseBox.y0 + houseBox.y1) / 2;
     const sx = houseBox.x1 - houseBox.x0, sy = houseBox.y1 - houseBox.y0;
@@ -1312,20 +1376,21 @@ function createSlot(slotKey){
   /** A band just inside each room's outline (EDGE_IN to EDGE_IN + EDGE_W in
    *  from it), in the room's colour: one geometry for the floor. */
   const EDGE_IN = 0.07, EDGE_W = 0.09;
-  function edgeRibbons(rooms, y){
-    const pos = [], col = [];
+  function edgeRibbons(rooms, y, A){
+    const pos = [], col = [], W = A ? A.lineW : EDGE_W, ink = A ? new THREE.Color(A.ink) : null;
     for (const r of rooms) {
       const P = r.pts, n = P.length;
       if (n < 3) continue;
       let area = 0;
       for (let i = 0; i < n; i++) { const a = P[i], b = P[(i + 1) % n]; area += a[0] * b[1] - b[0] * a[1]; }
-      const side = area > 0 ? 1 : -1, c = colorOf(r.color).lerp(_white, 0.3);
+      // The Atlas's look: the room's own colour (inked a little on a light page, as Hygge draws it).
+      const side = area > 0 ? 1 : -1, c = A ? (A.light ? colorOf(r.color).lerp(ink, 0.3) : colorOf(r.color)) : colorOf(r.color).lerp(_white, 0.3);
       for (let i = 0; i < n; i++) {
         const a = P[i], b = P[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
         if (len < 0.05) continue;
         const nx = -dy / len * side, ny = dx / len * side;                 // into the room
         const q = (p, d) => [p[0] + nx * d, y, p[1] + ny * d];
-        const a0 = q(a, EDGE_IN), b0 = q(b, EDGE_IN), a1 = q(a, EDGE_IN + EDGE_W), b1 = q(b, EDGE_IN + EDGE_W);
+        const a0 = q(a, EDGE_IN), b0 = q(b, EDGE_IN), a1 = q(a, EDGE_IN + W), b1 = q(b, EDGE_IN + W);
         for (const v of [a0, b0, b1, a0, b1, a1]) { pos.push(...v); col.push(c.r, c.g, c.b); }
       }
     }
@@ -1335,13 +1400,35 @@ function createSlot(slotKey){
     g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(col), 3));
     return g;
   }
+  /** The Atlas's look: a faint line in each plate's colour round the plate
+   *  (its floors' rooms, padded as the flat plate is), at its floor's level,
+   *  as the Atlas outlines its plates (HOUSE.floorBadges: its colours). */
+  const PLATE_PAD = 0.6, PLATE_OP = 0.5;
+  function platesOf(h){
+    let badges = [];
+    try { badges = HOUSE.floorBadges(lastP && lastP.model, lastP && lastP.floors, h); } catch (_) { badges = []; }
+    for (const b of badges) {
+      const F = floorsUi.find(q => q.fl === b.floor), on = h.floors.filter(f => !f.outdoor && Math.abs(f.elev - b.floor.elev) < 0.05);
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const r of h.rooms) if (on.includes(r.floor)) for (const p of r.pts) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
+      if (!F || !Number.isFinite(x0)) continue;
+      const P = PLATE_PAD, y = b.floor.elev + 0.006;
+      const g = new THREE.BufferGeometry().setFromPoints([[x0 - P, y0 - P], [x1 + P, y0 - P], [x1 + P, y1 + P], [x0 - P, y1 + P]]
+        .map(([x, z]) => new THREE.Vector3(x, y, z)));
+      const m = new THREE.LineBasicMaterial({ color: b.color, transparent: true, opacity: PLATE_OP, depthWrite: false });
+      shellRes.push(g, m);
+      F.plate = new THREE.LineLoop(g, m);
+      F.plate.userData.n = b.n;
+      F.group.add(F.plate);
+    }
+  }
   /** How dark it is (nightK), drawn: the floors' colour kept, the outlines,
    *  the wall tops' glow, and fixtures that are off darkened with the house. */
   function paintNight(){
     const k = nightK;
     for (const F of floorsUi) {
       if (F.lift) { F.lift.material.opacity = NIGHT_FLOOR * k; F.lift.visible = k > 0.01; }
-      if (F.edges) { F.edges.material.opacity = NIGHT_EDGE * k; F.edges.visible = k > 0.01; }
+      if (F.edges) { F.edges.material.opacity = atlas ? Math.max(atlas.lineOp, NIGHT_EDGE * k) : NIGHT_EDGE * k; F.edges.visible = !!atlas || k > 0.01; }
     }
     topGlow.value = NIGHT_TOP * k;
     if (gridLines) gridLines.material.opacity = 1 - NIGHT_GRID * k;
@@ -1736,8 +1823,8 @@ function createSlot(slotKey){
         const dark = new THREE.InstancedMesh(shared.prim[prim], mat(spec), list.length);
         dark.userData.spec = spec;
         list.forEach((b, i) => {
-          im.setMatrixAt(i, ZERO); im.setColorAt(i, _c.set(b.off));
-          dark.setMatrixAt(i, b.hideOff ? ZERO : b.m); dark.setColorAt(i, _c.set(b.off));
+          im.setMatrixAt(i, ZERO); im.setColorAt(i, offColour(_c.set(b.off)));
+          dark.setMatrixAt(i, b.hideOff ? ZERO : b.m); dark.setColorAt(i, offColour(_c.set(b.off)));
         });
         for (const x of [im, dark]) { x.frustumCulled = false; lightRes.push({ dispose: () => x.dispose() }); lg.add(x); }   // instances come and go with their walls
         F.bulbs[prim] = im; F.bulbsOff[prim] = dark;
@@ -1798,6 +1885,10 @@ function createSlot(slotKey){
   // the pools, a fan's speed. A switch changes these values only — what is
   // drawn never changes.
   const _white = new THREE.Color(1, 1, 1);
+  /** A fixture that is off: with the Atlas's look, leaning to the theme's
+   *  dark fixture (fixtureOffFill), its parts still told apart. */
+  const OFF_LEAN = 0.6, _c2 = new THREE.Color();
+  function offColour(c){ return atlas ? c.lerp(_c2.set(atlas.offFill), OFF_LEAN) : c; }
   function paintLight(L){
     const F = L.F, k = L.look, on = k.on, hidden = !!(L.wall && L.wall.cut) || !!L.swap, glow = theme3d ? theme3d.glow : 1;
     const c = new THREE.Color().setRGB(k.rgb[0], k.rgb[1], k.rgb[2], THREE.SRGBColorSpace);
@@ -1809,7 +1900,7 @@ function createSlot(slotKey){
       lit.setMatrixAt(r.i, show && on ? r.m : ZERO);
       dark.setMatrixAt(r.i, show && !on && !r.hideOff ? r.m : ZERO);
       if (on) lit.setColorAt(r.i, core);
-      else dark.setColorAt(r.i, _c.copy(r.off).multiplyScalar(k.unavailable ? 0.55 : 1));   // lit like the room: at night it darkens with it
+      else dark.setColorAt(r.i, offColour(_c.copy(r.off)).multiplyScalar(k.unavailable ? 0.55 : 1));   // lit like the room: at night it darkens with it
       for (const im of [lit, dark]) { im.instanceColor.needsUpdate = true; im.instanceMatrix.needsUpdate = true; }
     }
     for (const r of L.refs.halos) {
@@ -2122,7 +2213,9 @@ function createSlot(slotKey){
       if (!r) continue;
       const dash = r.kind === "temp" ? "–°" : r.kind === "humidity" ? "–%" : "–";
       const text = r.live ? r.text : dash;
-      parts.push({ text: r.kind === "air" ? `Air: ${text}` : text, color: r.live ? r.color : HOUSE.STALE_INK, live: !!r.live });
+      // The Atlas's look: the air in the Atlas's words ("Air Good", its room sheet's).
+      const air = atlas && r.live ? `Air ${airQualityWord(airQualityBadness(lbe[S.eid] || S.l || {}))}` : `Air: ${text}`;
+      parts.push({ text: r.kind === "air" ? air : text, color: r.live ? r.color : HOUSE.STALE_INK, live: !!r.live });
     }
     return parts;
   }
@@ -2132,9 +2225,10 @@ function createSlot(slotKey){
     parts.forEach((q, i) => { if (i) words.push({ text: sep, color: "rgba(226,240,232,0.45)", live: true }); words.push(q); });
     const text = words.map(w => w.text).join("");
     C.text = text.trim();
-    const c = C.canvas, g = c.getContext("2d");
+    const c = C.canvas, g = c.getContext("2d"), A = atlas;
     let px = 38;
-    const font = () => `700 ${px}px system-ui, "Segoe UI", Roboto, sans-serif`;
+    // The Atlas's look: the Atlas's readout face (its digits: monospace, heavy, edged dark) on its chip.
+    const font = () => (A ? `800 ${px}px ui-monospace, "Cascadia Mono", Consolas, monospace` : `700 ${px}px system-ui, "Segoe UI", Roboto, sans-serif`);
     const width = () => words.reduce((a, w) => a + g.measureText(w.text).width, 0);
     g.font = font();
     while (px > 22 && width() > READ_W - 40) { px -= 2; g.font = font(); }
@@ -2143,12 +2237,14 @@ function createSlot(slotKey){
     if (!words.length) { C.pillW = 0; C.parts = 0; C.tex.needsUpdate = true; return; }
     g.beginPath();
     if (g.roundRect) g.roundRect(x0, y0, w, h, h / 2); else g.rect(x0, y0, w, h);
-    g.fillStyle = "rgba(6,14,9,0.86)"; g.fill();
-    g.lineWidth = 2; g.strokeStyle = "rgba(226,240,232,0.2)"; g.stroke();
-    g.textAlign = "left"; g.textBaseline = "middle";
+    if (A) { g.globalAlpha = A.chipOp; g.fillStyle = A.chipBg; g.fill(); g.globalAlpha = 1; }
+    else { g.fillStyle = "rgba(6,14,9,0.86)"; g.fill(); }
+    g.lineWidth = 2; g.strokeStyle = A ? "rgba(5,13,9,0.35)" : "rgba(226,240,232,0.2)"; g.stroke();
+    g.textAlign = "left"; g.textBaseline = "middle"; g.lineJoin = "round";
     let x = (READ_W - tw) / 2;
     for (const q of words) {
       g.globalAlpha = q.live ? 1 : 0.8;
+      if (A) { g.lineWidth = px * 0.24; g.strokeStyle = A.chipEdge; g.strokeText(q.text, x, READ_C / 2 + 2); }
       g.fillStyle = q.color;
       g.fillText(q.text, x, READ_C / 2 + 2);
       x += g.measureText(q.text).width;
@@ -2775,7 +2871,8 @@ function createSlot(slotKey){
     if (!L) return { offBulb: null, offLit: null };
     // Off fixtures are drawn by their own instanced set (bulbsOff, the room's shading).
     const r = L.refs.bulbs[0], a = (L.F.bulbsOff || L.F.bulbs)[r.prim].instanceColor.array;
-    return { offBulb: [a[r.i * 3], a[r.i * 3 + 1], a[r.i * 3 + 2]], offLit: [r.off.r, r.off.g, r.off.b].map(v => v * (L.look.unavailable ? 0.55 : 1)) };
+    const o = offColour(new THREE.Color().copy(r.off));
+    return { offBulb: [a[r.i * 3], a[r.i * 3 + 1], a[r.i * 3 + 2]], offLit: [o.r, o.g, o.b].map(v => v * (L.look.unavailable ? 0.55 : 1)) };
   }
   /** A sprite's corners in the world as it shows now (a name, a chip):
    *  its size on screen at its depth, its centre where sprite.center puts it. */
@@ -3240,10 +3337,16 @@ function createSlot(slotKey){
    *  (live_aboard_showcase.js; Classic is today's look). A change draws the
    *  tiles, the sky and the glow again. */
   function applyLook(p){
-    const key = LOOKS && p.showcase3d === true && p.showcase && p.showcase.key ? String(p.showcase.key) : "classic";
+    // The same look as the Atlas (p.look3d "atlas", the host's default): its
+    // page and light (the row above for its theme, Classic's with Showcase
+    // off), its rooms, floor numbers and readouts. Otherwise Live Aboard's own.
+    let A = null;
+    try { A = LOOKS && p.look3d === "atlas" ? LOOKS.atlasLook(p.atlasLook) : null; } catch (_) { A = null; }
+    const key = A ? A.key : LOOKS && p.showcase3d === true && p.showcase && p.showcase.key ? String(p.showcase.key) : "classic";
     if (key === lookKey) return;
     lookKey = key;
-    theme3d = LOOKS ? LOOKS.lookOf(key) : null;
+    atlas = A;
+    theme3d = A ? A.page : LOOKS ? LOOKS.lookOf(key) : null;
     const bg = theme3d ? theme3d.bg : BG;
     renderer.setClearColor(bg, 1);
     scene.background.set(bg);
@@ -3257,6 +3360,7 @@ function createSlot(slotKey){
    *  (settings.atlas_3d_weather: on unless false). Off, none of it is made,
    *  and what was showing is let go of. Never the view's failure: weather
    *  that cannot be drawn is simply not drawn. */
+  const plainSky = () => lookKey === "classic" || (!!atlas && !atlas.on);
   function applyWeather(p){
     const w = WEATHER && p.weather3d !== false && p.weather && p.weather.settings ? p.weather : null;
     if (!w) { if (wx) { wx.dispose(); wx = null; requestRender(); } return; }
@@ -3266,8 +3370,8 @@ function createSlot(slotKey){
         // What falls: the flat Atlas's colour for the Showcase theme this view
         // wears (Classic: white), or the look's own where that would not show
         // on its ground (a light theme); what settles: the flat Atlas's.
-        colour: lookKey === "classic" ? "#ffffff" : (theme3d && theme3d.weather) || WEATHER.colourOf(p.showcase && p.showcase.theme),
-        snowColour: lookKey === "classic" ? "#ffffff" : WEATHER.colourOf(p.showcase && p.showcase.theme),
+        colour: plainSky() ? "#ffffff" : (theme3d && theme3d.weather) || WEATHER.colourOf(p.showcase && p.showcase.theme),
+        snowColour: plainSky() ? "#ffffff" : WEATHER.colourOf(p.showcase && p.showcase.theme),
         profile: quality.profile || quality.measuring || "low", nowMs: Date.now(),
         house: { key: `${shellGen}|${topElev}`, rooms: house.rooms, ground: house.ground - HOUSE.SLAB_T - 0.02,
                  shown: (fl) => HOUSE.floorShown(fl, topElev),
@@ -3438,6 +3542,8 @@ function createSlot(slotKey){
                readouts: readouts.map(R => ({ eid: R.eid, kind: R.kind, ...(R.shown || {}) })),
                motion: sensorsUi.filter(S => S.kind === "motion").map(S => ({ eid: S.eid, look: S.look || null, col: S.col })),
                names: floorsUi.flatMap(F => F.labels.map((l, i) => ({ room: F.rooms[i].name, shown: F.group.visible && l.visible,
+                                                                       text: l.userData.text || String(F.rooms[i].name), color: l.userData.color || "#ffffff",
+                                                                       opacity: l.material.opacity,
                                                                        covered: !!l.userData.covered, px: l.userData.px,
                                                                        onTop: !l.material.depthTest && l.renderOrder >= 30, upright: !!l.isSprite,
                                                                        ext: l.userData.ext, aspect: l.userData.aspect }))),
@@ -3465,7 +3571,9 @@ function createSlot(slotKey){
                           devices: sensorsUi.filter(S => S.z !== S.zDefault).map(S => ({ eid: S.eid, z: S.z, zDefault: S.zDefault })) },
                edit: editor ? editor.state() : null,
                // P8: the look as drawn, and rain and snow.
-               look: scene ? { key: lookKey, bg: "#" + scene.background.getHexString(), fog: "#" + scene.fog.color.getHexString(),
+               look: scene ? { key: lookKey, atlas: atlas ? { on: atlas.on, theme: atlas.theme, plates: floorsUi.filter(F => F.plate).map(F => F.plate.userData.n),
+                                                         edges: floorsUi.filter(F => F.edges).map(F => (F.edges.visible ? F.edges.material.opacity : 0)) } : null,
+                               bg: "#" + scene.background.getHexString(), fog: "#" + scene.fog.color.getHexString(),
                                sky: "#" + hemi.color.getHexString(), skyI: hemi.intensity, glow: theme3d ? theme3d.glow : 1,
                                ground: ground ? "#" + ground.material.color.getHexString() : null,
                                // Sums the harness compares: every tile's colour, every glow's.
