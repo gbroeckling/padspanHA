@@ -260,7 +260,7 @@ if (LIVE) {   // the library answering: every filter and the sorts reach the wir
   // The terms, read only: browsing needs none.
   $(ctx.el, '[data-lal="terms"]').click();
   const ts = $(ctx.el, '[data-lal="terms-screen"]');
-  check("library_terms", ts && /Draft — under review/.test(text(ts)) && !$(ts, '[data-lal="accept"]')
+  check("library_terms", ts && !/Draft/.test(text(ts)) && !$(ts, '[data-lal="accept"]')
     && $(ctx.el, '[data-lal="main"]').style.display === "none", text(ts));
   $(ts, '[data-lal="back"]').click();
   check("library_terms", !$(ctx.el, '[data-lal="terms-screen"]') && $(ctx.el, '[data-lal="main"]').style.display === "");
@@ -323,7 +323,7 @@ if (LIVE) {   // the terms first, then the sheet; its refusals; then a share of 
   const p = L.shareFlow(ctx, PIECE);
   await settle();
   const ts = $(ctx.el, '[data-lal="terms-screen"]');
-  check("share_terms", ts && /Draft — under review/.test(text(ts)) && /licence/.test(text(ts)) && /withdraw/.test(text(ts)), text(ts));
+  check("share_terms", ts && !/Draft/.test(text(ts)) && /licence/.test(text(ts)) && /withdraw/.test(text(ts)), text(ts));
   $(ts, '[data-lal="accept"]').click();
   await settle();
   check("share_terms", calls.some(c => c.type === "padspan_ha/house3d_terms_accept" && c.version === L.TERMS_VERSION)

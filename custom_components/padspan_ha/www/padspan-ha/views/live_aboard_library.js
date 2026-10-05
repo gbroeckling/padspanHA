@@ -32,14 +32,14 @@
 // only be stricter than the server, never looser.
 
 // ── The terms ────────────────────────────────────────────────────────────────
-// DRAFT — UNDER REVIEW. The plan requires a lawyer's review before the library
-// ships (Garry's choice 5: a licence to PadSpan only, not CC0, sharers keep
+// In force since 2026-10-04: Garry put the library live without the lawyer's
+// review the plan had asked for ("I make no money from this, fix it"). (Garry's choice 5: a licence to PadSpan only, not CC0, sharers keep
 // their rights; choice 6: needed to share furniture, not to browse). Raising
 // TERMS_VERSION (here and in house3d_library.py) asks everyone again before
 // their next share.
 export const TERMS_VERSION = 1;
 export const TERMS = {
-  status: "Draft — under review",
+  status: "",
   title: "The PadSpan furniture library",
   points: [
     "Pieces you share go into the PadSpan furniture library, where other PadSpan houses can find them and place them.",
@@ -422,7 +422,8 @@ export function searchEntries(entries, q = {}){
 // or "Withdraw my shared furniture" in Settings (settings.js reads this), and
 // Library shows only the starter set and never asks the library for
 // anything. true brings all of it back; nothing else needs to change.
-export const LIBRARY_SERVER_LIVE = false;
+// Live since 2026-10-04 (padspan.traks.ca).
+export const LIBRARY_SERVER_LIVE = true;
 
 let startersP = null;
 export function starterEntries(json){
@@ -940,7 +941,7 @@ export function libraryFlow(ctx){
 function showTerms(root, { onAccept, onBack, onLater }){
   const box = h("div", { class: "lal-terms", "data-lal": "terms-screen" });
   box.appendChild(h("h3", { style: "margin:0 0 6px;color:#a7f3d0" }, TERMS.title));
-  box.appendChild(h("div", { class: "lal-draft" }, TERMS.status));
+  if (TERMS.status) box.appendChild(h("div", { class: "lal-draft" }, TERMS.status));
   box.appendChild(h("ul", {}, TERMS.points.map(p => h("li", {}, p))));
   const msg = h("div", { class: "lal-msg" });
   box.appendChild(msg);

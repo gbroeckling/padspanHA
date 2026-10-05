@@ -1,9 +1,9 @@
 <?php
 // PadSpan HA — Live Aboard's shared furniture library.
-// Deploy at https://padspan.traks.ca/api/furniture_library.php beside
-// tester.php — but only on Garry's word, and only after the lawyer's review of
-// the terms that the plan requires (docs/IDEA_ATLAS_3D_HOUSE.md, "The shared
-// furniture library"). There is no PHP where PadSpan's tests run, so run
+// Deployed at https://padspan.traks.ca/api/furniture_library.php beside
+// tester.php on 2026-10-04, on Garry's word ("I make no money from this, fix
+// it"), without the lawyer's review the plan had asked for
+// (docs/IDEA_ATLAS_3D_HOUSE.md, "The shared furniture library"). There is no PHP where PadSpan's tests run, so run
 //   php -l furniture_library.php
 // on the server before deploying it. tests/test_furniture_library_server.py
 // ports this file to Python line for line, reading its lists and patterns out

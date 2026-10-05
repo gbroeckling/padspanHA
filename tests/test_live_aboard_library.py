@@ -179,15 +179,17 @@ def test_the_page_holds_the_servers_and_the_installs_lists_and_patterns(page) ->
         assert f"$FIT_MARGIN_M = {page['data']['fit_margin']};" in src
 
 
-def test_the_terms_are_the_plans_and_marked_a_draft_under_review(page) -> None:
+def test_the_terms_are_the_plans_and_in_force(page) -> None:
+    """In force since 2026-10-04 (Garry put the library live): no draft label."""
     terms = page["data"]["terms"]
-    assert terms["status"] == "Draft — under review"
+    assert terms["status"] == ""
     said = " ".join(terms["points"])
     for must in ("permanent licence", "every edition", "You keep your own rights", "nobody a licence outside PadSpan",
                  "Never your photo", "withdraw", "Copies already placed in other houses stay", "browse"):
         assert must in said, must
     src = (_VIEWS / "live_aboard_library.js").read_text(encoding="utf-8")
-    assert "DRAFT — UNDER REVIEW" in src and "lawyer" in src
+    block = src.split("export const TERMS = {", 1)[1].split(chr(10) + "};", 1)[0]
+    assert "Draft" not in block and "export const LIBRARY_SERVER_LIVE = true;" in src
 
 
 def test_the_module_is_only_ever_loaded_on_demand() -> None:
