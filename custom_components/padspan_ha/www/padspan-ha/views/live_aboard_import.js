@@ -31,7 +31,7 @@ export const SNAP_M = 1.0;                           // a door or window this ne
 const SNAP_COS = Math.cos(25 * Math.PI / 180);       // when it runs about the same way
 export const BOX = "other";                          // the builders' own box ("Box" in the Build menu)
 export const BOX_COLOR = "#a8a29e";
-export const SIZE_MIN_M = 0.05, SIZE_MAX_M = 8;      // a piece's sizes as the 3D file keeps them
+export const SIZE_MIN_M = 0.001, SIZE_MAX_M = 8;      // a piece's sizes as the 3D file keeps them
 export const Z_MAX_M = 20;
 export const HIGH_LIGHT_M = 1.5;                     // a lamp this high is a ceiling or wall light
 export const LEAVE_OUT = "";                         // a level that goes to no floor

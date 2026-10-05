@@ -191,7 +191,7 @@ _HEIGHT_OWNED = frozenset(("z_m",))
 # data the builders draw; an unknown kind or param is kept (drawn as a box).
 PIECE_ID = re.compile(r"^fur_[0-9a-f]{8}$")
 ORIGINS = ("build", "photo", "library", "import")
-MAX_PIECES, PIECE_Z_MAX_M, SIZE_MIN_M, SIZE_MAX_M = 1000, 20.0, 0.05, 8.0
+MAX_PIECES, PIECE_Z_MAX_M, SIZE_MIN_M, SIZE_MAX_M = 1000, 20.0, 0.001, 8.0   # a rug can be a few millimetres thin
 MAX_PARAMS, MAX_COLORS, NAME_MAX, TEXT_MAX, LABEL_MAX, PIECE_JSON_MAX = 40, 6, 40, 60, 60, 8000
 COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 REF_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")

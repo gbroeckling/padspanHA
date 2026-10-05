@@ -108,7 +108,7 @@ _BAD = {
     "a colour by name": _pieces(_recipe(colors=["red"])),
     "a colour of five digits": _pieces(_recipe(colors=["#5b6b7"])),
     "a colour not hex": _pieces(_recipe(colors=["#gggggg"])),
-    "a width under 5 cm": _pieces(_recipe(width_m=0.049)),
+    "a width under 1 mm": _pieces(_recipe(width_m=0.0009)),
     "a depth over 8 m": _pieces(_recipe(depth_m=8.01)),
     "no height": _pieces(_sofa(recipe={k: v for k, v in _SOFA["recipe"].items() if k != "height_m"})),
     "a size that is true": _pieces(_recipe(width_m=True)),
@@ -140,6 +140,32 @@ def test_a_bad_piece_is_refused_and_nothing_written(disk, tmp_path, name):  # no
     out = _edit(h, conn, **_BAD[name])
     assert out.get("error") == "invalid", (name, out)
     assert disk.writes == [] and not _file(tmp_path).exists(), name
+
+
+def test_a_rug_keeps_its_real_thickness():
+    """The least size is a millimetre, as the library's and the builders': a
+    12 mm rug is kept 12 mm thick, never raised to 5 cm."""
+    out = H.apply_edit(H.empty(), _pieces(_recipe(kind="rug", width_m=2.0, depth_m=1.4, height_m=0.012),
+                                          _sofa(id="fur_00000001", recipe=_recipe(height_m=0.001)["recipe"])))
+    assert out["pieces"]["fur_1a2b3c4d"]["recipe"]["height_m"] == 0.012
+    assert out["pieces"]["fur_00000001"]["recipe"]["height_m"] == 0.001
+
+
+def test_the_least_size_is_one_number_everywhere():
+    """house3d_store, the view's rules, the import, Furnish, and the library
+    (its sizes and a device's look) all keep a piece down to one millimetre."""
+    import re
+    from pathlib import Path
+    from custom_components.padspan_ha import house3d_library as L
+    views = Path(H.__file__).parent / "www" / "padspan-ha" / "views"
+    pieces = (views / "live_aboard_pieces.js").read_text(encoding="utf-8")
+    imp = (views / "live_aboard_import.js").read_text(encoding="utf-8")
+    furnish = (views / "live_aboard_furnish.js").read_text(encoding="utf-8")
+    least = {"house3d_store": H.SIZE_MIN_M, "library": L.DIM_MIN_M, "look": H.LOOK_SIZE_M[0],
+             "pieces.js": float(re.search(r"export const SIZE_MIN_M = ([\d.]+)", pieces)[1]),
+             "import.js": float(re.search(r"export const SIZE_MIN_M = ([\d.]+)", imp)[1]),
+             "furnish.js inRange": float(re.search(r"function inRange\(recipe\)\{.*?Math\.max\(([\d.]+),", furnish, re.S)[1])}
+    assert set(least.values()) == {0.001}, least
 
 
 def test_a_good_piece_is_tidied_and_stamped():

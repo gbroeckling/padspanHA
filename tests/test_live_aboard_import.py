@@ -104,7 +104,7 @@ def test_the_doors_and_windows_handed_over_are_what_the_server_keeps(flow) -> No
 
 def test_the_pieces_handed_over_are_the_contracts_shape(flow) -> None:
     """contracts §2, and what the Furnish tab's Save checks (its brief):
-    fur_ + 8 hex, origin import, sizes 0.05–8 m, z 0–20, a turn in [0, 360),
+    fur_ + 8 hex, origin import, sizes 0.001–8 m, z 0–20, a turn in [0, 360),
     a short label, at most six #rrggbb colours, flat params, no binding."""
     pieces = flow["pieces"]
     assert len(pieces) >= 10
@@ -117,7 +117,7 @@ def test_the_pieces_handed_over_are_the_contracts_shape(flow) -> None:
         assert all(abs(pc[k]) <= 10_000 for k in ("x_m", "y_m"))
         r = pc["recipe"]
         assert isinstance(r["kind"], str) and 0 < len(r["kind"]) <= 40
-        assert all(0.05 <= r[k] <= 8 for k in ("width_m", "depth_m", "height_m")), r
+        assert all(0.001 <= r[k] <= 8 for k in ("width_m", "depth_m", "height_m")), r
         assert len(r["colors"]) <= 6 and all(re.fullmatch(r"#[0-9a-fA-F]{6}", c) for c in r["colors"])
         assert isinstance(r["params"], dict) and all(isinstance(v, (int, float, str, bool)) for v in r["params"].values())
 
@@ -172,7 +172,7 @@ def test_the_limits_are_the_servers() -> None:
     js = _js(_VIEWS / "live_aboard_import.js")
     assert re.search(r"export const MAX_FILE_BYTES = 10 \* 1024 \* 1024;", js) and WI.MAX_SH3D_BYTES == 10 * 1024 * 1024
     assert f'export const PREVIEW_TYPE = "{WI.ws_house3d_import_preview.ws_schema["type"]}";' in js
-    assert "export const SIZE_MIN_M = 0.05, SIZE_MAX_M = 8;" in js and f"export const Z_MAX_M = {int(WI.Z_MAX_M)};" in js
+    assert "export const SIZE_MIN_M = 0.001, SIZE_MAX_M = 8;" in js and f"export const Z_MAX_M = {int(WI.Z_MAX_M)};" in js
     assert 'export const BOX = "other";' in js and WI.BOX == "other"
 
 

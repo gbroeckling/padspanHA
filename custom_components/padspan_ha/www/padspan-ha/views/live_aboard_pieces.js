@@ -26,9 +26,9 @@ export const TURN_STEP = 15;               // Turn ⟲ / ⟳
 export const SNAP_M = 0.25;                // a wall this near takes a dragged piece's back
 export const CLEAR_M = 0.5;                // kept free before a wardrobe's doors, beside a bed
 export const HEAD_END_M = 0.6;             // a bed's sides start this far from its head (bedside tables go there)
-export const FLAT_M = 0.05;                // a piece this thin (a rug: the server's least height) overlaps nothing
+export const FLAT_M = 0.05;                // a piece this thin (a rug) overlaps nothing
 export const TOL_M = 0.01;                 // touching is not overlapping
-export const SIZE_MIN_M = 0.05, SIZE_MAX_M = 8, Z_MAX_M = 20;   // the server's ranges (house3d_store.py)
+export const SIZE_MIN_M = 0.001, SIZE_MAX_M = 8, Z_MAX_M = 20;   // the server's ranges (house3d_store.py)
 export const Z_STEP_M = 0.01;
 const FRONT_KIND = /wardrobe|dresser|cabinet|drawer|armoire|chest/i;
 const BED_KIND = /bed|crib|cot/i;

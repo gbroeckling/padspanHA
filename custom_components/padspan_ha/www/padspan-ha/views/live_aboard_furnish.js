@@ -74,13 +74,13 @@ const CSS = `
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const copy = (x) => JSON.parse(JSON.stringify(x));
 const metres = (v) => `${(Math.round(v * 100) / 100).toFixed(2)} m`;
-/** A recipe's size kept to what the server keeps (5 cm to 8 m; house3d_store.py),
+/** A recipe's size kept to what the server keeps (1 mm to 8 m; house3d_store.py),
  *  whatever a builder or a flow allows, so a Save is never refused for it. */
 function inRange(recipe){
   if (!recipe || typeof recipe !== "object") return recipe;
   for (const k of ["width_m", "depth_m", "height_m"]) {
     const v = num(recipe[k]);
-    recipe[k] = Math.round(Math.max(0.05, Math.min(8, v === null ? 0.5 : v)) * 1000) / 1000;
+    recipe[k] = Math.round(Math.max(0.001, Math.min(8, v === null ? 0.5 : v)) * 1000) / 1000;
   }
   return recipe;
 }

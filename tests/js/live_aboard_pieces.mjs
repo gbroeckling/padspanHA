@@ -101,9 +101,9 @@ tryCase("height: 0 up to the ceiling less the piece's height", () => {
   check("height: 0 up to the ceiling less the piece's height", JSON.stringify(got) === JSON.stringify([1.85, 1.85, 0, 1.205, 0, 0, 0]), got);
 });
 tryCase("height: the sizes are the server's, and a recipe without one is half a metre", () => {
-  const s = P.sizeOf({ width_m: 0.01, depth_m: 99, height_m: "2" }), e = P.sizeOf(null);
+  const s = P.sizeOf({ width_m: 0.0005, depth_m: 99, height_m: "2" }), e = P.sizeOf(null), rug = P.sizeOf({ height_m: 0.012 });
   check("height: the sizes are the server's, and a recipe without one is half a metre",
-    s.w === 0.05 && s.d === 8 && s.h === 0.5 && e.w === 0.5 && e.d === 0.5 && e.h === 0.5, { s, e });
+    s.w === 0.001 && s.d === 8 && s.h === 0.5 && e.w === 0.5 && e.d === 0.5 && e.h === 0.5 && rug.h === 0.012, { s, e, rug });
 });
 
 // ── floors ──────────────────────────────────────────────────────────────────
