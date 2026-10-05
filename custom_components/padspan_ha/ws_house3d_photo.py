@@ -568,14 +568,17 @@ def _remove(folder: Path, path: Path) -> None:
 
 def _sweep(base: Path, reading: set[str]) -> None:
     """Remove the photo folders left by a call that never got to its
-    `finally`: every one in the media folder but those being read now."""
+    `finally`: every one in the media folder but those being read now.
+    `reading` is the live set, checked again just before each removal: a read
+    that starts while this runs adds its folder's name before it makes the
+    folder, so its photo is never taken from under it."""
     try:
         left = [p for p in base.iterdir() if p.name.startswith(_FOLDER) and p.name not in reading]
     except OSError:
         return
     for folder in left:
         try:
-            if folder.is_symlink() or not folder.is_dir():
+            if folder.name in reading or folder.is_symlink() or not folder.is_dir():
                 continue
             for f in folder.iterdir():
                 f.unlink(missing_ok=True)
@@ -597,7 +600,7 @@ async def ask(hass: HomeAssistant, eid: str, instructions: str, structure: dict,
         raise _NoMedia
     dir_id, base = media
     reading = hass.data.setdefault(DOMAIN, {}).setdefault(_READING, set())
-    await hass.async_add_executor_job(_sweep, base, set(reading))
+    await hass.async_add_executor_job(_sweep, base, reading)
     folder = base / f"{_FOLDER}{secrets.token_hex(16)}"
     path = folder / f"photo{_MIME[mime]}"
     reading.add(folder.name)

@@ -193,7 +193,7 @@ export function pieceFor(cand, kind, floorId, tools){
  *  command's answer, the house (model_get) and the 3D file (house3d_get):
  *  {levels, rep, cands, floors, keys, floorOf, reading, kinds, pick, kind,
  *  placed}. A candidate's id that is already in the 3D file gets a new one. */
-export function choiceOf(prev, model, file3d, current, tools){
+export function choiceOf(prev, model, file3d, current, tools, pending = 0){
   const levels = Array.isArray(prev && prev.levels) ? prev.levels : [];
   const rep0 = (prev && prev.report) || {};
   const rep = { pieces: { ...(rep0.pieces || {}) }, openings: { ...(rep0.openings || {}) },
@@ -227,7 +227,8 @@ export function choiceOf(prev, model, file3d, current, tools){
   const have = (sec) => Object.keys((d[sec] && typeof d[sec] === "object") ? d[sec] : {}).length;
   const S = { levels, rep, cands, floors, keys, floorOf: defaultFloors(keys, levels, floors, current),
               reading: readingOf(model, file3d), kinds, pick, kind, kind0: { ...kind }, placed: {},
-              room: { all: MAX_CHANGES, pieces: Math.max(0, MAX_PIECES - have("pieces")),
+              // Changes already waiting in the Furnish draft go in the same Save.
+              room: { all: Math.max(0, MAX_CHANGES - (Number(pending) || 0)), pieces: Math.max(0, MAX_PIECES - have("pieces")),
                       openings: Math.max(0, MAX_OPENINGS - have("openings")) }, capped: 0 };
   placeAll(S);
   // One Save takes only so much (house3d_store.py): what is past it starts
@@ -363,7 +364,7 @@ export function importFlow(ctx){
         ]);
         if (mine !== token) return;
         fileName = String(file.name || "");
-        S = choiceOf(prev, model, file3d, ctx.floor, tools);
+        S = choiceOf(prev, model, file3d, ctx.floor, tools, ctx.pending);
         render();
       } catch (err) {
         if (mine !== token) return;

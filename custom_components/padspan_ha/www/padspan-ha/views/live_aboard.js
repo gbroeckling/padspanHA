@@ -1182,7 +1182,7 @@ function createSlot(slotKey){
     const em = Array.isArray(p.emergency) && p.emergency.length ? new Set(p.emergency.map(String)) : null;
     let changed = devices.sync(vd.pieces, { states: p.states || {}, regIds: p.regIds || null, entities: p.entities || null, lbe, emergency: em });
     for (const L of lights) {
-      const s = devices.has(L.eid);
+      const s = devices.has(L.eid, L.kind === "fan" || (L.l && L.l.isFan) ? "spin" : "glow");
       if (s !== !!L.swap) { L.swap = s; L.key = null; changed = true; }
     }
     if (outlineFixtures(em)) changed = true;

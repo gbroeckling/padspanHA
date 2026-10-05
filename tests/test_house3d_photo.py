@@ -553,3 +553,50 @@ def test_each_outcome_is_counted_by_name_only(monkeypatch, tmp_path, disk):
     src = inspect.getsource(P)
     for e in T.PHOTO_EVENTS:
         assert f'"{e}"' in src, f"{e} has a real call site"
+
+
+def test_two_reads_started_together_never_take_each_others_photo(monkeypatch, tmp_path, disk):
+    """The leftover sweep runs on the executor while another read may be
+    starting: it checks the LIVE set of photos being read just before each
+    removal, so a read that started in the meantime keeps its photo (the
+    re-check's repro: the second read's listing ran after the first wrote)."""
+    import asyncio
+    import threading
+
+    from tests.test_house3d_store import _run as run
+
+    h, conn, ai, media = _ready(monkeypatch, tmp_path, answer=dict(_SOFA))
+    wrote_first = threading.Event()
+    seen = []
+    orig_sweep, orig_write = P._sweep, P._write
+    n = {"sweep": 0}
+
+    def sweep(base, reading):
+        n["sweep"] += 1
+        if n["sweep"] == 2:            # the second read's listing runs a little later, on its thread
+            wrote_first.wait(5)
+        return orig_sweep(base, reading)
+
+    def write(folder, path, raw):
+        orig_write(folder, path, raw)
+        wrote_first.set()
+    monkeypatch.setattr(P, "_sweep", sweep)
+    monkeypatch.setattr(P, "_write", write)
+
+    async def _ex(fn, *args):
+        return await asyncio.get_running_loop().run_in_executor(None, fn, *args)
+    h.async_add_executor_job = _ex
+
+    async def _ai(domain, service, data, blocking=False, return_response=False):
+        f = media / data["attachments"][0]["media_content_id"].removeprefix("media-source://media_source/local/")
+        await asyncio.sleep(0.2)
+        seen.append(f.is_file())
+        return {"data": dict(_SOFA)}
+    h.services.async_call = _ai
+
+    async def both():
+        return await asyncio.gather(P.ask(h, _AI, "i", {}, _JPEG, "image/jpeg"),
+                                    P.ask(h, _AI, "i", {}, _JPEG, "image/jpeg"), return_exceptions=True)
+    out = run(both())
+    assert seen == [True, True], (seen, out)
+    assert not any(isinstance(o, BaseException) for o in out), out

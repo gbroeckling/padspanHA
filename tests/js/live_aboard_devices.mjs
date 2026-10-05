@@ -454,4 +454,19 @@ await tryCase("view: a sofa linked to a light leaves the light and its fixture i
   await settle();
 });
 
+// A fan placed on the Atlas and a Fan piece linked to it: the piece stands in
+// for the fixture (one fan is drawn, not two); a sofa still never does.
+await tryCase("view: a Fan piece linked to a placed fan stands in for its fixture", async () => {
+  MODEL.light_positions_m["fan.ceiling"] = { x_m: 8, y_m: 3, floor_id: "main", shape: "fan" };
+  const h = mount("devices-fanswap", "low");
+  await later(10000, 60);
+  const s = h.slot._state();
+  check("view: a Fan piece linked to a placed fan stands in for its fixture",
+    s.swapped.includes("fan.ceiling") && s.swapped.includes("light.dim") && !s.swapped.includes("light.kitchen"),
+    { swapped: s.swapped, lights: s.lights });
+  LA.releaseLiveAboardSlot("devices-fanswap");
+  delete MODEL.light_positions_m["fan.ceiling"];
+  await settle();
+});
+
 console.log(JSON.stringify({ cases, failures }));

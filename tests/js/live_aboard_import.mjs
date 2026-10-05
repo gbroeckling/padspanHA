@@ -149,6 +149,7 @@ async function opened(previewKey, opts = {}){
   const ctx = { el, callWS: ha.callWS, wsCall: ha.callWS, toast: (t, bad) => toasts.push({ t, bad }), settings: {},
                 floor: opts.floor || { id: "main", name: "Main" }, room: null, recipeTools: opts.tools === undefined ? FAKE : opts.tools };
   if (opts.draft) ctx.draft = opts.draft;
+  if (opts.pending !== undefined) ctx.pending = opts.pending;
   let result;
   const p = IM.importFlow(ctx).then(v => { result = v; return v; });
   const input = walk(el).find(n => n.localName === "input");
@@ -465,6 +466,16 @@ await tryCase("save: a file bigger than one Save starts with what one Save takes
   over.click(); await settle();
   check("save: ticking more than one Save takes is said on the button, and nothing is added", over.disabled === true
     && textOf(over).startsWith("Too many for one Save") && g.result === undefined, textOf(over));
+});
+
+// Changes already waiting in the Furnish draft go in the same Save: the
+// import's room is what is left of the 1000 (the re-check's case: 10 unsaved
+// deletions plus a file of 1200).
+await tryCase("save: changes already waiting in the draft leave less room for the import", async () => {
+  const f = await opened("big", { pending: 10 });
+  const r = await add(f);
+  const n = Object.keys(r.pieces).length + Object.keys(r.openings).length;
+  check("save: changes already waiting in the draft leave less room for the import", n === IM.MAX_CHANGES - 10, { n });
 });
 
 console.log(JSON.stringify({ cases, failures, payloads, pieces: piecesOut, big }));

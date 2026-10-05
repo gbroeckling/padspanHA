@@ -368,9 +368,11 @@ export function createDeviceLayer(ctx){
       box.getSize(o.scale);
       return o;
     },
-    /** Is a lamp showing the light eid (its fixture then steps aside)? A
-     *  piece that cannot glow (a sofa linked to a light) leaves it in place. */
-    has(eid){ for (const R of recs.values()) if (R.eid === eid && R.live === "glow" && R.root.parent) return true; return false; },
+    /** Is a piece showing what the fixture of eid shows (the fixture then
+     *  steps aside)? `live`: "glow" for a light's fixture (a lamp), "spin"
+     *  for a fan's (a fan). A piece that cannot show it (a sofa linked to a
+     *  light, a lamp linked to a fan) leaves the fixture in place. */
+    has(eid, live = "glow"){ for (const R of recs.values()) if (R.eid === eid && R.live === live && R.root.parent) return true; return false; },
     /** Linked pieces on a floor that shows, for a press: {id, eid, root}. */
     pickable(){ return [...recs.values()].filter(R => R.eid && shown(R)).map(R => ({ id: R.id, eid: R.eid, root: R.root })); },
     /** Lamps glowing on a floor that shows: where their light comes from. */
