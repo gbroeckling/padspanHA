@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.98 — Share your furniture (2026-10-04)
+
+### Live Aboard
+- **Added:** the shared furniture library is open. Turn on Settings → UI Structure → Atlas — Mapped Light Control → 🏠 Live Aboard → **Shared library** (administrators), then share a piece from its panel in Mapping → Furnish (**Share…**): you accept the library's terms once, fill in its details sheet, and other PadSpan houses can find it, filter it and place it. Only the piece's shape, sizes, colours and details sheet are shared — never a photo, your floor plan, where it sits, its name in your house, a linked device or anything about you. **Withdraw my shared furniture** in the same settings takes yours out again. With the switch off, Library shows the starter pieces and nothing leaves your house.
+- **Fixed:** undoing a PadSpan Bright import (restoring the backup it took first) now also takes away a Live Aboard file the import created on a house that had none.
+
+---
+
 ## 0.38.97 — A starter set of furniture (2026-10-04)
 
 ### Live Aboard
