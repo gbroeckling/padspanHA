@@ -286,7 +286,7 @@ tryCase("lights: each kind hangs at its own default height", () => {
   const ok = near(m("pot"), ceil - 0.012) && near(m("pendant"), ceil - 0.6) && near(m("strip"), ceil - 0.12) && m("sconce") === 1.7
     && m("led") === 1.35 && near(m("fan"), ceil - 0.36) && near(m("fixture"), ceil) && m("pendant") < m("fan") && m("fan") < m("pot")
     && Object.keys(H.MOUNT).sort().join() === "accent,chandelier,cove,fan,fixture,glow,kick,lamp,led,panel,pendant,perimeter,pot,pot_ring,"
-      + "sconce,spot,strip,track,tube,tv,undercab,valance,vanity"
+      + "sconce,spot,string,strip,track,tube,tv,undercab,valance,vanity"
     && H.LIGHT_KINDS.every(([k]) => k in H.MOUNT)
     && Object.values(H.KIND_OF_SHAPE).every(k => k in H.MOUNT)
     && LC.LIGHT_SHAPES.filter(([k]) => H.KIND_OF_SHAPE[k]).length === 12;

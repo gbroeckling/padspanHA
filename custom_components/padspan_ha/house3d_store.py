@@ -354,15 +354,98 @@ def _piece(pid: str, e: dict, stamp: str) -> dict:
 
 
 # A light's 3D-only entry: its height {z_m} and/or what it is in Live Aboard
-# {kind} (a pot, a valance, a lamp...; 3D only, the map is never written). The
-# entry is the editor's whole: a key it leaves out goes. A kind is a short
-# word, and one this version does not draw is still kept (drawn as guessed).
-_LIGHT_OWNED = frozenset(("z_m", "kind"))
+# {kind} (a pot, a valance, a lamp...; 3D only, the map is never written), and
+# where an LED strip or a string of lights really goes {run} (the Strip
+# tool). The entry is the editor's whole: a key it leaves out goes. A kind is
+# a short word, and one this version does not draw is still kept (drawn as
+# guessed).
+_LIGHT_OWNED = frozenset(("z_m", "kind", "run"))
+# A run: pts [[x, y, h], ...] in metres, 2 to 64 of them: x and y on the
+# light's own floor (or across and to the front of a piece of furniture when
+# it is on one, "piece"), h above that floor (above the piece's bottom). face:
+# which way it shines. loop: the last point joins the first. A string of
+# lights hangs in a swag (sag_m) with a bulb every spacing_m; gaps: the
+# stretches that are only wire (a jump past a door), by number from 0.
+RUN_FACES = ("up", "down", "room", "wall")
+RUN_PTS_MAX, RUN_SEG_MIN_M, RUN_MAX_M = 64, 0.05, 100.0
+RUN_SAG_MAX_M, RUN_SPACING_M = 1.5, (0.15, 2.0)
+_RUN_KEYS = frozenset(("pts", "face", "loop", "piece", "sag_m", "spacing_m", "gaps"))
+
+
+def _run(k: str, r: Any) -> dict:
+    """A light's run, checked: every point in range, every stretch at least
+    5 cm, at most 100 m in all."""
+    if not isinstance(r, dict) or set(r) - _RUN_KEYS or not {"pts", "face", "loop"} <= set(r):
+        raise EditError(f"{k}: a run is {{pts, face, loop}}, and piece, sag_m, spacing_m and gaps if it has them")
+    pts = r["pts"]
+    if not isinstance(pts, list) or not 2 <= len(pts) <= RUN_PTS_MAX:
+        raise EditError(f"{k}: a run has 2 to {RUN_PTS_MAX} points")
+    clean = []
+    for i, p in enumerate(pts, 1):
+        if not isinstance(p, (list, tuple)) or len(p) != 3:
+            raise EditError(f"{k}: run point {i} must be [x, y, height] in metres")
+        clean.append([_num(p[0], -COORD_MAX_M, COORD_MAX_M, f"{k} run point {i} x"),
+                      _num(p[1], -COORD_MAX_M, COORD_MAX_M, f"{k} run point {i} y"),
+                      _num(p[2], 0.0, HEIGHT_MAX_M, f"{k} run point {i} height")])
+    loop = r["loop"]
+    if not isinstance(loop, bool):
+        raise EditError(f"{k}: run loop must be true or false")
+    if loop and len(clean) < 3:
+        raise EditError(f"{k}: a run round a loop has at least 3 points")
+    segs = list(zip(clean, clean[1:])) + ([(clean[-1], clean[0])] if loop else [])
+    total = 0.0
+    for i, (a, b) in enumerate(segs, 1):
+        d = math.dist(a, b)
+        if d < RUN_SEG_MIN_M - 1e-9:
+            raise EditError(f"{k}: each stretch of a run is at least 5 cm (stretch {i} is {d * 100:.1f} cm)")
+        total += d
+    if total > RUN_MAX_M + 1e-9:
+        raise EditError(f"{k}: a run is at most {RUN_MAX_M:g} m long")
+    out: dict[str, Any] = {"pts": clean, "face": _pick(r["face"], RUN_FACES, f"{k} run face"), "loop": loop}
+    if "piece" in r:
+        if not isinstance(r["piece"], str) or not PIECE_ID.fullmatch(r["piece"]):
+            raise EditError(f"{k}: run piece must be a piece's id (fur_ + 8 hex digits)")
+        out["piece"] = r["piece"]
+    if "sag_m" in r:
+        out["sag_m"] = _num(r["sag_m"], 0.0, RUN_SAG_MAX_M, f"{k} run sag_m")
+    if "spacing_m" in r:
+        out["spacing_m"] = _num(r["spacing_m"], *RUN_SPACING_M, f"{k} run spacing_m")
+    if "gaps" in r:
+        g = r["gaps"]
+        if (not isinstance(g, list) or len(set(map(repr, g))) != len(g) or len(g) >= len(segs)
+                or not all(isinstance(i, int) and not isinstance(i, bool) and 0 <= i < len(segs) for i in g)):
+            raise EditError(f"{k}: run gaps are the numbers of some of its stretches, each once, not all of them")
+        out["gaps"] = sorted(g)
+    return out
+
+
+def piece_point(piece: dict, p: list) -> list:
+    """A run's point on a piece (across, to the front, above its bottom) as a
+    point on its floor: the piece's own frame (live_aboard_pieces.js boxOf)."""
+    t = math.radians((piece.get("rotation") or 0.0) % 360.0)
+    x, y, z = (float(piece.get(k) or 0.0) for k in ("x_m", "y_m", "z_m"))
+    return [round(x + math.cos(t) * p[0] - math.sin(t) * p[1], 3), round(y + math.sin(t) * p[0] + math.cos(t) * p[1], 3),
+            round(min(HEIGHT_MAX_M, z + p[2]), 3)]
+
+
+def detach_runs(lights: dict, gone: dict) -> None:
+    """Runs on pieces that are gone (`gone`: id → the piece as it was) stay
+    where they were: plain points on the floor, in place."""
+    for e in lights.values():
+        run = e.get("run") if isinstance(e, dict) else None
+        piece = gone.get(run.get("piece")) if isinstance(run, dict) else None
+        if not isinstance(piece, dict) or not isinstance(run.get("pts"), list):
+            continue
+        try:
+            pts = [piece_point(piece, p) for p in run["pts"]]
+        except (TypeError, ValueError, IndexError):
+            continue
+        e["run"] = {**{k: v for k, v in run.items() if k != "piece"}, "pts": pts}
 
 
 def _light_entry(k: str, v: dict) -> dict:
     if not v or set(v) - _LIGHT_OWNED:
-        raise EditError(f"{k}: a light has a height {{z_m}} and/or a kind {{kind}}")
+        raise EditError(f"{k}: a light has a height {{z_m}}, a kind {{kind}} and/or a run {{run}}")
     out: dict[str, Any] = {}
     if "z_m" in v:
         out["z_m"] = _num(v["z_m"], 0.0, HEIGHT_MAX_M, f"{k} z_m")
@@ -370,6 +453,8 @@ def _light_entry(k: str, v: dict) -> dict:
         if not isinstance(v["kind"], str) or not _KIND.fullmatch(v["kind"]):
             raise EditError(f"{k}: kind must be a short word (a-z, 0-9 and _)")
         out["kind"] = v["kind"]
+    if "run" in v:
+        out["run"] = _run(k, v["run"])
     return out
 
 
@@ -453,6 +538,23 @@ def apply_edit(data: Any, changes: Any) -> dict[str, Any]:
             raise EditError(f"{section}: at most {_CAPS[section]}")
     if not n:
         raise EditError("nothing to save")
+    # A piece removed takes no strip with it: a run on it stays where it was.
+    detach_runs(out["lights"], {pid: p for pid, p in base["pieces"].items() if pid not in out["pieces"]})
+    for key in changes.get("lights") or {}:
+        e = out["lights"].get(key)
+        run = e.get("run") if isinstance(e, dict) else None
+        if isinstance(run, dict) and "piece" in run and run["piece"] not in out["pieces"]:
+            raise EditError(f"{key}: its run is on a piece that is not there")
+    return out
+
+
+def without_pieces(data: dict) -> dict:
+    """The file with no furniture ("Remove all furniture"): the runs that
+    were on pieces stay where they were."""
+    out = {**data, "pieces": {}}
+    if isinstance(data.get("lights"), dict) and isinstance(data.get("pieces"), dict) and data["pieces"]:
+        out["lights"] = copy.deepcopy(data["lights"])
+        detach_runs(out["lights"], data["pieces"])
     return out
 
 
