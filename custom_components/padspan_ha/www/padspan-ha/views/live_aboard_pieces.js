@@ -235,7 +235,7 @@ export function snapToWall(p, size, walls, reach = SNAP_M){
 export const NUDGE_M = [0.01, 0.1];        // an arrow key moves a piece 1 cm, with Shift 10 cm
 export const FINE_TURN = 1;                // [ and ] with Shift turn it 1° (without, onto the next 15°)
 export const GAP_REACH_M = 8;              // the walls measured to while placing are this near at most
-export const HANG_REACH_M = 3;             // Hang on wall: the nearest wall this near
+export const HANG_REACH_M = 8;             // Hang on wall: the nearest wall, this near at most (across a big room)
 export const HANG_MID_M = 1.4;             // Hang on wall: its middle this high, unless it is raised already
 export const COORD_MAX_M = 10000;          // the server's range for x and y (house3d_store.py)
 

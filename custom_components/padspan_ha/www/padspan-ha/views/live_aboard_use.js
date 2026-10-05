@@ -161,8 +161,11 @@ export function createUseSurface(o){
     if (!card) return;
     const at = o.screenOf(card.t);
     if (!at || at.poly) { card.el.style.visibility = "hidden"; return; }
+    // Under it (its name is over it), or over its name when there is no room below.
     const W = o.root.clientWidth || 0, H = o.root.clientHeight || 0, w = card.el.offsetWidth || 200, h = card.el.offsetHeight || 80;
-    const x = W ? Math.max(6, Math.min(at.x + 16, W - w - 6)) : at.x + 16, y = H ? Math.max(6, Math.min(at.y - h / 2, H - h - 6)) : at.y;
+    const x = W ? Math.max(6, Math.min(at.x - w / 2, W - w - 6)) : at.x - w / 2;
+    let y = at.y + 22;
+    if (H && y + h > H - 6) y = Math.max(6, at.y - h - 52);
     card.el.style.left = `${Math.round(x)}px`; card.el.style.top = `${Math.round(y)}px`; card.el.style.visibility = "";
   }
   function closeCard(){ if (card) { try { card.el.remove(); } catch (_) { /* gone with the view */ } card = null; } }
