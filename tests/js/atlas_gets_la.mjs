@@ -228,15 +228,15 @@ await tryCase("alone: zoomed in the bars step aside; ☰, Escape and zooming out
   const sc = SCREEN.flatScreen({ slot: "t-alone", card: a.c, stage: a.s, zoom: 1, shown: () => lit });
   a.c.appendChild(sc.anchor);
   const st = () => ({ ...sc.state(), cls: a.c.classList.contains("lv-alone"), pos: a.s.style.position, left: a.s.style.left, w: a.s.style.width, h: a.s.style.height });
-  sc.zoomed(1.1); const notYet = st();
-  sc.zoomed(1.3); const alone = st();
+  sc.zoomed(1.1, true); const notYet = st();
+  sc.zoomed(1.3, true); const alone = st();
   const solo = a.c._all().find(n => n.className === "lv-alone-solo");
   solo.click(); const back = st();
-  sc.zoomed(1.4); const sameStays = st();
-  sc.zoomed(1.7); const further = st();
+  sc.zoomed(1.4, true); const sameStays = st();
+  sc.zoomed(1.7, true); const further = st();
   fireWin("keydown", { key: "Escape" }); const esc = st();
-  sc.zoomed(1.0); const out = st();
-  sc.zoomed(1.3); const again = st();
+  sc.zoomed(1.0, true); const out = st();
+  sc.zoomed(1.3, true); const again = st();
   // The poll builds a new card: still alone, painted at once.
   const b = mk();
   SCREEN.flatScreen({ slot: "t-alone", card: b.c, stage: b.s, zoom: 1.3, shown: () => lit });
@@ -244,7 +244,7 @@ await tryCase("alone: zoomed in the bars step aside; ☰, Escape and zooming out
   // Live Aboard shows instead: the flat map is not alone, and zooming changes nothing.
   lit = false;
   const sc2 = SCREEN.flatScreen({ slot: "t-alone", card: b.c, stage: b.s, zoom: 1.3, shown: () => lit });
-  sc2.zoomed(2.2);
+  sc2.zoomed(2.2, true);
   const laShows = { ...sc2.state(), cls: b.c.classList.contains("lv-alone"), anchor: sc2.anchor.style.display };
   SCREEN.dropFlatScreen("t-alone");
   check("alone: zoomed in the bars step aside; ☰, Escape and zooming out bring them back; a new card keeps it",
@@ -312,6 +312,26 @@ await tryCase("alone: the sidebar card goes alone from its own Zoom +, keeps it 
   SCREEN.dropFlatScreen("atlas");
   check("alone: the sidebar card goes alone from its own Zoom +, keeps it on the next card, and Mapping's never does",
     first.cls && first.zoom === 1.3 && first.anchorNext === "lv-alone-anchor" && second && !mapping.cls && mapping.anchors === 0, { first, second, mapping });
+});
+
+await tryCase("alone: a zoom not by hand never hides the bars: the saved zoom after the first card, a preset, a floor's", async () => {
+  SCREEN.dropFlatScreen("atlas");
+  const view = { floorGap: 150, horizGap: 0, focusIdx: 0, zoom: 1 };
+  const first = card({ view }).c.classList.contains("lv-alone");     // the first card, before the settings
+  view.zoom = 1.5;                                                   // the saved zoom arrives
+  const saved = card({ view }).c.classList.contains("lv-alone");
+  view.zoom = 2.0;                                                   // a preset's zoom
+  const preset = card({ view }).c.classList.contains("lv-alone");
+  // By hand, it still goes alone; and back out from outside, the bars come back.
+  const b = card({ view });
+  const zin = b.c._all().find(n => n.localName === "button" && n.getAttribute("title") === "Zoom in");
+  zin.click();
+  const byHand = b.c.classList.contains("lv-alone");
+  view.zoom = 1;
+  const outside = card({ view }).c.classList.contains("lv-alone");
+  SCREEN.dropFlatScreen("atlas");
+  check("alone: a zoom not by hand never hides the bars: the saved zoom after the first card, a preset, a floor's",
+    !first && !saved && !preset && byHand && !outside, { first, saved, preset, byHand, outside });
 });
 
 // ── tap: a double-tap on a room; a light double-tapped switches once ────────

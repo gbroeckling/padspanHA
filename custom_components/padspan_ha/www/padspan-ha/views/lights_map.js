@@ -3062,7 +3062,7 @@ export function buildLightsMapCard(hostIn){
         }
         const t = SCREEN.roomZoom(box, vb.width, Math.max(1, isoDiv.clientWidth - 20), Math.max(1, Math.min(isoDiv.clientHeight, window.innerHeight || isoDiv.clientHeight) - 20));
         view.zoom = t.zoom;
-        applyZoom();
+        applyZoom(true);
         // Its middle in the middle of the stage, wherever the stage is now.
         const svg2 = isoDiv.querySelector("svg"), m = svg2 && svg2.getScreenCTM ? svg2.getScreenCTM() : null;
         if (!m) return;
@@ -3108,9 +3108,9 @@ export function buildLightsMapCard(hostIn){
   // come back above it, so a zoom change across that line is a rebuild, not
   // just a CSS width. The builder always shows codes (host.codeChip unset).
   let codesShown = null;
-  const applyZoom = () => {
-    // By hand past the whole house: the map alone; back out: the bars.
-    if (scr) scr.zoomed(view.zoom);
+  const applyZoom = (byHand = false) => {
+    // By hand past the whole house: the map alone; back out (any way): the bars.
+    if (scr) scr.zoomed(view.zoom, byHand);
     const svg = isoDiv.querySelector("svg");
     if (!svg) return;
     // Width, V2 or classic alike: a plain CSS percentage of the stage,
@@ -3161,7 +3161,7 @@ export function buildLightsMapCard(hostIn){
     const prev = view.zoom || 1;
     const bx = (isoDiv.scrollLeft + cx) / prev, by = (isoDiv.scrollTop + cy) / prev;
     view.zoom = next;
-    applyZoom();
+    applyZoom(true);
     isoDiv.scrollLeft = bx * next - cx;
     isoDiv.scrollTop = by * next - cy;
   };
@@ -3660,19 +3660,19 @@ export function buildLightsMapCard(hostIn){
   // fit, and the middle says its zoom against that fit.
   const zoomMid = el("button", { title: "Reset zoom", onclick: () => {
     if (la3dDo(s => s.zoom("fit"))) return;
-    view.zoom = 1.0; applyZoom();
+    view.zoom = 1.0; applyZoom(true);
   } }, "100%");
   ctrlRow.appendChild(el("span", { class: "lv-zoomseg" }, [
     el("button", { title: "Zoom out", onclick: () => {
       if (la3dDo(s => s.zoom("out"))) return;
       view.zoom = Math.max(0.4, Math.round((view.zoom - 0.1) * 10) / 10);
-      applyZoom();
+      applyZoom(true);
     } }, "−"),
     zoomMid,
     el("button", { title: "Zoom in", onclick: () => {
       if (la3dDo(s => s.zoom("in"))) return;
       view.zoom = Math.min(2.5, Math.round((view.zoom + 0.1) * 10) / 10);
-      applyZoom();
+      applyZoom(true);
     } }, "+"),
   ]));
   if (h3) {

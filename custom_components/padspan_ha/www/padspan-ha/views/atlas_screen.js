@@ -211,8 +211,9 @@ function fullChanged(st){
  * The flat map's screen ways on one new card (the sidebar host only).
  * o = {slot, card (the map card), stage (its stage), zoom (the view's now),
  *      shown() (false while Live Aboard shows instead)}
- * → {anchor (☰ and ⛶: put it right after the stage), zoomed(z) (after any
- *    zoom: by hand, the bars step aside or come back), paint(), state()}
+ * → {anchor (☰ and ⛶: put it right after the stage), zoomed(z, byHand)
+ *    (after any zoom: only one by hand steps the bars aside; any zoom back
+ *    out brings them back), paint(), state()}
  */
 export function flatScreen(o){
   const st = flatState(o.slot);
@@ -251,11 +252,13 @@ export function flatScreen(o){
   paint(st);
   return {
     anchor,
-    zoomed(z){
+    zoomed(z, byHand = false){
       const prev = st.zoom, next = Number(z) || 1;
       st.zoom = next;
       if (prev === next || !shownOf(st)) return;
-      const s = soloStep({ at: 1 / next, fit: 1, bare: st.bare, hold: st.hold, inward: next > prev });
+      // A zoom not by hand (the saved zoom arriving after the first card, a
+      // preset, a floor's remembered zoom) never hides the bars by itself.
+      const s = soloStep({ at: 1 / next, fit: 1, bare: st.bare, hold: st.hold, inward: byHand && next > prev });
       st.hold = s.hold;
       if (s.bare !== st.bare) setBare(st, s.bare, false);
     },
