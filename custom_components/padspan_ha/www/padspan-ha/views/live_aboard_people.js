@@ -352,12 +352,10 @@ export async function peopleFlow(ctx){
   const F = ctx.recipeTools;
   const call = ctx.callWS || ctx.wsCall;
   const m = peopleMachine({ F, callWS: call, hass: ctx.hass });
-  addCss();
-  if (!document.getElementById("la3d-people-css")) {
-    document.head.appendChild(Object.assign(document.createElement("style"), { id: "la3d-people-css", textContent: CSS }));
-  }
-  const root = el("div", { class: "la3d-flow la3d-people" });
+  const root = el("div", { class: "la3d-pflow la3d-people" });
   ctx.el.replaceChildren(root);
+  addCss(ctx.el);
+  addCss(ctx.el, CSS);
   let preview = null, shot = null;
 
   return new Promise((resolve) => {

@@ -50,6 +50,7 @@ installStubGL();
 const LA = await import(pathToFileURL(join(WWW, "views", "live_aboard.js")).href);
 const P_ = await import(pathToFileURL(join(WWW, "views", "live_aboard_pieces.js")).href);
 const FURN = await import(pathToFileURL(join(WWW, "views", "live_aboard_furniture.js")).href).catch(() => null);
+const LIB = await import(pathToFileURL(join(WWW, "views", "live_aboard_library.js")).href).catch(() => null);
 
 const failures = [];
 const cases = {};
@@ -85,15 +86,36 @@ const editFn = async (changes) => {
   return { data: clone(next), counts: {} };
 };
 const ws = [], tops = [];
-const callWS = async (msg) => { ws.push(clone(msg)); return msg.type === "config/entity_registry/get" ? { id: "0123456789abcdef0123456789abcdef" } : {}; };
+// What the flows read through the host: Home Assistant's states, the house,
+// the saved 3D file, and an Import preview (one wall cabinet, high on its wall).
+const PREVIEW = { levels: [], openings: {},
+  pieces: { fur_0000c0de: { id: "fur_0000c0de", recipe: { kind: "other", width_m: 0.8, depth_m: 0.35, height_m: 0.7 }, label: "Wall cabinet",
+                            x_m: 7, y_m: 2, z_m: 2.3, rotation: 0 } },
+  report: { pieces: { fur_0000c0de: { name: "Wall cabinet", level_id: null } }, openings: {}, skipped: [], warnings: [] } };
+const callWS = async (msg) => {
+  ws.push(clone(msg));
+  if (msg.type === "config/entity_registry/get") return { id: "0123456789abcdef0123456789abcdef" };
+  if (msg.type === "get_states") return Object.values(clone(states));
+  if (msg.type === "padspan_ha/model_get") return clone(MODEL);
+  if (msg.type === "padspan_ha/house3d_get") return { data: clone(server.file), writable: true, counts: {} };
+  if (msg.type === "padspan_ha/house3d_import_preview") return clone(PREVIEW);
+  return {};
+};
 const states = { "media_player.lounge_tv": { entity_id: "media_player.lounge_tv", state: "off", attributes: { friendly_name: "Lounge TV" } },
                  "light.den": { entity_id: "light.den", state: "on", attributes: { friendly_name: "Den light" } },
-                 "sensor.den_temp": { entity_id: "sensor.den_temp", state: "21", attributes: { friendly_name: "Den temperature" } } };
+                 "sensor.den_temp": { entity_id: "sensor.den_temp", state: "21", attributes: { friendly_name: "Den temperature" } },
+                 "person.alice": { entity_id: "person.alice", state: "home", attributes: { friendly_name: "Alice" } } };
+// A file picked in the page, read as the browser would (Import).
+globalThis.FileReader = class {
+  readAsDataURL(f){ Promise.resolve().then(() => { this.result = `data:application/octet-stream;base64,${f._b64}`; if (this.onload) this.onload(); }); }
+};
 
 // ── the view, as Mapping → Furnish mounts it ────────────────────────────────
 const slot = LA.liveAboardSlot("furnish-harness");
 let topIds = null;                               // the host's floor chips (null: every floor)
-const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: {}, hidden: new Set(), topFloorIds: topIds, quality: "low",
+let over = {};                                   // the card's data on another screen (furnish: null is Mapping → Atlas)
+const P = () => ({ ...P0(), ...over });
+const P0 = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: {}, hidden: new Set(), topFloorIds: topIds, quality: "low",
   telemetry: () => {}, states, config: {}, bearing: 0, saveNorth: null, useApi: () => null, haStartedMs: 0,
   load: async () => ({ data: clone(server.file) }), edit: editFn,
   furnish: { callWS, toast: () => {}, settings: { atlas_3d_enabled: true }, entities: {} },
@@ -324,4 +346,164 @@ await tryCase("survive: card rebuilds mid-edit keep the draft, the pick and the 
     before.dirty && JSON.stringify(before) === JSON.stringify(after) && ed().editing && ed().tool === "furnish", { before, after });
 });
 
-console.log(JSON.stringify({ cases, failures, payloads }));
+// ── share ───────────────────────────────────────────────────────────────────
+const LIVE = !!(LIB && LIB.LIBRARY_SERVER_LIVE);
+await tryCase("share: a piece's panel offers Share only while the shared library's server is live", async () => {
+  slot._furnish().select(sofa); await settle();
+  check("share: a piece's panel offers Share only while the shared library's server is live",
+    !!button("Duplicate", "la3d-sheet") && !!button("Share…", "la3d-sheet") === LIVE, { LIVE, buttons: buttonsIn("la3d-sheet").map(b => b.textContent) });
+});
+
+// ── the flows, in Furnish's own box ─────────────────────────────────────────
+const flowBox = () => root().querySelectorAll(".la3d-flow")[0] || null;
+const flowBody = () => { const b = flowBox(); return b ? b.children[0].children[1] : null; };
+const inFlow = (label) => { const b = flowBox(); return b ? b._all().find(n => n.localName === "button" && n.textContent.startsWith(label)) || null : null; };
+async function openFlowNamed(label){ click(label, "la3d-tools"); await settle(30); return flowBody(); }
+async function closeX(){
+  const b = flowBox(), x = b ? b.children[0].children[0].querySelectorAll("button").find(n => n.textContent === "×") : null;
+  if (x) x.click();
+  await settle(20);
+}
+await tryCase("flowcss: From a photo and People & devices draw with their own styles in Furnish's box, none in the page's head, and their boxes are not Furnish's", async () => {
+  const head0 = document.head.children.length, seen = {};
+  for (const label of ["From a photo", "People & devices"]) {
+    const body = await openFlowNamed(label);
+    const top = body ? body.children.find(c => c.localName !== "style") : null;
+    seen[label] = { open: !!top, styles: flowBox() ? flowBox()._all().filter(n => n.localName === "style").length : 0,
+                    cls: top ? top.className : null, head: document.head.children.length - head0 };
+    await closeX();
+  }
+  check("flowcss: From a photo and People & devices draw with their own styles in Furnish's box, none in the page's head, and their boxes are not Furnish's",
+    Object.values(seen).every(v => v.open && v.styles >= 1 && v.head === 0 && !String(v.cls).split(/\s+/).includes("la3d-flow")), seen);
+});
+await tryCase("flowclose: × and leaving Furnish end a flow, so it lets go of what it holds", async () => {
+  const res = {};
+  for (const label of ["Library", "People & devices"]) {
+    const body = await openFlowNamed(label);
+    const had = !!body && body.children.length > 0;
+    await closeX();
+    res[label] = { had, left: body ? body.children.length : -1, box: !!flowBox() };
+  }
+  // Mapping → Atlas with the Library open: it ends too.
+  const body = await openFlowNamed("Library");
+  over = { furnish: null }; poll(); await settle(20);
+  res.leave = { had: !!body, left: body ? body.children.length : -1, box: !!flowBox() };
+  over = {}; poll(); await settle(20);
+  check("flowclose: × and leaving Furnish end a flow, so it lets go of what it holds",
+    ["Library", "People & devices"].every(k => res[k].had && res[k].left === 0 && !res[k].box) && res.leave.had && res.leave.left === 0 && !res.leave.box, res);
+});
+
+// ── the flows start from the draft ─────────────────────────────────────────
+await tryCase("draft: People & devices starts from Furnish's draft: a figure made and not yet saved is there, with Remove", async () => {
+  const aliceRow = () => (flowBox() ? flowBox()._all().find(n => n.className === "item" && /Alice/.test(n.textContent)) : null) || null;
+  await openFlowNamed("People & devices");
+  const r0 = aliceRow();
+  const byHand = r0 ? r0.querySelectorAll("button").find(b => b.textContent === "By hand") : null;
+  if (byHand) byHand.click();
+  await settle(30);
+  if (inFlow("Keep")) inFlow("Keep").click();
+  await settle(20);
+  if (inFlow("Done")) inFlow("Done").click();
+  await settle(20);
+  const inDraft = !!((ed().draft || {}).figures || {})["person.alice"];
+  await openFlowNamed("People & devices");
+  const row = aliceRow(), said = row ? row.textContent : "";
+  const remove = !!row && row.querySelectorAll("button").some(b => b.textContent === "Remove");
+  if (inFlow("Cancel")) inFlow("Cancel").click();
+  await settle(20);
+  check("draft: People & devices starts from Furnish's draft: a figure made and not yet saved is there, with Remove",
+    inDraft && /Figure made by hand/.test(said) && remove && !(server.file.figures || {})["person.alice"], { inDraft, said, remove });
+});
+await tryCase("import: Import fits to Furnish's draft (it never reads the saved file), and what comes in sits under its floor's ceiling", async () => {
+  const n0 = ws.length;
+  await openFlowNamed("Import");
+  const input = flowBox() ? flowBox()._all().find(n => n.localName === "input" && n.getAttribute("accept") === ".sh3d") : null;
+  if (input) { input.files = [{ name: "cabinet.sh3d", size: 8, _b64: "UEsDBA==" }]; input.dispatchEvent({ type: "change", target: input }); }
+  await settle(30);
+  if (inFlow("Add 1")) inFlow("Add 1").click();
+  await settle(30);
+  const id = fur().sel, p = draftPieces()[id] || {}, h = P_.sizeOf(p.recipe || {}).h, top = P_.zMax(CEIL, h);
+  const reads = ws.slice(n0).map(m => m.type);
+  check("import: Import fits to Furnish's draft (it never reads the saved file)",
+    reads.includes("padspan_ha/house3d_import_preview") && !reads.includes("padspan_ha/house3d_get"), reads);
+  check("import: what comes in sits under its floor's ceiling",
+    p.origin === "import" && p.floor_id === "main" && near(p.z_m, top, 1e-6) && p.z_m < 2.3, { z: p.z_m, floor: p.floor_id, h, top });
+  if (p.origin === "import") { click("Delete", "la3d-sheet"); await settle(); }
+});
+
+// ── Build with the plan alone ───────────────────────────────────────────────
+await tryCase("planbuild: Build with only the plan showing puts the piece in the middle of the plan, where it was moved to", async () => {
+  slot._look(0.8, 0.9, [2.2, 0, 4], 18);              // the 3D view (hidden next) looks at Living
+  click("Plan"); await settle(20);
+  const split = st().split;
+  const a = slot._whereOf("main", 7.5, 4, 0.05, true), b = slot._whereOf("main", 5, 4, 0.05, true);
+  drag(a, b); await settle(20);
+  const plan = st().plan;
+  click("Build ▾", "la3d-tools");
+  click("Box", "la3d-furmenu");
+  await settle();
+  const p = draftPieces()[fur().sel] || {};
+  check("planbuild: Build with only the plan showing puts the piece in the middle of the plan, where it was moved to",
+    split === "plan" && plan.cx > 4.7 && near(p.x_m, plan.cx, 0.02) && near(p.y_m, plan.cy, 0.02), { split, plan, at: [p.x_m, p.y_m] });
+  if (p.id) { click("Delete", "la3d-sheet"); await settle(); }
+  click("3D"); await settle(20);
+});
+
+// ── leaving Furnish ─────────────────────────────────────────────────────────
+await tryCase("leave: Furnish left with nothing unsaved ends Edit; back in Furnish the Build bar is there again; unsaved work stays", async () => {
+  click("Save", "la3d-tools"); await settle(30);
+  const clean = ed().editing && !ed().dirty;
+  // Mapping → Atlas with Live Aboard picked: Edit does not come along.
+  over = { furnish: null }; poll(); await settle(20);
+  const atlas = { editing: ed().editing, tool: ed().tool };
+  over = {}; poll(); await settle(20);
+  const back1 = { editing: ed().editing, tool: ed().tool, build: shown(button("Build ▾", "la3d-tools")) };
+  // Mapping → Atlas with Map picked, then Furnish again.
+  slot.detach(); await settle(10);
+  poll(); await settle(20);
+  const back2 = { editing: ed().editing, tool: ed().tool, build: shown(button("Build ▾", "la3d-tools")) };
+  // With unsaved work, Edit and the work stay for Save, as before.
+  slot._furnish().select(sofa); click("⟳ 15°", "la3d-sheet"); await settle();
+  over = { furnish: null }; poll(); await settle(20);
+  const dirtyAtlas = { editing: ed().editing, dirty: ed().dirty };
+  over = {}; poll(); await settle(20);
+  const back3 = { editing: ed().editing, tool: ed().tool, dirty: ed().dirty };
+  click("Save", "la3d-tools"); await settle(30);
+  check("leave: Furnish left with nothing unsaved ends Edit; back in Furnish the Build bar is there again; unsaved work stays",
+    clean && !atlas.editing && back1.editing && back1.tool === "furnish" && back1.build && back2.editing && back2.tool === "furnish" && back2.build
+    && dirtyAtlas.editing && dirtyAtlas.dirty && back3.editing && back3.tool === "furnish" && back3.dirty && !ed().dirty,
+    { clean, atlas, back1, back2, dirtyAtlas, back3 });
+});
+
+// ── Settings → Remove all furniture ─────────────────────────────────────────
+// What settings.js sends once house3d_clear has removed every piece.
+const FILE_CHANGED = "padspan-ha-house3d-changed";
+function removeAll(){
+  server.file = { ...clone(server.file), pieces: {} };
+  for (const fn of [...(winL[FILE_CHANGED] || [])]) fn({ type: FILE_CHANGED });
+}
+await tryCase("cleared: Remove all furniture reaches an open view: its pieces go, and a removed one is never saved back", async () => {
+  const had = Object.keys(server.file.pieces).length;
+  removeAll(); await settle(30);
+  const a = { drawn: st().pieces.length, draft: Object.keys(draftPieces()).length, dirty: ed().dirty, editing: ed().editing };
+  // With unsaved work: the removed pieces leave the draft, Undo too; what was added since stays.
+  const kept = slot._furnish().build("box"); await settle();
+  click("Save", "la3d-tools"); await settle(30);
+  const fresh = slot._furnish().build("box"); await settle();
+  slot._furnish().select(kept); click("⟳ 15°", "la3d-sheet"); await settle();
+  removeAll(); await settle(30);
+  const b = { draft: Object.keys(draftPieces()).sort(), dirty: ed().dirty };
+  const seen = [];
+  for (let i = 0; i < 6 && ed().canUndo; i++) { click("Undo", "la3d-tools"); await settle(); seen.push(...Object.keys(draftPieces())); }
+  for (let i = 0; i < 6 && ed().canRedo; i++) { click("Redo", "la3d-tools"); await settle(); seen.push(...Object.keys(draftPieces())); }
+  const n = payloads.length;
+  click("Save", "la3d-tools"); await settle(30);
+  const sent = payloads.slice(n).map(c => Object.keys(c.pieces || {})).flat();
+  check("cleared: Remove all furniture reaches an open view: its pieces go, and a removed one is never saved back",
+    had > 0 && a.drawn === 0 && a.draft === 0 && !a.dirty && a.editing
+    && JSON.stringify(b.draft) === JSON.stringify([fresh]) && b.dirty && !seen.includes(kept)
+    && !sent.includes(kept) && !server.file.pieces[kept] && !!server.file.pieces[fresh],
+    { had, a, b, kept, fresh, seen, sent });
+});
+
+console.log(JSON.stringify({ cases, failures, payloads, live: LIVE }));
