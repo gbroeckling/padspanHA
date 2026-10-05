@@ -401,6 +401,13 @@ export function wallElements(pc, floorH){
       break;
     }
     case "open": solid(-SLAB_T, 0, base); break;
+    case "doorway": {
+      // An opening with no door in it (an archway, an open plan): the slab
+      // edge, the gap, the wall over it.
+      solid(-SLAB_T, 0, base);
+      solid(Math.min(num(pc.head_m) ?? DOOR_H, lim.head), top, base);
+      break;
+    }
     default: solid(-SLAB_T, top, tint);
   }
   return E;

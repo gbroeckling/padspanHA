@@ -75,7 +75,9 @@ def test_the_limits_are_the_servers() -> None:
     assert m and (float(m[1]), float(m[2])) == (HS.WINDOW_MIN_M, HS.DOOR_MIN_M)
     assert re.search(r"export const GAP_MIN_M = ([\d.]+);", d)[1] == str(HS.GAP_MIN_M)
     assert float(re.search(r"export const DOOR_MIN_HEAD_M = ([\d.]+);", d)[1]) == HS.DOOR_MIN_HEAD_M
-    assert "export const OPENING_ID = /^(win|door)_[0-9a-f]{8}$/;" in d and HS.OPENING_ID.pattern == r"^(win|door)_[0-9a-f]{8}$"
+    assert ("export const OPENING_ID = /^(win|door|doorway)_[0-9a-f]{8}$/;" in d
+            and HS.OPENING_ID.pattern == r"^(win|door|doorway)_[0-9a-f]{8}$")
+    assert re.search(r'export const DOOR_SHOWN = \["open", "ajar", "shut"\];', d) and HS.DOOR_SHOWN == ("open", "ajar", "shut")
     assert "WINDOW_SILL_M = 0.9, WINDOW_HEAD_M = 2.1, DOOR_HEAD_M = 2.03;" in d
     assert re.search(r"DOOR_LOW_M = ([\d.]+);", d) and float(re.search(r"DOOR_LOW_M = ([\d.]+);", d)[1]) >= HS.DOOR_MIN_HEAD_M
 

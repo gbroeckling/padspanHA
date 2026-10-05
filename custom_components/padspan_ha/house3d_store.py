@@ -164,16 +164,17 @@ class House3dStore:
 
 
 # ── The 3D editor's Save (ws_house3d.house3d_edit) ───────────────────────────
-# One draft, written at once: doors and windows drawn on a wall in 3D
-# ("win_" / "door_" + 8 hex digits, a stretch of wall in fabric metres), the
-# hinge, swing, sill and head of a barrier's own door or window (keyed by the
-# barrier's id; the map is never written), the 3D-only height of a light (and
+# One draft, written at once: doors, windows and doorways drawn on a wall in
+# 3D ("win_" / "door_" / "doorway_" + 8 hex digits, a stretch of wall in
+# fabric metres; a doorway is an opening with no door in it, an archway), the
+# hinge, swing, sill and head of a barrier's own door or window and how a door
+# with no sensor is shown (keyed by the barrier's id; the map is never written), the 3D-only height of a light (and
 # what it is, its kind) or another device (or a beacon's or scanner's look),
 # the furniture (P2 Furnish: "fur_" + 8 hex digits) and the people figures
 # (P6). Each entry is set, or removed with None. What the editor owns is checked strictly; every other
 # key already in the file (a newer PadSpan's) is kept.
 EDIT_SECTIONS: tuple[str, ...] = ("openings", "lights", "devices", "pieces", "figures")
-OPENING_ID = re.compile(r"^(win|door)_[0-9a-f]{8}$")
+OPENING_ID = re.compile(r"^(win|door|doorway)_[0-9a-f]{8}$")
 BARRIER_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,40}$")
 # Home Assistant's own entity id shape (core.valid_entity_id).
 ENTITY_ID = re.compile(r"^(?!.+__)(?!_)[\da-z_]+(?<!_)\.(?!_)[\da-z_]+(?<!_)$")
@@ -182,9 +183,14 @@ DOOR_MIN_HEAD_M, HEIGHT_MAX_M, GAP_MIN_M = 0.5, 10.0, 0.1
 COORD_MAX_M = 10_000.0
 MAX_OPENINGS, MAX_HEIGHTS, MAX_CHANGES = 500, 2000, 1000
 _ADDED_KEYS = {"window": ("kind", "floor_id", "a_m", "b_m", "sill_m", "head_m"),
-               "door": ("kind", "floor_id", "a_m", "b_m", "head_m", "hinge", "swing")}
-_ADDED_OWNED = frozenset(_ADDED_KEYS["window"] + _ADDED_KEYS["door"])
-_BARRIER_OWNED = frozenset(("hinge", "swing", "sill_m", "head_m"))
+               "door": ("kind", "floor_id", "a_m", "b_m", "head_m", "hinge", "swing"),
+               "doorway": ("kind", "floor_id", "a_m", "b_m", "head_m")}
+# A door with no sensor is shown open, ajar (the default for an inside door)
+# or shut (an outside door's); one linked to a sensor follows it.
+DOOR_SHOWN = ("open", "ajar", "shut")
+_ADDED_MAYBE = {"door": ("shown",)}
+_ADDED_OWNED = frozenset(_ADDED_KEYS["window"] + _ADDED_KEYS["door"] + _ADDED_KEYS["doorway"] + ("shown",))
+_BARRIER_OWNED = frozenset(("hinge", "swing", "sill_m", "head_m", "shown"))
 _HEIGHT_OWNED = frozenset(("z_m",))
 # A piece of furniture (docs "Data"): where it stands is fabric metres on its
 # floor, z_m its bottom above that floor, rotation degrees. Its recipe is plain
@@ -195,6 +201,13 @@ MAX_PIECES, PIECE_Z_MAX_M, SIZE_MIN_M, SIZE_MAX_M = 1000, 20.0, 0.001, 8.0   # a
 MAX_PARAMS, MAX_COLORS, NAME_MAX, TEXT_MAX, LABEL_MAX, PIECE_JSON_MAX = 40, 6, 40, 60, 60, 8000
 COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 REF_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+# Stairs are a piece (recipe kind "stairs"): straight, an L or a U, turning
+# left or right, from their floor up to the floor they reach (to_floor, a
+# floor's id; none: the next floor up). Width and depth are their footprint,
+# height their rise (the gap between the two floors, kept by the editor; the
+# view always draws the gap).
+STAIR_SHAPES, STAIR_TURNS = ("straight", "l", "u"), ("left", "right")
+STAIR_SIZE_MIN_M, STAIR_RISE_M = 0.5, (0.3, 8.0)
 _PIECE_OWNED = frozenset(("id", "recipe", "origin", "label", "library_id", "submission_id", "floor_id",
                           "x_m", "y_m", "z_m", "rotation", "entity_id", "entity_reg_id", "updated_at"))
 _CAPS = {"openings": MAX_OPENINGS, "lights": MAX_HEIGHTS, "devices": MAX_HEIGHTS, "pieces": MAX_PIECES,
@@ -226,11 +239,13 @@ def _pick(v: Any, choices: tuple[str, ...], what: str) -> str:
 
 
 def _added_opening(oid: str, e: dict) -> dict:
-    """A door or window drawn in 3D: complete, in range, and of its id's kind."""
-    kind = "window" if oid.startswith("win_") else "door"
-    want = _ADDED_KEYS[kind]
-    if set(e) != set(want):
-        raise EditError(f"{oid}: a {kind} has exactly {', '.join(want)}")
+    """A door, window or doorway drawn in 3D: complete, in range, and of its id's kind."""
+    kind = oid.split("_")[0]
+    kind = "window" if kind == "win" else kind
+    want, maybe = _ADDED_KEYS[kind], _ADDED_MAYBE.get(kind, ())
+    if not set(want) <= set(e) <= set(want) | set(maybe):
+        raise EditError(f"{oid}: a {kind} has exactly {', '.join(want)}"
+                        + (f", and {', '.join(maybe)} if it has it" if maybe else ""))
     if e["kind"] != kind:
         raise EditError(f"{oid}: its kind must be {kind}")
     fl = e["floor_id"]
@@ -243,7 +258,7 @@ def _added_opening(oid: str, e: dict) -> dict:
             raise EditError(f"{oid}: {k} must be [x, y] in metres")
         pts.append([_num(p[0], -COORD_MAX_M, COORD_MAX_M, f"{oid} {k}"),
                     _num(p[1], -COORD_MAX_M, COORD_MAX_M, f"{oid} {k}")])
-    lo = WINDOW_MIN_M if kind == "window" else DOOR_MIN_M
+    lo = WINDOW_MIN_M if kind == "window" else DOOR_MIN_M          # a doorway is as wide as a door at least
     if not lo - 1e-6 <= math.dist(*pts) <= OPENING_MAX_M:
         raise EditError(f"{oid}: a {kind} is {lo:g} m to {OPENING_MAX_M:g} m wide")
     out = {"kind": kind, "floor_id": fl.strip(), "a_m": pts[0], "b_m": pts[1]}
@@ -253,15 +268,20 @@ def _added_opening(oid: str, e: dict) -> dict:
         if head < sill + GAP_MIN_M - 1e-9:
             raise EditError(f"{oid}: the head must be above the sill")
         out.update(sill_m=sill, head_m=head)
+    elif kind == "doorway":
+        out.update(head_m=_num(e["head_m"], DOOR_MIN_HEAD_M, HEIGHT_MAX_M, f"{oid} head_m"))
     else:
         out.update(head_m=_num(e["head_m"], DOOR_MIN_HEAD_M, HEIGHT_MAX_M, f"{oid} head_m"),
                    hinge=_pick(e["hinge"], ("left", "right"), f"{oid} hinge"),
                    swing=_pick(e["swing"], ("in", "out"), f"{oid} swing"))
+        if "shown" in e:
+            out["shown"] = _pick(e["shown"], DOOR_SHOWN, f"{oid} shown")
     return out
 
 
 def _barrier_override(bid: str, e: dict) -> dict:
-    """A barrier's door or window in 3D only: any of hinge, swing, sill, head."""
+    """A barrier's door or window in 3D only: any of hinge, swing, sill, head,
+    and how a door with no sensor is shown."""
     if not e or set(e) - _BARRIER_OWNED:
         raise EditError(f"{bid}: a barrier's opening takes only {', '.join(sorted(_BARRIER_OWNED))}")
     out: dict[str, Any] = {}
@@ -272,6 +292,8 @@ def _barrier_override(bid: str, e: dict) -> dict:
     for k in ("sill_m", "head_m"):
         if k in e:
             out[k] = _num(e[k], 0.0, HEIGHT_MAX_M, f"{bid} {k}")
+    if "shown" in e:
+        out["shown"] = _pick(e["shown"], DOOR_SHOWN, f"{bid} shown")
     if "sill_m" in out and "head_m" in out and out["head_m"] < out["sill_m"] + GAP_MIN_M - 1e-9:
         raise EditError(f"{bid}: the head must be above the sill")
     return out
@@ -312,7 +334,25 @@ def _recipe(pid: str, r: Any) -> dict:
     out = {**r, "kind": r["kind"].strip(), "params": dict(params), "colors": [c.lower() for c in colors]}
     for k in ("width_m", "depth_m", "height_m"):
         out[k] = _num(r.get(k), SIZE_MIN_M, SIZE_MAX_M, f"{pid} recipe.{k}")
+    if out["kind"] == "stairs":
+        _stairs(pid, out)
     return out
+
+
+def _stairs(pid: str, r: dict) -> None:
+    """Stairs: a shape and a turn from the closed lists, the floor they reach
+    a floor's id when given, a footprint at least half a metre each way and a
+    rise in range."""
+    p = r["params"]
+    _pick(p.get("shape", "straight"), STAIR_SHAPES, f"{pid} stairs shape")
+    _pick(p.get("turn", "left"), STAIR_TURNS, f"{pid} stairs turn")
+    to = p.get("to_floor")
+    if to is not None and not _plain(to, 64):
+        raise EditError(f"{pid}: the floor stairs reach (to_floor) must be a floor's id")
+    for k in ("width_m", "depth_m"):
+        if r[k] < STAIR_SIZE_MIN_M:
+            raise EditError(f"{pid}: stairs are at least {STAIR_SIZE_MIN_M:g} m each way")
+    _num(r["height_m"], *STAIR_RISE_M, f"{pid} stairs rise (recipe.height_m)")
 
 
 def _piece(pid: str, e: dict, stamp: str) -> dict:
@@ -469,8 +509,8 @@ def _entry(section: str, key: Any, e: Any, stamp: str = "") -> tuple[frozenset, 
     if section == "openings":
         if OPENING_ID.fullmatch(key):
             owned, whole, check = _ADDED_OWNED, True, _added_opening
-        elif key.startswith(("win_", "door_")) or not BARRIER_ID.fullmatch(key):
-            raise EditError(f"openings: {key[:48]!r} is neither win_/door_ + 8 hex digits nor a barrier's id")
+        elif key.startswith(("win_", "door_", "doorway_")) or not BARRIER_ID.fullmatch(key):
+            raise EditError(f"openings: {key[:48]!r} is neither win_/door_/doorway_ + 8 hex digits nor a barrier's id")
         else:
             owned, whole, check = _BARRIER_OWNED, False, _barrier_override
     elif section == "pieces":

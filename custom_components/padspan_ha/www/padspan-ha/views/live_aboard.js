@@ -1672,7 +1672,7 @@ function createSlot(slotKey){
     };
     for (const P of F.pieces) {
       const k = P.pc.kind;
-      if (k === "rail" || k === "open") continue;
+      if (k === "rail" || k === "open" || k === "doorway") continue;
       if (P.pc.cls === "ext" && !P.pc.free) strip(P, -1);
       else { strip(P, 1); strip(P, -1); }
     }

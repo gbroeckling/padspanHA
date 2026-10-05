@@ -42,7 +42,7 @@ const tryCase = (name, fn) => { try { fn(); } catch (e) { check(name, false, Str
 
 const CATEGORIES = ["seating", "sleeping", "tables", "storage", "lighting", "media", "decor", "outdoor", "appliance", "kids",
                     "pets", "office", "bath", "kitchen", "device", "other"];
-const GROUPS = ["furniture", "device", "tag", "scanner"];
+const GROUPS = ["furniture", "device", "tag", "scanner", "house"];   // house: stairs (Build ▾ → House)
 const LIVE = { glow: "glow", screen: "screen", spin: "spin", run: "run", dock: "dock", warm: "warm", charge: "glow" };
 const PART_KEYS = ["glow", "screen", "spin", "run", "dock", "warm"];
 const STARTERS = ["sofa", "bed", "table", "chair", "desk", "dresser", "tv", "lamp"];
@@ -358,6 +358,15 @@ const FRONT = {
     return c !== null && duvet !== null && c.z < 0 && c.z < duvet.z - 0.1;
   },
   table: null,
+  // Stairs are climbed from the front (+z): up the first flight's middle,
+  // the step at the front is lower than what is at the back (the floor above's
+  // edge for a straight flight, the landing for an L or a U).
+  stairs: (g, s, r) => {
+    const sx = r.params.turn === "right" ? -1 : 1, f = Math.min(s.w, s.d) / 2;
+    const x = r.params.shape === "u" ? sx * s.w / 4 : r.params.shape === "l" ? sx * (s.w / 2 - f / 2) : 0;
+    // (A rise under a metre is a step or two: never higher at the front.)
+    return topAt(g, x, s.d / 2 - 0.05) < topAt(g, x, -s.d / 2 + 0.05) - (s.h >= 1 ? 0.1 : -1e-3);
+  },
   // A chair's back is at −z, as a sofa's; a stool has none and no front.
   chair: (g, s, r) => r.params.style === "stool" ? true
     : Math.max(...[-0.2, 0, 0.2].map((f) => topAt(g, f * s.w, -s.d / 2 + 0.02)))

@@ -1637,6 +1637,76 @@
     ]
    },
    "live": null
+  },
+  "stairs": {
+   "name": "Stairs",
+   "group": "house",
+   "category": "other",
+   "params": [
+    {
+     "key": "shape",
+     "label": "Shape",
+     "type": "choice",
+     "choices": [
+      "straight",
+      "l",
+      "u"
+     ],
+     "def": "straight",
+     "sizes": {
+      "straight": {
+       "width_m": 0.95,
+       "depth_m": 3.6
+      },
+      "l": {
+       "width_m": 2,
+       "depth_m": 3
+      },
+      "u": {
+       "width_m": 2,
+       "depth_m": 2.9
+      }
+     }
+    },
+    {
+     "key": "turn",
+     "label": "Turns",
+     "type": "choice",
+     "choices": [
+      "left",
+      "right"
+     ],
+     "def": "left"
+    }
+   ],
+   "colorNames": [
+    "Treads",
+    "Sides",
+    "Rail"
+   ],
+   "colors": [
+    "#8b6a4f",
+    "#e8e2d6",
+    "#3d3a36"
+   ],
+   "size": {
+    "width_m": [
+     0.6,
+     4,
+     0.95
+    ],
+    "depth_m": [
+     0.6,
+     8,
+     3.6
+    ],
+    "height_m": [
+     0.3,
+     8,
+     2.8
+    ]
+   },
+   "live": null
   }
  },
  "figure": {
