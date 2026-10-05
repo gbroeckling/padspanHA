@@ -368,6 +368,7 @@ export async function peopleFlow(ctx){
       ctx.el.replaceChildren();
       resolve(v);
     };
+    if (ctx.signal) ctx.signal.addEventListener("abort", () => finish(null), { once: true });   // closed by Furnish
     const closePreview = () => { if (preview) { preview.dispose(); preview = null; } };
 
     const row = (who, sub, changed, ...buttons) => el("div", { class: "item" },

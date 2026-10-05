@@ -248,6 +248,7 @@ export function createPieceLayer(ctx){
 export function createFurnish(ctx){
   const { THREE, PIECES, root, guard } = ctx;
   let sel = null, gesture = null, menuOpen = false, picker = null, flowEl = null, flowGen = 0, shownNow = false, lastDrag = null;
+  let flowStop = null;                               // the open flow's AbortController: closing it ends the flow
   let fitHint = null;                                // a fit warning the hint shows, until it no longer applies
   let mods = null;                                   // the flows: {photo, library, import, people} → their function
   let share = null;                                  // the library's shareFlow (P4), when it has one
@@ -374,13 +375,16 @@ export function createFurnish(ctx){
     for (const [k] of FLOWS) flowBtns[k].style.display = mods[k] ? "" : "none";
     return mods;
   }
-  function closeFlow(){ flowGen++; if (flowEl) { flowEl.remove(); flowEl = null; } }
+  /** × , leaving Furnish or another flow opening: the flow is told (ctx.signal),
+   *  so it ends and lets go of what it holds (a thumbnail or preview renderer). */
+  function closeFlow(){ flowGen++; if (flowStop) { flowStop.abort(); flowStop = null; } if (flowEl) { flowEl.remove(); flowEl = null; } }
   async function openFlow(k, piece = null){
     closeMenu();
     const fn = k === "share" ? share : mods && mods[k];
     if (!fn) return;
     closeFlow();
     const gen = flowGen, host = ctx.host() || {}, F = ctx.topFloor();
+    flowStop = typeof AbortController === "function" ? new AbortController() : null;
     const spot = F ? spotHere(F) : null;
     flowEl = d("div", "la3d-flow");
     const card = d("div"), h = d("h4"), body = d("div");
@@ -392,7 +396,7 @@ export function createFurnish(ctx){
     const callWS = typeof host.callWS === "function" ? host.callWS : () => Promise.reject(new Error("no connection"));
     const fctx = { el: body, callWS, wsCall: callWS, toast: (t, bad) => (host.toast ? host.toast(t, bad) : ctx.hint(t, bad)),
                    settings: host.settings || {}, floor: F ? { id: F.fl.id, name: F.fl.name } : null,
-                   room: spot && spot.room ? { name: spot.room.name } : null, recipeTools: FURN() };
+                   room: spot && spot.room ? { name: spot.room.name } : null, recipeTools: FURN(), signal: flowStop ? flowStop.signal : null };
     let r = null;
     try { r = await (k === "share" ? fn(fctx, copy(piece)) : fn(fctx)); } catch (err) { r = null; if (gen === flowGen) ctx.hint(`That didn't work: ${String((err && err.message) || err)}`, true); }
     if (gen !== flowGen) return;                     // closed meanwhile: what it found is dropped

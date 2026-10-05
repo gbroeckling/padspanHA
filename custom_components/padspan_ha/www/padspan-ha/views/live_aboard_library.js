@@ -685,6 +685,7 @@ export function libraryFlow(ctx){
       try { ctx.el.replaceChildren(); } catch (_) { /* the host may have taken it already */ }
       resolve(value);
     };
+    if (ctx.signal) ctx.signal.addEventListener("abort", () => finish(null), { once: true });   // closed by Furnish
 
     // Header
     const termsBtn = h("button", { type: "button", class: "lal-link", "data-lal": "terms" }, "How the library works");
@@ -983,6 +984,7 @@ export function shareFlow(ctx, piece){
       try { ctx.el.replaceChildren(); } catch (_) { /* the host may have taken it already */ }
       resolve(value);
     };
+    if (ctx.signal) ctx.signal.addEventListener("abort", () => finish(null), { once: true });   // closed by Furnish
     const recipe = piece && isObj(piece.recipe) ? piece.recipe : {};
     const head = (title) => {
       const close = h("button", { type: "button", "data-lal": "close" }, "Close");
