@@ -690,6 +690,8 @@ class _Library:
                 return reply(500, "store")
             if lid not in entries:
                 return reply(404, "not_found")
+            if not any(str(e["submission_id"])[4:10] == who for e in entries.values()):
+                return reply(200)
             g = self.guard_today(self.db["guard"])
             if int(g["reports"]) >= self.max_reports_per_day:
                 return reply(429, "busy")
@@ -992,8 +994,31 @@ def test_placing_counts_anonymously_and_never_past_the_days_cap(server) -> None:
 
 # ═══ 5. reports, limits, the owner's tools ════════════════════════════════════
 
+def _has_shared(server: _Library, *prefixes: str) -> None:
+    """Each prefix is a house that has shared a piece (its submission ids start with it)."""
+    for p in prefixes:
+        assert _share(server, sid=f"sub_{p}0000000000")[0] == 200, p
+
+
+def test_a_report_counts_only_from_a_house_that_has_shared(server) -> None:
+    """The prefix is the client's own choice: one that starts no kept
+    submission id is answered alike and never counted, so made-up prefixes
+    can neither hide a piece nor use up the day's reports."""
+    _seed(server)
+    lid = "lib_000000000001"
+    for who in ("aaaaaa", "bbbbbb", "cccccc"):
+        assert server.handle(_body("report", library_id=lid, reason="title", reporter=who)) == (200, {"ok": True})
+    e = server.db["entries"][lid]
+    assert e["reports"] == {} and e["hidden"] is False, "none of them has shared a piece"
+    assert int(server.db["guard"].get("reports", 0)) == 0, "the day's reports are not used up"
+    _has_shared(server, "aaaaaa")
+    assert server.handle(_body("report", library_id=lid, reason="title", reporter="aaaaaa")) == (200, {"ok": True})
+    assert server.db["entries"][lid]["reports"] == {"aaaaaa": "title"} and server.db["guard"]["reports"] == 1
+
+
 def test_reports_from_three_houses_hide_the_free_text_and_keep_the_recipe(server) -> None:
     _seed(server)
+    _has_shared(server, "aaaaaa", "bbbbbb", "cccccc")
     lid = "lib_000000000001"
     for _ in range(3):
         assert server.handle(_body("report", library_id=lid, reason="title", reporter="aaaaaa"))[0] == 200
@@ -1028,6 +1053,7 @@ def test_the_limits_per_day_per_house_and_in_total(server) -> None:
 
 def test_the_owner_tools_need_the_secret_file(server) -> None:
     _seed(server)
+    _has_shared(server, "aaaaaa")
     server.handle(_body("report", library_id="lib_000000000001", reason="title", reporter="aaaaaa"))
     ask = lambda **f: server.handle(_body("admin", **f))   # noqa: E731
     secret = "correct horse battery staple 42"

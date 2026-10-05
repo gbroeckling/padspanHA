@@ -511,6 +511,9 @@ def test_a_report_sends_the_piece_a_reason_and_this_houses_prefix_only(store, mo
     body = wire.posts[-1][1]
     assert body == {"schema": 1, "action": "report", "library_id": "lib_000000000001", "reason": "title",
                     "reporter": _lib()["prefix"]}
+    assert server.db["entries"]["lib_000000000001"]["reports"] == {}, "a house that has shared nothing is not counted"
+    _share(h)
+    assert _call(h, "library_report", library_id="lib_000000000001", reason="title")[0] == "result"
     assert server.db["entries"]["lib_000000000001"]["reports"] == {_lib()["prefix"]: "title"}
     assert _call(h, "library_report", library_id="lib_000000000001", reason="rude")[:2] == ("error", "invalid")
 

@@ -27,7 +27,8 @@
 //   version, terms_version   its PadSpan version, and the terms it was shared under
 //   created, updated, placed  dates (UTC), and an anonymous count of placements
 //   reports         up to 20 report reasons, keyed by the reporter's random
-//                   6-hex prefix (nothing more is ever sent)
+//                   6-hex prefix (nothing more is ever sent), counted only
+//                   from a prefix that has shared a piece kept here
 // WHY: so other PadSpan houses can find the piece and place it.
 // HOW LONG: until its house withdraws it ("Withdraw my shared furniture") or
 //   the library's owner removes it. A withdrawal deletes the entry and appends
@@ -45,9 +46,21 @@
 //
 // Abuse guard: at most 5000 pieces; at most 200 new pieces a UTC day, and 20
 // per submission-id prefix (one house's ids share a random prefix); at most
-// 1000 reports and 5000 counted placements a day. Reports from three
+// 1000 reports and 5000 counted placements a day. A report counts only from
+// a prefix that starts the submission id of a piece kept here (a house that
+// has shared one; the prefixes are never shown); any other is answered alike
+// and not counted, not even toward the day's 1000. Reports from three
 // different prefixes hide a piece's free text until the owner checks it (the
 // admin "edit" or "unhide"); the recipe stays usable.
+//
+// STILL TRUSTED: the prefix is the client's own choice (the start of the
+// submission id it makes up), and nothing here knows who is asking (no IP is
+// read or kept). So one client can still make up prefixes to use up the
+// day's 200 new pieces for every house (20 per prefix), fill the library to
+// its 5000 pieces over some weeks, report again and again from a prefix that
+// has shared to use up the day's reports, and, by sharing from three
+// prefixes first, hide a piece's free text. Each needs shares, which the
+// owner can see; the admin tools ("reported", "unhide", "remove") undo them.
 //
 // The owner's tools (list reported pieces, edit details, unhide, remove) need
 // the admin secret, read from private/padspan-furniture/admin_secret.txt (24
@@ -801,6 +814,12 @@ if ($action === 'report') {
     if (!preg_match($PREFIX_RX, $who)) { reply(400, 'reporter', 'Bad reporter.'); }
     $result = with_store($DIR, function (&$db) use ($id, $reason, $who, $today, $MAX_REPORTS_PER_DAY, $MAX_REPORTERS, $HIDE_AT) {
         if (!isset($db['entries'][$id])) { return array('not_found', false); }
+        // Counted only from a house that has shared a piece kept here.
+        $shared = false;
+        foreach ($db['entries'] as $e) {
+            if (substr((string)$e['submission_id'], 4, 6) === $who) { $shared = true; break; }
+        }
+        if (!$shared) { return array('ok', false); }
         $g = guard_today($db['guard'], $today);
         if ((int)$g['reports'] >= $MAX_REPORTS_PER_DAY) { return array('busy', false); }
         $g['reports'] = (int)$g['reports'] + 1;
