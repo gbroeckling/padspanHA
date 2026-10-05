@@ -364,8 +364,10 @@ export function createStrip(ctx){
     pulsing = true;
     const step = guard(() => {
       const t = performance.now();
-      if (!shownNow || t >= pulseUntil) { pulsing = false; markMat.opacity = 0.8; ctx.render(); return; }
-      markMat.opacity = 0.45 + 0.45 * Math.abs(Math.sin((t % 800) / 800 * Math.PI));
+      if (!shownNow || t >= pulseUntil) { pulsing = false; markMat.opacity = 0.8; ring.style.opacity = ""; ctx.render(); return; }
+      const k = Math.abs(Math.sin((t % 800) / 800 * Math.PI));
+      markMat.opacity = 0.45 + 0.45 * k;
+      ring.style.opacity = String(0.35 + 0.65 * k);
       layout();
       ctx.render();
       requestAnimationFrame(step);
@@ -503,13 +505,23 @@ export function createStrip(ctx){
     if (drawing) {
       acts.appendChild(seg(btn("Done", "End the run here", () => finish(drawing.anchors), "la3d-save"),
         btn("Cancel", "Stop drawing", () => { drawing = null; ctx.hint(""); sheet(); paint(); })));
+      // A point tapped off any wall (a post) goes at this height.
+      const row = d("label", "la3d-cm"), inp = d("input");
+      inp.type = "number"; inp.min = "0"; inp.max = String(Math.round(ceil * 100)); inp.step = "1"; inp.value = String(Math.round(drawing.h * 100));
+      inp.setAttribute("aria-label", "New points at, cm");
+      const take = () => { const v = Number(inp.value); if (Number.isFinite(v) && drawing) drawing.h = RUNS.mm(Math.max(0, Math.min(ceil, v / 100))); };
+      inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") take(); });
+      inp.addEventListener("change", guard(take));
+      row.append(d("span", null, "New points at"), inp, d("span", null, "cm"));
+      S.appendChild(acts);
+      S.appendChild(row);
     } else acts.appendChild(seg(btn(run ? "Draw again" : "Draw", "Press on a wall and drag, or tap points", () => startDraw())));
     const areaBtn = (k, text, title) => { const b = btn(text, title, () => pickArea(k)); b.setAttribute("aria-pressed", String(area === k)); return b; };
     acts.appendChild(seg(areaBtn("room", "Round this room", "Tap a room: the run goes along every wall")));
     acts.appendChild(seg(areaBtn("under", "Under", "Under a piece: wall cabinets, a bed"), areaBtn("behind", "Behind", "Behind a piece: a TV, a headboard"),
       areaBtn("top", "Top edge", "Along the top of a piece: a shelf, a cabinet")));
     if (F.fl.outdoor || F.rooms.some(r => r.outdoor)) acts.appendChild(seg(areaBtn("rail", "Along a rail", "Tap a deck: along its rail or edge")));
-    S.appendChild(acts);
+    if (!acts.parentNode) S.appendChild(acts);
     const tick = (label, key, title) => {
       const l = d("label", "la3d-tick"), c = d("input");
       c.type = "checkbox"; c.checked = opts[key]; c.title = title;
@@ -532,8 +544,9 @@ export function createStrip(ctx){
       // How high.
       S.appendChild(d("div", "la3d-sec", ptSel === null ? "Height, all of it" : `Height, point ${ptSel + 1}`));
       const at = ptSel !== null ? pl.pts[ptSel][2] : pl.pts.reduce((s, q) => s + q[2], 0) / pl.pts.length;
-      const chipRow = d("div", "la3d-chips");
-      for (const [key, label, h] of RUNS.chips(ceil)) {
+      const chipRow = d("div", "la3d-chips"), mid = pl.pts[Math.floor((pl.pts.length - 1) / 2)], cab = cabinetOver(F, mid);
+      for (const [key, label0, h0] of RUNS.chips(ceil)) {
+        const h = key === "undercab" && cab !== null ? cab : h0, label = key === "undercab" && cab !== null ? `Under cabinets ${RUNS.cm(h)}` : label0;
         const b = btn(label, `${label}: ${RUNS.cm(h)}`, () => setHeight(h));
         b.dataset.chip = key;
         b.setAttribute("aria-pressed", String(Math.abs(h - at) < 0.005));
@@ -587,6 +600,19 @@ export function createStrip(ctx){
     }
     S.classList.add("on");
     return true;
+  }
+  /** The underside of a piece hung up off the floor (a wall cabinet, a shelf)
+   *  over or beside point q, or null. */
+  function cabinetOver(F, q){
+    let best = null;
+    for (const p of Object.values((cur() || {}).pieces || {})) {
+      const z = typeof p.z_m === "number" ? p.z_m : 0;
+      if (String(p.floor_id) !== String(F.fl.id) || z < 0.3) continue;
+      const s = sizeOf(p), l = RUNS.onPieceFrame(p, [q[0], q[1], 0]);
+      if (Math.abs(l[0]) > s.w / 2 + 0.3 || Math.abs(l[1]) > s.d / 2 + 0.3) continue;
+      if (best === null || Math.abs(z - q[2]) < Math.abs(best - q[2])) best = z;
+    }
+    return best;
   }
   /** "Lights to lay out": strips and string lights with no run first. */
   function listOf(S){
@@ -740,7 +766,7 @@ export function createStrip(ctx){
       const F = drawing.F, r = rayAt(x, y), w = r ? wallHit(F, r) : null, ph = pieceHit(F, x, y);
       if (ph && (!w || ph.t < w.t)) { gesture = { kind: "tapPiece", ph, x0: x, y0: y }; return "tap"; }
       if (w) {
-        const snap = RUNS.snapHeight(w.h, ceilOf(F), edgesNear(F, w.x, w.y));
+        const snap = pressHeight(F, w.h, w.x, w.y);
         const start = w.kind === "loop" ? { kind: "loop", Lp: w.Lp, s: w.s, h: snap.h, x: w.x, y: w.y } : { kind: "free", x: w.x, y: w.y, h: snap.h, face: w };
         drawing.h = snap.h;
         let acc = 0, last = w.s;
@@ -786,6 +812,14 @@ export function createStrip(ctx){
     const dev = hit && [hit.hit, ...(hit.under || [])].find(t => t && t.kind === "device" && ctx.device(t.eid) && ctx.device(t.eid).section === "lights");
     if (dev) { gesture = { kind: "tapLight", eid: dev.eid }; return "tap"; }
     return null;
+  }
+  /** The height a press on a wall starts a run at: near the ceiling, its
+   *  edge (a cove); near the floor, the toe-kick; else snapped as a drag is. */
+  function pressHeight(F, h, x, y){
+    const ceil = ceilOf(F), c = RUNS.chips(ceil);
+    if (h >= ceil - 0.12) return { h: c[5][2], snap: c[5][1] };
+    if (h <= 0.16) return { h: c[0][2], snap: c[0][1] };
+    return RUNS.snapHeight(h, ceil, edgesNear(F, x, y));
   }
   /** The height under the pointer on the upright plane through a height
    *  handle's point, square to the view (null: none). */
@@ -900,6 +934,14 @@ export function createStrip(ctx){
     if (drawing && I) {                                          // a free point, at the height chosen
       const r = rayAt(x, y), p = r ? onLevel(drawing.F, r, drawing.h) : null;
       if (!p) return;
+      // Near a deck's rail: on its top.
+      for (const P of drawing.F.pieces) {
+        const pc = P.pc;
+        if (pc.kind !== "rail") continue;
+        const L = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0) || 1, t = Math.max(0, Math.min(L, ((p[0] - pc.x0) * (pc.x1 - pc.x0) + (p[1] - pc.y0) * (pc.y1 - pc.y0)) / L));
+        const q = [pc.x0 + (pc.x1 - pc.x0) * t / L, pc.y0 + (pc.y1 - pc.y0) * t / L];
+        if (Math.hypot(q[0] - p[0], q[1] - p[1]) < 0.3) { addAnchor({ kind: "free", x: q[0], y: q[1], h: RUNS.RAIL_TOP_M }); paint(); return; }
+      }
       // Near a room's wall (seen from above): on it.
       for (const Lp of loopsOf(drawing.F)) {
         const n = RUNS.sOf(Lp.loop, p[0], p[1]);

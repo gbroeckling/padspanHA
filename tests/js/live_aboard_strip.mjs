@@ -73,16 +73,20 @@ const MODEL = {
     "light.tv": { x_m: 1.2, y_m: -5.5, floor_id: "main" },
     "light.deck": { x_m: -1, y_m: 1, floor_id: "main" },
     "light.pendant": { x_m: 5, y_m: -1, floor_id: "main" },
+    "light.shelf": { x_m: 5, y_m: -7.4, floor_id: "main" },
   },
 };
 const lt = (eid, name, extra = {}) => ({ entity_id: eid, friendly_name: name, state: "on", brightness: 200, rgb: [255, 170, 90], ...extra });
 const LBE = { "light.under": lt("light.under", "Kitchen under cabinet strip"), "light.cove": lt("light.cove", "Living cove"),
               "light.tv": lt("light.tv", "TV backlight"), "light.deck": lt("light.deck", "Deck lights"),
-              "light.pendant": lt("light.pendant", "Island pendant", { shape: "pendant" }) };
+              "light.pendant": lt("light.pendant", "Island pendant", { shape: "pendant" }), "light.shelf": lt("light.shelf", "Shelf glow") };
 const TV = { id: "fur_000000aa", recipe: { kind: "tv", params: { screen_in: 55, unit: "none", mount: "wall" }, colors: ["#6e5039", "#1f2124"],
              width_m: 1.3, depth_m: 0.08, height_m: 0.8 }, origin: "build", label: "", library_id: null, submission_id: null,
              floor_id: "main", x_m: 0.71, y_m: -5.5, z_m: 0.95, rotation: 270, entity_id: null, entity_reg_id: null };
-const FILE0 = { schema: 1, openings: {}, lights: {}, devices: {}, pieces: { [TV.id]: TV }, figures: {}, library: {} };
+// A wall cabinet on the living room's far wall, its underside 1.45 m up.
+const CAB = { ...TV, id: "fur_000000cb", recipe: { kind: "box", params: {}, colors: ["#8a7a66"], width_m: 2.0, depth_m: 0.35, height_m: 0.7 },
+              x_m: 5.0, y_m: -7.82, z_m: 1.45, rotation: 0 };
+const FILE0 = { schema: 1, openings: {}, lights: {}, devices: {}, pieces: { [TV.id]: TV, [CAB.id]: CAB }, figures: {}, library: {} };
 const server = { file: clone(FILE0) };
 const editFn = async (changes) => {
   payloads.push(clone(changes));
@@ -366,6 +370,46 @@ await tryCase("areas: Continue from another light's run starts where it ends", a
   const r = run("light.pendant");
   check("areas: Continue from another light's run starts where it ends", !!r && r.pts[0].every((v, i) => near(v, end[i], 2e-3)) && r.pts.length === 2
     && ed().draft.lights["light.pendant"].kind === "strip", { r, end });
+});
+
+await tryCase("draw: a press near the ceiling starts at its edge; a tap by a rail sits on its top; new points at a typed height", async () => {
+  S().select("light.shelf");
+  await settle();
+  slot._look(-Math.PI / 2, 0.9, [5, 3.9, -6.5], 7);
+  await settle();
+  click("Draw", "la3d-sheet");
+  const a = w(2.2, -7.985, 2.08), b = w(3.6, -7.985, 2.08);          // beside the wall cabinet, not on it
+  dragPath([a, b]); fire("pointerup", ...b);
+  await settle();
+  const cove = run("light.shelf");
+  slot._look(Math.PI, 0.7, [-1.2, 4, 1], 12);
+  await settle();
+  click("Draw again", "la3d-sheet");
+  const h0 = sst().drawing === 0;
+  for (const [x, y] of [[0.42, 1.0], [-2.92, 1.4]]) { const p = w(x, y, 1.95); tap(p); await settle(2); }
+  const end = w(-2.92, 1.4, 1.95); tap(end);
+  await settle();
+  const rail = run("light.shelf");
+  click("Draw again", "la3d-sheet");
+  const typed = inSheet("input", "New points at, cm");
+  typed.value = "212"; typed.dispatchEvent({ type: "change" });
+  for (const [x, y] of [[-1.2, 0.5], [-1.2, 2.5]]) { tap(w(x, y, 2.12)); await settle(2); }
+  tap(w(-1.2, 2.5, 2.12));
+  await settle();
+  const post = run("light.shelf");
+  check("draw: a press near the ceiling starts at its edge; a tap by a rail sits on its top; new points at a typed height",
+    cove && cove.pts.every(p => near(p[2], 2.138)) && h0 && rail && rail.pts.length === 2 && rail.pts.every(p => p[2] === R.RAIL_TOP_M)
+    && post && post.pts.length === 2 && post.pts.every(p => p[2] === 2.12), { cove, rail, post });
+});
+
+await tryCase("height: Under cabinets sits on a wall cabinet's underside when one is there", async () => {
+  S().drawPoints([[4.2, -7.985, 1.3], [5.8, -7.985, 1.3]]);
+  await settle();
+  const chip = sheet().querySelectorAll("button").find(b => b.dataset && b.dataset.chip === "undercab");
+  const label = chip && chip.textContent;
+  if (chip) chip.click();
+  check("height: Under cabinets sits on a wall cabinet's underside when one is there", label === "Under cabinets 145 cm"
+    && run("light.shelf").pts.every(p => p[2] === 1.45), { label, pts: run("light.shelf").pts });
 });
 
 await tryCase("save: one call, exactly the draft's changes, then the file is it", async () => {
