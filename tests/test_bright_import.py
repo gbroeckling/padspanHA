@@ -310,6 +310,23 @@ def test_an_import_drops_the_stale_3d_house_store(tmp_path):
     assert _read_target(tmp_path, HOUSE3D_STORE_KEY) == imported
 
 
+def test_an_import_keeps_what_this_house_shared_to_the_library(tmp_path):
+    """A target with no furniture is empty, but the owner tokens of what it
+    shared are the only way to withdraw those pieces: they stay
+    (house3d_library.carried_over), and Bright's furniture comes in."""
+    shared = {"prefix": "abcdef", "submissions": {"sub_abcdef0000000001": {
+        "owner_token": "0123456789abcdef0123456789abcdef", "library_id": "lib_000000000001"}}}
+    target = tmp_path / ".storage" / HOUSE3D_STORE_KEY
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps({"version": 1, "key": HOUSE3D_STORE_KEY, "data": {
+        "schema": 1, "pieces": {}, "library": {"terms_version": 1, **shared}}}), encoding="utf-8")
+    imported = {"schema": 1, "pieces": {"fur_9": {"id": "fur_9", "recipe": {"kind": "bed"}}}, "library": {}}
+    _write_bright(tmp_path, "house3d", imported)
+    res = _import(_hass(tmp_path), _backup_ok)
+    assert res["ok"] is True and "house3d" in res["imported"], res
+    assert _read_target(tmp_path, HOUSE3D_STORE_KEY) == {**imported, "library": shared}
+
+
 
 # ── Live Aboard's furniture (P2) ──────────────────────────────────────────────
 

@@ -437,18 +437,23 @@ async def async_restore_data(hass: HomeAssistant, incoming: Any) -> Any:
     except that a backup with no furniture in it (one from before the
     furniture) keeps the furniture this install has now. The plan, "Undoing
     it": restoring an older backup that has no furniture leaves the current
-    furniture alone. A file that cannot be read now, or either side a newer
-    PadSpan's, is restored as the backup has it."""
+    furniture alone. What this house shared to the library stays as it is now
+    (house3d_library.carried_over). A file that cannot be read now, or either
+    side a newer PadSpan's, is restored as the backup has it."""
     pieces = incoming.get("pieces") if isinstance(incoming, dict) else None
-    if not isinstance(incoming, dict) or not writable(incoming) or (isinstance(pieces, dict) and pieces):
+    if not isinstance(incoming, dict) or not writable(incoming):
         return incoming
     try:
         current = (await async_get_store(hass)).data
     except ReadFailed:
         return incoming
-    if not writable(current) or not current.get("pieces"):
+    if not writable(current):
         return incoming
-    return {**incoming, "pieces": copy.deepcopy(current["pieces"])}
+    from .house3d_library import carried_over  # noqa: PLC0415
+    out = carried_over(current, incoming)
+    if (isinstance(pieces, dict) and pieces) or not current.get("pieces"):
+        return out
+    return {**out, "pieces": copy.deepcopy(current["pieces"])}
 
 
 # ── People figures and beacon and scanner looks (P6) ──────────────────────────

@@ -439,6 +439,28 @@ def without_tokens(data: Any) -> Any:
         for k, v in subs.items()}}}
 
 
+_CARRIED = ("submissions", "pending_shares", "prefix")
+
+
+def carried_over(live: Any, into: Any) -> Any:
+    """`into` — the 3D file a restore, "Remove everything", a factory reset or
+    a Bright import is about to write — with what this house shared kept from
+    the `live` file: its submissions (their owner tokens are the only way to
+    withdraw them), the shares still waiting, and its prefix. Like a tester
+    sign-up (tester.carried_over) they are not house configuration: losing
+    them would leave pieces in the library that nobody can withdraw, and an
+    older file must not bring back one withdrawn since, so the live ones win.
+    A newer PadSpan's file is left as it is."""
+    if not isinstance(into, dict) or not writable(into):
+        return into
+    lib = live.get("library") if isinstance(live, dict) else None
+    keep = {k: copy.deepcopy(lib[k]) for k in _CARRIED if isinstance(lib, dict) and lib.get(k)}
+    if not keep:
+        return into
+    mine = into.get("library") if isinstance(into.get("library"), dict) else {}
+    return {**into, "library": {**{k: v for k, v in mine.items() if k not in _CARRIED}, **keep}}
+
+
 async def _write_library(store: House3dStore, change) -> bool:
     """One write of the library section, under the store's lock, from the
     file as it is now: `change(lib)` edits a copy and returns False for no

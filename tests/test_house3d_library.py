@@ -424,6 +424,66 @@ def test_withdraw_takes_every_piece_of_a_house_that_shared_many(store, monkeypat
         assert len(body["items"]) <= server.max_withdraw
 
 
+# What this house shared: the owner tokens are the only way to withdraw it, so
+# a restore, "Remove everything", a factory reset or a Bright import keeps
+# them, like a tester sign-up (tester.carried_over). The live ones win.
+_SHARED = {"prefix": "abcdef", "submissions": {"sub_abcdef0000000001": {
+    "owner_token": "0123456789abcdef0123456789abcdef", "library_id": "lib_000000000001",
+    "shared_at": "2026-10-04T12:00:00+00:00", "kind": "sofa"}}}
+_PIECE = {"id": "fur_00000001", "recipe": {"kind": "sofa", "params": {}, "colors": [], "width_m": 2.0, "depth_m": 0.9,
+                                           "height_m": 0.8}, "floor_id": "main", "x_m": 1.0, "y_m": 1.0}
+
+
+def _live_shared(tmp_path, *, pieces: bool = True) -> None:
+    from tests.test_house3d_store import _disk_file
+    _disk_file(tmp_path)
+    h3 = {"schema": 1, "pieces": {"fur_00000001": dict(_PIECE)} if pieces else {}, "lights": {}, "openings": {},
+          "devices": {}, "figures": {}, "library": {"terms_version": L.TERMS_VERSION, **_SHARED}}
+    _FakeStore.saved[HOUSE3D_STORE_KEY] = json.loads(json.dumps(h3))
+
+
+def test_a_restore_keeps_what_this_house_shared_since(store, monkeypatch, tmp_path) -> None:
+    from tests.test_house3d_store import _restore
+    _live_shared(tmp_path)
+    h = _house(tmp_path, on=True)
+    _run(WL.async_get_store(h))
+    withdrawn = {"sub_abcdef00000000ff": {"owner_token": "f" * 32, "library_id": "lib_0000000000ff"}}
+    for pieces in ({"fur_00000002": dict(_PIECE, id="fur_00000002")}, {}):     # with furniture, and without
+        older = {"schema": 1, "pieces": pieces, "library": {"terms_version": L.TERMS_VERSION, "prefix": "abcdef",
+                                                            "submissions": withdrawn}}
+        _restore(h, monkeypatch, {HOUSE3D_STORE_KEY: older})
+        assert _lib()["submissions"] == _SHARED["submissions"], "kept; and one withdrawn since never comes back"
+        assert _lib()["prefix"] == "abcdef" and _lib()["terms_version"] == L.TERMS_VERSION
+        assert h.data[DOMAIN][DATA_HOUSE3D].data["library"]["submissions"] == _SHARED["submissions"]
+        _FakeStore.saved[HOUSE3D_STORE_KEY]["library"].update(_SHARED)
+
+
+def test_remove_everything_keeps_what_this_house_shared(store, monkeypatch, tmp_path) -> None:
+    from custom_components.padspan_ha import ws_backup
+    from custom_components.padspan_ha import ws_house3d as W
+
+    async def _bk(hass, note, keys):
+        return "bk_1"
+    monkeypatch.setattr(ws_backup, "_auto_backup", _bk)
+    _live_shared(tmp_path)
+    h, conn = _house(tmp_path, on=True), MagicMock()
+    _run(W.ws_house3d_clear(h, conn, {"id": 1}))
+    assert conn.send_result.call_args[0][1] == {"cleared": True, "backup_id": "bk_1"}
+    saved = _FakeStore.saved[HOUSE3D_STORE_KEY]
+    assert saved["pieces"] == {} and saved["library"] == _SHARED, "the furniture goes; the shared pieces' tokens stay"
+
+
+def test_a_factory_reset_keeps_what_this_house_shared(store, tmp_path) -> None:
+    from custom_components.padspan_ha.ws_factory_reset import ws_factory_reset
+    _live_shared(tmp_path)
+    h, conn = _house(tmp_path), MagicMock()
+    _run(ws_factory_reset(h, conn, {"id": 1, "confirm": "FACTORY RESET"}))
+    saved = _FakeStore.saved[HOUSE3D_STORE_KEY]
+    assert saved["pieces"] == {} and saved["library"] == _SHARED, "terms and furniture go; the tokens stay"
+    assert h.data[DOMAIN][DATA_HOUSE3D].data["library"] == _SHARED
+    assert "padspan_ha.house3d" not in conn.send_result.call_args[0][1]["errors"]
+
+
 # ═══ 5. browsing, placing, reporting ══════════════════════════════════════════
 
 def test_search_and_placing_go_through_to_the_library(store, monkeypatch, tmp_path) -> None:

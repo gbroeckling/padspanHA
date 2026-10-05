@@ -255,6 +255,11 @@ async def async_import(hass: HomeAssistant, backup: Any) -> dict[str, Any]:
             from .settings_store import trial_state_kept  # noqa: PLC0415
             data.update(trial_state_kept(live_settings, data))
             data[DONE_KEY] = dt_util.utcnow().replace(microsecond=0).isoformat()
+        if suffix == "house3d":
+            # What this house shared to the library stays: its owner tokens
+            # are the only way to withdraw it (house3d_library.carried_over).
+            from .house3d_library import carried_over as _shared_kept  # noqa: PLC0415
+            data = _shared_kept(await _live_house3d(hass), data)
         await Store(hass, 1, target_key).async_save(data)
         imported.append(suffix)
 

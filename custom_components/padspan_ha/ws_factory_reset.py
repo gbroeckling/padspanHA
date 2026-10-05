@@ -293,18 +293,30 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
     # ── 9a. Live Aboard, the 3D house (house3d_store.py) ──────────────────
     # Emptied like the rest, terms acceptance included, but only a file that
     # exists: an install that never turned the feature on gets no new file
-    # out of a reset (a store merely loaded by a read is not a file).
+    # out of a reset (a store merely loaded by a read is not a file). What
+    # this house shared to the library survives, as a tester sign-up does:
+    # its owner tokens are the only way to withdraw it, and "Withdraw my
+    # shared furniture" must keep working after a reset
+    # (house3d_library.carried_over).
     try:
         from .const import DATA_HOUSE3D, HOUSE3D_STORE_KEY  # noqa: PLC0415
+        from .house3d_store import ReadFailed as _house3d_unread  # noqa: PLC0415
         from .house3d_store import async_file_exists as _house3d_written  # noqa: PLC0415
+        from .house3d_store import async_get_store as _house3d_store  # noqa: PLC0415
         from .house3d_store import empty as _house3d_empty  # noqa: PLC0415
+        _h3_new = _house3d_empty()
         if await _house3d_written(hass):
+            from .house3d_library import carried_over as _shared_kept  # noqa: PLC0415
+            try:
+                _h3_new = _shared_kept((await _house3d_store(hass)).data, _h3_new)
+            except _house3d_unread:
+                pass
             st = _St(hass, 1, HOUSE3D_STORE_KEY)
-            await st.async_save(_house3d_empty())
+            await st.async_save(_h3_new)
             cleared += 1
         h3_obj = domain.get(DATA_HOUSE3D)
         if h3_obj is not None and hasattr(h3_obj, "data"):
-            h3_obj.data = _house3d_empty()
+            h3_obj.data = _h3_new
     except Exception as e:
         _LOGGER.warning("Factory reset: house3d — %s", e)
         errors.append("padspan_ha.house3d")
