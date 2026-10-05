@@ -62,6 +62,7 @@ const UNDER_TITLE = "Act on this one instead — it's under the marker on top";
  *   api()           → the host's use api, or null (then nothing is pressed)
  *   frame()         asks the view for a frame (the hold is timed on frames)
  *   cursor(on)      the pointer over something to press, or not
+ *   marked(t)       optional: what is hovered or pressed now (t), or null
  * }
  */
 export function createUseSurface(o){
@@ -94,6 +95,7 @@ export function createUseSurface(o){
     return n;
   }
   function mark(t, g){
+    if (g === hoverG && typeof o.marked === "function") o.marked(t || null);   // what is hovered or pressed
     while (g.firstChild) g.removeChild(g.firstChild);
     const at = t ? o.screenOf(t) : null;
     if (!at) return;
