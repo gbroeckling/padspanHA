@@ -17,10 +17,13 @@
 //              fainter than the last; a band along the room's edge so its
 //              shape reads by day; unlit, so it glows on the darkened house
 //              at night. The most recent sensor in a room wins.
-//   presence   an occupancy or presence sensor that is on (an mmWave unit,
-//              or the occupancy half of a motion + occupancy pair) holds the
-//              room steady: a softer flat fill with a solid edge line, never
-//              breathing, so a room occupied for hours costs no frames
+//   presence   an occupancy or presence sensor that is on (an mmWave unit)
+//              holds the room steady: a softer flat fill with a solid edge
+//              line, never breathing, so a room occupied for hours costs no
+//              frames. A motion + occupancy pair reads its motion half only,
+//              as the Atlas does (Garry, 2026-09-04: every motion-class
+//              marker looks and acts the same; an occupancy half left on
+//              never holds the room lit); the half only picks its model
 //   sensor     a small model by kind on the nearest wall at its height,
 //              facing into the room (a PIR dome, a flat presence puck, the
 //              square face of a paired room sensor); away from any wall,
@@ -387,7 +390,7 @@ export function createMotionLayer(ctx){
   }
 
   // The marker and the hover box read the device: its own state (no reading
-  // and stuck are its own), else with its occupancy half, the newer of the two.
+  // and stuck are its own), else what it gives its room.
   const markGlow = (S) => (S.own && (S.own.none || S.own.stuck) ? S.own : S.give);
   const shown = (S) => !!(S.F && S.F.group && S.F.group.visible);
   const playing = (S) => S.ringT !== null || S.flashT !== null;
@@ -584,16 +587,11 @@ export function createMotionLayer(ctx){
   function read(S, h){
     const l = (h.lbe && h.lbe[S.eid]) || S.l;
     const own = glowOf(l, h.now, h.haStarted, S.model === "presence");
-    const hr = S.half && h.states ? halfRecord(S.half, h.states[S.half]) : null;
-    const hg = hr ? glowOf(hr, h.now, h.haStarted, true) : null;
-    // The pair's occupancy half on: someone is still here; the room holds.
-    const give = roomGlow([own, hg && !hg.none ? hg : null]) || (own && own.none ? own : null);
-    // A new trigger: either half rising.
-    const p0 = seen.get(S.eid), p1 = hr ? seen.get(S.half) : null;
-    const rang = (l && ringDue(p0 || null, l, h.haStarted, S.lastRing, h.t, h.now))
-      || (hr && ringDue(p1 || null, hr, h.haStarted, S.lastRing, h.t, h.now));
+    // A pair: its motion half only, as on the Atlas (its occupancy half is never read).
+    const give = roomGlow([own]) || (own && own.none ? own : null);
+    const p0 = seen.get(S.eid);
+    const rang = l && ringDue(p0 || null, l, h.haStarted, S.lastRing, h.t, h.now);
     seen.set(S.eid, l ? { state: l.state, last_changed: l.last_changed } : null);
-    if (hr) seen.set(S.half, { state: hr.state, last_changed: hr.last_changed });
     return { l, own, give, rang: !!rang };
   }
   function paintPatch(P, h){

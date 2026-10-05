@@ -370,16 +370,18 @@ await tryCase("presence: held steady, a flat fill and a solid line, no frames; c
     && !hold.glow.steady && hold.glow.active && hold.band.line === 0 && step1.glow.step === 1 && !step1.glow.steady,
     { held, hold, step1, live, frames: f1 - f0 });
 });
-await tryCase("pair: its occupancy half on holds the loft steady while the motion half is quiet; the marker lights with it", async () => {
+await tryCase("pair: as on the Atlas, a pair reads its motion half only: its occupancy half left on never holds the loft lit", async () => {
   attach(main, {}, { "binary_sensor.loft_occupancy": { state: "on", last_changed: ago(12) } });
   await settle(4);
-  const p = patch(main, "Loft"), s = sensor(main, "binary_sensor.loft_motion");
+  const held = patch(main, "Loft"), s = sensor(main, "binary_sensor.loft_motion");
+  attach(main, {}, { "binary_sensor.loft_motion": { state: "on", last_changed: ago(1) }, "binary_sensor.loft_occupancy": { state: "on", last_changed: ago(12) } });
+  await settle(4);
+  const moving = patch(main, "Loft");
   attach(main, {}, {});
   await settle(4);
-  const quiet = patch(main, "Loft");
-  check("pair: its occupancy half on holds the loft steady while the motion half is quiet; the marker lights with it",
-    p && p.glow && p.glow.steady && p.band.line > 0.9 && s.give.steady && !s.own && s.look.lit && s.look.steady
-    && quiet.glow === null, { p, s, quiet });
+  check("pair: as on the Atlas, a pair reads its motion half only: its occupancy half left on never holds the loft lit",
+    held && held.glow === null && s && s.model === "pair" && !s.give && !s.look.lit
+    && moving && moving.glow && moving.glow.active && !moving.glow.steady, { held, s, moving });
 });
 await tryCase("health: no reading — no glow and a dashed ring; stuck on — hatched and a ⚠, never in the chip", async () => {
   attach(main, {}, {});
