@@ -4,6 +4,37 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.101 — The Atlas and Live Aboard, one program (2026-10-05)
+
+### Live Aboard looks like the Atlas
+- **Changed:** Live Aboard now follows the Atlas's look. With Showcase on, it uses your Showcase theme's page and colours; with Showcase off, it uses the plain Atlas's dark green.
+- **Changed:** rooms are drawn the Atlas's way: an outline in the room's colour, a faint fill, and the name in the room's colour (UPPERCASE and spaced where the theme says).
+- **Changed:** each floor carries the Atlas's numbered badge in its floor colour, and readings use the Atlas's words and colours.
+- **Changed:** Settings → UI Structure → Atlas → 🏠 Live Aboard → **Look: Same as the Atlas / Live Aboard's own**. Pick "Live Aboard's own" for the look it had before.
+- **Fixed:** with the map alone or full screen, the 🌴 Vacation banner and the emergency lighting dial stay on top, and ☰ (bring the bars back) sits under the dial, never beneath it.
+
+### Every Atlas control and device works in Live Aboard
+- **Added:** the Atlas's device-type chips (☰: Lights, Strips, Fans, Motion, Temps, Humidity, Air, Doors/Windows, Emergency) fade every other type in Live Aboard too, including fixtures, fan blades and linked furniture, and those stop taking taps.
+- **Added:** **◎ Find active** flies Live Aboard to the tripped sensor or lit light, switching floor if needed.
+- **Added:** ⚙ **Zoom − 100% +** zoom Live Aboard while it shows; 100% is the whole house.
+- **Changed:** in Mapping, **Save view** saves Live Aboard's view and **Reset view** shows the whole house, while Live Aboard is on screen. Spacing and L / R step aside, because they only shape the flat map.
+- **Added:** leak sensors show in Live Aboard. Dry, they are a quiet puck on the floor. Wet, or within two days of an alarm, they show the Atlas's alarm: rippling rings across the room and a red WET / ALARM tag.
+- **Added:** locks show on their wall, coloured by state; tap and hold work as on the Atlas.
+- **Added:** device codes (A01, M08…) show in Live Aboard at room scale, unless "Hide device codes" is on.
+
+### The flat Atlas gets what Live Aboard has
+- **Added:** zoom the sidebar's flat map past its whole house and the bars step aside, so the map fills the panel. ☰, Escape or zooming back out brings them back.
+- **Added:** **⛶** takes the flat map full screen. Cards, sheets and toasts opened from it stay in sight there, and in Live Aboard's full screen too.
+- **Added:** double-tap a room's floor on the flat map to zoom to it. A double-tap on a light switches it once.
+- **Changed:** **Show people** and **Show tags & scanners** now work on the flat Atlas too, with or without Live Aboard. The flat map shows:
+  - each tag named, with a ring as wide as its position is unsure;
+  - scanners as small squares;
+  - people as a round marker with their initial.
+  Tap one for the same card Live Aboard shows. One read of the live data serves both.
+- **Added:** a light's "What is this?" kind from Live Aboard is drawn in the matching Atlas shape, unless you set the shape on the Atlas yourself. **Show furniture** (⚙, off until you turn it on) draws your Live Aboard furniture, doors and windows faintly on the flat map.
+
+---
+
 ## 0.38.100 — Lay out strips and string lights where they really are (2026-10-05)
 
 ### Live Aboard
