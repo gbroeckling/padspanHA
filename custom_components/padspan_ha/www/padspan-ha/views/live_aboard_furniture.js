@@ -308,6 +308,37 @@ export function pieceSize(recipe){
   return { w: r.width_m, d: r.depth_m, h: r.height_m };
 }
 
+// ── the starter set ──────────────────────────────────────────────────────────
+// Ready-made pieces at the top of Furnish's Build menu (Garry, 2026-10-04:
+// "give me some base items to start with, try to recreate what I saw in the
+// preview as a starter set"; "I can place, just the tools"). The first two
+// are the P0 preview's: its three-seat sofa with rolled arms, and its queen
+// bed with a slatted headboard 1.30 m high and a footboard (1.70 × 2.29 m).
+// Each is a builder's defaults with a few changes, kept by clampRecipe.
+function starter(name, kind, params = {}, size = {}, colors = null){
+  const r = defaultRecipe(kind);
+  return { name, recipe: clampRecipe({ ...r, params: { ...r.params, ...params }, ...size, colors: colors || r.colors }) };
+}
+export const STARTER_SET = [
+  starter("Sofa, three seats", "sofa", { seats: 3, arms: "rolled" }),
+  starter("Queen bed", "bed", { size: "queen", headboard: "slatted", footboard: true, base: "frame" },
+    { width_m: 1.7, depth_m: 2.29, height_m: 1.3 }),
+  starter("Coffee table", "table", { shape: "rounded", legs: "four", apron: false }, { width_m: 1.1, depth_m: 0.6, height_m: 0.45 }),
+  starter("TV and media unit", "tv", { screen_in: 55, unit: "low", mount: "stand" }),
+  starter("Floor lamp", "lamp", { style: "floor", shade: "drum", base: "round" }),
+  starter("Rug", "rug", { shape: "rectangle", pattern: "border" }, { width_m: 2.4, depth_m: 1.6 }),
+  starter("Dining table", "table", { shape: "rectangle", legs: "four" }, { width_m: 1.6, depth_m: 0.9, height_m: 0.75 }),
+  starter("Dining chair", "chair", { style: "dining", cushion: true }),
+  starter("Bedside table", "dresser", { fronts: "drawers", columns: 1, rows: 2, base: "feet", handles: "knob" },
+    { width_m: 0.45, depth_m: 0.4, height_m: 0.55 }),
+  starter("Table lamp", "lamp", { style: "table", shade: "drum", base: "round" }, { width_m: 0.3, depth_m: 0.3, height_m: 0.5 }),
+  starter("Dresser", "dresser", { fronts: "drawers", columns: 2, rows: 3 }),
+  starter("Wardrobe", "wardrobe", { style: "hinged", doors: 2 }),
+  starter("Desk", "desk", { legs: "four", drawers: "right" }),
+  starter("Office chair", "chair", { style: "office", cushion: true, arms: true }),
+  starter("Plant", "plant", { style: "bush", pot: "round" }),
+];
+
 // ── geometry: PadSpan's own rounded box, placing and merging ─────────────────
 // Each face of the box: its normal axis and sign, then the two in-plane axes
 // (axis, sign) with u × v = the normal, so every quad winds outward.

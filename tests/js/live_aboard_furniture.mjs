@@ -544,4 +544,21 @@ tryCase("figure: across its range", () => {
   }
 });
 
+// The starter set (Furnish's ready-made pieces): each recipe is exactly what
+// clampRecipe keeps, and builds inside its own box at Low and High.
+tryCase("starters: every starter recipe is kept as it is and builds inside its box", () => {
+  const bad = [];
+  for (const st of F.STARTER_SET || []) {
+    if (JSON.stringify(F.clampRecipe(st.recipe)) !== JSON.stringify(st.recipe)) { bad.push([st.name, "changed by clampRecipe"]); continue; }
+    for (const quality of ["low", "high"]) {
+      const g = F.buildPiece(THREE, st.recipe, { quality }), bb = boundsOf(g), r = st.recipe, e = 1e-3;
+      if (bb.isEmpty() || bb.max.x - bb.min.x > r.width_m + e || bb.max.z - bb.min.z > r.depth_m + e || bb.max.y - bb.min.y > r.height_m + e)
+        bad.push([st.name, quality, bb.min.toArray(), bb.max.toArray()]);
+      F.disposePiece(g);
+    }
+  }
+  check("starters: every starter recipe is kept as it is and builds inside its box",
+    (F.STARTER_SET || []).length >= 10 && bad.length === 0, bad);
+});
+
 console.log(JSON.stringify({ cases, failures, stats }));

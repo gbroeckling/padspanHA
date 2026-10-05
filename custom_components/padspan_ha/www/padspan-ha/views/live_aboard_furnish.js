@@ -366,6 +366,13 @@ export function createFurnish(ctx){
     // The builders' box ("other") goes last, on its own; with no builders
     // here (the module missing or broken) a box is still something to place.
     const boxKind = kinds.includes("other") ? "other" : "box";
+    // Ready-made pieces first (the builders' STARTER_SET: the preview's sofa
+    // and bed, then the everyday pieces), each placed like any other.
+    const starters = B && Array.isArray(B.STARTER_SET) ? B.STARTER_SET.filter(s => s && s.name && s.recipe) : [];
+    if (starters.length) {
+      menu.appendChild(d("h5", null, "Starter set"));
+      for (const s of starters) menu.appendChild(btn(s.name, `Add a ${s.name.toLowerCase()}, ready made`, () => { closeMenu(); add([{ recipe: copy(s.recipe) }]); }));
+    }
     for (const [g, title] of groups) {
       const ks = kinds.filter(k => k !== boxKind && B.FURNITURE[k] && (B.FURNITURE[k].group || "furniture") === g);
       if (!ks.length) continue;

@@ -175,7 +175,9 @@ await tryCase("open: Furnish opens at the furniture tool; Build lists the builde
   const menu = root().querySelectorAll(".la3d-furmenu")[0].querySelectorAll("button").map(b => b.textContent);
   // Grouped, furniture then devices, in the builders' order; the Box last on its own.
   const of = (g) => (FURN ? FURN.FURNITURE_KINDS.filter(k => k !== "other" && FURN.FURNITURE[k].group === g).map(k => FURN.FURNITURE[k].name) : []);
-  const want = [...of("furniture"), ...of("device"), "Box"];
+  // The starter set first (ready-made pieces), then each builder.
+  const starters = FURN && Array.isArray(FURN.STARTER_SET) ? FURN.STARTER_SET.map(st => st.name) : [];
+  const want = [...starters, ...of("furniture"), ...of("device"), "Box"];
   check("open: Furnish opens at the furniture tool; Build lists the builders' kinds; a missing flow has no button",
     !st().failed && ed().editing && ed().tool === "furnish" && ed().furnishOn && !shown(button("Door", "la3d-tools"))
     && JSON.stringify(menu) === JSON.stringify(want)
@@ -185,6 +187,30 @@ await tryCase("open: Furnish opens at the furniture tool; Build lists the builde
     && fur().flows && JSON.stringify([...fur().flows].sort()) === JSON.stringify(FLOW_FILES.filter(f => existsSync(join(WWW, "views", f[2]))).map(f => f[0]).sort())
     && st().furnish === true && st().split === "3d",
     { edit: { editing: ed().editing, tool: ed().tool }, menu, want, flows: fur().flows, split: st().split });
+});
+
+// ── the starter set ─────────────────────────────────────────────────────────
+// Garry, 2026-10-04: "try to recreate what I saw in the preview as a starter
+// set"; the first two are the preview's sofa and bed. Each places like any
+// piece, with its ready-made recipe, and Undo takes it away again.
+await tryCase("starters: the preview's sofa and bed lead the starter set, and each places with its recipe", async () => {
+  if (!FURN || !Array.isArray(FURN.STARTER_SET)) { check("starters: the preview's sofa and bed lead the starter set, and each places with its recipe", false, "no STARTER_SET"); return; }
+  const [sofaS, bedS] = FURN.STARTER_SET;
+  const preview = sofaS.recipe.kind === "sofa" && sofaS.recipe.params.arms === "rolled" && sofaS.recipe.params.seats === 3
+    && bedS.recipe.kind === "bed" && bedS.recipe.params.headboard === "slatted" && bedS.recipe.params.footboard === true
+    && bedS.recipe.params.size === "queen" && bedS.recipe.width_m === 1.7 && bedS.recipe.depth_m === 2.29 && bedS.recipe.height_m === 1.3;
+  const placed = [];
+  for (const st of FURN.STARTER_SET) {
+    click("Build ▾", "la3d-tools");
+    click(st.name, "la3d-furmenu");
+    await settle();
+    const p = draftPieces()[fur().sel] || {};
+    placed.push({ name: st.name, same: JSON.stringify(p.recipe) === JSON.stringify(st.recipe), floor: p.floor_id });
+    click("Undo", "la3d-tools"); await settle();
+  }
+  check("starters: the preview's sofa and bed lead the starter set, and each places with its recipe",
+    preview && placed.length === FURN.STARTER_SET.length && placed.every(x => x.same && x.floor) && !ed().dirty,
+    { preview, placed: placed.filter(x => !x.same || !x.floor), dirty: ed().dirty });
 });
 
 // ── add ─────────────────────────────────────────────────────────────────────
