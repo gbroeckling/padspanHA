@@ -468,11 +468,13 @@ changes go through its own `schema` field. The only other additions are its sett
 4. `ws_common.py`: `_ALL_STORE_KEYS` and `_DATA_KEY_MAP`, which gives backup and restore.
 5. `ws_factory_reset.py`: an explicit block that empties it (terms acceptance included).
 6. `bright_import.py`: `HOUSE_STORES` (done in step 1, with the cached store dropped after an
-   import), plus a count in `target_contents` (P2). Known gap before Live Aboard ships in Bright:
-   on an install with no 3D file, the pre-import backup cannot record "no file", so restoring it
-   cannot remove a 3D file the import created. Fix it then with an "absent" marker in the backup
-   that a restore turns into removing the file. (The importer's general "reload re-reads the
-   stores" problem, for the other stores, is separate and older.)
+   import), plus a count in `target_contents` (P2). **Fixed 2026-10-04:** on an install with no 3D
+   file, the Bright import's safety backup records "there was no file" (`ws_common.ABSENT_MARKER`,
+   `_auto_backup(mark_absent=True)`), and restoring it takes away the file the import created
+   (`house3d_store.async_restore_absent`; what the house shared to the library stays). Ordinary
+   backups never record it, so restoring an older backup never wipes furniture placed since. (The
+   importer's general "reload re-reads the stores" problem, for the other stores, is separate and
+   older.)
 7. `manage.js` `_storeLabel`: "3D house".
 8. Settings, with schema entries and validators (the `atlas_weather_*` keys are the pattern).
 9. Telemetry, as below.

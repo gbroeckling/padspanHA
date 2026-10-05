@@ -375,6 +375,17 @@ _DATA_KEY_MAP = {
 # has furniture in it by then (house3d_store.py).
 _BACKUP_ONLY_ONCE_WRITTEN = frozenset({HOUSE3D_STORE_KEY})
 
+# "There was no file": what a safety backup taken right before an operation
+# that may CREATE one of those stores records for it (the Bright import's;
+# _auto_backup(mark_absent=True)), so that restoring it can take that file
+# away again. Ordinary backups never record it: restoring an older backup
+# must not wipe furniture placed since (house3d_store.async_restore_data).
+ABSENT_MARKER = "__padspan_absent__"
+
+
+def _is_absent_marker(data) -> bool:
+    return isinstance(data, dict) and len(data) == 1 and data.get(ABSENT_MARKER) is True
+
 
 async def _store_file_written(hass, store_key: str) -> bool:
     """Does Home Assistant hold this store's file (.storage/<key>)? If the

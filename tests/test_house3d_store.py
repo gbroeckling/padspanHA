@@ -548,3 +548,62 @@ def test_the_report_carries_nothing_from_the_3d_house(store):
     T.assert_shareable(p)
     flat = json.dumps(p)
     assert "house3d" not in flat and "couch" not in flat and "fur_1" not in flat
+
+
+# ═══ the Bright import's "there was no file" (ws_common.ABSENT_MARKER) ════════
+
+def test_the_bright_imports_backup_records_a_file_that_was_not_there(store, tmp_path, monkeypatch):
+    """Before an import that may create Live Aboard's file, the safety backup
+    says "there was none"; an ordinary backup still carries no entry."""
+    from custom_components.padspan_ha import ws_backup
+    from custom_components.padspan_ha.ws_common import ABSENT_MARKER
+    box = _capture_backups(monkeypatch)
+    h = _house(tmp_path)
+    assert _run(ws_backup._auto_backup(h, "plain", [HOUSE3D_STORE_KEY]))
+    assert HOUSE3D_STORE_KEY not in box["backups"][-1]["stores"]
+    assert _run(ws_backup._auto_backup(h, "Before PadSpan Bright import", [HOUSE3D_STORE_KEY], mark_absent=True))
+    assert box["backups"][-1]["stores"][HOUSE3D_STORE_KEY] == {ABSENT_MARKER: True}
+    _disk_file(tmp_path)                                    # a file that exists is carried as it is
+    store.saved[HOUSE3D_STORE_KEY] = {**H.empty(), "pieces": {"fur_1": dict(_PIECE)}}
+    assert _run(ws_backup._auto_backup(h, "Before PadSpan Bright import", [HOUSE3D_STORE_KEY], mark_absent=True))
+    assert box["backups"][-1]["stores"][HOUSE3D_STORE_KEY]["pieces"]["fur_1"]["label"] == "Mum's old couch"
+
+
+def test_restoring_there_was_no_file_takes_away_the_file_the_import_made(store, monkeypatch):
+    from custom_components.padspan_ha.const import DATA_HOUSE3D
+    from custom_components.padspan_ha.ws_common import ABSENT_MARKER
+    store.saved[HOUSE3D_STORE_KEY] = {**H.empty(), "pieces": {"fur_9": dict(_PIECE)}}    # what the import brought
+    h = _house()
+    _run(H.async_get_store(h))
+    _restore(h, monkeypatch, {HOUSE3D_STORE_KEY: {ABSENT_MARKER: True}})
+    assert HOUSE3D_STORE_KEY not in store.saved, "the file is gone again"
+    assert DATA_HOUSE3D not in h.data[DOMAIN], "the cached store went with it"
+    assert _run(H.async_get_store(h)).data.get("pieces") == {}
+
+
+def test_restoring_there_was_no_file_keeps_what_this_house_shared(store, monkeypatch):
+    """The owner tokens are the only way to withdraw shared pieces: the file
+    stays, empty but for them (house3d_library.carried_over)."""
+    from custom_components.padspan_ha.ws_common import ABSENT_MARKER
+    shared = {"prefix": "abcdef", "submissions": {"sub_abcdef0000000001": {
+        "owner_token": "0123456789abcdef0123456789abcdef", "library_id": "lib_000000000001"}}}
+    store.saved[HOUSE3D_STORE_KEY] = {**H.empty(), "pieces": {"fur_9": dict(_PIECE)}, "library": {"terms_version": 1, **shared}}
+    h = _house()
+    _restore(h, monkeypatch, {HOUSE3D_STORE_KEY: {ABSENT_MARKER: True}})
+    kept = store.saved[HOUSE3D_STORE_KEY]
+    assert kept["pieces"] == {} and kept["library"]["submissions"] == shared["submissions"]
+    assert kept["library"]["prefix"] == "abcdef"
+
+
+def test_a_there_was_no_file_marker_is_never_written_as_data(store, monkeypatch):
+    from custom_components.padspan_ha.const import SETTINGS_STORE_KEY
+    from custom_components.padspan_ha.ws_common import ABSENT_MARKER
+    h = _house()
+    before = dict(h.data[DOMAIN][DATA_SETTINGS].data)
+    _restore(h, monkeypatch, {SETTINGS_STORE_KEY: {ABSENT_MARKER: True}})
+    assert SETTINGS_STORE_KEY not in store.saved and h.data[DOMAIN][DATA_SETTINGS].data == before
+
+
+def test_the_bright_import_asks_for_the_marker():
+    src = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "ws_bright_import.py").read_text(encoding="utf-8")
+    assert "_auto_backup(h, note, keys, mark_absent=True)" in src

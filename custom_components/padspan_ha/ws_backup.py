@@ -30,7 +30,10 @@ from .const import (
     HOUSE3D_STORE_KEY,
 )
 from .build_info import BUILD_VERSION
-from .ws_common import _BACKUP_ONLY_ONCE_WRITTEN, _DATA_KEY_MAP, _MAX_AUTO_BACKUPS, _MAX_BACKUPS, _store_file_written
+from .ws_common import (
+    ABSENT_MARKER, _BACKUP_ONLY_ONCE_WRITTEN, _DATA_KEY_MAP, _MAX_AUTO_BACKUPS, _MAX_BACKUPS, _is_absent_marker,
+    _store_file_written,
+)
 from .telemetry import bump as _bump
 
 _LOGGER = logging.getLogger(__name__)
@@ -78,7 +81,7 @@ def _trim_backups(backups: list[dict[str, Any]], auto: bool) -> None:
     backups[:] = [b for b in backups if id(b) not in drop]
 
 
-async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str]) -> str | None:
+async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str], *, mark_absent: bool = False) -> str | None:
     """Snapshot the named stores into the normal backup list before a
     destructive operation, and return the backup id.
 
@@ -95,7 +98,12 @@ async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str]) ->
     stores_data: dict[str, Any] = {}
     for store_key in store_keys:
         if store_key in _BACKUP_ONLY_ONCE_WRITTEN and not await _store_file_written(hass, store_key):
-            continue   # never written: no entry, so a restore never creates or empties it
+            # Never written: no entry, so a restore never creates or empties
+            # it. Before an operation that may create it (mark_absent: the
+            # Bright import), "there was none", so restoring takes it away.
+            if mark_absent:
+                stores_data[store_key] = {ABSENT_MARKER: True}
+            continue
         data_key = _DATA_KEY_MAP.get(store_key)
         store_obj = hass.data.get(DOMAIN, {}).get(data_key) if data_key else None
         try:
@@ -364,6 +372,17 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
         if data is None:
             continue
         if selected_keys is not None and store_key not in selected_keys:
+            continue
+        if _is_absent_marker(data):
+            # "There was no file" (ws_common.ABSENT_MARKER): only Live Aboard's
+            # file knows how to go back to none; never written as data.
+            if store_key == HOUSE3D_STORE_KEY:
+                from .house3d_store import async_restore_absent
+                try:
+                    await async_restore_absent(hass)
+                    restored += 1
+                except Exception as err:  # noqa: BLE001 — reported, like every store below
+                    _LOGGER.error("Restore of %s failed: %s", store_key, err)
             continue
         try:
             if store_key == HOUSE3D_STORE_KEY:
