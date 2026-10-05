@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.97 — A starter set of furniture (2026-10-04)
+
+### Live Aboard
+- **Added:** Mapping → Furnish → **Build ▾** now opens with a **Starter set** of ready-made pieces: a three-seat sofa with rolled arms and a queen bed with a slatted headboard and a footboard (the two pieces from the Live Aboard preview), then a coffee table, TV and media unit, floor lamp, rug, dining table and chair, bedside table, table lamp, dresser, wardrobe, desk, office chair and a plant. Pick one and place it like any other piece; every slider still works on it.
+
+---
+
 ## 0.38.96 — Live Aboard: walk around your house, and furnish it (2026-10-04)
 
 ### Live Aboard (new, PadSpan Pro and Bright Pro, off until you turn it on)
