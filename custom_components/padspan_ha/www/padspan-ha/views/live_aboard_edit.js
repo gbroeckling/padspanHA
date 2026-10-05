@@ -29,7 +29,9 @@
 //                 to the ceiling, or back to its default; for a light, also
 //                 what it is ("What is this?": a pot, a valance, a lamp...),
 //                 or PadSpan's guess. (Scanners keep the height the map gives
-//                 them: presence uses it.)
+//                 them: presence uses it.) A placed device's height is kept on
+//                 its placement record, the Atlas's own (Save sends it there:
+//                 live_aboard.js editSave); the rest goes to the 3D file.
 //   a door or window from the map (a barrier): tap it to set its hinge and
 //                 swing, or its sill and head, in 3D only.
 //
@@ -514,7 +516,8 @@ export function createEditor(ctx){
       saving = false; afterSave = null;
       const code = err && err.code;
       if (code === "house3d_newer" && ctx.newer) ctx.newer();   // the file's own error, until a read finds otherwise
-      hint(NOT_SAVED[code] || `Not saved: ${String((err && (err.message || err.code)) || err)}`, true);
+      // A Save that went partly in says what did (live_aboard.js editSave).
+      hint(err && err.partial ? String(err.message) : NOT_SAVED[code] || `Not saved: ${String((err && (err.message || err.code)) || err)}`, true);
       paint();
       return;
     }

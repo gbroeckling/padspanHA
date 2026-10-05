@@ -526,3 +526,67 @@ export const openingsSignature = (vd) => JSON.stringify(Object.keys((vd && vd.op
 /** What the heights of one section are drawn from (and a light's kind). */
 export const heightsSignature = (vd, section) => JSON.stringify(Object.keys((vd && vd[section]) || {}).sort()
   .map(k => [k, (vd[section][k] || {}).z_m, (vd[section][k] || {}).kind]));
+
+// ── Heights on the placement record (Garry, 2026-10-05) ─────────────────────
+// "Same dataset, just extra info": a placed device's height above its floor
+// lives on its one placement record (model.light_positions_m[eid].z_m,
+// fabric_light_height_set), not in the 3D file. The view reads the record
+// first, then the 3D file (an older install's, or a device with no record),
+// then its kind's default; the editor's draft holds the record's heights
+// too, and Save sends each to where it lives: the records' in one
+// fabric_light_height_set, the rest to house3d_edit (splitSave).
+/** {entity id: z_m} for each placement record that carries a height. */
+export function recordHeights(model){
+  const pos = model && model.light_positions_m && typeof model.light_positions_m === "object" ? model.light_positions_m : {};
+  const out = {};
+  for (const k of Object.keys(pos)) { const z = num(pos[k] && pos[k].z_m); if (z !== null) out[k] = z; }
+  return out;
+}
+/** The 3D file (ownedOf) as the view draws it: each record's height in the
+ *  entry of the section the view reads that device from (sectionOf(eid):
+ *  "lights" for a fixture, "devices" for anything else), over the file's
+ *  own. Nothing in `records`: the file itself, untouched. */
+export function withRecordHeights(file, records, sectionOf){
+  const ids = Object.keys(records || {});
+  if (!ids.length) return file;
+  const out = { ...file, lights: { ...(file.lights || {}) }, devices: { ...(file.devices || {}) } };
+  for (const k of ids) {
+    const s = sectionOf(k) === "lights" ? "lights" : "devices";
+    out[s][k] = { ...(out[s][k] || {}), z_m: records[k] };
+  }
+  return out;
+}
+const withoutZ = (e) => { const o = { ...(e || {}) }; delete o.z_m; return o; };
+/** Save, split by where each thing lives: {heights, file}. heights: {entity
+ *  id: z_m, or null for the default} for each device with a placement record
+ *  (`placed`) whose height in the draft is not its record's (`records`);
+ *  file: the draft's changes (`ch`, changesOf) for house3d_edit, less those
+ *  heights, and taking a height still in the 3D file out of it once its
+ *  record holds it (that file height was only ever a fallback). Either is
+ *  null with nothing in it. `file` is the 3D file as read (ownedOf). */
+export function splitSave(file, ch, placed, records){
+  const has = (id) => (placed instanceof Set ? placed.has(id) : !!(placed && placed[id]));
+  const heights = {}, out = {};
+  for (const s of SECTIONS) {
+    const sec = ch && ch[s];
+    if (!sec) continue;
+    const keep = {};
+    for (const k of Object.keys(sec)) {
+      if ((s !== "lights" && s !== "devices") || !has(k)) { keep[k] = sec[k]; continue; }
+      const e = sec[k], z = num(e && e.z_m), rz = num(records && records[k]);
+      if (z !== rz) heights[k] = z;
+      const was = (file && file[s] && file[s][k]) || null;
+      if (s === "devices") {
+        // A device's entry here is its height alone: null takes the file's
+        // out (any look it has stays: the server keeps what it does not own).
+        if (was && num(was.z_m) !== null) keep[k] = null;
+        continue;
+      }
+      // A light's entry is the editor's whole: what it is and its run, no height.
+      const want = withoutZ(e);
+      if (canon(was || {}) !== canon(want)) keep[k] = Object.keys(want).length ? want : null;
+    }
+    if (Object.keys(keep).length) out[s] = keep;
+  }
+  return { heights: Object.keys(heights).length ? heights : null, file: Object.keys(out).length ? out : null };
+}

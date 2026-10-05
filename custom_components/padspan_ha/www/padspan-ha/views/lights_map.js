@@ -2935,6 +2935,9 @@ export function buildLightsMapCard(hostIn){
           // Save, house3d_edit) only where the host lets lights be placed.
           load: typeof h3.load === "function" ? h3.load : null,
           edit: typeof h3.edit === "function" ? h3.edit : null,
+          // Its heights go on the placement records (fabric_light_height_set),
+          // given with edit, on the same gate as placing a light.
+          heights: typeof h3.heights === "function" ? h3.heights : null,
           // Rain and snow, and the Showcase look (P8): the flat map's own
           // weather inputs with Live Aboard's Rain and snow switch, and the
           // Showcase theme this map shows. The view decides what they draw.

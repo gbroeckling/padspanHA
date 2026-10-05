@@ -10,6 +10,7 @@ Split out of websocket.py; registration stays there.
 from __future__ import annotations
 
 import logging
+import math
 import voluptuous as vol
 from typing import Any
 from homeassistant.components import websocket_api
@@ -31,6 +32,7 @@ from .const import (
     FABRIC_STORE_KEY,
 )
 from .fabric_truth import cluster_count as _cluster_count, geom_bbox_m as _geom_bbox_m
+from .model_store import KEEP_HEIGHT
 from .snapshot_builder import _live_snapshot
 from .ws_common import _invalidate_snapshot_cache, _tier_at_least
 from .ws_backup import _auto_backup
@@ -46,6 +48,38 @@ _PRO_REQUIRED_MSG = (
     "Enter a key in Settings \u2192 Features \u2192 PadSpan licence, "
     "or get one at https://padspan.traks.ca/#pro"
 )
+
+# A device's height above its floor (Live Aboard), on its placement record:
+# metres, or null to clear it. Kept 0 to MAX_HEIGHT_M, to the centimetre, as
+# a scanner's is (fabric_store.device_height); NaN or infinity is refused.
+_HEIGHT = vol.Any(None, vol.Coerce(float))
+_HEIGHT_MSG = "z_m must be a height in metres, or null to go back to the default"
+_HEIGHTS_MAX = 2000
+
+
+def _height_ok(v: Any) -> bool:
+    return v is None or (isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v))
+
+
+def _heights_of(msg: dict, id_key: str) -> dict[str, Any] | str:
+    """{id: z_m or None} from {<id_key>, z_m} or from {heights}; else why not."""
+    one, many = id_key in msg, "heights" in msg
+    if one == many:
+        return f"give either {id_key} with z_m, or heights"
+    if one:
+        key = (msg.get(id_key) or "").strip()
+        if not key or "z_m" not in msg:
+            return f"{id_key} and z_m (a height, or null) are both needed"
+        out = {key: msg["z_m"]}
+    else:
+        if "z_m" in msg:
+            return "with heights, each height goes in it: no z_m beside it"
+        out = {str(k).strip(): v for k, v in (msg.get("heights") or {}).items()}
+        if not out or "" in out or len(out) > _HEIGHTS_MAX:
+            return f"heights holds 1 to {_HEIGHTS_MAX} ids, each with a height or null"
+    if not all(_height_ok(v) for v in out.values()):
+        return _HEIGHT_MSG
+    return out
 
 
 
@@ -84,6 +118,9 @@ async def ws_fabric_scanner_remove(hass: HomeAssistant, connection, msg) -> None
         vol.Optional("height_cm"): vol.Coerce(float),
         vol.Optional("margin_cm"): vol.Coerce(float),
         vol.Optional("label"): str,
+        # Its height above its floor, for Live Aboard: left out, the stored
+        # height stays (a drag never wipes it); null clears it.
+        vol.Optional("z_m"): _HEIGHT,
     }
 )
 @websocket_api.async_response
@@ -113,6 +150,9 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
             or eid.startswith("sensor.") or eid.startswith("lock.")):
         connection.send_error(msg["id"], "invalid", "a light, fan, motion-sensor, temperature/humidity/air-quality-sensor or lock entity_id is required")
         return
+    if not _height_ok(msg.get("z_m")):
+        connection.send_error(msg["id"], "invalid", _HEIGHT_MSG)
+        return
     await mdl.async_set_light_position_m(
         eid, float(msg["x_m"]), float(msg["y_m"]),
         (msg.get("floor_id") or "").strip() or DEFAULT_FLOOR_ID,
@@ -123,9 +163,50 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
         height_cm=float(msg.get("height_cm") or 0.0),
         margin_cm=float(msg.get("margin_cm") or 0.0),
         label=(msg.get("label") or "").strip(),
+        z_m=msg["z_m"] if "z_m" in msg else KEEP_HEIGHT,
     )
     _bump(hass, "light_placed")
     connection.send_result(msg["id"], {"ok": True, "entity_id": eid})
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/fabric_light_height_set",
+        vol.Optional("entity_id"): str,
+        vol.Optional("z_m"): _HEIGHT,
+        # Several at once, in one write: {entity_id: z_m or null}.
+        vol.Optional("heights"): {str: _HEIGHT},
+    }
+)
+@websocket_api.async_response
+async def ws_fabric_light_height_set(hass: HomeAssistant, connection, msg) -> None:
+    """Set only the height of a placed device (any placement record: a
+    light, a fan, a sensor, a lock), x/y untouched: {entity_id, z_m} or
+    {heights: {entity_id: z_m}}, a z_m of null clearing it (back to the
+    default for its kind). The same gate as placing a light, and the same
+    fabric write path, so the history sees it like a placement. All or
+    nothing: a device with no placement record refuses the lot."""
+    if not _tier_at_least(hass, "bright"):
+        connection.send_error(msg["id"], "pro_required", _PRO_REQUIRED_MSG)
+        return
+    heights = _heights_of(msg, "entity_id")
+    if isinstance(heights, str):
+        connection.send_error(msg["id"], "invalid", heights)
+        return
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    if not mdl:
+        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        return
+    missing = await mdl.async_set_light_heights(heights)
+    if missing:
+        more = f" (and {len(missing) - 1} more)" if len(missing) > 1 else ""
+        connection.send_error(msg["id"], "not_found",
+                              f"{missing[0]}{more} is not placed on the map, so there is no place "
+                              "to keep its height. Nothing was changed.")
+        return
+    stored = mdl.light_positions_m()
+    connection.send_result(msg["id"], {"ok": True, "heights": {
+        eid: (stored.get(eid) or {}).get("z_m") for eid in heights}})
 
 
 @websocket_api.websocket_command(
@@ -163,6 +244,8 @@ async def ws_fabric_light_remove(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("room"): str,
         vol.Optional("kind"): str,
         vol.Optional("label"): str,
+        # As a light's: left out, the stored height stays; null clears it.
+        vol.Optional("z_m"): _HEIGHT,
     }
 )
 @websocket_api.async_response
@@ -176,6 +259,9 @@ async def ws_fabric_beacon_position_set(hass: HomeAssistant, connection, msg) ->
     if not key:
         connection.send_error(msg["id"], "invalid", "key is required")
         return
+    if not _height_ok(msg.get("z_m")):
+        connection.send_error(msg["id"], "invalid", _HEIGHT_MSG)
+        return
     fl = (msg.get("floor_id") or "").strip() or DEFAULT_FLOOR_ID
     x_m, y_m = float(msg["x_m"]), float(msg["y_m"])
     room = (msg.get("room") or "").strip() or mdl.beacon_room_from_geometry(x_m, y_m, fl)
@@ -183,8 +269,39 @@ async def ws_fabric_beacon_position_set(hass: HomeAssistant, connection, msg) ->
         key, x_m, y_m, fl,
         room=room, kind=(msg.get("kind") or "").strip(),
         label=(msg.get("label") or "").strip(),
+        z_m=msg["z_m"] if "z_m" in msg else KEEP_HEIGHT,
     )
     connection.send_result(msg["id"], {"ok": True, "key": key, "room": room})
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/fabric_beacon_height_set",
+        vol.Optional("key"): str,
+        vol.Optional("z_m"): _HEIGHT,
+        vol.Optional("heights"): {str: _HEIGHT},
+    }
+)
+@websocket_api.async_response
+async def ws_fabric_beacon_height_set(hass: HomeAssistant, connection, msg) -> None:
+    """fabric_light_height_set for a fixed beacon (by its key), on the same
+    gate as pinning one: only its height; x, y and room stay."""
+    heights = _heights_of(msg, "key")
+    if isinstance(heights, str):
+        connection.send_error(msg["id"], "invalid", heights)
+        return
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    if not mdl:
+        connection.send_error(msg["id"], "no_model", "ModelStore not loaded")
+        return
+    missing = await mdl.async_set_beacon_heights(heights)
+    if missing:
+        connection.send_error(msg["id"], "not_found",
+                              f"Beacon {missing[0]} is not pinned on the map. Nothing was changed.")
+        return
+    stored = mdl.beacon_positions_m()
+    connection.send_result(msg["id"], {"ok": True, "heights": {
+        k: (stored.get(k) or {}).get("z_m") for k in heights}})
 
 
 @websocket_api.websocket_command(

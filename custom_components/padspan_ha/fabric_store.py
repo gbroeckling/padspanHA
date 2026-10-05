@@ -73,7 +73,10 @@ Data layout in .storage/padspan_ha.fabric:
     "scanner_positions_m": { "<source>": {x_m, y_m, z_m, floor_id, map_id} },
     "beacon_positions_m":  { "<key>": {x_m, y_m, floor_id, room, kind, label, map_id} },
     "rf_barriers_m":       [ {id, name, material, attenuation_dbm, floor_id, points_m} ],
-    "light_positions_m":   { "<entity_id>": {x_m, y_m, floor_id, color, shape, rotation, width_cm, height_cm, margin_cm, label} },
+    "light_positions_m":   { "<entity_id>": {x_m, y_m, floor_id, color, shape, rotation, width_cm, height_cm, margin_cm, label, z_m?} },
+    # z_m on a light's (any placed device's) or a beacon's record is optional:
+    # its height above its own floor, for Live Aboard (house3d_heights.py).
+    # No z_m means "the default for its kind". Nothing in presence reads it.
 
     "history": [ {ts, floor_id, room, op, revision} ]   # append-only, capped
   }
@@ -88,7 +91,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from .const import DEFAULT_FLOOR_ID, FABRIC_STORE_KEY
+from .const import DEFAULT_FLOOR_ID, FABRIC_STORE_KEY, MAX_HEIGHT_M
 from .safe_store import wrap_store
 
 _LOGGER = logging.getLogger(__name__)
@@ -103,6 +106,22 @@ def _default_floor() -> dict[str, Any]:
         "rooms": {},
         "frame_offset_m": {"dx_m": 0.0, "dy_m": 0.0, "rotation_rad": 0.0},
     }
+
+
+def device_height(v: Any) -> float | None:
+    """A placed device's or a beacon's optional height above its floor (z_m):
+    0 to MAX_HEIGHT_M, to the centimetre, as a scanner's is kept
+    (ModelStore.async_set_scanner_z_m). None for no height (the default for
+    its kind): None itself, or anything that is not a finite number."""
+    if v is None or isinstance(v, bool):
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(f):
+        return None
+    return round(max(0.0, min(MAX_HEIGHT_M, f)), 2)
 
 
 def _norm_geometry(geo: Any) -> dict[str, Any] | None:
@@ -482,9 +501,11 @@ class FabricStore:
     def _norm_point_entry(entry: Any, *, need_z: bool) -> dict[str, Any] | None:
         """Validate + normalize one scanner/beacon/light spatial entry.
 
-        Shared by all three point kinds in async_spatial_update — only
-        scanners carry a z_m (floor height matters for trilateration;
-        beacons/lights are floor-plan points). Returns None on any
+        Shared by all three point kinds in async_spatial_update — scanners
+        always carry a z_m (floor height matters for trilateration); a
+        beacon or a light may carry one (Live Aboard's height, which nothing
+        in presence reads), kept only when it is a height (device_height),
+        else left out. Returns None on any
         malformed/non-finite coordinate so a single bad entry in a batch is
         skipped rather than corrupting the whole write (callers count only
         what actually normalized).
@@ -500,6 +521,12 @@ class FabricStore:
                 out[k] = v
         except (TypeError, ValueError):
             return None
+        if not need_z and "z_m" in out:
+            z = device_height(out.get("z_m"))
+            if z is None:
+                del out["z_m"]
+            else:
+                out["z_m"] = z
         out["floor_id"] = str(out.get("floor_id") or DEFAULT_FLOOR_ID)
         return out
 

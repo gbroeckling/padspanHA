@@ -415,6 +415,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         except Exception as err:
             _LOGGER.warning("Photo divorce migration failed (non-fatal): %s", err)
 
+        # Live Aboard's heights join the placement records (house3d_heights.py):
+        # a no-op once done, and nothing at all while Live Aboard is off.
+        try:
+            from .house3d_heights import async_move_heights
+
+            await async_move_heights(hass)
+        except Exception as err:
+            _LOGGER.warning("Live Aboard heights move failed (non-fatal): %s", err)
+
 
         # Phase 4: backfill padspan_id on existing alert configs
         try:

@@ -407,6 +407,10 @@ function createSlot(slotKey){
   // first shows, and again after the screen went back to Map; null until
   // read. lastP: the card's newest data, to draw again from.
   let file = null, fileLoad = null, lastP = null;
+  // The file as the host last handed it (house3d_get's or house3d_edit's
+  // "data"), and heights just saved to placement records that the map's own
+  // read may not have yet ({entity id: z_m or null}): see recordsNow.
+  let fileRaw = null, recZ = {}, shownMemo = null, shownSig = "";
   // Why the file cannot be edited: read but refused ({code: "read_failed"}),
   // or a newer PadSpan's ({code: "house3d_newer"}: read so, or a Save refused
   // so); null when it can. The next read that works says again.
@@ -1101,8 +1105,9 @@ function createSlot(slotKey){
       THREE, HOUSE, DRAFT, root, canvas, bar, guard,
       camera: () => camera, scene: () => scene, floors: () => floorsUi, shellGen: () => shellGen,
       pick: (x, y) => pickAt(x, y), blocked: (v, own) => blocked(v, own), device: (eid) => deviceInfo(eid),
-      file: () => file, reload: () => reloadFile(), problem: () => fileErr, newer: () => setFileErr("house3d_newer"),
-      saved: (data) => { file = DRAFT.ownedOf(data); setFileErr(DRAFT.writable(data) ? null : "house3d_newer"); },
+      // The file with the records' heights over it (what the draft edits).
+      file: () => (file ? shownFile() : null), reload: () => reloadFile(), problem: () => fileErr, newer: () => setFileErr("house3d_newer"),
+      saved: (data) => { fileRaw = data; file = DRAFT.ownedOf(data); setFileErr(DRAFT.writable(data) ? null : "house3d_newer"); },
       redraw: () => redraw(), preview: (t) => preview(t), render: () => requestRender(), topDown: (F) => topDownOn(F),
       clearUse: () => { if (use) use.clear(); },
       // P2 Furnish: its tool, the furniture drawn, and where on screen each view is.
@@ -3285,7 +3290,73 @@ function createSlot(slotKey){
   // ── the 3D file (part C) ──────────────────────────────────────────────────
   /** What is drawn on top of the map: the editor's draft while editing,
    *  else the 3D file as read. */
-  const viewData = () => (editor && editor.view()) || file || NO_FILE;
+  const viewData = () => (editor && editor.view()) || shownFile();
+  // ── heights on the placement records (Garry, 2026-10-05) ──────────────────
+  // A placed device's height lives on its placement record (z_m,
+  // fabric_light_height_set), the map's own data: the record's height first,
+  // then the 3D file's (an older install's, or a device with no record), then
+  // its kind's default. The house is drawn from the file with the records'
+  // heights laid over it (DRAFT.withRecordHeights), so every reader of a
+  // height (lights, sensors, the marks, the motion mount, the Strip tool's
+  // default) takes the record's without knowing where it came from.
+  /** {entity id: z_m}: the records' heights, with the ones just saved. */
+  function recordsNow(){
+    const model = lastP && lastP.model, recs = DRAFT.recordHeights(model);
+    const pos = (model && model.light_positions_m) || {};
+    for (const k of Object.keys(recZ)) {
+      if (!pos[k] || (recs[k] ?? null) === recZ[k]) { delete recZ[k]; continue; }   // the map has it now
+      if (recZ[k] === null) delete recs[k]; else recs[k] = recZ[k];
+    }
+    return recs;
+  }
+  /** The devices with a placement record (the ones whose height lives there). */
+  const placedNow = () => new Set(Object.keys((lastP && lastP.model && lastP.model.light_positions_m) || {}));
+  /** Which of the file's sections the view reads a device's height from. */
+  const sectionOf = (eid) => (HOUSE.isFixture(lbe[eid]) ? "lights" : "devices");
+  /** The file as drawn: the records' heights over it (the same object while
+   *  neither changed; the file itself while no record has a height). */
+  function shownFile(){
+    const f = file || NO_FILE, recs = recordsNow();
+    const sig = JSON.stringify(Object.keys(recs).sort().map(k => [k, recs[k], sectionOf(k)]));
+    if (!shownMemo || shownMemo.f !== f || shownMemo.sig !== sig) shownMemo = { f, sig, out: DRAFT.withRecordHeights(f, recs, sectionOf) };
+    return shownMemo.out;
+  }
+  // What a part of Save that failed was, said plainly (the rest was saved).
+  const PART_FAILED = {
+    read_failed: "Live Aboard's file couldn't be read", save_failed: "Live Aboard's file couldn't be written",
+    house3d_newer: "a newer PadSpan saved Live Aboard's file, and this version never changes it",
+  };
+  const why = (err) => PART_FAILED[err && err.code] || String((err && (err.message || err.code)) || err);
+  /** Edit's Save: one Save, two writes. The heights of devices with a
+   *  placement record go to their records first, all in one command (the
+   *  host's heights: fabric_light_height_set, the Atlas's own permission);
+   *  everything else goes to the 3D file (the host's edit: house3d_edit).
+   *  A refused height command changes nothing at all; a file write that
+   *  fails after the heights went in says so: the heights are saved, the
+   *  rest is still in the draft (Save again sends the heights as they now
+   *  are, which changes nothing). A host with no height command: all to the
+   *  file, as before. */
+  async function editSave(ch){
+    const p = lastP || {}, edit = p.edit, put = typeof p.heights === "function" ? p.heights : null;
+    if (!put) return edit(ch);
+    const split = DRAFT.splitSave(file || NO_FILE, ch, placedNow(), recordsNow());
+    if (split.heights) {
+      try { await put(split.heights); }
+      catch (err) {
+        throw Object.assign(new Error(`the heights couldn't be saved (${why(err)}). Nothing was changed; your changes are still here: Save to try again.`),
+          { code: "heights_failed" });
+      }
+      Object.assign(recZ, split.heights);
+      shownMemo = null;
+    }
+    if (!split.file) return { data: fileRaw || file || NO_FILE };
+    try { return await edit(split.file); }
+    catch (err) {
+      if (!split.heights) throw err;
+      throw Object.assign(new Error(`Heights saved. The rest wasn't: ${why(err)}. Your other changes are still here: Save to try again.`),
+        { code: err && err.code, partial: true });
+    }
+  }
   // Read through the host (the view calls nothing itself), once per showing:
   // a failed read leaves the house as the map draws it, with no retry until
   // the screen comes back to 3D. Drawn as soon as it arrives.
@@ -3293,6 +3364,7 @@ function createSlot(slotKey){
     if (fileLoad || typeof p.load !== "function") return;
     const mine = fileLoad = Promise.resolve().then(() => p.load()).then((r) => {
       if (fileLoad !== mine) return false;
+      fileRaw = (r && r.data) || null;
       file = DRAFT.ownedOf(r && r.data);
       setFileErr(DRAFT.writable(r && r.data, r && r.writable) ? null : "house3d_newer");
       if (editor) editor.fileChanged();                   // an open draft follows what was removed elsewhere
@@ -3603,6 +3675,10 @@ function createSlot(slotKey){
     takeDrawers(p);
     // The map, and what the 3D file adds to it (its doors and windows, its
     // heights): either changing redraws what it touches.
+    // A record's height changed on the map (the Atlas's Height): an open
+    // draft with nothing unsaved follows it.
+    shownFile();
+    if (shownMemo.sig !== shownSig) { shownSig = shownMemo.sig; if (editor && file) editor.fileChanged(); }
     const vd = viewData();
     const mSig = HOUSE.shellSignature(p.model, p.floors, p.lightsByEid);
     const mlSig = HOUSE.lightsSignature(p.model, p.lightsByEid, p.hidden, p.shapeOverrides), mxSig = HOUSE.sensorsSignature(p.model, p.lightsByEid, p.hidden);
@@ -3696,7 +3772,7 @@ function createSlot(slotKey){
         if (!s || !s.parentNode || !p) return false;
         if (!renderer && !start(HOUSE.qualitySetting(p.quality))) return false;
         loadFile(p);
-        if (editor) editor.setEdit(typeof p.edit === "function" ? p.edit : null);
+        if (editor) editor.setEdit(typeof p.edit === "function" ? editSave : null);
         // Mapping → Furnish (P2): the plan beside the 3D view and the Furnish
         // tool open. p.furnish is the host's own for the tool (its flows and
         // "This is a device…"), handed through: the view calls nothing itself.

@@ -49,12 +49,13 @@ def test_the_server_refusal_says_where_to_go() -> None:
     for bit in LICENCE_PATH_BITS:
         assert bit in body, f"the refusal does not name the licence card ({bit!r} missing)"
 
-    # Both gates must use the constant rather than repeating a literal, so the
-    # two can never say different things.
+    # Every gate must use the constant rather than repeating a literal, so
+    # they can never say different things: placing a light, un-placing it,
+    # and (2026-10-05) setting only its height.
     literals = s.count('"Light placement needs PadSpan Bright Pro or PadSpan Pro"')
     assert literals == 0, "a gate is still using its own literal message"
-    assert s.count('"pro_required", _PRO_REQUIRED_MSG') == 2, (
-        "expected exactly the two light-placement gates to use the shared message")
+    assert s.count('"pro_required", _PRO_REQUIRED_MSG') == 3, (
+        "expected exactly the three light-placement gates to use the shared message")
 
 
 def test_no_view_points_at_a_licence_surface_that_does_not_exist() -> None:

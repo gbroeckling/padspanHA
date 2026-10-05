@@ -50,6 +50,7 @@ from homeassistant.helpers.storage import Store
 
 from . import fabric_truth
 from .const import MODEL_STORE_KEY, DEFAULT_FLOOR_ID, MAX_HEIGHT_M, LIGHT_SHAPE_KINDS, OUTDOOR_FLOOR_NAMES
+from .fabric_store import device_height
 from .safe_store import wrap_store
 from .util import ha_devices
 
@@ -226,6 +227,20 @@ LIGHT_PIN_DEFAULT_SIZE_CM = 15.0
 
 
 LIGHT_PIN_DEFAULT_MARGIN_CM = 15.0
+
+# A save that leaves out a device's height keeps the one stored (ws_fabric:
+# only an explicit null clears it). The fabric itself keeps a height only
+# when it is one (fabric_store.device_height).
+KEEP_HEIGHT: Any = object()
+
+
+def _kept_height(stored: Any, z_m: Any) -> float | None:
+    """The height a re-saved record carries: the stored one when the save
+    left z_m out (KEEP_HEIGHT), else the one given (None: no height)."""
+    if z_m is KEEP_HEIGHT:
+        z_m = stored.get("z_m") if isinstance(stored, dict) else None
+    return device_height(z_m)
+
 
 def light_appearance(*, color: Any = "", shape: Any = "", rotation: Any = 0.0,
                      width_cm: Any = None, height_cm: Any = None,
@@ -1284,12 +1299,16 @@ class ModelStore:
     async def async_set_beacon_position_m(
         self, key: str, x_m: float, y_m: float, floor_id: str,
         room: str = "", kind: str = "", label: str = "", map_id: str | None = None,
+        z_m: Any = KEEP_HEIGHT,
     ) -> None:
-        """Set a beacon's real-world position (canonical copy in the fabric)."""
+        """Set a beacon's real-world position (canonical copy in the fabric).
+
+        z_m, its optional height above its floor, as a light's: left out
+        (KEEP_HEIGHT), the height already stored stays; None clears it."""
         fab = getattr(self, "fabric", None)
         if not fab:
             return
-        await fab.async_spatial_update(set_beacons={str(key): {
+        entry = {
             "x_m": round(float(x_m), 3),
             "y_m": round(float(y_m), 3),
             "floor_id": str(floor_id or DEFAULT_FLOOR_ID),
@@ -1297,7 +1316,11 @@ class ModelStore:
             "kind": str(kind),
             "label": str(label),
             "map_id": map_id,
-        }}, op="beacon_set")
+        }
+        z = _kept_height(fab.beacon_positions_m().get(str(key)), z_m)
+        if z is not None:
+            entry["z_m"] = z
+        await fab.async_spatial_update(set_beacons={str(key): entry}, op="beacon_set")
 
     def light_positions_m(self) -> dict[str, dict[str, Any]]:
         """{entity_id: {x_m, y_m, floor_id, ...}} — read through the fabric."""
@@ -1308,9 +1331,14 @@ class ModelStore:
         self, entity_id: str, x_m: float, y_m: float, floor_id: str,
         color: str = "", shape: str = "", rotation: float = 0.0,
         width_cm: float = 0.0, height_cm: float = 0.0, margin_cm: float = 0.0,
-        label: str = "",
+        label: str = "", z_m: Any = KEEP_HEIGHT,
     ) -> None:
-        """Place a light in real-world metres — the only way a light is placed."""
+        """Place a light in real-world metres — the only way a light is placed.
+
+        Each save replaces the whole record, except its height (z_m, metres
+        above its floor, for Live Aboard): left out (KEEP_HEIGHT), the height
+        already stored stays, so moving a device on the Atlas never wipes it;
+        None clears it (back to the default for its kind)."""
         fab = getattr(self, "fabric", None)
         if not fab:
             return
@@ -1323,7 +1351,45 @@ class ModelStore:
                                       margin_cm=margin_cm))
         if label:
             entry["label"] = str(label)[:120]
+        z = _kept_height(fab.light_positions_m().get(str(entity_id)), z_m)
+        if z is not None:
+            entry["z_m"] = z
         await fab.async_spatial_update(set_lights={str(entity_id): entry}, op="light_set")
+
+    async def async_set_light_heights(self, heights: dict[str, Any]) -> list[str]:
+        """Set only the heights of placed devices ({entity_id: z_m, or None
+        to clear it}); x, y, floor and looks stay exactly as stored. One
+        fabric write, through the same path as a placement, so the history
+        sees it like one. All or nothing: the ids with no placement record
+        come back, and then nothing is written."""
+        return await self._async_set_heights("light", heights)
+
+    async def async_set_beacon_heights(self, heights: dict[str, Any]) -> list[str]:
+        """async_set_light_heights for fixed beacons ({key: z_m or None})."""
+        return await self._async_set_heights("beacon", heights)
+
+    async def _async_set_heights(self, what: str, heights: dict[str, Any]) -> list[str]:
+        fab = getattr(self, "fabric", None)
+        if not fab:
+            return [str(k) for k in heights]
+        have = fab.light_positions_m() if what == "light" else fab.beacon_positions_m()
+        missing = [str(k) for k in heights if not isinstance(have.get(str(k)), dict)]
+        if missing:
+            return missing
+        changed: dict[str, dict] = {}
+        for key, z_m in heights.items():
+            entry = {k: v for k, v in have[str(key)].items() if k != "z_m"}
+            z = device_height(z_m)
+            if z is not None:
+                entry["z_m"] = z
+            if entry != have[str(key)]:
+                changed[str(key)] = entry
+        if changed:
+            if what == "light":
+                await fab.async_spatial_update(set_lights=changed, op="light_height_set")
+            else:
+                await fab.async_spatial_update(set_beacons=changed, op="beacon_height_set")
+        return []
 
     async def async_remove_light_position_m(self, entity_id: str) -> None:
         fab = getattr(self, "fabric", None)
