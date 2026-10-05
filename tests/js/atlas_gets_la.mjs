@@ -383,13 +383,13 @@ const NS = "http://www.w3.org/2000/svg";
 function layerDraw(L, over = {}, snap) {
   const svg = document.createElementNS(NS, "svg");
   const fr = ISO.fabricFrame(MODEL, FLOORS, 150, 0);
-  L.draw({ stage: { querySelector: () => svg }, frame: fr, frameKey: "150|0", model: MODEL, states: STATES, figures: {}, people: true, tags: true,
+  L.draw({ stage: { querySelector: () => svg }, frame: fr, frameKey: "150|0", model: MODEL, states: STATES, file: null, people: true, tags: true,
            hideNames: false, focused: () => true, outdoor: ISO.isOutdoorFloorId, home: () => document.body, ...over }, snap);
   return { svg, fr };
 }
 await tryCase("live: tags with names and unsure rings, scanners, people with initials and colours, from the snapshot", async () => {
   const L = AB.liveLayer("t-live");
-  const { fr } = layerDraw(L, { figures: { "person.alice": { params: { colors: { top: "#c2410c" } } } } }, SNAP());
+  const { fr } = layerDraw(L, { file: { figures: { "person.alice": { params: { colors: { top: "#c2410c" } } } } } }, SNAP());
   const s = L.state(), by = (k) => s.find(i => i.key === k);
   const keys = by("beacon:ble:keys"), bag = by("beacon:ble:bag"), alice = by("person.alice");
   const ring = (sure) => [Math.SQRT2 * Math.cos(Math.PI / 6) * fr.scale * TRACKED.haloOf(sure), Math.SQRT2 * 0.5 * fr.scale * TRACKED.haloOf(sure)].map(v => Number(v.toFixed(1)));
@@ -422,7 +422,7 @@ await tryCase("live: a person moves smoothly; a far move, another floor or a new
   const L = AB.liveLayer("t-move");
   const svg = document.createElementNS(NS, "svg");
   const fr = ISO.fabricFrame(MODEL, FLOORS, 150, 0), fr2 = ISO.fabricFrame(MODEL, FLOORS, 220, 0);
-  const d = (frame, key) => ({ stage: { querySelector: () => svg }, frame, frameKey: key, model: MODEL, states: STATES, figures: {}, people: true, tags: true,
+  const d = (frame, key) => ({ stage: { querySelector: () => svg }, frame, frameKey: key, model: MODEL, states: STATES, file: null, people: true, tags: true,
                                hideNames: false, focused: () => true, outdoor: ISO.isOutdoorFloorId, home: () => document.body });
   L.draw(d(fr, "150|0"), SNAP(0));
   const a = L.state().find(i => i.key === "person.alice");

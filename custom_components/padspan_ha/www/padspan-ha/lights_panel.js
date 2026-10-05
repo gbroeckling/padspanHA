@@ -149,6 +149,8 @@ class PadSpanLightsApp extends HTMLElement {
     // cleared one deep), multiplying full re-renders and churning the DOM
     // mid-interaction.
     if(this._pollTimer){ clearInterval(this._pollTimer); this._pollTimer=null; }
+    // Refresh reads Live Aboard's file again too (the flat map's kinds and furniture).
+    this._shownAt = Date.now();
     // Maps + settings are small and fast — render the floor/room shapes on
     // those alone first. The entity/device registry (needed only to know
     // which room each light is in) is a multi-MB whole-house dump on a

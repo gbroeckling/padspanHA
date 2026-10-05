@@ -275,7 +275,8 @@ function createLiveLayer(){
   }
   function paint(){
     if (!d) return;
-    const fr = d.frame, wants = TRACKED.wantedOf({ model: d.model, looks: {}, figures: d.figures || {}, snapshot: snap,
+    const fig = d.file && typeof d.file === "object" && d.file.figures && typeof d.file.figures === "object" ? d.file.figures : {};
+    const fr = d.frame, wants = TRACKED.wantedOf({ model: d.model, looks: {}, figures: fig, snapshot: snap,
                                                   states: d.states || {}, people: !!d.people, tags: !!d.tags });
     const people = d.people ? TRACKED.peopleOf(d.states || {}, TRACKED.trackedOf(snap)) : [];
     const byEid = new Map(people.map(P => [P.eid, P]));
@@ -326,7 +327,8 @@ function createLiveLayer(){
     /**
      * Into this card's drawing, as of now: d = {stage, frame (fabricFrame's),
      * frameKey (what moves every marker at once: spacing, L/R), model,
-     * states, figures, people, tags, hideNames, focused(z), outdoor(fid),
+     * states, file (the 3D file: each person's figure), people, tags,
+     * hideNames, focused(z), outdoor(fid),
      * home() (where a card goes)}; snapshot when a read came in (else the
      * last one).
      */

@@ -3083,7 +3083,7 @@ export function buildLightsMapCard(hostIn){
     const fz = getFocusZ(view.focusIdx);
     _AB.liveLayer(abSlot).draw(snapshot !== undefined ? null : {
       stage: isoDiv, frame: _frame, frameKey: `${view.floorGap}|${view.horizGap}`, model: host.model,
-      states: host.house3d.states || {}, figures: (abData && abData.figures) || {},
+      states: host.house3d.states || {}, file: abData,
       people: abSet.atlas_3d_people === true, tags: abSet.atlas_3d_tags === true, hideNames: !codesShown || !!host.hideDeviceCodes,
       focused: (z) => fz === null || (Array.isArray(fz) ? fz.includes(z) : fz === z), outdoor: isOutdoorFloorId,
       home: () => { const rn = isoDiv.getRootNode ? isoDiv.getRootNode() : null; return rn && rn.host ? rn : document.body; } }, snapshot);

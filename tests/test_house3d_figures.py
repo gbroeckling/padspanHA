@@ -228,4 +228,5 @@ def test_nothing_but_the_3d_file_reads_the_figures():
     assert set(js_readers) <= {"live_aboard_people.js", "live_aboard_furnish.js", "live_aboard.js",
                                "live_aboard_house.js", "live_aboard_live.js",
                                "live_aboard_draft.js",      # the 3D file's own rules (ownedOf)
-                               "live_aboard_tracked.js"}, js_readers   # P6: draws each figure, in this house only
+                               "live_aboard_tracked.js",    # P6: draws each figure, in this house only
+                               "atlas_aboard.js"}, js_readers   # the flat Atlas: a person's marker in their top colour, in this house only

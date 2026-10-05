@@ -137,7 +137,10 @@ def test_the_furnish_modules_load_only_with_the_3d_view() -> None:
         assert want in la, want
     for name in ("live_aboard_pieces.js", "live_aboard_furnish.js", "live_aboard_furniture.js"):
         importers = sorted(p.name for p in _WWW.rglob("*.js") if "vendor" not in p.parts and f"./{name}" in _code(p))
-        assert importers == ["live_aboard.js"], (name, importers)
+        # The flat Atlas's Show furniture (atlas_aboard.js, 2026-10-05) draws each
+        # footprint by the same rule (boxOf, cornersOf), loaded only once it is wanted.
+        want = ["atlas_aboard.js", "live_aboard.js"] if name == "live_aboard_pieces.js" else ["live_aboard.js"]
+        assert importers == want, (name, importers)
     fur = _code(_VIEWS / "live_aboard_furnish.js")
     assert fur.count("import(") == 1 and "await import(`./${file}${base}`).catch(() => null);" in fur
     for flow in ('"live_aboard_photo.js", "photoFlow"', '"live_aboard_library.js", "libraryFlow"', '"live_aboard_import.js", "importFlow"',
