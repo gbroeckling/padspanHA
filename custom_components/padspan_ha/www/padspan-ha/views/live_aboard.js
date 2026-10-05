@@ -3057,6 +3057,9 @@ function createSlot(slotKey){
     if (stage && stage !== s) { try { stage.style.display = ""; } catch (_) { /* the old card is gone */ } }
     stage = s;
     s.style.display = "none";
+    // Covering a panel that has since been rebuilt whole (the page left and
+    // came back): the screen ends, and the view goes back beside the stage.
+    if (cover && root.isConnected === false) endScreen();
     // Covering the panel (the map alone, full screen), it stays where it is.
     if (!cover && (root.parentNode !== s.parentNode || root.previousSibling !== s)) s.parentNode.insertBefore(root, s.nextSibling);
     resize();

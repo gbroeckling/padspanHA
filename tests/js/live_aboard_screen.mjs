@@ -220,6 +220,16 @@ await tryCase("maponly: zoomed in past the fit, the bars step aside and the view
   await settle();
   check("maponly: a pinch in hides the bars once the fingers lift, never mid-pinch", !midPinch && S(slot).screen.bare,
     { midPinch, after: S(slot).screen, r: S(slot).cam.radius, fitR: S(slot).screen.fitR });
+  // The panel rebuilt whole while covering (the page left and came back):
+  // the next card takes the view back, the bars with it.
+  slot.element.isConnected = false;
+  shadow.removeChild(slot.element);
+  const again = card(slot);
+  delete slot.element.isConnected;
+  check("maponly: a panel rebuilt whole while covering puts the view back in its card",
+    again.ok && slot.element.parentNode === again.c && !S(slot).screen.bare && !S(slot).screen.cover && !(lists.window.keydown || []).length,
+    S(slot).screen);
+  await wheel(slot, 3);
   // Switched off while covering: nothing kept, no listener left.
   const w0 = listenerCount("window");
   LA.releaseLiveAboardSlot("scr-solo");

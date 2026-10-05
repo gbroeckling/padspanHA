@@ -47,7 +47,7 @@ def screen() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("maponly:", 7), ("full:", 2), ("floors:", 1), ("fly:", 2), ("views:", 1),
+@pytest.mark.parametrize("prefix,least", [("maponly:", 8), ("full:", 2), ("floors:", 1), ("fly:", 2), ("views:", 1),
                                           ("night:", 1), ("names:", 3), ("phone:", 1), ("hint:", 1)])
 def test_the_screen_harness_covers_each_part(screen, prefix, least) -> None:
     got = [k for k in screen["cases"] if k.startswith(prefix)]
