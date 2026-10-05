@@ -1439,7 +1439,7 @@ export function sensorsSignature(model, lightsByEid, hidden){
     const kind = sensorKindOf(lightsByEid && lightsByEid[eid]);
     if (!kind || (hidden && typeof hidden.has === "function" && hidden.has(eid))) continue;
     const p = pos[eid] || {};
-    rows.push([eid, p.x_m, p.y_m, p.floor_id, kind]);
+    rows.push(kind === "motion" ? [eid, p.x_m, p.y_m, p.floor_id, kind, p.rotation ?? null] : [eid, p.x_m, p.y_m, p.floor_id, kind]);
   }
   return JSON.stringify(rows);
 }

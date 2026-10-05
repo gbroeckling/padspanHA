@@ -73,6 +73,11 @@ const SCREEN = await import(`./atlas_screen.js${new URL(import.meta.url).search}
 // chips (optional too: missing, the house is as it was).
 const MARKS = await import(`./live_aboard_marks.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_marks failed to load", err); return null; });
+// Motion (live_aboard_motion.js): the ring, the room's glow, the sensor, its
+// marker and coverage, the Motion chip (optional: missing, motion is drawn
+// as it was).
+const MOTION = await import(`./live_aboard_motion.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: live_aboard_motion failed to load", err); return null; });
 
 export const HOUSE3D_EVENTS = HOUSE.HOUSE3D_EVENTS;
 export const HOUSE3D_FALLBACK_KINDS = HOUSE.HOUSE3D_FALLBACK_KINDS;
@@ -436,6 +441,8 @@ function createSlot(slotKey){
   // live_aboard_marks.js: leak sensors and locks (marks), the code chips
   // (codes), the class chips' pick (classF), and the zoom label's callback.
   let marks = null, codes = null, classF = null, zoomCb = null, zoomShown = null;
+  // live_aboard_motion.js: motion in the house (motionL) and the Motion chip.
+  let motionL = null, mchip = null;
   // Furnish shows a plan beside the 3D view on a wide screen, drawn by the
   // same renderer in its own viewport; on a phone, Plan or 3D. The plan looks
   // straight down at the top floor showing.
@@ -491,6 +498,8 @@ function createSlot(slotKey){
     tracked = null; peopleSnap = null; peopleAt = 0; peopleLoad = null;
     try { if (marks) marks.dispose(); if (codes) codes.dispose(); } catch (_) { /* gone with the view */ }
     marks = null; codes = null; zoomCb = null;
+    try { if (motionL) motionL.dispose(); if (mchip) mchip.dispose(); } catch (_) { /* gone with the view */ }
+    motionL = null; mchip = null;
     if (peopleTimer !== null) { clearTimeout(peopleTimer); peopleTimer = null; }
     try { if (layer) layer.dispose(); } catch (_) { /* gone with the view */ }
     layer = null; furnishP = null; topCb = null;
@@ -613,6 +622,7 @@ function createSlot(slotKey){
     tipEl = d("div", "la3d-tip");
     tipEl.textContent = "Drag to turn · pinch or wheel to zoom · tap a light · hold for controls · double-tap a room to go there";
     root.appendChild(tipEl);
+    mchip = MOTION ? MOTION.createMotionChip({ root, fly: (eid) => findDevice(eid) }) : null;
     showCss = d("style");
     showCss.textContent = CSS_SHOWING;
     root.appendChild(showCss);
@@ -1068,6 +1078,8 @@ function createSlot(slotKey){
       api: () => apiNow || (apiNow = apiOf ? apiOf() : null),
       frame: () => { if (!pending && !failed && renderer) { pending = true; requestAnimationFrame(frame); } },
       cursor: (on) => { canvas.style.cursor = on ? "pointer" : ""; },
+      // A motion sensor hovered or pressed shows its coverage.
+      marked: (t) => { if (motionL && motionL.focus(t && t.kind === "device" ? t.eid : null)) requestRender(); },
     });
     // Furniture (P2): every piece drawn on its floor, in every view.
     layer = FURNISH.createPieceLayer({ THREE, PIECES, FURN: () => FURN, floors: () => floorsUi, blobTex: shared.blobTex,
@@ -1078,6 +1090,9 @@ function createSlot(slotKey){
       canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)), quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     marks = MARKS ? MARKS.createMarkLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     codes = MARKS ? MARKS.createCodeLayer({ THREE, behind: (v) => blocked(v) }) : null;
+    motionL = MOTION ? MOTION.createMotionLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low"), behind: (v) => blocked(v),
+      dim: (eid) => dimOf(eid), dimK: MARKS ? MARKS.DIM_K : 0.22,
+      floorTiles: () => floorsUi.filter(F => F.group.visible && F.tiles).map(F => F.tiles) }) : null;
     planCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
     planCam.up.set(0, 0, -1);                                // the plan as drawn: its top up
     // The 3D editor: its page in this element, its marks in this scene, its
@@ -2092,10 +2107,12 @@ function createSlot(slotKey){
   }
 
   // ── sensors: motion, Motion · Air, the readouts (part B) ──────────────────
-  // Placed sensors only, as on the Atlas. A motion sensor is a small sensor
-  // near the ceiling, lit while active; the floor of its room pulses in the
-  // Atlas's motion colours on its clocks (live_aboard_house.js motionLook),
-  // with the ring sweeping out from under it. Poor air rises in bars across
+  // Placed sensors only, as on the Atlas. Motion is live_aboard_motion.js's
+  // (a ring on a new trigger, the room's floor glowing in the Atlas's motion
+  // colours, the sensor on its wall and its marker, its coverage); without
+  // that file, a small sensor near the ceiling whose room pulses in the
+  // Atlas's colours on its clocks (live_aboard_house.js motionLook), with the
+  // ring sweeping out from under it. Poor air rises in bars across
   // its room's floor (airLook). Temperature, humidity and air float as
   // readouts, read-only. Each sits at its height above its floor: a default
   // by its type (deviceZ — part C's 3D file replaces it per device).
@@ -2103,6 +2120,7 @@ function createSlot(slotKey){
     for (const F of floorsUi) { if (F.sensorGroup) F.group.remove(F.sensorGroup); F.sensorGroup = null; }
     disposeList(sensorRes); sensorRes = [];
     sensorsUi = []; tints = []; readouts = []; chips = [];
+    if (motionL) motionL.clear();
   }
   function buildSensors(h){
     clearSensors();
@@ -2117,11 +2135,12 @@ function createSlot(slotKey){
       for (const S0 of mine) {
         const z = HOUSE.deviceZ(S0.kind, ceil, zs[S0.eid] || null);
         const S = { ...S0, F, z, zDefault: HOUSE.deviceZ(S0.kind, ceil, null), pos: new THREE.Vector3(S0.x, F.fl.elev + z, S0.y),
-                    room: HOUSE.roomAt(F.rooms, S0.x, S0.y), shown: null };
+                    room: HOUSE.roomAt(F.rooms, S0.x, S0.y), shown: null,
+                    lp: ((lastP && lastP.model && lastP.model.light_positions_m) || {})[S0.eid] || null };
         sensorsUi.push(S); here.push(S);
         if (S.kind === "motion") motion.push(S); else readouts.push(S);
       }
-      if (motion.length) {
+      if (motion.length && !motionL) {
         const im = new THREE.InstancedMesh(shared.prim.sphere, shared.bulbMat, motion.length);
         motion.forEach((S, i) => {
           im.setMatrixAt(i, compose(S.x, S.pos.y, S.y, 0, 0.055, 0.04, 0.055));
@@ -2138,6 +2157,7 @@ function createSlot(slotKey){
       const byRoom = new Map();
       for (const S of here) {
         if (S.kind !== "motion" && S.kind !== "air") continue;
+        if (S.kind === "motion" && motionL) continue;                  // drawn by live_aboard_motion.js
         if (S.kind === "air" && !S.room) continue;
         const key = S.room || S;
         if (!byRoom.has(key)) byRoom.set(key, { room: S.room, F, at: S, motion: [], air: [] });
@@ -2154,6 +2174,7 @@ function createSlot(slotKey){
       }
       for (const [key, list] of groups) chips.push(makeChip(F, key === list[0] ? null : key, list, g));
     }
+    if (motionL) motionL.build(sensorsUi.filter(S => S.kind === "motion"));
   }
   function makeTint(T, g){
     const y = T.F.fl.elev + 0.008;
@@ -2293,6 +2314,7 @@ function createSlot(slotKey){
       if (S.kind === "motion") {
         const look = HOUSE.motionLook(l, now, haStarted);
         S.look = look;
+        if (motionL) continue;                                   // its own layer (below)
         // The sensor itself is lit as the Atlas lights its marker (motionActive).
         const col0 = HOUSE.motionActive(l, now, haStarted) ? SENSOR_ON : HOUSE.noReading(l) ? NO_READING : SENSOR_QUIET;
         const col = dimOf(S.eid) ? fadeHex(col0) : col0;
@@ -2305,6 +2327,10 @@ function createSlot(slotKey){
       if (S.kind === "air") S.air = HOUSE.airLook(l);
     }
     for (const C of chips) if (C.key === null) { C.key = "drawn"; drawChip(C); }
+    // Motion: the ring, the room's glow, the marker (live_aboard_motion.js).
+    if (motionL && house && motionL.sync({ lbe, states: lastP && lastP.states, entities: lastP && lastP.entities, now, haStarted,
+                                           t: performance.now(), cls: classF, night: nightK, ground: house.ground })) changed = true;
+    if (mchip && motionL) mchip.update(motionL.rooms(narrow ? 2 : 3));
     for (const T of tints) {
       // The room shows its most telling sensor: active before quiet, the
       // latest quiet one; the worst air.
@@ -2348,7 +2374,8 @@ function createSlot(slotKey){
     // A ceiling fan turning, as a Furnish fan does.
     const fans = DEVICES && lights.some(L => L.spin && L.spin.rps > 0 && L.F.group.visible)
       ? DEVICES.DEVICE_MS[quality.profile === "high" ? "high" : "low"] : 0;
-    const rates = [wxMs, devices ? devices.rate() : 0, tracked ? tracked.rate() : 0, fans, marks ? marks.rate() : 0].filter(Boolean);
+    const rates = [wxMs, devices ? devices.rate() : 0, tracked ? tracked.rate() : 0, fans, marks ? marks.rate() : 0,
+                   motionL ? motionL.rate() : 0].filter(Boolean);
     const slow = rates.length ? Math.min(...rates) : 0;
     const fast = slow ? Math.min(own, slow) : own;
     for (const { F, P } of openings) {
@@ -2394,6 +2421,7 @@ function createSlot(slotKey){
     if (wx) wx.tick(t);                                       // rain and snow: the clock, to the GPU
     if (devices) devices.tick(t);                             // fans, washers, robots out
     if (marks) marks.tick(t);                                 // a leak's ripples
+    if (motionL) motionL.tick(t);                             // a trigger's ring, its coverage's flash
     turnFans(t);                                              // ceiling fans that run
     if (tracked) tracked.tick(t);                             // people walking
     liveMs = liveRate(t);
@@ -2933,8 +2961,9 @@ function createSlot(slotKey){
       return { kind: "entity", key: "entity:" + c.eid, eid: c.eid, anchor: c.v,
                label: (st && st.attributes && st.attributes.friendly_name) || c.eid };
     }
+    const said = motionL ? motionL.label(c.eid) : null;           // "Motion · Kitchen · 3 min ago"
     return { kind: "device", key: "device:" + c.eid, eid: c.eid, anchor: c.v,
-             label: l ? `${l.code ? l.code + " · " : ""}${l.friendly_name || c.eid}` : c.eid };
+             label: said || (l ? `${l.code ? l.code + " · " : ""}${l.friendly_name || c.eid}` : c.eid) };
   }
   function pickAt(clientX, clientY){
     if (!renderer || failed || !house) return null;
@@ -2960,9 +2989,14 @@ function createSlot(slotKey){
       if (best) devs.push({ eid: L.eid, ...best });
     }
     for (const S of sensorsUi) {
-      if (!S.F.group.visible || S.chip || dimOf(S.eid)) continue;
+      if (!S.F.group.visible || S.chip || dimOf(S.eid) || (motionL && S.kind === "motion")) continue;
       const d = dist(S.pos);
       if (d <= PICK_R) devs.push({ eid: S.eid, d, v: S.pos });
+    }
+    // A motion sensor: on its marker, drawn over everything where it shows.
+    for (const M of motionL ? motionL.pickable() : []) {
+      const d = dist(M.v);
+      if (d <= PICK_R) devs.push({ eid: M.eid, d, v: M.v, top: true });
     }
     // A leak sensor or a lock (live_aboard_marks.js): by its spot, as a sensor.
     for (const M of marks ? marks.pickable() : []) {
@@ -3367,6 +3401,7 @@ function createSlot(slotKey){
     S.z = HOUSE.deviceZ(S.kind, S.F.fl.h - HOUSE.SLAB_T, vd.devices[eid] || null);
     S.pos.y = S.F.fl.elev + S.z;
     if (S.mesh) { S.mesh.setMatrixAt(S.i, compose(S.x, S.pos.y, S.y, 0, 0.055, 0.04, 0.055)); S.mesh.instanceMatrix.needsUpdate = true; }
+    if (motionL && S.kind === "motion") motionL.move(eid, S.z);
     if (S.chip && S.chip.outdoor) placeChip(S.chip);
     return true;
   }
@@ -3433,6 +3468,7 @@ function createSlot(slotKey){
     const H = canvas.clientHeight || 600;
     if (codes) codes.size(camera, H, !!(lastP && lastP.codes && typeof lastP.codes === "object") && MARKS.codesAt(cam.radius, camera.aspect, FOV, fitR));
     if (marks) marks.size(camera, H);
+    if (motionL) motionL.size(camera, H, MARKS ? MARKS.codesAt(cam.radius, camera.aspect, FOV, fitR) : true);
   }
   /** A leak sensor or a lock, for the editor's Heights (as deviceInfo). */
   function markInfo(eid){
@@ -3723,6 +3759,7 @@ function createSlot(slotKey){
                                         ringsShown: T.rings.filter(R => R.mesh.scale.x > 0).length })),
                readouts: readouts.map(R => ({ eid: R.eid, kind: R.kind, ...(R.shown || {}) })),
                motion: sensorsUi.filter(S => S.kind === "motion").map(S => ({ eid: S.eid, look: S.look || null, col: S.col })),
+               motionLayer: motionL ? motionL.state() : null, motionChip: mchip ? mchip.state() : null,
                names: floorsUi.flatMap(F => F.labels.map((l, i) => ({ room: F.rooms[i].name, shown: F.group.visible && l.visible,
                                                                        text: l.userData.text || String(F.rooms[i].name), color: l.userData.color || "#ffffff",
                                                                        opacity: l.material.opacity,

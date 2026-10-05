@@ -139,6 +139,9 @@ const LIVE_MODEL = { ...MODEL,
                        "sensor.den_co2": { x_m: 7, y_m: 3, floor_id: "main" } } };
 const liveP = (lbe) => ({ model: LIVE_MODEL, floors: LIVE_MODEL.floors, lightsByEid: lbe });
 const den = (s) => s.tints.find(T => T.room === "Den") || null;
+// Motion is drawn by live_aboard_motion.js: the Den's floor patch and its sensor.
+const denGlow = (s) => (s.motionLayer ? s.motionLayer.patches.find(P => P.room === "Den") || null : null);
+const denSensor = (s) => (s.motionLayer ? s.motionLayer.sensors.find(S => S.eid === "binary_sensor.den_motion") || null : null);
 /** Run what is queued, with the clock moved on `ms` first. */
 async function later(ms, rounds = 6){ clockOff += ms; await settle(rounds); }
 const withLive = (eid, patch) => LIVE({ [eid]: { ...LIVE()[eid], ...patch } });
@@ -147,16 +150,17 @@ await tryCase("frames: at rest the view asks for no frame at all", async () => {
   const slot = LA.liveAboardSlot("view-frames");
   const { stage } = card(slot, liveP(LIVE()));
   await later(10000, 60);                                  // the quality check, then rest
-  const s = slot._state(), d = den(s), queued = { frames: pendingFrames(), timers: pendingTimers() };
+  const s = slot._state(), d = den(s), g = denGlow(s), queued = { frames: pendingFrames(), timers: pendingTimers() };
   const f0 = s.frames;
   await later(60000);
   const rest = slot._state().frames - f0;
   slot.attach(stage, P(liveP(LIVE())));                    // a poll: nothing changed
   await later(5000);
   check("frames: at rest the view asks for no frame at all",
-    s.profile && d && d.motion && !d.motion.active && d.air && s.liveMs === 0 && !s.animating
+    s.profile && d && g && g.glow && !g.glow.active && g.glow.step === 2 && g.fill > 0 && !g.rings.some(r => r[3] > 0)
+    && d.air && s.liveMs === 0 && !s.animating
     && queued.frames === 0 && queued.timers.length === 0 && rest === 0 && slot._state().frames === f0
-    && Math.abs(d.fill - 0.33 * 0.45) < 1e-9 && d.bars > 0, { liveMs: s.liveMs, den: d, queued, rest, after: slot._state().frames - f0 });
+    && d.bars > 0, { liveMs: s.liveMs, den: d, glow: g, queued, rest, after: slot._state().frames - f0 });
   LA.releaseLiveAboardSlot("view-frames");
   await settle();
 });
@@ -166,17 +170,19 @@ await tryCase("frames: a pulse just started plays at full rate, then shows still
   await later(10000, 60);
   slot.attach(stage, P(liveP(withLive("binary_sensor.den_motion", { state: "on", last_changed: ago(0) }))));
   await settle(2);
-  const playing = { liveMs: slot._state().liveMs, queued: pendingFrames() + pendingTimers().length, rings: den(slot._state()).rings };
+  const playing = { liveMs: slot._state().liveMs, queued: pendingFrames() + pendingTimers().length, ring: !!(denSensor(slot._state()) || {}).ring };
   const f0 = slot._state().frames;
   for (let i = 0; i < 20; i++) await later(100, 3);         // two seconds of it
   const drawn = slot._state().frames - f0;
   await later(6000, 12);                                   // past its start
-  const s = slot._state(), d = den(s), f1 = s.frames;
+  const s = slot._state(), g = denGlow(s), f1 = s.frames;
   await later(30000);
+  // The trigger's ring spreads once (about 1.2 s) on the capped clock, then the room holds still.
   check("frames: a pulse just started plays at full rate, then shows still",
-    playing.liveMs === 66 && playing.queued > 0 && playing.rings === 1 && drawn >= 12 && s.liveMs === 0 && d.motion.active && d.ringsShown === 0
-    && Math.abs(d.fill - 0.375 * 0.6) < 1e-9 && slot._state().frames === f1 && pendingFrames() === 0 && pendingTimers().length === 0,
-    { playing, drawn, liveMs: s.liveMs, den: d, after: slot._state().frames - f1, frames: pendingFrames(), timers: pendingTimers() });
+    playing.liveMs === 66 && playing.queued > 0 && playing.ring && drawn >= 8 && s.liveMs === 0 && g && g.glow && g.glow.active
+    && !g.rings.some(r => r[3] > 0) && g.fill > 0 && !denSensor(s).ring
+    && slot._state().frames === f1 && pendingFrames() === 0 && pendingTimers().length === 0,
+    { playing, drawn, liveMs: s.liveMs, glow: g, after: slot._state().frames - f1, frames: pendingFrames(), timers: pendingTimers() });
   LA.releaseLiveAboardSlot("view-pulse");
   await settle();
 });

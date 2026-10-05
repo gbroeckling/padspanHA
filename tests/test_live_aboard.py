@@ -88,6 +88,8 @@ def test_off_means_no_import(card) -> None:
             "vendor/three/three.module.min.js"} <= set(card["loaded"]), card["loaded"]
     # The Strip tool and its runs' rules (2026-10-05) are among what off never loads.
     assert {"views/live_aboard_strip.js", "views/live_aboard_runs.js"} <= set(card["loaded"]), card["loaded"]
+    # So is motion (live_aboard_motion.js, 2026-10-05).
+    assert "views/live_aboard_motion.js" in set(card["loaded"]), card["loaded"]
 
 
 def test_off_means_the_3d_file_is_never_read_or_written(card) -> None:
@@ -174,6 +176,7 @@ def test_the_3d_module_is_imported_once_behind_the_switch_and_cache_busted() -> 
                                                   "live_aboard_import.js",
                                                   "live_aboard_devices.js",     # P5: reads a light as the view does
                                                   "live_aboard_marks.js",       # the Atlas's leak sensors, locks and codes: reads the house as the view does
+                                                  "live_aboard_motion.js",      # motion: reads the house as the view does
                                                   "live_aboard_people.js",    # the Furnish tab's people screen (P6)
                                                   "atlas_aboard.js"):         # the flat Atlas's people, tags, kinds and furniture (2026-10-05)
             continue
