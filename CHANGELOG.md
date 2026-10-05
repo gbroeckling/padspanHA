@@ -4,6 +4,24 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.99 — Live Aboard: real-looking lights, the map alone, and your tags (2026-10-05)
+
+### Live Aboard
+- **Changed:** lights look like the lights you have. A strip, valance, cove, under-cabinet or TV backlight is one continuous line that washes its wall, counter or floor — no more rows of glowing dots where there is no string light. Pots named round a room are separate pots with their own pools of light, a deck gets small pots along its edge, and a WLED lamp, panel or ring looks like one. A light PadSpan isn't sure of is a small point with its pool, never an invented fixture. Lights that are off are shaded like the room and fade at night; ceiling fans turn while they run.
+- **Added:** Mapping → Heights → **What is this?** tells Live Aboard what a light is (pot, strip, lamp, fan…). It changes only Live Aboard; the map and the Atlas stay as they are.
+- **Added:** zoom in past the whole house on the Atlas and every bar and sidebar steps aside, so the house fills the panel. Zoom back out, press ☰ or Escape to bring them back. The **⛶** button takes it full screen.
+- **Changed:** a floor stepper (up, the floor's name, down, All) replaces the floating floor badges, and **Views** keeps the whole house plus views you save on this browser. Double-tap a room to fly in to it. Room names stand upright at a size you can read, each room gets one chip of readings, and the night view keeps floors, outlines and walls readable. A phone gets one compact row.
+- **Added:** **Show tags & scanners** (Settings → 🏠 Live Aboard, off until you turn it on): every tag the Atlas shows appears where it is, named, with a faint ring that widens the less sure its spot is, and every scanner stands at its stored height. Tap a tag for its room, when it was last seen and which scanners hear it. **Show people** now shows the people alone.
+- **Added:** placing exactly in Mapping → Furnish: type X, Y, Height and Angle; arrow keys move a piece 1 cm (Shift 10 cm) and [ ] turn it 15° (Shift 1°); while it moves, two short lines show how far the nearest walls are. **Stand on what's under it** puts a lamp onto its table; **Hang on wall** puts a TV flat on the nearest wall at the height you choose.
+
+### Atlas
+- **Fixed:** a new hold-and-slide dim on the flat Atlas answers at once, as it does in Live Aboard.
+
+### Under the hood
+- **Fixed:** the shared furniture library no longer depends on a package Home Assistant may not have; this also turned the test runs green again (PadSpan Bright 0.38.98 was held back by it).
+
+---
+
 ## 0.38.98 — Share your furniture (2026-10-04)
 
 ### Live Aboard
