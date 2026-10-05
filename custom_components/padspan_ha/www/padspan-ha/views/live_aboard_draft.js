@@ -13,8 +13,10 @@
 //             wall in 3D, a stretch of wall in fabric metres; any other key
 //             is a barrier's id, and holds that barrier's hinge, swing,
 //             sill and head in 3D only (the map is never written)
-//   lights    {z_m, kind}: a light's height above its floor and what it is
-//             (LIGHT_KIND: a pot, a valance, a lamp...), in 3D only
+//   lights    {z_m, kind, run}: a light's height above its floor, what it
+//             is (LIGHT_KIND: a pot, a valance, a lamp...) and where a strip
+//             or a string of lights really goes (the Strip tool,
+//             live_aboard_runs.js), in 3D only
 //   devices   {z_m}: any other device's height (readouts, sensors); a
 //             beacon's or scanner's recipe (P6) is passed through whole
 //   pieces    furniture (P2 Furnish, "fur_" + 8 hex digits): each piece
@@ -124,6 +126,10 @@ export function ownedOf(data){
   for (const k of Object.keys(ls)) {
     const kind = obj(ls[k]) ? ls[k].kind : null;
     if (typeof kind === "string" && LIGHT_KIND.test(kind)) out.lights[k] = { ...(out.lights[k] || {}), kind };
+    // Its run, whole (a run this version cannot read is sent back as it is:
+    // the server refuses it plainly rather than lose it).
+    const run = obj(ls[k]) ? ls[k].run : null;
+    if (obj(run)) out.lights[k] = { ...(out.lights[k] || {}), run: copy(run) };
   }
   // A beacon's or scanner's recipe (P6), whole, so a flow can change or remove
   // it; a key that also has a height keeps both.

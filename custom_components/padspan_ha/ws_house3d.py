@@ -44,7 +44,7 @@ from homeassistant.core import HomeAssistant
 from .const import HOUSE3D_STORE_KEY
 from .house3d_library import carried_over, without_tokens
 from .house3d_store import (EDIT_SECTIONS, NEWER_MESSAGE, EditError, House3dStore, NewerFile, ReadFailed,
-                            apply_edit, async_get_store, empty, enabled, writable)
+                            apply_edit, async_get_store, empty, enabled, without_pieces, writable)
 from .ws_common import _tier_at_least
 
 OFF_CODE = "house3d_off"
@@ -112,7 +112,8 @@ async def ws_house3d_clear(hass: HomeAssistant, connection, msg) -> None:
             return
         # What this house shared to the library stays: the owner tokens are
         # the only way to withdraw it (house3d_library.carried_over).
-        if not await store.async_write({**store.data, "pieces": {}} if furniture
+        # A strip run on a piece stays where it was (without_pieces).
+        if not await store.async_write(without_pieces(store.data) if furniture
                                        else carried_over(store.data, empty())):
             connection.send_error(msg["id"], "save_failed",
                                   "Could not empty Live Aboard's file. Nothing was removed; the safety backup is kept.")

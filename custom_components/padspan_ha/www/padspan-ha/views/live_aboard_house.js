@@ -36,6 +36,8 @@ const COMPASS = await import(`./fabric_compass.js${new URL(import.meta.url).sear
 // The 3D editor's rules: the defaults and the limits a door, a window and a
 // device are drawn within are theirs (the editor's sliders offer the same).
 const DRAFT = await import(`./live_aboard_draft.js${new URL(import.meta.url).search}`);
+// Where a strip or a string of lights really goes (the Strip tool's runs), as numbers.
+const RUNS = await import(`./live_aboard_runs.js${new URL(import.meta.url).search}`);
 export const { normBearing, fabricCompass, bearingOfNorth, compassDir, northArrowDeg } = COMPASS;
 
 // ── The usage report's words (telemetry.py HOUSE3D_EVENTS holds the same) ────
@@ -482,7 +484,7 @@ export const LIGHT_KINDS = [
   ["fan", "Ceiling fan"], ["track", "Track lights"], ["tube", "Tube or shop light"], ["spot", "Spotlight"],
   ["sconce", "Wall light"], ["vanity", "Vanity light"], ["strip", "LED strip on a wall"], ["valance", "Valance"],
   ["cove", "Cove round the room"], ["undercab", "Under the cabinets"], ["kick", "Toe-kick or stairs"],
-  ["tv", "Behind the TV"], ["lamp", "Lamp"], ["panel", "Panel or display"], ["accent", "Small accent light"],
+  ["tv", "Behind the TV"], ["string", "String lights (bulbs on a wire)"], ["lamp", "Lamp"], ["panel", "Panel or display"], ["accent", "Small accent light"],
   ["led", "Status light"],
 ];
 const KINDS = new Set(LIGHT_KINDS.map(([k]) => k));
@@ -503,6 +505,7 @@ export const MOUNT = {
   fan:        { ceiling: 0.36 },
   chandelier: { ceiling: 0.55 },
   pendant:    { ceiling: 0.6 },
+  string:     { floor: 2.3 },
   valance:    { floor: 2.1 },
   vanity:     { floor: 2.0 },
   sconce:     { floor: 1.7 },
@@ -740,6 +743,7 @@ export function drawnKind(L, ctx){
  *  its own). kf: how much real lamp light it throws (0 = glow only). spin: a
  *  fan's blades (housings), turned while it runs. */
 export function fixtureParts(L, ctx){
+  if (L.run) return runParts(L, ctx);                        // laid out with the Strip tool
   const fl = L.floor, ceil = fl.h - SLAB_T, rooms = ctx.rooms || [], pieces = ctx.pieces || [];
   const room = roomAt(rooms, L.x, L.y), kind = drawnKind(L, ctx);
   // in: inside an indoor room. out: on a deck, patio or outdoor floor. none:
@@ -856,6 +860,12 @@ export function fixtureParts(L, ctx){
       along(cx, cy, h, dir, len);
       P.kf = { strip: 0.8, valance: 0.8, undercab: 0.45, kick: 0.3, tv: 0.35 }[kind];
       break;
+    }
+    case "string": {                                         // string lights not laid out yet: one swag along its marker
+      const dir = fp && fp.la >= 0.4 ? unit(fp.a) : unit(isoToPlan(Math.cos(L.rot * Math.PI / 180), Math.sin(L.rot * Math.PI / 180)));
+      const len = fp && fp.la >= 0.4 ? fp.la : 2, h = outdoor ? 2.3 : Math.min(at("string"), ceil - 0.3);
+      return runParts({ ...L, run: { pts: [[x - dir[0] * len / 2, y - dir[1] * len / 2, h], [x + dir[0] * len / 2, y + dir[1] * len / 2, h]],
+                                     face: "room", loop: false } }, ctx);
     }
     case "track": {                                          // a dark rail, small heads, each aimed into the room
       const dir = fp && fp.la >= 0.5 ? unit(fp.a) : unit(isoToPlan(Math.cos(L.rot * Math.PI / 180), Math.sin(L.rot * Math.PI / 180)));
@@ -1035,6 +1045,130 @@ export function fixtureParts(L, ctx){
         pool([x, y], poolR(ceil, 0.65));
       }
     }
+  }
+  return P;
+}
+
+/** A light laid out with the Strip tool (L.run: its points on its floor,
+ *  live_aboard_runs.js placed). A strip is one tape all along its run, each
+ *  turn mitred closed (never a row of dots), with its light where it faces,
+ *  stretch by stretch: up the wall and onto the ceiling (a cove), down the
+ *  wall onto the counter or the floor (under the cabinets), a pool in the
+ *  room, or a halo on the wall behind (a TV). A string of lights is its wire
+ *  hanging in a swag between its points and a bulb every so often, each with
+ *  its own glow, shaded when off. The stretches that are only wire (gaps)
+ *  are never lit. Parts as fixtureParts gives them; a bulb or a housing can
+ *  carry its own matrix (`mat`, the floor's frame) for a sloped stretch. */
+export function runParts(L, ctx){
+  const fl = L.floor, ceil = fl.h - SLAB_T, rooms = ctx.rooms || [], pieces = ctx.pieces || [], run = L.run;
+  const kind = KINDS.has(L.kind) ? L.kind : "strip", str = kind === "string", face = RUNS.FACES.includes(run.face) ? run.face : "room";
+  const pts = run.pts, mid0 = pts[Math.floor(pts.length / 2)], room = roomAt(rooms, mid0[0], mid0[1]);
+  const where = fl.outdoor ? "out" : !room ? "none" : room.outdoor ? "out" : "in";
+  const onGround = fl.elev <= (ctx.ground || 0) + 0.5;
+  const P = { kind, where, run: true, bulbs: [], housings: [], halos: [], washes: [], pools: [], picks: [], poolH: 0.014,
+              kf: str ? 0.6 : { up: 0.8, down: 0.45, room: 0.8, wall: 0.35 }[face], wall: null, spin: null };
+  if (where === "none") P.poolH = onGround ? (ctx.ground || 0) - SLAB_T - 0.008 - fl.elev : null;
+  const wash = (c, h, a, b, tex, more = null) => P.washes.push({ x: c[0], y: c[1], h, a, b, tex, fixed: false, wall: null, ...more });
+  const pool = (at, shape) => P.pools.push({ at, ...shape });
+  const gaps = new Set(run.gaps || []), all = RUNS.stretches(pts, run.loop), st = all.filter(q => !gaps.has(q.i));
+  // Into the room from a stretch: off the wall it is on, else away from the
+  // piece it is on, else in from a loop, else toward the room's middle.
+  const flat = pts.map(q => [q[0], q[1]]), side = run.loop ? Math.sign(signedArea(flat)) : 0;
+  const into = (q, d, w) => {
+    if (w) return w.n;
+    if (!d) return [1, 0];
+    const n = perp(d), m = [(q.a[0] + q.b[0]) / 2, (q.a[1] + q.b[1]) / 2];
+    const c = L.pieceAt || (side ? null : room ? [room.spot.x, room.spot.y] : null);
+    if (L.pieceAt) return (m[0] - c[0]) * n[0] + (m[1] - c[1]) * n[1] >= 0 ? n : [-n[0], -n[1]];
+    if (side) return side > 0 ? n : [-n[0], -n[1]];
+    if (c) return (c[0] - m[0]) * n[0] + (c[1] - m[1]) * n[1] >= 0 ? n : [-n[0], -n[1]];
+    return n;
+  };
+  // The surface a downward light lands on: the top of a piece under it, else
+  // a counter (under the cabinets), else the floor.
+  const below = (x, y, h) => {
+    let top = null;
+    for (const p of ctx.furniture || []) {
+      const s = p.recipe || {}, w = num(s.width_m) || 0.5, dd = num(s.depth_m) || 0.5, z1 = (num(p.z_m) || 0) + (num(s.height_m) || 0.5);
+      const t = ((num(p.rotation) || 0) % 360) * Math.PI / 180, dx = x - (num(p.x_m) || 0), dy = y - (num(p.y_m) || 0);
+      const a = dx * Math.cos(t) + dy * Math.sin(t), b = -dx * Math.sin(t) + dy * Math.cos(t);
+      if (Math.abs(a) <= w / 2 && Math.abs(b) <= dd / 2 && z1 <= h - 0.03 && (top === null || z1 > top)) top = z1;
+    }
+    return top !== null ? top : kind === "undercab" && h > 1.0 ? 0.91 : 0;
+  };
+  const hideOff = RUNS.HIDDEN_OFF.has(kind), mt = str ? null : RUNS.mitres(run);
+  for (const q of st) {
+    const dx = q.b[0] - q.a[0], dy = q.b[1] - q.a[1], dh = q.b[2] - q.a[2], len = Math.hypot(dx, dy);
+    const m = [(q.a[0] + q.b[0]) / 2, (q.a[1] + q.b[1]) / 2], h = (q.a[2] + q.b[2]) / 2, d = len > 0.01 ? [dx / len, dy / len] : null;
+    const w = nearestWall(pieces, m[0], m[1], face === "wall" || face === "up" ? 0.8 : 0.3, false, d && len > 0.3 ? d : null);
+    const n = into(q, d, w), onWall = !!w && Math.hypot(w.x - m[0], w.y - m[1]) < 0.3;
+    const L3 = Math.hypot(len, dh);
+    for (let k = 0, nP = Math.max(1, Math.round(L3 / 0.4)); k < nP; k++) {
+      const f = (k + 0.5) / nP;
+      P.picks.push({ x: q.a[0] + dx * f, y: q.a[1] + dy * f, h: q.a[2] + dh * f });
+    }
+    if (str) continue;
+    const e = mt[all.indexOf(q)];
+    P.bulbs.push({ prim: "box", x: m[0], y: m[1], h, sx: len, sy: RUNS.TAPE_M, sz: RUNS.TAPE_M, yaw: d ? yawOf(d) : 0, off: OFF.strip,
+                   hideOff, wall: onWall ? w.pc : null, mat: RUNS.boxMatrix(q.a, q.b, RUNS.TAPE_M, e[0], e[1], n) });
+    const half = [dx / 2, dh / 2, dy / 2], on = { wall: w ? w.pc : null };
+    // On the wall's face: where the strip is, or the wall behind it.
+    const wc = w ? [w.x + w.n[0] * 0.006, w.y + w.n[1] * 0.006] : null;
+    if (face === "up") {
+      const span = Math.min(1.2, ceil - Math.max(q.a[2], q.b[2]) - 0.01);
+      if (wc && span > 0.05) wash(wc, h, half, [0, span, 0], "fade", on);
+      if (ceil - h < 0.7) wash(wc || m, ceil - 0.006, [dx / 2, 0, dy / 2], [n[0] * 0.55, 0, n[1] * 0.55], "fade", { fixed: true });
+      else if (!wc) wash(m, h + 0.01, [dx / 2, 0, dy / 2], [n[0] * 0.3, 0, n[1] * 0.3], "fade", { fixed: true });
+    } else if (face === "down") {
+      const surf = below(m[0] + n[0] * 0.15, m[1] + n[1] * 0.15, Math.min(q.a[2], q.b[2]));
+      const span = Math.min(1.0, Math.min(q.a[2], q.b[2]) - surf - 0.01);
+      if (onWall && span > 0.03) wash(wc, h, half, [0, -span, 0], "fade", on);
+      const back = onWall ? 0 : 0.3, at = [m[0] - n[0] * back, m[1] - n[1] * back];
+      wash(at, surf + 0.016, [dx / 2, 0, dy / 2], [n[0] * (0.6 + back), 0, n[1] * (0.6 + back)], "fade", { fixed: true });
+    } else if (face === "room") {
+      if (onWall) {
+        wash(wc, h, half, [0, -Math.max(0.02, Math.min(0.35, h - 0.02)), 0], "fade", on);
+        wash(wc, h, half, [0, Math.max(0.02, Math.min(0.35, ceil - h - 0.01)), 0], "fade", on);
+      }
+      if (d) pool([m[0] + n[0] * 0.6, m[1] + n[1] * 0.6], { a: [d[0] * (len / 2 + 0.3), d[1] * (len / 2 + 0.3)], b: [n[0] * 0.7, n[1] * 0.7] });
+    } else if (wc) {                                          // "wall": a halo on the wall behind it
+      const wn = [w.n[0], 0, w.n[1]], L2 = Math.hypot(...half) || 1, a = half.map(v => v * (1 + 0.3 / L2));
+      const bx = [wn[1] * a[2] - wn[2] * a[1], wn[2] * a[0] - wn[0] * a[2], wn[0] * a[1] - wn[1] * a[0]];
+      const bl = Math.hypot(...bx) || 1, b = bx.map(v => v / bl * 0.9);
+      // On the wall's face, square behind the stretch's middle.
+      const s = (m[0] - w.x) * w.dir[0] + (m[1] - w.y) * w.dir[1], c = [w.x + w.dir[0] * s + w.n[0] * 0.006, w.y + w.dir[1] * s + w.n[1] * 0.006];
+      wash([c[0] - b[0] / 2, c[1] - b[2] / 2], h - b[1] / 2, a, b, "round", on);
+    }
+  }
+  // Where its real light comes from (the view's lamp): the middle of what is
+  // lit, off the wall into the room, the way it faces.
+  if (P.picks.length) {
+    let sx = 0, sy = 0, sh = 0, nx = 0, ny = 0;
+    for (const q of P.picks) { sx += q.x; sy += q.y; sh += q.h; }
+    const k = P.picks.length, mx = sx / k, my = sy / k, mh = sh / k;
+    for (const q of st) { const d = [q.b[0] - q.a[0], q.b[1] - q.a[1]], L2 = Math.hypot(d[0], d[1]); if (L2 > 0.01) { const n = into(q, [d[0] / L2, d[1] / L2], nearestWall(pieces, (q.a[0] + q.b[0]) / 2, (q.a[1] + q.b[1]) / 2, 0.3)); nx += n[0] * L2; ny += n[1] * L2; } }
+    const nl = Math.hypot(nx, ny), off = run.loop ? 0 : 0.7;
+    P.lamp = [mx + (nl > 1e-6 ? nx / nl * off : 0), my + (nl > 1e-6 ? ny / nl * off : 0),
+              clamp(str ? mh - 0.2 : face === "up" ? mh + 0.25 : face === "down" ? mh - 0.45 : mh, 0.15, ceil - 0.05)];
+  }
+  if (str) {                                                   // the wire, then a bulb every so often
+    const S = RUNS.stringOf(run);
+    for (const [a, b] of S.wire) {
+      P.housings.push({ x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2, h: (a[2] + b[2]) / 2, sx: 0.01, sy: 0.006, sz: 0.006, yaw: 0,
+                        col: "#2b2f33", mat: RUNS.boxMatrix(a, b, 0.006) });
+    }
+    for (const [x, y, h] of S.bulbs) {
+      P.bulbs.push({ prim: "sphere", x, y, h: h - 0.035, sx: 0.026, sy: 0.034, sz: 0.026, yaw: 0, off: "#c9c2b4" });
+      P.halos.push({ x, y, h: h - 0.035, cls: "s" });
+    }
+    for (const q of st) {
+      const dx = q.b[0] - q.a[0], dy = q.b[1] - q.a[1], len = Math.hypot(dx, dy);
+      if (len < 0.3) continue;
+      const d = [dx / len, dy / len], n = perp(d);
+      pool([(q.a[0] + q.b[0]) / 2, (q.a[1] + q.b[1]) / 2], { a: [d[0] * (len / 2 + 0.3), d[1] * (len / 2 + 0.3)], b: [n[0] * 0.9, n[1] * 0.9] });
+    }
+  } else if (run.loop && face === "up" && room && !room.outdoor) {
+    pool([room.spot.x, room.spot.y], ring(Math.min(3, Math.max(1.2, room.spot.r * 1.6))));   // a cove lights the room softly
   }
   return P;
 }

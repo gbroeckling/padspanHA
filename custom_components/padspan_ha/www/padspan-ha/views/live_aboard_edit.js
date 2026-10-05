@@ -164,6 +164,7 @@ export function createEditor(ctx){
   const bDoor = btn("Door", "Draw a door along a wall", () => pickTool("door"));
   const bWin = btn("Window", "Draw a window along a wall", () => pickTool("window"));
   const bHts = btn("Heights", "Tap a light, a sensor or a readout to set its height (a light: also what it is)", () => pickTool("heights"));
+  const bStrip = ctx.STRIP && ctx.RUNS ? btn("Strip", "Lay out an LED strip or string lights: where it really goes, how high, which way it shines", () => pickTool("strip")) : null;
   const bUndo = btn("Undo", "Undo", () => { if (draft && !saving && draft.undo()) afterHistory("Undone."); });
   const bRedo = btn("Redo", "Redo", () => { if (draft && !saving && draft.redo()) afterHistory("Redone."); });
   const bSave = btn("Save", "Save the changes", () => save(null), "la3d-save");
@@ -173,7 +174,7 @@ export function createEditor(ctx){
   tools.setAttribute("aria-label", "Live Aboard editor");
   const hintEl = d("div", "la3d-hint");
   hintEl.setAttribute("aria-live", "polite");
-  const toolSeg = seg(bDoor, bWin, bHts);
+  const toolSeg = seg(bDoor, bWin, bHts, ...(bStrip ? [bStrip] : []));
   tools.append(toolSeg, seg(bUndo, bRedo), seg(bSave, bDiscard), hintEl);
   root.appendChild(tools);
   const sheet = d("div", "la3d-sheet");
@@ -196,6 +197,15 @@ export function createEditor(ctx){
     host: () => ctx.host(), base: ctx.base || "", paintEditor: () => paint(),
   }) : null;
   const furnishing = () => !!fur && active() && tool === "furnish";
+  // The Strip tool (live_aboard_strip.js): a light's run, on this same draft.
+  const strip = bStrip ? ctx.STRIP.createStrip({
+    THREE, HOUSE, RUNS: ctx.RUNS, root, guard, sheet, layer: ctx.layer,
+    draft: () => draft, active: () => active() && tool === "strip",
+    change: (fn, group) => change(fn, group), redraw: () => redrawSoon(), render: () => ctx.render(), hint: (text, bad) => hint(text, bad),
+    floors: () => ctx.floors(), lights: () => (ctx.lights ? ctx.lights() : []), pick: (x, y) => ctx.pick(x, y),
+    device: (eid) => ctx.device(eid), camera: () => ctx.camera(), scene: () => ctx.scene(), rect: () => viewRect(), shellGen: () => ctx.shellGen(),
+  }) : null;
+  const stripping = () => !!strip && active() && tool === "strip";
 
   // ── 3D marks: the line, the doors' swings ─────────────────────────────────
   const box = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
@@ -427,7 +437,9 @@ export function createEditor(ctx){
   // Nothing changes it while a save is in flight: what was sent is what the
   // draft starts again from once it is in (rebase).
   function change(fn, group = null, moves = null){
-    if (!draft || saving || !draft.change(fn, group)) return false;
+    // A piece removed takes no strip with it: a run on it stays where it was, in the same step.
+    const step = ctx.RUNS ? (c) => { const before = { ...(c.pieces || {}) }; fn(c); ctx.RUNS.keepRunsOf(c, before); } : fn;
+    if (!draft || saving || !draft.change(step, group)) return false;
     if (moves || sliding) moveSoon(moves || sliding); else redrawSoon();   // moves: a piece dragged or raised (Furnish)
     paint();                                     // Save, Undo and the line now; the walls on the next frame
     if (sheetRefresh) sheetRefresh();            // the open sheet's Reset, without rebuilding its sliders
@@ -463,6 +475,7 @@ export function createEditor(ctx){
   function afterHistory(msg){
     if (sel && sel.opening && sel.opening.added && !draft.cur.openings[sel.opening.id]) sel = null;
     if (fur) fur.refresh();                      // a piece undone away is no longer picked
+    if (strip) strip.refresh();
     gesture = null; pending = null;
     redrawSoon();
     hint(msg);
@@ -494,6 +507,7 @@ export function createEditor(ctx){
       // was sent is saved all the same.
       if (draft === sent) draft.rebase(ctx.file() || DRAFT.ownedOf(r.data));
       if (fur) fur.refresh();
+      if (strip) strip.refresh();
       hint("Saved.");
     } catch (err) {
       // Refused: the draft stays, to be saved again; what went wrong said plainly.
@@ -585,6 +599,7 @@ export function createEditor(ctx){
     if (tool === "heights" && sel && sel.opening) sel = null;
     hint(drawing(tool) ? "Press on a wall and drag along it, or tap its two ends."
       : tool === "heights" ? "Tap a light, a sensor or a readout."
+      : tool === "strip" ? "Tap a light, or pick one from the list."
       : "Door or Window: draw along a wall. Heights: tap a device. Tap a door or window to change it.");
     paint();
     sheetFor();
@@ -610,7 +625,8 @@ export function createEditor(ctx){
     tools.classList.toggle("on", on);
     toolSeg.style.display = furnishOn ? "none" : "";        // Furnish: furniture only
     if (fur) fur.show(on && tool === "furnish");
-    for (const [b, t] of [[bDoor, "door"], [bWin, "window"], [bHts, "heights"]]) b.setAttribute("aria-pressed", String(tool === t));
+    if (strip) strip.show(on && tool === "strip");
+    for (const [b, t] of [[bDoor, "door"], [bWin, "window"], [bHts, "heights"], [bStrip, "strip"]]) if (b) b.setAttribute("aria-pressed", String(tool === t));
     bUndo.disabled = !on || saving || !draft.canUndo;
     bRedo.disabled = !on || saving || !draft.canRedo;
     const dirty = on && draft.dirty;
@@ -630,7 +646,9 @@ export function createEditor(ctx){
     sheet.innerHTML = "";
     sheetRefresh = null;
     sheet.classList.remove("fur");
+    sheet.classList.remove("strip");
     if (furnishing()) { sheet.classList.toggle("on", fur.sheet()); placeSheet(); return; }   // the picked piece's panel
+    if (stripping()) { sheet.classList.toggle("on", strip.sheet()); placeSheet(); return; }   // the light picked, or the list
     if (!active() || !sel) { sheet.classList.remove("on"); return; }
     if (sel.opening) (sel.opening.added ? sheetAdded : sheetMapOpening)(sel.opening);
     else if (sel.eid) sheetDevice(sel.eid);
@@ -747,6 +765,14 @@ export function createEditor(ctx){
     if (!info || info.z === null) { sel = null; return; }
     const ceil = ceilOf(info.F), cur = draft.cur[info.section][eid], top = DRAFT.heightRange(ceil, info.section).max;
     const light = info.section === "lights", setZ = (e) => !!e && typeof e.z_m === "number";
+    if (light && strip && cur && cur.run) {                // laid out with Strip: its heights are there
+      head(info.label, "Laid out with Strip: its run sets where it is and how high.");
+      kindPicker(eid, info);
+      const acts = d("div", "la3d-acts");
+      acts.appendChild(seg(btn("Lay it out in Strip", "Open it in the Strip tool", () => { pickTool("strip"); strip.select(eid); })));
+      sheet.appendChild(acts);
+      return;
+    }
     head(info.label, `Height above its floor, 0 to ${DRAFT.metres(top)}. Default ${DRAFT.metres(info.zDefault)}.`);
     if (light) kindPicker(eid, info);
     slider("Height", 0, top, setZ(cur) ? cur.z_m : info.z, (v, g) => {
@@ -757,7 +783,8 @@ export function createEditor(ctx){
     const reset = btn("Reset to default", "Back to the height its type gives it", () => {
       change((c) => {
         const e = c[info.section][eid];
-        if (light && e && e.kind) c.lights[eid] = { kind: e.kind }; else delete c[info.section][eid];
+        const keep = light && e ? { ...(e.kind ? { kind: e.kind } : null), ...(e.run ? { run: e.run } : null) } : {};
+        if (Object.keys(keep).length) c.lights[eid] = keep; else delete c[info.section][eid];
       });
       sheetFor();
     });
@@ -834,6 +861,7 @@ export function createEditor(ctx){
   function layout(){
     const on = active();
     if (fur && furnishing()) fur.layout();
+    if (strip && stripping()) strip.layout();
     if (on && arcsGen !== ctx.shellGen()) { syncArcs(); ctx.render(); }
     const r0 = root.getBoundingClientRect(), off = (p) => [p[0] - r0.left - (root.clientLeft || 0), p[1] - r0.top - (root.clientTop || 0)];
     const put = (el, p, cls) => {
@@ -879,6 +907,7 @@ export function createEditor(ctx){
   function down(e){
     if (!active() || askEl.classList.contains("on") || saving) return null;
     if (furnishing()) return fur.down(e);                // a piece: "drag"; anything else: "tap"
+    if (stripping()) return strip.down(e);               // a handle: "drag"; a wall while drawing: "line"; a light: "tap"
     const x = e.clientX, y = e.clientY, k = kindOfPtr(e);
     const s = shown();
     if (s && s.handles && sel) {
@@ -925,6 +954,7 @@ export function createEditor(ctx){
   }
   function move(e){
     if (furnishing()) { fur.move(e); return; }
+    if (stripping()) { strip.move(e); return; }
     const g = gesture;
     if (!g || (g.kind !== "line" && g.kind !== "drag")) return;
     if (!g.moved && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) > SLOP) g.moved = true;
@@ -943,6 +973,7 @@ export function createEditor(ctx){
   }
   function up(e){
     if (furnishing()) { fur.up(e); paint(); return; }
+    if (stripping()) { strip.up(e); paint(); return; }
     const g = gesture;
     gesture = null;
     if (!g) { paint3d(); return; }
@@ -957,6 +988,7 @@ export function createEditor(ctx){
   }
   function tap(e, g = gesture){
     if (furnishing()) { fur.tap(e); return; }
+    if (stripping()) { strip.tap(e); return; }
     gesture = null;
     if (!g || !g.target) return;
     if (g.target.opening) { select({ opening: g.target.opening }); hint(g.target.opening.added ? "Drag either end to change its width." : "From the map: set it for Live Aboard."); }
@@ -1004,10 +1036,11 @@ export function createEditor(ctx){
     if (g.span.stop === "opening") flash("Stopped at the opening next to it: openings never overlap.");
     else hint(`${g.kindOf === "door" ? "Door" : "Window"} now ${DRAFT.metres(g.span.len)}.`);
   }
-  function cancel(){ gesture = null; if (fur) fur.cancel(); paint3d(); }
+  function cancel(){ gesture = null; if (fur) fur.cancel(); if (strip) strip.cancel(); paint3d(); }
   function hover(e){
     if (!active()) return false;
     if (furnishing()) { canvas.style.cursor = fur.hover(e); return true; }
+    if (stripping()) { canvas.style.cursor = strip.hover(e); return true; }
     let cur = "";
     if (openingAt(e.clientX, e.clientY)) cur = "pointer";
     else if ((tool === "door" || tool === "window") && wallAt(e.clientX, e.clientY, REACH.mouse)) cur = "crosshair";
@@ -1045,6 +1078,8 @@ export function createEditor(ctx){
     },
     /** The Furnish tool (the harness reaches it here). */
     get furnish(){ return fur; },
+    /** The Strip tool (the harness reaches it here). */
+    get strip(){ return strip; },
     get active(){ return active(); },
     /** The file was read again, or could not be, or a Save found it a newer
      *  PadSpan's: Edit says so, and while it is open the hint says whether
@@ -1089,12 +1124,13 @@ export function createEditor(ctx){
                gesture: gesture ? { kind: gesture.kind, span: gesture.span || null } : null, pending: !!pending,
                line: line.visible, arcs: arcs.length / 3, cantEdit: cantEdit(), editWhy: editWhy.style.display === "none" ? "" : editWhy.textContent,
                editAvailable: bEdit.getAttribute("aria-disabled") !== "true",
-               furnishOn, furnish: fur ? fur.state() : null };
+               furnishOn, furnish: fur ? fur.state() : null, strip: strip ? strip.state() : null };
     },
     /** A plan point on floor fid at height z, in client px (the harness presses it). */
     whereOf(fid, x, y, z = 1){ const F = ctx.floors().find(q => q.fl.id === fid); return F ? screenAt(F, x, y, z) : null; },
     dispose(){
       if (fur) fur.dispose();
+      if (strip) strip.dispose();
       clearArcs();
       if (line.parent) line.parent.remove(line);
       box.dispose(); lineMat.dispose(); arcMat.dispose(); fillMat.dispose();

@@ -46,6 +46,10 @@ const EDIT = await import(`./live_aboard_edit.js${new URL(import.meta.url).searc
 const PIECES = await import(`./live_aboard_pieces.js${new URL(import.meta.url).search}`);
 const FURNISH = await import(`./live_aboard_furnish.js${new URL(import.meta.url).search}`);
 const FURN = await import(`./live_aboard_furniture.js${new URL(import.meta.url).search}`).catch(() => null);
+// The Strip tool: where a strip or a string of lights really goes (its runs),
+// and the tool itself in the editor.
+const RUNS = await import(`./live_aboard_runs.js${new URL(import.meta.url).search}`);
+const STRIP = await import(`./live_aboard_strip.js${new URL(import.meta.url).search}`);
 const NO_FILE = DRAFT.ownedOf(null);
 // P8 atmosphere: rain and snow (the flat Atlas's own weather, drawn here).
 // Optional: a module that fails to load leaves the house as it was.
@@ -1055,6 +1059,8 @@ function createSlot(slotKey){
       clearUse: () => { if (use) use.clear(); },
       // P2 Furnish: its tool, the furniture drawn, and where on screen each view is.
       FURNISH, PIECES, FURN: () => FURN, layer, rect: () => view3Rect(), viewAt: (x, y) => viewAt(x, y),
+      STRIP, RUNS,                                           // the Strip tool (lights laid out along their runs)
+      lights: () => lights.map(L => ({ eid: L.eid, F: L.F, drawn: L.drawn, guess: L.guess, label: (deviceInfo(L.eid) || {}).label || L.eid })),
       // The plan alone (a narrow screen): its middle as it shows, not where the hidden 3D view looks.
       centre: () => { if (viewports().d3) return [cam.target.x, cam.target.z]; fitPlan(); return [plan.cx, plan.cy]; }, setTopFloor: (fid) => { if (topCb) topCb(fid); }, host: () => furnishP,
       base: new URL(import.meta.url).search,
@@ -1693,14 +1699,18 @@ function createSlot(slotKey){
       F.group.add(lg);
       const bulbs = { puck: [], dome: [], box: [], sphere: [] }, houses = [], halos = { s: [], m: [], l: [] }, pools = [];
       const washes = { fade: [], scallop: [], round: [] };
-      const ctx = { rooms: F.rooms, pieces: F.pieces.map(P => P.pc), ground: h.ground };
+      const vdP = viewData().pieces || {}, furniture = Object.values(vdP).filter(p => p && (h.canon ? h.canon(p.floor_id) : String(p.floor_id)) === F.fl.id);
+      const ctx = { rooms: F.rooms, pieces: F.pieces.map(P => P.pc), ground: h.ground, furniture };
       const zs = viewData().lights;
       const pieceOf = (pc) => (pc ? F.pieces.find(q => q.pc === pc) || null : null);
       for (const L0 of mine) {
         // What it is: the kind set in Live Aboard (the 3D file), else PadSpan's guess.
         const guess = HOUSE.drawnKind(L0, ctx), set = HOUSE.storedKind(zs[L0.eid]);
         // Moved whole to its height in the 3D file, if it has one (part C).
-        const lift = DRAFT.liftParts(HOUSE.fixtureParts(set ? { ...L0, kind: set } : L0, ctx), zs[L0.eid], F.fl.h - HOUSE.SLAB_T), parts = lift.parts;
+        // Laid out with the Strip tool: drawn along its run (on a piece: where the piece stands now).
+        const own = RUNS.readRun(zs[L0.eid]), run = RUNS.placed(own, vdP), on = run && own.piece ? vdP[own.piece] : null;
+        const lift = run ? DRAFT.liftParts(HOUSE.fixtureParts({ ...L0, kind: set || L0.kind, run, pieceAt: on ? [on.x_m, on.y_m] : null }, ctx), null, F.fl.h - HOUSE.SLAB_T)
+          : DRAFT.liftParts(HOUSE.fixtureParts(set ? { ...L0, kind: set } : L0, ctx), zs[L0.eid], F.fl.h - HOUSE.SLAB_T), parts = lift.parts;
         const L = { ...L0, F, kf: parts.kf, drawn: parts.kind, guess, wall: null, refs: { bulbs: [], houses: [], halos: [], washes: [], pools: [] },
                     key: null, look: null, z: lift.z, zDefault: lift.zDefault, spin: null };
         // A wall it hangs on (or a part of it does: a cove's sides) repaints it as it is cut.
@@ -1708,7 +1718,7 @@ function createSlot(slotKey){
         if (parts.wall) L.wall = onWall(parts.wall);
         let sx = 0, sy = 0, sh = 0;
         for (const b of parts.bulbs) {
-          const m = compose(b.x, F.fl.elev + b.h, b.y, b.yaw, b.sx, b.sy, b.sz).clone();
+          const m = b.mat ? lift3(b.mat, F.fl.elev) : compose(b.x, F.fl.elev + b.h, b.y, b.yaw, b.sx, b.sy, b.sz).clone();
           L.refs.bulbs.push({ prim: b.prim, i: bulbs[b.prim].length, off: new THREE.Color(b.off), m, hideOff: !!b.hideOff, wall: onWall(b.wall) });
           bulbs[b.prim].push({ m, off: b.off, hideOff: !!b.hideOff });
           sx += b.x; sy += b.y; sh += b.h;
@@ -1722,7 +1732,8 @@ function createSlot(slotKey){
         // A ceiling fan's blades turn while it runs.
         if (parts.spin) L.spin = { x: parts.spin.x, y: parts.spin.y, angle: 0, rps: 0, blades: parts.spin.blades.map(b => ({ a: b.a, r: b.r, ref: L.refs.houses[b.i] })) };
         const n = Math.max(1, parts.bulbs.length), mh = sh / n;
-        L.lamp = new THREE.Vector3(sx / n, F.fl.elev + (mh > 1.5 ? mh - 0.3 : mh + 0.35), sy / n);
+        L.lamp = parts.lamp ? new THREE.Vector3(parts.lamp[0], F.fl.elev + parts.lamp[2], parts.lamp[1])   // a run: off its wall, into the room
+          : new THREE.Vector3(sx / n, F.fl.elev + (mh > 1.5 ? mh - 0.3 : mh + 0.35), sy / n);
         lights.push(L);
       }
       // Each bulb twice: lit (glowing whatever the room's light) and off
@@ -1746,7 +1757,7 @@ function createSlot(slotKey){
         const spec = { r: 0.6 };
         const im = new THREE.InstancedMesh(shared.prim.box, mat(spec), houses.length);
         im.userData.spec = spec; im.castShadow = true;
-        houses.forEach((b, i) => { im.setMatrixAt(i, compose(b.x, F.fl.elev + b.h, b.y, b.yaw, b.sx, b.sy, b.sz)); im.setColorAt(i, _c.set(b.col)); });
+        houses.forEach((b, i) => { im.setMatrixAt(i, b.mat ? lift3(b.mat, F.fl.elev) : compose(b.x, F.fl.elev + b.h, b.y, b.yaw, b.sx, b.sy, b.sz)); im.setColorAt(i, _c.set(b.col)); });
         lightRes.push({ dispose: () => im.dispose() });
         lg.add(F.houses = im);
       }
@@ -1786,6 +1797,13 @@ function createSlot(slotKey){
       }
     }
     lampsDirty = true;
+  }
+  /** A part's own matrix (a run's tape or wire, live_aboard_runs.js
+   *  boxMatrix: the floor's frame), on its floor. */
+  function lift3(mat, elev){
+    const m = new THREE.Matrix4().fromArray(mat);
+    m.elements[13] += elev;
+    return m;
   }
   /** A wash's quad: from its line (w.x, w.h, w.y) along ±a, out along b
    *  (both [x, up, y], plan metres). */
@@ -3295,7 +3313,7 @@ function createSlot(slotKey){
     const mSig = HOUSE.shellSignature(p.model, p.floors, p.lightsByEid);
     const mlSig = HOUSE.lightsSignature(p.model, p.lightsByEid, p.hidden, p.shapeOverrides), mxSig = HOUSE.sensorsSignature(p.model, p.lightsByEid, p.hidden);
     const sSig = mSig + DRAFT.openingsSignature(vd);
-    const lSig = mlSig + DRAFT.heightsSignature(vd, "lights");
+    const lSig = mlSig + DRAFT.heightsSignature(vd, "lights") + RUNS.runsSignature(vd);
     const xSig = mxSig + DRAFT.heightsSignature(vd, "devices");
     let rebuilt = false;
     if (sSig !== shellSig || lSig !== lightsSig || xSig !== sensorsSig) {
@@ -3485,6 +3503,8 @@ function createSlot(slotKey){
     },
     /** The Furnish tool (the harness builds a piece of any kind through it). */
     _furnish(){ return editor ? editor.furnish : null; },
+    /** The Strip tool (the harness lays out a light through it). */
+    _strip(){ return editor ? editor.strip : null; },
     /** A piece's middle (dz metres above its bottom) on screen, in the 3D view or the plan. */
     _wherePiece(id, dz = 0.3, inPlan = false){
       const r = layer && layer.rootOf(id), vp = inPlan ? viewports().plan : viewports().d3;
