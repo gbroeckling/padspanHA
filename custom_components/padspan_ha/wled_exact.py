@@ -311,6 +311,39 @@ def _master_bri(hass: HomeAssistant, rec: dict, entity_id: str, brightness: int 
 # ── One device's worker ──────────────────────────────────────────────────────
 
 
+def _report(hass: HomeAssistant, rec: dict, entity_id: str, old: Any, new: Any) -> dict | None:
+    """The way a report took the device: "on" True / False if it was
+    switched (else None), "bri" 1 / -1 if its brightness went up / down
+    while lit (else 0). Only the light that IS the device's on/off tells;
+    None for its other lights (each part's own on flag and opacity, which
+    the look sets)."""
+    if entity_id != _master_light(hass, rec["device_id"], rec["mac"]):
+        return None
+    old_s, new_s = getattr(old, "state", None), getattr(new, "state", None)
+    if old_s != new_s:
+        return {"on": new_s == "on", "bri": 0}
+    a, b = ((getattr(s, "attributes", None) or {}).get("brightness") for s in (old, new))
+    lit = new_s == "on" and isinstance(a, (int, float)) and isinstance(b, (int, float))
+    return {"on": None, "bri": (b > a) - (b < a) if lit else 0}
+
+
+def _agrees(change: dict | None, aim: dict | None) -> bool:
+    """Does a report (_report) go the way PadSpan took the light (`aim`):
+    switched the same way, its brightness moved the same way — not at all,
+    where PadSpan kept it (aim "bri" 0)? What either can't tell agrees."""
+    if change is None or aim is None:
+        return True
+    if change["on"] is not None:
+        return change["on"] == aim["on"]
+    return not change["bri"] or aim["bri"] is None or change["bri"] == aim["bri"]
+
+
+def _aim(on: bool, bri: int, live: dict) -> dict:
+    """The way a write of `on` at `bri` takes the light from `live`."""
+    lb = live.get("bri")
+    return {"on": on, "bri": (bri > lb) - (bri < lb) if on and isinstance(lb, int) else None}
+
+
 class _Worker:
     """Newest-wins: each device keeps only its newest wanted state and a
     generation; at most one command in flight plus one pending."""
@@ -323,6 +356,7 @@ class _Worker:
         self.task: asyncio.Task | None = None
         self.waiters: list[tuple[int, asyncio.Future]] = []
         self.last_write = -1e9       # monotonic time of PadSpan's last POST
+        self.sent: dict | None = None    # the way that POST took the light (_agrees)
         self.last_reconnect = -1e9
         self.late_cancel: Any = None
         self.retry_cancel: Any = None    # a command the device didn't answer, tried again
@@ -337,24 +371,39 @@ class _Worker:
     def busy(self) -> bool:
         return self.task is not None and not self.task.done()
 
-    def ignores(self, at: float) -> bool:
+    def ignores(self, at: float, change: dict | None = None) -> bool:
         """A change HA reported at `at` (monotonic) is not someone else's
         newer one when it may be PadSpan's own coming back — a write in the
         last ECHO_WINDOW_S, or one the running command has made — or when it
         is older than PadSpan's newest command: reported before it was
         issued, or, while a command answering a change seen on the light has
         sent nothing yet, the device's other lights reporting that change.
-        With nothing sent, nothing comes back: otherwise it is outside."""
-        if _mono() - self.last_write < ECHO_WINDOW_S:
-            return True
+        With nothing sent, nothing comes back: otherwise it is outside.
+        For an answer (a hold, a team following, a reconnect) a report is
+        that only when it goes the way its write took the light, or, before
+        it writes, the way the change it answers did (`change`: _report,
+        _agrees): a wall switch flipped during a hold is someone's, and it
+        stands. A fresh command decides whatever comes back."""
         want = self.want or {}
         if at < want.get("issued", -1e9):
+            return True
+        own = not want.get("answers") or _agrees(change, self.sent)
+        if _mono() - self.last_write < ECHO_WINDOW_S and own:
             return True
         if not self.busy():
             return False
         if self.last_write >= self.run_at:
-            return True
-        return bool(want.get("answers")) and not want.get("retry")
+            return own
+        answers = want.get("answers")
+        if not answers or want.get("retry"):
+            return False
+        return answers is True or _agrees(change, {"on": answers == "on", "bri": None})
+
+    def gave_way(self, want: dict) -> bool:
+        """A change from outside counted since `want` was issued replaces
+        PadSpan's own repeats and answers (a retry, a hold, a reconnect, a
+        team following) — never a fresh command."""
+        return self.outside != want["seen"] and bool(want.get("retry") or want.get("answers"))
 
     def cancel_timers(self) -> None:
         for name in ("late_cancel", "retry_cancel"):
@@ -578,8 +627,13 @@ async def _apply(hass: HomeAssistant, worker: _Worker, want: dict, gen: int) -> 
         # it was issued (live test 2026-09-28: a colour changed on WLED's own
         # page, then an Atlas "off" 1.5 s later was dropped), so the newest
         # command given — the Atlas, a room, a preset, Vacation Mode, a
-        # presence rule, a service — goes.
-        if worker.outside != seen and (want.get("retry") or want.get("answers")):
+        # presence rule, a service — goes. The device can tell before HA
+        # does: an answer to the light seen on (or off) that finds it
+        # switched the other way since — a wall switch flipped while it
+        # read — would undo that, and gives way too.
+        switched = (want.get("answers") in ("on", "off") and want.get("on") is not None
+                    and bool(live.get("on")) != (want["answers"] == "on"))
+        if switched or worker.gave_way(want):
             result.update(replaced=True, error=REPLACED_MSG)
             rec["last_result"] = result
             st.schedule_save()
@@ -600,11 +654,14 @@ async def _apply(hass: HomeAssistant, worker: _Worker, want: dict, gen: int) -> 
             bodies = _plan(eff, live, ctx, on=on, bri=bri, tt=tt, team=bool(want.get("team")))
             if bodies:
                 tries = 1
+                worker.sent = _aim(on, bri, live)
                 reply = await _post_all(hass, worker, host, bodies)
             diffs = L.compare(eff, reply, ctx, on=on, bri=bri, exact=True) if reply is not None else \
                 [{"seg": None, "key": "reply", "what": "no answer"}]
             while diffs and tries < MAX_TRIES:
                 await asyncio.sleep(RETRY_DELAYS[min(tries - 1, len(RETRY_DELAYS) - 1)] if tries else 0)
+                if worker.gave_way(want):
+                    break               # changed from outside meanwhile: no repeat undoes it
                 tries += 1
                 prev = reply
                 segs = L.differing_segments(diffs)
@@ -626,11 +683,17 @@ async def _apply(hass: HomeAssistant, worker: _Worker, want: dict, gen: int) -> 
         if diffs:
             result["message"] = f"{'; '.join(L.describe(diffs))} didn't take after {tries} tries"
     rec["last_result"] = result
+    if worker.gave_way(want):
+        # Changed from outside while it wrote: that change is the last word,
+        # and no late check puts this one back.
+        result["replaced"] = True
+        st.schedule_save()
+        return result
     if want.get("on") is not None and isinstance(rec.get("last_cmd"), dict):
         rec["last_cmd"].update(on=on, bri=bri)
     st.schedule_save()
     if tries:
-        worker.plan = {"eff": eff, "ctx": ctx, "on": on, "bri": bri, "tt": tt, "gen": gen}
+        worker.plan = {"eff": eff, "ctx": ctx, "on": on, "bri": bri, "tt": tt, "gen": gen, "seen": worker.outside}
         _schedule_late(hass, worker, gen, tt, stage=1)
     return result
 
@@ -673,11 +736,13 @@ def _schedule_retry(hass: HomeAssistant, worker: _Worker, gen: int, want: dict, 
 
 async def _late_check(hass: HomeAssistant, worker: _Worker, gen: int, stage: int) -> None:
     """Once, T + 1 s after a command: something that changed the light again
-    is fixed once; if it changes again, the result says so."""
+    is fixed once; if it changes again, the result says so. A change counted
+    as from outside since (_Worker.ignores) is someone's: it stands."""
     plan = worker.plan
     st = _store(hass)
     rec = st.get(worker.mac) if st else None
-    if plan is None or plan["gen"] != gen or worker.gen != gen or worker.busy() or rec is None:
+    if (plan is None or plan["gen"] != gen or worker.gen != gen or worker.busy() or rec is None
+            or worker.outside != plan["seen"]):
         return
     tgt = W.resolve_device(hass, device_id=rec.get("device_id"))
     if tgt is None:
@@ -710,6 +775,7 @@ async def _late_check(hass: HomeAssistant, worker: _Worker, gen: int, stage: int
         if extra:
             bodies.append(L.tail_body(extra))
         try:
+            worker.sent = _aim(plan["on"], plan["bri"], live)
             await _post_all(hass, worker, tgt["host"], bodies)
         except W.WledError:
             return
@@ -743,11 +809,13 @@ def _submit(hass: HomeAssistant, rec: dict, want: dict) -> asyncio.Future:
     return _worker(hass, rec["mac"]).submit(want)
 
 
-def _answer(hass: HomeAssistant, rec: dict, want: dict) -> asyncio.Future:
+def _answer(hass: HomeAssistant, rec: dict, want: dict, seen: str | None = None) -> asyncio.Future:
     """A command answering a change seen on a light (hold, a team following,
     a reconnect): the device's other lights report that same change as it
-    starts, so they don't replace it (_Worker.ignores)."""
-    return _submit(hass, rec, {**want, "answers": True})
+    starts, so they don't replace it (_Worker.ignores). `seen`: "on" / "off",
+    what the change left the device's master light in, when it was seen
+    there — a report switching it the other way is not that change."""
+    return _submit(hass, rec, {**want, "answers": seen or True})
 
 
 def _team_wants(hass: HomeAssistant, rec: dict, team: dict | None, on: bool, brightness: int | None,
@@ -878,7 +946,8 @@ async def on_state_change(hass: HomeAssistant, entity_id: str, old: Any, new: An
         return                      # Identify is blinking a part; it puts the light back itself
     worker = _worker(hass, rec["mac"])
     async with worker.events():
-        await _outside_change(hass, st, rec, worker, entity_id, old_s, new_s, new, at)
+        await _outside_change(hass, st, rec, worker, entity_id, old_s, new_s, new, at,
+                              _report(hass, rec, entity_id, old, new))
 
 
 async def _lapsed_team_follows(hass: HomeAssistant, entity_id: str, old: Any, new: Any) -> None:
@@ -904,16 +973,17 @@ async def _lapsed_team_follows(hass: HomeAssistant, entity_id: str, old: Any, ne
 
 
 async def _outside_change(hass: HomeAssistant, st: WledLooksStore, rec: dict, worker: _Worker, entity_id: str,
-                          old_s: Any, new_s: str, new: Any, at: float) -> None:
+                          old_s: Any, new_s: str, new: Any, at: float, change: dict | None = None) -> None:
+    seen = new_s if change is not None else None      # what the master light shows, if it was that one
     if old_s == "unavailable":
         if _mono() - worker.last_reconnect < RECONNECT_DEDUPE_S:
             return
         worker.last_reconnect = _mono()
-        await _catch_up(hass, rec, worker, came_back=True)
+        await _catch_up(hass, rec, worker, came_back=True, seen=seen)
         return
     if old_s not in ("on", "off"):
         return
-    if worker.ignores(at):
+    if worker.ignores(at, change):
         return                      # PadSpan's own change coming back, or older than its newest command
     # Changed from outside after a command that didn't go (or is still to
     # be tried again, or is being tried again, or hasn't sent anything
@@ -940,7 +1010,7 @@ async def _outside_change(hass: HomeAssistant, st: WledLooksStore, rec: dict, wo
     # when WLED's socket closes: PillTaker 09-27, Quin Kitchen 09-23), even
     # as on → on: the last command goes back — before "hold" could take the
     # boot's own "on" for someone's.
-    if await _catch_up(hass, rec, worker, came_back=False):
+    if await _catch_up(hass, rec, worker, came_back=False, seen=seen):
         return
     if old_s == new_s:
         return
@@ -966,15 +1036,15 @@ async def _outside_change(hass: HomeAssistant, st: WledLooksStore, rec: dict, wo
             for m, want in _team_wants(hass, rec, team, True, _clamp_bri(ref) if ref else None, None, "team"):
                 if m is rec:
                     want = {**want, "bri": None, "keep_bri": True, "source": "hold"}
-                _answer(hass, m, want)
+                _answer(hass, m, want, seen if m is rec else None)
             return
         if rec.get("hold", True):
-            _answer(hass, rec, {"on": True, "keep_bri": True, "source": "hold"})
+            _answer(hass, rec, {"on": True, "keep_bri": True, "source": "hold"}, seen)
         return
     if new_s == "on" and rec.get("hold", True):
         # A segment light when a main light exists: its opacity is what the
         # person set; the master stays as it is.
-        _answer(hass, rec, {"on": None, "keep_bri": True, "seg_bri": {role: True}, "source": "hold"})
+        _answer(hass, rec, {"on": None, "keep_bri": True, "seg_bri": {role: True}, "source": "hold"}, seen)
 
 
 def _note_boot(worker: _Worker, info: dict) -> float:
@@ -1013,7 +1083,8 @@ def _undelivered(rec: dict, last: dict) -> bool:
     return bool(res.get("waiting")) or not res.get("ok")
 
 
-async def _catch_up(hass: HomeAssistant, rec: dict, worker: _Worker, *, came_back: bool) -> bool:
+async def _catch_up(hass: HomeAssistant, rec: dict, worker: _Worker, *, came_back: bool,
+                    seen: str | None = None) -> bool:
     """The last command goes back — on with its look, or off — when the
     device restarted since it (a power cut: every unit boots ON) or it never
     got there. Otherwise, back from "unavailable", the look is held if it is
@@ -1031,10 +1102,10 @@ async def _catch_up(hass: HomeAssistant, rec: dict, worker: _Worker, *, came_bac
     if last and (boot > float(last.get("at") or 0) or (came_back and _undelivered(rec, last))):
         team = padspan_team_of(hass, rec.get("device_id"))
         _answer(hass, rec, {"on": bool(last.get("on")), "bri": last.get("bri"), "team": bool(team),
-                            "source": "reconnect"})
+                            "source": "reconnect"}, seen)
         return True
     if came_back:
-        _answer(hass, rec, {"on": None, "keep_bri": True, "source": "reconnect"})
+        _answer(hass, rec, {"on": None, "keep_bri": True, "source": "reconnect"}, seen)
         return True
     return False
 

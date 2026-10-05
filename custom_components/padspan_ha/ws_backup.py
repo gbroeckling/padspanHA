@@ -9,6 +9,7 @@ Split out of websocket.py; registration stays there.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import asyncio
 from pathlib import Path
@@ -21,6 +22,7 @@ from .const import (
     DOMAIN,
     DATA_SETTINGS,
     DATA_FABRIC,
+    DATA_HOUSE3D,
     DATA_MAPS,
     DATA_MODEL,
     BACKUPS_STORE_KEY,
@@ -63,6 +65,21 @@ def _backups_lock(hass: HomeAssistant) -> asyncio.Lock:
     reported as taken, or a deleted one that comes back.
     """
     return hass.data.setdefault(f"{DOMAIN}_backups_lock", asyncio.Lock())
+
+
+async def _store_lock(hass: HomeAssistant, store_key: str) -> Any:
+    """The lock a store's own writes hold, for a restore or a factory reset
+    to hold while it writes that store, so a Save never lands under it (read
+    before, written after). Live Aboard's store has one (House3dStore.lock:
+    the 3D editor's Save, Remove all, the library); it loads on first use,
+    so it is loaded here to have its lock. A file that can't be read keeps
+    no store, and then nothing else writes it either. The rest: none."""
+    if store_key == HOUSE3D_STORE_KEY:
+        from .house3d_store import ReadFailed, async_get_store  # noqa: PLC0415
+        with contextlib.suppress(ReadFailed):
+            await async_get_store(hass)
+    lock = getattr(hass.data.get(DOMAIN, {}).get(_DATA_KEY_MAP.get(store_key)), "lock", None)
+    return lock if isinstance(lock, asyncio.Lock) else contextlib.nullcontext()
 
 
 def _trim_backups(backups: list[dict[str, Any]], auto: bool) -> None:
@@ -160,6 +177,7 @@ async def ws_store_backup_create(hass: HomeAssistant, connection, msg) -> None:
 
     domain = hass.data.get(DOMAIN, {})
     stores_data: dict[str, Any] = {}
+    unread: list[str] = []
 
     # Snapshot each store, probing for the correct data attribute
     for store_key, data_key in _DATA_KEY_MAP.items():
@@ -173,8 +191,9 @@ async def ws_store_backup_create(hass: HomeAssistant, connection, msg) -> None:
                 _st = _St(hass, 1, store_key)
                 _loaded = await _st.async_load()
                 stores_data[store_key] = _loaded if _loaded is not None else {}
-            except Exception:
-                stores_data[store_key] = {}
+            except Exception as err:  # noqa: BLE001 — said below
+                _LOGGER.error("Backup: could not read %s: %s", store_key, err)
+                unread.append(store_key)
             continue
         # Each store class uses different attribute names for its data
         if hasattr(store_obj, "data"):
@@ -192,8 +211,15 @@ async def ws_store_backup_create(hass: HomeAssistant, connection, msg) -> None:
                 _st = _St(hass, 1, store_key)
                 _loaded = await _st.async_load()
                 stores_data[store_key] = _loaded if _loaded is not None else {}
-            except Exception:
-                stores_data[store_key] = {}
+            except Exception as err:  # noqa: BLE001 — said below
+                _LOGGER.error("Backup: could not read %s: %s", store_key, err)
+                unread.append(store_key)
+    if unread:
+        # Recorded as {}, a store that couldn't be read would be emptied by
+        # restoring this backup: none is made.
+        connection.send_error(msg["id"], "backup_failed",
+                              f"Could not read {', '.join(unread)}, so no backup was made. Nothing was saved.")
+        return
 
     # ── Collect map image files ──────────────────────────────────────────────
     # WHY: Maps metadata (receiver positions, room bounds) is useless without
@@ -373,63 +399,70 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
             continue
         if selected_keys is not None and store_key not in selected_keys:
             continue
-        if _is_absent_marker(data):
-            # "There was no file" (ws_common.ABSENT_MARKER): only Live Aboard's
-            # file knows how to go back to none; never written as data.
-            if store_key == HOUSE3D_STORE_KEY:
-                from .house3d_store import async_restore_absent
-                try:
-                    await async_restore_absent(hass)
-                    restored += 1
-                except Exception as err:  # noqa: BLE001 — reported, like every store below
-                    _LOGGER.error("Restore of %s failed: %s", store_key, err)
-            continue
-        try:
-            if store_key == HOUSE3D_STORE_KEY:
-                # Live Aboard's file: a backup with no furniture in it keeps
-                # the furniture placed since (house3d_store.async_restore_data).
-                from .house3d_store import async_restore_data
-                data = await async_restore_data(hass, data)
-            st = _St(hass, 1, store_key)
-            await st.async_save(data)
-            restored += 1
-            # Reload in-memory store object
-            data_key = _DATA_KEY_MAP.get(store_key)
-            if data_key:
-                store_obj = hass.data.get(DOMAIN, {}).get(data_key)
-                if store_obj:
-                    if data_key == DATA_SETTINGS and isinstance(data, dict) and hasattr(store_obj, "data"):
-                        # Vacation Mode's spans describe what is in the recorder
-                        # now, not when the backup was taken (vacation_mode.py).
-                        import time as _time
-                        from .vacation_mode import restore_fields
-                        # A tester sign-up is not house configuration: the
-                        # live one stays, so an older backup can neither lose
-                        # one nobody could then withdraw, nor bring back one
-                        # that was withdrawn (tester.carried_over).
-                        from .tester import carried_over
-                        data = {**data, **restore_fields(store_obj.data or {}, data, _time.time()),
-                                **carried_over(store_obj.data or {})}
-                        # The one-time "Atlas on" has already run here: an
-                        # older backup must not run it again over a choice
-                        # made since (settings_store.py).
-                        if (store_obj.data or {}).get("atlas_default_v1_applied"):
-                            data["atlas_default_v1_applied"] = True
-                        # Nor bring back the trial milestone card, or restart
-                        # its week (settings_store.trial_state_kept).
-                        from .settings_store import trial_state_kept
-                        data.update(trial_state_kept(store_obj.data or {}, data))
-                        await st.async_save(data)
-                    if hasattr(store_obj, "data") and isinstance(data, dict):
-                        store_obj.data = data
-                    elif hasattr(store_obj, "_data") and isinstance(data, dict):
-                        store_obj._data = data
-                    elif hasattr(store_obj, "entries") and isinstance(data, list):
-                        store_obj.entries = data
-                    elif hasattr(store_obj, "frames") and isinstance(data, list):
-                        store_obj.frames = data
-        except Exception as e:
-            _LOGGER.warning("Failed to restore %s: %s", store_key, e)
+        # Under the store's own lock: a Save started meanwhile goes on top.
+        async with await _store_lock(hass, store_key):
+            if _is_absent_marker(data):
+                # "There was no file" (ws_common.ABSENT_MARKER): only Live Aboard's
+                # file knows how to go back to none; never written as data.
+                if store_key == HOUSE3D_STORE_KEY:
+                    from .house3d_store import async_restore_absent
+                    held = hass.data.get(DOMAIN, {}).get(DATA_HOUSE3D)
+                    try:
+                        await async_restore_absent(hass)
+                        restored += 1
+                        if held is not None:
+                            # A Save waiting on this lock has the store just
+                            # dropped: it goes on from the file as it is now.
+                            await held.async_load()
+                    except Exception as err:  # noqa: BLE001 — reported, like every store below
+                        _LOGGER.error("Restore of %s failed: %s", store_key, err)
+                continue
+            try:
+                if store_key == HOUSE3D_STORE_KEY:
+                    # Live Aboard's file: a backup with no furniture in it keeps
+                    # the furniture placed since (house3d_store.async_restore_data).
+                    from .house3d_store import async_restore_data
+                    data = await async_restore_data(hass, data)
+                st = _St(hass, 1, store_key)
+                await st.async_save(data)
+                restored += 1
+                # Reload in-memory store object
+                data_key = _DATA_KEY_MAP.get(store_key)
+                if data_key:
+                    store_obj = hass.data.get(DOMAIN, {}).get(data_key)
+                    if store_obj:
+                        if data_key == DATA_SETTINGS and isinstance(data, dict) and hasattr(store_obj, "data"):
+                            # Vacation Mode's spans describe what is in the recorder
+                            # now, not when the backup was taken (vacation_mode.py).
+                            import time as _time
+                            from .vacation_mode import restore_fields
+                            # A tester sign-up is not house configuration: the
+                            # live one stays, so an older backup can neither lose
+                            # one nobody could then withdraw, nor bring back one
+                            # that was withdrawn (tester.carried_over).
+                            from .tester import carried_over
+                            data = {**data, **restore_fields(store_obj.data or {}, data, _time.time()),
+                                    **carried_over(store_obj.data or {})}
+                            # The one-time "Atlas on" has already run here: an
+                            # older backup must not run it again over a choice
+                            # made since (settings_store.py).
+                            if (store_obj.data or {}).get("atlas_default_v1_applied"):
+                                data["atlas_default_v1_applied"] = True
+                            # Nor bring back the trial milestone card, or restart
+                            # its week (settings_store.trial_state_kept).
+                            from .settings_store import trial_state_kept
+                            data.update(trial_state_kept(store_obj.data or {}, data))
+                            await st.async_save(data)
+                        if hasattr(store_obj, "data") and isinstance(data, dict):
+                            store_obj.data = data
+                        elif hasattr(store_obj, "_data") and isinstance(data, dict):
+                            store_obj._data = data
+                        elif hasattr(store_obj, "entries") and isinstance(data, list):
+                            store_obj.entries = data
+                        elif hasattr(store_obj, "frames") and isinstance(data, list):
+                            store_obj.frames = data
+            except Exception as e:
+                _LOGGER.warning("Failed to restore %s: %s", store_key, e)
 
     # ── Restore map images to disk ────────────────────────────────────────────
     images_restored = 0

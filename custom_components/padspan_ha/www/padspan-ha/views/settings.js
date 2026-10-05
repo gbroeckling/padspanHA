@@ -1984,8 +1984,8 @@ function _settingsPresence(ctx, el){
       "real latitude/longitude and plot on Home Assistant's built-in map — in addition to, not instead " +
       "of, their room-name state. Leave latitude/longitude blank to disable (no GPS is reported, never a " +
       "guess at (0, 0)). Bearing is the compass direction, clockwise from true north, that the fabric's " +
-      "own +Y axis points toward on your floorplan — 0 if you don't know, since most floorplans are " +
-      "drawn roughly north-up."
+      "own +Y axis points toward. +Y runs down your floorplan as it is drawn, so a plan drawn north-up " +
+      "is 180."
     ),
     el("div", { style: rowStyle }, [
       el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Origin latitude"),

@@ -26,6 +26,21 @@ import math
 EARTH_RADIUS_M = 6_371_000.0
 
 
+def fabric_compass(bearing_deg: float) -> tuple[tuple[float, float], tuple[float, float]]:
+    """North and east as unit vectors in fabric coordinates: x right and y
+    DOWN the plan, as it is drawn (a map's metres are origin + frac x scale,
+    positive scales). bearing_deg (settings.fabric_bearing_deg) is the
+    compass bearing, clockwise from true north, that fabric +Y points
+    toward, so a plan drawn north-up has bearing 180: north (0, -1), the
+    top, and east (1, 0), the right. At 0, +Y is north and +X is WEST.
+
+    The same maths as views/fabric_compass.js's fabricCompass (the 3D
+    house's sun and compass, the Settings preview); a test holds the two
+    equal (tests/test_geo_bridge.py)."""
+    b = math.radians(bearing_deg)
+    return (math.sin(b), math.cos(b)), (-math.cos(b), math.sin(b))
+
+
 def metres_to_latlon(
     x_m: float,
     y_m: float,
@@ -33,17 +48,11 @@ def metres_to_latlon(
     origin_lon: float,
     bearing_deg: float = 0.0,
 ) -> tuple[float, float]:
-    """Convert a fabric (x_m, y_m) point to (latitude, longitude).
-
-    bearing_deg is the compass bearing, clockwise from true north, that the
-    fabric's own +Y axis points toward. At bearing_deg=0, +Y is true north
-    and +X is true east, so (x_m, y_m) already IS (east_m, north_m);
-    otherwise the local vector is rotated clockwise by bearing_deg to
-    recover true east/north before the metre->degree conversion.
-    """
-    theta = math.radians(bearing_deg)
-    true_east = x_m * math.cos(theta) + y_m * math.sin(theta)
-    true_north = -x_m * math.sin(theta) + y_m * math.cos(theta)
+    """Convert a fabric (x_m, y_m) point to (latitude, longitude): its
+    metres north and east (fabric_compass), then metres to degrees."""
+    north, east = fabric_compass(bearing_deg)
+    true_north = x_m * north[0] + y_m * north[1]
+    true_east = x_m * east[0] + y_m * east[1]
 
     dlat = (true_north / EARTH_RADIUS_M) * (180.0 / math.pi)
     origin_lat_rad = math.radians(origin_lat)
