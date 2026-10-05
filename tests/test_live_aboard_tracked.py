@@ -83,7 +83,15 @@ def test_the_snapshot_is_handed_over_only_while_show_people_is_on() -> None:
     assert "people: h3.settings.atlas_3d_people === true && h3.people ? h3.people : null," in mount
     maps = _js(_VIEWS / "maps.js")
     mblock = maps[maps.index("house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ?"):]
-    assert "people: { snapshot: () => ctx.state.live?.snapshot || null }," in mblock[:mblock.index("} : null,")]
+    mblock = mblock[:mblock.index("} : null,")]
+    # Mapping does not poll (panel.js _pollTick skips it): with live data the
+    # view reads the live snapshot itself, as the sidebar does; sample data
+    # stays the page's own.
+    assert "if(this.state.view === \"maps\") return;" in _js(_WWW / "panel.js")
+    assert 'people: ctx.state.dataMode === "live"' in mblock
+    assert '? { read: () => ctx.actions.wsCall("padspan_ha/live_snapshot").then((r) => (r && r.snapshot) || null),' in mblock
+    assert "everyMs: 1000 * (Number(ctx.state.settings.presence_poll_interval_s) || 5) }" in mblock
+    assert ": { snapshot: () => ctx.state.live?.snapshot || null }," in mblock
     lp = _js(_WWW / "lights_panel.js")
     block = lp[lp.index("house3d: this.state._house3d ?"):]
     block = block[:block.index("} : null,")]

@@ -38,6 +38,9 @@ const FLOWS = [["photo", "From a photo", "live_aboard_photo.js", "photoFlow"],
 // What "This is a device…" offers: what a piece of furniture can be.
 const DEVICE_DOMAINS = ["light", "media_player", "fan", "switch", "vacuum", "lawn_mower", "climate", "water_heater",
                         "humidifier", "cover", "remote", "valve", "lock", "camera", "input_boolean"];
+// A washer, dryer, car or charger often says it runs or charges only through
+// a sensor (its power, a running or charging state): those are offered too.
+const SENSOR_LIVE = ["run", "charge"], SENSOR_DOMAINS = ["sensor", "binary_sensor"];
 
 const CSS = `
 .la3d-furbar{display:contents}
@@ -288,6 +291,8 @@ export function createFurnish(ctx){
 
   // ── the current floor, its walls, doors and pieces ────────────────────────
   const floorById = (fid) => ctx.floors().find(F => F.fl.id === String(fid)) || null;
+  /** "up to" / "down to" a floor, or just "to" one on the same storey. */
+  const towards = (from, to, dir) => (from && to && Math.abs(from.fl.elev - to.fl.elev) <= 1e-3 ? "to" : dir > 0 ? "up to" : "down to");
   const ceilOf = (F) => F.fl.h - ctx.HOUSE.SLAB_T;
   const wallsOf = (F) => (F ? F.pieces.map(P => ({ ...P.pc, els: P.els })) : []);
   function sceneOf(p){
@@ -300,6 +305,17 @@ export function createFurnish(ctx){
   const nameOf = (id) => { const p = pieceOf(id); return p ? pieceName(p, FURN()).toLowerCase() : "piece"; };
 
   // ── adding ────────────────────────────────────────────────────────────────
+  /** The floor a new piece goes on: the top floor showing, or another
+   *  indoor floor on the same storey (Main and Garage) whose rooms are
+   *  under the view's centre. */
+  function addFloor(){
+    const F = ctx.topFloor();
+    if (!F) return null;
+    const [cx, cy] = ctx.centre() || [0, 0];
+    const under = (G) => G.rooms.some(r => !r.outdoor && Array.isArray(r.pts) && r.pts.length >= 3 && ctx.HOUSE.inPoly(cx, cy, r.pts));
+    if (under(F)) return F;
+    return ctx.floors().find(G => G !== F && G.group.visible && !G.fl.outdoor && Math.abs(G.fl.elev - F.fl.elev) <= 1e-3 && under(G)) || F;
+  }
   function spotHere(F){
     const [cx, cy] = ctx.centre() || [0, 0];
     return PIECES.spotFor(F ? F.rooms : [], cx, cy);
@@ -313,7 +329,7 @@ export function createFurnish(ctx){
    *  room under the view's centre unless it says where it goes; the last
    *  one selected. */
   function add(list, extra = null, what = "Added"){
-    const F = ctx.topFloor();
+    const F = addFloor();
     if (!F) { ctx.hint("Show a floor first: there is nowhere to put it.", true); return; }
     const spot = spotHere(F);
     let last = null;
@@ -386,7 +402,7 @@ export function createFurnish(ctx){
     const fn = k === "share" ? share : mods && mods[k];
     if (!fn) return;
     closeFlow();
-    const gen = flowGen, host = ctx.host() || {}, F = ctx.topFloor();
+    const gen = flowGen, host = ctx.host() || {}, F = addFloor();
     flowStop = typeof AbortController === "function" ? new AbortController() : null;
     const spot = F ? spotHere(F) : null;
     flowEl = d("div", "la3d-flow");
@@ -529,8 +545,8 @@ export function createFurnish(ctx){
     el.appendChild(turnRow);
     const F = floorById(p.floor_id), floors = ctx.floors().map(G => ({ id: G.fl.id, elev: G.fl.elev, outdoor: G.fl.outdoor }));
     const upId = PIECES.floorStep(floors, p.floor_id, 1), downId = PIECES.floorStep(floors, p.floor_id, -1);
-    const bUp = btn("Floor ▲", upId ? `Move it up to ${floorById(upId).fl.name}` : "It is on the top floor", () => toFloor(1));
-    const bDown = btn("Floor ▼", downId ? `Move it down to ${floorById(downId).fl.name}` : "It is on the bottom floor", () => toFloor(-1));
+    const bUp = btn("Floor ▲", upId ? `Move it ${towards(F, floorById(upId), 1)} ${floorById(upId).fl.name}` : "It is on the top floor", () => toFloor(1));
+    const bDown = btn("Floor ▼", downId ? `Move it ${towards(F, floorById(downId), -1)} ${floorById(downId).fl.name}` : "It is on the bottom floor", () => toFloor(-1));
     bUp.disabled = !upId; bDown.disabled = !downId;
     const floorRow = d("div", "la3d-acts");
     floorRow.append(seg(bUp, bDown), d("span", "la3d-sub", F ? `On ${F.fl.name}` : "Its floor is gone"));
@@ -642,9 +658,11 @@ export function createFurnish(ctx){
   }
   function deviceList(query){
     const host = ctx.host() || {}, states = host.states || {}, s = String(query || "").trim().toLowerCase();
+    const p = sel && pieceOf(sel), F = FURN(), def = p && F && F.FURNITURE ? F.FURNITURE[p.recipe.kind] : null;
+    const doms = def && SENSOR_LIVE.includes(def.live) ? DEVICE_DOMAINS.concat(SENSOR_DOMAINS) : DEVICE_DOMAINS;
     const out = [];
     for (const eid of Object.keys(states)) {
-      if (!DEVICE_DOMAINS.includes(eid.split(".")[0])) continue;
+      if (!doms.includes(eid.split(".")[0])) continue;
       const name = (states[eid].attributes && states[eid].attributes.friendly_name) || eid;
       if (s && !name.toLowerCase().includes(s) && !eid.includes(s)) continue;
       out.push({ eid, name });
@@ -668,13 +686,14 @@ export function createFurnish(ctx){
   function toFloor(dir){
     const p = sel && pieceOf(sel);
     if (!p) return;
+    const from = floorById(p.floor_id);
     const floors = ctx.floors().map(G => ({ id: G.fl.id, elev: G.fl.elev, outdoor: G.fl.outdoor }));
     const to = PIECES.floorStep(floors, p.floor_id, dir), F = to && floorById(to);
     if (!F) return;
     if (!edit((q) => { q.floor_id = to; q.z_m = PIECES.clampZ(q.z_m, ceilOf(F), PIECES.sizeOf(q.recipe).h); })) return;
     ctx.setTopFloor(to);                              // the view follows it, so you see where it went
     ctx.redraw();
-    ctx.hint(`Moved ${dir > 0 ? "up" : "down"} to ${F.fl.name}.`);
+    ctx.hint(`Moved ${towards(from, F, dir)} ${F.fl.name}.`);
     sheet();
   }
   function duplicate(){
@@ -705,7 +724,13 @@ export function createFurnish(ctx){
     if (!r) return null;
     const shown = ctx.layer.shown();
     const hits = r.intersectObjects(shown.map(s => s.root), true);
+    // Nothing hidden is picked: a piece behind a wall or under a floor that
+    // shows (a sofa under the bedroom upstairs), as the view's own presses.
+    const occ = [];
+    for (const F of ctx.floors()) if (F.group.visible) { if (F.tiles) occ.push(F.tiles); if (F.solid) occ.push(F.solid); }
+    const wall = occ.length ? r.intersectObjects(occ, false)[0] : null;
     for (const h of hits) {
+      if (wall && wall.distance < h.distance) return null;
       let o = h.object;
       while (o && !(o.userData && o.userData.pieceId)) o = o.parent;
       if (o && pieceOf(o.userData.pieceId)) return o.userData.pieceId;

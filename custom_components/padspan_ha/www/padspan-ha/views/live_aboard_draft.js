@@ -115,9 +115,10 @@ export function ownedOf(data){
     const m = d[s] && typeof d[s] === "object" ? d[s] : {};
     for (const k of Object.keys(m)) { const z = num(m[k] && m[k].z_m); if (z !== null) out[s][k] = { z_m: z }; }
   }
-  // A beacon's or scanner's recipe (P6), whole, so a flow can change or remove it.
+  // A beacon's or scanner's recipe (P6), whole, so a flow can change or remove
+  // it; a key that also has a height keeps both.
   const dv = obj(d.devices) ? d.devices : {};
-  for (const k of Object.keys(dv)) if (!out.devices[k] && obj(dv[k]) && obj(dv[k].recipe)) out.devices[k] = copy(dv[k]);
+  for (const k of Object.keys(dv)) if (obj(dv[k]) && obj(dv[k].recipe)) out.devices[k] = { ...copy(dv[k]), ...(out.devices[k] || {}) };
   // Furniture: each piece whole, every key kept (the server keeps what this
   // version does not know); the id is live_aboard_pieces.js PIECE_ID.
   const ps = obj(d.pieces) ? d.pieces : {};

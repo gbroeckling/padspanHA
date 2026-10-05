@@ -165,6 +165,17 @@ tryCase("file: read tolerantly, only what the editor owns", () => {
     && JSON.stringify(v.openings.bar_1) === '{"hinge":"right"}' && !v.openings.bar_2 && !v.openings.bar_3
     && !v.lights["light.a"] && JSON.stringify(v.lights["light.b"]) === '{"z_m":1.2}' && Object.keys(v.devices).length === 0, v);
 });
+// A device key with both a height and a look keeps both, so the view still
+// draws the look.
+tryCase("file: a device with a height and a look keeps both", () => {
+  const recipe = { kind: "box", params: {}, colors: ["#112233"], width_m: 0.1, depth_m: 0.1, height_m: 0.1 };
+  const v = D.ownedOf({ devices: { "sensor.both": { z_m: 1.4, recipe, library_id: null, submission_id: null },
+                                   "sensor.tall": { z_m: 0.8 }, "ble:aa": { recipe } } });
+  const both = v.devices["sensor.both"] || {};
+  check("file: a device with a height and a look keeps both",
+    both.z_m === 1.4 && both.recipe && both.recipe.kind === "box" && both.library_id === null
+    && JSON.stringify(v.devices["sensor.tall"]) === '{"z_m":0.8}' && v.devices["ble:aa"].recipe.kind === "box", v.devices);
+});
 
 // ── runs, snap, stops ───────────────────────────────────────────────────────
 tryCase("runs: a wall split by a barrier is one run; corners end it", () => {

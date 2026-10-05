@@ -88,12 +88,18 @@ export const clampZ = (z, ceil, h) => mm(clamp(num(z) ?? 0, 0, zMax(ceil, h)));
 // ── floors ───────────────────────────────────────────────────────────────────
 /** The floor above (dir 1) or below (-1) floor `fid`: the nearest by height
  *  among floors higher (lower) than it, an indoor one before an outdoor one
- *  at the same height. null at the top (bottom), or for a floor not there. */
+ *  at the same height. Indoor floors on one storey (Main and Garage) come
+ *  first, in list order, so each is reached. null at the top (bottom), or
+ *  for a floor not there. */
 export function floorStep(floors, fid, dir){
   const list = (floors || []).filter(f => f && f.id !== undefined && num(f.elev) !== null);
   const cur = list.find(f => String(f.id) === String(fid));
   if (!cur) return null;
   const s = dir < 0 ? -1 : 1;
+  if (!cur.outdoor) {
+    const same = list.filter(f => !f.outdoor && Math.abs(f.elev - cur.elev) <= 1e-3), i = same.indexOf(cur) + s;
+    if (i >= 0 && i < same.length) return String(same[i].id);
+  }
   const cands = list.filter(f => s * (f.elev - cur.elev) > 1e-3)
     .sort((a, b) => Math.abs(a.elev - cur.elev) - Math.abs(b.elev - cur.elev) || Number(!!a.outdoor) - Number(!!b.outdoor));
   return cands.length ? String(cands[0].id) : null;

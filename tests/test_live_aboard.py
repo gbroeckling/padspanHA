@@ -253,8 +253,11 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     mblock = mblock[:mblock.index("} : null,")]
     assert 'ctx.actions.wsCall("padspan_ha/settings_set", { fabric_bearing_deg: b })' in mblock
     # The fourth is P2 Furnish's: the host's connection handed to its flows
-    # (contracts §4) and "This is a device…", only on Mapping → Furnish.
-    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 4
+    # (contracts §4) and "This is a device…", only on Mapping → Furnish. The
+    # fifth is Show people's read of the live snapshot (P6): Mapping does not
+    # poll it, so the view reads it, only while Show people is on.
+    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 5
+    assert 'read: () => ctx.actions.wsCall("padspan_ha/live_snapshot")' in mblock
     assert "callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); }," in mblock
     assert 'load: () => ctx.actions.wsCall("padspan_ha/house3d_get"),' in mblock
     lm = _js(_VIEWS / "lights_map.js")

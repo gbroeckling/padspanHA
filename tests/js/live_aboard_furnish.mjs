@@ -104,7 +104,9 @@ const callWS = async (msg) => {
 const states = { "media_player.lounge_tv": { entity_id: "media_player.lounge_tv", state: "off", attributes: { friendly_name: "Lounge TV" } },
                  "light.den": { entity_id: "light.den", state: "on", attributes: { friendly_name: "Den light" } },
                  "sensor.den_temp": { entity_id: "sensor.den_temp", state: "21", attributes: { friendly_name: "Den temperature" } },
-                 "person.alice": { entity_id: "person.alice", state: "home", attributes: { friendly_name: "Alice" } } };
+                 "person.alice": { entity_id: "person.alice", state: "home", attributes: { friendly_name: "Alice" } },
+                 "sensor.washer_power": { entity_id: "sensor.washer_power", state: "350", attributes: { friendly_name: "Washer power", unit_of_measurement: "W" } },
+                 "binary_sensor.washer_running": { entity_id: "binary_sensor.washer_running", state: "on", attributes: { friendly_name: "Washer running" } } };
 // A file picked in the page, read as the browser would (Import).
 globalThis.FileReader = class {
   readAsDataURL(f){ Promise.resolve().then(() => { this.result = `data:application/octet-stream;base64,${f._b64}`; if (this.onload) this.onload(); }); }
@@ -345,6 +347,74 @@ await tryCase("survive: card rebuilds mid-edit keep the draft, the pick and the 
   check("survive: card rebuilds mid-edit keep the draft, the pick and the camera",
     before.dirty && JSON.stringify(before) === JSON.stringify(after) && ed().editing && ed().tool === "furnish", { before, after });
 });
+
+// A washer tells whether it runs through a sensor (its power, a running
+// state): "This is a device…" offers those for it, and not for a sofa.
+await tryCase("device: a washer can be linked to the sensor that says it runs", async () => {
+  if (!FURN) { check("device: a washer can be linked to the sensor that says it runs", true); return; }
+  click("Build ▾", "la3d-tools");
+  click("Washer", "la3d-furmenu");
+  await settle();
+  const washer = fur().sel;
+  click("This is a device…", "la3d-sheet"); await settle();
+  const list = root().querySelectorAll(".la3d-ents")[0].querySelectorAll("button").map(b => b.textContent);
+  click("Cancel", "la3d-sheet"); await settle();
+  click("Undo", "la3d-tools"); await settle();
+  check("device: a washer can be linked to the sensor that says it runs",
+    draftPieces()[washer] === undefined && list.some(t => /Washer power/.test(t)) && list.some(t => /Washer running/.test(t)),
+    { washer, list });
+});
+
+// With every floor showing, the sofa in Living is under the Loft's floor: a
+// press there is on the Loft, not on the sofa, and a drag pans.
+await tryCase("drag: a piece hidden under the floor above is not picked; a press there pans", async () => {
+  const press = (a) => { fire("pointerdown", a[0], a[1]); fire("pointerup", a[0], a[1]); };
+  slot._furnish().select(null); await settle();
+  topIds = new Set(["main"]); poll(); await settle();
+  slot._look(0.8, 0.3, [2.2, 0, 4], 18);              // steeply down: the Loft is between the eye and the sofa
+  const a = slot._wherePiece(sofa, 0.05);
+  press(a); await settle();
+  const seen = fur().sel;
+  slot._furnish().select(null); await settle();
+  topIds = null; poll(); await settle();
+  slot._look(0.8, 0.3, [2.2, 0, 4], 18);
+  const before = clone(draftPieces()[sofa]), b = slot._wherePiece(sofa, 0.05);
+  press(b); await settle();
+  const hidden = fur().sel;
+  drag(b, [b[0] + 60, b[1] + 40]); await settle();
+  const after = clone(draftPieces()[sofa]);
+  topIds = new Set(["main"]); poll(); await settle();
+  slot._furnish().select(sofa); await settle();
+  check("drag: a piece hidden under the floor above is not picked; a press there pans",
+    seen === sofa && hidden !== sofa && after.x_m === before.x_m && after.y_m === before.y_m,
+    { seen, hidden, a, b, before: [before.x_m, before.y_m], after: [after.x_m, after.y_m] });
+});
+
+// Main and Garage on one storey share a height: Build puts a piece on the
+// one under the view's centre, and Floor ▲/▼ reach both.
+await tryCase("add: with two floors at the same height, on the one under the view's centre; ▲/▼ reach both", async () => {
+  MODEL.floors.splice(2, 0, { id: "garage", name: "Garage", base_elevation_m: 2.8 });
+  MODEL.room_geometry_m.Garage = rect("garage", 10.2, 0, 15, 8);
+  topIds = new Set(["main"]); poll(); await settle(20);
+  slot._look(0.8, 0.9, [12.6, 0, 4], 18);             // looking at the garage
+  click("Build ▾", "la3d-tools");
+  click(FURN ? "Sofa" : "Box", "la3d-furmenu");
+  await settle();
+  const id = fur().sel, p = clone(draftPieces()[id] || {});
+  const steps = [];
+  for (const b of ["Floor ▲", "Floor ▼", "Floor ▲"]) { click(b, "la3d-sheet"); await settle(20); steps.push(draftPieces()[id].floor_id); }
+  const text = sheetText(), hint = ed().hint;
+  for (let i = 0; i < 4; i++) { click("Undo", "la3d-tools"); await settle(); }
+  const gone = !draftPieces()[id];
+  MODEL.floors.splice(2, 1);
+  delete MODEL.room_geometry_m.Garage;
+  topIds = new Set(["main"]); poll(); await settle(20);
+  slot._furnish().select(sofa); await settle();
+  check("add: with two floors at the same height, on the one under the view's centre; ▲/▼ reach both",
+    p.floor_id === "garage" && near(p.x_m, 12.6, 1e-3) && near(p.y_m, 4, 1e-3) && JSON.stringify(steps) === '["upper","main","garage"]'
+    && /On Garage/.test(text) && hint === "Moved to Garage." && gone, { p: { floor_id: p.floor_id, x_m: p.x_m, y_m: p.y_m }, steps, text, hint, gone });
+});
+
 
 // ── share ───────────────────────────────────────────────────────────────────
 const LIVE = !!(LIB && LIB.LIBRARY_SERVER_LIVE);
