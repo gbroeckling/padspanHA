@@ -171,6 +171,7 @@ const CSS = `
 .la3d .la3d-fb,.la3d-menu .la3d-fb{display:inline-flex;align-items:center;justify-content:center;flex:none;box-sizing:border-box;
   min-width:18px;height:18px;padding:0 4px;border-radius:9px;font:700 11px/1 system-ui,"Segoe UI",Roboto,sans-serif;color:#071008}
 .la3d-menu .la3d-fb{margin-right:7px;vertical-align:1px}
+.la3d.la3d-narrow .la3d-floor .la3d-fname:has(.la3d-fb) .la3d-fn{display:none}
 .la3d-corner{all:unset;box-sizing:border-box;position:absolute;left:12px;bottom:12px;z-index:4;display:inline-flex;align-items:center;gap:6px;
   padding:5px 12px;border-radius:999px;background:rgba(6,14,9,.5);color:#f0fdf4;font-size:12.5px;font-weight:600;cursor:pointer;
   opacity:0;visibility:hidden;pointer-events:none}
@@ -1221,7 +1222,8 @@ function createSlot(slotKey){
     c.width = Math.ceil(tw) + 28; c.height = px + 24;
     g.font = font;
     g.textBaseline = "middle"; g.lineJoin = "round";
-    g.lineWidth = 10; g.strokeStyle = A.nameEdge; g.fillStyle = "#" + colorOf(col).getHexString();
+    const fill = "#" + colorOf(col).getHexString();
+    g.lineWidth = 10; g.strokeStyle = A.nameEdge; g.fillStyle = fill;
     const y = c.height / 2 + 2;
     if (!sp) { g.textAlign = "center"; g.strokeText(word, c.width / 2, y); g.fillText(word, c.width / 2, y); }
     else {
@@ -1232,7 +1234,7 @@ function createSlot(slotKey){
       }
     }
     const sprite = labelOf(c, px, ext, A.nameOp);
-    sprite.userData.text = word; sprite.userData.color = g.fillStyle;
+    sprite.userData.text = word; sprite.userData.color = fill;
     return sprite;
   }
   function labelOf(c, px, ext, op){

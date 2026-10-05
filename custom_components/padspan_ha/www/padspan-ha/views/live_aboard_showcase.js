@@ -104,18 +104,18 @@ export function atlasLook(a){
     : PLAIN_ROOMS;
   const light = lightness(page.bg) > 0.5;
   const sideOf = (s, d) => (s && typeof s === "object" ? { fill: colour(s.fill, d), op: clamp(num(s.fillOpacity, 0.3), 0, 1) } : { fill: d, op: 0.3 });
-  const front = sideOf(t.slabSideFront, "#0a1a12"), top = sideOf(t.slabSideTop, "#0d2318");
+  const front = sideOf(t.slabSideFront, "#0a1a12");
   return Object.freeze({
     key: on ? `atlas:${key}` : "atlas:plain", on, theme: on ? key : "classic", page, light, ...r,
     // A floor: where the flat plates sit (the vignette's centre; Showcase
     // off, the ground lifted a little), its room colour mixed in.
     floor: on && vg.length ? stop(vg[0], FLOOR_K) : mixHex("#ffffff", page.ground, 0.05),
-    floorMix: clamp(r.fillOpacity * 1.2 + 0.06, 0.14, 0.3),
+    floorMix: clamp(r.fillOpacity + 0.05, 0.14, 0.3),
     lineOp: clamp(0.4 + r.strokeOpacity * 0.6, 0.55, 1), lineW: clamp(0.055 * r.strokeWidth, 0.05, 0.1),
     nameOp: clamp(0.6 + r.labelOpacity * 0.45, 0.8, 1), nameEdge: NAME_EDGE,
     // The slab's edge: the theme's front face over the page, as the flat
     // drawing lays it, kept visible.
-    side: mixHex(front.fill, page.bg, Math.max(front.op, 0.6)), sideTop: mixHex(top.fill, page.bg, Math.max(top.op, 0.6)),
+    side: mixHex(front.fill, page.bg, Math.max(front.op, 0.6)),
     // The code chip's face (codeChipBg, at its strength), its digits edged dark.
     chipBg: colour(t.codeChipBg, "#050d09"), chipOp: clamp(num(t.codeChipBgOpacity, 0.72), 0.5, 1), chipEdge: "#050d09",
   });
