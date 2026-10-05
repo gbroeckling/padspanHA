@@ -270,5 +270,26 @@ await tryCase("safety: covering the panel, the Vacation banner and the emergency
   await settle();
 });
 
+await tryCase("safety: with the emergency dial in the cover's corner, ☰ sits under it, never beneath it", async () => {
+  const dial = document.createElement("div");
+  dial.className = "lv-emerg";
+  shadow.appendChild(dial);                                // in the panel, as the Atlas puts it
+  const slot = await view("ol-dial", { look3d: "atlas", atlasLook: AT("hygge") });
+  const cssOf = () => slot.element.querySelectorAll("style").map(s => s.textContent).join(String.fromCharCode(10));
+  const cv = slot.element.querySelector("canvas");
+  const ev = (type, x, y, extra = {}) => ({ type, button: 0, pointerType: "mouse", pointerId: 1, clientX: x, clientY: y, deltaMode: 0,
+    stopPropagation() {}, preventDefault() {}, composedPath: () => [], ...extra });
+  for (let i = 0; i < 3; i++) cv.dispatchEvent(ev("wheel", 400, 300, { deltaY: -160 }));
+  await settle();
+  const during = cssOf(), solo = /\.la3d \.la3d-solo\{top:(\d+)px\}/.exec(during), emerg = /\.lv-emerg\{position:fixed;z-index:\d+;top:(\d+)px/.exec(during);
+  for (const fn of [...(lists.window.keydown || [])]) fn({ type: "keydown", key: "Escape" });
+  await settle();
+  dial.remove();
+  check("safety: with the emergency dial in the cover's corner, ☰ sits under it, never beneath it",
+    S(slot).screen && solo && emerg && Number(solo[1]) >= Number(emerg[1]) + 72, { solo: solo && solo[0], emerg: emerg && emerg[0] });
+  LA.releaseLiveAboardSlot("ol-dial");
+  await settle();
+});
+
 console.log(JSON.stringify({ cases, failures }));
 process.exit(failures.length ? 1 : 0);

@@ -229,8 +229,13 @@ const CSS_SHOWING = `.lv-legend{display:none}`;
 // Covering the panel (the map alone, full screen): the Vacation banner and
 // the emergency lighting dial stay on top, the dial in the cover's corner.
 const COVER_TOP_Z = COVER_Z + 1;
-const coverCss = (c) => `.lv-vacation{z-index:${COVER_TOP_Z}}
-.lv-emerg{position:fixed;z-index:${COVER_TOP_Z};top:${Math.round(c.top + 14)}px;right:${Math.round(Math.max(0, (window.innerWidth || 0) - c.left - c.width) + 14)}px}`;
+// With the dial in the corner, ☰ (bring the bars back) sits under it, never
+// beneath it: a tap meant for ☰ must not open, or start, the emergency test.
+const DIAL_CLEAR = 14 + 72 + 12;
+const coverCss = (c, dial) => `.lv-vacation{z-index:${COVER_TOP_Z}}
+.lv-emerg{position:fixed;z-index:${COVER_TOP_Z};top:${Math.round(c.top + 14)}px;right:${Math.round(Math.max(0, (window.innerWidth || 0) - c.left - c.width) + 14)}px}${
+  dial ? `
+.la3d .la3d-solo{top:${DIAL_CLEAR}px}` : ""}`;
 const CSS_PANEL = `.lv-hero > .lv-hint{display:none}
 @media (max-width:600px){.lv-emerg-label.on{max-width:32px;width:32px;padding:0;justify-content:center}
   .lv-emerg-label.on .lv-emerg-label-tx{display:none}.lv-emerg-label.on .lv-emerg-label-ic{display:inline-flex}}`;
@@ -676,7 +681,8 @@ function createSlot(slotKey){
     if (!cover) return;
     const c = coverRect();
     Object.assign(root.style, { left: `${c.left}px`, top: `${c.top}px`, width: `${c.width}px`, height: `${c.height}px` });
-    if (coverStyle) coverStyle.textContent = coverCss(c);
+    const rn = root.getRootNode ? root.getRootNode() : null, scope = rn && rn.querySelector ? rn : document;
+    if (coverStyle) coverStyle.textContent = coverCss(c, !!scope.querySelector(".lv-emerg"));
   }
   const COVER_KEYS = ["position", "margin", "borderRadius", "border", "zIndex", "maxWidth", "left", "top", "width", "height"];
   function paintCover(){
